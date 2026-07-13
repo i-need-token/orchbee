@@ -1,0 +1,90 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react", "import"],
+  "jsPlugins": [{ "name": "orchbee", "specifier": "./scripts/oxlint-plugin-orchbee/index.js" }],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/no-empty-object-type": "error",
+    "typescript/no-empty-interface": "off",
+    "typescript/no-unsafe-function-type": "error",
+    "typescript/no-wrapper-object-types": "error",
+    "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
+    "typescript/no-non-null-assertion": "error",
+    "typescript/ban-ts-comment": [
+      "error",
+      { "ts-ignore": true, "ts-expect-error": true, "ts-nocheck": true }
+    ],
+    "typescript/explicit-module-boundary-types": "error",
+    "typescript/no-require-imports": "error",
+    "typescript/no-namespace": "error",
+    "typescript/prefer-as-const": "error",
+    "typescript/no-inferrable-types": "warn",
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-unnecessary-type-assertion": "warn",
+
+    "eqeqeq": "error",
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "error",
+    "no-shadow": "error",
+    "no-var": "error",
+    "prefer-const": "warn",
+    "no-console": "warn",
+
+    "import/no-default-export": "error",
+    "import/no-cycle": "error",
+    "import/no-self-import": "error",
+    "import/no-duplicates": "error",
+
+    "unicorn/no-nested-ternary": "error",
+
+    "react/jsx-key": "error",
+    "react/jsx-no-target-blank": "error",
+    "react/no-danger": "error",
+    "react/rules-of-hooks": "error",
+
+    "orchbee/filename-naming-convention": "error",
+    "orchbee/no-cross-workspace-source-imports": "error",
+    "orchbee/no-inline-suppressions": "error",
+    "orchbee/require-unit-test": "error"
+  },
+  "ignorePatterns": ["dist/**", "out/**", "node_modules/**", "*.min.js"],
+  "overrides": [
+    {
+      "files": [
+        "**/*.config.ts",
+        "**/*.config.mts",
+        "**/*.config.mjs",
+        "scripts/oxlint-plugin-*/**/*.js"
+      ],
+      "rules": {
+        "import/no-default-export": "off"
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+      "plugins": ["typescript", "vitest"],
+      "rules": {
+        "typescript/consistent-type-assertions": "off",
+        "typescript/ban-ts-comment": [
+          "error",
+          {
+            "ts-ignore": true,
+            "ts-expect-error": "allow-with-description",
+            "ts-nocheck": true,
+            "minimumDescriptionLength": 10
+          }
+        ],
+        "typescript/explicit-module-boundary-types": "off",
+        "vitest/no-disabled-tests": "error",
+        "vitest/no-focused-tests": "error",
+        "vitest/no-identical-title": "error"
+      }
+    }
+  ]
+}

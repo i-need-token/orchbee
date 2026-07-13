@@ -9,7 +9,8 @@
     "format:check": "oxfmt --check .",
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r build",
-    "test": "pnpm -r test"
+    "test": "pnpm test:lint-rules && pnpm -r test",
+    "test:lint-rules": "vitest run --config scripts/oxlint-plugin-orchbee/vitest.config.ts"
   },
   "dependencies": {
     "zod": "catalog:"
