@@ -1,0 +1,18 @@
+node_modules/
+dist/
+out/
+dogfood-output/
+.DS_Store
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# oxlint
+.oxlintcache
+.claude
+
+# Local wasm-terminal dogfood
+/packages/wasm-terminal/demo/
+/packages/wasm-terminal/test/
