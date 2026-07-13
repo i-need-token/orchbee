@@ -1,0 +1,98 @@
+<div align="center">
+
+<img src="resources/icon.svg" alt="" align="center" height="64" />
+
+# Orchbee
+
+**一个运行和编排 AI Agent 的现代终端——跨桌面端、Web 端和移动端。**
+
+[![License](https://img.shields.io/badge/License-TBD-blue?style=flat-square)]() [![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org) [![Electron](https://img.shields.io/badge/Electron-47848C?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org) [![Node.js](https://img.shields.io/badge/Node.js->=22-3c873a?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
+
+[English](README.md) · 中文
+
+[核心特性](#核心特性) · [安装](#安装) · [技术栈](#技术栈) · [社区](#社区)
+
+<!-- TODO: 添加主界面截图/GIF，展示分屏面板和 Agent 运行效果 -->
+
+</div>
+
+---
+
+Orchbee 是为 AI Agent 时代打造的终端原生环境。它支持以你熟悉的方式运行 Claude Code、Codex、OpenCode、Pi 等 CLI Agent，并赋予它们一项自身不具备的能力：**协同工作**。
+
+Orchbee 将彼此孤立的终端面板变成管理整个 AI Agent 军团的指挥中心。借助原生互操作 CLI，Agent 可以 prompt 其他 Agent、按需拉起新的 Agent、分派任务并协调工作。
+
+会话持续运行，状态在桌面端、Web 端和移动端之间保持同步。从电脑切换到手机后，你仍可继续控制同一批 Agent，无需重新开始。
+
+名字由 **orch**estrator（编排者）和 **bee**（蜜蜂）组合而来，寓意独立个体协同如一。
+
+> [!NOTE]
+> Orchbee 不替代你现有的 CLI Agent，而是提供让它们协同工作的终端环境。它让你的角色从 **human-in-the-loop** 转向 **human-on-the-loop**：不再亲自推动每一步，而是监督整个系统，并在必要时介入。
+
+## 核心特性
+
+### 高性能终端
+
+<!-- TODO: 添加 GIF 展示大量输出（如构建日志、大型 git diff）下的流畅渲染 -->
+
+Orchbee 通过 WebAssembly 将 Ghostty 的 VT 引擎带到浏览器，并结合 GPU 加速渲染器，在 Web 端提供由 Ghostty 驱动、接近原生的终端体验。
+
+### Agent 间协作
+
+<!-- TODO: 添加 GIF，展示一个 Agent 拉起另一个 Agent、分派任务并接收结果 -->
+
+不再逐个盯着彼此孤立的终端。Agent 可以 prompt 和拉起其他 Agent、读取彼此的输出、跨终端发送命令、分派任务并协同推进；你只需在一个地方掌握全局。
+
+### 从任意设备控制 Agent
+
+<!-- TODO: 添加 GIF，展示运行中的会话在桌面端、Web 端和移动端之间无中断切换 -->
+
+在桌面端启动 Agent，通过 Web 查看进度，再用手机随时接管。会话持续运行并在设备间保持同步；两台桌面客户端还可直接连接，无需云端中转。
+
+### 集群计算
+
+<!-- TODO: 添加示意图，展示 Primary 节点通过多个 Worker 节点扩展能力 -->
+
+当本机资源不足时，可将额外的机器注册为 Worker 节点，为 Agent 集群扩展算力、存储和运行环境。Worker 作为本机能力的延伸，Agent 无需改变原有使用方式。
+
+### 让 Agent 直接使用浏览器
+
+<!-- TODO: 添加 GIF，展示 Agent 启动浏览器、检查页面并验证 UI 变更 -->
+
+Agent 可以直接从终端启动和控制浏览器、检查页面、截图并验证 UI 变更，无需安装浏览器扩展或手动配置 CDP。
+
+## 安装
+
+> [!IMPORTANT]
+> Orchbee 正处于积极开发的早期阶段，暂未提供预编译应用；当前源码主要面向贡献者。
+
+<details>
+<summary>从源码构建并验证</summary>
+
+**前置条件：** Node.js >=22、Corepack、Git
+
+```bash
+git clone https://github.com/orchbee/orchbee.git
+cd orchbee
+corepack enable
+pnpm install
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+</details>
+
+## 技术栈
+
+- **Electron** — 桌面应用外壳
+- **React** — 桌面端与 Web 端界面
+- **TypeScript** — 应用与共享包代码
+- **Node.js** — 进程、PTY 与会话管理
+- **Ghostty VT + WebAssembly** — 终端模拟
+- **WebGPU** — GPU 加速终端渲染
+
+## 社区
+
+- [Discord](https://discord.gg/orchbee) — 产品讨论与社区交流
+- [GitHub Issues](https://github.com/orchbee/orchbee/issues) — Bug 报告与功能请求
