@@ -21,11 +21,9 @@ apps/* -> packages/* -> external dependencies
 
 Source trees use hierarchical visibility and explicit `index.ts` entry points. The authoritative visibility, re-export, test, composition, and cycle rules live in [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md) and are enforced by `orchbee/module-boundaries` plus `import/no-cycle`.
 
-## Current modules
+## Project registry
 
-| Module              | Responsibility                                                              | Public boundary                  |
-| ------------------- | --------------------------------------------------------------------------- | -------------------------------- |
-| `@orchbee/terminal` | Terminal parsing, rendering, input, selection, and browser host integration | `packages/terminal/src/index.ts` |
+Every workspace declares its domain, responsibility, non-goals, runtime, and stability in a schema-backed `project.json`. [`docs/PROJECTS.md`](PROJECTS.md) is the authoritative contract; `pnpm lint:projects` verifies the registry without growing this overview into a manually maintained project catalog.
 
 ## Data boundaries
 

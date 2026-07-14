@@ -2,6 +2,10 @@
 
 Ghostty's VT engine compiled to WebAssembly, exposed through an xterm-compatible browser API and rendered with WebGPU.
 
+## Scope
+
+This package owns terminal parsing, rendering, input, selection, and browser host integration. It does not own application PTY processes, session transport, Electron menus, clipboard permissions, paste dialogs, or external navigation. The machine-readable scope contract lives in [`project.json`](project.json).
+
 ## Install
 
 ```sh
@@ -135,7 +139,9 @@ Current Ghostty alignment and remaining gaps are tracked in [Ghostty Terminal Pa
 ```sh
 pnpm --filter @orchbee/terminal build
 pnpm --filter @orchbee/terminal test
-pnpm audit:ghostty-panel
+pnpm --filter @orchbee/terminal test:exports
+pnpm audit:ghostty-panel # Requires ../ghostty or GHOSTTY_SOURCE.
+pnpm verify
 ```
 
 The Rslib build emits ESM, CommonJS, TypeScript declarations, and source maps under `dist/`.

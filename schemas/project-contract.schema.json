@@ -1,0 +1,40 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"$schema": {
+			"type": "string",
+			"minLength": 1
+		},
+		"domain": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+		},
+		"runtime": {
+			"minItems": 1,
+			"type": "array",
+			"items": {
+				"type": "string",
+				"enum": ["browser", "electron", "node", "universal"]
+			}
+		},
+		"stability": {
+			"type": "string",
+			"enum": ["experimental", "stable", "deprecated"]
+		},
+		"responsibility": {
+			"type": "string",
+			"minLength": 20
+		},
+		"nonGoals": {
+			"minItems": 1,
+			"type": "array",
+			"items": {
+				"type": "string",
+				"minLength": 10
+			}
+		}
+	},
+	"required": ["$schema", "domain", "runtime", "stability", "responsibility", "nonGoals"],
+	"additionalProperties": false
+}

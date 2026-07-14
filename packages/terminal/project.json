@@ -1,0 +1,11 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "terminal",
+	"runtime": ["browser"],
+	"stability": "experimental",
+	"responsibility": "Terminal parsing, rendering, input, selection, and browser host integration.",
+	"nonGoals": [
+		"Owning application PTY processes or session transport.",
+		"Owning Electron menus, clipboard permissions, paste dialogs, or external navigation."
+	]
+}

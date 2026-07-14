@@ -62,6 +62,20 @@ function explicitlyEnabledRules(): readonly string[] {
 	];
 }
 
+function documentedEnforcedRules(): readonly string[] {
+	return [
+		...new Set(
+			collectFiles(DOCS_ROOT, '.md').flatMap((file) => {
+				const documentation = readFileSync(file, 'utf8');
+				return Array.from(
+					documentation.matchAll(/^- `([a-z][a-z0-9-]*\/[a-z0-9-]+)`:/gm),
+					(match) => match[1] ?? '',
+				);
+			}),
+		),
+	];
+}
+
 function diagnosticAuthorities(): Readonly<Record<string, string>> {
 	return Object.fromEntries(
 		Object.keys(orchbeePlugin.rules).map((rule) => {
@@ -111,6 +125,15 @@ describe('lint-doc contract', () => {
 		);
 
 		expect(undocumentedRules).toEqual([]);
+	});
+
+	it('enables every rule documented as enforced', () => {
+		const enabledRules = new Set(explicitlyEnabledRules());
+		const disabledDocumentedRules = documentedEnforcedRules().filter(
+			(rule) => !enabledRules.has(rule),
+		);
+
+		expect(disabledDocumentedRules).toEqual([]);
 	});
 
 	it('keeps custom plugin exports, config, and ownership docs synchronized', () => {

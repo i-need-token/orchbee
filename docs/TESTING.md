@@ -8,6 +8,8 @@
 
 - `orchbee/require-unit-test`: Every `.ts` or `.tsx` source file containing a top-level function, function expression, arrow function, or class must have its corresponding unit-test file.
 
+The sibling-file rule is a minimum discoverability requirement, not evidence of behavioral coverage. Tests exercise observable outcomes, failure paths, and owned invariants; a placeholder test or a test that only repeats implementation details does not satisfy the project contract.
+
 ## Test execution
 
 - `vitest/expect-expect`: Every test must contain an assertion.
@@ -36,3 +38,7 @@ acceptsOnlyStrings(1);
 ## Regression coverage
 
 Every bug fix adds a test that fails before the fix and passes after it.
+
+## Package contracts
+
+Library packages run `test:exports` after `build` to verify their packed public surface, both JavaScript module formats, and a strict external TypeScript consumer. Cross-package behavior belongs in consumer-facing contract tests rather than tests that import another package's private source.

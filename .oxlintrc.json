@@ -47,6 +47,7 @@
     "react/jsx-no-target-blank": "error",
     "react/no-danger": "error",
     "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
 
     "orchbee/filename-naming-convention": "error",
     "orchbee/module-boundaries": "error",
@@ -83,6 +84,7 @@
         ],
         "typescript/explicit-module-boundary-types": "off",
         "vitest/no-disabled-tests": "error",
+        "vitest/expect-expect": "error",
         "vitest/no-focused-tests": "error",
         "vitest/no-identical-title": "error"
       }

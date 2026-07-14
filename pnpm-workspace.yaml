@@ -9,3 +9,7 @@ catalogs:
     typescript: ^7.0.2
     vitest: ^4.1.10
     zod: ^4.4.3
+
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false

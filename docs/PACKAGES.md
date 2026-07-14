@@ -6,7 +6,7 @@
 - Keep application-specific code under that application's `src` tree until a package boundary has a concrete consumer.
 - Treat every runtime package under `packages/*` as a library package. Library packages use Rslib and expose built artifacts; consumers never compile another package's source.
 - Set `"private": true` on workspace-only libraries. A package intended for npm publication omits `private` and must include a version, `"publishConfig": { "access": "public" }`, a package README, license metadata once the project license is selected, and a `files` allowlist.
-- Record every package's responsibility and public boundary in [`docs/ARCHITECTURE.md`](ARCHITECTURE.md#current-modules).
+- Declare every package's responsibility, non-goals, runtime, and stability in its schema-backed `project.json` according to [`docs/PROJECTS.md`](PROJECTS.md).
 
 Repository-only scripts and application entry points are not library packages and do not belong under `packages/*`.
 
@@ -37,18 +37,20 @@ Every library package contains these files:
 | `rslib.config.ts` | ESM, CJS, declarations, and runtime target          |
 | `tsconfig.json`   | Package type-checking contract                      |
 | `README.md`       | Consumer-facing installation and public API         |
+| `project.json`    | Machine-readable scope and responsibility           |
 
 Tests remain next to their source area according to [`docs/TESTING.md`](TESTING.md#source-and-test-paths). Generated build output belongs in `dist/` and is never committed.
 
 Every library exposes these scripts:
 
-| Script       | Command or responsibility       |
-| ------------ | ------------------------------- |
-| `build`      | `rslib build`                   |
-| `dev`        | `rslib build --watch`           |
-| `typecheck`  | `tsc --noEmit`                  |
-| `test`       | Run the package test suite once |
-| `test:watch` | Run package tests in watch mode |
+| Script         | Command or responsibility                                                        |
+| -------------- | -------------------------------------------------------------------------------- |
+| `build`        | `rslib build`                                                                    |
+| `dev`          | `rslib build --watch`                                                            |
+| `typecheck`    | `tsc --noEmit`                                                                   |
+| `test`         | Run the package test suite once                                                  |
+| `test:watch`   | Run package tests in watch mode                                                  |
+| `test:exports` | Verify packed exports, ESM/CJS parity, and declaration consumption after a build |
 
 ## Public API and package exports
 
@@ -131,7 +133,7 @@ export default defineConfig({
 
 When declarations contain relative imports, enable `redirect.dts.extension` on the declaration-producing output so extensionless TypeScript source emits Node-compatible declaration specifiers.
 
-After changing a manifest or build configuration, run the package build and verify that both `import()` and `require()` resolve through `package.json#exports`.
+After changing a manifest or build configuration, run the package build and `test:exports`. The repository checker verifies that every export target is included by `npm pack`, root ESM and CJS exports match, and a strict external TypeScript consumer can resolve the root declaration entry.
 
 ## Dependency declarations
 
@@ -145,6 +147,7 @@ After changing a manifest or build configuration, run the package build and veri
 - Put shared toolchain versions such as `@rslib/core`, TypeScript, and Vitest in the pnpm default catalog and reference them with `catalog:`.
 - Keep production dependency ranges bounded to compatible versions and update the lockfile in the same change.
 - Set `sideEffects: false` only after confirming the package has no import-time global registration, stylesheet import, polyfill, or other observable side effect. Use an explicit side-effect file list when only selected entry points have effects.
+- `pnpm-workspace.yaml#minimumReleaseAge`: Require registry releases to mature for at least one day before resolution. Keep strict mode enabled and add only exact-version, reviewed exceptions.
 
 ## Versioning
 
@@ -161,6 +164,8 @@ Orchbee packages follow Semantic Versioning with a Babel-style shared release li
 
 Renaming a published package creates a new package identity. Deprecate the old npm package with a migration message instead of publishing unrelated code under the old name.
 
+The repository does not automate package publication yet. Add release planning and compatibility tooling before the first npm publication, when there is a real release pipeline and consumer contract to protect.
+
 ## Verification and review
 
 Before merging a package change:
@@ -168,9 +173,9 @@ Before merging a package change:
 1. Confirm the name and responsibility remain specific and non-overlapping.
 2. Review `src/index.ts` and `package.json#exports` as public API changes.
 3. Run `pnpm --filter <package-name> typecheck` and `pnpm --filter <package-name> test`.
-4. Run `pnpm --filter <package-name> build` and smoke-test both ESM and CJS exports.
-5. Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` from the repository root.
-6. Update the package README, architecture table, and affected engineering docs in the same change.
+4. Run `pnpm --filter <package-name> build` and `pnpm --filter <package-name> test:exports`.
+5. Run `pnpm verify` from the repository root.
+6. Update `project.json`, the package README, and affected engineering docs in the same change.
 
 ## External references
 
@@ -181,3 +186,4 @@ Verified on 2026-07-14:
 - [Rslib dependency externalization](https://rslib.rs/config/lib/auto-external)
 - [Babel fixed-version release explanation](https://babeljs.io/docs/faq#why-isnt-a-certain-babel-x-package-updated)
 - [Semantic Versioning 2.0.0](https://semver.org/)
+- [pnpm minimum release age](https://pnpm.io/settings#minimumreleaseage)

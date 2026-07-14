@@ -3,9 +3,11 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"lint": "pnpm lint:code && pnpm lint:dependencies",
+		"verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:exports",
+		"lint": "pnpm lint:code && pnpm lint:dependencies && pnpm lint:projects",
 		"lint:code": "oxlint .",
 		"lint:dependencies": "knip --strict",
+		"lint:projects": "node scripts/check-project-contracts.mjs",
 		"lint:fix": "oxlint --fix .",
 		"format": "oxfmt --write .",
 		"format:check": "oxfmt --check .",
@@ -13,20 +15,20 @@
 		"build": "pnpm -r build",
 		"test": "pnpm test:lint-rules && pnpm -r test",
 		"test:lint-rules": "vitest run --config scripts/oxlint-plugin-orchbee/vitest.config.ts",
+		"test:exports": "pnpm -r --if-present test:exports",
 		"audit:ghostty-panel": "node scripts/check-ghostty-panel-manifest.mjs && node scripts/generate-ghostty-nerd-font-constraints.mjs --check",
 		"generate:ghostty-panel-data": "node scripts/generate-ghostty-nerd-font-constraints.mjs"
-	},
-	"dependencies": {
-		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"knip": "catalog:",
 		"oxfmt": "^0.58.0",
 		"oxlint": "^1.73.0",
 		"typescript": "catalog:",
-		"vitest": "catalog:"
+		"vitest": "catalog:",
+		"zod": "catalog:"
 	},
 	"engines": {
 		"node": ">=22"
-	}
+	},
+	"packageManager": "pnpm@11.11.0"
 }

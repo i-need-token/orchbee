@@ -9,8 +9,7 @@
 				"scripts/oxlint-plugin-orchbee/vitest.config.ts",
 				"vitest.config.ts"
 			],
-			"project": ["scripts/**/*.{js,mjs,ts}", "*.{js,mjs,ts}"],
-			"ignoreDependencies": ["zod"]
+			"project": ["scripts/**/*.{js,mjs,ts}", "*.{js,mjs,ts}"]
 		},
 		"packages/*": {
 			"entry": [

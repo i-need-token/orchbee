@@ -19,9 +19,11 @@
 - **Architecture**: `docs/ARCHITECTURE.md` — system architecture, dependency direction, data flow
 - **Module Boundaries**: `docs/MODULE-BOUNDARIES.md` — source-tree visibility, entry points, composition, and cycles
 - **Packages**: `docs/PACKAGES.md` — package naming, exports, builds, dependencies, and versioning
+- **Projects**: `docs/PROJECTS.md` — machine-readable workspace scope and responsibility contracts
 - **Code Style**: `docs/CODESTYLE.md` — comments, naming, file structure conventions
 - **Documentation**: `docs/DOCUMENTATION.md` — read before adding, moving, or restructuring docs or changing documented engineering contracts
 - **Linting**: `docs/LINTING.md` — commands, enforcement boundary, and custom-rule ownership
+- **Verification**: `docs/VERIFICATION.md` — the canonical local and CI quality gate
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
 - **Testing**: `docs/TESTING.md` — test layout, execution, and regression requirements
 
@@ -33,6 +35,7 @@ packages/       # Shared libraries (core, bridge, etc.)
 docs/           # Detailed specs and guides
 research/       # Time-bounded investigations; never an authoritative source
 prompts/        # Task specifications for AI-driven work
+schemas/        # Machine-readable repository contract schemas
 ```
 
 ## Tech Stack
