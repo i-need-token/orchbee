@@ -155,6 +155,38 @@ describe("GhosttySelectionController", () => {
     }
   });
 
+  it("uses semantic output for the modifier-assisted triple-click behavior", () => {
+    const terminal = createTerminal(20, 8);
+    const selection = createController(bridge, terminal);
+    const press = {
+      column: 2,
+      row: 1,
+      surfaceX: 20,
+      surfaceY: 24,
+      timeNs: 1_000_000_000n,
+      repeatDistance: 8,
+      repeatIntervalNs: 500_000_000n,
+      selectOutput: true,
+    };
+    try {
+      terminal.write(
+        "\x1b]133;A\x07$ \x1b]133;B\x07printf hi\r\n" +
+          "\x1b]133;C\x07first\r\nsecond\r\n\x1b]133;D;0\x07" +
+          "\x1b]133;A\x07$ ",
+      );
+
+      expect(selection.pressGesture(press)).toBe(true);
+      expect(selection.releaseGesture(2, 1)).toBe(true);
+      expect(selection.pressGesture({ ...press, timeNs: press.timeNs + 100_000_000n })).toBe(true);
+      expect(selection.releaseGesture(2, 1)).toBe(true);
+      expect(selection.pressGesture({ ...press, timeNs: press.timeNs + 200_000_000n })).toBe(true);
+      expect(selection.getSelection()).toBe("first\nsecond");
+    } finally {
+      selection.dispose();
+      terminal.dispose();
+    }
+  });
+
   it("preserves rectangular selection metadata", () => {
     const terminal = createTerminal(10, 3);
     const selection = createController(bridge, terminal);
@@ -167,6 +199,57 @@ describe("GhosttySelectionController", () => {
         rectangle: true,
       });
       expect(selection.getSelection()).toBe("bcd\n234");
+    } finally {
+      selection.dispose();
+      terminal.dispose();
+    }
+  });
+
+  it("exposes Ghostty's autoscroll decision for an active drag", () => {
+    const terminal = createTerminal(20, 3);
+    const selection = createController(bridge, terminal);
+    try {
+      terminal.write("hello world");
+      expect(
+        selection.pressGesture({
+          column: 0,
+          row: 0,
+          surfaceX: 4,
+          surfaceY: 8,
+          timeNs: 1_000_000_000n,
+          repeatDistance: 8,
+          repeatIntervalNs: 500_000_000n,
+        }),
+      ).toBe(true);
+      expect(
+        selection.dragGesture({
+          column: 4,
+          row: 0,
+          surfaceX: 36,
+          surfaceY: 0,
+          rectangle: false,
+          columns: 20,
+          cellWidth: 8,
+          paddingLeft: 0,
+          screenHeight: 51,
+        }),
+      ).toBe(true);
+      expect(selection.getAutoscroll()).toBe("up");
+      expect(
+        selection.autoscrollTick({
+          viewportColumn: 4,
+          viewportRow: 0,
+          surfaceX: 36,
+          surfaceY: 0,
+          rectangle: false,
+          columns: 20,
+          cellWidth: 8,
+          paddingLeft: 0,
+          screenHeight: 51,
+        }),
+      ).toBe(true);
+      expect(selection.releaseGesture(4, 0)).toBe(true);
+      expect(selection.getAutoscroll()).toBeNull();
     } finally {
       selection.dispose();
       terminal.dispose();

@@ -225,6 +225,164 @@ describe("Terminal lifecycle", () => {
     terminal.dispose();
   });
 
+  it("navigates matches in Ghostty order and wraps in both directions", () => {
+    const terminal = createTerminal(10, 2, { scrollbackLimit: 10 });
+    terminal.write("Fizz\r\nBuzz\r\nFizz\r\nBang");
+    let selection: {
+      start: { x: number; y: number };
+      end: { x: number; y: number };
+    } | null = null;
+    const selectAbsoluteRange = vi.fn<
+      (start: { x: number; y: number }, end: { x: number; y: number }) => boolean
+    >((start: { x: number; y: number }, end: { x: number; y: number }): boolean => {
+      selection = { start, end };
+      return true;
+    });
+    const clearSelection = vi.fn<() => void>(() => {
+      selection = null;
+    });
+    Reflect.set(terminal, "selectionManager", {
+      getSelectionPosition: () => selection,
+      selectAbsoluteRange,
+      clearSelection,
+    });
+
+    expect(terminal.findNext("Fizz")).toBe(true);
+    expect(selection).toMatchObject({ start: { x: 0, y: 2 } });
+    expect(terminal.findNext("Fizz")).toBe(true);
+    expect(selection).toMatchObject({ start: { x: 0, y: 0 } });
+    expect(terminal.findNext("Fizz")).toBe(true);
+    expect(selection).toMatchObject({ start: { x: 0, y: 2 } });
+    expect(terminal.findPrevious("Fizz")).toBe(true);
+    expect(selection).toMatchObject({ start: { x: 0, y: 0 } });
+    expect(terminal.findPrevious("Fizz")).toBe(true);
+    expect(selection).toMatchObject({ start: { x: 0, y: 2 } });
+    expect(clearSelection).not.toHaveBeenCalled();
+
+    Reflect.set(terminal, "selectionManager", undefined);
+    terminal.dispose();
+  });
+
+  it("drops the search selection after all matches disappear", () => {
+    const terminal = createTerminal(10, 2);
+    terminal.write("Fizz");
+    const clearSelection = vi.fn<() => void>();
+    const setSearchMatches = vi.fn<() => void>();
+    Reflect.set(terminal, "selectionManager", {
+      getSelectionPosition: () => ({ start: { x: 0, y: 0 }, end: { x: 3, y: 0 } }),
+      selectAbsoluteRange: () => true,
+      clearSelection,
+    });
+    Reflect.set(terminal, "renderer", { setSearchMatches });
+
+    expect(terminal.findNext("missing")).toBe(false);
+    expect(clearSelection).toHaveBeenCalledOnce();
+    expect(setSearchMatches).toHaveBeenCalledWith([]);
+
+    Reflect.set(terminal, "selectionManager", undefined);
+    Reflect.set(terminal, "renderer", undefined);
+    terminal.dispose();
+  });
+
+  it("recomputes search results after active-screen contents change", () => {
+    const terminal = createTerminal(10, 3);
+    terminal.write("Fizz\r\nBuzz");
+    expect(terminal.findAll("Fizz")).toMatchObject([
+      { start: { column: 0, row: 0 }, end: { column: 3, row: 0 } },
+    ]);
+
+    terminal.write("\x1b[2J\x1b[HBang\r\nFizz");
+    expect(terminal.findAll("Fizz")).toMatchObject([
+      { start: { column: 0, row: 1 }, end: { column: 3, row: 1 } },
+    ]);
+    terminal.dispose();
+  });
+
+  it("wraps previous search when every match is in scrollback", () => {
+    const terminal = createTerminal(10, 2, { scrollbackLimit: 20 });
+    terminal.write("Fizz\r\nblank\r\nblank\r\nblank");
+    const matches = terminal.findAll("Fizz");
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.start.row).toBeLessThan(terminal.grid.getScrollbackLength());
+
+    let selection: {
+      start: { x: number; y: number };
+      end: { x: number; y: number };
+    } | null = null;
+    Reflect.set(terminal, "selectionManager", {
+      getSelectionPosition: () => selection,
+      selectAbsoluteRange: (start: { x: number; y: number }, end: { x: number; y: number }) => {
+        selection = { start, end };
+        return true;
+      },
+      clearSelection: () => {
+        selection = null;
+      },
+    });
+
+    expect(terminal.findNext("Fizz")).toBe(true);
+    expect(terminal.findPrevious("Fizz")).toBe(true);
+    expect(selection).toMatchObject({ start: { x: 0, y: matches[0]?.start.row } });
+
+    Reflect.set(terminal, "selectionManager", undefined);
+    terminal.dispose();
+  });
+
+  it("searches a soft-wrapped match across the scrollback boundary", () => {
+    const terminal = createTerminal(4, 2, { scrollbackLimit: 10 });
+    terminal.write("A\r\nxxboo!\r\nC");
+
+    expect(terminal.findAll("boo!")).toEqual([
+      {
+        text: "boo!",
+        start: { column: 2, row: 1 },
+        end: { column: 1, row: 2 },
+      },
+    ]);
+    terminal.dispose();
+  });
+
+  it("searches only the active screen and never primary-screen history from alt screen", () => {
+    const terminal = createTerminal(10, 2, { scrollbackLimit: 10 });
+    terminal.write("Fizz\r\nblank\r\nblank");
+    expect(terminal.findAll("Fizz")).toHaveLength(1);
+
+    terminal.write("\x1b[?1049hAlt only");
+    expect(terminal.findAll("Fizz")).toEqual([]);
+    expect(terminal.findAll("Alt")).toHaveLength(1);
+
+    terminal.write("\x1b[?1049l");
+    expect(terminal.findAll("Fizz")).toHaveLength(1);
+    terminal.dispose();
+  });
+
+  it("keeps search navigation valid after clearing scrollback", () => {
+    const terminal = createTerminal(10, 2, { scrollbackLimit: 20 });
+    terminal.write("error\r\nerror\r\nerror\r\nerror.");
+    let selection: {
+      start: { x: number; y: number };
+      end: { x: number; y: number };
+    } | null = null;
+    Reflect.set(terminal, "selectionManager", {
+      getSelectionPosition: () => selection,
+      selectAbsoluteRange: (start: { x: number; y: number }, end: { x: number; y: number }) => {
+        selection = { start, end };
+        return true;
+      },
+      clearSelection: () => {
+        selection = null;
+      },
+    });
+
+    expect(terminal.findNext("error")).toBe(true);
+    terminal.write("\x1b[3J");
+    expect(() => terminal.findNext("error")).not.toThrow();
+    expect(() => terminal.findPrevious("error")).not.toThrow();
+
+    Reflect.set(terminal, "selectionManager", undefined);
+    terminal.dispose();
+  });
+
   it("resizes and safely disposes twice", () => {
     const terminal = createTerminal();
     terminal.resize(20, 5);
@@ -570,6 +728,33 @@ describe("Terminal callbacks and state", () => {
       "terminal.clear-selection",
       "terminal.reset",
     ]);
+    terminal.dispose();
+  });
+
+  it("requires the Ghostty link modifier before enabling hover activation", () => {
+    const terminal = createTerminal();
+    const isLinkActivationEnabled = Reflect.get(terminal, "isLinkActivationEnabled") as (
+      link: { readonly activation?: "direct" | "modifier" },
+      modifiers: {
+        readonly alt: boolean;
+        readonly control: boolean;
+        readonly meta: boolean;
+        readonly shift: boolean;
+      },
+    ) => boolean;
+    const modifierLink = { activation: "modifier" as const };
+    const noModifiers = { alt: false, control: false, meta: false, shift: false };
+
+    expect(isLinkActivationEnabled.call(terminal, modifierLink, noModifiers)).toBe(false);
+    expect(
+      isLinkActivationEnabled.call(terminal, modifierLink, {
+        ...noModifiers,
+        control: true,
+      }),
+    ).toBe(true);
+    expect(isLinkActivationEnabled.call(terminal, { activation: "direct" }, noModifiers)).toBe(
+      true,
+    );
     terminal.dispose();
   });
 

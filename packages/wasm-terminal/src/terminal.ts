@@ -110,6 +110,7 @@ import {
 import { calculateInputAnchor } from "./input/input-anchor.js";
 import { OrderedInputDispatcher } from "./input/ordered-input-dispatcher.js";
 import { buildPreeditState } from "./input/preedit.js";
+import { classifySurfaceMousePlatform, resolveSurfaceMouseCursor } from "./input/surface-mouse.js";
 import { KeyEventRegistry, type TerminalKeyEventHandler } from "./input/key-event-registry.js";
 import {
   buildAccessibleRow,
@@ -514,20 +515,28 @@ export class Terminal {
   }
 
   private blockDrop(reason: string): PasteResult {
-    const inspection = inspectPaste("", {
-      bracketed: this.hasBracketedPaste(),
-      protection: this.options.pasteProtection,
-      bracketedSafe: this.options.pasteBracketedSafe,
-    });
+    const inspection = inspectPaste(
+      "",
+      {
+        bracketed: this.hasBracketedPaste(),
+        protection: this.options.pasteProtection,
+        bracketedSafe: this.options.pasteBracketedSafe,
+      },
+      this.bridge,
+    );
     return { kind: "blocked", reason, source: "drop", inspection };
   }
 
   private async performPaste(data: string, source: PasteSource): Promise<PasteResult> {
-    const inspection = inspectPaste(data, {
-      bracketed: this.hasBracketedPaste(),
-      protection: this.options.pasteProtection,
-      bracketedSafe: this.options.pasteBracketedSafe,
-    });
+    const inspection = inspectPaste(
+      data,
+      {
+        bracketed: this.hasBracketedPaste(),
+        protection: this.options.pasteProtection,
+        bracketedSafe: this.options.pasteBracketedSafe,
+      },
+      this.bridge,
+    );
     if (data.length === 0) return { kind: "empty", source, inspection };
     if (this.options.disableStdin) {
       return { kind: "blocked", reason: "stdin-disabled", source, inspection };
@@ -561,7 +570,7 @@ export class Terminal {
     if (this.handle === 0) {
       return { kind: "blocked", reason: "terminal-disposed", source, inspection };
     }
-    const encoded = encodePaste(inspection);
+    const encoded = encodePaste(inspection, this.bridge);
     this.emitUserInputNow(encoded);
     return {
       kind: "emitted",
@@ -734,7 +743,12 @@ export class Terminal {
   private preeditCellWidth = 0;
   private preeditCaretPixelOffset = 0;
   private hoveredLink: ILink | undefined;
+  private hoveredLinkEnabled = false;
   private linkLookupId = 0;
+  private surfaceModifiers: TerminalModifierState = EMPTY_MODIFIERS;
+  private readonly surfaceMousePlatform = classifySurfaceMousePlatform(
+    globalThis.navigator?.platform ?? "",
+  );
   private draggingScrollbar = false;
   private scrollbarDragStartY = 0;
   private scrollbarDragStartViewportY = 0;
@@ -745,6 +759,7 @@ export class Terminal {
 
   // Events
   private readonly _onData = new EventEmitter<string>();
+  private readonly onBinaryEmitter = new EventEmitter<string>();
   private readonly _onResize = new EventEmitter<{ cols: number; rows: number }>();
   private readonly _onBell = new EventEmitter<void>();
   private readonly _onSelectionChange = new EventEmitter<void>();
@@ -931,6 +946,7 @@ export class Terminal {
     window.addEventListener("resize", this.handleWindowResize);
     this.windowResizeListenerAttached = true;
     this.watchDevicePixelRatio();
+    this.updateSurfaceMouseCursor();
 
     // Start render loop
     this.startRenderLoop();
@@ -1021,6 +1037,9 @@ export class Terminal {
 
   get onData(): IEvent<string> {
     return this._onData.event;
+  }
+  get onBinary(): IEvent<string> {
+    return this.onBinaryEmitter.event;
   }
   get onResize(): IEvent<{ cols: number; rows: number }> {
     return this._onResize.event;
@@ -1129,7 +1148,7 @@ export class Terminal {
   }
 
   findNext(query: string, options: TerminalSearchOptions = {}): boolean {
-    return this.selectSearchMatch(this.findAll(query, options), false);
+    return this.selectSearchMatch(this.findAll(query, options), true);
   }
 
   highlightSearch(
@@ -1146,7 +1165,7 @@ export class Terminal {
   }
 
   findPrevious(query: string, options: TerminalSearchOptions = {}): boolean {
-    return this.selectSearchMatch(this.findAll(query, options), true);
+    return this.selectSearchMatch(this.findAll(query, options), false);
   }
 
   // ==========================================================================
@@ -1410,7 +1429,12 @@ export class Terminal {
   }
 
   private selectSearchMatch(matches: readonly TerminalSearchMatch[], reverse: boolean): boolean {
-    if (matches.length === 0 || !this.selectionManager) {
+    if (matches.length === 0) {
+      this.renderer?.setSearchMatches([]);
+      this.selectionManager?.clearSelection();
+      return false;
+    }
+    if (!this.selectionManager) {
       this.renderer?.setSearchMatches([]);
       return false;
     }
@@ -1544,6 +1568,7 @@ export class Terminal {
 
   private readonly handleCanvasMouseMove = (event: MouseEvent): void => {
     if (!this.canvas || !this.renderer || !this.linkDetector) return;
+    this.setSurfaceModifiers(event);
     if (this.hasMouseTracking() && !event.shiftKey) {
       this.clearHoveredLink();
       return;
@@ -1562,32 +1587,18 @@ export class Terminal {
     void this.linkDetector.getLinkAt(col, visibleTop + viewportRow).then((link) => {
       if (lookupId !== this.linkLookupId) return;
       this.hoveredLink?.hover?.(false);
+      this.hoveredLinkEnabled = false;
       this.hoveredLink = link;
-      const enabled = link ? this.isLinkActivationEnabled(link, event) : false;
-      link?.hover?.(enabled);
-      const canvas = this.canvas;
-      const renderer = this.renderer;
-      if (!canvas || !renderer) return;
-      canvas.style.cursor = enabled ? "pointer" : "text";
-      renderer.setHoveredHyperlinkId(0);
-      renderer.setHoveredLinkRange(
-        link && enabled
-          ? {
-              startX: link.range.start.x,
-              startY: link.range.start.y - visibleTop,
-              endX: link.range.end.x,
-              endY: link.range.end.y - visibleTop,
-            }
-          : null,
-      );
+      this.updateHoveredLinkPresentation();
     });
   };
 
   private readonly handleCanvasMouseLeave = (): void => this.clearHoveredLink();
 
   private readonly handleCanvasClick = (event: MouseEvent): void => {
+    this.setSurfaceModifiers(event);
     const link = this.hoveredLink;
-    if (!link || !this.isLinkActivationEnabled(link, event)) return;
+    if (!link || !this.isLinkActivationEnabled(link, this.surfaceModifiers)) return;
     if (link.target) {
       if (!this.host.openTarget || !this.capabilities.openTarget) {
         this._onHostError.fire({
@@ -1693,8 +1704,59 @@ export class Terminal {
     ];
   }
 
-  private isLinkActivationEnabled(link: ILink, event: MouseEvent): boolean {
-    return link.activation !== "modifier" || event.ctrlKey || event.metaKey;
+  private isLinkActivationEnabled(link: ILink, modifiers: TerminalModifierState): boolean {
+    return link.activation !== "modifier" || modifiers.control || modifiers.meta;
+  }
+
+  private setSurfaceModifiers(
+    event: Pick<MouseEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKey">,
+  ): void {
+    this.surfaceModifiers = {
+      alt: event.altKey,
+      control: event.ctrlKey,
+      meta: event.metaKey,
+      shift: event.shiftKey,
+    };
+  }
+
+  private readonly handleSurfaceModifierChange = (event: KeyboardEvent): void => {
+    this.setSurfaceModifiers(event);
+    this.updateHoveredLinkPresentation();
+  };
+
+  private updateSurfaceMouseCursor(): void {
+    const cursor = resolveSurfaceMouseCursor({
+      hidden: false,
+      modifiers: this.surfaceModifiers,
+      mouseTracking: this.hasMouseTracking(),
+      overLink: false,
+      platform: this.surfaceMousePlatform,
+    });
+    if (cursor && this.canvas) this.canvas.style.cursor = cursor;
+  }
+
+  private updateHoveredLinkPresentation(): void {
+    const link = this.hoveredLink;
+    const enabled = link ? this.isLinkActivationEnabled(link, this.surfaceModifiers) : false;
+    if (link && enabled !== this.hoveredLinkEnabled) link.hover?.(enabled);
+    this.hoveredLinkEnabled = enabled;
+    if (enabled && this.canvas) this.canvas.style.cursor = "pointer";
+    else this.updateSurfaceMouseCursor();
+
+    const renderer = this.renderer;
+    if (!renderer) return;
+    renderer.setHoveredHyperlinkId(0);
+    const visibleTop = this.grid.getScrollbackLength() - this._viewportY;
+    renderer.setHoveredLinkRange(
+      link && enabled
+        ? {
+            startX: link.range.start.x,
+            startY: link.range.start.y - visibleTop,
+            endX: link.range.end.x,
+            endY: link.range.end.y - visibleTop,
+          }
+        : null,
+    );
   }
 
   private readonly handleInputFocusMouseDown = (event: MouseEvent): void => {
@@ -1718,6 +1780,14 @@ export class Terminal {
     if (this.options.disableStdin) return;
     this.selectionManager?.clearSelection();
     this._onData.fire(data);
+  }
+
+  private emitUserBinary(data: string): void {
+    this.inputDispatcher.dispatchSync(() => {
+      if (this.handle === 0 || this.options.disableStdin) return;
+      this.selectionManager?.clearSelection();
+      this.onBinaryEmitter.fire(data);
+    });
   }
 
   private dispatchKeyboardAction(id: string): boolean {
@@ -1799,9 +1869,8 @@ export class Terminal {
     this.linkLookupId++;
     this.hoveredLink?.hover?.(false);
     this.hoveredLink = undefined;
-    if (this.canvas) this.canvas.style.cursor = "text";
-    this.renderer?.setHoveredHyperlinkId(0);
-    this.renderer?.setHoveredLinkRange(null);
+    this.hoveredLinkEnabled = false;
+    this.updateHoveredLinkPresentation();
   }
 
   private readonly handleScrollbarMouseDown = (event: MouseEvent): void => {
@@ -1882,7 +1951,9 @@ export class Terminal {
 
   private readonly handleFocusIn = (): void => {
     this.renderer?.setFocused(true);
-    if (this.hasFocusEvents()) this.emitUserInput("\x1b[I");
+    if (this.hasFocusEvents()) {
+      this.emitUserInput(new TextDecoder().decode(this.bridge.encodeFocus(true)));
+    }
   };
 
   private readonly handleFocusOut = (event: FocusEvent): void => {
@@ -1891,7 +1962,9 @@ export class Terminal {
     this.renderer?.setFocused(false);
     this.inputHandler?.releasePressedKeys();
     this.inputHandler?.cancelComposition();
-    if (this.hasFocusEvents()) this.emitUserInput("\x1b[O");
+    if (this.hasFocusEvents()) {
+      this.emitUserInput(new TextDecoder().decode(this.bridge.encodeFocus(false)));
+    }
   };
 
   private readonly handleDragOver = (event: DragEvent): void => {
@@ -1956,6 +2029,7 @@ export class Terminal {
 
   private disposeEvents(): void {
     this._onData.dispose();
+    this.onBinaryEmitter.dispose();
     this._onResize.dispose();
     this._onBell.dispose();
     this._onSelectionChange.dispose();
@@ -1979,16 +2053,21 @@ export class Terminal {
       bridge: this.bridge,
       getTerminalHandle: () => this.handle,
       hasMouseTracking: () => this.hasMouseTracking(),
-      hasSgrMouseMode: () => this.getMode(1006),
       getCellDimensions: () => {
         const metrics = this.renderer?.getMetrics() ?? { width: 8, height: 16 };
         return metrics;
+      },
+      getScreenDimensions: () => {
+        const metrics = this.renderer?.getMetrics() ?? { width: 8, height: 16 };
+        return { width: metrics.width * this._cols, height: metrics.height * this._rows };
       },
       getCanvasOffset: () => {
         const rect = this.canvas?.getBoundingClientRect() ?? { left: 0, top: 0 };
         return { left: rect.left, top: rect.top };
       },
       getMode: (mode: number, isAnsi?: boolean) => this.getMode(mode, isAnsi),
+      emitBinary: (data) => this.emitUserBinary(data),
+      onSurfaceModifierChange: this.handleSurfaceModifierChange,
     };
   }
 

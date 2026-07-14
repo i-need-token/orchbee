@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InputHandler } from "../input-handler.js";
 import type { InputHandlerDependencies } from "../input-handler.js";
+import type { Terminal } from "../terminal.js";
 import { TerminalData } from "../types.js";
 import type { WasmBridge } from "../wasm-bridge.js";
 import { createTerminal, initializeWasm } from "./test-helpers.js";
@@ -32,14 +33,15 @@ beforeEach(() => listeners.clear());
 
 function mouseDependencies(
   bridge: WasmBridge,
+  terminal: Terminal,
   getMode: (mode: number) => boolean,
 ): InputHandlerDependencies {
   return {
     bridge,
-    getTerminalHandle: () => 0,
+    getTerminalHandle: () => Reflect.get(terminal, "handle") as number,
     hasMouseTracking: () => true,
-    hasSgrMouseMode: () => false,
     getCellDimensions: () => ({ width: 8, height: 17 }),
+    getScreenDimensions: () => ({ width: 2_400, height: 408 }),
     getCanvasOffset: () => ({ left: 0, top: 0 }),
     getMode,
   };
@@ -68,8 +70,8 @@ describe("InputHandler", () => {
       bridge,
       getTerminalHandle: () => 0,
       hasMouseTracking: () => false,
-      hasSgrMouseMode: () => false,
       getCellDimensions: () => ({ width: 8, height: 17 }),
+      getScreenDimensions: () => ({ width: 640, height: 408 }),
       getCanvasOffset: () => ({ left: 0, top: 0 }),
       getMode: () => false,
     };
@@ -86,6 +88,43 @@ describe("InputHandler", () => {
     expect(listeners.size).toBe(0);
   });
 
+  it("reports modifier changes used by the surface mouse state", async () => {
+    const bridge = await initializeWasm();
+    const onSurfaceModifierChange = vi.fn<(event: KeyboardEvent) => void>();
+    const handler = new InputHandler(
+      {
+        bridge,
+        getTerminalHandle: () => 0,
+        hasMouseTracking: () => false,
+        getCellDimensions: () => ({ width: 8, height: 17 }),
+        getScreenDimensions: () => ({ width: 640, height: 408 }),
+        getCanvasOffset: () => ({ left: 0, top: 0 }),
+        getMode: () => false,
+        onSurfaceModifierChange,
+      },
+      createElement(),
+      vi.fn<(data: string) => void>(),
+      () => {},
+    );
+    const shift = {
+      code: "ShiftLeft",
+      key: "Shift",
+      isComposing: true,
+    } as unknown as KeyboardEvent;
+    const ordinary = {
+      code: "KeyA",
+      key: "a",
+      isComposing: true,
+    } as unknown as KeyboardEvent;
+
+    listeners.get("keydown")?.(shift);
+    listeners.get("keyup")?.(shift);
+    listeners.get("keydown")?.(ordinary);
+
+    expect(onSurfaceModifierChange.mock.calls).toEqual([[shift], [shift]]);
+    handler.dispose();
+  });
+
   it("commits composed CJK text and clears the hidden textarea", async () => {
     const bridge = await initializeWasm();
     const output = vi.fn<(data: string) => void>();
@@ -98,8 +137,8 @@ describe("InputHandler", () => {
       bridge,
       getTerminalHandle: () => 0,
       hasMouseTracking: () => false,
-      hasSgrMouseMode: () => false,
       getCellDimensions: () => ({ width: 8, height: 17 }),
+      getScreenDimensions: () => ({ width: 640, height: 408 }),
       getCanvasOffset: () => ({ left: 0, top: 0 }),
       getMode: () => false,
     };
@@ -130,6 +169,37 @@ describe("InputHandler", () => {
     handler.dispose();
   });
 
+  it("suppresses a bare C0 control committed by an active IME", async () => {
+    const bridge = await initializeWasm();
+    const output = vi.fn<(data: string) => void>();
+    const textarea = createTextarea();
+    const handler = new InputHandler(
+      {
+        bridge,
+        getTerminalHandle: () => 0,
+        hasMouseTracking: () => false,
+        getCellDimensions: () => ({ width: 8, height: 17 }),
+        getScreenDimensions: () => ({ width: 640, height: 408 }),
+        getCanvasOffset: () => ({ left: 0, top: 0 }),
+        getMode: () => false,
+      },
+      createElement(),
+      output,
+      () => {},
+      undefined,
+      undefined,
+      undefined,
+      textarea,
+    );
+
+    listeners.get("compositionstart")?.({ data: "" } as unknown as Event);
+    listeners.get("compositionend")?.({ data: "\u0008" } as unknown as Event);
+
+    expect(output).not.toHaveBeenCalled();
+    expect(textarea.value).toBe("");
+    handler.dispose();
+  });
+
   it("cancels preedit state without committing composition text", async () => {
     const bridge = await initializeWasm();
     const output = vi.fn<(data: string) => void>();
@@ -143,8 +213,8 @@ describe("InputHandler", () => {
         bridge,
         getTerminalHandle: () => 0,
         hasMouseTracking: () => false,
-        hasSgrMouseMode: () => false,
         getCellDimensions: () => ({ width: 8, height: 17 }),
+        getScreenDimensions: () => ({ width: 640, height: 408 }),
         getCanvasOffset: () => ({ left: 0, top: 0 }),
         getMode: () => false,
       },
@@ -175,8 +245,8 @@ describe("InputHandler", () => {
       bridge,
       getTerminalHandle: () => 0,
       hasMouseTracking: () => false,
-      hasSgrMouseMode: () => false,
       getCellDimensions: () => ({ width: 8, height: 17 }),
+      getScreenDimensions: () => ({ width: 640, height: 408 }),
       getCanvasOffset: () => ({ left: 0, top: 0 }),
       getMode: () => false,
     };
@@ -218,16 +288,18 @@ describe("InputHandler", () => {
 
   it("encodes SGR pixel mouse coordinates and horizontal wheel buttons", async () => {
     const bridge = await initializeWasm();
+    const terminal = createTerminal();
+    terminal.write("\x1b[?1000h\x1b[?1016h");
     const output = vi.fn<(data: string) => void>();
     const handler = new InputHandler(
       {
         bridge,
-        getTerminalHandle: () => 0,
+        getTerminalHandle: () => Reflect.get(terminal, "handle") as number,
         hasMouseTracking: () => true,
-        hasSgrMouseMode: () => false,
         getCellDimensions: () => ({ width: 8, height: 17 }),
+        getScreenDimensions: () => ({ width: 640, height: 408 }),
         getCanvasOffset: () => ({ left: 10, top: 20 }),
-        getMode: (mode) => mode === 1016,
+        getMode: (mode) => mode === 1000 || mode === 1016,
       },
       createElement(),
       output,
@@ -235,16 +307,45 @@ describe("InputHandler", () => {
     );
     const event = mouseEvent({ clientX: 15, clientY: 25, button: 0 });
     listeners.get("mousedown")?.(event);
-    listeners.get("wheel")?.(mouseEvent({ clientX: 15, clientY: 25, deltaX: -10, deltaY: 0 }));
-    expect(output.mock.calls).toEqual([["\x1b[<0;6;6M"], ["\x1b[<66;6;6M"]]);
+    listeners.get("wheel")?.(mouseEvent({ clientX: 15, clientY: 25, deltaX: -4, deltaY: 0 }));
+    expect(output).toHaveBeenCalledTimes(1);
+    listeners.get("wheel")?.(mouseEvent({ clientX: 15, clientY: 25, deltaX: -4, deltaY: 0 }));
+    expect(output.mock.calls).toEqual([["\x1b[<0;5;5M"], ["\x1b[<67;5;5M"]]);
     handler.dispose();
+    terminal.dispose();
+  });
+
+  it("keeps Shift-drag selection out of terminal mouse reporting", async () => {
+    const bridge = await initializeWasm();
+    const terminal = createTerminal();
+    terminal.write("\x1b[?1002h\x1b[?1006h");
+    const output = vi.fn<(data: string) => void>();
+    const handler = new InputHandler(
+      mouseDependencies(bridge, terminal, (mode) => mode === 1002 || mode === 1006),
+      createElement(),
+      output,
+      () => {},
+    );
+    const shifted = mouseEvent({ clientX: 9, clientY: 18, button: 0, shiftKey: true });
+
+    listeners.get("mousedown")?.(shifted);
+    listeners.get("mousemove")?.(shifted);
+    listeners.get("mouseup")?.(shifted);
+    expect(output).not.toHaveBeenCalled();
+
+    listeners.get("mousedown")?.(mouseEvent({ clientX: 9, clientY: 18, button: 0 }));
+    expect(output).toHaveBeenCalledWith("\x1b[<0;2;2M");
+    handler.dispose();
+    terminal.dispose();
   });
 
   it("encodes URXVT and UTF-8 extended mouse formats", async () => {
     const bridge = await initializeWasm();
+    const urxvtTerminal = createTerminal();
+    urxvtTerminal.write("\x1b[?1000h\x1b[?1015h");
     const urxvtOutput = vi.fn<(data: string) => void>();
     const urxvt = new InputHandler(
-      mouseDependencies(bridge, (mode) => mode === 1015),
+      mouseDependencies(bridge, urxvtTerminal, (mode) => mode === 1000 || mode === 1015),
       createElement(),
       urxvtOutput,
       () => {},
@@ -252,10 +353,13 @@ describe("InputHandler", () => {
     listeners.get("mousedown")?.(mouseEvent({ clientX: 9, clientY: 18, button: 0 }));
     expect(urxvtOutput).toHaveBeenCalledWith("\x1b[32;2;2M");
     urxvt.dispose();
+    urxvtTerminal.dispose();
 
+    const utf8Terminal = createTerminal();
+    utf8Terminal.write("\x1b[?1000h\x1b[?1005h");
     const utf8Output = vi.fn<(data: string) => void>();
     const utf8 = new InputHandler(
-      mouseDependencies(bridge, (mode) => mode === 1005),
+      mouseDependencies(bridge, utf8Terminal, (mode) => mode === 1000 || mode === 1005),
       createElement(),
       utf8Output,
       () => {},
@@ -265,10 +369,17 @@ describe("InputHandler", () => {
       `\x1b[M ${String.fromCodePoint(332)}${String.fromCodePoint(33)}`,
     );
     utf8.dispose();
+    utf8Terminal.dispose();
 
+    const x10Terminal = createTerminal();
+    x10Terminal.write("\x1b[?9h");
     const x10Output = vi.fn<(data: string) => void>();
+    const x10Binary = vi.fn<(data: string) => void>();
     const x10 = new InputHandler(
-      mouseDependencies(bridge, (mode) => mode === 9),
+      {
+        ...mouseDependencies(bridge, x10Terminal, (mode) => mode === 9),
+        emitBinary: x10Binary,
+      },
       createElement(),
       x10Output,
       () => {},
@@ -276,8 +387,14 @@ describe("InputHandler", () => {
     const x10Event = mouseEvent({ clientX: 0, clientY: 0, button: 0 });
     listeners.get("mousedown")?.(x10Event);
     listeners.get("mouseup")?.(x10Event);
+    listeners.get("mousedown")?.(mouseEvent({ clientX: 799, clientY: 0, button: 0 }));
     expect(x10Output).toHaveBeenCalledTimes(1);
+    expect(x10Binary).toHaveBeenCalledOnce();
+    expect(
+      [...String(x10Binary.mock.calls[0]?.[0])].map((character) => character.charCodeAt(0)),
+    ).toEqual([27, 91, 77, 32, 132, 33]);
     x10.dispose();
+    x10Terminal.dispose();
   });
 
   it("routes terminal shortcuts through named actions", async () => {
@@ -288,8 +405,8 @@ describe("InputHandler", () => {
         bridge,
         getTerminalHandle: () => 0,
         hasMouseTracking: () => false,
-        hasSgrMouseMode: () => false,
         getCellDimensions: () => ({ width: 8, height: 17 }),
+        getScreenDimensions: () => ({ width: 640, height: 408 }),
         getCanvasOffset: () => ({ left: 0, top: 0 }),
         getMode: () => false,
       },
@@ -360,8 +477,8 @@ describe("InputHandler", () => {
         bridge,
         getTerminalHandle: () => terminalHandle,
         hasMouseTracking: () => false,
-        hasSgrMouseMode: () => false,
         getCellDimensions: () => ({ width: 8, height: 17 }),
+        getScreenDimensions: () => ({ width: 640, height: 408 }),
         getCanvasOffset: () => ({ left: 0, top: 0 }),
         getMode: () => false,
       },
@@ -405,8 +522,8 @@ describe("InputHandler", () => {
         bridge,
         getTerminalHandle: () => Reflect.get(terminal, "handle") as number,
         hasMouseTracking: () => false,
-        hasSgrMouseMode: () => false,
         getCellDimensions: () => ({ width: 8, height: 17 }),
+        getScreenDimensions: () => ({ width: 640, height: 408 }),
         getCanvasOffset: () => ({ left: 0, top: 0 }),
         getMode: () => false,
       },
@@ -434,6 +551,84 @@ describe("InputHandler", () => {
     handler.releasePressedKeys();
 
     expect(output.mock.calls).toEqual([["a"]]);
+    handler.dispose();
+    terminal.dispose();
+  });
+
+  it("preserves numpad identity for Ghostty application-keypad encoding", async () => {
+    const bridge = await initializeWasm();
+    const terminal = createTerminal();
+    terminal.write("\x1b[?1035l\x1b=");
+    const output = vi.fn<(data: string) => void>();
+    const handler = new InputHandler(
+      {
+        bridge,
+        getTerminalHandle: () => Reflect.get(terminal, "handle") as number,
+        hasMouseTracking: () => false,
+        getCellDimensions: () => ({ width: 8, height: 17 }),
+        getScreenDimensions: () => ({ width: 640, height: 408 }),
+        getCanvasOffset: () => ({ left: 0, top: 0 }),
+        getMode: () => false,
+      },
+      createElement(),
+      output,
+      () => {},
+    );
+
+    listeners.get("keydown")?.({
+      code: "Numpad1",
+      key: "1",
+      location: 3,
+      repeat: false,
+      shiftKey: false,
+      ctrlKey: false,
+      altKey: false,
+      metaKey: false,
+      isComposing: false,
+      keyCode: 97,
+      getModifierState: () => false,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as unknown as KeyboardEvent);
+
+    expect(output).toHaveBeenCalledWith("\x1bOq");
+    handler.dispose();
+    terminal.dispose();
+  });
+
+  it("routes mobile backspace through Ghostty's backarrow mode", async () => {
+    const bridge = await initializeWasm();
+    const terminal = createTerminal();
+    terminal.write("\x1b[?67h");
+    const output = vi.fn<(data: string) => void>();
+    const handler = new InputHandler(
+      {
+        bridge,
+        getTerminalHandle: () => Reflect.get(terminal, "handle") as number,
+        hasMouseTracking: () => false,
+        getCellDimensions: () => ({ width: 8, height: 17 }),
+        getScreenDimensions: () => ({ width: 640, height: 408 }),
+        getCanvasOffset: () => ({ left: 0, top: 0 }),
+        getMode: () => false,
+      },
+      createElement(),
+      output,
+      () => {},
+      undefined,
+      undefined,
+      undefined,
+      createTextarea(),
+    );
+
+    listeners.get("beforeinput")?.({
+      inputType: "deleteContentBackward",
+      data: null,
+      isComposing: false,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    } as unknown as InputEvent);
+
+    expect(output).toHaveBeenCalledWith("\x08");
     handler.dispose();
     terminal.dispose();
   });

@@ -2,6 +2,8 @@
 
 `packages/wasm-terminal` uses upstream `libghostty-vt`; do not apply the historical `ghostty-web` patch.
 
+Use [Ghostty Terminal Panel Conformance](./ghostty-surface-test-provenance.md) to decide whether an upstream test belongs in Orchbee.
+
 ## Build
 
 ```sh
@@ -16,29 +18,37 @@ The WASM module must export `memory` and `__indirect_function_table`.
 
 Read generated ABI metadata from `ghostty_type_json()` when upgrading Ghostty; the current wasm32 layouts used by the binding are:
 
-| Type                       | Size | Important offsets                      |
-| -------------------------- | ---: | -------------------------------------- |
-| `GhosttyTerminalOptions`   |    8 | `cols=0`, `rows=2`, `max_scrollback=4` |
-| `GhosttyPoint`             |   24 | `tag=0`, coordinate `x=8`, `y=12`      |
-| `GhosttyGridRef`           |   12 | `size=0`, `node=4`, `x=8`, `y=10`      |
-| `GhosttyStyle`             |   72 | flags `56..64`                         |
-| `GhosttyRenderStateColors` |  784 | palette starts at `14`                 |
+| Type                               | Size | Important offsets                        |
+| ---------------------------------- | ---: | ---------------------------------------- |
+| `GhosttyTerminalOptions`           |    8 | `cols=0`, `rows=2`, `max_scrollback=4`   |
+| `GhosttyPoint`                     |   24 | `tag=0`, coordinate `x=8`, `y=12`        |
+| `GhosttyGridRef`                   |   12 | `size=0`, `node=4`, `x=8`, `y=10`        |
+| `GhosttyPointCoordinate`           |    8 | `x=0`, `y=4`                             |
+| `GhosttyMousePosition`             |    8 | `x=0`, `y=4`                             |
+| `GhosttyMouseEncoderSize`          |   36 | `size=0`, dimensions and padding `4..32` |
+| `GhosttySelectionGestureBehaviors` |   12 | click behaviors `0`, `4`, `8`            |
+| `GhosttySelectionGestureGeometry`  |   16 | geometry fields `0`, `4`, `8`, `12`      |
+| `GhosttyStyle`                     |   72 | flags `56..64`                           |
+| `GhosttyRenderStateColors`         |  784 | palette starts at `14`                   |
 
 WASM `i64` parameters such as `GhosttyCell` and `GhosttyRow` are JavaScript `bigint` values.
 
 ## Integration
 
-| Capability                        | Upstream API                                                                 |
-| --------------------------------- | ---------------------------------------------------------------------------- |
-| Lifecycle and VT input            | `ghostty_terminal_new/free/reset/resize/vt_write`                            |
-| Terminal responses                | `GHOSTTY_TERMINAL_OPT_WRITE_PTY` callback                                    |
-| Bell and title events             | `GHOSTTY_TERMINAL_OPT_BELL/TITLE_CHANGED` callbacks                          |
-| Frame snapshot                    | `ghostty_render_state_update` plus row/cell iterators                        |
-| Cell text and resolved colors     | `ghostty_render_state_row_cells_get`                                         |
-| Cell width and hyperlink presence | `ghostty_cell_get` on the raw cell                                           |
-| Scrollback and OSC 8 URIs         | `ghostty_terminal_grid_ref` plus `ghostty_grid_ref_*`                        |
-| Modes                             | `ghostty_terminal_mode_get`                                                  |
-| Keyboard encoding                 | `ghostty_key_encoder_setopt_from_terminal` plus `ghostty_key_encoder_encode` |
+| Capability                        | Upstream API                                                                     |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| Lifecycle and VT input            | `ghostty_terminal_new/free/reset/resize/vt_write`                                |
+| Terminal responses                | `GHOSTTY_TERMINAL_OPT_WRITE_PTY` callback                                        |
+| Bell and title events             | `GHOSTTY_TERMINAL_OPT_BELL/TITLE_CHANGED` callbacks                              |
+| Frame snapshot                    | `ghostty_render_state_update` plus row/cell iterators                            |
+| Cell text and resolved colors     | `ghostty_render_state_row_cells_get`                                             |
+| Cell width and hyperlink presence | `ghostty_cell_get` on the raw cell                                               |
+| Scrollback and OSC 8 URIs         | `ghostty_terminal_grid_ref` plus `ghostty_grid_ref_*`                            |
+| Modes                             | `ghostty_terminal_mode_get`                                                      |
+| Keyboard encoding                 | `ghostty_key_encoder_setopt_from_terminal` plus `ghostty_key_encoder_encode`     |
+| Mouse encoding                    | `ghostty_mouse_encoder_setopt_from_terminal` plus `ghostty_mouse_encoder_encode` |
+| Focus and paste encoding          | `ghostty_focus_encode`, `ghostty_paste_is_safe`, `ghostty_paste_encode`          |
+| Selection gestures                | `ghostty_selection_gesture_*`                                                    |
 
 Call `ghostty_render_state_update` once for each requested frame, capture the iterator data once, and serve renderer/buffer consumers from that snapshot.
 

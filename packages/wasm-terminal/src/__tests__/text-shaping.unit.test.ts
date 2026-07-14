@@ -14,6 +14,13 @@ describe("buildTextShapingPlan", () => {
     expect(plan[5]).toEqual({ start: 5, end: 8, columns: 3, text: "!==" });
   });
 
+  it("covers Ghostty's Inconsolata and Monaspace ligature cases", () => {
+    const plan = buildTextShapingPlan(cells(">= ==="));
+
+    expect(plan[0]).toEqual({ start: 0, end: 2, columns: 2, text: ">=" });
+    expect(plan[3]).toEqual({ start: 3, end: 6, columns: 3, text: "===" });
+  });
+
   it("breaks a run at style, selection, cursor, or preedit boundaries", () => {
     const input = cells("=> -> =>");
     const selected = input[1];
@@ -33,6 +40,37 @@ describe("buildTextShapingPlan", () => {
 
     expect(plan.slice(0, 8).every((span) => span === null)).toBe(true);
     expect((plan[9] as TextShapingSpan | null)?.text).toBe("www");
+  });
+
+  it("keeps adjacent ligatures in independent bounded spans", () => {
+    const plan = buildTextShapingPlan(cells("!===>"));
+
+    expect(plan[0]).toEqual({ start: 0, end: 3, columns: 3, text: "!==" });
+    expect(plan[2]).toBe(plan[0]);
+    expect(plan[3]).toEqual({ start: 3, end: 5, columns: 2, text: "=>" });
+    expect(plan[4]).toBe(plan[3]);
+  });
+
+  it("does not shape incomplete candidates at the end of a row", () => {
+    expect(buildTextShapingPlan(cells("code ="))).toEqual([null, null, null, null, null, null]);
+  });
+
+  it("breaks shaping at wide and continuation cells", () => {
+    const input = cells("=>=>");
+    const wide = input[1];
+    const continuation = input[2];
+    if (!wide || !continuation) throw new Error("Missing shaping test cells");
+    input[1] = { ...wide, width: 2 };
+    input[2] = { ...continuation, width: 0 };
+
+    expect(buildTextShapingPlan(input).every((span) => span === null)).toBe(true);
+  });
+
+  it("uses one shared span object for every cell in a shaped run", () => {
+    const plan = buildTextShapingPlan(cells("<==>"));
+    const span = plan[0];
+    expect(span).not.toBeNull();
+    expect(plan.every((candidate) => candidate === span)).toBe(true);
   });
 });
 

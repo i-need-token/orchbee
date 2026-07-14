@@ -10,7 +10,8 @@
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r build",
     "test": "pnpm test:lint-rules && pnpm -r test",
-    "test:lint-rules": "vitest run --config scripts/oxlint-plugin-orchbee/vitest.config.ts"
+    "test:lint-rules": "vitest run --config scripts/oxlint-plugin-orchbee/vitest.config.ts",
+    "audit:ghostty-panel": "node scripts/check-ghostty-panel-manifest.mjs"
   },
   "dependencies": {
     "zod": "catalog:"

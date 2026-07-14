@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { type RendererFrameTelemetry, WebGPURenderer } from "../renderer.js";
 import { CellFlags, type GhosttyCell, type IRenderable } from "../types.js";
 
+type AtlasDrawImage = (image: CanvasImageSource, dx: number, dy: number) => void;
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -12,9 +14,12 @@ function createCanvas(
   textMetrics: Partial<TextMetrics> = {},
   fillText: CanvasRenderingContext2D["fillText"] = () => {},
   fillRect: CanvasRenderingContext2D["fillRect"] = () => {},
+  stroke: CanvasRenderingContext2D["stroke"] = () => {},
+  clearRect: CanvasRenderingContext2D["clearRect"] = () => {},
+  drawImage: AtlasDrawImage = () => {},
 ): HTMLCanvasElement {
   const context = {
-    clearRect: () => {},
+    clearRect,
     imageSmoothingEnabled: true,
     measureText: () =>
       ({
@@ -31,9 +36,9 @@ function createCanvas(
     beginPath: () => {},
     moveTo: () => {},
     lineTo: () => {},
-    stroke: () => {},
+    stroke,
     setLineDash: () => {},
-    drawImage: () => {},
+    drawImage,
     getImageData:
       getImageData ??
       ((_x: number, _y: number, width: number, height: number) =>
@@ -195,6 +200,74 @@ describe("WebGPURenderer font metrics", () => {
     renderer.dispose();
   });
 
+  it("preserves untouched rows when incremental content is redrawn", async () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("navigator", {});
+    const clearRect = vi.fn<CanvasRenderingContext2D["clearRect"]>();
+    vi.stubGlobal("document", {
+      createElement: () => createCanvas(undefined, {}, undefined, undefined, undefined, clearRect),
+    });
+    const renderer = new WebGPURenderer(
+      createCanvas(undefined, {}, undefined, undefined, undefined, clearRect),
+    );
+    await renderer.initGPU();
+    const dirtyRows = new Set<number>();
+    const base = createGridBuffer(3, 5);
+    const buffer: IRenderable = {
+      ...base,
+      isRowDirty: (row) => dirtyRows.has(row),
+      clearDirty: () => dirtyRows.clear(),
+    };
+
+    renderer.render(buffer, true);
+    clearRect.mockClear();
+    dirtyRows.add(2);
+    renderer.render(buffer);
+    const middleRows = clearRect.mock.calls.map(([, y]) => y / renderer.getMetrics().height);
+    expect(middleRows).toEqual([0, 1, 2, 3]);
+    expect(middleRows).not.toContain(4);
+
+    clearRect.mockClear();
+    dirtyRows.add(4);
+    renderer.render(buffer);
+    const finalRows = clearRect.mock.calls.map(([, y]) => y / renderer.getMetrics().height);
+    expect(finalRows).toEqual([0, 3, 4]);
+    expect(finalRows).not.toContain(2);
+    renderer.dispose();
+  });
+
+  it("renders a zero-sized surface without creating cells or glyphs", async () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("navigator", {});
+    vi.stubGlobal("document", { createElement: () => createCanvas() });
+    const renderer = new WebGPURenderer(createCanvas());
+    await renderer.initGPU();
+    const empty: IRenderable = {
+      getLine: () => null,
+      getCursor: () => ({
+        x: 0,
+        y: 0,
+        viewportX: 0,
+        viewportY: 0,
+        visible: false,
+        blinking: false,
+        style: "block",
+      }),
+      getDimensions: () => ({ cols: 0, rows: 0 }),
+      isRowDirty: () => false,
+      clearDirty: () => {},
+    };
+
+    renderer.render(empty, true);
+
+    expect(renderer.getLastFrameTelemetry()).toMatchObject({
+      rowsRendered: 0,
+      cellsVisited: 0,
+      glyphInstances: 0,
+    });
+    renderer.dispose();
+  });
+
   it("shapes bounded multi-cell runs and redraws individual cells when disabled", async () => {
     vi.stubGlobal("window", { devicePixelRatio: 1 });
     vi.stubGlobal("navigator", {});
@@ -222,6 +295,50 @@ describe("WebGPURenderer font metrics", () => {
       shapingRuns: 0,
       glyphInstances: 2,
     });
+    renderer.dispose();
+  });
+
+  it("renders combining and emoji grapheme clusters as single glyphs", async () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("navigator", {});
+    const fillText = vi.fn<CanvasRenderingContext2D["fillText"]>();
+    vi.stubGlobal("document", {
+      createElement: () => createCanvas(undefined, {}, fillText),
+    });
+    const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText));
+    await renderer.initGPU();
+
+    renderer.render(createGraphemeBuffer("e\u0301", 1), true);
+    expect(fillText.mock.calls.map(([text]) => text)).toContain("e\u0301");
+    expect(renderer.getLastFrameTelemetry()).toMatchObject({ glyphInstances: 1 });
+
+    fillText.mockClear();
+    renderer.render(createGraphemeBuffer("👍🏼", 2), true);
+    expect(fillText.mock.calls.map(([text]) => text)).toContain("👍🏼");
+    expect(renderer.getLastFrameTelemetry()).toMatchObject({ glyphInstances: 1 });
+    renderer.dispose();
+  });
+
+  it("keeps background changes in one shaping run and splits foreground changes", async () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("navigator", {});
+    vi.stubGlobal("document", { createElement: () => createCanvas() });
+    const renderer = new WebGPURenderer(createCanvas());
+    await renderer.initGPU();
+    const buffer = createTextBuffer(">=");
+    const line = buffer.getLine(0);
+    const first = line?.[0];
+    const second = line?.[1];
+    if (!first || !second) throw new Error("Missing shaping test cells");
+    first.bg_r = 10;
+    second.bg_r = 20;
+
+    renderer.render(buffer, true);
+    expect(renderer.getLastFrameTelemetry()).toMatchObject({ shapingRuns: 1, glyphInstances: 1 });
+
+    second.fg_r = 20;
+    renderer.render(buffer, true);
+    expect(renderer.getLastFrameTelemetry()).toMatchObject({ shapingRuns: 0, glyphInstances: 2 });
     renderer.dispose();
   });
 
@@ -268,6 +385,143 @@ describe("WebGPURenderer font metrics", () => {
       [0, 0, 24, 17],
       [0, 14, 24, 1],
     ]);
+    renderer.dispose();
+  });
+
+  it("maps preedit text to its exact cell width", () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("document", { createElement: () => createCanvas() });
+    const renderer = new WebGPURenderer(createCanvas());
+    const getPreeditLayout = Reflect.get(renderer, "getPreeditLayout") as (
+      cursor: { x: number; y: number },
+      columns: number,
+    ) => {
+      readonly start: number;
+      readonly end: number;
+      readonly row: number;
+      readonly width: number;
+    } | null;
+
+    renderer.setPreedit([{ text: "a", width: 1 }]);
+    expect(getPreeditLayout.call(renderer, { x: 2, y: 3 }, 10)).toMatchObject({
+      start: 2,
+      end: 3,
+      row: 3,
+      width: 1,
+    });
+    renderer.setPreedit([{ text: "가", width: 2 }]);
+    expect(getPreeditLayout.call(renderer, { x: 2, y: 3 }, 10)).toMatchObject({
+      start: 2,
+      end: 4,
+      row: 3,
+      width: 2,
+    });
+    renderer.dispose();
+  });
+
+  it("shifts wide preedit text left at the right edge", () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("document", { createElement: () => createCanvas() });
+    const renderer = new WebGPURenderer(createCanvas());
+    const getPreeditLayout = Reflect.get(renderer, "getPreeditLayout") as (
+      cursor: { x: number; y: number },
+      columns: number,
+    ) => {
+      readonly start: number;
+      readonly end: number;
+      readonly cells: readonly { readonly text: string; readonly width: number }[];
+    } | null;
+
+    renderer.setPreedit([{ text: "가", width: 2 }]);
+    expect(getPreeditLayout.call(renderer, { x: 9, y: 0 }, 10)).toMatchObject({
+      start: 8,
+      end: 10,
+      cells: [{ text: "가", width: 2 }],
+    });
+    renderer.dispose();
+  });
+
+  it("uses Ghostty cursor visibility and focus precedence in the integrated render path", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("navigator", {});
+    vi.stubGlobal("document", { createElement: () => createCanvas() });
+    const renderer = new WebGPURenderer(createCanvas());
+    await renderer.initGPU();
+    renderer.setFocused(true);
+    const renderCursor =
+      vi.fn<
+        (
+          context: CanvasRenderingContext2D,
+          x: number,
+          y: number,
+          style: "block" | "block_hollow" | "underline" | "bar",
+        ) => void
+      >();
+    Reflect.set(renderer, "renderCursor2D", renderCursor);
+
+    renderer.render(createCursorBuffer({ visible: true, blinking: false, style: "bar" }), true);
+    expect(renderCursor).toHaveBeenLastCalledWith(expect.anything(), 0, 0, "bar");
+
+    renderCursor.mockClear();
+    renderer.render(createCursorBuffer({ visible: false, blinking: false, style: "bar" }), true);
+    expect(renderCursor).not.toHaveBeenCalled();
+
+    renderer.setFocused(false);
+    renderer.render(
+      createCursorBuffer({ visible: true, blinking: true, style: "underline" }),
+      true,
+    );
+    expect(renderCursor).toHaveBeenLastCalledWith(expect.anything(), 0, 0, "block_hollow");
+    renderer.dispose();
+  });
+
+  it("renders neither preedit nor cursor while viewing scrollback", async () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("navigator", {});
+    vi.stubGlobal("document", { createElement: () => createCanvas() });
+    const renderer = new WebGPURenderer(createCanvas());
+    await renderer.initGPU();
+    renderer.setPreedit([{ text: "a", width: 1 }]);
+    const renderPreedit = vi.fn<() => void>();
+    const renderCursor = vi.fn<() => void>();
+    Reflect.set(renderer, "renderPreedit2D", renderPreedit);
+    Reflect.set(renderer, "renderCursor2D", renderCursor);
+
+    renderer.render(createCursorBuffer({ visible: true, blinking: false, style: "bar" }), true, 1);
+
+    expect(renderPreedit).not.toHaveBeenCalled();
+    expect(renderCursor).not.toHaveBeenCalled();
+    renderer.dispose();
+  });
+
+  it("restores a visible cursor when terminal blinking is disabled", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("navigator", {});
+    vi.stubGlobal("document", { createElement: () => createCanvas() });
+    const renderer = new WebGPURenderer(createCanvas());
+    await renderer.initGPU();
+    renderer.setFocused(true);
+    const renderCursor =
+      vi.fn<
+        (
+          context: CanvasRenderingContext2D,
+          x: number,
+          y: number,
+          style: "block" | "block_hollow" | "underline" | "bar",
+        ) => void
+      >();
+    Reflect.set(renderer, "renderCursor2D", renderCursor);
+
+    renderer.render(createCursorBuffer({ visible: true, blinking: true, style: "bar" }), true);
+    renderCursor.mockClear();
+    vi.advanceTimersByTime(530);
+    renderer.render(createCursorBuffer({ visible: true, blinking: true, style: "bar" }), true);
+    expect(renderCursor).not.toHaveBeenCalled();
+
+    renderer.render(createCursorBuffer({ visible: true, blinking: false, style: "bar" }), true);
+    expect(renderCursor).toHaveBeenLastCalledWith(expect.anything(), 0, 0, "bar");
     renderer.dispose();
   });
 
@@ -342,10 +596,37 @@ describe("WebGPURenderer font metrics", () => {
     renderer.dispose();
   });
 
+  it("underlines every cell in a hovered multi-row link range", async () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("navigator", {});
+    let strokes = 0;
+    const stroke: CanvasRenderingContext2D["stroke"] = () => {
+      strokes++;
+    };
+    vi.stubGlobal("document", {
+      createElement: () => createCanvas(undefined, {}, undefined, undefined, stroke),
+    });
+    const renderer = new WebGPURenderer(createCanvas(undefined, {}, undefined, undefined, stroke));
+    await renderer.initGPU();
+    renderer.setHoveredLinkRange({ startX: 1, startY: 0, endX: 1, endY: 1 });
+
+    renderer.render(createGridBuffer(5, 2), true);
+
+    expect(strokes).toBe(6);
+    renderer.dispose();
+  });
+
   it("uploads only the merged glyph-atlas dirty rectangle", () => {
     vi.stubGlobal("window", { devicePixelRatio: 1 });
-    vi.stubGlobal("document", { createElement: () => createCanvas() });
-    const renderer = new WebGPURenderer(createCanvas());
+    const getImageData = vi.fn<CanvasRenderingContext2D["getImageData"]>(
+      (_x, _y, width, height) => {
+        const data = new Uint8ClampedArray(width * height * 4);
+        data.set([1, 2, 3, 4]);
+        return { data } as ImageData;
+      },
+    );
+    vi.stubGlobal("document", { createElement: () => createCanvas(getImageData) });
+    const renderer = new WebGPURenderer(createCanvas(getImageData));
     const writeTexture = vi.fn<GPUQueue["writeTexture"]>();
     const device = {
       queue: { writeTexture },
@@ -372,6 +653,8 @@ describe("WebGPURenderer font metrics", () => {
       { bytesPerRow: 96, rowsPerImage: 21 },
       { width: 24, height: 21 },
     );
+    const uploaded = writeTexture.mock.calls[0]?.[1];
+    expect(Array.from(uploaded as Uint8ClampedArray).slice(0, 4)).toEqual([1, 2, 3, 4]);
     expect(Reflect.get(renderer, "frameAtlasUploadBytes")).toBe(2_016);
     expect(Reflect.get(renderer, "atlasDirtyBounds")).toBeNull();
     renderer.dispose();
@@ -393,6 +676,152 @@ describe("WebGPURenderer font metrics", () => {
     expect(ensureGlyph.call(renderer, "A", 0, 1)?.colored).toBe(false);
     expect(ensureGlyph.call(renderer, "🚀", 0, 2)?.colored).toBe(true);
     expect(getImageData).toHaveBeenCalledOnce();
+    renderer.dispose();
+  });
+
+  it("caches glyphs by text, cell width, and raster style", () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("document", { createElement: () => createCanvas() });
+    const renderer = new WebGPURenderer(createCanvas());
+    const ensureGlyph = Reflect.get(renderer, "ensureGlyph") as (
+      text: string,
+      flags: number,
+      width: number,
+    ) => object | null;
+
+    const regular = ensureGlyph.call(renderer, "A", 0, 1);
+    expect(ensureGlyph.call(renderer, "A", 0, 1)).toBe(regular);
+    expect(ensureGlyph.call(renderer, "A", CellFlags.BOLD, 1)).not.toBe(regular);
+    expect(ensureGlyph.call(renderer, "A", 0, 2)).not.toBe(regular);
+    expect(Reflect.get(renderer, "glyphMap")).toHaveProperty("size", 3);
+    renderer.dispose();
+  });
+
+  it("does not retain a cache entry when glyph rasterization fails", () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    const fillText: CanvasRenderingContext2D["fillText"] = () => {
+      throw new Error("simulated raster failure");
+    };
+    vi.stubGlobal("document", {
+      createElement: () => createCanvas(undefined, {}, fillText),
+    });
+    const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText));
+    const ensureGlyph = Reflect.get(renderer, "ensureGlyph") as (
+      text: string,
+      flags: number,
+      width: number,
+    ) => object | null;
+
+    expect(() => ensureGlyph.call(renderer, "A", 0, 1)).toThrow("simulated raster failure");
+    expect(Reflect.get(renderer, "glyphMap")).toHaveProperty("size", 0);
+    renderer.dispose();
+  });
+
+  it("invalidates the glyph cache when font size or family changes", () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("document", { createElement: () => createCanvas() });
+    const renderer = new WebGPURenderer(createCanvas());
+    const ensureGlyph = Reflect.get(renderer, "ensureGlyph") as (
+      text: string,
+      flags: number,
+      width: number,
+    ) => object | null;
+    const glyphMap = Reflect.get(renderer, "glyphMap") as Map<string, object>;
+
+    expect(ensureGlyph.call(renderer, "A", 0, 1)).not.toBeNull();
+    expect(glyphMap.size).toBe(1);
+    renderer.setFontSize(15);
+    expect(glyphMap.size).toBe(0);
+    expect(ensureGlyph.call(renderer, "A", 0, 1)).not.toBeNull();
+    renderer.setFontFamily("JetBrains Mono");
+    expect(glyphMap.size).toBe(0);
+    renderer.dispose();
+  });
+
+  it("accepts a glyph whose reserved rectangle exactly fits the atlas row", () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("document", { createElement: () => createCanvas() });
+    const renderer = new WebGPURenderer(createCanvas());
+    const ensureGlyph = Reflect.get(renderer, "ensureGlyph") as (
+      text: string,
+      flags: number,
+      width: number,
+    ) => { readonly x: number; readonly w: number } | null;
+
+    const measured = ensureGlyph.call(renderer, "A", 0, 1);
+    if (!measured) throw new Error("Expected a measured atlas glyph");
+    const atlas = Reflect.get(renderer, "atlasCanvas") as HTMLCanvasElement;
+    const padding = 2;
+    Reflect.get(renderer, "glyphMap").clear();
+    Reflect.set(renderer, "atlasX", atlas.width - measured.w - padding);
+    Reflect.set(renderer, "atlasY", 0);
+    Reflect.set(renderer, "atlasRowHeight", measured.w + padding);
+
+    expect(ensureGlyph.call(renderer, "B", 0, 1)?.x).toBe(atlas.width - measured.w - padding);
+    renderer.dispose();
+  });
+
+  it("rejects a glyph whose reserved rectangle exceeds the texture limit", () => {
+    const metrics = {
+      actualBoundingBoxRight: 2_048,
+      actualBoundingBoxAscent: 10,
+      actualBoundingBoxDescent: 2,
+    } satisfies Partial<TextMetrics>;
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("document", { createElement: () => createCanvas(undefined, metrics) });
+    const renderer = new WebGPURenderer(createCanvas(undefined, metrics));
+    const atlas = Reflect.get(renderer, "atlasCanvas") as HTMLCanvasElement;
+    Reflect.set(renderer, "device", {
+      limits: { maxTextureDimension2D: atlas.width },
+      destroy: () => {},
+    } as unknown as GPUDevice);
+    const ensureGlyph = Reflect.get(renderer, "ensureGlyph") as (
+      text: string,
+      flags: number,
+      width: number,
+    ) => object | null;
+
+    expect(ensureGlyph.call(renderer, "W", 0, 1)).toBeNull();
+    expect(Reflect.get(renderer, "glyphMap")).toHaveProperty("size", 0);
+    renderer.dispose();
+  });
+
+  it("packs multiple exact-fit glyphs before reporting a full atlas", () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("document", { createElement: () => createCanvas() });
+    const renderer = new WebGPURenderer(createCanvas());
+    const atlas = Reflect.get(renderer, "atlasCanvas") as HTMLCanvasElement;
+    atlas.width = 24;
+    atlas.height = 24;
+    Reflect.set(renderer, "device", {
+      limits: { maxTextureDimension2D: 24 },
+      destroy: () => {},
+    } as unknown as GPUDevice);
+    const ensureGlyph = Reflect.get(renderer, "ensureGlyph") as (
+      text: string,
+      flags: number,
+      width: number,
+    ) => { readonly x: number } | null;
+
+    expect(ensureGlyph.call(renderer, "A", 0, 1)?.x).toBe(0);
+    expect(ensureGlyph.call(renderer, "B", 0, 1)?.x).toBe(12);
+    expect(ensureGlyph.call(renderer, "C", 0, 1)).toBeNull();
+    renderer.dispose();
+  });
+
+  it("stops growing the atlas at the WebGPU texture limit", () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("document", { createElement: () => createCanvas() });
+    const renderer = new WebGPURenderer(createCanvas());
+    const atlas = Reflect.get(renderer, "atlasCanvas") as HTMLCanvasElement;
+    Reflect.set(renderer, "device", {
+      limits: { maxTextureDimension2D: atlas.width },
+      destroy: () => {},
+    } as unknown as GPUDevice);
+    const growAtlas = Reflect.get(renderer, "growAtlas") as () => boolean;
+
+    expect(growAtlas.call(renderer)).toBe(false);
+    expect([atlas.width, atlas.height]).toEqual([2048, 2048]);
     renderer.dispose();
   });
 
@@ -459,6 +888,25 @@ describe("WebGPURenderer font metrics", () => {
       textBaseline: "alphabetic",
       direction: "rtl",
     });
+    renderer.dispose();
+  });
+
+  it("copies existing atlas pixels when the atlas grows", () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    const drawImage = vi.fn<AtlasDrawImage>();
+    vi.stubGlobal("document", {
+      createElement: () =>
+        createCanvas(undefined, {}, undefined, undefined, undefined, undefined, drawImage),
+    });
+    const renderer = new WebGPURenderer(
+      createCanvas(undefined, {}, undefined, undefined, undefined, undefined, drawImage),
+    );
+    const original = Reflect.get(renderer, "atlasCanvas") as HTMLCanvasElement;
+    const growAtlas = Reflect.get(renderer, "growAtlas") as () => boolean;
+
+    expect(growAtlas.call(renderer)).toBe(true);
+    expect(drawImage).toHaveBeenCalledWith(original, 0, 0);
+    expect(Reflect.get(renderer, "atlasCanvas")).not.toBe(original);
     renderer.dispose();
   });
 
@@ -645,6 +1093,87 @@ function createTextBuffer(text: string): IRenderable {
       style: "block",
     }),
     getDimensions: () => ({ cols: cells.length, rows: 1 }),
+    isRowDirty: () => true,
+    clearDirty: () => {},
+  };
+}
+
+function createGraphemeBuffer(text: string, width: number): IRenderable {
+  const first: GhosttyCell = {
+    codepoint: text.codePointAt(0) ?? 0,
+    fg_r: 255,
+    fg_g: 255,
+    fg_b: 255,
+    bg_r: 0,
+    bg_g: 0,
+    bg_b: 0,
+    flags: 0,
+    width,
+    hyperlink_id: 0,
+    grapheme_len: Math.max(1, [...text].length - 1),
+    selected: false,
+    underline_style: 0,
+    underline_r: -1,
+    underline_g: -1,
+    underline_b: -1,
+    overline: false,
+  };
+  const continuation: GhosttyCell = { ...first, codepoint: 0, width: 0, grapheme_len: 0 };
+  const line = width === 2 ? [first, continuation] : [first];
+  return {
+    getLine: (row) => (row === 0 ? line : null),
+    getGraphemeString: () => text,
+    getCursor: () => ({
+      x: 0,
+      y: 0,
+      viewportX: 0,
+      viewportY: 0,
+      visible: false,
+      blinking: false,
+      style: "block",
+    }),
+    getDimensions: () => ({ cols: width, rows: 1 }),
+    isRowDirty: () => true,
+    clearDirty: () => {},
+  };
+}
+
+function createCursorBuffer(cursor: {
+  readonly visible: boolean;
+  readonly blinking: boolean;
+  readonly style: "block" | "underline" | "bar";
+}): IRenderable {
+  const buffer = createTextBuffer("A");
+  return {
+    ...buffer,
+    getCursor: () => ({
+      x: 0,
+      y: 0,
+      viewportX: 0,
+      viewportY: 0,
+      visible: cursor.visible,
+      blinking: cursor.blinking,
+      style: cursor.style,
+    }),
+  };
+}
+
+function createGridBuffer(columns: number, rows: number): IRenderable {
+  const lines = Array.from({ length: rows }, (_, row) =>
+    createTextBuffer(String(row).padEnd(columns, "A")).getLine(0),
+  );
+  return {
+    getLine: (row) => lines[row] ?? null,
+    getCursor: () => ({
+      x: 0,
+      y: 0,
+      viewportX: 0,
+      viewportY: 0,
+      visible: false,
+      blinking: false,
+      style: "block",
+    }),
+    getDimensions: () => ({ cols: columns, rows }),
     isRowDirty: () => true,
     clearDirty: () => {},
   };

@@ -11,6 +11,15 @@ export interface PreeditState {
   readonly selection: { readonly start: number; readonly end: number };
 }
 
+export function shouldSuppressComposingControlInput(
+  text: string | null,
+  composing: boolean,
+): boolean {
+  if (!composing || text === null) return false;
+  const codepoints = [...text];
+  return codepoints.length === 1 && (codepoints[0]?.codePointAt(0) ?? 0x20) < 0x20;
+}
+
 /** Map DOM UTF-16 composition offsets to terminal cell offsets. */
 export function buildPreeditState(
   data: string,

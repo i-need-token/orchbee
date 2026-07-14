@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>Orchbee Terminal Browser Surface Test</title>
+    <style>
+      body {
+        margin: 20px;
+        color: #e5e7eb;
+        background: #111827;
+        font:
+          14px system-ui,
+          sans-serif;
+      }
+      #surface {
+        position: relative;
+        width: 720px;
+        height: 180px;
+        overflow: hidden;
+        border: 1px solid #4b5563;
+      }
+      #results {
+        margin-top: 16px;
+        font-family: ui-monospace, monospace;
+      }
+      .pass {
+        color: #34d399;
+      }
+      .fail {
+        color: #fb7185;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Browser Surface Test</h1>
+    <div id="surface"></div>
+    <div id="disposal-surface" hidden></div>
+    <div id="results"></div>
+
+    <script type="module">
+      const resultsElement = document.querySelector("#results");
+      const surfaceElement = document.querySelector("#surface");
+      const disposalSurfaceElement = document.querySelector("#disposal-surface");
+      const result = { completed: false, passed: 0, failed: 0, failures: [] };
+      window.__ORCHBEE_SURFACE_TEST__ = result;
+
+      function check(condition, message) {
+        const row = document.createElement("div");
+        row.className = condition ? "pass" : "fail";
+        row.textContent = `${condition ? "PASS" : "FAIL"}: ${message}`;
+        resultsElement.append(row);
+        if (condition) result.passed++;
+        else {
+          result.failed++;
+          result.failures.push(message);
+        }
+      }
+
+      function nextFrame() {
+        return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+      }
+
+      async function settleSurface() {
+        await nextFrame();
+        await nextFrame();
+      }
+
+      try {
+        const { init, Terminal } = await import("../dist/index.js");
+        await init({ source: "../ghostty-vt.wasm" });
+        const terminal = new Terminal({
+          cols: 40,
+          rows: 8,
+          cursorStyle: "bar",
+          fontLigatures: true,
+          fontFamily: 'Menlo, "Apple Color Emoji", monospace',
+          fontSize: 13,
+        });
+        const frames = [];
+        const input = [];
+        const hostErrors = [];
+        terminal.onRendererTelemetry((frame) => frames.push(frame));
+        terminal.onData((data) => input.push(data));
+        terminal.onHostError((event) => hostErrors.push(event));
+        await terminal.open(surfaceElement);
+
+        const canvas = surfaceElement.querySelector("canvas");
+        const textarea = surfaceElement.querySelector("textarea");
+        check(canvas instanceof HTMLCanvasElement, "surface mounts a canvas");
+        check(textarea instanceof HTMLTextAreaElement, "surface mounts an IME textarea");
+        check(
+          terminal.capabilities.renderer === "webgpu" ||
+            terminal.capabilities.renderer === "canvas2d",
+          `surface selects a renderer (${terminal.capabilities.renderer})`,
+        );
+
+        terminal.write("=> 你好 🚀 e\u0301\r\nhttps://ghostty.org");
+        await settleSurface();
+        check(
+          frames.some((frame) => frame.shapingRuns > 0),
+          "browser frame shapes a ligature",
+        );
+        check(
+          frames.some((frame) => frame.glyphInstances >= 6),
+          "browser frame rasterizes mixed-script glyphs",
+        );
+        check(
+          terminal.getAccessibleText().includes("https://ghostty.org"),
+          "accessibility mirror receives rendered text",
+        );
+        check(
+          canvas.width === Number.parseFloat(canvas.style.width) * window.devicePixelRatio,
+          "canvas uses physical DPR pixels",
+        );
+
+        textarea.value = "你";
+        textarea.setSelectionRange(1, 1);
+        textarea.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+        textarea.dispatchEvent(
+          new CompositionEvent("compositionupdate", { bubbles: true, data: "你" }),
+        );
+        await settleSurface();
+        check(
+          frames.some((frame) => frame.reasons.includes("preedit")),
+          "IME preedit reaches the renderer",
+        );
+        check(
+          Number.parseFloat(textarea.style.width) > 1 &&
+            Number.parseFloat(textarea.style.height) > 1,
+          "IME candidate anchor follows cell geometry",
+        );
+        textarea.dispatchEvent(
+          new CompositionEvent("compositionend", { bubbles: true, data: "你" }),
+        );
+        check(input.includes("你"), "IME commit uses Ghostty key encoding");
+
+        const metrics = terminal.renderer.getMetrics();
+        const rect = canvas.getBoundingClientRect();
+        const hover = {
+          clientX: rect.left + metrics.width / 2,
+          clientY: rect.top + metrics.height * 1.5,
+        };
+        canvas.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, ...hover }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        check(canvas.style.cursor === "text", "link hover waits for its modifier");
+        surfaceElement.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            bubbles: true,
+            code: "ControlLeft",
+            key: "Control",
+            ctrlKey: true,
+          }),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        check(canvas.style.cursor === "pointer", "link modifier keydown updates hover in place");
+        surfaceElement.dispatchEvent(
+          new KeyboardEvent("keyup", {
+            bubbles: true,
+            code: "ControlLeft",
+            key: "Control",
+          }),
+        );
+        check(canvas.style.cursor === "text", "link modifier keyup restores the text cursor");
+
+        const binaryInput = [];
+        terminal.onBinary((data) => binaryInput.push(data));
+        terminal.resize(120, 8);
+        terminal.write("\x1b[?9h");
+        canvas.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, ...hover }));
+        check(canvas.style.cursor === "default", "mouse tracking uses the default pointer");
+        surfaceElement.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            bubbles: true,
+            code: "ShiftLeft",
+            key: "Shift",
+            shiftKey: true,
+          }),
+        );
+        check(canvas.style.cursor === "text", "Shift restores the selection cursor");
+        surfaceElement.dispatchEvent(
+          new KeyboardEvent("keyup", {
+            bubbles: true,
+            code: "ShiftLeft",
+            key: "Shift",
+          }),
+        );
+        check(canvas.style.cursor === "default", "releasing Shift restores mouse tracking cursor");
+        canvas.dispatchEvent(
+          new MouseEvent("mousedown", {
+            bubbles: true,
+            button: 0,
+            clientX: canvas.getBoundingClientRect().left + metrics.width * 100,
+            clientY: canvas.getBoundingClientRect().top + metrics.height / 2,
+          }),
+        );
+        terminal.write("\x1b[?9l");
+        canvas.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, button: 0 }));
+        check(
+          binaryInput.some((data) =>
+            [...data].some((character) => character.charCodeAt(0) >= 0x80),
+          ),
+          "legacy mouse bytes use the binary host channel",
+        );
+
+        check(hostErrors.length === 0, "surface reports no host errors");
+        const disposalTerminal = new Terminal({ cols: 2, rows: 1 });
+        await disposalTerminal.open(disposalSurfaceElement);
+        disposalTerminal.dispose();
+        check(disposalSurfaceElement.childElementCount === 0, "disposal removes surface DOM state");
+      } catch (error) {
+        check(false, error instanceof Error ? (error.stack ?? error.message) : String(error));
+      } finally {
+        result.completed = true;
+        document.body.dataset.testStatus = result.failed === 0 ? "passed" : "failed";
+      }
+    </script>
+  </body>
+</html>

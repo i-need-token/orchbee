@@ -19,6 +19,11 @@ const GestureEventType = {
   PRESS: 0,
   RELEASE: 1,
   DRAG: 2,
+  AUTOSCROLL_TICK: 3,
+} as const;
+
+const GestureData = {
+  AUTOSCROLL: 2,
 } as const;
 
 const GestureEventOption = {
@@ -27,8 +32,10 @@ const GestureEventOption = {
   REPEAT_DISTANCE: 2,
   TIME_NS: 3,
   REPEAT_INTERVAL_NS: 4,
+  BEHAVIORS: 6,
   RECTANGLE: 7,
   GEOMETRY: 8,
+  VIEWPORT: 9,
 } as const;
 
 /** Ghostty-owned selection state exposed in stable screen coordinates. */
@@ -49,9 +56,24 @@ export interface GhosttySelectionGesturePress extends GhosttySelectionGesturePoi
   readonly timeNs: bigint;
   readonly repeatDistance: number;
   readonly repeatIntervalNs: bigint;
+  readonly selectOutput?: boolean;
 }
 
 export interface GhosttySelectionGestureDrag extends GhosttySelectionGesturePoint {
+  readonly rectangle: boolean;
+  readonly columns: number;
+  readonly cellWidth: number;
+  readonly paddingLeft: number;
+  readonly screenHeight: number;
+}
+
+export type GhosttySelectionAutoscroll = "up" | "down" | null;
+
+export interface GhosttySelectionGestureAutoscrollTick {
+  readonly viewportColumn: number;
+  readonly viewportRow: number;
+  readonly surfaceX: number;
+  readonly surfaceY: number;
   readonly rectangle: boolean;
   readonly columns: number;
   readonly cellWidth: number;
@@ -106,24 +128,77 @@ export class GhosttySelectionController {
   private pressEvent = 0;
   private releaseEvent = 0;
   private dragEvent = 0;
+  private autoscrollEvent = 0;
   private disposed = false;
 
   constructor(bridge: WasmBridge, terminal: TerminalHandle) {
     this.bridge = bridge;
     this.terminal = terminal;
-    this.pointBuffer = bridge.allocU8Array(POINT_SIZE);
-    this.referenceBuffer = bridge.allocU8Array(GRID_REF_SIZE);
-    this.selectionBuffer = bridge.allocU8Array(SELECTION_SIZE);
-    this.orderedSelectionBuffer = bridge.allocU8Array(SELECTION_SIZE);
-    this.optionsBuffer = bridge.allocU8Array(SELECT_LINE_OPTIONS_SIZE);
-    this.outputLengthBuffer = bridge.allocUsize();
-    this.coordinateBuffer = bridge.allocU8Array(POINT_COORDINATE_SIZE);
-    this.gestureValueBuffer = bridge.allocU8Array(GESTURE_VALUE_SIZE);
+    let pointBuffer = 0;
+    let referenceBuffer = 0;
+    let selectionBuffer = 0;
+    let orderedSelectionBuffer = 0;
+    let optionsBuffer = 0;
+    let outputLengthBuffer = 0;
+    let coordinateBuffer = 0;
+    let gestureValueBuffer = 0;
+    try {
+      pointBuffer = requireSelectionAllocation(bridge.allocU8Array(POINT_SIZE), "point buffer");
+      referenceBuffer = requireSelectionAllocation(
+        bridge.allocU8Array(GRID_REF_SIZE),
+        "grid reference buffer",
+      );
+      selectionBuffer = requireSelectionAllocation(
+        bridge.allocU8Array(SELECTION_SIZE),
+        "selection buffer",
+      );
+      orderedSelectionBuffer = requireSelectionAllocation(
+        bridge.allocU8Array(SELECTION_SIZE),
+        "ordered selection buffer",
+      );
+      optionsBuffer = requireSelectionAllocation(
+        bridge.allocU8Array(SELECT_LINE_OPTIONS_SIZE),
+        "selection options buffer",
+      );
+      outputLengthBuffer = requireSelectionAllocation(
+        bridge.allocUsize(),
+        "selection output length slot",
+      );
+      coordinateBuffer = requireSelectionAllocation(
+        bridge.allocU8Array(POINT_COORDINATE_SIZE),
+        "selection coordinate buffer",
+      );
+      gestureValueBuffer = requireSelectionAllocation(
+        bridge.allocU8Array(GESTURE_VALUE_SIZE),
+        "selection gesture value buffer",
+      );
+    } catch (error) {
+      if (gestureValueBuffer !== 0) bridge.freeU8Array(gestureValueBuffer, GESTURE_VALUE_SIZE);
+      if (coordinateBuffer !== 0) bridge.freeU8Array(coordinateBuffer, POINT_COORDINATE_SIZE);
+      if (outputLengthBuffer !== 0) bridge.freeUsize(outputLengthBuffer);
+      if (optionsBuffer !== 0) bridge.freeU8Array(optionsBuffer, SELECT_LINE_OPTIONS_SIZE);
+      if (orderedSelectionBuffer !== 0) {
+        bridge.freeU8Array(orderedSelectionBuffer, SELECTION_SIZE);
+      }
+      if (selectionBuffer !== 0) bridge.freeU8Array(selectionBuffer, SELECTION_SIZE);
+      if (referenceBuffer !== 0) bridge.freeU8Array(referenceBuffer, GRID_REF_SIZE);
+      if (pointBuffer !== 0) bridge.freeU8Array(pointBuffer, POINT_SIZE);
+      throw error;
+    }
+    this.pointBuffer = pointBuffer;
+    this.referenceBuffer = referenceBuffer;
+    this.selectionBuffer = selectionBuffer;
+    this.orderedSelectionBuffer = orderedSelectionBuffer;
+    this.optionsBuffer = optionsBuffer;
+    this.outputLengthBuffer = outputLengthBuffer;
+    this.coordinateBuffer = coordinateBuffer;
+    this.gestureValueBuffer = gestureValueBuffer;
     try {
       this.gesture = this.createGesture();
       this.pressEvent = this.createGestureEvent(GestureEventType.PRESS);
       this.releaseEvent = this.createGestureEvent(GestureEventType.RELEASE);
       this.dragEvent = this.createGestureEvent(GestureEventType.DRAG);
+      this.autoscrollEvent = this.createGestureEvent(GestureEventType.AUTOSCROLL_TICK);
     } catch (error) {
       this.dispose();
       throw error;
@@ -236,6 +311,12 @@ export class GhosttySelectionController {
       .setBigUint64(0, input.repeatIntervalNs, true);
     if (!this.setGestureOption(this.pressEvent, GestureEventOption.REPEAT_INTERVAL_NS))
       return false;
+    this.clearBuffer(this.gestureValueBuffer, GESTURE_VALUE_SIZE);
+    const behaviors = this.bridge.createView(this.gestureValueBuffer, GESTURE_VALUE_SIZE);
+    behaviors.setUint32(0, 0, true);
+    behaviors.setUint32(4, 1, true);
+    behaviors.setUint32(8, input.selectOutput ? 3 : 2, true);
+    if (!this.setGestureOption(this.pressEvent, GestureEventOption.BEHAVIORS)) return false;
     return this.applyGestureEvent(this.pressEvent, true);
   }
 
@@ -279,6 +360,53 @@ export class GhosttySelectionController {
     return result === Result.NO_VALUE || result === Result.SUCCESS;
   }
 
+  getAutoscroll(): GhosttySelectionAutoscroll {
+    this.clearBuffer(this.gestureValueBuffer, GESTURE_VALUE_SIZE);
+    const result = this.bridge
+      .getExports()
+      .ghostty_selection_gesture_get(
+        this.gesture,
+        this.terminal,
+        GestureData.AUTOSCROLL,
+        this.gestureValueBuffer,
+      );
+    if (result !== Result.SUCCESS) return null;
+    const value = this.bridge.createView(this.gestureValueBuffer, 4).getUint32(0, true);
+    if (value === 1) return "up";
+    if (value === 2) return "down";
+    return null;
+  }
+
+  autoscrollTick(input: GhosttySelectionGestureAutoscrollTick): boolean {
+    this.clearBuffer(this.coordinateBuffer, POINT_COORDINATE_SIZE);
+    const viewport = this.bridge.createView(this.coordinateBuffer, POINT_COORDINATE_SIZE);
+    viewport.setUint16(0, input.viewportColumn, true);
+    viewport.setUint32(4, input.viewportRow, true);
+    if (
+      !this.setGestureOption(
+        this.autoscrollEvent,
+        GestureEventOption.VIEWPORT,
+        this.coordinateBuffer,
+      )
+    ) {
+      return false;
+    }
+    this.writeSurfacePosition(input.surfaceX, input.surfaceY);
+    if (!this.setGestureOption(this.autoscrollEvent, GestureEventOption.POSITION)) return false;
+    this.clearBuffer(this.gestureValueBuffer, GESTURE_VALUE_SIZE);
+    this.bridge
+      .createView(this.gestureValueBuffer, GESTURE_VALUE_SIZE)
+      .setUint8(0, input.rectangle ? 1 : 0);
+    if (!this.setGestureOption(this.autoscrollEvent, GestureEventOption.RECTANGLE)) return false;
+    const geometry = this.bridge.createView(this.gestureValueBuffer, GESTURE_VALUE_SIZE);
+    geometry.setUint32(0, input.columns, true);
+    geometry.setUint32(4, input.cellWidth, true);
+    geometry.setUint32(8, input.paddingLeft, true);
+    geometry.setUint32(12, input.screenHeight, true);
+    if (!this.setGestureOption(this.autoscrollEvent, GestureEventOption.GEOMETRY)) return false;
+    return this.applyGestureEvent(this.autoscrollEvent, false);
+  }
+
   resetGesture(): void {
     this.bridge.getExports().ghostty_selection_gesture_reset(this.gesture, this.terminal);
   }
@@ -318,7 +446,10 @@ export class GhosttySelectionController {
     if (length === 0) return "";
     if (probe !== Result.OUT_OF_SPACE) return "";
 
-    const output = this.bridge.allocU8Array(length);
+    const output = requireSelectionAllocation(
+      this.bridge.allocU8Array(length),
+      "formatted selection buffer",
+    );
     try {
       const result = exports.ghostty_terminal_selection_format_buf(
         this.terminal,
@@ -363,10 +494,12 @@ export class GhosttySelectionController {
     exports.ghostty_selection_gesture_event_free(this.pressEvent);
     exports.ghostty_selection_gesture_event_free(this.releaseEvent);
     exports.ghostty_selection_gesture_event_free(this.dragEvent);
+    exports.ghostty_selection_gesture_event_free(this.autoscrollEvent);
     exports.ghostty_selection_gesture_free(this.gesture, this.terminal);
     this.pressEvent = 0;
     this.releaseEvent = 0;
     this.dragEvent = 0;
+    this.autoscrollEvent = 0;
     this.gesture = 0;
     this.bridge.freeU8Array(this.pointBuffer, POINT_SIZE);
     this.bridge.freeU8Array(this.referenceBuffer, GRID_REF_SIZE);
@@ -421,13 +554,19 @@ export class GhosttySelectionController {
   }
 
   private createGestureEvent(type: number): number {
-    const output = this.bridge.allocOpaque();
+    const output = requireSelectionAllocation(
+      this.bridge.allocOpaque(),
+      "selection gesture event output slot",
+    );
     try {
       const result = this.bridge.getExports().ghostty_selection_gesture_event_new(0, output, type);
       if (result !== Result.SUCCESS) {
         throw new Error(`Failed to create Ghostty selection gesture event: ${result}`);
       }
-      return this.bridge.createView(output, 4).getUint32(0, true);
+      return requireSelectionAllocation(
+        this.bridge.createView(output, 4).getUint32(0, true),
+        "selection gesture event",
+      );
     } finally {
       this.bridge.freeOpaque(output);
     }
@@ -495,4 +634,9 @@ export class GhosttySelectionController {
   private copyBytes(source: number, destination: number, length: number): void {
     this.bridge.writeBytes(destination, this.bridge.readBytes(source, length));
   }
+}
+
+function requireSelectionAllocation(pointer: number, purpose: string): number {
+  if (pointer === 0) throw new Error(`WASM allocation failed: ${purpose}`);
+  return pointer;
 }

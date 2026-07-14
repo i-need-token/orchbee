@@ -853,8 +853,12 @@ export class WebGPURenderer {
       this.atlasRowHeight = 0;
     }
 
-    // Check if atlas is full
-    if (this.atlasY + h + padding > this.atlasCanvas.height) {
+    // A single glyph can exceed either axis before normal row packing makes
+    // the atlas vertically full, so grow until the complete reservation fits.
+    while (
+      w + padding > this.atlasCanvas.width ||
+      this.atlasY + h + padding > this.atlasCanvas.height
+    ) {
       if (!this.growAtlas()) return null;
     }
 
@@ -1709,7 +1713,9 @@ export class WebGPURenderer {
       : null;
     if (this.currentSelectionCoords) {
       const coords = this.currentSelectionCoords;
-      for (let row = coords.startRow; row <= coords.endRow; row++) selectionRows.add(row);
+      const startRow = Math.max(0, Math.min(coords.startRow, coords.endRow));
+      const endRow = Math.min(dims.rows - 1, Math.max(coords.startRow, coords.endRow));
+      for (let row = startRow; row <= endRow; row++) selectionRows.add(row);
     }
     if (selectionManager) {
       const dirtyRows = selectionManager.getDirtySelectionRows();

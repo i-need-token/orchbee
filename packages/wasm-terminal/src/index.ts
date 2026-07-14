@@ -156,6 +156,7 @@ export {
 export {
   encodePaste,
   inspectPaste,
+  type PasteCodec,
   type PasteInspection,
   type PastePolicyOptions,
   type PasteResult,
@@ -174,6 +175,8 @@ export {
 export {
   GhosttySelectionController,
   type GhosttySelectionAdjustment,
+  type GhosttySelectionAutoscroll,
+  type GhosttySelectionGestureAutoscrollTick,
   type GhosttySelectionGestureDrag,
   type GhosttySelectionGesturePoint,
   type GhosttySelectionGesturePress,

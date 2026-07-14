@@ -25,6 +25,7 @@ const terminal = new Terminal({
 
 await terminal.open(document.querySelector("#terminal")!);
 terminal.onData((data) => pty.write(data));
+terminal.onBinary((data) => pty.write(Buffer.from(data, "binary")));
 pty.onData((data) => terminal.write(data));
 ```
 
@@ -103,9 +104,10 @@ const shortcut = terminal.registerKeyEventHandler({
 - WebGPU device loss rebuilds the device, pipelines, atlas texture, buffers, and canvas configuration once.
 - SGR blink, faint, inverse, invisible, overline, strikethrough, underline variants, and underline colors render in both backends.
 - X10, UTF-8, SGR, URXVT, and SGR-pixel mouse reports include horizontal wheel and pixel coordinates.
+- Pointer shape follows Ghostty for mouse reporting, Shift selection override, rectangular selection, and modifier-enabled links.
 - Plain URLs and CWD-relative file paths can span soft-wrapped rows; file links preserve line/column suffixes.
 
-Known advanced gaps are tracked in [`research/terminal/surface-gap-analysis.md`](../../research/terminal/surface-gap-analysis.md).
+Current Ghostty alignment and remaining gaps are tracked in [Ghostty Terminal Panel Conformance](../../docs/terminal/ghostty-surface-test-provenance.md).
 
 ## Development
 

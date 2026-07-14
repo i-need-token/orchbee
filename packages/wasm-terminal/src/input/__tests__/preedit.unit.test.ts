@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPreeditState } from "../preedit.js";
+import { buildPreeditState, shouldSuppressComposingControlInput } from "../preedit.js";
 
 describe("buildPreeditState", () => {
   it("maps a UTF-16 selection to wide terminal cell offsets", () => {
@@ -35,6 +35,26 @@ describe("buildPreeditState", () => {
       { text: "👩‍💻", width: 2 },
     ]);
     expect(state.width).toBe(3);
+  });
+});
+
+describe("shouldSuppressComposingControlInput", () => {
+  it.each([
+    ["\u0008", true],
+    ["\u001f", true],
+    ["\u007f", false],
+    [" ", false],
+    ["h", false],
+    ["", false],
+    ["\u0009x", false],
+    ["\u0009\u0009", false],
+  ])("classifies %j while composing", (text, expected) => {
+    expect(shouldSuppressComposingControlInput(text, true)).toBe(expected);
+  });
+
+  it("preserves control input outside composition and missing text", () => {
+    expect(shouldSuppressComposingControlInput("\u0008", false)).toBe(false);
+    expect(shouldSuppressComposingControlInput(null, true)).toBe(false);
   });
 });
 

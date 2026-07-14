@@ -12,8 +12,18 @@
  * - De-duplication between keydown/beforeinput/composition/paste
  */
 
-import type { WasmBridge } from "./wasm-bridge.js";
-import { type IKeyEvent, Key, KeyAction, Mods, TerminalData, type WasmExports } from "./types.js";
+import type { WasmBridge, WasmTypeLayout } from "./wasm-bridge.js";
+import {
+  type IKeyEvent,
+  Key,
+  KeyAction,
+  Mods,
+  Result,
+  TerminalData,
+  type WasmExports,
+} from "./types.js";
+import { isSurfaceMouseModifierKey } from "./input/surface-mouse.js";
+import { shouldSuppressComposingControlInput } from "./input/preedit.js";
 
 // ============================================================================
 // KeyEncoder (WASM-backed)
@@ -46,6 +56,8 @@ class KeyEncoder {
     action: KeyAction;
     key: Key;
     mods: Mods;
+    consumedMods?: Mods;
+    composing?: boolean;
     utf8?: string;
     unshiftedCodepoint?: number;
   }): Uint8Array {
@@ -57,21 +69,29 @@ class KeyEncoder {
     this.exports.ghostty_key_event_set_action(eventPtr, event.action);
     this.exports.ghostty_key_event_set_key(eventPtr, event.key);
     this.exports.ghostty_key_event_set_mods(eventPtr, event.mods);
+    this.exports.ghostty_key_event_set_consumed_mods(eventPtr, event.consumedMods ?? Mods.NONE);
+    this.exports.ghostty_key_event_set_composing(eventPtr, event.composing ? 1 : 0);
     if (event.unshiftedCodepoint !== undefined) {
       this.exports.ghostty_key_event_set_unshifted_codepoint(eventPtr, event.unshiftedCodepoint);
     }
 
     const utf8Bytes = event.utf8 ? new TextEncoder().encode(event.utf8) : undefined;
-    const utf8Ptr = utf8Bytes ? this.bridge.allocU8Array(utf8Bytes.length) : 0;
+    let utf8Ptr = 0;
     let bufferSize = 32;
-    let bufPtr = this.bridge.allocU8Array(bufferSize);
-    const writtenPtr = this.bridge.allocUsize();
+    let bufPtr = 0;
+    let writtenPtr = 0;
 
     try {
       if (utf8Bytes) {
+        utf8Ptr = requireWasmPointer(
+          this.bridge.allocU8Array(utf8Bytes.length),
+          "key UTF-8 buffer",
+        );
         this.bridge.writeBytes(utf8Ptr, utf8Bytes);
         this.exports.ghostty_key_event_set_utf8(eventPtr, utf8Ptr, utf8Bytes.length);
       }
+      bufPtr = requireWasmPointer(this.bridge.allocU8Array(bufferSize), "key encoding buffer");
+      writtenPtr = requireWasmPointer(this.bridge.allocUsize(), "key encoding length slot");
 
       let encodeResult = this.exports.ghostty_key_encoder_encode(
         this.encoder,
@@ -82,9 +102,13 @@ class KeyEncoder {
       );
       if (encodeResult === -3) {
         const required = this.bridge.createView(writtenPtr, 4).getUint32(0, true);
+        const replacement = requireWasmPointer(
+          this.bridge.allocU8Array(required),
+          "expanded key encoding buffer",
+        );
         this.bridge.freeU8Array(bufPtr, bufferSize);
         bufferSize = required;
-        bufPtr = this.bridge.allocU8Array(bufferSize);
+        bufPtr = replacement;
         encodeResult = this.exports.ghostty_key_encoder_encode(
           this.encoder,
           eventPtr,
@@ -100,9 +124,9 @@ class KeyEncoder {
       const bytesWritten = this.bridge.createView(writtenPtr, 4).getUint32(0, true);
       return this.bridge.readBytes(bufPtr, bytesWritten);
     } finally {
-      if (utf8Bytes) this.bridge.freeU8Array(utf8Ptr, utf8Bytes.length);
-      this.bridge.freeU8Array(bufPtr, bufferSize);
-      this.bridge.freeUsize(writtenPtr);
+      if (utf8Bytes && utf8Ptr !== 0) this.bridge.freeU8Array(utf8Ptr, utf8Bytes.length);
+      if (bufPtr !== 0) this.bridge.freeU8Array(bufPtr, bufferSize);
+      if (writtenPtr !== 0) this.bridge.freeUsize(writtenPtr);
       this.exports.ghostty_key_event_free(eventPtr);
     }
   }
@@ -113,6 +137,241 @@ class KeyEncoder {
       this.encoder = 0;
     }
   }
+}
+
+// ============================================================================
+// MouseEncoder (WASM-backed)
+// ============================================================================
+
+const MouseAction = {
+  PRESS: 0,
+  RELEASE: 1,
+  MOTION: 2,
+} as const;
+
+const MouseButton = {
+  LEFT: 1,
+  RIGHT: 2,
+  MIDDLE: 3,
+  FOUR: 4,
+  FIVE: 5,
+  SIX: 6,
+  SEVEN: 7,
+} as const;
+
+const MouseEncoderOption = {
+  SIZE: 2,
+  ANY_BUTTON_PRESSED: 3,
+  TRACK_LAST_CELL: 4,
+} as const;
+
+interface MouseEncodingEvent {
+  readonly action: (typeof MouseAction)[keyof typeof MouseAction];
+  readonly button: number | null;
+  readonly mods: Mods;
+  readonly x: number;
+  readonly y: number;
+  readonly anyButtonPressed: boolean;
+  readonly screenWidth: number;
+  readonly screenHeight: number;
+  readonly cellWidth: number;
+  readonly cellHeight: number;
+}
+
+class MouseEncoder {
+  private readonly bridge: WasmBridge;
+  private readonly exports: WasmExports;
+  private readonly positionPointer: number;
+  private readonly positionSize: number;
+  private readonly positionXOffset: number;
+  private readonly positionYOffset: number;
+  private readonly sizePointer: number;
+  private readonly sizeSize: number;
+  private readonly sizeOffsets: readonly number[];
+  private readonly optionPointer: number;
+  private encoder: number;
+  private event: number;
+  private configurationSignature = "";
+  private disposed = false;
+
+  constructor(bridge: WasmBridge) {
+    this.bridge = bridge;
+    this.exports = bridge.getExports();
+    const positionLayout = bridge.getTypeLayout("GhosttyMousePosition");
+    this.positionSize = positionLayout.size;
+    this.positionXOffset = getTypeFieldOffset(positionLayout, "x");
+    this.positionYOffset = getTypeFieldOffset(positionLayout, "y");
+    const sizeLayout = bridge.getTypeLayout("GhosttyMouseEncoderSize");
+    this.sizeSize = sizeLayout.size;
+    this.sizeOffsets = [
+      "size",
+      "screen_width",
+      "screen_height",
+      "cell_width",
+      "cell_height",
+      "padding_top",
+      "padding_bottom",
+      "padding_right",
+      "padding_left",
+    ].map((field) => getTypeFieldOffset(sizeLayout, field));
+    let positionPointer = 0;
+    let sizePointer = 0;
+    let optionPointer = 0;
+    let encoder = 0;
+    let event = 0;
+    try {
+      positionPointer = requireWasmPointer(
+        this.exports.ghostty_alloc(0, positionLayout.size),
+        "mouse position",
+      );
+      sizePointer = requireWasmPointer(
+        this.exports.ghostty_alloc(0, sizeLayout.size),
+        "mouse encoder size",
+      );
+      optionPointer = requireWasmPointer(bridge.allocU8(), "mouse encoder option");
+      encoder = bridge.allocAndReadOpaque((allocator, output) =>
+        this.exports.ghostty_mouse_encoder_new(allocator, output),
+      );
+      event = bridge.allocAndReadOpaque((allocator, output) =>
+        this.exports.ghostty_mouse_event_new(allocator, output),
+      );
+      bridge.createView(optionPointer, 1).setUint8(0, 1);
+      this.exports.ghostty_mouse_encoder_setopt(
+        encoder,
+        MouseEncoderOption.TRACK_LAST_CELL,
+        optionPointer,
+      );
+    } catch (error) {
+      if (event !== 0) this.exports.ghostty_mouse_event_free(event);
+      if (encoder !== 0) this.exports.ghostty_mouse_encoder_free(encoder);
+      if (optionPointer !== 0) bridge.freeU8(optionPointer);
+      if (sizePointer !== 0) this.exports.ghostty_free(0, sizePointer, sizeLayout.size);
+      if (positionPointer !== 0) {
+        this.exports.ghostty_free(0, positionPointer, positionLayout.size);
+      }
+      throw error;
+    }
+    this.positionPointer = positionPointer;
+    this.sizePointer = sizePointer;
+    this.optionPointer = optionPointer;
+    this.encoder = encoder;
+    this.event = event;
+  }
+
+  syncFromTerminal(terminal: number, signature: string): void {
+    if (signature === this.configurationSignature) return;
+    this.exports.ghostty_mouse_encoder_setopt_from_terminal(this.encoder, terminal);
+    this.configurationSignature = signature;
+  }
+
+  encode(input: MouseEncodingEvent): Uint8Array {
+    const position = this.bridge.createView(this.positionPointer, this.positionSize);
+    position.setFloat32(this.positionXOffset, input.x, true);
+    position.setFloat32(this.positionYOffset, input.y, true);
+
+    const size = this.bridge.createView(this.sizePointer, this.sizeSize);
+    const values = [
+      this.sizeSize,
+      input.screenWidth,
+      input.screenHeight,
+      input.cellWidth,
+      input.cellHeight,
+      0,
+      0,
+      0,
+      0,
+    ];
+    for (const [index, value] of values.entries()) {
+      const offset = this.sizeOffsets[index];
+      if (offset === undefined) throw new Error("Ghostty mouse size layout is incomplete");
+      size.setUint32(offset, value, true);
+    }
+
+    this.exports.ghostty_mouse_encoder_setopt(
+      this.encoder,
+      MouseEncoderOption.SIZE,
+      this.sizePointer,
+    );
+    this.bridge.createView(this.optionPointer, 1).setUint8(0, input.anyButtonPressed ? 1 : 0);
+    this.exports.ghostty_mouse_encoder_setopt(
+      this.encoder,
+      MouseEncoderOption.ANY_BUTTON_PRESSED,
+      this.optionPointer,
+    );
+
+    this.exports.ghostty_mouse_event_set_action(this.event, input.action);
+    if (input.button === null) this.exports.ghostty_mouse_event_clear_button(this.event);
+    else this.exports.ghostty_mouse_event_set_button(this.event, input.button);
+    this.exports.ghostty_mouse_event_set_mods(this.event, input.mods);
+    this.exports.ghostty_mouse_event_set_position(this.event, this.positionPointer);
+
+    let bufferSize = 32;
+    let buffer = 0;
+    let written = 0;
+    try {
+      buffer = requireWasmPointer(this.bridge.allocU8Array(bufferSize), "mouse encoding buffer");
+      written = requireWasmPointer(this.bridge.allocUsize(), "mouse encoding length slot");
+      let result = this.exports.ghostty_mouse_encoder_encode(
+        this.encoder,
+        this.event,
+        buffer,
+        bufferSize,
+        written,
+      );
+      if (result === Result.OUT_OF_SPACE) {
+        const required = this.bridge.createView(written, 4).getUint32(0, true);
+        const replacement = requireWasmPointer(
+          this.bridge.allocU8Array(required),
+          "expanded mouse encoding buffer",
+        );
+        this.bridge.freeU8Array(buffer, bufferSize);
+        bufferSize = required;
+        buffer = replacement;
+        result = this.exports.ghostty_mouse_encoder_encode(
+          this.encoder,
+          this.event,
+          buffer,
+          bufferSize,
+          written,
+        );
+      }
+      if (result !== Result.SUCCESS) {
+        throw new Error(`Failed to encode mouse event: ${result}`);
+      }
+      const length = this.bridge.createView(written, 4).getUint32(0, true);
+      return this.bridge.readBytes(buffer, length);
+    } finally {
+      if (buffer !== 0) this.bridge.freeU8Array(buffer, bufferSize);
+      if (written !== 0) this.bridge.freeUsize(written);
+    }
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    if (this.event) {
+      this.exports.ghostty_mouse_event_free(this.event);
+      this.event = 0;
+    }
+    if (this.encoder) {
+      this.exports.ghostty_mouse_encoder_free(this.encoder);
+      this.encoder = 0;
+    }
+    this.exports.ghostty_free(0, this.positionPointer, this.positionSize);
+    this.exports.ghostty_free(0, this.sizePointer, this.sizeSize);
+    this.bridge.freeU8(this.optionPointer);
+    this.disposed = true;
+  }
+}
+
+function getTypeFieldOffset(layout: WasmTypeLayout, field: string): number {
+  const value = layout.fields[field];
+  if (!value) throw new Error(`Ghostty type field is missing: ${field}`);
+  return value.offset;
+}
+
+function requireWasmPointer(pointer: number, purpose: string): number {
+  if (pointer === 0) throw new Error(`WASM allocation failed: ${purpose}`);
+  return pointer;
 }
 
 // ============================================================================
@@ -165,9 +424,19 @@ const KEY_MAP: Record<string, Key> = {
   Digit0: Key.ZERO,
 
   // Special keys
+  AltLeft: Key.ALT_LEFT,
+  AltRight: Key.ALT_RIGHT,
   Enter: Key.ENTER,
   Escape: Key.ESCAPE,
   Backspace: Key.BACKSPACE,
+  ControlLeft: Key.CONTROL_LEFT,
+  ControlRight: Key.CONTROL_RIGHT,
+  MetaLeft: Key.META_LEFT,
+  MetaRight: Key.META_RIGHT,
+  OSLeft: Key.META_LEFT,
+  OSRight: Key.META_RIGHT,
+  ShiftLeft: Key.SHIFT_LEFT,
+  ShiftRight: Key.SHIFT_RIGHT,
   Tab: Key.TAB,
   Space: Key.SPACE,
 
@@ -198,11 +467,26 @@ const KEY_MAP: Record<string, Key> = {
   F10: Key.F10,
   F11: Key.F11,
   F12: Key.F12,
+  F13: Key.F13,
+  F14: Key.F14,
+  F15: Key.F15,
+  F16: Key.F16,
+  F17: Key.F17,
+  F18: Key.F18,
+  F19: Key.F19,
+  F20: Key.F20,
+  F21: Key.F21,
+  F22: Key.F22,
+  F23: Key.F23,
+  F24: Key.F24,
+  F25: Key.F25,
 
   // Special function keys
-  PrintScreen: Key.INSERT,
-  ScrollLock: Key.INSERT,
-  Pause: Key.INSERT,
+  Fn: Key.FN,
+  FnLock: Key.FN_LOCK,
+  PrintScreen: Key.PRINT_SCREEN,
+  ScrollLock: Key.SCROLL_LOCK,
+  Pause: Key.PAUSE,
   Insert: Key.INSERT,
   Home: Key.HOME,
   PageUp: Key.PAGE_UP,
@@ -217,27 +501,84 @@ const KEY_MAP: Record<string, Key> = {
   ArrowUp: Key.UP,
 
   // Keypad
-  NumLock: Key.CAPS_LOCK,
-  NumpadDivide: Key.SLASH,
-  NumpadMultiply: Key.EIGHT,
-  NumpadSubtract: Key.MINUS,
-  NumpadAdd: Key.EQUAL,
-  NumpadEnter: Key.ENTER,
-  Numpad1: Key.ONE,
-  Numpad2: Key.TWO,
-  Numpad3: Key.THREE,
-  Numpad4: Key.FOUR,
-  Numpad5: Key.FIVE,
-  Numpad6: Key.SIX,
-  Numpad7: Key.SEVEN,
-  Numpad8: Key.EIGHT,
-  Numpad9: Key.NINE,
-  Numpad0: Key.ZERO,
-  NumpadDecimal: Key.PERIOD,
+  NumLock: Key.NUM_LOCK,
+  Numpad0: Key.NUMPAD_0,
+  Numpad1: Key.NUMPAD_1,
+  Numpad2: Key.NUMPAD_2,
+  Numpad3: Key.NUMPAD_3,
+  Numpad4: Key.NUMPAD_4,
+  Numpad5: Key.NUMPAD_5,
+  Numpad6: Key.NUMPAD_6,
+  Numpad7: Key.NUMPAD_7,
+  Numpad8: Key.NUMPAD_8,
+  Numpad9: Key.NUMPAD_9,
+  NumpadAdd: Key.NUMPAD_ADD,
+  NumpadBackspace: Key.NUMPAD_BACKSPACE,
+  NumpadClear: Key.NUMPAD_CLEAR,
+  NumpadClearEntry: Key.NUMPAD_CLEAR_ENTRY,
+  NumpadComma: Key.NUMPAD_COMMA,
+  NumpadDecimal: Key.NUMPAD_DECIMAL,
+  NumpadDivide: Key.NUMPAD_DIVIDE,
+  NumpadEnter: Key.NUMPAD_ENTER,
+  NumpadEqual: Key.NUMPAD_EQUAL,
+  NumpadMemoryAdd: Key.NUMPAD_MEMORY_ADD,
+  NumpadMemoryClear: Key.NUMPAD_MEMORY_CLEAR,
+  NumpadMemoryRecall: Key.NUMPAD_MEMORY_RECALL,
+  NumpadMemoryStore: Key.NUMPAD_MEMORY_STORE,
+  NumpadMemorySubtract: Key.NUMPAD_MEMORY_SUBTRACT,
+  NumpadMultiply: Key.NUMPAD_MULTIPLY,
+  NumpadParenLeft: Key.NUMPAD_PAREN_LEFT,
+  NumpadParenRight: Key.NUMPAD_PAREN_RIGHT,
+  NumpadSubtract: Key.NUMPAD_SUBTRACT,
+  NumpadSeparator: Key.NUMPAD_SEPARATOR,
+  NumpadUp: Key.NUMPAD_UP,
+  NumpadDown: Key.NUMPAD_DOWN,
+  NumpadRight: Key.NUMPAD_RIGHT,
+  NumpadLeft: Key.NUMPAD_LEFT,
+  NumpadBegin: Key.NUMPAD_BEGIN,
+  NumpadHome: Key.NUMPAD_HOME,
+  NumpadEnd: Key.NUMPAD_END,
+  NumpadInsert: Key.NUMPAD_INSERT,
+  NumpadDelete: Key.NUMPAD_DELETE,
+  NumpadPageUp: Key.NUMPAD_PAGE_UP,
+  NumpadPageDown: Key.NUMPAD_PAGE_DOWN,
 
   // International
-  IntlBackslash: Key.BACKSLASH,
-  ContextMenu: Key.INSERT,
+  IntlBackslash: Key.INTL_BACKSLASH,
+  IntlRo: Key.INTL_RO,
+  IntlYen: Key.INTL_YEN,
+  Convert: Key.CONVERT,
+  KanaMode: Key.KANA_MODE,
+  NonConvert: Key.NON_CONVERT,
+  ContextMenu: Key.CONTEXT_MENU,
+  Help: Key.HELP,
+
+  // Media and browser keys
+  BrowserBack: Key.BROWSER_BACK,
+  BrowserFavorites: Key.BROWSER_FAVORITES,
+  BrowserForward: Key.BROWSER_FORWARD,
+  BrowserHome: Key.BROWSER_HOME,
+  BrowserRefresh: Key.BROWSER_REFRESH,
+  BrowserSearch: Key.BROWSER_SEARCH,
+  BrowserStop: Key.BROWSER_STOP,
+  Eject: Key.EJECT,
+  LaunchApp1: Key.LAUNCH_APP_1,
+  LaunchApp2: Key.LAUNCH_APP_2,
+  LaunchMail: Key.LAUNCH_MAIL,
+  MediaPlayPause: Key.MEDIA_PLAY_PAUSE,
+  MediaSelect: Key.MEDIA_SELECT,
+  MediaStop: Key.MEDIA_STOP,
+  MediaTrackNext: Key.MEDIA_TRACK_NEXT,
+  MediaTrackPrevious: Key.MEDIA_TRACK_PREVIOUS,
+  Power: Key.POWER,
+  Sleep: Key.SLEEP,
+  AudioVolumeDown: Key.AUDIO_VOLUME_DOWN,
+  AudioVolumeMute: Key.AUDIO_VOLUME_MUTE,
+  AudioVolumeUp: Key.AUDIO_VOLUME_UP,
+  WakeUp: Key.WAKE_UP,
+  Copy: Key.COPY,
+  Cut: Key.CUT,
+  Paste: Key.PASTE,
 };
 
 const UNSHIFTED_CHARACTERS: Readonly<Record<string, string>> = {
@@ -277,14 +618,18 @@ export interface InputHandlerDependencies {
   getTerminalHandle(): number;
   /** Check if any mouse tracking mode is enabled. */
   hasMouseTracking(): boolean;
-  /** Check if SGR extended mouse mode is enabled (mode 1006). */
-  hasSgrMouseMode(): boolean;
   /** Get cell dimensions for pixel-to-cell conversion. */
   getCellDimensions(): { width: number; height: number };
+  /** Get the rendered surface dimensions in CSS pixels. */
+  getScreenDimensions(): { width: number; height: number };
   /** Get canvas/container offset for accurate position calculation. */
   getCanvasOffset(): { left: number; top: number };
   /** Query a terminal mode (DEC or ANSI). */
   getMode(mode: number, isAnsi?: boolean): boolean;
+  /** Emit non-UTF-8 mouse bytes through the host's binary input channel. */
+  emitBinary?(data: string): void;
+  /** Refresh pointer presentation when a mouse-shape modifier changes. */
+  onSurfaceModifierChange?(event: KeyboardEvent): void;
 }
 
 export interface CompositionSelection {
@@ -298,6 +643,7 @@ export interface CompositionSelection {
 
 export class InputHandler {
   private readonly encoder: KeyEncoder;
+  private readonly mouseEncoder: MouseEncoder;
   private readonly deps: InputHandlerDependencies;
   private container: HTMLElement;
   private inputElement?: HTMLElement | undefined;
@@ -332,11 +678,14 @@ export class InputHandler {
   private isComposing = false;
   private isDisposed = false;
   private mouseButtonsPressed = 0;
+  private pendingWheelX = 0;
+  private pendingWheelY = 0;
   private readonly pressedKeys = new Map<
     string,
     {
       readonly key: Key;
       readonly mods: Mods;
+      readonly consumedMods?: Mods;
       readonly utf8?: string;
       readonly unshiftedCodepoint?: number;
     }
@@ -371,6 +720,12 @@ export class InputHandler {
   ) {
     this.deps = deps;
     this.encoder = new KeyEncoder(deps.bridge);
+    try {
+      this.mouseEncoder = new MouseEncoder(deps.bridge);
+    } catch (error) {
+      this.encoder.dispose();
+      throw error;
+    }
     this.container = container;
     this.inputElement = inputElement;
     this.onDataCallback = onData;
@@ -383,7 +738,12 @@ export class InputHandler {
     this.onActionCallback = onAction;
     this.onErrorCallback = onError;
 
-    this.attach();
+    try {
+      this.attach();
+    } catch (error) {
+      this.dispose();
+      throw error;
+    }
   }
 
   /** Trigger the bell callback. */
@@ -469,10 +829,10 @@ export class InputHandler {
     if (event.getModifierState?.("CapsLock")) mods |= Mods.CAPSLOCK;
     if (event.getModifierState?.("NumLock")) mods |= Mods.NUMLOCK;
     if (event.location === 2) {
-      if (event.shiftKey) mods |= 1 << 6;
-      if (event.ctrlKey) mods |= 1 << 7;
-      if (event.altKey) mods |= 1 << 8;
-      if (event.metaKey) mods |= 1 << 9;
+      if (event.shiftKey) mods |= Mods.SHIFT_SIDE;
+      if (event.ctrlKey) mods |= Mods.CTRL_SIDE;
+      if (event.altKey) mods |= Mods.ALT_SIDE;
+      if (event.metaKey) mods |= Mods.SUPER_SIDE;
     }
 
     return mods;
@@ -488,6 +848,30 @@ export class InputHandler {
   private getUnshiftedCodepoint(event: KeyboardEvent): number | undefined {
     if (/^Key[A-Z]$/.test(event.code)) return event.code.charCodeAt(3) + 32;
     return UNSHIFTED_CHARACTERS[event.code]?.codePointAt(0);
+  }
+
+  private getConsumedModifiers(event: KeyboardEvent, utf8: string | undefined): Mods {
+    if (!utf8) return Mods.NONE;
+    let consumed = Mods.NONE;
+    const unshifted = this.getUnshiftedCodepoint(event);
+    if (event.shiftKey && unshifted !== undefined && unshifted !== utf8.codePointAt(0)) {
+      consumed |= Mods.SHIFT;
+    }
+    if (event.getModifierState?.("AltGraph")) consumed |= Mods.CTRL | Mods.ALT;
+    return consumed;
+  }
+
+  private encodeKeyEvent(event: {
+    readonly action: KeyAction;
+    readonly key: Key;
+    readonly mods: Mods;
+    readonly consumedMods?: Mods;
+    readonly composing?: boolean;
+    readonly utf8?: string;
+    readonly unshiftedCodepoint?: number;
+  }): string {
+    this.encoder.syncFromTerminal(this.deps.getTerminalHandle());
+    return new TextDecoder().decode(this.encoder.encode(event));
   }
 
   private reportsKeyReleases(): boolean {
@@ -513,6 +897,7 @@ export class InputHandler {
 
   private handleKeyDown(event: KeyboardEvent): void {
     if (this.isDisposed) return;
+    if (isSurfaceMouseModifierKey(event.code)) this.deps.onSurfaceModifierChange?.(event);
 
     // Ignore keydown during composition
     if (this.isComposing || event.isComposing || event.keyCode === 229) {
@@ -556,8 +941,21 @@ export class InputHandler {
     if (key === null) {
       if (this.isPrintableCharacter(event)) {
         event.preventDefault();
-        this.onDataCallback(event.key);
-        this.recordKeyDownData(event.key);
+        try {
+          const data = this.encodeKeyEvent({
+            action: event.repeat ? KeyAction.REPEAT : KeyAction.PRESS,
+            key: Key.UNIDENTIFIED,
+            mods: this.extractModifiers(event),
+            consumedMods: this.getConsumedModifiers(event, event.key),
+            utf8: event.key,
+          });
+          if (data.length > 0) {
+            this.onDataCallback(data);
+            this.recordKeyDownData(data);
+          }
+        } catch (error) {
+          this.onErrorCallback?.(error);
+        }
       }
       return;
     }
@@ -566,23 +964,24 @@ export class InputHandler {
     const action = event.repeat ? KeyAction.REPEAT : KeyAction.PRESS;
 
     try {
-      this.encoder.syncFromTerminal(this.deps.getTerminalHandle());
       const utf8 = event.key.length === 1 ? event.key : undefined;
       const unshiftedCodepoint = this.getUnshiftedCodepoint(event);
+      const consumedMods = this.getConsumedModifiers(event, utf8);
 
-      const encoded = this.encoder.encode({
+      const data = this.encodeKeyEvent({
         action,
         key,
         mods,
+        consumedMods,
         ...(utf8 !== undefined ? { utf8 } : {}),
         ...(unshiftedCodepoint === undefined ? {} : { unshiftedCodepoint }),
       });
-      const data = new TextDecoder().decode(encoded);
 
       if (!event.repeat) {
         this.pressedKeys.set(event.code, {
           key,
           mods,
+          consumedMods,
           ...(utf8 === undefined ? {} : { utf8 }),
           ...(unshiftedCodepoint === undefined ? {} : { unshiftedCodepoint }),
         });
@@ -602,6 +1001,7 @@ export class InputHandler {
 
   private handleKeyUp(event: KeyboardEvent): void {
     if (this.isDisposed) return;
+    if (isSurfaceMouseModifierKey(event.code)) this.deps.onSurfaceModifierChange?.(event);
     const key = this.mapKeyCode(event.code);
     if (key === null) return;
     this.pressedKeys.delete(event.code);
@@ -609,20 +1009,20 @@ export class InputHandler {
     if (!this.reportsKeyReleases()) return;
 
     try {
-      this.encoder.syncFromTerminal(this.deps.getTerminalHandle());
       const utf8 = event.key.length === 1 ? event.key : undefined;
       const unshiftedCodepoint = this.getUnshiftedCodepoint(event);
-      const encoded = this.encoder.encode({
+      const data = this.encodeKeyEvent({
         action: KeyAction.RELEASE,
         key,
         mods: this.extractModifiers(event),
+        consumedMods: this.getConsumedModifiers(event, utf8),
         ...(utf8 === undefined ? {} : { utf8 }),
         ...(unshiftedCodepoint === undefined ? {} : { unshiftedCodepoint }),
       });
-      if (encoded.length === 0) return;
+      if (data.length === 0) return;
       event.preventDefault();
       event.stopPropagation();
-      this.onDataCallback(new TextDecoder().decode(encoded));
+      this.onDataCallback(data);
     } catch (error) {
       this.onErrorCallback?.(error);
     }
@@ -655,12 +1055,8 @@ export class InputHandler {
       this.onPasteCallback(text, source);
       return;
     }
-    const hasBracketedPaste = this.deps.getMode(2004);
-    if (hasBracketedPaste) {
-      this.onDataCallback("\x1b[200~" + text + "\x1b[201~");
-    } else {
-      this.onDataCallback(text);
-    }
+    const encoded = this.deps.bridge.encodePaste(text, this.deps.getMode(2004));
+    this.onDataCallback(new TextDecoder().decode(encoded));
   }
 
   // ==========================================================================
@@ -673,22 +1069,24 @@ export class InputHandler {
 
     const inputType = event.inputType;
     const data = event.data ?? "";
-    let output: string | null = null;
+    let key: Key = Key.UNIDENTIFIED;
+    let utf8: string | undefined;
 
     switch (inputType) {
       case "insertText":
       case "insertReplacementText":
-        output = data.length > 0 ? data.replace(/\n/g, "\r") : null;
+        if (data.length === 0) return;
+        utf8 = data;
         break;
       case "insertLineBreak":
       case "insertParagraph":
-        output = "\r";
+        key = Key.ENTER;
         break;
       case "deleteContentBackward":
-        output = "\x7F";
+        key = Key.BACKSPACE;
         break;
       case "deleteContentForward":
-        output = "\x1B[3~";
+        key = Key.DELETE;
         break;
       case "insertFromPaste":
         if (!data) return;
@@ -706,6 +1104,18 @@ export class InputHandler {
         return;
     }
 
+    let output: string;
+    try {
+      output = this.encodeKeyEvent({
+        action: KeyAction.PRESS,
+        key,
+        mods: Mods.NONE,
+        ...(utf8 === undefined ? {} : { utf8 }),
+      });
+    } catch (error) {
+      this.onErrorCallback?.(error);
+      return;
+    }
     if (!output) return;
 
     if (this.shouldIgnoreBeforeInput(output)) {
@@ -745,18 +1155,38 @@ export class InputHandler {
 
   private handleCompositionEnd(event: CompositionEvent): void {
     if (this.isDisposed) return;
+    const wasComposing = this.isComposing;
     this.isComposing = false;
     this.onCompositionCallback?.(null);
 
     const data = event.data;
     if (data && data.length > 0) {
+      if (shouldSuppressComposingControlInput(data, wasComposing)) {
+        this.clearInputElement();
+        this.cleanupCompositionTextNodes();
+        return;
+      }
       if (this.shouldIgnoreCompositionEnd(data)) {
         this.clearInputElement();
         this.cleanupCompositionTextNodes();
         return;
       }
-      this.onDataCallback(data);
-      this.recordCompositionData(data);
+      try {
+        const encoded = this.encodeKeyEvent({
+          action: KeyAction.PRESS,
+          key: Key.UNIDENTIFIED,
+          mods: Mods.NONE,
+          consumedMods: Mods.NONE,
+          composing: false,
+          utf8: data,
+        });
+        if (encoded.length > 0) {
+          this.onDataCallback(encoded);
+          this.recordCompositionData(data);
+        }
+      } catch (error) {
+        this.onErrorCallback?.(error);
+      }
     }
 
     this.clearInputElement();
@@ -799,9 +1229,7 @@ export class InputHandler {
   // Mouse Event Handling
   // ==========================================================================
 
-  private pixelToCell(
-    event: MouseEvent,
-  ): { col: number; row: number; pixelX: number; pixelY: number } | null {
+  private getMousePosition(event: MouseEvent): { x: number; y: number } | null {
     const dims = this.deps.getCellDimensions();
     const offset = this.deps.getCanvasOffset();
 
@@ -809,142 +1237,137 @@ export class InputHandler {
 
     const x = event.clientX - offset.left;
     const y = event.clientY - offset.top;
-
-    const col = Math.max(1, Math.floor(x / dims.width) + 1);
-    const row = Math.max(1, Math.floor(y / dims.height) + 1);
-
-    return {
-      col,
-      row,
-      pixelX: Math.max(1, Math.floor(x) + 1),
-      pixelY: Math.max(1, Math.floor(y) + 1),
-    };
+    return { x, y };
   }
 
-  private getMouseModifiers(event: MouseEvent): number {
-    let mods = 0;
-    if (event.shiftKey) mods |= 4;
-    if (event.altKey) mods |= 8;
-    if (event.ctrlKey) mods |= 16;
+  private getMouseModifiers(event: MouseEvent): Mods {
+    let mods = Mods.NONE;
+    if (event.shiftKey) mods |= Mods.SHIFT;
+    if (event.ctrlKey) mods |= Mods.CTRL;
+    if (event.altKey) mods |= Mods.ALT;
+    if (event.metaKey) mods |= Mods.SUPER;
     return mods;
   }
 
-  private encodeMouseSGR(
-    button: number,
-    col: number,
-    row: number,
-    isRelease: boolean,
-    modifiers: number,
-  ): string {
-    const btn = button + modifiers;
-    const suffix = isRelease ? "m" : "M";
-    return `\x1b[<${btn};${col};${row}${suffix}`;
+  private mapMouseButton(button: number): number | null {
+    if (button === 0) return MouseButton.LEFT;
+    if (button === 1) return MouseButton.MIDDLE;
+    if (button === 2) return MouseButton.RIGHT;
+    if (button === 3) return MouseButton.FOUR;
+    if (button === 4) return MouseButton.FIVE;
+    return null;
   }
 
-  private encodeMouseX10(button: number, col: number, row: number, modifiers: number): string {
-    const btn = button + modifiers + 32;
-    const colChar = String.fromCharCode(Math.min(col + 32, 255));
-    const rowChar = String.fromCharCode(Math.min(row + 32, 255));
-    return `\x1b[M${String.fromCharCode(btn)}${colChar}${rowChar}`;
+  private getPressedMouseButton(): number | null {
+    for (const button of [0, 1, 2, 3, 4]) {
+      if ((this.mouseButtonsPressed & (1 << button)) !== 0) return this.mapMouseButton(button);
+    }
+    return null;
   }
 
-  private encodeMouseUtf8(button: number, col: number, row: number, modifiers: number): string {
-    return `\x1b[M${String.fromCodePoint(button + modifiers + 32)}${String.fromCodePoint(
-      Math.min(col, 2015) + 32,
-    )}${String.fromCodePoint(Math.min(row, 2015) + 32)}`;
-  }
-
-  private encodeMouseUrxvt(button: number, col: number, row: number, modifiers: number): string {
-    return `\x1b[${button + modifiers + 32};${col};${row}M`;
+  private getMouseConfigurationSignature(): string {
+    return [9, 1000, 1002, 1003, 1005, 1006, 1015, 1016]
+      .map((mode) => (this.deps.getMode(mode) ? "1" : "0"))
+      .join("");
   }
 
   private sendMouseEvent(
-    button: number,
-    col: number,
-    row: number,
-    pixelX: number,
-    pixelY: number,
-    isRelease: boolean,
+    action: (typeof MouseAction)[keyof typeof MouseAction],
+    button: number | null,
     event: MouseEvent,
   ): void {
-    const modifiers = this.getMouseModifiers(event);
-    let sequence: string;
-    if (this.deps.getMode(1016)) {
-      sequence = this.encodeMouseSGR(button, pixelX, pixelY, isRelease, modifiers);
-    } else if (this.deps.hasSgrMouseMode()) {
-      sequence = this.encodeMouseSGR(button, col, row, isRelease, modifiers);
-    } else if (this.deps.getMode(1015)) {
-      sequence = this.encodeMouseUrxvt(isRelease ? 3 : button, col, row, modifiers);
-    } else if (this.deps.getMode(1005)) {
-      sequence = this.encodeMouseUtf8(isRelease ? 3 : button, col, row, modifiers);
-    } else {
-      const x10Button = isRelease ? 3 : button;
-      sequence = this.encodeMouseX10(x10Button, col, row, modifiers);
+    const position = this.getMousePosition(event);
+    if (!position) return;
+    const cell = this.deps.getCellDimensions();
+    const screen = this.deps.getScreenDimensions();
+    this.mouseEncoder.syncFromTerminal(
+      this.deps.getTerminalHandle(),
+      this.getMouseConfigurationSignature(),
+    );
+    const encoded = this.mouseEncoder.encode({
+      action,
+      button,
+      mods: this.getMouseModifiers(event),
+      x: position.x,
+      y: position.y,
+      anyButtonPressed: this.mouseButtonsPressed !== 0,
+      screenWidth: Math.max(1, Math.round(screen.width)),
+      screenHeight: Math.max(1, Math.round(screen.height)),
+      cellWidth: Math.max(1, Math.round(cell.width)),
+      cellHeight: Math.max(1, Math.round(cell.height)),
+    });
+    if (encoded.length === 0) return;
+    if (!this.deps.getMode(1005) && encoded.some((byte) => byte >= 0x80)) {
+      const binary = String.fromCharCode(...encoded);
+      if (this.deps.emitBinary) this.deps.emitBinary(binary);
+      else this.onDataCallback(binary);
+      return;
     }
-
-    this.onDataCallback(sequence);
+    this.onDataCallback(new TextDecoder().decode(encoded));
   }
 
   private handleMouseDown(event: MouseEvent): void {
     if (this.isDisposed) return;
-    if (!this.deps.hasMouseTracking()) return;
-
-    const cell = this.pixelToCell(event);
-    if (!cell) return;
-
     const button = event.button;
+    const mappedButton = this.mapMouseButton(button);
+    if (mappedButton === null) return;
     this.mouseButtonsPressed |= 1 << button;
-    this.sendMouseEvent(button, cell.col, cell.row, cell.pixelX, cell.pixelY, false, event);
+    if (!this.deps.hasMouseTracking() || event.shiftKey) return;
+    this.sendMouseEvent(MouseAction.PRESS, mappedButton, event);
   }
 
   private handleMouseUp(event: MouseEvent): void {
     if (this.isDisposed) return;
-    if (!this.deps.hasMouseTracking()) return;
-    if (this.deps.getMode(9)) return;
-
-    const cell = this.pixelToCell(event);
-    if (!cell) return;
-
     const button = event.button;
+    const mappedButton = this.mapMouseButton(button);
+    if (mappedButton === null) return;
     this.mouseButtonsPressed &= ~(1 << button);
-    this.sendMouseEvent(button, cell.col, cell.row, cell.pixelX, cell.pixelY, true, event);
+    if (!this.deps.hasMouseTracking() || this.deps.getMode(9) || event.shiftKey) return;
+    this.sendMouseEvent(MouseAction.RELEASE, mappedButton, event);
   }
 
   private handleMouseMove(event: MouseEvent): void {
     if (this.isDisposed) return;
     if (!this.deps.hasMouseTracking()) return;
+    if (event.shiftKey && this.mouseButtonsPressed !== 0) return;
 
-    const hasButtonMotion = this.deps.getMode(1002);
-    const hasAnyMotion = this.deps.getMode(1003);
-
-    if (!hasButtonMotion && !hasAnyMotion) return;
-    if (hasButtonMotion && !hasAnyMotion && this.mouseButtonsPressed === 0) return;
-
-    const cell = this.pixelToCell(event);
-    if (!cell) return;
-
-    let button = 32;
-    if (this.mouseButtonsPressed & 1) button += 0;
-    else if (this.mouseButtonsPressed & 2) button += 1;
-    else if (this.mouseButtonsPressed & 4) button += 2;
-
-    this.sendMouseEvent(button, cell.col, cell.row, cell.pixelX, cell.pixelY, false, event);
+    this.sendMouseEvent(MouseAction.MOTION, this.getPressedMouseButton(), event);
   }
 
   private handleWheel(event: WheelEvent): void {
     if (this.isDisposed) return;
     if (!this.deps.hasMouseTracking()) return;
 
-    const cell = this.pixelToCell(event);
-    if (!cell) return;
     if (event.deltaX === 0 && event.deltaY === 0) return;
-
-    const horizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY);
-    let button: number;
-    if (horizontal) button = event.deltaX < 0 ? 66 : 67;
-    else button = event.deltaY < 0 ? 64 : 65;
-    this.sendMouseEvent(button, cell.col, cell.row, cell.pixelX, cell.pixelY, false, event);
     event.preventDefault();
+    const cell = this.deps.getCellDimensions();
+    const screen = this.deps.getScreenDimensions();
+    const xUnit = Math.max(1, cell.width);
+    const yUnit = Math.max(1, cell.height);
+    let xScale = 1;
+    let yScale = 1;
+    if (event.deltaMode === 1) {
+      xScale = xUnit;
+      yScale = yUnit;
+    } else if (event.deltaMode === 2) {
+      xScale = screen.width;
+      yScale = screen.height;
+    }
+    const nextX = this.pendingWheelX + event.deltaX * xScale;
+    const nextY = this.pendingWheelY + event.deltaY * yScale;
+    const xSteps = Math.trunc(nextX / xUnit);
+    const ySteps = Math.trunc(nextY / yUnit);
+    this.pendingWheelX = nextX - xSteps * xUnit;
+    this.pendingWheelY = nextY - ySteps * yUnit;
+
+    const verticalButton = ySteps < 0 ? MouseButton.FOUR : MouseButton.FIVE;
+    for (let index = 0; index < Math.abs(ySteps); index++) {
+      this.sendMouseEvent(MouseAction.PRESS, verticalButton, event);
+    }
+    const horizontalButton = xSteps < 0 ? MouseButton.SEVEN : MouseButton.SIX;
+    for (let index = 0; index < Math.abs(xSteps); index++) {
+      this.sendMouseEvent(MouseAction.PRESS, horizontalButton, event);
+    }
   }
 
   // ==========================================================================
@@ -1121,6 +1544,7 @@ export class InputHandler {
     }
 
     this.encoder.dispose();
+    this.mouseEncoder.dispose();
     this.isDisposed = true;
   }
 

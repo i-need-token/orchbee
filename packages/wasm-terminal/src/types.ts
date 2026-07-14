@@ -408,6 +408,8 @@ export const KeyEncoderOption = {
   ALT_ESC_PREFIX: 3,
   MODIFY_OTHER_KEYS_STATE_2: 4,
   KITTY_KEYBOARD_FLAGS: 5,
+  MACOS_OPTION_AS_ALT: 6,
+  BACKARROW_KEY_MODE: 7,
 } as const;
 export type KeyEncoderOption = (typeof KeyEncoderOption)[keyof typeof KeyEncoderOption];
 
@@ -420,6 +422,10 @@ export const Mods = {
   SUPER: 1 << 3,
   CAPSLOCK: 1 << 4,
   NUMLOCK: 1 << 5,
+  SHIFT_SIDE: 1 << 6,
+  CTRL_SIDE: 1 << 7,
+  ALT_SIDE: 1 << 8,
+  SUPER_SIDE: 1 << 9,
 } as const;
 export type Mods = (typeof Mods)[keyof typeof Mods];
 
@@ -442,6 +448,9 @@ export const Key = {
   EIGHT: 14,
   NINE: 15,
   EQUAL: 16,
+  INTL_BACKSLASH: 17,
+  INTL_RO: 18,
+  INTL_YEN: 19,
   A: 20,
   B: 21,
   C: 22,
@@ -477,6 +486,7 @@ export const Key = {
   ALT_RIGHT: 52,
   BACKSPACE: 53,
   CAPS_LOCK: 54,
+  CONTEXT_MENU: 55,
   CONTROL_LEFT: 56,
   CONTROL_RIGHT: 57,
   ENTER: 58,
@@ -486,8 +496,12 @@ export const Key = {
   SHIFT_RIGHT: 62,
   SPACE: 63,
   TAB: 64,
+  CONVERT: 65,
+  KANA_MODE: 66,
+  NON_CONVERT: 67,
   DELETE: 68,
   END: 69,
+  HELP: 70,
   HOME: 71,
   INSERT: 72,
   PAGE_DOWN: 73,
@@ -496,6 +510,47 @@ export const Key = {
   LEFT: 76,
   RIGHT: 77,
   UP: 78,
+  NUM_LOCK: 79,
+  NUMPAD_0: 80,
+  NUMPAD_1: 81,
+  NUMPAD_2: 82,
+  NUMPAD_3: 83,
+  NUMPAD_4: 84,
+  NUMPAD_5: 85,
+  NUMPAD_6: 86,
+  NUMPAD_7: 87,
+  NUMPAD_8: 88,
+  NUMPAD_9: 89,
+  NUMPAD_ADD: 90,
+  NUMPAD_BACKSPACE: 91,
+  NUMPAD_CLEAR: 92,
+  NUMPAD_CLEAR_ENTRY: 93,
+  NUMPAD_COMMA: 94,
+  NUMPAD_DECIMAL: 95,
+  NUMPAD_DIVIDE: 96,
+  NUMPAD_ENTER: 97,
+  NUMPAD_EQUAL: 98,
+  NUMPAD_MEMORY_ADD: 99,
+  NUMPAD_MEMORY_CLEAR: 100,
+  NUMPAD_MEMORY_RECALL: 101,
+  NUMPAD_MEMORY_STORE: 102,
+  NUMPAD_MEMORY_SUBTRACT: 103,
+  NUMPAD_MULTIPLY: 104,
+  NUMPAD_PAREN_LEFT: 105,
+  NUMPAD_PAREN_RIGHT: 106,
+  NUMPAD_SUBTRACT: 107,
+  NUMPAD_SEPARATOR: 108,
+  NUMPAD_UP: 109,
+  NUMPAD_DOWN: 110,
+  NUMPAD_RIGHT: 111,
+  NUMPAD_LEFT: 112,
+  NUMPAD_BEGIN: 113,
+  NUMPAD_HOME: 114,
+  NUMPAD_END: 115,
+  NUMPAD_INSERT: 116,
+  NUMPAD_DELETE: 117,
+  NUMPAD_PAGE_UP: 118,
+  NUMPAD_PAGE_DOWN: 119,
   ESCAPE: 120,
   F1: 121,
   F2: 122,
@@ -509,6 +564,49 @@ export const Key = {
   F10: 130,
   F11: 131,
   F12: 132,
+  F13: 133,
+  F14: 134,
+  F15: 135,
+  F16: 136,
+  F17: 137,
+  F18: 138,
+  F19: 139,
+  F20: 140,
+  F21: 141,
+  F22: 142,
+  F23: 143,
+  F24: 144,
+  F25: 145,
+  FN: 146,
+  FN_LOCK: 147,
+  PRINT_SCREEN: 148,
+  SCROLL_LOCK: 149,
+  PAUSE: 150,
+  BROWSER_BACK: 151,
+  BROWSER_FAVORITES: 152,
+  BROWSER_FORWARD: 153,
+  BROWSER_HOME: 154,
+  BROWSER_REFRESH: 155,
+  BROWSER_SEARCH: 156,
+  BROWSER_STOP: 157,
+  EJECT: 158,
+  LAUNCH_APP_1: 159,
+  LAUNCH_APP_2: 160,
+  LAUNCH_MAIL: 161,
+  MEDIA_PLAY_PAUSE: 162,
+  MEDIA_SELECT: 163,
+  MEDIA_STOP: 164,
+  MEDIA_TRACK_NEXT: 165,
+  MEDIA_TRACK_PREVIOUS: 166,
+  POWER: 167,
+  SLEEP: 168,
+  AUDIO_VOLUME_DOWN: 169,
+  AUDIO_VOLUME_MUTE: 170,
+  AUDIO_VOLUME_UP: 171,
+  WAKE_UP: 172,
+  COPY: 173,
+  CUT: 174,
+  PASTE: 175,
 } as const;
 export type Key = (typeof Key)[keyof typeof Key];
 
@@ -517,6 +615,8 @@ export interface KeyEvent {
   readonly action: KeyAction;
   readonly key: Key;
   readonly mods: Mods;
+  readonly consumedMods?: Mods;
+  readonly composing?: boolean;
   readonly utf8?: string;
   readonly unshiftedCodepoint?: number;
 }
@@ -622,8 +722,8 @@ export interface WasmExports extends WebAssembly.Exports {
   readonly ghostty_wasm_free_sgr_attribute: (ptr: number) => void;
 
   // General allocation
-  readonly ghostty_alloc: (size: number, align: number) => number;
-  readonly ghostty_free: (ptr: number, size: number, align: number) => void;
+  readonly ghostty_alloc: (allocator: number, size: number) => number;
+  readonly ghostty_free: (allocator: number, ptr: number, size: number) => void;
 
   // Unicode width helpers
   readonly ghostty_unicode_codepoint_width: (codepoint: number) => number;
@@ -918,6 +1018,53 @@ export interface WasmExports extends WebAssembly.Exports {
   readonly ghostty_key_event_get_utf8: (event: number, lenPtr: number) => number;
   readonly ghostty_key_event_set_unshifted_codepoint: (event: number, cp: number) => void;
   readonly ghostty_key_event_get_unshifted_codepoint: (event: number) => number;
+
+  // Mouse encoder
+  readonly ghostty_mouse_encoder_new: (allocator: number, encoderPtrPtr: number) => number;
+  readonly ghostty_mouse_encoder_free: (encoder: number) => void;
+  readonly ghostty_mouse_encoder_setopt: (
+    encoder: number,
+    option: number,
+    valuePtr: number,
+  ) => void;
+  readonly ghostty_mouse_encoder_setopt_from_terminal: (
+    encoder: number,
+    terminal: TerminalHandle,
+  ) => void;
+  readonly ghostty_mouse_encoder_reset: (encoder: number) => void;
+  readonly ghostty_mouse_encoder_encode: (
+    encoder: number,
+    event: number,
+    bufPtr: number,
+    bufLen: number,
+    writtenPtr: number,
+  ) => number;
+
+  // Mouse event
+  readonly ghostty_mouse_event_new: (allocator: number, eventPtrPtr: number) => number;
+  readonly ghostty_mouse_event_free: (event: number) => void;
+  readonly ghostty_mouse_event_set_action: (event: number, action: number) => void;
+  readonly ghostty_mouse_event_set_button: (event: number, button: number) => void;
+  readonly ghostty_mouse_event_clear_button: (event: number) => void;
+  readonly ghostty_mouse_event_set_mods: (event: number, mods: number) => void;
+  readonly ghostty_mouse_event_set_position: (event: number, positionPtr: number) => void;
+
+  // Focus and paste encoding
+  readonly ghostty_focus_encode: (
+    event: number,
+    bufPtr: number,
+    bufLen: number,
+    writtenPtr: number,
+  ) => number;
+  readonly ghostty_paste_is_safe: (dataPtr: number, dataLen: number) => number;
+  readonly ghostty_paste_encode: (
+    dataPtr: number,
+    dataLen: number,
+    bracketed: number,
+    bufPtr: number,
+    bufLen: number,
+    writtenPtr: number,
+  ) => number;
 
   // Type info
   readonly ghostty_type_json: () => number;

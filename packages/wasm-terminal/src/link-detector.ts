@@ -20,6 +20,13 @@ export class LinkDetector {
   // Track which rows have been scanned to avoid redundant provider calls
   private scannedRows = new Set<number>();
 
+  // Coalesce overlapping hover lookups for the same row.
+  private rowScans = new Map<number, Promise<void>>();
+
+  // Ignore provider results that complete after any cache invalidation.
+  private cacheGeneration = 0;
+  private disposed = false;
+
   private terminal: ITerminalForLinkDetector;
 
   constructor(terminal: ITerminalForLinkDetector) {
@@ -30,6 +37,7 @@ export class LinkDetector {
    * Register a link provider.
    */
   registerProvider(provider: ILinkProvider): void {
+    if (this.disposed) throw new Error("Cannot register a link provider after disposal");
     this.providers.push(provider);
     this.invalidateCache(); // New provider may detect different links
   }
@@ -41,6 +49,7 @@ export class LinkDetector {
    * @returns Link at position, or undefined if none
    */
   async getLinkAt(col: number, row: number): Promise<ILink | undefined> {
+    if (this.disposed) return undefined;
     const line = this.terminal.buffer.active.getLine(row);
     if (!line || col < 0 || col >= line.length) {
       return undefined;
@@ -59,9 +68,7 @@ export class LinkDetector {
     }
 
     // Slow path: scan this row if not already scanned
-    if (!this.scannedRows.has(row)) {
-      await this.scanRow(row);
-    }
+    await this.ensureRowScanned(row);
 
     // Check cache again after scanning
     for (const link of this.linkCache.values()) {
@@ -76,9 +83,7 @@ export class LinkDetector {
   /**
    * Scan a row for links using all registered providers.
    */
-  private async scanRow(row: number): Promise<void> {
-    this.scannedRows.add(row);
-
+  private async scanRow(row: number): Promise<readonly ILink[]> {
     const provided = await Promise.all(
       this.providers.map(
         async (provider) =>
@@ -87,11 +92,32 @@ export class LinkDetector {
           }),
       ),
     );
-    const allLinks = provided.flatMap((links) => links ?? []);
+    return provided.flatMap((links) => links ?? []);
+  }
 
-    for (const link of allLinks) {
-      this.cacheLink(link);
+  private async ensureRowScanned(row: number): Promise<void> {
+    if (this.disposed) return;
+    if (this.scannedRows.has(row)) return;
+    const existing = this.rowScans.get(row);
+    if (existing) {
+      await existing;
+      await this.ensureRowScanned(row);
+      return;
     }
+
+    const generation = this.cacheGeneration;
+    const scan = this.scanRow(row)
+      .then((links) => {
+        if (generation !== this.cacheGeneration) return;
+        for (const link of links) this.cacheLink(link);
+        this.scannedRows.add(row);
+      })
+      .finally(() => {
+        if (this.rowScans.get(row) === scan) this.rowScans.delete(row);
+      });
+    this.rowScans.set(row, scan);
+    await scan;
+    await this.ensureRowScanned(row);
   }
 
   /**
@@ -141,6 +167,7 @@ export class LinkDetector {
    * Should be called on terminal write, resize, or clear.
    */
   invalidateCache(): void {
+    this.cacheGeneration++;
     this.linkCache.clear();
     this.scannedRows.clear();
   }
@@ -150,6 +177,7 @@ export class LinkDetector {
    * Used when only part of the terminal changed.
    */
   invalidateRows(startRow: number, endRow: number): void {
+    this.cacheGeneration++;
     for (let row = startRow; row <= endRow; row++) {
       this.scannedRows.delete(row);
     }
@@ -176,8 +204,12 @@ export class LinkDetector {
    * Dispose and cleanup.
    */
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.cacheGeneration++;
     this.linkCache.clear();
     this.scannedRows.clear();
+    this.rowScans.clear();
 
     for (const provider of this.providers) {
       provider.dispose?.();

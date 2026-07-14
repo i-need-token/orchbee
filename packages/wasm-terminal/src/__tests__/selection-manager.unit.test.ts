@@ -3,7 +3,10 @@ import { SelectionManager } from "../selection-manager.js";
 import type { ISelectionTerminal, SelectionCell, SelectionModel } from "../selection-manager.js";
 import type { TerminalClipboardHost } from "../host/terminal-host.js";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 function cells(text: string): SelectionCell[] {
   return [...text].map((character) => ({
@@ -11,6 +14,33 @@ function cells(text: string): SelectionCell[] {
     width: 1,
     grapheme_len: 1,
   }));
+}
+
+function createSelectionModel(text: string): SelectionModel {
+  let range: ReturnType<SelectionModel["getRange"]> = null;
+  return {
+    hasSelection: () => range !== null,
+    getSelection: () => (range ? text : ""),
+    getRange: () => range,
+    clearSelection: () => {
+      const changed = range !== null;
+      range = null;
+      return changed;
+    },
+    setRange: (start, end, rectangle) => {
+      range = { start, end, ...(rectangle === undefined ? {} : { rectangle }) };
+      return true;
+    },
+    selectWordAt: () => false,
+    selectLineAt: () => false,
+    selectAll: () => false,
+    pressGesture: () => false,
+    dragGesture: () => false,
+    releaseGesture: () => true,
+    getAutoscroll: () => null,
+    autoscrollTick: () => false,
+    resetGesture: () => {},
+  };
 }
 
 describe("SelectionManager", () => {
@@ -40,7 +70,9 @@ describe("SelectionManager", () => {
       scrollLines: () => {},
       requestRender,
     };
-    const manager = new SelectionManager(terminal, canvas);
+    const manager = new SelectionManager(terminal, canvas, {
+      selectionModel: createSelectionModel("ell"),
+    });
     manager.select(1, 0, 3);
     expect(manager.hasSelection()).toBe(true);
     expect(manager.getSelection()).toBe("ell");
@@ -84,6 +116,7 @@ describe("SelectionManager", () => {
       },
       canvas,
       {
+        selectionModel: createSelectionModel("ell"),
         clipboard: {
           read: async () => null,
           write,
@@ -129,6 +162,7 @@ describe("SelectionManager", () => {
       },
       canvas,
       {
+        selectionModel: createSelectionModel("error"),
         clipboard: {
           read: async () => null,
           write: async () => {
@@ -184,6 +218,12 @@ describe("SelectionManager", () => {
         range = { start: range.start, end: { x: range.end.x - 1, y: range.end.y } };
         return true;
       },
+      pressGesture: () => false,
+      dragGesture: () => false,
+      releaseGesture: () => true,
+      getAutoscroll: () => null,
+      autoscrollTick: () => false,
+      resetGesture: () => {},
     };
     const requestRender = vi.fn<() => void>();
     const manager = new SelectionManager(
@@ -263,6 +303,9 @@ describe("SelectionManager", () => {
       pressGesture,
       dragGesture,
       releaseGesture,
+      getAutoscroll: () => null,
+      autoscrollTick: () => false,
+      resetGesture: () => {},
     };
     const manager = new SelectionManager(
       {
@@ -280,11 +323,19 @@ describe("SelectionManager", () => {
       { selectionModel: model },
     );
 
+    canvasListeners.get("mousemove")?.({
+      clientX: 42,
+      clientY: 37,
+      altKey: false,
+    } as unknown as MouseEvent);
+    expect(dragGesture).not.toHaveBeenCalled();
+
     canvasListeners.get("mousedown")?.({
       button: 0,
       clientX: 18,
       clientY: 37,
       timeStamp: 100,
+      metaKey: true,
     } as unknown as MouseEvent);
     canvasListeners.get("mousemove")?.({
       clientX: 42,
@@ -297,12 +348,107 @@ describe("SelectionManager", () => {
     } as unknown as MouseEvent);
 
     expect(pressGesture).toHaveBeenCalledWith(
-      expect.objectContaining({ column: 1, row: 4, surfaceX: 8, surfaceY: 17 }),
+      expect.objectContaining({
+        column: 1,
+        row: 4,
+        surfaceX: 8,
+        surfaceY: 17,
+        selectOutput: true,
+      }),
     );
     expect(dragGesture).toHaveBeenCalledWith(
       expect.objectContaining({ column: 4, row: 4, columns: 10, cellWidth: 8 }),
     );
     expect(releaseGesture).toHaveBeenCalledWith(4, 4);
+
+    pressGesture.mockClear();
+    dragGesture.mockClear();
+    releaseGesture.mockClear();
+    canvasListeners.get("mousedown")?.({
+      button: 0,
+      clientX: -100,
+      clientY: -100,
+      timeStamp: 200,
+    } as unknown as MouseEvent);
+    canvasListeners.get("mousemove")?.({
+      clientX: 1_000,
+      clientY: 1_000,
+      altKey: false,
+    } as unknown as MouseEvent);
+    documentListeners.get("mouseup")?.({
+      clientX: 1_000,
+      clientY: 1_000,
+    } as unknown as MouseEvent);
+
+    expect(pressGesture).toHaveBeenCalledWith(expect.objectContaining({ column: 0, row: 3 }));
+    expect(dragGesture).toHaveBeenCalledWith(expect.objectContaining({ column: 9, row: 4 }));
+    expect(releaseGesture).toHaveBeenCalledWith(9, 4);
+    manager.dispose();
+  });
+
+  it("feeds autoscroll ticks to Ghostty and mirrors viewport movement", () => {
+    vi.useFakeTimers();
+    const documentListeners = new Map<string, EventListener>();
+    const canvasListeners = new Map<string, EventListener>();
+    vi.stubGlobal("document", {
+      addEventListener: (name: string, listener: EventListener) =>
+        documentListeners.set(name, listener),
+      removeEventListener: (name: string) => documentListeners.delete(name),
+    });
+    const canvas = {
+      addEventListener: (name: string, listener: EventListener) =>
+        canvasListeners.set(name, listener),
+      removeEventListener: (name: string) => canvasListeners.delete(name),
+      contains: () => false,
+      getBoundingClientRect: () => ({ left: 10, top: 20, right: 90, bottom: 54, height: 34 }),
+    } as unknown as HTMLCanvasElement;
+    const scrollLines = vi.fn<(amount: number) => void>();
+    const autoscrollTick = vi.fn<SelectionModel["autoscrollTick"]>(() => true);
+    let autoscroll: "up" | null = null;
+    const model = createSelectionModel("dragged");
+    model.pressGesture = () => true;
+    model.dragGesture = () => {
+      autoscroll = "up";
+      return true;
+    };
+    model.getAutoscroll = () => autoscroll;
+    model.autoscrollTick = autoscrollTick;
+    model.releaseGesture = () => {
+      autoscroll = null;
+      return true;
+    };
+    const manager = new SelectionManager(
+      {
+        getCellDimensions: () => ({ width: 8, height: 17 }),
+        getDimensions: () => ({ cols: 10, rows: 2 }),
+        getCanvasOffset: () => ({ left: 10, top: 20 }),
+        getScrollbackLength: () => 5,
+        getViewportY: () => 2,
+        scrollLines,
+        requestRender: () => {},
+      },
+      canvas,
+      { selectionModel: model },
+    );
+
+    canvasListeners.get("mousedown")?.({
+      button: 0,
+      clientX: 18,
+      clientY: 37,
+      timeStamp: 100,
+    } as unknown as MouseEvent);
+    canvasListeners.get("mousemove")?.({
+      clientX: 42,
+      clientY: 19,
+      altKey: false,
+    } as unknown as MouseEvent);
+    vi.advanceTimersByTime(16);
+
+    expect(autoscrollTick).toHaveBeenCalledWith(
+      expect.objectContaining({ viewportColumn: 4, viewportRow: 0, surfaceY: -1 }),
+    );
+    expect(scrollLines).toHaveBeenCalledWith(-1);
+    documentListeners.get("mouseup")?.({ clientX: 42, clientY: 19 } as unknown as MouseEvent);
     manager.dispose();
   });
 });

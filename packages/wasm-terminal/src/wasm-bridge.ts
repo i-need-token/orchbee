@@ -8,6 +8,18 @@
 
 import type { WasmExports } from "./types.js";
 
+export interface WasmTypeFieldLayout {
+  readonly offset: number;
+  readonly size: number;
+  readonly type: string;
+}
+
+export interface WasmTypeLayout {
+  readonly size: number;
+  readonly align: number;
+  readonly fields: Readonly<Record<string, WasmTypeFieldLayout>>;
+}
+
 /** Options for WASM module initialization. */
 export interface InitOptions {
   /** WASM source: URL string, URL object, or pre-fetched ArrayBuffer. */
@@ -61,6 +73,7 @@ export function getBridge(): WasmBridge {
 export class WasmBridge {
   private readonly exports: WasmExports;
   private readonly freeCallbackSlots: number[] = [];
+  private typeLayouts: Readonly<Record<string, WasmTypeLayout>> | undefined;
   readonly memory: WebAssembly.Memory;
 
   private constructor(wasmInstance: WebAssembly.Instance) {
@@ -129,6 +142,15 @@ export class WasmBridge {
     return new Uint8Array(this.memory.buffer, ptr, len).slice();
   }
 
+  /** Read a null-terminated UTF-8 string from WASM memory. */
+  readCString(ptr: number): string {
+    const bytes = new Uint8Array(this.memory.buffer);
+    let end = ptr;
+    while (end < bytes.length && bytes[end] !== 0) end++;
+    if (end === bytes.length) throw new Error("WASM string is not null-terminated");
+    return new TextDecoder().decode(bytes.subarray(ptr, end));
+  }
+
   /**
    * Create a DataView over WASM memory.
    *
@@ -147,6 +169,60 @@ export class WasmBridge {
   /** Get the raw WASM exports (for advanced usage). */
   getExports(): WasmExports {
     return this.exports;
+  }
+
+  /** Return a C ABI layout reported by Ghostty for this WASM build. */
+  getTypeLayout(name: string): WasmTypeLayout {
+    this.typeLayouts ??= parseTypeLayouts(this.readCString(this.exports.ghostty_type_json()));
+    const layout = this.typeLayouts[name];
+    if (!layout) throw new Error(`Ghostty type layout is missing: ${name}`);
+    return layout;
+  }
+
+  /** Encode terminal focus reporting through Ghostty. */
+  encodeFocus(focused: boolean): Uint8Array {
+    return this.encodeIntoBuffer((buffer, length, written) =>
+      this.exports.ghostty_focus_encode(focused ? 0 : 1, buffer, length, written),
+    );
+  }
+
+  /** Return whether Ghostty considers text safe to paste without confirmation. */
+  isPasteSafe(text: string): boolean {
+    const data = new TextEncoder().encode(text);
+    const pointer =
+      data.length === 0
+        ? 0
+        : requireWasmPointer(this.allocU8Array(data.length), "paste input buffer");
+    try {
+      if (data.length > 0) this.writeBytes(pointer, data);
+      return this.exports.ghostty_paste_is_safe(pointer, data.length) !== 0;
+    } finally {
+      if (data.length > 0) this.freeU8Array(pointer, data.length);
+    }
+  }
+
+  /** Encode paste bytes through Ghostty's sanitization and bracketed-paste implementation. */
+  encodePaste(text: string, bracketed: boolean): Uint8Array {
+    const data = new TextEncoder().encode(text);
+    const pointer =
+      data.length === 0
+        ? 0
+        : requireWasmPointer(this.allocU8Array(data.length), "paste input buffer");
+    try {
+      if (data.length > 0) this.writeBytes(pointer, data);
+      return this.encodeIntoBuffer((buffer, length, written) =>
+        this.exports.ghostty_paste_encode(
+          pointer,
+          data.length,
+          bracketed ? 1 : 0,
+          buffer,
+          length,
+          written,
+        ),
+      );
+    } finally {
+      if (data.length > 0) this.freeU8Array(pointer, data.length);
+    }
   }
 
   /** Register a table-compatible `(i32, i32, i32, i32) -> void` callback. */
@@ -272,13 +348,16 @@ export class WasmBridge {
    * @throws If the function returns a non-zero result.
    */
   allocAndReadOpaque(fn: (allocator: number, ptrPtr: number) => number): number {
-    const ptrPtr = this.allocOpaque();
+    const ptrPtr = requireWasmPointer(this.allocOpaque(), "opaque output slot");
     try {
       const result = fn(0, ptrPtr);
       if (result !== 0) {
         throw new Error(`WASM constructor failed with result code: ${result}`);
       }
-      return this.createView(ptrPtr, 4).getUint32(0, true);
+      return requireWasmPointer(
+        this.createView(ptrPtr, 4).getUint32(0, true),
+        "constructed Ghostty handle",
+      );
     } finally {
       this.freeOpaque(ptrPtr);
     }
@@ -353,6 +432,35 @@ export class WasmBridge {
     }
   }
 
+  private encodeIntoBuffer(
+    encode: (buffer: number, length: number, written: number) => number,
+  ): Uint8Array {
+    let bufferSize = 64;
+    let buffer = requireWasmPointer(this.allocU8Array(bufferSize), "encoding buffer");
+    let written = 0;
+    try {
+      written = requireWasmPointer(this.allocUsize(), "encoding length slot");
+      let result = encode(buffer, bufferSize, written);
+      if (result === -3) {
+        const required = this.createView(written, 4).getUint32(0, true);
+        const replacement = requireWasmPointer(
+          this.allocU8Array(required),
+          "expanded encoding buffer",
+        );
+        this.freeU8Array(buffer, bufferSize);
+        bufferSize = required;
+        buffer = replacement;
+        result = encode(buffer, bufferSize, written);
+      }
+      if (result !== 0) throw new Error(`Ghostty encoding failed with result code: ${result}`);
+      const length = this.createView(written, 4).getUint32(0, true);
+      return this.readBytes(buffer, length);
+    } finally {
+      this.freeU8Array(buffer, bufferSize);
+      if (written !== 0) this.freeUsize(written);
+    }
+  }
+
   // ==========================================================================
   // Loading
   // ==========================================================================
@@ -395,6 +503,41 @@ export class WasmBridge {
     wasmInstance = await WebAssembly.instantiate(wasmModule, importObject);
     return new WasmBridge(wasmInstance);
   }
+}
+
+function parseTypeLayouts(json: string): Readonly<Record<string, WasmTypeLayout>> {
+  const value: unknown = JSON.parse(json);
+  if (!isUnknownRecord(value)) throw new Error("Ghostty type metadata is invalid");
+  const layouts: Record<string, WasmTypeLayout> = {};
+  for (const [name, candidate] of Object.entries(value)) {
+    if (!isUnknownRecord(candidate)) throw new Error(`Ghostty type layout is invalid: ${name}`);
+    const { align, fields, size } = candidate;
+    if (typeof align !== "number" || typeof size !== "number" || !isUnknownRecord(fields)) {
+      throw new Error(`Ghostty type layout is invalid: ${name}`);
+    }
+    const parsedFields: Record<string, WasmTypeFieldLayout> = {};
+    for (const [fieldName, field] of Object.entries(fields)) {
+      if (!isUnknownRecord(field)) {
+        throw new Error(`Ghostty type field layout is invalid: ${name}.${fieldName}`);
+      }
+      const { offset, size: fieldSize, type } = field;
+      if (typeof offset !== "number" || typeof fieldSize !== "number" || typeof type !== "string") {
+        throw new Error(`Ghostty type field layout is invalid: ${name}.${fieldName}`);
+      }
+      parsedFields[fieldName] = { offset, size: fieldSize, type };
+    }
+    layouts[name] = { align, fields: parsedFields, size };
+  }
+  return layouts;
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function requireWasmPointer(pointer: number, purpose: string): number {
+  if (pointer === 0) throw new Error(`WASM allocation failed: ${purpose}`);
+  return pointer;
 }
 
 function isWasmExports(value: unknown): value is WasmExports {
