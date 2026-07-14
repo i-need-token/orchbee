@@ -1,5 +1,14 @@
 # Code Style
 
+## Formatting
+
+- `.oxfmtrc.json` is the authoritative formatting configuration; run `pnpm format` from the repository root after changing formatter-managed files.
+- `useTabs`: Indent with tabs wherever the file format permits indentation with tabs.
+- `singleQuote` and `jsxSingleQuote`: Use single quotes in JavaScript, TypeScript, and JSX strings unless escaping makes double quotes clearer.
+- `semi`: Terminate statements with semicolons.
+- `trailingComma`: Use trailing commas wherever Oxfmt supports them.
+- Do not hand-align code with indentation spaces; let Oxfmt choose any spaces required for syntax or alignment.
+
 ## Modules
 
 - `import/no-default-export`: Use named exports except in configuration files and JavaScript lint-plugin entry points.

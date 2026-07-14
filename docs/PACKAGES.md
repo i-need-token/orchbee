@@ -63,19 +63,19 @@ Every library exposes these scripts:
 
 ```json
 {
-  "name": "@orchbee/example",
-  "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./schema.json": "./schema.json"
-  }
+	"name": "@orchbee/example",
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		},
+		"./schema.json": "./schema.json"
+	}
 }
 ```
 
@@ -83,11 +83,11 @@ Every library exposes these scripts:
 
 ```ts
 // ❌ A new internal export silently becomes public.
-export * from "./session-store.js";
+export * from './session-store.js';
 
 // ✅ Values and types are reviewed independently.
-export { SessionStore } from "./session-store.js";
-export type { SessionSnapshot, SessionStoreOptions } from "./session-store.js";
+export { SessionStore } from './session-store.js';
+export type { SessionSnapshot, SessionStoreOptions } from './session-store.js';
 ```
 
 Removing or changing an exported symbol, type, subpath, or asset is a breaking API change. Moving an internal file without changing `exports` is not.
@@ -106,26 +106,26 @@ Removing or changing an exported symbol, type, subpath, or asset is a breaking A
 Use this baseline configuration and change it only for a documented package requirement:
 
 ```ts
-import { defineConfig } from "@rslib/core";
+import { defineConfig } from '@rslib/core';
 
 export default defineConfig({
-  lib: [
-    {
-      format: "esm",
-      syntax: "es2022",
-      dts: true,
-      redirect: {
-        dts: {
-          extension: true,
-        },
-      },
-    },
-    { format: "cjs", syntax: "es2022" },
-  ],
-  output: {
-    target: "node",
-    sourceMap: true,
-  },
+	lib: [
+		{
+			format: 'esm',
+			syntax: 'es2022',
+			dts: true,
+			redirect: {
+				dts: {
+					extension: true,
+				},
+			},
+		},
+		{ format: 'cjs', syntax: 'es2022' },
+	],
+	output: {
+		target: 'node',
+		sourceMap: true,
+	},
 });
 ```
 

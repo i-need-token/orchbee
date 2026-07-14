@@ -1,46 +1,46 @@
 {
-  "name": "@orchbee/terminal",
-  "version": "0.1.0",
-  "description": "Ghostty-powered browser terminal with a WebGPU renderer",
-  "keywords": [
-    "ghostty",
-    "terminal",
-    "wasm",
-    "webgpu",
-    "xterm"
-  ],
-  "files": [
-    "dist",
-    "ghostty-vt.wasm",
-    "README.md"
-  ],
-  "type": "module",
-  "sideEffects": false,
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./ghostty-vt.wasm": "./ghostty-vt.wasm"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "scripts": {
-    "build": "rslib build",
-    "dev": "rslib build --watch",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "devDependencies": {
-    "@rslib/core": "catalog:",
-    "@types/node": "^26.1.1",
-    "@webgpu/types": "^0.1.71",
-    "vitest": "catalog:"
-  }
+	"name": "@orchbee/terminal",
+	"version": "0.1.0",
+	"description": "Ghostty-powered browser terminal with a WebGPU renderer",
+	"keywords": [
+		"ghostty",
+		"terminal",
+		"wasm",
+		"webgpu",
+		"xterm"
+	],
+	"files": [
+		"dist",
+		"ghostty-vt.wasm",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		},
+		"./ghostty-vt.wasm": "./ghostty-vt.wasm"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"build": "rslib build",
+		"dev": "rslib build --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"devDependencies": {
+		"@rslib/core": "catalog:",
+		"@types/node": "^26.1.1",
+		"@webgpu/types": "^0.1.71",
+		"vitest": "catalog:"
+	}
 }

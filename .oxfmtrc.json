@@ -1,3 +1,8 @@
 {
-  "ignorePatterns": ["dist/**", "out/**", "node_modules/**", "*.min.js"]
+	"ignorePatterns": [".oxlintrc.json", "dist/**", "out/**", "node_modules/**", "*.min.js"],
+	"useTabs": true,
+	"singleQuote": true,
+	"jsxSingleQuote": true,
+	"semi": true,
+	"trailingComma": "all"
 }

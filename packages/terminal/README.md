@@ -11,33 +11,33 @@ pnpm add @orchbee/terminal
 ## Use
 
 ```ts
-import { init, Terminal } from "@orchbee/terminal";
+import { init, Terminal } from '@orchbee/terminal';
 
 await init();
 
 const terminal = new Terminal({
-  cols: 80,
-  rows: 24,
-  scrollback: 10_000,
-  cursorBlink: true,
-  fontLigatures: true,
-  paddingBalance: "equal",
-  fontMetricModifiers: {
-    cellHeight: "10%",
-    iconHeight: -1,
-  },
+	cols: 80,
+	rows: 24,
+	scrollback: 10_000,
+	cursorBlink: true,
+	fontLigatures: true,
+	paddingBalance: 'equal',
+	fontMetricModifiers: {
+		cellHeight: '10%',
+		iconHeight: -1,
+	},
 });
 
-await terminal.open(document.querySelector("#terminal")!);
+await terminal.open(document.querySelector('#terminal')!);
 terminal.onData((data) => pty.write(data));
-terminal.onBinary((data) => pty.write(Buffer.from(data, "binary")));
+terminal.onBinary((data) => pty.write(Buffer.from(data, 'binary')));
 pty.onData((data) => terminal.write(data));
 ```
 
 Pass an explicit WASM URL when your bundler does not preserve package asset URLs:
 
 ```ts
-await init({ source: "/assets/ghostty-vt.wasm" });
+await init({ source: '/assets/ghostty-vt.wasm' });
 ```
 
 WebGPU is used when available; Canvas 2D is the fallback. The package includes selection, scrollback, mouse and focus reporting, Ghostty key encoding, OSC 8 and plain-URL links, terminal query responses, the buffer API, and `FitAddon`.
@@ -50,43 +50,43 @@ Platform effects are requested through `TerminalHost`; the terminal core does no
 
 ```ts
 const terminal = new Terminal({
-  host: {
-    capabilities: { contextMenu: true, openTarget: true },
-    clipboard: applicationClipboard,
-    confirmPaste: (request) => showPasteDialog(request),
-    resolveDrop: (request) => resolveDroppedFiles(request.files, request.cwd),
-    showContextMenu: (request) => showApplicationMenu(request),
-    openTarget: (request) => openAllowedTarget(request.target),
-  },
+	host: {
+		capabilities: { contextMenu: true, openTarget: true },
+		clipboard: applicationClipboard,
+		confirmPaste: (request) => showPasteDialog(request),
+		resolveDrop: (request) => resolveDroppedFiles(request.files, request.cwd),
+		showContextMenu: (request) => showApplicationMenu(request),
+		openTarget: (request) => openAllowedTarget(request.target),
+	},
 });
 ```
 
 Selection is backed by Ghostty tracked grid references and supports plain, HTML, and VT copy formats, rectangle/word/line/output selection, and endpoint adjustment. OSC 133 prompt/input/output metadata is available on every `CellData` and in context-menu requests.
 
 ```ts
-const matches = terminal.findAll("failed", { caseSensitive: false, wholeWord: true });
-terminal.findNext("failed");
-terminal.highlightSearch("failed");
+const matches = terminal.findAll('failed', { caseSensitive: false, wholeWord: true });
+terminal.findNext('failed');
+terminal.highlightSearch('failed');
 terminal.selectOutputAt(column, row);
-terminal.adjustSelection("endOfLine");
+terminal.adjustSelection('endOfLine');
 
 const visibleText = terminal.getAccessibleText();
 const visibleRange = terminal.getAccessibleVisibleRange();
 terminal.selectAccessibleRange({ start: visibleRange.start, end: visibleRange.start + 5 });
 
 const telemetry = terminal.onRendererTelemetry((frame) => {
-  recordTerminalFrame(frame.durationMs, frame.atlasUploadBytes, frame.reasons);
+	recordTerminalFrame(frame.durationMs, frame.atlasUploadBytes, frame.reasons);
 });
 
 const shortcut = terminal.registerKeyEventHandler({
-  id: "application.open-command-palette",
-  priority: 100,
-  scope: "application",
-  handle: (event) => {
-    if (!event.metaKey || event.code !== "KeyK") return false;
-    openCommandPalette();
-    return true;
-  },
+	id: 'application.open-command-palette',
+	priority: 100,
+	scope: 'application',
+	handle: (event) => {
+		if (!event.metaKey || event.code !== 'KeyK') return false;
+		openCommandPalette();
+		return true;
+	},
 });
 ```
 

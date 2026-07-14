@@ -1,24 +1,24 @@
 {
-  "compilerOptions": {
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitOverride": true,
-    "noPropertyAccessFromIndexSignature": true,
-    "erasableSyntaxOnly": true,
-    "verbatimModuleSyntax": true,
-    "module": "preserve",
-    "moduleResolution": "bundler",
-    "target": "es2022",
-    "lib": ["es2022"],
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
-    "skipLibCheck": true,
-    "resolvePackageJsonExports": true,
-    "resolvePackageJsonImports": true
-  }
+	"compilerOptions": {
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"exactOptionalPropertyTypes": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitOverride": true,
+		"noPropertyAccessFromIndexSignature": true,
+		"erasableSyntaxOnly": true,
+		"verbatimModuleSyntax": true,
+		"module": "preserve",
+		"moduleResolution": "bundler",
+		"target": "es2022",
+		"lib": ["es2022"],
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"isolatedModules": true,
+		"skipLibCheck": true,
+		"resolvePackageJsonExports": true,
+		"resolvePackageJsonImports": true
+	}
 }

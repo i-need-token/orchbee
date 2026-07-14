@@ -1,8 +1,8 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  root: import.meta.dirname,
-  test: {
-    include: ["rules/__tests__/*.unit.test.ts"],
-  },
+	root: import.meta.dirname,
+	test: {
+		include: ['rules/__tests__/*.unit.test.ts'],
+	},
 });
