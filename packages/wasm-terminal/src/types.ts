@@ -1085,6 +1085,10 @@ export interface ITerminalOptions {
   fontSize?: number;
   fontFamily?: string;
   fontLigatures?: boolean;
+  /** Ghostty-compatible deltas for grid, decoration, cursor, and icon metrics. */
+  fontMetricModifiers?: FontMetricModifiers;
+  /** Balance unused surface pixels around the terminal grid. */
+  paddingBalance?: PaddingBalance;
   allowTransparency?: boolean;
   convertEol?: boolean;
   disableStdin?: boolean;
@@ -1230,11 +1234,46 @@ export interface FontMetrics {
   baseline: number;
 }
 
+/** A pixel delta or Ghostty-compatible percentage delta such as `"20%"`. */
+export type FontMetricModifier = number | string;
+
+/** Renderer-owned equivalents of Ghostty's `adjust-*` font metric options. */
+export interface FontMetricModifiers {
+  readonly cellWidth?: FontMetricModifier;
+  readonly cellHeight?: FontMetricModifier;
+  readonly fontBaseline?: FontMetricModifier;
+  readonly underlinePosition?: FontMetricModifier;
+  readonly underlineThickness?: FontMetricModifier;
+  readonly strikethroughPosition?: FontMetricModifier;
+  readonly strikethroughThickness?: FontMetricModifier;
+  readonly overlinePosition?: FontMetricModifier;
+  readonly overlineThickness?: FontMetricModifier;
+  readonly cursorThickness?: FontMetricModifier;
+  readonly cursorHeight?: FontMetricModifier;
+  readonly boxThickness?: FontMetricModifier;
+  readonly iconHeight?: FontMetricModifier;
+}
+
+/** Metric used to normalize a fallback face to a primary face. */
+export type FontSizeAdjustment = "none" | "ic-width" | "ex-height" | "cap-height" | "line-height";
+
+/** Ghostty padding modes; `true` caps top padding and `equal` centers the grid. */
+export type PaddingBalance = false | true | "equal";
+
+export interface SurfacePadding {
+  readonly top: number;
+  readonly bottom: number;
+  readonly left: number;
+  readonly right: number;
+}
+
 /** Renderer configuration options. */
 export interface RendererOptions {
   fontSize?: number;
   fontFamily?: string;
   fontLigatures?: boolean;
+  fontMetricModifiers?: FontMetricModifiers;
+  paddingBalance?: PaddingBalance;
   cursorStyle?: "block" | "underline" | "bar";
   cursorBlink?: boolean;
   theme?: Partial<ITheme>;

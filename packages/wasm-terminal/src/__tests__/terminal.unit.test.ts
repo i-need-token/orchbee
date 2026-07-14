@@ -36,11 +36,15 @@ describe("Terminal lifecycle", () => {
       scrollback: 7,
       cursorBlink: true,
       fontLigatures: false,
+      fontMetricModifiers: { cellHeight: "10%", iconHeight: -1 },
+      paddingBalance: "equal",
       theme: { foreground: "#123456", background: "#010203" },
     });
     terminal.grid.update();
     expect(terminal.options.scrollback).toBe(7);
     expect(terminal.options.fontLigatures).toBe(false);
+    expect(terminal.options.fontMetricModifiers).toEqual({ cellHeight: "10%", iconHeight: -1 });
+    expect(terminal.options.paddingBalance).toBe("equal");
     expect(terminal.foregroundColor).toEqual({ r: 0x12, g: 0x34, b: 0x56 });
     expect(terminal.backgroundColor).toEqual({ r: 1, g: 2, b: 3 });
     terminal.dispose();

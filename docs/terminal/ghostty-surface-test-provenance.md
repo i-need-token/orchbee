@@ -8,12 +8,12 @@ Audit one terminal panel against Ghostty renderer, font, shaper, search, surface
 | --------------------- | ------------------------------------------------------------------ |
 | Verified              | 2026-07-13                                                         |
 | Ghostty commit        | `91f66da24527fa02d92b5fd0b41cd020f553a64c`                         |
-| Orchbee commit        | `6007b5f7b98decddaf206f173b80bdc8d592e96d` plus working-tree audit |
+| Orchbee commit        | `f13224bba131ad7cdebc2c7c4ddeca498da8c718` plus working-tree audit |
 | WASM SHA-256          | `b0f39cfe981af36745c6b9c6919e9ac9cdf20aa507764e78bfb7a63ddc945c5b` |
 | Artifact comparison   | Byte-identical to Ghostty `zig-out/bin/ghostty-vt.wasm`            |
 | Full upstream tests   | 3,343 Zig declarations under `src/`; 246 Swift declarations        |
 | Panel audit set       | 261 Zig declarations plus 13 related Swift declarations            |
-| Orchbee package tests | 223 tests in 31 files                                              |
+| Orchbee package tests | 237 tests in 34 files                                              |
 
 The Zig count accepts `test {}`, `test name {}`, and `test "name" {`; earlier counts that accepted only quoted and unnamed tests were incomplete.
 
@@ -21,28 +21,28 @@ The Zig count accepts `test {}`, `test name {}`, and `test "name" {`; earlier co
 
 | Disposition       | Count | Coverage treatment                                                                  |
 | ----------------- | ----: | ----------------------------------------------------------------------------------- |
-| Covered           |   100 | Applicable declaration with Orchbee unit or browser evidence                        |
-| Gap               |    66 | Applicable observable capability absent or incomplete in the terminal panel         |
+| Covered           |   114 | Applicable declaration with Orchbee unit or browser evidence                        |
+| Gap               |    52 | Applicable observable capability absent or incomplete in the terminal panel         |
 | Browser product   |    70 | Exact native algorithm replaced by `FontFaceSet`, Canvas text, or WebGPU            |
 | Upstream internal |    24 | Allocator injection, native cache/container, or page-layout detail with no analogue |
 | Application layer |    14 | Configuration parsing, pasteboard search UI, transfer UI, or native search focus    |
 | Total             |   274 | Every declaration in the audit set                                                  |
 
-Declaration-weighted applicable coverage is `100 / (100 + 66) = 60.2%`; this is a test-provenance metric, not a user-visible feature percentage.
+Declaration-weighted applicable coverage is `114 / (114 + 52) = 68.7%`; this is a test-provenance metric, not a user-visible feature percentage.
 
 ## Orchbee evidence
 
 | Code       | Evidence                                                                                      |
 | ---------- | --------------------------------------------------------------------------------------------- |
 | `E-RENDER` | `src/__tests__/renderer.unit.test.ts`                                                         |
-| `E-FIT`    | `src/addons/__tests__/fit.unit.test.ts`                                                       |
+| `E-FIT`    | fit tests and `src/__tests__/surface-size.unit.test.ts`                                       |
 | `E-SHAPE`  | `src/__tests__/text-shaping.unit.test.ts`, renderer tests, and `browser/surface-test.html`    |
 | `E-SEARCH` | `src/search/__tests__/terminal-search.unit.test.ts` and `src/__tests__/terminal.unit.test.ts` |
 | `E-LINK`   | link detector, renderer, terminal, and browser surface tests                                  |
 | `E-MOUSE`  | `src/input/__tests__/surface-mouse.unit.test.ts` and browser surface tests                    |
 | `E-IME`    | `src/input/__tests__/preedit.unit.test.ts` and input-handler tests                            |
 | `E-SELECT` | `src/__tests__/selection-manager.unit.test.ts`                                                |
-| `E-FONT`   | renderer font metrics, glyph cache, atlas, DPR, and browser surface tests                     |
+| `E-FONT`   | font-metrics, glyph-constraints, renderer, generated-table, DPR, and browser surface tests    |
 
 Each declaration named below has the row's disposition and evidence; `<unnamed@line>` identifies an unnamed upstream test at the baseline commit.
 
@@ -50,12 +50,12 @@ Each declaration named below has the row's disposition and evidence; `<unnamed@l
 
 - `src/renderer/State.zig` — Covered (`E-RENDER`): `preedit range covers exact cell width`; `preedit range shifts left at right edge`.
 - `src/renderer/cell.zig` — Covered (`E-RENDER`): `Contents`; `Contents clear retains other content`; `Contents clear last added content`; `Contents with zero-sized screen`.
-- `src/renderer/cell.zig` — Gap: `Cell constraint widths`; Orchbee does not constrain Nerd Font, Powerline, and adjacent-space glyph spans like Ghostty.
+- `src/renderer/cell.zig` — Covered (`E-FONT`): `Cell constraint widths`.
 - `src/renderer/cursor.zig` — Covered (`E-RENDER`): `cursor: default uses configured style`; `cursor: blinking disabled`; `cursor: explicitly not visible`; `cursor: always block with preedit`.
 - `src/renderer/link.zig` — Covered (`E-LINK`): `renderCellMap`; `renderCellMap hover links`; `renderCellMap mods no match`.
 - `src/renderer/metal/shaders.zig` — Browser product: `<unnamed@283>`; WebGPU shader compilation replaces Metal shader compilation.
 - `src/renderer/shadertoy.zig` — Gap: `spirv`; `spirv invalid`; `shadertoy to msl`; `shadertoy to glsl`.
-- `src/renderer/size.zig` — Gap: `Size.balancePadding equal distributes whitespace equally`; `Size.balancePadding true shifts excess top to bottom`; `Padding balanced on zero`.
+- `src/renderer/size.zig` — Covered (`E-FIT`): `Size.balancePadding equal distributes whitespace equally`; `Size.balancePadding true shifts excess top to bottom`; `Padding balanced on zero`.
 - `src/renderer/size.zig` — Covered (`E-FIT`, `E-SELECT`): `GridSize update exact`; `GridSize update rounding`; `coordinate conversion`.
 
 ## Font manifest
@@ -69,11 +69,11 @@ Each declaration named below has the row's disposition and evidence; `<unnamed@l
 - `src/font/Collection.zig` — Upstream internal: `<unnamed@929>`.
 - `src/font/Collection.zig` — Browser product: `init`; `add full`; `add deferred without loading options`; `getFace`; `getIndex`; `completeStyles`; `hasCodepoint`; `hasCodepoint emoji default graphical`; `face metrics`.
 - `src/font/Collection.zig` — Covered (`E-FONT`): `setSize`; `metrics`.
-- `src/font/Collection.zig` — Gap: `adjusted sizes`; advanced Ghostty metric modifiers are absent.
+- `src/font/Collection.zig` — Covered (`E-FONT`): `adjusted sizes`.
 - `src/font/DeferredFace.zig` — Browser product: `fontconfig`; `coretext`.
-- `src/font/Glyph.zig` — Gap: `Constraints`.
+- `src/font/Glyph.zig` — Covered (`E-FONT`): `Constraints`.
 - `src/font/Metrics.zig` — Application layer: `formatConfig percent`; `formatConfig absolute`; `Modifier: parse absolute`; `Modifier: parse percent`.
-- `src/font/Metrics.zig` — Gap: `Metrics: apply modifiers`; `Metrics: adjust cell height smaller`; `Metrics: adjust cell height larger`; `Metrics: adjust icon height by percentage`; `Metrics: adjust icon height by absolute pixels`; `Modifier: percent`; `Modifier: absolute`.
+- `src/font/Metrics.zig` — Covered (`E-FONT`): `Metrics: apply modifiers`; `Metrics: adjust cell height smaller`; `Metrics: adjust cell height larger`; `Metrics: adjust icon height by percentage`; `Metrics: adjust icon height by absolute pixels`; `Modifier: percent`; `Modifier: absolute`.
 - `src/font/SharedGrid.zig` — Covered (`E-FONT`): `getIndex`; `renderGlyph error after cache insert rolls back cache entry`.
 - `src/font/SharedGrid.zig` — Upstream internal: `init error`.
 - `src/font/SharedGridSet.zig` — Covered (`E-FONT`): `Key`; `Key different font points`; `Key different font DPI`.
@@ -96,9 +96,9 @@ Each declaration named below has the row's disposition and evidence; `<unnamed@l
 - `src/font/opentype/svg.zig` — Browser product: `SVG`.
 - `src/font/shape.zig` — Upstream internal: `<unnamed@96>`.
 - `src/font/shaper/Cache.zig` — Covered (`E-FONT`): `Cache`.
-- `src/font/shaper/coretext.zig` — Covered (`E-SHAPE`): `shape inconsolata ligs`; `shape monaspace ligs`; `shape emoji width`; `shape emoji width long`; `shape Combining characters`; `shape selection boundary`; `shape cursor boundary`; `shape cursor boundary and colored emoji`; `shape cell attribute change`.
+- `src/font/shaper/coretext.zig` — Covered (`E-SHAPE`, `E-FONT`): `shape inconsolata ligs`; `shape monaspace ligs`; `shape emoji width`; `shape emoji width long`; `shape Combining characters`; `shape selection boundary`; `shape cursor boundary`; `shape cursor boundary and colored emoji`; `shape cell attribute change`; `shape nerd fonts`.
 - `src/font/shaper/coretext.zig` — Browser product: `shape`; `shape U+3C9 with JB Mono`; `shape variation selector VS15`; `shape variation selector VS16`.
-- `src/font/shaper/coretext.zig` — Gap: `run iterator`; `run iterator: empty cells with background set`; `shape nerd fonts`; `shape left-replaced lig in last run`; `shape left-replaced lig in early run`; `shape with empty cells in between`; `shape Devanagari string`; `shape Tai Tham vowels (position differs from advance)`; `shape Tai Tham letters (position.y differs from advance)`; `shape Javanese ligatures`; `shape Chakma vowel sign with ligature (vowel sign renders first)`; `shape Bengali ligatures with out of order vowels`; `shape box glyphs`; `shape high plane sprite font codepoint`.
+- `src/font/shaper/coretext.zig` — Gap: `run iterator`; `run iterator: empty cells with background set`; `shape left-replaced lig in last run`; `shape left-replaced lig in early run`; `shape with empty cells in between`; `shape Devanagari string`; `shape Tai Tham vowels (position differs from advance)`; `shape Tai Tham letters (position.y differs from advance)`; `shape Javanese ligatures`; `shape Chakma vowel sign with ligature (vowel sign renders first)`; `shape Bengali ligatures with out of order vowels`; `shape box glyphs`; `shape high plane sprite font codepoint`.
 - `src/font/shaper/feature.zig` — Gap: `Feature.fromString`; `FeatureList.fromString`; only the font-ligature boolean is exposed.
 - `src/font/shaper/harfbuzz.zig` — Covered (`E-SHAPE`): `shape inconsolata ligs`; `shape monaspace ligs`; `shape emoji width`; `shape emoji width long`; `shape Combining characters`; `shape selection boundary`; `shape cursor boundary`; `shape cursor boundary and colored emoji`; `shape cell attribute change`.
 - `src/font/shaper/harfbuzz.zig` — Browser product: `shape`; `shape variation selector VS15`; `shape variation selector VS16`.
@@ -130,17 +130,14 @@ Each declaration named below has the row's disposition and evidence; `<unnamed@l
 
 ## Remaining capability gaps
 
-| Capability                                  | Missing declarations | Current limit                                                                            |
-| ------------------------------------------- | -------------------: | ---------------------------------------------------------------------------------------- |
-| Shadertoy/custom shaders                    |                    4 | No shader API or SPIR-V translation                                                      |
-| Balanced terminal padding                   |                    3 | CSS padding is subtracted but leftover pixels are not balanced                           |
-| Nerd Font, Powerline, and glyph constraints |                    3 | Browser ink bounds are used without Ghostty constraints                                  |
-| Adjustable font and icon metrics            |                    8 | No Ghostty metric modifier surface                                                       |
-| Font variations and arbitrary features      |                    4 | Only family, size, style flags, and ligature enablement exist                            |
-| Glyph graphics rasterization                |                   15 | Packaged WASM and renderer advertise no glyph graphics                                   |
-| General complex-script shaping runs         |                   26 | Only bounded programming ligatures and per-grapheme Canvas rasterization are implemented |
-| Built-in Ghostty sprite font                |                    3 | Box drawing and cursor sprites depend on browser fonts                                   |
-| Total                                       |                   66 |                                                                                          |
+| Capability                             | Missing declarations | Current limit                                                                            |
+| -------------------------------------- | -------------------: | ---------------------------------------------------------------------------------------- |
+| Shadertoy/custom shaders               |                    4 | No shader API or SPIR-V translation                                                      |
+| Font variations and arbitrary features |                    4 | Only family, size, style flags, and ligature enablement exist                            |
+| Glyph graphics rasterization           |                   15 | Packaged WASM and renderer advertise no glyph graphics                                   |
+| General complex-script shaping runs    |                   26 | Only bounded programming ligatures and per-grapheme Canvas rasterization are implemented |
+| Built-in Ghostty sprite font           |                    3 | Box drawing and cursor sprites depend on browser fonts                                   |
+| Total                                  |                   52 |                                                                                          |
 
 Kitty graphics are also absent because Ghostty disables them for `wasm32-freestanding`; no scoped upstream renderer/font declaration measures that additional capability gap.
 
@@ -148,6 +145,7 @@ Kitty graphics are also absent because Ghostty disables them for `wasm32-freesta
 
 1. Compare the target Ghostty commit and packaged WASM SHA-256 with this baseline.
 2. Run `pnpm audit:ghostty-panel` from the repository root with Ghostty checked out at `../ghostty`, or set `GHOSTTY_SOURCE` to its root.
-3. The audit must enumerate `test {}`, `test name {}`, and `test "name" {` syntax and reject missing, duplicate, or stale mappings.
-4. Port assertions only for Orchbee-owned behavior; retain browser-product, internal, and application exclusions with an explicit reason.
-5. Run unit, Node integration, browser surface, typecheck, build, lint, format, and artifact checks.
+3. Run `pnpm generate:ghostty-panel-data` when the upstream Nerd Font table changes; the audit rejects stale generated output.
+4. The audit must enumerate `test {}`, `test name {}`, and `test "name" {` syntax and reject missing, duplicate, or stale mappings.
+5. Port assertions only for Orchbee-owned behavior; retain browser-product, internal, and application exclusions with an explicit reason.
+6. Run unit, Node integration, browser surface, typecheck, build, lint, format, and artifact checks.

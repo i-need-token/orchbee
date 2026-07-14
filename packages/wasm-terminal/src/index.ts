@@ -107,6 +107,23 @@ export {
   type RendererFrameTelemetry,
   type RendererHealthEvent,
 } from "./renderer.js";
+export {
+  applyFontMetricModifier,
+  applyFontMetricModifiers,
+  fontSizeAdjustmentScale,
+  parseFontMetricModifier,
+  type DetailedFontMetrics,
+  type FontFaceMetrics,
+  type ParsedFontMetricModifier,
+} from "./font-metrics.js";
+export {
+  additionalSurfaceMargins,
+  balanceGridPadding,
+  balanceSurfacePadding,
+  calculateSurfaceGrid,
+  type SurfaceGridSize,
+  type SurfaceSize,
+} from "./surface-size.js";
 
 // Input handling
 export {
@@ -245,6 +262,11 @@ export {
   type IUnicodeVersionProvider,
   // Renderer types
   type FontMetrics,
+  type FontMetricModifier,
+  type FontMetricModifiers,
+  type FontSizeAdjustment,
+  type PaddingBalance,
+  type SurfacePadding,
   type RendererOptions,
   type IRenderable,
   type IScrollbackProvider,

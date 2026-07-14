@@ -77,6 +77,8 @@
           fontLigatures: true,
           fontFamily: 'Menlo, "Apple Color Emoji", monospace',
           fontSize: 13,
+          fontMetricModifiers: { cellHeight: 1, iconHeight: "-5%" },
+          paddingBalance: "equal",
         });
         const frames = [];
         const input = [];
@@ -95,8 +97,14 @@
             terminal.capabilities.renderer === "canvas2d",
           `surface selects a renderer (${terminal.capabilities.renderer})`,
         );
+        check(
+          Number.parseFloat(canvas.style.marginLeft) > 0 &&
+            Number.parseFloat(canvas.style.marginTop) > 0,
+          "surface balances leftover pixels around the rendered grid",
+        );
 
-        terminal.write("=> 你好 🚀 e\u0301\r\nhttps://ghostty.org");
+        const nerdFontFolder = String.fromCodePoint(0xf024b);
+        terminal.write(`=> ${nerdFontFolder} 你好 🚀 e\u0301\r\nhttps://ghostty.org`);
         await settleSurface();
         check(
           frames.some((frame) => frame.shapingRuns > 0),
@@ -109,6 +117,10 @@
         check(
           terminal.getAccessibleText().includes("https://ghostty.org"),
           "accessibility mirror receives rendered text",
+        );
+        check(
+          terminal.getAccessibleText().includes(nerdFontFolder),
+          "Nerd Font codepoints survive constrained browser rendering",
         );
         check(
           canvas.width === Number.parseFloat(canvas.style.width) * window.devicePixelRatio,

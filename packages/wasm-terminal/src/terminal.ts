@@ -280,6 +280,8 @@ export class Terminal {
       fontSize: optionInput.fontSize ?? 15,
       fontFamily: optionInput.fontFamily ?? "monospace",
       fontLigatures: optionInput.fontLigatures ?? true,
+      fontMetricModifiers: optionInput.fontMetricModifiers ?? {},
+      paddingBalance: optionInput.paddingBalance ?? false,
       allowTransparency: optionInput.allowTransparency ?? false,
       convertEol: optionInput.convertEol ?? false,
       disableStdin: optionInput.disableStdin ?? false,
@@ -794,6 +796,10 @@ export class Terminal {
       if (options.fontSize !== undefined) this.options.fontSize = options.fontSize;
       if (options.fontFamily !== undefined) this.options.fontFamily = options.fontFamily;
       if (options.fontLigatures !== undefined) this.options.fontLigatures = options.fontLigatures;
+      if (options.fontMetricModifiers !== undefined)
+        this.options.fontMetricModifiers = options.fontMetricModifiers;
+      if (options.paddingBalance !== undefined)
+        this.options.paddingBalance = options.paddingBalance;
       if (options.allowTransparency !== undefined)
         this.options.allowTransparency = options.allowTransparency;
       if (options.convertEol !== undefined) this.options.convertEol = options.convertEol;
@@ -859,6 +865,8 @@ export class Terminal {
     rendererOpts.fontSize = resolvedOptions.fontSize;
     rendererOpts.fontFamily = resolvedOptions.fontFamily;
     rendererOpts.fontLigatures = resolvedOptions.fontLigatures;
+    rendererOpts.fontMetricModifiers = resolvedOptions.fontMetricModifiers;
+    rendererOpts.paddingBalance = resolvedOptions.paddingBalance;
     rendererOpts.cursorStyle = resolvedOptions.cursorStyle;
     rendererOpts.cursorBlink = resolvedOptions.cursorBlink;
     rendererOpts.theme = theme;
@@ -1997,6 +2005,7 @@ export class Terminal {
 
   private readonly handleWindowResize = (): void => {
     this.syncDevicePixelRatio();
+    this.renderer?.syncSurfacePadding();
   };
 
   private readonly handleDevicePixelRatioChange = (): void => {
@@ -2370,6 +2379,12 @@ export class Terminal {
         break;
       case "fontLigatures":
         this.renderer?.setFontLigatures(this.options.fontLigatures);
+        break;
+      case "fontMetricModifiers":
+        this.renderer?.setFontMetricModifiers(this.options.fontMetricModifiers);
+        break;
+      case "paddingBalance":
+        this.renderer?.setPaddingBalance(this.options.paddingBalance);
         break;
       case "allowTransparency":
         this.renderer?.setAllowTransparency(this.options.allowTransparency);

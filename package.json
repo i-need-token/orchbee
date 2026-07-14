@@ -11,7 +11,8 @@
     "build": "pnpm -r build",
     "test": "pnpm test:lint-rules && pnpm -r test",
     "test:lint-rules": "vitest run --config scripts/oxlint-plugin-orchbee/vitest.config.ts",
-    "audit:ghostty-panel": "node scripts/check-ghostty-panel-manifest.mjs"
+    "audit:ghostty-panel": "node scripts/check-ghostty-panel-manifest.mjs && node scripts/generate-ghostty-nerd-font-constraints.mjs --check",
+    "generate:ghostty-panel-data": "node scripts/generate-ghostty-nerd-font-constraints.mjs"
   },
   "dependencies": {
     "zod": "catalog:"

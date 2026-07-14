@@ -21,6 +21,11 @@ const terminal = new Terminal({
   scrollback: 10_000,
   cursorBlink: true,
   fontLigatures: true,
+  paddingBalance: "equal",
+  fontMetricModifiers: {
+    cellHeight: "10%",
+    iconHeight: -1,
+  },
 });
 
 await terminal.open(document.querySelector("#terminal")!);
@@ -87,6 +92,10 @@ const shortcut = terminal.registerKeyEventHandler({
 
 `terminal.capabilities` reports the active renderer and application-provided host capabilities without advertising unsupported graphics protocols.
 
+`paddingBalance` accepts `false`, `true`, or `"equal"`. The `true` mode caps top padding and shifts excess space to the bottom; `"equal"` centers the grid. CSS padding on the terminal parent remains the explicit minimum. `fontMetricModifiers` mirrors Ghostty's `adjust-*` behavior: integer values add CSS pixels, percentage strings such as `"10%"` change the measured value proportionally, and cell-height changes recenter the face without implicitly resizing the cursor.
+
+The exported `fontSizeAdjustmentScale` helper implements Ghostty's fallback-face normalization for `ic-width`, `ex-height`, `cap-height`, and `line-height`. Browser font discovery remains owned by `FontFaceSet`; callers that manage explicit fallback faces can apply the returned scale when constructing those faces.
+
 ## Browser behavior
 
 - Hidden-textarea IME input compensates for the browser's composition caret and anchors the candidate UI at the Ghostty-style cursor midpoint; canvas preedit uses one underline without marked-range inversion.
@@ -98,6 +107,9 @@ const shortcut = terminal.registerKeyEventHandler({
 - WebGPU glyphs use physical-pixel rasterization and rebuild when browser DPR changes.
 - The configured primary and fallback font list is loaded through `FontFaceSet` before cell metrics are measured; failures surface through `onHostError` without preventing startup.
 - Glyph quads preserve measured ink bounds and bearings instead of clipping italic overhangs or forcing every glyph into one cell-sized rectangle.
+- Nerd Font and Powerline glyphs use Ghostty's generated constraint table, including adjacent-space width allowance, icon sizing, and grid-aligned stretching.
+- Cell, decoration, cursor, and icon metric modifiers share Ghostty's percentage, absolute-delta, clamping, and cell-height recentering rules.
+- Balanced padding distributes fractional grid space around the canvas while respecting explicit parent padding.
 - New WebGPU glyphs upload a merged dirty atlas region without replacing existing texels; colored emoji preserve their RGB while ordinary glyphs remain terminal-tintable.
 - Bounded programming-ligature runs are rasterized as one glyph sequence in both renderers and can be disabled through `fontLigatures`.
 - Frame telemetry exposes timing, reasons, visited cells, instances, shaping runs, draw calls, upload bytes, and atlas pressure.
@@ -114,4 +126,7 @@ Current Ghostty alignment and remaining gaps are tracked in [Ghostty Terminal Pa
 ```sh
 pnpm build
 pnpm --filter @orchbee/wasm-terminal test
+pnpm audit:ghostty-panel
 ```
+
+When upgrading Ghostty, run `pnpm generate:ghostty-panel-data` to regenerate the Nerd Font constraint table. The panel audit rejects a stale generated table.

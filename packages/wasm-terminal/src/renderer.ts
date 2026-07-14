@@ -18,7 +18,15 @@
  */
 
 import type { SelectionManager } from "./selection-manager.js";
+import { applyFontMetricModifiers, type DetailedFontMetrics } from "./font-metrics.js";
+import {
+  cellConstraintWidth,
+  constrainGlyph,
+  glyphConstraintForCodepoint,
+  type GlyphSize,
+} from "./glyph-constraints.js";
 import { searchMatchContainsCell, type TerminalSearchMatch } from "./search/terminal-search.js";
+import { additionalSurfaceMargins, balanceGridPadding } from "./surface-size.js";
 import {
   buildTextShapingPlan,
   type TextShapingCell,
@@ -27,12 +35,15 @@ import {
 import { CellFlags, UnderlineStyle } from "./types.js";
 import type {
   FontMetrics,
+  FontMetricModifiers,
   GhosttyCell,
   IRenderable,
   IScrollbackProvider,
   ITheme,
   RendererOptions,
   SelectionCoordinates,
+  PaddingBalance,
+  SurfacePadding,
 } from "./types.js";
 
 export type RendererHealthEvent =
@@ -149,6 +160,15 @@ interface GlyphAtlasEntry {
   readonly colored: boolean;
 }
 
+interface GlyphRasterLayout {
+  readonly left: number;
+  readonly ascent: number;
+  readonly scaleX: number;
+  readonly scaleY: number;
+  readonly target: GlyphSize;
+  readonly targetTop: number;
+}
+
 interface RowTextShaping {
   readonly texts: readonly string[];
   readonly plan: TextShapingPlan;
@@ -164,6 +184,7 @@ interface RectangleGeometry {
 }
 
 const COLOR_GLYPH_CANDIDATE = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u{FE0F}\u{20E3}]/u;
+const ZERO_PADDING: SurfacePadding = { top: 0, bottom: 0, left: 0, right: 0 };
 
 // ============================================================================
 // Color Helpers
@@ -319,7 +340,10 @@ export class WebGPURenderer {
   private fontSize: number;
   private fontFamily: string;
   private fontLigatures: boolean;
+  private fontMetricModifiers: FontMetricModifiers;
   private metrics: FontMetrics;
+  private detailedMetrics: DetailedFontMetrics;
+  private paddingBalance: PaddingBalance;
 
   // Cursor
   private cursorBlink: boolean;
@@ -430,6 +454,8 @@ export class WebGPURenderer {
     this.fontSize = options.fontSize ?? 15;
     this.fontFamily = options.fontFamily ?? "monospace";
     this.fontLigatures = options.fontLigatures ?? true;
+    this.fontMetricModifiers = { ...options.fontMetricModifiers };
+    this.paddingBalance = options.paddingBalance ?? false;
     this.cursorBlink = options.cursorBlink ?? false;
     this.theme = { ...DEFAULT_THEME, ...options.theme };
     this.devicePixelRatio = options.devicePixelRatio ?? window.devicePixelRatio ?? 1;
@@ -437,7 +463,8 @@ export class WebGPURenderer {
 
     this.palette = this.buildPalette();
 
-    this.metrics = this.measureFont();
+    this.detailedMetrics = this.measureFont();
+    this.metrics = publicFontMetrics(this.detailedMetrics);
 
     // Create atlas canvas for glyph rasterization
     this.atlasCanvas = document.createElement("canvas");
@@ -588,7 +615,7 @@ export class WebGPURenderer {
   // Font Metrics
   // ==========================================================================
 
-  private measureFont(): FontMetrics {
+  private measureFont(): DetailedFontMetrics {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Failed to create font measurement context");
@@ -609,11 +636,35 @@ export class WebGPURenderer {
     const baselineFromBottom = Math.round(descent - (height - faceHeight) / 2);
     const baseline = Math.min(height, Math.max(0, height - baselineFromBottom));
 
-    return { width, height, baseline };
+    const underlineThickness = 1;
+    const capHeight = 0.75 * ascent;
+    return applyFontMetricModifiers(
+      {
+        cellWidth: width,
+        cellHeight: height,
+        cellBaseline: baselineFromBottom,
+        underlinePosition: Math.max(0, Math.round(baseline + underlineThickness)),
+        underlineThickness,
+        strikethroughPosition: Math.max(0, Math.round(height / 2)),
+        strikethroughThickness: 1,
+        overlinePosition: 0,
+        overlineThickness: 1,
+        boxThickness: 1,
+        cursorThickness: 1 / this.devicePixelRatio,
+        cursorHeight: height,
+        iconHeight: faceHeight,
+        iconHeightSingle: (2 * capHeight + faceHeight) / 3,
+        faceWidth: Math.max(1, widthMetrics.width),
+        faceHeight,
+        faceY: baselineFromBottom - descent,
+      },
+      this.fontMetricModifiers,
+    );
   }
 
   remeasureFont(): void {
-    this.metrics = this.measureFont();
+    this.detailedMetrics = this.measureFont();
+    this.metrics = publicFontMetrics(this.detailedMetrics);
   }
 
   private buildPalette(): string[] {
@@ -798,14 +849,26 @@ export class WebGPURenderer {
   // Glyph Atlas
   // ==========================================================================
 
-  private getGlyphKey(text: string, flags: number, width: number): string {
+  private getGlyphKey(
+    text: string,
+    flags: number,
+    width: number,
+    codepoint: number,
+    constraintWidth: 1 | 2,
+  ): string {
     const bold = (flags & CellFlags.BOLD) !== 0 ? "b" : "";
     const italic = (flags & CellFlags.ITALIC) !== 0 ? "i" : "";
-    return JSON.stringify([text, width, `${bold}${italic}`]);
+    return JSON.stringify([text, width, codepoint, constraintWidth, `${bold}${italic}`]);
   }
 
-  private ensureGlyph(text: string, flags: number, width: number): GlyphAtlasEntry | null {
-    const key = this.getGlyphKey(text, flags, width);
+  private ensureGlyph(
+    text: string,
+    flags: number,
+    width: number,
+    codepoint = text.codePointAt(0) ?? 0,
+    constraintWidth: 1 | 2 = width >= 2 ? 2 : 1,
+  ): GlyphAtlasEntry | null {
+    const key = this.getGlyphKey(text, flags, width, codepoint, constraintWidth);
     const existing = this.glyphMap.get(key);
     if (existing) return existing;
 
@@ -814,9 +877,6 @@ export class WebGPURenderer {
     // sampled by a physical-pixel WebGPU target. Rasterize glyphs at the same
     // device scale so high-DPI displays never enlarge a low-resolution mask.
     const rasterScale = this.devicePixelRatio;
-    const cellWidth = this.metrics.width * Math.max(1, width) * rasterScale;
-    const cellHeight = this.metrics.height * rasterScale;
-    const baseline = this.metrics.baseline * rasterScale;
     const padding = Math.max(2, Math.ceil(2 * rasterScale));
 
     let fontStyle = "";
@@ -826,25 +886,10 @@ export class WebGPURenderer {
     this.atlasCtx.textBaseline = "alphabetic";
     this.atlasCtx.textAlign = "left";
     const measured = this.atlasCtx.measureText(text);
-    const measuredAscent = measured.actualBoundingBoxAscent;
-    const measuredDescent = measured.actualBoundingBoxDescent;
-    const hasVerticalBounds =
-      Number.isFinite(measuredAscent) &&
-      Number.isFinite(measuredDescent) &&
-      measuredAscent + measuredDescent > 0;
-    const left = Number.isFinite(measured.actualBoundingBoxLeft)
-      ? Math.max(0, measured.actualBoundingBoxLeft)
-      : 0;
-    const measuredRight = measured.actualBoundingBoxRight;
-    const right =
-      Number.isFinite(measuredRight) && measuredRight > 0
-        ? measuredRight
-        : Math.max(cellWidth, measured.width);
-    const ascent = hasVerticalBounds ? measuredAscent : baseline;
-    const descent = hasVerticalBounds ? measuredDescent : Math.max(0, cellHeight - baseline);
+    const layout = this.glyphRasterLayout(measured, rasterScale, codepoint, constraintWidth);
     const inkPadding = Math.max(1, Math.ceil(rasterScale));
-    const w = Math.max(1, Math.ceil(left + right) + inkPadding * 2);
-    const h = Math.max(1, Math.ceil(ascent + descent) + inkPadding * 2);
+    const w = Math.max(1, Math.ceil(layout.target.width * rasterScale) + inkPadding * 2);
+    const h = Math.max(1, Math.ceil(layout.target.height * rasterScale) + inkPadding * 2);
 
     // Check if we need a new row
     if (this.atlasX + w + padding > this.atlasCanvas.width) {
@@ -865,19 +910,19 @@ export class WebGPURenderer {
     // Render the full ink bounds with a transparent edge so filtering never
     // clips negative bearings, italic overhang, ascenders, or descenders.
     this.atlasCtx.fillStyle = "#ffffff";
-    this.atlasCtx.fillText(
-      text,
-      this.atlasX + inkPadding + left,
-      this.atlasY + inkPadding + ascent,
-    );
+    this.atlasCtx.save();
+    this.atlasCtx.translate(this.atlasX + inkPadding, this.atlasY + inkPadding);
+    this.atlasCtx.scale(layout.scaleX, layout.scaleY);
+    this.atlasCtx.fillText(text, layout.left, layout.ascent);
+    this.atlasCtx.restore();
 
     const entry: GlyphAtlasEntry = {
       x: this.atlasX,
       y: this.atlasY,
       w,
       h,
-      offsetX: -(left + inkPadding) / rasterScale,
-      offsetY: this.metrics.baseline - (ascent + inkPadding) / rasterScale,
+      offsetX: layout.target.x - inkPadding / rasterScale,
+      offsetY: layout.targetTop - inkPadding / rasterScale,
       renderWidth: w / rasterScale,
       renderHeight: h / rasterScale,
       colored: this.isColorGlyph(text, this.atlasX, this.atlasY, w, h),
@@ -890,6 +935,56 @@ export class WebGPURenderer {
     this.markAtlasDirty(entry.x, entry.y, entry.w, entry.h);
 
     return entry;
+  }
+
+  private glyphRasterLayout(
+    measured: TextMetrics,
+    rasterScale: number,
+    codepoint: number,
+    constraintWidth: 1 | 2,
+  ): GlyphRasterLayout {
+    const baseline = this.metrics.baseline * rasterScale;
+    const cellHeight = this.metrics.height * rasterScale;
+    const measuredAscent = measured.actualBoundingBoxAscent;
+    const measuredDescent = measured.actualBoundingBoxDescent;
+    const hasVerticalBounds =
+      Number.isFinite(measuredAscent) &&
+      Number.isFinite(measuredDescent) &&
+      measuredAscent + measuredDescent > 0;
+    const left = Number.isFinite(measured.actualBoundingBoxLeft)
+      ? Math.max(0, measured.actualBoundingBoxLeft)
+      : 0;
+    const measuredRight = measured.actualBoundingBoxRight;
+    const right =
+      Number.isFinite(measuredRight) && measuredRight > 0
+        ? measuredRight
+        : Math.max(this.metrics.width * rasterScale, measured.width);
+    const ascent = hasVerticalBounds ? measuredAscent : baseline;
+    const descent = hasVerticalBounds ? measuredDescent : Math.max(0, cellHeight - baseline);
+    const original: GlyphSize = {
+      width: (left + right) / rasterScale,
+      height: (ascent + descent) / rasterScale,
+      x: -left / rasterScale,
+      y: this.detailedMetrics.cellBaseline - descent / rasterScale,
+    };
+    const constrained = constrainGlyph(
+      original,
+      this.detailedMetrics,
+      glyphConstraintForCodepoint(codepoint),
+      constraintWidth,
+    );
+    const target: GlyphSize = {
+      ...constrained,
+      x: constrained.x + (this.detailedMetrics.cellWidth - this.detailedMetrics.faceWidth) / 2,
+    };
+    return {
+      left,
+      ascent,
+      scaleX: target.width / original.width,
+      scaleY: target.height / original.height,
+      target,
+      targetTop: this.detailedMetrics.cellHeight - target.y - target.height,
+    };
   }
 
   private isColorGlyph(text: string, x: number, y: number, width: number, height: number): boolean {
@@ -996,7 +1091,15 @@ export class WebGPURenderer {
         const shapingSpan = shaping.plan[x];
         if (shapingSpan && shapingSpan.start !== x) continue;
         const text = shapingSpan?.text ?? shaping.texts[x] ?? "";
-        if (text) this.ensureGlyph(text, cell.flags, shapingSpan?.columns ?? cell.width);
+        if (text) {
+          this.ensureGlyph(
+            text,
+            cell.flags,
+            shapingSpan?.columns ?? cell.width,
+            cell.codepoint,
+            cellConstraintWidth(line, x, line.length),
+          );
+        }
       }
     }
   }
@@ -1078,6 +1181,33 @@ export class WebGPURenderer {
       this.ctx2d.fillStyle = this.theme.background;
       if (!this.allowTransparency) this.ctx2d.fillRect(0, 0, cssWidth, cssHeight);
     }
+    this.syncSurfacePadding();
+  }
+
+  /** Recalculate CSS margins used to balance leftover surface pixels. */
+  syncSurfacePadding(): void {
+    const parent = this.canvas.parentElement;
+    if (!parent) return;
+    if (this.paddingBalance === false) {
+      setCanvasMargins(this.canvas, ZERO_PADDING);
+      return;
+    }
+    if (typeof window.getComputedStyle !== "function") return;
+    const style = window.getComputedStyle(parent);
+    const explicit: SurfacePadding = {
+      top: cssPixels(style.paddingTop),
+      bottom: cssPixels(style.paddingBottom),
+      left: cssPixels(style.paddingLeft),
+      right: cssPixels(style.paddingRight),
+    };
+    const balanced = balanceGridPadding(
+      { width: parent.clientWidth, height: parent.clientHeight },
+      { width: this.metrics.width, height: this.metrics.height },
+      explicit,
+      { columns: this.renderedColumns, rows: this.renderedRows },
+      this.paddingBalance,
+    );
+    setCanvasMargins(this.canvas, additionalSurfaceMargins(balanced, explicit));
   }
 
   /** Rebuild physical-pixel resources after browser zoom or monitor changes. */
@@ -1085,6 +1215,7 @@ export class WebGPURenderer {
     const ratio = Number.isFinite(value) && value > 0 ? value : 1;
     if (ratio === this.devicePixelRatio) return false;
     this.devicePixelRatio = ratio;
+    this.remeasureFont();
     this.resetAtlas();
     if (this.renderedColumns > 0 && this.renderedRows > 0) {
       this.resize(this.renderedColumns, this.renderedRows);
@@ -1320,9 +1451,11 @@ export class WebGPURenderer {
         const searchHighlight = this.getSearchHighlight(x, y);
         const isBlockCursor =
           cursorEnabled && renderedCursorStyle === "block" && cursor.x === x && cursor.y === y;
+        const isFullBlockCursor =
+          isBlockCursor && this.detailedMetrics.cursorHeight === this.detailedMetrics.cellHeight;
         let bgR: number, bgG: number, bgB: number;
 
-        if (isBlockCursor) {
+        if (isFullBlockCursor) {
           [bgR, bgG, bgB] = cursorColor;
         } else if (isSelected) {
           [bgR, bgG, bgB] = hexToRGB(this.theme.selectionBackground);
@@ -1347,9 +1480,20 @@ export class WebGPURenderer {
           bgB === themeBackground[2] &&
           !isSelected &&
           searchHighlight === null &&
-          !isBlockCursor;
+          !isFullBlockCursor;
         if (!isDefaultBg) {
           pushRect(bgData, cellX, cellY, cellW, cellH, [bgR, bgG, bgB]);
+        }
+        if (isBlockCursor && !isFullBlockCursor) {
+          const cursorBox = cursorBlockGeometry(x, y, this.detailedMetrics);
+          pushRect(
+            bgData,
+            cursorBox.x,
+            cursorBox.y,
+            cursorBox.width,
+            cursorBox.height,
+            cursorColor,
+          );
         }
 
         if (
@@ -1392,7 +1536,13 @@ export class WebGPURenderer {
 
         if (text.length > 0) {
           if (shapingSpan) this.frameShapingRuns++;
-          const glyph = this.ensureGlyph(text, cell.flags, glyphWidth);
+          const glyph = this.ensureGlyph(
+            text,
+            cell.flags,
+            glyphWidth,
+            cell.codepoint,
+            cellConstraintWidth(line, x, line.length),
+          );
           if (glyph) {
             textData.push(
               cellX + glyph.offsetX,
@@ -1419,10 +1569,27 @@ export class WebGPURenderer {
             : decorationColor;
         if ((cell.flags & CellFlags.UNDERLINE) !== 0) {
           const style = cell.underline_style || UnderlineStyle.SINGLE;
-          const underlineY = cellY + this.metrics.baseline + 1;
+          const underlineY = cellY + this.detailedMetrics.underlinePosition;
+          const underlineThickness = this.detailedMetrics.underlineThickness;
           if (style === UnderlineStyle.DOUBLE) {
-            pushRect(overlayData, cellX, underlineY - 1, cellW, 1, underlineColor, alpha);
-            pushRect(overlayData, cellX, underlineY + 1, cellW, 1, underlineColor, alpha);
+            pushRect(
+              overlayData,
+              cellX,
+              underlineY - underlineThickness,
+              cellW,
+              underlineThickness,
+              underlineColor,
+              alpha,
+            );
+            pushRect(
+              overlayData,
+              cellX,
+              underlineY + underlineThickness,
+              cellW,
+              underlineThickness,
+              underlineColor,
+              alpha,
+            );
           } else if (style === UnderlineStyle.CURLY) {
             for (let offset = 0; offset < cellW; offset += 2) {
               pushRect(
@@ -1430,7 +1597,7 @@ export class WebGPURenderer {
                 cellX + offset,
                 underlineY + (Math.floor(offset / 2) % 2),
                 Math.min(2, cellW - offset),
-                1,
+                underlineThickness,
                 underlineColor,
                 alpha,
               );
@@ -1444,34 +1611,64 @@ export class WebGPURenderer {
                 cellX + offset,
                 underlineY,
                 Math.min(dashWidth, cellW - offset),
-                1,
+                underlineThickness,
                 underlineColor,
                 alpha,
               );
             }
           } else {
-            pushRect(overlayData, cellX, underlineY, cellW, 1, underlineColor, alpha);
+            pushRect(
+              overlayData,
+              cellX,
+              underlineY,
+              cellW,
+              underlineThickness,
+              underlineColor,
+              alpha,
+            );
           }
         }
         if ((cell.flags & CellFlags.STRIKETHROUGH) !== 0) {
           pushRect(
             overlayData,
             cellX,
-            cellY + Math.floor(cellH / 2),
+            cellY + this.detailedMetrics.strikethroughPosition,
             cellW,
-            1,
+            this.detailedMetrics.strikethroughThickness,
             decorationColor,
             alpha,
           );
         }
         if (cell.overline) {
-          pushRect(overlayData, cellX, cellY + 1, cellW, 1, decorationColor, alpha);
+          pushRect(
+            overlayData,
+            cellX,
+            cellY + this.detailedMetrics.overlinePosition,
+            cellW,
+            this.detailedMetrics.overlineThickness,
+            decorationColor,
+            alpha,
+          );
         }
         if (cell.hyperlink_id > 0 && cell.hyperlink_id === this.hoveredHyperlinkId) {
-          pushRect(overlayData, cellX, cellY + this.metrics.baseline + 1, cellW, 1, [74, 144, 226]);
+          pushRect(
+            overlayData,
+            cellX,
+            cellY + this.detailedMetrics.underlinePosition,
+            cellW,
+            this.detailedMetrics.underlineThickness,
+            [74, 144, 226],
+          );
         }
         if (this.hoveredLinkRange && isCellInRange(x, y, this.hoveredLinkRange)) {
-          pushRect(overlayData, cellX, cellY + this.metrics.baseline + 1, cellW, 1, [74, 144, 226]);
+          pushRect(
+            overlayData,
+            cellX,
+            cellY + this.detailedMetrics.underlinePosition,
+            cellW,
+            this.detailedMetrics.underlineThickness,
+            [74, 144, 226],
+          );
         }
       }
     }
@@ -1512,9 +1709,9 @@ export class WebGPURenderer {
       pushRect(
         overlayData,
         startX,
-        cellY + this.metrics.baseline + 1,
+        cellY + this.detailedMetrics.underlinePosition,
         preeditLayout.width * this.metrics.width,
-        physicalPixelSize(this.devicePixelRatio),
+        this.detailedMetrics.underlineThickness,
         themeForeground,
       );
     }
@@ -1522,16 +1719,8 @@ export class WebGPURenderer {
     if (cursorEnabled && renderedCursorStyle !== "block") {
       const geometries =
         renderedCursorStyle === "block_hollow"
-          ? cursorOutlineGeometry(cursor.x, cursor.y, this.metrics, this.devicePixelRatio)
-          : [
-              cursorStrokeGeometry(
-                renderedCursorStyle,
-                cursor.x,
-                cursor.y,
-                this.metrics,
-                this.devicePixelRatio,
-              ),
-            ];
+          ? cursorOutlineGeometry(cursor.x, cursor.y, this.detailedMetrics)
+          : [cursorStrokeGeometry(renderedCursorStyle, cursor.x, cursor.y, this.detailedMetrics)];
       for (const geometry of geometries) {
         pushRect(overlayData, geometry.x, geometry.y, geometry.width, geometry.height, cursorColor);
       }
@@ -1831,7 +2020,15 @@ export class WebGPURenderer {
           this.frameGlyphInstances++;
           if (shapingSpan) this.frameShapingRuns++;
         }
-        this.renderCellText2D(ctx, cell, x, y, undefined, text);
+        this.renderCellText2D(
+          ctx,
+          cell,
+          x,
+          y,
+          undefined,
+          text,
+          cellConstraintWidth(line, x, line.length),
+        );
       }
     }
 
@@ -1905,6 +2102,7 @@ export class WebGPURenderer {
     y: number,
     colorOverride?: string,
     textOverride?: string,
+    constraintWidth: 1 | 2 = cell.width >= 2 ? 2 : 1,
   ): void {
     const cellX = x * this.metrics.width;
     const cellY = y * this.metrics.height;
@@ -1948,18 +2146,18 @@ export class WebGPURenderer {
       (cell.grapheme_len > 0 && this.currentBuffer?.getGraphemeString
         ? this.currentBuffer.getGraphemeString(y, x)
         : String.fromCodePoint(cell.codepoint || 32));
-    ctx.fillText(char, cellX, cellY + this.metrics.baseline);
+    this.drawConstrainedText2D(ctx, char, cellX, cellY, cell.codepoint, constraintWidth);
 
     if (cell.flags & CellFlags.FAINT) ctx.globalAlpha = 1.0;
 
     // Underline
     if (cell.flags & CellFlags.UNDERLINE) {
-      const underlineY = cellY + this.metrics.baseline + 2;
+      const underlineY = cellY + this.detailedMetrics.underlinePosition;
       ctx.strokeStyle =
         cell.underline_r >= 0
           ? `rgb(${cell.underline_r}, ${cell.underline_g}, ${cell.underline_b})`
           : ctx.fillStyle;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = this.detailedMetrics.underlineThickness;
       const style = cell.underline_style || UnderlineStyle.SINGLE;
       if (style === UnderlineStyle.DOTTED) ctx.setLineDash([1, 2]);
       else if (style === UnderlineStyle.DASHED) ctx.setLineDash([3, 2]);
@@ -1984,9 +2182,9 @@ export class WebGPURenderer {
 
     // Strikethrough
     if (cell.flags & CellFlags.STRIKETHROUGH) {
-      const strikeY = cellY + this.metrics.height / 2;
+      const strikeY = cellY + this.detailedMetrics.strikethroughPosition;
       ctx.strokeStyle = ctx.fillStyle;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = this.detailedMetrics.strikethroughThickness;
       ctx.beginPath();
       ctx.moveTo(cellX, strikeY);
       ctx.lineTo(cellX + cellWidth, strikeY);
@@ -1995,18 +2193,18 @@ export class WebGPURenderer {
 
     if (cell.overline) {
       ctx.strokeStyle = ctx.fillStyle;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = this.detailedMetrics.overlineThickness;
       ctx.beginPath();
-      ctx.moveTo(cellX, cellY + 1);
-      ctx.lineTo(cellX + cellWidth, cellY + 1);
+      ctx.moveTo(cellX, cellY + this.detailedMetrics.overlinePosition);
+      ctx.lineTo(cellX + cellWidth, cellY + this.detailedMetrics.overlinePosition);
       ctx.stroke();
     }
 
     // Hyperlink underline
     if (cell.hyperlink_id > 0 && cell.hyperlink_id === this.hoveredHyperlinkId) {
-      const underlineY = cellY + this.metrics.baseline + 2;
+      const underlineY = cellY + this.detailedMetrics.underlinePosition;
       ctx.strokeStyle = "#4A90E2";
-      ctx.lineWidth = 1;
+      ctx.lineWidth = this.detailedMetrics.underlineThickness;
       ctx.beginPath();
       ctx.moveTo(cellX, underlineY);
       ctx.lineTo(cellX + cellWidth, underlineY);
@@ -2021,9 +2219,9 @@ export class WebGPURenderer {
         (y > range.startY && y < range.endY) ||
         (y === range.endY && x <= range.endX && (y > range.startY || x >= range.startX));
       if (isInRange) {
-        const underlineY = cellY + this.metrics.baseline + 2;
+        const underlineY = cellY + this.detailedMetrics.underlinePosition;
         ctx.strokeStyle = "#4A90E2";
-        ctx.lineWidth = 1;
+        ctx.lineWidth = this.detailedMetrics.underlineThickness;
         ctx.beginPath();
         ctx.moveTo(cellX, underlineY);
         ctx.lineTo(cellX + cellWidth, underlineY);
@@ -2032,45 +2230,67 @@ export class WebGPURenderer {
     }
   }
 
+  private drawConstrainedText2D(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    cellX: number,
+    cellY: number,
+    codepoint: number,
+    constraintWidth: 1 | 2,
+  ): void {
+    const layout = this.glyphRasterLayout(ctx.measureText(text), 1, codepoint, constraintWidth);
+    ctx.save();
+    ctx.translate(cellX + layout.target.x, cellY + layout.targetTop);
+    ctx.scale(layout.scaleX, layout.scaleY);
+    ctx.fillText(text, layout.left, layout.ascent);
+    ctx.restore();
+  }
+
   private renderCursor2D(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
     style: RenderedCursorStyle,
   ): void {
-    const cursorX = x * this.metrics.width;
-    const cursorY = y * this.metrics.height;
-
     ctx.fillStyle = this.theme.cursor;
 
     switch (style) {
       case "block": {
-        ctx.fillRect(cursorX, cursorY, this.metrics.width, this.metrics.height);
+        const geometry = cursorBlockGeometry(x, y, this.detailedMetrics);
+        ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
         const line = this.currentBuffer?.getLine(y);
         const cursorCell = line?.[x];
         if (cursorCell) {
           ctx.save();
           ctx.beginPath();
-          ctx.rect(cursorX, cursorY, this.metrics.width, this.metrics.height);
+          ctx.rect(geometry.x, geometry.y, geometry.width, geometry.height);
           ctx.clip();
-          this.renderCellText2D(ctx, cursorCell, x, y, this.theme.cursorAccent);
+          this.renderCellText2D(
+            ctx,
+            cursorCell,
+            x,
+            y,
+            this.theme.cursorAccent,
+            undefined,
+            line ? cellConstraintWidth(line, x, line.length) : undefined,
+          );
           ctx.restore();
         }
         break;
       }
       case "block_hollow": {
-        for (const geometry of cursorOutlineGeometry(x, y, this.metrics, this.devicePixelRatio)) {
+        for (const geometry of cursorOutlineGeometry(x, y, this.detailedMetrics)) {
           ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
         }
         break;
       }
       case "underline": {
-        const geometry = cursorStrokeGeometry(style, x, y, this.metrics, this.devicePixelRatio);
+        const geometry = cursorStrokeGeometry(style, x, y, this.detailedMetrics);
         ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
         break;
       }
       case "bar": {
-        const geometry = cursorStrokeGeometry(style, x, y, this.metrics, this.devicePixelRatio);
+        const geometry = cursorStrokeGeometry(style, x, y, this.detailedMetrics);
         ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
         break;
       }
@@ -2087,15 +2307,22 @@ export class WebGPURenderer {
     ctx.fillStyle = this.theme.foreground;
     let column = layout.start;
     for (const cell of layout.cells) {
-      ctx.fillText(cell.text, column * this.metrics.width, cellY + this.metrics.baseline);
+      this.drawConstrainedText2D(
+        ctx,
+        cell.text,
+        column * this.metrics.width,
+        cellY,
+        cell.text.codePointAt(0) ?? 0,
+        cell.width >= 2 ? 2 : 1,
+      );
       column += cell.width;
     }
     ctx.fillStyle = this.theme.foreground;
     ctx.fillRect(
       startX,
-      cellY + this.metrics.baseline + 1,
+      cellY + this.detailedMetrics.underlinePosition,
       width,
-      physicalPixelSize(this.devicePixelRatio),
+      this.detailedMetrics.underlineThickness,
     );
   }
 
@@ -2368,7 +2595,7 @@ export class WebGPURenderer {
 
   setFontSize(size: number): void {
     this.fontSize = size;
-    this.metrics = this.measureFont();
+    this.remeasureFont();
     this.resetAtlas();
     this.fontDirty = true;
     this.requestRenderCallback?.();
@@ -2376,7 +2603,7 @@ export class WebGPURenderer {
 
   setFontFamily(family: string): void {
     this.fontFamily = family;
-    this.metrics = this.measureFont();
+    this.remeasureFont();
     this.resetAtlas();
     this.fontDirty = true;
     this.requestRenderCallback?.();
@@ -2386,6 +2613,22 @@ export class WebGPURenderer {
     if (enabled === this.fontLigatures) return;
     this.fontLigatures = enabled;
     this.fontDirty = true;
+    this.requestRenderCallback?.();
+  }
+
+  setFontMetricModifiers(modifiers: FontMetricModifiers): void {
+    this.fontMetricModifiers = { ...modifiers };
+    this.remeasureFont();
+    this.resetAtlas();
+    this.resize(this.renderedColumns, this.renderedRows);
+    this.fontDirty = true;
+    this.requestRenderCallback?.();
+  }
+
+  setPaddingBalance(mode: PaddingBalance): void {
+    if (mode === this.paddingBalance) return;
+    this.paddingBalance = mode;
+    this.syncSurfacePadding();
     this.requestRenderCallback?.();
   }
 
@@ -2547,60 +2790,87 @@ function isCellInRange(
   return true;
 }
 
-function physicalPixelSize(devicePixelRatio: number): number {
-  const ratio = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
-  return 1 / ratio;
+function publicFontMetrics(metrics: DetailedFontMetrics): FontMetrics {
+  return {
+    width: metrics.cellWidth,
+    height: metrics.cellHeight,
+    baseline: metrics.cellHeight - metrics.cellBaseline,
+  };
+}
+
+function cssPixels(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+}
+
+function setCanvasMargins(canvas: HTMLCanvasElement, padding: SurfacePadding): void {
+  canvas.style.marginTop = `${padding.top}px`;
+  canvas.style.marginBottom = `${padding.bottom}px`;
+  canvas.style.marginLeft = `${padding.left}px`;
+  canvas.style.marginRight = `${padding.right}px`;
 }
 
 function cursorStrokeGeometry(
   style: "underline" | "bar",
   column: number,
   row: number,
-  metrics: FontMetrics,
-  devicePixelRatio: number,
+  metrics: DetailedFontMetrics,
 ): RectangleGeometry {
-  const thickness = physicalPixelSize(devicePixelRatio);
-  const cellX = column * metrics.width;
-  const cellY = row * metrics.height;
+  const thickness = metrics.cursorThickness;
+  const box = cursorBlockGeometry(column, row, metrics);
   if (style === "bar") {
     return {
-      x: cellX - thickness,
-      y: cellY,
+      x: box.x - thickness,
+      y: box.y,
       width: thickness,
-      height: metrics.height,
+      height: box.height,
     };
   }
   return {
-    x: cellX,
-    y: cellY + Math.min(metrics.baseline + 1, metrics.height - thickness),
-    width: metrics.width,
+    x: box.x,
+    y: Math.min(
+      row * metrics.cellHeight + metrics.underlinePosition,
+      box.y + Math.max(0, box.height - thickness),
+    ),
+    width: box.width,
     height: thickness,
+  };
+}
+
+function cursorBlockGeometry(
+  column: number,
+  row: number,
+  metrics: DetailedFontMetrics,
+): RectangleGeometry {
+  return {
+    x: column * metrics.cellWidth,
+    y: row * metrics.cellHeight + (metrics.cellHeight - metrics.cursorHeight) / 2,
+    width: metrics.cellWidth,
+    height: metrics.cursorHeight,
   };
 }
 
 function cursorOutlineGeometry(
   column: number,
   row: number,
-  metrics: FontMetrics,
-  devicePixelRatio: number,
+  metrics: DetailedFontMetrics,
 ): readonly RectangleGeometry[] {
-  const thickness = physicalPixelSize(devicePixelRatio);
-  const cellX = column * metrics.width;
-  const cellY = row * metrics.height;
+  const thickness = metrics.cursorThickness;
+  const box = cursorBlockGeometry(column, row, metrics);
   return [
-    { x: cellX, y: cellY, width: metrics.width, height: thickness },
+    { x: box.x, y: box.y, width: box.width, height: thickness },
     {
-      x: cellX,
-      y: cellY + metrics.height - thickness,
-      width: metrics.width,
+      x: box.x,
+      y: box.y + box.height - thickness,
+      width: box.width,
       height: thickness,
     },
-    { x: cellX, y: cellY, width: thickness, height: metrics.height },
+    { x: box.x, y: box.y, width: thickness, height: box.height },
     {
-      x: cellX + metrics.width - thickness,
-      y: cellY,
+      x: box.x + box.width - thickness,
+      y: box.y,
       width: thickness,
-      height: metrics.height,
+      height: box.height,
     },
   ];
 }

@@ -17,6 +17,8 @@ function createCanvas(
   stroke: CanvasRenderingContext2D["stroke"] = () => {},
   clearRect: CanvasRenderingContext2D["clearRect"] = () => {},
   drawImage: AtlasDrawImage = () => {},
+  scale: CanvasRenderingContext2D["scale"] = () => {},
+  translate: CanvasRenderingContext2D["translate"] = () => {},
 ): HTMLCanvasElement {
   const context = {
     clearRect,
@@ -31,6 +33,12 @@ function createCanvas(
         ...textMetrics,
       }) as TextMetrics,
     setTransform: () => {},
+    save: () => {},
+    restore: () => {},
+    scale,
+    translate,
+    rect: () => {},
+    clip: () => {},
     fillRect,
     fillText,
     beginPath: () => {},
@@ -73,6 +81,8 @@ describe("WebGPURenderer font metrics", () => {
       { text: "match", start: { column: 0, row: 0 }, end: { column: 4, row: 0 } },
     ]);
     expect(requestRender).toHaveBeenCalledOnce();
+    renderer.setFontMetricModifiers({ cellWidth: "25%", cellHeight: 3 });
+    expect(renderer.getMetrics()).toEqual({ width: 10, height: 20, baseline: 14 });
     renderer.dispose();
   });
 
@@ -92,17 +102,34 @@ describe("WebGPURenderer font metrics", () => {
   });
 
   it("rebuilds physical-pixel resources when the device pixel ratio changes", async () => {
-    vi.stubGlobal("window", { devicePixelRatio: 2 });
+    vi.stubGlobal("window", {
+      devicePixelRatio: 2,
+      getComputedStyle: () => ({
+        paddingTop: "0px",
+        paddingBottom: "0px",
+        paddingLeft: "0px",
+        paddingRight: "0px",
+      }),
+    });
     vi.stubGlobal("navigator", {});
     vi.stubGlobal("document", { createElement: () => createCanvas() });
     const canvas = createCanvas();
-    const renderer = new WebGPURenderer(canvas, { fontSize: 13, devicePixelRatio: 2 });
+    Object.defineProperty(canvas, "parentElement", {
+      value: { clientWidth: 85, clientHeight: 39 },
+    });
+    const renderer = new WebGPURenderer(canvas, {
+      fontSize: 13,
+      devicePixelRatio: 2,
+      paddingBalance: "equal",
+    });
     await renderer.initGPU();
     const requestRender = vi.fn<() => void>();
     renderer.setRenderRequestCallback(requestRender);
     renderer.resize(10, 2);
 
     expect([canvas.width, canvas.height]).toEqual([160, 68]);
+    expect(canvas.style.marginLeft).toBe("2px");
+    expect(canvas.style.marginTop).toBe("2px");
     expect(renderer.setDevicePixelRatio(2)).toBe(false);
     expect(renderer.setDevicePixelRatio(1.5)).toBe(true);
     expect(canvas.style.width).toBe("80px");
@@ -316,6 +343,47 @@ describe("WebGPURenderer font metrics", () => {
     renderer.render(createGraphemeBuffer("👍🏼", 2), true);
     expect(fillText.mock.calls.map(([text]) => text)).toContain("👍🏼");
     expect(renderer.getLastFrameTelemetry()).toMatchObject({ glyphInstances: 1 });
+    renderer.dispose();
+  });
+
+  it("shapes Nerd Font icons between spaces and applies their glyph constraint", async () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    vi.stubGlobal("navigator", {});
+    const fillText = vi.fn<CanvasRenderingContext2D["fillText"]>();
+    const scale = vi.fn<CanvasRenderingContext2D["scale"]>();
+    vi.stubGlobal("document", {
+      createElement: () =>
+        createCanvas(
+          undefined,
+          { actualBoundingBoxRight: 20 },
+          fillText,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          scale,
+        ),
+    });
+    const renderer = new WebGPURenderer(
+      createCanvas(
+        undefined,
+        { actualBoundingBoxRight: 20 },
+        fillText,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        scale,
+      ),
+    );
+    await renderer.initGPU();
+    const nerdFontFolder = String.fromCodePoint(0xf024b);
+
+    renderer.render(createTextBuffer(` ${nerdFontFolder} `), true);
+
+    expect(fillText.mock.calls.filter(([text]) => text === nerdFontFolder)).toHaveLength(1);
+    expect(scale).toHaveBeenCalledWith(expect.any(Number), expect.any(Number));
+    expect(renderer.getLastFrameTelemetry()).toMatchObject({ glyphInstances: 3 });
     renderer.dispose();
   });
 
@@ -855,7 +923,7 @@ describe("WebGPURenderer font metrics", () => {
     expect(ensureGlyph.call(renderer, "j", CellFlags.ITALIC, 1)).toMatchObject({
       w: 15,
       h: 18,
-      offsetX: -2,
+      offsetX: -1.9,
       offsetY: 6.5,
       renderWidth: 7.5,
       renderHeight: 9,
