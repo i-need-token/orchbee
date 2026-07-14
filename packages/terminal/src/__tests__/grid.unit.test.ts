@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { CellFlags, CellSemanticContent, DirtyState, PointTag, UnderlineStyle } from "../types.js";
-import { createTerminal, initializeWasm } from "./test-helpers.js";
+import { CellFlags, CellSemanticContent, DirtyState, PointTag, UnderlineStyle } from "../types";
+import { createTerminal, initializeWasm } from "./test-helpers";
 
 beforeAll(initializeWasm);
 

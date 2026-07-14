@@ -6,18 +6,18 @@
  * browser events and mirrors Ghostty viewport movement into the web renderer.
  */
 
-import type { IEvent } from "./event-emitter.js";
-import { EventEmitter } from "./event-emitter.js";
+import type { IEvent } from "./event-emitter";
+import { EventEmitter } from "./event-emitter";
 import type {
   ClipboardPayload,
   ClipboardWriteSource,
   TerminalClipboardHost,
-} from "./host/terminal-host.js";
+} from "./host/terminal-host";
 import type {
   GhosttySelectionAdjustment,
   GhosttySelectionAutoscroll,
-} from "./selection/ghostty-selection.js";
-import type { IBufferRange, SelectionCoordinates } from "./types.js";
+} from "./selection/ghostty-selection";
+import type { IBufferRange, SelectionCoordinates } from "./types";
 
 /** Interface the SelectionManager needs from the terminal surface. */
 export interface ISelectionTerminal {

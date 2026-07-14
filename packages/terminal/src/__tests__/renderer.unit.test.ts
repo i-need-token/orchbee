@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type RendererFrameTelemetry, WebGPURenderer } from "../renderer.js";
-import { CellFlags, type GhosttyCell, type IRenderable } from "../types.js";
+import { type RendererFrameTelemetry, WebGPURenderer } from "../renderer";
+import { CellFlags, type GhosttyCell, type IRenderable } from "../types";
 
 type AtlasDrawImage = (image: CanvasImageSource, dx: number, dy: number) => void;
 

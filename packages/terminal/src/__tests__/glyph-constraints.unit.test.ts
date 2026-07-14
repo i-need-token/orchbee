@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DetailedFontMetrics } from "../font-metrics.js";
+import type { DetailedFontMetrics } from "../font-metrics";
 import {
   cellConstraintWidth,
   constrainGlyph,
@@ -7,7 +7,7 @@ import {
   NO_GLYPH_CONSTRAINT,
   type ConstraintCell,
   type GlyphSize,
-} from "../glyph-constraints.js";
+} from "../glyph-constraints";
 
 const SYMBOL = "";
 const POWERLINE_LEFT = "";

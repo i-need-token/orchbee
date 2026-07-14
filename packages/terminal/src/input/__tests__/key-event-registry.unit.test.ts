@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { KeyEventRegistry } from "../key-event-registry.js";
+import { KeyEventRegistry } from "../key-event-registry";
 
 const context = { alternateScreen: false, hasSelection: false, readOnly: false };
 

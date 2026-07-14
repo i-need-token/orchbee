@@ -35,7 +35,7 @@
  */
 
 // Bridge & initialization
-export { init, getBridge, type InitOptions, WasmBridge } from "./wasm-bridge.js";
+export { init, getBridge, type InitOptions, WasmBridge } from "./wasm-bridge";
 
 // Terminal class
 export {
@@ -43,11 +43,11 @@ export {
   type TerminalCapabilities,
   type TerminalConfig,
   type TerminalOptions,
-} from "./terminal.js";
+} from "./terminal";
 
 // Host capabilities
-export { createBrowserTerminalHost } from "./host/browser-terminal-host.js";
-export { resolveHostCapabilities } from "./host/terminal-capabilities.js";
+export { createBrowserTerminalHost } from "./host/browser-terminal-host";
+export { resolveHostCapabilities } from "./host/terminal-capabilities";
 export type {
   ClipboardPayload,
   ClipboardReadRequest,
@@ -72,22 +72,22 @@ export type {
   TerminalNotificationRequest,
   TerminalOpenTarget,
   TerminalSelectionSnapshot,
-} from "./host/terminal-host.js";
+} from "./host/terminal-host";
 
 export {
   ContextMenuRegistry,
   type ContextMenuItem,
   type ContextMenuProvider,
-} from "./context-menu/context-menu-registry.js";
+} from "./context-menu/context-menu-registry";
 
 // GhosttyTerminal compatibility layer
-export { GhosttyTerminal } from "./ghostty-terminal.js";
+export { GhosttyTerminal } from "./ghostty-terminal";
 
 // Grid data reader
-export { Grid, CellReader, type CellData } from "./grid.js";
+export { Grid, CellReader, type CellData } from "./grid";
 
 // Event system
-export { EventEmitter, type IDisposable, type IEvent } from "./event-emitter.js";
+export { EventEmitter, type IDisposable, type IEvent } from "./event-emitter";
 
 // Actions
 export {
@@ -97,7 +97,7 @@ export {
   type TerminalActionResult,
   type TerminalActionSource,
   type TerminalActionState,
-} from "./actions/action-registry.js";
+} from "./actions/action-registry";
 
 // Renderer
 export {
@@ -106,7 +106,7 @@ export {
   type RendererFrameReason,
   type RendererFrameTelemetry,
   type RendererHealthEvent,
-} from "./renderer.js";
+} from "./renderer";
 export {
   applyFontMetricModifier,
   applyFontMetricModifiers,
@@ -115,7 +115,7 @@ export {
   type DetailedFontMetrics,
   type FontFaceMetrics,
   type ParsedFontMetricModifier,
-} from "./font-metrics.js";
+} from "./font-metrics";
 export {
   additionalSurfaceMargins,
   balanceGridPadding,
@@ -123,26 +123,26 @@ export {
   calculateSurfaceGrid,
   type SurfaceGridSize,
   type SurfaceSize,
-} from "./surface-size.js";
+} from "./surface-size";
 
 // Input handling
 export {
   InputHandler,
   type CompositionSelection,
   type InputHandlerDependencies,
-} from "./input-handler.js";
+} from "./input-handler";
 export {
   calculateInputAnchor,
   type InputAnchorLayout,
   type InputAnchorRequest,
-} from "./input/input-anchor.js";
-export { OrderedInputDispatcher } from "./input/ordered-input-dispatcher.js";
+} from "./input/input-anchor";
+export { OrderedInputDispatcher } from "./input/ordered-input-dispatcher";
 export {
   KeyEventRegistry,
   type TerminalKeyEventContext,
   type TerminalKeyEventHandler,
-} from "./input/key-event-registry.js";
-export { buildPreeditState, type PreeditCellData, type PreeditState } from "./input/preedit.js";
+} from "./input/key-event-registry";
+export { buildPreeditState, type PreeditCellData, type PreeditState } from "./input/preedit";
 export {
   AccessibleTextModel,
   buildAccessibleRow,
@@ -155,21 +155,21 @@ export {
   type AccessibleTextPosition,
   type AccessibleTextRange,
   type TerminalAccessibilityOptions,
-} from "./accessibility/terminal-accessibility.js";
+} from "./accessibility/terminal-accessibility";
 export {
   findTerminalMatches,
   searchMatchContainsCell,
   type TerminalSearchMatch,
   type TerminalSearchOptions,
-} from "./search/terminal-search.js";
+} from "./search/terminal-search";
 export {
   formatTerminalIdentity,
   type TerminalProtocolIdentity,
-} from "./protocol/terminal-identity.js";
+} from "./protocol/terminal-identity";
 export {
   readGhosttyBuildCapabilities,
   type GhosttyBuildCapabilities,
-} from "./protocol/build-capabilities.js";
+} from "./protocol/build-capabilities";
 export {
   encodePaste,
   inspectPaste,
@@ -178,7 +178,7 @@ export {
   type PastePolicyOptions,
   type PasteResult,
   type PasteSource,
-} from "./input/paste-policy.js";
+} from "./input/paste-policy";
 
 // Selection
 export {
@@ -188,7 +188,7 @@ export {
   type SelectionCell,
   type SelectionManagerOptions,
   type SelectionModel,
-} from "./selection-manager.js";
+} from "./selection-manager";
 export {
   GhosttySelectionController,
   type GhosttySelectionAdjustment,
@@ -198,19 +198,19 @@ export {
   type GhosttySelectionGesturePoint,
   type GhosttySelectionGesturePress,
   type GhosttySelectionRange,
-} from "./selection/ghostty-selection.js";
+} from "./selection/ghostty-selection";
 
 // Link detection
-export { LinkDetector, type ITerminalForLinkDetector } from "./link-detector.js";
-export { OSC8LinkProvider, type ITerminalForOSC8Provider } from "./providers/osc8-link-provider.js";
-export { UrlRegexProvider, type ITerminalForUrlProvider } from "./providers/url-regex-provider.js";
-export { PathLinkProvider, type ITerminalForPathProvider } from "./providers/path-link-provider.js";
+export { LinkDetector, type ITerminalForLinkDetector } from "./link-detector";
+export { OSC8LinkProvider, type ITerminalForOSC8Provider } from "./providers/osc8-link-provider";
+export { UrlRegexProvider, type ITerminalForUrlProvider } from "./providers/url-regex-provider";
+export { PathLinkProvider, type ITerminalForPathProvider } from "./providers/path-link-provider";
 
 // Buffer API
-export { BufferNamespace, Buffer, BufferLine, BufferCell, type BufferTerminal } from "./buffer.js";
+export { BufferNamespace, Buffer, BufferLine, BufferCell, type BufferTerminal } from "./buffer";
 
 // Addons
-export { FitAddon } from "./addons/fit.js";
+export { FitAddon } from "./addons/fit";
 
 // Types & enums
 export {
@@ -282,4 +282,4 @@ export {
   type ILinkBufferCell,
   type ILinkBuffer,
   type ITerminalDimensions,
-} from "./types.js";
+} from "./types";

@@ -12,7 +12,7 @@
  * - Batch field reads with row_cells_get_multi where possible
  */
 
-import type { WasmBridge } from "./wasm-bridge.js";
+import type { WasmBridge } from "./wasm-bridge";
 import {
   type CellData,
   CellDataField,
@@ -34,10 +34,10 @@ import {
   STYLE_SIZE,
   type TerminalHandle,
   UnderlineStyle,
-} from "./types.js";
+} from "./types";
 
 // Re-export types for the public API
-export type { CellData } from "./types.js";
+export type { CellData } from "./types";
 
 /** Maximum grapheme codepoints to buffer per lookup. */
 const GRAPHEME_BUFFER_CODEPOINTS = 16;

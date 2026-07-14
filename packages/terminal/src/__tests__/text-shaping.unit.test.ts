@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildTextShapingPlan,
-  type TextShapingCell,
-  type TextShapingSpan,
-} from "../text-shaping.js";
+import { buildTextShapingPlan, type TextShapingCell, type TextShapingSpan } from "../text-shaping";
 
 describe("buildTextShapingPlan", () => {
   it("selects the longest programming ligature at each column", () => {

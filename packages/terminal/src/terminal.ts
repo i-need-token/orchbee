@@ -37,8 +37,8 @@
  * ```
  */
 
-import { Grid } from "./grid.js";
-import { getBridge, WasmBridge } from "./wasm-bridge.js";
+import { Grid } from "./grid";
+import { getBridge, WasmBridge } from "./wasm-bridge";
 import {
   buildModeTag,
   COLOR_RGB_SIZE,
@@ -65,87 +65,87 @@ import {
   type ILinkProvider,
   type IUnicodeVersionProvider,
   type RendererOptions,
-} from "./types.js";
-import { EventEmitter, type IDisposable, type IEvent } from "./event-emitter.js";
+} from "./types";
+import { EventEmitter, type IDisposable, type IEvent } from "./event-emitter";
 import {
   DEFAULT_THEME,
   type RendererFrameTelemetry,
   type RendererHealthEvent,
   WebGPURenderer,
-} from "./renderer.js";
+} from "./renderer";
 import {
   InputHandler,
   type CompositionSelection,
   type InputHandlerDependencies,
-} from "./input-handler.js";
+} from "./input-handler";
 import {
   SelectionManager,
   type ISelectionTerminal,
   type SelectionCopyResult,
-} from "./selection-manager.js";
+} from "./selection-manager";
 import {
   GhosttySelectionController,
   type GhosttySelectionAdjustment,
-} from "./selection/ghostty-selection.js";
-import { LinkDetector, type ITerminalForLinkDetector } from "./link-detector.js";
-import { OSC8LinkProvider } from "./providers/osc8-link-provider.js";
-import { UrlRegexProvider } from "./providers/url-regex-provider.js";
-import { PathLinkProvider } from "./providers/path-link-provider.js";
-import { GhosttyTerminal } from "./ghostty-terminal.js";
-import { BufferNamespace } from "./buffer.js";
-import { createBrowserTerminalHost } from "./host/browser-terminal-host.js";
+} from "./selection/ghostty-selection";
+import { LinkDetector, type ITerminalForLinkDetector } from "./link-detector";
+import { OSC8LinkProvider } from "./providers/osc8-link-provider";
+import { UrlRegexProvider } from "./providers/url-regex-provider";
+import { PathLinkProvider } from "./providers/path-link-provider";
+import { GhosttyTerminal } from "./ghostty-terminal";
+import { BufferNamespace } from "./buffer";
+import { createBrowserTerminalHost } from "./host/browser-terminal-host";
 import type {
   ClipboardPayload,
   TerminalHost,
   TerminalHostErrorEvent,
   TerminalInteractionContext,
   TerminalModifierState,
-} from "./host/terminal-host.js";
+} from "./host/terminal-host";
 import {
   encodePaste,
   inspectPaste,
   type PasteResult,
   type PasteSource,
-} from "./input/paste-policy.js";
-import { calculateInputAnchor } from "./input/input-anchor.js";
-import { OrderedInputDispatcher } from "./input/ordered-input-dispatcher.js";
-import { buildPreeditState } from "./input/preedit.js";
-import { classifySurfaceMousePlatform, resolveSurfaceMouseCursor } from "./input/surface-mouse.js";
-import { KeyEventRegistry, type TerminalKeyEventHandler } from "./input/key-event-registry.js";
+} from "./input/paste-policy";
+import { calculateInputAnchor } from "./input/input-anchor";
+import { OrderedInputDispatcher } from "./input/ordered-input-dispatcher";
+import { buildPreeditState } from "./input/preedit";
+import { classifySurfaceMousePlatform, resolveSurfaceMouseCursor } from "./input/surface-mouse";
+import { KeyEventRegistry, type TerminalKeyEventHandler } from "./input/key-event-registry";
 import {
   buildAccessibleRow,
   TerminalAccessibility,
   type AccessibleOffsetRange,
   type AccessibleRow,
   type AccessibleTextRange,
-} from "./accessibility/terminal-accessibility.js";
+} from "./accessibility/terminal-accessibility";
 import {
   findTerminalMatches,
   type TerminalSearchMatch,
   type TerminalSearchOptions,
-} from "./search/terminal-search.js";
+} from "./search/terminal-search";
 import {
   TerminalActionRegistry,
   type TerminalActionResult,
   type TerminalActionSource,
-} from "./actions/action-registry.js";
+} from "./actions/action-registry";
 import {
   ContextMenuRegistry,
   type ContextMenuItem,
   type ContextMenuProvider,
-} from "./context-menu/context-menu-registry.js";
-import { resolveHostCapabilities } from "./host/terminal-capabilities.js";
+} from "./context-menu/context-menu-registry";
+import { resolveHostCapabilities } from "./host/terminal-capabilities";
 import {
   formatTerminalIdentity,
   type TerminalProtocolIdentity,
-} from "./protocol/terminal-identity.js";
+} from "./protocol/terminal-identity";
 import {
   readGhosttyBuildCapabilities,
   type GhosttyBuildCapabilities,
-} from "./protocol/build-capabilities.js";
+} from "./protocol/build-capabilities";
 
 // Re-export types for the public API
-export type { TerminalConfig } from "./types.js";
+export type { TerminalConfig } from "./types";
 
 export interface TerminalOptions extends ITerminalOptions {
   readonly host?: TerminalHost;

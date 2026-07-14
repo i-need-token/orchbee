@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createBrowserTerminalHost } from "../browser-terminal-host.js";
+import { createBrowserTerminalHost } from "../browser-terminal-host";
 
 afterEach(() => vi.unstubAllGlobals());
 

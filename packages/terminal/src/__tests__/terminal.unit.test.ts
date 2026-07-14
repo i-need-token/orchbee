@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { AnsiMode, DecMode } from "../types.js";
-import { Terminal } from "../terminal.js";
+import { AnsiMode, DecMode } from "../types";
+import { Terminal } from "../terminal";
 import type {
   ContextMenuRequest,
   TerminalClipboardHost,
   TerminalHost,
-} from "../host/terminal-host.js";
-import { createTerminal, initializeWasm } from "./test-helpers.js";
+} from "../host/terminal-host";
+import { createTerminal, initializeWasm } from "./test-helpers";
 
 beforeAll(initializeWasm);
 

@@ -4,7 +4,7 @@ import type {
   PasteConfirmationRequest,
   TerminalClipboardHost,
   TerminalHost,
-} from "./terminal-host.js";
+} from "./terminal-host";
 
 function getBrowserClipboard(): Clipboard | undefined {
   return globalThis.navigator?.clipboard;

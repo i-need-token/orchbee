@@ -6,6 +6,11 @@ export default defineConfig({
       format: "esm",
       syntax: "es2022",
       dts: true,
+      redirect: {
+        dts: {
+          extension: true,
+        },
+      },
     },
     {
       format: "cjs",

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { InputHandler } from "../input-handler.js";
-import type { InputHandlerDependencies } from "../input-handler.js";
-import type { Terminal } from "../terminal.js";
-import { TerminalData } from "../types.js";
-import type { WasmBridge } from "../wasm-bridge.js";
-import { createTerminal, initializeWasm } from "./test-helpers.js";
+import { InputHandler } from "../input-handler";
+import type { InputHandlerDependencies } from "../input-handler";
+import type { Terminal } from "../terminal";
+import { TerminalData } from "../types";
+import type { WasmBridge } from "../wasm-bridge";
+import { createTerminal, initializeWasm } from "./test-helpers";
 
 const listeners = new Map<string, EventListener>();
 

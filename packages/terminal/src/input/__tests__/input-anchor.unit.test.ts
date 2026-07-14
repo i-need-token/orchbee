@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateInputAnchor } from "../input-anchor.js";
+import { calculateInputAnchor } from "../input-anchor";
 
 describe("calculateInputAnchor", () => {
   it("positions the native input at the terminal cursor", () => {

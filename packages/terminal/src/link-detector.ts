@@ -6,7 +6,7 @@
  * providers (e.g. OSC8) take precedence over later ones (e.g. regex).
  */
 
-import type { ILink, ILinkBuffer, ILinkProvider } from "./types.js";
+import type { ILink, ILinkBuffer, ILinkProvider } from "./types";
 
 /**
  * Manages link detection across multiple providers with intelligent caching.

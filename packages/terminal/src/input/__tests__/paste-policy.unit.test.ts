@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { encodePaste, inspectPaste } from "../paste-policy.js";
-import type { WasmBridge } from "../../wasm-bridge.js";
-import { initializeWasm } from "../../__tests__/test-helpers.js";
+import { encodePaste, inspectPaste } from "../paste-policy";
+import type { WasmBridge } from "../../wasm-bridge";
+import { initializeWasm } from "../../__tests__/test-helpers";
 
 let bridge: WasmBridge;
 

@@ -1,5 +1,5 @@
-import { BuildInfo, Result } from "../types.js";
-import type { WasmBridge } from "../wasm-bridge.js";
+import { BuildInfo, Result } from "../types";
+import type { WasmBridge } from "../wasm-bridge";
 
 export interface GhosttyBuildCapabilities {
   readonly simd: boolean;

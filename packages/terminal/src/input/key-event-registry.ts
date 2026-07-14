@@ -1,4 +1,4 @@
-import type { IDisposable } from "../event-emitter.js";
+import type { IDisposable } from "../event-emitter";
 
 export interface TerminalKeyEventContext {
   readonly alternateScreen: boolean;

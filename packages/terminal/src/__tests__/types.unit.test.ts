@@ -9,7 +9,7 @@ import {
   RowCellsData,
   RowData,
   TerminalData,
-} from "../types.js";
+} from "../types";
 
 describe("terminal constants", () => {
   it("keeps dirty-state values compatible with Ghostty", () => {

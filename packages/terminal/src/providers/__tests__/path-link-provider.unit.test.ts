@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { PathLinkProvider } from "../path-link-provider.js";
-import type { ILink, ILinkBufferLine } from "../../types.js";
+import { PathLinkProvider } from "../path-link-provider";
+import type { ILink, ILinkBufferLine } from "../../types";
 
 describe("PathLinkProvider", () => {
   it("resolves a relative path and source position against OSC PWD", () => {

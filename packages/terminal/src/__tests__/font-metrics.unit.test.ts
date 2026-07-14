@@ -6,7 +6,7 @@ import {
   parseFontMetricModifier,
   type DetailedFontMetrics,
   type FontFaceMetrics,
-} from "../font-metrics.js";
+} from "../font-metrics";
 
 describe("font metric modifiers", () => {
   it("applies metric modifiers", () => {

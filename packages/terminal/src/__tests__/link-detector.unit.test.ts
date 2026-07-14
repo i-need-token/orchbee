@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { LinkDetector } from "../link-detector.js";
-import type { ILink, ILinkBufferLine, ILinkProvider } from "../types.js";
+import { LinkDetector } from "../link-detector";
+import type { ILink, ILinkBufferLine, ILinkProvider } from "../types";
 
 describe("LinkDetector", () => {
   it("caches provider results and invalidates changed rows", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { balanceSurfacePadding } from "../surface-size.js";
+import { balanceSurfacePadding } from "../surface-size";
 
 describe("balanceSurfacePadding", () => {
   it("distributes whitespace equally after explicit padding", () => {

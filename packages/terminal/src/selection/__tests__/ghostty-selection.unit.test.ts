@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { GhosttySelectionController } from "../ghostty-selection.js";
-import type { TerminalHandle } from "../../types.js";
-import type { WasmBridge } from "../../wasm-bridge.js";
-import { createTerminal, initializeWasm } from "../../__tests__/test-helpers.js";
+import { GhosttySelectionController } from "../ghostty-selection";
+import type { TerminalHandle } from "../../types";
+import type { WasmBridge } from "../../wasm-bridge";
+import { createTerminal, initializeWasm } from "../../__tests__/test-helpers";
 
 describe("GhosttySelectionController", () => {
   let bridge: WasmBridge;

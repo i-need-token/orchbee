@@ -1,4 +1,4 @@
-import type { DetailedFontMetrics } from "./font-metrics.js";
+import type { DetailedFontMetrics } from "./font-metrics";
 
 type LineStyle = "none" | "light" | "heavy" | "double";
 

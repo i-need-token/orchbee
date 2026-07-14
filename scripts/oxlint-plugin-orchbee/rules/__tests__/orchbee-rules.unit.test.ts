@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { filenameNamingConvention } from "../filename-naming-convention.js";
-import { noCrossWorkspaceSourceImports } from "../no-cross-workspace-source-imports.js";
-import { noInlineSuppressions } from "../no-inline-suppressions.js";
-import { requireUnitTest } from "../require-unit-test.js";
+import { filenameNamingConvention } from "../filename-naming-convention";
+import { noCrossWorkspaceSourceImports } from "../no-cross-workspace-source-imports";
+import { noInlineSuppressions } from "../no-inline-suppressions";
+import { requireUnitTest } from "../require-unit-test";
 
 interface LintReport {
   readonly message: string;

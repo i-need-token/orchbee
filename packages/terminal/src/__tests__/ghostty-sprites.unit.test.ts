@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from "../ghostty-sprites.js";
+import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from "../ghostty-sprites";
 
 function createContext() {
   const context = {

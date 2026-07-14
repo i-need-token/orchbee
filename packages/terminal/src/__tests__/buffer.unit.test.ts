@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { createTerminal, initializeWasm } from "./test-helpers.js";
+import { createTerminal, initializeWasm } from "./test-helpers";
 
 beforeAll(initializeWasm);
 

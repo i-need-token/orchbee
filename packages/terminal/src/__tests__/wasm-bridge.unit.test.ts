@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { getBridge } from "../wasm-bridge.js";
-import type { WasmBridge } from "../wasm-bridge.js";
-import { initializeWasm } from "./test-helpers.js";
+import { getBridge } from "../wasm-bridge";
+import type { WasmBridge } from "../wasm-bridge";
+import { initializeWasm } from "./test-helpers";
 
 let bridge: WasmBridge;
 

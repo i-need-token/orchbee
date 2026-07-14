@@ -1,8 +1,8 @@
-import type { DetailedFontMetrics } from "./font-metrics.js";
+import type { DetailedFontMetrics } from "./font-metrics";
 import {
   NERD_FONT_CONSTRAINT_RULES,
   type GeneratedGlyphConstraint,
-} from "./nerd-font-constraints.generated.js";
+} from "./nerd-font-constraints.generated";
 
 export interface GlyphSize {
   readonly width: number;

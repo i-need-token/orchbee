@@ -5,7 +5,7 @@
  * Runs after OSC8LinkProvider, so explicit hyperlinks take precedence.
  */
 
-import type { ILink, ILinkBuffer, ILinkBufferLine, ILinkProvider } from "../types.js";
+import type { ILink, ILinkBuffer, ILinkBufferLine, ILinkProvider } from "../types";
 
 /** Terminal interface needed by UrlRegexProvider. */
 export interface ITerminalForUrlProvider {

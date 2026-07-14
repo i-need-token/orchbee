@@ -15,7 +15,7 @@
  * ```
  */
 
-import { EventEmitter } from "./event-emitter.js";
+import { EventEmitter } from "./event-emitter";
 import type {
   CellData,
   IBuffer,
@@ -23,8 +23,8 @@ import type {
   IBufferLine,
   IBufferNamespace,
   IEvent,
-} from "./types.js";
-import { CellFlags } from "./types.js";
+} from "./types";
+import { CellFlags } from "./types";
 
 // ============================================================================
 // BufferTerminal — decoupled terminal interface

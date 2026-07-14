@@ -3,7 +3,7 @@ import {
   AccessibleTextModel,
   buildAccessibleRow,
   normalizeAccessibleRows,
-} from "../terminal-accessibility.js";
+} from "../terminal-accessibility";
 
 describe("normalizeAccessibleRows", () => {
   it("preserves row order while removing invisible terminal padding", () => {

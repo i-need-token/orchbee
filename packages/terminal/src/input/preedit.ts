@@ -1,4 +1,4 @@
-import type { CompositionSelection } from "../input-handler.js";
+import type { CompositionSelection } from "../input-handler";
 
 export interface PreeditCellData {
   readonly text: string;

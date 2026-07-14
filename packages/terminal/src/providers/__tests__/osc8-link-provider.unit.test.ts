@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { OSC8LinkProvider } from "../osc8-link-provider.js";
-import type { ILink } from "../../types.js";
+import { OSC8LinkProvider } from "../osc8-link-provider";
+import type { ILink } from "../../types";
 
 describe("OSC8LinkProvider", () => {
   it("groups contiguous cells that resolve to the same URI", () => {

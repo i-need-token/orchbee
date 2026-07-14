@@ -1,4 +1,4 @@
-import type { ContextMenuItem } from "../context-menu/context-menu-registry.js";
+import type { ContextMenuItem } from "../context-menu/context-menu-registry";
 
 export type ClipboardTarget = "standard" | "selection";
 

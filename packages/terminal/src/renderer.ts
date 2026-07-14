@@ -17,23 +17,19 @@
  * - Link underline rendering (OSC8 + regex URLs)
  */
 
-import type { SelectionManager } from "./selection-manager.js";
-import { applyFontMetricModifiers, type DetailedFontMetrics } from "./font-metrics.js";
+import type { SelectionManager } from "./selection-manager";
+import { applyFontMetricModifiers, type DetailedFontMetrics } from "./font-metrics";
 import {
   cellConstraintWidth,
   constrainGlyph,
   glyphConstraintForCodepoint,
   type GlyphSize,
-} from "./glyph-constraints.js";
-import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from "./ghostty-sprites.js";
-import { searchMatchContainsCell, type TerminalSearchMatch } from "./search/terminal-search.js";
-import { additionalSurfaceMargins, balanceGridPadding } from "./surface-size.js";
-import {
-  buildTextShapingPlan,
-  type TextShapingCell,
-  type TextShapingPlan,
-} from "./text-shaping.js";
-import { CellFlags, UnderlineStyle } from "./types.js";
+} from "./glyph-constraints";
+import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from "./ghostty-sprites";
+import { searchMatchContainsCell, type TerminalSearchMatch } from "./search/terminal-search";
+import { additionalSurfaceMargins, balanceGridPadding } from "./surface-size";
+import { buildTextShapingPlan, type TextShapingCell, type TextShapingPlan } from "./text-shaping";
+import { CellFlags, UnderlineStyle } from "./types";
 import type {
   FontMetrics,
   FontMetricModifiers,
@@ -45,7 +41,7 @@ import type {
   SelectionCoordinates,
   PaddingBalance,
   SurfacePadding,
-} from "./types.js";
+} from "./types";
 
 export type RendererHealthEvent =
   | { readonly state: "ready"; readonly backend: "webgpu" }

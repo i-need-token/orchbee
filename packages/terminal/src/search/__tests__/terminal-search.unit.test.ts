@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { findTerminalMatches, searchMatchContainsCell } from "../terminal-search.js";
-import type { CellData } from "../../types.js";
+import { findTerminalMatches, searchMatchContainsCell } from "../terminal-search";
+import type { CellData } from "../../types";
 
 describe("findTerminalMatches", () => {
   it("supports case, whole-word, and regular-expression searches", () => {

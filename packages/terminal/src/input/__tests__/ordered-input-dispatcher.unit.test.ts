@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { OrderedInputDispatcher } from "../ordered-input-dispatcher.js";
+import { OrderedInputDispatcher } from "../ordered-input-dispatcher";
 
 describe("OrderedInputDispatcher", () => {
   it("holds synchronous input behind an active asynchronous decision", async () => {

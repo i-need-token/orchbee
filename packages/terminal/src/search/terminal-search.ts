@@ -1,4 +1,4 @@
-import type { CellData } from "../types.js";
+import type { CellData } from "../types";
 
 export interface TerminalSearchOptions {
   readonly caseSensitive?: boolean;

@@ -1,4 +1,4 @@
-import type { TerminalHost, TerminalHostCapabilities } from "./terminal-host.js";
+import type { TerminalHost, TerminalHostCapabilities } from "./terminal-host";
 
 /** Resolve optional declarations against the methods actually supplied by a host. */
 export function resolveHostCapabilities(host: TerminalHost): TerminalHostCapabilities {

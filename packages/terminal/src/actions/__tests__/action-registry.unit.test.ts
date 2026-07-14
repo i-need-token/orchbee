@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { TerminalActionRegistry } from "../action-registry.js";
+import { TerminalActionRegistry } from "../action-registry";
 import type {
   TerminalActionContext,
   TerminalActionDefinition,
   TerminalActionResult,
-} from "../action-registry.js";
+} from "../action-registry";
 
 function context(source: TerminalActionContext["source"] = "api"): TerminalActionContext {
   return { source, signal: new AbortController().signal };

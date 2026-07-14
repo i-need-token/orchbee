@@ -8,9 +8,9 @@ import type {
   IScrollbackProvider,
   RGB,
   RenderStateCursor,
-} from "./types.js";
-import { DirtyState as DirtyStateValue, PointTag } from "./types.js";
-import type { Terminal } from "./terminal.js";
+} from "./types";
+import { DirtyState as DirtyStateValue, PointTag } from "./types";
+import type { Terminal } from "./terminal";
 
 export class GhosttyTerminal implements IRenderable, IScrollbackProvider {
   private readonly term: Terminal;

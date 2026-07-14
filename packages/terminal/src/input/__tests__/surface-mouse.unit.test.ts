@@ -5,7 +5,7 @@ import {
   resolveSurfaceMouseCursor,
   type SurfaceMouseCursorInput,
   type SurfaceMouseModifiers,
-} from "../surface-mouse.js";
+} from "../surface-mouse";
 
 const NONE: SurfaceMouseModifiers = {
   alt: false,

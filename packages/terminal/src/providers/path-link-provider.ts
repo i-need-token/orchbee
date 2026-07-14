@@ -1,4 +1,4 @@
-import type { ILink, ILinkBuffer, ILinkBufferLine, ILinkProvider } from "../types.js";
+import type { ILink, ILinkBuffer, ILinkBufferLine, ILinkProvider } from "../types";
 
 export interface ITerminalForPathProvider {
   readonly buffer: { readonly active: ILinkBuffer };

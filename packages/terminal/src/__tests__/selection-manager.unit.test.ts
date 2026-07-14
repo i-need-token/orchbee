@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SelectionManager } from "../selection-manager.js";
-import type { ISelectionTerminal, SelectionCell, SelectionModel } from "../selection-manager.js";
-import type { TerminalClipboardHost } from "../host/terminal-host.js";
+import { SelectionManager } from "../selection-manager";
+import type { ISelectionTerminal, SelectionCell, SelectionModel } from "../selection-manager";
+import type { TerminalClipboardHost } from "../host/terminal-host";
 
 afterEach(() => {
   vi.useRealTimers();

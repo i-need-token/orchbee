@@ -9,7 +9,8 @@
 | `exactOptionalPropertyTypes` | Distinguish an absent property from an explicit `undefined`                       |
 | `erasableSyntaxOnly`         | Use JavaScript-runtime syntax; represent enum-like values with `as const` objects |
 | `verbatimModuleSyntax`       | Keep runtime and type-only imports explicit                                       |
-| `moduleResolution: nodenext` | Use `.js` extensions in relative TypeScript imports                               |
+| `module: preserve`           | Preserve source module syntax for the workspace build tool                        |
+| `moduleResolution: bundler`  | Match Rslib, Rspack, Vite, and Vitest module resolution                           |
 
 ## Type escape hatches
 
@@ -40,6 +41,9 @@ const config = ConfigSchema.parse(JSON.parse(rawConfig));
 - `typescript/no-require-imports`: Use ESM imports instead of `require()`.
 - `typescript/no-namespace`: Use ES modules and object composition instead of TypeScript namespaces.
 - `typescript/prefer-as-const`: Preserve literal values with `as const` when widening would discard useful information.
+- Omit runtime extensions from relative TypeScript imports; write `./terminal`, not `./terminal.js` or `./terminal.ts`.
+- Library builds must add runtime extensions to emitted bundleless declarations. With Rslib, set `redirect.dts.extension` to `true` on the declaration-producing output.
+- A workspace whose TypeScript output runs directly in Node.js must override the base config with `module` and `moduleResolution` set to `nodenext`; that workspace uses explicit `.js` extensions in relative source imports.
 
 ## Redundant types
 

@@ -12,7 +12,7 @@
  * - De-duplication between keydown/beforeinput/composition/paste
  */
 
-import type { WasmBridge, WasmTypeLayout } from "./wasm-bridge.js";
+import type { WasmBridge, WasmTypeLayout } from "./wasm-bridge";
 import {
   type IKeyEvent,
   Key,
@@ -21,9 +21,9 @@ import {
   Result,
   TerminalData,
   type WasmExports,
-} from "./types.js";
-import { isSurfaceMouseModifierKey } from "./input/surface-mouse.js";
-import { shouldSuppressComposingControlInput } from "./input/preedit.js";
+} from "./types";
+import { isSurfaceMouseModifierKey } from "./input/surface-mouse";
+import { shouldSuppressComposingControlInput } from "./input/preedit";
 
 // ============================================================================
 // KeyEncoder (WASM-backed)

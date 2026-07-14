@@ -110,7 +110,16 @@ import { defineConfig } from "@rslib/core";
 
 export default defineConfig({
   lib: [
-    { format: "esm", syntax: "es2022", dts: true },
+    {
+      format: "esm",
+      syntax: "es2022",
+      dts: true,
+      redirect: {
+        dts: {
+          extension: true,
+        },
+      },
+    },
     { format: "cjs", syntax: "es2022" },
   ],
   output: {
@@ -119,6 +128,8 @@ export default defineConfig({
   },
 });
 ```
+
+When declarations contain relative imports, enable `redirect.dts.extension` on the declaration-producing output so extensionless TypeScript source emits Node-compatible declaration specifiers.
 
 After changing a manifest or build configuration, run the package build and verify that both `import()` and `require()` resolve through `package.json#exports`.
 

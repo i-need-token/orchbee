@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveHostCapabilities } from "../terminal-capabilities.js";
+import { resolveHostCapabilities } from "../terminal-capabilities";
 
 describe("resolveHostCapabilities", () => {
   it("derives methods and honors explicit capability denial", () => {

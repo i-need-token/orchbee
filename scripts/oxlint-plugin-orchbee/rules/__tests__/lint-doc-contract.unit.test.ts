@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import orchbeePlugin from "../../index.js";
+import orchbeePlugin from "../../index";
 
 interface OxlintConfig {
   readonly rules: Readonly<Record<string, unknown>>;

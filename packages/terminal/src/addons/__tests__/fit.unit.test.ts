@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FitAddon } from "../fit.js";
-import type { ITerminalCore } from "../../types.js";
+import { FitAddon } from "../fit";
+import type { ITerminalCore } from "../../types";
 
 afterEach(() => vi.unstubAllGlobals());
 

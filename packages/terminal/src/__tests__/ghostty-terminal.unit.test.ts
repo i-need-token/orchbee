@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { GhosttyTerminal } from "../ghostty-terminal.js";
-import { DirtyState } from "../types.js";
-import { createTerminal, initializeWasm } from "./test-helpers.js";
+import { GhosttyTerminal } from "../ghostty-terminal";
+import { DirtyState } from "../types";
+import { createTerminal, initializeWasm } from "./test-helpers";
 
 beforeAll(initializeWasm);
 

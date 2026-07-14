@@ -1,4 +1,4 @@
-import type { FontMetricModifier, FontMetricModifiers, FontSizeAdjustment } from "./types.js";
+import type { FontMetricModifier, FontMetricModifiers, FontSizeAdjustment } from "./types";
 
 export interface DetailedFontMetrics {
   readonly cellWidth: number;

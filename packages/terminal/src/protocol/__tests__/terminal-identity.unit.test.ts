@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTerminalIdentity } from "../terminal-identity.js";
+import { formatTerminalIdentity } from "../terminal-identity";
 
 describe("formatTerminalIdentity", () => {
   it("uses the Orchbee package identity by default", () => {

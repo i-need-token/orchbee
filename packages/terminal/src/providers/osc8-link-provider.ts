@@ -6,7 +6,7 @@
  * so we scan for contiguous regions with the same ID.
  */
 
-import type { ILink, ILinkProvider, ILinkRange } from "../types.js";
+import type { ILink, ILinkProvider, ILinkRange } from "../types";
 
 /** Terminal interface needed by OSC8LinkProvider. */
 export interface ITerminalForOSC8Provider {

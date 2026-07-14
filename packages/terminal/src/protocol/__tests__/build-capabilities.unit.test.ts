@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { readGhosttyBuildCapabilities } from "../build-capabilities.js";
-import { initializeWasm } from "../../__tests__/test-helpers.js";
-import type { WasmBridge } from "../../wasm-bridge.js";
+import { readGhosttyBuildCapabilities } from "../build-capabilities";
+import { initializeWasm } from "../../__tests__/test-helpers";
+import type { WasmBridge } from "../../wasm-bridge";
 
 describe("readGhosttyBuildCapabilities", () => {
   let bridge: WasmBridge;

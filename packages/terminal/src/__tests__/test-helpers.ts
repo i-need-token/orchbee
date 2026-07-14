@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { init, Terminal } from "../index.js";
-import type { WasmBridge } from "../wasm-bridge.js";
-import type { TerminalConfig } from "../terminal.js";
+import { init, Terminal } from "../index";
+import type { WasmBridge } from "../wasm-bridge";
+import type { TerminalConfig } from "../terminal";
 
 let bridgePromise: Promise<WasmBridge> | undefined;
 

@@ -4,7 +4,7 @@
  * Compatible with xterm.js FitAddon API.
  */
 
-import type { ITerminalAddon, ITerminalCore } from "../types.js";
+import type { ITerminalAddon, ITerminalCore } from "../types";
 
 const MINIMUM_COLS = 2;
 const MINIMUM_ROWS = 1;

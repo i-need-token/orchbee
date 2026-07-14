@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EventEmitter } from "../event-emitter.js";
+import { EventEmitter } from "../event-emitter";
 
 describe("EventEmitter", () => {
   it("fires listeners synchronously and disposes subscriptions", () => {

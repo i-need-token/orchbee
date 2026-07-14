@@ -6,7 +6,7 @@
  * creates a fresh DataView to handle WASM memory growth.
  */
 
-import type { WasmExports } from "./types.js";
+import type { WasmExports } from "./types";
 
 export interface WasmTypeFieldLayout {
   readonly offset: number;

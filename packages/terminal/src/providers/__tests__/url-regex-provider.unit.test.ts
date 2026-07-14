@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { UrlRegexProvider } from "../url-regex-provider.js";
-import type { ILink, ILinkBufferLine } from "../../types.js";
+import { UrlRegexProvider } from "../url-regex-provider";
+import type { ILink, ILinkBufferLine } from "../../types";
 
 function lineFrom(text: string, isWrapped = false): ILinkBufferLine {
   return {

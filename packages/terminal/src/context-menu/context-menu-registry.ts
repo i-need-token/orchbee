@@ -1,5 +1,5 @@
-import type { IDisposable } from "../event-emitter.js";
-import type { TerminalInteractionContext } from "../host/terminal-host.js";
+import type { IDisposable } from "../event-emitter";
+import type { TerminalInteractionContext } from "../host/terminal-host";
 
 export type ContextMenuItem =
   | {

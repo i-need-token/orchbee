@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPreeditState, shouldSuppressComposingControlInput } from "../preedit.js";
+import { buildPreeditState, shouldSuppressComposingControlInput } from "../preedit";
 
 describe("buildPreeditState", () => {
   it("maps a UTF-16 selection to wide terminal cell offsets", () => {

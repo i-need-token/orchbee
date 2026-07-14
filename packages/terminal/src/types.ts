@@ -14,7 +14,7 @@
 // Primitives
 // ============================================================================
 
-import type { TerminalOpenTarget } from "./host/terminal-host.js";
+import type { TerminalOpenTarget } from "./host/terminal-host";
 
 /** RGB color (0-255 per channel, matches GhosttyColorRgb C struct). */
 export interface RGB {

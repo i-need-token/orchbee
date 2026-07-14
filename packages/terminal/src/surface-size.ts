@@ -1,4 +1,4 @@
-import type { PaddingBalance, SurfacePadding } from "./types.js";
+import type { PaddingBalance, SurfacePadding } from "./types";
 
 export interface SurfaceSize {
   readonly width: number;
