@@ -37,7 +37,7 @@ let bridgeInstance: WasmBridge | null = null;
  *
  * @example
  * ```ts
- * import { init } from "@orchbee/wasm-terminal";
+ * import { init } from "@orchbee/terminal";
  * const bridge = await init({ source: "/ghostty-vt.wasm" });
  * ```
  */
@@ -596,7 +596,7 @@ async function fetchWasm(source: string | URL): Promise<ArrayBuffer> {
   // Try Node.js fs module first (for SSR / test environments)
   if (typeof process !== "undefined" && typeof process.versions?.node === "string") {
     try {
-      const fs = await import("fs/promises");
+      const fs = await import("node:fs/promises");
       const path = url.protocol === "file:" ? url.pathname : url.href;
       const buffer = await fs.readFile(path);
       return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);

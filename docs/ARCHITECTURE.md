@@ -12,15 +12,16 @@ apps/* -> packages/* -> external dependencies
 
 ## Package boundaries
 
+- Package naming, manifests, public exports, builds, dependencies, and versioning follow [`docs/PACKAGES.md`](PACKAGES.md).
 - `orchbee/no-cross-workspace-source-imports`: Import another workspace package through its public package exports; never cross into another `apps/*/src` or `packages/*/src` tree.
 - Relative imports may access internal modules only inside the current app or package.
 - Each package defines its public API through `package.json#exports`; `src/index.ts` implements the root export when present.
 
 ## Current modules
 
-| Module                   | Responsibility                                                                           | Public boundary                       |
-| ------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------- |
-| `@orchbee/wasm-terminal` | Ghostty WASM terminal parsing, rendering, input, selection, and browser host integration | `packages/wasm-terminal/src/index.ts` |
+| Module              | Responsibility                                                              | Public boundary                  |
+| ------------------- | --------------------------------------------------------------------------- | -------------------------------- |
+| `@orchbee/terminal` | Terminal parsing, rendering, input, selection, and browser host integration | `packages/terminal/src/index.ts` |
 
 ## Data boundaries
 

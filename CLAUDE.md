@@ -16,6 +16,7 @@
 ## Key Docs Index
 
 - **Architecture**: `docs/ARCHITECTURE.md` — system architecture, module boundaries, data flow
+- **Packages**: `docs/PACKAGES.md` — package naming, exports, builds, dependencies, and versioning
 - **Code Style**: `docs/CODESTYLE.md` — comments, naming, file structure conventions
 - **Documentation**: `docs/DOCUMENTATION.md` — read before adding, moving, or restructuring docs or changing documented engineering contracts
 - **Linting**: `docs/LINTING.md` — commands, enforcement boundary, and custom-rule ownership

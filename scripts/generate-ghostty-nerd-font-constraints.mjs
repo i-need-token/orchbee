@@ -10,7 +10,7 @@ const ghosttyRoot = path.resolve(process.env.GHOSTTY_SOURCE ?? "../ghostty");
 const sourcePath = path.join(ghosttyRoot, "src/font/nerd_font_attributes.zig");
 const outputPath = path.join(
   repositoryRoot,
-  "packages/wasm-terminal/src/nerd-font-constraints.generated.ts",
+  "packages/terminal/src/nerd-font-constraints.generated.ts",
 );
 const source = fs.readFileSync(sourcePath, "utf8");
 const sourceHash = crypto.createHash("sha256").update(source).digest("hex");

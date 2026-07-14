@@ -14,7 +14,7 @@
  *
  * @example
  * ```ts
- * import { init, Terminal } from "@orchbee/wasm-terminal";
+ * import { init, Terminal } from "@orchbee/terminal";
  *
  * await init({ source: "/ghostty-vt.wasm" });
  * const term = new Terminal(80, 24, { scrollbackLimit: 10000 });

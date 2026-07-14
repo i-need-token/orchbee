@@ -1,17 +1,17 @@
-# @orchbee/wasm-terminal
+# @orchbee/terminal
 
 Ghostty's VT engine compiled to WebAssembly, exposed through an xterm-compatible browser API and rendered with WebGPU.
 
 ## Install
 
 ```sh
-pnpm add @orchbee/wasm-terminal
+pnpm add @orchbee/terminal
 ```
 
 ## Use
 
 ```ts
-import { init, Terminal } from "@orchbee/wasm-terminal";
+import { init, Terminal } from "@orchbee/terminal";
 
 await init();
 
@@ -124,9 +124,11 @@ Current Ghostty alignment and remaining gaps are tracked in [Ghostty Terminal Pa
 ## Development
 
 ```sh
-pnpm build
-pnpm --filter @orchbee/wasm-terminal test
+pnpm --filter @orchbee/terminal build
+pnpm --filter @orchbee/terminal test
 pnpm audit:ghostty-panel
 ```
+
+The Rslib build emits ESM, CommonJS, TypeScript declarations, and source maps under `dist/`.
 
 When upgrading Ghostty, run `pnpm generate:ghostty-panel-data` to regenerate the Nerd Font constraint table. The panel audit rejects a stale generated table.

@@ -13,6 +13,6 @@ dogfood-output/
 .oxlintcache
 .claude
 
-# Local wasm-terminal dogfood
-/packages/wasm-terminal/demo/
-/packages/wasm-terminal/test/
+# Local terminal dogfood
+/packages/terminal/demo/
+/packages/terminal/test/

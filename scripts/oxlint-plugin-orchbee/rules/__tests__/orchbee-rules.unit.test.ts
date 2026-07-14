@@ -59,17 +59,17 @@ describe("no-cross-workspace-source-imports", () => {
     const { context, reports } = createContext("/workspace/apps/desktop/src/terminal.ts");
     noCrossWorkspaceSourceImports.create(context).ExportNamedDeclaration({
       source: {
-        value: "../../../packages/wasm-terminal/src/terminal.js",
+        value: "../../../packages/terminal/src/terminal.js",
         loc: LOCATION,
       },
     });
-    expect(reports[0]?.message).toContain('Import "@orchbee/wasm-terminal"');
+    expect(reports[0]?.message).toContain('Import "@orchbee/terminal"');
   });
 
   it("accepts package public exports", () => {
     const { context, reports } = createContext("/workspace/apps/desktop/src/terminal.ts");
     noCrossWorkspaceSourceImports.create(context).ImportDeclaration({
-      source: { value: "@orchbee/wasm-terminal", loc: LOCATION },
+      source: { value: "@orchbee/terminal", loc: LOCATION },
     });
     expect(reports).toEqual([]);
   });

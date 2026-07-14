@@ -1,5 +1,5 @@
 /**
- * @orchbee/wasm-terminal — Ghostty WASM VT parser for the browser.
+ * @orchbee/terminal — Ghostty-powered terminal for the browser.
  *
  * High-performance terminal emulation using Ghostty's battle-tested
  * VT100 parser compiled to WebAssembly. Uses the upstream Ghostty
@@ -7,7 +7,7 @@
  *
  * @example
  * ```ts
- * import { init, Terminal, DirtyState } from "@orchbee/wasm-terminal";
+ * import { init, Terminal, DirtyState } from "@orchbee/terminal";
  *
  * // Initialize (load WASM module)
  * await init({ source: "/ghostty-vt.wasm" });

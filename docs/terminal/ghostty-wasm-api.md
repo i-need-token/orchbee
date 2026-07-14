@@ -1,6 +1,6 @@
 # Ghostty WASM API
 
-`packages/wasm-terminal` uses upstream `libghostty-vt`; do not apply the historical `ghostty-web` patch.
+`packages/terminal` uses upstream `libghostty-vt`; do not apply the historical `ghostty-web` patch.
 
 Use [Ghostty Terminal Panel Conformance](./ghostty-surface-test-provenance.md) to decide whether an upstream test belongs in Orchbee.
 
@@ -9,7 +9,7 @@ Use [Ghostty Terminal Panel Conformance](./ghostty-surface-test-provenance.md) t
 ```sh
 cd /path/to/ghostty
 zig build lib-vt -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
-cp zig-out/bin/ghostty-vt.wasm /path/to/orchbee/packages/wasm-terminal/
+cp zig-out/bin/ghostty-vt.wasm /path/to/orchbee/packages/terminal/
 ```
 
 The WASM module must export `memory` and `__indirect_function_table`.
