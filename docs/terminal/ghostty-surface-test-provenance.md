@@ -13,7 +13,7 @@ Audit one terminal panel against Ghostty renderer, font, shaper, search, surface
 | Artifact comparison   | Byte-identical to Ghostty `zig-out/bin/ghostty-vt.wasm`            |
 | Full upstream tests   | 3,343 Zig declarations under `src/`; 246 Swift declarations        |
 | Panel audit set       | 261 Zig declarations plus 13 related Swift declarations            |
-| Orchbee package tests | 237 tests in 34 files                                              |
+| Orchbee package tests | 247 tests in 35 files                                              |
 
 The Zig count accepts `test {}`, `test name {}`, and `test "name" {`; earlier counts that accepted only quoted and unnamed tests were incomplete.
 
@@ -32,17 +32,17 @@ Declaration-weighted applicable coverage is `114 / (114 + 52) = 68.7%`; this is 
 
 ## Orchbee evidence
 
-| Code       | Evidence                                                                                      |
-| ---------- | --------------------------------------------------------------------------------------------- |
-| `E-RENDER` | `src/__tests__/renderer.unit.test.ts`                                                         |
-| `E-FIT`    | fit tests and `src/__tests__/surface-size.unit.test.ts`                                       |
-| `E-SHAPE`  | `src/__tests__/text-shaping.unit.test.ts`, renderer tests, and `browser/surface-test.html`    |
-| `E-SEARCH` | `src/search/__tests__/terminal-search.unit.test.ts` and `src/__tests__/terminal.unit.test.ts` |
-| `E-LINK`   | link detector, renderer, terminal, and browser surface tests                                  |
-| `E-MOUSE`  | `src/input/__tests__/surface-mouse.unit.test.ts` and browser surface tests                    |
-| `E-IME`    | `src/input/__tests__/preedit.unit.test.ts` and input-handler tests                            |
-| `E-SELECT` | `src/__tests__/selection-manager.unit.test.ts`                                                |
-| `E-FONT`   | font-metrics, glyph-constraints, renderer, generated-table, DPR, and browser surface tests    |
+| Code       | Evidence                                                                                                    |
+| ---------- | ----------------------------------------------------------------------------------------------------------- |
+| `E-RENDER` | `src/__tests__/renderer.unit.test.ts`                                                                       |
+| `E-FIT`    | fit tests and `src/__tests__/surface-size.unit.test.ts`                                                     |
+| `E-SHAPE`  | `src/__tests__/text-shaping.unit.test.ts`, renderer tests, and `browser/surface-test.html`                  |
+| `E-SEARCH` | `src/search/__tests__/terminal-search.unit.test.ts` and `src/__tests__/terminal.unit.test.ts`               |
+| `E-LINK`   | link detector, renderer, terminal, and browser surface tests                                                |
+| `E-MOUSE`  | `src/input/__tests__/surface-mouse.unit.test.ts` and browser surface tests                                  |
+| `E-IME`    | `src/input/__tests__/preedit.unit.test.ts` and input-handler tests                                          |
+| `E-SELECT` | `src/__tests__/selection-manager.unit.test.ts`                                                              |
+| `E-FONT`   | font-metrics, glyph-constraints, Ghostty sprites, renderer, generated-table, DPR, and browser surface tests |
 
 Each declaration named below has the row's disposition and evidence; `<unnamed@line>` identifies an unnamed upstream test at the baseline commit.
 
@@ -65,7 +65,7 @@ Each declaration named below has the row's disposition and evidence; `<unnamed@l
 - `src/font/Atlas.zig` — Upstream internal: `grow OOM`; `init error`; `reserve error`; `grow error`; Zig allocator failure injection has no browser equivalent.
 - `src/font/CodepointMap.zig` — Browser product: `codepointmap`.
 - `src/font/CodepointResolver.zig` — Browser product: `getIndex`; `getIndex disabled font style`.
-- `src/font/CodepointResolver.zig` — Gap: `getIndex box glyph`; Orchbee has no Ghostty sprite-face resolver.
+- `src/font/CodepointResolver.zig` — Gap: `getIndex box glyph`; Orchbee routes a bounded sprite subset but does not implement the complete Ghostty sprite-face resolver.
 - `src/font/Collection.zig` — Upstream internal: `<unnamed@929>`.
 - `src/font/Collection.zig` — Browser product: `init`; `add full`; `add deferred without loading options`; `getFace`; `getIndex`; `completeStyles`; `hasCodepoint`; `hasCodepoint emoji default graphical`; `face metrics`.
 - `src/font/Collection.zig` — Covered (`E-FONT`): `setSize`; `metrics`.
@@ -105,7 +105,7 @@ Each declaration named below has the row's disposition and evidence; `<unnamed@l
 - `src/font/shaper/harfbuzz.zig` — Gap: `run iterator`; `run iterator: empty cells with background set`; `shape arabic forced LTR`; `shape with empty cells in between`; `shape Devanagari string`; `shape Tai Tham vowels (position differs from advance)`; `shape Tibetan characters`; `shape Tai Tham letters (run_offset.y differs from zero)`; `shape Javanese ligatures`; `shape Chakma vowel sign with ligature (vowel sign renders first)`; `shape Bengali ligatures with out of order vowels`; `shape box glyphs`.
 - `src/font/shaper/noop.zig` — Upstream internal: `<unnamed@141>`.
 - `src/font/sprite.zig` — Upstream internal: `<unnamed@37>`; `<unnamed@43>`.
-- `src/font/sprite/Face.zig` — Gap: `sprite face render all sprites`; `full height cursor sprites respect cursor height metric`; `<unnamed@664>`.
+- `src/font/sprite/Face.zig` — Gap: `sprite face render all sprites`; `full height cursor sprites respect cursor height metric`; `<unnamed@664>`. Orchbee procedurally renders a bounded box, block, triangle, and Powerline subset, but not all sprites or sprite cursors.
 
 ## Search manifest
 
@@ -136,7 +136,7 @@ Each declaration named below has the row's disposition and evidence; `<unnamed@l
 | Font variations and arbitrary features |                    4 | Only family, size, style flags, and ligature enablement exist                            |
 | Glyph graphics rasterization           |                   15 | Packaged WASM and renderer advertise no glyph graphics                                   |
 | General complex-script shaping runs    |                   26 | Only bounded programming ligatures and per-grapheme Canvas rasterization are implemented |
-| Built-in Ghostty sprite font           |                    3 | Box drawing and cursor sprites depend on browser fonts                                   |
+| Built-in Ghostty sprite font           |                    3 | A bounded procedural subset is present; unsupported ranges and sprite cursors remain     |
 | Total                                  |                   52 |                                                                                          |
 
 Kitty graphics are also absent because Ghostty disables them for `wasm32-freestanding`; no scoped upstream renderer/font declaration measures that additional capability gap.

@@ -25,6 +25,7 @@ import {
   glyphConstraintForCodepoint,
   type GlyphSize,
 } from "./glyph-constraints.js";
+import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from "./ghostty-sprites.js";
 import { searchMatchContainsCell, type TerminalSearchMatch } from "./search/terminal-search.js";
 import { additionalSurfaceMargins, balanceGridPadding } from "./surface-size.js";
 import {
@@ -885,11 +886,29 @@ export class WebGPURenderer {
     this.atlasCtx.font = `${fontStyle}${this.fontSize * rasterScale}px ${this.fontFamily}`;
     this.atlasCtx.textBaseline = "alphabetic";
     this.atlasCtx.textAlign = "left";
-    const measured = this.atlasCtx.measureText(text);
-    const layout = this.glyphRasterLayout(measured, rasterScale, codepoint, constraintWidth);
     const inkPadding = Math.max(1, Math.ceil(rasterScale));
-    const w = Math.max(1, Math.ceil(layout.target.width * rasterScale) + inkPadding * 2);
-    const h = Math.max(1, Math.ceil(layout.target.height * rasterScale) + inkPadding * 2);
+    const raster = isGhosttySprite(codepoint)
+      ? {
+          kind: "sprite" as const,
+          geometry: physicalSpriteGeometry(this.detailedMetrics, rasterScale, width),
+        }
+      : {
+          kind: "font" as const,
+          layout: this.glyphRasterLayout(
+            this.atlasCtx.measureText(text),
+            rasterScale,
+            codepoint,
+            constraintWidth,
+          ),
+        };
+    const w =
+      raster.kind === "sprite"
+        ? raster.geometry.width + inkPadding * 2
+        : Math.max(1, Math.ceil(raster.layout.target.width * rasterScale) + inkPadding * 2);
+    const h =
+      raster.kind === "sprite"
+        ? raster.geometry.height + inkPadding * 2
+        : Math.max(1, Math.ceil(raster.layout.target.height * rasterScale) + inkPadding * 2);
 
     // Check if we need a new row
     if (this.atlasX + w + padding > this.atlasCanvas.width) {
@@ -911,9 +930,21 @@ export class WebGPURenderer {
     // clips negative bearings, italic overhang, ascenders, or descenders.
     this.atlasCtx.fillStyle = "#ffffff";
     this.atlasCtx.save();
-    this.atlasCtx.translate(this.atlasX + inkPadding, this.atlasY + inkPadding);
-    this.atlasCtx.scale(layout.scaleX, layout.scaleY);
-    this.atlasCtx.fillText(text, layout.left, layout.ascent);
+    if (raster.kind === "sprite") {
+      drawGhosttySprite(
+        this.atlasCtx,
+        codepoint,
+        this.atlasX + inkPadding,
+        this.atlasY + inkPadding,
+        raster.geometry.width,
+        raster.geometry.height,
+        raster.geometry.boxThickness,
+      );
+    } else {
+      this.atlasCtx.translate(this.atlasX + inkPadding, this.atlasY + inkPadding);
+      this.atlasCtx.scale(raster.layout.scaleX, raster.layout.scaleY);
+      this.atlasCtx.fillText(text, raster.layout.left, raster.layout.ascent);
+    }
     this.atlasCtx.restore();
 
     const entry: GlyphAtlasEntry = {
@@ -921,11 +952,18 @@ export class WebGPURenderer {
       y: this.atlasY,
       w,
       h,
-      offsetX: layout.target.x - inkPadding / rasterScale,
-      offsetY: layout.targetTop - inkPadding / rasterScale,
+      offsetX:
+        raster.kind === "sprite"
+          ? -inkPadding / rasterScale
+          : raster.layout.target.x - inkPadding / rasterScale,
+      offsetY:
+        raster.kind === "sprite"
+          ? -inkPadding / rasterScale
+          : raster.layout.targetTop - inkPadding / rasterScale,
       renderWidth: w / rasterScale,
       renderHeight: h / rasterScale,
-      colored: this.isColorGlyph(text, this.atlasX, this.atlasY, w, h),
+      colored:
+        raster.kind === "sprite" ? false : this.isColorGlyph(text, this.atlasX, this.atlasY, w, h),
     };
     this.glyphMap.set(key, entry);
     this.frameAtlasGlyphsCreated++;
@@ -2146,7 +2184,15 @@ export class WebGPURenderer {
       (cell.grapheme_len > 0 && this.currentBuffer?.getGraphemeString
         ? this.currentBuffer.getGraphemeString(y, x)
         : String.fromCodePoint(cell.codepoint || 32));
-    this.drawConstrainedText2D(ctx, char, cellX, cellY, cell.codepoint, constraintWidth);
+    this.drawConstrainedText2D(
+      ctx,
+      char,
+      cellX,
+      cellY,
+      cell.codepoint,
+      constraintWidth,
+      cell.width,
+    );
 
     if (cell.flags & CellFlags.FAINT) ctx.globalAlpha = 1.0;
 
@@ -2237,7 +2283,21 @@ export class WebGPURenderer {
     cellY: number,
     codepoint: number,
     constraintWidth: 1 | 2,
+    cellWidth: number,
   ): void {
+    if (
+      drawGhosttySprite(
+        ctx,
+        codepoint,
+        cellX,
+        cellY,
+        this.detailedMetrics.cellWidth * cellWidth,
+        this.detailedMetrics.cellHeight,
+        this.detailedMetrics.boxThickness,
+      )
+    ) {
+      return;
+    }
     const layout = this.glyphRasterLayout(ctx.measureText(text), 1, codepoint, constraintWidth);
     ctx.save();
     ctx.translate(cellX + layout.target.x, cellY + layout.targetTop);
@@ -2314,6 +2374,7 @@ export class WebGPURenderer {
         cellY,
         cell.text.codePointAt(0) ?? 0,
         cell.width >= 2 ? 2 : 1,
+        cell.width,
       );
       column += cell.width;
     }

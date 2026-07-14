@@ -107,7 +107,7 @@ The exported `fontSizeAdjustmentScale` helper implements Ghostty's fallback-face
 - WebGPU glyphs use physical-pixel rasterization and rebuild when browser DPR changes.
 - The configured primary and fallback font list is loaded through `FontFaceSet` before cell metrics are measured; failures surface through `onHostError` without preventing startup.
 - Glyph quads preserve measured ink bounds and bearings instead of clipping italic overhangs or forcing every glyph into one cell-sized rectangle.
-- Nerd Font and Powerline glyphs use Ghostty's generated constraint table, including adjacent-space width allowance, icon sizing, and grid-aligned stretching.
+- Nerd Font glyphs use Ghostty's generated constraint table, including adjacent-space width allowance, icon sizing, and grid-aligned stretching. Selected box-drawing, block-element, corner-triangle, and core Powerline characters use Ghostty-compatible procedural sprites in both renderers.
 - Cell, decoration, cursor, and icon metric modifiers share Ghostty's percentage, absolute-delta, clamping, and cell-height recentering rules.
 - Balanced padding distributes fractional grid space around the canvas while respecting explicit parent padding.
 - New WebGPU glyphs upload a merged dirty atlas region without replacing existing texels; colored emoji preserve their RGB while ordinary glyphs remain terminal-tintable.

@@ -747,6 +747,73 @@ describe("WebGPURenderer font metrics", () => {
     renderer.dispose();
   });
 
+  it("rasterizes built-in Ghostty sprites into the physical-pixel atlas", () => {
+    vi.stubGlobal("window", { devicePixelRatio: 2 });
+    const fillText = vi.fn<CanvasRenderingContext2D["fillText"]>();
+    const fillRect = vi.fn<CanvasRenderingContext2D["fillRect"]>();
+    vi.stubGlobal("document", {
+      createElement: () => createCanvas(undefined, {}, fillText, fillRect),
+    });
+    const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText, fillRect), {
+      devicePixelRatio: 2,
+    });
+    const ensureGlyph = Reflect.get(renderer, "ensureGlyph") as (
+      text: string,
+      flags: number,
+      width: number,
+      codepoint: number,
+      constraintWidth: 1 | 2,
+    ) => {
+      readonly w: number;
+      readonly h: number;
+      readonly offsetX: number;
+      readonly offsetY: number;
+    } | null;
+
+    expect(ensureGlyph.call(renderer, "─", 0, 1, 0x2500, 1)).toMatchObject({
+      w: 20,
+      h: 38,
+      offsetX: -1,
+      offsetY: -1,
+    });
+    expect(fillRect.mock.calls).toEqual([
+      [9, 18, 9, 2],
+      [2, 18, 9, 2],
+    ]);
+    expect(fillText).not.toHaveBeenCalled();
+    renderer.dispose();
+  });
+
+  it("draws built-in Ghostty sprites in the Canvas 2D fallback", () => {
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    const fillText = vi.fn<CanvasRenderingContext2D["fillText"]>();
+    const fillRect = vi.fn<CanvasRenderingContext2D["fillRect"]>();
+    vi.stubGlobal("document", {
+      createElement: () => createCanvas(undefined, {}, fillText, fillRect),
+    });
+    const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText, fillRect));
+    const drawConstrainedText2D = Reflect.get(renderer, "drawConstrainedText2D") as (
+      context: CanvasRenderingContext2D,
+      text: string,
+      x: number,
+      y: number,
+      codepoint: number,
+      constraintWidth: 1 | 2,
+      cellWidth: number,
+    ) => void;
+    const context = createCanvas(undefined, {}, fillText, fillRect).getContext("2d");
+    if (!context) throw new Error("Expected a Canvas 2D context");
+
+    drawConstrainedText2D.call(renderer, context, "─", 10, 20, 0x2500, 1, 1);
+
+    expect(fillRect.mock.calls).toEqual([
+      [13, 28, 5, 1],
+      [10, 28, 4, 1],
+    ]);
+    expect(fillText).not.toHaveBeenCalled();
+    renderer.dispose();
+  });
+
   it("caches glyphs by text, cell width, and raster style", () => {
     vi.stubGlobal("window", { devicePixelRatio: 1 });
     vi.stubGlobal("document", { createElement: () => createCanvas() });
