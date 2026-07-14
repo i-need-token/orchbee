@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CellFlags, type GhosttyCell, type IRenderable } from '../../types';
 import { type RendererFrameTelemetry, WebGPURenderer } from '../renderer';
-import { CellFlags, type GhosttyCell, type IRenderable } from '../types';
 
 type AtlasDrawImage = (image: CanvasImageSource, dx: number, dy: number) => void;
+
+const failingFillText: CanvasRenderingContext2D['fillText'] = () => {
+	throw new Error('simulated raster failure');
+};
 
 afterEach(() => {
 	vi.useRealTimers();
@@ -834,13 +838,10 @@ describe('WebGPURenderer font metrics', () => {
 
 	it('does not retain a cache entry when glyph rasterization fails', () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
-		const fillText: CanvasRenderingContext2D['fillText'] = () => {
-			throw new Error('simulated raster failure');
-		};
 		vi.stubGlobal('document', {
-			createElement: () => createCanvas(undefined, {}, fillText),
+			createElement: () => createCanvas(undefined, {}, failingFillText),
 		});
-		const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText));
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, failingFillText));
 		const ensureGlyph = Reflect.get(renderer, 'ensureGlyph') as (
 			text: string,
 			flags: number,

@@ -71,8 +71,8 @@ export class Grid {
 	private readonly bridge: WasmBridge;
 	private readonly termHandle: TerminalHandle;
 	private readonly rsHandle: RenderStateHandle;
-	private _cols: number;
-	private _rows: number;
+	private columnCount: number;
+	private rowCount: number;
 
 	/** Reusable row iterator handle (created once, reused). */
 	private rowIterHandle = 0;
@@ -109,16 +109,16 @@ export class Grid {
 		this.bridge = bridge;
 		this.termHandle = termHandle;
 		this.rsHandle = rsHandle;
-		this._cols = cols;
-		this._rows = rows;
+		this.columnCount = cols;
+		this.rowCount = rows;
 	}
 
 	get cols(): number {
-		return this._cols;
+		return this.columnCount;
 	}
 
 	get rows(): number {
-		return this._rows;
+		return this.rowCount;
 	}
 
 	// ==========================================================================
@@ -306,7 +306,7 @@ export class Grid {
 		const cells: CellData[] = [];
 		let wrapped = false;
 
-		for (let x = 0; x < this._cols; x++) {
+		for (let x = 0; x < this.columnCount; x++) {
 			this.writePoint(PointTag.HISTORY, x, offset);
 			const result = exp.ghostty_terminal_grid_ref(this.termHandle, this.pointBuf, this.gridRefBuf);
 			if (result !== 0) return null;
@@ -320,7 +320,7 @@ export class Grid {
 
 	/** Resolve an OSC 8 URI at a viewport or scrollback coordinate. */
 	getHyperlinkUri(tag: PointTag, row: number, col: number): string | null {
-		if (col < 0 || col >= this._cols || row < 0) return null;
+		if (col < 0 || col >= this.columnCount || row < 0) return null;
 		this.ensureBuffers();
 		const exp = this.bridge.getExports();
 		this.writePoint(tag, col, row);
@@ -351,8 +351,8 @@ export class Grid {
 
 	/** Resize grid. Call after terminal resize. */
 	resize(cols: number, rows: number): void {
-		this._cols = cols;
-		this._rows = rows;
+		this.columnCount = cols;
+		this.rowCount = rows;
 	}
 
 	/** Free all allocated WASM buffers. */

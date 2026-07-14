@@ -1,12 +1,8 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { AnsiMode, DecMode } from '../types';
+import { createTerminal, initializeWasm } from '../../__tests__/test-helpers';
+import type { ContextMenuRequest, TerminalClipboardHost, TerminalHost } from '../../host';
+import { AnsiMode, DecMode } from '../../types';
 import { Terminal } from '../terminal';
-import type {
-	ContextMenuRequest,
-	TerminalClipboardHost,
-	TerminalHost,
-} from '../host/terminal-host';
-import { createTerminal, initializeWasm } from './test-helpers';
 
 beforeAll(initializeWasm);
 

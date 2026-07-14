@@ -59,6 +59,7 @@ function createModuleTree() {
 	const root = createFixture();
 	for (const path of [
 		'packages/example/src/index.ts',
+		'packages/example/src/root-utility.ts',
 		'packages/example/src/a/index.ts',
 		'packages/example/src/a/a1/index.ts',
 		'packages/example/src/a/a1/internal.ts',
@@ -131,6 +132,26 @@ describe('module-boundaries', () => {
 		moduleBoundaries
 			.create(context)
 			.ImportDeclaration(dependencyNode('ImportDeclaration', '../../a'));
+		expect(reports).toEqual([]);
+	});
+
+	it('allows a child to import an ancestor implementation directly', () => {
+		const root = createModuleTree();
+		const filename = join(root, 'packages/example/src/b/b1/consumer.ts');
+		const { context, reports } = createContext(filename);
+		moduleBoundaries
+			.create(context)
+			.ImportDeclaration(dependencyNode('ImportDeclaration', '../../root-utility'));
+		expect(reports).toEqual([]);
+	});
+
+	it('allows package-level tests to use descendant module indexes', () => {
+		const root = createModuleTree();
+		const filename = join(root, 'packages/example/src/__tests__/integration.unit.test.ts');
+		const { context, reports } = createContext(filename);
+		moduleBoundaries
+			.create(context)
+			.ImportDeclaration(dependencyNode('ImportDeclaration', '../a/a1'));
 		expect(reports).toEqual([]);
 	});
 

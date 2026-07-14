@@ -24,6 +24,8 @@ export interface WasmTypeLayout {
 export interface InitOptions {
 	/** WASM source: URL string, URL object, or pre-fetched ArrayBuffer. */
 	readonly source: string | URL | ArrayBuffer;
+	/** Optional sink for diagnostic messages emitted by the Ghostty module. */
+	readonly log?: (message: string) => void;
 }
 
 /** Module-level singleton (set by init()). */
@@ -45,7 +47,7 @@ export async function init(
 	options: InitOptions = { source: new URL('../ghostty-vt.wasm', import.meta.url) },
 ): Promise<WasmBridge> {
 	if (bridgeInstance) return bridgeInstance;
-	bridgeInstance = await WasmBridge.load(options.source);
+	bridgeInstance = await WasmBridge.load(options.source, options.log);
 	return bridgeInstance;
 }
 
@@ -237,7 +239,7 @@ export class WasmBridge {
 			throw new Error('WASM callback trampoline export is missing');
 		}
 
-		const table = this.exports.__indirect_function_table;
+		const table = this.exports['__indirect_function_table'];
 		const index = this.freeCallbackSlots.pop() ?? table.grow(1);
 		table.set(index, trampoline);
 		let active = true;
@@ -264,7 +266,7 @@ export class WasmBridge {
 			throw new Error('WASM callback trampoline export is missing');
 		}
 
-		const table = this.exports.__indirect_function_table;
+		const table = this.exports['__indirect_function_table'];
 		const index = this.freeCallbackSlots.pop() ?? table.grow(1);
 		table.set(index, trampoline);
 		let active = true;
@@ -291,7 +293,7 @@ export class WasmBridge {
 			throw new Error('WASM callback trampoline export is missing');
 		}
 
-		const table = this.exports.__indirect_function_table;
+		const table = this.exports['__indirect_function_table'];
 		const index = this.freeCallbackSlots.pop() ?? table.grow(1);
 		table.set(index, trampoline);
 		let active = true;
@@ -318,7 +320,7 @@ export class WasmBridge {
 			throw new Error('WASM callback trampoline export is missing');
 		}
 
-		const table = this.exports.__indirect_function_table;
+		const table = this.exports['__indirect_function_table'];
 		const index = this.freeCallbackSlots.pop() ?? table.grow(1);
 		table.set(index, trampoline);
 		let active = true;
@@ -470,7 +472,10 @@ export class WasmBridge {
 	 *
 	 * @param source - URL string, URL object, or pre-fetched ArrayBuffer.
 	 */
-	static async load(source: string | URL | ArrayBuffer): Promise<WasmBridge> {
+	static async load(
+		source: string | URL | ArrayBuffer,
+		log?: (message: string) => void,
+	): Promise<WasmBridge> {
 		let wasmBytes: ArrayBuffer;
 
 		if (source instanceof ArrayBuffer) {
@@ -485,22 +490,23 @@ export class WasmBridge {
 
 		const wasmModule = await WebAssembly.compile(wasmBytes);
 
-		// We need the instance reference for the log import closure.
-		// Use a mutable binding that gets set after instantiation.
-		let wasmInstance: WebAssembly.Instance | undefined;
+		// The import closure exists before instantiation, so it reads the instance from shared state.
+		const state: { instance?: WebAssembly.Instance } = {};
 
 		const importObject = {
 			env: {
 				log: (ptr: number, len: number): void => {
-					if (!wasmInstance || !isWasmExports(wasmInstance.exports)) return;
-					const mem = wasmInstance.exports.memory.buffer;
+					const instance = state.instance;
+					if (!instance || !isWasmExports(instance.exports)) return;
+					const mem = instance.exports.memory.buffer;
 					const bytes = new Uint8Array(mem, ptr, len);
-					console.log('[ghostty-vt]', new TextDecoder().decode(bytes));
+					log?.(`[ghostty-vt] ${new TextDecoder().decode(bytes)}`);
 				},
 			},
 		};
 
-		wasmInstance = await WebAssembly.instantiate(wasmModule, importObject);
+		const wasmInstance = await WebAssembly.instantiate(wasmModule, importObject);
+		state.instance = wasmInstance;
 		return new WasmBridge(wasmInstance);
 	}
 }

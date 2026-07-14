@@ -100,6 +100,10 @@ function sameModule(left, right) {
 	return left.length === right.length && isPrefix(left, right);
 }
 
+function isAncestorModule(ancestor, descendant) {
+	return ancestor.length < descendant.length && isPrefix(ancestor, descendant);
+}
+
 function isVisibleModule(sourceModule, targetModule) {
 	if (targetModule.length < sourceModule.length && isPrefix(targetModule, sourceModule)) {
 		return true;
@@ -183,6 +187,7 @@ export const moduleBoundaries = {
 		if (sourceRoot === null) return {};
 		const sourceModule = moduleParts(filename, sourceRoot);
 		const sourceIsBoundaryIndex = isBoundaryIndex(filename, sourceRoot);
+		const sourceIsRootTest = sourceModule.length === 0 && isTestFile(filename, sourceRoot);
 
 		function checkProgram(program) {
 			reportMissingIndexes(context, program, filename, sourceRoot, sourceModule);
@@ -214,6 +219,8 @@ export const moduleBoundaries = {
 				return;
 			}
 
+			if (isAncestorModule(targetModule, sourceModule)) return;
+
 			const targetIsBoundaryIndex = isBoundaryIndex(targetFile, sourceRoot);
 			if (!targetIsBoundaryIndex) {
 				report(
@@ -223,6 +230,8 @@ export const moduleBoundaries = {
 				);
 				return;
 			}
+
+			if (sourceIsRootTest) return;
 
 			if (
 				sourceIsBoundaryIndex &&

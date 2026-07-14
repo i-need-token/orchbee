@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { InputHandler } from '../input-handler';
-import type { InputHandlerDependencies } from '../input-handler';
-import type { Terminal } from '../terminal';
-import { TerminalData } from '../types';
-import type { WasmBridge } from '../wasm-bridge';
-import { createTerminal, initializeWasm } from './test-helpers';
+import type { Terminal } from '../../composition';
+import { createTerminal, initializeWasm } from '../../__tests__/test-helpers';
+import { TerminalData } from '../../types';
+import type { WasmBridge } from '../../wasm-bridge';
+import { InputHandler, type InputHandlerDependencies } from '../input-handler';
 
 const listeners = new Map<string, EventListener>();
 

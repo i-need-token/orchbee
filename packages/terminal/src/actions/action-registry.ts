@@ -1,5 +1,5 @@
 import { EventEmitter, type IDisposable, type IEvent } from '../event-emitter';
-import type { TerminalInteractionContext } from '../host/terminal-host';
+import type { TerminalInteractionContext } from '../host';
 
 export type TerminalActionSource =
 	| 'keyboard'

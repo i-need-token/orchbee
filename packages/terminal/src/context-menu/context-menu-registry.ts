@@ -1,21 +1,6 @@
 import type { IDisposable } from '../event-emitter';
-import type { TerminalInteractionContext } from '../host/terminal-host';
-
-export type ContextMenuItem =
-	| {
-			readonly kind: 'action';
-			readonly actionId: string;
-			readonly group: string;
-			readonly order: number;
-	  }
-	| { readonly kind: 'separator'; readonly group: string; readonly order: number }
-	| {
-			readonly kind: 'submenu';
-			readonly label: string;
-			readonly group: string;
-			readonly order: number;
-			readonly children: readonly ContextMenuItem[];
-	  };
+import type { TerminalInteractionContext } from '../host';
+import type { ContextMenuItem } from '../terminal-contracts';
 
 export interface ContextMenuProvider {
 	provide(context: TerminalInteractionContext): readonly ContextMenuItem[];

@@ -12,7 +12,7 @@
  * - De-duplication between keydown/beforeinput/composition/paste
  */
 
-import type { WasmBridge, WasmTypeLayout } from './wasm-bridge';
+import type { WasmBridge, WasmTypeLayout } from '../wasm-bridge';
 import {
 	type IKeyEvent,
 	Key,
@@ -21,9 +21,9 @@ import {
 	Result,
 	TerminalData,
 	type WasmExports,
-} from './types';
-import { isSurfaceMouseModifierKey } from './input/surface-mouse';
-import { shouldSuppressComposingControlInput } from './input/preedit';
+} from '../types';
+import { shouldSuppressComposingControlInput, type CompositionSelection } from './preedit';
+import { isSurfaceMouseModifierKey } from './surface-mouse';
 
 // ============================================================================
 // KeyEncoder (WASM-backed)
@@ -630,11 +630,6 @@ export interface InputHandlerDependencies {
 	emitBinary?(data: string): void;
 	/** Refresh pointer presentation when a mouse-shape modifier changes. */
 	onSurfaceModifierChange?(event: KeyboardEvent): void;
-}
-
-export interface CompositionSelection {
-	readonly start: number;
-	readonly end: number;
 }
 
 // ============================================================================

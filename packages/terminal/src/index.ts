@@ -43,45 +43,45 @@ export {
 	type TerminalCapabilities,
 	type TerminalConfig,
 	type TerminalOptions,
-} from './terminal';
+} from './composition';
 
 // Host capabilities
-export { createBrowserTerminalHost } from './host/browser-terminal-host';
-export { resolveHostCapabilities } from './host/terminal-capabilities';
-export type {
-	ClipboardPayload,
-	ClipboardReadRequest,
-	ClipboardReadSource,
-	ClipboardTarget,
-	ClipboardWriteRequest,
-	ClipboardWriteSource,
-	ContextMenuActionState,
-	ContextMenuRequest,
-	OpenTargetRequest,
-	PasteConfirmationRequest,
-	PointerRequest,
-	TerminalClipboardHost,
-	TerminalDropRequest,
-	TerminalDropResolution,
-	TerminalHost,
-	TerminalHostCapabilities,
-	TerminalHostErrorEvent,
-	TerminalHostOperation,
-	TerminalInteractionContext,
-	TerminalModifierState,
-	TerminalNotificationRequest,
-	TerminalOpenTarget,
-	TerminalSelectionSnapshot,
-} from './host/terminal-host';
+export {
+	createBrowserTerminalHost,
+	resolveHostCapabilities,
+	type ClipboardPayload,
+	type ClipboardReadRequest,
+	type ClipboardReadSource,
+	type ClipboardTarget,
+	type ClipboardWriteRequest,
+	type ClipboardWriteSource,
+	type ContextMenuActionState,
+	type ContextMenuRequest,
+	type OpenTargetRequest,
+	type PasteConfirmationRequest,
+	type PointerRequest,
+	type TerminalClipboardHost,
+	type TerminalDropRequest,
+	type TerminalDropResolution,
+	type TerminalHost,
+	type TerminalHostCapabilities,
+	type TerminalHostErrorEvent,
+	type TerminalHostOperation,
+	type TerminalInteractionContext,
+	type TerminalModifierState,
+	type TerminalNotificationRequest,
+	type TerminalOpenTarget,
+	type TerminalSelectionSnapshot,
+} from './host';
 
 export {
 	ContextMenuRegistry,
 	type ContextMenuItem,
 	type ContextMenuProvider,
-} from './context-menu/context-menu-registry';
+} from './context-menu';
 
 // GhosttyTerminal compatibility layer
-export { GhosttyTerminal } from './ghostty-terminal';
+export { GhosttyTerminal, type GhosttyTerminalSource } from './ghostty-terminal';
 
 // Grid data reader
 export { Grid, CellReader, type CellData } from './grid';
@@ -97,7 +97,7 @@ export {
 	type TerminalActionResult,
 	type TerminalActionSource,
 	type TerminalActionState,
-} from './actions/action-registry';
+} from './actions';
 
 // Renderer
 export {
@@ -106,7 +106,7 @@ export {
 	type RendererFrameReason,
 	type RendererFrameTelemetry,
 	type RendererHealthEvent,
-} from './renderer';
+} from './rendering';
 export {
 	applyFontMetricModifier,
 	applyFontMetricModifiers,
@@ -127,22 +127,27 @@ export {
 
 // Input handling
 export {
-	InputHandler,
-	type CompositionSelection,
-	type InputHandlerDependencies,
-} from './input-handler';
-export {
+	buildPreeditState,
 	calculateInputAnchor,
+	encodePaste,
+	InputHandler,
+	inspectPaste,
+	KeyEventRegistry,
+	OrderedInputDispatcher,
+	type CompositionSelection,
 	type InputAnchorLayout,
 	type InputAnchorRequest,
-} from './input/input-anchor';
-export { OrderedInputDispatcher } from './input/ordered-input-dispatcher';
-export {
-	KeyEventRegistry,
+	type InputHandlerDependencies,
+	type PasteCodec,
+	type PasteInspection,
+	type PastePolicyOptions,
+	type PasteResult,
+	type PasteSource,
+	type PreeditCellData,
+	type PreeditState,
 	type TerminalKeyEventContext,
 	type TerminalKeyEventHandler,
-} from './input/key-event-registry';
-export { buildPreeditState, type PreeditCellData, type PreeditState } from './input/preedit';
+} from './input';
 export {
 	AccessibleTextModel,
 	buildAccessibleRow,
@@ -155,30 +160,19 @@ export {
 	type AccessibleTextPosition,
 	type AccessibleTextRange,
 	type TerminalAccessibilityOptions,
-} from './accessibility/terminal-accessibility';
+} from './accessibility';
 export {
 	findTerminalMatches,
 	searchMatchContainsCell,
 	type TerminalSearchMatch,
 	type TerminalSearchOptions,
-} from './search/terminal-search';
+} from './search';
 export {
 	formatTerminalIdentity,
 	type TerminalProtocolIdentity,
-} from './protocol/terminal-identity';
-export {
 	readGhosttyBuildCapabilities,
 	type GhosttyBuildCapabilities,
-} from './protocol/build-capabilities';
-export {
-	encodePaste,
-	inspectPaste,
-	type PasteCodec,
-	type PasteInspection,
-	type PastePolicyOptions,
-	type PasteResult,
-	type PasteSource,
-} from './input/paste-policy';
+} from './protocol';
 
 // Selection
 export {
@@ -188,8 +182,6 @@ export {
 	type SelectionCell,
 	type SelectionManagerOptions,
 	type SelectionModel,
-} from './selection-manager';
-export {
 	GhosttySelectionController,
 	type GhosttySelectionAdjustment,
 	type GhosttySelectionAutoscroll,
@@ -198,19 +190,24 @@ export {
 	type GhosttySelectionGesturePoint,
 	type GhosttySelectionGesturePress,
 	type GhosttySelectionRange,
-} from './selection/ghostty-selection';
+} from './selection';
 
 // Link detection
 export { LinkDetector, type ITerminalForLinkDetector } from './link-detector';
-export { OSC8LinkProvider, type ITerminalForOSC8Provider } from './providers/osc8-link-provider';
-export { UrlRegexProvider, type ITerminalForUrlProvider } from './providers/url-regex-provider';
-export { PathLinkProvider, type ITerminalForPathProvider } from './providers/path-link-provider';
+export {
+	OSC8LinkProvider,
+	PathLinkProvider,
+	UrlRegexProvider,
+	type ITerminalForOSC8Provider,
+	type ITerminalForPathProvider,
+	type ITerminalForUrlProvider,
+} from './providers';
 
 // Buffer API
 export { BufferNamespace, Buffer, BufferLine, BufferCell, type BufferTerminal } from './buffer';
 
 // Addons
-export { FitAddon } from './addons/fit';
+export { FitAddon } from './addons';
 
 // Types & enums
 export {

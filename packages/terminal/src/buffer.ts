@@ -63,8 +63,8 @@ export class BufferNamespace implements IBufferNamespace {
 	private bufferChangeEmitter = new EventEmitter<IBuffer>();
 
 	// Lazy-initialized buffer wrappers (stateless, so we can cache them)
-	private _normalBuffer?: Buffer;
-	private _alternateBuffer?: Buffer;
+	private normalBuffer?: Buffer;
+	private alternateBuffer?: Buffer;
 
 	constructor(terminal: BufferTerminal) {
 		this.terminal = terminal;
@@ -75,17 +75,17 @@ export class BufferNamespace implements IBufferNamespace {
 	}
 
 	get normal(): IBuffer {
-		if (!this._normalBuffer) {
-			this._normalBuffer = new Buffer(this.terminal, 'normal');
+		if (!this.normalBuffer) {
+			this.normalBuffer = new Buffer(this.terminal, 'normal');
 		}
-		return this._normalBuffer;
+		return this.normalBuffer;
 	}
 
 	get alternate(): IBuffer {
-		if (!this._alternateBuffer) {
-			this._alternateBuffer = new Buffer(this.terminal, 'alternate');
+		if (!this.alternateBuffer) {
+			this.alternateBuffer = new Buffer(this.terminal, 'alternate');
 		}
-		return this._alternateBuffer;
+		return this.alternateBuffer;
 	}
 
 	get onBufferChange(): IEvent<IBuffer> {
@@ -96,7 +96,7 @@ export class BufferNamespace implements IBufferNamespace {
 	 * Internal: Fire buffer change event when screen switches.
 	 * Should be called by Terminal when detecting screen change.
 	 */
-	_fireBufferChange(buffer: IBuffer): void {
+	emitBufferChange(buffer: IBuffer): void {
 		this.bufferChangeEmitter.fire(buffer);
 	}
 }
@@ -212,25 +212,25 @@ export class Buffer implements IBuffer {
  */
 export class BufferLine implements IBufferLine {
 	private cells: CellData[];
-	private _isWrapped: boolean;
-	private _length: number;
+	private wrapped: boolean;
+	private cellCount: number;
 
 	constructor(cells: CellData[], isWrapped: boolean, length: number) {
 		this.cells = cells;
-		this._isWrapped = isWrapped;
-		this._length = length;
+		this.wrapped = isWrapped;
+		this.cellCount = length;
 	}
 
 	get length(): number {
-		return this._length;
+		return this.cellCount;
 	}
 
 	get isWrapped(): boolean {
-		return this._isWrapped;
+		return this.wrapped;
 	}
 
 	getCell(x: number): IBufferCell | undefined {
-		if (x < 0 || x >= this._length) {
+		if (x < 0 || x >= this.cellCount) {
 			return undefined;
 		}
 
@@ -276,10 +276,10 @@ export class BufferLine implements IBufferLine {
 		return new BufferCell(cellData);
 	}
 
-	translateToString(trimRight = false, startColumn = 0, endColumn = this._length): string {
+	translateToString(trimRight = false, startColumn = 0, endColumn = this.cellCount): string {
 		// Clamp bounds.
-		const start = Math.max(0, Math.min(startColumn, this._length));
-		const end = Math.max(start, Math.min(endColumn, this._length));
+		const start = Math.max(0, Math.min(startColumn, this.cellCount));
+		const end = Math.max(start, Math.min(endColumn, this.cellCount));
 
 		let result = '';
 		for (let x = start; x < end; x++) {

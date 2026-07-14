@@ -1,4 +1,4 @@
-import type { ContextMenuItem } from '../context-menu/context-menu-registry';
+import type { ContextMenuItem, TerminalOpenTarget } from '../terminal-contracts';
 
 export type ClipboardTarget = 'standard' | 'selection';
 
@@ -27,16 +27,6 @@ export interface TerminalClipboardHost {
 	read(request: ClipboardReadRequest): Promise<ClipboardPayload | null>;
 	write(request: ClipboardWriteRequest): Promise<void>;
 }
-
-export type TerminalOpenTarget =
-	| { readonly kind: 'url'; readonly url: string }
-	| {
-			readonly kind: 'file';
-			readonly path: string;
-			readonly line?: number;
-			readonly column?: number;
-	  }
-	| { readonly kind: 'unknown'; readonly value: string };
 
 export interface OpenTargetRequest {
 	readonly target: TerminalOpenTarget;

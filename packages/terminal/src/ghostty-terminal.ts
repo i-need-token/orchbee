@@ -10,10 +10,23 @@ import type {
 	RenderStateCursor,
 } from './types';
 import { DirtyState as DirtyStateValue, PointTag } from './types';
-import type { Terminal } from './terminal';
+import type { Grid } from './grid';
+
+export interface GhosttyTerminalSource {
+	readonly grid: Grid;
+	readonly foregroundColor: RGB;
+	readonly backgroundColor: RGB;
+	readonly cols: number;
+	readonly rows: number;
+	readonly cursorX: number;
+	readonly cursorY: number;
+	readonly cursorVisible: boolean;
+	readonly cursorBlinking: boolean;
+	readonly cursorStyle: 'block' | 'underline' | 'bar';
+}
 
 export class GhosttyTerminal implements IRenderable, IScrollbackProvider {
-	private readonly term: Terminal;
+	private readonly term: GhosttyTerminalSource;
 	private lines: GhosttyCell[][] = [];
 	private cellDataLines: CellData[][] = [];
 	private textLines: string[][] = [];
@@ -34,7 +47,7 @@ export class GhosttyTerminal implements IRenderable, IScrollbackProvider {
 		style: 'block',
 	};
 
-	constructor(term: Terminal) {
+	constructor(term: GhosttyTerminalSource) {
 		this.term = term;
 	}
 

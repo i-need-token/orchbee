@@ -4,7 +4,7 @@
 
 `orchbee/module-boundaries` treats each directory in an `apps/*/src` or `packages/*/src` tree as a source module. The `src` directory is the root module. A `__tests__` directory belongs to its nearest source-module ancestor and does not create a module.
 
-Every source module must have an `index.ts` boundary entry. Files in the same module may import one another directly. Every dependency that crosses into another module must import that module's `index.ts`; a file path below that boundary is private even when TypeScript can resolve it.
+Every source module must have an `index.ts` boundary entry. Files in the same module may import one another directly. A descendant may also import an ancestor's implementation directly because ancestor internals are inside its lexical visibility. Every lateral dependency must import the target module's `index.ts`; a file path below a lateral boundary is private even when TypeScript can resolve it.
 
 ## Module visibility
 
@@ -13,7 +13,7 @@ Source-module visibility follows lexical tree scope:
 | Source module | Target module                          | Allowed | Required target     |
 | ------------- | -------------------------------------- | ------- | ------------------- |
 | `B/B1`        | `B/B1` itself                          | Yes     | Implementation file |
-| `B/B1`        | `B` or another ancestor                | Yes     | `index.ts`          |
+| `B/B1`        | `B` or another ancestor                | Yes     | Implementation file |
 | `B/B1`        | `A`, a sibling of an ancestor          | Yes     | `index.ts`          |
 | `B/B1`        | `B/B2`, a sibling at the current level | Yes     | `index.ts`          |
 | `B/B1`        | `A/A1`, a different subtree            | No      | Hidden              |
@@ -55,7 +55,7 @@ The second import remains forbidden even though `src/a/a1/index.ts` exists. Its 
 
 ## Tests
 
-Production source must never import from `__tests__`. Tests inherit their owning module's visibility and may directly import private implementation files only from that same module.
+Production source must never import from `__tests__`. Tests inherit their owning module's visibility, including access to ancestor test helpers. Package-level tests in `src/__tests__` may exercise descendant modules through their `index.ts`, but never through private descendant files.
 
 ## Composition and cycles
 

@@ -14,7 +14,7 @@
 // Primitives
 // ============================================================================
 
-import type { TerminalOpenTarget } from './host/terminal-host';
+import type { TerminalOpenTarget } from './terminal-contracts';
 
 /** RGB color (0-255 per channel, matches GhosttyColorRgb C struct). */
 export interface RGB {
@@ -705,7 +705,7 @@ export type PointTag = (typeof PointTag)[keyof typeof PointTag];
 export interface WasmExports extends WebAssembly.Exports {
 	readonly ghostty_build_info: (data: number, outputPtr: number) => number;
 	readonly memory: WebAssembly.Memory;
-	readonly __indirect_function_table: WebAssembly.Table;
+	readonly ['__indirect_function_table']: WebAssembly.Table;
 
 	// Memory helpers
 	readonly ghostty_wasm_alloc_opaque: () => number;

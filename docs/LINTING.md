@@ -20,6 +20,12 @@
 - Type-aware oxlint rules are not active until `oxlint-tsgolint` is added during package review; never assume lint currently detects floating promises or unsafe third-party `any` propagation.
 - Never weaken a rule to pass existing code; fix the code or obtain human approval for a project-policy change.
 
+## Approved dependency exceptions
+
+| Workspace       | Dependency | Reason                                                     | Exit condition                                                                               |
+| --------------- | ---------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Repository root | `zod`      | Human-approved retention for upcoming schema-boundary work | Remove the Knip exception when the first root consumer is added or the dependency is removed |
+
 ## Custom rule ownership
 
 | Rule                                        | Authority                                     |

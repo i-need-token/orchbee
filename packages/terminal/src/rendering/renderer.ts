@@ -17,19 +17,19 @@
  * - Link underline rendering (OSC8 + regex URLs)
  */
 
-import type { SelectionManager } from './selection-manager';
-import { applyFontMetricModifiers, type DetailedFontMetrics } from './font-metrics';
+import type { SelectionManager } from '../selection';
+import { applyFontMetricModifiers, type DetailedFontMetrics } from '../font-metrics';
 import {
 	cellConstraintWidth,
 	constrainGlyph,
 	glyphConstraintForCodepoint,
 	type GlyphSize,
-} from './glyph-constraints';
-import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from './ghostty-sprites';
-import { searchMatchContainsCell, type TerminalSearchMatch } from './search/terminal-search';
-import { additionalSurfaceMargins, balanceGridPadding } from './surface-size';
-import { buildTextShapingPlan, type TextShapingCell, type TextShapingPlan } from './text-shaping';
-import { CellFlags, UnderlineStyle } from './types';
+} from '../glyph-constraints';
+import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from '../ghostty-sprites';
+import { searchMatchContainsCell, type TerminalSearchMatch } from '../search';
+import { additionalSurfaceMargins, balanceGridPadding } from '../surface-size';
+import { buildTextShapingPlan, type TextShapingCell, type TextShapingPlan } from '../text-shaping';
+import { CellFlags, UnderlineStyle } from '../types';
 import type {
 	FontMetrics,
 	FontMetricModifiers,
@@ -41,7 +41,7 @@ import type {
 	SelectionCoordinates,
 	PaddingBalance,
 	SurfacePadding,
-} from './types';
+} from '../types';
 
 export type RendererHealthEvent =
 	| { readonly state: 'ready'; readonly backend: 'webgpu' }
@@ -323,15 +323,27 @@ fn fs(input: VertexOutput) -> @location(0) vec4f {
 // WebGPURenderer Class
 // ============================================================================
 
+function pushRect(
+	target: number[],
+	x: number,
+	y: number,
+	width: number,
+	height: number,
+	color: readonly [number, number, number],
+	alpha = 1,
+): void {
+	target.push(x, y, width, height, color[0] / 255, color[1] / 255, color[2] / 255, alpha);
+}
+
 export class WebGPURenderer {
 	private canvas: HTMLCanvasElement;
 	private device: GPUDevice | null = null;
 	private context: GPUCanvasContext | null = null;
-	private format: GPUTextureFormat = 'bgra8unorm';
+	private format: GPUTextureFormat;
 
 	// Fallback Canvas 2D renderer
 	private ctx2d: CanvasRenderingContext2D | null = null;
-	private useWebGPU: boolean = false;
+	private useWebGPU = false;
 
 	// Font
 	private fontSize: number;
@@ -344,7 +356,7 @@ export class WebGPURenderer {
 
 	// Cursor
 	private cursorBlink: boolean;
-	private cursorVisible: boolean = true;
+	private cursorVisible = true;
 	private focused = false;
 	private cursorAppearanceDirty = false;
 	private cursorBlinkInterval: ReturnType<typeof setInterval> | undefined;
@@ -397,7 +409,7 @@ export class WebGPURenderer {
 	private allowTransparency: boolean;
 
 	// Viewport
-	private lastViewportY: number = 0;
+	private lastViewportY = 0;
 	private lastScrollbarOpacity = 0;
 
 	// Buffer reference for grapheme lookups
@@ -412,8 +424,8 @@ export class WebGPURenderer {
 	private currentAbsoluteTop = 0;
 
 	// Link hover
-	private hoveredHyperlinkId: number = 0;
-	private previousHoveredHyperlinkId: number = 0;
+	private hoveredHyperlinkId = 0;
+	private previousHoveredHyperlinkId = 0;
 	private hoveredLinkRange: { startX: number; startY: number; endX: number; endY: number } | null =
 		null;
 	private previousHoveredLinkRange: {
@@ -429,10 +441,10 @@ export class WebGPURenderer {
 	private atlasTexture: GPUTexture | null = null;
 	private atlasSampler: GPUSampler | null = null;
 	private glyphMap: Map<string, GlyphAtlasEntry> = new Map();
-	private atlasX: number = 0;
-	private atlasY: number = 0;
-	private atlasRowHeight: number = 0;
-	private atlasDirty: boolean = false;
+	private atlasX = 0;
+	private atlasY = 0;
+	private atlasRowHeight = 0;
+	private atlasDirty = false;
 	private atlasDirtyBounds: AtlasDirtyBounds | null = null;
 
 	// WebGPU pipeline resources
@@ -448,6 +460,7 @@ export class WebGPURenderer {
 
 	constructor(canvas: HTMLCanvasElement, options: RendererOptions = {}) {
 		this.canvas = canvas;
+		this.format = 'bgra8unorm';
 		this.fontSize = options.fontSize ?? 15;
 		this.fontFamily = options.fontFamily ?? 'monospace';
 		this.fontLigatures = options.fontLigatures ?? true;
@@ -1264,10 +1277,10 @@ export class WebGPURenderer {
 
 	render(
 		buffer: IRenderable,
-		forceAll: boolean = false,
-		viewportY: number = 0,
+		forceAll = false,
+		viewportY = 0,
 		scrollbackProvider?: IScrollbackProvider,
-		scrollbarOpacity: number = 1,
+		scrollbarOpacity = 1,
 	): void {
 		const backend = this.getBackend();
 		if (backend === 'uninitialized') return;
@@ -1443,18 +1456,6 @@ export class WebGPURenderer {
 		);
 		const atlasW = this.atlasCanvas.width;
 		const atlasH = this.atlasCanvas.height;
-
-		const pushRect = (
-			target: number[],
-			x: number,
-			y: number,
-			width: number,
-			height: number,
-			color: readonly [number, number, number],
-			alpha = 1,
-		): void => {
-			target.push(x, y, width, height, color[0] / 255, color[1] / 255, color[2] / 255, alpha);
-		};
 
 		for (let y = 0; y < dims.rows; y++) {
 			const line = this.fetchLine(buffer, y, viewportY, scrollbackProvider, scrollbackLength);

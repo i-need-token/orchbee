@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ContextMenuRegistry } from '../context-menu-registry';
-import type { TerminalInteractionContext } from '../../host/terminal-host';
+import type { TerminalInteractionContext } from '../../host';
 
 const context: TerminalInteractionContext = {
 	cell: null,

@@ -1,7 +1,7 @@
 import type { IBufferRange, TerminalHandle } from '../types';
 import { PointTag, Result, TerminalData, TerminalOption } from '../types';
 import type { WasmBridge } from '../wasm-bridge';
-import type { ClipboardPayload } from '../host/terminal-host';
+import type { ClipboardPayload } from '../host';
 
 const POINT_SIZE = 24;
 const POINT_COORDINATE_SIZE = 8;

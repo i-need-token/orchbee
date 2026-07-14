@@ -37,8 +37,8 @@
  * ```
  */
 
-import { Grid } from './grid';
-import { getBridge, WasmBridge } from './wasm-bridge';
+import { Grid } from '../grid';
+import { getBridge, WasmBridge } from '../wasm-bridge';
 import {
 	buildModeTag,
 	COLOR_RGB_SIZE,
@@ -65,87 +65,81 @@ import {
 	type ILinkProvider,
 	type IUnicodeVersionProvider,
 	type RendererOptions,
-} from './types';
-import { EventEmitter, type IDisposable, type IEvent } from './event-emitter';
+} from '../types';
+import { EventEmitter, type IDisposable, type IEvent } from '../event-emitter';
 import {
 	DEFAULT_THEME,
 	type RendererFrameTelemetry,
 	type RendererHealthEvent,
 	WebGPURenderer,
-} from './renderer';
+} from '../rendering';
 import {
+	buildPreeditState,
+	calculateInputAnchor,
+	classifySurfaceMousePlatform,
+	encodePaste,
 	InputHandler,
+	inspectPaste,
+	KeyEventRegistry,
+	OrderedInputDispatcher,
+	resolveSurfaceMouseCursor,
 	type CompositionSelection,
 	type InputHandlerDependencies,
-} from './input-handler';
-import {
-	SelectionManager,
-	type ISelectionTerminal,
-	type SelectionCopyResult,
-} from './selection-manager';
-import {
-	GhosttySelectionController,
-	type GhosttySelectionAdjustment,
-} from './selection/ghostty-selection';
-import { LinkDetector, type ITerminalForLinkDetector } from './link-detector';
-import { OSC8LinkProvider } from './providers/osc8-link-provider';
-import { UrlRegexProvider } from './providers/url-regex-provider';
-import { PathLinkProvider } from './providers/path-link-provider';
-import { GhosttyTerminal } from './ghostty-terminal';
-import { BufferNamespace } from './buffer';
-import { createBrowserTerminalHost } from './host/browser-terminal-host';
-import type {
-	ClipboardPayload,
-	TerminalHost,
-	TerminalHostErrorEvent,
-	TerminalInteractionContext,
-	TerminalModifierState,
-} from './host/terminal-host';
-import {
-	encodePaste,
-	inspectPaste,
 	type PasteResult,
 	type PasteSource,
-} from './input/paste-policy';
-import { calculateInputAnchor } from './input/input-anchor';
-import { OrderedInputDispatcher } from './input/ordered-input-dispatcher';
-import { buildPreeditState } from './input/preedit';
-import { classifySurfaceMousePlatform, resolveSurfaceMouseCursor } from './input/surface-mouse';
-import { KeyEventRegistry, type TerminalKeyEventHandler } from './input/key-event-registry';
+	type TerminalKeyEventHandler,
+} from '../input';
+import {
+	GhosttySelectionController,
+	SelectionManager,
+	type GhosttySelectionAdjustment,
+	type ISelectionTerminal,
+	type SelectionCopyResult,
+} from '../selection';
+import { LinkDetector, type ITerminalForLinkDetector } from '../link-detector';
+import { OSC8LinkProvider, PathLinkProvider, UrlRegexProvider } from '../providers';
+import { GhosttyTerminal } from '../ghostty-terminal';
+import { BufferNamespace } from '../buffer';
+import {
+	createBrowserTerminalHost,
+	resolveHostCapabilities,
+	type ClipboardPayload,
+	type TerminalHost,
+	type TerminalHostErrorEvent,
+	type TerminalInteractionContext,
+	type TerminalModifierState,
+} from '../host';
+import {
+	formatTerminalIdentity,
+	readGhosttyBuildCapabilities,
+	type GhosttyBuildCapabilities,
+	type TerminalProtocolIdentity,
+} from '../protocol';
 import {
 	buildAccessibleRow,
 	TerminalAccessibility,
 	type AccessibleOffsetRange,
 	type AccessibleRow,
 	type AccessibleTextRange,
-} from './accessibility/terminal-accessibility';
+} from '../accessibility';
 import {
 	findTerminalMatches,
 	type TerminalSearchMatch,
 	type TerminalSearchOptions,
-} from './search/terminal-search';
+} from '../search';
 import {
 	TerminalActionRegistry,
 	type TerminalActionResult,
 	type TerminalActionSource,
-} from './actions/action-registry';
+} from '../actions';
 import {
 	ContextMenuRegistry,
 	type ContextMenuItem,
 	type ContextMenuProvider,
-} from './context-menu/context-menu-registry';
-import { resolveHostCapabilities } from './host/terminal-capabilities';
-import {
-	formatTerminalIdentity,
-	type TerminalProtocolIdentity,
-} from './protocol/terminal-identity';
-import {
-	readGhosttyBuildCapabilities,
-	type GhosttyBuildCapabilities,
-} from './protocol/build-capabilities';
+} from '../context-menu';
 
 // Re-export types for the public API
-export type { TerminalConfig } from './types';
+export type { TerminalConfig } from '../types';
 
 export interface TerminalOptions extends ITerminalOptions {
 	readonly host?: TerminalHost;
@@ -175,8 +169,8 @@ export class Terminal {
 	private readonly bridge: WasmBridge;
 	private handle: TerminalHandle;
 	private rsHandle: number;
-	private _cols: number;
-	private _rows: number;
+	private columnCount: number;
+	private rowCount: number;
 	private writePtyCallback: { readonly index: number; dispose(): void } | undefined;
 	private bellCallback: { readonly index: number; dispose(): void } | undefined;
 	private titleCallback: { readonly index: number; dispose(): void } | undefined;
@@ -242,20 +236,20 @@ export class Terminal {
 				throw new TypeError('Terminal dimensions must be numbers');
 			}
 			this.bridge = bridgeOrCols;
-			this._cols = rowsOrConfig;
-			this._rows = colsOrConfig;
+			this.columnCount = rowsOrConfig;
+			this.rowCount = colsOrConfig;
 			resolvedConfig = configArg;
 		} else if (typeof bridgeOrCols === 'number') {
 			if (typeof rowsOrConfig !== 'number') throw new TypeError('Terminal rows must be a number');
 			this.bridge = getBridge();
-			this._cols = bridgeOrCols;
-			this._rows = rowsOrConfig;
+			this.columnCount = bridgeOrCols;
+			this.rowCount = rowsOrConfig;
 			resolvedConfig = typeof colsOrConfig === 'object' ? colsOrConfig : undefined;
 		} else {
 			this.bridge = getBridge();
 			optionInput = bridgeOrCols;
-			this._cols = optionInput.cols ?? 80;
-			this._rows = optionInput.rows ?? 24;
+			this.columnCount = optionInput.cols ?? 80;
+			this.rowCount = optionInput.rows ?? 24;
 			const theme = optionInput.theme;
 			resolvedConfig = {
 				scrollbackLimit: optionInput.scrollback ?? 10000,
@@ -267,12 +261,12 @@ export class Terminal {
 		this.host = optionInput.host ?? createBrowserTerminalHost();
 		this.ghosttyBuildCapabilities = readGhosttyBuildCapabilities(this.bridge);
 		this.inputDispatcher = new OrderedInputDispatcher((error) =>
-			this._onHostError.fire({ operation: 'input-dispatch', error }),
+			this.onHostErrorEmitter.fire({ operation: 'input-dispatch', error }),
 		);
 
 		const baseOptions: Required<ITerminalOptions> = {
-			cols: this._cols,
-			rows: this._rows,
+			cols: this.columnCount,
+			rows: this.rowCount,
 			cursorBlink: optionInput.cursorBlink ?? false,
 			cursorStyle: optionInput.cursorStyle ?? 'block',
 			theme: optionInput.theme ?? {},
@@ -311,11 +305,11 @@ export class Terminal {
 			this.enquiryLength === 0 ? 0 : this.bridge.allocU8Array(this.enquiryLength);
 		if (this.enquiryLength > 0) this.bridge.writeBytes(this.enquiryBuffer, enquiryBytes);
 
-		this.handle = this.createHandle(this._cols, this._rows, resolvedConfig);
+		this.handle = this.createHandle(this.columnCount, this.rowCount, resolvedConfig);
 		this.setPaletteOnHandle(this.handle, optionInput.theme ?? {});
 		this.writePtyCallback = this.bridge.registerCallback4((_terminal, _userdata, data, len) => {
 			const response = new TextDecoder().decode(this.bridge.readBytes(data, len));
-			if (response.length > 0) this._onData.fire(response);
+			if (response.length > 0) this.onDataEmitter.fire(response);
 		});
 		const callbackResult = this.bridge
 			.getExports()
@@ -327,17 +321,19 @@ export class Terminal {
 			this.handle = 0;
 			throw new Error(`Failed to register Ghostty write_pty callback: ${callbackResult}`);
 		}
-		this.bellCallback = this.bridge.registerCallback2(() => this._onBell.fire());
+		this.bellCallback = this.bridge.registerCallback2(() => this.onBellEmitter.fire());
 		this.titleCallback = this.bridge.registerCallback2(() =>
-			this._onTitleChange.fire(this.getTitle()),
+			this.onTitleChangeEmitter.fire(this.getTitle()),
 		);
-		this.pwdCallback = this.bridge.registerCallback2(() => this._onPwdChange.fire(this.getPwd()));
+		this.pwdCallback = this.bridge.registerCallback2(() =>
+			this.onPwdChangeEmitter.fire(this.getPwd()),
+		);
 		this.sizeCallback = this.bridge.registerCallback3ReturningI32(
 			(_terminal, _userdata, output) => {
 				const metrics = this.renderer?.getMetrics() ?? { width: 8, height: 16 };
 				const size = this.bridge.createView(output, 12);
-				size.setUint16(0, this._rows, true);
-				size.setUint16(2, this._cols, true);
+				size.setUint16(0, this.rowCount, true);
+				size.setUint16(2, this.columnCount, true);
 				size.setUint32(4, Math.max(1, Math.round(metrics.width)), true);
 				size.setUint32(8, Math.max(1, Math.round(metrics.height)), true);
 				return 1;
@@ -388,7 +384,7 @@ export class Terminal {
 		this.setDefaultCursorBlink(this.options.cursorBlink);
 		this.selectionController = new GhosttySelectionController(this.bridge, this.handle);
 		this.rsHandle = this.createRenderState();
-		this.grid = new Grid(this.bridge, this.handle, this.rsHandle, this._cols, this._rows);
+		this.grid = new Grid(this.bridge, this.handle, this.rsHandle, this.columnCount, this.rowCount);
 		this.ghosttyTerm = new GhosttyTerminal(this);
 		this.buffer = new BufferNamespace(this);
 		this.lastAlternateScreen = this.isAlternateScreen();
@@ -396,11 +392,11 @@ export class Terminal {
 	}
 
 	get cols(): number {
-		return this._cols;
+		return this.columnCount;
 	}
 
 	get rows(): number {
-		return this._rows;
+		return this.rowCount;
 	}
 
 	get capabilities(): TerminalCapabilities {
@@ -443,22 +439,22 @@ export class Terminal {
 			this.bridge.getExports().ghostty_terminal_vt_write(this.handle, ptr, bytes.length);
 			this.linkDetector?.invalidateCache();
 			const newScrollbackLength = this.grid.getScrollbackLength();
-			if (this._viewportY > 0 && newScrollbackLength > oldScrollbackLength) {
-				this._viewportY = Math.min(
+			if (this.viewportOffset > 0 && newScrollbackLength > oldScrollbackLength) {
+				this.viewportOffset = Math.min(
 					newScrollbackLength,
-					this._viewportY + newScrollbackLength - oldScrollbackLength,
+					this.viewportOffset + newScrollbackLength - oldScrollbackLength,
 				);
-				this.targetViewportY = this._viewportY;
+				this.targetViewportY = this.viewportOffset;
 			}
 			const alternateScreen = this.isAlternateScreen();
 			if (alternateScreen !== this.lastAlternateScreen) {
 				this.lastAlternateScreen = alternateScreen;
 				this.inputHandler?.cancelComposition();
 				this.selectionManager?.clearSelection();
-				this._viewportY = 0;
+				this.viewportOffset = 0;
 				this.targetViewportY = 0;
 				this.cancelSmoothScroll();
-				this.buffer._fireBufferChange(this.buffer.active);
+				this.buffer.emitBufferChange(this.buffer.active);
 			}
 		} finally {
 			this.bridge.freeU8Array(ptr, bytes.length);
@@ -508,7 +504,7 @@ export class Terminal {
 					if (!resolution) return this.blockDrop('file-drop-rejected');
 					resolvedText = resolution.text;
 				} catch (error) {
-					this._onHostError.fire({ operation: 'resolve-drop', error });
+					this.onHostErrorEmitter.fire({ operation: 'resolve-drop', error });
 					return this.blockDrop('file-drop-failed');
 				}
 			}
@@ -563,7 +559,7 @@ export class Terminal {
 					replacedControlBytes: inspection.replacedControlBytes,
 				});
 			} catch (error) {
-				this._onHostError.fire({ operation: 'confirm-paste', error });
+				this.onHostErrorEmitter.fire({ operation: 'confirm-paste', error });
 				return { kind: 'blocked', reason: 'paste-confirmation-failed', source, inspection };
 			}
 			if (!confirmed) return { kind: 'cancelled', source, inspection };
@@ -598,7 +594,7 @@ export class Terminal {
 		this.inputHandler?.cancelComposition();
 		this.selectionManager?.clearSelection();
 		this.bridge.getExports().ghostty_terminal_reset(this.handle);
-		this._viewportY = 0;
+		this.viewportOffset = 0;
 		this.targetViewportY = 0;
 		this.cancelSmoothScroll();
 		this.linkDetector?.invalidateCache();
@@ -606,11 +602,11 @@ export class Terminal {
 	}
 
 	focus(): void {
-		(this._textarea ?? this._element)?.focus();
+		(this.textAreaElement ?? this.hostElement)?.focus();
 	}
 
 	blur(): void {
-		(this._textarea ?? this._element)?.blur();
+		(this.textAreaElement ?? this.hostElement)?.blur();
 	}
 
 	/**
@@ -622,9 +618,9 @@ export class Terminal {
 	 * @param cellHeightPx Height of a single cell in pixels.
 	 */
 	resize(cols: number, rows: number, cellWidthPx = 8, cellHeightPx = 16): void {
-		if (cols === this._cols && rows === this._rows) return;
-		this._cols = cols;
-		this._rows = rows;
+		if (cols === this.columnCount && rows === this.rowCount) return;
+		this.columnCount = cols;
+		this.rowCount = rows;
 		this.options.cols = cols;
 		this.options.rows = rows;
 
@@ -633,11 +629,11 @@ export class Terminal {
 			.ghostty_terminal_resize(this.handle, cols, rows, cellWidthPx, cellHeightPx);
 		this.grid.resize(cols, rows);
 		this.linkDetector?.invalidateCache();
-		this._viewportY = Math.min(this._viewportY, this.grid.getScrollbackLength());
-		this.targetViewportY = this._viewportY;
+		this.viewportOffset = Math.min(this.viewportOffset, this.grid.getScrollbackLength());
+		this.targetViewportY = this.viewportOffset;
 		this.renderer?.resize(cols, rows);
 		this.requestRender();
-		this._onResize.fire({ cols, rows });
+		this.onResizeEmitter.fire({ cols, rows });
 	}
 
 	/** Free all WASM resources. Terminal is unusable after dispose(). */
@@ -672,22 +668,22 @@ export class Terminal {
 		}
 		this.accessibility?.dispose();
 		this.accessibility = undefined;
-		this._element?.removeEventListener('focusin', this.handleFocusIn);
-		this._element?.removeEventListener('focusout', this.handleFocusOut);
-		this._element?.removeEventListener('dragover', this.handleDragOver);
-		this._element?.removeEventListener('drop', this.handleDrop);
+		this.hostElement?.removeEventListener('focusin', this.handleFocusIn);
+		this.hostElement?.removeEventListener('focusout', this.handleFocusOut);
+		this.hostElement?.removeEventListener('dragover', this.handleDragOver);
+		this.hostElement?.removeEventListener('drop', this.handleDrop);
 		if (this.visibilityListenerAttached) {
 			document.removeEventListener('visibilitychange', this.handleVisibilityChange);
 			this.visibilityListenerAttached = false;
 		}
 		this.detachDevicePixelRatioListeners();
-		this._textarea?.remove();
-		if (this._element && this.originalElementPosition !== undefined) {
-			this._element.style.position = this.originalElementPosition;
+		this.textAreaElement?.remove();
+		if (this.hostElement && this.originalElementPosition !== undefined) {
+			this.hostElement.style.position = this.originalElementPosition;
 		}
 		this.canvas = undefined;
-		this._textarea = undefined;
-		this._element = undefined;
+		this.textAreaElement = undefined;
+		this.hostElement = undefined;
 		this.originalElementPosition = undefined;
 
 		this.grid.dispose();
@@ -737,10 +733,10 @@ export class Terminal {
 	private linkDetector: LinkDetector | undefined;
 	private readonly ghosttyTerm: GhosttyTerminal;
 	private canvas: HTMLCanvasElement | undefined;
-	private _textarea: HTMLTextAreaElement | undefined;
-	private renderLoopId: number = 0;
-	private _viewportY: number = 0;
-	private _element: HTMLElement | undefined;
+	private textAreaElement: HTMLTextAreaElement | undefined;
+	private renderLoopId = 0;
+	private viewportOffset = 0;
+	private hostElement: HTMLElement | undefined;
 	private originalElementPosition: string | undefined;
 	private preeditCellWidth = 0;
 	private preeditCaretPixelOffset = 0;
@@ -756,29 +752,29 @@ export class Terminal {
 	private scrollbarDragStartViewportY = 0;
 
 	// Scrollbar state
-	private scrollbarOpacity: number = 0;
+	private scrollbarOpacity = 0;
 	private scrollbarFadeTimer: ReturnType<typeof setTimeout> | undefined;
 
 	// Events
-	private readonly _onData = new EventEmitter<string>();
+	private readonly onDataEmitter = new EventEmitter<string>();
 	private readonly onBinaryEmitter = new EventEmitter<string>();
-	private readonly _onResize = new EventEmitter<{ cols: number; rows: number }>();
-	private readonly _onBell = new EventEmitter<void>();
-	private readonly _onSelectionChange = new EventEmitter<void>();
-	private readonly _onKey = new EventEmitter<IKeyEvent>();
-	private readonly _onTitleChange = new EventEmitter<string>();
-	private readonly _onPwdChange = new EventEmitter<string>();
-	private readonly _onScroll = new EventEmitter<number>();
-	private readonly _onRender = new EventEmitter<void>();
-	private readonly _onCursorMove = new EventEmitter<{ x: number; y: number }>();
-	private readonly _onHostError = new EventEmitter<TerminalHostErrorEvent>();
-	private readonly _onRendererHealth = new EventEmitter<RendererHealthEvent>();
-	private readonly _onRendererTelemetry = new EventEmitter<RendererFrameTelemetry>();
+	private readonly onResizeEmitter = new EventEmitter<{ cols: number; rows: number }>();
+	private readonly onBellEmitter = new EventEmitter<void>();
+	private readonly onSelectionChangeEmitter = new EventEmitter<void>();
+	private readonly onKeyEmitter = new EventEmitter<IKeyEvent>();
+	private readonly onTitleChangeEmitter = new EventEmitter<string>();
+	private readonly onPwdChangeEmitter = new EventEmitter<string>();
+	private readonly onScrollEmitter = new EventEmitter<number>();
+	private readonly onRenderEmitter = new EventEmitter<void>();
+	private readonly onCursorMoveEmitter = new EventEmitter<{ x: number; y: number }>();
+	private readonly onHostErrorEmitter = new EventEmitter<TerminalHostErrorEvent>();
+	private readonly onRendererHealthEmitter = new EventEmitter<RendererHealthEvent>();
+	private readonly onRendererTelemetryEmitter = new EventEmitter<RendererFrameTelemetry>();
 
 	/** Open the terminal in a parent DOM element. */
 	async open(parent: HTMLElement, options?: ITerminalOptions): Promise<void> {
 		if (this.handle === 0) throw new Error('Cannot open a disposed terminal');
-		if (this._element) throw new Error('Terminal is already open');
+		if (this.hostElement) throw new Error('Terminal is already open');
 		try {
 			await this.openInternal(parent, options);
 		} catch (error) {
@@ -814,7 +810,7 @@ export class Terminal {
 			if (options.theme) this.options.theme = { ...this.options.theme, ...options.theme };
 		}
 		await this.loadConfiguredFont();
-		this._element = parent;
+		this.hostElement = parent;
 		if (window.getComputedStyle(parent).position === 'static') {
 			this.originalElementPosition = parent.style.position;
 			parent.style.position = 'relative';
@@ -852,9 +848,9 @@ export class Terminal {
 		textarea.style.fontFamily = this.options.fontFamily;
 		textarea.style.fontSize = `${this.options.fontSize}px`;
 		parent.appendChild(textarea);
-		this._textarea = textarea;
+		this.textAreaElement = textarea;
 		canvas.setAttribute('aria-hidden', 'true');
-		this.accessibility = new TerminalAccessibility(parent, this._rows, {
+		this.accessibility = new TerminalAccessibility(parent, this.rowCount, {
 			onSelectionChange: (range) => this.handleAccessibleSelection(range),
 		});
 
@@ -874,9 +870,9 @@ export class Terminal {
 		rendererOpts.allowTransparency = resolvedOptions.allowTransparency;
 		this.renderer = new WebGPURenderer(canvas, rendererOpts);
 		this.renderer.setRenderRequestCallback(() => this.requestRender());
-		this.renderer.setHealthChangeCallback((event) => this._onRendererHealth.fire(event));
+		this.renderer.setHealthChangeCallback((event) => this.onRendererHealthEmitter.fire(event));
 		this.renderer.setFrameTelemetryCallback((telemetry) =>
-			this._onRendererTelemetry.fire(telemetry),
+			this.onRendererTelemetryEmitter.fire(telemetry),
 		);
 		await this.renderer.initGPU();
 
@@ -888,7 +884,7 @@ export class Terminal {
 		this.setDefaultCursorBlink(resolvedOptions.cursorBlink);
 
 		// Resize canvas to terminal dimensions
-		this.renderer.resize(this._cols, this._rows);
+		this.renderer.resize(this.columnCount, this.rowCount);
 		this.updateInputPosition();
 
 		// Create selection manager
@@ -897,11 +893,11 @@ export class Terminal {
 				? { clipboard: this.host.clipboard }
 				: {}),
 			copyOnSelect: this.options.copyOnSelect,
-			onCopyError: (error) => this._onHostError.fire({ operation: 'clipboard-write', error }),
+			onCopyError: (error) => this.onHostErrorEmitter.fire({ operation: 'clipboard-write', error }),
 			selectionModel: this.selectionController,
 		});
 		this.selectionManager.onSelectionChange(() => {
-			this._onSelectionChange.fire();
+			this.onSelectionChangeEmitter.fire();
 			this.actions.notifyStateChange('terminal.copy');
 			this.actions.notifyStateChange('terminal.clear-selection');
 		});
@@ -912,8 +908,8 @@ export class Terminal {
 			this.createInputDeps(),
 			parent,
 			(data: string) => this.emitUserInput(data),
-			() => this._onBell.fire(),
-			(keyEvent: IKeyEvent) => this._onKey.fire(keyEvent),
+			() => this.onBellEmitter.fire(),
+			(keyEvent: IKeyEvent) => this.onKeyEmitter.fire(keyEvent),
 			(event) => this.dispatchCustomKeyEvent(event),
 			() => {
 				return this.selectionManager?.copySelection() ?? false;
@@ -924,7 +920,7 @@ export class Terminal {
 				void this.pasteAsync(data, source);
 			},
 			(id) => this.dispatchKeyboardAction(id),
-			(error) => this._onHostError.fire({ operation: 'input-encode', error }),
+			(error) => this.onHostErrorEmitter.fire({ operation: 'input-encode', error }),
 		);
 
 		// Create link detector + providers
@@ -994,29 +990,29 @@ export class Terminal {
 			this.visibilityListenerAttached = false;
 		}
 		this.detachDevicePixelRatioListeners();
-		this._element?.removeEventListener('focusin', this.handleFocusIn);
-		this._element?.removeEventListener('focusout', this.handleFocusOut);
-		this._element?.removeEventListener('dragover', this.handleDragOver);
-		this._element?.removeEventListener('drop', this.handleDrop);
-		this._textarea?.remove();
-		if (this._element && this.originalElementPosition !== undefined) {
-			this._element.style.position = this.originalElementPosition;
+		this.hostElement?.removeEventListener('focusin', this.handleFocusIn);
+		this.hostElement?.removeEventListener('focusout', this.handleFocusOut);
+		this.hostElement?.removeEventListener('dragover', this.handleDragOver);
+		this.hostElement?.removeEventListener('drop', this.handleDrop);
+		this.textAreaElement?.remove();
+		if (this.hostElement && this.originalElementPosition !== undefined) {
+			this.hostElement.style.position = this.originalElementPosition;
 		}
 		this.canvas = undefined;
-		this._textarea = undefined;
-		this._element = undefined;
+		this.textAreaElement = undefined;
+		this.hostElement = undefined;
 		this.originalElementPosition = undefined;
 		this.renderedDefaultColorsKey = '';
 	}
 
 	/** Get the terminal's DOM element. */
 	get element(): HTMLElement | undefined {
-		return this._element;
+		return this.hostElement;
 	}
 
 	/** Get the hidden textarea element (for IME/mobile keyboard). */
 	get textarea(): HTMLTextAreaElement | undefined {
-		return this._textarea;
+		return this.textAreaElement;
 	}
 
 	getAccessibleText(): string {
@@ -1044,46 +1040,46 @@ export class Terminal {
 	// ==========================================================================
 
 	get onData(): IEvent<string> {
-		return this._onData.event;
+		return this.onDataEmitter.event;
 	}
 	get onBinary(): IEvent<string> {
 		return this.onBinaryEmitter.event;
 	}
 	get onResize(): IEvent<{ cols: number; rows: number }> {
-		return this._onResize.event;
+		return this.onResizeEmitter.event;
 	}
 	get onBell(): IEvent<void> {
-		return this._onBell.event;
+		return this.onBellEmitter.event;
 	}
 	get onSelectionChange(): IEvent<void> {
-		return this._onSelectionChange.event;
+		return this.onSelectionChangeEmitter.event;
 	}
 	get onKey(): IEvent<IKeyEvent> {
-		return this._onKey.event;
+		return this.onKeyEmitter.event;
 	}
 	get onTitleChange(): IEvent<string> {
-		return this._onTitleChange.event;
+		return this.onTitleChangeEmitter.event;
 	}
 	get onPwdChange(): IEvent<string> {
-		return this._onPwdChange.event;
+		return this.onPwdChangeEmitter.event;
 	}
 	get onScroll(): IEvent<number> {
-		return this._onScroll.event;
+		return this.onScrollEmitter.event;
 	}
 	get onRender(): IEvent<void> {
-		return this._onRender.event;
+		return this.onRenderEmitter.event;
 	}
 	get onCursorMove(): IEvent<{ x: number; y: number }> {
-		return this._onCursorMove.event;
+		return this.onCursorMoveEmitter.event;
 	}
 	get onHostError(): IEvent<TerminalHostErrorEvent> {
-		return this._onHostError.event;
+		return this.onHostErrorEmitter.event;
 	}
 	get onRendererHealth(): IEvent<RendererHealthEvent> {
-		return this._onRendererHealth.event;
+		return this.onRendererHealthEmitter.event;
 	}
 	get onRendererTelemetry(): IEvent<RendererFrameTelemetry> {
-		return this._onRendererTelemetry.event;
+		return this.onRendererTelemetryEmitter.event;
 	}
 
 	getRendererTelemetry(): RendererFrameTelemetry | null {
@@ -1148,7 +1144,7 @@ export class Terminal {
 			lines.push(this.ghosttyTerm.getScrollbackCellData(row) ?? []);
 			wrappedRows.push(this.ghosttyTerm.isScrollbackRowWrapped(row));
 		}
-		for (let row = 0; row < this._rows; row++) {
+		for (let row = 0; row < this.rowCount; row++) {
 			lines.push(this.ghosttyTerm.getCellDataLine(row) ?? []);
 			wrappedRows.push(this.ghosttyTerm.isRowWrapped(row));
 		}
@@ -1181,19 +1177,19 @@ export class Terminal {
 	// ==========================================================================
 
 	get viewportY(): number {
-		return this._viewportY;
+		return this.viewportOffset;
 	}
 
 	getViewportY(): number {
-		return this._viewportY;
+		return this.viewportOffset;
 	}
 
 	scrollLines(amount: number): void {
-		this.setViewportY(this._viewportY - amount);
+		this.setViewportY(this.viewportOffset - amount);
 	}
 
 	scrollPages(amount: number): void {
-		this.scrollLines(amount * this._rows);
+		this.scrollLines(amount * this.rowCount);
 	}
 
 	scrollToTop(): void {
@@ -1210,13 +1206,13 @@ export class Terminal {
 	private setViewportY(value: number): void {
 		this.cancelSmoothScroll();
 		const next = Math.max(0, Math.min(value, this.grid.getScrollbackLength()));
-		if (next === this._viewportY) {
+		if (next === this.viewportOffset) {
 			this.targetViewportY = next;
 			return;
 		}
-		this._viewportY = next;
-		this.targetViewportY = this._viewportY;
-		this._onScroll.fire(this._viewportY);
+		this.viewportOffset = next;
+		this.targetViewportY = this.viewportOffset;
+		this.onScrollEmitter.fire(this.viewportOffset);
 		this.requestRender();
 	}
 
@@ -1317,7 +1313,7 @@ export class Terminal {
 				context: interaction,
 			});
 		} catch (error) {
-			this._onHostError.fire({ operation: 'context-menu', error });
+			this.onHostErrorEmitter.fire({ operation: 'context-menu', error });
 			return { kind: 'blocked', reason: 'context-menu-failed' };
 		}
 		if (requestId !== this.contextMenuRequestId || !selectedAction) return null;
@@ -1363,13 +1359,13 @@ export class Terminal {
 		this.renderer.render(
 			this.ghosttyTerm,
 			!hadFrame || dirty === DirtyState.FULL,
-			this._viewportY,
+			this.viewportOffset,
 			this.ghosttyTerm,
 			this.scrollbarOpacity,
 		);
 		this.updateAccessibility();
 		this.updateInputPosition();
-		this._onRender.fire();
+		this.onRenderEmitter.fire();
 	}
 
 	private ensureSnapshot(): void {
@@ -1382,25 +1378,25 @@ export class Terminal {
 
 	private updateAccessibility(): void {
 		if (!this.accessibility) return;
-		const offset = Math.floor(this._viewportY);
+		const offset = Math.floor(this.viewportOffset);
 		const scrollbackLength = this.grid.getScrollbackLength();
 		const rows: AccessibleRow[] = [];
-		for (let row = 0; row < this._rows; row++) {
+		for (let row = 0; row < this.rowCount; row++) {
 			const sourceRow = row - offset;
 			const cells =
 				sourceRow < 0
 					? this.ghosttyTerm.getScrollbackCellData(scrollbackLength + sourceRow)
 					: this.ghosttyTerm.getCellDataLine(sourceRow);
-			rows.push(buildAccessibleRow(cells ?? [], this._cols));
+			rows.push(buildAccessibleRow(cells ?? [], this.columnCount));
 		}
 		const cursor = this.ghosttyTerm.getCursor();
 		const selection = this.getSelectionPosition();
 		const accessibleSelection =
 			selection &&
 			selection.start.y >= 0 &&
-			selection.start.y < this._rows &&
+			selection.start.y < this.rowCount &&
 			selection.end.y >= 0 &&
-			selection.end.y < this._rows
+			selection.end.y < this.rowCount
 				? {
 						start: { row: selection.start.y, column: selection.start.x },
 						end: { row: selection.end.y, column: selection.end.x },
@@ -1421,16 +1417,16 @@ export class Terminal {
 			return;
 		}
 
-		const top = this.grid.getScrollbackLength() - Math.floor(this._viewportY);
+		const top = this.grid.getScrollbackLength() - Math.floor(this.viewportOffset);
 		const start = {
-			x: Math.min(this._cols - 1, range.start.column),
+			x: Math.min(this.columnCount - 1, range.start.column),
 			y: top + range.start.row,
 		};
 		const end =
 			range.end.column === 0 && range.end.row > range.start.row
-				? { x: this._cols - 1, y: top + range.end.row - 1 }
+				? { x: this.columnCount - 1, y: top + range.end.row - 1 }
 				: {
-						x: Math.max(0, Math.min(this._cols - 1, range.end.column - 1)),
+						x: Math.max(0, Math.min(this.columnCount - 1, range.end.column - 1)),
 						y: top + range.end.row,
 					};
 		this.selectionManager.selectAbsoluteRange(start, end);
@@ -1469,17 +1465,17 @@ export class Terminal {
 
 	private revealAbsoluteRow(row: number): void {
 		const scrollbackLength = this.grid.getScrollbackLength();
-		const top = scrollbackLength - Math.floor(this._viewportY);
-		const bottom = top + this._rows - 1;
-		let viewportY = this._viewportY;
+		const top = scrollbackLength - Math.floor(this.viewportOffset);
+		const bottom = top + this.rowCount - 1;
+		let viewportY = this.viewportOffset;
 		if (row < top) viewportY = scrollbackLength - row;
-		else if (row > bottom) viewportY = scrollbackLength - (row - this._rows + 1);
+		else if (row > bottom) viewportY = scrollbackLength - (row - this.rowCount + 1);
 		viewportY = Math.max(0, Math.min(scrollbackLength, viewportY));
-		if (viewportY === this._viewportY) return;
-		this._viewportY = viewportY;
+		if (viewportY === this.viewportOffset) return;
+		this.viewportOffset = viewportY;
 		this.targetViewportY = viewportY;
 		this.cancelSmoothScroll();
-		this._onScroll.fire(viewportY);
+		this.onScrollEmitter.fire(viewportY);
 		this.requestRender();
 	}
 
@@ -1491,7 +1487,7 @@ export class Terminal {
 			cursor.y !== this.lastCursorPosition.y
 		) {
 			this.lastCursorPosition = { x: cursor.x, y: cursor.y };
-			this._onCursorMove.fire(this.lastCursorPosition);
+			this.onCursorMoveEmitter.fire(this.lastCursorPosition);
 		}
 	}
 
@@ -1528,7 +1524,7 @@ export class Terminal {
 			const lineHeight = this.renderer?.getMetrics().height ?? 20;
 			let deltaLines = e.deltaY / lineHeight;
 			if (e.deltaMode === 1) deltaLines = e.deltaY;
-			if (e.deltaMode === 2) deltaLines = e.deltaY * this._rows;
+			if (e.deltaMode === 2) deltaLines = e.deltaY * this.rowCount;
 			this.smoothScrollTo(this.targetViewportY - deltaLines);
 
 			// Show scrollbar
@@ -1554,17 +1550,17 @@ export class Terminal {
 		this.scrollAnimationFrame = 0;
 		const elapsed = Math.max(1, timestamp - this.scrollAnimationLastTime);
 		this.scrollAnimationLastTime = timestamp;
-		const distance = this.targetViewportY - this._viewportY;
+		const distance = this.targetViewportY - this.viewportOffset;
 		if (Math.abs(distance) < 0.01) {
-			this._viewportY = this.targetViewportY;
-			this._onScroll.fire(this._viewportY);
+			this.viewportOffset = this.targetViewportY;
+			this.onScrollEmitter.fire(this.viewportOffset);
 			this.requestRender();
 			return;
 		}
 		const duration = Math.max(1, this.options.smoothScrollDuration);
 		const progress = 1 - Math.exp((-5 * elapsed) / duration);
-		this._viewportY += distance * progress;
-		this._onScroll.fire(this._viewportY);
+		this.viewportOffset += distance * progress;
+		this.onScrollEmitter.fire(this.viewportOffset);
 		this.requestRender();
 		this.scrollAnimationFrame = requestAnimationFrame(this.animateScroll);
 	};
@@ -1585,12 +1581,12 @@ export class Terminal {
 		const metrics = this.renderer.getMetrics();
 		const col = Math.floor((event.clientX - rect.left) / metrics.width);
 		const viewportRow = Math.floor((event.clientY - rect.top) / metrics.height);
-		if (col < 0 || col >= this._cols || viewportRow < 0 || viewportRow >= this._rows) {
+		if (col < 0 || col >= this.columnCount || viewportRow < 0 || viewportRow >= this.rowCount) {
 			this.clearHoveredLink();
 			return;
 		}
 
-		const visibleTop = this.grid.getScrollbackLength() - this._viewportY;
+		const visibleTop = this.grid.getScrollbackLength() - this.viewportOffset;
 		const lookupId = ++this.linkLookupId;
 		void this.linkDetector.getLinkAt(col, visibleTop + viewportRow).then((link) => {
 			if (lookupId !== this.linkLookupId) return;
@@ -1609,14 +1605,14 @@ export class Terminal {
 		if (!link || !this.isLinkActivationEnabled(link, this.surfaceModifiers)) return;
 		if (link.target) {
 			if (!this.host.openTarget || !this.capabilities.openTarget) {
-				this._onHostError.fire({
+				this.onHostErrorEmitter.fire({
 					operation: 'open-target',
 					error: new Error('The terminal host does not support opening targets'),
 				});
 				return;
 			}
 			void this.host.openTarget({ source: 'link', target: link.target }).catch((error: unknown) => {
-				this._onHostError.fire({ operation: 'open-target', error });
+				this.onHostErrorEmitter.fire({ operation: 'open-target', error });
 			});
 			return;
 		}
@@ -1646,11 +1642,11 @@ export class Terminal {
 		if (rect) {
 			const column = Math.floor((clientX - rect.left) / dimensions.width);
 			const row = Math.floor((clientY - rect.top) / dimensions.height);
-			if (column >= 0 && column < this._cols && row >= 0 && row < this._rows) {
+			if (column >= 0 && column < this.columnCount && row >= 0 && row < this.rowCount) {
 				cell = {
 					column,
 					row,
-					bufferRow: this.grid.getScrollbackLength() + row - Math.floor(this._viewportY),
+					bufferRow: this.grid.getScrollbackLength() + row - Math.floor(this.viewportOffset),
 				};
 			}
 		}
@@ -1754,7 +1750,7 @@ export class Terminal {
 		const renderer = this.renderer;
 		if (!renderer) return;
 		renderer.setHoveredHyperlinkId(0);
-		const visibleTop = this.grid.getScrollbackLength() - this._viewportY;
+		const visibleTop = this.grid.getScrollbackLength() - this.viewportOffset;
 		renderer.setHoveredLinkRange(
 			link && enabled
 				? {
@@ -1771,12 +1767,12 @@ export class Terminal {
 		if (event.button !== 0) return;
 		event.preventDefault();
 		this.updateInputPosition();
-		this._textarea?.focus();
+		this.textAreaElement?.focus();
 	};
 
 	private readonly handleInputFocusTouchEnd = (event: TouchEvent): void => {
 		event.preventDefault();
-		this._textarea?.focus();
+		this.textAreaElement?.focus();
 	};
 
 	private emitUserInput(data: string): void {
@@ -1787,7 +1783,7 @@ export class Terminal {
 		if (this.handle === 0) return;
 		if (this.options.disableStdin) return;
 		this.selectionManager?.clearSelection();
-		this._onData.fire(data);
+		this.onDataEmitter.fire(data);
 	}
 
 	private emitUserBinary(data: string): void {
@@ -1835,8 +1831,8 @@ export class Terminal {
 	}
 
 	private updateInputPosition(): void {
-		if (!this._textarea || !this._element || !this.canvas || !this.renderer) return;
-		const elementRect = this._element.getBoundingClientRect();
+		if (!this.textAreaElement || !this.hostElement || !this.canvas || !this.renderer) return;
+		const elementRect = this.hostElement.getBoundingClientRect();
 		const canvasRect = this.canvas.getBoundingClientRect();
 		const metrics = this.renderer.getMetrics();
 		const anchor = calculateInputAnchor({
@@ -1846,20 +1842,20 @@ export class Terminal {
 			elementTop: elementRect.top,
 			cursorColumn: this.cursorX,
 			cursorRow: this.cursorY,
-			columns: this._cols,
-			rows: this._rows,
+			columns: this.columnCount,
+			rows: this.rowCount,
 			cellWidth: metrics.width,
 			cellHeight: metrics.height,
 			preeditCellWidth: this.preeditCellWidth,
 			preeditCaretPixelOffset: this.preeditCaretPixelOffset,
 		});
-		this._textarea.style.left = `${anchor.left}px`;
-		this._textarea.style.top = `${anchor.top}px`;
-		this._textarea.style.width = `${anchor.width}px`;
-		this._textarea.style.height = `${anchor.height}px`;
-		this._textarea.style.lineHeight = `${anchor.height}px`;
-		this._textarea.style.fontFamily = this.options.fontFamily;
-		this._textarea.style.fontSize = `${this.options.fontSize}px`;
+		this.textAreaElement.style.left = `${anchor.left}px`;
+		this.textAreaElement.style.top = `${anchor.top}px`;
+		this.textAreaElement.style.width = `${anchor.width}px`;
+		this.textAreaElement.style.height = `${anchor.height}px`;
+		this.textAreaElement.style.lineHeight = `${anchor.height}px`;
+		this.textAreaElement.style.fontFamily = this.options.fontFamily;
+		this.textAreaElement.style.fontSize = `${this.options.fontSize}px`;
 	}
 
 	private async loadConfiguredFont(): Promise<void> {
@@ -1869,7 +1865,7 @@ export class Terminal {
 		try {
 			await fonts.load(`${this.options.fontSize}px ${this.options.fontFamily}`, 'MW你🚀');
 		} catch (error) {
-			this._onHostError.fire({ operation: 'font-load', error });
+			this.onHostErrorEmitter.fire({ operation: 'font-load', error });
 		}
 	}
 
@@ -1894,20 +1890,20 @@ export class Terminal {
 		const metrics = this.getScrollbarMetrics(rect.height, scrollbackLength);
 		const pointerY = event.clientY - rect.top;
 		const currentThumbY =
-			metrics.padding + metrics.travel * (1 - this._viewportY / scrollbackLength);
+			metrics.padding + metrics.travel * (1 - this.viewportOffset / scrollbackLength);
 		if (pointerY < currentThumbY || pointerY > currentThumbY + metrics.thumbHeight) {
 			const ratio = Math.max(
 				0,
 				Math.min(1, (pointerY - metrics.padding - metrics.thumbHeight / 2) / metrics.travel),
 			);
-			this._viewportY = Math.round((1 - ratio) * scrollbackLength);
-			this.targetViewportY = this._viewportY;
+			this.viewportOffset = Math.round((1 - ratio) * scrollbackLength);
+			this.targetViewportY = this.viewportOffset;
 			this.cancelSmoothScroll();
-			this._onScroll.fire(this._viewportY);
+			this.onScrollEmitter.fire(this.viewportOffset);
 		}
 		this.draggingScrollbar = true;
 		this.scrollbarDragStartY = event.clientY;
-		this.scrollbarDragStartViewportY = this._viewportY;
+		this.scrollbarDragStartViewportY = this.viewportOffset;
 		this.requestRender();
 	};
 
@@ -1920,12 +1916,12 @@ export class Terminal {
 		);
 		const deltaRows =
 			((event.clientY - this.scrollbarDragStartY) / Math.max(1, metrics.travel)) * scrollbackLength;
-		this._viewportY = Math.max(
+		this.viewportOffset = Math.max(
 			0,
 			Math.min(scrollbackLength, Math.round(this.scrollbarDragStartViewportY - deltaRows)),
 		);
-		this.targetViewportY = this._viewportY;
-		this._onScroll.fire(this._viewportY);
+		this.targetViewportY = this.viewportOffset;
+		this.onScrollEmitter.fire(this.viewportOffset);
 		this.requestRender();
 	};
 
@@ -1945,7 +1941,10 @@ export class Terminal {
 	} {
 		const padding = 4;
 		const trackHeight = canvasHeight - padding * 2;
-		const thumbHeight = Math.max(20, (this._rows / (scrollbackLength + this._rows)) * trackHeight);
+		const thumbHeight = Math.max(
+			20,
+			(this.rowCount / (scrollbackLength + this.rowCount)) * trackHeight,
+		);
 		return { padding, thumbHeight, travel: Math.max(1, trackHeight - thumbHeight) };
 	}
 
@@ -1966,7 +1965,7 @@ export class Terminal {
 
 	private readonly handleFocusOut = (event: FocusEvent): void => {
 		const relatedTarget = event.relatedTarget;
-		if (relatedTarget instanceof Node && this._element?.contains(relatedTarget)) return;
+		if (relatedTarget instanceof Node && this.hostElement?.contains(relatedTarget)) return;
 		this.renderer?.setFocused(false);
 		this.inputHandler?.releasePressedKeys();
 		this.inputHandler?.cancelComposition();
@@ -2037,20 +2036,20 @@ export class Terminal {
 	}
 
 	private disposeEvents(): void {
-		this._onData.dispose();
+		this.onDataEmitter.dispose();
 		this.onBinaryEmitter.dispose();
-		this._onResize.dispose();
-		this._onBell.dispose();
-		this._onSelectionChange.dispose();
-		this._onKey.dispose();
-		this._onTitleChange.dispose();
-		this._onPwdChange.dispose();
-		this._onScroll.dispose();
-		this._onRender.dispose();
-		this._onCursorMove.dispose();
-		this._onHostError.dispose();
-		this._onRendererHealth.dispose();
-		this._onRendererTelemetry.dispose();
+		this.onResizeEmitter.dispose();
+		this.onBellEmitter.dispose();
+		this.onSelectionChangeEmitter.dispose();
+		this.onKeyEmitter.dispose();
+		this.onTitleChangeEmitter.dispose();
+		this.onPwdChangeEmitter.dispose();
+		this.onScrollEmitter.dispose();
+		this.onRenderEmitter.dispose();
+		this.onCursorMoveEmitter.dispose();
+		this.onHostErrorEmitter.dispose();
+		this.onRendererHealthEmitter.dispose();
+		this.onRendererTelemetryEmitter.dispose();
 	}
 
 	// ==========================================================================
@@ -2068,7 +2067,7 @@ export class Terminal {
 			},
 			getScreenDimensions: () => {
 				const metrics = this.renderer?.getMetrics() ?? { width: 8, height: 16 };
-				return { width: metrics.width * this._cols, height: metrics.height * this._rows };
+				return { width: metrics.width * this.columnCount, height: metrics.height * this.rowCount };
 			},
 			getCanvasOffset: () => {
 				const rect = this.canvas?.getBoundingClientRect() ?? { left: 0, top: 0 };
@@ -2083,13 +2082,13 @@ export class Terminal {
 	private createSelectionTerminal(): ISelectionTerminal {
 		return {
 			getCellDimensions: () => this.renderer?.getMetrics() ?? { width: 8, height: 16 },
-			getDimensions: () => ({ cols: this._cols, rows: this._rows }),
+			getDimensions: () => ({ cols: this.columnCount, rows: this.rowCount }),
 			getCanvasOffset: () => {
 				const rect = this.canvas?.getBoundingClientRect() ?? { left: 0, top: 0 };
 				return { left: rect.left, top: rect.top };
 			},
 			getScrollbackLength: () => this.grid.getScrollbackLength(),
-			getViewportY: () => this._viewportY,
+			getViewportY: () => this.viewportOffset,
 			getLine: (row) => {
 				this.ensureSnapshot();
 				return this.ghosttyTerm.getLine(row);
@@ -2304,7 +2303,7 @@ export class Terminal {
 	 * @param mode Mode number (e.g., 25 for cursor visibility).
 	 * @param isAnsi True for ANSI modes, false for DEC modes (default: false).
 	 */
-	getMode(mode: number, isAnsi: boolean = false): boolean {
+	getMode(mode: number, isAnsi = false): boolean {
 		const outPtr = this.bridge.allocU8();
 		try {
 			const tag = buildModeTag(mode, isAnsi);
@@ -2371,11 +2370,11 @@ export class Terminal {
 				break;
 			case 'fontSize':
 				this.renderer?.setFontSize(this.options.fontSize);
-				this.renderer?.resize(this._cols, this._rows);
+				this.renderer?.resize(this.columnCount, this.rowCount);
 				break;
 			case 'fontFamily':
 				this.renderer?.setFontFamily(this.options.fontFamily);
-				this.renderer?.resize(this._cols, this._rows);
+				this.renderer?.resize(this.columnCount, this.rowCount);
 				break;
 			case 'fontLigatures':
 				this.renderer?.setFontLigatures(this.options.fontLigatures);
@@ -2425,7 +2424,7 @@ export class Terminal {
 					await openTarget({ source: 'context-menu', target });
 					return { kind: 'consumed' };
 				} catch (error) {
-					this._onHostError.fire({ operation: 'open-target', error });
+					this.onHostErrorEmitter.fire({ operation: 'open-target', error });
 					return { kind: 'blocked', reason: 'open-target-failed' };
 				}
 			},
@@ -2454,7 +2453,7 @@ export class Terminal {
 				try {
 					payload = await clipboard.read({ target: 'standard', source: 'paste' });
 				} catch (error) {
-					this._onHostError.fire({ operation: 'clipboard-read', error });
+					this.onHostErrorEmitter.fire({ operation: 'clipboard-read', error });
 					return { kind: 'blocked', reason: 'clipboard-read-failed' };
 				}
 				if (!payload?.text) return { kind: 'blocked', reason: 'clipboard-empty' };

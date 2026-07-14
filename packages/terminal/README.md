@@ -40,6 +40,15 @@ Pass an explicit WASM URL when your bundler does not preserve package asset URLs
 await init({ source: '/assets/ghostty-vt.wasm' });
 ```
 
+Route optional Ghostty diagnostics through an application-owned logger. Initialization remains silent when `log` is omitted.
+
+```ts
+await init({
+	source: '/assets/ghostty-vt.wasm',
+	log: (message) => applicationLogger.debug(message),
+});
+```
+
 WebGPU is used when available; Canvas 2D is the fallback. The package includes selection, scrollback, mouse and focus reporting, Ghostty key encoding, OSC 8 and plain-URL links, terminal query responses, the buffer API, and `FitAddon`.
 
 The comparison demos load JetBrains Mono 2.304 variable fonts from Ghostty's pinned dependency and include the upstream OFL-1.1 license.

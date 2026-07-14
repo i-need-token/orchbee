@@ -37,11 +37,11 @@ describe('WasmBridge', () => {
 
 	it('registers callbacks that return an i32 to Ghostty', () => {
 		const callback = bridge.registerCallback3ReturningI32((a, b, c) => a + b + c);
-		const trampoline = bridge.getExports().__indirect_function_table.get(callback.index);
+		const trampoline = bridge.getExports()['__indirect_function_table'].get(callback.index);
 		expect(trampoline).toBeTypeOf('function');
 		expect((trampoline as (a: number, b: number, c: number) => number)(1, 2, 3)).toBe(6);
 		callback.dispose();
-		expect(bridge.getExports().__indirect_function_table.get(callback.index)).toBeNull();
+		expect(bridge.getExports()['__indirect_function_table'].get(callback.index)).toBeNull();
 	});
 
 	it('registers three-argument callbacks used by struct-return effects', () => {
@@ -49,7 +49,7 @@ describe('WasmBridge', () => {
 		const callback = bridge.registerCallback3((a, b, c) => {
 			values = [a, b, c];
 		});
-		const trampoline = bridge.getExports().__indirect_function_table.get(callback.index);
+		const trampoline = bridge.getExports()['__indirect_function_table'].get(callback.index);
 		(trampoline as (a: number, b: number, c: number) => void)(4, 5, 6);
 		expect(values).toEqual([4, 5, 6]);
 		callback.dispose();

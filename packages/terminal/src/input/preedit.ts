@@ -1,4 +1,7 @@
-import type { CompositionSelection } from '../input-handler';
+export interface CompositionSelection {
+	readonly start: number;
+	readonly end: number;
+}
 
 export interface PreeditCellData {
 	readonly text: string;
