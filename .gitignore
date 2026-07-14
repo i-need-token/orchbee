@@ -14,5 +14,6 @@ dogfood-output/
 .claude
 
 # Local terminal dogfood
+/packages/terminal/browser/
 /packages/terminal/demo/
 /packages/terminal/test/

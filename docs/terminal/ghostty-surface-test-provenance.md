@@ -21,7 +21,7 @@ The Zig count accepts `test {}`, `test name {}`, and `test "name" {`; earlier co
 
 | Disposition       | Count | Coverage treatment                                                                  |
 | ----------------- | ----: | ----------------------------------------------------------------------------------- |
-| Covered           |   114 | Applicable declaration with Orchbee unit or browser evidence                        |
+| Covered           |   114 | Applicable declaration with tracked Orchbee evidence                                |
 | Gap               |    52 | Applicable observable capability absent or incomplete in the terminal panel         |
 | Browser product   |    70 | Exact native algorithm replaced by `FontFaceSet`, Canvas text, or WebGPU            |
 | Upstream internal |    24 | Allocator injection, native cache/container, or page-layout detail with no analogue |
@@ -34,15 +34,15 @@ Declaration-weighted applicable coverage is `114 / (114 + 52) = 68.7%`; this is 
 
 | Code       | Evidence                                                                                                    |
 | ---------- | ----------------------------------------------------------------------------------------------------------- |
-| `E-RENDER` | `src/__tests__/renderer.unit.test.ts`                                                                       |
+| `E-RENDER` | `src/rendering/__tests__/renderer.unit.test.ts`                                                             |
 | `E-FIT`    | fit tests and `src/__tests__/surface-size.unit.test.ts`                                                     |
-| `E-SHAPE`  | `src/__tests__/text-shaping.unit.test.ts`, renderer tests, and `browser/surface-test.html`                  |
-| `E-SEARCH` | `src/search/__tests__/terminal-search.unit.test.ts` and `src/__tests__/terminal.unit.test.ts`               |
-| `E-LINK`   | link detector, renderer, terminal, and browser surface tests                                                |
-| `E-MOUSE`  | `src/input/__tests__/surface-mouse.unit.test.ts` and browser surface tests                                  |
+| `E-SHAPE`  | `src/__tests__/text-shaping.unit.test.ts` and renderer tests                                                |
+| `E-SEARCH` | `src/search/__tests__/terminal-search.unit.test.ts` and composition terminal tests                          |
+| `E-LINK`   | link-detector, link-provider, renderer, and composition terminal tests                                      |
+| `E-MOUSE`  | `src/input/__tests__/surface-mouse.unit.test.ts` and input-handler tests                                    |
 | `E-IME`    | `src/input/__tests__/preedit.unit.test.ts` and input-handler tests                                          |
-| `E-SELECT` | `src/__tests__/selection-manager.unit.test.ts`                                                              |
-| `E-FONT`   | font-metrics, glyph-constraints, Ghostty sprites, renderer, generated-table, DPR, and browser surface tests |
+| `E-SELECT` | `src/selection/__tests__/selection-manager.unit.test.ts`                                                    |
+| `E-FONT`   | font-metrics, glyph-constraints, Ghostty sprites, renderer, generated-table, and composition terminal tests |
 
 Each declaration named below has the row's disposition and evidence; `<unnamed@line>` identifies an unnamed upstream test at the baseline commit.
 
