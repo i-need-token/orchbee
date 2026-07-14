@@ -5,6 +5,7 @@ packages:
 catalogs:
   default:
     '@rslib/core': ^0.23.2
+    knip: ^6.26.0
     typescript: ^7.0.2
     vitest: ^4.1.10
     zod: ^4.4.3

@@ -10,12 +10,14 @@
 
 - **English is the canonical language.** All code and canonical documentation must be in English; localized documentation is allowed only as a locale-suffixed counterpart to an English source, such as `README.zh-CN.md`.
 - **Documentation is part of the source of truth.** Update affected docs in the same change whenever code, configuration, commands, or public behavior changes; resolve implementation-doc conflicts before continuing dependent work.
+- **Act on structural smells early.** When an in-scope change reveals a clear risk of growth, coupling, ownership ambiguity, or boundary erosion, resolve it before it spreads; if the remedy would materially expand scope, surface the risk before proceeding.
 - **AGENTS.md is a symlink to CLAUDE.md.** Only edit CLAUDE.md.
 - **Never modify lint config to escape errors.** Fix the code, not the config. Changing `.oxlintrc.json` requires explicit human approval.
 
 ## Key Docs Index
 
-- **Architecture**: `docs/ARCHITECTURE.md` — system architecture, module boundaries, data flow
+- **Architecture**: `docs/ARCHITECTURE.md` — system architecture, dependency direction, data flow
+- **Module Boundaries**: `docs/MODULE-BOUNDARIES.md` — source-tree visibility, entry points, composition, and cycles
 - **Packages**: `docs/PACKAGES.md` — package naming, exports, builds, dependencies, and versioning
 - **Code Style**: `docs/CODESTYLE.md` — comments, naming, file structure conventions
 - **Documentation**: `docs/DOCUMENTATION.md` — read before adding, moving, or restructuring docs or changing documented engineering contracts

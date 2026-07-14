@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 import { filenameNamingConvention } from '../filename-naming-convention';
+import { moduleBoundaries } from '../module-boundaries';
 import { noCrossWorkspaceSourceImports } from '../no-cross-workspace-source-imports';
 import { noInlineSuppressions } from '../no-inline-suppressions';
 import { requireUnitTest } from '../require-unit-test';
@@ -35,6 +39,50 @@ const LOCATION = {
 	start: { line: 1, column: 0 },
 	end: { line: 1, column: 1 },
 };
+
+const fixtureRoots = new Set<string>();
+
+function createFixture() {
+	const root = mkdtempSync(join(tmpdir(), 'orchbee-module-boundaries-'));
+	fixtureRoots.add(root);
+	return root;
+}
+
+function writeFixture(root: string, path: string) {
+	const filename = join(root, path);
+	mkdirSync(dirname(filename), { recursive: true });
+	writeFileSync(filename, '');
+	return filename;
+}
+
+function createModuleTree() {
+	const root = createFixture();
+	for (const path of [
+		'packages/example/src/index.ts',
+		'packages/example/src/a/index.ts',
+		'packages/example/src/a/a1/index.ts',
+		'packages/example/src/a/a1/internal.ts',
+		'packages/example/src/b/index.ts',
+		'packages/example/src/b/b1/index.ts',
+		'packages/example/src/b/b1/consumer.ts',
+	]) {
+		writeFixture(root, path);
+	}
+	return root;
+}
+
+function dependencyNode(type: string, source: string) {
+	return {
+		type,
+		loc: LOCATION,
+		source: { value: source, loc: LOCATION },
+	};
+}
+
+afterEach(() => {
+	for (const root of fixtureRoots) rmSync(root, { recursive: true, force: true });
+	fixtureRoots.clear();
+});
 
 describe('filename-naming-convention', () => {
 	it('accepts sibling TSX unit tests with kebab-case paths', () => {
@@ -72,6 +120,78 @@ describe('no-cross-workspace-source-imports', () => {
 			source: { value: '@orchbee/terminal', loc: LOCATION },
 		});
 		expect(reports).toEqual([]);
+	});
+});
+
+describe('module-boundaries', () => {
+	it('allows B1 to import its ancestor sibling A through A index', () => {
+		const root = createModuleTree();
+		const filename = join(root, 'packages/example/src/b/b1/consumer.ts');
+		const { context, reports } = createContext(filename);
+		moduleBoundaries
+			.create(context)
+			.ImportDeclaration(dependencyNode('ImportDeclaration', '../../a'));
+		expect(reports).toEqual([]);
+	});
+
+	it('hides A1 from B1 even when B1 targets the A1 index', () => {
+		const root = createModuleTree();
+		const filename = join(root, 'packages/example/src/b/b1/consumer.ts');
+		const { context, reports } = createContext(filename);
+		moduleBoundaries
+			.create(context)
+			.ImportDeclaration(dependencyNode('ImportDeclaration', '../../a/a1'));
+		expect(reports[0]?.message).toContain('cannot depend on hidden module "src/a/a1"');
+		expect(reports[0]?.message).toContain('src/a/index.ts');
+	});
+
+	it('allows A index to explicitly promote API from its direct child A1 index', () => {
+		const root = createModuleTree();
+		const filename = join(root, 'packages/example/src/a/index.ts');
+		const { context, reports } = createContext(filename);
+		moduleBoundaries
+			.create(context)
+			.ExportNamedDeclaration(dependencyNode('ExportNamedDeclaration', './a1'));
+		expect(reports).toEqual([]);
+	});
+
+	it('rejects direct access to a private file in another module', () => {
+		const root = createModuleTree();
+		const filename = join(root, 'packages/example/src/b/b1/consumer.ts');
+		const { context, reports } = createContext(filename);
+		moduleBoundaries
+			.create(context)
+			.ImportDeclaration(dependencyNode('ImportDeclaration', '../../a/a1/internal'));
+		expect(reports[0]?.message).toContain('bypasses the "src/a/a1" boundary');
+	});
+
+	it('rejects a parent importing its child index', () => {
+		const root = createModuleTree();
+		const filename = writeFixture(root, 'packages/example/src/b/parent.ts');
+		const { context, reports } = createContext(filename);
+		moduleBoundaries.create(context).ImportDeclaration(dependencyNode('ImportDeclaration', './b1'));
+		expect(reports[0]?.message).toContain('cannot depend on hidden module "src/b/b1"');
+	});
+
+	it('requires an index for every source module', () => {
+		const root = createFixture();
+		writeFixture(root, 'packages/example/src/index.ts');
+		const filename = writeFixture(root, 'packages/example/src/missing/implementation.ts');
+		const { context, reports } = createContext(filename);
+		moduleBoundaries.create(context).Program({ type: 'Program', loc: LOCATION, body: [] });
+		expect(reports[0]?.message).toContain('"src/missing" must define index.ts');
+	});
+
+	it('keeps boundary indexes export-only and explicit', () => {
+		const root = createModuleTree();
+		const filename = join(root, 'packages/example/src/a/index.ts');
+		const { context, reports } = createContext(filename);
+		moduleBoundaries.create(context).Program({
+			type: 'Program',
+			loc: LOCATION,
+			body: [{ type: 'ExportAllDeclaration', loc: LOCATION }],
+		});
+		expect(reports[0]?.message).toContain('only explicit named re-exports');
 	});
 });
 

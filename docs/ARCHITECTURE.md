@@ -14,8 +14,12 @@ apps/* -> packages/* -> external dependencies
 
 - Package naming, manifests, public exports, builds, dependencies, and versioning follow [`docs/PACKAGES.md`](PACKAGES.md).
 - `orchbee/no-cross-workspace-source-imports`: Import another workspace package through its public package exports; never cross into another `apps/*/src` or `packages/*/src` tree.
-- Relative imports may access internal modules only inside the current app or package.
+- Relative imports inside one app or package follow [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md).
 - Each package defines its public API through `package.json#exports`; `src/index.ts` implements the root export when present.
+
+## Source module boundaries
+
+Source trees use hierarchical visibility and explicit `index.ts` entry points. The authoritative visibility, re-export, test, composition, and cycle rules live in [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md) and are enforced by `orchbee/module-boundaries` plus `import/no-cycle`.
 
 ## Current modules
 

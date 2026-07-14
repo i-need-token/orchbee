@@ -1,0 +1,24 @@
+{
+	"$schema": "./node_modules/knip/schema.json",
+	"treatConfigHintsAsErrors": true,
+	"workspaces": {
+		".": {
+			"entry": [
+				"scripts/*.mjs",
+				"scripts/oxlint-plugin-orchbee/index.js",
+				"scripts/oxlint-plugin-orchbee/vitest.config.ts",
+				"vitest.config.ts"
+			],
+			"project": ["scripts/**/*.{js,mjs,ts}", "*.{js,mjs,ts}"]
+		},
+		"packages/*": {
+			"entry": [
+				"src/index.ts",
+				"src/**/*.unit.test.{ts,tsx}",
+				"rslib.config.ts",
+				"vitest.config.ts"
+			],
+			"project": ["src/**/*.{ts,tsx}", "*.ts"]
+		}
+	}
+}

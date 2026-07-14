@@ -1,0 +1,66 @@
+# Module Boundaries
+
+## Source module tree
+
+`orchbee/module-boundaries` treats each directory in an `apps/*/src` or `packages/*/src` tree as a source module. The `src` directory is the root module. A `__tests__` directory belongs to its nearest source-module ancestor and does not create a module.
+
+Every source module must have an `index.ts` boundary entry. Files in the same module may import one another directly. Every dependency that crosses into another module must import that module's `index.ts`; a file path below that boundary is private even when TypeScript can resolve it.
+
+## Module visibility
+
+Source-module visibility follows lexical tree scope:
+
+| Source module | Target module                          | Allowed | Required target     |
+| ------------- | -------------------------------------- | ------- | ------------------- |
+| `B/B1`        | `B/B1` itself                          | Yes     | Implementation file |
+| `B/B1`        | `B` or another ancestor                | Yes     | `index.ts`          |
+| `B/B1`        | `A`, a sibling of an ancestor          | Yes     | `index.ts`          |
+| `B/B1`        | `B/B2`, a sibling at the current level | Yes     | `index.ts`          |
+| `B/B1`        | `A/A1`, a different subtree            | No      | Hidden              |
+| `B`           | `B/B1`, a child or descendant          | No      | Hidden              |
+| `A/A1`        | `B/B1`, a cousin subtree               | No      | Hidden              |
+
+The rule applies equally to runtime imports, type-only imports, dynamic imports, and re-exports.
+
+## Boundary entry points
+
+An `index.ts` is an export manifest, not an implementation file. It may contain only explicit named re-exports with a source, including `export type`; imports, declarations, executable statements, local exports, default exports, and `export *` are forbidden.
+
+An index may re-export its own module's implementation files and the `index.ts` of a direct child. Deeper APIs must be promoted one boundary at a time.
+
+```text
+src/
+├── a/
+│   ├── index.ts
+│   └── a1/
+│       └── index.ts
+└── b/
+    ├── index.ts
+    └── b1/
+        ├── index.ts
+        └── consumer.ts
+```
+
+```ts
+// src/a/index.ts: explicitly promote selected A1 API through A.
+export { createA1 } from './a1';
+export type { A1Options } from './a1';
+
+// src/b/b1/consumer.ts
+import { createA1 } from '../../a'; // Allowed through A's boundary.
+import { createA1 as hiddenA1 } from '../../a/a1'; // Forbidden: A1 is hidden from B1.
+```
+
+The second import remains forbidden even though `src/a/a1/index.ts` exists. Its API becomes visible to `B/B1` only through the explicit exports of `src/a/index.ts`. TypeScript verifies that the requested symbol is actually exported.
+
+## Tests
+
+Production source must never import from `__tests__`. Tests inherit their owning module's visibility and may directly import private implementation files only from that same module.
+
+## Composition and cycles
+
+Parent modules do not act as composition roots for their children. Put orchestration in a dedicated leaf module that consumes visible sibling boundaries, then re-export its API upward when needed.
+
+A module implementation must not import its own `index.ts`, because that creates a barrel cycle; import the local implementation file directly.
+
+`import/no-cycle` runs with `ignoreTypes: false`, so type-only cycles fail lint alongside runtime cycles. Break a cycle by moving shared contracts to the nearest mutually visible module, inverting the dependency behind an interface, or introducing a dedicated sibling module; do not suppress or downgrade the rule.

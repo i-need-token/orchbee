@@ -37,7 +37,7 @@
     "no-console": "warn",
 
     "import/no-default-export": "error",
-    "import/no-cycle": "error",
+    "import/no-cycle": ["error", { "ignoreTypes": false }],
     "import/no-self-import": "error",
     "import/no-duplicates": "error",
 
@@ -49,6 +49,7 @@
     "react/rules-of-hooks": "error",
 
     "orchbee/filename-naming-convention": "error",
+    "orchbee/module-boundaries": "error",
     "orchbee/no-cross-workspace-source-imports": "error",
     "orchbee/no-inline-suppressions": "error",
     "orchbee/require-unit-test": "error"

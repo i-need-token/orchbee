@@ -83,11 +83,11 @@ Every library exposes these scripts:
 
 ```ts
 // ❌ A new internal export silently becomes public.
-export * from './session-store.js';
+export * from './session-store';
 
 // ✅ Values and types are reviewed independently.
-export { SessionStore } from './session-store.js';
-export type { SessionSnapshot, SessionStoreOptions } from './session-store.js';
+export { SessionStore } from './session-store';
+export type { SessionSnapshot, SessionStoreOptions } from './session-store';
 ```
 
 Removing or changing an exported symbol, type, subpath, or asset is a breaking API change. Moving an internal file without changing `exports` is not.
@@ -141,6 +141,7 @@ After changing a manifest or build configuration, run the package build and veri
 - Use `devDependencies` for build, test, type, and deliberately bundled implementation-only dependencies.
 - Reference workspace libraries with `workspace:^` unless an exact lockstep dependency is required and documented.
 - Declare every direct import in the importing package; do not rely on root or transitive dependencies.
+- `pnpm lint:dependencies` must report no unlisted or unused production dependencies for the changed workspace; its Knip workspace entries must include every supported public entry and executable script.
 - Put shared toolchain versions such as `@rslib/core`, TypeScript, and Vitest in the pnpm default catalog and reference them with `catalog:`.
 - Keep production dependency ranges bounded to compatible versions and update the lockfile in the same change.
 - Set `sideEffects: false` only after confirming the package has no import-time global registration, stylesheet import, polyfill, or other observable side effect. Use an explicit side-effect file list when only selected entry points have effects.
