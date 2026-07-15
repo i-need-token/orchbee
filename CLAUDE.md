@@ -10,6 +10,7 @@
 
 - **English is the canonical language.** All code and canonical documentation must be in English; localized documentation is allowed only as a locale-suffixed counterpart to an English source, such as `README.zh-CN.md`.
 - **Documentation is part of the source of truth.** Update affected docs in the same change whenever code, configuration, commands, or public behavior changes; resolve implementation-doc conflicts before continuing dependent work.
+- **Every tracked file must have durable repository value.** Before adding a file, identify its future consumer, authoritative responsibility, recurring use, and maintenance lifecycle; task history and one-off working artifacts do not belong in the repository.
 - **Act on structural smells early.** When an in-scope change reveals a clear risk of growth, coupling, ownership ambiguity, or boundary erosion, resolve it before it spreads; if the remedy would materially expand scope, surface the risk before proceeding.
 - **AGENTS.md is a symlink to CLAUDE.md.** Only edit CLAUDE.md.
 - **Never modify lint config to escape errors.** Fix the code, not the config. Changing `.oxlintrc.json` requires explicit human approval.
@@ -22,6 +23,7 @@
 - **Projects**: `docs/PROJECTS.md` — machine-readable workspace scope and responsibility contracts
 - **Code Style**: `docs/CODESTYLE.md` — comments, naming, file structure conventions
 - **Documentation**: `docs/DOCUMENTATION.md` — read before adding, moving, or restructuring docs or changing documented engineering contracts
+- **Repository Hygiene**: `docs/REPOSITORY-HYGIENE.md` — tracked-file admission, temporary artifacts, generated files, and pre-handoff review
 - **Linting**: `docs/LINTING.md` — commands, enforcement boundary, and custom-rule ownership
 - **Verification**: `docs/VERIFICATION.md` — the canonical local and CI quality gate
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
