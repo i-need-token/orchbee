@@ -85,6 +85,14 @@ Selection is backed by Ghostty tracked grid references and supports plain, HTML,
 const matches = terminal.findAll('failed', { caseSensitive: false, wholeWord: true });
 terminal.findNext('failed');
 terminal.highlightSearch('failed');
+
+const searchResults = terminal.onSearchResults((event) => {
+	showSearchCount(event.resultIndex, event.resultCount, event.resultLimitReached);
+	showRegexError(event.regexError);
+});
+
+// Interactive find inputs use the built-in 200 ms trailing-edge debounce.
+terminal.updateSearch(searchInput.value, { caseSensitive: false, regex: false });
 terminal.selectOutputAt(column, row);
 terminal.adjustSelection('endOfLine');
 
@@ -109,9 +117,11 @@ const shortcut = terminal.registerKeyEventHandler({
 		return true;
 	},
 });
+
+searchResults.dispose();
 ```
 
-Search navigation remains ordered while matches are revealed from scrollback. Terminal output invalidates rendered search highlights so overwritten or evicted coordinates cannot color unrelated text; callers can run `highlightSearch` again for the updated buffer.
+Search follows the [VS Code terminal find contract](../../docs/terminal/vscode-search-alignment.md): matches advance by their full length without overlap, navigation moves forward/backward and wraps, and highlight/result enumeration stops at 20,000 matches by default without making later matches unreachable to navigation. Literal search ignores combining marks while preserving the original grapheme text and cell range. Set `spanLines: true` to let literal or regular-expression queries cross hard line breaks; soft-wrapped rows are always one logical line. `updateSearch()` debounces interactive input for 200 ms, while navigation remains immediate. Terminal output and resize invalidate stale highlights and restart the latest query after the same debounce.
 
 `terminal.capabilities` reports the active renderer and application-provided host capabilities without advertising unsupported graphics protocols.
 
@@ -127,7 +137,7 @@ The exported `fontSizeAdjustmentScale` helper implements Ghostty's fallback-face
 
 - Hidden-textarea IME input compensates for the browser's composition caret and anchors the candidate UI at the Ghostty-style cursor midpoint; canvas preedit uses one underline without marked-range inversion.
 - Cursor bars, underlines, preedit underlines, and unfocused hollow blocks use one physical pixel; focus restores the configured cursor style and blink behavior.
-- Unsafe paste is classified, sanitized, ordered with keyboard input, optionally confirmed by the host, and rechecked against read-only state after asynchronous confirmation.
+- Unsafe paste is classified, sanitized, ordered with keyboard input, optionally confirmed by the host, and rechecked against read-only state after asynchronous confirmation. Sanitization replaces C0 and C1 controls other than tab, line feed, and carriage return before encoding, including when a confirmed paste is emitted.
 - Entering read-only mode first repairs application key and mouse presses; those ordered release records remain deliverable without changing the viewed scrollback or local selection, so the remote application cannot be left in a stuck input state. IME composition, `beforeinput`, and native paste received while already read-only are rejected without emitting application input.
 - Read-only mode returns mouse ownership to the terminal surface even when the active application left mouse reporting enabled, preserving local scrollback navigation, selection, links, and context menus.
 - Key contributions use stable IDs, priority, ownership scope, and state predicates; focus loss repairs missing Kitty key releases and application mouse releases.
@@ -151,7 +161,7 @@ The exported `fontSizeAdjustmentScale` helper implements Ghostty's fallback-face
 - Runtime theme replacement resolves omitted foreground, background, cursor, and palette entries from the default theme in both Ghostty and the renderer, so assigning an empty theme fully resets prior custom colors.
 - While stdin is writable, application mouse tracking owns unshifted pointer gestures. Shift keeps an entire drag or wheel gesture terminal-owned even if the modifier is released mid-drag; Shift+right-click and Shift+link activation remain explicit host overrides.
 - Dropped text uses the paste safety pipeline; dropped files require host-owned path resolution and shell quoting.
-- Canvas content has an off-screen accessibility mirror with stable UTF-16/cell offsets, two-way DOM selection, cursor position, and live output.
+- Canvas content has an off-screen accessibility mirror with stable UTF-16/cell offsets, two-way DOM selection, cursor position, and ordered multi-row live output that omits unchanged and empty rows. The live region also identifies text removed by backspace, forward delete, line kills, and wide-grapheme deletion.
 - WebGPU glyphs use physical-pixel rasterization and rebuild when browser DPR changes.
 - Regular, italic, bold, and bold-italic cells use the configured regular and bold font weights consistently across WebGPU, Canvas 2D, font measurement, preedit text, and the hidden input surface.
 - The configured primary and fallback font list is loaded through `FontFaceSet` before cell metrics are measured; failures surface through `onHostError` without preventing startup.
@@ -167,7 +177,7 @@ The exported `fontSizeAdjustmentScale` helper implements Ghostty's fallback-face
 - X10, UTF-8, SGR, URXVT, and SGR-pixel mouse reports include horizontal wheel and pixel coordinates.
 - Pointer shape follows Ghostty for mouse reporting, Shift selection override, rectangular selection, and modifier-enabled links.
 - VT output and reset refresh pointer ownership immediately, without waiting for the user to move the mouse.
-- Plain URLs and CWD-relative file paths can span soft-wrapped rows; file links preserve line/column suffixes.
+- Plain URLs and Unicode, POSIX, or Windows file paths can span soft-wrapped rows; CJK sentence punctuation is excluded, CWD-relative paths resolve against OSC PWD, and file links preserve line/column suffixes.
 
 Current Ghostty alignment and remaining gaps are tracked in [Ghostty Terminal Panel Conformance](../../docs/terminal/ghostty-surface-test-provenance.md).
 

@@ -48,6 +48,56 @@ export function normalizeAccessibleRows(lines: readonly string[]): readonly stri
 	return lines.map((line) => line.replaceAll('\u0000', ' ').trimEnd() || ' ');
 }
 
+/** Build a live-region update from non-empty rows whose content changed in place. */
+export function createAccessibilityAnnouncement(
+	rows: readonly string[],
+	previousRows: readonly string[],
+): string {
+	return rows
+		.filter((text, row) => text.trim().length > 0 && text !== previousRows[row])
+		.join('\n');
+}
+
+/** Detect text removed around a stable or left-moving terminal cursor. */
+export function detectAccessibilityDeletion(
+	previousRow: AccessibleRow,
+	currentRow: AccessibleRow,
+	previousCursorColumn: number,
+	currentCursorColumn: number,
+): string | null {
+	if (currentCursorColumn > previousCursorColumn || previousRow.text === currentRow.text) {
+		return null;
+	}
+	if (currentCursorColumn < previousCursorColumn) {
+		const start = rowOffset(previousRow, currentCursorColumn);
+		const end = rowOffset(previousRow, previousCursorColumn);
+		const previous = previousRow.text.slice(start, end);
+		const current = currentRow.text.slice(
+			rowOffset(currentRow, currentCursorColumn),
+			rowOffset(currentRow, previousCursorColumn),
+		);
+		return previous && previous !== current ? previous : null;
+	}
+
+	const previousStart = rowOffset(previousRow, currentCursorColumn);
+	const currentStart = rowOffset(currentRow, currentCursorColumn);
+	const previousTail = previousRow.text.slice(previousStart);
+	const currentTail = currentRow.text.slice(currentStart);
+	if (!previousTail.trim()) return null;
+	if (!currentTail.trim()) return previousTail.trim();
+	if (previousTail.startsWith(currentTail)) return null;
+	const segment = previousRow.segments.find(
+		(candidate) =>
+			currentCursorColumn >= candidate.column &&
+			currentCursorColumn < candidate.column + candidate.width,
+	);
+	return segment ? previousRow.text.slice(segment.start, segment.end) : null;
+}
+
+function rowOffset(row: AccessibleRow, column: number): number {
+	return row.columnOffsets[clamp(column, 0, row.columnCount)] ?? row.text.length;
+}
+
 /** Preserve terminal-cell boundaries while producing screen-reader text. */
 export function buildAccessibleRow(
 	cells: readonly AccessibleCellInput[],
@@ -198,6 +248,8 @@ export class TerminalAccessibility {
 	private readonly options: TerminalAccessibilityOptions;
 	private rowElements: HTMLDivElement[] = [];
 	private previousRows: readonly string[] = [];
+	private previousAccessibleRows: readonly AccessibleRow[] = [];
+	private previousCursor: AccessibleCursor | undefined;
 	private synchronizingSelection = false;
 	private hadOwnedSelection = false;
 	private lastAppliedOffsets: AccessibleOffsetRange | null = null;
@@ -235,14 +287,25 @@ export class TerminalAccessibility {
 	): void {
 		this.model.update(rows);
 		this.resize(rows.length);
-		let announcement = '';
+		const rowTexts = rows.map((row) => row.text);
+		const previousCursor = this.previousCursor;
+		const deletion =
+			previousCursor && previousCursor.row === cursor.row
+				? detectAccessibilityDeletion(
+						this.previousAccessibleRows[cursor.row] ?? buildAccessibleRow([], 0),
+						rows[cursor.row] ?? buildAccessibleRow([], 0),
+						previousCursor.column,
+						cursor.column,
+					)
+				: null;
+		const changedRows = createAccessibilityAnnouncement(rowTexts, this.previousRows);
+		const announcement = deletion ? `Deleted ${deletion}` : changedRows;
 		for (let row = 0; row < rows.length; row++) {
 			const text = rows[row]?.text ?? ' ';
 			const element = this.rowElements[row];
 			if (!element) continue;
 			if (element.textContent !== text) element.textContent = text;
 			element.setAttribute('aria-label', `Row ${row + 1}: ${text}`);
-			if (text !== ' ' && text !== this.previousRows[row]) announcement = text;
 		}
 		this.screen.setAttribute(
 			'aria-label',
@@ -252,7 +315,9 @@ export class TerminalAccessibility {
 		if (announcement && announcement !== this.liveRegion.textContent) {
 			this.liveRegion.textContent = announcement;
 		}
-		this.previousRows = rows.map((row) => row.text);
+		this.previousRows = rowTexts;
+		this.previousAccessibleRows = rows;
+		this.previousCursor = cursor;
 		if (selection && selectionRange) this.selectTerminalRange(selectionRange);
 		else this.clearOwnedDomSelection();
 	}
@@ -323,6 +388,8 @@ export class TerminalAccessibility {
 		this.root.remove();
 		this.rowElements = [];
 		this.previousRows = [];
+		this.previousAccessibleRows = [];
+		this.previousCursor = undefined;
 		this.model.update([]);
 	}
 

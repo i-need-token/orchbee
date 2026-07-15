@@ -55,7 +55,7 @@ function inspectSanitization(
 	if (!bracketed.startsWith('\x1b[200~') || !bracketed.endsWith(BRACKETED_PASTE_END)) {
 		throw new Error('Ghostty returned an invalid bracketed-paste encoding');
 	}
-	const sanitized = bracketed.slice(6, -BRACKETED_PASTE_END.length);
+	const sanitized = replaceUnsafeControlCodes(bracketed.slice(6, -BRACKETED_PASTE_END.length));
 	const originalCharacters = [...text];
 	const sanitizedCharacters = [...sanitized];
 	let replacedControlBytes = 0;
@@ -64,6 +64,21 @@ function inspectSanitization(
 		if (originalCharacters[index] !== sanitizedCharacters[index]) replacedControlBytes++;
 	}
 	return { sanitized, replacedControlBytes };
+}
+
+function replaceUnsafeControlCodes(value: string): string {
+	let sanitized = '';
+	for (const character of value) {
+		const codepoint = character.codePointAt(0) ?? 0;
+		const unsafe =
+			codepoint <= 0x08 ||
+			codepoint === 0x0b ||
+			codepoint === 0x0c ||
+			(codepoint >= 0x0e && codepoint <= 0x1f) ||
+			(codepoint >= 0x7f && codepoint <= 0x9f);
+		sanitized += unsafe ? ' ' : character;
+	}
+	return sanitized;
 }
 
 export function inspectPaste(
@@ -96,5 +111,5 @@ export function inspectPaste(
 }
 
 export function encodePaste(inspection: PasteInspection, codec: PasteCodec): string {
-	return new TextDecoder().decode(codec.encodePaste(inspection.original, inspection.bracketed));
+	return new TextDecoder().decode(codec.encodePaste(inspection.sanitized, inspection.bracketed));
 }

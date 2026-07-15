@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
 	AccessibleTextModel,
 	buildAccessibleRow,
+	createAccessibilityAnnouncement,
+	detectAccessibilityDeletion,
 	normalizeAccessibleRows,
 } from '../terminal-accessibility';
 
@@ -77,3 +79,128 @@ describe('AccessibleTextModel', () => {
 		});
 	});
 });
+
+describe('createAccessibilityAnnouncement', () => {
+	it('skips unchanged old cursor content and empty lines', () => {
+		expect(createAccessibilityAnnouncement(['pwd', ' ', 'Users/deonnel'], ['pwd', ' ', ' '])).toBe(
+			'Users/deonnel',
+		);
+	});
+
+	it('includes a changed old cursor line and subsequent output', () => {
+		expect(createAccessibilityAnnouncement(['hello', 'world'], ['echo hello', ' '])).toBe(
+			'hello\nworld',
+		);
+	});
+
+	it('skips only the unchanged occurrence of repeated cursor text', () => {
+		expect(createAccessibilityAnnouncement(['prompt', 'prompt'], ['prompt', ' '])).toBe('prompt');
+	});
+});
+
+describe('detectAccessibilityDeletion', () => {
+	it.each([
+		{
+			name: 'backspace single character',
+			before: 'hello',
+			after: 'hell',
+			oldCursor: 5,
+			newCursor: 4,
+			expected: 'o',
+		},
+		{
+			name: 'backspace multiple characters',
+			before: 'hello world',
+			after: 'hello ',
+			oldCursor: 11,
+			newCursor: 6,
+			expected: 'world',
+		},
+		{
+			name: 'backspace to beginning of line',
+			before: 'hello',
+			after: '',
+			oldCursor: 5,
+			newCursor: 0,
+			expected: 'hello',
+		},
+		{
+			name: 'cursor moved left without content changing',
+			before: 'hello',
+			after: 'hello',
+			oldCursor: 5,
+			newCursor: 4,
+			expected: null,
+		},
+		{
+			name: 'forward delete single character',
+			before: 'hello',
+			after: 'hllo',
+			oldCursor: 1,
+			newCursor: 1,
+			expected: 'e',
+		},
+		{
+			name: 'kill to end of line',
+			before: 'hello world',
+			after: 'hello',
+			oldCursor: 5,
+			newCursor: 5,
+			expected: 'world',
+		},
+		{
+			name: 'no content or cursor change',
+			before: 'hello',
+			after: 'hello',
+			oldCursor: 3,
+			newCursor: 3,
+			expected: null,
+		},
+		{
+			name: 'cursor moved right',
+			before: 'hello',
+			after: 'hello',
+			oldCursor: 3,
+			newCursor: 4,
+			expected: null,
+		},
+		{
+			name: 'empty rows',
+			before: '',
+			after: '',
+			oldCursor: 0,
+			newCursor: 0,
+			expected: null,
+		},
+	])('$name', ({ before, after, oldCursor, newCursor, expected }) => {
+		expect(
+			detectAccessibilityDeletion(
+				accessibleAsciiRow(before),
+				accessibleAsciiRow(after),
+				oldCursor,
+				newCursor,
+			),
+		).toBe(expected);
+	});
+
+	it('detects deletion of a surrogate-pair emoji as one terminal cell', () => {
+		const before = buildAccessibleRow(
+			[
+				{ text: 'a', width: 1 },
+				{ text: '😀', width: 2 },
+				{ text: '', width: 0 },
+				{ text: 'b', width: 1 },
+			],
+			4,
+		);
+		const after = accessibleAsciiRow('ab');
+		expect(detectAccessibilityDeletion(before, after, 3, 1)).toBe('😀');
+	});
+});
+
+function accessibleAsciiRow(text: string) {
+	return buildAccessibleRow(
+		[...text].map((character) => ({ text: character, width: 1 })),
+		[...text].length,
+	);
+}

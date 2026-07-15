@@ -126,9 +126,14 @@ import {
 	type AccessibleTextRange,
 } from '../accessibility';
 import {
+	findDirectionalTerminalMatch,
 	findTerminalMatches,
+	resolveTerminalSearchResultLimit,
+	TERMINAL_SEARCH_DEBOUNCE_MS,
 	type TerminalSearchMatch,
 	type TerminalSearchOptions,
+	type TerminalSearchResultChangeEvent,
+	validateTerminalSearchQuery,
 } from '../search';
 import {
 	TerminalActionRegistry,
@@ -150,6 +155,11 @@ const POINT_COORDINATE_SIZE = 8;
 interface ViewportResizeAnchor {
 	resolveScreenRow(): number | undefined;
 	dispose(): void;
+}
+
+interface TerminalSearchSnapshot {
+	readonly lines: readonly (readonly CellData[])[];
+	readonly wrappedRows: readonly boolean[];
 }
 
 function createViewportResizeAnchor(
@@ -514,7 +524,7 @@ export class Terminal {
 			this.linkDetector?.invalidateCache();
 			this.clearHoveredLink();
 			this.syncSurfaceMouseOwnership();
-			if (this.searchHighlightsActive) this.clearSearch();
+			this.invalidateSearchAfterBufferChange();
 			const newScrollbackLength = this.grid.getScrollbackLength();
 			if (newScrollbackLength < oldScrollbackLength) {
 				this.setViewportY(Math.min(this.viewportOffset, newScrollbackLength));
@@ -536,6 +546,7 @@ export class Terminal {
 				this.buffer.emitBufferChange(this.buffer.active);
 			}
 			if (this.selectionController.clearSelectionIfInvalid()) {
+				this.searchOwnsSelection = false;
 				this.notifySelectionChange();
 			}
 		} finally {
@@ -733,6 +744,7 @@ export class Terminal {
 			this.grid.resize(cols, rows);
 			this.linkDetector?.invalidateCache();
 			this.clearHoveredLink();
+			this.invalidateSearchAfterBufferChange();
 			const scrollbackLength = this.grid.getScrollbackLength();
 			const anchoredRow = viewportAnchor?.resolveScreenRow();
 			this.viewportOffset = Math.max(
@@ -760,6 +772,7 @@ export class Terminal {
 		if (this.handle === 0) return;
 
 		this.stopRenderLoop();
+		this.cancelScheduledSearch();
 		if (this.scrollbarFadeTimer) clearTimeout(this.scrollbarFadeTimer);
 		this.inputHandler?.dispose();
 		this.selectionManager?.dispose();
@@ -866,7 +879,12 @@ export class Terminal {
 	private preeditCaretPixelOffset = 0;
 	private hoveredLink: ILink | undefined;
 	private hoveredLinkEnabled = false;
-	private searchHighlightsActive = false;
+	private searchQuery = '';
+	private searchOptions: TerminalSearchOptions = {};
+	private searchTimer: ReturnType<typeof setTimeout> | undefined;
+	private searchPendingIncremental = false;
+	private searchOwnsSelection = false;
+	private mutatingSearchSelection = false;
 	private linkLookupId = 0;
 	private surfaceModifiers: TerminalModifierState = EMPTY_MODIFIERS;
 	private surfaceMouseOwnedByApplication = false;
@@ -896,6 +914,7 @@ export class Terminal {
 	private readonly onHostErrorEmitter = new EventEmitter<TerminalHostErrorEvent>();
 	private readonly onRendererHealthEmitter = new EventEmitter<RendererHealthEvent>();
 	private readonly onRendererTelemetryEmitter = new EventEmitter<RendererFrameTelemetry>();
+	private readonly onSearchResultsEmitter = new EventEmitter<TerminalSearchResultChangeEvent>();
 
 	/** Open the terminal in a parent DOM element. */
 	async open(parent: HTMLElement, options?: ITerminalOptions): Promise<void> {
@@ -1035,6 +1054,7 @@ export class Terminal {
 			selectionModel: this.selectionController,
 		});
 		this.selectionManager.onSelectionChange(() => {
+			if (!this.mutatingSearchSelection) this.searchOwnsSelection = false;
 			this.notifySelectionChange();
 		});
 		this.renderer.setSelectionManager(this.selectionManager);
@@ -1218,6 +1238,9 @@ export class Terminal {
 	get onRendererTelemetry(): IEvent<RendererFrameTelemetry> {
 		return this.onRendererTelemetryEmitter.event;
 	}
+	get onSearchResults(): IEvent<TerminalSearchResultChangeEvent> {
+		return this.onSearchResultsEmitter.event;
+	}
 
 	getRendererTelemetry(): RendererFrameTelemetry | null {
 		return this.renderer?.getLastFrameTelemetry() ?? null;
@@ -1245,6 +1268,7 @@ export class Terminal {
 		return this.selectionManager?.hasSelection() ?? false;
 	}
 	clearSelection(): void {
+		this.searchOwnsSelection = false;
 		this.selectionManager?.clearSelection();
 	}
 	copySelection(): boolean {
@@ -1273,42 +1297,62 @@ export class Terminal {
 	}
 
 	findAll(query: string, options: TerminalSearchOptions = {}): readonly TerminalSearchMatch[] {
-		this.ensureSnapshot();
-		const lines: CellData[][] = [];
-		const wrappedRows: boolean[] = [];
-		const scrollbackLength = this.grid.getScrollbackLength();
-		for (let row = 0; row < scrollbackLength; row++) {
-			lines.push(this.ghosttyTerm.getScrollbackCellData(row) ?? []);
-			wrappedRows.push(this.ghosttyTerm.isScrollbackRowWrapped(row));
-		}
-		for (let row = 0; row < this.rowCount; row++) {
-			lines.push(this.ghosttyTerm.getCellDataLine(row) ?? []);
-			wrappedRows.push(this.ghosttyTerm.isRowWrapped(row));
-		}
-		return findTerminalMatches(lines, query, options, wrappedRows);
+		const snapshot = this.captureSearchSnapshot();
+		return findTerminalMatches(snapshot.lines, query, options, snapshot.wrappedRows);
 	}
 
 	findNext(query: string, options: TerminalSearchOptions = {}): boolean {
-		return this.selectSearchMatch(this.findAll(query, options), true);
+		this.cancelScheduledSearch();
+		const snapshot = this.captureSearchSnapshot();
+		const matches = findTerminalMatches(snapshot.lines, query, options, snapshot.wrappedRows);
+		const match = this.findDirectionalSearchMatch(snapshot, query, options, false, false);
+		return this.selectSearchMatch(matches, match, query, options, true);
+	}
+
+	/**
+	 * Schedule a trailing-edge incremental search. Repeated calls within 200 ms collapse into the
+	 * latest query; navigation methods always execute immediately.
+	 */
+	updateSearch(query: string, options: TerminalSearchOptions = {}): void {
+		if (!query) {
+			this.clearOwnedSearchSelection();
+			this.clearSearch();
+			return;
+		}
+		this.scheduleSearch(query, options, true);
 	}
 
 	highlightSearch(
 		query: string,
 		options: TerminalSearchOptions = {},
 	): readonly TerminalSearchMatch[] {
+		this.cancelScheduledSearch();
 		const matches = this.findAll(query, options);
-		this.renderer?.setSearchMatches(matches);
-		this.searchHighlightsActive = matches.length > 0;
+		this.applySearchResults(query, options, matches, null);
 		return matches;
 	}
 
 	clearSearch(): void {
+		this.cancelScheduledSearch();
+		this.searchQuery = '';
+		this.searchOptions = {};
+		this.searchPendingIncremental = false;
 		this.renderer?.setSearchMatches([]);
-		this.searchHighlightsActive = false;
+		this.onSearchResultsEmitter.fire({
+			query: '',
+			regexError: null,
+			resultCount: 0,
+			resultIndex: -1,
+			resultLimitReached: false,
+		});
 	}
 
 	findPrevious(query: string, options: TerminalSearchOptions = {}): boolean {
-		return this.selectSearchMatch(this.findAll(query, options), false);
+		this.cancelScheduledSearch();
+		const snapshot = this.captureSearchSnapshot();
+		const matches = findTerminalMatches(snapshot.lines, query, options, snapshot.wrappedRows);
+		const match = this.findDirectionalSearchMatch(snapshot, query, options, true, false);
+		return this.selectSearchMatch(matches, match, query, options, true);
 	}
 
 	// ==========================================================================
@@ -1578,37 +1622,154 @@ export class Terminal {
 		this.selectionManager.selectAbsoluteRange(start, end);
 	}
 
-	private selectSearchMatch(matches: readonly TerminalSearchMatch[], reverse: boolean): boolean {
-		if (matches.length === 0) {
-			this.clearSearch();
-			this.selectionManager?.clearSelection();
+	private scheduleSearch(
+		query: string,
+		options: TerminalSearchOptions,
+		incremental: boolean,
+	): void {
+		this.cancelScheduledSearch();
+		this.searchQuery = query;
+		this.searchOptions = { ...options };
+		this.searchPendingIncremental = incremental;
+		this.searchTimer = setTimeout(() => {
+			this.searchTimer = undefined;
+			this.searchPendingIncremental = false;
+			if (this.handle === 0 || this.searchQuery !== query) return;
+			const snapshot = this.captureSearchSnapshot();
+			const matches = findTerminalMatches(
+				snapshot.lines,
+				query,
+				this.searchOptions,
+				snapshot.wrappedRows,
+			);
+			if (incremental || this.searchOwnsSelection) {
+				const match = this.findDirectionalSearchMatch(
+					snapshot,
+					query,
+					this.searchOptions,
+					true,
+					true,
+				);
+				this.selectSearchMatch(matches, match, query, this.searchOptions, incremental);
+				return;
+			}
+			this.applySearchResults(query, this.searchOptions, matches, null);
+		}, TERMINAL_SEARCH_DEBOUNCE_MS);
+	}
+
+	private captureSearchSnapshot(): TerminalSearchSnapshot {
+		this.ensureSnapshot();
+		const lines: CellData[][] = [];
+		const wrappedRows: boolean[] = [];
+		const scrollbackLength = this.grid.getScrollbackLength();
+		for (let row = 0; row < scrollbackLength; row++) {
+			lines.push(this.ghosttyTerm.getScrollbackCellData(row) ?? []);
+			wrappedRows.push(this.ghosttyTerm.isScrollbackRowWrapped(row));
+		}
+		for (let row = 0; row < this.rowCount; row++) {
+			lines.push(this.ghosttyTerm.getCellDataLine(row) ?? []);
+			wrappedRows.push(this.ghosttyTerm.isRowWrapped(row));
+		}
+		return { lines, wrappedRows };
+	}
+
+	private findDirectionalSearchMatch(
+		snapshot: TerminalSearchSnapshot,
+		query: string,
+		options: TerminalSearchOptions,
+		reverse: boolean,
+		preserveStart: boolean,
+	): TerminalSearchMatch | null {
+		const current = this.getSelectionPosition()?.start;
+		return findDirectionalTerminalMatch(
+			snapshot.lines,
+			query,
+			options,
+			snapshot.wrappedRows,
+			current
+				? { preserveStart, reverse, start: { column: current.x, row: current.y } }
+				: { preserveStart, reverse },
+		);
+	}
+
+	private cancelScheduledSearch(): void {
+		if (this.searchTimer !== undefined) clearTimeout(this.searchTimer);
+		this.searchTimer = undefined;
+		this.searchPendingIncremental = false;
+	}
+
+	private invalidateSearchAfterBufferChange(): void {
+		if (!this.searchQuery) return;
+		const incremental = this.searchTimer !== undefined && this.searchPendingIncremental;
+		this.renderer?.setSearchMatches([]);
+		this.scheduleSearch(this.searchQuery, this.searchOptions, incremental);
+	}
+
+	private applySearchResults(
+		query: string,
+		options: TerminalSearchOptions,
+		matches: readonly TerminalSearchMatch[],
+		active: TerminalSearchMatch | null,
+	): void {
+		this.searchQuery = query;
+		this.searchOptions = { ...options };
+		this.renderer?.setSearchMatches(matches, active);
+		const resultIndex = active
+			? matches.findIndex((match) => terminalSearchMatchesEqual(match, active))
+			: -1;
+		this.onSearchResultsEmitter.fire({
+			query,
+			regexError: validateTerminalSearchQuery(query, options),
+			resultCount: matches.length,
+			resultIndex,
+			resultLimitReached:
+				matches.length > 0 &&
+				matches.length >= resolveTerminalSearchResultLimit(options.maxResults),
+		});
+	}
+
+	private selectSearchMatch(
+		matches: readonly TerminalSearchMatch[],
+		match: TerminalSearchMatch | null,
+		query: string,
+		options: TerminalSearchOptions,
+		reveal: boolean,
+	): boolean {
+		if (!match) {
+			this.clearOwnedSearchSelection();
+			this.applySearchResults(query, options, matches, null);
 			return false;
 		}
 		if (!this.selectionManager) {
-			this.clearSearch();
+			this.searchOwnsSelection = false;
+			this.applySearchResults(query, options, matches, null);
 			return false;
 		}
-		const current = this.getSelectionPosition();
-		let currentRow = reverse ? Number.POSITIVE_INFINITY : -1;
-		if (current) currentRow = current.start.y;
-		const currentColumn = current?.start.x ?? (reverse ? Number.POSITIVE_INFINITY : -1);
-		const ordered = reverse ? reverseSearchMatches(matches) : matches;
-		const match =
-			ordered.find((candidate) =>
-				reverse
-					? candidate.start.row < currentRow ||
-						(candidate.start.row === currentRow && candidate.start.column < currentColumn)
-					: candidate.start.row > currentRow ||
-						(candidate.start.row === currentRow && candidate.start.column > currentColumn),
-			) ?? ordered[0];
-		if (!match) return false;
-		this.renderer?.setSearchMatches(matches, match);
-		this.searchHighlightsActive = true;
-		this.revealAbsoluteRow(match.start.row);
-		return this.selectionManager.selectAbsoluteRange(
-			{ x: match.start.column, y: match.start.row },
-			{ x: match.end.column, y: match.end.row },
-		);
+		if (reveal) this.revealAbsoluteRow(match.start.row);
+		this.mutatingSearchSelection = true;
+		let selected = false;
+		try {
+			selected = this.selectionManager.selectAbsoluteRange(
+				{ x: match.start.column, y: match.start.row },
+				{ x: match.end.column, y: match.end.row },
+			);
+		} finally {
+			this.mutatingSearchSelection = false;
+		}
+		this.searchOwnsSelection = selected;
+		this.applySearchResults(query, options, matches, selected ? match : null);
+		return selected;
+	}
+
+	private clearOwnedSearchSelection(): void {
+		if (!this.searchOwnsSelection) return;
+		this.mutatingSearchSelection = true;
+		try {
+			this.selectionManager?.clearSelection();
+		} finally {
+			this.mutatingSearchSelection = false;
+			this.searchOwnsSelection = false;
+		}
 	}
 
 	private revealAbsoluteRow(row: number): void {
@@ -2293,6 +2454,7 @@ export class Terminal {
 		this.onHostErrorEmitter.dispose();
 		this.onRendererHealthEmitter.dispose();
 		this.onRendererTelemetryEmitter.dispose();
+		this.onSearchResultsEmitter.dispose();
 	}
 
 	// ==========================================================================
@@ -3046,13 +3208,14 @@ function isBufferCellInRange(
 	return afterStart && beforeEnd;
 }
 
-function reverseSearchMatches(
-	matches: readonly TerminalSearchMatch[],
-): readonly TerminalSearchMatch[] {
-	const reversed: TerminalSearchMatch[] = [];
-	for (let index = matches.length - 1; index >= 0; index--) {
-		const match = matches[index];
-		if (match) reversed.push(match);
-	}
-	return reversed;
+function terminalSearchMatchesEqual(
+	left: TerminalSearchMatch,
+	right: TerminalSearchMatch,
+): boolean {
+	return (
+		left.start.column === right.start.column &&
+		left.start.row === right.start.row &&
+		left.end.column === right.end.column &&
+		left.end.row === right.end.row
+	);
 }

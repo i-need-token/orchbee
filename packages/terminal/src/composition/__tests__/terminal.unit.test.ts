@@ -464,7 +464,7 @@ describe('Terminal lifecycle', () => {
 		terminal.dispose();
 	});
 
-	it('navigates matches in Ghostty order and wraps in both directions', () => {
+	it('navigates matches in VS Code order and wraps in both directions', () => {
 		const terminal = createTerminal(10, 2, { scrollbackLimit: 10 });
 		terminal.write('Fizz\r\nBuzz\r\nFizz\r\nBang');
 		let selection: AbsoluteSelection | null = null;
@@ -484,15 +484,15 @@ describe('Terminal lifecycle', () => {
 		});
 
 		expect(terminal.findNext('Fizz')).toBe(true);
-		expect(selection).toMatchObject({ start: { x: 0, y: 2 } });
-		expect(terminal.findNext('Fizz')).toBe(true);
 		expect(selection).toMatchObject({ start: { x: 0, y: 0 } });
 		expect(terminal.findNext('Fizz')).toBe(true);
 		expect(selection).toMatchObject({ start: { x: 0, y: 2 } });
-		expect(terminal.findPrevious('Fizz')).toBe(true);
+		expect(terminal.findNext('Fizz')).toBe(true);
 		expect(selection).toMatchObject({ start: { x: 0, y: 0 } });
 		expect(terminal.findPrevious('Fizz')).toBe(true);
 		expect(selection).toMatchObject({ start: { x: 0, y: 2 } });
+		expect(terminal.findPrevious('Fizz')).toBe(true);
+		expect(selection).toMatchObject({ start: { x: 0, y: 0 } });
 		expect(clearSelection).not.toHaveBeenCalled();
 
 		Reflect.set(terminal, 'selectionManager', undefined);
@@ -522,32 +522,49 @@ describe('Terminal lifecycle', () => {
 			if (current) visited.push(current.start.y);
 		}
 
-		expect(visited).toEqual(
-			matches.map((_match, index) => matches[matches.length - index - 1]?.start.row),
-		);
+		expect(visited).toEqual(matches.map((match) => match.start.row));
 		Reflect.set(terminal, 'selectionManager', undefined);
 		terminal.dispose();
 	});
 
-	it('drops the search selection after all matches disappear', () => {
-		const terminal = createTerminal(10, 2);
-		terminal.write('Fizz');
-		const clearSelection = vi.fn<() => void>();
-		const setSearchMatches = vi.fn<() => void>();
-		Reflect.set(terminal, 'selectionManager', {
-			getSelectionPosition: () => ({ start: { x: 0, y: 0 }, end: { x: 3, y: 0 } }),
-			selectAbsoluteRange: () => true,
-			clearSelection,
-		});
-		Reflect.set(terminal, 'renderer', { setSearchMatches });
+	it('clears a search-owned selection after its match disappears', () => {
+		vi.useFakeTimers();
+		try {
+			const terminal = createTerminal(10, 2);
+			terminal.write('Fizz');
+			let selection: AbsoluteSelection | null = null;
+			const clearSelection = vi.fn<() => void>(() => {
+				selection = null;
+			});
+			const setSearchMatches = vi.fn<() => void>();
+			Reflect.set(terminal, 'selectionManager', {
+				getSelectionPosition: () => selectionInBuffer(selection),
+				selectAbsoluteRange: (start: AbsoluteSelection['start'], end: AbsoluteSelection['end']) => {
+					selection = { start, end };
+					return true;
+				},
+				clearSelection,
+			});
+			Reflect.set(terminal, 'renderer', { setSearchMatches });
+			Reflect.set(terminal, 'renderLoopId', 1);
 
-		expect(terminal.findNext('missing')).toBe(false);
-		expect(clearSelection).toHaveBeenCalledOnce();
-		expect(setSearchMatches).toHaveBeenCalledWith([]);
+			expect(terminal.findNext('Fizz')).toBe(true);
+			clearSelection.mockClear();
+			setSearchMatches.mockClear();
+			terminal.write('\r\x1b[2Kreplacement');
+			vi.advanceTimersByTime(200);
 
-		Reflect.set(terminal, 'selectionManager', undefined);
-		Reflect.set(terminal, 'renderer', undefined);
-		terminal.dispose();
+			expect(clearSelection).toHaveBeenCalledOnce();
+			expect(selection).toBeNull();
+			expect(setSearchMatches).toHaveBeenLastCalledWith([], null);
+
+			Reflect.set(terminal, 'renderLoopId', 0);
+			Reflect.set(terminal, 'selectionManager', undefined);
+			Reflect.set(terminal, 'renderer', undefined);
+			terminal.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('recomputes search results after active-screen contents change', () => {
@@ -575,10 +592,247 @@ describe('Terminal lifecycle', () => {
 		terminal.write('\r\x1b[2Kreplacement');
 
 		expect(setSearchMatches).toHaveBeenLastCalledWith([]);
-		expect(Reflect.get(terminal, 'searchHighlightsActive')).toBe(false);
 		Reflect.set(terminal, 'renderLoopId', 0);
 		Reflect.set(terminal, 'renderer', undefined);
 		terminal.dispose();
+	});
+
+	it('debounces incremental search input and publishes the latest result count', () => {
+		vi.useFakeTimers();
+		try {
+			const terminal = createTerminal(12, 2);
+			terminal.write('first\r\nfinal');
+			let selection: AbsoluteSelection | null = null;
+			const setSearchMatches = vi.fn<() => void>();
+			const results: Array<{ query: string; resultCount: number; resultIndex: number }> = [];
+			Reflect.set(terminal, 'selectionManager', {
+				getSelectionPosition: () => selectionInBuffer(selection),
+				selectAbsoluteRange: (start: AbsoluteSelection['start'], end: AbsoluteSelection['end']) => {
+					selection = { start, end };
+					return true;
+				},
+				clearSelection: () => {
+					selection = null;
+				},
+			});
+			Reflect.set(terminal, 'renderer', { setSearchMatches });
+			terminal.onSearchResults((event) => results.push(event));
+
+			terminal.updateSearch('f');
+			vi.advanceTimersByTime(150);
+			terminal.updateSearch('fi');
+			vi.advanceTimersByTime(199);
+			expect(setSearchMatches).not.toHaveBeenCalled();
+
+			vi.advanceTimersByTime(1);
+			expect(setSearchMatches).toHaveBeenCalledOnce();
+			expect(results).toMatchObject([{ query: 'fi', resultCount: 2, resultIndex: 1 }]);
+			expect(selection).toMatchObject({ start: { x: 0, y: 1 } });
+
+			Reflect.set(terminal, 'selectionManager', undefined);
+			Reflect.set(terminal, 'renderer', undefined);
+			terminal.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('cancels a pending incremental search when navigation runs immediately', () => {
+		vi.useFakeTimers();
+		try {
+			const terminal = createTerminal(10, 2);
+			terminal.write('Fizz');
+			let selection: AbsoluteSelection | null = null;
+			const setSearchMatches = vi.fn<() => void>();
+			Reflect.set(terminal, 'selectionManager', {
+				getSelectionPosition: () => selectionInBuffer(selection),
+				selectAbsoluteRange: (start: AbsoluteSelection['start'], end: AbsoluteSelection['end']) => {
+					selection = { start, end };
+					return true;
+				},
+				clearSelection: () => {
+					selection = null;
+				},
+			});
+			Reflect.set(terminal, 'renderer', { setSearchMatches });
+
+			terminal.updateSearch('Fi');
+			expect(terminal.findNext('Fizz')).toBe(true);
+			expect(setSearchMatches).toHaveBeenCalledOnce();
+			vi.advanceTimersByTime(200);
+			expect(setSearchMatches).toHaveBeenCalledOnce();
+
+			Reflect.set(terminal, 'selectionManager', undefined);
+			Reflect.set(terminal, 'renderer', undefined);
+			terminal.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('keeps the active match anchored while an incremental query grows', () => {
+		vi.useFakeTimers();
+		try {
+			const terminal = createTerminal(20, 2);
+			terminal.write('foobar foobar');
+			let selection: AbsoluteSelection | null = null;
+			Reflect.set(terminal, 'selectionManager', {
+				getSelectionPosition: () => selectionInBuffer(selection),
+				selectAbsoluteRange: (start: AbsoluteSelection['start'], end: AbsoluteSelection['end']) => {
+					selection = { start, end };
+					return true;
+				},
+				clearSelection: () => {
+					selection = null;
+				},
+			});
+
+			terminal.updateSearch('foo');
+			vi.advanceTimersByTime(200);
+			expect(selection).toMatchObject({ start: { x: 7, y: 0 }, end: { x: 9, y: 0 } });
+
+			terminal.updateSearch('foobar');
+			vi.advanceTimersByTime(200);
+			expect(selection).toMatchObject({ start: { x: 7, y: 0 }, end: { x: 12, y: 0 } });
+
+			Reflect.set(terminal, 'selectionManager', undefined);
+			terminal.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('reports when the configured result cap is reached', () => {
+		const terminal = createTerminal(10, 2);
+		terminal.write('x x x');
+		const results: Array<{ resultCount: number; resultLimitReached: boolean }> = [];
+		terminal.onSearchResults((event) => results.push(event));
+
+		expect(terminal.highlightSearch('x', { maxResults: 2 })).toHaveLength(2);
+		expect(results).toMatchObject([{ resultCount: 2, resultLimitReached: true }]);
+		terminal.dispose();
+	});
+
+	it('navigates to matches beyond the configured highlight cap', () => {
+		const terminal = createTerminal(10, 2);
+		terminal.write('x x x');
+		let selection: AbsoluteSelection | null = null;
+		const results: Array<{ resultCount: number; resultIndex: number }> = [];
+		Reflect.set(terminal, 'selectionManager', {
+			getSelectionPosition: () => selectionInBuffer(selection),
+			selectAbsoluteRange: (start: AbsoluteSelection['start'], end: AbsoluteSelection['end']) => {
+				selection = { start, end };
+				return true;
+			},
+			clearSelection: () => {
+				selection = null;
+			},
+		});
+		terminal.onSearchResults((event) => results.push(event));
+
+		expect(terminal.findNext('x', { maxResults: 2 })).toBe(true);
+		expect(selection).toMatchObject({ start: { x: 0, y: 0 } });
+		expect(terminal.findNext('x', { maxResults: 2 })).toBe(true);
+		expect(selection).toMatchObject({ start: { x: 2, y: 0 } });
+		expect(terminal.findNext('x', { maxResults: 2 })).toBe(true);
+		expect(selection).toMatchObject({ start: { x: 4, y: 0 } });
+		expect(results.at(-1)).toMatchObject({ resultCount: 2, resultIndex: -1 });
+
+		Reflect.set(terminal, 'selectionManager', undefined);
+		terminal.dispose();
+	});
+
+	it('restarts pending incremental debounce after terminal output changes', () => {
+		vi.useFakeTimers();
+		try {
+			const terminal = createTerminal(10, 2);
+			terminal.write('alpha');
+			const setSearchMatches = vi.fn<() => void>();
+			Reflect.set(terminal, 'renderer', { setSearchMatches });
+			Reflect.set(terminal, 'renderLoopId', 1);
+
+			terminal.highlightSearch('alpha');
+			setSearchMatches.mockClear();
+			terminal.updateSearch('beta');
+			vi.advanceTimersByTime(199);
+			terminal.write('\r\x1b[2Kbeta');
+			expect(setSearchMatches).toHaveBeenCalledOnce();
+			expect(setSearchMatches).toHaveBeenLastCalledWith([]);
+
+			vi.advanceTimersByTime(199);
+			expect(setSearchMatches).toHaveBeenCalledOnce();
+			vi.advanceTimersByTime(1);
+			expect(setSearchMatches).toHaveBeenLastCalledWith(
+				[
+					{
+						text: 'beta',
+						start: { column: 0, row: 0 },
+						end: { column: 3, row: 0 },
+					},
+				],
+				null,
+			);
+
+			Reflect.set(terminal, 'renderLoopId', 0);
+			Reflect.set(terminal, 'renderer', undefined);
+			terminal.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('debounces automatic search refresh after terminal output changes', () => {
+		vi.useFakeTimers();
+		try {
+			const terminal = createTerminal(10, 2);
+			terminal.write('old');
+			const setSearchMatches = vi.fn<() => void>();
+			Reflect.set(terminal, 'renderer', { setSearchMatches });
+			Reflect.set(terminal, 'renderLoopId', 1);
+
+			expect(terminal.highlightSearch('new')).toEqual([]);
+			setSearchMatches.mockClear();
+			terminal.write('\r\x1b[2Knew');
+			expect(setSearchMatches).toHaveBeenCalledWith([]);
+			vi.advanceTimersByTime(199);
+			expect(setSearchMatches).toHaveBeenCalledOnce();
+
+			vi.advanceTimersByTime(1);
+			expect(setSearchMatches).toHaveBeenLastCalledWith(
+				[
+					{
+						text: 'new',
+						start: { column: 0, row: 0 },
+						end: { column: 2, row: 0 },
+					},
+				],
+				null,
+			);
+
+			Reflect.set(terminal, 'renderLoopId', 0);
+			Reflect.set(terminal, 'renderer', undefined);
+			terminal.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('reports invalid regular expressions after the input debounce', () => {
+		vi.useFakeTimers();
+		try {
+			const terminal = createTerminal(10, 2);
+			const results: Array<{ regexError: string | null; resultCount: number }> = [];
+			terminal.onSearchResults((event) => results.push(event));
+
+			terminal.updateSearch('[', { regex: true });
+			vi.advanceTimersByTime(200);
+			expect(results).toHaveLength(1);
+			expect(results[0]?.regexError).toContain('Invalid regular expression');
+			expect(results[0]?.resultCount).toBe(0);
+			terminal.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('wraps previous search when every match is in scrollback', () => {

@@ -2143,7 +2143,8 @@ export class WebGPURenderer {
 			bgB = cell.fg_b;
 		}
 
-		if (!(bgR === 0 && bgG === 0 && bgB === 0)) {
+		const [themeR, themeG, themeB] = hexToRGB(this.theme.background);
+		if (!(bgR === themeR && bgG === themeG && bgB === themeB)) {
 			ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
 			ctx.fillRect(cellX, cellY, cellWidth, this.metrics.height);
 		}
@@ -2209,8 +2210,6 @@ export class WebGPURenderer {
 			cell.width,
 		);
 
-		if (cell.flags & CellFlags.FAINT) ctx.globalAlpha = 1.0;
-
 		// Underline
 		if (cell.flags & CellFlags.UNDERLINE) {
 			const underlineY = cellY + this.detailedMetrics.underlinePosition;
@@ -2260,6 +2259,8 @@ export class WebGPURenderer {
 			ctx.lineTo(cellX + cellWidth, cellY + this.detailedMetrics.overlinePosition);
 			ctx.stroke();
 		}
+
+		if (cell.flags & CellFlags.FAINT) ctx.globalAlpha = 1.0;
 
 		// Hyperlink underline
 		if (cell.hyperlink_id > 0 && cell.hyperlink_id === this.hoveredHyperlinkId) {

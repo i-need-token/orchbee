@@ -56,4 +56,38 @@ describe('paste policy', () => {
 		expect(inspection.classification).toBe('safe');
 		expect(inspection.sanitized).toBe('first\n second');
 	});
+
+	it.each([
+		['Cyrillic', '/Users/test/Пример/Output'],
+		['Chinese', '/Users/test/文件夹/file'],
+		['Japanese', '/Users/test/フォルダ/file'],
+		['Arabic', '/Users/test/مجلد/file'],
+		['Hebrew', '/Users/test/תיקייה/file'],
+		['Thai', 'กิ'],
+		['emoji', 'folder📁name'],
+		['ZWJ emoji', 'test👨‍👩‍👧file'],
+		['Latin Extended', '/Users/test/café/naïve'],
+		['combining marks', 'e\u0301 a\u0300\u0303'],
+		['non-breaking space', 'hello\u00a0world'],
+		['private-use character', 'test\ue000char'],
+	])('preserves $0 text during paste sanitization', (_name, text) => {
+		const inspection = inspectPaste(text, { bracketed: true }, bridge);
+		expect(inspection.sanitized).toBe(text);
+		expect(inspection.replacedControlBytes).toBe(0);
+		expect(encodePaste(inspection, bridge)).toBe(`\x1b[200~${text}\x1b[201~`);
+	});
+
+	it.each([
+		['NUL', '\u0000'],
+		['start of heading', '\u0001'],
+		['end of text', '\u0003'],
+		['bell', '\u0007'],
+		['Ctrl-V', '\u0016'],
+		['delete', '\u007f'],
+		['C1 next-line', '\u0085'],
+	])('replaces the unsafe $0 control byte', (_name, control) => {
+		const inspection = inspectPaste(`before${control}after`, { bracketed: true }, bridge);
+		expect(inspection.sanitized).toBe('before after');
+		expect(inspection.replacedControlBytes).toBe(1);
+	});
 });

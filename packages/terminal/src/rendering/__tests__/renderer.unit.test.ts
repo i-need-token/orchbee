@@ -28,6 +28,7 @@ function createCanvas(
 	const context = {
 		clearRect,
 		font: '10px sans-serif',
+		globalAlpha: 1,
 		imageSmoothingEnabled: true,
 		measureText: () =>
 			({
@@ -246,6 +247,86 @@ describe('WebGPURenderer font metrics', () => {
 		renderer.dispose();
 	});
 
+	it('paints explicit black backgrounds over opaque and transparent Canvas surfaces', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const paints: { readonly color: string; readonly rectangle: readonly number[] }[] = [];
+		const fillRect: CanvasRenderingContext2D['fillRect'] = function (
+			this: CanvasRenderingContext2D,
+			x,
+			y,
+			width,
+			height,
+		) {
+			paints.push({ color: String(this.fillStyle), rectangle: [x, y, width, height] });
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, undefined, fillRect),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, undefined, fillRect), {
+			theme: { background: '#123456' },
+		});
+		await renderer.initGPU();
+		renderer.resize(1, 1);
+		const buffer = createTextBuffer('A');
+
+		paints.length = 0;
+		renderer.render(buffer, true);
+		expect(paints).toEqual([
+			{ color: '#123456', rectangle: [0, 0, 8, 17] },
+			{ color: 'rgb(0, 0, 0)', rectangle: [0, 0, 8, 17] },
+		]);
+
+		renderer.setAllowTransparency(true);
+		paints.length = 0;
+		renderer.render(buffer, true);
+		expect(paints).toEqual([{ color: 'rgb(0, 0, 0)', rectangle: [0, 0, 8, 17] }]);
+		renderer.dispose();
+	});
+
+	it('applies faint alpha and independent colors to Canvas text decorations', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const textAlphas: number[] = [];
+		const decorationAlphas: number[] = [];
+		const decorationColors: string[] = [];
+		const fillText: CanvasRenderingContext2D['fillText'] = function (
+			this: CanvasRenderingContext2D,
+		) {
+			textAlphas.push(this.globalAlpha);
+		};
+		const stroke: CanvasRenderingContext2D['stroke'] = function (this: CanvasRenderingContext2D) {
+			decorationAlphas.push(this.globalAlpha);
+			decorationColors.push(String(this.strokeStyle));
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, fillText, undefined, stroke),
+		});
+		const canvas = createCanvas(undefined, {}, fillText, undefined, stroke);
+		const renderer = new WebGPURenderer(canvas);
+		await renderer.initGPU();
+		const buffer = createTextBuffer('A');
+		const cell = buffer.getLine(0)?.[0];
+		if (!cell) throw new Error('Missing decoration test cell');
+		cell.flags = CellFlags.FAINT | CellFlags.UNDERLINE | CellFlags.STRIKETHROUGH;
+		cell.underline_r = 255;
+		cell.underline_g = 0;
+		cell.underline_b = 0;
+		cell.overline = true;
+
+		renderer.render(buffer, true);
+
+		expect(textAlphas).toEqual([0.5]);
+		expect(decorationAlphas).toEqual([0.5, 0.5, 0.5]);
+		expect(decorationColors).toEqual([
+			'rgb(255, 0, 0)',
+			'rgb(255, 255, 255)',
+			'rgb(255, 255, 255)',
+		]);
+		expect(canvas.getContext('2d')?.globalAlpha).toBe(1);
+		renderer.dispose();
+	});
+
 	it('animates blinking terminal text and suspends its timer while hidden', async () => {
 		vi.useFakeTimers();
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
@@ -331,6 +412,69 @@ describe('WebGPURenderer font metrics', () => {
 		renderer.dispose();
 	});
 
+	it('clips linear and rectangular selections to visible Canvas cells', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const selected: (readonly number[])[] = [];
+		const fillRect: CanvasRenderingContext2D['fillRect'] = function (
+			this: CanvasRenderingContext2D,
+			x,
+			y,
+			width,
+			height,
+		) {
+			if (this.fillStyle === '#d4d4d4') selected.push([x, y, width, height]);
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, undefined, fillRect),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, undefined, fillRect));
+		await renderer.initGPU();
+		let coordinates = {
+			startCol: 2,
+			startRow: -1,
+			endCol: 1,
+			endRow: 1,
+			rectangle: false,
+		};
+		Reflect.set(renderer, 'selectionManager', {
+			hasSelection: () => true,
+			getSelectionCoords: () => coordinates,
+			getDirtySelectionRows: () => new Set<number>(),
+			clearDirtySelectionRows: () => {},
+		});
+		const buffer = createGridBuffer(4, 3);
+
+		renderer.render(buffer, true);
+		expect(selected).toEqual([
+			[0, 0, 8, 17],
+			[8, 0, 8, 17],
+			[16, 0, 8, 17],
+			[24, 0, 8, 17],
+			[0, 17, 8, 17],
+			[8, 17, 8, 17],
+		]);
+
+		coordinates = {
+			startCol: 1,
+			startRow: 0,
+			endCol: 2,
+			endRow: 2,
+			rectangle: true,
+		};
+		selected.length = 0;
+		renderer.render(buffer, true);
+		expect(selected).toEqual([
+			[8, 0, 8, 17],
+			[16, 0, 8, 17],
+			[8, 17, 8, 17],
+			[16, 17, 8, 17],
+			[8, 34, 8, 17],
+			[16, 34, 8, 17],
+		]);
+		renderer.dispose();
+	});
+
 	it('renders a zero-sized surface without creating cells or glyphs', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('navigator', {});
@@ -410,6 +554,53 @@ describe('WebGPURenderer font metrics', () => {
 		fillText.mockClear();
 		renderer.render(createGraphemeBuffer('👍🏼', 2), true);
 		expect(fillText.mock.calls.map(([text]) => text)).toContain('👍🏼');
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({ glyphInstances: 1 });
+		renderer.dispose();
+	});
+
+	it.each([
+		{ name: 'testASCIIUppercase', text: 'A', width: 1 },
+		{ name: 'testASCIILowercase', text: 'g', width: 1 },
+		{ name: 'testASCIIDigit', text: '0', width: 1 },
+		{ name: 'testASCIIPunctuation', text: '@', width: 1 },
+		{ name: 'testAccentedLatin', text: 'é', width: 1 },
+		{ name: 'testUmlaut', text: 'ü', width: 1 },
+		{ name: 'testChineseCharacter', text: '中', width: 2 },
+		{ name: 'testJapaneseHiragana', text: 'あ', width: 2 },
+		{ name: 'testJapaneseKatakana', text: 'ア', width: 2 },
+		{ name: 'testKoreanHangul', text: '한', width: 2 },
+		{ name: 'testCombiningMark', text: 'e\u0301', width: 1 },
+		{ name: 'testMultipleCombiningMarks', text: 'a\u0300\u0303', width: 1 },
+		{ name: 'testCombiningEnclosingCircle', text: 'A\u20dd', width: 1 },
+		{ name: 'testBismillah', text: '﷽', width: 1 },
+		{ name: 'testArabicCharacter', text: 'ع', width: 1 },
+		{ name: 'testHebrewCharacter', text: 'א', width: 1 },
+		{ name: 'testThaiCharacter', text: 'ก', width: 1 },
+		{ name: 'testThaiWithVowelMark', text: 'ก\u0e34', width: 1 },
+		{ name: 'testDevanagariCharacter', text: 'अ', width: 1 },
+		{ name: 'testGreekCharacter', text: 'Ω', width: 1 },
+		{ name: 'testCyrillicCharacter', text: 'Д', width: 1 },
+		{ name: 'testMathSymbol', text: '∑', width: 1 },
+		{ name: 'testArrow', text: '→', width: 1 },
+		{ name: 'testEmoji', text: '😀', width: 2 },
+		{ name: 'testEmojiWithSkinTone', text: '👋🏽', width: 2 },
+		{ name: 'testFamilyEmoji', text: '👨‍👩‍👧', width: 2 },
+		{ name: 'testFlagEmoji', text: '🇺🇸', width: 2 },
+		{ name: 'testZalgoText', text: 'H\u0300\u0301\u0302\u0303\u0304', width: 1 },
+		{ name: 'testSurrogatePairEmoji', text: '🎉', width: 2 },
+	])('renders iTerm2 CharacterSource case $name as one grapheme glyph', async ({ text, width }) => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const fillText = vi.fn<CanvasRenderingContext2D['fillText']>();
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, fillText),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText));
+		await renderer.initGPU();
+
+		renderer.render(createGraphemeBuffer(text, width), true);
+
+		expect(fillText.mock.calls.map(([rendered]) => rendered)).toContain(text);
 		expect(renderer.getLastFrameTelemetry()).toMatchObject({ glyphInstances: 1 });
 		renderer.dispose();
 	});

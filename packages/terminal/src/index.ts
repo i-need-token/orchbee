@@ -164,8 +164,12 @@ export {
 export {
 	findTerminalMatches,
 	searchMatchContainsCell,
+	TERMINAL_SEARCH_DEBOUNCE_MS,
+	TERMINAL_SEARCH_RESULT_LIMIT,
+	validateTerminalSearchQuery,
 	type TerminalSearchMatch,
 	type TerminalSearchOptions,
+	type TerminalSearchResultChangeEvent,
 } from './search';
 export {
 	formatTerminalIdentity,

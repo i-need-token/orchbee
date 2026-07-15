@@ -6,9 +6,13 @@ export interface ITerminalForPathProvider {
 	getSemanticZone(row: number, column: number): 'prompt' | 'input' | 'output' | null;
 }
 
-const PATH_REGEX =
-	/(?:file:\/\/[^\s'"<>]+|(?:~|\.{1,2})?\/[\w.@%+,-]+(?:\/[\w.@%+,-]+)*|(?:[\w.@%+,-]+\/)+[\w.@%+,-]+)(?::(\d+)(?::(\d+))?)?/g;
-const TRAILING_PUNCTUATION = /[.,;!?)\]]+$/;
+const PATH_COMPONENT = String.raw`[\p{L}\p{N}\p{M}_.@%+,-]+`;
+const PATH_SEPARATOR = String.raw`[\\/]`;
+const PATH_REGEX = new RegExp(
+	String.raw`(?:file:\/\/(?:[A-Za-z]:|${PATH_COMPONENT})?(?:${PATH_SEPARATOR}${PATH_COMPONENT})+|[A-Za-z]:${PATH_SEPARATOR}(?:${PATH_COMPONENT}${PATH_SEPARATOR})*${PATH_COMPONENT}|(?:~|\.{1,2})?${PATH_SEPARATOR}(?:${PATH_COMPONENT}${PATH_SEPARATOR})*${PATH_COMPONENT}|(?:${PATH_COMPONENT}${PATH_SEPARATOR})+${PATH_COMPONENT})(?::(\d+)(?::(\d+))?)?`,
+	'gu',
+);
+const TRAILING_PUNCTUATION = /[.,;!?)\]，。！？）】]+$/u;
 
 /** Detect file paths and resolve relative paths against OSC 7/9 PWD. */
 export class PathLinkProvider implements ILinkProvider {
@@ -28,7 +32,7 @@ export class PathLinkProvider implements ILinkProvider {
 		PATH_REGEX.lastIndex = 0;
 		let match: RegExpExecArray | null = PATH_REGEX.exec(logicalLine.text);
 		while (match) {
-			const original = match[0].replace(TRAILING_PUNCTUATION, '');
+			const original = stripTrailingSentencePunctuation(match[0]);
 			const suffixLength =
 				(match[1] ? match[1].length + 1 : 0) + (match[2] ? match[2].length + 1 : 0);
 			const pathText = original.slice(0, Math.max(0, original.length - suffixLength));
@@ -36,7 +40,12 @@ export class PathLinkProvider implements ILinkProvider {
 			const end = logicalLine.positions[match.index + original.length - 1];
 			if (pathText && start && end) {
 				const semanticZone = this.terminal.getSemanticZone(start.y, start.x);
-				if (semanticZone !== 'prompt' || pathText.startsWith('/') || pathText.startsWith('~')) {
+				if (
+					semanticZone !== 'prompt' ||
+					pathText.startsWith('/') ||
+					pathText.startsWith('~') ||
+					isWindowsAbsolutePath(pathText)
+				) {
 					links.push({
 						text: original,
 						range: { start, end },
@@ -105,31 +114,55 @@ function readLine(
 function resolvePath(path: string, pwd: string): string {
 	if (path.startsWith('file://')) {
 		try {
-			return decodeURIComponent(new URL(path).pathname);
+			return normalizeFileUrlPath(decodeURIComponent(new URL(path).pathname));
 		} catch {
 			return path;
 		}
 	}
-	if (path.startsWith('/') || path.startsWith('~') || !pwd) return normalizePath(path);
+	if (path.startsWith('/') || path.startsWith('~') || isWindowsAbsolutePath(path) || !pwd) {
+		return normalizePath(path);
+	}
 	return normalizePath(`${normalizePwd(pwd)}/${path}`);
 }
 
 function normalizePwd(pwd: string): string {
 	if (!pwd.startsWith('file://')) return pwd;
 	try {
-		return decodeURIComponent(new URL(pwd).pathname);
+		return normalizeFileUrlPath(decodeURIComponent(new URL(pwd).pathname));
 	} catch {
 		return pwd;
 	}
 }
 
 function normalizePath(path: string): string {
-	const absolute = path.startsWith('/');
+	const unified = path.replaceAll('\\', '/');
+	const drive = unified.match(/^([A-Za-z]:)\//u)?.[1];
+	const absolute = unified.startsWith('/') || drive !== undefined;
+	const remainder = drive ? unified.slice(drive.length + 1) : unified;
 	const parts: string[] = [];
-	for (const part of path.split('/')) {
+	for (const part of remainder.split('/')) {
 		if (!part || part === '.') continue;
 		if (part === '..' && parts.length > 0 && parts.at(-1) !== '..') parts.pop();
 		else if (part !== '..' || !absolute) parts.push(part);
 	}
-	return `${absolute ? '/' : ''}${parts.join('/')}` || (absolute ? '/' : '.');
+	let prefix = '';
+	if (drive) prefix = `${drive}/`;
+	else if (absolute) prefix = '/';
+	const normalized = `${prefix}${parts.join('/')}`;
+	if (normalized) return normalized;
+	if (drive) return `${drive}/`;
+	return absolute ? '/' : '.';
+}
+
+function isWindowsAbsolutePath(path: string): boolean {
+	return /^[A-Za-z]:[\\/]/u.test(path);
+}
+
+function normalizeFileUrlPath(path: string): string {
+	return /^\/[A-Za-z]:\//u.test(path) ? path.slice(1) : path;
+}
+
+function stripTrailingSentencePunctuation(path: string): string {
+	if (/(?:^|[\\/])\.{1,2}$/u.test(path) || path.endsWith('..')) return path;
+	return path.replace(TRAILING_PUNCTUATION, '');
 }

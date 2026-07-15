@@ -51,4 +51,61 @@ describe('UrlRegexProvider', () => {
 			target: { kind: 'url', url: 'https://example.com/path' },
 		});
 	});
+
+	it('stops URLs at fullwidth sentence punctuation', () => {
+		const text = 'go https://example.com，next https://example.org。';
+		const provider = new UrlRegexProvider({
+			buffer: { active: { length: 1, getLine: () => lineFrom(text) } },
+		});
+		let links: ILink[] | undefined;
+		provider.provideLinks(0, (value) => {
+			links = value;
+		});
+		expect(links?.map((link) => link.text)).toEqual(['https://example.com', 'https://example.org']);
+	});
+
+	it.each([
+		{
+			name: 'fullwidth comma',
+			input: 'https://example.com，next',
+			expected: 'https://example.com',
+		},
+		{
+			name: 'ideographic full stop',
+			input: 'https://example.com。next',
+			expected: 'https://example.com',
+		},
+		{
+			name: 'fullwidth exclamation mark',
+			input: 'https://example.com！next',
+			expected: 'https://example.com',
+		},
+		{
+			name: 'ASCII closing punctuation',
+			input: 'https://example.com/path).',
+			expected: 'https://example.com/path',
+		},
+		{
+			name: 'FTP URL',
+			input: 'ftp://example.com/archive.tar.gz',
+			expected: 'ftp://example.com/archive.tar.gz',
+		},
+		{
+			name: 'SSH URL',
+			input: 'ssh://host.example/repository',
+			expected: 'ssh://host.example/repository',
+		},
+	])('detects $name boundaries', ({ input, expected }) => {
+		const provider = new UrlRegexProvider({
+			buffer: { active: { length: 1, getLine: () => lineFrom(input) } },
+		});
+		let links: ILink[] | undefined;
+		provider.provideLinks(0, (value) => {
+			links = value;
+		});
+		expect(links?.[0]).toMatchObject({
+			text: expected,
+			target: { kind: 'url', url: expected },
+		});
+	});
 });

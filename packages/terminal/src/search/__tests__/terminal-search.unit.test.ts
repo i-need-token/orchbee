@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { findTerminalMatches, searchMatchContainsCell } from '../terminal-search';
+import {
+	findDirectionalTerminalMatch,
+	findTerminalMatches,
+	searchMatchContainsCell,
+	validateTerminalSearchQuery,
+} from '../terminal-search';
 import type { CellData } from '../../types';
 
 describe('findTerminalMatches', () => {
@@ -42,6 +47,35 @@ describe('findTerminalMatches', () => {
 		expect(findTerminalMatches([line('hello,'), line(' world')], 'hello, world')).toEqual([]);
 	});
 
+	it('matches across hard line breaks when spanLines is enabled', () => {
+		expect(
+			findTerminalMatches([line('test 2'), line('test 3')], 'test 2\ntest 3', {
+				spanLines: true,
+			}),
+		).toEqual([
+			{
+				text: 'test 2\ntest 3',
+				start: { column: 0, row: 0 },
+				end: { column: 5, row: 1 },
+			},
+		]);
+	});
+
+	it('supports regular expressions across hard line breaks', () => {
+		expect(
+			findTerminalMatches([line('alpha 2'), line('beta 3')], String.raw`2\s+beta`, {
+				regex: true,
+				spanLines: true,
+			}),
+		).toEqual([
+			{
+				text: '2\nbeta',
+				start: { column: 6, row: 0 },
+				end: { column: 3, row: 1 },
+			},
+		]);
+	});
+
 	it('returns repeated matches in forward screen order', () => {
 		expect(findTerminalMatches([line('hello boo! hello boo!')], 'boo!')).toEqual([
 			{
@@ -55,6 +89,65 @@ describe('findTerminalMatches', () => {
 				end: { column: 20, row: 0 },
 			},
 		]);
+	});
+
+	it('advances literal searches by the full match like VS Code', () => {
+		expect(findTerminalMatches([line('xxx')], 'xx')).toEqual([
+			{
+				text: 'xx',
+				start: { column: 0, row: 0 },
+				end: { column: 1, row: 0 },
+			},
+		]);
+	});
+
+	it('advances regular-expression searches by the full match like VS Code', () => {
+		expect(findTerminalMatches([line('ababa')], 'aba', { regex: true })).toEqual([
+			{
+				text: 'aba',
+				start: { column: 0, row: 0 },
+				end: { column: 2, row: 0 },
+			},
+		]);
+	});
+
+	it('ignores empty regular-expression matches without looping', () => {
+		expect(findTerminalMatches([line('xxx')], '(?=x)', { regex: true })).toEqual([]);
+	});
+
+	it('does not enumerate every suffix for a greedy regular expression', () => {
+		expect(findTerminalMatches([line('x'.repeat(10_000))], '.*', { regex: true })).toHaveLength(1);
+	});
+
+	it('caps collected results for VS Code-compatible bounded highlighting', () => {
+		expect(findTerminalMatches([line('x x x x')], 'x', { maxResults: 2 })).toHaveLength(2);
+		expect(findTerminalMatches([line('xxx')], 'x', { maxResults: 0 })).toEqual([]);
+	});
+
+	it('navigates beyond the bounded highlight collection', () => {
+		const lines = [line('x x x')];
+		const options = { maxResults: 2 };
+		const matches = findTerminalMatches(lines, 'x', options);
+		expect(matches).toHaveLength(2);
+		expect(
+			findDirectionalTerminalMatch(lines, 'x', options, [], {
+				start: { column: 2, row: 0 },
+			}),
+		).toMatchObject({ start: { column: 4, row: 0 } });
+		expect(
+			findDirectionalTerminalMatch(lines, 'x', options, [], {
+				reverse: true,
+				start: { column: 0, row: 0 },
+			}),
+		).toMatchObject({ start: { column: 4, row: 0 } });
+	});
+
+	it('reports invalid regular expressions without throwing during search', () => {
+		expect(validateTerminalSearchQuery('[', { regex: true })).toContain(
+			'Invalid regular expression',
+		);
+		expect(findTerminalMatches([line('text')], '[', { regex: true })).toEqual([]);
+		expect(validateTerminalSearchQuery('[', { regex: false })).toBeNull();
 	});
 
 	it('finds repeated single-cell matches', () => {
@@ -96,6 +189,55 @@ describe('findTerminalMatches', () => {
 				end: { column: 1, row: 0 },
 			},
 		]);
+	});
+
+	it('finds plain text through Zalgo combining marks', () => {
+		const first = [cell('z\u0336\u0301', 1), cell('a\u0335\u0316', 1), cell('l\u0337\u0307', 1)];
+		const second = [cell('Z\u0335\u030c', 1), cell('a\u0337\u031b', 1), cell('l\u0334\u0302', 1)];
+		const matches = findTerminalMatches([[...first, cell(' ', 1), ...second]], 'zal');
+		expect(matches.map(({ start, end }) => ({ start, end }))).toEqual([
+			{ start: { column: 0, row: 0 }, end: { column: 2, row: 0 } },
+			{ start: { column: 4, row: 0 }, end: { column: 6, row: 0 } },
+		]);
+		expect(matches.map((match) => match.text)).toEqual([
+			'z\u0336\u0301a\u0335\u0316l\u0337\u0307',
+			'Z\u0335\u030ca\u0337\u031bl\u0334\u0302',
+		]);
+	});
+
+	it.each([
+		{
+			name: 'iTerm2 trivial literal search',
+			text: 'abczal',
+			query: 'zal',
+			options: {},
+			expected: ['zal'],
+		},
+		{
+			name: 'case-insensitive literal search',
+			text: 'Test test',
+			query: 'test',
+			options: {},
+			expected: ['Test', 'test'],
+		},
+		{
+			name: 'case-sensitive literal search',
+			text: 'Test test',
+			query: 'test',
+			options: { caseSensitive: true },
+			expected: ['test'],
+		},
+		{
+			name: 'case-sensitive regular-expression search',
+			text: 'Test test tent',
+			query: 't[es][es]t',
+			options: { caseSensitive: true, regex: true },
+			expected: ['test'],
+		},
+	])('$name', ({ text, query, options, expected }) => {
+		expect(findTerminalMatches([line(text)], query, options).map((match) => match.text)).toEqual(
+			expected,
+		);
 	});
 
 	it('treats Unicode letters and numbers as whole-word characters', () => {
