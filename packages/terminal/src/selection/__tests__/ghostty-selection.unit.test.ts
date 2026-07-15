@@ -46,6 +46,25 @@ describe('GhosttySelectionController', () => {
 		}
 	});
 
+	it('detects and clears a selection whose scrollback endpoint was pruned', () => {
+		const terminal = createTerminal(80, 24, { scrollbackLimit: 10_000 });
+		const selection = createController(bridge, terminal);
+		try {
+			writeDirect(bridge, terminal, createLines('before', 5_000));
+			expect(selection.setRange({ x: 0, y: 0 }, { x: 5, y: 0 })).toBe(true);
+			expect(selection.getSelection()).not.toBe('');
+
+			writeDirect(bridge, terminal, createLines('after', 5_000));
+
+			expect(selection.clearSelectionIfInvalid()).toBe(true);
+			expect(selection.hasSelection()).toBe(false);
+			expect(selection.getSelection()).toBe('');
+		} finally {
+			selection.dispose();
+			terminal.dispose();
+		}
+	});
+
 	it('uses Ghostty word, line, and select-all semantics', () => {
 		const terminal = createTerminal(20, 3);
 		const selection = createController(bridge, terminal);
@@ -149,6 +168,61 @@ describe('GhosttySelectionController', () => {
 			).toBe(true);
 			expect(selection.getSelection()).toBe('hello world');
 			expect(selection.releaseGesture(1, 0)).toBe(true);
+		} finally {
+			selection.dispose();
+			terminal.dispose();
+		}
+	});
+
+	it("exposes Ghostty's actual drag state across release", () => {
+		const terminal = createTerminal(20, 3);
+		const selection = createController(bridge, terminal);
+		const press = {
+			column: 7,
+			row: 0,
+			surfaceX: 58,
+			surfaceY: 8,
+			timeNs: 1_000_000_000n,
+			repeatDistance: 8,
+			repeatIntervalNs: 500_000_000n,
+		};
+		try {
+			terminal.write('hello world');
+			expect(selection.pressGesture(press)).toBe(true);
+			expect(selection.isGestureDragged()).toBe(false);
+			expect(
+				selection.dragGesture({
+					column: 7,
+					row: 0,
+					surfaceX: 59,
+					surfaceY: 8,
+					rectangle: false,
+					columns: 20,
+					cellWidth: 8,
+					paddingLeft: 0,
+					screenHeight: 51,
+				}),
+			).toBe(true);
+			expect(selection.isGestureDragged()).toBe(false);
+			expect(selection.releaseGesture(7, 0)).toBe(true);
+			expect(selection.isGestureDragged()).toBe(false);
+
+			expect(selection.pressGesture({ ...press, timeNs: 2_000_000_000n })).toBe(true);
+			expect(
+				selection.dragGesture({
+					column: 8,
+					row: 0,
+					surfaceX: 66,
+					surfaceY: 8,
+					rectangle: false,
+					columns: 20,
+					cellWidth: 8,
+					paddingLeft: 0,
+					screenHeight: 51,
+				}),
+			).toBe(true);
+			expect(selection.releaseGesture(8, 0)).toBe(true);
+			expect(selection.isGestureDragged()).toBe(true);
 		} finally {
 			selection.dispose();
 			terminal.dispose();
@@ -263,4 +337,24 @@ function createController(
 ): GhosttySelectionController {
 	const handle = (terminal as unknown as { readonly handle: TerminalHandle }).handle;
 	return new GhosttySelectionController(bridge, handle);
+}
+
+function createLines(prefix: string, count: number): string {
+	return Array.from({ length: count }, (_, index) => `${prefix}-${index}\r\n`).join('');
+}
+
+function writeDirect(
+	bridge: WasmBridge,
+	terminal: ReturnType<typeof createTerminal>,
+	data: string,
+): void {
+	const bytes = new TextEncoder().encode(data);
+	const pointer = bridge.allocU8Array(bytes.length);
+	const handle = (terminal as unknown as { readonly handle: TerminalHandle }).handle;
+	try {
+		bridge.writeBytes(pointer, bytes);
+		bridge.getExports().ghostty_terminal_vt_write(handle, pointer, bytes.length);
+	} finally {
+		bridge.freeU8Array(pointer, bytes.length);
+	}
 }

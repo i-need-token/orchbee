@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { FontWeight } from '../../index';
 import { CellFlags, type GhosttyCell, type IRenderable } from '../../types';
 import { type RendererFrameTelemetry, WebGPURenderer } from '../renderer';
 
@@ -26,6 +27,7 @@ function createCanvas(
 ): HTMLCanvasElement {
 	const context = {
 		clearRect,
+		font: '10px sans-serif',
 		imageSmoothingEnabled: true,
 		measureText: () =>
 			({
@@ -65,6 +67,41 @@ function createCanvas(
 }
 
 describe('WebGPURenderer font metrics', () => {
+	it('uses independently configurable regular and bold font weights', () => {
+		vi.stubGlobal('window', { devicePixelRatio: 2 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		const renderer = new WebGPURenderer(createCanvas(), {
+			fontFamily: 'JetBrains Mono',
+			fontSize: 13,
+			fontWeight: 225,
+			fontWeightBold: 575,
+			devicePixelRatio: 2,
+		});
+		const ensureGlyph = Reflect.get(renderer, 'ensureGlyph') as (
+			text: string,
+			flags: number,
+			width: number,
+		) => unknown;
+		const atlasContext = Reflect.get(renderer, 'atlasCtx') as CanvasRenderingContext2D;
+
+		ensureGlyph.call(renderer, 'A', 0, 1);
+		expect(atlasContext.font).toBe('225 26px JetBrains Mono');
+		ensureGlyph.call(renderer, 'B', CellFlags.ITALIC, 1);
+		expect(atlasContext.font).toBe('italic 225 26px JetBrains Mono');
+		ensureGlyph.call(renderer, 'C', CellFlags.BOLD, 1);
+		expect(atlasContext.font).toBe('575 26px JetBrains Mono');
+
+		const regularWeight: FontWeight = 250;
+		const boldWeight: FontWeight = 600;
+		renderer.setFontWeight(regularWeight);
+		ensureGlyph.call(renderer, 'D', 0, 1);
+		expect(atlasContext.font).toBe('250 26px JetBrains Mono');
+		renderer.setFontWeightBold(boldWeight);
+		ensureGlyph.call(renderer, 'E', CellFlags.BOLD | CellFlags.ITALIC, 1);
+		expect(atlasContext.font).toBe('italic 600 26px JetBrains Mono');
+		renderer.dispose();
+	});
+
 	it('uses full font bounds and preserves device pixel ratio', () => {
 		vi.stubGlobal('window', { devicePixelRatio: 2 });
 		vi.stubGlobal('document', { createElement: () => createCanvas() });
@@ -179,6 +216,33 @@ describe('WebGPURenderer font metrics', () => {
 			backend: 'canvas2d',
 			reason: 'webgpu-unavailable',
 		});
+		renderer.dispose();
+	});
+
+	it('uses configured regular and bold weights in the Canvas 2D fallback', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		const canvas = createCanvas();
+		const context = canvas.getContext('2d');
+		if (!context) throw new Error('Missing Canvas 2D context');
+		const renderer = new WebGPURenderer(canvas, {
+			fontFamily: 'JetBrains Mono',
+			fontSize: 13,
+			fontWeight: 225,
+			fontWeightBold: 575,
+		});
+		await renderer.initGPU();
+		const buffer = createTextBuffer('A');
+
+		renderer.render(buffer, true);
+		expect(context.font).toBe('225 13px JetBrains Mono');
+
+		const cell = buffer.getLine(0)?.[0];
+		if (!cell) throw new Error('Missing font-weight test cell');
+		cell.flags = CellFlags.BOLD | CellFlags.ITALIC;
+		renderer.render(buffer, true);
+		expect(context.font).toBe('italic 575 13px JetBrains Mono');
 		renderer.dispose();
 	});
 

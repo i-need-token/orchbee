@@ -31,6 +31,8 @@ Read generated ABI metadata from `ghostty_type_json()` when upgrading Ghostty; t
 | `GhosttyStyle`                     |   72 | flags `56..64`                           |
 | `GhosttyRenderStateColors`         |  784 | palette starts at `14`                   |
 
+`GhosttyTerminalOptions.max_scrollback` is a byte budget for raw terminal pages. Ghostty rounds it to terminal-page boundaries and always reserves enough pages for the active viewport; `0` disables history. `@orchbee/terminal` uses a 10 MB default.
+
 WASM `i64` parameters such as `GhosttyCell` and `GhosttyRow` are JavaScript `bigint` values.
 
 ## Integration
@@ -44,11 +46,12 @@ WASM `i64` parameters such as `GhosttyCell` and `GhosttyRow` are JavaScript `big
 | Cell text and resolved colors     | `ghostty_render_state_row_cells_get`                                             |
 | Cell width and hyperlink presence | `ghostty_cell_get` on the raw cell                                               |
 | Scrollback and OSC 8 URIs         | `ghostty_terminal_grid_ref` plus `ghostty_grid_ref_*`                            |
+| Viewport anchors across reflow    | `ghostty_terminal_grid_ref_track` plus `ghostty_tracked_grid_ref_point`          |
 | Modes                             | `ghostty_terminal_mode_get`                                                      |
 | Keyboard encoding                 | `ghostty_key_encoder_setopt_from_terminal` plus `ghostty_key_encoder_encode`     |
 | Mouse encoding                    | `ghostty_mouse_encoder_setopt_from_terminal` plus `ghostty_mouse_encoder_encode` |
 | Focus and paste encoding          | `ghostty_focus_encode`, `ghostty_paste_is_safe`, `ghostty_paste_encode`          |
-| Selection gestures                | `ghostty_selection_gesture_*`                                                    |
+| Selection gestures                | `ghostty_selection_gesture_*`, including `DRAGGED` state                         |
 
 Call `ghostty_render_state_update` once for each requested frame, capture the iterator data once, and serve renderer/buffer consumers from that snapshot.
 

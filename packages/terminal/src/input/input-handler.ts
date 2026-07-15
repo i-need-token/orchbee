@@ -626,8 +626,12 @@ export interface InputHandlerDependencies {
 	getCanvasOffset(): { left: number; top: number };
 	/** Query a terminal mode (DEC or ANSI). */
 	getMode(mode: number, isAnsi?: boolean): boolean;
+	/** Whether ordinary application input is currently read-only. */
+	isReadOnly?(): boolean;
 	/** Emit non-UTF-8 mouse bytes through the host's binary input channel. */
 	emitBinary?(data: string): void;
+	/** Emit non-UTF-8 state-repair bytes even after input becomes read-only. */
+	emitStateRepairBinary?(data: string): void;
 	/** Refresh pointer presentation when a mouse-shape modifier changes. */
 	onSurfaceModifierChange?(event: KeyboardEvent): void;
 }
@@ -655,6 +659,7 @@ export class InputHandler {
 		| undefined;
 	private onActionCallback?: ((id: string) => boolean) | undefined;
 	private onErrorCallback?: ((error: unknown) => void) | undefined;
+	private onStateRepairDataCallback?: ((data: string) => void) | undefined;
 
 	// Event listener references (for cleanup)
 	private keydownListener: ((e: KeyboardEvent) => void) | null = null;
@@ -666,6 +671,7 @@ export class InputHandler {
 	private compositionEndListener: ((e: CompositionEvent) => void) | null = null;
 	private mousedownListener: ((e: MouseEvent) => void) | null = null;
 	private mouseupListener: ((e: MouseEvent) => void) | null = null;
+	private documentMouseupListener: ((e: MouseEvent) => void) | null = null;
 	private mousemoveListener: ((e: MouseEvent) => void) | null = null;
 	private wheelListener: ((e: WheelEvent) => void) | null = null;
 
@@ -673,6 +679,9 @@ export class InputHandler {
 	private isComposing = false;
 	private isDisposed = false;
 	private mouseButtonsPressed = 0;
+	private reportedMouseButtonsPressed = 0;
+	private selectionOverrideButtonsPressed = 0;
+	private lastMouseEvent: MouseEvent | undefined;
 	private pendingWheelX = 0;
 	private pendingWheelY = 0;
 	private readonly pressedKeys = new Map<
@@ -712,6 +721,7 @@ export class InputHandler {
 		onPaste?: (data: string, source: 'clipboard' | 'beforeinput') => void,
 		onAction?: (id: string) => boolean,
 		onError?: (error: unknown) => void,
+		onStateRepairData?: (data: string) => void,
 	) {
 		this.deps = deps;
 		this.encoder = new KeyEncoder(deps.bridge);
@@ -732,6 +742,7 @@ export class InputHandler {
 		this.onPasteCallback = onPaste;
 		this.onActionCallback = onAction;
 		this.onErrorCallback = onError;
+		this.onStateRepairDataCallback = onStateRepairData;
 
 		try {
 			this.attach();
@@ -798,6 +809,10 @@ export class InputHandler {
 
 		this.mouseupListener = this.handleMouseUp.bind(this);
 		this.container.addEventListener('mouseup', this.mouseupListener);
+		if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+			this.documentMouseupListener = this.handleMouseUp.bind(this);
+			document.addEventListener('mouseup', this.documentMouseupListener);
+		}
 
 		this.mousemoveListener = this.handleMouseMove.bind(this);
 		this.container.addEventListener('mousemove', this.mousemoveListener);
@@ -930,6 +945,11 @@ export class InputHandler {
 			if (this.onActionCallback?.('terminal.select-all')) event.preventDefault();
 			return;
 		}
+		if (this.deps.isReadOnly?.()) {
+			event.preventDefault();
+			event.stopPropagation();
+			return;
+		}
 
 		// Map physical key code
 		const key = this.mapKeyCode(event.code);
@@ -1000,6 +1020,7 @@ export class InputHandler {
 		const key = this.mapKeyCode(event.code);
 		if (key === null) return;
 		this.pressedKeys.delete(event.code);
+		if (this.deps.isReadOnly?.()) return;
 		if (this.isComposing || event.isComposing) return;
 		if (!this.reportsKeyReleases()) return;
 
@@ -1032,6 +1053,7 @@ export class InputHandler {
 
 		event.preventDefault();
 		event.stopPropagation();
+		if (this.deps.isReadOnly?.()) return;
 
 		const clipboardData = event.clipboardData;
 		if (!clipboardData) return;
@@ -1060,6 +1082,12 @@ export class InputHandler {
 
 	private handleBeforeInput(event: InputEvent): void {
 		if (this.isDisposed) return;
+		if (this.deps.isReadOnly?.()) {
+			event.preventDefault();
+			event.stopPropagation();
+			this.clearInputElement();
+			return;
+		}
 		if (this.isComposing || event.isComposing) return;
 
 		const inputType = event.inputType;
@@ -1137,6 +1165,7 @@ export class InputHandler {
 
 	private handleCompositionStart(event: CompositionEvent): void {
 		if (this.isDisposed) return;
+		if (this.blockReadOnlyComposition(event)) return;
 		this.isComposing = true;
 		const data = event.data ?? '';
 		this.onCompositionCallback?.(data, this.readCompositionSelection(data));
@@ -1144,12 +1173,14 @@ export class InputHandler {
 
 	private handleCompositionUpdate(event: CompositionEvent): void {
 		if (this.isDisposed) return;
+		if (this.blockReadOnlyComposition(event)) return;
 		const data = event.data ?? '';
 		this.onCompositionCallback?.(data, this.readCompositionSelection(data));
 	}
 
 	private handleCompositionEnd(event: CompositionEvent): void {
 		if (this.isDisposed) return;
+		if (this.blockReadOnlyComposition(event)) return;
 		const wasComposing = this.isComposing;
 		this.isComposing = false;
 		this.onCompositionCallback?.(null);
@@ -1186,6 +1217,16 @@ export class InputHandler {
 
 		this.clearInputElement();
 		this.cleanupCompositionTextNodes();
+	}
+
+	private blockReadOnlyComposition(event: CompositionEvent): boolean {
+		if (!this.deps.isReadOnly?.()) return false;
+		this.isComposing = false;
+		event.preventDefault();
+		event.stopPropagation();
+		this.clearInputElement();
+		this.cleanupCompositionTextNodes();
+		return true;
 	}
 
 	private clearInputElement(): void {
@@ -1253,9 +1294,9 @@ export class InputHandler {
 		return null;
 	}
 
-	private getPressedMouseButton(): number | null {
+	private getPressedMouseButton(buttons = this.reportedMouseButtonsPressed): number | null {
 		for (const button of [0, 1, 2, 3, 4]) {
-			if ((this.mouseButtonsPressed & (1 << button)) !== 0) return this.mapMouseButton(button);
+			if ((buttons & (1 << button)) !== 0) return this.mapMouseButton(button);
 		}
 		return null;
 	}
@@ -1270,6 +1311,7 @@ export class InputHandler {
 		action: (typeof MouseAction)[keyof typeof MouseAction],
 		button: number | null,
 		event: MouseEvent,
+		stateRepair = false,
 	): void {
 		const position = this.getMousePosition(event);
 		if (!position) return;
@@ -1294,44 +1336,70 @@ export class InputHandler {
 		if (encoded.length === 0) return;
 		if (!this.deps.getMode(1005) && encoded.some((byte) => byte >= 0x80)) {
 			const binary = String.fromCharCode(...encoded);
-			if (this.deps.emitBinary) this.deps.emitBinary(binary);
-			else this.onDataCallback(binary);
+			if (stateRepair && this.deps.emitStateRepairBinary) {
+				this.deps.emitStateRepairBinary(binary);
+			} else if (this.deps.emitBinary) this.deps.emitBinary(binary);
+			else this.emitTextInput(binary, stateRepair);
 			return;
 		}
-		this.onDataCallback(new TextDecoder().decode(encoded));
+		this.emitTextInput(new TextDecoder().decode(encoded), stateRepair);
+	}
+
+	private emitTextInput(data: string, stateRepair: boolean): void {
+		if (stateRepair && this.onStateRepairDataCallback) this.onStateRepairDataCallback(data);
+		else this.onDataCallback(data);
 	}
 
 	private handleMouseDown(event: MouseEvent): void {
 		if (this.isDisposed) return;
+		this.lastMouseEvent = event;
+		if (this.deps.isReadOnly?.()) return;
 		const button = event.button;
 		const mappedButton = this.mapMouseButton(button);
 		if (mappedButton === null) return;
-		this.mouseButtonsPressed |= 1 << button;
-		if (!this.deps.hasMouseTracking() || event.shiftKey) return;
+		const mask = 1 << button;
+		this.mouseButtonsPressed |= mask;
+		if (!this.deps.hasMouseTracking() || event.shiftKey) {
+			this.selectionOverrideButtonsPressed |= mask;
+			return;
+		}
+		this.reportedMouseButtonsPressed |= mask;
 		this.sendMouseEvent(MouseAction.PRESS, mappedButton, event);
 	}
 
 	private handleMouseUp(event: MouseEvent): void {
 		if (this.isDisposed) return;
+		this.lastMouseEvent = event;
 		const button = event.button;
 		const mappedButton = this.mapMouseButton(button);
 		if (mappedButton === null) return;
-		this.mouseButtonsPressed &= ~(1 << button);
-		if (!this.deps.hasMouseTracking() || this.deps.getMode(9) || event.shiftKey) return;
+		const mask = 1 << button;
+		this.mouseButtonsPressed &= ~mask;
+		this.selectionOverrideButtonsPressed &= ~mask;
+		if ((this.reportedMouseButtonsPressed & mask) === 0) return;
+		this.reportedMouseButtonsPressed &= ~mask;
+		if (!this.deps.hasMouseTracking() || this.deps.getMode(9)) return;
 		this.sendMouseEvent(MouseAction.RELEASE, mappedButton, event);
 	}
 
 	private handleMouseMove(event: MouseEvent): void {
 		if (this.isDisposed) return;
+		this.lastMouseEvent = event;
+		if (this.deps.isReadOnly?.()) return;
+		if (event.buttons === 0 && this.mouseButtonsPressed !== 0) {
+			this.releasePressedMouseButtons(event);
+		}
 		if (!this.deps.hasMouseTracking()) return;
-		if (event.shiftKey && this.mouseButtonsPressed !== 0) return;
+		if (event.shiftKey || this.selectionOverrideButtonsPressed !== 0) return;
 
 		this.sendMouseEvent(MouseAction.MOTION, this.getPressedMouseButton(), event);
 	}
 
 	private handleWheel(event: WheelEvent): void {
 		if (this.isDisposed) return;
+		if (this.deps.isReadOnly?.()) return;
 		if (!this.deps.hasMouseTracking()) return;
+		if (event.shiftKey) return;
 
 		if (event.deltaX === 0 && event.deltaY === 0) return;
 		event.preventDefault();
@@ -1468,9 +1536,27 @@ export class InputHandler {
 		for (const event of pressed) {
 			try {
 				const encoded = this.encoder.encode({ action: KeyAction.RELEASE, ...event });
-				if (encoded.length > 0) this.onDataCallback(new TextDecoder().decode(encoded));
+				if (encoded.length > 0) this.emitTextInput(new TextDecoder().decode(encoded), true);
 			} catch (error) {
 				this.onErrorCallback?.(error);
+			}
+		}
+	}
+
+	/** Synthesize releases for application mouse buttons whose browser mouseup was lost. */
+	releasePressedMouseButtons(event = this.lastMouseEvent): void {
+		if (this.isDisposed) return;
+		const reported = this.reportedMouseButtonsPressed;
+		this.mouseButtonsPressed = 0;
+		this.reportedMouseButtonsPressed = 0;
+		this.selectionOverrideButtonsPressed = 0;
+		if (reported === 0 || !event || !this.deps.hasMouseTracking() || this.deps.getMode(9)) return;
+
+		for (const button of [0, 1, 2, 3, 4]) {
+			if ((reported & (1 << button)) === 0) continue;
+			const mappedButton = this.mapMouseButton(button);
+			if (mappedButton !== null) {
+				this.sendMouseEvent(MouseAction.RELEASE, mappedButton, event, true);
 			}
 		}
 	}
@@ -1479,6 +1565,10 @@ export class InputHandler {
 		if (this.isDisposed) return;
 
 		this.pressedKeys.clear();
+		this.mouseButtonsPressed = 0;
+		this.reportedMouseButtonsPressed = 0;
+		this.selectionOverrideButtonsPressed = 0;
+		this.lastMouseEvent = undefined;
 
 		if (this.keydownListener) {
 			this.container.removeEventListener('keydown', this.keydownListener);
@@ -1526,6 +1616,11 @@ export class InputHandler {
 		if (this.mouseupListener) {
 			this.container.removeEventListener('mouseup', this.mouseupListener);
 			this.mouseupListener = null;
+		}
+
+		if (this.documentMouseupListener) {
+			document.removeEventListener('mouseup', this.documentMouseupListener);
+			this.documentMouseupListener = null;
 		}
 
 		if (this.mousemoveListener) {

@@ -23,6 +23,7 @@ const GestureEventType = {
 } as const;
 
 const GestureData = {
+	DRAGGED: 1,
 	AUTOSCROLL: 2,
 } as const;
 
@@ -129,6 +130,8 @@ export class GhosttySelectionController {
 	private releaseEvent = 0;
 	private dragEvent = 0;
 	private autoscrollEvent = 0;
+	private selectionStartTracker = 0;
+	private selectionEndTracker = 0;
 	private disposed = false;
 
 	constructor(bridge: WasmBridge, terminal: TerminalHandle) {
@@ -212,11 +215,35 @@ export class GhosttySelectionController {
 	clearSelection(): boolean {
 		const hadSelection = this.hasSelection();
 		this.resetGesture();
-		if (!hadSelection) return false;
+		if (!hadSelection) {
+			this.releaseSelectionTrackers();
+			return false;
+		}
 		const result = this.bridge
 			.getExports()
 			.ghostty_terminal_set(this.terminal, TerminalOption.SELECTION, 0);
-		return result === Result.SUCCESS;
+		if (result !== Result.SUCCESS) return false;
+		this.releaseSelectionTrackers();
+		return true;
+	}
+
+	/** Clear a selection after either tracked endpoint has left scrollback. */
+	clearSelectionIfInvalid(): boolean {
+		if (!this.hasSelection()) {
+			this.releaseSelectionTrackers();
+			return false;
+		}
+		if (this.selectionStartTracker === 0 || this.selectionEndTracker === 0) {
+			return this.trackSelectionEndpoints() ? false : this.clearSelection();
+		}
+		if (
+			this.bridge.getExports().ghostty_tracked_grid_ref_has_value(this.selectionStartTracker) !==
+				0 &&
+			this.bridge.getExports().ghostty_tracked_grid_ref_has_value(this.selectionEndTracker) !== 0
+		) {
+			return false;
+		}
+		return this.clearSelection();
 	}
 
 	setRange(start: IBufferRange['start'], end: IBufferRange['end'], rectangle = false): boolean {
@@ -360,6 +387,22 @@ export class GhosttySelectionController {
 		return result === Result.NO_VALUE || result === Result.SUCCESS;
 	}
 
+	isGestureDragged(): boolean {
+		this.clearBuffer(this.gestureValueBuffer, GESTURE_VALUE_SIZE);
+		const result = this.bridge
+			.getExports()
+			.ghostty_selection_gesture_get(
+				this.gesture,
+				this.terminal,
+				GestureData.DRAGGED,
+				this.gestureValueBuffer,
+			);
+		return (
+			result === Result.SUCCESS &&
+			this.bridge.createView(this.gestureValueBuffer, 1).getUint8(0) !== 0
+		);
+	}
+
 	getAutoscroll(): GhosttySelectionAutoscroll {
 		this.clearBuffer(this.gestureValueBuffer, GESTURE_VALUE_SIZE);
 		const result = this.bridge
@@ -491,6 +534,7 @@ export class GhosttySelectionController {
 	dispose(): void {
 		if (this.disposed) return;
 		const exports = this.bridge.getExports();
+		this.releaseSelectionTrackers();
 		exports.ghostty_selection_gesture_event_free(this.pressEvent);
 		exports.ghostty_selection_gesture_event_free(this.releaseEvent);
 		exports.ghostty_selection_gesture_event_free(this.dragEvent);
@@ -540,11 +584,63 @@ export class GhosttySelectionController {
 	}
 
 	private installSelection(selection: number): boolean {
-		return (
-			this.bridge
+		const exports = this.bridge.getExports();
+		if (
+			exports.ghostty_terminal_set(this.terminal, TerminalOption.SELECTION, selection) !==
+			Result.SUCCESS
+		) {
+			return false;
+		}
+		if (this.trackSelectionEndpoints()) return true;
+		exports.ghostty_terminal_set(this.terminal, TerminalOption.SELECTION, 0);
+		return false;
+	}
+
+	private trackSelectionEndpoints(): boolean {
+		const range = this.getRange();
+		if (!range) {
+			this.releaseSelectionTrackers();
+			return false;
+		}
+		const start = this.trackPoint(range.start.x, range.start.y);
+		const end = this.trackPoint(range.end.x, range.end.y);
+		if (start === 0 || end === 0) {
+			if (start !== 0) this.bridge.getExports().ghostty_tracked_grid_ref_free(start);
+			if (end !== 0) this.bridge.getExports().ghostty_tracked_grid_ref_free(end);
+			this.releaseSelectionTrackers();
+			return false;
+		}
+		this.releaseSelectionTrackers();
+		this.selectionStartTracker = start;
+		this.selectionEndTracker = end;
+		return true;
+	}
+
+	private trackPoint(column: number, row: number): number {
+		this.writePoint(column, row);
+		const output = this.bridge.allocOpaque();
+		if (output === 0) return 0;
+		try {
+			const result = this.bridge
 				.getExports()
-				.ghostty_terminal_set(this.terminal, TerminalOption.SELECTION, selection) === Result.SUCCESS
-		);
+				.ghostty_terminal_grid_ref_track(this.terminal, this.pointBuffer, output);
+			if (result !== Result.SUCCESS) return 0;
+			return this.bridge.createView(output, 4).getUint32(0, true);
+		} finally {
+			this.bridge.freeOpaque(output);
+		}
+	}
+
+	private releaseSelectionTrackers(): void {
+		const exports = this.bridge.getExports();
+		if (this.selectionStartTracker !== 0) {
+			exports.ghostty_tracked_grid_ref_free(this.selectionStartTracker);
+			this.selectionStartTracker = 0;
+		}
+		if (this.selectionEndTracker !== 0) {
+			exports.ghostty_tracked_grid_ref_free(this.selectionEndTracker);
+			this.selectionEndTracker = 0;
+		}
 	}
 
 	private createGesture(): number {
@@ -591,6 +687,7 @@ export class GhosttySelectionController {
 		if (result === Result.SUCCESS) return this.installSelection(this.selectionBuffer);
 		if (result === Result.NO_VALUE && clearWhenEmpty) {
 			this.bridge.getExports().ghostty_terminal_set(this.terminal, TerminalOption.SELECTION, 0);
+			this.releaseSelectionTrackers();
 			return true;
 		}
 		return false;

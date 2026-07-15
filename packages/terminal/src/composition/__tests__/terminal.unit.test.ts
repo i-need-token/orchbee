@@ -6,6 +6,23 @@ import { Terminal } from '../terminal';
 
 beforeAll(initializeWasm);
 
+function createShiftKeyEvent(code: string): KeyboardEvent {
+	return { code, shiftKey: true, ctrlKey: false, altKey: false, metaKey: false } as KeyboardEvent;
+}
+
+function createLines(prefix: string, count: number): string {
+	return Array.from({ length: count }, (_, index) => `${prefix}-${index}\r\n`).join('');
+}
+
+type AbsoluteSelection = {
+	start: { x: number; y: number };
+	end: { x: number; y: number };
+};
+
+function selectionInBuffer(selection: AbsoluteSelection | null): AbsoluteSelection | null {
+	return selection;
+}
+
 describe('Terminal lifecycle', () => {
 	it('creates default and custom dimensions', () => {
 		const defaultTerminal = createTerminal();
@@ -25,12 +42,14 @@ describe('Terminal lifecycle', () => {
 		terminal.dispose();
 	});
 
-	it('supports xterm-style options', () => {
+	it('supports public terminal options', () => {
 		const terminal = new Terminal({
 			cols: 12,
 			rows: 3,
 			scrollback: 7,
 			cursorBlink: true,
+			fontWeight: 225,
+			fontWeightBold: 575,
 			fontLigatures: false,
 			fontMetricModifiers: { cellHeight: '10%', iconHeight: -1 },
 			paddingBalance: 'equal',
@@ -38,11 +57,108 @@ describe('Terminal lifecycle', () => {
 		});
 		terminal.grid.update();
 		expect(terminal.options.scrollback).toBe(7);
+		expect(terminal.options.fontWeight).toBe(225);
+		expect(terminal.options.fontWeightBold).toBe(575);
 		expect(terminal.options.fontLigatures).toBe(false);
 		expect(terminal.options.fontMetricModifiers).toEqual({ cellHeight: '10%', iconHeight: -1 });
 		expect(terminal.options.paddingBalance).toBe('equal');
 		expect(terminal.foregroundColor).toEqual({ r: 0x12, g: 0x34, b: 0x56 });
 		expect(terminal.backgroundColor).toEqual({ r: 1, g: 2, b: 3 });
+		terminal.dispose();
+	});
+
+	it('repairs active input state before entering read-only mode', () => {
+		const terminal = createTerminal();
+		const stateAtRepair: boolean[] = [];
+		const recordState = (): void => {
+			stateAtRepair.push(terminal.options.disableStdin);
+		};
+		Reflect.set(terminal, 'inputHandler', {
+			releasePressedKeys: recordState,
+			releasePressedMouseButtons: recordState,
+			cancelComposition: recordState,
+		});
+
+		terminal.options.disableStdin = true;
+
+		expect(stateAtRepair).toEqual([false, false, false]);
+		Reflect.set(terminal, 'inputHandler', undefined);
+		terminal.dispose();
+	});
+
+	it('updates the surface cursor immediately when output changes mouse ownership', () => {
+		const terminal = createTerminal();
+		const canvas = { style: { cursor: 'text' } };
+		Reflect.set(terminal, 'canvas', canvas);
+
+		terminal.write('\x1b[?1000h');
+		expect(canvas.style.cursor).toBe('default');
+		terminal.write('\x1b[?1000l');
+		expect(canvas.style.cursor).toBe('text');
+		terminal.write('\x1b[?1000h');
+		terminal.reset();
+		expect(canvas.style.cursor).toBe('text');
+
+		Reflect.set(terminal, 'canvas', undefined);
+		terminal.dispose();
+	});
+
+	it('discards an unfinished smooth-scroll target when the page becomes hidden', () => {
+		const terminal = createTerminal();
+		Reflect.set(terminal, 'viewportOffset', 2.5);
+		Reflect.set(terminal, 'targetViewportY', 12);
+		vi.stubGlobal('document', { visibilityState: 'hidden' });
+		const handleVisibilityChange = Reflect.get(terminal, 'handleVisibilityChange') as () => void;
+
+		try {
+			handleVisibilityChange.call(terminal);
+			expect(Reflect.get(terminal, 'targetViewportY')).toBe(2.5);
+		} finally {
+			vi.unstubAllGlobals();
+			terminal.dispose();
+		}
+	});
+
+	it('clears and reports a selection when its scrollback endpoint is pruned', () => {
+		const terminal = new Terminal({ cols: 80, rows: 24, scrollback: 10_000 });
+		const selection = Reflect.get(terminal, 'selectionController') as {
+			setRange(start: { x: number; y: number }, end: { x: number; y: number }): boolean;
+			getSelection(): string;
+		};
+		terminal.write(createLines('before', 5_000));
+		expect(selection.setRange({ x: 0, y: 0 }, { x: 5, y: 0 })).toBe(true);
+		expect(selection.getSelection()).not.toBe('');
+		const changes: number[] = [];
+		const subscription = terminal.onSelectionChange(() => changes.push(changes.length));
+
+		terminal.write(createLines('after', 5_000));
+
+		expect(selection.getSelection()).toBe('');
+		expect(changes).toHaveLength(1);
+		subscription.dispose();
+		terminal.dispose();
+	});
+
+	it('retains history beyond Ghostty minimum page allocation by default', () => {
+		const terminal = new Terminal({ cols: 80, rows: 24 });
+		for (let index = 0; index < 1500; index++) terminal.writeln(`history-${index}`);
+
+		expect(terminal.options.scrollback).toBe(10_000_000);
+		expect(terminal.grid.getScrollbackLength()).toBe(1477);
+		terminal.dispose();
+	});
+
+	it('clamps the viewport when terminal output clears scrollback', () => {
+		const terminal = createTerminal(12, 3, { scrollbackLimit: 10_000_000 });
+		for (let index = 0; index < 8; index++) terminal.writeln(`history-${index}`);
+		terminal.scrollToTop();
+		expect(terminal.viewportY).toBeGreaterThan(0);
+
+		terminal.write('\x1b[3J');
+
+		expect(terminal.grid.getScrollbackLength()).toBe(0);
+		expect(terminal.viewportY).toBe(0);
+		expect(Reflect.get(terminal, 'targetViewportY')).toBe(0);
 		terminal.dispose();
 	});
 
@@ -54,7 +170,7 @@ describe('Terminal lifecycle', () => {
 			const loadConfiguredFont = Reflect.get(terminal, 'loadConfiguredFont') as () => Promise<void>;
 			await loadConfiguredFont.call(terminal);
 
-			expect(load).toHaveBeenCalledWith('17px Test Mono, monospace', 'MW你🚀');
+			expect(load).toHaveBeenCalledWith('normal 17px Test Mono, monospace', 'MW你🚀');
 		} finally {
 			vi.unstubAllGlobals();
 			terminal.dispose();
@@ -118,6 +234,58 @@ describe('Terminal lifecycle', () => {
 		await expect(terminal.open({} as HTMLElement)).rejects.toThrow('disposed terminal');
 	});
 
+	it('releases disposed surface component references', () => {
+		const terminal = createTerminal();
+		const dispose = vi.fn<() => void>();
+		Reflect.set(terminal, 'inputHandler', { dispose });
+		Reflect.set(terminal, 'selectionManager', { dispose });
+		Reflect.set(terminal, 'linkDetector', { dispose });
+		Reflect.set(terminal, 'renderer', { dispose });
+
+		terminal.dispose();
+
+		expect(dispose).toHaveBeenCalledTimes(4);
+		expect(Reflect.get(terminal, 'inputHandler')).toBeUndefined();
+		expect(Reflect.get(terminal, 'selectionManager')).toBeUndefined();
+		expect(Reflect.get(terminal, 'linkDetector')).toBeUndefined();
+		expect(terminal.renderer).toBeUndefined();
+	});
+
+	it('rejects a second open while the first open is pending', async () => {
+		const terminal = createTerminal();
+		let finishOpen: (() => void) | undefined;
+		const pending = new Promise<void>((resolve) => {
+			finishOpen = resolve;
+		});
+		Reflect.set(terminal, 'openInternal', () => pending);
+		const first = terminal.open({} as HTMLElement);
+
+		await expect(terminal.open({} as HTMLElement)).rejects.toThrow('already open');
+		finishOpen?.();
+		await expect(first).resolves.toBeUndefined();
+		terminal.dispose();
+	});
+
+	it('applies open dimensions as one resize event', async () => {
+		const terminal = createTerminal();
+		const failure = new Error('stop after options');
+		const resizes: { cols: number; rows: number }[] = [];
+		terminal.onResize((event) => resizes.push(event));
+		Reflect.set(terminal, 'loadConfiguredFont', async () => {
+			throw failure;
+		});
+		vi.stubGlobal('document', { removeEventListener: () => {} });
+
+		try {
+			await expect(terminal.open({} as HTMLElement, { cols: 31, rows: 7 })).rejects.toBe(failure);
+			expect([terminal.cols, terminal.rows]).toEqual([31, 7]);
+			expect(resizes).toEqual([{ cols: 31, rows: 7 }]);
+		} finally {
+			vi.unstubAllGlobals();
+			terminal.dispose();
+		}
+	});
+
 	it('rolls back parent state when opening fails before renderer initialization', async () => {
 		const terminal = createTerminal();
 		const parent = {
@@ -173,19 +341,90 @@ describe('Terminal lifecycle', () => {
 	it('synchronizes renderer focus for Ghostty-style cursor presentation', () => {
 		const terminal = createTerminal();
 		const setFocused = vi.fn<(focused: boolean) => void>();
+		const cancelActiveGesture = vi.fn<() => void>();
+		const releasePressedKeys = vi.fn<() => void>();
+		const releasePressedMouseButtons = vi.fn<() => void>();
+		const cancelComposition = vi.fn<() => void>();
 		vi.stubGlobal('Node', Object);
 		Reflect.set(terminal, 'renderer', { setFocused });
-		const handleFocusIn = Reflect.get(terminal, 'handleFocusIn') as () => void;
+		Reflect.set(terminal, 'selectionManager', { cancelActiveGesture });
+		Reflect.set(terminal, 'inputHandler', {
+			releasePressedKeys,
+			releasePressedMouseButtons,
+			cancelComposition,
+		});
+		Reflect.set(terminal, 'draggingScrollbar', true);
+		const handleFocusIn = Reflect.get(terminal, 'handleFocusIn') as (
+			event: Pick<FocusEvent, 'relatedTarget'>,
+		) => void;
 		const handleFocusOut = Reflect.get(terminal, 'handleFocusOut') as (
 			event: Pick<FocusEvent, 'relatedTarget'>,
 		) => void;
 
-		handleFocusIn.call(terminal);
+		handleFocusIn.call(terminal, { relatedTarget: null });
 		handleFocusOut.call(terminal, { relatedTarget: null });
 
 		expect(setFocused.mock.calls).toEqual([[true], [false]]);
+		expect(cancelActiveGesture).toHaveBeenCalledOnce();
+		expect(releasePressedKeys).toHaveBeenCalledOnce();
+		expect(releasePressedMouseButtons).toHaveBeenCalledOnce();
+		expect(cancelComposition).toHaveBeenCalledOnce();
+		expect(Reflect.get(terminal, 'draggingScrollbar')).toBe(false);
 		Reflect.set(terminal, 'renderer', undefined);
+		Reflect.set(terminal, 'selectionManager', undefined);
+		Reflect.set(terminal, 'inputHandler', undefined);
 		terminal.dispose();
+	});
+
+	it('reports focus changes without leaving the viewed history', () => {
+		const terminal = new Terminal({ cols: 20, rows: 3, scrollback: 10_000 });
+		terminal.write(createLines('history', 20));
+		terminal.write('\x1b[?1004h');
+		terminal.scrollToTop();
+		const viewport = terminal.viewportY;
+		const data: string[] = [];
+		terminal.onData((value) => data.push(value));
+		const handleFocusIn = Reflect.get(terminal, 'handleFocusIn') as (
+			event: Pick<FocusEvent, 'relatedTarget'>,
+		) => void;
+		const handleFocusOut = Reflect.get(terminal, 'handleFocusOut') as (
+			event: Pick<FocusEvent, 'relatedTarget'>,
+		) => void;
+		vi.stubGlobal('Node', Object);
+
+		try {
+			handleFocusOut.call(terminal, { relatedTarget: null });
+			handleFocusIn.call(terminal, { relatedTarget: null });
+
+			expect(data).toEqual(['\x1b[O', '\x1b[I']);
+			expect(terminal.viewportY).toBe(viewport);
+		} finally {
+			vi.unstubAllGlobals();
+			terminal.dispose();
+		}
+	});
+
+	it('does not report focus again when focus moves within the terminal surface', () => {
+		const terminal = createTerminal();
+		terminal.write('\x1b[?1004h');
+		const data: string[] = [];
+		terminal.onData((value) => data.push(value));
+		const inside = {};
+		Reflect.set(terminal, 'hostElement', { contains: (target: unknown) => target === inside });
+		const handleFocusIn = Reflect.get(terminal, 'handleFocusIn') as (
+			event: Pick<FocusEvent, 'relatedTarget'>,
+		) => void;
+		vi.stubGlobal('Node', Object);
+
+		try {
+			handleFocusIn.call(terminal, { relatedTarget: null });
+			handleFocusIn.call(terminal, { relatedTarget: inside as EventTarget });
+			expect(data).toEqual(['\x1b[I']);
+		} finally {
+			vi.unstubAllGlobals();
+			Reflect.set(terminal, 'hostElement', undefined);
+			terminal.dispose();
+		}
 	});
 
 	it('writes strings, bytes, and lines', () => {
@@ -228,10 +467,7 @@ describe('Terminal lifecycle', () => {
 	it('navigates matches in Ghostty order and wraps in both directions', () => {
 		const terminal = createTerminal(10, 2, { scrollbackLimit: 10 });
 		terminal.write('Fizz\r\nBuzz\r\nFizz\r\nBang');
-		let selection: {
-			start: { x: number; y: number };
-			end: { x: number; y: number };
-		} | null = null;
+		let selection: AbsoluteSelection | null = null;
 		const selectAbsoluteRange = vi.fn<
 			(start: { x: number; y: number }, end: { x: number; y: number }) => boolean
 		>((start: { x: number; y: number }, end: { x: number; y: number }): boolean => {
@@ -242,7 +478,7 @@ describe('Terminal lifecycle', () => {
 			selection = null;
 		});
 		Reflect.set(terminal, 'selectionManager', {
-			getSelectionPosition: () => selection,
+			getSelectionPosition: () => selectionInBuffer(selection),
 			selectAbsoluteRange,
 			clearSelection,
 		});
@@ -259,6 +495,36 @@ describe('Terminal lifecycle', () => {
 		expect(selection).toMatchObject({ start: { x: 0, y: 2 } });
 		expect(clearSelection).not.toHaveBeenCalled();
 
+		Reflect.set(terminal, 'selectionManager', undefined);
+		terminal.dispose();
+	});
+
+	it('traverses every scrollback match in buffer order', () => {
+		const terminal = createTerminal(12, 2, { scrollbackLimit: 40 });
+		terminal.write('match-0\r\nfiller\r\nmatch-1\r\nfiller\r\nmatch-2\r\nfiller\r\nmatch-3');
+		const matches = terminal.findAll('match');
+		let selection: AbsoluteSelection | null = null;
+		Reflect.set(terminal, 'selectionManager', {
+			getSelectionPosition: () => selectionInBuffer(selection),
+			selectAbsoluteRange: (start: { x: number; y: number }, end: { x: number; y: number }) => {
+				selection = { start, end };
+				return true;
+			},
+			clearSelection: () => {
+				selection = null;
+			},
+		});
+		const visited: number[] = [];
+
+		for (let index = 0; index < matches.length; index++) {
+			expect(terminal.findNext('match')).toBe(true);
+			const current = selection as AbsoluteSelection | null;
+			if (current) visited.push(current.start.y);
+		}
+
+		expect(visited).toEqual(
+			matches.map((_match, index) => matches[matches.length - index - 1]?.start.row),
+		);
 		Reflect.set(terminal, 'selectionManager', undefined);
 		terminal.dispose();
 	});
@@ -298,6 +564,23 @@ describe('Terminal lifecycle', () => {
 		terminal.dispose();
 	});
 
+	it('invalidates rendered search highlights when terminal content changes', () => {
+		const terminal = createTerminal(10, 3);
+		terminal.write('search');
+		const setSearchMatches = vi.fn<() => void>();
+		Reflect.set(terminal, 'renderer', { setSearchMatches });
+		Reflect.set(terminal, 'renderLoopId', 1);
+
+		expect(terminal.highlightSearch('search')).toHaveLength(1);
+		terminal.write('\r\x1b[2Kreplacement');
+
+		expect(setSearchMatches).toHaveBeenLastCalledWith([]);
+		expect(Reflect.get(terminal, 'searchHighlightsActive')).toBe(false);
+		Reflect.set(terminal, 'renderLoopId', 0);
+		Reflect.set(terminal, 'renderer', undefined);
+		terminal.dispose();
+	});
+
 	it('wraps previous search when every match is in scrollback', () => {
 		const terminal = createTerminal(10, 2, { scrollbackLimit: 20 });
 		terminal.write('Fizz\r\nblank\r\nblank\r\nblank');
@@ -305,12 +588,9 @@ describe('Terminal lifecycle', () => {
 		expect(matches).toHaveLength(1);
 		expect(matches[0]?.start.row).toBeLessThan(terminal.grid.getScrollbackLength());
 
-		let selection: {
-			start: { x: number; y: number };
-			end: { x: number; y: number };
-		} | null = null;
+		let selection: AbsoluteSelection | null = null;
 		Reflect.set(terminal, 'selectionManager', {
-			getSelectionPosition: () => selection,
+			getSelectionPosition: () => selectionInBuffer(selection),
 			selectAbsoluteRange: (start: { x: number; y: number }, end: { x: number; y: number }) => {
 				selection = { start, end };
 				return true;
@@ -359,12 +639,9 @@ describe('Terminal lifecycle', () => {
 	it('keeps search navigation valid after clearing scrollback', () => {
 		const terminal = createTerminal(10, 2, { scrollbackLimit: 20 });
 		terminal.write('error\r\nerror\r\nerror\r\nerror.');
-		let selection: {
-			start: { x: number; y: number };
-			end: { x: number; y: number };
-		} | null = null;
+		let selection: AbsoluteSelection | null = null;
 		Reflect.set(terminal, 'selectionManager', {
-			getSelectionPosition: () => selection,
+			getSelectionPosition: () => selectionInBuffer(selection),
 			selectAbsoluteRange: (start: { x: number; y: number }, end: { x: number; y: number }) => {
 				selection = { start, end };
 				return true;
@@ -383,12 +660,64 @@ describe('Terminal lifecycle', () => {
 		terminal.dispose();
 	});
 
+	it('reports the primary-buffer transition immediately when reset leaves alternate screen', () => {
+		const terminal = createTerminal();
+		terminal.write('\x1b[?1049hAlternate');
+		expect(terminal.buffer.active.type).toBe('alternate');
+		const changes: string[] = [];
+		terminal.buffer.onBufferChange((buffer) => changes.push(buffer.type));
+
+		terminal.reset();
+
+		expect(terminal.buffer.active.type).toBe('normal');
+		expect(changes).toEqual(['normal']);
+		expect(Reflect.get(terminal, 'lastAlternateScreen')).toBe(false);
+		terminal.write('next');
+		expect(changes).toEqual(['normal']);
+		terminal.dispose();
+	});
+
 	it('resizes and safely disposes twice', () => {
 		const terminal = createTerminal();
+		const resizes: { cols: number; rows: number }[] = [];
+		terminal.onResize((event) => resizes.push(event));
 		terminal.resize(20, 5);
 		expect([terminal.cols, terminal.rows]).toEqual([20, 5]);
+		expect([terminal.options.cols, terminal.options.rows]).toEqual([20, 5]);
+		expect(resizes).toEqual([{ cols: 20, rows: 5 }]);
 		expect(() => terminal.dispose()).not.toThrow();
 		expect(() => terminal.dispose()).not.toThrow();
+	});
+
+	it('keeps the visible history row anchored across resize reflow', () => {
+		const terminal = createTerminal(12, 3, { scrollbackLimit: 10_000 });
+		const scrollEvents: number[] = [];
+		terminal.onScroll((viewportY) => scrollEvents.push(viewportY));
+		for (let index = 0; index < 12; index++) {
+			terminal.writeln(`ROW${String(index).padStart(2, '0')}-abc`);
+		}
+		terminal.scrollToTop();
+		terminal.scrollLines(2);
+		const beforeTop = terminal.getScrollbackLength() - Math.floor(terminal.viewportY);
+		const before = terminal.grid
+			.readScrollbackLine(beforeTop)
+			?.cells.map((cell) => cell.text)
+			.join('')
+			.trimEnd();
+		scrollEvents.length = 0;
+
+		terminal.resize(6, 3);
+
+		const afterTop = terminal.getScrollbackLength() - Math.floor(terminal.viewportY);
+		const after = terminal.grid
+			.readScrollbackLine(afterTop)
+			?.cells.map((cell) => cell.text)
+			.join('')
+			.trimEnd();
+		expect(before).toBe('ROW02-abc');
+		expect(after).toBe('ROW02-');
+		expect(scrollEvents).toEqual([terminal.viewportY]);
+		terminal.dispose();
 	});
 
 	it('disposes loaded addons', () => {
@@ -543,6 +872,31 @@ describe('Terminal callbacks and state', () => {
 		terminal.dispose();
 	});
 
+	it('restores omitted runtime theme colors to defaults', () => {
+		const terminal = createTerminal(8, 2);
+		terminal.options.theme = {
+			foreground: '#010203',
+			background: '#fefdfc',
+			cursor: '#112233',
+		};
+		terminal.grid.update();
+		expect(terminal.getColors()).toEqual({
+			foreground: { r: 1, g: 2, b: 3 },
+			background: { r: 254, g: 253, b: 252 },
+			cursor: { r: 17, g: 34, b: 51 },
+		});
+
+		terminal.options.theme = {};
+		terminal.grid.update();
+
+		expect(terminal.getColors()).toEqual({
+			foreground: { r: 212, g: 212, b: 212 },
+			background: { r: 30, g: 30, b: 30 },
+			cursor: { r: 255, g: 255, b: 255 },
+		});
+		terminal.dispose();
+	});
+
 	it('exposes OSC default-color overrides and restores configured defaults', () => {
 		const terminal = new Terminal({ cols: 8, rows: 2, theme: { background: '#010203' } });
 		terminal.write('\x1b]11;rgb:12/34/56\x1b\\');
@@ -561,6 +915,146 @@ describe('Terminal callbacks and state', () => {
 		const before = terminal.buffer.active.viewportY;
 		terminal.writeln('new-line');
 		expect(terminal.buffer.active.viewportY).toBe(before);
+		terminal.dispose();
+	});
+
+	it('clears a stale hovered link when the viewport moves', () => {
+		const terminal = createTerminal(12, 3, { scrollbackLimit: 20 });
+		for (let index = 0; index < 8; index++) terminal.writeln(`line-${index}`);
+		const hover = vi.fn<(active: boolean) => void>();
+		Reflect.set(terminal, 'hoveredLink', {
+			text: 'https://example.com/stale',
+			range: { start: { x: 0, y: 7 }, end: { x: 24, y: 7 } },
+			hover,
+		});
+
+		terminal.scrollToTop();
+
+		expect(hover).toHaveBeenCalledWith(false);
+		expect(Reflect.get(terminal, 'hoveredLink')).toBeUndefined();
+		terminal.dispose();
+	});
+
+	it('clears a stale hovered link when terminal content changes', () => {
+		const terminal = createTerminal();
+		const hover = vi.fn<(active: boolean) => void>();
+		Reflect.set(terminal, 'hoveredLink', {
+			text: 'https://example.com/stale',
+			range: { start: { x: 0, y: 0 }, end: { x: 24, y: 0 } },
+			hover,
+		});
+
+		terminal.write('replacement');
+
+		expect(hover).toHaveBeenCalledWith(false);
+		expect(Reflect.get(terminal, 'hoveredLink')).toBeUndefined();
+		terminal.dispose();
+	});
+
+	it('repairs a lost scrollbar mouseup from buttonless pointer movement', () => {
+		const terminal = createTerminal(80, 24, { scrollbackLimit: 10_000_000 });
+		for (let index = 0; index < 200; index++) terminal.writeln(`line-${index}`);
+		const canvas = {
+			getBoundingClientRect: () => ({ left: 0, top: 0, width: 640, height: 408 }),
+		};
+		Reflect.set(terminal, 'canvas', canvas);
+		const handleMouseDown = Reflect.get(terminal, 'handleScrollbarMouseDown') as (
+			event: MouseEvent,
+		) => void;
+		const handleMouseMove = Reflect.get(terminal, 'handleScrollbarMouseMove') as (
+			event: MouseEvent,
+		) => void;
+		handleMouseDown.call(terminal, {
+			button: 0,
+			clientX: 639,
+			clientY: 300,
+			preventDefault: () => {},
+			stopImmediatePropagation: () => {},
+		} as unknown as MouseEvent);
+		const viewportBeforeMove = terminal.viewportY;
+
+		expect(Reflect.get(terminal, 'draggingScrollbar')).toBe(true);
+		handleMouseMove.call(terminal, { buttons: 0, clientY: 100 } as MouseEvent);
+
+		expect(Reflect.get(terminal, 'draggingScrollbar')).toBe(false);
+		expect(terminal.viewportY).toBe(viewportBeforeMove);
+		Reflect.set(terminal, 'canvas', undefined);
+		terminal.dispose();
+	});
+
+	it('keeps Shift+PageUp and Shift+PageDown local to scrollback navigation', () => {
+		const terminal = createTerminal(12, 3, { scrollbackLimit: 20 });
+		for (let index = 0; index < 8; index++) terminal.writeln(`line-${index}`);
+		const data: string[] = [];
+		terminal.onData((value) => data.push(value));
+		const dispatch = Reflect.get(terminal, 'dispatchCustomKeyEvent') as (
+			event: KeyboardEvent,
+		) => boolean;
+
+		expect(dispatch.call(terminal, createShiftKeyEvent('PageUp'))).toBe(true);
+		expect(terminal.viewportY).toBeGreaterThan(0);
+		expect(dispatch.call(terminal, createShiftKeyEvent('PageDown'))).toBe(true);
+		expect(terminal.viewportY).toBe(0);
+		expect(data).toEqual([]);
+		terminal.dispose();
+	});
+
+	it('leaves modified scrollback keys available to application key handlers', () => {
+		const terminal = createTerminal(12, 3, { scrollbackLimit: 20 });
+		for (let index = 0; index < 8; index++) terminal.writeln(`line-${index}`);
+		const handle = vi.fn<(event: KeyboardEvent) => boolean>(() => true);
+		terminal.registerKeyEventHandler({
+			id: 'application.shift-page-up',
+			priority: 100,
+			scope: 'application',
+			handle,
+		});
+		const dispatch = Reflect.get(terminal, 'dispatchCustomKeyEvent') as (
+			event: KeyboardEvent,
+		) => boolean;
+		const event = createShiftKeyEvent('PageUp');
+
+		expect(dispatch.call(terminal, event)).toBe(true);
+		expect(handle).toHaveBeenCalledWith(event, {
+			alternateScreen: false,
+			hasSelection: false,
+			readOnly: false,
+		});
+		expect(terminal.viewportY).toBe(0);
+		terminal.dispose();
+	});
+
+	it('reveals the active prompt before emitting user input from history', () => {
+		const terminal = createTerminal(12, 3, { scrollbackLimit: 20 });
+		for (let index = 0; index < 8; index++) terminal.writeln(`line-${index}`);
+		terminal.scrollPages(-1);
+		expect(terminal.viewportY).toBeGreaterThan(0);
+		const data: string[] = [];
+		terminal.onData((value) => data.push(value));
+
+		terminal.input('typed', true);
+
+		expect(terminal.viewportY).toBe(0);
+		expect(data).toEqual(['typed']);
+		terminal.dispose();
+	});
+
+	it('reveals the active prompt when IME composition starts in history', () => {
+		const terminal = createTerminal(12, 3, { scrollbackLimit: 20 });
+		for (let index = 0; index < 8; index++) terminal.writeln(`line-${index}`);
+		terminal.scrollPages(-1);
+		expect(terminal.viewportY).toBeGreaterThan(0);
+		const handleComposition = Reflect.get(terminal, 'handleComposition') as (
+			data: string | null,
+			selection?: { readonly start: number; readonly end: number },
+		) => void;
+
+		handleComposition.call(terminal, '', { start: 0, end: 0 });
+
+		expect(terminal.viewportY).toBe(0);
+		terminal.scrollPages(-1);
+		handleComposition.call(terminal, null);
+		expect(terminal.viewportY).toBeGreaterThan(0);
 		terminal.dispose();
 	});
 
@@ -640,6 +1134,73 @@ describe('Terminal callbacks and state', () => {
 		resolveConfirmation?.(true);
 		await Promise.all([paste, barrier]);
 		expect(data).toEqual(['first\rsecond', 'typed']);
+		terminal.dispose();
+	});
+
+	it('reports a paste as blocked when stdin is disabled during confirmation', async () => {
+		let resolveConfirmation: ((confirmed: boolean) => void) | undefined;
+		const confirmation = new Promise<boolean>((resolve) => {
+			resolveConfirmation = resolve;
+		});
+		const terminal = new Terminal({
+			cols: 10,
+			rows: 2,
+			host: { confirmPaste: () => confirmation },
+		});
+		const data: string[] = [];
+		terminal.onData((value) => data.push(value));
+
+		const paste = terminal.pasteAsync('first\nsecond', 'clipboard');
+		await Promise.resolve();
+		terminal.options.disableStdin = true;
+		resolveConfirmation?.(true);
+
+		await expect(paste).resolves.toMatchObject({
+			kind: 'blocked',
+			reason: 'stdin-disabled',
+			source: 'clipboard',
+		});
+		expect(data).toEqual([]);
+		terminal.dispose();
+	});
+
+	it('delivers queued state-repair input without changing the viewed history', async () => {
+		let resolveConfirmation: ((confirmed: boolean) => void) | undefined;
+		const confirmation = new Promise<boolean>((resolve) => {
+			resolveConfirmation = resolve;
+		});
+		const terminal = new Terminal({
+			cols: 10,
+			rows: 2,
+			scrollback: 10_000,
+			host: { confirmPaste: () => confirmation },
+		});
+		const data: string[] = [];
+		const binary: string[] = [];
+		terminal.onData((value) => data.push(value));
+		terminal.onBinary((value) => binary.push(value));
+		terminal.write(createLines('history', 20));
+		terminal.scrollToTop();
+		const viewport = terminal.viewportY;
+		const paste = terminal.pasteAsync('first\nsecond', 'clipboard');
+		await Promise.resolve();
+		terminal.options.disableStdin = true;
+		const emitStateRepairInput = Reflect.get(terminal, 'emitStateRepairInput') as (
+			data: string,
+		) => void;
+		const createInputDeps = Reflect.get(terminal, 'createInputDeps') as () => {
+			emitStateRepairBinary?: (data: string) => void;
+		};
+
+		emitStateRepairInput.call(terminal, 'mouse-release');
+		createInputDeps.call(terminal).emitStateRepairBinary?.('binary-release');
+		resolveConfirmation?.(true);
+		await paste;
+		await terminal.pasteAsync('');
+
+		expect(data).toEqual(['mouse-release']);
+		expect(binary).toEqual(['binary-release']);
+		expect(terminal.viewportY).toBe(viewport);
 		terminal.dispose();
 	});
 
@@ -816,6 +1377,259 @@ describe('Terminal callbacks and state', () => {
 		terminal.grid.update();
 		expect(terminal.cursorX).toBe(0);
 		(terminal as unknown as { canvas: HTMLCanvasElement | undefined }).canvas = undefined;
+		terminal.dispose();
+	});
+
+	it('reads context-menu semantic zones from the visible scrollback row', () => {
+		const terminal = createTerminal(10, 2, { scrollbackLimit: 20 });
+		terminal.write('\x1b]133;A\x07PROMPT\r\n\x1b]133;C\x07output-1\r\noutput-2\r\noutput-3');
+		terminal.scrollToTop();
+		Reflect.set(terminal, 'canvas', {
+			getBoundingClientRect: () => ({ left: 0, top: 0 }),
+		});
+		const createInteractionContext = Reflect.get(terminal, 'createInteractionContext') as (
+			x: number,
+			y: number,
+			modifiers: { alt: boolean; control: boolean; meta: boolean; shift: boolean },
+		) => { semanticZone: string | null; cell: { bufferRow: number } | null };
+
+		const context = createInteractionContext.call(terminal, 4, 8, {
+			alt: false,
+			control: false,
+			meta: false,
+			shift: false,
+		});
+
+		expect(context.cell?.bufferRow).toBe(0);
+		expect(context.semanticZone).toBe('prompt');
+		Reflect.set(terminal, 'canvas', undefined);
+		terminal.dispose();
+	});
+
+	it('excludes a hovered link from context requested over another buffer cell', () => {
+		const terminal = createTerminal(40, 3);
+		terminal.write('https://example.com/context\r\nPLAIN');
+		Reflect.set(terminal, 'canvas', {
+			getBoundingClientRect: () => ({ left: 0, top: 0 }),
+		});
+		Reflect.set(terminal, 'hoveredLink', {
+			text: 'https://example.com/context',
+			target: { kind: 'url', url: 'https://example.com/context' },
+			range: { start: { x: 0, y: 0 }, end: { x: 26, y: 0 } },
+		});
+		const createInteractionContext = Reflect.get(terminal, 'createInteractionContext') as (
+			x: number,
+			y: number,
+			modifiers: { alt: boolean; control: boolean; meta: boolean; shift: boolean },
+		) => { link: { text: string } | null };
+		const modifiers = { alt: false, control: false, meta: false, shift: false };
+
+		expect(createInteractionContext.call(terminal, 4, 8, modifiers).link?.text).toBe(
+			'https://example.com/context',
+		);
+		expect(createInteractionContext.call(terminal, 4, 24, modifiers).link).toBeNull();
+		Reflect.set(terminal, 'hoveredLink', undefined);
+		Reflect.set(terminal, 'canvas', undefined);
+		terminal.dispose();
+	});
+
+	it('does not activate a hovered link from another clicked buffer cell', () => {
+		const openTarget = vi.fn<NonNullable<TerminalHost['openTarget']>>(async () => {});
+		const terminal = new Terminal({ cols: 40, rows: 3, host: { openTarget } });
+		terminal.write('https://example.com/click\r\nPLAIN');
+		Reflect.set(terminal, 'canvas', {
+			getBoundingClientRect: () => ({ left: 0, top: 0 }),
+		});
+		Reflect.set(terminal, 'hoveredLink', {
+			text: 'https://example.com/click',
+			target: { kind: 'url', url: 'https://example.com/click' },
+			activation: 'modifier',
+			range: { start: { x: 0, y: 0 }, end: { x: 24, y: 0 } },
+		});
+		const handleCanvasClick = Reflect.get(terminal, 'handleCanvasClick') as (
+			event: MouseEvent,
+		) => void;
+		const event = {
+			clientX: 4,
+			clientY: 24,
+			altKey: false,
+			ctrlKey: false,
+			metaKey: true,
+			shiftKey: false,
+		} as MouseEvent;
+
+		handleCanvasClick.call(terminal, event);
+		expect(openTarget).not.toHaveBeenCalled();
+		handleCanvasClick.call(terminal, { ...event, clientY: 8 });
+		expect(openTarget).toHaveBeenCalledOnce();
+		Reflect.set(terminal, 'hoveredLink', undefined);
+		Reflect.set(terminal, 'canvas', undefined);
+		terminal.dispose();
+	});
+
+	it('does not activate a direct link from the click synthesized after a selection drag', () => {
+		const openTarget = vi.fn<NonNullable<TerminalHost['openTarget']>>(async () => {});
+		const terminal = new Terminal({ cols: 40, rows: 3, host: { openTarget } });
+		const consumeSelectionDragClick = vi.fn<(event: MouseEvent) => boolean>(() => true);
+		Reflect.set(terminal, 'selectionManager', { consumeSelectionDragClick });
+		Reflect.set(terminal, 'canvas', {
+			getBoundingClientRect: () => ({ left: 0, top: 0 }),
+		});
+		Reflect.set(terminal, 'hoveredLink', {
+			text: 'direct link',
+			target: { kind: 'url', url: 'https://example.com/direct' },
+			activation: 'direct',
+			range: { start: { x: 0, y: 0 }, end: { x: 20, y: 0 } },
+		});
+		const handleCanvasClick = Reflect.get(terminal, 'handleCanvasClick') as (
+			event: MouseEvent,
+		) => void;
+		const event = {
+			clientX: 4,
+			clientY: 8,
+			timeStamp: 100,
+			altKey: false,
+			ctrlKey: false,
+			metaKey: false,
+			shiftKey: false,
+		} as MouseEvent;
+
+		handleCanvasClick.call(terminal, event);
+
+		expect(consumeSelectionDragClick).toHaveBeenCalledWith(event);
+		expect(openTarget).not.toHaveBeenCalled();
+		Reflect.set(terminal, 'hoveredLink', undefined);
+		Reflect.set(terminal, 'canvas', undefined);
+		Reflect.set(terminal, 'selectionManager', undefined);
+		terminal.dispose();
+	});
+
+	it('keeps an unmodified context-menu gesture application-owned during mouse tracking', () => {
+		const showContextMenu = vi.fn<NonNullable<TerminalHost['showContextMenu']>>(async () => null);
+		const terminal = new Terminal({ cols: 40, rows: 3, host: { showContextMenu } });
+		terminal.write('\x1b[?1000h\x1b[?1006h');
+		const preventDefault = vi.fn<() => void>();
+		const stopPropagation = vi.fn<() => void>();
+		const handleCanvasContextMenu = Reflect.get(terminal, 'handleCanvasContextMenu') as (
+			event: MouseEvent,
+		) => void;
+
+		handleCanvasContextMenu.call(terminal, {
+			shiftKey: false,
+			preventDefault,
+			stopPropagation,
+		} as unknown as MouseEvent);
+
+		expect(preventDefault).toHaveBeenCalledOnce();
+		expect(stopPropagation).toHaveBeenCalledOnce();
+		expect(showContextMenu).not.toHaveBeenCalled();
+		terminal.dispose();
+	});
+
+	it('returns local wheel and selection ownership when a tracked terminal becomes read-only', () => {
+		const terminal = new Terminal({
+			cols: 20,
+			rows: 3,
+			scrollback: 10_000,
+			smoothScrollDuration: 0,
+		});
+		terminal.write(createLines('history', 20));
+		terminal.write('\x1b[?1000h\x1b[?1006h');
+		const createSelectionTerminal = Reflect.get(terminal, 'createSelectionTerminal') as () => {
+			shouldSelect(event: MouseEvent): boolean;
+		};
+		const selectionTerminal = createSelectionTerminal.call(terminal);
+		const handleWheel = Reflect.get(terminal, 'handleWheel') as (event: WheelEvent) => void;
+		const preventDefault = vi.fn<() => void>();
+		const wheelEvent = {
+			deltaMode: 0,
+			deltaX: 0,
+			deltaY: -20,
+			preventDefault,
+		} as unknown as WheelEvent;
+
+		expect(selectionTerminal.shouldSelect({ shiftKey: false } as MouseEvent)).toBe(false);
+		handleWheel.call(terminal, wheelEvent);
+		expect(terminal.viewportY).toBe(0);
+		handleWheel.call(terminal, { ...wheelEvent, shiftKey: true });
+		expect(terminal.viewportY).toBe(1);
+		terminal.scrollToBottom();
+
+		terminal.options.disableStdin = true;
+		expect(selectionTerminal.shouldSelect({ shiftKey: false } as MouseEvent)).toBe(true);
+		handleWheel.call(terminal, wheelEvent);
+
+		expect(preventDefault).toHaveBeenCalledTimes(2);
+		expect(terminal.viewportY).toBe(1);
+		terminal.dispose();
+	});
+
+	it('returns the context menu to a read-only tracked terminal surface', async () => {
+		const showContextMenu = vi.fn<NonNullable<TerminalHost['showContextMenu']>>(async () => null);
+		const terminal = new Terminal({ cols: 40, rows: 3, host: { showContextMenu } });
+		terminal.write('\x1b[?1000h\x1b[?1006h');
+		terminal.options.disableStdin = true;
+		Reflect.set(terminal, 'canvas', {
+			getBoundingClientRect: () => ({ left: 0, top: 0 }),
+		});
+		const handleCanvasContextMenu = Reflect.get(terminal, 'handleCanvasContextMenu') as (
+			event: MouseEvent,
+		) => void;
+		const preventDefault = vi.fn<() => void>();
+		const stopPropagation = vi.fn<() => void>();
+
+		handleCanvasContextMenu.call(terminal, {
+			clientX: 1,
+			clientY: 1,
+			altKey: false,
+			ctrlKey: false,
+			metaKey: false,
+			shiftKey: false,
+			preventDefault,
+			stopPropagation,
+		} as unknown as MouseEvent);
+
+		await vi.waitFor(() => expect(showContextMenu).toHaveBeenCalledOnce());
+		expect(preventDefault).toHaveBeenCalledOnce();
+		expect(stopPropagation).toHaveBeenCalledOnce();
+		Reflect.set(terminal, 'canvas', undefined);
+		terminal.dispose();
+	});
+
+	it('keeps unshifted link clicks application-owned during mouse tracking', () => {
+		const openTarget = vi.fn<NonNullable<TerminalHost['openTarget']>>(async () => {});
+		const terminal = new Terminal({ cols: 40, rows: 3, host: { openTarget } });
+		terminal.write('https://example.com/tracked\x1b[?1000h\x1b[?1006h');
+		Reflect.set(terminal, 'canvas', {
+			getBoundingClientRect: () => ({ left: 0, top: 0 }),
+			style: {},
+		});
+		const link = {
+			text: 'https://example.com/tracked',
+			target: { kind: 'url', url: 'https://example.com/tracked' },
+			activation: 'modifier',
+			range: { start: { x: 0, y: 0 }, end: { x: 26, y: 0 } },
+		};
+		Reflect.set(terminal, 'hoveredLink', link);
+		const handleCanvasClick = Reflect.get(terminal, 'handleCanvasClick') as (
+			event: MouseEvent,
+		) => void;
+		const event = {
+			clientX: 4,
+			clientY: 8,
+			altKey: false,
+			ctrlKey: false,
+			metaKey: true,
+			shiftKey: false,
+		} as MouseEvent;
+
+		handleCanvasClick.call(terminal, event);
+		expect(openTarget).not.toHaveBeenCalled();
+		Reflect.set(terminal, 'hoveredLink', link);
+		handleCanvasClick.call(terminal, { ...event, shiftKey: true });
+		expect(openTarget).toHaveBeenCalledOnce();
+		Reflect.set(terminal, 'hoveredLink', undefined);
+		Reflect.set(terminal, 'canvas', undefined);
 		terminal.dispose();
 	});
 });

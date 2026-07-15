@@ -354,7 +354,7 @@ export function buildModeTag(mode: number, isAnsi: boolean): number {
  *   cols(u16) + rows(u16) + max_scrollback(u32)
  */
 export interface TerminalConfig {
-	/** Maximum scrollback history (default: 10000, 0 disables scrollback). */
+	/** Ghostty scrollback page-storage budget in bytes (default: 10 MB; 0 disables scrollback). */
 	readonly scrollbackLimit?: number;
 	/** Default foreground color (0xRRGGBB, 0 = default). */
 	readonly fgColor?: number;
@@ -889,6 +889,11 @@ export interface WasmExports extends WebAssembly.Exports {
 	// Tracked grid ref
 	readonly ghostty_tracked_grid_ref_free: (ref: number) => void;
 	readonly ghostty_tracked_grid_ref_has_value: (ref: number) => number;
+	readonly ghostty_tracked_grid_ref_point: (
+		ref: number,
+		tag: PointTag,
+		outPointPtr: number,
+	) => number;
 
 	// Cell/Row standalone data
 	readonly ghostty_cell_get: (cell: bigint, data: number, outPtr: number) => number;
@@ -1081,9 +1086,12 @@ export interface ITerminalOptions {
 	cursorBlink?: boolean;
 	cursorStyle?: 'block' | 'underline' | 'bar';
 	theme?: ITheme;
+	/** Ghostty scrollback page-storage budget in bytes (default: 10 MB; 0 disables scrollback). */
 	scrollback?: number;
 	fontSize?: number;
 	fontFamily?: string;
+	fontWeight?: FontWeight;
+	fontWeightBold?: FontWeight;
 	fontLigatures?: boolean;
 	/** Ghostty-compatible deltas for grid, decoration, cursor, and icon metrics. */
 	fontMetricModifiers?: FontMetricModifiers;
@@ -1134,7 +1142,7 @@ export interface IKeyEvent {
 	domEvent: KeyboardEvent;
 }
 
-/** Buffer range for selection coordinates. */
+/** Range in absolute active-buffer coordinates. */
 export interface IBufferRange {
 	start: { x: number; y: number };
 	end: { x: number; y: number };
@@ -1257,6 +1265,9 @@ export interface FontMetricModifiers {
 /** Metric used to normalize a fallback face to a primary face. */
 export type FontSizeAdjustment = 'none' | 'ic-width' | 'ex-height' | 'cap-height' | 'line-height';
 
+/** CSS font weight used for regular or bold terminal cells. */
+export type FontWeight = number | 'normal' | 'bold';
+
 /** Ghostty padding modes; `true` caps top padding and `equal` centers the grid. */
 export type PaddingBalance = false | true | 'equal';
 
@@ -1271,6 +1282,8 @@ export interface SurfacePadding {
 export interface RendererOptions {
 	fontSize?: number;
 	fontFamily?: string;
+	fontWeight?: FontWeight;
+	fontWeightBold?: FontWeight;
 	fontLigatures?: boolean;
 	fontMetricModifiers?: FontMetricModifiers;
 	paddingBalance?: PaddingBalance;

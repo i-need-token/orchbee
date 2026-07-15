@@ -17,7 +17,7 @@
  * import { init, Terminal } from "@orchbee/terminal";
  *
  * await init({ source: "/ghostty-vt.wasm" });
- * const term = new Terminal(80, 24, { scrollbackLimit: 10000 });
+ * const term = new Terminal(80, 24, { scrollbackLimit: 10_000_000 });
  *
  * term.write("Hello, world!\r\n");
  *
@@ -47,6 +47,9 @@ import {
 	CellSemanticContent,
 	DecMode,
 	DirtyState,
+	POINT_SIZE,
+	PointTag,
+	Result,
 	type RGB,
 	RENDER_STATE_COLORS_SIZE,
 	RenderStateData,
@@ -141,6 +144,68 @@ import {
 // Re-export types for the public API
 export type { TerminalConfig } from '../types';
 
+const DEFAULT_SCROLLBACK_BYTES = 10_000_000;
+const POINT_COORDINATE_SIZE = 8;
+
+interface ViewportResizeAnchor {
+	resolveScreenRow(): number | undefined;
+	dispose(): void;
+}
+
+function createViewportResizeAnchor(
+	bridge: WasmBridge,
+	handle: TerminalHandle,
+	viewportOffset: number,
+	scrollbackLength: number,
+): ViewportResizeAnchor | undefined {
+	if (viewportOffset <= 0) return undefined;
+	const exports = bridge.getExports();
+	const pointBuffer = bridge.allocU8Array(POINT_SIZE);
+	const trackerOutput = bridge.allocOpaque();
+	let coordinateBuffer = 0;
+	let tracker = 0;
+	try {
+		bridge.writeBytes(pointBuffer, new Uint8Array(POINT_SIZE));
+		const point = bridge.createView(pointBuffer, POINT_SIZE);
+		point.setUint32(0, PointTag.SCREEN, true);
+		point.setUint16(8, 0, true);
+		point.setUint32(12, Math.max(0, scrollbackLength - Math.floor(viewportOffset)), true);
+		if (
+			exports.ghostty_terminal_grid_ref_track(handle, pointBuffer, trackerOutput) !== Result.SUCCESS
+		) {
+			return undefined;
+		}
+		tracker = bridge.createView(trackerOutput, 4).getUint32(0, true);
+		if (tracker === 0) return undefined;
+		coordinateBuffer = bridge.allocU8Array(POINT_COORDINATE_SIZE);
+		let active = true;
+		return {
+			resolveScreenRow: (): number | undefined => {
+				if (!active) return undefined;
+				if (
+					exports.ghostty_tracked_grid_ref_point(tracker, PointTag.SCREEN, coordinateBuffer) !==
+					Result.SUCCESS
+				) {
+					return undefined;
+				}
+				return bridge.createView(coordinateBuffer, POINT_COORDINATE_SIZE).getUint32(4, true);
+			},
+			dispose: (): void => {
+				if (!active) return;
+				exports.ghostty_tracked_grid_ref_free(tracker);
+				bridge.freeU8Array(coordinateBuffer, POINT_COORDINATE_SIZE);
+				active = false;
+			},
+		};
+	} finally {
+		if (tracker === 0 && coordinateBuffer !== 0) {
+			bridge.freeU8Array(coordinateBuffer, POINT_COORDINATE_SIZE);
+		}
+		bridge.freeU8Array(pointBuffer, POINT_SIZE);
+		bridge.freeOpaque(trackerOutput);
+	}
+}
+
 export interface TerminalOptions extends ITerminalOptions {
 	readonly host?: TerminalHost;
 	readonly identity?: Partial<TerminalProtocolIdentity>;
@@ -196,6 +261,7 @@ export class Terminal {
 	readonly buffer: BufferNamespace;
 	/** xterm-compatible terminal options. */
 	readonly options: Required<ITerminalOptions>;
+	private readonly optionState: Required<ITerminalOptions>;
 	/** Unicode version implemented by Ghostty. */
 	readonly unicode: IUnicodeVersionProvider = { activeVersion: '15.1' };
 	/** Compile-time features of the packaged Ghostty WASM binary. */
@@ -252,7 +318,7 @@ export class Terminal {
 			this.rowCount = optionInput.rows ?? 24;
 			const theme = optionInput.theme;
 			resolvedConfig = {
-				scrollbackLimit: optionInput.scrollback ?? 10000,
+				scrollbackLimit: optionInput.scrollback ?? DEFAULT_SCROLLBACK_BYTES,
 				...(theme?.foreground ? { fgColor: packRgb(parseCssColor(theme.foreground)) } : {}),
 				...(theme?.background ? { bgColor: packRgb(parseCssColor(theme.background)) } : {}),
 				...(theme?.cursor ? { cursorColor: packRgb(parseCssColor(theme.cursor)) } : {}),
@@ -270,9 +336,11 @@ export class Terminal {
 			cursorBlink: optionInput.cursorBlink ?? false,
 			cursorStyle: optionInput.cursorStyle ?? 'block',
 			theme: optionInput.theme ?? {},
-			scrollback: resolvedConfig?.scrollbackLimit ?? 10000,
+			scrollback: resolvedConfig?.scrollbackLimit ?? DEFAULT_SCROLLBACK_BYTES,
 			fontSize: optionInput.fontSize ?? 15,
 			fontFamily: optionInput.fontFamily ?? 'monospace',
+			fontWeight: optionInput.fontWeight ?? 'normal',
+			fontWeightBold: optionInput.fontWeightBold ?? 'bold',
 			fontLigatures: optionInput.fontLigatures ?? true,
 			fontMetricModifiers: optionInput.fontMetricModifiers ?? {},
 			paddingBalance: optionInput.paddingBalance ?? false,
@@ -284,9 +352,15 @@ export class Terminal {
 			pasteProtection: optionInput.pasteProtection ?? true,
 			pasteBracketedSafe: optionInput.pasteBracketedSafe ?? true,
 		};
-		this.options = new Proxy(baseOptions, {
+		this.optionState = baseOptions;
+		this.options = new Proxy(this.optionState, {
 			set: (target, property, value): boolean => {
 				const previous = Reflect.get(target, property);
+				if (property === 'disableStdin' && previous === false && value === true) {
+					this.inputHandler?.releasePressedKeys();
+					this.inputHandler?.releasePressedMouseButtons();
+					this.inputHandler?.cancelComposition();
+				}
 				const updated = Reflect.set(target, property, value);
 				if (updated && previous !== value) this.handleOptionChange(String(property));
 				return updated;
@@ -438,8 +512,13 @@ export class Terminal {
 			this.bridge.writeBytes(ptr, bytes);
 			this.bridge.getExports().ghostty_terminal_vt_write(this.handle, ptr, bytes.length);
 			this.linkDetector?.invalidateCache();
+			this.clearHoveredLink();
+			this.syncSurfaceMouseOwnership();
+			if (this.searchHighlightsActive) this.clearSearch();
 			const newScrollbackLength = this.grid.getScrollbackLength();
-			if (this.viewportOffset > 0 && newScrollbackLength > oldScrollbackLength) {
+			if (newScrollbackLength < oldScrollbackLength) {
+				this.setViewportY(Math.min(this.viewportOffset, newScrollbackLength));
+			} else if (this.viewportOffset > 0 && newScrollbackLength > oldScrollbackLength) {
 				this.viewportOffset = Math.min(
 					newScrollbackLength,
 					this.viewportOffset + newScrollbackLength - oldScrollbackLength,
@@ -455,6 +534,9 @@ export class Terminal {
 				this.targetViewportY = 0;
 				this.cancelSmoothScroll();
 				this.buffer.emitBufferChange(this.buffer.active);
+			}
+			if (this.selectionController.clearSelectionIfInvalid()) {
+				this.notifySelectionChange();
 			}
 		} finally {
 			this.bridge.freeU8Array(ptr, bytes.length);
@@ -565,6 +647,9 @@ export class Terminal {
 			if (!confirmed) return { kind: 'cancelled', source, inspection };
 		}
 
+		if (this.options.disableStdin) {
+			return { kind: 'blocked', reason: 'stdin-disabled', source, inspection };
+		}
 		if (this.handle === 0) {
 			return { kind: 'blocked', reason: 'terminal-disposed', source, inspection };
 		}
@@ -592,8 +677,18 @@ export class Terminal {
 	/** Reset Ghostty's terminal state. */
 	reset(): void {
 		this.inputHandler?.cancelComposition();
+		this.inputHandler?.releasePressedKeys();
+		this.inputHandler?.releasePressedMouseButtons();
 		this.selectionManager?.clearSelection();
+		this.clearHoveredLink();
+		this.clearSearch();
 		this.bridge.getExports().ghostty_terminal_reset(this.handle);
+		this.syncSurfaceMouseOwnership();
+		const alternateScreen = this.isAlternateScreen();
+		if (alternateScreen !== this.lastAlternateScreen) {
+			this.lastAlternateScreen = alternateScreen;
+			this.buffer.emitBufferChange(this.buffer.active);
+		}
 		this.viewportOffset = 0;
 		this.targetViewportY = 0;
 		this.cancelSmoothScroll();
@@ -619,21 +714,45 @@ export class Terminal {
 	 */
 	resize(cols: number, rows: number, cellWidthPx = 8, cellHeightPx = 16): void {
 		if (cols === this.columnCount && rows === this.rowCount) return;
-		this.columnCount = cols;
-		this.rowCount = rows;
-		this.options.cols = cols;
-		this.options.rows = rows;
+		const previousViewportOffset = this.viewportOffset;
+		const viewportAnchor = createViewportResizeAnchor(
+			this.bridge,
+			this.handle,
+			this.viewportOffset,
+			this.grid.getScrollbackLength(),
+		);
+		try {
+			this.columnCount = cols;
+			this.rowCount = rows;
+			this.optionState.cols = cols;
+			this.optionState.rows = rows;
 
-		this.bridge
-			.getExports()
-			.ghostty_terminal_resize(this.handle, cols, rows, cellWidthPx, cellHeightPx);
-		this.grid.resize(cols, rows);
-		this.linkDetector?.invalidateCache();
-		this.viewportOffset = Math.min(this.viewportOffset, this.grid.getScrollbackLength());
-		this.targetViewportY = this.viewportOffset;
-		this.renderer?.resize(cols, rows);
-		this.requestRender();
-		this.onResizeEmitter.fire({ cols, rows });
+			this.bridge
+				.getExports()
+				.ghostty_terminal_resize(this.handle, cols, rows, cellWidthPx, cellHeightPx);
+			this.grid.resize(cols, rows);
+			this.linkDetector?.invalidateCache();
+			this.clearHoveredLink();
+			const scrollbackLength = this.grid.getScrollbackLength();
+			const anchoredRow = viewportAnchor?.resolveScreenRow();
+			this.viewportOffset = Math.max(
+				0,
+				Math.min(
+					scrollbackLength,
+					anchoredRow === undefined ? this.viewportOffset : scrollbackLength - anchoredRow,
+				),
+			);
+			this.targetViewportY = this.viewportOffset;
+			this.cancelSmoothScroll();
+			if (this.viewportOffset !== previousViewportOffset) {
+				this.onScrollEmitter.fire(this.viewportOffset);
+			}
+			this.renderer?.resize(cols, rows);
+			this.requestRender();
+			this.onResizeEmitter.fire({ cols, rows });
+		} finally {
+			viewportAnchor?.dispose();
+		}
 	}
 
 	/** Free all WASM resources. Terminal is unusable after dispose(). */
@@ -646,6 +765,10 @@ export class Terminal {
 		this.selectionManager?.dispose();
 		this.linkDetector?.dispose();
 		this.renderer?.dispose();
+		this.inputHandler = undefined;
+		this.selectionManager = undefined;
+		this.linkDetector = undefined;
+		this.renderer = undefined;
 		for (const addon of this.addons) addon.dispose();
 		this.addons.clear();
 		this.actions.dispose();
@@ -737,13 +860,16 @@ export class Terminal {
 	private renderLoopId = 0;
 	private viewportOffset = 0;
 	private hostElement: HTMLElement | undefined;
+	private opening = false;
 	private originalElementPosition: string | undefined;
 	private preeditCellWidth = 0;
 	private preeditCaretPixelOffset = 0;
 	private hoveredLink: ILink | undefined;
 	private hoveredLinkEnabled = false;
+	private searchHighlightsActive = false;
 	private linkLookupId = 0;
 	private surfaceModifiers: TerminalModifierState = EMPTY_MODIFIERS;
+	private surfaceMouseOwnedByApplication = false;
 	private readonly surfaceMousePlatform = classifySurfaceMousePlatform(
 		globalThis.navigator?.platform ?? '',
 	);
@@ -774,23 +900,30 @@ export class Terminal {
 	/** Open the terminal in a parent DOM element. */
 	async open(parent: HTMLElement, options?: ITerminalOptions): Promise<void> {
 		if (this.handle === 0) throw new Error('Cannot open a disposed terminal');
-		if (this.hostElement) throw new Error('Terminal is already open');
+		if (this.hostElement || this.opening) throw new Error('Terminal is already open');
+		this.opening = true;
 		try {
 			await this.openInternal(parent, options);
 		} catch (error) {
 			this.rollbackOpen();
 			throw error;
+		} finally {
+			this.opening = false;
 		}
 	}
 
 	private async openInternal(parent: HTMLElement, options?: ITerminalOptions): Promise<void> {
 		if (options) {
-			if (options.cols !== undefined) this.options.cols = options.cols;
-			if (options.rows !== undefined) this.options.rows = options.rows;
+			const cols = options.cols ?? this.columnCount;
+			const rows = options.rows ?? this.rowCount;
+			if (cols !== this.columnCount || rows !== this.rowCount) this.resize(cols, rows);
 			if (options.cursorBlink !== undefined) this.options.cursorBlink = options.cursorBlink;
 			if (options.cursorStyle !== undefined) this.options.cursorStyle = options.cursorStyle;
 			if (options.fontSize !== undefined) this.options.fontSize = options.fontSize;
 			if (options.fontFamily !== undefined) this.options.fontFamily = options.fontFamily;
+			if (options.fontWeight !== undefined) this.options.fontWeight = options.fontWeight;
+			if (options.fontWeightBold !== undefined)
+				this.options.fontWeightBold = options.fontWeightBold;
 			if (options.fontLigatures !== undefined) this.options.fontLigatures = options.fontLigatures;
 			if (options.fontMetricModifiers !== undefined)
 				this.options.fontMetricModifiers = options.fontMetricModifiers;
@@ -810,6 +943,7 @@ export class Terminal {
 			if (options.theme) this.options.theme = { ...this.options.theme, ...options.theme };
 		}
 		await this.loadConfiguredFont();
+		if (this.handle === 0) throw new Error('Cannot open a disposed terminal');
 		this.hostElement = parent;
 		if (window.getComputedStyle(parent).position === 'static') {
 			this.originalElementPosition = parent.style.position;
@@ -847,6 +981,7 @@ export class Terminal {
 		textarea.style.caretColor = 'transparent';
 		textarea.style.fontFamily = this.options.fontFamily;
 		textarea.style.fontSize = `${this.options.fontSize}px`;
+		textarea.style.fontWeight = String(this.options.fontWeight);
 		parent.appendChild(textarea);
 		this.textAreaElement = textarea;
 		canvas.setAttribute('aria-hidden', 'true');
@@ -860,6 +995,8 @@ export class Terminal {
 		const rendererOpts: RendererOptions = {};
 		rendererOpts.fontSize = resolvedOptions.fontSize;
 		rendererOpts.fontFamily = resolvedOptions.fontFamily;
+		rendererOpts.fontWeight = resolvedOptions.fontWeight;
+		rendererOpts.fontWeightBold = resolvedOptions.fontWeightBold;
 		rendererOpts.fontLigatures = resolvedOptions.fontLigatures;
 		rendererOpts.fontMetricModifiers = resolvedOptions.fontMetricModifiers;
 		rendererOpts.paddingBalance = resolvedOptions.paddingBalance;
@@ -875,6 +1012,7 @@ export class Terminal {
 			this.onRendererTelemetryEmitter.fire(telemetry),
 		);
 		await this.renderer.initGPU();
+		if (this.handle === 0) throw new Error('Cannot open a disposed terminal');
 
 		const resolvedTheme = { ...DEFAULT_THEME, ...theme };
 		this.setForegroundColor(parseCssColor(resolvedTheme.foreground));
@@ -897,9 +1035,7 @@ export class Terminal {
 			selectionModel: this.selectionController,
 		});
 		this.selectionManager.onSelectionChange(() => {
-			this.onSelectionChangeEmitter.fire();
-			this.actions.notifyStateChange('terminal.copy');
-			this.actions.notifyStateChange('terminal.clear-selection');
+			this.notifySelectionChange();
 		});
 		this.renderer.setSelectionManager(this.selectionManager);
 
@@ -921,6 +1057,7 @@ export class Terminal {
 			},
 			(id) => this.dispatchKeyboardAction(id),
 			(error) => this.onHostErrorEmitter.fire({ operation: 'input-encode', error }),
+			(data) => this.emitStateRepairInput(data),
 		);
 
 		// Create link detector + providers
@@ -1161,11 +1298,13 @@ export class Terminal {
 	): readonly TerminalSearchMatch[] {
 		const matches = this.findAll(query, options);
 		this.renderer?.setSearchMatches(matches);
+		this.searchHighlightsActive = matches.length > 0;
 		return matches;
 	}
 
 	clearSearch(): void {
 		this.renderer?.setSearchMatches([]);
+		this.searchHighlightsActive = false;
 	}
 
 	findPrevious(query: string, options: TerminalSearchOptions = {}): boolean {
@@ -1210,6 +1349,7 @@ export class Terminal {
 			this.targetViewportY = next;
 			return;
 		}
+		this.clearHoveredLink();
 		this.viewportOffset = next;
 		this.targetViewportY = this.viewportOffset;
 		this.onScrollEmitter.fire(this.viewportOffset);
@@ -1328,6 +1468,12 @@ export class Terminal {
 		this.requestRender();
 	}
 
+	private notifySelectionChange(): void {
+		this.onSelectionChangeEmitter.fire();
+		this.actions.notifyStateChange('terminal.copy');
+		this.actions.notifyStateChange('terminal.clear-selection');
+	}
+
 	private requestRender(): void {
 		if (!this.renderer || this.handle === 0 || this.renderLoopId !== 0) return;
 		this.renderLoopId = requestAnimationFrame(() => {
@@ -1390,16 +1536,16 @@ export class Terminal {
 			rows.push(buildAccessibleRow(cells ?? [], this.columnCount));
 		}
 		const cursor = this.ghosttyTerm.getCursor();
-		const selection = this.getSelectionPosition();
+		const selection = this.selectionManager?.getSelectionCoords();
 		const accessibleSelection =
 			selection &&
-			selection.start.y >= 0 &&
-			selection.start.y < this.rowCount &&
-			selection.end.y >= 0 &&
-			selection.end.y < this.rowCount
+			selection.startRow >= 0 &&
+			selection.startRow < this.rowCount &&
+			selection.endRow >= 0 &&
+			selection.endRow < this.rowCount
 				? {
-						start: { row: selection.start.y, column: selection.start.x },
-						end: { row: selection.end.y, column: selection.end.x },
+						start: { row: selection.startRow, column: selection.startCol },
+						end: { row: selection.endRow, column: selection.endCol },
 					}
 				: undefined;
 		this.accessibility.update(
@@ -1434,16 +1580,17 @@ export class Terminal {
 
 	private selectSearchMatch(matches: readonly TerminalSearchMatch[], reverse: boolean): boolean {
 		if (matches.length === 0) {
-			this.renderer?.setSearchMatches([]);
+			this.clearSearch();
 			this.selectionManager?.clearSelection();
 			return false;
 		}
 		if (!this.selectionManager) {
-			this.renderer?.setSearchMatches([]);
+			this.clearSearch();
 			return false;
 		}
 		const current = this.getSelectionPosition();
-		const currentRow = current?.start.y ?? (reverse ? Number.POSITIVE_INFINITY : -1);
+		let currentRow = reverse ? Number.POSITIVE_INFINITY : -1;
+		if (current) currentRow = current.start.y;
 		const currentColumn = current?.start.x ?? (reverse ? Number.POSITIVE_INFINITY : -1);
 		const ordered = reverse ? reverseSearchMatches(matches) : matches;
 		const match =
@@ -1456,6 +1603,7 @@ export class Terminal {
 			) ?? ordered[0];
 		if (!match) return false;
 		this.renderer?.setSearchMatches(matches, match);
+		this.searchHighlightsActive = true;
 		this.revealAbsoluteRow(match.start.row);
 		return this.selectionManager.selectAbsoluteRange(
 			{ x: match.start.column, y: match.start.row },
@@ -1472,6 +1620,7 @@ export class Terminal {
 		else if (row > bottom) viewportY = scrollbackLength - (row - this.rowCount + 1);
 		viewportY = Math.max(0, Math.min(scrollbackLength, viewportY));
 		if (viewportY === this.viewportOffset) return;
+		this.clearHoveredLink();
 		this.viewportOffset = viewportY;
 		this.targetViewportY = viewportY;
 		this.cancelSmoothScroll();
@@ -1512,7 +1661,7 @@ export class Terminal {
 
 	private handleWheel(e: WheelEvent): void {
 		if (this.customWheelEventHandler?.(e)) return;
-		if (this.hasMouseTracking()) return;
+		if (this.hasApplicationMouseOwnership() && !e.shiftKey) return;
 		e.preventDefault();
 
 		if (this.isAlternateScreen()) {
@@ -1537,6 +1686,7 @@ export class Terminal {
 
 	private smoothScrollTo(target: number): void {
 		this.targetViewportY = Math.max(0, Math.min(this.grid.getScrollbackLength(), target));
+		if (this.targetViewportY !== this.viewportOffset) this.clearHoveredLink();
 		if (this.options.smoothScrollDuration <= 0 || typeof requestAnimationFrame !== 'function') {
 			this.setViewportY(this.targetViewportY);
 			return;
@@ -1573,7 +1723,7 @@ export class Terminal {
 	private readonly handleCanvasMouseMove = (event: MouseEvent): void => {
 		if (!this.canvas || !this.renderer || !this.linkDetector) return;
 		this.setSurfaceModifiers(event);
-		if (this.hasMouseTracking() && !event.shiftKey) {
+		if (this.hasApplicationMouseOwnership() && !event.shiftKey) {
 			this.clearHoveredLink();
 			return;
 		}
@@ -1586,7 +1736,7 @@ export class Terminal {
 			return;
 		}
 
-		const visibleTop = this.grid.getScrollbackLength() - this.viewportOffset;
+		const visibleTop = this.grid.getScrollbackLength() - Math.floor(this.viewportOffset);
 		const lookupId = ++this.linkLookupId;
 		void this.linkDetector.getLinkAt(col, visibleTop + viewportRow).then((link) => {
 			if (lookupId !== this.linkLookupId) return;
@@ -1601,8 +1751,21 @@ export class Terminal {
 
 	private readonly handleCanvasClick = (event: MouseEvent): void => {
 		this.setSurfaceModifiers(event);
+		if (this.selectionManager?.consumeSelectionDragClick(event)) return;
+		if (this.hasApplicationMouseOwnership() && !event.shiftKey) {
+			this.clearHoveredLink();
+			return;
+		}
 		const link = this.hoveredLink;
-		if (!link || !this.isLinkActivationEnabled(link, this.surfaceModifiers)) return;
+		const cell = this.getBufferCellAt(event.clientX, event.clientY);
+		if (
+			!link ||
+			!cell ||
+			!isBufferCellInRange(cell.column, cell.bufferRow, link.range) ||
+			!this.isLinkActivationEnabled(link, this.surfaceModifiers)
+		) {
+			return;
+		}
 		if (link.target) {
 			if (!this.host.openTarget || !this.capabilities.openTarget) {
 				this.onHostErrorEmitter.fire({
@@ -1620,6 +1783,11 @@ export class Terminal {
 	};
 
 	private readonly handleCanvasContextMenu = (event: MouseEvent): void => {
+		if (this.hasApplicationMouseOwnership() && !event.shiftKey) {
+			event.preventDefault();
+			event.stopPropagation();
+			return;
+		}
 		if (!this.host.showContextMenu || !this.capabilities.contextMenu) return;
 		event.preventDefault();
 		event.stopPropagation();
@@ -1636,20 +1804,7 @@ export class Terminal {
 		clientY: number,
 		modifiers: TerminalModifierState,
 	): TerminalInteractionContext {
-		const rect = this.canvas?.getBoundingClientRect();
-		const dimensions = this.renderer?.getMetrics() ?? { width: 8, height: 16 };
-		let cell: TerminalInteractionContext['cell'] = null;
-		if (rect) {
-			const column = Math.floor((clientX - rect.left) / dimensions.width);
-			const row = Math.floor((clientY - rect.top) / dimensions.height);
-			if (column >= 0 && column < this.columnCount && row >= 0 && row < this.rowCount) {
-				cell = {
-					column,
-					row,
-					bufferRow: this.grid.getScrollbackLength() + row - Math.floor(this.viewportOffset),
-				};
-			}
-		}
+		const cell = this.getBufferCellAt(clientX, clientY);
 		const selectionRange = this.selectionController.getRange();
 		const selection = selectionRange
 			? {
@@ -1659,11 +1814,14 @@ export class Terminal {
 					text: this.selectionController.getSelection(),
 				}
 			: null;
-		const link = this.hoveredLink
-			? { text: this.hoveredLink.text, target: this.hoveredLink.target ?? null }
-			: null;
+		const link =
+			this.hoveredLink &&
+			cell &&
+			isBufferCellInRange(cell.column, cell.bufferRow, this.hoveredLink.range)
+				? { text: this.hoveredLink.text, target: this.hoveredLink.target ?? null }
+				: null;
 		const semanticZone = cell
-			? resolveSemanticZone(this.grid.getCell(cell.row, cell.column).semanticContent)
+			? this.getSemanticZoneAtBufferCell(cell.bufferRow, cell.column)
 			: null;
 		return {
 			cell,
@@ -1672,7 +1830,21 @@ export class Terminal {
 			semanticZone,
 			cwd: this.getPwd() || null,
 			modifiers,
-			mouseReporting: this.hasMouseTracking(),
+			mouseReporting: this.hasApplicationMouseOwnership(),
+		};
+	}
+
+	private getBufferCellAt(clientX: number, clientY: number): TerminalInteractionContext['cell'] {
+		const rect = this.canvas?.getBoundingClientRect();
+		const dimensions = this.renderer?.getMetrics() ?? { width: 8, height: 16 };
+		if (!rect) return null;
+		const column = Math.floor((clientX - rect.left) / dimensions.width);
+		const row = Math.floor((clientY - rect.top) / dimensions.height);
+		if (column < 0 || column >= this.columnCount || row < 0 || row >= this.rowCount) return null;
+		return {
+			column,
+			row,
+			bufferRow: this.grid.getScrollbackLength() + row - Math.floor(this.viewportOffset),
 		};
 	}
 
@@ -1732,7 +1904,7 @@ export class Terminal {
 		const cursor = resolveSurfaceMouseCursor({
 			hidden: false,
 			modifiers: this.surfaceModifiers,
-			mouseTracking: this.hasMouseTracking(),
+			mouseTracking: this.hasApplicationMouseOwnership(),
 			overLink: false,
 			platform: this.surfaceMousePlatform,
 		});
@@ -1750,7 +1922,7 @@ export class Terminal {
 		const renderer = this.renderer;
 		if (!renderer) return;
 		renderer.setHoveredHyperlinkId(0);
-		const visibleTop = this.grid.getScrollbackLength() - this.viewportOffset;
+		const visibleTop = this.grid.getScrollbackLength() - Math.floor(this.viewportOffset);
 		renderer.setHoveredLinkRange(
 			link && enabled
 				? {
@@ -1761,6 +1933,17 @@ export class Terminal {
 					}
 				: null,
 		);
+	}
+
+	private hasApplicationMouseOwnership(): boolean {
+		return !this.options.disableStdin && this.hasMouseTracking();
+	}
+
+	private syncSurfaceMouseOwnership(): void {
+		const owned = this.hasApplicationMouseOwnership();
+		if (owned === this.surfaceMouseOwnedByApplication) return;
+		this.surfaceMouseOwnedByApplication = owned;
+		this.updateSurfaceMouseCursor();
 	}
 
 	private readonly handleInputFocusMouseDown = (event: MouseEvent): void => {
@@ -1775,23 +1958,47 @@ export class Terminal {
 		this.textAreaElement?.focus();
 	};
 
-	private emitUserInput(data: string): void {
-		this.inputDispatcher.dispatchSync(() => this.emitUserInputNow(data));
+	private emitUserInput(data: string, preserveSurfaceState = false): void {
+		this.inputDispatcher.dispatchSync(() =>
+			this.emitUserInputNow(data, false, preserveSurfaceState),
+		);
 	}
 
-	private emitUserInputNow(data: string): void {
+	private emitStateRepairInput(data: string): void {
+		this.inputDispatcher.dispatchSync(() => this.emitUserInputNow(data, true, true));
+	}
+
+	private emitUserInputNow(
+		data: string,
+		allowWhenDisabled = false,
+		preserveSurfaceState = false,
+	): void {
 		if (this.handle === 0) return;
-		if (this.options.disableStdin) return;
-		this.selectionManager?.clearSelection();
+		if (this.options.disableStdin && !allowWhenDisabled) return;
+		if (!preserveSurfaceState) {
+			this.revealActiveViewportOnUserInput(data);
+			this.selectionManager?.clearSelection();
+		}
 		this.onDataEmitter.fire(data);
 	}
 
-	private emitUserBinary(data: string): void {
+	private emitUserBinary(
+		data: string,
+		allowWhenDisabled = false,
+		preserveSurfaceState = false,
+	): void {
 		this.inputDispatcher.dispatchSync(() => {
-			if (this.handle === 0 || this.options.disableStdin) return;
-			this.selectionManager?.clearSelection();
+			if (this.handle === 0 || (this.options.disableStdin && !allowWhenDisabled)) return;
+			if (!preserveSurfaceState) {
+				this.revealActiveViewportOnUserInput(data);
+				this.selectionManager?.clearSelection();
+			}
 			this.onBinaryEmitter.fire(data);
 		});
+	}
+
+	private revealActiveViewportOnUserInput(data: string): void {
+		if (data.length > 0 && this.viewportOffset > 0) this.scrollToBottom();
 	}
 
 	private dispatchKeyboardAction(id: string): boolean {
@@ -1809,11 +2016,28 @@ export class Terminal {
 			readOnly: this.options.disableStdin,
 		};
 		if (this.keyEvents.dispatch(event, context)) return true;
-		return this.customKeyEventHandler?.(event) ?? false;
+		if (this.customKeyEventHandler?.(event)) return true;
+		return this.handleViewportKeyEvent(event);
+	}
+
+	private handleViewportKeyEvent(event: KeyboardEvent): boolean {
+		if (!event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false;
+		if (event.code === 'PageUp' || event.code === 'NumpadPageUp') {
+			this.scrollPages(-1);
+			return true;
+		}
+		if (event.code === 'PageDown' || event.code === 'NumpadPageDown') {
+			this.scrollPages(1);
+			return true;
+		}
+		return false;
 	}
 
 	private handleComposition(data: string | null, selection?: CompositionSelection): void {
-		if (data !== null) this.selectionManager?.clearSelection();
+		if (data !== null && !this.options.disableStdin) {
+			if (this.viewportOffset > 0) this.scrollToBottom();
+			this.selectionManager?.clearSelection();
+		}
 		const state = buildPreeditState(data ?? '', selection, (codepoint) =>
 			this.bridge.getExports().ghostty_unicode_codepoint_width(codepoint),
 		);
@@ -1856,6 +2080,7 @@ export class Terminal {
 		this.textAreaElement.style.lineHeight = `${anchor.height}px`;
 		this.textAreaElement.style.fontFamily = this.options.fontFamily;
 		this.textAreaElement.style.fontSize = `${this.options.fontSize}px`;
+		this.textAreaElement.style.fontWeight = String(this.options.fontWeight);
 	}
 
 	private async loadConfiguredFont(): Promise<void> {
@@ -1863,7 +2088,10 @@ export class Terminal {
 		const fonts = document.fonts;
 		if (!fonts || typeof fonts.load !== 'function') return;
 		try {
-			await fonts.load(`${this.options.fontSize}px ${this.options.fontFamily}`, 'MW你🚀');
+			await fonts.load(
+				`${this.options.fontWeight} ${this.options.fontSize}px ${this.options.fontFamily}`,
+				'MW你🚀',
+			);
 		} catch (error) {
 			this.onHostErrorEmitter.fire({ operation: 'font-load', error });
 		}
@@ -1871,6 +2099,7 @@ export class Terminal {
 
 	private clearHoveredLink(): void {
 		this.linkLookupId++;
+		if (!this.hoveredLink && !this.hoveredLinkEnabled) return;
 		this.hoveredLink?.hover?.(false);
 		this.hoveredLink = undefined;
 		this.hoveredLinkEnabled = false;
@@ -1886,6 +2115,7 @@ export class Terminal {
 
 		event.preventDefault();
 		event.stopImmediatePropagation();
+		this.clearHoveredLink();
 		this.scrollbarOpacity = 1;
 		const metrics = this.getScrollbarMetrics(rect.height, scrollbackLength);
 		const pointerY = event.clientY - rect.top;
@@ -1909,6 +2139,10 @@ export class Terminal {
 
 	private readonly handleScrollbarMouseMove = (event: MouseEvent): void => {
 		if (!this.draggingScrollbar || !this.canvas) return;
+		if ((event.buttons & 1) === 0) {
+			this.handleScrollbarMouseUp();
+			return;
+		}
 		const scrollbackLength = this.grid.getScrollbackLength();
 		const metrics = this.getScrollbarMetrics(
 			this.canvas.getBoundingClientRect().height,
@@ -1956,10 +2190,12 @@ export class Terminal {
 		}, 1500);
 	}
 
-	private readonly handleFocusIn = (): void => {
+	private readonly handleFocusIn = (event: FocusEvent): void => {
+		const relatedTarget = event.relatedTarget;
+		if (relatedTarget instanceof Node && this.hostElement?.contains(relatedTarget)) return;
 		this.renderer?.setFocused(true);
 		if (this.hasFocusEvents()) {
-			this.emitUserInput(new TextDecoder().decode(this.bridge.encodeFocus(true)));
+			this.emitUserInput(new TextDecoder().decode(this.bridge.encodeFocus(true)), true);
 		}
 	};
 
@@ -1967,10 +2203,13 @@ export class Terminal {
 		const relatedTarget = event.relatedTarget;
 		if (relatedTarget instanceof Node && this.hostElement?.contains(relatedTarget)) return;
 		this.renderer?.setFocused(false);
+		this.selectionManager?.cancelActiveGesture();
+		this.handleScrollbarMouseUp();
 		this.inputHandler?.releasePressedKeys();
+		this.inputHandler?.releasePressedMouseButtons();
 		this.inputHandler?.cancelComposition();
 		if (this.hasFocusEvents()) {
-			this.emitUserInput(new TextDecoder().decode(this.bridge.encodeFocus(false)));
+			this.emitUserInput(new TextDecoder().decode(this.bridge.encodeFocus(false)), true);
 		}
 	};
 
@@ -1997,8 +2236,12 @@ export class Terminal {
 		const hidden = document.visibilityState === 'hidden';
 		this.renderer?.setSuspended(hidden);
 		if (hidden) {
+			this.selectionManager?.cancelActiveGesture();
+			this.handleScrollbarMouseUp();
 			this.inputHandler?.releasePressedKeys();
+			this.inputHandler?.releasePressedMouseButtons();
 			this.stopRenderLoop();
+			this.targetViewportY = this.viewportOffset;
 		} else this.requestRender();
 	};
 
@@ -2074,7 +2317,9 @@ export class Terminal {
 				return { left: rect.left, top: rect.top };
 			},
 			getMode: (mode: number, isAnsi?: boolean) => this.getMode(mode, isAnsi),
+			isReadOnly: () => this.options.disableStdin,
 			emitBinary: (data) => this.emitUserBinary(data),
+			emitStateRepairBinary: (data) => this.emitUserBinary(data, true, true),
 			onSurfaceModifierChange: this.handleSurfaceModifierChange,
 		};
 	}
@@ -2108,7 +2353,7 @@ export class Terminal {
 			isRowWrapped: (row) => this.ghosttyTerm.isRowWrapped(row),
 			isScrollbackRowWrapped: (offset) => this.ghosttyTerm.isScrollbackRowWrapped(offset),
 			scrollLines: (amount) => this.scrollLines(amount),
-			shouldSelect: (event) => !this.hasMouseTracking() || event.shiftKey,
+			shouldSelect: (event) => !this.hasApplicationMouseOwnership() || event.shiftKey,
 			requestRender: () => {
 				this.requestRender();
 			},
@@ -2143,15 +2388,22 @@ export class Terminal {
 		return {
 			buffer: this.buffer,
 			getPwd: () => this.getPwd(),
-			getSemanticZone: (row: number, column: number) => {
-				const scrollbackLength = this.grid.getScrollbackLength();
-				const cell =
-					row < scrollbackLength
-						? this.ghosttyTerm.getScrollbackCellData(row)?.[column]
-						: this.ghosttyTerm.getCellDataLine(row - scrollbackLength)?.[column];
-				return cell ? resolveSemanticZone(cell.semanticContent) : null;
-			},
+			getSemanticZone: (row: number, column: number) =>
+				this.getSemanticZoneAtBufferCell(row, column),
 		};
+	}
+
+	private getSemanticZoneAtBufferCell(
+		row: number,
+		column: number,
+	): TerminalInteractionContext['semanticZone'] {
+		const scrollbackLength = this.grid.getScrollbackLength();
+		const cell =
+			row < scrollbackLength
+				? this.ghosttyTerm.getScrollbackCellData(row)?.[column]
+				: (this.ghosttyTerm.getCellDataLine(row - scrollbackLength)?.[column] ??
+					this.grid.getCell(row - scrollbackLength, column));
+		return cell ? resolveSemanticZone(cell.semanticContent) : null;
 	}
 
 	// ==========================================================================
@@ -2354,19 +2606,12 @@ export class Terminal {
 				break;
 			case 'theme':
 				this.renderer?.setTheme(this.options.theme);
-				this.cachedColorScheme = colorSchemeFor(
-					parseCssColor({ ...DEFAULT_THEME, ...this.options.theme }.background),
-				);
+				const resolvedTheme = { ...DEFAULT_THEME, ...this.options.theme };
+				this.cachedColorScheme = colorSchemeFor(parseCssColor(resolvedTheme.background));
 				this.setPaletteOnHandle(this.handle, this.options.theme);
-				if (this.options.theme.foreground) {
-					this.setForegroundColor(parseCssColor(this.options.theme.foreground));
-				}
-				if (this.options.theme.background) {
-					this.setBackgroundColor(parseCssColor(this.options.theme.background));
-				}
-				if (this.options.theme.cursor) {
-					this.setCursorColor(parseCssColor(this.options.theme.cursor));
-				}
+				this.setForegroundColor(parseCssColor(resolvedTheme.foreground));
+				this.setBackgroundColor(parseCssColor(resolvedTheme.background));
+				this.setCursorColor(parseCssColor(resolvedTheme.cursor));
 				break;
 			case 'fontSize':
 				this.renderer?.setFontSize(this.options.fontSize);
@@ -2375,6 +2620,13 @@ export class Terminal {
 			case 'fontFamily':
 				this.renderer?.setFontFamily(this.options.fontFamily);
 				this.renderer?.resize(this.columnCount, this.rowCount);
+				break;
+			case 'fontWeight':
+				this.renderer?.setFontWeight(this.options.fontWeight);
+				this.renderer?.resize(this.columnCount, this.rowCount);
+				break;
+			case 'fontWeightBold':
+				this.renderer?.setFontWeightBold(this.options.fontWeightBold);
 				break;
 			case 'fontLigatures':
 				this.renderer?.setFontLigatures(this.options.fontLigatures);
@@ -2396,6 +2648,8 @@ export class Terminal {
 				break;
 			case 'disableStdin':
 				this.actions.notifyStateChange('terminal.paste');
+				this.clearHoveredLink();
+				this.syncSurfaceMouseOwnership();
 				break;
 			case 'cols':
 			case 'rows':
@@ -2482,7 +2736,7 @@ export class Terminal {
 				this.selectionManager !== undefined,
 			run: (context) => {
 				const cell = context.interaction?.cell;
-				if (!cell || !this.selectOutputAt(cell.column, cell.row)) {
+				if (!cell || !this.selectionManager?.selectOutputAtAbsolute(cell.column, cell.bufferRow)) {
 					return { kind: 'blocked', reason: 'semantic-output-unavailable' };
 				}
 				return { kind: 'consumed' };
@@ -2574,7 +2828,7 @@ export class Terminal {
 			const view = this.bridge.createView(optsPtr, TERMINAL_OPTIONS_SIZE);
 			view.setUint16(0, cols, true);
 			view.setUint16(2, rows, true);
-			view.setUint32(4, config?.scrollbackLimit ?? 10000, true);
+			view.setUint32(4, config?.scrollbackLimit ?? DEFAULT_SCROLLBACK_BYTES, true);
 
 			const handle = this.bridge.allocAndReadOpaque((alloc, ptrPtr) =>
 				exp.ghostty_terminal_new(alloc, ptrPtr, optsPtr),
@@ -2780,6 +3034,16 @@ function resolveSemanticZone(
 	if (semanticContent === CellSemanticContent.PROMPT) return 'prompt';
 	if (semanticContent === CellSemanticContent.INPUT) return 'input';
 	return 'output';
+}
+
+function isBufferCellInRange(
+	column: number,
+	row: number,
+	range: { start: { x: number; y: number }; end: { x: number; y: number } },
+): boolean {
+	const afterStart = row > range.start.y || (row === range.start.y && column >= range.start.x);
+	const beforeEnd = row < range.end.y || (row === range.end.y && column <= range.end.x);
+	return afterStart && beforeEnd;
 }
 
 function reverseSearchMatches(

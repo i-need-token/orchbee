@@ -33,6 +33,7 @@ import { CellFlags, UnderlineStyle } from '../types';
 import type {
 	FontMetrics,
 	FontMetricModifiers,
+	FontWeight,
 	GhosttyCell,
 	IRenderable,
 	IScrollbackProvider,
@@ -214,6 +215,16 @@ function hexToRGB(color: string): [number, number, number] {
 	throw new Error(`Unsupported renderer color: ${color}`);
 }
 
+function canvasFont(
+	style: 'normal' | 'italic',
+	weight: FontWeight,
+	size: number,
+	family: string,
+): string {
+	const stylePrefix = style === 'italic' ? 'italic ' : '';
+	return `${stylePrefix}${weight} ${size}px ${family}`;
+}
+
 // ============================================================================
 // WebGPU Shaders
 // ============================================================================
@@ -348,6 +359,8 @@ export class WebGPURenderer {
 	// Font
 	private fontSize: number;
 	private fontFamily: string;
+	private fontWeight: FontWeight;
+	private fontWeightBold: FontWeight;
 	private fontLigatures: boolean;
 	private fontMetricModifiers: FontMetricModifiers;
 	private metrics: FontMetrics;
@@ -463,6 +476,8 @@ export class WebGPURenderer {
 		this.format = 'bgra8unorm';
 		this.fontSize = options.fontSize ?? 15;
 		this.fontFamily = options.fontFamily ?? 'monospace';
+		this.fontWeight = options.fontWeight ?? 'normal';
+		this.fontWeightBold = options.fontWeightBold ?? 'bold';
 		this.fontLigatures = options.fontLigatures ?? true;
 		this.fontMetricModifiers = { ...options.fontMetricModifiers };
 		this.paddingBalance = options.paddingBalance ?? false;
@@ -629,7 +644,7 @@ export class WebGPURenderer {
 		const canvas = document.createElement('canvas');
 		const ctx = canvas.getContext('2d');
 		if (!ctx) throw new Error('Failed to create font measurement context');
-		ctx.font = `${this.fontSize}px ${this.fontFamily}`;
+		ctx.font = canvasFont('normal', this.fontWeight, this.fontSize, this.fontFamily);
 
 		const widthMetrics = ctx.measureText('M');
 		const width = Math.max(1, Math.round(widthMetrics.width));
@@ -889,10 +904,14 @@ export class WebGPURenderer {
 		const rasterScale = this.devicePixelRatio;
 		const padding = Math.max(2, Math.ceil(2 * rasterScale));
 
-		let fontStyle = '';
-		if (flags & CellFlags.ITALIC) fontStyle += 'italic ';
-		if (flags & CellFlags.BOLD) fontStyle += 'bold ';
-		this.atlasCtx.font = `${fontStyle}${this.fontSize * rasterScale}px ${this.fontFamily}`;
+		const fontStyle = (flags & CellFlags.ITALIC) !== 0 ? 'italic' : 'normal';
+		const fontWeight = (flags & CellFlags.BOLD) !== 0 ? this.fontWeightBold : this.fontWeight;
+		this.atlasCtx.font = canvasFont(
+			fontStyle,
+			fontWeight,
+			this.fontSize * rasterScale,
+			this.fontFamily,
+		);
 		this.atlasCtx.textBaseline = 'alphabetic';
 		this.atlasCtx.textAlign = 'left';
 		const inkPadding = Math.max(1, Math.ceil(rasterScale));
@@ -2149,10 +2168,9 @@ export class WebGPURenderer {
 		const isSelected = this.isInSelection(x, y, cell);
 		const searchHighlight = this.getSearchHighlight(x, y);
 
-		let fontStyle = '';
-		if (cell.flags & CellFlags.ITALIC) fontStyle += 'italic ';
-		if (cell.flags & CellFlags.BOLD) fontStyle += 'bold ';
-		ctx.font = `${fontStyle}${this.fontSize}px ${this.fontFamily}`;
+		const fontStyle = (cell.flags & CellFlags.ITALIC) !== 0 ? 'italic' : 'normal';
+		const fontWeight = (cell.flags & CellFlags.BOLD) !== 0 ? this.fontWeightBold : this.fontWeight;
+		ctx.font = canvasFont(fontStyle, fontWeight, this.fontSize, this.fontFamily);
 
 		if (colorOverride) {
 			ctx.fillStyle = colorOverride;
@@ -2360,7 +2378,7 @@ export class WebGPURenderer {
 		const width = layout.width * this.metrics.width;
 		ctx.fillStyle = this.theme.background;
 		ctx.fillRect(startX, cellY, width, this.metrics.height);
-		ctx.font = `${this.fontSize}px ${this.fontFamily}`;
+		ctx.font = canvasFont('normal', this.fontWeight, this.fontSize, this.fontFamily);
 		ctx.fillStyle = this.theme.foreground;
 		let column = layout.start;
 		for (const cell of layout.cells) {
@@ -2667,6 +2685,23 @@ export class WebGPURenderer {
 		this.requestRenderCallback?.();
 	}
 
+	setFontWeight(weight: FontWeight): void {
+		if (weight === this.fontWeight) return;
+		this.fontWeight = weight;
+		this.remeasureFont();
+		this.resetAtlas();
+		this.fontDirty = true;
+		this.requestRenderCallback?.();
+	}
+
+	setFontWeightBold(weight: FontWeight): void {
+		if (weight === this.fontWeightBold) return;
+		this.fontWeightBold = weight;
+		this.resetAtlas();
+		this.fontDirty = true;
+		this.requestRenderCallback?.();
+	}
+
 	setFontLigatures(enabled: boolean): void {
 		if (enabled === this.fontLigatures) return;
 		this.fontLigatures = enabled;
@@ -2735,7 +2770,7 @@ export class WebGPURenderer {
 
 	/** Measure regular preedit text using the same CSS font as the hidden input. */
 	measureTextWidth(text: string): number {
-		this.atlasCtx.font = `${this.fontSize}px ${this.fontFamily}`;
+		this.atlasCtx.font = canvasFont('normal', this.fontWeight, this.fontSize, this.fontFamily);
 		return this.atlasCtx.measureText(text).width;
 	}
 

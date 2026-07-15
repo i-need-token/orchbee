@@ -168,6 +168,49 @@ describe('InputHandler', () => {
 		handler.dispose();
 	});
 
+	it('blocks preedit and committed composition text while read-only', async () => {
+		const bridge = await initializeWasm();
+		const output = vi.fn<(data: string) => void>();
+		const composition = vi.fn<(data: string | null) => void>();
+		const textarea = createTextarea();
+		const handler = new InputHandler(
+			{
+				bridge,
+				getTerminalHandle: () => 0,
+				hasMouseTracking: () => false,
+				getCellDimensions: () => ({ width: 8, height: 17 }),
+				getScreenDimensions: () => ({ width: 640, height: 408 }),
+				getCanvasOffset: () => ({ left: 0, top: 0 }),
+				getMode: () => false,
+				isReadOnly: () => true,
+			},
+			createElement(),
+			output,
+			() => {},
+			undefined,
+			undefined,
+			undefined,
+			textarea,
+			composition,
+		);
+		const preventDefault = vi.fn<() => void>();
+		const stopPropagation = vi.fn<() => void>();
+		const event = (data: string): CompositionEvent =>
+			({ data, preventDefault, stopPropagation }) as unknown as CompositionEvent;
+
+		textarea.value = 'readonly';
+		listeners.get('compositionstart')?.(event(''));
+		listeners.get('compositionupdate')?.(event('readonly'));
+		listeners.get('compositionend')?.(event('只读'));
+
+		expect(output).not.toHaveBeenCalled();
+		expect(composition).not.toHaveBeenCalled();
+		expect(textarea.value).toBe('');
+		expect(preventDefault).toHaveBeenCalledTimes(3);
+		expect(stopPropagation).toHaveBeenCalledTimes(3);
+		handler.dispose();
+	});
+
 	it('suppresses a bare C0 control committed by an active IME', async () => {
 		const bridge = await initializeWasm();
 		const output = vi.fn<(data: string) => void>();
@@ -285,6 +328,60 @@ describe('InputHandler', () => {
 		handler.dispose();
 	});
 
+	it('blocks paste and beforeinput application input while read-only', async () => {
+		const bridge = await initializeWasm();
+		const output = vi.fn<(data: string) => void>();
+		const textarea = createTextarea();
+		const handler = new InputHandler(
+			{
+				bridge,
+				getTerminalHandle: () => 0,
+				hasMouseTracking: () => false,
+				getCellDimensions: () => ({ width: 8, height: 17 }),
+				getScreenDimensions: () => ({ width: 640, height: 408 }),
+				getCanvasOffset: () => ({ left: 0, top: 0 }),
+				getMode: () => false,
+				isReadOnly: () => true,
+			},
+			createElement(),
+			output,
+			() => {},
+			undefined,
+			undefined,
+			undefined,
+			textarea,
+		);
+		const preventDefault = vi.fn<() => void>();
+		const stopPropagation = vi.fn<() => void>();
+
+		listeners.get('paste')?.({
+			clipboardData: { getData: () => 'clipboard paste' },
+			preventDefault,
+			stopPropagation,
+		} as unknown as ClipboardEvent);
+		textarea.value = 'mobile input';
+		listeners.get('beforeinput')?.({
+			inputType: 'insertText',
+			data: 'mobile input',
+			isComposing: false,
+			preventDefault,
+			stopPropagation,
+		} as unknown as InputEvent);
+		listeners.get('beforeinput')?.({
+			inputType: 'insertFromPaste',
+			data: 'beforeinput paste',
+			isComposing: false,
+			preventDefault,
+			stopPropagation,
+		} as unknown as InputEvent);
+
+		expect(output).not.toHaveBeenCalled();
+		expect(textarea.value).toBe('');
+		expect(preventDefault).toHaveBeenCalledTimes(3);
+		expect(stopPropagation).toHaveBeenCalledTimes(3);
+		handler.dispose();
+	});
+
 	it('encodes SGR pixel mouse coordinates and horizontal wheel buttons', async () => {
 		const bridge = await initializeWasm();
 		const terminal = createTerminal();
@@ -325,15 +422,96 @@ describe('InputHandler', () => {
 			output,
 			() => {},
 		);
-		const shifted = mouseEvent({ clientX: 9, clientY: 18, button: 0, shiftKey: true });
+		const shifted = mouseEvent({ clientX: 9, clientY: 18, button: 0, buttons: 1, shiftKey: true });
 
 		listeners.get('mousedown')?.(shifted);
 		listeners.get('mousemove')?.(shifted);
-		listeners.get('mouseup')?.(shifted);
+		listeners.get('mousemove')?.(
+			mouseEvent({ clientX: 17, clientY: 18, button: 0, buttons: 1, shiftKey: false }),
+		);
+		listeners.get('wheel')?.(mouseEvent({ deltaY: -17, shiftKey: true }));
+		listeners.get('mouseup')?.(
+			mouseEvent({ clientX: 17, clientY: 18, button: 0, buttons: 0, shiftKey: false }),
+		);
 		expect(output).not.toHaveBeenCalled();
+		expect(Reflect.get(handler, 'selectionOverrideButtonsPressed')).toBe(0);
 
 		listeners.get('mousedown')?.(mouseEvent({ clientX: 9, clientY: 18, button: 0 }));
 		expect(output).toHaveBeenCalledWith('\x1b[<0;2;2M');
+		handler.dispose();
+		terminal.dispose();
+	});
+
+	it('repairs an application mouse release lost outside the terminal', async () => {
+		const bridge = await initializeWasm();
+		const terminal = createTerminal();
+		terminal.write('\x1b[?1002h\x1b[?1006h');
+		const output = vi.fn<(data: string) => void>();
+		const handler = new InputHandler(
+			mouseDependencies(bridge, terminal, (mode) => mode === 1002 || mode === 1006),
+			createElement(),
+			output,
+			() => {},
+		);
+		const event = mouseEvent({ clientX: 9, clientY: 18, button: 0, buttons: 1 });
+
+		listeners.get('mousedown')?.(event);
+		handler.releasePressedMouseButtons(event as MouseEvent);
+		handler.releasePressedMouseButtons(event as MouseEvent);
+
+		expect(output.mock.calls).toEqual([['\x1b[<0;2;2M'], ['\x1b[<0;2;2m']]);
+		expect(Reflect.get(handler, 'mouseButtonsPressed')).toBe(0);
+		expect(Reflect.get(handler, 'reportedMouseButtonsPressed')).toBe(0);
+		handler.dispose();
+		terminal.dispose();
+	});
+
+	it('repairs application mouse state on buttonless movement', async () => {
+		const bridge = await initializeWasm();
+		const terminal = createTerminal();
+		terminal.write('\x1b[?1003h\x1b[?1006h');
+		const output = vi.fn<(data: string) => void>();
+		const handler = new InputHandler(
+			mouseDependencies(bridge, terminal, (mode) => mode === 1003 || mode === 1006),
+			createElement(),
+			output,
+			() => {},
+		);
+
+		listeners.get('mousedown')?.(mouseEvent({ clientX: 9, clientY: 18, button: 0, buttons: 1 }));
+		listeners.get('mousemove')?.(mouseEvent({ clientX: 17, clientY: 35, button: 0, buttons: 0 }));
+
+		expect(output.mock.calls).toEqual([['\x1b[<0;2;2M'], ['\x1b[<0;3;3m'], ['\x1b[<35;3;3M']]);
+		expect(Reflect.get(handler, 'mouseButtonsPressed')).toBe(0);
+		expect(Reflect.get(handler, 'reportedMouseButtonsPressed')).toBe(0);
+		handler.dispose();
+		terminal.dispose();
+	});
+
+	it('does not track or report application mouse input while read-only', async () => {
+		const bridge = await initializeWasm();
+		const terminal = createTerminal();
+		terminal.write('\x1b[?1003h\x1b[?1006h');
+		const output = vi.fn<(data: string) => void>();
+		const dependencies = mouseDependencies(
+			bridge,
+			terminal,
+			(mode) => mode === 1003 || mode === 1006,
+		);
+		const handler = new InputHandler(
+			{ ...dependencies, isReadOnly: () => true },
+			createElement(),
+			output,
+			() => {},
+		);
+
+		listeners.get('mousedown')?.(mouseEvent({ clientX: 9, clientY: 18, button: 0, buttons: 1 }));
+		listeners.get('mousemove')?.(mouseEvent({ clientX: 17, clientY: 35, button: 0, buttons: 1 }));
+		listeners.get('mouseup')?.(mouseEvent({ clientX: 17, clientY: 35, button: 0, buttons: 0 }));
+
+		expect(output).not.toHaveBeenCalled();
+		expect(Reflect.get(handler, 'mouseButtonsPressed')).toBe(0);
+		expect(Reflect.get(handler, 'reportedMouseButtonsPressed')).toBe(0);
 		handler.dispose();
 		terminal.dispose();
 	});

@@ -258,6 +258,7 @@ export {
 	type ITerminalCore,
 	type IUnicodeVersionProvider,
 	// Renderer types
+	type FontWeight,
 	type FontMetrics,
 	type FontMetricModifier,
 	type FontMetricModifiers,

@@ -8,7 +8,6 @@ import type { ITerminalAddon, ITerminalCore } from '../types';
 
 const MINIMUM_COLS = 2;
 const MINIMUM_ROWS = 1;
-const DEFAULT_SCROLLBAR_WIDTH = 15;
 const RESIZE_DEBOUNCE_MS = 100;
 
 type FitTerminal = ITerminalCore & {
@@ -20,8 +19,6 @@ export class FitAddon implements ITerminalAddon {
 	private terminal?: FitTerminal | undefined;
 	private resizeObserver?: ResizeObserver | undefined;
 	private resizeDebounceTimer?: ReturnType<typeof setTimeout> | undefined;
-	private lastCols?: number | undefined;
-	private lastRows?: number | undefined;
 	private isResizing = false;
 
 	activate(terminal: ITerminalCore): void {
@@ -37,8 +34,6 @@ export class FitAddon implements ITerminalAddon {
 			clearTimeout(this.resizeDebounceTimer);
 			this.resizeDebounceTimer = undefined;
 		}
-		this.lastCols = undefined;
-		this.lastRows = undefined;
 		this.terminal = undefined;
 	}
 
@@ -51,15 +46,10 @@ export class FitAddon implements ITerminalAddon {
 		const currentCols = this.terminal.cols;
 		const currentRows = this.terminal.rows;
 
-		if (
-			(dims.cols === this.lastCols && dims.rows === this.lastRows) ||
-			(dims.cols === currentCols && dims.rows === currentRows)
-		) {
+		if (dims.cols === currentCols && dims.rows === currentRows) {
 			return;
 		}
 
-		this.lastCols = dims.cols;
-		this.lastRows = dims.rows;
 		this.isResizing = true;
 
 		try {
@@ -89,8 +79,7 @@ export class FitAddon implements ITerminalAddon {
 		const paddingLeft = Number.parseInt(style.getPropertyValue('padding-left')) || 0;
 		const paddingRight = Number.parseInt(style.getPropertyValue('padding-right')) || 0;
 
-		const availableWidth =
-			terminalElement.clientWidth - paddingLeft - paddingRight - DEFAULT_SCROLLBAR_WIDTH;
+		const availableWidth = terminalElement.clientWidth - paddingLeft - paddingRight;
 		const availableHeight = terminalElement.clientHeight - paddingTop - paddingBottom;
 
 		if (availableWidth <= 0 || availableHeight <= 0) return undefined;
@@ -105,7 +94,6 @@ export class FitAddon implements ITerminalAddon {
 		if (!this.terminal?.element || this.resizeObserver) return;
 
 		this.resizeObserver = new ResizeObserver(() => {
-			if (this.isResizing) return;
 			if (this.resizeDebounceTimer) clearTimeout(this.resizeDebounceTimer);
 			this.resizeDebounceTimer = setTimeout(() => this.fit(), RESIZE_DEBOUNCE_MS);
 		});

@@ -12,6 +12,9 @@ import type { ClipboardPayload, ClipboardWriteSource, TerminalClipboardHost } fr
 import type { GhosttySelectionAdjustment, GhosttySelectionAutoscroll } from './ghostty-selection';
 import type { IBufferRange, SelectionCoordinates } from '../types';
 
+const FOLLOWUP_CLICK_MAX_DELAY_MS = 1_000;
+const FOLLOWUP_CLICK_COORDINATE_TOLERANCE = 1;
+
 /** Interface the SelectionManager needs from the terminal surface. */
 export interface ISelectionTerminal {
 	getCellDimensions(): { width: number; height: number };
@@ -87,18 +90,9 @@ export interface SelectionModel {
 		readonly screenHeight: number;
 	}): boolean;
 	releaseGesture(column: number, row: number): boolean;
+	/** Whether the current or most recently released gesture crossed its drag threshold. */
+	isGestureDragged?(): boolean;
 	getAutoscroll(): GhosttySelectionAutoscroll;
-	autoscrollTick(input: {
-		readonly viewportColumn: number;
-		readonly viewportRow: number;
-		readonly surfaceX: number;
-		readonly surfaceY: number;
-		readonly rectangle: boolean;
-		readonly columns: number;
-		readonly cellWidth: number;
-		readonly paddingLeft: number;
-		readonly screenHeight: number;
-	}): boolean;
 	resetGesture(): void;
 }
 
@@ -119,6 +113,9 @@ export class SelectionManager {
 	private dirtySelectionRows = new Set<number>();
 	private autoScrollInterval: ReturnType<typeof setInterval> | undefined;
 	private autoScrollDirection: GhosttySelectionAutoscroll = null;
+	private lastDragRelease:
+		| { readonly x: number; readonly y: number; readonly timeStamp: number }
+		| undefined;
 	private readonly onSelectionChangeEmitter = new EventEmitter<void>();
 	private readonly boundHandlers: {
 		mousedown: (event: MouseEvent) => void;
@@ -175,11 +172,11 @@ export class SelectionManager {
 	}
 
 	getSelectionPosition(): IBufferRange | null {
-		const coords = this.getSelectionCoords();
-		if (!coords) return null;
+		const range = this.model.getRange();
+		if (!range) return null;
 		return {
-			start: { x: coords.startCol, y: coords.startRow },
-			end: { x: coords.endCol, y: coords.endRow },
+			start: { x: range.start.x, y: range.start.y },
+			end: { x: range.end.x, y: range.end.y },
 		};
 	}
 
@@ -196,14 +193,18 @@ export class SelectionManager {
 	}
 
 	selectOutputAt(column: number, row: number): boolean {
-		if (!this.model.selectOutputAt) return false;
 		const absoluteRow = this.viewportRowToAbsolute(
 			row,
 			this.terminal.getScrollbackLength(),
 			this.terminal.getViewportY(),
 		);
+		return this.selectOutputAtAbsolute(column, absoluteRow);
+	}
+
+	selectOutputAtAbsolute(column: number, row: number): boolean {
+		if (!this.model.selectOutputAt) return false;
 		this.markCurrentRowsDirty();
-		if (!this.model.selectOutputAt(column, absoluteRow)) return false;
+		if (!this.model.selectOutputAt(column, row)) return false;
 		this.finishSelectionChange();
 		this.copySelectionIfConfigured();
 		return true;
@@ -286,10 +287,22 @@ export class SelectionManager {
 		this.dirtySelectionRows = new Set();
 	}
 
+	consumeSelectionDragClick(event: MouseEvent): boolean {
+		const release = this.lastDragRelease;
+		this.lastDragRelease = undefined;
+		return (
+			release !== undefined &&
+			event.timeStamp >= release.timeStamp &&
+			event.timeStamp - release.timeStamp <= FOLLOWUP_CLICK_MAX_DELAY_MS &&
+			Math.abs(event.clientX - release.x) <= FOLLOWUP_CLICK_COORDINATE_TOLERANCE &&
+			Math.abs(event.clientY - release.y) <= FOLLOWUP_CLICK_COORDINATE_TOLERANCE
+		);
+	}
+
 	private attachEventListeners(): void {
 		this.canvas.addEventListener('mousedown', this.boundHandlers.mousedown);
-		this.canvas.addEventListener('mousemove', this.boundHandlers.mousemove);
 		this.canvas.addEventListener('contextmenu', this.boundHandlers.contextmenu);
+		document.addEventListener('mousemove', this.boundHandlers.mousemove);
 		document.addEventListener('mouseup', this.boundHandlers.docMouseup);
 		document.addEventListener('click', this.boundHandlers.docClick);
 	}
@@ -307,6 +320,7 @@ export class SelectionManager {
 		const dimensions = this.terminal.getCellDimensions();
 		this.isSelecting = true;
 		this.lastDragEvent = undefined;
+		this.lastDragRelease = undefined;
 		this.stopAutoScroll();
 		this.markCurrentRowsDirty();
 		if (
@@ -327,6 +341,10 @@ export class SelectionManager {
 
 	private handleMouseMove(event: MouseEvent): void {
 		if (!this.isSelecting) return;
+		if ((event.buttons & 1) === 0) {
+			this.cancelActiveGesture();
+			return;
+		}
 		this.lastDragEvent = event;
 		const { col, row } = this.eventToCell(event);
 		const absoluteRow = this.viewportRowToAbsolute(
@@ -364,8 +382,12 @@ export class SelectionManager {
 			this.terminal.getViewportY(),
 		);
 		this.model.releaseGesture(col, absoluteRow);
+		const completedDrag = this.model.isGestureDragged?.() ?? this.lastDragEvent !== undefined;
 		this.isSelecting = false;
 		this.lastDragEvent = undefined;
+		this.lastDragRelease = completedDrag
+			? { x: event.clientX, y: event.clientY, timeStamp: event.timeStamp }
+			: undefined;
 		this.stopAutoScroll();
 		if (this.hasSelection()) this.copySelectionIfConfigured();
 	}
@@ -379,6 +401,7 @@ export class SelectionManager {
 	}
 
 	private handleDocClick(event: MouseEvent): void {
+		if (this.consumeSelectionDragClick(event)) return;
 		const target = event.target;
 		const clickedOutside = !(target instanceof Node) || !this.canvas.contains(target);
 		if (clickedOutside && this.hasSelection()) this.clearSelection();
@@ -461,9 +484,20 @@ export class SelectionManager {
 		const rect = this.canvas.getBoundingClientRect();
 		const cell = this.terminal.getCellDimensions();
 		this.markCurrentRowsDirty();
-		const changed = this.model.autoscrollTick({
-			viewportColumn: col,
-			viewportRow: row,
+		// Ghostty's autoscroll-tick helper scrolls its own viewport. This terminal
+		// renders an independently tracked viewport offset, so using both would
+		// double-scroll and leave Ghostty pinned in history after the drag. Move
+		// our viewport first, then continue the normal drag at the newly exposed
+		// absolute row.
+		this.terminal.scrollLines(direction === 'up' ? -1 : 1);
+		const absoluteRow = this.viewportRowToAbsolute(
+			row,
+			this.terminal.getScrollbackLength(),
+			this.terminal.getViewportY(),
+		);
+		const changed = this.model.dragGesture({
+			column: col,
+			row: absoluteRow,
 			surfaceX: event.clientX - rect.left,
 			surfaceY: event.clientY - rect.top,
 			rectangle: event.altKey,
@@ -473,7 +507,6 @@ export class SelectionManager {
 			screenHeight: Math.max(1, Math.round(rect.height)),
 		});
 		if (changed) {
-			this.terminal.scrollLines(direction === 'up' ? -1 : 1);
 			this.finishSelectionChange();
 		}
 		this.refreshAutoScroll();
@@ -487,12 +520,23 @@ export class SelectionManager {
 		this.autoScrollDirection = null;
 	}
 
-	dispose(): void {
+	cancelActiveGesture(): void {
+		if (!this.isSelecting && this.autoScrollInterval === undefined) {
+			this.model.resetGesture();
+			return;
+		}
+		this.isSelecting = false;
+		this.lastDragEvent = undefined;
+		this.lastDragRelease = undefined;
 		this.stopAutoScroll();
 		this.model.resetGesture();
+	}
+
+	dispose(): void {
+		this.cancelActiveGesture();
 		this.canvas.removeEventListener('mousedown', this.boundHandlers.mousedown);
-		this.canvas.removeEventListener('mousemove', this.boundHandlers.mousemove);
 		this.canvas.removeEventListener('contextmenu', this.boundHandlers.contextmenu);
+		document.removeEventListener('mousemove', this.boundHandlers.mousemove);
 		document.removeEventListener('mouseup', this.boundHandlers.docMouseup);
 		document.removeEventListener('click', this.boundHandlers.docClick);
 		this.onSelectionChangeEmitter.dispose();
