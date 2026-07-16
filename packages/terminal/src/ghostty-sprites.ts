@@ -30,6 +30,8 @@ const BOX_LINES = new Map<number, BoxLines>([
 ]);
 
 const POWERLINE_CODEPOINTS = new Set([0xe0b0, 0xe0b1, 0xe0b2, 0xe0b3]);
+const ROUNDED_CORNER_START = 0x256d;
+const ROUNDED_CORNER_END = 0x2570;
 const CORNER_TRIANGLE_START = 0x25e2;
 const CORNER_TRIANGLE_END = 0x25e5;
 const BLOCK_ELEMENT_START = 0x2580;
@@ -40,6 +42,7 @@ export function isGhosttySprite(codepoint: number): boolean {
 	return (
 		BOX_LINES.has(codepoint) ||
 		POWERLINE_CODEPOINTS.has(codepoint) ||
+		isBetween(codepoint, ROUNDED_CORNER_START, ROUNDED_CORNER_END) ||
 		isBetween(codepoint, BLOCK_ELEMENT_START, BLOCK_ELEMENT_END) ||
 		isBetween(codepoint, CORNER_TRIANGLE_START, CORNER_TRIANGLE_END)
 	);
@@ -69,6 +72,10 @@ export function drawGhosttySprite(
 		drawPowerline(context, codepoint, x, y, geometry);
 		return true;
 	}
+	if (isBetween(codepoint, ROUNDED_CORNER_START, ROUNDED_CORNER_END)) {
+		drawRoundedCorner(context, codepoint, x, y, geometry);
+		return true;
+	}
 	if (isBetween(codepoint, BLOCK_ELEMENT_START, BLOCK_ELEMENT_END)) {
 		drawBlockElement(context, codepoint, x, y, geometry);
 		return true;
@@ -78,6 +85,77 @@ export function drawGhosttySprite(
 		return true;
 	}
 	return false;
+}
+
+function drawRoundedCorner(
+	context: CanvasRenderingContext2D,
+	codepoint: number,
+	x: number,
+	y: number,
+	geometry: SpriteGeometry,
+): void {
+	const { width, height, boxThickness } = geometry;
+	const centerX = Math.floor(Math.max(0, width - boxThickness) / 2) + boxThickness / 2;
+	const centerY = Math.floor(Math.max(0, height - boxThickness) / 2) + boxThickness / 2;
+	const radius = Math.min(width, height) / 2;
+	const controlDistance = radius / 4;
+
+	context.save();
+	context.beginPath();
+	if (codepoint === 0x256d) {
+		context.moveTo(x + centerX, y + height);
+		context.lineTo(x + centerX, y + centerY + radius);
+		context.bezierCurveTo(
+			x + centerX,
+			y + centerY + controlDistance,
+			x + centerX + controlDistance,
+			y + centerY,
+			x + centerX + radius,
+			y + centerY,
+		);
+		context.lineTo(x + width, y + centerY);
+	} else if (codepoint === 0x256e) {
+		context.moveTo(x + centerX, y + height);
+		context.lineTo(x + centerX, y + centerY + radius);
+		context.bezierCurveTo(
+			x + centerX,
+			y + centerY + controlDistance,
+			x + centerX - controlDistance,
+			y + centerY,
+			x + centerX - radius,
+			y + centerY,
+		);
+		context.lineTo(x, y + centerY);
+	} else if (codepoint === 0x256f) {
+		context.moveTo(x + centerX, y);
+		context.lineTo(x + centerX, y + centerY - radius);
+		context.bezierCurveTo(
+			x + centerX,
+			y + centerY - controlDistance,
+			x + centerX - controlDistance,
+			y + centerY,
+			x + centerX - radius,
+			y + centerY,
+		);
+		context.lineTo(x, y + centerY);
+	} else {
+		context.moveTo(x + centerX, y);
+		context.lineTo(x + centerX, y + centerY - radius);
+		context.bezierCurveTo(
+			x + centerX,
+			y + centerY - controlDistance,
+			x + centerX + controlDistance,
+			y + centerY,
+			x + centerX + radius,
+			y + centerY,
+		);
+		context.lineTo(x + width, y + centerY);
+	}
+	context.lineCap = 'butt';
+	context.lineWidth = boxThickness;
+	context.strokeStyle = context.fillStyle;
+	context.stroke();
+	context.restore();
 }
 
 /** Convert the CSS-pixel terminal metrics to one physical sprite cell. */

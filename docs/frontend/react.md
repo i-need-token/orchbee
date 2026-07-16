@@ -1,5 +1,13 @@
 # React
 
+## Stack contract
+
+- Build the product interface with React and TypeScript.
+- Use TanStack Router for client-side routing.
+- Use Zustand for shared client state.
+- Build the component system with shadcn/ui using Base UI primitives.
+- Do not introduce an alternative router, shared-state library, or UI primitive system without an explicit architecture decision.
+
 ## Correctness and safety
 
 - `react/rules-of-hooks`: Call Hooks only at component or custom-Hook top level.

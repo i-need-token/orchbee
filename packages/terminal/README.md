@@ -155,6 +155,7 @@ The exported `fontSizeAdjustmentScale` helper implements Ghostty's fallback-face
 - Concurrent `open()` calls are rejected while font or GPU initialization is pending, and disposal during either await aborts the remaining surface setup.
 - Disposal releases terminal-owned component references after cleanup, allowing removed canvases, input surfaces, selection state, and renderer caches to be collected even if the host retains the disposed Terminal object.
 - Each `resize()` emits one final geometry event; synchronizing `options.cols` and `options.rows` does not expose intermediate dimensions to PTY transports, and `open()` applies a cols/rows option pair atomically.
+- Terminal-driven DECCOLM changes synchronize the JavaScript grid dimensions after Ghostty parses output, then emit `onResize` only after write bookkeeping completes. Dimension polling reuses terminal-owned WASM storage so small PTY chunks do not allocate query buffers.
 - `FitAddon.fit()` always compares its proposed geometry with the terminal's current dimensions, so it restores container fit after an application-driven resize even when the container itself did not change.
 - `FitAddon` uses the full container content width because the terminal scrollbar is an in-canvas overlay, not an external DOM scrollbar that needs a reserved gutter.
 - ResizeObserver notifications that arrive during FitAddon's short resize reentry window remain debounced for a follow-up fit instead of being discarded.
@@ -170,7 +171,7 @@ The exported `fontSizeAdjustmentScale` helper implements Ghostty's fallback-face
 - Cell, decoration, cursor, and icon metric modifiers share Ghostty's percentage, absolute-delta, clamping, and cell-height recentering rules.
 - Balanced padding distributes fractional grid space around the canvas while respecting explicit parent padding.
 - New WebGPU glyphs upload a merged dirty atlas region without replacing existing texels; colored emoji preserve their RGB while ordinary glyphs remain terminal-tintable.
-- Bounded programming-ligature runs are rasterized as one glyph sequence in both renderers and can be disabled through `fontLigatures`.
+- Bounded programming-ligature runs are rasterized as one glyph sequence in both renderers and can be disabled through `fontLigatures`. Longer runs of one repeated character remain cell-by-cell so terminal fill patterns stay uniform, while standalone candidates such as `***` can still form a ligature.
 - Frame telemetry exposes timing, reasons, visited cells, instances, shaping runs, draw calls, upload bytes, and atlas pressure.
 - WebGPU device loss rebuilds the device, pipelines, atlas texture, buffers, and canvas configuration once.
 - SGR blink, faint, inverse, invisible, overline, strikethrough, underline variants, and underline colors render in both backends.
@@ -187,6 +188,7 @@ Current Ghostty alignment and remaining gaps are tracked in [Ghostty Terminal Pa
 pnpm --filter @orchbee/terminal build
 pnpm --filter @orchbee/terminal test
 pnpm --filter @orchbee/terminal test:exports
+pnpm build:ghostty-wasm # Clones the pinned Ghostty revision and rebuilds the patched WASM asset.
 pnpm audit:ghostty-panel # Requires ../ghostty or GHOSTTY_SOURCE.
 pnpm verify
 ```

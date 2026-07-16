@@ -1,16 +1,14 @@
 # Ghostty WASM API
 
-`packages/terminal` uses upstream `libghostty-vt`; do not apply the historical `ghostty-web` patch.
+`packages/terminal` uses upstream `libghostty-vt` with the repository-owned DECRQSS patch at `packages/terminal/patches/ghostty-vt-decrqss.patch`. Do not apply the historical `ghostty-web` API patch.
 
 Use [Ghostty Terminal Panel Conformance](./ghostty-surface-test-provenance.md) to decide whether an upstream test belongs in Orchbee.
 
 ## Build
 
-```sh
-cd /path/to/ghostty
-zig build lib-vt -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall
-cp zig-out/bin/ghostty-vt.wasm /path/to/orchbee/packages/terminal/
-```
+Run `pnpm build:ghostty-wasm` from the repository root. The command requires Git, network access to GitHub, and Zig 0.15.2. Set `ZIG=/path/to/zig` when that version is not on `PATH`; Homebrew installs it with `brew install zig@0.15` and the command also detects Homebrew's default Apple Silicon keg path.
+
+The command clones Ghostty commit `91f66da24527fa02d92b5fd0b41cd020f553a64c` into an operating-system temporary directory, verifies and applies the DECRQSS patch, builds `libghostty-vt` for `wasm32-freestanding` with `ReleaseSmall`, validates the WebAssembly module, and atomically replaces `packages/terminal/ghostty-vt.wasm`. Failed builds leave the tracked artifact unchanged and remove the temporary checkout.
 
 The WASM module must export `memory` and `__indirect_function_table`.
 
@@ -57,6 +55,12 @@ Call `ghostty_render_state_update` once for each requested frame, capture the it
 
 Grid references are for scrollback, links, and other non-frame lookups; do not use them for the active render loop.
 
+### DCS response patch
+
+Upstream `libghostty-vt` currently ignores `dcs_hook`, `dcs_put`, and `dcs_unhook` actions in the terminal-only stream handler even though Ghostty's native termio stream handler emits DECRPSS replies for DECRQSS queries. The repository patch reuses Ghostty's DCS state machine and routes DECRPSS through the existing `GHOSTTY_TERMINAL_OPT_WRITE_PTY` callback; it does not add another VT parser or expose the historical `ghostty-web` ABI.
+
+Remove the patch and its build step when the pinned upstream revision handles DECRQSS in `src/terminal/stream_terminal.zig`. Until then, update the pinned revision, patch context, ABI metadata, and tracked WASM artifact together.
+
 ## JavaScript callbacks
 
 Browser and Node runtimes cannot portably insert plain JavaScript functions into a `WebAssembly.Table`; `WasmBridge` creates typed WASM trampolines, grows the exported table, and clears each slot on terminal disposal.
@@ -65,7 +69,8 @@ Callbacks run synchronously during `ghostty_terminal_vt_write`; copy borrowed by
 
 ## Upgrade check
 
-1. Replace `ghostty-vt.wasm` with the new upstream build.
-2. Compare `ghostty_type_json()` with constants in `types.ts`.
-3. Verify enum values against upstream headers.
-4. Run typecheck, unit tests, Node integration tests, and the WebGPU browser demo.
+1. Update the pinned revision and patch context in `scripts/build-ghostty-wasm.mjs`.
+2. Run `pnpm build:ghostty-wasm` and commit the rebuilt `ghostty-vt.wasm`.
+3. Compare `ghostty_type_json()` with constants in `types.ts`.
+4. Verify enum values against upstream headers.
+5. Run typecheck, unit tests, Node integration tests, and the WebGPU browser demo.

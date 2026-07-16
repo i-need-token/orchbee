@@ -33,6 +33,57 @@ describe('Terminal lifecycle', () => {
 		customTerminal.dispose();
 	});
 
+	it('synchronizes terminal-driven 80 and 132 column mode changes', () => {
+		const terminal = createTerminal(80, 24);
+		const resizes: { cols: number; rows: number }[] = [];
+		const subscription = terminal.onResize((event) => resizes.push(event));
+
+		terminal.write('\x1b[?40h\x1b[?3h');
+		expect([terminal.cols, terminal.rows]).toEqual([132, 24]);
+		terminal.write('\x1b[?3l');
+		expect([terminal.cols, terminal.rows]).toEqual([80, 24]);
+		expect(resizes).toEqual([
+			{ cols: 132, rows: 24 },
+			{ cols: 80, rows: 24 },
+		]);
+
+		subscription.dispose();
+		terminal.dispose();
+	});
+
+	it('finishes write bookkeeping before a resize listener disposes the terminal', () => {
+		const terminal = createTerminal(80, 24);
+		const getScrollbackLength = terminal.grid.getScrollbackLength.bind(terminal.grid);
+		let disposed = false;
+		vi.spyOn(terminal.grid, 'getScrollbackLength').mockImplementation(() => {
+			if (disposed) throw new Error('write accessed the disposed grid');
+			return getScrollbackLength();
+		});
+		terminal.onResize(() => {
+			terminal.dispose();
+			disposed = true;
+		});
+
+		expect(() => terminal.write('\x1b[?40h\x1b[?3h')).not.toThrow();
+		expect(disposed).toBe(true);
+		expect(Reflect.get(terminal, 'handle')).toBe(0);
+	});
+
+	it('reuses dimension query storage across writes', () => {
+		const terminal = createTerminal();
+		terminal.write('warm up');
+		const bridge = Reflect.get(terminal, 'bridge') as {
+			allocU8Array(length: number): number;
+		};
+		const allocate = vi.spyOn(bridge, 'allocU8Array');
+
+		terminal.write('x');
+
+		expect(allocate).toHaveBeenCalledWith(1);
+		expect(allocate).not.toHaveBeenCalledWith(2);
+		terminal.dispose();
+	});
+
 	it('returns empty accessibility ranges before the DOM surface opens', () => {
 		const terminal = createTerminal();
 		expect(terminal.getAccessibleText()).toBe('');
@@ -1061,6 +1112,32 @@ describe('Terminal callbacks and state', () => {
 		terminal.write('\x1b[c\x1b[>c\x1b[=c');
 
 		expect(responses).toEqual(['\x1b[?62;22c', '\x1b[>1;0;0c', '\x1bP!|00000000\x1b\\']);
+		terminal.dispose();
+	});
+
+	it('emits DECRPSS replies for supported and unsupported DECRQSS queries', () => {
+		const terminal = createTerminal();
+		const responses: string[] = [];
+		terminal.onData((data) => responses.push(data));
+
+		terminal.write('\x1bP$q');
+		terminal.write('m\x1b\\');
+		terminal.write('\x1b[1;31m\x1bP$qm\x1b\\');
+		terminal.write('\x1b[5 q\x1bP$q q\x1b\\');
+		terminal.write('\x1b[3;20r\x1bP$qr\x1b\\');
+		terminal.write('\x1bP$qs\x1b\\');
+		terminal.write('\x1b[?69h\x1b[5;70s\x1bP$qs\x1b\\');
+		terminal.write('\x1bP$q"q\x1b\\');
+
+		expect(responses).toEqual([
+			'\x1bP1$r0m\x1b\\',
+			'\x1bP1$r0;1;31m\x1b\\',
+			'\x1bP1$r5 q\x1b\\',
+			'\x1bP1$r3;20r\x1b\\',
+			'\x1bP0$r\x1b\\',
+			'\x1bP1$r5;70s\x1b\\',
+			'\x1bP0$r\x1b\\',
+		]);
 		terminal.dispose();
 	});
 

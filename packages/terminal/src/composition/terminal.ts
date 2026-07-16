@@ -151,6 +151,7 @@ export type { TerminalConfig } from '../types';
 
 const DEFAULT_SCROLLBACK_BYTES = 10_000_000;
 const POINT_COORDINATE_SIZE = 8;
+const TERMINAL_DIMENSION_BUFFER_SIZE = 2;
 
 interface ViewportResizeAnchor {
 	resolveScreenRow(): number | undefined;
@@ -258,6 +259,7 @@ export class Terminal {
 	private readonly identityLength: number;
 	private readonly enquiryBuffer: number;
 	private readonly enquiryLength: number;
+	private readonly terminalDimensionBuffer: number;
 	private lastAlternateScreen = false;
 	private lastCursorPosition: { x: number; y: number } | undefined;
 	private readonly host: TerminalHost;
@@ -468,6 +470,7 @@ export class Terminal {
 		this.setDefaultCursorBlink(this.options.cursorBlink);
 		this.selectionController = new GhosttySelectionController(this.bridge, this.handle);
 		this.rsHandle = this.createRenderState();
+		this.terminalDimensionBuffer = this.bridge.allocU8Array(TERMINAL_DIMENSION_BUFFER_SIZE);
 		this.grid = new Grid(this.bridge, this.handle, this.rsHandle, this.columnCount, this.rowCount);
 		this.ghosttyTerm = new GhosttyTerminal(this);
 		this.buffer = new BufferNamespace(this);
@@ -518,9 +521,11 @@ export class Terminal {
 
 		const ptr = this.bridge.allocU8Array(bytes.length);
 		const oldScrollbackLength = this.grid.getScrollbackLength();
+		let terminalDrivenResize: { readonly cols: number; readonly rows: number } | undefined;
 		try {
 			this.bridge.writeBytes(ptr, bytes);
 			this.bridge.getExports().ghostty_terminal_vt_write(this.handle, ptr, bytes.length);
+			terminalDrivenResize = this.syncTerminalDrivenDimensions();
 			this.linkDetector?.invalidateCache();
 			this.clearHoveredLink();
 			this.syncSurfaceMouseOwnership();
@@ -559,6 +564,7 @@ export class Terminal {
 		} else {
 			this.requestRender();
 		}
+		if (terminalDrivenResize) this.onResizeEmitter.fire(terminalDrivenResize);
 	}
 
 	/** Write data followed by CRLF. */
@@ -725,22 +731,64 @@ export class Terminal {
 	 */
 	resize(cols: number, rows: number, cellWidthPx = 8, cellHeightPx = 16): void {
 		if (cols === this.columnCount && rows === this.rowCount) return;
+		this.applyDimensions(cols, rows, { cellWidthPx, cellHeightPx });
+		this.onResizeEmitter.fire({ cols, rows });
+	}
+
+	private syncTerminalDrivenDimensions():
+		| { readonly cols: number; readonly rows: number }
+		| undefined {
+		const terminalGet = this.bridge.getExports().ghostty_terminal_get;
+		const cols = this.readTerminalDimension(terminalGet, TerminalData.COLS);
+		const rows = this.readTerminalDimension(terminalGet, TerminalData.ROWS);
+		if (cols < 1 || rows < 1 || (cols === this.columnCount && rows === this.rowCount)) {
+			return undefined;
+		}
+		this.applyDimensions(cols, rows, null);
+		return { cols, rows };
+	}
+
+	private readTerminalDimension(
+		terminalGet: (handle: number, field: number, output: number) => number,
+		field: TerminalData,
+	): number {
+		if (terminalGet(this.handle, field, this.terminalDimensionBuffer) !== Result.SUCCESS) return 0;
+		return this.bridge
+			.createView(this.terminalDimensionBuffer, TERMINAL_DIMENSION_BUFFER_SIZE)
+			.getUint16(0, true);
+	}
+
+	private applyDimensions(
+		cols: number,
+		rows: number,
+		parserResize: { readonly cellWidthPx: number; readonly cellHeightPx: number } | null,
+	): void {
 		const previousViewportOffset = this.viewportOffset;
-		const viewportAnchor = createViewportResizeAnchor(
-			this.bridge,
-			this.handle,
-			this.viewportOffset,
-			this.grid.getScrollbackLength(),
-		);
+		const viewportAnchor = parserResize
+			? createViewportResizeAnchor(
+					this.bridge,
+					this.handle,
+					this.viewportOffset,
+					this.grid.getScrollbackLength(),
+				)
+			: undefined;
 		try {
 			this.columnCount = cols;
 			this.rowCount = rows;
 			this.optionState.cols = cols;
 			this.optionState.rows = rows;
 
-			this.bridge
-				.getExports()
-				.ghostty_terminal_resize(this.handle, cols, rows, cellWidthPx, cellHeightPx);
+			if (parserResize) {
+				this.bridge
+					.getExports()
+					.ghostty_terminal_resize(
+						this.handle,
+						cols,
+						rows,
+						parserResize.cellWidthPx,
+						parserResize.cellHeightPx,
+					);
+			}
 			this.grid.resize(cols, rows);
 			this.linkDetector?.invalidateCache();
 			this.clearHoveredLink();
@@ -761,7 +809,6 @@ export class Terminal {
 			}
 			this.renderer?.resize(cols, rows);
 			this.requestRender();
-			this.onResizeEmitter.fire({ cols, rows });
 		} finally {
 			viewportAnchor?.dispose();
 		}
@@ -852,6 +899,7 @@ export class Terminal {
 		if (this.enquiryLength > 0) {
 			this.bridge.freeU8Array(this.enquiryBuffer, this.enquiryLength);
 		}
+		this.bridge.freeU8Array(this.terminalDimensionBuffer, TERMINAL_DIMENSION_BUFFER_SIZE);
 		this.bridge.getExports().ghostty_render_state_free(this.rsHandle);
 		this.bridge.getExports().ghostty_terminal_free(this.handle);
 		this.handle = 0;

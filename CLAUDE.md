@@ -42,9 +42,11 @@ schemas/        # Machine-readable repository contract schemas
 
 ## Tech Stack
 
-- **Runtime**: Electron + Node.js (>=22)
-- **Language**: TypeScript 7.0 (strict mode, `noUncheckedIndexedAccess`, `erasableSyntaxOnly`, `verbatimModuleSyntax`)
-- **Frontend**: React + Web
+- **Frontend**: React + TypeScript 7.0 (strict mode, `noUncheckedIndexedAccess`, `erasableSyntaxOnly`, `verbatimModuleSyntax`)
+- **Routing**: TanStack Router
+- **Client State**: Zustand
+- **UI**: shadcn/ui with Base UI primitives
+- **Tooling Runtime**: Node.js (>=22)
 - **Lint**: oxlint (with typescript, unicorn, oxc, react, import plugins)
 - **Format**: oxfmt
 - **Schema**: Zod 4 (parse at boundaries, trust inside)

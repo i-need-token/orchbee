@@ -47,6 +47,14 @@ describe('buildTextShapingPlan', () => {
 		expect(plan[4]).toBe(plan[3]);
 	});
 
+	it('does not segment a long repeated-character row into ligatures', () => {
+		const repeated = buildTextShapingPlan(cells('************'));
+		const standalone = buildTextShapingPlan(cells(' *** '));
+
+		expect(repeated.every((span) => span === null)).toBe(true);
+		expect((standalone[1] as TextShapingSpan | null)?.text).toBe('***');
+	});
+
 	it('does not shape incomplete candidates at the end of a row', () => {
 		expect(buildTextShapingPlan(cells('code ='))).toEqual([null, null, null, null, null, null]);
 	});

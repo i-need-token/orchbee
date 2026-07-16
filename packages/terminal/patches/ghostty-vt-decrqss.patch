@@ -1,0 +1,134 @@
+diff --git a/src/terminal/stream_terminal.zig b/src/terminal/stream_terminal.zig
+index 38d59bcd2..1133a2a58 100644
+--- a/src/terminal/stream_terminal.zig
++++ b/src/terminal/stream_terminal.zig
+@@ -5,0 +6 @@ const csi = @import("csi.zig");
++const dcs = @import("dcs.zig");
+@@ -47,0 +49,5 @@ pub const Handler = struct {
++    /// The DCS command handler maintains state across stream writes. The
++    /// terminal-only stream uses it to answer DECRQSS with DECRPSS while
++    /// leaving DCS commands with external side effects disabled.
++    dcs_handler: dcs.Handler = .{},
++
+@@ -122,0 +129 @@ pub const Handler = struct {
++        self.dcs_handler.deinit();
+@@ -283,6 +290,3 @@ pub const Handler = struct {
+-            // No supported DCS commands have any terminal-modifying effects,
+-            // but they may in the future. For now we just ignore it.
+-            .dcs_hook,
+-            .dcs_put,
+-            .dcs_unhook,
+-            => {},
++            .dcs_hook => try self.dcsHook(value),
++            .dcs_put => try self.dcsPut(value),
++            .dcs_unhook => try self.dcsUnhook(),
+@@ -299,0 +304,76 @@ pub const Handler = struct {
++    inline fn dcsHook(self: *Handler, request: @import("Parser.zig").Action.DCS) !void {
++        var command = self.dcs_handler.hook(self.terminal.gpa(), request) orelse return;
++        defer command.deinit();
++        try self.dcsCommand(&command);
++    }
++
++    inline fn dcsPut(self: *Handler, byte: u8) !void {
++        var command = self.dcs_handler.put(byte) orelse return;
++        defer command.deinit();
++        try self.dcsCommand(&command);
++    }
++
++    inline fn dcsUnhook(self: *Handler) !void {
++        var command = self.dcs_handler.unhook() orelse return;
++        defer command.deinit();
++        try self.dcsCommand(&command);
++    }
++
++    fn dcsCommand(self: *Handler, command: *dcs.Command) !void {
++        switch (command.*) {
++            .decrqss => |request| try self.reportStatusString(request),
++            .tmux, .xtgettcap => {},
++        }
++    }
++
++    fn reportStatusString(self: *Handler, request: dcs.Command.DECRQSS) !void {
++        // Leave one byte for the sentinel required by the write_pty effect.
++        var response: [129]u8 = undefined;
++        var writer: std.Io.Writer = .fixed(response[0 .. response.len - 1]);
++        try writer.writeAll("\x1bP0$r");
++        const payload_start = writer.buffered().len;
++
++        switch (request) {
++            .none => {},
++
++            .sgr => {
++                var attributes: [96]u8 = undefined;
++                const value = try self.terminal.printAttributes(&attributes);
++                try writer.writeAll(value);
++                try writer.writeByte('m');
++            },
++
++            .decscusr => {
++                const blink = self.terminal.modes.get(.cursor_blinking);
++                const style: u8 = switch (self.terminal.screens.active.cursor.cursor_style) {
++                    .block => if (blink) 1 else 2,
++                    .underline => if (blink) 3 else 4,
++                    .bar => if (blink) 5 else 6,
++                    .block_hollow => if (blink) 1 else 2,
++                };
++                try writer.print("{d} q", .{style});
++            },
++
++            .decstbm => try writer.print("{d};{d}r", .{
++                self.terminal.scrolling_region.top + 1,
++                self.terminal.scrolling_region.bottom + 1,
++            }),
++
++            .decslrm => {
++                if (self.terminal.modes.get(.enable_left_and_right_margin)) {
++                    try writer.print("{d};{d}s", .{
++                        self.terminal.scrolling_region.left + 1,
++                        self.terminal.scrolling_region.right + 1,
++                    });
++                }
++            },
++        }
++
++        const valid = writer.buffered().len > payload_start;
++        try writer.writeAll("\x1b\\");
++        const length = writer.buffered().len;
++        response[2] = if (valid) '1' else '0';
++        response[length] = 0;
++        self.writePty(response[0..length :0]);
++    }
++
+@@ -2376,0 +2457,32 @@ test "device attributes: custom response" {
++test "DECRQSS emits valid and invalid DECRPSS responses" {
++    var t: Terminal = try .init(testing.allocator, .{ .cols = 80, .rows = 24 });
++    defer t.deinit(testing.allocator);
++
++    const S = struct {
++        var written: ?[]const u8 = null;
++        fn writePty(_: *Handler, data: [:0]const u8) void {
++            if (written) |old| testing.allocator.free(old);
++            written = testing.allocator.dupe(u8, data) catch @panic("OOM");
++        }
++    };
++    S.written = null;
++    defer if (S.written) |old| testing.allocator.free(old);
++
++    var handler: Handler = .init(&t);
++    handler.effects.write_pty = &S.writePty;
++
++    var s: Stream = .initAlloc(testing.allocator, handler);
++    defer s.deinit();
++
++    // Split the request to verify that DCS state survives stream writes.
++    s.nextSlice("\x1bP$q");
++    s.nextSlice("m\x1b\\");
++    try testing.expectEqualStrings("\x1bP1$r0m\x1b\\", S.written.?);
++
++    s.nextSlice("\x1bP$qz\x1b\\");
++    try testing.expectEqualStrings("\x1bP0$r\x1b\\", S.written.?);
++
++    s.nextSlice("\x1b[3;20r\x1bP$qr\x1b\\");
++    try testing.expectEqualStrings("\x1bP1$r3;20r\x1b\\", S.written.?);
++}
++

@@ -116,6 +116,7 @@ function findSpan(cells: readonly TextShapingCell[], start: number): TextShaping
 
 	for (const candidate of PROGRAMMING_LIGATURES) {
 		if (!matches(cells, start, candidate, first.styleKey)) continue;
+		if (extendsRepeatedCharacterRun(cells, start, candidate, first.styleKey)) continue;
 		return {
 			start,
 			end: start + candidate.length,
@@ -124,6 +125,36 @@ function findSpan(cells: readonly TextShapingCell[], start: number): TextShaping
 		};
 	}
 	return null;
+}
+
+function extendsRepeatedCharacterRun(
+	cells: readonly TextShapingCell[],
+	start: number,
+	candidate: string,
+	styleKey: string,
+): boolean {
+	const character = candidate[0];
+	if (!character) return false;
+	for (let index = 1; index < candidate.length; index++) {
+		if (candidate[index] !== character) return false;
+	}
+	return (
+		matchesRepeatedCharacter(cells[start - 1], character, styleKey) ||
+		matchesRepeatedCharacter(cells[start + candidate.length], character, styleKey)
+	);
+}
+
+function matchesRepeatedCharacter(
+	cell: TextShapingCell | undefined,
+	character: string,
+	styleKey: string,
+): boolean {
+	return (
+		cell?.eligible === true &&
+		cell.width === 1 &&
+		cell.styleKey === styleKey &&
+		cell.text === character
+	);
 }
 
 function matches(

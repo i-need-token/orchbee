@@ -3,6 +3,7 @@ import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from '../g
 
 function createContext() {
 	const context = {
+		bezierCurveTo: vi.fn<CanvasRenderingContext2D['bezierCurveTo']>(),
 		beginPath: vi.fn<CanvasRenderingContext2D['beginPath']>(),
 		closePath: vi.fn<CanvasRenderingContext2D['closePath']>(),
 		fill: vi.fn<CanvasRenderingContext2D['fill']>(),
@@ -25,6 +26,10 @@ describe('Ghostty sprites', () => {
 		expect(isGhosttySprite(0x25e5)).toBe(true);
 		expect(isGhosttySprite(0xe0b3)).toBe(true);
 		expect(isGhosttySprite(0x2504)).toBe(false);
+		expect(isGhosttySprite(0x256d)).toBe(true);
+		expect(isGhosttySprite(0x256e)).toBe(true);
+		expect(isGhosttySprite(0x256f)).toBe(true);
+		expect(isGhosttySprite(0x2570)).toBe(true);
 		expect(isGhosttySprite(0x41)).toBe(false);
 	});
 
@@ -36,6 +41,24 @@ describe('Ghostty sprites', () => {
 		expect(context.fillRect).toHaveBeenCalledTimes(2);
 		expect(context.fillRect).toHaveBeenNthCalledWith(1, 13, 28, 5, 1);
 		expect(context.fillRect).toHaveBeenNthCalledWith(2, 13, 28, 1, 9);
+	});
+
+	it("draws a rounded corner with Ghostty's centered arc geometry", () => {
+		const context = createContext();
+		context.fillStyle = '#abcdef';
+
+		expect(drawGhosttySprite(context, 0x256d, 10, 20, 8, 17, 1)).toBe(true);
+
+		expect(context.moveTo).toHaveBeenCalledWith(13.5, 37);
+		expect(context.lineTo).toHaveBeenNthCalledWith(1, 13.5, 32.5);
+		expect(context.bezierCurveTo).toHaveBeenCalledWith(13.5, 29.5, 14.5, 28.5, 17.5, 28.5);
+		expect(context.lineTo).toHaveBeenNthCalledWith(2, 18, 28.5);
+		expect(context.lineCap).toBe('butt');
+		expect(context.lineWidth).toBe(1);
+		expect(context.strokeStyle).toBe('#abcdef');
+		expect(context.stroke).toHaveBeenCalledOnce();
+		expect(context.save).toHaveBeenCalledOnce();
+		expect(context.restore).toHaveBeenCalledOnce();
 	});
 
 	it('joins the upper and lower halves of a double vertical', () => {
