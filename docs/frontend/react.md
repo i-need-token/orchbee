@@ -7,6 +7,7 @@
 - Use Zustand for shared client state.
 - Build the component system with shadcn/ui using Base UI primitives.
 - Do not introduce an alternative router, shared-state library, or UI primitive system without an explicit architecture decision.
+- Author component styles and runtime theme overrides according to [`docs/frontend/styling.md`](styling.md).
 
 ## Correctness and safety
 
