@@ -10,6 +10,8 @@
 
 The sibling-file rule is a minimum discoverability requirement, not evidence of behavioral coverage. Tests exercise observable outcomes, failure paths, and owned invariants; a placeholder test or a test that only repeats implementation details does not satisfy the project contract.
 
+The checked-in shadcn registry snapshot and its generated mobile hook are exempt from per-file sibling tests. They retain upstream implementations as reviewable source; test Orchbee adaptations, public-package contracts, and relied-upon integration behavior without copying the upstream component suite component by component.
+
 ## Test execution
 
 - `vitest/expect-expect`: Every test must contain an assertion.

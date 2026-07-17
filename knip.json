@@ -19,6 +19,11 @@
 				"vitest.config.ts"
 			],
 			"project": ["src/**/*.{ts,tsx}", "*.ts"]
+		},
+		"packages/ui": {
+			"entry": ["src/index.ts!", "src/components/index.ts!", "src/styles.css!"],
+			"ignoreDependencies": ["shadcn", "tailwindcss", "tw-animate-css"],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
 		}
 	}
 }

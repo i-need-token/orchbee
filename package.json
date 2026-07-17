@@ -3,7 +3,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:exports",
+		"verify": "pnpm format:check && pnpm lint && pnpm build && pnpm typecheck && pnpm test && pnpm test:exports",
 		"lint": "pnpm lint:code && pnpm lint:dependencies && pnpm lint:projects",
 		"lint:code": "oxlint .",
 		"lint:dependencies": "knip --strict",

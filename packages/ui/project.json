@@ -1,0 +1,11 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "ui",
+	"runtime": ["browser"],
+	"stability": "experimental",
+	"responsibility": "Reusable shadcn React components backed by Base UI.",
+	"nonGoals": [
+		"Owning Orchbee sessions, agents, terminal panes, routing, or remote state.",
+		"Owning Electron, browser service, or other platform-specific effects."
+	]
+}

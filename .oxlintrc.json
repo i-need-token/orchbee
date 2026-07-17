@@ -68,8 +68,8 @@
         "import/no-default-export": "off"
       }
     },
-    {
-      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+		{
+			"files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
       "plugins": ["typescript", "vitest"],
       "rules": {
         "typescript/consistent-type-assertions": "off",
@@ -86,8 +86,29 @@
         "vitest/no-disabled-tests": "error",
         "vitest/expect-expect": "error",
         "vitest/no-focused-tests": "error",
-        "vitest/no-identical-title": "error"
-      }
-    }
-  ]
+				"vitest/no-identical-title": "error"
+			}
+		},
+		{
+			"files": [
+				"packages/ui/src/components/ui/*.tsx",
+				"packages/ui/src/hooks/use-mobile.ts"
+			],
+			"rules": {
+				"eqeqeq": "off",
+				"no-shadow": "off",
+				"orchbee/require-unit-test": "off",
+				"react/react-in-jsx-scope": "off",
+				"typescript/consistent-type-assertions": "off",
+				"typescript/explicit-module-boundary-types": "off",
+				"unicorn/no-nested-ternary": "off"
+			}
+		},
+		{
+			"files": ["packages/ui/src/components/ui/chart.tsx"],
+			"rules": {
+				"react/no-danger": "off"
+			}
+		}
+	]
 }

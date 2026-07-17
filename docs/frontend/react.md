@@ -16,3 +16,5 @@
 - `react/jsx-key`: Give list elements stable keys from their data identity.
 - `react/jsx-no-target-blank`: Protect new-tab links from opener access.
 - `react/no-danger`: Render structured React content instead of injecting HTML.
+
+The generated shadcn `ChartStyle` implementation is the sole `react/no-danger` exception. Its style text may contain only trusted, developer-authored chart configuration; never pass persisted user values or other untrusted strings into that configuration.

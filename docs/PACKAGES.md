@@ -4,6 +4,7 @@
 
 - Put reusable code in `packages/*` when it has a workspace consumer or is intentionally developed as an independently consumable public library.
 - Keep application-specific code under that application's `src` tree until a package boundary has a concrete consumer.
+- Place frontend product UI, platform adapters, and session-facing libraries according to [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md).
 - Treat every runtime package under `packages/*` as a library package. Library packages use Rslib and expose built artifacts; consumers never compile another package's source.
 - Set `"private": true` on workspace-only libraries. A package intended for npm publication omits `private` and must include a version, `"publishConfig": { "access": "public" }`, a package README, license metadata once the project license is selected, and a `files` allowlist.
 - Declare every package's responsibility, non-goals, runtime, and stability in its schema-backed `project.json` according to [`docs/PROJECTS.md`](PROJECTS.md).
@@ -172,8 +173,8 @@ Before merging a package change:
 
 1. Confirm the name and responsibility remain specific and non-overlapping.
 2. Review `src/index.ts` and `package.json#exports` as public API changes.
-3. Run `pnpm --filter <package-name> typecheck` and `pnpm --filter <package-name> test`.
-4. Run `pnpm --filter <package-name> build` and `pnpm --filter <package-name> test:exports`.
+3. Build the package and its workspace dependencies with `pnpm --filter <package-name>... build`.
+4. Run `pnpm --filter <package-name> typecheck`, `pnpm --filter <package-name> test`, and `pnpm --filter <package-name> test:exports`.
 5. Run `pnpm verify` from the repository root.
 6. Update `project.json`, the package README, and affected engineering docs in the same change.
 

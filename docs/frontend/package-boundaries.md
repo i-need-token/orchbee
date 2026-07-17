@@ -25,7 +25,7 @@ Application workspaces own runtime startup, routing roots, authentication entry 
 | Package                     | Runtime     | Responsibility                                                                 | Non-goals                                                                                         | Admission point                                                                                  |
 | --------------------------- | ----------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `@orchbee/terminal`         | `browser`   | Terminal parsing, rendering, input, selection, search, and browser integration | React UI, application PTY processes, session transport, Electron effects, or product dialogs      | Existing independently consumable library                                                        |
-| `@orchbee/ui`               | `browser`   | Design tokens, styles, Base UI-backed primitives, and reusable visual patterns | Orchbee sessions, agents, terminal panes, routing, remote state, or platform APIs                 | Add with the first consuming product UI                                                          |
+| `@orchbee/ui`               | `browser`   | Reusable shadcn components backed by Base UI                                   | Themes, design tokens, sessions, agents, terminal panes, routing, remote state, or platform APIs  | Add with the first consuming product UI                                                          |
 | `@orchbee/workbench`        | `browser`   | Shared Orchbee React interface, product interactions, and ephemeral UI state   | Electron or Node imports, PTY ownership, wire transport, authentication, deployment, or packaging | Add with a consuming app; keep private and experimental until its cross-app contract is proven   |
 | `@orchbee/session-protocol` | `universal` | Zod schemas and types for session commands, events, snapshots, and errors      | I/O, transport selection, state storage, PTY processes, or UI                                     | Add when two trust-boundary participants consume the same wire contract                          |
 | `@orchbee/session-client`   | `browser`   | Headless client synchronization, command dispatch, reconnection, and state     | React presentation, platform effects, transport implementation, or server process ownership       | Add when a browser app consumes remote or cross-process session state                            |
@@ -37,9 +37,9 @@ Every added workspace must declare its exact responsibility and non-goals in `pr
 
 ## UI ownership
 
-`@orchbee/ui` contains only elements without Orchbee product semantics, including buttons, dialogs, menus, tooltips, resizable layout primitives, design tokens, and base styles. It may own a reusable visual behavior, but it must not know what a session, agent, node, or terminal pane means.
+`@orchbee/ui` contains only elements without Orchbee product semantics, including buttons, dialogs, menus, tooltips, and resizable layout primitives. It may own a reusable visual behavior, but it must not know what a session, agent, node, or terminal pane means.
 
-All frontend workspaces follow the token and CSS Modules contract in [`docs/frontend/styling.md`](styling.md).
+All frontend workspaces follow the generated-component and styling ownership contract in [`docs/frontend/styling.md`](styling.md).
 
 `@orchbee/workbench` owns product-semantic presentation, including the application shell, terminal panes, tab and split behavior, session and agent views, node status, settings views, command surfaces, and the UI that fulfills application-level terminal requests.
 

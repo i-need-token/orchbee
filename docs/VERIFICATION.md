@@ -6,9 +6,9 @@
 
 1. `pnpm format:check`
 2. `pnpm lint`
-3. `pnpm typecheck`
-4. `pnpm test`
-5. `pnpm build`
+3. `pnpm build`
+4. `pnpm typecheck`
+5. `pnpm test`
 6. `pnpm test:exports`
 
 A focused command is useful while iterating, but completion requires the root gate.
@@ -19,10 +19,12 @@ A focused command is useful while iterating, but completion requires the root ga
 | -------------- | ---------------------------------------------------------------------------------- |
 | `format:check` | Formatter-managed files match `.oxfmtrc.json`.                                     |
 | `lint`         | Code, architecture, dependency, project-contract, export, and manifest rules pass. |
+| `build`        | Every buildable workspace produces its supported artifacts.                        |
 | `typecheck`    | Every workspace satisfies its TypeScript compiler contract.                        |
 | `test`         | Custom lint-rule tests and every workspace test suite pass.                        |
-| `build`        | Every buildable workspace produces its supported artifacts.                        |
 | `test:exports` | Every library's packed exports, runtime formats, and declarations are consumable.  |
+
+The build precedes type-checking because workspace libraries expose built artifacts and consumers never compile another package's source. The recursive build is topological, so a clean checkout produces dependency artifacts before dependent workspaces resolve their package exports.
 
 ## CI contract
 
