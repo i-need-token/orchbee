@@ -36,14 +36,14 @@ pnpm --dir packages/ui exec shadcn add --all --overwrite
 
 The repository owns a complete snapshot of the official Base UI registry rather than adding primitives on demand. Review the CLI diff before accepting a refresh because focused Orchbee compatibility adaptations may need to be reapplied. Do not hand-write a primitive that is available from shadcn.
 
-Generated Tailwind utilities remain part of the component source. [`src/styles.css`](src/styles.css) contains the Tailwind/shadcn imports plus the shared semantic color tokens and base layer required by those utilities. It does not define an Orchbee product theme or token registry. The full workflow lives in [`docs/frontend/styling.md`](../../docs/frontend/styling.md).
+Generated Tailwind utilities remain part of the component source. [`src/styles.css`](src/styles.css) contains the Tailwind/shadcn imports, maps shadcn's compatibility variables to `@orchbee/design-tokens`, and owns the base layer required by those utilities. It does not define the Orchbee token vocabulary. The full workflow lives in [`docs/frontend/styling.md`](../../docs/frontend/styling.md).
 
 Tailwind CSS, the shadcn CLI stylesheet, and `tw-animate-css` are build-time dependencies. Rslib compiles them into the published `styles.css`; consumers do not need those tools at runtime.
 
 ## Development
 
 ```sh
-pnpm --filter @orchbee/ui build
+pnpm --filter @orchbee/ui... build
 pnpm --filter @orchbee/ui typecheck
 pnpm --filter @orchbee/ui test
 pnpm --filter @orchbee/ui test:exports

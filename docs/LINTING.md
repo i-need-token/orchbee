@@ -2,16 +2,18 @@
 
 ## Commands
 
-| Command                  | Responsibility                                                           |
-| ------------------------ | ------------------------------------------------------------------------ |
-| `pnpm verify`            | Run the complete merge gate defined by `docs/VERIFICATION.md`            |
-| `pnpm lint`              | Run every required code and dependency lint check                        |
-| `pnpm lint:code`         | Run oxlint categories, explicit rules, and `orchbee/*` project rules     |
-| `pnpm lint:dependencies` | Run Knip strict dependency, file, export, catalog, and manifest analysis |
-| `pnpm lint:projects`     | Validate every schema-backed workspace project contract                  |
-| `pnpm lint:fix`          | Apply safe oxlint fixes; remaining diagnostics require code changes      |
-| `pnpm typecheck`         | Run TypeScript diagnostics that syntax-aware lint does not replace       |
-| `pnpm test:lint-rules`   | Run permanent regression tests for the `orchbee/*` rules                 |
+| Command                    | Responsibility                                                           |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `pnpm verify`              | Run the complete merge gate defined by `docs/VERIFICATION.md`            |
+| `pnpm lint`                | Run every required code, style, dependency, and project lint check       |
+| `pnpm lint:code`           | Run oxlint categories, explicit rules, and `orchbee/*` project rules     |
+| `pnpm lint:styles`         | Validate the token registry and authored frontend styling contract       |
+| `pnpm lint:dependencies`   | Run Knip strict dependency, file, export, catalog, and manifest analysis |
+| `pnpm lint:projects`       | Validate every schema-backed workspace project contract                  |
+| `pnpm lint:fix`            | Apply safe oxlint fixes; remaining diagnostics require code changes      |
+| `pnpm typecheck`           | Run TypeScript diagnostics that syntax-aware lint does not replace       |
+| `pnpm test:lint-rules`     | Run permanent regression tests for the `orchbee/*` rules                 |
+| `pnpm test:style-contract` | Run regression tests for the frontend style-contract checker             |
 
 ## Enforcement boundary
 
@@ -21,6 +23,7 @@
 - `pnpm lint:dependencies` uses Knip `--strict`: every imported package must be declared directly by the importing workspace, and unused files, dependencies, exports, types, unresolved imports, duplicate exports, cycles, and stale catalog entries fail the command.
 - Keep all runnable scripts, build configuration, test suites, and public package entries in `knip.json#workspaces`; never ignore a finding merely because an entry point was omitted from analysis.
 - Type-aware oxlint rules are not active until `oxlint-tsgolint` is added during package review; never assume lint currently detects floating promises or unsafe third-party `any` propagation.
+- `pnpm lint:styles` enforces the registry, generated TypeScript inventory, CSS Module, Tailwind-boundary, raw-value, responsive-threshold, JSX class, and inline-style rules defined by [`docs/frontend/design-tokens.md`](frontend/design-tokens.md). It proves that the generated public token names exactly match the CSS registry and that the generated full Tailwind compatibility map exactly covers the installed public theme, targets registered Orchbee tokens, and preserves the literal breakpoint and container values required at compile time. Its shadcn authoring exception remains path-scoped to checked-in generated source and support files.
 - Never weaken a rule to pass existing code; fix the code or obtain human approval for a project-policy change.
 
 ## Generated source

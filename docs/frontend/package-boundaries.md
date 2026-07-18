@@ -10,8 +10,10 @@ The target dependency model is a placement contract, not a requirement to create
 
 ```text
 apps/main ---+
-             +--> @orchbee/workbench --> @orchbee/ui
-apps/web ----+             |
+             +--> @orchbee/workbench --> @orchbee/ui ----------+
+apps/web ----+             |                                   |
+                           +--> @orchbee/design-tokens <--------+
+                           |
                            +--> @orchbee/terminal
                            |
                            +--> @orchbee/session-client --> @orchbee/session-protocol
@@ -28,6 +30,7 @@ Application workspaces own runtime startup, routing roots, authentication entry 
 | --------------------------- | ----------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `@orchbee/terminal`         | `browser`   | Terminal parsing, rendering, input, selection, search, and browser integration | React UI, application PTY processes, session transport, Electron effects, or product dialogs      | Existing independently consumable library                                                        |
 | `@orchbee/ui`               | `browser`   | Reusable shadcn components backed by Base UI                                   | Themes, design tokens, sessions, agents, terminal panes, routing, remote state, or platform APIs  | Add with the first consuming product UI                                                          |
+| `@orchbee/design-tokens`    | `universal` | Enumerable visual scales, semantic theme roles, and responsive thresholds      | React components, product interactions, application state, arbitrary component values, or effects | Existing consumer in the shadcn compatibility stylesheet                                         |
 | `@orchbee/workbench`        | `browser`   | Shared Orchbee React interface, product interactions, and ephemeral UI state   | Electron or Node imports, PTY ownership, wire transport, authentication, deployment, or packaging | Add with a consuming app; keep private and experimental until its cross-app contract is proven   |
 | `@orchbee/session-protocol` | `universal` | Zod schemas and types for session commands, events, snapshots, and errors      | I/O, transport selection, state storage, PTY processes, or UI                                     | Add when two trust-boundary participants consume the same wire contract                          |
 | `@orchbee/session-client`   | `browser`   | Headless client synchronization, command dispatch, reconnection, and state     | React presentation, platform effects, transport implementation, or server process ownership       | Add when a browser app consumes remote or cross-process session state                            |
@@ -42,6 +45,8 @@ Every added workspace must declare its exact responsibility and non-goals in `pr
 `@orchbee/ui` contains only elements without Orchbee product semantics, including buttons, dialogs, menus, tooltips, and resizable layout primitives. It may own a reusable visual behavior, but it must not know what a session, agent, node, or terminal pane means.
 
 All frontend workspaces follow the generated-component and styling ownership contract in [`docs/frontend/styling.md`](styling.md).
+
+`@orchbee/design-tokens` owns the shared visual vocabulary independently of React and shadcn. `@orchbee/ui` consumes it only to map generated shadcn variables, while authored workbench components consume it directly through CSS Modules. The detailed tier and theme contract lives in [`docs/frontend/design-tokens.md`](design-tokens.md).
 
 `@orchbee/workbench` owns product-semantic presentation, including the application shell, terminal panes, tab and split behavior, session and agent views, node status, settings views, command surfaces, and the UI that fulfills application-level terminal requests.
 

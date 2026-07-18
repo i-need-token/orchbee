@@ -7,6 +7,8 @@
 				"scripts/*.mjs",
 				"scripts/oxlint-plugin-orchbee/index.js",
 				"scripts/oxlint-plugin-orchbee/vitest.config.ts",
+				"scripts/style-contract/vitest.config.ts",
+				"scripts/style-contract/__tests__/*.unit.test.ts",
 				"vitest.config.ts"
 			],
 			"project": ["scripts/**/*.{js,mjs,ts}", "*.{js,mjs,ts}"]

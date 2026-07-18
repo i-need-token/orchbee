@@ -1,0 +1,40 @@
+{
+	"name": "@orchbee/design-tokens",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Enumerable design tokens for Orchbee interfaces",
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": [
+		"**/*.css"
+	],
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		},
+		"./tokens.css": "./dist/tokens.css",
+		"./tailwind-compat.css": "./dist/tailwind-compat.css"
+	},
+	"scripts": {
+		"build": "rslib build",
+		"dev": "rslib build --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:exports": "node ../../scripts/check-package-exports.mjs ."
+	},
+	"devDependencies": {
+		"@rslib/core": "catalog:",
+		"@types/node": "catalog:",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	}
+}

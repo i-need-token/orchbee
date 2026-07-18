@@ -29,6 +29,7 @@
 - **Verification**: `docs/VERIFICATION.md` — the canonical local and CI quality gate
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
 - **Testing**: `docs/TESTING.md` — test layout, execution, and regression requirements
+- **Frontend Design Tokens**: `docs/frontend/design-tokens.md` — token tiers, naming, themes, CSS Modules, and style enforcement
 
 ## Project Structure
 

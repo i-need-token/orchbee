@@ -1,0 +1,11 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "design-tokens",
+	"runtime": ["browser", "universal"],
+	"stability": "experimental",
+	"responsibility": "Enumerable visual design decisions and theme semantics shared by Orchbee interfaces.",
+	"nonGoals": [
+		"Owning React components, product interactions, application state, or platform effects.",
+		"Providing arbitrary per-component styling values outside the registered token vocabulary."
+	]
+}

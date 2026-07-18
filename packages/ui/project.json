@@ -6,6 +6,7 @@
 	"responsibility": "Reusable shadcn React components backed by Base UI.",
 	"nonGoals": [
 		"Owning Orchbee sessions, agents, terminal panes, routing, or remote state.",
+		"Owning the Orchbee design-token vocabulary or product theme semantics.",
 		"Owning Electron, browser service, or other platform-specific effects."
 	]
 }
