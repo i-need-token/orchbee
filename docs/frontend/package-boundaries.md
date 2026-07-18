@@ -50,13 +50,15 @@ All frontend workspaces follow the generated-component and styling ownership con
 
 `@orchbee/workbench` owns product-semantic presentation, including the application shell, terminal panes, tab and split behavior, session and agent views, node status, settings views, command surfaces, and the UI that fulfills application-level terminal requests.
 
+The Workbench also owns the source descriptors and shipped translations for its product-semantic messages. Application workspaces own user locale selection, platform detection, and preference persistence, then supply the effective locale at composition time. `@orchbee/ui` remains locale-agnostic and exposes generic visible or accessibility-only text for its product-semantic consumer to localize. The complete contract lives in [`localization.md`](localization.md).
+
 Keep a React wrapper around `@orchbee/terminal` inside the workbench terminal module until it has an independent consumer and API. Do not add React, Zustand, shadcn/ui, Base UI, TanStack Router, Electron, or Node dependencies to `@orchbee/terminal`.
 
 ## Workbench interaction model
 
-Orchbee is terminal-first. The default Workbench surface gives focus and the remaining window area to the active terminal; it must not inherit an IDE workbench or reserve the primary surface for chat. A full-height left sidebar owns management navigation. Its eventual contents may include projects, worktrees, agents, or sessions, but the shell must not couple its layout contract to one of those models before that model has a concrete capability boundary.
+Orchbee is terminal-first. The default Workbench surface gives focus and the remaining window area to the active terminal; it must not inherit an IDE workbench or reserve the primary surface for chat. A full-height left sidebar reserves space for management navigation. Keep it empty until projects, worktrees, agents, or another model has a concrete capability boundary; the shell must not couple its layout contract to a speculative model.
 
-Keep secondary capabilities discoverable without making them permanent chrome. Settings use a dedicated, searchable surface entered from the account or settings area and organize related controls into named categories rather than one growing modal. Browser, changes, and similar inspection tools belong in an auxiliary right panel that is hidden by default, opened from a compact top-right control, and independently closeable. Splits and destructive terminal actions belong in a compact actions menu. Status belongs near the entity it describes: session state in session navigation, runtime and connection state in the sidebar footer, and transient feedback in notifications.
+Keep secondary capabilities discoverable without making them permanent chrome. Settings use a dedicated, searchable surface entered from the account or settings area and organize related controls into named categories rather than one growing modal. Browser, changes, and similar inspection tools belong in an auxiliary right panel that is hidden by default, opened from a compact top-right control, and independently closeable. Splits and destructive terminal actions belong in a compact actions menu. Status belongs near the entity it describes: session state in a concrete session surface, runtime and connection state in the management model that owns them, and transient feedback in notifications. Do not add placeholder status chrome to the reserved sidebar.
 
 ## Product concepts
 
@@ -101,6 +103,8 @@ Do not create a generic `bridge` or `platform` package for these adapters. Share
 | PTY process and authoritative session lifecycle                | `@orchbee/session-runtime`                               |
 | Client projection, event ordering, reconnect, and sync state   | `@orchbee/session-client`                                |
 | Active tab, panel dimensions, focus, and command palette state | `@orchbee/workbench`                                     |
+| Workbench product messages and shipped translations            | `@orchbee/workbench`                                     |
+| User locale preference and platform locale detection           | The corresponding `apps/*`                               |
 | Electron or browser capability state                           | The corresponding `apps/*`                               |
 | Persistence of workbench layout or preferences                 | The consuming application through an injected capability |
 | Raw cross-process or network messages                          | Parse with session schemas at the receiving boundary     |

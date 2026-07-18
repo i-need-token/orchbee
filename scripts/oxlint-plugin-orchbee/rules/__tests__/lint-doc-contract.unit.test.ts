@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import orchbeePlugin from '../../index';
 
@@ -12,6 +12,7 @@ interface OxlintConfig {
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '../../../..');
 const DOCS_ROOT = join(REPOSITORY_ROOT, 'docs');
+const LOCALIZED_DOCS_ROOT = join(DOCS_ROOT, 'zh-CN');
 const RULES_ROOT = resolve(import.meta.dirname, '..');
 
 function collectFiles(directory: string, extension: string): readonly string[] {
@@ -28,6 +29,34 @@ function markdownAnchor(heading: string): string {
 		.toLowerCase()
 		.replace(/[^\p{Letter}\p{Number}\s_-]/gu, '')
 		.replace(/\s+/g, '-');
+}
+
+function englishDocumentationFiles(): readonly string[] {
+	return collectFiles(DOCS_ROOT, '.md').filter(
+		(file) => !file.startsWith(`${LOCALIZED_DOCS_ROOT}${sep}`),
+	);
+}
+
+function documentationStructure(markdown: string): Readonly<Record<string, readonly string[]>> {
+	const matches = (pattern: RegExp): readonly string[] =>
+		Array.from(markdown.matchAll(pattern), (match) => match[0]);
+
+	return {
+		blocks: markdown
+			.trim()
+			.split(/\n\s*\n/u)
+			.map(() => 'block'),
+		headings: matches(/^(?:#{1,6})\s+/gmu),
+		fences: matches(/^```[^\n]*$/gmu),
+		unorderedItems: matches(/^-\s+/gmu),
+		orderedItems: matches(/^\d+\.\s+/gmu),
+		tableRows: matches(/^\|/gmu),
+		links: matches(/\]\([^)]+\)/gu).map(() => 'link'),
+		inlineCode: Array.from(
+			markdown.matchAll(/(?<!`)`([^`\n]+)`(?!`)/gu),
+			(match) => match[1] ?? '',
+		).toSorted(),
+	};
 }
 
 function documentAnchors(documentPath: string): ReadonlySet<string> {
@@ -65,7 +94,7 @@ function explicitlyEnabledRules(): readonly string[] {
 function documentedEnforcedRules(): readonly string[] {
 	return [
 		...new Set(
-			collectFiles(DOCS_ROOT, '.md').flatMap((file) => {
+			englishDocumentationFiles().flatMap((file) => {
 				const documentation = readFileSync(file, 'utf8');
 				return Array.from(
 					documentation.matchAll(/^- `([a-z][a-z0-9-]*\/[a-z0-9-]+)`:/gm),
@@ -98,6 +127,63 @@ function diagnosticAuthorities(): Readonly<Record<string, string>> {
 }
 
 describe('lint-doc contract', () => {
+	it('keeps the Simplified Chinese documentation mirror complete and structurally synchronized', () => {
+		const englishFiles = englishDocumentationFiles();
+		const englishPaths = englishFiles.map((file) => relative(DOCS_ROOT, file)).toSorted();
+		const localizedFiles = collectFiles(LOCALIZED_DOCS_ROOT, '.md');
+		const localizedPaths = localizedFiles
+			.map((file) => relative(LOCALIZED_DOCS_ROOT, file))
+			.toSorted();
+
+		expect(localizedPaths).toEqual(englishPaths);
+		for (const englishFile of englishFiles) {
+			const relativePath = relative(DOCS_ROOT, englishFile);
+			const localizedFile = join(LOCALIZED_DOCS_ROOT, relativePath);
+			const englishMarkdown = readFileSync(englishFile, 'utf8');
+			const localizedMarkdown = readFileSync(localizedFile, 'utf8');
+
+			expect({
+				file: relativePath,
+				structure: documentationStructure(localizedMarkdown),
+			}).toEqual({
+				file: relativePath,
+				structure: documentationStructure(englishMarkdown),
+			});
+		}
+	});
+
+	it('keeps localized Markdown links valid inside the Chinese mirror', () => {
+		for (const documentPath of collectFiles(LOCALIZED_DOCS_ROOT, '.md')) {
+			const markdown = readFileSync(documentPath, 'utf8');
+			const targets = Array.from(
+				markdown.matchAll(/\]\(([^)]+)\)/gu),
+				(match) => match[1] ?? '',
+			).filter((target) => !/^(?:https?:|mailto:)/u.test(target));
+
+			for (const target of targets) {
+				const [relativeTarget = '', encodedAnchor] = target.split('#');
+				const targetPath = relativeTarget
+					? resolve(dirname(documentPath), decodeURIComponent(relativeTarget))
+					: documentPath;
+				expect({
+					link: `${relative(DOCS_ROOT, documentPath)} -> ${target}`,
+					valid: existsSync(targetPath),
+				}).toEqual({
+					link: `${relative(DOCS_ROOT, documentPath)} -> ${target}`,
+					valid: true,
+				});
+				if (encodedAnchor === undefined || !targetPath.endsWith('.md')) continue;
+				expect({
+					link: `${relative(DOCS_ROOT, documentPath)} -> ${target}`,
+					valid: documentAnchors(targetPath).has(decodeURIComponent(encodedAnchor)),
+				}).toEqual({
+					link: `${relative(DOCS_ROOT, documentPath)} -> ${target}`,
+					valid: true,
+				});
+			}
+		}
+	});
+
 	it('keeps every custom diagnostic docs anchor valid', () => {
 		const authorities = Object.entries(diagnosticAuthorities());
 
@@ -117,7 +203,7 @@ describe('lint-doc contract', () => {
 	});
 
 	it('documents every explicitly enabled rule', () => {
-		const documentation = collectFiles(DOCS_ROOT, '.md')
+		const documentation = englishDocumentationFiles()
 			.map((file) => readFileSync(file, 'utf8'))
 			.join('\n');
 		const undocumentedRules = explicitlyEnabledRules().filter(

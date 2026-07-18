@@ -235,6 +235,18 @@ A generic binary switch does not use success merely because it is on. It uses th
 component action role unless its enabled state explicitly communicates success. Warning, danger,
 and info roles similarly communicate status and never serve as arbitrary accents.
 
+## Localized layout
+
+Every product composition must accommodate every locale required by
+[`localization.md`](localization.md). Size containers from their content or use `min-height` when
+translated text may wrap. A width or height derived from one English label is not a reusable
+component measurement.
+
+Do not shrink typography, remove required context, or truncate actions and instructions to make a
+translation fit. Truncation is reserved for data such as a user-provided session name and must
+preserve access to the full value. Keep text out of images and verify line breaking, keyboard
+focus, zoom, and narrow layouts in both shipped locales.
+
 ## Composition measurements
 
 The current settings composition evaluates a `192px` navigation column, a `600px` maximum
@@ -262,4 +274,6 @@ Before accepting an authored interface change, verify all of the following:
 6. Borders, actions, statuses, and surfaces use semantic variables instead of reference colors.
 7. Repeated components use identical values, including across empty, hover, selected, focus, and
    disabled states.
-8. `pnpm lint:styles` and the repository `pnpm verify` gate pass.
+8. Every shipped locale preserves required copy, interaction, and layout without reduced
+   typography.
+9. `pnpm lint:styles` and the repository `pnpm verify` gate pass.

@@ -41,6 +41,14 @@ acceptsOnlyStrings(1);
 
 Every bug fix adds a test that fails before the fix and passes after it.
 
+## Localization contracts
+
+Product-message changes keep the source descriptors and every shipped catalog complete, validate
+ICU syntax and variables, and render representative behavior under both `en-US` and `zh-CN`.
+Locale negotiation tests cover supported variants, invalid input, unsupported languages, and
+Traditional Chinese fallback. The authoritative message and visual-review requirements live in
+[`docs/frontend/localization.md`](frontend/localization.md#verification).
+
 ## Package contracts
 
 Library packages run `test:exports` after `build` to verify their packed public surface, both JavaScript module formats, and a strict external TypeScript consumer. Cross-package behavior belongs in consumer-facing contract tests rather than tests that import another package's private source.

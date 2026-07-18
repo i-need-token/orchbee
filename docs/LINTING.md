@@ -12,13 +12,14 @@
 | `pnpm lint:projects`       | Validate every schema-backed workspace project contract                  |
 | `pnpm lint:fix`            | Apply safe oxlint fixes; remaining diagnostics require code changes      |
 | `pnpm typecheck`           | Run TypeScript diagnostics that syntax-aware lint does not replace       |
-| `pnpm test:lint-rules`     | Run permanent regression tests for the `orchbee/*` rules                 |
+| `pnpm test:lint-rules`     | Test the `orchbee/*` rules and English/Chinese documentation contract    |
 | `pnpm test:style-contract` | Run regression tests for the frontend style-contract checker             |
 
 ## Enforcement boundary
 
 - Project docs define every explicitly configured rule and every `orchbee/*` rule; upstream category rules remain governed by the installed oxlint version.
 - Every rule documented as enforced must be enabled in `.oxlintrc.json`; `pnpm test:lint-rules` verifies this docs-to-config direction as well as config-to-doc coverage.
+- `pnpm test:lint-rules` requires a one-to-one `docs/zh-CN/` counterpart for every authoritative English document and rejects structural, inline-identifier, or localized-link drift. Human review remains responsible for semantic translation fidelity.
 - Error diagnostics fail `pnpm lint`; warning diagnostics remain visible but non-blocking until the affected package files are reviewed.
 - `pnpm lint:dependencies` uses Knip `--strict`: every imported package must be declared directly by the importing workspace, and unused files, dependencies, exports, types, unresolved imports, duplicate exports, cycles, and stale catalog entries fail the command.
 - Keep all runnable scripts, build configuration, test suites, and public package entries in `knip.json#workspaces`; never ignore a finding merely because an entry point was omitted from analysis.
