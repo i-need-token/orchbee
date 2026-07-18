@@ -1,0 +1,38 @@
+import {
+	Button,
+	DropdownMenu,
+	DropdownMenuCheckboxItem,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuShortcut,
+	DropdownMenuTrigger,
+} from '@orchbee/ui/components';
+import type { Meta, StoryObj } from 'storybook-react-rsbuild';
+
+const meta = {
+	title: 'Overlays/Dropdown Menu',
+	component: DropdownMenu,
+} satisfies Meta<typeof DropdownMenu>;
+
+export default meta;
+
+type Story = StoryObj<typeof meta>;
+
+export const Default: Story = {
+	render: () => (
+		<DropdownMenu>
+			<DropdownMenuTrigger render={<Button variant='outline' />}>Session</DropdownMenuTrigger>
+			<DropdownMenuContent>
+				<DropdownMenuLabel>Actions</DropdownMenuLabel>
+				<DropdownMenuItem>
+					Rename <DropdownMenuShortcut>F2</DropdownMenuShortcut>
+				</DropdownMenuItem>
+				<DropdownMenuCheckboxItem checked>Pin session</DropdownMenuCheckboxItem>
+				<DropdownMenuSeparator />
+				<DropdownMenuItem variant='destructive'>Delete</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
+	),
+};

@@ -4,6 +4,8 @@
 
 Use `apps/*` for runtime entry points and `packages/*` for stable capabilities consumed through a library API. Do not mirror UI source categories such as components, hooks, stores, types, or utilities as workspace packages.
 
+The repository-wide UI catalog is the development application `apps/storybook`. Story files remain owned by their frontend workspace according to [`docs/frontend/storybook.md`](storybook.md); Storybook does not change runtime package ownership.
+
 The target dependency model is a placement contract, not a requirement to create every named workspace immediately. Add a package only in the same change as a concrete workspace consumer, and keep application-specific code in its owning app until that boundary exists.
 
 ```text

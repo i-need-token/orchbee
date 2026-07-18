@@ -12,6 +12,7 @@ apps/* -> packages/* -> external dependencies
 
 ## Package boundaries
 
+- Runnable product and development workspaces follow [`docs/APPLICATIONS.md`](APPLICATIONS.md).
 - Package naming, manifests, public exports, builds, dependencies, and versioning follow [`docs/PACKAGES.md`](PACKAGES.md).
 - Frontend product UI, platform adapters, and session-facing libraries follow [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md).
 - `orchbee/no-cross-workspace-source-imports`: Import another workspace package through its public package exports; never cross into another `apps/*/src` or `packages/*/src` tree.

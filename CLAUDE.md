@@ -18,6 +18,7 @@
 ## Key Docs Index
 
 - **Architecture**: `docs/ARCHITECTURE.md` — system architecture, dependency direction, data flow
+- **Applications**: `docs/APPLICATIONS.md` — runnable workspace placement, shape, and lifecycle
 - **Module Boundaries**: `docs/MODULE-BOUNDARIES.md` — source-tree visibility, entry points, composition, and cycles
 - **Packages**: `docs/PACKAGES.md` — package naming, exports, builds, dependencies, and versioning
 - **Projects**: `docs/PROJECTS.md` — machine-readable workspace scope and responsibility contracts
@@ -32,7 +33,7 @@
 ## Project Structure
 
 ```
-apps/           # Application entries (main, web, cli)
+apps/           # Independently runnable product and development applications
 packages/       # Shared libraries (core, bridge, etc.)
 docs/           # Detailed specs and guides
 research/       # Time-bounded investigations; never an authoritative source

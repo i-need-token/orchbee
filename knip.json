@@ -11,6 +11,16 @@
 			],
 			"project": ["scripts/**/*.{js,mjs,ts}", "*.{js,mjs,ts}"]
 		},
+		"apps/*": {
+			"entry": [
+				"src/index.ts",
+				"src/composition/entry.tsx",
+				"src/**/*.unit.test.{ts,tsx}",
+				"rsbuild.config.ts",
+				"vitest.config.ts"
+			],
+			"project": ["src/**/*.{ts,tsx}", "*.ts"]
+		},
 		"packages/*": {
 			"entry": [
 				"src/index.ts",
@@ -21,9 +31,24 @@
 			"project": ["src/**/*.{ts,tsx}", "*.ts"]
 		},
 		"packages/ui": {
-			"entry": ["src/index.ts!", "src/components/index.ts!", "src/styles.css!"],
+			"entry": [
+				"src/index.ts!",
+				"src/components/index.ts!",
+				"src/styles.css!",
+				"stories/**/*.stories.tsx!"
+			],
 			"ignoreDependencies": ["shadcn", "tailwindcss", "tw-animate-css"],
-			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
+			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"]
+		},
+		"apps/storybook": {
+			"entry": [
+				".storybook/main.ts!",
+				".storybook/preview.ts!",
+				"rsbuild.config.ts!",
+				"src/**/*.unit.test.{ts,tsx}!"
+			],
+			"ignoreDependencies": ["@orchbee/ui", "@rsbuild/core"],
+			"project": [".storybook/*.ts!", "src/**/*.{ts,tsx}!", "*.ts"]
 		}
 	}
 }

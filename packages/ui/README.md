@@ -36,7 +36,7 @@ pnpm --dir packages/ui exec shadcn add --all --overwrite
 
 The repository owns a complete snapshot of the official Base UI registry rather than adding primitives on demand. Review the CLI diff before accepting a refresh because focused Orchbee compatibility adaptations may need to be reapplied. Do not hand-write a primitive that is available from shadcn.
 
-Generated Tailwind utilities remain part of the component source. [`src/styles.css`](src/styles.css) contains only the imports required by Tailwind and shadcn; this package does not currently define an Orchbee theme or token layer. The full workflow lives in [`docs/frontend/styling.md`](../../docs/frontend/styling.md).
+Generated Tailwind utilities remain part of the component source. [`src/styles.css`](src/styles.css) contains the Tailwind/shadcn imports plus the shared semantic color tokens and base layer required by those utilities. It does not define an Orchbee product theme or token registry. The full workflow lives in [`docs/frontend/styling.md`](../../docs/frontend/styling.md).
 
 Tailwind CSS, the shadcn CLI stylesheet, and `tw-animate-css` are build-time dependencies. Rslib compiles them into the published `styles.css`; consumers do not need those tools at runtime.
 
@@ -48,3 +48,11 @@ pnpm --filter @orchbee/ui typecheck
 pnpm --filter @orchbee/ui test
 pnpm --filter @orchbee/ui test:exports
 ```
+
+Browse every checked-in component through the repository Storybook:
+
+```sh
+pnpm storybook
+```
+
+UI Stories live in [`stories`](stories) and are consumed by `apps/storybook`. Every component module in `src/components/ui` has one matching Story file; the Storybook application test enforces that inventory contract. Storybook is development infrastructure and is not part of this package's public exports.

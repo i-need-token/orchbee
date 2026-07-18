@@ -4,6 +4,8 @@
 
 Every direct workspace under `apps/*` or `packages/*` contains `project.json` beside `package.json`. The project contract gives a fresh agent the local context needed to place a change without loading the entire repository.
 
+Application placement and lifecycle follow [`docs/APPLICATIONS.md`](APPLICATIONS.md). Package contracts follow [`docs/PACKAGES.md`](PACKAGES.md).
+
 Keep only information that cannot be derived reliably from the path or `package.json`. Package identity, scripts, dependencies, and public exports remain authoritative in `package.json`; do not duplicate them in `project.json`.
 
 `schemas/project-contract.schema.json` provides editor validation. `pnpm lint:projects` parses the same contract with Zod and rejects missing, stale, or invalid metadata.

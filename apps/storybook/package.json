@@ -1,0 +1,32 @@
+{
+	"name": "@orchbee/storybook",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Repository-wide Storybook host for Orchbee visual interfaces",
+	"type": "module",
+	"scripts": {
+		"predev": "pnpm --filter @orchbee/ui build",
+		"dev": "storybook dev --port 6006 --no-open",
+		"build": "storybook build --output-dir dist",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"@orchbee/ui": "workspace:^",
+		"react": "catalog:",
+		"react-dom": "catalog:"
+	},
+	"devDependencies": {
+		"@rsbuild/core": "catalog:",
+		"@rsbuild/plugin-react": "catalog:",
+		"@storybook/addon-a11y": "catalog:",
+		"@storybook/addon-docs": "catalog:",
+		"@types/node": "catalog:",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"storybook": "catalog:",
+		"storybook-react-rsbuild": "catalog:",
+		"vitest": "catalog:"
+	}
+}

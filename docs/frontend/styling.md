@@ -6,13 +6,15 @@ Install reusable primitives from shadcn/ui's Base UI registry and own the result
 
 Generated components retain their Tailwind CSS v4 utility classes and standard composable `className` API. Do not introduce a second primitive implementation or wrapper layer merely to rename generated props.
 
-`packages/ui/src/styles.css` contains only the imports required by Tailwind CSS, `tw-animate-css`, and shadcn. There is currently no Orchbee theme, token registry, `ThemeRoot`, or CSS Module enforcement layer. Introducing any of those is a separate design-system change rather than an implicit part of component intake.
+`packages/ui/src/styles.css` owns the shared shadcn semantic color tokens, light/dark values, Tailwind `@theme` mappings, and the minimal global base layer required by the components. It is not an Orchbee product theme, token registry, `ThemeRoot`, or CSS Module enforcement layer. Product-specific theming remains a separate design-system concern.
 
 Applications import the component stylesheet explicitly at their composition entry:
 
 ```ts
 import '@orchbee/ui/styles.css';
 ```
+
+`apps/storybook` imports the same public stylesheet for UI Stories. Storybook layout scaffolding must not redefine component appearance or act as an implicit theme. The Story ownership and browser-verification contract lives in [`docs/frontend/storybook.md`](storybook.md).
 
 ## Shadcn component intake
 

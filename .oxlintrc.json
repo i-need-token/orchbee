@@ -62,12 +62,19 @@
         "**/*.config.ts",
         "**/*.config.mts",
         "**/*.config.mjs",
+        "**/.storybook/*.ts",
         "scripts/oxlint-plugin-*/**/*.js"
       ],
       "rules": {
         "import/no-default-export": "off"
       }
     },
+		{
+			"files": ["**/.storybook/preview.ts"],
+			"rules": {
+				"import/no-unassigned-import": "off"
+			}
+		},
 		{
 			"files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
       "plugins": ["typescript", "vitest"],
@@ -87,6 +94,14 @@
         "vitest/expect-expect": "error",
         "vitest/no-focused-tests": "error",
 				"vitest/no-identical-title": "error"
+			}
+		},
+		{
+			"files": ["**/*.stories.ts", "**/*.stories.tsx"],
+			"rules": {
+				"import/no-default-export": "off",
+				"react/react-in-jsx-scope": "off",
+				"typescript/explicit-module-boundary-types": "off"
 			}
 		},
 		{

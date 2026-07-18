@@ -69,6 +69,8 @@
 		"react": "catalog:",
 		"react-dom": "catalog:",
 		"shadcn": "catalog:",
+		"storybook": "catalog:",
+		"storybook-react-rsbuild": "catalog:",
 		"tailwindcss": "catalog:",
 		"tw-animate-css": "catalog:",
 		"vitest": "catalog:"

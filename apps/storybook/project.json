@@ -1,0 +1,11 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "storybook",
+	"runtime": ["browser", "node"],
+	"stability": "experimental",
+	"responsibility": "Development-only Storybook host for browsing and validating visual interfaces owned by frontend workspaces.",
+	"nonGoals": [
+		"Shipping as an Orchbee end-user product or product release artifact.",
+		"Owning reusable components, themes, product interface behavior, or runtime state."
+	]
+}
