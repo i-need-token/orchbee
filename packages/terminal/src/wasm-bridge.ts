@@ -592,33 +592,15 @@ const CALLBACK3_TRAMPOLINE = new Uint8Array([
 	0x20, 0x02, 0x10, 0x00, 0x0b,
 ]);
 
-/**
- * Fetch WASM bytes from a URL or path.
- * Tries Node.js fs first, then falls back to fetch (browser).
- */
+/** Fetch WASM bytes through the browser runtime. */
 async function fetchWasm(source: string | URL): Promise<ArrayBuffer> {
-	const url = source instanceof URL ? source : new URL(source, import.meta.url);
-
-	// Try Node.js fs module first (for SSR / test environments)
-	if (typeof process !== 'undefined' && typeof process.versions?.node === 'string') {
-		try {
-			const fs = await import('node:fs/promises');
-			const path = url.protocol === 'file:' ? url.pathname : url.href;
-			const buffer = await fs.readFile(path);
-			return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-		} catch {
-			// fs failed, fall through to fetch
-		}
-	}
-
-	// Browser / fetch fallback
-	const response = await fetch(url);
+	const response = await fetch(source);
 	if (!response.ok) {
 		throw new Error(`Failed to fetch WASM: ${response.status} ${response.statusText}`);
 	}
 	const buffer = await response.arrayBuffer();
 	if (buffer.byteLength === 0) {
-		throw new Error(`WASM file is empty (0 bytes). Check URL: ${url.href}`);
+		throw new Error(`WASM file is empty (0 bytes). Check source: ${String(source)}`);
 	}
 	return buffer;
 }

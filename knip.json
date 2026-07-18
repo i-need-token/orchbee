@@ -36,11 +36,25 @@
 			"entry": [
 				"src/index.ts!",
 				"src/components/index.ts!",
-				"src/styles.css!",
+				"src/styles.ts!",
 				"stories/**/*.stories.tsx!"
 			],
 			"ignoreDependencies": ["shadcn", "tailwindcss", "tw-animate-css"],
 			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"]
+		},
+		"packages/workbench": {
+			"entry": ["src/index.ts!", "src/styles.ts!", "stories/**/*.stories.tsx!"],
+			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"]
+		},
+		"apps/web": {
+			"entry": [
+				"src/index.ts!",
+				"src/composition/entry.tsx!",
+				"src/**/*.unit.test.{ts,tsx}!",
+				"rsbuild.config.ts!",
+				"vitest.config.ts!"
+			],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
 		},
 		"apps/storybook": {
 			"entry": [
@@ -49,7 +63,7 @@
 				"rsbuild.config.ts!",
 				"src/**/*.unit.test.{ts,tsx}!"
 			],
-			"ignoreDependencies": ["@orchbee/ui", "@rsbuild/core"],
+			"ignoreDependencies": ["@orchbee/ui", "@orchbee/workbench"],
 			"project": [".storybook/*.ts!", "src/**/*.{ts,tsx}!", "*.ts"]
 		}
 	}

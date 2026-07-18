@@ -3,8 +3,10 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"web": "pnpm --filter @orchbee/web dev",
+		"web:build": "pnpm --filter @orchbee/web... build",
 		"storybook": "pnpm --filter @orchbee/storybook dev",
-		"storybook:build": "pnpm --filter @orchbee/storybook build",
+		"storybook:build": "pnpm --filter @orchbee/storybook... build",
 		"verify": "pnpm format:check && pnpm lint && pnpm build && pnpm typecheck && pnpm test && pnpm test:exports",
 		"lint": "pnpm lint:code && pnpm lint:styles && pnpm lint:dependencies && pnpm lint:projects",
 		"lint:code": "oxlint .",

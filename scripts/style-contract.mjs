@@ -33,7 +33,6 @@ const TAILWIND_PACKAGE =
 	/^(?:@tailwindcss\/|tailwind-merge(?:\/|$)|tailwindcss(?:\/|$)|tw-animate-css(?:\/|$))/u;
 const CSS_VARIABLE_USAGE = /var\(\s*(--[a-z0-9-]+)/giu;
 const CSS_VARIABLE_FALLBACK = /var\(\s*(--ob-[a-z0-9-]+)\s*,/giu;
-const DESIGN_TOKEN_REGISTRY_IMPORT = "'@orchbee/design-tokens/tokens.css'";
 const SHADCN_COLOR_ALIAS_TARGETS = new Map([
 	['accent', '--ob-sys-color-action-secondary-hover'],
 	['accent-foreground', '--ob-sys-color-text-primary'],
@@ -400,20 +399,6 @@ function validateExactMappings({ path, source, container, expected, diagnostics,
 export function validateShadcnCompatibilitySource({ path, source, registeredTokens }) {
 	const diagnostics = validateTokenReferences(path, source, registeredTokens);
 	const root = parseCss(source, { from: path });
-	const registryImports = [];
-	root.walkAtRules('import', (atRule) => {
-		if (atRule.params.trim() === DESIGN_TOKEN_REGISTRY_IMPORT) registryImports.push(atRule);
-	});
-	if (registryImports.length !== 1 || registryImports[0]?.parent !== root) {
-		diagnostics.push(
-			diagnostic(
-				path,
-				source,
-				0,
-				`Shadcn compatibility requires exactly one "@import ${DESIGN_TOKEN_REGISTRY_IMPORT}".`,
-			),
-		);
-	}
 
 	const semanticRules = [];
 	root.walkRules((rule) => {

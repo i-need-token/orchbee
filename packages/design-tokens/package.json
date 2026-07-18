@@ -16,12 +16,19 @@
 	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
+			"@orchbee/source": "./src/index.ts",
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js",
 			"require": "./dist/index.cjs"
 		},
-		"./tokens.css": "./dist/tokens.css",
-		"./tailwind-compat.css": "./dist/tailwind-compat.css"
+		"./tokens.css": {
+			"@orchbee/source": "./src/tokens.css",
+			"default": "./dist/tokens.css"
+		},
+		"./tailwind-compat.css": {
+			"@orchbee/source": "./src/tailwind-compat.css",
+			"default": "./dist/tailwind-compat.css"
+		}
 	},
 	"scripts": {
 		"build": "rslib build",

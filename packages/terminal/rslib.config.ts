@@ -21,7 +21,6 @@ export default defineConfig({
 		tsconfigPath: './tsconfig.build.json',
 	},
 	output: {
-		externals: ['node:fs/promises'],
 		target: 'web',
 		sourceMap: true,
 	},

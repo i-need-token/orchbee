@@ -1,0 +1,29 @@
+{
+	"name": "@orchbee/web",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Browser product application for the Orchbee workbench",
+	"type": "module",
+	"scripts": {
+		"dev": "rsbuild dev",
+		"build": "rsbuild build",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"@orchbee/ui": "workspace:^",
+		"@orchbee/workbench": "workspace:^",
+		"react": "catalog:",
+		"react-dom": "catalog:"
+	},
+	"devDependencies": {
+		"@rsbuild/core": "catalog:",
+		"@rsbuild/plugin-react": "catalog:",
+		"@rsbuild/plugin-source-build": "catalog:",
+		"@rsbuild/plugin-tailwindcss": "catalog:",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"vitest": "catalog:"
+	}
+}

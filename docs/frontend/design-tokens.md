@@ -4,9 +4,13 @@
 
 `@orchbee/design-tokens` owns every enumerable visual decision shared by Orchbee interfaces. Its authoritative CSS registry is `packages/design-tokens/src/tokens.css`; `packages/design-tokens/src/design-token-names.generated.ts` is the generated TypeScript inventory behind the `designTokenNames` export. The package test and `pnpm lint:styles` reject stale generated output.
 
-Import `@orchbee/design-tokens/tokens.css` once before authored component styles. Applications that already import `@orchbee/ui/styles.css` receive the registry through that shadcn compatibility stylesheet and must not import it a second time.
+Import `@orchbee/design-tokens/tokens.css` once before authored component styles. Applications that already import `@orchbee/ui/styles.css` receive the registry through the UI package's style entry and must not import it a second time.
 
 CSS grammar is not a design decision. Keywords such as `grid`, `auto`, `hidden`, `currentColor`, and `none`, zero values, relative percentages, grid fractions, and structural integer counts remain literal. Colors, nonzero lengths, typography values, radii, borders, shadows, opacity, layers, and motion values use registered tokens.
+
+This document defines token architecture and enforcement. Use
+[`visual-foundations.md`](visual-foundations.md) to choose the correct typography, text hierarchy,
+spacing, radius, control size, icon size, border, and surface variable for a product scenario.
 
 ## Token tiers
 
@@ -29,7 +33,7 @@ Name tokens for their stable role rather than their current value:
 --ob-sys-color-border-default: var(--ob-ref-color-neutral-200);
 ```
 
-Authored component CSS consumes `--ob-sys-color-*` for every color and `--ob-sys-typography-*` for interface text roles. It may consume non-color `ref` scales directly when the choice is structural, such as `--ob-ref-space-4` or `--ob-ref-radius-md`. Do not consume reference colors from component CSS because doing so bypasses theme semantics; do not reconstruct a published typography role from individual font references.
+Authored component CSS consumes `--ob-sys-color-*` for every color and `--ob-sys-typography-*` for interface text roles. It may consume the approved non-color `ref` subsets in [`visual-foundations.md`](visual-foundations.md) directly when the choice is structural, such as `--ob-ref-space-4` or `--ob-ref-radius-ui-md`. Do not consume reference colors from component CSS because doing so bypasses theme semantics; do not reconstruct a published typography role from individual font references.
 
 Add a `comp` token only when an implemented reusable component must expose a stable customization point or receive runtime geometry that cannot be enumerated, such as a user-resized panel width. Declare the token in the central registry and public inventory before using or overriding it; do not create component-local custom properties. A third-party component library's internal token inventory is not a reason to predeclare unused Orchbee component tokens.
 
@@ -111,6 +115,11 @@ Breakpoints and container sizes are the only mapping exception. CSS custom prope
 
 Full color palettes exist in the reference tier for replacement completeness. They do not expand the authored-component contract: component colors must still use semantic `--ob-sys-color-*` tokens.
 
+The same restriction applies to spacing, radius, typography reference, control-size, and icon-size
+tokens. Registry presence proves that a value is enumerable; it does not make that value an
+approved product choice. The authored subsets and their scenario rules live in
+[`visual-foundations.md`](visual-foundations.md).
+
 ## Authored component styles
 
 Use CSS Modules for Orchbee-authored component styles and reference the module from JSX:
@@ -130,9 +139,9 @@ export function SessionPanel() {
 	padding: var(--ob-ref-space-6);
 	color: var(--ob-sys-color-text-primary);
 	background: var(--ob-sys-color-surface-raised);
-	font: var(--ob-sys-typography-body-md);
+	font: var(--ob-sys-typography-body-sm);
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
-	border-radius: var(--ob-ref-radius-lg);
+	border-radius: var(--ob-ref-radius-ui-md);
 }
 ```
 

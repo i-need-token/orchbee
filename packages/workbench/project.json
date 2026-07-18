@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "workbench",
+	"runtime": ["browser"],
+	"stability": "experimental",
+	"responsibility": "Shared product-semantic React interface, interaction state, and presentation model for Orchbee applications.",
+	"nonGoals": [
+		"Owning application startup, routing roots, authentication, deployment, or packaging.",
+		"Owning Electron, Node, browser-service, persistence, or transport implementations.",
+		"Owning authoritative terminal sessions, PTY processes, or agent orchestration lifecycles."
+	]
+}

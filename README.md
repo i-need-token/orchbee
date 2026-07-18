@@ -81,6 +81,12 @@ pnpm test
 pnpm build
 ```
 
+Start the browser Workbench with its deterministic in-memory session adapter:
+
+```bash
+pnpm web
+```
+
 </details>
 
 ## Tech Stack

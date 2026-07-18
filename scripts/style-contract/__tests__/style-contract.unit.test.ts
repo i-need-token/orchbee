@@ -463,10 +463,21 @@ describe('Tailwind token compatibility', () => {
 describe('shadcn token compatibility', () => {
 	it('keeps the complete shadcn alias and Tailwind theme maps on Orchbee tokens', async () => {
 		const repositoryRoot = resolve(import.meta.dirname, '../../..');
-		const [registrySource, compatibilitySource] = await Promise.all([
+		const [registrySource, compatibilitySource, styleEntrySource] = await Promise.all([
 			readFile(resolve(repositoryRoot, 'packages/design-tokens/src/tokens.css'), 'utf8'),
 			readFile(resolve(repositoryRoot, 'packages/ui/src/styles.css'), 'utf8'),
+			readFile(resolve(repositoryRoot, 'packages/ui/src/styles.ts'), 'utf8'),
 		]);
+		expect(styleEntrySource).toBe(
+			[
+				"import * as designTokenStyles from '@orchbee/design-tokens/tokens.css';",
+				"import * as shadcnCompatibilityStyles from './styles.css';",
+				'',
+				'void designTokenStyles;',
+				'void shadcnCompatibilityStyles;',
+				'',
+			].join('\n'),
+		);
 		const actualRegisteredTokens = new Set(tokenDeclarations(registrySource));
 		const validationInput = {
 			path: 'packages/ui/src/styles.css',
@@ -507,18 +518,5 @@ describe('shadcn token compatibility', () => {
 				({ message }) => message,
 			),
 		).toContain('Shadcn compatibility requires exactly one "@theme inline" rule.');
-
-		const missingRegistryImportSource = compatibilitySource.replace(
-			"@import '@orchbee/design-tokens/tokens.css';\n",
-			'',
-		);
-		expect(
-			validateShadcnCompatibilitySource({
-				...validationInput,
-				source: missingRegistryImportSource,
-			}).map(({ message }) => message),
-		).toContain(
-			'Shadcn compatibility requires exactly one "@import \'@orchbee/design-tokens/tokens.css\'".',
-		);
 	});
 });

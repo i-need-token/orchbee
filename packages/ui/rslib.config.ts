@@ -29,7 +29,7 @@ export default defineConfig({
 		entry: {
 			index: './src/index.ts',
 			'components/index': './src/components/index.ts',
-			styles: './src/styles.css',
+			styles: './src/styles.ts',
 		},
 		tsconfigPath: './tsconfig.build.json',
 	},

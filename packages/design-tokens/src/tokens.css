@@ -425,8 +425,17 @@
 	--ob-ref-color-neutral-0-alpha-10: oklch(1 0 0 / 10%);
 	--ob-ref-color-neutral-0-alpha-15: oklch(1 0 0 / 15%);
 	--ob-ref-color-neutral-0-alpha-20: oklch(1 0 0 / 20%);
+	--ob-ref-color-orchbee-light-surface: #fcfcfc;
+	--ob-ref-color-orchbee-light-text: #141414;
+	--ob-ref-color-orchbee-accent: #2778c1;
+	--ob-ref-color-orchbee-success: #007041;
+	--ob-ref-font-size-ui-base: 0.8125rem;
+	--ob-ref-font-size-ui-base-line-height: 1.125rem;
 	--ob-ref-space-0: 0;
+	--ob-ref-space-0-5: 0.125rem;
+	--ob-ref-space-1-5: 0.375rem;
 	--ob-ref-space-2: 0.5rem;
+	--ob-ref-space-2-5: 0.625rem;
 	--ob-ref-space-3: 0.75rem;
 	--ob-ref-space-4: 1rem;
 	--ob-ref-space-5: 1.25rem;
@@ -437,12 +446,14 @@
 	--ob-ref-space-16: 4rem;
 	--ob-ref-space-20: 5rem;
 	--ob-ref-space-24: 6rem;
-	--ob-ref-size-icon-sm: 0.75rem;
+	--ob-ref-size-icon-xs: 0.75rem;
+	--ob-ref-size-icon-sm: 0.875rem;
 	--ob-ref-size-icon-md: 1rem;
 	--ob-ref-size-icon-lg: 1.25rem;
-	--ob-ref-size-control-sm: 2rem;
-	--ob-ref-size-control-md: 2.25rem;
-	--ob-ref-size-control-lg: 2.5rem;
+	--ob-ref-size-control-xs: 1.5rem;
+	--ob-ref-size-control-sm: 1.75rem;
+	--ob-ref-size-control-md: 2rem;
+	--ob-ref-size-control-lg: 2.25rem;
 	--ob-ref-border-width-default: 1px;
 	--ob-ref-border-width-strong: 2px;
 	--ob-ref-radius-none: 0;
@@ -472,49 +483,117 @@
 	--ob-ref-layer-toast: 500;
 	--ob-ref-layout-reading-width: 70ch;
 
-	--ob-sys-color-surface-canvas: var(--ob-ref-color-neutral-0);
-	--ob-sys-color-surface-subtle: var(--ob-ref-color-neutral-50);
-	--ob-sys-color-surface-raised: var(--ob-ref-color-neutral-0);
-	--ob-sys-color-surface-overlay: var(--ob-ref-color-neutral-0);
+	--ob-sys-color-surface-canvas: var(--ob-ref-color-orchbee-light-surface);
+	--ob-sys-color-surface-subtle: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 4%,
+		transparent
+	);
+	--ob-sys-color-surface-raised: var(--ob-ref-color-orchbee-light-surface);
+	--ob-sys-color-surface-overlay: var(--ob-ref-color-orchbee-light-surface);
 	--ob-sys-color-surface-inverse: var(--ob-ref-color-neutral-900);
-	--ob-sys-color-surface-hovered: var(--ob-ref-color-neutral-50);
-	--ob-sys-color-surface-pressed: var(--ob-ref-color-neutral-100);
-	--ob-sys-color-surface-selected: var(--ob-ref-color-neutral-100);
-	--ob-sys-color-surface-selected-hover: var(--ob-ref-color-neutral-200);
-	--ob-sys-color-surface-disabled: var(--ob-ref-color-neutral-100);
+	--ob-sys-color-surface-hovered: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 8%,
+		transparent
+	);
+	--ob-sys-color-surface-pressed: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 12%,
+		transparent
+	);
+	--ob-sys-color-surface-selected: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 8%,
+		transparent
+	);
+	--ob-sys-color-surface-selected-hover: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 12%,
+		transparent
+	);
+	--ob-sys-color-surface-disabled: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 8%,
+		transparent
+	);
 	--ob-sys-color-surface-scrim: color-mix(
 		in oklch,
 		var(--ob-ref-color-neutral-1000) 55%,
 		transparent
 	);
-	--ob-sys-color-text-primary: var(--ob-ref-color-neutral-950);
-	--ob-sys-color-text-heading: var(--ob-ref-color-neutral-950);
-	--ob-sys-color-text-secondary: var(--ob-ref-color-neutral-700);
-	--ob-sys-color-text-label: var(--ob-ref-color-neutral-700);
-	--ob-sys-color-text-muted: var(--ob-ref-color-neutral-500);
-	--ob-sys-color-text-placeholder: var(--ob-ref-color-neutral-500);
+	--ob-sys-color-text-primary: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 92%,
+		transparent
+	);
+	--ob-sys-color-text-heading: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 92%,
+		transparent
+	);
+	--ob-sys-color-text-secondary: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 70%,
+		transparent
+	);
+	--ob-sys-color-text-label: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 70%,
+		transparent
+	);
+	--ob-sys-color-text-muted: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 48%,
+		transparent
+	);
+	--ob-sys-color-text-placeholder: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 32%,
+		transparent
+	);
 	--ob-sys-color-text-disabled: var(--ob-ref-color-neutral-400);
 	--ob-sys-color-text-inverse: var(--ob-ref-color-neutral-0);
 	--ob-sys-color-text-link: var(--ob-ref-color-blue-600);
 	--ob-sys-color-text-link-hover: var(--ob-ref-color-blue-500);
 	--ob-sys-color-text-link-focus: var(--ob-ref-color-blue-500);
 	--ob-sys-color-text-link-pressed: var(--ob-ref-color-blue-700);
-	--ob-sys-color-icon-primary: var(--ob-ref-color-neutral-950);
-	--ob-sys-color-icon-secondary: var(--ob-ref-color-neutral-700);
-	--ob-sys-color-icon-muted: var(--ob-ref-color-neutral-500);
+	--ob-sys-color-icon-primary: var(--ob-sys-color-text-primary);
+	--ob-sys-color-icon-secondary: var(--ob-sys-color-text-secondary);
+	--ob-sys-color-icon-muted: var(--ob-sys-color-text-muted);
 	--ob-sys-color-icon-inverse: var(--ob-ref-color-neutral-0);
 	--ob-sys-color-icon-hover: var(--ob-ref-color-neutral-950);
 	--ob-sys-color-icon-disabled: var(--ob-ref-color-neutral-400);
-	--ob-sys-color-border-subtle: var(--ob-ref-color-neutral-100);
-	--ob-sys-color-border-default: var(--ob-ref-color-neutral-200);
-	--ob-sys-color-border-strong: var(--ob-ref-color-neutral-300);
-	--ob-sys-color-border-focus: var(--ob-ref-color-blue-600);
-	--ob-sys-color-border-selected: var(--ob-ref-color-blue-600);
+	--ob-sys-color-border-subtle: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 5%,
+		transparent
+	);
+	--ob-sys-color-border-default: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 12%,
+		transparent
+	);
+	--ob-sys-color-border-strong: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-light-text) 20%,
+		transparent
+	);
+	--ob-sys-color-border-focus: var(--ob-ref-color-orchbee-accent);
+	--ob-sys-color-border-selected: var(--ob-ref-color-orchbee-accent);
 	--ob-sys-color-border-disabled: var(--ob-ref-color-neutral-100);
-	--ob-sys-color-action-primary: var(--ob-ref-color-neutral-900);
-	--ob-sys-color-action-primary-hover: var(--ob-ref-color-neutral-800);
-	--ob-sys-color-action-primary-pressed: var(--ob-ref-color-neutral-950);
-	--ob-sys-color-action-primary-text: var(--ob-ref-color-neutral-0);
+	--ob-sys-color-action-primary: var(--ob-ref-color-orchbee-accent);
+	--ob-sys-color-action-primary-hover: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-accent) 90%,
+		transparent
+	);
+	--ob-sys-color-action-primary-pressed: color-mix(
+		in srgb,
+		var(--ob-ref-color-orchbee-accent) 82%,
+		transparent
+	);
+	--ob-sys-color-action-primary-text: var(--ob-ref-color-orchbee-light-surface);
 	--ob-sys-color-action-secondary: var(--ob-ref-color-neutral-100);
 	--ob-sys-color-action-secondary-hover: var(--ob-ref-color-neutral-200);
 	--ob-sys-color-action-secondary-pressed: var(--ob-ref-color-neutral-300);
@@ -540,7 +619,7 @@
 	--ob-sys-color-status-info-text: var(--ob-ref-color-blue-700);
 	--ob-sys-color-status-info-text-hover: var(--ob-ref-color-blue-600);
 	--ob-sys-color-status-info-text-pressed: var(--ob-ref-color-blue-800);
-	--ob-sys-color-status-success: var(--ob-ref-color-green-600);
+	--ob-sys-color-status-success: var(--ob-ref-color-orchbee-success);
 	--ob-sys-color-status-success-hover: var(--ob-ref-color-green-500);
 	--ob-sys-color-status-success-pressed: var(--ob-ref-color-green-700);
 	--ob-sys-color-status-success-surface: color-mix(
@@ -599,20 +678,20 @@
 	--ob-sys-color-data-3: var(--ob-ref-color-blue-600);
 	--ob-sys-color-data-4: var(--ob-ref-color-violet-600);
 	--ob-sys-color-data-5: var(--ob-ref-color-red-600);
-	--ob-sys-typography-body-sm: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-sm) /
+	--ob-sys-typography-body-sm: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-ui-base) /
+		var(--ob-ref-font-size-ui-base-line-height) var(--ob-ref-font-family-sans);
+	--ob-sys-typography-body-md: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-sm) /
 		var(--ob-ref-font-size-sm-line-height) var(--ob-ref-font-family-sans);
-	--ob-sys-typography-body-md: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-base) /
+	--ob-sys-typography-body-lg: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-base) /
 		var(--ob-ref-font-size-base-line-height) var(--ob-ref-font-family-sans);
-	--ob-sys-typography-body-lg: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-lg) /
-		var(--ob-ref-font-size-lg-line-height) var(--ob-ref-font-family-sans);
-	--ob-sys-typography-label-sm: var(--ob-ref-font-weight-medium) var(--ob-ref-font-size-xs) /
+	--ob-sys-typography-label-sm: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-xs) /
 		var(--ob-ref-font-size-xs-line-height) var(--ob-ref-font-family-sans);
-	--ob-sys-typography-label-md: var(--ob-ref-font-weight-medium) var(--ob-ref-font-size-sm) /
+	--ob-sys-typography-label-md: var(--ob-ref-font-weight-medium) var(--ob-ref-font-size-ui-base) /
+		var(--ob-ref-font-size-ui-base-line-height) var(--ob-ref-font-family-sans);
+	--ob-sys-typography-label-lg: var(--ob-ref-font-weight-medium) var(--ob-ref-font-size-sm) /
 		var(--ob-ref-font-size-sm-line-height) var(--ob-ref-font-family-sans);
-	--ob-sys-typography-label-lg: var(--ob-ref-font-weight-medium) var(--ob-ref-font-size-base) /
-		var(--ob-ref-font-size-base-line-height) var(--ob-ref-font-family-sans);
-	--ob-sys-typography-heading-sm: var(--ob-ref-font-weight-semibold) var(--ob-ref-font-size-lg) /
-		var(--ob-ref-font-size-lg-line-height) var(--ob-ref-font-family-sans);
+	--ob-sys-typography-heading-sm: var(--ob-ref-font-weight-medium) var(--ob-ref-font-size-base) /
+		var(--ob-ref-font-size-sm-line-height) var(--ob-ref-font-family-sans);
 	--ob-sys-typography-heading-md: var(--ob-ref-font-weight-semibold) var(--ob-ref-font-size-xl) /
 		var(--ob-ref-font-size-xl-line-height) var(--ob-ref-font-family-sans);
 	--ob-sys-typography-heading-lg: var(--ob-ref-font-weight-semibold) var(--ob-ref-font-size-2xl) /

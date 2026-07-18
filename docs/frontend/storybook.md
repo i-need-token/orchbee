@@ -64,6 +64,10 @@ pnpm storybook
 pnpm storybook:build
 ```
 
+`pnpm storybook` starts one Storybook process. Its Rsbuild source-build integration includes the
+declared public source entries used by Stories in the native HMR graph, so package changes flow
+into the preview without parallel package watchers.
+
 The static Storybook build is part of the application workspace `build` task and therefore part of `pnpm verify`. The Storybook workspace test checks that every public `@orchbee/ui` component module has a matching Story file.
 
 Browser agents open the development server, discover a Story through the sidebar, and use the isolated `iframe.html?id=<story-id>&viewMode=story` route for DOM, interaction, accessibility, computed-style, and screenshot checks.

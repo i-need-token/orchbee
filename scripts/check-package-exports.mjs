@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
+const workspaceSourceCondition = '@orchbee/source';
 
 function fail(message) {
 	throw new Error(message);
@@ -64,20 +65,34 @@ function exportedTargets(exportsField, packageName) {
 			`exports[${JSON.stringify(subpath)}]`,
 			packageName,
 		);
+		if (
+			workspaceSourceCondition in conditions &&
+			Object.keys(conditions)[0] !== workspaceSourceCondition
+		) {
+			fail(
+				`${packageName}: ${workspaceSourceCondition} must be the first condition in exports[${JSON.stringify(subpath)}]`,
+			);
+		}
 		for (const [condition, target] of Object.entries(conditions)) {
 			targets.push([
 				`exports[${JSON.stringify(subpath)}].${condition}`,
 				requireString(target, `exports[${JSON.stringify(subpath)}].${condition}`, packageName),
+				condition,
 			]);
 		}
 	}
 	return targets;
 }
 
-async function verifyPackedTargets(packageRoot, packageName, exportsField) {
+async function verifyPackedTargets(packageRoot, manifest, packageName, exportsField) {
 	const files = await packageFiles(packageRoot);
-	for (const [field, target] of exportedTargets(exportsField, packageName)) {
+	for (const [field, target, condition] of exportedTargets(exportsField, packageName)) {
 		const targetPath = exportTargetPath(packageRoot, target, field, packageName);
+		if (condition === workspaceSourceCondition) {
+			if (!existsSync(targetPath))
+				fail(`${packageName}: ${field} target "${target}" does not exist`);
+			if (manifest.private === true) continue;
+		}
 		const packedPath = relative(packageRoot, targetPath).split(sep).join('/');
 		if (!files.has(packedPath)) {
 			fail(`${packageName}: ${field} target "${target}" is absent from npm pack`);
@@ -169,7 +184,7 @@ async function main() {
 	const exportsField = requireObject(manifest.exports, 'exports', packageName);
 	const rootExport = requireObject(exportsField['.'], 'exports["."]', packageName);
 
-	await verifyPackedTargets(packageRoot, packageName, exportsField);
+	await verifyPackedTargets(packageRoot, manifest, packageName, exportsField);
 	await verifyRuntimeFormats(packageRoot, manifest, rootExport);
 	await verifyDeclarationConsumer(packageRoot, manifest, rootExport);
 	process.stdout.write(`${packageName}: package exports verified\n`);

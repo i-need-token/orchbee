@@ -9,7 +9,8 @@
 	],
 	"type": "module",
 	"sideEffects": [
-		"**/*.css"
+		"**/*.css",
+		"./src/styles.ts"
 	],
 	"main": "./dist/index.cjs",
 	"module": "./dist/index.js",
@@ -23,16 +24,21 @@
 	},
 	"exports": {
 		".": {
+			"@orchbee/source": "./src/index.ts",
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js",
 			"require": "./dist/index.cjs"
 		},
 		"./components": {
+			"@orchbee/source": "./src/components/index.ts",
 			"types": "./dist/components/index.d.ts",
 			"import": "./dist/components/index.js",
 			"require": "./dist/components/index.cjs"
 		},
-		"./styles.css": "./dist/styles.css"
+		"./styles.css": {
+			"@orchbee/source": "./src/styles.ts",
+			"default": "./dist/styles.css"
+		}
 	},
 	"scripts": {
 		"build": "rslib build",
@@ -53,7 +59,7 @@
 		"date-fns": "^4.4.0",
 		"embla-carousel-react": "^8.6.0",
 		"input-otp": "^1.4.2",
-		"lucide-react": "^1.24.0",
+		"lucide-react": "catalog:",
 		"next-themes": "^0.4.6",
 		"react-day-picker": "^10.0.1",
 		"react-resizable-panels": "^4.12.2",

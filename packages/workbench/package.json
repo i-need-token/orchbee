@@ -1,0 +1,57 @@
+{
+	"name": "@orchbee/workbench",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Shared product interface and interaction model for Orchbee applications",
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": [
+		"**/*.css",
+		"./src/styles.ts"
+	],
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"@orchbee/source": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		},
+		"./styles.css": {
+			"@orchbee/source": "./src/styles.ts",
+			"default": "./dist/index.css"
+		}
+	},
+	"scripts": {
+		"build": "rslib build",
+		"dev": "rslib build --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:exports": "node ../../scripts/check-package-exports.mjs ."
+	},
+	"dependencies": {
+		"@orchbee/terminal": "workspace:^",
+		"@orchbee/ui": "workspace:^",
+		"zustand": "catalog:"
+	},
+	"devDependencies": {
+		"@rsbuild/plugin-react": "catalog:",
+		"@rslib/core": "catalog:",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"react": "catalog:",
+		"react-dom": "catalog:",
+		"storybook-react-rsbuild": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"react": "catalog:",
+		"react-dom": "catalog:"
+	}
+}

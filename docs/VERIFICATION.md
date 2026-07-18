@@ -24,7 +24,13 @@ A focused command is useful while iterating, but completion requires the root ga
 | `test`         | Custom lint-rule tests and every workspace test suite pass.                               |
 | `test:exports` | Every library's packed exports, runtime formats, and declarations are consumable.         |
 
-The build precedes type-checking because workspace libraries expose built artifacts and consumers never compile another package's source. The recursive build is topological, so a clean checkout produces dependency artifacts before dependent workspaces resolve their package exports.
+The build precedes type-checking because workspace libraries expose built artifacts and verification and production consumers do not compile another package's source. The recursive build is topological, so a clean checkout produces dependency artifacts before dependent workspaces resolve their package exports.
+
+Application development does not depend on library `dist` directories. Rsbuild's source-build
+plugin resolves declared workspace source entries into the development graph, so `pnpm verify`
+may clean and rebuild package output without interrupting a running application server. The
+verification and production paths continue to validate and consume topologically built package
+artifacts.
 
 ## CI contract
 

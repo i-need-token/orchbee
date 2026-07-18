@@ -81,6 +81,12 @@ pnpm test
 pnpm build
 ```
 
+使用确定性的内存 Session 适配器启动浏览器 Workbench：
+
+```bash
+pnpm web
+```
+
 </details>
 
 ## 技术栈

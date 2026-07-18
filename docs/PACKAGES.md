@@ -5,7 +5,7 @@
 - Put reusable code in `packages/*` when it has a workspace consumer or is intentionally developed as an independently consumable public library.
 - Keep application-specific code under that application's `src` tree until a package boundary has a concrete consumer.
 - Place frontend product UI, platform adapters, and session-facing libraries according to [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md).
-- Treat every runtime package under `packages/*` as a library package. Library packages use Rslib and expose built artifacts; consumers never compile another package's source.
+- Treat every runtime package under `packages/*` as a library package. Library packages use Rslib and expose built artifacts. Production consumers use those artifacts; repository applications may compile declared public source entries during development according to the workspace-development contract.
 - Set `"private": true` on workspace-only libraries. A package intended for npm publication omits `private` and must include a version, `"publishConfig": { "access": "public" }`, a package README, license metadata once the project license is selected, and a `files` allowlist.
 - Declare every package's responsibility, non-goals, runtime, and stability in its schema-backed `project.json` according to [`docs/PROJECTS.md`](PROJECTS.md).
 
@@ -59,7 +59,9 @@ Every library exposes these scripts:
 - Every package defines `package.json#exports`; files absent from `exports` are private even if they exist in the published tarball.
 - Export the root as `"."`. Add each supported subpath explicitly, including assets. Do not use wildcard subpath exports.
 - Put the `"types"` condition before `"import"` and `"require"`.
-- Point `"import"` to ESM, `"require"` to CJS, and never point a public condition at `src/*`.
+- Point `"import"` to ESM and `"require"` to CJS. Only the repository-specific `"@orchbee/source"` condition may point at `src/*`.
+- Declare `"@orchbee/source"` first on every source-buildable export. It is a repository development condition, points to the source counterpart of that same public entry, and must never expose a private subpath.
+- Include `@orchbee/source` targets in the package `files` allowlist when the package is publishable. Private packages may omit development source from their pack output.
 - Keep `main`, `module`, and `types` aligned with the root conditional export for consumers that do not fully support `exports`.
 - Import another workspace package only through an allowed package name or exported subpath. Imports from another workspace's `src/*` or `dist/*` are forbidden.
 - Document every public entry point and asset in the package README.
@@ -71,8 +73,10 @@ Every library exposes these scripts:
 	"main": "./dist/index.cjs",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
+	"files": ["dist", "src", "README.md"],
 	"exports": {
 		".": {
+			"@orchbee/source": "./src/index.ts",
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js",
 			"require": "./dist/index.cjs"
@@ -104,7 +108,7 @@ Removing or changing an exported symbol, type, subpath, or asset is a breaking A
 - Generate declarations from exactly one Rslib output to avoid two formats writing competing declaration files.
 - Keep Rslib's default externalization for `dependencies`, `optionalDependencies`, and `peerDependencies`. A deliberate bundled dependency belongs in `devDependencies` and must be explained in `rslib.config.ts` when the reason is not obvious.
 - Keep published output unminified unless the package is a directly deployed browser artifact. Consumer applications own final minification and polyfills.
-- Include only runtime artifacts, declarations, assets, and consumer documentation in `package.json#files`.
+- Include only runtime artifacts, declarations, assets, consumer documentation, and source targets required by a publishable `@orchbee/source` condition in `package.json#files`.
 
 Use this baseline configuration and change it only for a documented package requirement:
 
@@ -134,7 +138,7 @@ export default defineConfig({
 
 When declarations contain relative imports, enable `redirect.dts.extension` on the declaration-producing output so extensionless TypeScript source emits Node-compatible declaration specifiers.
 
-After changing a manifest or build configuration, run the package build and `test:exports`. The repository checker verifies that every export target is included by `npm pack`, root ESM and CJS exports match, and a strict external TypeScript consumer can resolve the root declaration entry.
+After changing a manifest or build configuration, run the package build and `test:exports`. The repository checker verifies that runtime export targets and publishable source-condition targets are included by `npm pack`, private source-condition targets exist, root ESM and CJS exports match, and a strict external TypeScript consumer can resolve the root declaration entry.
 
 ## Dependency declarations
 
@@ -180,11 +184,12 @@ Before merging a package change:
 
 ## External references
 
-Verified on 2026-07-14:
+Verified on 2026-07-18:
 
 - [Rslib output formats](https://rslib.rs/guide/basic/output-format)
 - [Rslib configuration](https://rslib.rs/guide/basic/configure-rslib)
 - [Rslib dependency externalization](https://rslib.rs/config/lib/auto-external)
+- [Rsbuild source-build plugin](https://github.com/rstackjs/rsbuild-plugin-source-build)
 - [Babel fixed-version release explanation](https://babeljs.io/docs/faq#why-isnt-a-certain-babel-x-package-updated)
 - [Semantic Versioning 2.0.0](https://semver.org/)
 - [pnpm minimum release age](https://pnpm.io/settings#minimumreleaseage)

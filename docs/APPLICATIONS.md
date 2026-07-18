@@ -7,11 +7,15 @@ Put an independently runnable or deployable entry point in `apps/*`. Application
 Put reusable capabilities consumed through imports in `packages/*`. Put repository automation that has no independently running application lifecycle in `scripts/*`.
 
 ```text
-apps/<product-entry>   # Product application
-apps/storybook         # Development application
+apps/desktop   # Electron product application, when introduced
+apps/web       # Browser product application
+apps/daemon    # Headless long-running product entry, when introduced
+apps/storybook # Development application
 ```
 
 Do not create a new top-level directory to distinguish an internal application from a product application. Express that distinction through the workspace name, `private` manifest field, `project.json` responsibility and non-goals, and release configuration when a release pipeline exists.
+
+Name a product application for the user-facing surface or runtime role it owns. Use `desktop` for the complete Electron product rather than `main`, which names one Electron process and becomes ambiguous once preload, renderer, and background services coexist. Create `daemon` only when a concrete long-running headless entry exists; an architecture diagram is not an admission reason.
 
 ## Required application shape
 
@@ -24,6 +28,28 @@ Every direct application workspace contains:
 | `tsconfig.json` | Type-checking contract for TypeScript applications |
 
 An application exposes the scripts required by its lifecycle. Browser applications normally expose `dev`, `build`, `typecheck`, `test`, and `test:watch`. A specialized development application may add explicit workflow commands, but must keep `build` non-interactive so `pnpm verify` can run it.
+
+## Workspace development
+
+Browser applications register the official `@rsbuild/plugin-source-build` plugin for their
+development command. The plugin resolves the `@orchbee/source` condition declared by workspace
+packages, compiles those public source entry points in the application graph, and lets the
+application's Rsbuild server own React and CSS hot replacement. A package source edit therefore
+flows through the same native HMR graph as an application source edit; no package prebuild,
+parallel library watcher, or repository process supervisor is required.
+
+The application must register every compiler plugin required by source-built packages. For
+example, applications that source-build `@orchbee/ui` also register the Tailwind CSS plugin used
+by that package; source building does not load another workspace's Rslib configuration.
+
+Register source building only for development. Production application builds resolve the normal
+`types`, `import`, `require`, and `default` package conditions and consume Rslib output. The
+source condition changes how a declared public entry point is compiled, not which package paths
+an application may import.
+
+Run a public root command such as `pnpm web` or `pnpm storybook`. Keep the
+application's `dev` script as the direct Rsbuild or Storybook command so CLI arguments and process
+lifecycle remain owned by the underlying tool.
 
 ## Dependency direction
 
