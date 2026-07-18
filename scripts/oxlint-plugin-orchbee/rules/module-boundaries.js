@@ -5,6 +5,7 @@ import { startLoc } from '../utils.js';
 const AUTHORITY = 'See docs/MODULE-BOUNDARIES.md#module-boundaries.';
 const INDEX_FILENAME = 'index.ts';
 const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'];
+const COMPONENTS_DIRECTORY = 'components';
 const TEST_DIRECTORY = '__tests__';
 const firstSourceFileCache = new Map();
 
@@ -24,10 +25,23 @@ function pathParts(filePath, sourceRoot) {
 	return path.split('/').filter((part) => part !== '' && part !== '.');
 }
 
+function structuralComponentGroupIndex(parts, sourceRoot) {
+	for (let index = 0; index < parts.length - 1; index += 1) {
+		if (parts[index] !== COMPONENTS_DIRECTORY) continue;
+		const componentName = parts[index + 1];
+		if (componentName === undefined) continue;
+		const componentPath = join(sourceRoot, ...parts.slice(0, index + 2), `${componentName}.tsx`);
+		if (existsSync(componentPath)) return index;
+	}
+	return -1;
+}
+
 function moduleParts(filePath, sourceRoot) {
 	const parts = pathParts(dirname(filePath), sourceRoot);
 	const testDirectoryIndex = parts.indexOf(TEST_DIRECTORY);
-	return testDirectoryIndex === -1 ? parts : parts.slice(0, testDirectoryIndex);
+	const nonTestParts = testDirectoryIndex === -1 ? parts : parts.slice(0, testDirectoryIndex);
+	const componentGroupIndex = structuralComponentGroupIndex(nonTestParts, sourceRoot);
+	return componentGroupIndex === -1 ? nonTestParts : nonTestParts.slice(0, componentGroupIndex);
 }
 
 function isTestFile(filePath, sourceRoot) {
@@ -35,7 +49,9 @@ function isTestFile(filePath, sourceRoot) {
 }
 
 function isBoundaryIndex(filePath, sourceRoot) {
-	return basename(filePath) === INDEX_FILENAME && !isTestFile(filePath, sourceRoot);
+	if (basename(filePath) !== INDEX_FILENAME || isTestFile(filePath, sourceRoot)) return false;
+	const parts = pathParts(dirname(filePath), sourceRoot);
+	return structuralComponentGroupIndex(parts, sourceRoot) === -1;
 }
 
 function isSourceFile(filePath) {

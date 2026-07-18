@@ -2,9 +2,15 @@
 
 ## Source module tree
 
-`orchbee/module-boundaries` treats each directory in an `apps/*/src` or `packages/*/src` tree as a source module. The `src` directory is the root module. A `__tests__` directory belongs to its nearest source-module ancestor and does not create a module.
+`orchbee/module-boundaries` treats each directory in an `apps/*/src` or `packages/*/src` tree as a source module unless it is a test directory or an authored React component group. The `src` directory is the root module. A `__tests__` directory belongs to its nearest source-module ancestor and does not create a module.
 
 Every source module must have an `index.ts` boundary entry. Files in the same module may import one another directly. A descendant may also import an ancestor's implementation directly because ancestor internals are inside its lexical visibility. Every lateral dependency must import the target module's `index.ts`; a file path below a lateral boundary is private even when TypeScript can resolve it.
+
+## Structural component groups
+
+An authored `components/<component-name>/` directory that contains `<component-name>.tsx` is a structural component group governed by [`docs/frontend/react.md`](frontend/react.md#component-directory-boundary), not a source module. Its entire subtree belongs to the source-module ancestor that owns the outermost matching component group. The grouping may recur for nested private child components.
+
+Structural component groups do not define `index.ts` entries. Their owner and their implementation files import one another directly as members of the same source module; dependencies on other source modules still follow the normal visibility table. A directory merely named `components` does not receive this treatment unless it contains the component-group shape, so the generated `packages/ui/src/components/ui` public module tree remains a normal source-module tree.
 
 ## Module visibility
 

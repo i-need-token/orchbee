@@ -2,11 +2,16 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { componentDirectory } from '../component-directory';
 import { filenameNamingConvention } from '../filename-naming-convention';
 import { moduleBoundaries } from '../module-boundaries';
 import { noCrossWorkspaceSourceImports } from '../no-cross-workspace-source-imports';
 import { noInlineSuppressions } from '../no-inline-suppressions';
+import { noReactHooksInTsx } from '../no-react-hooks-in-tsx';
+import { oneFunctionPerTsx } from '../one-function-per-tsx';
+import { oneHookPerFile } from '../one-hook-per-file';
 import { requireUnitTest } from '../require-unit-test';
+import { zustandScope } from '../zustand-scope';
 
 interface LintReport {
 	readonly message: string;
@@ -48,10 +53,10 @@ function createFixture() {
 	return root;
 }
 
-function writeFixture(root: string, path: string) {
+function writeFixture(root: string, path: string, source = '') {
 	const filename = join(root, path);
 	mkdirSync(dirname(filename), { recursive: true });
-	writeFileSync(filename, '');
+	writeFileSync(filename, source);
 	return filename;
 }
 
@@ -214,6 +219,128 @@ describe('module-boundaries', () => {
 		});
 		expect(reports[0]?.message).toContain('only explicit named re-exports');
 	});
+
+	it('treats named component groups as structural directories owned by their module', () => {
+		const root = createFixture();
+		writeFixture(root, 'packages/example/src/index.ts');
+		writeFixture(root, 'packages/example/src/composition/index.ts');
+		const filename = writeFixture(root, 'packages/example/src/composition/workbench.tsx');
+		writeFixture(root, 'packages/example/src/composition/components/toolbar/toolbar.tsx');
+		const { context, reports } = createContext(filename);
+		const visitors = moduleBoundaries.create(context);
+
+		visitors.Program({ type: 'Program', loc: LOCATION, body: [] });
+		visitors.ImportDeclaration(dependencyNode('ImportDeclaration', './components/toolbar/toolbar'));
+
+		expect(reports).toEqual([]);
+	});
+
+	it('keeps a generic directory named components as a source-module boundary', () => {
+		const root = createFixture();
+		writeFixture(root, 'packages/example/src/index.ts');
+		writeFixture(root, 'packages/example/src/components/index.ts');
+		writeFixture(root, 'packages/example/src/components/ui/index.ts');
+		const filename = writeFixture(root, 'packages/example/src/components/consumer.ts');
+		const { context, reports } = createContext(filename);
+
+		moduleBoundaries.create(context).ImportDeclaration(dependencyNode('ImportDeclaration', './ui'));
+
+		expect(reports[0]?.message).toContain('cannot depend on hidden module "src/components/ui"');
+	});
+});
+
+describe('component-directory', () => {
+	it('accepts a module boundary component re-exported by its sibling index', () => {
+		const root = createFixture();
+		const filename = writeFixture(root, 'packages/example/src/composition/workbench.tsx');
+		writeFixture(
+			root,
+			'packages/example/src/composition/index.ts',
+			"export { Workbench } from './workbench';\n",
+		);
+		const { context, reports } = createContext(filename);
+		const visitors = componentDirectory.create(context);
+		const program = { type: 'Program', loc: LOCATION };
+
+		visitors.FunctionDeclaration({
+			type: 'FunctionDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'Workbench', loc: LOCATION },
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports).toEqual([]);
+	});
+
+	it('rejects a private child component left loose in its source module', () => {
+		const root = createFixture();
+		const filename = writeFixture(root, 'packages/example/src/composition/workbench-toolbar.tsx');
+		writeFixture(root, 'packages/example/src/composition/index.ts');
+		const { context, reports } = createContext(filename);
+		const visitors = componentDirectory.create(context);
+		const program = { type: 'Program', loc: LOCATION };
+
+		visitors.FunctionDeclaration({
+			type: 'FunctionDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'WorkbenchToolbar', loc: LOCATION },
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports[0]?.message).toContain('private child component');
+		expect(reports[0]?.message).toContain('docs/frontend/react.md#component-directory-boundary');
+	});
+
+	it('accepts recursively named private component groups', () => {
+		const root = createFixture();
+		const filename = writeFixture(
+			root,
+			'packages/example/src/composition/components/toolbar/components/action/action.tsx',
+		);
+		const { context, reports } = createContext(filename);
+		const visitors = componentDirectory.create(context);
+		const program = { type: 'Program', loc: LOCATION };
+
+		visitors.FunctionDeclaration({
+			type: 'FunctionDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'Action', loc: LOCATION },
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports).toEqual([]);
+	});
+
+	it('rejects a component placed loose directly under components', () => {
+		const root = createFixture();
+		const filename = writeFixture(root, 'packages/example/src/composition/components/toolbar.tsx');
+		const { context, reports } = createContext(filename);
+		const visitors = componentDirectory.create(context);
+		const program = { type: 'Program', loc: LOCATION };
+
+		visitors.FunctionDeclaration({
+			type: 'FunctionDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'Toolbar', loc: LOCATION },
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports[0]?.message).toContain('components/<component-name>/<component-name>.tsx');
+	});
+
+	it('rejects a CSS Module imported from outside the component group', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/example/src/composition/components/toolbar/toolbar.tsx',
+		);
+
+		componentDirectory.create(context).ImportDeclaration({
+			type: 'ImportDeclaration',
+			loc: LOCATION,
+			source: { value: '../../toolbar.module.css', loc: LOCATION },
+		});
+
+		expect(reports[0]?.message).toContain('must be colocated');
+	});
 });
 
 describe('no-inline-suppressions', () => {
@@ -229,11 +356,348 @@ describe('no-inline-suppressions', () => {
 	});
 });
 
-describe('require-unit-test', () => {
-	it('requires a sibling TSX test for a top-level arrow function', () => {
+describe('no-react-hooks-in-tsx', () => {
+	it('rejects direct React namespace Hook calls in authored TSX', () => {
 		const { context, reports } = createContext(
-			'/workspace/packages/ui/src/components/agent-panel.tsx',
+			'/workspace/packages/workbench/src/composition/workbench.tsx',
 		);
+		const visitors = noReactHooksInTsx.create(context);
+		visitors.ImportDeclaration({
+			source: { value: 'react' },
+			specifiers: [
+				{
+					type: 'ImportNamespaceSpecifier',
+					local: { type: 'Identifier', name: 'React' },
+				},
+			],
+		});
+		visitors.CallExpression({
+			callee: {
+				type: 'MemberExpression',
+				computed: false,
+				object: { type: 'Identifier', name: 'React' },
+				property: { type: 'Identifier', name: 'useEffect' },
+				loc: LOCATION,
+			},
+		});
+
+		expect(reports[0]?.message).toContain('React.useEffect');
+		expect(reports[0]?.message).toContain('docs/frontend/react.md#component-hook-boundary');
+	});
+
+	it('rejects directly imported React Hooks in authored TSX', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/composition/workbench.tsx',
+		);
+		const visitors = noReactHooksInTsx.create(context);
+		visitors.ImportDeclaration({
+			source: { value: 'react' },
+			specifiers: [
+				{
+					type: 'ImportSpecifier',
+					imported: { type: 'Identifier', name: 'useState' },
+					local: { type: 'Identifier', name: 'useFeatureState' },
+				},
+			],
+		});
+		visitors.CallExpression({
+			callee: { type: 'Identifier', name: 'useFeatureState', loc: LOCATION },
+		});
+
+		expect(reports[0]?.message).toContain('useFeatureState');
+	});
+
+	it('accepts responsibility-focused custom Hooks in authored TSX', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/composition/workbench.tsx',
+		);
+		noReactHooksInTsx.create(context).CallExpression({
+			callee: { type: 'Identifier', name: 'useWorkbenchProps', loc: LOCATION },
+		});
+
+		expect(reports).toEqual([]);
+	});
+});
+
+describe('one-function-per-tsx', () => {
+	it('reports every additional top-level function in authored production TSX', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/composition/workbench.tsx',
+		);
+		const program = { type: 'Program' };
+		const firstFunction = {
+			type: 'FunctionDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'Workbench', loc: LOCATION },
+		};
+		const secondFunction = {
+			type: 'FunctionDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'WorkbenchToolbar', loc: LOCATION },
+		};
+		const visitors = oneFunctionPerTsx.create(context);
+
+		visitors.FunctionDeclaration(firstFunction);
+		visitors.FunctionDeclaration(secondFunction);
+
+		expect(reports).toHaveLength(1);
+		expect(reports[0]?.message).toContain('docs/frontend/react.md#tsx-file-boundary');
+	});
+
+	it('accepts callbacks nested inside the sole TSX component', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/composition/workbench.tsx',
+		);
+		const program = { type: 'Program' };
+		const component = {
+			type: 'FunctionDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'Workbench', loc: LOCATION },
+		};
+		const nestedCallback = {
+			type: 'ArrowFunctionExpression',
+			parent: component,
+			loc: LOCATION,
+		};
+		const visitors = oneFunctionPerTsx.create(context);
+
+		visitors.FunctionDeclaration(component);
+		visitors.ArrowFunctionExpression(nestedCallback);
+
+		expect(reports).toEqual([]);
+	});
+});
+
+describe('one-hook-per-file', () => {
+	it('accepts one named Hook function exported from its module', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/composition/use-workbench-view-props.ts',
+		);
+		const program = { type: 'Program', loc: LOCATION };
+		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
+		const hook = {
+			type: 'FunctionDeclaration',
+			parent: exportDeclaration,
+			id: { type: 'Identifier', name: 'useWorkbenchViewProps', loc: LOCATION },
+		};
+		const visitors = oneHookPerFile.create(context);
+
+		visitors.FunctionDeclaration(hook);
+		visitors.ExportNamedDeclaration({
+			...exportDeclaration,
+			declaration: hook,
+			specifiers: [],
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports).toEqual([]);
+	});
+
+	it('rejects a second top-level function in a Hook module', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/composition/use-workbench-view-props.ts',
+		);
+		const program = { type: 'Program', loc: LOCATION };
+		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
+		const hook = {
+			type: 'FunctionDeclaration',
+			parent: exportDeclaration,
+			id: { type: 'Identifier', name: 'useWorkbenchViewProps', loc: LOCATION },
+		};
+		const helper = {
+			type: 'FunctionDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'prepareTabs', loc: LOCATION },
+		};
+		const visitors = oneHookPerFile.create(context);
+
+		visitors.FunctionDeclaration(hook);
+		visitors.FunctionDeclaration(helper);
+		visitors.ExportNamedDeclaration({
+			...exportDeclaration,
+			declaration: hook,
+			specifiers: [],
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports[0]?.message).toContain('wrong number of functions');
+	});
+
+	it('counts type exports against the Hook module export boundary', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/composition/use-workbench-view-props.ts',
+		);
+		const program = { type: 'Program', loc: LOCATION };
+		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
+		const hook = {
+			type: 'FunctionDeclaration',
+			parent: exportDeclaration,
+			id: { type: 'Identifier', name: 'useWorkbenchViewProps', loc: LOCATION },
+		};
+		const visitors = oneHookPerFile.create(context);
+
+		visitors.FunctionDeclaration(hook);
+		visitors.ExportNamedDeclaration({
+			...exportDeclaration,
+			declaration: hook,
+			specifiers: [],
+		});
+		visitors.ExportNamedDeclaration({
+			...exportDeclaration,
+			declaration: {
+				type: 'TSInterfaceDeclaration',
+				id: { type: 'Identifier', name: 'WorkbenchViewProps', loc: LOCATION },
+			},
+			specifiers: [],
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports[0]?.message).toContain('wrong number of exports');
+	});
+});
+
+describe('zustand-scope', () => {
+	it('rejects bound Store creation from the React Zustand entry', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/shell/workbench-store.ts',
+		);
+		zustandScope.create(context).ImportDeclaration({
+			type: 'ImportDeclaration',
+			importKind: 'value',
+			loc: LOCATION,
+			source: { value: 'zustand' },
+			specifiers: [
+				{
+					type: 'ImportSpecifier',
+					importKind: 'value',
+					imported: { type: 'Identifier', name: 'create' },
+					local: { type: 'Identifier', name: 'create', loc: LOCATION },
+					loc: LOCATION,
+				},
+			],
+		});
+
+		expect(reports[0]?.message).toContain('process-wide singleton');
+	});
+
+	it('rejects direct useStore imports in component modules', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/composition/workbench-content.tsx',
+		);
+		zustandScope.create(context).ImportDeclaration({
+			type: 'ImportDeclaration',
+			importKind: 'value',
+			loc: LOCATION,
+			source: { value: 'zustand' },
+			specifiers: [
+				{
+					type: 'ImportSpecifier',
+					importKind: 'value',
+					imported: { type: 'Identifier', name: 'useStore' },
+					local: { type: 'Identifier', name: 'useStore', loc: LOCATION },
+					loc: LOCATION,
+				},
+			],
+		});
+
+		expect(reports[0]?.message).toContain('feature selector Hook');
+	});
+
+	it('accepts a selector subscription inside a named feature Hook', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/shell/use-workbench-store.ts',
+		);
+		const visitors = zustandScope.create(context);
+		visitors.ImportDeclaration({
+			type: 'ImportDeclaration',
+			importKind: 'value',
+			loc: LOCATION,
+			source: { value: 'zustand' },
+			specifiers: [
+				{
+					type: 'ImportSpecifier',
+					importKind: 'value',
+					imported: { type: 'Identifier', name: 'useStore' },
+					local: { type: 'Identifier', name: 'useStore', loc: LOCATION },
+					loc: LOCATION,
+				},
+			],
+		});
+		visitors.CallExpression({
+			type: 'CallExpression',
+			arguments: [{}, {}],
+			callee: { type: 'Identifier', name: 'useStore', loc: LOCATION },
+			loc: LOCATION,
+		});
+
+		expect(reports).toEqual([]);
+	});
+
+	it('requires an explicit selector for useStore subscriptions', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/shell/use-workbench-store.ts',
+		);
+		const visitors = zustandScope.create(context);
+		visitors.ImportDeclaration({
+			type: 'ImportDeclaration',
+			importKind: 'value',
+			loc: LOCATION,
+			source: { value: 'zustand' },
+			specifiers: [
+				{
+					type: 'ImportSpecifier',
+					importKind: 'value',
+					imported: { type: 'Identifier', name: 'useStore' },
+					local: { type: 'Identifier', name: 'useStore', loc: LOCATION },
+					loc: LOCATION,
+				},
+			],
+		});
+		visitors.CallExpression({
+			type: 'CallExpression',
+			arguments: [{}],
+			callee: { type: 'Identifier', name: 'useStore', loc: LOCATION },
+			loc: LOCATION,
+		});
+
+		expect(reports[0]?.message).toContain('explicit selector');
+	});
+
+	it('rejects module-level vanilla Store instances', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/shell/workbench-store.ts',
+		);
+		const visitors = zustandScope.create(context);
+		visitors.ImportDeclaration({
+			type: 'ImportDeclaration',
+			importKind: 'value',
+			loc: LOCATION,
+			source: { value: 'zustand/vanilla' },
+			specifiers: [
+				{
+					type: 'ImportSpecifier',
+					importKind: 'value',
+					imported: { type: 'Identifier', name: 'createStore' },
+					local: { type: 'Identifier', name: 'createStore', loc: LOCATION },
+					loc: LOCATION,
+				},
+			],
+		});
+		visitors.CallExpression({
+			type: 'CallExpression',
+			arguments: [],
+			callee: { type: 'Identifier', name: 'createStore', loc: LOCATION },
+			loc: LOCATION,
+			parent: { type: 'VariableDeclarator', parent: { type: 'Program' } },
+		});
+
+		expect(reports[0]?.message).toContain('shared across feature mounts');
+	});
+});
+
+describe('require-unit-test', () => {
+	it('requires a sibling test for a top-level arrow function in a TS module', () => {
+		const { context, reports } = createContext('/workspace/packages/core/src/session-service.ts');
 		const program = { type: 'Program' };
 		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
 		const variableDeclaration = { type: 'VariableDeclaration', parent: exportDeclaration };
@@ -242,7 +706,16 @@ describe('require-unit-test', () => {
 			init: { type: 'ArrowFunctionExpression' },
 			id: { loc: LOCATION },
 		});
-		expect(reports[0]?.message).toContain('agent-panel.unit.test.tsx');
+		expect(reports[0]?.message).toContain('session-service.unit.test.ts');
+	});
+
+	it('does not require sibling tests for TSX components', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/ui/src/components/agent-panel.tsx',
+		);
+		const visitors = requireUnitTest.create(context);
+		expect(visitors).not.toHaveProperty('VariableDeclarator');
+		expect(reports).toEqual([]);
 	});
 
 	it('does not require tests for type-only source files', () => {

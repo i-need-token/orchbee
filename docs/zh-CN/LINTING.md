@@ -29,7 +29,7 @@
 
 ## 生成的源码
 
-`packages/ui/src/components/ui/*.tsx` 下检入的 shadcn 快照及其生成的 `use-mobile.ts` Hook 与上游注册表保持接近，使 CLI 刷新保持易于审查。按路径限定的覆盖会让这些源码免受会引发大范围机械重写的仓库编写约定约束：显式模块边界返回类型、断言风格、遮蔽风格、相等性风格、嵌套三元表达式风格，以及同级测试要求。自动 JSX 运行时也使 `react/react-in-jsx-scope` 不适用于此处。
+`packages/ui/src/components/ui/*.tsx` 下检入的 shadcn 快照及其生成的 `use-mobile.ts` Hook 与上游注册表保持接近，使 CLI 刷新保持易于审查。按路径限定的覆盖会让这些源码免受会引发大范围机械重写的仓库编写约定约束：显式模块边界返回类型、断言风格、遮蔽风格、相等性风格、嵌套三元表达式风格、组件目录分组、TSX 中直接调用 React Hook、TSX 单函数与 Hook 单文件边界，以及同级测试要求。自动 JSX 运行时也使 `react/react-in-jsx-scope` 不适用于此处。
 
 正确性规则仍对生成的源码生效，包括 React Hooks、JSX key、模块边界、跨工作区导入、不安全 TypeScript 构造和内联抑制禁令。`ChartStyle` 是唯一的额外例外，用于其由上游控制的 style 元素；[`docs/frontend/react.md`](frontend/react.md#正确性与安全性) 定义了该约束。
 
@@ -37,12 +37,17 @@
 
 ## 自定义规则归属
 
-| 规则                                        | 权威来源                                      |
-| ------------------------------------------- | --------------------------------------------- |
-| `orchbee/filename-naming-convention`        | `docs/TESTING.md#source-and-test-paths`       |
-| `orchbee/module-boundaries`                 | `docs/MODULE-BOUNDARIES.md#module-boundaries` |
-| `orchbee/no-cross-workspace-source-imports` | `docs/ARCHITECTURE.md#package-boundaries`     |
-| `orchbee/no-inline-suppressions`            | `docs/CODESTYLE.md#inline-suppressions`       |
-| `orchbee/require-unit-test`                 | `docs/TESTING.md#required-unit-tests`         |
+| 规则                                        | 权威来源                                              |
+| ------------------------------------------- | ----------------------------------------------------- |
+| `orchbee/component-directory`               | `docs/frontend/react.md#component-directory-boundary` |
+| `orchbee/filename-naming-convention`        | `docs/TESTING.md#source-and-test-paths`               |
+| `orchbee/module-boundaries`                 | `docs/MODULE-BOUNDARIES.md#module-boundaries`         |
+| `orchbee/no-cross-workspace-source-imports` | `docs/ARCHITECTURE.md#package-boundaries`             |
+| `orchbee/no-inline-suppressions`            | `docs/CODESTYLE.md#inline-suppressions`               |
+| `orchbee/no-react-hooks-in-tsx`             | `docs/frontend/react.md#component-hook-boundary`      |
+| `orchbee/one-function-per-tsx`              | `docs/frontend/react.md#tsx-file-boundary`            |
+| `orchbee/one-hook-per-file`                 | `docs/frontend/react.md#hook-file-boundary`           |
+| `orchbee/require-unit-test`                 | `docs/TESTING.md#required-unit-tests`                 |
+| `orchbee/zustand-scope`                     | `docs/frontend/react.md#zustand-and-context`          |
 
 每次自定义规则变更都要同时更新其实现、权威来源、诊断和回归测试。

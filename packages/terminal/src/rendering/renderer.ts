@@ -225,6 +225,10 @@ function canvasFont(
 	return `${stylePrefix}${weight} ${size}px ${family}`;
 }
 
+function snapToDevicePixel(value: number, devicePixelRatio: number): number {
+	return Math.round(value * devicePixelRatio) / devicePixelRatio;
+}
+
 // ============================================================================
 // WebGPU Shaders
 // ============================================================================
@@ -975,19 +979,21 @@ export class WebGPURenderer {
 		}
 		this.atlasCtx.restore();
 
+		const offsetX =
+			raster.kind === 'sprite'
+				? -inkPadding / rasterScale
+				: raster.layout.target.x - inkPadding / rasterScale;
+		const offsetY =
+			raster.kind === 'sprite'
+				? -inkPadding / rasterScale
+				: raster.layout.targetTop - inkPadding / rasterScale;
 		const entry: GlyphAtlasEntry = {
 			x: this.atlasX,
 			y: this.atlasY,
 			w,
 			h,
-			offsetX:
-				raster.kind === 'sprite'
-					? -inkPadding / rasterScale
-					: raster.layout.target.x - inkPadding / rasterScale,
-			offsetY:
-				raster.kind === 'sprite'
-					? -inkPadding / rasterScale
-					: raster.layout.targetTop - inkPadding / rasterScale,
+			offsetX: snapToDevicePixel(offsetX, rasterScale),
+			offsetY: snapToDevicePixel(offsetY, rasterScale),
 			renderWidth: w / rasterScale,
 			renderHeight: h / rasterScale,
 			colored:

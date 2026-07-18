@@ -49,11 +49,16 @@
     "react/rules-of-hooks": "error",
     "react/exhaustive-deps": "error",
 
+    "orchbee/component-directory": "error",
     "orchbee/filename-naming-convention": "error",
     "orchbee/module-boundaries": "error",
     "orchbee/no-cross-workspace-source-imports": "error",
     "orchbee/no-inline-suppressions": "error",
-    "orchbee/require-unit-test": "error"
+    "orchbee/no-react-hooks-in-tsx": "error",
+    "orchbee/one-function-per-tsx": "error",
+    "orchbee/one-hook-per-file": "error",
+    "orchbee/require-unit-test": "error",
+    "orchbee/zustand-scope": "error"
   },
   "ignorePatterns": ["dist/**", "out/**", "node_modules/**", "*.min.js"],
   "overrides": [
@@ -112,6 +117,10 @@
 			"rules": {
 				"eqeqeq": "off",
 				"no-shadow": "off",
+				"orchbee/component-directory": "off",
+				"orchbee/no-react-hooks-in-tsx": "off",
+				"orchbee/one-function-per-tsx": "off",
+				"orchbee/one-hook-per-file": "off",
 				"orchbee/require-unit-test": "off",
 				"react/react-in-jsx-scope": "off",
 				"typescript/consistent-type-assertions": "off",

@@ -10,6 +10,7 @@
 
 - **English is canonical; the documentation contract is bilingual.** All code and the authoritative files under `docs/`, excluding locale subtrees, remain in English. The root project overview uses `README.md` and `README.zh-CN.md`; the Simplified Chinese documentation mirror uses `docs/zh-CN/`, preserving each English source path after `docs/`. English resolves conflicts. Runtime behavior, configuration, diagnostics, and engineering authority must use the English paths; only localized navigation and mirror-integrity verification may address a locale subtree.
 - **The Chinese documentation mirror never drifts.** Every authoritative Markdown file under `docs/` has exactly one counterpart under `docs/zh-CN/`. Every document addition, deletion, move, structural edit, example, link, or content change must update both languages in the same change.
+- **Product copy is localized.** Every product-facing message goes through the localization system and ships in both `en-US` and `zh-CN`; locale resources are product assets and may contain their target language.
 - **Documentation is part of the source of truth.** Update affected docs in the same change whenever code, configuration, commands, or public behavior changes; resolve implementation-doc conflicts before continuing dependent work.
 - **Every tracked file must have durable repository value.** Before adding a file, identify its future consumer, authoritative responsibility, recurring use, and maintenance lifecycle; task history and one-off working artifacts do not belong in the repository.
 - **Act on structural smells early.** When an in-scope change reveals a clear risk of growth, coupling, ownership ambiguity, or boundary erosion, resolve it before it spreads; if the remedy would materially expand scope, surface the risk before proceeding.
@@ -30,8 +31,10 @@
 - **Verification**: `docs/VERIFICATION.md` — the canonical local and CI quality gate
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
 - **Testing**: `docs/TESTING.md` — test layout, execution, and regression requirements
+- **Frontend React**: `docs/frontend/react.md` — component responsibility, state ownership, Effects, Hooks, Zustand, and React testing boundaries
 - **Frontend Visual Foundations**: `docs/frontend/visual-foundations.md` — typography, hierarchy, spacing, radius, sizing, border, and surface selection rules
 - **Frontend Design Tokens**: `docs/frontend/design-tokens.md` — token tiers, naming, themes, CSS Modules, and style enforcement
+- **Frontend Localization**: `docs/frontend/localization.md` — locale ownership, message catalogs, formatting, fallback, and verification
 
 ## Project Structure
 

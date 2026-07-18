@@ -6,11 +6,13 @@
 
 ## Required unit tests
 
-- `orchbee/require-unit-test`: Every `.ts` or `.tsx` source file containing a top-level function, function expression, arrow function, or class must have its corresponding unit-test file.
+- `orchbee/require-unit-test`: Every `.ts` source file containing a top-level function, function expression, arrow function, or class must have its corresponding unit-test file.
 
 The sibling-file rule is a minimum discoverability requirement, not evidence of behavioral coverage. Tests exercise observable outcomes, failure paths, and owned invariants; a placeholder test or a test that only repeats implementation details does not satisfy the project contract.
 
-The checked-in shadcn registry snapshot and its generated mobile hook are exempt from per-file sibling tests. They retain upstream implementations as reviewable source; test Orchbee adaptations, public-package contracts, and relied-upon integration behavior without copying the upstream component suite component by component.
+Tests are optional for `.tsx` source. Do not add a component test merely to repeat prepared props or static markup; add one when it protects a meaningful regression, interaction, accessibility contract, or integration boundary.
+
+The checked-in shadcn registry snapshot follows the same optional TSX policy, and its generated mobile Hook is exempt from per-file sibling tests. They retain upstream implementations as reviewable source; test Orchbee adaptations, public-package contracts, and relied-upon integration behavior without copying the upstream component suite component by component.
 
 ## Test execution
 

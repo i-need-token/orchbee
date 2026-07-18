@@ -2,9 +2,15 @@
 
 ## 源模块树
 
-`orchbee/module-boundaries` 将 `apps/*/src` 或 `packages/*/src` 树中的每个目录视为一个源模块。`src` 目录是根模块。`__tests__` 目录属于最近的源模块祖先，不会创建模块。
+`orchbee/module-boundaries` 将 `apps/*/src` 或 `packages/*/src` 树中的每个目录视为一个源模块，测试目录和自有 React 组件分组除外。`src` 目录是根模块。`__tests__` 目录属于最近的源模块祖先，不会创建模块。
 
 每个源模块都必须有一个 `index.ts` 边界入口。同一模块中的文件可以直接相互导入。后代也可以直接导入祖先的实现，因为祖先内部位于其词法可见范围内。每个横向依赖都必须导入目标模块的 `index.ts`；即使 TypeScript 可以解析，横向边界之下的文件路径仍然是私有的。
+
+## 结构化组件分组
+
+包含 `<component-name>.tsx` 的自有 `components/<component-name>/` 目录是由 [`docs/frontend/react.md`](frontend/react.md#组件目录边界) 约束的结构化组件分组，而不是源模块。它的整棵子树都属于拥有最外层匹配组件分组的源模块祖先。该分组可以为嵌套的私有子组件递归出现。
+
+结构化组件分组不定义 `index.ts` 入口。其所有者和实现文件作为同一源模块的成员直接相互导入；对其他源模块的依赖仍遵循正常的可见性表。仅仅命名为 `components` 的目录不会获得这项处理，除非它包含组件分组形态，因此生成的 `packages/ui/src/components/ui` 公共模块树仍然是正常的源模块树。
 
 ## 模块可见性
 

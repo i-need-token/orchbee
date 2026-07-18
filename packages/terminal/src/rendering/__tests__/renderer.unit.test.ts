@@ -1216,7 +1216,7 @@ describe('WebGPURenderer font metrics', () => {
 		renderer.dispose();
 	});
 
-	it('preserves glyph ink bounds and bearings in atlas geometry', () => {
+	it('preserves glyph ink bounds and snaps atlas quads to physical pixels', () => {
 		const metrics = {
 			actualBoundingBoxLeft: 2,
 			actualBoundingBoxRight: 9,
@@ -1243,14 +1243,17 @@ describe('WebGPURenderer font metrics', () => {
 			readonly renderHeight: number;
 		} | null;
 
-		expect(ensureGlyph.call(renderer, 'j', CellFlags.ITALIC, 1)).toMatchObject({
+		const glyph = ensureGlyph.call(renderer, 'j', CellFlags.ITALIC, 1);
+		expect(glyph).toMatchObject({
 			w: 15,
 			h: 18,
-			offsetX: -1.9,
+			offsetX: -2,
 			offsetY: 6.5,
 			renderWidth: 7.5,
 			renderHeight: 9,
 		});
+		expect(Number.isInteger((glyph?.offsetX ?? 0) * 2)).toBe(true);
+		expect(Number.isInteger((glyph?.offsetY ?? 0) * 2)).toBe(true);
 		renderer.dispose();
 	});
 

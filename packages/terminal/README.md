@@ -163,7 +163,8 @@ The exported `fontSizeAdjustmentScale` helper implements Ghostty's fallback-face
 - While stdin is writable, application mouse tracking owns unshifted pointer gestures. Shift keeps an entire drag or wheel gesture terminal-owned even if the modifier is released mid-drag; Shift+right-click and Shift+link activation remain explicit host overrides.
 - Dropped text uses the paste safety pipeline; dropped files require host-owned path resolution and shell quoting.
 - Canvas content has an off-screen accessibility mirror with stable UTF-16/cell offsets, two-way DOM selection, cursor position, and ordered multi-row live output that omits unchanged and empty rows. The live region also identifies text removed by backspace, forward delete, line kills, and wide-grapheme deletion.
-- WebGPU glyphs use physical-pixel rasterization and rebuild when browser DPR changes.
+- WebGPU glyphs use physical-pixel rasterization, snap atlas quads to the physical-pixel grid,
+  and rebuild when browser DPR changes.
 - Regular, italic, bold, and bold-italic cells use the configured regular and bold font weights consistently across WebGPU, Canvas 2D, font measurement, preedit text, and the hidden input surface.
 - The configured primary and fallback font list is loaded through `FontFaceSet` before cell metrics are measured; failures surface through `onHostError` without preventing startup.
 - Glyph quads preserve measured ink bounds and bearings instead of clipping italic overhangs or forcing every glyph into one cell-sized rectangle.

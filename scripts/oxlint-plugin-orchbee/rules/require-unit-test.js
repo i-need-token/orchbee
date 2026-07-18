@@ -5,16 +5,12 @@ import { startLoc } from '../utils.js';
 function shouldSkip(filePath) {
 	const normalized = filePath.split('\\').join('/');
 	const fileName = basename(normalized);
-	const isTypeScriptSource = fileName.endsWith('.ts') || fileName.endsWith('.tsx');
 	return (
-		!isTypeScriptSource ||
+		!fileName.endsWith('.ts') ||
 		fileName.endsWith('.d.ts') ||
 		fileName.endsWith('.test.ts') ||
-		fileName.endsWith('.test.tsx') ||
 		fileName.endsWith('.spec.ts') ||
-		fileName.endsWith('.spec.tsx') ||
 		fileName === 'index.ts' ||
-		fileName === 'index.tsx' ||
 		!normalized.includes('/src/') ||
 		normalized.includes('/__tests__/')
 	);
@@ -44,7 +40,7 @@ export const requireUnitTest = {
 	meta: {
 		type: 'suggestion',
 		docs: {
-			description: 'Require function and class source files to have sibling unit tests.',
+			description: 'Require function and class TypeScript source files to have sibling unit tests.',
 		},
 		schema: [],
 	},
@@ -52,9 +48,8 @@ export const requireUnitTest = {
 		const filePath = context.filename;
 		if (shouldSkip(filePath)) return {};
 
-		const extension = filePath.endsWith('.tsx') ? '.tsx' : '.ts';
-		const stem = basename(filePath, extension);
-		const testFile = `${stem}.unit.test${extension}`;
+		const stem = basename(filePath, '.ts');
+		const testFile = `${stem}.unit.test.ts`;
 		const testPath = join(dirname(filePath), '__tests__', testFile);
 		if (existsSync(testPath)) return {};
 
