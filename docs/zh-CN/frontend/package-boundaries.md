@@ -53,6 +53,8 @@ apps/daemon ---------------------> @orchbee/session-runtime
 
 `@orchbee/workbench` 拥有具有产品语义的展示，包括应用 shell、终端窗格、标签和拆分行为、会话与 Agent 展示、节点状态、设置界面、命令界面，以及满足应用级终端请求的 UI。
 
+两个包都公开可复用组件及其完整所有权树，而不是松散的实现文件。只有当一个通用组件及其状态独立于 Orchbee 产品概念时，它们才留在 `@orchbee/ui`；具有产品语义的组件及其完整所有权树属于 `@orchbee/workbench`。递归所有权、Context 作用域 Store、通信和提升契约位于 [`react.md`](react.md#递归组件所有权)。
+
 `@orchbee/i18n` 是共享 locale 契约、React 国际化 Provider、按领域命名空间组织的产品消息描述符及发布翻译的目标所有者。在通过同时迁移现有 Workbench 与 Web 使用方来引入该包之前，Workbench 和应用本地 Catalog 保持为过渡实现。应用工作区继续拥有用户 locale 选择、平台检测和偏好持久化，然后在组合时提供有效 locale。`@orchbee/ui` 保持 locale 无关，并公开通用的可见或仅无障碍文本，供具有产品语义的使用方本地化。完整契约位于 [`localization.md`](localization.md)。
 
 在 Workbench 终端模块中保留围绕 `@orchbee/terminal` 的 React wrapper，直到它拥有独立使用方和 API。不要向 `@orchbee/terminal` 添加 React、Zustand、shadcn/ui、Base UI、TanStack Router、Electron 或 Node 依赖。
@@ -71,28 +73,33 @@ Orchbee 以终端为先。默认 Workbench 界面把焦点和窗口剩余区域�
 
 ## Workbench 源模块
 
-按产品所有权组织 Workbench 源码，而不是按技术产物类型：
+把 `@orchbee/workbench` 作为具有产品语义的组件包边界。为每个可复用公共产品组件提供自己的源模块目录，并按照 [`react.md`](react.md#组件目录边界) 递归组织其私有后代：
 
 ```text
 packages/workbench/src/
-  agents/
-  commands/
-  composition/
-  nodes/
-  sessions/
-  settings/
-  shell/
-  terminals/
   index.ts
+  workbench/
+    index.ts
+    workbench.tsx
+    workbench.module.css
+    contexts/
+      workbench-store.ts
+    components/
+  terminal-pane/
+    index.ts
+    terminal-pane.tsx
+    terminal-pane.module.css
 ```
 
-每个目录都是带 `index.ts` 边界的源模块。把跨功能组装放在叶级 `composition` 模块中，由它使用同级入口点，然后通过根 `index.ts` 向上提升。不要在根模块中放置会导入私有后代文件的 `App.tsx`。该结构遵循 [`docs/MODULE-BOUNDARIES.md`](../MODULE-BOUNDARIES.md#组合和循环依赖)。
+该示例展示目录形态，而不是必需组件清单。只有在具体界面能力存在时才添加公共组件目录；不要预先创建推测性的 Agent、节点、设置或其他组件。包根 `index.ts` 有意提升包外使用的公共产品组件。
 
-把功能专属组件、Hook、状态、类型和 utility 保留在拥有它们的功能中。只有当另一个可见模块需要某项能力时，才通过功能的 `index.ts` 提升它。
+在公共组件目录中，只把 `index.ts`、根组件 `.tsx` 和可选的同名 `.module.css` 作为直接文件。在根组件的 `.tsx` 中定义并导出其 Props 类型。把 Context 作用域 Store 及其 selector Hook 一起放在 `contexts/` 中；`hooks/` 只放组件行为，`types/` 只放由所属树内多个文件共享的内部数据结构。为私有子组件递归重复该结构。不要把 `styles`、`stories` 或 `__tests__` 创建为直接子目录，也不要创建空的支撑目录。
+
+当另一个源模块需要某个私有组件时，把它连同完整所有权树提升到自己的公共组件目录，并使用其 `index.ts`。公共 Workbench 组件可以通过同级公共组件的源模块边界组合它们，但绝不能导入另一个组件的私有 Store、Hook、支撑目录或后代。该结构遵循 [`docs/MODULE-BOUNDARIES.md`](../MODULE-BOUNDARIES.md#源模块树)。
 
 ## 平台集成
 
-在使用能力的功能中定义每个平台 port。相比不断扩张的宿主接口，优先使用外部导航、目录选择、原生菜单和通知等狭窄契约。Workbench 组合模块可以聚合这些契约用于注入，而不让每个功能都依赖聚合。`apps/desktop` 通过 Electron preload 和 IPC 实现能力；`apps/web` 使用浏览器或 Web 服务 API 实现。
+在使用能力的产品组件中定义每个平台 port。相比不断扩张的宿主接口，优先使用外部导航、目录选择、原生菜单和通知等狭窄契约。公共 `workbench` 根组件可以聚合这些契约用于注入，而不让每个后代都依赖聚合。`apps/desktop` 通过 Electron preload 和 IPC 实现能力；`apps/web` 使用浏览器或 Web 服务 API 实现。
 
 `@orchbee/session-client` 定义它所使用的传输行为。应用在组合时提供 Electron IPC、WebSocket 或其他传输 adapter。包不得通过检测宿主环境来选择传输。
 

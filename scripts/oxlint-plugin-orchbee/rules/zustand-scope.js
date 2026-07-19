@@ -16,8 +16,14 @@ function shouldCheck(filePath) {
 	);
 }
 
-function isHookModule(filePath) {
-	return /^use-[a-z0-9]+(?:-[a-z0-9]+)*\.tsx?$/u.test(basename(filePath));
+function isContextStoreModule(filePath) {
+	const normalized = filePath.split('\\').join('/');
+	const fileName = basename(normalized);
+	if (fileName === 'create-context-store.ts' || fileName === 'create-context-store.tsx') return true;
+	return (
+		normalized.includes('/contexts/') &&
+		/^[a-z0-9]+(?:-[a-z0-9]+)*-store\.tsx?$/u.test(fileName)
+	);
 }
 
 function importedName(specifier) {
@@ -46,7 +52,7 @@ export const zustandScope = {
 	meta: {
 		type: 'suggestion',
 		docs: {
-			description: 'Keep authored Zustand stores scoped to mounted feature providers.',
+			description: 'Keep authored Zustand stores scoped to mounted component providers.',
 		},
 		schema: [],
 	},
@@ -58,7 +64,7 @@ export const zustandScope = {
 		function report(node, detail) {
 			context.report({
 				loc: startLoc(node),
-				message: `${detail} Use a context-scoped vanilla Store instance and a selector Hook. See docs/frontend/react.md#zustand-and-context.`,
+				message: `${detail} Keep the Provider and selector Hook together in a context-scoped vanilla Store module. See docs/frontend/react.md#zustand-and-context.`,
 			});
 		}
 
@@ -84,10 +90,10 @@ export const zustandScope = {
 						}
 						if (name === 'useStore') {
 							useStoreBindings.add(specifier.local.name);
-							if (!isHookModule(context.filename)) {
+							if (!isContextStoreModule(context.filename)) {
 								report(
 									specifier,
-									'Direct useStore imports are limited to named feature selector Hook modules.',
+									'Direct useStore imports are limited to component contexts/*-store modules or a shared create-context-store factory.',
 								);
 							}
 						}

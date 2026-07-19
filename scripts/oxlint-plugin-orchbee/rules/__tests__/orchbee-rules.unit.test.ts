@@ -600,12 +600,12 @@ describe('zustand-scope', () => {
 			],
 		});
 
-		expect(reports[0]?.message).toContain('feature selector Hook');
+		expect(reports[0]?.message).toContain('contexts/*-store');
 	});
 
-	it('accepts a selector subscription inside a named feature Hook', () => {
+	it('accepts a selector subscription inside a component Context Store module', () => {
 		const { context, reports } = createContext(
-			'/workspace/packages/workbench/src/shell/use-workbench-store.ts',
+			'/workspace/packages/workbench/src/workbench/contexts/workbench-store.ts',
 		);
 		const visitors = zustandScope.create(context);
 		visitors.ImportDeclaration({
@@ -633,9 +633,32 @@ describe('zustand-scope', () => {
 		expect(reports).toEqual([]);
 	});
 
+	it('rejects a forwarding Store selector Hook in the hooks directory', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/workbench/hooks/use-workbench-store.ts',
+		);
+		zustandScope.create(context).ImportDeclaration({
+			type: 'ImportDeclaration',
+			importKind: 'value',
+			loc: LOCATION,
+			source: { value: 'zustand' },
+			specifiers: [
+				{
+					type: 'ImportSpecifier',
+					importKind: 'value',
+					imported: { type: 'Identifier', name: 'useStore' },
+					local: { type: 'Identifier', name: 'useStore', loc: LOCATION },
+					loc: LOCATION,
+				},
+			],
+		});
+
+		expect(reports[0]?.message).toContain('contexts/*-store');
+	});
+
 	it('requires an explicit selector for useStore subscriptions', () => {
 		const { context, reports } = createContext(
-			'/workspace/packages/workbench/src/shell/use-workbench-store.ts',
+			'/workspace/packages/workbench/src/workbench/contexts/workbench-store.ts',
 		);
 		const visitors = zustandScope.create(context);
 		visitors.ImportDeclaration({

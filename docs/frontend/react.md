@@ -28,6 +28,15 @@ Controller or Service -> Presenter Hook or Scoped Store -> Presentational Compon
 
 An adapter connects React to an external lifecycle, creates or provides a scoped Store, prepares direct child inputs, and returns one product component. Application startup, cross-feature workflows, persistence, transport selection, and platform capability implementations remain outside presentational components.
 
+## Recursive component ownership
+
+- Treat every independently named interface region as an ownership boundary rooted at one component. That root owns its private descendant tree and every component-specific Hook, scoped Store and context, transition, style, asset, and test required by the tree.
+- Nest component ownership recursively. A private descendant may own another `components/<component-name>/` tree and may introduce its own narrower Store when only that subtree shares the state.
+- A component directly re-exported by a source module is the public root of its ownership tree. External modules consume it only through the owning module's `index.ts`; its descendants and Context remain private.
+- Admit reusable components without Orchbee product semantics to `@orchbee/ui`. Keep components that understand sessions, agents, nodes, terminal panes, commands, settings, or other product concepts in `@orchbee/workbench` according to [`docs/frontend/package-boundaries.md`](package-boundaries.md#ui-ownership).
+- Place each implementation artifact at the narrowest component-owned subtree or source module that completely owns it. Do not collect component-owned Hooks, stores, types, or utilities in package-wide technical directories.
+- When a private component subtree gains an external consumer, promote the complete ownership unit—root component, input contract, scoped state, Hooks, descendants, styles, and tests—to an appropriate source-module boundary. Do not export one internal file while leaving the rest of its ownership behind.
+
 ## Component Hook boundary
 
 - `orchbee/no-react-hooks-in-tsx`: Authored production `.tsx` files do not call React's built-in Hooks directly. Move state, Effects, memoization, references, and external-store subscriptions into a responsibility-focused custom Hook.
@@ -42,6 +51,9 @@ An adapter connects React to an external lifecycle, creates or provides a scoped
 - Do not introduce a Store merely to avoid one meaningful parent-child props contract. Props remain the default for shallow ownership.
 - Intermediate layout components neither subscribe to descendant-only state nor forward it. The consuming descendant selects its own narrow state and semantic actions through the feature Hook.
 - A component may combine its own props with feature Store selections when those inputs have different owners. Do not mirror props into the Store solely to make every input arrive through one channel.
+- Keep a component's Context and selector Hook private to its owned subtree. A sibling or external module communicates through the component's public props and semantic actions rather than importing its Store.
+- When sibling branches need one shared UI state, move ownership to their nearest common component root and let each consuming descendant select its own slice. Do not make either sibling own the other's state.
+- Use the same Context-scoped Store pattern at an application or Workbench root only for state genuinely shared by that whole mounted tree; global reach does not justify a process-wide singleton.
 
 ## TSX file boundary
 
@@ -54,26 +66,52 @@ An adapter connects React to an external lifecycle, creates or provides a scoped
 ## Component directory boundary
 
 - `orchbee/component-directory`: An authored production component that is not directly re-exported by its owning source module's `index.ts` is a private child component and lives at `components/<component-name>/<component-name>.tsx`.
-- A component directly re-exported by the owning `index.ts` is that module's boundary component and may remain beside the index. Application entry files that only mount a boundary component are not components and remain at the composition boundary.
-- Repeat the grouping for deeper extracted children; a private child of `toolbar.tsx` lives at `components/action/action.tsx` inside the `toolbar` group rather than as a loose sibling.
-- Keep component-owned CSS Modules and other component-owned assets in the same component group. A component imports its CSS Module from its own directory rather than reaching into an ancestor or another component group.
-- A component group is a structural ownership directory, not a source-module boundary. Do not add `index.ts` barrels inside private component groups; import their implementation files directly within the owning module.
-- Do not use component groups as miscellaneous feature folders. Module-level Hooks, controllers, services, and shared contracts remain in the source module that owns their responsibility.
-- When a component has a meaningful optional test, put it in the group's sibling `__tests__` directory according to [`docs/TESTING.md`](../TESTING.md#required-unit-tests).
+- A component directly re-exported by the owning `index.ts` is that module's public boundary component. A public component directory keeps only `index.ts`, its root `.tsx` implementation, and an optional same-named `.module.css` as direct files; every supporting implementation belongs in a named subdirectory.
+- A private component directory keeps only its root `.tsx` implementation and an optional same-named `.module.css` as direct files and does not define an `index.ts`. Its owner imports that implementation directly.
+- Define a component's Props type in that component's `.tsx` file. Export it from the same file when consumers need the type, and re-export it through the public `index.ts` when it is part of the module API. Do not create a separate `<component-name>-props.ts` merely to move the component's own signature out of TSX.
+- Repeat the private component structure recursively. A private child of `toolbar.tsx` lives at `components/action/action.tsx` inside the `toolbar` directory rather than as a loose sibling.
+- Create support directories only when they have concrete contents, using the ownership below:
+
+| Directory     | Component-owned contents                                                                                       |
+| ------------- | -------------------------------------------------------------------------------------------------------------- |
+| `components/` | Private child component directories that repeat this structure recursively                                     |
+| `contexts/`   | Context-scoped Store modules that keep State, actions, Provider, and the Store selector Hook together          |
+| `hooks/`      | Behavior, presenter, action, and lifecycle Hooks; not the selector Hook already exported by a Store module     |
+| `constants/`  | Static values and finite configuration owned only by the component                                             |
+| `types/`      | Named data structures, discriminated unions, and enums shared by multiple files in the component-owned subtree |
+| `utils/`      | Framework-independent pure helpers owned only by the component                                                 |
+
+- A component directory is a structural ownership boundary, not a miscellaneous feature folder. Move resources shared by sibling component trees to their nearest common owner, and keep cross-feature controllers, services, and contracts in the source module that owns them.
+- Do not add `index.ts` barrels inside private component directories or their support directories. Promote the entire component ownership tree to a public source-module boundary when another module needs it.
+- Keep a Context-scoped Store's State and action types, Store creation, Context Provider, and `use<ComponentName>Store(selector)` export in one Store module under `contexts/`. The selector Hook is part of the Store's API and does not get a second wrapper in `hooks/`.
+- Use `types/` only when a named data structure is shared across the component-owned tree or has an independent meaning beyond one component signature. Props used by one component remain in that component's `.tsx` file.
+- Keep the component's optional CSS Module beside the `.tsx` file that imports it; do not create a `styles/` subdirectory.
+- Do not create `stories/` or `__tests__/` as direct children of a component directory. Story ownership follows [`docs/frontend/storybook.md`](storybook.md), while test placement follows [`docs/TESTING.md`](../TESTING.md).
 - The checked-in shadcn source described in [`docs/LINTING.md`](../LINTING.md#generated-source) is outside this authored component-directory rule.
 
+Store and selector Hook files in the following example exist only because their owning component has state shared by multiple descendants:
+
 ```text
-feature/
-├── index.ts
-├── feature.tsx
-└── components/
-    └── toolbar/
-        ├── toolbar.tsx
-        ├── toolbar.module.css
-        └── components/
-            └── action/
-                ├── action.tsx
-                └── action.module.css
+terminal-workspace/
+├── index.ts                              # Re-exports the component and TerminalWorkspaceProps
+├── terminal-workspace.tsx                # Defines the component and its Props type
+├── terminal-workspace.module.css
+├── components/
+│   └── tab-strip/
+│       ├── tab-strip.tsx                     # Defines TabStripProps locally
+│       ├── tab-strip.module.css
+│       ├── hooks/
+│       │   └── use-tab-keyboard-navigation.ts
+│       └── components/
+│           └── terminal-tab/
+│               ├── terminal-tab.tsx
+│               └── terminal-tab.module.css
+├── contexts/
+│   └── terminal-workspace-store.ts            # State, actions, Provider, useTerminalWorkspaceStore
+├── hooks/
+│   └── use-terminal-workspace-keybindings.ts   # Component behavior, not a Store wrapper
+└── types/
+    └── pane-tree.ts                           # Shared internal UI data structure
 ```
 
 ## State ownership
@@ -127,16 +165,16 @@ const viewProps = { isEmpty: sessions.length === 0 };
 
 ## Zustand and context
 
-- `orchbee/zustand-scope`: Create authored Zustand stores with `createStore` from `zustand/vanilla`, create each mounted feature instance inside its owner, and import `useStore` only in a `use-*.ts` or `use-*.tsx` selector Hook that supplies an explicit selector.
-- Scope a Store to the narrowest feature owner that needs shared state; do not introduce a process-wide singleton for a mount-local feature.
+- `orchbee/zustand-scope`: Create authored Zustand stores with `createStore` from `zustand/vanilla`, create each mounted component instance inside its owner, and import `useStore` only in the Context-scoped Store module or shared Context-Store factory that exports a selector Hook requiring an explicit selector.
+- Scope a Store to the narrowest component root that needs shared descendant state; do not introduce a process-wide singleton for a mount-local component tree.
 - Put the stable `StoreApi` instance in React context. Do not put a changing state snapshot in the Provider value.
-- Create the Store lazily once per Provider mount, inject complete initial state, and reconcile later external inputs through the owner that understands that relationship.
+- Create the Store lazily once per component-root Provider mount, inject complete initial state, and reconcile later external inputs through the owner that understands that relationship. The Provider wraps exactly the subtree that may consume the Store.
 - When an external Service is authoritative for feature data, its Provider subscribes once and reconciles the latest projection into the scoped Store. Descendants select that projection from Zustand; do not expose the Service snapshot as a second React-facing subscription source.
-- Expose one feature Hook such as `useWorkbenchStore(selector)`. It reads the scoped Store from context, rejects use outside the Provider, and subscribes with the caller's narrow selector.
+- Export one selector Hook such as `useTerminalWorkspaceStore(selector)` from the same Store module as its Provider. It reads the scoped Store from context, rejects use outside the Provider, and subscribes with the caller's narrow selector. Do not create `hooks/use-terminal-workspace-store.ts` as a forwarding wrapper.
 - Consumers select only the state and semantic actions they render or invoke. Do not read the whole Store, extract reusable selector constants, or subscribe an intermediate component for a deeper descendant.
 - Expose semantic actions that preserve Store invariants; do not expose unrestricted mutation to components.
 - Store durable feature state and domain actions, not callbacks created by React Hooks. Pass a stable controller or capability through composition when descendants need shared behavior.
-- Use separate Provider instances when the same feature mounts more than once; tests create an isolated Store through the same Provider boundary.
+- Use separate Provider instances when the same stateful component mounts more than once; tests create an isolated Store through the same Provider boundary.
 
 ## Testing boundaries
 

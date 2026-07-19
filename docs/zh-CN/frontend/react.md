@@ -28,6 +28,15 @@ Controller 或 Service -> Presenter Hook 或 Scoped Store -> Presentational Comp
 
 adapter 连接 React 与外部生命周期、创建或提供作用域 Store、准备直接子组件输入，并返回一个产品组件。应用启动、跨功能工作流、持久化、传输选择和平台能力实现仍然留在展示组件之外。
 
+## 递归组件所有权
+
+- 把每个可独立命名的界面区域视为以一个组件为根的所有权边界。该根组件拥有其私有后代树，以及这棵树所需的每个组件专属 Hook、作用域 Store 与 context、转换、样式、资源和测试。
+- 递归嵌套组件所有权。私有后代可以拥有另一棵 `components/<component-name>/` 树；当只有该子树共享状态时，它可以引入范围更窄的 Store。
+- 由源模块直接重新导出的组件是其所有权树的公共根。外部模块只能通过所属模块的 `index.ts` 使用它；它的后代和 Context 保持私有。
+- 把不带 Orchbee 产品语义的可复用组件纳入 `@orchbee/ui`。按照 [`docs/frontend/package-boundaries.md`](package-boundaries.md#ui-所有权)，把理解会话、Agent、节点、终端窗格、命令、设置或其他产品概念的组件保留在 `@orchbee/workbench`。
+- 把每个实现产物放在完全拥有它的最小组件子树或源模块中。不要把组件拥有的 Hook、store、类型或 utility 收集到包级技术目录中。
+- 当一个私有组件子树获得外部使用方时，把完整所有权单元——根组件、输入契约、作用域状态、Hook、后代、样式和测试——提升到合适的源模块边界。不要只导出一个内部文件，却把其余所有权留在原处。
+
 ## 组件 Hook 边界
 
 - `orchbee/no-react-hooks-in-tsx`：自有生产 `.tsx` 文件不直接调用 React 内置 Hook。把状态、Effect、记忆化、引用和外部 Store 订阅移入按职责聚焦的自定义 Hook。
@@ -42,6 +51,9 @@ adapter 连接 React 与外部生命周期、创建或提供作用域 Store、�
 - 不要仅仅为了避免一个有意义的父子 props 契约而引入 Store。对于浅层所有权，props 仍然是默认选择。
 - 中间布局组件既不订阅仅供后代使用的状态，也不转发它。消费数据的后代通过功能 Hook 自行选择窄状态和语义操作。
 - 当输入拥有不同所有者时，组件可以组合自己的 props 与功能 Store selector。不要仅仅为了让所有输入都通过同一通道到达，就把 props 镜像进 Store。
+- 让组件的 Context 和 selector Hook 对其所属子树保持私有。同级或外部模块通过组件的公共 props 和语义操作通信，而不是导入它的 Store。
+- 当同级分支需要一份共享 UI 状态时，把所有权移动到它们最近的共同组件根，并让每个消费后代自行选择所需切片。不要让任一同级分支拥有另一个分支的状态。
+- 只有对于整个已挂载应用树或 Workbench 树真正共享的状态，才在其根部使用同一套 Context 作用域 Store 模式；全局可达并不能成为进程级单例的理由。
 
 ## TSX 文件边界
 
@@ -54,26 +66,52 @@ adapter 连接 React 与外部生命周期、创建或提供作用域 Store、�
 ## 组件目录边界
 
 - `orchbee/component-directory`：未由所属源模块的 `index.ts` 直接重新导出的自有生产组件属于私有子组件，并放在 `components/<component-name>/<component-name>.tsx`。
-- 由所属 `index.ts` 直接重新导出的组件是该模块的边界组件，可以继续与 index 同级放置。只负责挂载边界组件的应用入口文件不是组件，仍留在组合边界。
-- 对更深层提取出的子组件重复这一分组；`toolbar.tsx` 的私有子组件应放在 `toolbar` 分组内的 `components/action/action.tsx`，而不是作为松散的同级文件。
-- 把组件拥有的 CSS Modules 和其他组件资源放在同一个组件分组中。组件从自身目录导入 CSS Module，而不跨到祖先目录或其他组件分组中获取。
-- 组件分组是结构归属目录，不是源模块边界。不要在私有组件分组中增加 `index.ts` barrel；在所属模块内部直接导入实现文件。
-- 不要把组件分组当作混杂的功能目录。模块级 Hook、controller、service 和共享契约仍放在拥有对应职责的源模块中。
-- 当组件拥有有意义的可选测试时，按照 [`docs/TESTING.md`](../TESTING.md#必需的单元测试) 把它放在组件分组内同级的 `__tests__` 目录中。
+- 由所属 `index.ts` 直接重新导出的组件是该模块的公共边界组件。公共组件目录只把 `index.ts`、根 `.tsx` 实现和可选的同名 `.module.css` 作为直接文件；其他所有支撑实现都属于具名子目录。
+- 私有组件目录只把根 `.tsx` 实现和可选的同名 `.module.css` 作为直接文件，并且不定义 `index.ts`。其所有者直接导入该实现。
+- 在组件自身的 `.tsx` 文件中定义该组件的 Props 类型。当使用方需要该类型时，从同一文件导出；当它属于模块公共 API 时，再通过公共 `index.ts` 重新导出。不要仅为了把组件自身签名移出 TSX 而创建单独的 `<component-name>-props.ts`。
+- 递归重复私有组件结构。`toolbar.tsx` 的私有子组件应放在 `toolbar` 目录内的 `components/action/action.tsx`，而不是作为松散的同级文件。
+- 只有在拥有具体内容时才创建支撑目录，并使用以下所有权：
+
+| 目录          | 组件拥有的内容                                                               |
+| ------------- | ------------------------------------------------------------------------------ |
+| `components/` | 递归重复该结构的私有子组件目录                                               |
+| `contexts/`   | 把 State、action、Provider 和 Store selector Hook 保持在一起的 Context 作用域 Store 模块 |
+| `hooks/`      | 行为、presenter、action 和生命周期 Hook；不包括 Store 模块已导出的 selector Hook      |
+| `constants/`  | 仅由该组件拥有的静态值和有限配置                                                 |
+| `types/`      | 由组件所有权子树中多个文件共享的具名数据结构、判别联合和枚举                         |
+| `utils/`      | 仅由该组件拥有且与框架无关的纯辅助函数                                           |
+
+- 组件目录是结构化所有权边界，不是混杂的功能目录。把同级组件树共享的资源移动到它们最近的共同所有者，并把跨功能 controller、service 和契约保留在拥有它们的源模块中。
+- 不要在私有组件目录或其支撑目录中添加 `index.ts` barrel。当另一个模块需要它时，把整棵组件所有权树提升到公共源模块边界。
+- 把 Context 作用域 Store 的 State 和 action 类型、Store 创建、Context Provider 以及 `use<ComponentName>Store(selector)` 导出保持在 `contexts/` 下的同一个 Store 模块中。Selector Hook 属于 Store API，不要在 `hooks/` 中再包装一层。
+- 只有当一个具名数据结构在组件所有权树中被多个文件共享，或者它在单个组件签名之外拥有独立含义时，才使用 `types/`。只由一个组件使用的 Props 保留在该组件的 `.tsx` 文件中。
+- 把组件可选的 CSS Module 放在导入它的 `.tsx` 文件旁边；不要创建 `styles/` 子目录。
+- 不要把 `stories/` 或 `__tests__/` 创建为组件目录的直接子目录。Story 所有权遵循 [`docs/frontend/storybook.md`](storybook.md)，测试位置遵循 [`docs/TESTING.md`](../TESTING.md)。
 - [`docs/LINTING.md`](../LINTING.md#生成的源码) 中说明的检入 shadcn 源码不受这条自有组件目录规则约束。
 
+以下示例中的 Store 和 selector Hook 文件之所以存在，是因为所属组件拥有由多个后代共享的状态：
+
 ```text
-feature/
-├── index.ts
-├── feature.tsx
-└── components/
-    └── toolbar/
-        ├── toolbar.tsx
-        ├── toolbar.module.css
-        └── components/
-            └── action/
-                ├── action.tsx
-                └── action.module.css
+terminal-workspace/
+├── index.ts                              # 重新导出组件和 TerminalWorkspaceProps
+├── terminal-workspace.tsx                # 定义组件及其 Props 类型
+├── terminal-workspace.module.css
+├── components/
+│   └── tab-strip/
+│       ├── tab-strip.tsx                     # 在本文件中定义 TabStripProps
+│       ├── tab-strip.module.css
+│       ├── hooks/
+│       │   └── use-tab-keyboard-navigation.ts
+│       └── components/
+│           └── terminal-tab/
+│               ├── terminal-tab.tsx
+│               └── terminal-tab.module.css
+├── contexts/
+│   └── terminal-workspace-store.ts            # State、action、Provider、useTerminalWorkspaceStore
+├── hooks/
+│   └── use-terminal-workspace-keybindings.ts   # 组件行为，不是 Store 包装层
+└── types/
+    └── pane-tree.ts                           # 共享的内部 UI 数据结构
 ```
 
 ## 状态归属
@@ -127,16 +165,16 @@ const viewProps = { isEmpty: sessions.length === 0 };
 
 ## Zustand 和 context
 
-- `orchbee/zustand-scope`：使用来自 `zustand/vanilla` 的 `createStore` 创建自有 Zustand Store，在功能所有者内部为每次挂载创建实例，并且只在提供显式 selector 的 `use-*.ts` 或 `use-*.tsx` selector Hook 中导入 `useStore`。
-- 把 Store 限定到需要共享状态的最小功能所有者；不要为仅在一次挂载中使用的功能引入进程级单例。
+- `orchbee/zustand-scope`：使用来自 `zustand/vanilla` 的 `createStore` 创建自有 Zustand Store，在所有者内部为每个已挂载组件实例创建 Store，并且只在 Context 作用域 Store 模块或共享 Context-Store 工厂中导入 `useStore`；它们导出的 selector Hook 必须要求显式 selector。
+- 把 Store 限定到需要后代共享状态的最小组件根；不要为仅在一次挂载中使用的组件树引入进程级单例。
 - 把稳定的 `StoreApi` 实例放进 React context。不要把不断变化的状态快照放进 Provider value。
-- 每次 Provider 挂载时惰性创建一次 Store，注入完整初始状态，并由理解该关系的所有者协调后续外部输入。
+- 每次组件根 Provider 挂载时惰性创建一次 Store，注入完整初始状态，并由理解该关系的所有者协调后续外部输入。Provider 只包裹可以消费该 Store 的子树。
 - 当外部 Service 是功能数据的权威来源时，由它的 Provider 统一订阅一次，并把最新投影协调进作用域 Store。后代通过 Zustand 选择该投影；不要再把 Service snapshot 暴露成第二个面向 React 的订阅源。
-- 公开一个功能 Hook，例如 `useWorkbenchStore(selector)`。它从 context 读取作用域 Store、拒绝在 Provider 外调用，并使用调用方的窄 selector 订阅。
+- 从与 Provider 相同的 Store 模块导出一个 selector Hook，例如 `useTerminalWorkspaceStore(selector)`。它从 context 读取作用域 Store、拒绝在 Provider 外调用，并使用调用方的窄 selector 订阅。不要再创建 `hooks/use-terminal-workspace-store.ts` 转发包装层。
 - 消费者只选择自己渲染或调用的状态和语义操作。不要读取整个 Store、提取可复用 selector 常量，也不要让中间组件为更深后代订阅。
 - 公开保持 Store 不变量的语义操作；不要向组件公开不受限的状态修改。
 - 存储持久功能状态和领域操作，不要存储由 React Hook 创建的回调。当后代需要共享行为时，通过组合传递稳定的 controller 或 capability。
-- 同一功能挂载多次时使用独立 Provider 实例；测试通过同一 Provider 边界创建隔离 Store。
+- 同一个有状态组件挂载多次时使用独立 Provider 实例；测试通过同一 Provider 边界创建隔离 Store。
 
 ## 测试边界
 

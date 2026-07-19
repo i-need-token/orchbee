@@ -53,6 +53,8 @@ All frontend workspaces follow the generated-component and styling ownership con
 
 `@orchbee/workbench` owns product-semantic presentation, including the application shell, terminal panes, tab and split behavior, session and agent presentation, node status, settings surfaces, command surfaces, and the UI that fulfills application-level terminal requests.
 
+Both packages expose reusable components together with their complete ownership trees rather than loose implementation files. A generic component and its state remain in `@orchbee/ui` only while they are independent of Orchbee product concepts; a product-semantic component and its complete ownership tree belong to `@orchbee/workbench`. The recursive ownership, Context-scoped Store, communication, and promotion contracts live in [`react.md`](react.md#recursive-component-ownership).
+
 `@orchbee/i18n` is the target owner of the shared locale contract, React localization provider, domain-namespaced product message descriptors, and shipped translations. Workbench and application-local catalogs remain transitional until the package is introduced by migrating the existing Workbench and web consumers together. Application workspaces continue to own user locale selection, platform detection, and preference persistence, then supply the effective locale at composition time. `@orchbee/ui` remains locale-agnostic and exposes generic visible or accessibility-only text for its product-semantic consumer to localize. The complete contract lives in [`localization.md`](localization.md).
 
 Keep a React wrapper around `@orchbee/terminal` inside the workbench terminal module until it has an independent consumer and API. Do not add React, Zustand, shadcn/ui, Base UI, TanStack Router, Electron, or Node dependencies to `@orchbee/terminal`.
@@ -71,28 +73,33 @@ Keep workbench layout state local to `@orchbee/workbench` until a concrete cross
 
 ## Workbench source modules
 
-Organize workbench source by product ownership rather than technical artifact type:
+Treat `@orchbee/workbench` as the package boundary for product-semantic components. Give each reusable public product component its own source-module directory, and organize its private descendants recursively according to [`react.md`](react.md#component-directory-boundary):
 
 ```text
 packages/workbench/src/
-  agents/
-  commands/
-  composition/
-  nodes/
-  sessions/
-  settings/
-  shell/
-  terminals/
   index.ts
+  workbench/
+    index.ts
+    workbench.tsx
+    workbench.module.css
+    contexts/
+      workbench-store.ts
+    components/
+  terminal-pane/
+    index.ts
+    terminal-pane.tsx
+    terminal-pane.module.css
 ```
 
-Each directory is a source module with an `index.ts` boundary. Put cross-feature assembly in the leaf `composition` module, which consumes sibling entry points and is then promoted through the root `index.ts`. Do not put an `App.tsx` in the root module that imports private descendant files. This structure follows [`docs/MODULE-BOUNDARIES.md`](../MODULE-BOUNDARIES.md#composition-and-cycles).
+The example shows directory shape, not a required component inventory. Add a public component directory only with its concrete interface capability; do not pre-create speculative agent, node, settings, or other components. The package root `index.ts` deliberately promotes the public product components consumed outside the package.
 
-Keep feature-specific components, hooks, state, types, and utilities inside the feature that owns them. Promote a capability through the feature's `index.ts` only when another visible module needs it.
+Within a public component directory, keep only `index.ts`, the root component `.tsx`, and an optional same-named `.module.css` as direct files. Define and export the root component's Props type in its `.tsx`. Put a Context-scoped Store and its selector Hook together in `contexts/`; reserve `hooks/` for component behavior and `types/` for internal data structures shared by multiple files in the owned tree. Repeat the structure recursively for private child components. Do not create `styles`, `stories`, or `__tests__` as direct child directories, and do not create empty support directories.
+
+When another source module needs a private component, promote it with its complete ownership tree into its own public component directory and consume its `index.ts`. A public Workbench component may compose sibling public components through their source-module boundaries, but it never imports another component's private Store, Hook, support directory, or descendant. This structure follows [`docs/MODULE-BOUNDARIES.md`](../MODULE-BOUNDARIES.md#source-module-tree).
 
 ## Platform integration
 
-Define each platform port in the feature that consumes the capability. Prefer narrow contracts such as external navigation, directory selection, native menus, and notifications over one growing host interface. The workbench composition module may aggregate those contracts for injection without making every feature depend on the aggregate. `apps/desktop` implements the capabilities through Electron preload and IPC; `apps/web` implements them with browser or web-service APIs.
+Define each platform port in the product component that consumes the capability. Prefer narrow contracts such as external navigation, directory selection, native menus, and notifications over one growing host interface. The public `workbench` root component may aggregate those contracts for injection without making every descendant depend on the aggregate. `apps/desktop` implements the capabilities through Electron preload and IPC; `apps/web` implements them with browser or web-service APIs.
 
 `@orchbee/session-client` defines the transport behavior it consumes. Applications provide an Electron IPC, WebSocket, or other transport adapter at composition time. A package must not select a transport by detecting its host environment.
 
