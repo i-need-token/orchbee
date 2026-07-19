@@ -8,7 +8,7 @@
 
 ## 结构化组件分组
 
-包含 `<component-name>.tsx` 的自有 `components/<component-name>/` 目录是由 [`docs/frontend/react.md`](frontend/react.md#组件目录边界) 约束的私有组件所有权边界的结构形式，而不是源模块。它的整棵子树——包括 `components`、`contexts`、`hooks`、`constants`、`types` 和 `utils` 目录——都属于拥有最外层匹配组件分组的源模块祖先。
+包含对应 `<ComponentName>.tsx` 的自有 `components/<component-name>/` 目录是由 [`docs/frontend/react.md`](frontend/react.md#组件目录边界) 约束的私有组件所有权边界的结构形式，而不是源模块。它的整棵子树——包括 `components`、`contexts`、`hooks`、`constants`、`types` 和 `utils` 目录——都属于拥有最外层匹配组件分组的源模块祖先。
 
 结构化组件分组不定义 `index.ts` 入口，也绝不能跨源模块边界导入。其所有者和实现文件作为同一源模块的成员直接相互导入；对其他源模块的依赖仍遵循正常的可见性表。当另一个模块需要某个私有组件时，把该组件及其完整所有权树提升到合适的源模块边界。仅仅命名为 `components` 的目录不会获得这项处理，除非它包含组件分组形态，因此生成的 `packages/ui/src/components/ui` 公共模块树仍然是正常的源模块树。
 

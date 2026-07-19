@@ -2,10 +2,13 @@
 
 ## Source and test paths
 
-- `orchbee/filename-naming-convention`: Use kebab-case source paths. A directory immediately under
-  `locales/` is the exception: name it with the canonical BCP 47 locale identifier, including
-  canonical casing such as `en-US` and `zh-CN`. Place unit tests in the source file's sibling
-  `__tests__` directory and name them `<source-name>.unit.test.ts` or
+- `orchbee/filename-naming-convention`: Use kebab-case for source directories and ordinary source
+  files. A directory immediately under `locales/` uses its canonical BCP 47 locale identifier,
+  including canonical casing such as `en-US` and `zh-CN`. An authored function component uses the
+  exact PascalCase name of its sole runtime export, such as `TerminalPane.tsx`; a dedicated Hook
+  module uses the exact camelCase name of its sole Hook export, such as `useTerminalPane.ts`.
+  Non-component TSX entry files remain kebab-case. Place unit tests in the source file's sibling
+  `__tests__` directory and preserve the source stem exactly in `<source-name>.unit.test.ts` or
   `<source-name>.unit.test.tsx`.
 
 ## Required unit tests

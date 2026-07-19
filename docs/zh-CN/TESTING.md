@@ -2,7 +2,7 @@
 
 ## 源码和测试路径
 
-- `orchbee/filename-naming-convention`：源码路径使用 kebab-case。`locales/` 的直接子目录属于例外：使用规范 BCP 47 locale 标识符命名，包括 `en-US` 和 `zh-CN` 这样的规范大小写。把单元测试放在源码文件同级的 `__tests__` 目录中，并命名为 `<source-name>.unit.test.ts` 或 `<source-name>.unit.test.tsx`。
+- `orchbee/filename-naming-convention`：源码目录和普通源码文件使用 kebab-case。`locales/` 的直接子目录使用规范 BCP 47 locale 标识符，包括 `en-US` 和 `zh-CN` 这样的规范大小写。自有函数组件使用其唯一运行时导出的精确 PascalCase 名称，例如 `TerminalPane.tsx`；专用 Hook 模块使用其唯一 Hook 导出的精确 camelCase 名称，例如 `useTerminalPane.ts`。非组件 TSX 入口文件仍使用 kebab-case。把单元测试放在源码文件同级的 `__tests__` 目录中，并在 `<source-name>.unit.test.ts` 或 `<source-name>.unit.test.tsx` 中精确保留源码 stem。
 
 ## 必需的单元测试
 

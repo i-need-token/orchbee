@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import type { WorkbenchSession } from '../../../sessions';
-import { useTerminalPane } from '../use-terminal-pane';
+import { useTerminalPane } from '../useTerminalPane';
 
 const session: WorkbenchSession = {
 	id: 'session-1',

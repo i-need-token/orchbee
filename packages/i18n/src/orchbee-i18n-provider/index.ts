@@ -1,2 +1,2 @@
-export { OrchbeeI18nProvider } from './orchbee-i18n-provider';
-export type { OrchbeeI18nProviderProps } from './orchbee-i18n-provider';
+export { OrchbeeI18nProvider } from './OrchbeeI18nProvider';
+export type { OrchbeeI18nProviderProps } from './OrchbeeI18nProvider';

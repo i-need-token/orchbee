@@ -57,19 +57,19 @@ adapter 连接 React 与外部生命周期、创建或提供作用域 Store、�
 
 ## TSX 文件边界
 
-- `orchbee/one-function-per-tsx`：每个自有生产 `.tsx` 文件最多包含一个顶层函数。把其他组件、Hook、回调工厂和辅助函数全部移入其所属模块。
+- `orchbee/one-function-per-tsx`：每个自有生产 `.tsx` 文件最多包含一个顶层函数。当该函数存在时，它是唯一的具名运行时导出，是 PascalCase 函数组件，并且与文件名 stem 完全一致。组件 Props 契约等仅类型导出不计入运行时导出。
 - 当一个函数声明、函数表达式或箭头函数不被其他函数包含时，它就是顶层函数。嵌套在文件唯一组件内部的回调不占用另一个文件级函数名额。
-- 把子展示组件放入自己的 `.tsx` 文件，把 presenter Hook 放入自己的 `use-*.ts` 文件，把与框架无关的辅助逻辑放入按职责聚焦的 `.ts` 文件。
+- 把子展示组件放入与符号同名的 PascalCase `.tsx` 文件，把 presenter Hook 放入与符号同名的 `useHookName.ts` 文件，把与框架无关的辅助逻辑放入按职责聚焦的 kebab-case `.ts` 文件。
 - 类型声明、常量和准备好的查找数据不占用函数名额，但只有在支撑组件单一职责时才保留在该文件中。
 - 单元测试、Storybook story，以及 [`docs/LINTING.md`](../LINTING.md#生成的源码) 中说明的检入 shadcn 源码不受这条自有生产代码规则约束。
 
 ## 组件目录边界
 
-- `orchbee/component-directory`：未由所属源模块的 `index.ts` 直接重新导出的自有生产组件属于私有子组件，并放在 `components/<component-name>/<component-name>.tsx`。
-- 由所属 `index.ts` 直接重新导出的组件是该模块的公共边界组件。它的源模块目录和根组件文件名使用相同的 kebab-case 名称。该目录只把 `index.ts`、`<component-name>.tsx` 和可选的 `<component-name>.module.css` 作为直接文件；其他所有支撑实现都属于具名子目录。
-- 私有组件目录只把 `<component-name>.tsx` 和可选的 `<component-name>.module.css` 作为直接文件，并且不定义 `index.ts`。其所有者直接导入该实现。lint 规则会清点公共和私有组件目录中的直接文件，并拒绝其他任何直接文件。
+- `orchbee/component-directory`：未由所属源模块的 `index.ts` 直接重新导出的自有生产组件属于私有子组件，并放在 `components/<component-name>/<ComponentName>.tsx`。
+- 由所属 `index.ts` 直接重新导出的组件是该模块的公共边界组件。它的源模块目录使用组件的 kebab-case 名称，根组件则使用精确的 PascalCase 导出名称。该目录只把 `index.ts`、`<ComponentName>.tsx` 和可选的 `<ComponentName>.module.css` 作为直接文件；其他所有支撑实现都属于具名子目录。
+- 私有组件目录只把 `<ComponentName>.tsx` 和可选的 `<ComponentName>.module.css` 作为直接文件，并且不定义 `index.ts`。它的 kebab-case 目录名与 PascalCase 组件导出相对应，其所有者直接导入该实现。lint 规则会清点公共和私有组件目录中的直接文件，并拒绝其他任何直接文件。
 - 在组件自身的 `.tsx` 文件中定义该组件的 Props 类型。当使用方需要该类型时，从同一文件导出；当它属于模块公共 API 时，再通过公共 `index.ts` 重新导出。不要仅为了把组件自身签名移出 TSX 而创建单独的 `<component-name>-props.ts`。
-- 递归重复私有组件结构。`toolbar.tsx` 的私有子组件应放在 `toolbar` 目录内的 `components/action/action.tsx`，而不是作为松散的同级文件。
+- 递归重复私有组件结构。`Toolbar.tsx` 的私有子组件应放在 `toolbar` 目录内的 `components/action/Action.tsx`，而不是作为松散的同级文件。
 - 只有在拥有具体内容时才创建支撑目录，并使用以下所有权：
 
 | 目录          | 组件拥有的内容                                                                           |
@@ -94,22 +94,22 @@ adapter 连接 React 与外部生命周期、创建或提供作用域 Store、�
 ```text
 terminal-workspace/
 ├── index.ts                              # 重新导出组件和 TerminalWorkspaceProps
-├── terminal-workspace.tsx                # 定义组件及其 Props 类型
-├── terminal-workspace.module.css
+├── TerminalWorkspace.tsx                 # 定义组件及其 Props 类型
+├── TerminalWorkspace.module.css
 ├── components/
 │   └── tab-strip/
-│       ├── tab-strip.tsx                     # 在本文件中定义 TabStripProps
-│       ├── tab-strip.module.css
+│       ├── TabStrip.tsx                     # 在本文件中定义 TabStripProps
+│       ├── TabStrip.module.css
 │       ├── hooks/
-│       │   └── use-tab-keyboard-navigation.ts
+│       │   └── useTabKeyboardNavigation.ts
 │       └── components/
 │           └── terminal-tab/
-│               ├── terminal-tab.tsx
-│               └── terminal-tab.module.css
+│               ├── TerminalTab.tsx
+│               └── TerminalTab.module.css
 ├── contexts/
 │   └── terminal-workspace-store.ts            # State、action、Provider、useTerminalWorkspaceStore
 ├── hooks/
-│   └── use-terminal-workspace-keybindings.ts   # 组件行为，不是 Store 包装层
+│   └── useTerminalWorkspaceKeybindings.ts   # 组件行为，不是 Store 包装层
 └── types/
     └── pane-tree.ts                           # 共享的内部 UI 数据结构
 ```
@@ -158,8 +158,8 @@ const viewProps = { isEmpty: sessions.length === 0 };
 
 ## Hook 文件边界
 
-- `orchbee/one-hook-per-file`：每个命名为 `use-*.ts` 或 `use-*.tsx` 的自有生产 Hook 模块只能包含一个顶层函数和一个导出符号。
-- 唯一的顶层函数就是具名 Hook 导出。把支撑函数移入按职责聚焦的 `.ts` 模块，把公共契约移入专门存放类型的模块。
+- `orchbee/one-hook-per-file`：每个自有生产 Hook 模块都使用精确的 camelCase Hook 导出命名，例如 `useTerminalPane.ts` 或 `useTerminalPane.tsx`，并且只能包含一个顶层函数和一个导出符号。
+- 唯一的顶层函数就是具名 Hook 导出，并且与文件名 stem 完全一致。把支撑函数移入按职责聚焦的 kebab-case `.ts` 模块，把公共契约移入专门存放类型的模块。
 - 嵌套在 Hook 内的函数，包括 Effect 回调和事件 adapter，不占用另一个文件级函数名额，也不是额外导出。
 - 单元测试以及 [`docs/LINTING.md`](../LINTING.md#生成的源码) 中说明的生成源码 `packages/ui/src/hooks/use-mobile.ts` 不受这条自有生产代码规则约束。
 
@@ -170,7 +170,7 @@ const viewProps = { isEmpty: sessions.length === 0 };
 - 把稳定的 `StoreApi` 实例放进 React context。不要把不断变化的状态快照放进 Provider value。
 - 每次组件根 Provider 挂载时惰性创建一次 Store，注入完整初始状态，并由理解该关系的所有者协调后续外部输入。Provider 只包裹可以消费该 Store 的子树。
 - 当外部 Service 是功能数据的权威来源时，由它的 Provider 统一订阅一次，并把最新投影协调进作用域 Store。后代通过 Zustand 选择该投影；不要再把 Service snapshot 暴露成第二个面向 React 的订阅源。
-- 从与 Provider 相同的 Store 模块导出一个 selector Hook，例如 `useTerminalWorkspaceStore(selector)`。它从 context 读取作用域 Store、拒绝在 Provider 外调用，并使用调用方的窄 selector 订阅。不要再创建 `hooks/use-terminal-workspace-store.ts` 转发包装层。
+- 从与 Provider 相同的 Store 模块导出一个 selector Hook，例如 `useTerminalWorkspaceStore(selector)`。它从 context 读取作用域 Store、拒绝在 Provider 外调用，并使用调用方的窄 selector 订阅。不要再创建 `hooks/useTerminalWorkspaceStore.ts` 转发包装层。
 - 消费者只选择自己渲染或调用的状态和语义操作。不要读取整个 Store、提取可复用 selector 常量，也不要让中间组件为更深后代订阅。
 - 公开保持 Store 不变量的语义操作；不要向组件公开不受限的状态修改。
 - 存储持久功能状态和领域操作，不要存储由 React Hook 创建的回调。当后代需要共享行为时，通过组合传递稳定的 controller 或 capability。

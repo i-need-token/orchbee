@@ -2,7 +2,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@orchbee/u
 import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import * as React from 'react';
 
-import styles from './workbench-shell.module.css';
+import styles from './WorkbenchShell.module.css';
 
 export interface WorkbenchShellProps {
 	readonly sidebar: React.ReactNode;

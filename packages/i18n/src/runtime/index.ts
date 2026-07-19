@@ -1,2 +1,3 @@
 export { getOrchbeeMessages } from './catalogs';
-export { createOrchbeeIntl, useOrchbeeIntl } from './orchbee-intl';
+export { createOrchbeeIntl } from './orchbee-intl';
+export { useOrchbeeIntl } from './useOrchbeeIntl';

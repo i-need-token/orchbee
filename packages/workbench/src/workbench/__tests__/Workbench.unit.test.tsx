@@ -8,7 +8,7 @@ import type {
 	WorkbenchSessionService,
 	WorkbenchSessionSnapshot,
 } from '../../sessions';
-import { Workbench } from '../workbench';
+import { Workbench } from '../Workbench';
 
 const terminal = {
 	subscribeOutput: () => () => undefined,

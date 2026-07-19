@@ -8,7 +8,7 @@ Every source module must have an `index.ts` boundary entry. Files in the same mo
 
 ## Structural component groups
 
-An authored `components/<component-name>/` directory that contains `<component-name>.tsx` is the structural form of a private component ownership boundary governed by [`docs/frontend/react.md`](frontend/react.md#component-directory-boundary), not a source module. Its entire subtree—including its `components`, `contexts`, `hooks`, `constants`, `types`, and `utils` directories—belongs to the source-module ancestor that owns the outermost matching component group.
+An authored `components/<component-name>/` directory that contains the corresponding `<ComponentName>.tsx` is the structural form of a private component ownership boundary governed by [`docs/frontend/react.md`](frontend/react.md#component-directory-boundary), not a source module. Its entire subtree—including its `components`, `contexts`, `hooks`, `constants`, `types`, and `utils` directories—belongs to the source-module ancestor that owns the outermost matching component group.
 
 Structural component groups do not define `index.ts` entries and are never imported across a source-module boundary. Their owner and their implementation files import one another directly as members of the same source module; dependencies on other source modules still follow the normal visibility table. Promote a private component and its complete ownership tree to an appropriate source-module boundary when another module needs it. A directory merely named `components` does not receive this treatment unless it contains the component-group shape, so the generated `packages/ui/src/components/ui` public module tree remains a normal source-module tree.
 

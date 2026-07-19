@@ -80,20 +80,20 @@ packages/workbench/src/
   index.ts
   workbench/
     index.ts
-    workbench.tsx
-    workbench.module.css
+    Workbench.tsx
+    Workbench.module.css
     contexts/
       workbench-store.ts
     components/
   terminal-pane/
     index.ts
-    terminal-pane.tsx
-    terminal-pane.module.css
+    TerminalPane.tsx
+    TerminalPane.module.css
 ```
 
 该示例展示目录形态，而不是必需组件清单。只有在具体界面能力存在时才添加公共组件目录；不要预先创建推测性的 Agent、节点、设置或其他组件。包根 `index.ts` 有意提升包外使用的公共产品组件。
 
-在公共组件目录中，只把 `index.ts`、根组件 `.tsx` 和可选的同名 `.module.css` 作为直接文件。在根组件的 `.tsx` 中定义并导出其 Props 类型。把 Context 作用域 Store 及其 selector Hook 一起放在 `contexts/` 中；`hooks/` 只放组件行为，`types/` 只放由所属树内多个文件共享的内部数据结构。为私有子组件递归重复该结构。不要把 `styles`、`stories` 或 `__tests__` 创建为直接子目录，也不要创建空的支撑目录。
+在公共组件目录中，只把 `index.ts`、PascalCase 根组件 `.tsx` 和可选的同名 `.module.css` 作为直接文件。在根组件的 `.tsx` 中定义并导出其 Props 类型。把 Context 作用域 Store 及其 selector Hook 一起放在 `contexts/` 中；`hooks/` 只放组件行为，`types/` 只放由所属树内多个文件共享的内部数据结构。为私有子组件递归重复该结构。把单元测试放入直接子级 `__tests__/` 支撑目录；不要创建 `styles` 或 `stories` 目录、把测试文件直接放在组件旁边，或创建空支撑目录。
 
 当另一个源模块需要某个私有组件时，把它连同完整所有权树提升到自己的公共组件目录，并使用其 `index.ts`。公共 Workbench 组件可以通过同级公共组件的源模块边界组合它们，但绝不能导入另一个组件的私有 Store、Hook、支撑目录或后代。该结构遵循 [`docs/MODULE-BOUNDARIES.md`](../MODULE-BOUNDARIES.md#源模块树)。
 

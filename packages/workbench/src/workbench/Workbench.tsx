@@ -18,8 +18,8 @@ import * as React from 'react';
 import type { WorkbenchSessionService } from '../sessions';
 import { TerminalPane } from '../terminal-pane';
 import { WorkbenchShell } from '../workbench-shell';
-import { useWorkbench } from './hooks/use-workbench';
-import styles from './workbench.module.css';
+import { useWorkbench } from './hooks/useWorkbench';
+import styles from './Workbench.module.css';
 
 export interface WorkbenchProps {
 	readonly sessions: WorkbenchSessionService;

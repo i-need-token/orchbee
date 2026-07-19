@@ -3,7 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { WorkbenchShell } from '../workbench-shell';
+import { WorkbenchShell } from '../WorkbenchShell';
 
 describe('WorkbenchShell', () => {
 	it('renders the shared product regions', () => {

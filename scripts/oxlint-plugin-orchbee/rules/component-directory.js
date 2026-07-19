@@ -38,11 +38,19 @@ function isInsideComponentsDirectory(filePath) {
 	return sourceParts(dirname(filePath)).includes(COMPONENTS_DIRECTORY);
 }
 
+function kebabCase(value) {
+	return value
+		.replace(/([A-Z]+)([A-Z][a-z])/gu, '$1-$2')
+		.replace(/([a-z0-9])([A-Z])/gu, '$1-$2')
+		.toLowerCase();
+}
+
 function hasNamedComponentGroup(filePath) {
 	const name = basename(filePath, extname(filePath));
 	const groupDirectory = dirname(filePath);
 	return (
-		basename(groupDirectory) === name && basename(dirname(groupDirectory)) === COMPONENTS_DIRECTORY
+		basename(groupDirectory) === kebabCase(name) &&
+		basename(dirname(groupDirectory)) === COMPONENTS_DIRECTORY
 	);
 }
 
@@ -86,11 +94,12 @@ function checkDirectFiles(context, node, filePath, isPublic) {
 function checkPublicDirectoryName(context, node, filePath) {
 	const name = componentName(filePath);
 	const directoryName = basename(dirname(filePath));
-	if (directoryName === name) return;
+	const expectedDirectoryName = kebabCase(name);
+	if (directoryName === expectedDirectoryName) return;
 	report(
 		context,
 		node,
-		`Rename public component directory "${directoryName}" to "${name}" so the ownership boundary matches its root component.`,
+		`Rename public component directory "${directoryName}" to "${expectedDirectoryName}" so the kebab-case ownership boundary matches component "${name}".`,
 	);
 }
 
@@ -156,7 +165,7 @@ export const componentDirectory = {
 						report(
 							context,
 							node,
-							'Place this component in its own components/<component-name>/<component-name>.tsx group.',
+							'Place this component in its own components/<component-name>/<ComponentName>.tsx group.',
 						);
 					} else checkDirectFiles(context, node, filename, false);
 					return;

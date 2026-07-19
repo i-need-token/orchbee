@@ -1,2 +1,2 @@
-export { Workbench } from './workbench';
-export type { WorkbenchProps } from './workbench';
+export { Workbench } from './Workbench';
+export type { WorkbenchProps } from './Workbench';

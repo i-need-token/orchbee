@@ -1,4 +1,4 @@
-import { createIntl, createIntlCache, type IntlShape, useIntl } from 'react-intl';
+import { createIntl, createIntlCache, type IntlShape } from 'react-intl';
 
 import { DEFAULT_ORCHBEE_LOCALE, type OrchbeeLocale } from '../locale';
 import { getOrchbeeMessages } from './catalogs';
@@ -14,8 +14,4 @@ export function createOrchbeeIntl(locale: OrchbeeLocale): IntlShape {
 		},
 		intlCache,
 	);
-}
-
-export function useOrchbeeIntl(): IntlShape {
-	return useIntl();
 }

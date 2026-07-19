@@ -99,6 +99,27 @@ describe('filename-naming-convention', () => {
 		expect(reports).toEqual([]);
 	});
 
+	it('accepts symbol-matched component and Hook source paths', () => {
+		for (const filename of [
+			'/workspace/packages/workbench/src/terminal-pane/TerminalPane.tsx',
+			'/workspace/packages/workbench/src/terminal-pane/hooks/useTerminalPane.ts',
+			'/workspace/packages/workbench/src/terminal-pane/__tests__/TerminalPane.unit.test.tsx',
+			'/workspace/packages/workbench/src/terminal-pane/hooks/__tests__/useTerminalPane.unit.test.ts',
+		]) {
+			const { context, reports } = createContext(filename);
+			filenameNamingConvention.create(context).Program({ loc: LOCATION });
+			expect(reports).toEqual([]);
+		}
+	});
+
+	it('rejects camelCase ordinary source paths', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/terminal-pane/terminalPaneState.ts',
+		);
+		filenameNamingConvention.create(context).Program({ loc: LOCATION });
+		expect(reports[0]?.message).toContain('kebab-case for ordinary source');
+	});
+
 	it('accepts canonical BCP 47 directories directly under locales', () => {
 		for (const locale of ['en-US', 'zh-CN']) {
 			const { context, reports } = createContext(
@@ -242,13 +263,30 @@ describe('module-boundaries', () => {
 		const root = createFixture();
 		writeFixture(root, 'packages/example/src/index.ts');
 		writeFixture(root, 'packages/example/src/composition/index.ts');
-		const filename = writeFixture(root, 'packages/example/src/composition/workbench.tsx');
-		writeFixture(root, 'packages/example/src/composition/components/toolbar/toolbar.tsx');
+		const filename = writeFixture(root, 'packages/example/src/composition/Workbench.tsx');
+		writeFixture(root, 'packages/example/src/composition/components/toolbar/Toolbar.tsx');
 		const { context, reports } = createContext(filename);
 		const visitors = moduleBoundaries.create(context);
 
 		visitors.Program({ type: 'Program', loc: LOCATION, body: [] });
-		visitors.ImportDeclaration(dependencyNode('ImportDeclaration', './components/toolbar/toolbar'));
+		visitors.ImportDeclaration(dependencyNode('ImportDeclaration', './components/toolbar/Toolbar'));
+
+		expect(reports).toEqual([]);
+	});
+
+	it('preserves component acronym casing while matching a kebab-case ownership directory', () => {
+		const root = createFixture();
+		writeFixture(root, 'packages/example/src/index.ts');
+		writeFixture(root, 'packages/example/src/composition/index.ts');
+		const filename = writeFixture(root, 'packages/example/src/composition/Workbench.tsx');
+		writeFixture(root, 'packages/example/src/composition/components/html-viewer/HTMLViewer.tsx');
+		const { context, reports } = createContext(filename);
+
+		moduleBoundaries
+			.create(context)
+			.ImportDeclaration(
+				dependencyNode('ImportDeclaration', './components/html-viewer/HTMLViewer'),
+			);
 
 		expect(reports).toEqual([]);
 	});
@@ -259,15 +297,15 @@ describe('module-boundaries', () => {
 		writeFixture(
 			root,
 			'packages/example/src/workbench/index.ts',
-			"export { Workbench } from './workbench';\n",
+			"export { Workbench } from './Workbench';\n",
 		);
-		const filename = writeFixture(root, 'packages/example/src/workbench/workbench.tsx');
-		writeFixture(root, 'packages/example/src/workbench/hooks/use-workbench.ts');
+		const filename = writeFixture(root, 'packages/example/src/workbench/Workbench.tsx');
+		writeFixture(root, 'packages/example/src/workbench/hooks/useWorkbench.ts');
 		const { context, reports } = createContext(filename);
 		const visitors = moduleBoundaries.create(context);
 
 		visitors.Program({ type: 'Program', loc: LOCATION, body: [] });
-		visitors.ImportDeclaration(dependencyNode('ImportDeclaration', './hooks/use-workbench'));
+		visitors.ImportDeclaration(dependencyNode('ImportDeclaration', './hooks/useWorkbench'));
 
 		expect(reports).toEqual([]);
 	});
@@ -289,14 +327,14 @@ describe('module-boundaries', () => {
 describe('component-directory', () => {
 	it('accepts a module boundary component re-exported by its sibling index', () => {
 		const root = createFixture();
-		const filename = writeFixture(root, 'packages/example/src/workbench/workbench.tsx');
+		const filename = writeFixture(root, 'packages/example/src/workbench/Workbench.tsx');
 		writeFixture(
 			root,
 			'packages/example/src/workbench/index.ts',
-			"export { Workbench } from './workbench';\n",
+			"export { Workbench } from './Workbench';\n",
 		);
-		writeFixture(root, 'packages/example/src/workbench/workbench.module.css');
-		writeFixture(root, 'packages/example/src/workbench/hooks/use-workbench.ts');
+		writeFixture(root, 'packages/example/src/workbench/Workbench.module.css');
+		writeFixture(root, 'packages/example/src/workbench/hooks/useWorkbench.ts');
 		const { context, reports } = createContext(filename);
 		const visitors = componentDirectory.create(context);
 		const program = { type: 'Program', loc: LOCATION };
@@ -311,13 +349,35 @@ describe('component-directory', () => {
 		expect(reports).toEqual([]);
 	});
 
+	it('matches a PascalCase acronym component to its kebab-case public directory', () => {
+		const root = createFixture();
+		const filename = writeFixture(root, 'packages/example/src/html-viewer/HTMLViewer.tsx');
+		writeFixture(
+			root,
+			'packages/example/src/html-viewer/index.ts',
+			"export { HTMLViewer } from './HTMLViewer';\n",
+		);
+		const { context, reports } = createContext(filename);
+		const visitors = componentDirectory.create(context);
+		const program = { type: 'Program', loc: LOCATION };
+
+		visitors.FunctionDeclaration({
+			type: 'FunctionDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'HTMLViewer', loc: LOCATION },
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports).toEqual([]);
+	});
+
 	it('rejects a public component directory whose name does not match its component', () => {
 		const root = createFixture();
-		const filename = writeFixture(root, 'packages/example/src/composition/workbench.tsx');
+		const filename = writeFixture(root, 'packages/example/src/composition/Workbench.tsx');
 		writeFixture(
 			root,
 			'packages/example/src/composition/index.ts',
-			"export { Workbench } from './workbench';\n",
+			"export { Workbench } from './Workbench';\n",
 		);
 		const { context, reports } = createContext(filename);
 		const visitors = componentDirectory.create(context);
@@ -335,11 +395,11 @@ describe('component-directory', () => {
 
 	it('rejects support files placed directly in a public component directory', () => {
 		const root = createFixture();
-		const filename = writeFixture(root, 'packages/example/src/workbench/workbench.tsx');
+		const filename = writeFixture(root, 'packages/example/src/workbench/Workbench.tsx');
 		writeFixture(
 			root,
 			'packages/example/src/workbench/index.ts',
-			"export { Workbench } from './workbench';\n",
+			"export { Workbench } from './Workbench';\n",
 		);
 		writeFixture(root, 'packages/example/src/workbench/use-workbench.ts');
 		const { context, reports } = createContext(filename);
@@ -358,7 +418,7 @@ describe('component-directory', () => {
 
 	it('rejects a private child component left loose in its source module', () => {
 		const root = createFixture();
-		const filename = writeFixture(root, 'packages/example/src/composition/workbench-toolbar.tsx');
+		const filename = writeFixture(root, 'packages/example/src/composition/WorkbenchToolbar.tsx');
 		writeFixture(root, 'packages/example/src/composition/index.ts');
 		const { context, reports } = createContext(filename);
 		const visitors = componentDirectory.create(context);
@@ -379,7 +439,7 @@ describe('component-directory', () => {
 		const root = createFixture();
 		const filename = writeFixture(
 			root,
-			'packages/example/src/composition/components/toolbar/components/action/action.tsx',
+			'packages/example/src/composition/components/toolbar/components/action/Action.tsx',
 		);
 		const { context, reports } = createContext(filename);
 		const visitors = componentDirectory.create(context);
@@ -399,7 +459,7 @@ describe('component-directory', () => {
 		const root = createFixture();
 		const filename = writeFixture(
 			root,
-			'packages/example/src/workbench/components/toolbar/toolbar.tsx',
+			'packages/example/src/workbench/components/toolbar/Toolbar.tsx',
 		);
 		writeFixture(root, 'packages/example/src/workbench/components/toolbar/index.ts');
 		writeFixture(root, 'packages/example/src/workbench/components/toolbar/toolbar-state.ts');
@@ -424,7 +484,7 @@ describe('component-directory', () => {
 
 	it('rejects a component placed loose directly under components', () => {
 		const root = createFixture();
-		const filename = writeFixture(root, 'packages/example/src/composition/components/toolbar.tsx');
+		const filename = writeFixture(root, 'packages/example/src/composition/components/Toolbar.tsx');
 		const { context, reports } = createContext(filename);
 		const visitors = componentDirectory.create(context);
 		const program = { type: 'Program', loc: LOCATION };
@@ -436,12 +496,12 @@ describe('component-directory', () => {
 		});
 		visitors['Program:exit'](program);
 
-		expect(reports[0]?.message).toContain('components/<component-name>/<component-name>.tsx');
+		expect(reports[0]?.message).toContain('components/<component-name>/<ComponentName>.tsx');
 	});
 
 	it('rejects a CSS Module imported from outside the component group', () => {
 		const { context, reports } = createContext(
-			'/workspace/packages/example/src/composition/components/toolbar/toolbar.tsx',
+			'/workspace/packages/example/src/composition/components/toolbar/Toolbar.tsx',
 		);
 
 		componentDirectory.create(context).ImportDeclaration({
@@ -455,7 +515,7 @@ describe('component-directory', () => {
 
 	it('rejects a colocated CSS Module whose name does not match the component', () => {
 		const { context, reports } = createContext(
-			'/workspace/packages/example/src/workbench/components/toolbar/toolbar.tsx',
+			'/workspace/packages/example/src/workbench/components/toolbar/Toolbar.tsx',
 		);
 
 		componentDirectory.create(context).ImportDeclaration({
@@ -464,7 +524,7 @@ describe('component-directory', () => {
 			source: { value: './styles.module.css', loc: LOCATION },
 		});
 
-		expect(reports[0]?.message).toContain('"./toolbar.module.css"');
+		expect(reports[0]?.message).toContain('"./Toolbar.module.css"');
 	});
 });
 
@@ -547,7 +607,7 @@ describe('no-react-hooks-in-tsx', () => {
 describe('one-function-per-tsx', () => {
 	it('reports every additional top-level function in authored production TSX', () => {
 		const { context, reports } = createContext(
-			'/workspace/packages/workbench/src/composition/workbench.tsx',
+			'/workspace/packages/workbench/src/workbench/Workbench.tsx',
 		);
 		const program = { type: 'Program' };
 		const firstFunction = {
@@ -569,14 +629,15 @@ describe('one-function-per-tsx', () => {
 		expect(reports[0]?.message).toContain('docs/frontend/react.md#tsx-file-boundary');
 	});
 
-	it('accepts callbacks nested inside the sole TSX component', () => {
+	it('accepts a symbol-matched component, its type export, and nested callbacks', () => {
 		const { context, reports } = createContext(
-			'/workspace/packages/workbench/src/composition/workbench.tsx',
+			'/workspace/packages/workbench/src/workbench/Workbench.tsx',
 		);
-		const program = { type: 'Program' };
+		const program = { type: 'Program', loc: LOCATION };
+		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
 		const component = {
 			type: 'FunctionDeclaration',
-			parent: program,
+			parent: exportDeclaration,
 			id: { type: 'Identifier', name: 'Workbench', loc: LOCATION },
 		};
 		const nestedCallback = {
@@ -588,15 +649,64 @@ describe('one-function-per-tsx', () => {
 
 		visitors.FunctionDeclaration(component);
 		visitors.ArrowFunctionExpression(nestedCallback);
+		visitors.ExportNamedDeclaration({
+			...exportDeclaration,
+			declaration: component,
+			specifiers: [],
+		});
+		visitors.ExportNamedDeclaration({
+			...exportDeclaration,
+			declaration: {
+				type: 'TSInterfaceDeclaration',
+				id: { type: 'Identifier', name: 'WorkbenchProps', loc: LOCATION },
+			},
+			specifiers: [],
+		});
+		visitors['Program:exit'](program);
 
 		expect(reports).toEqual([]);
+	});
+
+	it('requires the component filename to match its named runtime export', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/workbench/workbench.tsx',
+		);
+		const program = { type: 'Program', loc: LOCATION };
+		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
+		const component = {
+			type: 'FunctionDeclaration',
+			parent: exportDeclaration,
+			id: { type: 'Identifier', name: 'Workbench', loc: LOCATION },
+		};
+		const visitors = oneFunctionPerTsx.create(context);
+
+		visitors.FunctionDeclaration(component);
+		visitors.ExportNamedDeclaration({
+			...exportDeclaration,
+			declaration: component,
+			specifiers: [],
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports[0]?.message).toContain('"Workbench.tsx"');
+	});
+
+	it('reserves PascalCase TSX filenames for function components', () => {
+		const { context, reports } = createContext(
+			'/workspace/apps/web/src/composition/ApplicationEntry.tsx',
+		);
+		const visitors = oneFunctionPerTsx.create(context);
+
+		visitors['Program:exit']({ type: 'Program', loc: LOCATION });
+
+		expect(reports[0]?.message).toContain('to kebab-case');
 	});
 });
 
 describe('one-hook-per-file', () => {
 	it('accepts one named Hook function exported from its module', () => {
 		const { context, reports } = createContext(
-			'/workspace/packages/workbench/src/composition/use-workbench-view-props.ts',
+			'/workspace/packages/workbench/src/workbench/hooks/useWorkbenchViewProps.ts',
 		);
 		const program = { type: 'Program', loc: LOCATION };
 		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
@@ -620,7 +730,7 @@ describe('one-hook-per-file', () => {
 
 	it('rejects a second top-level function in a Hook module', () => {
 		const { context, reports } = createContext(
-			'/workspace/packages/workbench/src/composition/use-workbench-view-props.ts',
+			'/workspace/packages/workbench/src/workbench/hooks/useWorkbenchViewProps.ts',
 		);
 		const program = { type: 'Program', loc: LOCATION };
 		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
@@ -650,7 +760,7 @@ describe('one-hook-per-file', () => {
 
 	it('counts type exports against the Hook module export boundary', () => {
 		const { context, reports } = createContext(
-			'/workspace/packages/workbench/src/composition/use-workbench-view-props.ts',
+			'/workspace/packages/workbench/src/workbench/hooks/useWorkbenchViewProps.ts',
 		);
 		const program = { type: 'Program', loc: LOCATION };
 		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
@@ -678,6 +788,30 @@ describe('one-hook-per-file', () => {
 		visitors['Program:exit'](program);
 
 		expect(reports[0]?.message).toContain('wrong number of exports');
+	});
+
+	it('requires a Hook filename to match a Hook export discovered from source', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/workbench/hooks/workbench-view-props.ts',
+		);
+		const program = { type: 'Program', loc: LOCATION };
+		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
+		const hook = {
+			type: 'FunctionDeclaration',
+			parent: exportDeclaration,
+			id: { type: 'Identifier', name: 'useWorkbenchViewProps', loc: LOCATION },
+		};
+		const visitors = oneHookPerFile.create(context);
+
+		visitors.FunctionDeclaration(hook);
+		visitors.ExportNamedDeclaration({
+			...exportDeclaration,
+			declaration: hook,
+			specifiers: [],
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports[0]?.message).toContain('"useWorkbenchViewProps.ts"');
 	});
 });
 

@@ -80,20 +80,20 @@ packages/workbench/src/
   index.ts
   workbench/
     index.ts
-    workbench.tsx
-    workbench.module.css
+    Workbench.tsx
+    Workbench.module.css
     contexts/
       workbench-store.ts
     components/
   terminal-pane/
     index.ts
-    terminal-pane.tsx
-    terminal-pane.module.css
+    TerminalPane.tsx
+    TerminalPane.module.css
 ```
 
 The example shows directory shape, not a required component inventory. Add a public component directory only with its concrete interface capability; do not pre-create speculative agent, node, settings, or other components. The package root `index.ts` deliberately promotes the public product components consumed outside the package.
 
-Within a public component directory, keep only `index.ts`, the root component `.tsx`, and an optional same-named `.module.css` as direct files. Define and export the root component's Props type in its `.tsx`. Put a Context-scoped Store and its selector Hook together in `contexts/`; reserve `hooks/` for component behavior and `types/` for internal data structures shared by multiple files in the owned tree. Repeat the structure recursively for private child components. Do not create `styles`, `stories`, or `__tests__` as direct child directories, and do not create empty support directories.
+Within a public component directory, keep only `index.ts`, the PascalCase root component `.tsx`, and an optional same-named `.module.css` as direct files. Define and export the root component's Props type in its `.tsx`. Put a Context-scoped Store and its selector Hook together in `contexts/`; reserve `hooks/` for component behavior and `types/` for internal data structures shared by multiple files in the owned tree. Repeat the structure recursively for private child components. Put unit tests in the direct child `__tests__/` support directory; do not create `styles` or `stories` directories, place test files directly beside the component, or create empty support directories.
 
 When another source module needs a private component, promote it with its complete ownership tree into its own public component directory and consume its `index.ts`. A public Workbench component may compose sibling public components through their source-module boundaries, but it never imports another component's private Store, Hook, support directory, or descendant. This structure follows [`docs/MODULE-BOUNDARIES.md`](../MODULE-BOUNDARIES.md#source-module-tree).
 

@@ -1,10 +1,20 @@
-import { basename } from 'node:path';
+import { basename, extname } from 'node:path';
 import { isTopLevelFunction, startLoc } from '../utils.js';
 
 function shouldCheck(filePath) {
 	const normalized = filePath.split('\\').join('/');
 	const fileName = basename(normalized);
-	return /^use-[a-z0-9]+(?:-[a-z0-9]+)*\.tsx?$/u.test(fileName) && normalized.includes('/src/');
+	return (
+		/\.tsx?$/u.test(fileName) &&
+		fileName !== 'index.ts' &&
+		!fileName.endsWith('.test.ts') &&
+		!fileName.endsWith('.test.tsx') &&
+		!fileName.endsWith('.spec.ts') &&
+		!fileName.endsWith('.spec.tsx') &&
+		normalized.includes('/src/') &&
+		!normalized.includes('/__tests__/') &&
+		!normalized.includes('/contexts/')
+	);
 }
 
 function identifierName(identifier) {
@@ -46,6 +56,7 @@ export const oneHookPerFile = {
 
 		const topLevelFunctions = [];
 		const exportedSymbols = [];
+		let hasNamedHookExport = false;
 		function recordFunction(node) {
 			if (isTopLevelFunction(node)) topLevelFunctions.push(node);
 		}
@@ -70,12 +81,20 @@ export const oneHookPerFile = {
 			ExportNamedDeclaration(node) {
 				for (const name of declarationExportNames(node.declaration)) {
 					exportedSymbols.push({ name, node });
+					if (name !== undefined && /^use[A-Z0-9]/u.test(name)) hasNamedHookExport = true;
 				}
 				for (const specifier of node.specifiers ?? []) {
-					exportedSymbols.push({ name: identifierName(specifier.exported), node: specifier });
+					const name = identifierName(specifier.exported);
+					exportedSymbols.push({ name, node: specifier });
+					if (node.source === undefined && name !== undefined && /^use[A-Z0-9]/u.test(name))
+						hasNamedHookExport = true;
 				}
 			},
 			'Program:exit'(node) {
+				const fileStem = basename(context.filename, extname(context.filename));
+				const hasHookFilename = /^use(?:-|[A-Z0-9])/u.test(fileStem);
+				if (!hasHookFilename && !hasNamedHookExport) return;
+
 				if (topLevelFunctions.length !== 1) {
 					const locationNode = topLevelFunctions[1] ?? topLevelFunctions[0] ?? node;
 					report(locationNode.id ?? locationNode, 'This module has the wrong number of functions.');
@@ -94,7 +113,13 @@ export const oneHookPerFile = {
 						topLevelFunctions[0].id ?? topLevelFunctions[0],
 						'The sole function must be the named Hook export.',
 					);
+					return;
 				}
+				if (fileStem !== hookName)
+					report(
+						topLevelFunctions[0].id ?? topLevelFunctions[0],
+						`Rename "${basename(context.filename)}" to "${hookName}${extname(context.filename)}" so the Hook file matches its export.`,
+					);
 			},
 		};
 	},

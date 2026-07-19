@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { createInMemorySessionService } from '../../sessions';
-import { WebApplication } from '../web-application';
+import { WebApplication } from '../WebApplication';
 
 describe('WebApplication', () => {
 	it('renders the application-owned session adapter through the Workbench', () => {

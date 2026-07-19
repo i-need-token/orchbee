@@ -1,1 +1,1 @@
-export { WorkbenchShell } from './workbench-shell';
+export { WorkbenchShell } from './WorkbenchShell';

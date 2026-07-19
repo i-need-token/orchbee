@@ -2,8 +2,8 @@ import { type MessageDescriptor, useOrchbeeIntl, workbenchMessages } from '@orch
 import type * as React from 'react';
 
 import type { WorkbenchSession, WorkbenchSessionStatus } from '../sessions';
-import styles from './terminal-pane.module.css';
-import { useTerminalPane } from './hooks/use-terminal-pane';
+import styles from './TerminalPane.module.css';
+import { useTerminalPane } from './hooks/useTerminalPane';
 
 export interface TerminalPaneProps {
 	readonly session: WorkbenchSession;

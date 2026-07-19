@@ -57,19 +57,19 @@ An adapter connects React to an external lifecycle, creates or provides a scoped
 
 ## TSX file boundary
 
-- `orchbee/one-function-per-tsx`: Each authored production `.tsx` file contains at most one top-level function. Move every additional component, Hook, callback factory, and helper function to its owning module.
+- `orchbee/one-function-per-tsx`: Each authored production `.tsx` file contains at most one top-level function. When present, that function is the sole named runtime export, is a PascalCase function component, and exactly matches the filename stem. Type-only exports such as the component's Props contract do not count as runtime exports.
 - A function declaration, function expression, or arrow function is top-level when no other function contains it. Callbacks nested inside the file's sole component do not consume another file-level function slot.
-- Put a child presentational component in its own `.tsx` file, a presenter Hook in its own `use-*.ts` file, and framework-independent helpers in a responsibility-focused `.ts` file.
+- Put a child presentational component in its own symbol-matched PascalCase `.tsx` file, a presenter Hook in its own symbol-matched `useHookName.ts` file, and framework-independent helpers in a responsibility-focused kebab-case `.ts` file.
 - Type declarations, constants, and prepared lookup data do not consume the function slot, but they remain only when they support the component's single responsibility.
 - Unit tests, Storybook stories, and the checked-in shadcn source described in [`docs/LINTING.md`](../LINTING.md#generated-source) are outside this authored-production rule.
 
 ## Component directory boundary
 
-- `orchbee/component-directory`: An authored production component that is not directly re-exported by its owning source module's `index.ts` is a private child component and lives at `components/<component-name>/<component-name>.tsx`.
-- A component directly re-exported by the owning `index.ts` is that module's public boundary component. Its source-module directory and root component filename use the same kebab-case name. The directory keeps only `index.ts`, `<component-name>.tsx`, and the optional `<component-name>.module.css` as direct files; every supporting implementation belongs in a named subdirectory.
-- A private component directory keeps only `<component-name>.tsx` and the optional `<component-name>.module.css` as direct files and does not define an `index.ts`. Its owner imports that implementation directly. The lint rule inventories direct files in both public and private component directories and rejects every other direct file.
+- `orchbee/component-directory`: An authored production component that is not directly re-exported by its owning source module's `index.ts` is a private child component and lives at `components/<component-name>/<ComponentName>.tsx`.
+- A component directly re-exported by the owning `index.ts` is that module's public boundary component. Its source-module directory uses the component's kebab-case name while the root component uses the exact PascalCase export name. The directory keeps only `index.ts`, `<ComponentName>.tsx`, and the optional `<ComponentName>.module.css` as direct files; every supporting implementation belongs in a named subdirectory.
+- A private component directory keeps only `<ComponentName>.tsx` and the optional `<ComponentName>.module.css` as direct files and does not define an `index.ts`. Its kebab-case directory name corresponds to the PascalCase component export, and its owner imports that implementation directly. The lint rule inventories direct files in both public and private component directories and rejects every other direct file.
 - Define a component's Props type in that component's `.tsx` file. Export it from the same file when consumers need the type, and re-export it through the public `index.ts` when it is part of the module API. Do not create a separate `<component-name>-props.ts` merely to move the component's own signature out of TSX.
-- Repeat the private component structure recursively. A private child of `toolbar.tsx` lives at `components/action/action.tsx` inside the `toolbar` directory rather than as a loose sibling.
+- Repeat the private component structure recursively. A private child of `Toolbar.tsx` lives at `components/action/Action.tsx` inside the `toolbar` directory rather than as a loose sibling.
 - Create support directories only when they have concrete contents, using the ownership below:
 
 | Directory     | Component-owned contents                                                                                       |
@@ -94,22 +94,22 @@ Store and selector Hook files in the following example exist only because their 
 ```text
 terminal-workspace/
 ├── index.ts                              # Re-exports the component and TerminalWorkspaceProps
-├── terminal-workspace.tsx                # Defines the component and its Props type
-├── terminal-workspace.module.css
+├── TerminalWorkspace.tsx                 # Defines the component and its Props type
+├── TerminalWorkspace.module.css
 ├── components/
 │   └── tab-strip/
-│       ├── tab-strip.tsx                     # Defines TabStripProps locally
-│       ├── tab-strip.module.css
+│       ├── TabStrip.tsx                     # Defines TabStripProps locally
+│       ├── TabStrip.module.css
 │       ├── hooks/
-│       │   └── use-tab-keyboard-navigation.ts
+│       │   └── useTabKeyboardNavigation.ts
 │       └── components/
 │           └── terminal-tab/
-│               ├── terminal-tab.tsx
-│               └── terminal-tab.module.css
+│               ├── TerminalTab.tsx
+│               └── TerminalTab.module.css
 ├── contexts/
 │   └── terminal-workspace-store.ts            # State, actions, Provider, useTerminalWorkspaceStore
 ├── hooks/
-│   └── use-terminal-workspace-keybindings.ts   # Component behavior, not a Store wrapper
+│   └── useTerminalWorkspaceKeybindings.ts   # Component behavior, not a Store wrapper
 └── types/
     └── pane-tree.ts                           # Shared internal UI data structure
 ```
@@ -158,8 +158,8 @@ const viewProps = { isEmpty: sessions.length === 0 };
 
 ## Hook file boundary
 
-- `orchbee/one-hook-per-file`: Each authored production Hook module named `use-*.ts` or `use-*.tsx` contains exactly one top-level function and exactly one exported symbol.
-- The sole top-level function is the named Hook export. Move supporting functions to responsibility-focused `.ts` modules and public contracts to type-focused modules.
+- `orchbee/one-hook-per-file`: Each authored production Hook module is named with the exact camelCase Hook export, such as `useTerminalPane.ts` or `useTerminalPane.tsx`, and contains exactly one top-level function and exactly one exported symbol.
+- The sole top-level function is the named Hook export and exactly matches the filename stem. Move supporting functions to responsibility-focused kebab-case `.ts` modules and public contracts to type-focused modules.
 - Functions nested inside the Hook, including Effect callbacks and event adapters, do not consume another file-level function slot and are not additional exports.
 - Unit tests and the generated `packages/ui/src/hooks/use-mobile.ts` source described in [`docs/LINTING.md`](../LINTING.md#generated-source) are outside this authored-production rule.
 
@@ -170,7 +170,7 @@ const viewProps = { isEmpty: sessions.length === 0 };
 - Put the stable `StoreApi` instance in React context. Do not put a changing state snapshot in the Provider value.
 - Create the Store lazily once per component-root Provider mount, inject complete initial state, and reconcile later external inputs through the owner that understands that relationship. The Provider wraps exactly the subtree that may consume the Store.
 - When an external Service is authoritative for feature data, its Provider subscribes once and reconciles the latest projection into the scoped Store. Descendants select that projection from Zustand; do not expose the Service snapshot as a second React-facing subscription source.
-- Export one selector Hook such as `useTerminalWorkspaceStore(selector)` from the same Store module as its Provider. It reads the scoped Store from context, rejects use outside the Provider, and subscribes with the caller's narrow selector. Do not create `hooks/use-terminal-workspace-store.ts` as a forwarding wrapper.
+- Export one selector Hook such as `useTerminalWorkspaceStore(selector)` from the same Store module as its Provider. It reads the scoped Store from context, rejects use outside the Provider, and subscribes with the caller's narrow selector. Do not create `hooks/useTerminalWorkspaceStore.ts` as a forwarding wrapper.
 - Consumers select only the state and semantic actions they render or invoke. Do not read the whole Store, extract reusable selector constants, or subscribe an intermediate component for a deeper descendant.
 - Expose semantic actions that preserve Store invariants; do not expose unrestricted mutation to components.
 - Store durable feature state and domain actions, not callbacks created by React Hooks. Pass a stable controller or capability through composition when descendants need shared behavior.

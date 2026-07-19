@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { workbenchMessages } from '../../descriptors';
-import { OrchbeeI18nProvider } from '../orchbee-i18n-provider';
+import { OrchbeeI18nProvider } from '../OrchbeeI18nProvider';
 
 describe('OrchbeeI18nProvider', () => {
 	it('renders the selected product catalog', () => {

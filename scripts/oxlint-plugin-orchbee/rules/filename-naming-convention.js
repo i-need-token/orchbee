@@ -2,6 +2,8 @@ import { basename, dirname } from 'node:path';
 import { startLoc } from '../utils.js';
 
 const KEBAB_CASE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
+const PASCAL_CASE = /^[A-Z][A-Za-z0-9]*$/;
+const HOOK_CASE = /^use[A-Z0-9][A-Za-z0-9]*$/;
 const EXEMPT_DIRECTORIES = new Set(['src', '__tests__']);
 const EXEMPT_FILES = new Set(['index']);
 const UNIT_TEST_SUFFIXES = ['.unit.test.ts', '.unit.test.tsx'];
@@ -77,11 +79,15 @@ function checkTestFile(context, node, relativePath, fileName) {
 	}
 
 	const sourceStem = fileName.slice(0, -unitTestSuffix.length);
-	if (!KEBAB_CASE.test(sourceStem)) {
+	const preservesSourceConvention =
+		KEBAB_CASE.test(sourceStem) ||
+		HOOK_CASE.test(sourceStem) ||
+		(unitTestSuffix.endsWith('.tsx') && PASCAL_CASE.test(sourceStem));
+	if (!preservesSourceConvention) {
 		report(
 			context,
 			node,
-			`Rename unit test "${fileName}" to preserve its source file's kebab-case name. See docs/TESTING.md#source-and-test-paths.`,
+			`Rename unit test "${fileName}" to preserve its source file's kebab-case ordinary, PascalCase component, or camelCase Hook name. See docs/TESTING.md#source-and-test-paths.`,
 		);
 	}
 	return true;
@@ -94,11 +100,13 @@ function checkSourceFile(context, node, relativePath) {
 
 	const extensionIndex = fileName.indexOf('.');
 	const stem = extensionIndex === -1 ? fileName : fileName.slice(0, extensionIndex);
-	if (EXEMPT_FILES.has(stem) || KEBAB_CASE.test(stem)) return;
+	const isComponentName = fileName.endsWith('.tsx') && PASCAL_CASE.test(stem);
+	if (EXEMPT_FILES.has(stem) || KEBAB_CASE.test(stem) || HOOK_CASE.test(stem) || isComponentName)
+		return;
 	report(
 		context,
 		node,
-		`Rename source file "${fileName}" to kebab-case. See docs/TESTING.md#source-and-test-paths.`,
+		`Rename source file "${fileName}" to kebab-case for ordinary source, PascalCase for a function component, or camelCase for a Hook. See docs/TESTING.md#source-and-test-paths.`,
 	);
 }
 

@@ -25,24 +25,40 @@ function pathParts(filePath, sourceRoot) {
 	return path.split('/').filter((part) => part !== '' && part !== '.');
 }
 
+function kebabCase(value) {
+	return value
+		.replace(/([A-Z]+)([A-Z][a-z])/gu, '$1-$2')
+		.replace(/([a-z0-9])([A-Z])/gu, '$1-$2')
+		.toLowerCase();
+}
+
+function hasMatchingComponentRoot(directory, directoryName) {
+	if (!existsSync(directory)) return false;
+	return readdirSync(directory).some((entry) => {
+		if (!entry.endsWith('.tsx')) return false;
+		const stem = basename(entry, '.tsx');
+		return /^[A-Z]/u.test(stem) && kebabCase(stem) === directoryName;
+	});
+}
+
 function structuralComponentGroupIndex(parts, sourceRoot) {
 	for (let index = 0; index < parts.length - 1; index += 1) {
 		if (parts[index] !== COMPONENTS_DIRECTORY) continue;
-		const componentName = parts[index + 1];
-		if (componentName === undefined) continue;
-		const componentPath = join(sourceRoot, ...parts.slice(0, index + 2), `${componentName}.tsx`);
-		if (existsSync(componentPath)) return index;
+		const componentDirectoryName = parts[index + 1];
+		if (componentDirectoryName === undefined) continue;
+		const componentDirectory = join(sourceRoot, ...parts.slice(0, index + 2));
+		if (hasMatchingComponentRoot(componentDirectory, componentDirectoryName)) return index;
 	}
 	return -1;
 }
 
 function publicComponentModuleDepth(parts, sourceRoot) {
 	for (let index = 0; index < parts.length; index += 1) {
-		const componentName = parts[index];
-		if (componentName === undefined) continue;
+		const componentDirectoryName = parts[index];
+		if (componentDirectoryName === undefined) continue;
 		const componentDirectory = join(sourceRoot, ...parts.slice(0, index + 1));
 		if (
-			existsSync(join(componentDirectory, `${componentName}.tsx`)) &&
+			hasMatchingComponentRoot(componentDirectory, componentDirectoryName) &&
 			existsSync(join(componentDirectory, INDEX_FILENAME))
 		)
 			return index + 1;
