@@ -14,6 +14,7 @@ const REPOSITORY_ROOT = resolve(import.meta.dirname, '../../../..');
 const DOCS_ROOT = join(REPOSITORY_ROOT, 'docs');
 const LOCALIZED_DOCS_ROOT = join(DOCS_ROOT, 'zh-CN');
 const RULES_ROOT = resolve(import.meta.dirname, '..');
+const STANDARD_DOMAIN_DIRECTORIES = new Set(['frontend']);
 
 function collectFiles(directory: string, extension: string): readonly string[] {
 	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -127,6 +128,64 @@ function diagnosticAuthorities(): Readonly<Record<string, string>> {
 }
 
 describe('lint-doc contract', () => {
+	it('admits only indexed root standards and reviewed engineering-domain directories', () => {
+		const claudeGuide = readFileSync(join(REPOSITORY_ROOT, 'CLAUDE.md'), 'utf8');
+		const invalidPaths = [];
+
+		for (const file of englishDocumentationFiles()) {
+			const relativePath = relative(DOCS_ROOT, file);
+			const segments = relativePath.split(sep);
+			if (segments.length === 1) {
+				if (!/^[A-Z][A-Z0-9-]*\.md$/u.test(relativePath)) {
+					invalidPaths.push(relativePath);
+					continue;
+				}
+				if (!claudeGuide.includes(`\`docs/${relativePath}\``)) invalidPaths.push(relativePath);
+				continue;
+			}
+
+			const [domain, ...nestedPath] = segments;
+			const fileName = nestedPath.at(-1) ?? '';
+			const directories = nestedPath.slice(0, -1);
+			if (
+				domain === undefined ||
+				!STANDARD_DOMAIN_DIRECTORIES.has(domain) ||
+				!directories.every((directory) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(directory)) ||
+				!/^[a-z0-9]+(?:-[a-z0-9]+)*\.md$/u.test(fileName)
+			) {
+				invalidPaths.push(relativePath);
+			}
+		}
+
+		expect(invalidPaths).toEqual([]);
+	});
+
+	it('keeps future workspace topology out of current standards', () => {
+		const existingWorkspaces = new Set(
+			['apps', 'packages'].flatMap((workspaceRoot) =>
+				readdirSync(join(REPOSITORY_ROOT, workspaceRoot), { withFileTypes: true })
+					.filter((entry) => entry.isDirectory())
+					.map((entry) => `${workspaceRoot}/${entry.name}`),
+			),
+		);
+		const missingWorkspaceReferences = [];
+
+		for (const file of englishDocumentationFiles()) {
+			const relativePath = relative(DOCS_ROOT, file);
+			const lines = readFileSync(file, 'utf8').split(/\r?\n/u);
+			for (const [lineIndex, line] of lines.entries()) {
+				if (line.includes('❌') || line.includes('✅')) continue;
+				for (const match of line.matchAll(/\b(?:apps|packages)\/[a-z0-9][a-z0-9-]*/gu)) {
+					if (!existingWorkspaces.has(match[0])) {
+						missingWorkspaceReferences.push(`${relativePath}:${lineIndex + 1}: ${match[0]}`);
+					}
+				}
+			}
+		}
+
+		expect(missingWorkspaceReferences).toEqual([]);
+	});
+
 	it('keeps the Simplified Chinese documentation mirror complete and structurally synchronized', () => {
 		const englishFiles = englishDocumentationFiles();
 		const englishPaths = englishFiles.map((file) => relative(DOCS_ROOT, file)).toSorted();

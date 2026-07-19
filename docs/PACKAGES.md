@@ -4,7 +4,7 @@
 
 - Put reusable code in `packages/*` when it has a workspace consumer or is intentionally developed as an independently consumable public library.
 - Keep application-specific code under that application's `src` tree until a package boundary has a concrete consumer.
-- Place frontend product UI, platform adapters, and session-facing libraries according to [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md).
+- Place frontend product UI and platform adapters according to [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md).
 - Treat every runtime package under `packages/*` as a library package. Library packages use Rslib and expose built artifacts. Production consumers use those artifacts; repository applications may compile declared public source entries during development according to the workspace-development contract.
 - Set `"private": true` on workspace-only libraries. A package intended for npm publication omits `private` and must include a version, `"publishConfig": { "access": "public" }`, a package README, license metadata once the project license is selected, and a `files` allowlist.
 - Declare every package's responsibility, non-goals, runtime, and stability in its schema-backed `project.json` according to [`docs/PROJECTS.md`](PROJECTS.md).
@@ -21,11 +21,11 @@ Repository-only scripts and application entry points are not library packages an
 - Do not add `core` merely to make a name sound foundational. Use it only when sibling packages form an intentional family around that core.
 
 ```text
-❌ packages/wasm-terminal  -> @orchbee/wasm-terminal
-✅ packages/terminal       -> @orchbee/terminal
+❌ packages/redis-cache  -> @orchbee/redis-cache
+✅ packages/cache        -> @orchbee/cache
 ```
 
-WASM and Ghostty implement the current terminal; callers depend on the terminal capability.
+For example, Redis may implement caching; callers depend on the cache capability.
 
 ## Required package shape
 
@@ -90,11 +90,11 @@ Every library exposes these scripts:
 
 ```ts
 // ❌ A new internal export silently becomes public.
-export * from './session-store';
+export * from './ResourceRegistry';
 
 // ✅ Values and types are reviewed independently.
-export { SessionStore } from './session-store';
-export type { SessionSnapshot, SessionStoreOptions } from './session-store';
+export { ResourceRegistry } from './ResourceRegistry';
+export type { ResourceDescriptor, ResourceRegistryOptions } from './ResourceRegistry';
 ```
 
 Removing or changing an exported symbol, type, subpath, or asset is a breaking API change. Moving an internal file without changing `exports` is not.
@@ -180,7 +180,7 @@ Before merging a package change:
 3. Build the package and its workspace dependencies with `pnpm --filter <package-name>... build`.
 4. Run `pnpm --filter <package-name> typecheck`, `pnpm --filter <package-name> test`, and `pnpm --filter <package-name> test:exports`.
 5. Run `pnpm verify` from the repository root.
-6. Update `project.json`, the package README, and affected engineering docs in the same change.
+6. Update `project.json`, the package README, package-local references, and affected repository standards in the same change.
 
 ## External references
 

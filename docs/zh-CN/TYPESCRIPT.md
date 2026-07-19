@@ -41,7 +41,7 @@ const config = ConfigSchema.parse(JSON.parse(rawConfig));
 - `typescript/no-require-imports`：使用 ESM 导入，而不是 `require()`。
 - `typescript/no-namespace`：使用 ES 模块和对象组合，而不是 TypeScript namespace。
 - `typescript/prefer-as-const`：当类型拓宽会丢失有用信息时，使用 `as const` 保留字面量值。
-- 相对 TypeScript 导入省略运行时扩展名；写 `./terminal`，不要写 `./terminal.js` 或 `./terminal.ts`。
+- 相对 TypeScript 导入省略运行时扩展名；写 `./validation`，不要写 `./validation.js` 或 `./validation.ts`。
 - 库构建必须为生成的 bundleless 声明添加运行时扩展名。使用 Rslib 时，在生成声明的输出上把 `redirect.dts.extension` 设为 `true`。
 - TypeScript 输出直接在 Node.js 中运行的工作区必须覆盖基础配置，将 `module` 和 `moduleResolution` 设为 `nodenext`；该工作区在相对源码导入中使用显式 `.js` 扩展名。
 

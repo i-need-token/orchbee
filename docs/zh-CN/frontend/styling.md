@@ -47,7 +47,7 @@ CLI 读取 `packages/ui/components.json`，并把组件源码写入 `packages/ui
 5. 测试 Orchbee 所依赖的调整或语义；不要逐个组件复制上游组件套件。
 6. 运行 UI 包检查和仓库验证门禁。
 
-具有产品语义的组合属于 `@orchbee/workbench`，生成的组件仍然是可复用 primitive。产品组件可以把语义 props 传给 shadcn primitive，但不得使用 primitive 的 `className` 样式绕过入口添加 Tailwind utility。
+具有产品语义的组合属于所属应用或产品能力包，生成的组件仍然是可复用 primitive。产品组件可以把语义 props 传给 shadcn primitive，但不得使用 primitive 的 `className` 样式绕过入口添加 Tailwind utility。
 
 ## 验证
 

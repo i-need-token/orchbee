@@ -27,31 +27,21 @@ Orchbee 发布以下产品 locale：
 
 把英语语言变体规范化为 `en-US`。把简体中文变体规范化为 `zh-CN`；不要默默地把繁体中文 locale 映射为简体中文。不受支持或无效的 locale 标识符回退到 `en-US`。
 
-Locale 变更无需重新加载页面即可更新已渲染界面。应用让文档 `lang` 属性与有效 locale 同步，并从 locale 推导 `dir`，而不是假定未来每种语言都从左向右书写。Locale 变更时，不重写现有终端记录和其他历史外部内容。
+Locale 变更无需重新加载页面即可更新已渲染界面。应用让文档 `lang` 属性与有效 locale 同步，并从 locale 推导 `dir`，而不是假定未来每种语言都从左向右书写。Locale 变更时，不重写现有外部生成的记录和其他历史外部内容。
 
 `@orchbee/i18n` 不读取浏览器或操作系统全局对象，不存储偏好，不修改文档，也不代表应用选择 locale。应用通过该包的纯 locale 契约解析 locale 后，同步文档元数据。
 
-## 包边界和公共 API
+## 包边界和目录所有权
 
-所有 Orchbee 产品工作区都使用 `@orchbee/i18n`；其他工作区不得导入 `react-intl`，也不得拥有产品翻译目录。该包公开一个经过审查的根 API：
+所有 Orchbee 产品工作区都使用 `@orchbee/i18n`；其他工作区不得导入 `react-intl`，也不得拥有产品翻译目录。应用在其组合边界提供有效 locale，功能包使用共享格式化能力，不检测宿主 locale，也不创建另一套消息系统。
 
-| API                                                          | 职责                                           |
-| ------------------------------------------------------------ | ---------------------------------------------- |
-| `ORCHBEE_LOCALES`、`DEFAULT_ORCHBEE_LOCALE`、`OrchbeeLocale` | 有限的发布 locale 契约                         |
-| `resolveOrchbeeLocale`                                       | 规范化一组有序且不可信的 locale 偏好           |
-| `getOrchbeeTextDirection`                                    | 从经过验证的 locale 推导文档和界面方向         |
-| `OrchbeeI18nProvider`                                        | 在应用组合边界安装所选目录                     |
-| `createOrchbeeIntl`                                          | 在非 React adapter 和 service 中格式化产品消息 |
-| `useOrchbeeIntl`、`FormattedMessage`                         | 在 React 所有的展示层中格式化产品消息          |
-| `<domain>Messages`                                           | 按所属产品领域分组的带类型描述符               |
+每个应用只在具有产品语义的界面上方安装一个本地化 Provider。不要安装功能局部 Provider，不要通过无关组件层传递已翻译字符串，也不要让可复用功能包自行选择 locale。非 React 产品 adapter 使用同一个经过验证的 locale 和同一组目录进行格式化。
 
-当使用方需要时，包公共 API 可以公开与 FormatJS 兼容的描述符和格式化类型，但使用方只依赖 `@orchbee/i18n`。把 `react-intl` 保持为该包的实现依赖，把 React 保持为 peer dependency，确保每棵挂载树使用应用的 React 实例。
-
-每个应用只在具有产品语义的界面上方安装一个 `OrchbeeI18nProvider`。不要安装功能局部 Provider，不要通过无关组件层传递已翻译字符串，也不要让可复用功能包自行选择 locale。非 React 产品 adapter 使用同一个经过验证的 locale 和同一组目录创建 formatter；不得维护第二套消息系统。
+所属包的 `README.md` 是导出符号名称和使用方示例的权威来源。本规范拥有跨工作区的目录放置、编写边界、回退和验证规则。
 
 把每个本地化值实际存放在 `packages/i18n/src/locales/<canonical-locale>/<product-domain>.ts` 中。Locale 目录名使用规范 BCP 47 标识符及其规范大小写，并镜像相同的产品领域文件名。绝不能在同一个文件中编写英文和翻译后的产品文案：`locales/en-US/` 只包含英文值，`locales/zh-CN/` 只包含简体中文值。新增、删除或移动消息时，在同一个变更中更新每个发布 locale 对应的领域文件。
 
-在 `packages/i18n/src/descriptors/` 下按相同的稳定产品领域对导出的描述符分组，例如 `workbenchMessages` 和 `webMessages`。描述符的英文 `defaultMessage` 引用 `en-US` 领域目录中的对应值，不重复编写文案。稳定 ID 和英文翻译者说明属于源码元数据，而不是本地化值。为每个发布 locale 组合一份完整运行时目录；新增领域不会创建另一个 Provider 或 locale 契约。
+在 `packages/i18n/src/descriptors/` 下按相同的稳定产品领域对导出的描述符分组，并把每组导出为 `<domain>Messages`。描述符的英文 `defaultMessage` 引用 `en-US` 领域目录中的对应值，不重复编写文案。稳定 ID 和英文翻译者说明属于源码元数据，而不是本地化值。为每个发布 locale 组合一份完整运行时目录；新增领域不会创建另一个 Provider 或 locale 契约。
 
 ## 产品消息边界
 
@@ -60,32 +50,32 @@ Locale 变更无需重新加载页面即可更新已渲染界面。应用让文�
 - 可见的标题、描述、标签、按钮、菜单、tooltip、placeholder 和空状态。
 - 加载、验证、确认、错误、状态和通知消息。
 - 仅用于无障碍的名称和描述，包括 `aria-label`、`title`、`alt` 和视觉隐藏文本。
-- 在终端界面内渲染、由产品编写的新手引导或指导。
+- 在另一个内容表面内渲染、由产品编写的新手引导或指导。
 
-不要翻译用户编写的值、会话名称、文件路径、命令、源码、协议标识符、日志，也不要翻译由外部进程或 Agent 生成的终端输出。当存在产品术语表时，产品名称和批准的技术术语按术语表保持不变。
+不要翻译用户编写的值、条目名称、文件路径、命令、源码、协议标识符、日志，也不要翻译由外部进程或工具生成的输出。当存在产品术语表时，产品名称和批准的技术术语按术语表保持不变。
 
 内部异常和边界错误携带稳定代码和结构化值，而不是本地化句子。产品界面把预期错误代码映射到本地化消息。意外错误显示一条本地化通用消息；原始异常文本可以通过有明确所有者的诊断通道记录，但不得作为产品文案显示。
 
-`@orchbee/ui` 不选择产品 locale，也不拥有具有产品语义的消息。需要面向使用方的可见文本或仅无障碍文本的通用 primitive 应公开该文本，让使用方提供。在带有上游固定语言默认值的注册表 primitive 进入产品界面前，先调整它，使具有产品语义的使用方可以提供本地化文本。
+通用 UI primitive 包不选择产品 locale，也不拥有具有产品语义的消息。需要面向使用方的可见文本或仅无障碍文本的 primitive 应公开该文本，让使用方提供。在带有上游固定语言默认值的注册表 primitive 进入产品界面前，先调整它，使具有产品语义的使用方可以提供本地化文本。
 
 ## 消息标识符和语法
 
 使用描述所属领域和用途的稳定语义标识符：
 
 ```text
-workbench.terminal.actions.splitRight
-workbench.emptySessions.title
+navigation.actions.open
+navigation.emptyState.title
 ```
 
 不要使用英文句子作为标识符，不要在标识符中编码 locale，也不要仅仅因为当前英文文本相同就复用泛化消息。当位置、语气或变量含义并非不言自明时，消息描述符应包含翻译者上下文。
 
-把一段完整、可翻译的意思写成一条消息。不要拼接翻译片段，不要手工选择单数和复数字符串，也不要假设另一种语言会保留英语词序。当语法或格式随 locale 变化时，使用 `{sessionTitle}` 等具名变量和 ICU MessageFormat 的 `plural`、`select`、数字、日期及时间参数。
+把一段完整、可翻译的意思写成一条消息。不要拼接翻译片段，不要手工选择单数和复数字符串，也不要假设另一种语言会保留英语词序。当语法或格式随 locale 变化时，使用 `{itemTitle}` 等具名变量和 ICU MessageFormat 的 `plural`、`select`、数字、日期及时间参数。
 
 翻译中不包含任意 HTML。富文本使用由应用控制的具名 placeholder，其 React 元素由调用方提供。绝不能通过 `dangerouslySetInnerHTML` 渲染翻译后的标记。
 
 ## 运行时实现
 
-`@orchbee/i18n` 使用 `react-intl` 和 ICU MessageFormat。英文源消息位于 `locales/en-US/` 目录，简体中文消息位于 `locales/zh-CN/` 目录，每个 locale 都提供一份由相同稳定标识符作为 key 的完整目录。带类型的描述符引用英文目录值作为默认值，使回退和源 locale 格式化共享唯一一份编写的英文值。功能代码格式化导出的描述符，而不是直接渲染面向产品的字符串字面量。
+消息格式化使用 ICU MessageFormat。英文源消息位于 `locales/en-US/` 目录，简体中文消息位于 `locales/zh-CN/` 目录，每个 locale 都提供一份由相同稳定标识符作为 key 的完整目录。带类型的描述符引用英文目录值作为默认值，使回退和源 locale 格式化共享唯一一份编写的英文值。功能代码格式化导出的描述符，而不是直接渲染面向产品的字符串字面量。
 
 运行时回退遵循一条路径：locale 协商回退到 `en-US`，缺失的翻译消息回退到其英文描述符默认值，无效或缺失的描述符属于开发错误。回退行为只用于韧性；目录完整性仍然是合并要求。
 

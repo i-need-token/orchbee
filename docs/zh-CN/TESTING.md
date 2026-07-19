@@ -2,7 +2,7 @@
 
 ## 源码和测试路径
 
-- `orchbee/filename-naming-convention`：源码目录使用 kebab-case。`locales/` 的直接子目录使用规范 BCP 47 locale 标识符，包括 `en-US` 和 `zh-CN` 这样的规范大小写。恰好只有一个具名运行时导出且其本地定义为函数的自有源码模块，使用该符号精确的 camelCase 名称，例如 `startWebApplication.ts`；对应的类模块使用其精确的 PascalCase 符号，例如 `EventEmitter.ts`。仅类型导出不计数，私有实现符号也不改变模块的公共身份。没有唯一可调用或可构造运行时身份的模块——包括成组操作、契约、数据目录、常量和重新导出门面——使用按职责命名的 kebab-case。生成的源码保留由生成器拥有的 kebab-case 名称。自有函数组件使用其唯一运行时导出的精确 PascalCase 名称，例如 `TerminalPane.tsx`；专用 Hook 模块使用其唯一 Hook 导出的精确 camelCase 名称，例如 `useTerminalPane.ts`。非组件 TSX 入口文件仍使用 kebab-case。把单元测试放在源码文件同级的 `__tests__` 目录中，并在 `<source-name>.unit.test.ts` 或 `<source-name>.unit.test.tsx` 中精确保留源码 stem。
+- `orchbee/filename-naming-convention`：源码目录使用 kebab-case。`locales/` 的直接子目录使用规范 BCP 47 locale 标识符，包括 `en-US` 和 `zh-CN` 这样的规范大小写。恰好只有一个具名运行时导出且其本地定义为函数的自有源码模块，使用该符号精确的 camelCase 名称，例如 `formatDisplayLabel.ts`；对应的类模块使用其精确的 PascalCase 符号，例如 `EventEmitter.ts`。仅类型导出不计数，私有实现符号也不改变模块的公共身份。没有唯一可调用或可构造运行时身份的模块——包括成组操作、契约、数据目录、常量和重新导出门面——使用按职责命名的 kebab-case。生成的源码保留由生成器拥有的 kebab-case 名称。自有函数组件使用其唯一运行时导出的精确 PascalCase 名称，例如 `FilterPanel.tsx`；专用 Hook 模块使用其唯一 Hook 导出的精确 camelCase 名称，例如 `useFilterPanel.ts`。非组件 TSX 入口文件仍使用 kebab-case。把单元测试放在源码文件同级的 `__tests__` 目录中，并在 `<source-name>.unit.test.ts` 或 `<source-name>.unit.test.tsx` 中精确保留源码 stem。
 
 ## 必需的单元测试
 

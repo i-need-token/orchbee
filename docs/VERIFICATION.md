@@ -42,9 +42,12 @@ The workflow uses read-only repository permissions. New credentials, write permi
 
 ## External-source audits
 
-`pnpm audit:ghostty-panel` compares Orchbee's terminal provenance and generated constraints with a Ghostty source checkout. It requires Ghostty at `../ghostty` or a `GHOSTTY_SOURCE` path, so it is an explicit maintenance command rather than part of `pnpm verify`.
+Package-specific audits that require an external source checkout, credential, service, device, or
+other undeclared environment input remain explicit maintenance commands documented by the owning
+package. They are not part of `pnpm verify`.
 
-Run the audit when updating Ghostty alignment data. It may become a separate CI job only after that job checks out a pinned Ghostty revision and declares its external inputs.
+Promote such an audit into a separate CI job only after the job pins and provisions every external
+input, has a stable owner, and does not add side effects to the required merge gate.
 
 ## Scaling threshold
 

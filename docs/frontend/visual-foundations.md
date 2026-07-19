@@ -7,7 +7,8 @@ controls, icons, borders, and surfaces in Orchbee-authored product interfaces. R
 authoring or reviewing CSS in `apps/*` or `packages/*`. The registry and token-tier mechanics
 remain authoritative in [`design-tokens.md`](design-tokens.md).
 
-The compact desktop values below are the accepted light-theme baseline for the Workbench.
+The compact desktop values below are the accepted light-theme baseline for Orchbee-authored product
+interfaces.
 Theme-dependent values such as `#141414` are baseline mappings, not colors to repeat in component
 CSS: product code consumes their `--ob-sys-*` roles and each theme supplies the concrete mapping.
 Change a baseline only through the owning token, documentation, component, and Story in the same
@@ -41,20 +42,20 @@ font size from one role, line height from another, or a local font weight. HTML 
 express document structure; visual heading roles express presentation, so they do not need to
 have matching suffixes.
 
-| Variable                         | Baseline default | Use when                                                                 | Do not use when                                               |
-| -------------------------------- | ---------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `--ob-sys-typography-body-sm`    | `400 13px/18px`  | Default dense desktop UI, navigation, setting rows, descriptions         | Long reading content needs a more relaxed line box            |
-| `--ob-sys-typography-body-md`    | `400 14px/20px`  | Multi-line help, onboarding copy, and less dense product surfaces        | A compact toolbar or ordinary settings row                    |
-| `--ob-sys-typography-body-lg`    | `400 16px/24px`  | Short introductory copy in an empty state or first-run experience        | Routine shell chrome or data-dense content                    |
-| `--ob-sys-typography-label-sm`   | `400 12px/16px`  | Section labels and quiet category headings                               | Body descriptions or clickable control labels                 |
-| `--ob-sys-typography-label-md`   | `500 13px/18px`  | Buttons, tabs, inputs, and compact controls needing explicit emphasis    | Page titles or explanatory paragraphs                         |
-| `--ob-sys-typography-label-lg`   | `500 14px/20px`  | Prominent control labels and a primary panel toolbar                     | A substitute for a heading                                    |
-| `--ob-sys-typography-heading-sm` | `500 16px/20px`  | Page title, settings title, or primary panel title                       | Every card or row title                                       |
-| `--ob-sys-typography-heading-md` | `600 20px/28px`  | Major onboarding section or a page with stronger hierarchy               | Dense desktop settings or navigation                          |
-| `--ob-sys-typography-heading-lg` | `600 24px/32px`  | Empty-state title or focused first-run step                              | Persistent workbench chrome                                   |
-| `--ob-sys-typography-heading-xl` | `700 36px/40px`  | Rare hero or product-introduction statement                              | Ordinary application screens                                  |
-| `--ob-sys-typography-code-sm`    | `400 12px/16px`  | Inline code, compact identifiers, and code-like metadata                 | Terminal cell rendering or normal prose                       |
-| `--ob-sys-typography-code-md`    | `400 13px/18px`  | Code blocks, commands, logs, and terminal-adjacent read-only information | The interactive terminal canvas, which owns its font settings |
+| Variable                         | Baseline default | Use when                                                              | Do not use when                                           |
+| -------------------------------- | ---------------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
+| `--ob-sys-typography-body-sm`    | `400 13px/18px`  | Default dense desktop UI, navigation, setting rows, descriptions      | Long reading content needs a more relaxed line box        |
+| `--ob-sys-typography-body-md`    | `400 14px/20px`  | Multi-line help, onboarding copy, and less dense product surfaces     | A compact toolbar or ordinary settings row                |
+| `--ob-sys-typography-body-lg`    | `400 16px/24px`  | Short introductory copy in an empty state or first-run experience     | Routine shell chrome or data-dense content                |
+| `--ob-sys-typography-label-sm`   | `400 12px/16px`  | Section labels and quiet category headings                            | Body descriptions or clickable control labels             |
+| `--ob-sys-typography-label-md`   | `500 13px/18px`  | Buttons, tabs, inputs, and compact controls needing explicit emphasis | Page titles or explanatory paragraphs                     |
+| `--ob-sys-typography-label-lg`   | `500 14px/20px`  | Prominent control labels and a primary panel toolbar                  | A substitute for a heading                                |
+| `--ob-sys-typography-heading-sm` | `500 16px/20px`  | Page title, settings title, or primary panel title                    | Every card or row title                                   |
+| `--ob-sys-typography-heading-md` | `600 20px/28px`  | Major onboarding section or a page with stronger hierarchy            | Dense desktop settings or navigation                      |
+| `--ob-sys-typography-heading-lg` | `600 24px/32px`  | Empty-state title or focused first-run step                           | Persistent application chrome                             |
+| `--ob-sys-typography-heading-xl` | `700 36px/40px`  | Rare hero or product-introduction statement                           | Ordinary application screens                              |
+| `--ob-sys-typography-code-sm`    | `400 12px/16px`  | Inline code, compact identifiers, and code-like metadata              | Specialized cell rendering or normal prose                |
+| `--ob-sys-typography-code-md`    | `400 13px/18px`  | Code blocks, commands, logs, and adjacent read-only information       | An interactive content canvas that owns its font settings |
 
 Apply these hierarchy rules:
 
@@ -68,8 +69,8 @@ Apply these hierarchy rules:
   from text color, spacing, or grouping.
 - Do not shrink text to solve truncation. Wrap, truncate with an accessible full value, or change
   the layout.
-- The terminal renderer's glyph size and line height are terminal preferences, not UI typography
-  tokens.
+- A specialized content renderer's glyph size and line height are renderer settings, not UI
+  typography tokens.
 
 ## Text hierarchy
 
@@ -143,16 +144,16 @@ container, or an owned `--ob-comp-*` geometry slot when the decision is size rat
 New Orchbee-authored product CSS uses only this approved radius subset. Other registered radius
 tokens exist for Tailwind or shadcn compatibility and are not additional design choices.
 
-| Variable                | Value    | Use when                                                                  |
-| ----------------------- | -------- | ------------------------------------------------------------------------- |
-| `--ob-ref-radius-none`  | `0`      | Edge-to-edge panes, terminal surfaces, joined rows, and internal dividers |
-| `--ob-ref-radius-sm`    | `4px`    | Tiny badges, compact tags, and subtle inline surfaces                     |
-| `--ob-ref-radius-ui-sm` | `6px`    | Compact controls and small icon buttons                                   |
-| `--ob-ref-radius-ui-md` | `8px`    | Standard inputs, buttons, and ordinary controls                           |
-| `--ob-ref-radius-ui-lg` | `10px`   | Navigation selections, compact menus, and small floating surfaces         |
-| `--ob-ref-radius-xl`    | `12px`   | Grouped settings cards and medium content cards                           |
-| `--ob-ref-radius-2xl`   | `16px`   | Dialogs and large floating surfaces that need stronger separation         |
-| `--ob-ref-radius-full`  | `9999px` | Avatars, status dots, circular controls, and intentional pills            |
+| Variable                | Value    | Use when                                                          |
+| ----------------------- | -------- | ----------------------------------------------------------------- |
+| `--ob-ref-radius-none`  | `0`      | Edge-to-edge content surfaces, joined rows, and internal dividers |
+| `--ob-ref-radius-sm`    | `4px`    | Tiny badges, compact tags, and subtle inline surfaces             |
+| `--ob-ref-radius-ui-sm` | `6px`    | Compact controls and small icon buttons                           |
+| `--ob-ref-radius-ui-md` | `8px`    | Standard inputs, buttons, and ordinary controls                   |
+| `--ob-ref-radius-ui-lg` | `10px`   | Navigation selections, compact menus, and small floating surfaces |
+| `--ob-ref-radius-xl`    | `12px`   | Grouped settings cards and medium content cards                   |
+| `--ob-ref-radius-2xl`   | `16px`   | Dialogs and large floating surfaces that need stronger separation |
+| `--ob-ref-radius-full`  | `9999px` | Avatars, status dots, circular controls, and intentional pills    |
 
 Apply these radius rules:
 
@@ -166,8 +167,8 @@ Apply these radius rules:
   it never exceeds its parent radius.
 - Use `radius-full` only when the geometry is actually circular or pill-shaped, not to avoid
   choosing a component radius.
-- Do not add radius to an edge-to-edge terminal, sidebar, or main pane merely to make it look like
-  a card.
+- Do not add radius to an edge-to-edge content surface, navigation rail, or main pane merely to make
+  it look like a card.
 
 ## Control and icon sizes
 
@@ -243,22 +244,9 @@ translated text may wrap. A width or height derived from one English label is no
 component measurement.
 
 Do not shrink typography, remove required context, or truncate actions and instructions to make a
-translation fit. Truncation is reserved for data such as a user-provided session name and must
+translation fit. Truncation is reserved for data such as a user-provided item name and must
 preserve access to the full value. Keep text out of images and verify line breaking, keyboard
 focus, zoom, and narrow layouts in both shipped locales.
-
-## Composition measurements
-
-The current settings composition evaluates a `192px` navigation column, a `600px` maximum
-content column, `52px` minimum rows, `40px` page-top inset, and `12px` grouped-card radius. Width
-and row-height values are owned by that composition and are not additions to the global spacing
-scale.
-
-Use `min-height` for settings rows so localization, zoom, and wrapped descriptions may increase
-the height. Use intrinsic grid or flex sizing below the maximum content width. When a reusable
-settings shell or row becomes part of `@orchbee/workbench`, expose only the geometry that must be
-customizable through registered `--ob-comp-*` tokens; do not reuse a spacing or container token
-under an unrelated meaning.
 
 ## Review checklist
 

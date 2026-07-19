@@ -6,6 +6,12 @@ Ghostty's VT engine compiled to WebAssembly, exposed through an xterm-compatible
 
 This package owns terminal parsing, rendering, input, selection, and browser host integration. It does not own application PTY processes, session transport, Electron menus, clipboard permissions, paste dialogs, or external navigation. The machine-readable scope contract lives in [`project.json`](project.json).
 
+Package-specific implementation and maintenance references:
+
+- [Ghostty WASM API](docs/ghostty-wasm-api.md)
+- [Ghostty Terminal Panel Conformance](docs/ghostty-surface-test-provenance.md)
+- [VS Code Terminal Search Alignment](docs/vscode-search-alignment.md)
+
 ## Install
 
 ```sh
@@ -121,7 +127,7 @@ const shortcut = terminal.registerKeyEventHandler({
 searchResults.dispose();
 ```
 
-Search follows the [VS Code terminal find contract](../../docs/terminal/vscode-search-alignment.md): matches advance by their full length without overlap, navigation moves forward/backward and wraps, and highlight/result enumeration stops at 20,000 matches by default without making later matches unreachable to navigation. Literal search ignores combining marks while preserving the original grapheme text and cell range. Set `spanLines: true` to let literal or regular-expression queries cross hard line breaks; soft-wrapped rows are always one logical line. `updateSearch()` debounces interactive input for 200 ms, while navigation remains immediate. Terminal output and resize invalidate stale highlights and restart the latest query after the same debounce.
+Search follows the [VS Code terminal find contract](docs/vscode-search-alignment.md): matches advance by their full length without overlap, navigation moves forward/backward and wraps, and highlight/result enumeration stops at 20,000 matches by default without making later matches unreachable to navigation. Literal search ignores combining marks while preserving the original grapheme text and cell range. Set `spanLines: true` to let literal or regular-expression queries cross hard line breaks; soft-wrapped rows are always one logical line. `updateSearch()` debounces interactive input for 200 ms, while navigation remains immediate. Terminal output and resize invalidate stale highlights and restart the latest query after the same debounce.
 
 `terminal.capabilities` reports the active renderer and application-provided host capabilities without advertising unsupported graphics protocols.
 
@@ -181,7 +187,7 @@ The exported `fontSizeAdjustmentScale` helper implements Ghostty's fallback-face
 - VT output and reset refresh pointer ownership immediately, without waiting for the user to move the mouse.
 - Plain URLs and Unicode, POSIX, or Windows file paths can span soft-wrapped rows; CJK sentence punctuation is excluded, CWD-relative paths resolve against OSC PWD, and file links preserve line/column suffixes.
 
-Current Ghostty alignment and remaining gaps are tracked in [Ghostty Terminal Panel Conformance](../../docs/terminal/ghostty-surface-test-provenance.md).
+Current Ghostty alignment and remaining gaps are tracked in [Ghostty Terminal Panel Conformance](docs/ghostty-surface-test-provenance.md).
 
 ## Development
 

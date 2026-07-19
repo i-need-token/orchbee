@@ -33,7 +33,7 @@ An adapter connects React to an external lifecycle, creates or provides a scoped
 - Treat every independently named interface region as an ownership boundary rooted at one component. That root owns its private descendant tree and every component-specific Hook, scoped Store and context, transition, style, asset, and test required by the tree.
 - Nest component ownership recursively. A private descendant may own another `components/<component-name>/` tree and may introduce its own narrower Store when only that subtree shares the state.
 - A component directly re-exported by a source module is the public root of its ownership tree. External modules consume it only through the owning module's `index.ts`; its descendants and Context remain private.
-- Admit reusable components without Orchbee product semantics to `@orchbee/ui`. Keep components that understand sessions, agents, nodes, terminal panes, commands, settings, or other product concepts in `@orchbee/workbench` according to [`docs/frontend/package-boundaries.md`](package-boundaries.md#ui-ownership).
+- Admit reusable components without product semantics to `@orchbee/ui`. Keep a product-specific component in the source module and package that own the capability it represents, according to [`docs/frontend/package-boundaries.md`](package-boundaries.md#ui-ownership).
 - Place each implementation artifact at the narrowest component-owned subtree or source module that completely owns it. Do not collect component-owned Hooks, stores, types, or utilities in package-wide technical directories.
 - When a private component subtree gains an external consumer, promote the complete ownership unit—root component, input contract, scoped state, Hooks, descendants, styles, and tests—to an appropriate source-module boundary. Do not export one internal file while leaving the rest of its ownership behind.
 
@@ -53,7 +53,7 @@ An adapter connects React to an external lifecycle, creates or provides a scoped
 - A component may combine its own props with feature Store selections when those inputs have different owners. Do not mirror props into the Store solely to make every input arrive through one channel.
 - Keep a component's Context and selector Hook private to its owned subtree. A sibling or external module communicates through the component's public props and semantic actions rather than importing its Store.
 - When sibling branches need one shared UI state, move ownership to their nearest common component root and let each consuming descendant select its own slice. Do not make either sibling own the other's state.
-- Use the same Context-scoped Store pattern at an application or Workbench root only for state genuinely shared by that whole mounted tree; global reach does not justify a process-wide singleton.
+- Use the same Context-scoped Store pattern at an application or feature root only for state genuinely shared by that whole mounted tree; global reach does not justify a process-wide singleton.
 
 ## TSX file boundary
 
@@ -92,38 +92,38 @@ An adapter connects React to an external lifecycle, creates or provides a scoped
 Store and selector Hook files in the following example exist only because their owning component has state shared by multiple descendants:
 
 ```text
-terminal-workspace/
-├── index.ts                              # Re-exports the component and TerminalWorkspaceProps
-├── TerminalWorkspace.tsx                 # Defines the component and its Props type
-├── TerminalWorkspace.module.css
+filterable-list/
+├── index.ts                                     # Re-exports the component and FilterableListProps
+├── FilterableList.tsx                           # Defines the component and its Props type
+├── FilterableList.module.css
 ├── components/
-│   └── tab-strip/
-│       ├── TabStrip.tsx                     # Defines TabStripProps locally
-│       ├── TabStrip.module.css
+│   └── filter-bar/
+│       ├── FilterBar.tsx                        # Defines FilterBarProps locally
+│       ├── FilterBar.module.css
 │       ├── hooks/
-│       │   └── useTabKeyboardNavigation.ts
+│       │   └── useFilterKeyboardNavigation.ts
 │       └── components/
-│           └── terminal-tab/
-│               ├── TerminalTab.tsx
-│               └── TerminalTab.module.css
+│           └── clear-filter-button/
+│               ├── ClearFilterButton.tsx
+│               └── ClearFilterButton.module.css
 ├── contexts/
-│   └── terminal-workspace-store.ts            # State, actions, Provider, useTerminalWorkspaceStore
+│   └── filterable-list-store.ts                 # State, actions, Provider, useFilterableListStore
 ├── hooks/
-│   └── useTerminalWorkspaceKeybindings.ts   # Component behavior, not a Store wrapper
+│   └── useFilterableListFocusManagement.ts      # Component behavior, not a Store wrapper
 └── types/
-    └── pane-tree.ts                           # Shared internal UI data structure
+    └── filter-option.ts                           # Shared internal UI data structure
 ```
 
 ## State ownership
 
-| State or behavior                                                       | Owner                                                                 |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Product input, disclosure, selection, and focus state                   | A presenter Hook or a feature-scoped Store                            |
-| Framework-only accessibility or visual interaction state                | The generic UI primitive that encapsulates it                         |
-| UI state shared by one mounted feature subtree                          | A store instance scoped to that subtree                               |
-| Domain transitions and invariants                                       | Pure transition functions behind the owning store or service          |
-| Network, terminal, subscription, timer, and browser-resource lifecycles | A controller, service, or narrow platform adapter                     |
-| Application startup inputs required by the first render                 | The application composition root before `createRoot(...).render(...)` |
+| State or behavior                                                     | Owner                                                                 |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Product input, disclosure, selection, and focus state                 | A presenter Hook or a feature-scoped Store                            |
+| Framework-only accessibility or visual interaction state              | The generic UI primitive that encapsulates it                         |
+| UI state shared by one mounted feature subtree                        | A store instance scoped to that subtree                               |
+| Domain transitions and invariants                                     | Pure transition functions behind the owning store or service          |
+| Network, stream, subscription, timer, and browser-resource lifecycles | A controller, service, or narrow platform adapter                     |
+| Application startup inputs required by the first render               | The application composition root before `createRoot(...).render(...)` |
 
 Workspace-level ownership remains authoritative in [`docs/frontend/package-boundaries.md`](package-boundaries.md#state-ownership). Do not move state into React merely because React renders its projection.
 
@@ -135,10 +135,10 @@ Workspace-level ownership remains authoritative in [`docs/frontend/package-bound
 
 ```ts
 // ❌ Mirrored state can become stale.
-React.useEffect(() => setIsEmpty(sessions.length === 0), [sessions]);
+React.useEffect(() => setIsEmpty(items.length === 0), [items]);
 
 // ✅ Prepare the projection before rendering the component.
-const viewProps = { isEmpty: sessions.length === 0 };
+const viewProps = { isEmpty: items.length === 0 };
 ```
 
 ## Effects and resource lifecycles
@@ -158,7 +158,7 @@ const viewProps = { isEmpty: sessions.length === 0 };
 
 ## Hook file boundary
 
-- `orchbee/one-hook-per-file`: Each authored production Hook module is named with the exact camelCase Hook export, such as `useTerminalPane.ts` or `useTerminalPane.tsx`, and contains exactly one top-level function and exactly one exported symbol.
+- `orchbee/one-hook-per-file`: Each authored production Hook module is named with the exact camelCase Hook export, such as `useKeyboardNavigation.ts` or `useKeyboardNavigation.tsx`, and contains exactly one top-level function and exactly one exported symbol.
 - The sole top-level function is the named Hook export and exactly matches the filename stem. Move supporting functions to focused `.ts` modules named after a sole exported function or after their shared responsibility, and move public contracts to type-focused modules.
 - Functions nested inside the Hook, including Effect callbacks and event adapters, do not consume another file-level function slot and are not additional exports.
 - Unit tests and the generated `packages/ui/src/hooks/use-mobile.ts` source described in [`docs/LINTING.md`](../LINTING.md#generated-source) are outside this authored-production rule.
@@ -170,7 +170,7 @@ const viewProps = { isEmpty: sessions.length === 0 };
 - Put the stable `StoreApi` instance in React context. Do not put a changing state snapshot in the Provider value.
 - Create the Store lazily once per component-root Provider mount, inject complete initial state, and reconcile later external inputs through the owner that understands that relationship. The Provider wraps exactly the subtree that may consume the Store.
 - When an external Service is authoritative for feature data, its Provider subscribes once and reconciles the latest projection into the scoped Store. Descendants select that projection from Zustand; do not expose the Service snapshot as a second React-facing subscription source.
-- Export one selector Hook such as `useTerminalWorkspaceStore(selector)` from the same Store module as its Provider. It reads the scoped Store from context, rejects use outside the Provider, and subscribes with the caller's narrow selector. Do not create `hooks/useTerminalWorkspaceStore.ts` as a forwarding wrapper.
+- Export one selector Hook such as `useFilterableListStore(selector)` from the same Store module as its Provider. It reads the scoped Store from context, rejects use outside the Provider, and subscribes with the caller's narrow selector. Do not create `hooks/useFilterableListStore.ts` as a forwarding wrapper.
 - Consumers select only the state and semantic actions they render or invoke. Do not read the whole Store, extract reusable selector constants, or subscribe an intermediate component for a deeper descendant.
 - Expose semantic actions that preserve Store invariants; do not expose unrestricted mutation to components.
 - Store durable feature state and domain actions, not callbacks created by React Hooks. Pass a stable controller or capability through composition when descendants need shared behavior.

@@ -42,38 +42,28 @@ invalid locale identifiers fall back to `en-US`.
 
 Locale changes update the rendered interface without a page reload. The application synchronizes
 the document `lang` attribute with the effective locale and derives `dir` from the locale instead
-of assuming that every future language is left-to-right. Existing terminal transcripts and other
+of assuming that every future language is left-to-right. Existing externally produced transcripts and other
 historical external content are not rewritten when the locale changes.
 
 `@orchbee/i18n` does not read browser or operating-system globals, store a preference, mutate the
 document, or choose a locale on behalf of an application. The application synchronizes document
 metadata after resolving the locale through the package's pure locale contract.
 
-## Package boundary and public API
+## Package boundary and catalog ownership
 
 All Orchbee product workspaces use `@orchbee/i18n`; no other workspace imports `react-intl` or owns
-a product translation catalog. The package exposes one reviewed root API:
+a product translation catalog. Applications provide the effective locale at their composition
+boundary, and feature packages consume the shared formatting capability without detecting the host
+locale or creating another message system.
 
-| API                                                          | Responsibility                                                      |
-| ------------------------------------------------------------ | ------------------------------------------------------------------- |
-| `ORCHBEE_LOCALES`, `DEFAULT_ORCHBEE_LOCALE`, `OrchbeeLocale` | Finite shipped-locale contract                                      |
-| `resolveOrchbeeLocale`                                       | Normalize an ordered list of untrusted locale preferences           |
-| `getOrchbeeTextDirection`                                    | Derive document and interface direction from a validated locale     |
-| `OrchbeeI18nProvider`                                        | Install the selected catalog at an application composition boundary |
-| `createOrchbeeIntl`                                          | Format product messages in non-React adapters and services          |
-| `useOrchbeeIntl`, `FormattedMessage`                         | Format product messages inside React-owned presentation             |
-| `<domain>Messages`                                           | Typed descriptors grouped by the owning product domain              |
-
-The package public API may expose FormatJS-compatible descriptor and formatting types when a
-consumer needs them, but consumers depend only on `@orchbee/i18n`. Keep `react-intl` as an
-implementation dependency of this package and React as a peer dependency so every mounted tree
-uses the application's React instance.
-
-Install exactly one `OrchbeeI18nProvider` above the product-semantic interface in each application.
+Install exactly one localization provider above the product-semantic interface in each application.
 Do not install a feature-local provider, pass translated strings through unrelated component
-layers, or let a reusable feature package select its own locale. Non-React product adapters create
-a formatter from the same validated locale and catalogs; they do not maintain a second message
-system.
+layers, or let a reusable feature package select its own locale. Non-React product adapters format
+against the same validated locale and catalogs.
+
+The owning package `README.md` is authoritative for exported symbol names and consumer examples.
+This standard owns catalog placement, authoring boundaries, fallback, and verification across
+workspaces.
 
 Keep every localized value physically inside
 `packages/i18n/src/locales/<canonical-locale>/<product-domain>.ts`. Locale directory names use the
@@ -84,7 +74,7 @@ values. A message addition, removal, or move updates the matching domain file in
 locale in the same change.
 
 Group exported descriptors under `packages/i18n/src/descriptors/` by the same stable product
-domains, such as `workbenchMessages` and `webMessages`. A descriptor's English `defaultMessage`
+domains and export each group as `<domain>Messages`. A descriptor's English `defaultMessage`
 references the corresponding value from the `en-US` domain catalog instead of duplicating the
 copy. Stable IDs and English translator descriptions are source metadata, not localized values.
 Compose one complete runtime catalog per shipped locale; adding a domain does not create another
@@ -99,10 +89,10 @@ Localize every message authored by Orchbee for a product interface, including:
 - Loading, validation, confirmation, error, status, and notification messages.
 - Accessibility-only names and descriptions, including `aria-label`, `title`, `alt`, and
   visually hidden text.
-- Product-authored onboarding or guidance rendered inside a terminal surface.
+- Product-authored onboarding or guidance rendered inside another content surface.
 
-Do not translate user-authored values, session names, file paths, commands, source code, protocol
-identifiers, logs, or terminal output produced by an external process or agent. Product names and
+Do not translate user-authored values, item names, file paths, commands, source code, protocol
+identifiers, logs, or output produced by an external process or tool. Product names and
 approved technical terms remain unchanged according to the product terminology glossary when one
 exists.
 
@@ -111,18 +101,18 @@ sentences. The product interface maps an expected error code to a localized mess
 unexpected error presents a localized generic message; raw exception text may be recorded through
 an owned diagnostic channel but is not shown as product copy.
 
-`@orchbee/ui` does not select a product locale or own product-semantic messages. A generic
-primitive that needs consumer-visible or accessibility-only text exposes that text for the
-consumer to provide. Before a registry primitive with an upstream fixed-language default enters a
-product surface, adapt it so the product-semantic consumer can supply localized text.
+A generic UI primitive package does not select a product locale or own product-semantic messages. A
+primitive that needs consumer-visible or accessibility-only text exposes that text for the consumer
+to provide. Before a registry primitive with an upstream fixed-language default enters a product
+surface, adapt it so the product-semantic consumer can supply localized text.
 
 ## Message identifiers and syntax
 
 Use stable semantic identifiers that describe the owning domain and purpose:
 
 ```text
-workbench.terminal.actions.splitRight
-workbench.emptySessions.title
+navigation.actions.open
+navigation.emptyState.title
 ```
 
 Do not use an English sentence as an identifier, encode the locale in an identifier, or reuse a
@@ -131,7 +121,7 @@ translator context when placement, tone, or variable meaning is not self-evident
 
 Write a complete translatable thought as one message. Do not concatenate translated fragments,
 manually select singular and plural strings, or assume that another language preserves English
-word order. Use named variables such as `{sessionTitle}` and ICU MessageFormat `plural`, `select`,
+word order. Use named variables such as `{itemTitle}` and ICU MessageFormat `plural`, `select`,
 number, date, and time arguments when grammar or formatting varies by locale.
 
 Translations do not contain arbitrary HTML. Rich text uses named, application-controlled
@@ -140,8 +130,8 @@ placeholders whose React elements are supplied by the caller. Never render trans
 
 ## Runtime implementation
 
-`@orchbee/i18n` uses `react-intl` and ICU MessageFormat. English source messages live in the
-`locales/en-US/` catalog, Simplified Chinese messages live in `locales/zh-CN/`, and every locale
+Message formatting uses ICU MessageFormat. English source messages live in the `locales/en-US/`
+catalog, Simplified Chinese messages live in `locales/zh-CN/`, and every locale
 provides a complete catalog keyed by the same stable identifiers. Typed descriptors reference the
 English catalog values as defaults, so fallback and source-locale formatting share one authored
 English value. Feature code formats exported descriptors instead of rendering product-facing

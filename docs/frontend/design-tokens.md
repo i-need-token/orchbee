@@ -125,9 +125,9 @@ approved product choice. The authored subsets and their scenario rules live in
 Use CSS Modules for Orchbee-authored component styles and reference the module from JSX:
 
 ```tsx
-import styles from './session-panel.module.css';
+import styles from './FilterPanel.module.css';
 
-export function SessionPanel() {
+export function FilterPanel() {
 	return <section className={styles.root}>...</section>;
 }
 ```

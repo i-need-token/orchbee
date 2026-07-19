@@ -120,9 +120,9 @@ Tailwind 的 `@theme` 指令职责不同：顶层主题变量声明指示 Tailwi
 Orchbee 自有组件样式使用 CSS Modules，并从 JSX 引用模块：
 
 ```tsx
-import styles from './session-panel.module.css';
+import styles from './FilterPanel.module.css';
 
-export function SessionPanel() {
+export function FilterPanel() {
 	return <section className={styles.root}>...</section>;
 }
 ```

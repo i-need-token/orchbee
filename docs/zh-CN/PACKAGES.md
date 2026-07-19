@@ -4,7 +4,7 @@
 
 - 当可复用代码已有工作区使用方，或者有意将其作为可独立使用的公共库开发时，把它放入 `packages/*`。
 - 在包边界拥有具体使用方之前，把应用专属代码留在该应用的 `src` 树中。
-- 按照 [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md) 放置前端产品 UI、平台适配器和面向会话的库。
+- 按照 [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md) 放置前端产品 UI 和平台适配器。
 - 把 `packages/*` 下的每个运行时包都视为库包。库包使用 Rslib 并公开构建产物。生产使用方使用这些产物；根据工作区开发契约，仓库应用在开发期间可以编译已声明的公共源码入口。
 - 对仅供工作区使用的库设置 `"private": true`。准备发布到 npm 的包省略 `private`，并且必须包含版本、`"publishConfig": { "access": "public" }`、包 README、项目许可证选定后的许可证元数据以及 `files` 允许列表。
 - 按照 [`docs/PROJECTS.md`](PROJECTS.md)，在基于 Schema 的 `project.json` 中声明每个包的职责、非目标、运行时和稳定性。
@@ -21,11 +21,11 @@
 - 不要仅仅为了让名称听起来基础就添加 `core`。只有当同级包围绕该 core 构成有意设计的系列时才使用它。
 
 ```text
-❌ packages/wasm-terminal  -> @orchbee/wasm-terminal
-✅ packages/terminal       -> @orchbee/terminal
+❌ packages/redis-cache  -> @orchbee/redis-cache
+✅ packages/cache        -> @orchbee/cache
 ```
 
-WASM 和 Ghostty 实现了当前终端；调用方依赖的是终端能力。
+例如，Redis 可以实现缓存；调用方依赖的是缓存能力。
 
 ## 必需的包结构
 
@@ -90,11 +90,11 @@ WASM 和 Ghostty 实现了当前终端；调用方依赖的是终端能力。
 
 ```ts
 // ❌ 新的内部导出无意间变成公共 API。
-export * from './session-store';
+export * from './ResourceRegistry';
 
 // ✅ 值和类型分别经过审查。
-export { SessionStore } from './session-store';
-export type { SessionSnapshot, SessionStoreOptions } from './session-store';
+export { ResourceRegistry } from './ResourceRegistry';
+export type { ResourceDescriptor, ResourceRegistryOptions } from './ResourceRegistry';
 ```
 
 删除或修改已导出的符号、类型、子路径或资产属于破坏性 API 变更。在不改变 `exports` 的情况下移动内部文件则不属于。
@@ -180,7 +180,7 @@ Orchbee 包遵循语义化版本控制，并采用 Babel 风格的共享发布�
 3. 使用 `pnpm --filter <package-name>... build` 构建包及其工作区依赖。
 4. 运行 `pnpm --filter <package-name> typecheck`、`pnpm --filter <package-name> test` 和 `pnpm --filter <package-name> test:exports`。
 5. 从仓库根目录运行 `pnpm verify`。
-6. 在同一个变更中更新 `project.json`、包 README 和受影响的工程文档。
+6. 在同一个变更中更新 `project.json`、包 README、包本地参考和受影响的仓库规范。
 
 ## 外部参考
 

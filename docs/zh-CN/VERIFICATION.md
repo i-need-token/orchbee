@@ -38,9 +38,9 @@ CI 会在验证后运行 `git diff --exit-code`。如果格式化工具、生成
 
 ## 外部来源审计
 
-`pnpm audit:ghostty-panel` 将 Orchbee 的终端来源信息和生成约束与 Ghostty 源码检出进行比较。它要求 Ghostty 位于 `../ghostty` 或 `GHOSTTY_SOURCE` 路径，因此是一条显式维护命令，而不是 `pnpm verify` 的一部分。
+需要外部源码检出、凭据、服务、设备或其他未声明环境输入的包专属审计，继续作为由所属包记录的显式维护命令。它们不属于 `pnpm verify`。
 
-更新 Ghostty 对齐数据时运行该审计。只有当独立 CI Job 检出固定的 Ghostty 修订版并声明其外部输入后，才能将审计加入该 Job。
+只有当独立 CI Job 固定并配置了每个外部输入、拥有稳定所有者，并且不会给必需合并门禁添加副作用时，才能把这类审计提升到该 Job 中。
 
 ## 扩展阈值
 

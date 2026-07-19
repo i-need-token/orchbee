@@ -41,7 +41,7 @@ const config = ConfigSchema.parse(JSON.parse(rawConfig));
 - `typescript/no-require-imports`: Use ESM imports instead of `require()`.
 - `typescript/no-namespace`: Use ES modules and object composition instead of TypeScript namespaces.
 - `typescript/prefer-as-const`: Preserve literal values with `as const` when widening would discard useful information.
-- Omit runtime extensions from relative TypeScript imports; write `./terminal`, not `./terminal.js` or `./terminal.ts`.
+- Omit runtime extensions from relative TypeScript imports; write `./validation`, not `./validation.js` or `./validation.ts`.
 - Library builds must add runtime extensions to emitted bundleless declarations. With Rslib, set `redirect.dts.extension` to `true` on the declaration-producing output.
 - A workspace whose TypeScript output runs directly in Node.js must override the base config with `module` and `moduleResolution` set to `nodenext`; that workspace uses explicit `.js` extensions in relative source imports.
 

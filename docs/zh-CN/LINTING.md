@@ -12,14 +12,15 @@
 | `pnpm lint:projects`       | 验证每个基于 Schema 的工作区项目契约               |
 | `pnpm lint:fix`            | 应用安全的 oxlint 修复；剩余诊断需要修改代码       |
 | `pnpm typecheck`           | 运行语法感知 lint 无法替代的 TypeScript 诊断       |
-| `pnpm test:lint-rules`     | 测试 `orchbee/*` 规则和中英文文档契约              |
+| `pnpm test:lint-rules`     | 测试 `orchbee/*` 规则和中英文规范契约              |
 | `pnpm test:style-contract` | 运行前端样式契约检查器的回归测试                   |
 
 ## 强制执行边界
 
-- 项目文档定义每条显式配置的规则和每条 `orchbee/*` 规则；上游分类规则仍由已安装的 oxlint 版本管理。
+- 仓库规范定义每条显式配置的规则和每条 `orchbee/*` 规则；上游分类规则仍由已安装的 oxlint 版本管理。
 - 文档中标记为已强制执行的每条规则都必须在 `.oxlintrc.json` 中启用；`pnpm test:lint-rules` 同时验证从文档到配置的方向以及从配置到文档的覆盖关系。
-- `pnpm test:lint-rules` 要求每份权威英文文档在 `docs/zh-CN/` 中都有一一对应的文件，并拒绝结构、内联标识符或本地化链接漂移。语义翻译的忠实度仍由人工审查负责。
+- `pnpm test:lint-rules` 要求每份权威英文规范在 `docs/zh-CN/` 中都有一一对应的文件，并拒绝结构、内联标识符或本地化链接漂移。语义翻译的忠实度仍由人工审查负责。
+- `pnpm test:lint-rules` 只准入 `docs/` 下已建立索引的根规范和经过审查的工程领域目录。当具体 `apps/<name>` 或 `packages/<name>` 引用的工作区不存在时，它会拒绝该引用，因此未来拓扑必须留在 `proposals/` 下。
 - 错误诊断会使 `pnpm lint` 失败；警告诊断保持可见但不阻塞，直到受影响的包文件经过审查。
 - `pnpm lint:dependencies` 使用 Knip `--strict`：每个导入的包都必须由导入它的工作区直接声明，未使用的文件、依赖、导出、类型，无法解析的导入，重复导出、循环依赖和过期的 catalog 条目都会使命令失败。
 - 在 `knip.json#workspaces` 中保留所有可运行脚本、构建配置、测试套件和公共包入口；绝不能仅仅因为分析中漏掉了某个入口点就忽略发现的问题。

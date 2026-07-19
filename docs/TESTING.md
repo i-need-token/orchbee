@@ -6,14 +6,14 @@
   immediately under `locales/` uses its canonical BCP 47 locale identifier, including canonical
   casing such as `en-US` and `zh-CN`. An authored source module with exactly one named runtime
   export whose local definition is a function uses that symbol's exact camelCase name, such as
-  `startWebApplication.ts`; the equivalent class module uses its exact PascalCase symbol, such as
+  `formatDisplayLabel.ts`; the equivalent class module uses its exact PascalCase symbol, such as
   `EventEmitter.ts`. Type-only exports do not count, and private implementation symbols do not
   change the module's public identity. Modules with no single callable or constructable runtime
   identity—including grouped operations, contracts, data catalogs, constants, and re-export
   facades—use a responsibility-focused kebab-case name. Generated source retains its
   generator-owned kebab-case name. An authored function component uses the exact PascalCase name
-  of its sole runtime export, such as `TerminalPane.tsx`; a dedicated Hook module uses the exact
-  camelCase name of its sole Hook export, such as `useTerminalPane.ts`.
+  of its sole runtime export, such as `FilterPanel.tsx`; a dedicated Hook module uses the exact
+  camelCase name of its sole Hook export, such as `useFilterPanel.ts`.
   Non-component TSX entry files remain kebab-case. Place unit tests in the source file's sibling
   `__tests__` directory and preserve the source stem exactly in `<source-name>.unit.test.ts` or
   `<source-name>.unit.test.tsx`.

@@ -4,14 +4,14 @@
 
 **What is this project**: Orchbee — a modern terminal that runs and orchestrates AI agents, connected across desktop, web, and mobile.
 
-`CLAUDE.md` is a map, not an encyclopedia. It serves as an entry index (kept under ~80 lines), not a knowledge base. Detailed specs live in `docs/`; agents navigate deeper on demand.
+`CLAUDE.md` is a map, not an encyclopedia. It serves as an entry index (kept under ~80 lines), not a knowledge base. Repository standards live in `docs/`; package behavior and maintenance references stay with their owning package.
 
 ## Hard Rules
 
-- **English is canonical; the documentation contract is bilingual.** All code and the authoritative files under `docs/`, excluding locale subtrees, remain in English. The root project overview uses `README.md` and `README.zh-CN.md`; the Simplified Chinese documentation mirror uses `docs/zh-CN/`, preserving each English source path after `docs/`. English resolves conflicts. Runtime behavior, configuration, diagnostics, and engineering authority must use the English paths; only localized navigation and mirror-integrity verification may address a locale subtree.
-- **The Chinese documentation mirror never drifts.** Every authoritative Markdown file under `docs/` has exactly one counterpart under `docs/zh-CN/`. Every document addition, deletion, move, structural edit, example, link, or content change must update both languages in the same change.
+- **English is canonical; the repository standards contract is bilingual.** All code and the authoritative standards under `docs/`, excluding locale subtrees, remain in English. The root project overview uses `README.md` and `README.zh-CN.md`; the Simplified Chinese standards mirror uses `docs/zh-CN/`, preserving each English standard path after `docs/`. English resolves conflicts. Runtime configuration, diagnostics, and engineering authority use English sources; only localized standard navigation and mirror-integrity verification may address a locale subtree.
+- **The Chinese standards mirror never drifts.** Every authoritative Markdown standard under `docs/` has exactly one counterpart under `docs/zh-CN/`. Every standard addition, deletion, move, structural edit, example, link, or content change must update both languages in the same change. Package-local references, proposals, and research do not enter this mirror.
 - **Product copy is localized.** Every product-facing message goes through the localization system and ships in both `en-US` and `zh-CN`; locale resources are product assets and may contain their target language.
-- **Documentation is part of the source of truth.** Update affected docs in the same change whenever code, configuration, commands, or public behavior changes; resolve implementation-doc conflicts before continuing dependent work.
+- **Documentation authority follows ownership.** Update the owning repository standard, package README, package-local reference, proposal, or research record in the same change as the fact it governs. Repository standards never inventory one package's business behavior, source tree, screen composition, or roadmap; future design belongs under `proposals/`.
 - **Every tracked file must have durable repository value.** Before adding a file, identify its future consumer, authoritative responsibility, recurring use, and maintenance lifecycle; task history and one-off working artifacts do not belong in the repository.
 - **Act on structural smells early.** When an in-scope change reveals a clear risk of growth, coupling, ownership ambiguity, or boundary erosion, resolve it before it spreads; if the remedy would materially expand scope, surface the risk before proceeding.
 - **AGENTS.md is a symlink to CLAUDE.md.** Only edit CLAUDE.md.
@@ -40,8 +40,9 @@
 
 ```
 apps/           # Independently runnable product and development applications
-packages/       # Shared libraries (core, bridge, etc.)
-docs/           # Detailed specs and guides
+packages/       # Shared libraries, their public guides, and package-local references
+docs/           # Repository-wide standards and cross-workspace architecture contracts
+proposals/      # Future design under review; never current authority
 research/       # Time-bounded investigations; never an authoritative source
 prompts/        # Task specifications for AI-driven work
 schemas/        # Machine-readable repository contract schemas

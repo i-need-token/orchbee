@@ -6,7 +6,7 @@ const REPOSITORY_ROOT = process.cwd();
 const GHOSTTY_ROOT = path.resolve(process.env.GHOSTTY_SOURCE ?? '../ghostty');
 const MANIFEST_PATH = path.join(
 	REPOSITORY_ROOT,
-	'docs/terminal/ghostty-surface-test-provenance.md',
+	'packages/terminal/docs/ghostty-surface-test-provenance.md',
 );
 const ZIG_TEST = /^\s*test(?:\s+(?:"([^"]*)"|([A-Za-z_][A-Za-z0-9_]*)))?\s*\{/u;
 const MANIFEST_ROW =

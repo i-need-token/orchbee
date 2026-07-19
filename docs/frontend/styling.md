@@ -47,7 +47,7 @@ After a refresh:
 5. Test the adaptations or semantics Orchbee relies on; do not duplicate the upstream component suite component by component.
 6. Run the UI package checks and the repository verification gate.
 
-Product-semantic composition belongs in `@orchbee/workbench`, while the generated component remains the reusable primitive. A product component may pass semantic props to a shadcn primitive, but it must not use the primitive's `className` escape hatch to add Tailwind utilities.
+Product-semantic composition belongs in its owning application or product-capability package, while the generated component remains the reusable primitive. A product component may pass semantic props to a shadcn primitive, but it must not use the primitive's `className` escape hatch to add Tailwind utilities.
 
 ## Verification
 

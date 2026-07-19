@@ -7,15 +7,17 @@ Put an independently runnable or deployable entry point in `apps/*`. Application
 Put reusable capabilities consumed through imports in `packages/*`. Put repository automation that has no independently running application lifecycle in `scripts/*`.
 
 ```text
-apps/desktop   # Electron product application, when introduced
-apps/web       # Browser product application
-apps/daemon    # Headless long-running product entry, when introduced
-apps/storybook # Development application
+apps/
+  <product-surface>/  # End-user product application
+  <development-tool>/ # Repository development application
 ```
 
 Do not create a new top-level directory to distinguish an internal application from a product application. Express that distinction through the workspace name, `private` manifest field, `project.json` responsibility and non-goals, and release configuration when a release pipeline exists.
 
-Name a product application for the user-facing surface or runtime role it owns. Use `desktop` for the complete Electron product rather than `main`, which names one Electron process and becomes ambiguous once preload, renderer, and background services coexist. Create `daemon` only when a concrete long-running headless entry exists; an architecture diagram is not an admission reason.
+Name a product application for the user-facing surface or runtime role it owns, not an internal
+process such as `main` or `renderer`. Create a headless long-running application only when that
+entry point has a concrete lifecycle and consumer; an architecture diagram is not an admission
+reason.
 
 ## Required application shape
 

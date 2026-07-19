@@ -33,7 +33,7 @@ adapter 连接 React 与外部生命周期、创建或提供作用域 Store、�
 - 把每个可独立命名的界面区域视为以一个组件为根的所有权边界。该根组件拥有其私有后代树，以及这棵树所需的每个组件专属 Hook、作用域 Store 与 context、转换、样式、资源和测试。
 - 递归嵌套组件所有权。私有后代可以拥有另一棵 `components/<component-name>/` 树；当只有该子树共享状态时，它可以引入范围更窄的 Store。
 - 由源模块直接重新导出的组件是其所有权树的公共根。外部模块只能通过所属模块的 `index.ts` 使用它；它的后代和 Context 保持私有。
-- 把不带 Orchbee 产品语义的可复用组件纳入 `@orchbee/ui`。按照 [`docs/frontend/package-boundaries.md`](package-boundaries.md#ui-所有权)，把理解会话、Agent、节点、终端窗格、命令、设置或其他产品概念的组件保留在 `@orchbee/workbench`。
+- 把不带产品语义的可复用组件纳入 `@orchbee/ui`。按照 [`docs/frontend/package-boundaries.md`](package-boundaries.md#ui-所有权)，把产品专属组件保留在拥有它所表达能力的源模块和包中。
 - 把每个实现产物放在完全拥有它的最小组件子树或源模块中。不要把组件拥有的 Hook、store、类型或 utility 收集到包级技术目录中。
 - 当一个私有组件子树获得外部使用方时，把完整所有权单元——根组件、输入契约、作用域状态、Hook、后代、样式和测试——提升到合适的源模块边界。不要只导出一个内部文件，却把其余所有权留在原处。
 
@@ -53,7 +53,7 @@ adapter 连接 React 与外部生命周期、创建或提供作用域 Store、�
 - 当输入拥有不同所有者时，组件可以组合自己的 props 与功能 Store selector。不要仅仅为了让所有输入都通过同一通道到达，就把 props 镜像进 Store。
 - 让组件的 Context 和 selector Hook 对其所属子树保持私有。同级或外部模块通过组件的公共 props 和语义操作通信，而不是导入它的 Store。
 - 当同级分支需要一份共享 UI 状态时，把所有权移动到它们最近的共同组件根，并让每个消费后代自行选择所需切片。不要让任一同级分支拥有另一个分支的状态。
-- 只有对于整个已挂载应用树或 Workbench 树真正共享的状态，才在其根部使用同一套 Context 作用域 Store 模式；全局可达并不能成为进程级单例的理由。
+- 只有对于整个已挂载应用树或功能树真正共享的状态，才在其根部使用同一套 Context 作用域 Store 模式；全局可达并不能成为进程级单例的理由。
 
 ## TSX 文件边界
 
@@ -92,40 +92,40 @@ adapter 连接 React 与外部生命周期、创建或提供作用域 Store、�
 以下示例中的 Store 和 selector Hook 文件之所以存在，是因为所属组件拥有由多个后代共享的状态：
 
 ```text
-terminal-workspace/
-├── index.ts                              # 重新导出组件和 TerminalWorkspaceProps
-├── TerminalWorkspace.tsx                 # 定义组件及其 Props 类型
-├── TerminalWorkspace.module.css
+filterable-list/
+├── index.ts                                     # 重新导出组件和 FilterableListProps
+├── FilterableList.tsx                           # 定义组件及其 Props 类型
+├── FilterableList.module.css
 ├── components/
-│   └── tab-strip/
-│       ├── TabStrip.tsx                     # 在本文件中定义 TabStripProps
-│       ├── TabStrip.module.css
+│   └── filter-bar/
+│       ├── FilterBar.tsx                        # 在本文件中定义 FilterBarProps
+│       ├── FilterBar.module.css
 │       ├── hooks/
-│       │   └── useTabKeyboardNavigation.ts
+│       │   └── useFilterKeyboardNavigation.ts
 │       └── components/
-│           └── terminal-tab/
-│               ├── TerminalTab.tsx
-│               └── TerminalTab.module.css
+│           └── clear-filter-button/
+│               ├── ClearFilterButton.tsx
+│               └── ClearFilterButton.module.css
 ├── contexts/
-│   └── terminal-workspace-store.ts            # State、action、Provider、useTerminalWorkspaceStore
+│   └── filterable-list-store.ts                 # State、action、Provider、useFilterableListStore
 ├── hooks/
-│   └── useTerminalWorkspaceKeybindings.ts   # 组件行为，不是 Store 包装层
+│   └── useFilterableListFocusManagement.ts      # 组件行为，不是 Store 包装层
 └── types/
-    └── pane-tree.ts                           # 共享的内部 UI 数据结构
+    └── filter-option.ts                           # 共享的内部 UI 数据结构
 ```
 
 ## 状态归属
 
-| 状态或行为                                   | 所有者                                            |
-| -------------------------------------------- | ------------------------------------------------- |
-| 产品输入、展开、选择和焦点状态               | presenter Hook 或功能作用域 Store                 |
-| 仅框架使用的无障碍或视觉交互状态             | 封装该状态的通用 UI primitive                     |
-| 一个已挂载功能子树共享的 UI 状态             | 作用域限定到该子树的 store 实例                   |
-| 领域转换和不变量                             | 负责该领域的 store 或 service 所封装的纯转换函数  |
-| 网络、终端、订阅、计时器和浏览器资源生命周期 | controller、service 或狭窄平台 adapter            |
-| 首次渲染所需的应用启动输入                   | 调用 `createRoot(...).render(...)` 前的应用组合根 |
+| 状态或行为                                     | 所有者                                            |
+| ---------------------------------------------- | ------------------------------------------------- |
+| 产品输入、展开、选择和焦点状态                 | presenter Hook 或功能作用域 Store                 |
+| 仅框架使用的无障碍或视觉交互状态               | 封装该状态的通用 UI primitive                     |
+| 一个已挂载功能子树共享的 UI 状态               | 作用域限定到该子树的 store 实例                   |
+| 领域转换和不变量                               | 负责该领域的 store 或 service 所封装的纯转换函数  |
+| 网络、数据流、订阅、计时器和浏览器资源生命周期 | controller、service 或狭窄平台 adapter            |
+| 首次渲染所需的应用启动输入                     | 调用 `createRoot(...).render(...)` 前的应用组合根 |
 
-工作区级所有权仍以 [`docs/frontend/package-boundaries.md`](package-boundaries.md#状态归属) 为权威来源。不要仅仅因为 React 渲染某个状态的投影就把该状态移入 React。
+工作区级所有权仍以 [`docs/frontend/package-boundaries.md`](package-boundaries.md#状态所有权) 为权威来源。不要仅仅因为 React 渲染某个状态的投影就把该状态移入 React。
 
 ## 派生状态和转换
 
@@ -135,10 +135,10 @@ terminal-workspace/
 
 ```ts
 // ❌ 镜像状态可能过期。
-React.useEffect(() => setIsEmpty(sessions.length === 0), [sessions]);
+React.useEffect(() => setIsEmpty(items.length === 0), [items]);
 
 // ✅ 渲染组件前准备投影。
-const viewProps = { isEmpty: sessions.length === 0 };
+const viewProps = { isEmpty: items.length === 0 };
 ```
 
 ## Effect 和资源生命周期
@@ -158,7 +158,7 @@ const viewProps = { isEmpty: sessions.length === 0 };
 
 ## Hook 文件边界
 
-- `orchbee/one-hook-per-file`：每个自有生产 Hook 模块都使用精确的 camelCase Hook 导出命名，例如 `useTerminalPane.ts` 或 `useTerminalPane.tsx`，并且只能包含一个顶层函数和一个导出符号。
+- `orchbee/one-hook-per-file`：每个自有生产 Hook 模块都使用精确的 camelCase Hook 导出命名，例如 `useKeyboardNavigation.ts` 或 `useKeyboardNavigation.tsx`，并且只能包含一个顶层函数和一个导出符号。
 - 唯一的顶层函数就是具名 Hook 导出，并且与文件名 stem 完全一致。把支撑函数移入聚焦的 `.ts` 模块：只有一个导出函数时以该函数命名，否则以共享职责命名；把公共契约移入专门存放类型的模块。
 - 嵌套在 Hook 内的函数，包括 Effect 回调和事件 adapter，不占用另一个文件级函数名额，也不是额外导出。
 - 单元测试以及 [`docs/LINTING.md`](../LINTING.md#生成的源码) 中说明的生成源码 `packages/ui/src/hooks/use-mobile.ts` 不受这条自有生产代码规则约束。
@@ -170,7 +170,7 @@ const viewProps = { isEmpty: sessions.length === 0 };
 - 把稳定的 `StoreApi` 实例放进 React context。不要把不断变化的状态快照放进 Provider value。
 - 每次组件根 Provider 挂载时惰性创建一次 Store，注入完整初始状态，并由理解该关系的所有者协调后续外部输入。Provider 只包裹可以消费该 Store 的子树。
 - 当外部 Service 是功能数据的权威来源时，由它的 Provider 统一订阅一次，并把最新投影协调进作用域 Store。后代通过 Zustand 选择该投影；不要再把 Service snapshot 暴露成第二个面向 React 的订阅源。
-- 从与 Provider 相同的 Store 模块导出一个 selector Hook，例如 `useTerminalWorkspaceStore(selector)`。它从 context 读取作用域 Store、拒绝在 Provider 外调用，并使用调用方的窄 selector 订阅。不要再创建 `hooks/useTerminalWorkspaceStore.ts` 转发包装层。
+- 从与 Provider 相同的 Store 模块导出一个 selector Hook，例如 `useFilterableListStore(selector)`。它从 context 读取作用域 Store、拒绝在 Provider 外调用，并使用调用方的窄 selector 订阅。不要再创建 `hooks/useFilterableListStore.ts` 转发包装层。
 - 消费者只选择自己渲染或调用的状态和语义操作。不要读取整个 Store、提取可复用 selector 常量，也不要让中间组件为更深后代订阅。
 - 公开保持 Store 不变量的语义操作；不要向组件公开不受限的状态修改。
 - 存储持久功能状态和领域操作，不要存储由 React Hook 创建的回调。当后代需要共享行为时，通过组合传递稳定的 controller 或 capability。

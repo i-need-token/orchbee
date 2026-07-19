@@ -14,7 +14,7 @@ apps/* -> packages/* -> 外部依赖
 
 - 可运行的产品和开发工作区遵循 [`docs/APPLICATIONS.md`](APPLICATIONS.md)。
 - 包的命名、清单、公共导出、构建、依赖和版本管理遵循 [`docs/PACKAGES.md`](PACKAGES.md)。
-- 前端产品 UI、平台适配器和面向会话的库遵循 [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md)。
+- 前端产品 UI 和平台适配器遵循 [`docs/frontend/package-boundaries.md`](frontend/package-boundaries.md)。
 - `orchbee/no-cross-workspace-source-imports`：通过其他工作区包的公共包导入来使用它；绝不能跨入其他 `apps/*/src` 或 `packages/*/src` 源码树。
 - 同一个应用或包内的相对导入遵循 [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md)。
 - 每个包通过 `package.json#exports` 定义公共 API；存在根导出时，由 `src/index.ts` 实现。
@@ -33,8 +33,8 @@ apps/* -> packages/* -> 外部依赖
 
 ```ts
 // ❌
-const message = rawMessage as AgentMessage;
+const payload = rawPayload as RequestPayload;
 
 // ✅
-const message = AgentMessageSchema.parse(rawMessage);
+const payload = RequestPayloadSchema.parse(rawPayload);
 ```

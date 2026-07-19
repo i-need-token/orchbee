@@ -2,131 +2,101 @@
 
 ## 工作区放置
 
-运行时入口点使用 `apps/*`，通过库 API 使用的稳定能力使用 `packages/*`。不要把组件、Hook、store、类型或 utility 等 UI 源码类别直接映射为工作区包。
+可独立运行的前端入口点使用 `apps/*`，通过库 API 使用的稳定能力使用 `packages/*`。不要把
+组件、Hook、store、类型或 utility 等源码类别直接映射为工作区包。
 
-整个仓库的 UI 目录是开发应用 `apps/storybook`。Story 文件按照 [`docs/frontend/storybook.md`](storybook.md) 继续由其前端工作区拥有；Storybook 不改变运行时包所有权。
+在另一个工作区对同一能力产生具体需求之前，把应用专属展示和行为保留在所属应用中。提取
+包时同时加入它的第一个真实使用方；可能的未来使用方或架构图不是准入理由。
 
-目标依赖模型是一份放置契约，并不要求立即创建每个具名工作区。只有在同一个变更中存在具体工作区使用方时才添加包；在边界存在之前，把应用专属代码留在所属应用中。
+应用拥有运行时启动、路由根、身份验证入口点、部署和打包配置以及平台组合。包绝不能从
+应用导入。
 
-```text
-apps/desktop ---+
-                 +--> @orchbee/workbench --> @orchbee/ui ----------+
-apps/web --------+             |                                   |
-                               +--> @orchbee/design-tokens <--------+
-                               |
-                               +--> @orchbee/terminal
-                               |
-                               +--> @orchbee/i18n <---------------- apps/web
-                               |
-                               +--> @orchbee/session-client --> @orchbee/session-protocol
+整个仓库的视觉目录继续是开发应用 `apps/storybook`。Story 所有权遵循
+[`storybook.md`](storybook.md)，并且不会改变运行时包所有权。
 
-apps/desktop --------------------> @orchbee/session-runtime --> @orchbee/session-protocol
-apps/daemon ---------------------> @orchbee/session-runtime
-```
+## 能力准入
 
-应用工作区拥有运行时启动、路由根、身份验证入口点、部署或打包配置和平台专属 adapter。包绝不能从应用导入。
+一个前端包拥有一个具名能力和可独立审查的契约。它拥有具体使用方，可以在不导入应用源码
+的情况下测试，并且不依赖推测性的同级包。
 
-## 包职责
+- 使用调用方所使用的能力命名，而不是使用当前框架、传输方式或源码类别命名。
+- 按照 [`docs/PROJECTS.md`](../PROJECTS.md) 在 `project.json` 中声明包的准确职责、非目标、
+  运行时和稳定性。
+- 把分布式 `project.json` 文件视为当前工作区注册表。不要在本规范中维护包目录或未来拓扑。
+- 在实现之前，把拟议的包、依赖变更和迁移顺序放在 `proposals/` 下。
+- 遵循 [`docs/PACKAGES.md`](../PACKAGES.md) 中的包命名、导出、构建、依赖和验证规则。
 
-| 包                          | 运行时      | 职责                                                                      | 非目标                                                               | 准入点                                                          |
-| --------------------------- | ----------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `@orchbee/terminal`         | `browser`   | 终端解析、渲染、输入、选择、搜索和浏览器集成                              | React UI、应用 PTY 进程、会话传输、Electron 平台副作用或产品对话框   | 现有可独立使用的库                                              |
-| `@orchbee/ui`               | `browser`   | 基于 Base UI 的可复用 shadcn 组件                                         | 主题、设计 Token、会话、Agent、终端窗格、路由、远程状态或平台 API    | 与首个使用它的产品 UI 一同添加                                  |
-| `@orchbee/design-tokens`    | `universal` | 可枚举视觉尺度、语义主题角色和响应式阈值                                  | React 组件、产品交互、应用状态、任意组件值或副作用                   | shadcn 兼容样式表中已有使用方                                   |
-| `@orchbee/i18n`             | `browser`   | Orchbee locale 契约、React Provider、Catalog 组合以及发布的产品消息和翻译 | 用户 locale 偏好、平台检测、偏好持久化或功能行为                     | `@orchbee/workbench` 和 `apps/web` 中已有使用方                 |
-| `@orchbee/workbench`        | `browser`   | 共享的具有产品语义的 React 界面、交互状态和展示模型                       | 应用启动、路由根、身份验证、持久化、平台导入、PTY 所有权或传输层实现 | `apps/web` 中已有使用方；在跨应用契约得到证明前保持私有和实验性 |
-| `@orchbee/session-protocol` | `universal` | 会话命令、事件、快照和错误的 Zod Schema 与类型                            | I/O、传输选择、状态存储、PTY 进程或 UI                               | 当两个信任边界参与方使用同一传输契约时添加                      |
-| `@orchbee/session-client`   | `browser`   | 无头客户端同步、命令分发、重连和状态                                      | React 展示、平台副作用、传输实现或服务器进程所有权                   | 当浏览器应用使用远程或跨进程会话状态时添加                      |
-| `@orchbee/session-runtime`  | `node`      | 可复用 PTY、进程和会话生命周期服务                                        | Electron 菜单或窗口、浏览器 UI、传输专属入口点或客户端状态           | 当 Node 会话行为在原应用树之外拥有具体使用方时提取              |
-
-会话包系列按能力逐个引入，而不是一次全部引入。当更广泛的编排、工作节点或 Agent 协作契约的职责不再适合会话契约时，为它们建立各自具名领域；不要把 `session-*` 扩大成兜底领域。
-
-每个新增工作区都必须按照 [`docs/PROJECTS.md`](../PROJECTS.md) 在 `project.json` 中声明准确职责和非目标。
+不要创建以 `components`、`hooks`、`store`、`types`、`utils`、`common`、`shared` 或
+`helpers` 等技术桶命名的工作区包。所有权来自赋予代码含义的能力，而不是其 TypeScript
+形状。
 
 ## UI 所有权
 
-`@orchbee/ui` 只包含不带 Orchbee 产品语义的元素，包括按钮、对话框、菜单、tooltip 和可调整大小的布局 primitive。它可以拥有可复用视觉行为，但不得知道会话、Agent、节点或终端窗格意味着什么。
+通用 UI primitive 封装框架级无障碍和视觉交互，但不了解使用它的产品实体或工作流。具有
+产品语义的组件理解应用概念、准备好的业务状态或语义操作，因此留在拥有该含义的产品能力中。
 
-所有前端工作区都遵循 [`docs/frontend/styling.md`](styling.md) 中的生成组件和样式所有权契约。
+- 当具有产品语义的组件只有一个应用所有者时，把它保留在所属应用中。
+- 只有当多个应用使用相同语义契约时，才提取共享产品展示；根据该产品能力而不是笼统的 UI
+  为包命名。
+- 移动组件时连同其完整所有权树一起移动：Props、作用域状态、Hook、私有后代、样式、资产和
+  测试。不要导出内部实现片段。
+- 让可复用 primitive 不包含产品消息、领域状态、路由、远程数据和平台副作用。使用方提供
+  面向产品的可见文本和仅无障碍文本。
+- 让与框架无关的引擎不包含 React、应用状态、产品对话框和宿主副作用。React wrapper 留在
+  语义使用方中，直到它拥有自己的独立 API 和使用方。
 
-`@orchbee/design-tokens` 独立于 React 和 shadcn，拥有共享视觉词汇。`@orchbee/ui` 只使用它来映射生成的 shadcn 变量，而 Workbench 自有组件通过 CSS Modules 直接使用它。详细层级和主题契约位于 [`docs/frontend/design-tokens.md`](design-tokens.md)。
+递归组件所有权和组件目录结构遵循 [`react.md`](react.md)。样式所有权遵循
+[`styling.md`](styling.md)，产品消息所有权遵循 [`localization.md`](localization.md)。
 
-`@orchbee/workbench` 拥有具有产品语义的展示，包括应用 shell、终端窗格、标签和拆分行为、会话与 Agent 展示、节点状态、设置界面、命令界面，以及满足应用级终端请求的 UI。
+## 依赖方向
 
-两个包都公开可复用组件及其完整所有权树，而不是松散的实现文件。只有当一个通用组件及其状态独立于 Orchbee 产品概念时，它们才留在 `@orchbee/ui`；具有产品语义的组件及其完整所有权树属于 `@orchbee/workbench`。递归所有权、Context 作用域 Store、通信和提升契约位于 [`react.md`](react.md#递归组件所有权)。
+应用只通过声明的包导出使用包。一个包只通过另一个包的公共能力使用它；绝不导入另一个
+工作区的源码树或构建树。
 
-`@orchbee/i18n` 拥有共享 locale 契约、React 国际化 Provider、非 React formatter、按领域命名空间组织的产品消息描述符及发布翻译。Workbench 和应用工作区只通过该包根入口使用这些能力；它们不拥有本地 Catalog，也不导入底层格式化库。应用工作区继续拥有用户 locale 选择、平台检测和偏好持久化，然后在组合时提供有效 locale。`@orchbee/ui` 保持 locale 无关，并公开通用的可见或仅无障碍文本，供具有产品语义的使用方本地化。完整契约位于 [`localization.md`](localization.md)。
+让依赖方向与语义权威保持一致：
 
-在 Workbench 终端模块中保留围绕 `@orchbee/terminal` 的 React wrapper，直到它拥有独立使用方和 API。不要向 `@orchbee/terminal` 添加 React、Zustand、shadcn/ui、Base UI、TanStack Router、Electron 或 Node 依赖。
+- 产品展示可以依赖通用 UI、本地化、设计词汇和无头能力。
+- 通用 UI 和设计词汇绝不依赖产品展示。
+- 无头能力绝不依赖渲染它的 React 展示。
+- 协议或验证边界绝不依赖传输、持久化、进程生命周期或 UI。
+- 运行时专属实现留在拥有其生命周期的应用或运行时包中。
 
-## Workbench 交互模型
-
-Orchbee 以终端为先。默认 Workbench 界面把焦点和窗口剩余区域交给活动终端；它不得继承 IDE Workbench，也不得为聊天保留主要界面。全高左侧边栏为管理导航预留空间。在项目、worktree、Agent 或其他模型拥有具体能力边界前，让它保持为空；shell 不得把布局契约耦合到推测性模型。
-
-让次要能力可被发现，但不要把它们变成永久 chrome。设置使用从账户或设置区域进入的专用可搜索界面，并把相关控件组织到具名类别中，而不是不断扩张一个 modal。浏览器、变更和类似检查工具属于默认隐藏的辅助右侧面板，通过紧凑的右上角控件打开，并可独立关闭。拆分和破坏性终端操作属于紧凑操作菜单。状态应靠近它所描述的实体：会话状态位于具体会话界面中，运行时和连接状态位于拥有它们的管理模型中，瞬时反馈位于通知中。不要向预留侧边栏添加占位状态 chrome。
-
-## 产品概念
-
-终端会话是拥有 PTY 输入、输出、身份和生命周期的权威运行进程。Workbench 布局是用于观察会话的客户端排列，包括标签、拆分、窗格、焦点和面板尺寸。Agent 或编排任务是协作实体，即使当前一个 Agent 运行在一个会话中，也不得从终端会话推断其身份和生命周期。
-
-让 Workbench 布局状态保留在 `@orchbee/workbench` 本地，直到具体的跨设备产品需求引入单独命名的同步契约。不要把布局、Agent 协作、工作节点调度或无关应用状态放入 `@orchbee/session-protocol`；当这些职责跨越信任边界时，引入一个职责狭窄的所属领域。
-
-## Workbench 源模块
-
-把 `@orchbee/workbench` 作为具有产品语义的组件包边界。为每个可复用公共产品组件提供自己的源模块目录，并按照 [`react.md`](react.md#组件目录边界) 递归组织其私有后代：
-
-```text
-packages/workbench/src/
-  index.ts
-  workbench/
-    index.ts
-    Workbench.tsx
-    Workbench.module.css
-    contexts/
-      workbench-store.ts
-    components/
-  terminal-pane/
-    index.ts
-    TerminalPane.tsx
-    TerminalPane.module.css
-```
-
-该示例展示目录形态，而不是必需组件清单。只有在具体界面能力存在时才添加公共组件目录；不要预先创建推测性的 Agent、节点、设置或其他组件。包根 `index.ts` 有意提升包外使用的公共产品组件。
-
-在公共组件目录中，只把 `index.ts`、PascalCase 根组件 `.tsx` 和可选的同名 `.module.css` 作为直接文件。在根组件的 `.tsx` 中定义并导出其 Props 类型。把 Context 作用域 Store 及其 selector Hook 一起放在 `contexts/` 中；`hooks/` 只放组件行为，`types/` 只放由所属树内多个文件共享的内部数据结构。为私有子组件递归重复该结构。把单元测试放入直接子级 `__tests__/` 支撑目录；不要创建 `styles` 或 `stories` 目录、把测试文件直接放在组件旁边，或创建空支撑目录。
-
-当另一个源模块需要某个私有组件时，把它连同完整所有权树提升到自己的公共组件目录，并使用其 `index.ts`。公共 Workbench 组件可以通过同级公共组件的源模块边界组合它们，但绝不能导入另一个组件的私有 Store、Hook、支撑目录或后代。该结构遵循 [`docs/MODULE-BOUNDARIES.md`](../MODULE-BOUNDARIES.md#源模块树)。
+当两个包需要彼此的实现时，把共享契约移动到最狭窄且具有独立含义的能力中，或者在一个
+所属 port 后反转依赖。不要创建兜底包来隐藏循环。
 
 ## 平台集成
 
-在使用能力的产品组件中定义每个平台 port。相比不断扩张的宿主接口，优先使用外部导航、目录选择、原生菜单和通知等狭窄契约。公共 `workbench` 根组件可以聚合这些契约用于注入，而不让每个后代都依赖聚合。`apps/desktop` 通过 Electron preload 和 IPC 实现能力；`apps/web` 使用浏览器或 Web 服务 API 实现。
+在使用平台能力的 capability 中定义 port，并让组合应用提供实现。相比不断扩张的宿主接口，
+优先使用导航、文件选择、通知、持久化或传输等狭窄契约。
 
-`@orchbee/session-client` 定义它所使用的传输行为。应用在组合时提供 Electron IPC、WebSocket 或其他传输 adapter。包不得通过检测宿主环境来选择传输。
+包不得通过检测宿主环境来选择实现。浏览器、桌面端、服务器和测试 adapter 留在拥有其副作用
+的运行时中。共享的不可信消息形状属于狭窄验证或协议边界，而传输专属行为留在传输所有者中。
 
-不要为这些 adapter 创建泛化的 `bridge` 或 `platform` 包。共享的不可信消息形状属于狭窄协议包，而运行时专属副作用留在拥有该运行时的应用中。
+不要仅仅为了收集无关 adapter 而创建泛化的 `bridge` 或 `platform` 包。只有当多个具体运行时
+使用同一个独立具名的集成契约时，才提取 adapter 包。
 
-## 状态归属
+## 状态所有权
 
-| 状态                                   | 所有者                           |
-| -------------------------------------- | -------------------------------- |
-| 终端缓冲区、选择、终端搜索和渲染状态   | `@orchbee/terminal`              |
-| PTY 进程和权威会话生命周期             | `@orchbee/session-runtime`       |
-| 客户端投影、事件排序、重连和同步状态   | `@orchbee/session-client`        |
-| 活动标签、面板尺寸、焦点和命令面板状态 | `@orchbee/workbench`             |
-| 产品消息描述符和发布翻译               | `@orchbee/i18n`                  |
-| 用户 locale 偏好和平台 locale 检测     | 相应的 `apps/*`                  |
-| Electron 或浏览器能力状态              | 相应的 `apps/*`                  |
-| Workbench 布局或偏好的持久化           | 通过注入 capability 使用它的应用 |
-| 原始跨进程或网络消息                   | 在接收边界使用会话 Schema 解析   |
+| 状态或行为                     | 所有者                               |
+| ------------------------------ | ------------------------------------ |
+| 本地视觉和交互状态             | 共享该状态的最窄已挂载组件子树       |
+| 产品展示状态和语义 UI 操作     | 所属产品应用或产品能力包             |
+| 无头能力状态和不变量           | 拥有该能力的包                       |
+| 权威进程、服务器或资源生命周期 | 创建并释放它的运行时或服务           |
+| 用户偏好和宿主环境选择         | 组合应用                             |
+| 产品消息描述符和发布翻译       | 仓库本地化能力                       |
+| 原始进程、存储、IPC 或网络数据 | 在分配内部所有权前于首个可信边界解析 |
 
-在拥有状态的浏览器包中使用 Zustand 管理共享客户端 UI 状态。不要创建名为 `store`、`types`、`hooks`、`utils`、`common`、`shared` 或 `helpers` 的工作区包；所有权由赋予代码含义的领域决定，而不是由其 TypeScript 形状决定。
+在拥有状态的浏览器工作区中使用 Zustand 管理共享客户端 UI 状态。把每个 Store 限定到需要它的最窄
+已挂载所有权树；提取包不能替代正确的 Store 作用域。
 
-## 引入顺序
+## 边界变更
 
-1. 一同创建使用方应用和 `@orchbee/ui`；当产品界面通过库边界共享时，也同时创建 `@orchbee/workbench`。
-2. 把每条 Workbench 和应用产品消息保留在 `@orchbee/i18n` 中；描述符按产品领域命名空间分隔，并组合为每个发布 locale 的一份 Catalog。
-3. 当产品交互契约仍在变化时，针对内存会话 adapter 构建界面。
-4. 连接真实跨进程或远程同步时，添加 `@orchbee/session-protocol` 和 `@orchbee/session-client`。
-5. 把 Node 会话逻辑保留在所属应用中，直到另一个运行时入口对同一服务有具体需求，再提取 `@orchbee/session-runtime`。
+当职责在工作区之间移动时，在同一个变更中更新受影响的 `project.json` 契约、公共导出、包
+README、包本地参考、测试和使用方。删除旧路径和旧权威来源，不要把两者都记录为有效。
 
-职责转移时，在同一个变更中更新受影响的两个 `project.json` 契约、公共导出、包 README 和本文档。引入或修改包边界后，运行 [`docs/PACKAGES.md`](../PACKAGES.md#验证和审查) 要求的包检查。
+不要把实施顺序或未创建的工作区记录为当前架构。把这些工作放在 `proposals/` 下；只有当完成
+的变更引入可复用跨工作区规则时，才更新本规范。
+
+引入或修改包边界后，运行
+[`docs/PACKAGES.md`](../PACKAGES.md#验证和审查) 要求的包检查。
