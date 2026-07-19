@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { isTopLevelFunction, startLoc } from '../utils.js';
 
@@ -39,28 +39,58 @@ function isInsideComponentsDirectory(filePath) {
 }
 
 function hasNamedComponentGroup(filePath) {
-	const componentName = basename(filePath, extname(filePath));
+	const name = basename(filePath, extname(filePath));
 	const groupDirectory = dirname(filePath);
 	return (
-		basename(groupDirectory) === componentName &&
-		basename(dirname(groupDirectory)) === COMPONENTS_DIRECTORY
+		basename(groupDirectory) === name && basename(dirname(groupDirectory)) === COMPONENTS_DIRECTORY
 	);
+}
+
+function componentName(filePath) {
+	return basename(filePath, extname(filePath));
 }
 
 function isDirectBoundaryExport(filePath) {
 	const indexPath = join(dirname(filePath), INDEX_FILENAME);
 	if (!existsSync(indexPath)) return false;
 
-	const componentName = basename(filePath, extname(filePath));
-	const allowedSources = new Set([
-		`./${componentName}`,
-		`./${componentName}.js`,
-		`./${componentName}.tsx`,
-	]);
+	const name = basename(filePath, extname(filePath));
+	const allowedSources = new Set([`./${name}`, `./${name}.js`, `./${name}.tsx`]);
 	const indexSource = readFileSync(indexPath, 'utf8');
 	const exportSources = indexSource.matchAll(/\bfrom\s*['"]([^'"]+)['"]/gu);
 	return Array.from(exportSources, (match) => match[1]).some((source) =>
 		allowedSources.has(source ?? ''),
+	);
+}
+
+function checkDirectFiles(context, node, filePath, isPublic) {
+	const directory = dirname(filePath);
+	if (!existsSync(directory)) return;
+
+	const name = componentName(filePath);
+	const allowedFiles = new Set([
+		...(isPublic ? [INDEX_FILENAME] : []),
+		`${name}.tsx`,
+		`${name}.module.css`,
+	]);
+	for (const entry of readdirSync(directory, { withFileTypes: true })) {
+		if (entry.isDirectory() || allowedFiles.has(entry.name)) continue;
+		report(
+			context,
+			node,
+			`Move direct file "${entry.name}" into its owned support directory; component directory "${basename(directory)}" may contain only ${Array.from(allowedFiles).join(', ')} as direct files.`,
+		);
+	}
+}
+
+function checkPublicDirectoryName(context, node, filePath) {
+	const name = componentName(filePath);
+	const directoryName = basename(dirname(filePath));
+	if (directoryName === name) return;
+	report(
+		context,
+		node,
+		`Rename public component directory "${directoryName}" to "${name}" so the ownership boundary matches its root component.`,
 	);
 }
 
@@ -76,7 +106,7 @@ export const componentDirectory = {
 	meta: {
 		type: 'suggestion',
 		docs: {
-			description: 'Keep private React components and their styles in named component groups.',
+			description: 'Enforce public and private React component directory ownership.',
 		},
 		schema: [],
 	},
@@ -93,6 +123,7 @@ export const componentDirectory = {
 		function checkStyleImport(node) {
 			const source = node.source?.value;
 			if (typeof source !== 'string' || !source.endsWith('.module.css')) return;
+			const expectedSource = `./${componentName(filename)}.module.css`;
 			if (
 				!source.startsWith('.') ||
 				normalize(dirname(resolve(dirname(filename), source))) !== normalize(dirname(filename))
@@ -101,6 +132,14 @@ export const componentDirectory = {
 					context,
 					node,
 					`CSS Module "${source}" must be colocated with the component that imports it.`,
+				);
+				return;
+			}
+			if (source !== expectedSource) {
+				report(
+					context,
+					node,
+					`Rename CSS Module "${source}" to "${expectedSource}" so it matches its owning component.`,
 				);
 			}
 		}
@@ -119,11 +158,14 @@ export const componentDirectory = {
 							node,
 							'Place this component in its own components/<component-name>/<component-name>.tsx group.',
 						);
-					}
+					} else checkDirectFiles(context, node, filename, false);
 					return;
 				}
 
-				if (!isDirectBoundaryExport(filename)) {
+				if (isDirectBoundaryExport(filename)) {
+					checkPublicDirectoryName(context, node, filename);
+					checkDirectFiles(context, node, filename, true);
+				} else {
 					report(
 						context,
 						node,

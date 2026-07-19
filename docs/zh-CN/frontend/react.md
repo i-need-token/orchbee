@@ -66,27 +66,27 @@ adapter 连接 React 与外部生命周期、创建或提供作用域 Store、�
 ## 组件目录边界
 
 - `orchbee/component-directory`：未由所属源模块的 `index.ts` 直接重新导出的自有生产组件属于私有子组件，并放在 `components/<component-name>/<component-name>.tsx`。
-- 由所属 `index.ts` 直接重新导出的组件是该模块的公共边界组件。公共组件目录只把 `index.ts`、根 `.tsx` 实现和可选的同名 `.module.css` 作为直接文件；其他所有支撑实现都属于具名子目录。
-- 私有组件目录只把根 `.tsx` 实现和可选的同名 `.module.css` 作为直接文件，并且不定义 `index.ts`。其所有者直接导入该实现。
+- 由所属 `index.ts` 直接重新导出的组件是该模块的公共边界组件。它的源模块目录和根组件文件名使用相同的 kebab-case 名称。该目录只把 `index.ts`、`<component-name>.tsx` 和可选的 `<component-name>.module.css` 作为直接文件；其他所有支撑实现都属于具名子目录。
+- 私有组件目录只把 `<component-name>.tsx` 和可选的 `<component-name>.module.css` 作为直接文件，并且不定义 `index.ts`。其所有者直接导入该实现。lint 规则会清点公共和私有组件目录中的直接文件，并拒绝其他任何直接文件。
 - 在组件自身的 `.tsx` 文件中定义该组件的 Props 类型。当使用方需要该类型时，从同一文件导出；当它属于模块公共 API 时，再通过公共 `index.ts` 重新导出。不要仅为了把组件自身签名移出 TSX 而创建单独的 `<component-name>-props.ts`。
 - 递归重复私有组件结构。`toolbar.tsx` 的私有子组件应放在 `toolbar` 目录内的 `components/action/action.tsx`，而不是作为松散的同级文件。
 - 只有在拥有具体内容时才创建支撑目录，并使用以下所有权：
 
-| 目录          | 组件拥有的内容                                                               |
-| ------------- | ------------------------------------------------------------------------------ |
-| `components/` | 递归重复该结构的私有子组件目录                                               |
+| 目录          | 组件拥有的内容                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| `components/` | 递归重复该结构的私有子组件目录                                                           |
 | `contexts/`   | 把 State、action、Provider 和 Store selector Hook 保持在一起的 Context 作用域 Store 模块 |
-| `hooks/`      | 行为、presenter、action 和生命周期 Hook；不包括 Store 模块已导出的 selector Hook      |
-| `constants/`  | 仅由该组件拥有的静态值和有限配置                                                 |
-| `types/`      | 由组件所有权子树中多个文件共享的具名数据结构、判别联合和枚举                         |
-| `utils/`      | 仅由该组件拥有且与框架无关的纯辅助函数                                           |
+| `hooks/`      | 行为、presenter、action 和生命周期 Hook；不包括 Store 模块已导出的 selector Hook         |
+| `constants/`  | 仅由该组件拥有的静态值和有限配置                                                         |
+| `types/`      | 由组件所有权子树中多个文件共享的具名数据结构、判别联合和枚举                             |
+| `utils/`      | 仅由该组件拥有且与框架无关的纯辅助函数                                                   |
 
 - 组件目录是结构化所有权边界，不是混杂的功能目录。把同级组件树共享的资源移动到它们最近的共同所有者，并把跨功能 controller、service 和契约保留在拥有它们的源模块中。
 - 不要在私有组件目录或其支撑目录中添加 `index.ts` barrel。当另一个模块需要它时，把整棵组件所有权树提升到公共源模块边界。
 - 把 Context 作用域 Store 的 State 和 action 类型、Store 创建、Context Provider 以及 `use<ComponentName>Store(selector)` 导出保持在 `contexts/` 下的同一个 Store 模块中。Selector Hook 属于 Store API，不要在 `hooks/` 中再包装一层。
 - 只有当一个具名数据结构在组件所有权树中被多个文件共享，或者它在单个组件签名之外拥有独立含义时，才使用 `types/`。只由一个组件使用的 Props 保留在该组件的 `.tsx` 文件中。
 - 把组件可选的 CSS Module 放在导入它的 `.tsx` 文件旁边；不要创建 `styles/` 子目录。
-- 不要把 `stories/` 或 `__tests__/` 创建为组件目录的直接子目录。Story 所有权遵循 [`docs/frontend/storybook.md`](storybook.md)，测试位置遵循 [`docs/TESTING.md`](../TESTING.md)。
+- 不要把 story 或测试文件直接放在组件根文件旁边。单元测试使用 [`docs/TESTING.md`](../TESTING.md) 要求的直接子级 `__tests__/` 支撑目录；Storybook 所有权遵循 [`docs/frontend/storybook.md`](storybook.md)。
 - [`docs/LINTING.md`](../LINTING.md#生成的源码) 中说明的检入 shadcn 源码不受这条自有组件目录规则约束。
 
 以下示例中的 Store 和 selector Hook 文件之所以存在，是因为所属组件拥有由多个后代共享的状态：

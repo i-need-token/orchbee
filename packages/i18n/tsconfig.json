@@ -1,0 +1,14 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "./dist",
+		"rootDir": "./src",
+		"jsx": "react-jsx",
+		"lib": ["es2022", "dom", "dom.iterable"],
+		"types": ["react", "react-dom", "vitest/globals"],
+		"declaration": true,
+		"declarationMap": true,
+		"sourceMap": true
+	},
+	"include": ["src"]
+}

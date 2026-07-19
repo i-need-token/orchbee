@@ -6,6 +6,7 @@
 	"responsibility": "Browser product entry point and browser capability composition for the Orchbee workbench.",
 	"nonGoals": [
 		"Owning reusable product interface behavior or reusable UI primitives.",
+		"Owning the supported-locale contract, product message descriptors, or translation catalogs.",
 		"Owning authoritative PTY processes, remote session synchronization, or deployment services.",
 		"Providing Electron, Node, or native desktop capability implementations."
 	]

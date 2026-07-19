@@ -1,0 +1,46 @@
+{
+	"name": "@orchbee/i18n",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Locale contracts, formatting runtime, and product translations for Orchbee interfaces",
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"@orchbee/source": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		}
+	},
+	"scripts": {
+		"build": "rslib build",
+		"dev": "rslib build --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:exports": "node ../../scripts/check-package-exports.mjs ."
+	},
+	"dependencies": {
+		"react-intl": "catalog:"
+	},
+	"devDependencies": {
+		"@rsbuild/plugin-react": "catalog:",
+		"@rslib/core": "catalog:",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"react": "catalog:",
+		"react-dom": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"react": "catalog:"
+	}
+}

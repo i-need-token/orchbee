@@ -2,7 +2,7 @@
 
 ## 源码和测试路径
 
-- `orchbee/filename-naming-convention`：源码路径使用 kebab-case；把单元测试放在源码文件同级的 `__tests__` 目录中，并命名为 `<source-name>.unit.test.ts` 或 `<source-name>.unit.test.tsx`。
+- `orchbee/filename-naming-convention`：源码路径使用 kebab-case。`locales/` 的直接子目录属于例外：使用规范 BCP 47 locale 标识符命名，包括 `en-US` 和 `zh-CN` 这样的规范大小写。把单元测试放在源码文件同级的 `__tests__` 目录中，并命名为 `<source-name>.unit.test.ts` 或 `<source-name>.unit.test.tsx`。
 
 ## 必需的单元测试
 

@@ -36,12 +36,29 @@ function structuralComponentGroupIndex(parts, sourceRoot) {
 	return -1;
 }
 
+function publicComponentModuleDepth(parts, sourceRoot) {
+	for (let index = 0; index < parts.length; index += 1) {
+		const componentName = parts[index];
+		if (componentName === undefined) continue;
+		const componentDirectory = join(sourceRoot, ...parts.slice(0, index + 1));
+		if (
+			existsSync(join(componentDirectory, `${componentName}.tsx`)) &&
+			existsSync(join(componentDirectory, INDEX_FILENAME))
+		)
+			return index + 1;
+	}
+	return -1;
+}
+
 function moduleParts(filePath, sourceRoot) {
 	const parts = pathParts(dirname(filePath), sourceRoot);
 	const testDirectoryIndex = parts.indexOf(TEST_DIRECTORY);
 	const nonTestParts = testDirectoryIndex === -1 ? parts : parts.slice(0, testDirectoryIndex);
 	const componentGroupIndex = structuralComponentGroupIndex(nonTestParts, sourceRoot);
-	return componentGroupIndex === -1 ? nonTestParts : nonTestParts.slice(0, componentGroupIndex);
+	if (componentGroupIndex !== -1) return nonTestParts.slice(0, componentGroupIndex);
+
+	const publicComponentDepth = publicComponentModuleDepth(nonTestParts, sourceRoot);
+	return publicComponentDepth === -1 ? nonTestParts : nonTestParts.slice(0, publicComponentDepth);
 }
 
 function isTestFile(filePath, sourceRoot) {
@@ -51,7 +68,9 @@ function isTestFile(filePath, sourceRoot) {
 function isBoundaryIndex(filePath, sourceRoot) {
 	if (basename(filePath) !== INDEX_FILENAME || isTestFile(filePath, sourceRoot)) return false;
 	const parts = pathParts(dirname(filePath), sourceRoot);
-	return structuralComponentGroupIndex(parts, sourceRoot) === -1;
+	if (structuralComponentGroupIndex(parts, sourceRoot) !== -1) return false;
+	const publicComponentDepth = publicComponentModuleDepth(parts, sourceRoot);
+	return publicComponentDepth === -1 || publicComponentDepth === parts.length;
 }
 
 function isSourceFile(filePath) {

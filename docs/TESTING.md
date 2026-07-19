@@ -2,7 +2,11 @@
 
 ## Source and test paths
 
-- `orchbee/filename-naming-convention`: Use kebab-case source paths; place unit tests in the source file's sibling `__tests__` directory and name them `<source-name>.unit.test.ts` or `<source-name>.unit.test.tsx`.
+- `orchbee/filename-naming-convention`: Use kebab-case source paths. A directory immediately under
+  `locales/` is the exception: name it with the canonical BCP 47 locale identifier, including
+  canonical casing such as `en-US` and `zh-CN`. Place unit tests in the source file's sibling
+  `__tests__` directory and name them `<source-name>.unit.test.ts` or
+  `<source-name>.unit.test.tsx`.
 
 ## Required unit tests
 

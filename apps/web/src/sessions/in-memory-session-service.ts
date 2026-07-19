@@ -1,3 +1,4 @@
+import { createOrchbeeIntl, type IntlShape, type OrchbeeLocale, webMessages } from '@orchbee/i18n';
 import type {
 	WorkbenchSession,
 	WorkbenchSessionService,
@@ -7,12 +8,14 @@ import type {
 } from '@orchbee/workbench';
 
 class InMemoryTerminalChannel implements WorkbenchTerminalChannel {
+	private readonly intl: IntlShape;
 	private readonly listeners = new Set<(data: string) => void>();
 	private transcript: string;
 	private inputBuffer = '';
 	private size: WorkbenchTerminalSize = { cols: 80, rows: 24 };
 
-	constructor(introduction: string) {
+	constructor(introduction: string, intl: IntlShape) {
+		this.intl = intl;
 		this.transcript = `${introduction}\r\n\r\n$ `;
 	}
 
@@ -60,13 +63,20 @@ class InMemoryTerminalChannel implements WorkbenchTerminalChannel {
 				this.emit('\u001b[2J\u001b[H');
 				break;
 			case 'help':
-				this.emit('Available commands: help, status, clear\r\n');
+				this.emit(`${this.intl.formatMessage(webMessages.helpOutput)}\r\n`);
 				break;
 			case 'status':
-				this.emit(`In-memory session · ${this.size.cols} columns × ${this.size.rows} rows\r\n`);
+				this.emit(
+					`${this.intl.formatMessage(webMessages.statusOutput, {
+						columnCount: this.size.cols,
+						rowCount: this.size.rows,
+					})}\r\n`,
+				);
 				break;
 			default:
-				this.emit(`Simulated command: ${command}\r\n`);
+				this.emit(
+					`${this.intl.formatMessage(webMessages.simulatedCommandOutput, { command })}\r\n`,
+				);
 		}
 		this.emit('$ ');
 	}
@@ -78,20 +88,22 @@ class InMemoryTerminalChannel implements WorkbenchTerminalChannel {
 }
 
 class InMemorySessionService implements WorkbenchSessionService {
+	private readonly intl: IntlShape;
 	private readonly listeners = new Set<() => void>();
 	private sessionCount = 0;
 	private sessions: readonly WorkbenchSession[];
 	private snapshot: WorkbenchSessionSnapshot;
 
-	constructor() {
+	constructor(locale: OrchbeeLocale) {
+		this.intl = createOrchbeeIntl(locale);
 		this.sessions = [
 			this.createSessionRecord(
-				'Local shell',
-				'Orchbee Workbench\r\nThis terminal is backed by the in-memory session adapter. Type help to begin.',
+				this.intl.formatMessage(webMessages.localShellTitle),
+				this.intl.formatMessage(webMessages.localShellIntroduction),
 			),
 			this.createSessionRecord(
-				'Agent output',
-				'Codex agent · ready\r\nWaiting for a task in the first Workbench vertical slice.',
+				this.intl.formatMessage(webMessages.agentOutputTitle),
+				this.intl.formatMessage(webMessages.agentOutputIntroduction),
 			),
 		];
 		this.snapshot = { sessions: this.sessions };
@@ -108,8 +120,10 @@ class InMemorySessionService implements WorkbenchSessionService {
 
 	createSession(): string {
 		const session = this.createSessionRecord(
-			`Session ${this.sessionCount + 1}`,
-			'New in-memory terminal session.',
+			this.intl.formatMessage(webMessages.newSessionTitle, {
+				sessionNumber: this.sessionCount + 1,
+			}),
+			this.intl.formatMessage(webMessages.newSessionIntroduction),
 		);
 		this.sessions = [...this.sessions, session];
 		this.publish();
@@ -129,7 +143,7 @@ class InMemorySessionService implements WorkbenchSessionService {
 			id: `memory-session-${this.sessionCount}`,
 			title,
 			status: 'running',
-			terminal: new InMemoryTerminalChannel(introduction),
+			terminal: new InMemoryTerminalChannel(introduction.replaceAll('\n', '\r\n'), this.intl),
 		};
 	}
 
@@ -139,6 +153,6 @@ class InMemorySessionService implements WorkbenchSessionService {
 	}
 }
 
-export function createInMemorySessionService(): WorkbenchSessionService {
-	return new InMemorySessionService();
+export function createInMemorySessionService(locale: OrchbeeLocale): WorkbenchSessionService {
+	return new InMemorySessionService(locale);
 }

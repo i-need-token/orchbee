@@ -1,0 +1,11 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "internationalization",
+	"runtime": ["browser"],
+	"stability": "experimental",
+	"responsibility": "Locale contracts, formatting runtime, domain-scoped product message descriptors, and shipped translations for Orchbee interfaces.",
+	"nonGoals": [
+		"Selecting or persisting a user's locale preference or detecting platform locale settings.",
+		"Owning feature behavior, application composition, document mutation, or locale-neutral user and external content."
+	]
+}

@@ -99,6 +99,24 @@ describe('filename-naming-convention', () => {
 		expect(reports).toEqual([]);
 	});
 
+	it('accepts canonical BCP 47 directories directly under locales', () => {
+		for (const locale of ['en-US', 'zh-CN']) {
+			const { context, reports } = createContext(
+				`/workspace/packages/i18n/src/locales/${locale}/workbench.ts`,
+			);
+			filenameNamingConvention.create(context).Program({ loc: LOCATION });
+			expect(reports).toEqual([]);
+		}
+	});
+
+	it('reports non-canonical locale directory casing', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/i18n/src/locales/en-us/workbench.ts',
+		);
+		filenameNamingConvention.create(context).Program({ loc: LOCATION });
+		expect(reports[0]?.message).toContain('"en-US"');
+	});
+
 	it('reports the extension-preserving TSX unit-test suffix', () => {
 		const { context, reports } = createContext(
 			'/workspace/packages/ui/src/components/__tests__/agent-panel.test.tsx',
@@ -235,6 +253,25 @@ describe('module-boundaries', () => {
 		expect(reports).toEqual([]);
 	});
 
+	it('treats public component support directories as structural parts of their module', () => {
+		const root = createFixture();
+		writeFixture(root, 'packages/example/src/index.ts');
+		writeFixture(
+			root,
+			'packages/example/src/workbench/index.ts',
+			"export { Workbench } from './workbench';\n",
+		);
+		const filename = writeFixture(root, 'packages/example/src/workbench/workbench.tsx');
+		writeFixture(root, 'packages/example/src/workbench/hooks/use-workbench.ts');
+		const { context, reports } = createContext(filename);
+		const visitors = moduleBoundaries.create(context);
+
+		visitors.Program({ type: 'Program', loc: LOCATION, body: [] });
+		visitors.ImportDeclaration(dependencyNode('ImportDeclaration', './hooks/use-workbench'));
+
+		expect(reports).toEqual([]);
+	});
+
 	it('keeps a generic directory named components as a source-module boundary', () => {
 		const root = createFixture();
 		writeFixture(root, 'packages/example/src/index.ts');
@@ -251,6 +288,30 @@ describe('module-boundaries', () => {
 
 describe('component-directory', () => {
 	it('accepts a module boundary component re-exported by its sibling index', () => {
+		const root = createFixture();
+		const filename = writeFixture(root, 'packages/example/src/workbench/workbench.tsx');
+		writeFixture(
+			root,
+			'packages/example/src/workbench/index.ts',
+			"export { Workbench } from './workbench';\n",
+		);
+		writeFixture(root, 'packages/example/src/workbench/workbench.module.css');
+		writeFixture(root, 'packages/example/src/workbench/hooks/use-workbench.ts');
+		const { context, reports } = createContext(filename);
+		const visitors = componentDirectory.create(context);
+		const program = { type: 'Program', loc: LOCATION };
+
+		visitors.FunctionDeclaration({
+			type: 'FunctionDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'Workbench', loc: LOCATION },
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports).toEqual([]);
+	});
+
+	it('rejects a public component directory whose name does not match its component', () => {
 		const root = createFixture();
 		const filename = writeFixture(root, 'packages/example/src/composition/workbench.tsx');
 		writeFixture(
@@ -269,7 +330,30 @@ describe('component-directory', () => {
 		});
 		visitors['Program:exit'](program);
 
-		expect(reports).toEqual([]);
+		expect(reports[0]?.message).toContain('Rename public component directory "composition"');
+	});
+
+	it('rejects support files placed directly in a public component directory', () => {
+		const root = createFixture();
+		const filename = writeFixture(root, 'packages/example/src/workbench/workbench.tsx');
+		writeFixture(
+			root,
+			'packages/example/src/workbench/index.ts',
+			"export { Workbench } from './workbench';\n",
+		);
+		writeFixture(root, 'packages/example/src/workbench/use-workbench.ts');
+		const { context, reports } = createContext(filename);
+		const visitors = componentDirectory.create(context);
+		const program = { type: 'Program', loc: LOCATION };
+
+		visitors.FunctionDeclaration({
+			type: 'FunctionDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'Workbench', loc: LOCATION },
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports[0]?.message).toContain('Move direct file "use-workbench.ts"');
 	});
 
 	it('rejects a private child component left loose in its source module', () => {
@@ -311,6 +395,33 @@ describe('component-directory', () => {
 		expect(reports).toEqual([]);
 	});
 
+	it('rejects direct support files and private barrels in a private component group', () => {
+		const root = createFixture();
+		const filename = writeFixture(
+			root,
+			'packages/example/src/workbench/components/toolbar/toolbar.tsx',
+		);
+		writeFixture(root, 'packages/example/src/workbench/components/toolbar/index.ts');
+		writeFixture(root, 'packages/example/src/workbench/components/toolbar/toolbar-state.ts');
+		const { context, reports } = createContext(filename);
+		const visitors = componentDirectory.create(context);
+		const program = { type: 'Program', loc: LOCATION };
+
+		visitors.FunctionDeclaration({
+			type: 'FunctionDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'Toolbar', loc: LOCATION },
+		});
+		visitors['Program:exit'](program);
+
+		expect(reports.map((report) => report.message)).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining('Move direct file "index.ts"'),
+				expect.stringContaining('Move direct file "toolbar-state.ts"'),
+			]),
+		);
+	});
+
 	it('rejects a component placed loose directly under components', () => {
 		const root = createFixture();
 		const filename = writeFixture(root, 'packages/example/src/composition/components/toolbar.tsx');
@@ -340,6 +451,20 @@ describe('component-directory', () => {
 		});
 
 		expect(reports[0]?.message).toContain('must be colocated');
+	});
+
+	it('rejects a colocated CSS Module whose name does not match the component', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/example/src/workbench/components/toolbar/toolbar.tsx',
+		);
+
+		componentDirectory.create(context).ImportDeclaration({
+			type: 'ImportDeclaration',
+			loc: LOCATION,
+			source: { value: './styles.module.css', loc: LOCATION },
+		});
+
+		expect(reports[0]?.message).toContain('"./toolbar.module.css"');
 	});
 });
 

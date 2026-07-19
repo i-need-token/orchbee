@@ -20,9 +20,29 @@ function report(context, node, message) {
 	context.report({ loc: startLoc(node), message });
 }
 
+function canonicalLocale(directory) {
+	try {
+		return new Intl.Locale(directory).toString();
+	} catch {
+		return null;
+	}
+}
+
 function checkDirectories(context, node, relativePath) {
-	for (const directory of dirname(relativePath).split('/')) {
+	const directories = dirname(relativePath).split('/');
+	for (const [index, directory] of directories.entries()) {
 		if (directory === '.' || EXEMPT_DIRECTORIES.has(directory)) continue;
+		if (directories[index - 1] === 'locales') {
+			const canonical = canonicalLocale(directory);
+			if (canonical === directory) continue;
+			const expected = canonical === null ? 'a canonical BCP 47 identifier' : `"${canonical}"`;
+			report(
+				context,
+				node,
+				`Rename locale directory "${directory}" to ${expected}. See docs/TESTING.md#source-and-test-paths.`,
+			);
+			continue;
+		}
 		if (!KEBAB_CASE.test(directory)) {
 			report(
 				context,

@@ -1,3 +1,4 @@
+import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import {
 	Workbench,
 	type WorkbenchSession,
@@ -75,4 +76,20 @@ export const InMemorySessions: Story = {
 	args: {
 		sessions: new StorySessionService(),
 	},
+	render: (args) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...args} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const SimplifiedChinese: Story = {
+	args: {
+		sessions: new StorySessionService(),
+	},
+	render: (args) => (
+		<OrchbeeI18nProvider locale='zh-CN'>
+			<Workbench {...args} />
+		</OrchbeeI18nProvider>
+	),
 };

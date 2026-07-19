@@ -16,8 +16,8 @@ apps/web --------+             |                                   |
                                |
                                +--> @orchbee/terminal
                                |
-	                           +--> @orchbee/i18n
-	                           |
+                               +--> @orchbee/i18n <---------------- apps/web
+                               |
                                +--> @orchbee/session-client --> @orchbee/session-protocol
 
 apps/desktop --------------------> @orchbee/session-runtime --> @orchbee/session-protocol
@@ -33,7 +33,7 @@ apps/daemon ---------------------> @orchbee/session-runtime
 | `@orchbee/terminal`         | `browser`   | 终端解析、渲染、输入、选择、搜索和浏览器集成                              | React UI、应用 PTY 进程、会话传输、Electron 平台副作用或产品对话框   | 现有可独立使用的库                                              |
 | `@orchbee/ui`               | `browser`   | 基于 Base UI 的可复用 shadcn 组件                                         | 主题、设计 Token、会话、Agent、终端窗格、路由、远程状态或平台 API    | 与首个使用它的产品 UI 一同添加                                  |
 | `@orchbee/design-tokens`    | `universal` | 可枚举视觉尺度、语义主题角色和响应式阈值                                  | React 组件、产品交互、应用状态、任意组件值或副作用                   | shadcn 兼容样式表中已有使用方                                   |
-| `@orchbee/i18n`             | `browser`   | Orchbee locale 契约、React Provider、Catalog 组合以及发布的产品消息和翻译 | 用户 locale 偏好、平台检测、偏好持久化或功能行为                     | 通过同时迁移现有 Workbench 与 Web 国际化使用方来引入            |
+| `@orchbee/i18n`             | `browser`   | Orchbee locale 契约、React Provider、Catalog 组合以及发布的产品消息和翻译 | 用户 locale 偏好、平台检测、偏好持久化或功能行为                     | `@orchbee/workbench` 和 `apps/web` 中已有使用方                 |
 | `@orchbee/workbench`        | `browser`   | 共享的具有产品语义的 React 界面、交互状态和展示模型                       | 应用启动、路由根、身份验证、持久化、平台导入、PTY 所有权或传输层实现 | `apps/web` 中已有使用方；在跨应用契约得到证明前保持私有和实验性 |
 | `@orchbee/session-protocol` | `universal` | 会话命令、事件、快照和错误的 Zod Schema 与类型                            | I/O、传输选择、状态存储、PTY 进程或 UI                               | 当两个信任边界参与方使用同一传输契约时添加                      |
 | `@orchbee/session-client`   | `browser`   | 无头客户端同步、命令分发、重连和状态                                      | React 展示、平台副作用、传输实现或服务器进程所有权                   | 当浏览器应用使用远程或跨进程会话状态时添加                      |
@@ -55,7 +55,7 @@ apps/daemon ---------------------> @orchbee/session-runtime
 
 两个包都公开可复用组件及其完整所有权树，而不是松散的实现文件。只有当一个通用组件及其状态独立于 Orchbee 产品概念时，它们才留在 `@orchbee/ui`；具有产品语义的组件及其完整所有权树属于 `@orchbee/workbench`。递归所有权、Context 作用域 Store、通信和提升契约位于 [`react.md`](react.md#递归组件所有权)。
 
-`@orchbee/i18n` 是共享 locale 契约、React 国际化 Provider、按领域命名空间组织的产品消息描述符及发布翻译的目标所有者。在通过同时迁移现有 Workbench 与 Web 使用方来引入该包之前，Workbench 和应用本地 Catalog 保持为过渡实现。应用工作区继续拥有用户 locale 选择、平台检测和偏好持久化，然后在组合时提供有效 locale。`@orchbee/ui` 保持 locale 无关，并公开通用的可见或仅无障碍文本，供具有产品语义的使用方本地化。完整契约位于 [`localization.md`](localization.md)。
+`@orchbee/i18n` 拥有共享 locale 契约、React 国际化 Provider、非 React formatter、按领域命名空间组织的产品消息描述符及发布翻译。Workbench 和应用工作区只通过该包根入口使用这些能力；它们不拥有本地 Catalog，也不导入底层格式化库。应用工作区继续拥有用户 locale 选择、平台检测和偏好持久化，然后在组合时提供有效 locale。`@orchbee/ui` 保持 locale 无关，并公开通用的可见或仅无障碍文本，供具有产品语义的使用方本地化。完整契约位于 [`localization.md`](localization.md)。
 
 在 Workbench 终端模块中保留围绕 `@orchbee/terminal` 的 React wrapper，直到它拥有独立使用方和 API。不要向 `@orchbee/terminal` 添加 React、Zustand、shadcn/ui、Base UI、TanStack Router、Electron 或 Node 依赖。
 
@@ -124,7 +124,7 @@ packages/workbench/src/
 ## 引入顺序
 
 1. 一同创建使用方应用和 `@orchbee/ui`；当产品界面通过库边界共享时，也同时创建 `@orchbee/workbench`。
-2. 通过同时迁移现有 Workbench 与 Web 国际化使用方来引入 `@orchbee/i18n`；在包内继续按产品领域命名空间分隔 Catalog。
+2. 把每条 Workbench 和应用产品消息保留在 `@orchbee/i18n` 中；描述符按产品领域命名空间分隔，并组合为每个发布 locale 的一份 Catalog。
 3. 当产品交互契约仍在变化时，针对内存会话 adapter 构建界面。
 4. 连接真实跨进程或远程同步时，添加 `@orchbee/session-protocol` 和 `@orchbee/session-client`。
 5. 把 Node 会话逻辑保留在所属应用中，直到另一个运行时入口对同一服务有具体需求，再提取 `@orchbee/session-runtime`。

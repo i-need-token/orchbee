@@ -19,10 +19,10 @@ function shouldCheck(filePath) {
 function isContextStoreModule(filePath) {
 	const normalized = filePath.split('\\').join('/');
 	const fileName = basename(normalized);
-	if (fileName === 'create-context-store.ts' || fileName === 'create-context-store.tsx') return true;
+	if (fileName === 'create-context-store.ts' || fileName === 'create-context-store.tsx')
+		return true;
 	return (
-		normalized.includes('/contexts/') &&
-		/^[a-z0-9]+(?:-[a-z0-9]+)*-store\.tsx?$/u.test(fileName)
+		normalized.includes('/contexts/') && /^[a-z0-9]+(?:-[a-z0-9]+)*-store\.tsx?$/u.test(fileName)
 	);
 }
 

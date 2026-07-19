@@ -25,9 +25,10 @@ language of their locale.
 ## Locale ownership and resolution
 
 Application workspaces own the user's locale preference, platform detection, persistence, and
-the effective locale supplied to `@orchbee/workbench`. The Workbench owns the supported-locale
-contract, locale normalization, product message descriptors, and translations for the interface
-it renders.
+effective-locale selection. `@orchbee/i18n` owns the supported-locale contract, locale
+normalization, text direction, formatting runtime, product message descriptors, and every shipped
+translation catalog. Applications pass a validated locale to the package provider at their
+composition boundary; feature packages consume that provider and never detect the host locale.
 
 Resolve the effective locale in this order:
 
@@ -44,9 +45,50 @@ the document `lang` attribute with the effective locale and derives `dir` from t
 of assuming that every future language is left-to-right. Existing terminal transcripts and other
 historical external content are not rewritten when the locale changes.
 
-Do not create an `@orchbee/i18n`, `@orchbee/localization`, or similarly generic package while the
-Workbench is the only concrete owner. Extract a shared package only when another independent
-consumer needs the same non-product-specific localization capability.
+`@orchbee/i18n` does not read browser or operating-system globals, store a preference, mutate the
+document, or choose a locale on behalf of an application. The application synchronizes document
+metadata after resolving the locale through the package's pure locale contract.
+
+## Package boundary and public API
+
+All Orchbee product workspaces use `@orchbee/i18n`; no other workspace imports `react-intl` or owns
+a product translation catalog. The package exposes one reviewed root API:
+
+| API                                                          | Responsibility                                                      |
+| ------------------------------------------------------------ | ------------------------------------------------------------------- |
+| `ORCHBEE_LOCALES`, `DEFAULT_ORCHBEE_LOCALE`, `OrchbeeLocale` | Finite shipped-locale contract                                      |
+| `resolveOrchbeeLocale`                                       | Normalize an ordered list of untrusted locale preferences           |
+| `getOrchbeeTextDirection`                                    | Derive document and interface direction from a validated locale     |
+| `OrchbeeI18nProvider`                                        | Install the selected catalog at an application composition boundary |
+| `createOrchbeeIntl`                                          | Format product messages in non-React adapters and services          |
+| `useOrchbeeIntl`, `FormattedMessage`                         | Format product messages inside React-owned presentation             |
+| `<domain>Messages`                                           | Typed descriptors grouped by the owning product domain              |
+
+The package public API may expose FormatJS-compatible descriptor and formatting types when a
+consumer needs them, but consumers depend only on `@orchbee/i18n`. Keep `react-intl` as an
+implementation dependency of this package and React as a peer dependency so every mounted tree
+uses the application's React instance.
+
+Install exactly one `OrchbeeI18nProvider` above the product-semantic interface in each application.
+Do not install a feature-local provider, pass translated strings through unrelated component
+layers, or let a reusable feature package select its own locale. Non-React product adapters create
+a formatter from the same validated locale and catalogs; they do not maintain a second message
+system.
+
+Keep every localized value physically inside
+`packages/i18n/src/locales/<canonical-locale>/<product-domain>.ts`. Locale directory names use the
+canonical BCP 47 identifier, including its canonical casing, and mirror the same product-domain
+filenames. English and translated product copy must never be authored together in one file:
+`locales/en-US/` contains only English values, and `locales/zh-CN/` contains only Simplified Chinese
+values. A message addition, removal, or move updates the matching domain file in every shipped
+locale in the same change.
+
+Group exported descriptors under `packages/i18n/src/descriptors/` by the same stable product
+domains, such as `workbenchMessages` and `webMessages`. A descriptor's English `defaultMessage`
+references the corresponding value from the `en-US` domain catalog instead of duplicating the
+copy. Stable IDs and English translator descriptions are source metadata, not localized values.
+Compose one complete runtime catalog per shipped locale; adding a domain does not create another
+provider or locale contract.
 
 ## Product-message boundary
 
@@ -98,15 +140,17 @@ placeholders whose React elements are supplied by the caller. Never render trans
 
 ## Runtime implementation
 
-`@orchbee/workbench` uses `react-intl` and ICU MessageFormat. English source messages and
-translator descriptions live in typed message descriptors; `zh-CN` translations form a complete
-catalog keyed by the same stable identifiers. Feature code formats descriptors instead of
-rendering product-facing string literals directly.
+`@orchbee/i18n` uses `react-intl` and ICU MessageFormat. English source messages live in the
+`locales/en-US/` catalog, Simplified Chinese messages live in `locales/zh-CN/`, and every locale
+provides a complete catalog keyed by the same stable identifiers. Typed descriptors reference the
+English catalog values as defaults, so fallback and source-locale formatting share one authored
+English value. Feature code formats exported descriptors instead of rendering product-facing
+string literals directly.
 
-The `Workbench` composition boundary accepts an effective locale from its application consumer
-and installs the localization provider for all product-semantic descendants. Application-only
-messages remain in the application that owns them rather than being added to the Workbench
-catalog.
+Runtime fallback follows one path: locale negotiation falls back to `en-US`, a missing translated
+message falls back to its English descriptor default, and an invalid or missing descriptor is a
+development error. Fallback behavior is resilience only; catalog parity remains a merge
+requirement.
 
 Use locale-aware formatters for numbers, lists, dates, times, relative times, and display names.
 Store and transport locale-neutral values such as timestamps and numeric quantities; format them

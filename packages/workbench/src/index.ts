@@ -1,5 +1,3 @@
-export { Workbench } from './composition';
-export type { WorkbenchProps } from './composition';
 export type {
 	WorkbenchSession,
 	WorkbenchSessionService,
@@ -8,3 +6,5 @@ export type {
 	WorkbenchTerminalChannel,
 	WorkbenchTerminalSize,
 } from './sessions';
+export { Workbench } from './workbench';
+export type { WorkbenchProps } from './workbench';

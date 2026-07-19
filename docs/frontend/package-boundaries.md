@@ -16,8 +16,8 @@ apps/web --------+             |                                   |
                                |
                                +--> @orchbee/terminal
                                |
-	                           +--> @orchbee/i18n
-	                           |
+                               +--> @orchbee/i18n <---------------- apps/web
+                               |
                                +--> @orchbee/session-client --> @orchbee/session-protocol
 
 apps/desktop --------------------> @orchbee/session-runtime --> @orchbee/session-protocol
@@ -33,7 +33,7 @@ Application workspaces own runtime startup, routing roots, authentication entry 
 | `@orchbee/terminal`         | `browser`   | Terminal parsing, rendering, input, selection, search, and browser integration                               | React UI, application PTY processes, session transport, Electron effects, or product dialogs                        | Existing independently consumable library                                                             |
 | `@orchbee/ui`               | `browser`   | Reusable shadcn components backed by Base UI                                                                 | Themes, design tokens, sessions, agents, terminal panes, routing, remote state, or platform APIs                    | Add with the first consuming product UI                                                               |
 | `@orchbee/design-tokens`    | `universal` | Enumerable visual scales, semantic theme roles, and responsive thresholds                                    | React components, product interactions, application state, arbitrary component values, or effects                   | Existing consumer in the shadcn compatibility stylesheet                                              |
-| `@orchbee/i18n`             | `browser`   | Orchbee locale contracts, React provider, catalog composition, and shipped product messages and translations | User locale preference, platform detection, preference persistence, or feature behavior                             | Introduce by migrating the existing Workbench and web localization consumers together                 |
+| `@orchbee/i18n`             | `browser`   | Orchbee locale contracts, React provider, catalog composition, and shipped product messages and translations | User locale preference, platform detection, preference persistence, or feature behavior                             | Existing consumers in `@orchbee/workbench` and `apps/web`                                             |
 | `@orchbee/workbench`        | `browser`   | Shared product-semantic React interface, interaction state, and presentation model                           | Application startup, routing roots, authentication, persistence, platform imports, PTY ownership, or wire transport | Existing consumer in `apps/web`; keep private and experimental until its cross-app contract is proven |
 | `@orchbee/session-protocol` | `universal` | Zod schemas and types for session commands, events, snapshots, and errors                                    | I/O, transport selection, state storage, PTY processes, or UI                                                       | Add when two trust-boundary participants consume the same wire contract                               |
 | `@orchbee/session-client`   | `browser`   | Headless client synchronization, command dispatch, reconnection, and state                                   | React presentation, platform effects, transport implementation, or server process ownership                         | Add when a browser app consumes remote or cross-process session state                                 |
@@ -55,7 +55,7 @@ All frontend workspaces follow the generated-component and styling ownership con
 
 Both packages expose reusable components together with their complete ownership trees rather than loose implementation files. A generic component and its state remain in `@orchbee/ui` only while they are independent of Orchbee product concepts; a product-semantic component and its complete ownership tree belong to `@orchbee/workbench`. The recursive ownership, Context-scoped Store, communication, and promotion contracts live in [`react.md`](react.md#recursive-component-ownership).
 
-`@orchbee/i18n` is the target owner of the shared locale contract, React localization provider, domain-namespaced product message descriptors, and shipped translations. Workbench and application-local catalogs remain transitional until the package is introduced by migrating the existing Workbench and web consumers together. Application workspaces continue to own user locale selection, platform detection, and preference persistence, then supply the effective locale at composition time. `@orchbee/ui` remains locale-agnostic and exposes generic visible or accessibility-only text for its product-semantic consumer to localize. The complete contract lives in [`localization.md`](localization.md).
+`@orchbee/i18n` owns the shared locale contract, React localization provider, non-React formatter, domain-namespaced product message descriptors, and shipped translations. Workbench and application workspaces consume these capabilities only through the package root; they do not own local catalogs or import the underlying formatting library. Application workspaces continue to own user locale selection, platform detection, and preference persistence, then supply the effective locale at composition time. `@orchbee/ui` remains locale-agnostic and exposes generic visible or accessibility-only text for its product-semantic consumer to localize. The complete contract lives in [`localization.md`](localization.md).
 
 Keep a React wrapper around `@orchbee/terminal` inside the workbench terminal module until it has an independent consumer and API. Do not add React, Zustand, shadcn/ui, Base UI, TanStack Router, Electron, or Node dependencies to `@orchbee/terminal`.
 
@@ -124,7 +124,7 @@ Use Zustand for shared client UI state inside the owning browser package. Do not
 ## Introduction order
 
 1. Create the consuming application together with `@orchbee/ui` and, when the product interface is shared through a library boundary, `@orchbee/workbench`.
-2. Introduce `@orchbee/i18n` by migrating the existing Workbench and web localization consumers together; keep catalogs separated by product-domain namespace inside the package.
+2. Keep every Workbench and application product message in `@orchbee/i18n`, with descriptors separated by product-domain namespace and composed into one catalog per shipped locale.
 3. Build the interface against an in-memory session adapter while product interaction contracts are still changing.
 4. Add `@orchbee/session-protocol` and `@orchbee/session-client` when real cross-process or remote synchronization is connected.
 5. Keep Node session logic in its owning application until another runtime entry has a concrete need for the same service, then extract `@orchbee/session-runtime`.

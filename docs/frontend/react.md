@@ -66,8 +66,8 @@ An adapter connects React to an external lifecycle, creates or provides a scoped
 ## Component directory boundary
 
 - `orchbee/component-directory`: An authored production component that is not directly re-exported by its owning source module's `index.ts` is a private child component and lives at `components/<component-name>/<component-name>.tsx`.
-- A component directly re-exported by the owning `index.ts` is that module's public boundary component. A public component directory keeps only `index.ts`, its root `.tsx` implementation, and an optional same-named `.module.css` as direct files; every supporting implementation belongs in a named subdirectory.
-- A private component directory keeps only its root `.tsx` implementation and an optional same-named `.module.css` as direct files and does not define an `index.ts`. Its owner imports that implementation directly.
+- A component directly re-exported by the owning `index.ts` is that module's public boundary component. Its source-module directory and root component filename use the same kebab-case name. The directory keeps only `index.ts`, `<component-name>.tsx`, and the optional `<component-name>.module.css` as direct files; every supporting implementation belongs in a named subdirectory.
+- A private component directory keeps only `<component-name>.tsx` and the optional `<component-name>.module.css` as direct files and does not define an `index.ts`. Its owner imports that implementation directly. The lint rule inventories direct files in both public and private component directories and rejects every other direct file.
 - Define a component's Props type in that component's `.tsx` file. Export it from the same file when consumers need the type, and re-export it through the public `index.ts` when it is part of the module API. Do not create a separate `<component-name>-props.ts` merely to move the component's own signature out of TSX.
 - Repeat the private component structure recursively. A private child of `toolbar.tsx` lives at `components/action/action.tsx` inside the `toolbar` directory rather than as a loose sibling.
 - Create support directories only when they have concrete contents, using the ownership below:
@@ -86,7 +86,7 @@ An adapter connects React to an external lifecycle, creates or provides a scoped
 - Keep a Context-scoped Store's State and action types, Store creation, Context Provider, and `use<ComponentName>Store(selector)` export in one Store module under `contexts/`. The selector Hook is part of the Store's API and does not get a second wrapper in `hooks/`.
 - Use `types/` only when a named data structure is shared across the component-owned tree or has an independent meaning beyond one component signature. Props used by one component remain in that component's `.tsx` file.
 - Keep the component's optional CSS Module beside the `.tsx` file that imports it; do not create a `styles/` subdirectory.
-- Do not create `stories/` or `__tests__/` as direct children of a component directory. Story ownership follows [`docs/frontend/storybook.md`](storybook.md), while test placement follows [`docs/TESTING.md`](../TESTING.md).
+- Do not place story or test files directly beside the component root. Unit tests use the direct child `__tests__/` support directory required by [`docs/TESTING.md`](../TESTING.md); Storybook ownership follows [`docs/frontend/storybook.md`](storybook.md).
 - The checked-in shadcn source described in [`docs/LINTING.md`](../LINTING.md#generated-source) is outside this authored component-directory rule.
 
 Store and selector Hook files in the following example exist only because their owning component has state shared by multiple descendants:
