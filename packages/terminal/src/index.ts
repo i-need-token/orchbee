@@ -81,13 +81,13 @@ export {
 } from './context-menu';
 
 // GhosttyTerminal compatibility layer
-export { GhosttyTerminal, type GhosttyTerminalSource } from './ghostty-terminal';
+export { GhosttyTerminal, type GhosttyTerminalSource } from './GhosttyTerminal';
 
 // Grid data reader
 export { Grid, CellReader, type CellData } from './grid';
 
 // Event system
-export { EventEmitter, type IDisposable, type IEvent } from './event-emitter';
+export { EventEmitter, type IDisposable, type IEvent } from './EventEmitter';
 
 // Actions
 export {
@@ -197,7 +197,7 @@ export {
 } from './selection';
 
 // Link detection
-export { LinkDetector, type ITerminalForLinkDetector } from './link-detector';
+export { LinkDetector, type ITerminalForLinkDetector } from './LinkDetector';
 export {
 	OSC8LinkProvider,
 	PathLinkProvider,

@@ -28,7 +28,11 @@ import {
 import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from '../ghostty-sprites';
 import { searchMatchContainsCell, type TerminalSearchMatch } from '../search';
 import { additionalSurfaceMargins, balanceGridPadding } from '../surface-size';
-import { buildTextShapingPlan, type TextShapingCell, type TextShapingPlan } from '../text-shaping';
+import {
+	buildTextShapingPlan,
+	type TextShapingCell,
+	type TextShapingPlan,
+} from '../buildTextShapingPlan';
 import { CellFlags, UnderlineStyle } from '../types';
 import type {
 	FontMetrics,

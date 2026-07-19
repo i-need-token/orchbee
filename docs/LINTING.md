@@ -29,7 +29,7 @@
 
 ## Generated source
 
-The checked-in shadcn snapshot under `packages/ui/src/components/ui/*.tsx` and its generated `use-mobile.ts` hook remain close to the upstream registry so CLI refreshes stay reviewable. A path-scoped override exempts that source from repository authoring conventions that would require broad mechanical rewrites: explicit module-boundary return types, assertion style, shadowing style, equality style, nested-ternary style, component-directory grouping, direct React Hook calls in TSX, one-function TSX and one-Hook file boundaries, and the sibling-test requirement. The automatic JSX runtime also makes `react/react-in-jsx-scope` inapplicable there.
+The checked-in shadcn snapshot under `packages/ui/src/components/ui/*.tsx` and its generated `use-mobile.ts` hook remain close to the upstream registry so CLI refreshes stay reviewable. A path-scoped override exempts that source from repository authoring conventions that would require broad mechanical rewrites: explicit module-boundary return types, assertion style, shadowing style, equality style, nested-ternary style, component-directory grouping, direct React Hook calls in TSX, one-function TSX and one-Hook file boundaries, unique-symbol filename matching for `use-mobile.ts`, and the sibling-test requirement. The automatic JSX runtime also makes `react/react-in-jsx-scope` inapplicable there.
 
 Correctness rules remain active for generated source, including React Hooks, JSX keys, module boundaries, cross-workspace imports, unsafe TypeScript constructs, and inline suppression bans. `ChartStyle` has the only additional exception for its upstream-controlled style element; [`docs/frontend/react.md`](frontend/react.md#correctness-and-safety) defines that constraint.
 

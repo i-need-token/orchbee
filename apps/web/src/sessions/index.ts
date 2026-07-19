@@ -1,1 +1,1 @@
-export { createInMemorySessionService } from './in-memory-session-service';
+export { createInMemorySessionService } from './createInMemorySessionService';

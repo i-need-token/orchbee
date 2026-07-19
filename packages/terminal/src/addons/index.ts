@@ -1,1 +1,1 @@
-export { FitAddon } from './fit';
+export { FitAddon } from './FitAddon';

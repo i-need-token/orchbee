@@ -15,7 +15,7 @@
  * ```
  */
 
-import { EventEmitter } from './event-emitter';
+import { EventEmitter } from './EventEmitter';
 import type {
 	CellData,
 	IBuffer,

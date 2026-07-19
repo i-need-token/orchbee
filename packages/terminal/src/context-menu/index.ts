@@ -1,2 +1,2 @@
-export { ContextMenuRegistry, type ContextMenuProvider } from './context-menu-registry';
+export { ContextMenuRegistry, type ContextMenuProvider } from './ContextMenuRegistry';
 export type { ContextMenuItem } from '../terminal-contracts';

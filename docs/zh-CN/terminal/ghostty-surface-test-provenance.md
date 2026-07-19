@@ -35,13 +35,13 @@ Zig 计数接受 `test {}`、`test name {}` 和 `test "name" {`；早期仅接�
 | 代码       | 证据                                                                                               |
 | ---------- | -------------------------------------------------------------------------------------------------- |
 | `E-RENDER` | `src/rendering/__tests__/renderer.unit.test.ts`                                                    |
-| `E-FIT`    | fit 测试和 `src/__tests__/surface-size.unit.test.ts`                                               |
-| `E-SHAPE`  | `src/__tests__/text-shaping.unit.test.ts` 和 renderer 测试                                         |
+| `E-FIT`    | FitAddon 测试和 `src/__tests__/surface-size.unit.test.ts`                                          |
+| `E-SHAPE`  | `src/__tests__/buildTextShapingPlan.unit.test.ts` 和 renderer 测试                                 |
 | `E-SEARCH` | `src/search/__tests__/terminal-search.unit.test.ts` 和 composition 终端测试                        |
-| `E-LINK`   | link-detector、link-provider、renderer 和 composition 终端测试                                     |
-| `E-MOUSE`  | `src/input/__tests__/surface-mouse.unit.test.ts` 和 input-handler 测试                             |
-| `E-IME`    | `src/input/__tests__/preedit.unit.test.ts` 和 input-handler 测试                                   |
-| `E-SELECT` | `src/selection/__tests__/selection-manager.unit.test.ts`                                           |
+| `E-LINK`   | LinkDetector、link-provider、renderer 和 composition Terminal 测试                                 |
+| `E-MOUSE`  | `src/input/__tests__/surface-mouse.unit.test.ts` 和 InputHandler 测试                              |
+| `E-IME`    | `src/input/__tests__/preedit.unit.test.ts` 和 InputHandler 测试                                    |
+| `E-SELECT` | `src/selection/__tests__/SelectionManager.unit.test.ts`                                            |
 | `E-FONT`   | font-metrics、glyph-constraints、Ghostty sprite、renderer、generated-table 和 composition 终端测试 |
 
 下方命名的每个声明都具有对应行中的处置分类和证据；`<unnamed@line>` 标识基线 commit 中的无名上游测试。

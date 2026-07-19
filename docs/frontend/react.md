@@ -59,7 +59,7 @@ An adapter connects React to an external lifecycle, creates or provides a scoped
 
 - `orchbee/one-function-per-tsx`: Each authored production `.tsx` file contains at most one top-level function. When present, that function is the sole named runtime export, is a PascalCase function component, and exactly matches the filename stem. Type-only exports such as the component's Props contract do not count as runtime exports.
 - A function declaration, function expression, or arrow function is top-level when no other function contains it. Callbacks nested inside the file's sole component do not consume another file-level function slot.
-- Put a child presentational component in its own symbol-matched PascalCase `.tsx` file, a presenter Hook in its own symbol-matched `useHookName.ts` file, and framework-independent helpers in a responsibility-focused kebab-case `.ts` file.
+- Put a child presentational component in its own symbol-matched PascalCase `.tsx` file and a presenter Hook in its own symbol-matched `useHookName.ts` file. Framework-independent helper modules follow the global source-path rule: use the exact camelCase function name for one callable runtime export, or a responsibility-focused kebab-case name when the module has no unique runtime identity.
 - Type declarations, constants, and prepared lookup data do not consume the function slot, but they remain only when they support the component's single responsibility.
 - Unit tests, Storybook stories, and the checked-in shadcn source described in [`docs/LINTING.md`](../LINTING.md#generated-source) are outside this authored-production rule.
 
@@ -159,7 +159,7 @@ const viewProps = { isEmpty: sessions.length === 0 };
 ## Hook file boundary
 
 - `orchbee/one-hook-per-file`: Each authored production Hook module is named with the exact camelCase Hook export, such as `useTerminalPane.ts` or `useTerminalPane.tsx`, and contains exactly one top-level function and exactly one exported symbol.
-- The sole top-level function is the named Hook export and exactly matches the filename stem. Move supporting functions to responsibility-focused kebab-case `.ts` modules and public contracts to type-focused modules.
+- The sole top-level function is the named Hook export and exactly matches the filename stem. Move supporting functions to focused `.ts` modules named after a sole exported function or after their shared responsibility, and move public contracts to type-focused modules.
 - Functions nested inside the Hook, including Effect callbacks and event adapters, do not consume another file-level function slot and are not additional exports.
 - Unit tests and the generated `packages/ui/src/hooks/use-mobile.ts` source described in [`docs/LINTING.md`](../LINTING.md#generated-source) are outside this authored-production rule.
 

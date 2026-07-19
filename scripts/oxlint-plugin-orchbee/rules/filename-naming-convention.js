@@ -1,12 +1,14 @@
-import { basename, dirname } from 'node:path';
+import { basename, dirname, extname } from 'node:path';
 import { startLoc } from '../utils.js';
 
 const KEBAB_CASE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
+const CAMEL_CASE = /^[a-z][A-Za-z0-9]*$/;
 const PASCAL_CASE = /^[A-Z][A-Za-z0-9]*$/;
 const HOOK_CASE = /^use[A-Z0-9][A-Za-z0-9]*$/;
 const EXEMPT_DIRECTORIES = new Set(['src', '__tests__']);
 const EXEMPT_FILES = new Set(['index']);
 const UNIT_TEST_SUFFIXES = ['.unit.test.ts', '.unit.test.tsx'];
+const SYMBOL_MATCH_EXEMPT_PATHS = new Set(['packages/ui/src/hooks/use-mobile.ts']);
 
 function normalize(value) {
 	return value.split('\\').join('/');
@@ -20,6 +22,88 @@ function sourceRelativePath(filePath) {
 
 function report(context, node, message) {
 	context.report({ loc: startLoc(node), message });
+}
+
+function identifierName(identifier) {
+	if (identifier?.type === 'Identifier') return identifier.name;
+	if (identifier?.type === 'Literal' && typeof identifier.value === 'string')
+		return identifier.value;
+	return undefined;
+}
+
+function declarationSymbols(declaration) {
+	if (declaration === null || declaration === undefined) return [];
+	if (declaration?.declare === true) return [];
+	if (declaration?.type === 'FunctionDeclaration') {
+		const name = identifierName(declaration.id);
+		return name === undefined ? [] : [{ name, kind: 'function' }];
+	}
+	if (declaration?.type === 'ClassDeclaration') {
+		const name = identifierName(declaration.id);
+		return name === undefined ? [] : [{ name, kind: 'class' }];
+	}
+	if (declaration?.type === 'VariableDeclaration') {
+		return declaration.declarations.flatMap((declarator) => {
+			const name = identifierName(declarator.id);
+			if (name === undefined) return [];
+			if (
+				declarator.init?.type === 'ArrowFunctionExpression' ||
+				declarator.init?.type === 'FunctionExpression'
+			)
+				return [{ name, kind: 'function' }];
+			if (declarator.init?.type === 'ClassExpression') return [{ name, kind: 'class' }];
+			return [{ name, kind: 'other' }];
+		});
+	}
+	if (
+		declaration?.type === 'TSInterfaceDeclaration' ||
+		declaration?.type === 'TSTypeAliasDeclaration'
+	)
+		return [];
+
+	const name = identifierName(declaration?.id);
+	return name === undefined ? [{ name: undefined, kind: 'other' }] : [{ name, kind: 'other' }];
+}
+
+function localSymbols(program) {
+	const symbols = new Map();
+	for (const statement of program.body ?? []) {
+		const declaration =
+			statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement;
+		for (const symbol of declarationSymbols(declaration)) {
+			if (symbol.name !== undefined) symbols.set(symbol.name, symbol.kind);
+		}
+	}
+	return symbols;
+}
+
+function runtimeExports(program) {
+	const definitions = localSymbols(program);
+	const exports = [];
+	for (const statement of program.body ?? []) {
+		if (statement.type === 'ExportDefaultDeclaration') {
+			exports.push({ name: 'default', kind: 'other' });
+			continue;
+		}
+		if (statement.type === 'ExportAllDeclaration') {
+			if (statement.exportKind !== 'type') exports.push({ name: undefined, kind: 'other' });
+			continue;
+		}
+		if (statement.type !== 'ExportNamedDeclaration' || statement.exportKind === 'type') continue;
+
+		exports.push(...declarationSymbols(statement.declaration));
+		for (const specifier of statement.specifiers ?? []) {
+			if (specifier.exportKind === 'type') continue;
+			const name = identifierName(specifier.exported);
+			const localName = identifierName(specifier.local);
+			const kind =
+				statement.source === undefined && localName !== undefined
+					? (definitions.get(localName) ?? 'other')
+					: 'other';
+			exports.push({ name, kind });
+		}
+	}
+	return exports;
 }
 
 function canonicalLocale(directory) {
@@ -80,33 +164,68 @@ function checkTestFile(context, node, relativePath, fileName) {
 
 	const sourceStem = fileName.slice(0, -unitTestSuffix.length);
 	const preservesSourceConvention =
-		KEBAB_CASE.test(sourceStem) ||
-		HOOK_CASE.test(sourceStem) ||
-		(unitTestSuffix.endsWith('.tsx') && PASCAL_CASE.test(sourceStem));
+		KEBAB_CASE.test(sourceStem) || CAMEL_CASE.test(sourceStem) || PASCAL_CASE.test(sourceStem);
 	if (!preservesSourceConvention) {
 		report(
 			context,
 			node,
-			`Rename unit test "${fileName}" to preserve its source file's kebab-case ordinary, PascalCase component, or camelCase Hook name. See docs/TESTING.md#source-and-test-paths.`,
+			`Rename unit test "${fileName}" to preserve its source file's kebab-case module, camelCase function, or PascalCase component or class name. See docs/TESTING.md#source-and-test-paths.`,
 		);
 	}
 	return true;
 }
 
-function checkSourceFile(context, node, relativePath) {
+function checkSourceFile(context, node, relativePath, program) {
 	const fileName = basename(relativePath);
 	if (fileName.endsWith('.d.ts') || checkTestFile(context, node, relativePath, fileName)) return;
 	if (!/\.[cm]?[jt]sx?$/.test(fileName)) return;
 
 	const extensionIndex = fileName.indexOf('.');
 	const stem = extensionIndex === -1 ? fileName : fileName.slice(0, extensionIndex);
+	if (EXEMPT_FILES.has(stem)) return;
+
 	const isComponentName = fileName.endsWith('.tsx') && PASCAL_CASE.test(stem);
-	if (EXEMPT_FILES.has(stem) || KEBAB_CASE.test(stem) || HOOK_CASE.test(stem) || isComponentName)
+	if (fileName.endsWith('.tsx')) {
+		if (KEBAB_CASE.test(stem) || HOOK_CASE.test(stem) || isComponentName) return;
+		report(
+			context,
+			node,
+			`Rename source file "${fileName}" to kebab-case for an entry module, PascalCase for a function component, or camelCase for a Hook. See docs/TESTING.md#source-and-test-paths.`,
+		);
 		return;
+	}
+
+	const normalizedFilename = normalize(context.filename);
+	const isGeneratedFile = fileName.split('.').includes('generated');
+	const isSymbolMatchExempt =
+		isGeneratedFile ||
+		[...SYMBOL_MATCH_EXEMPT_PATHS].some((path) => normalizedFilename.endsWith(`/${path}`));
+	const exports = isSymbolMatchExempt ? [] : runtimeExports(program);
+	const primaryExport = exports.length === 1 ? exports[0] : undefined;
+	const hasFunctionIdentity =
+		primaryExport?.kind === 'function' &&
+		primaryExport.name !== undefined &&
+		CAMEL_CASE.test(primaryExport.name);
+	const hasClassIdentity =
+		primaryExport?.kind === 'class' &&
+		primaryExport.name !== undefined &&
+		PASCAL_CASE.test(primaryExport.name);
+
+	if (hasFunctionIdentity || hasClassIdentity) {
+		if (stem === primaryExport.name) return;
+		report(
+			context,
+			node,
+			`Rename source file "${fileName}" to "${primaryExport.name}${extname(fileName)}" so it matches its sole named runtime ${primaryExport.kind} export. See docs/TESTING.md#source-and-test-paths.`,
+		);
+		return;
+	}
+
+	if (KEBAB_CASE.test(stem)) return;
 	report(
 		context,
 		node,
-		`Rename source file "${fileName}" to kebab-case for ordinary source, PascalCase for a function component, or camelCase for a Hook. See docs/TESTING.md#source-and-test-paths.`,
+		`Rename source file "${fileName}" to kebab-case because it does not have one named runtime function or class export. See docs/TESTING.md#source-and-test-paths.`,
 	);
 }
 
@@ -124,7 +243,9 @@ export const filenameNamingConvention = {
 		return {
 			Program(node) {
 				checkDirectories(context, node, relativePath);
-				checkSourceFile(context, node, relativePath);
+			},
+			'Program:exit'(node) {
+				checkSourceFile(context, node, relativePath, node);
 			},
 		};
 	},

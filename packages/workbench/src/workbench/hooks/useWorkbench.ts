@@ -4,7 +4,7 @@ import type { WorkbenchSession, WorkbenchSessionService } from '../../sessions';
 import {
 	createWorkbenchLayoutStore,
 	type WorkbenchSplitOrientation,
-} from '../contexts/workbench-layout-store';
+} from '../contexts/createWorkbenchLayoutStore';
 
 interface UseWorkbenchResult {
 	readonly activeSession: WorkbenchSession | undefined;

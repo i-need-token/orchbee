@@ -1293,7 +1293,7 @@ export async function checkStyleContract(repositoryRoot) {
 				});
 			}
 			const isGeneratedShadcn = path.startsWith('packages/ui/src/components/ui/');
-			const isShadcnUtility = path === 'packages/ui/src/lib/utils.ts';
+			const isShadcnUtility = path === 'packages/ui/src/lib/cn.ts';
 			return validateScriptSource({
 				path,
 				source,

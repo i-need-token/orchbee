@@ -7,7 +7,7 @@ export {
 	type GhosttySelectionGesturePoint,
 	type GhosttySelectionGesturePress,
 	type GhosttySelectionRange,
-} from './ghostty-selection';
+} from './GhosttySelectionController';
 export {
 	SelectionManager,
 	type ISelectionTerminal,
@@ -15,4 +15,4 @@ export {
 	type SelectionCopyResult,
 	type SelectionManagerOptions,
 	type SelectionModel,
-} from './selection-manager';
+} from './SelectionManager';

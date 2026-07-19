@@ -1,5 +1,5 @@
-export { createBrowserTerminalHost } from './browser-terminal-host';
-export { resolveHostCapabilities } from './terminal-capabilities';
+export { createBrowserTerminalHost } from './createBrowserTerminalHost';
+export { resolveHostCapabilities } from './resolveHostCapabilities';
 export type {
 	ClipboardPayload,
 	ClipboardReadRequest,

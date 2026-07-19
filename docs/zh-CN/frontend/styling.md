@@ -6,7 +6,7 @@ Orchbee 自有组件使用 [`docs/frontend/design-tokens.md`](design-tokens.md) 
 
 从 shadcn/ui 的 Base UI 注册表安装可复用 primitive，并在 `@orchbee/ui` 中拥有生成的开放组件源码。不要手写 shadcn 已经提供的 primitive。检入的 `components.json` 固定 Base UI Nova 样式，使每次 CLI 调用都使用相同的组件系列。
 
-生成的 shadcn 组件保留其 Tailwind CSS v4 utility class 和标准可组合 `className` API。Tailwind 例外仅限于 `packages/ui/src/components/ui`、其生成的 `use-mobile.ts` Hook、`packages/ui/src/lib/utils.ts` 和 `packages/ui/src/styles.css` 兼容层。不要把其 utility 复制到自有组件中，也不要仅仅为了重命名生成的 props 而引入第二套 primitive 实现。
+生成的 shadcn 组件保留其 Tailwind CSS v4 utility class 和标准可组合 `className` API。Tailwind 例外仅限于 `packages/ui/src/components/ui`、其生成的 `use-mobile.ts` Hook、`packages/ui/src/lib/cn.ts` 和 `packages/ui/src/styles.css` 兼容层。不要把其 utility 复制到自有组件中，也不要仅仅为了重命名生成的 props 而引入第二套 primitive 实现。
 
 `packages/ui/src/styles.ts` 是样式导出的 source-build 入口：它先于 `packages/ui/src/styles.css` 导入设计 Token 注册表。CSS 文件将生成的 shadcn 变量词汇映射到 Orchbee 系统 Token，保留为检入的 shadcn 源码生成 utility 的 `@theme inline` 声明，并拥有生成组件所需的最小全局基础层。两个文件都不拥有 Token 名称或具体主题值。Orchbee 的运行时注册表仍然使用标准 `:root` 自定义属性，因为自有组件直接使用变量，而且系统主题映射必须保持可由 selector 覆盖。
 

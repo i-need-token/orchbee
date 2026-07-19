@@ -35,13 +35,13 @@ Declaration-weighted applicable coverage is `114 / (114 + 52) = 68.7%`; this is 
 | Code       | Evidence                                                                                                    |
 | ---------- | ----------------------------------------------------------------------------------------------------------- |
 | `E-RENDER` | `src/rendering/__tests__/renderer.unit.test.ts`                                                             |
-| `E-FIT`    | fit tests and `src/__tests__/surface-size.unit.test.ts`                                                     |
-| `E-SHAPE`  | `src/__tests__/text-shaping.unit.test.ts` and renderer tests                                                |
+| `E-FIT`    | FitAddon tests and `src/__tests__/surface-size.unit.test.ts`                                                |
+| `E-SHAPE`  | `src/__tests__/buildTextShapingPlan.unit.test.ts` and renderer tests                                        |
 | `E-SEARCH` | `src/search/__tests__/terminal-search.unit.test.ts` and composition terminal tests                          |
-| `E-LINK`   | link-detector, link-provider, renderer, and composition terminal tests                                      |
-| `E-MOUSE`  | `src/input/__tests__/surface-mouse.unit.test.ts` and input-handler tests                                    |
-| `E-IME`    | `src/input/__tests__/preedit.unit.test.ts` and input-handler tests                                          |
-| `E-SELECT` | `src/selection/__tests__/selection-manager.unit.test.ts`                                                    |
+| `E-LINK`   | LinkDetector, link-provider, renderer, and composition Terminal tests                                       |
+| `E-MOUSE`  | `src/input/__tests__/surface-mouse.unit.test.ts` and InputHandler tests                                     |
+| `E-IME`    | `src/input/__tests__/preedit.unit.test.ts` and InputHandler tests                                           |
+| `E-SELECT` | `src/selection/__tests__/SelectionManager.unit.test.ts`                                                     |
 | `E-FONT`   | font-metrics, glyph-constraints, Ghostty sprites, renderer, generated-table, and composition terminal tests |
 
 Each declaration named below has the row's disposition and evidence; `<unnamed@line>` identifies an unnamed upstream test at the baseline commit.

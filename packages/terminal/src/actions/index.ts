@@ -5,4 +5,4 @@ export {
 	type TerminalActionResult,
 	type TerminalActionSource,
 	type TerminalActionState,
-} from './action-registry';
+} from './TerminalActionRegistry';

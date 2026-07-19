@@ -1,15 +1,15 @@
-export { InputHandler, type InputHandlerDependencies } from './input-handler';
+export { InputHandler, type InputHandlerDependencies } from './InputHandler';
 export {
 	calculateInputAnchor,
 	type InputAnchorLayout,
 	type InputAnchorRequest,
-} from './input-anchor';
+} from './calculateInputAnchor';
 export {
 	KeyEventRegistry,
 	type TerminalKeyEventContext,
 	type TerminalKeyEventHandler,
-} from './key-event-registry';
-export { OrderedInputDispatcher } from './ordered-input-dispatcher';
+} from './KeyEventRegistry';
+export { OrderedInputDispatcher } from './OrderedInputDispatcher';
 export {
 	encodePaste,
 	inspectPaste,

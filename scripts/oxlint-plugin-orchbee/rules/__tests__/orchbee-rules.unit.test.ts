@@ -45,6 +45,69 @@ const LOCATION = {
 	end: { line: 1, column: 1 },
 };
 
+function lintFilename(filename: string, body: readonly object[] = []) {
+	const { context, reports } = createContext(filename);
+	const program = { type: 'Program', body, loc: LOCATION };
+	const listeners = filenameNamingConvention.create(context);
+	listeners.Program?.(program);
+	listeners['Program:exit']?.(program);
+	return reports;
+}
+
+function exportedFunction(name: string) {
+	return {
+		type: 'ExportNamedDeclaration',
+		exportKind: 'value',
+		declaration: {
+			type: 'FunctionDeclaration',
+			id: { type: 'Identifier', name },
+		},
+		specifiers: [],
+	};
+}
+
+function exportedClass(name: string) {
+	return {
+		type: 'ExportNamedDeclaration',
+		exportKind: 'value',
+		declaration: {
+			type: 'ClassDeclaration',
+			id: { type: 'Identifier', name },
+		},
+		specifiers: [],
+	};
+}
+
+function exportedInterface(name: string) {
+	return {
+		type: 'ExportNamedDeclaration',
+		exportKind: 'type',
+		declaration: {
+			type: 'TSInterfaceDeclaration',
+			id: { type: 'Identifier', name },
+		},
+		specifiers: [],
+	};
+}
+
+function exportedConstant(name: string) {
+	return {
+		type: 'ExportNamedDeclaration',
+		exportKind: 'value',
+		declaration: {
+			type: 'VariableDeclaration',
+			declarations: [
+				{
+					type: 'VariableDeclarator',
+					id: { type: 'Identifier', name },
+					init: { type: 'ObjectExpression' },
+				},
+			],
+		},
+		specifiers: [],
+	};
+}
+
 const fixtureRoots = new Set<string>();
 
 function createFixture() {
@@ -92,57 +155,121 @@ afterEach(() => {
 
 describe('filename-naming-convention', () => {
 	it('accepts sibling TSX unit tests with kebab-case paths', () => {
-		const { context, reports } = createContext(
+		const reports = lintFilename(
 			'/workspace/packages/ui/src/components/__tests__/agent-panel.unit.test.tsx',
 		);
-		filenameNamingConvention.create(context).Program({ loc: LOCATION });
 		expect(reports).toEqual([]);
 	});
 
 	it('accepts symbol-matched component and Hook source paths', () => {
-		for (const filename of [
-			'/workspace/packages/workbench/src/terminal-pane/TerminalPane.tsx',
-			'/workspace/packages/workbench/src/terminal-pane/hooks/useTerminalPane.ts',
-			'/workspace/packages/workbench/src/terminal-pane/__tests__/TerminalPane.unit.test.tsx',
-			'/workspace/packages/workbench/src/terminal-pane/hooks/__tests__/useTerminalPane.unit.test.ts',
-		]) {
-			const { context, reports } = createContext(filename);
-			filenameNamingConvention.create(context).Program({ loc: LOCATION });
-			expect(reports).toEqual([]);
-		}
+		expect(
+			lintFilename('/workspace/packages/workbench/src/terminal-pane/TerminalPane.tsx'),
+		).toEqual([]);
+		expect(
+			lintFilename('/workspace/packages/workbench/src/terminal-pane/hooks/useTerminalPane.ts', [
+				exportedFunction('useTerminalPane'),
+			]),
+		).toEqual([]);
+		expect(
+			lintFilename(
+				'/workspace/packages/workbench/src/terminal-pane/__tests__/TerminalPane.unit.test.tsx',
+			),
+		).toEqual([]);
+		expect(
+			lintFilename(
+				'/workspace/packages/workbench/src/terminal-pane/hooks/__tests__/useTerminalPane.unit.test.ts',
+			),
+		).toEqual([]);
+	});
+
+	it('accepts symbol-matched function and class source paths', () => {
+		expect(
+			lintFilename('/workspace/apps/web/src/composition/startWebApplication.ts', [
+				exportedFunction('startWebApplication'),
+			]),
+		).toEqual([]);
+		expect(
+			lintFilename('/workspace/packages/terminal/src/EventEmitter.ts', [
+				exportedInterface('Disposable'),
+				exportedClass('EventEmitter'),
+			]),
+		).toEqual([]);
+		expect(
+			lintFilename(
+				'/workspace/apps/web/src/composition/__tests__/startWebApplication.unit.test.ts',
+			),
+		).toEqual([]);
+		expect(
+			lintFilename('/workspace/packages/terminal/src/__tests__/EventEmitter.unit.test.ts'),
+		).toEqual([]);
+	});
+
+	it('requires a sole runtime function or class export to match the source filename', () => {
+		const functionReports = lintFilename(
+			'/workspace/apps/web/src/composition/start-web-application.ts',
+			[exportedFunction('startWebApplication')],
+		);
+		expect(functionReports[0]?.message).toContain('startWebApplication.ts');
+
+		const classReports = lintFilename('/workspace/packages/terminal/src/event-emitter.ts', [
+			exportedClass('EventEmitter'),
+		]);
+		expect(classReports[0]?.message).toContain('EventEmitter.ts');
+	});
+
+	it('keeps responsibility-focused names for grouped runtime exports and data modules', () => {
+		expect(
+			lintFilename('/workspace/packages/terminal/src/font-metrics.ts', [
+				exportedFunction('parseFontMetricModifier'),
+				exportedFunction('applyFontMetricModifier'),
+			]),
+		).toEqual([]);
+		expect(
+			lintFilename('/workspace/packages/i18n/src/locales/en-US/web.ts', [
+				exportedConstant('enUSWebMessages'),
+			]),
+		).toEqual([]);
+	});
+
+	it('preserves the upstream filename for generated shadcn source', () => {
+		expect(
+			lintFilename('/workspace/packages/ui/src/hooks/use-mobile.ts', [
+				exportedFunction('useIsMobile'),
+			]),
+		).toEqual([]);
+	});
+
+	it('accepts generator-owned kebab-case filenames', () => {
+		expect(
+			lintFilename('/workspace/packages/terminal/src/nerd-font-constraints.generated.ts', [
+				exportedFunction('buildNerdFontConstraints'),
+			]),
+		).toEqual([]);
 	});
 
 	it('rejects camelCase ordinary source paths', () => {
-		const { context, reports } = createContext(
+		const reports = lintFilename(
 			'/workspace/packages/workbench/src/terminal-pane/terminalPaneState.ts',
 		);
-		filenameNamingConvention.create(context).Program({ loc: LOCATION });
-		expect(reports[0]?.message).toContain('kebab-case for ordinary source');
+		expect(reports[0]?.message).toContain('kebab-case');
 	});
 
 	it('accepts canonical BCP 47 directories directly under locales', () => {
 		for (const locale of ['en-US', 'zh-CN']) {
-			const { context, reports } = createContext(
-				`/workspace/packages/i18n/src/locales/${locale}/workbench.ts`,
-			);
-			filenameNamingConvention.create(context).Program({ loc: LOCATION });
+			const reports = lintFilename(`/workspace/packages/i18n/src/locales/${locale}/workbench.ts`);
 			expect(reports).toEqual([]);
 		}
 	});
 
 	it('reports non-canonical locale directory casing', () => {
-		const { context, reports } = createContext(
-			'/workspace/packages/i18n/src/locales/en-us/workbench.ts',
-		);
-		filenameNamingConvention.create(context).Program({ loc: LOCATION });
+		const reports = lintFilename('/workspace/packages/i18n/src/locales/en-us/workbench.ts');
 		expect(reports[0]?.message).toContain('"en-US"');
 	});
 
 	it('reports the extension-preserving TSX unit-test suffix', () => {
-		const { context, reports } = createContext(
+		const reports = lintFilename(
 			'/workspace/packages/ui/src/components/__tests__/agent-panel.test.tsx',
 		);
-		filenameNamingConvention.create(context).Program({ loc: LOCATION });
 		expect(reports[0]?.message).toContain('<source-name>.unit.test.tsx');
 	});
 });

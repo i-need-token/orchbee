@@ -59,7 +59,7 @@ adapter 连接 React 与外部生命周期、创建或提供作用域 Store、�
 
 - `orchbee/one-function-per-tsx`：每个自有生产 `.tsx` 文件最多包含一个顶层函数。当该函数存在时，它是唯一的具名运行时导出，是 PascalCase 函数组件，并且与文件名 stem 完全一致。组件 Props 契约等仅类型导出不计入运行时导出。
 - 当一个函数声明、函数表达式或箭头函数不被其他函数包含时，它就是顶层函数。嵌套在文件唯一组件内部的回调不占用另一个文件级函数名额。
-- 把子展示组件放入与符号同名的 PascalCase `.tsx` 文件，把 presenter Hook 放入与符号同名的 `useHookName.ts` 文件，把与框架无关的辅助逻辑放入按职责聚焦的 kebab-case `.ts` 文件。
+- 把子展示组件放入与符号同名的 PascalCase `.tsx` 文件，把 presenter Hook 放入与符号同名的 `useHookName.ts` 文件。与框架无关的辅助模块遵循全局源码路径规则：只有一个可调用运行时导出时使用精确的 camelCase 函数名，没有唯一运行时身份时使用按职责聚焦的 kebab-case 名称。
 - 类型声明、常量和准备好的查找数据不占用函数名额，但只有在支撑组件单一职责时才保留在该文件中。
 - 单元测试、Storybook story，以及 [`docs/LINTING.md`](../LINTING.md#生成的源码) 中说明的检入 shadcn 源码不受这条自有生产代码规则约束。
 
@@ -159,7 +159,7 @@ const viewProps = { isEmpty: sessions.length === 0 };
 ## Hook 文件边界
 
 - `orchbee/one-hook-per-file`：每个自有生产 Hook 模块都使用精确的 camelCase Hook 导出命名，例如 `useTerminalPane.ts` 或 `useTerminalPane.tsx`，并且只能包含一个顶层函数和一个导出符号。
-- 唯一的顶层函数就是具名 Hook 导出，并且与文件名 stem 完全一致。把支撑函数移入按职责聚焦的 kebab-case `.ts` 模块，把公共契约移入专门存放类型的模块。
+- 唯一的顶层函数就是具名 Hook 导出，并且与文件名 stem 完全一致。把支撑函数移入聚焦的 `.ts` 模块：只有一个导出函数时以该函数命名，否则以共享职责命名；把公共契约移入专门存放类型的模块。
 - 嵌套在 Hook 内的函数，包括 Effect 回调和事件 adapter，不占用另一个文件级函数名额，也不是额外导出。
 - 单元测试以及 [`docs/LINTING.md`](../LINTING.md#生成的源码) 中说明的生成源码 `packages/ui/src/hooks/use-mobile.ts` 不受这条自有生产代码规则约束。
 

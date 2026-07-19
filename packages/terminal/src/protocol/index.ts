@@ -1,2 +1,5 @@
-export { readGhosttyBuildCapabilities, type GhosttyBuildCapabilities } from './build-capabilities';
-export { formatTerminalIdentity, type TerminalProtocolIdentity } from './terminal-identity';
+export {
+	readGhosttyBuildCapabilities,
+	type GhosttyBuildCapabilities,
+} from './readGhosttyBuildCapabilities';
+export { formatTerminalIdentity, type TerminalProtocolIdentity } from './formatTerminalIdentity';
