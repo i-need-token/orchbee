@@ -129,16 +129,17 @@ Tailwind 替换 Token 和 shadcn 兼容 alias 不会扩大产品编写词汇。�
 
 控件和图标尺寸是有限的，因为不一致的 chrome 会让 shell 显得不稳定。组件使用方选择已记录的组件 `size` variant，而不是局部指定宽度或高度。
 
-| 变量                       | 值     | 使用场景                                          |
-| -------------------------- | ------ | ------------------------------------------------- |
-| `--ob-ref-size-control-xs` | `24px` | 小按钮、内联操作、紧凑图标按钮或密集 utility 控件 |
-| `--ob-ref-size-control-sm` | `28px` | 工具栏、侧边栏导航、紧凑 select 或次要桌面控件    |
-| `--ob-ref-size-control-md` | `32px` | 默认按钮、输入框、select 和普通交互控件           |
-| `--ob-ref-size-control-lg` | `36px` | 主要字段、突出操作或有意舒适的桌面输入框          |
-| `--ob-ref-size-icon-xs`    | `12px` | 状态字形、badge 图标、紧凑元数据或次要指示器      |
-| `--ob-ref-size-icon-sm`    | `14px` | 紧凑控件或侧边栏项中的默认图标                    |
-| `--ob-ref-size-icon-md`    | `16px` | 默认导航、字段、工具栏和按钮图标                  |
-| `--ob-ref-size-icon-lg`    | `20px` | 突出的独立操作或空状态辅助图标                    |
+| 变量                               | 值     | 使用场景                                          |
+| ---------------------------------- | ------ | ------------------------------------------------- |
+| `--ob-ref-size-control-xs`         | `24px` | 小按钮、内联操作、紧凑图标按钮或密集 utility 控件 |
+| `--ob-ref-size-control-sm`         | `28px` | 工具栏、紧凑 select 或次要桌面控件                |
+| `--ob-ref-size-control-navigation` | `30px` | 需要独立紧凑节奏的持久侧边栏导航行                |
+| `--ob-ref-size-control-md`         | `32px` | 默认按钮、输入框、select 和普通交互控件           |
+| `--ob-ref-size-control-lg`         | `36px` | 主要字段、突出操作或有意舒适的桌面输入框          |
+| `--ob-ref-size-icon-xs`            | `12px` | 状态字形、badge 图标、紧凑元数据或次要指示器      |
+| `--ob-ref-size-icon-sm`            | `14px` | 紧凑控件或侧边栏项中的默认图标                    |
+| `--ob-ref-size-icon-md`            | `16px` | 默认导航、字段、工具栏和按钮图标                  |
+| `--ob-ref-size-icon-lg`            | `20px` | 突出的独立操作或空状态辅助图标                    |
 
 一个控件内只使用一种图标尺寸。密集的 `control-xs` 或 `control-sm` 通常使用 `icon-xs` 或 `icon-sm`；默认 `control-md` 通常使用 `icon-sm` 或 `icon-md`。文本旁的图标使用 `space-1-5` 或 `space-2` 间距。不要通过放大装饰图标来强调；应提升操作或文本角色。可见控件可以是 `24px`，同时其可复用组件提供更大的不可见指针命中区域；视觉密度和触摸无障碍是不同职责。
 

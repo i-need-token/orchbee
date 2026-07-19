@@ -176,16 +176,17 @@ Control and icon sizes are finite because inconsistent chrome makes the shell fe
 Component consumers select a documented component `size` variant instead of assigning width or
 height locally.
 
-| Variable                   | Value  | Use when                                                                   |
-| -------------------------- | ------ | -------------------------------------------------------------------------- |
-| `--ob-ref-size-control-xs` | `24px` | Small button, inline action, compact icon button, or dense utility control |
-| `--ob-ref-size-control-sm` | `28px` | Toolbar, sidebar navigation, compact select, or secondary desktop control  |
-| `--ob-ref-size-control-md` | `32px` | Default button, input, select, and ordinary interactive control            |
-| `--ob-ref-size-control-lg` | `36px` | Primary field, prominent action, or deliberately comfortable desktop input |
-| `--ob-ref-size-icon-xs`    | `12px` | Status glyph, badge icon, compact metadata, or subordinate indicator       |
-| `--ob-ref-size-icon-sm`    | `14px` | Default icon inside a compact control or sidebar item                      |
-| `--ob-ref-size-icon-md`    | `16px` | Default navigation, field, toolbar, and button icon                        |
-| `--ob-ref-size-icon-lg`    | `20px` | Prominent standalone action or empty-state support icon                    |
+| Variable                           | Value  | Use when                                                                   |
+| ---------------------------------- | ------ | -------------------------------------------------------------------------- |
+| `--ob-ref-size-control-xs`         | `24px` | Small button, inline action, compact icon button, or dense utility control |
+| `--ob-ref-size-control-sm`         | `28px` | Toolbar, compact select, or secondary desktop control                      |
+| `--ob-ref-size-control-navigation` | `30px` | Persistent sidebar navigation rows that need a distinct compact rhythm     |
+| `--ob-ref-size-control-md`         | `32px` | Default button, input, select, and ordinary interactive control            |
+| `--ob-ref-size-control-lg`         | `36px` | Primary field, prominent action, or deliberately comfortable desktop input |
+| `--ob-ref-size-icon-xs`            | `12px` | Status glyph, badge icon, compact metadata, or subordinate indicator       |
+| `--ob-ref-size-icon-sm`            | `14px` | Default icon inside a compact control or sidebar item                      |
+| `--ob-ref-size-icon-md`            | `16px` | Default navigation, field, toolbar, and button icon                        |
+| `--ob-ref-size-icon-lg`            | `20px` | Prominent standalone action or empty-state support icon                    |
 
 Use one icon size within a control. A dense `control-xs` or `control-sm` normally uses `icon-xs`
 or `icon-sm`; a default `control-md` normally uses `icon-sm` or `icon-md`. An icon next to text
