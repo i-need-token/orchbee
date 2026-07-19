@@ -5,3 +5,7 @@ export {
 	writeWorkbenchLeftPanelWidth,
 } from './workbench-layout-storage';
 export type { WorkbenchLayoutStorage } from './workbench-layout-storage';
+export {
+	readWorkbenchSidebarVisibility,
+	writeWorkbenchSidebarVisibility,
+} from './workbench-sidebar-visibility-storage';

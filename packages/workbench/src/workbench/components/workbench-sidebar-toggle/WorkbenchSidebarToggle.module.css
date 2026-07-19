@@ -1,0 +1,8 @@
+.trigger {
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.trigger:hover,
+.trigger:focus-visible {
+	color: var(--ob-sys-color-icon-hover);
+}

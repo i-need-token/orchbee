@@ -39,6 +39,9 @@ catalogs:
     '@types/react-dom':
       specifier: ^19.2.3
       version: 19.2.3
+    '@vscode/codicons':
+      specifier: 0.0.45
+      version: 0.0.45
     class-variance-authority:
       specifier: ^0.7.1
       version: 0.7.1
@@ -284,6 +287,9 @@ importers:
       '@shadcn/react':
         specifier: ^0.2.1
         version: 0.2.1(@types/react@19.2.17)(react@19.2.7)
+      '@vscode/codicons':
+        specifier: 'catalog:'
+        version: 0.0.45
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -366,6 +372,9 @@ importers:
 
   packages/workbench:
     dependencies:
+      '@orchbee/i18n':
+        specifier: workspace:^
+        version: link:../i18n
       '@orchbee/ui':
         specifier: workspace:^
         version: link:../ui
@@ -2549,6 +2558,9 @@ packages:
 
   '@vitest/utils@4.1.10':
     resolution: {integrity: sha512-fy9am/HWxbaGt/Sawrp90vt6Y6jQwf1RX77cz3uwoJwJVMli/e1IEwRPnMNJ7vKfPTwo0diXifkpPvwH9v7nGA==}
+
+  '@vscode/codicons@0.0.45':
+    resolution: {integrity: sha512-1KAZ7XCMagp5Gdrlr4bbbcAqgcIL623iO1wW6rfcSVGAVUQvR0WP7bQx1SbJ11gmV3fdQTSEFIJQ/5C+HuVasw==}
 
   '@webassemblyjs/ast@1.14.1':
     resolution: {integrity: sha512-nuBEDgQfm1ccRp/8bCQrx1frohyufl4JlbMMZ4P1wpeOfDhF6FQkxZJ1b/e+PLwr6X1Nhw6OLme5usuBWYBvuQ==}
@@ -6669,6 +6681,8 @@ snapshots:
       '@vitest/pretty-format': 4.1.10
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
+
+  '@vscode/codicons@0.0.45': {}
 
   '@webassemblyjs/ast@1.14.1':
     dependencies:

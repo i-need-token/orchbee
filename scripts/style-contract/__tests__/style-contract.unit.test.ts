@@ -518,5 +518,15 @@ describe('shadcn token compatibility', () => {
 				({ message }) => message,
 			),
 		).toContain('Shadcn compatibility requires exactly one "@theme inline" rule.');
+
+		const missingSourceRegistration = compatibilitySource.replace("@source './components';\n", '');
+		expect(
+			validateShadcnCompatibilitySource({
+				...validationInput,
+				source: missingSourceRegistration,
+			}).map(({ message }) => message),
+		).toContain(
+			'Shadcn compatibility requires exactly one "@source \'./components\'" registration.',
+		);
 	});
 });

@@ -47,18 +47,20 @@ Product copy is physically separated by locale and mirrored by product domain:
 ```text
 src/locales/
 ├── en-US/
-	│   ├── index.ts
-	│   └── messages.ts
+│   ├── index.ts
+│   ├── messages.ts
+│   └── workbench.ts
 └── zh-CN/
-	    ├── index.ts
-	    └── messages.ts
+	├── index.ts
+	├── messages.ts
+	└── workbench.ts
 ```
 
-The catalogs are intentionally empty while the Workbench panels contain no product copy. When a
-product region is introduced, add its domain catalog beneath both locale directories and export
-the matching descriptors in the same change. English and Simplified Chinese values never share an
-authored file. Directory names use the canonical BCP 47 identifier and casing, and catalog tests
-enforce message-ID and ICU-variable parity across every shipped locale.
+The Workbench domain currently owns the localized sidebar visibility actions and tab-list label. Add each future
+product domain beneath both locale directories and export the matching descriptors in the same
+change. English and Simplified Chinese values never share an authored file. Directory names use
+the canonical BCP 47 identifier and casing, and catalog tests enforce message-ID and ICU-variable
+parity across every shipped locale.
 
 ## Development
 

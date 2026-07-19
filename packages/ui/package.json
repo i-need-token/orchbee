@@ -53,6 +53,7 @@
 		"@base-ui/react": "catalog:",
 		"@orchbee/design-tokens": "workspace:^",
 		"@shadcn/react": "^0.2.1",
+		"@vscode/codicons": "catalog:",
 		"class-variance-authority": "catalog:",
 		"clsx": "catalog:",
 		"cmdk": "^1.1.1",

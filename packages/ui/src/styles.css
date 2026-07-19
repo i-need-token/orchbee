@@ -1,6 +1,9 @@
+@import '@vscode/codicons/dist/codicon.css';
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+
+@source './components';
 
 @custom-variant dark (&:is(.dark *));
 

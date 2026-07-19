@@ -1,0 +1,16 @@
+.root {
+	composes: codicon from global;
+	flex: none;
+}
+
+.add {
+	composes: codicon-add from global;
+}
+
+.close {
+	composes: codicon-close from global;
+}
+
+.sidebarLeft {
+	composes: codicon-layout-sidebar-left from global;
+}

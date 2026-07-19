@@ -399,6 +399,20 @@ function validateExactMappings({ path, source, container, expected, diagnostics,
 export function validateShadcnCompatibilitySource({ path, source, registeredTokens }) {
 	const diagnostics = validateTokenReferences(path, source, registeredTokens);
 	const root = parseCss(source, { from: path });
+	const sourceRules = [];
+	root.walkAtRules('source', (atRule) => {
+		sourceRules.push(atRule);
+	});
+	if (sourceRules.length !== 1 || sourceRules[0]?.params.trim() !== "'./components'") {
+		diagnostics.push(
+			diagnostic(
+				path,
+				source,
+				0,
+				'Shadcn compatibility requires exactly one "@source \'./components\'" registration.',
+			),
+		);
+	}
 
 	const semanticRules = [];
 	root.walkRules((rule) => {

@@ -357,7 +357,16 @@ export {
 	TableHeader,
 	TableRow,
 } from './table';
-export { Tabs, TabsContent, TabsList, tabsListVariants, TabsTrigger } from './tabs';
+export {
+	Tabs,
+	TabsBar,
+	TabsContent,
+	TabsDivider,
+	TabsItem,
+	TabsList,
+	tabsListVariants,
+	TabsTrigger,
+} from './tabs';
 export { Textarea } from './textarea';
 export { ToggleGroup, ToggleGroupItem } from './toggle-group';
 export { Toggle, toggleVariants } from './toggle';

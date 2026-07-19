@@ -1,3 +1,5 @@
+export { ProductIcon } from '../product-icon';
+
 export {
 	Accordion,
 	AccordionContent,
@@ -323,7 +325,10 @@ export {
 	TableHeader,
 	TableRow,
 	Tabs,
+	TabsBar,
 	TabsContent,
+	TabsDivider,
+	TabsItem,
 	TabsList,
 	tabsListVariants,
 	TabsTrigger,

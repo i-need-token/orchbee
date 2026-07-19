@@ -11,6 +11,9 @@ export default defineConfig(({ command }) => ({
 			: []),
 	],
 	source: {
+		define: {
+			ORCHBEE_DEVELOPMENT: JSON.stringify(command === 'dev'),
+		},
 		entry: {
 			index: './src/composition/entry.tsx',
 		},

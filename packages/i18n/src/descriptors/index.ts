@@ -1,0 +1,1 @@
+export { workbenchMessages } from './workbench';

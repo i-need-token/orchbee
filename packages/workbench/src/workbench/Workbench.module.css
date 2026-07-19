@@ -1,8 +1,16 @@
 .root {
+	position: relative;
 	height: 100%;
 	min-height: 100%;
 	overflow: hidden;
 	background: var(--ob-sys-color-surface-raised);
+}
+
+.sidebarToggle {
+	position: absolute;
+	inset-block-start: var(--ob-ref-space-1);
+	inset-inline-start: var(--ob-ref-space-2);
+	z-index: var(--ob-ref-layer-raised);
 }
 
 .layout {
@@ -25,10 +33,6 @@
 	z-index: var(--ob-ref-layer-raised);
 	width: var(--ob-ref-border-width-default);
 	background: var(--ob-sys-color-border-default);
-	outline: var(--ob-ref-border-width-default) solid transparent;
-	transition:
-		background-color var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard),
-		outline-color var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
 }
 
 .resizeHandle::after {
@@ -41,12 +45,10 @@
 .resizeHandle:hover,
 .resizeHandle[data-separator='hover'] {
 	background: var(--ob-sys-color-border-strong);
-	outline-color: var(--ob-sys-color-border-strong);
 }
 
 .resizeHandle[data-separator='active'] {
 	background: var(--ob-sys-color-border-strong);
-	outline-color: var(--ob-sys-color-border-strong);
 }
 
 .rightPanel {

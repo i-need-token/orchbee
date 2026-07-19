@@ -35,6 +35,8 @@
 - **Frontend Visual Foundations**: `docs/frontend/visual-foundations.md` — typography, hierarchy, spacing, radius, sizing, border, and surface selection rules
 - **Frontend Design Tokens**: `docs/frontend/design-tokens.md` — token tiers, naming, themes, CSS Modules, and style enforcement
 - **Frontend Localization**: `docs/frontend/localization.md` — locale ownership, message catalogs, formatting, fallback, and verification
+- **Frontend Tooltips**: `docs/frontend/tooltips.md` — provider ownership, delay, content, accessibility, and verification
+- **Frontend Keyboard Shortcuts**: `docs/frontend/keyboard-shortcuts.md` — action ownership, bindings, platform display, conflicts, and verification
 - **Frontend Browser Storage**: `docs/frontend/browser-storage.md` — local persistence ownership, key versioning, validation, privacy, and verification
 
 ## Project Structure

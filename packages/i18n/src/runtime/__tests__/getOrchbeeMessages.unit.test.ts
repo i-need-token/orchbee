@@ -28,4 +28,15 @@ describe('getOrchbeeMessages', () => {
 			}
 		}
 	});
+
+	it('ships localized Workbench interface labels', () => {
+		expect(getOrchbeeMessages('en-US')['workbench.sidebar.actions.hide']).toBe('Hide Sidebar');
+		expect(getOrchbeeMessages('zh-CN')['workbench.sidebar.actions.hide']).toBe('隐藏边栏');
+		expect(getOrchbeeMessages('en-US')['workbench.tabs.label']).toBe('Workbench tabs');
+		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.label']).toBe('工作区标签页');
+		expect(getOrchbeeMessages('en-US')['workbench.tabs.actions.add']).toBe('New Tab');
+		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.actions.add']).toBe('新建标签页');
+		expect(getOrchbeeMessages('en-US')['workbench.tabs.actions.close']).toBe('Close {tabLabel}');
+		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.actions.close']).toBe('关闭“{tabLabel}”');
+	});
 });

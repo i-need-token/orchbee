@@ -1,3 +1,3 @@
-import * as shellStyles from './workbench-shell/WorkbenchShell.module.css';
+import * as workbenchStyles from './workbench/Workbench.module.css';
 
-void shellStyles;
+void workbenchStyles;

@@ -1,8 +1,11 @@
 import '@orchbee/ui/styles.css';
 import '@orchbee/workbench/styles.css';
+import { TooltipProvider } from '@orchbee/ui/components';
+import { createElement } from 'react';
 import type { Preview } from 'storybook-react-rsbuild';
 
 const preview: Preview = {
+	decorators: [(Story) => createElement(TooltipProvider, null, createElement(Story))],
 	parameters: {
 		a11y: {
 			test: 'todo',
