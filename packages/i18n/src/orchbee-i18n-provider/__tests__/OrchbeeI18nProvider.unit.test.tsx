@@ -1,21 +1,20 @@
-import { FormattedMessage } from 'react-intl';
+import { useIntl } from 'react-intl';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { workbenchMessages } from '../../descriptors';
 import { OrchbeeI18nProvider } from '../OrchbeeI18nProvider';
 
+function LocaleProbe() {
+	return useIntl().locale;
+}
+
 describe('OrchbeeI18nProvider', () => {
-	it('renders the selected product catalog', () => {
+	it('provides the selected product locale', () => {
 		const markup = renderToStaticMarkup(
-			createElement(
-				OrchbeeI18nProvider,
-				{ locale: 'zh-CN' },
-				createElement(FormattedMessage, workbenchMessages.newTerminal),
-			),
+			createElement(OrchbeeI18nProvider, { locale: 'zh-CN' }, createElement(LocaleProbe)),
 		);
 
-		expect(markup).toContain('新建终端');
+		expect(markup).toContain('zh-CN');
 	});
 });

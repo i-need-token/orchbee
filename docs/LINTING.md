@@ -2,18 +2,20 @@
 
 ## Commands
 
-| Command                    | Responsibility                                                           |
-| -------------------------- | ------------------------------------------------------------------------ |
-| `pnpm verify`              | Run the complete merge gate defined by `docs/VERIFICATION.md`            |
-| `pnpm lint`                | Run every required code, style, dependency, and project lint check       |
-| `pnpm lint:code`           | Run oxlint categories, explicit rules, and `orchbee/*` project rules     |
-| `pnpm lint:styles`         | Validate the token registry and authored frontend styling contract       |
-| `pnpm lint:dependencies`   | Run Knip strict dependency, file, export, catalog, and manifest analysis |
-| `pnpm lint:projects`       | Validate every schema-backed workspace project contract                  |
-| `pnpm lint:fix`            | Apply safe oxlint fixes; remaining diagnostics require code changes      |
-| `pnpm typecheck`           | Run TypeScript diagnostics that syntax-aware lint does not replace       |
-| `pnpm test:lint-rules`     | Test the `orchbee/*` rules and English/Chinese standards contract        |
-| `pnpm test:style-contract` | Run regression tests for the frontend style-contract checker             |
+| Command                      | Responsibility                                                           |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `pnpm verify`                | Run the complete merge gate defined by `docs/VERIFICATION.md`            |
+| `pnpm lint`                  | Run every required code, style, dependency, and project lint check       |
+| `pnpm lint:code`             | Run oxlint categories, explicit rules, and `orchbee/*` project rules     |
+| `pnpm lint:styles`           | Validate the token registry and authored frontend styling contract       |
+| `pnpm lint:storage`          | Validate browser-storage access, ownership, key shape, and versioning    |
+| `pnpm lint:dependencies`     | Run Knip strict dependency, file, export, catalog, and manifest analysis |
+| `pnpm lint:projects`         | Validate every schema-backed workspace project contract                  |
+| `pnpm lint:fix`              | Apply safe oxlint fixes; remaining diagnostics require code changes      |
+| `pnpm typecheck`             | Run TypeScript diagnostics that syntax-aware lint does not replace       |
+| `pnpm test:lint-rules`       | Test the `orchbee/*` rules and English/Chinese standards contract        |
+| `pnpm test:style-contract`   | Run regression tests for the frontend style-contract checker             |
+| `pnpm test:storage-contract` | Run regression tests for the browser-storage contract checker            |
 
 ## Enforcement boundary
 
@@ -26,6 +28,7 @@
 - Keep all runnable scripts, build configuration, test suites, and public package entries in `knip.json#workspaces`; never ignore a finding merely because an entry point was omitted from analysis.
 - Type-aware oxlint rules are not active until `oxlint-tsgolint` is added during package review; never assume lint currently detects floating promises or unsafe third-party `any` propagation.
 - `pnpm lint:styles` enforces the registry, generated TypeScript inventory, CSS Module, Tailwind-boundary, raw-value, responsive-threshold, JSX class, and inline-style rules defined by [`docs/frontend/design-tokens.md`](frontend/design-tokens.md). It proves that the generated public token names exactly match the CSS registry and that the generated full Tailwind compatibility map exactly covers the installed public theme, targets registered Orchbee tokens, and preserves the literal breakpoint and container values required at compile time. Its shadcn authoring exception remains path-scoped to checked-in generated source and support files.
+- `pnpm lint:storage` enforces the browser-storage ownership and key contract defined by [`docs/frontend/browser-storage.md`](frontend/browser-storage.md). Production code may access `localStorage` or `sessionStorage` globals only at an application composition entry; `orchbee:` key literals live only in their owning `*-storage.ts` module and use the versioned key grammar.
 - Never weaken a rule to pass existing code; fix the code or obtain human approval for a project-policy change.
 
 ## Generated source

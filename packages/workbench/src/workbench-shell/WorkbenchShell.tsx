@@ -1,59 +1,39 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@orchbee/ui/components';
-import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import * as React from 'react';
 
+import {
+	MAXIMUM_LEFT_PANEL_WIDTH,
+	MINIMUM_LEFT_PANEL_WIDTH,
+	type WorkbenchLayoutStorage,
+} from '../workbench-layout-storage';
+import { useWorkbenchShellLayout } from './hooks/useWorkbenchShellLayout';
 import styles from './WorkbenchShell.module.css';
 
-export interface WorkbenchShellProps {
-	readonly sidebar: React.ReactNode;
-	readonly toolbar: React.ReactNode;
-	readonly tabs: React.ReactNode;
-	readonly content: React.ReactNode;
-	readonly status: React.ReactNode;
+interface WorkbenchShellProps {
+	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 }
 
-export function WorkbenchShell({
-	sidebar,
-	toolbar,
-	tabs,
-	content,
-	status,
-}: WorkbenchShellProps): React.ReactNode {
-	const intl = useOrchbeeIntl();
+export function WorkbenchShell({ layoutStorage }: WorkbenchShellProps): React.ReactNode {
+	const layout = useWorkbenchShellLayout(layoutStorage);
+
 	return (
 		<div className={styles['root']}>
 			<div className={styles['layout']}>
-				<ResizablePanelGroup orientation='horizontal'>
-					{/* react-resizable-panels v4 interprets unitless numeric sizes as pixels. */}
+				<ResizablePanelGroup orientation='horizontal' onLayoutChanged={layout.onLayoutChanged}>
+					{/* Keep the navigation panel on an explicit pixel contract. */}
 					<ResizablePanel
-						defaultSize='20rem'
-						minSize='16rem'
-						maxSize='24rem'
+						id='left'
+						defaultSize={layout.defaultLeftPanelSize}
+						minSize={`${MINIMUM_LEFT_PANEL_WIDTH}px`}
+						maxSize={`${MAXIMUM_LEFT_PANEL_WIDTH}px`}
 						groupResizeBehavior='preserve-pixel-size'
+						onResize={layout.onLeftPanelResize}
 					>
-						<aside
-							className={styles['sidebar']}
-							aria-label={intl.formatMessage(workbenchMessages.workbenchNavigationLabel)}
-						>
-							<header className={styles['sidebarHeader']}>
-								<span className={styles['brandMark']} aria-hidden='true'>
-									OB
-								</span>
-								<span className={styles['brand']}>Orchbee</span>
-							</header>
-							<div className={styles['sidebarBody']}>{sidebar}</div>
-							<footer className={styles['sidebarFooter']}>{status}</footer>
-						</aside>
+						<div className={styles['leftPanel']} data-slot='workbench-left-panel' />
 					</ResizablePanel>
 					<ResizableHandle className={styles['resizeHandle']} />
-					<ResizablePanel minSize='40%'>
-						<div className={styles['mainColumn']}>
-							<header className={styles['terminalHeader']}>
-								<div className={styles['tabs']}>{tabs}</div>
-								<div className={styles['toolbar']}>{toolbar}</div>
-							</header>
-							<main className={styles['content']}>{content}</main>
-						</div>
+					<ResizablePanel id='right'>
+						<div className={styles['rightPanel']} data-slot='workbench-right-panel' />
 					</ResizablePanel>
 				</ResizablePanelGroup>
 			</div>

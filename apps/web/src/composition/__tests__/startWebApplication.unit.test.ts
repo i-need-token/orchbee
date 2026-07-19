@@ -19,8 +19,12 @@ describe('startWebApplication', () => {
 	it('selects the locale before rendering the application', () => {
 		const documentElement = { dir: '', lang: '' };
 		const rootElement = {} as Element;
+		const layoutStorage = {
+			getItem: () => null,
+			setItem: () => undefined,
+		};
 
-		startWebApplication(rootElement, documentElement, ['zh-CN']);
+		startWebApplication(rootElement, documentElement, ['zh-CN'], layoutStorage);
 
 		expect(documentElement).toEqual({ dir: 'ltr', lang: 'zh-CN' });
 		expect(createRoot).toHaveBeenCalledWith(rootElement);

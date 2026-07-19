@@ -1,19 +1,19 @@
 import { OrchbeeI18nProvider, type OrchbeeLocale } from '@orchbee/i18n';
-import { Workbench, type WorkbenchSessionService } from '@orchbee/workbench';
+import { Workbench, type WorkbenchLayoutStorage } from '@orchbee/workbench';
 import * as React from 'react';
 
 import styles from './WebApplication.module.css';
 
 export interface WebApplicationProps {
+	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly locale: OrchbeeLocale;
-	readonly sessions: WorkbenchSessionService;
 }
 
-export function WebApplication({ locale, sessions }: WebApplicationProps): React.ReactNode {
+export function WebApplication({ layoutStorage, locale }: WebApplicationProps): React.ReactNode {
 	return (
 		<OrchbeeI18nProvider locale={locale}>
 			<div className={styles['root']}>
-				<Workbench sessions={sessions} />
+				<Workbench layoutStorage={layoutStorage} />
 			</div>
 		</OrchbeeI18nProvider>
 	);

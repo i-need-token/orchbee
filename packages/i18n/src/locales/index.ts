@@ -1,3 +1,3 @@
-export { enUSWebMessages, enUSWorkbenchMessages } from './en-US';
-export type { WebMessageId, WorkbenchMessageId } from './en-US';
-export { zhCNWebMessages, zhCNWorkbenchMessages } from './zh-CN';
+export { enUSMessages } from './en-US';
+export type { OrchbeeMessageId } from './en-US';
+export { zhCNMessages } from './zh-CN';

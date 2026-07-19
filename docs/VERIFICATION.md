@@ -15,14 +15,14 @@ A focused command is useful while iterating, but completion requires the root ga
 
 ## Required tasks
 
-| Task           | Contract                                                                                  |
-| -------------- | ----------------------------------------------------------------------------------------- |
-| `format:check` | Formatter-managed files match `.oxfmtrc.json`.                                            |
-| `lint`         | Code, style, architecture, dependency, project-contract, export, and manifest rules pass. |
-| `build`        | Every buildable workspace produces its supported artifacts.                               |
-| `typecheck`    | Every workspace satisfies its TypeScript compiler contract.                               |
-| `test`         | Custom lint-rule tests and every workspace test suite pass.                               |
-| `test:exports` | Every library's packed exports, runtime formats, and declarations are consumable.         |
+| Task           | Contract                                                                                           |
+| -------------- | -------------------------------------------------------------------------------------------------- |
+| `format:check` | Formatter-managed files match `.oxfmtrc.json`.                                                     |
+| `lint`         | Code, style, storage, architecture, dependency, project-contract, export, and manifest rules pass. |
+| `build`        | Every buildable workspace produces its supported artifacts.                                        |
+| `typecheck`    | Every workspace satisfies its TypeScript compiler contract.                                        |
+| `test`         | Contract-checker tests, custom lint-rule tests, and every workspace test suite pass.               |
+| `test:exports` | Every library's packed exports, runtime formats, and declarations are consumable.                  |
 
 The build precedes type-checking because workspace libraries expose built artifacts and verification and production consumers do not compile another package's source. The recursive build is topological, so a clean checkout produces dependency artifacts before dependent workspaces resolve their package exports.
 

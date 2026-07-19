@@ -2,7 +2,7 @@
 	"name": "@orchbee/workbench",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Shared product interface and interaction model for Orchbee applications",
+	"description": "Shared product shell for Orchbee applications",
 	"files": [
 		"dist",
 		"README.md"
@@ -36,10 +36,7 @@
 		"test:exports": "node ../../scripts/check-package-exports.mjs ."
 	},
 	"dependencies": {
-		"@orchbee/i18n": "workspace:^",
-		"@orchbee/terminal": "workspace:^",
-		"@orchbee/ui": "workspace:^",
-		"zustand": "catalog:"
+		"@orchbee/ui": "workspace:^"
 	},
 	"devDependencies": {
 		"@rsbuild/plugin-react": "catalog:",

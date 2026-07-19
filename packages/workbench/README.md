@@ -1,12 +1,12 @@
 # @orchbee/workbench
 
-Shared product-semantic React interface, interaction state, and presentation model for Orchbee applications.
+Shared product-semantic React shell for Orchbee applications.
 
 ## Scope
 
-The package owns the application shell, management navigation, session navigation, terminal panes, tabs, splits, focus, panel layout, and other product interactions shared by browser-based Orchbee applications. Its shell is terminal-first: a full-height management sidebar is the extension point for projects, worktrees, agents, or another navigation model, while the remaining workspace belongs to the terminal container. It composes `@orchbee/ui` primitives and wraps `@orchbee/terminal` without moving React or product behavior into either lower-level package.
+The package currently owns one full-height, horizontally resizable two-panel shell. The left panel defaults to `250px` and is constrained to `200px`–`400px`; the right panel fills the remaining width. Its neutral divider is `1px` at rest and expands visually to `3px` with the same stronger gray on hover and while resizing, without changing panel geometry. Both panels are intentionally empty so product content can be introduced explicitly, one responsibility at a time. It composes the resizable primitives from `@orchbee/ui` without assigning navigation, terminal, session, or status behavior to either panel.
 
-Application startup, routing roots, authentication, deployment, persistence, Electron or Node imports, PTY processes, transport implementations, and authoritative session lifecycles remain outside this package. The machine-readable scope contract lives in [`project.json`](project.json).
+Workbench owns the validation and versioned storage record for its device-local panel width. The consuming application owns the platform storage implementation and injects it at composition time. Application startup, routing roots, authentication, deployment, other persistence, platform integrations, and product capabilities remain outside this package. The machine-readable scope contract lives in [`project.json`](project.json).
 
 ## Use
 
@@ -17,34 +17,25 @@ import '@orchbee/ui/styles.css';
 import '@orchbee/workbench/styles.css';
 ```
 
-The consuming application selects the light or dark theme at that same boundary. Workbench uses the surrounding design-token theme, and each terminal pane derives its foreground, background, and cursor colors from its computed Workbench surface.
+The consuming application selects the light or dark theme at that same boundary. Workbench uses the surrounding design-token theme for its two panel surfaces and divider.
 
-Install the shared localization provider at the application composition boundary, then provide a
-headless session capability owned or adapted by the consuming application:
+Render the shell at the application composition boundary:
 
 ```tsx
-import { OrchbeeI18nProvider, type OrchbeeLocale } from '@orchbee/i18n';
-import { Workbench, type WorkbenchSessionService } from '@orchbee/workbench';
+import { Workbench, type WorkbenchLayoutStorage } from '@orchbee/workbench';
 
-declare const sessions: WorkbenchSessionService;
-
-export function ProductInterface({ locale }: { readonly locale: OrchbeeLocale }) {
-	return (
-		<OrchbeeI18nProvider locale={locale}>
-			<Workbench sessions={sessions} />
-		</OrchbeeI18nProvider>
-	);
+export function ProductInterface({
+	layoutStorage,
+}: {
+	readonly layoutStorage: WorkbenchLayoutStorage;
+}) {
+	return <Workbench layoutStorage={layoutStorage} />;
 }
 ```
 
-The application owns locale preference and platform detection. Workbench formats its product
-messages from `@orchbee/i18n` and expects to render beneath that provider.
+When storage is provided, Workbench restores `orchbee:workbench:left-panel-width:v1`, validates that the JSON value is an integer within the current pixel constraints, and saves only after a completed user resize. Missing, malformed, unavailable, or out-of-range storage falls back to `250px` without blocking rendering. The repository-wide ownership and key contract lives in [`docs/frontend/browser-storage.md`](../../docs/frontend/browser-storage.md).
 
-`WorkbenchSessionService` is experimental while the product interaction model is being exercised against `apps/web`. It exposes a stable snapshot/subscription boundary for React and terminal channels for input, output, and resize. It does not select a transport or own remote synchronization.
-
-## State ownership
-
-The package owns the client-side arrangement used to observe sessions: active tabs, splits, focused panes, and panel geometry. A terminal session remains an authoritative running process outside the Workbench. If layout persistence or cross-device layout synchronization is introduced, the consuming application supplies that capability rather than turning terminal sessions into UI layout records.
+Workbench does not currently expose panel-content slots. Each product region will be added through an explicit package API when its ownership and interaction contract are defined.
 
 ## Development
 

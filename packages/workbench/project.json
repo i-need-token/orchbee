@@ -3,11 +3,11 @@
 	"domain": "workbench",
 	"runtime": ["browser"],
 	"stability": "experimental",
-	"responsibility": "Shared product-semantic React interface, interaction state, and presentation model for Orchbee applications.",
+	"responsibility": "Shared product-semantic React shell and resizable two-panel layout for Orchbee applications.",
 	"nonGoals": [
 		"Owning application startup, routing roots, authentication, deployment, or packaging.",
 		"Owning locale negotiation, product message descriptors, translation catalogs, or formatting runtime.",
-		"Owning Electron, Node, browser-service, persistence, or transport implementations.",
+		"Owning Electron, Node, browser-service, platform storage, or transport implementations.",
 		"Owning authoritative terminal sessions, PTY processes, or agent orchestration lifecycles."
 	]
 }

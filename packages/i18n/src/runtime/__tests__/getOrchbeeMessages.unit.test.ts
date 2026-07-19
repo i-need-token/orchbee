@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { webMessages, workbenchMessages } from '../../descriptors';
 import { ORCHBEE_LOCALES } from '../../locale';
 import { getOrchbeeMessages } from '../getOrchbeeMessages';
-
-const descriptors = [...Object.values(workbenchMessages), ...Object.values(webMessages)];
 
 function collectVariables(message: string): ReadonlySet<string> {
 	const variables = new Set<string>();
@@ -16,31 +13,18 @@ function collectVariables(message: string): ReadonlySet<string> {
 }
 
 describe('getOrchbeeMessages', () => {
-	it('keeps every locale catalog complete', () => {
-		const descriptorIds = new Set(descriptors.map((descriptor) => descriptor.id));
-
-		for (const locale of ORCHBEE_LOCALES) {
-			const catalogIds = new Set(Object.keys(getOrchbeeMessages(locale)));
-			expect(catalogIds).toEqual(descriptorIds);
-		}
-	});
-
-	it('uses the English locale catalog as every descriptor default', () => {
+	it('keeps locale IDs and variables aligned with the English source catalog', () => {
 		const sourceMessages = getOrchbeeMessages('en-US');
-		for (const descriptor of descriptors) {
-			const sourceMessage = sourceMessages[descriptor.id];
-			if (sourceMessage === undefined) throw new Error(`Missing source: ${descriptor.id}`);
-			expect(descriptor.defaultMessage).toBe(sourceMessage);
-		}
-	});
+		const sourceIds = new Set(Object.keys(sourceMessages));
 
-	it('keeps variables compatible across every locale', () => {
 		for (const locale of ORCHBEE_LOCALES) {
 			const messages = getOrchbeeMessages(locale);
-			for (const descriptor of descriptors) {
-				const message = messages[descriptor.id];
-				if (message === undefined) throw new Error(`Missing ${locale}: ${descriptor.id}`);
-				expect(collectVariables(message)).toEqual(collectVariables(descriptor.defaultMessage));
+			expect(new Set(Object.keys(messages))).toEqual(sourceIds);
+
+			for (const [messageId, sourceMessage] of Object.entries(sourceMessages)) {
+				const message = messages[messageId];
+				if (message === undefined) throw new Error(`Missing ${locale}: ${messageId}`);
+				expect(collectVariables(message)).toEqual(collectVariables(sourceMessage));
 			}
 		}
 	});

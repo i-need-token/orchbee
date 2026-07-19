@@ -2,18 +2,20 @@
 
 ## 命令
 
-| 命令                       | 职责                                               |
-| -------------------------- | -------------------------------------------------- |
-| `pnpm verify`              | 运行 `docs/VERIFICATION.md` 定义的完整合并门禁     |
-| `pnpm lint`                | 运行所有必需的代码、样式、依赖和项目 lint 检查     |
-| `pnpm lint:code`           | 运行 oxlint 分类、显式规则和 `orchbee/*` 项目规则  |
-| `pnpm lint:styles`         | 验证 Token 注册表和自有前端样式契约                |
-| `pnpm lint:dependencies`   | 运行 Knip 严格依赖、文件、导出、catalog 和清单分析 |
-| `pnpm lint:projects`       | 验证每个基于 Schema 的工作区项目契约               |
-| `pnpm lint:fix`            | 应用安全的 oxlint 修复；剩余诊断需要修改代码       |
-| `pnpm typecheck`           | 运行语法感知 lint 无法替代的 TypeScript 诊断       |
-| `pnpm test:lint-rules`     | 测试 `orchbee/*` 规则和中英文规范契约              |
-| `pnpm test:style-contract` | 运行前端样式契约检查器的回归测试                   |
+| 命令                         | 职责                                               |
+| ---------------------------- | -------------------------------------------------- |
+| `pnpm verify`                | 运行 `docs/VERIFICATION.md` 定义的完整合并门禁     |
+| `pnpm lint`                  | 运行所有必需的代码、样式、依赖和项目 lint 检查     |
+| `pnpm lint:code`             | 运行 oxlint 分类、显式规则和 `orchbee/*` 项目规则  |
+| `pnpm lint:styles`           | 验证 Token 注册表和自有前端样式契约                |
+| `pnpm lint:storage`          | 验证浏览器存储访问、所有权、key 形态和版本         |
+| `pnpm lint:dependencies`     | 运行 Knip 严格依赖、文件、导出、catalog 和清单分析 |
+| `pnpm lint:projects`         | 验证每个基于 Schema 的工作区项目契约               |
+| `pnpm lint:fix`              | 应用安全的 oxlint 修复；剩余诊断需要修改代码       |
+| `pnpm typecheck`             | 运行语法感知 lint 无法替代的 TypeScript 诊断       |
+| `pnpm test:lint-rules`       | 测试 `orchbee/*` 规则和中英文规范契约              |
+| `pnpm test:style-contract`   | 运行前端样式契约检查器的回归测试                   |
+| `pnpm test:storage-contract` | 运行浏览器存储契约检查器的回归测试                 |
 
 ## 强制执行边界
 
@@ -26,6 +28,7 @@
 - 在 `knip.json#workspaces` 中保留所有可运行脚本、构建配置、测试套件和公共包入口；绝不能仅仅因为分析中漏掉了某个入口点就忽略发现的问题。
 - 在包审查期间加入 `oxlint-tsgolint` 之前，类型感知的 oxlint 规则并未启用；绝不能假设 lint 当前能够检测悬空 Promise 或来自第三方的不安全 `any` 传播。
 - `pnpm lint:styles` 强制执行 [`docs/frontend/design-tokens.md`](frontend/design-tokens.md) 中定义的注册表、生成的 TypeScript 清单、CSS Module、Tailwind 边界、原始值、响应式阈值、JSX class 和内联样式规则。它证明生成的公共 Token 名称与 CSS 注册表完全一致，生成的完整 Tailwind 兼容映射完整覆盖已安装的公共主题、指向已注册的 Orchbee Token，并保留编译时所需的字面量断点和容器值。它对 shadcn 编写的例外仍按路径限制在检入的生成源码和支持文件中。
+- `pnpm lint:storage` 强制执行 [`docs/frontend/browser-storage.md`](frontend/browser-storage.md) 定义的浏览器存储所有权和 key 契约。生产代码只有在应用组合入口才能访问 `localStorage` 或 `sessionStorage` 全局对象；`orchbee:` key 字面量只能位于所属的 `*-storage.ts` 模块中，并使用带版本的 key 语法。
 - 绝不能为了让现有代码通过而弱化规则；修复代码，或者就项目策略变更取得人工批准。
 
 ## 生成的源码

@@ -1,4 +1,2 @@
-export { enUSWebMessages } from './web';
-export type { WebMessageId } from './web';
-export { enUSWorkbenchMessages } from './workbench';
-export type { WorkbenchMessageId } from './workbench';
+export { enUSMessages } from './messages';
+export type { OrchbeeMessageId } from './messages';

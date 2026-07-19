@@ -2,32 +2,24 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { createInMemorySessionService } from '../../sessions';
 import { WebApplication } from '../WebApplication';
 
 describe('WebApplication', () => {
-	it('renders the application-owned session adapter through the Workbench', () => {
+	it('renders the empty Workbench panels', () => {
 		const markup = renderToStaticMarkup(
 			createElement(WebApplication, {
+				layoutStorage: {
+					getItem: () => '{"width":320}',
+					setItem: () => undefined,
+				},
 				locale: 'en-US',
-				sessions: createInMemorySessionService('en-US'),
 			}),
 		);
 
-		expect(markup).toContain('Local shell');
-		expect(markup).toContain('Agent output');
-	});
-
-	it('composes the Simplified Chinese catalog across the app and Workbench', () => {
-		const markup = renderToStaticMarkup(
-			createElement(WebApplication, {
-				locale: 'zh-CN',
-				sessions: createInMemorySessionService('zh-CN'),
-			}),
-		);
-
-		expect(markup).toContain('本地 Shell');
-		expect(markup).toContain('Agent 输出');
-		expect(markup).toContain('本地运行时');
+		expect(markup).toContain('data-slot="workbench-left-panel"');
+		expect(markup).toContain('data-slot="workbench-right-panel"');
+		expect(markup).toContain('flex-basis:320px');
+		expect(markup).not.toContain('Local shell');
+		expect(markup).not.toContain('本地 Shell');
 	});
 });

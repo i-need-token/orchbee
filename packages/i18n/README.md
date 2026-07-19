@@ -23,29 +23,17 @@ createRoot(document.body).render(
 );
 ```
 
-Feature presentation imports its domain descriptors and formatter from this package:
-
-```tsx
-import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
-import type * as React from 'react';
-
-export function TerminalActionsLabel(): React.ReactNode {
-	const intl = useOrchbeeIntl();
-	return intl.formatMessage(workbenchMessages.terminalActionsLabel);
-}
-```
-
 ## Non-React formatting
 
-Adapters that produce product-authored text use the same locale and catalogs:
+Non-React consumers use the same locale-aware formatter:
 
 ```ts
-import { createOrchbeeIntl, type OrchbeeLocale, webMessages } from '@orchbee/i18n';
+import { createOrchbeeIntl, type OrchbeeLocale } from '@orchbee/i18n';
 
 declare const locale: OrchbeeLocale;
 
 const intl = createOrchbeeIntl(locale);
-const title = intl.formatMessage(webMessages.newSessionTitle, { sessionNumber: 3 });
+const formattedNumber = intl.formatNumber(1234);
 ```
 
 Applications own locale preference, detection, persistence, and document synchronization. This
@@ -59,17 +47,18 @@ Product copy is physically separated by locale and mirrored by product domain:
 ```text
 src/locales/
 ├── en-US/
-│   ├── web.ts
-│   └── workbench.ts
+	│   ├── index.ts
+	│   └── messages.ts
 └── zh-CN/
-    ├── web.ts
-    └── workbench.ts
+	    ├── index.ts
+	    └── messages.ts
 ```
 
-English and Simplified Chinese values never share an authored file. Directory names use the
-canonical BCP 47 identifier and casing. English descriptors reference the corresponding `en-US`
-catalog values as their `defaultMessage`, while catalog tests enforce
-message-ID and ICU-variable parity across every shipped locale.
+The catalogs are intentionally empty while the Workbench panels contain no product copy. When a
+product region is introduced, add its domain catalog beneath both locale directories and export
+the matching descriptors in the same change. English and Simplified Chinese values never share an
+authored file. Directory names use the canonical BCP 47 identifier and casing, and catalog tests
+enforce message-ID and ICU-variable parity across every shipped locale.
 
 ## Development
 
