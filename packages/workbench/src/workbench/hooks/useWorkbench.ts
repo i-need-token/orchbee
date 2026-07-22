@@ -21,7 +21,6 @@ interface ResizablePanelSize {
 }
 
 interface WorkbenchView {
-	readonly closeTabShortcutLabel: string;
 	readonly isSidebarVisible: boolean;
 	readonly leftPanelSize: string;
 	readonly newTerminalLabel: string;
@@ -43,27 +42,21 @@ interface WorkbenchView {
 	readonly settingsLabel: string;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string;
-	readonly tabListLabel: string;
-	readonly tabCloseLayoutResetSequence: number;
 	readonly toggleSidebar: () => void;
 }
 
 interface UseWorkbenchOptions {
-	readonly activeTabId: string | undefined;
 	readonly onNewTerminal: (() => void) | undefined;
 	readonly onSearch: (() => void) | undefined;
 	readonly onSettings: (() => void) | undefined;
-	readonly onTabClose: ((tabId: string) => void) | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly storage: WorkbenchLayoutStorage | undefined;
 }
 
 export function useWorkbench({
-	activeTabId,
 	onNewTerminal,
 	onSearch,
 	onSettings,
-	onTabClose,
 	shortcutPlatform,
 	storage,
 }: UseWorkbenchOptions): WorkbenchView {
@@ -73,7 +66,6 @@ export function useWorkbench({
 	);
 	const [defaultLeftPanelWidth] = React.useState(() => readWorkbenchLeftPanelWidth(storage));
 	const leftPanelWidth = React.useRef(defaultLeftPanelWidth);
-	const [tabCloseLayoutResetSequence, setTabCloseLayoutResetSequence] = React.useState(0);
 	const toggleSidebar = React.useCallback(() => {
 		setIsSidebarVisible((currentVisibility) => {
 			const nextVisibility = !currentVisibility;
@@ -82,28 +74,9 @@ export function useWorkbench({
 		});
 	}, [storage]);
 
-	const closeActiveTab = React.useMemo(
-		() =>
-			activeTabId === undefined || onTabClose === undefined
-				? undefined
-				: () => {
-						setTabCloseLayoutResetSequence((currentSequence) => currentSequence + 1);
-						onTabClose(activeTabId);
-					},
-		[activeTabId, onTabClose],
-	);
-
-	useWorkbenchShortcuts(
-		shortcutPlatform,
-		closeActiveTab,
-		onNewTerminal,
-		onSearch,
-		onSettings,
-		toggleSidebar,
-	);
+	useWorkbenchShortcuts(shortcutPlatform, onNewTerminal, onSearch, onSettings, toggleSidebar);
 
 	return {
-		closeTabShortcutLabel: formatWorkbenchShortcut('closeTab', shortcutPlatform),
 		isSidebarVisible,
 		leftPanelSize: `${leftPanelWidth.current}px`,
 		newTerminalLabel: intl.formatMessage(workbenchMessages.newTerminal),
@@ -130,8 +103,6 @@ export function useWorkbench({
 		settingsLabel: intl.formatMessage(workbenchMessages.settings),
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
 		settingsShortcutLabel: formatWorkbenchShortcut('settings', shortcutPlatform),
-		tabListLabel: intl.formatMessage(workbenchMessages.tabsLabel),
-		tabCloseLayoutResetSequence,
 		toggleSidebar,
 	};
 }

@@ -24,9 +24,7 @@ describe('startWebApplication', () => {
 			setItem: () => undefined,
 		};
 
-		startWebApplication(rootElement, documentElement, ['zh-CN'], 'apple', layoutStorage, [
-			{ id: 'workbench', label: 'Workbench' },
-		]);
+		startWebApplication(rootElement, documentElement, ['zh-CN'], 'apple', layoutStorage);
 
 		expect(documentElement).toEqual({ dir: 'ltr', lang: 'zh-CN' });
 		expect(createRoot).toHaveBeenCalledWith(rootElement);

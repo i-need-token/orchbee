@@ -1,17 +1,5 @@
 /* Generated from tokens.css by scripts/generate-design-token-inventory.mjs. */
 export const designTokenNames = [
-	'--ob-comp-workbench-tab-close-visibility-width',
-	'--ob-comp-workbench-tab-color-blue',
-	'--ob-comp-workbench-tab-color-cyan',
-	'--ob-comp-workbench-tab-color-gray',
-	'--ob-comp-workbench-tab-color-green',
-	'--ob-comp-workbench-tab-color-orange',
-	'--ob-comp-workbench-tab-color-pink',
-	'--ob-comp-workbench-tab-color-purple',
-	'--ob-comp-workbench-tab-color-red',
-	'--ob-comp-workbench-tab-color-yellow',
-	'--ob-comp-workbench-tab-icon-only-width',
-	'--ob-comp-workbench-tab-locked-width',
 	'--ob-ref-animation-bounce',
 	'--ob-ref-animation-ping',
 	'--ob-ref-animation-pulse',

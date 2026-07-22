@@ -13,17 +13,15 @@ interface WorkbenchHarnessProps {
 
 function WorkbenchHarness({ isUserInteraction, storage }: WorkbenchHarnessProps) {
 	const workbench = useWorkbench({
-		activeTabId: undefined,
 		onNewTerminal: undefined,
 		onSearch: undefined,
 		onSettings: undefined,
-		onTabClose: undefined,
 		shortcutPlatform: 'apple',
 		storage,
 	});
 	workbench.onLeftPanelResize({ inPixels: 318.4 });
 	workbench.onLayoutChanged({}, { isUserInteraction });
-	return `${workbench.leftPanelSize} ${workbench.sidebarToggleLabel} ${workbench.sidebarShortcutLabel} ${workbench.closeTabShortcutLabel} ${workbench.newTerminalShortcutLabel} ${workbench.searchShortcutLabel} ${workbench.settingsShortcutLabel}`;
+	return `${workbench.leftPanelSize} ${workbench.sidebarToggleLabel} ${workbench.sidebarShortcutLabel} ${workbench.newTerminalShortcutLabel} ${workbench.searchShortcutLabel} ${workbench.settingsShortcutLabel}`;
 }
 
 function renderHarness(storage: WorkbenchLayoutStorage, isUserInteraction: boolean): string {
@@ -48,7 +46,7 @@ describe('useWorkbench', () => {
 			false,
 		);
 
-		expect(markup).toContain('320px Hide Sidebar ⌘B ⌘W ⌘N ⌘K ⌘,');
+		expect(markup).toContain('320px Hide Sidebar ⌘B ⌘N ⌘K ⌘,');
 		expect(setItem).not.toHaveBeenCalled();
 	});
 

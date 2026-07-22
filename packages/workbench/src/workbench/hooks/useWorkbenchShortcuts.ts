@@ -8,7 +8,6 @@ import {
 
 export function useWorkbenchShortcuts(
 	platform: WorkbenchShortcutPlatform,
-	onCloseTab: (() => void) | undefined,
 	onNewTerminal: (() => void) | undefined,
 	onSearch: (() => void) | undefined,
 	onSettings: (() => void) | undefined,
@@ -19,11 +18,6 @@ export function useWorkbenchShortcuts(
 			let action: WorkbenchShortcutAction | undefined;
 			if (matchesWorkbenchShortcut(event, platform, 'toggleSidebar')) {
 				action = 'toggleSidebar';
-			} else if (
-				onCloseTab !== undefined &&
-				matchesWorkbenchShortcut(event, platform, 'closeTab')
-			) {
-				action = 'closeTab';
 			} else if (
 				onNewTerminal !== undefined &&
 				matchesWorkbenchShortcut(event, platform, 'newTerminal')
@@ -42,9 +36,6 @@ export function useWorkbenchShortcuts(
 			event.preventDefault();
 
 			switch (action) {
-				case 'closeTab':
-					onCloseTab?.();
-					break;
 				case 'newTerminal':
 					onNewTerminal?.();
 					break;
@@ -62,5 +53,5 @@ export function useWorkbenchShortcuts(
 
 		window.addEventListener('keydown', handleKeyDown);
 		return () => window.removeEventListener('keydown', handleKeyDown);
-	}, [onCloseTab, onNewTerminal, onSearch, onSettings, onToggleSidebar, platform]);
+	}, [onNewTerminal, onSearch, onSettings, onToggleSidebar, platform]);
 }

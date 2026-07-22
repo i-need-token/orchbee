@@ -31,17 +31,14 @@ function shortcutEvent(overrides: ShortcutEventOverrides = {}) {
 
 describe('Workbench shortcuts', () => {
 	it('owns stable semantic actions and platform displays', () => {
-		expect(WORKBENCH_SHORTCUTS.closeTab.id).toBe('workbench.tab.close');
 		expect(WORKBENCH_SHORTCUTS.newTerminal.id).toBe('workbench.terminal.create');
 		expect(WORKBENCH_SHORTCUTS.search.id).toBe('workbench.search.open');
 		expect(WORKBENCH_SHORTCUTS.settings.id).toBe('workbench.settings.open');
 		expect(WORKBENCH_SHORTCUTS.toggleSidebar.id).toBe('workbench.toggle-left-panel');
-		expect(formatWorkbenchShortcut('closeTab', 'apple')).toBe('⌘W');
 		expect(formatWorkbenchShortcut('newTerminal', 'apple')).toBe('⌘N');
 		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⌘K');
 		expect(formatWorkbenchShortcut('settings', 'apple')).toBe('⌘,');
 		expect(formatWorkbenchShortcut('toggleSidebar', 'apple')).toBe('⌘B');
-		expect(formatWorkbenchShortcut('closeTab', 'standard')).toBe('Ctrl W');
 		expect(formatWorkbenchShortcut('newTerminal', 'standard')).toBe('Ctrl N');
 		expect(formatWorkbenchShortcut('search', 'standard')).toBe('Ctrl K');
 		expect(formatWorkbenchShortcut('settings', 'standard')).toBe('Ctrl+,');
@@ -49,7 +46,6 @@ describe('Workbench shortcuts', () => {
 	});
 
 	it.each([
-		['closeTab', 'KeyW'],
 		['newTerminal', 'KeyN'],
 		['search', 'KeyK'],
 		['settings', 'Comma'],

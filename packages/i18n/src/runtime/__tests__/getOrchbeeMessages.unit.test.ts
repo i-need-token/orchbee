@@ -40,47 +40,5 @@ describe('getOrchbeeMessages', () => {
 		expect(getOrchbeeMessages('zh-CN')['workbench.sidebar.sections.project']).toBe('项目');
 		expect(getOrchbeeMessages('en-US')['workbench.sidebar.actions.hide']).toBe('Hide Sidebar');
 		expect(getOrchbeeMessages('zh-CN')['workbench.sidebar.actions.hide']).toBe('隐藏边栏');
-		expect(getOrchbeeMessages('en-US')['workbench.tabs.label']).toBe('Workbench tabs');
-		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.label']).toBe('工作区标签页');
-		expect(getOrchbeeMessages('en-US')['workbench.tabs.actions.add']).toBe('New Tab');
-		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.actions.add']).toBe('新建标签页');
-		expect(getOrchbeeMessages('en-US')['workbench.tabs.actions.close']).toBe('Close {tabLabel}');
-		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.actions.close']).toBe('关闭“{tabLabel}”');
-		expect(getOrchbeeMessages('en-US')['workbench.tabs.contextMenu.actions.closeOthers']).toBe(
-			'Close Other Tabs',
-		);
-		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.contextMenu.actions.closeOthers']).toBe(
-			'关闭其他标签页',
-		);
-		expect(getOrchbeeMessages('en-US')['workbench.tabs.contextMenu.actions.rename']).toBe(
-			'Rename Tab…',
-		);
-		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.contextMenu.actions.rename']).toBe(
-			'重命名标签页…',
-		);
-		expect(getOrchbeeMessages('en-US')['workbench.tabs.contextMenu.tabColor']).toBe('Tab Color');
-		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.contextMenu.tabColor']).toBe('标签页颜色');
-		expect(getOrchbeeMessages('en-US')['workbench.tabs.contextMenu.actions.addToNewGroup']).toBe(
-			'Add Tab to New Group',
-		);
-		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.contextMenu.actions.addToNewGroup']).toBe(
-			'添加标签页到新组',
-		);
-		expect(getOrchbeeMessages('en-US')['workbench.tabs.groups.actions.ungroup']).toBe(
-			'Ungroup Tabs',
-		);
-		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.groups.actions.ungroup']).toBe('取消分组');
-		expect(getOrchbeeMessages('en-US')['workbench.tabs.groups.actions.rename']).toBe(
-			'Rename Group…',
-		);
-		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.groups.actions.rename']).toBe(
-			'重命名标签组…',
-		);
-		expect(getOrchbeeMessages('en-US')['workbench.tabs.rename.description']).toBe(
-			'Enter a new name for “{tabLabel}”.',
-		);
-		expect(getOrchbeeMessages('zh-CN')['workbench.tabs.rename.description']).toBe(
-			'为“{tabLabel}”输入新名称。',
-		);
 	});
 });

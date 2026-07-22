@@ -11,11 +11,6 @@ interface WorkbenchShortcutEvent {
 }
 
 export const WORKBENCH_SHORTCUTS = {
-	closeTab: {
-		code: 'KeyW',
-		id: 'workbench.tab.close',
-		keyLabel: 'W',
-	},
 	newTerminal: {
 		code: 'KeyN',
 		id: 'workbench.terminal.create',

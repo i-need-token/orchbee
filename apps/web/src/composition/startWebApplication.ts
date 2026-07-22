@@ -1,9 +1,5 @@
 import { getOrchbeeTextDirection, resolveOrchbeeLocale } from '@orchbee/i18n';
-import type {
-	WorkbenchLayoutStorage,
-	WorkbenchShortcutPlatform,
-	WorkbenchTab,
-} from '@orchbee/workbench';
+import type { WorkbenchLayoutStorage, WorkbenchShortcutPlatform } from '@orchbee/workbench';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -15,13 +11,12 @@ export function startWebApplication(
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	layoutStorage: WorkbenchLayoutStorage,
-	tabs: readonly WorkbenchTab[],
 ): void {
 	const locale = resolveOrchbeeLocale(preferredLocales);
 	documentElement.lang = locale;
 	documentElement.dir = getOrchbeeTextDirection(locale);
 
 	createRoot(rootElement).render(
-		createElement(WebApplication, { layoutStorage, locale, shortcutPlatform, tabs }),
+		createElement(WebApplication, { layoutStorage, locale, shortcutPlatform }),
 	);
 }

@@ -56,8 +56,8 @@ src/locales/
 	└── workbench.ts
 ```
 
-The Workbench domain currently owns the localized sidebar navigation chrome, visibility actions,
-tab labels, tab and group context actions, rename flows, and color names. Add each future product domain beneath both locale directories and export the matching descriptors in the same
+The Workbench domain currently owns the localized sidebar navigation chrome and visibility actions.
+Add each future product domain beneath both locale directories and export the matching descriptors in the same
 change. English and Simplified Chinese values never share an authored file. Directory names use
 the canonical BCP 47 identifier and casing, and catalog tests enforce message-ID and ICU-variable
 parity across every shipped locale.

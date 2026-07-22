@@ -719,18 +719,6 @@
 	--ob-sys-opacity-muted: var(--ob-ref-opacity-72);
 	--ob-sys-shadow-raised: var(--ob-ref-shadow-sm);
 	--ob-sys-shadow-overlay: var(--ob-ref-shadow-lg);
-	--ob-comp-workbench-tab-color-blue: var(--ob-ref-color-blue-500);
-	--ob-comp-workbench-tab-color-cyan: var(--ob-ref-color-cyan-500);
-	--ob-comp-workbench-tab-color-gray: var(--ob-ref-color-neutral-500);
-	--ob-comp-workbench-tab-color-green: var(--ob-ref-color-green-500);
-	--ob-comp-workbench-tab-color-orange: var(--ob-ref-color-orange-500);
-	--ob-comp-workbench-tab-color-pink: var(--ob-ref-color-pink-500);
-	--ob-comp-workbench-tab-color-purple: var(--ob-ref-color-violet-500);
-	--ob-comp-workbench-tab-color-red: var(--ob-ref-color-red-500);
-	--ob-comp-workbench-tab-color-yellow: var(--ob-ref-color-yellow-500);
-	--ob-comp-workbench-tab-close-visibility-width: 96px;
-	--ob-comp-workbench-tab-icon-only-width: 56px;
-	--ob-comp-workbench-tab-locked-width: 200px;
 }
 
 .dark {
