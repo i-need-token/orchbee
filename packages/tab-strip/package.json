@@ -1,0 +1,69 @@
+{
+	"name": "@orchbee/tab-strip",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Reusable tab-strip behavior and React components",
+	"files": [
+		"dist",
+		"README.md",
+		"NOTICE.reference"
+	],
+	"type": "module",
+	"sideEffects": [
+		"**/*.css",
+		"./src/styles.ts"
+	],
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"@orchbee/source": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		},
+		"./react": {
+			"@orchbee/source": "./src/react/index.ts",
+			"types": "./dist/react/index.d.ts",
+			"import": "./dist/react/index.js",
+			"require": "./dist/react/index.cjs"
+		},
+		"./styles.css": {
+			"@orchbee/source": "./src/styles.ts",
+			"default": "./dist/styles.css"
+		}
+	},
+	"scripts": {
+		"build": "rslib build",
+		"dev": "rslib build --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:property": "vitest run src/dragging/__tests__/horizontal-group-drag-machine.unit.test.ts src/layout/__tests__/tab-content-layout.unit.test.ts",
+		"test:system": "playwright test --config playwright.config.ts",
+		"test:tla": "node scripts/run-tla.mjs",
+		"test:lean": "node scripts/run-lean.mjs",
+		"test:exports": "node ../../scripts/check-package-exports.mjs .",
+		"verify:correctness": "pnpm typecheck && pnpm test && pnpm test:tla && pnpm test:lean && pnpm test:system && pnpm build"
+	},
+	"devDependencies": {
+		"@playwright/test": "1.61.1",
+		"@rsbuild/core": "catalog:",
+		"@rsbuild/plugin-react": "catalog:",
+		"@rslib/core": "catalog:",
+		"@testing-library/react": "16.3.2",
+		"@types/node": "catalog:",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"fast-check": "4.9.0",
+		"jsdom": "29.1.1",
+		"react": "catalog:",
+		"react-dom": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"react": "catalog:",
+		"react-dom": "catalog:"
+	}
+}

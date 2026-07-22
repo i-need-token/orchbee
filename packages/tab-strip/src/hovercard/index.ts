@@ -1,0 +1,58 @@
+export {
+	FIRST_STRONG_ISOLATE,
+	POP_DIRECTIONAL_ISOLATE,
+	ELLIPSIS,
+	findImageDimensions,
+	elideFilenameWithLineLengths,
+	getFadeOutOpacity,
+	interpolateFadeSize,
+	type FilenameLineLengths,
+	type FadeSize,
+} from './filename-elider';
+export {
+	HOVER_CARD_GROUP_MAX_TABS,
+	formatHoverCardBytes,
+	getHoverCardFooterRows,
+	getHoverCardTitleData,
+	getGroupHoverCardData,
+	formatHoverCardDomain,
+	type HoverCardTitleData,
+	type GroupHoverCardData,
+	type HoverCardFooterRow,
+} from './hover-card-data';
+export {
+	HOVER_CARD_MINIMUM_TRIGGER_DELAY_MS,
+	HOVER_CARD_MAXIMUM_TRIGGER_DELAY_MS,
+	HOVER_CARD_MAX_WIDTH_ADDITIONAL_DELAY_MS,
+	HOVER_CARD_IMMEDIATE_RESHOW_BUFFER_MS,
+	HOVER_CARD_SLIDE_DURATION_MS,
+	HoverCardUpdateType,
+	getHoverCardShowDelay,
+	ScopedHideHoverCardLock,
+	TabHoverCardController,
+	ThumbnailCaptureReadiness,
+	ThumbnailWaitState,
+	getThumbnailCaptureDelay,
+	getThumbnailPlan,
+	type HoverCardTarget,
+	type TabHoverCardSnapshot,
+	type ThumbnailPresentation,
+	type ThumbnailPlanInput,
+	type ThumbnailPlan,
+} from './tab-hover-card-controller';
+export {
+	HOVER_CARD_PREVIEW_SIZE,
+	TabHoverCardThumbnailObserver,
+	type HoverCardThumbnailSize,
+	type HoverCardThumbnailSubscription,
+	type HoverCardThumbnailSource,
+	type HoverCardThumbnailObserverCallback,
+} from './tab-hover-card-thumbnail-observer';
+export {
+	HOVER_CARD_THUMBNAIL_TRANSITION_MS,
+	HOVER_CARD_PREVIEW_CROSSFADE_START,
+	TabHoverCardThumbnailRuntime,
+	type HoverCardThumbnailVisual,
+	type HoverCardThumbnailTarget,
+	type HoverCardThumbnailSnapshot,
+} from './tab-hover-card-thumbnail-runtime';

@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "tab-strip",
+	"runtime": ["browser"],
+	"stability": "experimental",
+	"responsibility": "Reusable tab-strip state transitions, layout constraints, drag interactions, and framework integration.",
+	"nonGoals": [
+		"Owning Orchbee sessions, routing, persistence, localization, or application composition.",
+		"Defining the product theme, icons, visual language, or product-facing messages.",
+		"Selecting browser, desktop, or cross-window host implementations for consumers."
+	]
+}
