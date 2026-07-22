@@ -1,0 +1,27 @@
+.ct-group-header {
+	composes: ct-group-header from '../../TabStrip.module.css';
+}
+
+.ct-group-header__active-background {
+	composes: ct-group-header__active-background from '../../TabStrip.module.css';
+}
+
+.ct-group-header__active-background-fill {
+	composes: ct-group-header__active-background-fill from '../../TabStrip.module.css';
+}
+
+.ct-group-header__attention {
+	composes: ct-group-header__attention from '../../TabStrip.module.css';
+}
+
+.ct-group-header__chip {
+	composes: ct-group-header__chip from '../../TabStrip.module.css';
+}
+
+.ct-group-header__editor {
+	composes: ct-group-header__editor from '../../TabStrip.module.css';
+}
+
+.ct-group-header__title {
+	composes: ct-group-header__title from '../../TabStrip.module.css';
+}

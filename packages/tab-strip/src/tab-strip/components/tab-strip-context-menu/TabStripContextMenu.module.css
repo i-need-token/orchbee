@@ -1,0 +1,15 @@
+.ct-color {
+	composes: ct-color from '../../TabStrip.module.css';
+}
+
+.ct-group-editor {
+	composes: ct-group-editor from '../../TabStrip.module.css';
+}
+
+.ct-group-editor__colors {
+	composes: ct-group-editor__colors from '../../TabStrip.module.css';
+}
+
+.ct-group-editor__title {
+	composes: ct-group-editor__title from '../../TabStrip.module.css';
+}

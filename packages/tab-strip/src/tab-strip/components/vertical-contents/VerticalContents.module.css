@@ -1,0 +1,51 @@
+.ct-vertical-group {
+	composes: ct-vertical-group from '../../TabStrip.module.css';
+}
+
+.ct-vertical-group__tabs {
+	composes: ct-vertical-group__tabs from '../../TabStrip.module.css';
+}
+
+.ct-vertical-group__tabs-inner {
+	composes: ct-vertical-group__tabs-inner from '../../TabStrip.module.css';
+}
+
+.ct-vertical-pinned {
+	composes: ct-vertical-pinned from '../../TabStrip.module.css';
+}
+
+.ct-vertical-pinned-scroll {
+	composes: ct-vertical-pinned-scroll from '../../TabStrip.module.css';
+}
+
+.ct-vertical-pinned-scroll-shell {
+	composes: ct-vertical-pinned-scroll-shell from '../../TabStrip.module.css';
+}
+
+.ct-vertical-pinned__unit {
+	composes: ct-vertical-pinned__unit from '../../TabStrip.module.css';
+}
+
+.ct-vertical-regions {
+	composes: ct-vertical-regions from '../../TabStrip.module.css';
+}
+
+.ct-vertical-scroll {
+	composes: ct-vertical-scroll from '../../TabStrip.module.css';
+}
+
+.ct-vertical-scroll-shell {
+	composes: ct-vertical-scroll-shell from '../../TabStrip.module.css';
+}
+
+.ct-vertical-scroll__content {
+	composes: ct-vertical-scroll__content from '../../TabStrip.module.css';
+}
+
+.ct-vertical-separator {
+	composes: ct-vertical-separator from '../../TabStrip.module.css';
+}
+
+.ct-vertical-tab-wrap {
+	composes: ct-vertical-tab-wrap from '../../TabStrip.module.css';
+}

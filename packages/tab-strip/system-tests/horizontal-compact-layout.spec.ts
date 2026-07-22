@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const tabs = (page: Page) => page.locator('.ct-tab');
-const activeTab = (page: Page) => page.locator('.ct-tab[data-active]');
+const tabs = (page: Page) => page.locator('[data-tab-id]');
+const activeTab = (page: Page) => page.locator('[data-tab-id][data-active]');
 
 async function addTabs(page: Page, count: number): Promise<void> {
 	const button = page.getByRole('button', { name: 'New tab', exact: true });
@@ -22,11 +22,11 @@ test('compact active controls and separators cross their boundaries deterministi
 
 	const active = activeTab(page);
 	await expect(active).not.toHaveAttribute('data-hovered', 'true');
-	await expect(active.locator('.ct-tab__close')).toHaveCount(1);
-	await expect(active.locator('.ct-tab-icon')).toHaveCount(1);
+	await expect(active.getByRole('button', { name: 'Close' })).toHaveCount(1);
+	await expect(active.locator('[data-tab-icon]')).toHaveCount(1);
 
-	const iconBox = await active.locator('.ct-tab-icon').boundingBox();
-	const closeBox = await active.locator('.ct-tab__close').boundingBox();
+	const iconBox = await active.locator('[data-tab-icon]').boundingBox();
+	const closeBox = await active.getByRole('button', { name: 'Close' }).boundingBox();
 	expect(iconBox).not.toBeNull();
 	expect(closeBox).not.toBeNull();
 	if (!iconBox || !closeBox) throw new Error('Expected active tab controls to have bounds.');
@@ -35,20 +35,30 @@ test('compact active controls and separators cross their boundaries deterministi
 	await addTabs(page, 1);
 	expect(
 		await page
-			.locator('.ct-tab__separator')
+			.locator('[data-tab-separator]')
 			.evaluateAll((elements) =>
-				elements.some((element) => (element as HTMLElement).style.opacity === '1'),
+				elements.some(
+					(element) =>
+						(element as HTMLElement).style.getPropertyValue(
+							'--ob-comp-tab-strip-runtime-opacity',
+						) === '1',
+				),
 			),
 	).toBe(true);
 
 	await addTabs(page, 1);
 	expect(
 		await page
-			.locator('.ct-tab__separator')
+			.locator('[data-tab-separator]')
 			.evaluateAll((elements) =>
-				elements.every((element) => (element as HTMLElement).style.opacity === '0'),
+				elements.every(
+					(element) =>
+						(element as HTMLElement).style.getPropertyValue(
+							'--ob-comp-tab-strip-runtime-opacity',
+						) === '0',
+				),
 			),
 	).toBe(true);
-	await expect(activeTab(page).locator('.ct-tab__close')).toHaveCount(1);
-	await expect(activeTab(page).locator('.ct-tab-icon')).toHaveCount(0);
+	await expect(activeTab(page).getByRole('button', { name: 'Close' })).toHaveCount(1);
+	await expect(activeTab(page).locator('[data-tab-icon]')).toHaveCount(0);
 });

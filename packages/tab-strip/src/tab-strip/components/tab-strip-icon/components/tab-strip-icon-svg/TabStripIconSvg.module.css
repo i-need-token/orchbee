@@ -1,0 +1,27 @@
+.ct-spinner {
+	composes: ct-spinner from '../../../../TabStrip.module.css';
+}
+
+.ct-group-header__chevron {
+	composes: ct-group-header__chevron from '../../../../TabStrip.module.css';
+}
+
+.ct-new-tab {
+	composes: ct-new-tab from '../../../../TabStrip.module.css';
+}
+
+.ct-tab-icon__crashed {
+	composes: ct-tab-icon__crashed from '../../../../TabStrip.module.css';
+}
+
+.ct-tab-icon__favicon {
+	composes: ct-tab-icon__favicon from '../../../../TabStrip.module.css';
+}
+
+.ct-tab-icon__spinner {
+	composes: ct-tab-icon__spinner from '../../../../TabStrip.module.css';
+}
+
+.ct-vertical-new-tab {
+	composes: ct-vertical-new-tab from '../../../../TabStrip.module.css';
+}

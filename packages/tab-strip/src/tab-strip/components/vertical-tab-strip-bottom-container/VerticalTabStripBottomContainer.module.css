@@ -1,0 +1,3 @@
+.ct-vertical-bottom-container {
+	composes: ct-vertical-bottom-container from '../../TabStrip.module.css';
+}

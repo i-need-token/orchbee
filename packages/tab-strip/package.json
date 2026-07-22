@@ -47,10 +47,15 @@
 		"test:exports": "node ../../scripts/check-package-exports.mjs .",
 		"verify:correctness": "pnpm typecheck && pnpm test && pnpm test:tla && pnpm test:lean && pnpm test:system && pnpm build"
 	},
+	"dependencies": {
+		"@orchbee/ui": "workspace:^"
+	},
 	"devDependencies": {
 		"@playwright/test": "1.61.1",
 		"@rsbuild/core": "catalog:",
 		"@rsbuild/plugin-react": "catalog:",
+		"@rsbuild/plugin-source-build": "catalog:",
+		"@rsbuild/plugin-tailwindcss": "catalog:",
 		"@rslib/core": "catalog:",
 		"@testing-library/react": "16.3.2",
 		"@types/node": "catalog:",

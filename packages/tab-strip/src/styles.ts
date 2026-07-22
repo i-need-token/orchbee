@@ -1,1 +1,1 @@
-import '../reference/tab-strip.css';
+import './tab-strip/TabStrip.module.css';
