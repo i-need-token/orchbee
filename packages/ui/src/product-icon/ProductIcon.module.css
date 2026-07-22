@@ -11,6 +11,22 @@
 	composes: codicon-close from global;
 }
 
+.pin {
+	composes: codicon-pinned from global;
+}
+
+.search {
+	composes: codicon-search from global;
+}
+
+.settings {
+	composes: codicon-settings-gear from global;
+}
+
 .sidebarLeft {
 	composes: codicon-layout-sidebar-left from global;
+}
+
+.terminal {
+	composes: codicon-terminal from global;
 }

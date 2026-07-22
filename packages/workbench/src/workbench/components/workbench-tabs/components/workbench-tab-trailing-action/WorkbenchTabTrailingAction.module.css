@@ -1,0 +1,47 @@
+.close,
+.pin {
+	grid-area: 1 / 1;
+	align-self: center;
+	justify-self: end;
+	margin-inline-end: var(--ob-ref-space-1);
+	z-index: var(--ob-ref-layer-raised);
+}
+
+.close {
+	color: var(--ob-sys-color-icon-secondary);
+	transition: color var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+[data-workbench-tab-layout='compact']:not([data-workbench-tab-active]) .close,
+[data-workbench-tab-layout='icon-only']:not([data-workbench-tab-active]) .close {
+	color: transparent;
+	pointer-events: none;
+}
+
+[data-workbench-tab-layout='compact']:not([data-workbench-tab-active]):hover .close,
+[data-workbench-tab-layout='icon-only']:not([data-workbench-tab-active]):hover .close,
+.close:focus-visible {
+	color: var(--ob-sys-color-icon-secondary);
+	pointer-events: auto;
+}
+
+[data-hover-suppressed] [data-workbench-tab-item-id]:not([data-workbench-tab-active]):hover .close {
+	color: transparent;
+	pointer-events: none;
+}
+
+[data-workbench-tab-layout='icon-only'] .close {
+	justify-self: center;
+	margin-inline-end: var(--ob-ref-space-0);
+	background: transparent;
+}
+
+[data-workbench-tab-layout='icon-only'][data-workbench-tab-active] .close,
+[data-workbench-tab-layout='icon-only']:hover .close,
+[data-workbench-tab-layout='icon-only'] .close:focus-visible {
+	background: var(--ob-sys-color-surface-overlay);
+}
+
+.pin {
+	color: var(--ob-sys-color-icon-secondary);
+}

@@ -28,7 +28,7 @@ describe('WebApplication', () => {
 		expect(markup).toContain('~/github/orchbee');
 		expect(markup).toContain('aria-label="Close ~/github/orchbee"');
 		expect(markup).toContain('aria-label="New Tab"');
-		expect(markup.match(/draggable="true"/gu)).toHaveLength(2);
+		expect(markup.match(/data-workbench-tab-reorderable="true"/gu)).toHaveLength(2);
 		expect(markup).not.toContain('Local shell');
 		expect(markup).not.toContain('本地 Shell');
 	});

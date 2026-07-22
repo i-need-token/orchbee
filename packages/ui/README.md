@@ -32,7 +32,7 @@ The root entry currently retains the `Button` compatibility export. The explicit
 
 Product code consumes `ProductIcon` through the package API and uses its Orchbee-owned name allowlist. It must not import Codicons CSS, vendor class names, font characters, or asset paths directly. The package stylesheet loads the icon font once, while `ProductIcon` keeps every glyph decorative so the owning control supplies the accessible name.
 
-The initial allowlist contains `sidebar-left`, `add`, and `close`, backed by their corresponding Codicons glyphs. Generated shadcn sources retain their upstream Lucide dependencies inside the generated compatibility boundary. See the repository [frontend styling standard](../../docs/frontend/styling.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).
+The product allowlist contains `sidebar-left`, `add`, `close`, `pin`, `search`, `settings`, and `terminal`, backed by their corresponding Codicons glyphs. Generated shadcn sources retain their upstream Lucide dependencies inside the generated compatibility boundary. See the repository [frontend styling standard](../../docs/frontend/styling.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).
 
 ## Refresh components
 

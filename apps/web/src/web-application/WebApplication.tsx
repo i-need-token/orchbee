@@ -35,9 +35,22 @@ export function WebApplication({
 						layoutStorage={layoutStorage}
 						onActiveTabChange={workspace.onActiveTabChange}
 						onTabClose={workspace.onTabClose}
+						onTabColorChange={workspace.onTabColorChange}
 						onTabCreate={workspace.onTabCreate}
+						onTabGroupAssign={workspace.onTabGroupAssign}
+						onTabGroupChange={workspace.onTabGroupChange}
+						onTabGroupClose={workspace.onTabGroupClose}
+						onTabGroupCollapseChange={workspace.onTabGroupCollapseChange}
+						onTabGroupCreate={workspace.onTabGroupCreate}
+						onTabGroupDelete={workspace.onTabGroupDelete}
+						onTabGroupMove={workspace.onTabGroupMove}
+						onTabGroupUngroup={workspace.onTabGroupUngroup}
 						onTabMove={workspace.onTabMove}
+						onTabPinChange={workspace.onTabPinChange}
+						onTabRename={workspace.onTabRename}
+						onTabsClose={workspace.onTabsClose}
 						shortcutPlatform={shortcutPlatform}
+						tabGroups={workspace.tabGroups}
 						tabs={workspace.tabs}
 					/>
 				</div>

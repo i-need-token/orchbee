@@ -25,6 +25,7 @@
 }
 
 .leftPanel {
+	overflow: hidden;
 	background: var(--ob-sys-color-surface-subtle);
 }
 

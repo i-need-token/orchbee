@@ -1,4 +1,7 @@
-export interface WorkbenchTab {
-	readonly id: string;
-	readonly label: string;
-}
+export type {
+	WorkbenchTab,
+	WorkbenchTabColor,
+	WorkbenchTabGroup,
+	WorkbenchTabGroupColor,
+	WorkbenchTabGroupUpdate,
+} from '../../workbench-tabs';

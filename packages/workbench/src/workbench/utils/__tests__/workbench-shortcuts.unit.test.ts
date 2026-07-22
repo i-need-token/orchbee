@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-	formatWorkbenchToggleSidebarShortcut,
-	matchesWorkbenchToggleSidebarShortcut,
-	WORKBENCH_TOGGLE_SIDEBAR_SHORTCUT_ID,
+	formatWorkbenchShortcut,
+	matchesWorkbenchShortcut,
+	WORKBENCH_SHORTCUTS,
 } from '../workbench-shortcuts';
 
 interface ShortcutEventOverrides {
@@ -30,24 +30,42 @@ function shortcutEvent(overrides: ShortcutEventOverrides = {}) {
 }
 
 describe('Workbench shortcuts', () => {
-	it('owns one stable sidebar action and platform display', () => {
-		expect(WORKBENCH_TOGGLE_SIDEBAR_SHORTCUT_ID).toBe('workbench.toggle-left-panel');
-		expect(formatWorkbenchToggleSidebarShortcut('apple')).toBe('⌘ B');
-		expect(formatWorkbenchToggleSidebarShortcut('standard')).toBe('Ctrl B');
+	it('owns stable semantic actions and platform displays', () => {
+		expect(WORKBENCH_SHORTCUTS.closeTab.id).toBe('workbench.tab.close');
+		expect(WORKBENCH_SHORTCUTS.newTerminal.id).toBe('workbench.terminal.create');
+		expect(WORKBENCH_SHORTCUTS.search.id).toBe('workbench.search.open');
+		expect(WORKBENCH_SHORTCUTS.settings.id).toBe('workbench.settings.open');
+		expect(WORKBENCH_SHORTCUTS.toggleSidebar.id).toBe('workbench.toggle-left-panel');
+		expect(formatWorkbenchShortcut('closeTab', 'apple')).toBe('⌘W');
+		expect(formatWorkbenchShortcut('newTerminal', 'apple')).toBe('⌘N');
+		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⌘K');
+		expect(formatWorkbenchShortcut('settings', 'apple')).toBe('⌘,');
+		expect(formatWorkbenchShortcut('toggleSidebar', 'apple')).toBe('⌘B');
+		expect(formatWorkbenchShortcut('closeTab', 'standard')).toBe('Ctrl W');
+		expect(formatWorkbenchShortcut('newTerminal', 'standard')).toBe('Ctrl N');
+		expect(formatWorkbenchShortcut('search', 'standard')).toBe('Ctrl K');
+		expect(formatWorkbenchShortcut('settings', 'standard')).toBe('Ctrl+,');
+		expect(formatWorkbenchShortcut('toggleSidebar', 'standard')).toBe('Ctrl B');
 	});
 
-	it('matches the exact platform primary modifier', () => {
-		expect(matchesWorkbenchToggleSidebarShortcut(shortcutEvent({ metaKey: true }), 'apple')).toBe(
+	it.each([
+		['closeTab', 'KeyW'],
+		['newTerminal', 'KeyN'],
+		['search', 'KeyK'],
+		['settings', 'Comma'],
+		['toggleSidebar', 'KeyB'],
+	] as const)('matches the exact platform primary modifier for %s', (action, code) => {
+		expect(matchesWorkbenchShortcut(shortcutEvent({ code, metaKey: true }), 'apple', action)).toBe(
 			true,
 		);
 		expect(
-			matchesWorkbenchToggleSidebarShortcut(shortcutEvent({ ctrlKey: true }), 'standard'),
+			matchesWorkbenchShortcut(shortcutEvent({ code, ctrlKey: true }), 'standard', action),
 		).toBe(true);
-		expect(matchesWorkbenchToggleSidebarShortcut(shortcutEvent({ ctrlKey: true }), 'apple')).toBe(
+		expect(matchesWorkbenchShortcut(shortcutEvent({ code, ctrlKey: true }), 'apple', action)).toBe(
 			false,
 		);
 		expect(
-			matchesWorkbenchToggleSidebarShortcut(shortcutEvent({ metaKey: true }), 'standard'),
+			matchesWorkbenchShortcut(shortcutEvent({ code, metaKey: true }), 'standard', action),
 		).toBe(false);
 	});
 
@@ -60,7 +78,7 @@ describe('Workbench shortcuts', () => {
 			shortcutEvent({ metaKey: true, shiftKey: true }),
 			shortcutEvent({ code: 'KeyK', metaKey: true }),
 		]) {
-			expect(matchesWorkbenchToggleSidebarShortcut(event, 'apple')).toBe(false);
+			expect(matchesWorkbenchShortcut(event, 'apple', 'toggleSidebar')).toBe(false);
 		}
 	});
 });

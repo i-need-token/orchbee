@@ -1,0 +1,86 @@
+.root {
+	display: flex;
+	box-sizing: border-box;
+	flex-direction: column;
+	gap: var(--ob-ref-space-6);
+	height: 100%;
+	padding: var(--ob-ref-space-10) var(--ob-ref-space-2) var(--ob-ref-space-2);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.primaryList {
+	display: grid;
+	gap: var(--ob-ref-space-1);
+	margin: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-0);
+	list-style: none;
+}
+
+.primaryItem {
+	height: var(--ob-ref-size-control-navigation);
+	width: 100%;
+	justify-content: flex-start;
+	gap: var(--ob-ref-space-1-5);
+	padding-inline: var(--ob-ref-space-1);
+	padding-inline-end: var(--ob-ref-space-2);
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-lg);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	white-space: normal;
+}
+
+.primaryItem:hover,
+.primaryItem:focus-visible {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.icon {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: var(--ob-ref-size-icon-lg);
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.label {
+	min-width: var(--ob-ref-space-0);
+	text-align: start;
+}
+
+.shortcut {
+	flex: none;
+	height: auto;
+	min-width: var(--ob-ref-space-0);
+	margin-inline-start: auto;
+	padding: var(--ob-ref-space-0);
+	border-radius: var(--ob-ref-radius-none);
+	background: transparent;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+	opacity: 0;
+	transition: opacity var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+.primaryItem:hover .shortcut,
+.primaryItem:focus-visible .shortcut {
+	opacity: var(--ob-sys-opacity-muted);
+}
+
+.projectSection {
+	min-height: var(--ob-ref-space-0);
+}
+
+.footer {
+	margin-block-start: auto;
+}
+
+.sectionHeading {
+	margin: var(--ob-ref-space-0);
+	padding-inline: var(--ob-ref-space-1-5);
+	color: var(--ob-sys-color-text-label);
+	font: var(--ob-sys-typography-label-sm);
+}
