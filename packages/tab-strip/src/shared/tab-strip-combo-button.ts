@@ -3,22 +3,7 @@ import { TabStripOrientation } from '../common';
 export const TAB_STRIP_COMBO_ANIMATION_DURATION_MS = 300;
 export const TAB_SEARCH_EPHEMERAL_HIDE_DELAY_MS = 2_000;
 
-export const TabStripComboContext = {
-	HorizontalTabStrip: 'horizontal-tab-strip',
-	VerticalTabStrip: 'vertical-tab-strip',
-} as const;
-
-export type TabStripComboContext = (typeof TabStripComboContext)[keyof typeof TabStripComboContext];
-
-export const TabStripComboStartKind = {
-	Projects: 'projects',
-	EverythingMenu: 'everything-menu',
-} as const;
-
-export type TabStripComboStartKind =
-	(typeof TabStripComboStartKind)[keyof typeof TabStripComboStartKind];
-
-export type TabStripComboButtonId = 'start' | 'tab-search';
+export type TabStripComboButtonId = 'tab-search';
 
 export interface TabStripComboAnimationFactors {
 	expansion: number;
@@ -29,15 +14,10 @@ export interface TabStripComboAnimationFactors {
 export interface TabStripComboButtonSnapshot {
 	revision: number;
 	orientation: TabStripOrientation;
-	startKind: TabStripComboStartKind | null;
-	startPinned: boolean;
 	tabSearchPinned: boolean;
 	tabSearchEphemeral: boolean;
-	startVisible: boolean;
 	tabSearchVisible: boolean;
-	startTargetVisible: boolean;
 	tabSearchTargetVisible: boolean;
-	startAnimating: boolean;
 	tabSearchAnimating: boolean;
 	bubbleOpen: boolean;
 	menuOpenFor: TabStripComboButtonId | null;
@@ -46,9 +26,6 @@ export interface TabStripComboButtonSnapshot {
 }
 
 export interface TabStripComboButtonControllerOptions {
-	context?: TabStripComboContext;
-	startKind?: TabStripComboStartKind;
-	startPinned?: boolean;
 	tabSearchPinned?: boolean;
 	richAnimations?: boolean;
 	onPinnedChange?: (button: TabStripComboButtonId, pinned: boolean) => void;
@@ -73,39 +50,26 @@ export function getTabStripComboAnimationFactors(value: number): TabStripComboAn
 export class TabStripComboButtonController {
 	private readonly options: TabStripComboButtonControllerOptions;
 	private readonly listeners = new Set<Listener>();
-	private readonly context: TabStripComboContext;
-	private readonly configuredStartKind: TabStripComboStartKind;
 	private readonly richAnimations: boolean;
-	private startPinned: boolean;
 	private tabSearchPinned: boolean;
 	private tabSearchEphemeral = false;
 	private orientation: TabStripOrientation = TabStripOrientation.Horizontal;
-	private startVisible: boolean;
 	private tabSearchVisible: boolean;
-	private startTargetVisible: boolean;
 	private tabSearchTargetVisible: boolean;
-	private startAnimating = false;
 	private tabSearchAnimating = false;
 	private bubbleOpen = false;
 	private menuOpenFor: TabStripComboButtonId | null = null;
 	private keepCurrentStateLock = false;
 	private hideTimer: ReturnType<typeof setTimeout> | null = null;
-	private startAnimationTimer: ReturnType<typeof setTimeout> | null = null;
-	private endAnimationTimer: ReturnType<typeof setTimeout> | null = null;
+	private animationTimer: ReturnType<typeof setTimeout> | null = null;
 	private revision = 0;
 	private snapshot: TabStripComboButtonSnapshot;
 
 	public constructor(options: TabStripComboButtonControllerOptions = {}) {
 		this.options = options;
-		this.context = options.context ?? TabStripComboContext.VerticalTabStrip;
-		this.configuredStartKind = options.startKind ?? TabStripComboStartKind.Projects;
 		this.richAnimations = options.richAnimations ?? true;
-		this.startPinned = options.startPinned ?? false;
 		this.tabSearchPinned = options.tabSearchPinned ?? false;
-		this.startTargetVisible =
-			this.context === TabStripComboContext.VerticalTabStrip && this.startPinned;
 		this.tabSearchTargetVisible = this.tabSearchPinned;
-		this.startVisible = this.startTargetVisible;
 		this.tabSearchVisible = this.tabSearchTargetVisible;
 		this.snapshot = this.createSnapshot();
 	}
@@ -124,34 +88,17 @@ export class TabStripComboButtonController {
 	}
 
 	public setPinned(button: TabStripComboButtonId, pinned: boolean): void {
-		if (button === 'start') {
-			if (this.startPinned === pinned) return;
-			this.startPinned = pinned;
-		} else {
-			if (this.tabSearchPinned === pinned) return;
-			this.tabSearchPinned = pinned;
-		}
+		if (this.tabSearchPinned === pinned) return;
+		this.tabSearchPinned = pinned;
 		this.updateButtonsVisibility();
 		this.options.onPinnedChange?.(button, pinned);
 	}
 
 	public executeTogglePinned(button: TabStripComboButtonId): void {
-		if (button === 'tab-search') {
-			this.tabSearchEphemeral = false;
-			this.clearHideTimer();
-			const pinned = !this.tabSearchPinned;
-			this.options.onUserAction?.(
-				`TabStripComboButton.TabSearch.${pinned ? 'Pinned' : 'Unpinned'}`,
-			);
-			this.setPinned(button, pinned);
-			return;
-		}
-		const pinned = !this.startPinned;
-		const name =
-			this.configuredStartKind === TabStripComboStartKind.Projects
-				? 'ProjectsPanel'
-				: 'EverythingMenu';
-		this.options.onUserAction?.(`TabStripComboButton.${name}.${pinned ? 'Pinned' : 'Unpinned'}`);
+		this.tabSearchEphemeral = false;
+		this.clearHideTimer();
+		const pinned = !this.tabSearchPinned;
+		this.options.onUserAction?.(`TabStripComboButton.TabSearch.${pinned ? 'Pinned' : 'Unpinned'}`);
 		this.setPinned(button, pinned);
 	}
 
@@ -200,61 +147,37 @@ export class TabStripComboButtonController {
 
 	public destroy(): void {
 		this.clearHideTimer();
-		this.clearAnimationTimer('start');
-		this.clearAnimationTimer('tab-search');
+		this.clearAnimationTimer();
 		this.listeners.clear();
 	}
 
 	private updateButtonsVisibility(): void {
-		this.transitionButton(
-			'start',
-			this.context === TabStripComboContext.VerticalTabStrip && this.startPinned,
-		);
-		this.transitionButton('tab-search', this.tabSearchPinned || this.tabSearchEphemeral);
+		this.transitionButton(this.tabSearchPinned || this.tabSearchEphemeral);
 		this.commit();
 	}
 
-	private transitionButton(button: TabStripComboButtonId, targetVisible: boolean): void {
-		const currentTarget =
-			button === 'start' ? this.startTargetVisible : this.tabSearchTargetVisible;
-		if (currentTarget === targetVisible) return;
-		if (button === 'start') this.startTargetVisible = targetVisible;
-		else this.tabSearchTargetVisible = targetVisible;
-		this.clearAnimationTimer(button);
+	private transitionButton(targetVisible: boolean): void {
+		if (this.tabSearchTargetVisible === targetVisible) return;
+		this.tabSearchTargetVisible = targetVisible;
+		this.clearAnimationTimer();
 
 		if (targetVisible) {
-			if (button === 'start') {
-				this.startVisible = true;
-				this.startAnimating = this.richAnimations;
-			} else {
-				this.tabSearchVisible = true;
-				this.tabSearchAnimating = this.richAnimations;
-			}
-		} else if (button === 'start') {
-			this.startAnimating = this.richAnimations && this.startVisible;
+			this.tabSearchVisible = true;
+			this.tabSearchAnimating = this.richAnimations;
 		} else {
 			this.tabSearchAnimating = this.richAnimations && this.tabSearchVisible;
 		}
 
 		if (!this.richAnimations) {
-			if (button === 'start') this.startVisible = targetVisible;
-			else this.tabSearchVisible = targetVisible;
+			this.tabSearchVisible = targetVisible;
 			return;
 		}
-		const timer = setTimeout(() => {
-			if (button === 'start') {
-				this.startAnimationTimer = null;
-				this.startAnimating = false;
-				this.startVisible = this.startTargetVisible;
-			} else {
-				this.endAnimationTimer = null;
-				this.tabSearchAnimating = false;
-				this.tabSearchVisible = this.tabSearchTargetVisible;
-			}
+		this.animationTimer = setTimeout(() => {
+			this.animationTimer = null;
+			this.tabSearchAnimating = false;
+			this.tabSearchVisible = this.tabSearchTargetVisible;
 			this.commit();
 		}, TAB_STRIP_COMBO_ANIMATION_DURATION_MS);
-		if (button === 'start') this.startAnimationTimer = timer;
-		else this.endAnimationTimer = timer;
 	}
 
 	private clearHideTimer(): void {
@@ -275,11 +198,9 @@ export class TabStripComboButtonController {
 		}, TAB_SEARCH_EPHEMERAL_HIDE_DELAY_MS);
 	}
 
-	private clearAnimationTimer(button: TabStripComboButtonId): void {
-		const timer = button === 'start' ? this.startAnimationTimer : this.endAnimationTimer;
-		if (timer !== null) clearTimeout(timer);
-		if (button === 'start') this.startAnimationTimer = null;
-		else this.endAnimationTimer = null;
+	private clearAnimationTimer(): void {
+		if (this.animationTimer !== null) clearTimeout(this.animationTimer);
+		this.animationTimer = null;
 	}
 
 	private commit(): void {
@@ -292,16 +213,10 @@ export class TabStripComboButtonController {
 		return Object.freeze({
 			revision: this.revision,
 			orientation: this.orientation,
-			startKind:
-				this.context === TabStripComboContext.VerticalTabStrip ? this.configuredStartKind : null,
-			startPinned: this.startPinned,
 			tabSearchPinned: this.tabSearchPinned,
 			tabSearchEphemeral: this.tabSearchEphemeral,
-			startVisible: this.startVisible,
 			tabSearchVisible: this.tabSearchVisible,
-			startTargetVisible: this.startTargetVisible,
 			tabSearchTargetVisible: this.tabSearchTargetVisible,
-			startAnimating: this.startAnimating,
 			tabSearchAnimating: this.tabSearchAnimating,
 			bubbleOpen: this.bubbleOpen,
 			menuOpenFor: this.menuOpenFor,

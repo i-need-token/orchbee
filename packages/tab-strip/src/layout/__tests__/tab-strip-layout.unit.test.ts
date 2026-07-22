@@ -11,45 +11,32 @@ interface TestCase {
 	numTabs?: number;
 	activeIndex?: number;
 	tabstripWidth?: number;
-	splitTabs?: ReadonlySet<number>;
 	tabGroups?: readonly (TabGroupId | null)[];
 	focusedGroup?: TabGroupId | null;
 	showPinnedTabsInFocusedGroups?: boolean;
 }
 const STANDARD_WIDTH = 256;
-const STANDARD_SPLIT_WIDTH = 137;
 const TAB_HEIGHT = 41;
 const MIN_ACTIVE_WIDTH = 56;
-const MIN_ACTIVE_SPLIT_WIDTH = 52;
 const MIN_INACTIVE_WIDTH = 32;
 const PINNED_WIDTH = 64;
-const PINNED_SPLIT_WIDTH = 55;
 const normalSize: TabSizeInfo = {
 	pinnedTabWidth: PINNED_WIDTH,
 	minActiveWidth: MIN_ACTIVE_WIDTH,
 	minInactiveWidth: MIN_INACTIVE_WIDTH,
 	standardWidth: STANDARD_WIDTH,
 };
-const splitSize: TabSizeInfo = {
-	pinnedTabWidth: PINNED_SPLIT_WIDTH,
-	minActiveWidth: MIN_ACTIVE_SPLIT_WIDTH,
-	minInactiveWidth: MIN_INACTIVE_WIDTH,
-	standardWidth: STANDARD_SPLIT_WIDTH,
-};
 function runTestCase(testCase: TestCase): Rect[] {
 	const numPinnedTabs = testCase.numPinnedTabs ?? 0;
 	const numTabs = testCase.numTabs ?? 0;
 	const activeIndex = testCase.activeIndex ?? 0;
-	const splitTabs = testCase.splitTabs ?? new Set<number>();
 	const focusedGroup = testCase.focusedGroup ?? null;
 	const tabGroups = testCase.tabGroups ?? [];
-	const splitId = 'split-1';
 	const constraints = Array.from(
 		{
 			length: numTabs,
 		},
 		(_, tabIndex) => {
-			const isSplit = splitTabs.has(tabIndex);
 			let collapsed = false;
 			if (focusedGroup !== null) {
 				if (testCase.showPinnedTabsInFocusedGroups && tabIndex < numPinnedTabs) {
@@ -63,9 +50,8 @@ function runTestCase(testCase: TestCase): Rect[] {
 					collapsed ? TabOpen.Closed : TabOpen.Open,
 					tabIndex < numPinnedTabs ? TabPinned.Pinned : TabPinned.Unpinned,
 					tabIndex === activeIndex ? TabActive.Active : TabActive.Inactive,
-					isSplit ? splitId : null,
 				),
-				isSplit ? splitSize : normalSize,
+				normalSize,
 			);
 		},
 	);
@@ -107,17 +93,6 @@ describe('calculateTabBounds (Chromium tab_strip_layout_unittest.cc)', () => {
 			},
 			[64, 256, 256],
 			[0, 46, 284],
-		],
-		[
-			'split pinned',
-			{
-				tabstripWidth: 1000,
-				numTabs: 2,
-				numPinnedTabs: 2,
-				splitTabs: new Set([0, 1]),
-			},
-			[55, 55],
-			[0, 37],
 		],
 	] as const)('lays out %s tabs', (_name, testCase, expectedWidths, expectedXs) => {
 		const bounds = runTestCase(testCase);
@@ -172,25 +147,6 @@ describe('calculateTabBounds (Chromium tab_strip_layout_unittest.cc)', () => {
 	});
 	it.each([
 		[
-			'rounded split tabs',
-			{
-				tabstripWidth: 602,
-				numTabs: 4,
-				splitTabs: new Set([0, 1]),
-			},
-			[117, 117, 211, 211],
-		],
-		[
-			'minimum-width split tabs',
-			{
-				tabstripWidth: 138,
-				numTabs: 4,
-				activeIndex: 2,
-				splitTabs: new Set([0, 1]),
-			},
-			[44, 44, 56, 48],
-		],
-		[
 			'below active minimum',
 			{
 				tabstripWidth: 196,
@@ -235,16 +191,6 @@ describe('calculateTabBounds (Chromium tab_strip_layout_unittest.cc)', () => {
 				numPinnedTabs: 1,
 			},
 			[64, 56, 55, 55, 55, 55],
-		],
-		[
-			'split tabs below minimum',
-			{
-				tabstripWidth: 200,
-				numTabs: 6,
-				activeIndex: 2,
-				splitTabs: new Set([0, 1]),
-			},
-			[45, 45, 56, 48, 48, 48],
 		],
 	] as const)('matches Chromium pixel allocation for %s', (_name, testCase, expectedWidths) => {
 		const bounds = runTestCase(testCase);

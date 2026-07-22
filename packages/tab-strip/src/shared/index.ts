@@ -1,15 +1,5 @@
 export { TabStripObserverList, type TabStripObserver } from './TabStripObserverList';
 export {
-	DROP_ARROW_SIZE,
-	DropArrowDirection,
-	DropRelativeToIndex,
-	DropGroupInclusion,
-	DropArrowState,
-	type TabDropIndex,
-	type DropArrowPlacement,
-	type DropArrowBoundsCallback,
-} from './drop-arrow';
-export {
 	ROUNDED_SCROLLBAR_THUMB_THICKNESS,
 	ROUNDED_SCROLLBAR_TRAILING_PADDING,
 	ROUNDED_SCROLLBAR_FADE_DELAY_MS,
@@ -21,8 +11,6 @@ export {
 export {
 	TAB_STRIP_COMBO_ANIMATION_DURATION_MS,
 	TAB_SEARCH_EPHEMERAL_HIDE_DELAY_MS,
-	TabStripComboContext,
-	TabStripComboStartKind,
 	getTabStripComboAnimationFactors,
 	TabStripComboButtonController,
 	type TabStripComboButtonId,

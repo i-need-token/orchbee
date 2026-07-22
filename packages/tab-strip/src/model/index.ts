@@ -1,6 +1,5 @@
 export { TabSlotAnimationDelegate, type TabSlotAnimationHost } from './TabSlotAnimationDelegate';
 export { TabSlotViewState } from './TabSlotViewState';
-export { HOVER_TAB_TRANSITION_DELAY_MS, HoverTabSelector } from './hover-tab-selector';
 export { moveContiguousBlock, type ContiguousBlockMove } from './moveContiguousBlock';
 export {
 	TabCollectionNodeType,
@@ -18,8 +17,6 @@ export {
 	type TabAlertState,
 	type TabData,
 	type TabGroupColor,
-	type TabGroupMember,
-	type TabGroupActivity,
 	type TabGroupData,
 	type TabModelInit,
 	type TabModelSnapshot,
@@ -28,4 +25,4 @@ export {
 	type DraggedTabsInsertionInput,
 	type DraggedTabsInsertionResult,
 } from './tab-model';
-export { TabOpen, TabPinned, TabActive, type SplitTabId, type TabGroupId } from './tab-types';
+export { TabOpen, TabPinned, TabActive, type TabGroupId } from './tab-types';

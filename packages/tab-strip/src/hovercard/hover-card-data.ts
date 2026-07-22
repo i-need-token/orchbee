@@ -27,11 +27,6 @@ export type HoverCardFooterRow =
 			kind: 'performance';
 			text: string;
 			high: boolean;
-	  }>
-	| Readonly<{
-			kind: 'collaboration';
-			text: string;
-			avatarUrl?: string;
 	  }>;
 export function formatHoverCardBytes(bytes: number): string {
 	const units = ['bytes', 'KB', 'MB', 'GB', 'TB'];
@@ -71,25 +66,13 @@ export function getHoverCardFooterRows(
 	if (
 		(tab.memoryUsageBytes ?? 0) > 0 &&
 		((options.showMemoryUsage ?? true) || tab.memoryUsageHigh === true) &&
-		!tab.discarded &&
-		!tab.collaborationMessage
+		!tab.discarded
 	) {
 		const high = tab.memoryUsageHigh === true;
 		rows.push({
 			kind: 'performance',
 			high,
 			text: `${high ? 'High memory usage' : 'Memory usage'}: ${formatHoverCardBytes(requireDefined(tab.memoryUsageBytes))}`,
-		});
-	}
-	if (tab.collaborationMessage) {
-		rows.push({
-			kind: 'collaboration',
-			text: `${tab.collaborationMessage.givenName} ${tab.collaborationMessage.event === 'tab-added' ? 'added' : 'changed'} this tab`,
-			...(tab.collaborationMessage.avatarUrl === undefined
-				? {}
-				: {
-						avatarUrl: tab.collaborationMessage.avatarUrl,
-					}),
 		});
 	}
 	return rows;

@@ -19,7 +19,6 @@ export interface VerticalTopContainerLayoutInput {
 	isExitingExpandOnHover?: boolean;
 	collapseVisible?: boolean;
 	unfocusVisible?: boolean;
-	comboStartVisible?: boolean;
 	comboEndVisible?: boolean;
 	collapsePreferredSize?: Size;
 	unfocusPreferredSize?: Size;
@@ -34,19 +33,9 @@ export interface VerticalTopContainerLayout {
 	children: readonly VerticalTopContainerChildLayout[];
 }
 
-function comboPreferredSize(
-	orientation: TabStripOrientation,
-	startVisible: boolean,
-	endVisible: boolean,
-	buttonSize: number,
-): Size {
-	const count = Number(startVisible) + Number(endVisible);
-	if (count === 0) return { width: 0, height: 0 };
-	const main =
-		count * buttonSize + (count - 1) * LAYOUT_CONSTANTS.verticalTabStripFlatEdgeButtonPadding;
-	return orientation === TabStripOrientation.Horizontal
-		? { width: main, height: buttonSize }
-		: { width: buttonSize, height: main };
+function comboPreferredSize(visible: boolean, buttonSize: number): Size {
+	if (!visible) return { width: 0, height: 0 };
+	return { width: buttonSize, height: buttonSize };
 }
 
 function contains(rect: Readonly<Rect>, point: Readonly<{ x: number; y: number }>): boolean {
@@ -63,12 +52,7 @@ export function getVerticalTopContainerPreferredWidth(
 ): number {
 	const buttonSize =
 		input.comboButtonSize ?? LAYOUT_CONSTANTS.verticalTabStripTopContainerButtonSize;
-	const combo = comboPreferredSize(
-		TabStripOrientation.Horizontal,
-		input.comboStartVisible ?? false,
-		input.comboEndVisible ?? true,
-		buttonSize,
-	);
+	const combo = comboPreferredSize(input.comboEndVisible ?? true, buttonSize);
 	const padding = LAYOUT_CONSTANTS.verticalTabStripTopButtonPadding;
 	let width = combo.width;
 	if (input.collapseVisible ?? true)
@@ -101,9 +85,7 @@ export function calculateVerticalTopContainerLayout(
 	const captionWidth = Math.max(0, input.captionButtonWidth ?? 0);
 	const collapseVisible = input.collapseVisible ?? true;
 	const unfocusVisible = input.unfocusVisible ?? false;
-	const startVisible = input.comboStartVisible ?? false;
-	const endVisible = input.comboEndVisible ?? true;
-	const comboVisible = startVisible || endVisible;
+	const comboVisible = input.comboEndVisible ?? true;
 	const collapsed = input.collapsed ?? false;
 	const bounded = input.widthIsBounded ?? true;
 	const hostWidth = Math.max(0, input.availableWidth);
@@ -115,12 +97,7 @@ export function calculateVerticalTopContainerLayout(
 	const unfocusSize = input.unfocusPreferredSize ?? collapseSize;
 	const comboButtonSize =
 		input.comboButtonSize ?? LAYOUT_CONSTANTS.verticalTabStripTopContainerButtonSize;
-	const comboHorizontal = comboPreferredSize(
-		TabStripOrientation.Horizontal,
-		startVisible,
-		endVisible,
-		comboButtonSize,
-	);
+	const comboHorizontal = comboPreferredSize(comboVisible, comboButtonSize);
 	const useVertical =
 		comboHorizontal.width >= availableWidth ||
 		availableWidth < LAYOUT_CONSTANTS.verticalTabStripCollapseSnapWidth ||
@@ -176,12 +153,7 @@ export function calculateVerticalTopContainerLayout(
 		}
 		if (comboVisible) {
 			y += LAYOUT_CONSTANTS.verticalTabStripCollapsedVerticalPadding;
-			const preferred = comboPreferredSize(
-				TabStripOrientation.Vertical,
-				startVisible,
-				endVisible,
-				comboButtonSize,
-			);
+			const preferred = comboPreferredSize(comboVisible, comboButtonSize);
 			const padding = collapsed
 				? LAYOUT_CONSTANTS.verticalTabStripFlatEdgeButtonPadding
 				: Math.max(0, Math.floor((computedHostWidth - preferred.width) / 2));

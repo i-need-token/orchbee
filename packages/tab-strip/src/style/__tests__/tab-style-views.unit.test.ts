@@ -33,17 +33,6 @@ describe('TabStyleViews horizontal geometry', () => {
 		expect(active).toContain('L 100 41');
 	});
 
-	it('squares the shared edge between split tabs', () => {
-		const left = getHorizontalTabPath({ width: 100, pathType: 'highlight', splitPosition: 'left' });
-		const right = getHorizontalTabPath({
-			width: 100,
-			pathType: 'highlight',
-			splitPosition: 'right',
-		});
-		expect(left).toContain('L 91 6');
-		expect(right).toContain('L 9 6');
-	});
-
 	it('insets an active grouped fill by the group stroke thickness', () => {
 		const active = getHorizontalTabPath({
 			width: 100,
@@ -55,25 +44,6 @@ describe('TabStyleViews horizontal geometry', () => {
 		expect(active).toContain('A 9 9');
 		expect(active).toContain('L 78 7');
 		expect(active).toContain('L 87 28');
-	});
-
-	it('omits the internal border edges between active split tabs', () => {
-		const left = getHorizontalTabPath({
-			width: 100,
-			pathType: 'border',
-			splitPosition: 'left',
-			strokeThickness: 2,
-		});
-		const right = getHorizontalTabPath({
-			width: 100,
-			pathType: 'border',
-			splitPosition: 'right',
-			strokeThickness: 2,
-		});
-		expect(left).toMatch(/L 97 7 L 100 7$/);
-		expect(left).not.toContain('L 100 40');
-		expect(right).toMatch(/^M 0 7 L 78 7/);
-		expect(right).not.toContain('M 0 40');
 	});
 
 	it('extends a condensed-frame hit target to the top with square corners', () => {
@@ -107,7 +77,7 @@ describe('TabStyleViews horizontal geometry', () => {
 });
 
 describe('TabStyleViews separator targets', () => {
-	const plain = { active: false, selected: false, hovered: false, group: null, split: null };
+	const plain = { active: false, selected: false, hovered: false, group: null };
 
 	it('shows only separators that have no visible neighboring shape', () => {
 		expect(
@@ -123,15 +93,7 @@ describe('TabStyleViews separator targets', () => {
 		).toEqual({ leading: 0, trailing: 1 });
 	});
 
-	it('hides split separators and the leading separator after a group header', () => {
-		expect(
-			getHorizontalTabSeparatorTargets({
-				tab: { ...plain, group: 'g', split: 's' },
-				previous: { ...plain, group: 'g', split: 's' },
-				next: null,
-				tabCount: 2,
-			}).leading,
-		).toBe(0);
+	it('hides the leading separator after a group header', () => {
 		expect(
 			getHorizontalTabSeparatorTargets({
 				tab: { ...plain, group: 'g' },

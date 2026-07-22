@@ -17,7 +17,6 @@ const tab = {
 	title: 'A',
 	pinned: false,
 	group: null,
-	split: null,
 } as const;
 
 describe('TabIcon source port', () => {

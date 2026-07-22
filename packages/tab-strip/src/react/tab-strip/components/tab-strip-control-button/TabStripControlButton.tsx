@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
 import { getTabStripControlButtonRadii, TabStripControlButtonEdge } from '../../../../shared';
+
 export interface TabStripControlButtonProps extends Omit<
 	ButtonHTMLAttributes<HTMLButtonElement>,
 	'children'
@@ -14,6 +15,7 @@ export interface TabStripControlButtonProps extends Omit<
 	flatCornerRadius?: number;
 	frameCondensed?: boolean;
 }
+
 export function TabStripControlButton({
 	icon,
 	label,
@@ -33,29 +35,10 @@ export function TabStripControlButton({
 		animatedFlatEdge,
 		flatEdgeFactor,
 		frameCondensed,
-		...(leftCornerRadius === undefined
-			? {}
-			: {
-					leftCornerRadius,
-				}),
-		...(rightCornerRadius === undefined
-			? {}
-			: {
-					rightCornerRadius,
-				}),
-		...(flatCornerRadius === undefined
-			? {}
-			: {
-					flatCornerRadius,
-				}),
+		...(leftCornerRadius === undefined ? {} : { leftCornerRadius }),
+		...(rightCornerRadius === undefined ? {} : { rightCornerRadius }),
+		...(flatCornerRadius === undefined ? {} : { flatCornerRadius }),
 	});
-	const computedStyle: CSSProperties = {
-		borderTopLeftRadius: radii.topLeft,
-		borderTopRightRadius: radii.topRight,
-		borderBottomRightRadius: radii.bottomRight,
-		borderBottomLeftRadius: radii.bottomLeft,
-		...style,
-	};
 	return (
 		<button
 			{...buttonProps}
@@ -64,7 +47,15 @@ export function TabStripControlButton({
 			data-frame-condensed={frameCondensed || undefined}
 			data-fixed-flat-edge={fixedFlatEdge}
 			data-animated-flat-edge={animatedFlatEdge}
-			style={computedStyle}
+			style={
+				{
+					borderTopLeftRadius: radii.topLeft,
+					borderTopRightRadius: radii.topRight,
+					borderBottomRightRadius: radii.bottomRight,
+					borderBottomLeftRadius: radii.bottomLeft,
+					...style,
+				} satisfies CSSProperties
+			}
 		>
 			{icon ? (
 				<span className='ct-tab-strip-control-button__icon' aria-hidden='true'>

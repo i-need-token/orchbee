@@ -19,6 +19,5 @@ export {
 	getHorizontalTabSeparatorBounds,
 	getHorizontalTabSeparatorTargets,
 	type HorizontalTabPathType,
-	type SplitTabPhysicalPosition,
 	type TabSeparatorState,
 } from './tab-style-views';

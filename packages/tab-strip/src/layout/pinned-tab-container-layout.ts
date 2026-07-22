@@ -15,7 +15,6 @@ export function getPinnedTabContainerDragAxes(
 export interface PinnedChildLayoutData {
 	id: string;
 	preferredSize: Size;
-	split?: boolean;
 	drag?: { x: number; y: number; shouldHide?: boolean; shouldFloat?: boolean };
 }
 
@@ -40,8 +39,7 @@ export function calculatePinnedTabContainerLayout(
 	let totalWidth = 0;
 	let totalHeight = 0;
 	let childrenOnRow = input.children.length;
-	const containsSplit = input.children.some((child) => child.split);
-	let childWidth = LAYOUT_CONSTANTS.verticalTabMinWidth * (containsSplit ? 2 : 1);
+	let childWidth = LAYOUT_CONSTANTS.verticalTabMinWidth;
 
 	if (input.sizeBounds.width !== null && input.sizeBounds.width > 0) {
 		let availableWidth =

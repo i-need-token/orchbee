@@ -15,30 +15,17 @@ function tab(id: string, update: Partial<TabData> = {}): TabData {
 		title: id,
 		pinned: false,
 		group: null,
-		split: null,
 		...update,
 	};
 }
 describe('TabCollectionNode source port', () => {
-	it('builds root, pin partition, group, split, and tab nodes', () => {
+	it('builds root, pin partition, group, and tab nodes', () => {
 		const model = new TabModel({
 			tabs: [
-				tab('p1', {
-					pinned: true,
-					split: 'p-split',
-				}),
-				tab('p2', {
-					pinned: true,
-					split: 'p-split',
-				}),
-				tab('a', {
-					group: 'work',
-					split: 'work-split',
-				}),
-				tab('b', {
-					group: 'work',
-					split: 'work-split',
-				}),
+				tab('p1', { pinned: true }),
+				tab('p2', { pinned: true }),
+				tab('a', { group: 'work' }),
+				tab('b', { group: 'work' }),
 				tab('loose'),
 			],
 			groups: [
@@ -55,18 +42,17 @@ describe('TabCollectionNode source port', () => {
 			TabCollectionNodeType.Pinned,
 			TabCollectionNodeType.Unpinned,
 		]);
-		expect(descriptor.children?.[0]?.children?.[0]).toMatchObject({
-			handle: 'split:p-split',
-			type: TabCollectionNodeType.Split,
-		});
+		expect(descriptor.children?.[0]?.children?.map((child) => child.handle)).toEqual([
+			'tab:p1',
+			'tab:p2',
+		]);
 		expect(descriptor.children?.[1]?.children?.[0]).toMatchObject({
 			handle: 'group:work',
 			type: TabCollectionNodeType.Group,
 		});
-		expect(descriptor.children?.[1]?.children?.[0]?.children?.[0]).toMatchObject({
-			handle: 'split:work-split',
-			type: TabCollectionNodeType.Split,
-		});
+		expect(descriptor.children?.[1]?.children?.[0]?.children?.map((child) => child.handle)).toEqual(
+			['tab:a', 'tab:b'],
+		);
 		expect(descriptor.children?.[1]?.children?.[1]?.handle).toBe('tab:loose');
 	});
 	it('initializes recursively, finds parents, and maintains focus order', () => {
@@ -174,17 +160,7 @@ describe('TabCollectionNode source port', () => {
 describe('RootTabCollectionNode model observation', () => {
 	it('preserves nodes on reorder, recreates them across pin partitions, and publishes callbacks', () => {
 		const model = new TabModel({
-			tabs: [
-				tab('a', {
-					group: 'work',
-					split: 'pair',
-				}),
-				tab('b', {
-					group: 'work',
-					split: 'pair',
-				}),
-				tab('loose'),
-			],
+			tabs: [tab('a', { group: 'work' }), tab('b', { group: 'work' }), tab('loose')],
 			groups: [
 				{
 					id: 'work',
@@ -220,7 +196,7 @@ describe('RootTabCollectionNode model observation', () => {
 		model.selectTab('a');
 		expect(active).toHaveBeenLastCalledWith('a');
 		expect(aSelection).toHaveBeenCalled();
-		expect(bSelection).toHaveBeenCalled();
+		expect(bSelection).not.toHaveBeenCalled();
 		const destroyLoose = vi.fn<() => void>();
 		originalLoose?.registerWillDestroyCallback(destroyLoose);
 		model.setTabsPinned(['loose'], true);

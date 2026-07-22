@@ -14,7 +14,6 @@ The following behavior is outside this model:
 
 - individual or multi-tab dragging;
 - pinned-tab dragging;
-- split-tab dragging;
 - vertical strips;
 - cross-window detach and attach;
 - touch long-press and context-menu behavior; and
@@ -108,7 +107,7 @@ These names are stable evidence identifiers:
 | `DragSourceExists`                  | Every armed, dragging, or settling group and member still exists                                                              |
 | `GroupMovePermutation`              | Moving a group preserves the complete ordered set of tab identities up to permutation                                         |
 | `GroupMoveAtomic`                   | A group-header move preserves membership and moves the entire group as one block                                              |
-| `GroupTargetBoundary`               | A committed group boundary never splits another group or split collection                                                     |
+| `GroupTargetBoundary`               | A committed group boundary never splits another group                                                                         |
 | `CollapsedDragStaysCompact`         | A group collapsed before activation remains collapsed and uses one compact header visual                                      |
 | `ExpandedDragKeepsFullVisual`       | A group expanded before activation uses a full header-plus-tabs visual while its backing model is temporarily collapsed       |
 | `CompletionRestoresCollapsedIntent` | Commit restores the exact pre-drag collapsed intent                                                                           |

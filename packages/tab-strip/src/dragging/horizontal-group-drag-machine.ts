@@ -4,7 +4,6 @@ export interface HorizontalGroupDragTab {
 	readonly group: string | null;
 	readonly id: string;
 	readonly pinned: boolean;
-	readonly split: string | null;
 }
 export interface HorizontalGroupDragGroup {
 	readonly collapsed: boolean;
@@ -165,7 +164,6 @@ function isCollectionBoundary(
 	const left = state.tabs[candidate - 1];
 	const right = state.tabs[candidate];
 	if (left && right && left.group !== null && left.group === right.group) return false;
-	if (left && right && left.split !== null && left.split === right.split) return false;
 	return true;
 }
 function withSelection(

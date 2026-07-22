@@ -92,12 +92,6 @@ export {
 	type TabDragPointResolver,
 } from './tab-drag-target';
 export {
-	DragPositionHint,
-	getHorizontalLinkDropIndexForTab,
-	getLinkDropIndexForNode,
-	type TabLinkDropNode,
-} from './tab-link-drop-handler';
-export {
 	getHorizontalDragTarget,
 	getHorizontalDragInsertionIndex,
 	type DragPositionTab,

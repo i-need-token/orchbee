@@ -5,7 +5,6 @@ import {
 	calculatePinnedTabContainerMinimumSize,
 	getPinnedTabContainerDragAxes,
 } from '../pinned-tab-container-layout';
-import { calculateSplitTabViewLayout, SPLIT_VIEW_GAP } from '../split-tab-view-layout';
 import {
 	calculatePinnedContainerMainAxisSize,
 	calculateTabStripViewLayout,
@@ -117,76 +116,6 @@ describe('TabStripViewLayout', () => {
 		expect(collapsed.hostSize).toEqual({
 			width: 72,
 			height: 500,
-		});
-	});
-});
-describe('SplitTabView layout (ported browser tests)', () => {
-	const children = [
-		{
-			width: 80,
-			height: 30,
-		},
-		{
-			width: 100,
-			height: 30,
-		},
-	] as const;
-	it('puts unbounded vertical split children on one row with a gap', () => {
-		const layout = calculateSplitTabViewLayout({
-			orientation: TabStripOrientation.Vertical,
-			sizeBounds: {
-				width: null,
-				height: null,
-			},
-			children,
-		});
-		expect(requireDefined(layout.children[0]).bounds.y).toBe(
-			requireDefined(layout.children[1]).bounds.y,
-		);
-		expect(requireDefined(layout.children[0]).bounds.x + 80 + SPLIT_VIEW_GAP).toBe(
-			requireDefined(layout.children[1]).bounds.x,
-		);
-		expect(layout.hostSize.width).toBe(182);
-	});
-	it('shares a large bounded width evenly', () => {
-		const layout = calculateSplitTabViewLayout({
-			orientation: TabStripOrientation.Vertical,
-			sizeBounds: {
-				width: 200,
-				height: null,
-			},
-			children,
-		});
-		expect(layout.children.map((child) => child.bounds.width)).toEqual([99, 99]);
-		expect(requireDefined(layout.children[1]).bounds.x).toBe(101);
-		expect(layout.hostSize.width).toBe(200);
-	});
-	it('stacks children when the width is below two minimum tabs', () => {
-		const layout = calculateSplitTabViewLayout({
-			orientation: TabStripOrientation.Vertical,
-			sizeBounds: {
-				width: 60,
-				height: null,
-			},
-			children,
-		});
-		expect(layout.children.map((child) => child.bounds.width)).toEqual([60, 60]);
-		expect(requireDefined(layout.children[1]).bounds.y).toBe(32);
-		expect(layout.hostSize.height).toBe(62);
-	});
-	it('splits horizontal bounds without a gap, matching legacy horizontal layout', () => {
-		const layout = calculateSplitTabViewLayout({
-			orientation: TabStripOrientation.Horizontal,
-			sizeBounds: {
-				width: 137,
-				height: 41,
-			},
-			children,
-		});
-		expect(layout.children.map((child) => child.bounds.width)).toEqual([68, 69]);
-		expect(layout.hostSize).toEqual({
-			width: 137,
-			height: 41,
 		});
 	});
 });

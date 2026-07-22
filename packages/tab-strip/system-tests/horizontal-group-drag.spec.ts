@@ -252,5 +252,4 @@ test('Escape restores the complete pre-drag observable state', async ({ page }) 
 	await expect(sourceHeader(page)).toHaveAttribute('aria-expanded', 'true');
 	expect(await selectedTabIds(page)).toEqual(['tabs-source']);
 	expect(await visibleActiveSurfaceIds(page)).toEqual(['tab:tabs-source']);
-	await expect(page.locator('.ct-drop-arrow')).toHaveCount(0);
 });

@@ -19,7 +19,6 @@ export const TAB_SEPARATOR_OVERLAP = TAB_SEPARATOR_HORIZONTAL_MARGIN * 2 + TAB_S
 export const TAB_STRIP_DECLUTTER_MIN_TABS_FOR_SEPARATOR_HIDE = 20;
 
 export type HorizontalTabPathType = 'active' | 'border' | 'highlight' | 'hit-test';
-export type SplitTabPhysicalPosition = 'none' | 'left' | 'right';
 
 function clamp(value: number, minimum: number, maximum: number): number {
 	return Math.min(maximum, Math.max(minimum, value));
@@ -67,14 +66,12 @@ function roundedRectPath(input: {
 export function getHorizontalTabPath(input: {
 	width: number;
 	pathType: HorizontalTabPathType;
-	splitPosition?: SplitTabPhysicalPosition;
 	closing?: boolean;
 	frameCondensed?: boolean;
 	/** TabStyleViewsImpl::GetStrokeThickness, in DIPs. */
 	strokeThickness?: number;
 }): string {
 	const width = Math.max(0, input.width);
-	const splitPosition = input.splitPosition ?? 'none';
 	let contentRadius = getHorizontalTabTopCornerRadius(width);
 	let extensionRadius = TAB_BOTTOM_CORNER_RADIUS;
 	let top = LAYOUT_CONSTANTS.tabStripPadding;
@@ -83,10 +80,8 @@ export function getHorizontalTabPath(input: {
 		let left = extensionRadius;
 		let right = width - extensionRadius;
 		const limitedTabSpace = right - left < 16;
-		const expandLeft =
-			limitedTabSpace || input.pathType === 'hit-test' || splitPosition === 'right';
-		const expandRight =
-			limitedTabSpace || input.pathType === 'hit-test' || splitPosition === 'left';
+		const expandLeft = limitedTabSpace || input.pathType === 'hit-test';
+		const expandRight = limitedTabSpace || input.pathType === 'hit-test';
 		if (!input.closing && expandLeft) left -= TAB_SEPARATOR_OVERLAP / 2;
 		if (!input.closing && expandRight) right += TAB_SEPARATOR_OVERLAP / 2;
 
@@ -104,16 +99,15 @@ export function getHorizontalTabPath(input: {
 			top,
 			right,
 			bottom,
-			topLeft: extendHitTestToTop || splitPosition === 'right' ? 0 : contentRadius,
-			topRight: extendHitTestToTop || splitPosition === 'left' ? 0 : contentRadius,
-			bottomRight: input.pathType === 'hit-test' || splitPosition === 'left' ? 0 : contentRadius,
-			bottomLeft: input.pathType === 'hit-test' || splitPosition === 'right' ? 0 : contentRadius,
+			topLeft: extendHitTestToTop ? 0 : contentRadius,
+			topRight: extendHitTestToTop ? 0 : contentRadius,
+			bottomRight: input.pathType === 'hit-test' ? 0 : contentRadius,
+			bottomLeft: input.pathType === 'hit-test' ? 0 : contentRadius,
 		});
 	}
 
 	const left = 0;
 	const right = width;
-	const extension = extensionRadius;
 	const extendedBottom = LAYOUT_CONSTANTS.tabStripHeight;
 	let tabBottom = extendedBottom - LAYOUT_CONSTANTS.tabstripToolbarOverlap;
 	let tabLeft = left + extensionRadius;
@@ -126,8 +120,8 @@ export function getHorizontalTabPath(input: {
 		input.strokeThickness ?? (input.pathType === 'border' ? 2 : 0),
 	);
 	if (input.pathType === 'active' || input.pathType === 'border') {
-		if (splitPosition !== 'right') tabLeft += strokeAdjustment / 2;
-		if (splitPosition !== 'left') tabRight -= strokeAdjustment / 2;
+		tabLeft += strokeAdjustment / 2;
+		tabRight -= strokeAdjustment / 2;
 		top += strokeAdjustment / 2;
 		contentRadius = Math.max(0, contentRadius - strokeAdjustment / 2);
 		topLeftRadius = contentRadius;
@@ -136,63 +130,38 @@ export function getHorizontalTabPath(input: {
 		extensionRadius -= strokeAdjustment / 2;
 	}
 
-	let leftExtensionRadius = extensionRadius;
-	if (splitPosition === 'left') {
-		topRightRadius = 0;
-		tabRight += extension - TAB_SEPARATOR_OVERLAP / 2;
-		extensionRadius = 0;
-	} else if (splitPosition === 'right') {
-		topLeftRadius = 0;
-		tabLeft -= extension - TAB_SEPARATOR_OVERLAP / 2;
-		leftExtensionRadius = 0;
-	}
-
 	const path: string[] = [];
-	const splitBorderStartsAtSharedEdge = input.pathType === 'border' && splitPosition === 'right';
-	if (splitBorderStartsAtSharedEdge) {
-		// Chromium deliberately omits the internal left edge of the right split
-		// tab. The two split paths together form one continuous outer stroke.
-		path.push(`M ${left} ${top}`);
-	} else {
-		path.push(`M ${left} ${extendedBottom}`);
-		if (tabBottom !== extendedBottom) {
-			path.push(input.pathType === 'border' ? `M ${left} ${tabBottom}` : `L ${left} ${tabBottom}`);
-		}
-		path.push(`L ${tabLeft - leftExtensionRadius} ${tabBottom}`);
-		path.push(
-			leftExtensionRadius
-				? `A ${leftExtensionRadius} ${leftExtensionRadius} 0 0 0 ${tabLeft} ${tabBottom - leftExtensionRadius}`
-				: `L ${tabLeft} ${tabBottom}`,
-		);
-		path.push(`L ${tabLeft} ${top + topLeftRadius}`);
-		path.push(
-			topLeftRadius
-				? `A ${topLeftRadius} ${topLeftRadius} 0 0 1 ${tabLeft + topLeftRadius} ${top}`
-				: `L ${tabLeft} ${top}`,
-		);
+	path.push(`M ${left} ${extendedBottom}`);
+	if (tabBottom !== extendedBottom) {
+		path.push(input.pathType === 'border' ? `M ${left} ${tabBottom}` : `L ${left} ${tabBottom}`);
 	}
+	path.push(`L ${tabLeft - extensionRadius} ${tabBottom}`);
+	path.push(
+		extensionRadius
+			? `A ${extensionRadius} ${extensionRadius} 0 0 0 ${tabLeft} ${tabBottom - extensionRadius}`
+			: `L ${tabLeft} ${tabBottom}`,
+	);
+	path.push(`L ${tabLeft} ${top + topLeftRadius}`);
+	path.push(
+		topLeftRadius
+			? `A ${topLeftRadius} ${topLeftRadius} 0 0 1 ${tabLeft + topLeftRadius} ${top}`
+			: `L ${tabLeft} ${top}`,
+	);
 
 	path.push(`L ${tabRight - topRightRadius} ${top}`);
-	const splitBorderEndsAtSharedEdge = input.pathType === 'border' && splitPosition === 'left';
-	if (splitBorderEndsAtSharedEdge) {
-		// Match the complementary Chromium rule: the left split tab stops at the
-		// top of the shared edge instead of painting an internal descender.
-		path.push(`L ${right} ${top}`);
-	} else {
-		path.push(
-			topRightRadius
-				? `A ${topRightRadius} ${topRightRadius} 0 0 1 ${tabRight} ${top + topRightRadius}`
-				: `L ${tabRight} ${top}`,
-		);
-		path.push(`L ${tabRight} ${tabBottom - extensionRadius}`);
-		path.push(
-			extensionRadius
-				? `A ${extensionRadius} ${extensionRadius} 0 0 0 ${tabRight + extensionRadius} ${tabBottom}`
-				: `L ${tabRight} ${tabBottom}`,
-		);
-		if (tabBottom !== extendedBottom) path.push(`L ${right} ${tabBottom}`);
-		if (input.pathType !== 'border') path.push(`L ${right} ${extendedBottom}`);
-	}
+	path.push(
+		topRightRadius
+			? `A ${topRightRadius} ${topRightRadius} 0 0 1 ${tabRight} ${top + topRightRadius}`
+			: `L ${tabRight} ${top}`,
+	);
+	path.push(`L ${tabRight} ${tabBottom - extensionRadius}`);
+	path.push(
+		extensionRadius
+			? `A ${extensionRadius} ${extensionRadius} 0 0 0 ${tabRight + extensionRadius} ${tabBottom}`
+			: `L ${tabRight} ${tabBottom}`,
+	);
+	if (tabBottom !== extendedBottom) path.push(`L ${right} ${tabBottom}`);
+	if (input.pathType !== 'border') path.push(`L ${right} ${extendedBottom}`);
 
 	if (input.pathType !== 'border') path.push('Z');
 	return path.join(' ');
@@ -206,12 +175,10 @@ export function isPointInHorizontalTabHitTest(input: {
 	width: number;
 	x: number;
 	y: number;
-	splitPosition?: SplitTabPhysicalPosition;
 	closing?: boolean;
 	frameCondensed?: boolean;
 }): boolean {
 	const width = Math.max(0, input.width);
-	const splitPosition = input.splitPosition ?? 'none';
 	const radius = getHorizontalTabTopCornerRadius(width);
 	let left = TAB_BOTTOM_CORNER_RADIUS;
 	let right = width - TAB_BOTTOM_CORNER_RADIUS;
@@ -224,8 +191,8 @@ export function isPointInHorizontalTabHitTest(input: {
 	if (input.x < left || input.x > right || input.y < top || input.y > bottom) return false;
 	if (input.frameCondensed || input.y >= top + radius) return true;
 
-	const leftRadius = splitPosition === 'right' ? 0 : radius;
-	const rightRadius = splitPosition === 'left' ? 0 : radius;
+	const leftRadius = radius;
+	const rightRadius = radius;
 	if (leftRadius > 0 && input.x < left + leftRadius) {
 		const dx = input.x - (left + leftRadius);
 		const dy = input.y - (top + leftRadius);
@@ -265,7 +232,6 @@ export interface TabSeparatorState {
 	selected: boolean;
 	hovered: boolean;
 	group: string | null;
-	split: string | null;
 }
 
 function hasVisibleTabBackground(tab: Readonly<TabSeparatorState> | null): boolean {
@@ -294,9 +260,8 @@ export function getHorizontalTabSeparatorTargets(input: {
 
 	const target = (leading: boolean): number => {
 		const adjacent = leading ? input.previous : input.next;
-		const left = leading ? adjacent : input.tab;
 		const right = leading ? input.tab : adjacent;
-		if (left && right && left.split !== null && left.split === right.split) return 0;
+		const left = leading ? adjacent : input.tab;
 
 		const adjacentToHeader = Boolean(
 			right?.group !== null && right?.group !== undefined && (!left || left.group !== right.group),

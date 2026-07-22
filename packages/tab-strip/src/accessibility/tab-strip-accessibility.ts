@@ -54,14 +54,13 @@ export function getGroupTooltipText(
 
 /**
  * Port of GetHoverCardAccessibilityText. Chromium exposes the count, at most
- * five character-truncated titles, the overflow count, sharing, and state.
+ * five character-truncated titles, the overflow count, and state.
  */
 export function getGroupAccessibleName(
 	group: Readonly<TabGroupData>,
 	tabs: readonly Pick<TabData, 'title'>[],
 ): string {
 	const parts: string[] = [];
-	if (group.shared) parts.push('Shared');
 	parts.push(group.title || 'Unnamed group');
 	parts.push(`${tabs.length} ${tabs.length === 1 ? 'tab' : 'tabs'}`);
 	tabs.slice(0, GROUP_HOVER_CARD_MAX_TABS).forEach((tab) => {
@@ -74,14 +73,11 @@ export function getGroupAccessibleName(
 		parts.push(`+ ${excess} more`);
 	}
 	parts.push(group.collapsed ? 'collapsed' : 'expanded');
-	if (group.shared && group.collapsed && group.attention && tabs.length > 0)
-		parts.push('new activity');
+	if (group.collapsed && group.attention && tabs.length > 0) parts.push('new activity');
 	return parts.join(', ');
 }
 export interface AccessibleTabContext {
 	group?: Readonly<TabGroupData> | null;
-	splitIndex?: 0 | 1;
-	splitLayout?: 'side-by-side' | 'stacked';
 }
 
 /** Port of tabs::GetAccessibleTabLabel, preserving Chromium's wrapper order. */
@@ -90,15 +86,6 @@ export function getAccessibleTabLabel(
 	context: AccessibleTabContext = {},
 ): string {
 	let title = tab.title || 'New Tab';
-	if (tab.split !== null && context.splitIndex !== undefined) {
-		let position: string;
-		if (context.splitLayout === 'stacked') {
-			position = context.splitIndex === 0 ? 'top view' : 'bottom view';
-		} else {
-			position = context.splitIndex === 0 ? 'left view' : 'right view';
-		}
-		title = `${title}, ${position}`;
-	}
 	if (tab.group !== null) {
 		title = context.group?.title
 			? `${title}, in group ${context.group.title}`
@@ -119,11 +106,6 @@ export function getAccessibleTabLabel(
 		}
 	} else if ((tab.memoryUsageBytes ?? 0) > 0) {
 		title = `${title}, ${tab.memoryUsageHigh ? 'high memory usage' : 'memory usage'} ${formatBytes(requireDefined(tab.memoryUsageBytes))}`;
-	} else if (tab.collaborationMessage) {
-		title =
-			tab.collaborationMessage.event === 'tab-added'
-				? `${tab.collaborationMessage.givenName} added ${title}`
-				: `${tab.collaborationMessage.givenName} changed ${title}`;
 	}
 	return title;
 }

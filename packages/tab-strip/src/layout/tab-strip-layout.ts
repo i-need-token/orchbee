@@ -48,12 +48,6 @@ export class TabSizer {
 			return false;
 		}
 
-		// Chromium avoids making the two halves of a split differ by one pixel,
-		// which would make their favicons render inconsistently.
-		if (tab.state.split !== null) {
-			return false;
-		}
-
 		switch (this.domain) {
 			case LayoutDomain.InactiveWidthBelowActiveWidth:
 				return tab.getMinimumWidth() < tab.getLayoutCrossoverWidth();

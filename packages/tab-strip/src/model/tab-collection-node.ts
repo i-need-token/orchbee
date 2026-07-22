@@ -8,7 +8,6 @@ export const TabCollectionNodeType = {
 	Pinned: 'pinned',
 	Unpinned: 'unpinned',
 	Group: 'group',
-	Split: 'split',
 	Tab: 'tab',
 } as const;
 export type TabCollectionNodeType =
@@ -298,34 +297,16 @@ export class TabCollectionNode<View = TabCollectionMemoryView> {
 		this.selectionChangedCallbacks.clear();
 	}
 }
-function nestSplitTabs(
+function createTabDescriptors(
 	tabs: readonly TabModelSnapshot['tabs'][number][],
 ): TabCollectionNodeDescriptor[] {
-	const result: TabCollectionNodeDescriptor[] = [];
-	for (let index = 0; index < tabs.length; index += 1) {
-		const tab = requireDefined(tabs[index]);
-		const next = tabs[index + 1];
-		if (tab.split !== null && next?.split === tab.split) {
-			result.push({
-				handle: `split:${tab.split}`,
-				type: TabCollectionNodeType.Split,
-				children: [tab, next].map((child) => ({
-					handle: `tab:${child.id}`,
-					type: TabCollectionNodeType.Tab,
-				})),
-			});
-			index += 1;
-		} else {
-			result.push({
-				handle: `tab:${tab.id}`,
-				type: TabCollectionNodeType.Tab,
-			});
-		}
-	}
-	return result;
+	return tabs.map((tab) => ({
+		handle: `tab:${tab.id}`,
+		type: TabCollectionNodeType.Tab,
+	}));
 }
 
-/** Builds Chromium's root -> pinned/unpinned -> group/split/tab hierarchy. */
+/** Builds Chromium's root -> pinned/unpinned -> group/tab hierarchy. */
 export function buildTabCollectionDescriptor(
 	snapshot: TabModelSnapshot,
 ): TabCollectionNodeDescriptor {
@@ -335,11 +316,7 @@ export function buildTabCollectionDescriptor(
 	for (let index = 0; index < unpinnedTabs.length; index += 1) {
 		const tab = requireDefined(unpinnedTabs[index]);
 		if (tab.group === null) {
-			const nested = nestSplitTabs(
-				unpinnedTabs.slice(index, index + 2).filter((candidate) => candidate.group === null),
-			);
-			unpinnedChildren.push(requireDefined(nested[0]));
-			if (nested[0]?.type === TabCollectionNodeType.Split) index += 1;
+			unpinnedChildren.push(requireDefined(createTabDescriptors([tab])[0]));
 			continue;
 		}
 		const groupTabs = [tab];
@@ -348,7 +325,7 @@ export function buildTabCollectionDescriptor(
 		unpinnedChildren.push({
 			handle: `group:${tab.group}`,
 			type: TabCollectionNodeType.Group,
-			children: nestSplitTabs(groupTabs),
+			children: createTabDescriptors(groupTabs),
 		});
 	}
 	return {
@@ -358,7 +335,7 @@ export function buildTabCollectionDescriptor(
 			{
 				handle: 'collection:pinned',
 				type: TabCollectionNodeType.Pinned,
-				children: nestSplitTabs(pinnedTabs),
+				children: createTabDescriptors(pinnedTabs),
 			},
 			{
 				handle: 'collection:unpinned',
@@ -491,16 +468,9 @@ export class RootTabCollectionNode<View = TabCollectionMemoryView> {
 			if (previous.activeTabId) changedSelections.add(previous.activeTabId);
 			if (next.activeTabId) changedSelections.add(next.activeTabId);
 		}
-		const notifyIds = new Set(changedSelections);
-		changedSelections.forEach((id) => {
-			const split =
-				next.tabs.find((tab) => tab.id === id)?.split ??
-				previous.tabs.find((tab) => tab.id === id)?.split ??
-				null;
-			if (split !== null)
-				next.tabs.filter((tab) => tab.split === split).forEach((tab) => notifyIds.add(tab.id));
-		});
-		notifyIds.forEach((id) => this.root.getNodeForHandle(`tab:${id}`)?.notifyTabSelectionChanged());
+		changedSelections.forEach((id) =>
+			this.root.getNodeForHandle(`tab:${id}`)?.notifyTabSelectionChanged(),
+		);
 		this.snapshot = next;
 	}
 	private reconcileNode(

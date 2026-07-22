@@ -1,5 +1,5 @@
 import { requireDefined, ToggleTabGroupCollapsedStateOrigin } from '../common';
-import type { SplitTabId, TabGroupId } from './tab-types';
+import type { TabGroupId } from './tab-types';
 import { moveContiguousBlock } from './moveContiguousBlock';
 export { ToggleTabGroupCollapsedStateOrigin } from '../common';
 
@@ -19,10 +19,6 @@ export type TabAlertState =
 	| 'desktop-capturing'
 	| 'tab-capturing'
 	| 'pip-playing'
-	| 'actor-accessing'
-	| 'actor-waiting-on-user'
-	| 'glic-accessing'
-	| 'glic-sharing'
 	| 'bluetooth-connected'
 	| 'bluetooth-scan-active'
 	| 'usb-connected'
@@ -42,7 +38,6 @@ export interface TabData {
 	shouldDisplayUrl?: boolean;
 	pinned: boolean;
 	group: TabGroupId | null;
-	split: SplitTabId | null;
 	loading?: boolean;
 	/** Mirrors tabs::TabData::should_render_loading_title. */
 	shouldRenderLoadingTitle?: boolean;
@@ -56,13 +51,6 @@ export interface TabData {
 	discardedMemorySavingsBytes?: number;
 	memoryUsageBytes?: number;
 	memoryUsageHigh?: boolean;
-	collaborationMessage?: Readonly<{
-		givenName: string;
-		event: 'tab-added' | 'tab-updated';
-		avatarUrl?: string;
-	}>;
-	/** Host-neutral mirror of the per-site audio content setting. */
-	siteMuted?: boolean;
 	alertState?: TabAlertState;
 }
 export type TabGroupColor =
@@ -75,33 +63,12 @@ export type TabGroupColor =
 	| 'purple'
 	| 'cyan'
 	| 'orange';
-export interface TabGroupMember {
-	id: string;
-	displayName: string;
-	avatarUrl?: string;
-}
-export interface TabGroupActivity {
-	id: string;
-	scope: 'tab' | 'group';
-	title: string;
-	description: string;
-	timeText: string;
-	action: 'focus-tab' | 'reopen-tab' | 'edit-group' | 'manage-sharing' | 'none';
-	avatarUrl?: string;
-	faviconUrl?: string;
-	tabId?: string;
-	url?: string;
-}
 export interface TabGroupData {
 	id: TabGroupId;
 	title: string;
 	color: TabGroupColor;
 	collapsed: boolean;
-	saved?: boolean;
-	shared?: boolean;
 	attention?: boolean;
-	members?: readonly TabGroupMember[];
-	recentActivity?: readonly TabGroupActivity[];
 }
 export interface TabModelInit {
 	tabs?: readonly TabData[];
@@ -274,7 +241,6 @@ export class TabModel {
 			title: tab.title,
 			pinned: tab.pinned ?? false,
 			group: tab.group ?? null,
-			split: tab.split ?? null,
 		};
 		if (newTab.group !== null) this.requireGroup(newTab.group);
 		if (newTab.pinned && newTab.group !== null) {
@@ -483,114 +449,19 @@ export class TabModel {
 	public duplicateTab(tabId: string): string {
 		const index = this.requireTabIndex(tabId);
 		const source = requireDefined(this.tabs[index]);
-		const insertionIndex =
-			source.split === null
-				? index + 1
-				: this.tabs.reduce(
-						(last, tab, candidateIndex) => (tab.split === source.split ? candidateIndex + 1 : last),
-						index + 1,
-					);
 		return this.addTab(
 			{
 				...source,
 				title: source.title,
-				split: null,
 			},
 			{
-				index: insertionIndex,
+				index: index + 1,
 				activate: false,
 			},
 		);
 	}
 	public updateTab(tabId: string, update: Partial<Omit<TabData, 'id' | 'pinned' | 'group'>>): void {
 		Object.assign(requireDefined(this.tabs[this.requireTabIndex(tabId)]), update);
-		// Setting the first half of a new split is intentionally transient. Any
-		// removal from a split immediately dissolves an orphaned other half.
-		this.commit(update.split === undefined || update.split === null);
-	}
-
-	/** Port of AddToSplitImpl's flat-model move and property update. */
-	public createSplit(
-		tabIds: readonly [string, string],
-		pivotTabId: string,
-		splitId: SplitTabId,
-	): void {
-		const uniqueIds = new Set(tabIds);
-		if (uniqueIds.size !== 2 || !uniqueIds.has(pivotTabId)) {
-			throw new Error('A split requires two distinct tabs and a pivot tab.');
-		}
-		const indexed = tabIds.map((id) => ({
-			tab: requireDefined(this.tabs[this.requireTabIndex(id)]),
-			index: this.requireTabIndex(id),
-		}));
-		if (indexed.some(({ tab }) => tab.split !== null)) {
-			throw new Error('A tab already in a split cannot be added to another split.');
-		}
-		const pivot = requireDefined(indexed.find(({ tab }) => tab.id === pivotTabId));
-		const insertionIndex = pivot.index - indexed.filter(({ index }) => index < pivot.index).length;
-		const moving = indexed
-			.sort((a, b) => a.index - b.index)
-			.map(({ tab }) =>
-				Object.assign(tab, {
-					pinned: pivot.tab.pinned,
-					group: pivot.tab.group,
-					split: splitId,
-				}),
-			);
-		this.tabs = this.tabs.filter((tab) => !uniqueIds.has(tab.id));
-		this.tabs.splice(clamp(insertionIndex, 0, this.tabs.length), 0, ...moving);
-		moving.forEach((tab) => this.selectedTabIds.add(tab.id));
-		this.removeEmptyGroups();
-		this.commit();
-	}
-	public reverseSplit(splitId: SplitTabId): void {
-		const indices = this.tabs.flatMap((tab, index) => (tab.split === splitId ? [index] : []));
-		if (indices.length !== 2 || indices[1] !== requireDefined(indices[0]) + 1) return;
-		const first = requireDefined(this.tabs[requireDefined(indices[0])]);
-		this.tabs[requireDefined(indices[0])] = requireDefined(this.tabs[requireDefined(indices[1])]);
-		this.tabs[requireDefined(indices[1])] = first;
-		this.commit();
-	}
-	public removeSplit(splitId: SplitTabId): void {
-		let changed = false;
-		this.tabs.forEach((tab) => {
-			if (tab.split !== splitId) return;
-			tab.split = null;
-			changed = true;
-		});
-		if (changed) this.commit();
-	}
-
-	/** Port of UpdateTabInSplitImpl(..., kSwap). */
-	public swapTabIntoSplit(tabId: string, splitId: SplitTabId, replaceIndex: 0 | 1): void {
-		const splitTabs = this.tabs.filter((tab) => tab.split === splitId);
-		if (splitTabs.length !== 2 || splitTabs.some((tab) => tab.id === tabId)) return;
-		const updateIndex = this.requireTabIndex(tabId);
-		const replaceTab = requireDefined(splitTabs[replaceIndex]);
-		const replaceTabIndex = this.requireTabIndex(replaceTab.id);
-		const updateTab = requireDefined(this.tabs[updateIndex]);
-		const replaceWasActive = this.activeTabId === replaceTab.id;
-		const replacement = {
-			...updateTab,
-			pinned: replaceTab.pinned,
-			group: replaceTab.group,
-			split: splitId,
-		};
-		const ejected = {
-			...replaceTab,
-			pinned: updateTab.pinned,
-			group: updateTab.group,
-			split: null,
-		};
-		this.tabs[replaceTabIndex] = replacement;
-		this.tabs[updateIndex] = ejected;
-		this.selectedTabIds.delete(replaceTab.id);
-		this.selectedTabIds.add(replacement.id);
-		splitTabs.forEach((tab) => {
-			if (tab.id !== replaceTab.id) this.selectedTabIds.add(tab.id);
-		});
-		if (replaceWasActive) this.activeTabId = replacement.id;
-		this.removeEmptyGroups();
 		this.commit();
 	}
 	public selectTab(tabId: string): void {
@@ -1004,8 +875,8 @@ export class TabModel {
 			return false;
 		}
 		if (targetGroup !== null) this.requireGroup(targetGroup);
-		// TabStripModel::MoveTabsToIndexImpl retains GROUP and SPLIT collection
-		// types. In the flat DOM model that means a completely selected group
+		// TabStripModel::MoveTabsToIndexImpl retains GROUP collection types. In
+		// the flat DOM model that means a completely selected group
 		// keeps its identity while a partial selection takes the calculated
 		// destination group. This is also what allows a mixed multi-selection to
 		// carry whole groups (and their headers) without dissolving them.
@@ -1155,27 +1026,6 @@ export class TabModel {
 			this.focusedGroupId = null;
 		}
 	}
-	private repairBrokenSplits(): void {
-		const splitTabs = new Map<SplitTabId, TabData[]>();
-		this.tabs.forEach((tab) => {
-			if (tab.split === null) return;
-			const entries = splitTabs.get(tab.split) ?? [];
-			entries.push(tab);
-			splitTabs.set(tab.split, entries);
-		});
-		splitTabs.forEach((tabs) => {
-			const firstIndex = this.tabs.indexOf(requireDefined(tabs[0]));
-			const valid =
-				tabs.length === 2 &&
-				this.tabs.indexOf(requireDefined(tabs[1])) === firstIndex + 1 &&
-				requireDefined(tabs[0]).pinned === requireDefined(tabs[1]).pinned &&
-				requireDefined(tabs[0]).group === requireDefined(tabs[1]).group;
-			if (!valid)
-				tabs.forEach((tab) => {
-					tab.split = null;
-				});
-		});
-	}
 	private assertInvariants(): void {
 		const ids = new Set<string>();
 		let sawUnpinned = false;
@@ -1243,8 +1093,7 @@ export class TabModel {
 			mostRecentGroupId: this.mostRecentGroupId,
 		};
 	}
-	private commit(repairSplits = true): void {
-		if (repairSplits) this.repairBrokenSplits();
+	private commit(): void {
 		const activeGroupId = this.tabs.find((tab) => tab.id === this.activeTabId)?.group ?? null;
 		if (activeGroupId !== null) {
 			this.mostRecentGroupId = activeGroupId;

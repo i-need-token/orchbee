@@ -14,23 +14,12 @@ const TAB_SIZE: TabSizeInfo = {
 	minInactiveWidth: 32,
 	standardWidth: 256,
 };
-const SPLIT_SIZE: TabSizeInfo = {
-	pinnedTabWidth: 55,
-	minActiveWidth: 52,
-	minInactiveWidth: 32,
-	standardWidth: 137,
-};
-function tab(
-	id: string,
-	group: TabGroupId | null = null,
-	split: string | null = null,
-): TabSlotViewData {
+function tab(id: string, group: TabGroupId | null = null): TabSlotViewData {
 	return {
 		id,
 		type: 'tab',
 		group,
-		split,
-		sizeInfo: split === null ? TAB_SIZE : SPLIT_SIZE,
+		sizeInfo: TAB_SIZE,
 	};
 }
 function header(group: TabGroupId, width = 48): TabSlotViewData {
@@ -44,7 +33,6 @@ function header(group: TabGroupId, width = 48): TabSlotViewData {
 		id: `header-${group}`,
 		type: 'group-header',
 		group,
-		split: null,
 		sizeInfo,
 	};
 }
@@ -119,14 +107,6 @@ describe('TabStripLayoutHelper', () => {
 		expect(helper.updateIdealBounds(1000).slotBounds.map((bounds) => bounds.width)).toEqual([
 			18, 18, 48, 256,
 		]);
-	});
-	it('treats both adjacent halves of the active split as active', () => {
-		helper.insertTabAt(0, tab('left', null, 'split'), TabPinned.Unpinned);
-		helper.insertTabAt(1, tab('right', null, 'split'), TabPinned.Unpinned);
-		helper.insertTabAt(2, tab('other'), TabPinned.Unpinned);
-		controller.activeIndex = 0;
-		const widths = helper.updateIdealBounds(120).slotBounds.map((bounds) => bounds.width);
-		expect(widths[0]).toBe(widths[1]);
 	});
 	it('moves a grouped tab and restores its header before the first group member', () => {
 		helper.insertTabAt(0, tab('a', 'work'), TabPinned.Unpinned);

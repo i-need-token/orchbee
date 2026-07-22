@@ -23,11 +23,6 @@ export {
 	type ProposedLayout,
 } from './proposed-layout';
 export {
-	SPLIT_VIEW_GAP,
-	calculateSplitTabViewLayout,
-	type SplitTabViewLayoutInput,
-} from './split-tab-view-layout';
-export {
 	TAB_CLOSE_TOUCH_RESIZE_DELAY_MS,
 	TAB_CLOSE_WATCH_VERTICAL_SLOP,
 	TAB_CLOSE_WATCH_TRAILING_SLOP,

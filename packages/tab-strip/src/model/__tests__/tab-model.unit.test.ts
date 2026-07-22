@@ -26,7 +26,6 @@ const makeTab = (id: string, pinned = false, group: string | null = null): TabDa
 	title: id,
 	pinned,
 	group,
-	split: null,
 });
 const ids = (model: TabModel) => model.getSnapshot().tabs.map((tab) => tab.id);
 const groupIds = (model: TabModel) => model.getSnapshot().tabs.map((tab) => tab.group);
@@ -101,16 +100,14 @@ describe('TabModel selection', () => {
 		expect(counts).toEqual([2]);
 		expect(model.getSnapshot().tabs).toHaveLength(4);
 	});
-	it('retains renderer and site-audio state on inserted tabs', () => {
+	it('retains renderer state on inserted tabs', () => {
 		const model = new TabModel();
 		const id = model.addTab({
 			title: 'Loading',
 			shouldRenderLoadingTitle: true,
-			siteMuted: true,
 		});
 		expect(model.getSnapshot().tabs.find((tab) => tab.id === id)).toMatchObject({
 			shouldRenderLoadingTitle: true,
-			siteMuted: true,
 		});
 	});
 	it('retains the most recently activated group after selecting an ungrouped tab', () => {
@@ -314,7 +311,6 @@ describe('groups and collapsing', () => {
 				title: 'Foreground',
 				group: 'work',
 				pinned: false,
-				split: null,
 			},
 			{
 				activate: true,
@@ -366,123 +362,6 @@ describe('groups and collapsing', () => {
 			pinned: true,
 			group: null,
 		});
-	});
-});
-describe('split membership', () => {
-	it('moves both halves to the pivot collection and selects the split', () => {
-		const model = new TabModel({
-			tabs: [makeTab('pinned', true), makeTab('pivot', false, 'work'), makeTab('peer')],
-			groups: [requireDefined(groups[0])],
-			activeTabId: 'pivot',
-		});
-		model.createSplit(['pivot', 'peer'], 'pivot', 'split-1');
-		const snapshot = model.getSnapshot();
-		expect(ids(model)).toEqual(['pinned', 'pivot', 'peer']);
-		expect(
-			snapshot.tabs.slice(1).map((tab) => ({
-				group: tab.group,
-				pinned: tab.pinned,
-				split: tab.split,
-			})),
-		).toEqual([
-			{
-				group: 'work',
-				pinned: false,
-				split: 'split-1',
-			},
-			{
-				group: 'work',
-				pinned: false,
-				split: 'split-1',
-			},
-		]);
-		expect([...snapshot.selectedTabIds]).toEqual(['pivot', 'peer']);
-	});
-	it('reverses and separates split tabs', () => {
-		const model = new TabModel({
-			tabs: [
-				{
-					...makeTab('a'),
-					split: 'split-1',
-				},
-				{
-					...makeTab('b'),
-					split: 'split-1',
-				},
-			],
-		});
-		model.reverseSplit('split-1');
-		expect(ids(model)).toEqual(['b', 'a']);
-		model.removeSplit('split-1');
-		expect(model.getSnapshot().tabs.every((tab) => tab.split === null)).toBe(true);
-	});
-	it('swaps an external tab with either active split slot', () => {
-		const model = new TabModel({
-			tabs: [
-				{
-					...makeTab('a', false, 'work'),
-					split: 'split-1',
-				},
-				{
-					...makeTab('b', false, 'work'),
-					split: 'split-1',
-				},
-				makeTab('outside', false, 'read'),
-			],
-			groups,
-			activeTabId: 'a',
-			selectedTabIds: ['a', 'b'],
-		});
-		model.swapTabIntoSplit('outside', 'split-1', 0);
-		const snapshot = model.getSnapshot();
-		expect(ids(model)).toEqual(['outside', 'b', 'a']);
-		expect(snapshot.tabs[0]).toMatchObject({
-			id: 'outside',
-			group: 'work',
-			split: 'split-1',
-		});
-		expect(snapshot.tabs[2]).toMatchObject({
-			id: 'a',
-			group: 'read',
-			split: null,
-		});
-		expect(snapshot.activeTabId).toBe('outside');
-		expect([...snapshot.selectedTabIds]).toEqual(['b', 'outside']);
-	});
-	it('dissolves the surviving half when one split tab closes', () => {
-		const model = new TabModel({
-			tabs: [
-				{
-					...makeTab('a'),
-					split: 'split-1',
-				},
-				{
-					...makeTab('b'),
-					split: 'split-1',
-				},
-				makeTab('c'),
-			],
-			activeTabId: 'a',
-		});
-		model.closeTab('a');
-		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'b')?.split).toBeNull();
-	});
-	it('duplicates one split half as a normal independent tab', () => {
-		const model = new TabModel({
-			tabs: [
-				{
-					...makeTab('a'),
-					split: 'split-1',
-				},
-				{
-					...makeTab('b'),
-					split: 'split-1',
-				},
-			],
-		});
-		const duplicate = model.duplicateTab('a');
-		expect(model.getSnapshot().tabs.find((tab) => tab.id === duplicate)?.split).toBeNull();
-		expect(model.getSnapshot().tabs.filter((tab) => tab.split === 'split-1')).toHaveLength(2);
 	});
 });
 describe('tab drag index adjustment', () => {

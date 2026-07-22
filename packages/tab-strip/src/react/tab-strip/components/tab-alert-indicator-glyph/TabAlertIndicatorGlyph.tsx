@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
 import type { TabAlertState } from '../../../../model';
 import { TabStripIcon } from '../tab-strip-icon/TabStripIcon';
+
 export interface TabAlertIndicatorGlyphProps {
 	state: TabAlertState;
 }
+
 export function TabAlertIndicatorGlyph({ state }: TabAlertIndicatorGlyphProps): ReactNode {
 	if (state === 'audio-playing') return <TabStripIcon name='volume' />;
 	if (state === 'audio-muting' || state === 'audio-muted') return <TabStripIcon name='muted' />;
@@ -15,15 +17,6 @@ export function TabAlertIndicatorGlyph({ state }: TabAlertIndicatorGlyphProps): 
 	if (state === 'tab-capturing' || state === 'capturing')
 		return <TabStripIcon name='tab-capture' />;
 	if (state === 'pip-playing') return <TabStripIcon name='picture-in-picture' />;
-	if (state === 'actor-accessing') {
-		return (
-			<span className='ct-alert-actor-spinner' aria-hidden='true'>
-				<TabStripIcon name='actor' />
-			</span>
-		);
-	}
-	if (state === 'actor-waiting-on-user') return <TabStripIcon name='actor' />;
-	if (state === 'glic-accessing' || state === 'glic-sharing') return <TabStripIcon name='spark' />;
 	if (state === 'bluetooth-connected' || state === 'bluetooth-scan-active')
 		return <TabStripIcon name='bluetooth' />;
 	if (state === 'usb-connected') return <TabStripIcon name='usb' />;

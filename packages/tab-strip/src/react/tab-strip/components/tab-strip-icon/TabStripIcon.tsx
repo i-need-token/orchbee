@@ -1,6 +1,5 @@
 import type { ReactNode, SVGProps } from 'react';
 export type TabStripIconName =
-	| 'actor'
 	| 'bluetooth'
 	| 'camera'
 	| 'chevron'
@@ -10,8 +9,6 @@ export type TabStripIconName =
 	| 'desktop-capture'
 	| 'device'
 	| 'expand-sidebar'
-	| 'glic-actor'
-	| 'glic-spark'
 	| 'group-attention'
 	| 'media-recording'
 	| 'microphone'
@@ -19,11 +16,8 @@ export type TabStripIconName =
 	| 'muted'
 	| 'picture-in-picture'
 	| 'plus'
-	| 'projects'
 	| 'sad-tab'
 	| 'search'
-	| 'shared-group'
-	| 'spark'
 	| 'spinner'
 	| 'tab-capture'
 	| 'unfocus-group'
@@ -114,20 +108,6 @@ export function TabStripIcon({ name, ...props }: TabStripIconProps): ReactNode {
 				<rect x='12' y='11' width='7' height='5' rx='1' fill='currentColor' stroke='none' />
 			</svg>
 		);
-	if (name === 'actor')
-		return (
-			<svg {...shared}>
-				<path d='m5 3 14 8-6 2-2 6Z' fill='currentColor' stroke='none' />
-			</svg>
-		);
-	if (name === 'spark')
-		return (
-			<svg {...shared}>
-				<path d='M12 2c.8 5.3 2.7 7.2 8 8-5.3.8-7.2 2.7-8 8-.8-5.3-2.7-7.2-8-8 5.3-.8 7.2-2.7 8-8Z' />
-
-				<path d='M19 16c.3 2 1 2.7 3 3-2 .3-2.7 1-3 3-.3-2-1-2.7-3-3 2-.3 2.7-1 3-3Z' />
-			</svg>
-		);
 	if (name === 'bluetooth')
 		return (
 			<svg {...shared}>
@@ -192,26 +172,11 @@ export function TabStripIcon({ name, ...props }: TabStripIconProps): ReactNode {
 				<path d='m16 16 4 4' />
 			</svg>
 		);
-	if (name === 'projects')
-		return (
-			<svg {...shared}>
-				<rect x='4' y='6' width='12' height='12' rx='2' />
-				<path d='M8 3h12v12m-8-5h5m-5 4h5' />
-			</svg>
-		);
 	if (name === 'unfocus-group')
 		return (
 			<svg {...shared}>
 				<path d='M9 4H4v5m11-5h5v5M9 20H4v-5m11 5h5v-5' />
 				<path d='M8 12h8' />
-			</svg>
-		);
-	if (name === 'shared-group')
-		return (
-			<svg {...shared}>
-				<circle cx='9' cy='8' r='3' />
-				<circle cx='17' cy='9' r='2.5' />
-				<path d='M3.5 19c.5-4 2.3-6 5.5-6s5 2 5.5 6M14 14c3.5-.5 5.6 1.2 6.5 4' />
 			</svg>
 		);
 	if (name === 'group-attention')
@@ -250,21 +215,5 @@ export function TabStripIcon({ name, ...props }: TabStripIconProps): ReactNode {
 				/>
 			</svg>
 		);
-	if (name === 'glic-spark')
-		return (
-			<svg {...shared}>
-				<path
-					d='M12 1.8c.7 5.6 4.6 9.5 10.2 10.2-5.6.7-9.5 4.6-10.2 10.2C11.3 16.6 7.4 12.7 1.8 12 7.4 11.3 11.3 7.4 12 1.8Z'
-					fill='currentColor'
-				/>
-			</svg>
-		);
-	return (
-		<svg {...shared}>
-			<path
-				d='M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5h-4l-4.4 4v-4H6.5A2.5 2.5 0 0 1 4 13.5v-8Zm4 3h8v-2H8v2Zm0 4h5v-2H8v2Z'
-				fill='currentColor'
-			/>
-		</svg>
-	);
+	return null;
 }

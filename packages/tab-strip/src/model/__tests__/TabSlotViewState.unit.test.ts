@@ -2,15 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { TabSlotViewState } from '../TabSlotViewState';
 
 describe('TabSlotViewState', () => {
-	it('tracks group, split, drag, and animation state', () => {
+	it('tracks group, drag, and animation state', () => {
 		const state = new TabSlotViewState();
 		state.setGroup('group');
-		state.setSplit('split');
 		state.setDragging(true);
 		state.setAnimating(true);
 		expect(state).toMatchObject({
 			group: 'group',
-			split: 'split',
 			dragging: true,
 			animating: true,
 			detached: false,

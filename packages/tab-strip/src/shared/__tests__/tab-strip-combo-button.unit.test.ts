@@ -5,8 +5,6 @@ import {
 	TAB_SEARCH_EPHEMERAL_HIDE_DELAY_MS,
 	TAB_STRIP_COMBO_ANIMATION_DURATION_MS,
 	TabStripComboButtonController,
-	TabStripComboContext,
-	TabStripComboStartKind,
 } from '../tab-strip-combo-button';
 
 describe('TabStripComboButtonController', () => {
@@ -30,17 +28,19 @@ describe('TabStripComboButtonController', () => {
 
 	it('keeps hiding buttons alive until the 300ms animation ends', () => {
 		const controller = new TabStripComboButtonController({
-			startPinned: true,
 			tabSearchPinned: true,
 		});
-		controller.setPinned('start', false);
+		controller.setPinned('tab-search', false);
 		expect(controller.getSnapshot()).toMatchObject({
-			startVisible: true,
-			startTargetVisible: false,
-			startAnimating: true,
+			tabSearchVisible: true,
+			tabSearchTargetVisible: false,
+			tabSearchAnimating: true,
 		});
 		vi.advanceTimersByTime(TAB_STRIP_COMBO_ANIMATION_DURATION_MS);
-		expect(controller.getSnapshot()).toMatchObject({ startVisible: false, startAnimating: false });
+		expect(controller.getSnapshot()).toMatchObject({
+			tabSearchVisible: false,
+			tabSearchAnimating: false,
+		});
 	});
 
 	it('shows unpinned Tab Search ephemerally and hides it two seconds after bubble close', () => {
@@ -79,32 +79,12 @@ describe('TabStripComboButtonController', () => {
 		expect(actions).toEqual(['TabStripComboButton.TabSearch.Pinned']);
 	});
 
-	it('omits the start action horizontally and tracks Projects/Everything pin metrics', () => {
-		const horizontal = new TabStripComboButtonController({
-			context: TabStripComboContext.HorizontalTabStrip,
-			startPinned: true,
-			tabSearchPinned: true,
-			richAnimations: false,
-		});
-		expect(horizontal.getSnapshot()).toMatchObject({
-			startKind: null,
-			startVisible: false,
-			tabSearchVisible: true,
-		});
-
-		const actions: string[] = [];
-		const everything = new TabStripComboButtonController({
-			startKind: TabStripComboStartKind.EverythingMenu,
-			startPinned: true,
-			richAnimations: false,
-			onUserAction: (action) => actions.push(action),
-		});
-		everything.setOrientation(TabStripOrientation.Vertical);
-		everything.executeTogglePinned('start');
-		expect(actions).toEqual(['TabStripComboButton.EverythingMenu.Unpinned']);
-		expect(everything.getSnapshot()).toMatchObject({
+	it('tracks orientation independently of Tab Search visibility', () => {
+		const controller = new TabStripComboButtonController({ richAnimations: false });
+		controller.setOrientation(TabStripOrientation.Vertical);
+		expect(controller.getSnapshot()).toMatchObject({
 			orientation: 'vertical',
-			startVisible: false,
+			tabSearchVisible: false,
 		});
 	});
 

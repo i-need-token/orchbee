@@ -1,44 +1,31 @@
 import {
-	type ProposedLayout,
 	TabCollectionAnimatingLayoutManager,
 	TabCollectionAnimationAxis,
 	type AnimatedLayoutFrame,
+	type ProposedLayout,
 } from '../../../layout';
 import {
 	TabSlotAnimationDelegate,
-	type TabSlotAnimationHost,
-	type SplitTabId,
-	type TabGroupId,
 	TabSlotViewState,
+	type TabGroupId,
+	type TabSlotAnimationHost,
 } from '../../../model';
+
 export interface LiveTabSlot {
 	id: string;
 	group: TabGroupId | null;
-	split: SplitTabId | null;
 	dragging: boolean;
 }
+
 export interface TabCollectionAnimationSyncResult {
 	changed: boolean;
 	startProgress: number;
 	frame: AnimatedLayoutFrame;
 }
+
 function sameBounds(
-	left:
-		| Readonly<{
-				x: number;
-				y: number;
-				width: number;
-				height: number;
-		  }>
-		| undefined,
-	right:
-		| Readonly<{
-				x: number;
-				y: number;
-				width: number;
-				height: number;
-		  }>
-		| undefined,
+	left: Readonly<{ x: number; y: number; width: number; height: number }> | undefined,
+	right: Readonly<{ x: number; y: number; width: number; height: number }> | undefined,
 ): boolean {
 	return (
 		left !== undefined &&
@@ -64,14 +51,13 @@ export class TabCollectionAnimationRuntime {
 	private readonly host: TabSlotAnimationHost;
 	private readonly manager: TabCollectionAnimatingLayoutManager;
 	private initialized = false;
+
 	public constructor(host: Partial<TabSlotAnimationHost> = {}) {
 		this.host = {
 			onTabSlotAnimationProgressed: host.onTabSlotAnimationProgressed ?? (() => {}),
 			...(host.layoutTabSlotImmediately === undefined
 				? {}
-				: {
-						layoutTabSlotImmediately: host.layoutTabSlotImmediately,
-					}),
+				: { layoutTabSlotImmediately: host.layoutTabSlotImmediately }),
 		};
 		this.manager = new TabCollectionAnimatingLayoutManager({
 			animationAxis: TabCollectionAnimationAxis.Horizontal,
@@ -82,15 +68,19 @@ export class TabCollectionAnimationRuntime {
 			},
 		});
 	}
+
 	public get currentFrame(): AnimatedLayoutFrame {
 		return this.manager.currentFrame;
 	}
+
 	public get isAnimating(): boolean {
 		return this.manager.isAnimating;
 	}
+
 	public getSlot(id: string): TabSlotViewState | undefined {
 		return this.slots.get(id);
 	}
+
 	public sync(
 		target: Readonly<ProposedLayout>,
 		liveSlots: readonly Readonly<LiveTabSlot>[],
@@ -108,6 +98,7 @@ export class TabCollectionAnimationRuntime {
 			this.manager.onViewRemoved(id);
 			this.slots.delete(id);
 		}
+
 		for (const live of liveSlots) {
 			let slot = this.slots.get(live.id);
 			if (!slot) {
@@ -116,10 +107,10 @@ export class TabCollectionAnimationRuntime {
 				this.manager.onViewAdded(live.id);
 			}
 			slot.setGroup(live.group);
-			slot.setSplit(live.split);
 			slot.setDragging(live.dragging);
 		}
 		this.manager.setChildren(liveSlots.map((slot) => slot.id));
+
 		const beforeById = new Map(
 			this.manager.currentFrame.layout.children.map((child) => [child.id, child.bounds]),
 		);
@@ -129,12 +120,9 @@ export class TabCollectionAnimationRuntime {
 			// layout before its first measured frame. Do not animate that bootstrap.
 			this.initialized = target.hostSize.width > 0;
 			this.manager.complete();
-			return {
-				changed: false,
-				startProgress: 1,
-				frame: this.manager.currentFrame,
-			};
+			return { changed: false, startProgress: 1, frame: this.manager.currentFrame };
 		}
+
 		if (changed && this.manager.isAnimating) {
 			const targetById = new Map(target.children.map((child) => [child.id, child.bounds]));
 			for (const [id, slot] of this.slots) {
@@ -150,11 +138,13 @@ export class TabCollectionAnimationRuntime {
 			frame: this.manager.currentFrame,
 		};
 	}
+
 	public setProgress(value: number): AnimatedLayoutFrame {
 		const frame = this.manager.setProgress(value);
 		this.delegates.forEach((delegate) => delegate.animationProgressed());
 		return frame;
 	}
+
 	public complete(): AnimatedLayoutFrame {
 		this.manager.complete();
 		this.delegates.forEach((delegate) => {
@@ -164,6 +154,7 @@ export class TabCollectionAnimationRuntime {
 		this.delegates.clear();
 		return this.manager.currentFrame;
 	}
+
 	public dispose(): void {
 		for (const [id, slot] of this.slots) {
 			const delegate = this.delegates.get(id);

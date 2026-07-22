@@ -16,7 +16,7 @@ export const TabPinned = {
 
 export type TabPinned = (typeof TabPinned)[keyof typeof TabPinned];
 
-/** Whether a tab (or both halves of its split) is active. */
+/** Whether a tab is active. */
 export const TabActive = {
 	Active: 'active',
 	Inactive: 'inactive',
@@ -25,5 +25,4 @@ export const TabActive = {
 export type TabActive = (typeof TabActive)[keyof typeof TabActive];
 
 /** Opaque identifiers deliberately match Chromium's strongly typed IDs. */
-export type SplitTabId = string;
 export type TabGroupId = string;

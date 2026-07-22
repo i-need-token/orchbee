@@ -1,11 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TabStripOrientation } from '../../common';
-import {
-	DropArrowDirection,
-	DropArrowState,
-	DropGroupInclusion,
-	DropRelativeToIndex,
-} from '../drop-arrow';
 import { calculateRoundedScrollbarThumb, roundedScrollbarThickness } from '../rounded-scrollbar';
 import {
 	getComboButtonFlatEdges,
@@ -34,36 +28,6 @@ describe('RoundedScrollBar geometry', () => {
 			calculateRoundedScrollbarThumb({ viewportHeight: 100, contentHeight: 80, scrollTop: 0 })
 				.visible,
 		).toBe(false);
-	});
-});
-
-describe('DropArrowState', () => {
-	it('recomputes bounds and direction whenever the drop index changes', () => {
-		const state = new DropArrowState(
-			{
-				index: 1,
-				relativeToIndex: DropRelativeToIndex.InsertBeforeIndex,
-				groupInclusion: DropGroupInclusion.DontIncludeInGroup,
-			},
-			(index) => ({
-				bounds: { x: index.index * 20, y: 5, width: 20, height: 20 },
-				direction: index.index > 1 ? DropArrowDirection.Left : DropArrowDirection.Down,
-			}),
-		);
-		expect(state.placement).toEqual({
-			bounds: { x: 20, y: 5, width: 20, height: 20 },
-			direction: DropArrowDirection.Down,
-		});
-		expect(
-			state.setIndex({
-				index: 3,
-				relativeToIndex: DropRelativeToIndex.ReplaceIndex,
-				groupInclusion: DropGroupInclusion.IncludeInGroup,
-			}),
-		).toEqual({
-			bounds: { x: 60, y: 5, width: 20, height: 20 },
-			direction: DropArrowDirection.Left,
-		});
 	});
 });
 

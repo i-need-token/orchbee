@@ -6,7 +6,6 @@ const base = {
 	title: 'Document',
 	pinned: false,
 	group: null,
-	split: null,
 } as const;
 
 describe('TabTitle', () => {

@@ -1,7 +1,7 @@
 import { requireDefined } from '../common';
 import type { Rect } from '../geometry';
 import { rectRight } from '../geometry';
-import { TabActive, TabOpen, TabPinned, type SplitTabId, type TabGroupId } from '../model';
+import { TabActive, TabOpen, TabPinned, type TabGroupId } from '../model';
 import { DEFAULT_TAB_STYLE_METRICS, type TabStyleMetrics } from '../style';
 import { TabLayoutState } from './TabLayoutState';
 import { calculateTabBounds } from './tab-strip-layout';
@@ -14,7 +14,6 @@ export interface TabSlotViewData {
 	id: string;
 	type: TabSlotViewType;
 	group: TabGroupId | null;
-	split: SplitTabId | null;
 	sizeInfo: Readonly<TabSizeInfo>;
 }
 export interface TabStripLayoutController {
@@ -203,23 +202,18 @@ export class TabStripLayoutHelper {
 	private createSlot(view: TabSlotViewData, pinned: TabPinned): TabSlot {
 		return {
 			view,
-			state: new TabLayoutState(TabOpen.Open, pinned, TabActive.Inactive, view.split),
+			state: new TabLayoutState(TabOpen.Open, pinned, TabActive.Inactive),
 		};
 	}
 	private calculateIdealBounds(availableWidth: number | null) {
 		const activeModelIndex = this.controller.getActiveIndex();
 		const activeSlotIndex =
 			activeModelIndex === null ? null : this.getSlotIndexForExistingTab(activeModelIndex);
-		const activeSplitSlotIndex =
-			activeSlotIndex === null ? null : this.getAdjacentSplitTab(activeSlotIndex);
 		const pinnedTabCount = this.getPinnedTabCount();
 		const lastPinnedTabSlotIndex =
 			pinnedTabCount > 0 ? this.getSlotIndexForExistingTab(pinnedTabCount - 1) : null;
 		const constraints = this.slots.map((slot, index) => {
-			const active =
-				index === activeSlotIndex || index === activeSplitSlotIndex
-					? TabActive.Active
-					: TabActive.Inactive;
+			const active = index === activeSlotIndex ? TabActive.Active : TabActive.Inactive;
 			const pinned =
 				lastPinnedTabSlotIndex !== null && index <= lastPinnedTabSlotIndex
 					? TabPinned.Pinned
@@ -227,7 +221,7 @@ export class TabStripLayoutHelper {
 			const open =
 				slot.state.isClosed() || this.slotIsCollapsedTab(index) ? TabOpen.Closed : TabOpen.Open;
 			return new TabWidthConstraints(
-				new TabLayoutState(open, pinned, active, slot.view.split),
+				new TabLayoutState(open, pinned, active),
 				slot.view.sizeInfo,
 				this.style,
 			);
@@ -331,19 +325,6 @@ export class TabStripLayoutHelper {
 		}
 		return slotIndex;
 	}
-	private getAdjacentSplitTab(slotIndex: number): number | null {
-		const split = this.slots[slotIndex]?.view.split ?? null;
-		if (split === null) {
-			return null;
-		}
-		if (slotIndex > 0 && this.slots[slotIndex - 1]?.view.split === split) {
-			return slotIndex - 1;
-		}
-		if (slotIndex < this.slots.length - 1 && this.slots[slotIndex + 1]?.view.split === split) {
-			return slotIndex + 1;
-		}
-		return null;
-	}
 	private slotIsCollapsedTab(index: number): boolean {
 		const slot = this.slots[index];
 		if (!slot) {
@@ -368,9 +349,5 @@ export class TabStripLayoutHelper {
 		}
 		const slotIndex = this.getSlotIndexForExistingTab(modelIndex);
 		requireDefined(this.slots[slotIndex]).state.active = active;
-		const adjacentSplit = this.getAdjacentSplitTab(slotIndex);
-		if (adjacentSplit !== null) {
-			requireDefined(this.slots[adjacentSplit]).state.active = active;
-		}
 	}
 }

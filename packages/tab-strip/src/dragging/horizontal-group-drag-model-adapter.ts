@@ -14,7 +14,6 @@ export function createArmedHorizontalGroupDrag(
 			id: tab.id,
 			pinned: tab.pinned,
 			group: tab.group,
-			split: tab.split,
 		})),
 		groups: snapshot.groups.map((group) => ({
 			id: group.id,
@@ -36,13 +35,8 @@ export function assertHorizontalGroupDragRefinement(
 	expected: Readonly<HorizontalGroupDragState>,
 ): void {
 	const snapshot = model.getSnapshot();
-	const actualTabs = snapshot.tabs.map((tab) => [tab.id, tab.pinned, tab.group, tab.split]);
-	const expectedTabs = expected.authoritative.tabs.map((tab) => [
-		tab.id,
-		tab.pinned,
-		tab.group,
-		tab.split,
-	]);
+	const actualTabs = snapshot.tabs.map((tab) => [tab.id, tab.pinned, tab.group]);
+	const expectedTabs = expected.authoritative.tabs.map((tab) => [tab.id, tab.pinned, tab.group]);
 	const actualGroups = snapshot.groups.map((group) => [group.id, group.collapsed]);
 	const expectedGroups = expected.authoritative.groups.map((group) => [group.id, group.collapsed]);
 	const actualSelected = [...snapshot.selectedTabIds].sort();

@@ -183,11 +183,11 @@ describe('TabCollectionAnimatingLayoutManager', () => {
 		const manager = new TabCollectionAnimatingLayoutManager({
 			delegate: {
 				isViewDragging: (id) => id === 'dragging',
-				shouldSnapToTarget: (id) => id === 'split',
+				shouldSnapToTarget: (id) => id === 'snapped',
 			},
 		});
-		manager.setChildren(['dragging', 'split']);
-		manager.recalculateTarget(stacked(['dragging', 'split']));
+		manager.setChildren(['dragging', 'snapped']);
+		manager.recalculateTarget(stacked(['dragging', 'snapped']));
 		expect(manager.currentFrame.layout.children.map((child) => child.bounds)).toEqual([
 			{
 				x: 0,

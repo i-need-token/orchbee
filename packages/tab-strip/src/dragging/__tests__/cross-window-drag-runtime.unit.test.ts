@@ -15,7 +15,7 @@ import type {
 
 function model(ids: string[], active = ids[0] ?? null) {
 	return new TabModel({
-		tabs: ids.map((id) => ({ id, title: id, pinned: false, group: null, split: null })),
+		tabs: ids.map((id) => ({ id, title: id, pinned: false, group: null })),
 		activeTabId: active,
 	});
 }

@@ -14,7 +14,6 @@ const group: TabGroupData = {
 	title: 'Work',
 	color: 'blue',
 	collapsed: false,
-	shared: true,
 };
 function tab(update: Partial<TabData> = {}): TabData {
 	return {
@@ -22,7 +21,6 @@ function tab(update: Partial<TabData> = {}): TabData {
 		title: 'Document',
 		pinned: false,
 		group: null,
-		split: null,
 		...update,
 	};
 }
@@ -49,7 +47,7 @@ describe('tab strip accessibility ports', () => {
 				}),
 		);
 		const name = getGroupAccessibleName(group, tabs);
-		expect(name).toContain('Shared, Work, 7 tabs');
+		expect(name).toContain('Work, 7 tabs');
 		expect(name).toContain('•  Tab 5');
 		expect(name).not.toContain('•  Tab 6');
 		expect(name).toContain('+ 2 more, expanded');
@@ -89,7 +87,7 @@ describe('tab strip accessibility ports', () => {
 			),
 		).toBe('Only');
 	});
-	it('announces shared-group activity only while its indicator is visible', () => {
+	it('announces group attention only while its indicator is visible', () => {
 		const tabs = [
 			tab({
 				title: 'One',
@@ -147,41 +145,11 @@ describe('tab strip accessibility ports', () => {
 		expect(
 			getAccessibleTabLabel(
 				tab({
-					alertState: 'glic-sharing',
-				}),
-			),
-		).toBe('Document, shared with Gemini');
-		expect(
-			getAccessibleTabLabel(
-				tab({
 					discarded: true,
 					discardedMemorySavingsBytes: 2 * 1024 * 1024,
 				}),
 			),
 		).toBe('Document, inactive tab, 2 MB memory saved');
-	});
-	it('describes split positions and collaboration activity', () => {
-		expect(
-			getAccessibleTabLabel(
-				tab({
-					split: 'pair',
-				}),
-				{
-					splitIndex: 1,
-					splitLayout: 'stacked',
-				},
-			),
-		).toBe('Document, bottom view');
-		expect(
-			getAccessibleTabLabel(
-				tab({
-					collaborationMessage: {
-						givenName: 'Ari',
-						event: 'tab-added',
-					},
-				}),
-			),
-		).toBe('Ari added Document');
 	});
 	it('ports directional and group-membership announcements', () => {
 		expect(getTabMoveAnnouncement('previous', 'vertical')).toBe('Tab moved up');

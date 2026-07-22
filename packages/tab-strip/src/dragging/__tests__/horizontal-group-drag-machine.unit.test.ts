@@ -98,7 +98,6 @@ const scenarioArbitrary = fc
 				title: `Pinned ${index}`,
 				pinned: true,
 				group: null,
-				split: null,
 			});
 		}
 		tabs.push({
@@ -106,7 +105,6 @@ const scenarioArbitrary = fc
 			title: 'Loose head',
 			pinned: false,
 			group: null,
-			split: null,
 		});
 		input.groupSizes.forEach((size, groupIndex) => {
 			for (let member = 0; member < size; member += 1) {
@@ -115,7 +113,6 @@ const scenarioArbitrary = fc
 					title: `Group ${groupIndex} tab ${member}`,
 					pinned: false,
 					group: `g${groupIndex}`,
-					split: null,
 				});
 			}
 			tabs.push({
@@ -123,7 +120,6 @@ const scenarioArbitrary = fc
 				title: `Loose ${groupIndex}`,
 				pinned: false,
 				group: null,
-				split: null,
 			});
 		});
 		const sourceMembers = tabs.filter((tab) => tab.group === `g${sourceIndex}`);
@@ -339,7 +335,6 @@ describe('horizontal group drag properties', () => {
 							title: `Member ${index}`,
 							pinned: false,
 							group: 'work',
-							split: null,
 						}),
 					);
 					tabs.push({
@@ -347,7 +342,6 @@ describe('horizontal group drag properties', () => {
 						title: 'Outside',
 						pinned: false,
 						group: null,
-						split: null,
 					});
 					const activeTabId = `member-${activeSeed % groupSize}`;
 					const model = new TabModel({

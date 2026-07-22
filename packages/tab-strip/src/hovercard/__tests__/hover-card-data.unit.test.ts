@@ -28,25 +28,20 @@ describe('hover-card anchor data', () => {
 		expect(getHoverCardTitleData('Regular page', 'https://example.com').isFilename).toBe(false);
 	});
 
-	it('uses discard state instead of alert and suppresses performance behind discard/collaboration', () => {
+	it('uses discard state instead of alert and suppresses performance behind discard', () => {
 		expect(
 			getHoverCardFooterRows({
 				id: 'tab',
 				title: 'Tab',
 				pinned: false,
 				group: null,
-				split: null,
 				discarded: true,
 				discardedMemorySavingsBytes: 2 * 1024 * 1024,
 				alertState: 'audio-playing',
 				memoryUsageBytes: 125 * 1024 * 1024,
 				memoryUsageHigh: true,
-				collaborationMessage: { givenName: 'Ari', event: 'tab-updated', avatarUrl: '/ari.png' },
 			}),
-		).toEqual([
-			{ kind: 'discard', text: 'Inactive tab, 2 MB memory saved' },
-			{ kind: 'collaboration', text: 'Ari changed this tab', avatarUrl: '/ari.png' },
-		]);
+		).toEqual([{ kind: 'discard', text: 'Inactive tab, 2 MB memory saved' }]);
 	});
 
 	it('honors the memory preference but always surfaces high memory usage', () => {
@@ -55,7 +50,6 @@ describe('hover-card anchor data', () => {
 			title: 'Tab',
 			pinned: false,
 			group: null,
-			split: null,
 			memoryUsageBytes: 1_000,
 		} as const;
 		expect(getHoverCardFooterRows(tab, { showMemoryUsage: false })).toEqual([]);
@@ -71,7 +65,6 @@ describe('hover-card anchor data', () => {
 				title: 'Tab',
 				pinned: false,
 				group: null,
-				split: null,
 				alertState: 'video-recording',
 			}),
 		).toEqual([
@@ -94,7 +87,6 @@ describe('hover-card anchor data', () => {
 					url: 'https://example.test',
 					pinned: false,
 					group: 'group',
-					split: null,
 				}) as const,
 		);
 		const data = getGroupHoverCardData(

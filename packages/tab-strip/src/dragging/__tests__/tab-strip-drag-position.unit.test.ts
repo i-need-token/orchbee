@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getHorizontalDragInsertionIndex } from '../tab-strip-drag-position';
 
 const bounds = [0, 82, 164, 246].map((x) => ({ x, y: 0, width: 100, height: 41 }));
-const plain = { group: null, split: null };
+const plain = { group: null };
 
 describe('horizontal tab drag insertion', () => {
 	it('chooses the valid ideal position closest to the dragged view', () => {
@@ -19,22 +19,8 @@ describe('horizontal tab drag insertion', () => {
 		).toBe(3);
 	});
 
-	it('never inserts between split siblings', () => {
-		expect(
-			getHorizontalDragInsertionIndex({
-				draggedBounds: { x: 95, y: 0, width: 100, height: 41 },
-				tabs: [plain, { group: null, split: 'split' }, { group: null, split: 'split' }, plain],
-				idealTabBounds: bounds,
-				firstDraggedTabIndex: 0,
-				draggedTabCount: 1,
-				containsGroupHeader: false,
-				collapsedGroups: new Set(),
-			}),
-		).not.toBe(2);
-	});
-
 	it('keeps group-header drags out of another group and tabs out of collapsed groups', () => {
-		const tabs = [plain, { group: 'work', split: null }, { group: 'work', split: null }, plain];
+		const tabs = [plain, { group: 'work' }, { group: 'work' }, plain];
 		const shared = {
 			draggedBounds: { x: 100, y: 0, width: 182, height: 41 },
 			tabs,
@@ -61,10 +47,10 @@ describe('horizontal tab drag insertion', () => {
 
 	it('moves a complete group only after crossing the far edge of its neighbor', () => {
 		const tabs = [
-			{ group: 'research', split: null },
-			{ group: 'research', split: null },
-			{ group: 'build', split: null },
-			{ group: 'build', split: null },
+			{ group: 'research' },
+			{ group: 'research' },
+			{ group: 'build' },
+			{ group: 'build' },
 		];
 		expect(
 			getHorizontalDragInsertionIndex({
@@ -90,10 +76,10 @@ describe('horizontal tab drag insertion', () => {
 			getHorizontalDragInsertionIndex({
 				draggedBounds: { x: 164, y: 0, width: 182, height: 41 },
 				tabs: [
-					{ group: 'research', split: null },
-					{ group: 'research', split: null },
-					{ group: 'build', split: null },
-					{ group: 'build', split: null },
+					{ group: 'research' },
+					{ group: 'research' },
+					{ group: 'build' },
+					{ group: 'build' },
 				],
 				idealTabBounds: removedSourceBounds,
 				firstDraggedTabIndex: 0,

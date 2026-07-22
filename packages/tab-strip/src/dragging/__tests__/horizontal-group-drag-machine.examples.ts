@@ -13,10 +13,10 @@ function makeState(
 ): HorizontalGroupDragState {
 	return createHorizontalGroupDragState({
 		tabs: [
-			{ id: 'r1', pinned: false, group: 'research', split: null },
-			{ id: 'r2', pinned: false, group: 'research', split: null },
-			{ id: 'b1', pinned: false, group: 'build', split: null },
-			{ id: 'b2', pinned: false, group: 'build', split: null },
+			{ id: 'r1', pinned: false, group: 'research' },
+			{ id: 'r2', pinned: false, group: 'research' },
+			{ id: 'b1', pinned: false, group: 'build' },
+			{ id: 'b2', pinned: false, group: 'build' },
 		],
 		groups: [
 			{ id: 'research', collapsed: false },

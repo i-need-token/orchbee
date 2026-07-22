@@ -1,12 +1,10 @@
 import { LAYOUT_CONSTANTS, DEFAULT_TAB_STYLE_METRICS } from '../style';
 export const TAB_GROUP_HEADER_CHIP_VERTICAL_INSET = 2;
 export const TAB_GROUP_HEADER_TITLE_ADJUSTMENT = -2;
-export const TAB_GROUP_HEADER_SYNC_ICON_WIDTH = 16;
 export const TAB_GROUP_HEADER_ATTENTION_WIDTH = 8;
 export const TAB_GROUP_HEADER_EMPTY_CHIP_SIZE = 20;
 export const TAB_GROUP_HEADER_CORNER_RADIUS = 6;
 export const TAB_GROUP_OVERLAP_ADJUSTMENT = 2;
-export const TAB_GROUP_SYNC_ICON_PADDING = 2;
 export const TAB_GROUP_UNDERLINE_STROKE_THICKNESS = 2;
 const EMOJI_PRESENTATION_OR_REGIONAL_INDICATOR = /[\p{Emoji_Presentation}\p{Regional_Indicator}]/u;
 function isSingleGrapheme(text: string): boolean {
@@ -42,7 +40,6 @@ export function getTabGroupTitleVisualCenteringOffset(
 export interface HorizontalTabGroupHeaderLayoutInput {
 	title: string;
 	measuredTitleWidth: number;
-	shared?: boolean;
 	attention?: boolean;
 	collapsed?: boolean;
 	tabCount?: number;
@@ -57,7 +54,6 @@ export interface HorizontalTabGroupHeaderLayout {
 	chipY: number;
 	textWidth: number;
 	textMaxWidth: number;
-	showHeaderIcon: boolean;
 	showAttentionIndicator: boolean;
 	horizontalInset: number;
 }
@@ -68,12 +64,8 @@ export function calculateHorizontalTabGroupHeaderLayout(
 ): HorizontalTabGroupHeaderLayout {
 	const overlap = input.tabOverlap ?? DEFAULT_TAB_STYLE_METRICS.tabOverlap;
 	const standardWidth = input.standardTabWidth ?? 256;
-	const showHeaderIcon = input.shared ?? false;
 	const showAttentionIndicator =
-		showHeaderIcon &&
-		(input.collapsed ?? false) &&
-		(input.attention ?? false) &&
-		(input.tabCount ?? 0) > 0;
+		(input.collapsed ?? false) && (input.attention ?? false) && (input.tabCount ?? 0) > 0;
 	const horizontalInset = TAB_GROUP_HEADER_CORNER_RADIUS;
 	const chipX = overlap - TAB_GROUP_OVERLAP_ADJUSTMENT;
 	const totalSpace =
@@ -81,23 +73,16 @@ export function calculateHorizontalTabGroupHeaderLayout(
 		TAB_GROUP_HEADER_EMPTY_CHIP_SIZE -
 		LAYOUT_CONSTANTS.tabstripToolbarOverlap;
 	const chipY = Math.trunc(totalSpace / 2);
-	const iconWidth = showHeaderIcon ? TAB_GROUP_HEADER_SYNC_ICON_WIDTH : 0;
-	const iconPadding = showHeaderIcon ? TAB_GROUP_SYNC_ICON_PADDING : 0;
-	const textMaxWidth = Math.trunc((standardWidth - overlap) / 2) - iconWidth - iconPadding;
+	const textMaxWidth = Math.trunc((standardWidth - overlap) / 2);
 	const textWidth = Math.max(0, Math.min(input.measuredTitleWidth, textMaxWidth));
 	let chipWidth: number;
 	if (!input.title) {
 		chipWidth = showAttentionIndicator
-			? TAB_GROUP_HEADER_SYNC_ICON_WIDTH +
-				TAB_GROUP_HEADER_ATTENTION_WIDTH +
-				TAB_GROUP_SYNC_ICON_PADDING +
-				horizontalInset * 2
+			? TAB_GROUP_HEADER_ATTENTION_WIDTH + horizontalInset * 2
 			: TAB_GROUP_HEADER_EMPTY_CHIP_SIZE;
 	} else {
-		const attentionWidth = showAttentionIndicator
-			? TAB_GROUP_HEADER_ATTENTION_WIDTH + TAB_GROUP_SYNC_ICON_PADDING * 2
-			: 0;
-		const contentWidth = iconWidth + iconPadding + textWidth + attentionWidth;
+		const attentionWidth = showAttentionIndicator ? TAB_GROUP_HEADER_ATTENTION_WIDTH : 0;
+		const contentWidth = textWidth + attentionWidth;
 		chipWidth = Math.max(TAB_GROUP_HEADER_EMPTY_CHIP_SIZE, contentWidth + horizontalInset * 2);
 	}
 	const groupViewOverlap = overlap - TAB_GROUP_OVERLAP_ADJUSTMENT;
@@ -109,7 +94,6 @@ export function calculateHorizontalTabGroupHeaderLayout(
 		chipY,
 		textWidth,
 		textMaxWidth,
-		showHeaderIcon,
 		showAttentionIndicator,
 		horizontalInset,
 	};

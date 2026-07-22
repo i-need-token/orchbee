@@ -49,7 +49,6 @@ export interface HorizontalTabChildVisibilityInput {
 	declutterEnabled?: boolean;
 	hasFavicon: boolean;
 	hasAlert: boolean;
-	suppressGlicAlert?: boolean;
 	closeAllowed?: boolean;
 }
 
@@ -68,7 +67,7 @@ export function calculateHorizontalTabChildVisibility(
 		};
 	}
 
-	const hasAlert = input.hasAlert && !input.suppressGlicAlert;
+	const hasAlert = input.hasAlert;
 	const interacted = Boolean(input.hovered || input.focused || input.closeFocused);
 	const declutterEnabled = input.declutterEnabled ?? false;
 	const hasFavicon = input.hasFavicon;
@@ -148,7 +147,6 @@ export function calculateHorizontalTabChildVisibility(
 }
 
 export const VERTICAL_TAB_HORIZONTAL_INSET = 8;
-// (126 region min - 24 strip padding - 2 split gap - 10 group padding) / 2.
 export const VERTICAL_TAB_CHILD_UNCOLLAPSED_MIN_WIDTH = 45;
 export const VERTICAL_TAB_CLOSE_APPEARANCE_THRESHOLD = VERTICAL_TAB_CHILD_UNCOLLAPSED_MIN_WIDTH - 3;
 
@@ -163,7 +161,6 @@ export interface VerticalTabChildVisibilityInput {
 	closeFocused?: boolean;
 	hasFavicon: boolean;
 	hasAlert: boolean;
-	suppressGlicAlert?: boolean;
 	closeAllowed?: boolean;
 }
 
@@ -180,7 +177,7 @@ export function calculateVerticalTabChildVisibility(
 ): TabChildVisibility {
 	const interacted = Boolean(input.hovered || input.focused || input.closeFocused);
 	const centered = (input.pinned || input.collapsed) && !input.expandingOnHover;
-	const hasAlert = input.hasAlert && !input.suppressGlicAlert;
+	const hasAlert = input.hasAlert;
 	const closeVisible =
 		(input.closeAllowed ?? true) &&
 		!input.pinned &&

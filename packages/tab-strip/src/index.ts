@@ -101,75 +101,12 @@ export {
 	type TabDragPointResolver,
 } from './dragging';
 export {
-	DragPositionHint,
-	getHorizontalLinkDropIndexForTab,
-	getLinkDropIndexForNode,
-	type TabLinkDropNode,
-} from './dragging';
-export {
 	getHorizontalDragTarget,
 	getHorizontalDragInsertionIndex,
 	type DragPositionTab,
 	type HorizontalDragInsertionInput,
 } from './dragging';
 export { rectRight, type Rect } from './geometry';
-export {
-	GLIC_SPLIT_BUTTON_FLAT_EDGE_RADIUS,
-	GLIC_SPLIT_BUTTON_ROUNDED_EDGE_RADIUS,
-	GLIC_CONTAINER_CORNER_RADIUS,
-	GlicButtonWidthState,
-	GlicNudgeTransitionState,
-	GlicLockedExpansionMode,
-	getGlicButtonPresentation,
-	GlicControlsController,
-	type GlicControlsSnapshot,
-	type GlicControlsControllerInit,
-	type GlicButtonPresentation,
-} from './glic';
-export {
-	TAB_STRIP_NUDGE_EXPANSION_IN_MS,
-	TAB_STRIP_NUDGE_EXPANSION_OUT_MS,
-	TAB_STRIP_NUDGE_OPACITY_IN_MS,
-	TAB_STRIP_NUDGE_OPACITY_OUT_MS,
-	TAB_STRIP_NUDGE_OPACITY_DELAY_MS,
-	TAB_STRIP_NUDGE_EXPANSION_EASING,
-	TabStripNudgeAnimationSessionType,
-	createTabStripNudgeAnimationPlan,
-	calculateAccel20Decel100,
-	sampleTabStripNudgeAnimation,
-	type TabStripNudgeAnimationPlan,
-	type TabStripNudgeAnimationSample,
-} from './glic';
-export {
-	TAB_STRIP_NUDGE_CORNER_RADIUS,
-	TAB_STRIP_NUDGE_FLAT_CORNER_RADIUS,
-	TAB_STRIP_NUDGE_ICON_MARGIN,
-	TAB_STRIP_NUDGE_LABEL_LEFT_MARGIN,
-	TAB_STRIP_NUDGE_LABEL_RIGHT_MARGIN,
-	TAB_STRIP_NUDGE_CLOSE_BUTTON_MARGIN,
-	TAB_STRIP_NUDGE_CLOSE_BUTTON_SIZE,
-	calculateTabStripNudgeButtonLayout,
-	type TabStripNudgeButtonLayoutInput,
-	type TabStripNudgeButtonLayout,
-} from './glic';
-export {
-	SHARED_GROUP_AVATAR_CIRCLE_SIZE,
-	SHARED_GROUP_AVATAR_ICON_SIZE,
-	SHARED_GROUP_AVATAR_TEXT_SIZE,
-	SHARED_GROUP_AVATAR_OVERLAP,
-	SHARED_GROUP_AVATAR_MAX_VISIBLE,
-	getSharedGroupAvatarSlots,
-	getSharedGroupAvatarPileWidth,
-	type SharedGroupAvatarSlot,
-} from './groups';
-export {
-	RECENT_ACTIVITY_MAX_ROWS,
-	RECENT_ACTIVITY_BUBBLE_CONTENT_MARGIN,
-	getRecentActivitySections,
-	isRecentActivityActionEnabled,
-	getRecentActivityDescription,
-	type RecentActivitySections,
-} from './groups';
 export {
 	TAB_GROUP_EDITOR_IGNORE_SCROLL_MS,
 	TabGroupEditorBubbleTracker,
@@ -178,12 +115,10 @@ export {
 export {
 	TAB_GROUP_HEADER_CHIP_VERTICAL_INSET,
 	TAB_GROUP_HEADER_TITLE_ADJUSTMENT,
-	TAB_GROUP_HEADER_SYNC_ICON_WIDTH,
 	TAB_GROUP_HEADER_ATTENTION_WIDTH,
 	TAB_GROUP_HEADER_EMPTY_CHIP_SIZE,
 	TAB_GROUP_HEADER_CORNER_RADIUS,
 	TAB_GROUP_OVERLAP_ADJUSTMENT,
-	TAB_GROUP_SYNC_ICON_PADDING,
 	TAB_GROUP_UNDERLINE_STROKE_THICKNESS,
 	getTabGroupTitleVisualCenteringOffset,
 	calculateHorizontalTabGroupHeaderLayout,
@@ -279,11 +214,6 @@ export {
 	type ProposedLayout,
 } from './layout';
 export {
-	SPLIT_VIEW_GAP,
-	calculateSplitTabViewLayout,
-	type SplitTabViewLayoutInput,
-} from './layout';
-export {
 	TAB_CLOSE_TOUCH_RESIZE_DELAY_MS,
 	TAB_CLOSE_WATCH_VERTICAL_SLOP,
 	TAB_CLOSE_WATCH_TRAILING_SLOP,
@@ -366,7 +296,6 @@ export {
 } from './layout';
 export { TabSlotAnimationDelegate, type TabSlotAnimationHost } from './model';
 export { TabSlotViewState } from './model';
-export { HOVER_TAB_TRANSITION_DELAY_MS, HoverTabSelector } from './model';
 export { moveContiguousBlock, type ContiguousBlockMove } from './model';
 export {
 	TabCollectionNodeType,
@@ -384,8 +313,6 @@ export {
 	type TabAlertState,
 	type TabData,
 	type TabGroupColor,
-	type TabGroupMember,
-	type TabGroupActivity,
 	type TabGroupData,
 	type TabModelInit,
 	type TabModelSnapshot,
@@ -394,40 +321,8 @@ export {
 	type DraggedTabsInsertionInput,
 	type DraggedTabsInsertionResult,
 } from './model';
-export { TabOpen, TabPinned, TabActive, type SplitTabId, type TabGroupId } from './model';
-export {
-	ProjectsPanelController,
-	type SavedProjectTabGroup,
-	type ProjectThreadType,
-	type ProjectThread,
-	type ProjectsPanelSnapshot,
-	type ProjectsPanelControllerOptions,
-	type ProjectsPanelObserver,
-} from './projects';
-export {
-	PROJECTS_PANEL_MIN_WIDTH,
-	PROJECTS_PANEL_INTERIOR_MARGIN,
-	PROJECTS_PANEL_SHOW_DURATION_MS,
-	PROJECTS_PANEL_HIDE_DURATION_MS,
-	PROJECTS_PANEL_CORNER_RADIUS,
-	PROJECTS_PANEL_MAX_RECENT_THREADS,
-	PROJECTS_PANEL_COLLAPSED_THREAD_COUNT,
-	getProjectsPanelCloseButtonOpacity,
-	calculateProjectsPanelLayout,
-	type ProjectsPanelLayoutInput,
-	type ProjectsPanelLayoutResult,
-} from './projects';
+export { TabOpen, TabPinned, TabActive, type TabGroupId } from './model';
 export { TabStripObserverList, type TabStripObserver } from './shared';
-export {
-	DROP_ARROW_SIZE,
-	DropArrowDirection,
-	DropRelativeToIndex,
-	DropGroupInclusion,
-	DropArrowState,
-	type TabDropIndex,
-	type DropArrowPlacement,
-	type DropArrowBoundsCallback,
-} from './shared';
 export {
 	ROUNDED_SCROLLBAR_THUMB_THICKNESS,
 	ROUNDED_SCROLLBAR_TRAILING_PADDING,
@@ -440,8 +335,6 @@ export {
 export {
 	TAB_STRIP_COMBO_ANIMATION_DURATION_MS,
 	TAB_SEARCH_EPHEMERAL_HIDE_DELAY_MS,
-	TabStripComboContext,
-	TabStripComboStartKind,
 	getTabStripComboAnimationFactors,
 	TabStripComboButtonController,
 	type TabStripComboButtonId,
@@ -496,7 +389,6 @@ export {
 	getHorizontalTabSeparatorBounds,
 	getHorizontalTabSeparatorTargets,
 	type HorizontalTabPathType,
-	type SplitTabPhysicalPosition,
 	type TabSeparatorState,
 } from './style';
 export {
@@ -504,27 +396,18 @@ export {
 	ALERT_INDICATOR_FADE_OUT_MS,
 	ALERT_INDICATOR_MINIMUM_HOLD_MS,
 	ALERT_INDICATOR_FRAME_INTERVAL_MS,
-	ALERT_INDICATOR_MOUSE_SELECTABLE_PERCENT,
-	ALERT_INDICATOR_GESTURE_SELECTABLE_PERCENT,
 	ALERT_INDICATOR_RECORDING_CYCLES,
 	ALERT_INDICATOR_RECORDING_ANIMATION_MS,
-	ALERT_INDICATOR_ACTOR_SPINNER_SCALE,
-	ALERT_INDICATOR_ACTOR_SPINNER_TOTAL_FRAMES,
-	ALERT_INDICATOR_ACTOR_SPINNER_START_FRAME,
-	ALERT_INDICATOR_ACTOR_SPINNER_END_FRAME,
 	isAudioAlertState,
 	isPulsingAlertState,
 	requiresCameraMicMinimumHold,
 	getTabAlertColorRole,
 	getTabAlertStateText,
 	getTabAlertAccessibleDescription,
-	getRequiredAlertSelectableWidth,
-	shouldEnableAlertMuteToggle,
 	sampleAlertIndicatorOpacity,
 	AlertIndicatorButtonController,
 	type AlertIndicatorFadeKind,
 	type AlertIndicatorSnapshot,
-	type AlertIndicatorMuteEnvironment,
 	type TabAlertColorRole,
 } from './tab';
 export {

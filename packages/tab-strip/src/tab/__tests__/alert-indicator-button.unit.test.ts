@@ -4,50 +4,23 @@ import {
 	ALERT_INDICATOR_RECORDING_ANIMATION_MS,
 	getTabAlertColorRole,
 	getTabAlertStateText,
-	getRequiredAlertSelectableWidth,
 	isPulsingAlertState,
 	requiresCameraMicMinimumHold,
 	sampleAlertIndicatorOpacity,
-	shouldEnableAlertMuteToggle,
 } from '../alert-indicator-button';
 
 describe('AlertIndicatorButtonController', () => {
 	beforeEach(() => vi.useFakeTimers());
 	afterEach(() => vi.useRealTimers());
 
-	it('uses 250% mouse and 400% gesture selectable-width gates', () => {
-		expect(getRequiredAlertSelectableWidth(16, 'mouse')).toBe(40);
-		expect(getRequiredAlertSelectableWidth(16, 'gesture')).toBe(64);
-		const environment = { active: false, indicatorWidth: 16, largestSelectableRegionWidth: 50 };
-		expect(shouldEnableAlertMuteToggle('audio-playing', environment, 'mouse')).toBe(true);
-		expect(shouldEnableAlertMuteToggle('audio-playing', environment, 'gesture')).toBe(false);
-	});
-
-	it('switches playing and muted states instantly and invokes the host', () => {
+	it('switches between audio display states without a transition delay', () => {
 		const controller = new AlertIndicatorButtonController('audio-playing');
-		controller.updateMuteEnvironment({
-			active: true,
-			indicatorWidth: 16,
-			largestSelectableRegionWidth: 0,
-		});
-		const toggled = vi.fn<() => void>();
-		expect(controller.toggleAudioMute(toggled)).toBe(true);
+		controller.transitionTo('audio-muting');
 		expect(controller.getSnapshot()).toMatchObject({
 			alertState: 'audio-muting',
 			showingAlertState: 'audio-muting',
 			fadeKind: 'none',
 		});
-		expect(toggled).toHaveBeenCalledWith(true);
-	});
-
-	it('delegates modified, non-left, and narrow gesture events to the tab', () => {
-		const controller = new AlertIndicatorButtonController('audio-playing');
-		const environment = { active: false, indicatorWidth: 16, largestSelectableRegionWidth: 50 };
-		expect(controller.isTriggerable({ eventKind: 'mouse', button: 1, environment })).toBe(false);
-		expect(controller.isTriggerable({ eventKind: 'mouse', shiftKey: true, environment })).toBe(
-			false,
-		);
-		expect(controller.isTriggerable({ eventKind: 'gesture', environment })).toBe(false);
 	});
 
 	it('runs two recording pulses and finishes visible after 2600ms', () => {
@@ -94,10 +67,9 @@ describe('AlertIndicatorButtonController', () => {
 		expect(tabCapture.getSnapshot().fadeDurationMs).toBe(1_000);
 	});
 
-	it('exposes Chromium alert text and hover-card color roles', () => {
-		expect(getTabAlertStateText('actor-waiting-on-user')).toBe('This tab needs your attention');
+	it('exposes alert text and hover-card color roles', () => {
+		expect(getTabAlertStateText('video-recording')).toBe('This tab is using your camera');
 		expect(getTabAlertColorRole('desktop-capturing')).toBe('recording');
-		expect(getTabAlertColorRole('glic-sharing')).toBe('pip');
 		expect(getTabAlertColorRole('usb-connected')).toBe('default');
 	});
 });

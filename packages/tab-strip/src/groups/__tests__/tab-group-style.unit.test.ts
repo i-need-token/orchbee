@@ -21,11 +21,10 @@ describe('TabGroupStyle', () => {
 		).toMatchObject({ textMaxWidth: 119, textWidth: 119, chipWidth: 131, desiredWidth: 163 });
 	});
 
-	it('adds the shared icon and collapsed attention indicator widths', () => {
+	it('shows group attention only when the group is collapsed', () => {
 		const expanded = calculateHorizontalTabGroupHeaderLayout({
 			title: 'Work',
 			measuredTitleWidth: 30,
-			shared: true,
 			attention: true,
 			collapsed: false,
 			tabCount: 2,
@@ -33,34 +32,30 @@ describe('TabGroupStyle', () => {
 		const collapsed = calculateHorizontalTabGroupHeaderLayout({
 			title: 'Work',
 			measuredTitleWidth: 30,
-			shared: true,
 			attention: true,
 			collapsed: true,
 			tabCount: 2,
 		});
 		expect(expanded).toMatchObject({
-			showHeaderIcon: true,
 			showAttentionIndicator: false,
-			chipWidth: 60,
+			chipWidth: 42,
 		});
 		expect(collapsed).toMatchObject({
-			showHeaderIcon: true,
 			showAttentionIndicator: true,
-			chipWidth: 72,
+			chipWidth: 50,
 		});
 	});
 
-	it('expands an empty shared attention chip to fit both glyphs', () => {
+	it('expands an empty attention chip to fit its glyph', () => {
 		expect(
 			calculateHorizontalTabGroupHeaderLayout({
 				title: '',
 				measuredTitleWidth: 0,
-				shared: true,
 				attention: true,
 				collapsed: true,
 				tabCount: 1,
 			}),
-		).toMatchObject({ chipWidth: 38, showAttentionIndicator: true });
+		).toMatchObject({ chipWidth: 20, showAttentionIndicator: true });
 	});
 
 	it('hides the underline only when the group has no tab between the same header endpoints', () => {

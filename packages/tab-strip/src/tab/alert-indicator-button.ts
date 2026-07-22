@@ -4,17 +4,10 @@ export const ALERT_INDICATOR_FADE_IN_MS = 200;
 export const ALERT_INDICATOR_FADE_OUT_MS = 1_000;
 export const ALERT_INDICATOR_MINIMUM_HOLD_MS = 5_000;
 export const ALERT_INDICATOR_FRAME_INTERVAL_MS = 50;
-export const ALERT_INDICATOR_MOUSE_SELECTABLE_PERCENT = 250;
-export const ALERT_INDICATOR_GESTURE_SELECTABLE_PERCENT = 400;
 export const ALERT_INDICATOR_RECORDING_CYCLES = 2;
 export const ALERT_INDICATOR_RECORDING_ANIMATION_MS =
 	ALERT_INDICATOR_RECORDING_CYCLES * (ALERT_INDICATOR_FADE_IN_MS + ALERT_INDICATOR_FADE_OUT_MS) +
 	ALERT_INDICATOR_FADE_IN_MS;
-export const ALERT_INDICATOR_ACTOR_SPINNER_SCALE = 0.7;
-export const ALERT_INDICATOR_ACTOR_SPINNER_TOTAL_FRAMES = 2_007;
-export const ALERT_INDICATOR_ACTOR_SPINNER_START_FRAME = 0;
-export const ALERT_INDICATOR_ACTOR_SPINNER_END_FRAME = 180;
-
 export type AlertIndicatorFadeKind = 'none' | 'fade-in' | 'fade-out' | 'recording';
 
 export interface AlertIndicatorSnapshot {
@@ -23,14 +16,6 @@ export interface AlertIndicatorSnapshot {
 	showingAlertState: TabAlertState;
 	fadeKind: AlertIndicatorFadeKind;
 	fadeDurationMs: number;
-	enabledForMuteToggle: boolean;
-}
-
-export interface AlertIndicatorMuteEnvironment {
-	enableTabMuting?: boolean;
-	active: boolean;
-	indicatorWidth: number;
-	largestSelectableRegionWidth: number;
 }
 
 type Listener = () => void;
@@ -66,10 +51,6 @@ export function getTabAlertColorRole(state: TabAlertState): TabAlertColorRole {
 		case 'tab-capturing':
 		case 'capturing':
 		case 'pip-playing':
-		case 'actor-accessing':
-		case 'actor-waiting-on-user':
-		case 'glic-accessing':
-		case 'glic-sharing':
 			return 'pip';
 		default:
 			return 'default';
@@ -96,14 +77,6 @@ export function getTabAlertStateText(state: TabAlertState): string {
 			return 'This tab is being shared';
 		case 'pip-playing':
 			return 'This tab is playing picture-in-picture';
-		case 'actor-accessing':
-			return 'This tab is being controlled';
-		case 'actor-waiting-on-user':
-			return 'This tab needs your attention';
-		case 'glic-accessing':
-			return 'Gemini is accessing this tab';
-		case 'glic-sharing':
-			return 'This tab is shared with Gemini';
 		case 'bluetooth-connected':
 			return 'This tab is connected to a Bluetooth device';
 		case 'bluetooth-scan-active':
@@ -131,30 +104,6 @@ export function getTabAlertAccessibleDescription(state: TabAlertState): string |
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
-export function getRequiredAlertSelectableWidth(
-	indicatorWidth: number,
-	eventKind: 'mouse' | 'gesture',
-): number {
-	const percent =
-		eventKind === 'gesture'
-			? ALERT_INDICATOR_GESTURE_SELECTABLE_PERCENT
-			: ALERT_INDICATOR_MOUSE_SELECTABLE_PERCENT;
-	return Math.trunc((indicatorWidth * percent) / 100);
-}
-
-export function shouldEnableAlertMuteToggle(
-	alertState: TabAlertState,
-	environment: Readonly<AlertIndicatorMuteEnvironment>,
-	eventKind: 'mouse' | 'gesture' = 'mouse',
-): boolean {
-	if (!(environment.enableTabMuting ?? true) || !isAudioAlertState(alertState)) return false;
-	return (
-		environment.active ||
-		environment.largestSelectableRegionWidth >=
-			getRequiredAlertSelectableWidth(environment.indicatorWidth, eventKind)
-	);
-}
-
 export function sampleAlertIndicatorOpacity(
 	kind: AlertIndicatorFadeKind,
 	elapsedMs: number,
@@ -177,14 +126,13 @@ export function sampleAlertIndicatorOpacity(
 	return kind === 'fade-out' ? 1 - value : value;
 }
 
-/** Browser-independent port of AlertIndicatorButton's transition and mute state. */
+/** Browser-independent alert-indicator transition state. */
 export class AlertIndicatorButtonController {
 	private readonly listeners = new Set<Listener>();
 	private alertState: TabAlertState;
 	private showingAlertState: TabAlertState;
 	private fadeKind: AlertIndicatorFadeKind = 'none';
 	private fadeDurationMs = 0;
-	private enabledForMuteToggle = false;
 	private cameraMicStartedAt: number | null = null;
 	private fadeTimer: ReturnType<typeof setTimeout> | null = null;
 	private revision = 0;
@@ -249,36 +197,6 @@ export class AlertIndicatorButtonController {
 		this.commit();
 	}
 
-	public updateMuteEnvironment(environment: Readonly<AlertIndicatorMuteEnvironment>): void {
-		const enabled = shouldEnableAlertMuteToggle(this.alertState, environment);
-		if (enabled === this.enabledForMuteToggle) return;
-		this.enabledForMuteToggle = enabled;
-		this.commit();
-	}
-
-	public isTriggerable(input: {
-		eventKind: 'mouse' | 'gesture';
-		button?: number;
-		shiftKey?: boolean;
-		ctrlKey?: boolean;
-		environment: Readonly<AlertIndicatorMuteEnvironment>;
-	}): boolean {
-		if (
-			input.eventKind === 'mouse' &&
-			((input.button ?? 0) !== 0 || input.shiftKey || input.ctrlKey)
-		)
-			return false;
-		return shouldEnableAlertMuteToggle(this.alertState, input.environment, input.eventKind);
-	}
-
-	public toggleAudioMute(onToggle?: (muted: boolean) => void): boolean {
-		if (!isAudioAlertState(this.alertState) || !this.enabledForMuteToggle) return false;
-		const muted = this.alertState === 'audio-playing';
-		this.transitionTo(muted ? 'audio-muting' : 'audio-playing');
-		onToggle?.(muted);
-		return true;
-	}
-
 	public destroy(): void {
 		this.clearFadeTimer();
 		this.listeners.clear();
@@ -296,7 +214,6 @@ export class AlertIndicatorButtonController {
 			showingAlertState: this.showingAlertState,
 			fadeKind: this.fadeKind,
 			fadeDurationMs: this.fadeDurationMs,
-			enabledForMuteToggle: this.enabledForMuteToggle,
 		});
 	}
 

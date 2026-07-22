@@ -45,7 +45,6 @@ describe('compact horizontal tab layout properties', () => {
 			selected: false,
 			hovered: false,
 			group: null,
-			split: null,
 		} as const;
 
 		fc.assert(

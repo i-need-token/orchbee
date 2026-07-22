@@ -1,10 +1,9 @@
 import type { Rect } from '../geometry';
-import type { SplitTabId, TabGroupId } from '../model';
+import type { TabGroupId } from '../model';
 import { DEFAULT_TAB_STYLE_METRICS } from '../style';
 
 export interface DragPositionTab {
 	group: TabGroupId | null;
-	split: SplitTabId | null;
 }
 
 export interface HorizontalDragInsertionInput {
@@ -42,7 +41,6 @@ function isValidInsertionIndex(
 	if (right && left.group !== null && left.group === right.group) {
 		if (input.containsGroupHeader || input.collapsedGroups.has(left.group)) return false;
 	}
-	if (right && left.split !== null && left.split === right.split) return false;
 	return true;
 }
 

@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
 import { TabStripOrientation } from '../../../../common';
 import { getFlatEdgeButtonCornerRadii, TabStripFlatEdge } from '../../../../shared';
+
 export interface FlatEdgeButtonProps extends Omit<
 	ButtonHTMLAttributes<HTMLButtonElement>,
 	'children'
@@ -12,6 +13,7 @@ export interface FlatEdgeButtonProps extends Omit<
 	flatEdgeFactor?: number;
 	expansionOrientation?: TabStripOrientation;
 }
+
 export function FlatEdgeButton({
 	icon,
 	label,

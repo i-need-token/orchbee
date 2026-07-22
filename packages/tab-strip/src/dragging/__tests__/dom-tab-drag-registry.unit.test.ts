@@ -11,7 +11,7 @@ import {
 
 function context(id: string, begin = 0, end = 200): TabDragContext {
 	const model = new TabModel({
-		tabs: [{ id: `${id}-tab`, title: id, pinned: false, group: null, split: null }],
+		tabs: [{ id: `${id}-tab`, title: id, pinned: false, group: null }],
 	});
 	const delegate = {
 		tabDragAreaBeginX: () => begin,

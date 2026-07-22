@@ -11,7 +11,6 @@ describe('VerticalTabStripTopContainer layout', () => {
 			availableWidth: 240,
 			toolbarHeight: 1,
 			captionButtonWidth: 1,
-			comboStartVisible: true,
 			comboEndVisible: true,
 		});
 		const collapse = requireDefined(layout.children.find((child) => child.id === 'collapse'));
@@ -28,7 +27,6 @@ describe('VerticalTabStripTopContainer layout', () => {
 			availableWidth: 240,
 			toolbarHeight: 50,
 			captionButtonWidth: 240,
-			comboStartVisible: true,
 			comboEndVisible: true,
 		});
 		const collapse = requireDefined(layout.children.find((child) => child.id === 'collapse'));
@@ -40,7 +38,7 @@ describe('VerticalTabStripTopContainer layout', () => {
 			y: 48,
 		});
 		expect(combo.bounds).toMatchObject({
-			x: 182,
+			x: 212,
 			y: 50,
 		});
 	});
@@ -48,7 +46,6 @@ describe('VerticalTabStripTopContainer layout', () => {
 		const layout = calculateVerticalTopContainerLayout({
 			availableWidth: 72,
 			collapsed: true,
-			comboStartVisible: true,
 			comboEndVisible: true,
 		});
 		const collapse = requireDefined(layout.children.find((child) => child.id === 'collapse'));
@@ -64,18 +61,17 @@ describe('VerticalTabStripTopContainer layout', () => {
 			x: 2,
 			y: 47,
 			width: 68,
-			height: 58,
+			height: 28,
 		});
-		expect(layout.hostSize.height).toBe(113);
+		expect(layout.hostSize.height).toBe(83);
 	});
-	it('uses Chromium preferred-width and caption hit-test semantics', () => {
+	it('uses preferred-width and caption hit-test semantics', () => {
 		const input = {
-			availableWidth: 95,
+			availableWidth: 65,
 			captionButtonWidth: 1,
-			comboStartVisible: true,
 			comboEndVisible: true,
 		};
-		expect(getVerticalTopContainerPreferredWidth(input)).toBe(94);
+		expect(getVerticalTopContainerPreferredWidth(input)).toBe(64);
 		expect(willVerticalTopContainerWrap(input)).toBe(true);
 		const layout = calculateVerticalTopContainerLayout({
 			...input,
