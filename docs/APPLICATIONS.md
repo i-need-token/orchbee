@@ -2,22 +2,14 @@
 
 ## Placement
 
-Put an independently runnable or deployable entry point in `apps/*`. Application workspaces include both end-user products and development applications; audience does not change placement.
-
-Put reusable capabilities consumed through imports in `packages/*`. Put repository automation that has no independently running application lifecycle in `scripts/*`.
-
-```text
-apps/
-  <product-surface>/  # End-user product application
-  <development-tool>/ # Repository development application
-```
-
-Do not create a new top-level directory to distinguish an internal application from a product application. Express that distinction through the workspace name, `private` manifest field, `project.json` responsibility and non-goals, and release configuration when a release pipeline exists.
-
-Name a product application for the user-facing surface or runtime role it owns, not an internal
-process such as `main` or `renderer`. Create a headless long-running application only when that
-entry point has a concrete lifecycle and consumer; an architecture diagram is not an admission
-reason.
+| Artifact or decision            | Contract                                                                                                                                                                                      |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runnable or deployable entry    | Put it in `apps/*`; both end-user products and development applications use this location.                                                                                                    |
+| Imported reusable capability    | Put it in `packages/*`.                                                                                                                                                                       |
+| Repository automation           | Put it in `scripts/*` when it has no independent application lifecycle.                                                                                                                       |
+| Product/development distinction | Keep one `apps/*` root; express the distinction through the workspace name, `private`, `project.json` responsibility and non-goals, and release configuration when a release pipeline exists. |
+| Product application name        | Name its user-facing surface or runtime role, not an internal process such as `main` or `renderer`.                                                                                           |
+| Headless long-running entry     | Create it only for a concrete lifecycle and consumer; an architecture diagram is insufficient.                                                                                                |
 
 ## Required application shape
 
@@ -29,35 +21,30 @@ Every direct application workspace contains:
 | `project.json`  | Runtime, stability, responsibility, and non-goals  |
 | `tsconfig.json` | Type-checking contract for TypeScript applications |
 
-An application exposes the scripts required by its lifecycle. Browser applications normally expose `dev`, `build`, `typecheck`, `test`, and `test:watch`. A specialized development application may add explicit workflow commands, but must keep `build` non-interactive so `pnpm verify` can run it.
+| Application                 | Script contract                                                                               |
+| --------------------------- | --------------------------------------------------------------------------------------------- |
+| Every application           | Expose the scripts required by its lifecycle.                                                 |
+| Browser application         | Normally expose `dev`, `build`, `typecheck`, `test`, and `test:watch`.                        |
+| Specialized development app | May add explicit workflow commands; keep `build` non-interactive so `pnpm verify` can run it. |
 
 ## Workspace development
 
-Browser applications register the official `@rsbuild/plugin-source-build` plugin for their
-development command. The plugin resolves the `@orchbee/source` condition declared by workspace
-packages, compiles those public source entry points in the application graph, and lets the
-application's Rsbuild server own React and CSS hot replacement. A package source edit therefore
-flows through the same native HMR graph as an application source edit; no package prebuild,
-parallel library watcher, or repository process supervisor is required.
-
-The application must register every compiler plugin required by source-built packages. For
-example, applications that source-build `@orchbee/ui` also register the Tailwind CSS plugin used
-by that package; source building does not load another workspace's Rslib configuration.
-
-Register source building only for development. Production application builds resolve the normal
-`types`, `import`, `require`, and `default` package conditions and consume Rslib output. The
-source condition changes how a declared public entry point is compiled, not which package paths
-an application may import.
-
-Run a public root command such as `pnpm web` or `pnpm storybook`. Keep the
-application's `dev` script as the direct Rsbuild or Storybook command so CLI arguments and process
-lifecycle remain owned by the underlying tool.
+| Concern            | Contract                                                                                                                                                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Development source | Browser applications register the official `@rsbuild/plugin-source-build`; it resolves `@orchbee/source`, compiles declared public source entries in the application graph, and lets the application's Rsbuild server own React and CSS hot replacement. |
+| HMR process        | Package and application source edits share the native HMR graph; do not add package prebuilds, parallel library watchers, or a repository process supervisor.                                                                                            |
+| Compiler plugins   | Register every plugin required by source-built packages. Source-building `@orchbee/ui`, for example, also requires its Tailwind CSS plugin because another workspace's Rslib configuration is not loaded.                                                |
+| Production         | Register source building only for development. Production resolves `types`, `import`, `require`, and `default` and consumes Rslib output.                                                                                                                |
+| Import visibility  | `@orchbee/source` changes how a declared public entry compiles, not which package paths an application may import.                                                                                                                                       |
+| Root command       | Expose a public command such as `pnpm web` or `pnpm storybook`.                                                                                                                                                                                          |
+| Application `dev`  | Keep it as the direct Rsbuild or Storybook command so the underlying tool owns CLI arguments and process lifecycle.                                                                                                                                      |
 
 ## Dependency direction
 
-Applications may consume packages only through declared package exports. Packages and applications never import from another application's source tree. No runtime workspace depends on a development application.
-
-An application may discover non-runtime artifacts such as Story files from another workspace only when an authoritative repository contract defines the artifact format and ownership. Storybook follows the dedicated contract in [`docs/frontend/storybook.md`](frontend/storybook.md).
+- Applications consume packages only through declared exports.
+- Packages and applications never import another application's source tree.
+- Runtime workspaces never depend on development applications.
+- Cross-workspace discovery of non-runtime artifacts requires an authoritative format and ownership contract; Storybook follows [`docs/frontend/storybook.md`](frontend/storybook.md).
 
 ## Product and development applications
 

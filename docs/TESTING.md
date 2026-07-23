@@ -2,31 +2,32 @@
 
 ## Source and test paths
 
-- `orchbee/filename-naming-convention`: Use kebab-case for source directories. A directory
-  immediately under `locales/` uses its canonical BCP 47 locale identifier, including canonical
-  casing such as `en-US` and `zh-CN`. An authored source module with exactly one named runtime
-  export whose local definition is a function uses that symbol's exact camelCase name, such as
-  `formatDisplayLabel.ts`; the equivalent class module uses its exact PascalCase symbol, such as
-  `EventEmitter.ts`. Type-only exports do not count, and private implementation symbols do not
-  change the module's public identity. Modules with no single callable or constructable runtime
-  identity—including grouped operations, contracts, data catalogs, constants, and re-export
-  facades—use a responsibility-focused kebab-case name. Generated source retains its
-  generator-owned kebab-case name. An authored function component uses the exact PascalCase name
-  of its sole runtime export, such as `FilterPanel.tsx`; a dedicated Hook module uses the exact
-  camelCase name of its sole Hook export, such as `useFilterPanel.ts`.
-  Non-component TSX entry files remain kebab-case. Place unit tests in the source file's sibling
-  `__tests__` directory and preserve the source stem exactly in `<source-name>.unit.test.ts` or
-  `<source-name>.unit.test.tsx`.
+`orchbee/filename-naming-convention` enforces:
+
+| Artifact                    | Naming contract                                                                                                                                                                     |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source directory            | Use kebab-case.                                                                                                                                                                     |
+| Direct child of `locales/`  | Use the canonical BCP 47 identifier and casing, such as `en-US` or `zh-CN`.                                                                                                         |
+| Unique runtime identity     | Count named runtime exports only; type-only exports and private implementation symbols do not change public identity.                                                               |
+| Authored function module    | When its sole named runtime export is a locally defined function, use the exact camelCase symbol, such as `formatDisplayLabel.ts`.                                                  |
+| Authored class module       | When its sole named runtime export is a locally defined class, use the exact PascalCase symbol, such as `EventEmitter.ts`.                                                          |
+| General module              | Grouped operations, contracts, data catalogs, constants, re-export facades, and other modules without one callable or constructable identity use responsibility-focused kebab-case. |
+| Generated source            | Keep the generator-owned kebab-case name.                                                                                                                                           |
+| Authored function component | Use the exact PascalCase name of the sole runtime export, such as `FilterPanel.tsx`.                                                                                                |
+| Authored dedicated Hook     | Use the exact camelCase name of the sole Hook export, such as `useFilterPanel.ts`.                                                                                                  |
+| Non-component TSX entry     | Use kebab-case.                                                                                                                                                                     |
+| Unit test                   | Use a sibling `__tests__` directory and preserve the source stem in `<source-name>.unit.test.ts` or `<source-name>.unit.test.tsx`.                                                  |
 
 ## Required unit tests
 
 - `orchbee/require-unit-test`: Every `.ts` source file containing a top-level function, function expression, arrow function, or class must have its corresponding unit-test file.
 
-The sibling-file rule is a minimum discoverability requirement, not evidence of behavioral coverage. Tests exercise observable outcomes, failure paths, and owned invariants; a placeholder test or a test that only repeats implementation details does not satisfy the project contract.
-
-Tests are optional for `.tsx` source. Do not add a component test merely to repeat prepared props or static markup; add one when it protects a meaningful regression, interaction, accessibility contract, or integration boundary.
-
-The checked-in shadcn registry snapshot follows the same optional TSX policy, and its generated mobile Hook is exempt from per-file sibling tests. They retain upstream implementations as reviewable source; test Orchbee adaptations, public-package contracts, and relied-upon integration behavior without copying the upstream component suite component by component.
+| Scope                      | Contract                                                                                                                                                                                                                   |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Required sibling test      | Provides discoverability, not proof of coverage. Test observable outcomes, failure paths, and owned invariants; placeholders and implementation-only assertions do not qualify.                                            |
+| `.tsx` source              | Tests are optional; add them for meaningful regressions, interactions, accessibility contracts, or integration boundaries, not prepared props or static markup.                                                            |
+| Checked-in shadcn snapshot | Retains upstream implementations as reviewable source and follows the optional TSX policy. Test Orchbee adaptations, public-package contracts, and relied-upon integration behavior instead of copying the upstream suite. |
+| Generated mobile Hook      | Exempt from per-file sibling tests.                                                                                                                                                                                        |
 
 ## Test execution
 

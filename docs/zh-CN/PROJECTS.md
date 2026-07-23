@@ -2,13 +2,15 @@
 
 ## 目的
 
-`apps/*` 或 `packages/*` 下的每个直接工作区都在 `package.json` 旁包含 `project.json`。项目契约为刚接手的 Agent 提供放置变更所需的局部上下文，无需加载整个仓库。
-
-应用的放置和生命周期遵循 [`docs/APPLICATIONS.md`](APPLICATIONS.md)。包契约遵循 [`docs/PACKAGES.md`](PACKAGES.md)。
-
-只保留无法从路径或 `package.json` 中可靠推导的信息。包身份、脚本、依赖和公共导出仍以 `package.json` 为权威来源；不要在 `project.json` 中重复它们。
-
-`schemas/project-contract.schema.json` 提供编辑器验证。`pnpm lint:projects` 使用 Zod 解析同一份契约，并拒绝缺失、过期或无效的元数据。
+| 关注点   | 契约                                                                                                 |
+| -------- | ---------------------------------------------------------------------------------------------------- |
+| 位置     | `apps/*` 或 `packages/*` 下的每个直接工作区都在 `package.json` 旁保存 `project.json`。               |
+| 用途     | 为 Agent 提供放置变更所需的局部上下文，无需加载整个仓库。                                            |
+| 应用规则 | 放置和生命周期遵循 [`docs/APPLICATIONS.md`](APPLICATIONS.md)。                                       |
+| 包规则   | 包契约遵循 [`docs/PACKAGES.md`](PACKAGES.md)。                                                       |
+| 内容     | 只保留无法从路径或 `package.json` 可靠推导的事实；身份、脚本、依赖和导出仍保存在 `package.json` 中。 |
+| Schema   | `schemas/project-contract.schema.json` 提供编辑器验证。                                              |
+| 验证     | `pnpm lint:projects` 使用 Zod 解析契约，并拒绝缺失、过期或无效的元数据。                             |
 
 ## 必需字段
 

@@ -21,11 +21,15 @@ apps/* -> packages/* -> 外部依赖
 
 ## 源模块边界
 
-源码树使用分层可见性和显式 `index.ts` 入口点。关于可见性、重新导出、测试、组合和循环依赖的权威规则位于 [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md)，并由 `orchbee/module-boundaries` 和 `import/no-cycle` 共同强制执行。
+- 源码树使用分层可见性和显式 `index.ts` 入口点。
+- [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md) 负责可见性、重新导出、测试、组合和循环依赖规则。
+- `orchbee/module-boundaries` 和 `import/no-cycle` 强制执行这些规则。
 
 ## 项目注册表
 
-每个工作区都在基于 Schema 的 `project.json` 中声明其领域、职责、非目标、运行时和稳定性。[`docs/PROJECTS.md`](PROJECTS.md) 是权威契约；`pnpm lint:projects` 会验证注册表，避免把这个概览扩张成一份需要手工维护的项目目录。
+- 每个工作区都在基于 Schema 的 `project.json` 中声明其领域、职责、非目标、运行时和稳定性。
+- [`docs/PROJECTS.md`](PROJECTS.md) 负责该契约；`pnpm lint:projects` 验证它。
+- 不要在本概览中维护项目目录。
 
 ## 数据边界
 

@@ -2,17 +2,31 @@
 
 ## Source module tree
 
-`orchbee/module-boundaries` treats each directory in an `apps/*/src` or `packages/*/src` tree as a source module unless it is a test directory, an authored React component group, or a support directory owned by a recognized public or private component tree. The `src` directory is the root module. A `__tests__` directory belongs to its nearest source-module ancestor and does not create a module.
+`orchbee/module-boundaries` enforces:
 
-Every source module must have an `index.ts` boundary entry. Files in the same module may import one another directly. A descendant may also import an ancestor's implementation directly because ancestor internals are inside its lexical visibility. Every lateral dependency must import the target module's `index.ts`; a file path below a lateral boundary is private even when TypeScript can resolve it.
+| Concern                | Contract                                                                                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Source module          | Every directory under `apps/*/src` or `packages/*/src`, except test directories, authored React component groups, and support directories owned by recognized public or private component trees. |
+| Root module            | The `src` directory.                                                                                                                                                                             |
+| Test directory         | `__tests__` belongs to its nearest source-module ancestor and does not create a module.                                                                                                          |
+| Boundary entry         | Every source module has `index.ts`.                                                                                                                                                              |
+| Same module            | Files import one another directly.                                                                                                                                                               |
+| Descendant to ancestor | A descendant may import an ancestor implementation directly because it is inside lexical visibility.                                                                                             |
+| Lateral dependency     | Import the target `index.ts`; paths below a lateral boundary remain private even when TypeScript resolves them.                                                                                  |
 
 ## Structural component groups
 
-An authored `components/<component-name>/` directory that contains the corresponding `<ComponentName>.tsx` is the structural form of a private component ownership boundary governed by [`docs/frontend/react.md`](frontend/react.md#component-directory-boundary), not a source module. Its entire subtree—including its `components`, `contexts`, `hooks`, `constants`, `types`, and `utils` directories—belongs to the source-module ancestor that owns the outermost matching component group.
-
-Structural component groups do not define `index.ts` entries and are never imported across a source-module boundary. Their owner and their implementation files import one another directly as members of the same source module; dependencies on other source modules still follow the normal visibility table. Promote a private component and its complete ownership tree to an appropriate source-module boundary when another module needs it. A directory merely named `components` does not receive this treatment unless it contains the component-group shape, so the generated `packages/ui/src/components/ui` public module tree remains a normal source-module tree.
-
-A source module organized around one public boundary component keeps only its `index.ts`, root component `.tsx`, and optional same-named `.module.css` as direct component files. Its component support directories use the same names and ownership as a private component group and remain structural parts of that source module rather than independent child modules. Non-component directories and directories outside a component ownership tree remain normal source modules and require their own `index.ts` boundaries.
+| Concern                         | Contract                                                                                                                                                                                                              |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recognition                     | An authored `components/<component-name>/` containing `<ComponentName>.tsx` is a private component ownership boundary under [`docs/frontend/react.md`](frontend/react.md#component-directory-boundary), not a module. |
+| Ownership                       | Its full subtree, including `components`, `contexts`, `hooks`, `constants`, `types`, and `utils`, belongs to the source-module ancestor owning the outermost matching component group.                                |
+| Entry and imports               | It has no `index.ts` and is never imported across a source-module boundary; owner and implementation files import one another directly as members of the same source module.                                          |
+| External dependencies           | Dependencies on other source modules follow the normal visibility table.                                                                                                                                              |
+| Promotion                       | When another module needs a private component, promote the component and its complete ownership tree to an appropriate source-module boundary.                                                                        |
+| Directory-name exception        | A directory named `components` is structural only when it matches the component-group shape; `packages/ui/src/components/ui` remains a normal public module tree.                                                     |
+| Public boundary component files | Keep only `index.ts`, the root component `.tsx`, and optional same-named `.module.css` as direct component files.                                                                                                     |
+| Public component support        | Support directories use private-group names and ownership and remain structural parts of the source module.                                                                                                           |
+| Other directories               | Non-component directories and directories outside a component ownership tree are source modules and require `index.ts`.                                                                                               |
 
 ## Module visibility
 
@@ -32,9 +46,10 @@ The rule applies equally to runtime imports, type-only imports, dynamic imports,
 
 ## Boundary entry points
 
-An `index.ts` is an export manifest, not an implementation file. It may contain only explicit named re-exports with a source, including `export type`; imports, declarations, executable statements, local exports, default exports, and `export *` are forbidden.
-
-An index may re-export its own module's implementation files and the `index.ts` of a direct child. Deeper APIs must be promoted one boundary at a time.
+- `index.ts` is an export manifest, not an implementation file.
+- It contains only explicit named re-exports with a source, including `export type`.
+- Imports, declarations, executable statements, local exports, default exports, and `export *` are forbidden.
+- It may re-export its own module's implementation files and a direct child's `index.ts`; promote deeper APIs one boundary at a time.
 
 ```text
 src/
@@ -63,12 +78,13 @@ The second import remains forbidden even though `src/a/a1/index.ts` exists. Its 
 
 ## Tests
 
-Production source must never import from `__tests__`. Tests inherit their owning module's visibility, including access to ancestor test helpers. Package-level tests in `src/__tests__` may exercise descendant modules through their `index.ts`, but never through private descendant files.
+- Production source never imports from `__tests__`.
+- Tests inherit their owning module's visibility, including ancestor test helpers.
+- Package-level tests in `src/__tests__` may exercise descendants through `index.ts`, never private descendant files.
 
 ## Composition and cycles
 
-Parent modules do not act as composition roots for their children. Put orchestration in a dedicated leaf module that consumes visible sibling boundaries, then re-export its API upward when needed.
-
-A module implementation must not import its own `index.ts`, because that creates a barrel cycle; import the local implementation file directly.
-
-`import/no-cycle` runs with `ignoreTypes: false`, so type-only cycles fail lint alongside runtime cycles. Break a cycle by moving shared contracts to the nearest mutually visible module, inverting the dependency behind an interface, or introducing a dedicated sibling module; do not suppress or downgrade the rule.
+- Parent modules are not composition roots for their children; put orchestration in a dedicated leaf consuming visible sibling boundaries, then re-export upward when needed.
+- A module implementation never imports its own `index.ts`; import the local implementation file directly to avoid a barrel cycle.
+- `import/no-cycle` runs with `ignoreTypes: false`; type-only and runtime cycles fail.
+- Break cycles by moving shared contracts to the nearest mutually visible module, inverting the dependency behind an interface, or introducing a dedicated sibling module; never suppress or downgrade the rule.

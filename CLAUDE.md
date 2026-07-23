@@ -29,8 +29,7 @@
 - **Repository Hygiene**: `docs/REPOSITORY-HYGIENE.md` — tracked-file admission, temporary artifacts, generated files, and pre-handoff review
 - **Linting**: `docs/LINTING.md` — commands, enforcement boundary, and custom-rule ownership
 - **Verification**: `docs/VERIFICATION.md` — the canonical local and CI quality gate
-- **Feature Development**: `docs/FEATURE-DEVELOPMENT.md` — model-first problem, output, state, core-test, and integration gates
-- **System Correctness**: `docs/SYSTEM-CORRECTNESS.md` — risk-based formal methods, property testing, deterministic system traces, reference refinement, and correctness evidence
+- **Feature Development**: `docs/FEATURE-DEVELOPMENT.md` — model-first delivery and risk-based correctness evidence
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
 - **Testing**: `docs/TESTING.md` — test layout, execution, and regression requirements
 - **Frontend React**: `docs/frontend/react.md` — component responsibility, state ownership, Effects, Hooks, Zustand, and React testing boundaries

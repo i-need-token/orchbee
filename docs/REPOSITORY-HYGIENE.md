@@ -21,7 +21,7 @@ Files normally justify their place when they provide at least one of these durab
 - Regression coverage for an observable invariant.
 - Configuration or schemas consumed by repository tooling.
 - Current authoritative documentation needed to operate, extend, or consume the project.
-- Active research with unresolved decisions that follows the lifecycle in [`docs/DOCUMENTATION.md`](DOCUMENTATION.md#research-lifecycle).
+- Unresolved decision evidence with a defined owner and update or deletion lifecycle.
 
 The following reasons are insufficient by themselves:
 
@@ -51,18 +51,18 @@ A new script is durable only when it has a named repeatable workflow, a stable e
 
 A generated file is tracked only when a runtime, build, release, or external consumer requires the materialized output. Commit its deterministic generator and a check that fails when tracked output is stale. Otherwise generate it locally or in CI and leave it untracked.
 
-Static evidence manifests and provenance reports require an ongoing conformance or compliance workflow. They must define who updates them, what source they are authoritative for, and how completeness is verified. A snapshot of an investigation is research or task history, not a permanent contract.
+Static evidence manifests and provenance reports require an ongoing conformance or compliance workflow. Define who updates them, their authoritative source, and how completeness is verified. A point-in-time investigation snapshot is task history, not a permanent contract.
 
 ## Documentation admission
 
-Documentation describes current truth, an active proposal, or unresolved research. Do not add documents whose primary purpose is to narrate a completed task, list files changed, preserve review findings, or record a point-in-time audit.
+Documentation records current truth. Do not add documents whose primary purpose is to narrate a completed task, list changed files, preserve review findings, or record a point-in-time audit.
 
 When an investigation finishes:
 
 - Move stable behavior and decisions into the existing authoritative document.
 - Express discovered invariants as tests when they are mechanically verifiable.
 - Leave task chronology in the pull request and Git history.
-- Delete resolved research and intermediate evidence.
+- Delete resolved and intermediate evidence.
 
 ## Pre-handoff review
 
