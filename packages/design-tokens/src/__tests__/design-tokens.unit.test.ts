@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { designToken, designTokenNames, responsiveBreakpoints } from '../design-tokens';
 
-function ruleTokenNames(css: string, selector: ':root' | '.dark') {
-	const escapedSelector = selector === ':root' ? ':root' : '\\.dark';
+function ruleTokenNames(css: string, selector: "[data-theme='light']" | "[data-theme='dark']") {
+	const escapedSelector = selector.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 	const rule = new RegExp(`${escapedSelector} \\{(?<body>[\\s\\S]*?)\\n\\}`, 'u').exec(css);
 	const body = rule?.groups?.['body'];
 	if (body === undefined) throw new Error(`Missing ${selector} token rule.`);
@@ -38,14 +38,15 @@ describe('design tokens', () => {
 		});
 	});
 
-	it('gives every semantic color an explicit dark-theme mapping', async () => {
+	it('keeps explicit light and dark theme scopes limited to equal semantic color inventories', async () => {
 		const css = await readFile(new URL('../tokens.css', import.meta.url), 'utf8');
-		const lightSystemColors = new Set(
-			[...ruleTokenNames(css, ':root')].filter((name) => name.startsWith('--ob-sys-color-')),
-		);
-		const darkSystemColors = ruleTokenNames(css, '.dark');
+		const lightSystemColors = ruleTokenNames(css, "[data-theme='light']");
+		const darkSystemColors = ruleTokenNames(css, "[data-theme='dark']");
 
 		expect(darkSystemColors).toEqual(lightSystemColors);
+		expect([...lightSystemColors].every((name) => name.startsWith('--ob-sys-color-'))).toBe(true);
+		expect(css).toContain(":root,\n[data-theme='light'] {\n\tcolor-scheme: light;");
+		expect(css).toContain("[data-theme='dark'] {\n\tcolor-scheme: dark;");
 	});
 
 	it('collapses semantic motion durations for reduced-motion preferences', async () => {

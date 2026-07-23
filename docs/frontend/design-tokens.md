@@ -39,17 +39,17 @@ Add a `comp` token only when an implemented reusable component must expose a sta
 
 ## Theme contract
 
-`:root` defines the light system-token mappings. A `.dark` ancestor overrides system colors only; reference tokens remain stable. Components therefore switch themes without selectors or value changes in component CSS.
+`:root` provides the fallback light system-color mapping. `[data-theme='light']` reapplies that mapping at an explicit light boundary, and `[data-theme='dark']` applies the dark mapping. Theme boundaries override system colors and `color-scheme` only; reference and component tokens remain stable. Inherited custom properties scope the selected mapping to that boundary's subtree, so component CSS never branches on the active theme.
 
-The initial registry supports one light and one dark semantic mapping. Add another theme only when a concrete product consumer needs it, and override system tokens rather than reference or component tokens. Theme selectors belong at an application composition boundary; leaf components must not set `.dark`.
+The initial registry accepts only `light` and `dark`. An application composition boundary owns the document theme attribute. A named region owner may set `data-theme` on a wrapper only when the complete subtree intentionally uses another theme; leaf components never set it for isolated styling. Add another theme only when a concrete product consumer needs it, and override system tokens rather than reference or component tokens.
 
-`packages/ui/src/styles.css` maps shadcn's generated variables such as `--background`, `--primary`, and `--ring` to Orchbee system tokens at both the `:root` and `.dark` boundaries. Re-declaring the aliases at each theme boundary makes their indirect `var(--ob-sys-*)` references compute against that boundary's system-token values. These unprefixed variables are a compatibility API for checked-in shadcn source, not an alternative token vocabulary for authored components.
+`packages/ui/src/styles.css` maps shadcn's generated variables such as `--background`, `--primary`, and `--ring` to Orchbee system tokens at `:root` and both explicit theme boundaries. Re-declaring the aliases at each boundary makes their indirect `var(--ob-sys-*)` references compute against that boundary's system-token values. Its Tailwind `dark` variant targets `[data-theme='dark']`; `.dark` is not a supported theme API. These unprefixed variables are a compatibility API for checked-in shadcn source, not an alternative token vocabulary for authored components.
 
 ## Runtime registry and Tailwind theme variables
 
 The Orchbee registry uses standard custom properties under `:root` because it is a framework-independent runtime API. Standard custom properties can be overridden by theme selectors, media queries, application hosts, and non-Tailwind consumers without creating any CSS classes.
 
-Tailwind's `@theme` directive has a different responsibility: a top-level theme-variable declaration instructs Tailwind to create matching utilities or variants. Do not publish `--ob-*` through `@theme`; doing so would expose a second utility-class authoring API, bypass CSS Modules and semantic consumption rules, and prevent selector-scoped system mappings such as `.dark`.
+Tailwind's `@theme` directive has a different responsibility: a top-level theme-variable declaration instructs Tailwind to create matching utilities or variants. Do not publish `--ob-*` through `@theme`; doing so would expose a second utility-class authoring API, bypass CSS Modules and semantic consumption rules, and prevent selector-scoped system mappings such as `[data-theme='dark']`.
 
 Use `@theme inline` only inside the checked Tailwind compatibility boundaries:
 
@@ -74,7 +74,7 @@ The system tier is a finite cross-component language. Choose the closest existin
 | Typography | body sm/md/lg, label sm/md/lg, heading sm/md/lg/xl, and code sm/md                                                                                               |
 | Other      | link decoration rest/hover/focus, semantic motion duration/easing, focus-ring geometry, disabled/muted opacity, and raised/overlay shadow                        |
 
-Every `--ob-sys-color-*` token has an explicit light mapping in `:root` and dark mapping in `.dark`; package tests enforce equal inventories. Status and typography matrices are also regression-tested so deleting one state cannot leave an apparently valid but incomplete registry.
+Every `--ob-sys-color-*` token has explicit `[data-theme='light']` and `[data-theme='dark']` mappings; `:root` shares the light mapping as its fallback. Package tests enforce equal inventories and ensure theme scopes contain no reference or component tokens. Status and typography matrices are also regression-tested so deleting one state cannot leave an apparently valid but incomplete registry.
 
 Consume a typography role through the `font` shorthand so family, size, weight, and line height remain one decision:
 
@@ -120,43 +120,13 @@ tokens. Registry presence proves that a value is enumerable; it does not make th
 approved product choice. The authored subsets and their scenario rules live in
 [`visual-foundations.md`](visual-foundations.md).
 
-## Authored component styles
+## Authored component consumption
 
-Use CSS Modules for Orchbee-authored component styles and reference the module from JSX:
-
-```tsx
-import styles from './FilterPanel.module.css';
-
-export function FilterPanel() {
-	return <section className={styles.root}>...</section>;
-}
-```
-
-```css
-.root {
-	display: grid;
-	gap: var(--ob-ref-space-4);
-	padding: var(--ob-ref-space-6);
-	color: var(--ob-sys-color-text-primary);
-	background: var(--ob-sys-color-surface-raised);
-	font: var(--ob-sys-typography-body-sm);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
-	border-radius: var(--ob-ref-radius-ui-md);
-}
-```
-
-The following are forbidden outside the shadcn compatibility boundary:
-
-- Tailwind imports, directives, utility strings, and `tailwind-merge`.
-- Literal or template-string `className` values; use a CSS Module reference and a string-free conditional class helper.
-- A `className` prop exposed as a general styling escape hatch by an authored component.
-- JSX attribute spreads other than an inline object literal with statically named properties proven not to contain styling escape hatches; pass those props explicitly.
-- Raw visual CSS values covered by the token registry.
-- Custom properties not registered under the `--ob-*` vocabulary.
-- `var()` fallback values for registered tokens; the registry is total and a fallback hides a broken contract.
-- Inline standard CSS properties.
-
-Inline style objects may contain only registered `--ob-comp-*` keys. This exception carries runtime data such as measured or user-controlled geometry; it does not admit arbitrary visual choices.
+- Follow [`styling.md`](styling.md) for CSS Modules, `className`, Tailwind, JSX spread, inline-style, and generated-source boundaries.
+- Consume `--ob-sys-color-*` for colors and `--ob-sys-typography-*` for complete typography roles.
+- Consume only the non-color reference subsets approved by [`visual-foundations.md`](visual-foundations.md).
+- Use registered `--ob-comp-*` properties only for public customization or runtime geometry.
+- Never use an unregistered custom property or a fallback for a registered token.
 
 ## Responsive thresholds
 

@@ -32,9 +32,12 @@
 - **Feature Development**: `docs/FEATURE-DEVELOPMENT.md` — model-first delivery and risk-based correctness evidence
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
 - **Testing**: `docs/TESTING.md` — test layout, execution, and regression requirements
-- **Frontend React**: `docs/frontend/react.md` — component responsibility, state ownership, Effects, Hooks, Zustand, and React testing boundaries
+- **Frontend Package Boundaries**: `docs/frontend/package-boundaries.md` — frontend workspace placement, semantic ownership, dependency direction, and platform ports
+- **Frontend React**: `docs/frontend/react.md` — component ownership, file boundaries, state, Effects, Hooks, Zustand, and testing
 - **Frontend Visual Foundations**: `docs/frontend/visual-foundations.md` — typography, hierarchy, spacing, radius, sizing, border, and surface selection rules
-- **Frontend Design Tokens**: `docs/frontend/design-tokens.md` — token tiers, naming, themes, CSS Modules, and style enforcement
+- **Frontend Design Tokens**: `docs/frontend/design-tokens.md` — token ownership, tiers, naming, themes, semantic coverage, and changes
+- **Frontend Styling**: `docs/frontend/styling.md` — CSS Modules, generated shadcn boundaries, icons, stylesheets, and verification
+- **Frontend Storybook**: `docs/frontend/storybook.md` — host ownership, Story placement, navigation, authoring, and browser verification
 - **Frontend Localization**: `docs/frontend/localization.md` — locale ownership, message catalogs, formatting, fallback, and verification
 - **Frontend Tooltips**: `docs/frontend/tooltips.md` — provider ownership, delay, content, accessibility, and verification
 - **Frontend Keyboard Shortcuts**: `docs/frontend/keyboard-shortcuts.md` — action ownership, bindings, platform display, conflicts, and verification

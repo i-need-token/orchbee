@@ -399,6 +399,17 @@ function validateExactMappings({ path, source, container, expected, diagnostics,
 export function validateShadcnCompatibilitySource({ path, source, registeredTokens }) {
 	const diagnostics = validateTokenReferences(path, source, registeredTokens);
 	const root = parseCss(source, { from: path });
+	const darkVariantRules = [];
+	root.walkAtRules('custom-variant', (atRule) => {
+		if (atRule.params.startsWith('dark ')) darkVariantRules.push(atRule);
+	});
+	const expectedDarkVariant = "dark (&:where([data-theme='dark'], [data-theme='dark'] *))";
+	if (darkVariantRules.length !== 1 || darkVariantRules[0]?.params !== expectedDarkVariant) {
+		diagnostics.push(
+			diagnostic(path, source, 0, `Shadcn dark variants must use "${expectedDarkVariant}".`),
+		);
+	}
+
 	const sourceRules = [];
 	root.walkAtRules('source', (atRule) => {
 		sourceRules.push(atRule);
@@ -420,7 +431,12 @@ export function validateShadcnCompatibilitySource({ path, source, registeredToke
 			.split(',')
 			.map((selector) => selector.trim())
 			.toSorted();
-		if (JSON.stringify(selectors) === JSON.stringify(['.dark', ':root'])) semanticRules.push(rule);
+		if (
+			JSON.stringify(selectors) ===
+			JSON.stringify([':root', "[data-theme='dark']", "[data-theme='light']"])
+		) {
+			semanticRules.push(rule);
+		}
 	});
 	if (semanticRules.length !== 1) {
 		diagnostics.push(
@@ -428,7 +444,7 @@ export function validateShadcnCompatibilitySource({ path, source, registeredToke
 				path,
 				source,
 				0,
-				'Shadcn semantic aliases require exactly one shared ":root, .dark" mapping rule.',
+				"Shadcn semantic aliases require exactly one shared \":root, [data-theme='light'], [data-theme='dark']\" mapping rule.",
 			),
 		);
 	} else {

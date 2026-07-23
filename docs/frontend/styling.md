@@ -1,65 +1,90 @@
 # Frontend Styling
 
-## Styling boundaries
+## Ownership boundaries
 
-Orchbee-authored components use the enumerable token system and CSS Modules defined in [`docs/frontend/design-tokens.md`](design-tokens.md). Do not use Tailwind utilities for product-semantic composition, application layout, or new authored component implementations.
+| Boundary                        | Contract                                                                                                                                                        |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Orchbee-authored components     | Use CSS Modules and the tokens selected under [`design-tokens.md`](design-tokens.md) and [`visual-foundations.md`](visual-foundations.md).                      |
+| Generated shadcn source         | Lives under `packages/ui/src/components/ui`, retains Tailwind CSS v4 utilities and composable `className`, and remains a compatibility boundary.                |
+| shadcn configuration            | `packages/ui/components.json` pins the Base UI Nova registry style for every CLI run.                                                                           |
+| UI style entry                  | `packages/ui/src/styles.ts` imports the token registry before `packages/ui/src/styles.css`.                                                                     |
+| UI compatibility stylesheet     | Maps shadcn variables to Orchbee tokens, keeps required `@theme inline` declarations, registers `./components` with `@source`, and owns the minimal base layer. |
+| Complete Tailwind compatibility | `@orchbee/design-tokens/tailwind-compat.css` maps the installed public Tailwind theme but remains unimported until a deliberate migration.                      |
 
-Install reusable primitives from shadcn/ui's Base UI registry and own the resulting open component source in `@orchbee/ui`. Do not hand-write a primitive that shadcn already provides. The checked-in `components.json` pins the Base UI Nova style so every CLI invocation uses the same component family.
+The generated exception also covers `packages/ui/src/hooks/use-mobile.ts`, `packages/ui/src/lib/cn.ts`, and `packages/ui/src/styles.css`. Do not copy its utilities into authored components or create a duplicate primitive to rename generated props.
 
-Generated shadcn components retain their Tailwind CSS v4 utility classes and standard composable `className` API. The Tailwind exception is limited to `packages/ui/src/components/ui`, its generated `use-mobile.ts` hook, `packages/ui/src/lib/cn.ts`, and the `packages/ui/src/styles.css` compatibility layer. Do not copy its utilities into an authored component or introduce a second primitive implementation merely to rename generated props.
+Install an official shadcn primitive instead of hand-writing an equivalent; product composition stays outside the generated primitive.
 
-`packages/ui/src/styles.ts` is the style export's source-build entry: it imports the design-token registry before `packages/ui/src/styles.css`. The CSS file maps the generated shadcn variable vocabulary to Orchbee system tokens, retains the `@theme inline` declarations that generate utilities for checked-in shadcn source, explicitly registers `./components` with Tailwind's `@source` directive, and owns the minimal global base layer required by generated components. The explicit source registration is required because a source-built application compiles this stylesheet from outside the UI workspace; do not rely on Tailwind's automatic discovery boundary to find package component files. Neither file owns token names or concrete theme values. Orchbee's runtime registry remains standard `:root` custom properties because authored components consume variables directly and system theme mappings must remain selector-overridable.
+Standard `:root` custom properties remain the runtime registry because theme selectors, media queries, hosts, and non-Tailwind consumers can override them. Compatibility files map values but never own Orchbee token names or theme values.
 
-`@orchbee/design-tokens/tailwind-compat.css` is a separate, complete mapping of the installed Tailwind default theme to Orchbee reference tokens. It exists so a future migration can preserve Tailwind's enumerable vocabulary while replacing its source of values. It is exported and compilation-tested but intentionally not imported by `@orchbee/ui`; adopting it is a separate compatibility-boundary change, not an incidental token update.
+## Authored style contract
+
+Use one CSS Module per authored component and import it from JSX.
+
+```tsx
+import styles from './FilterPanel.module.css';
+
+export function FilterPanel() {
+	return <section className={styles.root}>...</section>;
+}
+```
+
+Outside the generated shadcn boundary, do not use:
+
+- Tailwind imports, directives, utility strings, or `tailwind-merge`;
+- literal or template-string `className` values instead of CSS Module references;
+- a general-purpose `className` prop on an authored component;
+- JSX attribute spreads except an inline object with statically named properties and no styling escape hatch;
+- raw visual values covered by the token registry;
+- unregistered custom properties or `var()` fallbacks for registered tokens; or
+- inline standard CSS properties.
+
+Inline style objects may contain only registered `--ob-comp-*` keys for measured or user-controlled runtime geometry. Product-semantic composition and application layout never use Tailwind utilities.
 
 ## Product icons
 
-Orchbee-authored product controls consume `ProductIcon` from `@orchbee/ui/components`. Product code uses the Orchbee-owned icon-name allowlist and never imports a vendor stylesheet, vendor class name, font character, or physical icon asset. `@orchbee/ui` owns the mapping to the installed Codicons set and loads its stylesheet through the package style entry. This boundary keeps icon-provider changes local and prevents vendor identifiers from becoming product API.
+- Product controls consume `ProductIcon` from `@orchbee/ui/components` through the Orchbee icon-name allowlist.
+- Product code never imports vendor stylesheets, class names, font characters, or physical icon assets.
+- `@orchbee/ui` maps names to Codicons and loads the provider stylesheet through its style entry.
+- `ProductIcon` is decorative, inherits `currentColor`, and uses the approved visual-foundation sizes; the owning control supplies its accessible name and semantic color.
+- Generated shadcn source may retain Lucide imports only inside its compatibility boundary.
 
-`ProductIcon` is decorative and inherits `currentColor`; the owning control supplies its accessible name and assigns semantic icon color tokens. Use the enumerable icon sizes from the visual-foundations standard instead of arbitrary dimensions. Generated shadcn source may retain its upstream Lucide imports inside the generated compatibility boundary; do not extend that exception to Orchbee-authored product components.
-
-Adding or changing a product icon requires updating the `ProductIcon` allowlist and mapping, its focused test, the owning package documentation when behavior changes, and the third-party notice when the provider or license changes. Verify the result in a real browser because font loading, optical weight, and alignment cannot be established by type or unit checks alone.
+An icon change updates the allowlist, mapping, focused test, affected package documentation, and third-party notice when provider or license changes. Verify font loading, optical weight, and alignment in a browser.
 
 ## Stylesheet imports
 
-Applications that use shadcn components import the compatibility stylesheet once at their composition entry:
+| Consumer                          | Single composition-entry import               |
+| --------------------------------- | --------------------------------------------- |
+| Application using `@orchbee/ui`   | `import '@orchbee/ui/styles.css';`            |
+| Interface not using `@orchbee/ui` | `import '@orchbee/design-tokens/tokens.css';` |
+| `apps/storybook` UI Stories       | The public `@orchbee/ui` stylesheet           |
 
-```ts
-import '@orchbee/ui/styles.css';
-```
-
-An interface that does not consume `@orchbee/ui` imports the token asset directly before its own styles:
-
-```ts
-import '@orchbee/design-tokens/tokens.css';
-```
-
-`apps/storybook` imports the UI stylesheet for UI Stories. Storybook layout scaffolding must not redefine component appearance or act as an implicit theme. The Story ownership and browser-verification contract lives in [`docs/frontend/storybook.md`](storybook.md).
+Do not import the token registry twice. Storybook scaffolding never restyles components or acts as an implicit theme; follow [`storybook.md`](storybook.md).
 
 ## Shadcn component intake
 
-The UI package keeps a complete snapshot of the official Base UI component registry. Refresh that snapshot with:
+Refresh the complete official Base UI registry snapshot with:
 
 ```sh
 pnpm --dir packages/ui exec shadcn add --all --overwrite
 ```
 
-The CLI reads `packages/ui/components.json` and writes component source under `packages/ui/src/components/ui`. Use its `--dry-run`, `--view`, and `--diff` options before a refresh when generated changes need review.
+The CLI reads `packages/ui/components.json` and writes to `packages/ui/src/components/ui`; use `--dry-run`, `--view`, and `--diff` when reviewing generated changes.
 
-After a refresh:
+After refresh:
 
-1. Keep generated implementations and Tailwind utilities intact unless repository compatibility requires a focused adaptation.
-2. Restore `packages/ui/src/styles.css` as a compatibility mapping to `@orchbee/design-tokens`, including its explicit `@source './components'` registration; never accept regenerated raw theme values as a second source of truth.
-3. Review every overwrite diff and preserve TypeScript, declaration-output, and module-boundary adaptations.
-4. Export every registry component explicitly through `@orchbee/ui/components`; do not expose physical source paths.
-5. Test the adaptations or semantics Orchbee relies on; do not duplicate the upstream component suite component by component.
-6. Run the UI package checks and the repository verification gate.
+1. Keep generated implementations and utilities unless a focused repository adaptation is required.
+2. Restore the `packages/ui/src/styles.css` mapping to `@orchbee/design-tokens`, including `@source './components'`; reject regenerated raw theme values.
+3. Review every overwrite and preserve TypeScript, declaration-output, and module-boundary adaptations.
+4. Export every registry component through `@orchbee/ui/components`, never a physical source path.
+5. Test repository adaptations and relied-on semantics without duplicating the upstream suite.
+6. Run the UI package checks and root verification gate.
 
-Product-semantic composition belongs in its owning application or product-capability package, while the generated component remains the reusable primitive. A product component may pass semantic props to a shadcn primitive, but it must not use the primitive's `className` escape hatch to add Tailwind utilities.
+Product composition stays with its application or product-capability package. An authored product component may pass semantic props to a primitive but may not add Tailwind utilities through `className`.
 
 ## Verification
 
-Run the token and UI package checks after changing tokens, generated component styles, dependencies, exports, or build configuration:
+After changing tokens, generated styles, dependencies, exports, or build configuration, run:
 
 ```sh
 pnpm lint:styles
@@ -73,18 +98,11 @@ pnpm --filter @orchbee/ui test
 pnpm --filter @orchbee/ui test:exports
 ```
 
-After a Tailwind dependency update, also regenerate the dormant complete mapping and let the style contract verify exact coverage:
+After a Tailwind dependency update, also run:
 
 ```sh
 pnpm generate:tailwind-token-compat
 pnpm lint:styles
 ```
 
-External references verified on 2026-07-19:
-
-- [Tailwind CSS theme variables](https://tailwindcss.com/docs/theme) distinguishes top-level `@theme` declarations that generate utilities and variants from regular `:root` custom properties that do not.
-- [shadcn/ui manual installation](https://ui.shadcn.com/docs/installation/manual) documents the Base UI style identifier, Tailwind imports, dependencies, aliases, and `components.json` contract.
-- [shadcn/ui Base UI support](https://ui.shadcn.com/docs/changelog/2026-01-base-ui) documents the Base UI component variants and shared shadcn abstraction.
-- [shadcn/ui `components.json`](https://ui.shadcn.com/docs/components-json) defines the CLI's durable generation configuration.
-- [Rslib CSS support](https://rslib.rs/guide/advanced/css) documents the Tailwind CSS v4 plugin and extracted library styles.
-- [VS Code Codicons](https://github.com/microsoft/vscode-codicons) publishes the icon font, CSS classes, source SVGs, and CC BY 4.0 license used behind the product-icon boundary.
+Primary references: [Tailwind theme variables](https://tailwindcss.com/docs/theme), [shadcn manual installation](https://ui.shadcn.com/docs/installation/manual), [Base UI support](https://ui.shadcn.com/docs/changelog/2026-01-base-ui), [`components.json`](https://ui.shadcn.com/docs/components-json), [Rslib CSS](https://rslib.rs/guide/advanced/css), and [Codicons](https://github.com/microsoft/vscode-codicons).

@@ -13,7 +13,11 @@ describe('storage contract', () => {
 		expect(
 			validateStorageSource({
 				path: 'packages/example/src/layout/example-layout-storage.ts',
-				source: "const key = 'orchbee:example:panel-width:v1';",
+				source: `
+					import { z } from 'zod';
+					const key = 'orchbee:example:panel-width:v1';
+					const result = ValueSchema.safeParse(JSON.parse(serializedValue));
+				`,
 			}),
 		).toEqual([]);
 	});
@@ -39,5 +43,27 @@ describe('storage contract', () => {
 
 		expect(scatteredDiagnostics[0]?.message).toContain('*-storage.ts');
 		expect(malformedDiagnostics[0]?.message).toContain('orchbee:<owner>:<record>:v<schema>');
+	});
+
+	it('rejects browser-storage JSON deserialization without direct Zod parsing', () => {
+		const withoutZod = validateStorageSource({
+			path: 'packages/example/src/layout/example-layout-storage.ts',
+			source: `
+				const key = 'orchbee:example:panel-width:v1';
+				const value = JSON.parse(serializedValue);
+			`,
+		});
+		const delayedZod = validateStorageSource({
+			path: 'packages/example/src/layout/example-layout-storage.ts',
+			source: `
+				import { z } from 'zod';
+				const key = 'orchbee:example:panel-width:v1';
+				const value = JSON.parse(serializedValue);
+				ValueSchema.safeParse(value);
+			`,
+		});
+
+		expect(withoutZod[0]?.message).toContain('directly to a Zod schema');
+		expect(delayedZod[0]?.message).toContain('directly to a Zod schema');
 	});
 });

@@ -7,6 +7,10 @@ const STORAGE_KEY_PATTERN =
 const STORAGE_KEY_LITERAL_PATTERN = /(['"`])(orchbee:[^'"`\s]+)\1/gu;
 const BROWSER_STORAGE_ACCESS_PATTERN =
 	/\b(?:(?:window|globalThis)\.)?(?:localStorage|sessionStorage)\s*\./gu;
+const JSON_PARSE_PATTERN = /\bJSON\.parse\s*\(/gu;
+const ZOD_IMPORT_PATTERN = /\bfrom\s+(['"])zod\1/u;
+const DIRECT_ZOD_PARSE_PREFIX_PATTERN =
+	/\b[A-Za-z_$][A-Za-z0-9_$]*Schema\.(?:parse|safeParse)\s*\(\s*$/u;
 
 function normalize(path) {
 	return path.split('\\').join('/');
@@ -53,6 +57,19 @@ export function validateStorageSource({ path, source }) {
 			diagnostics.push({
 				line,
 				message: `Storage key "${key}" must match orchbee:<owner>:<record>:v<schema>.`,
+				path,
+			});
+		}
+	}
+
+	if (isStorageOwnerModule(path)) {
+		const importsZod = ZOD_IMPORT_PATTERN.test(source);
+		for (const match of source.matchAll(JSON_PARSE_PATTERN)) {
+			const prefix = source.slice(Math.max(0, match.index - 80), match.index);
+			if (importsZod && DIRECT_ZOD_PARSE_PREFIX_PATTERN.test(prefix)) continue;
+			diagnostics.push({
+				line: sourceLine(source, match.index),
+				message: 'Pass every JSON.parse result directly to a Zod schema before using stored data.',
 				path,
 			});
 		}

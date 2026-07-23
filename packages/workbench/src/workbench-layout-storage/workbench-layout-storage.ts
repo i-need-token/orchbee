@@ -1,21 +1,15 @@
+import { z } from 'zod';
+
 const DEFAULT_LEFT_PANEL_WIDTH = 250;
 export const MINIMUM_LEFT_PANEL_WIDTH = 200;
 export const MAXIMUM_LEFT_PANEL_WIDTH = 400;
 
 const WORKBENCH_LEFT_PANEL_WIDTH_STORAGE_KEY = 'orchbee:workbench:left-panel-width:v1';
+const StoredLeftPanelWidthSchema = z.strictObject({
+	width: z.number().int().min(MINIMUM_LEFT_PANEL_WIDTH).max(MAXIMUM_LEFT_PANEL_WIDTH),
+});
 
 export type WorkbenchLayoutStorage = Pick<Storage, 'getItem' | 'setItem'>;
-
-function isStoredLeftPanelWidth(value: unknown): value is { readonly width: number } {
-	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-	if (Object.keys(value).length !== 1 || !('width' in value)) return false;
-	return (
-		typeof value.width === 'number' &&
-		Number.isInteger(value.width) &&
-		value.width >= MINIMUM_LEFT_PANEL_WIDTH &&
-		value.width <= MAXIMUM_LEFT_PANEL_WIDTH
-	);
-}
 
 export function readWorkbenchLeftPanelWidth(storage?: WorkbenchLayoutStorage): number {
 	if (storage === undefined) return DEFAULT_LEFT_PANEL_WIDTH;
@@ -23,8 +17,8 @@ export function readWorkbenchLeftPanelWidth(storage?: WorkbenchLayoutStorage): n
 	try {
 		const serializedValue = storage.getItem(WORKBENCH_LEFT_PANEL_WIDTH_STORAGE_KEY);
 		if (serializedValue === null) return DEFAULT_LEFT_PANEL_WIDTH;
-		const value: unknown = JSON.parse(serializedValue);
-		return isStoredLeftPanelWidth(value) ? value.width : DEFAULT_LEFT_PANEL_WIDTH;
+		const result = StoredLeftPanelWidthSchema.safeParse(JSON.parse(serializedValue));
+		return result.success ? result.data.width : DEFAULT_LEFT_PANEL_WIDTH;
 	} catch {
 		return DEFAULT_LEFT_PANEL_WIDTH;
 	}

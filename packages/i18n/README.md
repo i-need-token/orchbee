@@ -58,9 +58,16 @@ src/locales/
 
 The Workbench domain currently owns the localized sidebar navigation chrome and visibility actions.
 Add each future product domain beneath both locale directories and export the matching descriptors in the same
-change. English and Simplified Chinese values never share an authored file. Directory names use
+change. Runtime English and Simplified Chinese catalog values never share an authored file. Directory names use
 the canonical BCP 47 identifier and casing, and catalog tests enforce message-ID and ICU-variable
 parity across every shipped locale.
+
+## Product language
+
+[`docs/product-language.md`](docs/product-language.md) owns the approved `en-US` and `zh-CN`
+terminology mappings and repeated interaction labels used during message authoring and review.
+Catalogs remain authoritative for complete runtime messages. Update the reference and every
+affected locale catalog together when an approved product-language decision changes.
 
 ## Development
 

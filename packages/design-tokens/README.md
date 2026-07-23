@@ -41,11 +41,11 @@ Consumers adopting the full compatibility layer must provide both the runtime to
 
 Tailwind's internal `--tw-*` utility state is intentionally outside the design-token inventory. Breakpoint and container mappings use checked literal values because CSS custom properties cannot appear in query conditions.
 
-The runtime registry deliberately uses standard `:root` custom properties. Tailwind's `@theme` directive is a compile-time API that creates utilities and variants, so it belongs only in the Tailwind and shadcn compatibility boundary. Publishing `--ob-*` directly through `@theme` would create a second utility-class authoring API and would prevent theme mappings from being nested under selectors such as `.dark`.
+The runtime registry deliberately uses standard custom properties. Tailwind's `@theme` directive is a compile-time API that creates utilities and variants, so it belongs only in the Tailwind and shadcn compatibility boundary. Publishing `--ob-*` directly through `@theme` would create a second utility-class authoring API and would prevent system mappings from being scoped under selectors such as `[data-theme='dark']`.
 
 ## Themes
 
-Reference tokens (`--ob-ref-*`) are stable visual scales. System tokens (`--ob-sys-*`) give those values interface meaning and change under a `.dark` ancestor. Components consume system color tokens so theme changes do not alter component CSS.
+Reference tokens (`--ob-ref-*`) are stable visual scales. System tokens (`--ob-sys-*`) give those values interface meaning and change under explicit `[data-theme='light']` and `[data-theme='dark']` boundaries; `:root` supplies the light fallback. Components consume system color tokens so theme changes do not alter component CSS.
 
 System colors enumerate surface, content, border, action, status, and interaction states. Every system color has explicit light and dark mappings. Semantic typography tokens combine family, size, weight, and line height for body, label, heading, and code roles:
 

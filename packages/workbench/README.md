@@ -64,11 +64,12 @@ export function ProductInterface({
 ```
 
 When storage is provided, Workbench restores `orchbee:workbench:left-panel-width:v1` and
-`orchbee:workbench:left-panel-visibility:v1`. It validates complete JSON records, saves width only
-after a completed user resize, and saves visibility only after the button or shortcut invokes the
-semantic toggle action. Missing, malformed, unavailable, or out-of-range storage falls back to a
-visible `250px` sidebar without blocking rendering. The repository-wide ownership and key contract
-lives in [`docs/frontend/browser-storage.md`](../../docs/frontend/browser-storage.md).
+`orchbee:workbench:left-panel-visibility:v1`. It parses complete JSON records with feature-owned
+strict Zod schemas, saves width only after a completed user resize, and saves visibility only after
+the button or shortcut invokes the semantic toggle action. Missing, malformed, unavailable, or
+out-of-range storage falls back to a visible `250px` sidebar without blocking rendering. The
+repository-wide ownership and key contract lives in
+[`docs/frontend/browser-storage.md`](../../docs/frontend/browser-storage.md).
 
 The host owns `TabModel` and terminal-session lifecycles. Workbench renders that model and forwards
 the tab-strip new-tab action to `onNewTerminal`; when the callback is absent, the tab-strip retains

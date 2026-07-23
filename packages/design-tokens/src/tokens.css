@@ -494,7 +494,11 @@
 	--ob-ref-layer-modal: 400;
 	--ob-ref-layer-toast: 500;
 	--ob-ref-layout-reading-width: 70ch;
+}
 
+:root,
+[data-theme='light'] {
+	color-scheme: light;
 	--ob-sys-color-surface-canvas: var(--ob-ref-color-orchbee-light-surface);
 	--ob-sys-color-surface-subtle: color-mix(
 		in srgb,
@@ -690,6 +694,9 @@
 	--ob-sys-color-data-3: var(--ob-ref-color-blue-600);
 	--ob-sys-color-data-4: var(--ob-ref-color-violet-600);
 	--ob-sys-color-data-5: var(--ob-ref-color-red-600);
+}
+
+:root {
 	--ob-sys-typography-body-sm: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-ui-base) /
 		var(--ob-ref-font-size-ui-base-line-height) var(--ob-ref-font-family-sans);
 	--ob-sys-typography-body-md: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-sm) /
@@ -830,7 +837,8 @@
 	--ob-comp-tab-strip-corner-bottom-left: var(--ob-ref-radius-none);
 }
 
-.dark {
+[data-theme='dark'] {
+	color-scheme: dark;
 	--ob-sys-color-surface-canvas: var(--ob-ref-color-neutral-950);
 	--ob-sys-color-surface-subtle: var(--ob-ref-color-neutral-900);
 	--ob-sys-color-surface-raised: var(--ob-ref-color-neutral-900);

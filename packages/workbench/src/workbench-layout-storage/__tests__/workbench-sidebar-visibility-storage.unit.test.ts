@@ -10,6 +10,8 @@ describe('Workbench sidebar visibility storage', () => {
 		for (const [storedValue, expectedVisibility] of [
 			[null, true],
 			['not-json', true],
+			['false', true],
+			['null', true],
 			['{"visible":"false"}', true],
 			['{"visible":false,"extra":true}', true],
 			['{"visible":false}', false],

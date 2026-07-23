@@ -436,6 +436,9 @@ importers:
       '@orchbee/ui':
         specifier: workspace:^
         version: link:../ui
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@rsbuild/plugin-react':
         specifier: 'catalog:'

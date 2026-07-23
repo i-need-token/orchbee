@@ -5,10 +5,11 @@
 
 @source './components';
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 :root,
-.dark {
+[data-theme='light'],
+[data-theme='dark'] {
 	--background: var(--ob-sys-color-surface-canvas);
 	--foreground: var(--ob-sys-color-text-primary);
 	--card: var(--ob-sys-color-surface-raised);

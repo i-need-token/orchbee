@@ -23,7 +23,7 @@ Do not choose browser storage merely because it is convenient. The feature owner
 - The feature or package that owns the persisted concept owns its key, schema version, codec, validation, fallback, migration, and removal lifecycle.
 - Define each key once in a responsibility-focused `*-storage.ts` owner module. Components, Hooks, tests, and callers do not repeat the literal.
 - Only an application composition entry reads the browser's `localStorage` or `sessionStorage` global. It injects the narrow `getItem` and `setItem` capability into the feature owner.
-- Presentational components never access browser storage. A presenter Hook or controller may coordinate the injected capability and expose prepared values or semantic actions.
+- Presentational components never access browser storage. The owning client state or custom Hook may coordinate the injected capability and expose prepared values or semantic actions.
 - Keep keys distributed with their feature owners. Do not create a package-wide miscellaneous key registry that separates a key from the schema and lifecycle it identifies.
 
 ## Key contract
@@ -51,8 +51,10 @@ Treat a version change as a data migration decision. Either read and migrate the
 
 ## Value contract
 
-- Store a JSON object, even for one value. Named fields make validation, extension, and diagnostics unambiguous.
-- Parse into `unknown` and validate the complete object before use. Reject missing fields, unexpected fields, invalid numbers, unsupported enum values, and values outside current product constraints.
+- Store every value as the JSON string produced by `JSON.stringify` from an object, even for one field. Do not store ad hoc raw strings, numbers, booleans, or comma-delimited values.
+- `JSON.parse` returns `any`; deserialization does not establish runtime type safety. Pass every `JSON.parse(...)` result directly to the feature-owned Zod schema before accessing a field.
+- Every browser-storage codec owns a strict Zod object schema beside its key and codec. Use `parse` or `safeParse` to reject missing fields, unexpected fields, invalid numbers, unsupported enum values, and values outside current product constraints.
+- TypeScript declarations, type assertions, handwritten type guards, generated serializers, and knowledge that Orchbee originally wrote the value do not validate data recovered from storage and do not replace Zod parsing.
 - Persist stable domain units. A pixel layout preference stores an integer pixel value; it does not store a viewport-dependent percentage and relabel it later.
 - Do not serialize React state, class instances, services, callbacks, translated copy, or third-party internal data shapes.
 - Keep payloads small and bounded. Browser quota is not a capacity budget.
@@ -76,7 +78,7 @@ Treat a version change as a data migration decision. Either read and migrate the
 
 ## Verification
 
-- `pnpm lint:storage` rejects direct browser-storage access outside application composition entries, scattered `orchbee:` literals, and keys that do not match the versioned grammar.
+- `pnpm lint:storage` rejects direct browser-storage access outside application composition entries, scattered `orchbee:` literals, keys that do not match the versioned grammar, and storage deserialization that does not pass `JSON.parse(...)` directly to Zod.
 - Owner-module unit tests cover the canonical key, valid round trips, malformed input, range validation, unavailable storage, and write failures.
 - Integration tests verify capability injection, default restoration, and that writes occur only after a completed user interaction.
 - Update the owning package documentation whenever a public preference, default, constraint, key version, or migration behavior changes.

@@ -317,7 +317,7 @@ describe('design-token inventory', () => {
 	--ob-sys-color-text-primary: var(--ob-ref-color-neutral-950);
 	--ob-ref-color-neutral-950: oklch(0.145 0 0);
 }
-.dark {
+[data-theme='dark'] {
 	--ob-sys-color-text-primary: var(--ob-ref-color-neutral-50);
 }`),
 		).toEqual(['--ob-ref-color-neutral-950', '--ob-sys-color-text-primary']);
@@ -503,13 +503,26 @@ describe('shadcn token compatibility', () => {
 			'Shadcn semantic aliases must map "--background" to "var(--ob-sys-color-surface-canvas)".',
 		);
 
-		const overrideSource = `${compatibilitySource}\n.dark { --background: oklch(1 0 0); }`;
+		const overrideSource = `${compatibilitySource}\n[data-theme='dark'] { --background: oklch(1 0 0); }`;
 		expect(
 			validateShadcnCompatibilitySource({ ...validationInput, source: overrideSource }).map(
 				({ message }) => message,
 			),
 		).toContain(
 			'Shadcn semantic alias "--background" may only be declared in the shared mapping rule.',
+		);
+
+		const legacyDarkVariantSource = compatibilitySource.replace(
+			"@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));",
+			'@custom-variant dark (&:is(.dark *));',
+		);
+		expect(
+			validateShadcnCompatibilitySource({
+				...validationInput,
+				source: legacyDarkVariantSource,
+			}).map(({ message }) => message),
+		).toContain(
+			"Shadcn dark variants must use \"dark (&:where([data-theme='dark'], [data-theme='dark'] *))\".",
 		);
 
 		const extraThemeSource = `${compatibilitySource}\n@theme { --color-background: oklch(1 0 0); }`;

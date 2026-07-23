@@ -37,17 +37,17 @@ CSS 语法不是设计决策。`grid`、`auto`、`hidden`、`currentColor` 和 `
 
 ## 主题契约
 
-`:root` 定义浅色系统 Token 映射。`.dark` 祖先只覆盖系统颜色；参考 Token 保持稳定。因此组件无需 selector 或修改组件 CSS 中的值即可切换主题。
+`:root` 提供浅色系统颜色的回退映射。`[data-theme='light']` 在显式浅色边界重新应用该映射，`[data-theme='dark']` 应用深色映射。主题边界只覆盖系统颜色和 `color-scheme`；参考 Token 和组件 Token 保持稳定。继承的自定义属性把所选映射限定在该边界的子树中，因此组件 CSS 绝不根据当前主题分支。
 
-初始注册表支持一套浅色和一套深色语义映射。只有当具体产品使用方需要时才添加其他主题，并覆盖系统 Token，而不是参考或组件 Token。主题 selector 属于应用组合边界；叶组件不得设置 `.dark`。
+初始注册表只接受 `light` 和 `dark`。应用组合边界拥有文档的主题属性。只有当一个具名区域的完整子树有意使用另一套主题时，该区域的所有者才可以在包装元素上设置 `data-theme`；叶组件绝不能为局部样式设置它。只有当具体产品使用方需要时才添加其他主题，并覆盖系统 Token，而不是参考或组件 Token。
 
-`packages/ui/src/styles.css` 在 `:root` 和 `.dark` 边界都把 shadcn 生成的 `--background`、`--primary` 和 `--ring` 等变量映射到 Orchbee 系统 Token。在每个主题边界重新声明 alias，会让它们间接引用的 `var(--ob-sys-*)` 按该边界的系统 Token 值计算。这些无前缀变量是检入的 shadcn 源码使用的兼容性 API，不是自有组件的另一套 Token 词汇。
+`packages/ui/src/styles.css` 在 `:root` 和两个显式主题边界都把 shadcn 生成的 `--background`、`--primary` 和 `--ring` 等变量映射到 Orchbee 系统 Token。在每个边界重新声明 alias，会让它们间接引用的 `var(--ob-sys-*)` 按该边界的系统 Token 值计算。它的 Tailwind `dark` variant 以 `[data-theme='dark']` 为目标；`.dark` 不是受支持的主题 API。这些无前缀变量是检入的 shadcn 源码使用的兼容性 API，不是自有组件的另一套 Token 词汇。
 
 ## 运行时注册表和 Tailwind 主题变量
 
 Orchbee 注册表在 `:root` 下使用标准自定义属性，因为它是与框架无关的运行时 API。标准自定义属性可以由主题 selector、媒体查询、应用宿主和非 Tailwind 使用方覆盖，而不会创建任何 CSS class。
 
-Tailwind 的 `@theme` 指令职责不同：顶层主题变量声明指示 Tailwind 创建匹配的 utility 或 variant。不要通过 `@theme` 发布 `--ob-*`；这样做会公开第二套 utility class 编写 API，绕过 CSS Modules 和语义使用规则，并阻止 `.dark` 等限定 selector 作用域的系统映射。
+Tailwind 的 `@theme` 指令职责不同：顶层主题变量声明指示 Tailwind 创建匹配的 utility 或 variant。不要通过 `@theme` 发布 `--ob-*`；这样做会公开第二套 utility class 编写 API，绕过 CSS Modules 和语义使用规则，并阻止 `[data-theme='dark']` 等限定 selector 作用域的系统映射。
 
 只在已检查的 Tailwind 兼容边界内使用 `@theme inline`：
 
@@ -72,7 +72,7 @@ Tailwind 的 `@theme` 指令职责不同：顶层主题变量声明指示 Tailwi
 | 排版 | body sm/md/lg、label sm/md/lg、heading sm/md/lg/xl 和 code sm/md                                                                                         |
 | 其他 | 链接装饰 rest/hover/focus、语义动效 duration/easing、焦点环几何、disabled/muted opacity 和 raised/overlay shadow                                         |
 
-每个 `--ob-sys-color-*` Token 在 `:root` 中都有显式浅色映射，在 `.dark` 中都有深色映射；包测试强制两份清单相同。状态和排版矩阵也经过回归测试，因此删除某个状态不会留下表面有效但不完整的注册表。
+每个 `--ob-sys-color-*` Token 都有显式的 `[data-theme='light']` 和 `[data-theme='dark']` 映射；`:root` 共享浅色映射作为回退。包测试强制两份清单相同，并确保主题作用域不包含参考 Token 或组件 Token。状态和排版矩阵也经过回归测试，因此删除某个状态不会留下表面有效但不完整的注册表。
 
 通过 `font` 简写使用排版角色，使字体系列、字号、字重和行高保持为一个决策：
 
@@ -115,43 +115,13 @@ Tailwind 的 `@theme` 指令职责不同：顶层主题变量声明指示 Tailwi
 
 同一限制适用于间距、圆角、排版参考、控件尺寸和图标尺寸 Token。注册表中存在某个值，只证明它可枚举，并不使其成为已批准的产品选择。自有子集及其场景规则位于 [`visual-foundations.md`](visual-foundations.md)。
 
-## 自有组件样式
+## 自有组件使用
 
-Orchbee 自有组件样式使用 CSS Modules，并从 JSX 引用模块：
-
-```tsx
-import styles from './FilterPanel.module.css';
-
-export function FilterPanel() {
-	return <section className={styles.root}>...</section>;
-}
-```
-
-```css
-.root {
-	display: grid;
-	gap: var(--ob-ref-space-4);
-	padding: var(--ob-ref-space-6);
-	color: var(--ob-sys-color-text-primary);
-	background: var(--ob-sys-color-surface-raised);
-	font: var(--ob-sys-typography-body-sm);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
-	border-radius: var(--ob-ref-radius-ui-md);
-}
-```
-
-在 shadcn 兼容边界之外禁止以下内容：
-
-- Tailwind 导入、指令、utility 字符串和 `tailwind-merge`。
-- 字面量或模板字符串 `className` 值；使用 CSS Module 引用和不含字符串的条件 class 辅助函数。
-- 自有组件将 `className` prop 作为通用样式绕过入口公开。
-- JSX 属性展开，但内联对象字面量除外；该对象必须具有静态命名的属性，并已证明不包含样式绕过入口。其他 props 应显式传递。
-- Token 注册表已覆盖的原始视觉 CSS 值。
-- 未在 `--ob-*` 词汇下注册的自定义属性。
-- 已注册 Token 的 `var()` 回退值；注册表是完整的，回退会隐藏被破坏的契约。
-- 内联标准 CSS 属性。
-
-内联 style 对象只能包含已注册的 `--ob-comp-*` key。该例外用于携带测量值或用户控制几何值等运行时数据；它不允许任意视觉选择。
+- CSS Module、`className`、Tailwind、JSX 展开、内联 style 和生成源码边界遵循 [`styling.md`](styling.md)。
+- 颜色使用 `--ob-sys-color-*`，完整排版角色使用 `--ob-sys-typography-*`。
+- 只使用 [`visual-foundations.md`](visual-foundations.md) 批准的非颜色参考 Token 子集。
+- 已注册 `--ob-comp-*` 属性只用于公共定制或运行时几何。
+- 绝不使用未注册自定义属性或已注册 Token 的回退值。
 
 ## 响应式阈值
 

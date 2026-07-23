@@ -12,6 +12,8 @@ describe('workbench layout storage', () => {
 		for (const [storedValue, expectedWidth] of [
 			[null, DEFAULT_LEFT_PANEL_WIDTH],
 			['not-json', DEFAULT_LEFT_PANEL_WIDTH],
+			['318', DEFAULT_LEFT_PANEL_WIDTH],
+			['null', DEFAULT_LEFT_PANEL_WIDTH],
 			['{"width":199}', DEFAULT_LEFT_PANEL_WIDTH],
 			['{"width":401}', DEFAULT_LEFT_PANEL_WIDTH],
 			['{"width":250,"extra":true}', DEFAULT_LEFT_PANEL_WIDTH],

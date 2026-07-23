@@ -248,21 +248,3 @@ Do not shrink typography, remove required context, or truncate actions and instr
 translation fit. Truncation is reserved for data such as a user-provided item name and must
 preserve access to the full value. Keep text out of images and verify line breaking, keyboard
 focus, zoom, and narrow layouts in both shipped locales.
-
-## Review checklist
-
-Before accepting an authored interface change, verify all of the following:
-
-1. Every text element has one semantic typography role and one semantic text/status role.
-2. Primary, secondary, and tertiary text reflect information priority rather than arbitrary
-   contrast preference.
-3. Every gap, margin, and padding value belongs to the spacing scale and represents the stated
-   relationship.
-4. Every radius belongs to the approved product subset and matches the component category.
-5. Controls and icons use component size variants rather than local dimensions.
-6. Borders, actions, statuses, and surfaces use semantic variables instead of reference colors.
-7. Repeated components use identical values, including across empty, hover, selected, focus, and
-   disabled states.
-8. Every shipped locale preserves required copy, interaction, and layout without reduced
-   typography.
-9. `pnpm lint:styles` and the repository `pnpm verify` gate pass.
