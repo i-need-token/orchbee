@@ -406,6 +406,7 @@ describe('TabStrip', () => {
 	it('runs group membership commands from the tab context menu', () => {
 		const model = createModel();
 		render(<TabStrip model={model} />);
+		fireEvent.click(screen.getByRole('tab', { name: /^Loose/ }));
 		const openLooseMenu = () =>
 			fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
 				clientX: 50,
@@ -414,11 +415,65 @@ describe('TabStrip', () => {
 
 		openLooseMenu();
 		fireEvent.click(screen.getByRole('menuitem', { name: 'Add tab to group' }));
-		fireEvent.click(screen.getByRole('menuitem', { name: 'New group' }));
+		const newGroup = screen.getByRole('menuitem', { name: 'New group' });
+		fireEvent.pointerDown(newGroup);
+		expect(screen.getByRole('menuitem', { name: 'New group' })).toBeTruthy();
+		fireEvent.click(newGroup);
 		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'loose')?.group).not.toBeNull();
+		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
+			'pinned',
+			'research-a',
+			'research-b',
+			'loose',
+		]);
+		const groupedLoose = screen.getByRole('tab', { name: /^Loose/ });
+		expect(groupedLoose.getAttribute('data-grouped')).toBe('true');
+		expect(groupedLoose.querySelector('[style*="--ob-comp-tab-strip-runtime-stroke"]')).toBeNull();
 		openLooseMenu();
 		fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from group' }));
 		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'loose')?.group).toBeNull();
+		expect(document.querySelector('[data-group-underline-id="group-1"]')).toBeNull();
+		expect(
+			screen
+				.getByRole('tab', { name: /^Loose/ })
+				.querySelector('[style*="--ob-comp-tab-strip-runtime-stroke"]'),
+		).toBeNull();
+	});
+
+	it('keeps group-name editing isolated from menu navigation and clears group visuals on ungroup', () => {
+		const model = createModel();
+		render(<TabStrip model={model} />);
+		const groupHeader = screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ });
+		fireEvent.contextMenu(groupHeader, { clientX: 80, clientY: 20 });
+		const input = screen.getByRole('textbox', { name: 'Group name' });
+		const outerKeyDown = vi.fn<() => void>();
+		document.addEventListener('keydown', outerKeyDown);
+
+		fireEvent.keyDown(input, { key: 'Process', isComposing: true });
+		fireEvent.change(input, { target: { value: 'Working' } });
+		document.removeEventListener('keydown', outerKeyDown);
+
+		expect(outerKeyDown).not.toHaveBeenCalled();
+		expect(model.getGroup('research')?.title).toBe('Working');
+		fireEvent.click(screen.getByRole('radio', { name: /^blue$/i }));
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Ungroup' }));
+
+		expect(model.getGroup('research')).toBeNull();
+		expect(document.querySelector('[data-group-underline-id="research"]')).toBeNull();
+		expect(
+			document.querySelector('[data-tab-strip-group-header][data-group-id="research"]'),
+		).toBeNull();
+		expect(
+			screen
+				.getByRole('tab', { name: /^Research A/ })
+				.querySelector('[style*="--ob-comp-tab-strip-runtime-stroke"]'),
+		).toBeNull();
+		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
+			'pinned',
+			'research-a',
+			'research-b',
+			'loose',
+		]);
 	});
 
 	it('uses the shared context-menu keyboard navigation for the tab group submenu', () => {

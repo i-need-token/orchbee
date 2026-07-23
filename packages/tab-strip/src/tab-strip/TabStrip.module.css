@@ -37,10 +37,6 @@
 .ct-drag-ghost [style*='--ob-comp-tab-strip-runtime-transform'] {
 	transform: var(--ob-comp-tab-strip-runtime-transform);
 }
-.ct-tab-strip [style*='--ob-comp-tab-strip-runtime-stroke'],
-.ct-drag-ghost [style*='--ob-comp-tab-strip-runtime-stroke'] {
-	stroke: var(--ob-comp-tab-strip-runtime-stroke);
-}
 .ct-tab-strip [style*='--ob-comp-tab-strip-corner-top-left'] {
 	border-top-left-radius: var(--ob-comp-tab-strip-corner-top-left);
 }
@@ -56,6 +52,7 @@
 
 .ct-tab-strip {
 	position: relative;
+	isolation: isolate;
 	color: var(--ob-sys-color-text-primary);
 	background: var(--ob-sys-color-surface-subtle);
 	font: var(--ob-sys-typography-body-sm);
@@ -138,11 +135,6 @@
 	transition:
 		fill var(--ob-sys-motion-duration-tab-strip-layout) var(--ob-sys-motion-easing-exit),
 		opacity var(--ob-sys-motion-duration-tab-strip-layout) var(--ob-sys-motion-easing-exit);
-}
-.ct-tab__background-stroke {
-	fill: none;
-	stroke-width: var(--ob-comp-tab-strip-length-2);
-	vector-effect: non-scaling-stroke;
 }
 .ct-tab__separator {
 	position: absolute;
@@ -525,6 +517,10 @@
 	stroke-width: var(--ob-comp-tab-strip-length-2);
 	vector-effect: non-scaling-stroke;
 }
+.ct-tab[data-orientation='horizontal'][data-active][data-grouped]:focus-visible
+	.ct-tab__background-fill {
+	stroke: none;
+}
 .ct-tab[data-orientation='horizontal'][data-pinned] .ct-tab__close {
 	display: none;
 }
@@ -554,7 +550,7 @@
 
 .ct-group-underline {
 	position: absolute;
-	bottom: var(--ob-comp-tab-strip-length-1);
+	top: var(--ob-comp-tab-strip-length-1);
 	height: var(--ob-comp-tab-strip-length-2);
 	border-radius: var(--ob-comp-tab-strip-length-2);
 	background: var(--ob-comp-tab-strip-group-color);
@@ -833,7 +829,7 @@
 .ct-drag-ghost__underline {
 	position: absolute;
 	z-index: var(--ob-comp-tab-strip-layer-3);
-	bottom: var(--ob-comp-tab-strip-length-1);
+	top: var(--ob-comp-tab-strip-length-1);
 	height: var(--ob-comp-tab-strip-length-2);
 	border-radius: var(--ob-comp-tab-strip-length-2);
 	background: var(--ob-comp-tab-strip-group-color);

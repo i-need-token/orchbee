@@ -10,10 +10,6 @@
 	composes: ct-tab__background-fill from '../../TabStrip.module.css';
 }
 
-.ct-tab__background-stroke {
-	composes: ct-tab__background-stroke from '../../TabStrip.module.css';
-}
-
 .ct-tab__content {
 	composes: ct-tab__content from '../../TabStrip.module.css';
 }

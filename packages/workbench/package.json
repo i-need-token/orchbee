@@ -37,6 +37,7 @@
 	},
 	"dependencies": {
 		"@orchbee/i18n": "workspace:^",
+		"@orchbee/tab-strip": "workspace:^",
 		"@orchbee/ui": "workspace:^"
 	},
 	"devDependencies": {

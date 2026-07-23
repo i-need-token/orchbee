@@ -183,6 +183,9 @@ importers:
       '@orchbee/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
+      '@orchbee/tab-strip':
+        specifier: workspace:^
+        version: link:../../packages/tab-strip
       '@orchbee/ui':
         specifier: workspace:^
         version: link:../../packages/ui
@@ -427,6 +430,9 @@ importers:
       '@orchbee/i18n':
         specifier: workspace:^
         version: link:../i18n
+      '@orchbee/tab-strip':
+        specifier: workspace:^
+        version: link:../tab-strip
       '@orchbee/ui':
         specifier: workspace:^
         version: link:../ui

@@ -53,5 +53,12 @@
 }
 
 .rightPanel {
+	display: flex;
+	flex-direction: column;
 	background: var(--ob-sys-color-surface-raised);
+}
+
+.tabContent {
+	min-height: 0;
+	flex: 1;
 }

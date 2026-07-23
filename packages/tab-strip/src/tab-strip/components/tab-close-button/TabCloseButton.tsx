@@ -3,6 +3,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import { TabStripIcon } from '../tab-strip-icon/TabStripIcon';
 
 import { useTabCloseButton } from './hooks/useTabCloseButton';
+import { useTabStripMessages } from '../../messages';
 
 export interface TabCloseButtonProps {
 	tabTitle: string;
@@ -11,12 +12,13 @@ export interface TabCloseButtonProps {
 }
 
 export function TabCloseButton(props: TabCloseButtonProps): ReactNode {
+	const messages = useTabStripMessages();
 	const view = useTabCloseButton(props);
 	return (
 		<button
 			type='button'
 			className={styles['ct-tab__close']}
-			aria-label='Close'
+			aria-label={messages.closeTab}
 			tabIndex={-1}
 			onPointerDown={view.onPointerDown}
 			onClick={view.onClick}

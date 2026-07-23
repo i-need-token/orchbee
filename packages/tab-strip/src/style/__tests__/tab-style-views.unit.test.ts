@@ -12,23 +12,23 @@ import {
 
 describe('TabStyleViews horizontal geometry', () => {
 	it('ports the content insets from TabStyle and the toolbar overlap', () => {
-		expect(TAB_CONTENT_HORIZONTAL_INSET).toBe(20);
+		expect(TAB_CONTENT_HORIZONTAL_INSET).toBe(18);
 		expect(TAB_CONTENT_TOP_INSET).toBe(12);
 		expect(TAB_CONTENT_BOTTOM_INSET).toBe(13);
 	});
 
 	it('shrinks the top corner radius on narrow tabs', () => {
-		expect(getHorizontalTabTopCornerRadius(256)).toBe(10);
-		expect(getHorizontalTabTopCornerRadius(32)).toBe(4);
-		expect(getHorizontalTabTopCornerRadius(18)).toBe(0);
+		expect(getHorizontalTabTopCornerRadius(256)).toBe(8);
+		expect(getHorizontalTabTopCornerRadius(32)).toBeCloseTo(16 / 3);
+		expect(getHorizontalTabTopCornerRadius(16)).toBe(0);
 	});
 
 	it('uses a detached highlight and a toolbar-connected active path', () => {
 		const highlight = getHorizontalTabPath({ width: 100, pathType: 'highlight' });
 		const active = getHorizontalTabPath({ width: 100, pathType: 'active' });
-		expect(highlight).toContain('M 22 6');
-		expect(highlight).toContain('L 88 24');
-		expect(highlight).toContain('78 34');
+		expect(highlight).toContain('M 18 6');
+		expect(highlight).toContain('L 90 26');
+		expect(highlight).toContain('82 34');
 		expect(active).toContain('M 0 41');
 		expect(active).toContain('L 100 41');
 	});
@@ -40,10 +40,10 @@ describe('TabStyleViews horizontal geometry', () => {
 			strokeThickness: 2,
 		});
 		expect(active).toContain('L 2 39');
-		expect(active).toContain('L 13 16');
-		expect(active).toContain('A 9 9');
-		expect(active).toContain('L 78 7');
-		expect(active).toContain('L 87 28');
+		expect(active).toContain('L 11 14');
+		expect(active).toContain('A 7 7');
+		expect(active).toContain('L 82 7');
+		expect(active).toContain('L 89 30');
 	});
 
 	it('extends a condensed-frame hit target to the top with square corners', () => {
@@ -53,25 +53,25 @@ describe('TabStyleViews horizontal geometry', () => {
 			pathType: 'hit-test',
 			frameCondensed: true,
 		});
-		expect(normal).toContain('M 19 6');
-		expect(condensed).toContain('M 9 0');
-		expect(condensed).toContain('L 91 0');
-		expect(condensed).toContain('L 91 41');
+		expect(normal).toContain('M 15 6');
+		expect(condensed).toContain('M 7 0');
+		expect(condensed).toContain('L 93 0');
+		expect(condensed).toContain('L 93 41');
 	});
 
 	it('uses the hit-test squarcle instead of the rectangular tab bounds', () => {
-		expect(isPointInHorizontalTabHitTest({ width: 100, x: 9, y: 6 })).toBe(false);
-		expect(isPointInHorizontalTabHitTest({ width: 100, x: 22, y: 6 })).toBe(true);
-		expect(isPointInHorizontalTabHitTest({ width: 100, x: 9, y: 40 })).toBe(true);
-		expect(isPointInHorizontalTabHitTest({ width: 100, x: 9, y: 0, frameCondensed: true })).toBe(
+		expect(isPointInHorizontalTabHitTest({ width: 100, x: 7, y: 6 })).toBe(false);
+		expect(isPointInHorizontalTabHitTest({ width: 100, x: 18, y: 6 })).toBe(true);
+		expect(isPointInHorizontalTabHitTest({ width: 100, x: 7, y: 40 })).toBe(true);
+		expect(isPointInHorizontalTabHitTest({ width: 100, x: 7, y: 0, frameCondensed: true })).toBe(
 			true,
 		);
 	});
 
 	it('ports the 2 by 16 separator geometry', () => {
 		expect(getHorizontalTabSeparatorBounds(100)).toEqual({
-			leading: { x: 8, y: 12, width: 2, height: 16 },
-			trailing: { x: 90, y: 12, width: 2, height: 16 },
+			leading: { x: 6, y: 12, width: 2, height: 16 },
+			trailing: { x: 92, y: 12, width: 2, height: 16 },
 		});
 	});
 });

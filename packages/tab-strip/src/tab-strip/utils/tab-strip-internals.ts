@@ -22,6 +22,7 @@ import { DEFAULT_TAB_STYLE_METRICS, LAYOUT_CONSTANTS } from '../../style';
 import { calculateHorizontalTabGroupHeaderLayout } from '../../groups';
 import type { VerticalTabStripExpandOnHoverController } from '../../vertical';
 import { type TabStripComboButtonController } from '../../shared';
+import type { TabStripMessages } from '../messages';
 
 export const TAB_SIZE: Readonly<TabSizeInfo> = {
 	pinnedTabWidth: 64,
@@ -569,10 +570,10 @@ export function nextAvailableEntityId(prefix: string, existingIds: ReadonlySet<s
 	return `${prefix}-${sequence}`;
 }
 
-export function createNewTabGroup(model: TabModel): void {
+export function createNewTabGroup(model: TabModel, newTabTitle = 'New Tab'): void {
 	const snapshot = model.getSnapshot();
 	const groupId = nextAvailableEntityId('group', new Set(snapshot.groups.map((group) => group.id)));
-	const tabId = model.addTab({ title: 'New Tab', pinned: false, group: null });
+	const tabId = model.addTab({ title: newTabTitle, pinned: false, group: null });
 	model.createGroup({ id: groupId, title: '', color: 'grey', collapsed: false }, [tabId]);
 }
 
@@ -587,6 +588,7 @@ export function createGroupForTabs(model: TabModel, tabIds: readonly string[]): 
 
 export interface TabStripProps {
 	model: TabModel;
+	messages?: TabStripMessages;
 	orientation?: TabStripOrientation;
 	verticalCollapsed?: boolean;
 	verticalExpandOnHover?: boolean;
@@ -633,7 +635,7 @@ export interface TabStripProps {
 	/** Mirrors features::kTabGroupsFocusing in the editor bubble. */
 	enableTabGroupFocusing?: boolean;
 	ariaLabel?: string;
-	onNewTab?: () => void;
+	onNewTab?: (() => void) | undefined;
 	onNewTabButtonPressed?: () => void;
 }
 

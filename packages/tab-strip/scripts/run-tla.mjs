@@ -53,10 +53,9 @@ async function provisionJar() {
 	await rename(temporaryPath, jarPath);
 }
 
-async function runTlc() {
-	await provisionJar();
-	const modelPath = path.join(repositoryRoot, 'formal', 'tla', 'HorizontalGroupDrag.tla');
-	const configPath = path.join(repositoryRoot, 'formal', 'tla', 'HorizontalGroupDrag.cfg');
+async function runTlc(modelName) {
+	const modelPath = path.join(repositoryRoot, 'formal', 'tla', `${modelName}.tla`);
+	const configPath = path.join(repositoryRoot, 'formal', 'tla', `${modelName}.cfg`);
 	const child = spawn(
 		'java',
 		[
@@ -90,4 +89,6 @@ async function runTlc() {
 	});
 }
 
-await runTlc();
+await provisionJar();
+await runTlc('HorizontalGroupDrag');
+await runTlc('TabGrouping');

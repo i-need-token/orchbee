@@ -4,6 +4,7 @@ import type { VerticalTabStripCollapseState } from '../../../common';
 import { getVerticalBottomContainerPresentation } from '../../../vertical';
 import { TabStripIcon } from '../tab-strip-icon/TabStripIcon';
 import { FlatEdgeButton } from '../flat-edge-button/FlatEdgeButton';
+import { useTabStripMessages } from '../../messages';
 
 export interface VerticalTabStripBottomContainerProps {
 	collapseState: VerticalTabStripCollapseState;
@@ -16,6 +17,7 @@ export function VerticalTabStripBottomContainer({
 	onNewTab,
 	onContextMenu,
 }: VerticalTabStripBottomContainerProps): ReactNode {
+	const messages = useTabStripMessages();
 	const presentation = getVerticalBottomContainerPresentation(collapseState);
 	return (
 		<div
@@ -36,9 +38,9 @@ export function VerticalTabStripBottomContainer({
 			<FlatEdgeButton
 				variantClass='ct-vertical-new-tab'
 				type='button'
-				aria-label='New tab'
+				aria-label={messages.newTab}
 				icon={<TabStripIcon name='plus' />}
-				label='New tab'
+				label={messages.newTab}
 				expansionOrientation={presentation.orientation}
 				onClick={onNewTab}
 				onContextMenu={onContextMenu}

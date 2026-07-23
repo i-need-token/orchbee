@@ -13,13 +13,13 @@ import {
 	getTabGroupTitleVisualCenteringOffset,
 } from '../../../groups';
 import { TabStripIcon } from '../tab-strip-icon/TabStripIcon';
-import { getGroupAccessibleName, getGroupTooltipText } from '../../../accessibility';
 import {
 	GROUP_COLORS,
 	getMaxContrastForeground,
 	measuredGroupTitleWidth,
 } from '../../utils/tab-strip-internals';
 import { useGroupHeader } from './hooks/useGroupHeader';
+import { useTabStripMessages } from '../../messages';
 
 export function GroupHeader({
 	group,
@@ -52,6 +52,7 @@ export function GroupHeader({
 	showHoverCard: boolean;
 	frameCondensed?: boolean;
 }): ReactNode {
+	const messages = useTabStripMessages();
 	const { editorOpenedOnPress, headerRef, lastPointerType, measuredHeaderSize } = useGroupHeader();
 	const applyMacEmojiCentering =
 		orientation === TabStripOrientation.Horizontal &&
@@ -89,8 +90,8 @@ export function GroupHeader({
 			}
 			data-strip-collapsed={collapsedStrip || undefined}
 			aria-expanded={!group.collapsed}
-			aria-label={getGroupAccessibleName(group, tabs)}
-			title={showHoverCard ? '' : getGroupTooltipText(group, tabs)}
+			aria-label={messages.formatGroupAccessibleName(group, tabs)}
+			title={showHoverCard ? '' : messages.formatGroupTooltip(group, tabs)}
 			style={
 				{
 					'--ob-comp-tab-strip-group-color': groupColor,
@@ -174,7 +175,7 @@ export function GroupHeader({
 						<button
 							type='button'
 							className={styles['ct-group-header__editor']}
-							aria-label='More options'
+							aria-label={messages.moreOptions}
 							tabIndex={-1}
 							onPointerDown={(event) => {
 								if (event.button !== 0) return;

@@ -18,7 +18,7 @@ still lives in the renderer will be separated in a later phase.
 
 ```ts
 import { TabModel, TabStripOrientation } from '@orchbee/tab-strip';
-import { TabStrip } from '@orchbee/tab-strip/react';
+import { TabStrip, type TabStripMessages } from '@orchbee/tab-strip/react';
 import '@orchbee/ui/styles.css';
 import '@orchbee/tab-strip/styles.css';
 ```
@@ -28,6 +28,11 @@ import '@orchbee/tab-strip/styles.css';
 - `@orchbee/ui/styles.css` provides the shared primitive styles and design-token registry used by
   the context menu.
 - `@orchbee/tab-strip/styles.css` provides the component's CSS Module output for built consumers.
+
+Product hosts may provide the complete `TabStripMessages` contract to localize visible controls,
+menus, accessibility names, and live-region announcements. The built-in English messages remain a
+reference fallback for package tests and non-product fixtures; Orchbee product surfaces supply the
+contract from `@orchbee/i18n`.
 
 The package API intentionally uses domain names and has no browser-vendor subpath. Browser and DOM
 host adapters used by the migrated React renderer remain private. Upstream source attribution and

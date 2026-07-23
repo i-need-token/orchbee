@@ -1,4 +1,5 @@
 import '@orchbee/ui/styles.css';
+import '@orchbee/tab-strip/styles.css';
 import '@orchbee/workbench/styles.css';
 
 import { resolveShortcutPlatform } from './resolveShortcutPlatform';

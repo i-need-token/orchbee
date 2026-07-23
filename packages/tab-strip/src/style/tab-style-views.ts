@@ -1,7 +1,7 @@
 import { LAYOUT_CONSTANTS } from './layout-constants';
 
-export const TAB_TOP_CORNER_RADIUS = 10;
-export const TAB_BOTTOM_CORNER_RADIUS = 12;
+export const TAB_TOP_CORNER_RADIUS = 8;
+export const TAB_BOTTOM_CORNER_RADIUS = 10;
 export const TAB_SEPARATOR_WIDTH = 2;
 export const TAB_SEPARATOR_HEIGHT = 16;
 export const TAB_SEPARATOR_HORIZONTAL_MARGIN = 2;

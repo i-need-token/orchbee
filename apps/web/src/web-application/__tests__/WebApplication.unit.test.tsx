@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { WebApplication } from '../WebApplication';
 
 describe('WebApplication', () => {
-	it('renders the empty Workbench panels', () => {
+	it('renders the Workbench with the initial terminal tabs', () => {
 		const markup = renderToStaticMarkup(
 			createElement(WebApplication, {
 				layoutStorage: {
@@ -20,7 +20,9 @@ describe('WebApplication', () => {
 		expect(markup).toContain('data-slot="workbench-left-panel"');
 		expect(markup).toContain('data-slot="workbench-right-panel"');
 		expect(markup).toContain('flex-basis:320px');
-		expect(markup).not.toContain('role="tablist"');
+		expect(markup).toContain('role="tablist"');
+		expect(markup).toContain('Terminal 1');
+		expect(markup).toContain('Terminal 4');
 		expect(markup).not.toContain('Local shell');
 		expect(markup).not.toContain('本地 Shell');
 	});

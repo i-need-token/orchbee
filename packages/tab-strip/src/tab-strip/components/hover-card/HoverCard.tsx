@@ -14,6 +14,7 @@ import { type TabModelSnapshot } from '../../../model';
 import { TabAlertIndicatorGlyph } from '../tab-alert-indicator-glyph/TabAlertIndicatorGlyph';
 import { joinClassNames, type HoverState } from '../../utils/tab-strip-internals';
 import { ThumbnailVisualView } from '../thumbnail-visual-view/ThumbnailVisualView';
+import { useTabStripMessages } from '../../messages';
 
 export function HoverCard({
 	hover,
@@ -30,6 +31,7 @@ export function HoverCard({
 	transitioning: boolean;
 	thumbnailSnapshot: Readonly<HoverCardThumbnailSnapshot<string>>;
 }): ReactNode {
+	const messages = useTabStripMessages();
 	if (hover.kind === 'group') {
 		const group = snapshot.groups.find((candidate) => candidate.id === hover.id);
 		if (!group) return null;
@@ -75,7 +77,7 @@ export function HoverCard({
 		showPreviews &&
 		tab.id !== snapshot.activeTabId &&
 		(runtimePreview ? showRuntimePreview : !tab.discarded || Boolean(tab.thumbnailUrl));
-	const title = tab.title || 'New Tab';
+	const title = tab.title || messages.newTabTitle;
 	const titleData = getHoverCardTitleData(title, tab.url);
 	const displayTitle = titleData.isFilename
 		? elideFilenameWithLineLengths(title, {
@@ -85,7 +87,7 @@ export function HoverCard({
 		: title;
 	const domain = formatHoverCardDomain(tab.url ?? '', tab.shouldDisplayUrl !== false);
 	const footerRows = getHoverCardFooterRows(tab, { showMemoryUsage });
-	let previewContent: ReactNode = <span>Preview unavailable</span>;
+	let previewContent: ReactNode = <span>{messages.previewUnavailable}</span>;
 	if (runtimePreview) {
 		previewContent = (
 			<>
@@ -99,7 +101,7 @@ export function HoverCard({
 				) : null}
 			</>
 		);
-	} else if (tab.crashed) previewContent = <span>This tab has crashed</span>;
+	} else if (tab.crashed) previewContent = <span>{messages.tabCrashed}</span>;
 	else if (tab.thumbnailUrl) previewContent = <img src={tab.thumbnailUrl} alt='' />;
 	return createPortal(
 		<div

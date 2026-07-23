@@ -234,6 +234,68 @@ describe('TabStripCollectionController keyboard movement ports', () => {
 	});
 });
 describe('groups and collapsing', () => {
+	it('preserves tab identity order when creating a group around any contiguous tab block', () => {
+		const originalOrder = ['a', 'b', 'c', 'd'];
+		const contiguousSelections = [
+			['a'],
+			['b'],
+			['c'],
+			['d'],
+			['a', 'b'],
+			['b', 'c'],
+			['c', 'd'],
+			['a', 'b', 'c'],
+			['b', 'c', 'd'],
+			originalOrder,
+		];
+
+		contiguousSelections.forEach((selection) => {
+			const model = new TabModel({
+				tabs: originalOrder.map((id) => makeTab(id)),
+				activeTabId: requireDefined(selection[0]),
+			});
+			model.createGroup(requireDefined(groups[0]), selection);
+
+			expect(ids(model)).toEqual(originalOrder);
+			expect(
+				model
+					.getSnapshot()
+					.tabs.filter((tab) => selection.includes(tab.id))
+					.map((tab) => tab.group),
+			).toEqual(selection.map(() => 'work'));
+		});
+	});
+	it('preserves tab identity order when removing every member of a group', () => {
+		const originalOrder = ['before', 'grouped-a', 'grouped-b', 'after'];
+		const model = new TabModel({
+			tabs: [
+				makeTab('before'),
+				makeTab('grouped-a', false, 'work'),
+				makeTab('grouped-b', false, 'work'),
+				makeTab('after'),
+			],
+			groups: [requireDefined(groups[0])],
+		});
+
+		model.moveTabsToGroup(['grouped-a', 'grouped-b'], null);
+
+		expect(ids(model)).toEqual(originalOrder);
+		expect(groupIds(model)).toEqual([null, null, null, null]);
+		expect(model.getGroup('work')).toBeNull();
+	});
+	it('preserves a single-member group position when removing its tab', () => {
+		const model = new TabModel({
+			tabs: [makeTab('before'), makeTab('grouped', false, 'work'), makeTab('after')],
+			groups: [requireDefined(groups[0])],
+		});
+
+		model.moveTabsToGroup(['grouped'], null);
+
+		expect(ids(model)).toEqual(['before', 'grouped', 'after']);
+		expect(groupIds(model)).toEqual([null, null, null]);
+		expect(model.getGroup('work')).toBeNull();
+	});
+
 	it('rejects empty groups but unpins tabs when grouping them', () => {
 		const model = new TabModel({
 			tabs: [makeTab('pinned', true), makeTab('loose')],

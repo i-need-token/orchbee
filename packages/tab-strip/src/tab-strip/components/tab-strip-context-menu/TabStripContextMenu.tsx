@@ -21,6 +21,7 @@ import {
 	type MenuState,
 } from '../../utils/tab-strip-internals';
 import { GroupEditorMenuIcon } from '../group-editor-menu-icon/GroupEditorMenuIcon';
+import { useTabStripMessages } from '../../messages';
 
 interface TabStripContextMenuProps {
 	state: MenuState;
@@ -53,6 +54,7 @@ export function TabStripContextMenu({
 	enableTabGroupFocusing,
 	onClose,
 }: TabStripContextMenuProps): ReactNode {
+	const messages = useTabStripMessages();
 	const run = (action: () => void) => () => {
 		action();
 		onClose();
@@ -61,14 +63,13 @@ export function TabStripContextMenu({
 	if (state.kind === 'combo-end') {
 		const combo = comboButtonController.getSnapshot();
 		const pinned = combo.tabSearchPinned;
-		const noun = 'Search tabs';
 		return (
-			<ContextMenuContent aria-label={`${noun} menu`}>
+			<ContextMenuContent aria-label={messages.searchTabsMenu}>
 				<ContextMenuCheckboxItem
 					checked={pinned}
 					onClick={run(() => comboButtonController.executeTogglePinned('tab-search'))}
 				>
-					{pinned ? `Unpin ${noun}` : `Pin ${noun}`}
+					{pinned ? messages.unpinSearchTabs : messages.pinSearchTabs}
 				</ContextMenuCheckboxItem>
 			</ContextMenuContent>
 		);
@@ -76,12 +77,12 @@ export function TabStripContextMenu({
 
 	if (state.kind === 'collapse') {
 		return (
-			<ContextMenuContent aria-label='Vertical tab strip menu'>
+			<ContextMenuContent aria-label={messages.verticalTabStripMenu}>
 				<ContextMenuCheckboxItem
 					checked={verticalExpandOnHover}
 					onClick={run(() => onVerticalExpandOnHoverChange?.(!verticalExpandOnHover))}
 				>
-					Expand tab strip on hover
+					{messages.expandTabStripOnHover}
 				</ContextMenuCheckboxItem>
 			</ContextMenuContent>
 		);
@@ -95,31 +96,37 @@ export function TabStripContextMenu({
 		const recentGroupTabCount = recentGroup
 			? snapshot.tabs.filter((tab) => tab.group === recentGroup.id).length
 			: 0;
-		let recentGroupLabel = 'New tab in group (no groups)';
+		let recentGroupLabel = messages.newTabInNoGroups;
 		if (recentGroup) {
-			recentGroupLabel = recentGroup.title
-				? `New tab in ${recentGroup.title}`
-				: `New tab in ${recentGroupTabCount} ${recentGroupTabCount === 1 ? 'tab' : 'tabs'}`;
+			recentGroupLabel = messages.formatNewTabInGroup(recentGroup.title, recentGroupTabCount);
 		}
 		return (
-			<ContextMenuContent aria-label='New tab menu'>
+			<ContextMenuContent aria-label={messages.newTabMenu}>
 				<ContextMenuItem
-					onClick={run(() => model.addTab({ title: 'New Tab', pinned: false, group: null }))}
+					onClick={run(() =>
+						model.addTab({ title: messages.newTabTitle, pinned: false, group: null }),
+					)}
 				>
-					New tab
+					{messages.newTab}
 				</ContextMenuItem>
 				<ContextMenuItem
 					disabled={!recentGroup}
 					onClick={run(() => {
 						if (recentGroup) {
-							model.addTab({ title: 'New Tab', pinned: false, group: recentGroup.id });
+							model.addTab({
+								title: messages.newTabTitle,
+								pinned: false,
+								group: recentGroup.id,
+							});
 						}
 					})}
 				>
 					{recentGroupLabel}
 				</ContextMenuItem>
 				<ContextMenuSeparator />
-				<ContextMenuItem onClick={run(() => createNewTabGroup(model))}>New group</ContextMenuItem>
+				<ContextMenuItem onClick={run(() => createNewTabGroup(model, messages.newTabTitle))}>
+					{messages.newGroup}
+				</ContextMenuItem>
 			</ContextMenuContent>
 		);
 	}
@@ -140,25 +147,28 @@ export function TabStripContextMenu({
 			onClose();
 		};
 		return (
-			<ContextMenuContent className={styles['ct-group-editor']} aria-label='Group options'>
+			<ContextMenuContent className={styles['ct-group-editor']} aria-label={messages.groupOptions}>
 				<input
 					className={styles['ct-group-editor__title']}
-					aria-label='Group name'
+					aria-label={messages.groupName}
 					autoFocus
 					value={group.title}
-					placeholder='Name this group'
+					placeholder={messages.groupNamePlaceholder}
 					onChange={(event) => model.updateGroup(group.id, { title: event.target.value })}
 					onKeyDown={(event) => {
+						event.stopPropagation();
 						if (event.key !== 'Enter' && event.key !== 'Escape') return;
 						event.preventDefault();
-						event.stopPropagation();
 						onClose();
 					}}
+					onKeyUp={(event) => event.stopPropagation()}
+					onPointerDown={(event) => event.stopPropagation()}
+					onClick={(event) => event.stopPropagation()}
 				/>
 				<div
 					className={styles['ct-group-editor__colors']}
 					role='radiogroup'
-					aria-label='Group color'
+					aria-label={messages.groupColor}
 				>
 					{GROUP_COLOR_NAMES.map((color) => (
 						<button
@@ -166,7 +176,7 @@ export function TabStripContextMenu({
 							type='button'
 							role='radio'
 							aria-checked={group.color === color}
-							aria-label={color}
+							aria-label={messages.groupColorNames[color]}
 							tabIndex={group.color === color ? 0 : -1}
 							className={styles['ct-color']}
 							data-selected={group.color === color || undefined}
@@ -202,15 +212,17 @@ export function TabStripContextMenu({
 				</div>
 				<ContextMenuSeparator />
 				<ContextMenuItem
-					onClick={run(() => model.addTab({ title: 'New Tab', pinned: false, group: group.id }))}
+					onClick={run(() =>
+						model.addTab({ title: messages.newTabTitle, pinned: false, group: group.id }),
+					)}
 				>
 					<GroupEditorMenuIcon kind='new-tab' />
-					<span>New tab in group</span>
+					<span>{messages.newTabInGroup}</span>
 				</ContextMenuItem>
 				{onMoveGroupToNewWindow && snapshot.tabs.some((tab) => tab.group !== group.id) ? (
 					<ContextMenuItem onClick={run(() => onMoveGroupToNewWindow(group.id))}>
 						<GroupEditorMenuIcon kind='move-window' />
-						<span>Move group to new window</span>
+						<span>{messages.moveGroupToNewWindow}</span>
 					</ContextMenuItem>
 				) : null}
 				{enableTabGroupFocusing ? (
@@ -220,17 +232,19 @@ export function TabStripContextMenu({
 						)}
 					>
 						<GroupEditorMenuIcon kind='focus' />
-						<span>{snapshot.focusedGroupId === group.id ? 'Unfocus group' : 'Focus group'}</span>
+						<span>
+							{snapshot.focusedGroupId === group.id ? messages.unfocusGroup : messages.focusGroup}
+						</span>
 					</ContextMenuItem>
 				) : null}
 				<ContextMenuSeparator />
 				<ContextMenuItem onClick={() => commitGroupAction('ungroup')}>
 					<GroupEditorMenuIcon kind='ungroup' />
-					<span>Ungroup</span>
+					<span>{messages.ungroup}</span>
 				</ContextMenuItem>
 				<ContextMenuItem disabled={!closeAllowed} onClick={() => commitGroupAction('close')}>
 					<GroupEditorMenuIcon kind='close' />
-					<span>Close group</span>
+					<span>{messages.closeGroup}</span>
 				</ContextMenuItem>
 			</ContextMenuContent>
 		);
@@ -264,21 +278,24 @@ export function TabStripContextMenu({
 	const vertical = orientation === TabStripOrientation.Vertical;
 
 	return (
-		<ContextMenuContent aria-label='Tab options'>
+		<ContextMenuContent aria-label={messages.tabOptions}>
 			<ContextMenuItem
 				onClick={run(() =>
-					model.addTab({ title: 'New Tab', group: tab.group, pinned: false }, { index: index + 1 }),
+					model.addTab(
+						{ title: messages.newTabTitle, group: tab.group, pinned: false },
+						{ index: index + 1 },
+					),
 				)}
 			>
-				{vertical ? 'New tab below' : 'New tab to the right'}
+				{vertical ? messages.newTabBelow : messages.newTabToRight}
 			</ContextMenuItem>
 			<ContextMenuSub>
 				<ContextMenuSubTrigger>
-					{menuDisplayTabCount === 1 ? 'Add tab to group' : 'Add tabs to group'}
+					{menuDisplayTabCount === 1 ? messages.addTabToGroup : messages.addTabsToGroup}
 				</ContextMenuSubTrigger>
-				<ContextMenuSubContent aria-label='Tab groups'>
+				<ContextMenuSubContent aria-label={messages.tabGroups}>
 					<ContextMenuItem onClick={run(() => createGroupForTabs(model, commandTabIds))}>
-						New group
+						{messages.newGroup}
 					</ContextMenuItem>
 					{snapshot.groups
 						.filter((group) => group.id !== tab.group)
@@ -287,47 +304,47 @@ export function TabStripContextMenu({
 								key={group.id}
 								onClick={run(() => model.moveTabsToGroup(commandTabIds, group.id))}
 							>
-								{group.title || 'Unnamed group'}
+								{group.title || messages.unnamedGroup}
 							</ContextMenuItem>
 						))}
 				</ContextMenuSubContent>
 			</ContextMenuSub>
 			{commandTabs.some((candidate) => candidate.group !== null) ? (
 				<ContextMenuItem onClick={run(() => model.moveTabsToGroup(commandTabIds, null))}>
-					Remove from group
+					{messages.removeFromGroup}
 				</ContextMenuItem>
 			) : null}
 			<ContextMenuItem
 				disabled={!canMoveToNewWindow || !onMoveTabsToNewWindow}
 				onClick={run(() => onMoveTabsToNewWindow?.(commandTabIds))}
 			>
-				{menuDisplayTabCount === 1 ? 'Move tab to new window' : 'Move tabs to new window'}
+				{menuDisplayTabCount === 1 ? messages.moveTabToNewWindow : messages.moveTabsToNewWindow}
 			</ContextMenuItem>
 			<ContextMenuSeparator />
 			<ContextMenuItem onClick={run(() => commandTabIds.forEach((id) => model.duplicateTab(id)))}>
-				Duplicate
+				{messages.duplicate}
 			</ContextMenuItem>
 			<ContextMenuItem onClick={run(() => model.setTabsPinned(commandTabIds, willPin))}>
-				{willPin ? 'Pin' : 'Unpin'}
+				{willPin ? messages.pin : messages.unpin}
 			</ContextMenuItem>
 			<ContextMenuSeparator />
 			<ContextMenuItem
 				disabled={!closeAllowed}
 				onClick={run(() => requestCloseTabs(commandTabIds))}
 			>
-				Close
+				{messages.close}
 			</ContextMenuItem>
 			<ContextMenuItem
 				disabled={!closeAllowed || closeOtherTabIds.length === 0}
 				onClick={run(() => requestCloseTabs(closeOtherTabIds))}
 			>
-				Close other tabs
+				{messages.closeOtherTabs}
 			</ContextMenuItem>
 			<ContextMenuItem
 				disabled={!closeAllowed || closeTrailingTabIds.length === 0}
 				onClick={run(() => requestCloseTabs(closeTrailingTabIds))}
 			>
-				{vertical ? 'Close tabs below' : 'Close tabs to the right'}
+				{vertical ? messages.closeTabsBelow : messages.closeTabsToRight}
 			</ContextMenuItem>
 		</ContextMenuContent>
 	);

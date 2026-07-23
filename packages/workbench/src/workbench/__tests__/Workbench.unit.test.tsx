@@ -1,5 +1,6 @@
 import { OrchbeeI18nProvider, type OrchbeeLocale } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
+import { TabModel } from '@orchbee/tab-strip';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -10,6 +11,13 @@ function renderWorkbench(
 	getItem: (key: string) => string | null = () => null,
 	locale: OrchbeeLocale = 'en-US',
 ): string {
+	const tabModel = new TabModel({
+		tabs: [
+			{ id: 'terminal-1', title: 'Terminal 1', pinned: false, group: null },
+			{ id: 'terminal-2', title: 'Terminal 2', pinned: false, group: null },
+		],
+		activeTabId: 'terminal-1',
+	});
 	return renderToStaticMarkup(
 		createElement(
 			OrchbeeI18nProvider,
@@ -20,6 +28,7 @@ function renderWorkbench(
 				createElement(Workbench, {
 					layoutStorage: { getItem, setItem: () => undefined },
 					shortcutPlatform: 'apple',
+					tabModel,
 				}),
 			),
 		),
@@ -27,7 +36,7 @@ function renderWorkbench(
 }
 
 describe('Workbench', () => {
-	it('renders the sidebar chrome while keeping the tab region empty', () => {
+	it('renders the sidebar chrome and the host-owned tab model', () => {
 		const markup = renderWorkbench();
 
 		expect(markup).toContain('data-slot="workbench-left-panel"');
@@ -50,7 +59,11 @@ describe('Workbench', () => {
 		expect(markup).toContain('data-shortcut-action="workbench.settings.open"');
 		expect(markup).toContain('Settings');
 		expect(markup).toContain('⌘,');
-		expect(markup).not.toContain('role="tablist"');
+		expect(markup).toContain('role="tablist"');
+		expect(markup).toContain('aria-label="Terminal tabs"');
+		expect(markup).toContain('Terminal 1');
+		expect(markup).toContain('Terminal 2');
+		expect(markup).toContain('data-slot="workbench-tab-content"');
 	});
 
 	it('renders the sidebar chrome in Simplified Chinese', () => {
@@ -61,6 +74,7 @@ describe('Workbench', () => {
 		expect(markup).toContain('搜索');
 		expect(markup).toContain('项目');
 		expect(markup).toContain('设置');
+		expect(markup).toContain('aria-label="终端标签页"');
 	});
 
 	it('renders the visible sidebar, main panel, and localized toggle', () => {

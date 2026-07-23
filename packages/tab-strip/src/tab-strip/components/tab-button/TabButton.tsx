@@ -23,15 +23,10 @@ import {
 import { AlertIndicatorButton } from '../alert-indicator-button/AlertIndicatorButton';
 import { TabCloseButton } from '../tab-close-button/TabCloseButton';
 import { TabIcon } from '../tab-icon/TabIcon';
-import { getAccessibleTabLabel } from '../../../accessibility';
 import { getVisibleTabTitle } from '../../../tab';
-import {
-	TAB_SIZE,
-	GROUP_COLORS,
-	joinClassNames,
-	tabIsApparentlyActive,
-} from '../../utils/tab-strip-internals';
+import { TAB_SIZE, joinClassNames, tabIsApparentlyActive } from '../../utils/tab-strip-internals';
 import { useTabButton } from './hooks/useTabButton';
+import { useTabStripMessages } from '../../messages';
 
 export function TabButton({
 	tab,
@@ -78,6 +73,7 @@ export function TabButton({
 	slotState?: Readonly<TabSlotViewState> | undefined;
 	dragging?: boolean;
 }): ReactNode {
+	const messages = useTabStripMessages();
 	// Closing views remain mounted for the shrink animation, but Chromium no
 	// longer paints them as active during that interval.
 	const { focused, hovered, measuredTabSize, setFocused, setHovered, tabViewRef } = useTabButton();
@@ -156,7 +152,7 @@ export function TabButton({
 			role='tab'
 			tabIndex={-1}
 			aria-selected={selected}
-			aria-label={getAccessibleTabLabel(tab, { group })}
+			aria-label={messages.formatTabAccessibleLabel(tab, group)}
 			title=''
 			className={styles['ct-tab']}
 			data-tab-id={tab.id}
@@ -164,6 +160,7 @@ export function TabButton({
 			data-selected={selected || undefined}
 			data-hovered={visualHovered || undefined}
 			data-pinned={tab.pinned || undefined}
+			data-grouped={tab.group !== null || undefined}
 			data-render-normal={
 				(orientation === TabStripOrientation.Horizontal &&
 					tab.pinned &&
@@ -242,21 +239,8 @@ export function TabButton({
 								width: renderedWidth,
 								pathType: active ? 'active' : 'highlight',
 								closing,
-								strokeThickness: active && group ? 2 : 0,
 							})}
 						/>
-						{active && group ? (
-							<path
-								className={styles['ct-tab__background-stroke']}
-								d={getHorizontalTabPath({
-									width: renderedWidth,
-									pathType: 'border',
-									closing,
-									strokeThickness: 2,
-								})}
-								style={{ '--ob-comp-tab-strip-runtime-stroke': GROUP_COLORS[group.color] }}
-							/>
-						) : null}
 					</svg>
 					<span
 						className={joinClassNames(

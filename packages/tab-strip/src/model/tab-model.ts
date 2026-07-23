@@ -673,10 +673,26 @@ export class TabModel {
 			this.requireGroup(groupId);
 		}
 		const idSet = new Set(tabIds);
+		const firstMovingIndex = this.tabs.findIndex((tab) => idSet.has(tab.id));
+		const targetGroupWasEmpty = groupId !== null && this.groupRange(groupId) === null;
 		const moving = this.tabs.filter((tab) => idSet.has(tab.id));
 		if (moving.length === 0) {
 			return;
 		}
+		const movingIndices = this.tabs.flatMap((tab, index) => (idSet.has(tab.id) ? [index] : []));
+		const movingIsContiguous = movingIndices.every(
+			(index, offset) => index === firstMovingIndex + offset,
+		);
+		const sourceGroupIds = new Set(
+			moving.flatMap((tab) => (tab.group === null ? [] : [tab.group])),
+		);
+		const removesWholeSourceGroups =
+			groupId === null &&
+			movingIsContiguous &&
+			moving.every((tab) => tab.group !== null) &&
+			this.tabs.every(
+				(tab) => tab.group === null || !sourceGroupIds.has(tab.group) || idSet.has(tab.id),
+			);
 		this.tabs = this.tabs.filter((tab) => !idSet.has(tab.id));
 		moving.forEach((tab) => {
 			tab.group = groupId;
@@ -687,7 +703,13 @@ export class TabModel {
 		let insertionIndex = this.tabs.length;
 		if (groupId !== null) {
 			const range = this.groupRange(groupId);
-			insertionIndex = range?.end ?? this.tabs.length;
+			insertionIndex =
+				range?.end ??
+				(targetGroupWasEmpty
+					? clamp(firstMovingIndex, this.indexOfFirstNonPinnedTab(), this.tabs.length)
+					: this.tabs.length);
+		} else if (removesWholeSourceGroups) {
+			insertionIndex = clamp(firstMovingIndex, this.indexOfFirstNonPinnedTab(), this.tabs.length);
 		}
 		this.tabs.splice(insertionIndex, 0, ...moving);
 		if (groupId !== null && moving.some((tab) => tab.id === this.activeTabId)) {

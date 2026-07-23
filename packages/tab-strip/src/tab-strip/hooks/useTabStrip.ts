@@ -48,8 +48,12 @@ import { TabGroupEditorBubbleTracker } from '../../groups';
 import { ExpandOnHoverLockType, VerticalTabStripExpandOnHoverController } from '../../vertical';
 import { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimationRuntime';
 import { TabStripComboButtonController } from '../../shared';
-import { getTabGroupMembershipAnnouncement, getTabMoveAnnouncement } from '../../accessibility';
 import { useElementSize } from './useElementSize';
+import {
+	DEFAULT_TAB_STRIP_MESSAGES,
+	type TabStripMessages,
+	type TabStripMoveDirection,
+} from '../messages';
 import type { TabStripViewModel } from '../types/tab-strip-view-model';
 import {
 	TAB_SIZE,
@@ -73,45 +77,48 @@ import {
 	type TabStripProps,
 } from '../utils/tab-strip-internals';
 
-export function useTabStrip({
-	model,
-	orientation = TabStripOrientation.Horizontal,
-	verticalCollapsed = false,
-	verticalExpandOnHover = true,
-	verticalExpandOnHoverController,
-	hoverCardController: externalHoverCardController,
-	getHoverCardThumbnailSource,
-	showHoverCardPreviews = true,
-	showHoverCardMemoryUsage = true,
-	showGroupHoverCards = true,
-	onVerticalExpandedOnHoverChange,
-	showVerticalTopControls = true,
-	showVerticalTabSearchButton = false,
-	verticalGroupFocused = false,
-	showPinnedTabsInFocusedGroups = false,
-	verticalTabSearchOpen = false,
-	verticalComboButtonController: externalComboButtonController,
-	verticalToolbarHeight = 0,
-	verticalCaptionButtonWidth = 0,
-	verticalIsExitingExpandOnHover = false,
-	onVerticalCollapsedChange,
-	onVerticalUnfocusGroup,
-	onVerticalTabSearchClick,
-	onVerticalExpandOnHoverChange,
-	showNewTabButton = true,
-	horizontalFrameCondensed = false,
-	touchUi = false,
-	tabStripDeclutter = true,
-	createCrossWindowDragRuntime,
-	onDraggingChange,
-	onTabKeyboardFocusChanged,
-	onMoveTabsToNewWindow,
-	onMoveGroupToNewWindow,
-	enableTabGroupFocusing = false,
-	ariaLabel = 'Tabs',
-	onNewTab,
-	onNewTabButtonPressed,
-}: TabStripProps): TabStripViewModel {
+export function useTabStrip(
+	{
+		model,
+		orientation = TabStripOrientation.Horizontal,
+		verticalCollapsed = false,
+		verticalExpandOnHover = true,
+		verticalExpandOnHoverController,
+		hoverCardController: externalHoverCardController,
+		getHoverCardThumbnailSource,
+		showHoverCardPreviews = true,
+		showHoverCardMemoryUsage = true,
+		showGroupHoverCards = true,
+		onVerticalExpandedOnHoverChange,
+		showVerticalTopControls = true,
+		showVerticalTabSearchButton = false,
+		verticalGroupFocused = false,
+		showPinnedTabsInFocusedGroups = false,
+		verticalTabSearchOpen = false,
+		verticalComboButtonController: externalComboButtonController,
+		verticalToolbarHeight = 0,
+		verticalCaptionButtonWidth = 0,
+		verticalIsExitingExpandOnHover = false,
+		onVerticalCollapsedChange,
+		onVerticalUnfocusGroup,
+		onVerticalTabSearchClick,
+		onVerticalExpandOnHoverChange,
+		showNewTabButton = true,
+		horizontalFrameCondensed = false,
+		touchUi = false,
+		tabStripDeclutter = true,
+		createCrossWindowDragRuntime,
+		onDraggingChange,
+		onTabKeyboardFocusChanged,
+		onMoveTabsToNewWindow,
+		onMoveGroupToNewWindow,
+		enableTabGroupFocusing = false,
+		ariaLabel,
+		onNewTab,
+		onNewTabButtonPressed,
+	}: TabStripProps,
+	messages: TabStripMessages = DEFAULT_TAB_STRIP_MESSAGES,
+): TabStripViewModel {
 	const snapshot = useSyncExternalStore(model.subscribe, model.getSnapshot, model.getSnapshot);
 	const horizontal = orientation === TabStripOrientation.Horizontal;
 	const focusedGroup =
@@ -225,7 +232,11 @@ export function useTabStrip({
 		if (!menu) return;
 		const dismissOnOutsidePointer = (event: PointerEvent) => {
 			const target = event.target;
-			if (target instanceof Element && target.closest('[data-slot="context-menu-content"]')) return;
+			if (
+				target instanceof Element &&
+				target.closest('[data-slot="context-menu-content"], [data-slot="context-menu-sub-content"]')
+			)
+				return;
 			const header =
 				target instanceof Element ? target.closest<HTMLElement>('[data-group-id]') : null;
 			if (menu.kind === 'group' && header?.dataset['groupId'] === menu.id) {
@@ -274,9 +285,9 @@ export function useTabStrip({
 			runtimeSnapshot.attachedContextId !== runtimeSnapshot.sourceContextId;
 		if (transferredToAnotherContext) return;
 		current.crossWindowRuntime?.end('tab-destroyed');
-		announce('Tab move canceled');
+		announce(messages.tabMoveCanceled);
 		setDrag(null);
-	}, [snapshot.revision, snapshot.tabs]);
+	}, [messages.tabMoveCanceled, snapshot.revision, snapshot.tabs]);
 
 	const announce = (text: string) => {
 		setAnnouncement((current) => ({ text, sequence: current.sequence + 1 }));
@@ -303,12 +314,12 @@ export function useTabStrip({
 					} else {
 						model.restoreCanceledDrag(current.restoreState);
 					}
-					announce('Group move canceled');
+					announce(messages.groupMoveCanceled);
 				}
 				dragRef.current = null;
 				setDrag(null);
 			}),
-		[horizontal, model],
+		[horizontal, messages.groupMoveCanceled, model],
 	);
 
 	const internalHoverCardController = useRef<TabHoverCardController | null>(null);
@@ -522,8 +533,11 @@ export function useTabStrip({
 			const ready = ids.filter((id) => closingTimers.current.get(id) === timer);
 			ready.forEach((id) => closingTimers.current.delete(id));
 			model.closeTabs(ready);
-			if (ready.length === 1) announce(`Closed ${closingTitles[0]}`);
-			else if (ready.length > 1) announce(`Closed ${ready.length} tabs`);
+			if (ready.length === 1) {
+				announce(messages.formatClosedTabAnnouncement(requireDefined(closingTitles[0])));
+			} else if (ready.length > 1) {
+				announce(messages.formatClosedTabsAnnouncement(ready.length));
+			}
 			setClosingTabIds((current) => {
 				const next = new Set(current);
 				ready.forEach((id) => next.delete(id));
@@ -1159,9 +1173,9 @@ export function useTabStrip({
 		if (direction === 0) return;
 		event.preventDefault();
 		model.shiftGroupRelative(groupId, direction);
-		let relativeDirection = direction < 0 ? 'up' : 'down';
+		let relativeDirection: TabStripMoveDirection = direction < 0 ? 'up' : 'down';
 		if (horizontal) relativeDirection = direction < 0 ? 'left' : 'right';
-		announce(`Group moved ${relativeDirection}`);
+		announce(messages.formatGroupMovedAnnouncement(relativeDirection));
 	};
 
 	const dragPresent = drag !== null;
@@ -1598,7 +1612,7 @@ export function useTabStrip({
 						model.setSelection([current.sourceId], current.sourceId, { expandGroups: false });
 					}
 				}
-				announce('Tab move canceled');
+				announce(messages.tabMoveCanceled);
 				setDrag(null);
 				return;
 			}
@@ -1664,7 +1678,11 @@ export function useTabStrip({
 				const finalIndex = liveSnapshot.tabs.findIndex((tab) => tab.id === current.sourceId);
 				if (finalIndex !== -1) {
 					announce(
-						`${current.label} moved to position ${finalIndex + 1} of ${liveSnapshot.tabs.length}`,
+						messages.formatDragCompleteAnnouncement(
+							current.label,
+							finalIndex + 1,
+							liveSnapshot.tabs.length,
+						),
 					);
 				}
 				if (current.groupHeaderId !== null) {
@@ -1746,7 +1764,7 @@ export function useTabStrip({
 					model.setSelection([current.sourceId], current.sourceId, { expandGroups: false });
 				}
 			}
-			announce('Tab move canceled');
+			announce(messages.tabMoveCanceled);
 			setDrag(null);
 		};
 		window.addEventListener('keydown', keydown);
@@ -1761,6 +1779,7 @@ export function useTabStrip({
 		horizontal,
 		horizontalLayout,
 		items,
+		messages,
 		model,
 		openGroupEditor,
 		snapshot,
@@ -1790,7 +1809,7 @@ export function useTabStrip({
 			if (direction < 0) model.moveTabFirst(tabId);
 			else model.moveTabLast(tabId);
 			announce(
-				getTabMoveAnnouncement(
+				messages.formatTabMoveAnnouncement(
 					direction < 0 ? 'first' : 'last',
 					horizontal ? 'horizontal' : 'vertical',
 				),
@@ -1818,7 +1837,7 @@ export function useTabStrip({
 					? before.tabs.filter((tab) => tab.group === afterGroup.id)
 					: tabsInBeforeGroup;
 				announce(
-					getTabGroupMembershipAnnouncement(
+					messages.formatTabGroupMembershipAnnouncement(
 						afterGroup ? 'added' : 'removed',
 						targetGroup,
 						groupTabs,
@@ -1826,7 +1845,7 @@ export function useTabStrip({
 				);
 			} else {
 				announce(
-					getTabMoveAnnouncement(
+					messages.formatTabMoveAnnouncement(
 						direction < 0 ? 'previous' : 'next',
 						horizontal ? 'horizontal' : 'vertical',
 					),
@@ -1847,7 +1866,7 @@ export function useTabStrip({
 		if (onNewTab) onNewTab();
 		else
 			model.addTab({
-				title: 'New Tab',
+				title: messages.newTabTitle,
 				pinned: false,
 				group: null,
 			});
@@ -1904,7 +1923,7 @@ export function useTabStrip({
 		onMoveTabsToNewWindow,
 		onMoveGroupToNewWindow,
 		enableTabGroupFocusing,
-		ariaLabel,
+		ariaLabel: ariaLabel ?? messages.tabStripLabel,
 		snapshot,
 		horizontal,
 		focusedGroup,

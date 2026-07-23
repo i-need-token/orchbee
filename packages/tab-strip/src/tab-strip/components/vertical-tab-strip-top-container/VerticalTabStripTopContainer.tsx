@@ -6,6 +6,7 @@ import { calculateVerticalTopContainerLayout } from '../../../vertical';
 import { TabStripIcon } from '../tab-strip-icon/TabStripIcon';
 import { FlatEdgeButton } from '../flat-edge-button/FlatEdgeButton';
 import { getVerticalTopContainerChildBounds } from './utils/getVerticalTopContainerChildBounds';
+import { useTabStripMessages } from '../../messages';
 
 export interface VerticalTabStripTopContainerProps {
 	availableWidth: number;
@@ -43,6 +44,7 @@ export function VerticalTabStripTopContainer({
 	onTabSearchContextMenu,
 	onCollapseContextMenu,
 }: VerticalTabStripTopContainerProps): ReactNode {
+	const messages = useTabStripMessages();
 	const layout = calculateVerticalTopContainerLayout({
 		availableWidth,
 		toolbarHeight,
@@ -86,7 +88,7 @@ export function VerticalTabStripTopContainer({
 							? `${unfocusBounds.height}px`
 							: undefined,
 					}}
-					aria-label='Show all tabs'
+					aria-label={messages.showAllTabs}
 					onClick={onUnfocusGroup}
 				>
 					<TabStripIcon name='unfocus-group' />
@@ -109,7 +111,7 @@ export function VerticalTabStripTopContainer({
 							? `${collapseBounds.height}px`
 							: undefined,
 					}}
-					aria-label={collapsed ? 'Expand tab strip' : 'Collapse tab strip'}
+					aria-label={collapsed ? messages.expandTabStrip : messages.collapseTabStrip}
 					onClick={() => onCollapsedChange?.(!collapsed)}
 					onContextMenu={onCollapseContextMenu}
 				>
@@ -143,9 +145,9 @@ export function VerticalTabStripTopContainer({
 						<FlatEdgeButton
 							type='button'
 							icon={<TabStripIcon name='search' />}
-							label='Search tabs'
+							label={messages.searchTabs}
 							showLabel={showComboLabels}
-							aria-label='Search tabs'
+							aria-label={messages.searchTabs}
 							data-target-visible={tabSearchTargetVisible || undefined}
 							data-animating={tabSearchAnimating || undefined}
 							flatEdge={edges.end}

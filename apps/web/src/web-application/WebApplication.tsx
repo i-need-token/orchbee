@@ -8,6 +8,7 @@ import {
 import * as React from 'react';
 
 import styles from './WebApplication.module.css';
+import { useWebApplicationTabs } from './hooks/useWebApplicationTabs';
 
 export interface WebApplicationProps {
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
@@ -20,11 +21,18 @@ export function WebApplication({
 	locale,
 	shortcutPlatform,
 }: WebApplicationProps): React.ReactNode {
+	const { createTerminal, tabModel } = useWebApplicationTabs(locale);
+
 	return (
 		<OrchbeeI18nProvider locale={locale}>
 			<TooltipProvider>
 				<div className={styles['root']}>
-					<Workbench layoutStorage={layoutStorage} shortcutPlatform={shortcutPlatform} />
+					<Workbench
+						layoutStorage={layoutStorage}
+						onNewTerminal={createTerminal}
+						shortcutPlatform={shortcutPlatform}
+						tabModel={tabModel}
+					/>
 				</div>
 			</TooltipProvider>
 		</OrchbeeI18nProvider>
