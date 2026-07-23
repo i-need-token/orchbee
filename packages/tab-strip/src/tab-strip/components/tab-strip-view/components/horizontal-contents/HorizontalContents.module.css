@@ -1,0 +1,15 @@
+.ct-horizontal-track {
+	composes: ct-horizontal-track from '../../TabStripView.module.css';
+}
+
+.ct-horizontal-item {
+	composes: ct-horizontal-item from '../../TabStripView.module.css';
+}
+
+.ct-horizontal-group {
+	composes: ct-horizontal-group from '../../TabStripView.module.css';
+}
+
+.ct-group-underline {
+	composes: ct-group-underline from '../../TabStripView.module.css';
+}

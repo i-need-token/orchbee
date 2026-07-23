@@ -1,0 +1,15 @@
+.ct-vertical-group {
+	composes: ct-vertical-group from '../../../../TabStripView.module.css';
+}
+
+.ct-vertical-group__tabs {
+	composes: ct-vertical-group__tabs from '../../../../TabStripView.module.css';
+}
+
+.ct-vertical-group__tabs-inner {
+	composes: ct-vertical-group__tabs-inner from '../../../../TabStripView.module.css';
+}
+
+.ct-vertical-tab-wrap {
+	composes: ct-vertical-tab-wrap from '../../../../TabStripView.module.css';
+}

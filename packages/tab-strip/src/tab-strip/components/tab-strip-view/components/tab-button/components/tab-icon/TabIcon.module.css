@@ -1,0 +1,19 @@
+.ct-tab-icon {
+	composes: ct-tab-icon from '../../../../TabStripView.module.css';
+}
+
+.ct-tab-icon__attention {
+	composes: ct-tab-icon__attention from '../../../../TabStripView.module.css';
+}
+
+.ct-tab-icon__discard-ring {
+	composes: ct-tab-icon__discard-ring from '../../../../TabStripView.module.css';
+}
+
+.ct-tab-icon__favicon {
+	composes: ct-tab-icon__favicon from '../../../../TabStripView.module.css';
+}
+
+.ct-tab-icon__normal {
+	composes: ct-tab-icon__normal from '../../../../TabStripView.module.css';
+}

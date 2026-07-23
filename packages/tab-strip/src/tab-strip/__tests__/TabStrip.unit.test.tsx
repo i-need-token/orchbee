@@ -1,13 +1,17 @@
 import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { requireDefined, TabStripOrientation } from '../../common';
-import type { DragSessionData } from '../../dragging';
-import { ThumbnailCaptureReadiness } from '../../hovercard';
-import type { HoverCardThumbnailSource, HoverCardThumbnailSubscription } from '../../hovercard';
-import { TabModel, type TabGroupData } from '../../model';
-import { TabStripComboButtonController } from '../../shared';
-import { VerticalTabStripExpandOnHoverController } from '../../vertical';
+import { requireDefined } from '../utils/requireDefined';
+import { TabStripOrientation } from '../types/tab-strip-types';
+import type { DragSessionData } from '../dragging/drag-session-data';
+import { ThumbnailCaptureReadiness } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
+import type {
+	HoverCardThumbnailSource,
+	HoverCardThumbnailSubscription,
+} from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-observer';
+import { TabModel, type TabGroupData } from '../model/tab-model';
+import { TabStripComboButtonController } from '../model/tab-strip-combo-button';
+import { VerticalTabStripExpandOnHoverController } from '../model/vertical-tab-strip-expand-on-hover';
 import { TabStrip } from '../TabStrip';
 
 class FakeThumbnailSource implements HoverCardThumbnailSource<string> {
@@ -81,6 +85,28 @@ describe('TabStrip', () => {
 		if (!card) throw new Error('Expected tab hover card to be mounted.');
 		return card;
 	};
+
+	it('renders one rule for a shared boundary between inactive tabs', () => {
+		const model = new TabModel({
+			tabs: [
+				{ id: 'a', title: 'A', pinned: false, group: null },
+				{ id: 'b', title: 'B', pinned: false, group: null },
+				{ id: 'c', title: 'C', pinned: false, group: null },
+			],
+			activeTabId: 'c',
+		});
+		render(<TabStrip model={model} />);
+
+		const trailing = requireDefined(
+			document.querySelector<HTMLElement>('[data-tab-id="a"] [data-tab-separator="trailing"]'),
+		);
+		const leading = requireDefined(
+			document.querySelector<HTMLElement>('[data-tab-id="b"] [data-tab-separator="leading"]'),
+		);
+
+		expect(trailing.style.getPropertyValue('--ob-comp-tab-strip-runtime-opacity')).toBe('1');
+		expect(leading.style.getPropertyValue('--ob-comp-tab-strip-runtime-opacity')).toBe('0');
+	});
 
 	it('selects with the pointer but leaves unmodified focus-navigation keys to Views accessibility', () => {
 		const model = createModel();

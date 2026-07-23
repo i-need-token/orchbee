@@ -1,3 +1,0 @@
-.ct-hover-card__preview-layer {
-	composes: ct-hover-card__preview-layer from '../../TabStrip.module.css';
-}

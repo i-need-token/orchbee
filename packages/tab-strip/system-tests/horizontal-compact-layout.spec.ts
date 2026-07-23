@@ -15,6 +15,31 @@ test.beforeEach(async ({ page }) => {
 	await page.goto('/');
 });
 
+test('renders one shared separator between adjacent inactive tabs', async ({ page }) => {
+	const trailing = page.locator('[data-tab-id="issue"] [data-tab-separator="trailing"]');
+	const leading = page.locator('[data-tab-id="new-tab"] [data-tab-separator="leading"]');
+
+	await expect(trailing).toHaveCSS('opacity', '1');
+	await expect(leading).toHaveCSS('opacity', '0');
+});
+
+test('caps ordinary horizontal tabs at 200 pixels', async ({ page }) => {
+	await page.setViewportSize({ width: 2400, height: 800 });
+
+	await expect(page.locator('[data-tab-id="issue"]')).toHaveCSS('width', '200px');
+	await expect(page.locator('[data-tab-id="new-tab"]')).toHaveCSS('width', '200px');
+});
+
+test('keeps an active group underline out of the adjacent collection', async ({ page }) => {
+	const underlineBox = await page.locator('[data-group-underline-id="research"]').boundingBox();
+	const adjacentGroupBox = await page.locator('[data-group-id="build"]').boundingBox();
+	if (!underlineBox || !adjacentGroupBox) {
+		throw new Error('Expected the group underline and adjacent group to have bounds.');
+	}
+
+	expect(underlineBox.x + underlineBox.width).toBeLessThanOrEqual(adjacentGroupBox.x);
+});
+
 test('compact active controls and separators cross their boundaries deterministically', async ({
 	page,
 }) => {

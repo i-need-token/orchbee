@@ -1,0 +1,3 @@
+.ct-tab__alert {
+	composes: ct-tab__alert from '../../../../TabStripView.module.css';
+}

@@ -46,6 +46,16 @@
 			"entry": ["src/index.ts!", "src/styles.ts!", "stories/**/*.stories.tsx!"],
 			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"]
 		},
+		"packages/tab-strip": {
+			"entry": [
+				"src/index.ts",
+				"src/**/*.unit.test.{ts,tsx}",
+				"rslib.config.ts",
+				"vitest.config.ts",
+				"stories/**/*.stories.tsx"
+			],
+			"project": ["src/**/*.{ts,tsx}", "stories/**/*.tsx", "*.ts"]
+		},
 		"apps/web": {
 			"entry": [
 				"src/index.ts!",
@@ -63,7 +73,7 @@
 				"rsbuild.config.ts!",
 				"src/**/*.unit.test.{ts,tsx}!"
 			],
-			"ignoreDependencies": ["@orchbee/ui", "@orchbee/workbench"],
+			"ignoreDependencies": ["@orchbee/tab-strip", "@orchbee/ui", "@orchbee/workbench"],
 			"project": [".storybook/*.ts!", "src/**/*.{ts,tsx}!", "*.ts"]
 		}
 	}

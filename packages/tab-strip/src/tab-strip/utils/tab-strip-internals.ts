@@ -1,4 +1,3 @@
-import type { HoverCardThumbnailSource, TabHoverCardController } from '../../hovercard';
 import type {
 	TabData,
 	TabDragRestoreState,
@@ -6,29 +5,23 @@ import type {
 	TabGroupData,
 	TabModel,
 	TabModelSnapshot,
-} from '../../model';
-import {
-	DragSessionData,
-	DragSlotViewType,
-	type CrossWindowDragEndReason,
-	type CrossWindowDragSnapshot,
-	type DragPoint,
-	type HorizontalGroupDragState,
-	type TabDragData,
-} from '../../dragging';
-import { VERTICAL_TAB_GROUP_COLLAPSED_HEIGHT, type TabSizeInfo } from '../../layout';
-import { requireDefined, TabStripOrientation } from '../../common';
-import { DEFAULT_TAB_STYLE_METRICS, LAYOUT_CONSTANTS } from '../../style';
-import { calculateHorizontalTabGroupHeaderLayout } from '../../groups';
-import type { VerticalTabStripExpandOnHoverController } from '../../vertical';
-import { type TabStripComboButtonController } from '../../shared';
-import type { TabStripMessages } from '../messages';
+} from '../model/tab-model';
+import { DragSessionData, DragSlotViewType, type TabDragData } from '../dragging/drag-session-data';
+import { type HorizontalGroupDragState } from '../dragging/horizontal-group-drag-machine';
+import { VERTICAL_TAB_GROUP_COLLAPSED_HEIGHT } from '../layout/tab-group-view-layout';
+import { type TabSizeInfo } from '../layout/tab-strip-layout-types';
+import { requireDefined } from './requireDefined';
+import { TabStripOrientation } from '../types/tab-strip-types';
+import { DEFAULT_TAB_STYLE_METRICS } from '../layout/tab-style-metrics';
+import { LAYOUT_CONSTANTS } from '../layout/layout-constants';
+import { calculateHorizontalTabGroupHeaderLayout } from '../layout/tab-group-style';
+import type { TabStripCrossWindowDragRuntime } from '../types/tab-strip-options';
 
 export const TAB_SIZE: Readonly<TabSizeInfo> = {
 	pinnedTabWidth: 64,
 	minActiveWidth: 56,
 	minInactiveWidth: 32,
-	standardWidth: 256,
+	standardWidth: 200,
 };
 
 export const TAB_BOUNDS_ANIMATION_DURATION_MS = 200;
@@ -132,14 +125,6 @@ export interface DragState {
 	dragAreaBounds: Readonly<{ left: number; top: number; width: number; height: number }>;
 	crossWindowRuntime: TabStripCrossWindowDragRuntime | null;
 	settling: boolean;
-}
-
-export interface TabStripCrossWindowDragRuntime {
-	start(): void;
-	update(pointInScreen: Readonly<DragPoint>): void;
-	end(reason: CrossWindowDragEndReason): void;
-	getSnapshot?(): Pick<CrossWindowDragSnapshot, 'targetActive'> &
-		Partial<Pick<CrossWindowDragSnapshot, 'sourceContextId' | 'attachedContextId' | 'state'>>;
 }
 
 export interface DragVisualView {
@@ -584,59 +569,6 @@ export function createGroupForTabs(model: TabModel, tabIds: readonly string[]): 
 	const groupId = nextAvailableEntityId('group', new Set(snapshot.groups.map((group) => group.id)));
 	model.createGroup({ id: groupId, title: '', color: 'grey', collapsed: false }, eligible);
 	return groupId;
-}
-
-export interface TabStripProps {
-	model: TabModel;
-	messages?: TabStripMessages;
-	orientation?: TabStripOrientation;
-	verticalCollapsed?: boolean;
-	verticalExpandOnHover?: boolean;
-	verticalExpandOnHoverController?: VerticalTabStripExpandOnHoverController;
-	hoverCardController?: TabHoverCardController;
-	getHoverCardThumbnailSource?: (tab: Readonly<TabData>) => HoverCardThumbnailSource<string> | null;
-	showHoverCardPreviews?: boolean;
-	showHoverCardMemoryUsage?: boolean;
-	/** Mirrors the feature-gated tab-group hover card; false uses native title tooltips. */
-	showGroupHoverCards?: boolean;
-	onVerticalExpandedOnHoverChange?: (expanded: boolean) => void;
-	showVerticalTopControls?: boolean;
-	showVerticalTabSearchButton?: boolean;
-	/** Compatibility override; model.focusedGroupId is the source of truth for focused-group layout. */
-	verticalGroupFocused?: boolean;
-	/** Mirrors kTabGroupsFocusingPinnedTabs. Chromium's default is false. */
-	showPinnedTabsInFocusedGroups?: boolean;
-	verticalTabSearchOpen?: boolean;
-	verticalComboButtonController?: TabStripComboButtonController;
-	verticalToolbarHeight?: number;
-	verticalCaptionButtonWidth?: number;
-	verticalIsExitingExpandOnHover?: boolean;
-	onVerticalCollapsedChange?: (collapsed: boolean) => void;
-	onVerticalUnfocusGroup?: () => void;
-	onVerticalTabSearchClick?: () => void;
-	onVerticalExpandOnHoverChange?: (enabled: boolean) => void;
-	showNewTabButton?: boolean;
-	horizontalFrameCondensed?: boolean;
-	/** Mirrors ui::TouchUiController's touch-optimized tab metrics. */
-	touchUi?: boolean;
-	/** Mirrors current Chrome tab decluttering; pass false for legacy channels. */
-	tabStripDeclutter?: boolean;
-	/** Connects the DOM pointer lifecycle to a host-owned cross-window drag runtime. */
-	createCrossWindowDragRuntime?: (
-		sessionData: DragSessionData<Readonly<TabGroupData>>,
-	) => TabStripCrossWindowDragRuntime | null;
-	/** Host bridge for Chromium's immersive-reveal drag lock lifecycle. */
-	onDraggingChange?: (dragging: boolean) => void;
-	/** Host bridge for BrowserCommandController::TabKeyboardFocusChangedTo. */
-	onTabKeyboardFocusChanged?: (tabId: string | null) => void;
-	/** Host-backed TabStripModel context commands. */
-	onMoveTabsToNewWindow?: (tabIds: readonly string[]) => void;
-	onMoveGroupToNewWindow?: (groupId: string) => void;
-	/** Mirrors features::kTabGroupsFocusing in the editor bubble. */
-	enableTabGroupFocusing?: boolean;
-	ariaLabel?: string;
-	onNewTab?: (() => void) | undefined;
-	onNewTabButtonPressed?: () => void;
 }
 
 export function buildVisualItems(snapshot: TabModelSnapshot): VisualItem[] {

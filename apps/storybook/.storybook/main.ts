@@ -15,6 +15,11 @@ const config: StorybookConfig = {
 			files: '**/*.stories.@(ts|tsx)',
 			titlePrefix: 'Packages/Workbench',
 		},
+		{
+			directory: '../../../packages/tab-strip/stories',
+			files: '**/*.stories.@(ts|tsx)',
+			titlePrefix: 'Packages/TabStrip',
+		},
 	],
 	addons: ['@storybook/addon-docs', '@storybook/addon-a11y'],
 	framework: 'storybook-react-rsbuild',

@@ -1,6 +1,5 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@orchbee/ui/components';
-import type { TabModel } from '@orchbee/tab-strip';
-import { TabStrip } from '@orchbee/tab-strip/react';
+import { TabStrip, type TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
 
 import {

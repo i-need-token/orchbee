@@ -1,5 +1,4 @@
-import type { TabData } from '@orchbee/tab-strip';
-import type { TabStripMessages } from '@orchbee/tab-strip/react';
+import type { TabData, TabStripMessages } from '@orchbee/tab-strip';
 import { useOrchbeeIntl, workbenchTabMessages } from '@orchbee/i18n';
 import * as React from 'react';
 

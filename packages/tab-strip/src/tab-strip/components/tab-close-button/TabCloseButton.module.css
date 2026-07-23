@@ -1,7 +1,0 @@
-.ct-tab__close {
-	composes: ct-tab__close from '../../TabStrip.module.css';
-}
-
-.ct-tab__close-target {
-	composes: ct-tab__close-target from '../../TabStrip.module.css';
-}

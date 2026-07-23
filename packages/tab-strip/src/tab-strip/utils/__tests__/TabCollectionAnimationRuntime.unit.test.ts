@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { requireDefined } from '../../../common';
-import type { ProposedLayout } from '../../../layout';
-import type { TabSlotViewState } from '../../../model';
+import { requireDefined } from '../requireDefined';
+import type { ProposedLayout } from '../../layout/proposed-layout';
+import type { TabSlotViewState } from '../../model/TabSlotViewState';
 import { TabCollectionAnimationRuntime, type LiveTabSlot } from '../TabCollectionAnimationRuntime';
 
 function row(ids: readonly string[]): ProposedLayout {

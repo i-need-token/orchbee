@@ -1,0 +1,43 @@
+.ct-hover-card {
+	composes: ct-hover-card from '../../TabStripView.module.css';
+}
+
+.ct-hover-card--group {
+	composes: ct-hover-card--group from '../../TabStripView.module.css';
+}
+
+.ct-hover-card__body {
+	composes: ct-hover-card__body from '../../TabStripView.module.css';
+}
+
+.ct-hover-card__alert {
+	composes: ct-hover-card__alert from '../../TabStripView.module.css';
+}
+
+.ct-hover-card__footer {
+	composes: ct-hover-card__footer from '../../TabStripView.module.css';
+}
+
+.ct-hover-card__footer-row {
+	composes: ct-hover-card__footer-row from '../../TabStripView.module.css';
+}
+
+.ct-hover-card__group-excess {
+	composes: ct-hover-card__group-excess from '../../TabStripView.module.css';
+}
+
+.ct-hover-card__group-tabs {
+	composes: ct-hover-card__group-tabs from '../../TabStripView.module.css';
+}
+
+.ct-hover-card__preview {
+	composes: ct-hover-card__preview from '../../TabStripView.module.css';
+}
+
+.ct-hover-card__performance {
+	composes: ct-hover-card__performance from '../../TabStripView.module.css';
+}
+
+.ct-hover-card__resource-icon {
+	composes: ct-hover-card__resource-icon from '../../TabStripView.module.css';
+}

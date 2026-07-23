@@ -161,15 +161,15 @@ intent, so both facts remain explicit in state.
 
 ## Implementation bridge
 
-`src/dragging/horizontal-group-drag-machine.ts` owns group-drag phase, selection policy, temporary
-backing collapse, whole-group movement, cancellation restoration, and visual kind. The React
-integration may measure geometry and execute commands but must not independently choose those
-semantics.
+`src/tab-strip/dragging/horizontal-group-drag-machine.ts` owns group-drag phase, selection policy,
+temporary backing collapse, whole-group movement, cancellation restoration, and visual kind. The
+React integration may measure geometry and execute commands but must not independently choose
+those semantics.
 
-`src/dragging/horizontal-group-drag-model-adapter.ts` applies transition commands to `TabModel` and
-asserts that its canonical snapshot refines the pure state after every event. The active identity
-and visible presentation remain separate facts: collapsing an active group does not transfer
-activation outside that group.
+`src/tab-strip/dragging/horizontal-group-drag-model-adapter.ts` applies transition commands to
+`TabModel` and asserts that its canonical snapshot refines the pure state after every event. The
+active identity and visible presentation remain separate facts: collapsing an active group does
+not transfer activation outside that group.
 
 Every counterexample is serialized as initial canonical state plus semantic events. DOM
 coordinates may be attached as system-test input, but the regression identity is the shortest

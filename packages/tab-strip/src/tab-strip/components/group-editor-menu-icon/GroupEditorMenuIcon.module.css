@@ -1,3 +1,0 @@
-.ct-group-editor__menu-icon {
-	composes: ct-group-editor__menu-icon from '../../TabStrip.module.css';
-}

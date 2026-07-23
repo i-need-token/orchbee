@@ -5,29 +5,29 @@ import type {
 	RefObject,
 	SetStateAction,
 } from 'react';
+import type { HoverCardThumbnailSnapshot } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-runtime';
 import type {
-	HoverCardThumbnailSnapshot,
 	TabHoverCardSnapshot,
 	HoverCardUpdateType,
-} from '../../hovercard';
-import type { TabData, TabGroupData, TabModel, TabModelSnapshot } from '../../model';
-import type { AnimatedLayoutFrame, TabBoundsResult, TabCloseSource } from '../../layout';
-import type { Rect } from '../../geometry';
-import type { TabStripOrientation } from '../../common';
-import type { TabGroupEditorBubbleTracker } from '../../groups';
+} from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
+import type { TabData, TabGroupData, TabModel, TabModelSnapshot } from '../model/tab-model';
+import type { AnimatedLayoutFrame } from '../layout/tab-collection-animating-layout-manager';
+import type { TabBoundsResult } from '../layout/tab-strip-layout';
+import type { TabCloseSource } from '../layout/tab-closing-mode';
+import type { Rect } from '../utils/rectRight';
+import type { TabStripOrientation } from './tab-strip-types';
+import type { TabGroupEditorBubbleTracker } from '../model/tab-group-editor-bubble-tracker';
 import type {
 	VerticalExpandOnHoverSnapshot,
 	VerticalTabStripExpandOnHoverController,
-} from '../../vertical';
-import type { TabStripComboButtonController, TabStripComboButtonSnapshot } from '../../shared';
-import type { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimationRuntime';
+} from '../model/vertical-tab-strip-expand-on-hover';
 import type {
-	DragState,
-	HoverState,
-	MenuState,
-	TabStripProps,
-	VisualItem,
-} from '../utils/tab-strip-internals';
+	TabStripComboButtonController,
+	TabStripComboButtonSnapshot,
+} from '../model/tab-strip-combo-button';
+import type { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimationRuntime';
+import type { TabStripOptions } from './tab-strip-options';
+import type { DragState, HoverState, MenuState, VisualItem } from '../utils/tab-strip-internals';
 
 export interface TabStripViewModel {
 	readonly model: TabModel;
@@ -43,18 +43,18 @@ export interface TabStripViewModel {
 	readonly verticalToolbarHeight: number;
 	readonly verticalCaptionButtonWidth: number;
 	readonly verticalIsExitingExpandOnHover: boolean;
-	readonly onVerticalCollapsedChange: TabStripProps['onVerticalCollapsedChange'];
-	readonly onVerticalUnfocusGroup: TabStripProps['onVerticalUnfocusGroup'];
-	readonly onVerticalTabSearchClick: TabStripProps['onVerticalTabSearchClick'];
-	readonly onVerticalExpandOnHoverChange: TabStripProps['onVerticalExpandOnHoverChange'];
+	readonly onVerticalCollapsedChange: TabStripOptions['onVerticalCollapsedChange'];
+	readonly onVerticalUnfocusGroup: TabStripOptions['onVerticalUnfocusGroup'];
+	readonly onVerticalTabSearchClick: TabStripOptions['onVerticalTabSearchClick'];
+	readonly onVerticalExpandOnHoverChange: TabStripOptions['onVerticalExpandOnHoverChange'];
 	readonly focusedGroupColor: string | undefined;
 	readonly showNewTabButton: boolean;
 	readonly horizontalFrameCondensed: boolean;
 	readonly touchUi: boolean;
 	readonly tabStripDeclutter: boolean;
-	readonly onTabKeyboardFocusChanged: TabStripProps['onTabKeyboardFocusChanged'];
-	readonly onMoveTabsToNewWindow: TabStripProps['onMoveTabsToNewWindow'];
-	readonly onMoveGroupToNewWindow: TabStripProps['onMoveGroupToNewWindow'];
+	readonly onTabKeyboardFocusChanged: TabStripOptions['onTabKeyboardFocusChanged'];
+	readonly onMoveTabsToNewWindow: TabStripOptions['onMoveTabsToNewWindow'];
+	readonly onMoveGroupToNewWindow: TabStripOptions['onMoveGroupToNewWindow'];
 	readonly enableTabGroupFocusing: boolean;
 	readonly ariaLabel: string;
 	readonly snapshot: TabModelSnapshot;

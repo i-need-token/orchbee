@@ -73,18 +73,21 @@ React 必须连接 Provider 或外部生命周期时，把集成隔离在一个�
 
 只有存在具体自有内容时才创建支撑目录：
 
-| 目录          | 允许的组件自有内容                                                                 |
-| ------------- | ---------------------------------------------------------------------------------- |
-| `components/` | 递归私有组件目录                                                                   |
-| `contexts/`   | 包含 State、动作、创建、Provider 和 selector Hook 的一个 Context 作用域 Store 模块 |
-| `hooks/`      | 行为、Presenter、动作和生命周期 Hook；绝不包装 Store selector Hook                 |
-| `constants/`  | 只由组件拥有的静态值和有限配置                                                     |
-| `types/`      | 子树多个文件共享的具名结构、union 和 enum                                          |
-| `utils/`      | 只由组件拥有的框架无关纯辅助函数                                                   |
-| `__tests__/`  | [`docs/TESTING.md`](../TESTING.md) 要求的单元测试                                  |
+| 目录          | 允许的组件自有内容                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| `components/` | 递归私有组件目录                                                                                       |
+| `contexts/`   | 只读能力 Context，或包含 State、动作、创建、Provider 和 selector Hook 的一个 Context 作用域 Store 模块 |
+| `hooks/`      | 行为、Presenter、动作和生命周期 Hook；绝不包装 Store selector Hook                                     |
+| `constants/`  | 只由组件拥有的静态值和有限配置                                                                         |
+| `types/`      | 子树多个文件共享的具名结构、union 和 enum                                                              |
+| `utils/`      | 只由组件拥有的框架无关纯辅助函数                                                                       |
+| `__tests__/`  | [`docs/TESTING.md`](../TESTING.md) 要求的单元测试                                                      |
 
 - 兄弟树共享资源保留在最近共同所有者；跨功能工作流、外部集成和契约保留在所属源模块。
 - 私有或支撑目录不得增加 barrel；另一个模块需要它时提升整个树。
+- 当公共根组件本身是一项完整能力时，可以直接拥有语义子系统目录，前提是每个目录包含多个内聚文件、只承担一个领域责任，并且没有独立外部消费者。名称应描述能力侧面，例如 `model/`、`layout/`、`dragging/` 或 `accessibility/`；禁止 `common/`、`shared/`、`style/` 和 `misc/` 等通用收集名称。
+- 语义子系统目录继续作为公共组件源模块的结构部分。它们没有 `index.ts`，直接导入同级实现文件，并且只通过公共组件 `index.ts` 公开选定 API。
+- 只读能力 Context 传递稳定的不可变数据或函数，例如准备好的消息。它不拥有变化中的 UI 状态或无限制 mutation；当后代共享会变化的功能状态时，使用 Context 作用域 Store 契约。
 - Context Store 和 `use<ComponentName>Store(selector)` 保留在 `contexts/` 下的同一模块；绝不增加转发用 `hooks/useFilterableListStore.ts`。
 - 单个组件使用的 Props 保留在其 `.tsx`；只有共享或有独立含义的数据才使用 `types/`。
 - 可选 CSS Module 保留在导入它的 `.tsx` 旁边；不得创建 `styles/`。

@@ -1,0 +1,15 @@
+.ct-flat-edge-button {
+	composes: ct-flat-edge-button from '../../../../TabStripView.module.css';
+}
+
+.ct-flat-edge-button__icon {
+	composes: ct-flat-edge-button__icon from '../../../../TabStripView.module.css';
+}
+
+.ct-flat-edge-button__label {
+	composes: ct-flat-edge-button__label from '../../../../TabStripView.module.css';
+}
+
+.ct-vertical-new-tab {
+	composes: ct-vertical-new-tab from '../../../../TabStripView.module.css';
+}

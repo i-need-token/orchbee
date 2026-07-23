@@ -2,7 +2,7 @@
 	"name": "@orchbee/tab-strip",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Reusable tab-strip behavior and React components",
+	"description": "Complete React tab-strip capability with owned model, layout, and interactions",
 	"files": [
 		"dist",
 		"README.md",
@@ -23,12 +23,6 @@
 			"import": "./dist/index.js",
 			"require": "./dist/index.cjs"
 		},
-		"./react": {
-			"@orchbee/source": "./src/react/index.ts",
-			"types": "./dist/react/index.d.ts",
-			"import": "./dist/react/index.js",
-			"require": "./dist/react/index.cjs"
-		},
 		"./styles.css": {
 			"@orchbee/source": "./src/styles.ts",
 			"default": "./dist/styles.css"
@@ -40,7 +34,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"test:property": "vitest run src/dragging/__tests__/horizontal-group-drag-machine.unit.test.ts src/layout/__tests__/tab-content-layout.unit.test.ts",
+		"test:property": "vitest run src/tab-strip/dragging/__tests__/horizontal-group-drag-machine.unit.test.ts src/tab-strip/layout/__tests__/tab-content-layout.unit.test.ts",
 		"test:system": "playwright test --config playwright.config.ts",
 		"test:tla": "node scripts/run-tla.mjs",
 		"test:lean": "node scripts/run-lean.mjs",
@@ -65,6 +59,7 @@
 		"jsdom": "29.1.1",
 		"react": "catalog:",
 		"react-dom": "catalog:",
+		"storybook-react-rsbuild": "catalog:",
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {

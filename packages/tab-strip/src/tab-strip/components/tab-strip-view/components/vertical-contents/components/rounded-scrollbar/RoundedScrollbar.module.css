@@ -1,0 +1,7 @@
+.ct-rounded-scrollbar {
+	composes: ct-rounded-scrollbar from '../../../../TabStripView.module.css';
+}
+
+.ct-rounded-scrollbar__thumb {
+	composes: ct-rounded-scrollbar__thumb from '../../../../TabStripView.module.css';
+}

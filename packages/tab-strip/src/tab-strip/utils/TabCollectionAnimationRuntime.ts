@@ -2,14 +2,14 @@ import {
 	TabCollectionAnimatingLayoutManager,
 	TabCollectionAnimationAxis,
 	type AnimatedLayoutFrame,
-	type ProposedLayout,
-} from '../../layout';
+} from '../layout/tab-collection-animating-layout-manager';
+import { type ProposedLayout } from '../layout/proposed-layout';
 import {
 	TabSlotAnimationDelegate,
-	TabSlotViewState,
-	type TabGroupId,
 	type TabSlotAnimationHost,
-} from '../../model';
+} from '../model/TabSlotAnimationDelegate';
+import { TabSlotViewState } from '../model/TabSlotViewState';
+import { type TabGroupId } from '../model/tab-types';
 
 export interface LiveTabSlot {
 	id: string;

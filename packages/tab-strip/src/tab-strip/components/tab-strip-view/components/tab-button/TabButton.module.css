@@ -1,0 +1,35 @@
+.ct-tab {
+	composes: ct-tab from '../../TabStripView.module.css';
+}
+
+.ct-tab__background {
+	composes: ct-tab__background from '../../TabStripView.module.css';
+}
+
+.ct-tab__background-fill {
+	composes: ct-tab__background-fill from '../../TabStripView.module.css';
+}
+
+.ct-tab__content {
+	composes: ct-tab__content from '../../TabStripView.module.css';
+}
+
+.ct-tab__hit-target {
+	composes: ct-tab__hit-target from '../../TabStripView.module.css';
+}
+
+.ct-tab__separator {
+	composes: ct-tab__separator from '../../TabStripView.module.css';
+}
+
+.ct-tab__separator--leading {
+	composes: ct-tab__separator--leading from '../../TabStripView.module.css';
+}
+
+.ct-tab__separator--trailing {
+	composes: ct-tab__separator--trailing from '../../TabStripView.module.css';
+}
+
+.ct-tab__title {
+	composes: ct-tab__title from '../../TabStripView.module.css';
+}

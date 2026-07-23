@@ -1,0 +1,11 @@
+.ct-vertical-top-button {
+	composes: ct-vertical-top-button from '../../../../TabStripView.module.css';
+}
+
+.ct-vertical-top-combo {
+	composes: ct-vertical-top-combo from '../../../../TabStripView.module.css';
+}
+
+.ct-vertical-top-container {
+	composes: ct-vertical-top-container from '../../../../TabStripView.module.css';
+}

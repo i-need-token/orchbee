@@ -1,30 +1,26 @@
 # @orchbee/tab-strip
 
-Reusable React tab-strip components backed by independently testable state, layout, and dragging
-behavior. This package is a library built with Rslib; it is not a standalone site.
+Complete reusable React tab-strip capability. The package combines the public component, its
+domain model, layout rules, accessibility projections, drag interactions, and recursively owned
+private component tree behind one package entry. It is an Rslib library, not a standalone site.
 
 ## Scope
 
 The package owns tab and group transitions, selection invariants, pinned and grouped ordering,
-compact-layout calculations, drag geometry, accessibility projections, and deterministic React
-event integration. Product data, persistence, navigation, localization, host effects, icons, and
-final presentation remain consumer responsibilities.
-
-The current React renderer is a behavior-preserving migration surface. Its presentation is owned
-by `src/TabStrip.module.css` and consumes the repository design-token registry. Host wiring that
-still lives in the renderer will be separated in a later phase.
+horizontal and vertical layout, drag geometry, accessibility projections, hover cards, menus, and
+deterministic React event integration. Consumers own application composition, terminal sessions,
+navigation, persistence, product localization, theme token values, and platform or cross-window
+host implementations.
 
 ## Entry points
 
 ```ts
-import { TabModel, TabStripOrientation } from '@orchbee/tab-strip';
-import { TabStrip, type TabStripMessages } from '@orchbee/tab-strip/react';
+import { TabModel, TabStrip, TabStripOrientation, type TabStripMessages } from '@orchbee/tab-strip';
 import '@orchbee/ui/styles.css';
 import '@orchbee/tab-strip/styles.css';
 ```
 
-- `@orchbee/tab-strip` exposes framework-independent state, layout, drag, and accessibility APIs.
-- `@orchbee/tab-strip/react` exposes the React integration and renderer.
+- `@orchbee/tab-strip` exposes the component and the selected contracts needed to create and host it.
 - `@orchbee/ui/styles.css` provides the shared primitive styles and design-token registry used by
   the context menu.
 - `@orchbee/tab-strip/styles.css` provides the component's CSS Module output for built consumers.
@@ -34,9 +30,47 @@ menus, accessibility names, and live-region announcements. The built-in English 
 reference fallback for package tests and non-product fixtures; Orchbee product surfaces supply the
 contract from `@orchbee/i18n`.
 
-The package API intentionally uses domain names and has no browser-vendor subpath. Browser and DOM
-host adapters used by the migrated React renderer remain private. Upstream source attribution and
-license obligations are recorded in [`NOTICE.reference`](NOTICE.reference).
+The package API intentionally has no React or browser-vendor subpath. Browser and DOM adapters
+remain private; selected host contracts are promoted through the root only when a consumer must
+provide them. Upstream source attribution and license obligations are recorded in
+[`NOTICE.reference`](NOTICE.reference).
+
+## Source ownership
+
+```text
+src/
+├── index.ts
+├── styles.ts
+└── tab-strip/
+    ├── index.ts
+    ├── TabStrip.tsx
+    ├── components/
+    │   └── tab-strip-view/
+    │       ├── TabStripView.tsx
+    │       └── components/
+    │           ├── horizontal-contents/
+    │           ├── vertical-contents/
+    │           ├── tab-button/
+    │           ├── group-header/
+    │           ├── drag-ghost/
+    │           ├── hover-card/
+    │           └── tab-strip-context-menu/
+    ├── model/
+    ├── layout/
+    ├── dragging/
+    ├── accessibility/
+    ├── contexts/
+    ├── hooks/
+    ├── constants/
+    ├── types/
+    └── utils/
+```
+
+`TabStrip.tsx` is the narrow public adapter. `TabStripView` composes the prepared horizontal,
+vertical, overlay, and menu regions. Private components repeat the same ownership structure
+recursively and have no barrels. The four semantic subsystems are cohesive facets of this complete
+component capability, not separately consumable source modules; selected public contracts are
+re-exported only through `tab-strip/index.ts` and the package root.
 
 ## Correctness
 

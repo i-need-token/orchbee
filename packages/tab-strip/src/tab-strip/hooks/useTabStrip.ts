@@ -11,50 +11,60 @@ import {
 import {
 	HoverCardUpdateType,
 	TabHoverCardController,
-	TabHoverCardThumbnailRuntime,
-} from '../../hovercard';
-import { TabActive, TabOpen, TabPinned, type TabData, type TabGroupData } from '../../model';
+} from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
+import { TabHoverCardThumbnailRuntime } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-runtime';
+import { TabActive, TabOpen, TabPinned } from '../model/tab-types';
+import { type TabData, type TabGroupData } from '../model/tab-model';
 import {
 	applyHorizontalGroupDragCommands,
 	assertHorizontalGroupDragRefinement,
-	buildDraggedTabsLayout,
-	calculateGroupForDraggedTabs,
-	calculateHorizontalMoveThreshold,
 	createArmedHorizontalGroupDrag,
+} from '../dragging/horizontal-group-drag-model-adapter';
+import {
+	buildDraggedTabsLayout,
 	getDraggingViewsBoundsAtPoint,
-	getHorizontalDragTarget,
 	getTargetBeforeDraggedTabs,
 	shouldEnterVerticalTabGroup,
 	shouldRemainInVerticalTabGroup,
-	transitionHorizontalGroupDrag,
-} from '../../dragging';
+} from '../dragging/dragged-tabs-container-layout';
+import {
+	calculateGroupForDraggedTabs,
+	calculateHorizontalMoveThreshold,
+} from '../dragging/dragging-tabs-session';
+import { getHorizontalDragTarget } from '../dragging/tab-strip-drag-position';
+import { transitionHorizontalGroupDrag } from '../dragging/horizontal-group-drag-machine';
 import {
 	TAB_CLOSE_TOUCH_RESIZE_DELAY_MS,
-	TabLayoutState,
-	TabWidthConstraints,
-	calculateTabBounds,
 	calculateTabClosingModeWidth,
-	getPinnedTabContainerDragAxes,
 	getTabClosingModeWatchBounds,
 	shouldExitTabClosingMode,
-	tabCollectionEaseInOut,
 	tabClosingModeContainsPoint,
-	type AnimatedLayoutFrame,
 	type TabCloseSource,
-} from '../../layout';
-import { requireDefined, TabStripOrientation, VerticalTabStripCollapseState } from '../../common';
-import { DEFAULT_TAB_STYLE_METRICS, LAYOUT_CONSTANTS } from '../../style';
-import { TabGroupEditorBubbleTracker } from '../../groups';
-import { ExpandOnHoverLockType, VerticalTabStripExpandOnHoverController } from '../../vertical';
-import { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimationRuntime';
-import { TabStripComboButtonController } from '../../shared';
-import { useElementSize } from './useElementSize';
+} from '../layout/tab-closing-mode';
+import { TabLayoutState } from '../layout/TabLayoutState';
+import { TabWidthConstraints } from '../layout/TabWidthConstraints';
+import { calculateTabBounds } from '../layout/tab-strip-layout';
+import { getPinnedTabContainerDragAxes } from '../layout/pinned-tab-container-layout';
 import {
-	DEFAULT_TAB_STRIP_MESSAGES,
-	type TabStripMessages,
-	type TabStripMoveDirection,
-} from '../messages';
+	tabCollectionEaseInOut,
+	type AnimatedLayoutFrame,
+} from '../layout/tab-collection-animating-layout-manager';
+import { requireDefined } from '../utils/requireDefined';
+import { TabStripOrientation, VerticalTabStripCollapseState } from '../types/tab-strip-types';
+import { DEFAULT_TAB_STYLE_METRICS } from '../layout/tab-style-metrics';
+import { LAYOUT_CONSTANTS } from '../layout/layout-constants';
+import { TabGroupEditorBubbleTracker } from '../model/tab-group-editor-bubble-tracker';
+import {
+	ExpandOnHoverLockType,
+	VerticalTabStripExpandOnHoverController,
+} from '../model/vertical-tab-strip-expand-on-hover';
+import { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimationRuntime';
+import { TabStripComboButtonController } from '../model/tab-strip-combo-button';
+import { useElementSize } from './useElementSize';
+import { DEFAULT_TAB_STRIP_MESSAGES } from '../constants/default-tab-strip-messages';
+import type { TabStripMessages, TabStripMoveDirection } from '../types/tab-strip-messages';
 import type { TabStripViewModel } from '../types/tab-strip-view-model';
+import type { TabStripOptions } from '../types/tab-strip-options';
 import {
 	TAB_SIZE,
 	TAB_BOUNDS_ANIMATION_DURATION_MS,
@@ -74,7 +84,6 @@ import {
 	type DragState,
 	type MenuState,
 	type HoverState,
-	type TabStripProps,
 } from '../utils/tab-strip-internals';
 
 export function useTabStrip(
@@ -116,7 +125,7 @@ export function useTabStrip(
 		ariaLabel,
 		onNewTab,
 		onNewTabButtonPressed,
-	}: TabStripProps,
+	}: TabStripOptions,
 	messages: TabStripMessages = DEFAULT_TAB_STRIP_MESSAGES,
 ): TabStripViewModel {
 	const snapshot = useSyncExternalStore(model.subscribe, model.getSnapshot, model.getSnapshot);

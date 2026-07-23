@@ -3,10 +3,11 @@
 	"domain": "tab-strip",
 	"runtime": ["browser"],
 	"stability": "experimental",
-	"responsibility": "Reusable tab-strip state transitions, layout constraints, drag interactions, and framework integration.",
+	"responsibility": "Complete React tab-strip capability owning its component tree, state transitions, layout constraints, accessibility, and drag interactions.",
 	"nonGoals": [
 		"Owning Orchbee sessions, routing, persistence, localization, or application composition.",
 		"Defining the product theme, icons, visual language, or product-facing messages.",
-		"Selecting browser, desktop, or cross-window host implementations for consumers."
+		"Selecting browser, desktop, or cross-window host implementations for consumers.",
+		"Providing a framework-independent package entry point separate from the TabStrip component."
 	]
 }

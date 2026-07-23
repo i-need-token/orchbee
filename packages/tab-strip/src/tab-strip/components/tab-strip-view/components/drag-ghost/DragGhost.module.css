@@ -1,0 +1,31 @@
+.ct-drag-ghost {
+	composes: ct-drag-ghost from '../../TabStripView.module.css';
+}
+
+.ct-drag-ghost__count {
+	composes: ct-drag-ghost__count from '../../TabStripView.module.css';
+}
+
+.ct-drag-ghost__group {
+	composes: ct-drag-ghost__group from '../../TabStripView.module.css';
+}
+
+.ct-drag-ghost__group-view {
+	composes: ct-drag-ghost__group-view from '../../TabStripView.module.css';
+}
+
+.ct-drag-ghost__highlight {
+	composes: ct-drag-ghost__highlight from '../../TabStripView.module.css';
+}
+
+.ct-drag-ghost__item {
+	composes: ct-drag-ghost__item from '../../TabStripView.module.css';
+}
+
+.ct-drag-ghost__tab-view {
+	composes: ct-drag-ghost__tab-view from '../../TabStripView.module.css';
+}
+
+.ct-drag-ghost__underline {
+	composes: ct-drag-ghost__underline from '../../TabStripView.module.css';
+}

@@ -1,7 +1,7 @@
 import { cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { TabStripOrientation } from '../../../common';
-import { TabModel } from '../../../model';
+import { TabStripOrientation } from '../../types/tab-strip-types';
+import { TabModel } from '../../model/tab-model';
 import { useTabStrip } from '../useTabStrip';
 
 afterEach(cleanup);

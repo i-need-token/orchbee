@@ -2,6 +2,7 @@ import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
 	TabModel,
 	TabStripOrientation,
+	TabStrip,
 	ThumbnailCaptureReadiness,
 	type TabData,
 	type TabGroupData,
@@ -9,7 +10,6 @@ import {
 	type HoverCardThumbnailSubscription,
 	type TabAlertState,
 } from '../../src';
-import { TabStrip } from '../../src/react';
 
 const initialGroups: TabGroupData[] = [
 	{
