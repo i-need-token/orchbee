@@ -1,9 +1,8 @@
 /**
- * The TabStyle values used by Chromium's current horizontal tab strip.
+ * The TabStyle values used by Orchbee's horizontal tab strip.
  *
- * The C++ code reads these through the process-wide TabStyle singleton. They
- * are explicit here so alternate density/platform styles can use the same
- * layout algorithm without hiding a mutable global.
+ * The overlap follows Chromium's layout algorithm while the standard height
+ * follows Orchbee's even-pixel visual density.
  */
 export interface TabStyleMetrics {
 	tabOverlap: number;
@@ -13,5 +12,5 @@ export interface TabStyleMetrics {
 // Verified by tab_strip_layout_unittest.cc in the mirrored Chromium source.
 export const DEFAULT_TAB_STYLE_METRICS: Readonly<TabStyleMetrics> = {
 	tabOverlap: 18,
-	standardHeight: 41,
+	standardHeight: 40,
 };

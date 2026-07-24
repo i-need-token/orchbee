@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { getHorizontalDragInsertionIndex } from '../tab-strip-drag-position';
 
-const bounds = [0, 82, 164, 246].map((x) => ({ x, y: 0, width: 100, height: 41 }));
+const bounds = [0, 82, 164, 246].map((x) => ({ x, y: 0, width: 100, height: 40 }));
 const plain = { group: null };
 
 describe('horizontal tab drag insertion', () => {
 	it('chooses the valid ideal position closest to the dragged view', () => {
 		expect(
 			getHorizontalDragInsertionIndex({
-				draggedBounds: { x: 160, y: 0, width: 100, height: 41 },
+				draggedBounds: { x: 160, y: 0, width: 100, height: 40 },
 				tabs: [plain, plain, plain, plain],
 				idealTabBounds: bounds,
 				firstDraggedTabIndex: 0,
@@ -22,7 +22,7 @@ describe('horizontal tab drag insertion', () => {
 	it('keeps group-header drags out of another group and tabs out of collapsed groups', () => {
 		const tabs = [plain, { group: 'work' }, { group: 'work' }, plain];
 		const shared = {
-			draggedBounds: { x: 100, y: 0, width: 182, height: 41 },
+			draggedBounds: { x: 100, y: 0, width: 182, height: 40 },
 			tabs,
 			idealTabBounds: bounds,
 			firstDraggedTabIndex: 0,
@@ -54,7 +54,7 @@ describe('horizontal tab drag insertion', () => {
 		];
 		expect(
 			getHorizontalDragInsertionIndex({
-				draggedBounds: { x: 164, y: 0, width: 182, height: 41 },
+				draggedBounds: { x: 164, y: 0, width: 182, height: 40 },
 				tabs,
 				idealTabBounds: bounds,
 				firstDraggedTabIndex: 0,
@@ -67,14 +67,14 @@ describe('horizontal tab drag insertion', () => {
 
 	it('does not subtract dragged width twice after views leave the source layout', () => {
 		const removedSourceBounds = [
-			{ x: 0, y: 0, width: 18, height: 41 },
-			{ x: 0, y: 0, width: 18, height: 41 },
-			{ x: 0, y: 0, width: 100, height: 41 },
-			{ x: 82, y: 0, width: 100, height: 41 },
+			{ x: 0, y: 0, width: 18, height: 40 },
+			{ x: 0, y: 0, width: 18, height: 40 },
+			{ x: 0, y: 0, width: 100, height: 40 },
+			{ x: 82, y: 0, width: 100, height: 40 },
 		];
 		expect(
 			getHorizontalDragInsertionIndex({
-				draggedBounds: { x: 164, y: 0, width: 182, height: 41 },
+				draggedBounds: { x: 164, y: 0, width: 182, height: 40 },
 				tabs: [
 					{ group: 'research' },
 					{ group: 'research' },

@@ -10,6 +10,6 @@ describe('useGroupHeader', () => {
 
 		expect(result.current.lastPointerType.current).toBe('mouse');
 		expect(result.current.editorOpenedOnPress.current).toBe(false);
-		expect(result.current.measuredHeaderSize).toEqual({ width: 0, height: 0 });
+		expect(result.current.headerRef.current).toBeNull();
 	});
 });

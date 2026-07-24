@@ -38,7 +38,7 @@ export function calculateTabContainerZValue(input: Readonly<TabContainerZValueIn
 		return GROUP_VIEW_Z_VALUE_BIT + (input.active ? ACTIVE_TAB_Z_VALUE_BIT : 0);
 	}
 	if (input.kind === 'group-underline') {
-		return GROUP_VIEW_Z_VALUE_BIT;
+		return GROUP_VIEW_Z_VALUE_BIT + ACTIVE_TAB_Z_VALUE_BIT + 1;
 	}
 	const active = input.active ? ACTIVE_TAB_Z_VALUE_BIT : 0;
 	return active + getTabStyleZValue(input) + 1;

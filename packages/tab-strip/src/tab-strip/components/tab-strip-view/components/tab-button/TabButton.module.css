@@ -6,8 +6,8 @@
 	composes: ct-tab__background from '../../TabStripView.module.css';
 }
 
-.ct-tab__background-fill {
-	composes: ct-tab__background-fill from '../../TabStripView.module.css';
+.ct-tab__surface {
+	composes: ct-tab__surface from '../../TabStripView.module.css';
 }
 
 .ct-tab__content {

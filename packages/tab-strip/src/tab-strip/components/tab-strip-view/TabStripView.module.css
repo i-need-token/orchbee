@@ -70,7 +70,7 @@
 
 .ct-tab-strip[data-orientation='horizontal'] {
 	width: 100%;
-	height: var(--ob-comp-tab-strip-length-41);
+	height: var(--ob-comp-tab-strip-length-40);
 }
 .ct-horizontal-track {
 	position: absolute;
@@ -80,7 +80,7 @@
 .ct-horizontal-item {
 	position: absolute;
 	top: 0;
-	height: var(--ob-comp-tab-strip-length-41);
+	height: var(--ob-comp-tab-strip-length-40);
 	transition:
 		left var(--ob-sys-motion-duration-tab-strip-layout) var(--ob-sys-motion-easing-standard),
 		width var(--ob-sys-motion-duration-tab-strip-layout) var(--ob-sys-motion-easing-standard),
@@ -124,17 +124,6 @@
 .ct-tab__background {
 	position: absolute;
 	pointer-events: none;
-}
-.ct-tab__hit-target {
-	fill: transparent;
-	pointer-events: fill;
-}
-.ct-tab__background-fill {
-	opacity: 0;
-	fill: transparent;
-	transition:
-		fill var(--ob-sys-motion-duration-tab-strip-layout) var(--ob-sys-motion-easing-exit),
-		opacity var(--ob-sys-motion-duration-tab-strip-layout) var(--ob-sys-motion-easing-exit);
 }
 .ct-tab__separator {
 	position: absolute;
@@ -422,17 +411,40 @@
 	padding: 0;
 	overflow: visible;
 	pointer-events: none;
+	color: var(--ob-sys-color-text-secondary);
 }
-.ct-tab[data-orientation='horizontal'] .ct-tab__background {
-	inset: 0;
-	width: 100%;
-	height: var(--ob-comp-tab-strip-length-41);
-	overflow: visible;
+.ct-tab[data-orientation='horizontal'][data-hovered],
+.ct-tab[data-orientation='horizontal'][data-active] {
+	color: var(--ob-sys-color-text-primary);
+}
+.ct-tab[data-orientation='horizontal'] .ct-tab__hit-target {
+	position: absolute;
+	inset: var(--ob-comp-tab-strip-length-2) var(--ob-comp-tab-strip-length-7) 0;
+	border-radius: var(--ob-comp-tab-strip-length-8) var(--ob-comp-tab-strip-length-8) 0 0;
+	background: transparent;
+	pointer-events: auto;
+}
+.ct-tab[data-orientation='horizontal'][data-frame-condensed] .ct-tab__hit-target {
+	inset-block-start: 0;
+	border-start-start-radius: 0;
+	border-start-end-radius: 0;
+}
+.ct-tab[data-orientation='horizontal'] .ct-tab__surface {
+	position: absolute;
+	inset: var(--ob-comp-tab-strip-length-2) var(--ob-comp-tab-strip-length-10) 0;
+	min-width: 0;
+	border-radius: var(--ob-comp-tab-strip-length-8) var(--ob-comp-tab-strip-length-8) 0 0;
+	display: flex;
+	align-items: center;
+	background: transparent;
+	pointer-events: none;
 }
 .ct-tab[data-orientation='horizontal'] .ct-tab__content {
-	inset: var(--ob-comp-tab-strip-length-12) var(--ob-comp-tab-strip-length-20)
-		var(--ob-comp-tab-strip-length-13);
+	position: relative;
+	inset: auto;
 	height: var(--ob-comp-tab-strip-length-16);
+	margin-inline: var(--ob-comp-tab-strip-length-10);
+	flex: 1 1 auto;
 	gap: 0;
 	pointer-events: none;
 }
@@ -495,38 +507,32 @@
 	.ct-tab__content {
 	padding-inline-end: var(--ob-comp-tab-strip-length-28);
 }
-.ct-tab[data-orientation='horizontal'][data-hovered] .ct-tab__background-fill {
-	fill: var(--ob-sys-color-surface-hovered);
-	opacity: var(--ob-comp-tab-strip-opacity-visible);
-	transition-timing-function: var(--ob-sys-motion-easing-enter);
+.ct-tab[data-orientation='horizontal'][data-hovered] .ct-tab__surface {
+	background: var(--ob-sys-color-surface-subtle);
 }
-.ct-tab[data-orientation='horizontal'][data-selected] .ct-tab__background-fill {
-	fill: var(--ob-sys-color-surface-selected);
-	opacity: var(--ob-comp-tab-strip-opacity-visible);
+.ct-tab[data-orientation='horizontal'][data-selected] .ct-tab__surface {
+	background: var(--ob-sys-color-surface-selected);
 }
 .ct-tab[data-orientation='horizontal'][data-selected][data-hovered]:not([data-active])
-	.ct-tab__background-fill {
-	fill: var(--ob-sys-color-surface-selected-hover);
+	.ct-tab__surface {
+	background: var(--ob-sys-color-surface-selected-hover);
 }
-.ct-tab[data-orientation='horizontal'][data-active] .ct-tab__background-fill {
-	fill: var(--ob-sys-color-surface-raised);
-	opacity: var(--ob-comp-tab-strip-opacity-visible);
+.ct-tab[data-orientation='horizontal'][data-active] .ct-tab__surface {
+	background: var(--ob-sys-color-surface-raised);
 }
-.ct-tab[data-orientation='horizontal']:focus-visible .ct-tab__background-fill {
-	stroke: var(--ob-sys-color-border-focus);
-	stroke-width: var(--ob-comp-tab-strip-length-2);
-	vector-effect: non-scaling-stroke;
+.ct-tab[data-orientation='horizontal']:focus-visible .ct-tab__surface {
+	outline: var(--ob-comp-tab-strip-length-2) solid var(--ob-sys-color-border-focus);
+	outline-offset: var(--ob-comp-tab-strip-length-negative-2);
 }
-.ct-tab[data-orientation='horizontal'][data-active][data-grouped]:focus-visible
-	.ct-tab__background-fill {
-	stroke: none;
+.ct-tab[data-orientation='horizontal'][data-active][data-grouped]:focus-visible .ct-tab__surface {
+	outline: none;
 }
 .ct-tab[data-orientation='horizontal'][data-pinned] .ct-tab__close {
 	display: none;
 }
 .ct-tab[data-orientation='horizontal'][data-pinned]:not([data-render-normal]) .ct-tab__content {
 	justify-content: center;
-	inset-inline: 0;
+	margin-inline: 0;
 }
 .ct-tab[data-orientation='horizontal'][data-pinned]:not([data-render-normal]) .ct-tab-icon {
 	margin-inline-end: 0;
@@ -534,7 +540,7 @@
 .ct-tab[data-orientation='horizontal'][data-center-control] .ct-tab__content {
 	justify-content: center;
 	gap: 0;
-	inset-inline: 0;
+	margin-inline: 0;
 }
 .ct-tab[data-orientation='horizontal'][data-center-control] .ct-tab-icon,
 .ct-tab[data-orientation='horizontal'][data-center-control] .ct-tab__title,
@@ -555,14 +561,11 @@
 	border-radius: var(--ob-comp-tab-strip-length-2);
 	background: var(--ob-comp-tab-strip-group-color);
 	pointer-events: none;
-	transition:
-		left var(--ob-sys-motion-duration-tab-strip-layout) var(--ob-sys-motion-easing-standard),
-		width var(--ob-sys-motion-duration-tab-strip-layout) var(--ob-sys-motion-easing-standard);
 }
 .ct-group-drag-highlight {
 	position: absolute;
 	top: 0;
-	height: var(--ob-comp-tab-strip-length-41);
+	height: var(--ob-comp-tab-strip-length-40);
 	z-index: 0;
 	overflow: visible;
 	pointer-events: none;
@@ -587,11 +590,8 @@
 .ct-group-header[data-orientation='horizontal'] {
 	position: relative;
 	width: 100%;
-	height: var(--ob-comp-tab-strip-length-41);
-	padding: var(--ob-comp-tab-strip-length-10) var(--ob-comp-tab-strip-length-16)
-		var(--ob-comp-tab-strip-length-11);
-	display: flex;
-	align-items: flex-start;
+	height: var(--ob-comp-tab-strip-length-40);
+	padding: 0;
 	clip-path: inset(
 		var(--ob-comp-tab-strip-length-6) var(--ob-comp-tab-strip-length-9) 0
 			var(--ob-comp-tab-strip-length-9)
@@ -603,16 +603,31 @@
 .ct-group-header[data-orientation='horizontal'][data-active] {
 	clip-path: none;
 }
-.ct-group-header__active-background {
+.ct-group-header__surface {
 	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: var(--ob-comp-tab-strip-length-41);
-	overflow: visible;
+	inset: var(--ob-comp-tab-strip-length-2) var(--ob-comp-tab-strip-length-10) 0;
+	min-width: 0;
+	padding-inline: var(--ob-comp-tab-strip-length-10);
+	border-radius: var(--ob-comp-tab-strip-length-8) var(--ob-comp-tab-strip-length-8) 0 0;
+	display: flex;
+	align-items: center;
+	background: transparent;
 	pointer-events: none;
 }
-.ct-group-header__active-background-fill {
-	fill: var(--ob-sys-color-surface-raised);
+.ct-group-header[data-active] .ct-group-header__surface {
+	background: var(--ob-sys-color-surface-raised);
+}
+.ct-tab[data-orientation='horizontal'][data-active] .ct-tab__surface::after,
+.ct-group-header[data-orientation='horizontal'][data-active] .ct-group-header__surface::after {
+	position: absolute;
+	z-index: 0;
+	inset: 0;
+	border: var(--ob-comp-tab-strip-length-1) solid var(--ob-sys-color-border-subtle);
+	border-block-end: 0;
+	border-radius: inherit;
+	content: '';
+	filter: drop-shadow(0 0 var(--ob-ref-space-1) var(--ob-sys-color-border-default));
+	pointer-events: none;
 }
 .ct-group-header__chip {
 	position: relative;
@@ -785,6 +800,7 @@
 	font: var(--ob-sys-typography-label-sm);
 }
 .ct-drag-ghost[data-layout='horizontal'] {
+	z-index: var(--ob-comp-tab-strip-runtime-layer);
 	filter: none;
 	overflow: visible;
 }
@@ -797,7 +813,7 @@
 .ct-drag-ghost[data-layout='horizontal'] .ct-drag-ghost__group {
 	position: absolute;
 	z-index: var(--ob-comp-tab-strip-layer-2);
-	height: var(--ob-comp-tab-strip-length-41);
+	height: var(--ob-comp-tab-strip-length-40);
 	padding: 0;
 	overflow: visible;
 	background: transparent;
@@ -819,7 +835,7 @@
 .ct-drag-ghost__highlight {
 	position: absolute;
 	top: 0;
-	height: var(--ob-comp-tab-strip-length-41);
+	height: var(--ob-comp-tab-strip-length-40);
 	z-index: 0;
 	overflow: visible;
 }

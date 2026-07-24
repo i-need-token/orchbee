@@ -9,16 +9,16 @@ import {
 } from '../tab-group-style';
 
 describe('TabGroupStyle', () => {
-	it('lays out an empty 20px chip with Chromium overlap margins', () => {
+	it('lays out an empty 20px chip with balanced horizontal breathing room', () => {
 		expect(
 			calculateHorizontalTabGroupHeaderLayout({ title: '', measuredTitleWidth: 0 }),
-		).toMatchObject({ chipWidth: 20, chipHeight: 20, chipX: 16, chipY: 10, desiredWidth: 52 });
+		).toMatchObject({ chipWidth: 20, chipHeight: 20, chipX: 20, chipY: 11, desiredWidth: 60 });
 	});
 
 	it('caps title text to half a standard tab excluding overlap', () => {
 		expect(
 			calculateHorizontalTabGroupHeaderLayout({ title: 'Long group', measuredTitleWidth: 500 }),
-		).toMatchObject({ textMaxWidth: 119, textWidth: 119, chipWidth: 131, desiredWidth: 163 });
+		).toMatchObject({ textMaxWidth: 119, textWidth: 119, chipWidth: 131, desiredWidth: 171 });
 	});
 
 	it('shows group attention only when the group is collapsed', () => {
@@ -74,8 +74,8 @@ describe('TabGroupStyle', () => {
 	});
 
 	it('builds the source tab-shaped drag highlight path', () => {
-		expect(getTabGroupHighlightPath(200, 41)).toBe(
-			'M 0 41 A 12 12 0 0 0 12 29 L 12 18 A 12 12 0 0 1 24 6 L 176 6 A 12 12 0 0 1 188 18 L 188 29 A 12 12 0 0 0 200 41 Z',
+		expect(getTabGroupHighlightPath(200, 40)).toBe(
+			'M 0 40 A 12 12 0 0 0 12 28 L 12 14 A 12 12 0 0 1 24 2 L 176 2 A 12 12 0 0 1 188 14 L 188 28 A 12 12 0 0 0 200 40 Z',
 		);
 	});
 

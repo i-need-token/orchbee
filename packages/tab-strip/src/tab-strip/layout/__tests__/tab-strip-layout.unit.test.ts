@@ -16,7 +16,7 @@ interface TestCase {
 	showPinnedTabsInFocusedGroups?: boolean;
 }
 const STANDARD_WIDTH = 256;
-const TAB_HEIGHT = 41;
+const TAB_HEIGHT = 40;
 const MIN_ACTIVE_WIDTH = 56;
 const MIN_INACTIVE_WIDTH = 32;
 const PINNED_WIDTH = 64;

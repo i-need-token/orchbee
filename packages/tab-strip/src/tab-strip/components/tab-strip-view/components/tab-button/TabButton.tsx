@@ -14,10 +14,8 @@ import {
 } from '../../../../layout/tab-content-layout';
 import { type TabCloseSource } from '../../../../layout/tab-closing-mode';
 import { TabStripOrientation } from '../../../../types/tab-strip-types';
-import { LAYOUT_CONSTANTS } from '../../../../layout/layout-constants';
 import {
 	TAB_CONTENT_HORIZONTAL_INSET,
-	getHorizontalTabPath,
 	getHorizontalTabSeparatorBounds,
 	getHorizontalTabSeparatorTargets,
 } from '../../../../layout/tab-style-views';
@@ -83,8 +81,8 @@ export function TabButton({
 	// longer paints them as active during that interval.
 	const { focused, hovered, measuredTabSize, setFocused, setHovered, tabViewRef } = useTabButton();
 	// Chromium's BoundsAnimator lays out a Tab at each animation frame. Observe
-	// the transitioning wrapper so paths and child visibility use that current
-	// width instead of jumping directly to the ideal target width.
+	// the transitioning wrapper so child visibility uses that current width
+	// instead of jumping directly to the ideal target width.
 	const renderedWidth =
 		orientation === TabStripOrientation.Horizontal && measuredTabSize.width > 0
 			? measuredTabSize.width
@@ -151,6 +149,26 @@ export function TabButton({
 		tabCount: snapshot.tabs.length,
 		declutterEnabled,
 	});
+	const content = (
+		<span className={styles['ct-tab__content']} data-tab-content=''>
+			{childVisibility.showFavicon ? (
+				<TabIcon tab={tab} availableWidth={Math.max(0, renderedWidth - 18)} />
+			) : null}
+			{childVisibility.showTitle ? (
+				<span className={styles['ct-tab__title']}>{getVisibleTabTitle(tab)}</span>
+			) : null}
+			{childVisibility.showAlert ? <AlertIndicatorButton alertState={alertState} /> : null}
+			{childVisibility.showClose ? (
+				<TabCloseButton
+					tabTitle={tab.title}
+					touchUi={touchUi}
+					onClose={(event, pointerType) =>
+						onClose(event, tab.id, pointerType === 'touch' ? 'touch' : 'mouse')
+					}
+				/>
+			) : null}
+		</span>
+	);
 	return (
 		<div
 			ref={tabViewRef}
@@ -193,6 +211,9 @@ export function TabButton({
 				undefined
 			}
 			data-orientation={orientation}
+			data-frame-condensed={
+				(orientation === TabStripOrientation.Horizontal && frameCondensed) || undefined
+			}
 			data-collapsed={collapsed || undefined}
 			data-slot-group={slotState?.group ?? undefined}
 			data-slot-dragging={slotState?.dragging || dragging || undefined}
@@ -223,30 +244,14 @@ export function TabButton({
 		>
 			{orientation === TabStripOrientation.Horizontal ? (
 				<>
-					<svg
-						className={styles['ct-tab__background']}
-						viewBox={`0 0 ${Math.max(1, renderedWidth)} ${LAYOUT_CONSTANTS.tabStripHeight}`}
-						preserveAspectRatio='none'
+					<span
+						className={styles['ct-tab__hit-target']}
+						data-tab-hit-target=''
 						aria-hidden='true'
-					>
-						<path
-							className={styles['ct-tab__hit-target']}
-							d={getHorizontalTabPath({
-								width: renderedWidth,
-								pathType: 'hit-test',
-								closing,
-								frameCondensed,
-							})}
-						/>
-						<path
-							className={styles['ct-tab__background-fill']}
-							d={getHorizontalTabPath({
-								width: renderedWidth,
-								pathType: active ? 'active' : 'highlight',
-								closing,
-							})}
-						/>
-					</svg>
+					/>
+					<span className={styles['ct-tab__surface']} data-tab-surface=''>
+						{content}
+					</span>
 					<span
 						className={joinClassNames(
 							styles['ct-tab__separator'],
@@ -277,26 +282,11 @@ export function TabButton({
 					/>
 				</>
 			) : (
-				<span className={styles['ct-tab__background']} />
+				<>
+					<span className={styles['ct-tab__background']} />
+					{content}
+				</>
 			)}
-			<span className={styles['ct-tab__content']}>
-				{childVisibility.showFavicon ? (
-					<TabIcon tab={tab} availableWidth={Math.max(0, renderedWidth - 18)} />
-				) : null}
-				{childVisibility.showTitle ? (
-					<span className={styles['ct-tab__title']}>{getVisibleTabTitle(tab)}</span>
-				) : null}
-				{childVisibility.showAlert ? <AlertIndicatorButton alertState={alertState} /> : null}
-				{childVisibility.showClose ? (
-					<TabCloseButton
-						tabTitle={tab.title}
-						touchUi={touchUi}
-						onClose={(event, pointerType) =>
-							onClose(event, tab.id, pointerType === 'touch' ? 'touch' : 'mouse')
-						}
-					/>
-				) : null}
-			</span>
 		</div>
 	);
 }

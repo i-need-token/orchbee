@@ -7,8 +7,6 @@ import {
 } from 'react';
 import { type TabData, type TabGroupData } from '../../../../model/tab-model';
 import { TabStripOrientation } from '../../../../types/tab-strip-types';
-import { LAYOUT_CONSTANTS } from '../../../../layout/layout-constants';
-import { getHorizontalTabPath } from '../../../../layout/tab-style-views';
 import {
 	calculateHorizontalTabGroupHeaderLayout,
 	getTabGroupTitleVisualCenteringOffset,
@@ -54,7 +52,7 @@ export function GroupHeader({
 	frameCondensed?: boolean;
 }): ReactNode {
 	const messages = useTabStripMessages();
-	const { editorOpenedOnPress, headerRef, lastPointerType, measuredHeaderSize } = useGroupHeader();
+	const { editorOpenedOnPress, headerRef, lastPointerType } = useGroupHeader();
 	const applyMacEmojiCentering =
 		orientation === TabStripOrientation.Horizontal &&
 		getTabGroupTitleVisualCenteringOffset(group.title, {
@@ -73,8 +71,6 @@ export function GroupHeader({
 		group.collapsed && activeTabId !== null && tabs.some((tab) => tab.id === activeTabId)
 			? activeTabId
 			: null;
-	const renderedHorizontalWidth =
-		measuredHeaderSize.width > 0 ? measuredHeaderSize.width : horizontalLayout.desiredWidth;
 	return (
 		<div
 			ref={headerRef}
@@ -123,25 +119,11 @@ export function GroupHeader({
 			onMouseLeave={() => onMouseLeave()}
 		>
 			{orientation === TabStripOrientation.Horizontal ? (
-				<>
-					{representedActiveTabId !== null ? (
-						<svg
-							className={styles['ct-group-header__active-background']}
-							data-group-active-background=''
-							viewBox={`0 0 ${Math.max(1, renderedHorizontalWidth)} ${LAYOUT_CONSTANTS.tabStripHeight}`}
-							preserveAspectRatio='none'
-							aria-hidden='true'
-						>
-							<path
-								className={styles['ct-group-header__active-background-fill']}
-								data-group-active-background-fill=''
-								d={getHorizontalTabPath({
-									width: renderedHorizontalWidth,
-									pathType: 'active',
-								})}
-							/>
-						</svg>
-					) : null}
+				<span
+					className={styles['ct-group-header__surface']}
+					data-group-surface=''
+					data-group-active-surface={representedActiveTabId !== null || undefined}
+				>
 					<span
 						className={styles['ct-group-header__chip']}
 						data-group-chip=''
@@ -163,7 +145,7 @@ export function GroupHeader({
 							</span>
 						) : null}
 					</span>
-				</>
+				</span>
 			) : (
 				<>
 					<span className={styles['ct-group-header__title']}>{group.title}</span>

@@ -21,36 +21,36 @@ describe('TabStripViewLayout', () => {
 			orientation: TabStripOrientation.Horizontal,
 			sizeBounds: {
 				width: 600,
-				height: 41,
+				height: 40,
 			},
 			pinnedPreferred: {
 				width: 500,
-				height: 41,
+				height: 40,
 			},
 			pinnedMinimum: {
 				width: 64,
-				height: 41,
+				height: 40,
 			},
 			unpinnedPreferred: {
 				width: 500,
-				height: 41,
+				height: 40,
 			},
 			unpinnedMinimum: {
 				width: 32,
-				height: 41,
+				height: 40,
 			},
 		});
 		expect(layout.pinnedBounds).toEqual({
 			x: 0,
 			y: 0,
 			width: 300,
-			height: 41,
+			height: 40,
 		});
 		expect(layout.unpinnedBounds).toEqual({
 			x: 300,
 			y: 0,
 			width: 300,
-			height: 41,
+			height: 40,
 		});
 		expect(layout.separatorVisible).toBe(false);
 	});

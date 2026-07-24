@@ -57,7 +57,7 @@ function createModel() {
 	});
 }
 
-function setRect(element: Element, x: number, width: number, y = 0, height = 41): void {
+function setRect(element: Element, x: number, width: number, y = 0, height = 40): void {
 	Object.defineProperty(element, 'getBoundingClientRect', {
 		configurable: true,
 		value: () => ({
@@ -106,6 +106,19 @@ describe('TabStrip', () => {
 
 		expect(trailing.style.getPropertyValue('--ob-comp-tab-strip-runtime-opacity')).toBe('1');
 		expect(leading.style.getPropertyValue('--ob-comp-tab-strip-runtime-opacity')).toBe('0');
+	});
+
+	it('puts active horizontal tab content inside a DOM surface', () => {
+		const model = createModel();
+		render(<TabStrip model={model} />);
+
+		const researchA = screen.getByRole('tab', { name: /^Research A/ });
+		const surface = requireDefined(researchA.querySelector<HTMLElement>('[data-tab-surface]'));
+		expect(surface.tagName).toBe('SPAN');
+		expect(surface.querySelector('[data-tab-content]')).not.toBeNull();
+		expect(researchA.querySelector('[data-tab-hit-target]')).not.toBeNull();
+		expect(researchA.querySelector('[data-tab-background-fill]')).toBeNull();
+		expect(researchA.querySelector('[data-tab-active-shadow]')).toBeNull();
 	});
 
 	it('selects with the pointer but leaves unmodified focus-navigation keys to Views accessibility', () => {
@@ -343,16 +356,19 @@ describe('TabStrip', () => {
 		const collapsedHeader = screen.getByRole('tablist', { name: /^Research, 2 tabs.*collapsed$/ });
 		expect(collapsedHeader.getAttribute('data-active')).toBe('true');
 		expect(collapsedHeader.getAttribute('data-active-tab-id')).toBe('research-a');
-		expect(collapsedHeader.querySelector('[data-group-active-background]')).toBeTruthy();
-		expect(
-			collapsedHeader.querySelector('[data-group-active-background-fill]')?.getAttribute('d'),
-		).toBeTruthy();
+		const activeSurface = requireDefined(
+			collapsedHeader.querySelector<HTMLElement>('[data-group-active-surface]'),
+		);
+		expect(activeSurface.tagName).toBe('SPAN');
+		expect(activeSurface.querySelector('[data-group-chip]')).not.toBeNull();
+		expect(collapsedHeader.querySelector('[data-group-active-background]')).toBeNull();
 		expect(document.activeElement).toBe(collapsedHeader);
 
 		fireEvent.click(collapsedHeader);
 		const expandedHeader = screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ });
 		expect(model.getSnapshot().activeTabId).toBe('research-a');
-		expect(expandedHeader.querySelector('[data-group-active-background]')).toBeNull();
+		expect(expandedHeader.querySelector('[data-group-active-surface]')).toBeNull();
+		expect(expandedHeader.querySelector('[data-group-surface]')).not.toBeNull();
 		expect(document.activeElement).toBe(expandedHeader);
 	});
 
@@ -1395,6 +1411,99 @@ describe('TabStrip', () => {
 		).toEqual(['research-a', 'research-b']);
 	});
 
+	it('applies drag hysteresis when only group membership changes', () => {
+		const model = new TabModel({
+			tabs: [
+				{ id: 'loose', title: 'Loose', pinned: false, group: null },
+				{ id: 'group-a', title: 'Group A', pinned: false, group: 'research' },
+				{ id: 'group-b', title: 'Group B', pinned: false, group: 'research' },
+			],
+			groups: [{ id: 'research', title: 'Research', color: 'red', collapsed: false }],
+			activeTabId: 'loose',
+		});
+		const moveTabsByDrag = vi.spyOn(model, 'moveTabsByDrag');
+		render(<TabStrip model={model} />);
+		const loose = screen.getByRole('tab', { name: /^Loose/ });
+		const group = screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ });
+		const groupA = screen.getByRole('tab', { name: /^Group A/ });
+		const groupB = screen.getByRole('tab', { name: /^Group B/ });
+		setRect(loose, 0, 100);
+		setRect(group, 100, 70);
+		setRect(groupA, 170, 100);
+		setRect(groupB, 270, 100);
+
+		fireEvent.pointerDown(loose, { button: 0, pointerId: 10, clientX: 50, clientY: 20 });
+		fireEvent.pointerMove(window, { pointerId: 10, clientX: 120, clientY: 20 });
+		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'loose')?.group).toBe('research');
+		expect(moveTabsByDrag).toHaveBeenCalledOnce();
+		expect(document.querySelector('[data-drag-group-underline]')).toBeNull();
+		const horizontalGhost = requireDefined(
+			document.querySelector<HTMLElement>('[data-tab-strip-drag-ghost][data-layout="horizontal"]'),
+		);
+		expect(horizontalGhost.style.getPropertyValue('--ob-comp-tab-strip-runtime-layer')).toBe('24');
+		expect(
+			document
+				.querySelector<HTMLElement>('[data-group-underline-id="research"]')
+				?.style.getPropertyValue('--ob-comp-tab-strip-runtime-layer'),
+		).toBe('25');
+
+		fireEvent.pointerMove(window, { pointerId: 10, clientX: 125, clientY: 20 });
+		expect(moveTabsByDrag).toHaveBeenCalledOnce();
+		fireEvent.pointerCancel(window, { pointerId: 10, clientX: 125, clientY: 20 });
+	});
+
+	it('expands the normal group underline when an outside tab joins', () => {
+		const model = new TabModel({
+			tabs: [
+				{ id: 'group-a', title: 'Group A', pinned: false, group: 'research' },
+				{ id: 'group-b', title: 'Group B', pinned: false, group: 'research' },
+				{ id: 'loose', title: 'Loose', pinned: false, group: null },
+			],
+			groups: [{ id: 'research', title: 'Research', color: 'red', collapsed: false }],
+			activeTabId: 'loose',
+		});
+		render(<TabStrip model={model} />);
+		const group = screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ });
+		const groupA = screen.getByRole('tab', { name: /^Group A/ });
+		const groupB = screen.getByRole('tab', { name: /^Group B/ });
+		const loose = screen.getByRole('tab', { name: /^Loose/ });
+		const underline = requireDefined(
+			document.querySelector<HTMLElement>('[data-group-underline-id="research"]'),
+		);
+		const initialUnderlineWidth = underline.style.getPropertyValue(
+			'--ob-comp-tab-strip-inline-size',
+		);
+		setRect(group, 0, 70);
+		setRect(groupA, 70, 100);
+		setRect(groupB, 170, 100);
+		setRect(loose, 270, 100);
+		setRect(underline, 18, Number(initialUnderlineWidth.slice(0, -2)), 1, 2);
+
+		fireEvent.pointerDown(loose, { button: 0, pointerId: 11, clientX: 320, clientY: 20 });
+		fireEvent.pointerMove(window, { pointerId: 11, clientX: 260, clientY: 20 });
+		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'loose')?.group).toBe('research');
+		const expandedUnderlineWidth = requireDefined(
+			document.querySelector<HTMLElement>(
+				'[data-group-underline-id="research"]:not([data-drag-group-underline])',
+			),
+		).style.getPropertyValue('--ob-comp-tab-strip-inline-size');
+		expect(Number(expandedUnderlineWidth.slice(0, -2))).toBeGreaterThan(
+			Number(initialUnderlineWidth.slice(0, -2)),
+		);
+		expect(document.querySelector('[data-drag-group-underline]')).toBeNull();
+
+		fireEvent.pointerMove(window, { pointerId: 11, clientX: 280, clientY: 20 });
+		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'loose')?.group).toBe('research');
+		expect(
+			document
+				.querySelector<HTMLElement>(
+					'[data-group-underline-id="research"]:not([data-drag-group-underline])',
+				)
+				?.style.getPropertyValue('--ob-comp-tab-strip-inline-size'),
+		).toBe(expandedUnderlineWidth);
+		fireEvent.pointerCancel(window, { pointerId: 11, clientX: 280, clientY: 20 });
+	});
+
 	it('forwards the React pointer lifecycle and screen coordinates to a cross-window runtime', () => {
 		const model = createModel();
 		const runtime = {
@@ -1567,7 +1676,7 @@ describe('TabStrip', () => {
 		expect(ghost?.style.getPropertyValue('--ob-comp-tab-strip-inline-size')).toBe('234px');
 		expect(ghost?.querySelectorAll('[data-horizontal-drag-view]')).toHaveLength(3);
 		expect(ghost?.querySelector('[data-drag-group-highlight] path')?.getAttribute('d')).toContain(
-			'M 0 41',
+			'M 0 40',
 		);
 		expect(ghost?.querySelector('[data-drag-group-highlight]')?.getAttribute('width')).toBe('234');
 		expect(ghost?.querySelector('[data-drag-group-underline]')).not.toBeNull();
@@ -1651,8 +1760,9 @@ describe('TabStrip', () => {
 		const ghost = document.querySelector<HTMLElement>(
 			'[data-tab-strip-drag-ghost][data-layout="horizontal"]',
 		);
-		expect(ghost?.style.getPropertyValue('--ob-comp-tab-strip-inline-size')).toBe('102px');
+		expect(ghost?.style.getPropertyValue('--ob-comp-tab-strip-inline-size')).toBe('110px');
 		expect(ghost?.querySelectorAll('[data-horizontal-drag-view]')).toHaveLength(1);
+		expect(ghost?.querySelector('[data-drag-group-highlight]')).toBeNull();
 
 		fireEvent.pointerUp(window, { pointerId: 63, clientX: 500, clientY: 20 });
 		expect(model.getGroup('research')?.collapsed).toBe(true);
@@ -1851,7 +1961,7 @@ describe('TabStrip', () => {
 		expect(onDraggingChange).toHaveBeenLastCalledWith(false);
 	});
 
-	it('merges a partial group drag underline with the normal group underline', () => {
+	it('keeps a partial group drag underline local to the dragged tab', () => {
 		const model = createModel();
 		model.setSelection(['research-a'], 'pinned');
 		render(<TabStrip model={model} />);
@@ -1872,8 +1982,8 @@ describe('TabStrip', () => {
 		fireEvent.pointerMove(window, { pointerId: 17, clientX: 111, clientY: 20 });
 
 		const dragUnderline = document.querySelector<HTMLElement>('[data-drag-group-underline]');
-		expect(dragUnderline?.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe('0px');
-		expect(dragUnderline?.style.getPropertyValue('--ob-comp-tab-strip-inline-size')).toBe('100px');
+		expect(dragUnderline?.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe('18px');
+		expect(dragUnderline?.style.getPropertyValue('--ob-comp-tab-strip-inline-size')).toBe('64px');
 		fireEvent.pointerUp(window, { pointerId: 17, clientX: 111, clientY: 20 });
 	});
 

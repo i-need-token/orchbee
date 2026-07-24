@@ -14,6 +14,7 @@ import { TabButton } from '../tab-button/TabButton';
 import { GroupHeader } from '../group-header/GroupHeader';
 import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
 import type { TabStripViewModel } from '../../../../types/tab-strip-view-model';
+import { LAYOUT_CONSTANTS } from '../../../../layout/layout-constants';
 
 export function HorizontalContents({ view }: { readonly view: TabStripViewModel }): ReactNode {
 	const messages = useTabStripMessages();
@@ -102,7 +103,7 @@ export function HorizontalContents({ view }: { readonly view: TabStripViewModel 
 					x: 0,
 					width: 0,
 					y: 0,
-					height: 41,
+					height: LAYOUT_CONSTANTS.tabStripHeight,
 				};
 				const animatedOpacity = animatedHorizontalFrame?.opacityById.get(item.id);
 				const hiddenByGroupFocus =

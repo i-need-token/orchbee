@@ -1,10 +1,12 @@
 import { LAYOUT_CONSTANTS } from './layout-constants';
 import { DEFAULT_TAB_STYLE_METRICS } from './tab-style-metrics';
+import { HORIZONTAL_TAB_TOP_INSET } from './tab-style-views';
 export const TAB_GROUP_HEADER_CHIP_VERTICAL_INSET = 2;
 export const TAB_GROUP_HEADER_TITLE_ADJUSTMENT = -2;
 export const TAB_GROUP_HEADER_ATTENTION_WIDTH = 8;
 export const TAB_GROUP_HEADER_EMPTY_CHIP_SIZE = 20;
 export const TAB_GROUP_HEADER_CORNER_RADIUS = 6;
+export const TAB_GROUP_HEADER_HORIZONTAL_PADDING = 20;
 export const TAB_GROUP_OVERLAP_ADJUSTMENT = 2;
 export const TAB_GROUP_UNDERLINE_STROKE_THICKNESS = 2;
 const EMOJI_PRESENTATION_OR_REGIONAL_INDICATOR = /[\p{Emoji_Presentation}\p{Regional_Indicator}]/u;
@@ -59,7 +61,7 @@ export interface HorizontalTabGroupHeaderLayout {
 	horizontalInset: number;
 }
 
-/** Direct arithmetic port of TabGroupStyle and TabGroupHeader's chip layout. */
+/** Horizontal group-header geometry adapted from TabGroupStyle and TabGroupHeader. */
 export function calculateHorizontalTabGroupHeaderLayout(
 	input: HorizontalTabGroupHeaderLayoutInput,
 ): HorizontalTabGroupHeaderLayout {
@@ -68,12 +70,10 @@ export function calculateHorizontalTabGroupHeaderLayout(
 	const showAttentionIndicator =
 		(input.collapsed ?? false) && (input.attention ?? false) && (input.tabCount ?? 0) > 0;
 	const horizontalInset = TAB_GROUP_HEADER_CORNER_RADIUS;
-	const chipX = overlap - TAB_GROUP_OVERLAP_ADJUSTMENT;
+	const chipX = TAB_GROUP_HEADER_HORIZONTAL_PADDING;
 	const totalSpace =
-		LAYOUT_CONSTANTS.tabStripHeight -
-		TAB_GROUP_HEADER_EMPTY_CHIP_SIZE -
-		LAYOUT_CONSTANTS.tabstripToolbarOverlap;
-	const chipY = Math.trunc(totalSpace / 2);
+		LAYOUT_CONSTANTS.tabStripHeight - HORIZONTAL_TAB_TOP_INSET - TAB_GROUP_HEADER_EMPTY_CHIP_SIZE;
+	const chipY = HORIZONTAL_TAB_TOP_INSET + Math.trunc(totalSpace / 2);
 	const textMaxWidth = Math.trunc((standardWidth - overlap) / 2);
 	const textWidth = Math.max(0, Math.min(input.measuredTitleWidth, textMaxWidth));
 	let chipWidth: number;
@@ -86,9 +86,8 @@ export function calculateHorizontalTabGroupHeaderLayout(
 		const contentWidth = textWidth + attentionWidth;
 		chipWidth = Math.max(TAB_GROUP_HEADER_EMPTY_CHIP_SIZE, contentWidth + horizontalInset * 2);
 	}
-	const groupViewOverlap = overlap - TAB_GROUP_OVERLAP_ADJUSTMENT;
 	return {
-		desiredWidth: groupViewOverlap * 2 + chipWidth,
+		desiredWidth: TAB_GROUP_HEADER_HORIZONTAL_PADDING * 2 + chipWidth,
 		chipWidth,
 		chipHeight: TAB_GROUP_HEADER_EMPTY_CHIP_SIZE,
 		chipX,
@@ -172,7 +171,7 @@ export function mergeDraggedGroupUnderlineBounds(input: MergeDraggedGroupUnderli
 export function getTabGroupHighlightPath(
 	width: number,
 	height: number,
-	top = LAYOUT_CONSTANTS.tabStripPadding,
+	top = HORIZONTAL_TAB_TOP_INSET,
 	cornerRadius = 12,
 ): string {
 	const w = Math.max(0, width);

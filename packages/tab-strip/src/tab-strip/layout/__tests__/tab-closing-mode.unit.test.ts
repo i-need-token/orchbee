@@ -43,12 +43,12 @@ describe('TabContainerImpl closing-mode ports', () => {
 	});
 
 	it('watches 40px below and 60px beyond the logical trailing edge', () => {
-		const ltr = getTabClosingModeWatchBounds({ x: 10, y: 20, width: 500, height: 41 });
-		const rtl = getTabClosingModeWatchBounds({ x: 10, y: 20, width: 500, height: 41 }, true);
-		expect(ltr).toEqual({ x: 10, y: 20, width: 560, height: 81 });
-		expect(rtl).toEqual({ x: -50, y: 20, width: 560, height: 81 });
-		expect(tabClosingModeContainsPoint(ltr, { x: 569, y: 100 })).toBe(true);
-		expect(tabClosingModeContainsPoint(ltr, { x: 570, y: 100 })).toBe(false);
+		const ltr = getTabClosingModeWatchBounds({ x: 10, y: 20, width: 500, height: 40 });
+		const rtl = getTabClosingModeWatchBounds({ x: 10, y: 20, width: 500, height: 40 }, true);
+		expect(ltr).toEqual({ x: 10, y: 20, width: 560, height: 80 });
+		expect(rtl).toEqual({ x: -50, y: 20, width: 560, height: 80 });
+		expect(tabClosingModeContainsPoint(ltr, { x: 569, y: 99 })).toBe(true);
+		expect(tabClosingModeContainsPoint(ltr, { x: 570, y: 99 })).toBe(false);
 		expect(TAB_CLOSE_TOUCH_RESIZE_DELAY_MS).toBe(2_000);
 	});
 

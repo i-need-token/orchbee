@@ -4,10 +4,8 @@ import { type TabModelSnapshot } from '../../../../model/tab-model';
 import { buildDraggedTabsLayout } from '../../../../dragging/dragged-tabs-container-layout';
 import { TabStripOrientation } from '../../../../types/tab-strip-types';
 import { LAYOUT_CONSTANTS } from '../../../../layout/layout-constants';
-import {
-	getTabGroupHighlightPath,
-	mergeDraggedGroupUnderlineBounds,
-} from '../../../../layout/tab-group-style';
+import { getTabGroupHighlightPath } from '../../../../layout/tab-group-style';
+import { TAB_SURFACE_HORIZONTAL_INSET } from '../../../../layout/tab-style-views';
 import {
 	GROUP_COLORS,
 	packHorizontalDragViews,
@@ -17,6 +15,7 @@ import {
 	tabIsApparentlyActive,
 	type DragState,
 } from '../../../../utils/tab-strip-internals';
+import { calculateTabContainerZValue } from '../../../../layout/z-orderable-tab-container-element';
 import { TabButton } from '../tab-button/TabButton';
 import { GroupHeader } from '../group-header/GroupHeader';
 import { VerticalDragTabVisual } from './components/vertical-drag-tab-visual/VerticalDragTabVisual';
@@ -54,6 +53,7 @@ export function DragGhost({
 			? null
 			: (snapshot.groups.find((candidate) => candidate.id === drag.groupHeaderId) ?? null);
 	const tabById = new Map(tabs.map((tab) => [tab.id, tab]));
+	const originalGroupByTabId = new Map(drag.restoreState.tabs.map((tab) => [tab.id, tab.group]));
 
 	if (vertical) {
 		const verticalVisualViews = getVerticalDragVisualViews(drag);
@@ -241,7 +241,9 @@ export function DragGhost({
 				: tabById.get(view.id)?.group === draggedGroup.id,
 		);
 		if (groupViews.length === 0) return [];
-		const hasDraggedTab = groupViews.some((view) => view.kind === 'tab');
+		const hasDraggedTabFromGroup = groupViews.some(
+			(view) => view.kind === 'tab' && originalGroupByTabId.get(view.id) === draggedGroup.id,
+		);
 		const leading = groupViews.reduce((result, view) => (view.x < result.x ? view : result));
 		const trailing = groupViews.reduce((result, view) =>
 			view.x + view.width > result.x + result.width ? view : result,
@@ -249,32 +251,30 @@ export function DragGhost({
 		const leadingTab = leading.kind === 'tab' ? tabById.get(leading.id) : null;
 		const trailingTab = trailing.kind === 'tab' ? tabById.get(trailing.id) : null;
 		const naturalUnderlineLeft =
-			leading.x + (leadingTab && tabIsApparentlyActive(leadingTab, snapshot) ? -2 : 18);
+			leading.x +
+			(leadingTab && tabIsApparentlyActive(leadingTab, snapshot)
+				? TAB_SURFACE_HORIZONTAL_INSET
+				: 18);
 		const naturalUnderlineRight =
 			trailing.x +
 			trailing.width +
-			(trailingTab && tabIsApparentlyActive(trailingTab, snapshot) ? 2 : -18);
+			(trailingTab && tabIsApparentlyActive(trailingTab, snapshot)
+				? -TAB_SURFACE_HORIZONTAL_INSET
+				: -18);
 		const draggedUnderline = {
 			x: naturalUnderlineLeft,
 			width: Math.max(0, naturalUnderlineRight - naturalUnderlineLeft),
 		};
-		const normalUnderline = drag.groupUnderlineBounds[draggedGroup.id];
-		const underline = normalUnderline
-			? mergeDraggedGroupUnderlineBounds({
-					normal: { x: normalUnderline.x - ghostLeft, width: normalUnderline.width },
-					dragged: draggedUnderline,
-					leadingDraggedView: leading,
-					trailingDraggedView: trailing,
-				})
-			: draggedUnderline;
 		return [
 			{
 				group: draggedGroup,
 				highlight:
-					!drag.settling && groupViews.some((view) => view.id === `group:${draggedGroup.id}`)
+					!compactGroupHeaderDrag &&
+					!drag.settling &&
+					groupViews.some((view) => view.id === `group:${draggedGroup.id}`)
 						? { x: leading.x, width: trailing.x + trailing.width - leading.x }
 						: null,
-				underline: hasDraggedTab ? underline : { x: 0, width: 0 },
+				underline: hasDraggedTabFromGroup ? draggedUnderline : { x: 0, width: 0 },
 			},
 		];
 	});
@@ -290,6 +290,10 @@ export function DragGhost({
 					'--ob-comp-tab-strip-block-start': `${drag.dragAreaBounds.top}px`,
 					'--ob-comp-tab-strip-inline-size': `${width}px`,
 					'--ob-comp-tab-strip-block-size': `${height}px`,
+					'--ob-comp-tab-strip-runtime-layer': calculateTabContainerZValue({
+						kind: 'group-header',
+						active: true,
+					}),
 				} satisfies CSSProperties
 			}
 			aria-hidden='true'

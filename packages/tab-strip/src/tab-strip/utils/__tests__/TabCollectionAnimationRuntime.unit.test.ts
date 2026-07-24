@@ -6,11 +6,11 @@ import { TabCollectionAnimationRuntime, type LiveTabSlot } from '../TabCollectio
 
 function row(ids: readonly string[]): ProposedLayout {
 	return {
-		hostSize: { width: 240, height: 41 },
+		hostSize: { width: 240, height: 40 },
 		children: ids.map((id, index) => ({
 			id,
 			visible: true,
-			bounds: { x: index * 120, y: 0, width: 120, height: 41 },
+			bounds: { x: index * 120, y: 0, width: 120, height: 40 },
 		})),
 	};
 }

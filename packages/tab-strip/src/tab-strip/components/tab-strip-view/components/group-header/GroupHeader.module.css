@@ -2,12 +2,8 @@
 	composes: ct-group-header from '../../TabStripView.module.css';
 }
 
-.ct-group-header__active-background {
-	composes: ct-group-header__active-background from '../../TabStripView.module.css';
-}
-
-.ct-group-header__active-background-fill {
-	composes: ct-group-header__active-background-fill from '../../TabStripView.module.css';
+.ct-group-header__surface {
+	composes: ct-group-header__surface from '../../TabStripView.module.css';
 }
 
 .ct-group-header__attention {

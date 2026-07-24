@@ -4,7 +4,7 @@
  */
 export const LAYOUT_CONSTANTS = {
 	tabHeight: 35,
-	tabStripHeight: 41,
+	tabStripHeight: 40,
 	tabStripPadding: 6,
 	tabstripToolbarOverlap: 1,
 	verticalTabCornerRadius: 8,

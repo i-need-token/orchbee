@@ -1555,7 +1555,6 @@ export function useTabStrip(
 					if (source) {
 						const firstUnpinned = liveSnapshot.tabs.findIndex((candidate) => !candidate.pinned);
 						const partition = firstUnpinned === -1 ? liveSnapshot.tabs.length : firstUnpinned;
-						const beforeIndex = model.getIndexOfTab(current.sourceId);
 						if (current.groupHeaderId !== null) {
 							if (horizontal && current.horizontalGroupDrag !== null) {
 								const movement = transitionHorizontalGroupDrag(current.horizontalGroupDrag, {
@@ -1578,8 +1577,7 @@ export function useTabStrip(
 								{ coalesceNonconsecutive: horizontal && !current.started },
 							);
 						}
-						const moved = beforeIndex !== model.getIndexOfTab(current.sourceId);
-						if (moved) lastReorderCoordinate = coordinate;
+						lastReorderCoordinate = coordinate;
 					}
 				}
 			}

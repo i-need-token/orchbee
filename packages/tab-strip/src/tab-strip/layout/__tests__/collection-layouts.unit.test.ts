@@ -26,7 +26,7 @@ describe('UnpinnedTabContainerViewLayout', () => {
 			orientation: TabStripOrientation.Horizontal,
 			sizeBounds: {
 				width: null,
-				height: 41,
+				height: 40,
 			},
 			children: [child('a', 80), child('b', 120)],
 		});
@@ -35,18 +35,18 @@ describe('UnpinnedTabContainerViewLayout', () => {
 				x: 0,
 				y: 0,
 				width: 80,
-				height: 41,
+				height: 40,
 			},
 			{
 				x: 80,
 				y: 0,
 				width: 120,
-				height: 41,
+				height: 40,
 			},
 		]);
 		expect(layout.hostSize).toEqual({
 			width: 200,
-			height: 41,
+			height: 40,
 		});
 	});
 	it('insets vertical tabs while letting collapsed group views draw into the gutter', () => {
@@ -122,7 +122,7 @@ describe('TabGroupViewLayout', () => {
 			orientation: TabStripOrientation.Horizontal,
 			sizeBounds: {
 				width: null,
-				height: 41,
+				height: 40,
 			},
 			headerId: 'header',
 			headerPreferredSize: {
@@ -141,7 +141,7 @@ describe('TabGroupViewLayout', () => {
 		expect(layout.children.map((item) => item.bounds.x)).toEqual([0, 0, 48, 148, 148]);
 		expect(layout.hostSize).toEqual({
 			width: 268,
-			height: 41,
+			height: 40,
 		});
 	});
 	it('shrinks a collapsed horizontal group to its header', () => {
@@ -149,7 +149,7 @@ describe('TabGroupViewLayout', () => {
 			orientation: TabStripOrientation.Horizontal,
 			sizeBounds: {
 				width: null,
-				height: 41,
+				height: 40,
 			},
 			headerId: 'header',
 			headerPreferredSize: {

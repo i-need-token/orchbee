@@ -20,7 +20,7 @@ describe('ZOrderableTabContainerElement', () => {
 		);
 	});
 
-	it('paints highlights below tabs, group views above ordinary tabs, and active tabs on top', () => {
+	it('paints group underlines above every tab and group header state', () => {
 		expect(calculateTabContainerZValue({ kind: 'group-highlight' })).toBe(0);
 		expect(calculateTabContainerZValue({ kind: 'tab' })).toBe(1);
 		expect(
@@ -28,7 +28,16 @@ describe('ZOrderableTabContainerElement', () => {
 		).toBe(4);
 		expect(calculateTabContainerZValue({ kind: 'group-header' })).toBe(8);
 		expect(calculateTabContainerZValue({ kind: 'group-header', active: true })).toBe(24);
-		expect(calculateTabContainerZValue({ kind: 'group-underline' })).toBe(8);
+		expect(calculateTabContainerZValue({ kind: 'group-underline' })).toBe(25);
 		expect(calculateTabContainerZValue({ kind: 'tab', active: true, selected: true })).toBe(21);
+		expect(
+			calculateTabContainerZValue({
+				kind: 'tab',
+				active: true,
+				selected: true,
+				hovering: true,
+				hoverAnimationValue: 1,
+			}),
+		).toBe(24);
 	});
 });
