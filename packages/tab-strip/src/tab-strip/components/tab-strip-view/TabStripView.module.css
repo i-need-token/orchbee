@@ -442,7 +442,7 @@
 }
 .ct-tab[data-orientation='horizontal'] .ct-tab__surface {
 	position: absolute;
-	inset: var(--ob-comp-tab-strip-length-2) var(--ob-comp-tab-strip-length-10) 0;
+	inset: var(--ob-comp-tab-strip-length-2) var(--ob-comp-tab-strip-length-8) 0;
 	min-width: 0;
 	border-radius: var(--ob-comp-tab-strip-length-8) var(--ob-comp-tab-strip-length-8) 0 0;
 	display: flex;
@@ -573,17 +573,6 @@
 	background: var(--ob-comp-tab-strip-group-color);
 	pointer-events: none;
 }
-.ct-group-drag-highlight {
-	position: absolute;
-	top: 0;
-	height: var(--ob-comp-tab-strip-length-40);
-	z-index: 0;
-	overflow: visible;
-	pointer-events: none;
-}
-.ct-group-drag-highlight path {
-	fill: var(--ob-sys-color-surface-selected);
-}
 .ct-horizontal-group {
 	display: flex;
 	align-items: stretch;
@@ -637,7 +626,6 @@
 	border-block-end: 0;
 	border-radius: inherit;
 	content: '';
-	filter: drop-shadow(0 0 var(--ob-ref-space-1) var(--ob-sys-color-border-default));
 	pointer-events: none;
 }
 .ct-group-header__chip {
@@ -839,19 +827,22 @@
 	animation: ct-drag-compact var(--ob-sys-motion-duration-tab-strip-layout)
 		var(--ob-sys-motion-easing-standard);
 }
-.ct-drag-ghost[data-layout='horizontal'] .ct-tab,
-.ct-drag-ghost[data-layout='horizontal'] .ct-group-header {
+.ct-drag-ghost[data-layout='horizontal'] .ct-tab {
 	pointer-events: none;
 }
-.ct-drag-ghost__highlight {
-	position: absolute;
-	top: 0;
-	height: var(--ob-comp-tab-strip-length-40);
-	z-index: 0;
-	overflow: visible;
+.ct-drag-ghost[data-layout='horizontal'] .ct-group-header {
+	clip-path: none;
+	pointer-events: none;
 }
-.ct-drag-ghost__highlight path {
-	fill: var(--ob-sys-color-surface-selected);
+.ct-drag-ghost[data-layout='horizontal'] .ct-tab:not([data-active]) .ct-tab__surface,
+.ct-drag-ghost[data-layout='horizontal']
+	.ct-group-header:not([data-active])
+	.ct-group-header__surface {
+	background-color: var(--ob-sys-color-surface-raised);
+	background-image: linear-gradient(
+		var(--ob-sys-color-surface-selected),
+		var(--ob-sys-color-surface-selected)
+	);
 }
 .ct-drag-ghost__underline {
 	position: absolute;

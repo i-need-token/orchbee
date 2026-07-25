@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
 	calculateHorizontalTabGroupUnderlineBounds,
 	calculateHorizontalTabGroupHeaderLayout,
-	getTabGroupHighlightPath,
 	getTabGroupTitleVisualCenteringOffset,
 	mergeDraggedGroupUnderlineBounds,
 	shouldHideTabGroupUnderline,
@@ -71,12 +70,6 @@ describe('TabGroupStyle', () => {
 				trailingTabWidth: 80,
 			}),
 		).toEqual({ x: 28, width: 134 });
-	});
-
-	it('builds the source tab-shaped drag highlight path', () => {
-		expect(getTabGroupHighlightPath(200, 40)).toBe(
-			'M 0 40 A 12 12 0 0 0 12 28 L 12 14 A 12 12 0 0 1 24 2 L 176 2 A 12 12 0 0 1 188 14 L 188 28 A 12 12 0 0 0 200 40 Z',
-		);
 	});
 
 	it('extends a dragged underline toward the normal underline without passing dragged views', () => {

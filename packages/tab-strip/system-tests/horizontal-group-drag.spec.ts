@@ -110,6 +110,50 @@ async function selectedTabIds(page: Page): Promise<readonly string[]> {
 		);
 }
 
+async function expectGhostActiveSurfaceToHaveNoShadow(page: Page): Promise<void> {
+	const activeSurface = page
+		.locator('[data-tab-strip-drag-ghost][data-layout="horizontal"]')
+		.locator('[data-active] > [data-tab-surface], [data-active] > [data-group-surface]');
+	await expect(activeSurface).toHaveCount(1);
+	expect(
+		await activeSurface.evaluateAll((surfaces) =>
+			surfaces.map((surface) => getComputedStyle(surface, '::after').filter),
+		),
+	).toEqual(['none']);
+}
+
+async function expectGhostInactiveSurfacesToBeOpaqueAndRounded(page: Page): Promise<void> {
+	const ghost = page.locator('[data-tab-strip-drag-ghost][data-layout="horizontal"]');
+	const activeSurface = ghost.locator('[data-active] > [data-tab-surface]');
+	const inactiveGroupHeader = ghost.locator('[data-group-id]:not([data-active])');
+	const inactiveSurfaces = ghost.locator(
+		'[data-group-id]:not([data-active]) > [data-group-surface], [data-tab-id]:not([data-active]) > [data-tab-surface]',
+	);
+	await expect(activeSurface).toHaveCount(1);
+	await expect(inactiveGroupHeader).toHaveCount(1);
+	await expect(inactiveSurfaces).toHaveCount(2);
+	expect(await inactiveGroupHeader.evaluate((header) => getComputedStyle(header).clipPath)).toBe(
+		'none',
+	);
+	const activeBackgroundColor = await activeSurface.evaluate(
+		(surface) => getComputedStyle(surface).backgroundColor,
+	);
+	expect(
+		await inactiveSurfaces.evaluateAll((surfaces) =>
+			surfaces.map((surface) => {
+				const style = getComputedStyle(surface);
+				return {
+					backgroundColor: style.backgroundColor,
+					hasSelectedOverlay: style.backgroundImage !== 'none',
+				};
+			}),
+		),
+	).toEqual([
+		{ backgroundColor: activeBackgroundColor, hasSelectedOverlay: true },
+		{ backgroundColor: activeBackgroundColor, hasSelectedOverlay: true },
+	]);
+}
+
 async function visibleActiveSurfaceIds(page: Page): Promise<readonly string[]> {
 	return root(page)
 		.locator('[data-horizontal-track] > [data-horizontal-item]')
@@ -156,6 +200,9 @@ test('expanded group is dragged as one full visual and commits at a collection b
 	await expect(ghost.locator('[data-group-id="research"]')).toHaveCount(1);
 	await expect(ghost.locator('[data-tab-id="source"]')).toHaveCount(1);
 	await expect(ghost.locator('[data-tab-id="tabs-source"]')).toHaveCount(1);
+	await expect(ghost.locator('[data-drag-group-highlight]')).toHaveCount(0);
+	await expectGhostActiveSurfaceToHaveNoShadow(page);
+	await expectGhostInactiveSurfacesToBeOpaqueAndRounded(page);
 
 	await movePointerTo(page, tab(page, 'issue'));
 	await page.mouse.up();
@@ -194,6 +241,7 @@ test('collapsed inactive group activates its first member but keeps a compact dr
 	await expect(ghost.locator('[data-group-id="research"]')).toHaveCount(1);
 	await expect(ghost.locator('[data-tab-id="source"]')).toHaveCount(0);
 	await expect(ghost.locator('[data-tab-id="tabs-source"]')).toHaveCount(0);
+	await expectGhostActiveSurfaceToHaveNoShadow(page);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('orchbee / orchbee');
 	await expect(sourceHeader(page)).toHaveAttribute('aria-expanded', 'false');
 
@@ -232,7 +280,7 @@ test('every stable collapse/expand projection exposes at least one active surfac
 	await waitForSettledLayout(page);
 	await expect(sourceHeader(page)).toHaveAttribute('aria-expanded', 'false');
 	await expect(sourceHeader(page)).toHaveAttribute('data-active-tab-id', 'tabs-source');
-	await expect(sourceHeader(page).locator('[data-group-active-background]')).toHaveCount(1);
+	await expect(sourceHeader(page).locator('[data-group-active-surface]')).toHaveCount(1);
 	await expect(sourceHeader(page)).toBeFocused();
 	expect(await visibleActiveSurfaceIds(page)).toEqual(['group:research']);
 	expect(await selectedTabIds(page)).toEqual(['tabs-source']);
@@ -249,7 +297,7 @@ test('every stable collapse/expand projection exposes at least one active surfac
 
 	await sourceHeader(page).click();
 	await waitForSettledLayout(page);
-	await expect(sourceHeader(page).locator('[data-group-active-background]')).toHaveCount(0);
+	await expect(sourceHeader(page).locator('[data-group-active-surface]')).toHaveCount(0);
 	await tab(page, 'source').click();
 	expect(await visibleActiveSurfaceIds(page)).toEqual(['tab:source']);
 	expect(await selectedTabIds(page)).toEqual(['source']);

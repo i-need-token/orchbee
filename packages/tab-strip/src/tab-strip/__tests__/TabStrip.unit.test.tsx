@@ -1694,16 +1694,8 @@ describe('TabStrip', () => {
 		expect(ghost?.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe('470px');
 		expect(ghost?.style.getPropertyValue('--ob-comp-tab-strip-inline-size')).toBe('234px');
 		expect(ghost?.querySelectorAll('[data-horizontal-drag-view]')).toHaveLength(3);
-		expect(ghost?.querySelector('[data-drag-group-highlight] path')?.getAttribute('d')).toContain(
-			'M 0 40',
-		);
-		expect(ghost?.querySelector('[data-drag-group-highlight]')?.getAttribute('width')).toBe('234');
+		expect(ghost?.querySelector('[data-drag-group-highlight]')).toBeNull();
 		expect(ghost?.querySelector('[data-drag-group-underline]')).not.toBeNull();
-		expect(
-			[...document.querySelectorAll('[data-drag-group-highlight]')].every((element) =>
-				ghost?.contains(element),
-			),
-		).toBe(true);
 		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
 			'pinned',
 			'loose',
@@ -1795,7 +1787,7 @@ describe('TabStrip', () => {
 		expect(document.querySelector('[data-tab-strip-drag-ghost][data-group-settling]')).toBeNull();
 	});
 
-	it('keeps each fully selected group highlight and underline independent during a mixed drag', () => {
+	it('keeps each fully selected group underline independent during a mixed drag', () => {
 		const model = new TabModel({
 			tabs: [
 				{ id: 'a', title: 'A', pinned: false, group: 'one' },
@@ -1828,7 +1820,7 @@ describe('TabStrip', () => {
 		fireEvent.pointerMove(window, { pointerId: 86, clientX: 120, clientY: 20 });
 
 		const ghost = document.querySelector('[data-tab-strip-drag-ghost][data-layout="horizontal"]');
-		expect(ghost?.querySelectorAll('[data-drag-group-highlight]')).toHaveLength(2);
+		expect(ghost?.querySelectorAll('[data-drag-group-highlight]')).toHaveLength(0);
 		expect(ghost?.querySelectorAll('[data-drag-group-underline]')).toHaveLength(2);
 		expect(
 			ghost

@@ -4,7 +4,6 @@ import { type TabModelSnapshot } from '../../../../model/tab-model';
 import { buildDraggedTabsLayout } from '../../../../dragging/dragged-tabs-container-layout';
 import { TabStripOrientation } from '../../../../types/tab-strip-types';
 import { LAYOUT_CONSTANTS } from '../../../../layout/layout-constants';
-import { getTabGroupHighlightPath } from '../../../../layout/tab-group-style';
 import { TAB_SURFACE_HORIZONTAL_INSET } from '../../../../layout/tab-style-views';
 import {
 	GROUP_COLORS,
@@ -234,7 +233,7 @@ export function DragGhost({
 		),
 		Math.max(drag.dragAreaBounds.left, unclampedGhostLeft),
 	);
-	const draggedGroupGeometry = snapshot.groups.flatMap((draggedGroup) => {
+	const draggedGroupUnderlines = snapshot.groups.flatMap((draggedGroup) => {
 		const groupViews = horizontalViews.filter((view) =>
 			view.kind === 'group'
 				? view.id === `group:${draggedGroup.id}`
@@ -268,12 +267,6 @@ export function DragGhost({
 		return [
 			{
 				group: draggedGroup,
-				highlight:
-					!compactGroupHeaderDrag &&
-					!drag.settling &&
-					groupViews.some((view) => view.id === `group:${draggedGroup.id}`)
-						? { x: leading.x, width: trailing.x + trailing.width - leading.x }
-						: null,
 				underline: hasDraggedTabFromGroup ? draggedUnderline : { x: 0, width: 0 },
 			},
 		];
@@ -298,21 +291,6 @@ export function DragGhost({
 			}
 			aria-hidden='true'
 		>
-			{draggedGroupGeometry.map(({ group: draggedGroup, highlight }) =>
-				highlight && highlight.width > 0 ? (
-					<svg
-						key={`highlight-${draggedGroup.id}`}
-						className={styles['ct-drag-ghost__highlight']}
-						data-drag-group-highlight={draggedGroup.id}
-						viewBox={`0 0 ${highlight.width} ${height}`}
-						width={highlight.width}
-						height={height}
-						style={{ '--ob-comp-tab-strip-inline-start': `${highlight.x}px` }}
-					>
-						<path d={getTabGroupHighlightPath(highlight.width, height)} />
-					</svg>
-				) : null,
-			)}
 			{horizontalViews.map((view) => {
 				const tab = view.kind === 'tab' ? tabById.get(view.id) : null;
 				const draggedGroupId = view.kind === 'group' ? view.id.slice('group:'.length) : null;
@@ -379,7 +357,7 @@ export function DragGhost({
 					</div>
 				);
 			})}
-			{draggedGroupGeometry.map(({ group: draggedGroup, underline }) =>
+			{draggedGroupUnderlines.map(({ group: draggedGroup, underline }) =>
 				underline.width > 0 ? (
 					<span
 						key={`underline-${draggedGroup.id}`}

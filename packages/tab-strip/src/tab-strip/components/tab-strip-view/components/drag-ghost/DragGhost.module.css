@@ -14,10 +14,6 @@
 	composes: ct-drag-ghost__group-view from '../../TabStripView.module.css';
 }
 
-.ct-drag-ghost__highlight {
-	composes: ct-drag-ghost__highlight from '../../TabStripView.module.css';
-}
-
 .ct-drag-ghost__item {
 	composes: ct-drag-ghost__item from '../../TabStripView.module.css';
 }

@@ -166,26 +166,3 @@ export function mergeDraggedGroupUnderlineBounds(input: MergeDraggedGroupUnderli
 		width: Math.max(0, trailingX - leadingX),
 	};
 }
-
-/** SVG equivalent of TabGroupHighlight::GetPath's tab-shaped SkPath. */
-export function getTabGroupHighlightPath(
-	width: number,
-	height: number,
-	top = HORIZONTAL_TAB_TOP_INSET,
-	cornerRadius = 12,
-): string {
-	const w = Math.max(0, width);
-	const h = Math.max(0, height);
-	const r = Math.max(0, Math.min(cornerRadius, w / 4, (h - top) / 2));
-	return [
-		`M 0 ${h}`,
-		`A ${r} ${r} 0 0 0 ${r} ${h - r}`,
-		`L ${r} ${top + r}`,
-		`A ${r} ${r} 0 0 1 ${2 * r} ${top}`,
-		`L ${w - 2 * r} ${top}`,
-		`A ${r} ${r} 0 0 1 ${w - r} ${top + r}`,
-		`L ${w - r} ${h - r}`,
-		`A ${r} ${r} 0 0 0 ${w} ${h}`,
-		'Z',
-	].join(' ');
-}
