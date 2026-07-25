@@ -121,6 +121,25 @@ describe('TabStrip', () => {
 		expect(researchA.querySelector('[data-tab-active-shadow]')).toBeNull();
 	});
 
+	it('hosts horizontal leading actions on the tab-strip surface before the tab track', () => {
+		const model = createModel();
+		render(
+			<TabStrip
+				horizontalLeadingActions={<button type='button'>Toggle sidebar</button>}
+				model={model}
+			/>,
+		);
+
+		const root = requireDefined(document.querySelector<HTMLElement>('[data-ct-root]'));
+		const button = screen.getByRole('button', { name: 'Toggle sidebar' });
+		const leadingActions = requireDefined(
+			button.closest<HTMLElement>('[data-horizontal-leading-actions]'),
+		);
+		const track = requireDefined(document.querySelector<HTMLElement>('[data-horizontal-track]'));
+		expect(root.contains(leadingActions)).toBe(true);
+		expect(leadingActions.nextElementSibling).toBe(track);
+	});
+
 	it('selects with the pointer but leaves unmodified focus-navigation keys to Views accessibility', () => {
 		const model = createModel();
 		render(<TabStrip model={model} />);

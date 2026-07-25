@@ -42,12 +42,15 @@ describe('Workbench', () => {
 		expect(markup).toContain('data-slot="workbench-left-panel"');
 		expect(markup).toContain('data-slot="workbench-right-panel"');
 		expect(markup).toContain('aria-label="Hide Sidebar"');
+		expect(markup).toContain('data-slot="workbench-sidebar-toggle-position"');
 		expect(markup).toContain('aria-label="Workbench navigation"');
 		expect(markup).toContain('data-slot="workbench-sidebar-new-terminal"');
 		expect(markup).toContain('data-icon="terminal"');
 		expect(markup).toContain('New Terminal');
 		expect(markup).toContain('data-shortcut-action="workbench.terminal.create"');
 		expect(markup).toContain('⌘N');
+		expect(markup).toContain('data-slot="workbench-tab-bar"');
+		expect(markup).not.toContain('data-slot="workbench-tab-bar-leading-actions"');
 		expect(markup).toContain('data-slot="workbench-sidebar-search"');
 		expect(markup).toContain('data-icon="search"');
 		expect(markup).toContain('Search');
@@ -101,5 +104,10 @@ describe('Workbench', () => {
 		expect(markup).toContain('aria-label="Show Sidebar"');
 		expect(markup).toContain('aria-pressed="false"');
 		expect(markup.match(/data-slot="workbench-sidebar-toggle"/gu)).toHaveLength(1);
+		expect(markup.match(/data-slot="workbench-sidebar-toggle-position"/gu)).toHaveLength(1);
+		expect(markup).toContain('data-slot="workbench-tab-bar-leading-actions"');
+		expect(markup.indexOf('role="tablist"')).toBeLessThan(
+			markup.indexOf('data-slot="workbench-tab-bar-leading-actions"'),
+		);
 	});
 });

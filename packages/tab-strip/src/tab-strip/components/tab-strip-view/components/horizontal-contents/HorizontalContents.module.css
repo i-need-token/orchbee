@@ -1,3 +1,11 @@
+.ct-horizontal-contents {
+	composes: ct-horizontal-contents from '../../TabStripView.module.css';
+}
+
+.ct-horizontal-leading-actions {
+	composes: ct-horizontal-leading-actions from '../../TabStripView.module.css';
+}
+
 .ct-horizontal-track {
 	composes: ct-horizontal-track from '../../TabStripView.module.css';
 }

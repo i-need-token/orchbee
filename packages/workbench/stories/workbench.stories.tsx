@@ -55,3 +55,23 @@ export const SimplifiedChineseSidebar: Story = {
 		</OrchbeeI18nProvider>
 	),
 };
+
+export const HiddenSidebar: Story = {
+	args: {
+		layoutStorage: {
+			getItem: (key) =>
+				key === 'orchbee:workbench:left-panel-visibility:v1' ? '{"visible":false}' : null,
+			setItem: () => undefined,
+		},
+		onSearch: () => undefined,
+		onSettings: () => undefined,
+		onNewTerminal: () => undefined,
+		shortcutPlatform: 'apple',
+		tabModel: createTabModel(['Terminal 1', 'Terminal 2', 'Terminal 3']),
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};

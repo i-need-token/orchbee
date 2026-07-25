@@ -14,7 +14,13 @@ import type { TabStripViewModel } from '../../types/tab-strip-view-model';
 
 /** Pointer-lifecycle surface implemented by CrossWindowTabDragRuntime. */
 
-export function TabStripView({ view }: { readonly view: TabStripViewModel }): ReactNode {
+export function TabStripView({
+	horizontalLeadingActions,
+	view,
+}: {
+	readonly horizontalLeadingActions: ReactNode;
+	readonly view: TabStripViewModel;
+}): ReactNode {
 	const {
 		model,
 		orientation,
@@ -196,7 +202,7 @@ export function TabStripView({ view }: { readonly view: TabStripViewModel }): Re
 				}}
 			>
 				{horizontal ? (
-					<HorizontalContents view={view} />
+					<HorizontalContents horizontalLeadingActions={horizontalLeadingActions} view={view} />
 				) : (
 					<VerticalContents
 						snapshot={snapshot}

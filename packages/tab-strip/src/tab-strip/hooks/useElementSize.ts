@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 
-export function useElementSize<T extends HTMLElement>(): readonly [
-	RefObject<T | null>,
-	Readonly<{ width: number; height: number }>,
-] {
+export function useElementSize<T extends HTMLElement>(
+	observationKey?: unknown,
+): readonly [RefObject<T | null>, Readonly<{ width: number; height: number }>] {
 	const ref = useRef<T>(null);
 	const [size, setSize] = useState({ width: 0, height: 0 });
 	useEffect(() => {
@@ -17,6 +16,6 @@ export function useElementSize<T extends HTMLElement>(): readonly [
 		const observer = new ResizeObserver(update);
 		observer.observe(element);
 		return () => observer.disconnect();
-	}, []);
+	}, [observationKey]);
 	return [ref, size];
 }

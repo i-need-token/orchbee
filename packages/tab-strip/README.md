@@ -30,6 +30,10 @@ menus, accessibility names, and live-region announcements. The built-in English 
 reference fallback for package tests and non-product fixtures; Orchbee product surfaces supply the
 contract from `@orchbee/i18n`.
 
+Horizontal hosts may provide `horizontalLeadingActions` for controls that must share the tab-strip
+surface. The tab track consumes only the remaining width, so hosted controls never overlap the
+first tab or require a separately painted sibling region.
+
 The package API intentionally has no React or browser-vendor subpath. Browser and DOM adapters
 remain private; selected host contracts are promoted through the root only when a consumer must
 provide them. Upstream source attribution and license obligations are recorded in

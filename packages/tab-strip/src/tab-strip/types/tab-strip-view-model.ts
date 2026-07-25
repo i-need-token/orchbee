@@ -63,6 +63,7 @@ export interface TabStripViewModel {
 	readonly groupFocusActive: boolean;
 	readonly tabVisibleWhileFocused: (tab: Readonly<TabData>) => boolean;
 	readonly stripRef: RefObject<HTMLDivElement | null>;
+	readonly horizontalTrackRef: RefObject<HTMLDivElement | null>;
 	readonly size: Readonly<{ width: number; height: number }>;
 	readonly items: VisualItem[];
 	readonly horizontalAnimationRuntimeRef: RefObject<TabCollectionAnimationRuntime | null>;

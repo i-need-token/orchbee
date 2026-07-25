@@ -1,5 +1,5 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@orchbee/ui/components';
-import { TabStrip, type TabModel } from '@orchbee/tab-strip';
+import type { TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
 
 import {
@@ -9,6 +9,7 @@ import {
 } from '../workbench-layout-storage';
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
 import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSidebar';
+import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
 import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
 import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
@@ -51,7 +52,9 @@ export function Workbench({
 
 	return (
 		<div className={styles['root']}>
-			<div className={styles['sidebarToggle']}>{sidebarToggle}</div>
+			<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
+				{sidebarToggle}
+			</div>
 			<div className={styles['layout']}>
 				<ResizablePanelGroup orientation='horizontal' onLayoutChanged={view.onLayoutChanged}>
 					{view.isSidebarVisible && (
@@ -89,13 +92,11 @@ export function Workbench({
 					)}
 					<ResizablePanel id='right'>
 						<div className={styles['rightPanel']} data-slot='workbench-right-panel'>
-							<TabStrip
-								messages={tabStripMessages}
-								model={tabModel}
-								onNewTab={onNewTerminal}
-								showGroupHoverCards={false}
-								showHoverCardMemoryUsage={false}
-								showHoverCardPreviews={false}
+							<WorkbenchTabBar
+								onNewTerminal={onNewTerminal}
+								reserveSidebarToggleSpace={!view.isSidebarVisible}
+								tabModel={tabModel}
+								tabStripMessages={tabStripMessages}
 							/>
 							<div className={styles['tabContent']} data-slot='workbench-tab-content' />
 						</div>

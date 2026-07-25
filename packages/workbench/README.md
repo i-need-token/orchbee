@@ -6,9 +6,12 @@ Shared product-semantic React shell for Orchbee applications.
 
 The package owns a full-height, horizontally resizable two-panel shell. The left sidebar defaults
 to `250px` and is constrained to `200px`–`400px`; the right panel fills the remaining width and
-renders the host-owned terminal tab model through `@orchbee/tab-strip`. The root-level control and `Mod+B` shortcut
-hide or restore the sidebar. The localized sidebar provides `New Terminal`, `Search`, a `Project`
-section heading, and a bottom-anchored `Settings` action.
+renders the host-owned terminal tab model through `@orchbee/tab-strip`. The sidebar control and
+`Mod+B` shortcut hide or restore the sidebar. The control remains mounted at one fixed shell
+position in both states. While the sidebar is hidden, a transparent leading position inside the
+tab-strip surface reserves its footprint so the control never overlaps the first tab or paints a
+separate background. The localized sidebar provides `New Terminal`, `Search`, a `Project` section
+heading, and a bottom-anchored `Settings` action.
 
 The shell composes primitives from `@orchbee/ui` without owning terminal sessions, search,
 settings, project, authentication, routing, or agent orchestration lifecycles. The machine-readable

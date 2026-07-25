@@ -72,9 +72,20 @@
 	width: 100%;
 	height: var(--ob-comp-tab-strip-length-40);
 }
-.ct-horizontal-track {
+.ct-horizontal-contents {
 	position: absolute;
 	inset: 0;
+	display: flex;
+	min-width: 0;
+}
+.ct-horizontal-leading-actions {
+	display: flex;
+	flex: none;
+}
+.ct-horizontal-track {
+	position: relative;
+	min-width: 0;
+	flex: 1;
 	overflow: hidden;
 }
 .ct-horizontal-item {

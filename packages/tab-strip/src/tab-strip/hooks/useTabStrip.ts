@@ -142,7 +142,9 @@ export function useTabStrip(
 			(showPinnedTabsInFocusedGroups && tab.pinned),
 		[focusedGroup?.id, groupFocusActive, showPinnedTabsInFocusedGroups],
 	);
-	const [stripRef, size] = useElementSize<HTMLDivElement>();
+	const [stripRef, stripSize] = useElementSize<HTMLDivElement>();
+	const [horizontalTrackRef, horizontalTrackSize] = useElementSize<HTMLDivElement>(horizontal);
+	const size = horizontal ? horizontalTrackSize : stripSize;
 	const items = useMemo(() => buildVisualItems(snapshot), [snapshot]);
 	const horizontalAnimationRuntimeRef = useRef<TabCollectionAnimationRuntime | null>(null);
 	if (horizontalAnimationRuntimeRef.current === null) {
@@ -1407,7 +1409,7 @@ export function useTabStrip(
 							: (targetChild?.bounds.height ?? 30);
 					}
 				} else if (root && source && horizontalLayout) {
-					const rootRect = root.getBoundingClientRect();
+					const rootRect = (horizontalTrackRef.current ?? root).getBoundingClientRect();
 					const idealTabBounds = liveSnapshot.tabs.map((tab) => {
 						const visualIndex = items.findIndex(
 							(item) => item.type === 'tab' && item.tab.id === tab.id,
@@ -1785,6 +1787,7 @@ export function useTabStrip(
 		dragPresent,
 		horizontal,
 		horizontalLayout,
+		horizontalTrackRef,
 		items,
 		messages,
 		model,
@@ -1937,6 +1940,7 @@ export function useTabStrip(
 		groupFocusActive,
 		tabVisibleWhileFocused,
 		stripRef,
+		horizontalTrackRef,
 		size,
 		items,
 		horizontalAnimationRuntimeRef,

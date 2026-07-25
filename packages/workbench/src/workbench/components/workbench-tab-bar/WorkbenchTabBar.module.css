@@ -1,0 +1,9 @@
+.root {
+	min-width: 0;
+}
+
+.leadingActions {
+	box-sizing: border-box;
+	height: 100%;
+	width: calc(var(--ob-ref-size-control-sm) + var(--ob-ref-space-4));
+}

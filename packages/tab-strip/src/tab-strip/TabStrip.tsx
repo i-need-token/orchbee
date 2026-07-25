@@ -7,12 +7,14 @@ import type { TabStripMessages } from './types/tab-strip-messages';
 import type { TabStripCrossWindowDragRuntime, TabStripOptions } from './types/tab-strip-options';
 
 export interface TabStripProps extends TabStripOptions {
+	horizontalLeadingActions?: ReactNode;
 	messages?: TabStripMessages;
 }
 
 export type { TabStripCrossWindowDragRuntime, TabStripMessages };
 
 export function TabStrip({
+	horizontalLeadingActions = null,
 	messages = DEFAULT_TAB_STRIP_MESSAGES,
 	...options
 }: TabStripProps): ReactNode {
@@ -20,7 +22,7 @@ export function TabStrip({
 
 	return (
 		<TabStripMessagesContext.Provider value={messages}>
-			<TabStripView view={view} />
+			<TabStripView horizontalLeadingActions={horizontalLeadingActions} view={view} />
 		</TabStripMessagesContext.Provider>
 	);
 }

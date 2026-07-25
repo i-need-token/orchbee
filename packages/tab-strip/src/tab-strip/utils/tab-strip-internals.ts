@@ -224,7 +224,14 @@ export function captureDragVisuals(input: {
 		input.orientation === TabStripOrientation.Vertical
 			? input.sourceElement.closest<HTMLElement>('[data-tab-strip-scroll-viewport]')
 			: null;
-	const dragAreaRect = verticalDragViewport?.getBoundingClientRect() ?? rootRect;
+	const horizontalDragViewport =
+		input.orientation === TabStripOrientation.Horizontal
+			? input.sourceElement.closest<HTMLElement>('[data-horizontal-track]')
+			: null;
+	const dragAreaRect =
+		verticalDragViewport?.getBoundingClientRect() ??
+		horizontalDragViewport?.getBoundingClientRect() ??
+		rootRect;
 	const sourceRect = input.sourceElement.getBoundingClientRect();
 	let fallbackSourceWidth = 216;
 	if (input.orientation !== TabStripOrientation.Vertical) {
