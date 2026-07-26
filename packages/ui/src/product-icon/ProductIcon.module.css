@@ -7,8 +7,20 @@
 	composes: codicon-add from global;
 }
 
+.arrowLeft {
+	composes: codicon-arrow-left from global;
+}
+
 .close {
 	composes: codicon-close from global;
+}
+
+.ellipsis {
+	composes: codicon-ellipsis from global;
+}
+
+.moreVertical {
+	composes: codicon-kebab-vertical from global;
 }
 
 .pin {

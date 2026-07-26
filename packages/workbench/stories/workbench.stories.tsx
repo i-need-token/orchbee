@@ -26,7 +26,7 @@ const createTabModel = (titles: readonly string[]) =>
 		activeTabId: 'terminal-1',
 	});
 
-export const EmptyPanels: Story = {
+export const PanelWorkspace: Story = {
 	args: {
 		onSearch: () => undefined,
 		onSettings: () => undefined,

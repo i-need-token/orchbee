@@ -5,7 +5,17 @@ import { cn } from '#lib';
 import styles from './ProductIcon.module.css';
 
 interface ProductIconProps {
-	readonly name: 'add' | 'close' | 'pin' | 'search' | 'settings' | 'sidebar-left' | 'terminal';
+	readonly name:
+		| 'add'
+		| 'arrow-left'
+		| 'close'
+		| 'ellipsis'
+		| 'more-vertical'
+		| 'pin'
+		| 'search'
+		| 'settings'
+		| 'sidebar-left'
+		| 'terminal';
 }
 
 export function ProductIcon({ name }: ProductIconProps): React.ReactNode {
@@ -15,7 +25,10 @@ export function ProductIcon({ name }: ProductIconProps): React.ReactNode {
 			className={cn(
 				styles['root'],
 				name === 'add' && styles['add'],
+				name === 'arrow-left' && styles['arrowLeft'],
 				name === 'close' && styles['close'],
+				name === 'ellipsis' && styles['ellipsis'],
+				name === 'more-vertical' && styles['moreVertical'],
 				name === 'pin' && styles['pin'],
 				name === 'search' && styles['search'],
 				name === 'settings' && styles['settings'],

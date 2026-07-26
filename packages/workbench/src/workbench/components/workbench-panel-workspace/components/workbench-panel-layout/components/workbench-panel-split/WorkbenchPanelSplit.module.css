@@ -1,0 +1,18 @@
+.group {
+	min-height: 0;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.separator {
+	position: relative;
+	z-index: var(--ob-ref-layer-raised);
+	flex: 0 0 var(--ob-ref-border-width-default);
+	background: var(--ob-sys-color-border-default);
+}
+
+.separator:hover,
+.separator[data-separator='hover'],
+.separator[data-separator='active'] {
+	background: var(--ob-sys-color-border-default);
+}

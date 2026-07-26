@@ -28,6 +28,7 @@ Tailwind 替换 Token 和 shadcn 兼容 alias 不会扩大产品编写词汇。�
 | `--ob-sys-typography-body-sm`    | `400 13px/18px` | 默认密集桌面 UI、导航、设置行和描述        | 长篇阅读内容需要更宽松的行框     |
 | `--ob-sys-typography-body-md`    | `400 14px/20px` | 多行帮助、新手引导文案和密度较低的产品界面 | 紧凑工具栏或普通设置行           |
 | `--ob-sys-typography-body-lg`    | `400 16px/24px` | 空状态或首次运行体验中的简短介绍文案       | 常规 shell chrome 或数据密集内容 |
+| `--ob-sys-typography-label-xs`   | `400 11px/16px` | 持久面板 chrome 中的低优先级元数据         | 控件、章节标签或截断补救方案     |
 | `--ob-sys-typography-label-sm`   | `400 12px/16px` | 章节标签和低调的类别标题                   | 正文描述或可点击控件标签         |
 | `--ob-sys-typography-label-md`   | `500 13px/18px` | 按钮、标签、输入框和需要明确强调的紧凑控件 | 页面标题或解释段落               |
 | `--ob-sys-typography-label-lg`   | `500 14px/20px` | 突出的控件标签和主要面板工具栏             | 作为标题的替代品                 |
@@ -154,6 +155,7 @@ Tailwind 替换 Token 和 shadcn 兼容 alias 不会扩大产品编写词汇。�
 | `--ob-sys-color-border-strong`          | `#141414 @ 20%` | 需要比默认更强分隔的边界            |
 | `--ob-sys-color-border-focus`           | `#2778c1`       | 仅用于键盘焦点轮廓                  |
 | `--ob-sys-color-surface-canvas`         | `#fcfcfc`       | 应用和页面背景                      |
+| `--ob-sys-color-surface-inactive`       | `#141414 @ 6%`  | 多面板工作区中非聚焦面板的蒙层      |
 | `--ob-sys-color-surface-raised`         | `#fcfcfc`       | 位于画布之上的持久面板              |
 | `--ob-sys-color-surface-overlay`        | `#fcfcfc`       | 菜单、popover、对话框或临时浮动表面 |
 | `--ob-sys-color-surface-subtle`         | `#141414 @ 4%`  | 低调的分组卡片或内嵌区域            |

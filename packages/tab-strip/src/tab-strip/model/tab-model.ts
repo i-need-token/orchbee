@@ -442,6 +442,12 @@ export class TabModel {
 			this.selectedTabIds = new Set(
 				[...this.selectedTabIds].filter((selectedId) => keep.some((tab) => tab.id === selectedId)),
 			);
+			if (
+				this.selectionAnchorId !== null &&
+				!keep.some((tab) => tab.id === this.selectionAnchorId)
+			) {
+				this.selectionAnchorId = this.activeTabId;
+			}
 		}
 		this.removeEmptyGroups();
 		this.commit();
@@ -630,11 +636,12 @@ export class TabModel {
 	}
 	public setTabsPinned(tabIds: readonly string[], pinned: boolean): void {
 		const ids = new Set(tabIds);
-		const moving = this.tabs.filter((tab) => ids.has(tab.id));
+		const moving = this.tabs.filter((tab) => ids.has(tab.id) && tab.pinned !== pinned);
 		if (moving.length === 0) {
 			return;
 		}
-		this.tabs = this.tabs.filter((tab) => !ids.has(tab.id));
+		const movingIds = new Set(moving.map((tab) => tab.id));
+		this.tabs = this.tabs.filter((tab) => !movingIds.has(tab.id));
 		moving.forEach((tab) => {
 			tab.pinned = pinned;
 			if (pinned) {
@@ -673,13 +680,16 @@ export class TabModel {
 			this.requireGroup(groupId);
 		}
 		const idSet = new Set(tabIds);
-		const firstMovingIndex = this.tabs.findIndex((tab) => idSet.has(tab.id));
+		const firstMovingIndex = this.tabs.findIndex(
+			(tab) => idSet.has(tab.id) && tab.group !== groupId,
+		);
 		const targetGroupWasEmpty = groupId !== null && this.groupRange(groupId) === null;
-		const moving = this.tabs.filter((tab) => idSet.has(tab.id));
+		const moving = this.tabs.filter((tab) => idSet.has(tab.id) && tab.group !== groupId);
 		if (moving.length === 0) {
 			return;
 		}
-		const movingIndices = this.tabs.flatMap((tab, index) => (idSet.has(tab.id) ? [index] : []));
+		const movingIds = new Set(moving.map((tab) => tab.id));
+		const movingIndices = this.tabs.flatMap((tab, index) => (movingIds.has(tab.id) ? [index] : []));
 		const movingIsContiguous = movingIndices.every(
 			(index, offset) => index === firstMovingIndex + offset,
 		);
@@ -691,9 +701,9 @@ export class TabModel {
 			movingIsContiguous &&
 			moving.every((tab) => tab.group !== null) &&
 			this.tabs.every(
-				(tab) => tab.group === null || !sourceGroupIds.has(tab.group) || idSet.has(tab.id),
+				(tab) => tab.group === null || !sourceGroupIds.has(tab.group) || movingIds.has(tab.id),
 			);
-		this.tabs = this.tabs.filter((tab) => !idSet.has(tab.id));
+		this.tabs = this.tabs.filter((tab) => !movingIds.has(tab.id));
 		moving.forEach((tab) => {
 			tab.group = groupId;
 			// TabStripModel::MoveTabsAndSetPropertiesImpl always passes pinned=false
@@ -774,6 +784,9 @@ export class TabModel {
 			this.selectionAnchorId = this.activeTabId;
 		} else {
 			tabIds.forEach((id) => this.selectedTabIds.delete(id));
+			if (this.selectionAnchorId !== null && closing.has(this.selectionAnchorId)) {
+				this.selectionAnchorId = this.activeTabId;
+			}
 		}
 		this.removeEmptyGroups();
 		this.commit();
@@ -1041,6 +1054,13 @@ export class TabModel {
 	}
 	private assertInvariants(): void {
 		const ids = new Set<string>();
+		const groupIds = new Set<TabGroupId>();
+		for (const group of this.groups) {
+			if (groupIds.has(group.id)) {
+				throw new Error(`Duplicate group id ${group.id}.`);
+			}
+			groupIds.add(group.id);
+		}
 		let sawUnpinned = false;
 		const closedGroups = new Set<TabGroupId>();
 		let previousGroup: TabGroupId | null = null;
@@ -1072,6 +1092,23 @@ export class TabModel {
 		}
 		if (this.activeTabId !== null && !ids.has(this.activeTabId)) {
 			throw new Error(`Unknown active tab ${this.activeTabId}.`);
+		}
+		if (this.tabs.length > 0 && this.activeTabId === null) {
+			throw new Error('A non-empty tab model must have an active tab.');
+		}
+		if (this.tabs.length === 0 && this.activeTabId !== null) {
+			throw new Error('An empty tab model cannot have an active tab.');
+		}
+		for (const selectedTabId of this.selectedTabIds) {
+			if (!ids.has(selectedTabId)) {
+				throw new Error(`Unknown selected tab ${selectedTabId}.`);
+			}
+		}
+		if (this.activeTabId !== null && !this.selectedTabIds.has(this.activeTabId)) {
+			throw new Error(`Active tab ${this.activeTabId} must be selected.`);
+		}
+		if (this.selectionAnchorId !== null && !ids.has(this.selectionAnchorId)) {
+			throw new Error(`Unknown selection anchor ${this.selectionAnchorId}.`);
 		}
 		if (
 			this.mostRecentGroupId !== null &&

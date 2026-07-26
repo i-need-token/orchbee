@@ -1,0 +1,23 @@
+.root {
+	position: fixed;
+	z-index: var(--ob-ref-layer-overlay);
+	top: var(--ob-comp-workbench-panel-drag-block-start);
+	left: var(--ob-comp-workbench-panel-drag-inline-start);
+	width: var(--ob-comp-workbench-panel-drag-width);
+	height: var(--ob-comp-workbench-panel-drag-height);
+	overflow: hidden;
+	pointer-events: none;
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: var(--ob-sys-color-surface-canvas);
+	box-shadow:
+		0 0 0 var(--ob-ref-border-width-default) var(--ob-sys-color-border-default),
+		var(--ob-sys-shadow-overlay);
+	opacity: var(--ob-comp-workbench-panel-drag-opacity);
+}
+
+.snapshot {
+	width: var(--ob-comp-workbench-panel-drag-source-width);
+	height: var(--ob-comp-workbench-panel-drag-source-height);
+	transform: scale(var(--ob-comp-workbench-panel-drag-scale));
+	transform-origin: top left;
+}

@@ -1,3 +1,5 @@
+import { array, assert as assertProperty, nat, property as defineProperty } from 'fast-check';
+
 import { requireDefined } from '../../utils/requireDefined';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -6,6 +8,7 @@ import {
 	ToggleTabGroupCollapsedStateOrigin,
 	type TabData,
 	type TabGroupData,
+	type TabModelSnapshot,
 } from '../tab-model';
 const groups: TabGroupData[] = [
 	{
@@ -29,6 +32,175 @@ const makeTab = (id: string, pinned = false, group: string | null = null): TabDa
 });
 const ids = (model: TabModel) => model.getSnapshot().tabs.map((tab) => tab.id);
 const groupIds = (model: TabModel) => model.getSnapshot().tabs.map((tab) => tab.group);
+
+function assertValidTabModelSnapshot(snapshot: TabModelSnapshot): void {
+	const tabIds = new Set<string>();
+	const groupIdentitySet = new Set<string>();
+	for (const group of snapshot.groups) {
+		if (groupIdentitySet.has(group.id)) {
+			throw new Error(`Duplicate group identity: ${group.id}`);
+		}
+		groupIdentitySet.add(group.id);
+	}
+
+	let sawUnpinnedTab = false;
+	let previousGroupId: string | null = null;
+	const completedGroupIds = new Set<string>();
+	for (const tab of snapshot.tabs) {
+		if (tabIds.has(tab.id)) {
+			throw new Error(`Duplicate tab identity: ${tab.id}`);
+		}
+		tabIds.add(tab.id);
+		if (tab.pinned) {
+			if (sawUnpinnedTab) {
+				throw new Error(`Pinned tab appears after an unpinned tab: ${tab.id}`);
+			}
+			if (tab.group !== null) {
+				throw new Error(`Pinned tab belongs to a group: ${tab.id}`);
+			}
+		} else {
+			sawUnpinnedTab = true;
+		}
+		if (tab.group !== null && !groupIdentitySet.has(tab.group)) {
+			throw new Error(`Tab references an unknown group: ${tab.id}`);
+		}
+		if (previousGroupId !== tab.group && previousGroupId !== null) {
+			completedGroupIds.add(previousGroupId);
+		}
+		if (tab.group !== null && completedGroupIds.has(tab.group)) {
+			throw new Error(`Group is not contiguous: ${tab.group}`);
+		}
+		previousGroupId = tab.group;
+	}
+
+	if (snapshot.tabs.length === 0 && snapshot.activeTabId !== null) {
+		throw new Error(`Empty model has an active tab: ${snapshot.activeTabId}`);
+	}
+	if (snapshot.tabs.length > 0 && snapshot.activeTabId === null) {
+		throw new Error('Non-empty model has no active tab.');
+	}
+	if (snapshot.activeTabId !== null && !tabIds.has(snapshot.activeTabId)) {
+		throw new Error(`Active tab does not exist: ${snapshot.activeTabId}`);
+	}
+	for (const selectedTabId of snapshot.selectedTabIds) {
+		if (!tabIds.has(selectedTabId)) {
+			throw new Error(`Selected tab does not exist: ${selectedTabId}`);
+		}
+	}
+	if (snapshot.activeTabId !== null && !snapshot.selectedTabIds.has(snapshot.activeTabId)) {
+		throw new Error(`Active tab is not selected: ${snapshot.activeTabId}`);
+	}
+	if (snapshot.selectionAnchorId !== null && !tabIds.has(snapshot.selectionAnchorId)) {
+		throw new Error(`Selection anchor does not exist: ${snapshot.selectionAnchorId}`);
+	}
+	if (snapshot.mostRecentGroupId !== null && !groupIdentitySet.has(snapshot.mostRecentGroupId)) {
+		throw new Error(`Most-recent group does not exist: ${snapshot.mostRecentGroupId}`);
+	}
+}
+
+function tabModelStateKey(snapshot: TabModelSnapshot): string {
+	return JSON.stringify({
+		activeTabId: snapshot.activeTabId,
+		groups: snapshot.groups.map(({ collapsed, id }) => ({ collapsed, id })),
+		mostRecentGroupId: snapshot.mostRecentGroupId,
+		selectedTabIds: snapshot.tabs
+			.filter((tab) => snapshot.selectedTabIds.has(tab.id))
+			.map((tab) => tab.id),
+		selectionAnchorId: snapshot.selectionAnchorId,
+		tabs: snapshot.tabs.map(({ group, id, pinned }) => ({ group, id, pinned })),
+	});
+}
+
+interface BoundedTabModelAction {
+	readonly apply: (model: TabModel) => void;
+	readonly name: string;
+}
+
+function nonEmptyTabIdSubsets(tabIds: readonly string[]): readonly (readonly string[])[] {
+	const subsets: string[][] = [];
+	for (let mask = 1; mask < 1 << tabIds.length; mask += 1) {
+		subsets.push(tabIds.filter((_, index) => (mask & (1 << index)) !== 0));
+	}
+	return subsets;
+}
+
+function boundedTabModelActions(snapshot: TabModelSnapshot): readonly BoundedTabModelAction[] {
+	const actions: BoundedTabModelAction[] = [];
+	const tabIds = snapshot.tabs.map((tab) => tab.id);
+	for (const tabId of tabIds) {
+		actions.push(
+			{ apply: (model) => model.selectTab(tabId), name: `select(${tabId})` },
+			{ apply: (model) => model.toggleSelected(tabId), name: `toggle-selected(${tabId})` },
+			{ apply: (model) => model.extendSelectionTo(tabId), name: `extend(${tabId})` },
+			{ apply: (model) => model.addSelectionFromAnchorTo(tabId), name: `add-range(${tabId})` },
+			{ apply: (model) => model.closeTab(tabId), name: `close(${tabId})` },
+			{ apply: (model) => model.closeOtherTabs(tabId), name: `close-others(${tabId})` },
+			{ apply: (model) => model.closeTabsToRight(tabId), name: `close-right(${tabId})` },
+			{ apply: (model) => model.moveTabFirst(tabId), name: `move-first(${tabId})` },
+			{ apply: (model) => model.moveTabLast(tabId), name: `move-last(${tabId})` },
+			{ apply: (model) => model.shiftTabRelative(tabId, -1), name: `shift-left(${tabId})` },
+			{ apply: (model) => model.shiftTabRelative(tabId, 1), name: `shift-right(${tabId})` },
+		);
+	}
+	for (const group of snapshot.groups) {
+		actions.push(
+			{
+				apply: (model) => model.toggleGroupCollapsed(group.id),
+				name: `toggle-group(${group.id})`,
+			},
+			{ apply: (model) => model.ungroup(group.id), name: `ungroup(${group.id})` },
+			{ apply: (model) => model.closeGroup(group.id), name: `close-group(${group.id})` },
+			{
+				apply: (model) => model.shiftGroupRelative(group.id, -1),
+				name: `shift-group-left(${group.id})`,
+			},
+			{
+				apply: (model) => model.shiftGroupRelative(group.id, 1),
+				name: `shift-group-right(${group.id})`,
+			},
+		);
+		for (let targetIndex = 0; targetIndex <= snapshot.tabs.length; targetIndex += 1) {
+			actions.push({
+				apply: (model) => model.moveGroupTo(group.id, targetIndex),
+				name: `move-group(${group.id},${targetIndex})`,
+			});
+		}
+	}
+	for (const tabIdSubset of nonEmptyTabIdSubsets(tabIds)) {
+		const label = tabIdSubset.join(',');
+		actions.push(
+			{ apply: (model) => model.closeTabs(tabIdSubset), name: `close-many(${label})` },
+			{
+				apply: (model) => model.setTabsPinned(tabIdSubset, true),
+				name: `pin(${label})`,
+			},
+			{
+				apply: (model) => model.setTabsPinned(tabIdSubset, false),
+				name: `unpin(${label})`,
+			},
+			{
+				apply: (model) => model.moveTabsToGroup(tabIdSubset, null),
+				name: `remove-from-group(${label})`,
+			},
+		);
+		for (const group of snapshot.groups) {
+			actions.push({
+				apply: (model) => model.moveTabsToGroup(tabIdSubset, group.id),
+				name: `move-to-group(${label},${group.id})`,
+			});
+		}
+	}
+	return actions;
+}
+
+function createBoundedTabModel(): TabModel {
+	return new TabModel({
+		activeTabId: 'a',
+		groups: [requireDefined(groups[0])],
+		tabs: [makeTab('a', false, 'work'), makeTab('b', false, 'work'), makeTab('c')],
+	});
+}
+
 describe('TabModel selection', () => {
 	it('supports Chrome anchor range selection and additive ranges', () => {
 		const model = new TabModel({
@@ -146,6 +318,22 @@ describe('TabModel selection', () => {
 		expect(model.getSnapshot()).toBe(before);
 		expect(ids(model)).toEqual(['a']);
 	});
+	it('rejects invalid restored selection and duplicate group identities', () => {
+		expect(
+			() =>
+				new TabModel({
+					tabs: [makeTab('a')],
+					selectedTabIds: ['missing'],
+				}),
+		).toThrow('Unknown selected tab missing');
+		expect(
+			() =>
+				new TabModel({
+					tabs: [makeTab('a', false, 'work')],
+					groups: [requireDefined(groups[0]), requireDefined(groups[0])],
+				}),
+		).toThrow('Duplicate group id work');
+	});
 	it('closes multiple tabs atomically and activates the next surviving slot', () => {
 		const model = new TabModel({
 			tabs: ['a', 'b', 'c', 'd'].map((id) => makeTab(id)),
@@ -156,6 +344,17 @@ describe('TabModel selection', () => {
 		expect(ids(model)).toEqual(['a', 'd']);
 		expect(model.getSnapshot().activeTabId).toBe('d');
 		expect([...model.getSnapshot().selectedTabIds]).toEqual(['d']);
+	});
+	it('repairs the selection anchor when closing tabs to the right removes it', () => {
+		const model = createBoundedTabModel();
+		model.moveTabLast('a');
+		model.toggleSelected('b');
+
+		model.closeTabsToRight('b');
+
+		expect(ids(model)).toEqual(['b']);
+		expect(model.getSnapshot().activeTabId).toBe('b');
+		expect(model.getSnapshot().selectionAnchorId).toBe('b');
 	});
 });
 describe('TabStripCollectionController keyboard movement ports', () => {
@@ -399,6 +598,55 @@ describe('groups and collapsing', () => {
 			pinned: true,
 			group: null,
 		});
+	});
+	it('does not reorder already unpinned tabs across group boundaries', () => {
+		const model = createBoundedTabModel();
+		const before = model.getSnapshot();
+
+		model.setTabsPinned(['a', 'c'], false);
+
+		expect(model.getSnapshot()).toBe(before);
+		expect(ids(model)).toEqual(['a', 'b', 'c']);
+		expect(groupIds(model)).toEqual(['work', 'work', null]);
+	});
+	it('repairs the selection anchor when closing its group while another tab is active', () => {
+		const model = createBoundedTabModel();
+		model.toggleSelected('c');
+
+		model.closeGroup('work');
+
+		expect(ids(model)).toEqual(['c']);
+		expect(model.getSnapshot().activeTabId).toBe('c');
+		expect(model.getSnapshot().selectionAnchorId).toBe('c');
+	});
+	it('does not move already ungrouped pinned tabs into the unpinned partition', () => {
+		const model = createBoundedTabModel();
+		model.setTabsPinned(['a'], true);
+		const before = model.getSnapshot();
+
+		model.moveTabsToGroup(['a'], null);
+
+		expect(model.getSnapshot()).toBe(before);
+		expect(ids(model)).toEqual(['a', 'b', 'c']);
+		expect(model.getSnapshot().tabs[0]).toMatchObject({
+			group: null,
+			pinned: true,
+		});
+	});
+	it('retains already pinned tabs when pinning a mixed selection', () => {
+		const model = createBoundedTabModel();
+		model.setTabsPinned(['a'], true);
+
+		model.setTabsPinned(['a', 'b'], true);
+
+		expect(ids(model)).toEqual(['a', 'b', 'c']);
+		expect(
+			model
+				.getSnapshot()
+				.tabs.slice(0, 2)
+				.map((tab) => tab.pinned),
+		).toEqual([true, true]);
+		expect(model.getSnapshot().activeTabId).toBe('a');
 	});
 });
 describe('tab drag index adjustment', () => {
@@ -710,5 +958,115 @@ describe('cross-window tab transfer', () => {
 		).toBe(true);
 		expect(ids(model)).toEqual(['a', 'tail', 'b']);
 		expect(groupIds(model)).toEqual(['work', null, null]);
+	});
+});
+
+describe('TabModel bounded state-space exploration', () => {
+	it('preserves identity and structural invariants across every three-action trace', () => {
+		interface ExplorationNode {
+			readonly model: TabModel;
+			readonly trace: readonly BoundedTabModelAction[];
+		}
+
+		let frontier: readonly ExplorationNode[] = [
+			{
+				model: createBoundedTabModel(),
+				trace: [],
+			},
+		];
+		const seenStates = new Set<string>([
+			tabModelStateKey(requireDefined(frontier[0]).model.getSnapshot()),
+		]);
+		let exploredTransitions = 0;
+
+		for (let depth = 0; depth < 3; depth += 1) {
+			const nextFrontier: ExplorationNode[] = [];
+			for (const node of frontier) {
+				for (const action of boundedTabModelActions(node.model.getSnapshot())) {
+					const trace = [...node.trace, action];
+					const model = createBoundedTabModel();
+					try {
+						for (const step of trace) {
+							step.apply(model);
+						}
+						assertValidTabModelSnapshot(model.getSnapshot());
+					} catch (error) {
+						throw new Error(
+							`Invalid TabModel trace: ${trace.map((step) => step.name).join(' -> ')}`,
+							{
+								cause: error,
+							},
+						);
+					}
+					exploredTransitions += 1;
+					const stateKey = tabModelStateKey(model.getSnapshot());
+					if (!seenStates.has(stateKey)) {
+						seenStates.add(stateKey);
+						nextFrontier.push({
+							model,
+							trace,
+						});
+					}
+				}
+			}
+			frontier = nextFrontier;
+		}
+
+		expect({
+			exploredTransitions,
+			reachableStates: seenStates.size,
+		}).toEqual({
+			exploredTransitions: 15_497,
+			reachableStates: 952,
+		});
+	});
+});
+
+describe('TabModel property testing', () => {
+	it('preserves invariants across reproducible deep action sequences', () => {
+		expect(() => {
+			assertProperty(
+				defineProperty(
+					array(nat(), {
+						minLength: 1,
+						maxLength: 100,
+					}),
+					(actionChoices) => {
+						const model = createBoundedTabModel();
+						const trace: string[] = [];
+						for (const [stepIndex, actionChoice] of actionChoices.entries()) {
+							const actions = boundedTabModelActions(model.getSnapshot());
+							if (actions.length === 0) {
+								const tabId = `recovered-${stepIndex}`;
+								model.addTab(
+									{
+										title: tabId,
+									},
+									{
+										id: tabId,
+									},
+								);
+								trace.push(`add(${tabId})`);
+							} else {
+								const action = requireDefined(actions[actionChoice % actions.length]);
+								action.apply(model);
+								trace.push(action.name);
+							}
+							try {
+								assertValidTabModelSnapshot(model.getSnapshot());
+							} catch (error) {
+								throw new Error(`Invalid TabModel trace: ${trace.join(' -> ')}`, {
+									cause: error,
+								});
+							}
+						}
+					},
+				),
+				{
+					numRuns: 200,
+					seed: 20_260_726,
+				},
+			);
+		}).not.toThrow();
 	});
 });

@@ -69,6 +69,12 @@ describe('Workbench', () => {
 		expect(markup).toContain('Terminal 1');
 		expect(markup).toContain('Terminal 2');
 		expect(markup).toContain('data-slot="workbench-tab-content"');
+		expect(markup).toContain('data-slot="workbench-panel-workspace"');
+		expect(markup).toContain('data-slot="workbench-panel"');
+		expect(markup).toContain('data-slot="workbench-terminal-viewport"');
+		expect(markup).toContain('data-terminal-role="primary"');
+		expect(markup).not.toContain('data-slot="workbench-panel-header"');
+		expect(markup).not.toContain('data-slot="workbench-child-terminal-strip"');
 	});
 
 	it('renders the sidebar chrome in Simplified Chinese', () => {

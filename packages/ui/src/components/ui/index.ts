@@ -291,7 +291,12 @@ export {
 	ProgressValue,
 } from './progress';
 export { RadioGroup, RadioGroupItem } from './radio-group';
-export { ResizableHandle, ResizablePanel, ResizablePanelGroup } from './resizable';
+export {
+	ResizableHandle,
+	ResizablePanel,
+	ResizablePanelGroup,
+	type ResizablePanelGroupHandle,
+} from './resizable';
 export { ScrollArea, ScrollBar } from './scroll-area';
 export {
 	Select,

@@ -1,0 +1,12 @@
+.root {
+	height: 100%;
+	min-height: 0;
+	min-width: 0;
+	overflow: hidden;
+	background: var(--ob-sys-color-surface-canvas);
+}
+
+.root[data-dragging='true'],
+.root[data-dragging='true'] * {
+	cursor: grabbing;
+}

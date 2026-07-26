@@ -47,6 +47,7 @@ have matching suffixes.
 | `--ob-sys-typography-body-sm`    | `400 13px/18px`  | Default dense desktop UI, navigation, setting rows, descriptions      | Long reading content needs a more relaxed line box        |
 | `--ob-sys-typography-body-md`    | `400 14px/20px`  | Multi-line help, onboarding copy, and less dense product surfaces     | A compact toolbar or ordinary settings row                |
 | `--ob-sys-typography-body-lg`    | `400 16px/24px`  | Short introductory copy in an empty state or first-run experience     | Routine shell chrome or data-dense content                |
+| `--ob-sys-typography-label-xs`   | `400 11px/16px`  | Low-priority metadata in persistent panel chrome                      | Controls, section labels, or truncation workarounds       |
 | `--ob-sys-typography-label-sm`   | `400 12px/16px`  | Section labels and quiet category headings                            | Body descriptions or clickable control labels             |
 | `--ob-sys-typography-label-md`   | `500 13px/18px`  | Buttons, tabs, inputs, and compact controls needing explicit emphasis | Page titles or explanatory paragraphs                     |
 | `--ob-sys-typography-label-lg`   | `500 14px/20px`  | Prominent control labels and a primary panel toolbar                  | A substitute for a heading                                |
@@ -208,6 +209,7 @@ Do not use a thicker product border without a component-specific requirement.
 | `--ob-sys-color-border-strong`          | `#141414 @ 20%` | Boundary requiring more separation than default       |
 | `--ob-sys-color-border-focus`           | `#2778c1`       | Keyboard-focus outline only                           |
 | `--ob-sys-color-surface-canvas`         | `#fcfcfc`       | Application and page background                       |
+| `--ob-sys-color-surface-inactive`       | `#141414 @ 6%`  | Non-focused pane mask in a multi-pane workspace       |
 | `--ob-sys-color-surface-raised`         | `#fcfcfc`       | Persistent panel above the canvas                     |
 | `--ob-sys-color-surface-overlay`        | `#fcfcfc`       | Menu, popover, dialog, or temporary floating surface  |
 | `--ob-sys-color-surface-subtle`         | `#141414 @ 4%`  | Quiet grouped card or inset region                    |

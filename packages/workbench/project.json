@@ -3,7 +3,7 @@
 	"domain": "workbench",
 	"runtime": ["browser"],
 	"stability": "experimental",
-	"responsibility": "Shared product-semantic React shell with localized sidebar chrome, a resizable two-panel layout, and rendering for a host-owned terminal tab model.",
+	"responsibility": "Shared product-semantic React shell with localized sidebar chrome, a resizable shell layout, host-owned terminal tabs, and deterministic per-tab panel and terminal-presentation layouts.",
 	"nonGoals": [
 		"Owning application startup, routing roots, authentication, deployment, or packaging.",
 		"Owning locale negotiation, product message descriptors, translation catalogs, or formatting runtime.",

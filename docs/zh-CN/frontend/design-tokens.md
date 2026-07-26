@@ -62,14 +62,14 @@ Tailwind 的 `@theme` 指令职责不同：顶层主题变量声明指示 Tailwi
 
 | 系列 | 必需角色矩阵                                                                                                                                             |
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 表面 | canvas、subtle、raised、overlay、inverse、hovered、pressed、selected、selected-hover、disabled、scrim                                                    |
+| 表面 | canvas、inactive、subtle、raised、overlay、inverse、hovered、pressed、selected、selected-hover、disabled、scrim                                          |
 | 文本 | primary、heading、secondary、label、muted、placeholder、disabled、inverse，以及链接 rest/hover/focus/pressed                                             |
 | 图标 | primary、secondary、muted、inverse、hover、disabled                                                                                                      |
 | 边框 | subtle、default、strong、focus、selected、disabled                                                                                                       |
 | 操作 | primary 和 secondary 的 rest/hover/pressed/text，加上共享 disabled surface/text/border                                                                   |
 | 状态 | info、success、warning 和 danger；每个状态都有 rest、hover、pressed、surface、surface-hover、border、border-hover、text、text-hover 和 text-pressed 角色 |
 | 数据 | 五种分类序列颜色                                                                                                                                         |
-| 排版 | body sm/md/lg、label sm/md/lg、heading sm/md/lg/xl 和 code sm/md                                                                                         |
+| 排版 | body sm/md/lg、label xs/sm/md/lg、heading sm/md/lg/xl 和 code sm/md                                                                                      |
 | 其他 | 链接装饰 rest/hover/focus、语义动效 duration/easing、焦点环几何、disabled/muted opacity 和 raised/overlay shadow                                         |
 
 每个 `--ob-sys-color-*` Token 都有显式的 `[data-theme='light']` 和 `[data-theme='dark']` 映射；`:root` 共享浅色映射作为回退。包测试强制两份清单相同，并确保主题作用域不包含参考 Token 或组件 Token。状态和排版矩阵也经过回归测试，因此删除某个状态不会留下表面有效但不完整的注册表。

@@ -268,6 +268,7 @@ export {
 	ResizableHandle,
 	ResizablePanel,
 	ResizablePanelGroup,
+	type ResizablePanelGroupHandle,
 	ScrollArea,
 	ScrollBar,
 	Select,

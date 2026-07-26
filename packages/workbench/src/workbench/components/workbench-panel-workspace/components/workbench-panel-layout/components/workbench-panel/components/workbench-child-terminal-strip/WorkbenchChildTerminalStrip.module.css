@@ -1,0 +1,16 @@
+.root {
+	box-sizing: border-box;
+	display: flex;
+	height: var(--ob-comp-workbench-child-terminal-strip-height);
+	min-height: var(--ob-comp-workbench-child-terminal-strip-height);
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	overflow-x: auto;
+	border-block-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	padding-inline: var(--ob-ref-space-1-5);
+}
+
+.root [data-active='true'] {
+	background: var(--ob-sys-color-surface-selected);
+	color: var(--ob-sys-color-icon-primary);
+}

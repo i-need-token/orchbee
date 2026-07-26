@@ -34,7 +34,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"test:property": "vitest run src/tab-strip/dragging/__tests__/horizontal-group-drag-machine.unit.test.ts src/tab-strip/layout/__tests__/tab-content-layout.unit.test.ts",
+		"test:property": "vitest run src/tab-strip/model/__tests__/tab-model.unit.test.ts src/tab-strip/dragging/__tests__/horizontal-group-drag-machine.unit.test.ts src/tab-strip/layout/__tests__/tab-content-layout.unit.test.ts",
 		"test:system": "playwright test --config playwright.config.ts",
 		"test:tla": "node scripts/run-tla.mjs",
 		"test:lean": "node scripts/run-lean.mjs",

@@ -86,8 +86,21 @@ re-exported only through `tab-strip/index.ts` and the package root.
 
 ## Correctness
 
-The package carries unit and property tests, a TLA+ model for horizontal group drag, a Lean proof
-for contiguous-block movement, and deterministic browser traces. See the
+The general `TabModel` state machine has three complementary layers:
+
+- deterministic regressions preserve each known minimal counterexample;
+- bounded state-space exploration enumerates every modeled selection, close, pin, group, and
+  keyboard-movement transition through depth three from a canonical grouped seed (15,497
+  transitions and 952 distinct states);
+- fixed-seed property tests exercise 200 reproducible action sequences of up to 100 transitions.
+
+An independent test invariant checker validates tab and group identity, the pinned prefix,
+contiguous group membership, active and selected identities, the selection anchor, and recent-group
+references after every transition. The production model asserts the same structural boundaries so
+invalid restored state and invalid intermediate mutations fail at their source.
+
+Horizontal group drag additionally carries a TLA+ model, a Lean proof for contiguous-block
+movement, focused property tests, and deterministic browser traces. See the
 [`horizontal group-drag contract`](docs/horizontal-group-drag.md) and
 [`formal/README.md`](formal/README.md).
 

@@ -1,0 +1,12 @@
+.viewport {
+	min-height: 0;
+	min-width: 0;
+	flex: 1;
+	overflow: hidden;
+	background: var(--ob-sys-color-surface-canvas);
+	outline: none;
+}
+
+.viewport:focus-visible {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}

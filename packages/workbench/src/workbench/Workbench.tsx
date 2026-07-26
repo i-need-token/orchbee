@@ -9,6 +9,7 @@ import {
 } from '../workbench-layout-storage';
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
 import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSidebar';
+import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
 import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
@@ -107,7 +108,9 @@ export function Workbench({
 								tabModel={tabModel}
 								tabStripMessages={tabStripMessages}
 							/>
-							<div className={styles['tabContent']} data-slot='workbench-tab-content' />
+							<div className={styles['tabContent']} data-slot='workbench-tab-content'>
+								<WorkbenchPanelWorkspace tabModel={tabModel} />
+							</div>
 						</div>
 					</ResizablePanel>
 				</ResizablePanelGroup>

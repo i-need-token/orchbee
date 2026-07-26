@@ -67,6 +67,7 @@ describe('design tokens', () => {
 		const inventory = new Set<string>(designTokenNames);
 		for (const token of [
 			'--ob-sys-color-surface-canvas',
+			'--ob-sys-color-surface-inactive',
 			'--ob-sys-color-surface-subtle',
 			'--ob-sys-color-surface-raised',
 			'--ob-sys-color-surface-overlay',
@@ -125,6 +126,7 @@ describe('design tokens', () => {
 			'body-sm',
 			'body-md',
 			'body-lg',
+			'label-xs',
 			'label-sm',
 			'label-md',
 			'label-lg',

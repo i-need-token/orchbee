@@ -4,6 +4,8 @@ import * as ResizablePrimitive from 'react-resizable-panels';
 
 import { cn } from '#lib';
 
+type ResizablePanelGroupHandle = ResizablePrimitive.GroupImperativeHandle;
+
 function ResizablePanelGroup({ className, ...props }: ResizablePrimitive.GroupProps) {
 	return (
 		<ResizablePrimitive.Group
@@ -39,4 +41,4 @@ function ResizableHandle({
 	);
 }
 
-export { ResizableHandle, ResizablePanel, ResizablePanelGroup };
+export { ResizableHandle, ResizablePanel, ResizablePanelGroup, type ResizablePanelGroupHandle };
