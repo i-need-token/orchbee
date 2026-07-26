@@ -25,7 +25,6 @@ function makeState(
 		activeTabId: 'b1',
 		selectedTabIds: ['b1'],
 		selectionAnchorId: 'b1',
-		focusedGroupId: null,
 		...input,
 	});
 }

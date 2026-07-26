@@ -25,16 +25,9 @@ describe('VerticalTabStripTopContainer', () => {
 		expect(collapse).toHaveBeenCalledWith(true);
 	});
 
-	it('stacks the combo vertically while collapsed and exposes the focus action', () => {
-		const unfocus = vi.fn<() => void>();
+	it('stacks the combo vertically while collapsed', () => {
 		const { container } = render(
-			<VerticalTabStripTopContainer
-				availableWidth={72}
-				collapsed
-				showUnfocusButton
-				showTabSearchButton
-				onUnfocusGroup={unfocus}
-			/>,
+			<VerticalTabStripTopContainer availableWidth={72} collapsed showTabSearchButton />,
 		);
 
 		expect(
@@ -46,7 +39,5 @@ describe('VerticalTabStripTopContainer', () => {
 			'none',
 		);
 		expect(container.querySelector('[data-flat-edge-label]')).toBeNull();
-		fireEvent.click(screen.getByRole('button', { name: 'Show all tabs' }));
-		expect(unfocus).toHaveBeenCalledOnce();
 	});
 });

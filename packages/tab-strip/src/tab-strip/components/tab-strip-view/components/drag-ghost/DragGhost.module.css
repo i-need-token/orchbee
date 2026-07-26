@@ -21,7 +21,3 @@
 .ct-drag-ghost__tab-view {
 	composes: ct-drag-ghost__tab-view from '../../TabStripView.module.css';
 }
-
-.ct-drag-ghost__underline {
-	composes: ct-drag-ghost__underline from '../../TabStripView.module.css';
-}

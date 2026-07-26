@@ -6,7 +6,10 @@ import {
 	type HoverCardThumbnailSource,
 	type HoverCardThumbnailSubscription,
 } from '../tab-hover-card-thumbnail-observer';
-import { TabHoverCardThumbnailRuntime } from '../tab-hover-card-thumbnail-runtime';
+import {
+	HOVER_CARD_THUMBNAIL_TRANSITION_MS,
+	TabHoverCardThumbnailRuntime,
+} from '../tab-hover-card-thumbnail-runtime';
 
 class FakeThumbnailSource implements HoverCardThumbnailSource<string> {
 	public callback: ((image: string) => void) | null = null;
@@ -123,7 +126,8 @@ describe('TabHoverCardThumbnailRuntime', () => {
 		a.emit('preview-a');
 		runtime.updateTarget(target('b', b, { crossfadeStart: 0.25 }));
 		expect(runtime.getSnapshot().current.image).toBe('preview-a');
-		vi.advanceTimersByTime(49);
+		const placeholderDelay = HOVER_CARD_THUMBNAIL_TRANSITION_MS * 0.25;
+		vi.advanceTimersByTime(placeholderDelay - 1);
 		expect(runtime.getSnapshot().current.image).toBe('preview-a');
 		vi.advanceTimersByTime(1);
 		expect(runtime.getSnapshot()).toMatchObject({

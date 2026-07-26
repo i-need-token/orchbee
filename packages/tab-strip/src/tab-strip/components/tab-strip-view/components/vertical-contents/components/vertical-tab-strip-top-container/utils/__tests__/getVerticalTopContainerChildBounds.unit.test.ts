@@ -7,11 +7,11 @@ describe('getVerticalTopContainerChildBounds', () => {
 		const layout = calculateVerticalTopContainerLayout({
 			availableWidth: 240,
 			collapseVisible: true,
-			comboEndVisible: true,
+			comboEndVisible: false,
 		});
 		const collapse = layout.children.find((child) => child.id === 'collapse');
 
 		expect(getVerticalTopContainerChildBounds(layout, 'collapse')).toEqual(collapse?.bounds);
-		expect(getVerticalTopContainerChildBounds(layout, 'unfocus')).toBeNull();
+		expect(getVerticalTopContainerChildBounds(layout, 'combo')).toBeNull();
 	});
 });

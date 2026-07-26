@@ -15,13 +15,21 @@ export interface TabStripCrossWindowDragRuntime {
 	start(): void;
 	update(pointInScreen: Readonly<DragPoint>): void;
 	end(reason: CrossWindowDragEndReason): void;
+	subscribe?(listener: () => void): () => void;
 	getSnapshot?(): Pick<CrossWindowDragSnapshot, 'targetActive'> &
-		Partial<Pick<CrossWindowDragSnapshot, 'sourceContextId' | 'attachedContextId' | 'state'>>;
+		Partial<
+			Pick<CrossWindowDragSnapshot, 'sourceContextId' | 'attachedContextId' | 'state' | 'endReason'>
+		>;
 }
+
+export type TabStripCrossWindowDragRuntimeFactory = (
+	sessionData: DragSessionData<Readonly<TabGroupData>>,
+) => TabStripCrossWindowDragRuntime | null;
 
 export interface TabStripOptions {
 	model: TabModel;
 	orientation?: TabStripOrientation;
+	onOrientationChange?: (orientation: TabStripOrientation) => void;
 	verticalCollapsed?: boolean;
 	verticalExpandOnHover?: boolean;
 	verticalExpandOnHoverController?: VerticalTabStripExpandOnHoverController;
@@ -34,17 +42,12 @@ export interface TabStripOptions {
 	onVerticalExpandedOnHoverChange?: (expanded: boolean) => void;
 	showVerticalTopControls?: boolean;
 	showVerticalTabSearchButton?: boolean;
-	/** Compatibility override; model.focusedGroupId is the source of truth for focused-group layout. */
-	verticalGroupFocused?: boolean;
-	/** Mirrors kTabGroupsFocusingPinnedTabs. Chromium's default is false. */
-	showPinnedTabsInFocusedGroups?: boolean;
 	verticalTabSearchOpen?: boolean;
 	verticalComboButtonController?: TabStripComboButtonController;
 	verticalToolbarHeight?: number;
 	verticalCaptionButtonWidth?: number;
 	verticalIsExitingExpandOnHover?: boolean;
 	onVerticalCollapsedChange?: (collapsed: boolean) => void;
-	onVerticalUnfocusGroup?: () => void;
 	onVerticalTabSearchClick?: () => void;
 	onVerticalExpandOnHoverChange?: (enabled: boolean) => void;
 	showNewTabButton?: boolean;
@@ -54,9 +57,7 @@ export interface TabStripOptions {
 	/** Mirrors current Chrome tab decluttering; pass false for legacy channels. */
 	tabStripDeclutter?: boolean;
 	/** Connects the DOM pointer lifecycle to a host-owned cross-window drag runtime. */
-	createCrossWindowDragRuntime?: (
-		sessionData: DragSessionData<Readonly<TabGroupData>>,
-	) => TabStripCrossWindowDragRuntime | null;
+	createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
 	/** Host bridge for Chromium's immersive-reveal drag lock lifecycle. */
 	onDraggingChange?: (dragging: boolean) => void;
 	/** Host bridge for BrowserCommandController::TabKeyboardFocusChangedTo. */
@@ -64,8 +65,6 @@ export interface TabStripOptions {
 	/** Host-backed TabStripModel context commands. */
 	onMoveTabsToNewWindow?: (tabIds: readonly string[]) => void;
 	onMoveGroupToNewWindow?: (groupId: string) => void;
-	/** Mirrors features::kTabGroupsFocusing in the editor bubble. */
-	enableTabGroupFocusing?: boolean;
 	ariaLabel?: string;
 	onNewTab?: (() => void) | undefined;
 	onNewTabButtonPressed?: () => void;

@@ -29,6 +29,7 @@ interface TabStripContextMenuProps {
 	snapshot: TabModelSnapshot;
 	model: TabModel;
 	orientation: TabStripOrientation;
+	onOrientationChange?: ((orientation: TabStripOrientation) => void) | undefined;
 	requestCloseTabs: (tabIds: readonly string[], source?: TabCloseSource) => void;
 	closeAllowed: boolean;
 	verticalExpandOnHover: boolean;
@@ -36,7 +37,6 @@ interface TabStripContextMenuProps {
 	comboButtonController: TabStripComboButtonController;
 	onMoveTabsToNewWindow?: ((tabIds: readonly string[]) => void) | undefined;
 	onMoveGroupToNewWindow?: ((groupId: string) => void) | undefined;
-	enableTabGroupFocusing: boolean;
 	onClose: () => void;
 }
 
@@ -45,6 +45,7 @@ export function TabStripContextMenu({
 	snapshot,
 	model,
 	orientation,
+	onOrientationChange,
 	requestCloseTabs,
 	closeAllowed,
 	verticalExpandOnHover,
@@ -52,7 +53,6 @@ export function TabStripContextMenu({
 	comboButtonController,
 	onMoveTabsToNewWindow,
 	onMoveGroupToNewWindow,
-	enableTabGroupFocusing,
 	onClose,
 }: TabStripContextMenuProps): ReactNode {
 	const messages = useTabStripMessages();
@@ -60,6 +60,24 @@ export function TabStripContextMenu({
 		action();
 		onClose();
 	};
+
+	if (state.kind === 'strip') {
+		const vertical = orientation === TabStripOrientation.Vertical;
+		return (
+			<ContextMenuContent aria-label={messages.tabStripMenu}>
+				<ContextMenuItem
+					disabled={onOrientationChange === undefined}
+					onClick={run(() =>
+						onOrientationChange?.(
+							vertical ? TabStripOrientation.Horizontal : TabStripOrientation.Vertical,
+						),
+					)}
+				>
+					{vertical ? messages.closeVerticalTabs : messages.openVerticalTabs}
+				</ContextMenuItem>
+			</ContextMenuContent>
+		);
+	}
 
 	if (state.kind === 'combo-end') {
 		const combo = comboButtonController.getSnapshot();
@@ -224,18 +242,6 @@ export function TabStripContextMenu({
 					<ContextMenuItem onClick={run(() => onMoveGroupToNewWindow(group.id))}>
 						<GroupEditorMenuIcon kind='move-window' />
 						<span>{messages.moveGroupToNewWindow}</span>
-					</ContextMenuItem>
-				) : null}
-				{enableTabGroupFocusing ? (
-					<ContextMenuItem
-						onClick={run(() =>
-							model.setFocusedGroup(snapshot.focusedGroupId === group.id ? null : group.id),
-						)}
-					>
-						<GroupEditorMenuIcon kind='focus' />
-						<span>
-							{snapshot.focusedGroupId === group.id ? messages.unfocusGroup : messages.focusGroup}
-						</span>
 					</ContextMenuItem>
 				) : null}
 				<ContextMenuSeparator />

@@ -1,7 +1,7 @@
 import { requireDefined } from '../../utils/requireDefined';
 import { describe, expect, it } from 'vitest';
 import { rectRight, type Rect } from '../../utils/rectRight';
-import { TabActive, TabOpen, TabPinned, type TabGroupId } from '../../model/tab-types';
+import { TabActive, TabOpen, TabPinned } from '../../model/tab-types';
 import { TabLayoutState } from '../TabLayoutState';
 import { calculateTabBounds } from '../tab-strip-layout';
 import type { TabSizeInfo } from '../tab-strip-layout-types';
@@ -11,9 +11,6 @@ interface TestCase {
 	numTabs?: number;
 	activeIndex?: number;
 	tabstripWidth?: number;
-	tabGroups?: readonly (TabGroupId | null)[];
-	focusedGroup?: TabGroupId | null;
-	showPinnedTabsInFocusedGroups?: boolean;
 }
 const STANDARD_WIDTH = 256;
 const TAB_HEIGHT = 40;
@@ -30,24 +27,14 @@ function runTestCase(testCase: TestCase): Rect[] {
 	const numPinnedTabs = testCase.numPinnedTabs ?? 0;
 	const numTabs = testCase.numTabs ?? 0;
 	const activeIndex = testCase.activeIndex ?? 0;
-	const focusedGroup = testCase.focusedGroup ?? null;
-	const tabGroups = testCase.tabGroups ?? [];
 	const constraints = Array.from(
 		{
 			length: numTabs,
 		},
 		(_, tabIndex) => {
-			let collapsed = false;
-			if (focusedGroup !== null) {
-				if (testCase.showPinnedTabsInFocusedGroups && tabIndex < numPinnedTabs) {
-					collapsed = false;
-				} else {
-					collapsed = (tabGroups[tabIndex] ?? null) !== focusedGroup;
-				}
-			}
 			return new TabWidthConstraints(
 				new TabLayoutState(
-					collapsed ? TabOpen.Closed : TabOpen.Open,
+					TabOpen.Open,
 					tabIndex < numPinnedTabs ? TabPinned.Pinned : TabPinned.Unpinned,
 					tabIndex === activeIndex ? TabActive.Active : TabActive.Inactive,
 				),
@@ -247,62 +234,4 @@ describe('calculateTabBounds (Chromium tab_strip_layout_unittest.cc)', () => {
 		expect(widths(bounds)).toEqual([64, 64]);
 		expectFill(bounds, width);
 	});
-	it.each([
-		[
-			'trailing groups',
-			['group-1', 'group-1', 'group-2', 'group-2'],
-			'group-1',
-			0,
-			[256, 256, 18, 18],
-			[0, 238, 476, 476],
-		],
-		[
-			'leading groups',
-			['group-1', 'group-1', 'group-2', 'group-2'],
-			'group-2',
-			2,
-			[18, 18, 256, 256],
-			[0, 0, 0, 238],
-		],
-	] as const)(
-		'collapses non-focused %s',
-		(_name, tabGroups, focusedGroup, activeIndex, expectedWidths, expectedXs) => {
-			const bounds = runTestCase({
-				tabstripWidth: 1000,
-				numTabs: 4,
-				activeIndex,
-				tabGroups,
-				focusedGroup,
-			});
-			expect(widths(bounds)).toEqual(expectedWidths);
-			expect(xs(bounds)).toEqual(expectedXs);
-		},
-	);
-	it('does not collapse grouped tabs without a focused group', () => {
-		const bounds = runTestCase({
-			tabstripWidth: 1000,
-			numTabs: 4,
-			tabGroups: ['group-1', 'group-1', 'group-2', 'group-2'],
-		});
-		expect(widths(bounds)).toEqual([256, 256, 256, 256]);
-		expect(xs(bounds)).toEqual([0, 238, 476, 714]);
-	});
-	it.each([
-		[false, [18, 18, 256, 18], [0, 0, 0, 238]],
-		[true, [64, 64, 256, 18], [0, 46, 92, 330]],
-	] as const)(
-		'honors the show-pinned-tabs-in-focused-groups feature when %s',
-		(showPinnedTabsInFocusedGroups, expectedWidths, expectedXs) => {
-			const bounds = runTestCase({
-				tabstripWidth: 1000,
-				numTabs: 4,
-				numPinnedTabs: 2,
-				tabGroups: [null, null, 'group-1', 'group-2'],
-				focusedGroup: 'group-1',
-				showPinnedTabsInFocusedGroups,
-			});
-			expect(widths(bounds)).toEqual(expectedWidths);
-			expect(xs(bounds)).toEqual(expectedXs);
-		},
-	);
 });

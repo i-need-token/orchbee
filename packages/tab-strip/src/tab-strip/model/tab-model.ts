@@ -76,7 +76,6 @@ export interface TabModelInit {
 	groups?: readonly TabGroupData[];
 	activeTabId?: string | null;
 	selectedTabIds?: readonly string[];
-	focusedGroupId?: TabGroupId | null;
 	mostRecentGroupId?: TabGroupId | null;
 }
 export interface TabModelSnapshot {
@@ -86,7 +85,6 @@ export interface TabModelSnapshot {
 	activeTabId: string | null;
 	selectedTabIds: ReadonlySet<string>;
 	selectionAnchorId: string | null;
-	focusedGroupId: TabGroupId | null;
 	mostRecentGroupId: TabGroupId | null;
 }
 export interface TabDragRestoreState {
@@ -98,7 +96,6 @@ export interface TabDragRestoreState {
 	activeTabId: string | null;
 	selectedTabIds: readonly string[];
 	selectionAnchorId: string | null;
-	focusedGroupId: TabGroupId | null;
 	mostRecentGroupId: TabGroupId | null;
 }
 export interface DetachedTabBundle {
@@ -162,7 +159,6 @@ export class TabModel {
 	private activeTabId: string | null;
 	private selectedTabIds: Set<string>;
 	private selectionAnchorId: string | null;
-	private focusedGroupId: TabGroupId | null;
 	private mostRecentGroupId: TabGroupId | null;
 	private revision = 0;
 	private nextTabSequence = 1;
@@ -182,7 +178,6 @@ export class TabModel {
 			this.selectedTabIds.add(this.activeTabId);
 		}
 		this.selectionAnchorId = this.activeTabId;
-		this.focusedGroupId = init.focusedGroupId ?? null;
 		const activeGroupId = this.tabs.find((tab) => tab.id === this.activeTabId)?.group ?? null;
 		this.mostRecentGroupId =
 			init.mostRecentGroupId ?? activeGroupId ?? this.groups.at(-1)?.id ?? null;
@@ -206,18 +201,6 @@ export class TabModel {
 	}
 	public getGroup(groupId: TabGroupId): Readonly<TabGroupData> | null {
 		return this.groups.find((group) => group.id === groupId) ?? null;
-	}
-	public getFocusedGroup(): TabGroupId | null {
-		return this.focusedGroupId;
-	}
-
-	/** Port of TabStripModel::SetFocusedGroup. */
-	public setFocusedGroup(groupId: TabGroupId | null): boolean {
-		if (groupId !== null) this.requireGroup(groupId);
-		if (this.focusedGroupId === groupId) return false;
-		this.focusedGroupId = groupId;
-		this.commit();
-		return true;
 	}
 	public addTab(
 		tab: Partial<Omit<TabData, 'id'>> & Pick<TabData, 'title'>,
@@ -330,7 +313,23 @@ export class TabModel {
 			activeTabId: this.activeTabId !== null && ids.has(this.activeTabId) ? this.activeTabId : null,
 			selectedTabIds: Object.freeze([...this.selectedTabIds].filter((id) => ids.has(id))),
 		});
-		this.closeTabs(tabs.map((tab) => tab.id));
+		const firstDetachedIndex = requireDefined(sourceIndices[0]);
+		const activeWasDetached = this.activeTabId !== null && ids.has(this.activeTabId);
+		this.tabs = this.tabs.filter((tab) => !ids.has(tab.id));
+		this.selectedTabIds = new Set([...this.selectedTabIds].filter((id) => !ids.has(id)));
+		if (
+			activeWasDetached ||
+			(this.activeTabId !== null && !this.tabs.some((tab) => tab.id === this.activeTabId))
+		) {
+			const replacement = this.tabs[Math.min(firstDetachedIndex, this.tabs.length - 1)] ?? null;
+			this.activeTabId = replacement?.id ?? null;
+		}
+		if (this.activeTabId !== null) this.selectedTabIds.add(this.activeTabId);
+		if (this.selectionAnchorId !== null && ids.has(this.selectionAnchorId)) {
+			this.selectionAnchorId = this.activeTabId;
+		}
+		this.removeEmptyGroups();
+		this.commit();
 		return bundle;
 	}
 
@@ -816,7 +815,6 @@ export class TabModel {
 			activeTabId: this.activeTabId,
 			selectedTabIds: [...this.selectedTabIds],
 			selectionAnchorId: this.selectionAnchorId,
-			focusedGroupId: this.focusedGroupId,
 			mostRecentGroupId: this.mostRecentGroupId,
 		};
 	}
@@ -852,11 +850,6 @@ export class TabModel {
 			state.selectionAnchorId !== null && existingIds.has(state.selectionAnchorId)
 				? state.selectionAnchorId
 				: this.activeTabId;
-		this.focusedGroupId =
-			state.focusedGroupId !== null &&
-			this.groups.some((group) => group.id === state.focusedGroupId)
-				? state.focusedGroupId
-				: null;
 		this.mostRecentGroupId =
 			state.mostRecentGroupId !== null &&
 			this.groups.some((group) => group.id === state.mostRecentGroupId)
@@ -1045,9 +1038,6 @@ export class TabModel {
 			this.tabs.map((tab) => tab.group).filter((id): id is string => id !== null),
 		);
 		this.groups = this.groups.filter((group) => usedGroups.has(group.id));
-		if (this.focusedGroupId !== null && !usedGroups.has(this.focusedGroupId)) {
-			this.focusedGroupId = null;
-		}
 	}
 	private assertInvariants(): void {
 		const ids = new Set<string>();
@@ -1084,12 +1074,6 @@ export class TabModel {
 			throw new Error(`Unknown active tab ${this.activeTabId}.`);
 		}
 		if (
-			this.focusedGroupId !== null &&
-			!this.groups.some((group) => group.id === this.focusedGroupId)
-		) {
-			throw new Error(`Unknown focused group ${this.focusedGroupId}.`);
-		}
-		if (
 			this.mostRecentGroupId !== null &&
 			!this.groups.some((group) => group.id === this.mostRecentGroupId)
 		) {
@@ -1112,7 +1096,6 @@ export class TabModel {
 			activeTabId: this.activeTabId,
 			selectedTabIds: new Set(this.selectedTabIds),
 			selectionAnchorId: this.selectionAnchorId,
-			focusedGroupId: this.focusedGroupId,
 			mostRecentGroupId: this.mostRecentGroupId,
 		};
 	}

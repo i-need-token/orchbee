@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	getHoverCardShowDelay,
 	getThumbnailPlan,
+	HOVER_CARD_SLIDE_DURATION_MS,
 	HoverCardUpdateType,
 	TabHoverCardController,
 	ThumbnailCaptureReadiness,
@@ -44,7 +45,7 @@ describe('TabHoverCardController', () => {
 			transitioning: true,
 			cardsSeen: 2,
 		});
-		vi.advanceTimersByTime(200);
+		vi.advanceTimersByTime(HOVER_CARD_SLIDE_DURATION_MS);
 		expect(controller.getSnapshot().transitioning).toBe(false);
 	});
 

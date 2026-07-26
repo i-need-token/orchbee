@@ -58,7 +58,12 @@
 	background: var(--ob-sys-color-surface-raised);
 }
 
+.rightPanel[data-tab-strip-orientation='vertical'] {
+	flex-direction: row;
+}
+
 .tabContent {
 	min-height: 0;
+	min-width: 0;
 	flex: 1;
 }

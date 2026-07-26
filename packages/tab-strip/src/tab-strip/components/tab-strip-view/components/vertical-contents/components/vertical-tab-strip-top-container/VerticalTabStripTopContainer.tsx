@@ -18,18 +18,16 @@ export interface VerticalTabStripTopContainerProps {
 	captionButtonWidth?: number;
 	isExitingExpandOnHover?: boolean;
 	showCollapseButton?: boolean;
-	showUnfocusButton?: boolean;
 	showTabSearchButton?: boolean;
 	tabSearchTargetVisible?: boolean;
 	tabSearchAnimating?: boolean;
 	onCollapsedChange?: ((collapsed: boolean) => void) | undefined;
-	onUnfocusGroup?: (() => void) | undefined;
 	onTabSearchClick?: (() => void) | undefined;
 	onTabSearchContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 	onCollapseContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 }
 
-/** DOM view for the vertical collapse, unfocus, and tab-search controls. */
+/** DOM view for the vertical collapse and tab-search controls. */
 export function VerticalTabStripTopContainer({
 	availableWidth,
 	collapsed,
@@ -37,12 +35,10 @@ export function VerticalTabStripTopContainer({
 	captionButtonWidth = 0,
 	isExitingExpandOnHover = false,
 	showCollapseButton = true,
-	showUnfocusButton = false,
 	showTabSearchButton = false,
 	tabSearchTargetVisible = showTabSearchButton,
 	tabSearchAnimating = false,
 	onCollapsedChange,
-	onUnfocusGroup,
 	onTabSearchClick,
 	onTabSearchContextMenu,
 	onCollapseContextMenu,
@@ -55,7 +51,6 @@ export function VerticalTabStripTopContainer({
 		collapsed,
 		isExitingExpandOnHover,
 		collapseVisible: showCollapseButton,
-		unfocusVisible: showUnfocusButton,
 		comboEndVisible: showTabSearchButton,
 	});
 	const edges = getComboButtonFlatEdges(layout.orientation, false);
@@ -64,7 +59,6 @@ export function VerticalTabStripTopContainer({
 		!collapsed &&
 		layout.orientation === TabStripOrientation.Vertical &&
 		(comboBounds?.width ?? 0) > TAB_STRIP_FLAT_EDGE_BUTTON_SIZE;
-	const unfocusBounds = getVerticalTopContainerChildBounds(layout, 'unfocus');
 	const collapseBounds = getVerticalTopContainerChildBounds(layout, 'collapse');
 	const resolvedComboBounds = getVerticalTopContainerChildBounds(layout, 'combo');
 
@@ -76,27 +70,6 @@ export function VerticalTabStripTopContainer({
 			data-wrapped={layout.wrappedDueToOverflow || undefined}
 			style={{ '--ob-comp-tab-strip-block-size': `${layout.hostSize.height}px` }}
 		>
-			{showUnfocusButton ? (
-				<button
-					type='button'
-					className={styles['ct-vertical-top-button']}
-					hidden={unfocusBounds === null}
-					style={{
-						'--ob-comp-tab-strip-inline-start': unfocusBounds ? `${unfocusBounds.x}px` : undefined,
-						'--ob-comp-tab-strip-block-start': unfocusBounds ? `${unfocusBounds.y}px` : undefined,
-						'--ob-comp-tab-strip-inline-size': unfocusBounds
-							? `${unfocusBounds.width}px`
-							: undefined,
-						'--ob-comp-tab-strip-block-size': unfocusBounds
-							? `${unfocusBounds.height}px`
-							: undefined,
-					}}
-					aria-label={messages.showAllTabs}
-					onClick={onUnfocusGroup}
-				>
-					<TabStripIcon name='unfocus-group' />
-				</button>
-			) : null}
 			{showCollapseButton ? (
 				<button
 					type='button'

@@ -23,6 +23,50 @@ export interface DraggedTabsLayoutResult {
 export const DRAGGED_VIEW_VERTICAL_PADDING = 2;
 export const DRAGGED_VIEW_HORIZONTAL_PADDING = 4;
 export const DRAG_START_ANIMATION_DURATION_MS = 200;
+
+export function getDragStartAnimationProgress(
+	startedAt: number,
+	now: number,
+	durationMs = DRAG_START_ANIMATION_DURATION_MS,
+): number {
+	if (durationMs <= 0) return 1;
+	return Math.min(1, Math.max(0, (now - startedAt) / durationMs));
+}
+
+export function getDragStartAnimationOffset(input: {
+	view: Readonly<{ x: number; y: number }>;
+	sourceView: Readonly<{ x: number; y: number }>;
+	targetOffset: Readonly<{ x: number; y: number }>;
+	sourceTargetOffset: Readonly<{ x: number; y: number }>;
+}): {
+	x: number;
+	y: number;
+} {
+	return {
+		x: input.view.x - input.sourceView.x - (input.targetOffset.x - input.sourceTargetOffset.x),
+		y: input.view.y - input.sourceView.y - (input.targetOffset.y - input.sourceTargetOffset.y),
+	};
+}
+
+export function clampDraggedViewPosition(
+	position: Readonly<{ x: number; y: number }>,
+	size: Readonly<{ width: number; height: number }>,
+	bounds: Readonly<Rect>,
+): {
+	x: number;
+	y: number;
+} {
+	return {
+		x: Math.min(
+			Math.max(bounds.x, bounds.x + bounds.width - size.width),
+			Math.max(bounds.x, position.x),
+		),
+		y: Math.min(
+			Math.max(bounds.y, bounds.y + bounds.height - size.height),
+			Math.max(bounds.y, position.y),
+		),
+	};
+}
 export function getSourceViewOffsetFromPointer(input: {
 	sourceSlotSize: Readonly<{
 		width: number;

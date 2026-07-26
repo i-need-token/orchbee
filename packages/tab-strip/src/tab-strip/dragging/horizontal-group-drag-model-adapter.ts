@@ -22,7 +22,6 @@ export function createArmedHorizontalGroupDrag(
 		activeTabId: snapshot.activeTabId,
 		selectedTabIds: [...snapshot.selectedTabIds],
 		selectionAnchorId: snapshot.selectionAnchorId,
-		focusedGroupId: snapshot.focusedGroupId,
 	});
 	return transitionHorizontalGroupDrag(initial, {
 		type: 'arm-group',
@@ -46,8 +45,7 @@ export function assertHorizontalGroupDragRefinement(
 		JSON.stringify(actualGroups) !== JSON.stringify(expectedGroups) ||
 		snapshot.activeTabId !== expected.authoritative.activeTabId ||
 		JSON.stringify(actualSelected) !== JSON.stringify(expectedSelected) ||
-		snapshot.selectionAnchorId !== expected.authoritative.selectionAnchorId ||
-		snapshot.focusedGroupId !== expected.authoritative.focusedGroupId
+		snapshot.selectionAnchorId !== expected.authoritative.selectionAnchorId
 	) {
 		throw new Error('Horizontal group drag no longer refines its deterministic semantic state.');
 	}

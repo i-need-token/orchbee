@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
 	buildDraggedTabsLayout,
+	clampDraggedViewPosition,
 	getAnimatedDraggedViewPosition,
+	getDragStartAnimationOffset,
+	getDragStartAnimationProgress,
 	getSourceViewOffsetFromPointer,
 	getTargetBeforeDraggedTabs,
 	hasMinimumOverlap,
@@ -113,6 +116,31 @@ describe('DraggedTabsContainer layout port', () => {
 				animationValue: 0.5,
 			}),
 		).toEqual({ x: 4, y: 42 });
+	});
+
+	it('derives drag-start progress from the global session timeline', () => {
+		expect(getDragStartAnimationProgress(100, 99, 2_000)).toBe(0);
+		expect(getDragStartAnimationProgress(100, 1_100, 2_000)).toBe(0.5);
+		expect(getDragStartAnimationProgress(100, 2_100, 2_000)).toBe(1);
+		expect(getDragStartAnimationProgress(100, 200, 0)).toBe(1);
+	});
+
+	it('derives source-relative start offsets and clamps animated views individually', () => {
+		expect(
+			getDragStartAnimationOffset({
+				view: { x: 0, y: 0 },
+				sourceView: { x: 200, y: 64 },
+				targetOffset: { x: 0, y: 0 },
+				sourceTargetOffset: { x: 82, y: 32 },
+			}),
+		).toEqual({ x: -118, y: -32 });
+		expect(
+			clampDraggedViewPosition(
+				{ x: -20, y: 90 },
+				{ width: 40, height: 30 },
+				{ x: 0, y: 0, width: 100, height: 100 },
+			),
+		).toEqual({ x: 0, y: 70 });
 	});
 
 	it('uses Chromium group entry and exit hysteresis', () => {

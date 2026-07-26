@@ -76,13 +76,16 @@ function groupHeaderAdjustment(
 /**
  * Port of TabStrip::TabDragContextImpl::CalculateInsertionIndex.
  *
- * The returned index is expressed in the current, pre-removal model so it can
- * be passed to the DOM model's moveTabsByDrag index adapter.
+ * `preRemovalIndex` is expressed in the current model so it can be passed to
+ * the DOM model's drag adapters. `insertionIndex` matches Chromium's returned
+ * index after the dragged tabs are conceptually removed.
  */
 export function getHorizontalDragTarget(
 	input: HorizontalDragInsertionInput,
-): Readonly<{ index: number; idealX: number }> {
-	if (input.tabs.length === 0) return { index: 0, idealX: 0 };
+): Readonly<{ preRemovalIndex: number; insertionIndex: number; idealX: number }> {
+	if (input.tabs.length === 0) {
+		return { preRemovalIndex: 0, insertionIndex: 0, idealX: 0 };
+	}
 	const start = Math.max(0, input.containerStartIndex ?? 0);
 	const end = Math.min(input.tabs.length, input.containerEndIndex ?? input.tabs.length);
 	const overlap = input.tabOverlap ?? DEFAULT_TAB_STYLE_METRICS.tabOverlap;
@@ -108,9 +111,14 @@ export function getHorizontalDragTarget(
 					: rightIdealX;
 		}
 	}
-	return { index: bestIndex, idealX: bestIdealX };
+	return {
+		preRemovalIndex: bestIndex,
+		insertionIndex:
+			bestIndex > input.firstDraggedTabIndex ? bestIndex - input.draggedTabCount : bestIndex,
+		idealX: bestIdealX,
+	};
 }
 
 export function getHorizontalDragInsertionIndex(input: HorizontalDragInsertionInput): number {
-	return getHorizontalDragTarget(input).index;
+	return getHorizontalDragTarget(input).insertionIndex;
 }

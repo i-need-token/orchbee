@@ -34,10 +34,18 @@ Horizontal hosts may provide `horizontalLeadingActions` for controls that must s
 surface. The tab track consumes only the remaining width, so hosted controls never overlap the
 first tab or require a separately painted sibling region.
 
-The package API intentionally has no React or browser-vendor subpath. Browser and DOM adapters
-remain private; selected host contracts are promoted through the root only when a consumer must
-provide them. Upstream source attribution and license obligations are recorded in
-[`NOTICE.reference`](NOTICE.reference).
+Hosts that support both orientations pass the controlled `orientation` value and
+`onOrientationChange`. Right-clicking blank strip space then exposes the localized action for
+opening or closing vertical tabs; tab, group, and new-tab controls keep their own context menus.
+
+The package API intentionally has no React or browser-vendor subpath. Desktop compositions import
+the cross-window contracts from the package root: `CrossWindowTabDragRuntime` owns model handoff,
+cancel restoration, attached-model liveness, and destination layout sequencing;
+`DomTabDragRegistry` adapts live bounds, z-order, liveness, and compatibility decisions supplied by
+the host. `TabStrip` accepts a `createCrossWindowDragRuntime` factory, while native window creation,
+movement, capture, move loops, and source-window disposal remain host responsibilities. The browser
+application does not synthesize those operating-system capabilities. Upstream source attribution
+and license obligations are recorded in [`NOTICE.reference`](NOTICE.reference).
 
 ## Source ownership
 

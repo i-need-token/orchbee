@@ -311,31 +311,6 @@ describe('groups and collapsing', () => {
 			group: 'work',
 		});
 	});
-	it('stores focused-group state and resets it when the group is deleted', () => {
-		const model = new TabModel({
-			tabs: [makeTab('a', false, 'work'), makeTab('b', false, 'work'), makeTab('outside')],
-			groups: [requireDefined(groups[0])],
-		});
-		expect(model.setFocusedGroup('work')).toBe(true);
-		expect(model.getFocusedGroup()).toBe('work');
-		expect(model.getSnapshot().focusedGroupId).toBe('work');
-		expect(model.setFocusedGroup('work')).toBe(false);
-		expect(() => model.setFocusedGroup('missing')).toThrow('Unknown group missing');
-		model.ungroup('work');
-		expect(model.getFocusedGroup()).toBeNull();
-	});
-	it('restores focused-group state when a live drag is canceled', () => {
-		const model = new TabModel({
-			tabs: [makeTab('a', false, 'work'), makeTab('b', false, 'work'), makeTab('outside')],
-			groups: [requireDefined(groups[0])],
-			focusedGroupId: 'work',
-		});
-		const restore = model.captureDragRestoreState();
-		model.moveTabsByDrag(['a', 'b'], 3, 0, 3, null);
-		expect(model.getFocusedGroup()).toBe('work');
-		model.restoreCanceledDrag(restore);
-		expect(model.getFocusedGroup()).toBe('work');
-	});
 	it('keeps the active identity in its group when the group is collapsed', () => {
 		const model = new TabModel({
 			tabs: [makeTab('a', false, 'work'), makeTab('b', false, 'work'), makeTab('outside')],

@@ -11,7 +11,6 @@ import type {
 	HoverCardUpdateType,
 } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
 import type { TabData, TabGroupData, TabModel, TabModelSnapshot } from '../model/tab-model';
-import type { AnimatedLayoutFrame } from '../layout/tab-collection-animating-layout-manager';
 import type { TabBoundsResult } from '../layout/tab-strip-layout';
 import type { TabCloseSource } from '../layout/tab-closing-mode';
 import type { Rect } from '../utils/rectRight';
@@ -32,22 +31,19 @@ import type { DragState, HoverState, MenuState, VisualItem } from '../utils/tab-
 export interface TabStripViewModel {
 	readonly model: TabModel;
 	readonly orientation: TabStripOrientation;
+	readonly onOrientationChange: TabStripOptions['onOrientationChange'];
 	readonly verticalCollapsed: boolean;
 	readonly verticalExpandOnHover: boolean;
 	readonly showHoverCardPreviews: boolean;
 	readonly showHoverCardMemoryUsage: boolean;
 	readonly showGroupHoverCards: boolean;
 	readonly showVerticalTopControls: boolean;
-	readonly verticalGroupFocused: boolean;
-	readonly showPinnedTabsInFocusedGroups: boolean;
 	readonly verticalToolbarHeight: number;
 	readonly verticalCaptionButtonWidth: number;
 	readonly verticalIsExitingExpandOnHover: boolean;
 	readonly onVerticalCollapsedChange: TabStripOptions['onVerticalCollapsedChange'];
-	readonly onVerticalUnfocusGroup: TabStripOptions['onVerticalUnfocusGroup'];
 	readonly onVerticalTabSearchClick: TabStripOptions['onVerticalTabSearchClick'];
 	readonly onVerticalExpandOnHoverChange: TabStripOptions['onVerticalExpandOnHoverChange'];
-	readonly focusedGroupColor: string | undefined;
 	readonly showNewTabButton: boolean;
 	readonly horizontalFrameCondensed: boolean;
 	readonly touchUi: boolean;
@@ -55,25 +51,19 @@ export interface TabStripViewModel {
 	readonly onTabKeyboardFocusChanged: TabStripOptions['onTabKeyboardFocusChanged'];
 	readonly onMoveTabsToNewWindow: TabStripOptions['onMoveTabsToNewWindow'];
 	readonly onMoveGroupToNewWindow: TabStripOptions['onMoveGroupToNewWindow'];
-	readonly enableTabGroupFocusing: boolean;
 	readonly ariaLabel: string;
 	readonly snapshot: TabModelSnapshot;
+	readonly verticalTabCountTransitionSuppressed: boolean;
 	readonly horizontal: boolean;
-	readonly focusedGroup: Readonly<TabGroupData> | null;
-	readonly groupFocusActive: boolean;
-	readonly tabVisibleWhileFocused: (tab: Readonly<TabData>) => boolean;
 	readonly stripRef: RefObject<HTMLDivElement | null>;
 	readonly horizontalTrackRef: RefObject<HTMLDivElement | null>;
 	readonly size: Readonly<{ width: number; height: number }>;
 	readonly items: VisualItem[];
 	readonly horizontalAnimationRuntimeRef: RefObject<TabCollectionAnimationRuntime | null>;
-	readonly animatedHorizontalFrame: AnimatedLayoutFrame | null;
 	readonly menu: MenuState | null;
 	readonly setMenu: Dispatch<SetStateAction<MenuState | null>>;
 	readonly hover: HoverState | null;
 	readonly drag: DragState | null;
-	readonly closingTabIds: ReadonlySet<string>;
-	readonly fullyCollapsedGroupIds: ReadonlySet<string>;
 	readonly tabClosingMode: {
 		width: number;
 		source: Exclude<TabCloseSource, 'non-ui'>;
@@ -109,6 +99,7 @@ export interface TabStripViewModel {
 		event: ReactPointerEvent<HTMLDivElement>,
 		group: Readonly<TabGroupData>,
 	) => void;
+	readonly repositionDragAfterScroll: () => void;
 	readonly toggleGroupFromHeader: (
 		groupId: string,
 		source?: 'mouse' | 'touch' | 'keyboard',
@@ -117,6 +108,7 @@ export interface TabStripViewModel {
 	readonly onTabKeyDown: (event: React.KeyboardEvent, tabId: string) => void;
 	readonly onTabKeyUp: (event: React.KeyboardEvent, tabId: string) => void;
 	readonly addTab: () => void;
+	readonly finishHorizontalDragSettle: () => void;
 	readonly paintedHorizontalBounds: (index: number) => Rect | undefined;
 	readonly settleTargetLeft: number | null;
 }

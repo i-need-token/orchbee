@@ -10,7 +10,7 @@ import { HorizontalContents } from './components/horizontal-contents/HorizontalC
 import { VerticalContents } from './components/vertical-contents/VerticalContents';
 import type { TabStripViewModel } from '../../types/tab-strip-view-model';
 
-// TabContainerImpl::AnimateViewTo uses RichAnimationDuration(200ms).
+// TabContainerImpl::AnimateViewTo uses the configured rich-animation duration.
 
 /** Pointer-lifecycle surface implemented by CrossWindowTabDragRuntime. */
 
@@ -24,41 +24,34 @@ export function TabStripView({
 	const {
 		model,
 		orientation,
+		onOrientationChange,
 		verticalCollapsed,
 		verticalExpandOnHover,
 		showHoverCardPreviews,
 		showHoverCardMemoryUsage,
 		showGroupHoverCards,
 		showVerticalTopControls,
-		verticalGroupFocused,
-		showPinnedTabsInFocusedGroups,
 		verticalToolbarHeight,
 		verticalCaptionButtonWidth,
 		verticalIsExitingExpandOnHover,
 		onVerticalCollapsedChange,
-		onVerticalUnfocusGroup,
 		onVerticalTabSearchClick,
 		onVerticalExpandOnHoverChange,
 		showNewTabButton,
 		touchUi,
-		tabStripDeclutter,
 		onTabKeyboardFocusChanged,
 		onMoveTabsToNewWindow,
 		onMoveGroupToNewWindow,
-		enableTabGroupFocusing,
 		ariaLabel,
 		snapshot,
+		verticalTabCountTransitionSuppressed,
 		horizontal,
-		focusedGroup,
-		groupFocusActive,
 		stripRef,
 		size,
 		menu,
 		setMenu,
 		hover,
 		drag,
-		closingTabIds,
-		fullyCollapsedGroupIds,
 		tabClosingMode,
 		announcement,
 		groupEditorTracker,
@@ -78,13 +71,12 @@ export function TabStripView({
 		onGroupMouseEnter,
 		onTabPointerDown,
 		onGroupPointerDown,
+		repositionDragAfterScroll,
 		toggleGroupFromHeader,
 		onGroupKeyDown,
 		onTabKeyDown,
 		onTabKeyUp,
 		addTab,
-		settleTargetLeft,
-		focusedGroupColor,
 	} = view;
 	const closeMenu = () => {
 		if (menu?.kind === 'combo-end') comboButtonController.onMenuClosed();
@@ -92,7 +84,10 @@ export function TabStripView({
 	};
 	const openGroupEditorFromControl = (id: string, x: number, y: number) => {
 		openGroupEditor(id, x, y);
-		stripRef.current?.dispatchEvent(
+		const groupRegion = Array.from(
+			stripRef.current?.querySelectorAll<HTMLElement>('[data-tab-strip-group]') ?? [],
+		).find((candidate) => candidate.dataset['groupId'] === id);
+		groupRegion?.dispatchEvent(
 			new MouseEvent('contextmenu', {
 				bubbles: true,
 				cancelable: true,
@@ -112,7 +107,6 @@ export function TabStripView({
 			<ContextMenuTrigger
 				ref={stripRef}
 				className={styles['ct-tab-strip']}
-				style={{ '--ob-comp-tab-strip-focused-group-color': focusedGroupColor }}
 				role='tablist'
 				aria-label={ariaLabel}
 				aria-orientation={horizontal ? 'horizontal' : 'vertical'}
@@ -124,8 +118,19 @@ export function TabStripView({
 				data-waiting-to-expand={expandOnHoverSnapshot.waitingToExpand || undefined}
 				data-hover-card-waiting={hoverCardSnapshot.waitingToShow || undefined}
 				data-dragging={(drag?.started && !drag.settling) || undefined}
-				data-focused-group={focusedGroup?.id}
 				data-tab-closing-mode={tabClosingMode?.source}
+				onContextMenu={(event) => {
+					if (onOrientationChange === undefined) return;
+					const target = event.target;
+					const ownedContextTarget =
+						target instanceof Element
+							? target.closest('[data-tab-id], [data-group-id], button, input, a, [role="button"]')
+							: null;
+					if (ownedContextTarget !== null && event.currentTarget.contains(ownedContextTarget)) {
+						return;
+					}
+					setMenu({ kind: 'strip', x: event.clientX, y: event.clientY });
+				}}
 				onScrollCapture={() => {
 					clearHover(HoverCardUpdateType.Event);
 					if (menu?.kind === 'group' && groupEditorTracker.onContentsScrolled()) {
@@ -206,7 +211,7 @@ export function TabStripView({
 				) : (
 					<VerticalContents
 						snapshot={snapshot}
-						fullyCollapsedGroupIds={fullyCollapsedGroupIds}
+						tabCountTransitionSuppressed={verticalTabCountTransitionSuppressed}
 						collapsed={verticalCollapsed}
 						expandedOnHover={expandedOnHover}
 						expandOnHoverEnabled={verticalExpandOnHover}
@@ -217,10 +222,10 @@ export function TabStripView({
 							(effectiveVerticalCollapsed ? LAYOUT_CONSTANTS.verticalTabStripCollapsedWidth : 240)
 						}
 						drag={drag}
-						closingTabIds={closingTabIds}
 						requestCloseTabs={requestCloseTabs}
 						onTabPointerDown={onTabPointerDown}
 						onGroupPointerDown={onGroupPointerDown}
+						onDragScrolled={repositionDragAfterScroll}
 						toggleGroupFromHeader={toggleGroupFromHeader}
 						onGroupKeyDown={onGroupKeyDown}
 						onTabKeyDown={onTabKeyDown}
@@ -239,16 +244,9 @@ export function TabStripView({
 						showTabSearchButton={comboButtonSnapshot.tabSearchVisible}
 						tabSearchTargetVisible={comboButtonSnapshot.tabSearchTargetVisible}
 						tabSearchAnimating={comboButtonSnapshot.tabSearchAnimating}
-						groupFocused={verticalGroupFocused || groupFocusActive}
-						focusedGroupId={focusedGroup?.id ?? null}
-						showPinnedTabsInFocusedGroups={showPinnedTabsInFocusedGroups}
 						toolbarHeight={verticalToolbarHeight}
 						captionButtonWidth={verticalCaptionButtonWidth}
 						isExitingExpandOnHover={verticalIsExitingExpandOnHover}
-						onUnfocusGroup={() => {
-							if (snapshot.focusedGroupId !== null) model.setFocusedGroup(null);
-							onVerticalUnfocusGroup?.();
-						}}
 						onTabSearchContextMenu={(event) => {
 							comboButtonController.onMenuOpened('tab-search');
 							setMenu({ kind: 'combo-end', x: event.clientX, y: event.clientY });
@@ -260,16 +258,14 @@ export function TabStripView({
 						onTabSearchClick={onVerticalTabSearchClick}
 					/>
 				)}
-				{drag?.started ? (
+				{drag?.started && !horizontal ? (
 					<DragGhost
 						drag={drag}
 						snapshot={snapshot}
 						orientation={orientation}
 						collapsed={verticalCollapsed}
-						settleTargetLeft={settleTargetLeft}
 						touchUi={touchUi}
 						closeButtonAllowed
-						declutterEnabled={tabStripDeclutter}
 					/>
 				) : null}
 				{hover &&
@@ -302,11 +298,11 @@ export function TabStripView({
 					snapshot={snapshot}
 					model={model}
 					orientation={orientation}
+					onOrientationChange={onOrientationChange}
 					requestCloseTabs={requestCloseTabs}
 					closeAllowed
 					verticalExpandOnHover={verticalExpandOnHover}
 					comboButtonController={comboButtonController}
-					enableTabGroupFocusing={enableTabGroupFocusing}
 					onVerticalExpandOnHoverChange={onVerticalExpandOnHoverChange}
 					onMoveTabsToNewWindow={onMoveTabsToNewWindow}
 					onMoveGroupToNewWindow={onMoveGroupToNewWindow}

@@ -16,7 +16,7 @@ function MessagesProbe({ locale }: { readonly locale: 'en-US' | 'zh-CN' }): Reac
 		},
 		null,
 	);
-	return `${messages.tabStripLabel}|${messages.newTabToRight}|${messages.tabOptions}|${messages.groupColorNames.purple}|${messages.formatClosedTabsAnnouncement(3)}|${tabName}`;
+	return `${messages.tabStripLabel}|${messages.newTabToRight}|${messages.openVerticalTabs}|${messages.closeVerticalTabs}|${messages.tabOptions}|${messages.groupColorNames.purple}|${messages.formatClosedTabsAnnouncement(3)}|${tabName}`;
 }
 
 function renderMessages(locale: 'en-US' | 'zh-CN'): string {
@@ -29,14 +29,16 @@ describe('useWorkbenchTabStripMessages', () => {
 	it('formats the complete English tab interaction surface', () => {
 		const output = renderMessages('en-US');
 
-		expect(output).toContain('Terminal tabs|New tab to the right');
+		expect(output).toContain(
+			'Terminal tabs|New tab to the right|Open vertical tabs|Close vertical tabs',
+		);
 		expect(output).toContain('Closed 3 tabs|Terminal 1');
 	});
 
 	it('formats menus and accessibility output in Simplified Chinese', () => {
 		const output = renderMessages('zh-CN');
 
-		expect(output).toContain('标签页选项|紫色');
+		expect(output).toContain('打开垂直标签页|关闭垂直标签页|标签页选项|紫色');
 		expect(output).toContain('终端 1');
 	});
 });

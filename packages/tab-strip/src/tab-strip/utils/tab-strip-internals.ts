@@ -16,6 +16,10 @@ import { DEFAULT_TAB_STYLE_METRICS } from '../layout/tab-style-metrics';
 import { LAYOUT_CONSTANTS } from '../layout/layout-constants';
 import { calculateHorizontalTabGroupHeaderLayout } from '../layout/tab-group-style';
 import type { TabStripCrossWindowDragRuntime } from '../types/tab-strip-options';
+import {
+	buildDraggedTabsLayout,
+	getDragStartAnimationOffset,
+} from '../dragging/dragged-tabs-container-layout';
 
 export const TAB_SIZE: Readonly<TabSizeInfo> = {
 	pinnedTabWidth: 64,
@@ -90,9 +94,11 @@ export interface DragState {
 	tabIds: string[];
 	pointerId: number;
 	pointerType: string;
-	touchDragReady: boolean;
+	touchLongPressRecognized: boolean;
 	startX: number;
 	startY: number;
+	screenX: number;
+	screenY: number;
 	shiftPressedOnPointerDown: boolean;
 	x: number;
 	y: number;
@@ -123,6 +129,10 @@ export interface DragState {
 		>
 	>;
 	dragAreaBounds: Readonly<{ left: number; top: number; width: number; height: number }>;
+	dragSessionData: DragSessionData<Readonly<TabGroupData>>;
+	dragStartAnimationRequired: boolean;
+	dragStartAnimationStartedAt: number | null;
+	dragStartAnimationProgress: number;
 	crossWindowRuntime: TabStripCrossWindowDragRuntime | null;
 	settling: boolean;
 }
@@ -139,6 +149,14 @@ export interface DragVisualView {
 
 export interface PackedHorizontalDragView extends DragVisualView {
 	initialOffsetX: number;
+}
+
+export interface HorizontalDragPresentation {
+	readonly compactGroupHeaderDrag: boolean;
+	readonly left: number;
+	readonly sourceVisualId: string;
+	readonly views: readonly PackedHorizontalDragView[];
+	readonly width: number;
 }
 
 export function packHorizontalDragViews(input: {
@@ -180,6 +198,63 @@ export function packHorizontalDragViews(input: {
 	});
 }
 
+export function calculateHorizontalDragPresentation(input: {
+	drag: DragState;
+	snapshot: Pick<TabModelSnapshot, 'groups' | 'tabs'>;
+	settleTargetLeft?: number | null;
+}): HorizontalDragPresentation {
+	const { drag } = input;
+	const sourceVisualId = getSourceVisualId(drag);
+	const compactGroupHeaderDrag = drag.groupHeaderId !== null && drag.groupWasCollapsedBeforeDrag;
+	const sourceViews = compactGroupHeaderDrag
+		? drag.visualViews.filter((view) => view.kind === 'group')
+		: drag.visualViews;
+	const group =
+		drag.groupHeaderId === null
+			? null
+			: (input.snapshot.groups.find((candidate) => candidate.id === drag.groupHeaderId) ?? null);
+	const draggedTabCount = drag.tabIds.filter((id) =>
+		input.snapshot.tabs.some((tab) => tab.id === id),
+	).length;
+	const packed = packHorizontalDragViews({
+		views: sourceViews,
+		sourceVisualId,
+		pointerRatioX: drag.pointerOffsetRatios.x,
+		...(compactGroupHeaderDrag && group
+			? { sourceWidthOverride: groupHeaderWidth(group, draggedTabCount) }
+			: {}),
+	});
+	const mouseOffset = packed.mouseOffset || drag.pointerOffsetFromVisualOrigin.x;
+	const unclampedLeft =
+		drag.settling && input.settleTargetLeft !== null && input.settleTargetLeft !== undefined
+			? input.settleTargetLeft
+			: drag.x - mouseOffset;
+	const left = Math.min(
+		Math.max(
+			drag.dragAreaBounds.left,
+			drag.dragAreaBounds.left + drag.dragAreaBounds.width - packed.width,
+		),
+		Math.max(drag.dragAreaBounds.left, unclampedLeft),
+	);
+	return Object.freeze({
+		compactGroupHeaderDrag,
+		left,
+		sourceVisualId,
+		views: packed.views,
+		width: packed.width,
+	});
+}
+
+export function calculateHorizontalTabStripTrailingEdge(input: {
+	idealTrailingEdge: number;
+	paintedTrailingEdge: number;
+	dragTrailingEdge: number | null;
+}): number {
+	return input.dragTrailingEdge === null
+		? input.paintedTrailingEdge
+		: Math.max(input.idealTrailingEdge, input.dragTrailingEdge);
+}
+
 export function getSourceVisualId(
 	drag: Pick<DragState, 'sourceId' | 'groupHeaderId' | 'visualViews'>,
 ): string {
@@ -188,15 +263,82 @@ export function getSourceVisualId(
 }
 
 export function getVerticalDragVisualViews(
-	drag: Pick<DragState, 'groupHeaderId' | 'visualViews'>,
+	drag: Pick<DragState, 'groupHeaderId' | 'groupWasCollapsedBeforeDrag' | 'visualViews'>,
 ): readonly DragVisualView[] {
-	if (drag.groupHeaderId === null) return drag.visualViews;
+	if (drag.groupHeaderId === null || !drag.groupWasCollapsedBeforeDrag) return drag.visualViews;
 	const draggedGroupId = `group:${drag.groupHeaderId}`;
 	return drag.visualViews.map((view) =>
 		view.id === draggedGroupId
 			? Object.freeze({ ...view, height: VERTICAL_TAB_GROUP_COLLAPSED_HEIGHT })
 			: view,
 	);
+}
+
+export function dragRequiresStartCompaction(input: {
+	drag: DragState;
+	snapshot: Readonly<{
+		groups: readonly Readonly<TabGroupData>[];
+		tabs: readonly Readonly<TabData>[];
+	}>;
+	horizontal: boolean;
+	verticalCollapsed: boolean;
+}): boolean {
+	const sourceVisualId = getSourceVisualId(input.drag);
+	if (input.horizontal) {
+		const compactGroupHeaderDrag =
+			input.drag.groupHeaderId !== null && input.drag.groupWasCollapsedBeforeDrag;
+		const views = compactGroupHeaderDrag
+			? input.drag.visualViews.filter((view) => view.kind === 'group')
+			: input.drag.visualViews;
+		const group =
+			input.drag.groupHeaderId === null
+				? null
+				: (input.snapshot.groups.find((candidate) => candidate.id === input.drag.groupHeaderId) ??
+					null);
+		const sourceWidthOverride =
+			compactGroupHeaderDrag && group
+				? groupHeaderWidth(
+						group,
+						input.drag.tabIds.filter((id) => input.snapshot.tabs.some((tab) => tab.id === id))
+							.length,
+					)
+				: undefined;
+		return packHorizontalDragViews({
+			views,
+			sourceVisualId,
+			pointerRatioX: input.drag.pointerOffsetRatios.x,
+			...(sourceWidthOverride === undefined ? {} : { sourceWidthOverride }),
+		}).views.some((view) => view.initialOffsetX !== 0);
+	}
+
+	const sourceTab = input.snapshot.tabs.find((tab) => tab.id === input.drag.sourceId);
+	const verticalViews = getVerticalDragVisualViews(input.drag);
+	const layout = buildDraggedTabsLayout({
+		layout: input.verticalCollapsed || sourceTab?.pinned === true ? 'squash' : 'vertical',
+		pointerOffsetRatios: input.drag.pointerOffsetRatios,
+		sourceSlotSize: input.drag.sourceSlotSize,
+		sourceViewOffsetFromSlot: input.drag.sourceViewOffsetFromSlot,
+		views: verticalViews.map((view) => ({
+			id: view.id,
+			bounds: { x: view.x, y: view.y, width: view.width, height: view.height },
+			source: view.id === sourceVisualId,
+		})),
+	});
+	const visualData = new Map(layout.views.map((view) => [view.id, view]));
+	const sourceView = verticalViews.find((view) => view.id === sourceVisualId) ?? verticalViews[0];
+	const sourceTarget = sourceView ? visualData.get(sourceView.id) : undefined;
+	if (!sourceView || !sourceTarget) return false;
+	return verticalViews.some((view) => {
+		const target = visualData.get(view.id);
+		if (!target) return false;
+		const offset = getDragStartAnimationOffset({
+			view,
+			sourceView,
+			targetOffset: target.offset,
+			sourceTargetOffset: sourceTarget.offset,
+		});
+		return offset.x !== 0 || offset.y !== 0;
+	});
 }
 
 export function captureDragVisuals(input: {
@@ -548,6 +690,7 @@ export function areDraggedTabIdsConsecutive(
 export type MenuState =
 	| { kind: 'tab'; id: string; x: number; y: number }
 	| { kind: 'group'; id: string; x: number; y: number }
+	| { kind: 'strip'; x: number; y: number }
 	| { kind: 'new-tab'; x: number; y: number }
 	| { kind: 'collapse'; x: number; y: number }
 	| { kind: 'combo-end'; x: number; y: number };

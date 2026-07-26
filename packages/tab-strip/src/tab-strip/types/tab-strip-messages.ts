@@ -12,11 +12,11 @@ export interface TabStripMessages {
 	readonly closeTab: string;
 	readonly closeTabsBelow: string;
 	readonly closeTabsToRight: string;
+	readonly closeVerticalTabs: string;
 	readonly collapseTabStrip: string;
 	readonly duplicate: string;
 	readonly expandTabStrip: string;
 	readonly expandTabStripOnHover: string;
-	readonly focusGroup: string;
 	readonly formatClosedTabAnnouncement: (title: string) => string;
 	readonly formatClosedTabsAnnouncement: (count: number) => string;
 	readonly formatDragCompleteAnnouncement: (
@@ -65,20 +65,20 @@ export interface TabStripMessages {
 	readonly newTabMenu: string;
 	readonly newTabTitle: string;
 	readonly newTabToRight: string;
+	readonly openVerticalTabs: string;
 	readonly pin: string;
 	readonly pinSearchTabs: string;
 	readonly previewUnavailable: string;
 	readonly removeFromGroup: string;
 	readonly searchTabs: string;
 	readonly searchTabsMenu: string;
-	readonly showAllTabs: string;
 	readonly tabCrashed: string;
 	readonly tabGroups: string;
 	readonly tabMoveCanceled: string;
 	readonly tabOptions: string;
 	readonly tabStripLabel: string;
+	readonly tabStripMenu: string;
 	readonly ungroup: string;
-	readonly unfocusGroup: string;
 	readonly unnamedGroup: string;
 	readonly unpin: string;
 	readonly unpinSearchTabs: string;

@@ -10,10 +10,7 @@ import {
 	type TabGroupData,
 	type TabModelSnapshot,
 } from '../../../../model/tab-model';
-import {
-	calculatePinnedTabContainerLayout,
-	calculatePinnedTabContainerMinimumSize,
-} from '../../../../layout/pinned-tab-container-layout';
+import { calculatePinnedTabContainerMinimumSize } from '../../../../layout/pinned-tab-container-layout';
 import { calculateTabStripViewLayout } from '../../../../layout/tab-strip-view-layout';
 import {
 	calculateUnpinnedTabContainerLayout,
@@ -37,10 +34,14 @@ import {
 import { TabButton } from '../tab-button/TabButton';
 import { GroupHeader } from '../group-header/GroupHeader';
 import { useVerticalContents } from './hooks/useVerticalContents';
+import { useVerticalGroupCollapseCompletion } from './hooks/useVerticalGroupCollapseCompletion';
+import { useVerticalPinAnimation } from './hooks/useVerticalPinAnimation';
+import { type VerticalPinAnimationEntry } from './utils/buildVerticalPinAnimationEntries';
+import { calculateVerticalPinnedPinAnimationLayout } from './utils/calculateVerticalPinnedPinAnimationLayout';
 
 export function VerticalContents({
 	snapshot,
-	fullyCollapsedGroupIds,
+	tabCountTransitionSuppressed,
 	collapsed,
 	expandedOnHover,
 	expandOnHoverEnabled,
@@ -48,10 +49,10 @@ export function VerticalContents({
 	bottomContainerCollapsed,
 	availableWidth,
 	drag,
-	closingTabIds,
 	requestCloseTabs,
 	onTabPointerDown,
 	onGroupPointerDown,
+	onDragScrolled,
 	toggleGroupFromHeader,
 	onGroupKeyDown,
 	onTabKeyDown,
@@ -70,20 +71,16 @@ export function VerticalContents({
 	showTabSearchButton,
 	tabSearchTargetVisible,
 	tabSearchAnimating,
-	groupFocused,
-	focusedGroupId,
-	showPinnedTabsInFocusedGroups,
 	toolbarHeight,
 	captionButtonWidth,
 	isExitingExpandOnHover,
 	onCollapsedChange,
-	onUnfocusGroup,
 	onTabSearchClick,
 	onTabSearchContextMenu,
 	onCollapseContextMenu,
 }: {
 	snapshot: TabModelSnapshot;
-	fullyCollapsedGroupIds: ReadonlySet<string>;
+	tabCountTransitionSuppressed: boolean;
 	collapsed: boolean;
 	expandedOnHover: boolean;
 	expandOnHoverEnabled: boolean;
@@ -91,13 +88,13 @@ export function VerticalContents({
 	bottomContainerCollapsed: boolean;
 	availableWidth: number;
 	drag: DragState | null;
-	closingTabIds: ReadonlySet<string>;
 	requestCloseTabs: (tabIds: readonly string[], source?: TabCloseSource) => void;
 	onTabPointerDown: (event: ReactPointerEvent<HTMLDivElement>, tab: Readonly<TabData>) => void;
 	onGroupPointerDown: (
 		event: ReactPointerEvent<HTMLDivElement>,
 		group: Readonly<TabGroupData>,
 	) => void;
+	onDragScrolled: () => void;
 	toggleGroupFromHeader: (groupId: string, source?: 'mouse' | 'touch' | 'keyboard') => void;
 	onGroupKeyDown: (event: React.KeyboardEvent<HTMLDivElement>, groupId: string) => void;
 	onTabKeyDown: (event: React.KeyboardEvent, tabId: string) => void;
@@ -116,27 +113,24 @@ export function VerticalContents({
 	showTabSearchButton: boolean;
 	tabSearchTargetVisible: boolean;
 	tabSearchAnimating: boolean;
-	groupFocused: boolean;
-	focusedGroupId: string | null;
-	showPinnedTabsInFocusedGroups: boolean;
 	toolbarHeight: number;
 	captionButtonWidth: number;
 	isExitingExpandOnHover: boolean;
 	onCollapsedChange?: ((collapsed: boolean) => void) | undefined;
-	onUnfocusGroup?: (() => void) | undefined;
 	onTabSearchClick?: (() => void) | undefined;
 	onTabSearchContextMenu: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 	onCollapseContextMenu: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 }): ReactNode {
 	const { isAnimatingSize, pinnedScrollRef, regionsRef, regionsSize, scrollRef } =
-		useVerticalContents({ availableWidth, drag, snapshot });
-	const pinned = snapshot.tabs.filter(
-		(tab) => tab.pinned && (focusedGroupId === null || showPinnedTabsInFocusedGroups),
-	);
-	const unpinned = snapshot.tabs.filter(
-		(tab) => !tab.pinned && (focusedGroupId === null || tab.group === focusedGroupId),
+		useVerticalContents({ availableWidth, collapsed, drag, onDragScrolled, snapshot });
+	const { pinned, unpinned } = useVerticalPinAnimation({ snapshot });
+	const { fullyCollapsedGroupIds, onGroupTabsTransitionEnd } = useVerticalGroupCollapseCompletion(
+		snapshot.groups,
 	);
 	const groups = new Map(snapshot.groups.map((group) => [group.id, group]));
+	for (const entry of unpinned) {
+		if (entry.retainedGroup) groups.set(entry.retainedGroup.id, entry.retainedGroup);
+	}
 	const draggedWholeGroupIds = new Set(
 		drag?.started
 			? drag.visualViews.flatMap((view) =>
@@ -144,52 +138,80 @@ export function VerticalContents({
 				)
 			: [],
 	);
-	const renderedGroups = new Set<string>();
+	const snappingExpandedGroupPickup =
+		drag?.started === true &&
+		drag.groupHeaderId !== null &&
+		!drag.groupWasCollapsedBeforeDrag &&
+		drag.targetIndex === null;
 	const defaultTabWidth = Math.max(
 		0,
 		availableWidth - LAYOUT_CONSTANTS.verticalTabStripHorizontalPadding * 2,
 	);
-	const renderTab = (tab: Readonly<TabData>, width = defaultTabWidth) => (
-		<div
-			key={tab.id}
-			className={styles['ct-vertical-tab-wrap']}
-			data-tab-strip-tab-wrapper=''
-			data-drag-source={
-				(drag?.started &&
-					drag.tabIds.includes(tab.id) &&
-					(tab.group === null || !draggedWholeGroupIds.has(tab.group))) ||
-				undefined
-			}
-			data-closing={closingTabIds.has(tab.id) || undefined}
-		>
-			<TabButton
-				tab={tab}
-				snapshot={snapshot}
-				width={width}
-				orientation={TabStripOrientation.Vertical}
-				collapsed={collapsed}
-				closing={closingTabIds.has(tab.id)}
-				onPointerDown={onTabPointerDown}
-				onClose={(event, id, source) => {
-					event.stopPropagation();
-					requestCloseTabs([id], source);
-				}}
-				onContextMenu={(event, id) => {
-					setMenu({ kind: 'tab', id, x: event.clientX, y: event.clientY });
-				}}
-				onMouseEnter={onTabMouseEnter}
-				onMouseLeave={clearHover}
-				onKeyDown={onTabKeyDown}
-				onKeyUp={onTabKeyUp}
-				touchUi={touchUi}
-				closeButtonAllowed={closeButtonAllowed}
-				verticalExpandedOnHover={expandedOnHover}
-				hoveredTabId={null}
-			/>
-		</div>
-	);
-	const renderTabSequence = (tabs: readonly Readonly<TabData>[]): ReactNode[] =>
-		tabs.map((tab) => renderTab(tab));
+	const isIndividuallyDraggedTab = (tab: Readonly<TabData>): boolean =>
+		Boolean(
+			drag?.started &&
+			drag.tabIds.includes(tab.id) &&
+			(tab.group === null || !draggedWholeGroupIds.has(tab.group)),
+		);
+	const dragSourceRenderKey = (
+		stableKey: string,
+		dragSource: boolean,
+		slotIdentity: string | number,
+	): string => (dragSource ? `${stableKey}:drag-slot:${slotIdentity}` : stableKey);
+	const renderTab = (entry: Readonly<VerticalPinAnimationEntry>, width = defaultTabWidth) => {
+		const { tab } = entry;
+		const dragSource = isIndividuallyDraggedTab(tab);
+		return (
+			<div
+				key={dragSourceRenderKey(entry.key, dragSource, entry.order)}
+				className={styles['ct-vertical-tab-wrap']}
+				data-tab-strip-tab-wrapper=''
+				data-pin-transition={entry.phase === 'stable' ? undefined : entry.phase}
+				data-pin-transition-source={entry.phase === 'source' || undefined}
+				aria-hidden={entry.phase === 'source' || undefined}
+				style={
+					{
+						'--ob-comp-tab-strip-block-size': `${
+							LAYOUT_CONSTANTS.verticalTabHeight * entry.mainAxisScale
+						}px`,
+						'--ob-comp-tab-strip-runtime-opacity': entry.opacity,
+					} satisfies CSSProperties &
+						Record<
+							'--ob-comp-tab-strip-block-size' | '--ob-comp-tab-strip-runtime-opacity',
+							number | string
+						>
+				}
+				data-drag-source={dragSource || undefined}
+			>
+				<TabButton
+					tab={tab}
+					snapshot={snapshot}
+					width={width}
+					orientation={TabStripOrientation.Vertical}
+					collapsed={collapsed}
+					onPointerDown={onTabPointerDown}
+					onClose={(event, id, source) => {
+						event.stopPropagation();
+						requestCloseTabs([id], source);
+					}}
+					onContextMenu={(event, id) => {
+						setMenu({ kind: 'tab', id, x: event.clientX, y: event.clientY });
+					}}
+					onMouseEnter={onTabMouseEnter}
+					onMouseLeave={clearHover}
+					onKeyDown={onTabKeyDown}
+					onKeyUp={onTabKeyUp}
+					touchUi={touchUi}
+					closeButtonAllowed={closeButtonAllowed}
+					verticalExpandedOnHover={expandedOnHover}
+					hoveredTabId={null}
+				/>
+			</div>
+		);
+	};
+	const renderTabSequence = (
+		entries: readonly Readonly<VerticalPinAnimationEntry>[],
+	): ReactNode[] => entries.map((entry) => renderTab(entry));
 
 	const pinnedLayoutCollapsed =
 		collapsed &&
@@ -198,19 +220,13 @@ export function VerticalContents({
 		0,
 		availableWidth - LAYOUT_CONSTANTS.verticalTabStripHorizontalPadding,
 	);
-	const pinnedLayout = calculatePinnedTabContainerLayout({
+	const pinnedLayout = calculateVerticalPinnedPinAnimationLayout({
 		sizeBounds: { width: pinnedLayoutWidth, height: null },
 		collapseState: pinnedLayoutCollapsed
 			? VerticalTabStripCollapseState.Collapsed
 			: VerticalTabStripCollapseState.Expanded,
 		expandOnHoverEnabled,
-		children: pinned.map((tab) => ({
-			id: tab.id,
-			preferredSize: {
-				width: LAYOUT_CONSTANTS.verticalTabMinWidth,
-				height: LAYOUT_CONSTANTS.verticalTabPinnedHeight,
-			},
-		})),
+		children: pinned,
 	});
 
 	const unpinnedDirectChildren: Array<{
@@ -220,33 +236,48 @@ export function VerticalContents({
 		minimumSize: { width: number; height: number };
 	}> = [];
 	const countedGroups = new Set<string>();
-	for (const tab of unpinned) {
+	for (const entry of unpinned) {
+		const { tab } = entry;
 		if (tab.group !== null) {
 			if (countedGroups.has(tab.group)) continue;
 			countedGroups.add(tab.group);
 			const group = groups.get(tab.group);
-			const groupTabs = unpinned.filter((candidate) => candidate.group === tab.group);
-			const directChildCount = groupTabs.length;
-			const fullyCollapsed = Boolean(
-				group?.collapsed && focusedGroupId !== group.id && fullyCollapsedGroupIds.has(group.id),
+			const groupTabs = unpinned.filter((candidate) => candidate.tab.group === tab.group);
+			const currentGroupExists = snapshot.groups.some((candidate) => candidate.id === tab.group);
+			const sourceGroupScale = groupTabs.reduce(
+				(scale, candidate) => Math.max(scale, candidate.mainAxisScale),
+				0,
 			);
+			const groupCollapsed = group?.collapsed === true;
+			const animatedGroupHeight = currentGroupExists
+				? 36 +
+					groupTabs.reduce(
+						(height, candidate) =>
+							height + LAYOUT_CONSTANTS.verticalTabHeight * candidate.mainAxisScale,
+						0,
+					)
+				: (36 + groupTabs.length * LAYOUT_CONSTANTS.verticalTabHeight) * sourceGroupScale;
 			unpinnedDirectChildren.push({
 				id: `group-${tab.group}`,
 				group: true,
 				preferredSize: {
 					width: availableWidth,
-					height: fullyCollapsed ? 34 : 36 + directChildCount * 32,
+					height: groupCollapsed ? 34 : animatedGroupHeight,
 				},
-				minimumSize: { width: LAYOUT_CONSTANTS.verticalTabMinWidth, height: 34 },
+				minimumSize: {
+					width: LAYOUT_CONSTANTS.verticalTabMinWidth,
+					height: groupCollapsed ? 34 : Math.min(34, animatedGroupHeight),
+				},
 			});
 			continue;
 		}
+		const animatedTabHeight = LAYOUT_CONSTANTS.verticalTabHeight * entry.mainAxisScale;
 		unpinnedDirectChildren.push({
 			id: tab.id,
-			preferredSize: { width: defaultTabWidth, height: LAYOUT_CONSTANTS.verticalTabHeight },
+			preferredSize: { width: defaultTabWidth, height: animatedTabHeight },
 			minimumSize: {
 				width: LAYOUT_CONSTANTS.verticalTabMinWidth,
-				height: LAYOUT_CONSTANTS.verticalTabHeight,
+				height: animatedTabHeight,
 			},
 		});
 	}
@@ -259,6 +290,11 @@ export function VerticalContents({
 		children: unpinnedDirectChildren,
 		collapseState,
 	});
+	const pinnedMinimum = calculatePinnedTabContainerMinimumSize(pinned.length, collapseState);
+	const unpinnedMinimum = calculateUnpinnedTabContainerMinimumSize(
+		TabStripOrientation.Vertical,
+		unpinnedDirectChildren,
+	);
 	const tabStripViewLayout = calculateTabStripViewLayout({
 		orientation: TabStripOrientation.Vertical,
 		sizeBounds: {
@@ -266,17 +302,24 @@ export function VerticalContents({
 			height: regionsSize.height > 0 ? regionsSize.height : null,
 		},
 		pinnedPreferred: pinnedLayout.hostSize,
-		pinnedMinimum: calculatePinnedTabContainerMinimumSize(pinned.length, collapseState),
+		pinnedMinimum: {
+			...pinnedMinimum,
+			height: Math.min(pinnedMinimum.height, pinnedLayout.hostSize.height),
+		},
 		pinnedVisible: pinned.length > 0,
 		unpinnedPreferred: unpinnedNaturalLayout.hostSize,
-		unpinnedMinimum: calculateUnpinnedTabContainerMinimumSize(
-			TabStripOrientation.Vertical,
-			unpinnedDirectChildren,
-		),
+		unpinnedMinimum: {
+			...unpinnedMinimum,
+			height: Math.min(unpinnedMinimum.height, unpinnedNaturalLayout.hostSize.height),
+		},
 		unpinnedVisible: unpinnedDirectChildren.length > 0,
 		separatorPreferredHeight: 1,
 		collapsed,
 	});
+	const unpinnedBoundsById = new Map(
+		unpinnedNaturalLayout.children.map((child) => [child.id, child.bounds]),
+	);
+	const renderedGroups = new Set<string>();
 
 	return (
 		<>
@@ -287,14 +330,12 @@ export function VerticalContents({
 					toolbarHeight={toolbarHeight}
 					captionButtonWidth={captionButtonWidth}
 					isExitingExpandOnHover={isExitingExpandOnHover}
-					showUnfocusButton={groupFocused}
 					showTabSearchButton={showTabSearchButton}
 					tabSearchTargetVisible={tabSearchTargetVisible}
 					tabSearchAnimating={tabSearchAnimating}
 					onTabSearchContextMenu={onTabSearchContextMenu}
 					onCollapseContextMenu={onCollapseContextMenu}
 					onCollapsedChange={onCollapsedChange}
-					onUnfocusGroup={onUnfocusGroup}
 					onTabSearchClick={onTabSearchClick}
 				/>
 			) : null}
@@ -317,13 +358,21 @@ export function VerticalContents({
 					>
 						<div
 							className={styles['ct-vertical-pinned']}
+							data-pin-animation={pinned.some((entry) => entry.phase !== 'stable') || undefined}
 							style={{ '--ob-comp-tab-strip-block-size': `${pinnedLayout.hostSize.height}px` }}
 						>
-							{pinnedLayout.children.map((child, index) => {
-								const tab = requireDefined(pinned[index]);
+							{pinnedLayout.children.map((child) => {
+								const entry = requireDefined(
+									pinned.find((candidate) => candidate.key === child.id),
+								);
+								const dragSource = isIndividuallyDraggedTab(entry.tab);
 								return (
 									<div
-										key={tab.id}
+										key={dragSourceRenderKey(
+											entry.key,
+											dragSource,
+											`${child.bounds.x}:${child.bounds.y}`,
+										)}
 										className={styles['ct-vertical-pinned__unit']}
 										style={{
 											'--ob-comp-tab-strip-inline-start': `${child.bounds.x}px`,
@@ -332,7 +381,7 @@ export function VerticalContents({
 											'--ob-comp-tab-strip-block-size': `${child.bounds.height}px`,
 										}}
 									>
-										{renderTab(tab, child.bounds.width)}
+										{renderTab(entry, child.bounds.width)}
 									</div>
 								);
 							})}
@@ -370,38 +419,114 @@ export function VerticalContents({
 						className={styles['ct-vertical-scroll']}
 						data-tab-strip-scroll-viewport=''
 					>
-						<div className={styles['ct-vertical-scroll__content']} data-tab-strip-scroll-content=''>
-							{unpinned.map((tab) => {
-								if (tab.group === null) return renderTab(tab);
-								if (renderedGroups.has(tab.group)) return null;
-								renderedGroups.add(tab.group);
+						<div
+							className={styles['ct-vertical-scroll__content']}
+							data-tab-strip-scroll-content=''
+							data-tab-count-changed={tabCountTransitionSuppressed || undefined}
+							data-pin-animation={unpinned.some((entry) => entry.phase !== 'stable') || undefined}
+							data-group-drag-pickup={snappingExpandedGroupPickup || undefined}
+							style={{
+								'--ob-comp-tab-strip-block-size': `${unpinnedNaturalLayout.hostSize.height}px`,
+							}}
+						>
+							{unpinned.map((entry) => {
+								const { tab } = entry;
+								const directChildId = tab.group === null ? tab.id : `group-${tab.group}`;
+								if (tab.group !== null) {
+									if (renderedGroups.has(tab.group)) return null;
+									renderedGroups.add(tab.group);
+								}
+								const bounds = requireDefined(unpinnedBoundsById.get(directChildId));
+								let content: ReactNode = renderTab(entry);
+								if (tab.group === null) {
+									const dragSource = isIndividuallyDraggedTab(tab);
+									return (
+										<div
+											key={dragSourceRenderKey(entry.key, dragSource, bounds.y)}
+											className={styles['ct-vertical-unpinned__unit']}
+											data-vertical-unpinned-unit={directChildId}
+											data-drag-source-unit={dragSource || undefined}
+											style={{
+												'--ob-comp-tab-strip-block-start': `${bounds.y}px`,
+												'--ob-comp-tab-strip-block-size': `${bounds.height}px`,
+											}}
+										>
+											{content}
+										</div>
+									);
+								}
 								const group = groups.get(tab.group);
-								if (!group) return renderTab(tab);
-								const groupTabs = unpinned.filter((candidate) => candidate.group === group.id);
-								const fullyCollapsed =
-									group.collapsed &&
-									focusedGroupId !== group.id &&
-									fullyCollapsedGroupIds.has(group.id);
-								const collapsing =
-									group.collapsed && focusedGroupId !== group.id && !fullyCollapsed;
-								return (
+								if (!group) {
+									const dragSource = isIndividuallyDraggedTab(tab);
+									return (
+										<div
+											key={dragSourceRenderKey(entry.key, dragSource, bounds.y)}
+											className={styles['ct-vertical-unpinned__unit']}
+											data-vertical-unpinned-unit={directChildId}
+											data-drag-source-unit={dragSource || undefined}
+											style={{
+												'--ob-comp-tab-strip-block-start': `${bounds.y}px`,
+												'--ob-comp-tab-strip-block-size': `${bounds.height}px`,
+											}}
+										>
+											{content}
+										</div>
+									);
+								}
+								const groupTabs = unpinned.filter((candidate) => candidate.tab.group === group.id);
+								const currentGroupExists = snapshot.groups.some(
+									(candidate) => candidate.id === group.id,
+								);
+								const sourceGroupScale = groupTabs.reduce(
+									(scale, candidate) => Math.max(scale, candidate.mainAxisScale),
+									0,
+								);
+								const fullyCollapsed = group.collapsed && fullyCollapsedGroupIds.has(group.id);
+								const collapsing = group.collapsed && !fullyCollapsed;
+								let groupBlockSize: number;
+								if (!currentGroupExists) {
+									groupBlockSize =
+										(36 + groupTabs.length * LAYOUT_CONSTANTS.verticalTabHeight) * sourceGroupScale;
+								} else if (group.collapsed) {
+									groupBlockSize = 34;
+								} else {
+									groupBlockSize =
+										36 +
+										groupTabs.reduce(
+											(height, candidate) =>
+												height + LAYOUT_CONSTANTS.verticalTabHeight * candidate.mainAxisScale,
+											0,
+										);
+								}
+								content = (
 									<section
-										key={group.id}
 										className={styles['ct-vertical-group']}
 										data-tab-strip-group=''
 										data-group-id={group.id}
 										data-group-collapsed={fullyCollapsed || undefined}
 										data-group-collapsing={collapsing || undefined}
 										data-drag-source={draggedWholeGroupIds.has(group.id) || undefined}
+										data-pin-transition-source={!currentGroupExists || undefined}
+										aria-hidden={!currentGroupExists || undefined}
 										style={
 											{
 												'--ob-comp-tab-strip-group-color': GROUP_COLORS[group.color],
-											} satisfies CSSProperties
+												'--ob-comp-tab-strip-block-size': `${groupBlockSize}px`,
+												'--ob-comp-tab-strip-runtime-opacity': currentGroupExists
+													? 1
+													: sourceGroupScale,
+											} satisfies CSSProperties &
+												Record<
+													| '--ob-comp-tab-strip-block-size'
+													| '--ob-comp-tab-strip-group-color'
+													| '--ob-comp-tab-strip-runtime-opacity',
+													number | string
+												>
 										}
 									>
 										<GroupHeader
 											group={group}
-											tabs={groupTabs}
+											tabs={groupTabs.map((candidate) => candidate.tab)}
 											activeTabId={snapshot.activeTabId}
 											orientation={TabStripOrientation.Vertical}
 											collapsedStrip={collapsed}
@@ -418,13 +543,33 @@ export function VerticalContents({
 										/>
 										<div
 											className={styles['ct-vertical-group__tabs']}
+											data-tab-strip-group-tabs=''
 											aria-hidden={fullyCollapsed || undefined}
+											onTransitionEnd={(event) => onGroupTabsTransitionEnd(event, group.id)}
 										>
 											<div className={styles['ct-vertical-group__tabs-inner']}>
 												{renderTabSequence(groupTabs)}
 											</div>
 										</div>
 									</section>
+								);
+								return (
+									<div
+										key={dragSourceRenderKey(
+											group.id,
+											draggedWholeGroupIds.has(group.id),
+											bounds.y,
+										)}
+										className={styles['ct-vertical-unpinned__unit']}
+										data-vertical-unpinned-unit={directChildId}
+										data-drag-source-unit={draggedWholeGroupIds.has(group.id) || undefined}
+										style={{
+											'--ob-comp-tab-strip-block-start': `${bounds.y}px`,
+											'--ob-comp-tab-strip-block-size': `${bounds.height}px`,
+										}}
+									>
+										{content}
+									</div>
 								);
 							})}
 						</div>

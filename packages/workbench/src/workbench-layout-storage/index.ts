@@ -9,3 +9,7 @@ export {
 	readWorkbenchSidebarVisibility,
 	writeWorkbenchSidebarVisibility,
 } from './workbench-sidebar-visibility-storage';
+export {
+	readWorkbenchTabStripOrientation,
+	writeWorkbenchTabStripOrientation,
+} from './workbench-tab-strip-orientation-storage';

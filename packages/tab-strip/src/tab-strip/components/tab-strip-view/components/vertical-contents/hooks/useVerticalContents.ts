@@ -4,12 +4,12 @@ import {
 	TabDragScrollHandler,
 	createDomTabDragScrollable,
 } from '../../../../../dragging/tab-drag-scroll-handler';
-import { LAYOUT_CONSTANTS } from '../../../../../layout/layout-constants';
 import { useElementSize } from '../../../../../hooks/useElementSize';
 import {
 	TAB_BOUNDS_ANIMATION_DURATION_MS,
 	type DragState,
 } from '../../../../../utils/tab-strip-internals';
+import { calculateVerticalDragCompositeBounds } from '../utils/calculateVerticalDragCompositeBounds';
 
 interface VerticalContentsState {
 	isAnimatingSize: boolean;
@@ -21,11 +21,15 @@ interface VerticalContentsState {
 
 export function useVerticalContents({
 	availableWidth,
+	collapsed,
 	drag,
+	onDragScrolled,
 	snapshot,
 }: {
 	availableWidth: number;
+	collapsed: boolean;
 	drag: DragState | null;
+	onDragScrolled: () => void;
 	snapshot: TabModelSnapshot;
 }): Readonly<VerticalContentsState> {
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -34,8 +38,12 @@ export function useVerticalContents({
 	const previousAvailableWidth = useRef(availableWidth);
 	const sizeAnimationTimer = useRef<number | null>(null);
 	const [isAnimatingSize, setIsAnimatingSize] = useState(false);
+	const onDragScrolledRef = useRef(onDragScrolled);
+	onDragScrolledRef.current = onDragScrolled;
 	const dragScrollHandler = useRef<TabDragScrollHandler | null>(null);
-	if (dragScrollHandler.current === null) dragScrollHandler.current = new TabDragScrollHandler();
+	if (dragScrollHandler.current === null) {
+		dragScrollHandler.current = new TabDragScrollHandler(() => onDragScrolledRef.current());
+	}
 	useEffect(() => () => dragScrollHandler.current?.destroy(), []);
 	useEffect(() => {
 		if (previousAvailableWidth.current === availableWidth) return;
@@ -59,26 +67,26 @@ export function useVerticalContents({
 			? snapshot.tabs.find((tab) => tab.id === drag.tabIds[0])
 			: null;
 		const element = sourceTab?.pinned ? pinnedScrollRef.current : scrollRef.current;
-		if (!element || !handler || !drag?.started) {
+		if (!sourceTab || !element || !handler || !drag?.started) {
 			handler?.stopScrolling();
 			return;
 		}
 		const rect = element.getBoundingClientRect();
-		handler.onDraggedTabPositionUpdated(createDomTabDragScrollable(element), {
-			x: drag.x - rect.left,
-			y: drag.y - rect.top,
-			width: Math.max(0, availableWidth - LAYOUT_CONSTANTS.verticalTabStripHorizontalPadding * 2),
-			height: 32,
-		});
-	}, [
-		availableWidth,
-		drag?.started,
-		drag?.tabIds,
-		drag?.x,
-		drag?.y,
-		snapshot.revision,
-		snapshot.tabs,
-	]);
+		handler.onDraggedTabPositionUpdated(
+			createDomTabDragScrollable(element),
+			calculateVerticalDragCompositeBounds({
+				collapsed,
+				drag,
+				sourcePinned: sourceTab.pinned,
+				viewportBounds: {
+					x: rect.left,
+					y: rect.top,
+					width: rect.width,
+					height: rect.height,
+				},
+			}),
+		);
+	}, [collapsed, drag, snapshot.revision, snapshot.tabs]);
 
 	return { isAnimatingSize, pinnedScrollRef, regionsRef, regionsSize, scrollRef } as const;
 }

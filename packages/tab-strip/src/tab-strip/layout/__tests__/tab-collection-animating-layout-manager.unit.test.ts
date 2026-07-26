@@ -5,6 +5,8 @@ import {
 	TabCollectionAnimatingLayoutManager,
 	TabCollectionAnimationAxis,
 	TabCollectionAnimationDirection,
+	tabCollectionEaseInOut,
+	tabCollectionEaseOut,
 } from '../tab-collection-animating-layout-manager';
 function stacked(ids: readonly string[], width = 100): ProposedLayout {
 	return {
@@ -25,18 +27,25 @@ function stacked(ids: readonly string[], width = 100): ProposedLayout {
 	};
 }
 describe('TabCollectionAnimatingLayoutManager', () => {
-	it('animates newly added children from empty vertical bounds', () => {
+	it('uses Chromium BoundsAnimator ease-out progress', () => {
+		expect(tabCollectionEaseOut(0)).toBe(0);
+		expect(tabCollectionEaseOut(0.5)).toBe(0.75);
+		expect(tabCollectionEaseOut(1)).toBe(1);
+	});
+
+	it('uses Chromium collection ease-in-out progress', () => {
+		expect(tabCollectionEaseInOut(0)).toBe(0);
+		expect(tabCollectionEaseInOut(0.25)).toBe(0.125);
+		expect(tabCollectionEaseInOut(0.5)).toBe(0.5);
+		expect(tabCollectionEaseInOut(0.75)).toBe(0.875);
+		expect(tabCollectionEaseInOut(1)).toBe(1);
+	});
+
+	it('places newly added children directly at target bounds', () => {
 		const manager = new TabCollectionAnimatingLayoutManager();
 		manager.onViewAdded('first');
 		manager.recalculateTarget(stacked(['first']));
 		expect(manager.currentFrame.layout.children[0]?.bounds).toEqual({
-			x: 0,
-			y: 0,
-			width: 100,
-			height: 0,
-		});
-		expect(manager.setProgress(0.5).layout.children[0]?.bounds.height).toBe(10);
-		expect(manager.setProgress(1).layout.children[0]?.bounds).toEqual({
 			x: 0,
 			y: 0,
 			width: 100,
@@ -82,54 +91,6 @@ describe('TabCollectionAnimatingLayoutManager', () => {
 				},
 			},
 		]);
-	});
-	it('retains a pending-delete child until the removal animation completes', () => {
-		const manager = new TabCollectionAnimatingLayoutManager({
-			delegate: {
-				shouldAnimateOpacityForAddAndRemove: () => true,
-			},
-		});
-		manager.setChildren(['first', 'second']);
-		manager.recalculateTarget(stacked(['first', 'second']));
-		manager.complete();
-		manager.animateAndDestroyChildView('second');
-		manager.recalculateTarget(stacked(['first']));
-		const halfway = manager.setProgress(0.5);
-		expect(halfway.layout.children.find((child) => child.id === 'second')?.bounds.height).toBe(10);
-		expect(halfway.opacityById.get('second')).toBe(0.5);
-		expect(manager.complete()).toEqual(['second']);
-		expect(manager.currentFrame.layout.children.map((child) => child.id)).toEqual(['first']);
-	});
-	it('uses horizontal add/remove bounds when configured', () => {
-		const manager = new TabCollectionAnimatingLayoutManager({
-			animationAxis: TabCollectionAnimationAxis.Horizontal,
-		});
-		manager.onViewAdded('tab');
-		manager.recalculateTarget({
-			hostSize: {
-				width: 100,
-				height: 20,
-			},
-			children: [
-				{
-					id: 'tab',
-					visible: true,
-					bounds: {
-						x: 10,
-						y: 0,
-						width: 80,
-						height: 20,
-					},
-				},
-			],
-		});
-		expect(manager.currentFrame.layout.children[0]?.bounds).toEqual({
-			x: 10,
-			y: 0,
-			width: 0,
-			height: 20,
-		});
-		expect(manager.setProgress(0.5).layout.children[0]?.bounds.width).toBe(40);
 	});
 	it('animates reparented children from their previous collection bounds', () => {
 		const manager = new TabCollectionAnimatingLayoutManager();

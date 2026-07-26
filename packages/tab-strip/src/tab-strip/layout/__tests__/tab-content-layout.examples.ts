@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	calculateHorizontalAlertCloseGap,
+	calculateHorizontalPinnedControlOffset,
 	calculateHorizontalTabChildVisibility,
 	calculateVerticalTabChildVisibility,
 } from '../tab-content-layout';
@@ -30,6 +31,59 @@ describe('tab child visibility ports', () => {
 			showTitle: false,
 			centerSingleControl: true,
 		});
+	});
+
+	it('keeps wide pinning tabs in normal content placement until the compact threshold', () => {
+		expect(
+			calculateHorizontalTabChildVisibility({
+				width: 120,
+				contentsWidth: 84,
+				active: true,
+				pinned: true,
+				pinTransition: 'pinning',
+				hasFavicon: true,
+				hasAlert: false,
+				pinnedWidth: 64,
+			}),
+		).toEqual({
+			showFavicon: true,
+			showAlert: false,
+			showClose: false,
+			showTitle: true,
+			centerSingleControl: false,
+		});
+	});
+
+	it('retains pinned child priority for the full unpin bounds animation', () => {
+		expect(
+			calculateHorizontalTabChildVisibility({
+				width: 80,
+				contentsWidth: 44,
+				active: true,
+				pinned: false,
+				pinTransition: 'unpinning',
+				hasFavicon: true,
+				hasAlert: true,
+				pinnedWidth: 64,
+			}),
+		).toEqual({
+			showFavicon: false,
+			showAlert: true,
+			showClose: false,
+			showTitle: true,
+			centerSingleControl: false,
+		});
+	});
+
+	it('moves the pinned control continuously over the final 30 DIP', () => {
+		const input = {
+			pinnedWidth: 64,
+			controlWidth: 16,
+			normalControlX: 18,
+		};
+		expect(calculateHorizontalPinnedControlOffset({ ...input, width: 94 })).toBe(0);
+		expect(calculateHorizontalPinnedControlOffset({ ...input, width: 79 })).toBe(3);
+		expect(calculateHorizontalPinnedControlOffset({ ...input, width: 64 })).toBe(6);
 	});
 
 	it('gives close priority on a narrow active tab without waiting for hover', () => {

@@ -42,6 +42,7 @@ export interface HorizontalTabChildVisibilityInput {
 	pinnedWidth?: number;
 	active: boolean;
 	pinned: boolean;
+	pinTransition?: 'pinning' | 'unpinning' | null | undefined;
 	hovered?: boolean;
 	focused?: boolean;
 	closeFocused?: boolean;
@@ -50,6 +51,25 @@ export interface HorizontalTabChildVisibilityInput {
 	hasFavicon: boolean;
 	hasAlert: boolean;
 	closeAllowed?: boolean;
+}
+
+export function calculateHorizontalPinnedControlOffset({
+	width,
+	pinnedWidth,
+	controlWidth,
+	normalControlX,
+}: Readonly<{
+	width: number;
+	pinnedWidth: number;
+	controlWidth: number;
+	normalControlX: number;
+}>): number {
+	const compactProgress = Math.min(
+		1,
+		Math.max(0, 1 - (width - pinnedWidth) / HORIZONTAL_TAB_PINNED_NORMAL_RENDER_EXTRA_WIDTH),
+	);
+	const pinnedControlX = (pinnedWidth - controlWidth) / 2;
+	return Math.round(compactProgress * (pinnedControlX - normalControlX));
 }
 
 /** Direct browser-independent port of horizontal Tab::UpdateIconVisibility. */
@@ -72,15 +92,18 @@ export function calculateHorizontalTabChildVisibility(
 	const declutterEnabled = input.declutterEnabled ?? false;
 	const hasFavicon = input.hasFavicon;
 	const closeAllowed = input.closeAllowed ?? true;
+	const pinnedPresentation = input.pinned || input.pinTransition === 'unpinning';
 
-	if (input.pinned) {
+	if (pinnedPresentation) {
+		const renderAsNormal =
+			!input.pinned ||
+			input.width >= (input.pinnedWidth ?? 64) + HORIZONTAL_TAB_PINNED_NORMAL_RENDER_EXTRA_WIDTH;
 		return {
 			showFavicon: hasFavicon && !hasAlert,
 			showAlert: hasAlert,
 			showClose: false,
-			showTitle:
-				input.width >= (input.pinnedWidth ?? 64) + HORIZONTAL_TAB_PINNED_NORMAL_RENDER_EXTRA_WIDTH,
-			centerSingleControl: true,
+			showTitle: renderAsNormal,
+			centerSingleControl: input.pinned && !renderAsNormal && input.pinTransition !== 'pinning',
 		};
 	}
 

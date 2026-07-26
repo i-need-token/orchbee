@@ -26,19 +26,15 @@ export interface TabCollectionAnimatingLayoutDelegate {
 	isDragging?(): boolean;
 	isViewDragging?(id: string): boolean;
 	shouldSnapToTarget?(id: string): boolean;
-	shouldAnimateOpacityForAddAndRemove?(id: string): boolean;
 	onAnimationEnded?(): void;
 }
 
 export interface AnimatedLayoutFrame {
 	layout: ProposedLayout;
-	opacityById: ReadonlyMap<string, number>;
 	contentHeight: number;
 }
 
 interface ViewAnimationMetadata {
-	pendingDeletion: boolean;
-	hasOpacityLayer: boolean;
 	previousCollectionBounds?: Rect;
 	sourceLayoutInfo?: SourceLayoutInfo;
 }
@@ -113,16 +109,13 @@ function clamp01(value: number): number {
 	return Math.min(1, Math.max(0, value));
 }
 
-function defaultMetadata(): ViewAnimationMetadata {
-	return { pendingDeletion: false, hasOpacityLayer: false };
-}
-
 /**
  * Headless port of common/TabCollectionAnimatingLayoutManager.
  *
  * DOM/React callers provide child IDs and target ProposedLayouts in place of
- * Views pointers. The class retains Chromium's retargeting, add/remove,
- * reparenting, drag-snap, opacity, and animated-host-height rules.
+ * Views pointers. The class retains Chromium's retargeting, reparenting,
+ * drag-snap, and animated-host-height rules. Tab creation and closure snap
+ * directly to their terminal layouts and are not animation responsibilities.
  */
 export class TabCollectionAnimatingLayoutManager {
 	private readonly delegate: TabCollectionAnimatingLayoutDelegate;
@@ -134,7 +127,6 @@ export class TabCollectionAnimatingLayoutManager {
 	private target = cloneLayout(EMPTY_LAYOUT);
 	private currentFrameValue: AnimatedLayoutFrame = {
 		layout: cloneLayout(EMPTY_LAYOUT),
-		opacityById: new Map(),
 		contentHeight: 0,
 	};
 	private startMap = new Map<string, ChildLayout>();
@@ -171,7 +163,6 @@ export class TabCollectionAnimatingLayoutManager {
 	public get currentFrame(): AnimatedLayoutFrame {
 		return {
 			layout: cloneLayout(this.currentFrameValue.layout),
-			opacityById: new Map(this.currentFrameValue.opacityById),
 			contentHeight: this.currentFrameValue.contentHeight,
 		};
 	}
@@ -184,13 +175,6 @@ export class TabCollectionAnimatingLayoutManager {
 
 	public onViewAdded(id: string): void {
 		if (!this.childIds.includes(id)) this.childIds.push(id);
-		const metadata = this.getMetadata(id);
-		if (
-			!this.delegate.isViewDragging?.(id) &&
-			this.delegate.shouldAnimateOpacityForAddAndRemove?.(id)
-		) {
-			metadata.hasOpacityLayer = true;
-		}
 	}
 
 	public onViewRemoved(id: string): void {
@@ -200,15 +184,6 @@ export class TabCollectionAnimatingLayoutManager {
 
 	public setSourceLayoutInfo(id: string, sourceLayoutInfo: SourceLayoutInfo): void {
 		this.getMetadata(id).sourceLayoutInfo = { ...sourceLayoutInfo };
-	}
-
-	public animateAndDestroyChildView(id: string): void {
-		if (!this.childIds.includes(id)) throw new Error(`Unknown child ${id}.`);
-		const metadata = this.getMetadata(id);
-		metadata.pendingDeletion = true;
-		if (this.delegate.shouldAnimateOpacityForAddAndRemove?.(id)) {
-			metadata.hasOpacityLayer = true;
-		}
 	}
 
 	/** Previous bounds are local to the new host (screen conversion is a DOM concern). */
@@ -238,7 +213,6 @@ export class TabCollectionAnimatingLayoutManager {
 		) {
 			this.currentFrameValue = {
 				layout: cloneLayout(newTarget),
-				opacityById: new Map(this.childIds.map((id) => [id, 1])),
 				contentHeight: newTarget.hostSize.height,
 			};
 			this.setStartingLayout(newTarget);
@@ -300,29 +274,19 @@ export class TabCollectionAnimatingLayoutManager {
 		return { ...targetPreferredSize };
 	}
 
-	/**
-	 * Completes the current sequence and returns retained Views that Chromium
-	 * would now remove from the hierarchy.
-	 */
-	public complete(): string[] {
+	public complete(): void {
 		if (this.animating) this.setProgress(1);
 		this.animating = false;
 		this.currentOffset = 1;
 		this.startingOffset = 0;
 
-		const removed = this.childIds.filter((id) => this.metadata.get(id)?.pendingDeletion);
-		this.childIds = this.childIds.filter((id) => !removed.includes(id));
-		removed.forEach((id) => this.metadata.delete(id));
-
 		this.currentFrameValue = {
 			layout: cloneLayout(this.target),
-			opacityById: new Map(this.childIds.map((id) => [id, 1])),
 			contentHeight: this.target.hostSize.height,
 		};
 		this.setStartingLayout(this.target);
 		this.metadata.clear();
 		this.delegate.onAnimationEnded?.();
-		return removed;
 	}
 
 	private setStartingLayout(layout: Readonly<ProposedLayout>): void {
@@ -345,7 +309,6 @@ export class TabCollectionAnimatingLayoutManager {
 			hostSize: { ...this.target.hostSize },
 			children: [],
 		};
-		const opacityById = new Map<string, number>();
 		let contentHeight = tweenInt(
 			value,
 			this.startingLayout.hostSize.height,
@@ -355,29 +318,19 @@ export class TabCollectionAnimatingLayoutManager {
 		for (const id of this.childIds) {
 			const target = this.targetMap.get(id);
 			const start = this.startMap.get(id);
-			const metadata = this.metadata.get(id) ?? defaultMetadata();
+			const metadata = this.metadata.get(id);
 
 			if (target) {
 				const child = cloneChild(target);
-				if (this.delegate.isViewDragging?.(id)) {
-					opacityById.set(id, 1);
-				} else if (start) {
+				if (!this.delegate.isViewDragging?.(id) && start) {
 					child.bounds = tweenRect(value, start.bounds, target.bounds);
 					child.visible = target.visible;
-					opacityById.set(id, 1);
-				} else if (!this.delegate.shouldSnapToTarget?.(id)) {
-					if (metadata.previousCollectionBounds) {
-						child.bounds = tweenRect(value, metadata.previousCollectionBounds, target.bounds);
-						opacityById.set(id, 1);
-					} else {
-						const initial = cloneRect(target.bounds);
-						if (this.animationAxis === TabCollectionAnimationAxis.Vertical) initial.height = 0;
-						else initial.width = 0;
-						child.bounds = tweenRect(value, initial, target.bounds);
-						opacityById.set(id, metadata.hasOpacityLayer ? value : 1);
-					}
-				} else {
-					opacityById.set(id, 1);
+				} else if (
+					!this.delegate.isViewDragging?.(id) &&
+					!this.delegate.shouldSnapToTarget?.(id) &&
+					metadata?.previousCollectionBounds
+				) {
+					child.bounds = tweenRect(value, metadata.previousCollectionBounds, target.bounds);
 				}
 				if (!isEmptyRect(child.bounds))
 					contentHeight = Math.max(contentHeight, bottom(child.bounds));
@@ -385,20 +338,7 @@ export class TabCollectionAnimatingLayoutManager {
 				continue;
 			}
 
-			if (start && metadata.pendingDeletion) {
-				const child = cloneChild(start);
-				const targetBounds = cloneRect(start.bounds);
-				if (this.animationAxis === TabCollectionAnimationAxis.Vertical) targetBounds.height = 0;
-				else targetBounds.width = 0;
-				child.bounds = tweenRect(value, start.bounds, targetBounds);
-				opacityById.set(id, metadata.hasOpacityLayer ? 1 - value : 1);
-				if (!isEmptyRect(child.bounds))
-					contentHeight = Math.max(contentHeight, bottom(child.bounds));
-				result.children.push(child);
-				continue;
-			}
-
-			if (metadata.previousCollectionBounds && !start) {
+			if (metadata?.previousCollectionBounds && !start) {
 				const startBounds = cloneRect(metadata.previousCollectionBounds);
 				const targetBounds = cloneRect(startBounds);
 				const source = metadata.sourceLayoutInfo;
@@ -420,27 +360,32 @@ export class TabCollectionAnimatingLayoutManager {
 					visible: true,
 					bounds: tweenRect(value, startBounds, targetBounds),
 				};
-				opacityById.set(id, 1);
 				if (!isEmptyRect(child.bounds))
 					contentHeight = Math.max(contentHeight, bottom(child.bounds));
 				result.children.push(child);
 			}
 		}
 
-		return { layout: result, opacityById, contentHeight };
+		return { layout: result, contentHeight };
 	}
 
 	private getMetadata(id: string): ViewAnimationMetadata {
 		let metadata = this.metadata.get(id);
 		if (!metadata) {
-			metadata = defaultMetadata();
+			metadata = {};
 			this.metadata.set(id, metadata);
 		}
 		return metadata;
 	}
 }
 
-/** CSS/Web Animations equivalent of Chromium's 200ms EASE_IN_OUT tween. */
+/** DOM equivalent of the EASE_OUT tween used by Chromium's BoundsAnimator. */
+export function tabCollectionEaseOut(value: number): number {
+	const clamped = clamp01(value);
+	return 1 - (1 - clamped) ** 2;
+}
+
+/** DOM equivalent of the EASE_IN_OUT tween used by collection layout animations. */
 export function tabCollectionEaseInOut(value: number): number {
 	const clamped = clamp01(value);
 	return clamped < 0.5 ? 2 * clamped * clamped : 1 - (-2 * clamped + 2) ** 2 / 2;

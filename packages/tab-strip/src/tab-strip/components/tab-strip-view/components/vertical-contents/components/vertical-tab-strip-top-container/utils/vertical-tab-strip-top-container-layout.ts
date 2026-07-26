@@ -4,7 +4,7 @@ import { LAYOUT_CONSTANTS } from '../../../../../../../layout/layout-constants';
 import { TabStripOrientation } from '../../../../../../../types/tab-strip-types';
 
 export interface VerticalTopContainerChildLayout {
-	id: 'unfocus' | 'collapse' | 'combo';
+	id: 'collapse' | 'combo';
 	visible: boolean;
 	bounds: Rect;
 }
@@ -18,10 +18,8 @@ export interface VerticalTopContainerLayoutInput {
 	collapsed?: boolean;
 	isExitingExpandOnHover?: boolean;
 	collapseVisible?: boolean;
-	unfocusVisible?: boolean;
 	comboEndVisible?: boolean;
 	collapsePreferredSize?: Size;
-	unfocusPreferredSize?: Size;
 	comboButtonSize?: number;
 }
 
@@ -59,10 +57,6 @@ export function getVerticalTopContainerPreferredWidth(
 		width +=
 			(input.collapsePreferredSize?.width ?? LAYOUT_CONSTANTS.verticalTabStripCollapseButtonSize) +
 			padding;
-	if (input.unfocusVisible ?? false)
-		width +=
-			(input.unfocusPreferredSize?.width ?? LAYOUT_CONSTANTS.verticalTabStripCollapseButtonSize) +
-			padding;
 	return width;
 }
 
@@ -84,7 +78,6 @@ export function calculateVerticalTopContainerLayout(
 	const toolbarHeight = Math.max(0, input.toolbarHeight ?? 0);
 	const captionWidth = Math.max(0, input.captionButtonWidth ?? 0);
 	const collapseVisible = input.collapseVisible ?? true;
-	const unfocusVisible = input.unfocusVisible ?? false;
 	const comboVisible = input.comboEndVisible ?? true;
 	const collapsed = input.collapsed ?? false;
 	const bounded = input.widthIsBounded ?? true;
@@ -94,7 +87,6 @@ export function calculateVerticalTopContainerLayout(
 		width: LAYOUT_CONSTANTS.verticalTabStripCollapseButtonSize,
 		height: LAYOUT_CONSTANTS.verticalTabStripCollapseButtonSize,
 	};
-	const unfocusSize = input.unfocusPreferredSize ?? collapseSize;
 	const comboButtonSize =
 		input.comboButtonSize ?? LAYOUT_CONSTANTS.verticalTabStripTopContainerButtonSize;
 	const comboHorizontal = comboPreferredSize(comboVisible, comboButtonSize);
@@ -113,7 +105,6 @@ export function calculateVerticalTopContainerLayout(
 
 	const baselineMinHeight = () => {
 		let height = 0;
-		if (unfocusVisible) height = Math.max(height, unfocusSize.height);
 		if (collapseVisible) height = Math.max(height, collapseSize.height);
 		if (comboVisible) height = Math.max(height, comboHorizontal.height);
 		if (toolbarHeight === 0) height += LAYOUT_CONSTANTS.toolbarButtonInsetHeight;
@@ -124,24 +115,13 @@ export function calculateVerticalTopContainerLayout(
 		!useVertical && bounded && willVerticalTopContainerWrap(input, availableWidth);
 
 	if (useVertical) {
-		let firstButtonHeight = 0;
-		if (unfocusVisible) firstButtonHeight = unfocusSize.height;
-		else if (collapseVisible) firstButtonHeight = collapseSize.height;
+		const firstButtonHeight = collapseVisible ? collapseSize.height : 0;
 		let y =
 			firstButtonHeight > 0
 				? Math.max(0, Math.floor((baselineMinHeight() - firstButtonHeight) / 2))
 				: 0;
 		if (captionWidth > 0) y = Math.max(y, toolbarHeight);
 
-		if (unfocusVisible) {
-			const x = collapsed
-				? 0
-				: Math.max(0, Math.floor((computedHostWidth - unfocusSize.width) / 2));
-			const bounds = { x, y, ...unfocusSize };
-			add('unfocus', true, bounds);
-			computedHostWidth = Math.max(computedHostWidth, x + unfocusSize.width);
-			y += unfocusSize.height;
-		}
 		if (collapseVisible) {
 			const x = collapsed
 				? 0
@@ -186,16 +166,6 @@ export function calculateVerticalTopContainerLayout(
 				);
 		}
 		let nextComboY = 0;
-		if (unfocusVisible) {
-			const bounds = {
-				x: left,
-				y: Math.max(0, yBaseline - Math.floor(unfocusSize.height / 2)),
-				...unfocusSize,
-			};
-			add('unfocus', true, bounds);
-			nextComboY =
-				bounds.y + bounds.height + LAYOUT_CONSTANTS.verticalTabStripCollapsedVerticalPadding;
-		}
 		if (collapseVisible) {
 			const bounds = {
 				x: left,

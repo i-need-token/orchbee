@@ -33,6 +33,7 @@ export interface DragSessionDataInit<TVisualData = unknown> {
 		y: number;
 	};
 	dragStartTime?: number;
+	dragStartAnimationRequired?: boolean;
 }
 
 /** Data-only port of dragging/DragSessionData and its convenience helpers. */
@@ -45,7 +46,9 @@ export class DragSessionData<TVisualData = unknown> {
 		x: number;
 		y: number;
 	}>;
-	public readonly dragStartTime: number;
+	private dragStarted: boolean;
+	private dragStartedAt: number;
+	private shouldAnimateDragStart: boolean;
 	public constructor(init: DragSessionDataInit<TVisualData>) {
 		if (init.tabDragData.length === 0)
 			throw new Error('A drag session requires at least one dragged view.');
@@ -72,7 +75,25 @@ export class DragSessionData<TVisualData = unknown> {
 		this.mouseOffsetToSizeRatios = Object.freeze({
 			...init.mouseOffsetToSizeRatios,
 		});
-		this.dragStartTime = init.dragStartTime ?? Date.now();
+		this.dragStarted = init.dragStartTime !== undefined;
+		this.dragStartedAt = init.dragStartTime ?? 0;
+		this.shouldAnimateDragStart =
+			init.dragStartTime !== undefined && (init.dragStartAnimationRequired ?? true);
+	}
+	public get dragStartTime(): number {
+		return this.dragStartedAt;
+	}
+	public get hasDragStarted(): boolean {
+		return this.dragStarted;
+	}
+	public get dragStartAnimationRequired(): boolean {
+		return this.shouldAnimateDragStart;
+	}
+	public markDragStarted(now = performance.now(), dragStartAnimationRequired = true): void {
+		if (this.dragStarted) return;
+		this.dragStarted = true;
+		this.dragStartedAt = now;
+		this.shouldAnimateDragStart = dragStartAnimationRequired;
 	}
 	public get groupHeaderId(): TabGroupId | null {
 		return this.groupHeaderDragData?.group ?? null;

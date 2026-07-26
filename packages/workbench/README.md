@@ -13,6 +13,10 @@ tab-strip surface reserves its footprint so the control never overlaps the first
 separate background. The localized sidebar provides `New Terminal`, `Search`, a `Project` section
 heading, and a bottom-anchored `Settings` action.
 
+Right-clicking blank tab-strip space exposes a localized orientation action. The Workbench switches
+the strip and content layout between a top horizontal strip and a left vertical strip while tabs,
+groups, and the new-tab control keep their existing context menus.
+
 The shell composes primitives from `@orchbee/ui` without owning terminal sessions, search,
 settings, project, authentication, routing, or agent orchestration lifecycles. The machine-readable
 scope contract lives in [`project.json`](project.json).
@@ -66,17 +70,21 @@ export function ProductInterface({
 }
 ```
 
-When storage is provided, Workbench restores `orchbee:workbench:left-panel-width:v1` and
-`orchbee:workbench:left-panel-visibility:v1`. It parses complete JSON records with feature-owned
-strict Zod schemas, saves width only after a completed user resize, and saves visibility only after
-the button or shortcut invokes the semantic toggle action. Missing, malformed, unavailable, or
-out-of-range storage falls back to a visible `250px` sidebar without blocking rendering. The
-repository-wide ownership and key contract lives in
+When storage is provided, Workbench restores `orchbee:workbench:left-panel-width:v1`,
+`orchbee:workbench:left-panel-visibility:v1`, and
+`orchbee:workbench:tab-strip-orientation:v1`. It parses complete JSON records with feature-owned
+strict Zod schemas, saves width only after a completed user resize, and saves visibility or tab-strip
+orientation only after the corresponding semantic toggle action. Missing, malformed, unavailable,
+or out-of-range storage falls back to a visible `250px` sidebar and a horizontal tab strip without
+blocking rendering. The repository-wide ownership and key contract lives in
 [`docs/frontend/browser-storage.md`](../../docs/frontend/browser-storage.md).
 
 The host owns `TabModel` and terminal-session lifecycles. Workbench renders that model and forwards
 the tab-strip new-tab action to `onNewTerminal`; when the callback is absent, the tab-strip retains
-its local fallback behavior.
+its local fallback behavior. A desktop host may also pass `createCrossWindowDragRuntime` to connect
+the strip's pointer lifecycle to host-owned live-window discovery, compatibility checks, native
+window movement, capture, and move-loop behavior. Workbench and the browser application do not
+fabricate those operating-system capabilities.
 
 Workbench owns `Mod+B` for sidebar visibility, `Mod+N` for `onNewTerminal`, `Mod+K` for `onSearch`,
 and `Mod+,` for `onSettings`. Apple platforms display `⌘B`, `⌘N`, `⌘K`, and `⌘,`; standard

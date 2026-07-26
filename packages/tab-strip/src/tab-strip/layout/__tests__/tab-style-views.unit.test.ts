@@ -8,17 +8,17 @@ import {
 import { LAYOUT_CONSTANTS } from '../layout-constants';
 
 describe('TabStyleViews horizontal geometry', () => {
-	it('uses a 38px surface inside the even-pixel strip', () => {
+	it('uses the full 40px surface inside the even-pixel strip', () => {
 		expect(LAYOUT_CONSTANTS.tabStripHeight).toBe(40);
-		expect(HORIZONTAL_TAB_TOP_INSET).toBe(2);
-		expect(LAYOUT_CONSTANTS.tabStripHeight - HORIZONTAL_TAB_TOP_INSET).toBe(38);
+		expect(HORIZONTAL_TAB_TOP_INSET).toBe(0);
+		expect(LAYOUT_CONSTANTS.tabStripHeight - HORIZONTAL_TAB_TOP_INSET).toBe(40);
 		expect(TAB_CONTENT_HORIZONTAL_INSET).toBe(18);
 	});
 
-	it('ports the 2 by 16 separator geometry', () => {
+	it('uses the 1 by 20 separator geometry', () => {
 		expect(getHorizontalTabSeparatorBounds(100)).toEqual({
-			leading: { x: 6, y: 13, width: 2, height: 16 },
-			trailing: { x: 92, y: 13, width: 2, height: 16 },
+			leading: { x: 7, y: 10, width: 1, height: 20 },
+			trailing: { x: 92, y: 10, width: 1, height: 20 },
 		});
 	});
 });

@@ -4,14 +4,22 @@ import { DEFAULT_TAB_STRIP_MESSAGES } from './constants/default-tab-strip-messag
 import { TabStripMessagesContext } from './contexts/tab-strip-messages-context';
 import { useTabStrip } from './hooks/useTabStrip';
 import type { TabStripMessages } from './types/tab-strip-messages';
-import type { TabStripCrossWindowDragRuntime, TabStripOptions } from './types/tab-strip-options';
+import type {
+	TabStripCrossWindowDragRuntime,
+	TabStripCrossWindowDragRuntimeFactory,
+	TabStripOptions,
+} from './types/tab-strip-options';
 
 export interface TabStripProps extends TabStripOptions {
 	horizontalLeadingActions?: ReactNode;
 	messages?: TabStripMessages;
 }
 
-export type { TabStripCrossWindowDragRuntime, TabStripMessages };
+export type {
+	TabStripCrossWindowDragRuntime,
+	TabStripCrossWindowDragRuntimeFactory,
+	TabStripMessages,
+};
 
 export function TabStrip({
 	horizontalLeadingActions = null,

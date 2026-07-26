@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TabModel } from '../../model/tab-model';
+import { DragSessionData, DragSlotViewType } from '../drag-session-data';
 import type { TabDragContext, TabDragPositioningDelegate } from '../tab-drag-context';
 import type { TabDragTarget, TabDragTargetController } from '../tab-drag-target';
 import {
@@ -77,12 +78,11 @@ describe('DomTabDragRegistry', () => {
 		expect(registry.getDragTarget('front', { x: 150, y: 200 })).toBe(dragTarget);
 	});
 
-	it('uses the wider touch magnetism and unregisters browser hosts', () => {
+	it('uses Chromium current 15 DIP magnetism for touch and unregisters browser hosts', () => {
 		const registry = new DomTabDragRegistry();
 		const unregister = registry.registerBrowser({
 			browserId: 'touch',
 			context: context('touch'),
-			touch: true,
 			getWindowBounds: () => ({ x: 0, y: 0, width: 300, height: 300 }),
 			getTabStripBounds: () => ({ x: 0, y: 50, width: 200, height: 40 }),
 		});
@@ -92,6 +92,72 @@ describe('DomTabDragRegistry', () => {
 		).toBe('touch');
 		unregister();
 		expect(registry.getBrowserIdAtPoint({ x: 50, y: 50 })).toBeNull();
+	});
+
+	it('uses live z-order, liveness, and compatibility when resolving a target', () => {
+		const registry = new DomTabDragRegistry();
+		const dragSessionData = new DragSessionData({
+			tabDragData: [
+				{
+					sourceModelIndex: 0,
+					viewType: DragSlotViewType.Tab,
+					contentsId: 'back-tab',
+					attachedViewId: 'back-tab',
+					pinned: false,
+					tabGroupData: null,
+				},
+			],
+			sourceViewIndex: 0,
+			mouseOffsetToSizeRatios: { x: 0.5, y: 0.5 },
+		});
+		let frontZOrder = 2;
+		let frontAlive = true;
+		let compatible = false;
+		const back = context('back');
+		const front = context('front');
+		registry.registerBrowser({
+			browserId: 'back',
+			context: back,
+			getWindowBounds: () => ({ x: 0, y: 0, width: 300, height: 300 }),
+			getTabStripBounds: () => ({ x: 0, y: 0, width: 200, height: 40 }),
+			getZOrder: () => 1,
+		});
+		registry.registerBrowser({
+			browserId: 'front',
+			context: front,
+			getWindowBounds: () => ({ x: 0, y: 0, width: 300, height: 300 }),
+			getTabStripBounds: () => ({ x: 0, y: 0, width: 200, height: 40 }),
+			getZOrder: () => frontZOrder,
+			isAlive: () => frontAlive,
+			canAcceptDrag: () => compatible,
+		});
+
+		expect(registry.getBrowserIdAtPoint({ x: 20, y: 20 })).toBe('front');
+		expect(
+			registry.getContextAtPoint(
+				'front',
+				{ x: 20, y: 20 },
+				{
+					sessionData: dragSessionData,
+					sourceContext: back,
+				},
+			),
+		).toBeNull();
+		compatible = true;
+		expect(
+			registry.getContextAtPoint(
+				'front',
+				{ x: 20, y: 20 },
+				{
+					sessionData: dragSessionData,
+					sourceContext: back,
+				},
+			),
+		).toBe(front);
+		frontZOrder = 0;
+		expect(registry.getBrowserIdAtPoint({ x: 20, y: 20 })).toBe('back');
+		frontAlive = false;
+		expect(registry.getContextAtPoint('front', { x: 20, y: 20 })).toBeNull();
 	});
 
 	it('converts viewport bounds into cross-window screen coordinates', () => {

@@ -50,6 +50,8 @@ describe('Workbench', () => {
 		expect(markup).toContain('data-shortcut-action="workbench.terminal.create"');
 		expect(markup).toContain('⌘N');
 		expect(markup).toContain('data-slot="workbench-tab-bar"');
+		expect(markup).toContain('data-orientation="horizontal"');
+		expect(markup).toContain('data-tab-strip-orientation="horizontal"');
 		expect(markup).not.toContain('data-slot="workbench-tab-bar-leading-actions"');
 		expect(markup).toContain('data-slot="workbench-sidebar-search"');
 		expect(markup).toContain('data-icon="search"');
@@ -78,6 +80,16 @@ describe('Workbench', () => {
 		expect(markup).toContain('项目');
 		expect(markup).toContain('设置');
 		expect(markup).toContain('aria-label="终端标签页"');
+	});
+
+	it('restores the vertical tab-strip layout from host-provided storage', () => {
+		const markup = renderWorkbench((key) =>
+			key === 'orchbee:workbench:tab-strip-orientation:v1' ? '{"orientation":"vertical"}' : null,
+		);
+
+		expect(markup).toContain('data-orientation="vertical"');
+		expect(markup).toContain('data-tab-strip-orientation="vertical"');
+		expect(markup).toContain('aria-orientation="vertical"');
 	});
 
 	it('renders the visible sidebar, main panel, and localized toggle', () => {

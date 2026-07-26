@@ -12,6 +12,7 @@ import { GroupHeader } from '../../../group-header/GroupHeader';
 
 export function VerticalDragGroupVisual({
 	group,
+	collapsed,
 	tabs,
 	snapshot,
 	width,
@@ -20,6 +21,7 @@ export function VerticalDragGroupVisual({
 	closeButtonAllowed,
 }: {
 	group: Readonly<TabGroupData>;
+	collapsed: boolean;
 	tabs: readonly Readonly<TabData>[];
 	snapshot: TabModelSnapshot;
 	width: number;
@@ -27,6 +29,8 @@ export function VerticalDragGroupVisual({
 	touchUi: boolean;
 	closeButtonAllowed: boolean;
 }): ReactNode {
+	const presentedGroup =
+		group.collapsed === collapsed ? group : Object.freeze({ ...group, collapsed });
 	const renderTab = (tab: Readonly<TabData>) => (
 		<div key={tab.id} className={styles['ct-vertical-tab-wrap']} data-tab-strip-tab-wrapper=''>
 			<TabButton
@@ -55,7 +59,7 @@ export function VerticalDragGroupVisual({
 			className={styles['ct-vertical-group']}
 			data-tab-strip-group=''
 			data-group-id={group.id}
-			data-group-collapsed={group.collapsed || undefined}
+			data-group-collapsed={collapsed || undefined}
 			style={
 				{
 					'--ob-comp-tab-strip-inline-size': `${width}px`,
@@ -64,7 +68,7 @@ export function VerticalDragGroupVisual({
 			}
 		>
 			<GroupHeader
-				group={group}
+				group={presentedGroup}
 				tabs={tabs}
 				activeTabId={snapshot.activeTabId}
 				orientation={TabStripOrientation.Vertical}
@@ -78,7 +82,11 @@ export function VerticalDragGroupVisual({
 				onMouseLeave={() => undefined}
 				showHoverCard={false}
 			/>
-			<div className={styles['ct-vertical-group__tabs']} aria-hidden={group.collapsed || undefined}>
+			<div
+				className={styles['ct-vertical-group__tabs']}
+				data-tab-strip-group-tabs=''
+				aria-hidden={collapsed || undefined}
+			>
 				<div className={styles['ct-vertical-group__tabs-inner']}>{contents}</div>
 			</div>
 		</section>

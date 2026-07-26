@@ -21,3 +21,11 @@
 .ct-group-underline {
 	composes: ct-group-underline from '../../TabStripView.module.css';
 }
+
+.ct-horizontal-drag-context {
+	composes: ct-horizontal-drag-context from '../../TabStripView.module.css';
+}
+
+.ct-horizontal-drag-underline {
+	composes: ct-horizontal-drag-underline from '../../TabStripView.module.css';
+}

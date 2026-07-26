@@ -1,11 +1,14 @@
 import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
+import type { TabStripOrientation } from '@orchbee/tab-strip';
 import * as React from 'react';
 
 import {
 	readWorkbenchLeftPanelWidth,
 	readWorkbenchSidebarVisibility,
+	readWorkbenchTabStripOrientation,
 	writeWorkbenchLeftPanelWidth,
 	writeWorkbenchSidebarVisibility,
+	writeWorkbenchTabStripOrientation,
 	type WorkbenchLayoutStorage,
 } from '../../workbench-layout-storage';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
@@ -42,6 +45,8 @@ interface WorkbenchView {
 	readonly settingsLabel: string;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string;
+	readonly tabStripOrientation: TabStripOrientation;
+	readonly onTabStripOrientationChange: (orientation: TabStripOrientation) => void;
 	readonly toggleSidebar: () => void;
 }
 
@@ -64,6 +69,9 @@ export function useWorkbench({
 	const [isSidebarVisible, setIsSidebarVisible] = React.useState(() =>
 		readWorkbenchSidebarVisibility(storage),
 	);
+	const [tabStripOrientation, setTabStripOrientation] = React.useState<TabStripOrientation>(() =>
+		readWorkbenchTabStripOrientation(storage),
+	);
 	const [defaultLeftPanelWidth] = React.useState(() => readWorkbenchLeftPanelWidth(storage));
 	const leftPanelWidth = React.useRef(defaultLeftPanelWidth);
 	const toggleSidebar = React.useCallback(() => {
@@ -73,6 +81,13 @@ export function useWorkbench({
 			return nextVisibility;
 		});
 	}, [storage]);
+	const onTabStripOrientationChange = React.useCallback(
+		(orientation: TabStripOrientation) => {
+			setTabStripOrientation(orientation);
+			writeWorkbenchTabStripOrientation(storage, orientation);
+		},
+		[storage],
+	);
 
 	useWorkbenchShortcuts(shortcutPlatform, onNewTerminal, onSearch, onSettings, toggleSidebar);
 
@@ -103,6 +118,8 @@ export function useWorkbench({
 		settingsLabel: intl.formatMessage(workbenchMessages.settings),
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
 		settingsShortcutLabel: formatWorkbenchShortcut('settings', shortcutPlatform),
+		tabStripOrientation,
+		onTabStripOrientationChange,
 		toggleSidebar,
 	};
 }

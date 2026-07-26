@@ -813,16 +813,15 @@
 	--ob-comp-tab-strip-shadow-focus: 0 0 0 1px var(--ob-sys-color-border-focus);
 	--ob-comp-tab-strip-shadow-card: 0 6px 20px
 		color-mix(in srgb, var(--ob-sys-color-text-primary) 26%, transparent);
-	--ob-comp-tab-strip-focused-group-color: var(--ob-sys-color-data-3);
 	--ob-comp-tab-strip-group-color: var(--ob-sys-color-data-3);
 	--ob-comp-tab-strip-group-foreground: var(--ob-sys-color-text-inverse);
 	--ob-comp-tab-strip-group-option-color: var(--ob-sys-color-data-3);
+	--ob-comp-tab-strip-track-overlay: var(--ob-sys-color-surface-subtle);
 	--ob-comp-tab-strip-tab-icon-surface: var(--ob-sys-color-surface-raised);
 	--ob-comp-tab-strip-alert-fade-duration: var(--ob-sys-motion-duration-tab-strip-layout);
-	--ob-comp-tab-strip-drag-initial-offset-x: var(--ob-ref-space-0);
-	--ob-comp-tab-strip-drag-initial-offset-y: var(--ob-ref-space-0);
 	--ob-comp-tab-strip-bottom-inset-block: var(--ob-ref-space-0);
 	--ob-comp-tab-strip-bottom-inset-inline: var(--ob-ref-space-0);
+	--ob-comp-tab-strip-pin-control-offset: var(--ob-ref-space-0);
 	--ob-comp-tab-strip-inline-start: var(--ob-ref-space-0);
 	--ob-comp-tab-strip-block-start: var(--ob-ref-space-0);
 	--ob-comp-tab-strip-inline-size: var(--ob-ref-space-0);

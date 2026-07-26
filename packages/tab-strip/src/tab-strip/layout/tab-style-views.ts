@@ -1,10 +1,10 @@
 import { LAYOUT_CONSTANTS } from './layout-constants';
 
 export const TAB_BOTTOM_CORNER_RADIUS = 10;
-export const HORIZONTAL_TAB_TOP_INSET = 2;
+export const HORIZONTAL_TAB_TOP_INSET = 0;
 export const TAB_SURFACE_HORIZONTAL_INSET = 10;
-export const TAB_SEPARATOR_WIDTH = 2;
-export const TAB_SEPARATOR_HEIGHT = 16;
+export const TAB_SEPARATOR_WIDTH = 1;
+export const TAB_SEPARATOR_HEIGHT = 20;
 export const TAB_SEPARATOR_HORIZONTAL_MARGIN = 2;
 export const TAB_HORIZONTAL_CONTENT_PADDING = 8;
 export const TAB_CONTENT_HORIZONTAL_INSET =
@@ -43,7 +43,7 @@ function hasVisibleTabBackground(tab: Readonly<TabSeparatorState> | null): boole
 
 /**
  * Steady-state form of TabStyleViewsImpl::GetSeparatorOpacity. CSS animates
- * between these targets using the same 200ms hover duration as Chromium.
+ * between these targets using the configured tab-strip hover duration.
  */
 export function getHorizontalTabSeparatorTargets(input: {
 	tab: Readonly<TabSeparatorState>;

@@ -13,6 +13,7 @@ import {
 	TabHoverCardController,
 } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
 import { TabHoverCardThumbnailRuntime } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-runtime';
+import { resolveTabKeyboardReorder } from '../accessibility/resolveTabKeyboardReorder';
 import { TabActive, TabOpen, TabPinned } from '../model/tab-types';
 import { type TabData, type TabGroupData } from '../model/tab-model';
 import {
@@ -22,6 +23,7 @@ import {
 } from '../dragging/horizontal-group-drag-model-adapter';
 import {
 	buildDraggedTabsLayout,
+	getDragStartAnimationProgress,
 	getDraggingViewsBoundsAtPoint,
 	getTargetBeforeDraggedTabs,
 	shouldEnterVerticalTabGroup,
@@ -30,6 +32,7 @@ import {
 import {
 	calculateGroupForDraggedTabs,
 	calculateHorizontalMoveThreshold,
+	shouldReorderDraggedTabs,
 } from '../dragging/dragging-tabs-session';
 import { getHorizontalDragTarget } from '../dragging/tab-strip-drag-position';
 import { transitionHorizontalGroupDrag } from '../dragging/horizontal-group-drag-machine';
@@ -46,7 +49,7 @@ import { TabWidthConstraints } from '../layout/TabWidthConstraints';
 import { calculateTabBounds } from '../layout/tab-strip-layout';
 import { getPinnedTabContainerDragAxes } from '../layout/pinned-tab-container-layout';
 import {
-	tabCollectionEaseInOut,
+	tabCollectionEaseOut,
 	type AnimatedLayoutFrame,
 } from '../layout/tab-collection-animating-layout-manager';
 import { requireDefined } from '../utils/requireDefined';
@@ -70,7 +73,6 @@ import {
 	TAB_BOUNDS_ANIMATION_DURATION_MS,
 	requestManagedAnimationFrame,
 	cancelManagedAnimationFrame,
-	GROUP_COLORS,
 	packHorizontalDragViews,
 	getSourceVisualId,
 	getVerticalDragVisualViews,
@@ -81,15 +83,28 @@ import {
 	groupHeaderWidth,
 	sizeInfoForItem,
 	groupForDragInsertion,
+	dragRequiresStartCompaction,
 	type DragState,
 	type MenuState,
 	type HoverState,
 } from '../utils/tab-strip-internals';
 
+const HORIZONTAL_DRAG_SETTLE_FALLBACK_DELAY_MS = TAB_BOUNDS_ANIMATION_DURATION_MS + 50;
+
+interface DragPointerUpdate {
+	readonly pointerId: number;
+	readonly clientX: number;
+	readonly clientY: number;
+	readonly screenX: number;
+	readonly screenY: number;
+	readonly forceReorder?: boolean;
+}
+
 export function useTabStrip(
 	{
 		model,
 		orientation = TabStripOrientation.Horizontal,
+		onOrientationChange,
 		verticalCollapsed = false,
 		verticalExpandOnHover = true,
 		verticalExpandOnHoverController,
@@ -101,15 +116,12 @@ export function useTabStrip(
 		onVerticalExpandedOnHoverChange,
 		showVerticalTopControls = true,
 		showVerticalTabSearchButton = false,
-		verticalGroupFocused = false,
-		showPinnedTabsInFocusedGroups = false,
 		verticalTabSearchOpen = false,
 		verticalComboButtonController: externalComboButtonController,
 		verticalToolbarHeight = 0,
 		verticalCaptionButtonWidth = 0,
 		verticalIsExitingExpandOnHover = false,
 		onVerticalCollapsedChange,
-		onVerticalUnfocusGroup,
 		onVerticalTabSearchClick,
 		onVerticalExpandOnHoverChange,
 		showNewTabButton = true,
@@ -121,7 +133,6 @@ export function useTabStrip(
 		onTabKeyboardFocusChanged,
 		onMoveTabsToNewWindow,
 		onMoveGroupToNewWindow,
-		enableTabGroupFocusing = false,
 		ariaLabel,
 		onNewTab,
 		onNewTabButtonPressed,
@@ -130,18 +141,6 @@ export function useTabStrip(
 ): TabStripViewModel {
 	const snapshot = useSyncExternalStore(model.subscribe, model.getSnapshot, model.getSnapshot);
 	const horizontal = orientation === TabStripOrientation.Horizontal;
-	const focusedGroup =
-		snapshot.focusedGroupId === null
-			? null
-			: (snapshot.groups.find((group) => group.id === snapshot.focusedGroupId) ?? null);
-	const groupFocusActive = focusedGroup !== null;
-	const tabVisibleWhileFocused = useCallback(
-		(tab: Readonly<TabData>) =>
-			!groupFocusActive ||
-			tab.group === focusedGroup?.id ||
-			(showPinnedTabsInFocusedGroups && tab.pinned),
-		[focusedGroup?.id, groupFocusActive, showPinnedTabsInFocusedGroups],
-	);
 	const [stripRef, stripSize] = useElementSize<HTMLDivElement>();
 	const [horizontalTrackRef, horizontalTrackSize] = useElementSize<HTMLDivElement>(horizontal);
 	const size = horizontal ? horizontalTrackSize : stripSize;
@@ -159,27 +158,44 @@ export function useTabStrip(
 	// can still run its legacy cleanup closure without referencing a removed hook.
 	const hoverTimer = useRef<number | null>(null);
 	const [drag, setDrag] = useState<DragState | null>(null);
-	const [closingTabIds, setClosingTabIds] = useState<ReadonlySet<string>>(() => new Set());
-	const initialFullyCollapsedGroups = snapshot.groups
-		.filter((group) => group.collapsed)
-		.map((group) => group.id);
-	const [fullyCollapsedGroupIds, setFullyCollapsedGroupIds] = useState<ReadonlySet<string>>(
-		() => new Set(initialFullyCollapsedGroups),
-	);
+	const dragStartAnimationRequestRef = useRef<number | null>(null);
+	const verticalGroupPickupFrameRef = useRef<number | null>(null);
 	const [tabClosingMode, setTabClosingMode] = useState<{
 		width: number;
 		source: Exclude<TabCloseSource, 'non-ui'>;
 	} | null>(null);
 	const [announcement, setAnnouncement] = useState({ text: '', sequence: 0 });
-	const closingTimers = useRef(new Map<string, number>());
-	const collapsedGroupTimers = useRef(new Map<string, number>());
-	const fullyCollapsedGroupIdsRef = useRef(new Set(initialFullyCollapsedGroups));
 	const middlePressRef = useRef<{ tabId: string; pointerId: number } | null>(null);
-	const touchDragTimer = useRef<number | null>(null);
+	const touchLongPressTimer = useRef<number | null>(null);
+	const animationBlockedPressRef = useRef<{
+		kind: 'tab' | 'group';
+		id: string;
+		pointerId: number;
+		pointerType: string;
+		startX: number;
+		startY: number;
+		shiftPressed: boolean;
+		modifierPressed: boolean;
+		longPressRecognized: boolean;
+	} | null>(null);
 	const dragSettleTimer = useRef<number | null>(null);
 	const dragRef = useRef<DragState | null>(null);
+	const repositionDragAfterScrollRef = useRef<() => void>(() => {});
+	const lastMousePositionRef = useRef<{ x: number; y: number } | null>(null);
+	const horizontalAnimationWasRunningRef = useRef(false);
 	const previousTabCountRef = useRef(snapshot.tabs.length);
+	const verticalTabCountTransitionFrameRef = useRef<number | null>(null);
+	const [verticalTabCountTransitionSuppressed, setVerticalTabCountTransitionSuppressed] =
+		useState(false);
+	const previousActiveTabIdRef = useRef(snapshot.activeTabId);
+	const previousHorizontalActivationGeometryKeyRef = useRef<string | null>(null);
+	const previousSelectionRef = useRef({
+		activeTabId: snapshot.activeTabId,
+		selectedTabIds: snapshot.selectedTabIds,
+	});
+	const tabCountChanged = snapshot.tabs.length !== previousTabCountRef.current;
 	const suppressGroupToggleRef = useRef<string | null>(null);
+	const suppressGroupToggleResetTimer = useRef<number | null>(null);
 	const previousDraggingRef = useRef(false);
 	const onDraggingChangeRef = useRef(onDraggingChange);
 	const groupEditorTrackerRef = useRef<TabGroupEditorBubbleTracker | null>(null);
@@ -195,8 +211,61 @@ export function useTabStrip(
 		},
 		[groupEditorTracker],
 	);
+	const scheduleSuppressedGroupToggleReset = useCallback((groupId: string) => {
+		if (suppressGroupToggleResetTimer.current !== null) {
+			window.clearTimeout(suppressGroupToggleResetTimer.current);
+		}
+		suppressGroupToggleResetTimer.current = window.setTimeout(() => {
+			suppressGroupToggleResetTimer.current = null;
+			if (suppressGroupToggleRef.current === groupId) suppressGroupToggleRef.current = null;
+		}, 0);
+	}, []);
+	const cancelVerticalGroupPickupFrame = useCallback(() => {
+		if (verticalGroupPickupFrameRef.current === null) return;
+		cancelManagedAnimationFrame(verticalGroupPickupFrameRef.current);
+		verticalGroupPickupFrameRef.current = null;
+	}, []);
 	dragRef.current = drag;
 	onDraggingChangeRef.current = onDraggingChange;
+
+	useEffect(() => {
+		if (dragStartAnimationRequestRef.current !== null) {
+			cancelManagedAnimationFrame(dragStartAnimationRequestRef.current);
+			dragStartAnimationRequestRef.current = null;
+		}
+		if (
+			drag?.started !== true ||
+			drag.settling ||
+			!drag.dragStartAnimationRequired ||
+			drag.dragStartAnimationStartedAt === null
+		)
+			return;
+		const startedAt = drag.dragStartAnimationStartedAt;
+		const tick = (now: number) => {
+			const progress = getDragStartAnimationProgress(startedAt, now);
+			setDrag((candidate) =>
+				candidate?.dragStartAnimationStartedAt === startedAt
+					? { ...candidate, dragStartAnimationProgress: progress }
+					: candidate,
+			);
+			if (progress < 1) {
+				dragStartAnimationRequestRef.current = requestManagedAnimationFrame(tick);
+			} else {
+				dragStartAnimationRequestRef.current = null;
+			}
+		};
+		dragStartAnimationRequestRef.current = requestManagedAnimationFrame(tick);
+		return () => {
+			if (dragStartAnimationRequestRef.current === null) return;
+			cancelManagedAnimationFrame(dragStartAnimationRequestRef.current);
+			dragStartAnimationRequestRef.current = null;
+		};
+	}, [
+		drag?.dragStartAnimationRequired,
+		drag?.dragStartAnimationStartedAt,
+		drag?.settling,
+		drag?.started,
+	]);
 
 	useEffect(() => {
 		const started = drag?.started === true && !drag.settling;
@@ -207,20 +276,103 @@ export function useTabStrip(
 
 	useEffect(
 		() => () => {
-			if (touchDragTimer.current !== null) {
-				window.clearTimeout(touchDragTimer.current);
-				touchDragTimer.current = null;
+			if (touchLongPressTimer.current !== null) {
+				window.clearTimeout(touchLongPressTimer.current);
+				touchLongPressTimer.current = null;
 			}
 			if (dragSettleTimer.current !== null) {
 				window.clearTimeout(dragSettleTimer.current);
 				dragSettleTimer.current = null;
 			}
+			if (suppressGroupToggleResetTimer.current !== null) {
+				window.clearTimeout(suppressGroupToggleResetTimer.current);
+				suppressGroupToggleResetTimer.current = null;
+			}
+			if (dragStartAnimationRequestRef.current !== null) {
+				cancelManagedAnimationFrame(dragStartAnimationRequestRef.current);
+				dragStartAnimationRequestRef.current = null;
+			}
+			cancelVerticalGroupPickupFrame();
 			if (!previousDraggingRef.current) return;
 			previousDraggingRef.current = false;
 			onDraggingChangeRef.current?.(false);
 		},
-		[],
+		[cancelVerticalGroupPickupFrame],
 	);
+
+	useEffect(() => {
+		const finishAnimationBlockedPress = (event: PointerEvent) => {
+			const press = animationBlockedPressRef.current;
+			if (!press || press.pointerId !== event.pointerId) return;
+			animationBlockedPressRef.current = null;
+			if (touchLongPressTimer.current !== null) {
+				window.clearTimeout(touchLongPressTimer.current);
+				touchLongPressTimer.current = null;
+			}
+			if (event.type === 'pointercancel') return;
+			if (press.pointerType === 'touch' && press.longPressRecognized) {
+				if (press.kind === 'tab') {
+					setMenu({ kind: 'tab', id: press.id, x: event.clientX, y: event.clientY });
+				} else {
+					suppressGroupToggleRef.current = press.id;
+					scheduleSuppressedGroupToggleReset(press.id);
+					openGroupEditor(press.id, event.clientX, event.clientY);
+				}
+				return;
+			}
+			if (press.kind === 'tab' && !press.shiftPressed && !press.modifierPressed) {
+				model.selectTab(press.id);
+			}
+		};
+		window.addEventListener('pointerup', finishAnimationBlockedPress);
+		window.addEventListener('pointercancel', finishAnimationBlockedPress);
+		const moveAnimationBlockedPress = (event: PointerEvent) => {
+			const press = animationBlockedPressRef.current;
+			if (
+				!press ||
+				press.pointerId !== event.pointerId ||
+				press.pointerType !== 'touch' ||
+				Math.hypot(event.clientX - press.startX, event.clientY - press.startY) <= 10 ||
+				touchLongPressTimer.current === null
+			)
+				return;
+			window.clearTimeout(touchLongPressTimer.current);
+			touchLongPressTimer.current = null;
+		};
+		window.addEventListener('pointermove', moveAnimationBlockedPress);
+		return () => {
+			window.removeEventListener('pointerup', finishAnimationBlockedPress);
+			window.removeEventListener('pointercancel', finishAnimationBlockedPress);
+			window.removeEventListener('pointermove', moveAnimationBlockedPress);
+		};
+	}, [model, openGroupEditor, scheduleSuppressedGroupToggleReset]);
+
+	useEffect(() => {
+		const recordMousePosition = (event: PointerEvent) => {
+			if (event.pointerType !== 'mouse') return;
+			lastMousePositionRef.current = { x: event.clientX, y: event.clientY };
+		};
+		window.addEventListener('pointermove', recordMousePosition);
+		return () => window.removeEventListener('pointermove', recordMousePosition);
+	}, []);
+
+	const finishHorizontalDragSettle = useCallback(() => {
+		if (dragSettleTimer.current !== null) {
+			window.clearTimeout(dragSettleTimer.current);
+			dragSettleTimer.current = null;
+		}
+		setDrag((candidate) => {
+			if (!candidate?.settling) return candidate;
+			if (horizontal && candidate.horizontalGroupDrag !== null) {
+				const settled = transitionHorizontalGroupDrag(candidate.horizontalGroupDrag, {
+					type: 'settle',
+				});
+				applyHorizontalGroupDragCommands(model, candidate.restoreState, settled.commands);
+				assertHorizontalGroupDragRefinement(model, settled.state);
+			}
+			return null;
+		});
+	}, [horizontal, model]);
 
 	useEffect(() => {
 		if (menu?.kind === 'group') return;
@@ -252,12 +404,13 @@ export function useTabStrip(
 				target instanceof Element ? target.closest<HTMLElement>('[data-group-id]') : null;
 			if (menu.kind === 'group' && header?.dataset['groupId'] === menu.id) {
 				suppressGroupToggleRef.current = menu.id;
+				scheduleSuppressedGroupToggleReset(menu.id);
 			}
 			setMenu(null);
 		};
 		window.addEventListener('pointerdown', dismissOnOutsidePointer, true);
 		return () => window.removeEventListener('pointerdown', dismissOnOutsidePointer, true);
-	}, [menu]);
+	}, [menu, scheduleSuppressedGroupToggleReset]);
 
 	useEffect(() => {
 		if (previousOrientationRef.current === orientation) return;
@@ -286,19 +439,46 @@ export function useTabStrip(
 
 	useEffect(() => {
 		const current = dragRef.current;
-		if (!current?.started || current.settling) return;
+		if (!current || current.settling) return;
 		const liveIds = new Set(snapshot.tabs.map((tab) => tab.id));
 		if (current.tabIds.every((id) => liveIds.has(id))) return;
 		const runtimeSnapshot = current.crossWindowRuntime?.getSnapshot?.();
 		const transferredToAnotherContext =
+			current.started &&
 			runtimeSnapshot?.sourceContextId !== undefined &&
 			runtimeSnapshot.attachedContextId !== undefined &&
 			runtimeSnapshot.attachedContextId !== runtimeSnapshot.sourceContextId;
 		if (transferredToAnotherContext) return;
-		current.crossWindowRuntime?.end('tab-destroyed');
-		announce(messages.tabMoveCanceled);
+		if (touchLongPressTimer.current !== null) {
+			window.clearTimeout(touchLongPressTimer.current);
+			touchLongPressTimer.current = null;
+		}
+		if (current.started) {
+			current.crossWindowRuntime?.end('tab-destroyed');
+			announce(messages.tabMoveCanceled);
+		}
+		cancelVerticalGroupPickupFrame();
 		setDrag(null);
-	}, [messages.tabMoveCanceled, snapshot.revision, snapshot.tabs]);
+	}, [cancelVerticalGroupPickupFrame, messages.tabMoveCanceled, snapshot.revision, snapshot.tabs]);
+
+	useEffect(() => {
+		const runtime = drag?.crossWindowRuntime;
+		if (!runtime?.subscribe) return;
+		return runtime.subscribe(() => {
+			const runtimeSnapshot = runtime.getSnapshot?.();
+			if (runtimeSnapshot?.endReason !== 'tab-destroyed') return;
+			if (touchLongPressTimer.current !== null) {
+				window.clearTimeout(touchLongPressTimer.current);
+				touchLongPressTimer.current = null;
+			}
+			setAnnouncement((current) => ({
+				text: messages.tabMoveCanceled,
+				sequence: current.sequence + 1,
+			}));
+			cancelVerticalGroupPickupFrame();
+			setDrag((current) => (current?.crossWindowRuntime === runtime ? null : current));
+		});
+	}, [cancelVerticalGroupPickupFrame, drag?.crossWindowRuntime, messages.tabMoveCanceled]);
 
 	const announce = (text: string) => {
 		setAnnouncement((current) => ({ text, sequence: current.sequence + 1 }));
@@ -328,9 +508,10 @@ export function useTabStrip(
 					announce(messages.groupMoveCanceled);
 				}
 				dragRef.current = null;
+				cancelVerticalGroupPickupFrame();
 				setDrag(null);
 			}),
-		[horizontal, messages.groupMoveCanceled, model],
+		[cancelVerticalGroupPickupFrame, horizontal, messages.groupMoveCanceled, model],
 	);
 
 	const internalHoverCardController = useRef<TabHoverCardController | null>(null);
@@ -441,67 +622,10 @@ export function useTabStrip(
 		thumbnailRuntime,
 	]);
 
-	useEffect(
-		() => () => {
-			new Set(closingTimers.current.values()).forEach((timer) => window.clearTimeout(timer));
-			closingTimers.current.clear();
-		},
-		[],
-	);
-
-	const collapsedGroupStateKey = snapshot.groups
-		.map((group) => `${group.id}:${group.collapsed ? 1 : 0}`)
-		.join('|');
-	useEffect(() => {
-		const groups = model.getSnapshot().groups;
-		const liveGroups = new Set(groups.map((group) => group.id));
-		groups.forEach((group) => {
-			const pending = collapsedGroupTimers.current.get(group.id);
-			if (!group.collapsed) {
-				if (pending !== undefined) window.clearTimeout(pending);
-				collapsedGroupTimers.current.delete(group.id);
-				if (!fullyCollapsedGroupIdsRef.current.delete(group.id)) return;
-				setFullyCollapsedGroupIds(new Set(fullyCollapsedGroupIdsRef.current));
-				return;
-			}
-			if (fullyCollapsedGroupIdsRef.current.has(group.id) || pending !== undefined) return;
-			const timer = window.setTimeout(() => {
-				collapsedGroupTimers.current.delete(group.id);
-				const stillCollapsed = model
-					.getSnapshot()
-					.groups.some((candidate) => candidate.id === group.id && candidate.collapsed);
-				if (!stillCollapsed) return;
-				fullyCollapsedGroupIdsRef.current.add(group.id);
-				setFullyCollapsedGroupIds(new Set(fullyCollapsedGroupIdsRef.current));
-			}, TAB_BOUNDS_ANIMATION_DURATION_MS);
-			collapsedGroupTimers.current.set(group.id, timer);
-		});
-		[...collapsedGroupTimers.current].forEach(([groupId, timer]) => {
-			if (liveGroups.has(groupId)) return;
-			window.clearTimeout(timer);
-			collapsedGroupTimers.current.delete(groupId);
-			if (fullyCollapsedGroupIdsRef.current.delete(groupId)) {
-				setFullyCollapsedGroupIds(new Set(fullyCollapsedGroupIdsRef.current));
-			}
-		});
-		// The serialized key intentionally limits this effect to collapse/removal
-		// transitions; unrelated model revisions must not restart the 200ms timer.
-	}, [collapsedGroupStateKey, model]);
-
-	useEffect(
-		() => () => {
-			collapsedGroupTimers.current.forEach((timer) => window.clearTimeout(timer));
-			collapsedGroupTimers.current.clear();
-		},
-		[],
-	);
-
 	const requestCloseTabs = (tabIds: readonly string[], source: TabCloseSource = 'non-ui') => {
 		const beforeClose = model.getSnapshot();
 		const existingIds = new Set(beforeClose.tabs.map((tab) => tab.id));
-		const ids = [...new Set(tabIds)].filter(
-			(id) => existingIds.has(id) && !closingTimers.current.has(id),
-		);
+		const ids = [...new Set(tabIds)].filter((id) => existingIds.has(id));
 		if (ids.length === 0) return;
 		const closingTitles = beforeClose.tabs
 			.filter((tab) => ids.includes(tab.id))
@@ -539,23 +663,12 @@ export function useTabStrip(
 				setTabClosingMode(width === null ? null : { width, source });
 			}
 		}
-		setClosingTabIds((current) => new Set([...current, ...ids]));
-		const timer = window.setTimeout(() => {
-			const ready = ids.filter((id) => closingTimers.current.get(id) === timer);
-			ready.forEach((id) => closingTimers.current.delete(id));
-			model.closeTabs(ready);
-			if (ready.length === 1) {
-				announce(messages.formatClosedTabAnnouncement(requireDefined(closingTitles[0])));
-			} else if (ready.length > 1) {
-				announce(messages.formatClosedTabsAnnouncement(ready.length));
-			}
-			setClosingTabIds((current) => {
-				const next = new Set(current);
-				ready.forEach((id) => next.delete(id));
-				return next;
-			});
-		}, TAB_BOUNDS_ANIMATION_DURATION_MS);
-		ids.forEach((id) => closingTimers.current.set(id, timer));
+		model.closeTabs(ids);
+		if (ids.length === 1) {
+			announce(messages.formatClosedTabAnnouncement(requireDefined(closingTitles[0])));
+		} else {
+			announce(messages.formatClosedTabsAnnouncement(ids.length));
+		}
 	};
 
 	useEffect(() => {
@@ -563,7 +676,7 @@ export function useTabStrip(
 		let timer = 0;
 		const finishWhenIdle = () => {
 			timer = window.setTimeout(() => {
-				if (dragRef.current?.started) finishWhenIdle();
+				if (dragRef.current?.started && !dragRef.current.settling) finishWhenIdle();
 				else setTabClosingMode(null);
 			}, TAB_CLOSE_TOUCH_RESIZE_DELAY_MS);
 		};
@@ -572,7 +685,7 @@ export function useTabStrip(
 	}, [tabClosingMode?.source, tabClosingMode?.width]);
 
 	useEffect(() => {
-		if (tabClosingMode?.source !== 'mouse') return;
+		if (tabClosingMode?.source !== 'mouse' || menu?.kind === 'group') return;
 		const handlePointerMove = (event: PointerEvent) => {
 			const element = stripRef.current;
 			if (!element) return;
@@ -592,7 +705,7 @@ export function useTabStrip(
 		};
 		window.addEventListener('pointermove', handlePointerMove);
 		return () => window.removeEventListener('pointermove', handlePointerMove);
-	}, [stripRef, tabClosingMode?.source]);
+	}, [menu?.kind, stripRef, tabClosingMode?.source]);
 
 	useEffect(() => {
 		expandOnHoverController.setEnvironment({
@@ -643,29 +756,23 @@ export function useTabStrip(
 		horizontal && drag?.started && drag.groupHeaderId !== null && !drag.groupWasCollapsedBeforeDrag
 			? drag.groupHeaderId
 			: null;
-	const horizontalLayout = useMemo(() => {
+	const horizontalLayoutProjection = useMemo(() => {
 		if (!horizontal) return null;
+		const activationIndependentGeometry: Array<{
+			id: string;
+			open: TabOpen;
+			pinned: TabPinned;
+			size: ReturnType<typeof sizeInfoForItem>;
+		}> = [];
 		const constraints = items.map((item) => {
 			const group =
 				item.type === 'tab' && item.tab.group !== null
 					? snapshot.groups.find((candidate) => candidate.id === item.tab.group)
 					: null;
-			const hiddenByGroupFocus =
-				groupFocusActive &&
-				(item.type === 'group'
-					? item.group.id !== focusedGroup.id
-					: !tabVisibleWhileFocused(item.tab));
 			const hiddenByCollapsedGroup =
-				!groupFocusActive &&
-				item.type === 'tab' &&
-				Boolean(group?.collapsed) &&
-				group?.id !== expandedHeaderDragGroupId;
+				item.type === 'tab' && Boolean(group?.collapsed) && group?.id !== expandedHeaderDragGroupId;
 			const state = new TabLayoutState(
-				hiddenByGroupFocus ||
-					hiddenByCollapsedGroup ||
-					(item.type === 'tab' && closingTabIds.has(item.tab.id))
-					? TabOpen.Closed
-					: TabOpen.Open,
+				hiddenByCollapsedGroup ? TabOpen.Closed : TabOpen.Open,
 				item.type === 'tab' && item.tab.pinned ? TabPinned.Pinned : TabPinned.Unpinned,
 				item.type === 'tab' && item.tab.id === snapshot.activeTabId
 					? TabActive.Active
@@ -675,36 +782,56 @@ export function useTabStrip(
 				item.type === 'group' && item.group.id === expandedHeaderDragGroupId
 					? { ...item, group: { ...item.group, collapsed: false } }
 					: item;
-			return new TabWidthConstraints(state, sizeInfoForItem(sizeItem));
+			const sizeInfo = sizeInfoForItem(sizeItem);
+			activationIndependentGeometry.push({
+				id: item.id,
+				open: state.open,
+				pinned: state.pinned,
+				size: sizeInfo,
+			});
+			return new TabWidthConstraints(state, sizeInfo);
 		});
-		return calculateTabBounds(constraints, effectiveLayoutWidth);
+		return {
+			activationIndependentGeometryKey: JSON.stringify([
+				layoutWidth,
+				effectiveLayoutWidth,
+				activationIndependentGeometry,
+			]),
+			layout: calculateTabBounds(constraints, effectiveLayoutWidth),
+		};
 	}, [
-		closingTabIds,
 		effectiveLayoutWidth,
 		expandedHeaderDragGroupId,
-		focusedGroup?.id,
-		groupFocusActive,
 		horizontal,
 		items,
+		layoutWidth,
 		snapshot.groups,
 		snapshot.activeTabId,
-		tabVisibleWhileFocused,
 	]);
+	const horizontalLayout = horizontalLayoutProjection?.layout ?? null;
+	const horizontalActivationGeometryKey =
+		horizontalLayoutProjection?.activationIndependentGeometryKey ?? null;
 
 	useEffect(() => {
 		const runtime = horizontalAnimationRuntimeRef.current;
+		const previousActiveTabId = previousActiveTabIdRef.current;
+		const previousActivationGeometryKey = previousHorizontalActivationGeometryKeyRef.current;
+		previousActiveTabIdRef.current = snapshot.activeTabId;
+		previousHorizontalActivationGeometryKeyRef.current = horizontalActivationGeometryKey;
 		if (!runtime || !horizontal || !horizontalLayout) {
 			setAnimatedHorizontalFrame(null);
 			return;
 		}
-		if (horizontalAnimationRequestRef.current !== null) {
-			cancelManagedAnimationFrame(horizontalAnimationRequestRef.current);
-			horizontalAnimationRequestRef.current = null;
-		}
+		const activeChanged = previousActiveTabId !== snapshot.activeTabId;
+		const activationOnlyGeometryChange =
+			activeChanged &&
+			previousActivationGeometryKey !== null &&
+			previousActivationGeometryKey === horizontalActivationGeometryKey;
+		const animationWasRunning = runtime.isAnimating;
 		const target = {
 			// Tab-closing mode constrains child target bounds without resizing the
-			// collection host. Passing effectiveLayoutWidth here would trigger
-			// Chromium's real host-resize snap branch and skip close animation.
+			// collection host. Keeping the host width stable lets exiting closing
+			// mode animate the ordinary tabs back to their unconstrained layout.
 			hostSize: { width: layoutWidth, height: LAYOUT_CONSTANTS.tabStripHeight },
 			children: items.map((item, index) => {
 				const bounds = horizontalLayout.bounds[index] ?? {
@@ -725,6 +852,7 @@ export function useTabStrip(
 			items.map((item) => ({
 				id: item.id,
 				group: item.type === 'group' ? item.group.id : item.tab.group,
+				pinned: item.type === 'tab' ? item.tab.pinned : null,
 				dragging:
 					item.type === 'group'
 						? Boolean(
@@ -734,24 +862,65 @@ export function useTabStrip(
 						: Boolean(drag?.started && drag.tabIds.includes(item.tab.id)),
 			})),
 		);
+		// Chromium snaps active-width changes that begin from a steady tab strip.
+		// Existing bounds motion or a live drag is retargeted instead.
+		if (activationOnlyGeometryChange && !animationWasRunning && !drag?.started) {
+			if (horizontalAnimationRequestRef.current !== null) {
+				cancelManagedAnimationFrame(horizontalAnimationRequestRef.current);
+				horizontalAnimationRequestRef.current = null;
+			}
+			setAnimatedHorizontalFrame(runtime.complete());
+			return;
+		}
+		// Adding and closing tabs are immediate; the shared runtime still animates
+		// reorders and other same-count layout changes.
+		if (tabCountChanged) {
+			if (horizontalAnimationRequestRef.current !== null) {
+				cancelManagedAnimationFrame(horizontalAnimationRequestRef.current);
+				horizontalAnimationRequestRef.current = null;
+			}
+			setAnimatedHorizontalFrame(runtime.complete());
+			return;
+		}
 		setAnimatedHorizontalFrame(synced.frame);
-		// A render with an unchanged target can still arrive while a previous
-		// timeline is active (selection/collapse and drag-settle updates commonly
-		// do this together). We canceled that timeline's RAF above, so it must be
-		// resumed from its current progress instead of leaving a permanent
-		// half-interpolated frame.
-		if (!runtime.isAnimating) return;
+		if (!runtime.isAnimating) {
+			if (horizontalAnimationRequestRef.current !== null) {
+				cancelManagedAnimationFrame(horizontalAnimationRequestRef.current);
+				horizontalAnimationRequestRef.current = null;
+			}
+			return;
+		}
 		if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+			if (horizontalAnimationRequestRef.current !== null) {
+				cancelManagedAnimationFrame(horizontalAnimationRequestRef.current);
+				horizontalAnimationRequestRef.current = null;
+			}
 			setAnimatedHorizontalFrame(runtime.complete());
 			return;
 		}
 
+		// Drag cleanup changes slot ownership without changing target bounds. Keep
+		// the existing timeline running instead of restarting it from its current
+		// frame, matching BoundsAnimator's stable-target behavior.
+		if (!synced.changed && horizontalAnimationRequestRef.current !== null) return;
+		if (horizontalAnimationRequestRef.current !== null) {
+			cancelManagedAnimationFrame(horizontalAnimationRequestRef.current);
+			horizontalAnimationRequestRef.current = null;
+		}
+
 		const startedAt = performance.now();
 		const startProgress = synced.startProgress;
+		const duration = synced.changed
+			? TAB_BOUNDS_ANIMATION_DURATION_MS
+			: TAB_BOUNDS_ANIMATION_DURATION_MS * (1 - startProgress);
+		if (duration <= 0) {
+			setAnimatedHorizontalFrame(runtime.complete());
+			return;
+		}
 		const tick = (now: number) => {
 			const elapsed = Math.max(0, now - startedAt);
-			const timeline = Math.min(1, elapsed / TAB_BOUNDS_ANIMATION_DURATION_MS);
-			const progress = startProgress + (1 - startProgress) * tabCollectionEaseInOut(timeline);
+			const timeline = Math.min(1, elapsed / duration);
+			const progress = startProgress + (1 - startProgress) * tabCollectionEaseOut(timeline);
 			setAnimatedHorizontalFrame(runtime.setProgress(progress));
 			if (timeline < 1) {
 				horizontalAnimationRequestRef.current = requestManagedAnimationFrame(tick);
@@ -766,9 +935,12 @@ export function useTabStrip(
 		drag?.tabIds,
 		drag?.visualViews,
 		horizontal,
+		horizontalActivationGeometryKey,
 		horizontalLayout,
 		items,
 		layoutWidth,
+		snapshot.activeTabId,
+		tabCountChanged,
 	]);
 
 	useEffect(
@@ -789,12 +961,33 @@ export function useTabStrip(
 	}, [snapshot.tabs.length]);
 
 	useEffect(() => {
-		if (!tabClosingMode || closingTabIds.size > 0) return;
+		if (!tabCountChanged) return;
+		setVerticalTabCountTransitionSuppressed(true);
+		if (verticalTabCountTransitionFrameRef.current !== null) {
+			cancelManagedAnimationFrame(verticalTabCountTransitionFrameRef.current);
+		}
+		verticalTabCountTransitionFrameRef.current = requestManagedAnimationFrame(() => {
+			verticalTabCountTransitionFrameRef.current = null;
+			setVerticalTabCountTransitionSuppressed(false);
+		});
+	}, [snapshot.tabs.length, tabCountChanged]);
+
+	useEffect(
+		() => () => {
+			if (verticalTabCountTransitionFrameRef.current !== null) {
+				cancelManagedAnimationFrame(verticalTabCountTransitionFrameRef.current);
+			}
+		},
+		[],
+	);
+
+	useEffect(() => {
+		if (!tabClosingMode) return;
 		const trailing = horizontalLayout?.bounds.at(-1);
 		if (trailing && shouldExitTabClosingMode(tabClosingMode.width, trailing.x + trailing.width)) {
 			setTabClosingMode(null);
 		}
-	}, [closingTabIds, horizontalLayout, tabClosingMode]);
+	}, [horizontalLayout, tabClosingMode]);
 
 	const clearHover = useCallback(
 		(updateType: HoverCardUpdateType = HoverCardUpdateType.Hover) => {
@@ -806,85 +999,151 @@ export function useTabStrip(
 		[hoverCardController],
 	);
 
+	const completeHorizontalAnimationsForDragStart = useCallback(() => {
+		if (!horizontal) return;
+		if (horizontalAnimationRequestRef.current !== null) {
+			cancelManagedAnimationFrame(horizontalAnimationRequestRef.current);
+			horizontalAnimationRequestRef.current = null;
+		}
+		const runtime = horizontalAnimationRuntimeRef.current;
+		if (runtime?.isAnimating) setAnimatedHorizontalFrame(runtime.complete());
+	}, [horizontal]);
+
 	useEffect(() => {
-		if (!horizontalAnimationRuntimeRef.current?.isAnimating) return;
-		// TabContainerImpl suppresses hover cards while any tab-slot bounds are
-		// animating so cards never remain anchored to a moving view.
-		clearHover(HoverCardUpdateType.Animating);
-	}, [animatedHorizontalFrame, clearHover]);
+		const previousSelection = previousSelectionRef.current;
+		previousSelectionRef.current = {
+			activeTabId: snapshot.activeTabId,
+			selectedTabIds: snapshot.selectedTabIds,
+		};
+		const selectionChanged =
+			previousSelection.activeTabId !== snapshot.activeTabId ||
+			previousSelection.selectedTabIds.size !== snapshot.selectedTabIds.size ||
+			[...snapshot.selectedTabIds].some((tabId) => !previousSelection.selectedTabIds.has(tabId));
+		if (!selectionChanged) return;
+		clearHover(HoverCardUpdateType.SelectionChanged);
+	}, [clearHover, snapshot.activeTabId, snapshot.selectedTabIds]);
 
 	useEffect(() => () => clearHover(HoverCardUpdateType.Event), [clearHover]);
 
-	const updateHoverForElement = (
-		element: HTMLElement,
-		id: string,
-		updateType: HoverCardUpdateType,
-		kind: HoverState['kind'] = 'tab',
-	) => {
-		const targetTab = kind === 'tab' ? (snapshot.tabs.find((tab) => tab.id === id) ?? null) : null;
-		const pinnedBelowAnchor =
-			!horizontal && targetTab?.pinned === true && !effectiveVerticalCollapsed;
-		const rawRect = element.getBoundingClientRect();
-		const slotId = kind === 'group' ? `group-${id}` : id;
-		const slotBounds = horizontalAnimationRuntimeRef.current
-			?.getSlot(slotId)
-			?.getAnchorBoundsInScreen({
-				x: rawRect.left,
-				y: rawRect.top,
-				width: rawRect.width,
-				height: rawRect.height,
+	const updateHoverForElement = useCallback(
+		(
+			element: HTMLElement,
+			id: string,
+			updateType: HoverCardUpdateType,
+			kind: HoverState['kind'] = 'tab',
+		) => {
+			const targetTab =
+				kind === 'tab' ? (snapshot.tabs.find((tab) => tab.id === id) ?? null) : null;
+			const pinnedBelowAnchor =
+				!horizontal && targetTab?.pinned === true && !effectiveVerticalCollapsed;
+			const rawRect = element.getBoundingClientRect();
+			const slotId = kind === 'group' ? `group-${id}` : id;
+			const slotBounds = horizontalAnimationRuntimeRef.current
+				?.getSlot(slotId)
+				?.getAnchorBoundsInScreen({
+					x: rawRect.left,
+					y: rawRect.top,
+					width: rawRect.width,
+					height: rawRect.height,
+				});
+			const rect = slotBounds
+				? {
+						left: slotBounds.x,
+						top: slotBounds.y,
+						right: slotBounds.x + slotBounds.width,
+						bottom: slotBounds.y + slotBounds.height,
+						width: slotBounds.width,
+						height: slotBounds.height,
+					}
+				: rawRect;
+			const targetWidth = horizontal
+				? Math.max(
+						rect.width,
+						...[
+							...(element
+								.closest('[data-ct-root]')
+								?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? []),
+						].map((tab) => tab.getBoundingClientRect().width),
+					)
+				: (element.closest<HTMLElement>('[data-ct-root]')?.getBoundingClientRect().width ??
+					rect.width);
+			setHover({
+				kind,
+				id,
+				x:
+					horizontal || pinnedBelowAnchor
+						? Math.max(8, Math.min(rect.left, window.innerWidth - 340))
+						: rect.right + 8,
+				y: horizontal || pinnedBelowAnchor ? rect.bottom + 6 : Math.max(8, rect.top),
 			});
-		const rect = slotBounds
-			? {
-					left: slotBounds.x,
-					top: slotBounds.y,
-					right: slotBounds.x + slotBounds.width,
-					bottom: slotBounds.y + slotBounds.height,
-					width: slotBounds.width,
-					height: slotBounds.height,
-				}
-			: rawRect;
-		const targetWidth = horizontal
-			? Math.max(
-					rect.width,
-					...[
-						...(element.closest('[data-ct-root]')?.querySelectorAll<HTMLElement>('[data-tab-id]') ??
-							[]),
-					].map((tab) => tab.getBoundingClientRect().width),
-				)
-			: (element.closest<HTMLElement>('[data-ct-root]')?.getBoundingClientRect().width ??
-				rect.width);
-		setHover({
-			kind,
-			id,
-			x:
-				horizontal || pinnedBelowAnchor
-					? Math.max(8, Math.min(rect.left, window.innerWidth - 340))
-					: rect.right + 8,
-			y: horizontal || pinnedBelowAnchor ? rect.bottom + 6 : Math.max(8, rect.top),
-		});
-		hoverCardController.updateHoverCard(
-			{
-				id: `${kind}:${id}`,
-				width: targetWidth,
-				minimumWidth: horizontal
-					? TAB_SIZE.pinnedTabWidth
-					: LAYOUT_CONSTANTS.verticalTabStripCollapsedWidth,
-				standardWidth: horizontal ? TAB_SIZE.standardWidth : 240,
-				focused: updateType === HoverCardUpdateType.Focus,
-			},
-			updateType,
-		);
-	};
+			hoverCardController.updateHoverCard(
+				{
+					id: `${kind}:${id}`,
+					width: targetWidth,
+					minimumWidth: horizontal
+						? TAB_SIZE.pinnedTabWidth
+						: LAYOUT_CONSTANTS.verticalTabStripCollapsedWidth,
+					standardWidth: horizontal ? TAB_SIZE.standardWidth : 240,
+					focused: updateType === HoverCardUpdateType.Focus,
+				},
+				updateType,
+			);
+		},
+		[
+			effectiveVerticalCollapsed,
+			horizontal,
+			hoverCardController,
+			horizontalAnimationRuntimeRef,
+			snapshot.tabs,
+		],
+	);
 
 	const onTabMouseEnter = (event: ReactMouseEvent<HTMLDivElement>, tabId: string) => {
+		lastMousePositionRef.current = { x: event.clientX, y: event.clientY };
 		updateHoverForElement(event.currentTarget, tabId, HoverCardUpdateType.Hover);
 	};
 
 	const onGroupMouseEnter = (event: ReactMouseEvent<HTMLDivElement>, groupId: string) => {
 		if (!showGroupHoverCards) return;
+		lastMousePositionRef.current = { x: event.clientX, y: event.clientY };
 		updateHoverForElement(event.currentTarget, groupId, HoverCardUpdateType.Hover, 'group');
 	};
+
+	useEffect(() => {
+		const animationRunning = horizontalAnimationRuntimeRef.current?.isAnimating ?? false;
+		const wasRunning = horizontalAnimationWasRunningRef.current;
+		horizontalAnimationWasRunningRef.current = animationRunning;
+		if (animationRunning) {
+			// TabContainerImpl suppresses hover cards while any tab-slot bounds
+			// are animating so cards never remain anchored to a moving view.
+			clearHover(HoverCardUpdateType.Animating);
+			return;
+		}
+		if (!wasRunning || (dragRef.current?.started && !dragRef.current.settling)) return;
+		const point = lastMousePositionRef.current;
+		const root = stripRef.current;
+		if (!point || !root) return;
+		const hit = document.elementFromPoint(point.x, point.y);
+		const anchor =
+			hit instanceof Element ? hit.closest<HTMLElement>('[data-tab-id], [data-group-id]') : null;
+		if (!anchor || !root.contains(anchor)) return;
+		const tabId = anchor.dataset['tabId'];
+		if (tabId) {
+			updateHoverForElement(anchor, tabId, HoverCardUpdateType.Hover);
+			return;
+		}
+		const groupId = anchor.dataset['groupId'];
+		if (groupId && showGroupHoverCards) {
+			updateHoverForElement(anchor, groupId, HoverCardUpdateType.Hover, 'group');
+		}
+	}, [
+		animatedHorizontalFrame,
+		clearHover,
+		horizontalAnimationRuntimeRef,
+		showGroupHoverCards,
+		stripRef,
+		updateHoverForElement,
+	]);
 
 	useEffect(() => {
 		if (!hoverCardSnapshot.visible) return;
@@ -913,6 +1172,36 @@ export function useTabStrip(
 		else if (!model.getSnapshot().selectedTabIds.has(tab.id)) model.selectTab(tab.id);
 	};
 
+	const armAnimationBlockedPress = (
+		event: ReactPointerEvent<HTMLDivElement>,
+		kind: 'tab' | 'group',
+		id: string,
+	) => {
+		const touchPointer = event.pointerType === 'touch';
+		animationBlockedPressRef.current = {
+			kind,
+			id,
+			pointerId: event.pointerId,
+			pointerType: event.pointerType,
+			startX: event.clientX,
+			startY: event.clientY,
+			shiftPressed: event.shiftKey,
+			modifierPressed: event.metaKey || event.ctrlKey,
+			longPressRecognized: false,
+		};
+		if (touchPointer) {
+			if (touchLongPressTimer.current !== null) window.clearTimeout(touchLongPressTimer.current);
+			touchLongPressTimer.current = window.setTimeout(() => {
+				touchLongPressTimer.current = null;
+				const press = animationBlockedPressRef.current;
+				if (!press || press.pointerId !== event.pointerId) return;
+				animationBlockedPressRef.current = { ...press, longPressRecognized: true };
+			}, 500);
+		} else {
+			event.currentTarget.setPointerCapture?.(event.pointerId);
+		}
+	};
+
 	const onTabPointerDown = (event: ReactPointerEvent<HTMLDivElement>, tab: Readonly<TabData>) => {
 		if (event.button === 1) {
 			middlePressRef.current = { tabId: tab.id, pointerId: event.pointerId };
@@ -933,6 +1222,12 @@ export function useTabStrip(
 			!event.shiftKey &&
 			!pointerSnapshot.selectedTabIds.has(tab.id)
 		) {
+			return;
+		}
+		// TabStrip::MaybeStartDrag refuses to create a controller while tab-slot
+		// bounds are animating. Selection and ordinary click completion still run.
+		if (horizontal && horizontalAnimationRuntimeRef.current?.isAnimating) {
+			armAnimationBlockedPress(event, 'tab', tab.id);
 			return;
 		}
 		const initiallySelected = pointerSnapshot.selectedTabIds.has(tab.id)
@@ -968,14 +1263,24 @@ export function useTabStrip(
 			orientation,
 			pointer: { x: event.clientX, y: event.clientY },
 		});
+		const dragSessionData = buildDragSessionData({
+			snapshot: pointerSnapshot,
+			tabIds: draggedTabIds,
+			sourceId: tab.id,
+			groupHeaderId: null,
+			groupWasCollapsedBeforeDrag: false,
+			pointerOffsetRatios: visuals.pointerOffsetRatios,
+		});
 		const next: DragState = {
 			sourceId: tab.id,
 			tabIds: draggedTabIds,
 			pointerId: event.pointerId,
 			pointerType: event.pointerType,
-			touchDragReady: !touchPointer,
+			touchLongPressRecognized: false,
 			startX: event.clientX,
 			startY: event.clientY,
+			screenX: event.screenX,
+			screenY: event.screenY,
 			shiftPressedOnPointerDown: event.shiftKey,
 			x: event.clientX,
 			y: event.clientY,
@@ -990,24 +1295,18 @@ export function useTabStrip(
 			horizontalGroupDrag: null,
 			label: tab.title,
 			...visuals,
-			crossWindowRuntime:
-				createCrossWindowDragRuntime?.(
-					buildDragSessionData({
-						snapshot: pointerSnapshot,
-						tabIds: draggedTabIds,
-						sourceId: tab.id,
-						groupHeaderId: null,
-						groupWasCollapsedBeforeDrag: false,
-						pointerOffsetRatios: visuals.pointerOffsetRatios,
-					}),
-				) ?? null,
+			dragSessionData,
+			dragStartAnimationRequired: false,
+			dragStartAnimationStartedAt: null,
+			dragStartAnimationProgress: 1,
+			crossWindowRuntime: createCrossWindowDragRuntime?.(dragSessionData) ?? null,
 			settling: false,
 		};
 		setDrag(next);
 		if (touchPointer) {
-			if (touchDragTimer.current !== null) window.clearTimeout(touchDragTimer.current);
-			touchDragTimer.current = window.setTimeout(() => {
-				touchDragTimer.current = null;
+			if (touchLongPressTimer.current !== null) window.clearTimeout(touchLongPressTimer.current);
+			touchLongPressTimer.current = window.setTimeout(() => {
+				touchLongPressTimer.current = null;
 				const current = dragRef.current;
 				if (!current || current.pointerId !== event.pointerId || current.pointerType !== 'touch')
 					return;
@@ -1015,7 +1314,7 @@ export function useTabStrip(
 				if (!liveSnapshot.selectedTabIds.has(current.sourceId)) model.selectTab(current.sourceId);
 				setDrag((candidate) =>
 					candidate?.pointerId === event.pointerId
-						? { ...candidate, touchDragReady: true }
+						? { ...candidate, touchLongPressRecognized: true }
 						: candidate,
 				);
 			}, 500);
@@ -1036,12 +1335,6 @@ export function useTabStrip(
 			if (hit?.dataset['tabId'] === press.tabId) {
 				requestCloseTabs([press.tabId], 'mouse');
 				return;
-			}
-			// Port of Tab::OnMouseReleased's rapid-close fallback: if the pressed
-			// view moved away because it is already closing, close the tab that has
-			// animated under the pointer instead.
-			if (closingTimers.current.has(press.tabId) && hit?.dataset['tabId']) {
-				requestCloseTabs([hit.dataset['tabId']], 'mouse');
 			}
 		};
 		const cancelMiddlePress = (event: PointerEvent) => {
@@ -1066,6 +1359,10 @@ export function useTabStrip(
 		const pointerSnapshot = model.getSnapshot();
 		const groupTabs = pointerSnapshot.tabs.filter((tab) => tab.group === group.id);
 		if (groupTabs.length === 0) return;
+		if (horizontal && horizontalAnimationRuntimeRef.current?.isAnimating) {
+			armAnimationBlockedPress(event, 'group', group.id);
+			return;
+		}
 		const restoreState = model.captureDragRestoreState();
 		const active =
 			groupTabs.find((tab) => tab.id === pointerSnapshot.activeTabId) ??
@@ -1081,14 +1378,24 @@ export function useTabStrip(
 			orientation,
 			pointer: { x: event.clientX, y: event.clientY },
 		});
+		const dragSessionData = buildDragSessionData({
+			snapshot: pointerSnapshot,
+			tabIds: draggedTabIds,
+			sourceId: active.id,
+			groupHeaderId: group.id,
+			groupWasCollapsedBeforeDrag: group.collapsed,
+			pointerOffsetRatios: visuals.pointerOffsetRatios,
+		});
 		const next: DragState = {
 			sourceId: active.id,
 			tabIds: draggedTabIds,
 			pointerId: event.pointerId,
 			pointerType: event.pointerType,
-			touchDragReady: !touchPointer,
+			touchLongPressRecognized: false,
 			startX: event.clientX,
 			startY: event.clientY,
+			screenX: event.screenX,
+			screenY: event.screenY,
 			shiftPressedOnPointerDown: event.shiftKey,
 			x: event.clientX,
 			y: event.clientY,
@@ -1105,27 +1412,21 @@ export function useTabStrip(
 				: null,
 			label: group.title || 'Unnamed group',
 			...visuals,
-			crossWindowRuntime:
-				createCrossWindowDragRuntime?.(
-					buildDragSessionData({
-						snapshot: pointerSnapshot,
-						tabIds: draggedTabIds,
-						sourceId: active.id,
-						groupHeaderId: group.id,
-						groupWasCollapsedBeforeDrag: group.collapsed,
-						pointerOffsetRatios: visuals.pointerOffsetRatios,
-					}),
-				) ?? null,
+			dragSessionData,
+			dragStartAnimationRequired: false,
+			dragStartAnimationStartedAt: null,
+			dragStartAnimationProgress: 1,
+			crossWindowRuntime: createCrossWindowDragRuntime?.(dragSessionData) ?? null,
 			settling: false,
 		};
 		setDrag(next);
 		if (touchPointer) {
-			if (touchDragTimer.current !== null) window.clearTimeout(touchDragTimer.current);
-			touchDragTimer.current = window.setTimeout(() => {
-				touchDragTimer.current = null;
+			if (touchLongPressTimer.current !== null) window.clearTimeout(touchLongPressTimer.current);
+			touchLongPressTimer.current = window.setTimeout(() => {
+				touchLongPressTimer.current = null;
 				setDrag((candidate) =>
 					candidate?.pointerId === event.pointerId
-						? { ...candidate, touchDragReady: true }
+						? { ...candidate, touchLongPressRecognized: true }
 						: candidate,
 				);
 			}, 500);
@@ -1140,6 +1441,10 @@ export function useTabStrip(
 	) => {
 		if (suppressGroupToggleRef.current === groupId) {
 			suppressGroupToggleRef.current = null;
+			if (suppressGroupToggleResetTimer.current !== null) {
+				window.clearTimeout(suppressGroupToggleResetTimer.current);
+				suppressGroupToggleResetTimer.current = null;
+			}
 			return;
 		}
 		if (menu?.kind === 'group') {
@@ -1190,23 +1495,77 @@ export function useTabStrip(
 	};
 
 	const dragPresent = drag !== null;
+	const repositionDragAfterScroll = useCallback(() => {
+		repositionDragAfterScrollRef.current();
+	}, []);
 	useEffect(() => {
 		if (!dragPresent) return;
-		const move = (event: PointerEvent) => {
+		const moveDrag = (event: Readonly<DragPointerUpdate>) => {
 			const dragAtStart = dragRef.current;
 			if (!dragAtStart || dragAtStart.settling || dragAtStart.pointerId !== event.pointerId) return;
 			let current: DragState = dragAtStart;
-			const distance = Math.hypot(event.clientX - current.startX, event.clientY - current.startY);
-			if (current.pointerType === 'touch' && !current.touchDragReady) {
-				if (distance > 10) {
-					if (touchDragTimer.current !== null) window.clearTimeout(touchDragTimer.current);
-					touchDragTimer.current = null;
-					setDrag(null);
-				}
+			if (verticalGroupPickupFrameRef.current !== null && current.started) {
+				const pendingPickup = {
+					...current,
+					x: event.clientX,
+					y: event.clientY,
+					screenX: event.screenX,
+					screenY: event.screenY,
+				};
+				dragRef.current = pendingPickup;
+				setDrag(pendingPickup);
 				return;
 			}
+			const distance = Math.hypot(event.clientX - current.startX, event.clientY - current.startY);
+			if (current.pointerType === 'touch' && current.touchLongPressRecognized) return;
+			if (
+				current.pointerType === 'touch' &&
+				!current.touchLongPressRecognized &&
+				distance > 10 &&
+				touchLongPressTimer.current !== null
+			) {
+				window.clearTimeout(touchLongPressTimer.current);
+				touchLongPressTimer.current = null;
+			}
 			const started = current.started || distance > 10;
-			if (started && !current.started) current.crossWindowRuntime?.start();
+			if (started && !current.started) {
+				const liveSnapshot = model.getSnapshot();
+				const liveIds = new Set(liveSnapshot.tabs.map((tab) => tab.id));
+				const groupStillExists =
+					current.groupHeaderId === null ||
+					liveSnapshot.groups.some((group) => group.id === current.groupHeaderId);
+				if (!groupStillExists || current.tabIds.some((id) => !liveIds.has(id))) {
+					setDrag(null);
+					return;
+				}
+				if (touchLongPressTimer.current !== null) {
+					window.clearTimeout(touchLongPressTimer.current);
+					touchLongPressTimer.current = null;
+				}
+				// StartedDragging completes any residual end-drag or slot animation
+				// before the real views are promoted into the drag context.
+				completeHorizontalAnimationsForDragStart();
+				const dragStartAnimationStartedAt = performance.now();
+				const dragStartAnimationRequired =
+					!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches &&
+					dragRequiresStartCompaction({
+						drag: current,
+						snapshot: liveSnapshot,
+						horizontal,
+						verticalCollapsed,
+					});
+				current.dragSessionData.markDragStarted(
+					dragStartAnimationStartedAt,
+					dragStartAnimationRequired,
+				);
+				current = {
+					...current,
+					dragStartAnimationRequired,
+					dragStartAnimationStartedAt,
+					dragStartAnimationProgress: dragStartAnimationRequired ? 0 : 1,
+				};
+				current.crossWindowRuntime?.start();
+			}
 			if (started && !current.started && current.groupHeaderId !== null) {
 				suppressGroupToggleRef.current = current.groupHeaderId;
 				if (horizontal && current.horizontalGroupDrag !== null) {
@@ -1224,6 +1583,39 @@ export function useTabStrip(
 					model.setSelection(current.tabIds, current.sourceId, { expandGroups: false });
 					if (!current.groupWasCollapsedBeforeDrag) {
 						model.updateGroup(current.groupHeaderId, { collapsed: true });
+						if (!horizontal) {
+							const pendingPickup = {
+								...current,
+								x: event.clientX,
+								y: event.clientY,
+								screenX: event.screenX,
+								screenY: event.screenY,
+								started: true,
+								targetIndex: null,
+								targetGroup: null,
+							};
+							dragRef.current = pendingPickup;
+							setDrag(pendingPickup);
+							verticalGroupPickupFrameRef.current = requestManagedAnimationFrame(() => {
+								verticalGroupPickupFrameRef.current = null;
+								// Chromium completes the programmatic group collapse before
+								// running live drag targeting. Force that collapsed layout to
+								// become the next reorder animation's source geometry.
+								stripRef.current?.getBoundingClientRect();
+								const latest = dragRef.current;
+								if (!latest?.started || latest.settling || latest.pointerId !== event.pointerId)
+									return;
+								moveDrag({
+									pointerId: latest.pointerId,
+									clientX: latest.x,
+									clientY: latest.y,
+									screenX: latest.screenX,
+									screenY: latest.screenY,
+									forceReorder: true,
+								});
+							});
+							return;
+						}
 					}
 				}
 			}
@@ -1486,20 +1878,14 @@ export function useTabStrip(
 						containerStartIndex: source.pinned ? 0 : partition,
 						containerEndIndex: source.pinned ? partition : liveSnapshot.tabs.length,
 					});
-					targetIndex = dragTarget.index;
+					targetIndex = dragTarget.preRemovalIndex;
 					targetIdealLeft = rootRect.left + dragTarget.idealX;
 					targetExtent =
-						idealTabBounds[Math.min(targetIndex, idealTabBounds.length - 1)]?.width ??
+						idealTabBounds[Math.min(dragTarget.insertionIndex, idealTabBounds.length - 1)]?.width ??
 						TAB_SIZE.standardWidth;
 					const draggedIds = new Set(current.tabIds);
-					const draggedBeforeTarget = liveSnapshot.tabs
-						.slice(0, targetIndex)
-						.filter((tab) => draggedIds.has(tab.id)).length;
 					const remaining = liveSnapshot.tabs.filter((tab) => !draggedIds.has(tab.id));
-					const insertion = Math.max(
-						0,
-						Math.min(remaining.length, targetIndex - draggedBeforeTarget),
-					);
+					const insertion = Math.max(0, Math.min(remaining.length, dragTarget.insertionIndex));
 					const leftTab = remaining[insertion - 1];
 					const rightTab = remaining[insertion];
 					const currentGroup =
@@ -1542,19 +1928,33 @@ export function useTabStrip(
 				let coordinate = event.clientY;
 				if (pinnedGridDrag) coordinate = event.clientY * 10_000 + event.clientX;
 				else if (horizontal) coordinate = event.clientX;
-				const threshold =
-					horizontal || pinnedGridDrag
-						? Math.max(2, calculateHorizontalMoveThreshold(targetExtent, TAB_SIZE.standardWidth))
-						: 8;
-				const initialMoveNeedsReorder =
-					!current.started &&
-					!areDraggedTabIdsConsecutive(current.restoreState.tabs, current.tabIds);
+				let threshold = 8;
+				if (horizontal) {
+					threshold = calculateHorizontalMoveThreshold(targetExtent, TAB_SIZE.standardWidth);
+				} else if (pinnedGridDrag) {
+					threshold = Math.max(
+						2,
+						calculateHorizontalMoveThreshold(targetExtent, TAB_SIZE.standardWidth),
+					);
+				}
+				const initialMove = !current.started;
+				const tabsConsecutive = areDraggedTabIdsConsecutive(
+					current.restoreState.tabs,
+					current.tabIds,
+				);
 				if (
 					!externalTargetActive &&
-					(Math.abs(coordinate - current.lastReorderCoordinate) > threshold ||
-						initialMoveNeedsReorder)
+					(event.forceReorder === true ||
+						shouldReorderDraggedTabs({
+							justAttached: initialMove,
+							movementSinceLastReorder: coordinate - current.lastReorderCoordinate,
+							threshold,
+							initialMove,
+							tabsConsecutive,
+						}))
 				) {
 					if (source) {
+						const orderBeforeMove = liveSnapshot.tabs.map((tab) => tab.id);
 						const firstUnpinned = liveSnapshot.tabs.findIndex((candidate) => !candidate.pinned);
 						const partition = firstUnpinned === -1 ? liveSnapshot.tabs.length : firstUnpinned;
 						if (current.groupHeaderId !== null) {
@@ -1579,7 +1979,11 @@ export function useTabStrip(
 								{ coalesceNonconsecutive: horizontal && !current.started },
 							);
 						}
-						lastReorderCoordinate = coordinate;
+						const orderAfterMove = model.getSnapshot().tabs;
+						const modelOrderChanged =
+							orderBeforeMove.length !== orderAfterMove.length ||
+							orderBeforeMove.some((id, index) => orderAfterMove[index]?.id !== id);
+						if (modelOrderChanged) lastReorderCoordinate = coordinate;
 					}
 				}
 			}
@@ -1587,6 +1991,8 @@ export function useTabStrip(
 				...current,
 				x: event.clientX,
 				y: event.clientY,
+				screenX: event.screenX,
+				screenY: event.screenY,
 				started,
 				targetIndex,
 				targetGroup,
@@ -1594,13 +2000,30 @@ export function useTabStrip(
 				lastReorderCoordinate,
 			});
 		};
+		const move = (event: PointerEvent) => {
+			moveDrag(event);
+		};
+		const repositionAfterScroll = () => {
+			const current = dragRef.current;
+			if (!current?.started || current.settling) return;
+			moveDrag({
+				pointerId: current.pointerId,
+				clientX: current.x,
+				clientY: current.y,
+				screenX: current.screenX,
+				screenY: current.screenY,
+				forceReorder: true,
+			});
+		};
+		repositionDragAfterScrollRef.current = repositionAfterScroll;
 		const finish = (event: PointerEvent) => {
 			const dragAtFinish = dragRef.current;
 			if (!dragAtFinish || dragAtFinish.settling || dragAtFinish.pointerId !== event.pointerId)
 				return;
 			let current: DragState = dragAtFinish;
-			if (touchDragTimer.current !== null) window.clearTimeout(touchDragTimer.current);
-			touchDragTimer.current = null;
+			cancelVerticalGroupPickupFrame();
+			if (touchLongPressTimer.current !== null) window.clearTimeout(touchLongPressTimer.current);
+			touchLongPressTimer.current = null;
 			if (event.type === 'pointercancel') {
 				if (dragSettleTimer.current !== null) window.clearTimeout(dragSettleTimer.current);
 				if (current.started) current.crossWindowRuntime?.end('cancel');
@@ -1621,6 +2044,9 @@ export function useTabStrip(
 						model.setSelection([current.sourceId], current.sourceId, { expandGroups: false });
 					}
 				}
+				if (current.groupHeaderId !== null) {
+					scheduleSuppressedGroupToggleReset(current.groupHeaderId);
+				}
 				announce(messages.tabMoveCanceled);
 				setDrag(null);
 				return;
@@ -1628,35 +2054,10 @@ export function useTabStrip(
 			const externalTargetActive =
 				current.crossWindowRuntime?.getSnapshot?.().targetActive === true;
 			if (current.started) current.crossWindowRuntime?.end('complete');
-			if (current.started && !externalTargetActive && current.targetIndex !== null) {
-				const liveSnapshot = model.getSnapshot();
-				const source = liveSnapshot.tabs.find((tab) => tab.id === current.sourceId);
-				if (source) {
-					const firstUnpinned = liveSnapshot.tabs.findIndex((tab) => !tab.pinned);
-					const partition = firstUnpinned === -1 ? liveSnapshot.tabs.length : firstUnpinned;
-					if (current.groupHeaderId !== null) {
-						if (horizontal && current.horizontalGroupDrag !== null) {
-							const movement = transitionHorizontalGroupDrag(current.horizontalGroupDrag, {
-								type: 'move-to',
-								preRemovalTargetIndex: current.targetIndex,
-							});
-							applyHorizontalGroupDragCommands(model, current.restoreState, movement.commands);
-							assertHorizontalGroupDragRefinement(model, movement.state);
-							current = { ...current, horizontalGroupDrag: movement.state };
-						} else {
-							model.moveGroupByDrag(current.groupHeaderId, current.targetIndex);
-						}
-					} else {
-						model.moveTabsByDrag(
-							current.tabIds,
-							current.targetIndex,
-							source.pinned ? 0 : partition,
-							source.pinned ? partition : liveSnapshot.tabs.length,
-							current.targetGroup,
-						);
-					}
-				}
-			} else if (current.pointerType === 'touch' && current.touchDragReady) {
+			// Both tab-strip orientations update the model live while the
+			// pointer moves. Release accepts that order instead of submitting
+			// the same target a second time.
+			if (!current.started && current.pointerType === 'touch' && current.touchLongPressRecognized) {
 				// Chromium emits LongTap after LongPress when the pointer is released
 				// without entering the drag loop. Tabs open their context menu and
 				// group headers open the group editor; this is distinct from a tap.
@@ -1664,6 +2065,7 @@ export function useTabStrip(
 					setMenu({ kind: 'tab', id: current.sourceId, x: event.clientX, y: event.clientY });
 				} else {
 					suppressGroupToggleRef.current = current.groupHeaderId;
+					scheduleSuppressedGroupToggleReset(current.groupHeaderId);
 					openGroupEditor(current.groupHeaderId, event.clientX, event.clientY);
 				}
 			} else if (
@@ -1714,6 +2116,9 @@ export function useTabStrip(
 					}
 				}
 			}
+			if (current.groupHeaderId !== null) {
+				scheduleSuppressedGroupToggleReset(current.groupHeaderId);
+			}
 			if (
 				current.started &&
 				horizontal &&
@@ -1724,23 +2129,21 @@ export function useTabStrip(
 					...current,
 					x: event.clientX,
 					y: event.clientY,
+					dragStartAnimationRequired: false,
+					dragStartAnimationProgress: 1,
 					settling: true,
 				};
 				setDrag(settlingDrag);
-				dragSettleTimer.current = window.setTimeout(() => {
-					dragSettleTimer.current = null;
-					setDrag((candidate) => {
-						if (!candidate?.settling) return candidate;
-						if (horizontal && candidate.horizontalGroupDrag !== null) {
-							const settled = transitionHorizontalGroupDrag(candidate.horizontalGroupDrag, {
-								type: 'settle',
-							});
-							applyHorizontalGroupDragCommands(model, candidate.restoreState, settled.commands);
-							assertHorizontalGroupDragRefinement(model, settled.state);
-						}
-						return null;
-					});
-				}, 200);
+				if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+					finishHorizontalDragSettle();
+				} else {
+					// Transition completion normally owns cleanup. The fallback
+					// covers unchanged bounds and interrupted browser transitions.
+					dragSettleTimer.current = window.setTimeout(
+						finishHorizontalDragSettle,
+						HORIZONTAL_DRAG_SETTLE_FALLBACK_DELAY_MS,
+					);
+				}
 			} else {
 				setDrag(null);
 			}
@@ -1752,8 +2155,9 @@ export function useTabStrip(
 			const current = dragRef.current;
 			if (!current || current.settling || event.key !== 'Escape') return;
 			event.preventDefault();
-			if (touchDragTimer.current !== null) window.clearTimeout(touchDragTimer.current);
-			touchDragTimer.current = null;
+			cancelVerticalGroupPickupFrame();
+			if (touchLongPressTimer.current !== null) window.clearTimeout(touchLongPressTimer.current);
+			touchLongPressTimer.current = null;
 			if (dragSettleTimer.current !== null) window.clearTimeout(dragSettleTimer.current);
 			if (current.started) current.crossWindowRuntime?.end('cancel');
 			if (horizontal && current.horizontalGroupDrag !== null) {
@@ -1773,11 +2177,21 @@ export function useTabStrip(
 					model.setSelection([current.sourceId], current.sourceId, { expandGroups: false });
 				}
 			}
+			if (current.groupHeaderId !== null) {
+				suppressGroupToggleRef.current = null;
+				if (suppressGroupToggleResetTimer.current !== null) {
+					window.clearTimeout(suppressGroupToggleResetTimer.current);
+					suppressGroupToggleResetTimer.current = null;
+				}
+			}
 			announce(messages.tabMoveCanceled);
 			setDrag(null);
 		};
 		window.addEventListener('keydown', keydown);
 		return () => {
+			if (repositionDragAfterScrollRef.current === repositionAfterScroll) {
+				repositionDragAfterScrollRef.current = () => {};
+			}
 			window.removeEventListener('pointermove', move);
 			window.removeEventListener('pointerup', finish);
 			window.removeEventListener('pointercancel', finish);
@@ -1795,6 +2209,10 @@ export function useTabStrip(
 		snapshot,
 		stripRef,
 		verticalCollapsed,
+		finishHorizontalDragSettle,
+		completeHorizontalAnimationsForDragStart,
+		cancelVerticalGroupPickupFrame,
+		scheduleSuppressedGroupToggleReset,
 	]);
 
 	const onTabKeyDown = (event: React.KeyboardEvent, tabId: string) => {
@@ -1808,24 +2226,27 @@ export function useTabStrip(
 			event.preventDefault();
 			return;
 		}
-		const previousKey = horizontal ? 'ArrowLeft' : 'ArrowUp';
-		const nextKey = horizontal ? 'ArrowRight' : 'ArrowDown';
-		let direction: -1 | 0 | 1 = 0;
-		if (event.key === previousKey) direction = -1;
-		else if (event.key === nextKey) direction = 1;
-		if (direction === 0 || !(event.ctrlKey || event.metaKey)) return;
+		const reorder = resolveTabKeyboardReorder({
+			key: event.key,
+			commandOrControl: event.ctrlKey || event.metaKey,
+			shift: event.shiftKey,
+			horizontal,
+			mac: typeof navigator !== 'undefined' && navigator.platform.startsWith('Mac'),
+		});
+		if (!reorder) return;
 		event.preventDefault();
-		if (event.shiftKey) {
-			if (direction < 0) model.moveTabFirst(tabId);
+		if (reorder.moveToEnd) {
+			if (reorder.direction < 0) model.moveTabFirst(tabId);
 			else model.moveTabLast(tabId);
 			announce(
 				messages.formatTabMoveAnnouncement(
-					direction < 0 ? 'first' : 'last',
+					reorder.direction < 0 ? 'first' : 'last',
 					horizontal ? 'horizontal' : 'vertical',
 				),
 			);
 		} else {
 			const before = model.getSnapshot();
+			const beforeIndex = before.tabs.findIndex((tab) => tab.id === tabId);
 			const beforeTab = before.tabs.find((tab) => tab.id === tabId);
 			const beforeGroup =
 				beforeTab?.group === null || beforeTab?.group === undefined
@@ -1834,8 +2255,9 @@ export function useTabStrip(
 			const tabsInBeforeGroup = beforeGroup
 				? before.tabs.filter((tab) => tab.group === beforeGroup.id)
 				: [];
-			model.shiftTabRelative(tabId, direction);
+			model.shiftTabRelative(tabId, reorder.direction);
 			const after = model.getSnapshot();
+			const afterIndex = after.tabs.findIndex((tab) => tab.id === tabId);
 			const afterTab = after.tabs.find((tab) => tab.id === tabId);
 			const afterGroup =
 				afterTab?.group === null || afterTab?.group === undefined
@@ -1853,10 +2275,10 @@ export function useTabStrip(
 						groupTabs,
 					),
 				);
-			} else {
+			} else if (beforeIndex !== afterIndex) {
 				announce(
 					messages.formatTabMoveAnnouncement(
-						direction < 0 ? 'previous' : 'next',
+						reorder.direction < 0 ? 'previous' : 'next',
 						horizontal ? 'horizontal' : 'vertical',
 					),
 				);
@@ -1883,7 +2305,9 @@ export function useTabStrip(
 	};
 
 	const animatedHorizontalBoundsById = new Map(
-		animatedHorizontalFrame?.layout.children.map((child) => [child.id, child.bounds]) ?? [],
+		tabCountChanged
+			? []
+			: (animatedHorizontalFrame?.layout.children.map((child) => [child.id, child.bounds]) ?? []),
 	);
 	const paintedHorizontalBounds = (index: number) => {
 		const item = items[index];
@@ -1904,27 +2328,22 @@ export function useTabStrip(
 		return finalBounds ? drag.dragAreaBounds.left + finalBounds.x : null;
 	})();
 
-	const focusedGroupColor = focusedGroup ? GROUP_COLORS[focusedGroup.color] : undefined;
-
 	return {
 		model,
 		orientation,
+		onOrientationChange,
 		verticalCollapsed,
 		verticalExpandOnHover,
 		showHoverCardPreviews,
 		showHoverCardMemoryUsage,
 		showGroupHoverCards,
 		showVerticalTopControls,
-		verticalGroupFocused,
-		showPinnedTabsInFocusedGroups,
 		verticalToolbarHeight,
 		verticalCaptionButtonWidth,
 		verticalIsExitingExpandOnHover,
 		onVerticalCollapsedChange,
-		onVerticalUnfocusGroup,
 		onVerticalTabSearchClick,
 		onVerticalExpandOnHoverChange,
-		focusedGroupColor,
 		showNewTabButton,
 		horizontalFrameCondensed,
 		touchUi,
@@ -1932,25 +2351,19 @@ export function useTabStrip(
 		onTabKeyboardFocusChanged,
 		onMoveTabsToNewWindow,
 		onMoveGroupToNewWindow,
-		enableTabGroupFocusing,
 		ariaLabel: ariaLabel ?? messages.tabStripLabel,
 		snapshot,
+		verticalTabCountTransitionSuppressed: tabCountChanged || verticalTabCountTransitionSuppressed,
 		horizontal,
-		focusedGroup,
-		groupFocusActive,
-		tabVisibleWhileFocused,
 		stripRef,
 		horizontalTrackRef,
 		size,
 		items,
 		horizontalAnimationRuntimeRef,
-		animatedHorizontalFrame,
 		menu,
 		setMenu,
 		hover,
 		drag,
-		closingTabIds,
-		fullyCollapsedGroupIds,
 		tabClosingMode,
 		announcement,
 		groupEditorTracker,
@@ -1972,11 +2385,13 @@ export function useTabStrip(
 		onGroupMouseEnter,
 		onTabPointerDown,
 		onGroupPointerDown,
+		repositionDragAfterScroll,
 		toggleGroupFromHeader,
 		onGroupKeyDown,
 		onTabKeyDown,
 		onTabKeyUp,
 		addTab,
+		finishHorizontalDragSettle,
 		paintedHorizontalBounds,
 		settleTargetLeft,
 	} as const;

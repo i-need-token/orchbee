@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TabModel, type DetachedTabBundle } from '../../model/tab-model';
+import { requireDefined } from '../../utils/requireDefined';
 import { DragSessionData, DragSlotViewType } from '../drag-session-data';
+import { DRAG_START_ANIMATION_DURATION_MS } from '../dragged-tabs-container-layout';
 import {
 	CrossWindowDragState,
 	CrossWindowTabDragRuntime,
@@ -27,6 +29,7 @@ class FakeContext implements TabDragContext {
 	public readonly id: string;
 	private readonly tabModel: TabModel;
 	private readonly contexts: Map<string, FakeContext>;
+	public positioningDelegate: TabDragPositioningDelegate | null = null;
 
 	public constructor(id: string, tabModel: TabModel, contexts: Map<string, FakeContext>) {
 		this.id = id;
@@ -53,7 +56,7 @@ class FakeContext implements TabDragContext {
 		return this.tabModel;
 	}
 	public getPositioningDelegate(): TabDragPositioningDelegate | null {
-		return null;
+		return this.positioningDelegate;
 	}
 }
 
@@ -110,7 +113,7 @@ class FakeTarget implements TabDragTarget<DetachedTabBundle> {
 	}
 }
 
-function session(tabIds: string[]) {
+function session(tabIds: string[], dragStartTime?: number) {
 	return new DragSessionData({
 		tabDragData: tabIds.map((id, index) => ({
 			sourceModelIndex: index,
@@ -122,6 +125,7 @@ function session(tabIds: string[]) {
 		})),
 		sourceViewIndex: 0,
 		mouseOffsetToSizeRatios: { x: 0.5, y: 0.5 },
+		...(dragStartTime === undefined ? {} : { dragStartTime }),
 	});
 }
 
@@ -169,6 +173,103 @@ describe('CrossWindowTabDragRuntime', () => {
 			destination: 'existing-window',
 		});
 		expect(setupData.target.stoppedDragging).toHaveBeenCalledOnce();
+	});
+
+	it('continues drag-start compaction from global elapsed time after attachment', () => {
+		const setupData = setup();
+		const forceLayout = vi.fn<TabDragPositioningDelegate['forceLayout']>();
+		const layoutDraggedViewsAt =
+			vi.fn<
+				(
+					viewIds: readonly string[],
+					sourceViewId: string,
+					location: Readonly<{ x: number; y: number }>,
+					initialDrag: boolean,
+					dragStartAnimationProgress: number,
+				) => void
+			>();
+		setupData.target.positioningDelegate = {
+			updateAnimationTarget: vi.fn<TabDragPositioningDelegate['updateAnimationTarget']>(),
+			isDragSessionActive: () => true,
+			isAnimatingDragEnd: () => false,
+			completeEndDragAnimations: vi.fn<TabDragPositioningDelegate['completeEndDragAnimations']>(),
+			getTabDragAreaWidth: () => 400,
+			getContext: () => setupData.target,
+			getTabAt: () => null,
+			isActiveDropTarget: () => true,
+			tabDragAreaEndX: () => 400,
+			tabDragAreaBeginX: () => 0,
+			getInsertionIndexForDraggedBounds: () => 0,
+			calculateBoundsForDraggedViews: () => [],
+			setBoundsForDrag: vi.fn<TabDragPositioningDelegate['setBoundsForDrag']>(),
+			layoutDraggedViewsAt,
+			forceLayout,
+		};
+		const dragStartedAt = 100;
+		const now = vi
+			.spyOn(performance, 'now')
+			.mockReturnValue(dragStartedAt + DRAG_START_ANIMATION_DURATION_MS / 2);
+		const runtime = new CrossWindowTabDragRuntime(
+			setupData.source,
+			session(['a'], dragStartedAt),
+			setupData.resolver,
+			setupData.host,
+		);
+
+		runtime.update({ x: 200, y: 1 });
+		expect(layoutDraggedViewsAt).toHaveBeenLastCalledWith(['a'], 'a', { x: 200, y: 1 }, false, 0.5);
+		expect(forceLayout).toHaveBeenCalledOnce();
+		expect(layoutDraggedViewsAt.mock.invocationCallOrder[0]).toBeLessThan(
+			requireDefined(forceLayout.mock.invocationCallOrder[0]),
+		);
+
+		now.mockReturnValue(dragStartedAt + DRAG_START_ANIMATION_DURATION_MS + 1);
+		runtime.update({ x: 210, y: 1 });
+		expect(layoutDraggedViewsAt).toHaveBeenLastCalledWith(['a'], 'a', { x: 210, y: 1 }, false, 1);
+		expect(forceLayout).toHaveBeenCalledOnce();
+		now.mockRestore();
+	});
+
+	it('keeps drag-start compaction skipped after attachment', () => {
+		const setupData = setup();
+		const layoutDraggedViewsAt =
+			vi.fn<
+				(
+					viewIds: readonly string[],
+					sourceViewId: string,
+					location: Readonly<{ x: number; y: number }>,
+					initialDrag: boolean,
+					dragStartAnimationProgress: number,
+				) => void
+			>();
+		setupData.target.positioningDelegate = {
+			updateAnimationTarget: vi.fn<TabDragPositioningDelegate['updateAnimationTarget']>(),
+			isDragSessionActive: () => true,
+			isAnimatingDragEnd: () => false,
+			completeEndDragAnimations: vi.fn<TabDragPositioningDelegate['completeEndDragAnimations']>(),
+			getTabDragAreaWidth: () => 400,
+			getContext: () => setupData.target,
+			getTabAt: () => null,
+			isActiveDropTarget: () => true,
+			tabDragAreaEndX: () => 400,
+			tabDragAreaBeginX: () => 0,
+			getInsertionIndexForDraggedBounds: () => 0,
+			calculateBoundsForDraggedViews: () => [],
+			setBoundsForDrag: vi.fn<TabDragPositioningDelegate['setBoundsForDrag']>(),
+			layoutDraggedViewsAt,
+			forceLayout: vi.fn<TabDragPositioningDelegate['forceLayout']>(),
+		};
+		const dragSession = session(['a']);
+		dragSession.markDragStarted(100, false);
+		const runtime = new CrossWindowTabDragRuntime(
+			setupData.source,
+			dragSession,
+			setupData.resolver,
+			setupData.host,
+		);
+
+		runtime.update({ x: 200, y: 1 });
+		expect(layoutDraggedViewsAt).toHaveBeenLastCalledWith(['a'], 'a', { x: 200, y: 1 }, false, 1);
 	});
 
 	it('round-trips through the source snapshots when canceled', () => {
@@ -238,5 +339,25 @@ describe('CrossWindowTabDragRuntime', () => {
 		runtime.end('complete');
 		expect(newModel.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['a']);
 		expect(runtime.getSnapshot().destination).toBe('new-window');
+	});
+
+	it('ends immediately when a dragged tab is removed from the attached model', () => {
+		const setupData = setup();
+		const runtime = new CrossWindowTabDragRuntime(
+			setupData.source,
+			session(['a']),
+			setupData.resolver,
+			setupData.host,
+		);
+		runtime.update({ x: 200, y: 1 });
+
+		setupData.targetModel.closeTab('a');
+
+		expect(runtime.getSnapshot()).toMatchObject({
+			state: CrossWindowDragState.Stopped,
+			attachedContextId: 'target',
+			destination: 'abandoned',
+		});
+		expect(setupData.target.stoppedDragging).toHaveBeenCalledOnce();
 	});
 });

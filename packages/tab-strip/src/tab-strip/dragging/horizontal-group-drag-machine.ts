@@ -11,7 +11,6 @@ export interface HorizontalGroupDragGroup {
 }
 export interface HorizontalGroupDragAuthoritativeState {
 	readonly activeTabId: string | null;
-	readonly focusedGroupId: string | null;
 	readonly groups: readonly HorizontalGroupDragGroup[];
 	readonly selectedTabIds: readonly string[];
 	readonly selectionAnchorId: string | null;
@@ -113,7 +112,6 @@ function cloneAuthoritative(
 		activeTabId: state.activeTabId,
 		selectedTabIds: [...state.selectedTabIds],
 		selectionAnchorId: state.selectionAnchorId,
-		focusedGroupId: state.focusedGroupId,
 	};
 }
 function updateGroupCollapsed(

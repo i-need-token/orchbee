@@ -23,11 +23,16 @@ export interface TabDragScrollSnapshot {
 export class TabDragScrollHandler {
 	private timer: ReturnType<typeof setInterval> | null = null;
 	private scrollable: TabDragScrollable | null = null;
+	private readonly onContentsScrolled: () => void;
 	private snapshot: TabDragScrollSnapshot = Object.freeze({
 		scrolling: false,
 		increment: 0,
 		gradient: 'vertical',
 	});
+
+	public constructor(onContentsScrolled: () => void = () => {}) {
+		this.onContentsScrolled = onContentsScrolled;
+	}
 
 	public getSnapshot(): TabDragScrollSnapshot {
 		return this.snapshot;
@@ -66,7 +71,9 @@ export class TabDragScrollHandler {
 		this.snapshot = Object.freeze({ scrolling: true, increment, gradient });
 		if (this.timer !== null) return;
 		this.timer = setInterval(() => {
-			this.scrollable?.scrollBy({ top: this.snapshot.increment, left: 0 });
+			if (!this.scrollable) return;
+			this.scrollable.scrollBy({ top: this.snapshot.increment, left: 0 });
+			this.onContentsScrolled();
 		}, TAB_DRAG_SCROLL_INTERVAL_MS);
 	}
 }

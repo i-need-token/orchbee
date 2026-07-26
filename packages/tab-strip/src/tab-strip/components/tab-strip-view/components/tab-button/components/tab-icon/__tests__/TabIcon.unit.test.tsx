@@ -1,6 +1,7 @@
 import { act, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TabIcon } from '../TabIcon';
+import { TAB_ICON_CRASH_ANIMATION_MS } from '../utils/tab-icon';
 
 const tab = {
 	id: 'a',
@@ -36,7 +37,7 @@ describe('TabIcon', () => {
 		expect(container.querySelector('[data-tab-icon]')?.getAttribute('data-crash-transition')).toBe(
 			'true',
 		);
-		act(() => vi.advanceTimersByTime(1_000));
+		act(() => vi.advanceTimersByTime(TAB_ICON_CRASH_ANIMATION_MS));
 		expect(container.querySelector('[data-tab-icon]')?.hasAttribute('data-crash-transition')).toBe(
 			false,
 		);

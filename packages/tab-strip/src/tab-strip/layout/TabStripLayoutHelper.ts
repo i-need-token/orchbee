@@ -18,7 +18,6 @@ export interface TabSlotViewData {
 }
 export interface TabStripLayoutController {
 	getActiveIndex(): number | null;
-	getFocusedGroup(): TabGroupId | null;
 	isGroupCollapsed(group: TabGroupId): boolean;
 }
 export interface TabStripIdealBounds {
@@ -46,17 +45,14 @@ function checkIndex(index: number, length: number, message: string): void {
  */
 export class TabStripLayoutHelper {
 	private readonly controller: TabStripLayoutController;
-	private readonly showPinnedTabsInFocusedGroups: boolean;
 	private readonly style: Readonly<TabStyleMetrics>;
 	private readonly slots: TabSlot[] = [];
 	private currentLayoutDomain: LayoutDomain = LayoutDomain.InactiveWidthEqualsActiveWidth;
 	public constructor(
 		controller: TabStripLayoutController,
-		showPinnedTabsInFocusedGroups = false,
 		style: Readonly<TabStyleMetrics> = DEFAULT_TAB_STYLE_METRICS,
 	) {
 		this.controller = controller;
-		this.showPinnedTabsInFocusedGroups = showPinnedTabsInFocusedGroups;
 		this.style = style;
 	}
 	public get layoutDomain(): LayoutDomain {
@@ -329,13 +325,6 @@ export class TabStripLayoutHelper {
 		const slot = this.slots[index];
 		if (!slot) {
 			throw new RangeError(`Unknown slot ${index}.`);
-		}
-		const focusedGroup = this.controller.getFocusedGroup();
-		if (focusedGroup !== null) {
-			if (this.showPinnedTabsInFocusedGroups && slot.state.pinned === TabPinned.Pinned) {
-				return false;
-			}
-			return slot.view.group === null || slot.view.group !== focusedGroup;
 		}
 		return (
 			slot.view.type === 'tab' &&

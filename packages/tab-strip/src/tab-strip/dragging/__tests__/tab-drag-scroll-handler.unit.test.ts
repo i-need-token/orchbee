@@ -27,7 +27,8 @@ describe('TabDragScrollHandler', () => {
 	it('scrolls down by five every 20ms while the dragged tab crosses the bottom edge', () => {
 		vi.useFakeTimers();
 		const view = scrollable();
-		const handler = new TabDragScrollHandler();
+		const onContentsScrolled = vi.fn<() => void>();
+		const handler = new TabDragScrollHandler(onContentsScrolled);
 		handler.onDraggedTabPositionUpdated(view, { x: 0, y: 90, width: 100, height: 20 });
 		expect(handler.getSnapshot()).toEqual({
 			scrolling: true,
@@ -37,6 +38,7 @@ describe('TabDragScrollHandler', () => {
 		expect(view.gradient).toBe('vertical-leading');
 		vi.advanceTimersByTime(TAB_DRAG_SCROLL_INTERVAL_MS * 3);
 		expect(view.scrollTop).toBe(15);
+		expect(onContentsScrolled).toHaveBeenCalledTimes(3);
 		handler.destroy();
 	});
 

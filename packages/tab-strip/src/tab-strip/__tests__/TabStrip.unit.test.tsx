@@ -1,6 +1,8 @@
 import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TAB_BOUNDS_ANIMATION_DURATION_MS } from '../utils/tab-strip-internals';
+import { DRAG_START_ANIMATION_DURATION_MS } from '../dragging/dragged-tabs-container-layout';
 import { requireDefined } from '../utils/requireDefined';
 import { TabStripOrientation } from '../types/tab-strip-types';
 import type { DragSessionData } from '../dragging/drag-session-data';
@@ -108,17 +110,357 @@ describe('TabStrip', () => {
 		expect(leading.style.getPropertyValue('--ob-comp-tab-strip-runtime-opacity')).toBe('0');
 	});
 
-	it('puts active horizontal tab content inside a DOM surface', () => {
+	it('keeps structural separator opacity immediate while hover owns the fade', () => {
+		const model = new TabModel({
+			tabs: [
+				{ id: 'a', title: 'A', pinned: false, group: null },
+				{ id: 'b', title: 'B', pinned: false, group: null },
+				{ id: 'c', title: 'C', pinned: false, group: null },
+			],
+			activeTabId: 'c',
+		});
+		render(<TabStrip model={model} />);
+
+		const a = screen.getByRole('tab', { name: /^A/ });
+		const trailing = requireDefined(
+			a.querySelector<HTMLElement>('[data-tab-separator="trailing"]'),
+		);
+		expect(trailing.style.getPropertyValue('--ob-comp-tab-strip-runtime-opacity')).toBe('1');
+
+		fireEvent.mouseEnter(a);
+
+		expect(trailing.style.getPropertyValue('--ob-comp-tab-strip-runtime-opacity')).toBe('1');
+		expect(trailing.hasAttribute('data-hover-suppressed')).toBe(true);
+	});
+
+	it('snaps horizontal slots when the tab count changes', () => {
+		const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+			x: 0,
+			y: 0,
+			left: 0,
+			top: 0,
+			right: 800,
+			bottom: 40,
+			width: 800,
+			height: 40,
+			toJSON: () => ({}),
+		} as DOMRect);
+		try {
+			const model = createModel();
+			render(<TabStrip model={model} />);
+
+			act(() => {
+				model.addTab(
+					{ title: 'Added', pinned: false, group: null },
+					{ id: 'added', activate: false },
+				);
+			});
+			expect(screen.getByRole('tab', { name: /^Added/ })).toBeTruthy();
+			expect(document.querySelector('[data-slot-animating]')).toBeNull();
+
+			act(() => model.closeTab('added'));
+			expect(screen.queryByRole('tab', { name: /^Added/ })).toBeNull();
+			expect(document.querySelector('[data-slot-animating]')).toBeNull();
+		} finally {
+			rect.mockRestore();
+		}
+	});
+
+	it('snaps a steady-state active-width change instead of starting bounds animation', () => {
+		const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
+			window,
+			'requestAnimationFrame',
+		);
+		const requestAnimationFrame = vi.fn<(callback: FrameRequestCallback) => number>(() => 1);
+		Object.defineProperty(window, 'requestAnimationFrame', {
+			configurable: true,
+			value: requestAnimationFrame,
+		});
+		const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+			x: 0,
+			y: 0,
+			left: 0,
+			top: 0,
+			right: 120,
+			bottom: 40,
+			width: 120,
+			height: 40,
+			toJSON: () => ({}),
+		} as DOMRect);
+		try {
+			const model = new TabModel({
+				tabs: [
+					{ id: 'a', title: 'A', pinned: false, group: null },
+					{ id: 'b', title: 'B', pinned: false, group: null },
+					{ id: 'c', title: 'C', pinned: false, group: null },
+				],
+				activeTabId: 'a',
+			});
+			render(<TabStrip model={model} showNewTabButton={false} />);
+			expect(requestAnimationFrame).not.toHaveBeenCalled();
+
+			act(() => model.selectTab('b'));
+
+			expect(model.getSnapshot().activeTabId).toBe('b');
+			expect(document.querySelector('[data-slot-animating]')).toBeNull();
+			expect(requestAnimationFrame).not.toHaveBeenCalled();
+		} finally {
+			rect.mockRestore();
+			if (requestAnimationFrameDescriptor) {
+				Object.defineProperty(window, 'requestAnimationFrame', requestAnimationFrameDescriptor);
+			} else {
+				Reflect.deleteProperty(window, 'requestAnimationFrame');
+			}
+		}
+	});
+
+	it('retargets an active-width change while bounds motion is already running', () => {
+		const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
+			window,
+			'requestAnimationFrame',
+		);
+		const requestAnimationFrame = vi.fn<(callback: FrameRequestCallback) => number>(() => 1);
+		Object.defineProperty(window, 'requestAnimationFrame', {
+			configurable: true,
+			value: requestAnimationFrame,
+		});
+		const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+			x: 0,
+			y: 0,
+			left: 0,
+			top: 0,
+			right: 120,
+			bottom: 40,
+			width: 120,
+			height: 40,
+			toJSON: () => ({}),
+		} as DOMRect);
+		try {
+			const model = new TabModel({
+				tabs: [
+					{ id: 'a', title: 'A', pinned: false, group: null },
+					{ id: 'b', title: 'B', pinned: false, group: null },
+					{ id: 'c', title: 'C', pinned: false, group: null },
+				],
+				activeTabId: 'a',
+			});
+			render(<TabStrip model={model} showNewTabButton={false} />);
+
+			act(() => model.shiftTabRelative('c', -1));
+			expect(document.querySelector('[data-slot-animating]')).not.toBeNull();
+			expect(requestAnimationFrame).toHaveBeenCalledOnce();
+
+			act(() => model.selectTab('b'));
+
+			expect(model.getSnapshot().activeTabId).toBe('b');
+			expect(document.querySelector('[data-slot-animating]')).not.toBeNull();
+			expect(requestAnimationFrame).toHaveBeenCalledTimes(2);
+		} finally {
+			rect.mockRestore();
+			if (requestAnimationFrameDescriptor) {
+				Object.defineProperty(window, 'requestAnimationFrame', requestAnimationFrameDescriptor);
+			} else {
+				Reflect.deleteProperty(window, 'requestAnimationFrame');
+			}
+		}
+	});
+
+	it('does not arm a horizontal drag while tab-slot bounds are animating', () => {
+		const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
+			window,
+			'requestAnimationFrame',
+		);
+		const requestAnimationFrame = vi.fn<(callback: FrameRequestCallback) => number>(() => 1);
+		Object.defineProperty(window, 'requestAnimationFrame', {
+			configurable: true,
+			value: requestAnimationFrame,
+		});
+		const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+			x: 0,
+			y: 0,
+			left: 0,
+			top: 0,
+			right: 360,
+			bottom: 40,
+			width: 360,
+			height: 40,
+			toJSON: () => ({}),
+		} as DOMRect);
+		try {
+			const model = new TabModel({
+				tabs: [
+					{ id: 'a', title: 'A', pinned: false, group: null },
+					{ id: 'b', title: 'B', pinned: false, group: null },
+					{ id: 'c', title: 'C', pinned: false, group: null },
+				],
+				activeTabId: 'a',
+			});
+			render(<TabStrip model={model} showNewTabButton={false} />);
+			const b = screen.getByRole('tab', { name: /^B/ });
+
+			act(() => model.shiftTabRelative('c', -1));
+			expect(document.querySelector('[data-slot-animating]')).not.toBeNull();
+
+			fireEvent.pointerDown(b, { button: 0, pointerId: 101, clientX: 180, clientY: 20 });
+			fireEvent.pointerMove(window, { pointerId: 101, clientX: 220, clientY: 20 });
+
+			expect(document.querySelector('[data-horizontal-drag-context]')).toBeNull();
+			expect(screen.getByRole('tablist', { name: 'Tabs' }).hasAttribute('data-dragging')).toBe(
+				false,
+			);
+			fireEvent.pointerUp(window, { pointerId: 101, clientX: 220, clientY: 20 });
+			expect(model.getSnapshot().activeTabId).toBe('b');
+		} finally {
+			rect.mockRestore();
+			if (requestAnimationFrameDescriptor) {
+				Object.defineProperty(window, 'requestAnimationFrame', requestAnimationFrameDescriptor);
+			} else {
+				Reflect.deleteProperty(window, 'requestAnimationFrame');
+			}
+		}
+	});
+
+	it('completes residual horizontal bounds motion when an armed drag activates', () => {
+		const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
+			window,
+			'requestAnimationFrame',
+		);
+		const requestAnimationFrame = vi.fn<(callback: FrameRequestCallback) => number>(() => 1);
+		Object.defineProperty(window, 'requestAnimationFrame', {
+			configurable: true,
+			value: requestAnimationFrame,
+		});
+		const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+			x: 0,
+			y: 0,
+			left: 0,
+			top: 0,
+			right: 360,
+			bottom: 40,
+			width: 360,
+			height: 40,
+			toJSON: () => ({}),
+		} as DOMRect);
+		try {
+			const model = new TabModel({
+				tabs: [
+					{ id: 'a', title: 'A', pinned: false, group: null },
+					{ id: 'b', title: 'B', pinned: false, group: null },
+					{ id: 'c', title: 'C', pinned: false, group: null },
+				],
+				activeTabId: 'a',
+			});
+			render(<TabStrip model={model} showNewTabButton={false} />);
+			const a = screen.getByRole('tab', { name: /^A/ });
+
+			fireEvent.pointerDown(a, { button: 0, pointerId: 102, clientX: 50, clientY: 20 });
+			act(() => model.shiftTabRelative('c', -1));
+			expect(document.querySelector('[data-slot-animating]')).not.toBeNull();
+
+			fireEvent.pointerMove(window, { pointerId: 102, clientX: 61, clientY: 20 });
+
+			expect(document.querySelector('[data-horizontal-drag-context]')).not.toBeNull();
+			expect(document.querySelector('[data-slot-animating]')).toBeNull();
+			fireEvent.pointerCancel(window, { pointerId: 102, clientX: 61, clientY: 20 });
+		} finally {
+			rect.mockRestore();
+			if (requestAnimationFrameDescriptor) {
+				Object.defineProperty(window, 'requestAnimationFrame', requestAnimationFrameDescriptor);
+			} else {
+				Reflect.deleteProperty(window, 'requestAnimationFrame');
+			}
+		}
+	});
+
+	it('reconciles hover beneath a stationary pointer after a programmatic reorder', () => {
+		const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
+			window,
+			'requestAnimationFrame',
+		);
+		const elementFromPointDescriptor = Object.getOwnPropertyDescriptor(
+			document,
+			'elementFromPoint',
+		);
+		const requestAnimationFrame = vi.fn<(callback: FrameRequestCallback) => number>(() => 1);
+		Object.defineProperty(window, 'requestAnimationFrame', {
+			configurable: true,
+			value: requestAnimationFrame,
+		});
+		const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+			x: 0,
+			y: 0,
+			left: 0,
+			top: 0,
+			right: 480,
+			bottom: 40,
+			width: 480,
+			height: 40,
+			toJSON: () => ({}),
+		} as DOMRect);
+		try {
+			const model = new TabModel({
+				tabs: [
+					{ id: 'a', title: 'A', pinned: false, group: null },
+					{ id: 'b', title: 'B', pinned: false, group: null },
+					{ id: 'c', title: 'C', pinned: false, group: null },
+				],
+				activeTabId: 'a',
+			});
+			render(<TabStrip model={model} />);
+			const a = screen.getByRole('tab', { name: /^A/ });
+			const b = screen.getByRole('tab', { name: /^B/ });
+			Object.defineProperty(document, 'elementFromPoint', {
+				configurable: true,
+				value: () => b,
+			});
+			fireEvent.mouseEnter(a, { clientX: 160, clientY: 20 });
+			expect(a.getAttribute('data-hovered')).toBe('true');
+
+			fireEvent.keyDown(a, { key: 'ArrowRight', ctrlKey: true });
+			expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['b', 'a', 'c']);
+			const animationFrame = requireDefined(requestAnimationFrame.mock.calls.at(-1)?.[0]);
+			act(() => animationFrame(performance.now() + TAB_BOUNDS_ANIMATION_DURATION_MS));
+
+			expect(b.getAttribute('data-hovered')).toBe('true');
+		} finally {
+			rect.mockRestore();
+			if (requestAnimationFrameDescriptor) {
+				Object.defineProperty(window, 'requestAnimationFrame', requestAnimationFrameDescriptor);
+			} else {
+				Reflect.deleteProperty(window, 'requestAnimationFrame');
+			}
+			if (elementFromPointDescriptor) {
+				Object.defineProperty(document, 'elementFromPoint', elementFromPointDescriptor);
+			} else {
+				Reflect.deleteProperty(document, 'elementFromPoint');
+			}
+		}
+	});
+
+	it('gives inactive horizontal tab content an opaque DOM surface', () => {
 		const model = createModel();
 		render(<TabStrip model={model} />);
 
-		const researchA = screen.getByRole('tab', { name: /^Research A/ });
-		const surface = requireDefined(researchA.querySelector<HTMLElement>('[data-tab-surface]'));
+		const loose = screen.getByRole('tab', { name: /^Loose/ });
+		const surface = requireDefined(loose.querySelector<HTMLElement>('[data-tab-surface]'));
 		expect(surface.tagName).toBe('SPAN');
 		expect(surface.querySelector('[data-tab-content]')).not.toBeNull();
-		expect(researchA.querySelector('[data-tab-hit-target]')).not.toBeNull();
-		expect(researchA.querySelector('[data-tab-background-fill]')).toBeNull();
-		expect(researchA.querySelector('[data-tab-active-shadow]')).toBeNull();
+		expect(loose.querySelector('[data-tab-hit-target]')).not.toBeNull();
+		expect(surface.getAttribute('data-tab-background-fill')).toBe('');
+		expect(loose.querySelector('[data-tab-active-shadow]')).toBeNull();
+	});
+
+	it('uses a separate vertical hover layer from immediate selection paint', () => {
+		const model = createModel();
+		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} />);
+
+		const loose = screen.getByRole('tab', { name: /^Loose/ });
+		const background = requireDefined(loose.querySelector<HTMLElement>('[data-tab-state-layer]'));
+		expect(background.getAttribute('data-tab-state-layer')).toBe('');
+		const hoverLayer = requireDefined(
+			background.querySelector<HTMLElement>('[data-tab-hover-layer]'),
+		);
+		expect(hoverLayer.className).not.toBe('');
 	});
 
 	it('hosts horizontal leading actions on the tab-strip surface before the tab track', () => {
@@ -157,7 +499,7 @@ describe('TabStrip', () => {
 		expect(loose.getAttribute('tabindex')).toBe('-1');
 	});
 
-	it('selects touch tabs on gesture-down and only permits dragging after long press', () => {
+	it('selects touch tabs on gesture-down and starts dragging after crossing the threshold', () => {
 		vi.useFakeTimers();
 		const model = createModel();
 		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} />);
@@ -196,25 +538,8 @@ describe('TabStrip', () => {
 			clientY: 145,
 		});
 		expect(model.getSnapshot().activeTabId).toBe('loose');
-		expect(document.querySelector('[data-tab-strip-drag-ghost]')).toBeNull();
-
-		fireEvent.pointerDown(loose, {
-			button: 0,
-			pointerId: 63,
-			pointerType: 'touch',
-			clientX: 80,
-			clientY: 125,
-		});
-		act(() => vi.advanceTimersByTime(500));
-		expect(model.getSnapshot().activeTabId).toBe('loose');
-		fireEvent.pointerMove(window, {
-			pointerId: 63,
-			pointerType: 'touch',
-			clientX: 80,
-			clientY: 145,
-		});
 		expect(document.querySelector('[data-tab-strip-drag-ghost]')).not.toBeNull();
-		fireEvent.pointerCancel(window, { pointerId: 63, pointerType: 'touch' });
+		fireEvent.pointerCancel(window, { pointerId: 62, pointerType: 'touch' });
 	});
 
 	it('opens source-matching editors for a touch long tap without collapsing a group', () => {
@@ -282,8 +607,7 @@ describe('TabStrip', () => {
 		expect(document.querySelector('[data-tab-strip-drag-ghost]')).toBeNull();
 	});
 
-	it('ports middle-release containment and the rapid closing-tab fallback', () => {
-		vi.useFakeTimers();
+	it('keeps middle-release containment when the pointer is released over another tab', () => {
 		const model = createModel();
 		render(<TabStrip model={model} />);
 		const researchA = screen.getByRole('tab', { name: /^Research A/ });
@@ -297,14 +621,12 @@ describe('TabStrip', () => {
 		try {
 			fireEvent.pointerDown(researchA, { button: 1, pointerId: 81, clientX: 100, clientY: 20 });
 			fireEvent.pointerUp(window, { button: 1, pointerId: 81, clientX: 200, clientY: 20 });
-			expect(researchA.closest('[data-horizontal-item]')?.hasAttribute('data-closing')).toBe(false);
-			expect(researchB.closest('[data-horizontal-item]')?.hasAttribute('data-closing')).toBe(false);
+			expect(model.getIndexOfTab('research-a')).not.toBeNull();
+			expect(model.getIndexOfTab('research-b')).not.toBeNull();
 
 			fireEvent(researchA, new MouseEvent('auxclick', { button: 1, bubbles: true }));
-			expect(researchA.closest('[data-horizontal-item]')?.hasAttribute('data-closing')).toBe(true);
-			fireEvent.pointerDown(researchA, { button: 1, pointerId: 82, clientX: 100, clientY: 20 });
-			fireEvent.pointerUp(window, { button: 1, pointerId: 82, clientX: 200, clientY: 20 });
-			expect(researchB.closest('[data-horizontal-item]')?.hasAttribute('data-closing')).toBe(true);
+			expect(model.getIndexOfTab('research-a')).toBeNull();
+			expect(model.getIndexOfTab('research-b')).not.toBeNull();
 		} finally {
 			if (descriptor) Object.defineProperty(document, 'elementFromPoint', descriptor);
 			else Reflect.deleteProperty(document, 'elementFromPoint');
@@ -363,6 +685,46 @@ describe('TabStrip', () => {
 		expect(screen.getByRole('status').textContent).toContain('Tab removed from group Research');
 	});
 
+	it('does not announce a relative keyboard move rejected at a pin boundary', () => {
+		const model = new TabModel({
+			tabs: [
+				{ id: 'pinned', title: 'Pinned', pinned: true, group: null },
+				{ id: 'first', title: 'First', pinned: false, group: null },
+			],
+			activeTabId: 'first',
+		});
+		render(<TabStrip model={model} />);
+
+		fireEvent.keyDown(screen.getByRole('tab', { name: /^First/ }), {
+			key: 'ArrowLeft',
+			ctrlKey: true,
+		});
+
+		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['pinned', 'first']);
+		expect(screen.getByRole('status').textContent).toBe('');
+	});
+
+	it('updates accessible positions immediately while retaining keyboard focus', () => {
+		const model = new TabModel({
+			tabs: [
+				{ id: 'a', title: 'A', pinned: false, group: null },
+				{ id: 'b', title: 'B', pinned: false, group: null },
+				{ id: 'c', title: 'C', pinned: false, group: null },
+			],
+			activeTabId: 'a',
+		});
+		render(<TabStrip model={model} />);
+		const a = screen.getByRole('tab', { name: /^A/ });
+		a.focus();
+
+		fireEvent.keyDown(a, { key: 'ArrowRight', ctrlKey: true });
+
+		expect(document.activeElement).toBe(a);
+		expect(a.getAttribute('aria-posinset')).toBe('2');
+		expect(a.getAttribute('aria-setsize')).toBe('3');
+		expect(screen.getByRole('tab', { name: /^B/ }).getAttribute('aria-posinset')).toBe('1');
+	});
+
 	it('collapses a group while projecting its active child through the group header', () => {
 		const model = createModel();
 		render(<TabStrip model={model} />);
@@ -392,21 +754,48 @@ describe('TabStrip', () => {
 	});
 
 	it('keeps collapsed tabs and their underline visible until the bounds animation finishes', () => {
-		vi.useFakeTimers();
-		const model = createModel();
-		render(<TabStrip model={model} />);
-		const researchA = screen.getByRole('tab', { name: /^Research A/ });
-		const wrapper = requireDefined(researchA.closest<HTMLElement>('[data-horizontal-item]'));
+		const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
+			window,
+			'requestAnimationFrame',
+		);
+		const requestAnimationFrame = vi.fn<(callback: FrameRequestCallback) => number>(() => 1);
+		Object.defineProperty(window, 'requestAnimationFrame', {
+			configurable: true,
+			value: requestAnimationFrame,
+		});
+		const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+			x: 0,
+			y: 0,
+			left: 0,
+			top: 0,
+			right: 480,
+			bottom: 40,
+			width: 480,
+			height: 40,
+			toJSON: () => ({}),
+		} as DOMRect);
+		try {
+			const model = createModel();
+			render(<TabStrip model={model} />);
+			const researchA = screen.getByRole('tab', { name: /^Research A/ });
+			const wrapper = requireDefined(researchA.closest<HTMLElement>('[data-horizontal-item]'));
 
-		fireEvent.click(screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ }));
-		expect(wrapper.hasAttribute('data-group-collapsed-hidden')).toBe(false);
-		expect(document.querySelector('[data-group-underline-id="research"]')).toBeTruthy();
+			fireEvent.click(screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ }));
+			expect(wrapper.hasAttribute('data-group-collapsed-hidden')).toBe(false);
+			expect(document.querySelector('[data-group-underline-id="research"]')).toBeTruthy();
 
-		act(() => vi.advanceTimersByTime(199));
-		expect(wrapper.hasAttribute('data-group-collapsed-hidden')).toBe(false);
-		act(() => vi.advanceTimersByTime(1));
-		expect(wrapper.hasAttribute('data-group-collapsed-hidden')).toBe(true);
-		expect(document.querySelector('[data-group-underline-id="research"]')).toBeNull();
+			const animationFrame = requireDefined(requestAnimationFrame.mock.calls.at(-1)?.[0]);
+			act(() => animationFrame(performance.now() + TAB_BOUNDS_ANIMATION_DURATION_MS));
+			expect(wrapper.hasAttribute('data-group-collapsed-hidden')).toBe(true);
+			expect(document.querySelector('[data-group-underline-id="research"]')).toBeNull();
+		} finally {
+			rect.mockRestore();
+			if (requestAnimationFrameDescriptor) {
+				Object.defineProperty(window, 'requestAnimationFrame', requestAnimationFrameDescriptor);
+			} else {
+				Reflect.deleteProperty(window, 'requestAnimationFrame');
+			}
+		}
 	});
 
 	it('freezes horizontal width only for pointer-originated group collapse', () => {
@@ -462,6 +851,36 @@ describe('TabStrip', () => {
 
 		expect(model.getSnapshot().tabs.filter((tab) => tab.title === 'Loose')).toHaveLength(2);
 		expect(screen.queryByRole('menu')).toBeNull();
+	});
+
+	it('requests the opposite orientation from the blank tab-strip context menu', () => {
+		const model = createModel();
+		const onOrientationChange = vi.fn<(orientation: TabStripOrientation) => void>();
+		const { rerender } = render(
+			<TabStrip model={model} onOrientationChange={onOrientationChange} />,
+		);
+
+		fireEvent.contextMenu(screen.getByRole('tablist', { name: 'Tabs' }), {
+			clientX: 700,
+			clientY: 20,
+		});
+		expect(screen.getByRole('menu', { name: 'Tab strip menu' })).toBeTruthy();
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Open vertical tabs' }));
+		expect(onOrientationChange).toHaveBeenLastCalledWith(TabStripOrientation.Vertical);
+
+		rerender(
+			<TabStrip
+				model={model}
+				orientation={TabStripOrientation.Vertical}
+				onOrientationChange={onOrientationChange}
+			/>,
+		);
+		fireEvent.contextMenu(screen.getByRole('tablist', { name: 'Tabs' }), {
+			clientX: 120,
+			clientY: 500,
+		});
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Close vertical tabs' }));
+		expect(onOrientationChange).toHaveBeenLastCalledWith(TabStripOrientation.Horizontal);
 	});
 
 	it('runs group membership commands from the tab context menu', () => {
@@ -584,7 +1003,6 @@ describe('TabStrip', () => {
 	});
 
 	it('ports selected-tab close commands from TabStripModel', () => {
-		vi.useFakeTimers();
 		const model = createModel();
 		model.setSelection(['research-a', 'research-b'], 'research-a');
 		render(<TabStrip model={model} />);
@@ -597,7 +1015,6 @@ describe('TabStrip', () => {
 
 		openSelectedMenu();
 		fireEvent.click(screen.getByRole('menuitem', { name: 'Close tabs to the right' }));
-		act(() => vi.advanceTimersByTime(200));
 		expect(model.getIndexOfTab('loose')).toBeNull();
 		expect(model.getIndexOfTab('research-a')).not.toBeNull();
 		expect(model.getIndexOfTab('research-b')).not.toBeNull();
@@ -607,7 +1024,6 @@ describe('TabStrip', () => {
 			screen.getByRole('menuitem', { name: 'Close other tabs' }).getAttribute('aria-disabled'),
 		).toBe('true');
 		fireEvent.click(screen.getByRole('menuitem', { name: 'Close' }));
-		act(() => vi.advanceTimersByTime(200));
 		expect(model.getIndexOfTab('research-a')).toBeNull();
 		expect(model.getIndexOfTab('research-b')).toBeNull();
 		expect(model.getIndexOfTab('pinned')).not.toBeNull();
@@ -674,6 +1090,31 @@ describe('TabStrip', () => {
 		expect(unpinned.getAttribute('style')).not.toContain('y:');
 	});
 
+	it('marks a vertical tab-count layout change for immediate slot placement', () => {
+		const model = new TabModel({
+			tabs: [
+				{ id: 'a', title: 'A', pinned: false, group: null },
+				{ id: 'b', title: 'B', pinned: false, group: null },
+				{ id: 'c', title: 'C', pinned: false, group: null },
+			],
+			activeTabId: 'a',
+		});
+		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} />);
+		const content = requireDefined(
+			document.querySelector<HTMLElement>('[data-tab-strip-scroll-content]'),
+		);
+		const c = requireDefined(
+			document.querySelector<HTMLElement>('[data-vertical-unpinned-unit="c"]'),
+		);
+		expect(content.hasAttribute('data-tab-count-changed')).toBe(false);
+		expect(c.style.getPropertyValue('--ob-comp-tab-strip-block-start')).toBe('64px');
+
+		act(() => model.closeTab('b'));
+
+		expect(content.hasAttribute('data-tab-count-changed')).toBe(true);
+		expect(c.style.getPropertyValue('--ob-comp-tab-strip-block-start')).toBe('32px');
+	});
+
 	it('keeps keyboard-only movement out of the native tab menu', () => {
 		const model = createModel();
 		render(<TabStrip model={model} />);
@@ -731,6 +1172,19 @@ describe('TabStrip', () => {
 		fireEvent.mouseEnter(researchB);
 		expect(getHoverCard().textContent).toContain('Research B');
 		expect(strip.hasAttribute('data-hover-card-waiting')).toBe(false);
+	});
+
+	it('dismisses a hover card for a programmatic selection change', () => {
+		const model = createModel();
+		render(<TabStrip model={model} />);
+		const loose = screen.getByRole('tab', { name: /^Loose/ });
+		setRect(loose, 300, 100);
+		fireEvent.focus(loose);
+		expect(getHoverCard().textContent).toContain('Loose');
+
+		act(() => model.selectTab('loose'));
+
+		expect(document.querySelector('[data-tab-strip-hover-card]')).toBeNull();
 	});
 
 	it('honors the hover-card memory preference while retaining high-memory alerts', () => {
@@ -895,8 +1349,7 @@ describe('TabStrip', () => {
 		expect(getHoverCard().querySelector('[data-hover-card-domain]')).toBeNull();
 	});
 
-	it('closes an unpinned tab with the middle mouse button', () => {
-		vi.useFakeTimers();
+	it('closes an unpinned tab immediately with the middle mouse button', () => {
 		const model = createModel();
 		render(<TabStrip model={model} />);
 
@@ -905,45 +1358,34 @@ describe('TabStrip', () => {
 			new MouseEvent('auxclick', { button: 1, bubbles: true }),
 		);
 
-		expect(model.getIndexOfTab('loose')).not.toBeNull();
+		expect(model.getIndexOfTab('loose')).toBeNull();
 		expect(
 			screen.getByRole('tablist', { name: 'Tabs' }).getAttribute('data-tab-closing-mode'),
 		).toBe('mouse');
-		expect(
-			screen
-				.getByRole('tab', { name: /^Loose/ })
-				.closest('[data-horizontal-item]')
-				?.hasAttribute('data-closing'),
-		).toBe(true);
-		act(() => vi.advanceTimersByTime(200));
-		expect(model.getIndexOfTab('loose')).toBeNull();
 		expect(screen.getByRole('status').textContent).toBe('Closed Loose');
 	});
 
 	it('does not close a tab when a middle-button press is released elsewhere', () => {
-		vi.useFakeTimers();
 		const model = createModel();
 		render(<TabStrip model={model} />);
 		const loose = screen.getByRole('tab', { name: /^Loose/ });
 
 		fireEvent.pointerDown(loose, { button: 1, pointerId: 31, clientX: 300, clientY: 20 });
 		fireEvent.pointerUp(window, { button: 1, pointerId: 31, clientX: -10, clientY: -10 });
-		act(() => vi.advanceTimersByTime(200));
 
 		expect(model.getIndexOfTab('loose')).not.toBeNull();
-		expect(loose.closest('[data-horizontal-item]')?.hasAttribute('data-closing')).toBe(false);
 	});
 
-	it('renders the still-mounted closing tab as inactive', () => {
-		vi.useFakeTimers();
+	it('activates the replacement immediately when the active tab closes', () => {
 		const model = createModel();
 		model.selectTab('loose');
 		render(<TabStrip model={model} />);
 		const loose = screen.getByRole('tab', { name: /^Loose/ });
+		const researchB = screen.getByRole('tab', { name: /^Research B/ });
 		expect(loose.hasAttribute('data-active')).toBe(true);
 		fireEvent(loose, new MouseEvent('auxclick', { button: 1, bubbles: true }));
-		expect(screen.getByRole('tab', { name: /^Loose/ }).hasAttribute('data-active')).toBe(false);
-		act(() => vi.advanceTimersByTime(200));
+		expect(model.getSnapshot().activeTabId).toBe('research-b');
+		expect(researchB.hasAttribute('data-active')).toBe(true);
 	});
 
 	it('holds touch closing mode for two seconds and exits after the delay', () => {
@@ -968,6 +1410,84 @@ describe('TabStrip', () => {
 		expect(
 			screen.getByRole('tablist', { name: 'Tabs' }).hasAttribute('data-tab-closing-mode'),
 		).toBe(false);
+	});
+
+	it('does not treat horizontal drag settling as an active touch drag', () => {
+		vi.useFakeTimers();
+		const model = new TabModel({
+			tabs: [
+				{ id: 'a', title: 'A', pinned: false, group: null },
+				{ id: 'b', title: 'B', pinned: false, group: null },
+				{ id: 'c', title: 'C', pinned: false, group: null },
+			],
+			activeTabId: 'c',
+		});
+		render(<TabStrip model={model} tabStripDeclutter={false} />);
+		const close = within(screen.getByRole('tab', { name: /^C/ })).getByRole('button', {
+			name: 'Close',
+		});
+
+		fireEvent.pointerDown(close, {
+			button: 0,
+			pointerType: 'touch',
+			clientX: 250,
+			clientY: 20,
+		});
+		fireEvent.click(close);
+		const strip = screen.getByRole('tablist', { name: 'Tabs' });
+		expect(strip.getAttribute('data-tab-closing-mode')).toBe('touch');
+
+		const a = screen.getByRole('tab', { name: /^A/ });
+		const b = screen.getByRole('tab', { name: /^B/ });
+		setRect(a, 0, 100);
+		setRect(b, 100, 100);
+		fireEvent.pointerDown(b, {
+			button: 0,
+			pointerId: 92,
+			pointerType: 'mouse',
+			clientX: 150,
+			clientY: 20,
+		});
+		fireEvent.pointerMove(window, {
+			pointerId: 92,
+			pointerType: 'mouse',
+			clientX: 20,
+			clientY: 20,
+		});
+		fireEvent.pointerUp(window, {
+			pointerId: 92,
+			pointerType: 'mouse',
+			clientX: 20,
+			clientY: 20,
+		});
+		expect(document.querySelector('[data-horizontal-drag-context][data-settling]')).not.toBeNull();
+
+		act(() => vi.advanceTimersByTime(2_000));
+		expect(strip.hasAttribute('data-tab-closing-mode')).toBe(false);
+	});
+
+	it('suspends the mouse closing-mode watcher while the group editor bubble is open', () => {
+		const model = createModel();
+		render(<TabStrip model={model} />);
+		fireEvent(
+			screen.getByRole('tab', { name: /^Loose/ }),
+			new MouseEvent('auxclick', { button: 1, bubbles: true }),
+		);
+		const strip = screen.getByRole('tablist', { name: 'Tabs' });
+		expect(strip.getAttribute('data-tab-closing-mode')).toBe('mouse');
+
+		fireEvent.contextMenu(screen.getByRole('tablist', { name: /^Research, 2 tabs/ }), {
+			clientX: 80,
+			clientY: 20,
+		});
+		expect(screen.getByRole('textbox', { name: 'Group name' })).toBeTruthy();
+		fireEvent.pointerMove(window, { clientX: -100, clientY: -100 });
+		expect(strip.getAttribute('data-tab-closing-mode')).toBe('mouse');
+
+		fireEvent.keyDown(screen.getByRole('textbox', { name: 'Group name' }), { key: 'Escape' });
+		expect(screen.queryByRole('menu')).toBeNull();
+		fireEvent.pointerMove(window, { clientX: -100, clientY: -100 });
+		expect(strip.hasAttribute('data-tab-closing-mode')).toBe(false);
 	});
 
 	it('exits closing mode when a tab is inserted', () => {
@@ -996,6 +1516,125 @@ describe('TabStrip', () => {
 		);
 		expect(screen.getByRole('tab', { name: /^Research A/ })).toBeTruthy();
 		expect(screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ })).toBeTruthy();
+	});
+
+	it('marks a vertical group fully collapsed only when its grid transition finishes', () => {
+		const model = createModel();
+		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} />);
+		fireEvent.click(screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ }));
+
+		const group = requireDefined(
+			document.querySelector<HTMLElement>('[data-tab-strip-group][data-group-id="research"]'),
+		);
+		const groupTabs = requireDefined(
+			group.querySelector<HTMLElement>('[data-tab-strip-group-tabs]'),
+		);
+		expect(group.hasAttribute('data-group-collapsing')).toBe(true);
+		expect(group.hasAttribute('data-group-collapsed')).toBe(false);
+		expect(groupTabs.hasAttribute('aria-hidden')).toBe(false);
+
+		fireEvent.transitionEnd(groupTabs, { propertyName: 'grid-template-rows' });
+		expect(group.hasAttribute('data-group-collapsing')).toBe(false);
+		expect(group.hasAttribute('data-group-collapsed')).toBe(true);
+		expect(groupTabs.getAttribute('aria-hidden')).toBe('true');
+	});
+
+	it('moves the following vertical slot as soon as group collapse starts', () => {
+		const model = createModel();
+		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} />);
+		const groupUnit = requireDefined(
+			document.querySelector<HTMLElement>('[data-vertical-unpinned-unit="group-research"]'),
+		);
+		const looseUnit = requireDefined(
+			document.querySelector<HTMLElement>('[data-vertical-unpinned-unit="loose"]'),
+		);
+		expect(groupUnit.style.getPropertyValue('--ob-comp-tab-strip-block-size')).toBe('96px');
+		expect(looseUnit.style.getPropertyValue('--ob-comp-tab-strip-block-start')).toBe('98px');
+
+		fireEvent.click(screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ }));
+
+		expect(groupUnit.style.getPropertyValue('--ob-comp-tab-strip-block-size')).toBe('34px');
+		expect(looseUnit.style.getPropertyValue('--ob-comp-tab-strip-block-start')).toBe('36px');
+		expect(
+			document
+				.querySelector<HTMLElement>('[data-tab-strip-group][data-group-id="research"]')
+				?.hasAttribute('data-group-collapsing'),
+		).toBe(true);
+	});
+
+	it('snaps an expanded vertical group closed before live drag reordering begins', () => {
+		const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
+			window,
+			'requestAnimationFrame',
+		);
+		const requestAnimationFrame = vi.fn<(callback: FrameRequestCallback) => number>(() => 1);
+		Object.defineProperty(window, 'requestAnimationFrame', {
+			configurable: true,
+			value: requestAnimationFrame,
+		});
+		try {
+			const model = createModel();
+			const moveGroupByDrag = vi.spyOn(model, 'moveGroupByDrag');
+			render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} />);
+			const strip = screen.getByRole('tablist', { name: 'Tabs' });
+			const group = screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ });
+			const groupView = requireDefined(group.closest<HTMLElement>('[data-tab-strip-group]'));
+			const researchA = screen.getByRole('tab', { name: /^Research A/ });
+			const researchB = screen.getByRole('tab', { name: /^Research B/ });
+			const loose = screen.getByRole('tab', { name: /^Loose/ });
+			setRect(strip, 0, 240, 0, 500);
+			setRect(groupView, 0, 216, 50, 96);
+			setRect(group, 0, 216, 50, 26);
+			setRect(researchA, 12, 204, 82, 30);
+			setRect(researchB, 12, 204, 114, 30);
+			setRect(loose, 0, 216, 148, 30);
+
+			const scheduledBeforeDrag = requestAnimationFrame.mock.calls.length;
+			fireEvent.pointerDown(group, { button: 0, pointerId: 193, clientX: 100, clientY: 65 });
+			fireEvent.pointerMove(window, { pointerId: 193, clientX: 112, clientY: 65 });
+
+			const scrollContent = requireDefined(
+				document.querySelector<HTMLElement>('[data-tab-strip-scroll-content]'),
+			);
+			expect(model.getGroup('research')?.collapsed).toBe(true);
+			expect(scrollContent.hasAttribute('data-group-drag-pickup')).toBe(true);
+			expect(moveGroupByDrag).not.toHaveBeenCalled();
+
+			const pickupFrame = requireDefined(
+				requestAnimationFrame.mock.calls[scheduledBeforeDrag]?.[0],
+			);
+			act(() => pickupFrame(performance.now()));
+
+			expect(scrollContent.hasAttribute('data-group-drag-pickup')).toBe(false);
+			expect(moveGroupByDrag).toHaveBeenCalledOnce();
+			fireEvent.pointerUp(window, { pointerId: 193, clientX: 112, clientY: 65 });
+			expect(model.getGroup('research')?.collapsed).toBe(false);
+		} finally {
+			if (requestAnimationFrameDescriptor) {
+				Object.defineProperty(window, 'requestAnimationFrame', requestAnimationFrameDescriptor);
+			} else {
+				Reflect.deleteProperty(window, 'requestAnimationFrame');
+			}
+		}
+	});
+
+	it('does not let a completed vertical group drag swallow the next real toggle', () => {
+		vi.useFakeTimers();
+		const model = createModel();
+		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} />);
+		const group = screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ });
+		const groupView = requireDefined(group.closest<HTMLElement>('[data-tab-strip-group]'));
+		setRect(groupView, 0, 216, 50, 96);
+		setRect(group, 0, 216, 54, 26);
+
+		fireEvent.pointerDown(group, { button: 0, pointerId: 191, clientX: 100, clientY: 65 });
+		fireEvent.pointerMove(window, { pointerId: 191, clientX: 100, clientY: 130 });
+		fireEvent.pointerUp(window, { pointerId: 191, clientX: 100, clientY: 300 });
+		expect(model.getGroup('research')?.collapsed).toBe(false);
+
+		act(() => vi.advanceTimersByTime(0));
+		fireEvent.click(screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ }));
+		expect(model.getGroup('research')?.collapsed).toBe(true);
 	});
 
 	it('exposes the vertical group editor button separately from collapse', () => {
@@ -1063,34 +1702,6 @@ describe('TabStrip', () => {
 		expect(header.querySelector('[data-group-attention]')).toBeNull();
 	});
 
-	it('focuses and unfocuses a group from its editor while collapsing every other horizontal slot', () => {
-		const model = createModel();
-		render(<TabStrip model={model} enableTabGroupFocusing />);
-
-		fireEvent.contextMenu(screen.getByRole('tablist', { name: /^Research, 2 tabs/ }), {
-			clientX: 20,
-			clientY: 20,
-		});
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Focus group' }));
-
-		expect(model.getSnapshot().focusedGroupId).toBe('research');
-		expect(screen.getByRole('tablist', { name: 'Tabs' }).getAttribute('data-focused-group')).toBe(
-			'research',
-		);
-		expect(screen.getByRole('tab', { name: /^Research A/ })).toBeTruthy();
-		expect(screen.queryByRole('tab', { name: /^Pinned/ })).toBeNull();
-		expect(screen.queryByRole('tab', { name: /^Loose/ })).toBeNull();
-
-		fireEvent.contextMenu(screen.getByRole('tablist', { name: /^Research, 2 tabs/ }), {
-			clientX: 20,
-			clientY: 20,
-		});
-		fireEvent.click(screen.getByRole('menuitem', { name: 'Unfocus group' }));
-		expect(model.getSnapshot().focusedGroupId).toBeNull();
-		expect(screen.getByRole('tab', { name: /^Pinned/ })).toBeTruthy();
-		expect(screen.getByRole('tab', { name: /^Loose/ })).toBeTruthy();
-	});
-
 	it('runs group-editor color, new-tab, and move-window commands', () => {
 		const model = createModel();
 		const onMove = vi.fn<() => void>();
@@ -1152,37 +1763,6 @@ describe('TabStrip', () => {
 
 		expect(model.getSnapshot().tabs.filter((tab) => tab.group === 'read-group')).toHaveLength(2);
 		expect(model.getSnapshot().tabs.filter((tab) => tab.group === 'work-group')).toHaveLength(1);
-	});
-
-	it('uses model focus for vertical filtering, keeps focused collapsed tabs visible, and wires Show all tabs', () => {
-		const model = createModel();
-		model.updateGroup('research', { collapsed: true });
-		model.setFocusedGroup('research');
-		const onUnfocus = vi.fn<() => void>();
-		render(
-			<TabStrip
-				model={model}
-				orientation={TabStripOrientation.Vertical}
-				onVerticalUnfocusGroup={onUnfocus}
-			/>,
-		);
-
-		expect(screen.getByRole('tab', { name: /^Research A/ })).toBeTruthy();
-		expect(screen.getByRole('tab', { name: /^Research B/ })).toBeTruthy();
-		expect(
-			screen
-				.getByRole('tab', { name: /^Research A/ })
-				.closest('[data-tab-strip-group]')
-				?.hasAttribute('data-group-collapsed'),
-		).toBe(false);
-		expect(screen.queryByRole('tab', { name: /^Pinned/ })).toBeNull();
-		expect(screen.queryByRole('tab', { name: /^Loose/ })).toBeNull();
-
-		fireEvent.click(screen.getByRole('button', { name: 'Show all tabs' }));
-		expect(model.getSnapshot().focusedGroupId).toBeNull();
-		expect(onUnfocus).toHaveBeenCalledOnce();
-		expect(screen.getByRole('tab', { name: /^Pinned/ })).toBeTruthy();
-		expect(screen.getByRole('tab', { name: /^Loose/ })).toBeTruthy();
 	});
 
 	it('wires the vertical top-container actions and expand-on-hover preference menu', () => {
@@ -1430,7 +2010,85 @@ describe('TabStrip', () => {
 		).toEqual(['research-a', 'research-b']);
 	});
 
-	it('applies drag hysteresis when only group membership changes', () => {
+	it('keeps the new-tab button fixed and does not resubmit a horizontal reorder', () => {
+		const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
+			window,
+			'requestAnimationFrame',
+		);
+		const requestAnimationFrame = vi.fn<(callback: FrameRequestCallback) => number>(() => 1);
+		Object.defineProperty(window, 'requestAnimationFrame', {
+			configurable: true,
+			value: requestAnimationFrame,
+		});
+		const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+			x: 0,
+			y: 0,
+			left: 0,
+			top: 0,
+			right: 800,
+			bottom: 40,
+			width: 800,
+			height: 40,
+			toJSON: () => ({}),
+		} as DOMRect);
+		try {
+			const model = new TabModel({
+				tabs: [
+					{ id: 'a', title: 'A', pinned: false, group: null },
+					{ id: 'b', title: 'B', pinned: false, group: null },
+				],
+				activeTabId: 'b',
+			});
+			const moveTabsByDrag = vi.spyOn(model, 'moveTabsByDrag');
+			render(<TabStrip model={model} />);
+			const a = screen.getByRole('tab', { name: /^A/ });
+			const b = screen.getByRole('tab', { name: /^B/ });
+			const newTabButton = screen.getByRole('button', { name: 'New tab' });
+			const initialNewTabButtonLeft = newTabButton.style.getPropertyValue(
+				'--ob-comp-tab-strip-inline-start',
+			);
+			expect(initialNewTabButtonLeft).not.toBe('');
+			setRect(a, 0, 100);
+			setRect(b, 100, 100);
+
+			fireEvent.pointerDown(b, { button: 0, pointerId: 90, clientX: 150, clientY: 20 });
+			fireEvent.pointerMove(window, { pointerId: 90, clientX: 20, clientY: 20 });
+			expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['b', 'a']);
+			expect(moveTabsByDrag).toHaveBeenCalledOnce();
+			expect(requestAnimationFrame).toHaveBeenCalledOnce();
+			expect(newTabButton.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe(
+				initialNewTabButtonLeft,
+			);
+
+			fireEvent.pointerUp(window, { pointerId: 90, clientX: 20, clientY: 20 });
+			expect(moveTabsByDrag).toHaveBeenCalledOnce();
+			expect(newTabButton.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe(
+				initialNewTabButtonLeft,
+			);
+			const settlingContext = requireDefined(
+				document.querySelector<HTMLElement>('[data-horizontal-drag-context][data-settling]'),
+			);
+			const animationFrame = requireDefined(requestAnimationFrame.mock.calls.at(-1)?.[0]);
+			act(() => animationFrame(performance.now() + TAB_BOUNDS_ANIMATION_DURATION_MS));
+			const scheduledFrames = requestAnimationFrame.mock.calls.length;
+			fireEvent.transitionEnd(settlingContext, { propertyName: 'left' });
+
+			expect(document.querySelector('[data-horizontal-drag-context]')).toBeNull();
+			expect(newTabButton.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe(
+				initialNewTabButtonLeft,
+			);
+			expect(requestAnimationFrame).toHaveBeenCalledTimes(scheduledFrames);
+		} finally {
+			rect.mockRestore();
+			if (requestAnimationFrameDescriptor) {
+				Object.defineProperty(window, 'requestAnimationFrame', requestAnimationFrameDescriptor);
+			} else {
+				Reflect.deleteProperty(window, 'requestAnimationFrame');
+			}
+		}
+	});
+
+	it('keeps the hysteresis anchor until the model order changes', () => {
 		const model = new TabModel({
 			tabs: [
 				{ id: 'loose', title: 'Loose', pinned: false, group: null },
@@ -1456,10 +2114,12 @@ describe('TabStrip', () => {
 		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'loose')?.group).toBe('research');
 		expect(moveTabsByDrag).toHaveBeenCalledOnce();
 		expect(document.querySelector('[data-drag-group-underline]')).toBeNull();
-		const horizontalGhost = requireDefined(
-			document.querySelector<HTMLElement>('[data-tab-strip-drag-ghost][data-layout="horizontal"]'),
+		const horizontalDragContext = requireDefined(
+			document.querySelector<HTMLElement>('[data-horizontal-drag-context]'),
 		);
-		expect(horizontalGhost.style.getPropertyValue('--ob-comp-tab-strip-runtime-layer')).toBe('24');
+		expect(horizontalDragContext.style.getPropertyValue('--ob-comp-tab-strip-runtime-layer')).toBe(
+			'24',
+		);
 		expect(
 			document
 				.querySelector<HTMLElement>('[data-group-underline-id="research"]')
@@ -1467,8 +2127,35 @@ describe('TabStrip', () => {
 		).toBe('25');
 
 		fireEvent.pointerMove(window, { pointerId: 10, clientX: 125, clientY: 20 });
-		expect(moveTabsByDrag).toHaveBeenCalledOnce();
+		expect(moveTabsByDrag).toHaveBeenCalledTimes(2);
 		fireEvent.pointerCancel(window, { pointerId: 10, clientX: 125, clientY: 20 });
+	});
+
+	it('submits the first attached drag position before applying horizontal hysteresis', () => {
+		const model = new TabModel({
+			tabs: [
+				{ id: 'a', title: 'A', pinned: false, group: null },
+				{ id: 'b', title: 'B', pinned: false, group: null },
+			],
+			activeTabId: 'b',
+		});
+		const moveTabsByDrag = vi.spyOn(model, 'moveTabsByDrag');
+		render(<TabStrip model={model} />);
+		const a = screen.getByRole('tab', { name: /^A/ });
+		const b = screen.getByRole('tab', { name: /^B/ });
+		setRect(a, 0, 200);
+		setRect(b, 200, 200);
+
+		fireEvent.pointerDown(b, { button: 0, pointerId: 91, clientX: 250, clientY: 20 });
+		fireEvent.pointerMove(window, { pointerId: 91, clientX: 261, clientY: 20 });
+		expect(moveTabsByDrag).toHaveBeenCalledOnce();
+
+		fireEvent.pointerMove(window, { pointerId: 91, clientX: 265, clientY: 20 });
+		expect(moveTabsByDrag).toHaveBeenCalledOnce();
+
+		fireEvent.pointerMove(window, { pointerId: 91, clientX: 267, clientY: 20 });
+		expect(moveTabsByDrag).toHaveBeenCalledTimes(2);
+		fireEvent.pointerCancel(window, { pointerId: 91, clientX: 267, clientY: 20 });
 	});
 
 	it('expands the normal group underline when an outside tab joins', () => {
@@ -1624,11 +2311,48 @@ describe('TabStrip', () => {
 			screenX: 60,
 			screenY: 20,
 		});
-		expect(document.querySelector('[data-tab-strip-drag-ghost]')).not.toBeNull();
+		expect(document.querySelector('[data-horizontal-drag-context]')).not.toBeNull();
 		act(() => model.closeTab('loose'));
 
 		expect(runtime.end).toHaveBeenCalledWith('tab-destroyed');
-		expect(document.querySelector('[data-tab-strip-drag-ghost]')).toBeNull();
+		expect(document.querySelector('[data-horizontal-drag-context]')).toBeNull();
+	});
+
+	it('cancels an armed drag before activation when a dragged tab disappears', () => {
+		const model = createModel();
+		const runtime = {
+			start: vi.fn<() => void>(),
+			update: vi.fn<() => void>(),
+			end: vi.fn<() => void>(),
+			getSnapshot: vi.fn<
+				() => {
+					targetActive: boolean;
+					sourceContextId: string;
+					attachedContextId: string;
+				}
+			>(() => ({
+				targetActive: false,
+				sourceContextId: 'source',
+				attachedContextId: 'source',
+			})),
+		};
+		render(<TabStrip model={model} createCrossWindowDragRuntime={() => runtime} />);
+		const loose = screen.getByRole('tab', { name: /^Loose/ });
+		setRect(loose, 250, 100);
+
+		fireEvent.pointerDown(loose, { button: 0, pointerId: 103, clientX: 300, clientY: 20 });
+		act(() => model.closeTab('loose'));
+		fireEvent.pointerMove(window, {
+			pointerId: 103,
+			clientX: 340,
+			clientY: 20,
+			screenX: 340,
+			screenY: 20,
+		});
+
+		expect(runtime.start).not.toHaveBeenCalled();
+		expect(runtime.end).not.toHaveBeenCalled();
+		expect(document.querySelector('[data-horizontal-drag-context]')).toBeNull();
 	});
 
 	it('cancels and restores a live drag when the React strip unmounts', () => {
@@ -1688,14 +2412,23 @@ describe('TabStrip', () => {
 		fireEvent.pointerDown(group, { button: 0, pointerId: 12, clientX: 80, clientY: 20 });
 		fireEvent.pointerMove(window, { pointerId: 12, clientX: 500, clientY: 20 });
 		expect(model.getGroup('research')?.collapsed).toBe(true);
-		const ghost = document.querySelector<HTMLElement>(
-			'[data-tab-strip-drag-ghost][data-layout="horizontal"]',
-		);
-		expect(ghost?.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe('470px');
-		expect(ghost?.style.getPropertyValue('--ob-comp-tab-strip-inline-size')).toBe('234px');
-		expect(ghost?.querySelectorAll('[data-horizontal-drag-view]')).toHaveLength(3);
-		expect(ghost?.querySelector('[data-drag-group-highlight]')).toBeNull();
-		expect(ghost?.querySelector('[data-drag-group-underline]')).not.toBeNull();
+		expect(document.querySelector('[data-group-id="research"]')).toBe(group);
+		expect(document.querySelector('[data-tab-id="research-a"]')).toBe(researchA);
+		expect(document.querySelector('[data-tab-id="research-b"]')).toBe(researchB);
+		const dragContext = document.querySelector<HTMLElement>('[data-horizontal-drag-context]');
+		expect(dragContext?.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe('470px');
+		expect(dragContext?.style.getPropertyValue('--ob-comp-tab-strip-inline-size')).toBe('234px');
+		expect(dragContext?.style.getPropertyValue('--ob-comp-tab-strip-runtime-layer')).toBe('25');
+		expect(document.querySelectorAll('[data-horizontal-drag-view]')).toHaveLength(3);
+		expect(dragContext?.querySelector('[data-drag-group-highlight]')).toBeNull();
+		expect(dragContext?.querySelector('[data-drag-group-underline]')).not.toBeNull();
+		expect(
+			document.querySelectorAll(
+				'[data-group-underline-id="research"]:not([data-drag-group-underline])',
+			),
+		).toHaveLength(0);
+		fireEvent.pointerMove(window, { pointerId: 12, clientX: 540, clientY: 20 });
+		expect(dragContext?.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe('510px');
 		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
 			'pinned',
 			'loose',
@@ -1709,16 +2442,16 @@ describe('TabStrip', () => {
 				.map((tab) => tab.id),
 		).toEqual(['research-a', 'research-b']);
 
-		fireEvent.pointerUp(window, { pointerId: 12, clientX: 500, clientY: 20 });
+		fireEvent.pointerUp(window, { pointerId: 12, clientX: 540, clientY: 20 });
 		expect(model.getGroup('research')?.collapsed).toBe(false);
 		expect([...model.getSnapshot().selectedTabIds]).toEqual(['research-a']);
-		const settlingGhost = document.querySelector<HTMLElement>(
-			'[data-tab-strip-drag-ghost][data-layout="horizontal"][data-settling]',
+		const settlingContext = document.querySelector<HTMLElement>(
+			'[data-horizontal-drag-context][data-settling]',
 		);
-		expect(settlingGhost).not.toBeNull();
-		expect(settlingGhost?.querySelector('[data-drag-group-highlight]')).toBeNull();
-		expect(settlingGhost?.querySelectorAll('[data-horizontal-drag-view]')).toHaveLength(3);
-		expect(settlingGhost?.hasAttribute('data-group-settling')).toBe(false);
+		expect(settlingContext).not.toBeNull();
+		expect(settlingContext?.querySelector('[data-drag-group-highlight]')).toBeNull();
+		expect(document.querySelectorAll('[data-horizontal-drag-view]')).toHaveLength(3);
+		expect(settlingContext?.hasAttribute('data-group-settling')).toBe(false);
 	});
 
 	it('resets horizontal group-header drag selection to its recorded active tab', () => {
@@ -1768,12 +2501,10 @@ describe('TabStrip', () => {
 		expect(model.getGroup('research')?.collapsed).toBe(true);
 		expect([...model.getSnapshot().selectedTabIds]).toEqual(['research-a', 'research-b']);
 		expect(model.getSnapshot().activeTabId).toBe('research-a');
-		const ghost = document.querySelector<HTMLElement>(
-			'[data-tab-strip-drag-ghost][data-layout="horizontal"]',
-		);
-		expect(ghost?.style.getPropertyValue('--ob-comp-tab-strip-inline-size')).toBe('110px');
-		expect(ghost?.querySelectorAll('[data-horizontal-drag-view]')).toHaveLength(1);
-		expect(ghost?.querySelector('[data-drag-group-highlight]')).toBeNull();
+		const dragContext = document.querySelector<HTMLElement>('[data-horizontal-drag-context]');
+		expect(dragContext?.style.getPropertyValue('--ob-comp-tab-strip-inline-size')).toBe('110px');
+		expect(document.querySelectorAll('[data-horizontal-drag-view]')).toHaveLength(1);
+		expect(dragContext?.querySelector('[data-drag-group-highlight]')).toBeNull();
 
 		fireEvent.pointerUp(window, { pointerId: 63, clientX: 500, clientY: 20 });
 		expect(model.getGroup('research')?.collapsed).toBe(true);
@@ -1819,16 +2550,16 @@ describe('TabStrip', () => {
 		fireEvent.pointerDown(a, { button: 0, pointerId: 86, clientX: 100, clientY: 20 });
 		fireEvent.pointerMove(window, { pointerId: 86, clientX: 120, clientY: 20 });
 
-		const ghost = document.querySelector('[data-tab-strip-drag-ghost][data-layout="horizontal"]');
-		expect(ghost?.querySelectorAll('[data-drag-group-highlight]')).toHaveLength(0);
-		expect(ghost?.querySelectorAll('[data-drag-group-underline]')).toHaveLength(2);
+		const dragContext = document.querySelector('[data-horizontal-drag-context]');
+		expect(dragContext?.querySelectorAll('[data-drag-group-highlight]')).toHaveLength(0);
+		expect(dragContext?.querySelectorAll('[data-drag-group-underline]')).toHaveLength(2);
 		expect(
-			ghost
+			dragContext
 				?.querySelector<HTMLElement>('[data-group-underline-id="one"]')
 				?.style.getPropertyValue('--ob-comp-tab-strip-group-color'),
 		).toBe('#1a73e8');
 		expect(
-			ghost
+			dragContext
 				?.querySelector<HTMLElement>('[data-group-underline-id="two"]')
 				?.style.getPropertyValue('--ob-comp-tab-strip-group-color'),
 		).toBe('#d93025');
@@ -1861,7 +2592,9 @@ describe('TabStrip', () => {
 
 		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['a', 'c', 'b', 'd']);
 		expect(document.querySelector('[data-source][data-compacting]')).toBeNull();
-		expect(document.querySelectorAll('[data-compacting]')).toHaveLength(1);
+		expect(document.querySelectorAll('[data-horizontal-drag-view][data-compacting]')).toHaveLength(
+			1,
+		);
 		fireEvent.pointerUp(window, { pointerId: 87, clientX: 61, clientY: 20 });
 	});
 
@@ -1889,14 +2622,138 @@ describe('TabStrip', () => {
 		fireEvent.pointerDown(c, { button: 0, pointerId: 88, clientX: 250, clientY: 20 });
 		fireEvent.pointerMove(window, { pointerId: 88, clientX: 261, clientY: 20 });
 
-		const ghost = document.querySelector<HTMLElement>(
-			'[data-tab-strip-drag-ghost][data-layout="horizontal"]',
-		);
-		const source = ghost?.querySelector<HTMLElement>('[data-source]');
-		expect(ghost?.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe('129px');
-		expect(source?.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe('82px');
+		const dragContext = document.querySelector<HTMLElement>('[data-horizontal-drag-context]');
+		const source = document.querySelector<HTMLElement>('[data-horizontal-drag-view][data-source]');
+		expect(dragContext?.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe('129px');
+		expect(source?.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe('211px');
 		expect(source?.hasAttribute('data-compacting')).toBe(false);
 		fireEvent.pointerUp(window, { pointerId: 88, clientX: 261, clientY: 20 });
+	});
+
+	it('continues horizontal compaction while pointer updates retarget the composite', () => {
+		const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
+			window,
+			'requestAnimationFrame',
+		);
+		const requestAnimationFrame = vi.fn<(callback: FrameRequestCallback) => number>(() => 1);
+		Object.defineProperty(window, 'requestAnimationFrame', {
+			configurable: true,
+			value: requestAnimationFrame,
+		});
+		try {
+			const model = new TabModel({
+				tabs: [
+					{ id: 'a', title: 'A', pinned: false, group: null },
+					{ id: 'b', title: 'B', pinned: false, group: null },
+					{ id: 'c', title: 'C', pinned: false, group: null },
+					{ id: 'd', title: 'D', pinned: false, group: null },
+				],
+				activeTabId: 'c',
+				selectedTabIds: ['a', 'c'],
+			});
+			let session: DragSessionData<Readonly<TabGroupData>> | null = null;
+			render(
+				<TabStrip
+					model={model}
+					createCrossWindowDragRuntime={(candidate) => {
+						session = candidate;
+						return null;
+					}}
+				/>,
+			);
+			const a = screen.getByRole('tab', { name: /^A/ });
+			const b = screen.getByRole('tab', { name: /^B/ });
+			const c = screen.getByRole('tab', { name: /^C/ });
+			const d = screen.getByRole('tab', { name: /^D/ });
+			setRect(a, 0, 100);
+			setRect(b, 100, 100);
+			setRect(c, 200, 100);
+			setRect(d, 300, 100);
+
+			fireEvent.pointerDown(c, { button: 0, pointerId: 153, clientX: 250, clientY: 20 });
+			fireEvent.pointerMove(window, { pointerId: 153, clientX: 261, clientY: 20 });
+			const startedSession = requireDefined<DragSessionData<Readonly<TabGroupData>>>(session);
+			const startedAt = startedSession.dragStartTime;
+			const callbacks = requestAnimationFrame.mock.calls.flatMap((call) =>
+				call[0] === undefined ? [] : [call[0]],
+			);
+			act(() =>
+				callbacks.forEach((callback) => callback(startedAt + DRAG_START_ANIMATION_DURATION_MS / 2)),
+			);
+
+			const draggedA = requireDefined(
+				document.querySelector<HTMLElement>(
+					'[data-horizontal-drag-view="tab"]:has([data-tab-id="a"])',
+				),
+			);
+			const source = requireDefined(
+				document.querySelector<HTMLElement>('[data-horizontal-drag-view="tab"][data-source]'),
+			);
+			const relativeAtMidpoint =
+				Number.parseFloat(draggedA.style.getPropertyValue('--ob-comp-tab-strip-inline-start')) -
+				Number.parseFloat(source.style.getPropertyValue('--ob-comp-tab-strip-inline-start'));
+			expect(relativeAtMidpoint).toBe(-111);
+
+			fireEvent.pointerMove(window, { pointerId: 153, clientX: 271, clientY: 20 });
+			const relativeAfterRetarget =
+				Number.parseFloat(draggedA.style.getPropertyValue('--ob-comp-tab-strip-inline-start')) -
+				Number.parseFloat(source.style.getPropertyValue('--ob-comp-tab-strip-inline-start'));
+			expect(relativeAfterRetarget).toBe(relativeAtMidpoint);
+			expect(startedSession.dragStartTime).toBe(startedAt);
+			fireEvent.pointerUp(window, { pointerId: 153, clientX: 271, clientY: 20 });
+		} finally {
+			if (requestAnimationFrameDescriptor) {
+				Object.defineProperty(window, 'requestAnimationFrame', requestAnimationFrameDescriptor);
+			} else {
+				Reflect.deleteProperty(window, 'requestAnimationFrame');
+			}
+		}
+	});
+
+	it('snaps nonconsecutive drag compaction for reduced motion', () => {
+		const matchMediaDescriptor = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+		Object.defineProperty(window, 'matchMedia', {
+			configurable: true,
+			value: (media: string): MediaQueryList => ({
+				matches: media === '(prefers-reduced-motion: reduce)',
+				media,
+				onchange: null,
+				addListener: vi.fn<MediaQueryList['addListener']>(),
+				removeListener: vi.fn<MediaQueryList['removeListener']>(),
+				addEventListener: vi.fn<MediaQueryList['addEventListener']>(),
+				removeEventListener: vi.fn<MediaQueryList['removeEventListener']>(),
+				dispatchEvent: () => true,
+			}),
+		});
+		try {
+			const model = new TabModel({
+				tabs: [
+					{ id: 'a', title: 'A', pinned: false, group: null },
+					{ id: 'b', title: 'B', pinned: false, group: null },
+					{ id: 'c', title: 'C', pinned: false, group: null },
+				],
+				activeTabId: 'c',
+				selectedTabIds: ['a', 'c'],
+			});
+			render(<TabStrip model={model} />);
+			const a = screen.getByRole('tab', { name: /^A/ });
+			const b = screen.getByRole('tab', { name: /^B/ });
+			const c = screen.getByRole('tab', { name: /^C/ });
+			setRect(a, 0, 100);
+			setRect(b, 100, 100);
+			setRect(c, 200, 100);
+
+			fireEvent.pointerDown(c, { button: 0, pointerId: 154, clientX: 250, clientY: 20 });
+			fireEvent.pointerMove(window, { pointerId: 154, clientX: 261, clientY: 20 });
+			expect(document.querySelector('[data-horizontal-drag-view][data-compacting]')).toBeNull();
+			fireEvent.pointerUp(window, { pointerId: 154, clientX: 261, clientY: 20 });
+		} finally {
+			if (matchMediaDescriptor) {
+				Object.defineProperty(window, 'matchMedia', matchMediaDescriptor);
+			} else {
+				Reflect.deleteProperty(window, 'matchMedia');
+			}
+		}
 	});
 
 	it('uses the packed mouse offset for the insertion target of a later source tab', () => {
@@ -1953,13 +2810,13 @@ describe('TabStrip', () => {
 
 		fireEvent.pointerDown(group, { button: 0, pointerId: 44, clientX: 80, clientY: 20 });
 		fireEvent.pointerMove(window, { pointerId: 44, clientX: 500, clientY: 20 });
-		expect(document.querySelector('[data-tab-strip-drag-ghost]')).not.toBeNull();
+		expect(document.querySelector('[data-horizontal-drag-context]')).not.toBeNull();
 		expect(model.getGroup('research')?.collapsed).toBe(true);
 
 		act(() => {
 			model.addTab({ title: 'Added', pinned: false, group: null }, { id: 'added' });
 		});
-		expect(document.querySelector('[data-tab-strip-drag-ghost]')).toBeNull();
+		expect(document.querySelector('[data-horizontal-drag-context]')).toBeNull();
 		expect(model.getGroup('research')?.collapsed).toBe(false);
 		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
 			'pinned',
@@ -1995,7 +2852,13 @@ describe('TabStrip', () => {
 		const dragUnderline = document.querySelector<HTMLElement>('[data-drag-group-underline]');
 		expect(dragUnderline?.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe('18px');
 		expect(dragUnderline?.style.getPropertyValue('--ob-comp-tab-strip-inline-size')).toBe('64px');
-		fireEvent.pointerUp(window, { pointerId: 17, clientX: 111, clientY: 20 });
+
+		fireEvent.pointerMove(window, { pointerId: 17, clientX: 500, clientY: 20 });
+		expect(model.getSnapshot().tabs.find((tab) => tab.id === 'research-a')?.group).toBeNull();
+		expect(document.querySelector('[data-drag-group-underline]')).toBeNull();
+		expect(document.querySelector('[data-horizontal-drag-context]')).not.toBeNull();
+
+		fireEvent.pointerUp(window, { pointerId: 17, clientX: 500, clientY: 20 });
 	});
 
 	it('keeps a previously collapsed group collapsed throughout header dragging', () => {
@@ -2028,6 +2891,45 @@ describe('TabStrip', () => {
 				.getByRole('tablist', { name: /^Research, 2 tabs.*collapsed$/ })
 				.getAttribute('data-active-tab-id'),
 		).toBe('research-a');
+	});
+
+	it('keeps an expanded group visible in the vertical header-drag presentation', () => {
+		const model = createModel();
+		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} />);
+		const group = screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ });
+		const groupView = requireDefined(group.closest<HTMLElement>('[data-tab-strip-group]'));
+		const researchA = screen.getByRole('tab', { name: /^Research A/ });
+		const researchB = screen.getByRole('tab', { name: /^Research B/ });
+		setRect(groupView, 0, 216, 50, 96);
+		setRect(group, 0, 216, 50, 26);
+		setRect(researchA, 12, 204, 82, 30);
+		setRect(researchB, 12, 204, 114, 30);
+
+		fireEvent.pointerDown(group, { button: 0, pointerId: 194, clientX: 100, clientY: 65 });
+		fireEvent.pointerMove(window, { pointerId: 194, clientX: 100, clientY: 120 });
+
+		expect(model.getGroup('research')?.collapsed).toBe(true);
+		const draggedGroupView = requireDefined(
+			document.querySelector<HTMLElement>('[data-vertical-drag-view="group-visual"]'),
+		);
+		expect(draggedGroupView.style.getPropertyValue('--ob-comp-tab-strip-block-size')).toBe('96px');
+		const draggedGroup = requireDefined(
+			draggedGroupView.querySelector<HTMLElement>('[data-tab-strip-group]'),
+		);
+		expect(draggedGroup.hasAttribute('data-group-collapsed')).toBe(false);
+		expect(
+			[...draggedGroup.querySelectorAll<HTMLElement>('[data-tab-id]')].map(
+				(tab) => tab.dataset['tabId'],
+			),
+		).toEqual(['research-a', 'research-b']);
+		expect(
+			draggedGroup
+				.querySelector<HTMLElement>('[data-tab-strip-group-tabs]')
+				?.hasAttribute('aria-hidden'),
+		).toBe(false);
+
+		fireEvent.pointerUp(window, { pointerId: 194, clientX: 100, clientY: 120 });
+		expect(model.getGroup('research')?.collapsed).toBe(false);
 	});
 
 	it('restores the common-handler group-header selection rule when a vertical drag is canceled', () => {
@@ -2078,12 +2980,22 @@ describe('TabStrip', () => {
 			),
 		).toEqual(['research-a', 'research-b']);
 		expect(ghost?.querySelectorAll('[data-horizontal-drag-view]')).toHaveLength(0);
-		expect(groupView.hasAttribute('data-drag-source')).toBe(true);
 		expect(
-			researchA.closest('[data-tab-strip-tab-wrapper]')?.hasAttribute('data-drag-source'),
+			document
+				.querySelector<HTMLElement>('[data-tab-strip-group][data-group-id="research"]')
+				?.hasAttribute('data-drag-source'),
+		).toBe(true);
+		expect(
+			screen
+				.getByRole('tab', { name: /^Research A/ })
+				.closest('[data-tab-strip-tab-wrapper]')
+				?.hasAttribute('data-drag-source'),
 		).toBe(false);
 		expect(
-			researchB.closest('[data-tab-strip-tab-wrapper]')?.hasAttribute('data-drag-source'),
+			screen
+				.getByRole('tab', { name: /^Research B/ })
+				.closest('[data-tab-strip-tab-wrapper]')
+				?.hasAttribute('data-drag-source'),
 		).toBe(false);
 
 		fireEvent.pointerUp(window, { pointerId: 14, clientX: 100, clientY: 200 });
@@ -2111,6 +3023,71 @@ describe('TabStrip', () => {
 				?.hasAttribute('data-drag-source'),
 		).toBe(true);
 		fireEvent.pointerUp(window, { pointerId: 151, clientX: 90, clientY: 210 });
+	});
+
+	it('keeps displaced vertical units mounted during an upward live reorder', async () => {
+		const model = new TabModel({
+			tabs: [
+				{ id: 'a', title: 'A', pinned: false, group: null },
+				{ id: 'b', title: 'B', pinned: false, group: null },
+				{ id: 'c', title: 'C', pinned: false, group: null },
+			],
+			activeTabId: 'c',
+		});
+		const moveTabsByDrag = vi.spyOn(model, 'moveTabsByDrag');
+		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} />);
+		const strip = screen.getByRole('tablist', { name: 'Tabs' });
+		const a = screen.getByRole('tab', { name: /^A/ });
+		const b = screen.getByRole('tab', { name: /^B/ });
+		const c = screen.getByRole('tab', { name: /^C/ });
+		const bUnit = requireDefined(
+			document.querySelector<HTMLElement>('[data-vertical-unpinned-unit="b"]'),
+		);
+		const cUnit = requireDefined(
+			document.querySelector<HTMLElement>('[data-vertical-unpinned-unit="c"]'),
+		);
+		const scrollContent = requireDefined(
+			document.querySelector<HTMLElement>('[data-tab-strip-scroll-content]'),
+		);
+		const removedUnitIds: string[] = [];
+		const observer = new MutationObserver((records) => {
+			for (const record of records) {
+				for (const node of record.removedNodes) {
+					if (!(node instanceof HTMLElement)) continue;
+					const id = node.getAttribute('data-vertical-unpinned-unit');
+					if (id !== null) removedUnitIds.push(id);
+				}
+			}
+		});
+		observer.observe(scrollContent, { childList: true });
+		setRect(strip, 0, 240, 0, 500);
+		setRect(a, 12, 216, 100, 30);
+		setRect(b, 12, 216, 132, 30);
+		setRect(c, 12, 216, 164, 30);
+		expect(bUnit.style.getPropertyValue('--ob-comp-tab-strip-block-start')).toBe('32px');
+
+		fireEvent.pointerDown(c, { button: 0, pointerId: 192, clientX: 90, clientY: 179 });
+		fireEvent.pointerMove(window, { pointerId: 192, clientX: 90, clientY: 100 });
+		expect(moveTabsByDrag).toHaveBeenCalledOnce();
+		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['c', 'a', 'b']);
+		expect(bUnit.style.getPropertyValue('--ob-comp-tab-strip-block-start')).toBe('64px');
+		await Promise.resolve();
+		expect(removedUnitIds).toEqual(['c']);
+		const liveCUnit = requireDefined(
+			document.querySelector<HTMLElement>('[data-vertical-unpinned-unit="c"]'),
+		);
+		expect(liveCUnit).not.toBe(cUnit);
+		expect(liveCUnit.hasAttribute('data-drag-source-unit')).toBe(true);
+		observer.disconnect();
+
+		fireEvent.pointerUp(window, { pointerId: 192, clientX: 90, clientY: 100 });
+		expect(moveTabsByDrag).toHaveBeenCalledOnce();
+		expect(model.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['c', 'a', 'b']);
+		expect(
+			document
+				.querySelector<HTMLElement>('[data-vertical-unpinned-unit="c"]')
+				?.hasAttribute('data-drag-source-unit'),
+		).toBe(false);
 	});
 
 	it('animates non-source vertical views from their source-relative positions', () => {
@@ -2141,12 +3118,72 @@ describe('TabStrip', () => {
 			'[data-vertical-drag-view="tab"]:has([data-tab-id="c"])',
 		);
 		expect(draggedA?.hasAttribute('data-compacting')).toBe(true);
-		expect(draggedA?.style.getPropertyValue('--ob-comp-tab-strip-drag-initial-offset-y')).toBe(
-			'-32px',
-		);
+		expect(draggedA?.style.getPropertyValue('--ob-comp-tab-strip-block-start')).toBe('-32px');
 		expect(draggedC?.hasAttribute('data-source')).toBe(true);
 		expect(draggedC?.hasAttribute('data-compacting')).toBe(false);
 		fireEvent.pointerUp(window, { pointerId: 152, clientX: 90, clientY: 220 });
+	});
+
+	it('keeps squashed vertical peers visible until drag-start compaction completes', () => {
+		const requestAnimationFrameDescriptor = Object.getOwnPropertyDescriptor(
+			window,
+			'requestAnimationFrame',
+		);
+		const requestAnimationFrame = vi.fn<(callback: FrameRequestCallback) => number>(() => 1);
+		Object.defineProperty(window, 'requestAnimationFrame', {
+			configurable: true,
+			value: requestAnimationFrame,
+		});
+		try {
+			const model = new TabModel({
+				tabs: [
+					{ id: 'a', title: 'A', pinned: false, group: null },
+					{ id: 'b', title: 'B', pinned: false, group: null },
+					{ id: 'c', title: 'C', pinned: false, group: null },
+				],
+				activeTabId: 'c',
+				selectedTabIds: ['a', 'c'],
+			});
+			let session: DragSessionData<Readonly<TabGroupData>> | null = null;
+			render(
+				<TabStrip
+					model={model}
+					orientation={TabStripOrientation.Vertical}
+					verticalCollapsed
+					createCrossWindowDragRuntime={(candidate) => {
+						session = candidate;
+						return null;
+					}}
+				/>,
+			);
+			const a = screen.getByRole('tab', { name: /^A/ });
+			const b = screen.getByRole('tab', { name: /^B/ });
+			const c = screen.getByRole('tab', { name: /^C/ });
+			setRect(a, 12, 40, 100, 30);
+			setRect(b, 12, 40, 132, 30);
+			setRect(c, 12, 40, 164, 30);
+
+			fireEvent.pointerDown(c, { button: 0, pointerId: 155, clientX: 30, clientY: 179 });
+			fireEvent.pointerMove(window, { pointerId: 155, clientX: 30, clientY: 220 });
+			expect(document.querySelectorAll('[data-vertical-drag-view="tab"]')).toHaveLength(2);
+
+			const animationFrames = requestAnimationFrame.mock.calls.flatMap((call) =>
+				call[0] === undefined ? [] : [call[0]],
+			);
+			act(() =>
+				animationFrames.forEach((animationFrame) =>
+					animationFrame(requireDefined(session).dragStartTime + DRAG_START_ANIMATION_DURATION_MS),
+				),
+			);
+			expect(document.querySelectorAll('[data-vertical-drag-view="tab"]')).toHaveLength(1);
+			fireEvent.pointerUp(window, { pointerId: 155, clientX: 30, clientY: 220 });
+		} finally {
+			if (requestAnimationFrameDescriptor) {
+				Object.defineProperty(window, 'requestAnimationFrame', requestAnimationFrameDescriptor);
+			} else {
+				Reflect.deleteProperty(window, 'requestAnimationFrame');
+			}
+		}
 	});
 
 	it('preserves collection order when an ungrouped tab precedes a complete vertical group', () => {

@@ -1,5 +1,6 @@
 import styles from './TabButton.module.css';
 import {
+	type CSSProperties,
 	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
 	type ReactNode,
@@ -9,6 +10,7 @@ import { type TabSlotViewState } from '../../../../model/TabSlotViewState';
 import {
 	TAB_AFTER_TITLE_PADDING,
 	calculateHorizontalAlertCloseGap,
+	calculateHorizontalPinnedControlOffset,
 	calculateHorizontalTabChildVisibility,
 	calculateVerticalTabChildVisibility,
 } from '../../../../layout/tab-content-layout';
@@ -37,7 +39,6 @@ export function TabButton({
 	width,
 	orientation,
 	collapsed,
-	closing = false,
 	onPointerDown,
 	onClose,
 	onContextMenu,
@@ -59,7 +60,6 @@ export function TabButton({
 	width: number;
 	orientation: TabStripOrientation;
 	collapsed: boolean;
-	closing?: boolean;
 	onPointerDown: (event: ReactPointerEvent<HTMLDivElement>, tab: Readonly<TabData>) => void;
 	onClose: (event: ReactMouseEvent, tabId: string, source: TabCloseSource) => void;
 	onContextMenu: (event: ReactMouseEvent, tabId: string) => void;
@@ -77,8 +77,6 @@ export function TabButton({
 	dragging?: boolean;
 }): ReactNode {
 	const messages = useTabStripMessages();
-	// Closing views remain mounted for the shrink animation, but Chromium no
-	// longer paints them as active during that interval.
 	const { focused, hovered, measuredTabSize, setFocused, setHovered, tabViewRef } = useTabButton();
 	// Chromium's BoundsAnimator lays out a Tab at each animation frame. Observe
 	// the transitioning wrapper so child visibility uses that current width
@@ -87,7 +85,7 @@ export function TabButton({
 		orientation === TabStripOrientation.Horizontal && measuredTabSize.width > 0
 			? measuredTabSize.width
 			: width;
-	const active = !closing && tabIsApparentlyActive(tab, snapshot);
+	const active = tabIsApparentlyActive(tab, snapshot);
 	const selected = snapshot.selectedTabIds.has(tab.id);
 	const visualHovered = hovered || hoveredTabId === tab.id;
 	const alertState = tab.alertState ?? 'none';
@@ -101,6 +99,7 @@ export function TabButton({
 					contentsWidth: horizontalContentsWidth,
 					active,
 					pinned: tab.pinned,
+					pinTransition: slotState?.pinTransition,
 					hovered: visualHovered,
 					focused,
 					touchUi,
@@ -122,6 +121,15 @@ export function TabButton({
 					hasAlert,
 					closeAllowed: closeButtonAllowed,
 				});
+	const pinningControlOffset =
+		orientation === TabStripOrientation.Horizontal && slotState?.pinTransition === 'pinning'
+			? calculateHorizontalPinnedControlOffset({
+					width: renderedWidth,
+					pinnedWidth: TAB_SIZE.pinnedTabWidth,
+					controlWidth: 16,
+					normalControlX: TAB_CONTENT_HORIZONTAL_INSET,
+				})
+			: 0;
 	const group =
 		tab.group === null
 			? null
@@ -133,7 +141,7 @@ export function TabButton({
 			? {
 					active: tabIsApparentlyActive(candidate, snapshot),
 					selected: snapshot.selectedTabIds.has(candidate.id),
-					hovered: hoveredTabId === candidate.id,
+					hovered: false,
 					group: candidate.group,
 				}
 			: null;
@@ -141,7 +149,7 @@ export function TabButton({
 		tab: {
 			active,
 			selected,
-			hovered: visualHovered,
+			hovered: false,
 			group: tab.group,
 		},
 		previous: separatorStateFor(snapshot.tabs[tabIndex - 1]),
@@ -149,6 +157,8 @@ export function TabButton({
 		tabCount: snapshot.tabs.length,
 		declutterEnabled,
 	});
+	const previousTabHovered = hoveredTabId === snapshot.tabs[tabIndex - 1]?.id;
+	const nextTabHovered = hoveredTabId === snapshot.tabs[tabIndex + 1]?.id;
 	const content = (
 		<span className={styles['ct-tab__content']} data-tab-content=''>
 			{childVisibility.showFavicon ? (
@@ -175,6 +185,8 @@ export function TabButton({
 			role='tab'
 			tabIndex={-1}
 			aria-selected={selected}
+			aria-posinset={tabIndex + 1}
+			aria-setsize={snapshot.tabs.length}
 			aria-label={messages.formatTabAccessibleLabel(tab, group)}
 			title=''
 			className={styles['ct-tab']}
@@ -218,6 +230,16 @@ export function TabButton({
 			data-slot-group={slotState?.group ?? undefined}
 			data-slot-dragging={slotState?.dragging || dragging || undefined}
 			data-slot-animating={slotState?.animating || undefined}
+			data-pin-compacting={
+				(orientation === TabStripOrientation.Horizontal &&
+					slotState?.pinTransition === 'pinning') ||
+				undefined
+			}
+			style={
+				{
+					'--ob-comp-tab-strip-pin-control-offset': `${pinningControlOffset}px`,
+				} satisfies CSSProperties & Record<'--ob-comp-tab-strip-pin-control-offset', string>
+			}
 			onPointerDown={(event) => onPointerDown(event, tab)}
 			onAuxClick={(event) => {
 				if (event.button === 1) onClose(event, tab.id, 'mouse');
@@ -249,7 +271,11 @@ export function TabButton({
 						data-tab-hit-target=''
 						aria-hidden='true'
 					/>
-					<span className={styles['ct-tab__surface']} data-tab-surface=''>
+					<span
+						className={styles['ct-tab__surface']}
+						data-tab-surface=''
+						data-tab-background-fill=''
+					>
 						{content}
 					</span>
 					<span
@@ -258,6 +284,7 @@ export function TabButton({
 							styles['ct-tab__separator--leading'],
 						)}
 						data-tab-separator='leading'
+						data-hover-suppressed={visualHovered || previousTabHovered || undefined}
 						style={{
 							'--ob-comp-tab-strip-inline-start': `${separatorBounds.leading.x}px`,
 							'--ob-comp-tab-strip-block-start': `${separatorBounds.leading.y}px`,
@@ -272,6 +299,7 @@ export function TabButton({
 							styles['ct-tab__separator--trailing'],
 						)}
 						data-tab-separator='trailing'
+						data-hover-suppressed={visualHovered || nextTabHovered || undefined}
 						style={{
 							'--ob-comp-tab-strip-inline-start': `${separatorBounds.trailing.x}px`,
 							'--ob-comp-tab-strip-block-start': `${separatorBounds.trailing.y}px`,
@@ -283,7 +311,9 @@ export function TabButton({
 				</>
 			) : (
 				<>
-					<span className={styles['ct-tab__background']} />
+					<span className={styles['ct-tab__background']} data-tab-state-layer=''>
+						<span className={styles['ct-tab__hover-layer']} data-tab-hover-layer='' />
+					</span>
 					{content}
 				</>
 			)}

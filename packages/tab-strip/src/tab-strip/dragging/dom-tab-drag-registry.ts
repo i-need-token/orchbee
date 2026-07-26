@@ -1,4 +1,3 @@
-import { requireDefined } from '../utils/requireDefined';
 import type { Rect } from '../utils/rectRight';
 import type { TabGroupId } from '../model/tab-types';
 import type { DragSessionData } from './drag-session-data';
@@ -7,19 +6,21 @@ import type { DragPoint } from './dragging-tabs-session';
 import type { TabDragContext } from './tab-drag-context';
 import type { TabDragPointResolver, TabDragTarget } from './tab-drag-target';
 export const MOUSE_VERTICAL_DETACH_MAGNETISM = 15;
-export const TOUCH_VERTICAL_DETACH_MAGNETISM = 50;
+export const TOUCH_VERTICAL_DETACH_MAGNETISM = MOUSE_VERTICAL_DETACH_MAGNETISM;
 export interface DomTabDragBrowserRegistration {
 	browserId: string;
 	context: TabDragContext;
 	getWindowBounds: () => Readonly<Rect>;
 	getTabStripBounds: () => Readonly<Rect>;
+	getZOrder?: () => number;
+	isAlive?: () => boolean;
+	canAcceptDrag?: (sessionData: DragSessionData, sourceContext: TabDragContext) => boolean;
 	getDragTarget?: (pointInScreen: Readonly<DragPoint>) => TabDragTarget | null;
 	getInsertionIndex?: (pointInScreen: Readonly<DragPoint>, sessionData: DragSessionData) => number;
 	getTargetGroup?: (
 		pointInScreen: Readonly<DragPoint>,
 		sessionData: DragSessionData,
 	) => TabGroupId | null | undefined;
-	touch?: boolean;
 }
 export interface DomTabDragRegistryOptions {
 	createBrowserContext?: (
@@ -63,19 +64,27 @@ export class DomTabDragRegistry implements CrossWindowDragHost, TabDragPointReso
 	public getContextAtPoint(
 		browserId: string,
 		pointInScreen: Readonly<DragPoint>,
+		request?: Readonly<{
+			sessionData: DragSessionData;
+			sourceContext: TabDragContext;
+		}>,
 	): TabDragContext | null {
 		const registration = this.registrations.find((candidate) => candidate.browserId === browserId);
-		if (!registration) return null;
+		if (
+			!registration ||
+			registration.isAlive?.() === false ||
+			(request !== undefined &&
+				registration.canAcceptDrag?.(request.sessionData, request.sourceContext) === false)
+		) {
+			return null;
+		}
 		const bounds = registration.getTabStripBounds();
 		const delegate = registration.context.getPositioningDelegate();
 		const begin = bounds.x + (delegate?.tabDragAreaBeginX() ?? 0);
 		const end = bounds.x + (delegate?.tabDragAreaEndX() ?? bounds.width);
-		const magnetism = registration.touch
-			? TOUCH_VERTICAL_DETACH_MAGNETISM
-			: MOUSE_VERTICAL_DETACH_MAGNETISM;
 		const verticallyContained =
-			pointInScreen.y >= bounds.y - magnetism &&
-			pointInScreen.y < bounds.y + bounds.height + magnetism;
+			pointInScreen.y >= bounds.y - MOUSE_VERTICAL_DETACH_MAGNETISM &&
+			pointInScreen.y < bounds.y + bounds.height + MOUSE_VERTICAL_DETACH_MAGNETISM;
 		return pointInScreen.x >= begin && pointInScreen.x < end && verticallyContained
 			? registration.context
 			: null;
@@ -120,11 +129,21 @@ export class DomTabDragRegistry implements CrossWindowDragHost, TabDragPointReso
 	private getRegistrationAtPoint(
 		pointInScreen: Readonly<DragPoint>,
 	): DomTabDragBrowserRegistration | null {
-		for (let index = this.registrations.length - 1; index >= 0; index -= 1) {
-			const registration = requireDefined(this.registrations[index]);
-			if (contains(registration.getWindowBounds(), pointInScreen)) return registration;
+		let topmost: DomTabDragBrowserRegistration | null = null;
+		let topmostZOrder = Number.NEGATIVE_INFINITY;
+		for (const [index, registration] of this.registrations.entries()) {
+			if (
+				registration.isAlive?.() === false ||
+				!contains(registration.getWindowBounds(), pointInScreen)
+			) {
+				continue;
+			}
+			const zOrder = registration.getZOrder?.() ?? index;
+			if (zOrder < topmostZOrder) continue;
+			topmost = registration;
+			topmostZOrder = zOrder;
 		}
-		return null;
+		return topmost;
 	}
 }
 

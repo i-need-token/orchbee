@@ -22,7 +22,6 @@ export type TabStripIconName =
 	| 'search'
 	| 'spinner'
 	| 'tab-capture'
-	| 'unfocus-group'
 	| 'usb'
 	| 'volume'
 	| 'vr';
@@ -161,13 +160,6 @@ export function TabStripIcon({ name, variantClass }: TabStripIconProps): ReactNo
 			<TabStripIconSvg iconName={name} variantClass={variantClass}>
 				<circle cx='11' cy='11' r='6' />
 				<path d='m16 16 4 4' />
-			</TabStripIconSvg>
-		);
-	if (name === 'unfocus-group')
-		return (
-			<TabStripIconSvg iconName={name} variantClass={variantClass}>
-				<path d='M9 4H4v5m11-5h5v5M9 20H4v-5m11 5h5v-5' />
-				<path d='M8 12h8' />
 			</TabStripIconSvg>
 		);
 	if (name === 'group-attention')

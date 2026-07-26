@@ -4,7 +4,7 @@ import { type ReactNode } from 'react';
 export function GroupEditorMenuIcon({
 	kind,
 }: {
-	kind: 'new-tab' | 'move-window' | 'focus' | 'close' | 'ungroup';
+	kind: 'new-tab' | 'move-window' | 'close' | 'ungroup';
 }): ReactNode {
 	const paths: Record<typeof kind, ReactNode> = {
 		'new-tab': (
@@ -17,11 +17,6 @@ export function GroupEditorMenuIcon({
 			<>
 				<rect x='4' y='6' width='14' height='13' rx='1' />
 				<path d='M10 3h10v10m0-10-8 8' />
-			</>
-		),
-		focus: (
-			<>
-				<path d='M9 4H4v5m11-5h5v5M9 20H4v-5m11 5h5v-5' />
 			</>
 		),
 		close: (

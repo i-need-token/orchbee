@@ -18,6 +18,10 @@
 	composes: ct-tab__hit-target from '../../TabStripView.module.css';
 }
 
+.ct-tab__hover-layer {
+	composes: ct-tab__hover-layer from '../../TabStripView.module.css';
+}
+
 .ct-tab__separator {
 	composes: ct-tab__separator from '../../TabStripView.module.css';
 }

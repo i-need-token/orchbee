@@ -124,6 +124,16 @@ describe('DraggingTabsSession geometry and movement ports', () => {
 	it("scales Chromium's 16 DIP reorder threshold with the target tab width", () => {
 		expect(calculateHorizontalMoveThreshold(256, 256)).toBe(16);
 		expect(calculateHorizontalMoveThreshold(128, 256)).toBe(8);
+		expect(calculateHorizontalMoveThreshold(18, 256)).toBe(1);
+		expect(
+			shouldReorderDraggedTabs({
+				justAttached: true,
+				movementSinceLastReorder: 0,
+				threshold: 16,
+				initialMove: false,
+				tabsConsecutive: true,
+			}),
+		).toBe(true);
 		expect(
 			shouldReorderDraggedTabs({
 				justAttached: false,

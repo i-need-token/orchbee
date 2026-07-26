@@ -2,6 +2,7 @@ import type { TabDragRestoreState, DetachedTabBundle } from '../model/tab-model'
 import { DragSlotViewType, type DragSessionData } from './drag-session-data';
 import type { DragPoint } from './dragging-tabs-session';
 import type { TabDragContext } from './tab-drag-context';
+import { getDragStartAnimationProgress } from './dragged-tabs-container-layout';
 import type {
 	TabDragPointResolver,
 	TabDragTarget,
@@ -21,7 +22,14 @@ export type CrossWindowDragEndReason = 'complete' | 'cancel' | 'tab-destroyed';
 
 export interface CrossWindowDragHost {
 	getBrowserIdAtPoint(pointInScreen: Readonly<DragPoint>): string | null;
-	getContextAtPoint?(browserId: string, pointInScreen: Readonly<DragPoint>): TabDragContext | null;
+	getContextAtPoint?(
+		browserId: string,
+		pointInScreen: Readonly<DragPoint>,
+		request: Readonly<{
+			sessionData: DragSessionData;
+			sourceContext: TabDragContext;
+		}>,
+	): TabDragContext | null;
 	createBrowserContext?(
 		pointInScreen: Readonly<DragPoint>,
 		sessionData: DragSessionData,
@@ -47,6 +55,7 @@ export interface CrossWindowDragSnapshot {
 	attachedContextId: string | null;
 	targetActive: boolean;
 	destination: 'same-window' | 'existing-window' | 'new-window' | 'abandoned' | null;
+	endReason: CrossWindowDragEndReason | null;
 }
 
 type Listener = () => void;
@@ -60,6 +69,8 @@ export class CrossWindowTabDragRuntime implements TabDragTargetController<Detach
 	private attachedContext: TabDragContext | null;
 	private currentTarget: TabDragTarget<DetachedTabBundle> | null = null;
 	private targetDestroySubscription: (() => void) | null = null;
+	private attachedModelSubscription: (() => void) | null = null;
+	private internalModelMutationDepth = 0;
 	private readonly tabIds: readonly string[];
 	private readonly sourceInsertionIndex: number;
 	private readonly sourceRestoreState: TabDragRestoreState;
@@ -67,6 +78,7 @@ export class CrossWindowTabDragRuntime implements TabDragTargetController<Detach
 	private readonly createdContexts = new Set<TabDragContext>();
 	private revision = 0;
 	private destination: CrossWindowDragSnapshot['destination'] = null;
+	private endReason: CrossWindowDragEndReason | null = null;
 	private snapshot: CrossWindowDragSnapshot;
 	private readonly listeners = new Set<Listener>();
 	private readonly sourceContext: TabDragContext;
@@ -113,7 +125,9 @@ export class CrossWindowTabDragRuntime implements TabDragTargetController<Detach
 
 	public start(): void {
 		if (this.state !== CrossWindowDragState.NotStarted || !this.attachedContext) return;
+		this.sessionData.markDragStarted();
 		this.state = CrossWindowDragState.DraggingTabs;
+		this.observeAttachedModel();
 		this.attachedContext.startedDragging(this.getAttachedViewIds(this.attachedContext));
 		this.commit();
 	}
@@ -133,7 +147,10 @@ export class CrossWindowTabDragRuntime implements TabDragTargetController<Detach
 				targetContext = this.attachedContext;
 		} else if (browserId !== null) {
 			if (this.host.getContextAtPoint) {
-				targetContext = this.host.getContextAtPoint(browserId, pointInScreen);
+				targetContext = this.host.getContextAtPoint(browserId, pointInScreen, {
+					sessionData: this.sessionData,
+					sourceContext: this.sourceContext,
+				});
 			} else {
 				targetContext =
 					this.attachedContext?.id === browserId
@@ -153,14 +170,24 @@ export class CrossWindowTabDragRuntime implements TabDragTargetController<Detach
 			return;
 		}
 
-		if (targetContext !== this.attachedContext) this.attachToContext(targetContext, pointInScreen);
+		const justAttached =
+			targetContext !== this.attachedContext
+				? this.attachToContext(targetContext, pointInScreen)
+				: false;
+		if (targetContext !== this.attachedContext) {
+			this.state = CrossWindowDragState.DraggingWindow;
+			this.commit();
+			return;
+		}
 		this.state = CrossWindowDragState.DraggingTabs;
 		this.layoutAttached(pointInScreen);
+		if (justAttached) targetContext.getPositioningDelegate()?.forceLayout();
 		this.commit();
 	}
 
 	public end(reason: CrossWindowDragEndReason): void {
 		if (this.state === CrossWindowDragState.Stopped) return;
+		this.endReason = reason;
 		if (reason === 'cancel') {
 			this.revertDrag();
 			this.destination = 'abandoned';
@@ -176,6 +203,7 @@ export class CrossWindowTabDragRuntime implements TabDragTargetController<Detach
 
 		this.state = CrossWindowDragState.Stopped;
 		this.attachedContext?.stoppedDragging();
+		this.stopObservingAttachedModel();
 		if (this.currentTarget) this.currentTarget.onTabDragEnded();
 		this.resetTarget();
 		this.commit();
@@ -191,7 +219,9 @@ export class CrossWindowTabDragRuntime implements TabDragTargetController<Detach
 				? datum.attachedViewId
 				: this.attachedContext.getTabForContents(datum.contentsId);
 		if (!tabId) throw new Error('The dragged tab no longer exists in the attached context.');
-		const bundle = this.attachedContext.getTabStripModel().detachTabsForTransfer([tabId]);
+		const bundle = this.runInternalModelMutation(() =>
+			this.attachedContext?.getTabStripModel().detachTabsForTransfer([tabId]),
+		);
 		if (!bundle) throw new Error('The dragged tab could not be detached.');
 		return bundle;
 	}
@@ -204,9 +234,12 @@ export class CrossWindowTabDragRuntime implements TabDragTargetController<Detach
 		return this.attachedContext;
 	}
 
-	private attachToContext(targetContext: TabDragContext, pointInScreen: Readonly<DragPoint>): void {
+	private attachToContext(
+		targetContext: TabDragContext,
+		pointInScreen: Readonly<DragPoint>,
+	): boolean {
 		const previous = this.attachedContext;
-		if (!previous) return;
+		if (!previous) return false;
 		if (!this.restoreStates.has(targetContext)) {
 			this.restoreStates.set(
 				targetContext,
@@ -219,15 +252,19 @@ export class CrossWindowTabDragRuntime implements TabDragTargetController<Detach
 		const targetGroup = this.host.getTargetGroup?.(targetContext, pointInScreen, this.sessionData);
 		const transferOptions =
 			targetGroup === undefined ? { index: targetIndex } : { index: targetIndex, targetGroup };
-		const moved = previous
-			.getTabStripModel()
-			.transferTabsTo(targetContext.getTabStripModel(), this.tabIds, transferOptions);
-		if (!moved) return;
+		const moved = this.runInternalModelMutation(() =>
+			previous
+				.getTabStripModel()
+				.transferTabsTo(targetContext.getTabStripModel(), this.tabIds, transferOptions),
+		);
+		if (!moved) return false;
 		previous.draggedTabsDetached();
 		if (previous.getTabStripModel().getSnapshot().tabs.length === 0)
 			this.host.onContextEmptied?.(previous);
 		this.attachedContext = targetContext;
+		this.observeAttachedModel();
 		targetContext.startedDragging(this.getAttachedViewIds(targetContext));
+		return true;
 	}
 
 	private layoutAttached(pointInScreen: Readonly<DragPoint>): void {
@@ -246,19 +283,25 @@ export class CrossWindowTabDragRuntime implements TabDragTargetController<Detach
 			sourceId,
 			this.host.toContextPoint?.(context, pointInScreen) ?? pointInScreen,
 			false,
+			this.sessionData.dragStartAnimationRequired
+				? getDragStartAnimationProgress(this.sessionData.dragStartTime, performance.now())
+				: 1,
 		);
 	}
 
 	private revertDrag(): void {
 		const attached = this.attachedContext;
 		if (attached && attached !== this.sourceContext) {
-			attached
-				.getTabStripModel()
-				.transferTabsTo(this.sourceContext.getTabStripModel(), this.tabIds, {
-					index: this.sourceInsertionIndex,
-				});
+			this.runInternalModelMutation(() =>
+				attached
+					.getTabStripModel()
+					.transferTabsTo(this.sourceContext.getTabStripModel(), this.tabIds, {
+						index: this.sourceInsertionIndex,
+					}),
+			);
 			attached.draggedTabsDetached();
 			this.attachedContext = this.sourceContext;
+			this.observeAttachedModel();
 			this.sourceContext.startedDragging(this.getAttachedViewIds(this.sourceContext));
 		}
 		for (const [context, restoreState] of this.restoreStates) {
@@ -303,6 +346,43 @@ export class CrossWindowTabDragRuntime implements TabDragTargetController<Detach
 		this.currentTarget = null;
 	}
 
+	private observeAttachedModel(): void {
+		this.stopObservingAttachedModel();
+		const context = this.attachedContext;
+		if (!context) return;
+		this.attachedModelSubscription = context.getTabStripModel().subscribe(() => {
+			if (
+				this.internalModelMutationDepth > 0 ||
+				this.state === CrossWindowDragState.NotStarted ||
+				this.state === CrossWindowDragState.Stopped
+			) {
+				return;
+			}
+			const liveIds = new Set(
+				context
+					.getTabStripModel()
+					.getSnapshot()
+					.tabs.map((tab) => tab.id),
+			);
+			if (this.tabIds.every((id) => liveIds.has(id))) return;
+			this.end('tab-destroyed');
+		});
+	}
+
+	private stopObservingAttachedModel(): void {
+		this.attachedModelSubscription?.();
+		this.attachedModelSubscription = null;
+	}
+
+	private runInternalModelMutation<T>(mutation: () => T): T {
+		this.internalModelMutationDepth += 1;
+		try {
+			return mutation();
+		} finally {
+			this.internalModelMutationDepth -= 1;
+		}
+	}
+
 	private createSnapshot(): CrossWindowDragSnapshot {
 		return Object.freeze({
 			revision: this.revision,
@@ -311,6 +391,7 @@ export class CrossWindowTabDragRuntime implements TabDragTargetController<Detach
 			attachedContextId: this.attachedContext?.id ?? null,
 			targetActive: this.currentTarget !== null,
 			destination: this.destination,
+			endReason: this.endReason,
 		});
 	}
 

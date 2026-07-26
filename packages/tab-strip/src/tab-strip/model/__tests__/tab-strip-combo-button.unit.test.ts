@@ -26,7 +26,7 @@ describe('TabStripComboButtonController', () => {
 		expect(getTabStripComboAnimationFactors(1)).toEqual({ expansion: 1, opacity: 1, radius: 1 });
 	});
 
-	it('keeps hiding buttons alive until the 300ms animation ends', () => {
+	it('keeps hiding buttons alive until the configured animation ends', () => {
 		const controller = new TabStripComboButtonController({
 			tabSearchPinned: true,
 		});

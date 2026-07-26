@@ -42,6 +42,10 @@
 	composes: ct-vertical-scroll__content from '../../TabStripView.module.css';
 }
 
+.ct-vertical-unpinned__unit {
+	composes: ct-vertical-unpinned__unit from '../../TabStripView.module.css';
+}
+
 .ct-vertical-separator {
 	composes: ct-vertical-separator from '../../TabStripView.module.css';
 }

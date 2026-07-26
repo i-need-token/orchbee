@@ -27,6 +27,7 @@ export interface TabDragPositioningDelegate extends TabDragPositioningDelegateBa
 		sourceViewId: string,
 		location: Readonly<DragPoint>,
 		initialDrag: boolean,
+		dragStartAnimationProgress: number,
 	): void;
 	forceLayout(): void;
 }

@@ -31,7 +31,7 @@ async function movePointerTo(page: Page, locator: Locator): Promise<void> {
 }
 
 async function waitForSettledLayout(page: Page): Promise<void> {
-	await expect(page.locator('[data-tab-strip-drag-ghost]')).toHaveCount(0);
+	await expect(page.locator('[data-horizontal-drag-context]')).toHaveCount(0);
 	await expect(root(page).locator('[data-slot-animating]')).toHaveCount(0);
 	await page.waitForFunction(
 		() => {
@@ -110,9 +110,9 @@ async function selectedTabIds(page: Page): Promise<readonly string[]> {
 		);
 }
 
-async function expectGhostActiveSurfaceToHaveNoShadow(page: Page): Promise<void> {
-	const activeSurface = page
-		.locator('[data-tab-strip-drag-ghost][data-layout="horizontal"]')
+async function expectDraggedActiveSurfaceToHaveNoShadow(page: Page): Promise<void> {
+	const activeSurface = root(page)
+		.locator('[data-horizontal-item][data-horizontal-drag-view]')
 		.locator('[data-active] > [data-tab-surface], [data-active] > [data-group-surface]');
 	await expect(activeSurface).toHaveCount(1);
 	expect(
@@ -122,11 +122,11 @@ async function expectGhostActiveSurfaceToHaveNoShadow(page: Page): Promise<void>
 	).toEqual(['none']);
 }
 
-async function expectGhostInactiveSurfacesToBeOpaqueAndRounded(page: Page): Promise<void> {
-	const ghost = page.locator('[data-tab-strip-drag-ghost][data-layout="horizontal"]');
-	const activeSurface = ghost.locator('[data-active] > [data-tab-surface]');
-	const inactiveGroupHeader = ghost.locator('[data-group-id]:not([data-active])');
-	const inactiveSurfaces = ghost.locator(
+async function expectDraggedInactiveSurfacesToBeOpaqueAndRounded(page: Page): Promise<void> {
+	const draggedViews = root(page).locator('[data-horizontal-item][data-horizontal-drag-view]');
+	const activeSurface = draggedViews.locator('[data-active] > [data-tab-surface]');
+	const inactiveGroupHeader = draggedViews.locator('[data-group-id]:not([data-active])');
+	const inactiveSurfaces = draggedViews.locator(
 		'[data-group-id]:not([data-active]) > [data-group-surface], [data-tab-id]:not([data-active]) > [data-tab-surface]',
 	);
 	await expect(activeSurface).toHaveCount(1);
@@ -184,6 +184,7 @@ async function visibleActiveSurfaceIds(page: Page): Promise<readonly string[]> {
 }
 
 test.beforeEach(async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
 	await page.goto('/');
 	await expect(root(page)).toHaveAttribute('data-orientation', 'horizontal');
 	await waitForSettledLayout(page);
@@ -195,14 +196,30 @@ test('expanded group is dragged as one full visual and commits at a collection b
 }) => {
 	await beginDrag(page, sourceHeader(page));
 
-	const ghost = page.locator('[data-tab-strip-drag-ghost][data-layout="horizontal"]');
-	await expect(ghost).toHaveCount(1);
-	await expect(ghost.locator('[data-group-id="research"]')).toHaveCount(1);
-	await expect(ghost.locator('[data-tab-id="source"]')).toHaveCount(1);
-	await expect(ghost.locator('[data-tab-id="tabs-source"]')).toHaveCount(1);
-	await expect(ghost.locator('[data-drag-group-highlight]')).toHaveCount(0);
-	await expectGhostActiveSurfaceToHaveNoShadow(page);
-	await expectGhostInactiveSurfacesToBeOpaqueAndRounded(page);
+	const dragContext = page.locator('[data-horizontal-drag-context]');
+	const draggedViews = root(page).locator('[data-horizontal-item][data-horizontal-drag-view]');
+	await expect(dragContext).toHaveCount(1);
+	await expect(draggedViews.locator('[data-group-id="research"]')).toHaveCount(1);
+	await expect(draggedViews.locator('[data-tab-id="source"]')).toHaveCount(1);
+	await expect(draggedViews.locator('[data-tab-id="tabs-source"]')).toHaveCount(1);
+	await expect(dragContext.locator('[data-drag-group-highlight]')).toHaveCount(0);
+	await expect(dragContext.locator('[data-drag-group-underline]')).toHaveCount(1);
+	await expect(
+		root(page).locator('[data-group-underline-id="research"]:not([data-drag-group-underline])'),
+	).toHaveCount(0);
+	const dragUnderline = dragContext.locator('[data-drag-group-underline]');
+	const underlineBounds = await dragUnderline.boundingBox();
+	expect(underlineBounds?.width).toBeGreaterThan(0);
+	expect(underlineBounds?.height).toBeGreaterThan(0);
+	const dragContextZIndex = Number(
+		await dragContext.evaluate((element) => getComputedStyle(element).zIndex),
+	);
+	const draggedViewZIndices = await draggedViews.evaluateAll((elements) =>
+		elements.map((element) => Number(getComputedStyle(element).zIndex)),
+	);
+	expect(dragContextZIndex).toBeGreaterThan(Math.max(...draggedViewZIndices));
+	await expectDraggedActiveSurfaceToHaveNoShadow(page);
+	await expectDraggedInactiveSurfacesToBeOpaqueAndRounded(page);
 
 	await movePointerTo(page, tab(page, 'issue'));
 	await page.mouse.up();
@@ -229,6 +246,21 @@ test('expanded group is dragged as one full visual and commits at a collection b
 	).toHaveCount(1);
 });
 
+test('removes a partial drag underline as soon as the tab leaves its group', async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'no-preference' });
+	await beginDrag(page, tab(page, 'source'));
+
+	const dragContext = page.locator('[data-horizontal-drag-context]');
+	await expect(dragContext.locator('[data-drag-group-underline]')).toHaveCount(1);
+
+	await movePointerTo(page, tab(page, 'new-tab'));
+	await expect(dragContext).toHaveCount(1);
+	await expect(dragContext.locator('[data-drag-group-underline]')).toHaveCount(0);
+	await expect(root(page).locator('[data-slot-animating]')).not.toHaveCount(0);
+
+	await page.mouse.up();
+});
+
 test('collapsed inactive group activates its first member but keeps a compact drag visual', async ({
 	page,
 }) => {
@@ -237,11 +269,13 @@ test('collapsed inactive group activates its first member but keeps a compact dr
 	await expect(sourceHeader(page)).toHaveAttribute('aria-expanded', 'false');
 
 	await beginDrag(page, sourceHeader(page));
-	const ghost = page.locator('[data-tab-strip-drag-ghost][data-layout="horizontal"]');
-	await expect(ghost.locator('[data-group-id="research"]')).toHaveCount(1);
-	await expect(ghost.locator('[data-tab-id="source"]')).toHaveCount(0);
-	await expect(ghost.locator('[data-tab-id="tabs-source"]')).toHaveCount(0);
-	await expectGhostActiveSurfaceToHaveNoShadow(page);
+	const dragContext = page.locator('[data-horizontal-drag-context]');
+	const draggedViews = root(page).locator('[data-horizontal-item][data-horizontal-drag-view]');
+	await expect(draggedViews.locator('[data-group-id="research"]')).toHaveCount(1);
+	await expect(draggedViews.locator('[data-tab-id="source"]')).toHaveCount(0);
+	await expect(draggedViews.locator('[data-tab-id="tabs-source"]')).toHaveCount(0);
+	await expect(dragContext.locator('[data-drag-group-highlight]')).toHaveCount(0);
+	await expectDraggedActiveSurfaceToHaveNoShadow(page);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('orchbee / orchbee');
 	await expect(sourceHeader(page)).toHaveAttribute('aria-expanded', 'false');
 

@@ -17,6 +17,5 @@ describe('useTabStrip', () => {
 
 		expect(result.current.orientation).toBe(TabStripOrientation.Horizontal);
 		expect(result.current.snapshot.activeTabId).toBe('tab');
-		expect(result.current.focusedGroupColor).toBeUndefined();
 	});
 });

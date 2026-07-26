@@ -1,5 +1,5 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@orchbee/ui/components';
-import type { TabModel } from '@orchbee/tab-strip';
+import type { TabModel, TabStripCrossWindowDragRuntimeFactory } from '@orchbee/tab-strip';
 import * as React from 'react';
 
 import {
@@ -16,6 +16,7 @@ import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platf
 import styles from './Workbench.module.css';
 
 export interface WorkbenchProps {
+	readonly createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly onNewTerminal?: (() => void) | undefined;
 	readonly onSearch?: (() => void) | undefined;
@@ -25,6 +26,7 @@ export interface WorkbenchProps {
 }
 
 export function Workbench({
+	createCrossWindowDragRuntime,
 	layoutStorage,
 	onNewTerminal,
 	onSearch,
@@ -91,9 +93,16 @@ export function Workbench({
 						</>
 					)}
 					<ResizablePanel id='right'>
-						<div className={styles['rightPanel']} data-slot='workbench-right-panel'>
+						<div
+							className={styles['rightPanel']}
+							data-slot='workbench-right-panel'
+							data-tab-strip-orientation={view.tabStripOrientation}
+						>
 							<WorkbenchTabBar
+								createCrossWindowDragRuntime={createCrossWindowDragRuntime}
 								onNewTerminal={onNewTerminal}
+								onOrientationChange={view.onTabStripOrientationChange}
+								orientation={view.tabStripOrientation}
 								reserveSidebarToggleSpace={!view.isSidebarVisible}
 								tabModel={tabModel}
 								tabStripMessages={tabStripMessages}
