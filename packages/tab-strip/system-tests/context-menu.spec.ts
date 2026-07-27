@@ -31,8 +31,8 @@ test('group submenu commands commit with primary-pointer clicks', async ({ page 
 	await expect(root(page).locator('[data-group-underline-id="group-1"]')).toHaveCSS('top', '1px');
 	await expect(tab(page, 'issue')).toHaveAttribute('data-grouped', 'true');
 	await tab(page, 'issue').focus();
-	await expect(tab(page, 'issue').locator('path[class*="background-fill"]')).toHaveCSS(
-		'stroke',
+	await expect(tab(page, 'issue').locator('[data-tab-background-fill]')).toHaveCSS(
+		'outline-style',
 		'none',
 	);
 	await expect(

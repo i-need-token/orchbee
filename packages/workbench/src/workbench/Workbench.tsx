@@ -1,4 +1,5 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@orchbee/ui/components';
+import type { ActionRuntime } from '@orchbee/actions';
 import type { TabModel, TabStripCrossWindowDragRuntimeFactory } from '@orchbee/tab-strip';
 import * as React from 'react';
 
@@ -13,20 +14,26 @@ import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
 import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
+import type {
+	WorkbenchHostActionCallback,
+	WorkbenchTerminalCreateCallback,
+} from './types/workbench-host-actions';
 import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
 import styles from './Workbench.module.css';
 
 export interface WorkbenchProps {
+	readonly actionRuntime: ActionRuntime;
 	readonly createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
-	readonly onNewTerminal?: (() => void) | undefined;
-	readonly onSearch?: (() => void) | undefined;
-	readonly onSettings?: (() => void) | undefined;
+	readonly onNewTerminal?: WorkbenchTerminalCreateCallback | undefined;
+	readonly onSearch?: WorkbenchHostActionCallback | undefined;
+	readonly onSettings?: WorkbenchHostActionCallback | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly tabModel: TabModel;
 }
 
 export function Workbench({
+	actionRuntime,
 	createCrossWindowDragRuntime,
 	layoutStorage,
 	onNewTerminal,
@@ -37,6 +44,7 @@ export function Workbench({
 }: WorkbenchProps): React.ReactNode {
 	const tabStripMessages = useWorkbenchTabStripMessages();
 	const view = useWorkbench({
+		actionRuntime,
 		onNewTerminal,
 		onSearch,
 		onSettings,
@@ -77,9 +85,9 @@ export function Workbench({
 										newTerminalLabel={view.newTerminalLabel}
 										newTerminalShortcutId={view.newTerminalShortcutId}
 										newTerminalShortcutLabel={view.newTerminalShortcutLabel}
-										onNewTerminal={onNewTerminal}
-										onSearch={onSearch}
-										onSettings={onSettings}
+										onNewTerminal={view.newTerminal}
+										onSearch={view.search}
+										onSettings={view.settings}
 										projectLabel={view.projectLabel}
 										searchLabel={view.searchLabel}
 										searchShortcutId={view.searchShortcutId}
@@ -100,16 +108,24 @@ export function Workbench({
 							data-tab-strip-orientation={view.tabStripOrientation}
 						>
 							<WorkbenchTabBar
+								actionRuntime={actionRuntime}
 								createCrossWindowDragRuntime={createCrossWindowDragRuntime}
-								onNewTerminal={onNewTerminal}
+								onNewTerminal={view.newTab}
 								onOrientationChange={view.onTabStripOrientationChange}
+								onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
 								orientation={view.tabStripOrientation}
+								parentActionScope={view.actionScope}
 								reserveSidebarToggleSpace={!view.isSidebarVisible}
 								tabModel={tabModel}
 								tabStripMessages={tabStripMessages}
+								verticalCollapsed={view.verticalTabStripCollapsed}
 							/>
 							<div className={styles['tabContent']} data-slot='workbench-tab-content'>
-								<WorkbenchPanelWorkspace tabModel={tabModel} />
+								<WorkbenchPanelWorkspace
+									actionRuntime={actionRuntime}
+									parentActionScope={view.actionScope}
+									tabModel={tabModel}
+								/>
 							</div>
 						</div>
 					</ResizablePanel>

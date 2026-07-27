@@ -36,6 +36,7 @@
 		"test:exports": "node ../../scripts/check-package-exports.mjs ."
 	},
 	"dependencies": {
+		"@orchbee/actions": "workspace:^",
 		"@orchbee/i18n": "workspace:^",
 		"@orchbee/tab-strip": "workspace:^",
 		"@orchbee/ui": "workspace:^",
@@ -44,9 +45,11 @@
 	"devDependencies": {
 		"@rsbuild/plugin-react": "catalog:",
 		"@rslib/core": "catalog:",
+		"@testing-library/react": "16.3.2",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
 		"fast-check": "4.9.0",
+		"jsdom": "29.1.1",
 		"react": "catalog:",
 		"react-dom": "catalog:",
 		"storybook-react-rsbuild": "catalog:",

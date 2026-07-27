@@ -8,6 +8,7 @@ import {
 import * as React from 'react';
 
 import styles from './WebApplication.module.css';
+import { useWebApplicationActionRuntime } from './hooks/useWebApplicationActionRuntime';
 import { useWebApplicationTabs } from './hooks/useWebApplicationTabs';
 
 export interface WebApplicationProps {
@@ -21,6 +22,7 @@ export function WebApplication({
 	locale,
 	shortcutPlatform,
 }: WebApplicationProps): React.ReactNode {
+	const actionRuntime = useWebApplicationActionRuntime();
 	const { createTerminal, tabModel } = useWebApplicationTabs(locale);
 
 	return (
@@ -28,6 +30,7 @@ export function WebApplication({
 			<TooltipProvider>
 				<div className={styles['root']}>
 					<Workbench
+						actionRuntime={actionRuntime}
 						layoutStorage={layoutStorage}
 						onNewTerminal={createTerminal}
 						shortcutPlatform={shortcutPlatform}

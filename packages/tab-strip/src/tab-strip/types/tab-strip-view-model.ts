@@ -27,8 +27,10 @@ import type {
 import type { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimationRuntime';
 import type { TabStripOptions } from './tab-strip-options';
 import type { DragState, HoverState, MenuState, VisualItem } from '../utils/tab-strip-internals';
+import type { TabStripActions } from './tab-strip-actions';
 
 export interface TabStripViewModel {
+	readonly actions: TabStripActions;
 	readonly model: TabModel;
 	readonly orientation: TabStripOrientation;
 	readonly onOrientationChange: TabStripOptions['onOrientationChange'];

@@ -15,6 +15,7 @@ host implementations.
 ## Entry points
 
 ```ts
+import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import { TabModel, TabStrip, TabStripOrientation, type TabStripMessages } from '@orchbee/tab-strip';
 import '@orchbee/ui/styles.css';
 import '@orchbee/tab-strip/styles.css';
@@ -29,6 +30,16 @@ Product hosts may provide the complete `TabStripMessages` contract to localize v
 menus, accessibility names, and live-region announcements. The built-in English messages remain a
 reference fallback for package tests and non-product fixtures; Orchbee product surfaces supply the
 contract from `@orchbee/i18n`.
+
+Product compositions pass their mounted `ActionRuntime` and parent `ActionScope`. The tab strip
+registers one child scope whose actions own selection, creation, close, grouping, pinning,
+preference, and committed movement semantics. Buttons, keyboard interactions, and context menus
+invoke those same actions. A standalone fixture may omit the runtime; the component then owns and
+disposes an isolated fallback runtime that is not visible to the application command surface.
+
+Pointer movement and drag geometry remain local gesture state. Model changes shown during a drag
+are reversible previews; accepting a local drop rolls the preview back and invokes
+`tabs.layout.apply-arrangement` to commit the final arrangement through the Action lifecycle.
 
 Horizontal hosts may provide `horizontalLeadingActions` for controls that must share the tab-strip
 surface. The tab track consumes only the remaining width, so hosted controls never overlap the

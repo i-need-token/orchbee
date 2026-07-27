@@ -1,3 +1,4 @@
+import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import type { TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
 
@@ -8,13 +9,17 @@ import { useWorkbenchPanelWorkspace } from './hooks/useWorkbenchPanelWorkspace';
 import styles from './WorkbenchPanelWorkspace.module.css';
 
 interface WorkbenchPanelWorkspaceProps {
+	readonly actionRuntime: ActionRuntime;
+	readonly parentActionScope: ActionScope;
 	readonly tabModel: TabModel;
 }
 
 export function WorkbenchPanelWorkspace({
+	actionRuntime,
+	parentActionScope,
 	tabModel,
 }: WorkbenchPanelWorkspaceProps): React.ReactNode {
-	const view = useWorkbenchPanelWorkspace({ tabModel });
+	const view = useWorkbenchPanelWorkspace({ actionRuntime, parentActionScope, tabModel });
 
 	return (
 		<div

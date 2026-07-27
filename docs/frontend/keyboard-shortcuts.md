@@ -2,7 +2,9 @@
 
 ## Action ownership
 
-A keyboard shortcut invokes a named semantic action; it is not an isolated keydown callback. The feature that owns the action owns its stable identifier, default binding, availability rules, invocation, tooltip presentation, tests, and removal lifecycle.
+A keyboard shortcut invokes a named semantic action under [`actions.md`](actions.md); it is not an
+isolated keydown callback. The feature that owns the action also owns its default binding, binding
+condition, tooltip presentation, shortcut tests, and removal lifecycle.
 
 Define bindings once in a responsibility-focused `*-shortcuts.ts` owner module. Components and lifecycle Hooks consume the descriptor or its matching functions instead of repeating key codes or modifier logic. Keep product bindings with their product owner until more than one workspace has a concrete need for the same shortcut engine.
 
@@ -24,7 +26,9 @@ Context values describe semantic product state such as the active focus scope, o
 Action availability is separate from binding applicability:
 
 - `when` determines whether one binding participates in routing and conflict resolution.
-- The action's availability rule determines whether the action may run from any invocation path, including menus, commands, pointer controls, automation, and shortcuts.
+- The action availability contract in [`actions.md`](actions.md#availability-and-confirmation)
+  determines whether the action may run from any invocation path, including menus, commands,
+  pointer controls, automation, and shortcuts.
 - A resolver invokes and consumes the key event only when both the binding condition and action availability pass. Otherwise it continues resolution without calling `preventDefault()`.
 
 Do not introduce a shared string expression language, global context-key inventory, or user-editable condition syntax before concrete product consumers require them. Product-local conditions must still be pure, deterministic, testable, and represented by inspectable metadata when a shortcut reference displays them; UI must not derive a condition label from function source.

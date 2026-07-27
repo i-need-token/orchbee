@@ -42,6 +42,8 @@
 		"verify:correctness": "pnpm typecheck && pnpm test && pnpm test:tla && pnpm test:lean && pnpm test:system && pnpm build"
 	},
 	"dependencies": {
+		"@orchbee/actions": "workspace:^",
+		"@orchbee/i18n": "workspace:^",
 		"@orchbee/ui": "workspace:^"
 	},
 	"devDependencies": {

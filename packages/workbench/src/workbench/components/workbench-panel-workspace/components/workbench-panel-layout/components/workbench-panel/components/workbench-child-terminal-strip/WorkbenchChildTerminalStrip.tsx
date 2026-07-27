@@ -35,7 +35,7 @@ export function WorkbenchChildTerminalStrip({
 								aria-label={terminal.title}
 								aria-pressed={panel.activeChildTerminalId === terminal.id}
 								data-active={panel.activeChildTerminalId === terminal.id || undefined}
-								onClick={() => view.activateChildTerminal(panel.id, terminal.id)}
+								onClick={() => view.activateChildTerminal(panel.id, terminal.id, 'button')}
 								size='icon-sm'
 								variant='ghost'
 							/>

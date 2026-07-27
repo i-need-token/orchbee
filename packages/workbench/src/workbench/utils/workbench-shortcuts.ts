@@ -1,4 +1,5 @@
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
+import { WORKBENCH_ACTION_IDS, type WorkbenchActionId } from '../actions/workbench-action-ids';
 
 interface WorkbenchShortcutEvent {
 	readonly altKey: boolean;
@@ -13,22 +14,22 @@ interface WorkbenchShortcutEvent {
 export const WORKBENCH_SHORTCUTS = {
 	newTerminal: {
 		code: 'KeyN',
-		id: 'workbench.terminal.create',
+		id: WORKBENCH_ACTION_IDS.createTerminal,
 		keyLabel: 'N',
 	},
 	search: {
 		code: 'KeyK',
-		id: 'workbench.search.open',
+		id: WORKBENCH_ACTION_IDS.openSearch,
 		keyLabel: 'K',
 	},
 	settings: {
 		code: 'Comma',
-		id: 'workbench.settings.open',
+		id: WORKBENCH_ACTION_IDS.openSettings,
 		keyLabel: ',',
 	},
 	toggleSidebar: {
 		code: 'KeyB',
-		id: 'workbench.toggle-left-panel',
+		id: WORKBENCH_ACTION_IDS.toggleSidebar,
 		keyLabel: 'B',
 	},
 } as const;
@@ -44,13 +45,25 @@ export function formatWorkbenchShortcut(
 	return action === 'settings' ? 'Ctrl+,' : `Ctrl ${keyLabel}`;
 }
 
-export function matchesWorkbenchShortcut(
+export function resolveWorkbenchShortcut(
 	event: WorkbenchShortcutEvent,
 	platform: WorkbenchShortcutPlatform,
-	action: WorkbenchShortcutAction,
+): WorkbenchActionId | null {
+	for (const binding of Object.values(WORKBENCH_SHORTCUTS)) {
+		if (matchesBinding(event, platform, binding)) {
+			return binding.id;
+		}
+	}
+	return null;
+}
+
+function matchesBinding(
+	event: WorkbenchShortcutEvent,
+	platform: WorkbenchShortcutPlatform,
+	binding: Readonly<{ code: string }>,
 ): boolean {
 	if (
-		event.code !== WORKBENCH_SHORTCUTS[action].code ||
+		event.code !== binding.code ||
 		event.altKey ||
 		event.shiftKey ||
 		event.isComposing ||

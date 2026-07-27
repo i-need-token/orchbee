@@ -7,6 +7,7 @@ import type { TabStripMessages } from './types/tab-strip-messages';
 import type {
 	TabStripCrossWindowDragRuntime,
 	TabStripCrossWindowDragRuntimeFactory,
+	TabStripNewTabRequest,
 	TabStripOptions,
 } from './types/tab-strip-options';
 
@@ -18,6 +19,7 @@ export interface TabStripProps extends TabStripOptions {
 export type {
 	TabStripCrossWindowDragRuntime,
 	TabStripCrossWindowDragRuntimeFactory,
+	TabStripNewTabRequest,
 	TabStripMessages,
 };
 

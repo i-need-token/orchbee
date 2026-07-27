@@ -1,6 +1,7 @@
 import styles from './TabStripView.module.css';
 import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
 import { type ReactNode } from 'react';
+import { TAB_STRIP_ACTION_IDS } from '../../actions/tab-strip-action-contracts';
 import { HoverCardUpdateType } from './components/hover-card/model/tab-hover-card-controller';
 import { LAYOUT_CONSTANTS } from '../../layout/layout-constants';
 import { TabStripContextMenu } from './components/tab-strip-context-menu/TabStripContextMenu';
@@ -22,7 +23,7 @@ export function TabStripView({
 	readonly view: TabStripViewModel;
 }): ReactNode {
 	const {
-		model,
+		actions,
 		orientation,
 		onOrientationChange,
 		verticalCollapsed,
@@ -254,8 +255,28 @@ export function TabStripView({
 						onCollapseContextMenu={(event) => {
 							setMenu({ kind: 'collapse', x: event.clientX, y: event.clientY });
 						}}
-						onCollapsedChange={onVerticalCollapsedChange}
-						onTabSearchClick={onVerticalTabSearchClick}
+						onCollapsedChange={
+							onVerticalCollapsedChange === undefined
+								? undefined
+								: (collapsed) => {
+										if (collapsed) {
+											expandOnHoverController.setHovered(false);
+											expandOnHoverController.setFocused(false);
+										}
+										actions.execute(
+											TAB_STRIP_ACTION_IDS.setVerticalCollapsed,
+											{ value: collapsed },
+											'button',
+										);
+									}
+						}
+						onTabSearchClick={
+							onVerticalTabSearchClick === undefined
+								? undefined
+								: () => {
+										actions.execute(TAB_STRIP_ACTION_IDS.openTabSearch, undefined, 'button');
+									}
+						}
 					/>
 				)}
 				{drag?.started && !horizontal ? (
@@ -294,18 +315,17 @@ export function TabStripView({
 			</ContextMenuTrigger>
 			{menu ? (
 				<TabStripContextMenu
+					actions={actions}
 					state={menu}
 					snapshot={snapshot}
-					model={model}
 					orientation={orientation}
 					onOrientationChange={onOrientationChange}
-					requestCloseTabs={requestCloseTabs}
 					closeAllowed
 					verticalExpandOnHover={verticalExpandOnHover}
-					comboButtonController={comboButtonController}
+					tabSearchPinned={comboButtonSnapshot.tabSearchPinned}
 					onVerticalExpandOnHoverChange={onVerticalExpandOnHoverChange}
-					onMoveTabsToNewWindow={onMoveTabsToNewWindow}
-					onMoveGroupToNewWindow={onMoveGroupToNewWindow}
+					moveTabsToNewWindowAvailable={onMoveTabsToNewWindow !== undefined}
+					moveGroupToNewWindowAvailable={onMoveGroupToNewWindow !== undefined}
 					onClose={closeMenu}
 				/>
 			) : null}

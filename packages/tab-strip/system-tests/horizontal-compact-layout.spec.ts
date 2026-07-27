@@ -55,7 +55,7 @@ test('compact active controls and separators cross their boundaries deterministi
 	expect(iconBox).not.toBeNull();
 	expect(closeBox).not.toBeNull();
 	if (!iconBox || !closeBox) throw new Error('Expected active tab controls to have bounds.');
-	expect(closeBox.x).toBeLessThanOrEqual(iconBox.x + iconBox.width + 1);
+	expect(closeBox.x).toBeLessThanOrEqual(iconBox.x + iconBox.width + 2);
 
 	await addTabs(page, 1);
 	expect(

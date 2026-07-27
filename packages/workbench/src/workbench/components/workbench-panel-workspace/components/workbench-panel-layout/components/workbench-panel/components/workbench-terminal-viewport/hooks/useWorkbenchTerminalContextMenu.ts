@@ -9,7 +9,11 @@ interface PendingPanelFocus {
 
 interface UseWorkbenchTerminalContextMenuOptions {
 	readonly panelId: string;
-	readonly splitPanel: (panelId: string, direction: PanelSplitDirection) => string | null;
+	readonly splitPanel: (
+		panelId: string,
+		direction: PanelSplitDirection,
+		source: 'context-menu',
+	) => string | null;
 }
 
 interface WorkbenchTerminalContextMenu {
@@ -23,7 +27,7 @@ export function useWorkbenchTerminalContextMenu({
 }: UseWorkbenchTerminalContextMenuOptions): WorkbenchTerminalContextMenu {
 	const pendingPanelFocus = React.useRef<PendingPanelFocus | null>(null);
 	const split = (direction: PanelSplitDirection, ownerDocument: Document): void => {
-		const newPanelId = splitPanel(panelId, direction);
+		const newPanelId = splitPanel(panelId, direction, 'context-menu');
 		if (newPanelId === null) {
 			return;
 		}

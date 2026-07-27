@@ -1,0 +1,13 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "actions",
+	"runtime": ["universal"],
+	"stability": "experimental",
+	"responsibility": "Framework-independent scoped registration, discovery, policy, and observable execution lifecycle for product-semantic actions.",
+	"nonGoals": [
+		"Owning feature state, business transitions, product messages, keyboard event routing, or invocation-surface presentation.",
+		"Selecting application, browser, desktop, process, storage, transport, or confirmation adapters.",
+		"Granting automation or remote authority from local action discovery.",
+		"Replacing package-local domain commands or authoritative resource lifecycle events."
+	]
+}

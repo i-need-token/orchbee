@@ -1,7 +1,7 @@
+import type { ActionInvocationSource } from '@orchbee/actions';
 import type {
 	PanelLayoutNode,
 	PanelSplitDirection,
-	PanelWorkspaceEvent,
 	PanelWorkspaceState,
 	TabPanelWorkspace,
 } from '../model/panel-workspace-state';
@@ -42,18 +42,22 @@ export interface PanelWorkspaceMessages {
 }
 
 export interface PendingPanelClose {
-	readonly event: Extract<PanelWorkspaceEvent, { type: 'child-terminal-closed' | 'panel-closed' }>;
+	readonly panelId: string;
 	readonly runningCount: number;
 }
 
 export interface WorkbenchPanelWorkspaceView {
-	readonly activateChildTerminal: (panelId: string, childTerminalId: string) => void;
+	readonly activateChildTerminal: (
+		panelId: string,
+		childTerminalId: string,
+		source?: ActionInvocationSource,
+	) => void;
 	readonly activeTab: TabPanelWorkspace | null;
 	readonly cancelClose: () => void;
 	readonly confirmClose: () => void;
-	readonly createChildTerminal: (panelId: string) => void;
+	readonly createChildTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly displayedRoot: PanelLayoutNode | null;
-	readonly focusPanel: (panelId: string) => void;
+	readonly focusPanel: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly maximizedPanelId: string | null;
 	readonly messages: PanelWorkspaceMessages;
 	readonly panelCount: number;
@@ -64,15 +68,19 @@ export interface WorkbenchPanelWorkspaceView {
 		readonly previewRoot: PanelLayoutNode | null;
 	};
 	readonly pendingClose: PendingPanelClose | null;
-	readonly requestClose: (panelId: string) => void;
+	readonly requestClose: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly resizeAdjacentPanels: (
 		splitId: string,
 		separatorIndex: number,
 		leadingWeight: number,
 	) => void;
-	readonly showPrimaryTerminal: (panelId: string) => void;
-	readonly splitPanel: (panelId: string, direction: PanelSplitDirection) => string | null;
+	readonly showPrimaryTerminal: (panelId: string, source?: ActionInvocationSource) => void;
+	readonly splitPanel: (
+		panelId: string,
+		direction: PanelSplitDirection,
+		source?: ActionInvocationSource,
+	) => string | null;
 	readonly startPanelDrag: (panelId: string, event: ReactPointerEvent<HTMLElement>) => void;
 	readonly state: PanelWorkspaceState;
-	readonly togglePanelMaximization: (panelId: string) => void;
+	readonly togglePanelMaximization: (panelId: string, source?: ActionInvocationSource) => void;
 }

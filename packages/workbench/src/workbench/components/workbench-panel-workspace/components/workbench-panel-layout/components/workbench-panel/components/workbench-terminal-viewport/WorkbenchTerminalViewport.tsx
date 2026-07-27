@@ -48,7 +48,7 @@ export function WorkbenchTerminalViewport({
 				tabIndex={0}
 			/>
 			<ContextMenuContent finalFocus={contextMenu.finalFocus}>
-				<ContextMenuItem onClick={() => view.createChildTerminal(panelId)}>
+				<ContextMenuItem onClick={() => view.createChildTerminal(panelId, 'context-menu')}>
 					{view.messages.newChildTerminal}
 				</ContextMenuItem>
 				<ContextMenuSeparator />

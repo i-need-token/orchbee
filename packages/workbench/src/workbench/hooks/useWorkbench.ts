@@ -1,5 +1,6 @@
 import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
-import type { TabStripOrientation } from '@orchbee/tab-strip';
+import type { ActionExecution, ActionRuntime, ActionScope } from '@orchbee/actions';
+import type { TabStripNewTabRequest, TabStripOrientation } from '@orchbee/tab-strip';
 import * as React from 'react';
 
 import {
@@ -12,7 +13,13 @@ import {
 	type WorkbenchLayoutStorage,
 } from '../../workbench-layout-storage';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
+import type {
+	WorkbenchHostActionCallback,
+	WorkbenchTerminalCreateCallback,
+} from '../types/workbench-host-actions';
 import { formatWorkbenchShortcut, WORKBENCH_SHORTCUTS } from '../utils/workbench-shortcuts';
+import { WORKBENCH_ACTION_IDS } from '../actions/workbench-action-ids';
+import { useWorkbenchActions } from './useWorkbenchActions';
 import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
 
 interface ResizableLayoutChangedMeta {
@@ -24,8 +31,11 @@ interface ResizablePanelSize {
 }
 
 interface WorkbenchView {
+	readonly actionScope: ActionScope;
 	readonly isSidebarVisible: boolean;
 	readonly leftPanelSize: string;
+	readonly newTerminal: (() => void) | undefined;
+	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly newTerminalLabel: string;
 	readonly newTerminalShortcutId: string;
 	readonly newTerminalShortcutLabel: string;
@@ -40,25 +50,31 @@ interface WorkbenchView {
 	readonly sidebarLabel: string;
 	readonly projectLabel: string;
 	readonly searchLabel: string;
+	readonly search: (() => void) | undefined;
 	readonly searchShortcutId: string;
 	readonly searchShortcutLabel: string;
 	readonly settingsLabel: string;
+	readonly settings: (() => void) | undefined;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string;
 	readonly tabStripOrientation: TabStripOrientation;
 	readonly onTabStripOrientationChange: (orientation: TabStripOrientation) => void;
+	readonly verticalTabStripCollapsed: boolean;
+	readonly onVerticalTabStripCollapsedChange: (collapsed: boolean) => void;
 	readonly toggleSidebar: () => void;
 }
 
 interface UseWorkbenchOptions {
-	readonly onNewTerminal: (() => void) | undefined;
-	readonly onSearch: (() => void) | undefined;
-	readonly onSettings: (() => void) | undefined;
+	readonly actionRuntime: ActionRuntime;
+	readonly onNewTerminal: WorkbenchTerminalCreateCallback | undefined;
+	readonly onSearch: WorkbenchHostActionCallback | undefined;
+	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly storage: WorkbenchLayoutStorage | undefined;
 }
 
 export function useWorkbench({
+	actionRuntime,
 	onNewTerminal,
 	onSearch,
 	onSettings,
@@ -69,9 +85,10 @@ export function useWorkbench({
 	const [isSidebarVisible, setIsSidebarVisible] = React.useState(() =>
 		readWorkbenchSidebarVisibility(storage),
 	);
-	const [tabStripOrientation, setTabStripOrientation] = React.useState<TabStripOrientation>(() =>
-		readWorkbenchTabStripOrientation(storage),
+	const [tabStripOrientation, setTabStripOrientationState] = React.useState<TabStripOrientation>(
+		() => readWorkbenchTabStripOrientation(storage),
 	);
+	const [verticalTabStripCollapsed, setVerticalTabStripCollapsed] = React.useState(false);
 	const [defaultLeftPanelWidth] = React.useState(() => readWorkbenchLeftPanelWidth(storage));
 	const leftPanelWidth = React.useRef(defaultLeftPanelWidth);
 	const toggleSidebar = React.useCallback(() => {
@@ -81,19 +98,48 @@ export function useWorkbench({
 			return nextVisibility;
 		});
 	}, [storage]);
-	const onTabStripOrientationChange = React.useCallback(
+	const setTabStripOrientation = React.useCallback(
 		(orientation: TabStripOrientation) => {
-			setTabStripOrientation(orientation);
+			setTabStripOrientationState(orientation);
 			writeWorkbenchTabStripOrientation(storage, orientation);
 		},
 		[storage],
 	);
+	const actions = useWorkbenchActions({
+		isSidebarVisible,
+		onNewTerminal,
+		onSearch,
+		onSettings,
+		runtime: actionRuntime,
+		setTabStripOrientation,
+		tabStripOrientation,
+		toggleSidebar,
+	});
 
-	useWorkbenchShortcuts(shortcutPlatform, onNewTerminal, onSearch, onSettings, toggleSidebar);
+	useWorkbenchShortcuts(shortcutPlatform, actions.invokeIfEnabled);
 
 	return {
+		actionScope: actions.scope,
 		isSidebarVisible,
 		leftPanelSize: `${leftPanelWidth.current}px`,
+		newTerminal:
+			onNewTerminal === undefined
+				? undefined
+				: () => {
+						actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null }, 'button');
+					},
+		newTab:
+			onNewTerminal === undefined
+				? undefined
+				: (request) =>
+						actions.invoke(
+							WORKBENCH_ACTION_IDS.createTerminal,
+							{
+								groupId: request.groupId,
+								...(request.index === undefined ? {} : { index: request.index }),
+							},
+							request.source,
+						),
 		newTerminalLabel: intl.formatMessage(workbenchMessages.newTerminal),
 		newTerminalShortcutId: WORKBENCH_SHORTCUTS.newTerminal.id,
 		newTerminalShortcutLabel: formatWorkbenchShortcut('newTerminal', shortcutPlatform),
@@ -112,14 +158,32 @@ export function useWorkbench({
 		),
 		sidebarLabel: intl.formatMessage(workbenchMessages.sidebarLabel),
 		projectLabel: intl.formatMessage(workbenchMessages.project),
+		search:
+			onSearch === undefined
+				? undefined
+				: () => {
+						actions.invoke(WORKBENCH_ACTION_IDS.openSearch, undefined, 'button');
+					},
 		searchLabel: intl.formatMessage(workbenchMessages.search),
 		searchShortcutId: WORKBENCH_SHORTCUTS.search.id,
 		searchShortcutLabel: formatWorkbenchShortcut('search', shortcutPlatform),
+		settings:
+			onSettings === undefined
+				? undefined
+				: () => {
+						actions.invoke(WORKBENCH_ACTION_IDS.openSettings, undefined, 'button');
+					},
 		settingsLabel: intl.formatMessage(workbenchMessages.settings),
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
 		settingsShortcutLabel: formatWorkbenchShortcut('settings', shortcutPlatform),
 		tabStripOrientation,
-		onTabStripOrientationChange,
-		toggleSidebar,
+		onTabStripOrientationChange: (orientation) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.setTabStripOrientation, { orientation }, 'context-menu');
+		},
+		verticalTabStripCollapsed,
+		onVerticalTabStripCollapsedChange: setVerticalTabStripCollapsed,
+		toggleSidebar: () => {
+			actions.invoke(WORKBENCH_ACTION_IDS.toggleSidebar, undefined, 'button');
+		},
 	};
 }

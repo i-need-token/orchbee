@@ -15,6 +15,7 @@ dogfood-output/
 
 # Package-local correctness toolchains and generated model-checker state
 /packages/tab-strip/.tools/
+/packages/actions/.tools/
 /packages/tab-strip/formal/tla/states/
 /packages/tab-strip/test-results/
 

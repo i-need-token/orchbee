@@ -1,11 +1,16 @@
 import { createOrchbeeIntl, workbenchTabMessages, type OrchbeeLocale } from '@orchbee/i18n';
+import type { ActionExecutionContext, ActionResult } from '@orchbee/actions';
 import { TabModel } from '@orchbee/tab-strip';
+import type { WorkbenchTerminalCreateInput } from '@orchbee/workbench';
 import * as React from 'react';
 
 const INITIAL_TERMINAL_COUNT = 4;
 
 interface WebApplicationTabs {
-	readonly createTerminal: () => void;
+	readonly createTerminal: (
+		context: ActionExecutionContext,
+		input: WorkbenchTerminalCreateInput,
+	) => ActionResult<void>;
 	readonly tabModel: TabModel;
 }
 
@@ -27,18 +32,29 @@ export function useWebApplicationTabs(locale: OrchbeeLocale): WebApplicationTabs
 				activeTabId: 'terminal-1',
 			}),
 	);
-	const createTerminal = React.useCallback(() => {
-		const number = nextTerminalSequence.current;
-		nextTerminalSequence.current += 1;
-		tabModel.addTab(
-			{
-				title: intl.formatMessage(workbenchTabMessages.terminalTitle, { number }),
-				pinned: false,
-				group: null,
-			},
-			{ id: `terminal-${number}` },
-		);
-	}, [intl, tabModel]);
+	const createTerminal = React.useCallback(
+		(context: ActionExecutionContext, input: WorkbenchTerminalCreateInput): ActionResult<void> => {
+			if (context.signal.aborted) {
+				return { kind: 'cancelled' };
+			}
+			const number = nextTerminalSequence.current;
+			context.markCommitted();
+			nextTerminalSequence.current += 1;
+			tabModel.addTab(
+				{
+					title: intl.formatMessage(workbenchTabMessages.terminalTitle, { number }),
+					pinned: false,
+					group: input.groupId,
+				},
+				{
+					id: `terminal-${number}`,
+					...(input.index === undefined ? {} : { index: input.index }),
+				},
+			);
+			return { kind: 'completed' };
+		},
+		[intl, tabModel],
+	);
 
 	return { createTerminal, tabModel } as const;
 }

@@ -1,4 +1,5 @@
 import { OrchbeeI18nProvider, type OrchbeeLocale } from '@orchbee/i18n';
+import { ActionRuntime } from '@orchbee/actions';
 import { TooltipProvider } from '@orchbee/ui/components';
 import { TabModel } from '@orchbee/tab-strip';
 import { createElement } from 'react';
@@ -26,6 +27,7 @@ function renderWorkbench(
 				TooltipProvider,
 				null,
 				createElement(Workbench, {
+					actionRuntime: new ActionRuntime(),
 					layoutStorage: { getItem, setItem: () => undefined },
 					shortcutPlatform: 'apple',
 					tabModel,

@@ -1,14 +1,24 @@
 import { useOrchbeeIntl, workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
+import type { ActionInvocationSource, ActionRuntime, ActionScope } from '@orchbee/actions';
 import type { TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
 
 import { PanelWorkspaceStore } from '../model/PanelWorkspaceStore';
+import {
+	PANEL_ACTION_IDS,
+	type PanelCloseInput,
+	type PanelMoveInput,
+	type PanelSplitInput,
+	type PanelTargetInput,
+	type PanelChildTerminalInput,
+} from '../actions/panel-action-contracts';
 import {
 	collectPanelLeaves,
 	findPanel,
 	type PanelLayoutNode,
 	type PanelSplitDirection,
 	type PanelWorkspaceEvent,
+	type PanelWorkspaceTransition,
 	projectPanelDrag,
 } from '../model/panel-workspace-state';
 import type {
@@ -20,8 +30,11 @@ import type {
 } from '../types/panel-workspace-view';
 import { createPanelDragSnapshot } from '../utils/createPanelDragSnapshot';
 import { getPanelDropDirection } from '../utils/getPanelDropDirection';
+import { useWorkbenchPanelActions } from './useWorkbenchPanelActions';
 
 interface UseWorkbenchPanelWorkspaceOptions {
+	readonly actionRuntime: ActionRuntime;
+	readonly parentActionScope: ActionScope;
 	readonly tabModel: TabModel;
 }
 
@@ -54,6 +67,8 @@ const PANEL_DRAG_PREVIEW_MAX_HEIGHT_PX = 192;
 const PANEL_DRAG_PREVIEW_MAX_WIDTH_PX = 320;
 
 export function useWorkbenchPanelWorkspace({
+	actionRuntime,
+	parentActionScope,
 	tabModel,
 }: UseWorkbenchPanelWorkspaceOptions): WorkbenchPanelWorkspaceView {
 	const intl = useOrchbeeIntl();
@@ -65,6 +80,7 @@ export function useWorkbenchPanelWorkspace({
 		store.getActiveTabId,
 	);
 	const [pendingClose, setPendingClose] = React.useState<PendingPanelClose | null>(null);
+	const pendingConfirmationRef = React.useRef<((accepted: boolean) => void) | null>(null);
 	const [panelDragSession, setPanelDragSession] = React.useState<PanelDragSession | null>(null);
 	const [panelDrag, setPanelDrag] = React.useState<WorkbenchPanelWorkspaceView['panelDrag']>({
 		draggingPanelId: null,
@@ -108,17 +124,15 @@ export function useWorkbenchPanelWorkspace({
 		[intl, store],
 	);
 	const transitionForActiveTab = React.useCallback(
-		(event: ActiveTabPanelWorkspaceEventInput) => {
+		(event: ActiveTabPanelWorkspaceEventInput): PanelWorkspaceTransition | null => {
 			const tabId = store.getActiveTabId();
-			if (tabId !== null) {
-				store.transition({ ...event, tabId });
-			}
+			return tabId === null ? null : store.transition({ ...event, tabId });
 		},
 		[store],
 	);
-	const movePanel = React.useCallback(
+	const commitMovePanel = React.useCallback(
 		(panelId: string, targetPanelId: string, direction: PanelSplitDirection) => {
-			transitionForActiveTab({
+			return transitionForActiveTab({
 				direction,
 				panelId,
 				targetPanelId,
@@ -126,6 +140,122 @@ export function useWorkbenchPanelWorkspace({
 			});
 		},
 		[transitionForActiveTab],
+	);
+	const operations = React.useMemo(
+		() => ({
+			activateChildTerminal: (panelId: string, childTerminalId: string) =>
+				transitionForActiveTab({
+					childTerminalId,
+					panelId,
+					type: 'child-terminal-activated',
+				}),
+			closeDisplayedTerminal: (input: PanelCloseInput) => {
+				const tabId = store.getActiveTabId();
+				const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === input.tabId);
+				const panel = tab === undefined ? null : findPanel(tab.root, input.panelId);
+				if (
+					tabId !== input.tabId ||
+					panel === null ||
+					panel.activeChildTerminalId !== input.childTerminalId
+				) {
+					return null;
+				}
+				return store.transition(
+					input.childTerminalId === null
+						? { panelId: input.panelId, tabId: input.tabId, type: 'panel-closed' }
+						: {
+								childTerminalId: input.childTerminalId,
+								panelId: input.panelId,
+								tabId: input.tabId,
+								type: 'child-terminal-closed',
+							},
+				);
+			},
+			createChildTerminal: (panelId: string) =>
+				transitionForActiveTab({
+					newTerminalTitle: createTerminalTitle(),
+					panelId,
+					type: 'child-terminal-created',
+				}),
+			focusPanel: (panelId: string) => transitionForActiveTab({ panelId, type: 'panel-focused' }),
+			movePanel: commitMovePanel,
+			showPrimaryTerminal: (panelId: string) =>
+				transitionForActiveTab({ panelId, type: 'primary-terminal-shown' }),
+			splitPanel: (panelId: string, direction: PanelSplitDirection) => {
+				const tabId = store.getActiveTabId();
+				if (tabId === null) {
+					return null;
+				}
+				const newPanelId = `panel-${store.getSnapshot().nextPanelSequence}`;
+				return {
+					panelId: newPanelId,
+					transition: store.transition({
+						direction,
+						newTerminalTitle: createTerminalTitle(),
+						panelId,
+						tabId,
+						type: 'panel-split',
+					}),
+				};
+			},
+			togglePanelMaximization: (panelId: string) =>
+				transitionForActiveTab({ panelId, type: 'panel-maximization-toggled' }),
+		}),
+		[commitMovePanel, createTerminalTitle, store, transitionForActiveTab],
+	);
+	const panelActions = useWorkbenchPanelActions({
+		activeTab,
+		operations,
+		panelCount,
+		parentScope: parentActionScope,
+		runtime: actionRuntime,
+	});
+	const executePanelAction = panelActions.execute;
+	React.useEffect(() => {
+		const registration = actionRuntime.registerConfirmationPresenter(
+			panelActions.scope,
+			(confirmation, invocation, signal) => {
+				const panelId = invocation.target?.type === 'panel' ? invocation.target.id : null;
+				const runningCount = confirmation.description.values?.['count'];
+				if (panelId === null || typeof runningCount !== 'number') {
+					return false;
+				}
+				return new Promise<boolean>((resolve) => {
+					pendingConfirmationRef.current?.(false);
+					let settled = false;
+					const finish = (accepted: boolean) => {
+						if (settled) {
+							return;
+						}
+						settled = true;
+						signal.removeEventListener('abort', onAbort);
+						if (pendingConfirmationRef.current === finish) {
+							pendingConfirmationRef.current = null;
+							setPendingClose(null);
+						}
+						resolve(accepted);
+					};
+					const onAbort = () => finish(false);
+					pendingConfirmationRef.current = finish;
+					setPendingClose({ panelId, runningCount });
+					signal.addEventListener('abort', onAbort, { once: true });
+				});
+			},
+		);
+		return () => {
+			registration.dispose();
+			pendingConfirmationRef.current?.(false);
+		};
+	}, [actionRuntime, panelActions.scope, store]);
+	const movePanel = React.useCallback(
+		(panelId: string, targetPanelId: string, direction: PanelSplitDirection) => {
+			executePanelAction(
+				PANEL_ACTION_IDS.move,
+				{ direction, panelId, targetPanelId } satisfies PanelMoveInput,
+				'pointer',
+			);
+		},
+		[executePanelAction],
 	);
 	const startPanelDrag = React.useCallback(
 		(panelId: string, event: React.PointerEvent<HTMLElement>) => {
@@ -323,65 +453,54 @@ export function useWorkbenchPanelWorkspace({
 	}, [movePanel, panelDragSession]);
 
 	return {
-		activateChildTerminal: (panelId, childTerminalId) => {
-			transitionForActiveTab({
-				childTerminalId,
-				panelId,
-				type: 'child-terminal-activated',
-			});
+		activateChildTerminal: (
+			panelId,
+			childTerminalId,
+			source: ActionInvocationSource = 'programmatic',
+		) => {
+			executePanelAction(
+				PANEL_ACTION_IDS.activateChildTerminal,
+				{ childTerminalId, panelId } satisfies PanelChildTerminalInput,
+				source,
+			);
 		},
 		activeTab,
-		cancelClose: () => setPendingClose(null),
+		cancelClose: () => pendingConfirmationRef.current?.(false),
 		confirmClose: () => {
-			if (pendingClose !== null) {
-				store.transition(pendingClose.event);
-				setPendingClose(null);
-			}
+			pendingConfirmationRef.current?.(true);
 		},
-		createChildTerminal: (panelId) => {
-			transitionForActiveTab({
-				newTerminalTitle: createTerminalTitle(),
-				panelId,
-				type: 'child-terminal-created',
-			});
+		createChildTerminal: (panelId, source: ActionInvocationSource = 'programmatic') => {
+			executePanelAction(
+				PANEL_ACTION_IDS.createChildTerminal,
+				{ panelId } satisfies PanelTargetInput,
+				source,
+			);
 		},
 		displayedRoot,
-		focusPanel: (panelId) => {
-			transitionForActiveTab({ panelId, type: 'panel-focused' });
+		focusPanel: (panelId, source: ActionInvocationSource = 'programmatic') => {
+			executePanelAction(PANEL_ACTION_IDS.focus, { panelId } satisfies PanelTargetInput, source);
 		},
 		maximizedPanelId: activeTab?.maximizedPanelId ?? null,
 		messages,
 		panelCount,
 		panelDrag,
 		pendingClose,
-		requestClose: (panelId) => {
+		requestClose: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			const tabId = store.getActiveTabId();
 			const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === tabId);
 			const panel = tab === undefined ? null : findPanel(tab.root, panelId);
 			if (tabId === null || panel === null) {
 				return;
 			}
-			const event: PendingPanelClose['event'] =
-				panel.activeChildTerminalId === null
-					? { panelId, tabId, type: 'panel-closed' }
-					: {
-							childTerminalId: panel.activeChildTerminalId,
-							panelId,
-							tabId,
-							type: 'child-terminal-closed',
-						};
-			const affectedTerminals =
-				event.type === 'panel-closed'
-					? [panel.primaryTerminal, ...panel.childTerminals]
-					: panel.childTerminals.filter((terminal) => terminal.id === event.childTerminalId);
-			const runningCount = affectedTerminals.filter(
-				(terminal) => terminal.phase === 'provisioning' || terminal.phase === 'running',
-			).length;
-			if (runningCount > 0) {
-				setPendingClose({ event, runningCount });
-			} else {
-				store.transition(event);
-			}
+			executePanelAction(
+				PANEL_ACTION_IDS.close,
+				{
+					childTerminalId: panel.activeChildTerminalId,
+					panelId,
+					tabId,
+				} satisfies PanelCloseInput,
+				source,
+			);
 		},
 		resizeAdjacentPanels: (splitId, separatorIndex, leadingWeight) => {
 			transitionForActiveTab({
@@ -391,28 +510,30 @@ export function useWorkbenchPanelWorkspace({
 				type: 'adjacent-panels-resized',
 			});
 		},
-		showPrimaryTerminal: (panelId) => {
-			transitionForActiveTab({ panelId, type: 'primary-terminal-shown' });
+		showPrimaryTerminal: (panelId, source: ActionInvocationSource = 'programmatic') => {
+			executePanelAction(
+				PANEL_ACTION_IDS.showPrimaryTerminal,
+				{ panelId } satisfies PanelTargetInput,
+				source,
+			);
 		},
-		splitPanel: (panelId, direction) => {
-			const tabId = store.getActiveTabId();
-			if (tabId === null) {
-				return null;
-			}
-			const newPanelId = `panel-${store.getSnapshot().nextPanelSequence}`;
-			const result = store.transition({
-				direction,
-				newTerminalTitle: createTerminalTitle(),
-				panelId,
-				tabId,
-				type: 'panel-split',
-			});
-			return result.outcome === 'applied' ? newPanelId : null;
+		splitPanel: (panelId, direction, source: ActionInvocationSource = 'programmatic') => {
+			const execution = executePanelAction(
+				PANEL_ACTION_IDS.split,
+				{ direction, panelId } satisfies PanelSplitInput,
+				source,
+			);
+			const result = execution.getSnapshot().result;
+			return result?.kind === 'completed' && typeof result.value === 'string' ? result.value : null;
 		},
 		startPanelDrag,
 		state,
-		togglePanelMaximization: (panelId) => {
-			transitionForActiveTab({ panelId, type: 'panel-maximization-toggled' });
+		togglePanelMaximization: (panelId, source: ActionInvocationSource = 'programmatic') => {
+			executePanelAction(
+				PANEL_ACTION_IDS.toggleMaximization,
+				{ panelId } satisfies PanelTargetInput,
+				source,
+			);
 		},
 	};
 }

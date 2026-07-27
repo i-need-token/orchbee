@@ -1,3 +1,10 @@
+import type {
+	ActionExecution,
+	ActionInvocationSource,
+	ActionRuntime,
+	ActionScope,
+} from '@orchbee/actions';
+
 import type { TabHoverCardController } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
 import type { HoverCardThumbnailSource } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-observer';
 import type { TabData, TabGroupData, TabModel } from '../model/tab-model';
@@ -26,7 +33,15 @@ export type TabStripCrossWindowDragRuntimeFactory = (
 	sessionData: DragSessionData<Readonly<TabGroupData>>,
 ) => TabStripCrossWindowDragRuntime | null;
 
+export interface TabStripNewTabRequest {
+	readonly groupId: string | null;
+	readonly index?: number | undefined;
+	readonly source: ActionInvocationSource;
+}
+
 export interface TabStripOptions {
+	actionRuntime?: ActionRuntime | undefined;
+	parentActionScope?: ActionScope | undefined;
 	model: TabModel;
 	orientation?: TabStripOrientation;
 	onOrientationChange?: (orientation: TabStripOrientation) => void;
@@ -66,6 +81,6 @@ export interface TabStripOptions {
 	onMoveTabsToNewWindow?: (tabIds: readonly string[]) => void;
 	onMoveGroupToNewWindow?: (groupId: string) => void;
 	ariaLabel?: string;
-	onNewTab?: (() => void) | undefined;
+	onNewTab?: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	onNewTabButtonPressed?: () => void;
 }

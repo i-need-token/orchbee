@@ -41,8 +41,8 @@ export function WorkbenchPanel({ panel, view }: WorkbenchPanelProps): React.Reac
 			data-inactive={isInactive || undefined}
 			data-panel-id={panel.id}
 			data-slot='workbench-panel'
-			onFocusCapture={() => view.focusPanel(panel.id)}
-			onPointerDown={() => view.focusPanel(panel.id)}
+			onFocusCapture={() => view.focusPanel(panel.id, 'programmatic')}
+			onPointerDown={() => view.focusPanel(panel.id, 'pointer')}
 		>
 			{showHeader && <WorkbenchPanelHeader panel={panel} view={view} />}
 			<WorkbenchTerminalViewport

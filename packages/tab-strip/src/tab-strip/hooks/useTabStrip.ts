@@ -12,6 +12,10 @@ import {
 	HoverCardUpdateType,
 	TabHoverCardController,
 } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
+import {
+	TAB_STRIP_ACTION_IDS,
+	type TabSelectionInput,
+} from '../actions/tab-strip-action-contracts';
 import { TabHoverCardThumbnailRuntime } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-runtime';
 import { resolveTabKeyboardReorder } from '../accessibility/resolveTabKeyboardReorder';
 import { TabActive, TabOpen, TabPinned } from '../model/tab-types';
@@ -64,6 +68,7 @@ import {
 import { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimationRuntime';
 import { TabStripComboButtonController } from '../model/tab-strip-combo-button';
 import { useElementSize } from './useElementSize';
+import { useTabStripActions } from './useTabStripActions';
 import { DEFAULT_TAB_STRIP_MESSAGES } from '../constants/default-tab-strip-messages';
 import type { TabStripMessages, TabStripMoveDirection } from '../types/tab-strip-messages';
 import type { TabStripViewModel } from '../types/tab-strip-view-model';
@@ -102,6 +107,7 @@ interface DragPointerUpdate {
 
 export function useTabStrip(
 	{
+		actionRuntime,
 		model,
 		orientation = TabStripOrientation.Horizontal,
 		onOrientationChange,
@@ -136,6 +142,7 @@ export function useTabStrip(
 		ariaLabel,
 		onNewTab,
 		onNewTabButtonPressed,
+		parentActionScope,
 	}: TabStripOptions,
 	messages: TabStripMessages = DEFAULT_TAB_STRIP_MESSAGES,
 ): TabStripViewModel {
@@ -204,6 +211,20 @@ export function useTabStrip(
 		groupEditorTrackerRef.current = new TabGroupEditorBubbleTracker();
 	}
 	const groupEditorTracker = groupEditorTrackerRef.current;
+	const internalComboButtonController = useRef<TabStripComboButtonController | null>(null);
+	if (internalComboButtonController.current === null) {
+		internalComboButtonController.current = new TabStripComboButtonController({
+			tabSearchPinned: showVerticalTabSearchButton,
+		});
+	}
+	const comboButtonController =
+		externalComboButtonController ?? internalComboButtonController.current;
+	const comboButtonSnapshot = useSyncExternalStore(
+		comboButtonController.subscribe,
+		comboButtonController.getSnapshot,
+		comboButtonController.getSnapshot,
+	);
+	const previousTabSearchOpen = useRef(false);
 	const openGroupEditor = useCallback(
 		(id: string, x: number, y: number) => {
 			groupEditorTracker.open();
@@ -227,6 +248,22 @@ export function useTabStrip(
 	}, []);
 	dragRef.current = drag;
 	onDraggingChangeRef.current = onDraggingChange;
+	const actions = useTabStripActions({
+		actionRuntime,
+		comboButtonController,
+		messages,
+		model,
+		onMoveGroupToNewWindow,
+		onMoveTabsToNewWindow,
+		onNewTab,
+		onVerticalCollapsedChange,
+		onVerticalExpandOnHoverChange,
+		onVerticalTabSearchClick,
+		parentActionScope,
+		requestCloseTabs: commitCloseTabs,
+		verticalCollapsed,
+		verticalExpandOnHover,
+	});
 
 	useEffect(() => {
 		if (dragStartAnimationRequestRef.current !== null) {
@@ -321,7 +358,11 @@ export function useTabStrip(
 				return;
 			}
 			if (press.kind === 'tab' && !press.shiftPressed && !press.modifierPressed) {
-				model.selectTab(press.id);
+				actions.execute(
+					TAB_STRIP_ACTION_IDS.selectTab,
+					{ mode: 'replace', tabId: press.id },
+					'pointer',
+				);
 			}
 		};
 		window.addEventListener('pointerup', finishAnimationBlockedPress);
@@ -345,7 +386,7 @@ export function useTabStrip(
 			window.removeEventListener('pointercancel', finishAnimationBlockedPress);
 			window.removeEventListener('pointermove', moveAnimationBlockedPress);
 		};
-	}, [model, openGroupEditor, scheduleSuppressedGroupToggleReset]);
+	}, [actions, openGroupEditor, scheduleSuppressedGroupToggleReset]);
 
 	useEffect(() => {
 		const recordMousePosition = (event: PointerEvent) => {
@@ -533,21 +574,6 @@ export function useTabStrip(
 		thumbnailRuntime.getSnapshot,
 		thumbnailRuntime.getSnapshot,
 	);
-	const internalComboButtonController = useRef<TabStripComboButtonController | null>(null);
-	if (internalComboButtonController.current === null) {
-		internalComboButtonController.current = new TabStripComboButtonController({
-			tabSearchPinned: showVerticalTabSearchButton,
-		});
-	}
-	const comboButtonController =
-		externalComboButtonController ?? internalComboButtonController.current;
-	const comboButtonSnapshot = useSyncExternalStore(
-		comboButtonController.subscribe,
-		comboButtonController.getSnapshot,
-		comboButtonController.getSnapshot,
-	);
-	const previousTabSearchOpen = useRef(false);
-
 	const internalExpandOnHoverController = useRef<VerticalTabStripExpandOnHoverController | null>(
 		null,
 	);
@@ -622,7 +648,7 @@ export function useTabStrip(
 		thumbnailRuntime,
 	]);
 
-	const requestCloseTabs = (tabIds: readonly string[], source: TabCloseSource = 'non-ui') => {
+	function commitCloseTabs(tabIds: readonly string[], source: TabCloseSource = 'non-ui'): void {
 		const beforeClose = model.getSnapshot();
 		const existingIds = new Set(beforeClose.tabs.map((tab) => tab.id));
 		const ids = [...new Set(tabIds)].filter((id) => existingIds.has(id));
@@ -669,6 +695,13 @@ export function useTabStrip(
 		} else {
 			announce(messages.formatClosedTabsAnnouncement(ids.length));
 		}
+	}
+	const requestCloseTabs = (tabIds: readonly string[], source: TabCloseSource = 'non-ui'): void => {
+		actions.execute(
+			TAB_STRIP_ACTION_IDS.closeTabs,
+			{ closeSource: source, tabIds },
+			source === 'non-ui' ? 'programmatic' : 'pointer',
+		);
 	};
 
 	useEffect(() => {
@@ -1166,10 +1199,12 @@ export function useTabStrip(
 
 	const selectFromPointer = (event: ReactPointerEvent, tab: Readonly<TabData>) => {
 		const modifier = event.metaKey || event.ctrlKey;
-		if (event.shiftKey && modifier) model.addSelectionFromAnchorTo(tab.id);
-		else if (event.shiftKey) model.extendSelectionTo(tab.id);
-		else if (modifier) model.toggleSelected(tab.id);
-		else if (!model.getSnapshot().selectedTabIds.has(tab.id)) model.selectTab(tab.id);
+		let mode: TabSelectionInput['mode'] = 'replace';
+		if (event.shiftKey && modifier) mode = 'add-range';
+		else if (event.shiftKey) mode = 'extend';
+		else if (modifier) mode = 'toggle';
+		else if (model.getSnapshot().selectedTabIds.has(tab.id)) return;
+		actions.execute(TAB_STRIP_ACTION_IDS.selectTab, { mode, tabId: tab.id }, 'pointer');
 	};
 
 	const armAnimationBlockedPress = (
@@ -1311,7 +1346,13 @@ export function useTabStrip(
 				if (!current || current.pointerId !== event.pointerId || current.pointerType !== 'touch')
 					return;
 				const liveSnapshot = model.getSnapshot();
-				if (!liveSnapshot.selectedTabIds.has(current.sourceId)) model.selectTab(current.sourceId);
+				if (!liveSnapshot.selectedTabIds.has(current.sourceId)) {
+					actions.execute(
+						TAB_STRIP_ACTION_IDS.selectTab,
+						{ mode: 'replace', tabId: current.sourceId },
+						'pointer',
+					);
+				}
 				setDrag((candidate) =>
 					candidate?.pointerId === event.pointerId
 						? { ...candidate, touchLongPressRecognized: true }
@@ -1476,7 +1517,13 @@ export function useTabStrip(
 		} else if (group?.collapsed) {
 			setTabClosingMode(null);
 		}
-		model.toggleGroupCollapsed(groupId);
+		if (group) {
+			actions.execute(
+				TAB_STRIP_ACTION_IDS.setGroupCollapsed,
+				{ collapsed: !group.collapsed, groupId },
+				source === 'keyboard' ? 'keyboard' : 'pointer',
+			);
+		}
 	};
 
 	const onGroupKeyDown = (event: React.KeyboardEvent<HTMLDivElement>, groupId: string) => {
@@ -1488,7 +1535,7 @@ export function useTabStrip(
 		else if (event.key === nextKey) direction = 1;
 		if (direction === 0) return;
 		event.preventDefault();
-		model.shiftGroupRelative(groupId, direction);
+		actions.execute(TAB_STRIP_ACTION_IDS.moveGroup, { direction, groupId }, 'keyboard');
 		let relativeDirection: TabStripMoveDirection = direction < 0 ? 'up' : 'down';
 		if (horizontal) relativeDirection = direction < 0 ? 'left' : 'right';
 		announce(messages.formatGroupMovedAnnouncement(relativeDirection));
@@ -2039,7 +2086,7 @@ export function useTabStrip(
 						!horizontal &&
 						current.groupHeaderId !== null &&
 						!current.groupWasCollapsedBeforeDrag &&
-						model.getIndexOfTab(current.sourceId) !== -1
+						model.getIndexOfTab(current.sourceId) !== null
 					) {
 						model.setSelection([current.sourceId], current.sourceId, { expandGroups: false });
 					}
@@ -2074,7 +2121,11 @@ export function useTabStrip(
 				!current.shiftPressedOnPointerDown &&
 				!(event.metaKey || event.ctrlKey)
 			) {
-				model.selectTab(current.sourceId);
+				actions.execute(
+					TAB_STRIP_ACTION_IDS.selectTab,
+					{ mode: 'replace', tabId: current.sourceId },
+					'pointer',
+				);
 			}
 			if (current.started) {
 				if (horizontal && !externalTargetActive && current.horizontalGroupDrag !== null) {
@@ -2108,12 +2159,21 @@ export function useTabStrip(
 					if (
 						(!horizontal || externalTargetActive) &&
 						completionActiveId !== null &&
-						model.getIndexOfTab(completionActiveId) !== -1
+						model.getIndexOfTab(completionActiveId) !== null
 					) {
 						// The active group member remains authoritative even while the
 						// collapsed group header is its visible projection.
 						model.setSelection([completionActiveId], completionActiveId, { expandGroups: false });
 					}
+				}
+				if (!externalTargetActive) {
+					const committedArrangement = model.captureDragRestoreState();
+					model.restoreCanceledDrag(current.restoreState);
+					actions.execute(
+						TAB_STRIP_ACTION_IDS.applyArrangement,
+						{ state: committedArrangement },
+						'pointer',
+					);
 				}
 			}
 			if (current.groupHeaderId !== null) {
@@ -2172,7 +2232,7 @@ export function useTabStrip(
 					!horizontal &&
 					current.groupHeaderId !== null &&
 					!current.groupWasCollapsedBeforeDrag &&
-					model.getIndexOfTab(current.sourceId) !== -1
+					model.getIndexOfTab(current.sourceId) !== null
 				) {
 					model.setSelection([current.sourceId], current.sourceId, { expandGroups: false });
 				}
@@ -2198,6 +2258,7 @@ export function useTabStrip(
 			window.removeEventListener('keydown', keydown);
 		};
 	}, [
+		actions,
 		dragPresent,
 		horizontal,
 		horizontalLayout,
@@ -2219,7 +2280,7 @@ export function useTabStrip(
 		if (event.key === 'Enter') {
 			if (snapshot.selectedTabIds.has(tabId)) return;
 			event.preventDefault();
-			model.selectTab(tabId);
+			actions.execute(TAB_STRIP_ACTION_IDS.selectTab, { mode: 'replace', tabId }, 'keyboard');
 			return;
 		}
 		if (event.key === ' ') {
@@ -2236,8 +2297,11 @@ export function useTabStrip(
 		if (!reorder) return;
 		event.preventDefault();
 		if (reorder.moveToEnd) {
-			if (reorder.direction < 0) model.moveTabFirst(tabId);
-			else model.moveTabLast(tabId);
+			actions.execute(
+				TAB_STRIP_ACTION_IDS.moveTab,
+				{ direction: reorder.direction < 0 ? 'first' : 'last', tabId },
+				'keyboard',
+			);
 			announce(
 				messages.formatTabMoveAnnouncement(
 					reorder.direction < 0 ? 'first' : 'last',
@@ -2255,7 +2319,11 @@ export function useTabStrip(
 			const tabsInBeforeGroup = beforeGroup
 				? before.tabs.filter((tab) => tab.group === beforeGroup.id)
 				: [];
-			model.shiftTabRelative(tabId, reorder.direction);
+			actions.execute(
+				TAB_STRIP_ACTION_IDS.moveTab,
+				{ direction: reorder.direction < 0 ? 'previous' : 'next', tabId },
+				'keyboard',
+			);
 			const after = model.getSnapshot();
 			const afterIndex = after.tabs.findIndex((tab) => tab.id === tabId);
 			const afterTab = after.tabs.find((tab) => tab.id === tabId);
@@ -2289,19 +2357,15 @@ export function useTabStrip(
 	const onTabKeyUp = (event: React.KeyboardEvent, tabId: string) => {
 		if (event.key !== ' ') return;
 		event.preventDefault();
-		if (!snapshot.selectedTabIds.has(tabId)) model.selectTab(tabId);
+		if (!snapshot.selectedTabIds.has(tabId)) {
+			actions.execute(TAB_STRIP_ACTION_IDS.selectTab, { mode: 'replace', tabId }, 'keyboard');
+		}
 	};
 
 	const addTab = () => {
 		setTabClosingMode(null);
 		onNewTabButtonPressed?.();
-		if (onNewTab) onNewTab();
-		else
-			model.addTab({
-				title: messages.newTabTitle,
-				pinned: false,
-				group: null,
-			});
+		actions.createTab({ groupId: null, title: messages.newTabTitle }, 'button');
 	};
 
 	const animatedHorizontalBoundsById = new Map(
@@ -2329,6 +2393,7 @@ export function useTabStrip(
 	})();
 
 	return {
+		actions,
 		model,
 		orientation,
 		onOrientationChange,

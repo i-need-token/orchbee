@@ -3,6 +3,10 @@ import { defineMessages } from 'react-intl';
 import { enUSWorkbenchMessages } from '../locales';
 
 export const workbenchTabMessages = defineMessages({
+	actionCategoryTabs: {
+		id: 'workbench.actions.categories.tabs',
+		defaultMessage: enUSWorkbenchMessages['workbench.actions.categories.tabs'],
+	},
 	addTabToGroup: {
 		id: 'workbench.tabs.actions.addToGroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.addToGroup'],
@@ -42,6 +46,22 @@ export const workbenchTabMessages = defineMessages({
 	duplicate: {
 		id: 'workbench.tabs.actions.duplicate',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.duplicate'],
+	},
+	selectTab: {
+		id: 'workbench.tabs.actions.select',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.select'],
+	},
+	moveTab: {
+		id: 'workbench.tabs.actions.move',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.move'],
+	},
+	moveGroup: {
+		id: 'workbench.tabs.actions.moveGroup',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveGroup'],
+	},
+	setGroupCollapsed: {
+		id: 'workbench.tabs.actions.setGroupCollapsed',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.setGroupCollapsed'],
 	},
 	expandTabStrip: {
 		id: 'workbench.tabs.actions.expand',
@@ -122,6 +142,10 @@ export const workbenchTabMessages = defineMessages({
 	moveTabsToNewWindow: {
 		id: 'workbench.tabs.actions.moveTabsToWindow',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveTabsToWindow'],
+	},
+	moveTabsToGroup: {
+		id: 'workbench.tabs.actions.moveToGroup',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveToGroup'],
 	},
 	moreOptions: {
 		id: 'workbench.tabs.actions.more',
@@ -230,6 +254,10 @@ export const workbenchTabMessages = defineMessages({
 	unnamedGroup: {
 		id: 'workbench.tabs.groups.unnamed',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.groups.unnamed'],
+	},
+	updateGroup: {
+		id: 'workbench.tabs.actions.updateGroup',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.updateGroup'],
 	},
 	unpin: {
 		id: 'workbench.tabs.actions.unpin',

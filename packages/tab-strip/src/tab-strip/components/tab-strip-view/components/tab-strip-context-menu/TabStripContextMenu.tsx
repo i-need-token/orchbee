@@ -9,50 +9,46 @@ import {
 	ContextMenuSubTrigger,
 } from '@orchbee/ui/components';
 import { type CSSProperties, type ReactNode } from 'react';
-import { type TabCloseSource } from '../../../../layout/tab-closing-mode';
-import { type TabData, type TabModel, type TabModelSnapshot } from '../../../../model/tab-model';
+import { type TabData, type TabModelSnapshot } from '../../../../model/tab-model';
 import { requireDefined } from '../../../../utils/requireDefined';
 import { TabStripOrientation } from '../../../../types/tab-strip-types';
-import { type TabStripComboButtonController } from '../../../../model/tab-strip-combo-button';
 import {
 	GROUP_COLORS,
 	GROUP_COLOR_NAMES,
-	createGroupForTabs,
-	createNewTabGroup,
 	type MenuState,
 } from '../../../../utils/tab-strip-internals';
 import { GroupEditorMenuIcon } from './components/group-editor-menu-icon/GroupEditorMenuIcon';
 import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
+import type { TabStripActions } from '../../../../types/tab-strip-actions';
+import { TAB_STRIP_ACTION_IDS } from '../../../../actions/tab-strip-action-contracts';
 
 interface TabStripContextMenuProps {
+	actions: TabStripActions;
 	state: MenuState;
 	snapshot: TabModelSnapshot;
-	model: TabModel;
 	orientation: TabStripOrientation;
 	onOrientationChange?: ((orientation: TabStripOrientation) => void) | undefined;
-	requestCloseTabs: (tabIds: readonly string[], source?: TabCloseSource) => void;
 	closeAllowed: boolean;
 	verticalExpandOnHover: boolean;
 	onVerticalExpandOnHoverChange?: ((enabled: boolean) => void) | undefined;
-	comboButtonController: TabStripComboButtonController;
-	onMoveTabsToNewWindow?: ((tabIds: readonly string[]) => void) | undefined;
-	onMoveGroupToNewWindow?: ((groupId: string) => void) | undefined;
+	tabSearchPinned: boolean;
+	moveGroupToNewWindowAvailable: boolean;
+	moveTabsToNewWindowAvailable: boolean;
 	onClose: () => void;
 }
 
 export function TabStripContextMenu({
+	actions,
 	state,
 	snapshot,
-	model,
 	orientation,
 	onOrientationChange,
-	requestCloseTabs,
 	closeAllowed,
 	verticalExpandOnHover,
 	onVerticalExpandOnHoverChange,
-	comboButtonController,
-	onMoveTabsToNewWindow,
-	onMoveGroupToNewWindow,
+	tabSearchPinned,
+	moveGroupToNewWindowAvailable,
+	moveTabsToNewWindowAvailable,
 	onClose,
 }: TabStripContextMenuProps): ReactNode {
 	const messages = useTabStripMessages();
@@ -80,15 +76,19 @@ export function TabStripContextMenu({
 	}
 
 	if (state.kind === 'combo-end') {
-		const combo = comboButtonController.getSnapshot();
-		const pinned = combo.tabSearchPinned;
 		return (
 			<ContextMenuContent aria-label={messages.searchTabsMenu}>
 				<ContextMenuCheckboxItem
-					checked={pinned}
-					onClick={run(() => comboButtonController.executeTogglePinned('tab-search'))}
+					checked={tabSearchPinned}
+					onClick={run(() =>
+						actions.execute(
+							TAB_STRIP_ACTION_IDS.setTabSearchPinned,
+							{ value: !tabSearchPinned },
+							'context-menu',
+						),
+					)}
 				>
-					{pinned ? messages.unpinSearchTabs : messages.pinSearchTabs}
+					{tabSearchPinned ? messages.unpinSearchTabs : messages.pinSearchTabs}
 				</ContextMenuCheckboxItem>
 			</ContextMenuContent>
 		);
@@ -99,7 +99,14 @@ export function TabStripContextMenu({
 			<ContextMenuContent aria-label={messages.verticalTabStripMenu}>
 				<ContextMenuCheckboxItem
 					checked={verticalExpandOnHover}
-					onClick={run(() => onVerticalExpandOnHoverChange?.(!verticalExpandOnHover))}
+					disabled={onVerticalExpandOnHoverChange === undefined}
+					onClick={run(() =>
+						actions.execute(
+							TAB_STRIP_ACTION_IDS.setVerticalExpandOnHover,
+							{ value: !verticalExpandOnHover },
+							'context-menu',
+						),
+					)}
 				>
 					{messages.expandTabStripOnHover}
 				</ContextMenuCheckboxItem>
@@ -123,7 +130,7 @@ export function TabStripContextMenu({
 			<ContextMenuContent aria-label={messages.newTabMenu}>
 				<ContextMenuItem
 					onClick={run(() =>
-						model.addTab({ title: messages.newTabTitle, pinned: false, group: null }),
+						actions.createTab({ groupId: null, title: messages.newTabTitle }, 'context-menu'),
 					)}
 				>
 					{messages.newTab}
@@ -132,18 +139,24 @@ export function TabStripContextMenu({
 					disabled={!recentGroup}
 					onClick={run(() => {
 						if (recentGroup) {
-							model.addTab({
-								title: messages.newTabTitle,
-								pinned: false,
-								group: recentGroup.id,
-							});
+							actions.createTab(
+								{
+									groupId: recentGroup.id,
+									title: messages.newTabTitle,
+								},
+								'context-menu',
+							);
 						}
 					})}
 				>
 					{recentGroupLabel}
 				</ContextMenuItem>
 				<ContextMenuSeparator />
-				<ContextMenuItem onClick={run(() => createNewTabGroup(model, messages.newTabTitle))}>
+				<ContextMenuItem
+					onClick={run(() =>
+						actions.execute(TAB_STRIP_ACTION_IDS.createGroupWithTab, undefined, 'context-menu'),
+					)}
+				>
 					{messages.newGroup}
 				</ContextMenuItem>
 			</ContextMenuContent>
@@ -156,12 +169,13 @@ export function TabStripContextMenu({
 		const groupTabs = snapshot.tabs.filter((tab) => tab.group === group.id);
 		const commitGroupAction = (action: 'close' | 'ungroup') => {
 			if (action === 'close') {
-				requestCloseTabs(
-					groupTabs.map((tab) => tab.id),
-					'non-ui',
+				actions.execute(
+					TAB_STRIP_ACTION_IDS.closeTabs,
+					{ closeSource: 'non-ui', tabIds: groupTabs.map((tab) => tab.id) },
+					'context-menu',
 				);
 			} else {
-				model.ungroup(group.id);
+				actions.execute(TAB_STRIP_ACTION_IDS.ungroup, { groupId: group.id }, 'context-menu');
 			}
 			onClose();
 		};
@@ -173,7 +187,13 @@ export function TabStripContextMenu({
 					autoFocus
 					value={group.title}
 					placeholder={messages.groupNamePlaceholder}
-					onChange={(event) => model.updateGroup(group.id, { title: event.target.value })}
+					onChange={(event) =>
+						actions.execute(
+							TAB_STRIP_ACTION_IDS.updateGroup,
+							{ groupId: group.id, title: event.target.value },
+							'context-menu',
+						)
+					}
 					onKeyDown={(event) => {
 						event.stopPropagation();
 						if (event.key !== 'Enter' && event.key !== 'Escape') return;
@@ -204,7 +224,13 @@ export function TabStripContextMenu({
 									'--ob-comp-tab-strip-group-option-color': GROUP_COLORS[color],
 								} satisfies CSSProperties
 							}
-							onClick={() => model.updateGroup(group.id, { color })}
+							onClick={() =>
+								actions.execute(
+									TAB_STRIP_ACTION_IDS.updateGroup,
+									{ color, groupId: group.id },
+									'context-menu',
+								)
+							}
 							onKeyDown={(event) => {
 								const currentIndex = GROUP_COLOR_NAMES.indexOf(color);
 								let offset = 0;
@@ -219,7 +245,11 @@ export function TabStripContextMenu({
 								else if (offset === 0) return;
 								event.preventDefault();
 								const nextColor = requireDefined(GROUP_COLOR_NAMES[nextIndex]);
-								model.updateGroup(group.id, { color: nextColor });
+								actions.execute(
+									TAB_STRIP_ACTION_IDS.updateGroup,
+									{ color: nextColor, groupId: group.id },
+									'context-menu',
+								);
 								const radios =
 									event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
 										'[role="radio"]',
@@ -232,14 +262,22 @@ export function TabStripContextMenu({
 				<ContextMenuSeparator />
 				<ContextMenuItem
 					onClick={run(() =>
-						model.addTab({ title: messages.newTabTitle, pinned: false, group: group.id }),
+						actions.createTab({ groupId: group.id, title: messages.newTabTitle }, 'context-menu'),
 					)}
 				>
 					<GroupEditorMenuIcon kind='new-tab' />
 					<span>{messages.newTabInGroup}</span>
 				</ContextMenuItem>
-				{onMoveGroupToNewWindow && snapshot.tabs.some((tab) => tab.group !== group.id) ? (
-					<ContextMenuItem onClick={run(() => onMoveGroupToNewWindow(group.id))}>
+				{moveGroupToNewWindowAvailable && snapshot.tabs.some((tab) => tab.group !== group.id) ? (
+					<ContextMenuItem
+						onClick={run(() =>
+							actions.execute(
+								TAB_STRIP_ACTION_IDS.moveGroupToWindow,
+								{ groupId: group.id },
+								'context-menu',
+							),
+						)}
+					>
 						<GroupEditorMenuIcon kind='move-window' />
 						<span>{messages.moveGroupToNewWindow}</span>
 					</ContextMenuItem>
@@ -288,9 +326,13 @@ export function TabStripContextMenu({
 		<ContextMenuContent aria-label={messages.tabOptions}>
 			<ContextMenuItem
 				onClick={run(() =>
-					model.addTab(
-						{ title: messages.newTabTitle, group: tab.group, pinned: false },
-						{ index: index + 1 },
+					actions.createTab(
+						{
+							groupId: tab.group,
+							index: index + 1,
+							title: messages.newTabTitle,
+						},
+						'context-menu',
 					),
 				)}
 			>
@@ -301,7 +343,15 @@ export function TabStripContextMenu({
 					{menuDisplayTabCount === 1 ? messages.addTabToGroup : messages.addTabsToGroup}
 				</ContextMenuSubTrigger>
 				<ContextMenuSubContent aria-label={messages.tabGroups}>
-					<ContextMenuItem onClick={run(() => createGroupForTabs(model, commandTabIds))}>
+					<ContextMenuItem
+						onClick={run(() =>
+							actions.execute(
+								TAB_STRIP_ACTION_IDS.createGroup,
+								{ tabIds: commandTabIds },
+								'context-menu',
+							),
+						)}
+					>
 						{messages.newGroup}
 					</ContextMenuItem>
 					{snapshot.groups
@@ -309,7 +359,13 @@ export function TabStripContextMenu({
 						.map((group) => (
 							<ContextMenuItem
 								key={group.id}
-								onClick={run(() => model.moveTabsToGroup(commandTabIds, group.id))}
+								onClick={run(() =>
+									actions.execute(
+										TAB_STRIP_ACTION_IDS.moveTabsToGroup,
+										{ groupId: group.id, tabIds: commandTabIds },
+										'context-menu',
+									),
+								)}
 							>
 								{group.title || messages.unnamedGroup}
 							</ContextMenuItem>
@@ -317,39 +373,87 @@ export function TabStripContextMenu({
 				</ContextMenuSubContent>
 			</ContextMenuSub>
 			{commandTabs.some((candidate) => candidate.group !== null) ? (
-				<ContextMenuItem onClick={run(() => model.moveTabsToGroup(commandTabIds, null))}>
+				<ContextMenuItem
+					onClick={run(() =>
+						actions.execute(
+							TAB_STRIP_ACTION_IDS.moveTabsToGroup,
+							{ groupId: null, tabIds: commandTabIds },
+							'context-menu',
+						),
+					)}
+				>
 					{messages.removeFromGroup}
 				</ContextMenuItem>
 			) : null}
 			<ContextMenuItem
-				disabled={!canMoveToNewWindow || !onMoveTabsToNewWindow}
-				onClick={run(() => onMoveTabsToNewWindow?.(commandTabIds))}
+				disabled={!canMoveToNewWindow || !moveTabsToNewWindowAvailable}
+				onClick={run(() =>
+					actions.execute(
+						TAB_STRIP_ACTION_IDS.moveTabsToWindow,
+						{ tabIds: commandTabIds },
+						'context-menu',
+					),
+				)}
 			>
 				{menuDisplayTabCount === 1 ? messages.moveTabToNewWindow : messages.moveTabsToNewWindow}
 			</ContextMenuItem>
 			<ContextMenuSeparator />
-			<ContextMenuItem onClick={run(() => commandTabIds.forEach((id) => model.duplicateTab(id)))}>
+			<ContextMenuItem
+				onClick={run(() =>
+					actions.execute(
+						TAB_STRIP_ACTION_IDS.duplicateTabs,
+						{ tabIds: commandTabIds },
+						'context-menu',
+					),
+				)}
+			>
 				{messages.duplicate}
 			</ContextMenuItem>
-			<ContextMenuItem onClick={run(() => model.setTabsPinned(commandTabIds, willPin))}>
+			<ContextMenuItem
+				onClick={run(() =>
+					actions.execute(
+						TAB_STRIP_ACTION_IDS.setTabsPinned,
+						{ pinned: willPin, tabIds: commandTabIds },
+						'context-menu',
+					),
+				)}
+			>
 				{willPin ? messages.pin : messages.unpin}
 			</ContextMenuItem>
 			<ContextMenuSeparator />
 			<ContextMenuItem
 				disabled={!closeAllowed}
-				onClick={run(() => requestCloseTabs(commandTabIds))}
+				onClick={run(() =>
+					actions.execute(
+						TAB_STRIP_ACTION_IDS.closeTabs,
+						{ closeSource: 'non-ui', tabIds: commandTabIds },
+						'context-menu',
+					),
+				)}
 			>
 				{messages.close}
 			</ContextMenuItem>
 			<ContextMenuItem
 				disabled={!closeAllowed || closeOtherTabIds.length === 0}
-				onClick={run(() => requestCloseTabs(closeOtherTabIds))}
+				onClick={run(() =>
+					actions.execute(
+						TAB_STRIP_ACTION_IDS.closeTabs,
+						{ closeSource: 'non-ui', tabIds: closeOtherTabIds },
+						'context-menu',
+					),
+				)}
 			>
 				{messages.closeOtherTabs}
 			</ContextMenuItem>
 			<ContextMenuItem
 				disabled={!closeAllowed || closeTrailingTabIds.length === 0}
-				onClick={run(() => requestCloseTabs(closeTrailingTabIds))}
+				onClick={run(() =>
+					actions.execute(
+						TAB_STRIP_ACTION_IDS.closeTabs,
+						{ closeSource: 'non-ui', tabIds: closeTrailingTabIds },
+						'context-menu',
+					),
+				)}
 			>
 				{vertical ? messages.closeTabsBelow : messages.closeTabsToRight}
 			</ContextMenuItem>

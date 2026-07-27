@@ -1,4 +1,5 @@
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
+import { ActionRuntime } from '@orchbee/actions';
 import { TabModel } from '@orchbee/tab-strip';
 import { Workbench } from '@orchbee/workbench';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
@@ -28,9 +29,10 @@ const createTabModel = (titles: readonly string[]) =>
 
 export const PanelWorkspace: Story = {
 	args: {
-		onSearch: () => undefined,
-		onSettings: () => undefined,
-		onNewTerminal: () => undefined,
+		actionRuntime: new ActionRuntime(),
+		onSearch: () => ({ kind: 'unchanged' }),
+		onSettings: () => ({ kind: 'unchanged' }),
+		onNewTerminal: () => ({ kind: 'unchanged' }),
 		shortcutPlatform: 'apple',
 		tabModel: createTabModel(['Terminal 1', 'Terminal 2', 'Terminal 3']),
 	},
@@ -43,9 +45,10 @@ export const PanelWorkspace: Story = {
 
 export const SimplifiedChineseSidebar: Story = {
 	args: {
-		onSearch: () => undefined,
-		onSettings: () => undefined,
-		onNewTerminal: () => undefined,
+		actionRuntime: new ActionRuntime(),
+		onSearch: () => ({ kind: 'unchanged' }),
+		onSettings: () => ({ kind: 'unchanged' }),
+		onNewTerminal: () => ({ kind: 'unchanged' }),
 		shortcutPlatform: 'apple',
 		tabModel: createTabModel(['终端 1', '终端 2', '终端 3']),
 	},
@@ -58,14 +61,15 @@ export const SimplifiedChineseSidebar: Story = {
 
 export const HiddenSidebar: Story = {
 	args: {
+		actionRuntime: new ActionRuntime(),
 		layoutStorage: {
 			getItem: (key) =>
 				key === 'orchbee:workbench:left-panel-visibility:v1' ? '{"visible":false}' : null,
 			setItem: () => undefined,
 		},
-		onSearch: () => undefined,
-		onSettings: () => undefined,
-		onNewTerminal: () => undefined,
+		onSearch: () => ({ kind: 'unchanged' }),
+		onSettings: () => ({ kind: 'unchanged' }),
+		onNewTerminal: () => ({ kind: 'unchanged' }),
 		shortcutPlatform: 'apple',
 		tabModel: createTabModel(['Terminal 1', 'Terminal 2', 'Terminal 3']),
 	},

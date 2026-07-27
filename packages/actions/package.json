@@ -1,0 +1,39 @@
+{
+	"name": "@orchbee/actions",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Scoped action registration and execution runtime for Orchbee products",
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"@orchbee/source": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		}
+	},
+	"scripts": {
+		"build": "rslib build",
+		"dev": "rslib build --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:tla": "node scripts/run-tla.mjs",
+		"test:exports": "node ../../scripts/check-package-exports.mjs .",
+		"verify:correctness": "pnpm typecheck && pnpm test && pnpm test:tla && pnpm build"
+	},
+	"devDependencies": {
+		"@rslib/core": "catalog:",
+		"@types/node": "catalog:",
+		"jsdom": "29.1.1",
+		"vitest": "catalog:"
+	}
+}

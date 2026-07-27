@@ -49,6 +49,7 @@
 		"packages/tab-strip": {
 			"entry": [
 				"src/index.ts",
+				"src/tab-strip/hooks/useTabStripActions.ts!",
 				"src/**/*.unit.test.{ts,tsx}",
 				"rslib.config.ts",
 				"vitest.config.ts",

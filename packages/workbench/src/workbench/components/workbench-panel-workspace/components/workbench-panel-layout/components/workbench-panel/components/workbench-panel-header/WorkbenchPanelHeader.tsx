@@ -57,7 +57,7 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 							render={
 								<Button
 									aria-label={view.messages.returnToPrimary}
-									onClick={() => view.showPrimaryTerminal(panel.id)}
+									onClick={() => view.showPrimaryTerminal(panel.id, 'button')}
 									size='icon-xs'
 									variant='ghost'
 								/>
@@ -93,7 +93,7 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 								<ProductIcon name='more-vertical' />
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align='end'>
-								<DropdownMenuItem onClick={() => view.togglePanelMaximization(panel.id)}>
+								<DropdownMenuItem onClick={() => view.togglePanelMaximization(panel.id, 'menu')}>
 									{isMaximized ? view.messages.minimize : view.messages.maximize}
 								</DropdownMenuItem>
 							</DropdownMenuContent>
@@ -107,7 +107,7 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 							<Button
 								aria-label={view.messages.close}
 								className={styles['mutedAction']}
-								onClick={() => view.requestClose(panel.id)}
+								onClick={() => view.requestClose(panel.id, 'button')}
 								size='icon-xs'
 								variant='ghost'
 							/>

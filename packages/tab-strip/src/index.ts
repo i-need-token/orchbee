@@ -18,6 +18,7 @@ export {
 	type TabStripCrossWindowDragRuntime,
 	type TabStripCrossWindowDragRuntimeFactory,
 	type TabStripMessages,
+	type TabStripNewTabRequest,
 	type TabStripProps,
 	CrossWindowDragState,
 	CrossWindowTabDragRuntime,

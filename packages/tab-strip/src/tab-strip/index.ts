@@ -3,6 +3,7 @@ export type {
 	TabStripCrossWindowDragRuntime,
 	TabStripCrossWindowDragRuntimeFactory,
 	TabStripMessages,
+	TabStripNewTabRequest,
 	TabStripProps,
 } from './TabStrip';
 export { TabStripOrientation, VerticalTabStripCollapseState } from './types/tab-strip-types';

@@ -3,6 +3,31 @@ import { defineMessages } from 'react-intl';
 import { enUSWorkbenchMessages } from '../locales';
 
 export const workbenchMessages = defineMessages({
+	actionCategoryNavigation: {
+		id: 'workbench.actions.categories.navigation',
+		defaultMessage: enUSWorkbenchMessages['workbench.actions.categories.navigation'],
+		description: 'Action category for navigation commands.',
+	},
+	actionCategoryPanels: {
+		id: 'workbench.actions.categories.panels',
+		defaultMessage: enUSWorkbenchMessages['workbench.actions.categories.panels'],
+		description: 'Action category for Workbench panel commands.',
+	},
+	actionCategoryTerminal: {
+		id: 'workbench.actions.categories.terminal',
+		defaultMessage: enUSWorkbenchMessages['workbench.actions.categories.terminal'],
+		description: 'Action category for terminal commands.',
+	},
+	actionCategoryView: {
+		id: 'workbench.actions.categories.view',
+		defaultMessage: enUSWorkbenchMessages['workbench.actions.categories.view'],
+		description: 'Action category for Workbench view commands.',
+	},
+	actionUnavailable: {
+		id: 'workbench.actions.states.unavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.actions.states.unavailable'],
+		description: 'Reason shown when a host does not provide an optional Workbench action.',
+	},
 	hideSidebar: {
 		id: 'workbench.sidebar.actions.hide',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.actions.hide'],
@@ -17,6 +42,11 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.panels.actions.cancel',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.cancel'],
 		description: 'Action that cancels closing a running Workbench terminal.',
+	},
+	panelActivateChild: {
+		id: 'workbench.panels.actions.activateChild',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.activateChild'],
+		description: 'Action that activates a child terminal in a Workbench panel.',
 	},
 	panelChildTerminalsLabel: {
 		id: 'workbench.panels.childTerminals.label',
@@ -48,10 +78,20 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.maximize'],
 		description: 'Action that expands one Workbench panel to the tab content area.',
 	},
+	panelFocus: {
+		id: 'workbench.panels.actions.focus',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focus'],
+		description: 'Action that focuses a Workbench panel.',
+	},
 	panelMinimize: {
 		id: 'workbench.panels.actions.minimize',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.minimize'],
 		description: 'Action that restores a maximized Workbench panel to the split layout.',
+	},
+	panelMove: {
+		id: 'workbench.panels.actions.move',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.move'],
+		description: 'Action that moves a Workbench panel relative to another panel.',
 	},
 	panelMore: {
 		id: 'workbench.panels.actions.more',
@@ -72,6 +112,11 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.panels.actions.splitAbove',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.splitAbove'],
 		description: 'Action that creates a Workbench panel above the current panel.',
+	},
+	panelSplit: {
+		id: 'workbench.panels.actions.split',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.split'],
+		description: 'Action that splits a Workbench panel in a requested direction.',
 	},
 	panelSplitBelow: {
 		id: 'workbench.panels.actions.splitBelow',
@@ -107,6 +152,16 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.sidebar.actions.show',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.actions.show'],
 		description: 'Action that shows the Workbench sidebar.',
+	},
+	toggleSidebar: {
+		id: 'workbench.sidebar.actions.toggle',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.actions.toggle'],
+		description: 'Action that toggles Workbench sidebar visibility.',
+	},
+	tabStripOrientation: {
+		id: 'workbench.tabs.actions.setOrientation',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.setOrientation'],
+		description: 'Action that sets the Workbench tab-strip orientation.',
 	},
 	sidebarLabel: {
 		id: 'workbench.sidebar.label',

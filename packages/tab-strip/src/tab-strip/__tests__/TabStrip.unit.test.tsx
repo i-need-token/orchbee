@@ -1,4 +1,5 @@
-import { StrictMode } from 'react';
+import { ActionRuntime } from '@orchbee/actions';
+import { StrictMode, useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TAB_BOUNDS_ANIMATION_DURATION_MS } from '../utils/tab-strip-internals';
@@ -1857,12 +1858,22 @@ describe('TabStrip', () => {
 	it('notifies the host before invoking the New Tab action', () => {
 		const model = createModel();
 		const order: string[] = [];
+		const runtime = new ActionRuntime();
+		const parentActionScope = runtime.createScope('workbench');
 		render(
 			<TabStrip
+				actionRuntime={runtime}
 				model={model}
 				orientation={TabStripOrientation.Vertical}
 				onNewTabButtonPressed={() => order.push('pressed')}
-				onNewTab={() => order.push('action')}
+				onNewTab={(request) => {
+					order.push('action');
+					return runtime.execute('test.host-tab.create', undefined, {
+						scope: parentActionScope,
+						source: request.source,
+					});
+				}}
+				parentActionScope={parentActionScope}
 			/>,
 		);
 
@@ -1916,6 +1927,31 @@ describe('TabStrip', () => {
 		expect(screen.getByRole('button', { name: 'Expand tab strip' })).toBeTruthy();
 
 		fireEvent.mouseLeave(strip);
+		expect(strip.hasAttribute('data-expanded-on-hover')).toBe(false);
+		expect(strip.hasAttribute('data-collapsed')).toBe(true);
+	});
+
+	it('collapses immediately when its own control holds pointer and keyboard focus', () => {
+		const model = createModel();
+		const ControlledVerticalTabStrip = () => {
+			const [collapsed, setCollapsed] = useState(false);
+			return (
+				<TabStrip
+					model={model}
+					orientation={TabStripOrientation.Vertical}
+					verticalCollapsed={collapsed}
+					onVerticalCollapsedChange={setCollapsed}
+				/>
+			);
+		};
+		render(<ControlledVerticalTabStrip />);
+		const strip = screen.getByRole('tablist', { name: 'Tabs' });
+		const collapseButton = screen.getByRole('button', { name: 'Collapse tab strip' });
+
+		fireEvent.mouseEnter(strip);
+		fireEvent.focus(collapseButton);
+		fireEvent.click(collapseButton);
+
 		expect(strip.hasAttribute('data-expanded-on-hover')).toBe(false);
 		expect(strip.hasAttribute('data-collapsed')).toBe(true);
 	});

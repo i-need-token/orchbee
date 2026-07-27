@@ -50,7 +50,7 @@ describe('useWorkbenchTerminalContextMenu', () => {
 		const contextMenu = getControls();
 		contextMenu.split('right', ownerDocument);
 
-		expect(splitPanel).toHaveBeenCalledWith('panel-1', 'right');
+		expect(splitPanel).toHaveBeenCalledWith('panel-1', 'right', 'context-menu');
 		expect(focus).toHaveBeenCalledOnce();
 		expect(contextMenu.finalFocus()).toBe(terminal);
 		expect(contextMenu.finalFocus()).toBe(true);

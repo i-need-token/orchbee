@@ -4,6 +4,12 @@ Shared product-semantic React shell for Orchbee applications.
 
 ## Scope
 
+Workbench registers its product operations in the application-owned `ActionRuntime`. Sidebar
+controls, shortcuts, tab-strip commands, panel buttons, and menus invoke those registrations; the
+registered handlers are the only writers for their semantic results. Continuous resize and drag
+preview remain reversible interaction state, while the final drag result invokes the corresponding
+Action.
+
 The package owns a full-height, horizontally resizable two-panel shell. The left sidebar defaults
 to `250px` and is constrained to `200px`–`400px`; the right panel fills the remaining width and
 renders the host-owned terminal tab model through `@orchbee/tab-strip`. The sidebar control and
@@ -137,12 +143,16 @@ Render the shell at the same boundary:
 ```tsx
 import {
 	Workbench,
+	type WorkbenchHostActionCallback,
 	type WorkbenchLayoutStorage,
 	type WorkbenchShortcutPlatform,
+	type WorkbenchTerminalCreateCallback,
 } from '@orchbee/workbench';
+import { ActionRuntime } from '@orchbee/actions';
 import type { TabModel } from '@orchbee/tab-strip';
 
 export function ProductInterface({
+	actionRuntime,
 	layoutStorage,
 	onNewTerminal,
 	onSearch,
@@ -150,15 +160,17 @@ export function ProductInterface({
 	shortcutPlatform,
 	tabModel,
 }: {
+	readonly actionRuntime: ActionRuntime;
 	readonly layoutStorage: WorkbenchLayoutStorage;
-	readonly onNewTerminal: () => void;
-	readonly onSearch: () => void;
-	readonly onSettings: () => void;
+	readonly onNewTerminal: WorkbenchTerminalCreateCallback;
+	readonly onSearch: WorkbenchHostActionCallback;
+	readonly onSettings: WorkbenchHostActionCallback;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly tabModel: TabModel;
 }) {
 	return (
 		<Workbench
+			actionRuntime={actionRuntime}
 			layoutStorage={layoutStorage}
 			onNewTerminal={onNewTerminal}
 			onSearch={onSearch}
@@ -170,6 +182,14 @@ export function ProductInterface({
 }
 ```
 
+Create one `ActionRuntime` for each mounted application composition and dispose it with that
+composition. `WorkbenchTerminalCreateCallback` receives the execution context plus input carrying
+the requested group and optional insertion index, so the visible new-tab control and tab context
+menus reach the same terminal-creation handler without losing placement. Host callbacks return a
+structured `ActionResult`, may return it asynchronously, observe `context.signal` before commit, and
+call `context.markCommitted()` immediately before their authoritative mutation. Workbench does not
+convert a rejected host promise into a false success or claim commit on the host's behalf.
+
 When storage is provided, Workbench restores `orchbee:workbench:left-panel-width:v1`,
 `orchbee:workbench:left-panel-visibility:v1`, and
 `orchbee:workbench:tab-strip-orientation:v1`. It parses complete JSON records with feature-owned
@@ -179,17 +199,19 @@ or out-of-range storage falls back to a visible `250px` sidebar and a horizontal
 blocking rendering. The repository-wide ownership and key contract lives in
 [`docs/frontend/browser-storage.md`](../../docs/frontend/browser-storage.md).
 
-The host owns `TabModel` and terminal-session lifecycles. Workbench renders that model and forwards
-the tab-strip new-tab action to `onNewTerminal`; when the callback is absent, the tab-strip retains
-its local fallback behavior. A desktop host may also pass `createCrossWindowDragRuntime` to connect
+The host owns `TabModel` and terminal-session lifecycles. Workbench renders that model and its
+terminal-creation Action calls `onNewTerminal`; when the callback is absent, the Action is disabled
+and the tab strip retains its local fallback behavior. A desktop host may also pass
+`createCrossWindowDragRuntime` to connect
 the strip's pointer lifecycle to host-owned live-window discovery, compatibility checks, native
 window movement, capture, and move-loop behavior. Workbench and the browser application do not
 fabricate those operating-system capabilities.
 
-Workbench owns `Mod+B` for sidebar visibility, `Mod+N` for `onNewTerminal`, `Mod+K` for `onSearch`,
-and `Mod+,` for `onSettings`. Apple platforms display `⌘B`, `⌘N`, `⌘K`, and `⌘,`; standard
-platforms display `Ctrl B`, `Ctrl N`, `Ctrl K`, and `Ctrl+,`. Missing callbacks remain visible for
-layout continuity and are excluded from global shortcut handling.
+Workbench owns `Mod+B` for `workbench.sidebar.toggle`, `Mod+N` for
+`workbench.terminal.create`, `Mod+K` for `workbench.search.open`, and `Mod+,` for
+`workbench.settings.open`. Apple platforms display `⌘B`, `⌘N`, `⌘K`, and `⌘,`; standard platforms
+display `Ctrl B`, `Ctrl N`, `Ctrl K`, and `Ctrl+,`. A shortcut is consumed only when its Action is
+currently enabled; missing host capabilities remain visible but disabled.
 
 ## Development
 

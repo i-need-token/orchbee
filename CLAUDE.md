@@ -40,6 +40,7 @@
 - **Frontend Storybook**: `docs/frontend/storybook.md` — host ownership, Story placement, navigation, authoring, and browser verification
 - **Frontend Localization**: `docs/frontend/localization.md` — locale ownership, message catalogs, formatting, fallback, and verification
 - **Frontend Tooltips**: `docs/frontend/tooltips.md` — provider ownership, delay, content, accessibility, and verification
+- **Frontend Actions**: `docs/frontend/actions.md` — semantic actions, registration, availability, synchronous and asynchronous execution, cancellation, concurrency, and verification
 - **Frontend Keyboard Shortcuts**: `docs/frontend/keyboard-shortcuts.md` — action ownership, bindings, platform display, conflicts, and verification
 - **Frontend Browser Storage**: `docs/frontend/browser-storage.md` — local persistence ownership, key versioning, validation, privacy, and verification
 

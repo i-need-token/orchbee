@@ -12,6 +12,7 @@
 		"test:watch": "vitest"
 	},
 	"dependencies": {
+		"@orchbee/actions": "workspace:^",
 		"@orchbee/i18n": "workspace:^",
 		"@orchbee/tab-strip": "workspace:^",
 		"@orchbee/ui": "workspace:^",

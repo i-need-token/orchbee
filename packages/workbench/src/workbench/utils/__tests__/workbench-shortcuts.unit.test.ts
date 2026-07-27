@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	formatWorkbenchShortcut,
-	matchesWorkbenchShortcut,
+	resolveWorkbenchShortcut,
 	WORKBENCH_SHORTCUTS,
 } from '../workbench-shortcuts';
 
@@ -34,7 +34,7 @@ describe('Workbench shortcuts', () => {
 		expect(WORKBENCH_SHORTCUTS.newTerminal.id).toBe('workbench.terminal.create');
 		expect(WORKBENCH_SHORTCUTS.search.id).toBe('workbench.search.open');
 		expect(WORKBENCH_SHORTCUTS.settings.id).toBe('workbench.settings.open');
-		expect(WORKBENCH_SHORTCUTS.toggleSidebar.id).toBe('workbench.toggle-left-panel');
+		expect(WORKBENCH_SHORTCUTS.toggleSidebar.id).toBe('workbench.sidebar.toggle');
 		expect(formatWorkbenchShortcut('newTerminal', 'apple')).toBe('⌘N');
 		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⌘K');
 		expect(formatWorkbenchShortcut('settings', 'apple')).toBe('⌘,');
@@ -43,6 +43,9 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('search', 'standard')).toBe('Ctrl K');
 		expect(formatWorkbenchShortcut('settings', 'standard')).toBe('Ctrl+,');
 		expect(formatWorkbenchShortcut('toggleSidebar', 'standard')).toBe('Ctrl B');
+		expect(new Set(Object.values(WORKBENCH_SHORTCUTS).map((binding) => binding.code)).size).toBe(
+			Object.keys(WORKBENCH_SHORTCUTS).length,
+		);
 	});
 
 	it.each([
@@ -50,19 +53,15 @@ describe('Workbench shortcuts', () => {
 		['search', 'KeyK'],
 		['settings', 'Comma'],
 		['toggleSidebar', 'KeyB'],
-	] as const)('matches the exact platform primary modifier for %s', (action, code) => {
-		expect(matchesWorkbenchShortcut(shortcutEvent({ code, metaKey: true }), 'apple', action)).toBe(
-			true,
+	] as const)('resolves the exact platform primary modifier for %s', (action, code) => {
+		expect(resolveWorkbenchShortcut(shortcutEvent({ code, metaKey: true }), 'apple')).toBe(
+			WORKBENCH_SHORTCUTS[action].id,
 		);
-		expect(
-			matchesWorkbenchShortcut(shortcutEvent({ code, ctrlKey: true }), 'standard', action),
-		).toBe(true);
-		expect(matchesWorkbenchShortcut(shortcutEvent({ code, ctrlKey: true }), 'apple', action)).toBe(
-			false,
+		expect(resolveWorkbenchShortcut(shortcutEvent({ code, ctrlKey: true }), 'standard')).toBe(
+			WORKBENCH_SHORTCUTS[action].id,
 		);
-		expect(
-			matchesWorkbenchShortcut(shortcutEvent({ code, metaKey: true }), 'standard', action),
-		).toBe(false);
+		expect(resolveWorkbenchShortcut(shortcutEvent({ code, ctrlKey: true }), 'apple')).toBe(null);
+		expect(resolveWorkbenchShortcut(shortcutEvent({ code, metaKey: true }), 'standard')).toBe(null);
 	});
 
 	it('rejects ambiguous, composing, repeated, and unrelated key events', () => {
@@ -72,9 +71,21 @@ describe('Workbench shortcuts', () => {
 			shortcutEvent({ isComposing: true, metaKey: true }),
 			shortcutEvent({ metaKey: true, repeat: true }),
 			shortcutEvent({ metaKey: true, shiftKey: true }),
-			shortcutEvent({ code: 'KeyK', metaKey: true }),
+			shortcutEvent({ code: 'KeyZ', metaKey: true }),
 		]) {
-			expect(matchesWorkbenchShortcut(event, 'apple', 'toggleSidebar')).toBe(false);
+			expect(resolveWorkbenchShortcut(event, 'apple')).toBe(null);
 		}
+	});
+
+	it('resolves the enumerable binding table directly to Action IDs', () => {
+		expect(resolveWorkbenchShortcut(shortcutEvent({ code: 'KeyN', metaKey: true }), 'apple')).toBe(
+			WORKBENCH_SHORTCUTS.newTerminal.id,
+		);
+		expect(
+			resolveWorkbenchShortcut(shortcutEvent({ code: 'Comma', ctrlKey: true }), 'standard'),
+		).toBe(WORKBENCH_SHORTCUTS.settings.id);
+		expect(resolveWorkbenchShortcut(shortcutEvent({ code: 'KeyZ', metaKey: true }), 'apple')).toBe(
+			null,
+		);
 	});
 });

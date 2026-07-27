@@ -1,4 +1,5 @@
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
+import { ActionRuntime } from '@orchbee/actions';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
@@ -7,12 +8,14 @@ import type { WorkbenchLayoutStorage } from '../../../workbench-layout-storage';
 import { useWorkbench } from '../useWorkbench';
 
 interface WorkbenchHarnessProps {
+	readonly actionRuntime: ActionRuntime;
 	readonly isUserInteraction: boolean;
 	readonly storage: WorkbenchLayoutStorage;
 }
 
-function WorkbenchHarness({ isUserInteraction, storage }: WorkbenchHarnessProps) {
+function WorkbenchHarness({ actionRuntime, isUserInteraction, storage }: WorkbenchHarnessProps) {
 	const workbench = useWorkbench({
+		actionRuntime,
 		onNewTerminal: undefined,
 		onSearch: undefined,
 		onSettings: undefined,
@@ -29,7 +32,11 @@ function renderHarness(storage: WorkbenchLayoutStorage, isUserInteraction: boole
 		createElement(
 			OrchbeeI18nProvider,
 			{ locale: 'en-US' },
-			createElement(WorkbenchHarness, { isUserInteraction, storage }),
+			createElement(WorkbenchHarness, {
+				actionRuntime: new ActionRuntime(),
+				isUserInteraction,
+				storage,
+			}),
 		),
 	);
 }
