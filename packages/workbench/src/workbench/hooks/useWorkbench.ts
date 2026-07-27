@@ -17,6 +17,13 @@ import type {
 	WorkbenchHostActionCallback,
 	WorkbenchTerminalCreateCallback,
 } from '../types/workbench-host-actions';
+import type { WorkbenchSearchFilter } from '../types/workbench-search';
+import {
+	createWorkbenchSearchState,
+	transitionWorkbenchSearch,
+	type WorkbenchSearchEvent,
+	type WorkbenchSearchState,
+} from '../components/workbench-search-surface/model/workbench-search-state';
 import { formatWorkbenchShortcut, WORKBENCH_SHORTCUTS } from '../utils/workbench-shortcuts';
 import { WORKBENCH_ACTION_IDS } from '../actions/workbench-action-ids';
 import { useWorkbenchActions } from './useWorkbenchActions';
@@ -50,7 +57,9 @@ interface WorkbenchView {
 	readonly sidebarLabel: string;
 	readonly projectLabel: string;
 	readonly searchLabel: string;
-	readonly search: (() => void) | undefined;
+	readonly search: (returnFocus: HTMLElement) => void;
+	readonly searchState: WorkbenchSearchState;
+	readonly updateSearch: React.Dispatch<WorkbenchSearchEvent>;
 	readonly searchShortcutId: string;
 	readonly searchShortcutLabel: string;
 	readonly settingsLabel: string;
@@ -67,7 +76,6 @@ interface WorkbenchView {
 interface UseWorkbenchOptions {
 	readonly actionRuntime: ActionRuntime;
 	readonly onNewTerminal: WorkbenchTerminalCreateCallback | undefined;
-	readonly onSearch: WorkbenchHostActionCallback | undefined;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly storage: WorkbenchLayoutStorage | undefined;
@@ -76,7 +84,6 @@ interface UseWorkbenchOptions {
 export function useWorkbench({
 	actionRuntime,
 	onNewTerminal,
-	onSearch,
 	onSettings,
 	shortcutPlatform,
 	storage,
@@ -91,6 +98,37 @@ export function useWorkbench({
 	const [verticalTabStripCollapsed, setVerticalTabStripCollapsed] = React.useState(false);
 	const [defaultLeftPanelWidth] = React.useState(() => readWorkbenchLeftPanelWidth(storage));
 	const leftPanelWidth = React.useRef(defaultLeftPanelWidth);
+	const [searchState, updateSearch] = React.useReducer(
+		transitionWorkbenchSearch,
+		undefined,
+		createWorkbenchSearchState,
+	);
+	const searchReturnFocus = React.useRef<HTMLElement | null>(null);
+	const openSearch = React.useCallback((input: { readonly filter: WorkbenchSearchFilter }) => {
+		if (
+			searchReturnFocus.current === null &&
+			typeof document !== 'undefined' &&
+			typeof HTMLElement !== 'undefined' &&
+			document.activeElement instanceof HTMLElement &&
+			document.activeElement !== document.body &&
+			document.activeElement !== document.documentElement
+		) {
+			searchReturnFocus.current = document.activeElement;
+		}
+		updateSearch({ filter: input.filter, type: 'open' });
+	}, []);
+	React.useEffect(() => {
+		if (searchState.kind !== 'closed' || typeof document === 'undefined') {
+			return;
+		}
+		const returnFocus =
+			searchReturnFocus.current?.isConnected === true
+				? searchReturnFocus.current
+				: (document.querySelector<HTMLElement>('[data-slot="workbench-sidebar-search"]') ??
+					document.querySelector<HTMLElement>('[data-slot="workbench-sidebar-toggle"]'));
+		searchReturnFocus.current = null;
+		returnFocus?.focus();
+	}, [searchState.kind]);
 	const toggleSidebar = React.useCallback(() => {
 		setIsSidebarVisible((currentVisibility) => {
 			const nextVisibility = !currentVisibility;
@@ -108,15 +146,15 @@ export function useWorkbench({
 	const actions = useWorkbenchActions({
 		isSidebarVisible,
 		onNewTerminal,
-		onSearch,
 		onSettings,
+		openSearch,
 		runtime: actionRuntime,
 		setTabStripOrientation,
 		tabStripOrientation,
 		toggleSidebar,
 	});
 
-	useWorkbenchShortcuts(shortcutPlatform, actions.invokeIfEnabled);
+	useWorkbenchShortcuts(shortcutPlatform, actions.invokeShortcut);
 
 	return {
 		actionScope: actions.scope,
@@ -158,12 +196,11 @@ export function useWorkbench({
 		),
 		sidebarLabel: intl.formatMessage(workbenchMessages.sidebarLabel),
 		projectLabel: intl.formatMessage(workbenchMessages.project),
-		search:
-			onSearch === undefined
-				? undefined
-				: () => {
-						actions.invoke(WORKBENCH_ACTION_IDS.openSearch, undefined, 'button');
-					},
+		search: (returnFocus) => {
+			searchReturnFocus.current = returnFocus;
+			actions.invoke(WORKBENCH_ACTION_IDS.openSearch, { filter: 'all' }, 'button');
+		},
+		searchState,
 		searchLabel: intl.formatMessage(workbenchMessages.search),
 		searchShortcutId: WORKBENCH_SHORTCUTS.search.id,
 		searchShortcutLabel: formatWorkbenchShortcut('search', shortcutPlatform),
@@ -185,5 +222,6 @@ export function useWorkbench({
 		toggleSidebar: () => {
 			actions.invoke(WORKBENCH_ACTION_IDS.toggleSidebar, undefined, 'button');
 		},
+		updateSearch,
 	};
 }

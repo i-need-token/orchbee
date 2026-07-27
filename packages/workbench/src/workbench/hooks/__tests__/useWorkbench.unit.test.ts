@@ -17,7 +17,6 @@ function WorkbenchHarness({ actionRuntime, isUserInteraction, storage }: Workben
 	const workbench = useWorkbench({
 		actionRuntime,
 		onNewTerminal: undefined,
-		onSearch: undefined,
 		onSettings: undefined,
 		shortcutPlatform: 'apple',
 		storage,

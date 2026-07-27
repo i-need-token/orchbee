@@ -5,6 +5,8 @@ export type {
 	WorkbenchHostActionCallback,
 	WorkbenchHostActionResult,
 	WorkbenchShortcutPlatform,
+	WorkbenchSearchFilter,
+	WorkbenchSearchOpenInput,
 	WorkbenchTerminalCreateCallback,
 	WorkbenchTerminalCreateInput,
 } from './workbench';

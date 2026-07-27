@@ -3,8 +3,16 @@
 	flex: none;
 }
 
+.action {
+	composes: codicon-terminal-cmd from global;
+}
+
 .add {
 	composes: codicon-add from global;
+}
+
+.agent {
+	composes: codicon-robot from global;
 }
 
 .arrowLeft {
@@ -19,8 +27,16 @@
 	composes: codicon-ellipsis from global;
 }
 
+.layout {
+	composes: codicon-layout from global;
+}
+
 .moreVertical {
 	composes: codicon-kebab-vertical from global;
+}
+
+.panels {
+	composes: codicon-split-horizontal from global;
 }
 
 .pin {
@@ -37,6 +53,10 @@
 
 .sidebarLeft {
 	composes: codicon-layout-sidebar-left from global;
+}
+
+.tabs {
+	composes: codicon-window from global;
 }
 
 .terminal {

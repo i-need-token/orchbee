@@ -1,6 +1,8 @@
 import type { ActionInputValidation, ActionSignature } from '@orchbee/actions';
 import type { TabStripOrientation } from '@orchbee/tab-strip';
 
+import type { WorkbenchSearchFilter } from '../types/workbench-search';
+
 export const WORKBENCH_ACTION_IDS = {
 	createTerminal: 'workbench.terminal.create',
 	openSearch: 'workbench.search.open',
@@ -8,8 +10,6 @@ export const WORKBENCH_ACTION_IDS = {
 	setTabStripOrientation: 'workbench.tab-strip.orientation.set',
 	toggleSidebar: 'workbench.sidebar.toggle',
 } as const;
-
-export type WorkbenchActionId = (typeof WORKBENCH_ACTION_IDS)[keyof typeof WORKBENCH_ACTION_IDS];
 
 export interface WorkbenchTabStripOrientationInput {
 	readonly orientation: TabStripOrientation;
@@ -20,9 +20,13 @@ export interface WorkbenchTerminalCreateInput {
 	readonly index?: number | undefined;
 }
 
+export interface WorkbenchSearchOpenInput {
+	readonly filter: WorkbenchSearchFilter;
+}
+
 export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.createTerminal]: ActionSignature<WorkbenchTerminalCreateInput>;
-	readonly [WORKBENCH_ACTION_IDS.openSearch]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.openSearch]: ActionSignature<WorkbenchSearchOpenInput>;
 	readonly [WORKBENCH_ACTION_IDS.openSettings]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.setTabStripOrientation]: ActionSignature<WorkbenchTabStripOrientationInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleSidebar]: ActionSignature<void>;
@@ -30,6 +34,10 @@ export interface WorkbenchActionCatalog {
 
 function isRecord(input: unknown): input is Readonly<Record<string, unknown>> {
 	return typeof input === 'object' && input !== null && !Array.isArray(input);
+}
+
+function isWorkbenchSearchFilter(input: unknown): input is WorkbenchSearchFilter {
+	return input === 'all' || input === 'agents' || input === 'actions' || input === 'settings';
 }
 
 export const workbenchTerminalCreateInput: ActionInputValidation<WorkbenchTerminalCreateInput> = {
@@ -58,6 +66,17 @@ export const workbenchTerminalCreateInput: ActionInputValidation<WorkbenchTermin
 			},
 		};
 	},
+};
+
+export const workbenchSearchOpenInput: ActionInputValidation<WorkbenchSearchOpenInput> = {
+	name: 'WorkbenchSearchOpenInput',
+	parse: (input) =>
+		isRecord(input) && isWorkbenchSearchFilter(input['filter'])
+			? {
+					success: true,
+					data: { filter: input['filter'] },
+				}
+			: { success: false, code: 'expected-workbench-search-filter' },
 };
 
 export const workbenchTabStripOrientationInput: ActionInputValidation<WorkbenchTabStripOrientationInput> =

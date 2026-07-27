@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	WORKBENCH_ACTION_IDS,
+	workbenchSearchOpenInput,
 	workbenchTabStripOrientationInput,
 	workbenchTerminalCreateInput,
 } from '../workbench-action-ids';
@@ -14,6 +15,21 @@ describe('workbench action contracts', () => {
 			openSettings: 'workbench.settings.open',
 			setTabStripOrientation: 'workbench.tab-strip.orientation.set',
 			toggleSidebar: 'workbench.sidebar.toggle',
+		});
+	});
+
+	it('parses only supported unified-search filters', () => {
+		expect(workbenchSearchOpenInput.parse({ filter: 'all' })).toEqual({
+			success: true,
+			data: { filter: 'all' },
+		});
+		expect(workbenchSearchOpenInput.parse({ filter: 'actions' })).toEqual({
+			success: true,
+			data: { filter: 'actions' },
+		});
+		expect(workbenchSearchOpenInput.parse({ filter: 'files' })).toEqual({
+			success: false,
+			code: 'expected-workbench-search-filter',
 		});
 	});
 

@@ -1,4 +1,5 @@
 export { ProductIcon } from '../product-icon';
+export type { ProductIconName } from '../product-icon';
 
 export {
 	Accordion,

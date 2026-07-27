@@ -24,8 +24,8 @@ function WorkbenchActionsHarness({
 	const actions = useWorkbenchActions({
 		isSidebarVisible,
 		onNewTerminal,
-		onSearch: undefined,
 		onSettings: undefined,
+		openSearch: () => undefined,
 		runtime,
 		setTabStripOrientation: () => undefined,
 		tabStripOrientation: 'horizontal',
@@ -88,6 +88,9 @@ describe('useWorkbenchActions', () => {
 							source: 'command-surface',
 						},
 						{
+							[WORKBENCH_ACTION_IDS.openSearch]: {
+								filter: 'all',
+							},
 							[WORKBENCH_ACTION_IDS.setTabStripOrientation]: {
 								orientation: 'horizontal',
 							},
@@ -113,8 +116,8 @@ describe('useWorkbenchActions', () => {
 			const actions = useWorkbenchActions({
 				isSidebarVisible: true,
 				onNewTerminal: undefined,
-				onSearch: undefined,
 				onSettings: undefined,
+				openSearch: () => undefined,
 				runtime,
 				setTabStripOrientation: () => undefined,
 				tabStripOrientation: 'horizontal',

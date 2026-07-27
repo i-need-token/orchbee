@@ -11,6 +11,7 @@ import {
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
 import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSidebar';
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
+import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
 import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
@@ -26,7 +27,6 @@ export interface WorkbenchProps {
 	readonly createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly onNewTerminal?: WorkbenchTerminalCreateCallback | undefined;
-	readonly onSearch?: WorkbenchHostActionCallback | undefined;
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly tabModel: TabModel;
@@ -37,7 +37,6 @@ export function Workbench({
 	createCrossWindowDragRuntime,
 	layoutStorage,
 	onNewTerminal,
-	onSearch,
 	onSettings,
 	shortcutPlatform,
 	tabModel,
@@ -46,7 +45,6 @@ export function Workbench({
 	const view = useWorkbench({
 		actionRuntime,
 		onNewTerminal,
-		onSearch,
 		onSettings,
 		shortcutPlatform,
 		storage: layoutStorage,
@@ -131,6 +129,15 @@ export function Workbench({
 					</ResizablePanel>
 				</ResizablePanelGroup>
 			</div>
+			{view.searchState.kind === 'closed' ? null : (
+				<WorkbenchSearchSurface
+					actionRuntime={actionRuntime}
+					actionScope={view.actionScope}
+					shortcutPlatform={shortcutPlatform}
+					state={view.searchState}
+					update={view.updateSearch}
+				/>
+			)}
 		</div>
 	);
 }

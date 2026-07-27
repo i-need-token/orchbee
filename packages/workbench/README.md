@@ -23,9 +23,77 @@ Right-clicking blank tab-strip space exposes a localized orientation action. The
 the strip and content layout between a top horizontal strip and a left vertical strip while tabs,
 groups, and the new-tab control keep their existing context menus.
 
-The shell composes primitives from `@orchbee/ui` without owning terminal sessions, search,
-settings, project, authentication, routing, or agent orchestration lifecycles. The machine-readable
-scope contract lives in [`project.json`](project.json).
+The shell composes primitives from `@orchbee/ui` without owning terminal sessions, settings
+destinations, project, authentication, routing, or agent orchestration lifecycles. Workbench owns
+the unified search state and presentation, while semantic owners remain responsible for searchable
+read models and Action registrations. The machine-readable scope contract lives in
+[`project.json`](project.json).
+
+## Unified search
+
+The sidebar Search control and `Mod+K` open one upper-viewport modal with the `All` filter and an
+empty query. `Mod+Shift+P` opens the same surface with the `Actions` filter. Each global open starts
+a new in-memory session; switching among `All`, `Agents`, `Actions`, and `Settings` preserves the
+current query, while closing discards the session. File search is intentionally absent.
+
+The current local provider projects Actions by requesting subtree discovery from the mounted
+application `ActionRuntime`. It keeps every runtime-owned prepared or unbound invocation intact,
+groups results by localized Action category, explains disabled capabilities, displays resolved
+Workbench shortcuts, and invokes a selected ready result through `executePrepared(...)`. The
+tab-strip-orientation Action demonstrates nested input: selecting the command opens an in-surface
+horizontal/vertical picker, binds the selected value through `prepareInvocation(...)`, and then
+executes that same scope-bound token. The Settings provider projects the stable root Settings
+destination through `workbench.settings.open`.
+
+`All` shows curated recommended Actions plus Settings before a query, then searches the complete
+local catalog after typing. Matching normalizes Unicode, case, and repeated whitespace and ranks
+exact localized titles, title prefixes, title-token prefixes, localized keywords, canonical English
+titles, and fuzzy subsequences in deterministic tiers. The `Agents` filter is present as the
+accepted navigation slot but remains empty until an agent-owned searchable read model and
+navigation Action are composed. Async providers, file search, Agent fallback, persistent MRU, and
+user-editable keybindings remain outside the current implementation.
+
+The dialog keeps DOM focus in its combobox. Up and Down move `aria-activedescendant` through
+inspectable results, Enter opens or runs the highlighted row, Escape returns from a nested picker
+or closes the surface, and pointer movement updates the same visual highlight. Input, filters, and
+footer remain fixed while grouped results scroll. Closing occurs before a selected Action begins;
+it does not cancel or assume ownership of that Action's asynchronous lifecycle.
+
+### Search modeling record
+
+- **Problem and inputs:** A person needs to discover and invoke product capabilities without
+  knowing a menu location or shortcut. Trusted inputs are a reviewed open filter, the mounted
+  Action scope, localized Action descriptors, and pointer or keyboard events. Query text is local
+  user input. Missing Action input remains an unbound runtime token and is never guessed.
+- **Data and ownership:** `WorkbenchSearchState` is the sole owner of the open session, filter,
+  query revision, query, highlight, and nested parent snapshot. Semantic owners remain
+  authoritative for Action availability and effects. Projected results carry stable provider,
+  group, result, Action, and scope identity plus a runtime-owned prepared or unbound invocation.
+- **Outputs:** Opening renders and focuses one modal session; filter and query changes produce a
+  deterministic local projection; a disabled selection announces its reason without invoking;
+  an unbound supported result enters a nested picker; a final enabled selection reaches at most
+  one Action execution. Escape and outside dismissal commit no Action.
+- **Transitions:** Open resets to the requested preset. Query changes increment the revision.
+  Filter changes retain query text. Result changes retain a still-visible highlight and otherwise
+  select the first enabled result, falling back to the first inspectable row. Nested Back restores
+  the complete parent filter, query, revision, and highlight snapshot. Close retains only the next
+  monotonic session identity.
+- **Invariants:** A rendered highlight always names one current visible row; hidden Actions never
+  render; disabled or unsupported unbound rows never execute; prepared input is bound only through
+  the originating runtime token; one accepted row reaches at most one `executePrepared(...)`
+  call; and closing or nested cancellation performs no domain mutation.
+- **Dependencies and exclusions:** React owns the mounted dialog lifecycle and focus adapter;
+  `@orchbee/actions` owns registration, discovery, preparation, availability, confirmation, and
+  execution; `@orchbee/i18n` owns product copy; and design tokens own geometry and appearance.
+  Network, storage, telemetry, process state, Agent data, and async provider coordination are
+  excluded until their semantic owners expose the required contracts.
+- **Verification:** Pure tests cover open/close, query and filter transitions, highlight movement,
+  nested restoration, matching tiers, deterministic grouping, Settings de-duplication, and
+  argument filtering. Runtime projection tests cover prepared and unbound results. Component tests
+  cover combobox focus, Actions filtering, nested orientation input, Action execution, and close.
+  Storybook supplies open All and Chinese Actions states; browser verification exercises both
+  shortcuts, four filters, keyboard and pointer selection, nested input, dismissal, and both
+  tab-strip orientations.
 
 ## Panel workspace
 
@@ -155,7 +223,6 @@ export function ProductInterface({
 	actionRuntime,
 	layoutStorage,
 	onNewTerminal,
-	onSearch,
 	onSettings,
 	shortcutPlatform,
 	tabModel,
@@ -163,7 +230,6 @@ export function ProductInterface({
 	readonly actionRuntime: ActionRuntime;
 	readonly layoutStorage: WorkbenchLayoutStorage;
 	readonly onNewTerminal: WorkbenchTerminalCreateCallback;
-	readonly onSearch: WorkbenchHostActionCallback;
 	readonly onSettings: WorkbenchHostActionCallback;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly tabModel: TabModel;
@@ -173,7 +239,6 @@ export function ProductInterface({
 			actionRuntime={actionRuntime}
 			layoutStorage={layoutStorage}
 			onNewTerminal={onNewTerminal}
-			onSearch={onSearch}
 			onSettings={onSettings}
 			shortcutPlatform={shortcutPlatform}
 			tabModel={tabModel}
@@ -208,10 +273,11 @@ window movement, capture, and move-loop behavior. Workbench and the browser appl
 fabricate those operating-system capabilities.
 
 Workbench owns `Mod+B` for `workbench.sidebar.toggle`, `Mod+N` for
-`workbench.terminal.create`, `Mod+K` for `workbench.search.open`, and `Mod+,` for
-`workbench.settings.open`. Apple platforms display `⌘B`, `⌘N`, `⌘K`, and `⌘,`; standard platforms
-display `Ctrl B`, `Ctrl N`, `Ctrl K`, and `Ctrl+,`. A shortcut is consumed only when its Action is
-currently enabled; missing host capabilities remain visible but disabled.
+`workbench.terminal.create`, `Mod+K` and `Mod+Shift+P` for the All and Actions inputs of
+`workbench.search.open`, and `Mod+,` for `workbench.settings.open`. Apple platforms display `⌘B`,
+`⌘N`, `⌘K`, `⌘⇧P`, and `⌘,`; standard platforms display `Ctrl B`, `Ctrl N`, `Ctrl K`,
+`Ctrl Shift P`, and `Ctrl+,`. A shortcut is consumed only when its Action is currently enabled;
+missing host capabilities remain visible but disabled.
 
 ## Development
 

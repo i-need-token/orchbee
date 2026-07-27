@@ -760,6 +760,14 @@
 
 	--ob-comp-workbench-panel-header-height: var(--ob-ref-size-control-md);
 	--ob-comp-workbench-child-terminal-strip-height: 40px;
+	--ob-comp-workbench-search-block-start: 10vh;
+	--ob-comp-workbench-search-inline-size: 64rem;
+	--ob-comp-workbench-search-input-height: 4.5rem;
+	--ob-comp-workbench-search-filter-height: 3.5rem;
+	--ob-comp-workbench-search-results-min-height: 18rem;
+	--ob-comp-workbench-search-row-height: 3rem;
+	--ob-comp-workbench-search-empty-height: 18rem;
+	--ob-comp-workbench-search-footer-height: 3rem;
 	--ob-comp-workbench-panel-drag-inline-start: 0px;
 	--ob-comp-workbench-panel-drag-block-start: 0px;
 	--ob-comp-workbench-panel-drag-width: 0px;

@@ -143,6 +143,152 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.search'],
 		description: 'Label for the search entry in the Workbench sidebar.',
 	},
+	searchActionsNeedContext: {
+		id: 'workbench.search.actions.needsContext',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.actions.needsContext'],
+		description:
+			'Explanation for a discovered action that needs a target not available in unified search.',
+	},
+	searchArgumentHorizontalTabs: {
+		id: 'workbench.search.arguments.horizontalTabs',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.arguments.horizontalTabs'],
+		description: 'Argument option that places the Workbench tab strip horizontally.',
+	},
+	searchArgumentOptions: {
+		id: 'workbench.search.arguments.options',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.arguments.options'],
+		description: 'Group heading for choices in a nested unified-search argument picker.',
+	},
+	searchArgumentPlaceholder: {
+		id: 'workbench.search.arguments.placeholder',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.arguments.placeholder'],
+		description: 'Placeholder for a nested unified-search argument picker.',
+	},
+	searchArgumentPrompt: {
+		id: 'workbench.search.arguments.prompt',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.arguments.prompt'],
+		description: 'Prompt for a nested unified-search argument picker.',
+	},
+	searchArgumentVerticalTabs: {
+		id: 'workbench.search.arguments.verticalTabs',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.arguments.verticalTabs'],
+		description: 'Argument option that places the Workbench tab strip vertically.',
+	},
+	searchDialogDescription: {
+		id: 'workbench.search.dialog.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.dialog.description'],
+		description: 'Accessible description for the unified search dialog.',
+	},
+	searchDialogTitle: {
+		id: 'workbench.search.dialog.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.dialog.title'],
+		description: 'Accessible title for the unified search dialog.',
+	},
+	searchEmptyActions: {
+		id: 'workbench.search.empty.actions',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.empty.actions'],
+		description: 'Empty state for the Actions unified-search filter.',
+	},
+	searchEmptyAgents: {
+		id: 'workbench.search.empty.agents',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.empty.agents'],
+		description: 'Empty state for the Agents unified-search filter.',
+	},
+	searchEmptyAll: {
+		id: 'workbench.search.empty.all',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.empty.all'],
+		description: 'Empty state for the All unified-search filter.',
+	},
+	searchEmptySettings: {
+		id: 'workbench.search.empty.settings',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.empty.settings'],
+		description: 'Empty state for the Settings unified-search filter.',
+	},
+	searchFilterActions: {
+		id: 'workbench.search.filters.actions',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.filters.actions'],
+		description: 'Actions filter in unified search.',
+	},
+	searchFilterAgents: {
+		id: 'workbench.search.filters.agents',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.filters.agents'],
+		description: 'Agents filter in unified search.',
+	},
+	searchFilterAll: {
+		id: 'workbench.search.filters.all',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.filters.all'],
+		description: 'All-results filter in unified search.',
+	},
+	searchFiltersLabel: {
+		id: 'workbench.search.filters.label',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.filters.label'],
+		description: 'Accessible name for the unified-search filter tablist.',
+	},
+	searchFilterSettings: {
+		id: 'workbench.search.filters.settings',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.filters.settings'],
+		description: 'Settings filter in unified search.',
+	},
+	searchFooterBack: {
+		id: 'workbench.search.footer.back',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.footer.back'],
+		description: 'Footer hint for returning from a nested unified-search picker.',
+	},
+	searchFooterClose: {
+		id: 'workbench.search.footer.close',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.footer.close'],
+		description: 'Footer hint for closing unified search.',
+	},
+	searchFooterRun: {
+		id: 'workbench.search.footer.run',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.footer.run'],
+		description: 'Footer hint for invoking the highlighted unified-search result.',
+	},
+	searchFooterSelect: {
+		id: 'workbench.search.footer.select',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.footer.select'],
+		description: 'Footer hint for moving the unified-search highlight.',
+	},
+	searchGroupRecommendedActions: {
+		id: 'workbench.search.groups.recommendedActions',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.groups.recommendedActions'],
+		description: 'Unified-search group containing recommended product actions.',
+	},
+	searchGroupSettings: {
+		id: 'workbench.search.groups.settings',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.groups.settings'],
+		description: 'Unified-search group containing settings destinations.',
+	},
+	searchInputActions: {
+		id: 'workbench.search.input.actions',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.input.actions'],
+		description: 'Input placeholder while the Actions unified-search filter is selected.',
+	},
+	searchInputAgents: {
+		id: 'workbench.search.input.agents',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.input.agents'],
+		description: 'Input placeholder while the Agents unified-search filter is selected.',
+	},
+	searchInputAll: {
+		id: 'workbench.search.input.all',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.input.all'],
+		description: 'Input placeholder while the All unified-search filter is selected.',
+	},
+	searchInputSettings: {
+		id: 'workbench.search.input.settings',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.input.settings'],
+		description: 'Input placeholder while the Settings unified-search filter is selected.',
+	},
+	searchResultsCount: {
+		id: 'workbench.search.results.count',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.results.count'],
+		description: 'Live announcement for the current unified-search result count.',
+	},
+	searchResultsLabel: {
+		id: 'workbench.search.results.label',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.results.label'],
+		description: 'Accessible name for the unified-search results list.',
+	},
 	settings: {
 		id: 'workbench.sidebar.items.settings',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.settings'],

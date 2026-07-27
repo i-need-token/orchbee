@@ -17,7 +17,8 @@ import * as React from 'react';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
-	type WorkbenchActionId,
+	type WorkbenchSearchOpenInput,
+	workbenchSearchOpenInput,
 	workbenchTabStripOrientationInput,
 	type WorkbenchTerminalCreateInput,
 	workbenchTerminalCreateInput,
@@ -26,11 +27,12 @@ import type {
 	WorkbenchHostActionCallback,
 	WorkbenchTerminalCreateCallback,
 } from '../types/workbench-host-actions';
+import type { WorkbenchShortcutBinding } from '../utils/workbench-shortcuts';
 
 interface UseWorkbenchActionsOptions {
 	readonly isSidebarVisible: boolean;
 	readonly onNewTerminal: WorkbenchTerminalCreateCallback | undefined;
-	readonly onSearch: WorkbenchHostActionCallback | undefined;
+	readonly openSearch: (input: WorkbenchSearchOpenInput) => void;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly runtime: ActionRuntime;
 	readonly setTabStripOrientation: (orientation: TabStripOrientation) => void;
@@ -44,8 +46,8 @@ interface WorkbenchActions {
 		input: ActionInputFor<WorkbenchActionCatalog, Id>,
 		source: ActionInvocationSource,
 	) => ActionExecution<ActionOutputFor<WorkbenchActionCatalog, Id>>;
-	readonly invokeIfEnabled: (
-		actionId: WorkbenchActionId,
+	readonly invokeShortcut: (
+		binding: WorkbenchShortcutBinding,
 		source: ActionInvocationSource,
 	) => boolean;
 	readonly scope: ActionScope;
@@ -54,7 +56,7 @@ interface WorkbenchActions {
 export function useWorkbenchActions({
 	isSidebarVisible,
 	onNewTerminal,
-	onSearch,
+	openSearch,
 	onSettings,
 	runtime,
 	setTabStripOrientation,
@@ -132,10 +134,16 @@ export function useWorkbenchActions({
 				defineAction({
 					category: categoryNavigation,
 					execution,
-					getAvailability: availabilityFor(onSearch),
-					handler: handlerFor(onSearch),
+					getAvailability: () => ({ kind: 'enabled' }),
+					handler: {
+						execute: (context, input) => {
+							context.markCommitted();
+							openSearch(input);
+							return { kind: 'completed' };
+						},
+					},
 					id: WORKBENCH_ACTION_IDS.openSearch,
-					input: noActionInput,
+					input: workbenchSearchOpenInput,
 					title: workbenchMessages.search,
 				}),
 			),
@@ -160,6 +168,7 @@ export function useWorkbenchActions({
 						concurrencyKey: () => 'tab-strip-orientation',
 						mode: 'foreground',
 					},
+					getDiscoveryAvailability: () => ({ kind: 'enabled' }),
 					getAvailability: (_context, input) => ({
 						checked: input.orientation === tabStripOrientation,
 						kind: 'enabled',
@@ -206,8 +215,8 @@ export function useWorkbenchActions({
 	}, [
 		isSidebarVisible,
 		onNewTerminal,
-		onSearch,
 		onSettings,
+		openSearch,
 		setTabStripOrientation,
 		scope,
 		tabStripOrientation,
@@ -223,37 +232,44 @@ export function useWorkbenchActions({
 		) => typedRuntime.execute(actionId, input, { scope, source }),
 		[scope, typedRuntime],
 	);
-	const invokeIfEnabled = React.useCallback(
-		(actionId: WorkbenchActionId, source: ActionInvocationSource) => {
+	const invokeShortcut = React.useCallback(
+		(binding: WorkbenchShortcutBinding, source: ActionInvocationSource) => {
 			const invocation = { scope, source };
-			switch (actionId) {
+			switch (binding.id) {
 				case WORKBENCH_ACTION_IDS.createTerminal: {
-					const input: WorkbenchTerminalCreateInput = { groupId: null };
+					const input: WorkbenchTerminalCreateInput = binding.input;
 					if (
-						typedRuntime.resolveAction(actionId, input, invocation)?.availability.kind !== 'enabled'
-					) {
-						return false;
-					}
-					typedRuntime.execute(actionId, input, invocation);
-					return true;
-				}
-				case WORKBENCH_ACTION_IDS.openSearch:
-				case WORKBENCH_ACTION_IDS.openSettings:
-				case WORKBENCH_ACTION_IDS.toggleSidebar:
-					if (
-						typedRuntime.resolveAction(actionId, undefined, invocation)?.availability.kind !==
+						typedRuntime.resolveAction(binding.id, input, invocation)?.availability.kind !==
 						'enabled'
 					) {
 						return false;
 					}
-					typedRuntime.execute(actionId, undefined, invocation);
+					typedRuntime.execute(binding.id, input, invocation);
 					return true;
-				case WORKBENCH_ACTION_IDS.setTabStripOrientation:
-					return false;
+				}
+				case WORKBENCH_ACTION_IDS.openSearch:
+					if (
+						typedRuntime.resolveAction(binding.id, binding.input, invocation)?.availability.kind !==
+						'enabled'
+					) {
+						return false;
+					}
+					typedRuntime.execute(binding.id, binding.input, invocation);
+					return true;
+				case WORKBENCH_ACTION_IDS.openSettings:
+				case WORKBENCH_ACTION_IDS.toggleSidebar:
+					if (
+						typedRuntime.resolveAction(binding.id, undefined, invocation)?.availability.kind !==
+						'enabled'
+					) {
+						return false;
+					}
+					typedRuntime.execute(binding.id, undefined, invocation);
+					return true;
 			}
 		},
 		[scope, typedRuntime],
 	);
 
-	return { invoke, invokeIfEnabled, scope };
+	return { invoke, invokeShortcut, scope };
 }

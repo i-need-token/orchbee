@@ -9,7 +9,7 @@ interface WorkbenchSidebarProps {
 	readonly newTerminalShortcutId: string;
 	readonly newTerminalShortcutLabel: string;
 	readonly onNewTerminal?: (() => void) | undefined;
-	readonly onSearch?: (() => void) | undefined;
+	readonly onSearch: (returnFocus: HTMLElement) => void;
 	readonly onSettings?: (() => void) | undefined;
 	readonly projectLabel: string;
 	readonly searchLabel: string;
@@ -58,13 +58,12 @@ export function WorkbenchSidebar({
 				</li>
 				<li>
 					<Button
-						aria-disabled={onSearch === undefined}
 						className={styles['primaryItem']}
 						data-shortcut-action={searchShortcutId}
 						data-slot='workbench-sidebar-search'
 						size='sm'
 						variant='ghost'
-						onClick={onSearch}
+						onClick={(event) => onSearch(event.currentTarget)}
 					>
 						<span className={styles['icon']}>
 							<ProductIcon name='search' />

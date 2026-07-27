@@ -30,7 +30,6 @@ const createTabModel = (titles: readonly string[]) =>
 export const PanelWorkspace: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
-		onSearch: () => ({ kind: 'unchanged' }),
 		onSettings: () => ({ kind: 'unchanged' }),
 		onNewTerminal: () => ({ kind: 'unchanged' }),
 		shortcutPlatform: 'apple',
@@ -46,7 +45,6 @@ export const PanelWorkspace: Story = {
 export const SimplifiedChineseSidebar: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
-		onSearch: () => ({ kind: 'unchanged' }),
 		onSettings: () => ({ kind: 'unchanged' }),
 		onNewTerminal: () => ({ kind: 'unchanged' }),
 		shortcutPlatform: 'apple',
@@ -67,7 +65,6 @@ export const HiddenSidebar: Story = {
 				key === 'orchbee:workbench:left-panel-visibility:v1' ? '{"visible":false}' : null,
 			setItem: () => undefined,
 		},
-		onSearch: () => ({ kind: 'unchanged' }),
 		onSettings: () => ({ kind: 'unchanged' }),
 		onNewTerminal: () => ({ kind: 'unchanged' }),
 		shortcutPlatform: 'apple',
@@ -75,6 +72,53 @@ export const HiddenSidebar: Story = {
 	},
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const UnifiedSearchAll: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		onNewTerminal: () => ({ kind: 'unchanged' }),
+		shortcutPlatform: 'apple',
+		tabModel: createTabModel(['Terminal 1', 'Terminal 2', 'Terminal 3']),
+	},
+	play: () => {
+		window.dispatchEvent(
+			new KeyboardEvent('keydown', {
+				code: 'KeyK',
+				metaKey: true,
+			}),
+		);
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const UnifiedSearchActionsChinese: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		onNewTerminal: () => ({ kind: 'unchanged' }),
+		shortcutPlatform: 'apple',
+		tabModel: createTabModel(['终端 1', '终端 2', '终端 3']),
+	},
+	play: () => {
+		window.dispatchEvent(
+			new KeyboardEvent('keydown', {
+				code: 'KeyP',
+				metaKey: true,
+				shiftKey: true,
+			}),
+		);
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='zh-CN'>
 			<Workbench {...arguments_} />
 		</OrchbeeI18nProvider>
 	),
