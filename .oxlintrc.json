@@ -55,6 +55,7 @@
     "orchbee/no-cross-workspace-source-imports": "error",
     "orchbee/no-inline-suppressions": "error",
     "orchbee/no-react-hooks-in-tsx": "error",
+    "orchbee/no-react-use-callback": "error",
     "orchbee/one-function-per-tsx": "error",
     "orchbee/one-hook-per-file": "error",
     "orchbee/require-unit-test": "error",

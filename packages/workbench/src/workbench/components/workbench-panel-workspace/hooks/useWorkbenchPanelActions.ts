@@ -9,6 +9,7 @@ import {
 	type ActionRuntime,
 	type ActionScope,
 } from '@orchbee/actions';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { workbenchMessages } from '@orchbee/i18n';
 import * as React from 'react';
 
@@ -351,7 +352,7 @@ export function useWorkbenchPanelActions({
 		};
 	}, [activeTab, operations, panelCount, scope, typedRuntime]);
 
-	const execute = React.useCallback(
+	const execute = useMemoizedFn(
 		<Id extends ActionCatalogId<PanelActionCatalog>>(
 			actionId: Id,
 			input: ActionInputFor<PanelActionCatalog, Id>,
@@ -370,7 +371,6 @@ export function useWorkbenchPanelActions({
 				...(panelId === null ? {} : { target: { id: panelId, type: 'panel' } }),
 			});
 		},
-		[scope, typedRuntime],
 	);
 
 	return { execute, scope };

@@ -1,4 +1,5 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import type { ProductIconName } from '@orchbee/ui/components';
 import * as React from 'react';
@@ -141,53 +142,47 @@ export function useWorkbenchSearchSurface({
 		enabledResultIds,
 	);
 	const listId = `workbench-search-results-${state.sessionId}`;
-	const invokeBrowsingResult = React.useCallback(
-		(result: WorkbenchSearchResult) => {
-			const disabledReason =
-				result.surfaceDisabledReason ??
-				(result.availability.kind === 'disabled'
-					? formatWorkbenchActionMessage(intl, result.availability.reason)
-					: undefined);
-			if (disabledReason !== undefined) {
-				setLiveMessage(`${result.label}. ${disabledReason}`);
+	const invokeBrowsingResult = useMemoizedFn((result: WorkbenchSearchResult) => {
+		const disabledReason =
+			result.surfaceDisabledReason ??
+			(result.availability.kind === 'disabled'
+				? formatWorkbenchActionMessage(intl, result.availability.reason)
+				: undefined);
+		if (disabledReason !== undefined) {
+			setLiveMessage(`${result.label}. ${disabledReason}`);
+			return;
+		}
+		if (result.invocation.kind === 'requires-input') {
+			if (result.invocation.picker === undefined) {
 				return;
 			}
-			if (result.invocation.kind === 'requires-input') {
-				if (result.invocation.picker === undefined) {
-					return;
-				}
-				update({ actionResultId: result.id, type: 'start-argument-picker' });
-				return;
-			}
-			update({ type: 'close' });
-			runtime.executePrepared(result.invocation.prepared);
-		},
-		[intl, runtime, update],
-	);
-	const invokePickerOption = React.useCallback(
-		(optionId: string) => {
-			if (
-				pickerAction?.invocation.kind !== 'requires-input' ||
-				pickerAction.invocation.picker === undefined
-			) {
-				return;
-			}
-			const option = pickerAction.invocation.picker.options.find(
-				(candidate) => candidate.id === optionId,
-			);
-			if (option === undefined) {
-				return;
-			}
-			const prepared = runtime.prepareInvocation(pickerAction.invocation.unbound, option.input);
-			if (prepared === null) {
-				setLiveMessage(intl.formatMessage(workbenchMessages.searchActionsNeedContext));
-				return;
-			}
-			update({ type: 'close' });
-			runtime.executePrepared(prepared.invocation);
-		},
-		[intl, pickerAction, runtime, update],
-	);
+			update({ actionResultId: result.id, type: 'start-argument-picker' });
+			return;
+		}
+		update({ type: 'close' });
+		runtime.executePrepared(result.invocation.prepared);
+	});
+	const invokePickerOption = useMemoizedFn((optionId: string) => {
+		if (
+			pickerAction?.invocation.kind !== 'requires-input' ||
+			pickerAction.invocation.picker === undefined
+		) {
+			return;
+		}
+		const option = pickerAction.invocation.picker.options.find(
+			(candidate) => candidate.id === optionId,
+		);
+		if (option === undefined) {
+			return;
+		}
+		const prepared = runtime.prepareInvocation(pickerAction.invocation.unbound, option.input);
+		if (prepared === null) {
+			setLiveMessage(intl.formatMessage(workbenchMessages.searchActionsNeedContext));
+			return;
+		}
+		update({ type: 'close' });
+		runtime.executePrepared(prepared.invocation);
+	});
 	const sections = React.useMemo<readonly WorkbenchSearchSectionView[]>(() => {
 		if (state.kind === 'picking-argument') {
 			return picker === null

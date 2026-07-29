@@ -1,5 +1,6 @@
 import { useOrchbeeIntl, workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
 import type { ActionInvocationSource, ActionRuntime, ActionScope } from '@orchbee/actions';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import type { TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
 
@@ -116,21 +117,18 @@ export function useWorkbenchPanelWorkspace({
 		}),
 		[intl],
 	);
-	const createTerminalTitle = React.useCallback(
-		() =>
-			intl.formatMessage(workbenchTabMessages.terminalTitle, {
-				number: store.getSnapshot().nextTerminalSequence,
-			}),
-		[intl, store],
+	const createTerminalTitle = useMemoizedFn(() =>
+		intl.formatMessage(workbenchTabMessages.terminalTitle, {
+			number: store.getSnapshot().nextTerminalSequence,
+		}),
 	);
-	const transitionForActiveTab = React.useCallback(
+	const transitionForActiveTab = useMemoizedFn(
 		(event: ActiveTabPanelWorkspaceEventInput): PanelWorkspaceTransition | null => {
 			const tabId = store.getActiveTabId();
 			return tabId === null ? null : store.transition({ ...event, tabId });
 		},
-		[store],
 	);
-	const commitMovePanel = React.useCallback(
+	const commitMovePanel = useMemoizedFn(
 		(panelId: string, targetPanelId: string, direction: PanelSplitDirection) => {
 			return transitionForActiveTab({
 				direction,
@@ -139,7 +137,6 @@ export function useWorkbenchPanelWorkspace({
 				type: 'panel-moved',
 			});
 		},
-		[transitionForActiveTab],
 	);
 	const operations = React.useMemo(
 		() => ({
@@ -247,7 +244,7 @@ export function useWorkbenchPanelWorkspace({
 			pendingConfirmationRef.current?.(false);
 		};
 	}, [actionRuntime, panelActions.scope, store]);
-	const movePanel = React.useCallback(
+	const movePanel = useMemoizedFn(
 		(panelId: string, targetPanelId: string, direction: PanelSplitDirection) => {
 			executePanelAction(
 				PANEL_ACTION_IDS.move,
@@ -255,9 +252,8 @@ export function useWorkbenchPanelWorkspace({
 				'pointer',
 			);
 		},
-		[executePanelAction],
 	);
-	const startPanelDrag = React.useCallback(
+	const startPanelDrag = useMemoizedFn(
 		(panelId: string, event: React.PointerEvent<HTMLElement>) => {
 			if (
 				event.button !== 0 ||
@@ -310,7 +306,6 @@ export function useWorkbenchPanelWorkspace({
 				workspaceElement,
 			});
 		},
-		[activeTab, panelCount, panelDragSession],
 	);
 
 	React.useEffect(() => {

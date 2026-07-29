@@ -65,6 +65,40 @@ describe('useWorkbenchPanelWorkspace', () => {
 		expect(markup).toContain('tab-a:新建子终端:1:false');
 	});
 
+	it('keeps the panel drag entry point stable across workspace updates', async () => {
+		const runtime = new ActionRuntime();
+		const parentScope = runtime.createScope('workbench');
+		const model = new TabModel({
+			activeTabId: 'tab-a',
+			tabs: [{ group: null, id: 'tab-a', pinned: false, title: 'Terminal A' }],
+		});
+		let view: WorkbenchPanelWorkspaceView | undefined;
+		render(
+			createElement(
+				OrchbeeI18nProvider,
+				{ locale: 'en-US' },
+				createElement(InteractiveHarness, {
+					actionRuntime: runtime,
+					capture: (candidate) => {
+						view = candidate;
+					},
+					parentActionScope: parentScope,
+					tabModel: model,
+				}),
+			),
+		);
+		if (view === undefined) {
+			throw new Error('Expected the panel workspace view to be captured');
+		}
+		const startPanelDrag = view.startPanelDrag;
+
+		await act(async () => {
+			view?.createChildTerminal('panel-1');
+		});
+
+		expect(view.startPanelDrag).toBe(startPanelDrag);
+	});
+
 	it('does not close a different child terminal after confirmation changes the active target', async () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');

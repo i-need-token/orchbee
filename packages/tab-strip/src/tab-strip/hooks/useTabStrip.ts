@@ -1,7 +1,7 @@
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import {
 	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
-	useCallback,
 	useEffect,
 	useMemo,
 	useRef,
@@ -225,14 +225,11 @@ export function useTabStrip(
 		comboButtonController.getSnapshot,
 	);
 	const previousTabSearchOpen = useRef(false);
-	const openGroupEditor = useCallback(
-		(id: string, x: number, y: number) => {
-			groupEditorTracker.open();
-			setMenu({ kind: 'group', id, x, y });
-		},
-		[groupEditorTracker],
-	);
-	const scheduleSuppressedGroupToggleReset = useCallback((groupId: string) => {
+	const openGroupEditor = useMemoizedFn((id: string, x: number, y: number) => {
+		groupEditorTracker.open();
+		setMenu({ kind: 'group', id, x, y });
+	});
+	const scheduleSuppressedGroupToggleReset = useMemoizedFn((groupId: string) => {
 		if (suppressGroupToggleResetTimer.current !== null) {
 			window.clearTimeout(suppressGroupToggleResetTimer.current);
 		}
@@ -240,12 +237,12 @@ export function useTabStrip(
 			suppressGroupToggleResetTimer.current = null;
 			if (suppressGroupToggleRef.current === groupId) suppressGroupToggleRef.current = null;
 		}, 0);
-	}, []);
-	const cancelVerticalGroupPickupFrame = useCallback(() => {
+	});
+	const cancelVerticalGroupPickupFrame = useMemoizedFn(() => {
 		if (verticalGroupPickupFrameRef.current === null) return;
 		cancelManagedAnimationFrame(verticalGroupPickupFrameRef.current);
 		verticalGroupPickupFrameRef.current = null;
-	}, []);
+	});
 	dragRef.current = drag;
 	onDraggingChangeRef.current = onDraggingChange;
 	const actions = useTabStripActions({
@@ -397,7 +394,7 @@ export function useTabStrip(
 		return () => window.removeEventListener('pointermove', recordMousePosition);
 	}, []);
 
-	const finishHorizontalDragSettle = useCallback(() => {
+	const finishHorizontalDragSettle = useMemoizedFn(() => {
 		if (dragSettleTimer.current !== null) {
 			window.clearTimeout(dragSettleTimer.current);
 			dragSettleTimer.current = null;
@@ -413,7 +410,7 @@ export function useTabStrip(
 			}
 			return null;
 		});
-	}, [horizontal, model]);
+	});
 
 	useEffect(() => {
 		if (menu?.kind === 'group') return;
@@ -1022,17 +1019,16 @@ export function useTabStrip(
 		}
 	}, [horizontalLayout, tabClosingMode]);
 
-	const clearHover = useCallback(
+	const clearHover = useMemoizedFn(
 		(updateType: HoverCardUpdateType = HoverCardUpdateType.Hover) => {
 			if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
 			hoverTimer.current = null;
 			hoverCardController.updateHoverCard(null, updateType);
 			setHover(null);
 		},
-		[hoverCardController],
 	);
 
-	const completeHorizontalAnimationsForDragStart = useCallback(() => {
+	const completeHorizontalAnimationsForDragStart = useMemoizedFn(() => {
 		if (!horizontal) return;
 		if (horizontalAnimationRequestRef.current !== null) {
 			cancelManagedAnimationFrame(horizontalAnimationRequestRef.current);
@@ -1040,7 +1036,7 @@ export function useTabStrip(
 		}
 		const runtime = horizontalAnimationRuntimeRef.current;
 		if (runtime?.isAnimating) setAnimatedHorizontalFrame(runtime.complete());
-	}, [horizontal]);
+	});
 
 	useEffect(() => {
 		const previousSelection = previousSelectionRef.current;
@@ -1058,7 +1054,7 @@ export function useTabStrip(
 
 	useEffect(() => () => clearHover(HoverCardUpdateType.Event), [clearHover]);
 
-	const updateHoverForElement = useCallback(
+	const updateHoverForElement = useMemoizedFn(
 		(
 			element: HTMLElement,
 			id: string,
@@ -1122,13 +1118,6 @@ export function useTabStrip(
 				updateType,
 			);
 		},
-		[
-			effectiveVerticalCollapsed,
-			horizontal,
-			hoverCardController,
-			horizontalAnimationRuntimeRef,
-			snapshot.tabs,
-		],
 	);
 
 	const onTabMouseEnter = (event: ReactMouseEvent<HTMLDivElement>, tabId: string) => {
@@ -1542,9 +1531,9 @@ export function useTabStrip(
 	};
 
 	const dragPresent = drag !== null;
-	const repositionDragAfterScroll = useCallback(() => {
+	const repositionDragAfterScroll = useMemoizedFn(() => {
 		repositionDragAfterScrollRef.current();
-	}, []);
+	});
 	useEffect(() => {
 		if (!dragPresent) return;
 		const moveDrag = (event: Readonly<DragPointerUpdate>) => {

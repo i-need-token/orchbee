@@ -1,0 +1,49 @@
+{
+	"name": "@orchbee/foundation",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Domain-neutral foundational primitives for Orchbee workspaces",
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"@orchbee/source": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		},
+		"./react": {
+			"@orchbee/source": "./src/react/index.ts",
+			"types": "./dist/react/index.d.ts",
+			"import": "./dist/react/index.js",
+			"require": "./dist/react/index.cjs"
+		}
+	},
+	"scripts": {
+		"build": "rslib build",
+		"dev": "rslib build --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:exports": "node ../../scripts/check-package-exports.mjs ."
+	},
+	"devDependencies": {
+		"@rslib/core": "catalog:",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"jsdom": "29.1.1",
+		"react": "catalog:",
+		"react-dom": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"react": "catalog:"
+	}
+}

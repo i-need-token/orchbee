@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 import useEmblaCarousel, { type UseEmblaCarouselType } from 'embla-carousel-react';
 
@@ -59,32 +60,29 @@ function Carousel({
 	const [canScrollPrev, setCanScrollPrev] = React.useState(false);
 	const [canScrollNext, setCanScrollNext] = React.useState(false);
 
-	const onSelect = React.useCallback((api: CarouselApi) => {
+	const onSelect = useMemoizedFn((api: CarouselApi) => {
 		if (!api) return;
 		setCanScrollPrev(api.canScrollPrev());
 		setCanScrollNext(api.canScrollNext());
-	}, []);
+	});
 
-	const scrollPrev = React.useCallback(() => {
+	const scrollPrev = useMemoizedFn(() => {
 		api?.scrollPrev();
-	}, [api]);
+	});
 
-	const scrollNext = React.useCallback(() => {
+	const scrollNext = useMemoizedFn(() => {
 		api?.scrollNext();
-	}, [api]);
+	});
 
-	const handleKeyDown = React.useCallback(
-		(event: React.KeyboardEvent<HTMLDivElement>) => {
-			if (event.key === 'ArrowLeft') {
-				event.preventDefault();
-				scrollPrev();
-			} else if (event.key === 'ArrowRight') {
-				event.preventDefault();
-				scrollNext();
-			}
-		},
-		[scrollPrev, scrollNext],
-	);
+	const handleKeyDown = useMemoizedFn((event: React.KeyboardEvent<HTMLDivElement>) => {
+		if (event.key === 'ArrowLeft') {
+			event.preventDefault();
+			scrollPrev();
+		} else if (event.key === 'ArrowRight') {
+			event.preventDefault();
+			scrollNext();
+		}
+	});
 
 	React.useEffect(() => {
 		if (!api || !setApi) return;

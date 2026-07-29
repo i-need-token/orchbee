@@ -10,8 +10,9 @@ import {
 	type ActionOutputFor,
 	type ActionScope,
 } from '@orchbee/actions';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
 	TAB_STRIP_ACTION_IDS,
@@ -697,16 +698,15 @@ export function useTabStripActions({
 		verticalExpandOnHover,
 	]);
 
-	const execute = useCallback(
+	const execute = useMemoizedFn(
 		<Id extends ActionCatalogId<TabStripActionCatalog>>(
 			actionId: Id,
 			input: ActionInputFor<TabStripActionCatalog, Id>,
 			source: ActionInvocationSource,
 		): ActionExecution<ActionOutputFor<TabStripActionCatalog, Id>> =>
 			typedRuntime.execute(actionId, input, { scope, source }),
-		[scope, typedRuntime],
 	);
-	const createTab = useCallback(
+	const createTab = useMemoizedFn(
 		(
 			input: TabCreateInput,
 			source: TabStripNewTabRequest['source'],
@@ -719,7 +719,6 @@ export function useTabStripActions({
 						source,
 					});
 		},
-		[execute, onNewTab],
 	);
 
 	return useMemo(() => ({ createTab, execute, scope }), [createTab, execute, scope]);

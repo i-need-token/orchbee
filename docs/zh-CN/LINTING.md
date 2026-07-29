@@ -54,6 +54,7 @@
 | `orchbee/no-cross-workspace-source-imports` | `docs/ARCHITECTURE.md#package-boundaries`             |
 | `orchbee/no-inline-suppressions`            | `docs/CODESTYLE.md#inline-suppressions`               |
 | `orchbee/no-react-hooks-in-tsx`             | `docs/frontend/react.md#component-hook-boundary`      |
+| `orchbee/no-react-use-callback`             | `docs/frontend/react.md#callback-identity`            |
 | `orchbee/one-function-per-tsx`              | `docs/frontend/react.md#tsx-file-boundary`            |
 | `orchbee/one-hook-per-file`                 | `docs/frontend/react.md#hook-file-boundary`           |
 | `orchbee/require-unit-test`                 | `docs/TESTING.md#required-unit-tests`                 |

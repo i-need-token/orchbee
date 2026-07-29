@@ -1,5 +1,6 @@
 import { createOrchbeeIntl, workbenchTabMessages, type OrchbeeLocale } from '@orchbee/i18n';
 import type { ActionExecutionContext, ActionResult } from '@orchbee/actions';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { TabModel } from '@orchbee/tab-strip';
 import type { WorkbenchTerminalCreateInput } from '@orchbee/workbench';
 import * as React from 'react';
@@ -32,7 +33,7 @@ export function useWebApplicationTabs(locale: OrchbeeLocale): WebApplicationTabs
 				activeTabId: 'terminal-1',
 			}),
 	);
-	const createTerminal = React.useCallback(
+	const createTerminal = useMemoizedFn(
 		(context: ActionExecutionContext, input: WorkbenchTerminalCreateInput): ActionResult<void> => {
 			if (context.signal.aborted) {
 				return { kind: 'cancelled' };
@@ -53,7 +54,6 @@ export function useWebApplicationTabs(locale: OrchbeeLocale): WebApplicationTabs
 			);
 			return { kind: 'completed' };
 		},
-		[intl, tabModel],
 	);
 
 	return { createTerminal, tabModel } as const;

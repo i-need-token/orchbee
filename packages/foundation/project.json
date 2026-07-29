@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "foundation",
+	"runtime": ["browser", "universal"],
+	"stability": "experimental",
+	"responsibility": "Domain-neutral, dependency-light programming primitives shared across workspace boundaries through explicit capability entry points.",
+	"nonGoals": [
+		"Owning product, feature, presentation, persistence, transport, or platform semantics.",
+		"Collecting owner-specific helpers or code solely because it is reusable or belongs to the same source category.",
+		"Hiding dependency cycles or replacing the narrow semantic owner of a behavior."
+	]
+}

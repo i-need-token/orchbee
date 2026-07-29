@@ -6,9 +6,10 @@ Shared product-semantic React shell for Orchbee applications.
 
 Workbench registers its product operations in the application-owned `ActionRuntime`. Sidebar
 controls, shortcuts, tab-strip commands, panel buttons, and menus invoke those registrations; the
-registered handlers are the only writers for their semantic results. Continuous resize and drag
-preview remain reversible interaction state, while the final drag result invokes the corresponding
-Action.
+registered handlers are the only writers for their semantic results. Continuous separator resize
+updates the canonical panel layout as it changes and retains the last valid layout when interaction
+ends or is canceled. Panel drag preview remains reversible interaction state, while the final drag
+result invokes the corresponding Action.
 
 The package owns a full-height, horizontally resizable two-panel shell. The left sidebar defaults
 to `250px` and is constrained to `200px`–`400px`; the right panel fills the remaining width and
@@ -171,15 +172,21 @@ product action is introduced.
   Split creation remains valid even when the resulting viewport is narrower than `30px`; this keeps
   semantic split commands deterministic instead of letting a rendering constraint reject the
   model. During separator resize, both adjacent children are constrained to at least `30px` along
-  the active axis; nested orthogonal splits therefore protect both panel width and height.
-  Separators keep a single opaque one-CSS-pixel color through intersections. Panel header and
-  child-strip space is never overlaid on the terminal viewport.
+  the active axis; nested orthogonal splits therefore protect both panel width and height. Every
+  accepted resize candidate updates the canonical layout immediately; completion, pointer
+  cancellation, and lost capture retain the last accepted layout rather than restoring the
+  starting layout. Separators keep a single opaque one-CSS-pixel color through intersections.
+  Panel header and child-strip space is never overlaid on the terminal viewport.
 - **Ownership and dependencies:** Workbench is the sole writer of the panel layout and logical
   terminal-presentation state. `TabModel` remains authoritative for tab order and active tab.
-  Hosts remain authoritative for PTY/process lifecycle, real CWD discovery, terminal rendering,
-  and eventual CLI/agent command transport. Future header metadata such as panel status, Node
-  version, Git branch, and change counts is deliberately excluded until an owning data contract
-  exists; the current three-zone header preserves a composition point for it.
+  The resizable primitive owns raw pointer input, native keyboard behavior, separator focus and
+  accessibility, and candidate layout production. Workbench does not reinterpret those input
+  bindings; it owns topology validation, adjacent-pair projection, the `30px` policy, and the only
+  semantic layout write. Resize is not registered as an Action. Hosts remain authoritative for
+  PTY/process lifecycle, real CWD discovery, terminal rendering, and eventual CLI/agent command
+  transport. Future header metadata such as panel status, Node version, Git branch, and change
+  counts is deliberately excluded until an owning data contract exists; the current three-zone
+  header preserves a composition point for it.
 - **Correctness and verification:** Example tests cover direction, local weighting, nested-tree
   normalization, CWD inheritance, child selection, maximization, last-panel rejection, and per-tab
   isolation. Move examples additionally cover all four directions, identity preservation, collapsed
@@ -189,11 +196,13 @@ product action is introduced.
   all `384` four-Panel split layouts, all `18,432` possible moves, and `25,728` focus, maximize,
   terminal, close, and resize actions. Tab reconciliation separately covers every ordered subset of
   three tab IDs plus deeper generated reconciliation sequences. Move safety additionally has a
-  fixed nested-tree regression and deeper generated layout exploration. The resizable adapter has
-  a separate projection oracle proving that unrelated sibling weights remain unchanged. React
-  integration tests cover the initial single-panel projection; Storybook and browser review
-  exercise real context menus, resize handles, headers, panel drops, and dialogs. Concurrency and
-  asynchronous process completion are excluded from this release, so no TLA+ claim is made.
+  fixed nested-tree regression and deeper generated layout exploration. Resize evidence separately
+  covers topology validation, adjacent-pair and minimum-size properties, primitive-to-model
+  synchronization, native keyboard layout changes, registration replacement, cancellation, and
+  unrelated primitive failures. React integration tests cover the initial single-panel projection;
+  Storybook and browser review exercise real context menus, resize handles, headers, panel drops,
+  and dialogs. Concurrency and asynchronous process completion are excluded from this release, so
+  no TLA+ claim is made.
 
 ## Use
 

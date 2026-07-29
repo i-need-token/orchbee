@@ -1,9 +1,5 @@
-import {
-	type TransitionEvent as ReactTransitionEvent,
-	useCallback,
-	useEffect,
-	useState,
-} from 'react';
+import { useMemoizedFn } from '@orchbee/foundation/react';
+import { type TransitionEvent as ReactTransitionEvent, useEffect, useState } from 'react';
 import type { TabGroupData } from '../../../../../model/tab-model';
 
 interface VerticalGroupCollapseCompletion {
@@ -36,7 +32,7 @@ export function useVerticalGroupCollapseCompletion(
 		});
 	}, [groups]);
 
-	const onGroupTabsTransitionEnd = useCallback(
+	const onGroupTabsTransitionEnd = useMemoizedFn(
 		(event: ReactTransitionEvent<HTMLDivElement>, groupId: string): void => {
 			if (event.target !== event.currentTarget || event.propertyName !== 'grid-template-rows') {
 				return;
@@ -50,7 +46,6 @@ export function useVerticalGroupCollapseCompletion(
 				return next;
 			});
 		},
-		[groups],
 	);
 
 	return {

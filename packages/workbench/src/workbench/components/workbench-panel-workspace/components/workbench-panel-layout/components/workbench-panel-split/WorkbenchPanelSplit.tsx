@@ -20,6 +20,11 @@ const PANEL_RESIZE_TARGET_SIZE_PX = {
 	coarse: 20,
 	fine: 10,
 } as const;
+const DISABLED_SEPARATOR_KEYS = new Set(['End', 'Enter', 'F6', 'Home']);
+const RESIZE_ARROW_KEYS = {
+	horizontal: new Set(['ArrowLeft', 'ArrowRight']),
+	vertical: new Set(['ArrowDown', 'ArrowUp']),
+} as const satisfies Readonly<Record<PanelSplit['orientation'], ReadonlySet<string>>>;
 
 export function WorkbenchPanelSplit({
 	renderNode,
@@ -36,7 +41,6 @@ export function WorkbenchPanelSplit({
 			groupRef={resize.groupRef}
 			id={split.id}
 			onLayoutChange={resize.onLayoutChange}
-			onPointerCancelCapture={resize.finishResize}
 			onPointerDownCapture={(event) => {
 				if (event.button !== 0) {
 					return;
@@ -55,13 +59,9 @@ export function WorkbenchPanelSplit({
 					hasCoarsePointer ? PANEL_RESIZE_TARGET_SIZE_PX.coarse : PANEL_RESIZE_TARGET_SIZE_PX.fine,
 				);
 				if (separatorIndex !== null) {
-					resize.startResize(separatorIndex, {
-						position: split.orientation === 'horizontal' ? event.clientX : event.clientY,
-					});
-					separators[separatorIndex]?.setPointerCapture(event.pointerId);
+					resize.startPointerResize(separatorIndex, event.pointerId);
 				}
 			}}
-			onPointerUpCapture={resize.finishResize}
 			orientation={split.orientation}
 			resizeTargetMinimumSize={PANEL_RESIZE_TARGET_SIZE_PX}
 		>
@@ -79,16 +79,19 @@ export function WorkbenchPanelSplit({
 								disableDoubleClick
 								id={getPanelSeparatorId(split.id, child.id, trailingChild.id)}
 								onKeyDownCapture={(event) => {
-									if (
-										event.key === 'ArrowDown' ||
-										event.key === 'ArrowLeft' ||
-										event.key === 'ArrowRight' ||
-										event.key === 'ArrowUp'
-									) {
-										resize.startResize(index);
+									if (DISABLED_SEPARATOR_KEYS.has(event.key)) {
+										event.preventDefault();
+										return;
+									}
+									if (RESIZE_ARROW_KEYS[split.orientation].has(event.key)) {
+										resize.startKeyboardResize(index);
 									}
 								}}
-								onKeyUpCapture={resize.finishResize}
+								onKeyUpCapture={(event) => {
+									if (RESIZE_ARROW_KEYS[split.orientation].has(event.key)) {
+										resize.finishKeyboardResize(index);
+									}
+								}}
 							/>
 						)}
 					</React.Fragment>

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
+import { useMemoizedFn } from '@orchbee/foundation/react';
+import { useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
 import {
 	calculateRoundedScrollbarThumb,
 	ROUNDED_SCROLLBAR_FADE_DELAY_MS,
@@ -41,18 +42,18 @@ export function useRoundedScrollbar({
 	const hideTimer = useRef<number | null>(null);
 	const drag = useRef<DragStart | null>(null);
 
-	const clearHideTimer = useCallback(() => {
+	const clearHideTimer = useMemoizedFn(() => {
 		if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
 		hideTimer.current = null;
-	}, []);
-	const show = useCallback(() => {
+	});
+	const show = useMemoizedFn(() => {
 		clearHideTimer();
 		if (!isAnimatingSize) setShown(true);
-	}, [clearHideTimer, isAnimatingSize]);
-	const startHideCountdown = useCallback(() => {
+	});
+	const startHideCountdown = useMemoizedFn(() => {
 		clearHideTimer();
 		hideTimer.current = window.setTimeout(() => setShown(false), ROUNDED_SCROLLBAR_FADE_DELAY_MS);
-	}, [clearHideTimer]);
+	});
 
 	useEffect(() => {
 		const viewport = viewportRef.current;

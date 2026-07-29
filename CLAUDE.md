@@ -13,6 +13,7 @@
 - **Product copy is localized.** Every product-facing message goes through the localization system and ships in both `en-US` and `zh-CN`; locale resources are product assets and may contain their target language.
 - **Documentation authority follows ownership.** Update the owning repository standard, package README, package-local reference, proposal, or research record in the same change as the fact it governs. Repository standards never inventory one package's business behavior, source tree, screen composition, or roadmap; future design belongs under `proposals/`.
 - **Every tracked file must have durable repository value.** Before adding a file, identify its future consumer, authoritative responsibility, recurring use, and maintenance lifecycle; task history and one-off working artifacts do not belong in the repository.
+- **Classify changes before governed edits.** Follow `docs/DEVELOPMENT.md`. Behavioral, structural, and consequential work needs accepted change authorization before editing governed artifacts; new reserved decisions return to the owning stage instead of being silently encoded.
 - **Act on structural smells early.** When an in-scope change reveals a clear risk of growth, coupling, ownership ambiguity, or boundary erosion, resolve it before it spreads; if the remedy would materially expand scope, surface the risk before proceeding.
 - **AGENTS.md is a symlink to CLAUDE.md.** Only edit CLAUDE.md.
 - **Never modify lint config to escape errors.** Fix the code, not the config. Changing `.oxlintrc.json` requires explicit human approval.
@@ -29,6 +30,7 @@
 - **Repository Hygiene**: `docs/REPOSITORY-HYGIENE.md` — tracked-file admission, temporary artifacts, generated files, and pre-handoff review
 - **Linting**: `docs/LINTING.md` — commands, enforcement boundary, and custom-rule ownership
 - **Verification**: `docs/VERIFICATION.md` — the canonical local and CI quality gate
+- **Development**: `docs/DEVELOPMENT.md` — change classification, decision authority, staged governed-write control, and convergence
 - **Feature Development**: `docs/FEATURE-DEVELOPMENT.md` — model-first delivery and risk-based correctness evidence
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
 - **Testing**: `docs/TESTING.md` — test layout, execution, and regression requirements

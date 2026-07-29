@@ -27,6 +27,22 @@ Repository-only scripts and application entry points are not library packages an
 
 For example, Redis may implement caching; callers depend on the cache capability.
 
+## Foundation boundary
+
+`@orchbee/foundation` is the single repository boundary for domain-neutral, dependency-light
+programming primitives that have a concrete workspace consumer. Admit an API only when its
+contract is stable without product, feature, platform, transport, persistence, or presentation
+semantics; reuse or source-category similarity alone is insufficient.
+
+- Keep owner-specific helpers with their semantic owner.
+- Expose environment or framework integration through an explicit capability subpath such as
+  `@orchbee/foundation/react`; keep the root entry an explicitly reviewed allowlist instead of an
+  automatic barrel.
+- Do not use the package to hide dependency cycles or aggregate unrelated constants, types, Hooks,
+  components, adapters, or convenience functions.
+- Document each public subpath, its dependency requirements, and its non-goals in the package
+  README.
+
 ## Required package shape
 
 Every library package contains these files:

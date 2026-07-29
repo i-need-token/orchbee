@@ -52,6 +52,10 @@ pnpm --dir packages/ui exec shadcn add --all --overwrite
 
 The repository owns a complete snapshot of the official Base UI registry rather than adding primitives on demand. Review the CLI diff before accepting a refresh because focused Orchbee compatibility adaptations may need to be reapplied. Do not hand-write a primitive that is available from shadcn.
 
+The snapshot uses `@orchbee/foundation/react` where generated event callbacks need the repository's
+stable-identity and latest-render-value contract. Preserve that focused adaptation when refreshing
+the affected registry components unless upstream provides the same contract.
+
 Generated Tailwind utilities remain part of the component source. [`src/styles.css`](src/styles.css) contains the Tailwind/shadcn imports, maps shadcn's compatibility variables to `@orchbee/design-tokens`, and owns the base layer required by those utilities. It does not define the Orchbee token vocabulary. The full workflow lives in [`docs/frontend/styling.md`](../../docs/frontend/styling.md).
 
 The stylesheet also owns the explicit Tailwind `@source './components'` registration. Keep that registration when refreshing shadcn: source-built applications compile the stylesheet from outside the UI workspace, so automatic source discovery alone cannot guarantee that generated component utilities are emitted during development.

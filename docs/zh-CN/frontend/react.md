@@ -29,7 +29,7 @@ React 必须连接 Provider 或外部生命周期时，把集成隔离在一个�
 - 每个具名界面区域以一个组件为根，拥有私有后代、组件专属 Hook、作用域 Store 和 context、转换、样式、资产及测试。
 - 递归嵌套所有权；私有后代可以拥有另一个 `components/<component-name>/` 树和更窄 Store。
 - 源模块重新导出的组件是公共根；外部模块只通过模块 `index.ts` 消费它。
-- 不带产品语义的可复用原语放入 `@orchbee/ui`；产品组件保留在 [`package-boundaries.md`](package-boundaries.md#ui-所有权) 指定的能力中。
+- 不带产品语义的可复用视觉和无障碍原语放入 `@orchbee/ui`。按照 [`docs/PACKAGES.md`](../PACKAGES.md#foundation-边界)，已准入的领域中立 React 编程原语放入 `@orchbee/foundation/react`；产品组件保留在 [`package-boundaries.md`](package-boundaries.md#ui-所有权) 指定的能力中。
 - 每个产物放在完全拥有它的最窄组件子树或源模块；绝不把自有产物收集到包级技术目录。
 - 私有子树获得外部消费者时，提升完整所有权单元，而不是导出一个内部文件。
 
@@ -40,6 +40,13 @@ React 必须连接 Provider 或外部生命周期时，把集成隔离在一个�
 - 窄适配器可以调用一个 presenter 或 lifecycle Hook，并直接传递其准备结果，不再派生或编排工作流。
 - Presenter Hook 可以把本地化、Store selector 和语义动作组合成一个可渲染契约。
 - 测试、Story 和 [`docs/LINTING.md`](../LINTING.md#生成的源码) 中签入的 shadcn 源码不受此限制。
+
+## 回调标识
+
+- `orchbee/no-react-use-callback`：仓库源码绝不导入、调用、重新导出、设置别名或以其他方式访问 React 的 `useCallback`；检入的生成源码也没有例外。
+- 当事件处理器、命令式适配器以及通过组件或 Hook 契约公开的回调需要稳定标识，并且实现必须读取最新渲染值时，使用 `@orchbee/foundation/react` 的 `useMemoizedFn`。
+- 当使用方需要响应语义变化时，使用显式数据或版本 Token 表达，绝不通过发布新的函数标识表达。
+- 在 Effect 依赖中直接列出具有语义的订阅和资源生命周期输入；稳定回调标识不得抑制必需的清理、重新注册、取消或重启行为。
 
 ## 组件数据传递
 

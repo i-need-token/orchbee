@@ -10,6 +10,7 @@ import {
 	type ActionRuntime,
 	type ActionScope,
 } from '@orchbee/actions';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { workbenchMessages } from '@orchbee/i18n';
 import type { TabStripOrientation } from '@orchbee/tab-strip';
 import * as React from 'react';
@@ -224,15 +225,14 @@ export function useWorkbenchActions({
 		typedRuntime,
 	]);
 
-	const invoke = React.useCallback(
+	const invoke = useMemoizedFn(
 		<Id extends ActionCatalogId<WorkbenchActionCatalog>>(
 			actionId: Id,
 			input: ActionInputFor<WorkbenchActionCatalog, Id>,
 			source: ActionInvocationSource,
 		) => typedRuntime.execute(actionId, input, { scope, source }),
-		[scope, typedRuntime],
 	);
-	const invokeShortcut = React.useCallback(
+	const invokeShortcut = useMemoizedFn(
 		(binding: WorkbenchShortcutBinding, source: ActionInvocationSource) => {
 			const invocation = { scope, source };
 			switch (binding.id) {
@@ -268,7 +268,6 @@ export function useWorkbenchActions({
 					return true;
 			}
 		},
-		[scope, typedRuntime],
 	);
 
 	return { invoke, invokeShortcut, scope };

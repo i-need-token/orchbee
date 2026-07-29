@@ -52,6 +52,7 @@
 	"dependencies": {
 		"@base-ui/react": "catalog:",
 		"@orchbee/design-tokens": "workspace:^",
+		"@orchbee/foundation": "workspace:^",
 		"@shadcn/react": "^0.2.1",
 		"@vscode/codicons": "catalog:",
 		"class-variance-authority": "catalog:",

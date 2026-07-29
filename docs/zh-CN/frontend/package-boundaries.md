@@ -24,6 +24,8 @@
 
 包按调用方消费的能力命名，不按框架、传输方式或技术桶命名。禁止的桶名称包括 `components`、`hooks`、`store`、`types`、`utils`、`common`、`shared` 和 `helpers`。
 
+`@orchbee/foundation` 本身并不准入某种源码类别。仅当 API 独立于 UI、产品状态、平台副作用及其当前使用方时，它的 `./react` 入口才可以拥有领域中立的 React 原语；准入规则遵循 [`docs/PACKAGES.md`](../PACKAGES.md#foundation-边界)。
+
 ## UI 所有权
 
 | 单元           | 所有者和边界                                                                              |

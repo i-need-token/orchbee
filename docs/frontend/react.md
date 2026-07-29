@@ -29,7 +29,10 @@ When React must connect a Provider or external lifecycle, isolate that integrati
 - Each named interface region is rooted at one component that owns its private descendants, component-specific Hooks, scoped Store and context, transitions, styles, assets, and tests.
 - Nest ownership recursively; a private descendant may own another `components/<component-name>/` tree and narrower Store.
 - A component re-exported by a source module is the public root; external modules consume it only through the module `index.ts`.
-- Put reusable non-product primitives in `@orchbee/ui`; product components stay with the capability named by [`package-boundaries.md`](package-boundaries.md#ui-ownership).
+- Put reusable non-product visual and accessibility primitives in `@orchbee/ui`. Put admitted
+  domain-neutral React programming primitives in `@orchbee/foundation/react` according to
+  [`docs/PACKAGES.md`](../PACKAGES.md#foundation-boundary); product components stay with the
+  capability named by [`package-boundaries.md`](package-boundaries.md#ui-ownership).
 - Place every artifact at the narrowest component subtree or source module that completely owns it; never collect owned artifacts in package-wide technical directories.
 - When a private subtree gains an external consumer, promote the complete ownership unit instead of exporting one internal file.
 
@@ -40,6 +43,20 @@ When React must connect a Provider or external lifecycle, isolate that integrati
 - A narrow adapter may call one presenter or lifecycle Hook and pass its prepared result without further derivation or workflow.
 - A presenter Hook may compose localization, Store selectors, and semantic actions into one renderable contract.
 - Tests, Stories, and checked-in shadcn source under [`docs/LINTING.md`](../LINTING.md#generated-source) are exempt.
+
+## Callback identity
+
+- `orchbee/no-react-use-callback`: Repository source never imports, calls, re-exports,
+  aliases, or otherwise accesses React's `useCallback`; checked-in generated source has no
+  exception.
+- Use `useMemoizedFn` from `@orchbee/foundation/react` for event handlers, imperative adapters, and
+  callbacks exposed through component or Hook contracts when callers need stable identity and the
+  implementation must read the latest render values.
+- Represent a consumer's need to react to semantic changes with explicit data or a version token,
+  never by publishing a new function identity.
+- List semantic subscription and resource-lifecycle inputs directly in Effect dependencies;
+  stable callback identity must not suppress required teardown, re-registration, cancellation, or
+  restart behavior.
 
 ## Component data delivery
 

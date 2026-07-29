@@ -291,7 +291,7 @@ Never weaken a property, exclude a reachable TLA+ state, add an axiom, retry a r
 
 Update the abstract model or proof before relying on changed production behavior. Do not preserve competing semantic models unless an explicit compatibility boundary owns both and differential tests compare them.
 
-AI-assisted work follows the same evidence contract:
+Every implementation follows the same evidence contract:
 
 - Before production edits, retrieve the owning record, identify any reference dependency closure, list state, events, outputs, invariants, assumptions, selected evidence, and affected refinement links.
 - Reproduce an existing defect as a minimal semantic trace.

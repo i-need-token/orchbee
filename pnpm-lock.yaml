@@ -186,6 +186,9 @@ importers:
       '@orchbee/actions':
         specifier: workspace:^
         version: link:../../packages/actions
+      '@orchbee/foundation':
+        specifier: workspace:^
+        version: link:../../packages/foundation
       '@orchbee/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
@@ -257,6 +260,30 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))
 
+  packages/foundation:
+    devDependencies:
+      '@rslib/core':
+        specifier: 'catalog:'
+        version: 0.23.2(typescript@7.0.2)
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.17)
+      jsdom:
+        specifier: 29.1.1
+        version: 29.1.1
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.7(react@19.2.7)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))
+
   packages/i18n:
     dependencies:
       react-intl:
@@ -290,6 +317,9 @@ importers:
       '@orchbee/actions':
         specifier: workspace:^
         version: link:../actions
+      '@orchbee/foundation':
+        specifier: workspace:^
+        version: link:../foundation
       '@orchbee/i18n':
         specifier: workspace:^
         version: link:../i18n
@@ -369,6 +399,9 @@ importers:
       '@orchbee/design-tokens':
         specifier: workspace:^
         version: link:../design-tokens
+      '@orchbee/foundation':
+        specifier: workspace:^
+        version: link:../foundation
       '@shadcn/react':
         specifier: ^0.2.1
         version: 0.2.1(@types/react@19.2.17)(react@19.2.7)
@@ -460,6 +493,9 @@ importers:
       '@orchbee/actions':
         specifier: workspace:^
         version: link:../actions
+      '@orchbee/foundation':
+        specifier: workspace:^
+        version: link:../foundation
       '@orchbee/i18n':
         specifier: workspace:^
         version: link:../i18n

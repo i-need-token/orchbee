@@ -24,6 +24,11 @@ A frontend package must:
 
 Name a package after the capability callers consume, never a framework, transport, or technical bucket. Forbidden bucket names include `components`, `hooks`, `store`, `types`, `utils`, `common`, `shared`, and `helpers`.
 
+`@orchbee/foundation` does not admit a source category by itself. Its `./react` entry may own a
+domain-neutral React primitive only when the API remains independent of UI, product state,
+platform effects, and its current consumer; follow
+[`docs/PACKAGES.md`](../PACKAGES.md#foundation-boundary) for admission.
+
 ## UI ownership
 
 | Unit                         | Owner and boundary                                                                                                                               |

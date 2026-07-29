@@ -8,6 +8,7 @@ import { moduleBoundaries } from '../module-boundaries';
 import { noCrossWorkspaceSourceImports } from '../no-cross-workspace-source-imports';
 import { noInlineSuppressions } from '../no-inline-suppressions';
 import { noReactHooksInTsx } from '../no-react-hooks-in-tsx';
+import { noReactUseCallback } from '../no-react-use-callback';
 import { oneFunctionPerTsx } from '../one-function-per-tsx';
 import { oneHookPerFile } from '../one-hook-per-file';
 import { requireUnitTest } from '../require-unit-test';
@@ -727,6 +728,140 @@ describe('no-react-hooks-in-tsx', () => {
 			callee: { type: 'Identifier', name: 'useWorkbenchProps', loc: LOCATION },
 		});
 
+		expect(reports).toEqual([]);
+	});
+});
+
+describe('no-react-use-callback', () => {
+	it('rejects direct and aliased named imports from React', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/hooks/useWorkbench.ts',
+		);
+		noReactUseCallback.create(context).ImportDeclaration({
+			source: { value: 'react' },
+			specifiers: [
+				{
+					type: 'ImportSpecifier',
+					imported: { type: 'Identifier', name: 'useCallback' },
+					local: { type: 'Identifier', name: 'memoizeHandler' },
+					loc: LOCATION,
+				},
+			],
+		});
+
+		expect(reports).toHaveLength(1);
+		expect(reports[0]?.message).toContain('useMemoizedFn');
+		expect(reports[0]?.message).toContain('docs/frontend/react.md#callback-identity');
+	});
+
+	it('rejects namespace, default, computed, and destructured access', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/ui/src/components/ui/carousel.tsx',
+		);
+		const visitors = noReactUseCallback.create(context);
+		visitors.ImportDeclaration({
+			source: { value: 'react' },
+			specifiers: [
+				{
+					type: 'ImportDefaultSpecifier',
+					local: { type: 'Identifier', name: 'React' },
+				},
+			],
+		});
+		visitors.MemberExpression({
+			type: 'MemberExpression',
+			computed: false,
+			object: { type: 'Identifier', name: 'React' },
+			property: { type: 'Identifier', name: 'useCallback' },
+			loc: LOCATION,
+		});
+		visitors.MemberExpression({
+			type: 'MemberExpression',
+			computed: true,
+			object: { type: 'Identifier', name: 'React' },
+			property: { type: 'Literal', value: 'useCallback' },
+			loc: LOCATION,
+		});
+		visitors.VariableDeclarator({
+			id: {
+				type: 'ObjectPattern',
+				properties: [
+					{
+						type: 'Property',
+						key: { type: 'Identifier', name: 'useCallback' },
+						loc: LOCATION,
+					},
+				],
+			},
+			init: { type: 'Identifier', name: 'React' },
+		});
+
+		expect(reports).toHaveLength(3);
+	});
+
+	it('rejects named and wildcard re-exports from React', () => {
+		const { context, reports } = createContext('/workspace/packages/foundation/src/react/index.ts');
+		const visitors = noReactUseCallback.create(context);
+		visitors.ExportNamedDeclaration({
+			source: { value: 'react' },
+			specifiers: [
+				{
+					type: 'ExportSpecifier',
+					local: { type: 'Identifier', name: 'useCallback' },
+					exported: { type: 'Identifier', name: 'stableCallback' },
+					loc: LOCATION,
+				},
+			],
+		});
+		visitors.ExportAllDeclaration({
+			source: { value: 'react' },
+			loc: LOCATION,
+		});
+
+		expect(reports).toHaveLength(2);
+	});
+
+	it('accepts useMemoizedFn and unrelated React APIs', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/hooks/useWorkbench.ts',
+		);
+		const visitors = noReactUseCallback.create(context);
+		visitors.ImportDeclaration({
+			source: { value: '@orchbee/foundation/react' },
+			specifiers: [
+				{
+					type: 'ImportSpecifier',
+					imported: { type: 'Identifier', name: 'useMemoizedFn' },
+					local: { type: 'Identifier', name: 'useMemoizedFn' },
+					loc: LOCATION,
+				},
+			],
+		});
+		visitors.ImportDeclaration({
+			source: { value: 'react' },
+			specifiers: [
+				{
+					type: 'ImportNamespaceSpecifier',
+					local: { type: 'Identifier', name: 'React' },
+				},
+			],
+		});
+		visitors.MemberExpression({
+			type: 'MemberExpression',
+			computed: false,
+			object: { type: 'Identifier', name: 'React' },
+			property: { type: 'Identifier', name: 'useMemo' },
+			loc: LOCATION,
+		});
+
+		expect(reports).toEqual([]);
+	});
+
+	it('does not govern tooling outside application and package source trees', () => {
+		const { context, reports } = createContext('/workspace/scripts/example.ts');
+		const visitors = noReactUseCallback.create(context);
+
+		expect(visitors).toEqual({});
 		expect(reports).toEqual([]);
 	});
 });

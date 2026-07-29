@@ -32,6 +32,16 @@
 			],
 			"project": ["src/**/*.{ts,tsx}", "*.ts"]
 		},
+		"packages/foundation": {
+			"entry": [
+				"src/index.ts!",
+				"src/react/index.ts!",
+				"src/**/*.unit.test.{ts,tsx}!",
+				"rslib.config.ts!",
+				"vitest.config.ts!"
+			],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
+		},
 		"packages/ui": {
 			"entry": [
 				"src/index.ts!",

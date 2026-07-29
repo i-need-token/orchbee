@@ -1,5 +1,6 @@
 import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import type { ActionExecution, ActionRuntime, ActionScope } from '@orchbee/actions';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import type { TabStripNewTabRequest, TabStripOrientation } from '@orchbee/tab-strip';
 import * as React from 'react';
 
@@ -104,7 +105,7 @@ export function useWorkbench({
 		createWorkbenchSearchState,
 	);
 	const searchReturnFocus = React.useRef<HTMLElement | null>(null);
-	const openSearch = React.useCallback((input: { readonly filter: WorkbenchSearchFilter }) => {
+	const openSearch = useMemoizedFn((input: { readonly filter: WorkbenchSearchFilter }) => {
 		if (
 			searchReturnFocus.current === null &&
 			typeof document !== 'undefined' &&
@@ -116,7 +117,7 @@ export function useWorkbench({
 			searchReturnFocus.current = document.activeElement;
 		}
 		updateSearch({ filter: input.filter, type: 'open' });
-	}, []);
+	});
 	React.useEffect(() => {
 		if (searchState.kind !== 'closed' || typeof document === 'undefined') {
 			return;
@@ -129,20 +130,17 @@ export function useWorkbench({
 		searchReturnFocus.current = null;
 		returnFocus?.focus();
 	}, [searchState.kind]);
-	const toggleSidebar = React.useCallback(() => {
+	const toggleSidebar = useMemoizedFn(() => {
 		setIsSidebarVisible((currentVisibility) => {
 			const nextVisibility = !currentVisibility;
 			writeWorkbenchSidebarVisibility(storage, nextVisibility);
 			return nextVisibility;
 		});
-	}, [storage]);
-	const setTabStripOrientation = React.useCallback(
-		(orientation: TabStripOrientation) => {
-			setTabStripOrientationState(orientation);
-			writeWorkbenchTabStripOrientation(storage, orientation);
-		},
-		[storage],
-	);
+	});
+	const setTabStripOrientation = useMemoizedFn((orientation: TabStripOrientation) => {
+		setTabStripOrientationState(orientation);
+		writeWorkbenchTabStripOrientation(storage, orientation);
+	});
 	const actions = useWorkbenchActions({
 		isSidebarVisible,
 		onNewTerminal,
