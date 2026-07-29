@@ -6,10 +6,8 @@ import * as React from 'react';
 
 import type { WorkbenchShortcutPlatform } from '../../../types/workbench-shortcut-platform';
 import type { WorkbenchSearchFilter } from '../../../types/workbench-search';
-import {
-	formatWorkbenchActionMessage,
-	projectWorkbenchSearchCatalog,
-} from '../model/project-workbench-search-catalog';
+import type { WorkbenchSearchProvider } from '../../../types/workbench-search-provider';
+import { formatWorkbenchActionMessage } from '../model/project-workbench-search-catalog';
 import {
 	filterWorkbenchSearchArgumentOptions,
 	isWorkbenchSearchResultEnabled,
@@ -18,9 +16,12 @@ import {
 } from '../model/workbench-search-ranking';
 import type { WorkbenchSearchResult } from '../model/workbench-search-result';
 import type { WorkbenchSearchEvent, WorkbenchSearchState } from '../model/workbench-search-state';
+import { useWorkbenchSearchCatalog } from './useWorkbenchSearchCatalog';
+import { useWorkbenchSearchProviders } from './useWorkbenchSearchProviders';
 
 interface UseWorkbenchSearchSurfaceOptions {
 	readonly platform: WorkbenchShortcutPlatform;
+	readonly providers: readonly WorkbenchSearchProvider[];
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
 	readonly state: Exclude<WorkbenchSearchState, { readonly kind: 'closed' }>;
@@ -60,6 +61,13 @@ interface WorkbenchSearchSectionView {
 	readonly rows: readonly WorkbenchSearchRowView[];
 }
 
+interface WorkbenchSearchProviderStatusView {
+	readonly id: string;
+	readonly message: string;
+	readonly onRetry?: (() => void) | undefined;
+	readonly phase: 'failed' | 'loading';
+}
+
 interface WorkbenchSearchSurfaceView {
 	readonly activeDescendant: string | undefined;
 	readonly dialogDescription: string;
@@ -70,22 +78,31 @@ interface WorkbenchSearchSurfaceView {
 	readonly footerBackOrClose: string;
 	readonly footerRun: string;
 	readonly footerSelect: string;
+	readonly inputElementRef: React.Ref<HTMLInputElement>;
 	readonly isPickingArgument: boolean;
 	readonly listId: string;
 	readonly liveMessage: string;
 	readonly onInputChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onInputKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
 	readonly onOpenChange: (open: boolean) => void;
+	readonly onPickerBack: React.MouseEventHandler<HTMLButtonElement>;
+	readonly onResultsScroll: React.UIEventHandler<HTMLDivElement>;
+	readonly pickerBackLabel: string;
 	readonly pickerPrompt: string | null;
 	readonly placeholder: string;
+	readonly providerStatuses: readonly WorkbenchSearchProviderStatusView[];
 	readonly query: string;
+	readonly retryLabel: string;
 	readonly resultCountAnnouncement: string;
+	readonly resultsElementRef: React.Ref<HTMLDivElement>;
 	readonly resultsLabel: string;
 	readonly sections: readonly WorkbenchSearchSectionView[];
+	readonly showEmpty: boolean;
 }
 
 export function useWorkbenchSearchSurface({
 	platform,
+	providers,
 	runtime,
 	scope,
 	state,
@@ -94,20 +111,32 @@ export function useWorkbenchSearchSurface({
 	const intl = useOrchbeeIntl();
 	const [liveMessage, setLiveMessage] = React.useState('');
 	const highlightedElement = React.useRef<HTMLDivElement | null>(null);
-	const catalog = React.useMemo(
-		() => projectWorkbenchSearchCatalog({ intl, platform, runtime, scope }),
-		[intl, platform, runtime, scope],
+	const inputElement = React.useRef<HTMLInputElement | null>(null);
+	const resultsElement = React.useRef<HTMLDivElement | null>(null);
+	const catalog = useWorkbenchSearchCatalog({ intl, platform, runtime, scope });
+	const providerView = useWorkbenchSearchProviders({
+		locale: intl.locale,
+		providers,
+		state,
+	});
+	const searchSnapshot = state.kind === 'browsing' ? state : state.parent;
+	const providerSections = React.useMemo(
+		() => providerView.runs.flatMap((run) => (run.phase === 'ready' ? run.sections : [])),
+		[providerView.runs],
+	);
+	const rankedBrowsingSections = React.useMemo(
+		() =>
+			selectWorkbenchSearchSections({
+				catalog,
+				filter: searchSnapshot.filter,
+				providerSections,
+				query: searchSnapshot.query,
+			}),
+		[catalog, providerSections, searchSnapshot],
 	);
 	const browsingSections = React.useMemo(
-		() =>
-			state.kind === 'browsing'
-				? selectWorkbenchSearchSections({
-						catalog,
-						filter: state.filter,
-						query: state.query,
-					})
-				: [],
-		[catalog, state],
+		() => (state.kind === 'browsing' ? rankedBrowsingSections : []),
+		[rankedBrowsingSections, state.kind],
 	);
 	const browsingResults = React.useMemo(
 		() => browsingSections.flatMap((section) => section.results),
@@ -115,7 +144,9 @@ export function useWorkbenchSearchSurface({
 	);
 	const pickerAction =
 		state.kind === 'picking-argument'
-			? (catalog.actionResults.find((result) => result.id === state.actionResultId) ?? null)
+			? (rankedBrowsingSections
+					.flatMap((section) => section.results)
+					.find((result) => result.id === state.actionResultId) ?? null)
 			: null;
 	const picker =
 		pickerAction?.invocation.kind === 'requires-input'
@@ -267,10 +298,43 @@ export function useWorkbenchSearchSurface({
 		update,
 	]);
 	const rows = sections.flatMap((section) => section.rows);
+	const providerStatuses =
+		state.kind === 'browsing'
+			? providerView.runs.flatMap<WorkbenchSearchProviderStatusView>((run) => {
+					if (run.phase === 'ready') {
+						return [];
+					}
+					const provider = providerView.providersById.get(run.providerId);
+					if (provider === undefined) {
+						return [];
+					}
+					return [
+						run.phase === 'loading'
+							? {
+									id: run.providerId,
+									message: intl.formatMessage(workbenchMessages.searchProviderLoading, {
+										provider: provider.label,
+									}),
+									phase: 'loading',
+								}
+							: {
+									id: run.providerId,
+									message: intl.formatMessage(workbenchMessages.searchProviderFailed, {
+										provider: provider.label,
+									}),
+									onRetry: () => providerView.retry(run.providerId),
+									phase: 'failed',
+								},
+					];
+				})
+			: [];
 
 	React.useEffect(() => {
+		if (resultsElement.current !== null) {
+			resultsElement.current.scrollTop = state.scrollTop;
+		}
 		highlightedElement.current?.scrollIntoView?.({ block: 'nearest' });
-	}, [highlightedResultId]);
+	}, [highlightedResultId, state.scrollTop]);
 
 	const filtersById = {
 		actions: intl.formatMessage(workbenchMessages.searchFilterActions),
@@ -346,6 +410,7 @@ export function useWorkbenchSearchSurface({
 		),
 		footerRun: intl.formatMessage(workbenchMessages.searchFooterRun),
 		footerSelect: intl.formatMessage(workbenchMessages.searchFooterSelect),
+		inputElementRef: inputElement,
 		isPickingArgument: state.kind === 'picking-argument',
 		listId,
 		liveMessage,
@@ -385,16 +450,28 @@ export function useWorkbenchSearchSurface({
 				update({ type: 'close' });
 			}
 		},
+		onPickerBack: (event) => {
+			event.preventDefault();
+			update({ type: 'back' });
+			queueMicrotask(() => inputElement.current?.focus());
+		},
+		onResultsScroll: (event) =>
+			update({ scrollTop: event.currentTarget.scrollTop, type: 'scroll-changed' }),
+		pickerBackLabel: intl.formatMessage(workbenchMessages.searchFooterBack),
 		pickerPrompt: picker?.prompt ?? null,
 		placeholder:
 			state.kind === 'picking-argument' && picker !== null
 				? picker.placeholder
 				: placeholders[filter],
+		providerStatuses,
 		query: state.query,
+		retryLabel: intl.formatMessage(workbenchMessages.searchProviderRetry),
 		resultCountAnnouncement: intl.formatMessage(workbenchMessages.searchResultsCount, {
 			count: rows.length,
 		}),
+		resultsElementRef: resultsElement,
 		resultsLabel: intl.formatMessage(workbenchMessages.searchResultsLabel),
 		sections,
+		showEmpty: sections.length === 0 && providerStatuses.length === 0,
 	};
 }

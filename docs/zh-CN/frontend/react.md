@@ -64,7 +64,8 @@ React 必须连接 Provider 或外部生命周期时，把集成隔离在一个�
 
 - `orchbee/one-function-per-tsx`：每个自有生产 `.tsx` 文件最多有一个顶层函数。
 - 该函数是唯一具名运行时导出，是 PascalCase 组件，并与文件名 stem 完全一致。
-- 嵌套回调、仅类型导出、常量和查找数据不占函数名额，但必须服务于组件的单一责任。
+- `orchbee/no-extra-runtime-declarations-in-tsx`：禁止其他顶层运行时声明。TSX 文件只能声明自己的组件函数，以及仅类型的 TypeScript interface 或 alias。
+- 嵌套回调不占函数名额。Import 和仅类型声明可以保留；常量、查找数据、class、运行时类枚举值和 namespace 必须移入所属 `.ts` 模块。
 - 子组件放入符号匹配的 PascalCase `.tsx` 文件，Presenter Hook 放入符号匹配的 `useHookName.ts` 文件。
 - 框架无关辅助模块对一个可调用导出使用准确 camelCase 函数名；无运行时符号拥有模块时使用按责任聚焦的 kebab-case 文件名。
 - 测试、Story 和签入的 shadcn 源码不受此限制。
@@ -85,8 +86,8 @@ React 必须连接 Provider 或外部生命周期时，把集成隔离在一个�
 | `components/` | 递归私有组件目录                                                                                       |
 | `contexts/`   | 只读能力 Context，或包含 State、动作、创建、Provider 和 selector Hook 的一个 Context 作用域 Store 模块 |
 | `hooks/`      | 行为、Presenter、动作和生命周期 Hook；绝不包装 Store selector Hook                                     |
-| `constants/`  | 只由组件拥有的静态值和有限配置                                                                         |
-| `types/`      | 子树多个文件共享的具名结构、union 和 enum                                                              |
+| `constants/`  | 组件拥有的会生成 JavaScript 的静态值、`as const` 类枚举对象、查找数据和有限配置                        |
+| `types/`      | 子树多个文件共享且会被擦除的 TypeScript interface、alias、结构和 union                                 |
 | `utils/`      | 只由组件拥有的框架无关纯辅助函数                                                                       |
 | `__tests__/`  | [`docs/TESTING.md`](../TESTING.md) 要求的单元测试                                                      |
 
@@ -97,6 +98,7 @@ React 必须连接 Provider 或外部生命周期时，把集成隔离在一个�
 - 只读能力 Context 传递稳定的不可变数据或函数，例如准备好的消息。它不拥有变化中的 UI 状态或无限制 mutation；当后代共享会变化的功能状态时，使用 Context 作用域 Store 契约。
 - Context Store 和 `use<ComponentName>Store(selector)` 保留在 `contexts/` 下的同一模块；绝不增加转发用 `hooks/useFilterableListStore.ts`。
 - 单个组件使用的 Props 保留在其 `.tsx`；只有共享或有独立含义的数据才使用 `types/`。
+- 所有 TypeScript 擦除后仍存在的值都不得放入 `types/`；组件自有的运行时常量放入 `constants/`。原生 TypeScript enum 继续受 `erasableSyntaxOnly` 禁止。
 - 可选 CSS Module 保留在导入它的 `.tsx` 旁边；不得创建 `styles/`。
 - Story 遵循 [`storybook.md`](storybook.md) 的所属工作区顶层 `stories/` 契约。
 - 签入的 shadcn 源码不受此限制。

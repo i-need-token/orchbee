@@ -10,6 +10,7 @@ import type {
 	WorkbenchSearchEvent,
 	WorkbenchSearchState,
 } from '../../model/workbench-search-state';
+import type { WorkbenchSearchProvider } from '../../../../types/workbench-search-provider';
 import { useWorkbenchSearchSurface } from '../useWorkbenchSearchSurface';
 
 const browsingState: Exclude<WorkbenchSearchState, { readonly kind: 'closed' }> = {
@@ -19,8 +20,10 @@ const browsingState: Exclude<WorkbenchSearchState, { readonly kind: 'closed' }> 
 	nextSessionId: 2,
 	query: '',
 	queryRevision: 0,
+	scrollTop: 0,
 	sessionId: 1,
 };
+const providers: readonly WorkbenchSearchProvider[] = [];
 
 function I18nWrapper({ children }: { readonly children: ReactNode }) {
 	return createElement(OrchbeeI18nProvider, { locale: 'en-US' }, children);
@@ -54,6 +57,7 @@ describe('useWorkbenchSearchSurface', () => {
 			() =>
 				useWorkbenchSearchSurface({
 					platform: 'apple',
+					providers,
 					runtime,
 					scope,
 					state: browsingState,

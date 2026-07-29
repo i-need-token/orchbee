@@ -69,7 +69,7 @@ Agents can launch and control browsers directly from the terminal, inspect pages
 <details>
 <summary>Build and verify from source</summary>
 
-**Prerequisites:** Node.js >=22, Corepack, Git
+**Prerequisites:** Node.js >=22, Java >=17, Corepack, Git
 
 ```bash
 git clone https://github.com/orchbee/orchbee.git

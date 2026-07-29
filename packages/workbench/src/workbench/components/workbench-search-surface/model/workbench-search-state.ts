@@ -5,6 +5,7 @@ interface WorkbenchSearchSnapshot {
 	readonly highlightedResultId: string | null;
 	readonly query: string;
 	readonly queryRevision: number;
+	readonly scrollTop: number;
 }
 
 export type WorkbenchSearchState =
@@ -25,6 +26,7 @@ export type WorkbenchSearchState =
 			readonly parent: WorkbenchSearchSnapshot;
 			readonly query: string;
 			readonly queryRevision: number;
+			readonly scrollTop: number;
 			readonly sessionId: number;
 	  };
 
@@ -40,6 +42,7 @@ export type WorkbenchSearchEvent =
 	  }
 	| { readonly direction: -1 | 1; readonly resultIds: readonly string[]; readonly type: 'move' }
 	| { readonly resultId: string; readonly type: 'highlight' }
+	| { readonly scrollTop: number; readonly type: 'scroll-changed' }
 	| { readonly actionResultId: string; readonly type: 'start-argument-picker' }
 	| { readonly type: 'back' };
 
@@ -60,6 +63,7 @@ export function transitionWorkbenchSearch(
 				nextSessionId: state.nextSessionId + 1,
 				query: '',
 				queryRevision: 0,
+				scrollTop: 0,
 				sessionId: state.nextSessionId,
 			};
 		case 'close':
@@ -70,6 +74,7 @@ export function transitionWorkbenchSearch(
 						...state,
 						filter: event.filter,
 						queryRevision: state.queryRevision + 1,
+						scrollTop: 0,
 					}
 				: state;
 		case 'query-changed':
@@ -80,6 +85,7 @@ export function transitionWorkbenchSearch(
 				...state,
 				query: event.query,
 				queryRevision: state.queryRevision + 1,
+				scrollTop: 0,
 			};
 		case 'results-changed':
 			if (state.kind === 'closed') {
@@ -107,6 +113,10 @@ export function transitionWorkbenchSearch(
 			};
 		case 'highlight':
 			return state.kind === 'closed' ? state : { ...state, highlightedResultId: event.resultId };
+		case 'scroll-changed':
+			return state.kind === 'closed' || event.scrollTop === state.scrollTop
+				? state
+				: { ...state, scrollTop: Math.max(0, event.scrollTop) };
 		case 'start-argument-picker':
 			return state.kind !== 'browsing'
 				? state
@@ -120,9 +130,11 @@ export function transitionWorkbenchSearch(
 							highlightedResultId: state.highlightedResultId,
 							query: state.query,
 							queryRevision: state.queryRevision,
+							scrollTop: state.scrollTop,
 						},
 						query: '',
 						queryRevision: state.queryRevision + 1,
+						scrollTop: 0,
 						sessionId: state.sessionId,
 					};
 		case 'back':

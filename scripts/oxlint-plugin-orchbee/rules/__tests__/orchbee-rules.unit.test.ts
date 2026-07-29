@@ -6,6 +6,7 @@ import { componentDirectory } from '../component-directory';
 import { filenameNamingConvention } from '../filename-naming-convention';
 import { moduleBoundaries } from '../module-boundaries';
 import { noCrossWorkspaceSourceImports } from '../no-cross-workspace-source-imports';
+import { noExtraRuntimeDeclarationsInTsx } from '../no-extra-runtime-declarations-in-tsx';
 import { noInlineSuppressions } from '../no-inline-suppressions';
 import { noReactHooksInTsx } from '../no-react-hooks-in-tsx';
 import { noReactUseCallback } from '../no-react-use-callback';
@@ -962,6 +963,171 @@ describe('one-function-per-tsx', () => {
 		visitors['Program:exit']({ type: 'Program', loc: LOCATION });
 
 		expect(reports[0]?.message).toContain('to kebab-case');
+	});
+});
+
+describe('no-extra-runtime-declarations-in-tsx', () => {
+	it('rejects an additional top-level constant in authored production TSX', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/workbench/Workbench.tsx',
+		);
+		const program = { type: 'Program', body: [], loc: LOCATION };
+		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
+		const component = {
+			type: 'FunctionDeclaration',
+			parent: exportDeclaration,
+			id: { type: 'Identifier', name: 'Workbench', loc: LOCATION },
+		};
+		const constant = {
+			type: 'VariableDeclaration',
+			parent: program,
+			declarations: [
+				{
+					type: 'VariableDeclarator',
+					id: { type: 'Identifier', name: 'EMPTY_PROVIDERS', loc: LOCATION },
+				},
+			],
+		};
+		program.body = [constant, exportDeclaration];
+		const visitors = noExtraRuntimeDeclarationsInTsx.create(context);
+
+		visitors.FunctionDeclaration(component);
+		visitors['Program:exit'](program);
+
+		expect(reports).toHaveLength(1);
+		expect(reports[0]?.message).toContain('constants/');
+		expect(reports[0]?.message).toContain('docs/frontend/react.md#tsx-file-boundary');
+	});
+
+	it('accepts the component function and type-only declarations', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/workbench/Workbench.tsx',
+		);
+		const program = { type: 'Program', body: [], loc: LOCATION };
+		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
+		const component = {
+			type: 'FunctionDeclaration',
+			parent: exportDeclaration,
+			id: { type: 'Identifier', name: 'Workbench', loc: LOCATION },
+		};
+		const props = {
+			type: 'TSInterfaceDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'WorkbenchProps', loc: LOCATION },
+		};
+		const state = {
+			type: 'TSTypeAliasDeclaration',
+			parent: program,
+			id: { type: 'Identifier', name: 'WorkbenchState', loc: LOCATION },
+		};
+		program.body = [props, state, exportDeclaration];
+		const visitors = noExtraRuntimeDeclarationsInTsx.create(context);
+
+		visitors.FunctionDeclaration(component);
+		visitors['Program:exit'](program);
+
+		expect(reports).toEqual([]);
+	});
+
+	it('accepts a variable-bound component as the sole variable declaration', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/workbench/Workbench.tsx',
+		);
+		const program = { type: 'Program', body: [], loc: LOCATION };
+		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
+		const variableDeclaration = {
+			type: 'VariableDeclaration',
+			parent: exportDeclaration,
+			declarations: [
+				{
+					type: 'VariableDeclarator',
+					id: { type: 'Identifier', name: 'Workbench', loc: LOCATION },
+				},
+			],
+		};
+		const component = {
+			type: 'ArrowFunctionExpression',
+			parent: variableDeclaration.declarations[0],
+			loc: LOCATION,
+		};
+		variableDeclaration.declarations[0].parent = variableDeclaration;
+		variableDeclaration.declarations[0].init = component;
+		exportDeclaration.declaration = variableDeclaration;
+		program.body = [exportDeclaration];
+		const visitors = noExtraRuntimeDeclarationsInTsx.create(context);
+
+		visitors.ArrowFunctionExpression(component);
+		visitors['Program:exit'](program);
+
+		expect(reports).toEqual([]);
+	});
+
+	it('rejects another binding beside a variable-bound component', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/workbench/Workbench.tsx',
+		);
+		const program = { type: 'Program', body: [], loc: LOCATION };
+		const exportDeclaration = { type: 'ExportNamedDeclaration', parent: program };
+		const variableDeclaration = {
+			type: 'VariableDeclaration',
+			parent: exportDeclaration,
+			declarations: [
+				{
+					type: 'VariableDeclarator',
+					id: { type: 'Identifier', name: 'Workbench', loc: LOCATION },
+				},
+				{
+					type: 'VariableDeclarator',
+					id: { type: 'Identifier', name: 'EMPTY_PROVIDERS', loc: LOCATION },
+				},
+			],
+		};
+		const component = {
+			type: 'ArrowFunctionExpression',
+			parent: variableDeclaration.declarations[0],
+			loc: LOCATION,
+		};
+		for (const declarator of variableDeclaration.declarations) {
+			declarator.parent = variableDeclaration;
+		}
+		variableDeclaration.declarations[0].init = component;
+		exportDeclaration.declaration = variableDeclaration;
+		program.body = [exportDeclaration];
+		const visitors = noExtraRuntimeDeclarationsInTsx.create(context);
+
+		visitors.ArrowFunctionExpression(component);
+		visitors['Program:exit'](program);
+
+		expect(reports).toHaveLength(1);
+	});
+
+	it('rejects runtime class, enum, and namespace declarations', () => {
+		const { context, reports } = createContext(
+			'/workspace/packages/workbench/src/workbench/Workbench.tsx',
+		);
+		const program = {
+			type: 'Program',
+			loc: LOCATION,
+			body: ['ClassDeclaration', 'TSEnumDeclaration', 'TSModuleDeclaration'].map((type) => ({
+				type,
+				id: { type: 'Identifier', name: 'RuntimeValue', loc: LOCATION },
+			})),
+		};
+		const visitors = noExtraRuntimeDeclarationsInTsx.create(context);
+
+		visitors['Program:exit'](program);
+
+		expect(reports).toHaveLength(3);
+	});
+
+	it('does not govern tests, Stories, or checked-in generated source through configuration', () => {
+		for (const filename of [
+			'/workspace/packages/workbench/src/workbench/__tests__/Workbench.unit.test.tsx',
+			'/workspace/packages/workbench/stories/workbench.stories.tsx',
+		]) {
+			const { context } = createContext(filename);
+			expect(noExtraRuntimeDeclarationsInTsx.create(context)).toEqual({});
+		}
 	});
 });
 

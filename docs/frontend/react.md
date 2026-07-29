@@ -74,7 +74,8 @@ Props remain the default for shallow ownership. Intermediate layout components n
 
 - `orchbee/one-function-per-tsx`: Each authored production `.tsx` file has at most one top-level function.
 - That function is the sole named runtime export, is a PascalCase component, and exactly matches the filename stem.
-- Nested callbacks, type-only exports, constants, and lookup data do not consume the function slot but must support the component's single responsibility.
+- `orchbee/no-extra-runtime-declarations-in-tsx`: Other top-level runtime declarations are forbidden. A TSX file may declare only its component function and type-only TypeScript interfaces or aliases.
+- Nested callbacks do not consume the function slot. Imports and type-only declarations may remain; move constants, lookup data, classes, runtime enum-like values, and namespaces to an owned `.ts` module.
 - Put a child component in a symbol-matched PascalCase `.tsx` file and a presenter Hook in a symbol-matched `useHookName.ts` file.
 - Framework-independent helpers use the exact camelCase function name for one callable export or a responsibility-focused kebab-case filename when no runtime symbol owns the module.
 - Tests, Stories, and checked-in shadcn source are exempt.
@@ -90,15 +91,15 @@ Props remain the default for shallow ownership. Intermediate layout components n
 
 Create a support directory only with concrete owned contents:
 
-| Directory     | Allowed component-owned contents                                                                                             |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `components/` | Recursive private component directories                                                                                      |
-| `contexts/`   | Read-only capability Contexts, or one Context-scoped Store module with State, actions, creation, Provider, and selector Hook |
-| `hooks/`      | Behavior, presenter, action, and lifecycle Hooks; never a wrapper around the Store selector Hook                             |
-| `constants/`  | Static values and finite configuration owned only by the component                                                           |
-| `types/`      | Named structures, unions, and enums shared by multiple files in the subtree                                                  |
-| `utils/`      | Framework-independent pure helpers owned only by the component                                                               |
-| `__tests__/`  | Unit tests required by [`docs/TESTING.md`](../TESTING.md)                                                                    |
+| Directory     | Allowed component-owned contents                                                                                              |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `components/` | Recursive private component directories                                                                                       |
+| `contexts/`   | Read-only capability Contexts, or one Context-scoped Store module with State, actions, creation, Provider, and selector Hook  |
+| `hooks/`      | Behavior, presenter, action, and lifecycle Hooks; never a wrapper around the Store selector Hook                              |
+| `constants/`  | JavaScript-emitting static values, `as const` enum-like objects, lookup data, and finite configuration owned by the component |
+| `types/`      | Erased TypeScript interfaces, aliases, structures, and unions shared by multiple files in the subtree                         |
+| `utils/`      | Framework-independent pure helpers owned only by the component                                                                |
+| `__tests__/`  | Unit tests required by [`docs/TESTING.md`](../TESTING.md)                                                                     |
 
 - Keep resources shared by sibling trees at their nearest common owner; keep cross-feature workflows, external integrations, and contracts in the owning source module.
 - Do not add barrels inside private or support directories; promote the full tree when another module needs it.
@@ -107,6 +108,7 @@ Create a support directory only with concrete owned contents:
 - A read-only capability Context carries stable immutable data or functions, such as prepared messages. It owns no evolving UI state or unrestricted mutation; use the Context-scoped Store contract when descendants share changing feature state.
 - Keep a Context Store and `use<ComponentName>Store(selector)` in one module under `contexts/`; never add a forwarding `hooks/useFilterableListStore.ts`.
 - Keep Props used by one component in its `.tsx`; use `types/` only for shared or independently meaningful data.
+- Keep every value that survives TypeScript erasure out of `types/`; place component-owned runtime constants in `constants/`. Native TypeScript enums remain forbidden by `erasableSyntaxOnly`.
 - Keep an optional CSS Module beside its importing `.tsx`; do not create `styles/`.
 - Stories live under the owning workspace's top-level `stories/` contract in [`storybook.md`](storybook.md).
 - Checked-in shadcn source is exempt.

@@ -1,34 +1,16 @@
-import type {
-	ActionAvailability,
-	PreparedActionInvocation,
-	UnboundActionInvocation,
-} from '@orchbee/actions';
+import type { ActionAvailability } from '@orchbee/actions';
 import type { ProductIconName } from '@orchbee/ui/components';
+import type {
+	WorkbenchSearchProviderArgumentOption,
+	WorkbenchSearchProviderArgumentPicker,
+	WorkbenchSearchProviderResultInvocation,
+} from '../../../types/workbench-search-provider';
 
-export interface WorkbenchSearchArgumentOption {
-	readonly description?: string | undefined;
-	readonly id: string;
-	readonly input: unknown;
-	readonly keywords: readonly string[];
-	readonly label: string;
-}
+export type WorkbenchSearchArgumentOption = WorkbenchSearchProviderArgumentOption;
 
-export interface WorkbenchSearchArgumentPicker {
-	readonly options: readonly WorkbenchSearchArgumentOption[];
-	readonly placeholder: string;
-	readonly prompt: string;
-}
+export type WorkbenchSearchArgumentPicker = WorkbenchSearchProviderArgumentPicker;
 
-type WorkbenchSearchResultInvocation =
-	| {
-			readonly kind: 'ready';
-			readonly prepared: PreparedActionInvocation;
-	  }
-	| {
-			readonly kind: 'requires-input';
-			readonly picker?: WorkbenchSearchArgumentPicker | undefined;
-			readonly unbound: UnboundActionInvocation;
-	  };
+type WorkbenchSearchResultInvocation = WorkbenchSearchProviderResultInvocation;
 
 export interface WorkbenchSearchResult {
 	readonly actionId: string;
@@ -43,10 +25,12 @@ export interface WorkbenchSearchResult {
 	readonly invocation: WorkbenchSearchResultInvocation;
 	readonly keywords: readonly string[];
 	readonly label: string;
-	readonly providerId: 'actions' | 'settings';
+	readonly providerId: string;
+	readonly providerPriority?: number | undefined;
 	readonly recommended: boolean;
 	readonly shortcut?: string | undefined;
 	readonly surfaceDisabledReason?: string | undefined;
+	readonly visibility?: 'always' | 'when-no-results' | undefined;
 }
 
 export interface WorkbenchSearchSection {

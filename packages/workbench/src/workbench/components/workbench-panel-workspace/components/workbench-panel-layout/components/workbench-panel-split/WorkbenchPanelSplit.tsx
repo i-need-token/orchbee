@@ -3,6 +3,12 @@ import * as React from 'react';
 
 import type { PanelLayoutNode, PanelSplit } from '../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../types/panel-workspace-view';
+import {
+	DISABLED_SEPARATOR_KEYS,
+	MINIMUM_PANEL_SIZE_PX,
+	PANEL_RESIZE_TARGET_SIZE_PX,
+	RESIZE_ARROW_KEYS,
+} from './constants/panel-resize';
 import { useAdjacentPanelResize } from './hooks/useAdjacentPanelResize';
 import { getPanelSeparatorIndexAtPoint } from './utils/getPanelSeparatorIndexAtPoint';
 import { getPanelResizeId } from './utils/getPanelResizeId';
@@ -14,17 +20,6 @@ interface WorkbenchPanelSplitProps {
 	readonly split: PanelSplit;
 	readonly view: WorkbenchPanelWorkspaceView;
 }
-
-const MINIMUM_PANEL_SIZE_PX = 30;
-const PANEL_RESIZE_TARGET_SIZE_PX = {
-	coarse: 20,
-	fine: 10,
-} as const;
-const DISABLED_SEPARATOR_KEYS = new Set(['End', 'Enter', 'F6', 'Home']);
-const RESIZE_ARROW_KEYS = {
-	horizontal: new Set(['ArrowLeft', 'ArrowRight']),
-	vertical: new Set(['ArrowDown', 'ArrowUp']),
-} as const satisfies Readonly<Record<PanelSplit['orientation'], ReadonlySet<string>>>;
 
 export function WorkbenchPanelSplit({
 	renderNode,

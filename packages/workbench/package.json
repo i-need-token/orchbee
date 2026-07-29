@@ -31,8 +31,10 @@
 		"build": "rslib build",
 		"dev": "rslib build --watch",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run",
+		"test": "pnpm test:unit && pnpm test:tla",
+		"test:unit": "vitest run",
 		"test:watch": "vitest",
+		"test:tla": "node scripts/run-tla.mjs",
 		"test:exports": "node ../../scripts/check-package-exports.mjs ."
 	},
 	"dependencies": {

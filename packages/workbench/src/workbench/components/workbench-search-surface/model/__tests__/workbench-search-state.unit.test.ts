@@ -84,6 +84,7 @@ describe('Workbench search state', () => {
 			resultIds: ['orientation'],
 			type: 'results-changed',
 		});
+		state = transitionWorkbenchSearch(state, { scrollTop: 128, type: 'scroll-changed' });
 		state = transitionWorkbenchSearch(state, {
 			actionResultId: 'orientation',
 			type: 'start-argument-picker',
@@ -100,6 +101,7 @@ describe('Workbench search state', () => {
 			kind: 'browsing',
 			query: 'tabs',
 			queryRevision: 1,
+			scrollTop: 128,
 		});
 	});
 });

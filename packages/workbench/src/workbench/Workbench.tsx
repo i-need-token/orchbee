@@ -13,6 +13,7 @@ import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSideba
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
+import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
 import type {
@@ -20,6 +21,7 @@ import type {
 	WorkbenchTerminalCreateCallback,
 } from './types/workbench-host-actions';
 import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
+import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
 import styles from './Workbench.module.css';
 
 export interface WorkbenchProps {
@@ -28,6 +30,7 @@ export interface WorkbenchProps {
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly onNewTerminal?: WorkbenchTerminalCreateCallback | undefined;
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
+	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly tabModel: TabModel;
 }
@@ -38,6 +41,7 @@ export function Workbench({
 	layoutStorage,
 	onNewTerminal,
 	onSettings,
+	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutPlatform,
 	tabModel,
 }: WorkbenchProps): React.ReactNode {
@@ -133,6 +137,7 @@ export function Workbench({
 				<WorkbenchSearchSurface
 					actionRuntime={actionRuntime}
 					actionScope={view.actionScope}
+					providers={searchProviders}
 					shortcutPlatform={shortcutPlatform}
 					state={view.searchState}
 					update={view.updateSearch}

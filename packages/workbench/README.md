@@ -32,6 +32,9 @@ read models and Action registrations. The machine-readable scope contract lives 
 
 ## Unified search
 
+The maintained behavior, ownership, transition, and correctness model lives in
+[`docs/unified-search.md`](docs/unified-search.md).
+
 The sidebar Search control and `Mod+K` open one upper-viewport modal with the `All` filter and an
 empty query. `Mod+Shift+P` opens the same surface with the `Actions` filter. Each global open starts
 a new in-memory session; switching among `All`, `Agents`, `Actions`, and `Settings` preserves the
@@ -289,6 +292,10 @@ Workbench owns `Mod+B` for `workbench.sidebar.toggle`, `Mod+N` for
 missing host capabilities remain visible but disabled.
 
 ## Development
+
+The unified-search model check requires Java 17 or newer. The test runner downloads the pinned
+TLA+ `1.7.4` tool JAR when absent and verifies its SHA-1 before execution. CI provisions the same
+Java major explicitly.
 
 ```sh
 pnpm --filter @orchbee/workbench... build

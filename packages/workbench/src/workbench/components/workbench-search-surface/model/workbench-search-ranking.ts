@@ -9,6 +9,7 @@ import type {
 interface SelectWorkbenchSearchSectionsOptions {
 	readonly catalog: WorkbenchSearchCatalog;
 	readonly filter: WorkbenchSearchFilter;
+	readonly providerSections?: readonly WorkbenchSearchSection[] | undefined;
 	readonly query: string;
 	readonly recentResultIds?: readonly string[] | undefined;
 }
@@ -16,20 +17,20 @@ interface SelectWorkbenchSearchSectionsOptions {
 export function selectWorkbenchSearchSections({
 	catalog,
 	filter,
+	providerSections = [],
 	query,
 	recentResultIds = [],
 }: SelectWorkbenchSearchSectionsOptions): readonly WorkbenchSearchSection[] {
-	if (filter === 'agents') {
-		return [];
-	}
 	const normalizedQuery = normalizeSearchText(query);
-	let results: readonly WorkbenchSearchResult[];
+	let localResults: readonly WorkbenchSearchResult[];
 	if (filter === 'settings') {
-		results = catalog.settingsResults;
+		localResults = catalog.settingsResults;
 	} else if (filter === 'actions') {
-		results = catalog.actionResults;
+		localResults = catalog.actionResults;
+	} else if (filter === 'agents') {
+		localResults = [];
 	} else if (normalizedQuery.length === 0) {
-		results = [
+		localResults = [
 			...catalog.actionResults
 				.filter((result) => result.recommended)
 				.map((result) => ({
@@ -41,7 +42,7 @@ export function selectWorkbenchSearchSections({
 			...catalog.settingsResults,
 		];
 	} else {
-		results = [
+		localResults = [
 			...catalog.actionResults.filter(
 				(result) =>
 					!catalog.settingsResults.some((setting) => setting.actionId === result.actionId),
@@ -50,9 +51,19 @@ export function selectWorkbenchSearchSections({
 		];
 	}
 
-	const matching = results
+	const results = [...localResults, ...providerSections.flatMap((section) => section.results)];
+	const ordinaryMatching = results
+		.filter((result) => result.visibility !== 'when-no-results')
 		.filter((result) => matchSearchResult(result, normalizedQuery) !== null)
 		.sort((left, right) => compareSearchResults(left, right, normalizedQuery, recentResultIds));
+	const matching =
+		ordinaryMatching.length > 0
+			? ordinaryMatching
+			: results
+					.filter((result) => result.visibility === 'when-no-results')
+					.sort((left, right) =>
+						compareSearchResults(left, right, normalizedQuery, recentResultIds),
+					);
 	const groups = new Map<string, WorkbenchSearchSection>();
 	for (const result of matching) {
 		const current = groups.get(result.groupId);
@@ -63,9 +74,12 @@ export function selectWorkbenchSearchSections({
 			results: current === undefined ? [result] : [...current.results, result],
 		});
 	}
-	return [...groups.values()].sort(
-		(left, right) => left.order - right.order || compareStableText(left.id, right.id),
-	);
+	const sections = [...groups.values()];
+	return normalizedQuery.length === 0
+		? sections.sort(
+				(left, right) => left.order - right.order || compareStableText(left.id, right.id),
+			)
+		: sections;
 }
 
 export function filterWorkbenchSearchArgumentOptions(
@@ -122,6 +136,10 @@ function compareSearchResults(
 		if (leftRecency === -1) return 1;
 		if (rightRecency === -1) return -1;
 		return leftRecency - rightRecency;
+	}
+	const priorityDifference = (left.providerPriority ?? 0) - (right.providerPriority ?? 0);
+	if (priorityDifference !== 0) {
+		return priorityDifference;
 	}
 	return compareStableText(left.id, right.id);
 }

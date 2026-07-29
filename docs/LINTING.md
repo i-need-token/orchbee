@@ -35,29 +35,30 @@
 
 ## Generated source
 
-| Scope                    | Contract                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Snapshot                 | Keep `packages/ui/src/components/ui/*.tsx` and the generated `use-mobile.ts` close to the upstream shadcn registry so CLI refreshes remain reviewable.                                                                                                                                                                                                                         |
-| Authoring exceptions     | A path-scoped override exempts explicit module-boundary return types, assertion, shadowing, equality and nested-ternary style, component grouping, direct React Hook calls in TSX, one-function TSX and one-Hook file boundaries, `use-mobile.ts` unique-symbol filename matching, and sibling tests. The automatic JSX runtime makes `react/react-in-jsx-scope` inapplicable. |
-| Active correctness rules | React Hooks, JSX keys, module boundaries, cross-workspace imports, unsafe TypeScript constructs, and inline suppression bans remain active.                                                                                                                                                                                                                                    |
-| `ChartStyle`             | Its upstream-controlled style element is the only additional exception; [`docs/frontend/react.md`](frontend/react.md#correctness-and-safety) owns the constraint.                                                                                                                                                                                                              |
-| Orchbee-authored modules | Never extend generated-source overrides to them.                                                                                                                                                                                                                                                                                                                               |
-| Upstream refresh         | Review every refresh, preserve focused compatibility adaptations, and test Orchbee-owned behavior and integrations.                                                                                                                                                                                                                                                            |
+| Scope                    | Contract                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Snapshot                 | Keep `packages/ui/src/components/ui/*.tsx` and the generated `use-mobile.ts` close to the upstream shadcn registry so CLI refreshes remain reviewable.                                                                                                                                                                                                                                                         |
+| Authoring exceptions     | A path-scoped override exempts explicit module-boundary return types, assertion, shadowing, equality and nested-ternary style, component grouping, direct React Hook calls in TSX, extra TSX runtime declarations, one-function TSX and one-Hook file boundaries, `use-mobile.ts` unique-symbol filename matching, and sibling tests. The automatic JSX runtime makes `react/react-in-jsx-scope` inapplicable. |
+| Active correctness rules | React Hooks, JSX keys, module boundaries, cross-workspace imports, unsafe TypeScript constructs, and inline suppression bans remain active.                                                                                                                                                                                                                                                                    |
+| `ChartStyle`             | Its upstream-controlled style element is the only additional exception; [`docs/frontend/react.md`](frontend/react.md#correctness-and-safety) owns the constraint.                                                                                                                                                                                                                                              |
+| Orchbee-authored modules | Never extend generated-source overrides to them.                                                                                                                                                                                                                                                                                                                                                               |
+| Upstream refresh         | Review every refresh, preserve focused compatibility adaptations, and test Orchbee-owned behavior and integrations.                                                                                                                                                                                                                                                                                            |
 
 ## Custom rule ownership
 
-| Rule                                        | Authority                                             |
-| ------------------------------------------- | ----------------------------------------------------- |
-| `orchbee/component-directory`               | `docs/frontend/react.md#component-directory-boundary` |
-| `orchbee/filename-naming-convention`        | `docs/TESTING.md#source-and-test-paths`               |
-| `orchbee/module-boundaries`                 | `docs/MODULE-BOUNDARIES.md#module-boundaries`         |
-| `orchbee/no-cross-workspace-source-imports` | `docs/ARCHITECTURE.md#package-boundaries`             |
-| `orchbee/no-inline-suppressions`            | `docs/CODESTYLE.md#inline-suppressions`               |
-| `orchbee/no-react-hooks-in-tsx`             | `docs/frontend/react.md#component-hook-boundary`      |
-| `orchbee/no-react-use-callback`             | `docs/frontend/react.md#callback-identity`            |
-| `orchbee/one-function-per-tsx`              | `docs/frontend/react.md#tsx-file-boundary`            |
-| `orchbee/one-hook-per-file`                 | `docs/frontend/react.md#hook-file-boundary`           |
-| `orchbee/require-unit-test`                 | `docs/TESTING.md#required-unit-tests`                 |
-| `orchbee/zustand-scope`                     | `docs/frontend/react.md#zustand-and-context`          |
+| Rule                                           | Authority                                             |
+| ---------------------------------------------- | ----------------------------------------------------- |
+| `orchbee/component-directory`                  | `docs/frontend/react.md#component-directory-boundary` |
+| `orchbee/filename-naming-convention`           | `docs/TESTING.md#source-and-test-paths`               |
+| `orchbee/module-boundaries`                    | `docs/MODULE-BOUNDARIES.md#module-boundaries`         |
+| `orchbee/no-cross-workspace-source-imports`    | `docs/ARCHITECTURE.md#package-boundaries`             |
+| `orchbee/no-extra-runtime-declarations-in-tsx` | `docs/frontend/react.md#tsx-file-boundary`            |
+| `orchbee/no-inline-suppressions`               | `docs/CODESTYLE.md#inline-suppressions`               |
+| `orchbee/no-react-hooks-in-tsx`                | `docs/frontend/react.md#component-hook-boundary`      |
+| `orchbee/no-react-use-callback`                | `docs/frontend/react.md#callback-identity`            |
+| `orchbee/one-function-per-tsx`                 | `docs/frontend/react.md#tsx-file-boundary`            |
+| `orchbee/one-hook-per-file`                    | `docs/frontend/react.md#hook-file-boundary`           |
+| `orchbee/require-unit-test`                    | `docs/TESTING.md#required-unit-tests`                 |
+| `orchbee/zustand-scope`                        | `docs/frontend/react.md#zustand-and-context`          |
 
 Every custom-rule change updates its implementation, authority, diagnostic, and regression test together.

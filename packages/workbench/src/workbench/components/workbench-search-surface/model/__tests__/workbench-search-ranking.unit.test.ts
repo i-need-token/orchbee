@@ -92,6 +92,82 @@ describe('Workbench search ranking', () => {
 		).toHaveLength(1);
 	});
 
+	it('ranks provider results independently from completion order', () => {
+		const catalog: WorkbenchSearchCatalog = {
+			actionResults: [],
+			recommendedGroupLabel: 'Recommended Actions',
+			settingsResults: [],
+		};
+		const first = {
+			id: 'first',
+			label: 'First',
+			order: 20,
+			results: [
+				result('provider-z', 'Run', {
+					groupId: 'first',
+					groupLabel: 'First',
+					providerId: 'z',
+					providerPriority: 20,
+				}),
+			],
+		};
+		const second = {
+			id: 'second',
+			label: 'Second',
+			order: 20,
+			results: [
+				result('provider-a', 'Run', {
+					groupId: 'second',
+					groupLabel: 'Second',
+					providerId: 'a',
+					providerPriority: 10,
+				}),
+			],
+		};
+		const selectIds = (providerSections: readonly (typeof first)[]) =>
+			selectWorkbenchSearchSections({
+				catalog,
+				filter: 'all',
+				providerSections,
+				query: 'run',
+			}).flatMap((section) => section.results.map((item) => item.id));
+
+		expect(selectIds([first, second])).toEqual(['provider-a', 'provider-z']);
+		expect(selectIds([second, first])).toEqual(['provider-a', 'provider-z']);
+	});
+
+	it('shows a provider fallback only when no ordinary result matches', () => {
+		const catalog: WorkbenchSearchCatalog = {
+			actionResults: [result('local', 'Settings')],
+			recommendedGroupLabel: 'Recommended Actions',
+			settingsResults: [],
+		};
+		const fallback = result('fallback', 'Ask Agent', {
+			groupId: 'agents',
+			groupLabel: 'Agents',
+			providerId: 'agents',
+			visibility: 'when-no-results',
+		});
+		const providerSections = [{ id: 'agents', label: 'Agents', order: 20, results: [fallback] }];
+
+		expect(
+			selectWorkbenchSearchSections({
+				catalog,
+				filter: 'all',
+				providerSections,
+				query: 'settings',
+			}).flatMap((section) => section.results.map((item) => item.id)),
+		).toEqual(['local']);
+		expect(
+			selectWorkbenchSearchSections({
+				catalog,
+				filter: 'all',
+				providerSections,
+				query: 'unknown',
+			}).flatMap((section) => section.results.map((item) => item.id)),
+		).toEqual(['fallback']);
+	});
+
 	it('keeps disabled rows searchable and filters nested argument options', () => {
 		const disabled = result('disabled', 'Split panel', {
 			surfaceDisabledReason: 'Open a panel first',

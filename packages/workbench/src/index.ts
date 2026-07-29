@@ -7,6 +7,13 @@ export type {
 	WorkbenchShortcutPlatform,
 	WorkbenchSearchFilter,
 	WorkbenchSearchOpenInput,
+	WorkbenchSearchProvider,
+	WorkbenchSearchProviderArgumentOption,
+	WorkbenchSearchProviderArgumentPicker,
+	WorkbenchSearchProviderContext,
+	WorkbenchSearchProviderResult,
+	WorkbenchSearchProviderResultInvocation,
+	WorkbenchSearchProviderSection,
 	WorkbenchTerminalCreateCallback,
 	WorkbenchTerminalCreateInput,
 } from './workbench';

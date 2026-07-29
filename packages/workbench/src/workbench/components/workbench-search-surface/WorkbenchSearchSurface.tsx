@@ -2,7 +2,9 @@ import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import { Dialog, DialogContent, Kbd, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
+import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from '../../constants/search-providers';
 import type { WorkbenchShortcutPlatform } from '../../types/workbench-shortcut-platform';
+import type { WorkbenchSearchProvider } from '../../types/workbench-search-provider';
 import type { WorkbenchSearchEvent, WorkbenchSearchState } from './model/workbench-search-state';
 import { useWorkbenchSearchSurface } from './hooks/useWorkbenchSearchSurface';
 import styles from './WorkbenchSearchSurface.module.css';
@@ -10,6 +12,7 @@ import styles from './WorkbenchSearchSurface.module.css';
 interface WorkbenchSearchSurfaceProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly actionScope: ActionScope;
+	readonly providers?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly state: Exclude<WorkbenchSearchState, { readonly kind: 'closed' }>;
 	readonly update: React.Dispatch<WorkbenchSearchEvent>;
@@ -18,12 +21,14 @@ interface WorkbenchSearchSurfaceProps {
 export function WorkbenchSearchSurface({
 	actionRuntime,
 	actionScope,
+	providers = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutPlatform,
 	state,
 	update,
 }: WorkbenchSearchSurfaceProps): React.ReactNode {
 	const view = useWorkbenchSearchSurface({
 		platform: shortcutPlatform,
+		providers,
 		runtime: actionRuntime,
 		scope: actionScope,
 		state,
@@ -52,6 +57,7 @@ export function WorkbenchSearchSurface({
 						className={styles['input']}
 						data-slot='workbench-search-input'
 						placeholder={view.placeholder}
+						ref={view.inputElementRef}
 						role='combobox'
 						spellCheck={false}
 						value={view.query}
@@ -61,7 +67,15 @@ export function WorkbenchSearchSurface({
 				</div>
 				{view.isPickingArgument ? (
 					<div className={styles['pickerPrompt']} data-slot='workbench-search-picker-prompt'>
-						<ProductIcon name='arrow-left' />
+						<button
+							aria-label={view.pickerBackLabel}
+							className={styles['pickerBack']}
+							type='button'
+							onClick={view.onPickerBack}
+							onPointerDown={(event) => event.preventDefault()}
+						>
+							<ProductIcon name='arrow-left' />
+						</button>
 						<span>{view.pickerPrompt}</span>
 					</div>
 				) : (
@@ -89,14 +103,43 @@ export function WorkbenchSearchSurface({
 						))}
 					</div>
 				)}
+				{view.providerStatuses.length === 0 ? null : (
+					<div
+						className={styles['providerStatuses']}
+						data-slot='workbench-search-provider-statuses'
+					>
+						{view.providerStatuses.map((status) => (
+							<div
+								aria-live={status.phase === 'loading' ? 'polite' : undefined}
+								className={styles['providerStatus']}
+								data-phase={status.phase}
+								key={status.id}
+								role='status'
+							>
+								<span>{status.message}</span>
+								{status.onRetry === undefined ? null : (
+									<button
+										className={styles['providerRetry']}
+										type='button'
+										onClick={status.onRetry}
+									>
+										{view.retryLabel}
+									</button>
+								)}
+							</div>
+						))}
+					</div>
+				)}
 				<div
 					aria-label={view.resultsLabel}
 					className={styles['results']}
 					data-slot='workbench-search-results'
 					id={view.listId}
+					ref={view.resultsElementRef}
 					role='listbox'
+					onScroll={view.onResultsScroll}
 				>
-					{view.sections.length === 0 ? (
+					{view.showEmpty ? (
 						<div className={styles['empty']} data-slot='workbench-search-empty'>
 							{view.emptyMessage}
 						</div>
@@ -139,7 +182,11 @@ export function WorkbenchSearchSurface({
 										</span>
 										<span className={styles['rowTrailing']}>
 											{row.shortcut === undefined ? null : <Kbd>{row.shortcut}</Kbd>}
-											{row.showsPicker && <span aria-hidden='true'>›</span>}
+											{row.showsPicker && (
+												<span aria-hidden='true' className={styles['rowPickerIndicator']}>
+													›
+												</span>
+											)}
 										</span>
 									</div>
 								))}

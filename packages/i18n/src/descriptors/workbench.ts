@@ -279,6 +279,21 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.search.input.settings'],
 		description: 'Input placeholder while the Settings unified-search filter is selected.',
 	},
+	searchProviderFailed: {
+		id: 'workbench.search.providers.failed',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.providers.failed'],
+		description: 'Status shown when one unified-search provider fails.',
+	},
+	searchProviderLoading: {
+		id: 'workbench.search.providers.loading',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.providers.loading'],
+		description: 'Status shown while one unified-search provider is loading.',
+	},
+	searchProviderRetry: {
+		id: 'workbench.search.providers.retry',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.providers.retry'],
+		description: 'Button label for retrying one failed unified-search provider.',
+	},
 	searchResultsCount: {
 		id: 'workbench.search.results.count',
 		defaultMessage: enUSWorkbenchMessages['workbench.search.results.count'],

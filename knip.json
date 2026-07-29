@@ -53,8 +53,9 @@
 			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"]
 		},
 		"packages/workbench": {
-			"entry": ["src/index.ts!", "src/styles.ts!", "stories/**/*.stories.tsx!"],
-			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"]
+			"entry": ["src/index.ts!", "src/styles.ts!", "stories/**/*.stories.tsx!", "scripts/*.mjs!"],
+			"ignoreBinaries": ["java"],
+			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "scripts/*.mjs!", "*.ts"]
 		},
 		"packages/tab-strip": {
 			"entry": [

@@ -69,7 +69,7 @@ Agent 可以直接从终端启动和控制浏览器、检查页面、截图并�
 <details>
 <summary>从源码构建并验证</summary>
 
-**前置条件：** Node.js >=22、Corepack、Git
+**前置条件：** Node.js >=22、Java >=17、Corepack、Git
 
 ```bash
 git clone https://github.com/orchbee/orchbee.git
