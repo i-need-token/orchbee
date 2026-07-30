@@ -1,8 +1,12 @@
-# Feature Development
+# Modeling and Correctness
 
 ## Gate and authority
 
-Apply every matching row before production integration; later rows add evidence to earlier rows.
+Start every change with [`DEVELOPMENT.md`](DEVELOPMENT.md), the single development lifecycle entry
+point. Enter this standard only when the change tier or a current authority requires behavior
+modeling or correctness evidence. Apply every matching row before production integration; later
+rows add evidence to earlier rows without restarting authorization, write stages, review, or
+convergence.
 
 | Behavior                                                                                        | Required record and evidence                                                                               |
 | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |

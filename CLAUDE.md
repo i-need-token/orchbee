@@ -31,7 +31,7 @@
 - **Linting**: `docs/LINTING.md` — commands, enforcement boundary, and custom-rule ownership
 - **Verification**: `docs/VERIFICATION.md` — the canonical local and CI quality gate
 - **Development**: `docs/DEVELOPMENT.md` — change classification, decision authority, staged governed-write control, and convergence
-- **Feature Development**: `docs/FEATURE-DEVELOPMENT.md` — model-first delivery and risk-based correctness evidence
+- **Modeling and Correctness**: `docs/MODELING-AND-CORRECTNESS.md` — model-first behavior design and risk-based correctness evidence
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
 - **Testing**: `docs/TESTING.md` — test layout, execution, and regression requirements
 - **Frontend Package Boundaries**: `docs/frontend/package-boundaries.md` — frontend workspace placement, semantic ownership, dependency direction, and platform ports

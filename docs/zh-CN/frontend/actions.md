@@ -4,16 +4,16 @@
 
 动作是具名、可由用户调用的产品意图，其含义不依赖某一个控件或输入路径。Button、Menu、Context Menu、键盘快捷键、Command 界面和经过批准的自动化都调用同一个动作，而不是实现彼此平行的状态修改路径。
 
-| 行为                                                 | 表示方式                                                                               |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| 具有语义结果的离散产品意图                           | 动作                                                                                   |
-| 超过一个调用路径需要的操作                           | 动作                                                                                   |
-| 需要稳定可用性或可观测性的操作                       | 动作                                                                                   |
-| 局部 Input、Hover、Disclosure 或 List Highlight 状态 | Component 或 Feature 交互状态                                                          |
-| Pointer 移动、Drag Preview 或连续 Resize 输入        | Gesture Event 和可逆 Feature Projection                                                |
-| 由另一条调用路径使用的手势提交结果                   | 动作                                                                                   |
-| Process、Network、Storage 或 Resource 更新           | 由对应 Resource Lifecycle 拥有的 Event；动作可以发起该 Event                           |
-| 领域转换返回的 Effect Command                        | [`FEATURE-DEVELOPMENT.md`](../FEATURE-DEVELOPMENT.md) 下的 Package 局部 Domain Command |
+| 行为                                                 | 表示方式                                                                                         |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 具有语义结果的离散产品意图                           | 动作                                                                                             |
+| 超过一个调用路径需要的操作                           | 动作                                                                                             |
+| 需要稳定可用性或可观测性的操作                       | 动作                                                                                             |
+| 局部 Input、Hover、Disclosure 或 List Highlight 状态 | Component 或 Feature 交互状态                                                                    |
+| Pointer 移动、Drag Preview 或连续 Resize 输入        | Gesture Event 和可逆 Feature Projection                                                          |
+| 由另一条调用路径使用的手势提交结果                   | 动作                                                                                             |
+| Process、Network、Storage 或 Resource 更新           | 由对应 Resource Lifecycle 拥有的 Event；动作可以发起该 Event                                     |
+| 领域转换返回的 Effect Command                        | [`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md) 下的 Package 局部 Domain Command |
 
 不要把每一个 Callback 都包装成动作。Generic UI Primitive 继续暴露类型化 Callback；其 Product Semantic Consumer 决定某个 Callback 是否调用动作。
 
@@ -253,7 +253,7 @@ Execution Observation 可以包含 Action ID、Invocation Source、Result Kind�
 | Localization 与 Privacy | 两个 Shipped Locale、Formatted Descriptor、Structured Failure 和 Redacted Observation                 |
 
 Concurrency、Independently Ordered Completion、Retry 或 Cancellation 会触发
-[`FEATURE-DEVELOPMENT.md`](../FEATURE-DEVELOPMENT.md#正确性加严)
+[`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md#正确性加严)
 要求的 TLA+ 和 Deterministic System Evidence。以能够暴露所声明行为的最小抽象建模 Execution Identity、Ownership、State、Commit、Cancellation、Replacement、Queueing、Completion 和 Disposal。
 
 Browser Verification 通过每条可见路径调用一个代表性动作，并比较 Owned Semantic Result、Pending Behavior、Focus 和 Error Presentation，而不只是比较渲染像素。

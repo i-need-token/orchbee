@@ -2,11 +2,18 @@
 
 ## Authority and scope
 
-Classify every change before editing governed artifacts. This standard governs change
-authorization, staged write access, review decomposition, and convergence; it does not define
-product or package behavior. Current authorities continue to govern existing facts. Proposals may
-carry accepted future design, but they never become current authority until their decisions are
-integrated into the owning standards, contracts, source, or tests.
+Start every change with this standard; it is the single development lifecycle entry point. Classify
+every change before editing governed artifacts. This standard governs change authorization, staged
+write access, review decomposition, and convergence; it does not define product or package behavior.
+Current authorities continue to govern existing facts. Proposals may carry accepted future design,
+but they never become current authority until their decisions are integrated into the owning
+standards, contracts, source, or tests.
+
+When the change tier or a current authority requires behavior modeling or correctness evidence,
+apply every matching requirement in
+[`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md). That
+standard extends the active change authorization with a model and evidence; it does not define a
+parallel authorization, write-stage, review, or completion path.
 
 | Term                 | Contract                                                                                                                                                                                         |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -66,7 +73,7 @@ confidence, and change size never lower the tier.
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Mechanical    | An exact, behavior-preserving edit whose result is already determined by current authority                                                                                                        | Confirmed scope, affected current authority, and verification                                                                                              |
 | Bounded       | Observable behavior changes inside one existing owner, plus authority-determined projections into supporting owners, without a new public boundary, long-lived state model, or consequential risk | Accepted compact change authorization with outcome, non-goals, claims, semantic owner, decision owner, and verification                                    |
-| Modeled       | Multiple states, ordering, hierarchy, async work, cancellation, gestures, persistence, process boundaries, structural ownership changes, or cross-owner coordination                              | Accepted change authorization plus the applicable modeling record and evidence selected by [`FEATURE-DEVELOPMENT.md`](FEATURE-DEVELOPMENT.md)              |
+| Modeled       | Multiple states, ordering, hierarchy, async work, cancellation, gestures, persistence, process boundaries, structural ownership changes, or cross-owner coordination                              | Accepted change authorization plus the applicable modeling record and evidence selected by [`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md)    |
 | Consequential | Public or cross-workspace contracts, dependency direction, migration, data loss, security, privacy, external cost or side effects, compatibility, or irreversible risk                            | Explicit decision-owner acceptance of alternatives, consequences, evidence limits, rollout, and rollback or recovery, plus every applicable model or check |
 
 A defect does not become Mechanical merely because the expected result is obvious. Classify it
@@ -176,7 +183,7 @@ evidence.
 
 - Retrieve only the authorities, model, source, and evidence required by the active slice.
 - Implement the deterministic domain operation before framework integration when
-  [`FEATURE-DEVELOPMENT.md`](FEATURE-DEVELOPMENT.md) selects a model-first approach.
+  [`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md) selects a model-first approach.
 - Keep components and Hooks inside the ownership boundaries in
   [`frontend/react.md`](frontend/react.md); production UI never becomes the first or only behavior
   model.
@@ -190,7 +197,7 @@ evidence.
 Tests authored with their implementation are evidence only to the strength of their owned claims
 and oracles. They do not provide independent confirmation merely because they pass. For high-risk
 logic, use the additional property, model, system, or differential evidence selected by
-[`FEATURE-DEVELOPMENT.md`](FEATURE-DEVELOPMENT.md).
+[`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md).
 
 ## Review
 

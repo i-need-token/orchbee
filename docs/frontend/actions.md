@@ -6,16 +6,16 @@ An action is a named, user-invocable product intent whose meaning survives beyon
 input path. Buttons, menus, context menus, keyboard shortcuts, command surfaces, and approved
 automation invoke the same action instead of implementing parallel mutations.
 
-| Behavior                                                      | Representation                                                                           |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Discrete product intent with a semantic result                | Action                                                                                   |
-| Operation needed by more than one invocation path             | Action                                                                                   |
-| Operation requiring stable availability or observability      | Action                                                                                   |
-| Local input, hover, disclosure, or list-highlight state       | Component or feature interaction state                                                   |
-| Pointer movement, drag preview, or continuous resize input    | Gesture event and reversible feature projection                                          |
-| Committed result of a gesture used by another invocation path | Action                                                                                   |
-| Process, network, storage, or resource update                 | Event owned by that resource lifecycle; an action may initiate it                        |
-| Effect command returned by a domain transition                | Package-local domain command under [`FEATURE-DEVELOPMENT.md`](../FEATURE-DEVELOPMENT.md) |
+| Behavior                                                      | Representation                                                                                     |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Discrete product intent with a semantic result                | Action                                                                                             |
+| Operation needed by more than one invocation path             | Action                                                                                             |
+| Operation requiring stable availability or observability      | Action                                                                                             |
+| Local input, hover, disclosure, or list-highlight state       | Component or feature interaction state                                                             |
+| Pointer movement, drag preview, or continuous resize input    | Gesture event and reversible feature projection                                                    |
+| Committed result of a gesture used by another invocation path | Action                                                                                             |
+| Process, network, storage, or resource update                 | Event owned by that resource lifecycle; an action may initiate it                                  |
+| Effect command returned by a domain transition                | Package-local domain command under [`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md) |
 
 Do not wrap every callback in an action. A generic UI primitive continues to expose typed callbacks;
 its product-semantic consumer decides whether a callback invokes an action.
@@ -334,7 +334,7 @@ telemetry events.
 
 Concurrency, independently ordered completion, retry, or cancellation triggers the TLA+ and
 deterministic-system evidence required by
-[`FEATURE-DEVELOPMENT.md`](../FEATURE-DEVELOPMENT.md#correctness-escalation). Model execution
+[`MODELING-AND-CORRECTNESS.md`](../MODELING-AND-CORRECTNESS.md#correctness-escalation). Model execution
 identity, ownership, state, commit, cancellation, replacement, queueing, completion, and disposal at
 the smallest abstraction that exposes the claimed behavior.
 
