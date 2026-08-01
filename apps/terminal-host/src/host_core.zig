@@ -393,10 +393,8 @@ pub const HostCore = struct {
         if (attachment.demand == demand) return .idempotent;
         attachment.demand = demand;
         if (demand == .active) {
-            if (attachment.blocked != null) {
-                attachment.blocked = null;
-                attachment.force_snapshot = true;
-            }
+            attachment.blocked = null;
+            attachment.force_snapshot = true;
             attachment.pending_dirty = true;
         }
         return .applied;
@@ -721,6 +719,17 @@ test "projection demand gates one in-flight frame and coalesces later revisions"
     const second = try core.commitFrame(attachment_id, 1, 9, 1, .delta);
     try std.testing.expectEqual(@as(u64, 2), second.sequence);
     try std.testing.expectEqual(@as(?u64, 1), second.base_revision);
+    _ = try core.frameApplied(client, attachment_id, 2, 9, 1);
+    _ = try core.setProjectionDemand(client, attachment_id, .paused);
+    _ = try core.setProjectionDemand(client, attachment_id, .active);
+    const resumed = core.findAttachment(attachment_id).?;
+    try std.testing.expect(resumed.force_snapshot);
+    try std.testing.expect(resumed.pending_dirty);
+    try std.testing.expectError(
+        error.InvalidPhase,
+        core.commitFrame(attachment_id, 9, 9, 1, .delta),
+    );
+    _ = try core.commitFrame(attachment_id, null, 9, 1, .snapshot);
 }
 
 test "recovery is exact and blocked projection requires explicit pause resume" {

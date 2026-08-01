@@ -14,6 +14,8 @@ const focusInputFixture =
 	require.resolve('@orchbee/terminal-protocol/fixtures/focus-input-v1_1.bin');
 const pasteInputFixture =
 	require.resolve('@orchbee/terminal-protocol/fixtures/paste-input-v1_1.bin');
+const rowWindowFixture =
+	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-row-window-v1.bin');
 
 const child = spawn(
 	'zig',
@@ -28,6 +30,7 @@ const child = spawn(
 		`-Dmouse-input-fixture=${mouseInputFixture}`,
 		`-Dfocus-input-fixture=${focusInputFixture}`,
 		`-Dpaste-input-fixture=${pasteInputFixture}`,
+		`-Drow-window-fixture=${rowWindowFixture}`,
 	],
 	{ stdio: 'inherit' },
 );

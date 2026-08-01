@@ -111,7 +111,7 @@ export class HostConnection {
 			clientId: ClientIdSchema.parse(clientId),
 			frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 			inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-			protocol: { major: 1, maximumMinor: 1, minimumMinor: 1 },
+			protocol: { major: 1, maximumMinor: 2, minimumMinor: 2 },
 			rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 			supportedOptionalFeatures: [],
 		});
@@ -124,8 +124,8 @@ export class HostConnection {
 		);
 		const accepted = decodeControlJson(envelope.payload, HelloAcceptedSchema);
 		if (!accepted.ok) throw new Error(accepted.detail);
-		if (accepted.value.protocol.major !== 1 || accepted.value.protocol.minor !== 1) {
-			throw new Error('Terminal Host did not negotiate required protocol 1.1.');
+		if (accepted.value.protocol.major !== 1 || accepted.value.protocol.minor !== 2) {
+			throw new Error('Terminal Host did not negotiate required protocol 1.2.');
 		}
 		if (envelope.hostEpoch !== accepted.value.hostEpoch) {
 			throw new Error('HelloAccepted envelope and payload HostEpoch values differ.');
@@ -211,8 +211,8 @@ export class HostConnection {
 		const envelope = decoded.value;
 		this.#recordsReceived += 1;
 		this.#bytesReceived += record.byteLength;
-		if (envelope.protocol.major !== 1 || envelope.protocol.minor !== 1) {
-			throw new Error('Host emitted a record outside negotiated protocol 1.1.');
+		if (envelope.protocol.major !== 1 || envelope.protocol.minor !== 2) {
+			throw new Error('Host emitted a record outside negotiated protocol 1.2.');
 		}
 		if (this.#hostEpoch !== undefined && envelope.hostEpoch !== this.#hostEpoch) {
 			throw new Error('Host emitted a record for a stale or foreign HostEpoch.');

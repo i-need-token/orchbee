@@ -3,7 +3,7 @@
 	"domain": "terminal",
 	"runtime": ["browser"],
 	"stability": "experimental",
-	"responsibility": "Browser-owned terminal parsing plus source-neutral projected-terminal rendering, input normalization, and interaction surfaces.",
+	"responsibility": "Browser-owned terminal parsing plus source-neutral projected-terminal rendering, bounded row reading, input normalization, selection/search/link interaction, and accessibility surfaces.",
 	"nonGoals": [
 		"Owning application PTY processes or session transport.",
 		"Owning Electron menus, clipboard permissions, paste dialogs, or external navigation.",

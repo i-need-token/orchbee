@@ -1,22 +1,32 @@
 import {
 	KeyAction,
 	CanonicalUint64TextSchema,
+	decodeTerminalRowWindow,
 	MouseAction,
 	MouseButton,
 	PROTOCOL_LIMITS,
+	TerminalFrameKind,
 	TerminalKeyCode,
 	type AttachmentId,
 	type CanonicalUint64Text,
 	type CreationId,
 	type FocusInput,
 	type FrameApplied,
+	type HistoryChanged,
+	type HistoryObserved,
 	type HostEpoch,
 	type KeyInput,
 	type MouseInput,
 	type NeedSnapshot,
 	type PasteInput,
 	type ProjectionDemand,
+	type ReadRows,
 	type ResizeTerminalV1_1,
+	type RowsApplied,
+	type SelectionChanged,
+	type SelectionCommand,
+	type SelectionGesture,
+	type SetHistoryDemand,
 	type SetProjectionDemand,
 	type TerminalExited,
 	type TerminalId,
@@ -26,15 +36,36 @@ import {
 } from '@orchbee/terminal-protocol';
 
 import { EventEmitter, type IEvent } from '../EventEmitter';
+import {
+	bufferRowsFromDecodedWindow,
+	validateBufferRowsRequest,
+	type BufferRowsResult,
+	type TerminalBufferRowsRequest,
+	type TerminalBufferRowsSnapshot,
+} from '../buffer-rows';
 import { buildPreeditState, shouldSuppressComposingControlInput } from '../input';
 import {
 	type RendererFrameTelemetry,
 	type RendererHealthEvent,
 	WebGPURenderer,
 } from '../rendering';
-import type { RendererOptions } from '../types';
+import {
+	createProjectedSearchWorker,
+	ProjectedSearchController,
+	type ProjectedSearchWorkerFactory,
+	type ProjectedTerminalSearchEvent,
+	type TerminalSearchMatch,
+	type TerminalSearchOptions,
+} from '../search';
+import {
+	detectTerminalRowLinks,
+	isPermittedExternalTerminalTarget,
+	terminalLinkContains,
+} from '../terminal-row-links';
+import type { ILink, RendererOptions } from '../types';
 import {
 	PackedTerminalStore,
+	PackedTerminalViewport,
 	projectedCellDisplayWidth,
 	type ProjectedTerminalMetadata,
 } from './packed-terminal-store';
@@ -46,6 +77,8 @@ const textEncoder = new TextEncoder();
 const INPUT_DEDUPLICATION_MS = 100;
 const BRACKETED_PASTE_END = '\u001b[201~';
 const MAX_PTY_PIXEL_DIMENSION = 0xffff;
+const MAX_HISTORY_CACHE_BYTES = 8 * 1024 * 1024;
+const HISTORY_OVERSCAN_ROWS = 16;
 
 export type ProjectedTerminalCommand =
 	| { readonly kind: 'focus-input'; readonly payload: FocusInput }
@@ -54,8 +87,29 @@ export type ProjectedTerminalCommand =
 	| { readonly kind: 'mouse-input'; readonly payload: MouseInput }
 	| { readonly kind: 'need-snapshot'; readonly payload: NeedSnapshot }
 	| { readonly kind: 'paste-input'; readonly payload: PasteInput }
+	| { readonly kind: 'read-rows'; readonly payload: ReadRows }
 	| { readonly kind: 'resize-terminal'; readonly payload: ResizeTerminalV1_1 }
+	| { readonly kind: 'rows-applied'; readonly payload: RowsApplied }
+	| { readonly kind: 'history-observed'; readonly payload: HistoryObserved }
+	| { readonly kind: 'selection-command'; readonly payload: SelectionCommand }
+	| { readonly kind: 'selection-gesture'; readonly payload: SelectionGesture }
+	| {
+			readonly kind: 'selection-copy';
+			readonly payload: {
+				readonly attachmentId: AttachmentId;
+				readonly requestSequence: CanonicalUint64Text;
+			};
+	  }
+	| { readonly kind: 'set-history-demand'; readonly payload: SetHistoryDemand }
 	| { readonly kind: 'set-projection-demand'; readonly payload: SetProjectionDemand }
+	| {
+			readonly kind: 'link-open';
+			readonly payload: {
+				readonly attachmentId: AttachmentId;
+				readonly requestSequence: CanonicalUint64Text;
+				readonly target: string;
+			};
+	  }
 	| { readonly kind: 'text-input'; readonly payload: TextInput };
 
 export interface ProjectedTerminalCommandPort {
@@ -63,6 +117,8 @@ export interface ProjectedTerminalCommandPort {
 }
 
 export interface ProjectedTerminalLabels {
+	/** Localized current/retained row-range description for assistive technology. */
+	readonly historyRange?: (start: bigint, end: bigint, total: bigint) => string;
 	/** Localized label for the hidden keyboard/IME input. */
 	readonly input: string;
 	/** Localized label for the visible-viewport accessibility mirror. */
@@ -96,19 +152,59 @@ export interface ProjectedTerminalOptions {
 	readonly port: ProjectedTerminalCommandPort;
 	readonly renderer?: RendererOptions;
 	readonly reviewPaste?: (review: ProjectedPasteReview) => boolean | Promise<boolean>;
+	readonly searchWorkerFactory?: ProjectedSearchWorkerFactory;
 	readonly terminalId: TerminalId;
 }
 
 export interface ProjectedTerminalErrorEvent {
 	readonly error: unknown;
-	readonly operation: 'command' | 'frame' | 'open' | 'render' | 'resize';
+	readonly operation: 'command' | 'frame' | 'history' | 'open' | 'render' | 'resize' | 'selection';
 }
+
+export interface ProjectedBrokerFailure {
+	readonly code: string;
+	readonly message: string;
+	readonly operation?:
+		| 'connection'
+		| 'copy'
+		| 'history'
+		| 'input'
+		| 'link'
+		| 'protocol'
+		| 'resize'
+		| 'selection'
+		| undefined;
+	readonly requestSequence?: CanonicalUint64Text | undefined;
+	readonly retryable: boolean;
+}
+
+export interface ProjectedTerminalLinkOpenRequest {
+	readonly target: Extract<NonNullable<ILink['target']>, { readonly kind: 'url' }>;
+}
+
+export type ProjectedTerminalSideEffectResult =
+	| { readonly byteLength?: number; readonly kind: 'completed' }
+	| { readonly code: string; readonly kind: 'failed'; readonly retryable: boolean }
+	| { readonly kind: 'cancelled' };
 
 export interface ProjectedTerminalFrameTelemetry extends RendererFrameTelemetry {
 	readonly revision: CanonicalUint64Text;
 }
 
 export type ProjectedFrameResult = 'committed' | 'disposed' | 'duplicate' | 'snapshot-required';
+
+export type ProjectedRowsResult = 'committed' | 'ignored' | 'rejected';
+
+export const ProjectedHistoryPhase = {
+	disposed: 'disposed',
+	followingBottom: 'following-bottom',
+	recovering: 'recovering',
+	requestingHistory: 'requesting-history',
+	viewingHistory: 'viewing-history',
+} as const;
+
+export type ProjectedHistoryPhase =
+	(typeof ProjectedHistoryPhase)[keyof typeof ProjectedHistoryPhase];
 
 export const ProjectedTerminalPhase = {
 	constructed: 'constructed',
@@ -141,24 +237,84 @@ interface ResizeGeometry {
 	readonly rows: number;
 }
 
+interface BufferRowFlight {
+	aborted: boolean;
+	readonly kind: 'buffer';
+	readonly maximumBytes: number;
+	readonly removeAbortListener: () => void;
+	readonly request: TerminalBufferRowsRequest;
+	readonly requestSequence: CanonicalUint64Text;
+	readonly resolve: (result: BufferRowsResult) => void;
+}
+
+interface ViewportRowFlight {
+	readonly kind: 'viewport';
+	readonly maximumBytes: number;
+	readonly overscanned: boolean;
+	readonly requestSequence: CanonicalUint64Text;
+	readonly visibleRowCount: number;
+	readonly visibleStartRow: bigint;
+}
+
+type RowFlight = BufferRowFlight | ViewportRowFlight;
+
+interface PendingSelectionGesture {
+	readonly action: SelectionGesture['action'];
+	readonly clickCount: number;
+	readonly point: SelectionGesture['point'];
+	readonly rectangle: boolean;
+}
+
+interface PendingLinkPoint {
+	readonly column: number;
+	readonly control: boolean;
+	readonly meta: boolean;
+	readonly row: bigint;
+}
+
+interface ProjectedLinkCache {
+	readonly endRow: bigint;
+	readonly generation: bigint;
+	readonly links: readonly ILink[];
+	readonly revision: bigint;
+	readonly startRow: bigint;
+}
+
 type ScheduledFrame =
 	| { readonly kind: 'animation-frame'; readonly value: number }
 	| { readonly kind: 'timeout'; readonly value: ReturnType<typeof setTimeout> };
 
 export class ProjectedTerminal {
-	readonly #accessibilityRows: HTMLDivElement[] = [];
+	readonly #accessibilityColumnMappings: number[][] = [];
+	readonly #accessibilityRows: Element[] = [];
 	readonly #attachmentId: AttachmentId;
 	readonly #creationId: CreationId;
+	readonly #copyCompletions = new Map<
+		CanonicalUint64Text,
+		(result: ProjectedTerminalSideEffectResult) => void
+	>();
 	readonly #errorEmitter = new EventEmitter<ProjectedTerminalErrorEvent>();
 	readonly #exitEmitter = new EventEmitter<TerminalExited>();
 	readonly #frameTelemetryEmitter = new EventEmitter<ProjectedTerminalFrameTelemetry>();
 	readonly #healthEmitter = new EventEmitter<RendererHealthEvent>();
+	readonly #historyEmitter = new EventEmitter<HistoryChanged>();
 	readonly #hostEpoch: HostEpoch;
 	readonly #metadataEmitter = new EventEmitter<ProjectedTerminalMetadata>();
+	readonly #linkOpenEmitter = new EventEmitter<ProjectedTerminalLinkOpenRequest>();
+	readonly #linkCompletions = new Map<
+		CanonicalUint64Text,
+		(result: ProjectedTerminalSideEffectResult) => void
+	>();
 	readonly #options: ProjectedTerminalOptions;
 	readonly #pressedKeys = new Map<string, KeyFacts>();
 	readonly #pressedModifierCodes = new Set<string>();
 	readonly #store: PackedTerminalStore;
+	readonly #selectionEmitter = new EventEmitter<SelectionChanged>();
+	readonly #selectionCopiedEmitter = new EventEmitter<{
+		readonly byteLength: number;
+		readonly requestSequence: CanonicalUint64Text;
+	}>();
+	readonly #searchEmitter = new EventEmitter<ProjectedTerminalSearchEvent>();
 	readonly #terminalId: TerminalId;
 	#accessibilityRoot: HTMLDivElement | undefined;
 	#canvas: HTMLCanvasElement | undefined;
@@ -167,6 +323,13 @@ export class ProjectedTerminal {
 	#demandSent: ProjectionDemand | undefined;
 	#devicePixelRatio = 1;
 	#frameHandle: ScheduledFrame | undefined;
+	#historyGeneration = 1n;
+	#historyPhase: ProjectedHistoryPhase = ProjectedHistoryPhase.followingBottom;
+	#historyRevision = 0n;
+	#historyStartRow = 0n;
+	#historyStore: PackedTerminalViewport | undefined;
+	#historyTotalRows = 0n;
+	#historyRowsBefore = 0;
 	#input: HTMLTextAreaElement | undefined;
 	#lastBeforeInput: SentInput | undefined;
 	#lastComposition: SentInput | undefined;
@@ -174,11 +337,28 @@ export class ProjectedTerminal {
 	#lastKeyInput: SentInput | undefined;
 	#lastPaste: (SentInput & { readonly source: 'beforeinput' | 'clipboard' }) | undefined;
 	#listenerDisposers: Array<() => void> = [];
+	#hoveredLink: ILink | undefined;
+	#hoveredLinkPoint: PendingLinkPoint | undefined;
+	#linkAbortController: AbortController | undefined;
+	#linkCache: ProjectedLinkCache | undefined;
+	#linkLookupActive = false;
+	#pendingLinkPoint: PendingLinkPoint | undefined;
 	#pendingExit: TerminalExited | undefined;
+	#pendingHistoryDelta = 0;
+	#pendingHistoryTargetRow: bigint | undefined;
+	#pendingSelectionGesture: PendingSelectionGesture | undefined;
 	#phase: ProjectedTerminalPhase = ProjectedTerminalPhase.constructed;
 	#renderer: WebGPURenderer | undefined;
 	#resizeObserver: ResizeObserver | undefined;
 	#root: HTMLElement | undefined;
+	#rowFlight: RowFlight | undefined;
+	#rowRequestSequence = 1n;
+	#selection: SelectionChanged;
+	#selectionGestureHandle: ScheduledFrame | undefined;
+	#selectionGestureInFlight = false;
+	#selectionGestureActive = false;
+	#searchController: ProjectedSearchController | undefined;
+	#sideEffectSequence = 1n;
 
 	constructor(options: ProjectedTerminalOptions) {
 		this.#options = options;
@@ -187,6 +367,7 @@ export class ProjectedTerminal {
 		this.#creationId = options.creationId;
 		this.#store = new PackedTerminalStore(options.hostEpoch, options.attachmentId);
 		this.#terminalId = options.terminalId;
+		this.#selection = { attachmentId: options.attachmentId, state: 'none' };
 		if (options.autoActivate === false) this.#demand = 'paused';
 	}
 
@@ -195,7 +376,15 @@ export class ProjectedTerminal {
 	}
 
 	get metadata(): ProjectedTerminalMetadata | null {
-		return this.#store.metadata;
+		return this.#visibleStore().metadata;
+	}
+
+	get historyPhase(): ProjectedHistoryPhase {
+		return this.#historyPhase;
+	}
+
+	get selection(): SelectionChanged {
+		return this.#selection;
 	}
 
 	get canvas(): HTMLCanvasElement | undefined {
@@ -212,6 +401,15 @@ export class ProjectedTerminal {
 		this.#frameTelemetryEmitter.event;
 	readonly onMetadataChange: IEvent<ProjectedTerminalMetadata> = this.#metadataEmitter.event;
 	readonly onRendererHealth: IEvent<RendererHealthEvent> = this.#healthEmitter.event;
+	readonly onHistoryChange: IEvent<HistoryChanged> = this.#historyEmitter.event;
+	readonly onLinkOpenRequest: IEvent<ProjectedTerminalLinkOpenRequest> =
+		this.#linkOpenEmitter.event;
+	readonly onSelectionChange: IEvent<SelectionChanged> = this.#selectionEmitter.event;
+	readonly onSelectionCopied: IEvent<{
+		readonly byteLength: number;
+		readonly requestSequence: CanonicalUint64Text;
+	}> = this.#selectionCopiedEmitter.event;
+	readonly onSearchResults: IEvent<ProjectedTerminalSearchEvent> = this.#searchEmitter.event;
 
 	async open(root: HTMLElement): Promise<void> {
 		if (this.#phase !== ProjectedTerminalPhase.constructed) {
@@ -267,11 +465,15 @@ export class ProjectedTerminal {
 			accessibilityRoot.style.whiteSpace = 'pre';
 			root.appendChild(accessibilityRoot);
 			this.#accessibilityRoot = accessibilityRoot;
+			document.addEventListener('selectionchange', this.#handleAccessibilitySelectionChange);
+			this.#listenerDisposers.push(() =>
+				document.removeEventListener('selectionchange', this.#handleAccessibilitySelectionChange),
+			);
 
 			const renderer = new WebGPURenderer(canvas, this.#options.renderer);
 			renderer.setHealthChangeCallback((event) => this.#healthEmitter.fire(event));
 			renderer.setFrameTelemetryCallback((event) => {
-				const revision = this.#store.metadata?.revision;
+				const revision = this.#visibleStore().metadata?.revision;
 				if (revision === undefined) return;
 				this.#frameTelemetryEmitter.fire({
 					...event,
@@ -296,6 +498,8 @@ export class ProjectedTerminal {
 
 	applyFrame(frame: ArrayBuffer | Uint8Array): ProjectedFrameResult {
 		if (this.#phase === ProjectedTerminalPhase.disposed) return 'disposed';
+		const previousGeneration = this.#historyGeneration;
+		const previousRevision = this.#historyRevision;
 		const bytes = frame instanceof Uint8Array ? frame : new Uint8Array(frame);
 		let result: ReturnType<PackedTerminalStore['apply']>;
 		try {
@@ -320,10 +524,24 @@ export class ProjectedTerminal {
 		if (result.kind === 'committed') {
 			const metadata = this.#store.metadata;
 			if (metadata) {
-				this.#metadataEmitter.fire(metadata);
-				this.#updateAccessibility(metadata);
+				this.#historyGeneration = metadata.generation;
+				this.#historyRevision = metadata.revision;
+				this.#historyTotalRows = metadata.scrollbackRows + BigInt(metadata.rows);
+				if (metadata.generation !== previousGeneration || metadata.revision !== previousRevision) {
+					this.#invalidateLinkCache();
+					this.#searchController?.invalidate();
+				}
+				if (
+					this.#historyPhase === ProjectedHistoryPhase.recovering &&
+					this.#store.lastFrameKind === TerminalFrameKind.snapshot
+				) {
+					this.#finishHistoryRecovery();
+				} else if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
+					this.#metadataEmitter.fire(metadata);
+					this.#updateAccessibility(metadata);
+				}
 			}
-			if (!this.#scheduleRender()) {
+			if (this.#historyPhase === ProjectedHistoryPhase.followingBottom && !this.#scheduleRender()) {
 				this.#errorEmitter.fire({
 					error: new Error('Projected frame arrived before the rendering surface was open'),
 					operation: 'frame',
@@ -341,6 +559,413 @@ export class ProjectedTerminal {
 		this.#demand = demand;
 		this.#sendDemandIfNeeded();
 		this.#renderer?.setSuspended(demand === 'paused');
+	}
+
+	getBufferRowsSnapshot(): TerminalBufferRowsSnapshot {
+		return {
+			generation: this.#historyGeneration,
+			revision: this.#historyRevision,
+			totalRows: this.#historyTotalRows,
+		};
+	}
+
+	readBufferRows(
+		request: TerminalBufferRowsRequest,
+		signal: AbortSignal,
+	): Promise<BufferRowsResult> {
+		const snapshot = this.getBufferRowsSnapshot();
+		if (signal.aborted) return Promise.resolve({ ...snapshot, kind: 'cancelled' });
+		if (!validateBufferRowsRequest(request)) {
+			return Promise.reject(
+				new RangeError('Projected terminal buffer row request is outside the bounded contract.'),
+			);
+		}
+		if (request.revision !== snapshot.revision || request.generation !== snapshot.generation) {
+			return Promise.resolve({ ...snapshot, kind: 'stale' });
+		}
+		if (request.startRow >= snapshot.totalRows) {
+			return Promise.resolve({ ...snapshot, kind: 'evicted' });
+		}
+		if (this.#phase === ProjectedTerminalPhase.disposed) {
+			return Promise.resolve({ ...snapshot, kind: 'unavailable' });
+		}
+		if (this.#rowFlight !== undefined) {
+			return Promise.resolve({ ...snapshot, kind: 'unavailable' });
+		}
+
+		return new Promise((resolve) => {
+			const requestSequence = this.#nextRowRequestSequence();
+			const handleAbort = (): void => {
+				const flight = this.#rowFlight;
+				if (flight?.kind !== 'buffer' || flight.requestSequence !== requestSequence) return;
+				flight.aborted = true;
+				resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
+			};
+			signal.addEventListener('abort', handleAbort, { once: true });
+			this.#rowFlight = {
+				aborted: false,
+				kind: 'buffer',
+				maximumBytes: request.maximumBytes,
+				removeAbortListener: () => signal.removeEventListener('abort', handleAbort),
+				request,
+				requestSequence,
+				resolve,
+			};
+			this.#send({
+				kind: 'read-rows',
+				payload: {
+					attachmentId: this.#attachmentId,
+					detail: request.detail,
+					generation: CanonicalUint64TextSchema.parse(request.generation.toString()),
+					maximumBytes: request.maximumBytes,
+					origin: {
+						kind: 'absolute',
+						row: CanonicalUint64TextSchema.parse(request.startRow.toString()),
+					},
+					purpose: request.purpose ?? 'buffer',
+					requestSequence,
+					revision: CanonicalUint64TextSchema.parse(request.revision.toString()),
+					rowCount: request.rowCount,
+				},
+			});
+		});
+	}
+
+	applyRows(rowWindow: ArrayBuffer | Uint8Array): ProjectedRowsResult {
+		const flight = this.#rowFlight;
+		if (flight === undefined || this.#phase === ProjectedTerminalPhase.disposed) return 'ignored';
+		const bytes = rowWindow instanceof Uint8Array ? rowWindow : new Uint8Array(rowWindow);
+		this.#rowFlight = undefined;
+		if (flight.kind === 'buffer') flight.removeAbortListener();
+		const decoded = decodeTerminalRowWindow(bytes);
+		if (
+			!decoded.ok ||
+			bytes.byteLength > flight.maximumBytes ||
+			(decoded.ok &&
+				(decoded.value.hostEpoch !== this.#hostEpoch ||
+					decoded.value.attachmentId !== this.#attachmentId ||
+					decoded.value.sequence.toString() !== flight.requestSequence))
+		) {
+			if (flight.kind === 'buffer' && !flight.aborted) {
+				flight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'unavailable' });
+			}
+			this.#errorEmitter.fire({
+				error: new Error(decoded.ok ? 'Projected row window route is invalid' : decoded.detail),
+				operation: 'history',
+			});
+			if (flight.kind === 'viewport') this.#recoverHistory();
+			return 'rejected';
+		}
+		const window = decoded.value;
+		if (flight.kind === 'buffer') {
+			if (!flight.aborted) {
+				if (
+					window.revision !== flight.request.revision ||
+					window.generation !== flight.request.generation ||
+					window.startRow !== flight.request.startRow ||
+					window.detail !== flight.request.detail
+				) {
+					flight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'stale' });
+				} else {
+					flight.resolve(bufferRowsFromDecodedWindow(window, bytes.byteLength));
+				}
+			}
+			this.#dispatchPendingHistoryIntent();
+			return 'committed';
+		}
+
+		if (window.detail !== 'render') {
+			this.#errorEmitter.fire({
+				error: new Error('Viewport history requires render-detail rows'),
+				operation: 'history',
+			});
+			this.#recoverHistory();
+			return 'rejected';
+		}
+		const visibleEnd = flight.visibleStartRow + BigInt(flight.visibleRowCount);
+		const cacheEnd = window.startRow + BigInt(window.frame.rows);
+		if (window.startRow > flight.visibleStartRow || cacheEnd < visibleEnd) {
+			this.#errorEmitter.fire({
+				error: new Error('Projected history window does not cover the requested viewport'),
+				operation: 'history',
+			});
+			this.#recoverHistory();
+			return 'rejected';
+		}
+		const staged = new PackedTerminalStore(this.#hostEpoch, this.#attachmentId);
+		const result = staged.replaceSnapshot(window.frameBytes, MAX_HISTORY_CACHE_BYTES);
+		if (result.kind !== 'committed') {
+			staged.dispose();
+			this.#errorEmitter.fire({
+				error: new Error(
+					result.kind === 'too-large'
+						? 'Projected history window exceeds the renderer cache limit'
+						: 'Projected history snapshot is invalid',
+				),
+				operation: 'history',
+			});
+			this.#recoverHistory();
+			return 'rejected';
+		}
+		const rowOffset = Number(flight.visibleStartRow - window.startRow);
+		const viewport = new PackedTerminalViewport(staged, rowOffset, flight.visibleRowCount);
+		this.#historyStore?.dispose();
+		this.#historyStore = viewport;
+		this.#invalidateLinkCache();
+		this.#historyGeneration = window.generation;
+		this.#historyRevision = window.revision;
+		this.#historyStartRow = flight.visibleStartRow;
+		this.#historyTotalRows = window.totalRows;
+		this.#historyRowsBefore = Number(
+			window.totalRows - (flight.visibleStartRow + BigInt(flight.visibleRowCount)),
+		);
+		this.#historyPhase = ProjectedHistoryPhase.viewingHistory;
+		this.#send({
+			kind: 'rows-applied',
+			payload: {
+				attachmentId: this.#attachmentId,
+				generation: CanonicalUint64TextSchema.parse(window.generation.toString()),
+				requestSequence: flight.requestSequence,
+				revision: CanonicalUint64TextSchema.parse(window.revision.toString()),
+			},
+		});
+		const metadata = viewport.metadata;
+		if (metadata) {
+			this.#metadataEmitter.fire(metadata);
+			this.#updateAccessibility(metadata);
+		}
+		this.#scheduleRender();
+		this.#dispatchPendingHistoryIntent();
+		return 'committed';
+	}
+
+	scrollLines(amount: number): void {
+		if (
+			!Number.isFinite(amount) ||
+			amount === 0 ||
+			this.#phase === ProjectedTerminalPhase.disposed
+		) {
+			return;
+		}
+		const rows = Math.trunc(amount);
+		this.#invalidateLinkCache();
+		if (this.#rowFlight !== undefined) {
+			this.#cancelBufferFlightForViewportIntent();
+			this.#pendingHistoryTargetRow = undefined;
+			this.#pendingHistoryDelta = clamp(
+				this.#pendingHistoryDelta + rows,
+				-PROTOCOL_LIMITS.maxRowWindowRows,
+				PROTOCOL_LIMITS.maxRowWindowRows,
+			);
+			return;
+		}
+		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
+			if (rows > 0 || this.#historyTotalRows <= BigInt(this.#store.metadata?.rows ?? 0)) return;
+			this.#historyRowsBefore = Math.min(Number(this.#historyTotalRows), -rows);
+			this.#requestHistoryRows({ kind: 'tail', rowsBefore: this.#historyRowsBefore });
+			return;
+		}
+		if (this.#historyPhase === ProjectedHistoryPhase.recovering) return;
+		const nextRowsBefore = Math.max(0, this.#historyRowsBefore - rows);
+		if (nextRowsBefore === 0) {
+			this.scrollToBottom();
+			return;
+		}
+		this.#historyRowsBefore = Math.min(Number(this.#historyTotalRows), nextRowsBefore);
+		this.#requestHistoryRows({
+			delta: clamp(rows, -PROTOCOL_LIMITS.maxRowWindowRows, PROTOCOL_LIMITS.maxRowWindowRows),
+			kind: 'committed',
+		});
+	}
+
+	scrollPages(amount: number): void {
+		this.scrollLines(amount * (this.metadata?.rows ?? 1));
+	}
+
+	scrollToBottom(): void {
+		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) return;
+		this.#recoverHistory();
+	}
+
+	notifyHistoryChanged(event: HistoryChanged): void {
+		if (event.attachmentId !== this.#attachmentId) return;
+		const changed =
+			BigInt(event.generation) !== this.#historyGeneration ||
+			BigInt(event.revision) !== this.#historyRevision;
+		this.#historyGeneration = BigInt(event.generation);
+		this.#historyRevision = BigInt(event.revision);
+		this.#historyTotalRows = BigInt(event.totalRows);
+		this.#send({
+			kind: 'history-observed',
+			payload: {
+				attachmentId: this.#attachmentId,
+				generation: event.generation,
+				revision: event.revision,
+			},
+		});
+		this.#historyEmitter.fire(event);
+		if (changed) this.#searchController?.invalidate();
+		if (changed) this.#invalidateLinkCache();
+		if (
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom ||
+			this.#historyPhase === ProjectedHistoryPhase.disposed ||
+			this.#rowFlight !== undefined
+		) {
+			return;
+		}
+		if (event.anchorStatus === 'valid') {
+			this.#requestHistoryRows({ delta: 0, kind: 'committed' });
+		} else {
+			this.#requestHistoryRows({ kind: 'tail', rowsBefore: this.#historyRowsBefore });
+		}
+	}
+
+	notifySelectionChanged(selection: SelectionChanged): void {
+		if (selection.attachmentId !== this.#attachmentId) return;
+		this.#selection = selection;
+		this.#selectionGestureInFlight = false;
+		this.#selectionEmitter.fire(selection);
+		this.#scheduleSelectionGesture();
+		this.#scheduleRender();
+	}
+
+	notifySelectionCopied(byteLength: number, requestSequence: CanonicalUint64Text): void {
+		const complete = this.#copyCompletions.get(requestSequence);
+		this.#copyCompletions.delete(requestSequence);
+		complete?.({ byteLength, kind: 'completed' });
+		this.#selectionCopiedEmitter.fire({ byteLength, requestSequence });
+	}
+
+	notifyLinkOpened(requestSequence: CanonicalUint64Text): void {
+		const complete = this.#linkCompletions.get(requestSequence);
+		this.#linkCompletions.delete(requestSequence);
+		complete?.({ kind: 'completed' });
+	}
+
+	notifyBrokerFailure(failure: ProjectedBrokerFailure): void {
+		let recoveredOverscan = false;
+		const flight =
+			failure.operation === undefined || failure.operation === 'history'
+				? this.#rowFlight
+				: undefined;
+		if (flight !== undefined) {
+			this.#rowFlight = undefined;
+			if (flight.kind === 'buffer') {
+				flight.removeAbortListener();
+				if (!flight.aborted) {
+					let kind: 'evicted' | 'stale' | 'too-large' | 'unavailable' = 'unavailable';
+					if (failure.code === 'history-evicted') kind = 'evicted';
+					else if (failure.code === 'stale-generation' || failure.code === 'stale-revision') {
+						kind = 'stale';
+					} else if (failure.code === 'limit-exceeded') kind = 'too-large';
+					flight.resolve({ ...this.getBufferRowsSnapshot(), kind });
+				}
+				this.#dispatchPendingHistoryIntent();
+			} else if (failure.code === 'limit-exceeded' && flight.overscanned) {
+				this.#requestHistoryRows(
+					{
+						kind: 'absolute',
+						row: CanonicalUint64TextSchema.parse(flight.visibleStartRow.toString()),
+					},
+					0,
+				);
+				recoveredOverscan = true;
+			} else {
+				this.#recoverHistory();
+			}
+		}
+		if (failure.requestSequence !== undefined && failure.operation === 'copy') {
+			const complete = this.#copyCompletions.get(failure.requestSequence);
+			this.#copyCompletions.delete(failure.requestSequence);
+			complete?.({ code: failure.code, kind: 'failed', retryable: failure.retryable });
+		}
+		if (failure.requestSequence !== undefined && failure.operation === 'link') {
+			const complete = this.#linkCompletions.get(failure.requestSequence);
+			this.#linkCompletions.delete(failure.requestSequence);
+			complete?.({ code: failure.code, kind: 'failed', retryable: failure.retryable });
+		}
+		if (failure.operation === undefined || failure.operation === 'selection') {
+			this.#selectionGestureInFlight = false;
+			this.#scheduleSelectionGesture();
+		}
+		if (!recoveredOverscan) {
+			this.#errorEmitter.fire({ error: new Error(failure.message), operation: 'command' });
+		}
+	}
+
+	clearSelection(): void {
+		this.#sendSelectionCommand('clear');
+	}
+
+	selectAll(): void {
+		this.#sendSelectionCommand('select-all');
+	}
+
+	copySelection(): CanonicalUint64Text {
+		const requestSequence = this.#nextSideEffectSequence();
+		this.#send({
+			kind: 'selection-copy',
+			payload: { attachmentId: this.#attachmentId, requestSequence },
+		});
+		return requestSequence;
+	}
+
+	copySelectionAsync(): Promise<ProjectedTerminalSideEffectResult> {
+		if (this.#copyCompletions.size > 0) {
+			return Promise.resolve({ code: 'copy-in-progress', kind: 'failed', retryable: true });
+		}
+		const requestSequence = this.#nextSideEffectSequence();
+		return new Promise((resolve) => {
+			this.#copyCompletions.set(requestSequence, resolve);
+			this.#send({
+				kind: 'selection-copy',
+				payload: { attachmentId: this.#attachmentId, requestSequence },
+			});
+		});
+	}
+
+	openLink(target: string): CanonicalUint64Text {
+		const requestSequence = this.#nextSideEffectSequence();
+		this.#send({
+			kind: 'link-open',
+			payload: { attachmentId: this.#attachmentId, requestSequence, target },
+		});
+		return requestSequence;
+	}
+
+	openLinkAsync(target: string): Promise<ProjectedTerminalSideEffectResult> {
+		if (this.#linkCompletions.size > 0) {
+			return Promise.resolve({ code: 'link-in-progress', kind: 'failed', retryable: true });
+		}
+		const requestSequence = this.#nextSideEffectSequence();
+		return new Promise((resolve) => {
+			this.#linkCompletions.set(requestSequence, resolve);
+			this.#send({
+				kind: 'link-open',
+				payload: { attachmentId: this.#attachmentId, requestSequence, target },
+			});
+		});
+	}
+
+	updateSearch(query: string, options: TerminalSearchOptions = {}): void {
+		if (this.#phase === ProjectedTerminalPhase.disposed) return;
+		this.#getSearchController().update(query, options);
+	}
+
+	findNext(): boolean {
+		return (this.#searchController?.next(false) ?? null) !== null;
+	}
+
+	findPrevious(): boolean {
+		return (this.#searchController?.next(true) ?? null) !== null;
+	}
+
+	clearSearch(): void {
+		if (this.#searchController === undefined) {
+			this.#renderer?.setSearchMatches([]);
+			return;
+		}
+		this.#searchController.update('');
 	}
 
 	focus(): void {
@@ -396,23 +1021,57 @@ export class ProjectedTerminal {
 
 	dispose(): void {
 		if (this.#phase === ProjectedTerminalPhase.disposed) return;
+		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) {
+			this.#send({
+				kind: 'set-history-demand',
+				payload: { attachmentId: this.#attachmentId, demand: 'following-bottom' },
+			});
+		}
 		if (this.#demandSent === 'active') {
 			this.#demand = 'paused';
 			this.#sendDemandIfNeeded();
 		}
 		this.#phase = ProjectedTerminalPhase.disposed;
+		this.#historyPhase = ProjectedHistoryPhase.disposed;
+		const rowFlight = this.#rowFlight;
+		this.#rowFlight = undefined;
+		if (rowFlight?.kind === 'buffer') {
+			rowFlight.removeAbortListener();
+			if (!rowFlight.aborted) {
+				rowFlight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
+			}
+		}
 		if (this.#frameHandle?.kind === 'animation-frame') {
 			this.#root?.ownerDocument.defaultView?.cancelAnimationFrame(this.#frameHandle.value);
 		} else if (this.#frameHandle?.kind === 'timeout') {
 			globalThis.clearTimeout(this.#frameHandle.value);
 		}
 		this.#frameHandle = undefined;
+		if (this.#selectionGestureHandle?.kind === 'animation-frame') {
+			this.#root?.ownerDocument.defaultView?.cancelAnimationFrame(
+				this.#selectionGestureHandle.value,
+			);
+		} else if (this.#selectionGestureHandle?.kind === 'timeout') {
+			globalThis.clearTimeout(this.#selectionGestureHandle.value);
+		}
+		this.#selectionGestureHandle = undefined;
+		this.#pendingHistoryDelta = 0;
+		this.#pendingHistoryTargetRow = undefined;
+		this.#searchController?.dispose();
+		this.#searchController = undefined;
+		this.#clearHoveredLink();
+		for (const complete of this.#copyCompletions.values()) complete({ kind: 'cancelled' });
+		for (const complete of this.#linkCompletions.values()) complete({ kind: 'cancelled' });
+		this.#copyCompletions.clear();
+		this.#linkCompletions.clear();
 		this.#resizeObserver?.disconnect();
 		this.#resizeObserver = undefined;
 		for (const dispose of this.#listenerDisposers.splice(0)) dispose();
 		this.#renderer?.dispose();
 		this.#renderer = undefined;
 		this.#store.dispose();
+		this.#historyStore?.dispose();
+		this.#historyStore = undefined;
 		this.#canvas?.remove();
 		this.#input?.remove();
 		this.#accessibilityRoot?.remove();
@@ -425,17 +1084,23 @@ export class ProjectedTerminal {
 		this.#exitEmitter.dispose();
 		this.#frameTelemetryEmitter.dispose();
 		this.#healthEmitter.dispose();
+		this.#historyEmitter.dispose();
+		this.#linkOpenEmitter.dispose();
 		this.#metadataEmitter.dispose();
+		this.#selectionEmitter.dispose();
+		this.#selectionCopiedEmitter.dispose();
+		this.#searchEmitter.dispose();
 	}
 
 	#scheduleRender(): boolean {
 		if (this.#phase === ProjectedTerminalPhase.disposed || !this.#renderer) return false;
+		this.#syncProjectedViewportState();
 		if (this.#frameHandle !== undefined) return true;
 		const callback = (): void => {
 			this.#frameHandle = undefined;
 			if (this.#phase === ProjectedTerminalPhase.disposed) return;
 			try {
-				this.#renderer?.renderPacked(this.#store);
+				this.#renderer?.renderPacked(this.#visibleStore());
 			} catch (error) {
 				this.#errorEmitter.fire({ error, operation: 'render' });
 			}
@@ -446,6 +1111,475 @@ export class ProjectedTerminal {
 				? { kind: 'animation-frame', value: view.requestAnimationFrame(callback) }
 				: { kind: 'timeout', value: globalThis.setTimeout(callback, 16) };
 		return true;
+	}
+
+	#visibleStore(): PackedTerminalStore | PackedTerminalViewport {
+		return this.#historyPhase === ProjectedHistoryPhase.followingBottom ||
+			this.#historyStore === undefined
+			? this.#store
+			: this.#historyStore;
+	}
+
+	#syncProjectedViewportState(): void {
+		const renderer = this.#renderer;
+		const metadata = this.metadata;
+		if (!renderer || !metadata) return;
+		const absoluteTop =
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom
+				? this.#historyTotalRows - BigInt(metadata.rows)
+				: this.#historyStartRow;
+		const selection = this.#selection;
+		renderer.setProjectedViewportState(
+			Number(absoluteTop),
+			selection.state === 'active'
+				? {
+						endCol: selection.end.column,
+						endRow: Number(BigInt(selection.end.row) - absoluteTop),
+						rectangle: selection.rectangle,
+						startCol: selection.start.column,
+						startRow: Number(BigInt(selection.start.row) - absoluteTop),
+					}
+				: null,
+		);
+	}
+
+	#requestHistoryRows(origin: ReadRows['origin'], overscanRows = HISTORY_OVERSCAN_ROWS): void {
+		const metadata = this.#store.metadata ?? this.#historyStore?.metadata;
+		if (
+			metadata === null ||
+			metadata === undefined ||
+			this.#rowFlight !== undefined ||
+			this.#phase === ProjectedTerminalPhase.disposed
+		) {
+			return;
+		}
+		const visibleRowCount = metadata.rows;
+		const visibleStartRow = this.#resolveHistoryVisibleStart(origin, visibleRowCount);
+		const maximumCacheRows = Math.max(
+			1,
+			Math.min(
+				PROTOCOL_LIMITS.maxRowWindowRows,
+				Math.floor(PROTOCOL_LIMITS.maxFrameCells / metadata.columns),
+			),
+		);
+		const cacheRowCount = Math.min(
+			maximumCacheRows,
+			visibleRowCount + overscanRows * 2,
+			Number(
+				this.#historyTotalRows > BigInt(maximumCacheRows)
+					? BigInt(maximumCacheRows)
+					: this.#historyTotalRows,
+			),
+		);
+		if (cacheRowCount < visibleRowCount) return;
+		const maximumCacheStart =
+			this.#historyTotalRows > BigInt(cacheRowCount)
+				? this.#historyTotalRows - BigInt(cacheRowCount)
+				: 0n;
+		const preferredCacheStart =
+			visibleStartRow > BigInt(overscanRows) ? visibleStartRow - BigInt(overscanRows) : 0n;
+		const cacheStartRow = minBigInt(preferredCacheStart, maximumCacheStart);
+		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
+			this.#send({
+				kind: 'set-history-demand',
+				payload: { attachmentId: this.#attachmentId, demand: 'viewing-history' },
+			});
+			this.#demand = 'paused';
+			this.#sendDemandIfNeeded();
+		}
+		this.#historyPhase = ProjectedHistoryPhase.requestingHistory;
+		const requestSequence = this.#nextRowRequestSequence();
+		this.#rowFlight = {
+			kind: 'viewport',
+			maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+			overscanned: cacheRowCount > visibleRowCount,
+			requestSequence,
+			visibleRowCount,
+			visibleStartRow,
+		};
+		this.#send({
+			kind: 'read-rows',
+			payload: {
+				attachmentId: this.#attachmentId,
+				detail: 'render',
+				generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
+				maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+				origin: {
+					kind: 'absolute',
+					row: CanonicalUint64TextSchema.parse(cacheStartRow.toString()),
+				},
+				purpose: 'viewport',
+				requestSequence,
+				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
+				rowCount: cacheRowCount,
+			},
+		});
+	}
+
+	#resolveHistoryVisibleStart(origin: ReadRows['origin'], visibleRows: number): bigint {
+		const maximumStart =
+			this.#historyTotalRows > BigInt(visibleRows)
+				? this.#historyTotalRows - BigInt(visibleRows)
+				: 0n;
+		let start: bigint;
+		switch (origin.kind) {
+			case 'absolute':
+				start = BigInt(origin.row);
+				break;
+			case 'committed':
+				start = this.#historyStartRow + BigInt(origin.delta);
+				break;
+			case 'oldest':
+				start = BigInt(origin.offset);
+				break;
+			case 'tail': {
+				const end =
+					this.#historyTotalRows - minBigInt(this.#historyTotalRows, BigInt(origin.rowsBefore));
+				start = end > BigInt(visibleRows) ? end - BigInt(visibleRows) : 0n;
+				break;
+			}
+		}
+		return start < 0n ? 0n : minBigInt(start, maximumStart);
+	}
+
+	#dispatchPendingHistoryIntent(): void {
+		if (this.#rowFlight !== undefined || this.#phase === ProjectedTerminalPhase.disposed) return;
+		const targetRow = this.#pendingHistoryTargetRow;
+		this.#pendingHistoryTargetRow = undefined;
+		if (targetRow !== undefined) {
+			this.#revealSearchRow(targetRow);
+			return;
+		}
+		const pendingDelta = this.#pendingHistoryDelta;
+		this.#pendingHistoryDelta = 0;
+		if (pendingDelta !== 0) this.scrollLines(pendingDelta);
+	}
+
+	#recoverHistory(): void {
+		if (
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom ||
+			this.#historyPhase === ProjectedHistoryPhase.disposed
+		) {
+			return;
+		}
+		const flight = this.#rowFlight;
+		this.#rowFlight = undefined;
+		if (flight?.kind === 'buffer') {
+			flight.removeAbortListener();
+			if (!flight.aborted) {
+				flight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
+			}
+		}
+		this.#pendingHistoryDelta = 0;
+		this.#pendingHistoryTargetRow = undefined;
+		this.#searchController?.invalidate();
+		this.#historyPhase = ProjectedHistoryPhase.recovering;
+		this.#send({
+			kind: 'set-history-demand',
+			payload: { attachmentId: this.#attachmentId, demand: 'following-bottom' },
+		});
+		this.#demand = 'active';
+		this.#sendDemandIfNeeded();
+	}
+
+	#finishHistoryRecovery(): void {
+		this.#historyStore?.dispose();
+		this.#historyStore = undefined;
+		this.#historyRowsBefore = 0;
+		this.#historyStartRow = 0n;
+		this.#historyPhase = ProjectedHistoryPhase.followingBottom;
+		const metadata = this.#store.metadata;
+		if (metadata) {
+			this.#metadataEmitter.fire(metadata);
+			this.#updateAccessibility(metadata);
+		}
+		this.#scheduleRender();
+	}
+
+	#getSearchController(): ProjectedSearchController {
+		this.#searchController ??= new ProjectedSearchController({
+			createWorker: this.#options.searchWorkerFactory ?? createProjectedSearchWorker,
+			onChange: (event) => {
+				const active = event.activeIndex < 0 ? null : (event.matches[event.activeIndex] ?? null);
+				this.#renderer?.setSearchMatches(event.matches, active);
+				this.#searchEmitter.fire(event);
+			},
+			onReveal: (match) => this.#revealSearchMatch(match),
+			reader: this,
+		});
+		return this.#searchController;
+	}
+
+	#revealSearchMatch(match: TerminalSearchMatch): void {
+		if (!Number.isSafeInteger(match.start.row) || match.start.row < 0) return;
+		this.#revealSearchRow(BigInt(match.start.row));
+	}
+
+	#revealSearchRow(row: bigint): void {
+		const metadata = this.metadata ?? this.#store.metadata;
+		if (metadata === null || row < 0n || row >= this.#historyTotalRows) return;
+		const visibleRows = BigInt(metadata.rows);
+		const visibleStart =
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom
+				? this.#historyTotalRows - visibleRows
+				: this.#historyStartRow;
+		if (row >= visibleStart && row < visibleStart + visibleRows) {
+			this.#scheduleRender();
+			return;
+		}
+		if (this.#rowFlight !== undefined) {
+			this.#cancelBufferFlightForViewportIntent();
+			this.#pendingHistoryTargetRow = row;
+			this.#pendingHistoryDelta = 0;
+			return;
+		}
+		const maximumStart =
+			this.#historyTotalRows > visibleRows ? this.#historyTotalRows - visibleRows : 0n;
+		const centeredStart = row > visibleRows / 2n ? row - visibleRows / 2n : 0n;
+		const startRow = centeredStart < maximumStart ? centeredStart : maximumStart;
+		const rowsBefore = this.#historyTotalRows - (startRow + visibleRows);
+		this.#historyRowsBefore = Number(
+			rowsBefore > BigInt(Number.MAX_SAFE_INTEGER) ? BigInt(Number.MAX_SAFE_INTEGER) : rowsBefore,
+		);
+		this.#requestHistoryRows({
+			kind: 'absolute',
+			row: CanonicalUint64TextSchema.parse(startRow.toString()),
+		});
+	}
+
+	#cancelBufferFlightForViewportIntent(): void {
+		const flight = this.#rowFlight;
+		if (flight?.kind !== 'buffer' || flight.aborted) return;
+		flight.aborted = true;
+		flight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
+	}
+
+	#queueLinkLookup(point: PendingLinkPoint): void {
+		const cache = this.#linkCache;
+		if (
+			cache !== undefined &&
+			cache.generation === this.#historyGeneration &&
+			cache.revision === this.#historyRevision &&
+			point.row >= cache.startRow &&
+			point.row <= cache.endRow
+		) {
+			this.#presentHoveredLink(
+				cache.links.find((link) => terminalLinkContains(link, point.column, Number(point.row))),
+				point,
+			);
+			return;
+		}
+		this.#pendingLinkPoint = point;
+		if (!this.#linkLookupActive) void this.#drainLinkLookups();
+	}
+
+	async #drainLinkLookups(): Promise<void> {
+		this.#linkLookupActive = true;
+		try {
+			while (
+				this.#pendingLinkPoint !== undefined &&
+				this.#phase !== ProjectedTerminalPhase.disposed
+			) {
+				const requestedPoint = this.#pendingLinkPoint;
+				this.#pendingLinkPoint = undefined;
+				const snapshot = this.getBufferRowsSnapshot();
+				if (requestedPoint.row >= snapshot.totalRows) {
+					this.#presentHoveredLink(undefined, requestedPoint);
+					continue;
+				}
+				const startRow = requestedPoint.row > 0n ? requestedPoint.row - 1n : 0n;
+				const rowCount = Math.min(3, Number(snapshot.totalRows - startRow));
+				const abortController = new AbortController();
+				this.#linkAbortController = abortController;
+				const result = await this.readBufferRows(
+					{
+						detail: 'render',
+						generation: snapshot.generation,
+						maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+						revision: snapshot.revision,
+						rowCount,
+						startRow,
+					},
+					abortController.signal,
+				);
+				if (this.#linkAbortController === abortController) {
+					this.#linkAbortController = undefined;
+				}
+				if (abortController.signal.aborted) continue;
+				const currentPoint = this.#pendingLinkPoint ?? requestedPoint;
+				this.#pendingLinkPoint = undefined;
+				if (result.kind !== 'rows') {
+					this.#presentHoveredLink(undefined, currentPoint);
+					continue;
+				}
+				const endRow = result.startRow + BigInt(result.rows.length - 1);
+				const links = detectTerminalRowLinks(result.rows, this.metadata?.currentDirectory ?? '');
+				this.#linkCache = {
+					endRow,
+					generation: result.generation,
+					links,
+					revision: result.revision,
+					startRow: result.startRow,
+				};
+				if (currentPoint.row < result.startRow || currentPoint.row > endRow) {
+					this.#pendingLinkPoint = currentPoint;
+					continue;
+				}
+				this.#presentHoveredLink(
+					links.find((link) =>
+						terminalLinkContains(link, currentPoint.column, Number(currentPoint.row)),
+					),
+					currentPoint,
+				);
+			}
+		} finally {
+			this.#linkLookupActive = false;
+			if (this.#pendingLinkPoint !== undefined && this.#phase !== ProjectedTerminalPhase.disposed) {
+				void this.#drainLinkLookups();
+			}
+		}
+	}
+
+	#presentHoveredLink(link: ILink | undefined, point: PendingLinkPoint): void {
+		this.#hoveredLink = link;
+		this.#hoveredLinkPoint = point;
+		const enabled =
+			link !== undefined &&
+			(point.control || point.meta) &&
+			isPermittedExternalTerminalTarget(link);
+		const metadata = this.metadata;
+		const renderer = this.#renderer;
+		if (metadata !== null && renderer !== undefined) {
+			const visibleStart =
+				this.#historyPhase === ProjectedHistoryPhase.followingBottom
+					? this.#historyTotalRows - BigInt(metadata.rows)
+					: this.#historyStartRow;
+			renderer.setHoveredLinkRange(
+				enabled && link !== undefined
+					? {
+							endX: link.range.end.x,
+							endY: link.range.end.y - Number(visibleStart),
+							startX: link.range.start.x,
+							startY: link.range.start.y - Number(visibleStart),
+						}
+					: null,
+			);
+		}
+		if (this.#canvas !== undefined) this.#canvas.style.cursor = enabled ? 'pointer' : '';
+	}
+
+	#clearHoveredLink(): void {
+		this.#pendingLinkPoint = undefined;
+		this.#linkAbortController?.abort();
+		this.#linkAbortController = undefined;
+		this.#hoveredLink = undefined;
+		this.#hoveredLinkPoint = undefined;
+		this.#renderer?.setHoveredLinkRange(null);
+		if (this.#canvas !== undefined) this.#canvas.style.cursor = '';
+	}
+
+	#invalidateLinkCache(): void {
+		this.#linkCache = undefined;
+		this.#clearHoveredLink();
+	}
+
+	#sendSelectionCommand(command: 'clear' | 'select-all'): void {
+		this.#send({
+			kind: 'selection-command',
+			payload: {
+				attachmentId: this.#attachmentId,
+				command,
+				generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
+				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
+			},
+		});
+	}
+
+	#queueSelectionGesture(gesture: PendingSelectionGesture): void {
+		this.#pendingSelectionGesture = gesture;
+		this.#scheduleSelectionGesture();
+	}
+
+	#startSelectionGesture(gesture: PendingSelectionGesture): void {
+		if (this.#selectionGestureInFlight) {
+			this.#queueSelectionGesture(gesture);
+			return;
+		}
+		this.#selectionGestureInFlight = true;
+		this.#sendSelectionGesture(gesture);
+	}
+
+	#scheduleSelectionGesture(): void {
+		if (
+			this.#selectionGestureHandle !== undefined ||
+			this.#selectionGestureInFlight ||
+			this.#pendingSelectionGesture === undefined ||
+			this.#phase === ProjectedTerminalPhase.disposed
+		) {
+			return;
+		}
+		const callback = (): void => {
+			this.#selectionGestureHandle = undefined;
+			if (this.#selectionGestureInFlight) return;
+			const gesture = this.#pendingSelectionGesture;
+			if (gesture === undefined || this.#phase === ProjectedTerminalPhase.disposed) return;
+			this.#pendingSelectionGesture = undefined;
+			this.#selectionGestureInFlight = true;
+			this.#sendSelectionGesture(gesture);
+		};
+		const view = this.#root?.ownerDocument.defaultView;
+		this.#selectionGestureHandle =
+			typeof view?.requestAnimationFrame === 'function'
+				? { kind: 'animation-frame', value: view.requestAnimationFrame(callback) }
+				: { kind: 'timeout', value: globalThis.setTimeout(callback, 16) };
+	}
+
+	#sendSelectionGesture(gesture: PendingSelectionGesture): void {
+		this.#send({
+			kind: 'selection-gesture',
+			payload: {
+				...gesture,
+				attachmentId: this.#attachmentId,
+				generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
+				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
+			},
+		});
+	}
+
+	#selectionPoint(event: MouseEvent): SelectionGesture['point'] | null {
+		const canvas = this.#canvas;
+		const renderer = this.#renderer;
+		const metadata = this.metadata;
+		if (!canvas || !renderer || !metadata) return null;
+		const bounds = canvas.getBoundingClientRect();
+		const column = clamp(
+			Math.floor((event.clientX - bounds.left) / renderer.charWidth),
+			0,
+			metadata.columns - 1,
+		);
+		const viewportRow = clamp(
+			Math.floor((event.clientY - bounds.top) / renderer.charHeight),
+			0,
+			metadata.rows - 1,
+		);
+		const startRow =
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom
+				? this.#historyTotalRows - BigInt(metadata.rows)
+				: this.#historyStartRow;
+		return {
+			column,
+			row: CanonicalUint64TextSchema.parse((startRow + BigInt(viewportRow)).toString()),
+		};
+	}
+
+	#nextRowRequestSequence(): CanonicalUint64Text {
+		if (this.#rowRequestSequence > 0xffff_ffff_ffff_ffffn) this.#rowRequestSequence = 1n;
+		return CanonicalUint64TextSchema.parse((this.#rowRequestSequence++).toString());
+	}
+
+	#nextSideEffectSequence(): CanonicalUint64Text {
+		if (this.#sideEffectSequence > 0xffff_ffff_ffff_ffffn) this.#sideEffectSequence = 1n;
+		return CanonicalUint64TextSchema.parse((this.#sideEffectSequence++).toString());
 	}
 
 	#isDisposed(): boolean {
@@ -484,6 +1618,8 @@ export class ProjectedTerminal {
 		this.#listen(canvas, 'pointerdown', this.#handlePointerDown);
 		this.#listen(canvas, 'pointerup', this.#handlePointerUp);
 		this.#listen(canvas, 'pointermove', this.#handlePointerMove);
+		this.#listen(canvas, 'pointerleave', this.#handlePointerLeave);
+		this.#listen(canvas, 'click', this.#handleClick);
 		this.#listen(canvas, 'wheel', this.#handleWheel, { passive: false });
 	}
 
@@ -499,10 +1635,24 @@ export class ProjectedTerminal {
 
 	readonly #handleKeyDown = (event: KeyboardEvent): void => {
 		this.#trackModifier(event.code, true);
+		this.#refreshHoveredLinkModifiers(event);
 		if (this.#composing || event.isComposing || event.keyCode === 229) return;
+		if (
+			event.shiftKey &&
+			!event.altKey &&
+			!event.ctrlKey &&
+			!event.metaKey &&
+			(event.code === 'PageUp' || event.code === 'PageDown')
+		) {
+			this.scrollPages(event.code === 'PageUp' ? -1 : 1);
+			event.preventDefault();
+			event.stopPropagation();
+			return;
+		}
 		if ((event.ctrlKey || event.metaKey) && event.code === 'KeyV') return;
 		const facts = this.#keyFacts(event);
 		if (!facts) return;
+		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) this.scrollToBottom();
 		this.#pressedKeys.set(event.code, facts);
 		this.#sendKey(facts, event.repeat ? KeyAction.repeat : KeyAction.press);
 		if (facts.text) this.#lastKeyInput = { text: facts.text, time: projectedNow() };
@@ -519,6 +1669,7 @@ export class ProjectedTerminal {
 		}
 		this.#pressedKeys.delete(event.code);
 		this.#trackModifier(event.code, false);
+		this.#refreshHoveredLinkModifiers(event);
 	};
 
 	#sendKey(facts: KeyFacts, action: KeyInput['action']): void {
@@ -573,6 +1724,16 @@ export class ProjectedTerminal {
 		if (!['AltRight', 'ControlRight', 'MetaRight', 'ShiftRight'].includes(code)) return;
 		if (pressed) this.#pressedModifierCodes.add(code);
 		else this.#pressedModifierCodes.delete(code);
+	}
+
+	#refreshHoveredLinkModifiers(event: KeyboardEvent): void {
+		const point = this.#hoveredLinkPoint;
+		if (point === undefined) return;
+		this.#presentHoveredLink(this.#hoveredLink, {
+			...point,
+			control: event.ctrlKey,
+			meta: event.metaKey,
+		});
 	}
 
 	readonly #handleBeforeInput = (event: InputEvent): void => {
@@ -721,30 +1882,122 @@ export class ProjectedTerminal {
 
 	readonly #handlePointerDown = (event: PointerEvent): void => {
 		this.focus();
-		if (!this.#mouseOwned('press')) return;
-		this.#sendMouse(event, MouseAction.press, domMouseButton(event.button));
+		if (this.#mouseOwned('press')) {
+			this.#sendMouse(event, MouseAction.press, domMouseButton(event.button));
+			event.preventDefault();
+			return;
+		}
+		if (event.button !== 0) return;
+		const hoveredLink = this.#hoveredLink;
+		const hoveredPoint = this.#selectionPoint(event);
+		if (
+			hoveredLink !== undefined &&
+			hoveredPoint !== null &&
+			(event.ctrlKey || event.metaKey) &&
+			terminalLinkContains(hoveredLink, hoveredPoint.column, Number(BigInt(hoveredPoint.row))) &&
+			isPermittedExternalTerminalTarget(hoveredLink)
+		) {
+			event.preventDefault();
+			return;
+		}
+		const point = this.#selectionPoint(event);
+		if (point === null) return;
+		this.#selectionGestureActive = true;
+		this.#startSelectionGesture({
+			action: 'start',
+			clickCount: clamp(event.detail, 1, 3),
+			point,
+			rectangle: event.altKey,
+		});
 		event.preventDefault();
 	};
 
 	readonly #handlePointerUp = (event: PointerEvent): void => {
+		if (this.#selectionGestureActive && event.button === 0) {
+			const point = this.#selectionPoint(event);
+			this.#selectionGestureActive = false;
+			if (point !== null) {
+				this.#queueSelectionGesture({
+					action: 'end',
+					clickCount: clamp(event.detail, 1, 3),
+					point,
+					rectangle: event.altKey,
+				});
+			}
+			event.preventDefault();
+			return;
+		}
 		if (!this.#mouseOwned('release')) return;
 		this.#sendMouse(event, MouseAction.release, domMouseButton(event.button));
 		event.preventDefault();
 	};
 
 	readonly #handlePointerMove = (event: PointerEvent): void => {
-		if (!this.#mouseOwned('motion', event.buttons)) return;
-		this.#sendMouse(event, MouseAction.motion, null);
+		if (this.#selectionGestureActive && (event.buttons & 1) !== 0) {
+			this.#clearHoveredLink();
+			const point = this.#selectionPoint(event);
+			if (point !== null) {
+				this.#queueSelectionGesture({
+					action: 'update',
+					clickCount: 1,
+					point,
+					rectangle: event.altKey,
+				});
+			}
+			event.preventDefault();
+			return;
+		}
+		if (this.#mouseOwned('motion', event.buttons)) {
+			this.#clearHoveredLink();
+			this.#sendMouse(event, MouseAction.motion, null);
+			event.preventDefault();
+			return;
+		}
+		const point = this.#selectionPoint(event);
+		if (point === null) {
+			this.#clearHoveredLink();
+			return;
+		}
+		this.#queueLinkLookup({
+			column: point.column,
+			control: event.ctrlKey,
+			meta: event.metaKey,
+			row: BigInt(point.row),
+		});
+	};
+
+	readonly #handlePointerLeave = (): void => this.#clearHoveredLink();
+
+	readonly #handleClick = (event: MouseEvent): void => {
+		if (!event.ctrlKey && !event.metaKey) return;
+		const point = this.#selectionPoint(event);
+		const link = this.#hoveredLink;
+		if (
+			point === null ||
+			link === undefined ||
+			!terminalLinkContains(link, point.column, Number(BigInt(point.row))) ||
+			!isPermittedExternalTerminalTarget(link) ||
+			link.target?.kind !== 'url'
+		) {
+			return;
+		}
+		this.#linkOpenEmitter.fire({ target: link.target });
 		event.preventDefault();
 	};
 
 	readonly #handleWheel = (event: WheelEvent): void => {
-		if (!this.#mouseOwned('press') || event.deltaY === 0) return;
-		this.#sendMouse(
-			event,
-			MouseAction.press,
-			event.deltaY < 0 ? MouseButton.four : MouseButton.five,
-		);
+		if (event.deltaY === 0) return;
+		if (this.#mouseOwned('press')) {
+			this.#sendMouse(
+				event,
+				MouseAction.press,
+				event.deltaY < 0 ? MouseButton.four : MouseButton.five,
+			);
+		} else {
+			const rowHeight = Math.max(1, this.#renderer?.charHeight ?? 1);
+			const rows = Math.max(1, Math.round(Math.abs(event.deltaY) / rowHeight));
+			this.scrollLines(event.deltaY < 0 ? -rows : rows);
+		}
 		event.preventDefault();
 	};
 
@@ -849,6 +2102,11 @@ export class ProjectedTerminal {
 	#updateAccessibility(metadata: ProjectedTerminalMetadata): void {
 		const root = this.#accessibilityRoot;
 		if (!root) return;
+		root.setAttribute(
+			'aria-live',
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom ? 'polite' : 'off',
+		);
+		const store = this.#visibleStore();
 		while (this.#accessibilityRows.length < metadata.rows) {
 			const row = root.ownerDocument.createElement('div');
 			row.setAttribute('role', 'listitem');
@@ -857,20 +2115,123 @@ export class ProjectedTerminal {
 		}
 		while (this.#accessibilityRows.length > metadata.rows) {
 			this.#accessibilityRows.pop()?.remove();
+			this.#accessibilityColumnMappings.pop();
 		}
 		for (let rowIndex = 0; rowIndex < metadata.rows; rowIndex++) {
-			const row = this.#store.rows[rowIndex];
+			const row = store.rows[rowIndex];
 			const element = this.#accessibilityRows[rowIndex];
-			if (!row || !element || (!row.dirty && !this.#store.needsFullRedraw)) continue;
+			if (!row || !element || (!row.dirty && !store.needsFullRedraw)) continue;
 			let text = '';
+			const columnMappings: number[] = [];
 			for (let column = 0; column < metadata.columns; column++) {
 				if (projectedCellDisplayWidth(row.widths[column] ?? 0) > 0) {
-					text += row.grapheme(column) || ' ';
+					const grapheme = row.grapheme(column) || ' ';
+					text += grapheme;
+					for (let offset = 0; offset < grapheme.length; offset++) {
+						columnMappings.push(column);
+					}
 				}
 			}
-			element.textContent = text.trimEnd() || ' ';
+			const visibleText = text.trimEnd() || ' ';
+			element.textContent = visibleText;
+			this.#accessibilityColumnMappings[rowIndex] = columnMappings.slice(0, visibleText.length);
+			const absoluteRow =
+				this.#historyPhase === ProjectedHistoryPhase.followingBottom
+					? this.#historyTotalRows - BigInt(metadata.rows) + BigInt(rowIndex)
+					: this.#historyStartRow + BigInt(rowIndex);
+			element.setAttribute('aria-posinset', (absoluteRow + 1n).toString());
+			element.setAttribute('aria-setsize', this.#historyTotalRows.toString());
+			element.setAttribute('data-terminal-absolute-row', absoluteRow.toString());
 		}
-		root.setAttribute('aria-rowcount', String(metadata.rows));
+		const visibleStart =
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom
+				? this.#historyTotalRows - BigInt(metadata.rows)
+				: this.#historyStartRow;
+		const visibleEnd =
+			this.#historyTotalRows === 0n
+				? 0n
+				: minBigInt(this.#historyTotalRows, visibleStart + BigInt(metadata.rows));
+		const historyRange = this.#options.labels.historyRange;
+		if (historyRange !== undefined) {
+			root.setAttribute(
+				'aria-description',
+				historyRange(
+					this.#historyTotalRows === 0n ? 0n : visibleStart + 1n,
+					visibleEnd,
+					this.#historyTotalRows,
+				),
+			);
+		}
+		root.setAttribute('aria-rowcount', this.#historyTotalRows.toString());
+		root.setAttribute(
+			'data-terminal-visible-row-start',
+			(this.#historyPhase === ProjectedHistoryPhase.followingBottom
+				? this.#historyTotalRows - BigInt(metadata.rows)
+				: this.#historyStartRow
+			).toString(),
+		);
+		root.setAttribute('data-terminal-retained-rows', this.#historyTotalRows.toString());
+	}
+
+	readonly #handleAccessibilitySelectionChange = (): void => {
+		if (
+			this.#phase === ProjectedTerminalPhase.disposed ||
+			this.#selectionGestureInFlight ||
+			this.#selectionGestureActive
+		) {
+			return;
+		}
+		const selection = this.#root?.ownerDocument.getSelection();
+		if (
+			selection === undefined ||
+			selection === null ||
+			selection.rangeCount !== 1 ||
+			selection.isCollapsed
+		) {
+			return;
+		}
+		const range = selection.getRangeAt(0);
+		const start = this.#accessibilitySelectionPoint(
+			range.startContainer,
+			range.startOffset,
+			'start',
+		);
+		const end = this.#accessibilitySelectionPoint(range.endContainer, range.endOffset, 'end');
+		if (start === null || end === null) return;
+		this.#startSelectionGesture({
+			action: 'start',
+			clickCount: 1,
+			point: start,
+			rectangle: false,
+		});
+		this.#queueSelectionGesture({
+			action: 'end',
+			clickCount: 1,
+			point: end,
+			rectangle: false,
+		});
+	};
+
+	#accessibilitySelectionPoint(
+		node: Node,
+		offset: number,
+		edge: 'end' | 'start',
+	): SelectionGesture['point'] | null {
+		const element = isElementNode(node) ? node : node.parentElement;
+		if (element === null) return null;
+		const rowElement = element.closest('[data-terminal-absolute-row]');
+		if (rowElement === null || !this.#accessibilityRoot?.contains(rowElement)) {
+			return null;
+		}
+		const rowIndex = this.#accessibilityRows.indexOf(rowElement);
+		const mapping = this.#accessibilityColumnMappings[rowIndex];
+		const absoluteRow = rowElement.getAttribute('data-terminal-absolute-row');
+		if (mapping === undefined || mapping.length === 0 || absoluteRow === null) return null;
+		const mappingOffset = clamp(edge === 'end' ? offset - 1 : offset, 0, mapping.length - 1);
+		return {
+			column: mapping[mappingOffset] ?? 0,
+			row: CanonicalUint64TextSchema.parse(absoluteRow),
+		};
 	}
 
 	#finalizeExitIfCaughtUp(): void {
@@ -884,6 +2245,10 @@ export class ProjectedTerminal {
 	#clearInput(): void {
 		if (this.#input) this.#input.value = '';
 	}
+}
+
+function isElementNode(node: Node): node is Element {
+	return node.nodeType === node.ELEMENT_NODE;
 }
 
 function emptyModifiers(): TerminalModifiers & {
@@ -1019,6 +2384,10 @@ function sameGeometry(left: ResizeGeometry, right: ResizeGeometry | undefined): 
 
 function clamp(value: number, minimum: number, maximum: number): number {
 	return Math.max(minimum, Math.min(maximum, value));
+}
+
+function minBigInt(left: bigint, right: bigint): bigint {
+	return left < right ? left : right;
 }
 
 function projectedNow(): number {

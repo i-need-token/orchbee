@@ -24,9 +24,11 @@
 		"./fixtures/focus-input-v1_1.bin": "./fixtures/focus-input-v1_1.bin",
 		"./fixtures/key-input-v1_1.bin": "./fixtures/key-input-v1_1.bin",
 		"./fixtures/malformed-frame-v2.json": "./fixtures/malformed-frame-v2.json",
+		"./fixtures/malformed-row-window-v1.json": "./fixtures/malformed-row-window-v1.json",
 		"./fixtures/mouse-input-v1_1.bin": "./fixtures/mouse-input-v1_1.bin",
 		"./fixtures/paste-input-v1_1.bin": "./fixtures/paste-input-v1_1.bin",
 		"./fixtures/terminal-frame-v2.bin": "./fixtures/terminal-frame-v2.bin",
+		"./fixtures/terminal-row-window-v1.bin": "./fixtures/terminal-row-window-v1.bin",
 		"./fixtures/text-input-v1_1.bin": "./fixtures/text-input-v1_1.bin",
 		"./fixtures/transport-envelope-v1.bin": "./fixtures/transport-envelope-v1.bin",
 		"./fixtures/write-input-v1.bin": "./fixtures/write-input-v1.bin"

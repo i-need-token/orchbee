@@ -1,6 +1,7 @@
 const std = @import("std");
 
 pub const terminal_frame_header_bytes = 160;
+pub const terminal_row_window_header_bytes = 112;
 pub const transport_envelope_header_bytes = 64;
 
 const max_frame_bytes = 8 * 1024 * 1024;
@@ -18,6 +19,7 @@ const max_write_input_payload_bytes = 16 + max_input_bytes;
 const max_semantic_input_payload_bytes = 32 + max_input_bytes;
 const max_raw_payload_bytes = max_semantic_input_payload_bytes;
 const max_key_text_bytes = 4096;
+const max_row_window_bytes = 2 * 1024 * 1024;
 const max_string_bytes = 16 * 1024;
 const max_transport_record_bytes = max_frame_bytes + transport_envelope_header_bytes;
 const no_string_index = std.math.maxInt(u32);
@@ -49,6 +51,25 @@ pub const CursorShape = enum {
 pub const ActiveScreen = enum {
     primary,
     alternate,
+};
+
+pub const RowWindowDetail = enum {
+    render,
+    text,
+};
+
+pub const RowWindowSummary = struct {
+    attachment_id: [16]u8,
+    columns: u16,
+    detail: RowWindowDetail,
+    entry_count: u32,
+    generation: u64,
+    host_epoch: [16]u8,
+    revision: u64,
+    row_count: u16,
+    sequence: u64,
+    start_row: u64,
+    total_rows: u64,
 };
 
 pub const FrameSummary = struct {
@@ -95,6 +116,7 @@ pub const PayloadEncoding = enum(u8) {
     control_json = 1,
     raw_bytes = 2,
     terminal_frame = 3,
+    row_window = 4,
 };
 
 pub const WriteInputSummary = struct {
@@ -188,6 +210,8 @@ pub fn isKnownMessageKind(kind: u16) bool {
         20...23,
         30...38,
         41...49,
+        50...54,
+        60...68,
         => true,
         else => false,
     };
@@ -198,6 +222,7 @@ fn maximumPayloadBytes(encoding: u8) ProtocolError!usize {
         1 => max_control_json_bytes,
         2 => max_raw_payload_bytes,
         3 => max_frame_bytes,
+        4 => max_row_window_bytes,
         else => error.InvalidField,
     };
 }
@@ -607,6 +632,167 @@ pub fn validateTerminalFrame(
     };
 }
 
+pub fn validateTerminalRowWindow(
+    allocator: std.mem.Allocator,
+    bytes: []const u8,
+) (ProtocolError || std.mem.Allocator.Error)!RowWindowSummary {
+    if (bytes.len < terminal_row_window_header_bytes) return error.Truncated;
+    if (bytes.len > max_row_window_bytes) return error.LimitExceeded;
+    try requireMagic(bytes, "OBRW");
+
+    var reader = Reader.init(bytes, 4);
+    const format_major = try reader.readInt(u8);
+    const format_minor = try reader.readInt(u8);
+    const detail_code = try reader.readInt(u8);
+    const flags = try reader.readInt(u8);
+    const total_length = try reader.readInt(u32);
+    const header_length = try reader.readInt(u16);
+    const columns = try reader.readInt(u16);
+    const host_epoch = try copyIdentifier(try reader.readBytes(16));
+    const attachment_id = try copyIdentifier(try reader.readBytes(16));
+    const sequence = try reader.readInt(u64);
+    const revision = try reader.readInt(u64);
+    const generation = try reader.readInt(u64);
+    const total_rows = try reader.readInt(u64);
+    const start_row = try reader.readInt(u64);
+    const row_count = try reader.readInt(u16);
+    const reserved = try reader.readInt(u16);
+    const entry_count = try reader.readInt(u32);
+    const body_length = try reader.readInt(u32);
+    const reserved_tail = try reader.readBytes(12);
+
+    if (format_major != 1 or format_minor > 1 or
+        header_length != terminal_row_window_header_bytes)
+    {
+        return error.UnsupportedVersion;
+    }
+    if (total_length != bytes.len or body_length != bytes.len - header_length) {
+        return error.LengthMismatch;
+    }
+    if (reserved != 0 or flags & 0x80 != 0) return error.UnknownRequiredFlag;
+    for (reserved_tail) |byte| if (byte != 0) return error.UnknownRequiredFlag;
+    if (columns == 0 or columns > max_frame_columns or row_count == 0 or
+        row_count > max_frame_rows or entry_count > max_frame_cells or sequence == 0 or
+        generation == 0 or start_row > total_rows or row_count > total_rows - start_row)
+    {
+        return error.InvalidField;
+    }
+    const detail: RowWindowDetail = switch (detail_code) {
+        1 => .render,
+        2 => .text,
+        else => return error.InvalidField,
+    };
+    const body = bytes[header_length..];
+    switch (detail) {
+        .render => {
+            const frame = try validateTerminalFrame(allocator, body);
+            if (frame.kind != .snapshot or
+                !std.mem.eql(u8, &frame.host_epoch, &host_epoch) or
+                !std.mem.eql(u8, &frame.attachment_id, &attachment_id) or
+                frame.sequence != sequence or frame.revision != revision or
+                frame.generation != generation or frame.columns != columns or
+                frame.rows != row_count or entry_count != @as(u32, row_count) * columns)
+            {
+                return error.InvalidField;
+            }
+        },
+        .text => try validateTextRowWindowBody(
+            body,
+            format_minor,
+            row_count,
+            columns,
+            entry_count,
+        ),
+    }
+    return .{
+        .attachment_id = attachment_id,
+        .columns = columns,
+        .detail = detail,
+        .entry_count = entry_count,
+        .generation = generation,
+        .host_epoch = host_epoch,
+        .revision = revision,
+        .row_count = row_count,
+        .sequence = sequence,
+        .start_row = start_row,
+        .total_rows = total_rows,
+    };
+}
+
+fn validateTextRowWindowBody(
+    body: []const u8,
+    format_minor: u8,
+    row_count: u16,
+    columns: u16,
+    expected_entry_count: u32,
+) ProtocolError!void {
+    var reader = Reader.init(body, 0);
+    var entries: u32 = 0;
+    for (0..row_count) |_| {
+        const row_flags = try reader.readInt(u8);
+        const prompt_class = try reader.readInt(u8);
+        const reserved = try reader.readInt(u16);
+        const text_length = try reader.readInt(u32);
+        const mapping_count = try reader.readInt(u32);
+        const supported_row_flags: u8 = 0x03 | (if (format_minor >= 1) @as(u8, 0x04) else 0);
+        if (row_flags & ~supported_row_flags != 0 or reserved != 0) {
+            return error.UnknownRequiredFlag;
+        }
+        if (prompt_class > 2 or mapping_count > columns or
+            mapping_count > max_frame_cells - entries)
+        {
+            return error.LimitExceeded;
+        }
+        const text = try reader.readBytes(text_length);
+        if (!std.unicode.utf8ValidateSlice(text)) return error.InvalidUtf8;
+        const identity_ascii = row_flags & 0x04 != 0;
+        if (identity_ascii) {
+            if (mapping_count != 0 or text.len > columns) return error.InvalidField;
+            for (text) |byte| if (byte > 0x7f) return error.InvalidField;
+            const logical_entries: u32 = @intCast(text.len);
+            if (logical_entries > max_frame_cells - entries) return error.LimitExceeded;
+            entries += logical_entries;
+            continue;
+        }
+        const utf16_length = try utf16Length(text);
+        var previous_byte: ?u32 = null;
+        var previous_utf16: ?u32 = null;
+        var previous_column: ?u16 = null;
+        for (0..mapping_count) |_| {
+            const byte_offset = try reader.readInt(u32);
+            const utf16_offset = try reader.readInt(u32);
+            const column = try reader.readInt(u16);
+            const width = try reader.readInt(u8);
+            const mapping_reserved = try reader.readInt(u8);
+            if (mapping_reserved != 0) return error.UnknownRequiredFlag;
+            if (byte_offset > text.len or utf16_offset > utf16_length or column >= columns or
+                (width != 1 and width != 2) or
+                (previous_byte != null and byte_offset <= previous_byte.?) or
+                (previous_utf16 != null and utf16_offset <= previous_utf16.?) or
+                (previous_column != null and column <= previous_column.?))
+            {
+                return error.InvalidField;
+            }
+            previous_byte = byte_offset;
+            previous_utf16 = utf16_offset;
+            previous_column = column;
+        }
+        entries += mapping_count;
+    }
+    if (reader.offset != body.len or entries != expected_entry_count) return error.LengthMismatch;
+}
+
+fn utf16Length(bytes: []const u8) ProtocolError!u32 {
+    const view = std.unicode.Utf8View.init(bytes) catch return error.InvalidUtf8;
+    var iterator = view.iterator();
+    var result: u32 = 0;
+    while (iterator.nextCodepoint()) |codepoint| {
+        result = std.math.add(u32, result, if (codepoint > 0xffff) 2 else 1) catch
+            return error.LimitExceeded;
+    }
+    return result;
+}
+
 pub fn validateTransportEnvelope(bytes: []const u8) ProtocolError!EnvelopeSummary {
     if (bytes.len < transport_envelope_header_bytes) return error.Truncated;
     if (bytes.len > max_transport_record_bytes) return error.LimitExceeded;
@@ -703,7 +889,7 @@ pub fn encodeTransportEnvelopeVersion(
     response: bool,
     event: bool,
 ) (ProtocolError || std.mem.Allocator.Error)![]u8 {
-    if (protocol_minor > 1) return error.UnsupportedVersion;
+    if (protocol_minor > 2) return error.UnsupportedVersion;
     if (event and response) return error.InvalidField;
     if (payload.len > try maximumPayloadBytes(@intFromEnum(encoding))) return error.LimitExceeded;
     const total_length = transport_envelope_header_bytes + payload.len;

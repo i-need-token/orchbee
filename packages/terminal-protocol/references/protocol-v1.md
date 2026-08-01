@@ -1,12 +1,12 @@
 # Terminal Protocol v1 Contract and Correctness Record
 
-| Field           | Current authority                                                                                                                                                           |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status          | Current protocol and correctness authority through Slice 4; this package implements no PTY, IPC listener, renderer, Electron, packaging, or network behavior                |
-| Semantic owner  | `@orchbee/terminal-protocol`                                                                                                                                                |
-| Native consumer | `apps/terminal-host` consumes declared fixture exports and protocol semantics for Zig conformance and bounded native dispatch                                               |
-| Reference scope | Compatible protocol `1.0`/`1.1` semantics, packed frame format `2.0`, semantic-input codecs, and pinned canonical fixtures; no Ghostty GUI or performance-parity claim      |
-| Change rule     | A changed field, message meaning, wire byte, bound, transition, invariant, fairness assumption, or fixture updates this record, both language implementations, and evidence |
+| Field           | Current authority                                                                                                                                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status          | Current protocol and correctness authority through Slice 6; this package implements no PTY, IPC listener, renderer, Electron, packaging, or network behavior                 |
+| Semantic owner  | `@orchbee/terminal-protocol`                                                                                                                                                 |
+| Native consumer | `apps/terminal-host` consumes declared fixture exports and protocol semantics for Zig conformance and bounded native dispatch                                                |
+| Reference scope | Compatible protocol `1.0`/`1.1`/`1.2` semantics, packed frame `2.0`, row-window `1.0`/`1.1`, input/selection codecs, and pinned fixtures; no GUI or performance-parity claim |
+| Change rule     | A changed field, message meaning, wire byte, bound, transition, invariant, fairness assumption, or fixture updates this record, both language implementations, and evidence  |
 
 ## Modeling record
 
@@ -14,15 +14,15 @@
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem      | A native Host and TypeScript clients need one bounded, versioned, inspectable control contract and one allocation-conscious projection codec without sharing product topology or transport implementation.                                                                                   |
 | Inputs       | Every peer record, control JSON value, identifier, length, count, flag, UTF-8 string, lifecycle state, and lifecycle event is untrusted until the exported decoder or schema accepts it. Absence uses explicit `null` or a named wire sentinel.                                              |
-| Data         | Protocol versions, five principal 128-bit identities, correlation identity, transport envelope, terminal frame tables, Host state, terminal state, connection state, attachment state, revision, sequence, capability, resize lease, pending input, and update intent.                       |
-| Outputs      | Successful decoded/encoded values; typed `ProtocolFailure`; lifecycle outcome `applied`, `idempotent`, or `rejected`; and serializable commands for spawn, terminate, input write, PTY resize, frame emission, connection close, or Host stop.                                               |
-| Invariants   | I1-I15 in [Traceability](#traceability); every accepted lifecycle transition revalidates its complete state schema before returning.                                                                                                                                                         |
-| Decisions    | Protocol overlap; message requiredness and encoding; attachment-prefixed raw and semantic input; full-row snapshot/delta projection; demand, capture, generation, acknowledgment, input capacity, completion reorder, and retained-terminal upgrade gates.                                   |
-| Model        | Strict boundary normalization, deterministic binary codecs, and `transitionProtocolLifecycle(state, event)` as the principal abstract operation.                                                                                                                                             |
+| Data         | Protocol versions and identities; transport envelopes; terminal frames and row windows; Host/terminal/connection/attachment state; revision, generation, sequence, anchors, selection/export state, capabilities, resize lease, pending input, and update intent.                            |
+| Outputs      | Successful decoded/encoded values; typed `ProtocolFailure`; lifecycle outcomes and serializable commands; bounded row snapshots and selection export chunks.                                                                                                                                 |
+| Invariants   | I1-I20 in [Traceability](#traceability); every accepted lifecycle transition revalidates its complete state schema before returning.                                                                                                                                                         |
+| Decisions    | Protocol overlap; message requiredness/encoding; semantic input; live projection; bounded row reads; anchor promotion/eviction; Host-owned selection/export; demand, acknowledgment, input capacity, completion reorder, and retained-terminal upgrade gates.                                |
+| Model        | Strict boundary normalization, deterministic binary codecs, `transitionProtocolLifecycle(state, event)`, and the TLA+ lifecycle/frame/history abstractions.                                                                                                                                  |
 | Transitions  | Named serializable events with explicit guards, outcomes, state, and commands; rejected, stale, repeated, and reordered cases preserve state unless their documented idempotent transition applies.                                                                                          |
 | Dependencies | Zod validation and standard typed-array/TextEncoder APIs in TypeScript; no clock, randomness, storage, process, network, DOM, Electron, GPU, or PTY capability. TLA+ and Zig are pinned repository evidence toolchains.                                                                      |
 | Ownership    | The package owns protocol meaning and abstract transition semantics. Host owns terminal processes and emulation; Desktop owns transport adapters, capabilities, recovery binding, and updates; renderer owns projection and interaction; future gateway owns networking and remote security. |
-| Verification | Named example tests, stable-seed properties, strict-prefix exploration, generated format-2 malformed corpus, generated-file comparison, two TLC configurations, export checks, and Zig decoding of every canonical binary input.                                                             |
+| Verification | Named examples, stable-seed properties, strict-prefix exploration, generated frame/row malformed corpora, generated-file comparison, three TLC configurations, export checks, and Zig decoding of every canonical binary input.                                                              |
 | Correctness  | TLA+ checks the declared finite abstraction; property tests sample configured generators; Zig checks a native decoder against current fixtures. Platform PTY and IPC behavior requires Host-owned evidence; this package does not prove renderer, installer, Host crash, or remote security. |
 
 ## Identity and versioning
@@ -40,12 +40,14 @@ identity and are rejected where an identity is required.
 | `AttachmentId`  | One client attachment carrying negotiated capabilities                                                                           |
 | `CorrelationId` | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is `1.1`. A `ProtocolVersionRange` supports one major and an inclusive
+The current protocol version is `1.2`. A `ProtocolVersionRange` supports one major and an inclusive
 minor interval. Negotiation rejects different majors or disjoint minor intervals and otherwise
 selects the highest shared minor. Protocol `1.0` lifecycle, raw input, and non-readable attachment
 behavior remains usable. A readable attachment, pixel-aware launch/resize, projection demand, or
-semantic input requires negotiated `1.1`. Packed frame format has its own version: the current and
-only shipped format is `2.0`; the unshipped fixture-only format 1 has no compatibility decoder.
+semantic input requires negotiated `1.1`. History demand/read acknowledgment, selection, and
+selection export require negotiated `1.2`. Packed frame and row-window formats have independent
+versions: the current formats are `2.0` and `1.1` respectively; row-window `1.0` remains decodable,
+while the unshipped fixture-only frame format 1 has no compatibility decoder.
 
 ## Control contract
 
@@ -64,7 +66,7 @@ diagnostics.
 Canonical unsigned 64-bit integers inside JSON use decimal text with no sign, whitespace, exponent,
 or leading zero except the value `0`. Packed binary uses little-endian unsigned integers.
 
-## Runtime binding and protocol 1.1 additions
+## Runtime binding and protocol additions
 
 Each connection sends exactly one `Hello` before any other request. `Hello` and `HelloAccepted`
 negotiate `frameBytes`, `inputBytes`, and `rowWindowBytes`. Every post-handshake request carries a
@@ -89,6 +91,8 @@ their corresponding request kinds. Other successful operations respond with thei
 | `ResizeTerminal`      | Attachment identity, accepted canonical cell/pixel geometry, and resulting revision                                                 |
 | projection demand     | Attachment identity plus accepted `active` or `paused` demand                                                                       |
 | frame/recovery        | Format-2 snapshot/delta event, exact `FrameApplied`, typed `NeedSnapshot`, or typed `ProjectionBlocked`                             |
+| history/read rows     | Accepted history demand, bounded render/text `RowsSnapshot`, exact `RowsApplied`, `HistoryChanged`, and `HistoryObserved`           |
+| selection/export      | Current selection state plus bounded started/chunk/acknowledgment/finished or cancellation flow                                     |
 | terminal start / exit | Terminal identity; exit additionally carries the final revision and exit-code, signal, or unknown platform result                   |
 
 `WriteInput` is a raw-byte payload containing exactly 16 non-zero `AttachmentId` bytes followed by
@@ -106,16 +110,17 @@ cannot make key, mouse, paste, or focus encoding stale.
 
 ## Message registry
 
-| Range   | Group                   | Kinds                                                                                                                                                                                        |
-| ------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `1-5`   | Connection              | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                               |
-| `10-17` | Inventory and lifecycle | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `TitleChanged=16`, `CurrentDirectoryChanged=17`            |
-| `20-23` | Attachment              | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`                                                                                               |
-| `30-38` | Input and size          | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                              |
-| `41-49` | Projection              | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49` |
+| Range   | Group                   | Kinds                                                                                                                                                                                                                                                                                                        |
+| ------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `1-5`   | Connection              | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                               |
+| `10-17` | Inventory and lifecycle | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `TitleChanged=16`, `CurrentDirectoryChanged=17`                                                                                                                            |
+| `20-23` | Attachment              | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`                                                                                                                                                                                                               |
+| `30-38` | Input and size          | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                              |
+| `41-54` | Projection and history  | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54` |
+| `60-68` | Selection and export    | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                |
 
 Requests and responses use the response flag and `CorrelationId`; the named pairs in
-[runtime binding](#runtime-binding-and-protocol-11-additions) use their registered response kind and other
+[runtime binding](#runtime-binding-and-protocol-additions) use their registered response kind and other
 responses reuse the request kind. Events use the event flag. An unknown kind is rejected unless
 the optional-message flag is present, in which case the bounded payload may be skipped without
 state change.
@@ -134,7 +139,7 @@ Every record begins with this fixed 64-byte little-endian header:
 | `16`   |     2 | Protocol major                                                                  |
 | `18`   |     2 | Protocol minor                                                                  |
 | `20`   |     2 | Message kind                                                                    |
-| `22`   |     1 | Encoding: control JSON `1`, raw bytes `2`, terminal frame `3`                   |
+| `22`   |     1 | Encoding: control JSON `1`, raw bytes `2`, terminal frame `3`, row window `4`   |
 | `23`   |     1 | Reserved zero                                                                   |
 | `24`   |    16 | Correlation identity; all zero means absent                                     |
 | `40`   |    16 | Host epoch; all zero is allowed only before an epoch-bearing semantic operation |
@@ -208,6 +213,75 @@ decoder first validates and scans all tables and rows, then allocates exact type
 cells without constructing a JavaScript object per cell. The projected store stages a full snapshot
 or every delta row before mutating the committed grid.
 
+## Packed terminal row-window format 1
+
+`ReadRows` is a protocol-1.2 request scoped by attachment, revision, generation, positive request
+sequence, requested row count, negotiated byte maximum, detail (`render` or `text`), purpose
+(`viewport`, `search`, or `buffer`), and one origin:
+
+- `absolute` names a retained absolute row.
+- `oldest` names an unsigned offset from the oldest retained row.
+- `tail` names how many rows remain below the requested viewport.
+- `committed` applies a bounded signed delta to the attachment's last applied anchor.
+
+The Host resolves the origin once and returns a contiguous `RowsSnapshot`. At most one row request
+is in flight per attachment. A response is only a pending anchor; the matching `RowsApplied`
+promotes it to the committed anchor. Resize, screen generation change, detach, or Ghostty page
+eviction invalidates affected anchors. `HistoryChanged` coalesces while one event awaits the exact
+`HistoryObserved` revision/generation acknowledgment.
+
+Every row window begins with this fixed 112-byte little-endian header:
+
+| Offset | Bytes | Field                                                                 |
+| ------ | ----: | --------------------------------------------------------------------- |
+| `0`    |     4 | ASCII `OBRW`                                                          |
+| `4`    |     1 | Format major `1`                                                      |
+| `5`    |     1 | Format minor `1`; decoder also accepts `0`                            |
+| `6`    |     1 | Detail: render `1` or text `2`                                        |
+| `7`    |     1 | Optional flags; required bit `7` is currently zero                    |
+| `8`    |     4 | Total row-window bytes                                                |
+| `12`   |     2 | Header length, exactly `112`                                          |
+| `14`   |     2 | Columns                                                               |
+| `16`   |    16 | Host epoch                                                            |
+| `32`   |    16 | Attachment identity                                                   |
+| `48`   |     8 | Positive attachment-local request sequence                            |
+| `56`   |     8 | Captured canonical revision                                           |
+| `64`   |     8 | Captured screen generation                                            |
+| `72`   |     8 | Total retained rows                                                   |
+| `80`   |     8 | Absolute first row                                                    |
+| `88`   |     2 | Contiguous row count                                                  |
+| `90`   |     2 | Reserved zero                                                         |
+| `92`   |     4 | Cell count for render detail or logical mapping count for text detail |
+| `96`   |     4 | Body bytes                                                            |
+| `100`  |    12 | Reserved zero                                                         |
+| `112`  |     N | Format-2 snapshot frame or text rows                                  |
+
+Render detail nests one format-2 snapshot whose identity, sequence, revision, generation, columns,
+and rows agree with the outer window. Text detail stores each row as a 12-byte header followed by
+strict UTF-8 text and, when required, ordered 12-byte UTF-8/UTF-16/column/width mappings. Row flag
+bit `2` (`0x04`) was added in format `1.1`: it requires zero serialized mappings and declares that
+every text byte is narrow ASCII whose UTF-8 byte offset, UTF-16 code-unit offset, and terminal
+column all equal its character index. The header entry count still includes these logical mappings,
+so the 262,144-entry bound is unchanged. Unicode, wide-cell, combining-grapheme, and non-identity
+rows retain explicit mappings. A format-1.0 decoder rejects the new row flag; a current decoder
+accepts explicit format-1.0 rows and both format-1.1 forms. All row, logical-mapping, byte, UTF-8,
+ordering, identity, and nested-frame relationships are validated before a decoded window is
+returned.
+
+## Host-owned selection and export
+
+Protocol 1.2 selection gestures and commands always carry the attachment's current revision and
+generation. Endpoints are absolute row/column pairs; active state includes only endpoints,
+rectangle mode, and an optional 4 KiB preview. `none` and `evicted` are distinct so a client cannot
+silently copy replacement content after scrollback loss or a screen change.
+
+`SelectionExport` selects plain, HTML, or VT output and a positive export sequence. The Host first
+returns `SelectionExportStarted`, then emits at most one raw `SelectionExportChunk` in flight. Each
+chunk contains the attachment identity, export sequence, monotonic `u32` chunk sequence, final bit,
+and at most 1 MiB of bytes. `SelectionExportChunkApplied` advances the stream; completion or explicit
+cancellation releases all export storage. Total formatted output is capped at 16 MiB. Clipboard
+write and other platform effects remain outside this protocol package and the Host.
+
 ## Hard bounds
 
 Negotiation may select a smaller value. It never raises these package hard limits.
@@ -224,6 +298,9 @@ Negotiation may select a smaller value. It never raises these package hard limit
 | Packed frame                        |              8 MiB |
 | Transport record                    |       8 MiB + 64 B |
 | Row-window payload                  |              2 MiB |
+| Search query at a client boundary   |             16 KiB |
+| Selection preview                   |              4 KiB |
+| Selection export / one chunk        |     16 MiB / 1 MiB |
 | One UTF-8 string                    |             16 KiB |
 | Strings / styles / row records      | 4096 / 1024 / 4096 |
 | Cells / frame extensions            |        262144 / 64 |
@@ -248,6 +325,9 @@ typed failures.
 | Output / capture                | Parse mutation advances canonical revision under terminal authority; display-cadenced capture samples revision/generation independently and never creates a revision.                             |
 | Demand / frame / acknowledgment | A readable attachment starts paused. Active, unblocked demand may emit at most one frame; later mutation coalesces into one dirty marker. Exact acknowledgment advances its base.                 |
 | Recovery / generation / final   | Bad sequence/base/generation requests a snapshot. Resize or screen change forces a new-generation snapshot. Finalization may wait for active demand to reach `finalRevision`.                     |
+| History / row reads             | Viewing-history demand permits one bounded row flight. Only an exact applied acknowledgment promotes its pending anchor; mutation coalesces one history event and eviction invalidates pins.      |
+| Selection / export              | Current-generation gestures and commands update Host-owned endpoints. Export requires a valid selection and advances one acknowledged bounded chunk at a time; eviction cancels it.               |
+| Client search                   | Query and matching stay outside Host. A client accepts a streamed page only while its captured revision and generation remain current.                                                            |
 | Resize                          | Only the lease attachment mutates canonical rows, columns, and cell-pixel geometry; every attachment observes the resulting revision.                                                             |
 | Input                           | A capable attachment reserves bounded ordered ingress before raw or semantic encoding; rejection/cancellation frees capacity without an ordering gap.                                             |
 | Upgrade / stop                  | Retained terminals keep a serving Host with `upgradePending`. The final explicit disposal enters draining; only an empty draining Host stops.                                                     |
@@ -270,6 +350,10 @@ classified as idempotent also return no commands.
 | `demand`, `blocked`                               | `SetProjectionDemand` and typed Host `ProjectionBlocked` state                             |
 | acknowledgment, frame base/sequence/generation    | `FrameApplied`, `NeedSnapshot`, Host in-flight metadata, and format-2 header               |
 | `pendingDirty`, `forceSnapshot`                   | bounded Host attachment delivery fields                                                    |
+| row flight, pending/committed anchor              | `ReadRows`, `RowsSnapshot`, `RowsApplied`, and Host tracked page pins                      |
+| history event/dirty                               | `HistoryChanged`, `HistoryObserved`, and attachment-local coalescing                       |
+| selection validity and export flight/chunk        | Host tracked selection plus protocol-1.2 selection/export messages                         |
+| search revision/generation acceptance             | Renderer-owned bounded reader and Worker result guards                                     |
 | `inputBuffer`                                     | lifecycle pending bytes and Host ordered-ingress charged bytes                             |
 | `AttemptCreate`, `Disconnect`, `Detach`           | matching discriminated lifecycle events and `LifecycleOutcome`                             |
 | `Capture`, `Emit`, `FrameApplied`, `NeedSnapshot` | Host capture scheduler/core transitions plus protocol events                               |
@@ -277,30 +361,36 @@ classified as idempotent also return no commands.
 | `RequestUpgrade`, `StopHost`                      | matching events plus `close-connections` and `stop-host` commands                          |
 
 TLA+ abstracts away concrete identifiers, launch payloads, bytes, error text, process handles,
-transport, render-state allocation, and frame contents. TypeScript schemas/codecs and the native
-Host state machine refine those omitted values through strict validation, hard bounds, and
-deterministic tests. Desktop transport must later show that executing commands and transferring
-buffers preserves this mapping.
+transport, render-state allocation, and frame/row contents. TypeScript schemas/codecs and the
+native Host state machine refine those omitted values through strict validation, hard bounds, and
+deterministic tests. Desktop broker and renderer integration tests cover correlated command routing,
+one structured clone per binary projection, and atomic row-window application; they do not turn the
+finite model into a platform or performance proof.
 
 ## Traceability
 
-| Claim                                           | Owned contract                      | TLA+ property or invariant                                        | Deterministic/property evidence                                          | Integrated evidence                              | Limits                                                         |
-| ----------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------ | -------------------------------------------------------------- |
-| I1 renderer/client loss preserves terminals     | Lifecycle transitions               | `DisconnectPreservesTerminalState`                                | `disconnects attachments without changing any terminal lifecycle fact`   | Native PTY retry survives local disconnect       | Desktop restart and renderer broker remain later               |
-| I2 graceful replacement requires no terminal    | Upgrade/stop transition             | `GracefulStopRequiresNoTerminal`, `DrainingEventuallyStops`       | `defers upgrade until the final retained terminal exits and is disposed` | N/A until updater slice                          | Weak fairness for enabled stop                                 |
-| I3 one `CreationId`, no duplicate spawn         | Identity/create transition          | `TerminalIdentityIntegrity`                                       | `creates once by CreationId and rejects a conflicting retry`             | Lost-response retry retains one native PTY       | Current Host retains at most one terminal                      |
-| I4 stale epoch mutates nothing                  | Identity and rejection rule         | `HostEpochIntegrity`, `AttachmentIntegrity`                       | `rejects stale epochs and attachment authority without mutating state`   | Native dispatch rejects a correlated stale epoch | One active native Host epoch                                   |
-| I5 one in-flight frame plus dirty marker        | Frame backpressure                  | `OneFrameAndDirtyMarker`                                          | demand/coalescing/duplicate Host-core traces                             | Real PTY service and projected-store tests       | Two attachments, revision 0-2 in TLC                           |
-| I6 delta base equals acknowledgment             | Format-2 frame and frame transition | `DeltaBaseMatchesAcknowledgement`                                 | replacement-snapshot and frame round-trip properties                     | Native producer plus packed-store recovery tests | Bounded revision model                                         |
-| I7 detach has no terminal side effect           | Detach transition                   | `DetachPreservesTerminalState`                                    | disconnect/detach state tests                                            | Native connection cleanup retains PTY state      | Desktop broker remains later                                   |
-| I8 one resize authority                         | Attachment/resize transition        | `ExclusiveResizeLease`                                            | `allows only the exclusive resize lease to mutate canonical dimensions`  | Lease-owned native PTY resize integration        | Two attachments in deterministic core                          |
-| I9 scoped attachment lacks privileged authority | Control/lifecycle authority         | `ScopedAuthorityCannotCreate`                                     | authority rejection test                                                 | N/A until Desktop broker slice                   | Create modeled formally; other privileged events deterministic |
-| I10 sharing-off starts no network state         | Package non-goal and state literal  | `NoNetworkListener`                                               | every parsed lifecycle state requires `networkListener: false`           | Host builds only UDS or named-pipe endpoints     | Static/runtime evidence does not cover a future gateway        |
-| I11 one endpoint-owning epoch                   | Host launch model                   | `HostEpochIntegrity` plus one authoritative Host state            | repeated launch/stale epoch traces                                       | Native lifetime-lock race and reconnect test     | One user/channel endpoint                                      |
-| I12 byte and queue memory remain bounded        | Hard bounds and codecs              | `TypeOK`, `InputMemoryIsBounded`, `AcceptedInputEventuallyWrites` | malformed corpus, strict-prefix property, input-backpressure test        | Native oversized-record and bounded-queue tests  | OS exhaustion remains outside progress claims                  |
-| I13 frames name captured canonical state        | Capture/revision contract           | `FrameNamesCapturedCanonicalState`                                | mutation/capture and generation traces                                   | Ghostty capture/encode tests                     | Capture allocation failure is modeled abstractly               |
-| I14 paused or blocked demand performs no work   | Projection demand                   | `PausedOrBlockedCannotBecomeReady`                                | pause/resume and explicit blocked-recovery traces                        | no-demand counters and real PTY pause test       | Scheduler/platform suspension is outside progress claims       |
-| I15 frame sequence commits only with a frame    | Encode/enqueue atomicity            | `SequenceCommittedOnlyWithFrame`                                  | encode/enqueue failure and stale recovery traces                         | native frame conformance and attachment tests    | Transport transfer is deferred to Desktop                      |
+| Claim                                           | Owned contract                      | TLA+ property or invariant                                         | Deterministic/property evidence                                          | Integrated evidence                              | Limits                                                         |
+| ----------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------ | -------------------------------------------------------------- |
+| I1 renderer/client loss preserves terminals     | Lifecycle transitions               | `DisconnectPreservesTerminalState`                                 | `disconnects attachments without changing any terminal lifecycle fact`   | Native PTY and Desktop renderer-reload tests     | Desktop process crash recovery remains a later slice           |
+| I2 graceful replacement requires no terminal    | Upgrade/stop transition             | `GracefulStopRequiresNoTerminal`, `DrainingEventuallyStops`        | `defers upgrade until the final retained terminal exits and is disposed` | N/A until updater slice                          | Weak fairness for enabled stop                                 |
+| I3 one `CreationId`, no duplicate spawn         | Identity/create transition          | `TerminalIdentityIntegrity`                                        | `creates once by CreationId and rejects a conflicting retry`             | Lost-response retry retains one native PTY       | Current Host retains at most one terminal                      |
+| I4 stale epoch mutates nothing                  | Identity and rejection rule         | `HostEpochIntegrity`, `AttachmentIntegrity`                        | `rejects stale epochs and attachment authority without mutating state`   | Native dispatch rejects a correlated stale epoch | One active native Host epoch                                   |
+| I5 one in-flight frame plus dirty marker        | Frame backpressure                  | `OneFrameAndDirtyMarker`                                           | demand/coalescing/duplicate Host-core traces                             | Real PTY service and projected-store tests       | Two attachments, revision 0-2 in TLC                           |
+| I6 delta base equals acknowledgment             | Format-2 frame and frame transition | `DeltaBaseMatchesAcknowledgement`                                  | replacement-snapshot and frame round-trip properties                     | Native producer plus packed-store recovery tests | Bounded revision model                                         |
+| I7 detach has no terminal side effect           | Detach transition                   | `DetachPreservesTerminalState`                                     | disconnect/detach state tests                                            | Native and Desktop broker cleanup tests          | Host process loss is outside this claim                        |
+| I8 one resize authority                         | Attachment/resize transition        | `ExclusiveResizeLease`                                             | `allows only the exclusive resize lease to mutate canonical dimensions`  | Lease-owned native PTY resize integration        | Two attachments in deterministic core                          |
+| I9 scoped attachment lacks privileged authority | Control/lifecycle authority         | `ScopedAuthorityCannotCreate`                                      | authority rejection test                                                 | N/A until Desktop broker slice                   | Create modeled formally; other privileged events deterministic |
+| I10 sharing-off starts no network state         | Package non-goal and state literal  | `NoNetworkListener`                                                | every parsed lifecycle state requires `networkListener: false`           | Host builds only UDS or named-pipe endpoints     | Static/runtime evidence does not cover a future gateway        |
+| I11 one endpoint-owning epoch                   | Host launch model                   | `HostEpochIntegrity` plus one authoritative Host state             | repeated launch/stale epoch traces                                       | Native lifetime-lock race and reconnect test     | One user/channel endpoint                                      |
+| I12 byte and queue memory remain bounded        | Hard bounds and codecs              | `TypeOK`, `InputMemoryIsBounded`, `AcceptedInputEventuallyWrites`  | malformed corpus, strict-prefix property, input-backpressure test        | Native oversized-record and bounded-queue tests  | OS exhaustion remains outside progress claims                  |
+| I13 frames name captured canonical state        | Capture/revision contract           | `FrameNamesCapturedCanonicalState`                                 | mutation/capture and generation traces                                   | Ghostty capture/encode tests                     | Capture allocation failure is modeled abstractly               |
+| I14 paused or blocked demand performs no work   | Projection demand                   | `PausedOrBlockedCannotBecomeReady`                                 | pause/resume and explicit blocked-recovery traces                        | no-demand counters and real PTY pause test       | Scheduler/platform suspension is outside progress claims       |
+| I15 frame sequence commits only with a frame    | Encode/enqueue atomicity            | `SequenceCommittedOnlyWithFrame`                                   | encode/enqueue failure and stale recovery traces                         | Native frame plus Desktop route tests            | Structured clone is not an ownership-transfer claim            |
+| I16 only a valid pending row anchor promotes    | History interaction                 | `OnlyValidPendingAnchorPromotes`, `InvalidAnchorCannotNameContent` | stale/applied/evicted row-window and anchor tests                        | Native Host plus projected atomic-commit tests   | One attachment and bounded revisions in history TLC            |
+| I17 export requires current selection           | Selection/export contract           | `ExportRequiresCurrentSelection`, `ExportEventuallyCompletes`      | selection eviction, bounded export, chunk ack/cancel tests               | Native formatter plus Electron clipboard tests   | Clipboard platform reliability is not modeled                  |
+| I18 search pages name one current snapshot      | Client search contract              | `SearchResultHasOneCurrentRevision`                                | cancellation, stale page, timeout, and Worker tests                      | Projected reader/search integration tests        | Search algorithm correctness is deterministic, not in TLC      |
+| I19 detach owns no interaction state            | Attachment cleanup                  | `DetachedAttachmentOwnsNothing`                                    | detach during row/selection/export/search traces                         | Native disconnect cleanup tests                  | Process crash cleanup follows OS ownership                     |
+| I20 interaction flights remain bounded          | History/export backpressure         | `OneBoundedInteractionFlight`, eventual-settlement properties      | one-flight, dirty-coalescing, and chunk-ack tests                        | Host service and Electron broker tests           | Progress assumes a responsive connected peer                   |
 
 Progress checks additionally include `ReadyDemandEventuallyEmits` and
 `InFlightEventuallyClears`. They assume a healthy connected peer and weak fairness for an enabled
@@ -310,6 +400,8 @@ that ignores termination.
 
 The merge TLC configurations contain two epochs, clients, creation identities, terminal identities,
 and attachments in the lifecycle model; the frame model contains two attachments, revisions `0-2`,
-generations `1-2`, attachment-local sequences `1-2`, and input capacity `2`. They use no state
-constraint to remove reachable behavior. Larger identity, byte, platform, and timing spaces require
-property or integrated evidence rather than being implied by these finite checks.
+generations `1-2`, attachment-local sequences `1-2`, and input capacity `2`; the history model
+contains one attachment, revisions `0-2`, generations `1-2`, sequences `1-2`, and two export chunks.
+They use no state constraint to remove reachable behavior. Larger identity, byte, platform, and
+timing spaces require property or integrated evidence rather than being implied by these finite
+checks.

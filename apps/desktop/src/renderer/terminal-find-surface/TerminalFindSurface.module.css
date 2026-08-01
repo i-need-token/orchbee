@@ -1,0 +1,35 @@
+.root {
+	position: absolute;
+	z-index: var(--ob-ref-layer-overlay);
+	inset-block-start: var(--ob-ref-space-2);
+	inset-inline-end: var(--ob-ref-space-2);
+	display: grid;
+	width: min(calc(var(--ob-ref-space-20) * 6), calc(100% - var(--ob-ref-space-4)));
+	padding: var(--ob-ref-space-2);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-xl);
+	background: var(--ob-sys-color-surface-overlay);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.controls {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	min-width: var(--ob-ref-space-0);
+}
+
+.input {
+	min-width: var(--ob-ref-space-16);
+	flex: 1 1 auto;
+}
+
+.status {
+	min-height: var(--ob-ref-size-icon-md);
+	margin: var(--ob-ref-space-1) var(--ob-ref-space-0) var(--ob-ref-space-0);
+	padding-inline-start: calc(var(--ob-ref-size-icon-md) + var(--ob-ref-space-1));
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}

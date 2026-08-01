@@ -1,19 +1,24 @@
 export {
 	PackedTerminalRowView,
 	PackedTerminalStore,
+	PackedTerminalViewport,
 	projectedCellDisplayWidth,
 	ProjectedStorePhase,
 } from './packed-terminal-store';
 export type {
 	ProjectedFrameAcknowledgement,
 	ProjectedFrameApplyResult,
+	ProjectedSnapshotReplaceResult,
 	ProjectedStorePhase as ProjectedStorePhaseValue,
 	ProjectedTerminalMetadata,
 } from './packed-terminal-store';
 export {
 	ProjectedTerminal,
+	ProjectedHistoryPhase,
 	ProjectedTerminalPhase,
 	type ProjectedFrameResult,
+	type ProjectedBrokerFailure,
+	type ProjectedHistoryPhase as ProjectedHistoryPhaseValue,
 	type ProjectedPasteResult,
 	type ProjectedPasteReview,
 	type ProjectedPasteSource,
@@ -22,6 +27,10 @@ export {
 	type ProjectedTerminalErrorEvent,
 	type ProjectedTerminalFrameTelemetry,
 	type ProjectedTerminalLabels,
+	type ProjectedTerminalLinkOpenRequest,
 	type ProjectedTerminalOptions,
 	type ProjectedTerminalPhase as ProjectedTerminalPhaseValue,
+	type ProjectedTerminalSideEffectResult,
+	type ProjectedRowsResult,
 } from './projected-terminal';
+export type { ProjectedTerminalSearchEvent } from '../search';

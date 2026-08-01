@@ -3,7 +3,7 @@
 	"domain": "terminal-protocol",
 	"runtime": ["universal"],
 	"stability": "experimental",
-	"responsibility": "Transport-neutral terminal Host identities, negotiation, bounds, lifecycle semantics, binary codecs, and cross-language conformance fixtures.",
+	"responsibility": "Transport-neutral terminal Host identities, negotiation, bounds, lifecycle and history-interaction semantics, binary projection/input/selection codecs, and cross-language conformance fixtures.",
 	"nonGoals": [
 		"Owning PTY processes, terminal emulation, local IPC endpoints, network listeners, authentication, encryption, or transport scheduling.",
 		"Owning Electron lifecycle, renderer routing, WebGPU projection, product presentation, or platform effects.",

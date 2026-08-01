@@ -114,10 +114,49 @@ so lifecycle consumers can prove final-revision presentation without depending o
 exit notification arrives first.
 
 This live surface currently owns the visible grid, cursor, title/current directory metadata,
-terminal-aware keyboard/IME/mouse/focus/paste intents, resize, visible-viewport accessibility, and
-exit finalization. It intentionally does not yet expose history windows, stable scroll anchors,
-history selection or search, link activation, the complete buffer API, external terminal effects,
-or full accessibility parity. Those are not implied by the existing browser/WASM `Terminal` API.
+terminal-aware keyboard/IME/mouse/focus/paste intents, resize, bounded history navigation,
+Host-owned selection, lazy client-side search and link discovery, visible-viewport accessibility,
+and exit finalization. Its source-neutral `TerminalBufferRowReader` exposes only bounded,
+asynchronous render- or text-detail row pages for the current Host revision; it never offers a
+synchronous whole-buffer string or makes Renderer a second VT authority.
+
+Bottom-following use retains only the live packed grid. History navigation pauses live projection
+and atomically commits one contiguous packed cache with bounded overscan; stale, evicted, or invalid
+windows recover to a fresh bottom snapshot. Search creates its Worker only after a non-empty query,
+streams bounded text pages, scans completed logical lines while the next Host read is in flight, and
+discards stale revision/generation results. Narrow ASCII pages preserve cell coordinates through an
+implicit identity mapping instead of materializing per-cell mapping objects; Unicode and wide or
+combined graphemes retain explicit mappings. Link lookup lazily reads
+at most the nearby rows and requests application-owned activation only for approved URL targets.
+Selection content is never reconstructed from GPU state: Host endpoints remain authoritative and
+copy completes only after the application reports its platform side effect.
+
+```ts
+terminal.scrollLines(-1);
+terminal.updateSearch('failed', { caseSensitive: false, wholeWord: true });
+terminal.findNext();
+
+terminal.selectAll();
+const copyResult = await terminal.copySelectionAsync();
+if (copyResult.kind === 'failed') reportCopyFailure(copyResult.code);
+
+const snapshot = terminal.getBufferRowsSnapshot();
+const rows = await terminal.readBufferRows(
+	{
+		detail: 'text',
+		generation: snapshot.generation,
+		maximumBytes: 2 * 1024 * 1024,
+		revision: snapshot.revision,
+		rowCount: 256,
+		startRow: 0n,
+	},
+	new AbortController().signal,
+);
+```
+
+The projected surface still intentionally omits synchronous full-buffer access and complete parity
+with every browser/WASM `Terminal` interaction. Electron clipboard, external navigation, action
+bindings, and product find UI stay outside this package.
 
 ## Surface API
 

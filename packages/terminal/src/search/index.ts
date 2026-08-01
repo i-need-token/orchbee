@@ -1,5 +1,6 @@
 export {
 	findDirectionalTerminalMatch,
+	findTerminalBufferMatches,
 	findTerminalMatches,
 	resolveTerminalSearchResultLimit,
 	searchMatchContainsCell,
@@ -11,3 +12,13 @@ export {
 	type TerminalSearchResultChangeEvent,
 	type TerminalDirectionalSearchOptions,
 } from './terminal-search';
+export {
+	createProjectedSearchWorker,
+	ProjectedSearchController,
+	type ProjectedSearchControllerOptions,
+	type ProjectedTerminalSearchEvent,
+} from './projected-search-controller';
+export type {
+	ProjectedSearchWorkerFactory,
+	ProjectedSearchWorkerLike,
+} from './projected-search-protocol';

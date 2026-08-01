@@ -507,7 +507,13 @@ export class WebGPURenderer {
 	// Selection
 	private selectionManager: SelectionManager | undefined;
 	private currentSelectionCoords: SelectionCoordinates | null = null;
+	private projectedSelectionCoords: SelectionCoordinates | null = null;
 	private searchMatches: readonly TerminalSearchMatch[] = [];
+	private searchMatchesByRow = new Map<number, TerminalSearchMatch[]>();
+	private searchMatchesVersion = 0;
+	private indexedSearchMatchesVersion = -1;
+	private indexedSearchTop = -1;
+	private indexedSearchRows = -1;
 	private activeSearchMatch: TerminalSearchMatch | null = null;
 	private searchDirty = false;
 	private currentAbsoluteTop = 0;
@@ -1418,6 +1424,7 @@ export class WebGPURenderer {
 		const metadata = buffer.metadata;
 		if (backend === 'uninitialized' || !metadata) return;
 		const timestamp = rendererNow();
+		this.currentSelectionCoords = this.projectedSelectionCoords;
 		const reasons = new Set<RendererFrameReason>();
 		if (forceAll || buffer.needsFullRedraw) reasons.add('full');
 		if (
@@ -1429,6 +1436,7 @@ export class WebGPURenderer {
 		if (this.preeditDirty) reasons.add('preedit');
 		if (this.fontDirty) reasons.add('font');
 		if (this.textBlinkDirty) reasons.add('blink');
+		if (this.searchDirty) reasons.add('search');
 		if (reasons.size === 0) reasons.add('dirty');
 
 		this.resetFrameCounters();
@@ -1436,6 +1444,7 @@ export class WebGPURenderer {
 		else this.renderPackedCanvas2D(buffer, metadata, forceAll);
 		this.fontDirty = false;
 		this.cursorAppearanceDirty = false;
+		this.searchDirty = false;
 		this.completeFrameTelemetry(backend, timestamp, reasons, forceAll, 0);
 	}
 
@@ -1708,12 +1717,31 @@ export class WebGPURenderer {
 				if ((flags & TerminalStyleFlag.inverse) !== 0) {
 					[foreground, background] = [background, foreground];
 				}
+				const selected = this.isCoordinateInSelection(x, y);
+				const search = this.getSearchHighlight(x, y);
+				if (selected) {
+					background = hexToRGB(this.theme.selectionBackground);
+					foreground = hexToRGB(this.theme.selectionForeground);
+				} else if (search !== null) {
+					background = hexToRGB(
+						search === 'active'
+							? this.theme.searchActiveMatchBackground
+							: this.theme.searchMatchBackground,
+					);
+					foreground = hexToRGB(
+						search === 'active'
+							? this.theme.searchActiveMatchForeground
+							: this.theme.searchMatchForeground,
+					);
+				}
 				if (isFullBlockCursor) background = cursorColor;
 				if (
 					background[0] !== defaultBackground[0] ||
 					background[1] !== defaultBackground[1] ||
 					background[2] !== defaultBackground[2] ||
-					isFullBlockCursor
+					isFullBlockCursor ||
+					selected ||
+					search !== null
 				) {
 					pushRect(bgData, cellX, cellY, cellWidth, this.metrics.height, background);
 				}
@@ -2512,10 +2540,23 @@ export class WebGPURenderer {
 						),
 					);
 				}
+				const selected = this.isCoordinateInSelection(x, y);
+				const search = this.getSearchHighlight(x, y);
+				if (selected) {
+					background = hexToRGB(this.theme.selectionBackground);
+				} else if (search !== null) {
+					background = hexToRGB(
+						search === 'active'
+							? this.theme.searchActiveMatchBackground
+							: this.theme.searchMatchBackground,
+					);
+				}
 				if (
 					background[0] !== defaultBackground[0] ||
 					background[1] !== defaultBackground[1] ||
-					background[2] !== defaultBackground[2]
+					background[2] !== defaultBackground[2] ||
+					selected ||
+					search !== null
 				) {
 					ctx.fillStyle = `rgb(${background[0]}, ${background[1]}, ${background[2]})`;
 					ctx.fillRect(
@@ -2544,7 +2585,17 @@ export class WebGPURenderer {
 					this.frameGlyphInstances++;
 					if (span) this.frameShapingRuns++;
 				}
-				this.drawPackedCellText2D(ctx, row, shaping, x, y, width, text, metadata);
+				const selected = this.isCoordinateInSelection(x, y);
+				const search = this.getSearchHighlight(x, y);
+				let foreground: ReturnType<typeof hexToRGB> | undefined;
+				if (selected) {
+					foreground = hexToRGB(this.theme.selectionForeground);
+				} else if (search === 'active') {
+					foreground = hexToRGB(this.theme.searchActiveMatchForeground);
+				} else if (search === 'match') {
+					foreground = hexToRGB(this.theme.searchMatchForeground);
+				}
+				this.drawPackedCellText2D(ctx, row, shaping, x, y, width, text, metadata, foreground);
 			}
 		}
 
@@ -3411,6 +3462,10 @@ export class WebGPURenderer {
 
 	private isInSelection(x: number, y: number, cell: GhosttyCell): boolean {
 		if (cell.selected) return true;
+		return this.isCoordinateInSelection(x, y);
+	}
+
+	private isCoordinateInSelection(x: number, y: number): boolean {
 		const sel = this.currentSelectionCoords;
 		if (!sel) return false;
 		const { startCol, startRow, endCol, endRow } = sel;
@@ -3429,9 +3484,42 @@ export class WebGPURenderer {
 		if (this.activeSearchMatch && searchMatchContainsCell(this.activeSearchMatch, x, row)) {
 			return 'active';
 		}
-		return this.searchMatches.some((match) => searchMatchContainsCell(match, x, row))
+		this.indexVisibleSearchMatches();
+		return (this.searchMatchesByRow.get(row) ?? []).some((match) =>
+			searchMatchContainsCell(match, x, row),
+		)
 			? 'match'
 			: null;
+	}
+
+	private indexVisibleSearchMatches(): void {
+		const rows = this.currentBuffer?.getDimensions().rows ?? 0;
+		if (
+			this.indexedSearchMatchesVersion === this.searchMatchesVersion &&
+			this.indexedSearchTop === this.currentAbsoluteTop &&
+			this.indexedSearchRows === rows
+		) {
+			return;
+		}
+		this.searchMatchesByRow.clear();
+		const firstRow = this.currentAbsoluteTop;
+		const lastRow = firstRow + rows - 1;
+		for (const match of this.searchMatches) {
+			if (match.end.row < firstRow || match.start.row > lastRow) continue;
+			const matchFirstRow = Math.max(firstRow, match.start.row);
+			const matchLastRow = Math.min(lastRow, match.end.row);
+			for (let row = matchFirstRow; row <= matchLastRow; row++) {
+				const existing = this.searchMatchesByRow.get(row);
+				if (existing === undefined) {
+					this.searchMatchesByRow.set(row, [match]);
+				} else {
+					existing.push(match);
+				}
+			}
+		}
+		this.indexedSearchMatchesVersion = this.searchMatchesVersion;
+		this.indexedSearchTop = firstRow;
+		this.indexedSearchRows = rows;
 	}
 
 	// ==========================================================================
@@ -3641,11 +3729,26 @@ export class WebGPURenderer {
 		this.selectionManager = manager;
 	}
 
+	setProjectedViewportState(absoluteTop: number, selection: SelectionCoordinates | null): void {
+		const nextTop = Math.max(0, Math.floor(absoluteTop));
+		if (
+			this.currentAbsoluteTop === nextTop &&
+			JSON.stringify(this.projectedSelectionCoords) === JSON.stringify(selection)
+		) {
+			return;
+		}
+		this.currentAbsoluteTop = nextTop;
+		this.projectedSelectionCoords = selection;
+		this.searchDirty = true;
+		this.requestRenderCallback?.();
+	}
+
 	setSearchMatches(
 		matches: readonly TerminalSearchMatch[],
 		active: TerminalSearchMatch | null = null,
 	): void {
 		this.searchMatches = [...matches];
+		this.searchMatchesVersion += 1;
 		this.activeSearchMatch = active;
 		this.searchDirty = true;
 		this.requestRenderCallback?.();

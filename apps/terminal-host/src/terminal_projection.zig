@@ -4,14 +4,14 @@ const ghostty_vt = @import("ghostty-vt");
 const protocol = @import("terminal-protocol");
 
 pub const max_frame_bytes = 8 * 1024 * 1024;
-const max_frame_cells = 256 * 1024;
-const max_frame_strings = 4096;
-const max_frame_styles = 1024;
-const max_string_bytes = 16 * 1024;
-const no_string_index = std.math.maxInt(u32);
-const no_base_revision = std.math.maxInt(u64);
-const color_default = 0x01000000;
-const color_none = 0x02000000;
+pub const max_frame_cells = 256 * 1024;
+pub const max_frame_strings = 4096;
+pub const max_frame_styles = 1024;
+pub const max_string_bytes = 16 * 1024;
+pub const no_string_index = std.math.maxInt(u32);
+pub const no_base_revision = std.math.maxInt(u64);
+pub const color_default = 0x01000000;
+pub const color_none = 0x02000000;
 
 pub const ProjectionError = error{
     CaptureAllocationFailed,
@@ -388,7 +388,7 @@ fn duplicateOptional(allocator: std.mem.Allocator, value: ?[:0]const u8) !?[]u8 
     return try allocator.dupe(u8, bytes);
 }
 
-fn terminalInteraction(terminal: *const ghostty_vt.Terminal) u32 {
+pub fn terminalInteraction(terminal: *const ghostty_vt.Terminal) u32 {
     var result: u32 = 0;
     if (terminal.modes.get(.cursor_keys)) result |= 1;
     if (terminal.modes.get(.keypad_keys)) result |= 1 << 1;
@@ -426,7 +426,7 @@ fn cursorShape(style: anytype) u8 {
     };
 }
 
-fn cellGrapheme(
+pub fn cellGrapheme(
     cell: ghostty_vt.page.Cell,
     trailing: []const u21,
     buffer: *[max_string_bytes]u8,
@@ -452,7 +452,7 @@ fn cellGrapheme(
     return buffer[0..offset];
 }
 
-fn cellWidth(value: ghostty_vt.page.Cell.Wide) u8 {
+pub fn cellWidth(value: ghostty_vt.page.Cell.Wide) u8 {
     return switch (value) {
         .narrow => 0,
         .wide => 1,
@@ -461,7 +461,7 @@ fn cellWidth(value: ghostty_vt.page.Cell.Wide) u8 {
     };
 }
 
-fn semanticContent(value: ghostty_vt.page.Cell.SemanticContent) u8 {
+pub fn semanticContent(value: ghostty_vt.page.Cell.SemanticContent) u8 {
     return switch (value) {
         .output => 0,
         .input => 1,
@@ -469,7 +469,7 @@ fn semanticContent(value: ghostty_vt.page.Cell.SemanticContent) u8 {
     };
 }
 
-fn rowPromptClass(value: ghostty_vt.page.Row.SemanticPrompt) u8 {
+pub fn rowPromptClass(value: ghostty_vt.page.Row.SemanticPrompt) u8 {
     return switch (value) {
         .none => 0,
         .prompt => 1,
@@ -477,7 +477,7 @@ fn rowPromptClass(value: ghostty_vt.page.Row.SemanticPrompt) u8 {
     };
 }
 
-const StyleRecord = struct {
+pub const StyleRecord = struct {
     background: u32,
     flags: u16,
     foreground: u32,
@@ -486,7 +486,7 @@ const StyleRecord = struct {
     underline_kind: u8,
 };
 
-fn styleRecord(
+pub fn styleRecord(
     cell: ghostty_vt.page.Cell,
     captured_style: ghostty_vt.Style,
     colors: *const ghostty_vt.RenderState.Colors,
@@ -535,30 +535,30 @@ fn colorValue(value: ghostty_vt.Style.Color, palette: *const ghostty_vt.color.Pa
     };
 }
 
-fn rgbCode(rgb: ghostty_vt.color.RGB) u32 {
+pub fn rgbCode(rgb: ghostty_vt.color.RGB) u32 {
     return (@as(u32, rgb.r) << 16) | (@as(u32, rgb.g) << 8) | rgb.b;
 }
 
-const StringTable = struct {
+pub const StringTable = struct {
     allocator: std.mem.Allocator,
     indices: std.StringHashMapUnmanaged(u32) = .empty,
     values: std.ArrayList([]u8) = .empty,
 
-    fn init(allocator: std.mem.Allocator) StringTable {
+    pub fn init(allocator: std.mem.Allocator) StringTable {
         return .{ .allocator = allocator };
     }
 
-    fn deinit(self: *StringTable) void {
+    pub fn deinit(self: *StringTable) void {
         self.indices.deinit(self.allocator);
         for (self.values.items) |value| self.allocator.free(value);
         self.values.deinit(self.allocator);
     }
 
-    fn addOptional(self: *StringTable, value: ?[]const u8) !u32 {
+    pub fn addOptional(self: *StringTable, value: ?[]const u8) !u32 {
         return if (value) |bytes| self.add(bytes) else no_string_index;
     }
 
-    fn add(self: *StringTable, value: []const u8) !u32 {
+    pub fn add(self: *StringTable, value: []const u8) !u32 {
         if (value.len > max_string_bytes) return error.ProjectionTooLarge;
         if (self.indices.get(value)) |index| return index;
         if (self.values.items.len >= max_frame_strings) return error.ProjectionTooLarge;
@@ -571,30 +571,30 @@ const StringTable = struct {
         return index;
     }
 
-    fn indexOf(self: *const StringTable, value: []const u8) ?u32 {
+    pub fn indexOf(self: *const StringTable, value: []const u8) ?u32 {
         return self.indices.get(value);
     }
 
-    fn indexOfOptional(self: *const StringTable, value: ?[]const u8) u32 {
+    pub fn indexOfOptional(self: *const StringTable, value: ?[]const u8) u32 {
         return if (value) |bytes| self.indexOf(bytes).? else no_string_index;
     }
 };
 
-const StyleTable = struct {
+pub const StyleTable = struct {
     allocator: std.mem.Allocator,
     indices: std.AutoHashMapUnmanaged(StyleRecord, u16) = .empty,
     values: std.ArrayList(StyleRecord) = .empty,
 
-    fn init(allocator: std.mem.Allocator) StyleTable {
+    pub fn init(allocator: std.mem.Allocator) StyleTable {
         return .{ .allocator = allocator };
     }
 
-    fn deinit(self: *StyleTable) void {
+    pub fn deinit(self: *StyleTable) void {
         self.indices.deinit(self.allocator);
         self.values.deinit(self.allocator);
     }
 
-    fn add(self: *StyleTable, value: StyleRecord) !u16 {
+    pub fn add(self: *StyleTable, value: StyleRecord) !u16 {
         if (self.indices.get(value)) |index| return index;
         if (self.values.items.len >= max_frame_styles) return error.ProjectionTooLarge;
         try self.values.append(self.allocator, value);
@@ -604,37 +604,37 @@ const StyleTable = struct {
         return index;
     }
 
-    fn indexOf(self: *const StyleTable, value: StyleRecord) ?u16 {
+    pub fn indexOf(self: *const StyleTable, value: StyleRecord) ?u16 {
         return self.indices.get(value);
     }
 };
 
-const LimitedWriter = struct {
+pub const LimitedWriter = struct {
     allocator: std.mem.Allocator,
     bytes: std.ArrayList(u8) = .empty,
     limit: usize,
 
-    fn init(allocator: std.mem.Allocator, limit: usize) LimitedWriter {
+    pub fn init(allocator: std.mem.Allocator, limit: usize) LimitedWriter {
         return .{ .allocator = allocator, .limit = limit };
     }
 
-    fn deinit(self: *LimitedWriter) void {
+    pub fn deinit(self: *LimitedWriter) void {
         self.bytes.deinit(self.allocator);
     }
 
-    fn appendSlice(self: *LimitedWriter, value: []const u8) !void {
+    pub fn appendSlice(self: *LimitedWriter, value: []const u8) !void {
         if (value.len > self.limit -| self.bytes.items.len) return error.ProjectionTooLarge;
         try self.bytes.appendSlice(self.allocator, value);
     }
 
-    fn appendZeros(self: *LimitedWriter, count: usize) !void {
+    pub fn appendZeros(self: *LimitedWriter, count: usize) !void {
         if (count > self.limit -| self.bytes.items.len) return error.ProjectionTooLarge;
         const start = self.bytes.items.len;
         try self.bytes.resize(self.allocator, start + count);
         @memset(self.bytes.items[start..], 0);
     }
 
-    fn appendInt(self: *LimitedWriter, comptime Integer: type, value: Integer) !void {
+    pub fn appendInt(self: *LimitedWriter, comptime Integer: type, value: Integer) !void {
         var buffer: [@sizeOf(Integer)]u8 = undefined;
         if (@sizeOf(Integer) == 1) {
             buffer[0] = @intCast(value);
@@ -644,7 +644,7 @@ const LimitedWriter = struct {
         try self.appendSlice(&buffer);
     }
 
-    fn toOwnedSlice(self: *LimitedWriter) ![]u8 {
+    pub fn toOwnedSlice(self: *LimitedWriter) ![]u8 {
         return self.bytes.toOwnedSlice(self.allocator);
     }
 };

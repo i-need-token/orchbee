@@ -5,7 +5,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 
-import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
+import {
+	_electron as electron,
+	expect,
+	test,
+	type ElectronApplication,
+	type Locator,
+} from '@playwright/test';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..', '..', '..');
 const hostBinary = path.join(
@@ -86,6 +92,10 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	const traceLines: string[] = [];
 	application.process().stdout?.on('data', (chunk: Buffer) => traceLines.push(chunk.toString()));
 	const page = await application.firstWindow();
+	let workerStarts = 0;
+	page.on('worker', () => {
+		workerStarts += 1;
+	});
 	const root = page.locator('#root');
 	await expect(root).toHaveAttribute('data-desktop-terminal-state', 'open');
 
@@ -101,11 +111,147 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 		BrowserWindow.getAllWindows()[0]?.setSize(900, 650);
 	});
 	const input = page.getByRole('textbox');
-	await input.pressSequentially("printf 'slice5-output-marker\\n'; stty size; exit", {
-		delay: 1,
-	});
+	await input.pressSequentially(
+		`i=1; while [ "$i" -le 160 ]; do printf 'history-%03d searchable-agent\\n' "$i"; i=$((i+1)); done; printf 'interaction-%s-marker allowed=https://orchbee.dev blocked=file:///tmp/orchbee-blocked\\n' tail`,
+		{ delay: 1 },
+	);
 	await input.press('Enter');
-	await expect(page.locator('[role="log"]')).toContainText('slice5-output-marker');
+	const accessibility = page.locator('[role="log"]');
+	await expect(accessibility).toContainText('interaction-tail-marker');
+	await expect(accessibility).toHaveAttribute('aria-live', 'polite');
+	const accessibleRows = accessibility.locator(':scope > div');
+	await expect
+		.poll(async () => accessibleRows.count())
+		.toBe(Number(await root.getAttribute('data-desktop-terminal-rows')));
+	expect(page.workers()).toHaveLength(0);
+
+	const canvas = page.locator('canvas');
+	const liveFirstRow = BigInt(
+		(await accessibleRows.first().getAttribute('data-terminal-absolute-row')) ?? '0',
+	);
+	await canvas.hover();
+	await page.mouse.wheel(0, -2_000);
+	await expect(accessibility).toHaveAttribute('aria-live', 'off');
+	await expect
+		.poll(async () =>
+			BigInt((await accessibleRows.first().getAttribute('data-terminal-absolute-row')) ?? '0'),
+		)
+		.toBeLessThan(liveFirstRow);
+
+	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+	await input.focus();
+	await page.keyboard.press(`${primaryModifier}+KeyF`);
+	const findSurface = page.getByRole('search');
+	await expect(findSurface).toBeAttached();
+	const findInput = findSurface.getByRole('textbox');
+	await findInput.fill('history-001');
+	await expect(findSurface).toHaveAttribute('data-search-state', 'complete', {
+		timeout: 10_000,
+	});
+	await expect(findSurface.getByRole('status')).toContainText(/1.*1/u);
+	await expect.poll(() => workerStarts).toBeGreaterThan(0);
+	await expect.poll(() => page.workers().length).toBe(0);
+	await expect(accessibility).toContainText('history-001');
+	await findInput.press('Escape');
+	await expect(findSurface).not.toBeAttached();
+
+	await input.focus();
+	await input.press('ArrowRight');
+	await expect(accessibility).toHaveAttribute('aria-live', 'polite');
+	await expect(accessibility).toContainText('interaction-tail-marker');
+
+	const markerStart = await terminalCellCenter(
+		root,
+		canvas,
+		accessibleRows,
+		'interaction-tail-marker',
+		0,
+	);
+	const markerEnd = await terminalCellCenter(
+		root,
+		canvas,
+		accessibleRows,
+		'interaction-tail-marker',
+		10,
+	);
+	await page.mouse.move(markerStart.x, markerStart.y);
+	await page.mouse.down();
+	await page.mouse.move(markerEnd.x, markerEnd.y);
+	await page.mouse.up();
+	await expect(root).toHaveAttribute('data-desktop-terminal-selection-state', 'active');
+
+	if (process.platform === 'darwin') {
+		const gestureSelectionStart = await root.getAttribute('data-desktop-terminal-selection-start');
+		await input.focus();
+		await page.keyboard.press('Meta+KeyA');
+		await expect
+			.poll(() => root.getAttribute('data-desktop-terminal-selection-start'))
+			.not.toBe(gestureSelectionStart);
+	}
+	await input.focus();
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyC' : 'Control+Shift+KeyC');
+	await expect
+		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+		.toContain(process.platform === 'darwin' ? 'history-001' : 'interaction-tail');
+	await expect
+		.poll(async () => Number(await root.getAttribute('data-desktop-terminal-copied-bytes')))
+		.toBeGreaterThan(0);
+
+	await application.evaluate(({ shell }) => {
+		const state = globalThis as typeof globalThis & { __orchbeeOpenedTargets?: string[] };
+		state.__orchbeeOpenedTargets = [];
+		Object.defineProperty(shell, 'openExternal', {
+			configurable: true,
+			value: async (target: string) => {
+				state.__orchbeeOpenedTargets?.push(target);
+			},
+		});
+	});
+	const allowedLink = await terminalCellCenter(
+		root,
+		canvas,
+		accessibleRows,
+		'https://orchbee.dev',
+		4,
+	);
+	await page.keyboard.down(primaryModifier);
+	await page.mouse.move(allowedLink.x, allowedLink.y);
+	await expect.poll(() => canvas.evaluate((element) => element.style.cursor)).toBe('pointer');
+	await page.mouse.click(allowedLink.x, allowedLink.y);
+	await page.keyboard.up(primaryModifier);
+	await expect
+		.poll(() =>
+			application.evaluate(
+				() =>
+					(globalThis as typeof globalThis & { __orchbeeOpenedTargets?: string[] })
+						.__orchbeeOpenedTargets ?? [],
+			),
+		)
+		.toEqual(['https://orchbee.dev/']);
+
+	const blockedLink = await terminalCellCenter(
+		root,
+		canvas,
+		accessibleRows,
+		'file:///tmp/orchbee-blocked',
+		4,
+	);
+	await page.keyboard.down(primaryModifier);
+	await page.mouse.move(blockedLink.x, blockedLink.y);
+	await expect.poll(() => canvas.evaluate((element) => element.style.cursor)).not.toBe('pointer');
+	await page.mouse.click(blockedLink.x, blockedLink.y);
+	await page.keyboard.up(primaryModifier);
+	expect(
+		await application.evaluate(
+			() =>
+				(globalThis as typeof globalThis & { __orchbeeOpenedTargets?: string[] })
+					.__orchbeeOpenedTargets ?? [],
+		),
+	).toEqual(['https://orchbee.dev/']);
+
+	await input.focus();
+	await input.pressSequentially('stty size; exit', { delay: 1 });
+	await input.press('Enter');
 	await expect(root).toHaveAttribute('data-desktop-terminal-state', 'exited');
 	await expect(root).toHaveAttribute('data-desktop-terminal-final-frame-presented', 'true');
 	await expect
@@ -127,3 +273,31 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	electronApplication = undefined;
 	expect(hostProcess?.exitCode).toBeNull();
 });
+
+async function terminalCellCenter(
+	root: Locator,
+	canvas: Locator,
+	rows: Locator,
+	text: string,
+	columnOffset: number,
+): Promise<{ readonly x: number; readonly y: number }> {
+	const row = rows.filter({ hasText: text }).first();
+	const location = await row.evaluate(
+		(element, expectedText) => ({
+			column: (element.textContent ?? '').indexOf(expectedText),
+			row: Array.from(element.parentElement?.children ?? []).indexOf(element),
+		}),
+		text,
+	);
+	if (location.column < 0 || location.row < 0) {
+		throw new Error(`Terminal text ${text} is not visible.`);
+	}
+	const bounds = await canvas.boundingBox();
+	if (bounds === null) throw new Error('Terminal canvas has no bounding box.');
+	const columns = Number(await root.getAttribute('data-desktop-terminal-columns'));
+	const visibleRows = Number(await root.getAttribute('data-desktop-terminal-rows'));
+	return {
+		x: bounds.x + (location.column + columnOffset + 0.5) * (bounds.width / columns),
+		y: bounds.y + (location.row + 0.5) * (bounds.height / visibleRows),
+	};
+}

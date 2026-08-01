@@ -20,6 +20,11 @@ const config: StorybookConfig = {
 			files: '**/*.stories.@(ts|tsx)',
 			titlePrefix: 'Packages/TabStrip',
 		},
+		{
+			directory: '../../../apps/desktop/stories',
+			files: '**/*.stories.@(ts|tsx)',
+			titlePrefix: 'Apps/Desktop',
+		},
 	],
 	addons: ['@storybook/addon-docs', '@storybook/addon-a11y'],
 	framework: 'storybook-react-rsbuild',

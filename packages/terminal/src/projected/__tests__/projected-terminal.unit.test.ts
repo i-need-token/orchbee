@@ -2,6 +2,7 @@ import {
 	ActiveScreen,
 	CellWidth,
 	CursorShape,
+	encodeTerminalRowWindow,
 	encodeTerminalFrame,
 	parseAttachmentId,
 	parseCreationId,
@@ -11,17 +12,24 @@ import {
 	SemanticContent,
 	TerminalColorKind,
 	TerminalFrameKind,
+	TerminalRowWindowDetail,
 	UnderlineKind,
 	type TerminalFrame,
 	type TerminalExited,
 } from '@orchbee/terminal-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ProjectedTerminal, type ProjectedTerminalCommand } from '../projected-terminal';
+import {
+	ProjectedHistoryPhase,
+	ProjectedTerminal,
+	type ProjectedTerminalCommand,
+	type ProjectedTerminalErrorEvent,
+} from '../projected-terminal';
 
 interface FakeElement {
 	readonly attributes: Map<string, string>;
 	readonly children: FakeElement[];
+	readonly dataset: DOMStringMap;
 	readonly listeners: Map<string, Set<EventListener>>;
 	clientHeight: number;
 	clientWidth: number;
@@ -88,6 +96,7 @@ function terminalFrame(
 	text: readonly [string, string],
 	baseRevision: bigint | null = null,
 	rowIndices: readonly number[] = [0, 1],
+	scrollbackRows = 0n,
 ): Uint8Array {
 	const frame: TerminalFrame = {
 		activeScreen: ActiveScreen.primary,
@@ -135,7 +144,7 @@ function terminalFrame(
 			wrapContinuation: false,
 		})),
 		rows: 2,
-		scrollbackRows: 0n,
+		scrollbackRows,
 		sequence,
 		styles: [
 			{
@@ -157,6 +166,96 @@ function terminalFrame(
 		title: 'test',
 	};
 	const encoded = encodeTerminalFrame(frame);
+	if (!encoded.ok) throw new Error(encoded.detail);
+	return encoded.value;
+}
+
+function renderRowWindow(
+	sequence: bigint,
+	revision: bigint,
+	startRow: bigint,
+	totalRows: bigint,
+	text: readonly string[],
+): Uint8Array {
+	const decodedFrame = {
+		activeScreen: ActiveScreen.primary,
+		attachmentId,
+		baseRevision: null,
+		cellPixelHeight: 18,
+		cellPixelWidth: 9,
+		columns: 2,
+		cursor: {
+			blinking: false,
+			column: 0,
+			row: 0,
+			shape: CursorShape.block,
+			visible: true,
+			wideTail: false,
+		},
+		currentDirectory: '/tmp',
+		defaultColors: { backgroundRgb: 0, cursorRgb: null, foregroundRgb: 0xff_ff_ff },
+		extensions: [],
+		generation: 1n,
+		hostEpoch,
+		interaction,
+		kind: TerminalFrameKind.snapshot,
+		revision,
+		rowData: text.map((value, index) => ({
+			cells: [
+				{
+					grapheme: value,
+					protected: false,
+					semanticContent: SemanticContent.output,
+					style: 0,
+					width: CellWidth.narrow,
+				},
+				{
+					grapheme: '',
+					protected: false,
+					semanticContent: SemanticContent.output,
+					style: 0,
+					width: CellWidth.narrow,
+				},
+			],
+			index,
+			promptClass: RowPromptClass.none,
+			wrap: false,
+			wrapContinuation: false,
+		})),
+		rows: text.length,
+		scrollbackRows: startRow,
+		sequence,
+		styles: [
+			{
+				background: { kind: TerminalColorKind.default },
+				blink: false,
+				bold: false,
+				faint: false,
+				foreground: { kind: TerminalColorKind.default },
+				hyperlink: null,
+				inverse: false,
+				invisible: false,
+				italic: false,
+				overline: false,
+				strikethrough: false,
+				underline: { kind: TerminalColorKind.none },
+				underlineKind: UnderlineKind.none,
+			},
+		],
+		title: 'history',
+	};
+	const encoded = encodeTerminalRowWindow({
+		attachmentId,
+		columns: 2,
+		detail: TerminalRowWindowDetail.render,
+		frame: decodedFrame,
+		generation: 1n,
+		hostEpoch,
+		revision,
+		sequence,
+		startRow,
+		totalRows,
+	});
 	if (!encoded.ok) throw new Error(encoded.detail);
 	return encoded.value;
 }
@@ -207,6 +306,7 @@ function createFakeBrowser(): FakeBrowser {
 			clientHeight: 360,
 			clientWidth: 720,
 			height: 0,
+			dataset: {},
 			listeners,
 			ownerDocument: undefined,
 			parentElement: null,
@@ -270,8 +370,11 @@ function createFakeBrowser(): FakeBrowser {
 		},
 	};
 	const document = {
+		addEventListener: () => undefined,
 		createElement,
 		defaultView,
+		getSelection: () => null,
+		removeEventListener: () => undefined,
 	} as unknown as Document;
 	const root = createElement('div') as unknown as HTMLElement;
 	return {
@@ -362,7 +465,11 @@ describe('ProjectedTerminal', () => {
 			attachmentId,
 			creationId,
 			hostEpoch,
-			labels: { input: 'input', screen: 'screen' },
+			labels: {
+				historyRange: (start, end, total) => `${start}-${end}/${total}`,
+				input: 'input',
+				screen: 'screen',
+			},
 			port: {
 				send: (command) => {
 					commands.push(command);
@@ -388,6 +495,155 @@ describe('ProjectedTerminal', () => {
 
 		terminal.applyFrame(terminalFrame('snapshot', 2n, 2n, ['x', 'b']));
 		expect(exited).toHaveBeenCalledWith(exitEvent('2'));
+		terminal.dispose();
+	});
+
+	it('commits one bounded history window and keeps it visible until a fresh bottom snapshot', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: {
+				historyRange: (start, end, total) => `${start}-${end}/${total}`,
+				input: 'input',
+				screen: 'screen',
+			},
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 10n));
+		const accessibilityRoot = (browser.root as unknown as FakeElement).children[2];
+		expect(accessibilityRoot?.attributes.get('aria-live')).toBe('polite');
+		expect(accessibilityRoot?.attributes.get('aria-description')).toBe('11-12/12');
+		expect(accessibilityRoot?.children[0]?.attributes.get('data-terminal-absolute-row')).toBe('10');
+
+		terminal.scrollLines(-1);
+
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.requestingHistory);
+		expect(commands.slice(-3)).toEqual([
+			{
+				kind: 'set-history-demand',
+				payload: { attachmentId, demand: 'viewing-history' },
+			},
+			{
+				kind: 'set-projection-demand',
+				payload: { attachmentId, demand: 'paused' },
+			},
+			expect.objectContaining({
+				kind: 'read-rows',
+				payload: expect.objectContaining({
+					origin: { kind: 'absolute', row: '0' },
+					purpose: 'viewport',
+					rowCount: 12,
+				}),
+			}),
+		]);
+		const read = commands.at(-1);
+		if (read?.kind !== 'read-rows') throw new Error('history request was not sent');
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(read.payload.requestSequence),
+					1n,
+					0n,
+					12n,
+					Array.from({ length: 12 }, (_, index) => {
+						if (index === 9) return 'history-a';
+						if (index === 10) return 'history-b';
+						return `overscan-${index}`;
+					}),
+				),
+			),
+		).toBe('committed');
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.viewingHistory);
+		expect(accessibilityRoot?.attributes.get('aria-live')).toBe('off');
+		expect(accessibilityRoot?.children[0]?.attributes.get('data-terminal-absolute-row')).toBe('9');
+		expect(commands.at(-1)).toEqual({
+			kind: 'rows-applied',
+			payload: {
+				attachmentId,
+				generation: '1',
+				requestSequence: read.payload.requestSequence,
+				revision: '1',
+			},
+		});
+
+		terminal.scrollToBottom();
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.recovering);
+		expect(terminal.metadata?.title).toBe('history');
+		expect(commands.slice(-2)).toEqual([
+			{
+				kind: 'set-history-demand',
+				payload: { attachmentId, demand: 'following-bottom' },
+			},
+			{
+				kind: 'set-projection-demand',
+				payload: { attachmentId, demand: 'active' },
+			},
+		]);
+
+		terminal.applyFrame(terminalFrame('snapshot', 2n, 2n, ['new-a', 'new-b'], null, [0, 1], 10n));
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.followingBottom);
+		expect(terminal.metadata?.title).toBe('test');
+		terminal.dispose();
+	});
+
+	it('retries an oversized history overscan with the exact visible viewport', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		terminal.onError(errors);
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
+
+		terminal.scrollLines(-1);
+		const overscanned = commands.at(-1);
+		if (overscanned?.kind !== 'read-rows') throw new Error('history request was not sent');
+		expect(overscanned.payload.rowCount).toBe(12);
+
+		terminal.notifyBrokerFailure({
+			code: 'limit-exceeded',
+			message: 'overscan exceeds the negotiated row-window limit',
+			operation: 'history',
+			retryable: true,
+		});
+
+		expect(commands.at(-1)).toEqual(
+			expect.objectContaining({
+				kind: 'read-rows',
+				payload: expect.objectContaining({
+					origin: { kind: 'absolute', row: '9' },
+					rowCount: 2,
+				}),
+			}),
+		);
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.requestingHistory);
+		expect(errors).not.toHaveBeenCalled();
 		terminal.dispose();
 	});
 
@@ -453,6 +709,45 @@ describe('ProjectedTerminal', () => {
 
 		expect(errors).toHaveBeenCalledOnce();
 		expect(exited).not.toHaveBeenCalled();
+		terminal.dispose();
+	});
+
+	it('correlates Main-owned copy and link effects without exposing their payloads', async () => {
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+
+		const copy = terminal.copySelectionAsync();
+		const copyCommand = commands.at(-1);
+		if (copyCommand?.kind !== 'selection-copy') throw new Error('copy command missing');
+		terminal.notifySelectionCopied(8, copyCommand.payload.requestSequence);
+		await expect(copy).resolves.toEqual({ byteLength: 8, kind: 'completed' });
+
+		const link = terminal.openLinkAsync('https://orchbee.dev');
+		const linkCommand = commands.at(-1);
+		if (linkCommand?.kind !== 'link-open') throw new Error('link command missing');
+		terminal.notifyBrokerFailure({
+			code: 'link-policy-blocked',
+			message: 'blocked',
+			operation: 'link',
+			requestSequence: linkCommand.payload.requestSequence,
+			retryable: false,
+		});
+		await expect(link).resolves.toEqual({
+			code: 'link-policy-blocked',
+			kind: 'failed',
+			retryable: false,
+		});
 		terminal.dispose();
 	});
 

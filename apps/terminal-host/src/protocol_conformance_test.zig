@@ -10,6 +10,7 @@ const text_input_fixture = options.text_input_fixture;
 const mouse_input_fixture = options.mouse_input_fixture;
 const focus_input_fixture = options.focus_input_fixture;
 const paste_input_fixture = options.paste_input_fixture;
+const row_window_fixture = options.row_window_fixture;
 
 test "canonical TypeScript terminal frame fixture conforms in Zig" {
     const summary = try protocol.validateTerminalFrame(std.testing.allocator, frame_fixture);
@@ -31,6 +32,21 @@ test "canonical TypeScript terminal frame fixture conforms in Zig" {
     try std.testing.expectEqual(@as(u64, 123), summary.scrollback_rows);
     try std.testing.expectEqual(@as(u16, 8), summary.cell_pixel_width);
     try std.testing.expectEqual(@as(u16, 16), summary.cell_pixel_height);
+    try std.testing.expectEqualSlices(u8, &([_]u8{0x11} ** 16), &summary.host_epoch);
+    try std.testing.expectEqualSlices(u8, &([_]u8{0x22} ** 16), &summary.attachment_id);
+}
+
+test "canonical TypeScript terminal row-window fixture conforms in Zig" {
+    const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, row_window_fixture);
+    try std.testing.expectEqual(protocol.RowWindowDetail.text, summary.detail);
+    try std.testing.expectEqual(@as(u64, 8), summary.sequence);
+    try std.testing.expectEqual(@as(u64, 42), summary.revision);
+    try std.testing.expectEqual(@as(u64, 3), summary.generation);
+    try std.testing.expectEqual(@as(u16, 6), summary.columns);
+    try std.testing.expectEqual(@as(u16, 2), summary.row_count);
+    try std.testing.expectEqual(@as(u32, 6), summary.entry_count);
+    try std.testing.expectEqual(@as(u64, 100), summary.start_row);
+    try std.testing.expectEqual(@as(u64, 125), summary.total_rows);
     try std.testing.expectEqualSlices(u8, &([_]u8{0x11} ** 16), &summary.host_epoch);
     try std.testing.expectEqualSlices(u8, &([_]u8{0x22} ** 16), &summary.attachment_id);
 }

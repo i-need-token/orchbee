@@ -107,7 +107,8 @@
 				"src/preload/entry.ts!",
 				"src/preload/index.ts!",
 				"src/renderer/composition/entry.ts!",
-				"src/**/*.unit.test.ts!",
+				"src/**/*.unit.test.{ts,tsx}!",
+				"stories/**/*.stories.tsx!",
 				"system-tests/*.spec.ts!",
 				"playwright.config.ts!",
 				"rsbuild.config.ts!",
@@ -115,7 +116,13 @@
 			],
 			"ignoreBinaries": ["ps"],
 			"ignoreDependencies": ["@playwright/test"],
-			"project": ["scripts/*.mjs!", "src/**/*.ts!", "system-tests/*.ts!", "*.ts!"]
+			"project": [
+				"scripts/*.mjs!",
+				"src/**/*.{ts,tsx}!",
+				"stories/**/*.tsx!",
+				"system-tests/*.ts!",
+				"*.ts!"
+			]
 		},
 		"apps/storybook": {
 			"entry": [

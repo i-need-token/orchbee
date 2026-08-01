@@ -1,6 +1,7 @@
 import '@orchbee/ui/styles.css';
 
 import { ProjectedAttachmentWindowMessageSchema } from '../../shared';
+import { resolveDesktopShortcutPlatform } from '../terminal-actions';
 import styles from './DesktopTerminalApplication.module.css';
 import { startDesktopRenderer, type DesktopRendererSession } from './startDesktopRenderer';
 
@@ -21,6 +22,7 @@ window.addEventListener('message', (event) => {
 		root,
 		document.documentElement,
 		navigator.languages,
+		resolveDesktopShortcutPlatform(navigator.platform),
 		message.data.bootstrap,
 		port,
 	).then((rendererSession) => {

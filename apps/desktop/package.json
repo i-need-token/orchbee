@@ -16,18 +16,25 @@
 		"test:system": "playwright test --config playwright.config.ts"
 	},
 	"dependencies": {
+		"@orchbee/actions": "workspace:^",
 		"@orchbee/i18n": "workspace:^",
 		"@orchbee/terminal": "workspace:^",
 		"@orchbee/terminal-protocol": "workspace:^",
 		"@orchbee/ui": "workspace:^",
 		"electron": "42.8.0",
+		"react": "catalog:",
+		"react-dom": "catalog:",
 		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"@playwright/test": "1.61.1",
 		"@rsbuild/core": "catalog:",
+		"@rsbuild/plugin-react": "catalog:",
 		"@rsbuild/plugin-source-build": "catalog:",
 		"@types/node": "catalog:",
+		"@types/react": "catalog:",
+		"@types/react-dom": "catalog:",
+		"storybook-react-rsbuild": "catalog:",
 		"vitest": "catalog:"
 	}
 }

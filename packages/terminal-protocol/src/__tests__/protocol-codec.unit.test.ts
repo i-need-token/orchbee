@@ -32,6 +32,7 @@ import {
 } from '../frame';
 import { parseHostEpoch } from '../identifiers';
 import { ProtocolErrorCode } from '../protocol-result';
+import { decodeTerminalRowWindow, TerminalRowWindowDetail } from '../row-window';
 import { CURRENT_PROTOCOL_RANGE, negotiateProtocolVersion } from '../version';
 
 const hostEpoch = parseHostEpoch('11111111111111111111111111111111');
@@ -40,6 +41,11 @@ if (!hostEpoch.ok) throw new Error(hostEpoch.detail);
 const frameFixtureUrl = new URL('../../fixtures/terminal-frame-v2.bin', import.meta.url);
 const envelopeFixtureUrl = new URL('../../fixtures/transport-envelope-v1.bin', import.meta.url);
 const malformedFixtureUrl = new URL('../../fixtures/malformed-frame-v2.json', import.meta.url);
+const rowWindowFixtureUrl = new URL('../../fixtures/terminal-row-window-v1.bin', import.meta.url);
+const malformedRowWindowFixtureUrl = new URL(
+	'../../fixtures/malformed-row-window-v1.json',
+	import.meta.url,
+);
 
 function emptyInteraction() {
 	return {
@@ -351,5 +357,40 @@ describe('terminal frame codec', () => {
 				{ numRuns: 200, seed: 0x5eeda1 },
 			),
 		).not.toThrow();
+	});
+});
+
+describe('terminal row-window codec', () => {
+	it('decodes the canonical Unicode text window and typed mappings', async () => {
+		const decoded = decodeTerminalRowWindow(await fixtureBytes(rowWindowFixtureUrl));
+		if (!decoded.ok) throw new Error(decoded.detail);
+		expect(decoded.value.detail).toBe(TerminalRowWindowDetail.text);
+		if (decoded.value.detail !== TerminalRowWindowDetail.text) return;
+		expect(decoded.value).toEqual(
+			expect.objectContaining({
+				columns: 6,
+				generation: 3n,
+				revision: 42n,
+				sequence: 8n,
+				startRow: 100n,
+				totalRows: 125n,
+			}),
+		);
+		expect(decoded.value.rows.map((row) => row.text)).toEqual(['A界é ', '👩🏽‍💻B']);
+		expect([...(decoded.value.rows[1]?.utf16Offsets ?? [])]).toEqual([0, 7]);
+	});
+
+	it('rejects every tracked malformed row window with its stable error class', async () => {
+		const raw = await readFile(malformedRowWindowFixtureUrl, 'utf8');
+		const corpus = malformedCorpusSchema.parse(JSON.parse(raw));
+		for (const fixture of corpus.cases) {
+			const decoded = decodeTerminalRowWindow(
+				new Uint8Array(Buffer.from(fixture.bytesBase64, 'base64')),
+			);
+			expect({ name: fixture.name, result: decoded }).toEqual({
+				name: fixture.name,
+				result: expect.objectContaining({ code: fixture.code, ok: false }),
+			});
+		}
 	});
 });

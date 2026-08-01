@@ -1,8 +1,9 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
+		"jsx": "react-jsx",
 		"lib": ["es2022", "dom", "dom.iterable"],
-		"types": ["node", "vitest/globals"]
+		"types": ["node", "react", "react-dom", "vitest/globals"]
 	},
 	"include": [
 		"src",

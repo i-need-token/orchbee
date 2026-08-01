@@ -104,6 +104,14 @@ import { OSC8LinkProvider, PathLinkProvider, UrlRegexProvider } from '../provide
 import { GhosttyTerminal } from '../GhosttyTerminal';
 import { BufferNamespace } from '../buffer';
 import {
+	bufferRowFromCells,
+	estimateBufferRowsBytes,
+	validateBufferRowsRequest,
+	type BufferRowsResult,
+	type TerminalBufferRowsRequest,
+	type TerminalBufferRowsSnapshot,
+} from '../buffer-rows';
+import {
 	createBrowserTerminalHost,
 	resolveHostCapabilities,
 	type ClipboardPayload,
@@ -266,6 +274,8 @@ export class Terminal {
 	private readonly selectionController: GhosttySelectionController;
 	private readonly inputDispatcher: OrderedInputDispatcher;
 	private cachedColorScheme: 0 | 1 = 1;
+	private bufferGeneration = 1n;
+	private bufferRevision = 0n;
 
 	/** Grid data reader (viewport, scrollback, graphemes). */
 	readonly grid: Grid;
@@ -525,6 +535,7 @@ export class Terminal {
 		try {
 			this.bridge.writeBytes(ptr, bytes);
 			this.bridge.getExports().ghostty_terminal_vt_write(this.handle, ptr, bytes.length);
+			this.bufferRevision += 1n;
 			terminalDrivenResize = this.syncTerminalDrivenDimensions();
 			this.linkDetector?.invalidateCache();
 			this.clearHoveredLink();
@@ -543,6 +554,7 @@ export class Terminal {
 			const alternateScreen = this.isAlternateScreen();
 			if (alternateScreen !== this.lastAlternateScreen) {
 				this.lastAlternateScreen = alternateScreen;
+				this.bufferGeneration += 1n;
 				this.inputHandler?.cancelComposition();
 				this.selectionManager?.clearSelection();
 				this.viewportOffset = 0;
@@ -700,6 +712,8 @@ export class Terminal {
 		this.clearHoveredLink();
 		this.clearSearch();
 		this.bridge.getExports().ghostty_terminal_reset(this.handle);
+		this.bufferGeneration += 1n;
+		this.bufferRevision += 1n;
 		this.syncSurfaceMouseOwnership();
 		const alternateScreen = this.isAlternateScreen();
 		if (alternateScreen !== this.lastAlternateScreen) {
@@ -773,6 +787,8 @@ export class Terminal {
 				)
 			: undefined;
 		try {
+			this.bufferGeneration += 1n;
+			this.bufferRevision += 1n;
 			this.columnCount = cols;
 			this.rowCount = rows;
 			this.optionState.cols = cols;
@@ -1451,6 +1467,78 @@ export class Terminal {
 	// ==========================================================================
 	// Buffer Data
 	// ==========================================================================
+
+	getBufferRowsSnapshot(): TerminalBufferRowsSnapshot {
+		return {
+			generation: this.bufferGeneration,
+			revision: this.bufferRevision,
+			totalRows: BigInt(this.buffer.active.length),
+		};
+	}
+
+	async readBufferRows(
+		request: TerminalBufferRowsRequest,
+		signal: AbortSignal,
+	): Promise<BufferRowsResult> {
+		const snapshot = this.getBufferRowsSnapshot();
+		if (signal.aborted) return { ...snapshot, kind: 'cancelled' };
+		if (!validateBufferRowsRequest(request)) {
+			throw new RangeError('Terminal buffer row request is outside the bounded contract.');
+		}
+		if (request.revision !== snapshot.revision || request.generation !== snapshot.generation) {
+			return { ...snapshot, kind: 'stale' };
+		}
+		if (
+			request.startRow >= snapshot.totalRows ||
+			request.startRow > BigInt(Number.MAX_SAFE_INTEGER)
+		) {
+			return { ...snapshot, kind: 'evicted' };
+		}
+
+		this.ensureSnapshot();
+		const start = Number(request.startRow);
+		const end = Math.min(Number(snapshot.totalRows), start + request.rowCount);
+		const scrollbackLength = this.grid.getScrollbackLength();
+		const alternate = this.isAlternateScreen();
+		const rows = [];
+		for (let row = start; row < end; row += 1) {
+			if (signal.aborted) return { ...snapshot, kind: 'cancelled' };
+			const historyRow = !alternate && row < scrollbackLength;
+			const visibleRow = historyRow || alternate ? row : row - scrollbackLength;
+			const cells = historyRow ? this.getScrollbackLine(visibleRow) : this.getLine(visibleRow);
+			if (cells === null) return { ...snapshot, kind: 'evicted' };
+			rows.push(
+				bufferRowFromCells(
+					BigInt(row),
+					cells,
+					historyRow ? this.isScrollbackRowWrapped(visibleRow) : this.isRowWrapped(visibleRow),
+					(column) =>
+						this.grid.getHyperlinkUri(
+							historyRow ? PointTag.HISTORY : PointTag.VIEWPORT,
+							visibleRow,
+							column,
+						),
+					request.detail,
+				),
+			);
+		}
+		const byteLength = estimateBufferRowsBytes(rows);
+		if (byteLength > request.maximumBytes) return { ...snapshot, kind: 'too-large' };
+		const current = this.getBufferRowsSnapshot();
+		if (current.revision !== snapshot.revision || current.generation !== snapshot.generation) {
+			return { ...current, kind: 'stale' };
+		}
+		return {
+			byteLength,
+			detail: request.detail,
+			generation: snapshot.generation,
+			kind: 'rows',
+			revision: snapshot.revision,
+			rows,
+			startRow: request.startRow,
+			totalRows: snapshot.totalRows,
+		};
+	}
 
 	getScrollbackLength(): number {
 		return this.grid.getScrollbackLength();

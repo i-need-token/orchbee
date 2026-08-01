@@ -41,12 +41,26 @@ export const MessageKind = {
 	ping: 4,
 	projectionDemandAccepted: 48,
 	projectionBlocked: 49,
+	rowsApplied: 50,
+	setHistoryDemand: 51,
+	historyDemandAccepted: 52,
+	historyChanged: 53,
+	historyObserved: 54,
 	protocolRejected: 3,
 	readRows: 45,
 	resizeAccepted: 33,
 	resizeLeaseChanged: 23,
 	resizeTerminal: 32,
 	rowsSnapshot: 46,
+	selectionGesture: 60,
+	selectionCommand: 61,
+	selectionChanged: 62,
+	selectionExport: 63,
+	selectionExportStarted: 64,
+	selectionExportChunk: 65,
+	selectionExportChunkApplied: 66,
+	selectionExportFinished: 67,
+	selectionExportCancel: 68,
 	setProjectionDemand: 47,
 	snapshotFrame: 41,
 	terminalExited: 15,
@@ -63,6 +77,7 @@ export type MessageKind = (typeof MessageKind)[keyof typeof MessageKind];
 export const PayloadEncoding = {
 	controlJson: 'control-json',
 	rawBytes: 'raw-bytes',
+	rowWindow: 'row-window',
 	terminalFrame: 'terminal-frame',
 } as const;
 
@@ -143,6 +158,8 @@ function maximumPayloadBytes(encoding: PayloadEncoding): number {
 			return PROTOCOL_LIMITS.maxControlJsonBytes;
 		case PayloadEncoding.rawBytes:
 			return PROTOCOL_LIMITS.maxRawPayloadBytes;
+		case PayloadEncoding.rowWindow:
+			return PROTOCOL_LIMITS.maxRowWindowBytes;
 		case PayloadEncoding.terminalFrame:
 			return PROTOCOL_LIMITS.maxFrameBytes;
 	}
@@ -154,6 +171,8 @@ function payloadEncodingCode(encoding: PayloadEncoding): number {
 			return 1;
 		case PayloadEncoding.rawBytes:
 			return 2;
+		case PayloadEncoding.rowWindow:
+			return 4;
 		case PayloadEncoding.terminalFrame:
 			return 3;
 	}
@@ -167,6 +186,8 @@ function payloadEncodingFromCode(code: number): ProtocolResult<PayloadEncoding> 
 			return protocolSuccess(PayloadEncoding.rawBytes);
 		case 3:
 			return protocolSuccess(PayloadEncoding.terminalFrame);
+		case 4:
+			return protocolSuccess(PayloadEncoding.rowWindow);
 		default:
 			return protocolFailure(ProtocolErrorCode.invalidField, `Unknown payload encoding ${code}`);
 	}

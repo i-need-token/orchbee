@@ -3,7 +3,7 @@
 	"domain": "terminal-host",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Native one-terminal runtime, pinned Ghostty VT integration, live projection and semantic input authority, PTY lifecycle, and private local IPC endpoint for the local terminal Host.",
+	"responsibility": "Native one-terminal runtime, pinned Ghostty VT integration, live projection, bounded terminal history and selection authority, semantic input authority, PTY lifecycle, and private local IPC endpoint for the local terminal Host.",
 	"nonGoals": [
 		"Owning Project, Workspace, Workbench, Tab, Panel, agent, or product-session models.",
 		"Owning Electron lifecycle, product presentation, renderer behavior, or platform UI effects.",

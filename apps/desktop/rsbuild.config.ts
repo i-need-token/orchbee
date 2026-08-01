@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { defineConfig, type RsbuildPlugin } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginSourceBuild } from '@rsbuild/plugin-source-build';
 
 const electronExecutable: unknown = createRequire(import.meta.url)('electron');
@@ -35,7 +36,7 @@ export default defineConfig(({ command }) => {
 	};
 
 	return {
-		plugins: [launchDesktopPlugin],
+		plugins: [pluginReact(), launchDesktopPlugin],
 		environments: {
 			renderer: {
 				plugins: development ? [pluginSourceBuild({ sourceField: '@orchbee/source' })] : [],

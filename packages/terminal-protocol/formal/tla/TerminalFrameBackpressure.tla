@@ -87,16 +87,17 @@ SetDemand(attachment, active) ==
   /\ attachment \in Attachments
   /\ active \in BOOLEAN
   /\ demand' = [demand EXCEPT ![attachment] = active]
-  /\ pendingDirty' = IF active /\ ~demand[attachment] /\ ~inFlight[attachment]
-                            /\ (acknowledgedRevision[attachment] # revision
-                                \/ acknowledgedGeneration[attachment] # generation)
-       THEN [pendingDirty EXCEPT ![attachment] = TRUE]
-       ELSE pendingDirty
+  /\ pendingDirty' = IF active /\ ~demand[attachment]
+                         THEN [pendingDirty EXCEPT ![attachment] = TRUE]
+                         ELSE pendingDirty
+  /\ forceSnapshot' = IF active /\ ~demand[attachment]
+                          THEN [forceSnapshot EXCEPT ![attachment] = TRUE]
+                          ELSE forceSnapshot
   /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
                   capturedGeneration, blocked, acknowledgedRevision,
                   acknowledgedGeneration, inFlight, frameBase, frameRevision,
                   frameGeneration, frameSequence, nextSequence,
-                  lastAppliedSequence, forceSnapshot, inputBuffer>>
+                  lastAppliedSequence, inputBuffer>>
 
 ReadyForCapture(attachment) ==
   /\ demand[attachment]

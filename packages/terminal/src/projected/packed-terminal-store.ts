@@ -37,6 +37,14 @@ export type ProjectedFrameApplyResult =
 	| { readonly kind: 'snapshot-required'; readonly request: NeedSnapshot }
 	| { readonly kind: 'disposed' };
 
+export type ProjectedSnapshotReplaceResult =
+	| {
+			readonly acknowledgement: ProjectedFrameAcknowledgement;
+			readonly byteLength: number;
+			readonly kind: 'committed';
+	  }
+	| { readonly kind: 'disposed' | 'invalid' | 'too-large' };
+
 export interface ProjectedTerminalMetadata {
 	readonly activeScreen: ActiveScreenValue;
 	readonly cellPixelHeight: number;
@@ -134,6 +142,10 @@ export class PackedTerminalRowView {
 
 	get dirty(): boolean {
 		return this.#dirty;
+	}
+
+	get byteLength(): number {
+		return packedRowByteLength(this.#backing);
 	}
 
 	grapheme(column: number): string {
@@ -310,6 +322,24 @@ function buildRowBacking(frame: DecodedTerminalFrame, rowOffset: number): Packed
 	};
 }
 
+function packedRowByteLength(backing: PackedTerminalRowBacking): number {
+	return (
+		backing.backgroundColors.byteLength +
+		backing.foregroundColors.byteLength +
+		backing.graphemeLengths.byteLength +
+		backing.graphemeOffsets.byteLength +
+		backing.hyperlinkLengths.byteLength +
+		backing.hyperlinkOffsets.byteLength +
+		backing.protectedCells.byteLength +
+		backing.semanticContents.byteLength +
+		backing.stringBytes.byteLength +
+		backing.styleFlags.byteLength +
+		backing.underlineColors.byteLength +
+		backing.underlineKinds.byteLength +
+		backing.widths.byteLength
+	);
+}
+
 function metadataFromFrame(frame: DecodedTerminalFrame): ProjectedTerminalMetadata {
 	return {
 		activeScreen: frame.activeScreen,
@@ -365,6 +395,14 @@ export class PackedTerminalStore {
 
 	get needsFullRedraw(): boolean {
 		return this.#fullRedraw;
+	}
+
+	get byteLength(): number {
+		return this.rows.reduce((total, row) => total + row.byteLength, 0);
+	}
+
+	get lastFrameKind(): string | null {
+		return this.#lastCommit?.kind ?? null;
 	}
 
 	apply(bytes: Uint8Array): ProjectedFrameApplyResult {
@@ -439,6 +477,32 @@ export class PackedTerminalStore {
 		return { acknowledgement: acknowledgement(frame), kind: 'committed' };
 	}
 
+	replaceSnapshot(bytes: Uint8Array, maximumBytes: number): ProjectedSnapshotReplaceResult {
+		if (this.#phase === ProjectedStorePhase.disposed) return { kind: 'disposed' };
+		const decoded = decodeTerminalFrame(bytes);
+		if (!decoded.ok) return { kind: 'invalid' };
+		const frame = decoded.value;
+		if (
+			frame.kind !== TerminalFrameKind.snapshot ||
+			frame.hostEpoch !== this.hostEpoch ||
+			frame.attachmentId !== this.attachmentId
+		) {
+			return { kind: 'invalid' };
+		}
+		const stagedRows = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => {
+			const backing = buildRowBacking(frame, rowOffset);
+			return new PackedTerminalRowView(rowIndex, backing);
+		});
+		const byteLength = stagedRows.reduce((total, row) => total + row.byteLength, 0);
+		if (byteLength > maximumBytes) return { kind: 'too-large' };
+		this.#grid = { rows: stagedRows };
+		this.#metadata = metadataFromFrame(frame);
+		this.#phase = ProjectedStorePhase.synchronized;
+		this.#fullRedraw = true;
+		this.#recordCommit(frame, fingerprint(bytes));
+		return { acknowledgement: acknowledgement(frame), byteLength, kind: 'committed' };
+	}
+
 	markRendered(): void {
 		this.#fullRedraw = false;
 		for (const row of this.#grid?.rows ?? []) row.markClean();
@@ -480,6 +544,65 @@ export class PackedTerminalStore {
 				sequence: CanonicalUint64TextSchema.parse(sequence.toString()),
 			},
 		};
+	}
+}
+
+/** Bounded visible slice over one immutable packed history-window commit. */
+export class PackedTerminalViewport {
+	readonly #metadata: ProjectedTerminalMetadata | null;
+	readonly #rows: readonly PackedTerminalRowView[];
+	readonly #store: PackedTerminalStore;
+
+	constructor(store: PackedTerminalStore, rowOffset: number, visibleRows: number) {
+		if (!Number.isInteger(rowOffset) || rowOffset < 0) {
+			throw new RangeError('Packed terminal viewport row offset must be non-negative.');
+		}
+		if (!Number.isInteger(visibleRows) || visibleRows < 1) {
+			throw new RangeError('Packed terminal viewport must contain at least one row.');
+		}
+		this.#store = store;
+		this.#rows = store.rows.slice(rowOffset, rowOffset + visibleRows);
+		const metadata = store.metadata;
+		this.#metadata =
+			metadata === null
+				? null
+				: {
+						...metadata,
+						cursor: {
+							...metadata.cursor,
+							row: metadata.cursor.row - rowOffset,
+							visible:
+								metadata.cursor.visible &&
+								metadata.cursor.row >= rowOffset &&
+								metadata.cursor.row < rowOffset + visibleRows,
+						},
+						rows: visibleRows,
+						scrollbackRows: metadata.scrollbackRows + BigInt(rowOffset),
+					};
+	}
+
+	get metadata(): ProjectedTerminalMetadata | null {
+		return this.#metadata;
+	}
+
+	get rows(): readonly PackedTerminalRowView[] {
+		return this.#rows;
+	}
+
+	get needsFullRedraw(): boolean {
+		return this.#store.needsFullRedraw;
+	}
+
+	get byteLength(): number {
+		return this.#store.byteLength;
+	}
+
+	markRendered(): void {
+		this.#store.markRendered();
+	}
+
+	dispose(): void {
+		this.#store.dispose();
 	}
 }
 

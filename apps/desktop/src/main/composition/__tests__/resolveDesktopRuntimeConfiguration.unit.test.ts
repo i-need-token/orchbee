@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveDesktopRuntimeConfiguration } from '../resolveDesktopRuntimeConfiguration';
 
 describe('resolveDesktopRuntimeConfiguration', () => {
-	it('resolves the explicit Slice 5 development Host and a stable scoped creation identity', () => {
+	it('resolves the explicit development Host and a stable scoped creation identity', () => {
 		const input = {
 			applicationPath: path.resolve('/repo/apps/desktop'),
 			environment: {

@@ -190,6 +190,43 @@
 		],
 		"title": "Orchbee 🐝"
 	},
+	"rowWindow": {
+		"attachmentId": "22222222222222222222222222222222",
+		"columns": 6,
+		"detail": "text",
+		"generation": "3",
+		"hostEpoch": "11111111111111111111111111111111",
+		"revision": "42",
+		"rows": [
+			{
+				"index": "100",
+				"mappings": [
+					{ "byteOffset": 0, "column": 0, "utf16Offset": 0, "width": 1 },
+					{ "byteOffset": 1, "column": 1, "utf16Offset": 1, "width": 2 },
+					{ "byteOffset": 4, "column": 3, "utf16Offset": 2, "width": 1 },
+					{ "byteOffset": 7, "column": 4, "utf16Offset": 4, "width": 1 }
+				],
+				"promptClass": "prompt",
+				"text": "A界é ",
+				"wrap": true,
+				"wrapContinuation": false
+			},
+			{
+				"index": "101",
+				"mappings": [
+					{ "byteOffset": 0, "column": 0, "utf16Offset": 0, "width": 2 },
+					{ "byteOffset": 15, "column": 2, "utf16Offset": 7, "width": 1 }
+				],
+				"promptClass": "prompt-continuation",
+				"text": "👩🏽‍💻B",
+				"wrap": false,
+				"wrapContinuation": true
+			}
+		],
+		"sequence": "8",
+		"startRow": "100",
+		"totalRows": "125"
+	},
 	"transportEnvelope": {
 		"correlationId": null,
 		"event": true,

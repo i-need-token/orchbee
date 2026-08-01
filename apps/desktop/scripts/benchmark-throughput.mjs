@@ -21,6 +21,9 @@ const hostBinary = path.join(
 );
 const desktopMain = path.join(repositoryRoot, 'apps', 'desktop', 'dist', 'main', 'main.cjs');
 const comparativeFixtureMinimumBytes = 500_000_000;
+const activeTargetColumns = 113;
+const activeTargetRows = 38;
+const hostRssSamplingIntervalMilliseconds = 20;
 
 function parseArguments(arguments_) {
 	const options = {
@@ -30,6 +33,7 @@ function parseArguments(arguments_) {
 		hostOnlyRuns: [],
 		measureGhostty: false,
 		runs: 5,
+		slice5Median: undefined,
 	};
 	for (let index = 0; index < arguments_.length; index += 1) {
 		const argument = arguments_[index];
@@ -60,6 +64,10 @@ function parseArguments(arguments_) {
 				options.runs = Number(value);
 				index += 1;
 				break;
+			case '--slice5-median':
+				options.slice5Median = Number(value);
+				index += 1;
+				break;
 			default:
 				throw new Error(`Unknown benchmark argument: ${argument ?? '<missing>'}`);
 		}
@@ -74,6 +82,12 @@ function parseArguments(arguments_) {
 	}
 	if (!Number.isInteger(options.runs) || options.runs < 5) {
 		throw new Error('Benchmark requires at least five warm runs.');
+	}
+	if (
+		options.slice5Median !== undefined &&
+		(!Number.isFinite(options.slice5Median) || options.slice5Median <= 0)
+	) {
+		throw new Error('--slice5-median requires a positive duration in seconds.');
 	}
 	return options;
 }
@@ -104,6 +118,7 @@ function summary(values) {
 		median,
 		medianAbsoluteDeviation,
 		minimum: sorted[0],
+		ninetyFifthPercentile: sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)],
 		runs: values,
 	};
 }
@@ -258,8 +273,220 @@ function readHostProcessMetrics(hostProcess) {
 	const result = spawnSync('ps', ['-o', 'rss=,%cpu=', '-p', String(hostProcess.pid)], {
 		encoding: 'utf8',
 	});
+	if (!result.stdout.trim()) return null;
 	const [rssText, cpuText] = result.stdout.trim().split(/\s+/u);
-	return { cpuPercent: Number(cpuText), rssKiB: Number(rssText) };
+	const cpuPercent = Number(cpuText);
+	const rssKiB = Number(rssText);
+	if (!Number.isFinite(cpuPercent) || !Number.isFinite(rssKiB)) return null;
+	return { cpuPercent, rssKiB };
+}
+
+function parseJsonLines(chunks) {
+	return chunks
+		.join('')
+		.split(/\r?\n/u)
+		.map((line) => {
+			try {
+				return JSON.parse(line);
+			} catch {
+				return null;
+			}
+		})
+		.filter((value) => value !== null);
+}
+
+async function beginMainThreadMeasurement(page, startEvent) {
+	const key = `__orchbeeBenchmark${randomBytes(8).toString('hex')}`;
+	await page.evaluate((measurementKey) => {
+		const state = {
+			entries: [],
+			observer: null,
+			startedAt: performance.now(),
+			supported: PerformanceObserver.supportedEntryTypes.includes('longtask'),
+		};
+		if (state.supported) {
+			state.observer = new PerformanceObserver((list) => {
+				for (const entry of list.getEntries()) {
+					state.entries.push({ duration: entry.duration, startTime: entry.startTime });
+				}
+			});
+			state.observer.observe({ entryTypes: ['longtask'] });
+		}
+		globalThis[measurementKey] = state;
+	}, key);
+	if (startEvent !== undefined) {
+		await startEvent.locator.evaluate(
+			(element, { eventType, measurementKey }) => {
+				element.addEventListener(
+					eventType,
+					() => {
+						globalThis[measurementKey].startedAt = performance.now();
+					},
+					{ capture: true, once: true },
+				);
+			},
+			{ eventType: startEvent.eventType, measurementKey: key },
+		);
+	}
+	return key;
+}
+
+async function finishMainThreadMeasurement(page, key, completedAtMilliseconds) {
+	return page.evaluate(
+		([measurementKey, completedAt]) => {
+			const state = globalThis[measurementKey];
+			if (state === undefined) throw new Error('Renderer performance measurement is missing.');
+			for (const entry of state.observer?.takeRecords() ?? []) {
+				state.entries.push({ duration: entry.duration, startTime: entry.startTime });
+			}
+			state.observer?.disconnect();
+			delete globalThis[measurementKey];
+			const durations = state.entries
+				.filter((entry) => entry.startTime >= state.startedAt)
+				.map((entry) => entry.duration);
+			return {
+				longTaskMaximumMilliseconds: durations.length === 0 ? 0 : Math.max(...durations),
+				longTaskObserverSupported: state.supported,
+				wallMilliseconds: (completedAt ?? performance.now()) - state.startedAt,
+			};
+		},
+		[key, completedAtMilliseconds],
+	);
+}
+
+async function measureMainThreadOperation(page, operation, startEvent) {
+	const key = await beginMainThreadMeasurement(page, startEvent);
+	try {
+		const completedAtMilliseconds = await operation();
+		return await finishMainThreadMeasurement(page, key, completedAtMilliseconds);
+	} catch (error) {
+		await finishMainThreadMeasurement(page, key).catch(() => undefined);
+		throw error;
+	}
+}
+
+async function withHostRssSampling(hostProcess, operation) {
+	let sampledPeakRssKiB = readHostProcessMetrics(hostProcess)?.rssKiB ?? null;
+	const sample = () => {
+		const rssKiB = readHostProcessMetrics(hostProcess)?.rssKiB;
+		if (rssKiB !== undefined && (sampledPeakRssKiB === null || rssKiB > sampledPeakRssKiB)) {
+			sampledPeakRssKiB = rssKiB;
+		}
+	};
+	const interval = setInterval(sample, hostRssSamplingIntervalMilliseconds);
+	try {
+		const value = await operation();
+		sample();
+		return { sampledPeakRssKiB, value };
+	} finally {
+		clearInterval(interval);
+	}
+}
+
+function mainProcessPeakWorkingSetKiB(metrics) {
+	return metrics.find((metric) => metric.type === 'Browser')?.memory?.peakWorkingSetSize ?? null;
+}
+
+async function measureDesktopInteractions(page, root, application, hostProcess) {
+	const input = page.getByRole('textbox').first();
+	const canvas = page.locator('canvas');
+	const accessibility = page.locator('[role="log"]');
+	let workerStarts = 0;
+	page.on('worker', () => {
+		workerStarts += 1;
+	});
+	const workersBefore = page.workers().length;
+
+	await canvas.hover();
+	const renderedFramesBeforeHistory = Number(
+		await root.getAttribute('data-desktop-terminal-rendered-frames'),
+	);
+	const history = await measureMainThreadOperation(
+		page,
+		async () => {
+			await page.mouse.wheel(0, -2_000);
+			await expect(accessibility).toHaveAttribute('aria-live', 'off');
+			await expect
+				.poll(async () => Number(await root.getAttribute('data-desktop-terminal-rendered-frames')))
+				.toBeGreaterThan(renderedFramesBeforeHistory);
+			return Number(await root.getAttribute('data-desktop-terminal-rendered-at-milliseconds'));
+		},
+		{ eventType: 'wheel', locator: canvas },
+	);
+
+	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+	await input.focus();
+	await page.keyboard.press(`${primaryModifier}+KeyF`);
+	const findSurface = page.getByRole('search');
+	await expect(findSurface).toBeAttached();
+	const findInput = findSurface.getByRole('textbox');
+	const search = await measureMainThreadOperation(
+		page,
+		async () => {
+			await findInput.fill('~orchbee-search-literal-miss~');
+			await expect(findSurface).toHaveAttribute('data-search-state', 'complete', {
+				timeout: 10_000,
+			});
+			return Number(
+				await root.getAttribute('data-desktop-terminal-search-completed-at-milliseconds'),
+			);
+		},
+		{ eventType: 'input', locator: findInput },
+	);
+	await findInput.press('Escape');
+	await expect(findSurface).not.toBeAttached();
+
+	await canvas.hover();
+	await page.mouse.wheel(0, 100_000);
+	await expect(accessibility).toHaveAttribute('aria-live', 'polite');
+
+	let copy = null;
+	if (process.platform === 'darwin') {
+		await input.focus();
+		await page.keyboard.press('Meta+KeyA');
+		await expect(root).toHaveAttribute('data-desktop-terminal-selection-state', 'active');
+		const copiedBytesBefore = await root.getAttribute('data-desktop-terminal-copied-bytes');
+		const key = await beginMainThreadMeasurement(page, {
+			eventType: 'keydown',
+			locator: input,
+		});
+		try {
+			const sampled = await withHostRssSampling(hostProcess, async () => {
+				await page.keyboard.press('Meta+KeyC');
+				await expect
+					.poll(async () => {
+						const value = await root.getAttribute('data-desktop-terminal-copied-bytes');
+						return value !== copiedBytesBefore && Number(value) > 0;
+					})
+					.toBe(true);
+			});
+			const copiedAtMilliseconds = Number(
+				await root.getAttribute('data-desktop-terminal-copied-at-milliseconds'),
+			);
+			copy = {
+				...(await finishMainThreadMeasurement(page, key, copiedAtMilliseconds)),
+				byteLength: Number(await root.getAttribute('data-desktop-terminal-copied-bytes')),
+				hostSampledPeakRssKiB: sampled.sampledPeakRssKiB,
+			};
+		} catch (error) {
+			await finishMainThreadMeasurement(page, key).catch(() => undefined);
+			throw error;
+		}
+	}
+
+	const electronProcesses = await application.evaluate(({ app }) => app.getAppMetrics());
+	return {
+		copy,
+		electronProcesses,
+		history,
+		mainPeakWorkingSetKiB: mainProcessPeakWorkingSetKiB(electronProcesses),
+		search,
+		workers: {
+			liveAfter: page.workers().length,
+			started: workerStarts,
+			workersBefore,
+		},
+	};
 }
 
 async function runDesktopBenchmark(file, runNumber) {
@@ -270,7 +497,10 @@ async function runDesktopBenchmark(file, runNumber) {
 	const hostProcess = spawn(
 		hostBinary,
 		['serve', '--runtime-directory', runtimeDirectory, '--endpoint-id', endpointId],
-		{ stdio: ['ignore', 'ignore', 'pipe'] },
+		{
+			env: { ...process.env, ORCHBEE_TERMINAL_HOST_TRACE: '1' },
+			stdio: ['ignore', 'ignore', 'pipe'],
+		},
 	);
 	hostProcess.stderr.on('data', (chunk) => stderr.push(chunk.toString()));
 	let application;
@@ -323,21 +553,47 @@ async function runDesktopBenchmark(file, runNumber) {
 			renderer: element.getAttribute('data-desktop-terminal-renderer'),
 			rows: Number(element.getAttribute('data-desktop-terminal-rows')),
 		}));
-		await expect.poll(() => traces.join('').includes('orchbee.desktop.copy-path')).toBe(true);
-		const trace = traces
-			.join('')
-			.split(/\r?\n/u)
-			.map((line) => {
-				try {
-					return JSON.parse(line);
-				} catch {
-					return null;
-				}
-			})
-			.find((value) => value?.type === 'orchbee.desktop.copy-path');
+		await expect
+			.poll(() =>
+				parseJsonLines(traces).some(
+					(value) =>
+						value.type === 'orchbee.desktop.copy-path' && value.reason === 'terminal-exited',
+				),
+			)
+			.toBe(true);
+		const idleFeatureTrace = parseJsonLines(traces)
+			.filter(
+				(value) => value.type === 'orchbee.desktop.copy-path' && value.reason === 'terminal-exited',
+			)
+			.at(-1);
+		const interactions = await measureDesktopInteractions(page, root, application, hostProcess);
+		await application.close();
+		application = undefined;
+		await expect
+			.poll(() =>
+				parseJsonLines(traces).some(
+					(value) =>
+						value.type === 'orchbee.desktop.copy-path' && value.broker?.clipboardCommits > 0,
+				),
+			)
+			.toBe(true);
+		const trace = parseJsonLines(traces)
+			.filter(
+				(value) => value.type === 'orchbee.desktop.copy-path' && value.broker?.clipboardCommits > 0,
+			)
+			.at(-1);
+		const hostSelectionExport = parseJsonLines(stderr)
+			.filter((value) => value.type === 'orchbee.terminal-host.selection-export')
+			.at(-1);
 		return {
 			copyPath: trace,
-			idle: { electronProcesses: idleElectronProcesses, host: idleHost },
+			hostSelectionExport,
+			idle: {
+				electronProcesses: idleElectronProcesses,
+				featureTrace: idleFeatureTrace,
+				host: idleHost,
+			},
+			interactions,
 			renderer,
 			run: runNumber,
 			wallSeconds,
@@ -399,9 +655,126 @@ const ghosttyRuns = options.measureGhostty
 const ghostty = summary(ghosttyRuns);
 const hostOnly = summary(options.hostOnlyRuns);
 const ghosttyRatio = ghostty === null ? null : desktop.median / ghostty.median;
-const comparativeTargetApplicable =
+const slice5Ratio =
+	options.slice5Median === undefined ? null : desktop.median / options.slice5Median;
+const finiteSummary = (values) =>
+	values.length === results.length && values.every(Number.isFinite) ? summary(values) : null;
+const historyMilliseconds = finiteSummary(
+	results.map((result) => result.interactions.history.wallMilliseconds),
+);
+const historyLongTasks = finiteSummary(
+	results.map((result) => result.interactions.history.longTaskMaximumMilliseconds),
+);
+const searchMilliseconds = finiteSummary(
+	results.map((result) => result.interactions.search.wallMilliseconds),
+);
+const searchLongTasks = finiteSummary(
+	results.map((result) => result.interactions.search.longTaskMaximumMilliseconds),
+);
+const copyBrokerMilliseconds = finiteSummary(
+	results.map((result) => result.copyPath?.broker?.lastSelectionCopyMilliseconds),
+);
+const copyRendererMilliseconds = finiteSummary(
+	results.map((result) => result.interactions.copy?.wallMilliseconds),
+);
+const hostLockHoldMilliseconds = finiteSummary(
+	results.map((result) => result.hostSelectionExport?.lockHoldNanoseconds / 1_000_000),
+);
+const selectionBytes = finiteSummary(
+	results.map((result) => result.copyPath?.broker?.selectionExportBytesForwarded),
+);
+const hostSampledPeakRssKiB = finiteSummary(
+	results.map((result) => result.interactions.copy?.hostSampledPeakRssKiB),
+);
+const mainPeakWorkingSetKiB = finiteSummary(
+	results.map((result) => result.interactions.mainPeakWorkingSetKiB),
+);
+const exactActiveGeometry = results.every(
+	(result) =>
+		result.renderer.columns === activeTargetColumns && result.renderer.rows === activeTargetRows,
+);
+const longTaskObservationAvailable = results.every(
+	(result) =>
+		result.interactions.history.longTaskObserverSupported &&
+		result.interactions.search.longTaskObserverSupported &&
+		(result.interactions.copy?.longTaskObserverSupported ?? false),
+);
+const idleFeaturePathPassed = results.every((result) => {
+	const metrics = result.idle.featureTrace?.broker;
+	return (
+		result.interactions.workers.workersBefore === 0 &&
+		metrics?.rowWindowsForwarded === 0 &&
+		metrics?.selectionExportChunksForwarded === 0 &&
+		metrics?.clipboardCommits === 0
+	);
+});
+const activeWorkerLifecyclePassed = results.every(
+	(result) =>
+		result.interactions.workers.started === 1 && result.interactions.workers.liveAfter === 0,
+);
+const activeTargetApplicable =
+	file.size >= comparativeFixtureMinimumBytes && process.platform === 'darwin';
+const activeTargetPassed = activeTargetApplicable
+	? exactActiveGeometry &&
+		longTaskObservationAvailable &&
+		activeWorkerLifecyclePassed &&
+		historyMilliseconds !== null &&
+		historyMilliseconds.ninetyFifthPercentile <= 50 &&
+		historyLongTasks !== null &&
+		historyLongTasks.maximum < 50 &&
+		searchMilliseconds !== null &&
+		searchMilliseconds.ninetyFifthPercentile <= 750 &&
+		searchLongTasks !== null &&
+		searchLongTasks.maximum < 50 &&
+		copyBrokerMilliseconds !== null &&
+		copyBrokerMilliseconds.ninetyFifthPercentile <= 1_000 &&
+		hostLockHoldMilliseconds !== null &&
+		selectionBytes !== null &&
+		hostSampledPeakRssKiB !== null &&
+		mainPeakWorkingSetKiB !== null
+	: null;
+const ghosttyTargetApplicable =
 	ghosttyRatio !== null && file.size >= comparativeFixtureMinimumBytes;
+const slice5TargetApplicable = slice5Ratio !== null && file.size >= comparativeFixtureMinimumBytes;
+const comparisonTargetApplicable = ghosttyTargetApplicable || slice5TargetApplicable;
+const comparisonTargetPassed = comparisonTargetApplicable
+	? (!ghosttyTargetApplicable || ghosttyRatio <= 1.15) &&
+		(!slice5TargetApplicable || slice5Ratio <= 1.05) &&
+		idleFeaturePathPassed
+	: null;
 const report = {
+	active: {
+		copy: {
+			brokerMilliseconds: copyBrokerMilliseconds,
+			hostLockHoldMilliseconds,
+			hostRssSamplingIntervalMilliseconds,
+			hostSampledPeakRssKiB,
+			mainPeakWorkingSetKiB,
+			rendererObservedMilliseconds: copyRendererMilliseconds,
+			transferredBytes: selectionBytes,
+		},
+		history: {
+			longTaskMaximumMilliseconds: historyLongTasks,
+			wallMilliseconds: historyMilliseconds,
+		},
+		search: {
+			longTaskMaximumMilliseconds: searchLongTasks,
+			wallMilliseconds: searchMilliseconds,
+		},
+		workers: results.map((result) => result.interactions.workers),
+	},
+	activeTarget: {
+		activeWorkerLifecyclePassed,
+		applicable: activeTargetApplicable,
+		exactGeometry: exactActiveGeometry,
+		geometry: { columns: activeTargetColumns, rows: activeTargetRows },
+		longTaskObservationAvailable,
+		maximumCopyP95Milliseconds: 1_000,
+		maximumHistoryP95Milliseconds: 50,
+		maximumSearchP95Milliseconds: 750,
+		passed: activeTargetPassed,
+		referencePlatform: 'darwin',
+	},
 	desktop,
 	file: { bytes: file.size, path: options.file },
 	ghostty,
@@ -409,14 +782,21 @@ const report = {
 	ghosttyRatio,
 	hostOnly,
 	hostOnlyIncrementalSeconds: hostOnly === null ? null : desktop.median - hostOnly.median,
+	idleFeaturePathPassed,
 	samplingOrder: options.measureGhostty ? 'paired-alternating-after-desktop-bootstrap' : null,
 	target: {
-		applicable: comparativeTargetApplicable,
+		applicable: comparisonTargetApplicable,
 		fixtureMinimumBytes: comparativeFixtureMinimumBytes,
+		ghosttyApplicable: ghosttyTargetApplicable,
 		maximumGhosttyRatio: 1.15,
-		passed: comparativeTargetApplicable ? ghosttyRatio <= 1.15 : null,
+		maximumSlice5Ratio: 1.05,
+		passed: comparisonTargetPassed,
+		slice5Applicable: slice5TargetApplicable,
+		slice5MedianSeconds: options.slice5Median ?? null,
+		slice5Ratio,
 	},
 	type: 'orchbee.desktop.benchmark-summary',
 };
 console.log(JSON.stringify(report, null, 2));
 if (report.target.passed === false) process.exitCode = 1;
+if (report.activeTarget.passed === false) process.exitCode = 1;

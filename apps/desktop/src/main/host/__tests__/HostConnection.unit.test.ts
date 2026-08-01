@@ -15,7 +15,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { HostConnection, type HostEnvelopeListener } from '../HostConnection';
 
 describe('HostConnection', () => {
-	it('negotiates protocol 1.1 and routes validated Host events', async () => {
+	it('negotiates the current protocol and routes validated Host events', async () => {
 		const hostEpoch = HostEpochSchema.parse('11'.repeat(16));
 		let stream: Duplex;
 		stream = new Duplex({

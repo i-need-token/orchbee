@@ -70,10 +70,18 @@ describe('DesktopApplication', () => {
 		const broker = {
 			dispose: vi.fn<() => void>(),
 			metrics: {
+				clipboardCommits: 0,
 				commandsAccepted: 0,
 				commandsRejected: 0,
+				externalTargetsOpened: 0,
 				frameBytesForwarded: 0,
 				framesForwarded: 0,
+				lastSelectionCopyMilliseconds: null,
+				lastSelectionExportStartMilliseconds: null,
+				rowWindowBytesForwarded: 0,
+				rowWindowsForwarded: 0,
+				selectionExportBytesForwarded: 0,
+				selectionExportChunksForwarded: 0,
 			} satisfies ProjectedTerminalBrokerMetrics,
 			start: vi.fn<() => void>(),
 		};

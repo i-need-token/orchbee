@@ -163,10 +163,13 @@ export {
 } from './accessibility';
 export {
 	findTerminalMatches,
+	findTerminalBufferMatches,
 	searchMatchContainsCell,
 	TERMINAL_SEARCH_DEBOUNCE_MS,
 	TERMINAL_SEARCH_RESULT_LIMIT,
 	validateTerminalSearchQuery,
+	type ProjectedSearchWorkerFactory,
+	type ProjectedTerminalSearchEvent,
 	type TerminalSearchMatch,
 	type TerminalSearchOptions,
 	type TerminalSearchResultChangeEvent,
@@ -177,9 +180,11 @@ export {
 	readGhosttyBuildCapabilities,
 	type GhosttyBuildCapabilities,
 } from './protocol';
-export { ProjectedTerminal, ProjectedTerminalPhase } from './projected';
+export { ProjectedHistoryPhase, ProjectedTerminal, ProjectedTerminalPhase } from './projected';
 export type {
+	ProjectedBrokerFailure,
 	ProjectedFrameResult,
+	ProjectedHistoryPhaseValue,
 	ProjectedPasteResult,
 	ProjectedPasteReview,
 	ProjectedPasteSource,
@@ -188,9 +193,12 @@ export type {
 	ProjectedTerminalErrorEvent,
 	ProjectedTerminalFrameTelemetry,
 	ProjectedTerminalLabels,
+	ProjectedTerminalLinkOpenRequest,
 	ProjectedTerminalMetadata,
 	ProjectedTerminalOptions,
 	ProjectedTerminalPhaseValue,
+	ProjectedTerminalSideEffectResult,
+	ProjectedRowsResult,
 } from './projected';
 
 // Selection
@@ -214,6 +222,11 @@ export {
 // Link detection
 export { LinkDetector, type ITerminalForLinkDetector } from './LinkDetector';
 export {
+	detectTerminalRowLinks,
+	isPermittedExternalTerminalTarget,
+	terminalLinkContains,
+} from './terminal-row-links';
+export {
 	OSC8LinkProvider,
 	PathLinkProvider,
 	UrlRegexProvider,
@@ -224,6 +237,20 @@ export {
 
 // Buffer API
 export { BufferNamespace, Buffer, BufferLine, BufferCell, type BufferTerminal } from './buffer';
+export {
+	bufferRowsFromDecodedWindow,
+	TerminalBufferRowDetail,
+	validateBufferRowsRequest,
+	type BufferRowsResult,
+	type TerminalBufferCellMapping,
+	type TerminalBufferRenderCell,
+	type TerminalBufferRow,
+	type TerminalBufferRowDetail as TerminalBufferRowDetailValue,
+	type TerminalBufferRowReader,
+	type TerminalBufferRows,
+	type TerminalBufferRowsRequest,
+	type TerminalBufferRowsSnapshot,
+} from './buffer-rows';
 
 // Addons
 export { FitAddon } from './addons';

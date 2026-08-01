@@ -8,6 +8,7 @@ import {
 	encodeMouseInput,
 	encodePasteInput,
 	encodeProtocolEnvelope,
+	encodeTerminalRowWindow,
 	encodeTerminalFrame,
 	encodeTextInput,
 	encodeWriteInput,
@@ -25,6 +26,8 @@ const mouseInputPath = path.join(fixturesDirectory, 'mouse-input-v1_1.bin');
 const focusInputPath = path.join(fixturesDirectory, 'focus-input-v1_1.bin');
 const pasteInputPath = path.join(fixturesDirectory, 'paste-input-v1_1.bin');
 const malformedPath = path.join(fixturesDirectory, 'malformed-frame-v2.json');
+const rowWindowPath = path.join(fixturesDirectory, 'terminal-row-window-v1.bin');
+const malformedRowWindowPath = path.join(fixturesDirectory, 'malformed-row-window-v1.json');
 const checkOnly = process.argv.includes('--check');
 
 function bytesFromBase64(value) {
@@ -44,6 +47,18 @@ function frameFromJson(value) {
 		revision: BigInt(value.revision),
 		scrollbackRows: BigInt(value.scrollbackRows),
 		sequence: BigInt(value.sequence),
+	};
+}
+
+function rowWindowFromJson(value) {
+	return {
+		...value,
+		generation: BigInt(value.generation),
+		revision: BigInt(value.revision),
+		rows: value.rows.map((row) => ({ ...row, index: BigInt(row.index) })),
+		sequence: BigInt(value.sequence),
+		startRow: BigInt(value.startRow),
+		totalRows: BigInt(value.totalRows),
 	};
 }
 
@@ -131,6 +146,56 @@ function malformedCorpus(frameBytes) {
 	];
 }
 
+function malformedRowWindowCorpus(rowWindowBytes) {
+	const invalidMagic = rowWindowBytes.slice();
+	invalidMagic[0] = 0;
+
+	const lengthMismatch = rowWindowBytes.slice();
+	new DataView(lengthMismatch.buffer).setUint32(8, lengthMismatch.byteLength - 1, true);
+
+	const unknownRequiredFlag = rowWindowBytes.slice();
+	unknownRequiredFlag[7] = 0x80;
+
+	const invalidUtf8 = rowWindowBytes.slice();
+	invalidUtf8[124] = 0xff;
+
+	const invalidMappingOrder = rowWindowBytes.slice();
+	new DataView(invalidMappingOrder.buffer).setUint16(152, 0, true);
+
+	return [
+		{
+			bytesBase64: Buffer.from(rowWindowBytes.subarray(0, 100)).toString('base64'),
+			code: 'truncated',
+			name: 'truncated-header',
+		},
+		{
+			bytesBase64: Buffer.from(invalidMagic).toString('base64'),
+			code: 'invalid-magic',
+			name: 'invalid-magic',
+		},
+		{
+			bytesBase64: Buffer.from(lengthMismatch).toString('base64'),
+			code: 'length-mismatch',
+			name: 'length-mismatch',
+		},
+		{
+			bytesBase64: Buffer.from(unknownRequiredFlag).toString('base64'),
+			code: 'unknown-required-flag',
+			name: 'unknown-required-flag',
+		},
+		{
+			bytesBase64: Buffer.from(invalidUtf8).toString('base64'),
+			code: 'invalid-utf8',
+			name: 'invalid-utf8',
+		},
+		{
+			bytesBase64: Buffer.from(invalidMappingOrder).toString('base64'),
+			code: 'invalid-field',
+			name: 'invalid-mapping-order',
+		},
+	];
+}
+
 async function compareFile(filePath, expected) {
 	let actual;
 	try {
@@ -154,6 +219,10 @@ const frameBytes = encodeOrThrow(
 	encodeTerminalFrame(frameFromJson(canonical.frame)),
 	'terminal frame',
 );
+const rowWindowBytes = encodeOrThrow(
+	encodeTerminalRowWindow(rowWindowFromJson(canonical.rowWindow)),
+	'terminal row window',
+);
 const envelopeBytes = encodeOrThrow(
 	encodeProtocolEnvelope({ ...canonical.transportEnvelope, payload: frameBytes }),
 	'transport envelope',
@@ -173,6 +242,9 @@ const pasteInputBytes = encodeOrThrow(encodePasteInput(canonical.pasteInput), 'p
 const malformedBytes = new TextEncoder().encode(
 	`${JSON.stringify({ cases: malformedCorpus(frameBytes) }, null, '\t')}\n`,
 );
+const malformedRowWindowBytes = new TextEncoder().encode(
+	`${JSON.stringify({ cases: malformedRowWindowCorpus(rowWindowBytes) }, null, '\t')}\n`,
+);
 
 if (checkOnly) {
 	await compareFile(framePath, frameBytes);
@@ -184,6 +256,8 @@ if (checkOnly) {
 	await compareFile(focusInputPath, focusInputBytes);
 	await compareFile(pasteInputPath, pasteInputBytes);
 	await compareFile(malformedPath, malformedBytes);
+	await compareFile(rowWindowPath, rowWindowBytes);
+	await compareFile(malformedRowWindowPath, malformedRowWindowBytes);
 } else {
 	await writeFile(framePath, frameBytes);
 	await writeFile(envelopePath, envelopeBytes);
@@ -194,4 +268,6 @@ if (checkOnly) {
 	await writeFile(focusInputPath, focusInputBytes);
 	await writeFile(pasteInputPath, pasteInputBytes);
 	await writeFile(malformedPath, malformedBytes);
+	await writeFile(rowWindowPath, rowWindowBytes);
+	await writeFile(malformedRowWindowPath, malformedRowWindowBytes);
 }

@@ -2,6 +2,7 @@ const std = @import("std");
 
 const ghostty_vt = @import("ghostty-vt");
 const pty_process = @import("pty_process.zig");
+const terminal_history = @import("terminal_history.zig");
 const terminal_projection = @import("terminal_projection.zig");
 
 pub const scrollback_bytes = 10_000_000;
@@ -134,6 +135,21 @@ const DeviceFeature = std.meta.Elem(@FieldType(@FieldType(DeviceAttributes, "pri
 pub const ProjectionCounters = terminal_projection.Counters;
 pub const ProjectionEncodeRequest = terminal_projection.EncodeRequest;
 pub const ProjectionFrame = terminal_projection.EncodedFrame;
+pub const HistoryDemand = terminal_history.HistoryDemand;
+pub const HistoryEvent = terminal_history.HistoryEvent;
+pub const HistoryReadRequest = terminal_history.ReadRequest;
+pub const HistoryRows = terminal_history.EncodedRows;
+pub const SelectionCommandRequest = terminal_history.SelectionCommandRequest;
+pub const SelectionExportFinished = terminal_history.ExportFinished;
+pub const SelectionExportFormat = terminal_history.ExportFormat;
+pub const SelectionExportStarted = terminal_history.ExportStarted;
+pub const SelectionGesture = terminal_history.SelectionGesture;
+pub const SelectionSnapshot = terminal_history.SelectionSnapshot;
+
+pub const SelectionExportStartResult = struct {
+    lock_hold_nanoseconds: u64,
+    started: SelectionExportStarted,
+};
 
 pub const Geometry = struct {
     cell_pixel_height: u16,
@@ -159,6 +175,7 @@ pub const TerminalRuntime = struct {
     child_exited: std.atomic.Value(bool) = .init(false),
     exit_result: ?pty_process.ExitResult = null,
     generation: u64 = 1,
+    history: terminal_history.Manager,
     input_charged_bytes: usize = 0,
     input_condition: std.Thread.Condition = .{},
     input_entries: std.ArrayList(InputEntry) = .empty,
@@ -228,6 +245,7 @@ pub const TerminalRuntime = struct {
             .process = process,
             .profile = profile,
             .projection = .init(allocator),
+            .history = .init(allocator),
             .stream = undefined,
             .terminal = terminal,
         };
@@ -274,6 +292,7 @@ pub const TerminalRuntime = struct {
         self.joinThreads();
         self.stream.deinit();
         self.process.deinit();
+        self.history.deinit(&self.terminal);
         self.terminal.deinit(self.allocator);
         self.input_mutex.lock();
         for (self.input_entries.items) |entry| if (entry.bytes) |bytes| self.allocator.free(bytes);
@@ -499,6 +518,7 @@ pub const TerminalRuntime = struct {
         const revision = std.math.add(u64, self.revision.load(.monotonic), 1) catch
             return error.RevisionOverflow;
         self.revision.store(revision, .release);
+        self.history.generationChanged(&self.terminal, revision, self.generation);
         return revision;
     }
 
@@ -559,6 +579,180 @@ pub const TerminalRuntime = struct {
             self.terminal_mutex.unlock();
         }
         return self.projection.encode(request);
+    }
+
+    pub fn attachHistory(self: *TerminalRuntime, attachment_id: [16]u8) !void {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        try self.history.attach(attachment_id);
+    }
+
+    pub fn detachHistory(self: *TerminalRuntime, attachment_id: [16]u8) void {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        self.history.detach(&self.terminal, attachment_id);
+    }
+
+    pub fn setHistoryDemand(
+        self: *TerminalRuntime,
+        attachment_id: [16]u8,
+        demand: HistoryDemand,
+    ) !void {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        try self.history.setDemand(&self.terminal, attachment_id, demand);
+    }
+
+    pub fn readHistoryRows(
+        self: *TerminalRuntime,
+        request: HistoryReadRequest,
+    ) !HistoryRows {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        return self.history.readRows(
+            &self.terminal,
+            self.revision.load(.monotonic),
+            self.generation,
+            self.cell_pixel_width,
+            self.cell_pixel_height,
+            request,
+        );
+    }
+
+    pub fn historyRowsApplied(
+        self: *TerminalRuntime,
+        attachment_id: [16]u8,
+        request_sequence: u64,
+        revision: u64,
+        generation: u64,
+    ) !void {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        try self.history.rowsApplied(
+            &self.terminal,
+            attachment_id,
+            request_sequence,
+            revision,
+            generation,
+        );
+    }
+
+    pub fn takeHistoryEvent(
+        self: *TerminalRuntime,
+        attachment_id: [16]u8,
+    ) !?HistoryEvent {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        return self.history.takeHistoryEvent(
+            &self.terminal,
+            attachment_id,
+            self.revision.load(.monotonic),
+            self.generation,
+        );
+    }
+
+    pub fn historyObserved(
+        self: *TerminalRuntime,
+        attachment_id: [16]u8,
+        revision: u64,
+        generation: u64,
+    ) !void {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        try self.history.historyObserved(attachment_id, revision, generation);
+    }
+
+    pub fn takeSelectionEvent(
+        self: *TerminalRuntime,
+        attachment_id: [16]u8,
+    ) !?SelectionSnapshot {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        return self.history.takeSelectionEvent(attachment_id);
+    }
+
+    pub fn applySelectionGesture(
+        self: *TerminalRuntime,
+        request: SelectionGesture,
+    ) !SelectionSnapshot {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        return self.history.applyGesture(
+            &self.terminal,
+            self.revision.load(.monotonic),
+            self.generation,
+            request,
+        );
+    }
+
+    pub fn applySelectionCommand(
+        self: *TerminalRuntime,
+        request: SelectionCommandRequest,
+    ) !SelectionSnapshot {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        return self.history.applySelectionCommand(
+            &self.terminal,
+            self.revision.load(.monotonic),
+            self.generation,
+            request,
+        );
+    }
+
+    pub fn startSelectionExport(
+        self: *TerminalRuntime,
+        attachment_id: [16]u8,
+        export_sequence: u64,
+        format: SelectionExportFormat,
+    ) !SelectionExportStartResult {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        const lock_started_at = std.time.nanoTimestamp();
+        const started = try self.history.startExport(
+            &self.terminal,
+            attachment_id,
+            export_sequence,
+            format,
+        );
+        const elapsed = @max(std.time.nanoTimestamp() - lock_started_at, 0);
+        return .{
+            .lock_hold_nanoseconds = @intCast(@min(elapsed, std.math.maxInt(u64))),
+            .started = started,
+        };
+    }
+
+    pub fn nextSelectionExportChunk(
+        self: *TerminalRuntime,
+        attachment_id: [16]u8,
+    ) !?[]u8 {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        return self.history.encodeNextExportChunk(attachment_id);
+    }
+
+    pub fn selectionExportChunkApplied(
+        self: *TerminalRuntime,
+        attachment_id: [16]u8,
+        export_sequence: u64,
+        chunk_sequence: u32,
+    ) !?SelectionExportFinished {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        return self.history.exportChunkApplied(
+            attachment_id,
+            export_sequence,
+            chunk_sequence,
+        );
+    }
+
+    pub fn cancelSelectionExport(
+        self: *TerminalRuntime,
+        attachment_id: [16]u8,
+        export_sequence: u64,
+    ) !SelectionExportFinished {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        return self.history.cancelExport(attachment_id, export_sequence);
     }
 
     fn enqueueOrderedBytes(self: *TerminalRuntime, bytes: []const u8, reserved_bytes: usize) !usize {
@@ -702,7 +896,8 @@ pub const TerminalRuntime = struct {
             self.terminal_mutex.lock();
             const previous_screen = self.terminal.screens.active_key;
             self.stream.nextSlice(buffer[0..length]);
-            if (previous_screen != self.terminal.screens.active_key) {
+            const screen_changed = previous_screen != self.terminal.screens.active_key;
+            if (screen_changed) {
                 self.generation = std.math.add(u64, self.generation, 1) catch {
                     self.terminal_mutex.unlock();
                     self.reader_failed.store(true, .release);
@@ -715,6 +910,11 @@ pub const TerminalRuntime = struct {
                 return;
             };
             self.revision.store(revision, .release);
+            if (screen_changed) {
+                self.history.screenChanged(&self.terminal);
+            } else {
+                self.history.noteMutation(&self.terminal, revision, self.generation);
+            }
             self.terminal_mutex.unlock();
             _ = self.output_batches_since_sync.fetchAdd(1, .release);
         }

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
 	findDirectionalTerminalMatch,
+	findTerminalBufferMatches,
 	findTerminalMatches,
 	searchMatchContainsCell,
 	validateTerminalSearchQuery,
 } from '../terminal-search';
+import type { TerminalBufferRow } from '../../buffer-rows';
 import type { CellData } from '../../types';
 
 describe('findTerminalMatches', () => {
@@ -26,6 +28,95 @@ describe('findTerminalMatches', () => {
 			},
 		]);
 	});
+
+	it('preserves absolute coordinates when searching source-neutral rows', () => {
+		const rows: TerminalBufferRow[] = [
+			{
+				cells: null,
+				index: 41n,
+				mappings: [
+					{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 },
+					{ byteOffset: 1, column: 1, utf16Offset: 1, width: 2 },
+				],
+				promptClass: 'none',
+				text: 'A蜂',
+				wrap: false,
+				wrapContinuation: false,
+			},
+		];
+		expect(findTerminalBufferMatches(rows, '蜂')).toEqual([
+			{
+				end: { column: 1, row: 41 },
+				start: { column: 1, row: 41 },
+				text: '蜂',
+			},
+		]);
+	});
+
+	it('maps implicit narrow ASCII offsets without materializing cell mappings', () => {
+		const rows: TerminalBufferRow[] = [
+			{
+				cells: null,
+				identityAscii: true,
+				index: 400n,
+				mappings: [],
+				promptClass: 'none',
+				text: 'alpha beta',
+				wrap: false,
+				wrapContinuation: false,
+			},
+		];
+
+		expect(findTerminalBufferMatches(rows, 'beta')).toEqual([
+			{
+				end: { column: 9, row: 400 },
+				start: { column: 6, row: 400 },
+				text: 'beta',
+			},
+		]);
+	});
+
+	it.each([
+		{
+			lines: [line('Error error_error error 42')],
+			options: { wholeWord: true },
+			query: 'error',
+			wraps: [false],
+		},
+		{
+			lines: [[cell('A', 1), cell('e\u0301', 1), cell('蜂', 2), cell('', 0)]],
+			options: {},
+			query: 'e蜂',
+			wraps: [false],
+		},
+		{
+			lines: [line('wrapped'), line('value')],
+			options: {},
+			query: 'edva',
+			wraps: [true, false],
+		},
+		{
+			lines: [line('alpha 2'), line('beta 3')],
+			options: { regex: true, spanLines: true },
+			query: String.raw`2\s+beta`,
+			wraps: [false, false],
+		},
+	])(
+		'keeps compact buffer-row search aligned with cell search',
+		({ lines, query, options, wraps }) => {
+			const absoluteStart = 41;
+			const expected = findTerminalMatches(lines, query, options, wraps).map((match) => ({
+				...match,
+				end: { ...match.end, row: match.end.row + absoluteStart },
+				start: { ...match.start, row: match.start.row + absoluteStart },
+			}));
+			const rows = lines.map((cells, index) =>
+				bufferRowFromCells(BigInt(absoluteStart + index), cells, wraps[index] ?? false),
+			);
+
+			expect(findTerminalBufferMatches(rows, query, options)).toEqual(expected);
+		},
+	);
 
 	it('does not search terminal padding after the last content cell', () => {
 		expect(findTerminalMatches([[...line('text'), emptyCell(), emptyCell()]], '  ')).toEqual([]);
@@ -296,4 +387,45 @@ function cell(text: string, width: number): CellData {
 
 function emptyCell(): CellData {
 	return cell('', 1);
+}
+
+function bufferRowFromCells(
+	index: bigint,
+	cells: readonly CellData[],
+	wrap: boolean,
+): TerminalBufferRow {
+	let lastContentColumn = -1;
+	for (let column = cells.length - 1; column >= 0; column--) {
+		if ((cells[column]?.graphemeLen ?? 0) > 0) {
+			lastContentColumn = column;
+			break;
+		}
+	}
+	let byteOffset = 0;
+	let text = '';
+	let utf16Offset = 0;
+	const mappings: TerminalBufferRow['mappings'][number][] = [];
+	for (let column = 0; column <= lastContentColumn; column++) {
+		const value = cells[column];
+		if (value === undefined || value.width === 0) continue;
+		const grapheme = value.graphemeLen > 0 ? value.text : ' ';
+		mappings.push({
+			byteOffset,
+			column,
+			utf16Offset,
+			width: value.width === 2 ? 2 : 1,
+		});
+		text += grapheme;
+		byteOffset += new TextEncoder().encode(grapheme).byteLength;
+		utf16Offset += grapheme.length;
+	}
+	return {
+		cells: null,
+		index,
+		mappings,
+		promptClass: 'none',
+		text,
+		wrap,
+		wrapContinuation: false,
+	};
 }

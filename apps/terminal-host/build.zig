@@ -164,6 +164,12 @@ pub fn build(builder: *std.Build) void {
             32 + 1024 * 1024,
         ));
     }
+    conformance_options.addOption([]const u8, "row_window_fixture", readFixture(
+        builder,
+        "row-window-fixture",
+        "Canonical terminal row-window fixture path",
+        2 * 1024 * 1024,
+    ));
     const conformance_module = builder.createModule(.{
         .root_source_file = builder.path("src/protocol_conformance_test.zig"),
         .target = target,

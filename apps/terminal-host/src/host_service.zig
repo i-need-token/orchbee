@@ -5,6 +5,7 @@ const projection_interval_ns = 16 * std.time.ns_per_ms;
 const core_module = @import("host_core.zig");
 const protocol = @import("terminal-protocol");
 const pty_process = @import("pty_process.zig");
+const terminal_history = @import("terminal_history.zig");
 const terminal_runtime = @import("terminal_runtime.zig");
 
 const MessageKind = struct {
@@ -35,9 +36,25 @@ const MessageKind = struct {
     const delta_frame: u16 = 42;
     const frame_applied: u16 = 43;
     const need_snapshot: u16 = 44;
+    const read_rows: u16 = 45;
+    const rows_snapshot: u16 = 46;
     const set_projection_demand: u16 = 47;
     const projection_demand_accepted: u16 = 48;
     const projection_blocked: u16 = 49;
+    const rows_applied: u16 = 50;
+    const set_history_demand: u16 = 51;
+    const history_demand_accepted: u16 = 52;
+    const history_changed: u16 = 53;
+    const history_observed: u16 = 54;
+    const selection_gesture: u16 = 60;
+    const selection_command: u16 = 61;
+    const selection_changed: u16 = 62;
+    const selection_export: u16 = 63;
+    const selection_export_started: u16 = 64;
+    const selection_export_chunk: u16 = 65;
+    const selection_export_chunk_applied: u16 = 66;
+    const selection_export_finished: u16 = 67;
+    const selection_export_cancel: u16 = 68;
 };
 
 const ProtocolRangeWire = struct {
@@ -140,6 +157,85 @@ const SetProjectionDemandWire = struct {
     demand: []const u8,
 };
 
+const RowOriginWire = struct {
+    delta: ?i32 = null,
+    kind: []const u8,
+    offset: ?u32 = null,
+    row: ?[]const u8 = null,
+    rowsBefore: ?u32 = null,
+};
+
+const ReadRowsWire = struct {
+    attachmentId: []const u8,
+    detail: []const u8,
+    generation: []const u8,
+    maximumBytes: usize,
+    origin: RowOriginWire,
+    purpose: []const u8,
+    requestSequence: []const u8,
+    revision: []const u8,
+    rowCount: u16,
+};
+
+const RowsAppliedWire = struct {
+    attachmentId: []const u8,
+    generation: []const u8,
+    requestSequence: []const u8,
+    revision: []const u8,
+};
+
+const SetHistoryDemandWire = struct {
+    attachmentId: []const u8,
+    demand: []const u8,
+};
+
+const HistoryObservedWire = struct {
+    attachmentId: []const u8,
+    generation: []const u8,
+    revision: []const u8,
+};
+
+const SelectionPointWire = struct {
+    column: u16,
+    row: []const u8,
+};
+
+const SelectionGestureWire = struct {
+    action: []const u8,
+    attachmentId: []const u8,
+    clickCount: u2,
+    generation: []const u8,
+    point: SelectionPointWire,
+    rectangle: bool,
+    revision: []const u8,
+};
+
+const SelectionCommandWire = struct {
+    attachmentId: []const u8,
+    command: []const u8,
+    generation: []const u8,
+    point: ?SelectionPointWire = null,
+    revision: []const u8,
+};
+
+const SelectionExportWire = struct {
+    attachmentId: []const u8,
+    exportSequence: []const u8,
+    format: []const u8,
+};
+
+const SelectionExportChunkAppliedWire = struct {
+    attachmentId: []const u8,
+    chunkSequence: u32,
+    exportSequence: []const u8,
+};
+
+const SelectionExportCancelWire = struct {
+    attachmentId: []const u8,
+    exportSequence: []const u8,
+    reason: []const u8,
+};
+
 const SemanticInput = union(enum) {
     focus: protocol.FocusInputSummary,
     key: protocol.KeyInputSummary,
@@ -203,6 +299,7 @@ pub const HostService = struct {
     core: core_module.HostCore,
     next_projection_at_ns: i128 = 0,
     runtime: ?*terminal_runtime.TerminalRuntime = null,
+    trace_interactions: bool = false,
 
     pub fn init(allocator: std.mem.Allocator) HostService {
         return .{
@@ -218,7 +315,16 @@ pub const HostService = struct {
     }
 
     pub fn disconnect(self: *HostService, connection: *ConnectionState) void {
-        if (connection.client_id) |client_id| _ = self.core.disconnect(client_id);
+        if (connection.client_id) |client_id| {
+            if (self.runtime) |runtime| {
+                for (self.core.attachments.items) |attachment| {
+                    if (identifierEqual(attachment.client_id, client_id)) {
+                        runtime.detachHistory(attachment.attachment_id);
+                    }
+                }
+            }
+            _ = self.core.disconnect(client_id);
+        }
         connection.* = .{};
     }
 
@@ -227,6 +333,7 @@ pub const HostService = struct {
         outgoing.protocol_minor = connection.protocol_minor;
         errdefer outgoing.deinit();
         try self.synchronizeRuntime(&outgoing, connection.client_id != null);
+        try self.scheduleInteraction(connection, &outgoing);
         try self.scheduleProjection(connection, &outgoing);
         return outgoing;
     }
@@ -240,7 +347,7 @@ pub const HostService = struct {
         errdefer outgoing.deinit();
 
         const envelope = protocol.validateTransportEnvelope(record) catch return error.InvalidTransportRecord;
-        if (envelope.protocol_major == 1 and envelope.protocol_minor <= 1) {
+        if (envelope.protocol_major == 1 and envelope.protocol_minor <= 2) {
             outgoing.protocol_minor = envelope.protocol_minor;
         }
         try self.synchronizeRuntime(&outgoing, connection.client_id != null);
@@ -248,7 +355,7 @@ pub const HostService = struct {
             try self.addFailure(&outgoing, envelope.correlation_id, "invalid-envelope-role", "client record must be a request", false);
             return outgoing;
         }
-        if (envelope.protocol_major != 1 or envelope.protocol_minor > 1) {
+        if (envelope.protocol_major != 1 or envelope.protocol_minor > 2) {
             try self.addFailure(&outgoing, envelope.correlation_id, "unsupported-version", "unsupported envelope protocol version", false);
             return outgoing;
         }
@@ -295,8 +402,18 @@ pub const HostService = struct {
             MessageKind.frame_applied => try self.handleFrameApplied(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
             MessageKind.need_snapshot => try self.handleNeedSnapshot(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
             MessageKind.set_projection_demand => try self.handleProjectionDemand(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.read_rows => try self.handleReadRows(connection.client_id.?, connection.protocol_minor, connection.row_window_bytes, envelope, correlation_id, &outgoing),
+            MessageKind.rows_applied => try self.handleRowsApplied(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.set_history_demand => try self.handleHistoryDemand(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.history_observed => try self.handleHistoryObserved(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.selection_gesture => try self.handleSelectionGesture(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.selection_command => try self.handleSelectionCommand(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.selection_export => try self.handleSelectionExport(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.selection_export_chunk_applied => try self.handleSelectionExportChunkApplied(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.selection_export_cancel => try self.handleSelectionExportCancel(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
             else => try self.addFailure(&outgoing, correlation_id, "unsupported-in-slice", "message is not implemented by this Host slice", false),
         }
+        try self.scheduleInteraction(connection, &outgoing);
         try self.scheduleProjection(connection, &outgoing);
         return outgoing;
     }
@@ -325,10 +442,10 @@ pub const HostService = struct {
             try self.addHandshakeFailure(outgoing, envelope.correlation_id, "invalid-field", "Hello limits or features are invalid", false);
             return;
         }
-        if (hello.protocol.major != 1 or hello.protocol.minimumMinor > 1) {
+        if (hello.protocol.major != 1 or hello.protocol.minimumMinor > 2) {
             const payload = try std.fmt.allocPrint(
                 self.allocator,
-                "{{\"clientRange\":{{\"major\":{d},\"maximumMinor\":{d},\"minimumMinor\":{d}}},\"hostRange\":{{\"major\":1,\"maximumMinor\":1,\"minimumMinor\":0}},\"reason\":\"{s}\"}}",
+                "{{\"clientRange\":{{\"major\":{d},\"maximumMinor\":{d},\"minimumMinor\":{d}}},\"hostRange\":{{\"major\":1,\"maximumMinor\":2,\"minimumMinor\":0}},\"reason\":\"{s}\"}}",
                 .{
                     hello.protocol.major,
                     hello.protocol.maximumMinor,
@@ -341,7 +458,7 @@ pub const HostService = struct {
             connection.close_after_response = true;
             return;
         }
-        const chosen_minor: u16 = @min(hello.protocol.maximumMinor, 1);
+        const chosen_minor: u16 = @min(hello.protocol.maximumMinor, 2);
         outgoing.protocol_minor = chosen_minor;
         _ = try self.core.connect(client_id);
         connection.* = .{
@@ -594,7 +711,7 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "unsupported-version", "readable attachments require protocol 1.1", false);
             return;
         }
-        _ = self.core.attach(
+        const attach_outcome = self.core.attach(
             client_id,
             attachment_id,
             terminal_id,
@@ -604,6 +721,18 @@ pub const HostService = struct {
             try self.addCoreFailure(outgoing, correlation_id, err);
             return;
         };
+        if (protocol_minor >= 2 and capabilities.read) {
+            const runtime = self.runtime orelse {
+                if (attach_outcome == .applied) _ = self.core.detach(client_id, attachment_id) catch {};
+                try self.addFailure(outgoing, correlation_id, "missing-resource", "terminal runtime is missing", false);
+                return;
+            };
+            runtime.attachHistory(attachment_id) catch {
+                if (attach_outcome == .applied) _ = self.core.detach(client_id, attachment_id) catch {};
+                try self.addFailure(outgoing, correlation_id, "resource-exhausted", "history attachment state could not be allocated", true);
+                return;
+            };
+        }
         const attachment = self.core.findAttachment(attachment_id).?;
         var attachment_buffer: [32]u8 = undefined;
         var terminal_buffer: [32]u8 = undefined;
@@ -640,6 +769,7 @@ pub const HostService = struct {
             try self.addCoreFailure(outgoing, correlation_id, err);
             return;
         };
+        if (self.runtime) |runtime| runtime.detachHistory(attachment_id);
         var attachment_buffer: [32]u8 = undefined;
         const payload = try std.fmt.allocPrint(
             self.allocator,
@@ -899,6 +1029,410 @@ pub const HostService = struct {
         try outgoing.add(MessageKind.projection_demand_accepted, .control_json, payload, correlation_id, self.core.epoch, true, false);
     }
 
+    fn handleReadRows(
+        self: *HostService,
+        client_id: core_module.Identifier,
+        protocol_minor: u16,
+        negotiated_bytes: usize,
+        envelope: protocol.EnvelopeSummary,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !void {
+        if (!try self.requireProtocolV1_2(protocol_minor, correlation_id, outgoing)) return;
+        const parsed = try self.parseControl(ReadRowsWire, envelope, correlation_id, outgoing) orelse return;
+        defer parsed.deinit();
+        const request = parsed.value;
+        const attachment_id = parseIdentifier(request.attachmentId) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
+            return;
+        };
+        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        if (request.maximumBytes > negotiated_bytes) {
+            try self.addFailure(outgoing, correlation_id, "limit-exceeded", "ReadRows exceeds negotiated rowWindowBytes", false);
+            return;
+        }
+        const revision = parseCanonicalU64(request.revision) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "revision is not canonical uint64 text", false);
+            return;
+        };
+        const generation = parseCanonicalU64(request.generation) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "generation is not canonical uint64 text", false);
+            return;
+        };
+        const sequence = parseCanonicalU64(request.requestSequence) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "requestSequence is not canonical uint64 text", false);
+            return;
+        };
+        const detail: terminal_history.Detail = if (std.mem.eql(u8, request.detail, "render"))
+            .render
+        else if (std.mem.eql(u8, request.detail, "text"))
+            .text
+        else {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "ReadRows detail is invalid", false);
+            return;
+        };
+        const purpose: terminal_history.Purpose = if (std.mem.eql(u8, request.purpose, "viewport"))
+            .viewport
+        else if (std.mem.eql(u8, request.purpose, "search"))
+            .search
+        else if (std.mem.eql(u8, request.purpose, "buffer"))
+            .buffer
+        else {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "ReadRows purpose is invalid", false);
+            return;
+        };
+        const origin = parseRowOrigin(request.origin) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "ReadRows origin is invalid", false);
+            return;
+        };
+        const rows = runtime.readHistoryRows(.{
+            .attachment_id = attachment_id,
+            .detail = detail,
+            .generation = generation,
+            .host_epoch = self.core.epoch,
+            .maximum_bytes = request.maximumBytes,
+            .origin = origin,
+            .purpose = purpose,
+            .request_sequence = sequence,
+            .revision = revision,
+            .row_count = request.rowCount,
+        }) catch |err| {
+            try self.addInteractionFailure(outgoing, correlation_id, err, "ReadRows failed");
+            return;
+        };
+        defer self.allocator.free(rows.bytes);
+        try outgoing.add(
+            MessageKind.rows_snapshot,
+            .row_window,
+            rows.bytes,
+            correlation_id,
+            self.core.epoch,
+            true,
+            false,
+        );
+    }
+
+    fn handleRowsApplied(
+        self: *HostService,
+        client_id: core_module.Identifier,
+        protocol_minor: u16,
+        envelope: protocol.EnvelopeSummary,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !void {
+        if (!try self.requireProtocolV1_2(protocol_minor, correlation_id, outgoing)) return;
+        const parsed = try self.parseControl(RowsAppliedWire, envelope, correlation_id, outgoing) orelse return;
+        defer parsed.deinit();
+        const attachment_id = parseIdentifier(parsed.value.attachmentId) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
+            return;
+        };
+        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const revision = parseCanonicalU64(parsed.value.revision) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "revision is not canonical uint64 text", false);
+            return;
+        };
+        const generation = parseCanonicalU64(parsed.value.generation) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "generation is not canonical uint64 text", false);
+            return;
+        };
+        const sequence = parseCanonicalU64(parsed.value.requestSequence) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "requestSequence is not canonical uint64 text", false);
+            return;
+        };
+        runtime.historyRowsApplied(attachment_id, sequence, revision, generation) catch |err| {
+            try self.addInteractionFailure(outgoing, correlation_id, err, "RowsApplied failed");
+            return;
+        };
+        try outgoing.add(MessageKind.rows_applied, .control_json, envelope.payload, correlation_id, self.core.epoch, true, false);
+    }
+
+    fn handleHistoryDemand(
+        self: *HostService,
+        client_id: core_module.Identifier,
+        protocol_minor: u16,
+        envelope: protocol.EnvelopeSummary,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !void {
+        if (!try self.requireProtocolV1_2(protocol_minor, correlation_id, outgoing)) return;
+        const parsed = try self.parseControl(SetHistoryDemandWire, envelope, correlation_id, outgoing) orelse return;
+        defer parsed.deinit();
+        const attachment_id = parseIdentifier(parsed.value.attachmentId) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
+            return;
+        };
+        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const demand: terminal_runtime.HistoryDemand = if (std.mem.eql(u8, parsed.value.demand, "following-bottom"))
+            .following_bottom
+        else if (std.mem.eql(u8, parsed.value.demand, "viewing-history"))
+            .viewing_history
+        else {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "history demand is invalid", false);
+            return;
+        };
+        runtime.setHistoryDemand(attachment_id, demand) catch |err| {
+            try self.addInteractionFailure(outgoing, correlation_id, err, "SetHistoryDemand failed");
+            return;
+        };
+        try outgoing.add(MessageKind.history_demand_accepted, .control_json, envelope.payload, correlation_id, self.core.epoch, true, false);
+    }
+
+    fn handleHistoryObserved(
+        self: *HostService,
+        client_id: core_module.Identifier,
+        protocol_minor: u16,
+        envelope: protocol.EnvelopeSummary,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !void {
+        if (!try self.requireProtocolV1_2(protocol_minor, correlation_id, outgoing)) return;
+        const parsed = try self.parseControl(HistoryObservedWire, envelope, correlation_id, outgoing) orelse return;
+        defer parsed.deinit();
+        const attachment_id = parseIdentifier(parsed.value.attachmentId) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
+            return;
+        };
+        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const revision = parseCanonicalU64(parsed.value.revision) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "revision is not canonical uint64 text", false);
+            return;
+        };
+        const generation = parseCanonicalU64(parsed.value.generation) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "generation is not canonical uint64 text", false);
+            return;
+        };
+        runtime.historyObserved(attachment_id, revision, generation) catch |err| {
+            try self.addInteractionFailure(outgoing, correlation_id, err, "HistoryObserved failed");
+            return;
+        };
+        try outgoing.add(MessageKind.history_observed, .control_json, envelope.payload, correlation_id, self.core.epoch, true, false);
+    }
+
+    fn handleSelectionGesture(
+        self: *HostService,
+        client_id: core_module.Identifier,
+        protocol_minor: u16,
+        envelope: protocol.EnvelopeSummary,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !void {
+        if (!try self.requireProtocolV1_2(protocol_minor, correlation_id, outgoing)) return;
+        const parsed = try self.parseControl(SelectionGestureWire, envelope, correlation_id, outgoing) orelse return;
+        defer parsed.deinit();
+        const attachment_id = parseIdentifier(parsed.value.attachmentId) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
+            return;
+        };
+        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const action: terminal_history.SelectionGestureAction = if (std.mem.eql(u8, parsed.value.action, "start"))
+            .start
+        else if (std.mem.eql(u8, parsed.value.action, "update"))
+            .update
+        else if (std.mem.eql(u8, parsed.value.action, "end"))
+            .end
+        else {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "selection gesture action is invalid", false);
+            return;
+        };
+        const point = parseSelectionPoint(parsed.value.point) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "selection point is invalid", false);
+            return;
+        };
+        const revision = parseCanonicalU64(parsed.value.revision) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "revision is not canonical uint64 text", false);
+            return;
+        };
+        const generation = parseCanonicalU64(parsed.value.generation) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "generation is not canonical uint64 text", false);
+            return;
+        };
+        const snapshot = runtime.applySelectionGesture(.{
+            .action = action,
+            .attachment_id = attachment_id,
+            .click_count = parsed.value.clickCount,
+            .generation = generation,
+            .point = point,
+            .rectangle = parsed.value.rectangle,
+            .revision = revision,
+        }) catch |err| {
+            try self.addInteractionFailure(outgoing, correlation_id, err, "SelectionGesture failed");
+            return;
+        };
+        try self.addSelectionChanged(outgoing, correlation_id, attachment_id, snapshot);
+    }
+
+    fn handleSelectionCommand(
+        self: *HostService,
+        client_id: core_module.Identifier,
+        protocol_minor: u16,
+        envelope: protocol.EnvelopeSummary,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !void {
+        if (!try self.requireProtocolV1_2(protocol_minor, correlation_id, outgoing)) return;
+        const parsed = try self.parseControl(SelectionCommandWire, envelope, correlation_id, outgoing) orelse return;
+        defer parsed.deinit();
+        const attachment_id = parseIdentifier(parsed.value.attachmentId) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
+            return;
+        };
+        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const command: terminal_history.SelectionCommand = if (std.mem.eql(u8, parsed.value.command, "clear") and parsed.value.point == null)
+            .clear
+        else if (std.mem.eql(u8, parsed.value.command, "select-all") and parsed.value.point == null)
+            .select_all
+        else if (std.mem.eql(u8, parsed.value.command, "select-output"))
+            .{ .select_output = parseSelectionPoint(parsed.value.point orelse {
+                try self.addFailure(outgoing, correlation_id, "invalid-field", "select-output requires a point", false);
+                return;
+            }) catch {
+                try self.addFailure(outgoing, correlation_id, "invalid-field", "selection point is invalid", false);
+                return;
+            } }
+        else {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "selection command is invalid", false);
+            return;
+        };
+        const revision = parseCanonicalU64(parsed.value.revision) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "revision is not canonical uint64 text", false);
+            return;
+        };
+        const generation = parseCanonicalU64(parsed.value.generation) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "generation is not canonical uint64 text", false);
+            return;
+        };
+        const snapshot = runtime.applySelectionCommand(.{
+            .attachment_id = attachment_id,
+            .command = command,
+            .generation = generation,
+            .revision = revision,
+        }) catch |err| {
+            try self.addInteractionFailure(outgoing, correlation_id, err, "SelectionCommand failed");
+            return;
+        };
+        try self.addSelectionChanged(outgoing, correlation_id, attachment_id, snapshot);
+    }
+
+    fn handleSelectionExport(
+        self: *HostService,
+        client_id: core_module.Identifier,
+        protocol_minor: u16,
+        envelope: protocol.EnvelopeSummary,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !void {
+        if (!try self.requireProtocolV1_2(protocol_minor, correlation_id, outgoing)) return;
+        const parsed = try self.parseControl(SelectionExportWire, envelope, correlation_id, outgoing) orelse return;
+        defer parsed.deinit();
+        const attachment_id = parseIdentifier(parsed.value.attachmentId) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
+            return;
+        };
+        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const export_sequence = parseCanonicalU64(parsed.value.exportSequence) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "exportSequence is not canonical uint64 text", false);
+            return;
+        };
+        const format: terminal_runtime.SelectionExportFormat = if (std.mem.eql(u8, parsed.value.format, "plain"))
+            .plain
+        else if (std.mem.eql(u8, parsed.value.format, "html"))
+            .html
+        else if (std.mem.eql(u8, parsed.value.format, "vt"))
+            .vt
+        else {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "selection export format is invalid", false);
+            return;
+        };
+        const result = runtime.startSelectionExport(attachment_id, export_sequence, format) catch |err| {
+            try self.addInteractionFailure(outgoing, correlation_id, err, "SelectionExport failed");
+            return;
+        };
+        const started = result.started;
+        if (self.trace_interactions) {
+            std.debug.print(
+                "{{\"byteLength\":{d},\"lockHoldNanoseconds\":{d},\"type\":\"orchbee.terminal-host.selection-export\"}}\n",
+                .{ started.byte_length, result.lock_hold_nanoseconds },
+            );
+        }
+        var attachment_buffer: [32]u8 = undefined;
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
+            "{{\"attachmentId\":\"{s}\",\"byteLength\":{d},\"exportSequence\":\"{d}\",\"format\":\"{s}\"}}",
+            .{
+                identifierText(attachment_id, &attachment_buffer),
+                started.byte_length,
+                started.export_sequence,
+                @tagName(started.format),
+            },
+        );
+        defer self.allocator.free(payload);
+        try outgoing.add(MessageKind.selection_export_started, .control_json, payload, correlation_id, self.core.epoch, true, false);
+    }
+
+    fn handleSelectionExportChunkApplied(
+        self: *HostService,
+        client_id: core_module.Identifier,
+        protocol_minor: u16,
+        envelope: protocol.EnvelopeSummary,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !void {
+        if (!try self.requireProtocolV1_2(protocol_minor, correlation_id, outgoing)) return;
+        const parsed = try self.parseControl(SelectionExportChunkAppliedWire, envelope, correlation_id, outgoing) orelse return;
+        defer parsed.deinit();
+        const attachment_id = parseIdentifier(parsed.value.attachmentId) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
+            return;
+        };
+        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const export_sequence = parseCanonicalU64(parsed.value.exportSequence) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "exportSequence is not canonical uint64 text", false);
+            return;
+        };
+        const finished = runtime.selectionExportChunkApplied(
+            attachment_id,
+            export_sequence,
+            parsed.value.chunkSequence,
+        ) catch |err| {
+            try self.addInteractionFailure(outgoing, correlation_id, err, "SelectionExportChunkApplied failed");
+            return;
+        };
+        try outgoing.add(MessageKind.selection_export_chunk_applied, .control_json, envelope.payload, correlation_id, self.core.epoch, true, false);
+        if (finished) |value| try self.addSelectionExportFinished(outgoing, value, "completed", false, null);
+    }
+
+    fn handleSelectionExportCancel(
+        self: *HostService,
+        client_id: core_module.Identifier,
+        protocol_minor: u16,
+        envelope: protocol.EnvelopeSummary,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !void {
+        if (!try self.requireProtocolV1_2(protocol_minor, correlation_id, outgoing)) return;
+        const parsed = try self.parseControl(SelectionExportCancelWire, envelope, correlation_id, outgoing) orelse return;
+        defer parsed.deinit();
+        if (!validExportCancelReason(parsed.value.reason)) {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "selection export cancel reason is invalid", false);
+            return;
+        }
+        const attachment_id = parseIdentifier(parsed.value.attachmentId) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
+            return;
+        };
+        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const export_sequence = parseCanonicalU64(parsed.value.exportSequence) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "exportSequence is not canonical uint64 text", false);
+            return;
+        };
+        const finished = runtime.cancelSelectionExport(attachment_id, export_sequence) catch |err| {
+            try self.addInteractionFailure(outgoing, correlation_id, err, "SelectionExportCancel failed");
+            return;
+        };
+        try self.addSelectionExportFinished(outgoing, finished, "cancelled", true, correlation_id);
+    }
+
     fn handleResize(
         self: *HostService,
         client_id: core_module.Identifier,
@@ -1019,6 +1553,69 @@ pub const HostService = struct {
                 const payload = try self.terminalExitedJson(self.core.terminal.?);
                 defer self.allocator.free(payload);
                 try outgoing.add(MessageKind.terminal_exited, .control_json, payload, null, self.core.epoch, false, true);
+            }
+        }
+    }
+
+    fn scheduleInteraction(
+        self: *HostService,
+        connection: *const ConnectionState,
+        outgoing: *Outgoing,
+    ) !void {
+        const client_id = connection.client_id orelse return;
+        if (connection.protocol_minor < 2) return;
+        const runtime = self.runtime orelse return;
+        for (self.core.attachments.items) |attachment| {
+            if (!identifierEqual(attachment.client_id, client_id) or !attachment.capabilities.read) {
+                continue;
+            }
+            if (try runtime.takeHistoryEvent(attachment.attachment_id)) |event| {
+                var attachment_buffer: [32]u8 = undefined;
+                const payload = try std.fmt.allocPrint(
+                    self.allocator,
+                    "{{\"anchorStatus\":\"{s}\",\"attachmentId\":\"{s}\",\"generation\":\"{d}\",\"revision\":\"{d}\",\"totalRows\":\"{d}\"}}",
+                    .{
+                        switch (event.anchor_status) {
+                            .evicted => "evicted",
+                            .none => "none",
+                            .valid => "valid",
+                        },
+                        identifierText(event.attachment_id, &attachment_buffer),
+                        event.generation,
+                        event.revision,
+                        event.total_rows,
+                    },
+                );
+                defer self.allocator.free(payload);
+                try outgoing.add(
+                    MessageKind.history_changed,
+                    .control_json,
+                    payload,
+                    null,
+                    self.core.epoch,
+                    false,
+                    true,
+                );
+            }
+            if (try runtime.takeSelectionEvent(attachment.attachment_id)) |selection| {
+                try self.addSelectionChanged(
+                    outgoing,
+                    null,
+                    attachment.attachment_id,
+                    selection,
+                );
+            }
+            if (try runtime.nextSelectionExportChunk(attachment.attachment_id)) |chunk| {
+                defer self.allocator.free(chunk);
+                try outgoing.add(
+                    MessageKind.selection_export_chunk,
+                    .raw_bytes,
+                    chunk,
+                    null,
+                    self.core.epoch,
+                    false,
+                    true,
+                );
             }
         }
     }
@@ -1163,6 +1760,137 @@ pub const HostService = struct {
         if (protocol_minor >= 1) return true;
         try self.addFailure(outgoing, correlation_id, "unsupported-version", "operation requires protocol 1.1", false);
         return false;
+    }
+
+    fn requireProtocolV1_2(
+        self: *HostService,
+        protocol_minor: u16,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !bool {
+        if (protocol_minor >= 2) return true;
+        try self.addFailure(outgoing, correlation_id, "unsupported-version", "operation requires protocol 1.2", false);
+        return false;
+    }
+
+    fn requireHistoryRuntime(
+        self: *HostService,
+        client_id: core_module.Identifier,
+        attachment_id: core_module.Identifier,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !?*terminal_runtime.TerminalRuntime {
+        const attachment = self.core.findAttachment(attachment_id) orelse {
+            try self.addFailure(outgoing, correlation_id, "missing-resource", "attachment is missing", false);
+            return null;
+        };
+        if (!identifierEqual(attachment.client_id, client_id) or !attachment.capabilities.read) {
+            try self.addFailure(outgoing, correlation_id, "missing-resource", "attachment has no readable history capability", false);
+            return null;
+        }
+        return self.runtime orelse {
+            try self.addFailure(outgoing, correlation_id, "missing-resource", "terminal runtime is missing", false);
+            return null;
+        };
+    }
+
+    fn addSelectionChanged(
+        self: *HostService,
+        outgoing: *Outgoing,
+        correlation_id: ?core_module.Identifier,
+        attachment_id: core_module.Identifier,
+        snapshot: terminal_runtime.SelectionSnapshot,
+    ) !void {
+        var attachment_buffer: [32]u8 = undefined;
+        const attachment_text = identifierText(attachment_id, &attachment_buffer);
+        const payload = switch (snapshot) {
+            .none => try std.fmt.allocPrint(
+                self.allocator,
+                "{{\"attachmentId\":\"{s}\",\"state\":\"none\"}}",
+                .{attachment_text},
+            ),
+            .evicted => try std.fmt.allocPrint(
+                self.allocator,
+                "{{\"attachmentId\":\"{s}\",\"state\":\"evicted\"}}",
+                .{attachment_text},
+            ),
+            .active => |active| try std.fmt.allocPrint(
+                self.allocator,
+                "{{\"attachmentId\":\"{s}\",\"end\":{{\"column\":{d},\"row\":\"{d}\"}},\"preview\":null,\"rectangle\":{},\"start\":{{\"column\":{d},\"row\":\"{d}\"}},\"state\":\"active\"}}",
+                .{
+                    attachment_text,
+                    active.end.column,
+                    active.end.row,
+                    active.rectangle,
+                    active.start.column,
+                    active.start.row,
+                },
+            ),
+        };
+        defer self.allocator.free(payload);
+        const response = correlation_id != null;
+        try outgoing.add(
+            MessageKind.selection_changed,
+            .control_json,
+            payload,
+            correlation_id,
+            self.core.epoch,
+            response,
+            !response,
+        );
+    }
+
+    fn addSelectionExportFinished(
+        self: *HostService,
+        outgoing: *Outgoing,
+        finished: terminal_runtime.SelectionExportFinished,
+        status: []const u8,
+        response: bool,
+        correlation_id: ?core_module.Identifier,
+    ) !void {
+        var attachment_buffer: [32]u8 = undefined;
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
+            "{{\"attachmentId\":\"{s}\",\"byteLength\":{d},\"exportSequence\":\"{d}\",\"status\":\"{s}\"}}",
+            .{
+                identifierText(finished.attachment_id, &attachment_buffer),
+                finished.byte_length,
+                finished.export_sequence,
+                status,
+            },
+        );
+        defer self.allocator.free(payload);
+        try outgoing.add(
+            MessageKind.selection_export_finished,
+            .control_json,
+            payload,
+            correlation_id,
+            self.core.epoch,
+            response,
+            !response,
+        );
+    }
+
+    fn addInteractionFailure(
+        self: *HostService,
+        outgoing: *Outgoing,
+        correlation_id: core_module.Identifier,
+        err: anyerror,
+        message: []const u8,
+    ) !void {
+        const mapped: struct { code: []const u8, retryable: bool } = switch (err) {
+            error.AnchorEvicted => .{ .code = "history-evicted", .retryable = true },
+            error.ExportConflict => .{ .code = "export-in-progress", .retryable = true },
+            error.ExportTooLarge, error.ProjectionTooLarge => .{ .code = "limit-exceeded", .retryable = false },
+            error.InvalidAcknowledgement => .{ .code = "invalid-acknowledgement", .retryable = false },
+            error.InvalidPoint, error.InvalidRequest => .{ .code = "invalid-field", .retryable = false },
+            error.MissingAttachment, error.MissingSelection => .{ .code = "missing-resource", .retryable = false },
+            error.StaleGeneration => .{ .code = "stale-generation", .retryable = true },
+            error.StaleRevision => .{ .code = "stale-revision", .retryable = true },
+            error.OutOfMemory => .{ .code = "resource-exhausted", .retryable = true },
+            else => .{ .code = "interaction-failed", .retryable = false },
+        };
+        try self.addFailure(outgoing, correlation_id, mapped.code, message, mapped.retryable);
     }
 
     fn requireEmptyControl(
@@ -1460,6 +2188,48 @@ fn parseCanonicalU64(value: []const u8) !u64 {
     if (value.len == 0 or (value.len > 1 and value[0] == '0')) return error.InvalidInteger;
     for (value) |byte| if (byte < '0' or byte > '9') return error.InvalidInteger;
     return std.fmt.parseInt(u64, value, 10);
+}
+
+fn parseRowOrigin(value: RowOriginWire) !terminal_history.Origin {
+    if (std.mem.eql(u8, value.kind, "absolute")) {
+        if (value.delta != null or value.offset != null or value.rowsBefore != null) {
+            return error.InvalidOrigin;
+        }
+        return .{ .absolute = try parseCanonicalU64(value.row orelse return error.InvalidOrigin) };
+    }
+    if (std.mem.eql(u8, value.kind, "oldest")) {
+        if (value.delta != null or value.row != null or value.rowsBefore != null) {
+            return error.InvalidOrigin;
+        }
+        return .{ .oldest = value.offset orelse return error.InvalidOrigin };
+    }
+    if (std.mem.eql(u8, value.kind, "committed")) {
+        if (value.offset != null or value.row != null or value.rowsBefore != null) {
+            return error.InvalidOrigin;
+        }
+        return .{ .committed = value.delta orelse return error.InvalidOrigin };
+    }
+    if (std.mem.eql(u8, value.kind, "tail")) {
+        if (value.delta != null or value.offset != null or value.row != null) {
+            return error.InvalidOrigin;
+        }
+        return .{ .tail = value.rowsBefore orelse return error.InvalidOrigin };
+    }
+    return error.InvalidOrigin;
+}
+
+fn parseSelectionPoint(value: SelectionPointWire) !terminal_history.SelectionPoint {
+    return .{
+        .column = value.column,
+        .row = try parseCanonicalU64(value.row),
+    };
+}
+
+fn validExportCancelReason(value: []const u8) bool {
+    inline for (.{ "clipboard-failed", "disposed", "replaced", "user" }) |candidate| {
+        if (std.mem.eql(u8, value, candidate)) return true;
+    }
+    return false;
 }
 
 fn semanticAttachmentId(input: SemanticInput) core_module.Identifier {
