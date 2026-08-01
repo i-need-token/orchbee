@@ -13,22 +13,65 @@ result invokes the corresponding Action.
 
 The package owns a full-height, horizontally resizable two-panel shell. The left sidebar defaults
 to `250px` and is constrained to `200px`–`400px`; the right panel fills the remaining width and
-renders the host-owned terminal tab model through `@orchbee/tab-strip`. The sidebar control and
+renders the active standalone or Workspace terminal context through `@orchbee/tab-strip`. The sidebar control and
 `Mod+B` shortcut hide or restore the sidebar. The control remains mounted at one fixed shell
 position in both states. While the sidebar is hidden, a transparent leading position inside the
 tab-strip surface reserves its footprint so the control never overlaps the first tab or paints a
-separate background. The localized sidebar provides `New Terminal`, `Search`, a `Project` section
-heading, and a bottom-anchored `Settings` action.
+separate background. The localized sidebar provides a standalone `Terminal` location, `Search`, an
+expandable Project and Workspace hierarchy, and a bottom-anchored `Settings` action. Project rows
+control disclosure without changing the active terminal context. Workspace rows switch to their
+independent Tab and Panel context; returning to Terminal restores the existing standalone context.
 
 Right-clicking blank tab-strip space exposes a localized orientation action. The Workbench switches
 the strip and content layout between a top horizontal strip and a left vertical strip while tabs,
 groups, and the new-tab control keep their existing context menus.
 
-The shell composes primitives from `@orchbee/ui` without owning terminal sessions, settings
-destinations, project, authentication, routing, or agent orchestration lifecycles. Workbench owns
+The shell composes primitives from `@orchbee/ui` without owning PTY processes, filesystem or Git
+effects, settings destinations, authentication, routing, or agent orchestration lifecycles.
+Workbench owns
 the unified search state and presentation, while semantic owners remain responsible for searchable
 read models and Action registrations. The machine-readable scope contract lives in
 [`project.json`](project.json).
+
+## Experience catalog
+
+Workbench keeps reviewed interaction and business-component Manifests in
+[`docs/experience`](docs/experience). The records describe their intended and excluded use,
+invariants, composition dependencies, implementation roots, and Storybook inspection states without
+turning private components into public exports. Discover them from the repository root with
+`pnpm experience:find --owner @orchbee/workbench`, then inspect a selected record with
+`pnpm experience:show <id>` before composing a new complex Workbench interface.
+
+## Project and Workspace
+
+The maintained in-memory model, ownership, fallback, CWD, duplication, and correctness contract
+lives in [`docs/project-workspace.md`](docs/project-workspace.md).
+
+`WorkbenchProjectWorkspaceRuntime` owns the standalone terminal context plus one independent Tab
+model and Panel workspace per Workspace. Project and Workspace operations use stable Action IDs.
+The Project create control opens the common Folder acquisition menu. In browser composition,
+`Select Folder…` accepts a manually entered path in place of a native picker and then atomically
+creates the Project, its first Folder, its Primary Workspace, and the Workspace terminal projection.
+`New Folder…` remains visible but disabled while filesystem mutation is unavailable. The path is
+trimmed at its outer boundary and otherwise remains opaque; Workbench does not verify its existence.
+Project management exposes the same browser-only path entry for `Add Folder`: the inline draft
+rejects an empty or already-present exact path, while a valid submission immediately appends one
+synthetic Folder through `workbench.project.directory.add` without changing the Project or Workspace
+primary Folder. A future desktop composition replaces only path collection with its native Folder
+picker and host validation; those platform effects are not simulated by the browser package.
+A native folder picker remains a future host adapter.
+Creating a Workspace starts one shell projection in its primary Project Folder; duplication copies
+Tab groups, Panel layout, names, launch-configuration selection, and recorded launch CWD into fresh
+identities while resetting process-derived Tab, Group, and Terminal state. Terminal projections keep
+launch CWD separate from host-reported current CWD. Directory refresh preserves stable identity,
+ordering, and primary references. Deleting a Workspace disposes only its Orchbee terminal context.
+Removing a Project disposes its Orchbee metadata and contexts and never claims to delete its folders
+or Git worktrees.
+
+The current package accepts host-normalized Directory descriptors and browser-entered preview paths
+and performs no filesystem, Git, PTY, or persistence effect. `apps/web` starts empty and creates
+in-memory preview data from explicit path input. Real platform adapters remain future
+application-owned work.
 
 ## Unified search
 
@@ -225,47 +268,43 @@ import {
 	Workbench,
 	type WorkbenchHostActionCallback,
 	type WorkbenchLayoutStorage,
+	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchShortcutPlatform,
-	type WorkbenchTerminalCreateCallback,
 } from '@orchbee/workbench';
 import { ActionRuntime } from '@orchbee/actions';
-import type { TabModel } from '@orchbee/tab-strip';
 
 export function ProductInterface({
 	actionRuntime,
 	layoutStorage,
-	onNewTerminal,
 	onSettings,
+	projectWorkspaceRuntime,
 	shortcutPlatform,
-	tabModel,
 }: {
 	readonly actionRuntime: ActionRuntime;
 	readonly layoutStorage: WorkbenchLayoutStorage;
-	readonly onNewTerminal: WorkbenchTerminalCreateCallback;
 	readonly onSettings: WorkbenchHostActionCallback;
+	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
-	readonly tabModel: TabModel;
 }) {
 	return (
 		<Workbench
 			actionRuntime={actionRuntime}
 			layoutStorage={layoutStorage}
-			onNewTerminal={onNewTerminal}
 			onSettings={onSettings}
+			projectWorkspaceRuntime={projectWorkspaceRuntime}
 			shortcutPlatform={shortcutPlatform}
-			tabModel={tabModel}
 		/>
 	);
 }
 ```
 
-Create one `ActionRuntime` for each mounted application composition and dispose it with that
-composition. `WorkbenchTerminalCreateCallback` receives the execution context plus input carrying
-the requested group and optional insertion index, so the visible new-tab control and tab context
-menus reach the same terminal-creation handler without losing placement. Host callbacks return a
-structured `ActionResult`, may return it asynchronously, observe `context.signal` before commit, and
-call `context.markCommitted()` immediately before their authoritative mutation. Workbench does not
-convert a rejected host promise into a false success or claim commit on the host's behalf.
+Create one `ActionRuntime` and one `WorkbenchProjectWorkspaceRuntime` for each mounted application
+composition and dispose application-owned resources with that composition. Initialize the
+Project/Workspace runtime with the system CWD and localized first terminal title. Its in-memory
+terminal-creation Action preserves the requested Tab group and optional insertion index. Optional
+host callbacks such as Settings still return a structured `ActionResult`, may return it
+asynchronously, observe `context.signal` before commit, and call `context.markCommitted()`
+immediately before their authoritative mutation.
 
 When storage is provided, Workbench restores `orchbee:workbench:left-panel-width:v1`,
 `orchbee:workbench:left-panel-visibility:v1`, and
@@ -276,9 +315,8 @@ or out-of-range storage falls back to a visible `250px` sidebar and a horizontal
 blocking rendering. The repository-wide ownership and key contract lives in
 [`docs/frontend/browser-storage.md`](../../docs/frontend/browser-storage.md).
 
-The host owns `TabModel` and terminal-session lifecycles. Workbench renders that model and its
-terminal-creation Action calls `onNewTerminal`; when the callback is absent, the Action is disabled
-and the tab strip retains its local fallback behavior. A desktop host may also pass
+Workbench owns the in-memory Tab and Panel context projection; a future platform runtime remains
+authoritative for PTY and terminal-process lifecycles. A desktop host may pass
 `createCrossWindowDragRuntime` to connect
 the strip's pointer lifecycle to host-owned live-window discovery, compatibility checks, native
 window movement, capture, and move-loop behavior. Workbench and the browser application do not

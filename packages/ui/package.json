@@ -41,7 +41,7 @@
 		}
 	},
 	"scripts": {
-		"build": "rslib build",
+		"build": "rslib build --log-level error",
 		"component:add": "shadcn add",
 		"dev": "rslib build --watch",
 		"typecheck": "tsc --noEmit",

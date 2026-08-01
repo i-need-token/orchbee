@@ -11,20 +11,29 @@ function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
 	return <PopoverPrimitive.Trigger data-slot='popover-trigger' {...props} />;
 }
 
+function PopoverClose({ ...props }: PopoverPrimitive.Close.Props) {
+	return <PopoverPrimitive.Close data-slot='popover-close' {...props} />;
+}
+
 function PopoverContent({
 	className,
 	align = 'center',
 	alignOffset = 0,
+	anchor,
 	side = 'bottom',
 	sideOffset = 4,
 	...props
 }: PopoverPrimitive.Popup.Props &
-	Pick<PopoverPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'>) {
+	Pick<
+		PopoverPrimitive.Positioner.Props,
+		'align' | 'alignOffset' | 'anchor' | 'side' | 'sideOffset'
+	>) {
 	return (
 		<PopoverPrimitive.Portal>
 			<PopoverPrimitive.Positioner
 				align={align}
 				alignOffset={alignOffset}
+				anchor={anchor}
 				side={side}
 				sideOffset={sideOffset}
 				className='isolate z-50'
@@ -72,4 +81,12 @@ function PopoverDescription({ className, ...props }: PopoverPrimitive.Descriptio
 	);
 }
 
-export { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger };
+export {
+	Popover,
+	PopoverClose,
+	PopoverContent,
+	PopoverDescription,
+	PopoverHeader,
+	PopoverTitle,
+	PopoverTrigger,
+};

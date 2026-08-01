@@ -31,7 +31,7 @@
 		}
 	},
 	"scripts": {
-		"build": "rslib build",
+		"build": "rslib build --log-level error",
 		"dev": "rslib build --watch",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",

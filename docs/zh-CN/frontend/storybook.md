@@ -16,6 +16,7 @@
 - 每个公共视觉组件都有默认 Story；增加适用的禁用、加载、空、错误、打开、选中、变体和响应式状态。
 - 纯类型、非视觉 Hook 和内部 Provider 接线不需要独立 Story。
 - 每次公共视觉行为变更都同步更新所属 Story。
+- 规范体验组件 Manifest 引用由所属方拥有的确定性 Story 及待检查状态；按照 [`experience-components.md`](experience-components.md) 原子更新其 Story ID 与 Manifest。
 - 只通过包导出导入其他工作区，绝不导入 `src/*` 或 `dist/*`。
 - 夹具必须确定，且不依赖实时网络、当前时间、随机性、凭据或机器状态。
 

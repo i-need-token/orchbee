@@ -1,0 +1,40 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "workbench.workspace-manager-dialog",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Workspace Manager Dialog",
+	"description": "Edits Workspace identity and its primary Project Folder through the shared Workbench resource-form structure.",
+	"owner": "@orchbee/workbench",
+	"visibility": "private",
+	"intents": ["manage-workspace", "rename-workspace", "select-primary-folder"],
+	"implementation": [
+		"packages/workbench/src/workbench/components/workbench-sidebar/components/workspace-manager-dialog/WorkspaceManagerDialog.tsx"
+	],
+	"stories": [
+		{
+			"exportName": "ProjectWorkspaceNavigation",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--project-workspace-navigation",
+			"states": [
+				"Open Manage Workspace from a Workspace ellipsis or context menu and inspect name and primary Folder fields.",
+				"Change the primary Folder and confirm that the modal keeps the established cancel and save behavior."
+			]
+		}
+	],
+	"uses": ["workbench.resource-dialog-form"],
+	"useWhen": [
+		"A person needs to rename one Workspace or change which Project Folder supplies its default launch CWD.",
+		"The editable fields belong to one Workspace while the available Folder choices come from its owning Project."
+	],
+	"avoidWhen": [
+		"Folder membership itself changes; use the Project manager dialog owned by the Project.",
+		"The operation creates, duplicates, or removes a Workspace and does not require editable resource fields."
+	],
+	"invariants": [
+		"The selected primary Folder must remain a member of the Workspace's owning Project.",
+		"Removing the selected Folder falls back to the next Project Folder without prompting for a replacement.",
+		"Cancel commits neither the name draft nor the primary Folder draft."
+	],
+	"references": ["packages/workbench/docs/project-workspace.md"]
+}

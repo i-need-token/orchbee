@@ -277,6 +277,7 @@ export {
 } from './pagination';
 export {
 	Popover,
+	PopoverClose,
 	PopoverContent,
 	PopoverDescription,
 	PopoverHeader,

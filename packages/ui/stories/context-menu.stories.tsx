@@ -5,6 +5,7 @@ import {
 	ContextMenuSeparator,
 	ContextMenuShortcut,
 	ContextMenuTrigger,
+	ProductIcon,
 } from '@orchbee/ui/components';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
@@ -23,11 +24,18 @@ export const Default: Story = {
 			<ContextMenuTrigger>Right-click this terminal surface</ContextMenuTrigger>
 			<ContextMenuContent>
 				<ContextMenuItem>
+					<ProductIcon name='copy' size='menu-leading' />
 					Copy <ContextMenuShortcut>⌘C</ContextMenuShortcut>
 				</ContextMenuItem>
-				<ContextMenuItem>Paste</ContextMenuItem>
+				<ContextMenuItem>
+					<ProductIcon name='clipboard' size='menu-leading' />
+					Paste
+				</ContextMenuItem>
 				<ContextMenuSeparator />
-				<ContextMenuItem variant='destructive'>Close terminal</ContextMenuItem>
+				<ContextMenuItem variant='destructive'>
+					<ProductIcon name='close' size='menu-leading' />
+					Close terminal
+				</ContextMenuItem>
 			</ContextMenuContent>
 		</ContextMenu>
 	),

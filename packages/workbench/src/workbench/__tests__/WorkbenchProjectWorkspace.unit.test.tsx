@@ -1,0 +1,888 @@
+// @vitest-environment jsdom
+
+import { ActionRuntime } from '@orchbee/actions';
+import { OrchbeeI18nProvider } from '@orchbee/i18n';
+import { TooltipProvider } from '@orchbee/ui/components';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { Workbench } from '../Workbench';
+import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+
+class TestResizeObserver {
+	public disconnect(): void {}
+
+	public observe(_target: Element, _options?: ResizeObserverOptions): void {}
+
+	public unobserve(_target: Element): void {}
+}
+
+beforeEach(() => {
+	vi.stubGlobal('ResizeObserver', TestResizeObserver);
+});
+
+afterEach(() => {
+	cleanup();
+	vi.unstubAllGlobals();
+});
+
+function expectActionableMenuItemsToHaveIcons(menu: HTMLElement): void {
+	for (const menuItem of within(menu).getAllByRole('menuitem')) {
+		const icon = menuItem.querySelector('[data-icon]');
+		expect(icon).not.toBeNull();
+		expect(icon?.getAttribute('data-icon-size')).toBe('menu-leading');
+		expect(menuItem.className).toContain('[&_[data-icon]]:text-muted-foreground');
+	}
+}
+
+function getActionableMenuPresentation(menu: HTMLElement): readonly {
+	readonly icon: string | null;
+	readonly label: string | null;
+}[] {
+	return within(menu)
+		.getAllByRole('menuitem')
+		.map((menuItem) => ({
+			icon: menuItem.querySelector('[data-icon]')?.getAttribute('data-icon') ?? null,
+			label: menuItem.textContent,
+		}));
+}
+
+describe('Workbench Project and Workspace management', () => {
+	it('projects terminal context commands through the shared icon-bearing action menu', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+		});
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		const terminalViewport = document.querySelector<HTMLElement>(
+			'[data-slot="workbench-terminal-viewport"]',
+		);
+		expect(terminalViewport).not.toBeNull();
+		if (terminalViewport === null) throw new Error('Expected a terminal Context Menu trigger.');
+		const contextMenuEvent = new MouseEvent('contextmenu', {
+			bubbles: true,
+			cancelable: true,
+			clientX: 400,
+			clientY: 300,
+		});
+		fireEvent(terminalViewport, contextMenuEvent);
+
+		expect(contextMenuEvent.defaultPrevented).toBe(true);
+		const menu = await screen.findByRole('menu');
+		expectActionableMenuItemsToHaveIcons(menu);
+		expect(getActionableMenuPresentation(menu)).toEqual([
+			{ icon: 'terminal', label: 'New child terminal' },
+			{ icon: 'panels', label: 'Split right' },
+			{ icon: 'panels', label: 'Split left' },
+			{ icon: 'panels', label: 'Split below' },
+			{ icon: 'panels', label: 'Split above' },
+		]);
+		fireEvent.keyDown(document, { key: 'Escape' });
+		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+	});
+
+	it.each([
+		{
+			cancel: 'Cancel',
+			close: 'Close',
+			create: 'Create',
+			description:
+				'This folder becomes the starting location for the Project and its Primary Workspace.',
+			locale: 'en-US' as const,
+			newFolder: 'New Folder…',
+			pathDescription: 'Enter an absolute path. The browser cannot verify that it exists.',
+			pathLabel: 'Folder path',
+			pathPlaceholder: '/path/to/project',
+			projectAction: 'Create Project',
+			selectFolder: 'Select Folder…',
+			title: 'Select Project Folder',
+		},
+		{
+			cancel: '取消',
+			close: '关闭',
+			create: '创建',
+			description: '此文件夹将作为项目及其主工作区的起始位置。',
+			locale: 'zh-CN' as const,
+			newFolder: '新建文件夹…',
+			pathDescription: '请输入绝对路径。浏览器无法验证该路径是否存在。',
+			pathLabel: '文件夹路径',
+			pathPlaceholder: '/path/to/project',
+			projectAction: '创建项目',
+			selectFolder: '选择文件夹…',
+			title: '选择项目文件夹',
+		},
+	])(
+		'creates a Project from a manually entered Folder path in $locale',
+		async ({
+			cancel,
+			close,
+			create,
+			description,
+			locale,
+			newFolder,
+			pathDescription,
+			pathLabel,
+			pathPlaceholder,
+			projectAction,
+			selectFolder,
+			title,
+		}) => {
+			const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+				standaloneCwd: '/system',
+				standaloneTerminalTitle: locale === 'en-US' ? 'Terminal 1' : '终端 1',
+			});
+			render(
+				<OrchbeeI18nProvider locale={locale}>
+					<TooltipProvider>
+						<Workbench
+							actionRuntime={new ActionRuntime()}
+							projectWorkspaceRuntime={projectWorkspaceRuntime}
+							shortcutPlatform='apple'
+						/>
+					</TooltipProvider>
+				</OrchbeeI18nProvider>,
+			);
+
+			expect(document.activeElement).toBe(document.body);
+			const projectCreateButton = screen.getByRole('button', { name: projectAction });
+			expect(projectCreateButton.hasAttribute('data-base-ui-tooltip-trigger')).toBe(true);
+			fireEvent.click(projectCreateButton);
+			expect(screen.queryByRole('dialog')).toBeNull();
+			const menu = await screen.findByRole('menu');
+			expect(menu.className).toContain('w-(--ob-ref-size-menu)');
+			expect(projectCreateButton.hasAttribute('data-popup-open')).toBe(true);
+			const newFolderItem = within(menu).getByRole('menuitem', { name: newFolder });
+			expect(newFolderItem.getAttribute('aria-disabled')).toBe('true');
+			expectActionableMenuItemsToHaveIcons(menu);
+			fireEvent.click(within(menu).getByRole('menuitem', { name: selectFolder }));
+			let dialog = await screen.findByRole('dialog');
+			expect(dialog.className).toContain('shadow-lg');
+			expect(dialog.className).toContain('sm:max-w-(--ob-ref-size-dialog)');
+			expect(dialog.className).not.toContain('ring-foreground/10');
+			const dialogFooter = dialog.querySelector<HTMLElement>('[data-slot="dialog-footer"]');
+			expect(dialogFooter?.className).not.toContain('border-t');
+			expect(dialogFooter?.className).not.toContain('bg-muted/50');
+			expect(within(dialog).getByRole('heading', { name: title })).toBeDefined();
+			expect(within(dialog).getByText(description)).toBeDefined();
+			expect(within(dialog).getByText(pathDescription)).toBeDefined();
+			expect(within(dialog).getByRole('button', { name: close })).toBeDefined();
+			const pathInput = within(dialog).getByLabelText(pathLabel);
+			expect(pathInput.getAttribute('placeholder')).toBe(pathPlaceholder);
+			expect(pathInput.getAttribute('aria-describedby')).toBe('project-create-path-description');
+			const cancelButton = within(dialog).getByRole('button', { name: cancel });
+			const createButton = within(dialog).getByRole('button', { name: create });
+			expect(within(cancelButton).getByText('Esc')).toBeDefined();
+			expect(within(createButton).getByText('Enter')).toBeDefined();
+			expect(createButton.getAttribute('type')).toBe('submit');
+			fireEvent.change(pathInput, { target: { value: '   ' } });
+			expect(createButton).toHaveProperty('disabled', true);
+			fireEvent.keyDown(document, { key: 'Escape' });
+			await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+			expect(projectWorkspaceRuntime.getSnapshot().projects).toEqual([]);
+
+			fireEvent.click(screen.getByRole('button', { name: projectAction }));
+			fireEvent.click(
+				within(await screen.findByRole('menu')).getByRole('menuitem', { name: selectFolder }),
+			);
+			dialog = await screen.findByRole('dialog');
+			fireEvent.change(within(dialog).getByLabelText(pathLabel), {
+				target: { value: ' /workspace/orchbee/ ' },
+			});
+			const form = dialog.querySelector('form');
+			expect(form).not.toBeNull();
+			if (form === null) throw new Error('Expected the Project creation form to exist.');
+			fireEvent.submit(form);
+
+			await waitFor(() => {
+				expect(projectWorkspaceRuntime.getSnapshot()).toMatchObject({
+					activeLocation: {
+						kind: 'workspace',
+						projectId: 'project-1',
+						workspaceId: 'workspace-1',
+					},
+					projects: [
+						{
+							directories: [{ name: 'orchbee', path: '/workspace/orchbee/' }],
+							name: 'orchbee',
+						},
+					],
+				});
+			});
+			expect(screen.queryByRole('dialog')).toBeNull();
+		},
+	);
+
+	it('omits redundant primary controls when a Project has one Folder', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+		});
+		projectWorkspaceRuntime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'directory-orchbee',
+				kind: 'folder',
+				name: 'orchbee',
+				path: '/workspace/orchbee',
+				source: 'selected',
+			},
+			launchConfigurations: [],
+			primaryWorkspaceLaunchConfigurationId: null,
+			primaryWorkspaceName: 'Primary',
+			projectName: 'orchbee',
+			terminalTitle: 'Terminal 1',
+			type: 'project-created',
+		});
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
+		fireEvent.click(
+			within(await screen.findByRole('menu')).getByRole('menuitem', {
+				name: 'Manage Project…',
+			}),
+		);
+		const dialog = await screen.findByRole('dialog');
+		expect(within(dialog).queryByText('Primary folder')).toBeNull();
+		expect(within(dialog).queryByRole('button', { name: 'Set as primary' })).toBeNull();
+		const folderName = within(dialog).getByText('orchbee');
+		expect(folderName.getAttribute('data-slot')).toBe('tooltip-trigger');
+		const addFolder = within(dialog).getByRole('button', { name: 'Add Folder' });
+		expect(addFolder.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('new-folder');
+	});
+
+	it('removes an active primary Folder without asking for a replacement', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+		});
+		projectWorkspaceRuntime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'directory-orchbee',
+				kind: 'folder',
+				name: 'orchbee',
+				path: '/workspace/orchbee',
+				source: 'selected',
+			},
+			launchConfigurations: [],
+			primaryWorkspaceLaunchConfigurationId: null,
+			primaryWorkspaceName: 'Primary',
+			projectName: 'orchbee',
+			terminalTitle: 'Terminal 1',
+			type: 'project-created',
+		});
+		projectWorkspaceRuntime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'directory-xterm',
+				kind: 'folder',
+				name: 'xterm.js',
+				path: '/workspace/xterm.js',
+				source: 'selected',
+			},
+			projectId: 'project-1',
+			type: 'directory-added',
+		});
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		const projectOptions = screen.getByRole('button', { name: 'Project options: orchbee' });
+		expect(projectOptions.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('ellipsis');
+		const workspaceOptions = screen.getByRole('button', { name: 'Workspace options: Primary' });
+		expect(workspaceOptions.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe(
+			'ellipsis',
+		);
+		fireEvent.click(workspaceOptions);
+		const workspaceMenu = await screen.findByRole('menu');
+		expectActionableMenuItemsToHaveIcons(workspaceMenu);
+		const workspaceMenuPresentation = getActionableMenuPresentation(workspaceMenu);
+		expect(workspaceMenuPresentation.map(({ label }) => label)).toEqual([
+			'Duplicate Workspace',
+			'Manage Workspace…',
+			'Delete Workspace',
+		]);
+		fireEvent.click(within(workspaceMenu).getByRole('menuitem', { name: 'Delete Workspace' }), {
+			clientX: 320,
+			clientY: 240,
+			detail: 1,
+		});
+		const deleteWorkspaceTitle = await screen.findByText('Delete Workspace?');
+		const confirmationPopover = deleteWorkspaceTitle.closest<HTMLElement>(
+			'[data-slot="workbench-confirmation-popover"]',
+		);
+		expect(confirmationPopover).not.toBeNull();
+		if (confirmationPopover === null) throw new Error('Expected an anchored confirmation Popover.');
+		expect(confirmationPopover.getAttribute('data-anchor-x')).toBe('320');
+		expect(confirmationPopover.getAttribute('data-anchor-y')).toBe('240');
+		expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).toBeNull();
+		const confirmationCancel = within(confirmationPopover).getByRole('button', { name: 'Cancel' });
+		const confirmationSubmit = within(confirmationPopover).getByRole('button', {
+			name: 'Delete Workspace',
+		});
+		expect(within(confirmationCancel).getByText('Esc')).toBeDefined();
+		expect(within(confirmationSubmit).getByText('Enter')).toBeDefined();
+		fireEvent.click(confirmationCancel);
+		await waitFor(() =>
+			expect(document.querySelector('[data-slot="workbench-confirmation-popover"]')).toBeNull(),
+		);
+
+		const navigationBeforeContextMenus = projectWorkspaceRuntime.getSnapshot();
+		const workspaceRow = workspaceOptions.closest<HTMLElement>(
+			'[data-slot="context-menu-trigger"]',
+		);
+		expect(workspaceRow).not.toBeNull();
+		if (workspaceRow === null) throw new Error('Expected the Workspace Context Menu trigger.');
+		const workspaceContextMenuEvent = new MouseEvent('contextmenu', {
+			bubbles: true,
+			cancelable: true,
+			clientX: 120,
+			clientY: 200,
+		});
+		fireEvent(workspaceRow, workspaceContextMenuEvent);
+		expect(workspaceContextMenuEvent.defaultPrevented).toBe(true);
+		const workspaceContextMenu = await screen.findByRole('menu');
+		expect(workspaceRow.hasAttribute('data-popup-open')).toBe(true);
+		expect(workspaceContextMenu.getAttribute('data-slot')).toBe('context-menu-content');
+		expect(getActionableMenuPresentation(workspaceContextMenu)).toEqual(workspaceMenuPresentation);
+		fireEvent.click(
+			within(workspaceContextMenu).getByRole('menuitem', { name: 'Manage Workspace…' }),
+		);
+		const workspaceManager = await screen.findByRole('dialog');
+		expect(workspaceManager.getAttribute('data-slot')).toBe('workbench-workspace-manager');
+		expect(within(workspaceManager).getByRole('button', { name: 'Close' })).toBeDefined();
+		const workspaceNameInput = within(workspaceManager).getByLabelText('Name');
+		expect(workspaceNameInput.getAttribute('placeholder')).toBe('Enter a workspace name');
+		const workspaceCancel = within(workspaceManager).getByRole('button', { name: 'Cancel' });
+		const workspaceSave = within(workspaceManager).getByRole('button', { name: 'Save' });
+		expect(within(workspaceCancel).getByText('Esc')).toBeDefined();
+		expect(within(workspaceSave).getByText('Enter')).toBeDefined();
+		expect(workspaceSave.getAttribute('type')).toBe('submit');
+		fireEvent.click(workspaceCancel);
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+		expect(workspaceRow.hasAttribute('data-popup-open')).toBe(false);
+
+		const projectRow = projectOptions.closest<HTMLElement>('[data-slot="context-menu-trigger"]');
+		expect(projectRow).not.toBeNull();
+		if (projectRow === null) throw new Error('Expected the Project Context Menu trigger.');
+		const projectContextMenuEvent = new MouseEvent('contextmenu', {
+			bubbles: true,
+			cancelable: true,
+			clientX: 120,
+			clientY: 160,
+		});
+		fireEvent(projectRow, projectContextMenuEvent);
+		expect(projectContextMenuEvent.defaultPrevented).toBe(true);
+		const projectContextMenu = await screen.findByRole('menu');
+		expect(projectRow.hasAttribute('data-popup-open')).toBe(true);
+		expect(projectContextMenu.getAttribute('data-slot')).toBe('context-menu-content');
+		const contextSubmenu = within(projectContextMenu).getByRole('menuitem', {
+			name: 'New Workspace',
+		});
+		expect(contextSubmenu.className).toContain('data-popup-open:bg-accent');
+		const projectContextMenuPresentation = getActionableMenuPresentation(projectContextMenu);
+		fireEvent.keyDown(document, { key: 'Escape' });
+		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+		expect(projectRow.hasAttribute('data-popup-open')).toBe(false);
+		expect(projectWorkspaceRuntime.getSnapshot()).toMatchObject({
+			activeLocation: navigationBeforeContextMenus.activeLocation,
+			expandedProjectIds: navigationBeforeContextMenus.expandedProjectIds,
+		});
+
+		fireEvent.click(projectOptions);
+		const projectMenu = await screen.findByRole('menu');
+		expectActionableMenuItemsToHaveIcons(projectMenu);
+		const newWorkspaceSubmenu = within(projectMenu).getByRole('menuitem', {
+			name: 'New Workspace',
+		});
+		expect(newWorkspaceSubmenu.querySelector('svg')).not.toBeNull();
+		expect(newWorkspaceSubmenu.className).toContain('data-popup-open:bg-accent');
+		expect(newWorkspaceSubmenu.className).toContain('[&>svg]:text-muted-foreground');
+		expect(newWorkspaceSubmenu.className).toContain('size-3.5');
+		expect(getActionableMenuPresentation(projectMenu)).toEqual(projectContextMenuPresentation);
+		fireEvent.click(within(projectMenu).getByRole('menuitem', { name: 'Manage Project…' }));
+		const dialog = await screen.findByRole('dialog');
+		expect(within(dialog).queryByRole('combobox')).toBeNull();
+		expect(within(dialog).getByRole('button', { name: 'Close' })).toBeDefined();
+		const projectNameInput = within(dialog).getByLabelText('Project name');
+		expect(projectNameInput.getAttribute('placeholder')).toBe('Enter a project name');
+		const projectCancel = within(dialog).getByRole('button', { name: 'Cancel' });
+		const projectSave = within(dialog).getByRole('button', { name: 'Save' });
+		expect(within(projectCancel).getByText('Esc')).toBeDefined();
+		expect(within(projectSave).getByText('Enter')).toBeDefined();
+		expect(projectSave.getAttribute('type')).toBe('submit');
+		expect(within(dialog).getByText('Primary folder')).toBeDefined();
+		expect(within(dialog).getByRole('button', { name: 'Set as primary' })).toBeDefined();
+		expect(within(dialog).getByText('xterm.js').getAttribute('data-slot')).toBe('tooltip-trigger');
+
+		fireEvent.click(within(dialog).getByRole('button', { name: 'Add Folder' }));
+		let folderPathInput = within(dialog).getByLabelText('Folder path');
+		expect(folderPathInput.getAttribute('placeholder')).toBe('/path/to/project');
+		expect(document.activeElement).toBe(folderPathInput);
+		expect(within(dialog).getByRole('button', { name: 'Save' })).toBe(projectSave);
+		expect(within(dialog).getAllByRole('button', { name: 'Cancel' })).toHaveLength(2);
+		let folderAddRow = folderPathInput.closest<HTMLElement>('li');
+		expect(folderAddRow).not.toBeNull();
+		if (folderAddRow === null) throw new Error('Expected the inline Folder add row.');
+		expect(within(folderAddRow).getByRole('button', { name: 'Add' })).toHaveProperty(
+			'disabled',
+			true,
+		);
+		fireEvent.change(folderPathInput, { target: { value: ' /workspace/orchbee ' } });
+		expect(within(dialog).getByText('This folder is already in the Project.')).toBeDefined();
+		expect(within(folderAddRow).getByRole('button', { name: 'Add' })).toHaveProperty(
+			'disabled',
+			true,
+		);
+		fireEvent.keyDown(folderPathInput, { key: 'Escape' });
+		expect(screen.getByRole('dialog')).toBe(dialog);
+		expect(within(dialog).queryByLabelText('Folder path')).toBeNull();
+		expect(within(dialog).getByRole('button', { name: 'Save' })).toBe(projectSave);
+
+		fireEvent.click(within(dialog).getByRole('button', { name: 'Add Folder' }));
+		folderPathInput = within(dialog).getByLabelText('Folder path');
+		folderAddRow = folderPathInput.closest<HTMLElement>('li');
+		expect(folderAddRow).not.toBeNull();
+		if (folderAddRow === null) throw new Error('Expected the inline Folder add row.');
+		const folderAddCancel = within(folderAddRow).getByRole('button', { name: 'Cancel' });
+		const folderAddSubmit = within(folderAddRow).getByRole('button', { name: 'Add' });
+		expect(folderAddCancel.getAttribute('data-slot')).toBe('tooltip-trigger');
+		expect(folderAddCancel.querySelector('[data-icon="close"]')).not.toBeNull();
+		expect(folderAddSubmit.getAttribute('data-slot')).toBe('tooltip-trigger');
+		expect(folderAddSubmit.querySelector('[data-icon="check"]')).not.toBeNull();
+		fireEvent.change(folderPathInput, { target: { value: ' /workspace/ghostty/ ' } });
+		fireEvent.keyDown(folderPathInput, { key: 'Enter' });
+		await waitFor(() => {
+			expect(projectWorkspaceRuntime.getSnapshot().projects[0]).toMatchObject({
+				directories: [
+					{ id: 'directory-orchbee' },
+					{ id: 'directory-xterm' },
+					{ name: 'ghostty', path: '/workspace/ghostty/' },
+				],
+				primaryDirectoryId: 'directory-orchbee',
+				workspaces: [{ primaryDirectoryId: 'directory-orchbee' }],
+			});
+		});
+		expect(screen.getByRole('dialog')).toBe(dialog);
+		expect(within(dialog).getByText('ghostty')).toBeDefined();
+		expect(within(dialog).queryByLabelText('Folder path')).toBeNull();
+
+		fireEvent.click(within(dialog).getByRole('button', { name: 'Remove folder: orchbee' }));
+		await waitFor(() => {
+			expect(projectWorkspaceRuntime.getSnapshot().projects[0]).toMatchObject({
+				primaryDirectoryId: 'directory-xterm',
+				workspaces: [{ primaryDirectoryId: 'directory-xterm' }],
+			});
+		});
+		expect(within(dialog).getByText('xterm.js')).toBeDefined();
+		expect(within(dialog).getByText('Primary folder')).toBeDefined();
+		fireEvent.change(projectNameInput, { target: { value: '  Orchbee renamed  ' } });
+		const projectForm = dialog.querySelector('form');
+		expect(projectForm).not.toBeNull();
+		if (projectForm === null) throw new Error('Expected the Project management form to exist.');
+		fireEvent.submit(projectForm);
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.name).toBe('Orchbee renamed');
+	});
+
+	it('previews Project reorder compactly, commits on release, and restores expansion on completion or cancellation', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+		});
+		for (const [index, name] of ['Alpha', 'Beta', 'Gamma'].entries()) {
+			projectWorkspaceRuntime.transition({
+				directory: {
+					available: true,
+					git: null,
+					id: `directory-${index + 1}`,
+					kind: 'folder',
+					name,
+					path: `/workspace/${name.toLowerCase()}`,
+					source: 'selected',
+				},
+				launchConfigurations: [],
+				primaryWorkspaceLaunchConfigurationId: null,
+				primaryWorkspaceName: `${name} Workspace`,
+				projectName: name,
+				terminalTitle: 'Terminal 1',
+				type: 'project-created',
+			});
+		}
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		const projectItems = () =>
+			Array.from(document.querySelectorAll<HTMLElement>('[data-project-id]'));
+		for (const item of projectItems()) {
+			const row = item.querySelector<HTMLElement>('[data-project-reorder-row]');
+			expect(row).not.toBeNull();
+			if (row === null) continue;
+			row.getBoundingClientRect = () => {
+				const index = projectItems().indexOf(item);
+				return projectRowRectangle(index * 40);
+			};
+		}
+		const gammaItem = document.querySelector<HTMLElement>('[data-project-id="project-3"]');
+		const gammaRow = gammaItem?.querySelector<HTMLElement>('[data-project-reorder-row]');
+		const gammaButton = screen.getByRole('button', { name: 'Collapse project: Gamma' });
+		expect(gammaItem).not.toBeNull();
+		expect(gammaRow).toBeDefined();
+		if (gammaItem === null || gammaRow === null || gammaRow === undefined) {
+			throw new Error('Expected the Gamma Project row.');
+		}
+
+		fireEvent.pointerDown(gammaRow, {
+			button: 0,
+			clientX: 10,
+			clientY: 100,
+			pointerId: 7,
+			pointerType: 'mouse',
+		});
+		fireEvent.pointerMove(document, {
+			clientX: 14,
+			clientY: 50,
+			pointerId: 7,
+			pointerType: 'mouse',
+		});
+
+		await waitFor(() => expect(gammaItem.getAttribute('data-dragging')).toBe('true'));
+		expect(
+			projectItems().every((item) => item.getAttribute('data-project-reorder-active') === 'true'),
+		).toBe(true);
+		expect(gammaButton.getAttribute('aria-expanded')).toBe('false');
+		expect(gammaItem.querySelector('[data-slot="workbench-sidebar-workspace"]')).toBeNull();
+		expect(
+			document
+				.querySelector<HTMLElement>('[data-project-id="project-1"]')
+				?.getAttribute('data-project-reorder-displacement'),
+		).toBeNull();
+		expect(
+			document
+				.querySelector<HTMLElement>('[data-project-id="project-2"]')
+				?.getAttribute('data-project-reorder-displacement'),
+		).toBe('down');
+
+		fireEvent.pointerMove(document, {
+			clientX: 14,
+			clientY: 1,
+			pointerId: 7,
+			pointerType: 'mouse',
+		});
+		expect(projectItems().map((item) => item.dataset['projectId'])).toEqual([
+			'project-1',
+			'project-2',
+			'project-3',
+		]);
+		expect(
+			document
+				.querySelector<HTMLElement>('[data-project-id="project-1"]')
+				?.getAttribute('data-project-reorder-displacement'),
+		).toBe('down');
+		expect(
+			document
+				.querySelector<HTMLElement>('[data-project-id="project-2"]')
+				?.getAttribute('data-project-reorder-displacement'),
+		).toBe('down');
+		expect(
+			gammaRow.style.getPropertyValue('--ob-comp-workbench-navigation-reorder-translate-y'),
+		).toBe('-99px');
+		expect(projectWorkspaceRuntime.getSnapshot().projects.map((project) => project.id)).toEqual([
+			'project-1',
+			'project-2',
+			'project-3',
+		]);
+		expect(projectWorkspaceRuntime.getSnapshot().expandedProjectIds).toContain('project-3');
+
+		fireEvent.pointerUp(document, {
+			clientX: 14,
+			clientY: 21,
+			pointerId: 7,
+			pointerType: 'mouse',
+		});
+		expect(
+			projectItems().every((item) => item.getAttribute('data-project-reorder-active') === null),
+		).toBe(true);
+		fireEvent.click(gammaButton);
+		await waitFor(() => {
+			expect(projectWorkspaceRuntime.getSnapshot().projects.map((project) => project.id)).toEqual([
+				'project-3',
+				'project-1',
+				'project-2',
+			]);
+			expect(gammaItem.getAttribute('data-dragging')).toBeNull();
+			expect(
+				projectItems().every((item) => item.getAttribute('data-project-reorder-active') === null),
+			).toBe(true);
+			expect(gammaItem.querySelector('[data-slot="workbench-sidebar-workspace"]')).not.toBeNull();
+		});
+		expect(gammaButton.getAttribute('aria-expanded')).toBe('true');
+		expect(projectWorkspaceRuntime.getSnapshot().expandedProjectIds).toContain('project-3');
+
+		const alphaItem = document.querySelector<HTMLElement>('[data-project-id="project-1"]');
+		const alphaRow = alphaItem?.querySelector<HTMLElement>('[data-project-reorder-row]');
+		expect(alphaItem).not.toBeNull();
+		expect(alphaRow).toBeDefined();
+		if (alphaItem === null || alphaRow === null || alphaRow === undefined) {
+			throw new Error('Expected the Alpha Project row.');
+		}
+		fireEvent.pointerDown(alphaRow, {
+			button: 0,
+			clientX: 10,
+			clientY: 60,
+			pointerId: 8,
+			pointerType: 'pen',
+		});
+		fireEvent.pointerMove(document, {
+			clientX: 10,
+			clientY: 200,
+			pointerId: 8,
+			pointerType: 'pen',
+		});
+		await waitFor(() => expect(alphaItem.getAttribute('data-dragging')).toBe('true'));
+		fireEvent.keyDown(document, { key: 'Escape' });
+
+		await waitFor(() => {
+			expect(projectItems().map((item) => item.dataset['projectId'])).toEqual([
+				'project-3',
+				'project-1',
+				'project-2',
+			]);
+			expect(alphaItem.getAttribute('data-dragging')).toBeNull();
+			expect(alphaItem.querySelector('[data-slot="workbench-sidebar-workspace"]')).not.toBeNull();
+		});
+		expect(
+			screen.getByRole('button', { name: 'Collapse project: Alpha' }).getAttribute('aria-expanded'),
+		).toBe('true');
+	});
+
+	it('reorders Workspace siblings with scoped squeeze motion and preserves activation on release or cancellation', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+		});
+		projectWorkspaceRuntime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'directory-1',
+				kind: 'folder',
+				name: 'Orchbee',
+				path: '/workspace/orchbee',
+				source: 'selected',
+			},
+			launchConfigurations: [],
+			primaryWorkspaceLaunchConfigurationId: null,
+			primaryWorkspaceName: 'Primary',
+			projectName: 'Orchbee',
+			terminalTitle: 'Terminal 1',
+			type: 'project-created',
+		});
+		for (const [name, terminalTitle] of [
+			['Feature', 'Terminal 2'],
+			['Review', 'Terminal 3'],
+		] as const) {
+			projectWorkspaceRuntime.transition({
+				directoryId: 'directory-1',
+				launchConfigurationId: null,
+				name,
+				projectId: 'project-1',
+				terminalTitle,
+				type: 'workspace-created',
+			});
+		}
+		const activeLocation = projectWorkspaceRuntime.getSnapshot().activeLocation;
+		const expandedProjectIds = projectWorkspaceRuntime.getSnapshot().expandedProjectIds;
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		const workspaceItems = () =>
+			Array.from(
+				document.querySelectorAll<HTMLElement>('[data-project-id="project-1"] [data-workspace-id]'),
+			);
+		for (const item of workspaceItems()) {
+			const row = item.querySelector<HTMLElement>('[data-navigation-reorder-row]');
+			expect(row).not.toBeNull();
+			if (row === null) continue;
+			row.getBoundingClientRect = () => {
+				const index = workspaceItems().indexOf(item);
+				return projectRowRectangle(100 + index * 40);
+			};
+		}
+		const reviewItem = document.querySelector<HTMLElement>('[data-workspace-id="workspace-3"]');
+		const reviewRow = reviewItem?.querySelector<HTMLElement>('[data-navigation-reorder-row]');
+		expect(reviewItem).not.toBeNull();
+		expect(reviewRow).toBeDefined();
+		if (reviewItem === null || reviewRow === null || reviewRow === undefined) {
+			throw new Error('Expected the Review Workspace row.');
+		}
+
+		fireEvent.pointerDown(reviewRow, {
+			button: 0,
+			clientX: 20,
+			clientY: 200,
+			pointerId: 11,
+			pointerType: 'mouse',
+		});
+		fireEvent.pointerMove(document, {
+			clientX: 20,
+			clientY: 119,
+			pointerId: 11,
+			pointerType: 'mouse',
+		});
+
+		await waitFor(() => expect(reviewItem.getAttribute('data-dragging')).toBe('true'));
+		expect(
+			workspaceItems().every(
+				(item) => item.getAttribute('data-workspace-reorder-active') === 'true',
+			),
+		).toBe(true);
+		expect(
+			document
+				.querySelector<HTMLElement>('[data-workspace-id="workspace-1"]')
+				?.getAttribute('data-workspace-reorder-displacement'),
+		).toBe('down');
+		expect(
+			document
+				.querySelector<HTMLElement>('[data-workspace-id="workspace-2"]')
+				?.getAttribute('data-workspace-reorder-displacement'),
+		).toBe('down');
+		expect(
+			reviewRow.style.getPropertyValue('--ob-comp-workbench-navigation-reorder-translate-y'),
+		).toBe('-81px');
+		expect(
+			projectWorkspaceRuntime
+				.getSnapshot()
+				.projects[0]?.workspaces.map((workspace) => workspace.id),
+		).toEqual(['workspace-1', 'workspace-2', 'workspace-3']);
+
+		fireEvent.pointerUp(document, {
+			clientX: 20,
+			clientY: 119,
+			pointerId: 11,
+			pointerType: 'mouse',
+		});
+		expect(
+			workspaceItems().every((item) => item.getAttribute('data-workspace-reorder-active') === null),
+		).toBe(true);
+		await waitFor(() => {
+			expect(
+				projectWorkspaceRuntime
+					.getSnapshot()
+					.projects[0]?.workspaces.map((workspace) => workspace.id),
+			).toEqual(['workspace-3', 'workspace-1', 'workspace-2']);
+			expect(workspaceItems().map((item) => item.dataset['workspaceId'])).toEqual([
+				'workspace-3',
+				'workspace-1',
+				'workspace-2',
+			]);
+			expect(reviewItem.getAttribute('data-dragging')).toBeNull();
+		});
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toBe(activeLocation);
+		expect(projectWorkspaceRuntime.getSnapshot().expandedProjectIds).toBe(expandedProjectIds);
+
+		const primaryItem = document.querySelector<HTMLElement>('[data-workspace-id="workspace-1"]');
+		const primaryRow = primaryItem?.querySelector<HTMLElement>('[data-navigation-reorder-row]');
+		const primaryButton = screen.getByRole('button', { name: 'Primary' });
+		expect(primaryItem).not.toBeNull();
+		expect(primaryRow).toBeDefined();
+		if (primaryItem === null || primaryRow === null || primaryRow === undefined) {
+			throw new Error('Expected the Primary Workspace row.');
+		}
+		fireEvent.pointerDown(primaryRow, {
+			button: 0,
+			clientX: 20,
+			clientY: 140,
+			pointerId: 12,
+			pointerType: 'pen',
+		});
+		fireEvent.pointerMove(document, {
+			clientX: 20,
+			clientY: 260,
+			pointerId: 12,
+			pointerType: 'pen',
+		});
+		await waitFor(() => expect(primaryItem.getAttribute('data-dragging')).toBe('true'));
+		fireEvent.keyDown(document, { key: 'Escape' });
+		fireEvent.click(primaryButton);
+
+		await waitFor(() => {
+			expect(
+				projectWorkspaceRuntime
+					.getSnapshot()
+					.projects[0]?.workspaces.map((workspace) => workspace.id),
+			).toEqual(['workspace-3', 'workspace-1', 'workspace-2']);
+			expect(primaryItem.getAttribute('data-dragging')).toBeNull();
+		});
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toBe(activeLocation);
+		expect(
+			screen
+				.getByRole('button', { name: 'Collapse project: Orchbee' })
+				.getAttribute('aria-expanded'),
+		).toBe('true');
+	});
+});
+
+function projectRowRectangle(top: number): DOMRect {
+	return {
+		bottom: top + 40,
+		height: 40,
+		left: 0,
+		right: 240,
+		top,
+		width: 240,
+		x: 0,
+		y: top,
+		toJSON: () => ({}),
+	};
+}

@@ -1,10 +1,9 @@
 import { useOrchbeeIntl, workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
 import type { ActionInvocationSource, ActionRuntime, ActionScope } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import type { TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
 
-import { PanelWorkspaceStore } from '../model/PanelWorkspaceStore';
+import type { PanelWorkspaceStore } from '../model/PanelWorkspaceStore';
 import {
 	PANEL_ACTION_IDS,
 	type PanelCloseInput,
@@ -35,8 +34,8 @@ import { useWorkbenchPanelActions } from './useWorkbenchPanelActions';
 
 interface UseWorkbenchPanelWorkspaceOptions {
 	readonly actionRuntime: ActionRuntime;
+	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
-	readonly tabModel: TabModel;
 }
 
 interface PanelDragSession {
@@ -69,11 +68,11 @@ const PANEL_DRAG_PREVIEW_MAX_WIDTH_PX = 320;
 
 export function useWorkbenchPanelWorkspace({
 	actionRuntime,
+	panelWorkspaceStore,
 	parentActionScope,
-	tabModel,
 }: UseWorkbenchPanelWorkspaceOptions): WorkbenchPanelWorkspaceView {
 	const intl = useOrchbeeIntl();
-	const store = React.useMemo(() => new PanelWorkspaceStore(tabModel), [tabModel]);
+	const store = panelWorkspaceStore;
 	const state = React.useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 	const activeTabId = React.useSyncExternalStore(
 		store.subscribe,

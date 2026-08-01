@@ -1,0 +1,228 @@
+.project {
+	position: relative;
+	display: grid;
+	gap: var(--ob-ref-space-0-5);
+}
+
+.project[data-project-reorder-active] {
+	transition: transform var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+.project[data-project-reorder-displacement='down'] {
+	transform: translateY(var(--ob-comp-workbench-project-reorder-shift));
+	will-change: transform;
+}
+
+.project[data-project-reorder-displacement='up'] {
+	transform: translateY(calc(var(--ob-comp-workbench-project-reorder-shift) * -1));
+	will-change: transform;
+}
+
+.workspace {
+	position: relative;
+}
+
+.workspace[data-workspace-reorder-active] {
+	transition: transform var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+.workspace[data-workspace-reorder-displacement='down'] {
+	transform: translateY(var(--ob-comp-workbench-workspace-reorder-shift));
+	will-change: transform;
+}
+
+.workspace[data-workspace-reorder-displacement='up'] {
+	transform: translateY(calc(var(--ob-comp-workbench-workspace-reorder-shift) * -1));
+	will-change: transform;
+}
+
+.project[data-dragging],
+.workspace[data-dragging] {
+	min-height: var(--ob-ref-size-control-navigation);
+}
+
+.project + .project {
+	margin-block-start: var(--ob-ref-space-1);
+}
+
+.projectRow,
+.workspaceRow {
+	position: relative;
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	align-items: center;
+}
+
+.projectRow,
+.workspaceRow {
+	cursor: grab;
+}
+
+.project[data-dragging] .projectRow,
+.workspace[data-dragging] .workspaceRow {
+	position: fixed;
+	z-index: var(--ob-ref-layer-overlay);
+	top: var(--ob-comp-workbench-navigation-reorder-block-start);
+	left: var(--ob-comp-workbench-navigation-reorder-inline-start);
+	box-sizing: border-box;
+	width: var(--ob-comp-workbench-navigation-reorder-inline-size);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: var(--ob-sys-color-surface-canvas);
+	box-shadow:
+		0 0 0 var(--ob-ref-border-width-default) var(--ob-sys-color-border-default),
+		var(--ob-sys-shadow-overlay);
+	transform: translateY(var(--ob-comp-workbench-navigation-reorder-translate-y));
+	cursor: grabbing;
+	pointer-events: none;
+	will-change: transform;
+}
+
+.project[data-dragging] .projectItem,
+.workspace[data-dragging] .workspaceItem {
+	background: var(--ob-sys-color-surface-selected);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.projectItem,
+.workspaceItem {
+	min-width: var(--ob-ref-space-0);
+	height: var(--ob-ref-size-control-navigation);
+	flex: 1;
+	justify-content: flex-start;
+	gap: var(--ob-ref-space-1);
+	padding-inline: var(--ob-ref-space-1) var(--ob-ref-space-8);
+	overflow: hidden;
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.projectItem[aria-expanded='true'] {
+	background: transparent;
+	color: var(--ob-sys-color-text-secondary);
+}
+
+.projectRow:hover .projectItem,
+.projectRow:has(:focus-visible) .projectItem,
+.projectRow[data-popup-open] .projectItem,
+.projectRow:has(.rowMenu[aria-expanded='true']) .projectItem {
+	background: var(--ob-sys-color-surface-subtle);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.workspaceItem[data-active] {
+	background: var(--ob-sys-color-surface-selected);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.workspaceRow:hover .workspaceItem,
+.workspaceRow:has(:focus-visible) .workspaceItem,
+.workspaceRow[data-popup-open] .workspaceItem,
+.workspaceRow:has(.rowMenu[aria-expanded='true']) .workspaceItem {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.workspaceRow:hover .workspaceItem[data-active],
+.workspaceRow:has(:focus-visible) .workspaceItem[data-active],
+.workspaceRow[data-popup-open] .workspaceItem[data-active],
+.workspaceRow:has(.rowMenu[aria-expanded='true']) .workspaceItem[data-active] {
+	background: var(--ob-sys-color-surface-selected-hover);
+}
+
+.projectRow:hover .icon,
+.projectRow:hover .disclosure,
+.projectRow:has(:focus-visible) .icon,
+.projectRow:has(:focus-visible) .disclosure,
+.projectRow[data-popup-open] .icon,
+.projectRow[data-popup-open] .disclosure,
+.workspaceRow:hover .icon,
+.workspaceRow:has(:focus-visible) .icon,
+.workspaceRow[data-popup-open] .icon,
+.workspaceItem[data-active] .icon,
+.projectRow:has(.rowMenu[aria-expanded='true']) .icon,
+.projectRow:has(.rowMenu[aria-expanded='true']) .disclosure,
+.workspaceRow:has(.rowMenu[aria-expanded='true']) .icon {
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.icon {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: var(--ob-ref-size-icon-lg);
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.disclosure {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: var(--ob-ref-size-icon-md);
+	color: var(--ob-sys-color-icon-secondary);
+	transform: rotate(0deg);
+	transition: transform var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+.disclosure[data-expanded] {
+	transform: rotate(90deg);
+}
+
+.projectName,
+.workspaceName {
+	min-width: var(--ob-ref-space-0);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.rowMenu {
+	position: absolute;
+	inset-block-start: 50%;
+	inset-inline-end: var(--ob-ref-space-1);
+	flex: none;
+	border: none;
+	color: var(--ob-sys-color-icon-muted);
+	transform: translateY(-50%);
+	visibility: hidden;
+	cursor: default;
+}
+
+.projectRow:hover .rowMenu,
+.projectRow:has(:focus-visible) .rowMenu,
+.projectRow[data-popup-open] .rowMenu,
+.workspaceRow:hover .rowMenu,
+.workspaceRow:has(:focus-visible) .rowMenu,
+.workspaceRow[data-popup-open] .rowMenu,
+.rowMenu[aria-expanded='true'] {
+	visibility: visible;
+}
+
+.rowMenu:hover,
+.rowMenu:focus-visible,
+.rowMenu[aria-expanded='true'] {
+	background: transparent;
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.workspaceList {
+	display: grid;
+	gap: var(--ob-ref-space-0-5);
+	margin: var(--ob-ref-space-0);
+	margin-inline-start: var(--ob-ref-space-3);
+	padding: var(--ob-ref-space-0);
+	padding-inline-start: var(--ob-ref-space-2);
+	border-inline-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	list-style: none;
+}
+
+.workspaceList[data-workspace-reorder-dragging] {
+	user-select: none;
+}
+
+.workspaceItem {
+	padding-inline-start: var(--ob-ref-space-2);
+}

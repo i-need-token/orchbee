@@ -68,6 +68,12 @@ Tailwind 替换 Token 和 shadcn 兼容 alias 不会扩大产品编写词汇。�
 
 不要在文本容器上设置 `opacity` 来创建层级：这也会淡化图标、后代、焦点指示器和状态颜色。应把语义颜色应用到准确文本或图标。状态和链接颜色传达含义或交互，不得替代信息层级。
 
+持久导航在默认状态下使用 secondary 文本和图标角色。Hover、键盘焦点以及 current 或
+active 状态使用 primary 文本和图标角色。Hover 与 active 共用相同的前景角色；由持久的
+选中表面而不是更深的文字颜色区分 active 目标。
+
+菜单内容、触发器披露和嵌套交互状态遵循 [`menus.md`](menus.md)。
+
 ## 间距尺度
 
 只有以下间距 Token 被批准用于产品自有 margin、padding 和布局 gap。同一关系在各组件中使用同一 Token。大于 `32px` 的值是页面级工具，要求可见留白确实是组合中有意的一部分。
@@ -111,8 +117,8 @@ Tailwind 替换 Token 和 shadcn 兼容 alias 不会扩大产品编写词汇。�
 | `--ob-ref-radius-none`  | `0`      | 边到边内容表面、拼接行和内部分隔线         |
 | `--ob-ref-radius-sm`    | `4px`    | 微型 badge、紧凑 tag 和低调的内联表面      |
 | `--ob-ref-radius-ui-sm` | `6px`    | 紧凑控件和小图标按钮                       |
-| `--ob-ref-radius-ui-md` | `8px`    | 标准输入框、按钮和普通控件                 |
-| `--ob-ref-radius-ui-lg` | `10px`   | 导航选中项、紧凑菜单和小型浮动表面         |
+| `--ob-ref-radius-ui-md` | `8px`    | 标准控件和密集树形导航行                   |
+| `--ob-ref-radius-ui-lg` | `10px`   | 独立导航选中项、紧凑菜单和浮层             |
 | `--ob-ref-radius-xl`    | `12px`   | 分组设置卡片和中型内容卡片                 |
 | `--ob-ref-radius-2xl`   | `16px`   | 对话框和需要更强分隔的大型浮动表面         |
 | `--ob-ref-radius-full`  | `9999px` | 头像、状态点、圆形控件和有意设计的胶囊形状 |
@@ -126,27 +132,49 @@ Tailwind 替换 Token 和 shadcn 兼容 alias 不会扩大产品编写词汇。�
 - 只有当几何形状确实为圆形或胶囊形时才使用 `radius-full`，不要用它逃避选择组件圆角。
 - 不要仅仅为了让边到边内容表面、导航栏或主窗格看起来像卡片就添加圆角。
 
-## 控件和图标尺寸
+## 控件、图标、浮层和滚动条尺寸
 
-控件和图标尺寸是有限的，因为不一致的 chrome 会让 shell 显得不稳定。组件使用方选择已记录的组件 `size` variant，而不是局部指定宽度或高度。
+控件、图标和浮层尺寸是有限的，因为不一致的 chrome 会让 shell 显得不稳定。组件使用方选择已记录的组件 `size` variant，而不是局部指定宽度或高度。
 
-| 变量                               | 值     | 使用场景                                          |
-| ---------------------------------- | ------ | ------------------------------------------------- |
-| `--ob-ref-size-control-xs`         | `24px` | 小按钮、内联操作、紧凑图标按钮或密集 utility 控件 |
-| `--ob-ref-size-control-sm`         | `28px` | 工具栏、紧凑 select 或次要桌面控件                |
-| `--ob-ref-size-control-navigation` | `30px` | 需要独立紧凑节奏的持久侧边栏导航行                |
-| `--ob-ref-size-control-md`         | `32px` | 默认按钮、输入框、select 和普通交互控件           |
-| `--ob-ref-size-control-lg`         | `36px` | 主要字段、突出操作或有意舒适的桌面输入框          |
-| `--ob-ref-size-icon-xs`            | `12px` | 状态字形、badge 图标、紧凑元数据或次要指示器      |
-| `--ob-ref-size-icon-sm`            | `14px` | 紧凑控件或侧边栏项中的默认图标                    |
-| `--ob-ref-size-icon-md`            | `16px` | 默认导航、字段、工具栏和按钮图标                  |
-| `--ob-ref-size-icon-lg`            | `20px` | 突出的独立操作或空状态辅助图标                    |
+| 变量                                | 值      | 使用场景                                           |
+| ----------------------------------- | ------- | -------------------------------------------------- |
+| `--ob-ref-size-control-xs`          | `24px`  | 小按钮、内联操作、紧凑图标按钮或密集 utility 控件  |
+| `--ob-ref-size-control-sm`          | `28px`  | 工具栏、紧凑 select 或次要桌面控件                 |
+| `--ob-ref-size-control-navigation`  | `30px`  | 需要独立紧凑节奏的持久侧边栏导航行                 |
+| `--ob-ref-size-control-md`          | `32px`  | 默认按钮、输入框、select 和普通交互控件            |
+| `--ob-ref-size-control-lg`          | `36px`  | 主要字段、突出操作或有意舒适的桌面输入框           |
+| `--ob-ref-size-icon-xs`             | `12px`  | 状态字形、badge 图标、紧凑元数据或次要指示器       |
+| `--ob-ref-size-icon-section-action` | `13px`  | 与紧凑章节标题对齐的低调操作图标                   |
+| `--ob-ref-size-icon-sm`             | `14px`  | 产品、导航、菜单、字段、工具栏和按钮的默认图标     |
+| `--ob-ref-size-icon-md`             | `16px`  | 具有显式组件要求的有意强调图标                     |
+| `--ob-ref-size-icon-lg`             | `20px`  | 突出的独立操作或空状态辅助图标                     |
+| `--ob-ref-size-dialog`              | `480px` | 默认表单和确认 Dialog；受视口可用尺寸约束          |
+| `--ob-ref-size-menu`                | `250px` | 下拉、右键、菜单栏及子菜单浮层；受视口可用尺寸约束 |
+| `--ob-ref-size-scrollbar-track`     | `12px`  | 横向或纵向原生滚动条的布局盒                       |
+| `--ob-ref-size-scrollbar-thumb`     | `6px`   | 默认、Hover 和 Pressed 状态下的原生滚动条滑块      |
 
-一个控件内只使用一种图标尺寸。密集的 `control-xs` 或 `control-sm` 通常使用 `icon-xs` 或 `icon-sm`；默认 `control-md` 通常使用 `icon-sm` 或 `icon-md`。文本旁的图标使用 `space-1-5` 或 `space-2` 间距。不要通过放大装饰图标来强调；应提升操作或文本角色。可见控件可以是 `24px`，同时其可复用组件提供更大的不可见指针命中区域；视觉密度和触摸无障碍是不同职责。
+一个控件内只使用一种图标尺寸。紧凑章节标题上的操作使用 `icon-section-action`；密集的 `control-xs` 或 `control-sm` 通常使用 `icon-xs` 或 `icon-sm`；默认 `control-md` 通常使用 `icon-sm` 或 `icon-md`。文本旁的图标使用 `space-1-5` 或 `space-2` 间距。不要通过放大装饰图标来强调；应提升操作或文本角色。可见控件可以是 `24px`，同时其可复用组件提供更大的不可见指针命中区域；视觉密度和触摸无障碍是不同职责。
+
+### 原生滚动条
+
+共享 UI base layer 统一产品应用中的 CSS 原生滚动条。轨道保持透明。滑块在默认、Hover、
+Pressed 和拖动状态下，都以完全圆角的 `6px` 形态居中放置在 `12px` 布局盒中。默认、Hover 和 Pressed 状态分别使用
+`--ob-sys-color-scrollbar-thumb`、`--ob-sys-color-scrollbar-thumb-hover` 和
+`--ob-sys-color-scrollbar-thumb-pressed`。Firefox 使用原生 `thin` 几何，并使用相同的语义
+滑块和轨道颜色。
+
+该契约必须通过共享样式表应用，产品 CSS 不得重复编写伪元素选择器。只有在交互仍可滚动，
+且组件已经拥有有记录的隐藏滚动条 variant 时，组件才能隐藏原生滚动条。Canvas 渲染的
+Terminal 滚动条和专用 overlay 滚动条属于独立组件行为，不继承这里的原生滚动条几何。
 
 ## 边框和表面
 
 分隔线和普通轮廓使用 `--ob-ref-border-width-default`（`1px`）。焦点几何或有意强调的边界使用 `--ob-ref-border-width-strong`（`2px`）。没有组件专属要求时，不要使用更粗的产品边框。
+
+键盘焦点指示器在所有布局状态下都必须完整且不被遮挡，包括菜单或 Dialog 把焦点恢复到
+触发器之后。密集控件以及靠近滚动或裁切边界的控件使用内描边焦点几何，使指示器不依赖控件
+外部空间。不要用局部偏移或任意提高 `z-index` 来修补被裁切的焦点指示器；应选择保留在所属
+控件内部的几何，或为外部焦点指示器预留明确的布局空间。
 
 | 变量                                    | 浅色基线        | 使用场景                            |
 | --------------------------------------- | --------------- | ----------------------------------- |
@@ -164,6 +192,20 @@ Tailwind 替换 Token 和 shadcn 兼容 alias 不会扩大产品编写词汇。�
 | `--ob-sys-color-surface-selected-hover` | `#141414 @ 12%` | 已选中中性区域的 hover 反馈         |
 
 在持久 shell chrome 中，优先使用表面变化或分隔线，不要使用阴影。`--ob-sys-shadow-raised` 只用于持久抬升内容，`--ob-sys-shadow-overlay` 只用于临时 overlay。阴影不能替代正确的表面或边框角色。
+
+默认 Dialog 和 Alert Dialog 容器使用共享的 `480px` 宽度并受视口约束，同时使用 overlay
+阴影而不是外描边。操作 Footer 与内容保持在同一表面，通过留白而不是分隔线或着色框带
+进行分组。字段和控件保留自身边界与焦点几何。
+
+表单 Dialog 依次展示一个标题、一段辅助说明和带标签的字段。每个可编辑字段都提供本地化
+placeholder 作为输入提示；持续有效的说明必须保持为可见的 description 文本，不能放进
+placeholder。Footer 将取消操作放在主要提交操作之前，并在相应标签旁用 `Kbd` 展示 `Esc`
+和 `Enter`。这些提示必须对应真实行为：`Escape` 关闭 Dialog 并恢复焦点，表单提交则允许
+通过 `Enter` 调用当前可用的主要操作。当 Dialog 进入添加现有集合条目等临时内层任务时，
+不得再渲染第二套操作 Footer；原有 Footer 应切换为该内层任务的取消和提交操作，`Escape`
+和 `Enter` 先作用于最内层任务，完成或取消后再恢复原 Dialog 操作。可见的关闭控件必须具有
+本地化的无障碍名称。结构相同的 Dialog 必须复用共享表单和 Footer owner，不能重复实现快捷键、
+禁用状态或提交逻辑。
 
 ## 操作和状态
 

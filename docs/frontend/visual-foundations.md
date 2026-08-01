@@ -100,6 +100,12 @@ Do not set `opacity` on a text container to create hierarchy: it also fades icon
 focus indicators, and status colors. Apply the semantic color to the exact text or icon instead.
 Status and link colors communicate meaning or interaction and must not replace a hierarchy level.
 
+Persistent navigation uses secondary text and icon roles at rest. Hover, keyboard focus, and the
+current or active state use primary text and icon roles. Hover and active share the same foreground
+roles; the persistent selection surface, not darker text, distinguishes the active destination.
+
+Menu content, trigger disclosure, and nested interaction states follow [`menus.md`](menus.md).
+
 ## Spacing scale
 
 Only the spacing tokens below are approved for product-authored margin, padding, and layout gaps.
@@ -150,8 +156,8 @@ tokens exist for Tailwind or shadcn compatibility and are not additional design 
 | `--ob-ref-radius-none`  | `0`      | Edge-to-edge content surfaces, joined rows, and internal dividers |
 | `--ob-ref-radius-sm`    | `4px`    | Tiny badges, compact tags, and subtle inline surfaces             |
 | `--ob-ref-radius-ui-sm` | `6px`    | Compact controls and small icon buttons                           |
-| `--ob-ref-radius-ui-md` | `8px`    | Standard inputs, buttons, and ordinary controls                   |
-| `--ob-ref-radius-ui-lg` | `10px`   | Navigation selections, compact menus, and small floating surfaces |
+| `--ob-ref-radius-ui-md` | `8px`    | Standard controls and dense tree-navigation rows                  |
+| `--ob-ref-radius-ui-lg` | `10px`   | Standalone navigation selections, compact menus, and overlays     |
 | `--ob-ref-radius-xl`    | `12px`   | Grouped settings cards and medium content cards                   |
 | `--ob-ref-radius-2xl`   | `16px`   | Dialogs and large floating surfaces that need stronger separation |
 | `--ob-ref-radius-full`  | `9999px` | Avatars, status dots, circular controls, and intentional pills    |
@@ -171,36 +177,63 @@ Apply these radius rules:
 - Do not add radius to an edge-to-edge content surface, navigation rail, or main pane merely to make
   it look like a card.
 
-## Control and icon sizes
+## Control, icon, overlay, and scrollbar sizes
 
-Control and icon sizes are finite because inconsistent chrome makes the shell feel unstable.
-Component consumers select a documented component `size` variant instead of assigning width or
-height locally.
+Control, icon, and overlay sizes are finite because inconsistent chrome makes the shell feel
+unstable. Component consumers select a documented component `size` variant instead of assigning
+width or height locally.
 
-| Variable                           | Value  | Use when                                                                   |
-| ---------------------------------- | ------ | -------------------------------------------------------------------------- |
-| `--ob-ref-size-control-xs`         | `24px` | Small button, inline action, compact icon button, or dense utility control |
-| `--ob-ref-size-control-sm`         | `28px` | Toolbar, compact select, or secondary desktop control                      |
-| `--ob-ref-size-control-navigation` | `30px` | Persistent sidebar navigation rows that need a distinct compact rhythm     |
-| `--ob-ref-size-control-md`         | `32px` | Default button, input, select, and ordinary interactive control            |
-| `--ob-ref-size-control-lg`         | `36px` | Primary field, prominent action, or deliberately comfortable desktop input |
-| `--ob-ref-size-icon-xs`            | `12px` | Status glyph, badge icon, compact metadata, or subordinate indicator       |
-| `--ob-ref-size-icon-sm`            | `14px` | Default icon inside a compact control or sidebar item                      |
-| `--ob-ref-size-icon-md`            | `16px` | Default navigation, field, toolbar, and button icon                        |
-| `--ob-ref-size-icon-lg`            | `20px` | Prominent standalone action or empty-state support icon                    |
+| Variable                            | Value   | Use when                                                                       |
+| ----------------------------------- | ------- | ------------------------------------------------------------------------------ |
+| `--ob-ref-size-control-xs`          | `24px`  | Small button, inline action, compact icon button, or dense utility control     |
+| `--ob-ref-size-control-sm`          | `28px`  | Toolbar, compact select, or secondary desktop control                          |
+| `--ob-ref-size-control-navigation`  | `30px`  | Persistent sidebar navigation rows that need a distinct compact rhythm         |
+| `--ob-ref-size-control-md`          | `32px`  | Default button, input, select, and ordinary interactive control                |
+| `--ob-ref-size-control-lg`          | `36px`  | Primary field, prominent action, or deliberately comfortable desktop input     |
+| `--ob-ref-size-icon-xs`             | `12px`  | Status glyph, badge icon, compact metadata, or subordinate indicator           |
+| `--ob-ref-size-icon-section-action` | `13px`  | Quiet action aligned with a compact section heading                            |
+| `--ob-ref-size-icon-sm`             | `14px`  | Default product, navigation, menu, field, toolbar, and button icon             |
+| `--ob-ref-size-icon-md`             | `16px`  | Deliberately emphasized icon with an explicit component requirement            |
+| `--ob-ref-size-icon-lg`             | `20px`  | Prominent standalone action or empty-state support icon                        |
+| `--ob-ref-size-dialog`              | `480px` | Default form and confirmation dialogs; constrained by viewport size            |
+| `--ob-ref-size-menu`                | `250px` | Dropdown, context, menubar, and submenu surfaces; constrained by viewport size |
+| `--ob-ref-size-scrollbar-track`     | `12px`  | Native scrollbar layout box on either axis                                     |
+| `--ob-ref-size-scrollbar-thumb`     | `6px`   | Native scrollbar thumb across rest, hover, and pressed states                  |
 
-Use one icon size within a control. A dense `control-xs` or `control-sm` normally uses `icon-xs`
-or `icon-sm`; a default `control-md` normally uses `icon-sm` or `icon-md`. An icon next to text
+Use one icon size within a control. A compact section-heading action uses `icon-section-action`;
+a dense `control-xs` or `control-sm` normally uses `icon-xs` or `icon-sm`; a default `control-md`
+normally uses `icon-sm` or `icon-md`. An icon next to text
 uses a `space-1-5` or `space-2` gap. Do not enlarge a decorative icon to create emphasis; promote
 the action or text role instead. The visible control may be `24px` while its reusable component
 provides a larger invisible pointer hit area; visual density and touch accessibility are separate
 responsibilities.
+
+### Native scrollbars
+
+The shared UI base layer normalizes CSS-native scrollbars across product applications. The track
+remains transparent. The thumb stays centered inside the `12px` layout box as a `6px` fully rounded
+shape across rest, hover, pressed, and dragging states. Rest, hover, and pressed states use `--ob-sys-color-scrollbar-thumb`,
+`--ob-sys-color-scrollbar-thumb-hover`, and `--ob-sys-color-scrollbar-thumb-pressed`. Firefox uses
+its native `thin` geometry with the same semantic thumb and track colors.
+
+Apply this contract through the shared stylesheet rather than repeating pseudo-element selectors
+in product CSS. A component may hide a native scrollbar only when the interaction remains
+scrollable and the component already owns a documented hidden-scrollbar variant. Canvas-rendered
+terminal scrollbars and purpose-built overlay scrollbars are separate component behavior and do
+not inherit this native-scrollbar geometry.
 
 ## Borders and surfaces
 
 Use `--ob-ref-border-width-default` (`1px`) for dividers and ordinary outlines. Use
 `--ob-ref-border-width-strong` (`2px`) for focus geometry or a deliberately emphasized boundary.
 Do not use a thicker product border without a component-specific requirement.
+
+A keyboard-focus indicator remains complete and unobscured in every layout state, including after
+a menu or Dialog restores focus to its trigger. Dense controls and controls placed against a
+scrolling or clipping boundary use inset focus geometry so the indicator does not depend on space
+outside the control. Do not repair a clipped focus indicator with local offsets or arbitrary
+`z-index` escalation; choose geometry that stays inside the owning control or reserve explicit
+layout space for an outer indicator.
 
 | Variable                                | Light baseline  | Use when                                              |
 | --------------------------------------- | --------------- | ----------------------------------------------------- |
@@ -220,6 +253,23 @@ Do not use a thicker product border without a component-specific requirement.
 Prefer a surface change or divider over a shadow in persistent shell chrome. Use
 `--ob-sys-shadow-raised` for persistent raised content and `--ob-sys-shadow-overlay` for
 temporary overlays only. A shadow does not replace the correct surface or border role.
+
+Default Dialog and Alert Dialog containers use the shared `480px` width, constrained by the
+viewport, and overlay shadow instead of an outer outline. Their action footers remain on the same
+surface and separate from content through spacing, not a divider or tinted boxed band. Fields and
+controls retain their own boundaries and focus geometry.
+
+A form Dialog presents one title, one supporting description, then labeled fields. Every editable
+field provides a localized placeholder as an input hint; persistent instructions remain visible
+description text rather than placeholder content. The footer places the cancel action before the
+primary submit action and shows `Esc` and `Enter` with `Kbd` beside those labels. These hints must
+describe real behavior: `Escape` closes the Dialog and restores focus, while form submission invokes
+the enabled primary action from `Enter`. When a Dialog enters a temporary nested task, such as adding
+an item to an existing collection, it does not render a second action footer. The existing footer
+switches to the nested task's cancel and submit actions; `Escape` and `Enter` operate on that
+innermost task first, then the original Dialog actions return. The visible close control has a
+localized accessible name. Dialog implementations with the same structure reuse the shared form and
+footer owner instead of repeating shortcut, disabled-state, or submit logic.
 
 ## Actions and status
 

@@ -30,4 +30,24 @@ describe('PanelWorkspaceStore', () => {
 		tabModel.addTab({ title: 'Terminal C' }, { id: 'tab-c' });
 		expect(store.getSnapshot().tabs.map((tab) => tab.tabId)).toEqual(['tab-a', 'tab-b']);
 	});
+
+	it('uses a prepared CWD when reconciling a new Tab', () => {
+		const tabModel = new TabModel({
+			tabs: [{ group: null, id: 'tab-a', pinned: false, title: 'Terminal A' }],
+			activeTabId: 'tab-a',
+		});
+		const store = new PanelWorkspaceStore(tabModel, { initialCwd: '/initial' });
+		store.prepareTabCwd('tab-b', '/feature');
+		tabModel.addTab({ title: 'Terminal B' }, { id: 'tab-b' });
+		store.reconcileTabs();
+
+		expect(store.getSnapshot().tabs[0]?.root).toMatchObject({
+			kind: 'panel',
+			primaryTerminal: { currentCwd: '/initial', launchCwd: '/initial' },
+		});
+		expect(store.getSnapshot().tabs[1]?.root).toMatchObject({
+			kind: 'panel',
+			primaryTerminal: { currentCwd: '/feature', launchCwd: '/feature' },
+		});
+	});
 });

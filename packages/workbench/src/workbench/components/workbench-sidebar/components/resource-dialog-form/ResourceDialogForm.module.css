@@ -1,0 +1,10 @@
+.form {
+	display: grid;
+	gap: var(--ob-ref-space-4);
+}
+
+.shortcut {
+	color: currentColor;
+	background: transparent;
+	opacity: var(--ob-sys-opacity-muted);
+}

@@ -16,6 +16,9 @@
 - Every public visual component has a default Story; add applicable disabled, loading, empty, error, open, selected, variant, and responsive states.
 - Pure types, nonvisual Hooks, and internal provider plumbing need no standalone Story.
 - Update owned Stories with every public visual behavior change.
+- A canonical experience-component Manifest references an owned deterministic Story and the states
+  to inspect; update its Story ID and Manifest atomically under
+  [`experience-components.md`](experience-components.md).
 - Import other workspaces only through package exports, never `src/*` or `dist/*`.
 - Keep fixtures deterministic and independent of live networks, current time, randomness, credentials, and machine state.
 

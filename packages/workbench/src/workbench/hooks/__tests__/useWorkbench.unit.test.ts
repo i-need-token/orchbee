@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { WorkbenchLayoutStorage } from '../../../workbench-layout-storage';
+import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { useWorkbench } from '../useWorkbench';
 
 interface WorkbenchHarnessProps {
@@ -16,8 +17,11 @@ interface WorkbenchHarnessProps {
 function WorkbenchHarness({ actionRuntime, isUserInteraction, storage }: WorkbenchHarnessProps) {
 	const workbench = useWorkbench({
 		actionRuntime,
-		onNewTerminal: undefined,
 		onSettings: undefined,
+		projectWorkspaceRuntime: new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+		}),
 		shortcutPlatform: 'apple',
 		storage,
 	});

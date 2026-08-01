@@ -3,12 +3,13 @@
 	"domain": "workbench",
 	"runtime": ["browser"],
 	"stability": "experimental",
-	"responsibility": "Shared product-semantic React shell with localized sidebar chrome, unified action and settings search, a resizable shell layout, host-owned terminal tabs, and deterministic per-tab panel and terminal-presentation layouts.",
+	"responsibility": "Shared product-semantic React shell with localized Project and Workspace navigation, independent in-memory terminal contexts, unified action and settings search, a resizable shell layout, and deterministic per-tab panel and terminal-presentation layouts.",
 	"nonGoals": [
 		"Owning application startup, routing roots, authentication, deployment, or packaging.",
 		"Owning locale negotiation, product message descriptors, translation catalogs, or formatting runtime.",
 		"Owning agent search read models, file search, or asynchronous search-provider transport.",
 		"Owning Electron, Node, browser-service, platform storage, or transport implementations.",
+		"Owning filesystem or Git mutation, Project persistence, or cross-device Workspace synchronization.",
 		"Owning authoritative terminal sessions, PTY processes, or agent orchestration lifecycles."
 	]
 }

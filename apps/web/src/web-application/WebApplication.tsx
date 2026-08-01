@@ -9,7 +9,7 @@ import * as React from 'react';
 
 import styles from './WebApplication.module.css';
 import { useWebApplicationActionRuntime } from './hooks/useWebApplicationActionRuntime';
-import { useWebApplicationTabs } from './hooks/useWebApplicationTabs';
+import { useWebApplicationProjectWorkspace } from './hooks/useWebApplicationProjectWorkspace';
 
 export interface WebApplicationProps {
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
@@ -23,7 +23,7 @@ export function WebApplication({
 	shortcutPlatform,
 }: WebApplicationProps): React.ReactNode {
 	const actionRuntime = useWebApplicationActionRuntime();
-	const { createTerminal, tabModel } = useWebApplicationTabs(locale);
+	const projectWorkspaceRuntime = useWebApplicationProjectWorkspace(locale);
 
 	return (
 		<OrchbeeI18nProvider locale={locale}>
@@ -32,9 +32,8 @@ export function WebApplication({
 					<Workbench
 						actionRuntime={actionRuntime}
 						layoutStorage={layoutStorage}
-						onNewTerminal={createTerminal}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
 						shortcutPlatform={shortcutPlatform}
-						tabModel={tabModel}
 					/>
 				</div>
 			</TooltipProvider>

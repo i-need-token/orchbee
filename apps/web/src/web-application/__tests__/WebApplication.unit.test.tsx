@@ -22,7 +22,10 @@ describe('WebApplication', () => {
 		expect(markup).toContain('flex-basis:320px');
 		expect(markup).toContain('role="tablist"');
 		expect(markup).toContain('Terminal 1');
-		expect(markup).toContain('Terminal 4');
+		expect(markup).not.toContain('Terminal 4');
+		expect(markup).toContain('aria-label="Create Project"');
+		expect(markup).not.toContain('data-slot="workbench-sidebar-project"');
+		expect(markup).not.toContain('data-slot="workbench-sidebar-workspace"');
 		expect(markup).not.toContain('Local shell');
 		expect(markup).not.toContain('本地 Shell');
 	});

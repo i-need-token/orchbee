@@ -1,12 +1,8 @@
-import {
-	ContextMenu,
-	ContextMenuContent,
-	ContextMenuItem,
-	ContextMenuSeparator,
-	ContextMenuTrigger,
-} from '@orchbee/ui/components';
+import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
 import * as React from 'react';
 
+import { WorkbenchActionContextMenuContent } from '../../../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
+import type { WorkbenchActionMenuEntry } from '../../../../../../../../types/workbench-action-menu';
 import type {
 	PanelTerminal,
 	PanelSplitDirection,
@@ -35,6 +31,44 @@ export function WorkbenchTerminalViewport({
 	const split = (direction: PanelSplitDirection, event: React.MouseEvent<HTMLElement>): void => {
 		contextMenu.split(direction, event.currentTarget.ownerDocument);
 	};
+	const entries: readonly WorkbenchActionMenuEntry[] = [
+		{
+			icon: 'terminal',
+			id: 'new-child-terminal',
+			kind: 'command',
+			label: view.messages.newChildTerminal,
+			onSelect: () => view.createChildTerminal(panelId, 'context-menu'),
+		},
+		{ id: 'terminal-split-actions', kind: 'separator' },
+		{
+			icon: 'panels',
+			id: 'split-panel-right',
+			kind: 'command',
+			label: view.messages.splitRight,
+			onSelect: (event) => split('right', event),
+		},
+		{
+			icon: 'panels',
+			id: 'split-panel-left',
+			kind: 'command',
+			label: view.messages.splitLeft,
+			onSelect: (event) => split('left', event),
+		},
+		{
+			icon: 'panels',
+			id: 'split-panel-below',
+			kind: 'command',
+			label: view.messages.splitBelow,
+			onSelect: (event) => split('below', event),
+		},
+		{
+			icon: 'panels',
+			id: 'split-panel-above',
+			kind: 'command',
+			label: view.messages.splitAbove,
+			onSelect: (event) => split('above', event),
+		},
+	];
 
 	return (
 		<ContextMenu>
@@ -47,24 +81,7 @@ export function WorkbenchTerminalViewport({
 				data-terminal-role={terminalRole}
 				tabIndex={0}
 			/>
-			<ContextMenuContent finalFocus={contextMenu.finalFocus}>
-				<ContextMenuItem onClick={() => view.createChildTerminal(panelId, 'context-menu')}>
-					{view.messages.newChildTerminal}
-				</ContextMenuItem>
-				<ContextMenuSeparator />
-				<ContextMenuItem onClick={(event) => split('right', event)}>
-					{view.messages.splitRight}
-				</ContextMenuItem>
-				<ContextMenuItem onClick={(event) => split('left', event)}>
-					{view.messages.splitLeft}
-				</ContextMenuItem>
-				<ContextMenuItem onClick={(event) => split('below', event)}>
-					{view.messages.splitBelow}
-				</ContextMenuItem>
-				<ContextMenuItem onClick={(event) => split('above', event)}>
-					{view.messages.splitAbove}
-				</ContextMenuItem>
-			</ContextMenuContent>
+			<WorkbenchActionContextMenuContent entries={entries} finalFocus={contextMenu.finalFocus} />
 		</ContextMenu>
 	);
 }

@@ -19,12 +19,44 @@
 	composes: codicon-arrow-left from global;
 }
 
+.clipboard {
+	composes: codicon-clippy from global;
+}
+
+.chevronRight {
+	composes: codicon-chevron-right from global;
+}
+
+.check {
+	composes: codicon-check from global;
+}
+
 .close {
 	composes: codicon-close from global;
 }
 
+.copy {
+	composes: codicon-copy from global;
+}
+
+.edit {
+	composes: codicon-edit from global;
+}
+
 .ellipsis {
 	composes: codicon-ellipsis from global;
+}
+
+.folder {
+	composes: codicon-folder from global;
+}
+
+.folderOpened {
+	composes: codicon-folder-opened from global;
+}
+
+.gitBranch {
+	composes: codicon-git-branch from global;
 }
 
 .layout {
@@ -33,6 +65,10 @@
 
 .moreVertical {
 	composes: codicon-kebab-vertical from global;
+}
+
+.newFolder {
+	composes: codicon-new-folder from global;
 }
 
 .panels {
@@ -45,6 +81,14 @@
 
 .search {
 	composes: codicon-search from global;
+}
+
+.screenFull {
+	composes: codicon-screen-full from global;
+}
+
+.screenNormal {
+	composes: codicon-screen-normal from global;
 }
 
 .settings {
@@ -61,4 +105,8 @@
 
 .terminal {
 	composes: codicon-terminal from global;
+}
+
+.trash {
+	composes: codicon-trash from global;
 }

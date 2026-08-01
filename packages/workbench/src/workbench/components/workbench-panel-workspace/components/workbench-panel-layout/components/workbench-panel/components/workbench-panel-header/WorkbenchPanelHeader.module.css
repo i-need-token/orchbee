@@ -1,3 +1,7 @@
+.contextTrigger {
+	display: contents;
+}
+
 .root {
 	box-sizing: border-box;
 	display: grid;

@@ -62,7 +62,7 @@ Every library exposes these scripts:
 
 | Script         | Command or responsibility                                                        |
 | -------------- | -------------------------------------------------------------------------------- |
-| `build`        | `rslib build`                                                                    |
+| `build`        | `rslib build --log-level error`                                                  |
 | `dev`          | `rslib build --watch`                                                            |
 | `typecheck`    | `tsc --noEmit`                                                                   |
 | `test`         | Run the package test suite once                                                  |
@@ -117,7 +117,8 @@ Removing or changing an exported symbol, type, subpath, or asset is a breaking A
 
 ## Library builds
 
-- Build every library package with Rslib through `"build": "rslib build"`.
+- Build every library package with Rslib through `"build": "rslib build --log-level error"` so
+  routine success stays concise while build errors remain visible.
 - Produce ESM (`dist/index.js`), CJS (`dist/index.cjs`), TypeScript declarations (`dist/index.d.ts`), and JavaScript source maps.
 - Set the Rslib runtime target to the actual consumer environment: `web`, `node`, or a separately reviewed multi-target configuration.
 - Use ES2022 syntax unless the repository runtime baseline changes.

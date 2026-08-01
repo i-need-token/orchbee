@@ -186,9 +186,6 @@ importers:
       '@orchbee/actions':
         specifier: workspace:^
         version: link:../../packages/actions
-      '@orchbee/foundation':
-        specifier: workspace:^
-        version: link:../../packages/foundation
       '@orchbee/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n

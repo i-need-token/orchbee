@@ -5,6 +5,7 @@ import {
 	type ActionCatalogId,
 	type ActionExecution,
 	type ActionInputFor,
+	type ActionInvocation,
 	type ActionInvocationSource,
 	type ActionOutputFor,
 	type ActionRuntime,
@@ -15,6 +16,8 @@ import { workbenchMessages } from '@orchbee/i18n';
 import type { TabStripOrientation } from '@orchbee/tab-strip';
 import * as React from 'react';
 
+import type { ProjectWorkspaceState } from '../../project-workspace';
+import { registerWorkbenchProjectWorkspaceActions } from '../actions/registerWorkbenchProjectWorkspaceActions';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -24,6 +27,7 @@ import {
 	type WorkbenchTerminalCreateInput,
 	workbenchTerminalCreateInput,
 } from '../actions/workbench-action-ids';
+import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type {
 	WorkbenchHostActionCallback,
 	WorkbenchTerminalCreateCallback,
@@ -35,10 +39,15 @@ interface UseWorkbenchActionsOptions {
 	readonly onNewTerminal: WorkbenchTerminalCreateCallback | undefined;
 	readonly openSearch: (input: WorkbenchSearchOpenInput) => void;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
+	readonly primaryWorkspaceName: string;
+	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly runtime: ActionRuntime;
 	readonly setTabStripOrientation: (orientation: TabStripOrientation) => void;
 	readonly tabStripOrientation: TabStripOrientation;
 	readonly toggleSidebar: () => void;
+	readonly workspaceCopySuffix: string;
+	readonly workspaceTerminalTitle: string;
 }
 
 interface WorkbenchActions {
@@ -46,6 +55,7 @@ interface WorkbenchActions {
 		actionId: Id,
 		input: ActionInputFor<WorkbenchActionCatalog, Id>,
 		source: ActionInvocationSource,
+		details?: Pick<ActionInvocation, 'capabilities' | 'focus' | 'target'>,
 	) => ActionExecution<ActionOutputFor<WorkbenchActionCatalog, Id>>;
 	readonly invokeShortcut: (
 		binding: WorkbenchShortcutBinding,
@@ -59,10 +69,15 @@ export function useWorkbenchActions({
 	onNewTerminal,
 	openSearch,
 	onSettings,
+	primaryWorkspaceName,
+	projectWorkspaceRuntime,
+	projectWorkspaceState,
 	runtime,
 	setTabStripOrientation,
 	tabStripOrientation,
 	toggleSidebar,
+	workspaceCopySuffix,
+	workspaceTerminalTitle,
 }: UseWorkbenchActionsOptions): WorkbenchActions {
 	const scope = React.useMemo(() => runtime.createScope('workbench'), [runtime]);
 	const typedRuntime = React.useMemo(
@@ -104,6 +119,14 @@ export function useWorkbenchActions({
 			},
 		});
 		const registrations = [
+			...registerWorkbenchProjectWorkspaceActions({
+				primaryWorkspaceName,
+				projectWorkspaceRuntime,
+				scope,
+				typedRuntime,
+				workspaceCopySuffix,
+				workspaceTerminalTitle,
+			}),
 			typedRuntime.register(
 				scope,
 				defineAction({
@@ -208,6 +231,8 @@ export function useWorkbenchActions({
 				}),
 			),
 		];
+		// Re-registration notifies registry observers to resolve fresh availability; handlers read the
+		// Runtime snapshot directly and never treat this render snapshot as execution authority.
 		return () => {
 			for (const registration of registrations) {
 				registration.dispose();
@@ -218,11 +243,16 @@ export function useWorkbenchActions({
 		onNewTerminal,
 		onSettings,
 		openSearch,
+		primaryWorkspaceName,
+		projectWorkspaceRuntime,
+		projectWorkspaceState,
 		setTabStripOrientation,
 		scope,
 		tabStripOrientation,
 		toggleSidebar,
 		typedRuntime,
+		workspaceCopySuffix,
+		workspaceTerminalTitle,
 	]);
 
 	const invoke = useMemoizedFn(
@@ -230,7 +260,8 @@ export function useWorkbenchActions({
 			actionId: Id,
 			input: ActionInputFor<WorkbenchActionCatalog, Id>,
 			source: ActionInvocationSource,
-		) => typedRuntime.execute(actionId, input, { scope, source }),
+			details?: Pick<ActionInvocation, 'capabilities' | 'focus' | 'target'>,
+		) => typedRuntime.execute(actionId, input, { ...details, scope, source }),
 	);
 	const invokeShortcut = useMemoizedFn(
 		(binding: WorkbenchShortcutBinding, source: ActionInvocationSource) => {

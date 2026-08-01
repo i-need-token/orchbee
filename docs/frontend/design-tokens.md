@@ -68,6 +68,7 @@ The system tier is a finite cross-component language. Choose the closest existin
 | Text       | primary, heading, secondary, label, muted, placeholder, disabled, inverse, and link rest/hover/focus/pressed                                                     |
 | Icon       | primary, secondary, muted, inverse, hover, disabled                                                                                                              |
 | Border     | subtle, default, strong, focus, selected, disabled                                                                                                               |
+| Scrollbar  | transparent track, plus thumb rest, hover, and pressed                                                                                                           |
 | Action     | primary and secondary rest/hover/pressed/text, plus shared disabled surface/text/border                                                                          |
 | Status     | info, success, warning, and danger; each status has rest, hover, pressed, surface, surface-hover, border, border-hover, text, text-hover, and text-pressed roles |
 | Data       | five categorical series colors                                                                                                                                   |

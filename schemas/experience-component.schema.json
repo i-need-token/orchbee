@@ -1,0 +1,145 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"$schema": {
+			"type": "string",
+			"minLength": 1
+		},
+		"id": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"
+		},
+		"kind": {
+			"type": "string",
+			"enum": ["experience", "business"]
+		},
+		"status": {
+			"type": "string",
+			"enum": ["candidate", "reviewed", "canonical", "deprecated"]
+		},
+		"name": {
+			"type": "string",
+			"minLength": 3
+		},
+		"description": {
+			"type": "string",
+			"minLength": 30
+		},
+		"owner": {
+			"type": "string",
+			"pattern": "^@orchbee\\/[a-z][a-z0-9-]*$"
+		},
+		"visibility": {
+			"type": "string",
+			"enum": ["private", "public"]
+		},
+		"intents": {
+			"minItems": 1,
+			"type": "array",
+			"items": {
+				"type": "string",
+				"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+			}
+		},
+		"implementation": {
+			"minItems": 1,
+			"type": "array",
+			"items": {
+				"type": "string",
+				"pattern": "^(?:apps|packages)\\/[a-z0-9-]+\\/.+"
+			}
+		},
+		"stories": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"exportName": {
+						"type": "string",
+						"pattern": "^[A-Z][A-Za-z0-9]*$"
+					},
+					"file": {
+						"type": "string",
+						"pattern": "^(?:apps|packages)\\/[a-z0-9-]+\\/.+"
+					},
+					"id": {
+						"type": "string",
+						"pattern": "^[a-z][a-z0-9-]*--[a-z0-9-]+$"
+					},
+					"states": {
+						"minItems": 1,
+						"type": "array",
+						"items": {
+							"type": "string",
+							"minLength": 10
+						}
+					}
+				},
+				"required": ["exportName", "file", "id", "states"],
+				"additionalProperties": false
+			}
+		},
+		"uses": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"
+			}
+		},
+		"useWhen": {
+			"minItems": 1,
+			"type": "array",
+			"items": {
+				"type": "string",
+				"minLength": 15
+			}
+		},
+		"avoidWhen": {
+			"minItems": 1,
+			"type": "array",
+			"items": {
+				"type": "string",
+				"minLength": 15
+			}
+		},
+		"invariants": {
+			"minItems": 1,
+			"type": "array",
+			"items": {
+				"type": "string",
+				"minLength": 15
+			}
+		},
+		"references": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"pattern": "^(?:apps|packages)\\/[a-z0-9-]+\\/.+"
+			}
+		},
+		"deprecatedBy": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"
+		}
+	},
+	"required": [
+		"$schema",
+		"id",
+		"kind",
+		"status",
+		"name",
+		"description",
+		"owner",
+		"visibility",
+		"intents",
+		"implementation",
+		"stories",
+		"uses",
+		"useWhen",
+		"avoidWhen",
+		"invariants",
+		"references"
+	],
+	"additionalProperties": false
+}

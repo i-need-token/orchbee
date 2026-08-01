@@ -182,6 +182,11 @@ evidence.
 ## Implementation discipline
 
 - Retrieve only the authorities, model, source, and evidence required by the active slice.
+- Before composing a product interface that meets the admission signals in
+  [`frontend/experience-components.md`](frontend/experience-components.md), query the experience
+  catalog, inspect plausible Manifest and Story evidence, and choose reuse, extend, replace, or new.
+  A new or replacement user-visible structure remains a reserved decision until its decision owner
+  accepts it.
 - Implement the deterministic domain operation before framework integration when
   [`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md) selects a model-first approach.
 - Keep components and Hooks inside the ownership boundaries in

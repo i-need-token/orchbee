@@ -18,8 +18,9 @@ const split: PanelSplit = {
 				id: 'panel-1',
 				kind: 'panel',
 				primaryTerminal: {
-					cwd: null,
+					currentCwd: null,
 					id: 'terminal-1',
+					launchCwd: null,
 					phase: 'running',
 					title: 'Terminal 1',
 				},
@@ -34,8 +35,9 @@ const split: PanelSplit = {
 				id: 'panel-2',
 				kind: 'panel',
 				primaryTerminal: {
-					cwd: null,
+					currentCwd: null,
 					id: 'terminal-2',
+					launchCwd: null,
 					phase: 'running',
 					title: 'Terminal 2',
 				},
@@ -75,8 +77,9 @@ function createThreePanelSplit(): PanelSplit {
 					id: 'panel-3',
 					kind: 'panel',
 					primaryTerminal: {
-						cwd: null,
+						currentCwd: null,
 						id: 'terminal-3',
+						launchCwd: null,
 						phase: 'running',
 						title: 'Terminal 3',
 					},

@@ -17,6 +17,12 @@
 
 不要把每一个 Callback 都包装成动作。Generic UI Primitive 继续暴露类型化 Callback；其 Product Semantic Consumer 决定某个 Callback 是否调用动作。
 
+当对象行暴露省略号动作菜单时，省略号控件与该行的 `contextmenu` 手势使用同一份有序菜单
+模型。两种投影保持相同的菜单项、顺序、分组、图标、可用性、破坏性处理和调用目标。右键或
+长按不会静默激活、选择或展开对象，除非该状态变化本身就是已接受的动作。仅在所属触发区域
+内且产品 Context Menu 可用时，才抑制平台原生 Context Menu。展示与交互遵循
+[`menus.md`](menus.md)。
+
 ## 所有权
 
 | 职责                                                       | Owner                            |

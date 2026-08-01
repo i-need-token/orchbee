@@ -2,14 +2,14 @@
 
 ## 所有权边界
 
-| 边界               | 契约                                                                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| Orchbee 自有组件   | 使用 CSS Module，以及 [`design-tokens.md`](design-tokens.md) 和 [`visual-foundations.md`](visual-foundations.md) 选择的 Token。 |
-| 生成的 shadcn 源码 | 位于 `packages/ui/src/components/ui`，保留 Tailwind CSS v4 utility 和可组合 `className`，并保持为兼容边界。                     |
-| shadcn 配置        | `packages/ui/components.json` 为每次 CLI 运行固定 Base UI Nova 注册表样式。                                                     |
-| UI 样式入口        | `packages/ui/src/styles.ts` 先导入 Token 注册表，再导入 `packages/ui/src/styles.css`。                                          |
-| UI 兼容样式表      | 把 shadcn 变量映射到 Orchbee Token，保留必需 `@theme inline` 声明，用 `@source` 注册 `./components`，并拥有最小基础层。         |
-| 完整 Tailwind 兼容 | `@orchbee/design-tokens/tailwind-compat.css` 映射已安装的公共 Tailwind 主题，但在有意迁移前不导入。                             |
+| 边界               | 契约                                                                                                                                            |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Orchbee 自有组件   | 使用 CSS Module，以及 [`design-tokens.md`](design-tokens.md) 和 [`visual-foundations.md`](visual-foundations.md) 选择的 Token。                 |
+| 生成的 shadcn 源码 | 位于 `packages/ui/src/components/ui`，保留 Tailwind CSS v4 utility 和可组合 `className`，并保持为兼容边界。                                     |
+| shadcn 配置        | `packages/ui/components.json` 为每次 CLI 运行固定 Base UI Nova 注册表样式。                                                                     |
+| UI 样式入口        | `packages/ui/src/styles.ts` 先导入 Token 注册表，再导入 `packages/ui/src/styles.css`。                                                          |
+| UI 兼容样式表      | 把 shadcn 变量映射到 Orchbee Token，保留必需 `@theme inline` 声明，用 `@source` 注册 `./components`，并拥有包含原生滚动条统一样式的最小基础层。 |
+| 完整 Tailwind 兼容 | `@orchbee/design-tokens/tailwind-compat.css` 映射已安装的公共 Tailwind 主题，但在有意迁移前不导入。                                             |
 
 生成源码例外还包括 `packages/ui/src/hooks/use-mobile.ts`、`packages/ui/src/lib/cn.ts` 和 `packages/ui/src/styles.css`。不得把其中的 utility 复制到自有组件，也不得为重命名生成的 prop 而创建重复原语。
 
@@ -46,7 +46,7 @@ export function FilterPanel() {
 - 产品控件通过 Orchbee 图标名称允许列表消费 `@orchbee/ui/components` 的 `ProductIcon`。
 - 产品代码绝不导入供应商样式表、class 名称、字体字符或物理图标资产。
 - `@orchbee/ui` 把名称映射到 Codicons，并通过其样式入口加载 Provider 样式表。
-- `ProductIcon` 是装饰性的，继承 `currentColor` 并使用视觉基础批准的尺寸；所属控件提供无障碍名称和语义颜色。
+- `ProductIcon` 是装饰性的，继承 `currentColor`，并默认使用视觉基础中的 `14px` `icon-sm` 尺寸；所属控件提供无障碍名称和语义颜色。非默认尺寸必须使用已记录的组件 variant，并来自显式的组件级要求。
 - 生成的 shadcn 源码只能在其兼容边界内保留 Lucide 导入。
 
 图标变更要更新允许列表、映射、聚焦测试、受影响包文档，以及 Provider 或许可证变更时的第三方声明。使用浏览器验证字体加载、光学粗细和对齐。

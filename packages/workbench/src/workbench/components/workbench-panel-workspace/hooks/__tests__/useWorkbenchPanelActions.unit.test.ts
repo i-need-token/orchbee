@@ -21,8 +21,9 @@ const activeTab: TabPanelWorkspace = {
 		id: 'panel-1',
 		kind: 'panel',
 		primaryTerminal: {
-			cwd: null,
+			currentCwd: null,
 			id: 'terminal-1',
+			launchCwd: null,
 			phase: 'running',
 			title: 'Terminal 1',
 		},

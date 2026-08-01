@@ -6,6 +6,7 @@ import {
 	MenubarSeparator,
 	MenubarShortcut,
 	MenubarTrigger,
+	ProductIcon,
 } from '@orchbee/ui/components';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
@@ -25,16 +26,23 @@ export const Default: Story = {
 				<MenubarTrigger>Session</MenubarTrigger>
 				<MenubarContent>
 					<MenubarItem>
+						<ProductIcon name='terminal' size='menu-leading' />
 						New terminal <MenubarShortcut>⌘N</MenubarShortcut>
 					</MenubarItem>
 					<MenubarSeparator />
-					<MenubarItem>Close session</MenubarItem>
+					<MenubarItem>
+						<ProductIcon name='close' size='menu-leading' />
+						Close session
+					</MenubarItem>
 				</MenubarContent>
 			</MenubarMenu>
 			<MenubarMenu>
 				<MenubarTrigger>View</MenubarTrigger>
 				<MenubarContent>
-					<MenubarItem>Toggle sidebar</MenubarItem>
+					<MenubarItem>
+						<ProductIcon name='sidebar-left' size='menu-leading' />
+						Toggle sidebar
+					</MenubarItem>
 				</MenubarContent>
 			</MenubarMenu>
 		</Menubar>

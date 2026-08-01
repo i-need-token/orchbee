@@ -6,14 +6,13 @@
 	"type": "module",
 	"scripts": {
 		"dev": "rsbuild dev",
-		"build": "rsbuild build",
+		"build": "rsbuild build --log-level error",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest"
 	},
 	"dependencies": {
 		"@orchbee/actions": "workspace:^",
-		"@orchbee/foundation": "workspace:^",
 		"@orchbee/i18n": "workspace:^",
 		"@orchbee/tab-strip": "workspace:^",
 		"@orchbee/ui": "workspace:^",

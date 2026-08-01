@@ -1,7 +1,7 @@
-import { isValidElement } from 'react';
+import { Children, isValidElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { TooltipProvider } from '../tooltip';
+import { TooltipContent, TooltipProvider } from '../tooltip';
 
 describe('TooltipProvider', () => {
 	it('defaults the shared open delay to 300 milliseconds', () => {
@@ -11,5 +11,24 @@ describe('TooltipProvider', () => {
 		}
 
 		expect(provider.props.delay).toBe(300);
+	});
+
+	it('omits a directional arrow from shared tooltip content', () => {
+		const portal = TooltipContent({ children: 'Create Project' });
+		if (!isValidElement<{ readonly children?: ReactNode }>(portal)) {
+			throw new Error('TooltipContent must return a React element.');
+		}
+
+		const positioner = portal.props.children;
+		if (!isValidElement<{ readonly children?: ReactNode }>(positioner)) {
+			throw new Error('TooltipContent must render a positioner.');
+		}
+
+		const popup = positioner.props.children;
+		if (!isValidElement<{ readonly children?: ReactNode }>(popup)) {
+			throw new Error('TooltipContent must render a popup.');
+		}
+
+		expect(Children.toArray(popup.props.children)).toEqual(['Create Project']);
 	});
 });

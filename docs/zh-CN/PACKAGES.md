@@ -55,7 +55,7 @@
 
 | 脚本           | 命令或职责                                   |
 | -------------- | -------------------------------------------- |
-| `build`        | `rslib build`                                |
+| `build`        | `rslib build --log-level error`              |
 | `dev`          | `rslib build --watch`                        |
 | `typecheck`    | `tsc --noEmit`                               |
 | `test`         | 运行一次包测试套件                           |
@@ -110,7 +110,7 @@ export type { ResourceDescriptor, ResourceRegistryOptions } from './ResourceRegi
 
 ## 库构建
 
-- 通过 `"build": "rslib build"` 使用 Rslib 构建每个库包。
+- 通过 `"build": "rslib build --log-level error"` 使用 Rslib 构建每个库包，使常规成功输出保持简洁，同时仍显示构建错误。
 - 生成 ESM（`dist/index.js`）、CJS（`dist/index.cjs`）、TypeScript 声明（`dist/index.d.ts`）和 JavaScript source map。
 - 把 Rslib 运行时目标设为实际使用方环境：`web`、`node` 或单独审查的多目标配置。
 - 除非仓库运行时基线发生变化，否则使用 ES2022 语法。

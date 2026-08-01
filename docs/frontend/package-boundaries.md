@@ -43,6 +43,9 @@ platform effects, and its current consumer; follow
 - Keep a React wrapper with its semantic consumer until the wrapper has an independent API and consumer.
 - Generic primitives receive product-visible and accessibility text from consumers.
 - Recursive component ownership follows [`react.md`](react.md), styling follows [`styling.md`](styling.md), and product messages follow [`localization.md`](localization.md).
+- Experience and business component classification never changes semantic ownership. Discover and
+  register reviewed compositions under [`experience-components.md`](experience-components.md)
+  without moving runtime source into a cross-domain component bucket.
 
 ## Dependency direction
 

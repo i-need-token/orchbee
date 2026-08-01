@@ -3,8 +3,9 @@ type PanelSplitOrientation = 'horizontal' | 'vertical';
 type TerminalPhase = 'exited' | 'failed' | 'idle' | 'provisioning' | 'running';
 
 export interface PanelTerminal {
-	readonly cwd: string | null;
+	readonly currentCwd: string | null;
 	readonly id: string;
+	readonly launchCwd: string | null;
 	readonly phase: TerminalPhase;
 	readonly title: string;
 }
@@ -48,6 +49,7 @@ export interface PanelWorkspaceState {
 }
 
 export interface PanelWorkspaceTabInput {
+	readonly cwd?: string | null | undefined;
 	readonly id: string;
 	readonly title: string;
 }
@@ -118,6 +120,12 @@ export type PanelWorkspaceEvent =
 			readonly type: 'primary-terminal-shown';
 	  }
 	| {
+			readonly currentCwd: string | null;
+			readonly tabId: string;
+			readonly terminalId: string;
+			readonly type: 'terminal-current-cwd-changed';
+	  }
+	| {
 			readonly phase: TerminalPhase;
 			readonly tabId: string;
 			readonly terminalId: string;
@@ -158,13 +166,22 @@ interface PanelInsertionSlotIds {
 	readonly targetPanelSlotId: string;
 }
 
+interface PanelWorkspaceCloneIdentities {
+	readonly panelIds: Map<string, string>;
+	readonly panelSlotIds: Map<string, string>;
+	readonly prefix: string;
+	readonly splitIds: Map<string, string>;
+	readonly terminalIds: Map<string, string>;
+}
+
 const WEIGHT_TOTAL = 100;
 const WEIGHT_TOLERANCE = 0.000_001;
 
 function createTerminal(sequence: number, title: string, cwd: string | null): PanelTerminal {
 	return {
-		cwd,
+		currentCwd: cwd,
 		id: `terminal-${sequence}`,
+		launchCwd: cwd,
 		phase: 'running',
 		title,
 	};
@@ -263,6 +280,47 @@ function mapTerminalPhase(
 	}
 	for (const [index, child] of node.children.entries()) {
 		const result = mapTerminalPhase(child.node, terminalId, phase);
+		if (result.changed) {
+			const children = [...node.children];
+			children[index] = { ...child, node: result.node };
+			return { changed: true, node: { ...node, children } };
+		}
+	}
+	return { changed: false, node };
+}
+
+function mapTerminalCurrentCwd(
+	node: PanelLayoutNode,
+	terminalId: string,
+	currentCwd: string | null,
+): TreeUpdate {
+	if (node.kind === 'panel') {
+		if (node.primaryTerminal.id === terminalId) {
+			return {
+				changed: node.primaryTerminal.currentCwd !== currentCwd,
+				node:
+					node.primaryTerminal.currentCwd === currentCwd
+						? node
+						: {
+								...node,
+								primaryTerminal: { ...node.primaryTerminal, currentCwd },
+							},
+			};
+		}
+		const terminalIndex = node.childTerminals.findIndex((terminal) => terminal.id === terminalId);
+		const terminal = node.childTerminals[terminalIndex];
+		if (terminal === undefined) {
+			return { changed: false, node };
+		}
+		if (terminal.currentCwd === currentCwd) {
+			return { changed: false, node };
+		}
+		const childTerminals = [...node.childTerminals];
+		childTerminals[terminalIndex] = { ...terminal, currentCwd };
+		return { changed: true, node: { ...node, childTerminals } };
+	}
+	for (const [index, child] of node.children.entries()) {
+		const result = mapTerminalCurrentCwd(child.node, terminalId, currentCwd);
 		if (result.changed) {
 			const children = [...node.children];
 			children[index] = { ...child, node: result.node };
@@ -509,7 +567,12 @@ export function createPanelWorkspaceState(
 	let nextPanelSequence = 1;
 	let nextTerminalSequence = 1;
 	const workspaces = tabs.map((tab): TabPanelWorkspace => {
-		const panel = createPanel(nextPanelSequence++, nextTerminalSequence++, tab.title, null);
+		const panel = createPanel(
+			nextPanelSequence++,
+			nextTerminalSequence++,
+			tab.title,
+			tab.cwd ?? null,
+		);
 		return {
 			focusedPanelId: panel.id,
 			maximizedPanelId: null,
@@ -535,6 +598,43 @@ export function collectPanelLeaves(root: PanelLayoutNode): readonly PanelLeaf[] 
 	const panels: PanelLeaf[] = [];
 	collectPanelsFromNode(root, panels);
 	return panels;
+}
+
+export function clonePanelWorkspaceState(
+	state: PanelWorkspaceState,
+	tabIdMap: ReadonlyMap<string, string>,
+	identityPrefix: string,
+): PanelWorkspaceState {
+	const identities: PanelWorkspaceCloneIdentities = {
+		panelIds: new Map(),
+		panelSlotIds: new Map(),
+		prefix: identityPrefix,
+		splitIds: new Map(),
+		terminalIds: new Map(),
+	};
+	return {
+		...state,
+		tabs: state.tabs.map((tab) => {
+			const tabId = tabIdMap.get(tab.tabId);
+			if (tabId === undefined) {
+				throw new Error(`Panel workspace clone is missing Tab mapping for ${tab.tabId}.`);
+			}
+			return {
+				focusedPanelId: cloneIdentity(
+					identities.panelIds,
+					identities.prefix,
+					'panel',
+					tab.focusedPanelId,
+				),
+				maximizedPanelId:
+					tab.maximizedPanelId === null
+						? null
+						: cloneIdentity(identities.panelIds, identities.prefix, 'panel', tab.maximizedPanelId),
+				root: clonePanelLayoutNode(tab.root, identities),
+				tabId,
+			};
+		}),
+	};
 }
 
 export function findPanel(root: PanelLayoutNode, panelId: string): PanelLeaf | null {
@@ -598,7 +698,12 @@ export function transitionPanelWorkspace(
 			if (existing !== undefined) {
 				return existing;
 			}
-			const panel = createPanel(nextPanelSequence++, nextTerminalSequence++, tab.title, null);
+			const panel = createPanel(
+				nextPanelSequence++,
+				nextTerminalSequence++,
+				tab.title,
+				tab.cwd ?? null,
+			);
 			return {
 				focusedPanelId: panel.id,
 				maximizedPanelId: null,
@@ -631,7 +736,7 @@ export function transitionPanelWorkspace(
 			state.nextPanelSequence,
 			state.nextTerminalSequence,
 			event.newTerminalTitle,
-			sourceTerminal.cwd,
+			sourceTerminal.currentCwd,
 		);
 		const result = insertPanelNode(
 			tab.root,
@@ -716,6 +821,19 @@ export function transitionPanelWorkspace(
 		return applied(replaceTab(state, tabIndex, { ...tab, root: result.node }));
 	}
 
+	if (event.type === 'terminal-current-cwd-changed') {
+		const result = mapTerminalCurrentCwd(tab.root, event.terminalId, event.currentCwd);
+		if (!result.changed) {
+			const terminalExists = collectPanelLeaves(tab.root).some(
+				(panel) =>
+					panel.primaryTerminal.id === event.terminalId ||
+					panel.childTerminals.some((terminal) => terminal.id === event.terminalId),
+			);
+			return terminalExists ? unchanged(state) : rejected(state, 'terminal-not-found');
+		}
+		return applied(replaceTab(state, tabIndex, { ...tab, root: result.node }));
+	}
+
 	if (event.type === 'adjacent-panels-resized') {
 		const result = resizeSplitNode(
 			tab.root,
@@ -747,7 +865,7 @@ export function transitionPanelWorkspace(
 		const terminal = createTerminal(
 			state.nextTerminalSequence,
 			event.newTerminalTitle,
-			getDisplayedTerminal(panel).cwd,
+			getDisplayedTerminal(panel).currentCwd,
 		);
 		const result = mapPanel(tab.root, event.panelId, (currentPanel) => ({
 			...currentPanel,
@@ -925,4 +1043,69 @@ function validatePanelWorkspaceState(state: PanelWorkspaceState): readonly strin
 		visit(tab.root);
 	}
 	return errors;
+}
+
+function cloneIdentity(
+	identities: Map<string, string>,
+	prefix: string,
+	kind: string,
+	sourceId: string,
+): string {
+	const existingId = identities.get(sourceId);
+	if (existingId !== undefined) {
+		return existingId;
+	}
+	const clonedId = `${prefix}-${kind}-${identities.size + 1}`;
+	identities.set(sourceId, clonedId);
+	return clonedId;
+}
+
+function clonePanelLayoutNode(
+	node: PanelLayoutNode,
+	identities: PanelWorkspaceCloneIdentities,
+): PanelLayoutNode {
+	if (node.kind === 'panel') {
+		return {
+			activeChildTerminalId:
+				node.activeChildTerminalId === null
+					? null
+					: cloneIdentity(
+							identities.terminalIds,
+							identities.prefix,
+							'terminal',
+							node.activeChildTerminalId,
+						),
+			childTerminals: node.childTerminals.map((terminal) => ({
+				currentCwd: terminal.launchCwd,
+				id: cloneIdentity(identities.terminalIds, identities.prefix, 'terminal', terminal.id),
+				launchCwd: terminal.launchCwd,
+				phase: 'running',
+				title: terminal.title,
+			})),
+			id: cloneIdentity(identities.panelIds, identities.prefix, 'panel', node.id),
+			kind: node.kind,
+			primaryTerminal: {
+				currentCwd: node.primaryTerminal.launchCwd,
+				id: cloneIdentity(
+					identities.terminalIds,
+					identities.prefix,
+					'terminal',
+					node.primaryTerminal.id,
+				),
+				launchCwd: node.primaryTerminal.launchCwd,
+				phase: 'running',
+				title: node.primaryTerminal.title,
+			},
+		};
+	}
+	return {
+		id: cloneIdentity(identities.splitIds, identities.prefix, 'split', node.id),
+		children: node.children.map((child) => ({
+			...child,
+			id: cloneIdentity(identities.panelSlotIds, identities.prefix, 'panel-slot', child.id),
+			node: clonePanelLayoutNode(child.node, identities),
+		})),
+		kind: node.kind,
+		orientation: node.orientation,
+	};
 }

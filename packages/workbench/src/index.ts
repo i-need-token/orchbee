@@ -1,6 +1,40 @@
-export { Workbench } from './workbench';
+export {
+	createProjectWorkspaceState,
+	resolveTerminalCwd,
+	transitionProjectWorkspace,
+} from './project-workspace';
+export type {
+	ProjectWorkspaceEvent,
+	ProjectWorkspaceRejection,
+	ProjectWorkspaceState,
+	ProjectWorkspaceTransition,
+	ResolveTerminalCwdInput,
+	ResolveTerminalCwdResult,
+	TerminalContextCommand,
+	TerminalCwdSource,
+	WorkbenchActiveLocation,
+	WorkbenchDirectory,
+	WorkbenchDirectoryGitMetadata,
+	WorkbenchDirectorySource,
+	WorkbenchFolderDirectory,
+	WorkbenchLaunchConfigurationReference,
+	WorkbenchProject,
+	WorkbenchRepositoryDirectoryGitMetadata,
+	WorkbenchWorkspace,
+	WorkbenchWorktreeDirectory,
+	WorkbenchWorktreeDirectoryGitMetadata,
+} from './project-workspace';
+export { Workbench, WorkbenchProjectWorkspaceRuntime } from './workbench';
 export type {
 	WorkbenchProps,
+	WorkbenchProjectWorkspaceRuntimeOptions,
+	WorkbenchProjectCreateInput,
+	WorkbenchProjectDirectoryInput,
+	WorkbenchProjectFolderAddInput,
+	WorkbenchProjectInput,
+	WorkbenchProjectRenameInput,
+	WorkbenchRuntimeTerminalCreateInput,
+	WorkbenchRuntimeTerminalCreateResult,
 	WorkbenchActionCatalog,
 	WorkbenchHostActionCallback,
 	WorkbenchHostActionResult,
@@ -16,5 +50,8 @@ export type {
 	WorkbenchSearchProviderSection,
 	WorkbenchTerminalCreateCallback,
 	WorkbenchTerminalCreateInput,
+	WorkbenchWorkspaceCreateInput,
+	WorkbenchWorkspaceInput,
+	WorkbenchWorkspaceUpdateInput,
 } from './workbench';
 export type { WorkbenchLayoutStorage } from './workbench-layout-storage';

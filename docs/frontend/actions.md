@@ -20,6 +20,14 @@ automation invoke the same action instead of implementing parallel mutations.
 Do not wrap every callback in an action. A generic UI primitive continues to expose typed callbacks;
 its product-semantic consumer decides whether a callback invokes an action.
 
+An object row that exposes an ellipsis action menu uses one ordered menu model for both the
+ellipsis control and the row's `contextmenu` gesture. Both projections preserve entries, ordering,
+grouping, icons, availability, destructive treatment, and invocation targets. Right-click or long
+press does not silently activate, select, or expand the object unless that state change is itself
+an accepted action. Suppress the native platform context menu only inside the owned trigger and
+only while a product Context Menu is available. Presentation and interaction follow
+[`menus.md`](menus.md).
+
 ## Ownership
 
 | Responsibility                                                | Owner                                     |

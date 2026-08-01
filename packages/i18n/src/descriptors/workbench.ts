@@ -13,6 +13,11 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.actions.categories.panels'],
 		description: 'Action category for Workbench panel commands.',
 	},
+	actionCategoryProjects: {
+		id: 'workbench.actions.categories.projects',
+		defaultMessage: enUSWorkbenchMessages['workbench.actions.categories.projects'],
+		description: 'Action category for Project and Workspace commands.',
+	},
 	actionCategoryTerminal: {
 		id: 'workbench.actions.categories.terminal',
 		defaultMessage: enUSWorkbenchMessages['workbench.actions.categories.terminal'],
@@ -37,6 +42,11 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.sidebar.items.newTerminal',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.newTerminal'],
 		description: 'Label for the new-terminal entry in the Workbench sidebar.',
+	},
+	terminal: {
+		id: 'workbench.sidebar.items.terminal',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.terminal'],
+		description: 'Label for the standalone terminal entry in the Workbench sidebar.',
 	},
 	panelCancel: {
 		id: 'workbench.panels.actions.cancel',
@@ -138,10 +148,260 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.sections.project'],
 		description: 'Heading for the project section in the Workbench sidebar.',
 	},
+	projectCollapse: {
+		id: 'workbench.projects.actions.collapse',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.collapse'],
+		description: 'Action that collapses a Project in the Workbench sidebar.',
+	},
+	projectAddFolder: {
+		id: 'workbench.projects.actions.addFolder',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.addFolder'],
+		description: 'Action that adds an existing Folder to a Project.',
+	},
+	projectCreate: {
+		id: 'workbench.projects.actions.create',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.create'],
+		description: 'Action that creates a Project from one entered Folder path.',
+	},
+	projectCreateDescription: {
+		id: 'workbench.projects.create.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.create.description'],
+		description: 'Explanation of how the selected Folder is used when creating a Project.',
+	},
+	projectCreatePath: {
+		id: 'workbench.projects.create.path',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.create.path'],
+		description: 'Label for the Folder path used to create a Project.',
+	},
+	projectCreatePathDescription: {
+		id: 'workbench.projects.create.pathDescription',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.create.pathDescription'],
+		description: 'Browser validation limitation shown below the Project Folder path field.',
+	},
+	projectCreatePathPlaceholder: {
+		id: 'workbench.projects.create.pathPlaceholder',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.create.pathPlaceholder'],
+		description: 'Example absolute path shown in the Project Folder path field.',
+	},
+	projectCreateTitle: {
+		id: 'workbench.projects.create.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.create.title'],
+		description: 'Title for selecting the first Folder used to create a Project.',
+	},
+	projectCreateWorkspace: {
+		id: 'workbench.projects.actions.createWorkspace',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.createWorkspace'],
+		description: 'Action that creates a Workspace from one Project folder.',
+	},
+	projectExpand: {
+		id: 'workbench.projects.actions.expand',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.expand'],
+		description: 'Action that expands a Project in the Workbench sidebar.',
+	},
+	projectManage: {
+		id: 'workbench.projects.actions.manage',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.manage'],
+		description: 'Action that opens the Project management interface.',
+	},
+	projectNewFolder: {
+		id: 'workbench.projects.actions.newFolder',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.newFolder'],
+		description: 'Action that creates a new Folder for a Project.',
+	},
+	projectOptions: {
+		id: 'workbench.projects.actions.options',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.options'],
+		description: 'Accessible label for a Project options menu.',
+	},
+	projectRemove: {
+		id: 'workbench.projects.actions.remove',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.remove'],
+		description: 'Action that removes a Project from Orchbee.',
+	},
+	projectRemoveFolder: {
+		id: 'workbench.projects.actions.removeFolder',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.removeFolder'],
+		description: 'Action that removes a manually added Folder from a Project.',
+	},
+	projectReorder: {
+		id: 'workbench.projects.actions.reorder',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.reorder'],
+		description: 'Action that reorders a Project in the Workbench sidebar.',
+	},
+	projectSetPrimaryFolder: {
+		id: 'workbench.projects.actions.setPrimaryFolder',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.setPrimaryFolder'],
+		description: 'Action that sets the Project primary Folder.',
+	},
+	projectSelectFolder: {
+		id: 'workbench.projects.actions.selectFolder',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.selectFolder'],
+		description: 'Action that selects one Folder for a new Project.',
+	},
+	projectToggleExpansion: {
+		id: 'workbench.projects.actions.toggleExpansion',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.toggleExpansion'],
+		description: 'Action that toggles Project disclosure in the Workbench sidebar.',
+	},
+	projectRemoveDescription: {
+		id: 'workbench.projects.confirmRemove.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.confirmRemove.description'],
+		description: 'Explanation shown before removing a Project from Orchbee.',
+	},
+	projectRemoveTitle: {
+		id: 'workbench.projects.confirmRemove.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.confirmRemove.title'],
+		description: 'Title shown before removing a Project from Orchbee.',
+	},
+	projectFolders: {
+		id: 'workbench.projects.groups.folders',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.groups.folders'],
+		description: 'Menu group for regular Project folders.',
+	},
+	projectWorktrees: {
+		id: 'workbench.projects.groups.worktrees',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.groups.worktrees'],
+		description: 'Menu group for Git worktree folders.',
+	},
+	projectManageDescription: {
+		id: 'workbench.projects.manage.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.description'],
+		description: 'Accessible description for the Project management interface.',
+	},
+	projectManageFolders: {
+		id: 'workbench.projects.manage.folders',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.folders'],
+		description: 'Heading for Project folders in the Project management interface.',
+	},
+	projectManageName: {
+		id: 'workbench.projects.manage.name',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.name'],
+		description: 'Label for the Project name field.',
+	},
+	projectManageNamePlaceholder: {
+		id: 'workbench.projects.manage.namePlaceholder',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.namePlaceholder'],
+		description: 'Placeholder for the Project name field.',
+	},
+	projectManageFolderAlreadyAdded: {
+		id: 'workbench.projects.manage.folderAlreadyAdded',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.folderAlreadyAdded'],
+		description: 'Explanation shown when a Folder path already belongs to the Project.',
+	},
+	projectManagePrimaryFolder: {
+		id: 'workbench.projects.manage.primaryFolder',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.primaryFolder'],
+		description: 'Label identifying a Project primary Folder.',
+	},
+	projectManageTitle: {
+		id: 'workbench.projects.manage.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.title'],
+		description: 'Title for the Project management interface.',
+	},
+	resourceCancel: {
+		id: 'workbench.resource.actions.cancel',
+		defaultMessage: enUSWorkbenchMessages['workbench.resource.actions.cancel'],
+		description: 'Action that cancels a Project or Workspace edit.',
+	},
+	resourceAdd: {
+		id: 'workbench.resource.actions.add',
+		defaultMessage: enUSWorkbenchMessages['workbench.resource.actions.add'],
+		description: 'Action that adds an entered Folder to a Project.',
+	},
+	resourceClose: {
+		id: 'workbench.resource.actions.close',
+		defaultMessage: enUSWorkbenchMessages['workbench.resource.actions.close'],
+		description: 'Accessible label for closing a Project or Workspace dialog.',
+	},
+	resourceCreate: {
+		id: 'workbench.resource.actions.create',
+		defaultMessage: enUSWorkbenchMessages['workbench.resource.actions.create'],
+		description: 'Action that creates a new Project.',
+	},
+	resourceSave: {
+		id: 'workbench.resource.actions.save',
+		defaultMessage: enUSWorkbenchMessages['workbench.resource.actions.save'],
+		description: 'Action that saves a Project or Workspace edit.',
+	},
 	search: {
 		id: 'workbench.sidebar.items.search',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.search'],
 		description: 'Label for the search entry in the Workbench sidebar.',
+	},
+	workspaceCopySuffix: {
+		id: 'workbench.workspaces.names.copySuffix',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.names.copySuffix'],
+		description: 'Suffix appended to the default name of a duplicated Workspace.',
+	},
+	workspaceActivate: {
+		id: 'workbench.workspaces.actions.activate',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.actions.activate'],
+		description: 'Action that activates a Workspace terminal context.',
+	},
+	workspacePrimaryName: {
+		id: 'workbench.workspaces.names.primary',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.names.primary'],
+		description: 'Default name of the Workspace created with a Project.',
+	},
+	workspaceDelete: {
+		id: 'workbench.workspaces.actions.delete',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.actions.delete'],
+		description: 'Action that deletes a Workspace and its terminal context.',
+	},
+	workspaceDeleteDescription: {
+		id: 'workbench.workspaces.confirmDelete.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.confirmDelete.description'],
+		description: 'Explanation shown before deleting a Workspace.',
+	},
+	workspaceDeleteTitle: {
+		id: 'workbench.workspaces.confirmDelete.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.confirmDelete.title'],
+		description: 'Title shown before deleting a Workspace.',
+	},
+	workspaceDuplicate: {
+		id: 'workbench.workspaces.actions.duplicate',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.actions.duplicate'],
+		description: 'Action that duplicates a Workspace without copying running processes.',
+	},
+	workspaceManage: {
+		id: 'workbench.workspaces.actions.manage',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.actions.manage'],
+		description: 'Action that opens the Workspace management interface.',
+	},
+	workspaceManageDescription: {
+		id: 'workbench.workspaces.manage.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.description'],
+		description: 'Accessible description for the Workspace management interface.',
+	},
+	workspaceManageName: {
+		id: 'workbench.workspaces.manage.name',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.name'],
+		description: 'Label for the Workspace name field.',
+	},
+	workspaceManageNamePlaceholder: {
+		id: 'workbench.workspaces.manage.namePlaceholder',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.namePlaceholder'],
+		description: 'Placeholder for the Workspace name field.',
+	},
+	workspaceManagePrimaryFolder: {
+		id: 'workbench.workspaces.manage.primaryFolder',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.primaryFolder'],
+		description: 'Label for the Workspace primary Folder field.',
+	},
+	workspaceManageTitle: {
+		id: 'workbench.workspaces.manage.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.manage.title'],
+		description: 'Title for the Workspace management interface.',
+	},
+	workspaceOptions: {
+		id: 'workbench.workspaces.actions.options',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.actions.options'],
+		description: 'Accessible label for a Workspace options menu.',
+	},
+	workspaceReorder: {
+		id: 'workbench.workspaces.actions.reorder',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.actions.reorder'],
+		description: 'Action that reorders a Workspace inside its owning Project.',
 	},
 	searchActionsNeedContext: {
 		id: 'workbench.search.actions.needsContext',

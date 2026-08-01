@@ -116,6 +116,7 @@
 ## 实现纪律
 
 - 只检索当前切片需要的权威、模型、源码和证据。
+- 在组合符合 [`frontend/experience-components.md`](frontend/experience-components.md) 准入信号的产品界面前，查询体验目录，检查可能匹配的 Manifest 与 Story 证据，并选择复用、扩展、替换或新建。新的或替代性的用户可见结构在决策所有者接受前仍是保留决策。
 - 当 [`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md) 选择模型优先方法时，在框架集成前实现确定性领域操作。
 - 组件和 Hook 必须遵守 [`frontend/react.md`](frontend/react.md) 的所有权边界；生产 UI 绝不能成为第一个或唯一的行为模型。
 - 选择满足当前声明的最小完整变更；不要添加推测性的抽象、扩展点、包或兼容行为。

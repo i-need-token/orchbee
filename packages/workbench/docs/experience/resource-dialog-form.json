@@ -1,0 +1,40 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "workbench.resource-dialog-form",
+	"kind": "experience",
+	"status": "canonical",
+	"name": "Resource Dialog Form",
+	"description": "Defines the reviewed Workbench modal structure for a compact resource form with keyboard-aware actions.",
+	"owner": "@orchbee/workbench",
+	"visibility": "private",
+	"intents": ["confirm-form", "edit-resource", "manage-resource"],
+	"implementation": [
+		"packages/workbench/src/workbench/components/workbench-sidebar/components/resource-dialog-form/ResourceDialogForm.tsx"
+	],
+	"stories": [
+		{
+			"exportName": "ProjectWorkspaceNavigation",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--project-workspace-navigation",
+			"states": [
+				"Open Manage Project from a Project menu and inspect the title, description, field rhythm, and footer actions.",
+				"Open Manage Workspace from a Workspace menu and compare the shared dialog organization and shortcuts."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"A compact Workbench resource needs a titled modal form with descriptive context and confirm or cancel actions.",
+		"The form must share the established dialog body, footer, keyboard hint, and submission structure."
+	],
+	"avoidWhen": [
+		"The workflow needs a full-page editor, multistep navigation, or a persistent inspector surface.",
+		"A destructive decision only needs the shared anchored or modal confirmation pattern without editable fields."
+	],
+	"invariants": [
+		"The title and description explain the resource and outcome before the first editable field.",
+		"Every editable field has a visible label, useful placeholder, and contextual description when validation or platform limits matter.",
+		"Cancel and submit expose visible keyboard hints and preserve native form submission semantics."
+	],
+	"references": ["packages/workbench/docs/project-workspace.md"]
+}

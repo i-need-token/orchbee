@@ -1,0 +1,55 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "workbench.project-workspace-navigation",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Project and Workspace Navigation",
+	"description": "Presents the expandable, reorderable Project and Workspace hierarchy with consistent row, menu, and selection behavior.",
+	"owner": "@orchbee/workbench",
+	"visibility": "private",
+	"intents": [
+		"navigate-workspace",
+		"reorder-project",
+		"reorder-workspace",
+		"show-project-hierarchy"
+	],
+	"implementation": [
+		"packages/workbench/src/workbench/components/workbench-sidebar/WorkbenchSidebar.tsx",
+		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/ProjectNavigationItem.tsx"
+	],
+	"stories": [
+		{
+			"exportName": "ProjectWorkspaceNavigation",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--project-workspace-navigation",
+			"states": [
+				"Inspect expanded and collapsed Projects, active and default Workspace rows, and the nested hierarchy guide line.",
+				"Hover Project and Workspace rows, open their menus, right-click them, and inspect retained owner-row interaction states.",
+				"Drag a Project between siblings and verify the pointer-following row, midpoint-driven sibling squeeze motion, edge scrolling, temporary collapse, and restoration after the drop.",
+				"Drag a Workspace between siblings inside one expanded Project and verify the same pointer-following, midpoint squeeze, release settlement, and cancellation behavior without changing Workspace activation or Project disclosure."
+			]
+		}
+	],
+	"uses": [
+		"workbench.action-menu",
+		"workbench.project-create-flow",
+		"workbench.project-manager-dialog",
+		"workbench.workspace-manager-dialog"
+	],
+	"useWhen": [
+		"Workbench needs to show Project ownership, nested Workspace destinations, semantic menus, and Project ordering together.",
+		"A host needs the reviewed sidebar projection of Workbench Project and Workspace runtime state."
+	],
+	"avoidWhen": [
+		"The hierarchy represents unrelated navigation entities that do not follow the Project and Workspace model.",
+		"The caller only needs a generic tree primitive or a flat destination list without Workbench actions."
+	],
+	"invariants": [
+		"Selecting a Workspace changes the active terminal context while Project disclosure alone never changes it.",
+		"Active and hovered rows share the strong foreground role while default rows use the quieter foreground role.",
+		"An open row menu keeps the entire owner row highlighted without introducing a second trigger background.",
+		"Project and Workspace drag order is persisted only on release; the source row follows the pointer while crossed siblings squeeze into its vacated slot, and completion does not replay the previous displacement.",
+		"Workspace reordering remains inside the source Project and preserves active location, terminal ownership, Workspace identity, and Project disclosure."
+	],
+	"references": ["packages/workbench/docs/project-workspace.md"]
+}

@@ -1,24 +1,46 @@
 import { OrchbeeI18nProvider, type OrchbeeLocale } from '@orchbee/i18n';
 import { ActionRuntime } from '@orchbee/actions';
 import { TooltipProvider } from '@orchbee/ui/components';
-import { TabModel } from '@orchbee/tab-strip';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { Workbench } from '../Workbench';
+import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 
 function renderWorkbench(
 	getItem: (key: string) => string | null = () => null,
 	locale: OrchbeeLocale = 'en-US',
+	withProject = false,
 ): string {
-	const tabModel = new TabModel({
-		tabs: [
-			{ id: 'terminal-1', title: 'Terminal 1', pinned: false, group: null },
-			{ id: 'terminal-2', title: 'Terminal 2', pinned: false, group: null },
-		],
-		activeTabId: 'terminal-1',
+	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+		standaloneCwd: '/system',
+		standaloneTerminalTitle: 'Terminal 1',
 	});
+	projectWorkspaceRuntime.createTerminal({
+		groupId: null,
+		source: 'button',
+		title: 'Terminal 2',
+	});
+	if (withProject) {
+		projectWorkspaceRuntime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'directory-orchbee',
+				kind: 'folder',
+				name: 'orchbee',
+				path: '/workspace/orchbee',
+				source: 'selected',
+			},
+			launchConfigurations: [],
+			primaryWorkspaceLaunchConfigurationId: null,
+			primaryWorkspaceName: 'Primary',
+			projectName: 'orchbee',
+			terminalTitle: 'Terminal 1',
+			type: 'project-created',
+		});
+	}
 	return renderToStaticMarkup(
 		createElement(
 			OrchbeeI18nProvider,
@@ -29,8 +51,8 @@ function renderWorkbench(
 				createElement(Workbench, {
 					actionRuntime: new ActionRuntime(),
 					layoutStorage: { getItem, setItem: () => undefined },
+					projectWorkspaceRuntime,
 					shortcutPlatform: 'apple',
-					tabModel,
 				}),
 			),
 		),
@@ -46,11 +68,9 @@ describe('Workbench', () => {
 		expect(markup).toContain('aria-label="Hide Sidebar"');
 		expect(markup).toContain('data-slot="workbench-sidebar-toggle-position"');
 		expect(markup).toContain('aria-label="Workbench navigation"');
-		expect(markup).toContain('data-slot="workbench-sidebar-new-terminal"');
+		expect(markup).toContain('data-slot="workbench-sidebar-terminal"');
 		expect(markup).toContain('data-icon="terminal"');
-		expect(markup).toContain('New Terminal');
-		expect(markup).toContain('data-shortcut-action="workbench.terminal.create"');
-		expect(markup).toContain('⌘N');
+		expect(markup).toContain('Terminal');
 		expect(markup).toContain('data-slot="workbench-tab-bar"');
 		expect(markup).toContain('data-orientation="horizontal"');
 		expect(markup).toContain('data-tab-strip-orientation="horizontal"');
@@ -61,6 +81,10 @@ describe('Workbench', () => {
 		expect(markup).toContain('data-shortcut-action="workbench.search.open"');
 		expect(markup).toContain('⌘K');
 		expect(markup).toContain('Project');
+		expect(markup).toContain('data-slot="workbench-sidebar-project-create"');
+		expect(markup).toContain('data-empty="true"');
+		expect(markup).toContain('data-icon="add"');
+		expect(markup).toContain('data-icon-size="section-action"');
 		expect(markup).toContain('data-slot="workbench-sidebar-settings"');
 		expect(markup).toContain('data-icon="settings"');
 		expect(markup).toContain('data-shortcut-action="workbench.settings.open"');
@@ -83,11 +107,25 @@ describe('Workbench', () => {
 		const markup = renderWorkbench(() => null, 'zh-CN');
 
 		expect(markup).toContain('aria-label="工作区导航"');
-		expect(markup).toContain('新建终端');
+		expect(markup).toContain('终端');
 		expect(markup).toContain('搜索');
 		expect(markup).toContain('项目');
 		expect(markup).toContain('设置');
 		expect(markup).toContain('aria-label="终端标签页"');
+	});
+
+	it('renders the expanded Project and active Workspace hierarchy', () => {
+		const markup = renderWorkbench(() => null, 'en-US', true);
+
+		expect(markup).toContain('data-slot="workbench-sidebar-project"');
+		expect(markup).toContain('data-slot="workbench-sidebar-workspace"');
+		expect(markup).toContain('aria-label="Collapse project: orchbee"');
+		expect(markup).toContain('aria-expanded="true"');
+		expect(markup).toContain('data-icon="folder"');
+		expect(markup).toContain('data-icon="layout"');
+		expect(markup).toContain('orchbee');
+		expect(markup).toContain('Primary');
+		expect(markup).not.toContain('data-empty="true"');
 	});
 
 	it('restores the vertical tab-strip layout from host-provided storage', () => {

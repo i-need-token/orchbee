@@ -1,8 +1,8 @@
 import {
 	Button,
+	ContextMenu,
+	ContextMenuTrigger,
 	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
 	DropdownMenuTrigger,
 	ProductIcon,
 	Tooltip,
@@ -11,6 +11,9 @@ import {
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
+import { WorkbenchActionContextMenuContent } from '../../../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
+import { WorkbenchActionDropdownMenuContent } from '../../../../../../../workbench-action-dropdown-menu-content/WorkbenchActionDropdownMenuContent';
+import type { WorkbenchActionMenuEntry } from '../../../../../../../../types/workbench-action-menu';
 import {
 	getDisplayedTerminal,
 	type PanelLeaf,
@@ -27,8 +30,17 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 	const displayedTerminal = getDisplayedTerminal(panel);
 	const isChildTerminalActive = panel.activeChildTerminalId !== null;
 	const isMaximized = view.maximizedPanelId === panel.id;
+	const panelMenuEntries: readonly WorkbenchActionMenuEntry[] = [
+		{
+			icon: isMaximized ? 'screen-normal' : 'screen-full',
+			id: 'toggle-panel-maximization',
+			kind: 'command',
+			label: isMaximized ? view.messages.minimize : view.messages.maximize,
+			onSelect: () => view.togglePanelMaximization(panel.id, 'menu'),
+		},
+	];
 
-	return (
+	const header = (
 		<header
 			className={styles['root']}
 			data-drag-enabled={!isChildTerminalActive || undefined}
@@ -37,6 +49,7 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 				isChildTerminalActive
 					? undefined
 					: (event) => {
+							if (event.button !== 0) return;
 							const target = event.target;
 							if (
 								target instanceof Element &&
@@ -90,13 +103,9 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 									/>
 								}
 							>
-								<ProductIcon name='more-vertical' />
+								<ProductIcon name='ellipsis' />
 							</DropdownMenuTrigger>
-							<DropdownMenuContent align='end'>
-								<DropdownMenuItem onClick={() => view.togglePanelMaximization(panel.id, 'menu')}>
-									{isMaximized ? view.messages.minimize : view.messages.maximize}
-								</DropdownMenuItem>
-							</DropdownMenuContent>
+							<WorkbenchActionDropdownMenuContent entries={panelMenuEntries} />
 						</DropdownMenu>
 						<TooltipContent side='bottom'>{view.messages.more}</TooltipContent>
 					</Tooltip>
@@ -119,5 +128,16 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 				</Tooltip>
 			</div>
 		</header>
+	);
+
+	if (view.panelCount <= 1) return header;
+
+	return (
+		<ContextMenu>
+			<ContextMenuTrigger render={<div className={styles['contextTrigger']} />}>
+				{header}
+			</ContextMenuTrigger>
+			<WorkbenchActionContextMenuContent entries={panelMenuEntries} />
+		</ContextMenu>
 	);
 }

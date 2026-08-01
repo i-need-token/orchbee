@@ -40,6 +40,7 @@
 - React 包装器保留在语义消费者中，直到它拥有独立 API 和消费者。
 - 通用原语由消费者提供产品可见文本和无障碍文本。
 - 递归组件所有权遵循 [`react.md`](react.md)，样式遵循 [`styling.md`](styling.md)，产品消息遵循 [`localization.md`](localization.md)。
+- 体验组件与业务组件的分类绝不改变语义所有权。按照 [`experience-components.md`](experience-components.md) 发现并登记经过评审的组合，而不把运行时源码移入跨领域组件桶。
 
 ## 依赖方向
 

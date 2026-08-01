@@ -1,0 +1,40 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "workbench.unified-search-surface",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Unified Search Surface",
+	"description": "Provides one keyboard-first Workbench surface for local Actions, Settings, and composed searchable providers.",
+	"owner": "@orchbee/workbench",
+	"visibility": "private",
+	"intents": ["discover-action", "search-workbench", "select-search-result"],
+	"implementation": [
+		"packages/workbench/src/workbench/components/workbench-search-surface/WorkbenchSearchSurface.tsx"
+	],
+	"stories": [
+		{
+			"exportName": "UnifiedSearchAll",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--unified-search-all",
+			"states": [
+				"Inspect the open All filter with fixed input, filter controls, grouped results, and keyboard footer.",
+				"Type a query, move the highlight with keyboard and pointer input, and open a nested Action argument picker."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"A Workbench capability must be discovered across Actions, Settings, and registered searchable providers.",
+		"The interaction requires query ranking, grouped results, keyboard highlight, nested input, and prepared Action invocation."
+	],
+	"avoidWhen": [
+		"A small fixed choice set fits an anchored menu and does not require query or provider coordination.",
+		"Search belongs to one domain owner with a dedicated page and no Workbench-wide discovery requirement."
+	],
+	"invariants": [
+		"A visible highlight always identifies a current inspectable result and disabled results never execute.",
+		"Closing or backing out of nested input performs no semantic Action mutation.",
+		"Prepared Action input remains bound to the originating runtime scope and executes at most once."
+	],
+	"references": ["packages/workbench/docs/unified-search.md"]
+}

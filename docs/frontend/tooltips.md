@@ -13,6 +13,7 @@ The provider's default open delay is `300ms`. Do not repeat that value at indivi
 - Localize product-authored tooltip and accessibility text through `@orchbee/i18n`. Generic UI primitives receive consumer-provided text and never select product copy.
 - When an action has a keyboard shortcut, show the localized action label followed by the platform-formatted shortcut using `Kbd` or `KbdGroup`. Do not place platform-specific glyphs inside translated messages.
 - Keep tooltip text short and action-oriented. Do not put interactive controls, paragraphs, or product workflows inside a tooltip.
+- Shared tooltip surfaces do not use a directional arrow. Placement and offset associate the surface with its trigger; consumers do not add an arrow locally.
 
 ## Interaction contract
 

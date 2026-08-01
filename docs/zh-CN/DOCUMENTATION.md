@@ -37,12 +37,13 @@
 
 ## 文件与目录契约
 
-| 位置                         | 契约                                                                                             |
-| ---------------------------- | ------------------------------------------------------------------------------------------------ |
-| `docs/` 根目录               | 只包含 `CLAUDE.md` 索引的跨仓库规范；文件名使用 `UPPER-KEBAB-CASE.md`。                          |
-| `docs/<engineering-domain>/` | 只覆盖跨工作区边界的稳定工程学科；文件名使用 `kebab-case.md`。新增领域需要审查并加入 lint 契约。 |
-| `docs/zh-CN/`                | 只包含路径相同的完整简体中文规范镜像。                                                           |
-| `packages/<package>/docs/`   | 包含包所拥有的参考；文件名使用 `kebab-case.md`。                                                 |
+| 位置                         | 契约                                                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `docs/` 根目录               | 只包含 `CLAUDE.md` 索引的跨仓库规范；文件名使用 `UPPER-KEBAB-CASE.md`。                                                                                |
+| `docs/<engineering-domain>/` | 只覆盖跨工作区边界的稳定工程学科；文件名使用 `kebab-case.md`。新增领域需要审查并加入 lint 契约。                                                       |
+| `docs/zh-CN/`                | 只包含路径相同的完整简体中文规范镜像。                                                                                                                 |
+| `packages/<package>/docs/`   | 包含包所拥有的参考；文件名使用 `kebab-case.md`。                                                                                                       |
+| `<owner>/docs/experience/`   | 包含遵循 [`frontend/experience-components.md`](frontend/experience-components.md)、由 Schema 支持的包本地体验 Manifest；文件名使用 `kebab-case.json`。 |
 
 - 不得使用 `docs/<product>/` 或 `docs/<package>/` 存放单一产品或包的行为。
 - 不要创建 `misc/`、`notes/`、`general/`、`shared/`、`misc.md`、`notes.md` 或 `todo.md` 等兜底目录或文件。

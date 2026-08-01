@@ -1,0 +1,41 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "workbench.project-create-flow",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Project Create Flow",
+	"description": "Creates a Project from the shared Folder acquisition menu while isolating the smallest platform-specific step.",
+	"owner": "@orchbee/workbench",
+	"visibility": "private",
+	"intents": ["acquire-folder", "create-project", "enter-folder-path"],
+	"implementation": [
+		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-create-menu/ProjectCreateMenu.tsx",
+		"packages/workbench/src/workbench/components/workbench-sidebar/components/create-project-dialog/CreateProjectDialog.tsx"
+	],
+	"stories": [
+		{
+			"exportName": "SimplifiedChineseSidebar",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--simplified-chinese-sidebar",
+			"states": [
+				"Open the Project section add menu, choose Select Folder, and inspect the browser path-entry dialog.",
+				"Inspect the disabled New Folder command without replacing the shared Folder acquisition menu."
+			]
+		}
+	],
+	"uses": ["workbench.action-menu", "workbench.resource-dialog-form"],
+	"useWhen": [
+		"A Workbench host starts Project creation from a selected Folder or an equivalent platform folder capability.",
+		"Browser and desktop hosts must share one entry menu and diverge only at the Folder acquisition boundary."
+	],
+	"avoidWhen": [
+		"An existing Project is gaining another Folder; use the Project manager flow instead.",
+		"The caller already owns a Project descriptor and does not need user-facing Folder acquisition."
+	],
+	"invariants": [
+		"The Project add trigger always opens the shared Folder acquisition menu before any platform-specific input.",
+		"Browser composition accepts a manually entered absolute path without claiming that the path was verified.",
+		"Successful creation atomically creates the Project, first Folder, Primary Workspace, and terminal projection."
+	],
+	"references": ["packages/workbench/docs/project-workspace.md"]
+}

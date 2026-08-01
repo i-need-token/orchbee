@@ -2,14 +2,14 @@
 
 ## Ownership boundaries
 
-| Boundary                        | Contract                                                                                                                                                        |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Orchbee-authored components     | Use CSS Modules and the tokens selected under [`design-tokens.md`](design-tokens.md) and [`visual-foundations.md`](visual-foundations.md).                      |
-| Generated shadcn source         | Lives under `packages/ui/src/components/ui`, retains Tailwind CSS v4 utilities and composable `className`, and remains a compatibility boundary.                |
-| shadcn configuration            | `packages/ui/components.json` pins the Base UI Nova registry style for every CLI run.                                                                           |
-| UI style entry                  | `packages/ui/src/styles.ts` imports the token registry before `packages/ui/src/styles.css`.                                                                     |
-| UI compatibility stylesheet     | Maps shadcn variables to Orchbee tokens, keeps required `@theme inline` declarations, registers `./components` with `@source`, and owns the minimal base layer. |
-| Complete Tailwind compatibility | `@orchbee/design-tokens/tailwind-compat.css` maps the installed public Tailwind theme but remains unimported until a deliberate migration.                      |
+| Boundary                        | Contract                                                                                                                                                                                                  |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Orchbee-authored components     | Use CSS Modules and the tokens selected under [`design-tokens.md`](design-tokens.md) and [`visual-foundations.md`](visual-foundations.md).                                                                |
+| Generated shadcn source         | Lives under `packages/ui/src/components/ui`, retains Tailwind CSS v4 utilities and composable `className`, and remains a compatibility boundary.                                                          |
+| shadcn configuration            | `packages/ui/components.json` pins the Base UI Nova registry style for every CLI run.                                                                                                                     |
+| UI style entry                  | `packages/ui/src/styles.ts` imports the token registry before `packages/ui/src/styles.css`.                                                                                                               |
+| UI compatibility stylesheet     | Maps shadcn variables to Orchbee tokens, keeps required `@theme inline` declarations, registers `./components` with `@source`, and owns the minimal base layer, including native scrollbar normalization. |
+| Complete Tailwind compatibility | `@orchbee/design-tokens/tailwind-compat.css` maps the installed public Tailwind theme but remains unimported until a deliberate migration.                                                                |
 
 The generated exception also covers `packages/ui/src/hooks/use-mobile.ts`, `packages/ui/src/lib/cn.ts`, and `packages/ui/src/styles.css`. Do not copy its utilities into authored components or create a duplicate primitive to rename generated props.
 
@@ -46,7 +46,7 @@ Inline style objects may contain only registered `--ob-comp-*` keys for measured
 - Product controls consume `ProductIcon` from `@orchbee/ui/components` through the Orchbee icon-name allowlist.
 - Product code never imports vendor stylesheets, class names, font characters, or physical icon assets.
 - `@orchbee/ui` maps names to Codicons and loads the provider stylesheet through its style entry.
-- `ProductIcon` is decorative, inherits `currentColor`, and uses the approved visual-foundation sizes; the owning control supplies its accessible name and semantic color.
+- `ProductIcon` is decorative, inherits `currentColor`, and defaults to the `14px` `icon-sm` visual-foundation size; the owning control supplies its accessible name and semantic color. A non-default size requires a documented component variant and explicit component-level requirement.
 - Generated shadcn source may retain Lucide imports only inside its compatibility boundary.
 
 An icon change updates the allowlist, mapping, focused test, affected package documentation, and third-party notice when provider or license changes. Verify font loading, optical weight, and alignment in a browser.

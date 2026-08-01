@@ -26,15 +26,22 @@
 	padding-inline-end: var(--ob-ref-space-2);
 	border: none;
 	border-radius: var(--ob-ref-radius-ui-lg);
-	color: var(--ob-sys-color-text-primary);
+	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-body-sm);
 	white-space: normal;
 }
 
 .primaryItem:hover,
-.primaryItem:focus-visible {
+.primaryItem:focus-visible,
+.primaryItem[data-active] {
 	background: var(--ob-sys-color-surface-hovered);
 	color: var(--ob-sys-color-text-primary);
+}
+
+.primaryItem:hover .icon,
+.primaryItem:focus-visible .icon,
+.primaryItem[data-active] .icon {
+	color: var(--ob-sys-color-icon-primary);
 }
 
 .icon {
@@ -71,16 +78,56 @@
 }
 
 .projectSection {
+	flex: 1;
 	min-height: var(--ob-ref-space-0);
+	margin-inline-end: calc(var(--ob-ref-space-2) * -1);
+	overflow-x: clip;
+	overflow-y: auto;
+	scrollbar-gutter: stable;
+}
+
+.projectRegion {
+	display: grid;
+}
+
+.projectCreate {
+	pointer-events: none;
+	visibility: hidden;
+}
+
+.projectCreate[data-empty],
+.projectRegion:hover .projectCreate,
+.projectRegion:focus-within .projectCreate,
+.projectCreate:has([data-popup-open]) {
+	pointer-events: auto;
+	visibility: visible;
 }
 
 .footer {
 	margin-block-start: auto;
 }
 
+.sectionHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-block-end: var(--ob-ref-space-1);
+	padding-inline: var(--ob-ref-space-1-5);
+}
+
 .sectionHeading {
 	margin: var(--ob-ref-space-0);
-	padding-inline: var(--ob-ref-space-1-5);
 	color: var(--ob-sys-color-text-label);
 	font: var(--ob-sys-typography-label-sm);
+}
+
+.projectList {
+	position: relative;
+	margin: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-0);
+	list-style: none;
+}
+
+.projectList[data-project-reorder-dragging] {
+	user-select: none;
 }

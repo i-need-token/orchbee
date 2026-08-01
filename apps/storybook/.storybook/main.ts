@@ -24,11 +24,15 @@ const config: StorybookConfig = {
 	addons: ['@storybook/addon-docs', '@storybook/addon-a11y'],
 	framework: 'storybook-react-rsbuild',
 	rsbuildFinal: (rsbuildConfig, { configType }) =>
-		configType === 'DEVELOPMENT'
-			? mergeRsbuildConfig(rsbuildConfig, {
-					plugins: [pluginTailwindcss(), pluginSourceBuild({ sourceField: '@orchbee/source' })],
-				})
-			: rsbuildConfig,
+		mergeRsbuildConfig(
+			rsbuildConfig,
+			configType === 'DEVELOPMENT'
+				? {
+						plugins: [pluginTailwindcss(), pluginSourceBuild({ sourceField: '@orchbee/source' })],
+					}
+				: {},
+			{ performance: { printFileSize: false } },
+		),
 	docs: {
 		defaultName: 'Documentation',
 	},

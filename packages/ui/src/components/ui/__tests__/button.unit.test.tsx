@@ -13,6 +13,9 @@ describe('Button', () => {
 		expect(markup).toContain('data-slot="button"');
 		expect(markup).toContain('border-border');
 		expect(markup).toContain('h-7');
+		expect(markup).toContain('focus-visible:ring-2');
+		expect(markup).toContain('focus-visible:ring-inset');
+		expect(markup).not.toContain('focus-visible:ring-3');
 	});
 
 	it('preserves Base UI disabled state', () => {
@@ -24,5 +27,6 @@ describe('Button', () => {
 
 	it('keeps the official shadcn variant generator public', () => {
 		expect(buttonVariants({ variant: 'destructive' })).toContain('bg-destructive/10');
+		expect(buttonVariants()).toContain("[&_svg:not([class*='size-'])]:size-3.5");
 	});
 });

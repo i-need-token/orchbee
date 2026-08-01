@@ -15,14 +15,14 @@ A focused command is useful while iterating, but completion requires the root ga
 
 ## Required tasks
 
-| Task           | Contract                                                                                           |
-| -------------- | -------------------------------------------------------------------------------------------------- |
-| `format:check` | Formatter-managed files match `.oxfmtrc.json`.                                                     |
-| `lint`         | Code, style, storage, architecture, dependency, project-contract, export, and manifest rules pass. |
-| `build`        | Every buildable workspace produces its supported artifacts.                                        |
-| `typecheck`    | Every workspace satisfies its TypeScript compiler contract.                                        |
-| `test`         | Contract-checker tests, custom lint-rule tests, and every workspace test suite pass.               |
-| `test:exports` | Every library's packed exports, runtime formats, and declarations are consumable.                  |
+| Task           | Contract                                                                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `format:check` | Formatter-managed files match `.oxfmtrc.json`.                                                                         |
+| `lint`         | Code, style, storage, architecture, dependency, project-contract, experience-catalog, export, and manifest rules pass. |
+| `build`        | Every buildable workspace produces its supported artifacts.                                                            |
+| `typecheck`    | Every workspace satisfies its TypeScript compiler contract.                                                            |
+| `test`         | Contract-checker tests, custom lint-rule tests, and every workspace test suite pass.                                   |
+| `test:exports` | Every library's packed exports, runtime formats, and declarations are consumable.                                      |
 
 - `build` precedes `typecheck` because verification and production consumers resolve library artifacts, not another package's source.
 - Recursive builds are topological: a clean checkout builds dependencies before dependents resolve their exports.

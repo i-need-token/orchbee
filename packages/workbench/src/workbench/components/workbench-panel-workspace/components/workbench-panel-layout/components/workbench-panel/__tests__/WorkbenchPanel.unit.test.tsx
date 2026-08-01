@@ -8,14 +8,16 @@ import type { WorkbenchPanelWorkspaceView } from '../../../../../types/panel-wor
 import { WorkbenchPanel } from '../WorkbenchPanel';
 
 const primaryTerminal = {
-	cwd: null,
+	currentCwd: null,
 	id: 'terminal-1',
+	launchCwd: null,
 	phase: 'running',
 	title: 'Terminal 1',
 } as const;
 const childTerminal = {
-	cwd: null,
+	currentCwd: null,
 	id: 'terminal-2',
+	launchCwd: null,
 	phase: 'running',
 	title: 'Terminal 2',
 } as const;
@@ -25,8 +27,9 @@ const otherPanel = {
 	id: 'panel-2',
 	kind: 'panel',
 	primaryTerminal: {
-		cwd: null,
+		currentCwd: null,
 		id: 'terminal-3',
+		launchCwd: null,
 		phase: 'running',
 		title: 'Terminal 3',
 	},
@@ -139,18 +142,21 @@ describe('WorkbenchPanel', () => {
 		expect(markup).toContain('data-terminal-role="child"');
 		expect(markup).toContain('data-slot="workbench-panel-header"');
 		expect(markup).toContain('data-slot="workbench-child-terminal-strip"');
+		expect(markup).not.toContain('data-slot="context-menu-trigger"');
 		expect(markup).toContain('data-icon="arrow-left"');
 		expect(markup).toContain('data-icon="close"');
 		expect(markup).not.toContain('data-drag-enabled');
-		expect(markup).not.toContain('data-icon="more-vertical"');
+		expect(markup).not.toContain('data-icon="ellipsis"');
 	});
 
 	it('shows panel options for a primary terminal in a split layout', () => {
 		const markup = renderPanel(createPanel(null), 2);
 
 		expect(markup).toContain('data-slot="workbench-panel-header"');
+		expect(markup).toContain('data-slot="context-menu-trigger"');
 		expect(markup).toContain('data-drag-enabled="true"');
-		expect(markup).toContain('data-icon="more-vertical"');
+		expect(markup).toContain('data-icon="ellipsis"');
+		expect(markup).not.toContain('data-icon="more-vertical"');
 		expect(markup).not.toContain('data-icon="arrow-left"');
 		expect(markup).not.toContain('data-icon="search"');
 	});

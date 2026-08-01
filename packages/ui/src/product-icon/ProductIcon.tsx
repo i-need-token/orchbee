@@ -9,23 +9,36 @@ export type ProductIconName =
 	| 'add'
 	| 'agent'
 	| 'arrow-left'
+	| 'clipboard'
+	| 'chevron-right'
+	| 'check'
 	| 'close'
+	| 'copy'
+	| 'edit'
 	| 'ellipsis'
+	| 'folder'
+	| 'folder-opened'
+	| 'git-branch'
 	| 'layout'
 	| 'more-vertical'
+	| 'new-folder'
 	| 'panels'
 	| 'pin'
 	| 'search'
+	| 'screen-full'
+	| 'screen-normal'
 	| 'settings'
 	| 'sidebar-left'
 	| 'tabs'
-	| 'terminal';
+	| 'terminal'
+	| 'trash';
 
 interface ProductIconProps {
 	readonly name: ProductIconName;
+	readonly size?: 'menu-leading' | 'section-action';
 }
 
-export function ProductIcon({ name }: ProductIconProps): React.ReactNode {
+export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 	return (
 		<span
 			aria-hidden='true'
@@ -35,19 +48,32 @@ export function ProductIcon({ name }: ProductIconProps): React.ReactNode {
 				name === 'add' && styles['add'],
 				name === 'agent' && styles['agent'],
 				name === 'arrow-left' && styles['arrowLeft'],
+				name === 'clipboard' && styles['clipboard'],
+				name === 'chevron-right' && styles['chevronRight'],
+				name === 'check' && styles['check'],
 				name === 'close' && styles['close'],
+				name === 'copy' && styles['copy'],
+				name === 'edit' && styles['edit'],
 				name === 'ellipsis' && styles['ellipsis'],
+				name === 'folder' && styles['folder'],
+				name === 'folder-opened' && styles['folderOpened'],
+				name === 'git-branch' && styles['gitBranch'],
 				name === 'layout' && styles['layout'],
 				name === 'more-vertical' && styles['moreVertical'],
+				name === 'new-folder' && styles['newFolder'],
 				name === 'panels' && styles['panels'],
 				name === 'pin' && styles['pin'],
 				name === 'search' && styles['search'],
+				name === 'screen-full' && styles['screenFull'],
+				name === 'screen-normal' && styles['screenNormal'],
 				name === 'settings' && styles['settings'],
 				name === 'sidebar-left' && styles['sidebarLeft'],
 				name === 'tabs' && styles['tabs'],
 				name === 'terminal' && styles['terminal'],
+				name === 'trash' && styles['trash'],
 			)}
 			data-icon={name}
+			data-icon-size={size}
 		/>
 	);
 }

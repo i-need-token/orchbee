@@ -7,6 +7,18 @@
 
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
+.codicon[class*='codicon-'] {
+	font-size: var(--ob-ref-size-icon-sm);
+}
+
+.codicon[class*='codicon-'][data-icon-size='section-action'] {
+	font-size: var(--ob-ref-size-icon-section-action);
+}
+
+.codicon[class*='codicon-'][data-icon-size='menu-leading'] {
+	font-size: var(--ob-ref-size-icon-md);
+}
+
 :root,
 [data-theme='light'],
 [data-theme='dark'] {
@@ -86,6 +98,39 @@
 }
 
 @layer base {
+	@supports not selector(::-webkit-scrollbar) {
+		* {
+			scrollbar-color: var(--ob-sys-color-scrollbar-thumb) var(--ob-sys-color-scrollbar-track);
+			scrollbar-width: thin;
+		}
+	}
+
+	*::-webkit-scrollbar {
+		width: var(--ob-ref-size-scrollbar-track);
+		height: var(--ob-ref-size-scrollbar-track);
+	}
+
+	*::-webkit-scrollbar-track,
+	*::-webkit-scrollbar-corner {
+		background-color: var(--ob-sys-color-scrollbar-track);
+	}
+
+	*::-webkit-scrollbar-thumb {
+		background-color: var(--ob-sys-color-scrollbar-thumb);
+		background-clip: padding-box;
+		border: calc((var(--ob-ref-size-scrollbar-track) - var(--ob-ref-size-scrollbar-thumb)) / 2)
+			solid var(--ob-sys-color-scrollbar-track);
+		border-radius: var(--ob-ref-radius-full);
+	}
+
+	*::-webkit-scrollbar-thumb:hover {
+		background-color: var(--ob-sys-color-scrollbar-thumb-hover);
+	}
+
+	*::-webkit-scrollbar-thumb:active {
+		background-color: var(--ob-sys-color-scrollbar-thumb-pressed);
+	}
+
 	* {
 		@apply border-border outline-ring/50;
 	}

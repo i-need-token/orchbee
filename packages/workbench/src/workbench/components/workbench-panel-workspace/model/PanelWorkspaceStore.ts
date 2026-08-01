@@ -10,15 +10,25 @@ import {
 
 type Listener = () => void;
 
+interface PanelWorkspaceStoreOptions {
+	readonly initialCwd?: string | null | undefined;
+	readonly initialState?: PanelWorkspaceState | undefined;
+}
+
 export class PanelWorkspaceStore {
 	private readonly listeners = new Set<Listener>();
+	private readonly pendingTabCwds = new Map<string, string | null>();
 	private readonly tabModel: TabModel;
 	private unsubscribeTabModel: (() => void) | null = null;
 	private state: PanelWorkspaceState;
 
-	public constructor(tabModel: TabModel) {
+	public constructor(tabModel: TabModel, options: PanelWorkspaceStoreOptions = {}) {
 		this.tabModel = tabModel;
-		this.state = createPanelWorkspaceState(this.toTabInputs(tabModel.getSnapshot()));
+		this.state =
+			options.initialState ??
+			createPanelWorkspaceState(
+				this.toTabInputs(tabModel.getSnapshot(), options.initialCwd ?? null),
+			);
 	}
 
 	public readonly getSnapshot = (): PanelWorkspaceState => this.state;
@@ -48,13 +58,20 @@ export class PanelWorkspaceStore {
 		return result;
 	}
 
-	private readonly reconcileTabs = (): void => {
+	public prepareTabCwd(tabId: string, cwd: string | null): void {
+		this.pendingTabCwds.set(tabId, cwd);
+	}
+
+	public readonly reconcileTabs = (): void => {
 		const result = this.transition({
 			tabs: this.toTabInputs(this.tabModel.getSnapshot()),
 			type: 'tabs-reconciled',
 		});
 		if (result.state === this.state && result.outcome === 'unchanged') {
 			this.emit();
+		}
+		for (const tab of result.state.tabs) {
+			this.pendingTabCwds.delete(tab.tabId);
 		}
 	};
 
@@ -64,7 +81,11 @@ export class PanelWorkspaceStore {
 		}
 	}
 
-	private toTabInputs(snapshot: TabModelSnapshot) {
-		return snapshot.tabs.map((tab) => ({ id: tab.id, title: tab.title }));
+	private toTabInputs(snapshot: TabModelSnapshot, initialCwd?: string | null) {
+		return snapshot.tabs.map((tab) => ({
+			cwd: this.pendingTabCwds.get(tab.id) ?? initialCwd ?? null,
+			id: tab.id,
+			title: tab.title,
+		}));
 	}
 }

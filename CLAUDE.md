@@ -36,11 +36,13 @@
 - **Testing**: `docs/TESTING.md` — test layout, execution, and regression requirements
 - **Frontend Package Boundaries**: `docs/frontend/package-boundaries.md` — frontend workspace placement, semantic ownership, dependency direction, and platform ports
 - **Frontend React**: `docs/frontend/react.md` — component ownership, file boundaries, state, Effects, Hooks, Zustand, and testing
+- **Frontend Experience Components**: `docs/frontend/experience-components.md` — reviewed interaction vocabulary, package-local manifests, discovery, composition constraints, and lifecycle
 - **Frontend Visual Foundations**: `docs/frontend/visual-foundations.md` — typography, hierarchy, spacing, radius, sizing, border, and surface selection rules
 - **Frontend Design Tokens**: `docs/frontend/design-tokens.md` — token ownership, tiers, naming, themes, semantic coverage, and changes
 - **Frontend Styling**: `docs/frontend/styling.md` — CSS Modules, generated shadcn boundaries, icons, stylesheets, and verification
 - **Frontend Storybook**: `docs/frontend/storybook.md` — host ownership, Story placement, navigation, authoring, and browser verification
 - **Frontend Localization**: `docs/frontend/localization.md` — locale ownership, message catalogs, formatting, fallback, and verification
+- **Frontend Menus**: `docs/frontend/menus.md` — menu triggers, geometry, content, interaction states, keyboard behavior, and verification
 - **Frontend Tooltips**: `docs/frontend/tooltips.md` — provider ownership, delay, content, accessibility, and verification
 - **Frontend Actions**: `docs/frontend/actions.md` — semantic actions, registration, availability, synchronous and asynchronous execution, cancellation, concurrency, and verification
 - **Frontend Keyboard Shortcuts**: `docs/frontend/keyboard-shortcuts.md` — action ownership, bindings, platform display, conflicts, and verification

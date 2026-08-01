@@ -1,7 +1,7 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
-import type { TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
 
+import type { PanelWorkspaceStore } from './model/PanelWorkspaceStore';
 import { WorkbenchPanelCloseDialog } from './components/workbench-panel-close-dialog/WorkbenchPanelCloseDialog';
 import { WorkbenchPanelDragGhost } from './components/workbench-panel-drag-ghost/WorkbenchPanelDragGhost';
 import { WorkbenchPanelLayout } from './components/workbench-panel-layout/WorkbenchPanelLayout';
@@ -10,16 +10,20 @@ import styles from './WorkbenchPanelWorkspace.module.css';
 
 interface WorkbenchPanelWorkspaceProps {
 	readonly actionRuntime: ActionRuntime;
+	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
-	readonly tabModel: TabModel;
 }
 
 export function WorkbenchPanelWorkspace({
 	actionRuntime,
+	panelWorkspaceStore,
 	parentActionScope,
-	tabModel,
 }: WorkbenchPanelWorkspaceProps): React.ReactNode {
-	const view = useWorkbenchPanelWorkspace({ actionRuntime, parentActionScope, tabModel });
+	const view = useWorkbenchPanelWorkspace({
+		actionRuntime,
+		panelWorkspaceStore,
+		parentActionScope,
+	});
 
 	return (
 		<div

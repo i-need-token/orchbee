@@ -1,0 +1,54 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "workbench.action-menu",
+	"kind": "experience",
+	"status": "canonical",
+	"name": "Workbench Action Menu",
+	"description": "Projects a Workbench action-entry model into consistent dropdown and context-menu presentations.",
+	"owner": "@orchbee/workbench",
+	"visibility": "private",
+	"intents": ["invoke-action", "open-context-menu", "open-dropdown-menu"],
+	"implementation": [
+		"packages/workbench/src/workbench/types/workbench-action-menu.ts",
+		"packages/workbench/src/workbench/components/workbench-action-context-menu-content/WorkbenchActionContextMenuContent.tsx",
+		"packages/workbench/src/workbench/components/workbench-action-dropdown-menu-content/WorkbenchActionDropdownMenuContent.tsx"
+	],
+	"stories": [
+		{
+			"exportName": "ProjectWorkspaceNavigation",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--project-workspace-navigation",
+			"states": [
+				"Open the Project section add menu and inspect its command icons, disabled treatment, and grouping.",
+				"Open a Project or Workspace ellipsis menu and inspect its icon, grouping, destructive action, and submenu states.",
+				"Right-click the same owner row and confirm that the context menu projects the identical action model."
+			]
+		},
+		{
+			"exportName": "PanelWorkspace",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--panel-workspace",
+			"states": [
+				"Right-click a terminal viewport and inspect its icon-bearing terminal and split commands."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"A Workbench dropdown or context menu presents an ordered set of icon-bearing command entries.",
+		"A Workbench action set must be reachable from both an ellipsis trigger and the owning object's context menu.",
+		"Menu entries already carry semantic icons, availability, grouping, and prepared action invocation."
+	],
+	"avoidWhen": [
+		"The surface is a generic menu primitive with no Workbench action-entry model.",
+		"The interaction is a single visible button and does not need disclosure or contextual invocation."
+	],
+	"invariants": [
+		"Every projection preserves the action model's entry order, grouping, availability, icon, and invocation.",
+		"When the same action model has dropdown and context-menu triggers, both projections remain identical.",
+		"Moving the pointer into an open menu keeps the owning row and trigger in their open interaction state.",
+		"Every command entry has a semantic leading icon and destructive entries use the shared danger treatment.",
+		"A contextual command can derive a confirmation anchor from its pointer position or keyboard-selected menu item."
+	],
+	"references": ["packages/workbench/README.md"]
+}

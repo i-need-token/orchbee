@@ -11,6 +11,7 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import {
+	clonePanelWorkspaceState,
 	collectPanelLeaves,
 	createPanelWorkspaceState,
 	findPanel,
@@ -223,6 +224,64 @@ function enumerateOrderedSubsets(values: readonly string[]): readonly (readonly 
 }
 
 describe('panel workspace state', () => {
+	it('clones the complete layout into fresh scoped identities without sharing layout objects', () => {
+		let state = createPanelWorkspaceState([
+			{ cwd: '/workspace', id: 'tab-a', title: 'Terminal 1' },
+		]);
+		state = transitionPanelWorkspace(state, {
+			direction: 'right',
+			newTerminalTitle: 'Terminal 2',
+			panelId: 'panel-1',
+			tabId: 'tab-a',
+			type: 'panel-split',
+		}).state;
+		state = apply(state, {
+			currentCwd: '/changed',
+			tabId: 'tab-a',
+			terminalId: 'terminal-1',
+			type: 'terminal-current-cwd-changed',
+		});
+		state = apply(state, {
+			phase: 'failed',
+			tabId: 'tab-a',
+			terminalId: 'terminal-1',
+			type: 'terminal-phase-changed',
+		});
+
+		const clone = clonePanelWorkspaceState(state, new Map([['tab-a', 'tab-copy']]), 'copy-context');
+
+		expect(clone.tabs[0]?.tabId).toBe('tab-copy');
+		expect(clone.tabs[0]?.root).not.toBe(state.tabs[0]?.root);
+		expect(clone.tabs[0]).toMatchObject({
+			focusedPanelId: 'copy-context-panel-1',
+			root: {
+				children: [
+					{
+						id: 'copy-context-panel-slot-1',
+						node: {
+							id: 'copy-context-panel-2',
+							primaryTerminal: {
+								currentCwd: '/workspace',
+								id: 'copy-context-terminal-1',
+								launchCwd: '/workspace',
+								phase: 'running',
+							},
+						},
+					},
+					{
+						id: 'copy-context-panel-slot-2',
+						node: {
+							id: 'copy-context-panel-1',
+							primaryTerminal: { id: 'copy-context-terminal-2' },
+						},
+					},
+				],
+				id: 'copy-context-split-1',
+				kind: 'split',
+			},
+		});
+	});
+
 	it.each([
 		['left', 'horizontal', ['panel-2', 'panel-1']],
 		['right', 'horizontal', ['panel-1', 'panel-2']],
@@ -654,28 +713,14 @@ describe('panel workspace state', () => {
 	});
 
 	it('inherits the displayed terminal cwd when creating a panel or child terminal', () => {
-		const initial = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
-		const initialTab = requireDefined(initial.tabs[0]);
-		const root = initialTab.root;
-		if (root.kind !== 'panel') {
-			throw new Error('Expected the initial root to be a panel.');
-		}
-		const withCwd: PanelWorkspaceState = {
-			...initial,
-			tabs: [
-				{
-					...initialTab,
-					root: {
-						...root,
-						primaryTerminal: {
-							...root.primaryTerminal,
-							cwd: '/workspace',
-						},
-					},
-				},
-			],
-		};
-		let state = apply(withCwd, {
+		let state = createPanelWorkspaceState([{ cwd: '/launch', id: 'tab-a', title: 'Terminal 1' }]);
+		state = apply(state, {
+			currentCwd: '/workspace',
+			tabId: 'tab-a',
+			terminalId: 'terminal-1',
+			type: 'terminal-current-cwd-changed',
+		});
+		state = apply(state, {
 			direction: 'right',
 			newTerminalTitle: 'Terminal 2',
 			panelId: 'panel-1',
@@ -690,8 +735,17 @@ describe('panel workspace state', () => {
 		});
 
 		const panel = requireDefined(findPanel(requireDefined(state.tabs[0]).root, 'panel-2'));
-		expect(panel.primaryTerminal.cwd).toBe('/workspace');
-		expect(requireDefined(panel.childTerminals[0]).cwd).toBe('/workspace');
+		expect(panel.primaryTerminal.currentCwd).toBe('/workspace');
+		expect(panel.primaryTerminal.launchCwd).toBe('/workspace');
+		expect(requireDefined(panel.childTerminals[0])).toMatchObject({
+			currentCwd: '/workspace',
+			launchCwd: '/workspace',
+		});
+		const originalPanel = requireDefined(findPanel(requireDefined(state.tabs[0]).root, 'panel-1'));
+		expect(originalPanel.primaryTerminal).toMatchObject({
+			currentCwd: '/workspace',
+			launchCwd: '/launch',
+		});
 	});
 
 	it('retains a panel when its terminal provisioning fails', () => {
@@ -1053,7 +1107,7 @@ describe('panel workspace state', () => {
 				);
 				const child = requireDefined(panelWithChild.childTerminals.at(-1));
 				expect(panelWithChild.activeChildTerminalId).toBe(child.id);
-				expect(child.cwd).toBe(getDisplayedTerminal(panel).cwd);
+				expect(child.currentCwd).toBe(getDisplayedTerminal(panel).currentCwd);
 				expect(requireTab(createChildResult.state).focusedPanelId).toBe(panel.id);
 
 				const primaryResult = transitionPanelWorkspace(createChildResult.state, {

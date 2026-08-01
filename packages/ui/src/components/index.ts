@@ -254,6 +254,7 @@ export {
 	PaginationNext,
 	PaginationPrevious,
 	Popover,
+	PopoverClose,
 	PopoverContent,
 	PopoverDescription,
 	PopoverHeader,

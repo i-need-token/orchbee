@@ -1,6 +1,18 @@
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@orchbee/ui/components';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	ResizableHandle,
+	ResizablePanel,
+	ResizablePanelGroup,
+} from '@orchbee/ui/components';
 import type { ActionRuntime } from '@orchbee/actions';
-import type { TabModel, TabStripCrossWindowDragRuntimeFactory } from '@orchbee/tab-strip';
+import type { TabStripCrossWindowDragRuntimeFactory } from '@orchbee/tab-strip';
 import * as React from 'react';
 
 import {
@@ -9,6 +21,7 @@ import {
 	type WorkbenchLayoutStorage,
 } from '../workbench-layout-storage';
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
+import { WorkbenchConfirmationPopover } from './components/workbench-confirmation-popover/WorkbenchConfirmationPopover';
 import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSidebar';
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
@@ -16,40 +29,36 @@ import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar'
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
-import type {
-	WorkbenchHostActionCallback,
-	WorkbenchTerminalCreateCallback,
-} from './types/workbench-host-actions';
+import type { WorkbenchHostActionCallback } from './types/workbench-host-actions';
 import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
 import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
+import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 import styles from './Workbench.module.css';
 
 export interface WorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
-	readonly onNewTerminal?: WorkbenchTerminalCreateCallback | undefined;
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
+	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
-	readonly tabModel: TabModel;
 }
 
 export function Workbench({
 	actionRuntime,
 	createCrossWindowDragRuntime,
 	layoutStorage,
-	onNewTerminal,
 	onSettings,
+	projectWorkspaceRuntime,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutPlatform,
-	tabModel,
 }: WorkbenchProps): React.ReactNode {
 	const tabStripMessages = useWorkbenchTabStripMessages();
 	const view = useWorkbench({
 		actionRuntime,
-		onNewTerminal,
 		onSettings,
+		projectWorkspaceRuntime,
 		shortcutPlatform,
 		storage: layoutStorage,
 	});
@@ -62,6 +71,46 @@ export function Workbench({
 			shortcutLabel={view.sidebarShortcutLabel}
 		/>
 	);
+	let projectWorkspaceConfirmationSurface: React.ReactNode = null;
+	if (view.projectWorkspaceConfirmation?.anchor === null) {
+		projectWorkspaceConfirmationSurface = (
+			<AlertDialog
+				open
+				onOpenChange={(open) => {
+					if (!open) view.cancelProjectWorkspaceConfirmation();
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>{view.projectWorkspaceConfirmation.title}</AlertDialogTitle>
+						<AlertDialogDescription>
+							{view.projectWorkspaceConfirmation.description}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel onClick={view.cancelProjectWorkspaceConfirmation}>
+							{view.projectWorkspaceConfirmation.cancelLabel}
+						</AlertDialogCancel>
+						<AlertDialogAction variant='destructive' onClick={view.confirmProjectWorkspaceAction}>
+							{view.projectWorkspaceConfirmation.confirmLabel}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+		);
+	} else if (view.projectWorkspaceConfirmation !== null) {
+		projectWorkspaceConfirmationSurface = (
+			<WorkbenchConfirmationPopover
+				anchor={view.projectWorkspaceConfirmation.anchor}
+				cancelLabel={view.projectWorkspaceConfirmation.cancelLabel}
+				confirmLabel={view.projectWorkspaceConfirmation.confirmLabel}
+				description={view.projectWorkspaceConfirmation.description}
+				onCancel={view.cancelProjectWorkspaceConfirmation}
+				onConfirm={view.confirmProjectWorkspaceAction}
+				title={view.projectWorkspaceConfirmation.title}
+			/>
+		);
+	}
 
 	return (
 		<div className={styles['root']}>
@@ -83,20 +132,34 @@ export function Workbench({
 							>
 								<div className={styles['leftPanel']} data-slot='workbench-left-panel'>
 									<WorkbenchSidebar
+										activateStandalone={view.activateStandalone}
+										activateWorkspace={view.activateWorkspace}
+										addProjectDirectory={view.addProjectDirectory}
+										createProject={view.createProject}
+										createWorkspace={view.createWorkspace}
+										deleteWorkspace={view.deleteWorkspace}
+										duplicateWorkspace={view.duplicateWorkspace}
 										label={view.sidebarLabel}
-										newTerminalLabel={view.newTerminalLabel}
-										newTerminalShortcutId={view.newTerminalShortcutId}
-										newTerminalShortcutLabel={view.newTerminalShortcutLabel}
-										onNewTerminal={view.newTerminal}
 										onSearch={view.search}
 										onSettings={view.settings}
 										projectLabel={view.projectLabel}
+										projectNavigationMessages={view.projectNavigationMessages}
+										projectWorkspaceState={view.projectWorkspaceState}
+										removeProject={view.removeProject}
+										removeProjectDirectory={view.removeProjectDirectory}
+										reorderProject={view.reorderProject}
+										reorderWorkspace={view.reorderWorkspace}
+										renameProject={view.renameProject}
 										searchLabel={view.searchLabel}
 										searchShortcutId={view.searchShortcutId}
 										searchShortcutLabel={view.searchShortcutLabel}
 										settingsLabel={view.settingsLabel}
 										settingsShortcutId={view.settingsShortcutId}
 										settingsShortcutLabel={view.settingsShortcutLabel}
+										terminalLabel={view.terminalLabel}
+										setProjectPrimaryDirectory={view.setProjectPrimaryDirectory}
+										toggleProjectExpansion={view.toggleProjectExpansion}
+										updateWorkspace={view.updateWorkspace}
 									/>
 								</div>
 							</ResizablePanel>
@@ -118,15 +181,15 @@ export function Workbench({
 								orientation={view.tabStripOrientation}
 								parentActionScope={view.actionScope}
 								reserveSidebarToggleSpace={!view.isSidebarVisible}
-								tabModel={tabModel}
+								tabModel={view.terminalContext.tabModel}
 								tabStripMessages={tabStripMessages}
 								verticalCollapsed={view.verticalTabStripCollapsed}
 							/>
 							<div className={styles['tabContent']} data-slot='workbench-tab-content'>
 								<WorkbenchPanelWorkspace
 									actionRuntime={actionRuntime}
+									panelWorkspaceStore={view.terminalContext.panelWorkspaceStore}
 									parentActionScope={view.actionScope}
-									tabModel={tabModel}
 								/>
 							</div>
 						</div>
@@ -143,6 +206,7 @@ export function Workbench({
 					update={view.updateSearch}
 				/>
 			)}
+			{projectWorkspaceConfirmationSurface}
 		</div>
 	);
 }

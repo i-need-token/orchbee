@@ -8,6 +8,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuShortcut,
 	DropdownMenuTrigger,
+	ProductIcon,
 } from '@orchbee/ui/components';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
@@ -27,11 +28,15 @@ export const Default: Story = {
 			<DropdownMenuContent>
 				<DropdownMenuLabel>Actions</DropdownMenuLabel>
 				<DropdownMenuItem>
+					<ProductIcon name='edit' size='menu-leading' />
 					Rename <DropdownMenuShortcut>F2</DropdownMenuShortcut>
 				</DropdownMenuItem>
 				<DropdownMenuCheckboxItem checked>Pin session</DropdownMenuCheckboxItem>
 				<DropdownMenuSeparator />
-				<DropdownMenuItem variant='destructive'>Delete</DropdownMenuItem>
+				<DropdownMenuItem variant='destructive'>
+					<ProductIcon name='trash' size='menu-leading' />
+					Delete
+				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	),

@@ -9,6 +9,7 @@ import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { findPanel } from '../../model/panel-workspace-state';
+import { PanelWorkspaceStore } from '../../model/PanelWorkspaceStore';
 import type { WorkbenchPanelWorkspaceView } from '../../types/panel-workspace-view';
 import { useWorkbenchPanelWorkspace } from '../useWorkbenchPanelWorkspace';
 
@@ -18,12 +19,13 @@ const serverTabModel = new TabModel({
 });
 const serverActionRuntime = new ActionRuntime();
 const serverParentActionScope = serverActionRuntime.createScope('workbench');
+const serverPanelWorkspaceStore = new PanelWorkspaceStore(serverTabModel);
 
 function HookProjection() {
 	const view = useWorkbenchPanelWorkspace({
 		actionRuntime: serverActionRuntime,
+		panelWorkspaceStore: serverPanelWorkspaceStore,
 		parentActionScope: serverParentActionScope,
-		tabModel: serverTabModel,
 	});
 	return createElement(
 		'div',
@@ -37,18 +39,18 @@ function HookProjection() {
 function InteractiveHarness({
 	actionRuntime,
 	capture,
+	panelWorkspaceStore,
 	parentActionScope,
-	tabModel,
 }: {
 	readonly actionRuntime: ActionRuntime;
 	readonly capture: (view: WorkbenchPanelWorkspaceView) => void;
 	readonly parentActionScope: ReturnType<ActionRuntime['createScope']>;
-	readonly tabModel: TabModel;
+	readonly panelWorkspaceStore: PanelWorkspaceStore;
 }) {
 	const view = useWorkbenchPanelWorkspace({
 		actionRuntime,
+		panelWorkspaceStore,
 		parentActionScope,
-		tabModel,
 	});
 	capture(view);
 	return null;
@@ -83,7 +85,7 @@ describe('useWorkbenchPanelWorkspace', () => {
 						view = candidate;
 					},
 					parentActionScope: parentScope,
-					tabModel: model,
+					panelWorkspaceStore: new PanelWorkspaceStore(model),
 				}),
 			),
 		);
@@ -117,7 +119,7 @@ describe('useWorkbenchPanelWorkspace', () => {
 						view = candidate;
 					},
 					parentActionScope: parentScope,
-					tabModel: model,
+					panelWorkspaceStore: new PanelWorkspaceStore(model),
 				}),
 			),
 		);
