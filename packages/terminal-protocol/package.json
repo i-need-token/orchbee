@@ -1,0 +1,56 @@
+{
+	"name": "@orchbee/terminal-protocol",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Transport-neutral terminal Host protocol semantics and codecs",
+	"files": [
+		"dist",
+		"fixtures",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"@orchbee/source": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		},
+		"./fixtures/canonical-v1.json": "./fixtures/canonical-v1.json",
+		"./fixtures/focus-input-v1_1.bin": "./fixtures/focus-input-v1_1.bin",
+		"./fixtures/key-input-v1_1.bin": "./fixtures/key-input-v1_1.bin",
+		"./fixtures/malformed-frame-v2.json": "./fixtures/malformed-frame-v2.json",
+		"./fixtures/mouse-input-v1_1.bin": "./fixtures/mouse-input-v1_1.bin",
+		"./fixtures/paste-input-v1_1.bin": "./fixtures/paste-input-v1_1.bin",
+		"./fixtures/terminal-frame-v2.bin": "./fixtures/terminal-frame-v2.bin",
+		"./fixtures/text-input-v1_1.bin": "./fixtures/text-input-v1_1.bin",
+		"./fixtures/transport-envelope-v1.bin": "./fixtures/transport-envelope-v1.bin",
+		"./fixtures/write-input-v1.bin": "./fixtures/write-input-v1.bin"
+	},
+	"scripts": {
+		"build": "rslib build --log-level error",
+		"dev": "rslib build --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "pnpm test:unit && pnpm test:fixtures && pnpm test:tla",
+		"test:fixtures": "node scripts/generate-fixtures.mjs --check",
+		"test:unit": "vitest run",
+		"test:watch": "vitest",
+		"test:tla": "node scripts/run-tla.mjs",
+		"fixtures:generate": "node scripts/generate-fixtures.mjs",
+		"test:exports": "node ../../scripts/check-package-exports.mjs .",
+		"verify:correctness": "pnpm typecheck && pnpm build && pnpm test && pnpm test:exports"
+	},
+	"dependencies": {
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@rslib/core": "catalog:",
+		"@types/node": "catalog:",
+		"fast-check": "4.9.0",
+		"vitest": "catalog:"
+	}
+}

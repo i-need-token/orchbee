@@ -1,10 +1,14 @@
 # @orchbee/terminal
 
-Ghostty's VT engine compiled to WebAssembly, exposed through an xterm-compatible browser API and rendered with WebGPU.
+Terminal surfaces for Orchbee: Ghostty's VT engine compiled to WebAssembly and a source-neutral
+projected Host client, both rendered with WebGPU or Canvas 2D.
 
 ## Scope
 
-This package owns terminal parsing, rendering, input, selection, and browser host integration. It does not own application PTY processes, session transport, Electron menus, clipboard permissions, paste dialogs, or external navigation. The machine-readable scope contract lives in [`project.json`](project.json).
+This package owns browser terminal parsing, projected-frame presentation, rendering, input
+normalization, selection where supported, and browser host integration. It does not own application
+PTY processes, session transport, Electron menus, clipboard permissions, paste dialogs, or external
+navigation. The machine-readable scope contract lives in [`project.json`](project.json).
 
 Package-specific implementation and maintenance references:
 
@@ -65,6 +69,55 @@ await init({
 WebGPU is used when available; Canvas 2D is the fallback. The package includes selection, scrollback, mouse and focus reporting, Ghostty key encoding, OSC 8 and plain-URL links, terminal query responses, the buffer API, and `FitAddon`.
 
 The comparison demos load JetBrains Mono 2.304 variable fonts from Ghostty's pinned dependency and include the upstream OFL-1.1 license.
+
+### Projected Host surface
+
+`ProjectedTerminal` is the sibling API for a terminal whose authoritative VT state lives in
+`apps/terminal-host`. It does not load the Ghostty WASM parser and has no `write(ptyBytes)` method.
+The caller owns transport and forwards dedicated frame buffers plus typed commands without parsing
+cells in Electron or another broker. Electron's Main-to-Renderer route may structured-clone a frame;
+the terminal package does not claim transport-level zero-copy ownership transfer.
+
+```ts
+import { ProjectedTerminal } from '@orchbee/terminal';
+
+const terminal = new ProjectedTerminal({
+	attachmentId,
+	creationId,
+	hostEpoch,
+	terminalId,
+	canResize: true,
+	labels: {
+		input: i18n.t('terminal.input'),
+		screen: i18n.t('terminal.screen'),
+	},
+	port: {
+		send: (command) => hostConnection.send(command),
+	},
+});
+
+terminal.onRendererHealth((event) => rendererDiagnostics.record(event));
+terminal.onFrameTelemetry((frame) => rendererMetrics.record(frame));
+await terminal.open(document.querySelector('#terminal')!);
+
+hostConnection.onFrame((frameBuffer) => terminal.applyFrame(frameBuffer));
+hostConnection.onTerminalExited((event) => terminal.notifyExited(event));
+```
+
+Opening installs frame, renderer, input, and resize handling before it activates projection demand.
+Frame decoding commits into a bounded row-partitioned structure-of-arrays store, schedules a draw,
+then emits `FrameApplied`; exact duplicates are re-acknowledged, while identity, sequence,
+generation, dimension, or base mismatches request a snapshot without mutating the committed grid.
+The renderer reads packed rows directly without reconstructing `GhosttyCell[]` or another VT state.
+Projected frame telemetry includes the exact committed Host revision drawn by that renderer frame,
+so lifecycle consumers can prove final-revision presentation without depending on whether draw or
+exit notification arrives first.
+
+This live surface currently owns the visible grid, cursor, title/current directory metadata,
+terminal-aware keyboard/IME/mouse/focus/paste intents, resize, visible-viewport accessibility, and
+exit finalization. It intentionally does not yet expose history windows, stable scroll anchors,
+history selection or search, link activation, the complete buffer API, external terminal effects,
+or full accessibility parity. Those are not implied by the existing browser/WASM `Terminal` API.
 
 ## Surface API
 
@@ -180,6 +233,9 @@ The exported `fontSizeAdjustmentScale` helper implements Ghostty's fallback-face
 - New WebGPU glyphs upload a merged dirty atlas region without replacing existing texels; colored emoji preserve their RGB while ordinary glyphs remain terminal-tintable.
 - Bounded programming-ligature runs are rasterized as one glyph sequence in both renderers and can be disabled through `fontLigatures`. Longer runs of one repeated character remain cell-by-cell so terminal fill patterns stay uniform, while standalone candidates such as `***` can still form a ligature.
 - Frame telemetry exposes timing, reasons, visited cells, instances, shaping runs, draw calls, upload bytes, and atlas pressure.
+- Renderer health reports actual WebGPU readiness, Canvas fallback reasons, device loss, recovery,
+  and recovery failure; projected and browser/WASM surfaces share those diagnostics and GPU
+  resources without sharing terminal-state authority.
 - WebGPU device loss rebuilds the device, pipelines, atlas texture, buffers, and canvas configuration once.
 - SGR blink, faint, inverse, invisible, overline, strikethrough, underline variants, and underline colors render in both backends.
 - X10, UTF-8, SGR, URXVT, and SGR-pixel mouse reports include horizontal wheel and pixel coordinates.

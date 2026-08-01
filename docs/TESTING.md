@@ -66,6 +66,17 @@ Locale negotiation tests cover supported variants, invalid input, unsupported la
 Traditional Chinese fallback. The authoritative message and visual-review requirements live in
 [`docs/frontend/localization.md`](frontend/localization.md#verification).
 
+## Native application tests
+
+- Keep Zig unit tests in the owning `.zig` module and expose them through the application's
+  non-interactive `test` script.
+- Compile every maintained operating-system family through `test:cross`; do not claim runtime,
+  ABI, PTY, IPC, packaging, or installer behavior from cross-compilation alone.
+- Run platform behavior and integration tests on their native operating system before claiming
+  support for that behavior.
+- Pin every native source dependency and compiler input used by required tests; machine-local
+  sibling checkouts and mutable revisions are not test fixtures.
+
 ## Package contracts
 
 Library packages run `test:exports` after `build` to verify their packed public surface, both JavaScript module formats, and a strict external TypeScript consumer. Cross-package behavior belongs in consumer-facing contract tests rather than tests that import another package's private source.

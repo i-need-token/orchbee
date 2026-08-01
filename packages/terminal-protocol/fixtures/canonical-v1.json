@@ -1,0 +1,271 @@
+{
+	"frame": {
+		"activeScreen": "alternate",
+		"attachmentId": "22222222222222222222222222222222",
+		"baseRevision": "41",
+		"cellPixelHeight": 16,
+		"cellPixelWidth": 8,
+		"columns": 6,
+		"cursor": {
+			"blinking": true,
+			"column": 4,
+			"row": 1,
+			"shape": "bar",
+			"visible": true,
+			"wideTail": false
+		},
+		"currentDirectory": "/tmp/项目",
+		"defaultColors": {
+			"backgroundRgb": 1052688,
+			"cursorRgb": null,
+			"foregroundRgb": 15790320
+		},
+		"extensions": [
+			{
+				"dataBase64": "AQIDBA==",
+				"kind": 32769,
+				"required": false
+			}
+		],
+		"generation": "3",
+		"hostEpoch": "11111111111111111111111111111111",
+		"interaction": {
+			"applicationCursorKeys": true,
+			"applicationKeypad": false,
+			"bracketedPaste": true,
+			"focusReporting": true,
+			"kittyDisambiguateEscapeCodes": true,
+			"kittyReportAllKeysAsEscapeCodes": false,
+			"kittyReportAlternateKeys": false,
+			"kittyReportAssociatedText": false,
+			"kittyReportEventTypes": true,
+			"modifyOtherKeys2": false,
+			"mouseAny": true,
+			"mouseButton": false,
+			"mouseNormal": false,
+			"mouseSgr": true,
+			"mouseSgrPixels": false,
+			"mouseUtf8": false,
+			"mouseUrxvt": false,
+			"mouseX10": false
+		},
+		"kind": "delta",
+		"revision": "42",
+		"rowData": [
+			{
+				"cells": [
+					{
+						"grapheme": "A",
+						"protected": false,
+						"semanticContent": "output",
+						"style": 0,
+						"width": "narrow"
+					},
+					{
+						"grapheme": "界",
+						"protected": true,
+						"semanticContent": "prompt",
+						"style": 1,
+						"width": "wide"
+					},
+					{
+						"grapheme": "",
+						"protected": false,
+						"semanticContent": "prompt",
+						"style": 1,
+						"width": "spacer-tail"
+					},
+					{
+						"grapheme": "é",
+						"protected": false,
+						"semanticContent": "input",
+						"style": 0,
+						"width": "narrow"
+					},
+					{
+						"grapheme": " ",
+						"protected": false,
+						"semanticContent": "output",
+						"style": 0,
+						"width": "narrow"
+					},
+					{
+						"grapheme": "",
+						"protected": false,
+						"semanticContent": "output",
+						"style": 0,
+						"width": "spacer-head"
+					}
+				],
+				"index": 0,
+				"promptClass": "prompt",
+				"wrap": true,
+				"wrapContinuation": false
+			},
+			{
+				"cells": [
+					{
+						"grapheme": "👩🏽‍💻",
+						"protected": false,
+						"semanticContent": "input",
+						"style": 1,
+						"width": "wide"
+					},
+					{
+						"grapheme": "",
+						"protected": false,
+						"semanticContent": "input",
+						"style": 1,
+						"width": "spacer-tail"
+					},
+					{
+						"grapheme": "B",
+						"protected": false,
+						"semanticContent": "output",
+						"style": 0,
+						"width": "narrow"
+					},
+					{
+						"grapheme": "",
+						"protected": false,
+						"semanticContent": "output",
+						"style": 0,
+						"width": "narrow"
+					},
+					{
+						"grapheme": "",
+						"protected": false,
+						"semanticContent": "output",
+						"style": 0,
+						"width": "narrow"
+					},
+					{
+						"grapheme": "",
+						"protected": false,
+						"semanticContent": "output",
+						"style": 0,
+						"width": "narrow"
+					}
+				],
+				"index": 1,
+				"promptClass": "prompt-continuation",
+				"wrap": false,
+				"wrapContinuation": true
+			}
+		],
+		"rows": 2,
+		"scrollbackRows": "123",
+		"sequence": "7",
+		"styles": [
+			{
+				"background": { "kind": "default" },
+				"blink": false,
+				"bold": false,
+				"faint": false,
+				"foreground": { "kind": "rgb", "rgb": 16777215 },
+				"hyperlink": null,
+				"inverse": false,
+				"invisible": false,
+				"italic": false,
+				"overline": false,
+				"strikethrough": false,
+				"underline": { "kind": "none" },
+				"underlineKind": "none"
+			},
+			{
+				"background": { "kind": "rgb", "rgb": 1122867 },
+				"blink": false,
+				"bold": true,
+				"faint": true,
+				"foreground": { "kind": "rgb", "rgb": 11189196 },
+				"hyperlink": "https://orchbee.dev/终端",
+				"inverse": false,
+				"invisible": false,
+				"italic": false,
+				"overline": false,
+				"strikethrough": false,
+				"underline": { "kind": "rgb", "rgb": 5596791 },
+				"underlineKind": "curly"
+			}
+		],
+		"title": "Orchbee 🐝"
+	},
+	"transportEnvelope": {
+		"correlationId": null,
+		"event": true,
+		"hostEpoch": "11111111111111111111111111111111",
+		"kind": 42,
+		"optionalMessage": false,
+		"payloadEncoding": "terminal-frame",
+		"protocol": { "major": 1, "minor": 1 },
+		"response": false
+	},
+	"focusInput": {
+		"attachmentId": "22222222222222222222222222222222",
+		"focused": true
+	},
+	"keyInput": {
+		"action": "press",
+		"attachmentId": "22222222222222222222222222222222",
+		"composing": false,
+		"consumedModifiers": {
+			"alt": false,
+			"altRight": false,
+			"capsLock": false,
+			"control": false,
+			"controlRight": false,
+			"meta": false,
+			"metaRight": false,
+			"numLock": false,
+			"shift": true,
+			"shiftRight": false
+		},
+		"key": "KeyA",
+		"modifiers": {
+			"alt": false,
+			"altRight": false,
+			"capsLock": false,
+			"control": false,
+			"controlRight": false,
+			"meta": false,
+			"metaRight": false,
+			"numLock": false,
+			"shift": true,
+			"shiftRight": true
+		},
+		"text": "A",
+		"unshiftedCodepoint": 97
+	},
+	"mouseInput": {
+		"action": "motion",
+		"attachmentId": "22222222222222222222222222222222",
+		"button": 1,
+		"modifiers": {
+			"alt": true,
+			"altRight": false,
+			"capsLock": false,
+			"control": false,
+			"controlRight": false,
+			"meta": false,
+			"metaRight": false,
+			"numLock": false,
+			"shift": false,
+			"shiftRight": false
+		},
+		"pressedButtons": 1,
+		"x": 10.5,
+		"y": -2.25
+	},
+	"pasteInput": {
+		"attachmentId": "22222222222222222222222222222222",
+		"text": "line 1\nline 2"
+	},
+	"textInput": {
+		"attachmentId": "22222222222222222222222222222222",
+		"text": "中文"
+	},
+	"writeInput": {
+		"attachmentId": "22222222222222222222222222222222",
+		"bytesBase64": "ABvwn5CN"
+	}
+}

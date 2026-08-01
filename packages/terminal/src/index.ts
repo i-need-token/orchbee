@@ -177,6 +177,21 @@ export {
 	readGhosttyBuildCapabilities,
 	type GhosttyBuildCapabilities,
 } from './protocol';
+export { ProjectedTerminal, ProjectedTerminalPhase } from './projected';
+export type {
+	ProjectedFrameResult,
+	ProjectedPasteResult,
+	ProjectedPasteReview,
+	ProjectedPasteSource,
+	ProjectedTerminalCommand,
+	ProjectedTerminalCommandPort,
+	ProjectedTerminalErrorEvent,
+	ProjectedTerminalFrameTelemetry,
+	ProjectedTerminalLabels,
+	ProjectedTerminalMetadata,
+	ProjectedTerminalOptions,
+	ProjectedTerminalPhaseValue,
+} from './projected';
 
 // Selection
 export {

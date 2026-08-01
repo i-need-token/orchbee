@@ -41,4 +41,5 @@ minimumReleaseAgeStrict: true
 minimumReleaseAgeIgnoreMissingTime: false
 
 allowBuilds:
+  electron: true
   esbuild: true

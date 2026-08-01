@@ -1,3 +1,3 @@
-export { enUSMessages, enUSWorkbenchMessages } from './en-US';
-export type { OrchbeeMessageId, WorkbenchMessageId } from './en-US';
-export { zhCNMessages, zhCNWorkbenchMessages } from './zh-CN';
+export { enUSDesktopTerminalMessages, enUSMessages, enUSWorkbenchMessages } from './en-US';
+export type { DesktopTerminalMessageId, OrchbeeMessageId, WorkbenchMessageId } from './en-US';
+export { zhCNDesktopTerminalMessages, zhCNMessages, zhCNWorkbenchMessages } from './zh-CN';

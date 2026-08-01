@@ -15,7 +15,7 @@
 			"type": "array",
 			"items": {
 				"type": "string",
-				"enum": ["browser", "electron", "node", "universal"]
+				"enum": ["browser", "electron", "native", "node", "universal"]
 			}
 		},
 		"stability": {

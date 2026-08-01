@@ -14,6 +14,14 @@ export interface TextShapingSpan {
 
 export type TextShapingPlan = readonly (TextShapingSpan | null)[];
 
+export interface TextShapingReader {
+	readonly length: number;
+	eligible(index: number): boolean;
+	sameStyle(left: number, right: number): boolean;
+	text(index: number): string;
+	width(index: number): number;
+}
+
 const PROGRAMMING_LIGATURES = [
 	'<==>',
 	'<-->',
@@ -95,11 +103,28 @@ const PROGRAMMING_LIGATURES = [
 ] as const;
 
 /** Build bounded multi-cell runs that Canvas can shape without caching arbitrary terminal lines. */
-export function buildTextShapingPlan(cells: readonly TextShapingCell[]): TextShapingPlan {
-	const plan: (TextShapingSpan | null)[] = Array.from({ length: cells.length }, () => null);
+export function buildTextShapingPlan(
+	source: readonly TextShapingCell[] | TextShapingReader,
+): TextShapingPlan {
+	const reader = isTextShapingReader(source)
+		? source
+		: {
+				length: source.length,
+				eligible: (index: number) => source[index]?.eligible === true,
+				sameStyle: (left: number, right: number) =>
+					source[left]?.styleKey === source[right]?.styleKey,
+				text: (index: number) => source[index]?.text ?? '',
+				width: (index: number) => source[index]?.width ?? 0,
+			};
+	return buildTextShapingPlanFromReader(reader);
+}
+
+/** Build the same shaping plan without requiring one JavaScript object per terminal cell. */
+function buildTextShapingPlanFromReader(reader: TextShapingReader): TextShapingPlan {
+	const plan: (TextShapingSpan | null)[] = Array.from({ length: reader.length }, () => null);
 	let column = 0;
-	while (column < cells.length) {
-		const span = findSpan(cells, column);
+	while (column < reader.length) {
+		const span = findSpan(reader, column);
 		if (!span) {
 			column++;
 			continue;
@@ -110,13 +135,18 @@ export function buildTextShapingPlan(cells: readonly TextShapingCell[]): TextSha
 	return plan;
 }
 
-function findSpan(cells: readonly TextShapingCell[], start: number): TextShapingSpan | null {
-	const first = cells[start];
-	if (!first?.eligible || first.width !== 1) return null;
+function isTextShapingReader(
+	source: readonly TextShapingCell[] | TextShapingReader,
+): source is TextShapingReader {
+	return 'eligible' in source;
+}
+
+function findSpan(reader: TextShapingReader, start: number): TextShapingSpan | null {
+	if (!reader.eligible(start) || reader.width(start) !== 1) return null;
 
 	for (const candidate of PROGRAMMING_LIGATURES) {
-		if (!matches(cells, start, candidate, first.styleKey)) continue;
-		if (extendsRepeatedCharacterRun(cells, start, candidate, first.styleKey)) continue;
+		if (!matches(reader, start, candidate)) continue;
+		if (extendsRepeatedCharacterRun(reader, start, candidate)) continue;
 		return {
 			start,
 			end: start + candidate.length,
@@ -128,10 +158,9 @@ function findSpan(cells: readonly TextShapingCell[], start: number): TextShaping
 }
 
 function extendsRepeatedCharacterRun(
-	cells: readonly TextShapingCell[],
+	reader: TextShapingReader,
 	start: number,
 	candidate: string,
-	styleKey: string,
 ): boolean {
 	const character = candidate[0];
 	if (!character) return false;
@@ -139,38 +168,36 @@ function extendsRepeatedCharacterRun(
 		if (candidate[index] !== character) return false;
 	}
 	return (
-		matchesRepeatedCharacter(cells[start - 1], character, styleKey) ||
-		matchesRepeatedCharacter(cells[start + candidate.length], character, styleKey)
+		matchesRepeatedCharacter(reader, start - 1, character, start) ||
+		matchesRepeatedCharacter(reader, start + candidate.length, character, start)
 	);
 }
 
 function matchesRepeatedCharacter(
-	cell: TextShapingCell | undefined,
+	reader: TextShapingReader,
+	index: number,
 	character: string,
-	styleKey: string,
+	styleIndex: number,
 ): boolean {
 	return (
-		cell?.eligible === true &&
-		cell.width === 1 &&
-		cell.styleKey === styleKey &&
-		cell.text === character
+		index >= 0 &&
+		index < reader.length &&
+		reader.eligible(index) &&
+		reader.width(index) === 1 &&
+		reader.sameStyle(styleIndex, index) &&
+		reader.text(index) === character
 	);
 }
 
-function matches(
-	cells: readonly TextShapingCell[],
-	start: number,
-	candidate: string,
-	styleKey: string,
-): boolean {
-	if (start + candidate.length > cells.length) return false;
+function matches(reader: TextShapingReader, start: number, candidate: string): boolean {
+	if (start + candidate.length > reader.length) return false;
 	for (let offset = 0; offset < candidate.length; offset++) {
-		const cell = cells[start + offset];
+		const index = start + offset;
 		if (
-			!cell?.eligible ||
-			cell.width !== 1 ||
-			cell.styleKey !== styleKey ||
-			cell.text !== candidate[offset]
+			!reader.eligible(index) ||
+			reader.width(index) !== 1 ||
+			!reader.sameStyle(start, index) ||
+			reader.text(index) !== candidate[offset]
 		) {
 			return false;
 		}

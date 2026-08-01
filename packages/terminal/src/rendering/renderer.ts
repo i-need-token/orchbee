@@ -17,10 +17,18 @@
  * - Link underline rendering (OSC8 + regex URLs)
  */
 
+import {
+	TerminalCellWidthCode,
+	TerminalColorEncoding,
+	TerminalStyleFlag,
+	TerminalUnderlineKindCode,
+} from '@orchbee/terminal-protocol';
+
 import type { SelectionManager } from '../selection';
 import { applyFontMetricModifiers, type DetailedFontMetrics } from '../font-metrics';
 import {
 	cellConstraintWidth,
+	cellConstraintWidthFromReader,
 	constrainGlyph,
 	glyphConstraintForCodepoint,
 	type GlyphSize,
@@ -88,6 +96,42 @@ export interface RendererFrameTelemetry {
 	readonly atlasWidth: number;
 	readonly atlasHeight: number;
 	readonly atlasPressure: number;
+}
+
+export interface PackedRendererRow {
+	readonly backgroundColors: Uint32Array;
+	readonly dirty: boolean;
+	readonly foregroundColors: Uint32Array;
+	readonly styleFlags: Uint16Array;
+	readonly underlineColors: Uint32Array;
+	readonly underlineKinds: Uint8Array;
+	readonly widths: Uint8Array;
+	grapheme(column: number): string;
+}
+
+export interface PackedRendererMetadata {
+	readonly columns: number;
+	readonly cursor: {
+		readonly blinking: boolean;
+		readonly column: number;
+		readonly row: number;
+		readonly shape: 'bar' | 'block' | 'underline';
+		readonly visible: boolean;
+	};
+	readonly defaultColors: {
+		readonly backgroundRgb: number;
+		readonly cursorRgb: number | null;
+		readonly foregroundRgb: number;
+	};
+	readonly rows: number;
+}
+
+/** Packed projection source consumed without reconstructing per-cell objects. */
+export interface PackedRendererSource {
+	readonly metadata: PackedRendererMetadata | null;
+	readonly needsFullRedraw: boolean;
+	readonly rows: readonly PackedRendererRow[];
+	markRendered(): void;
 }
 
 // ============================================================================
@@ -176,6 +220,11 @@ interface RowTextShaping {
 	readonly plan: TextShapingPlan;
 }
 
+interface PackedRowTextShaping {
+	readonly texts: readonly string[];
+	readonly plan: TextShapingPlan;
+}
+
 type RenderedCursorStyle = 'block' | 'block_hollow' | 'underline' | 'bar';
 
 interface RectangleGeometry {
@@ -231,6 +280,25 @@ function canvasFont(
 
 function snapToDevicePixel(value: number, devicePixelRatio: number): number {
 	return Math.round(value * devicePixelRatio) / devicePixelRatio;
+}
+
+function packedColorRgb(value: number, defaultRgb: number): number {
+	return (value & 0xff00_0000) === 0 ? value & TerminalColorEncoding.rgbMask : defaultRgb;
+}
+
+function packedOptionalColorRgb(value: number, defaultRgb: number): number | null {
+	if (value === TerminalColorEncoding.none) return null;
+	return packedColorRgb(value, defaultRgb);
+}
+
+function rgbChannels(value: number): [number, number, number] {
+	return [(value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
+}
+
+function packedCellWidth(value: number): number {
+	if (value === TerminalCellWidthCode.wide) return 2;
+	if (value === TerminalCellWidthCode.narrow) return 1;
+	return 0;
 }
 
 // ============================================================================
@@ -1332,6 +1400,46 @@ export class WebGPURenderer {
 		if (scrollbarOpacity !== this.lastScrollbarOpacity) reasons.add('scrollbar');
 		if (reasons.size === 0) reasons.add('dirty');
 
+		this.resetFrameCounters();
+
+		if (this.useWebGPU) {
+			this.renderWebGPU(buffer, forceAll, viewportY, scrollbackProvider, scrollbarOpacity);
+		} else {
+			this.renderCanvas2D(buffer, forceAll, viewportY, scrollbackProvider, scrollbarOpacity);
+		}
+		this.fontDirty = false;
+		this.cursorAppearanceDirty = false;
+		this.completeFrameTelemetry(backend, timestamp, reasons, forceAll, viewportY);
+	}
+
+	/** Draw a Host projection directly from its row-partitioned structure-of-arrays store. */
+	renderPacked(buffer: PackedRendererSource, forceAll = false): void {
+		const backend = this.getBackend();
+		const metadata = buffer.metadata;
+		if (backend === 'uninitialized' || !metadata) return;
+		const timestamp = rendererNow();
+		const reasons = new Set<RendererFrameReason>();
+		if (forceAll || buffer.needsFullRedraw) reasons.add('full');
+		if (
+			this.cursorAppearanceDirty ||
+			metadata.cursor.column !== this.lastCursorPosition.x ||
+			metadata.cursor.row !== this.lastCursorPosition.y
+		)
+			reasons.add('cursor');
+		if (this.preeditDirty) reasons.add('preedit');
+		if (this.fontDirty) reasons.add('font');
+		if (this.textBlinkDirty) reasons.add('blink');
+		if (reasons.size === 0) reasons.add('dirty');
+
+		this.resetFrameCounters();
+		if (this.useWebGPU) this.renderPackedWebGPU(buffer, metadata);
+		else this.renderPackedCanvas2D(buffer, metadata, forceAll);
+		this.fontDirty = false;
+		this.cursorAppearanceDirty = false;
+		this.completeFrameTelemetry(backend, timestamp, reasons, forceAll, 0);
+	}
+
+	private resetFrameCounters(): void {
 		this.frameRowsRendered = 0;
 		this.frameCellsVisited = 0;
 		this.frameVertexUploadBytes = 0;
@@ -1342,15 +1450,15 @@ export class WebGPURenderer {
 		this.frameShapingRuns = 0;
 		this.frameOverlayInstances = 0;
 		this.frameGpuDrawCalls = 0;
+	}
 
-		if (this.useWebGPU) {
-			this.renderWebGPU(buffer, forceAll, viewportY, scrollbackProvider, scrollbarOpacity);
-		} else {
-			this.renderCanvas2D(buffer, forceAll, viewportY, scrollbackProvider, scrollbarOpacity);
-		}
-		this.fontDirty = false;
-		this.cursorAppearanceDirty = false;
-
+	private completeFrameTelemetry(
+		backend: 'webgpu' | 'canvas2d',
+		timestamp: number,
+		reasons: ReadonlySet<RendererFrameReason>,
+		forceAll: boolean,
+		viewportY: number,
+	): void {
 		let atlasUsedPixels = 0;
 		for (const glyph of this.glyphMap.values()) atlasUsedPixels += glyph.w * glyph.h;
 		const atlasPixels = this.atlasCanvas.width * this.atlasCanvas.height;
@@ -1421,6 +1529,502 @@ export class WebGPURenderer {
 	// ==========================================================================
 	// WebGPU Render Path
 	// ==========================================================================
+
+	private buildPackedRowTextShaping(
+		row: PackedRendererRow,
+		columns: number,
+		rowIndex: number,
+		cursor: PackedRendererMetadata['cursor'],
+		cursorEnabled: boolean,
+		preeditLayout: PreeditLayout | null,
+	): PackedRowTextShaping & { readonly codepoints: Uint32Array } {
+		const texts = Array.from({ length: columns }, (_, column) => row.grapheme(column));
+		const codepoints = Uint32Array.from(texts, (text) => text.codePointAt(0) ?? 0);
+		const eligible = (column: number): boolean => {
+			const text = texts[column] ?? '';
+			const flags = row.styleFlags[column] ?? 0;
+			const hidden =
+				(flags & TerminalStyleFlag.invisible) !== 0 ||
+				((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible);
+			const cursorBoundary = cursorEnabled && cursor.row === rowIndex && cursor.column === column;
+			const preeditBoundary =
+				preeditLayout !== null &&
+				preeditLayout.row === rowIndex &&
+				column >= preeditLayout.start &&
+				column < preeditLayout.end;
+			return (
+				packedCellWidth(row.widths[column] ?? TerminalCellWidthCode.spacerTail) === 1 &&
+				!hidden &&
+				!cursorBoundary &&
+				!preeditBoundary &&
+				text.length === 1
+			);
+		};
+		const sameStyle = (left: number, right: number): boolean =>
+			row.styleFlags[left] === row.styleFlags[right] &&
+			row.foregroundColors[left] === row.foregroundColors[right] &&
+			row.backgroundColors[left] === row.backgroundColors[right] &&
+			row.underlineKinds[left] === row.underlineKinds[right] &&
+			row.underlineColors[left] === row.underlineColors[right];
+		return {
+			codepoints,
+			texts,
+			plan: this.fontLigatures
+				? buildTextShapingPlan({
+						length: columns,
+						eligible,
+						sameStyle,
+						text: (column) => texts[column] ?? '',
+						width: (column) =>
+							packedCellWidth(row.widths[column] ?? TerminalCellWidthCode.spacerTail),
+					})
+				: Array.from({ length: columns }, () => null),
+		};
+	}
+
+	private packedConstraintWidth(
+		row: PackedRendererRow,
+		shaping: PackedRowTextShaping & { readonly codepoints: Uint32Array },
+		column: number,
+		columns: number,
+	): 1 | 2 {
+		return cellConstraintWidthFromReader(
+			column,
+			columns,
+			(index) => shaping.codepoints[index] ?? 0,
+			(index) => packedCellWidth(row.widths[index] ?? TerminalCellWidthCode.spacerTail),
+		);
+	}
+
+	private hasPackedBlinkingCells(buffer: PackedRendererSource): boolean {
+		for (const row of buffer.rows) {
+			for (const flags of row.styleFlags) {
+				if ((flags & TerminalStyleFlag.blink) !== 0) return true;
+			}
+		}
+		return false;
+	}
+
+	private renderPackedWebGPU(buffer: PackedRendererSource, metadata: PackedRendererMetadata): void {
+		if (!this.device || !this.context || !this.bgPipeline || !this.textPipeline) return;
+		const { columns, rows } = metadata;
+		const cursor = metadata.cursor;
+		this.syncCursorBlink(cursor.blinking);
+		this.syncTextBlink(this.hasPackedBlinkingCells(buffer));
+		const needsResize =
+			this.canvas.width !== columns * this.metrics.width * this.devicePixelRatio ||
+			this.canvas.height !== rows * this.metrics.height * this.devicePixelRatio;
+		if (needsResize) this.resize(columns, rows);
+
+		const preeditLayout = this.getPreeditLayout({ x: cursor.column, y: cursor.row }, columns);
+		const renderedCursorStyle: RenderedCursorStyle = this.focused ? cursor.shape : 'block_hollow';
+		const cursorEnabled =
+			cursor.visible && (!this.focused || this.cursorVisible) && preeditLayout === null;
+		const shapings: Array<(PackedRowTextShaping & { readonly codepoints: Uint32Array }) | null> =
+			Array.from({ length: rows }, () => null);
+
+		for (let y = 0; y < rows; y++) {
+			const row = buffer.rows[y];
+			if (!row) continue;
+			const shaping = this.buildPackedRowTextShaping(
+				row,
+				columns,
+				y,
+				cursor,
+				cursorEnabled,
+				preeditLayout,
+			);
+			shapings[y] = shaping;
+			for (let x = 0; x < columns; x++) {
+				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
+				const flags = row.styleFlags[x] ?? 0;
+				if (
+					width === 0 ||
+					(flags & TerminalStyleFlag.invisible) !== 0 ||
+					((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible)
+				)
+					continue;
+				const span = shaping.plan[x];
+				if (span && span.start !== x) continue;
+				const text = span?.text ?? shaping.texts[x] ?? '';
+				if (text.length === 0) continue;
+				this.ensureGlyph(
+					text,
+					flags,
+					span?.columns ?? width,
+					shaping.codepoints[x] ?? 0,
+					this.packedConstraintWidth(row, shaping, x, columns),
+				);
+			}
+		}
+		if (preeditLayout) {
+			for (const cell of preeditLayout.cells) this.ensureGlyph(cell.text, 0, cell.width);
+		}
+
+		const bgData: number[] = [];
+		const textData: number[] = [];
+		const overlayData: number[] = [];
+		const defaultBackground = rgbChannels(metadata.defaultColors.backgroundRgb);
+		const defaultForeground = rgbChannels(metadata.defaultColors.foregroundRgb);
+		const cursorColor = rgbChannels(
+			metadata.defaultColors.cursorRgb ?? metadata.defaultColors.foregroundRgb,
+		);
+		const cursorAccent = defaultBackground;
+		const atlasWidth = this.atlasCanvas.width;
+		const atlasHeight = this.atlasCanvas.height;
+
+		for (let y = 0; y < rows; y++) {
+			const row = buffer.rows[y];
+			const shaping = shapings[y];
+			if (!row || !shaping) continue;
+			this.frameRowsRendered++;
+			for (let x = 0; x < columns; x++) {
+				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
+				if (width === 0) continue;
+				this.frameCellsVisited++;
+				const flags = row.styleFlags[x] ?? 0;
+				const cellX = x * this.metrics.width;
+				const cellY = y * this.metrics.height;
+				const cellWidth = width * this.metrics.width;
+				const isBlockCursor =
+					cursorEnabled &&
+					renderedCursorStyle === 'block' &&
+					cursor.column === x &&
+					cursor.row === y;
+				const isFullBlockCursor =
+					isBlockCursor && this.detailedMetrics.cursorHeight === this.detailedMetrics.cellHeight;
+				let foreground = rgbChannels(
+					packedColorRgb(
+						row.foregroundColors[x] ?? TerminalColorEncoding.default,
+						metadata.defaultColors.foregroundRgb,
+					),
+				);
+				let background = rgbChannels(
+					packedColorRgb(
+						row.backgroundColors[x] ?? TerminalColorEncoding.default,
+						metadata.defaultColors.backgroundRgb,
+					),
+				);
+				if ((flags & TerminalStyleFlag.inverse) !== 0) {
+					[foreground, background] = [background, foreground];
+				}
+				if (isFullBlockCursor) background = cursorColor;
+				if (
+					background[0] !== defaultBackground[0] ||
+					background[1] !== defaultBackground[1] ||
+					background[2] !== defaultBackground[2] ||
+					isFullBlockCursor
+				) {
+					pushRect(bgData, cellX, cellY, cellWidth, this.metrics.height, background);
+				}
+				if (isBlockCursor && !isFullBlockCursor) {
+					const geometry = cursorBlockGeometry(x, y, this.detailedMetrics);
+					pushRect(bgData, geometry.x, geometry.y, geometry.width, geometry.height, cursorColor);
+				}
+				if (
+					preeditLayout &&
+					y === preeditLayout.row &&
+					x >= preeditLayout.start &&
+					x < preeditLayout.end
+				)
+					continue;
+				if ((flags & TerminalStyleFlag.invisible) !== 0) continue;
+				if ((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible) continue;
+
+				if (isBlockCursor) foreground = cursorAccent;
+				const alpha = (flags & TerminalStyleFlag.faint) !== 0 ? 0.5 : 1;
+				const span = shaping.plan[x];
+				let text = shaping.texts[x] ?? '';
+				if (span) text = span.start === x ? span.text : '';
+				if (text.length > 0) {
+					if (span) this.frameShapingRuns++;
+					const glyph = this.ensureGlyph(
+						text,
+						flags,
+						span?.columns ?? width,
+						shaping.codepoints[x] ?? 0,
+						this.packedConstraintWidth(row, shaping, x, columns),
+					);
+					if (glyph) {
+						textData.push(
+							cellX + glyph.offsetX,
+							cellY + glyph.offsetY,
+							glyph.renderWidth,
+							glyph.renderHeight,
+							glyph.x / atlasWidth,
+							glyph.y / atlasHeight,
+							glyph.w / atlasWidth,
+							glyph.h / atlasHeight,
+							foreground[0] / 255,
+							foreground[1] / 255,
+							foreground[2] / 255,
+							alpha,
+							glyph.colored ? 1 : 0,
+						);
+					}
+				}
+
+				const underline = row.underlineKinds[x] ?? TerminalUnderlineKindCode.none;
+				const underlineRgb = packedOptionalColorRgb(
+					row.underlineColors[x] ?? TerminalColorEncoding.none,
+					metadata.defaultColors.foregroundRgb,
+				);
+				const decorationColor = foreground;
+				const underlineColor = underlineRgb === null ? decorationColor : rgbChannels(underlineRgb);
+				this.pushPackedDecorations(
+					overlayData,
+					cellX,
+					cellY,
+					cellWidth,
+					flags,
+					underline,
+					decorationColor,
+					underlineColor,
+					alpha,
+				);
+			}
+		}
+
+		if (preeditLayout) {
+			const cellY = preeditLayout.row * this.metrics.height;
+			const startX = preeditLayout.start * this.metrics.width;
+			pushRect(
+				bgData,
+				startX,
+				cellY,
+				preeditLayout.width * this.metrics.width,
+				this.metrics.height,
+				defaultBackground,
+			);
+			let column = preeditLayout.start;
+			for (const cell of preeditLayout.cells) {
+				const glyph = this.ensureGlyph(cell.text, 0, cell.width);
+				if (glyph) {
+					textData.push(
+						column * this.metrics.width + glyph.offsetX,
+						cellY + glyph.offsetY,
+						glyph.renderWidth,
+						glyph.renderHeight,
+						glyph.x / atlasWidth,
+						glyph.y / atlasHeight,
+						glyph.w / atlasWidth,
+						glyph.h / atlasHeight,
+						defaultForeground[0] / 255,
+						defaultForeground[1] / 255,
+						defaultForeground[2] / 255,
+						1,
+						glyph.colored ? 1 : 0,
+					);
+				}
+				column += cell.width;
+			}
+			pushRect(
+				overlayData,
+				startX,
+				cellY + this.detailedMetrics.underlinePosition,
+				preeditLayout.width * this.metrics.width,
+				this.detailedMetrics.underlineThickness,
+				defaultForeground,
+			);
+		}
+		if (cursorEnabled && renderedCursorStyle !== 'block') {
+			const geometries =
+				renderedCursorStyle === 'block_hollow'
+					? cursorOutlineGeometry(cursor.column, cursor.row, this.detailedMetrics)
+					: [
+							cursorStrokeGeometry(
+								renderedCursorStyle,
+								cursor.column,
+								cursor.row,
+								this.detailedMetrics,
+							),
+						];
+			for (const geometry of geometries) {
+				pushRect(overlayData, geometry.x, geometry.y, geometry.width, geometry.height, cursorColor);
+			}
+		}
+
+		this.submitWebGPUFrame(bgData, textData, overlayData, columns, rows, defaultBackground);
+		this.lastCursorPosition = { x: cursor.column, y: cursor.row };
+		this.preeditDirty = false;
+		this.textBlinkDirty = false;
+		buffer.markRendered();
+	}
+
+	private pushPackedDecorations(
+		overlayData: number[],
+		cellX: number,
+		cellY: number,
+		cellWidth: number,
+		flags: number,
+		underline: number,
+		decorationColor: readonly [number, number, number],
+		underlineColor: readonly [number, number, number],
+		alpha: number,
+	): void {
+		if (underline !== TerminalUnderlineKindCode.none) {
+			const underlineY = cellY + this.detailedMetrics.underlinePosition;
+			const thickness = this.detailedMetrics.underlineThickness;
+			if (underline === TerminalUnderlineKindCode.double) {
+				pushRect(
+					overlayData,
+					cellX,
+					underlineY - thickness,
+					cellWidth,
+					thickness,
+					underlineColor,
+					alpha,
+				);
+				pushRect(
+					overlayData,
+					cellX,
+					underlineY + thickness,
+					cellWidth,
+					thickness,
+					underlineColor,
+					alpha,
+				);
+			} else if (underline === TerminalUnderlineKindCode.curly) {
+				for (let offset = 0; offset < cellWidth; offset += 2) {
+					pushRect(
+						overlayData,
+						cellX + offset,
+						underlineY + (Math.floor(offset / 2) % 2),
+						Math.min(2, cellWidth - offset),
+						thickness,
+						underlineColor,
+						alpha,
+					);
+				}
+			} else if (
+				underline === TerminalUnderlineKindCode.dotted ||
+				underline === TerminalUnderlineKindCode.dashed
+			) {
+				const dashWidth = underline === TerminalUnderlineKindCode.dotted ? 1 : 3;
+				for (let offset = 0; offset < cellWidth; offset += dashWidth + 2) {
+					pushRect(
+						overlayData,
+						cellX + offset,
+						underlineY,
+						Math.min(dashWidth, cellWidth - offset),
+						thickness,
+						underlineColor,
+						alpha,
+					);
+				}
+			} else {
+				pushRect(overlayData, cellX, underlineY, cellWidth, thickness, underlineColor, alpha);
+			}
+		}
+		if ((flags & TerminalStyleFlag.strikethrough) !== 0) {
+			pushRect(
+				overlayData,
+				cellX,
+				cellY + this.detailedMetrics.strikethroughPosition,
+				cellWidth,
+				this.detailedMetrics.strikethroughThickness,
+				decorationColor,
+				alpha,
+			);
+		}
+		if ((flags & TerminalStyleFlag.overline) !== 0) {
+			pushRect(
+				overlayData,
+				cellX,
+				cellY + this.detailedMetrics.overlinePosition,
+				cellWidth,
+				this.detailedMetrics.overlineThickness,
+				decorationColor,
+				alpha,
+			);
+		}
+	}
+
+	private submitWebGPUFrame(
+		backgroundData: number[],
+		textData: number[],
+		overlayData: number[],
+		columns: number,
+		rows: number,
+		clearColor: readonly [number, number, number],
+	): void {
+		if (!this.device || !this.context || !this.bgPipeline || !this.textPipeline) return;
+		this.uploadAtlas();
+		this.frameBackgroundInstances = backgroundData.length / 8;
+		this.frameGlyphInstances = textData.length / 13;
+		this.frameOverlayInstances = overlayData.length / 8;
+		if (this.uniformBuffer) {
+			this.device.queue.writeBuffer(
+				this.uniformBuffer,
+				0,
+				new Float32Array([
+					columns * this.metrics.width * this.devicePixelRatio,
+					rows * this.metrics.height * this.devicePixelRatio,
+					this.devicePixelRatio,
+					0,
+				]),
+			);
+			this.frameVertexUploadBytes += 4 * Float32Array.BYTES_PER_ELEMENT;
+		}
+		const commandEncoder = this.device.createCommandEncoder();
+		const renderPass = commandEncoder.beginRenderPass({
+			colorAttachments: [
+				{
+					view: this.context.getCurrentTexture().createView(),
+					clearValue: {
+						r: this.allowTransparency ? 0 : clearColor[0] / 255,
+						g: this.allowTransparency ? 0 : clearColor[1] / 255,
+						b: this.allowTransparency ? 0 : clearColor[2] / 255,
+						a: this.allowTransparency ? 0 : 1,
+					},
+					loadOp: 'clear',
+					storeOp: 'store',
+				},
+			],
+		});
+		if (this.uniformBuffer) {
+			const backgroundBindGroup = this.device.createBindGroup({
+				layout: this.bgPipeline.getBindGroupLayout(0),
+				entries: [{ binding: 0, resource: { buffer: this.uniformBuffer } }],
+			});
+			const backgroundBuffer = this.uploadVertexData('background', backgroundData);
+			if (backgroundBuffer) {
+				renderPass.setPipeline(this.bgPipeline);
+				renderPass.setVertexBuffer(0, backgroundBuffer);
+				renderPass.setBindGroup(0, backgroundBindGroup);
+				renderPass.draw(6, backgroundData.length / 8);
+				this.frameGpuDrawCalls++;
+			}
+			if (textData.length > 0 && this.atlasTexture && this.atlasSampler) {
+				const textBuffer = this.uploadVertexData('text', textData);
+				if (textBuffer) {
+					const textBindGroup = this.device.createBindGroup({
+						layout: this.textPipeline.getBindGroupLayout(0),
+						entries: [
+							{ binding: 0, resource: { buffer: this.uniformBuffer } },
+							{ binding: 1, resource: this.atlasSampler },
+							{ binding: 2, resource: this.atlasTexture.createView() },
+						],
+					});
+					renderPass.setPipeline(this.textPipeline);
+					renderPass.setVertexBuffer(0, textBuffer);
+					renderPass.setBindGroup(0, textBindGroup);
+					renderPass.draw(6, textData.length / 13);
+					this.frameGpuDrawCalls++;
+				}
+			}
+			const overlayBuffer = this.uploadVertexData('overlay', overlayData);
+			if (overlayBuffer) {
+				renderPass.setPipeline(this.bgPipeline);
+				renderPass.setVertexBuffer(0, overlayBuffer);
+				renderPass.setBindGroup(0, backgroundBindGroup);
+				renderPass.draw(6, overlayData.length / 8);
+				this.frameGpuDrawCalls++;
+			}
+		}
+		renderPass.end();
+		this.device.queue.submit([commandEncoder.finish()]);
+	}
 
 	private renderWebGPU(
 		buffer: IRenderable,
@@ -1810,93 +2414,14 @@ export class WebGPURenderer {
 			);
 		}
 
-		this.uploadAtlas();
-
-		this.frameBackgroundInstances = bgData.length / 8;
-		this.frameGlyphInstances = textData.length / 13;
-		this.frameOverlayInstances = overlayData.length / 8;
-
-		const cssWidth = dims.cols * this.metrics.width;
-		const cssHeight = dims.rows * this.metrics.height;
-		if (this.uniformBuffer) {
-			this.device.queue.writeBuffer(
-				this.uniformBuffer,
-				0,
-				new Float32Array([
-					cssWidth * this.devicePixelRatio,
-					cssHeight * this.devicePixelRatio,
-					this.devicePixelRatio,
-					0,
-				]),
-			);
-			this.frameVertexUploadBytes += 4 * Float32Array.BYTES_PER_ELEMENT;
-		}
-
-		const commandEncoder = this.device.createCommandEncoder();
-		const textureView = this.context.getCurrentTexture().createView();
-		const bgR = hexToRGB(this.theme.background);
-		const clearPass = commandEncoder.beginRenderPass({
-			colorAttachments: [
-				{
-					view: textureView,
-					clearValue: {
-						r: this.allowTransparency ? 0 : bgR[0] / 255,
-						g: this.allowTransparency ? 0 : bgR[1] / 255,
-						b: this.allowTransparency ? 0 : bgR[2] / 255,
-						a: this.allowTransparency ? 0 : 1,
-					},
-					loadOp: 'clear',
-					storeOp: 'store',
-				},
-			],
-		});
-
-		if (this.uniformBuffer) {
-			const bgBindGroup = this.device.createBindGroup({
-				layout: this.bgPipeline.getBindGroupLayout(0),
-				entries: [{ binding: 0, resource: { buffer: this.uniformBuffer } }],
-			});
-			const bgBuffer = this.uploadVertexData('background', bgData);
-			if (bgBuffer) {
-				clearPass.setPipeline(this.bgPipeline);
-				clearPass.setVertexBuffer(0, bgBuffer);
-				clearPass.setBindGroup(0, bgBindGroup);
-				clearPass.draw(6, bgData.length / 8);
-				this.frameGpuDrawCalls++;
-			}
-
-			if (textData.length > 0 && this.atlasTexture && this.atlasSampler) {
-				const textBuffer = this.uploadVertexData('text', textData);
-				if (textBuffer) {
-					const textBindGroup = this.device.createBindGroup({
-						layout: this.textPipeline.getBindGroupLayout(0),
-						entries: [
-							{ binding: 0, resource: { buffer: this.uniformBuffer } },
-							{ binding: 1, resource: this.atlasSampler },
-							{ binding: 2, resource: this.atlasTexture.createView() },
-						],
-					});
-
-					clearPass.setPipeline(this.textPipeline);
-					clearPass.setVertexBuffer(0, textBuffer);
-					clearPass.setBindGroup(0, textBindGroup);
-					clearPass.draw(6, textData.length / 13);
-					this.frameGpuDrawCalls++;
-				}
-			}
-
-			const overlayBuffer = this.uploadVertexData('overlay', overlayData);
-			if (overlayBuffer) {
-				clearPass.setPipeline(this.bgPipeline);
-				clearPass.setVertexBuffer(0, overlayBuffer);
-				clearPass.setBindGroup(0, bgBindGroup);
-				clearPass.draw(6, overlayData.length / 8);
-				this.frameGpuDrawCalls++;
-			}
-		}
-
-		clearPass.end();
-		this.device.queue.submit([commandEncoder.finish()]);
+		this.submitWebGPUFrame(
+			bgData,
+			textData,
+			overlayData,
+			dims.cols,
+			dims.rows,
+			hexToRGB(this.theme.background),
+		);
 		this.lastCursorPosition = { x: cursor.x, y: cursor.y };
 		this.preeditDirty = false;
 		this.textBlinkDirty = false;
@@ -1907,6 +2432,323 @@ export class WebGPURenderer {
 	// ==========================================================================
 	// Canvas 2D Fallback Render Path
 	// ==========================================================================
+
+	private renderPackedCanvas2D(
+		buffer: PackedRendererSource,
+		metadata: PackedRendererMetadata,
+		forceAll: boolean,
+	): void {
+		const ctx = this.ctx2d;
+		if (!ctx) return;
+		const { columns, rows } = metadata;
+		const cursor = metadata.cursor;
+		this.syncCursorBlink(cursor.blinking);
+		this.syncTextBlink(this.hasPackedBlinkingCells(buffer));
+		if (buffer.needsFullRedraw || this.preeditDirty || this.fontDirty || this.textBlinkDirty) {
+			forceAll = true;
+		}
+		const needsResize =
+			this.canvas.width !== columns * this.metrics.width * this.devicePixelRatio ||
+			this.canvas.height !== rows * this.metrics.height * this.devicePixelRatio;
+		if (needsResize) {
+			this.resize(columns, rows);
+			forceAll = true;
+		}
+		const preeditLayout = this.getPreeditLayout({ x: cursor.column, y: cursor.row }, columns);
+		const renderedCursorStyle: RenderedCursorStyle = this.focused ? cursor.shape : 'block_hollow';
+		const cursorEnabled =
+			cursor.visible && (!this.focused || this.cursorVisible) && preeditLayout === null;
+		const rowsToRender = new Set<number>();
+		for (let y = 0; y < rows; y++) {
+			if (forceAll || buffer.rows[y]?.dirty === true) {
+				rowsToRender.add(y);
+				if (y > 0) rowsToRender.add(y - 1);
+				if (y + 1 < rows) rowsToRender.add(y + 1);
+			}
+		}
+		if (cursorEnabled) {
+			rowsToRender.add(cursor.row);
+			rowsToRender.add(this.lastCursorPosition.y);
+		}
+
+		const defaultBackground = rgbChannels(metadata.defaultColors.backgroundRgb);
+		const defaultForeground = rgbChannels(metadata.defaultColors.foregroundRgb);
+		for (const y of rowsToRender) {
+			const row = buffer.rows[y];
+			if (!row || y < 0 || y >= rows) continue;
+			const shaping = this.buildPackedRowTextShaping(
+				row,
+				columns,
+				y,
+				cursor,
+				cursorEnabled,
+				preeditLayout,
+			);
+			this.frameRowsRendered++;
+			const lineY = y * this.metrics.height;
+			const lineWidth = columns * this.metrics.width;
+			ctx.clearRect(0, lineY, lineWidth, this.metrics.height);
+			if (!this.allowTransparency) {
+				ctx.fillStyle = `rgb(${defaultBackground[0]}, ${defaultBackground[1]}, ${defaultBackground[2]})`;
+				ctx.fillRect(0, lineY, lineWidth, this.metrics.height);
+			}
+
+			for (let x = 0; x < columns; x++) {
+				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
+				if (width === 0) continue;
+				this.frameCellsVisited++;
+				const flags = row.styleFlags[x] ?? 0;
+				let background = rgbChannels(
+					packedColorRgb(
+						row.backgroundColors[x] ?? TerminalColorEncoding.default,
+						metadata.defaultColors.backgroundRgb,
+					),
+				);
+				if ((flags & TerminalStyleFlag.inverse) !== 0) {
+					background = rgbChannels(
+						packedColorRgb(
+							row.foregroundColors[x] ?? TerminalColorEncoding.default,
+							metadata.defaultColors.foregroundRgb,
+						),
+					);
+				}
+				if (
+					background[0] !== defaultBackground[0] ||
+					background[1] !== defaultBackground[1] ||
+					background[2] !== defaultBackground[2]
+				) {
+					ctx.fillStyle = `rgb(${background[0]}, ${background[1]}, ${background[2]})`;
+					ctx.fillRect(
+						x * this.metrics.width,
+						lineY,
+						width * this.metrics.width,
+						this.metrics.height,
+					);
+				}
+			}
+
+			for (let x = 0; x < columns; x++) {
+				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
+				if (width === 0) continue;
+				if (
+					preeditLayout &&
+					y === preeditLayout.row &&
+					x >= preeditLayout.start &&
+					x < preeditLayout.end
+				)
+					continue;
+				const span = shaping.plan[x];
+				let text = shaping.texts[x] ?? '';
+				if (span) text = span.start === x ? span.text : '';
+				if (text.length > 0) {
+					this.frameGlyphInstances++;
+					if (span) this.frameShapingRuns++;
+				}
+				this.drawPackedCellText2D(ctx, row, shaping, x, y, width, text, metadata);
+			}
+		}
+
+		if (preeditLayout) {
+			this.renderPackedPreedit2D(ctx, preeditLayout, defaultForeground, defaultBackground);
+		} else if (cursorEnabled) {
+			this.renderPackedCursor2D(ctx, buffer, metadata, renderedCursorStyle);
+		}
+		this.lastCursorPosition = { x: cursor.column, y: cursor.row };
+		this.preeditDirty = false;
+		this.textBlinkDirty = false;
+		buffer.markRendered();
+	}
+
+	private drawPackedCellText2D(
+		ctx: CanvasRenderingContext2D,
+		row: PackedRendererRow,
+		shaping: PackedRowTextShaping & { readonly codepoints: Uint32Array },
+		column: number,
+		rowIndex: number,
+		width: number,
+		text: string,
+		metadata: PackedRendererMetadata,
+		colorOverride?: readonly [number, number, number],
+		drawDecorations = true,
+	): void {
+		const flags = row.styleFlags[column] ?? 0;
+		if ((flags & TerminalStyleFlag.invisible) !== 0) return;
+		if ((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible) return;
+		const cellX = column * this.metrics.width;
+		const cellY = rowIndex * this.metrics.height;
+		const cellWidth = width * this.metrics.width;
+		const fontStyle = (flags & TerminalStyleFlag.italic) !== 0 ? 'italic' : 'normal';
+		const fontWeight =
+			(flags & TerminalStyleFlag.bold) !== 0 ? this.fontWeightBold : this.fontWeight;
+		ctx.font = canvasFont(fontStyle, fontWeight, this.fontSize, this.fontFamily);
+		let foreground = rgbChannels(
+			packedColorRgb(
+				row.foregroundColors[column] ?? TerminalColorEncoding.default,
+				metadata.defaultColors.foregroundRgb,
+			),
+		);
+		if ((flags & TerminalStyleFlag.inverse) !== 0) {
+			foreground = rgbChannels(
+				packedColorRgb(
+					row.backgroundColors[column] ?? TerminalColorEncoding.default,
+					metadata.defaultColors.backgroundRgb,
+				),
+			);
+		}
+		foreground = colorOverride ? [...colorOverride] : foreground;
+		ctx.fillStyle = `rgb(${foreground[0]}, ${foreground[1]}, ${foreground[2]})`;
+		if ((flags & TerminalStyleFlag.faint) !== 0) ctx.globalAlpha = 0.5;
+		if (text.length > 0) {
+			this.drawConstrainedText2D(
+				ctx,
+				text,
+				cellX,
+				cellY,
+				shaping.codepoints[column] ?? 0,
+				this.packedConstraintWidth(row, shaping, column, metadata.columns),
+				width,
+			);
+		}
+		if (drawDecorations) {
+			const underline = row.underlineKinds[column] ?? TerminalUnderlineKindCode.none;
+			if (underline !== TerminalUnderlineKindCode.none) {
+				const underlineRgb = packedOptionalColorRgb(
+					row.underlineColors[column] ?? TerminalColorEncoding.none,
+					metadata.defaultColors.foregroundRgb,
+				);
+				const underlineColor = underlineRgb === null ? foreground : rgbChannels(underlineRgb);
+				ctx.strokeStyle = `rgb(${underlineColor[0]}, ${underlineColor[1]}, ${underlineColor[2]})`;
+				ctx.lineWidth = this.detailedMetrics.underlineThickness;
+				const underlineY = cellY + this.detailedMetrics.underlinePosition;
+				if (underline === TerminalUnderlineKindCode.dotted) ctx.setLineDash([1, 2]);
+				else if (underline === TerminalUnderlineKindCode.dashed) ctx.setLineDash([3, 2]);
+				else ctx.setLineDash([]);
+				ctx.beginPath();
+				if (underline === TerminalUnderlineKindCode.curly) {
+					ctx.moveTo(cellX, underlineY);
+					for (let offset = 2; offset <= cellWidth; offset += 2) {
+						ctx.lineTo(cellX + offset, underlineY + (Math.floor(offset / 2) % 2));
+					}
+				} else {
+					ctx.moveTo(cellX, underlineY);
+					ctx.lineTo(cellX + cellWidth, underlineY);
+					if (underline === TerminalUnderlineKindCode.double) {
+						ctx.moveTo(cellX, underlineY - 2);
+						ctx.lineTo(cellX + cellWidth, underlineY - 2);
+					}
+				}
+				ctx.stroke();
+				ctx.setLineDash([]);
+			}
+			if ((flags & TerminalStyleFlag.strikethrough) !== 0) {
+				ctx.fillRect(
+					cellX,
+					cellY + this.detailedMetrics.strikethroughPosition,
+					cellWidth,
+					this.detailedMetrics.strikethroughThickness,
+				);
+			}
+			if ((flags & TerminalStyleFlag.overline) !== 0) {
+				ctx.fillRect(
+					cellX,
+					cellY + this.detailedMetrics.overlinePosition,
+					cellWidth,
+					this.detailedMetrics.overlineThickness,
+				);
+			}
+		}
+		if ((flags & TerminalStyleFlag.faint) !== 0) ctx.globalAlpha = 1;
+	}
+
+	private renderPackedCursor2D(
+		ctx: CanvasRenderingContext2D,
+		buffer: PackedRendererSource,
+		metadata: PackedRendererMetadata,
+		style: RenderedCursorStyle,
+	): void {
+		const { column, row } = metadata.cursor;
+		const cursorColor = rgbChannels(
+			metadata.defaultColors.cursorRgb ?? metadata.defaultColors.foregroundRgb,
+		);
+		ctx.fillStyle = `rgb(${cursorColor[0]}, ${cursorColor[1]}, ${cursorColor[2]})`;
+		if (style === 'block') {
+			const geometry = cursorBlockGeometry(column, row, this.detailedMetrics);
+			ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
+			const packedRow = buffer.rows[row];
+			if (packedRow) {
+				const shaping = this.buildPackedRowTextShaping(
+					packedRow,
+					metadata.columns,
+					row,
+					metadata.cursor,
+					true,
+					null,
+				);
+				const width = packedCellWidth(packedRow.widths[column] ?? TerminalCellWidthCode.spacerTail);
+				if (width > 0) {
+					ctx.save();
+					ctx.beginPath();
+					ctx.rect(geometry.x, geometry.y, geometry.width, geometry.height);
+					ctx.clip();
+					this.drawPackedCellText2D(
+						ctx,
+						packedRow,
+						shaping,
+						column,
+						row,
+						width,
+						shaping.texts[column] ?? '',
+						metadata,
+						rgbChannels(metadata.defaultColors.backgroundRgb),
+						false,
+					);
+					ctx.restore();
+				}
+			}
+			return;
+		}
+		const geometries =
+			style === 'block_hollow'
+				? cursorOutlineGeometry(column, row, this.detailedMetrics)
+				: [cursorStrokeGeometry(style, column, row, this.detailedMetrics)];
+		for (const geometry of geometries) {
+			ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
+		}
+	}
+
+	private renderPackedPreedit2D(
+		ctx: CanvasRenderingContext2D,
+		layout: PreeditLayout,
+		foreground: readonly [number, number, number],
+		background: readonly [number, number, number],
+	): void {
+		const cellY = layout.row * this.metrics.height;
+		const startX = layout.start * this.metrics.width;
+		const width = layout.width * this.metrics.width;
+		ctx.fillStyle = `rgb(${background[0]}, ${background[1]}, ${background[2]})`;
+		ctx.fillRect(startX, cellY, width, this.metrics.height);
+		ctx.font = canvasFont('normal', this.fontWeight, this.fontSize, this.fontFamily);
+		ctx.fillStyle = `rgb(${foreground[0]}, ${foreground[1]}, ${foreground[2]})`;
+		let column = layout.start;
+		for (const cell of layout.cells) {
+			this.drawConstrainedText2D(
+				ctx,
+				cell.text,
+				column * this.metrics.width,
+				cellY,
+				cell.text.codePointAt(0) ?? 0,
+				cell.width >= 2 ? 2 : 1,
+				cell.width,
+			);
+			column += cell.width;
+		}
+		ctx.fillRect(
+			startX,
+			cellY + this.detailedMetrics.underlinePosition,
+			width,
+			this.detailedMetrics.underlineThickness,
+		);
+	}
 
 	private renderCanvas2D(
 		buffer: IRenderable,

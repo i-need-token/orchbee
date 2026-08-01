@@ -1,7 +1,7 @@
 {
 	"name": "@orchbee/terminal",
 	"version": "0.1.0",
-	"description": "Ghostty-powered browser terminal with a WebGPU renderer",
+	"description": "Ghostty-powered browser and projected Host terminal surfaces with a WebGPU renderer",
 	"keywords": [
 		"ghostty",
 		"terminal",
@@ -40,6 +40,9 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:exports": "node ../../scripts/check-package-exports.mjs ."
+	},
+	"dependencies": {
+		"@orchbee/terminal-protocol": "workspace:^"
 	},
 	"devDependencies": {
 		"@rslib/core": "catalog:",

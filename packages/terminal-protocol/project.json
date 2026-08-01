@@ -1,0 +1,13 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "terminal-protocol",
+	"runtime": ["universal"],
+	"stability": "experimental",
+	"responsibility": "Transport-neutral terminal Host identities, negotiation, bounds, lifecycle semantics, binary codecs, and cross-language conformance fixtures.",
+	"nonGoals": [
+		"Owning PTY processes, terminal emulation, local IPC endpoints, network listeners, authentication, encryption, or transport scheduling.",
+		"Owning Electron lifecycle, renderer routing, WebGPU projection, product presentation, or platform effects.",
+		"Owning Project, Workspace, Workbench, Tab, Panel, agent, or product-session models.",
+		"Promising Host crash recovery, operating-system behavior, wire compatibility with an unreleased protocol major, or remote-client security."
+	]
+}

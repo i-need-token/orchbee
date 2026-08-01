@@ -1,0 +1,33 @@
+{
+	"name": "@orchbee/desktop",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Sandboxed Electron client and scoped local broker for the Orchbee Terminal Host",
+	"type": "module",
+	"main": "./dist/main/main.cjs",
+	"scripts": {
+		"benchmark": "node scripts/benchmark-throughput.mjs",
+		"dev": "rsbuild dev",
+		"build": "rsbuild build --log-level error",
+		"start": "electron dist/main/main.cjs",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:system": "playwright test --config playwright.config.ts"
+	},
+	"dependencies": {
+		"@orchbee/i18n": "workspace:^",
+		"@orchbee/terminal": "workspace:^",
+		"@orchbee/terminal-protocol": "workspace:^",
+		"@orchbee/ui": "workspace:^",
+		"electron": "42.8.0",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@playwright/test": "1.61.1",
+		"@rsbuild/core": "catalog:",
+		"@rsbuild/plugin-source-build": "catalog:",
+		"@types/node": "catalog:",
+		"vitest": "catalog:"
+	}
+}

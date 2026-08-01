@@ -1,7 +1,12 @@
+import { TerminalCellWidthCode, TerminalColorEncoding } from '@orchbee/terminal-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FontWeight } from '../../index';
 import { CellFlags, type GhosttyCell, type IRenderable } from '../../types';
-import { type RendererFrameTelemetry, WebGPURenderer } from '../renderer';
+import {
+	type PackedRendererSource,
+	type RendererFrameTelemetry,
+	WebGPURenderer,
+} from '../renderer';
 
 type AtlasDrawImage = (image: CanvasImageSource, dx: number, dy: number) => void;
 
@@ -373,6 +378,76 @@ describe('WebGPURenderer font metrics', () => {
 			atlasPressure: 0,
 		});
 		expect(renderer.getLastFrameTelemetry()?.durationMs).toBeGreaterThanOrEqual(0);
+		renderer.dispose();
+	});
+
+	it('submits packed structure-of-arrays frames through WebGPU', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		const requestAdapter = vi.fn<() => Promise<GPUAdapter>>(async () =>
+			Promise.resolve({ requestDevice: async () => rendering.device } as unknown as GPUAdapter),
+		);
+		vi.stubGlobal('navigator', {
+			gpu: { requestAdapter, getPreferredCanvasFormat: () => 'bgra8unorm' },
+		});
+		const context = {
+			configure: vi.fn<(configuration: GPUCanvasConfiguration) => void>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		const telemetry = vi.fn<(frame: RendererFrameTelemetry) => void>();
+		renderer.setFrameTelemetryCallback(telemetry);
+		await expect(renderer.initGPU()).resolves.toBe(true);
+		const markRendered = vi.fn<() => void>();
+		const source: PackedRendererSource = {
+			markRendered,
+			metadata: {
+				columns: 1,
+				cursor: {
+					blinking: false,
+					column: 0,
+					row: 0,
+					shape: 'block',
+					visible: false,
+				},
+				defaultColors: {
+					backgroundRgb: 0x10_14_18,
+					cursorRgb: null,
+					foregroundRgb: 0xd8_de_e9,
+				},
+				rows: 1,
+			},
+			needsFullRedraw: true,
+			rows: [
+				{
+					backgroundColors: Uint32Array.of(TerminalColorEncoding.default),
+					dirty: true,
+					foregroundColors: Uint32Array.of(TerminalColorEncoding.default),
+					grapheme: () => 'A',
+					styleFlags: Uint16Array.of(0),
+					underlineColors: Uint32Array.of(TerminalColorEncoding.none),
+					underlineKinds: Uint8Array.of(0),
+					widths: Uint8Array.of(TerminalCellWidthCode.narrow),
+				},
+			],
+		};
+
+		renderer.renderPacked(source);
+
+		expect(rendering.submit).toHaveBeenCalledOnce();
+		expect(rendering.writeBuffer).toHaveBeenCalled();
+		expect(markRendered).toHaveBeenCalledOnce();
+		expect(telemetry).toHaveBeenCalledWith(
+			expect.objectContaining({
+				backend: 'webgpu',
+				cellsVisited: 1,
+				gpuDrawCalls: 1,
+				rowsRendered: 1,
+			}),
+		);
 		renderer.dispose();
 	});
 
@@ -1414,6 +1489,43 @@ function createControllableDevice(): {
 		device,
 		lose: (info) => resolveLost?.(info as GPUDeviceLostInfo),
 	};
+}
+
+function createSubmittingDevice() {
+	const submit = vi.fn<GPUQueue['submit']>();
+	const writeBuffer = vi.fn<GPUQueue['writeBuffer']>();
+	const renderPass = {
+		draw: () => {},
+		end: () => {},
+		setBindGroup: () => {},
+		setPipeline: () => {},
+		setVertexBuffer: () => {},
+	};
+	const queue = {
+		copyExternalImageToTexture: () => {},
+		submit,
+		writeBuffer,
+		writeTexture: () => {},
+	};
+	const device = {
+		createBindGroup: () => ({}),
+		createBuffer: () => ({ destroy: () => {} }),
+		createCommandEncoder: () => ({
+			beginRenderPass: () => renderPass,
+			finish: () => ({}),
+		}),
+		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
+		createSampler: () => ({}),
+		createShaderModule: () => ({}),
+		createTexture: () => ({ createView: () => ({}), destroy: () => {} }),
+		destroy: () => {},
+		limits: { maxTextureDimension2D: 8_192 },
+		lost: new Promise<GPUDeviceLostInfo>(() => undefined),
+		popErrorScope: async () => null,
+		pushErrorScope: () => {},
+		queue,
+	} as unknown as GPUDevice;
+	return { device, submit, writeBuffer };
 }
 
 function createBlinkingBuffer(): IRenderable {

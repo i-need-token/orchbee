@@ -84,19 +84,34 @@ export function cellConstraintWidth(
 	column: number,
 	columns: number,
 ): 1 | 2 {
-	const cell = cells[column];
-	if (!cell) return 1;
-	const gridWidth = cell.width >= 2 ? 2 : 1;
+	return cellConstraintWidthFromReader(
+		column,
+		columns,
+		(index) => cells[index]?.codepoint ?? 0,
+		(index) => cells[index]?.width ?? 0,
+	);
+}
+
+/** Resolve symbol spill without materializing a cell array. */
+export function cellConstraintWidthFromReader(
+	column: number,
+	columns: number,
+	codepointAt: (index: number) => number,
+	widthAt: (index: number) => number,
+): 1 | 2 {
+	if (column < 0 || column >= columns) return 1;
+	const codepoint = codepointAt(column);
+	const gridWidth = widthAt(column) >= 2 ? 2 : 1;
 	if (gridWidth > 1) return gridWidth;
-	if (!isSymbolCodepoint(cell.codepoint)) return gridWidth;
+	if (!isSymbolCodepoint(codepoint)) return gridWidth;
 	if (column === columns - 1) return 1;
 
-	const previous = cells[column - 1];
-	if (previous && isSymbolCodepoint(previous.codepoint) && !isGraphicsElement(previous.codepoint)) {
+	const previous = codepointAt(column - 1);
+	if (previous !== 0 && isSymbolCodepoint(previous) && !isGraphicsElement(previous)) {
 		return 1;
 	}
 
-	const nextCodepoint = cells[column + 1]?.codepoint ?? 0;
+	const nextCodepoint = codepointAt(column + 1);
 	return nextCodepoint === 0 || isExpandableSpace(nextCodepoint) ? 2 : 1;
 }
 

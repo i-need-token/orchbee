@@ -57,6 +57,27 @@
 			"ignoreBinaries": ["java"],
 			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "scripts/*.mjs!", "*.ts"]
 		},
+		"packages/terminal-protocol": {
+			"entry": [
+				"src/index.ts!",
+				"src/**/*.unit.test.{ts,tsx}!",
+				"rslib.config.ts!",
+				"vitest.config.ts!",
+				"scripts/*.mjs!"
+			],
+			"ignoreBinaries": ["java"],
+			"project": ["src/**/*.{ts,tsx}!", "scripts/*.mjs!", "*.ts"]
+		},
+		"packages/terminal": {
+			"entry": [
+				"src/index.ts",
+				"src/projected/projected-terminal.ts!",
+				"src/**/*.unit.test.{ts,tsx}",
+				"rslib.config.ts",
+				"vitest.config.ts"
+			],
+			"project": ["src/**/*.{ts,tsx}", "*.ts"]
+		},
 		"packages/tab-strip": {
 			"entry": [
 				"src/index.ts",
@@ -78,6 +99,24 @@
 			],
 			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
 		},
+		"apps/desktop": {
+			"entry": [
+				"scripts/*.mjs!",
+				"src/index.ts!",
+				"src/main/composition/entry.ts!",
+				"src/preload/entry.ts!",
+				"src/preload/index.ts!",
+				"src/renderer/composition/entry.ts!",
+				"src/**/*.unit.test.ts!",
+				"system-tests/*.spec.ts!",
+				"playwright.config.ts!",
+				"rsbuild.config.ts!",
+				"vitest.config.ts!"
+			],
+			"ignoreBinaries": ["ps"],
+			"ignoreDependencies": ["@playwright/test"],
+			"project": ["scripts/*.mjs!", "src/**/*.ts!", "system-tests/*.ts!", "*.ts!"]
+		},
 		"apps/storybook": {
 			"entry": [
 				".storybook/main.ts!",
@@ -87,6 +126,12 @@
 			],
 			"ignoreDependencies": ["@orchbee/tab-strip", "@orchbee/ui", "@orchbee/workbench"],
 			"project": [".storybook/*.ts!", "src/**/*.{ts,tsx}!", "*.ts"]
+		},
+		"apps/terminal-host": {
+			"entry": ["scripts/*.mjs!"],
+			"ignoreBinaries": ["zig"],
+			"ignoreDependencies": ["@orchbee/terminal-protocol!"],
+			"project": ["scripts/*.mjs!"]
 		}
 	}
 }

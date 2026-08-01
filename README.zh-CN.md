@@ -35,7 +35,7 @@ Orchbee 将彼此孤立的终端面板变成管理整个 AI Agent 军团的指�
 
 <!-- TODO: 添加 GIF 展示大量输出（如构建日志、大型 git diff）下的流畅渲染 -->
 
-Orchbee 通过 WebAssembly 将 Ghostty 的 VT 引擎带到浏览器，并结合 GPU 加速渲染器，在 Web 端提供由 Ghostty 驱动、接近原生的终端体验。
+在桌面端，Orchbee 将 PTY 和 Ghostty VT 权威保留在轻量的原生 Host 中，并按显示节奏把紧凑帧发送给 WebGPU renderer。浏览器运行时则继续通过 WebAssembly 使用 Ghostty VT。两条路径都避免让原始终端输出穿过 UI process，以提供 GPU 加速的终端体验。
 
 ### Agent 间协作
 
@@ -69,7 +69,7 @@ Agent 可以直接从终端启动和控制浏览器、检查页面、截图并�
 <details>
 <summary>从源码构建并验证</summary>
 
-**前置条件：** Node.js >=22、Java >=17、Corepack、Git
+**前置条件：** Node.js >=22、Java >=17、Zig 0.15.2、Corepack、Git
 
 ```bash
 git clone https://github.com/orchbee/orchbee.git
@@ -87,6 +87,13 @@ pnpm build
 pnpm web
 ```
 
+构建原生 Terminal Host，并启动当前的单终端 Desktop 切片：
+
+```bash
+pnpm --filter @orchbee/terminal-host build
+pnpm desktop
+```
+
 </details>
 
 ## 技术栈
@@ -94,8 +101,9 @@ pnpm web
 - **Electron** — 桌面应用外壳
 - **React** — 桌面端与 Web 端界面
 - **TypeScript** — 应用与共享包代码
-- **Node.js** — 进程、PTY 与会话管理
-- **Ghostty VT + WebAssembly** — 终端模拟
+- **Node.js** — 仓库工具和 Electron 特权运行时
+- **Zig** — 原生终端 Host 运行时
+- **Ghostty VT + WebAssembly** — 原生和浏览器终端模拟
 - **WebGPU** — GPU 加速终端渲染
 
 ## 社区

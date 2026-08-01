@@ -26,7 +26,9 @@ const uniqueStrings = z.array(z.string()).superRefine((values, context) => {
 const projectContractSchema = z.strictObject({
 	$schema: z.string().min(1),
 	domain: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/),
-	runtime: uniqueStrings.pipe(z.array(z.enum(['browser', 'electron', 'node', 'universal'])).min(1)),
+	runtime: uniqueStrings.pipe(
+		z.array(z.enum(['browser', 'electron', 'native', 'node', 'universal'])).min(1),
+	),
 	stability: z.enum(['experimental', 'stable', 'deprecated']),
 	responsibility: z.string().min(20),
 	nonGoals: uniqueStrings.pipe(z.array(z.string().min(10)).min(1)),

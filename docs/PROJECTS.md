@@ -14,13 +14,13 @@
 
 ## Required fields
 
-| Field            | Contract                                                       |
-| ---------------- | -------------------------------------------------------------- |
-| `domain`         | Stable kebab-case product or engineering domain.               |
-| `runtime`        | One or more of `browser`, `electron`, `node`, or `universal`.  |
-| `stability`      | `experimental`, `stable`, or `deprecated`.                     |
-| `responsibility` | One positive statement of the capability this workspace owns.  |
-| `nonGoals`       | Explicit neighboring responsibilities that do not belong here. |
+| Field            | Contract                                                                |
+| ---------------- | ----------------------------------------------------------------------- |
+| `domain`         | Stable kebab-case product or engineering domain.                        |
+| `runtime`        | One or more of `browser`, `electron`, `native`, `node`, or `universal`. |
+| `stability`      | `experimental`, `stable`, or `deprecated`.                              |
+| `responsibility` | One positive statement of the capability this workspace owns.           |
+| `nonGoals`       | Explicit neighboring responsibilities that do not belong here.          |
 
 Responsibility and non-goals are architectural placement rules. Update them only when ownership genuinely moves; do not broaden them merely to justify an implementation.
 

@@ -2,8 +2,11 @@ node_modules/
 dist/
 out/
 dogfood-output/
+.zig-cache/
+zig-out/
 .DS_Store
 *.log
+/test-results/
 
 # IDE
 .vscode/
@@ -17,6 +20,8 @@ dogfood-output/
 /packages/tab-strip/.tools/
 /packages/actions/.tools/
 /packages/workbench/.tools/
+/packages/terminal-protocol/.tools/
+/packages/terminal-protocol/formal/tla/states/
 /packages/tab-strip/formal/tla/states/
 /packages/workbench/formal/tla/states/
 /packages/tab-strip/test-results/

@@ -66,8 +66,9 @@ schemas/        # Machine-readable repository contract schemas
 - **Routing**: TanStack Router
 - **Client State**: Zustand
 - **UI**: shadcn/ui with Base UI primitives
+- **Native Runtime**: Zig 0.15.2 + pinned Ghostty VT
 - **Tooling Runtime**: Node.js (>=22)
 - **Lint**: oxlint (with typescript, unicorn, oxc, react, import plugins)
-- **Format**: oxfmt
+- **Format**: oxfmt + `zig fmt`
 - **Schema**: Zod 4 (parse at boundaries, trust inside)
 - **Monorepo**: pnpm workspaces (`apps/*`, `packages/*`)

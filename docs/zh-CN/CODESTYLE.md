@@ -2,7 +2,8 @@
 
 ## 格式化
 
-- `.oxfmtrc.json` 是权威格式化配置；修改受格式化工具管理的文件后，从仓库根目录运行 `pnpm format`。
+- `.oxfmtrc.json` 对 Oxfmt 管理的文件具有权威性；Zig 源码和构建文件使用工作区精确固定的 `zig fmt` 实现。
+- 修改受格式化工具管理的文件后，从仓库根目录运行 `pnpm format`；它会调用 Oxfmt 和每个已声明的原生工作区格式化器。
 - `useTabs`：在文件格式允许使用 Tab 缩进的地方一律使用 Tab。
 - `singleQuote` 和 `jsxSingleQuote`：JavaScript、TypeScript 和 JSX 字符串使用单引号，除非使用双引号能让转义更清晰。
 - `semi`：语句以分号结束。

@@ -35,7 +35,7 @@ The name combines **orch**estrator with **bee**—independent workers coordinati
 
 <!-- TODO: Add GIF showing fast rendering with heavy output (e.g. build logs, large git diffs) -->
 
-Orchbee brings Ghostty's VT engine to the browser through WebAssembly and pairs it with a GPU-accelerated renderer to deliver a Ghostty-powered, native-like terminal experience on the web.
+On desktop, Orchbee keeps the PTY and Ghostty VT authority in a lightweight native Host and sends display-cadenced packed frames to a WebGPU renderer. The browser runtime retains Ghostty VT through WebAssembly. Both paths avoid moving raw terminal output through the UI process for a GPU-accelerated terminal experience.
 
 ### Agent-to-Agent Collaboration
 
@@ -69,7 +69,7 @@ Agents can launch and control browsers directly from the terminal, inspect pages
 <details>
 <summary>Build and verify from source</summary>
 
-**Prerequisites:** Node.js >=22, Java >=17, Corepack, Git
+**Prerequisites:** Node.js >=22, Java >=17, Zig 0.15.2, Corepack, Git
 
 ```bash
 git clone https://github.com/orchbee/orchbee.git
@@ -87,6 +87,13 @@ Start the browser Workbench with its deterministic in-memory session adapter:
 pnpm web
 ```
 
+Build the native Terminal Host and start the current single-terminal Desktop slice:
+
+```bash
+pnpm --filter @orchbee/terminal-host build
+pnpm desktop
+```
+
 </details>
 
 ## Tech Stack
@@ -94,8 +101,9 @@ pnpm web
 - **Electron** — desktop application shell
 - **React** — desktop and web interfaces
 - **TypeScript** — application and shared package code
-- **Node.js** — process, PTY, and session management
-- **Ghostty VT + WebAssembly** — terminal emulation
+- **Node.js** — repository tooling and Electron privileged runtime
+- **Zig** — native terminal Host runtime
+- **Ghostty VT + WebAssembly** — native and browser terminal emulation
 - **WebGPU** — GPU-accelerated terminal rendering
 
 ## Community

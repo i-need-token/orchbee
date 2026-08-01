@@ -1,0 +1,14 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["es2022", "dom", "dom.iterable"],
+		"types": ["node", "vitest/globals"]
+	},
+	"include": [
+		"src",
+		"system-tests",
+		"playwright.config.ts",
+		"rsbuild.config.ts",
+		"vitest.config.ts"
+	]
+}

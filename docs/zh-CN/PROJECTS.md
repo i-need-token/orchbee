@@ -14,13 +14,13 @@
 
 ## 必需字段
 
-| 字段             | 契约                                                          |
-| ---------------- | ------------------------------------------------------------- |
-| `domain`         | 稳定的 kebab-case 产品或工程领域。                            |
-| `runtime`        | `browser`、`electron`、`node` 或 `universal` 中的一项或多项。 |
-| `stability`      | `experimental`、`stable` 或 `deprecated`。                    |
-| `responsibility` | 一条正面陈述，说明这个工作区拥有的能力。                      |
-| `nonGoals`       | 明确说明不属于这里的相邻职责。                                |
+| 字段             | 契约                                                                    |
+| ---------------- | ----------------------------------------------------------------------- |
+| `domain`         | 稳定的 kebab-case 产品或工程领域。                                      |
+| `runtime`        | `browser`、`electron`、`native`、`node` 或 `universal` 中的一项或多项。 |
+| `stability`      | `experimental`、`stable` 或 `deprecated`。                              |
+| `responsibility` | 一条正面陈述，说明这个工作区拥有的能力。                                |
+| `nonGoals`       | 明确说明不属于这里的相邻职责。                                          |
 
 职责和非目标是架构放置规则。只在所有权确实发生转移时更新它们；不要仅仅为了证明某项实现合理就扩大它们。
 

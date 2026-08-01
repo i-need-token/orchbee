@@ -2,7 +2,8 @@
 
 ## Formatting
 
-- `.oxfmtrc.json` is the authoritative formatting configuration; run `pnpm format` from the repository root after changing formatter-managed files.
+- `.oxfmtrc.json` is authoritative for Oxfmt-managed files; Zig source and build files use the exact workspace-pinned `zig fmt` implementation.
+- Run `pnpm format` from the repository root after changing formatter-managed files; it invokes Oxfmt and every declared native workspace formatter.
 - `useTabs`: Indent with tabs wherever the file format permits indentation with tabs.
 - `singleQuote` and `jsxSingleQuote`: Use single quotes in JavaScript, TypeScript, and JSX strings unless escaping makes double quotes clearer.
 - `semi`: Terminate statements with semicolons.
