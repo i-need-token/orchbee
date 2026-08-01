@@ -3,11 +3,11 @@
 	"domain": "desktop",
 	"runtime": ["browser", "electron", "node"],
 	"stability": "experimental",
-	"responsibility": "Electron product process composition, sandboxed renderer capability brokering, desktop terminal interaction composition, and the local Desktop-to-Terminal-Host transport boundary.",
+	"responsibility": "Electron product process composition, durable terminal recovery binding and Host inventory reconciliation, sandboxed renderer capability brokering, desktop terminal interaction composition, and the local Desktop-to-Terminal-Host transport boundary.",
 	"nonGoals": [
 		"Owning Project, Workspace, Workbench, Tab, Panel, agent, or product-session models in the terminal composition.",
 		"Owning authoritative VT state, PTY processes, terminal scrollback, or terminal history policy.",
 		"Providing network listeners, sharing, remote authentication, mobile clients, or remote terminal gateways.",
-		"Providing versioned Host installation, Desktop update activation, or recovery-ledger reconciliation before their owning slices."
+		"Providing versioned Host installation, Desktop update activation, recovered-terminal product presentation, or product topology."
 	]
 }

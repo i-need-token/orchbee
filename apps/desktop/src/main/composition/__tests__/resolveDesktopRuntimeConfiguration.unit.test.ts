@@ -5,11 +5,12 @@ import { describe, expect, it } from 'vitest';
 import { resolveDesktopRuntimeConfiguration } from '../resolveDesktopRuntimeConfiguration';
 
 describe('resolveDesktopRuntimeConfiguration', () => {
-	it('resolves the explicit development Host and a stable scoped creation identity', () => {
+	it('resolves the explicit Host, recovery ledger, and normalized launch profile', () => {
 		const input = {
 			applicationPath: path.resolve('/repo/apps/desktop'),
 			environment: {
 				ORCHBEE_DESKTOP_ENDPOINT_ID: 'ab'.repeat(16),
+				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: path.resolve('/private/recovery'),
 				ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: path.resolve('/private/runtime'),
 				ORCHBEE_TERMINAL_HOST_BINARY: path.resolve('/private/bin/terminal-host'),
 				SHELL: '/bin/zsh',
@@ -24,11 +25,12 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first).toEqual(second);
 		expect(first.binaryPath).toBe(path.resolve('/private/bin/terminal-host'));
 		expect(first.runtimeDirectory).toBe(path.resolve('/private/runtime'));
-		expect(first.createTerminal.launch).toMatchObject({
+		expect(first.recoveryLedgerPath).toBe(path.resolve('/private/recovery/bindings-v1.json'));
+		expect(first.terminalLaunch).toMatchObject({
 			currentDirectory: path.resolve('/users/orchbee'),
 			executable: '/bin/zsh',
 		});
-		expect(first.createTerminal.launch.terminalProfile.palette).toHaveLength(256);
+		expect(first.terminalLaunch.terminalProfile.palette).toHaveLength(256);
 	});
 
 	it('uses the built sibling Host and platform shell defaults when no override exists', () => {
@@ -43,8 +45,12 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.binaryPath).toBe(
 			path.resolve('/repo/apps/terminal-host/zig-out/bin/terminal-host'),
 		);
-		expect(configuration.createTerminal.launch.executable).toBe('/bin/sh');
+		expect(configuration.terminalLaunch.executable).toBe('/bin/sh');
 		expect(configuration.endpointId).toMatch(/^[0-9a-f]{32}$/u);
+		expect(configuration.recoveryBindingId).toBe('desktop-terminal-foundation');
+		expect(configuration.recoveryLedgerPath).toBe(
+			path.resolve('/users/orchbee/.config/orchbee/terminal-recovery/bindings-v1.json'),
+		);
 		expect(configuration.runtimeDirectory).toMatch(/^\/tmp\/orchbee-desktop-[0-9a-f]{12}$/u);
 	});
 });

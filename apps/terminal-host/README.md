@@ -6,7 +6,8 @@ Native one-terminal runtime and pinned Ghostty VT integration boundary for Orchb
 
 This workspace owns the one-terminal native Host core, PTY lifecycle, live projection producer,
 bounded history and selection authority, semantic input authority, and secure local IPC runtime
-through Slice 6. The launcher ABI is
+through Slice 7. Slice 7 changes no Host product ownership: Desktop consumes the existing bounded
+inventory and idempotent Create contract to recover its opaque terminal identity. The launcher ABI is
 `terminal-host serve --runtime-directory <absolute-path> --endpoint-id <32-lowercase-hex>`.
 The runtime directory and endpoint identity are supplied by the future Desktop runtime manager;
 the Host interprets no product placement or release-channel model.
@@ -22,6 +23,12 @@ input is at most 4 MiB, and one input request is at most the negotiated 1 MiB. A
 `exited` only after both child completion and PTY drain; an unexpected PTY read failure is not
 classified as a drain. Disconnect removes that connection's attachments and never sends the
 platform termination request.
+
+`ListTerminals` exposes at most one opaque terminal summary: exact identity, lifecycle phase,
+dimensions, revision, termination-requested fact, and optional exit result. The Host never assigns
+that terminal to a product concept and never adopts, recreates, terminates, or disposes it during
+Desktop reconciliation. Replaying an identical `CreationId` and launch in the same Host epoch is
+idempotent; a different launch is a typed creation conflict.
 
 On POSIX, the Host requires an existing absolute runtime directory owned by the effective user with
 no group or other permissions. It takes an endpoint-specific lifetime file lock, publishes a `0600`

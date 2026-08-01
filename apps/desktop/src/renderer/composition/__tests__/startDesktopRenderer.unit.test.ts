@@ -44,6 +44,7 @@ describe('startDesktopRenderer', () => {
 		const applyFrame = vi.fn<ProjectedTerminal['applyFrame']>(() => 'committed');
 		const applyRows = vi.fn<ProjectedTerminal['applyRows']>(() => 'committed');
 		const notifyLinkOpened = vi.fn<ProjectedTerminal['notifyLinkOpened']>();
+		const notifyExited = vi.fn<ProjectedTerminal['notifyExited']>();
 		let emitExit: Parameters<ProjectedTerminal['onExit']>[0] = () => undefined;
 		let emitFrameTelemetry: Parameters<ProjectedTerminal['onFrameTelemetry']>[0] = () => undefined;
 		let options: ProjectedTerminalOptions | undefined;
@@ -66,7 +67,7 @@ describe('startDesktopRenderer', () => {
 						revision: 0n,
 						totalRows: 0n,
 					})),
-					notifyExited: vi.fn<ProjectedTerminal['notifyExited']>(),
+					notifyExited,
 					notifyBrokerFailure: vi.fn<ProjectedTerminal['notifyBrokerFailure']>(),
 					notifyHistoryChanged: vi.fn<ProjectedTerminal['notifyHistoryChanged']>(),
 					notifyLinkOpened,
@@ -123,9 +124,19 @@ describe('startDesktopRenderer', () => {
 		const channel = new MessageChannel();
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: false,
 			canResize: true,
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalExit: {
+				exit: { code: 0, kind: 'exit-code' as const },
+				finalRevision: CanonicalUint64TextSchema.parse('1'),
+				identity: {
+					creationId: CreationIdSchema.parse('22'.repeat(16)),
+					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+					terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+				},
+			},
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 		};
 		const originalHTMLElement = globalThis.HTMLElement;
@@ -191,6 +202,9 @@ describe('startDesktopRenderer', () => {
 				fontFamily: '"Menlo", monospace',
 				fontSize: 15,
 			});
+			expect(options?.inputEnabled).toBe(false);
+			expect(notifyExited).toHaveBeenCalledWith(bootstrap.terminalExit);
+			expect(dataset['desktopTerminalAttachmentId']).toBe(bootstrap.attachmentId);
 			expect(dataset['desktopTerminalState']).toBe('exited');
 			expect(dataset['desktopTerminalCommittedFrames']).toBe('1');
 			expect(dataset['desktopTerminalFinalFramePresented']).toBe('true');

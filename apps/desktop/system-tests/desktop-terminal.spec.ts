@@ -25,6 +25,7 @@ const hostBinary = path.join(
 const desktopMain = path.join(repositoryRoot, 'apps', 'desktop', 'dist', 'main', 'main.cjs');
 
 let electronApplication: ElectronApplication | undefined;
+let desktopEnvironment: Record<string, string> | undefined;
 let hostProcess: ChildProcessWithoutNullStreams | undefined;
 let runtimeDirectory: string | undefined;
 
@@ -57,22 +58,22 @@ test.beforeEach(async () => {
 			(entry): entry is [string, string] => entry[1] !== undefined,
 		),
 	);
-	electronApplication = await electron.launch({
-		args: [desktopMain],
-		env: {
-			...environment,
-			ORCHBEE_DESKTOP_ENDPOINT_ID: endpointId,
-			ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: runtimeDirectory,
-			ORCHBEE_DESKTOP_TRACE: '1',
-			ORCHBEE_TERMINAL_HOST_BINARY: hostBinary,
-			SHELL: process.platform === 'win32' ? (environment['ComSpec'] ?? 'cmd.exe') : '/bin/sh',
-		},
-	});
+	desktopEnvironment = {
+		...environment,
+		ORCHBEE_DESKTOP_ENDPOINT_ID: endpointId,
+		ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: runtimeDirectory,
+		ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: runtimeDirectory,
+		ORCHBEE_DESKTOP_TRACE: '1',
+		ORCHBEE_TERMINAL_HOST_BINARY: hostBinary,
+		SHELL: process.platform === 'win32' ? (environment['ComSpec'] ?? 'cmd.exe') : '/bin/sh',
+	};
+	electronApplication = await launchDesktop();
 });
 
 test.afterEach(async () => {
 	await electronApplication?.close().catch(() => undefined);
 	electronApplication = undefined;
+	desktopEnvironment = undefined;
 	const runningHost = hostProcess;
 	if (runningHost !== undefined && runningHost.exitCode === null) {
 		runningHost.kill();
@@ -249,6 +250,21 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 		),
 	).toEqual(['https://orchbee.dev/']);
 
+	const identityBeforeReload = await terminalDocumentIdentity(root);
+	await application.evaluate(({ BrowserWindow }) => {
+		BrowserWindow.getAllWindows()[0]?.webContents.reload();
+	});
+	await expect(root).toHaveAttribute('data-desktop-terminal-state', 'open');
+	await expect
+		.poll(async () => (await terminalDocumentIdentity(root)).attachmentId)
+		.not.toBe(identityBeforeReload.attachmentId);
+	const identityAfterReload = await terminalDocumentIdentity(root);
+	expect(identityAfterReload).toMatchObject({
+		creationId: identityBeforeReload.creationId,
+		terminalId: identityBeforeReload.terminalId,
+	});
+	await expect(page.locator('[role="log"]')).toContainText('interaction-tail-marker');
+
 	await input.focus();
 	await input.pressSequentially('stty size; exit', { delay: 1 });
 	await input.press('Enter');
@@ -268,11 +284,79 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	const traceText = traceLines.join('');
 	expect(traceText).toContain('"terminalFramesReceived":');
 	expect(traceText).toContain('"framesForwarded":');
+	const identityBeforeExitedRestart = await terminalDocumentIdentity(root);
 
 	await application.close();
 	electronApplication = undefined;
 	expect(hostProcess?.exitCode).toBeNull();
+
+	const exitedRestart = await launchDesktop();
+	electronApplication = exitedRestart;
+	const exitedPage = await exitedRestart.firstWindow();
+	const exitedRoot = exitedPage.locator('#root');
+	await expect(exitedRoot).toHaveAttribute('data-desktop-terminal-state', 'exited');
+	await expect(exitedRoot).toHaveAttribute('data-desktop-terminal-final-frame-presented', 'true');
+	const identityAfterExitedRestart = await terminalDocumentIdentity(exitedRoot);
+	expect(identityAfterExitedRestart).toMatchObject({
+		creationId: identityBeforeExitedRestart.creationId,
+		terminalId: identityBeforeExitedRestart.terminalId,
+	});
+	expect(identityAfterExitedRestart.attachmentId).not.toBe(
+		identityBeforeExitedRestart.attachmentId,
+	);
+	await exitedRestart.close();
+	electronApplication = undefined;
 });
+
+test('restarts Electron Main while retaining the Host terminal identity and contents', async () => {
+	const firstApplication = electronApplication;
+	if (firstApplication === undefined) throw new Error('Electron application did not start.');
+	const firstPage = await firstApplication.firstWindow();
+	const firstRoot = firstPage.locator('#root');
+	await expect(firstRoot).toHaveAttribute('data-desktop-terminal-state', 'open');
+	const input = firstPage.getByRole('textbox');
+	await input.pressSequentially("printf 'recovery-main-marker\\n'");
+	await input.press('Enter');
+	await expect(firstPage.locator('[role="log"]')).toContainText('recovery-main-marker');
+	const identityBeforeRestart = await terminalDocumentIdentity(firstRoot);
+
+	await firstApplication.close();
+	electronApplication = undefined;
+	expect(hostProcess?.exitCode).toBeNull();
+
+	const restartedApplication = await launchDesktop();
+	electronApplication = restartedApplication;
+	const restartedPage = await restartedApplication.firstWindow();
+	const restartedRoot = restartedPage.locator('#root');
+	await expect(restartedRoot).toHaveAttribute('data-desktop-terminal-state', 'open');
+	await expect(restartedPage.locator('[role="log"]')).toContainText('recovery-main-marker');
+	const identityAfterRestart = await terminalDocumentIdentity(restartedRoot);
+	expect(identityAfterRestart).toMatchObject({
+		creationId: identityBeforeRestart.creationId,
+		terminalId: identityBeforeRestart.terminalId,
+	});
+	expect(identityAfterRestart.attachmentId).not.toBe(identityBeforeRestart.attachmentId);
+	expect(identityAfterRestart.hostEpoch).toBe(identityBeforeRestart.hostEpoch);
+});
+
+async function launchDesktop(): Promise<ElectronApplication> {
+	if (desktopEnvironment === undefined) throw new Error('Desktop test environment is unavailable.');
+	return electron.launch({ args: [desktopMain], env: desktopEnvironment });
+}
+
+async function terminalDocumentIdentity(root: Locator): Promise<{
+	readonly attachmentId: string | null;
+	readonly creationId: string | null;
+	readonly hostEpoch: string | null;
+	readonly terminalId: string | null;
+}> {
+	return {
+		attachmentId: await root.getAttribute('data-desktop-terminal-attachment-id'),
+		creationId: await root.getAttribute('data-desktop-terminal-creation-id'),
+		hostEpoch: await root.getAttribute('data-desktop-terminal-host-epoch'),
+		terminalId: await root.getAttribute('data-desktop-terminal-id'),
+	};
+}
 
 async function terminalCellCenter(
 	root: Locator,

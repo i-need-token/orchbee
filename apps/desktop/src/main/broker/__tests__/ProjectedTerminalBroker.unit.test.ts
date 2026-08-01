@@ -352,4 +352,53 @@ describe('ProjectedTerminalBroker', () => {
 		});
 		expect(broker.metrics.externalTargetsOpened).toBe(1);
 	});
+
+	it('awaits Host detach exactly once before completing attachment retirement', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+		};
+		let finishDetach: (() => void) | undefined;
+		const requestControl = vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(
+			() =>
+				new Promise((resolve) => {
+					finishDetach = () => resolve({ attachmentId: bootstrap.attachmentId });
+				}),
+		);
+		const host = {
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage: vi.fn<(...arguments_: unknown[]) => void>(),
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap);
+		broker.start();
+
+		const first = broker.dispose();
+		const second = broker.dispose();
+		expect(first).toBe(second);
+		expect(requestControl).toHaveBeenCalledWith(
+			MessageKind.detachTerminal,
+			{ attachmentId: bootstrap.attachmentId },
+			MessageKind.detachTerminal,
+			expect.anything(),
+		);
+		let completed = false;
+		void first.then(() => {
+			completed = true;
+		});
+		await Promise.resolve();
+		expect(completed).toBe(false);
+		finishDetach?.();
+		await first;
+		expect(completed).toBe(true);
+		expect(requestControl).toHaveBeenCalledOnce();
+	});
 });

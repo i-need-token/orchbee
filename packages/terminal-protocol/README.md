@@ -11,18 +11,18 @@ terminal, or own Project, Workspace, Workbench, Tab, Panel, agent, or product-se
 
 ## Public API
 
-| Area                 | Public contract                                                                                        |
-| -------------------- | ------------------------------------------------------------------------------------------------------ |
-| Identity             | Strict non-zero 128-bit `HostEpoch`, `CreationId`, `TerminalId`, `ClientId`, and `AttachmentId` values |
-| Compatibility        | Protocol `1.0`/`1.1`/`1.2` validation and deterministic highest-overlap minor negotiation              |
-| Control              | Handshake, lifecycle, attachment, projection/history demand, row reads, selection/export, and failures |
-| Transport            | A bounded 64-byte envelope for JSON, raw/semantic input, terminal frames, and row-window payloads      |
-| Projection           | Format-2 full-row snapshots/deltas decoded into typed columns rather than per-cell JavaScript objects  |
-| History              | Format-1.1 render/text row windows, stable origins, applied anchors, and explicit eviction semantics   |
-| Selection            | Host-owned gestures/commands and bounded acknowledged plain, HTML, or VT export chunks                 |
-| Input                | Bounded raw, key, committed-text, mouse, focus, and paste codecs scoped by `AttachmentId`              |
-| Lifecycle            | A serializable deterministic transition function that returns commands without performing effects      |
-| Correctness evidence | Stable-seed property tests, malformed corpus, checked TLA+ models, and Zig conformance tests           |
+| Area                 | Public contract                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Identity             | Strict non-zero 128-bit `HostEpoch`, `CreationId`, `TerminalId`, `ClientId`, and `AttachmentId` values                    |
+| Compatibility        | Protocol `1.0`/`1.1`/`1.2` validation and deterministic highest-overlap minor negotiation                                 |
+| Control              | Handshake, bounded inventory, lifecycle, attachment, projection/history demand, row reads, selection/export, and failures |
+| Transport            | A bounded 64-byte envelope for JSON, raw/semantic input, terminal frames, and row-window payloads                         |
+| Projection           | Format-2 full-row snapshots/deltas decoded into typed columns rather than per-cell JavaScript objects                     |
+| History              | Format-1.1 render/text row windows, stable origins, applied anchors, and explicit eviction semantics                      |
+| Selection            | Host-owned gestures/commands and bounded acknowledged plain, HTML, or VT export chunks                                    |
+| Input                | Bounded raw, key, committed-text, mouse, focus, and paste codecs scoped by `AttachmentId`                                 |
+| Lifecycle            | A serializable deterministic transition function that returns commands without performing effects                         |
+| Correctness evidence | Stable-seed property tests, malformed corpus, checked TLA+ models, and Zig conformance tests                              |
 
 Every decoder returns a `ProtocolResult`. Malformed or unsupported peer input is an expected
 failure variant and never requires catching a thrown exception.
@@ -78,6 +78,10 @@ frame model additionally covers mutation/capture separation, projection demand, 
 capture/encode failure, blocked recovery, duplicates, finalization, and two independent attachments.
 The history-interaction model covers one bounded row flight, pending-to-committed anchor promotion,
 coalesced history observation, selection eviction, chunked export, stale search pages, and detach.
+The recovery-binding model covers a single Main owner, durable create intent, same-epoch replay,
+cross-epoch ambiguity, corrupt ledgers, orphan inventory, renderer attachment generations, stale
+messages, and final-revision publication. It models Desktop policy over protocol identities; it does
+not move recovery or product topology ownership into this package or the Host.
 
 The complete current contract, wire layouts, transition record, refinement mapping, claims, and
 evidence limits are in [`references/protocol-v1.md`](references/protocol-v1.md).

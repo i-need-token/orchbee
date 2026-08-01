@@ -31,9 +31,11 @@ export const PROJECTED_ATTACHMENT_WINDOW_MESSAGE = 'orchbee.desktop.projected-at
 
 export const ProjectedAttachmentBootstrapSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
+	canInput: z.boolean().optional(),
 	canResize: z.boolean(),
 	creationId: CreationIdSchema,
 	hostEpoch: HostEpochSchema,
+	terminalExit: TerminalExitedSchema.nullable().optional(),
 	terminalId: TerminalIdSchema,
 });
 

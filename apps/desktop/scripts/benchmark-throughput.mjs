@@ -514,6 +514,7 @@ async function runDesktopBenchmark(file, runNumber) {
 			env: {
 				...environment,
 				ORCHBEE_DESKTOP_ENDPOINT_ID: endpointId,
+				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: runtimeDirectory,
 				ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: runtimeDirectory,
 				ORCHBEE_DESKTOP_TRACE: '1',
 				ORCHBEE_TERMINAL_HOST_BINARY: hostBinary,

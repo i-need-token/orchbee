@@ -107,6 +107,7 @@ export class ProjectedTerminalBroker {
 	#clipboardCommits = 0;
 	#commandsAccepted = 0;
 	#commandsRejected = 0;
+	#disposePromise: Promise<void> | undefined;
 	#disposed = false;
 	#externalTargetsOpened = 0;
 	#frameBytesForwarded = 0;
@@ -158,8 +159,8 @@ export class ProjectedTerminalBroker {
 		this.#port.start();
 	}
 
-	dispose(): void {
-		if (this.#disposed) return;
+	dispose(): Promise<void> {
+		if (this.#disposePromise !== undefined) return this.#disposePromise;
 		const activeCopy = this.#activeSelectionCopy;
 		this.#activeSelectionCopy = undefined;
 		this.#disposed = true;
@@ -168,10 +169,19 @@ export class ProjectedTerminalBroker {
 		this.#port.off('message', this.#handleRendererMessage);
 		this.#port.off('close', this.#handlePortClose);
 		this.#port.close();
+		this.#disposePromise = this.#detach(activeCopy);
+		return this.#disposePromise;
+	}
+
+	readonly #handlePortClose = (): void => {
+		void this.dispose();
+	};
+
+	async #detach(activeCopy: ActiveSelectionCopy | undefined): Promise<void> {
 		if (activeCopy !== undefined) {
-			void this.#requestSelectionExportCancel(activeCopy, 'disposed').catch(() => undefined);
+			await this.#requestSelectionExportCancel(activeCopy, 'disposed').catch(() => undefined);
 		}
-		void this.#host
+		await this.#host
 			.requestControl(
 				MessageKind.detachTerminal,
 				{ attachmentId: this.#bootstrap.attachmentId },
@@ -180,8 +190,6 @@ export class ProjectedTerminalBroker {
 			)
 			.catch(() => undefined);
 	}
-
-	readonly #handlePortClose = (): void => this.dispose();
 
 	readonly #handleRendererMessage = (event: MessageEvent): void => {
 		if (this.#disposed) return;

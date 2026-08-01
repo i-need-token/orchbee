@@ -5,13 +5,14 @@ import {
 	AttachmentCapabilitiesSchema,
 	AttachmentIdSchema,
 	ClientIdSchema,
-	CreateTerminalV1_1Schema,
 	decodeControlJson,
 	MessageKind,
 	TerminalExitedSchema,
-	TerminalIdentitySchema,
+	TerminalPhase,
 	type DecodedProtocolEnvelope,
+	type TerminalExited,
 	type TerminalIdentity,
+	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
 import {
 	BrowserWindow,
@@ -23,12 +24,22 @@ import {
 import { PROJECTED_ATTACHMENT_IPC_CHANNEL, ProjectedAttachmentBootstrapSchema } from '../../shared';
 import { ProjectedTerminalBroker, type ProjectedTerminalBrokerMetrics } from '../broker';
 import { DevelopmentHostRuntime, type HostConnection } from '../host';
+import {
+	FileTerminalRecoveryLedger,
+	TerminalRecoveryCoordinator,
+	type TerminalRecoveryOutcome,
+} from '../recovery';
 import type { DesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 
 interface DesktopBrokerHandle {
 	readonly metrics: ProjectedTerminalBrokerMetrics;
-	dispose(): void;
+	dispose(): Promise<void>;
 	start(): void;
+}
+
+interface DesktopTerminalRecoveryHandle {
+	reconcile(): Promise<TerminalRecoveryOutcome>;
+	recordExit(event: TerminalExited): Promise<void>;
 }
 
 export interface DesktopApplicationOptions {
@@ -36,6 +47,7 @@ export interface DesktopApplicationOptions {
 	readonly rendererFilePath: string;
 	readonly rendererUrl?: string;
 	readonly runtime: DesktopRuntimeConfiguration;
+	readonly singleInstanceLockOwned: boolean;
 	readonly traceCopyPath: boolean;
 }
 
@@ -50,6 +62,11 @@ export interface DesktopApplicationDependencies {
 		readonly port1: MessagePortMain;
 		readonly port2: MessagePortMain;
 	};
+	readonly createRecovery: (
+		host: HostConnection,
+		configuration: DesktopRuntimeConfiguration,
+		randomIdentifier: () => string,
+	) => DesktopTerminalRecoveryHandle;
 	readonly createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
 	readonly randomIdentifier: () => string;
 	readonly writeTrace: (trace: unknown) => void;
@@ -64,6 +81,16 @@ const defaultDependencies: DesktopApplicationDependencies = {
 		}).connect(),
 	createBroker: (host, port, bootstrap) => new ProjectedTerminalBroker(host, port, bootstrap),
 	createMessageChannel: () => new MessageChannelMain(),
+	createRecovery: (host, configuration, randomIdentifier) =>
+		new TerminalRecoveryCoordinator(
+			host,
+			new FileTerminalRecoveryLedger(configuration.recoveryLedgerPath),
+			{
+				bindingId: configuration.recoveryBindingId,
+				launch: configuration.terminalLaunch,
+			},
+			{ randomCreationId: randomIdentifier },
+		),
 	createWindow: (options) => new BrowserWindow(options),
 	randomIdentifier: () => randomBytes(16).toString('hex'),
 	writeTrace: (trace) => console.info(JSON.stringify(trace)),
@@ -72,16 +99,26 @@ const defaultDependencies: DesktopApplicationDependencies = {
 export class DesktopApplication {
 	readonly #dependencies: DesktopApplicationDependencies;
 	readonly #options: DesktopApplicationOptions;
+	#attachmentFailure: Error | undefined;
+	#attachmentTransition = Promise.resolve();
 	#broker: DesktopBrokerHandle | undefined;
 	#connection: HostConnection | undefined;
+	#documentGeneration = 0;
 	#identity: TerminalIdentity | undefined;
-	#removeTraceListener: (() => void) | undefined;
+	#recovery: DesktopTerminalRecoveryHandle | undefined;
+	#removeHostListener: (() => void) | undefined;
+	#shuttingDown = false;
+	#summary: TerminalSummary | null | undefined;
+	#terminalExit: TerminalExited | undefined;
 	#window: BrowserWindow | undefined;
 
 	constructor(
 		options: DesktopApplicationOptions,
 		dependencies: DesktopApplicationDependencies = defaultDependencies,
 	) {
+		if (!options.singleInstanceLockOwned) {
+			throw new Error('Desktop recovery requires the Electron single-instance lock.');
+		}
 		this.#options = options;
 		this.#dependencies = dependencies;
 	}
@@ -90,21 +127,39 @@ export class DesktopApplication {
 		return this.#window !== undefined && !this.#window.isDestroyed();
 	}
 
+	focusWindow(): void {
+		if (this.hasWindow) this.#window?.focus();
+	}
+
 	async start(): Promise<void> {
 		if (this.#connection !== undefined) throw new Error('Desktop application is already started.');
 		const connection = await this.#dependencies.connectHost(this.#options.runtime);
 		this.#connection = connection;
-		await connection.negotiate(ClientIdSchema.parse(this.#dependencies.randomIdentifier()));
-		this.#identity = await connection.requestControl(
-			MessageKind.createTerminal,
-			CreateTerminalV1_1Schema.parse(this.#options.runtime.createTerminal),
-			MessageKind.createTerminal,
-			TerminalIdentitySchema,
-		);
-		if (this.#options.traceCopyPath) {
-			this.#removeTraceListener = connection.onEnvelope(this.#traceTerminalExit);
+		try {
+			await connection.negotiate(ClientIdSchema.parse(this.#dependencies.randomIdentifier()));
+			const recovery = this.#dependencies.createRecovery(
+				connection,
+				this.#options.runtime,
+				this.#dependencies.randomIdentifier,
+			);
+			this.#recovery = recovery;
+			const outcome = await recovery.reconcile();
+			if (outcome.kind !== 'provisioning' && outcome.kind !== 'recovered') {
+				throw new Error(`Desktop terminal recovery stopped with ${outcome.kind}.`);
+			}
+			this.#identity = outcome.identity;
+			this.#summary = outcome.summary;
+			this.#terminalExit = terminalExitFromSummary(outcome.summary);
+			this.#removeHostListener = connection.onEnvelope(this.#handleHostEnvelope);
+			await this.openWindow();
+		} catch (error) {
+			this.#removeHostListener?.();
+			this.#removeHostListener = undefined;
+			this.#recovery = undefined;
+			connection.close();
+			this.#connection = undefined;
+			throw error;
 		}
-		await this.openWindow();
 	}
 
 	async openWindow(): Promise<void> {
@@ -112,40 +167,10 @@ export class DesktopApplication {
 			this.#window?.focus();
 			return;
 		}
-		const connection = this.#connection;
-		const identity = this.#identity;
-		if (connection === undefined || identity === undefined) {
+		if (this.#connection === undefined || this.#identity === undefined) {
 			throw new Error('Desktop application must start before opening a window.');
 		}
-		const attachmentId = AttachmentIdSchema.parse(this.#dependencies.randomIdentifier());
-		const capabilities = await connection.requestControl(
-			MessageKind.attachTerminal,
-			AttachTerminalSchema.parse({
-				attachmentId,
-				capabilities: { input: true, read: true, resize: true },
-				requestResizeLease: true,
-				terminalId: identity.terminalId,
-			}),
-			MessageKind.attachmentCapabilities,
-			AttachmentCapabilitiesSchema,
-		);
-		if (
-			!capabilities.capabilities.input ||
-			!capabilities.capabilities.read ||
-			!capabilities.capabilities.resize ||
-			!capabilities.resizeLease
-		) {
-			throw new Error('Terminal Host did not grant the required local attachment capabilities.');
-		}
-		const bootstrap = ProjectedAttachmentBootstrapSchema.parse({
-			attachmentId,
-			canResize: capabilities.resizeLease,
-			creationId: identity.creationId,
-			hostEpoch: identity.hostEpoch,
-			terminalId: identity.terminalId,
-		});
-		const channel = this.#dependencies.createMessageChannel();
-		const broker = this.#dependencies.createBroker(connection, channel.port2, bootstrap);
+		this.#attachmentFailure = undefined;
 		const window = this.#dependencies.createWindow({
 			backgroundColor: '#1e1e1e',
 			height: 720,
@@ -162,19 +187,30 @@ export class DesktopApplication {
 			width: 1024,
 		});
 		this.#window = window;
-		this.#broker = broker;
-		broker.start();
+		let loadingGeneration = 0;
 		window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 		window.webContents.on('will-navigate', (event) => event.preventDefault());
-		window.webContents.once('did-finish-load', () => {
-			window.webContents.postMessage(PROJECTED_ATTACHMENT_IPC_CHANNEL, bootstrap, [channel.port1]);
+		window.webContents.on('did-start-loading', () => {
+			loadingGeneration = this.#beginRendererDocument();
 		});
-		window.webContents.once('render-process-gone', () => broker.dispose());
+		window.webContents.on('did-finish-load', () => {
+			const generation =
+				loadingGeneration === 0 ? this.#beginRendererDocument() : loadingGeneration;
+			loadingGeneration = 0;
+			this.#queueRendererAttachment(window, generation);
+		});
+		window.webContents.on('render-process-gone', () => {
+			this.#beginRendererDocument();
+			void this.#attachmentTransition.then(() => {
+				if (this.#window === window && !window.isDestroyed() && !this.#shuttingDown) {
+					window.reload();
+				}
+			});
+		});
 		window.once('ready-to-show', () => window.show());
 		window.once('closed', () => {
 			this.#writeCopyPathTrace('window-closed');
-			broker.dispose();
-			if (this.#broker === broker) this.#broker = undefined;
+			this.#beginRendererDocument();
 			if (this.#window === window) this.#window = undefined;
 		});
 
@@ -187,25 +223,124 @@ export class DesktopApplication {
 			}
 			await window.loadURL(rendererUrl.href);
 		}
+		await this.#attachmentTransition;
+		if (this.#attachmentFailure !== undefined) throw this.#attachmentFailure;
 	}
 
-	shutdown(): void {
-		this.#removeTraceListener?.();
-		this.#removeTraceListener = undefined;
+	async shutdown(): Promise<void> {
+		if (this.#shuttingDown) return this.#attachmentTransition;
+		this.#shuttingDown = true;
+		this.#removeHostListener?.();
+		this.#removeHostListener = undefined;
 		this.#writeCopyPathTrace('main-shutdown');
-		this.#broker?.dispose();
-		this.#broker = undefined;
+		this.#beginRendererDocument();
+		await this.#attachmentTransition;
 		this.#connection?.close();
 		this.#connection = undefined;
 		this.#identity = undefined;
+		this.#summary = undefined;
+		this.#terminalExit = undefined;
+		this.#recovery = undefined;
 	}
 
-	readonly #traceTerminalExit = (envelope: DecodedProtocolEnvelope): void => {
+	#beginRendererDocument(): number {
+		const generation = ++this.#documentGeneration;
+		const broker = this.#broker;
+		this.#broker = undefined;
+		const retirement = broker?.dispose() ?? Promise.resolve();
+		this.#attachmentTransition = this.#attachmentTransition.then(async () => retirement);
+		return generation;
+	}
+
+	#queueRendererAttachment(window: BrowserWindow, generation: number): void {
+		this.#attachmentTransition = this.#attachmentTransition.then(async () => {
+			try {
+				await this.#attachRendererDocument(window, generation);
+			} catch (error) {
+				this.#attachmentFailure =
+					error instanceof Error ? error : new Error('Renderer attachment failed.');
+			}
+		});
+	}
+
+	async #attachRendererDocument(window: BrowserWindow, generation: number): Promise<void> {
+		const connection = this.#connection;
+		const identity = this.#identity;
+		if (
+			connection === undefined ||
+			identity === undefined ||
+			this.#window !== window ||
+			window.isDestroyed() ||
+			generation !== this.#documentGeneration ||
+			this.#shuttingDown
+		) {
+			return;
+		}
+		const readOnly =
+			this.#terminalExit !== undefined ||
+			this.#summary?.phase === TerminalPhase.finishing ||
+			this.#summary?.phase === TerminalPhase.exited;
+		const attachmentId = AttachmentIdSchema.parse(this.#dependencies.randomIdentifier());
+		const capabilities = await connection.requestControl(
+			MessageKind.attachTerminal,
+			AttachTerminalSchema.parse({
+				attachmentId,
+				capabilities: { input: !readOnly, read: true, resize: !readOnly },
+				requestResizeLease: !readOnly,
+				terminalId: identity.terminalId,
+			}),
+			MessageKind.attachmentCapabilities,
+			AttachmentCapabilitiesSchema,
+		);
+		if (
+			capabilities.attachmentId !== attachmentId ||
+			capabilities.terminalId !== identity.terminalId ||
+			!capabilities.capabilities.read ||
+			(readOnly &&
+				(capabilities.capabilities.input ||
+					capabilities.capabilities.resize ||
+					capabilities.resizeLease)) ||
+			(!readOnly &&
+				(!capabilities.capabilities.input ||
+					!capabilities.capabilities.resize ||
+					!capabilities.resizeLease))
+		) {
+			throw new Error('Terminal Host did not grant the required local attachment capabilities.');
+		}
+		const bootstrap = ProjectedAttachmentBootstrapSchema.parse({
+			attachmentId,
+			canInput: capabilities.capabilities.input,
+			canResize: capabilities.resizeLease,
+			creationId: identity.creationId,
+			hostEpoch: identity.hostEpoch,
+			terminalExit: this.#terminalExit ?? null,
+			terminalId: identity.terminalId,
+		});
+		const channel = this.#dependencies.createMessageChannel();
+		const broker = this.#dependencies.createBroker(connection, channel.port2, bootstrap);
+		if (
+			this.#window !== window ||
+			window.isDestroyed() ||
+			generation !== this.#documentGeneration ||
+			this.#shuttingDown
+		) {
+			await broker.dispose();
+			return;
+		}
+		this.#broker = broker;
+		broker.start();
+		window.webContents.postMessage(PROJECTED_ATTACHMENT_IPC_CHANNEL, bootstrap, [channel.port1]);
+	}
+
+	readonly #handleHostEnvelope = (envelope: DecodedProtocolEnvelope): void => {
 		if (envelope.kind !== MessageKind.terminalExited) return;
 		const exited = decodeControlJson(envelope.payload, TerminalExitedSchema);
-		if (exited.ok && exited.value.identity.terminalId === this.#identity?.terminalId) {
-			this.#writeCopyPathTrace('terminal-exited');
-		}
+		if (!exited.ok || exited.value.identity.terminalId !== this.#identity?.terminalId) return;
+		this.#terminalExit = exited.value;
+		void this.#recovery?.recordExit(exited.value).catch(() => {
+			console.error('Orchbee Desktop could not persist terminal exit recovery state.');
+		});
+		this.#writeCopyPathTrace('terminal-exited');
 	};
 
 	#writeCopyPathTrace(reason: string): void {
@@ -217,4 +352,14 @@ export class DesktopApplication {
 			type: 'orchbee.desktop.copy-path',
 		});
 	}
+}
+
+function terminalExitFromSummary(summary: TerminalSummary | null): TerminalExited | undefined {
+	return summary?.phase === TerminalPhase.exited && summary.exit !== null
+		? {
+				exit: summary.exit,
+				finalRevision: summary.revision,
+				identity: summary.identity,
+			}
+		: undefined;
 }

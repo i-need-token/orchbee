@@ -93,6 +93,10 @@ export async function startDesktopRenderer(
 	status.setAttribute('role', 'alert');
 	rootElement.appendChild(status);
 	rootElement.dataset['desktopTerminalState'] = 'opening';
+	rootElement.dataset['desktopTerminalAttachmentId'] = bootstrap.attachmentId;
+	rootElement.dataset['desktopTerminalCreationId'] = bootstrap.creationId;
+	rootElement.dataset['desktopTerminalHostEpoch'] = bootstrap.hostEpoch;
+	rootElement.dataset['desktopTerminalId'] = bootstrap.terminalId;
 	let committedFrames = 0;
 	let finalRevision: bigint | undefined;
 	let lastRenderedRevision: bigint | undefined;
@@ -117,6 +121,7 @@ export async function startDesktopRenderer(
 		canResize: bootstrap.canResize,
 		creationId: bootstrap.creationId,
 		hostEpoch: bootstrap.hostEpoch,
+		inputEnabled: bootstrap.canInput !== false,
 		labels: {
 			historyRange: (start, end, total) =>
 				intl.formatMessage(desktopTerminalMessages.historyRange, {
@@ -280,6 +285,9 @@ export async function startDesktopRenderer(
 	let disposeShortcuts: (() => void) | undefined;
 	try {
 		await terminal.open(rootElement);
+		if (bootstrap.terminalExit !== null && bootstrap.terminalExit !== undefined) {
+			terminal.notifyExited(bootstrap.terminalExit);
+		}
 		rootElement.appendChild(findRoot);
 		findSurface = dependencies.mountFindSurface({
 			controller: findController,

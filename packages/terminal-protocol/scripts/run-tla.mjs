@@ -12,7 +12,12 @@ const expectedSha1 = 'bee4a54f3ee3d4afc347c3240ec2d9e93b075104';
 const bundledJarPath = path.join(toolsDirectory, `tla2tools-${tlaVersion}.jar`);
 const configuredJarPath = process.env.TERMINAL_PROTOCOL_TLA2TOOLS_JAR;
 const jarPath = configuredJarPath ? path.resolve(configuredJarPath) : bundledJarPath;
-const models = ['TerminalHostLifecycle', 'TerminalFrameBackpressure', 'TerminalHistoryInteraction'];
+const models = [
+	'TerminalHostLifecycle',
+	'TerminalFrameBackpressure',
+	'TerminalHistoryInteraction',
+	'TerminalRecoveryBinding',
+];
 
 async function sha1(filePath) {
 	const contents = await readFile(filePath);
