@@ -109,6 +109,7 @@ Run from the repository root:
 pnpm --filter @orchbee/terminal-protocol typecheck
 pnpm --filter @orchbee/terminal-protocol build
 pnpm --filter @orchbee/terminal-protocol test
+pnpm --filter @orchbee/terminal-protocol test:tla
 pnpm --filter @orchbee/terminal-protocol test:exports
 pnpm --filter @orchbee/terminal-host test:protocol
 pnpm verify

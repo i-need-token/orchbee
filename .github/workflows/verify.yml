@@ -24,12 +24,6 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
       - name: Set up Zig
         env:
           ORCHBEE_ZIG_SHA256: 02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239

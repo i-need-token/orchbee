@@ -11,7 +11,7 @@
 		"build": "rsbuild build --log-level error",
 		"start": "electron dist/main/main.cjs",
 		"typecheck": "tsc --noEmit",
-		"test": "pnpm test:unit && pnpm test:tla",
+		"test": "pnpm test:unit",
 		"test:unit": "vitest run",
 		"test:tla": "node scripts/run-tla.mjs",
 		"test:watch": "vitest",

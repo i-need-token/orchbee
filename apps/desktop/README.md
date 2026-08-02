@@ -143,12 +143,13 @@ Run package checks from the repository root:
 ```sh
 pnpm --filter @orchbee/desktop typecheck
 pnpm --filter @orchbee/desktop test
+pnpm --filter @orchbee/desktop test:tla
 pnpm --filter @orchbee/desktop build
 pnpm --filter @orchbee/desktop test:system
 ```
 
-The package test command requires Java 17 or newer for its pinned TLA+ runner. The ignored
-app-local `.tools/` directory may cache the verified runner JAR.
+The change-triggered `test:tla` command requires Java 17 or newer for its pinned TLA+ runner. The
+ignored app-local `.tools/` directory may cache the verified runner JAR.
 
 The optional throughput harness requires an absolute large-output fixture and at least five runs:
 

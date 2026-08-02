@@ -331,9 +331,13 @@ React ownership follows [`frontend/react.md`](frontend/react.md), visual decisio
 
 ## Verification and completion
 
-Every deterministic, bounded, pinned, and repository-provisioned evidence artifact runs in the root merge gate defined by [`VERIFICATION.md`](VERIFICATION.md). The owning package documents and exposes its real commands.
+Every deterministic, bounded, pinned, and repository-provisioned evidence artifact exposes a real
+command documented by its owning package. The root merge gate defined by
+[`VERIFICATION.md`](VERIFICATION.md) runs default implementation evidence. TLA+ model checking is
+change-triggered evidence outside that default gate and must run when its model, infrastructure, or
+abstracted semantics change.
 
-The applicable gate must fail on:
+The applicable gate or selected evidence command must fail on:
 
 - a checked TLA+ safety or progress counterexample;
 - an unchecked or admitted Lean theorem or undeclared trust assumption;
@@ -357,5 +361,7 @@ A feature is complete when:
 - every regression has a failing-before and passing-after case at the lowest effective layer;
 - the traceability matrix has no unexplained gaps or stale claims;
 - prototypes, duplicate state, and obsolete flags are removed;
+- every change-triggered correctness command selected by the modeling record passes without
+  retries;
 - the root [`pnpm verify`](VERIFICATION.md#merge-gate) gate passes without retries; and
 - the completion report states checked claims, bounds, reference revision, evidence, and exclusions without unbounded claims such as “fully verified” or “perfect replica.”

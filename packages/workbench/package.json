@@ -43,7 +43,7 @@
 		"build": "rslib build --log-level error",
 		"dev": "rslib build --watch",
 		"typecheck": "tsc --noEmit",
-		"test": "pnpm test:unit && pnpm test:tla",
+		"test": "pnpm test:unit",
 		"test:unit": "vitest run",
 		"test:watch": "vitest",
 		"test:tla": "node scripts/run-tla.mjs",

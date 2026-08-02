@@ -393,13 +393,13 @@ missing host capabilities remain visible but disabled.
 
 ## Development
 
-The unified-search model check requires Java 17 or newer. The test runner downloads the pinned
-TLA+ `1.7.4` tool JAR when absent and verifies its SHA-1 before execution. CI provisions the same
-Java major explicitly.
+The change-triggered unified-search model check requires Java 17 or newer. The test runner
+downloads the pinned TLA+ `1.7.4` tool JAR when absent and verifies its SHA-1 before execution.
 
 ```sh
 pnpm --filter @orchbee/workbench... build
 pnpm --filter @orchbee/workbench typecheck
 pnpm --filter @orchbee/workbench test
+pnpm --filter @orchbee/workbench test:tla
 pnpm --filter @orchbee/workbench test:exports
 ```

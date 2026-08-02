@@ -37,14 +37,14 @@
 		"build": "rslib build --log-level error",
 		"dev": "rslib build --watch",
 		"typecheck": "tsc --noEmit",
-		"test": "pnpm test:unit && pnpm test:fixtures && pnpm test:tla",
+		"test": "pnpm test:unit && pnpm test:fixtures",
 		"test:fixtures": "node scripts/generate-fixtures.mjs --check",
 		"test:unit": "vitest run",
 		"test:watch": "vitest",
 		"test:tla": "node scripts/run-tla.mjs",
 		"fixtures:generate": "node scripts/generate-fixtures.mjs",
 		"test:exports": "node ../../scripts/check-package-exports.mjs .",
-		"verify:correctness": "pnpm typecheck && pnpm build && pnpm test && pnpm test:exports"
+		"verify:correctness": "pnpm typecheck && pnpm build && pnpm test && pnpm test:tla && pnpm test:exports"
 	},
 	"dependencies": {
 		"zod": "catalog:"
