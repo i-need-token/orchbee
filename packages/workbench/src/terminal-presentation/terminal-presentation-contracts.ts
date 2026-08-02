@@ -31,6 +31,7 @@ export type TerminalPresentationLifecycle =
 			readonly kind: 'provisioning';
 			readonly operationId: TerminalPresentationOperationId;
 	  }
+	| { readonly kind: 'restoring' }
 	| { readonly kind: 'running' }
 	| {
 			readonly failure: TerminalPresentationFailure;

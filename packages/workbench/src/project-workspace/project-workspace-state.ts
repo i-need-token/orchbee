@@ -940,7 +940,7 @@ function rejected(
 	return { commands: [], outcome: 'rejected', rejection, state };
 }
 
-function assertProjectWorkspaceInvariants(state: ProjectWorkspaceState): void {
+export function assertProjectWorkspaceInvariants(state: ProjectWorkspaceState): void {
 	const projectIds = new Set<string>();
 	const workspaceIds = new Set<string>();
 	const terminalContextIds = new Set<string>([state.standaloneTerminalContextId]);

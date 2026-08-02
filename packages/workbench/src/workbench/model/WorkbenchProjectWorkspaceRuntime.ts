@@ -5,6 +5,7 @@ import type {
 	TerminalPresentationId,
 	TerminalPresentationRemovalId,
 } from '../../terminal-presentation';
+import type { WorkbenchTopologyDocument, WorkbenchTopologyRevision } from '../topology';
 import {
 	createProjectWorkspaceState,
 	resolveTerminalCwd,
@@ -22,6 +23,7 @@ import {
 	type TerminalPresentation,
 } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type { WorkbenchTerminalPresentationComposition } from './createWorkbenchPreviewTerminalPresentationComposition';
+import { hydrateWorkbenchTopology, projectWorkbenchTopology } from './workbench-topology-runtime';
 
 type Listener = () => void;
 
@@ -35,6 +37,7 @@ interface MutableWorkbenchTerminalContext extends WorkbenchTerminalContext {
 }
 
 export interface WorkbenchProjectWorkspaceRuntimeOptions {
+	readonly initialTopology?: WorkbenchTopologyDocument | undefined;
 	readonly standaloneCwd: string;
 	readonly standalonePresentations?: readonly WorkbenchStandaloneTerminalPresentation[] | undefined;
 	readonly standaloneTerminalTitle: string;
@@ -73,6 +76,22 @@ export class WorkbenchProjectWorkspaceRuntime {
 	public constructor(options: WorkbenchProjectWorkspaceRuntimeOptions) {
 		this.systemCwd = options.standaloneCwd;
 		this.terminalPresentation = options.terminalPresentation;
+		if (options.initialTopology !== undefined) {
+			const topology = hydrateWorkbenchTopology(options.initialTopology);
+			this.state = topology.projectWorkspace;
+			for (const terminalContext of topology.terminalContexts) {
+				const tabModel = new TabModel(terminalContext.tabCollection);
+				this.contexts.set(terminalContext.terminalContextId, {
+					nextTabSequence: terminalContext.nextTabSequence,
+					panelWorkspaceStore: new PanelWorkspaceStore(tabModel, {
+						composition: this.terminalPresentation,
+						initialState: terminalContext.panelWorkspace,
+					}),
+					tabModel,
+				});
+			}
+			return;
+		}
 		this.contexts.set(
 			this.state.standaloneTerminalContextId,
 			this.createTerminalContext(
@@ -92,6 +111,21 @@ export class WorkbenchProjectWorkspaceRuntime {
 	}
 
 	public readonly getSnapshot = (): ProjectWorkspaceState => this.state;
+
+	public getTopologyDocument(revision: WorkbenchTopologyRevision): WorkbenchTopologyDocument {
+		return projectWorkbenchTopology(
+			{
+				projectWorkspace: this.state,
+				terminalContexts: [...this.contexts].map(([terminalContextId, context]) => ({
+					nextTabSequence: context.nextTabSequence,
+					panelWorkspace: context.panelWorkspaceStore.getSnapshot(),
+					tabCollection: context.tabModel.getSnapshot(),
+					terminalContextId,
+				})),
+			},
+			revision,
+		);
+	}
 
 	public readonly subscribe = (listener: Listener): (() => void) => {
 		this.listeners.add(listener);

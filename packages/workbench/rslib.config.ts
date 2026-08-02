@@ -20,6 +20,7 @@ export default defineConfig({
 		entry: {
 			index: './src/index.ts',
 			'terminal-presentation/index': './src/terminal-presentation/index.ts',
+			'topology/index': './src/workbench/topology/index.ts',
 		},
 		tsconfigPath: './tsconfig.build.json',
 	},

@@ -1,4 +1,8 @@
-export { createProjectWorkspaceState, transitionProjectWorkspace } from './project-workspace-state';
+export {
+	assertProjectWorkspaceInvariants,
+	createProjectWorkspaceState,
+	transitionProjectWorkspace,
+} from './project-workspace-state';
 export { deriveProjectNameFromPath } from './deriveProjectNameFromPath';
 export type {
 	ProjectWorkspaceEvent,

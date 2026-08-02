@@ -2,11 +2,11 @@
 
 ## Status and scope
 
-This is the accepted `PWX-1` and `PWX-2` implementation contract for Workbench-owned Project,
-Directory, Workspace, active-location, terminal-context composition, and browser Project
-onboarding. The deliveries remain an in-memory product model and preview integration. Filesystem
-mutation, Git effects, PTY ownership, durable persistence, and cross-device synchronization remain
-outside their claims.
+This is the implementation contract for Workbench-owned Project, Directory, Workspace,
+active-location, terminal-context composition, and browser Project onboarding. Workbench maintains
+the live product model and exposes its canonical topology through
+[`durable-topology.md`](durable-topology.md). Filesystem mutation, Git effects, PTY ownership,
+storage I/O, and cross-device synchronization remain outside this contract.
 
 ## Problem
 

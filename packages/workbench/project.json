@@ -3,7 +3,7 @@
 	"domain": "workbench",
 	"runtime": ["browser"],
 	"stability": "experimental",
-	"responsibility": "Shared product-semantic React shell with localized Project and Workspace navigation, independent terminal contexts, unified action and settings search, a resizable shell layout, deterministic per-tab panel topology, terminal-presentation identity and lifecycle routing, managed close orchestration, recovered standalone presentation bootstrap, and application-owned visible terminal-surface composition.",
+	"responsibility": "Shared product-semantic React shell with localized Project and Workspace navigation, independent terminal contexts, unified action and settings search, a resizable shell layout, deterministic per-tab panel topology, canonical durable-topology validation and hydration, terminal-presentation identity and lifecycle routing, managed close orchestration, recovered standalone presentation bootstrap, and application-owned visible terminal-surface composition.",
 	"nonGoals": [
 		"Owning application startup, routing roots, authentication, deployment, or packaging.",
 		"Owning locale negotiation, product message descriptors, translation catalogs, or formatting runtime.",

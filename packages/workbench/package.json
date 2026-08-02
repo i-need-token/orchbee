@@ -28,6 +28,12 @@
 			"import": "./dist/terminal-presentation/index.js",
 			"require": "./dist/terminal-presentation/index.cjs"
 		},
+		"./topology": {
+			"@orchbee/source": "./src/workbench/topology/index.ts",
+			"types": "./dist/workbench/topology/index.d.ts",
+			"import": "./dist/topology/index.js",
+			"require": "./dist/topology/index.cjs"
+		},
 		"./styles.css": {
 			"@orchbee/source": "./src/styles.ts",
 			"default": "./dist/index.css"

@@ -370,6 +370,20 @@ the strip's pointer lifecycle to host-owned live-window discovery, compatibility
 window movement, capture, and move-loop behavior. Workbench and the browser application do not
 fabricate those operating-system capabilities.
 
+### Durable topology boundary
+
+`@orchbee/workbench/topology` owns the canonical version-1 document for Project, Workspace, Tab,
+Group, Panel, Split, and terminal-presentation placement. A managed
+`WorkbenchProjectWorkspaceRuntime` projects that document through `getTopologyDocument(...)` and
+may hydrate it through `initialTopology` without dispatching recovered process effects. The
+document persists launch intent and pending provision or close intent, but excludes current CWD,
+Host, Binding, Attachment, process output, history, environment, and transient Tab observations.
+
+The package performs no storage or IPC effect. A composing application must parse the document at
+its persistence boundary and remains responsible for private storage, revisions, write ordering,
+recovery diagnostics, and eventual Terminal lifecycle effects. The maintained model, invariants,
+and evidence are defined in [`docs/durable-topology.md`](docs/durable-topology.md).
+
 Workbench owns `Mod+B` for `workbench.sidebar.toggle`, `Mod+N` for
 `workbench.terminal.create`, `Mod+K` and `Mod+Shift+P` for the All and Actions inputs of
 `workbench.search.open`, and `Mod+,` for `workbench.settings.open`. Apple platforms display `⌘B`,

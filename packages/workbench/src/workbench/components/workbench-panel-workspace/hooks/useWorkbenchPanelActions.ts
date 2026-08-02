@@ -118,6 +118,7 @@ export function useWorkbenchPanelActions({
 				(terminal) =>
 					terminal.lifecycle.kind === 'preview' ||
 					terminal.lifecycle.kind === 'provisioning' ||
+					terminal.lifecycle.kind === 'restoring' ||
 					terminal.lifecycle.kind === 'running',
 			).length;
 		};

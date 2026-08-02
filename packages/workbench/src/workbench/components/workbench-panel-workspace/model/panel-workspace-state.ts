@@ -1490,7 +1490,7 @@ export function transitionPanelWorkspace(
 	return removedState === null ? rejected(state, 'panel-not-found') : applied(removedState);
 }
 
-function validatePanelWorkspaceState(state: PanelWorkspaceState): readonly string[] {
+export function validatePanelWorkspaceState(state: PanelWorkspaceState): readonly string[] {
 	const errors: string[] = [];
 	const tabIds = new Set<string>();
 	const panelIds = new Set<string>();
