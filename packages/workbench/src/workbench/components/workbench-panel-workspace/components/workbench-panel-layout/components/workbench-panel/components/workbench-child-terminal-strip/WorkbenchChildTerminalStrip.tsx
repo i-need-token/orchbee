@@ -22,20 +22,24 @@ export function WorkbenchChildTerminalStrip({
 }: WorkbenchChildTerminalStripProps): React.ReactNode {
 	return (
 		<div
-			aria-label={view.messages.childTerminalsLabel}
+			aria-label={view.messages.childPresentationsLabel}
 			className={styles['root']}
 			data-slot='workbench-child-terminal-strip'
 			role='toolbar'
 		>
-			{panel.childTerminals.map((terminal) => (
-				<Tooltip key={terminal.id}>
+			{panel.childPresentations.map((terminal) => (
+				<Tooltip key={terminal.presentationId}>
 					<TooltipTrigger
 						render={
 							<Button
 								aria-label={terminal.title}
-								aria-pressed={panel.activeChildTerminalId === terminal.id}
-								data-active={panel.activeChildTerminalId === terminal.id || undefined}
-								onClick={() => view.activateChildTerminal(panel.id, terminal.id, 'button')}
+								aria-pressed={panel.activeChildPresentationId === terminal.presentationId}
+								data-active={
+									panel.activeChildPresentationId === terminal.presentationId || undefined
+								}
+								onClick={() =>
+									view.activateChildTerminal(panel.id, terminal.presentationId, 'button')
+								}
 								size='icon-sm'
 								variant='ghost'
 							/>

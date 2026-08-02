@@ -1,5 +1,9 @@
 import { createOrchbeeIntl, workbenchTabMessages, type OrchbeeLocale } from '@orchbee/i18n';
-import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
+import {
+	WorkbenchProjectWorkspaceRuntime,
+	createWorkbenchPreviewTerminalPresentationComposition,
+	terminalPresentationId,
+} from '@orchbee/workbench';
 import * as React from 'react';
 
 export function useWebApplicationProjectWorkspace(
@@ -12,6 +16,9 @@ export function useWebApplicationProjectWorkspace(
 			standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle, {
 				number: 1,
 			}),
+			terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
+				terminalPresentationId('web:standalone:initial'),
+			),
 		});
 		return projectWorkspaceRuntime;
 	});

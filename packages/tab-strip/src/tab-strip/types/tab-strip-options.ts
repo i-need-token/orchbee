@@ -1,6 +1,8 @@
 import type {
 	ActionExecution,
+	ActionExecutionContext,
 	ActionInvocationSource,
+	ActionResult,
 	ActionRuntime,
 	ActionScope,
 } from '@orchbee/actions';
@@ -8,6 +10,7 @@ import type {
 import type { TabHoverCardController } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
 import type { HoverCardThumbnailSource } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-observer';
 import type { TabData, TabGroupData, TabModel } from '../model/tab-model';
+import type { TabCloseSource } from '../layout/tab-closing-mode';
 import type {
 	CrossWindowDragEndReason,
 	CrossWindowDragSnapshot,
@@ -38,6 +41,16 @@ export interface TabStripNewTabRequest {
 	readonly index?: number | undefined;
 	readonly source: ActionInvocationSource;
 }
+
+export interface TabStripCloseRequest {
+	readonly closeSource: TabCloseSource;
+	readonly tabIds: readonly string[];
+}
+
+export type TabStripCloseCallback = (
+	context: ActionExecutionContext,
+	request: TabStripCloseRequest,
+) => ActionResult<void> | Promise<ActionResult<void>>;
 
 export interface TabStripOptions {
 	actionRuntime?: ActionRuntime | undefined;
@@ -82,5 +95,6 @@ export interface TabStripOptions {
 	onMoveGroupToNewWindow?: (groupId: string) => void;
 	ariaLabel?: string;
 	onNewTab?: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
+	onCloseTabs?: TabStripCloseCallback | undefined;
 	onNewTabButtonPressed?: () => void;
 }

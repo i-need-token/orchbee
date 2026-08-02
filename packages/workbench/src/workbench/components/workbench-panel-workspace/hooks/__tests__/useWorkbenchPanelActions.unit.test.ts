@@ -5,6 +5,7 @@ import { cleanup, render } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { terminalPresentationId } from '../../../../../terminal-presentation';
 import { PANEL_ACTION_IDS } from '../../actions/panel-action-contracts';
 import type {
 	PanelWorkspaceTransition,
@@ -16,15 +17,15 @@ const activeTab: TabPanelWorkspace = {
 	focusedPanelId: 'panel-1',
 	maximizedPanelId: null,
 	root: {
-		activeChildTerminalId: null,
-		childTerminals: [],
+		activeChildPresentationId: null,
+		childPresentations: [],
 		id: 'panel-1',
 		kind: 'panel',
-		primaryTerminal: {
+		primaryPresentation: {
 			currentCwd: null,
-			id: 'terminal-1',
 			launchCwd: null,
-			phase: 'running',
+			lifecycle: { kind: 'running' },
+			presentationId: terminalPresentationId('terminal-1'),
 			title: 'Terminal 1',
 		},
 	},
@@ -32,6 +33,7 @@ const activeTab: TabPanelWorkspace = {
 };
 
 const appliedTransition: PanelWorkspaceTransition = {
+	commands: [],
 	outcome: 'applied',
 	rejection: null,
 	state: {
@@ -39,6 +41,7 @@ const appliedTransition: PanelWorkspaceTransition = {
 		nextPanelSlotSequence: 2,
 		nextSplitSequence: 1,
 		nextTerminalSequence: 2,
+		pendingRemovals: [],
 		tabs: [activeTab],
 	},
 };
@@ -108,11 +111,11 @@ describe('useWorkbenchPanelActions', () => {
 						{ scope, source: 'command-surface' },
 						{
 							[PANEL_ACTION_IDS.activateChildTerminal]: {
-								childTerminalId: 'terminal-2',
+								childPresentationId: 'terminal-2',
 								panelId: 'panel-1',
 							},
 							[PANEL_ACTION_IDS.close]: {
-								childTerminalId: null,
+								childPresentationId: null,
 								panelId: 'panel-1',
 								tabId: 'tab-1',
 							},

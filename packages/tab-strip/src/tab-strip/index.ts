@@ -2,6 +2,8 @@ export { TabStrip } from './TabStrip';
 export type {
 	TabStripCrossWindowDragRuntime,
 	TabStripCrossWindowDragRuntimeFactory,
+	TabStripCloseCallback,
+	TabStripCloseRequest,
 	TabStripMessages,
 	TabStripNewTabRequest,
 	TabStripProps,

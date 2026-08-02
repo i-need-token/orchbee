@@ -36,6 +36,7 @@
 		"Every tab retains at least one Panel and exactly one focused Panel resolves inside that tab.",
 		"Dragging changes only reversible projection state until a valid directional drop commits the move.",
 		"Closing running or provisioning logical terminals requires localized confirmation before mutation.",
+		"Managed close retains topology until every exact presentation close completes; partial failure remains retryable without rollback.",
 		"Host PTY and process lifecycle remain outside the Panel workspace owner."
 	],
 	"references": ["packages/workbench/README.md"]

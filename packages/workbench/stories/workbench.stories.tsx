@@ -1,6 +1,11 @@
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { ActionRuntime } from '@orchbee/actions';
-import { Workbench, WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
+import {
+	Workbench,
+	WorkbenchProjectWorkspaceRuntime,
+	createWorkbenchPreviewTerminalPresentationComposition,
+	terminalPresentationId,
+} from '@orchbee/workbench';
 import type { WorkbenchSearchProvider } from '@orchbee/workbench';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
@@ -30,6 +35,9 @@ const createProjectWorkspaceRuntime = (titles: readonly [string, ...string[]]) =
 	const runtime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/workspace/orchbee',
 		standaloneTerminalTitle: titles[0],
+		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
+			terminalPresentationId('storybook:standalone:initial'),
+		),
 	});
 	for (const title of titles.slice(1)) {
 		runtime.createTerminal({

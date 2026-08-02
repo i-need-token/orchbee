@@ -24,7 +24,20 @@ export type {
 	WorkbenchWorktreeDirectory,
 	WorkbenchWorktreeDirectoryGitMetadata,
 } from './project-workspace';
-export { Workbench, WorkbenchProjectWorkspaceRuntime } from './workbench';
+export {
+	Workbench,
+	WorkbenchProjectWorkspaceRuntime,
+	createWorkbenchPreviewTerminalPresentationComposition,
+} from './workbench';
+export {
+	TerminalPresentationFailureSchema,
+	TerminalPresentationIdSchema,
+	TerminalPresentationOperationIdSchema,
+	TerminalPresentationRemovalIdSchema,
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+} from './terminal-presentation';
 export type {
 	WorkbenchProps,
 	WorkbenchProjectWorkspaceRuntimeOptions,
@@ -50,8 +63,21 @@ export type {
 	WorkbenchSearchProviderSection,
 	WorkbenchTerminalCreateCallback,
 	WorkbenchTerminalCreateInput,
+	WorkbenchTerminalPresentationCommand,
+	WorkbenchTerminalPresentationComposition,
 	WorkbenchWorkspaceCreateInput,
 	WorkbenchWorkspaceInput,
 	WorkbenchWorkspaceUpdateInput,
 } from './workbench';
+export type {
+	TerminalPresentationCloseOperation,
+	TerminalPresentationCloseRequest,
+	TerminalPresentationCommand,
+	TerminalPresentationCreation,
+	TerminalPresentationFailure,
+	TerminalPresentationId,
+	TerminalPresentationLifecycle,
+	TerminalPresentationOperationId,
+	TerminalPresentationRemovalId,
+} from './terminal-presentation';
 export type { WorkbenchLayoutStorage } from './workbench-layout-storage';

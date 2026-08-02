@@ -30,23 +30,23 @@ describe('panel action contracts', () => {
 		});
 		expect(
 			panelChildTerminalInput.parse({
-				childTerminalId: 'terminal-2',
+				childPresentationId: 'terminal-2',
 				panelId: 'panel-1',
 			}),
 		).toEqual({
 			success: true,
-			data: { childTerminalId: 'terminal-2', panelId: 'panel-1' },
+			data: { childPresentationId: 'terminal-2', panelId: 'panel-1' },
 		});
 		expect(
 			panelCloseInput.parse({
-				childTerminalId: 'terminal-2',
+				childPresentationId: 'terminal-2',
 				panelId: 'panel-1',
 				tabId: 'tab-1',
 			}),
 		).toEqual({
 			success: true,
 			data: {
-				childTerminalId: 'terminal-2',
+				childPresentationId: 'terminal-2',
 				panelId: 'panel-1',
 				tabId: 'tab-1',
 			},

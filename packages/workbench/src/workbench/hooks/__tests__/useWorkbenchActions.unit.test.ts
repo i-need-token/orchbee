@@ -5,10 +5,18 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { terminalPresentationId } from '../../../terminal-presentation';
 import { WORKBENCH_ACTION_IDS } from '../../actions/workbench-action-ids';
+import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import type { WorkbenchTerminalCreateCallback } from '../../types/workbench-host-actions';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { useWorkbenchActions } from '../useWorkbenchActions';
+
+function createTestTerminalPresentationComposition(scope: string) {
+	return createWorkbenchPreviewTerminalPresentationComposition(
+		terminalPresentationId(`${scope}:initial`),
+	);
+}
 
 interface WorkbenchActionsHarnessProps {
 	readonly captureScope?: ((scope: ReturnType<ActionRuntime['createScope']>) => void) | undefined;
@@ -30,6 +38,7 @@ function WorkbenchActionsHarness({
 			new WorkbenchProjectWorkspaceRuntime({
 				standaloneCwd: '/system',
 				standaloneTerminalTitle: 'Terminal 1',
+				terminalPresentation: createTestTerminalPresentationComposition('action-harness'),
 			}),
 	);
 	const projectWorkspaceState = React.useSyncExternalStore(
@@ -195,6 +204,7 @@ describe('useWorkbenchActions', () => {
 					new WorkbenchProjectWorkspaceRuntime({
 						standaloneCwd: '/system',
 						standaloneTerminalTitle: 'Terminal 1',
+						terminalPresentation: createTestTerminalPresentationComposition('action-disabled'),
 					}),
 			);
 			const actions = useWorkbenchActions({
@@ -236,6 +246,7 @@ describe('useWorkbenchActions', () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('action-confirmation'),
 		});
 		projectWorkspaceRuntime.transition({
 			directory: {

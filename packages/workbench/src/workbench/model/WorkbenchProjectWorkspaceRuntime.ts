@@ -12,6 +12,7 @@ import {
 } from '../../project-workspace';
 import { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import { clonePanelWorkspaceState } from '../components/workbench-panel-workspace/model/panel-workspace-state';
+import type { WorkbenchTerminalPresentationComposition } from './createWorkbenchPreviewTerminalPresentationComposition';
 
 type Listener = () => void;
 
@@ -27,6 +28,7 @@ interface MutableWorkbenchTerminalContext extends WorkbenchTerminalContext {
 export interface WorkbenchProjectWorkspaceRuntimeOptions {
 	readonly standaloneCwd: string;
 	readonly standaloneTerminalTitle: string;
+	readonly terminalPresentation: WorkbenchTerminalPresentationComposition;
 }
 
 export interface WorkbenchRuntimeTerminalCreateInput extends TabStripNewTabRequest {
@@ -45,16 +47,19 @@ export class WorkbenchProjectWorkspaceRuntime {
 	private readonly contexts = new Map<string, MutableWorkbenchTerminalContext>();
 	private readonly listeners = new Set<Listener>();
 	private readonly systemCwd: string;
+	private readonly terminalPresentation: WorkbenchTerminalPresentationComposition;
 	private state = createProjectWorkspaceState();
 
 	public constructor(options: WorkbenchProjectWorkspaceRuntimeOptions) {
 		this.systemCwd = options.standaloneCwd;
+		this.terminalPresentation = options.terminalPresentation;
 		this.contexts.set(
 			this.state.standaloneTerminalContextId,
 			this.createTerminalContext(
 				this.state.standaloneTerminalContextId,
 				options.standaloneTerminalTitle,
 				options.standaloneCwd,
+				options.terminalPresentation.initialPresentationId,
 			),
 		);
 	}
@@ -182,6 +187,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 		terminalContextId: string,
 		title: string,
 		cwd: string,
+		initialPresentationId = this.terminalPresentation.createPresentationId(),
 	): MutableWorkbenchTerminalContext {
 		const tabModel = new TabModel({
 			activeTabId: `${terminalContextId}-tab-1`,
@@ -196,7 +202,11 @@ export class WorkbenchProjectWorkspaceRuntime {
 		});
 		return {
 			nextTabSequence: 2,
-			panelWorkspaceStore: new PanelWorkspaceStore(tabModel, { initialCwd: cwd }),
+			panelWorkspaceStore: new PanelWorkspaceStore(tabModel, {
+				composition: this.terminalPresentation,
+				initialCwd: cwd,
+				initialPresentationId,
+			}),
 			tabModel,
 		};
 	}
@@ -205,6 +215,9 @@ export class WorkbenchProjectWorkspaceRuntime {
 		sourceTerminalContextId: string,
 		targetTerminalContextId: string,
 	): MutableWorkbenchTerminalContext {
+		if (this.terminalPresentation.kind === 'managed') {
+			throw new Error('Managed terminal composition does not support cloned terminal contexts.');
+		}
 		const source = this.requireContext(sourceTerminalContextId);
 		source.panelWorkspaceStore.reconcileTabs();
 		const sourceSnapshot = source.tabModel.getSnapshot();
@@ -245,10 +258,12 @@ export class WorkbenchProjectWorkspaceRuntime {
 			source.panelWorkspaceStore.getSnapshot(),
 			tabIdMap,
 			targetTerminalContextId,
+			this.terminalPresentation.createPresentationId,
 		);
 		return {
 			nextTabSequence: sourceSnapshot.tabs.length + 1,
 			panelWorkspaceStore: new PanelWorkspaceStore(tabModel, {
+				composition: this.terminalPresentation,
 				initialState: panelWorkspaceState,
 			}),
 			tabModel,

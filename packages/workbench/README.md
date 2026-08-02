@@ -28,10 +28,15 @@ groups, and the new-tab control keep their existing context menus.
 
 The shell composes primitives from `@orchbee/ui` without owning PTY processes, filesystem or Git
 effects, settings destinations, authentication, routing, or agent orchestration lifecycles.
-Workbench owns
-the unified search state and presentation, while semantic owners remain responsible for searchable
+Workbench owns the unified search state and presentation, while semantic owners remain responsible for searchable
 read models and Action registrations. The machine-readable scope contract lives in
 [`project.json`](project.json).
+
+Workbench composition is explicitly `preview` or `managed`. Both receive an application-owned
+terminal-presentation identity allocator and one stable initial presentation ID. A managed
+composition additionally receives operation/removal ID allocators and a narrow command dispatcher;
+Workbench never allocates or observes Host terminal IDs. Dynamic presentation IDs are opaque and
+must not be reused after a presentation is removed.
 
 ## Experience catalog
 
@@ -60,9 +65,11 @@ synthetic Folder through `workbench.project.directory.add` without changing the 
 primary Folder. A future desktop composition replaces only path collection with its native Folder
 picker and host validation; those platform effects are not simulated by the browser package.
 A native folder picker remains a future host adapter.
-Creating a Workspace starts one shell projection in its primary Project Folder; duplication copies
+Creating a Workspace starts one shell projection in its primary Project Folder. Preview duplication copies
 Tab groups, Panel layout, names, launch-configuration selection, and recorded launch CWD into fresh
-identities while resetting process-derived Tab, Group, and Terminal state. Terminal projections keep
+identities while resetting process-derived Tab, Group, and presentation state. Managed composition
+does not expose Project or Workspace duplication because it cannot silently clone a real process.
+Terminal projections keep
 launch CWD separate from host-reported current CWD. Directory refresh preserves stable identity,
 ordering, and primary references. Deleting a Workspace disposes only its Orchbee terminal context.
 Removing a Project disposes its Orchbee metadata and contexts and never claims to delete its folders
@@ -166,11 +173,15 @@ another panel's directional edge projects the complete final grid with an empty 
 destination. Dropping replaces that placeholder with the complete source panel and splits the
 target above, below, left, or right without replacing any terminal identity or state. The center of
 a target is intentionally inactive so a release without a directional placeholder cancels and
-restores the canonical grid. Closing an active child affects only that child and returns to the
-primary terminal; closing a primary view affects the panel and all of its children. A localized
-confirmation is required whenever the affected logical terminal set contains a `running` or
-`provisioning` terminal. The last panel in a tab is not closable through the panel lifecycle because
-the tab lifecycle owns that case.
+restores the canonical grid. In preview composition, closing an active child affects only that
+child and returns to the primary terminal; closing a primary view affects the panel and all of its
+children. In managed composition, the same intent first marks every affected presentation as
+closing and emits one exact close command per presentation. Topology remains present until every
+close completes. A localized confirmation is required whenever the affected logical terminal set
+contains a `running` or `provisioning` terminal; preview presentations exercise the same
+confirmation surface. A partial failure retains the failed presentation and already-closed
+siblings for explicit retry, without rollback. The last panel in a tab is not closable through the
+panel lifecycle because the tab lifecycle owns that case.
 
 Terminal process rendering and terminal-search execution remain host capabilities. Terminal search
 does not occupy panel-header chrome and will be exposed through a keyboard command when that
@@ -184,20 +195,23 @@ product action is introduced.
   workspace; malformed external persistence is out of scope because this model is not persisted.
 - **Data:** `PanelWorkspaceState` owns an ordered workspace per tab ID. Each workspace has one
   canonical `PanelLayoutNode` tree, one focused panel ID, and at most one maximized panel ID. A leaf
-  owns exactly one primary `PanelTerminal`, an ordered one-level child list, and zero or one active
-  child ID. Split children carry stable globally unique layout slot IDs, independent from Panel and
-  Split identity, plus non-negative percentage weights.
-  Terminal presentation records stable IDs, title, phase, and nullable CWD; it never contains
-  recursive child terminals.
+  owns exactly one primary `TerminalPresentation`, an ordered one-level child list, and zero or one
+  active child presentation ID. Split children carry stable globally unique layout slot IDs,
+  independent from Panel and Split identity, plus non-negative percentage weights. Each terminal
+  presentation records its Workbench-owned opaque ID, title, nullable launch/current CWD, and a
+  discriminated lifecycle. `pendingRemovals` records the exact child, Panel, or Tab removal set
+  while asynchronous close results are outstanding.
 - **Outputs:** `transitionPanelWorkspace` returns the complete next state plus `applied`,
-  `unchanged`, or a named rejection. It performs no process, DOM, storage, time, random, or network
-  effects. Unknown tabs, panels, splits, or children reject; repeated selection and equivalent
-  resize events are intentional no-ops. Provisioning failure is represented by a terminal phase
-  transition and retains the owning panel for later inspection or retry.
+  `unchanged`, or a named rejection and zero or more typed provision, close, or Tab-ready commands.
+  It performs no process, DOM, storage, time, random, or network effects. Unknown identities,
+  invalid close sets, conflicting removals, and stale operation results reject without mutation;
+  repeated selection and equivalent resize events are intentional no-ops. Provisioning failure
+  retains the presentation and its owning topology for inspection or retry.
 - **Transitions:** Tab reconciliation preserves workspaces by tab ID and creates or removes only
   the changed tab projections. Four-direction split, adjacent resize, focus, primary/child
   selection, child creation/close, panel move/close, and maximize/minimize are the maintained
-  semantic events. Terminal phase changes update presentation without changing membership.
+  semantic events. Managed provision completion/failure/retry, process exit, close
+  completion/failure/retry, and Tab-close requests are explicit operation-ID-correlated events.
   Same-axis splits insert locally by halving only the source weight; cross-axis splits create a
   nested group. Panel move removes and normalizes the source location before inserting the same
   leaf around the target, and never allocates a panel or terminal identity. The drag projection
@@ -205,15 +219,18 @@ product action is introduced.
   restore the untouched canonical tree. Moving an already adjacent Panel back to its current side
   is an intentional no-op that preserves split identity, slot identity, and resized proportions.
   Closing a non-focused Panel preserves focus; closing the focused Panel selects the next visual
-  Panel, falling back to the previous one. New primary and child terminals inherit the displayed
-  source terminal's nullable CWD.
-- **Invariants:** Every tab has at least one panel; panel, split, and terminal IDs are unique;
+  Panel, falling back to the previous one. A managed removal changes membership only after every
+  target reaches `closed`; a Tab emits `tab-close-ready` last and remains until `TabModel`
+  reconciliation confirms deletion. New primary and child terminals inherit the displayed source
+  terminal's nullable CWD.
+- **Invariants:** Every tab has at least one panel; panel, split, and presentation IDs are unique;
   focused and maximized IDs resolve within their tab; active child IDs resolve within their panel;
   every split has at least two children, layout slot IDs remain globally unique, child weights total
   exactly `100` within numeric tolerance, repeated split orientations are flattened, and a resize
   changes only the two children adjacent to its separator. Closing or lifting a panel preserves the
   parent slot identity while normalizing collapsed splits and retains a deterministic next visual
-  neighbor.
+  neighbor. Pending removals are non-empty, never overlap, resolve to live topology, and match only
+  `closing`, `close-failed`, or `closed` lifecycle states bearing that removal ID.
 - **Decisions:** Splitting the right half of `[50, 50]` produces `[50, 25, 25]`, not thirds.
   Split creation remains valid even when the resulting viewport is narrower than `30px`; this keeps
   semantic split commands deterministic instead of letting a rendering constraint reject the
@@ -224,7 +241,10 @@ product action is introduced.
   starting layout. Separators keep a single opaque one-CSS-pixel color through intersections.
   Panel header and child-strip space is never overlaid on the terminal viewport.
 - **Ownership and dependencies:** Workbench is the sole writer of the panel layout and logical
-  terminal-presentation state. `TabModel` remains authoritative for tab order and active tab.
+  terminal-presentation identity/lifecycle state. `TabModel` remains authoritative for tab order
+  and active tab. The application injects identity allocation and dispatches returned managed
+  commands; it cannot supply executable, environment, Host terminal, or attachment identities
+  through this model.
   The resizable primitive owns raw pointer input, native keyboard behavior, separator focus and
   accessibility, and candidate layout production. Workbench does not reinterpret those input
   bindings; it owns topology validation, adjacent-pair projection, the `30px` policy, and the only
@@ -245,10 +265,13 @@ product action is introduced.
   fixed nested-tree regression and deeper generated layout exploration. Resize evidence separately
   covers topology validation, adjacent-pair and minimum-size properties, primitive-to-model
   synchronization, native keyboard layout changes, registration replacement, cancellation, and
-  unrelated primitive failures. React integration tests cover the initial single-panel projection;
+  unrelated primitive failures. Managed lifecycle examples cover provisioning failure, batched
+  close, partial failure, retry, stale provision/close completion, and Tab-ready ordering. The
+  `TerminalPresentationRemoval` TLA+ model explores `549` distinct states across two concurrent
+  presentations and checks atomic topology removal, partial-failure retention, and stale-result
+  immutability. React integration tests cover the initial single-panel projection;
   Storybook and browser review exercise real context menus, resize handles, headers, panel drops,
-  and dialogs. Concurrency and asynchronous process completion are excluded from this release, so
-  no TLA+ claim is made.
+  and dialogs.
 
 ## Use
 

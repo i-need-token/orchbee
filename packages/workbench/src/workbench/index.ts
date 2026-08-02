@@ -1,11 +1,16 @@
 export { Workbench } from './Workbench';
 export type { WorkbenchProps } from './Workbench';
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
+export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
 export type {
 	WorkbenchProjectWorkspaceRuntimeOptions,
 	WorkbenchRuntimeTerminalCreateInput,
 	WorkbenchRuntimeTerminalCreateResult,
 } from './model/WorkbenchProjectWorkspaceRuntime';
+export type {
+	WorkbenchTerminalPresentationCommand,
+	WorkbenchTerminalPresentationComposition,
+} from './model/createWorkbenchPreviewTerminalPresentationComposition';
 export type {
 	WorkbenchActionCatalog,
 	WorkbenchProjectCreateInput,

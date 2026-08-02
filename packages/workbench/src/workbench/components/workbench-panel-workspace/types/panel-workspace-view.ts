@@ -1,4 +1,6 @@
 import type { ActionInvocationSource } from '@orchbee/actions';
+
+import type { TerminalPresentationId } from '../../../../terminal-presentation';
 import type {
 	PanelLayoutNode,
 	PanelSplitDirection,
@@ -25,7 +27,7 @@ export interface PanelDragGhost {
 
 export interface PanelWorkspaceMessages {
 	readonly cancel: string;
-	readonly childTerminalsLabel: string;
+	readonly childPresentationsLabel: string;
 	readonly close: string;
 	readonly closeAnyway: string;
 	readonly closeRunningDescription: (count: number) => string;
@@ -49,7 +51,7 @@ export interface PendingPanelClose {
 export interface WorkbenchPanelWorkspaceView {
 	readonly activateChildTerminal: (
 		panelId: string,
-		childTerminalId: string,
+		childPresentationId: TerminalPresentationId,
 		source?: ActionInvocationSource,
 	) => void;
 	readonly activeTab: TabPanelWorkspace | null;

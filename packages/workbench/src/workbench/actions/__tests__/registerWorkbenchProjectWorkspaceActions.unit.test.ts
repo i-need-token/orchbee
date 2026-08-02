@@ -1,9 +1,17 @@
 import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
 import { describe, expect, it } from 'vitest';
 
+import { terminalPresentationId } from '../../../terminal-presentation';
+import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { registerWorkbenchProjectWorkspaceActions } from '../registerWorkbenchProjectWorkspaceActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../workbench-action-ids';
+
+function createTestTerminalPresentationComposition(scope: string) {
+	return createWorkbenchPreviewTerminalPresentationComposition(
+		terminalPresentationId(`${scope}:initial`),
+	);
+}
 
 describe('registerWorkbenchProjectWorkspaceActions', () => {
 	it('routes Workspace reorder through the scoped semantic Action', async () => {
@@ -166,6 +174,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('action-create-project'),
 		});
 		const registrations = registerWorkbenchProjectWorkspaceActions({
 			primaryWorkspaceName: 'Primary',
@@ -222,7 +231,7 @@ describe('registerWorkbenchProjectWorkspaceActions', () => {
 				?.root,
 		).toMatchObject({
 			kind: 'panel',
-			primaryTerminal: {
+			primaryPresentation: {
 				currentCwd: '/workspace/orchbee/',
 				launchCwd: '/workspace/orchbee/',
 				title: 'Terminal 1',
@@ -288,6 +297,7 @@ function projectRuntime(): WorkbenchProjectWorkspaceRuntime {
 	const runtime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/system',
 		standaloneTerminalTitle: 'Terminal 1',
+		terminalPresentation: createTestTerminalPresentationComposition('project-actions'),
 	});
 	runtime.transition({
 		directory: {

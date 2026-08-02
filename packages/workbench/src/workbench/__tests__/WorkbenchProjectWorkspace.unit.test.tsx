@@ -6,8 +6,16 @@ import { TooltipProvider } from '@orchbee/ui/components';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { terminalPresentationId } from '../../terminal-presentation';
 import { Workbench } from '../Workbench';
+import { createWorkbenchPreviewTerminalPresentationComposition } from '../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+
+function createTestTerminalPresentationComposition(scope: string) {
+	return createWorkbenchPreviewTerminalPresentationComposition(
+		terminalPresentationId(`${scope}:initial`),
+	);
+}
 
 class TestResizeObserver {
 	public disconnect(): void {}
@@ -52,6 +60,7 @@ describe('Workbench Project and Workspace management', () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('workspace-menu'),
 		});
 		render(
 			<OrchbeeI18nProvider locale='en-US'>
@@ -141,6 +150,7 @@ describe('Workbench Project and Workspace management', () => {
 			const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 				standaloneCwd: '/system',
 				standaloneTerminalTitle: locale === 'en-US' ? 'Terminal 1' : '终端 1',
+				terminalPresentation: createTestTerminalPresentationComposition('workspace-locale'),
 			});
 			render(
 				<OrchbeeI18nProvider locale={locale}>
@@ -227,6 +237,7 @@ describe('Workbench Project and Workspace management', () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('workspace-primary'),
 		});
 		projectWorkspaceRuntime.transition({
 			directory: {
@@ -276,6 +287,7 @@ describe('Workbench Project and Workspace management', () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('workspace-folder'),
 		});
 		projectWorkspaceRuntime.transition({
 			directory: {
@@ -521,6 +533,7 @@ describe('Workbench Project and Workspace management', () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('project-reorder'),
 		});
 		for (const [index, name] of ['Alpha', 'Beta', 'Gamma'].entries()) {
 			projectWorkspaceRuntime.transition({
@@ -701,6 +714,7 @@ describe('Workbench Project and Workspace management', () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('workspace-reorder'),
 		});
 		projectWorkspaceRuntime.transition({
 			directory: {

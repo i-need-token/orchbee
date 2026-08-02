@@ -3,34 +3,38 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
+import {
+	terminalPresentationId,
+	type TerminalPresentationId,
+} from '../../../../../../../../terminal-presentation';
 import type { PanelLayoutNode, PanelLeaf } from '../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../types/panel-workspace-view';
 import { WorkbenchPanel } from '../WorkbenchPanel';
 
-const primaryTerminal = {
+const primaryPresentation = {
 	currentCwd: null,
-	id: 'terminal-1',
 	launchCwd: null,
-	phase: 'running',
+	lifecycle: { kind: 'preview' },
+	presentationId: terminalPresentationId('terminal-1'),
 	title: 'Terminal 1',
 } as const;
 const childTerminal = {
 	currentCwd: null,
-	id: 'terminal-2',
 	launchCwd: null,
-	phase: 'running',
+	lifecycle: { kind: 'preview' },
+	presentationId: terminalPresentationId('terminal-2'),
 	title: 'Terminal 2',
 } as const;
 const otherPanel = {
-	activeChildTerminalId: null,
-	childTerminals: [],
+	activeChildPresentationId: null,
+	childPresentations: [],
 	id: 'panel-2',
 	kind: 'panel',
-	primaryTerminal: {
+	primaryPresentation: {
 		currentCwd: null,
-		id: 'terminal-3',
 		launchCwd: null,
-		phase: 'running',
+		lifecycle: { kind: 'preview' },
+		presentationId: terminalPresentationId('terminal-3'),
 		title: 'Terminal 3',
 	},
 } as const;
@@ -40,13 +44,13 @@ interface RenderPanelOptions {
 	readonly focused?: boolean;
 }
 
-function createPanel(activeChildTerminalId: string | null): PanelLeaf {
+function createPanel(activeChildPresentationId: TerminalPresentationId | null): PanelLeaf {
 	return {
-		activeChildTerminalId,
-		childTerminals: activeChildTerminalId === null ? [] : [childTerminal],
+		activeChildPresentationId,
+		childPresentations: activeChildPresentationId === null ? [] : [childTerminal],
 		id: 'panel-1',
 		kind: 'panel',
-		primaryTerminal,
+		primaryPresentation,
 	};
 }
 
@@ -84,7 +88,7 @@ function renderPanel(
 		maximizedPanelId: null,
 		messages: {
 			cancel: 'Cancel',
-			childTerminalsLabel: 'Child terminals',
+			childPresentationsLabel: 'Child terminals',
 			close: 'Close',
 			closeAnyway: 'Close anyway',
 			closeRunningDescription: () => 'Running',
@@ -117,6 +121,7 @@ function renderPanel(
 			nextPanelSlotSequence: 1,
 			nextSplitSequence: 1,
 			nextTerminalSequence: 3,
+			pendingRemovals: [],
 			tabs: [tab],
 		},
 		togglePanelMaximization: () => undefined,
@@ -131,13 +136,14 @@ describe('WorkbenchPanel', () => {
 		const markup = renderPanel(createPanel(null), 1);
 
 		expect(markup).toContain('data-terminal-role="primary"');
+		expect(markup).toContain('data-terminal-presentation-id="terminal-1"');
 		expect(markup).not.toContain('data-slot="workbench-panel-header"');
 		expect(markup).not.toContain('data-slot="workbench-child-terminal-strip"');
 		expect(markup).not.toContain('data-slot="workbench-panel-focus-scrim"');
 	});
 
 	it('shows return and close actions but no panel menu for a singleton child terminal', () => {
-		const markup = renderPanel(createPanel('terminal-2'), 1);
+		const markup = renderPanel(createPanel(terminalPresentationId('terminal-2')), 1);
 
 		expect(markup).toContain('data-terminal-role="child"');
 		expect(markup).toContain('data-slot="workbench-panel-header"');

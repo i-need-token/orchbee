@@ -16,7 +16,7 @@ interface WorkbenchPanelProps {
 
 export function WorkbenchPanel({ panel, view }: WorkbenchPanelProps): React.ReactNode {
 	const displayedTerminal = getDisplayedTerminal(panel);
-	const showHeader = view.panelCount > 1 || panel.activeChildTerminalId !== null;
+	const showHeader = view.panelCount > 1 || panel.activeChildPresentationId !== null;
 	const isDropPlaceholder = view.panelDrag.draggingPanelId === panel.id;
 	const isInactive =
 		view.panelCount > 1 && view.activeTab !== null && view.activeTab.focusedPanelId !== panel.id;
@@ -48,10 +48,12 @@ export function WorkbenchPanel({ panel, view }: WorkbenchPanelProps): React.Reac
 			<WorkbenchTerminalViewport
 				panelId={panel.id}
 				terminal={displayedTerminal}
-				terminalRole={panel.activeChildTerminalId === null ? 'primary' : 'child'}
+				terminalRole={panel.activeChildPresentationId === null ? 'primary' : 'child'}
 				view={view}
 			/>
-			{panel.childTerminals.length > 0 && <WorkbenchChildTerminalStrip panel={panel} view={view} />}
+			{panel.childPresentations.length > 0 && (
+				<WorkbenchChildTerminalStrip panel={panel} view={view} />
+			)}
 			{isInactive && <WorkbenchPanelFocusScrim />}
 		</section>
 	);

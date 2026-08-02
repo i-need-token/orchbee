@@ -28,7 +28,7 @@ interface WorkbenchPanelHeaderProps {
 
 export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps): React.ReactNode {
 	const displayedTerminal = getDisplayedTerminal(panel);
-	const isChildTerminalActive = panel.activeChildTerminalId !== null;
+	const isChildTerminalActive = panel.activeChildPresentationId !== null;
 	const isMaximized = view.maximizedPanelId === panel.id;
 	const panelMenuEntries: readonly WorkbenchActionMenuEntry[] = [
 		{

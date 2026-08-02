@@ -1,21 +1,32 @@
+import type {
+	TerminalPresentationCloseRequest,
+	TerminalPresentationCommand,
+	TerminalPresentationCreation,
+	TerminalPresentationFailure,
+	TerminalPresentationId,
+	TerminalPresentationLifecycle,
+	TerminalPresentationOperationId,
+	TerminalPresentationRemovalId,
+} from '../../../../terminal-presentation';
+import type { WorkbenchTerminalPresentationCommand } from '../../../model/createWorkbenchPreviewTerminalPresentationComposition';
+
 export type PanelSplitDirection = 'above' | 'below' | 'left' | 'right';
 type PanelSplitOrientation = 'horizontal' | 'vertical';
-type TerminalPhase = 'exited' | 'failed' | 'idle' | 'provisioning' | 'running';
 
-export interface PanelTerminal {
+export interface TerminalPresentation {
 	readonly currentCwd: string | null;
-	readonly id: string;
 	readonly launchCwd: string | null;
-	readonly phase: TerminalPhase;
+	readonly lifecycle: TerminalPresentationLifecycle;
+	readonly presentationId: TerminalPresentationId;
 	readonly title: string;
 }
 
 export interface PanelLeaf {
-	readonly activeChildTerminalId: string | null;
-	readonly childTerminals: readonly PanelTerminal[];
+	readonly activeChildPresentationId: TerminalPresentationId | null;
+	readonly childPresentations: readonly TerminalPresentation[];
 	readonly id: string;
 	readonly kind: 'panel';
-	readonly primaryTerminal: PanelTerminal;
+	readonly primaryPresentation: TerminalPresentation;
 }
 
 interface PanelSplitChild {
@@ -45,13 +56,45 @@ export interface PanelWorkspaceState {
 	readonly nextPanelSlotSequence: number;
 	readonly nextSplitSequence: number;
 	readonly nextTerminalSequence: number;
+	readonly pendingRemovals: readonly TerminalPresentationRemoval[];
 	readonly tabs: readonly TabPanelWorkspace[];
 }
 
 export interface PanelWorkspaceTabInput {
 	readonly cwd?: string | null | undefined;
 	readonly id: string;
+	readonly presentation?: TerminalPresentationCreation | undefined;
 	readonly title: string;
+}
+
+type TerminalPresentationRemoval =
+	| {
+			readonly childPresentationId: TerminalPresentationId;
+			readonly kind: 'child';
+			readonly panelId: string;
+			readonly presentationIds: readonly TerminalPresentationId[];
+			readonly removalId: TerminalPresentationRemovalId;
+			readonly tabId: string;
+	  }
+	| {
+			readonly kind: 'panel';
+			readonly panelId: string;
+			readonly presentationIds: readonly TerminalPresentationId[];
+			readonly removalId: TerminalPresentationRemovalId;
+			readonly tabId: string;
+	  }
+	| {
+			readonly kind: 'tab';
+			readonly presentationIds: readonly TerminalPresentationId[];
+			readonly removalId: TerminalPresentationRemovalId;
+			readonly tabId: string;
+	  };
+
+type PanelWorkspaceCommand = WorkbenchTerminalPresentationCommand;
+
+export interface PanelWorkspaceInitialization {
+	readonly commands: readonly PanelWorkspaceCommand[];
+	readonly state: PanelWorkspaceState;
 }
 
 export interface PanelMoveTarget {
@@ -64,6 +107,7 @@ export type PanelWorkspaceEvent =
 			readonly direction: PanelSplitDirection;
 			readonly newTerminalTitle: string;
 			readonly panelId: string;
+			readonly presentation: TerminalPresentationCreation;
 			readonly tabId: string;
 			readonly type: 'panel-split';
 	  }
@@ -84,22 +128,25 @@ export type PanelWorkspaceEvent =
 	| {
 			readonly newTerminalTitle: string;
 			readonly panelId: string;
+			readonly presentation: TerminalPresentationCreation;
 			readonly tabId: string;
 			readonly type: 'child-terminal-created';
 	  }
 	| {
-			readonly childTerminalId: string;
+			readonly childPresentationId: TerminalPresentationId;
 			readonly panelId: string;
 			readonly tabId: string;
 			readonly type: 'child-terminal-activated';
 	  }
 	| {
+			readonly childPresentationId: TerminalPresentationId;
+			readonly close: TerminalPresentationCloseRequest;
 			readonly panelId: string;
 			readonly tabId: string;
 			readonly type: 'child-terminal-closed';
-			readonly childTerminalId: string;
 	  }
 	| {
+			readonly close: TerminalPresentationCloseRequest;
 			readonly panelId: string;
 			readonly tabId: string;
 			readonly type: 'panel-closed';
@@ -121,15 +168,62 @@ export type PanelWorkspaceEvent =
 	  }
 	| {
 			readonly currentCwd: string | null;
+			readonly presentationId: TerminalPresentationId;
 			readonly tabId: string;
-			readonly terminalId: string;
 			readonly type: 'terminal-current-cwd-changed';
 	  }
 	| {
-			readonly phase: TerminalPhase;
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
 			readonly tabId: string;
-			readonly terminalId: string;
-			readonly type: 'terminal-phase-changed';
+			readonly type: 'terminal-provision-completed';
+	  }
+	| {
+			readonly failure: TerminalPresentationFailure;
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly tabId: string;
+			readonly type: 'terminal-provision-failed';
+	  }
+	| {
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly tabId: string;
+			readonly type: 'terminal-provision-retried';
+	  }
+	| {
+			readonly exitCode: number | null;
+			readonly presentationId: TerminalPresentationId;
+			readonly signal: string | null;
+			readonly tabId: string;
+			readonly type: 'terminal-exited';
+	  }
+	| {
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly removalId: TerminalPresentationRemovalId;
+			readonly tabId: string;
+			readonly type: 'terminal-close-completed';
+	  }
+	| {
+			readonly failure: TerminalPresentationFailure;
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly removalId: TerminalPresentationRemovalId;
+			readonly tabId: string;
+			readonly type: 'terminal-close-failed';
+	  }
+	| {
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly removalId: TerminalPresentationRemovalId;
+			readonly tabId: string;
+			readonly type: 'terminal-close-retried';
+	  }
+	| {
+			readonly close: Extract<TerminalPresentationCloseRequest, { readonly kind: 'managed' }>;
+			readonly tabId: string;
+			readonly type: 'tab-close-requested';
 	  }
 	| {
 			readonly tabs: readonly PanelWorkspaceTabInput[];
@@ -138,14 +232,20 @@ export type PanelWorkspaceEvent =
 
 type PanelWorkspaceRejection =
 	| 'child-terminal-not-found'
+	| 'invalid-close-operations'
 	| 'invalid-resize'
 	| 'last-panel'
 	| 'panel-not-found'
+	| 'stale-operation'
 	| 'split-not-found'
 	| 'tab-not-found'
+	| 'terminal-removal-conflict'
+	| 'terminal-removal-required'
+	| 'terminal-presentation-required'
 	| 'terminal-not-found';
 
 export interface PanelWorkspaceTransition {
+	readonly commands: readonly PanelWorkspaceCommand[];
 	readonly outcome: 'applied' | 'rejected' | 'unchanged';
 	readonly rejection: PanelWorkspaceRejection | null;
 	readonly state: PanelWorkspaceState;
@@ -167,38 +267,64 @@ interface PanelInsertionSlotIds {
 }
 
 interface PanelWorkspaceCloneIdentities {
+	readonly createPresentationId: () => TerminalPresentationId;
 	readonly panelIds: Map<string, string>;
 	readonly panelSlotIds: Map<string, string>;
 	readonly prefix: string;
 	readonly splitIds: Map<string, string>;
-	readonly terminalIds: Map<string, string>;
+	readonly presentationIds: Map<TerminalPresentationId, TerminalPresentationId>;
 }
 
 const WEIGHT_TOTAL = 100;
 const WEIGHT_TOLERANCE = 0.000_001;
 
-function createTerminal(sequence: number, title: string, cwd: string | null): PanelTerminal {
+function createTerminal(
+	presentation: TerminalPresentationCreation,
+	title: string,
+	cwd: string | null,
+): {
+	readonly command: TerminalPresentationCommand | null;
+	readonly terminal: TerminalPresentation;
+} {
 	return {
-		currentCwd: cwd,
-		id: `terminal-${sequence}`,
-		launchCwd: cwd,
-		phase: 'running',
-		title,
+		command:
+			presentation.kind === 'managed'
+				? {
+						launchCwd: cwd,
+						operationId: presentation.operationId,
+						presentationId: presentation.presentationId,
+						type: 'terminal-provision-requested',
+					}
+				: null,
+		terminal: {
+			currentCwd: cwd,
+			launchCwd: cwd,
+			lifecycle:
+				presentation.kind === 'managed'
+					? { kind: 'provisioning', operationId: presentation.operationId }
+					: { kind: 'preview' },
+			presentationId: presentation.presentationId,
+			title,
+		},
 	};
 }
 
 function createPanel(
 	panelSequence: number,
-	terminalSequence: number,
+	presentation: TerminalPresentationCreation,
 	title: string,
 	cwd: string | null,
-): PanelLeaf {
+): { readonly command: TerminalPresentationCommand | null; readonly panel: PanelLeaf } {
+	const creation = createTerminal(presentation, title, cwd);
 	return {
-		activeChildTerminalId: null,
-		childTerminals: [],
-		id: `panel-${panelSequence}`,
-		kind: 'panel',
-		primaryTerminal: createTerminal(terminalSequence, title, cwd),
+		command: creation.command,
+		panel: {
+			activeChildPresentationId: null,
+			childPresentations: [],
+			id: `panel-${panelSequence}`,
+			kind: 'panel',
+			primaryPresentation: creation.terminal,
+		},
 	};
 }
 
@@ -248,38 +374,37 @@ function mapPanel(
 	return changed ? { changed: true, node: { ...node, children } } : { changed: false, node };
 }
 
-function mapTerminalPhase(
+function mapTerminal(
 	node: PanelLayoutNode,
-	terminalId: string,
-	phase: TerminalPhase,
+	presentationId: TerminalPresentationId,
+	update: (terminal: TerminalPresentation) => TerminalPresentation,
 ): TreeUpdate {
 	if (node.kind === 'panel') {
-		if (node.primaryTerminal.id === terminalId) {
+		if (node.primaryPresentation.presentationId === presentationId) {
+			const terminal = update(node.primaryPresentation);
 			return {
-				changed: node.primaryTerminal.phase !== phase,
+				changed: terminal !== node.primaryPresentation,
 				node:
-					node.primaryTerminal.phase === phase
-						? node
-						: {
-								...node,
-								primaryTerminal: { ...node.primaryTerminal, phase },
-							},
+					terminal === node.primaryPresentation ? node : { ...node, primaryPresentation: terminal },
 			};
 		}
-		const terminalIndex = node.childTerminals.findIndex((terminal) => terminal.id === terminalId);
-		const terminal = node.childTerminals[terminalIndex];
+		const terminalIndex = node.childPresentations.findIndex(
+			(terminal) => terminal.presentationId === presentationId,
+		);
+		const terminal = node.childPresentations[terminalIndex];
 		if (terminal === undefined) {
 			return { changed: false, node };
 		}
-		if (terminal.phase === phase) {
+		const nextTerminal = update(terminal);
+		if (nextTerminal === terminal) {
 			return { changed: false, node };
 		}
-		const childTerminals = [...node.childTerminals];
-		childTerminals[terminalIndex] = { ...terminal, phase };
-		return { changed: true, node: { ...node, childTerminals } };
+		const childPresentations = [...node.childPresentations];
+		childPresentations[terminalIndex] = nextTerminal;
+		return { changed: true, node: { ...node, childPresentations } };
 	}
 	for (const [index, child] of node.children.entries()) {
-		const result = mapTerminalPhase(child.node, terminalId, phase);
+		const result = mapTerminal(child.node, presentationId, update);
 		if (result.changed) {
 			const children = [...node.children];
 			children[index] = { ...child, node: result.node };
@@ -291,43 +416,38 @@ function mapTerminalPhase(
 
 function mapTerminalCurrentCwd(
 	node: PanelLayoutNode,
-	terminalId: string,
+	presentationId: TerminalPresentationId,
 	currentCwd: string | null,
 ): TreeUpdate {
+	return mapTerminal(node, presentationId, (terminal) =>
+		terminal.currentCwd === currentCwd ? terminal : { ...terminal, currentCwd },
+	);
+}
+
+function findTerminalInNode(
+	node: PanelLayoutNode,
+	presentationId: TerminalPresentationId,
+): TerminalPresentation | null {
 	if (node.kind === 'panel') {
-		if (node.primaryTerminal.id === terminalId) {
-			return {
-				changed: node.primaryTerminal.currentCwd !== currentCwd,
-				node:
-					node.primaryTerminal.currentCwd === currentCwd
-						? node
-						: {
-								...node,
-								primaryTerminal: { ...node.primaryTerminal, currentCwd },
-							},
-			};
+		if (node.primaryPresentation.presentationId === presentationId) {
+			return node.primaryPresentation;
 		}
-		const terminalIndex = node.childTerminals.findIndex((terminal) => terminal.id === terminalId);
-		const terminal = node.childTerminals[terminalIndex];
-		if (terminal === undefined) {
-			return { changed: false, node };
-		}
-		if (terminal.currentCwd === currentCwd) {
-			return { changed: false, node };
-		}
-		const childTerminals = [...node.childTerminals];
-		childTerminals[terminalIndex] = { ...terminal, currentCwd };
-		return { changed: true, node: { ...node, childTerminals } };
+		return (
+			node.childPresentations.find((terminal) => terminal.presentationId === presentationId) ?? null
+		);
 	}
-	for (const [index, child] of node.children.entries()) {
-		const result = mapTerminalCurrentCwd(child.node, terminalId, currentCwd);
-		if (result.changed) {
-			const children = [...node.children];
-			children[index] = { ...child, node: result.node };
-			return { changed: true, node: { ...node, children } };
-		}
+	for (const child of node.children) {
+		const terminal = findTerminalInNode(child.node, presentationId);
+		if (terminal !== null) return terminal;
 	}
-	return { changed: false, node };
+	return null;
+}
+
+function collectPresentationIds(node: PanelLayoutNode): readonly TerminalPresentationId[] {
+	return collectPanelLeaves(node).flatMap((panel) => [
+		panel.primaryPresentation.presentationId,
+		...panel.childPresentations.map((terminal) => terminal.presentationId),
+	]);
 }
 
 function orientationForDirection(direction: PanelSplitDirection): PanelSplitOrientation {
@@ -532,23 +652,26 @@ function resizeSplitNode(
 	return { changed: false, node };
 }
 
-function applied(state: PanelWorkspaceState): PanelWorkspaceTransition {
+function applied(
+	state: PanelWorkspaceState,
+	commands: readonly PanelWorkspaceCommand[] = [],
+): PanelWorkspaceTransition {
 	const invariantErrors = validatePanelWorkspaceState(state);
 	if (invariantErrors.length > 0) {
 		throw new Error(`Panel workspace invariant violation: ${invariantErrors.join('; ')}`);
 	}
-	return { outcome: 'applied', rejection: null, state };
+	return { commands, outcome: 'applied', rejection: null, state };
 }
 
 function unchanged(state: PanelWorkspaceState): PanelWorkspaceTransition {
-	return { outcome: 'unchanged', rejection: null, state };
+	return { commands: [], outcome: 'unchanged', rejection: null, state };
 }
 
 function rejected(
 	state: PanelWorkspaceState,
 	rejection: PanelWorkspaceRejection,
 ): PanelWorkspaceTransition {
-	return { outcome: 'rejected', rejection, state };
+	return { commands: [], outcome: 'rejected', rejection, state };
 }
 
 function replaceTab(
@@ -561,22 +684,139 @@ function replaceTab(
 	return { ...state, tabs };
 }
 
-export function createPanelWorkspaceState(
-	tabs: readonly PanelWorkspaceTabInput[],
+function replaceTerminalLifecycle(
+	state: PanelWorkspaceState,
+	tabIndex: number,
+	tab: TabPanelWorkspace,
+	presentationId: TerminalPresentationId,
+	lifecycle: TerminalPresentationLifecycle,
+	commands: readonly PanelWorkspaceCommand[] = [],
+): PanelWorkspaceTransition {
+	const result = mapTerminal(tab.root, presentationId, (terminal) =>
+		terminal.lifecycle === lifecycle ? terminal : { ...terminal, lifecycle },
+	);
+	if (!result.changed) {
+		return findTerminalInNode(tab.root, presentationId) === null
+			? rejected(state, 'terminal-not-found')
+			: unchanged(state);
+	}
+	return applied(replaceTab(state, tabIndex, { ...tab, root: result.node }), commands);
+}
+
+function beginManagedRemoval(
+	state: PanelWorkspaceState,
+	tabIndex: number,
+	tab: TabPanelWorkspace,
+	removal: TerminalPresentationRemoval,
+	close: Extract<TerminalPresentationCloseRequest, { readonly kind: 'managed' }>,
+): PanelWorkspaceTransition {
+	const targetIds = new Set(removal.presentationIds);
+	const operationIds = new Set(close.operations.map((operation) => operation.operationId));
+	const operationPresentationIds = new Set(
+		close.operations.map((operation) => operation.presentationId),
+	);
+	if (
+		removal.presentationIds.length === 0 ||
+		targetIds.size !== removal.presentationIds.length ||
+		close.operations.length !== removal.presentationIds.length ||
+		operationIds.size !== close.operations.length ||
+		operationPresentationIds.size !== close.operations.length ||
+		close.operations.some((operation) => !targetIds.has(operation.presentationId))
+	) {
+		return rejected(state, 'invalid-close-operations');
+	}
+	if (
+		state.pendingRemovals.some((pending) =>
+			pending.presentationIds.some((presentationId) => targetIds.has(presentationId)),
+		)
+	) {
+		return rejected(state, 'terminal-removal-conflict');
+	}
+	let root = tab.root;
+	const commands: TerminalPresentationCommand[] = [];
+	for (const operation of close.operations) {
+		const terminal = findTerminalInNode(root, operation.presentationId);
+		if (
+			terminal === null ||
+			terminal.lifecycle.kind === 'preview' ||
+			terminal.lifecycle.kind === 'closing' ||
+			terminal.lifecycle.kind === 'closed' ||
+			terminal.lifecycle.kind === 'close-failed'
+		) {
+			return rejected(
+				state,
+				terminal === null ? 'terminal-not-found' : 'terminal-removal-conflict',
+			);
+		}
+		root = mapTerminal(root, operation.presentationId, (candidate) => ({
+			...candidate,
+			lifecycle: {
+				kind: 'closing',
+				operationId: operation.operationId,
+				removalId: close.removalId,
+			},
+		})).node;
+		commands.push({
+			operationId: operation.operationId,
+			presentationId: operation.presentationId,
+			type: 'terminal-close-requested',
+		});
+	}
+	return applied(
+		{
+			...replaceTab(state, tabIndex, { ...tab, root }),
+			pendingRemovals: [...state.pendingRemovals, removal],
+		},
+		commands,
+	);
+}
+
+function removePanelFromTab(
+	state: PanelWorkspaceState,
+	tabIndex: number,
+	tab: TabPanelWorkspace,
+	panelId: string,
+): PanelWorkspaceState | null {
+	const panels = collectPanelLeaves(tab.root);
+	const removedIndex = panels.findIndex((candidate) => candidate.id === panelId);
+	const nextFocusedPanel = panels[removedIndex + 1] ?? panels[removedIndex - 1];
+	const result = removePanelFromNode(tab.root, panelId);
+	if (!result.removed || result.node === null || nextFocusedPanel === undefined) return null;
+	return replaceTab(state, tabIndex, {
+		...tab,
+		focusedPanelId: tab.focusedPanelId === panelId ? nextFocusedPanel.id : tab.focusedPanelId,
+		maximizedPanelId: tab.maximizedPanelId === panelId ? null : tab.maximizedPanelId,
+		root: result.node,
+	});
+}
+
+function withoutRemoval(
+	state: PanelWorkspaceState,
+	removalId: TerminalPresentationRemovalId,
 ): PanelWorkspaceState {
+	return {
+		...state,
+		pendingRemovals: state.pendingRemovals.filter((removal) => removal.removalId !== removalId),
+	};
+}
+
+export function initializePanelWorkspace(
+	tabs: readonly PanelWorkspaceTabInput[],
+): PanelWorkspaceInitialization {
 	let nextPanelSequence = 1;
 	let nextTerminalSequence = 1;
+	const commands: PanelWorkspaceCommand[] = [];
 	const workspaces = tabs.map((tab): TabPanelWorkspace => {
-		const panel = createPanel(
-			nextPanelSequence++,
-			nextTerminalSequence++,
-			tab.title,
-			tab.cwd ?? null,
-		);
+		if (tab.presentation === undefined) {
+			throw new Error(`Initial Tab ${tab.id} is missing a terminal presentation.`);
+		}
+		const creation = createPanel(nextPanelSequence++, tab.presentation, tab.title, tab.cwd ?? null);
+		nextTerminalSequence += 1;
+		if (creation.command !== null) commands.push(creation.command);
 		return {
-			focusedPanelId: panel.id,
+			focusedPanelId: creation.panel.id,
 			maximizedPanelId: null,
-			root: panel,
+			root: creation.panel,
 			tabId: tab.id,
 		};
 	});
@@ -585,13 +825,14 @@ export function createPanelWorkspaceState(
 		nextPanelSlotSequence: 1,
 		nextSplitSequence: 1,
 		nextTerminalSequence,
+		pendingRemovals: [],
 		tabs: workspaces,
 	};
 	const invariantErrors = validatePanelWorkspaceState(state);
 	if (invariantErrors.length > 0) {
 		throw new Error(`Panel workspace invariant violation: ${invariantErrors.join('; ')}`);
 	}
-	return state;
+	return { commands, state };
 }
 
 export function collectPanelLeaves(root: PanelLayoutNode): readonly PanelLeaf[] {
@@ -604,16 +845,19 @@ export function clonePanelWorkspaceState(
 	state: PanelWorkspaceState,
 	tabIdMap: ReadonlyMap<string, string>,
 	identityPrefix: string,
+	createPresentationId: () => TerminalPresentationId,
 ): PanelWorkspaceState {
 	const identities: PanelWorkspaceCloneIdentities = {
+		createPresentationId,
 		panelIds: new Map(),
 		panelSlotIds: new Map(),
 		prefix: identityPrefix,
 		splitIds: new Map(),
-		terminalIds: new Map(),
+		presentationIds: new Map(),
 	};
 	return {
 		...state,
+		pendingRemovals: [],
 		tabs: state.tabs.map((tab) => {
 			const tabId = tabIdMap.get(tab.tabId);
 			if (tabId === undefined) {
@@ -641,10 +885,11 @@ export function findPanel(root: PanelLayoutNode, panelId: string): PanelLeaf | n
 	return findPanelInNode(root, panelId);
 }
 
-export function getDisplayedTerminal(panel: PanelLeaf): PanelTerminal {
+export function getDisplayedTerminal(panel: PanelLeaf): TerminalPresentation {
 	return (
-		panel.childTerminals.find((terminal) => terminal.id === panel.activeChildTerminalId) ??
-		panel.primaryTerminal
+		panel.childPresentations.find(
+			(terminal) => terminal.presentationId === panel.activeChildPresentationId,
+		) ?? panel.primaryPresentation
 	);
 }
 
@@ -691,23 +936,57 @@ export function transitionPanelWorkspace(
 ): PanelWorkspaceTransition {
 	if (event.type === 'tabs-reconciled') {
 		const existingByTabId = new Map(state.tabs.map((tab) => [tab.tabId, tab]));
+		const requestedTabIds = new Set(event.tabs.map((tab) => tab.id));
+		for (const existing of state.tabs) {
+			if (requestedTabIds.has(existing.tabId)) continue;
+			const presentationIds = collectPresentationIds(existing.root);
+			if (
+				presentationIds.every(
+					(presentationId) =>
+						findTerminalInNode(existing.root, presentationId)?.lifecycle.kind === 'preview',
+				)
+			) {
+				continue;
+			}
+			const removal = state.pendingRemovals.find(
+				(candidate) => candidate.kind === 'tab' && candidate.tabId === existing.tabId,
+			);
+			if (
+				removal === undefined ||
+				!removal.presentationIds.every(
+					(presentationId) =>
+						findTerminalInNode(existing.root, presentationId)?.lifecycle.kind === 'closed',
+				)
+			) {
+				return rejected(state, 'terminal-removal-required');
+			}
+		}
+		if (event.tabs.some((tab) => !existingByTabId.has(tab.id) && tab.presentation === undefined)) {
+			return rejected(state, 'terminal-presentation-required');
+		}
 		let nextPanelSequence = state.nextPanelSequence;
 		let nextTerminalSequence = state.nextTerminalSequence;
+		const commands: PanelWorkspaceCommand[] = [];
 		const tabs = event.tabs.map((tab): TabPanelWorkspace => {
 			const existing = existingByTabId.get(tab.id);
 			if (existing !== undefined) {
 				return existing;
 			}
-			const panel = createPanel(
+			if (tab.presentation === undefined) {
+				throw new Error(`New Tab ${tab.id} is missing a terminal presentation.`);
+			}
+			const creation = createPanel(
 				nextPanelSequence++,
-				nextTerminalSequence++,
+				tab.presentation,
 				tab.title,
 				tab.cwd ?? null,
 			);
+			nextTerminalSequence += 1;
+			if (creation.command !== null) commands.push(creation.command);
 			return {
-				focusedPanelId: panel.id,
+				focusedPanelId: creation.panel.id,
 				maximizedPanelId: null,
-				root: panel,
+				root: creation.panel,
 				tabId: tab.id,
 			};
 		});
@@ -715,9 +994,16 @@ export function transitionPanelWorkspace(
 			nextPanelSequence === state.nextPanelSequence &&
 			tabs.length === state.tabs.length &&
 			tabs.every((tab, index) => tab === state.tabs[index]);
-		return isUnchanged
+		const retainedTabIds = new Set(tabs.map((tab) => tab.tabId));
+		const pendingRemovals = state.pendingRemovals.filter((removal) =>
+			retainedTabIds.has(removal.tabId),
+		);
+		return isUnchanged && pendingRemovals.length === state.pendingRemovals.length
 			? unchanged(state)
-			: applied({ ...state, nextPanelSequence, nextTerminalSequence, tabs });
+			: applied(
+					{ ...state, nextPanelSequence, nextTerminalSequence, pendingRemovals, tabs },
+					commands,
+				);
 	}
 
 	const tabIndex = state.tabs.findIndex((tab) => tab.tabId === event.tabId);
@@ -732,12 +1018,13 @@ export function transitionPanelWorkspace(
 			return rejected(state, 'panel-not-found');
 		}
 		const sourceTerminal = getDisplayedTerminal(sourcePanel);
-		const newPanel = createPanel(
+		const creation = createPanel(
 			state.nextPanelSequence,
-			state.nextTerminalSequence,
+			event.presentation,
 			event.newTerminalTitle,
 			sourceTerminal.currentCwd,
 		);
+		const newPanel = creation.panel;
 		const result = insertPanelNode(
 			tab.root,
 			event.panelId,
@@ -752,18 +1039,21 @@ export function transitionPanelWorkspace(
 		if (!result.changed) {
 			return rejected(state, 'panel-not-found');
 		}
-		return applied({
-			...replaceTab(state, tabIndex, {
-				...tab,
-				focusedPanelId: newPanel.id,
-				maximizedPanelId: null,
-				root: result.node,
-			}),
-			nextPanelSequence: state.nextPanelSequence + 1,
-			nextPanelSlotSequence: state.nextPanelSlotSequence + 2,
-			nextSplitSequence: state.nextSplitSequence + 1,
-			nextTerminalSequence: state.nextTerminalSequence + 1,
-		});
+		return applied(
+			{
+				...replaceTab(state, tabIndex, {
+					...tab,
+					focusedPanelId: newPanel.id,
+					maximizedPanelId: null,
+					root: result.node,
+				}),
+				nextPanelSequence: state.nextPanelSequence + 1,
+				nextPanelSlotSequence: state.nextPanelSlotSequence + 2,
+				nextSplitSequence: state.nextSplitSequence + 1,
+				nextTerminalSequence: state.nextTerminalSequence + 1,
+			},
+			creation.command === null ? [] : [creation.command],
+		);
 	}
 
 	if (event.type === 'panel-moved') {
@@ -808,30 +1098,223 @@ export function transitionPanelWorkspace(
 		});
 	}
 
-	if (event.type === 'terminal-phase-changed') {
-		const result = mapTerminalPhase(tab.root, event.terminalId, event.phase);
+	if (event.type === 'terminal-current-cwd-changed') {
+		const result = mapTerminalCurrentCwd(tab.root, event.presentationId, event.currentCwd);
 		if (!result.changed) {
-			const terminalExists = collectPanelLeaves(tab.root).some(
-				(panel) =>
-					panel.primaryTerminal.id === event.terminalId ||
-					panel.childTerminals.some((terminal) => terminal.id === event.terminalId),
-			);
-			return terminalExists ? unchanged(state) : rejected(state, 'terminal-not-found');
+			return findTerminalInNode(tab.root, event.presentationId) === null
+				? rejected(state, 'terminal-not-found')
+				: unchanged(state);
 		}
 		return applied(replaceTab(state, tabIndex, { ...tab, root: result.node }));
 	}
 
-	if (event.type === 'terminal-current-cwd-changed') {
-		const result = mapTerminalCurrentCwd(tab.root, event.terminalId, event.currentCwd);
-		if (!result.changed) {
-			const terminalExists = collectPanelLeaves(tab.root).some(
-				(panel) =>
-					panel.primaryTerminal.id === event.terminalId ||
-					panel.childTerminals.some((terminal) => terminal.id === event.terminalId),
-			);
-			return terminalExists ? unchanged(state) : rejected(state, 'terminal-not-found');
+	if (event.type === 'terminal-provision-completed') {
+		const terminal = findTerminalInNode(tab.root, event.presentationId);
+		if (terminal === null) return rejected(state, 'terminal-not-found');
+		if (
+			terminal.lifecycle.kind !== 'provisioning' ||
+			terminal.lifecycle.operationId !== event.operationId
+		) {
+			return rejected(state, 'stale-operation');
 		}
-		return applied(replaceTab(state, tabIndex, { ...tab, root: result.node }));
+		return replaceTerminalLifecycle(state, tabIndex, tab, event.presentationId, {
+			kind: 'running',
+		});
+	}
+
+	if (event.type === 'terminal-provision-failed') {
+		const terminal = findTerminalInNode(tab.root, event.presentationId);
+		if (terminal === null) return rejected(state, 'terminal-not-found');
+		if (
+			terminal.lifecycle.kind !== 'provisioning' ||
+			terminal.lifecycle.operationId !== event.operationId
+		) {
+			return rejected(state, 'stale-operation');
+		}
+		return replaceTerminalLifecycle(state, tabIndex, tab, event.presentationId, {
+			failure: event.failure,
+			kind: 'provision-failed',
+			operationId: event.operationId,
+		});
+	}
+
+	if (event.type === 'terminal-provision-retried') {
+		const terminal = findTerminalInNode(tab.root, event.presentationId);
+		if (terminal === null) return rejected(state, 'terminal-not-found');
+		if (
+			terminal.lifecycle.kind !== 'provision-failed' ||
+			!terminal.lifecycle.failure.retryable ||
+			terminal.lifecycle.operationId === event.operationId
+		) {
+			return rejected(state, 'stale-operation');
+		}
+		return replaceTerminalLifecycle(
+			state,
+			tabIndex,
+			tab,
+			event.presentationId,
+			{ kind: 'provisioning', operationId: event.operationId },
+			[
+				{
+					launchCwd: terminal.launchCwd,
+					operationId: event.operationId,
+					presentationId: event.presentationId,
+					type: 'terminal-provision-requested',
+				},
+			],
+		);
+	}
+
+	if (event.type === 'terminal-exited') {
+		const terminal = findTerminalInNode(tab.root, event.presentationId);
+		if (terminal === null) return rejected(state, 'terminal-not-found');
+		if (terminal.lifecycle.kind === 'exited') {
+			return terminal.lifecycle.exitCode === event.exitCode &&
+				terminal.lifecycle.signal === event.signal
+				? unchanged(state)
+				: rejected(state, 'stale-operation');
+		}
+		if (terminal.lifecycle.kind !== 'running') return rejected(state, 'stale-operation');
+		return replaceTerminalLifecycle(state, tabIndex, tab, event.presentationId, {
+			exitCode: event.exitCode,
+			kind: 'exited',
+			signal: event.signal,
+		});
+	}
+
+	if (event.type === 'terminal-close-failed') {
+		const removal = state.pendingRemovals.find(
+			(candidate) => candidate.removalId === event.removalId && candidate.tabId === event.tabId,
+		);
+		const terminal = findTerminalInNode(tab.root, event.presentationId);
+		if (terminal === null) return rejected(state, 'terminal-not-found');
+		if (
+			removal === undefined ||
+			!removal.presentationIds.includes(event.presentationId) ||
+			terminal.lifecycle.kind !== 'closing' ||
+			terminal.lifecycle.removalId !== event.removalId ||
+			terminal.lifecycle.operationId !== event.operationId
+		) {
+			return rejected(state, 'stale-operation');
+		}
+		return replaceTerminalLifecycle(state, tabIndex, tab, event.presentationId, {
+			failure: event.failure,
+			kind: 'close-failed',
+			operationId: event.operationId,
+			removalId: event.removalId,
+		});
+	}
+
+	if (event.type === 'terminal-close-retried') {
+		const removal = state.pendingRemovals.find(
+			(candidate) => candidate.removalId === event.removalId && candidate.tabId === event.tabId,
+		);
+		const terminal = findTerminalInNode(tab.root, event.presentationId);
+		if (terminal === null) return rejected(state, 'terminal-not-found');
+		if (
+			removal === undefined ||
+			terminal.lifecycle.kind !== 'close-failed' ||
+			terminal.lifecycle.removalId !== event.removalId ||
+			!terminal.lifecycle.failure.retryable ||
+			terminal.lifecycle.operationId === event.operationId
+		) {
+			return rejected(state, 'stale-operation');
+		}
+		return replaceTerminalLifecycle(
+			state,
+			tabIndex,
+			tab,
+			event.presentationId,
+			{
+				kind: 'closing',
+				operationId: event.operationId,
+				removalId: event.removalId,
+			},
+			[
+				{
+					operationId: event.operationId,
+					presentationId: event.presentationId,
+					type: 'terminal-close-requested',
+				},
+			],
+		);
+	}
+
+	if (event.type === 'terminal-close-completed') {
+		const removal = state.pendingRemovals.find(
+			(candidate) => candidate.removalId === event.removalId && candidate.tabId === event.tabId,
+		);
+		const terminal = findTerminalInNode(tab.root, event.presentationId);
+		if (terminal === null) return rejected(state, 'terminal-not-found');
+		if (
+			removal === undefined ||
+			!removal.presentationIds.includes(event.presentationId) ||
+			terminal.lifecycle.kind !== 'closing' ||
+			terminal.lifecycle.removalId !== event.removalId ||
+			terminal.lifecycle.operationId !== event.operationId
+		) {
+			return rejected(state, 'stale-operation');
+		}
+		const root = mapTerminal(tab.root, event.presentationId, (candidate) => ({
+			...candidate,
+			lifecycle: {
+				kind: 'closed',
+				operationId: event.operationId,
+				removalId: event.removalId,
+			},
+		})).node;
+		const nextTab = { ...tab, root };
+		const allClosed = removal.presentationIds.every(
+			(presentationId) => findTerminalInNode(root, presentationId)?.lifecycle.kind === 'closed',
+		);
+		if (!allClosed) return applied(replaceTab(state, tabIndex, nextTab));
+		const nextState = replaceTab(state, tabIndex, nextTab);
+		if (removal.kind === 'tab') {
+			return applied(nextState, [
+				{ removalId: removal.removalId, tabId: removal.tabId, type: 'tab-close-ready' },
+			]);
+		}
+		if (removal.kind === 'child') {
+			const panel = findPanelInNode(root, removal.panelId);
+			if (panel === null) return rejected(state, 'panel-not-found');
+			const childPresentations = panel.childPresentations.filter(
+				(candidate) => candidate.presentationId !== removal.childPresentationId,
+			);
+			const result = mapPanel(root, removal.panelId, (candidate) => ({
+				...candidate,
+				activeChildPresentationId:
+					candidate.activeChildPresentationId === removal.childPresentationId
+						? null
+						: candidate.activeChildPresentationId,
+				childPresentations,
+			}));
+			return applied(
+				withoutRemoval(
+					replaceTab(nextState, tabIndex, { ...nextTab, root: result.node }),
+					removal.removalId,
+				),
+			);
+		}
+		const removedState = removePanelFromTab(nextState, tabIndex, nextTab, removal.panelId);
+		return removedState === null
+			? rejected(state, 'panel-not-found')
+			: applied(withoutRemoval(removedState, removal.removalId));
+	}
+
+	if (event.type === 'tab-close-requested') {
+		const presentationIds = collectPresentationIds(tab.root);
+		return beginManagedRemoval(
+			state,
+			tabIndex,
+			tab,
+			{
+				kind: 'tab',
+				presentationIds,
+				removalId: event.close.removalId,
+				tabId: event.tabId,
+			},
+			event.close,
+		);
 	}
 
 	if (event.type === 'adjacent-panels-resized') {
@@ -862,36 +1345,44 @@ export function transitionPanelWorkspace(
 	}
 
 	if (event.type === 'child-terminal-created') {
-		const terminal = createTerminal(
-			state.nextTerminalSequence,
+		const creation = createTerminal(
+			event.presentation,
 			event.newTerminalTitle,
 			getDisplayedTerminal(panel).currentCwd,
 		);
+		const terminal = creation.terminal;
 		const result = mapPanel(tab.root, event.panelId, (currentPanel) => ({
 			...currentPanel,
-			activeChildTerminalId: terminal.id,
-			childTerminals: [...currentPanel.childTerminals, terminal],
+			activeChildPresentationId: terminal.presentationId,
+			childPresentations: [...currentPanel.childPresentations, terminal],
 		}));
-		return applied({
-			...replaceTab(state, tabIndex, {
-				...tab,
-				focusedPanelId: event.panelId,
-				root: result.node,
-			}),
-			nextTerminalSequence: state.nextTerminalSequence + 1,
-		});
+		return applied(
+			{
+				...replaceTab(state, tabIndex, {
+					...tab,
+					focusedPanelId: event.panelId,
+					root: result.node,
+				}),
+				nextTerminalSequence: state.nextTerminalSequence + 1,
+			},
+			creation.command === null ? [] : [creation.command],
+		);
 	}
 
 	if (event.type === 'child-terminal-activated') {
-		if (!panel.childTerminals.some((terminal) => terminal.id === event.childTerminalId)) {
+		if (
+			!panel.childPresentations.some(
+				(terminal) => terminal.presentationId === event.childPresentationId,
+			)
+		) {
 			return rejected(state, 'child-terminal-not-found');
 		}
-		if (panel.activeChildTerminalId === event.childTerminalId) {
+		if (panel.activeChildPresentationId === event.childPresentationId) {
 			return unchanged(state);
 		}
 		const result = mapPanel(tab.root, event.panelId, (currentPanel) => ({
 			...currentPanel,
-			activeChildTerminalId: event.childTerminalId,
+			activeChildPresentationId: event.childPresentationId,
 		}));
 		return applied(
 			replaceTab(state, tabIndex, {
@@ -903,32 +1394,48 @@ export function transitionPanelWorkspace(
 	}
 
 	if (event.type === 'child-terminal-closed') {
-		const childIndex = panel.childTerminals.findIndex(
-			(terminal) => terminal.id === event.childTerminalId,
+		const childIndex = panel.childPresentations.findIndex(
+			(terminal) => terminal.presentationId === event.childPresentationId,
 		);
 		if (childIndex === -1) {
 			return rejected(state, 'child-terminal-not-found');
 		}
-		const childTerminals = [...panel.childTerminals];
-		childTerminals.splice(childIndex, 1);
+		if (event.close.kind === 'managed') {
+			return beginManagedRemoval(
+				state,
+				tabIndex,
+				tab,
+				{
+					childPresentationId: event.childPresentationId,
+					kind: 'child',
+					panelId: event.panelId,
+					presentationIds: [event.childPresentationId],
+					removalId: event.close.removalId,
+					tabId: event.tabId,
+				},
+				event.close,
+			);
+		}
+		const childPresentations = [...panel.childPresentations];
+		childPresentations.splice(childIndex, 1);
 		const result = mapPanel(tab.root, event.panelId, (currentPanel) => ({
 			...currentPanel,
-			activeChildTerminalId:
-				currentPanel.activeChildTerminalId === event.childTerminalId
+			activeChildPresentationId:
+				currentPanel.activeChildPresentationId === event.childPresentationId
 					? null
-					: currentPanel.activeChildTerminalId,
-			childTerminals,
+					: currentPanel.activeChildPresentationId,
+			childPresentations,
 		}));
 		return applied(replaceTab(state, tabIndex, { ...tab, root: result.node }));
 	}
 
 	if (event.type === 'primary-terminal-shown') {
-		if (panel.activeChildTerminalId === null) {
+		if (panel.activeChildPresentationId === null) {
 			return unchanged(state);
 		}
 		const result = mapPanel(tab.root, event.panelId, (currentPanel) => ({
 			...currentPanel,
-			activeChildTerminalId: null,
+			activeChildPresentationId: null,
 		}));
 		return applied(replaceTab(state, tabIndex, { ...tab, root: result.node }));
 	}
@@ -954,21 +1461,26 @@ export function transitionPanelWorkspace(
 	if (panels.length === 1) {
 		return rejected(state, 'last-panel');
 	}
-	const removedIndex = panels.findIndex((candidate) => candidate.id === event.panelId);
-	const nextFocusedPanel = panels[removedIndex + 1] ?? panels[removedIndex - 1];
-	const result = removePanelFromNode(tab.root, event.panelId);
-	if (!result.removed || result.node === null || nextFocusedPanel === undefined) {
-		return rejected(state, 'panel-not-found');
+	if (event.close.kind === 'managed') {
+		return beginManagedRemoval(
+			state,
+			tabIndex,
+			tab,
+			{
+				kind: 'panel',
+				panelId: event.panelId,
+				presentationIds: [
+					panel.primaryPresentation.presentationId,
+					...panel.childPresentations.map((terminal) => terminal.presentationId),
+				],
+				removalId: event.close.removalId,
+				tabId: event.tabId,
+			},
+			event.close,
+		);
 	}
-	return applied(
-		replaceTab(state, tabIndex, {
-			...tab,
-			focusedPanelId:
-				tab.focusedPanelId === event.panelId ? nextFocusedPanel.id : tab.focusedPanelId,
-			maximizedPanelId: tab.maximizedPanelId === event.panelId ? null : tab.maximizedPanelId,
-			root: result.node,
-		}),
-	);
+	const removedState = removePanelFromTab(state, tabIndex, tab, event.panelId);
+	return removedState === null ? rejected(state, 'panel-not-found') : applied(removedState);
 }
 
 function validatePanelWorkspaceState(state: PanelWorkspaceState): readonly string[] {
@@ -977,7 +1489,7 @@ function validatePanelWorkspaceState(state: PanelWorkspaceState): readonly strin
 	const panelIds = new Set<string>();
 	const panelSlotIds = new Set<string>();
 	const splitIds = new Set<string>();
-	const terminalIds = new Set<string>();
+	const presentationIds = new Set<string>();
 	for (const tab of state.tabs) {
 		if (tabIds.has(tab.tabId)) {
 			errors.push(`Duplicate tab id: ${tab.tabId}`);
@@ -997,15 +1509,20 @@ function validatePanelWorkspaceState(state: PanelWorkspaceState): readonly strin
 					errors.push(`Duplicate panel id: ${node.id}`);
 				}
 				panelIds.add(node.id);
-				const childIds = new Set(node.childTerminals.map((terminal) => terminal.id));
-				if (node.activeChildTerminalId !== null && !childIds.has(node.activeChildTerminalId)) {
-					errors.push(`Missing active child terminal: ${node.activeChildTerminalId}`);
+				const childIds = new Set(
+					node.childPresentations.map((terminal) => terminal.presentationId),
+				);
+				if (
+					node.activeChildPresentationId !== null &&
+					!childIds.has(node.activeChildPresentationId)
+				) {
+					errors.push(`Missing active child terminal: ${node.activeChildPresentationId}`);
 				}
-				for (const terminal of [node.primaryTerminal, ...node.childTerminals]) {
-					if (terminalIds.has(terminal.id)) {
-						errors.push(`Duplicate terminal id: ${terminal.id}`);
+				for (const terminal of [node.primaryPresentation, ...node.childPresentations]) {
+					if (presentationIds.has(terminal.presentationId)) {
+						errors.push(`Duplicate terminal id: ${terminal.presentationId}`);
 					}
-					terminalIds.add(terminal.id);
+					presentationIds.add(terminal.presentationId);
 				}
 				return;
 			}
@@ -1042,6 +1559,36 @@ function validatePanelWorkspaceState(state: PanelWorkspaceState): readonly strin
 		};
 		visit(tab.root);
 	}
+	const removalPresentationIds = new Set<TerminalPresentationId>();
+	for (const removal of state.pendingRemovals) {
+		const tab = state.tabs.find((candidate) => candidate.tabId === removal.tabId);
+		if (tab === undefined) {
+			errors.push(`Removal references missing tab: ${removal.removalId}`);
+			continue;
+		}
+		if (removal.presentationIds.length === 0) {
+			errors.push(`Removal has no terminal presentations: ${removal.removalId}`);
+		}
+		for (const presentationId of removal.presentationIds) {
+			if (removalPresentationIds.has(presentationId)) {
+				errors.push(`Terminal presentation belongs to overlapping removals: ${presentationId}`);
+			}
+			removalPresentationIds.add(presentationId);
+			const terminal = findTerminalInNode(tab.root, presentationId);
+			if (terminal === null) {
+				errors.push(`Removal references missing terminal presentation: ${presentationId}`);
+				continue;
+			}
+			if (
+				(terminal.lifecycle.kind !== 'closing' &&
+					terminal.lifecycle.kind !== 'close-failed' &&
+					terminal.lifecycle.kind !== 'closed') ||
+				terminal.lifecycle.removalId !== removal.removalId
+			) {
+				errors.push(`Removal lifecycle mismatch: ${presentationId}`);
+			}
+		}
+	}
 	return errors;
 }
 
@@ -1066,35 +1613,28 @@ function clonePanelLayoutNode(
 ): PanelLayoutNode {
 	if (node.kind === 'panel') {
 		return {
-			activeChildTerminalId:
-				node.activeChildTerminalId === null
+			activeChildPresentationId:
+				node.activeChildPresentationId === null
 					? null
-					: cloneIdentity(
-							identities.terminalIds,
-							identities.prefix,
-							'terminal',
-							node.activeChildTerminalId,
-						),
-			childTerminals: node.childTerminals.map((terminal) => ({
+					: clonePresentationIdentity(identities, node.activeChildPresentationId),
+			childPresentations: node.childPresentations.map((terminal) => ({
 				currentCwd: terminal.launchCwd,
-				id: cloneIdentity(identities.terminalIds, identities.prefix, 'terminal', terminal.id),
 				launchCwd: terminal.launchCwd,
-				phase: 'running',
+				lifecycle: { kind: 'preview' },
+				presentationId: clonePresentationIdentity(identities, terminal.presentationId),
 				title: terminal.title,
 			})),
 			id: cloneIdentity(identities.panelIds, identities.prefix, 'panel', node.id),
 			kind: node.kind,
-			primaryTerminal: {
-				currentCwd: node.primaryTerminal.launchCwd,
-				id: cloneIdentity(
-					identities.terminalIds,
-					identities.prefix,
-					'terminal',
-					node.primaryTerminal.id,
+			primaryPresentation: {
+				currentCwd: node.primaryPresentation.launchCwd,
+				launchCwd: node.primaryPresentation.launchCwd,
+				lifecycle: { kind: 'preview' },
+				presentationId: clonePresentationIdentity(
+					identities,
+					node.primaryPresentation.presentationId,
 				),
-				launchCwd: node.primaryTerminal.launchCwd,
-				phase: 'running',
-				title: node.primaryTerminal.title,
+				title: node.primaryPresentation.title,
 			},
 		};
 	}
@@ -1108,4 +1648,15 @@ function clonePanelLayoutNode(
 		kind: node.kind,
 		orientation: node.orientation,
 	};
+}
+
+function clonePresentationIdentity(
+	identities: PanelWorkspaceCloneIdentities,
+	sourceId: TerminalPresentationId,
+): TerminalPresentationId {
+	const existingId = identities.presentationIds.get(sourceId);
+	if (existingId !== undefined) return existingId;
+	const clonedId = identities.createPresentationId();
+	identities.presentationIds.set(sourceId, clonedId);
+	return clonedId;
 }

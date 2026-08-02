@@ -1,5 +1,9 @@
 import type { ActionInputValidation, ActionSignature } from '@orchbee/actions';
 
+import {
+	TerminalPresentationIdSchema,
+	type TerminalPresentationId,
+} from '../../../../terminal-presentation';
 import type { PanelSplitDirection } from '../model/panel-workspace-state';
 
 export const PANEL_ACTION_IDS = {
@@ -18,12 +22,12 @@ export interface PanelTargetInput {
 }
 
 export interface PanelCloseInput extends PanelTargetInput {
-	readonly childTerminalId: string | null;
+	readonly childPresentationId: TerminalPresentationId | null;
 	readonly tabId: string;
 }
 
 export interface PanelChildTerminalInput extends PanelTargetInput {
-	readonly childTerminalId: string;
+	readonly childPresentationId: TerminalPresentationId;
 }
 
 export interface PanelSplitInput extends PanelTargetInput {
@@ -64,36 +68,48 @@ export const panelTargetInput: ActionInputValidation<PanelTargetInput> = {
 
 export const panelCloseInput: ActionInputValidation<PanelCloseInput> = {
 	name: 'PanelCloseInput',
-	parse: (input) =>
-		isRecord(input) &&
-		typeof input['panelId'] === 'string' &&
-		typeof input['tabId'] === 'string' &&
-		(input['childTerminalId'] === null || typeof input['childTerminalId'] === 'string')
+	parse: (input) => {
+		if (
+			!isRecord(input) ||
+			typeof input['panelId'] !== 'string' ||
+			typeof input['tabId'] !== 'string'
+		) {
+			return { success: false, code: 'expected-panel-close-target' };
+		}
+		const childPresentation =
+			input['childPresentationId'] === null
+				? null
+				: TerminalPresentationIdSchema.safeParse(input['childPresentationId']);
+		return childPresentation === null || childPresentation.success
 			? {
 					success: true,
 					data: {
-						childTerminalId: input['childTerminalId'],
+						childPresentationId: childPresentation === null ? null : childPresentation.data,
 						panelId: input['panelId'],
 						tabId: input['tabId'],
 					},
 				}
-			: { success: false, code: 'expected-panel-close-target' },
+			: { success: false, code: 'expected-panel-close-target' };
+	},
 };
 
 export const panelChildTerminalInput: ActionInputValidation<PanelChildTerminalInput> = {
 	name: 'PanelChildTerminalInput',
-	parse: (input) =>
-		isRecord(input) &&
-		typeof input['panelId'] === 'string' &&
-		typeof input['childTerminalId'] === 'string'
+	parse: (input) => {
+		if (!isRecord(input) || typeof input['panelId'] !== 'string') {
+			return { success: false, code: 'expected-panel-child-terminal' };
+		}
+		const childPresentation = TerminalPresentationIdSchema.safeParse(input['childPresentationId']);
+		return childPresentation.success
 			? {
 					success: true,
 					data: {
-						childTerminalId: input['childTerminalId'],
+						childPresentationId: childPresentation.data,
 						panelId: input['panelId'],
 					},
 				}
-			: { success: false, code: 'expected-panel-child-terminal' },
+			: { success: false, code: 'expected-panel-child-terminal' };
+	},
 };
 
 export const panelSplitInput: ActionInputValidation<PanelSplitInput> = {

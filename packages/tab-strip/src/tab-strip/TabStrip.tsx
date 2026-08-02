@@ -7,6 +7,8 @@ import type { TabStripMessages } from './types/tab-strip-messages';
 import type {
 	TabStripCrossWindowDragRuntime,
 	TabStripCrossWindowDragRuntimeFactory,
+	TabStripCloseCallback,
+	TabStripCloseRequest,
 	TabStripNewTabRequest,
 	TabStripOptions,
 } from './types/tab-strip-options';
@@ -19,6 +21,8 @@ export interface TabStripProps extends TabStripOptions {
 export type {
 	TabStripCrossWindowDragRuntime,
 	TabStripCrossWindowDragRuntimeFactory,
+	TabStripCloseCallback,
+	TabStripCloseRequest,
 	TabStripNewTabRequest,
 	TabStripMessages,
 };

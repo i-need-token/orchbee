@@ -5,8 +5,16 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
+import { terminalPresentationId } from '../../terminal-presentation';
 import { Workbench } from '../Workbench';
+import { createWorkbenchPreviewTerminalPresentationComposition } from '../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+
+function createTestTerminalPresentationComposition(scope: string) {
+	return createWorkbenchPreviewTerminalPresentationComposition(
+		terminalPresentationId(`${scope}:initial`),
+	);
+}
 
 function renderWorkbench(
 	getItem: (key: string) => string | null = () => null,
@@ -16,6 +24,7 @@ function renderWorkbench(
 	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/system',
 		standaloneTerminalTitle: 'Terminal 1',
+		terminalPresentation: createTestTerminalPresentationComposition('workbench-render'),
 	});
 	projectWorkspaceRuntime.createTerminal({
 		groupId: null,

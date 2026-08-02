@@ -5,8 +5,16 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { WorkbenchLayoutStorage } from '../../../workbench-layout-storage';
+import { terminalPresentationId } from '../../../terminal-presentation';
+import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { useWorkbench } from '../useWorkbench';
+
+function createTestTerminalPresentationComposition(scope: string) {
+	return createWorkbenchPreviewTerminalPresentationComposition(
+		terminalPresentationId(`${scope}:initial`),
+	);
+}
 
 interface WorkbenchHarnessProps {
 	readonly actionRuntime: ActionRuntime;
@@ -21,6 +29,7 @@ function WorkbenchHarness({ actionRuntime, isUserInteraction, storage }: Workben
 		projectWorkspaceRuntime: new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('use-workbench'),
 		}),
 		shortcutPlatform: 'apple',
 		storage,

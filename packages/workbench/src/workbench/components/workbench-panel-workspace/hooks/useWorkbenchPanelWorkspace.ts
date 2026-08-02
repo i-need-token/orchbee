@@ -3,6 +3,7 @@ import type { ActionInvocationSource, ActionRuntime, ActionScope } from '@orchbe
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
+import type { TerminalPresentationId } from '../../../../terminal-presentation';
 import type { PanelWorkspaceStore } from '../model/PanelWorkspaceStore';
 import {
 	PANEL_ACTION_IDS,
@@ -98,7 +99,7 @@ export function useWorkbenchPanelWorkspace({
 	const messages = React.useMemo<PanelWorkspaceMessages>(
 		() => ({
 			cancel: intl.formatMessage(workbenchMessages.panelCancel),
-			childTerminalsLabel: intl.formatMessage(workbenchMessages.panelChildTerminalsLabel),
+			childPresentationsLabel: intl.formatMessage(workbenchMessages.panelChildTerminalsLabel),
 			close: intl.formatMessage(workbenchMessages.panelClose),
 			closeAnyway: intl.formatMessage(workbenchMessages.panelCloseAnyway),
 			closeRunningDescription: (count) =>
@@ -139,9 +140,9 @@ export function useWorkbenchPanelWorkspace({
 	);
 	const operations = React.useMemo(
 		() => ({
-			activateChildTerminal: (panelId: string, childTerminalId: string) =>
+			activateChildTerminal: (panelId: string, childPresentationId: TerminalPresentationId) =>
 				transitionForActiveTab({
-					childTerminalId,
+					childPresentationId,
 					panelId,
 					type: 'child-terminal-activated',
 				}),
@@ -152,15 +153,24 @@ export function useWorkbenchPanelWorkspace({
 				if (
 					tabId !== input.tabId ||
 					panel === null ||
-					panel.activeChildTerminalId !== input.childTerminalId
+					panel.activeChildPresentationId !== input.childPresentationId
 				) {
 					return null;
 				}
+				const presentationIds =
+					input.childPresentationId === null
+						? [
+								panel.primaryPresentation.presentationId,
+								...panel.childPresentations.map((terminal) => terminal.presentationId),
+							]
+						: [input.childPresentationId];
+				const close = store.createTerminalCloseRequest(presentationIds);
 				return store.transition(
-					input.childTerminalId === null
-						? { panelId: input.panelId, tabId: input.tabId, type: 'panel-closed' }
+					input.childPresentationId === null
+						? { close, panelId: input.panelId, tabId: input.tabId, type: 'panel-closed' }
 						: {
-								childTerminalId: input.childTerminalId,
+								childPresentationId: input.childPresentationId,
+								close,
 								panelId: input.panelId,
 								tabId: input.tabId,
 								type: 'child-terminal-closed',
@@ -171,6 +181,7 @@ export function useWorkbenchPanelWorkspace({
 				transitionForActiveTab({
 					newTerminalTitle: createTerminalTitle(),
 					panelId,
+					presentation: store.createTerminalPresentation(),
 					type: 'child-terminal-created',
 				}),
 			focusPanel: (panelId: string) => transitionForActiveTab({ panelId, type: 'panel-focused' }),
@@ -189,6 +200,7 @@ export function useWorkbenchPanelWorkspace({
 						direction,
 						newTerminalTitle: createTerminalTitle(),
 						panelId,
+						presentation: store.createTerminalPresentation(),
 						tabId,
 						type: 'panel-split',
 					}),
@@ -270,7 +282,7 @@ export function useWorkbenchPanelWorkspace({
 			const sourceElement = event.currentTarget.closest('[data-slot="workbench-panel"]');
 			if (
 				panel === null ||
-				panel.activeChildTerminalId !== null ||
+				panel.activeChildPresentationId !== null ||
 				!(sourceElement instanceof HTMLElement) ||
 				!(workspaceElement instanceof HTMLElement)
 			) {
@@ -449,12 +461,12 @@ export function useWorkbenchPanelWorkspace({
 	return {
 		activateChildTerminal: (
 			panelId,
-			childTerminalId,
+			childPresentationId,
 			source: ActionInvocationSource = 'programmatic',
 		) => {
 			executePanelAction(
 				PANEL_ACTION_IDS.activateChildTerminal,
-				{ childTerminalId, panelId } satisfies PanelChildTerminalInput,
+				{ childPresentationId, panelId } satisfies PanelChildTerminalInput,
 				source,
 			);
 		},
@@ -489,7 +501,7 @@ export function useWorkbenchPanelWorkspace({
 			executePanelAction(
 				PANEL_ACTION_IDS.close,
 				{
-					childTerminalId: panel.activeChildTerminalId,
+					childPresentationId: panel.activeChildPresentationId,
 					panelId,
 					tabId,
 				} satisfies PanelCloseInput,

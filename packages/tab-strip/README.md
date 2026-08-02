@@ -37,6 +37,12 @@ preference, and committed movement semantics. Buttons, keyboard interactions, an
 invoke those same actions. A standalone fixture may omit the runtime; the component then owns and
 disposes an isolated fallback runtime that is not visible to the application command surface.
 
+Local composition closes known Tab IDs synchronously through `TabModel`. A terminal-owning
+composition instead supplies `onCloseTabs`. The same `tabs.tab.close` Action then delegates its
+validated ID set and execution context without mutating `TabModel`; the owner marks the commit point
+and removes Tabs only after its terminal-close orchestration succeeds. A pending or partially
+failed close therefore cannot make Tab Strip delete topology early.
+
 Pointer movement and drag geometry remain local gesture state. Model changes shown during a drag
 are reversible previews; accepting a local drop rolls the preview back and invokes
 `tabs.layout.apply-arrangement` to commit the final arrangement through the Action lifecycle.

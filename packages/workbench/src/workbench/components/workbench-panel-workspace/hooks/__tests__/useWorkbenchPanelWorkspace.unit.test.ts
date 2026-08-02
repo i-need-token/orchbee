@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { terminalPresentationId } from '../../../../../terminal-presentation';
 import { findPanel } from '../../model/panel-workspace-state';
 import { PanelWorkspaceStore } from '../../model/PanelWorkspaceStore';
 import type { WorkbenchPanelWorkspaceView } from '../../types/panel-workspace-view';
@@ -19,7 +20,18 @@ const serverTabModel = new TabModel({
 });
 const serverActionRuntime = new ActionRuntime();
 const serverParentActionScope = serverActionRuntime.createScope('workbench');
-const serverPanelWorkspaceStore = new PanelWorkspaceStore(serverTabModel);
+const serverPanelWorkspaceStore = new PanelWorkspaceStore(serverTabModel, {
+	composition: createPreviewComposition('server'),
+});
+
+function createPreviewComposition(scope: string) {
+	let sequence = 1;
+	return {
+		createPresentationId: () => terminalPresentationId(`${scope}:dynamic:${sequence++}`),
+		initialPresentationId: terminalPresentationId(`${scope}:initial`),
+		kind: 'preview' as const,
+	};
+}
 
 function HookProjection() {
 	const view = useWorkbenchPanelWorkspace({
@@ -85,7 +97,9 @@ describe('useWorkbenchPanelWorkspace', () => {
 						view = candidate;
 					},
 					parentActionScope: parentScope,
-					panelWorkspaceStore: new PanelWorkspaceStore(model),
+					panelWorkspaceStore: new PanelWorkspaceStore(model, {
+						composition: createPreviewComposition('stable-drag'),
+					}),
 				}),
 			),
 		);
@@ -119,7 +133,9 @@ describe('useWorkbenchPanelWorkspace', () => {
 						view = candidate;
 					},
 					parentActionScope: parentScope,
-					panelWorkspaceStore: new PanelWorkspaceStore(model),
+					panelWorkspaceStore: new PanelWorkspaceStore(model, {
+						composition: createPreviewComposition('close-target'),
+					}),
 				}),
 			),
 		);
@@ -135,8 +151,8 @@ describe('useWorkbenchPanelWorkspace', () => {
 		});
 		const panelWithChildren =
 			view.activeTab === null ? null : findPanel(view.activeTab.root, 'panel-1');
-		const firstChildId = panelWithChildren?.childTerminals[0]?.id;
-		const secondChildId = panelWithChildren?.childTerminals[1]?.id;
+		const firstChildId = panelWithChildren?.childPresentations[0]?.presentationId;
+		const secondChildId = panelWithChildren?.childPresentations[1]?.presentationId;
 		if (firstChildId === undefined || secondChildId === undefined) {
 			throw new Error('Expected two child terminals');
 		}
@@ -158,10 +174,9 @@ describe('useWorkbenchPanelWorkspace', () => {
 
 		const panelAfterConfirmation =
 			view.activeTab === null ? null : findPanel(view.activeTab.root, 'panel-1');
-		expect(panelAfterConfirmation?.activeChildTerminalId).toBe(secondChildId);
-		expect(panelAfterConfirmation?.childTerminals.map((terminal) => terminal.id)).toEqual([
-			firstChildId,
-			secondChildId,
-		]);
+		expect(panelAfterConfirmation?.activeChildPresentationId).toBe(secondChildId);
+		expect(
+			panelAfterConfirmation?.childPresentations.map((terminal) => terminal.presentationId),
+		).toEqual([firstChildId, secondChildId]);
 	});
 });

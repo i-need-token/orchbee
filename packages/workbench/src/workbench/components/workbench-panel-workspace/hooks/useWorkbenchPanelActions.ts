@@ -13,6 +13,7 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import { workbenchMessages } from '@orchbee/i18n';
 import * as React from 'react';
 
+import type { TerminalPresentationId } from '../../../../terminal-presentation';
 import {
 	PANEL_ACTION_IDS,
 	panelChildTerminalInput,
@@ -32,7 +33,7 @@ import {
 interface PanelActionOperations {
 	readonly activateChildTerminal: (
 		panelId: string,
-		childTerminalId: string,
+		childPresentationId: TerminalPresentationId,
 	) => PanelWorkspaceTransition | null;
 	readonly closeDisplayedTerminal: (input: PanelCloseInput) => PanelWorkspaceTransition | null;
 	readonly createChildTerminal: (panelId: string) => PanelWorkspaceTransition | null;
@@ -100,7 +101,7 @@ export function useWorkbenchPanelActions({
 				return null;
 			}
 			const panel = findTarget(input.panelId);
-			return panel?.activeChildTerminalId === input.childTerminalId ? panel : null;
+			return panel?.activeChildPresentationId === input.childPresentationId ? panel : null;
 		};
 		const runningTerminalCount = (input: PanelCloseInput) => {
 			const panel = findCloseTarget(input);
@@ -108,11 +109,16 @@ export function useWorkbenchPanelActions({
 				return 0;
 			}
 			const affectedTerminals =
-				input.childTerminalId === null
-					? [panel.primaryTerminal, ...panel.childTerminals]
-					: panel.childTerminals.filter((terminal) => terminal.id === input.childTerminalId);
+				input.childPresentationId === null
+					? [panel.primaryPresentation, ...panel.childPresentations]
+					: panel.childPresentations.filter(
+							(terminal) => terminal.presentationId === input.childPresentationId,
+						);
 			return affectedTerminals.filter(
-				(terminal) => terminal.phase === 'provisioning' || terminal.phase === 'running',
+				(terminal) =>
+					terminal.lifecycle.kind === 'preview' ||
+					terminal.lifecycle.kind === 'provisioning' ||
+					terminal.lifecycle.kind === 'running',
 			).length;
 		};
 		const targetAvailability = (panelId: string) =>
@@ -144,7 +150,7 @@ export function useWorkbenchPanelActions({
 						execute: (context, input) => {
 							context.markCommitted();
 							return resultFor(
-								operations.activateChildTerminal(input.panelId, input.childTerminalId),
+								operations.activateChildTerminal(input.panelId, input.childPresentationId),
 							);
 						},
 					},
@@ -179,7 +185,7 @@ export function useWorkbenchPanelActions({
 					},
 					getAvailability: (_context, input) => {
 						const panel = findCloseTarget(input);
-						return panel === null || (input.childTerminalId === null && panelCount < 2)
+						return panel === null || (input.childPresentationId === null && panelCount < 2)
 							? {
 									kind: 'disabled',
 									reason: workbenchMessages.actionUnavailable,
@@ -276,7 +282,7 @@ export function useWorkbenchPanelActions({
 					execution,
 					getAvailability: (_context, input) => {
 						const panel = findTarget(input.panelId);
-						return panel?.activeChildTerminalId === null || panel === null
+						return panel?.activeChildPresentationId === null || panel === null
 							? {
 									kind: 'disabled',
 									reason: workbenchMessages.actionUnavailable,

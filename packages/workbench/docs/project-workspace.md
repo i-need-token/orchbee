@@ -99,7 +99,10 @@ first surviving Directory when necessary. Removing the final Directory rejects.
 create, clone, or dispose in-memory terminal contexts; the pure transition performs no React, DOM,
 storage, process, filesystem, Git, time, random, or network effect.
 
-Each terminal projection records immutable `launchCwd` separately from host-reported `currentCwd`.
+Each terminal presentation records immutable `launchCwd` separately from host-reported `currentCwd`.
+Workbench owns its opaque presentation ID and discriminated lifecycle, while the application owns
+non-reusing identity allocation and command dispatch. Host terminal identity never enters this
+model.
 `resolveTerminalCwd` returns one launch path and its source:
 
 ```text
@@ -148,12 +151,14 @@ from a dropdown or context menu, their confirmation is a compact Popover anchore
 selected menu item; it introduces no page-wide backdrop and supports `Escape` to cancel and `Enter`
 to confirm. Invocations without a contextual anchor fall back to the shared modal Alert Dialog.
 
-Workspace duplication copies the primary Directory, launch-configuration selection, Tab groups,
+Preview Workspace duplication copies the primary Directory, launch-configuration selection, Tab groups,
 Panel layout, presentation names, and each terminal's recorded launch CWD. It uses a whitelist:
 Tab and Group attention, loading, network, crash, permission, discard, capture, memory, and other
-runtime observations do not copy; terminal phases reset to the fresh-shell phase. It never copies
+runtime observations do not copy; presentations reset to preview lifecycle with fresh identities.
+It never copies
 process identity, output, command history, Worktrees, or source files. The in-memory preview creates
-ordinary running shell projections with fresh identities.
+ordinary shell projections with fresh identities. Managed composition rejects terminal-context
+cloning; Desktop does not expose Project or Workspace duplication in this integration stage.
 
 ## Browser Project folder entry
 
@@ -265,7 +270,7 @@ mutation.
 | ------------------------------------------------------------------------------------------ | ------------------------------------- |
 | Project, Directory, Workspace, active-location model, invariants, and product presentation | `@orchbee/workbench`                  |
 | Tab ordering, grouping, selection, and Tab interaction                                     | `@orchbee/tab-strip`                  |
-| Panel layout and terminal presentation projection                                          | `@orchbee/workbench` Panel workspace  |
+| Panel layout plus terminal presentation identity, lifecycle, and command projection        | `@orchbee/workbench` Panel workspace  |
 | Product descriptors and `en-US` / `zh-CN` catalogs                                         | `@orchbee/i18n`                       |
 | Browser path-entry presentation and synthetic Folder projection                            | `@orchbee/workbench`                  |
 | Normalized filesystem and Git observations                                                 | Future application or runtime adapter |

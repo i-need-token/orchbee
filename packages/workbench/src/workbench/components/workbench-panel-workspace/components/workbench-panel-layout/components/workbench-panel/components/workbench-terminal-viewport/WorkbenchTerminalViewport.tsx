@@ -4,7 +4,7 @@ import * as React from 'react';
 import { WorkbenchActionContextMenuContent } from '../../../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import type { WorkbenchActionMenuEntry } from '../../../../../../../../types/workbench-action-menu';
 import type {
-	PanelTerminal,
+	TerminalPresentation,
 	PanelSplitDirection,
 } from '../../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../types/panel-workspace-view';
@@ -13,7 +13,7 @@ import styles from './WorkbenchTerminalViewport.module.css';
 
 interface WorkbenchTerminalViewportProps {
 	readonly panelId: string;
-	readonly terminal: PanelTerminal;
+	readonly terminal: TerminalPresentation;
 	readonly terminalRole: 'child' | 'primary';
 	readonly view: WorkbenchPanelWorkspaceView;
 }
@@ -77,7 +77,7 @@ export function WorkbenchTerminalViewport({
 				className={styles['viewport']}
 				data-panel-id={panelId}
 				data-slot='workbench-terminal-viewport'
-				data-terminal-id={terminal.id}
+				data-terminal-presentation-id={terminal.presentationId}
 				data-terminal-role={terminalRole}
 				tabIndex={0}
 			/>

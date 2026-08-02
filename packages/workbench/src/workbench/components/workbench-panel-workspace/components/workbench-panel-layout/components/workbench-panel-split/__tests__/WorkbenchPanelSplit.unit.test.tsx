@@ -4,6 +4,7 @@ import { act, cleanup, createEvent, fireEvent, render } from '@testing-library/r
 import { createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { terminalPresentationId } from '../../../../../../../../terminal-presentation';
 import type { PanelSplit } from '../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../types/panel-workspace-view';
 import { WorkbenchPanelSplit } from '../WorkbenchPanelSplit';
@@ -13,15 +14,15 @@ const split: PanelSplit = {
 		{
 			id: 'panel-1',
 			node: {
-				activeChildTerminalId: null,
-				childTerminals: [],
+				activeChildPresentationId: null,
+				childPresentations: [],
 				id: 'panel-1',
 				kind: 'panel',
-				primaryTerminal: {
+				primaryPresentation: {
 					currentCwd: null,
-					id: 'terminal-1',
 					launchCwd: null,
-					phase: 'running',
+					lifecycle: { kind: 'preview' },
+					presentationId: terminalPresentationId('terminal-1'),
 					title: 'Terminal 1',
 				},
 			},
@@ -30,15 +31,15 @@ const split: PanelSplit = {
 		{
 			id: 'panel-2',
 			node: {
-				activeChildTerminalId: null,
-				childTerminals: [],
+				activeChildPresentationId: null,
+				childPresentations: [],
 				id: 'panel-2',
 				kind: 'panel',
-				primaryTerminal: {
+				primaryPresentation: {
 					currentCwd: null,
-					id: 'terminal-2',
 					launchCwd: null,
-					phase: 'running',
+					lifecycle: { kind: 'preview' },
+					presentationId: terminalPresentationId('terminal-2'),
 					title: 'Terminal 2',
 				},
 			},

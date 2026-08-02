@@ -37,7 +37,7 @@ import type { TabCloseSource } from '../layout/tab-closing-mode';
 import type { TabModel } from '../model/tab-model';
 import type { TabStripComboButtonController } from '../model/tab-strip-combo-button';
 import type { TabStripMessages } from '../types/tab-strip-messages';
-import type { TabStripNewTabRequest } from '../types/tab-strip-options';
+import type { TabStripCloseCallback, TabStripNewTabRequest } from '../types/tab-strip-options';
 import type { TabStripActions } from '../types/tab-strip-actions';
 import { createGroupForTabs, createNewTabGroup } from '../utils/tab-strip-internals';
 
@@ -49,6 +49,7 @@ interface UseTabStripActionsOptions {
 	readonly onMoveGroupToNewWindow: ((groupId: string) => void) | undefined;
 	readonly onMoveTabsToNewWindow: ((tabIds: readonly string[]) => void) | undefined;
 	readonly onNewTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
+	readonly onCloseTabs: TabStripCloseCallback | undefined;
 	readonly parentActionScope: ActionScope | undefined;
 	readonly requestCloseTabs: (tabIds: readonly string[], source?: TabCloseSource) => void;
 	readonly onVerticalCollapsedChange: ((collapsed: boolean) => void) | undefined;
@@ -66,6 +67,7 @@ export function useTabStripActions({
 	onMoveGroupToNewWindow,
 	onMoveTabsToNewWindow,
 	onNewTab,
+	onCloseTabs,
 	parentActionScope,
 	requestCloseTabs,
 	onVerticalCollapsedChange,
@@ -195,7 +197,12 @@ export function useTabStripActions({
 					handler: {
 						execute: (context, input) => {
 							const tabIds = existingTabIds(input.tabIds);
-							return commit(context, () => requestCloseTabs(tabIds, input.closeSource));
+							return onCloseTabs === undefined
+								? commit(context, () => requestCloseTabs(tabIds, input.closeSource))
+								: onCloseTabs(context, {
+										closeSource: input.closeSource,
+										tabIds,
+									});
 						},
 					},
 					id: TAB_STRIP_ACTION_IDS.closeTabs,
@@ -688,6 +695,7 @@ export function useTabStripActions({
 		onMoveGroupToNewWindow,
 		onMoveTabsToNewWindow,
 		onNewTab,
+		onCloseTabs,
 		onVerticalCollapsedChange,
 		onVerticalExpandOnHoverChange,
 		onVerticalTabSearchClick,

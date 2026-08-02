@@ -1,7 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { WorkbenchDirectory } from '../../../project-workspace';
+import { terminalPresentationId } from '../../../terminal-presentation';
+import { createWorkbenchPreviewTerminalPresentationComposition } from '../createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../WorkbenchProjectWorkspaceRuntime';
+
+function createTestTerminalPresentationComposition(scope: string) {
+	return createWorkbenchPreviewTerminalPresentationComposition(
+		terminalPresentationId(`${scope}:initial`),
+	);
+}
 
 const DIRECTORY: WorkbenchDirectory = {
 	available: true,
@@ -24,6 +32,7 @@ function createRuntime(): WorkbenchProjectWorkspaceRuntime {
 	return new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/system',
 		standaloneTerminalTitle: 'Terminal 1',
+		terminalPresentation: createTestTerminalPresentationComposition('runtime'),
 	});
 }
 
@@ -38,7 +47,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(tab).toMatchObject({ id: 'terminal-context-1-tab-1', title: 'Terminal 1' });
 		expect(panelWorkspace?.root).toMatchObject({
 			kind: 'panel',
-			primaryTerminal: {
+			primaryPresentation: {
 				currentCwd: '/system',
 				launchCwd: '/system',
 				title: 'Terminal 1',
@@ -67,7 +76,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(workspaceContext.tabModel.getSnapshot().tabs).toHaveLength(1);
 		expect(workspaceContext.panelWorkspaceStore.getSnapshot().tabs[0]?.root).toMatchObject({
 			kind: 'panel',
-			primaryTerminal: {
+			primaryPresentation: {
 				currentCwd: '/projects/orchbee',
 				launchCwd: '/projects/orchbee',
 			},
@@ -184,20 +193,15 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			direction: 'right',
 			newTerminalTitle: 'Terminal 2',
 			panelId: sourceTab.root.id,
+			presentation: source.panelWorkspaceStore.createTerminalPresentation(),
 			tabId: sourceTabId,
 			type: 'panel-split',
 		});
 		source.panelWorkspaceStore.transition({
 			currentCwd: '/projects/changed',
+			presentationId: sourceTab.root.primaryPresentation.presentationId,
 			tabId: sourceTabId,
-			terminalId: 'terminal-1',
 			type: 'terminal-current-cwd-changed',
-		});
-		source.panelWorkspaceStore.transition({
-			phase: 'failed',
-			tabId: sourceTabId,
-			terminalId: 'terminal-1',
-			type: 'terminal-phase-changed',
 		});
 		source.tabModel.updateTab(sourceTabId, {
 			alertState: 'audio-playing',
@@ -231,11 +235,10 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 					node: {
 						id: 'terminal-context-3-panel-2',
 						kind: 'panel',
-						primaryTerminal: {
+						primaryPresentation: {
 							currentCwd: '/projects/orchbee',
-							id: 'terminal-context-3-terminal-1',
 							launchCwd: '/projects/orchbee',
-							phase: 'running',
+							lifecycle: { kind: 'preview' },
 						},
 					},
 				},
@@ -244,17 +247,29 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 					node: {
 						id: 'terminal-context-3-panel-1',
 						kind: 'panel',
-						primaryTerminal: {
+						primaryPresentation: {
 							currentCwd: '/projects/orchbee',
-							id: 'terminal-context-3-terminal-2',
 							launchCwd: '/projects/orchbee',
-							phase: 'running',
+							lifecycle: { kind: 'preview' },
 						},
 					},
 				},
 			],
 			id: 'terminal-context-3-split-1',
 		});
+		if (copiedTab?.root.kind !== 'split' || sourceSplitTab?.root.kind !== 'split') {
+			throw new Error('Expected source and copied split layouts.');
+		}
+		const sourcePresentationIds = new Set(
+			sourceSplitTab.root.children.flatMap((child) =>
+				child.node.kind === 'panel' ? [child.node.primaryPresentation.presentationId] : [],
+			),
+		);
+		const copiedPresentationIds = copiedTab.root.children.flatMap((child) =>
+			child.node.kind === 'panel' ? [child.node.primaryPresentation.presentationId] : [],
+		);
+		expect(new Set(copiedPresentationIds).size).toBe(2);
+		expect(copiedPresentationIds.every((id) => !sourcePresentationIds.has(id))).toBe(true);
 	});
 
 	it('reconciles a new Tab and its requested CWD before the context is observed', () => {
@@ -290,7 +305,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 
 		expect(panelWorkspace?.root).toMatchObject({
 			kind: 'panel',
-			primaryTerminal: {
+			primaryPresentation: {
 				currentCwd: '/projects/feature',
 				launchCwd: '/projects/feature',
 				title: 'Feature',
