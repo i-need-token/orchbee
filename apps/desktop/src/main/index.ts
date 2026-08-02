@@ -12,5 +12,14 @@ export type {
 	DesktopTerminalBindingRegistrationResult,
 	DesktopTerminalBindingRemovalResult,
 } from './terminal-binding-registry';
-export { TerminalDocumentControlBroker } from './terminal-document-control';
-export type { TerminalDocumentControlOperations } from './terminal-document-control';
+export {
+	composeDesktopTerminalLifecycleAdapter,
+	DesktopTerminalLifecycleAdapter,
+	TerminalDocumentControlBroker,
+} from './terminal-document-control';
+export type {
+	DesktopTerminalBindingLifecyclePort,
+	DesktopTerminalLifecycleAdapterComposition,
+	DesktopTerminalLifecycleAdapterDependencies,
+	TerminalDocumentControlOperations,
+} from './terminal-document-control';

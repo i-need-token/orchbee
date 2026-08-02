@@ -114,7 +114,7 @@
 				"rsbuild.config.ts!",
 				"vitest.config.ts!"
 			],
-			"ignoreBinaries": ["ps"],
+			"ignoreBinaries": ["java", "ps"],
 			"ignoreDependencies": ["@playwright/test"],
 			"project": [
 				"scripts/*.mjs!",

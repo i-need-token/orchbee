@@ -1,7 +1,9 @@
 export {
 	DesktopApplication,
 	DesktopTerminalBindingRegistry,
+	DesktopTerminalLifecycleAdapter,
 	TerminalDocumentControlBroker,
+	composeDesktopTerminalLifecycleAdapter,
 	resolveDesktopRuntimeConfiguration,
 } from './main';
 export type {
@@ -10,9 +12,12 @@ export type {
 	DesktopRuntimeConfiguration,
 	DesktopRuntimeConfigurationInput,
 	DesktopRuntimeEnvironment,
+	DesktopTerminalBindingLifecyclePort,
 	DesktopTerminalBindingRegistration,
 	DesktopTerminalBindingRegistrationResult,
 	DesktopTerminalBindingRemovalResult,
+	DesktopTerminalLifecycleAdapterComposition,
+	DesktopTerminalLifecycleAdapterDependencies,
 	TerminalDocumentControlOperations,
 } from './main';
 export { startDesktopRenderer } from './renderer';

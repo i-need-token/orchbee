@@ -11,7 +11,9 @@
 		"build": "rsbuild build --log-level error",
 		"start": "electron dist/main/main.cjs",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run",
+		"test": "pnpm test:unit && pnpm test:tla",
+		"test:unit": "vitest run",
+		"test:tla": "node scripts/run-tla.mjs",
 		"test:watch": "vitest",
 		"test:system": "playwright test --config playwright.config.ts"
 	},

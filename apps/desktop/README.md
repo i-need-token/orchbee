@@ -53,12 +53,66 @@ phase remains owned by Workbench. No product terminal, binding, or attachment co
 introduced; allocator, storage, and memory exhaustion remain explicit operation failures rather
 than eviction or truncation policy.
 
+`DesktopTerminalLifecycleAdapter` is the Main workflow between that document contract and the
+existing per-binding recovery/close lifecycle. A first provision allocates one opaque Binding ID,
+registers the exact association, derives a launch from the application-owned profile, and delegates
+durable creation or recovery. The renderer may replace only `currentDirectory`; executable,
+arguments, environment, geometry, terminal profile, Creation ID, and Host identity remain outside
+the document capability. A same-presentation retry reuses its existing binding and requires the
+same resolved launch CWD. A retired presentation ID is never rebound.
+
+The adapter keeps one operation tail per live presentation. Provision, retry, and close therefore
+execute in arrival order for one terminal while unrelated terminals may progress independently.
+Expected recovery and close outcomes become stable, presentation-scoped failures without Host or
+storage detail. Provision failure retains the exact association for retry or explicit close. Close
+delegates the durable `closing` transition to `TerminalBindingLifecycle`; the downstream close
+orchestrator invokes the injected presentation-specific projection-retirement capability only after
+that intent is durable. A completed close removes only the expected binding association and records
+an in-memory retirement tombstone, making repeated close idempotent and later identity reuse fail.
+A pending close or failed storage/transport operation retains the association for an exact retry.
+An unbound close performs no Host or storage mutation and retires only that presentation identity.
+
+The workflow owns no product topology or product lifecycle phase. Workbench remains the sole owner
+of presentation state; the binding store remains the durable terminal-intent authority; the Host
+remains authoritative for process and VT lifetime. Randomness, storage, Host requests, and
+projection retirement are injected capabilities. The real composition constructs one existing
+`TerminalRecoveryCoordinator` and `TerminalCloseOrchestrator` per binding over the shared binding
+store. The Binding-ID allocator must not reissue an identifier already present in durable storage;
+the adapter validates its shape and independently rejects a collision in the live presentation
+registry. The live integration slice must supply and verify that allocator contract before this
+path becomes authoritative. The adapter adds no product count threshold or global terminal
+serialization.
+
 Contract tests cover strict boundary rejection and privileged-identity exclusion. Registry traces
 cover bijection, idempotence, both conflict directions, exact removal, canonical observation, and a
 multi-entry set without eviction. Broker traces cover invalid capability retirement, duplicate and
 conflicting operation IDs, reordered completion, disposal, fixed failure mapping, and typed exit
-publication. These tests do not claim live Workbench binding, viewport attachment, Main restart
-recovery, or end-to-end lifecycle behavior; those remain later integration slices.
+publication. Lifecycle-adapter traces cover fresh durable provisioning, same-binding retry,
+launch-conflict rejection, allocation collision, per-presentation serialization, cross-presentation
+concurrency, pending-close retry, idempotent unbound close, retirement, expected failure mapping,
+and preservation of a conflicting replacement registration. Existing checked recovery and close
+models continue to own their downstream durability and exact-target claims. The checked
+`DesktopTerminalLifecycleAdapter` model explores `261` distinct states for two presentations and
+two bindings. It checks membership/phase agreement, binding bijection, one active effect per
+presentation, queued close ordering, failure preservation, exact-target isolation, and irreversible
+retirement. It assumes validated commands and abstracts each delegated lifecycle call to completion
+or expected failure. Its finite bound admits at most one active effect and one close queued behind a
+provision for each presentation; the Workbench command model does not emit another retry before the
+current result. This slice does not claim live Workbench binding, viewport attachment, Host-exit
+routing, durable reconstruction of the presentation-to-binding association after Main restart, or
+end-to-end lifecycle refinement; those remain requirements for the live integration slice.
+
+The adapter's maintained transition record is:
+
+- `absent + provision` allocates and registers before delegating recovery; allocation or registry
+  failure performs no Host mutation.
+- `bound + provision` accepts only an equivalent resolved CWD and serially reconciles the same
+  binding; expected failure retains membership.
+- `absent + close` and `retired + close` are idempotent terminal-free completion paths.
+- `bound + close` delegates durable close and projection retirement; pending/failure retains exact
+  membership, while completion removes only the expected association and enters `retired`.
+- `retired + provision`, a foreign runtime registration, launch mutation, or stale registry removal
+  fails without adopting, signaling, deleting, or replacing another terminal.
 
 ## Terminal binding store and recovery model
 
@@ -190,6 +244,10 @@ pnpm --filter @orchbee/desktop test
 pnpm --filter @orchbee/desktop build
 pnpm --filter @orchbee/desktop test:system
 ```
+
+The Desktop test command requires Java 17 or newer. Its model runner downloads the pinned TLA+
+`1.7.4` tool JAR into the ignored app-local `.tools/` directory when absent and verifies the JAR's
+SHA-1 before execution. `DESKTOP_TLA2TOOLS_JAR` may select an already provisioned matching JAR.
 
 Run the controlled throughput harness only after building Desktop and the Host. It requires at
 least five Electron runs and accepts separately measured, geometry-matched Ghostty and Host-only
