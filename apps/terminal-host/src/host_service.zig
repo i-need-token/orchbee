@@ -1,6 +1,10 @@
 const std = @import("std");
 
 const projection_interval_ns = 16 * std.time.ns_per_ms;
+const max_control_json_bytes = 64 * 1024;
+const max_inventory_page_terminals = 128;
+const max_schedule_scan_per_poll = 64;
+const max_scheduled_attachments_per_poll = 8;
 
 const core_module = @import("host_core.zig");
 const protocol = @import("terminal-protocol");
@@ -112,6 +116,16 @@ const TerminalProfileWire = struct {
 const CreateWire = struct {
     creationId: []const u8,
     launch: LaunchWire,
+};
+
+const InventoryCursorWire = struct {
+    inventoryGeneration: []const u8,
+    offset: []const u8,
+};
+
+const ListTerminalsV1_3Wire = struct {
+    cursor: ?InventoryCursorWire,
+    maximumTerminals: usize,
 };
 
 const TerminalTargetWire = struct { terminalId: []const u8 };
@@ -247,10 +261,16 @@ const SemanticInput = union(enum) {
 pub const ConnectionState = struct {
     client_id: ?core_module.Identifier = null,
     close_after_response: bool = false,
+    connection_id: ?core_module.ConnectionId = null,
     frame_bytes: usize = 0,
     input_bytes: usize = 0,
     protocol_minor: u16 = 0,
     row_window_bytes: usize = 0,
+};
+
+const RuntimeEntry = struct {
+    next_projection_at_ns: i128 = 0,
+    runtime: *terminal_runtime.TerminalRuntime,
 };
 
 pub const Outgoing = struct {
@@ -297,34 +317,43 @@ pub const Outgoing = struct {
 pub const HostService = struct {
     allocator: std.mem.Allocator,
     core: core_module.HostCore,
-    next_projection_at_ns: i128 = 0,
-    runtime: ?*terminal_runtime.TerminalRuntime = null,
+    interaction_schedule_index: usize = 0,
+    next_connection_id: core_module.ConnectionId = 1,
+    projection_schedule_index: usize = 0,
+    runtimes: std.AutoArrayHashMap(core_module.Identifier, RuntimeEntry),
     trace_interactions: bool = false,
 
     pub fn init(allocator: std.mem.Allocator) HostService {
         return .{
             .allocator = allocator,
             .core = .init(allocator, randomIdentifier()),
+            .runtimes = .init(allocator),
         };
     }
 
     pub fn deinit(self: *HostService) void {
-        std.debug.assert(self.runtime == null);
+        for (self.runtimes.values()) |entry| entry.runtime.terminate() catch {};
+        while (self.runtimes.count() > 0) {
+            const terminal_id = self.runtimes.keys()[0];
+            const entry = self.runtimes.fetchOrderedRemove(terminal_id).?.value;
+            entry.runtime.destroy();
+        }
+        self.runtimes.deinit();
         self.core.deinit();
         self.* = undefined;
     }
 
     pub fn disconnect(self: *HostService, connection: *ConnectionState) void {
-        if (connection.client_id) |client_id| {
-            if (self.runtime) |runtime| {
-                for (self.core.attachments.items) |attachment| {
-                    if (identifierEqual(attachment.client_id, client_id)) {
+        if (connection.connection_id) |connection_id| {
+            for (self.core.attachments.values()) |attachment| {
+                if (attachment.connection_id == connection_id) {
+                    if (self.runtimeFor(attachment.terminal_id)) |runtime| {
                         runtime.detachHistory(attachment.attachment_id);
                     }
                 }
             }
-            _ = self.core.disconnect(client_id);
-            self.releaseProjectionIfIdle();
+            _ = self.core.disconnect(connection_id);
+            for (self.core.terminals.keys()) |terminal_id| self.releaseProjectionIfIdle(terminal_id);
         }
         connection.* = .{};
     }
@@ -333,7 +362,7 @@ pub const HostService = struct {
         var outgoing = Outgoing.init(self.allocator);
         outgoing.protocol_minor = connection.protocol_minor;
         errdefer outgoing.deinit();
-        try self.synchronizeRuntime(&outgoing, connection.client_id != null);
+        try self.synchronizeRuntimes(&outgoing, connection.connection_id != null);
         try self.scheduleInteraction(connection, &outgoing);
         try self.scheduleProjection(connection, &outgoing);
         return outgoing;
@@ -348,15 +377,15 @@ pub const HostService = struct {
         errdefer outgoing.deinit();
 
         const envelope = protocol.validateTransportEnvelope(record) catch return error.InvalidTransportRecord;
-        if (envelope.protocol_major == 1 and envelope.protocol_minor <= 2) {
+        if (envelope.protocol_major == 1 and envelope.protocol_minor <= 3) {
             outgoing.protocol_minor = envelope.protocol_minor;
         }
-        try self.synchronizeRuntime(&outgoing, connection.client_id != null);
+        try self.synchronizeRuntimes(&outgoing, connection.connection_id != null);
         if (envelope.event or envelope.response) {
             try self.addFailure(&outgoing, envelope.correlation_id, "invalid-envelope-role", "client record must be a request", false);
             return outgoing;
         }
-        if (envelope.protocol_major != 1 or envelope.protocol_minor > 2) {
+        if (envelope.protocol_major != 1 or envelope.protocol_minor > 3) {
             try self.addFailure(&outgoing, envelope.correlation_id, "unsupported-version", "unsupported envelope protocol version", false);
             return outgoing;
         }
@@ -386,32 +415,32 @@ pub const HostService = struct {
 
         switch (envelope.kind) {
             MessageKind.ping => try self.handlePing(envelope, correlation_id, &outgoing),
-            MessageKind.list_terminals => try self.handleList(envelope, correlation_id, &outgoing),
-            MessageKind.create_terminal => try self.handleCreate(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.terminate_terminal => try self.handleTerminate(connection.client_id.?, envelope, correlation_id, &outgoing),
-            MessageKind.dispose_terminal => try self.handleDispose(connection.client_id.?, envelope, correlation_id, &outgoing),
-            MessageKind.attach_terminal => try self.handleAttach(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.detach_terminal => try self.handleDetach(connection.client_id.?, envelope, correlation_id, &outgoing),
-            MessageKind.write_input => try self.handleInput(connection.client_id.?, connection.input_bytes, envelope, correlation_id, &outgoing),
+            MessageKind.list_terminals => try self.handleList(connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.create_terminal => try self.handleCreate(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.terminate_terminal => try self.handleTerminate(connection.connection_id.?, envelope, correlation_id, &outgoing),
+            MessageKind.dispose_terminal => try self.handleDispose(connection.connection_id.?, envelope, correlation_id, &outgoing),
+            MessageKind.attach_terminal => try self.handleAttach(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.detach_terminal => try self.handleDetach(connection.connection_id.?, envelope, correlation_id, &outgoing),
+            MessageKind.write_input => try self.handleInput(connection.connection_id.?, connection.input_bytes, envelope, correlation_id, &outgoing),
             MessageKind.key_input,
             MessageKind.text_input,
             MessageKind.mouse_input,
             MessageKind.focus_input,
             MessageKind.paste_input,
-            => try self.handleSemanticInput(connection.client_id.?, connection.protocol_minor, connection.input_bytes, envelope, correlation_id, &outgoing),
-            MessageKind.resize_terminal => try self.handleResize(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.frame_applied => try self.handleFrameApplied(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.need_snapshot => try self.handleNeedSnapshot(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.set_projection_demand => try self.handleProjectionDemand(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.read_rows => try self.handleReadRows(connection.client_id.?, connection.protocol_minor, connection.row_window_bytes, envelope, correlation_id, &outgoing),
-            MessageKind.rows_applied => try self.handleRowsApplied(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.set_history_demand => try self.handleHistoryDemand(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.history_observed => try self.handleHistoryObserved(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.selection_gesture => try self.handleSelectionGesture(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.selection_command => try self.handleSelectionCommand(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.selection_export => try self.handleSelectionExport(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.selection_export_chunk_applied => try self.handleSelectionExportChunkApplied(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
-            MessageKind.selection_export_cancel => try self.handleSelectionExportCancel(connection.client_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            => try self.handleSemanticInput(connection.connection_id.?, connection.protocol_minor, connection.input_bytes, envelope, correlation_id, &outgoing),
+            MessageKind.resize_terminal => try self.handleResize(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.frame_applied => try self.handleFrameApplied(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.need_snapshot => try self.handleNeedSnapshot(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.set_projection_demand => try self.handleProjectionDemand(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.read_rows => try self.handleReadRows(connection.connection_id.?, connection.protocol_minor, connection.row_window_bytes, envelope, correlation_id, &outgoing),
+            MessageKind.rows_applied => try self.handleRowsApplied(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.set_history_demand => try self.handleHistoryDemand(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.history_observed => try self.handleHistoryObserved(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.selection_gesture => try self.handleSelectionGesture(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.selection_command => try self.handleSelectionCommand(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.selection_export => try self.handleSelectionExport(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.selection_export_chunk_applied => try self.handleSelectionExportChunkApplied(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
+            MessageKind.selection_export_cancel => try self.handleSelectionExportCancel(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
             else => try self.addFailure(&outgoing, correlation_id, "unsupported-in-slice", "message is not implemented by this Host slice", false),
         }
         try self.scheduleInteraction(connection, &outgoing);
@@ -443,10 +472,10 @@ pub const HostService = struct {
             try self.addHandshakeFailure(outgoing, envelope.correlation_id, "invalid-field", "Hello limits or features are invalid", false);
             return;
         }
-        if (hello.protocol.major != 1 or hello.protocol.minimumMinor > 2) {
+        if (hello.protocol.major != 1 or hello.protocol.minimumMinor > 3) {
             const payload = try std.fmt.allocPrint(
                 self.allocator,
-                "{{\"clientRange\":{{\"major\":{d},\"maximumMinor\":{d},\"minimumMinor\":{d}}},\"hostRange\":{{\"major\":1,\"maximumMinor\":2,\"minimumMinor\":0}},\"reason\":\"{s}\"}}",
+                "{{\"clientRange\":{{\"major\":{d},\"maximumMinor\":{d},\"minimumMinor\":{d}}},\"hostRange\":{{\"major\":1,\"maximumMinor\":3,\"minimumMinor\":0}},\"reason\":\"{s}\"}}",
                 .{
                     hello.protocol.major,
                     hello.protocol.maximumMinor,
@@ -459,11 +488,26 @@ pub const HostService = struct {
             connection.close_after_response = true;
             return;
         }
-        const chosen_minor: u16 = @min(hello.protocol.maximumMinor, 2);
+        const chosen_minor: u16 = @min(hello.protocol.maximumMinor, 3);
         outgoing.protocol_minor = chosen_minor;
-        _ = try self.core.connect(client_id);
+        const connection_id = self.takeConnectionId() catch {
+            try self.addHandshakeFailure(outgoing, envelope.correlation_id, "resource-exhausted", "Host connection identity space is exhausted", false);
+            connection.close_after_response = true;
+            return;
+        };
+        _ = self.core.connect(connection_id, client_id) catch |err| {
+            try self.addHandshakeFailure(
+                outgoing,
+                envelope.correlation_id,
+                coreError(err).code,
+                coreError(err).message,
+                coreError(err).retryable,
+            );
+            return;
+        };
         connection.* = .{
             .client_id = client_id,
+            .connection_id = connection_id,
             .frame_bytes = @min(hello.frameBytes, 8 * 1024 * 1024),
             .input_bytes = @min(hello.inputBytes, 1024 * 1024),
             .protocol_minor = chosen_minor,
@@ -485,6 +529,15 @@ pub const HostService = struct {
         try outgoing.add(MessageKind.hello_accepted, .control_json, payload, envelope.correlation_id, self.core.epoch, true, false);
     }
 
+    fn takeConnectionId(self: *HostService) error{ConnectionIdentityExhausted}!core_module.ConnectionId {
+        if (self.next_connection_id == std.math.maxInt(core_module.ConnectionId)) {
+            return error.ConnectionIdentityExhausted;
+        }
+        const connection_id = self.next_connection_id;
+        self.next_connection_id += 1;
+        return connection_id;
+    }
+
     fn handlePing(
         self: *HostService,
         envelope: protocol.EnvelopeSummary,
@@ -497,19 +550,68 @@ pub const HostService = struct {
 
     fn handleList(
         self: *HostService,
+        protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
         outgoing: *Outgoing,
     ) !void {
-        if (!try self.requireEmptyControl(envelope, correlation_id, outgoing)) return;
-        const payload = try self.terminalListJson();
+        if (protocol_minor < 3) {
+            if (!try self.requireEmptyControl(envelope, correlation_id, outgoing)) return;
+            if (self.core.terminalCount() > 1) {
+                try self.addFailure(
+                    outgoing,
+                    correlation_id,
+                    "protocol-upgrade-required",
+                    "protocol 1.3 is required to enumerate multiple terminals",
+                    false,
+                );
+                return;
+            }
+            const payload = try self.terminalListJsonLegacy();
+            defer self.allocator.free(payload);
+            try outgoing.add(MessageKind.list_terminals, .control_json, payload, correlation_id, self.core.epoch, true, false);
+            return;
+        }
+
+        const parsed = try self.parseControl(ListTerminalsV1_3Wire, envelope, correlation_id, outgoing) orelse return;
+        defer parsed.deinit();
+        if (parsed.value.maximumTerminals == 0 or
+            parsed.value.maximumTerminals > max_inventory_page_terminals)
+        {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "inventory page size is invalid", false);
+            return;
+        }
+        var offset: usize = 0;
+        if (parsed.value.cursor) |cursor| {
+            const generation = parseCanonicalU64(cursor.inventoryGeneration) catch {
+                try self.addFailure(outgoing, correlation_id, "invalid-field", "inventory generation is not canonical uint64 text", false);
+                return;
+            };
+            if (generation != self.core.inventory_generation) {
+                try self.addFailure(outgoing, correlation_id, "stale-inventory-cursor", "terminal inventory membership changed", true);
+                return;
+            }
+            const raw_offset = parseCanonicalU64(cursor.offset) catch {
+                try self.addFailure(outgoing, correlation_id, "invalid-field", "inventory offset is not canonical uint64 text", false);
+                return;
+            };
+            offset = std.math.cast(usize, raw_offset) orelse {
+                try self.addFailure(outgoing, correlation_id, "invalid-field", "inventory offset exceeds the platform range", false);
+                return;
+            };
+        }
+        if (offset > self.core.terminalCount()) {
+            try self.addFailure(outgoing, correlation_id, "invalid-field", "inventory offset exceeds terminal count", false);
+            return;
+        }
+        const payload = try self.terminalListJsonV1_3(offset, parsed.value.maximumTerminals);
         defer self.allocator.free(payload);
         try outgoing.add(MessageKind.list_terminals, .control_json, payload, correlation_id, self.core.epoch, true, false);
     }
 
     fn handleCreate(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -530,40 +632,37 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-field", "terminal launch is invalid", false);
             return;
         }
-        const digest = try launchDigest(self.allocator, request.launch);
+        const digest = launchDigest(self.allocator, request.launch) catch {
+            try self.addFailure(outgoing, correlation_id, "resource-exhausted", "Host could not inspect the terminal launch", true);
+            return;
+        };
 
-        if (self.core.terminal) |terminal| {
-            const result = self.core.createTerminal(
-                client_id,
-                creation_id,
-                terminal.terminal_id,
-                digest,
-                request.launch.columns,
-                request.launch.rows,
-            ) catch |err| {
-                try self.addCoreFailure(outgoing, correlation_id, err);
-                return;
-            };
-            _ = result;
-            const payload = try self.identityJson(terminal.creation_id, terminal.terminal_id);
+        if (self.core.resolveCreation(connection_id, creation_id, digest) catch |err| {
+            try self.addCoreFailure(outgoing, correlation_id, err);
+            return;
+        }) |terminal_id| {
+            const terminal = self.core.findTerminal(terminal_id) orelse unreachable;
+            const payload = try self.identityJson(terminal.creation_id, terminal_id);
             defer self.allocator.free(payload);
             try outgoing.add(MessageKind.create_terminal, .control_json, payload, correlation_id, self.core.epoch, true, false);
             return;
         }
 
-        const terminal_id = randomIdentifier();
-        _ = self.core.createTerminal(
-            client_id,
-            creation_id,
-            terminal_id,
-            digest,
-            request.launch.columns,
-            request.launch.rows,
-        ) catch |err| {
-            try self.addCoreFailure(outgoing, correlation_id, err);
+        if (protocol_minor < 3 and self.core.terminalCount() != 0) {
+            try self.addFailure(
+                outgoing,
+                correlation_id,
+                "protocol-upgrade-required",
+                "protocol 1.3 is required to create another terminal",
+                false,
+            );
+            return;
+        }
+
+        const environment = self.allocator.alloc(pty_process.EnvironmentDelta, request.launch.environment.len) catch {
+            try self.addFailure(outgoing, correlation_id, "resource-exhausted", "Host could not retain the terminal environment", true);
             return;
         };
-        const environment = try self.allocator.alloc(pty_process.EnvironmentDelta, request.launch.environment.len);
         defer self.allocator.free(environment);
         for (request.launch.environment, 0..) |entry, index| {
             environment[index] = .{ .name = entry.name, .value = entry.value };
@@ -588,6 +687,17 @@ pub const HostService = struct {
                 .version_response = profile.versionResponse,
             };
         }
+        self.core.reserveTerminal() catch |err| {
+            try self.addCoreFailure(outgoing, correlation_id, err);
+            return;
+        };
+        self.runtimes.ensureUnusedCapacity(1) catch {
+            try self.addFailure(outgoing, correlation_id, "resource-exhausted", "Host could not reserve terminal runtime state", true);
+            return;
+        };
+
+        var terminal_id = randomIdentifier();
+        while (self.core.findTerminal(terminal_id) != null) terminal_id = randomIdentifier();
         const runtime = terminal_runtime.TerminalRuntime.createWithOptions(self.allocator, .{
             .arguments = request.launch.arguments,
             .cell_pixel_height = cell_pixel_height,
@@ -602,11 +712,23 @@ pub const HostService = struct {
             .cell_pixel_width = cell_pixel_width,
             .profile = runtime_profile,
         }) catch {
-            _ = self.core.spawnFailed(terminal_id) catch {};
             try self.addFailure(outgoing, correlation_id, "spawn-failed", "PTY or child creation failed", true);
             return;
         };
-        self.runtime = runtime;
+        self.core.commitTerminal(
+            connection_id,
+            creation_id,
+            terminal_id,
+            digest,
+            request.launch.columns,
+            request.launch.rows,
+        ) catch |err| {
+            runtime.terminate() catch {};
+            runtime.destroy();
+            try self.addCoreFailure(outgoing, correlation_id, err);
+            return;
+        };
+        self.runtimes.putAssumeCapacityNoClobber(terminal_id, .{ .runtime = runtime });
         self.core.synchronizeGeometry(
             terminal_id,
             request.launch.columns,
@@ -615,7 +737,7 @@ pub const HostService = struct {
             cell_pixel_height,
             0,
         ) catch unreachable;
-        _ = try self.core.spawnSucceeded(terminal_id);
+        _ = self.core.spawnSucceeded(terminal_id) catch unreachable;
 
         const payload = try self.identityJson(creation_id, terminal_id);
         defer self.allocator.free(payload);
@@ -625,7 +747,7 @@ pub const HostService = struct {
 
     fn handleTerminate(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
         outgoing: *Outgoing,
@@ -636,18 +758,18 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "TerminalId is invalid", false);
             return;
         };
-        const outcome = self.core.requestTerminate(client_id, terminal_id) catch |err| {
+        const outcome = self.core.requestTerminate(connection_id, terminal_id) catch |err| {
             try self.addCoreFailure(outgoing, correlation_id, err);
             return;
         };
         if (outcome == .applied) {
-            const runtime = self.runtime orelse {
-                self.core.terminal.?.terminate_requested = false;
+            const runtime = self.runtimeFor(terminal_id) orelse {
+                self.core.findTerminal(terminal_id).?.terminate_requested = false;
                 try self.addFailure(outgoing, correlation_id, "missing-resource", "terminal runtime is missing", false);
                 return;
             };
             runtime.terminate() catch {
-                self.core.terminal.?.terminate_requested = false;
+                self.core.findTerminal(terminal_id).?.terminate_requested = false;
                 try self.addFailure(outgoing, correlation_id, "termination-failed", "platform termination request failed", true);
                 return;
             };
@@ -659,7 +781,7 @@ pub const HostService = struct {
 
     fn handleDispose(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
         outgoing: *Outgoing,
@@ -670,14 +792,15 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "TerminalId is invalid", false);
             return;
         };
-        const outcome = self.core.disposeTerminal(client_id, terminal_id) catch |err| {
+        const runtime = self.runtimeFor(terminal_id);
+        const outcome = self.core.disposeTerminal(connection_id, terminal_id) catch |err| {
             try self.addCoreFailure(outgoing, correlation_id, err);
             return;
         };
         if (outcome == .applied) {
-            const runtime = self.runtime.?;
-            self.runtime = null;
-            runtime.destroy();
+            const retained_runtime = runtime orelse unreachable;
+            _ = self.runtimes.orderedRemove(terminal_id);
+            retained_runtime.destroy();
         }
         const payload = try terminalAcknowledgedJson(self.allocator, terminal_id);
         defer self.allocator.free(payload);
@@ -686,7 +809,7 @@ pub const HostService = struct {
 
     fn handleAttach(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -713,7 +836,7 @@ pub const HostService = struct {
             return;
         }
         const attach_outcome = self.core.attach(
-            client_id,
+            connection_id,
             attachment_id,
             terminal_id,
             capabilities,
@@ -723,13 +846,13 @@ pub const HostService = struct {
             return;
         };
         if (protocol_minor >= 2 and capabilities.read) {
-            const runtime = self.runtime orelse {
-                if (attach_outcome == .applied) _ = self.core.detach(client_id, attachment_id) catch {};
+            const runtime = self.runtimeFor(terminal_id) orelse {
+                if (attach_outcome == .applied) _ = self.core.detach(connection_id, attachment_id) catch {};
                 try self.addFailure(outgoing, correlation_id, "missing-resource", "terminal runtime is missing", false);
                 return;
             };
             runtime.attachHistory(attachment_id) catch {
-                if (attach_outcome == .applied) _ = self.core.detach(client_id, attachment_id) catch {};
+                if (attach_outcome == .applied) _ = self.core.detach(connection_id, attachment_id) catch {};
                 try self.addFailure(outgoing, correlation_id, "resource-exhausted", "history attachment state could not be allocated", true);
                 return;
             };
@@ -755,7 +878,7 @@ pub const HostService = struct {
 
     fn handleDetach(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
         outgoing: *Outgoing,
@@ -766,12 +889,14 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
             return;
         };
-        _ = self.core.detach(client_id, attachment_id) catch |err| {
+        const attachment = self.core.resolveAttachment(connection_id, attachment_id, .none) catch |err| {
             try self.addCoreFailure(outgoing, correlation_id, err);
             return;
         };
-        if (self.runtime) |runtime| runtime.detachHistory(attachment_id);
-        self.releaseProjectionIfIdle();
+        const terminal_id = attachment.terminal_id;
+        if (self.runtimeFor(terminal_id)) |runtime| runtime.detachHistory(attachment_id);
+        _ = self.core.detach(connection_id, attachment_id) catch unreachable;
+        self.releaseProjectionIfIdle(terminal_id);
         var attachment_buffer: [32]u8 = undefined;
         const payload = try std.fmt.allocPrint(
             self.allocator,
@@ -784,7 +909,7 @@ pub const HostService = struct {
 
     fn handleInput(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         negotiated_bytes: usize,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -802,14 +927,19 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "limit-exceeded", "WriteInput exceeds negotiated inputBytes", false);
             return;
         }
-        self.synchronizeWrittenInput();
-        _ = self.core.acceptInput(client_id, input.attachment_id, input.bytes.len) catch |err| {
+        const attachment = self.core.resolveAttachment(connection_id, input.attachment_id, .input) catch |err| {
             try self.addCoreFailure(outgoing, correlation_id, err);
             return;
         };
-        const runtime = self.runtime.?;
+        const terminal_id = attachment.terminal_id;
+        self.synchronizeWrittenInput(terminal_id);
+        _ = self.core.acceptInput(connection_id, input.attachment_id, input.bytes.len) catch |err| {
+            try self.addCoreFailure(outgoing, correlation_id, err);
+            return;
+        };
+        const runtime = self.runtimeFor(terminal_id) orelse unreachable;
         runtime.enqueueInput(input.bytes) catch |err| {
-            _ = self.core.inputWritten(self.core.terminal.?.terminal_id, input.bytes.len) catch {};
+            _ = self.core.inputWritten(terminal_id, input.bytes.len) catch {};
             try self.addFailure(
                 outgoing,
                 correlation_id,
@@ -835,7 +965,7 @@ pub const HostService = struct {
 
     fn handleSemanticInput(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         negotiated_bytes: usize,
         envelope: protocol.EnvelopeSummary,
@@ -882,18 +1012,23 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "limit-exceeded", "semantic input reservation exceeds its bound", false);
             return;
         };
-        self.synchronizeWrittenInput();
-        _ = self.core.acceptInput(client_id, attachment_id, reserved_bytes) catch |err| {
+        const attachment = self.core.resolveAttachment(connection_id, attachment_id, .input) catch |err| {
             try self.addCoreFailure(outgoing, correlation_id, err);
             return;
         };
-        const runtime = self.runtime orelse {
-            _ = self.core.inputWritten(self.core.terminal.?.terminal_id, reserved_bytes) catch {};
+        const terminal_id = attachment.terminal_id;
+        self.synchronizeWrittenInput(terminal_id);
+        _ = self.core.acceptInput(connection_id, attachment_id, reserved_bytes) catch |err| {
+            try self.addCoreFailure(outgoing, correlation_id, err);
+            return;
+        };
+        const runtime = self.runtimeFor(terminal_id) orelse {
+            _ = self.core.inputWritten(terminal_id, reserved_bytes) catch {};
             try self.addFailure(outgoing, correlation_id, "missing-resource", "terminal runtime is missing", false);
             return;
         };
         const accepted_bytes = enqueueSemanticInput(runtime, input) catch |err| {
-            _ = self.core.inputWritten(self.core.terminal.?.terminal_id, reserved_bytes) catch {};
+            _ = self.core.inputWritten(terminal_id, reserved_bytes) catch {};
             try self.addFailure(
                 outgoing,
                 correlation_id,
@@ -910,7 +1045,7 @@ pub const HostService = struct {
         };
         if (accepted_bytes < reserved_bytes) {
             _ = self.core.inputWritten(
-                self.core.terminal.?.terminal_id,
+                terminal_id,
                 reserved_bytes - accepted_bytes,
             ) catch {};
         }
@@ -926,7 +1061,7 @@ pub const HostService = struct {
 
     fn handleFrameApplied(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -952,7 +1087,7 @@ pub const HostService = struct {
             return;
         };
         _ = self.core.frameApplied(
-            client_id,
+            connection_id,
             attachment_id,
             sequence,
             revision,
@@ -966,7 +1101,7 @@ pub const HostService = struct {
 
     fn handleNeedSnapshot(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -987,7 +1122,7 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-field", "sequence is not canonical uint64 text", false);
             return;
         };
-        _ = self.core.needSnapshot(client_id, attachment_id, sequence) catch |err| {
+        _ = self.core.needSnapshot(connection_id, attachment_id, sequence) catch |err| {
             try self.addCoreFailure(outgoing, correlation_id, err);
             return;
         };
@@ -996,7 +1131,7 @@ pub const HostService = struct {
 
     fn handleProjectionDemand(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -1017,11 +1152,16 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-field", "projection demand is invalid", false);
             return;
         };
-        _ = self.core.setProjectionDemand(client_id, attachment_id, demand) catch |err| {
+        const attachment = self.core.resolveAttachment(connection_id, attachment_id, .read) catch |err| {
             try self.addCoreFailure(outgoing, correlation_id, err);
             return;
         };
-        self.releaseProjectionIfIdle();
+        const terminal_id = attachment.terminal_id;
+        _ = self.core.setProjectionDemand(connection_id, attachment_id, demand) catch |err| {
+            try self.addCoreFailure(outgoing, correlation_id, err);
+            return;
+        };
+        self.releaseProjectionIfIdle(terminal_id);
         var attachment_buffer: [32]u8 = undefined;
         const payload = try std.fmt.allocPrint(
             self.allocator,
@@ -1034,7 +1174,7 @@ pub const HostService = struct {
 
     fn handleReadRows(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         negotiated_bytes: usize,
         envelope: protocol.EnvelopeSummary,
@@ -1049,7 +1189,7 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
             return;
         };
-        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const runtime = try self.requireHistoryRuntime(connection_id, attachment_id, correlation_id, outgoing) orelse return;
         if (request.maximumBytes > negotiated_bytes) {
             try self.addFailure(outgoing, correlation_id, "limit-exceeded", "ReadRows exceeds negotiated rowWindowBytes", false);
             return;
@@ -1117,7 +1257,7 @@ pub const HostService = struct {
 
     fn handleRowsApplied(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -1130,7 +1270,7 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
             return;
         };
-        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const runtime = try self.requireHistoryRuntime(connection_id, attachment_id, correlation_id, outgoing) orelse return;
         const revision = parseCanonicalU64(parsed.value.revision) catch {
             try self.addFailure(outgoing, correlation_id, "invalid-field", "revision is not canonical uint64 text", false);
             return;
@@ -1152,7 +1292,7 @@ pub const HostService = struct {
 
     fn handleHistoryDemand(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -1165,7 +1305,7 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
             return;
         };
-        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const runtime = try self.requireHistoryRuntime(connection_id, attachment_id, correlation_id, outgoing) orelse return;
         const demand: terminal_runtime.HistoryDemand = if (std.mem.eql(u8, parsed.value.demand, "following-bottom"))
             .following_bottom
         else if (std.mem.eql(u8, parsed.value.demand, "viewing-history"))
@@ -1183,7 +1323,7 @@ pub const HostService = struct {
 
     fn handleHistoryObserved(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -1196,7 +1336,7 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
             return;
         };
-        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const runtime = try self.requireHistoryRuntime(connection_id, attachment_id, correlation_id, outgoing) orelse return;
         const revision = parseCanonicalU64(parsed.value.revision) catch {
             try self.addFailure(outgoing, correlation_id, "invalid-field", "revision is not canonical uint64 text", false);
             return;
@@ -1214,7 +1354,7 @@ pub const HostService = struct {
 
     fn handleSelectionGesture(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -1227,7 +1367,7 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
             return;
         };
-        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const runtime = try self.requireHistoryRuntime(connection_id, attachment_id, correlation_id, outgoing) orelse return;
         const action: terminal_history.SelectionGestureAction = if (std.mem.eql(u8, parsed.value.action, "start"))
             .start
         else if (std.mem.eql(u8, parsed.value.action, "update"))
@@ -1267,7 +1407,7 @@ pub const HostService = struct {
 
     fn handleSelectionCommand(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -1280,7 +1420,7 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
             return;
         };
-        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const runtime = try self.requireHistoryRuntime(connection_id, attachment_id, correlation_id, outgoing) orelse return;
         const command: terminal_history.SelectionCommand = if (std.mem.eql(u8, parsed.value.command, "clear") and parsed.value.point == null)
             .clear
         else if (std.mem.eql(u8, parsed.value.command, "select-all") and parsed.value.point == null)
@@ -1319,7 +1459,7 @@ pub const HostService = struct {
 
     fn handleSelectionExport(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -1332,7 +1472,7 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
             return;
         };
-        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const runtime = try self.requireHistoryRuntime(connection_id, attachment_id, correlation_id, outgoing) orelse return;
         const export_sequence = parseCanonicalU64(parsed.value.exportSequence) catch {
             try self.addFailure(outgoing, correlation_id, "invalid-field", "exportSequence is not canonical uint64 text", false);
             return;
@@ -1375,7 +1515,7 @@ pub const HostService = struct {
 
     fn handleSelectionExportChunkApplied(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -1388,7 +1528,7 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
             return;
         };
-        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const runtime = try self.requireHistoryRuntime(connection_id, attachment_id, correlation_id, outgoing) orelse return;
         const export_sequence = parseCanonicalU64(parsed.value.exportSequence) catch {
             try self.addFailure(outgoing, correlation_id, "invalid-field", "exportSequence is not canonical uint64 text", false);
             return;
@@ -1407,7 +1547,7 @@ pub const HostService = struct {
 
     fn handleSelectionExportCancel(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -1424,7 +1564,7 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
             return;
         };
-        const runtime = try self.requireHistoryRuntime(client_id, attachment_id, correlation_id, outgoing) orelse return;
+        const runtime = try self.requireHistoryRuntime(connection_id, attachment_id, correlation_id, outgoing) orelse return;
         const export_sequence = parseCanonicalU64(parsed.value.exportSequence) catch {
             try self.addFailure(outgoing, correlation_id, "invalid-field", "exportSequence is not canonical uint64 text", false);
             return;
@@ -1438,7 +1578,7 @@ pub const HostService = struct {
 
     fn handleResize(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         protocol_minor: u16,
         envelope: protocol.EnvelopeSummary,
         correlation_id: core_module.Identifier,
@@ -1455,24 +1595,23 @@ pub const HostService = struct {
             try self.addFailure(outgoing, correlation_id, "invalid-identifier", "AttachmentId is invalid", false);
             return;
         };
-        const attachment = self.core.findAttachment(attachment_id) orelse {
-            try self.addFailure(outgoing, correlation_id, "missing-resource", "attachment is missing", false);
+        const attachment = self.core.resolveAttachment(connection_id, attachment_id, .resize) catch {
+            try self.addFailure(outgoing, correlation_id, "resize-lease-denied", "attachment does not own the resize lease", false);
             return;
         };
-        if (!identifierEqual(attachment.client_id, client_id) or !attachment.capabilities.resize or !attachment.resize_lease) {
+        if (!attachment.resize_lease) {
             try self.addFailure(outgoing, correlation_id, "resize-lease-denied", "attachment does not own the resize lease", false);
             return;
         }
-        const runtime = self.runtime orelse {
+        const terminal_id = attachment.terminal_id;
+        const terminal = self.core.findTerminal(terminal_id) orelse unreachable;
+        const runtime = self.runtimeFor(terminal_id) orelse {
             try self.addFailure(outgoing, correlation_id, "missing-resource", "terminal runtime is missing", false);
             return;
         };
-        const old_columns = self.core.terminal.?.columns;
-        const old_cell_pixel_height = self.core.terminal.?.cell_pixel_height;
-        const old_cell_pixel_width = self.core.terminal.?.cell_pixel_width;
-        const old_revision = self.core.terminal.?.revision;
-        const old_rows = self.core.terminal.?.rows;
-        _ = self.core.resize(client_id, attachment_id, request.columns, request.rows) catch |err| {
+        const old_cell_pixel_height = terminal.cell_pixel_height;
+        const old_cell_pixel_width = terminal.cell_pixel_width;
+        _ = self.core.resize(connection_id, attachment_id, request.columns, request.rows) catch |err| {
             try self.addCoreFailure(outgoing, correlation_id, err);
             return;
         };
@@ -1484,16 +1623,11 @@ pub const HostService = struct {
             cell_pixel_width,
             cell_pixel_height,
         ) catch {
-            self.core.terminal.?.columns = old_columns;
-            self.core.terminal.?.cell_pixel_height = old_cell_pixel_height;
-            self.core.terminal.?.cell_pixel_width = old_cell_pixel_width;
-            self.core.terminal.?.revision = old_revision;
-            self.core.terminal.?.rows = old_rows;
             try self.addFailure(outgoing, correlation_id, "resize-failed", "PTY resize failed", true);
             return;
         };
         self.core.synchronizeGeometry(
-            attachment.terminal_id,
+            terminal_id,
             request.columns,
             request.rows,
             cell_pixel_width,
@@ -1532,30 +1666,31 @@ pub const HostService = struct {
         try outgoing.add(MessageKind.resize_accepted, .control_json, payload, correlation_id, self.core.epoch, true, false);
     }
 
-    fn synchronizeRuntime(
+    fn synchronizeRuntimes(
         self: *HostService,
         outgoing: *Outgoing,
         emit_events: bool,
     ) !void {
-        const runtime = self.runtime orelse return;
-        self.synchronizeWrittenInput();
-        const completion = runtime.completion();
-        if (self.core.terminal) |*terminal| {
-            _ = self.core.synchronizeRevision(terminal.terminal_id, completion.final_revision) catch {};
-            const was_exited = terminal.phase == .exited;
-            if (completion.pty_drained and !terminal.pty_drained) {
-                _ = self.core.ptyDrained(terminal.terminal_id) catch {};
-            }
-            if (completion.child_exited and !terminal.child_exited) {
-                _ = self.core.childExited(
-                    terminal.terminal_id,
-                    coreExitResult(completion.exit_result.?),
-                ) catch {};
-            }
-            if (emit_events and !was_exited and self.core.terminal.?.phase == .exited) {
-                const payload = try self.terminalExitedJson(self.core.terminal.?);
-                defer self.allocator.free(payload);
-                try outgoing.add(MessageKind.terminal_exited, .control_json, payload, null, self.core.epoch, false, true);
+        for (self.runtimes.keys(), self.runtimes.values()) |terminal_id, *entry| {
+            self.synchronizeWrittenInput(terminal_id);
+            const completion = entry.runtime.completion();
+            if (self.core.findTerminal(terminal_id)) |terminal| {
+                _ = self.core.synchronizeRevision(terminal_id, completion.final_revision) catch {};
+                const was_exited = terminal.phase == .exited;
+                if (completion.pty_drained and !terminal.pty_drained) {
+                    _ = self.core.ptyDrained(terminal_id) catch {};
+                }
+                if (completion.child_exited and !terminal.child_exited) {
+                    _ = self.core.childExited(
+                        terminal_id,
+                        coreExitResult(completion.exit_result.?),
+                    ) catch {};
+                }
+                if (emit_events and !was_exited and self.core.findTerminal(terminal_id).?.phase == .exited) {
+                    const payload = try self.terminalExitedJson(self.core.findTerminal(terminal_id).?.*);
+                    defer self.allocator.free(payload);
+                    try outgoing.add(MessageKind.terminal_exited, .control_json, payload, null, self.core.epoch, false, true);
+                }
             }
         }
     }
@@ -1565,13 +1700,24 @@ pub const HostService = struct {
         connection: *const ConnectionState,
         outgoing: *Outgoing,
     ) !void {
-        const client_id = connection.client_id orelse return;
+        const connection_id = connection.connection_id orelse return;
         if (connection.protocol_minor < 2) return;
-        const runtime = self.runtime orelse return;
-        for (self.core.attachments.items) |attachment| {
-            if (!identifierEqual(attachment.client_id, client_id) or !attachment.capabilities.read) {
+        const count = self.core.attachments.count();
+        if (count == 0) return;
+        const start = self.interaction_schedule_index % count;
+        var scanned: usize = 0;
+        var scheduled: usize = 0;
+        while (scanned < @min(count, max_schedule_scan_per_poll) and
+            scheduled < max_scheduled_attachments_per_poll)
+        {
+            const index = (start + scanned) % count;
+            scanned += 1;
+            const attachment = self.core.attachments.values()[index];
+            if (attachment.connection_id != connection_id or !attachment.capabilities.read) {
                 continue;
             }
+            const runtime = self.runtimeFor(attachment.terminal_id) orelse continue;
+            scheduled += 1;
             if (try runtime.takeHistoryEvent(attachment.attachment_id)) |event| {
                 var attachment_buffer: [32]u8 = undefined;
                 const payload = try std.fmt.allocPrint(
@@ -1621,6 +1767,7 @@ pub const HostService = struct {
                 );
             }
         }
+        self.interaction_schedule_index = (start + scanned) % count;
     }
 
     fn scheduleProjection(
@@ -1628,26 +1775,36 @@ pub const HostService = struct {
         connection: *const ConnectionState,
         outgoing: *Outgoing,
     ) !void {
-        const client_id = connection.client_id orelse return;
+        const connection_id = connection.connection_id orelse return;
         if (connection.protocol_minor < 1) return;
-        const runtime = self.runtime orelse return;
-        const terminal = self.core.terminal orelse return;
+        const count = self.core.attachments.count();
+        if (count == 0) return;
         const now = std.time.nanoTimestamp();
-        if (now < self.next_projection_at_ns) return;
-
-        const geometry = runtime.geometry();
-        _ = self.core.synchronizeRevision(terminal.terminal_id, geometry.revision) catch {};
-        var used_opportunity = false;
-        var index: usize = 0;
-        while (index < self.core.attachments.items.len) : (index += 1) {
-            const attachment = &self.core.attachments.items[index];
-            if (!identifierEqual(attachment.client_id, client_id) or
+        const start = self.projection_schedule_index % count;
+        var scanned: usize = 0;
+        var scheduled: usize = 0;
+        var used_terminal_ids: [max_scheduled_attachments_per_poll]core_module.Identifier = undefined;
+        var used_terminal_count: usize = 0;
+        while (scanned < @min(count, max_schedule_scan_per_poll) and
+            scheduled < max_scheduled_attachments_per_poll)
+        {
+            const index = (start + scanned) % count;
+            scanned += 1;
+            const attachment = &self.core.attachments.values()[index];
+            if (attachment.connection_id != connection_id or
                 !attachment.capabilities.read or attachment.demand != .active or
                 attachment.in_flight != null or attachment.blocked != null or
                 (!attachment.pending_dirty and !attachment.force_snapshot))
             {
                 continue;
             }
+            const entry = self.runtimes.getPtr(attachment.terminal_id) orelse continue;
+            if (now < entry.next_projection_at_ns) continue;
+            const runtime = entry.runtime;
+            const terminal = self.core.findTerminal(attachment.terminal_id) orelse continue;
+            scheduled += 1;
+            const geometry = runtime.geometry();
+            _ = self.core.synchronizeRevision(terminal.terminal_id, geometry.revision) catch {};
             const force_snapshot = attachment.force_snapshot or
                 attachment.acknowledged_revision == null or
                 attachment.acknowledged_generation == null or
@@ -1656,7 +1813,14 @@ pub const HostService = struct {
                 self.core.projectionCaughtUp(attachment.attachment_id) catch {};
                 continue;
             }
-            used_opportunity = true;
+            var already_used = false;
+            for (used_terminal_ids[0..used_terminal_count]) |used_terminal_id| {
+                already_used = already_used or identifierEqual(used_terminal_id, attachment.terminal_id);
+            }
+            if (!already_used) {
+                used_terminal_ids[used_terminal_count] = attachment.terminal_id;
+                used_terminal_count += 1;
+            }
             const encoded = runtime.encodeProjectionFrame(.{
                 .attachment_id = attachment.attachment_id,
                 .base_generation = attachment.acknowledged_generation,
@@ -1672,7 +1836,7 @@ pub const HostService = struct {
                 };
                 self.core.blockProjection(attachment.attachment_id, reason) catch {};
                 const blocked_geometry = runtime.geometry();
-                _ = self.core.synchronizeRevision(terminal.terminal_id, blocked_geometry.revision) catch {};
+                _ = self.core.synchronizeRevision(attachment.terminal_id, blocked_geometry.revision) catch {};
                 try self.addProjectionBlocked(
                     outgoing,
                     attachment.attachment_id,
@@ -1682,7 +1846,7 @@ pub const HostService = struct {
                 continue;
             };
             defer self.allocator.free(encoded.bytes);
-            _ = self.core.synchronizeRevision(terminal.terminal_id, encoded.revision) catch {};
+            _ = self.core.synchronizeRevision(attachment.terminal_id, encoded.revision) catch {};
             const message_kind = switch (encoded.kind) {
                 .snapshot => MessageKind.snapshot_frame,
                 .delta => MessageKind.delta_frame,
@@ -1712,13 +1876,17 @@ pub const HostService = struct {
             };
             std.debug.assert(flight.sequence == encoded.sequence);
         }
-        if (used_opportunity) self.next_projection_at_ns = now + projection_interval_ns;
+        self.projection_schedule_index = (start + scanned) % count;
+        for (used_terminal_ids[0..used_terminal_count]) |terminal_id| {
+            if (self.runtimes.getPtr(terminal_id)) |entry| {
+                entry.next_projection_at_ns = now + projection_interval_ns;
+            }
+        }
     }
 
-    fn releaseProjectionIfIdle(self: *HostService) void {
-        const terminal = self.core.terminal orelse return;
-        if (self.core.hasActiveProjectionDemand(terminal.terminal_id)) return;
-        if (self.runtime) |runtime| runtime.releaseProjectionResources();
+    fn releaseProjectionIfIdle(self: *HostService, terminal_id: core_module.Identifier) void {
+        if (self.core.hasActiveProjectionDemand(terminal_id)) return;
+        if (self.runtimeFor(terminal_id)) |runtime| runtime.releaseProjectionResources();
     }
 
     fn addProjectionBlocked(
@@ -1742,11 +1910,26 @@ pub const HostService = struct {
         try outgoing.add(MessageKind.projection_blocked, .control_json, payload, null, self.core.epoch, false, true);
     }
 
-    fn synchronizeWrittenInput(self: *HostService) void {
-        const runtime = self.runtime orelse return;
+    fn synchronizeWrittenInput(self: *HostService, terminal_id: core_module.Identifier) void {
+        const runtime = self.runtimeFor(terminal_id) orelse return;
         const written = runtime.takeWrittenBytes();
-        if (written == 0 or self.core.terminal == null) return;
-        _ = self.core.inputWritten(self.core.terminal.?.terminal_id, written) catch {};
+        if (written == 0 or self.core.findTerminal(terminal_id) == null) return;
+        _ = self.core.inputWritten(terminal_id, written) catch {};
+    }
+
+    fn runtimeFor(
+        self: *HostService,
+        terminal_id: core_module.Identifier,
+    ) ?*terminal_runtime.TerminalRuntime {
+        const entry = self.runtimes.getPtr(terminal_id) orelse return null;
+        return entry.runtime;
+    }
+
+    pub fn findRuntime(
+        self: *HostService,
+        terminal_id: core_module.Identifier,
+    ) ?*terminal_runtime.TerminalRuntime {
+        return self.runtimeFor(terminal_id);
     }
 
     fn requireControl(
@@ -1784,20 +1967,16 @@ pub const HostService = struct {
 
     fn requireHistoryRuntime(
         self: *HostService,
-        client_id: core_module.Identifier,
+        connection_id: core_module.ConnectionId,
         attachment_id: core_module.Identifier,
         correlation_id: core_module.Identifier,
         outgoing: *Outgoing,
     ) !?*terminal_runtime.TerminalRuntime {
-        const attachment = self.core.findAttachment(attachment_id) orelse {
-            try self.addFailure(outgoing, correlation_id, "missing-resource", "attachment is missing", false);
-            return null;
-        };
-        if (!identifierEqual(attachment.client_id, client_id) or !attachment.capabilities.read) {
+        const attachment = self.core.resolveAttachment(connection_id, attachment_id, .read) catch {
             try self.addFailure(outgoing, correlation_id, "missing-resource", "attachment has no readable history capability", false);
             return null;
-        }
-        return self.runtime orelse {
+        };
+        return self.runtimeFor(attachment.terminal_id) orelse {
             try self.addFailure(outgoing, correlation_id, "missing-resource", "terminal runtime is missing", false);
             return null;
         };
@@ -2017,8 +2196,7 @@ pub const HostService = struct {
         );
     }
 
-    fn terminalListJson(self: *HostService) ![]u8 {
-        const terminal = self.core.terminal orelse return self.allocator.dupe(u8, "{\"terminals\":[]}");
+    fn terminalSummaryJson(self: *HostService, terminal: core_module.Terminal) ![]u8 {
         var creation_buffer: [32]u8 = undefined;
         var epoch_buffer: [32]u8 = undefined;
         var terminal_buffer: [32]u8 = undefined;
@@ -2026,7 +2204,7 @@ pub const HostService = struct {
         defer self.allocator.free(exit_json);
         return std.fmt.allocPrint(
             self.allocator,
-            "{{\"terminals\":[{{\"columns\":{d},\"exit\":{s},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"phase\":\"{s}\",\"revision\":\"{d}\",\"rows\":{d},\"terminateRequested\":{}}}]}}",
+            "{{\"columns\":{d},\"exit\":{s},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"phase\":\"{s}\",\"revision\":\"{d}\",\"rows\":{d},\"terminateRequested\":{}}}",
             .{
                 terminal.columns,
                 exit_json,
@@ -2039,6 +2217,49 @@ pub const HostService = struct {
                 terminal.terminate_requested,
             },
         );
+    }
+
+    fn terminalListJsonLegacy(self: *HostService) ![]u8 {
+        if (self.core.terminalCount() == 0) return self.allocator.dupe(u8, "{\"terminals\":[]}");
+        std.debug.assert(self.core.terminalCount() == 1);
+        const summary = try self.terminalSummaryJson(self.core.terminals.values()[0]);
+        defer self.allocator.free(summary);
+        return std.fmt.allocPrint(self.allocator, "{{\"terminals\":[{s}]}}", .{summary});
+    }
+
+    fn terminalListJsonV1_3(
+        self: *HostService,
+        offset: usize,
+        maximum_terminals: usize,
+    ) ![]u8 {
+        const page_length = @min(maximum_terminals, self.core.terminalCount() - offset);
+        const end = offset + page_length;
+        var writer: std.Io.Writer.Allocating = .init(self.allocator);
+        defer writer.deinit();
+        try writer.writer.print(
+            "{{\"inventoryGeneration\":\"{d}\",\"nextCursor\":",
+            .{self.core.inventory_generation},
+        );
+        if (end < self.core.terminalCount()) {
+            try writer.writer.print(
+                "{{\"inventoryGeneration\":\"{d}\",\"offset\":\"{d}\"}}",
+                .{ self.core.inventory_generation, end },
+            );
+        } else {
+            try writer.writer.writeAll("null");
+        }
+        try writer.writer.writeAll(",\"terminals\":[");
+        for (self.core.terminals.values()[offset..end], 0..) |terminal, index| {
+            if (index != 0) try writer.writer.writeByte(',');
+            const summary = try self.terminalSummaryJson(terminal);
+            defer self.allocator.free(summary);
+            try writer.writer.writeAll(summary);
+        }
+        try writer.writer.writeAll("]}");
+        const payload = try writer.toOwnedSlice();
+        errdefer self.allocator.free(payload);
+        if (payload.len > max_control_json_bytes) return error.InventoryPageTooLarge;
+        return payload;
     }
 
     fn terminalExitedJson(self: *HostService, terminal: core_module.Terminal) ![]u8 {
@@ -2491,16 +2712,18 @@ fn protocolErrorCode(err: anyerror) []const u8 {
 fn coreError(err: anyerror) struct { code: []const u8, message: []const u8, retryable: bool } {
     return switch (err) {
         error.AttachmentConflict => .{ .code = "attachment-conflict", .message = "AttachmentId conflicts with retained state", .retryable = false },
-        error.CapacityExceeded => .{ .code = "capacity-exceeded", .message = "This Host retains at most one terminal", .retryable = true },
+        error.ConnectionConflict => .{ .code = "connection-conflict", .message = "physical connection identity conflicts with retained state", .retryable = false },
         error.CreationConflict => .{ .code = "creation-conflict", .message = "CreationId has a different launch", .retryable = false },
         error.InputBackpressure => .{ .code = "input-backpressure", .message = "terminal input queue is full", .retryable = true },
         error.InvalidFrameAcknowledgement => .{ .code = "invalid-frame-acknowledgement", .message = "frame acknowledgement does not match the in-flight projection", .retryable = false },
         error.InvalidPhase => .{ .code = "invalid-phase", .message = "operation is invalid in the terminal phase", .retryable = false },
+        error.InventoryGenerationOverflow => .{ .code = "resource-exhausted", .message = "terminal inventory generation space is exhausted", .retryable = false },
         error.MissingConnection => .{ .code = "missing-connection", .message = "client connection is not active", .retryable = false },
         error.MissingResource => .{ .code = "missing-resource", .message = "terminal or attachment is missing", .retryable = false },
         error.RevisionOverflow => .{ .code = "resource-exhausted", .message = "terminal revision space is exhausted", .retryable = false },
         error.ResizeLeaseDenied => .{ .code = "resize-lease-denied", .message = "attachment does not own the resize lease", .retryable = false },
         error.SequenceOverflow => .{ .code = "resource-exhausted", .message = "attachment frame sequence space is exhausted", .retryable = false },
+        error.TerminalConflict => .{ .code = "terminal-conflict", .message = "TerminalId conflicts with retained state", .retryable = true },
         error.OutOfMemory => .{ .code = "resource-exhausted", .message = "Host could not retain bounded state", .retryable = true },
         else => .{ .code = "internal-error", .message = "Host operation failed", .retryable = true },
     };
@@ -2534,16 +2757,222 @@ test "handshake binds client and negotiates input bytes" {
     service.disconnect(&connection);
 }
 
+test "equal wire ClientIds receive distinct physical connection identities" {
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var first_connection: ConnectionState = .{};
+    var second_connection: ConnectionState = .{};
+    defer service.disconnect(&first_connection);
+    defer service.disconnect(&second_connection);
+
+    try testHandshakeV1_3(&service, &first_connection, "22222222222222222222222222222222");
+    try testHandshakeV1_3(&service, &second_connection, "22222222222222222222222222222222");
+    try std.testing.expect(first_connection.connection_id != second_connection.connection_id);
+    try std.testing.expectEqual(@as(usize, 2), service.core.connections.count());
+    try std.testing.expectEqualSlices(
+        u8,
+        &first_connection.client_id.?,
+        &second_connection.client_id.?,
+    );
+
+    service.disconnect(&first_connection);
+    try std.testing.expectEqual(@as(usize, 1), service.core.connections.count());
+    try std.testing.expect(
+        service.core.connectionClientId(second_connection.connection_id.?) != null,
+    );
+}
+
+test "protocol 1.3 pages a stable inventory and rejects stale cursors" {
+    const TestInventoryPage = struct {
+        inventoryGeneration: []const u8,
+        nextCursor: ?InventoryCursorWire,
+        terminals: []std.json.Value,
+    };
+
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var connection: ConnectionState = .{};
+    var legacy_connection: ConnectionState = .{};
+    defer service.disconnect(&connection);
+    defer service.disconnect(&legacy_connection);
+    try testHandshakeV1_3(&service, &connection, "22222222222222222222222222222222");
+
+    const replay_creation_id = testIdentifier(0x31, 0);
+    const replay_terminal_id = testIdentifier(0x32, 0);
+    var replay_creation_buffer: [32]u8 = undefined;
+    const replay_payload = try testCreatePayloadV1_3(
+        identifierText(replay_creation_id, &replay_creation_buffer),
+        "orchbee-terminal-host-deliberately-missing-executable",
+        &.{},
+    );
+    defer std.testing.allocator.free(replay_payload);
+    const replay_request = try std.json.parseFromSlice(
+        CreateWire,
+        std.testing.allocator,
+        replay_payload,
+        .{},
+    );
+    defer replay_request.deinit();
+    _ = try service.core.createTerminal(
+        connection.connection_id.?,
+        replay_creation_id,
+        replay_terminal_id,
+        try launchDigest(std.testing.allocator, replay_request.value.launch),
+        80,
+        24,
+    );
+    for (1..130) |index| {
+        const creation_id = testIdentifier(0x31, index);
+        const terminal_id = testIdentifier(0x32, index);
+        _ = try service.core.createTerminal(
+            connection.connection_id.?,
+            creation_id,
+            terminal_id,
+            [_]u8{@intCast(index + 1)} ** 32,
+            80,
+            24,
+        );
+    }
+
+    var first_response = try testRequest(
+        &service,
+        &connection,
+        MessageKind.list_terminals,
+        .control_json,
+        "{\"cursor\":null,\"maximumTerminals\":128}",
+        [_]u8{0x41} ** 16,
+    );
+    defer first_response.deinit();
+    try std.testing.expectEqual(@as(usize, 1), first_response.records.items.len);
+    const first_envelope = try protocol.validateTransportEnvelope(first_response.records.items[0]);
+    const first_page = try std.json.parseFromSlice(
+        TestInventoryPage,
+        std.testing.allocator,
+        first_envelope.payload,
+        .{},
+    );
+    defer first_page.deinit();
+    try std.testing.expectEqual(@as(usize, 128), first_page.value.terminals.len);
+    try std.testing.expect(first_page.value.nextCursor != null);
+    try std.testing.expectEqualStrings("128", first_page.value.nextCursor.?.offset);
+
+    const second_payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"cursor\":{{\"inventoryGeneration\":\"{s}\",\"offset\":\"{s}\"}},\"maximumTerminals\":128}}",
+        .{
+            first_page.value.nextCursor.?.inventoryGeneration,
+            first_page.value.nextCursor.?.offset,
+        },
+    );
+    defer std.testing.allocator.free(second_payload);
+    var second_response = try testRequest(
+        &service,
+        &connection,
+        MessageKind.list_terminals,
+        .control_json,
+        second_payload,
+        [_]u8{0x42} ** 16,
+    );
+    defer second_response.deinit();
+    const second_envelope = try protocol.validateTransportEnvelope(second_response.records.items[0]);
+    const second_page = try std.json.parseFromSlice(
+        TestInventoryPage,
+        std.testing.allocator,
+        second_envelope.payload,
+        .{},
+    );
+    defer second_page.deinit();
+    try std.testing.expectEqual(@as(usize, 2), second_page.value.terminals.len);
+    try std.testing.expect(second_page.value.nextCursor == null);
+    try std.testing.expectEqualStrings(
+        first_page.value.inventoryGeneration,
+        second_page.value.inventoryGeneration,
+    );
+
+    _ = try service.core.createTerminal(
+        connection.connection_id.?,
+        testIdentifier(0x31, 130),
+        testIdentifier(0x32, 130),
+        [_]u8{0xee} ** 32,
+        80,
+        24,
+    );
+    var stale_response = try testRequest(
+        &service,
+        &connection,
+        MessageKind.list_terminals,
+        .control_json,
+        second_payload,
+        [_]u8{0x43} ** 16,
+    );
+    defer stale_response.deinit();
+    const stale_envelope = try protocol.validateTransportEnvelope(stale_response.records.items[0]);
+    try std.testing.expectEqual(MessageKind.typed_failure, stale_envelope.kind);
+    try std.testing.expect(std.mem.indexOf(u8, stale_envelope.payload, "stale-inventory-cursor") != null);
+
+    try testHandshakeV1_2(
+        &service,
+        &legacy_connection,
+        "23232323232323232323232323232323",
+    );
+    var legacy_response = try testRequest(
+        &service,
+        &legacy_connection,
+        MessageKind.list_terminals,
+        .control_json,
+        "{}",
+        [_]u8{0x44} ** 16,
+    );
+    defer legacy_response.deinit();
+    const legacy_envelope = try protocol.validateTransportEnvelope(legacy_response.records.items[0]);
+    try std.testing.expectEqual(MessageKind.typed_failure, legacy_envelope.kind);
+    try std.testing.expect(std.mem.indexOf(u8, legacy_envelope.payload, "protocol-upgrade-required") != null);
+
+    var replay_response = try testRequest(
+        &service,
+        &legacy_connection,
+        MessageKind.create_terminal,
+        .control_json,
+        replay_payload,
+        [_]u8{0x45} ** 16,
+    );
+    defer replay_response.deinit();
+    try std.testing.expectEqual(
+        MessageKind.create_terminal,
+        (try protocol.validateTransportEnvelope(replay_response.records.items[0])).kind,
+    );
+
+    const distinct_payload = try testCreatePayloadV1_3(
+        "abababababababababababababababab",
+        "orchbee-terminal-host-deliberately-missing-executable",
+        &.{},
+    );
+    defer std.testing.allocator.free(distinct_payload);
+    var distinct_response = try testRequest(
+        &service,
+        &legacy_connection,
+        MessageKind.create_terminal,
+        .control_json,
+        distinct_payload,
+        [_]u8{0x46} ** 16,
+    );
+    defer distinct_response.deinit();
+    const distinct_envelope = try protocol.validateTransportEnvelope(distinct_response.records.items[0]);
+    try std.testing.expectEqual(MessageKind.typed_failure, distinct_envelope.kind);
+    try std.testing.expect(std.mem.indexOf(u8, distinct_envelope.payload, "protocol-upgrade-required") != null);
+}
+
 test "malformed request receives a correlated typed failure without state mutation" {
     var service = HostService.init(std.testing.allocator);
     defer service.deinit();
     var connection: ConnectionState = .{
+        .connection_id = 1,
         .client_id = [_]u8{0x22} ** 16,
         .frame_bytes = 1024,
         .input_bytes = 1024,
         .row_window_bytes = 1024,
     };
-    _ = try service.core.connect(connection.client_id.?);
+    _ = try service.core.connect(connection.connection_id.?, connection.client_id.?);
     const correlation = [_]u8{0x33} ** 16;
     const record = try protocol.encodeTransportEnvelope(
         std.testing.allocator,
@@ -2562,7 +2991,7 @@ test "malformed request receives a correlated typed failure without state mutati
     const response = try protocol.validateTransportEnvelope(outgoing.records.items[0]);
     try std.testing.expectEqual(MessageKind.typed_failure, response.kind);
     try std.testing.expectEqualSlices(u8, &correlation, &response.correlation_id.?);
-    try std.testing.expect(service.core.terminal == null);
+    try std.testing.expectEqual(@as(usize, 0), service.core.terminalCount());
     service.disconnect(&connection);
 }
 
@@ -2570,12 +2999,13 @@ test "stale HostEpoch receives a correlated failure without state mutation" {
     var service = HostService.init(std.testing.allocator);
     defer service.deinit();
     var connection: ConnectionState = .{
+        .connection_id = 1,
         .client_id = [_]u8{0x22} ** 16,
         .frame_bytes = 1024,
         .input_bytes = 1024,
         .row_window_bytes = 1024,
     };
-    _ = try service.core.connect(connection.client_id.?);
+    _ = try service.core.connect(connection.connection_id.?, connection.client_id.?);
     const correlation = [_]u8{0x33} ** 16;
     const record = try protocol.encodeTransportEnvelope(
         std.testing.allocator,
@@ -2595,7 +3025,7 @@ test "stale HostEpoch receives a correlated failure without state mutation" {
     try std.testing.expectEqual(MessageKind.typed_failure, response.kind);
     try std.testing.expectEqualSlices(u8, &correlation, &response.correlation_id.?);
     try std.testing.expect(std.mem.indexOf(u8, response.payload, "stale-epoch") != null);
-    try std.testing.expect(service.core.terminal == null);
+    try std.testing.expectEqual(@as(usize, 0), service.core.terminalCount());
     service.disconnect(&connection);
 }
 
@@ -2603,12 +3033,13 @@ test "unknown optional request is skipped without state mutation" {
     var service = HostService.init(std.testing.allocator);
     defer service.deinit();
     var connection: ConnectionState = .{
+        .connection_id = 1,
         .client_id = [_]u8{0x22} ** 16,
         .frame_bytes = 1024,
         .input_bytes = 1024,
         .row_window_bytes = 1024,
     };
-    _ = try service.core.connect(connection.client_id.?);
+    _ = try service.core.connect(connection.connection_id.?, connection.client_id.?);
     const correlation = [_]u8{0x33} ** 16;
     const record = try protocol.encodeTransportEnvelope(
         std.testing.allocator,
@@ -2626,7 +3057,7 @@ test "unknown optional request is skipped without state mutation" {
     var outgoing = try service.handle(&connection, record);
     defer outgoing.deinit();
     try std.testing.expectEqual(@as(usize, 0), outgoing.records.items.len);
-    try std.testing.expect(service.core.terminal == null);
+    try std.testing.expectEqual(@as(usize, 0), service.core.terminalCount());
     service.disconnect(&connection);
 }
 
@@ -2689,12 +3120,6 @@ test "real PTY lifecycle survives disconnect and an idempotent create retry" {
     defer {
         service.disconnect(&first_connection);
         service.disconnect(&second_connection);
-        if (service.runtime) |runtime| {
-            runtime.terminate() catch {};
-            runtime.destroy();
-            service.runtime = null;
-        }
-        service.core.terminal = null;
         service.deinit();
     }
 
@@ -2712,13 +3137,13 @@ test "real PTY lifecycle survives disconnect and an idempotent create retry" {
     try std.testing.expectEqual(@as(usize, 2), created.records.items.len);
     try std.testing.expectEqual(MessageKind.create_terminal, (try protocol.validateTransportEnvelope(created.records.items[0])).kind);
     try std.testing.expectEqual(MessageKind.terminal_started, (try protocol.validateTransportEnvelope(created.records.items[1])).kind);
-    const terminal_id = service.core.terminal.?.terminal_id;
-    const retained_runtime = service.runtime.?;
+    const terminal_id = service.core.terminals.keys()[0];
+    const retained_runtime = service.findRuntime(terminal_id).?;
 
     service.disconnect(&first_connection);
-    try std.testing.expect(service.core.terminal != null);
-    try std.testing.expect(service.runtime == retained_runtime);
-    try std.testing.expect(!service.core.terminal.?.terminate_requested);
+    try std.testing.expect(service.core.findTerminal(terminal_id) != null);
+    try std.testing.expect(service.findRuntime(terminal_id) == retained_runtime);
+    try std.testing.expect(!service.core.findTerminal(terminal_id).?.terminate_requested);
 
     try testHandshake(&service, &second_connection, "66666666666666666666666666666666");
     var retried = try testRequest(
@@ -2731,8 +3156,8 @@ test "real PTY lifecycle survives disconnect and an idempotent create retry" {
     );
     defer retried.deinit();
     try std.testing.expectEqual(@as(usize, 1), retried.records.items.len);
-    try std.testing.expectEqualSlices(u8, &terminal_id, &service.core.terminal.?.terminal_id);
-    try std.testing.expect(service.runtime == retained_runtime);
+    try std.testing.expect(service.core.findTerminal(terminal_id) != null);
+    try std.testing.expect(service.findRuntime(terminal_id) == retained_runtime);
 
     var terminal_buffer: [32]u8 = undefined;
     const attach_payload = try std.fmt.allocPrint(
@@ -2765,8 +3190,8 @@ test "real PTY lifecycle survives disconnect and an idempotent create retry" {
     );
     defer resized.deinit();
     try std.testing.expectEqual(MessageKind.resize_accepted, (try protocol.validateTransportEnvelope(resized.records.items[0])).kind);
-    try std.testing.expectEqual(@as(u16, 100), service.core.terminal.?.columns);
-    try std.testing.expectEqual(@as(u16, 30), service.core.terminal.?.rows);
+    try std.testing.expectEqual(@as(u16, 100), service.core.findTerminal(terminal_id).?.columns);
+    try std.testing.expectEqual(@as(u16, 30), service.core.findTerminal(terminal_id).?.rows);
 
     const input_text: []const u8 = if (builtin.os.tag == .windows) "orchbee\r\n" else "orchbee\n";
     var input_payload: [16 + input_text.len]u8 = undefined;
@@ -2791,14 +3216,14 @@ test "real PTY lifecycle survives disconnect and an idempotent create retry" {
             observed_exit_event = observed_exit_event or event.kind == MessageKind.terminal_exited;
         }
         events.deinit();
-        if (service.core.terminal.?.phase == .exited) break;
+        if (service.core.findTerminal(terminal_id).?.phase == .exited) break;
         std.Thread.sleep(5 * std.time.ns_per_ms);
     }
-    try std.testing.expectEqual(core_module.TerminalPhase.exited, service.core.terminal.?.phase);
+    try std.testing.expectEqual(core_module.TerminalPhase.exited, service.core.findTerminal(terminal_id).?.phase);
     try std.testing.expect(observed_exit_event);
-    try std.testing.expect(service.core.terminal.?.revision >= 2);
+    try std.testing.expect(service.core.findTerminal(terminal_id).?.revision >= 2);
 
-    const plain = try service.runtime.?.plainString(std.testing.allocator);
+    const plain = try service.findRuntime(terminal_id).?.plainString(std.testing.allocator);
     defer std.testing.allocator.free(plain);
     try std.testing.expect(std.mem.indexOf(u8, plain, "ready:orchbee") != null);
 
@@ -2818,8 +3243,226 @@ test "real PTY lifecycle survives disconnect and an idempotent create retry" {
         [_]u8{0x56} ** 16,
     );
     defer disposed.deinit();
-    try std.testing.expect(service.runtime == null);
-    try std.testing.expect(service.core.terminal == null);
+    try std.testing.expect(service.findRuntime(terminal_id) == null);
+    try std.testing.expect(service.core.findTerminal(terminal_id) == null);
+}
+
+test "two PTY runtimes route input independently and isolate spawn failure" {
+    const builtin = @import("builtin");
+    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const first_posix_arguments = [_][]const u8{
+        "-c",
+        "printf 'first-ready:'; read value; printf 'first-%s' \"$value\"",
+    };
+    const second_posix_arguments = [_][]const u8{
+        "-c",
+        "printf 'second-ready:'; read value; printf 'second-%s' \"$value\"",
+    };
+    const first_windows_arguments = [_][]const u8{
+        "/Q",
+        "/D",
+        "/V:ON",
+        "/S",
+        "/C",
+        "<nul set /p =first-ready:& set /p value=& <nul set /p =first-!value!",
+    };
+    const second_windows_arguments = [_][]const u8{
+        "/Q",
+        "/D",
+        "/V:ON",
+        "/S",
+        "/C",
+        "<nul set /p =second-ready:& set /p value=& <nul set /p =second-!value!",
+    };
+    const first_arguments: []const []const u8 = if (builtin.os.tag == .windows)
+        &first_windows_arguments
+    else
+        &first_posix_arguments;
+    const second_arguments: []const []const u8 = if (builtin.os.tag == .windows)
+        &second_windows_arguments
+    else
+        &second_posix_arguments;
+
+    const first_create_payload = try testCreatePayloadV1_3(
+        "31313131313131313131313131313131",
+        executable,
+        first_arguments,
+    );
+    defer std.testing.allocator.free(first_create_payload);
+    const failed_create_payload = try testCreatePayloadV1_3(
+        "32323232323232323232323232323232",
+        "orchbee-terminal-host-deliberately-missing-executable",
+        &.{},
+    );
+    defer std.testing.allocator.free(failed_create_payload);
+    const second_create_payload = try testCreatePayloadV1_3(
+        "33333333333333333333333333333333",
+        executable,
+        second_arguments,
+    );
+    defer std.testing.allocator.free(second_create_payload);
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .{};
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshakeV1_3(&service, &connection, "22222222222222222222222222222222");
+
+    var first_created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        first_create_payload,
+        [_]u8{0x51} ** 16,
+    );
+    defer first_created.deinit();
+    try std.testing.expectEqual(@as(usize, 1), service.core.terminalCount());
+    try std.testing.expectEqual(@as(usize, 1), service.runtimes.count());
+    const first_terminal_id = service.core.terminals.keys()[0];
+
+    var failed_create = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        failed_create_payload,
+        [_]u8{0x52} ** 16,
+    );
+    defer failed_create.deinit();
+    const failed_envelope = try protocol.validateTransportEnvelope(failed_create.records.items[0]);
+    try std.testing.expectEqual(MessageKind.typed_failure, failed_envelope.kind);
+    try std.testing.expect(std.mem.indexOf(u8, failed_envelope.payload, "spawn-failed") != null);
+    try std.testing.expectEqual(@as(usize, 1), service.core.terminalCount());
+    try std.testing.expectEqual(@as(usize, 1), service.runtimes.count());
+    try std.testing.expect(service.core.findTerminal(first_terminal_id) != null);
+
+    var second_created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        second_create_payload,
+        [_]u8{0x53} ** 16,
+    );
+    defer second_created.deinit();
+    try std.testing.expectEqual(@as(usize, 2), service.core.terminalCount());
+    try std.testing.expectEqual(@as(usize, 2), service.runtimes.count());
+    const second_terminal_id = service.core.terminals.keys()[1];
+
+    const first_attachment_id = [_]u8{0x44} ** 16;
+    const second_attachment_id = [_]u8{0x55} ** 16;
+    const first_attach_payload = try testAttachPayload(first_attachment_id, first_terminal_id);
+    defer std.testing.allocator.free(first_attach_payload);
+    const second_attach_payload = try testAttachPayload(second_attachment_id, second_terminal_id);
+    defer std.testing.allocator.free(second_attach_payload);
+    var first_attached = try testRequest(
+        &service,
+        &connection,
+        MessageKind.attach_terminal,
+        .control_json,
+        first_attach_payload,
+        [_]u8{0x54} ** 16,
+    );
+    defer first_attached.deinit();
+    var second_attached = try testRequest(
+        &service,
+        &connection,
+        MessageKind.attach_terminal,
+        .control_json,
+        second_attach_payload,
+        [_]u8{0x55} ** 16,
+    );
+    defer second_attached.deinit();
+
+    const first_input: []const u8 = if (builtin.os.tag == .windows) "alpha\r\n" else "alpha\n";
+    const second_input: []const u8 = if (builtin.os.tag == .windows) "beta\r\n" else "beta\n";
+    const first_input_payload = try testRawInputPayload(first_attachment_id, first_input);
+    defer std.testing.allocator.free(first_input_payload);
+    const second_input_payload = try testRawInputPayload(second_attachment_id, second_input);
+    defer std.testing.allocator.free(second_input_payload);
+    var first_accepted = try testRequest(
+        &service,
+        &connection,
+        MessageKind.write_input,
+        .raw_bytes,
+        first_input_payload,
+        [_]u8{0x56} ** 16,
+    );
+    defer first_accepted.deinit();
+    var second_accepted = try testRequest(
+        &service,
+        &connection,
+        MessageKind.write_input,
+        .raw_bytes,
+        second_input_payload,
+        [_]u8{0x57} ** 16,
+    );
+    defer second_accepted.deinit();
+
+    for (0..400) |_| {
+        var events = try service.pollEvents(&connection);
+        events.deinit();
+        if (service.core.findTerminal(first_terminal_id).?.phase == .exited and
+            service.core.findTerminal(second_terminal_id).?.phase == .exited)
+        {
+            break;
+        }
+        std.Thread.sleep(5 * std.time.ns_per_ms);
+    }
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.exited,
+        service.core.findTerminal(first_terminal_id).?.phase,
+    );
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.exited,
+        service.core.findTerminal(second_terminal_id).?.phase,
+    );
+    const first_plain = try service.findRuntime(first_terminal_id).?.plainString(std.testing.allocator);
+    defer std.testing.allocator.free(first_plain);
+    const second_plain = try service.findRuntime(second_terminal_id).?.plainString(std.testing.allocator);
+    defer std.testing.allocator.free(second_plain);
+    try std.testing.expect(std.mem.indexOf(u8, first_plain, "first-alpha") != null);
+    try std.testing.expect(std.mem.indexOf(u8, first_plain, "second-beta") == null);
+    try std.testing.expect(std.mem.indexOf(u8, second_plain, "second-beta") != null);
+    try std.testing.expect(std.mem.indexOf(u8, second_plain, "first-alpha") == null);
+
+    const first_dispose_payload = try testTerminalTargetPayload(first_terminal_id);
+    defer std.testing.allocator.free(first_dispose_payload);
+    var first_disposed = try testRequest(
+        &service,
+        &connection,
+        MessageKind.dispose_terminal,
+        .control_json,
+        first_dispose_payload,
+        [_]u8{0x58} ** 16,
+    );
+    defer first_disposed.deinit();
+    try std.testing.expect(service.core.findTerminal(first_terminal_id) == null);
+    try std.testing.expect(service.findRuntime(first_terminal_id) == null);
+    try std.testing.expect(service.core.findTerminal(second_terminal_id) != null);
+    try std.testing.expect(service.findRuntime(second_terminal_id) != null);
+
+    const second_dispose_payload = try testTerminalTargetPayload(second_terminal_id);
+    defer std.testing.allocator.free(second_dispose_payload);
+    var second_disposed = try testRequest(
+        &service,
+        &connection,
+        MessageKind.dispose_terminal,
+        .control_json,
+        second_dispose_payload,
+        [_]u8{0x59} ** 16,
+    );
+    defer second_disposed.deinit();
+    try std.testing.expectEqual(@as(usize, 0), service.core.terminalCount());
+    try std.testing.expectEqual(@as(usize, 0), service.runtimes.count());
 }
 
 test "protocol 1.1 activates a lazy live projection and accepts semantic text" {
@@ -2888,12 +3531,6 @@ test "protocol 1.1 activates a lazy live projection and accepts semantic text" {
     var connection: ConnectionState = .{};
     defer {
         service.disconnect(&connection);
-        if (service.runtime) |runtime| {
-            runtime.terminate() catch {};
-            runtime.destroy();
-            service.runtime = null;
-        }
-        service.core.terminal = null;
         service.deinit();
     }
     try testHandshakeV1_1(&service, &connection, "22222222222222222222222222222222");
@@ -2908,10 +3545,9 @@ test "protocol 1.1 activates a lazy live projection and accepts semantic text" {
         [_]u8{0x61} ** 16,
     );
     defer created.deinit();
-    try std.testing.expect(service.runtime != null);
-    try std.testing.expectEqual(@as(u64, 0), service.runtime.?.projectionCounters().render_state_creations);
-
-    const terminal_id = service.core.terminal.?.terminal_id;
+    const terminal_id = service.core.terminals.keys()[0];
+    const runtime = service.findRuntime(terminal_id).?;
+    try std.testing.expectEqual(@as(u64, 0), runtime.projectionCounters().render_state_creations);
     var terminal_buffer: [32]u8 = undefined;
     const attach_payload = try std.fmt.allocPrint(
         std.testing.allocator,
@@ -2929,7 +3565,7 @@ test "protocol 1.1 activates a lazy live projection and accepts semantic text" {
     );
     defer attached.deinit();
     try std.testing.expectEqual(MessageKind.attachment_capabilities, (try protocol.validateTransportEnvelope(attached.records.items[0])).kind);
-    try std.testing.expectEqual(@as(u64, 0), service.runtime.?.projectionCounters().render_state_creations);
+    try std.testing.expectEqual(@as(u64, 0), runtime.projectionCounters().render_state_creations);
 
     const demand_payload =
         \\{"attachmentId":"44444444444444444444444444444444","demand":"active"}
@@ -2952,7 +3588,7 @@ test "protocol 1.1 activates a lazy live projection and accepts semantic text" {
     try std.testing.expectEqual(@as(u16, 4), frame.rows);
     try std.testing.expectEqual(@as(u16, 8), frame.cell_pixel_width);
     try std.testing.expectEqual(@as(u16, 16), frame.cell_pixel_height);
-    try std.testing.expectEqual(@as(u64, 1), service.runtime.?.projectionCounters().render_state_creations);
+    try std.testing.expectEqual(@as(u64, 1), runtime.projectionCounters().render_state_creations);
 
     var frame_ack_payload_buffer: [256]u8 = undefined;
     const frame_ack_payload = try std.fmt.bufPrint(
@@ -2972,7 +3608,7 @@ test "protocol 1.1 activates a lazy live projection and accepts semantic text" {
         [_]u8{0x66} ** 16,
     );
     defer paused.deinit();
-    try std.testing.expect(!service.runtime.?.projectionResident());
+    try std.testing.expect(!runtime.projectionResident());
     try std.testing.expect(service.core.findAttachment([_]u8{0x44} ** 16).?.in_flight == null);
 
     var acknowledged = try testRequest(
@@ -2986,7 +3622,7 @@ test "protocol 1.1 activates a lazy live projection and accepts semantic text" {
     defer acknowledged.deinit();
     try std.testing.expectEqual(MessageKind.frame_applied, (try protocol.validateTransportEnvelope(acknowledged.records.items[0])).kind);
 
-    service.next_projection_at_ns = 0;
+    service.runtimes.getPtr(terminal_id).?.next_projection_at_ns = 0;
     var resumed = try testRequest(
         &service,
         &connection,
@@ -3001,7 +3637,7 @@ test "protocol 1.1 activates a lazy live projection and accepts semantic text" {
     try std.testing.expectEqual(MessageKind.snapshot_frame, resumed_envelope.kind);
     const resumed_frame = try protocol.validateTerminalFrame(std.testing.allocator, resumed_envelope.payload);
     try std.testing.expectEqual(frame.sequence + 1, resumed_frame.sequence);
-    try std.testing.expectEqual(@as(u64, 2), service.runtime.?.projectionCounters().render_state_creations);
+    try std.testing.expectEqual(@as(u64, 2), runtime.projectionCounters().render_state_creations);
 
     var paused_again = try testRequest(
         &service,
@@ -3012,8 +3648,8 @@ test "protocol 1.1 activates a lazy live projection and accepts semantic text" {
         [_]u8{0x68} ** 16,
     );
     defer paused_again.deinit();
-    try std.testing.expect(!service.runtime.?.projectionResident());
-    const counters_before_pause = service.runtime.?.projectionCounters();
+    try std.testing.expect(!runtime.projectionResident());
+    const counters_before_pause = runtime.projectionCounters();
 
     const input_text: []const u8 = if (builtin.os.tag == .windows) "orchbee\r\n" else "orchbee\n";
     const text_payload = try std.testing.allocator.alloc(u8, 20 + input_text.len);
@@ -3035,11 +3671,11 @@ test "protocol 1.1 activates a lazy live projection and accepts semantic text" {
     for (0..400) |_| {
         var events = try service.pollEvents(&connection);
         events.deinit();
-        if (service.core.terminal.?.phase == .exited) break;
+        if (service.core.findTerminal(terminal_id).?.phase == .exited) break;
         std.Thread.sleep(5 * std.time.ns_per_ms);
     }
-    try std.testing.expectEqual(core_module.TerminalPhase.exited, service.core.terminal.?.phase);
-    const counters_after_exit = service.runtime.?.projectionCounters();
+    try std.testing.expectEqual(core_module.TerminalPhase.exited, service.core.findTerminal(terminal_id).?.phase);
+    const counters_after_exit = runtime.projectionCounters();
     try std.testing.expectEqual(counters_before_pause.captures, counters_after_exit.captures);
     try std.testing.expectEqual(counters_before_pause.encodes, counters_after_exit.encodes);
 }
@@ -3100,6 +3736,138 @@ fn testHandshakeV1_1(
     const response = try protocol.validateTransportEnvelope(outgoing.records.items[0]);
     try std.testing.expectEqual(MessageKind.hello_accepted, response.kind);
     try std.testing.expectEqual(@as(u16, 1), response.protocol_minor);
+}
+
+fn testHandshakeV1_2(
+    service: *HostService,
+    connection: *ConnectionState,
+    client_id: []const u8,
+) !void {
+    try testHandshakeVersion(service, connection, client_id, 2);
+}
+
+fn testHandshakeV1_3(
+    service: *HostService,
+    connection: *ConnectionState,
+    client_id: []const u8,
+) !void {
+    try testHandshakeVersion(service, connection, client_id, 3);
+}
+
+fn testHandshakeVersion(
+    service: *HostService,
+    connection: *ConnectionState,
+    client_id: []const u8,
+    protocol_minor: u16,
+) !void {
+    const payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"clientId\":\"{s}\",\"frameBytes\":1048576,\"inputBytes\":2048,\"protocol\":{{\"major\":1,\"maximumMinor\":{d},\"minimumMinor\":{d}}},\"rowWindowBytes\":4096,\"supportedOptionalFeatures\":[]}}",
+        .{ client_id, protocol_minor, protocol_minor },
+    );
+    defer std.testing.allocator.free(payload);
+    const record = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        MessageKind.hello,
+        .control_json,
+        payload,
+        null,
+        null,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(record);
+    var outgoing = try service.handle(connection, record);
+    defer outgoing.deinit();
+    try std.testing.expectEqual(@as(usize, 1), outgoing.records.items.len);
+    const response = try protocol.validateTransportEnvelope(outgoing.records.items[0]);
+    try std.testing.expectEqual(MessageKind.hello_accepted, response.kind);
+    try std.testing.expectEqual(protocol_minor, response.protocol_minor);
+}
+
+fn testCreatePayloadV1_3(
+    creation_id: []const u8,
+    executable: []const u8,
+    arguments: []const []const u8,
+) ![]u8 {
+    const environment = [_]EnvironmentWire{};
+    const features = [_]u16{22};
+    const palette = [_]u32{0} ** 256;
+    var writer: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer writer.deinit();
+    try std.json.Stringify.value(.{
+        .creationId = creation_id,
+        .launch = .{
+            .arguments = arguments,
+            .cellPixelHeight = 16,
+            .cellPixelWidth = 8,
+            .columns = 80,
+            .currentDirectory = @as(?[]const u8, null),
+            .environment = &environment,
+            .executable = executable,
+            .rows = 24,
+            .terminalProfile = .{
+                .colorScheme = "dark",
+                .defaultBackgroundRgb = 0,
+                .defaultCursorRgb = @as(?u32, null),
+                .defaultForegroundRgb = 0xffffff,
+                .deviceAttributes = .{
+                    .primaryConformanceLevel = 62,
+                    .primaryFeatures = &features,
+                    .secondaryDeviceType = 1,
+                    .secondaryFirmwareVersion = 0,
+                    .secondaryRomCartridge = 0,
+                    .tertiaryUnitId = 0,
+                },
+                .enquiryResponse = "",
+                .palette = &palette,
+                .versionResponse = "Orchbee test",
+            },
+        },
+    }, .{}, &writer.writer);
+    return writer.toOwnedSlice();
+}
+
+fn testAttachPayload(
+    attachment_id: core_module.Identifier,
+    terminal_id: core_module.Identifier,
+) ![]u8 {
+    var attachment_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    return std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":true,\"read\":false,\"resize\":false}},\"requestResizeLease\":false,\"terminalId\":\"{s}\"}}",
+        .{
+            identifierText(attachment_id, &attachment_buffer),
+            identifierText(terminal_id, &terminal_buffer),
+        },
+    );
+}
+
+fn testRawInputPayload(
+    attachment_id: core_module.Identifier,
+    input: []const u8,
+) ![]u8 {
+    const payload = try std.testing.allocator.alloc(u8, attachment_id.len + input.len);
+    @memcpy(payload[0..attachment_id.len], &attachment_id);
+    @memcpy(payload[attachment_id.len..], input);
+    return payload;
+}
+
+fn testTerminalTargetPayload(terminal_id: core_module.Identifier) ![]u8 {
+    var terminal_buffer: [32]u8 = undefined;
+    return std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"terminalId\":\"{s}\"}}",
+        .{identifierText(terminal_id, &terminal_buffer)},
+    );
+}
+
+fn testIdentifier(namespace: u8, index: usize) core_module.Identifier {
+    var result = [_]u8{0} ** 16;
+    result[0] = namespace;
+    std.mem.writeInt(u64, result[8..16], @intCast(index + 1), .little);
+    return result;
 }
 
 fn testRequest(

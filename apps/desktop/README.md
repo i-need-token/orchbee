@@ -18,6 +18,9 @@ updates, sharing, network clients, or recovered-terminal product presentation. C
 reloading the renderer, or restarting Electron Main, detaches only the scoped attachment; it never
 terminates or disposes the Host terminal.
 
+Desktop explicitly negotiates protocol 1.2 for this single recovery binding. Protocol 1.3 paged
+inventory and multi-terminal product binding remain outside the current Desktop composition.
+
 ## Recovery binding model
 
 The actor is the single running Electron Main process. At startup it must recover the exact terminal

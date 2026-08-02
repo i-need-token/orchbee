@@ -889,7 +889,7 @@ pub fn encodeTransportEnvelopeVersion(
     response: bool,
     event: bool,
 ) (ProtocolError || std.mem.Allocator.Error)![]u8 {
-    if (protocol_minor > 2) return error.UnsupportedVersion;
+    if (protocol_minor > 3) return error.UnsupportedVersion;
     if (event and response) return error.InvalidField;
     if (payload.len > try maximumPayloadBytes(@intFromEnum(encoding))) return error.LimitExceeded;
     const total_length = transport_envelope_header_bytes + payload.len;

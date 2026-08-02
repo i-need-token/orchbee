@@ -1,13 +1,13 @@
 # Terminal Host
 
-Native one-terminal runtime and pinned Ghostty VT integration boundary for Orchbee's local Host.
+Native multi-terminal runtime and pinned Ghostty VT integration boundary for Orchbee's local Host.
 
 ## Current scope
 
-This workspace owns the one-terminal native Host core, PTY lifecycle, live projection producer,
-bounded history and selection authority, semantic input authority, and secure local IPC runtime
-through Slice 7. Slice 7 changes no Host product ownership: Desktop consumes the existing bounded
-inventory and idempotent Create contract to recover its opaque terminal identity. The launcher ABI is
+This workspace owns native terminal, runtime, connection, creation, and attachment registries; PTY
+lifecycle; live projection production; bounded history and selection authority; semantic input
+authority; and secure local IPC. Desktop consumes terminal identities without moving product
+topology into the Host. The launcher ABI is
 `terminal-host serve --runtime-directory <absolute-path> --endpoint-id <32-lowercase-hex>`.
 The runtime directory and endpoint identity are supplied by the future Desktop runtime manager;
 the Host interprets no product placement or release-channel model.
@@ -17,18 +17,32 @@ Electron lifecycle, rendering, product presentation, platform effects, and updat
 remain outside this application. It contains no TCP, HTTP, WebSocket, TLS, remote-authentication,
 or sharing listener.
 
-The Host retains at most one terminal. It parses PTY output into one Ghostty terminal with a
-10,000,000-byte scrollback bound before any client transport. PTY reads are at most 256 KiB, queued
-input is at most 4 MiB, and one input request is at most the negotiated 1 MiB. A terminal becomes
+The Host retains each terminal until explicit disposal and binds exactly one native runtime to each
+retained `TerminalId`. It defines no product count ceiling for terminals, attachments, or
+connections; allocator, identifier-space, process, PTY, and operating-system exhaustion reject the
+current operation without shrinking or corrupting retained registries. Each runtime parses PTY
+output into its own Ghostty terminal with a 10,000,000-byte scrollback bound before any client
+transport. PTY reads are at most 256 KiB, queued input is at most 4 MiB per terminal, and one input
+request is at most the negotiated 1 MiB. A terminal becomes
 `exited` only after both child completion and PTY drain; an unexpected PTY read failure is not
 classified as a drain. Disconnect removes that connection's attachments and never sends the
 platform termination request.
 
-`ListTerminals` exposes at most one opaque terminal summary: exact identity, lifecycle phase,
-dimensions, revision, termination-requested fact, and optional exit result. The Host never assigns
-that terminal to a product concept and never adopts, recreates, terminates, or disposes it during
-Desktop reconciliation. Replaying an identical `CreationId` and launch in the same Host epoch is
-idempotent; a different launch is a typed creation conflict.
+Protocol 1.3 `ListTerminals` exposes opaque terminal summaries in stable membership pages of at most
+128 terminals and 64 KiB. A cursor carries the inventory generation and next offset; any create or
+dispose changes the generation, so a stale cursor fails instead of mixing memberships. The protocol
+sets no total terminal count limit. Protocol 1.0-1.2 still returns its legacy zero-or-one summary,
+but fails with `protocol-upgrade-required` instead of truncating when multiple terminals exist. A
+1.0-1.2 client may replay an existing `CreationId`, but creating a distinct second terminal requires
+1.3. Replaying an identical creation and launch in the same Host epoch remains idempotent; a
+different launch is a typed creation conflict.
+
+`ClientId` is wire metadata and may be equal on multiple physical connections. The Host assigns a
+private monotonic `ConnectionId` to each accepted connection; attachment authority is owned by that
+physical identity. Every attachment operation resolves the exact
+`ConnectionId + AttachmentId -> TerminalId -> Runtime` route. Disconnect removes only that physical
+connection's attachments and never terminates a terminal or affects another connection with the
+same `ClientId`.
 
 On POSIX, the Host requires an existing absolute runtime directory owned by the effective user with
 no group or other permissions. It takes an endpoint-specific lifetime file lock, publishes a `0600`
@@ -38,15 +52,17 @@ Local System, and administrators; its endpoint-specific mutex and byte-mode name
 protected current-user DACL, reject remote clients, and compare the connected token SID with the
 Host token SID. Endpoint names are identifiers, not secrets.
 
-The Host services one local broker connection at a time while preserving the terminal across broker
-reconnects. A protocol 1.1 readable attachment starts with projection demand paused. Activating it
-lazily creates one terminal-owned Ghostty render state and emits bounded format-2 snapshots or
+The current local IPC listener services one broker connection at a time while preserving all
+terminals across broker reconnects; the service/core identity model does not conflate reconnects
+that reuse a `ClientId`. A protocol 1.1 readable attachment starts with projection demand paused.
+Activating it lazily creates one terminal-owned Ghostty render state and emits bounded format-2 snapshots or
 full-row deltas with one frame in flight per attachment. Pausing abandons that attachment's
 in-flight frame, invalidates its delta base, and suppresses dirty marking, capture, and encoding
 while PTY parsing and canonical revision tracking continue. When no attachment for the terminal has
 active projection demand, the Host releases the render state and projection caches; later activation
-recreates them and emits a full snapshot. Title, current directory, cursor, interaction modes, and
-final revision travel with the live projection.
+recreates them and emits a full snapshot. Projection cadence is tracked per terminal, while bounded
+round-robin scans prevent one attachment or terminal from monopolizing a poll. Title, current
+directory, cursor, interaction modes, and final revision travel with the live projection.
 
 Protocol 1.2 adds attachment-local history demand, one row request in flight, and render- or
 text-detail row windows bounded to 2 MiB and 4,096 rows. The Host resolves absolute, oldest, tail,
@@ -103,9 +119,10 @@ pnpm verify
 build, and checks valid and malformed records. It does not depend on a sibling source import or a
 machine-local checkout.
 
-`test` exercises the current operating system's PTY/process adapter, VT runtime, one-terminal
-service, projection capture and backpressure, semantic input ordering, malformed local transport,
-connection cleanup, and endpoint security. Repository CI is
+`test` exercises the current operating system's PTY/process adapter, VT runtimes, multi-terminal
+routing, atomic spawn failure, paged inventory, physical-connection isolation, projection capture
+and backpressure, semantic input ordering, malformed local transport, connection cleanup, and
+endpoint security. Repository CI is
 configured to run these native tests on Linux, macOS, and Windows. `test:cross` additionally
 compiles the complete test graph for one maintained target in each family; cross-compilation alone
 does not claim runtime behavior. Packaging and installer behavior remain outside this slice. Build
@@ -130,8 +147,9 @@ non-Retina comparisons auditable. File-fixture mode is not available on Windows.
 ## Native module visibility
 
 `src/main.zig` is the executable composition root and private launcher ABI. `src/host_core.zig`
-owns deterministic state transitions; `src/host_service.zig` binds validated protocol operations to
-the core and runtime. `src/terminal_projection.zig` owns the lazy Ghostty render state and format-2
+owns deterministic registries and state transitions; `src/host_service.zig` owns the per-terminal
+runtime registry, exact request routing, and bounded fair scheduling while binding validated
+protocol operations to the core. `src/terminal_projection.zig` owns the lazy Ghostty render state and format-2
 capture/encoding scratch. `src/terminal_history.zig` owns attachment-local row anchors, bounded row
 encoding, tracked selection, and chunked selection export. `src/terminal_runtime.zig`,
 `src/pty_process.zig`, and `src/pty.zig` own

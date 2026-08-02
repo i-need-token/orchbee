@@ -2,7 +2,7 @@
 	"name": "@orchbee/terminal-host",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Native one-terminal Host with Ghostty VT, live projection, semantic input, PTY lifecycle, and private local IPC",
+	"description": "Native multi-terminal Host with Ghostty VT, demand-driven projection, semantic input, PTY lifecycle, and private local IPC",
 	"type": "module",
 	"scripts": {
 		"benchmark": "zig build benchmark -Doptimize=ReleaseFast",

@@ -11,6 +11,7 @@ export const PROTOCOL_LIMITS = {
 	maxCellPixelDimension: 4096,
 	maxInputBytes: 1024 * 1024,
 	maxInputAcceptedBytes: 1024 * 1024 + 16,
+	maxInventoryPageTerminals: 128,
 	maxKeyTextBytes: 4096,
 	maxPendingInputBytes: 4 * 1024 * 1024,
 	maxPtyReadBatchBytes: 256 * 1024,

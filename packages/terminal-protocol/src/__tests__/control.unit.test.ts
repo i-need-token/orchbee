@@ -5,11 +5,13 @@ import {
 	decodeControlJson,
 	FrameAppliedSchema,
 	InputAcceptedSchema,
+	ListTerminalsV1_3Schema,
 	NeedSnapshotSchema,
 	ResizeTerminalV1_1Schema,
 	SetProjectionDemandSchema,
 	TerminalLaunchSchema,
 	TerminalLaunchV1_1Schema,
+	TerminalListV1_3Schema,
 } from '../control';
 import { ProtocolErrorCode } from '../protocol-result';
 
@@ -142,5 +144,35 @@ describe('control schemas', () => {
 				attachmentId: '22222222222222222222222222222222',
 			}).success,
 		).toBe(true);
+	});
+
+	it('bounds protocol 1.3 inventory pages without bounding total inventory', () => {
+		const request = {
+			cursor: {
+				inventoryGeneration: '7',
+				offset: '128',
+			},
+			maximumTerminals: 128,
+		};
+		expect(ListTerminalsV1_3Schema.parse(request)).toEqual(request);
+		expect(ListTerminalsV1_3Schema.safeParse({ ...request, maximumTerminals: 129 }).success).toBe(
+			false,
+		);
+
+		const response = {
+			inventoryGeneration: '7',
+			nextCursor: {
+				inventoryGeneration: '7',
+				offset: '256',
+			},
+			terminals: [],
+		};
+		expect(TerminalListV1_3Schema.parse(response)).toEqual(response);
+		expect(
+			TerminalListV1_3Schema.safeParse({
+				...response,
+				nextCursor: { ...response.nextCursor, inventoryGeneration: '8' },
+			}).success,
+		).toBe(false);
 	});
 });

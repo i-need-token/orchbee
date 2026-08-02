@@ -420,6 +420,35 @@ export const TerminalListSchema = z.strictObject({
 	terminals: z.array(TerminalSummarySchema).max(1),
 });
 
+export const TerminalInventoryCursorSchema = z.strictObject({
+	inventoryGeneration: CanonicalUint64TextSchema,
+	offset: CanonicalUint64TextSchema,
+});
+
+export const ListTerminalsV1_3Schema = z.strictObject({
+	cursor: TerminalInventoryCursorSchema.nullable(),
+	maximumTerminals: z.number().int().min(1).max(PROTOCOL_LIMITS.maxInventoryPageTerminals),
+});
+
+export const TerminalListV1_3Schema = z
+	.strictObject({
+		inventoryGeneration: CanonicalUint64TextSchema,
+		nextCursor: TerminalInventoryCursorSchema.nullable(),
+		terminals: z.array(TerminalSummarySchema).max(PROTOCOL_LIMITS.maxInventoryPageTerminals),
+	})
+	.superRefine((value, context) => {
+		if (
+			value.nextCursor !== null &&
+			value.nextCursor.inventoryGeneration !== value.inventoryGeneration
+		) {
+			context.addIssue({
+				code: 'custom',
+				message: 'nextCursor must name the response inventory generation',
+				path: ['nextCursor', 'inventoryGeneration'],
+			});
+		}
+	});
+
 export const AttachmentCapabilitiesSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	capabilities: z.strictObject({ input: z.boolean(), read: z.boolean(), resize: z.boolean() }),
@@ -503,6 +532,7 @@ export type ExitResult = z.infer<typeof ExitResultSchema>;
 export type FrameApplied = z.infer<typeof FrameAppliedSchema>;
 export type NeedSnapshot = z.infer<typeof NeedSnapshotSchema>;
 export type InputAccepted = z.infer<typeof InputAcceptedSchema>;
+export type ListTerminalsV1_3 = z.infer<typeof ListTerminalsV1_3Schema>;
 export type ProtocolRejected = z.infer<typeof ProtocolRejectedSchema>;
 export type ProjectionBlocked = z.infer<typeof ProjectionBlockedSchema>;
 export type ProjectionDemand = z.infer<typeof ProjectionDemandSchema>;
@@ -538,6 +568,8 @@ export type TerminalLaunch = z.infer<typeof TerminalLaunchSchema>;
 export type TerminalLaunchV1_1 = z.infer<typeof TerminalLaunchV1_1Schema>;
 export type TerminalProfile = z.infer<typeof TerminalProfileSchema>;
 export type TerminalList = z.infer<typeof TerminalListSchema>;
+export type TerminalInventoryCursor = z.infer<typeof TerminalInventoryCursorSchema>;
+export type TerminalListV1_3 = z.infer<typeof TerminalListV1_3Schema>;
 export type TerminalStarted = z.infer<typeof TerminalStartedSchema>;
 export type TerminalSummary = z.infer<typeof TerminalSummarySchema>;
 export type TerminalTarget = z.infer<typeof TerminalTargetSchema>;

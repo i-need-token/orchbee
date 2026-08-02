@@ -1,11 +1,11 @@
 ------------------------ MODULE TerminalHostLifecycle ------------------------
 EXTENDS FiniteSets, Naturals, TLC
 
-CONSTANTS Epochs, Clients, CreationIds, TerminalIds, Attachments
+CONSTANTS Epochs, Connections, Clients, CreationIds, TerminalIds, Attachments
 
 None == "none"
 HostPhases == {"absent", "starting", "serving", "draining"}
-TerminalPhases == {"absent", "starting", "running", "finishing", "exited"}
+TerminalPhases == {"absent", "running", "finishing", "exited"}
 Authorities == {"desktop", "attachment"}
 
 VARIABLES
@@ -13,8 +13,10 @@ VARIABLES
   hostEpoch,
   upgradePending,
   connections,
+  clientOf,
   creationOf,
   terminalPhase,
+  runtimePresent,
   childExited,
   ptyDrained,
   terminalColumns,
@@ -24,14 +26,16 @@ VARIABLES
   resizeLease,
   networkListener
 
-hostVars == <<hostPhase, hostEpoch, upgradePending, connections, networkListener>>
+connectionVars == <<connections, clientOf>>
+hostVars == <<hostPhase, hostEpoch, upgradePending, connectionVars, networkListener>>
 terminalVars ==
-  <<creationOf, terminalPhase, childExited, ptyDrained, terminalColumns>>
+  <<creationOf, terminalPhase, runtimePresent, childExited, ptyDrained, terminalColumns>>
 attachmentVars ==
   <<attachmentOwner, attachmentTerminal, attachmentEpoch, resizeLease>>
 vars == <<hostVars, terminalVars, attachmentVars>>
 
 PresentTerminals == {terminal \in TerminalIds: creationOf[terminal] # None}
+PresentRuntimes == {terminal \in TerminalIds: runtimePresent[terminal]}
 UsedCreations == {creationOf[terminal]: terminal \in PresentTerminals}
 
 Init ==
@@ -39,8 +43,10 @@ Init ==
   /\ hostEpoch = None
   /\ upgradePending = FALSE
   /\ connections = {}
+  /\ clientOf = [connection \in Connections |-> None]
   /\ creationOf = [terminal \in TerminalIds |-> None]
   /\ terminalPhase = [terminal \in TerminalIds |-> "absent"]
+  /\ runtimePresent = [terminal \in TerminalIds |-> FALSE]
   /\ childExited = [terminal \in TerminalIds |-> FALSE]
   /\ ptyDrained = [terminal \in TerminalIds |-> FALSE]
   /\ terminalColumns = [terminal \in TerminalIds |-> 1]
@@ -55,60 +61,53 @@ Launch(epoch) ==
   /\ epoch \in Epochs
   /\ hostPhase' = "starting"
   /\ hostEpoch' = epoch
-  /\ UNCHANGED <<upgradePending, connections, networkListener, terminalVars, attachmentVars>>
+  /\ UNCHANGED <<upgradePending, connectionVars, networkListener,
+                  terminalVars, attachmentVars>>
 
 EndpointReady ==
   /\ hostPhase = "starting"
   /\ hostPhase' = "serving"
-  /\ UNCHANGED <<hostEpoch, upgradePending, connections, networkListener,
+  /\ UNCHANGED <<hostEpoch, upgradePending, connectionVars, networkListener,
                   terminalVars, attachmentVars>>
 
-Connect(client) ==
+Connect(connection, client) ==
   /\ hostPhase = "serving"
+  /\ connection \in Connections
   /\ client \in Clients
-  /\ client \notin connections
-  /\ connections' = connections \cup {client}
+  /\ connection \notin connections
+  /\ connections' = connections \cup {connection}
+  /\ clientOf' = [clientOf EXCEPT ![connection] = client]
   /\ UNCHANGED <<hostPhase, hostEpoch, upgradePending, networkListener,
                   terminalVars, attachmentVars>>
 
-AttemptCreate(authority, client, creation, terminal) ==
+AttemptCreate(authority, connection, creation, terminal, spawnSucceeds) ==
   /\ authority \in Authorities
-  /\ client \in connections
+  /\ connection \in connections
   /\ creation \in CreationIds
   /\ terminal \in TerminalIds
+  /\ spawnSucceeds \in BOOLEAN
   /\ hostPhase = "serving"
   /\ ~upgradePending
-  /\ IF authority = "desktop" /\ creation \notin UsedCreations
-        /\ creationOf[terminal] = None
+  /\ IF authority = "desktop" /\ spawnSucceeds
+        /\ creation \notin UsedCreations /\ creationOf[terminal] = None
      THEN
+       \* Runtime creation and both registry insertions are one observable commit.
        /\ creationOf' = [creationOf EXCEPT ![terminal] = creation]
-       /\ terminalPhase' = [terminalPhase EXCEPT ![terminal] = "starting"]
+       /\ terminalPhase' = [terminalPhase EXCEPT ![terminal] = "running"]
+       /\ runtimePresent' = [runtimePresent EXCEPT ![terminal] = TRUE]
        /\ childExited' = [childExited EXCEPT ![terminal] = FALSE]
        /\ ptyDrained' = [ptyDrained EXCEPT ![terminal] = FALSE]
      ELSE
-       /\ UNCHANGED <<creationOf, terminalPhase, childExited, ptyDrained>>
+       \* Rejection, idempotent replay, allocation failure, and spawn failure
+       \* leave both registries unchanged.
+       /\ UNCHANGED <<creationOf, terminalPhase, runtimePresent,
+                       childExited, ptyDrained>>
   /\ UNCHANGED <<hostVars, terminalColumns, attachmentVars>>
 
-SpawnSucceeded(terminal) ==
-  /\ terminal \in PresentTerminals
-  /\ terminalPhase[terminal] = "starting"
-  /\ terminalPhase' = [terminalPhase EXCEPT ![terminal] = "running"]
-  /\ UNCHANGED <<hostVars, creationOf, childExited, ptyDrained,
-                  terminalColumns, attachmentVars>>
-
-SpawnFailed(terminal) ==
-  /\ terminal \in PresentTerminals
-  /\ terminalPhase[terminal] = "starting"
-  /\ creationOf' = [creationOf EXCEPT ![terminal] = None]
-  /\ terminalPhase' = [terminalPhase EXCEPT ![terminal] = "absent"]
-  /\ childExited' = [childExited EXCEPT ![terminal] = FALSE]
-  /\ ptyDrained' = [ptyDrained EXCEPT ![terminal] = FALSE]
-  /\ UNCHANGED <<hostVars, terminalColumns, attachmentVars>>
-
-AttemptAttach(authority, attachment, client, terminal, wantsLease) ==
+AttemptAttach(authority, attachment, connection, terminal, wantsLease) ==
   /\ authority \in Authorities
   /\ attachment \in Attachments
-  /\ client \in connections
+  /\ connection \in connections
   /\ terminal \in PresentTerminals
   /\ terminalPhase[terminal] \in {"running", "finishing", "exited"}
   /\ wantsLease \in BOOLEAN
@@ -117,7 +116,7 @@ AttemptAttach(authority, attachment, client, terminal, wantsLease) ==
         /\ (~wantsLease \/ ~\E other \in Attachments:
               attachmentTerminal[other] = terminal /\ resizeLease[other])
      THEN
-       /\ attachmentOwner' = [attachmentOwner EXCEPT ![attachment] = client]
+       /\ attachmentOwner' = [attachmentOwner EXCEPT ![attachment] = connection]
        /\ attachmentTerminal' = [attachmentTerminal EXCEPT ![attachment] = terminal]
        /\ attachmentEpoch' = [attachmentEpoch EXCEPT ![attachment] = hostEpoch]
        /\ resizeLease' = [resizeLease EXCEPT ![attachment] = wantsLease]
@@ -134,24 +133,25 @@ Detach(attachment) ==
   /\ resizeLease' = [resizeLease EXCEPT ![attachment] = FALSE]
   /\ UNCHANGED <<hostVars, terminalVars>>
 
-Disconnect(client) ==
-  /\ client \in connections
-  /\ connections' = connections \ {client}
+Disconnect(connection) ==
+  /\ connection \in connections
+  /\ connections' = connections \ {connection}
+  /\ clientOf' = [clientOf EXCEPT ![connection] = None]
   /\ attachmentOwner' =
        [attachment \in Attachments |->
-          IF attachmentOwner[attachment] = client THEN None
+          IF attachmentOwner[attachment] = connection THEN None
           ELSE attachmentOwner[attachment]]
   /\ attachmentTerminal' =
        [attachment \in Attachments |->
-          IF attachmentOwner[attachment] = client THEN None
+          IF attachmentOwner[attachment] = connection THEN None
           ELSE attachmentTerminal[attachment]]
   /\ attachmentEpoch' =
        [attachment \in Attachments |->
-          IF attachmentOwner[attachment] = client THEN None
+          IF attachmentOwner[attachment] = connection THEN None
           ELSE attachmentEpoch[attachment]]
   /\ resizeLease' =
        [attachment \in Attachments |->
-          IF attachmentOwner[attachment] = client THEN FALSE
+          IF attachmentOwner[attachment] = connection THEN FALSE
           ELSE resizeLease[attachment]]
   /\ UNCHANGED <<hostPhase, hostEpoch, upgradePending, networkListener, terminalVars>>
 
@@ -164,8 +164,8 @@ Resize(attachment) ==
        /\ terminalPhase[terminal] = "running"
        /\ terminalColumns' = [terminalColumns EXCEPT
             ![terminal] = IF @ = 1 THEN 2 ELSE 1]
-  /\ UNCHANGED <<hostVars, creationOf, terminalPhase, childExited,
-                  ptyDrained, attachmentVars>>
+  /\ UNCHANGED <<hostVars, creationOf, terminalPhase, runtimePresent,
+                  childExited, ptyDrained, attachmentVars>>
 
 ChildExited(terminal) ==
   /\ terminal \in PresentTerminals
@@ -174,7 +174,8 @@ ChildExited(terminal) ==
   /\ childExited' = [childExited EXCEPT ![terminal] = TRUE]
   /\ terminalPhase' = [terminalPhase EXCEPT
        ![terminal] = IF ptyDrained[terminal] THEN "exited" ELSE "finishing"]
-  /\ UNCHANGED <<hostVars, creationOf, ptyDrained, terminalColumns, attachmentVars>>
+  /\ UNCHANGED <<hostVars, creationOf, runtimePresent, ptyDrained,
+                  terminalColumns, attachmentVars>>
 
 PtyDrained(terminal) ==
   /\ terminal \in PresentTerminals
@@ -183,11 +184,12 @@ PtyDrained(terminal) ==
   /\ ptyDrained' = [ptyDrained EXCEPT ![terminal] = TRUE]
   /\ terminalPhase' = [terminalPhase EXCEPT
        ![terminal] = IF childExited[terminal] THEN "exited" ELSE "finishing"]
-  /\ UNCHANGED <<hostVars, creationOf, childExited, terminalColumns, attachmentVars>>
+  /\ UNCHANGED <<hostVars, creationOf, runtimePresent, childExited,
+                  terminalColumns, attachmentVars>>
 
-AttemptDispose(authority, client, terminal) ==
+AttemptDispose(authority, connection, terminal) ==
   /\ authority \in Authorities
-  /\ client \in connections
+  /\ connection \in connections
   /\ terminal \in PresentTerminals
   /\ terminalPhase[terminal] = "exited"
   /\ IF authority = "desktop"
@@ -196,6 +198,7 @@ AttemptDispose(authority, client, terminal) ==
        IN
          /\ creationOf' = [creationOf EXCEPT ![terminal] = None]
          /\ terminalPhase' = [terminalPhase EXCEPT ![terminal] = "absent"]
+         /\ runtimePresent' = [runtimePresent EXCEPT ![terminal] = FALSE]
          /\ childExited' = [childExited EXCEPT ![terminal] = FALSE]
          /\ ptyDrained' = [ptyDrained EXCEPT ![terminal] = FALSE]
          /\ attachmentOwner' =
@@ -218,11 +221,12 @@ AttemptDispose(authority, client, terminal) ==
             THEN
               /\ hostPhase' = "draining"
               /\ connections' = {}
+              /\ clientOf' = [candidate \in Connections |-> None]
             ELSE
-              /\ UNCHANGED <<hostPhase, connections>>
+              /\ UNCHANGED <<hostPhase, connectionVars>>
      ELSE
-       /\ UNCHANGED <<hostPhase, connections, creationOf, terminalPhase,
-                       childExited, ptyDrained, attachmentVars>>
+       /\ UNCHANGED <<hostPhase, connectionVars, creationOf, terminalPhase,
+                       runtimePresent, childExited, ptyDrained, attachmentVars>>
   /\ UNCHANGED <<hostEpoch, upgradePending, networkListener, terminalColumns>>
 
 RequestUpgrade ==
@@ -233,12 +237,13 @@ RequestUpgrade ==
      THEN
        /\ hostPhase' = "draining"
        /\ connections' = {}
+       /\ clientOf' = [connection \in Connections |-> None]
        /\ attachmentOwner' = [attachment \in Attachments |-> None]
        /\ attachmentTerminal' = [attachment \in Attachments |-> None]
        /\ attachmentEpoch' = [attachment \in Attachments |-> None]
        /\ resizeLease' = [attachment \in Attachments |-> FALSE]
      ELSE
-       /\ UNCHANGED <<hostPhase, connections, attachmentVars>>
+       /\ UNCHANGED <<hostPhase, connectionVars, attachmentVars>>
   /\ UNCHANGED <<hostEpoch, networkListener, terminalVars>>
 
 StopHost ==
@@ -248,27 +253,28 @@ StopHost ==
   /\ hostPhase' = "absent"
   /\ hostEpoch' = None
   /\ upgradePending' = FALSE
-  /\ UNCHANGED <<connections, networkListener, terminalVars, attachmentVars>>
+  /\ UNCHANGED <<connectionVars, networkListener, terminalVars, attachmentVars>>
 
 Next ==
   \/ \E epoch \in Epochs: Launch(epoch)
   \/ EndpointReady
-  \/ \E client \in Clients: Connect(client)
-  \/ \E authority \in Authorities, client \in Clients,
-       creation \in CreationIds, terminal \in TerminalIds:
-       AttemptCreate(authority, client, creation, terminal)
-  \/ \E terminal \in TerminalIds: SpawnSucceeded(terminal)
-  \/ \E terminal \in TerminalIds: SpawnFailed(terminal)
+  \/ \E connection \in Connections, client \in Clients:
+       Connect(connection, client)
+  \/ \E authority \in Authorities, connection \in Connections,
+       creation \in CreationIds, terminal \in TerminalIds,
+       spawnSucceeds \in BOOLEAN:
+       AttemptCreate(authority, connection, creation, terminal, spawnSucceeds)
   \/ \E authority \in Authorities, attachment \in Attachments,
-       client \in Clients, terminal \in TerminalIds, wantsLease \in BOOLEAN:
-       AttemptAttach(authority, attachment, client, terminal, wantsLease)
+       connection \in Connections, terminal \in TerminalIds, wantsLease \in BOOLEAN:
+       AttemptAttach(authority, attachment, connection, terminal, wantsLease)
   \/ \E attachment \in Attachments: Detach(attachment)
-  \/ \E client \in Clients: Disconnect(client)
+  \/ \E connection \in Connections: Disconnect(connection)
   \/ \E attachment \in Attachments: Resize(attachment)
   \/ \E terminal \in TerminalIds: ChildExited(terminal)
   \/ \E terminal \in TerminalIds: PtyDrained(terminal)
-  \/ \E authority \in Authorities, client \in Clients, terminal \in TerminalIds:
-       AttemptDispose(authority, client, terminal)
+  \/ \E authority \in Authorities, connection \in Connections,
+       terminal \in TerminalIds:
+       AttemptDispose(authority, connection, terminal)
   \/ RequestUpgrade
   \/ StopHost
 
@@ -278,13 +284,15 @@ TypeOK ==
   /\ hostPhase \in HostPhases
   /\ hostEpoch \in Epochs \cup {None}
   /\ upgradePending \in BOOLEAN
-  /\ connections \subseteq Clients
+  /\ connections \subseteq Connections
+  /\ clientOf \in [Connections -> Clients \cup {None}]
   /\ creationOf \in [TerminalIds -> CreationIds \cup {None}]
   /\ terminalPhase \in [TerminalIds -> TerminalPhases]
+  /\ runtimePresent \in [TerminalIds -> BOOLEAN]
   /\ childExited \in [TerminalIds -> BOOLEAN]
   /\ ptyDrained \in [TerminalIds -> BOOLEAN]
   /\ terminalColumns \in [TerminalIds -> {1, 2}]
-  /\ attachmentOwner \in [Attachments -> Clients \cup {None}]
+  /\ attachmentOwner \in [Attachments -> Connections \cup {None}]
   /\ attachmentTerminal \in [Attachments -> TerminalIds \cup {None}]
   /\ attachmentEpoch \in [Attachments -> Epochs \cup {None}]
   /\ resizeLease \in [Attachments -> BOOLEAN]
@@ -293,14 +301,21 @@ TypeOK ==
 HostEpochIntegrity ==
   (hostPhase = "absent") = (hostEpoch = None)
 
+ConnectionIdentityIntegrity ==
+  \A connection \in Connections:
+    (connection \in connections) = (clientOf[connection] # None)
+
 TerminalIdentityIntegrity ==
   /\ \A terminal \in TerminalIds:
        (creationOf[terminal] = None) = (terminalPhase[terminal] = "absent")
   /\ Cardinality(UsedCreations) = Cardinality(PresentTerminals)
 
+RuntimeRegistryIntegrity ==
+  PresentRuntimes = PresentTerminals
+
 CompletionPhaseIntegrity ==
   \A terminal \in PresentTerminals:
-    /\ terminalPhase[terminal] \in {"starting", "running"} =>
+    /\ terminalPhase[terminal] = "running" =>
          ~childExited[terminal] /\ ~ptyDrained[terminal]
     /\ terminalPhase[terminal] = "finishing" =>
          childExited[terminal] # ptyDrained[terminal]
@@ -327,17 +342,42 @@ GracefulStopRequiresNoTerminal ==
 NoNetworkListener == ~networkListener
 
 DisconnectPreservesTerminalState ==
-  [][\A client \in Clients:
-       Disconnect(client) => UNCHANGED terminalVars]_vars
+  [][\A connection \in Connections:
+       Disconnect(connection) => UNCHANGED terminalVars]_vars
+
+DisconnectPreservesOtherAttachments ==
+  [][\A connection \in Connections:
+       Disconnect(connection) =>
+         \A attachment \in Attachments:
+           attachmentOwner[attachment] # connection =>
+             UNCHANGED <<attachmentOwner[attachment],
+                         attachmentTerminal[attachment],
+                         attachmentEpoch[attachment],
+                         resizeLease[attachment]>>]_vars
+
+FailedCreateIsAtomic ==
+  [][\A authority \in Authorities, connection \in Connections,
+       creation \in CreationIds, terminal \in TerminalIds:
+       AttemptCreate(authority, connection, creation, terminal, FALSE) =>
+         UNCHANGED terminalVars]_vars
+
+TargetedDisposePreservesOtherTerminals ==
+  [][\A connection \in Connections, terminal \in TerminalIds:
+       AttemptDispose("desktop", connection, terminal) =>
+         \A other \in TerminalIds \ {terminal}:
+           UNCHANGED <<creationOf[other], terminalPhase[other],
+                       runtimePresent[other], childExited[other],
+                       ptyDrained[other], terminalColumns[other]>>]_vars
 
 DetachPreservesTerminalState ==
   [][\A attachment \in Attachments:
        Detach(attachment) => UNCHANGED terminalVars]_vars
 
 ScopedAuthorityCannotCreate ==
-  [][\A client \in Clients, creation \in CreationIds, terminal \in TerminalIds:
-       AttemptCreate("attachment", client, creation, terminal) =>
-         UNCHANGED <<creationOf, terminalPhase, childExited, ptyDrained>>]_vars
+  [][\A connection \in Connections, creation \in CreationIds,
+       terminal \in TerminalIds, spawnSucceeds \in BOOLEAN:
+       AttemptCreate("attachment", connection, creation, terminal, spawnSucceeds) =>
+         UNCHANGED terminalVars]_vars
 
 DrainingEventuallyStops == hostPhase = "draining" ~> hostPhase = "absent"
 

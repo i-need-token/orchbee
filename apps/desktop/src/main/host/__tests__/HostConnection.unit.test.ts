@@ -2,7 +2,6 @@ import { Duplex } from 'node:stream';
 
 import {
 	ClientIdSchema,
-	CURRENT_PROTOCOL_VERSION,
 	decodeProtocolEnvelope,
 	encodeProtocolEnvelope,
 	HostEpochSchema,
@@ -12,10 +11,11 @@ import {
 } from '@orchbee/terminal-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
+import { DESKTOP_HOST_PROTOCOL_VERSION } from '../desktop-host-protocol-version';
 import { HostConnection, type HostEnvelopeListener } from '../HostConnection';
 
 describe('HostConnection', () => {
-	it('negotiates the current protocol and routes validated Host events', async () => {
+	it('negotiates the Desktop-pinned protocol and routes validated Host events', async () => {
 		const hostEpoch = HostEpochSchema.parse('11'.repeat(16));
 		let stream: Duplex;
 		stream = new Duplex({
@@ -34,13 +34,13 @@ describe('HostConnection', () => {
 							frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 							hostEpoch,
 							inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-							protocol: CURRENT_PROTOCOL_VERSION,
+							protocol: DESKTOP_HOST_PROTOCOL_VERSION,
 							rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 							supportedOptionalFeatures: [],
 						}),
 					),
 					payloadEncoding: PayloadEncoding.controlJson,
-					protocol: CURRENT_PROTOCOL_VERSION,
+					protocol: DESKTOP_HOST_PROTOCOL_VERSION,
 					response: true,
 				});
 				if (!response.ok) throw new Error(response.detail);
@@ -60,7 +60,7 @@ describe('HostConnection', () => {
 			optionalMessage: false,
 			payload: new TextEncoder().encode('{}'),
 			payloadEncoding: PayloadEncoding.controlJson,
-			protocol: CURRENT_PROTOCOL_VERSION,
+			protocol: DESKTOP_HOST_PROTOCOL_VERSION,
 			response: false,
 		});
 		if (!event.ok) throw new Error(event.detail);
@@ -98,7 +98,7 @@ describe('HostConnection', () => {
 										frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 										hostEpoch,
 										inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-										protocol: CURRENT_PROTOCOL_VERSION,
+										protocol: DESKTOP_HOST_PROTOCOL_VERSION,
 										rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 										supportedOptionalFeatures: [],
 									}
@@ -110,7 +110,7 @@ describe('HostConnection', () => {
 						),
 					),
 					payloadEncoding: PayloadEncoding.controlJson,
-					protocol: CURRENT_PROTOCOL_VERSION,
+					protocol: DESKTOP_HOST_PROTOCOL_VERSION,
 					response: true,
 				});
 				if (!response.ok) throw new Error(response.detail);

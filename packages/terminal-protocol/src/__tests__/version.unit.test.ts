@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
 import { ProtocolErrorCode } from '../protocol-result';
-import { negotiateProtocolVersion, ProtocolVersionRangeSchema } from '../version';
+import {
+	CURRENT_PROTOCOL_RANGE,
+	CURRENT_PROTOCOL_VERSION,
+	negotiateProtocolVersion,
+	ProtocolVersionRangeSchema,
+} from '../version';
 
 describe('protocol version negotiation', () => {
+	it('publishes protocol 1.3 as the current compatible minor', () => {
+		expect(CURRENT_PROTOCOL_VERSION).toEqual({ major: 1, minor: 3 });
+		expect(CURRENT_PROTOCOL_RANGE).toEqual({ major: 1, maximumMinor: 3, minimumMinor: 0 });
+	});
+
 	it('chooses the highest overlapping minor on one major', () => {
 		expect(
 			negotiateProtocolVersion(

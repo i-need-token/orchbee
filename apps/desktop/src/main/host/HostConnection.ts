@@ -5,7 +5,6 @@ import type { Duplex } from 'node:stream';
 import {
 	ClientIdSchema,
 	CorrelationIdSchema,
-	CURRENT_PROTOCOL_VERSION,
 	decodeControlJson,
 	decodeProtocolEnvelope,
 	encodeProtocolEnvelope,
@@ -24,6 +23,7 @@ import {
 } from '@orchbee/terminal-protocol';
 import type { z } from 'zod';
 
+import { DESKTOP_HOST_PROTOCOL_VERSION } from './desktop-host-protocol-version';
 import { HostRecordAssembler } from './HostRecordAssembler';
 import { HostRequestError } from './HostRequestError';
 
@@ -111,7 +111,11 @@ export class HostConnection {
 			clientId: ClientIdSchema.parse(clientId),
 			frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 			inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-			protocol: { major: 1, maximumMinor: 2, minimumMinor: 2 },
+			protocol: {
+				major: DESKTOP_HOST_PROTOCOL_VERSION.major,
+				maximumMinor: DESKTOP_HOST_PROTOCOL_VERSION.minor,
+				minimumMinor: DESKTOP_HOST_PROTOCOL_VERSION.minor,
+			},
 			rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 			supportedOptionalFeatures: [],
 		});
@@ -169,7 +173,7 @@ export class HostConnection {
 			optionalMessage: false,
 			payload,
 			payloadEncoding,
-			protocol: CURRENT_PROTOCOL_VERSION,
+			protocol: DESKTOP_HOST_PROTOCOL_VERSION,
 			response: false,
 		});
 		if (!encoded.ok) return Promise.reject(new Error(encoded.detail));
@@ -211,7 +215,10 @@ export class HostConnection {
 		const envelope = decoded.value;
 		this.#recordsReceived += 1;
 		this.#bytesReceived += record.byteLength;
-		if (envelope.protocol.major !== 1 || envelope.protocol.minor !== 2) {
+		if (
+			envelope.protocol.major !== DESKTOP_HOST_PROTOCOL_VERSION.major ||
+			envelope.protocol.minor !== DESKTOP_HOST_PROTOCOL_VERSION.minor
+		) {
 			throw new Error('Host emitted a record outside negotiated protocol 1.2.');
 		}
 		if (this.#hostEpoch !== undefined && envelope.hostEpoch !== this.#hostEpoch) {

@@ -2,6 +2,7 @@ const std = @import("std");
 
 pub const Identifier = [16]u8;
 pub const LaunchDigest = [32]u8;
+pub const ConnectionId = u64;
 
 pub const max_pending_input_bytes = 4 * 1024 * 1024;
 
@@ -75,7 +76,7 @@ pub const Attachment = struct {
     attachment_id: Identifier,
     blocked: ?ProjectionBlock = null,
     capabilities: Capabilities,
-    client_id: Identifier,
+    connection_id: ConnectionId,
     demand: ProjectionDemand = .paused,
     force_snapshot: bool = true,
     in_flight: ?InFlightFrame = null,
@@ -88,80 +89,157 @@ pub const Attachment = struct {
 
 pub const CoreError = error{
     AttachmentConflict,
-    CapacityExceeded,
+    ConnectionConflict,
     CreationConflict,
     InputBackpressure,
     InvalidFrameAcknowledgement,
     InvalidPhase,
+    InventoryGenerationOverflow,
     MissingConnection,
     MissingResource,
     RevisionOverflow,
     ResizeLeaseDenied,
     SequenceOverflow,
+    TerminalConflict,
+};
+
+pub const Connection = struct {
+    client_id: Identifier,
+};
+
+pub const RequiredCapability = enum {
+    none,
+    input,
+    read,
+    resize,
 };
 
 pub const HostCore = struct {
     allocator: std.mem.Allocator,
-    attachments: std.ArrayList(Attachment) = .empty,
-    connections: std.ArrayList(Identifier) = .empty,
+    attachments: std.AutoArrayHashMap(Identifier, Attachment),
+    connections: std.AutoArrayHashMap(ConnectionId, Connection),
+    creations: std.AutoArrayHashMap(Identifier, Identifier),
     epoch: Identifier,
-    terminal: ?Terminal = null,
+    inventory_generation: u64 = 1,
+    terminals: std.AutoArrayHashMap(Identifier, Terminal),
 
     pub fn init(allocator: std.mem.Allocator, epoch: Identifier) HostCore {
-        return .{ .allocator = allocator, .epoch = epoch };
+        return .{
+            .allocator = allocator,
+            .attachments = .init(allocator),
+            .connections = .init(allocator),
+            .creations = .init(allocator),
+            .epoch = epoch,
+            .terminals = .init(allocator),
+        };
     }
 
     pub fn deinit(self: *HostCore) void {
-        self.attachments.deinit(self.allocator);
-        self.connections.deinit(self.allocator);
+        self.attachments.deinit();
+        self.connections.deinit();
+        self.creations.deinit();
+        self.terminals.deinit();
         self.* = undefined;
     }
 
-    pub fn connect(self: *HostCore, client_id: Identifier) std.mem.Allocator.Error!TransitionOutcome {
-        if (findIdentifier(self.connections.items, client_id) != null) return .idempotent;
-        try self.connections.append(self.allocator, client_id);
+    pub fn connect(
+        self: *HostCore,
+        connection_id: ConnectionId,
+        client_id: Identifier,
+    ) (CoreError || std.mem.Allocator.Error)!TransitionOutcome {
+        if (self.connections.get(connection_id)) |connection| {
+            return if (equalIdentifier(connection.client_id, client_id))
+                .idempotent
+            else
+                error.ConnectionConflict;
+        }
+        try self.connections.putNoClobber(connection_id, .{ .client_id = client_id });
         return .applied;
     }
 
-    pub fn disconnect(self: *HostCore, client_id: Identifier) TransitionOutcome {
-        const connection_index = findIdentifier(self.connections.items, client_id) orelse return .idempotent;
-        _ = self.connections.orderedRemove(connection_index);
+    pub fn disconnect(self: *HostCore, connection_id: ConnectionId) TransitionOutcome {
+        if (!self.connections.orderedRemove(connection_id)) return .idempotent;
 
-        var index: usize = self.attachments.items.len;
+        var index: usize = self.attachments.count();
         while (index > 0) {
             index -= 1;
-            if (equalIdentifier(self.attachments.items[index].client_id, client_id)) {
-                _ = self.attachments.orderedRemove(index);
+            if (self.attachments.values()[index].connection_id == connection_id) {
+                self.attachments.orderedRemoveAt(index);
             }
         }
         return .applied;
     }
 
-    pub fn createTerminal(
+    pub fn resolveCreation(
         self: *HostCore,
-        client_id: Identifier,
+        connection_id: ConnectionId,
+        creation_id: Identifier,
+        launch_digest: LaunchDigest,
+    ) CoreError!?Identifier {
+        if (!self.connected(connection_id)) return error.MissingConnection;
+        const terminal_id = self.creations.get(creation_id) orelse return null;
+        const terminal = self.terminals.get(terminal_id) orelse unreachable;
+        if (!std.mem.eql(u8, &terminal.launch_digest, &launch_digest)) {
+            return error.CreationConflict;
+        }
+        return terminal_id;
+    }
+
+    pub fn reserveTerminal(self: *HostCore) (CoreError || std.mem.Allocator.Error)!void {
+        if (self.inventory_generation == std.math.maxInt(u64)) {
+            return error.InventoryGenerationOverflow;
+        }
+        try self.terminals.ensureUnusedCapacity(1);
+        try self.creations.ensureUnusedCapacity(1);
+    }
+
+    pub fn commitTerminal(
+        self: *HostCore,
+        connection_id: ConnectionId,
         creation_id: Identifier,
         terminal_id: Identifier,
         launch_digest: LaunchDigest,
         columns: u16,
         rows: u16,
-    ) CoreError!TransitionOutcome {
-        if (!self.connected(client_id)) return error.MissingConnection;
-        if (self.terminal) |terminal| {
-            if (!equalIdentifier(terminal.creation_id, creation_id)) return error.CapacityExceeded;
-            if (!std.mem.eql(u8, &terminal.launch_digest, &launch_digest)) {
-                return error.CreationConflict;
-            }
-            return .idempotent;
+    ) CoreError!void {
+        if (!self.connected(connection_id)) return error.MissingConnection;
+        if (self.creations.contains(creation_id)) return error.CreationConflict;
+        if (self.terminals.contains(terminal_id)) return error.TerminalConflict;
+        if (self.inventory_generation == std.math.maxInt(u64)) {
+            return error.InventoryGenerationOverflow;
         }
-
-        self.terminal = .{
+        self.terminals.putAssumeCapacityNoClobber(terminal_id, .{
             .columns = columns,
             .creation_id = creation_id,
             .launch_digest = launch_digest,
             .rows = rows,
             .terminal_id = terminal_id,
-        };
+        });
+        self.creations.putAssumeCapacityNoClobber(creation_id, terminal_id);
+        self.inventory_generation += 1;
+    }
+
+    pub fn createTerminal(
+        self: *HostCore,
+        connection_id: ConnectionId,
+        creation_id: Identifier,
+        terminal_id: Identifier,
+        launch_digest: LaunchDigest,
+        columns: u16,
+        rows: u16,
+    ) (CoreError || std.mem.Allocator.Error)!TransitionOutcome {
+        if (try self.resolveCreation(connection_id, creation_id, launch_digest)) |_| {
+            return .idempotent;
+        }
+        try self.reserveTerminal();
+        try self.commitTerminal(
+            connection_id,
+            creation_id,
+            terminal_id,
+            launch_digest,
+            columns,
+            rows,
+        );
         return .applied;
     }
 
@@ -174,20 +252,24 @@ pub const HostCore = struct {
     }
 
     pub fn spawnFailed(self: *HostCore, terminal_id: Identifier) CoreError!TransitionOutcome {
-        const terminal = self.terminal orelse return .idempotent;
-        if (!equalIdentifier(terminal.terminal_id, terminal_id)) return error.MissingResource;
+        const terminal = self.terminals.get(terminal_id) orelse return .idempotent;
         if (terminal.phase != .starting) return error.InvalidPhase;
         self.removeTerminalAttachments(terminal_id);
-        self.terminal = null;
+        _ = self.creations.orderedRemove(terminal.creation_id);
+        _ = self.terminals.orderedRemove(terminal_id);
+        if (self.inventory_generation == std.math.maxInt(u64)) {
+            return error.InventoryGenerationOverflow;
+        }
+        self.inventory_generation += 1;
         return .applied;
     }
 
     pub fn requestTerminate(
         self: *HostCore,
-        client_id: Identifier,
+        connection_id: ConnectionId,
         terminal_id: Identifier,
     ) CoreError!TransitionOutcome {
-        if (!self.connected(client_id)) return error.MissingConnection;
+        if (!self.connected(connection_id)) return error.MissingConnection;
         const terminal = try self.requireTerminal(terminal_id);
         if (terminal.terminate_requested) return .idempotent;
         if (terminal.phase != .running) return error.InvalidPhase;
@@ -220,31 +302,35 @@ pub const HostCore = struct {
 
     pub fn disposeTerminal(
         self: *HostCore,
-        client_id: Identifier,
+        connection_id: ConnectionId,
         terminal_id: Identifier,
     ) CoreError!TransitionOutcome {
-        if (!self.connected(client_id)) return error.MissingConnection;
-        const terminal = self.terminal orelse return .idempotent;
-        if (!equalIdentifier(terminal.terminal_id, terminal_id)) return error.MissingResource;
+        if (!self.connected(connection_id)) return error.MissingConnection;
+        const terminal = self.terminals.get(terminal_id) orelse return .idempotent;
         if (terminal.phase != .exited) return error.InvalidPhase;
+        if (self.inventory_generation == std.math.maxInt(u64)) {
+            return error.InventoryGenerationOverflow;
+        }
         self.removeTerminalAttachments(terminal_id);
-        self.terminal = null;
+        _ = self.creations.orderedRemove(terminal.creation_id);
+        _ = self.terminals.orderedRemove(terminal_id);
+        self.inventory_generation += 1;
         return .applied;
     }
 
     pub fn attach(
         self: *HostCore,
-        client_id: Identifier,
+        connection_id: ConnectionId,
         attachment_id: Identifier,
         terminal_id: Identifier,
         capabilities: Capabilities,
         request_resize_lease: bool,
     ) (CoreError || std.mem.Allocator.Error)!TransitionOutcome {
-        if (!self.connected(client_id)) return error.MissingConnection;
+        if (!self.connected(connection_id)) return error.MissingConnection;
         _ = try self.requireTerminal(terminal_id);
 
         if (self.findAttachment(attachment_id)) |existing| {
-            const equivalent = equalIdentifier(existing.client_id, client_id) and
+            const equivalent = existing.connection_id == connection_id and
                 equalIdentifier(existing.terminal_id, terminal_id) and
                 existing.capabilities == capabilities and
                 existing.resize_lease == (request_resize_lease and capabilities.resize);
@@ -252,17 +338,17 @@ pub const HostCore = struct {
         }
         if (request_resize_lease and !capabilities.resize) return error.ResizeLeaseDenied;
         if (request_resize_lease) {
-            for (self.attachments.items) |attachment| {
+            for (self.attachments.values()) |attachment| {
                 if (equalIdentifier(attachment.terminal_id, terminal_id) and attachment.resize_lease) {
                     return error.ResizeLeaseDenied;
                 }
             }
         }
 
-        try self.attachments.append(self.allocator, .{
+        try self.attachments.putNoClobber(attachment_id, .{
             .attachment_id = attachment_id,
             .capabilities = capabilities,
-            .client_id = client_id,
+            .connection_id = connection_id,
             .resize_lease = request_resize_lease,
             .terminal_id = terminal_id,
         });
@@ -271,29 +357,25 @@ pub const HostCore = struct {
 
     pub fn detach(
         self: *HostCore,
-        client_id: Identifier,
+        connection_id: ConnectionId,
         attachment_id: Identifier,
     ) CoreError!TransitionOutcome {
-        if (!self.connected(client_id)) return error.MissingConnection;
-        const index = self.findAttachmentIndex(attachment_id) orelse return .idempotent;
-        if (!equalIdentifier(self.attachments.items[index].client_id, client_id)) {
+        if (!self.connected(connection_id)) return error.MissingConnection;
+        const attachment = self.findAttachment(attachment_id) orelse return .idempotent;
+        if (attachment.connection_id != connection_id) {
             return error.MissingResource;
         }
-        _ = self.attachments.orderedRemove(index);
+        _ = self.attachments.orderedRemove(attachment_id);
         return .applied;
     }
 
     pub fn acceptInput(
         self: *HostCore,
-        client_id: Identifier,
+        connection_id: ConnectionId,
         attachment_id: Identifier,
         byte_count: usize,
     ) CoreError!TransitionOutcome {
-        if (!self.connected(client_id)) return error.MissingConnection;
-        const attachment = self.findAttachment(attachment_id) orelse return error.MissingResource;
-        if (!equalIdentifier(attachment.client_id, client_id) or !attachment.capabilities.input) {
-            return error.MissingResource;
-        }
+        const attachment = try self.resolveAttachment(connection_id, attachment_id, .input);
         const terminal = try self.requireTerminal(attachment.terminal_id);
         if (terminal.phase != .running) return error.InvalidPhase;
         if (byte_count > max_pending_input_bytes - terminal.pending_input_bytes) {
@@ -316,17 +398,15 @@ pub const HostCore = struct {
 
     pub fn resize(
         self: *HostCore,
-        client_id: Identifier,
+        connection_id: ConnectionId,
         attachment_id: Identifier,
         columns: u16,
         rows: u16,
     ) CoreError!TransitionOutcome {
-        if (!self.connected(client_id)) return error.MissingConnection;
-        const attachment = self.findAttachment(attachment_id) orelse return error.MissingResource;
-        if (!equalIdentifier(attachment.client_id, client_id) or
-            !attachment.capabilities.resize or
-            !attachment.resize_lease)
-        {
+        const attachment = self.resolveAttachment(connection_id, attachment_id, .resize) catch |err| {
+            return if (err == error.MissingResource) error.ResizeLeaseDenied else err;
+        };
+        if (!attachment.resize_lease) {
             return error.ResizeLeaseDenied;
         }
         const terminal = try self.requireTerminal(attachment.terminal_id);
@@ -341,7 +421,7 @@ pub const HostCore = struct {
         if (revision < terminal.revision) return error.InvalidPhase;
         if (revision == terminal.revision) return .idempotent;
         terminal.revision = revision;
-        for (self.attachments.items) |*attachment| {
+        for (self.attachments.values()) |*attachment| {
             if (equalIdentifier(attachment.terminal_id, terminal_id) and
                 attachment.capabilities.read and attachment.demand == .active)
             {
@@ -372,7 +452,7 @@ pub const HostCore = struct {
         terminal.cell_pixel_width = cell_pixel_width;
         terminal.cell_pixel_height = cell_pixel_height;
         terminal.revision = revision;
-        for (self.attachments.items) |*attachment| {
+        for (self.attachments.values()) |*attachment| {
             if (equalIdentifier(attachment.terminal_id, terminal_id) and
                 attachment.capabilities.read and attachment.demand == .active)
             {
@@ -385,15 +465,11 @@ pub const HostCore = struct {
 
     pub fn setProjectionDemand(
         self: *HostCore,
-        client_id: Identifier,
+        connection_id: ConnectionId,
         attachment_id: Identifier,
         demand: ProjectionDemand,
     ) CoreError!TransitionOutcome {
-        if (!self.connected(client_id)) return error.MissingConnection;
-        const attachment = self.findAttachment(attachment_id) orelse return error.MissingResource;
-        if (!equalIdentifier(attachment.client_id, client_id) or !attachment.capabilities.read) {
-            return error.MissingResource;
-        }
+        const attachment = try self.resolveAttachment(connection_id, attachment_id, .read);
         if (attachment.demand == demand) return .idempotent;
         attachment.demand = demand;
         if (demand == .active) {
@@ -460,17 +536,13 @@ pub const HostCore = struct {
 
     pub fn frameApplied(
         self: *HostCore,
-        client_id: Identifier,
+        connection_id: ConnectionId,
         attachment_id: Identifier,
         sequence: u64,
         revision: u64,
         generation: u64,
     ) CoreError!TransitionOutcome {
-        if (!self.connected(client_id)) return error.MissingConnection;
-        const attachment = self.findAttachment(attachment_id) orelse return error.MissingResource;
-        if (!equalIdentifier(attachment.client_id, client_id) or !attachment.capabilities.read) {
-            return error.MissingResource;
-        }
+        const attachment = try self.resolveAttachment(connection_id, attachment_id, .read);
         if (sequence != 0 and sequence <= attachment.last_abandoned_sequence) return .idempotent;
         if (attachment.in_flight) |flight| {
             if (flight.sequence != sequence or flight.revision != revision or flight.generation != generation) {
@@ -480,9 +552,8 @@ pub const HostCore = struct {
             attachment.acknowledged_generation = generation;
             attachment.in_flight = null;
             attachment.blocked = null;
-            if (self.terminal) |terminal| {
-                attachment.pending_dirty = terminal.revision > revision;
-            }
+            const terminal = try self.requireTerminal(attachment.terminal_id);
+            attachment.pending_dirty = terminal.revision > revision;
             return .applied;
         }
         if (attachment.acknowledged_revision == revision and
@@ -496,15 +567,11 @@ pub const HostCore = struct {
 
     pub fn needSnapshot(
         self: *HostCore,
-        client_id: Identifier,
+        connection_id: ConnectionId,
         attachment_id: Identifier,
         sequence: u64,
     ) CoreError!TransitionOutcome {
-        if (!self.connected(client_id)) return error.MissingConnection;
-        const attachment = self.findAttachment(attachment_id) orelse return error.MissingResource;
-        if (!equalIdentifier(attachment.client_id, client_id) or !attachment.capabilities.read) {
-            return error.MissingResource;
-        }
+        const attachment = try self.resolveAttachment(connection_id, attachment_id, .read);
         if (sequence != 0 and sequence <= attachment.last_abandoned_sequence) return .idempotent;
         const flight = attachment.in_flight orelse return error.InvalidFrameAcknowledgement;
         if (flight.sequence != sequence) return error.InvalidFrameAcknowledgement;
@@ -536,12 +603,35 @@ pub const HostCore = struct {
     }
 
     pub fn findAttachment(self: *HostCore, attachment_id: Identifier) ?*Attachment {
-        const index = self.findAttachmentIndex(attachment_id) orelse return null;
-        return &self.attachments.items[index];
+        return self.attachments.getPtr(attachment_id);
+    }
+
+    pub fn findTerminal(self: *HostCore, terminal_id: Identifier) ?*Terminal {
+        return self.terminals.getPtr(terminal_id);
+    }
+
+    pub fn resolveAttachment(
+        self: *HostCore,
+        connection_id: ConnectionId,
+        attachment_id: Identifier,
+        required: RequiredCapability,
+    ) CoreError!*Attachment {
+        if (!self.connected(connection_id)) return error.MissingConnection;
+        const attachment = self.findAttachment(attachment_id) orelse return error.MissingResource;
+        if (attachment.connection_id != connection_id) return error.MissingResource;
+        const permitted = switch (required) {
+            .none => true,
+            .input => attachment.capabilities.input,
+            .read => attachment.capabilities.read,
+            .resize => attachment.capabilities.resize,
+        };
+        if (!permitted) return error.MissingResource;
+        _ = try self.requireTerminal(attachment.terminal_id);
+        return attachment;
     }
 
     pub fn hasActiveProjectionDemand(self: *const HostCore, terminal_id: Identifier) bool {
-        for (self.attachments.items) |attachment| {
+        for (self.attachments.values()) |attachment| {
             if (equalIdentifier(attachment.terminal_id, terminal_id) and
                 attachment.capabilities.read and attachment.demand == .active)
             {
@@ -551,29 +641,29 @@ pub const HostCore = struct {
         return false;
     }
 
-    fn findAttachmentIndex(self: *const HostCore, attachment_id: Identifier) ?usize {
-        for (self.attachments.items, 0..) |attachment, index| {
-            if (equalIdentifier(attachment.attachment_id, attachment_id)) return index;
-        }
-        return null;
+    pub fn terminalCount(self: *const HostCore) usize {
+        return self.terminals.count();
     }
 
-    fn connected(self: *const HostCore, client_id: Identifier) bool {
-        return findIdentifier(self.connections.items, client_id) != null;
+    pub fn connectionClientId(self: *const HostCore, connection_id: ConnectionId) ?Identifier {
+        const connection = self.connections.get(connection_id) orelse return null;
+        return connection.client_id;
+    }
+
+    fn connected(self: *const HostCore, connection_id: ConnectionId) bool {
+        return self.connections.contains(connection_id);
     }
 
     fn requireTerminal(self: *HostCore, terminal_id: Identifier) CoreError!*Terminal {
-        const terminal = if (self.terminal) |*value| value else return error.MissingResource;
-        if (!equalIdentifier(terminal.terminal_id, terminal_id)) return error.MissingResource;
-        return terminal;
+        return self.terminals.getPtr(terminal_id) orelse error.MissingResource;
     }
 
     fn removeTerminalAttachments(self: *HostCore, terminal_id: Identifier) void {
-        var index: usize = self.attachments.items.len;
+        var index: usize = self.attachments.count();
         while (index > 0) {
             index -= 1;
-            if (equalIdentifier(self.attachments.items[index].terminal_id, terminal_id)) {
-                _ = self.attachments.orderedRemove(index);
+            if (equalIdentifier(self.attachments.values()[index].terminal_id, terminal_id)) {
+                self.attachments.orderedRemoveAt(index);
             }
         }
     }
@@ -587,129 +677,195 @@ fn equalIdentifier(left: Identifier, right: Identifier) bool {
     return std.mem.eql(u8, &left, &right);
 }
 
-fn findIdentifier(values: []const Identifier, value: Identifier) ?usize {
-    for (values, 0..) |candidate, index| {
-        if (equalIdentifier(candidate, value)) return index;
-    }
-    return null;
-}
-
 fn identifier(byte: u8) Identifier {
     return [_]u8{byte} ** 16;
 }
 
-test "one-terminal creation is idempotent and capacity bounded" {
+test "multi-terminal creation is idempotent without a product count cap" {
     var core = HostCore.init(std.testing.allocator, identifier(1));
     defer core.deinit();
-    const client = identifier(2);
+    const connection: ConnectionId = 2;
     const creation = identifier(3);
     const terminal = identifier(4);
     const digest = [_]u8{5} ** 32;
 
-    try std.testing.expectEqual(.applied, try core.connect(client));
+    try std.testing.expectEqual(.applied, try core.connect(connection, identifier(2)));
     try std.testing.expectEqual(
         .applied,
-        try core.createTerminal(client, creation, terminal, digest, 80, 24),
+        try core.createTerminal(connection, creation, terminal, digest, 80, 24),
     );
     try std.testing.expectEqual(
         .idempotent,
-        try core.createTerminal(client, creation, identifier(9), digest, 80, 24),
+        try core.createTerminal(connection, creation, identifier(9), digest, 80, 24),
     );
     try std.testing.expectError(
         error.CreationConflict,
-        core.createTerminal(client, creation, terminal, [_]u8{6} ** 32, 80, 24),
+        core.createTerminal(connection, creation, terminal, [_]u8{6} ** 32, 80, 24),
     );
-    try std.testing.expectError(
-        error.CapacityExceeded,
-        core.createTerminal(client, identifier(7), identifier(8), digest, 80, 24),
+    try std.testing.expectEqual(
+        .applied,
+        try core.createTerminal(connection, identifier(7), identifier(8), digest, 100, 30),
     );
+    try std.testing.expectEqual(@as(usize, 2), core.terminalCount());
+    try std.testing.expectEqual(@as(u16, 100), core.findTerminal(identifier(8)).?.columns);
 }
 
-test "disconnect removes only attachment state" {
+test "disconnect removes only that physical connection's attachments" {
     var core = HostCore.init(std.testing.allocator, identifier(1));
     defer core.deinit();
     const client = identifier(2);
+    const first_connection: ConnectionId = 2;
+    const second_connection: ConnectionId = 7;
     const terminal_id = identifier(4);
-    _ = try core.connect(client);
-    _ = try core.createTerminal(client, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
+    _ = try core.connect(first_connection, client);
+    _ = try core.connect(second_connection, client);
+    _ = try core.createTerminal(first_connection, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
     _ = try core.spawnSucceeded(terminal_id);
-    _ = try core.attach(client, identifier(6), terminal_id, .{
+    _ = try core.attach(first_connection, identifier(6), terminal_id, .{
         .input = true,
         .read = true,
-        .resize = true,
-    }, true);
+        .resize = false,
+    }, false);
+    _ = try core.attach(second_connection, identifier(8), terminal_id, .{
+        .input = false,
+        .read = true,
+        .resize = false,
+    }, false);
 
-    try std.testing.expectEqual(.applied, core.disconnect(client));
-    try std.testing.expectEqual(@as(usize, 0), core.attachments.items.len);
-    try std.testing.expect(core.terminal != null);
-    try std.testing.expectEqual(TerminalPhase.running, core.terminal.?.phase);
-    try std.testing.expect(!core.terminal.?.terminate_requested);
+    try std.testing.expectEqual(.applied, core.disconnect(first_connection));
+    try std.testing.expectEqual(@as(usize, 1), core.attachments.count());
+    try std.testing.expect(core.findAttachment(identifier(6)) == null);
+    try std.testing.expect(core.findAttachment(identifier(8)) != null);
+    try std.testing.expectEqual(TerminalPhase.running, core.findTerminal(terminal_id).?.phase);
+    try std.testing.expect(!core.findTerminal(terminal_id).?.terminate_requested);
+}
+
+test "attachment routing and terminal disposal are exact across registries" {
+    var core = HostCore.init(std.testing.allocator, identifier(1));
+    defer core.deinit();
+    const first_connection: ConnectionId = 2;
+    const second_connection: ConnectionId = 3;
+    const first_terminal = identifier(4);
+    const second_terminal = identifier(5);
+    const first_attachment = identifier(6);
+    const second_attachment = identifier(7);
+    _ = try core.connect(first_connection, identifier(8));
+    _ = try core.connect(second_connection, identifier(8));
+    _ = try core.createTerminal(first_connection, identifier(9), first_terminal, [_]u8{10} ** 32, 80, 24);
+    _ = try core.createTerminal(second_connection, identifier(11), second_terminal, [_]u8{12} ** 32, 100, 30);
+    _ = try core.spawnSucceeded(first_terminal);
+    _ = try core.spawnSucceeded(second_terminal);
+    _ = try core.attach(first_connection, first_attachment, first_terminal, .{
+        .input = true,
+        .read = true,
+        .resize = false,
+    }, false);
+    _ = try core.attach(second_connection, second_attachment, second_terminal, .{
+        .input = true,
+        .read = true,
+        .resize = false,
+    }, false);
+
+    try std.testing.expectEqualSlices(
+        u8,
+        &first_terminal,
+        &(try core.resolveAttachment(first_connection, first_attachment, .input)).terminal_id,
+    );
+    try std.testing.expectEqualSlices(
+        u8,
+        &second_terminal,
+        &(try core.resolveAttachment(second_connection, second_attachment, .read)).terminal_id,
+    );
+    try std.testing.expectError(
+        error.MissingResource,
+        core.resolveAttachment(first_connection, second_attachment, .none),
+    );
+
+    _ = try core.childExited(first_terminal, .{ .exit_code = 0 });
+    _ = try core.ptyDrained(first_terminal);
+    _ = try core.disposeTerminal(first_connection, first_terminal);
+    try std.testing.expect(core.findTerminal(first_terminal) == null);
+    try std.testing.expect(core.findAttachment(first_attachment) == null);
+    try std.testing.expect(core.findTerminal(second_terminal) != null);
+    try std.testing.expect(core.findAttachment(second_attachment) != null);
+}
+
+test "inventory generation exhaustion leaves membership unchanged" {
+    var core = HostCore.init(std.testing.allocator, identifier(1));
+    defer core.deinit();
+    const connection: ConnectionId = 2;
+    _ = try core.connect(connection, identifier(3));
+    core.inventory_generation = std.math.maxInt(u64);
+
+    try std.testing.expectError(
+        error.InventoryGenerationOverflow,
+        core.createTerminal(connection, identifier(4), identifier(5), [_]u8{6} ** 32, 80, 24),
+    );
+    try std.testing.expectEqual(@as(usize, 0), core.terminalCount());
+    try std.testing.expectEqual(@as(usize, 0), core.creations.count());
 }
 
 test "input, resize, and reordered completion preserve bounds" {
     var core = HostCore.init(std.testing.allocator, identifier(1));
     defer core.deinit();
-    const client = identifier(2);
+    const connection: ConnectionId = 2;
     const terminal_id = identifier(4);
     const attachment_id = identifier(6);
-    _ = try core.connect(client);
-    _ = try core.createTerminal(client, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
+    _ = try core.connect(connection, identifier(2));
+    _ = try core.createTerminal(connection, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
     _ = try core.spawnSucceeded(terminal_id);
-    _ = try core.attach(client, attachment_id, terminal_id, .{
+    _ = try core.attach(connection, attachment_id, terminal_id, .{
         .input = true,
         .read = true,
         .resize = true,
     }, true);
 
-    _ = try core.acceptInput(client, attachment_id, max_pending_input_bytes);
-    try std.testing.expectError(error.InputBackpressure, core.acceptInput(client, attachment_id, 1));
+    _ = try core.acceptInput(connection, attachment_id, max_pending_input_bytes);
+    try std.testing.expectError(error.InputBackpressure, core.acceptInput(connection, attachment_id, 1));
     _ = try core.inputWritten(terminal_id, max_pending_input_bytes);
-    _ = try core.resize(client, attachment_id, 120, 40);
-    try std.testing.expectEqual(@as(u64, 0), core.terminal.?.revision);
+    _ = try core.resize(connection, attachment_id, 120, 40);
+    try std.testing.expectEqual(@as(u64, 0), core.findTerminal(terminal_id).?.revision);
 
-    _ = try core.requestTerminate(client, terminal_id);
-    try std.testing.expectEqual(.idempotent, try core.requestTerminate(client, terminal_id));
+    _ = try core.requestTerminate(connection, terminal_id);
+    try std.testing.expectEqual(.idempotent, try core.requestTerminate(connection, terminal_id));
     _ = try core.ptyDrained(terminal_id);
-    try std.testing.expectEqual(TerminalPhase.finishing, core.terminal.?.phase);
+    try std.testing.expectEqual(TerminalPhase.finishing, core.findTerminal(terminal_id).?.phase);
     _ = try core.childExited(terminal_id, .{ .exit_code = 0 });
-    try std.testing.expectEqual(TerminalPhase.exited, core.terminal.?.phase);
-    try std.testing.expectError(
-        error.MissingResource,
-        core.disposeTerminal(client, identifier(9)),
-    );
-    _ = try core.disposeTerminal(client, terminal_id);
-    try std.testing.expect(core.terminal == null);
+    try std.testing.expectEqual(TerminalPhase.exited, core.findTerminal(terminal_id).?.phase);
+    try std.testing.expectEqual(.idempotent, try core.disposeTerminal(connection, identifier(9)));
+    _ = try core.disposeTerminal(connection, terminal_id);
+    try std.testing.expect(core.findTerminal(terminal_id) == null);
 }
 
 test "runtime revision synchronization rejects regression" {
     var core = HostCore.init(std.testing.allocator, identifier(1));
     defer core.deinit();
-    const client = identifier(2);
+    const connection: ConnectionId = 2;
     const terminal_id = identifier(4);
     const attachment_id = identifier(6);
-    _ = try core.connect(client);
-    _ = try core.createTerminal(client, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
+    _ = try core.connect(connection, identifier(2));
+    _ = try core.createTerminal(connection, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
     _ = try core.spawnSucceeded(terminal_id);
-    _ = try core.attach(client, attachment_id, terminal_id, .{
+    _ = try core.attach(connection, attachment_id, terminal_id, .{
         .input = false,
         .read = true,
         .resize = true,
     }, true);
     _ = try core.synchronizeRevision(terminal_id, 8);
-    try std.testing.expectEqual(@as(u64, 8), core.terminal.?.revision);
+    try std.testing.expectEqual(@as(u64, 8), core.findTerminal(terminal_id).?.revision);
     try std.testing.expectError(error.InvalidPhase, core.synchronizeRevision(terminal_id, 7));
 }
 
 test "projection demand gates one in-flight frame and coalesces later revisions" {
     var core = HostCore.init(std.testing.allocator, identifier(1));
     defer core.deinit();
-    const client = identifier(2);
+    const connection: ConnectionId = 2;
     const terminal_id = identifier(4);
     const attachment_id = identifier(6);
-    _ = try core.connect(client);
-    _ = try core.createTerminal(client, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
+    _ = try core.connect(connection, identifier(2));
+    _ = try core.createTerminal(connection, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
     _ = try core.spawnSucceeded(terminal_id);
-    _ = try core.attach(client, attachment_id, terminal_id, .{
+    _ = try core.attach(connection, attachment_id, terminal_id, .{
         .input = false,
         .read = true,
         .resize = false,
@@ -722,7 +878,7 @@ test "projection demand gates one in-flight frame and coalesces later revisions"
     );
     try std.testing.expectEqual(
         .applied,
-        try core.setProjectionDemand(client, attachment_id, .active),
+        try core.setProjectionDemand(connection, attachment_id, .active),
     );
     const first = try core.commitFrame(attachment_id, null, 1, 1, .snapshot);
     try std.testing.expectEqual(@as(u64, 1), first.sequence);
@@ -735,22 +891,22 @@ test "projection demand gates one in-flight frame and coalesces later revisions"
     try std.testing.expect(core.findAttachment(attachment_id).?.pending_dirty);
     try std.testing.expectError(
         error.InvalidFrameAcknowledgement,
-        core.frameApplied(client, attachment_id, 1, 8, 1),
+        core.frameApplied(connection, attachment_id, 1, 8, 1),
     );
     try std.testing.expectEqual(
         .applied,
-        try core.frameApplied(client, attachment_id, 1, 1, 1),
+        try core.frameApplied(connection, attachment_id, 1, 1, 1),
     );
     try std.testing.expectEqual(
         .idempotent,
-        try core.frameApplied(client, attachment_id, 1, 1, 1),
+        try core.frameApplied(connection, attachment_id, 1, 1, 1),
     );
     const second = try core.commitFrame(attachment_id, 1, 9, 1, .delta);
     try std.testing.expectEqual(@as(u64, 2), second.sequence);
     try std.testing.expectEqual(@as(?u64, 1), second.base_revision);
-    _ = try core.frameApplied(client, attachment_id, 2, 9, 1);
-    _ = try core.setProjectionDemand(client, attachment_id, .paused);
-    _ = try core.setProjectionDemand(client, attachment_id, .active);
+    _ = try core.frameApplied(connection, attachment_id, 2, 9, 1);
+    _ = try core.setProjectionDemand(connection, attachment_id, .paused);
+    _ = try core.setProjectionDemand(connection, attachment_id, .active);
     const resumed = core.findAttachment(attachment_id).?;
     try std.testing.expect(resumed.force_snapshot);
     try std.testing.expect(resumed.pending_dirty);
@@ -764,13 +920,13 @@ test "projection demand gates one in-flight frame and coalesces later revisions"
 test "pause abandons delivery state and keeps hidden revisions attachment lazy" {
     var core = HostCore.init(std.testing.allocator, identifier(1));
     defer core.deinit();
-    const client = identifier(2);
+    const connection: ConnectionId = 2;
     const terminal_id = identifier(4);
     const attachment_id = identifier(6);
-    _ = try core.connect(client);
-    _ = try core.createTerminal(client, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
+    _ = try core.connect(connection, identifier(2));
+    _ = try core.createTerminal(connection, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
     _ = try core.spawnSucceeded(terminal_id);
-    _ = try core.attach(client, attachment_id, terminal_id, .{
+    _ = try core.attach(connection, attachment_id, terminal_id, .{
         .input = false,
         .read = true,
         .resize = false,
@@ -778,10 +934,10 @@ test "pause abandons delivery state and keeps hidden revisions attachment lazy" 
 
     _ = try core.synchronizeRevision(terminal_id, 1);
     try std.testing.expect(!core.findAttachment(attachment_id).?.pending_dirty);
-    _ = try core.setProjectionDemand(client, attachment_id, .active);
+    _ = try core.setProjectionDemand(connection, attachment_id, .active);
     _ = try core.commitFrame(attachment_id, null, 1, 1, .snapshot);
     _ = try core.synchronizeRevision(terminal_id, 2);
-    _ = try core.setProjectionDemand(client, attachment_id, .paused);
+    _ = try core.setProjectionDemand(connection, attachment_id, .paused);
 
     const paused = core.findAttachment(attachment_id).?;
     try std.testing.expect(paused.in_flight == null);
@@ -795,23 +951,23 @@ test "pause abandons delivery state and keeps hidden revisions attachment lazy" 
     try std.testing.expect(!core.findAttachment(attachment_id).?.pending_dirty);
     try std.testing.expectEqual(
         .idempotent,
-        try core.frameApplied(client, attachment_id, 1, 1, 1),
+        try core.frameApplied(connection, attachment_id, 1, 1, 1),
     );
     try std.testing.expectEqual(
         .idempotent,
-        try core.needSnapshot(client, attachment_id, 1),
+        try core.needSnapshot(connection, attachment_id, 1),
     );
 
-    _ = try core.setProjectionDemand(client, attachment_id, .active);
+    _ = try core.setProjectionDemand(connection, attachment_id, .active);
     const resumed = try core.commitFrame(attachment_id, null, 3, 1, .snapshot);
     try std.testing.expectEqual(@as(u64, 2), resumed.sequence);
     try std.testing.expectEqual(
         .idempotent,
-        try core.frameApplied(client, attachment_id, 1, 1, 1),
+        try core.frameApplied(connection, attachment_id, 1, 1, 1),
     );
     try std.testing.expectEqual(
         .idempotent,
-        try core.needSnapshot(client, attachment_id, 1),
+        try core.needSnapshot(connection, attachment_id, 1),
     );
     try std.testing.expectEqual(
         @as(u64, 2),
@@ -822,56 +978,56 @@ test "pause abandons delivery state and keeps hidden revisions attachment lazy" 
 test "active projection demand is aggregated across attachments" {
     var core = HostCore.init(std.testing.allocator, identifier(1));
     defer core.deinit();
-    const client = identifier(2);
+    const connection: ConnectionId = 2;
     const terminal_id = identifier(4);
     const first_attachment = identifier(6);
     const second_attachment = identifier(7);
-    _ = try core.connect(client);
-    _ = try core.createTerminal(client, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
+    _ = try core.connect(connection, identifier(2));
+    _ = try core.createTerminal(connection, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
     _ = try core.spawnSucceeded(terminal_id);
     for ([_]Identifier{ first_attachment, second_attachment }) |attachment_id| {
-        _ = try core.attach(client, attachment_id, terminal_id, .{
+        _ = try core.attach(connection, attachment_id, terminal_id, .{
             .input = false,
             .read = true,
             .resize = false,
         }, false);
-        _ = try core.setProjectionDemand(client, attachment_id, .active);
+        _ = try core.setProjectionDemand(connection, attachment_id, .active);
     }
 
     try std.testing.expect(core.hasActiveProjectionDemand(terminal_id));
-    _ = try core.setProjectionDemand(client, first_attachment, .paused);
+    _ = try core.setProjectionDemand(connection, first_attachment, .paused);
     try std.testing.expect(core.hasActiveProjectionDemand(terminal_id));
-    _ = try core.detach(client, second_attachment);
+    _ = try core.detach(connection, second_attachment);
     try std.testing.expect(!core.hasActiveProjectionDemand(terminal_id));
 }
 
 test "recovery is exact and blocked projection requires explicit pause resume" {
     var core = HostCore.init(std.testing.allocator, identifier(1));
     defer core.deinit();
-    const client = identifier(2);
+    const connection: ConnectionId = 2;
     const terminal_id = identifier(4);
     const attachment_id = identifier(6);
-    _ = try core.connect(client);
-    _ = try core.createTerminal(client, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
+    _ = try core.connect(connection, identifier(2));
+    _ = try core.createTerminal(connection, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
     _ = try core.spawnSucceeded(terminal_id);
-    _ = try core.attach(client, attachment_id, terminal_id, .{
+    _ = try core.attach(connection, attachment_id, terminal_id, .{
         .input = false,
         .read = true,
         .resize = false,
     }, false);
     _ = try core.synchronizeRevision(terminal_id, 3);
-    _ = try core.setProjectionDemand(client, attachment_id, .active);
+    _ = try core.setProjectionDemand(connection, attachment_id, .active);
     _ = try core.commitFrame(attachment_id, null, 3, 1, .snapshot);
 
     try std.testing.expectError(
         error.InvalidFrameAcknowledgement,
-        core.needSnapshot(client, attachment_id, 2),
+        core.needSnapshot(connection, attachment_id, 2),
     );
-    try std.testing.expectEqual(.applied, try core.needSnapshot(client, attachment_id, 1));
-    try std.testing.expectEqual(.idempotent, try core.needSnapshot(client, attachment_id, 1));
+    try std.testing.expectEqual(.applied, try core.needSnapshot(connection, attachment_id, 1));
+    try std.testing.expectEqual(.idempotent, try core.needSnapshot(connection, attachment_id, 1));
     try std.testing.expect(core.findAttachment(attachment_id).?.force_snapshot);
     _ = try core.commitFrame(attachment_id, null, 3, 1, .snapshot);
-    _ = try core.frameApplied(client, attachment_id, 2, 3, 1);
+    _ = try core.frameApplied(connection, attachment_id, 2, 3, 1);
 
     try core.blockProjection(attachment_id, .capture_allocation_failed);
     try std.testing.expectError(
@@ -880,11 +1036,11 @@ test "recovery is exact and blocked projection requires explicit pause resume" {
     );
     try std.testing.expectEqual(
         .idempotent,
-        try core.setProjectionDemand(client, attachment_id, .active),
+        try core.setProjectionDemand(connection, attachment_id, .active),
     );
     try std.testing.expect(core.findAttachment(attachment_id).?.blocked != null);
-    _ = try core.setProjectionDemand(client, attachment_id, .paused);
-    _ = try core.setProjectionDemand(client, attachment_id, .active);
+    _ = try core.setProjectionDemand(connection, attachment_id, .paused);
+    _ = try core.setProjectionDemand(connection, attachment_id, .active);
     const attachment = core.findAttachment(attachment_id).?;
     try std.testing.expect(attachment.blocked == null);
     try std.testing.expect(attachment.force_snapshot);
@@ -896,29 +1052,31 @@ test "attachments advance independently and geometry invalidates every delta bas
     defer core.deinit();
     const first_client = identifier(2);
     const second_client = identifier(7);
+    const first_connection: ConnectionId = 2;
+    const second_connection: ConnectionId = 7;
     const terminal_id = identifier(4);
     const first_attachment = identifier(6);
     const second_attachment = identifier(8);
-    _ = try core.connect(first_client);
-    _ = try core.connect(second_client);
-    _ = try core.createTerminal(first_client, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
+    _ = try core.connect(first_connection, first_client);
+    _ = try core.connect(second_connection, second_client);
+    _ = try core.createTerminal(first_connection, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
     _ = try core.spawnSucceeded(terminal_id);
-    _ = try core.attach(first_client, first_attachment, terminal_id, .{
+    _ = try core.attach(first_connection, first_attachment, terminal_id, .{
         .input = false,
         .read = true,
         .resize = false,
     }, false);
-    _ = try core.attach(second_client, second_attachment, terminal_id, .{
+    _ = try core.attach(second_connection, second_attachment, terminal_id, .{
         .input = false,
         .read = true,
         .resize = false,
     }, false);
     _ = try core.synchronizeRevision(terminal_id, 4);
-    _ = try core.setProjectionDemand(first_client, first_attachment, .active);
-    _ = try core.setProjectionDemand(second_client, second_attachment, .active);
+    _ = try core.setProjectionDemand(first_connection, first_attachment, .active);
+    _ = try core.setProjectionDemand(second_connection, second_attachment, .active);
     _ = try core.commitFrame(first_attachment, null, 4, 1, .snapshot);
     _ = try core.commitFrame(second_attachment, null, 4, 1, .snapshot);
-    _ = try core.frameApplied(first_client, first_attachment, 1, 4, 1);
+    _ = try core.frameApplied(first_connection, first_attachment, 1, 4, 1);
 
     _ = try core.synchronizeRevision(terminal_id, 5);
     try std.testing.expect(core.findAttachment(first_attachment).?.pending_dirty);

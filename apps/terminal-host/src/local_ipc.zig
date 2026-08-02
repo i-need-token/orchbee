@@ -536,7 +536,7 @@ test "private local endpoint owns one lifetime lock and serves a handshake" {
     client.close();
     server_thread.join();
     if (thread_context.failure) |failure| return failure;
-    try std.testing.expectEqual(@as(usize, 0), service.core.connections.items.len);
+    try std.testing.expectEqual(@as(usize, 0), service.core.connections.count());
 }
 
 test "malformed local record closes only that connection" {
@@ -566,8 +566,8 @@ test "malformed local record closes only that connection" {
     malformed_client.close();
     malformed_thread.join();
     if (malformed_context.failure) |failure| return failure;
-    try std.testing.expect(service.core.terminal == null);
-    try std.testing.expectEqual(@as(usize, 0), service.core.connections.items.len);
+    try std.testing.expectEqual(@as(usize, 0), service.core.terminalCount());
+    try std.testing.expectEqual(@as(usize, 0), service.core.connections.count());
 
     var valid_context: ServeThreadContext = .{
         .server = &server,

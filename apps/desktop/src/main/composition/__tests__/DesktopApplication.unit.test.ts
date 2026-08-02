@@ -3,7 +3,6 @@ import { EventEmitter } from 'node:events';
 import {
 	CanonicalUint64TextSchema,
 	CreationIdSchema,
-	CURRENT_PROTOCOL_VERSION,
 	HostEpochSchema,
 	PROTOCOL_LIMITS,
 	TerminalIdSchema,
@@ -185,7 +184,7 @@ function createHarness(
 			frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 			hostEpoch: identity.hostEpoch,
 			inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-			protocol: CURRENT_PROTOCOL_VERSION,
+			protocol: { major: 1, minor: 2 },
 			rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 			supportedOptionalFeatures: [],
 		}),
