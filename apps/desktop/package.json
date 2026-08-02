@@ -20,6 +20,7 @@
 	"dependencies": {
 		"@orchbee/actions": "workspace:^",
 		"@orchbee/i18n": "workspace:^",
+		"@orchbee/tab-strip": "workspace:^",
 		"@orchbee/terminal": "workspace:^",
 		"@orchbee/terminal-protocol": "workspace:^",
 		"@orchbee/ui": "workspace:^",

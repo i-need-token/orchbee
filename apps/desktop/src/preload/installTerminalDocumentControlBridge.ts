@@ -28,6 +28,7 @@ export function installTerminalDocumentControlBridge(
 		if (port === undefined) return;
 		targetWindow.postMessage(
 			TerminalDocumentControlWindowMessageSchema.parse({
+				bootstrap: bootstrap.data,
 				security,
 				type: TERMINAL_DOCUMENT_CONTROL_WINDOW_MESSAGE,
 			}),

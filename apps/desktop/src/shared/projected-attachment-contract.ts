@@ -26,9 +26,6 @@ import {
 } from '@orchbee/terminal-protocol';
 import { z } from 'zod';
 
-export const PROJECTED_ATTACHMENT_IPC_CHANNEL = 'orchbee.desktop.projected-attachment-port';
-export const PROJECTED_ATTACHMENT_WINDOW_MESSAGE = 'orchbee.desktop.projected-attachment-ready';
-
 export const ProjectedAttachmentBootstrapSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	canInput: z.boolean().optional(),
@@ -37,12 +34,6 @@ export const ProjectedAttachmentBootstrapSchema = z.strictObject({
 	hostEpoch: HostEpochSchema,
 	terminalExit: TerminalExitedSchema.nullable().optional(),
 	terminalId: TerminalIdSchema,
-});
-
-export const ProjectedAttachmentWindowMessageSchema = z.strictObject({
-	bootstrap: ProjectedAttachmentBootstrapSchema,
-	security: z.strictObject({ contextIsolated: z.boolean(), sandboxed: z.boolean() }),
-	type: z.literal(PROJECTED_ATTACHMENT_WINDOW_MESSAGE),
 });
 
 export const DesktopRendererCommandSchema = z.discriminatedUnion('kind', [

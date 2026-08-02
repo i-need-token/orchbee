@@ -96,6 +96,36 @@ export type TerminalPresentationCommand =
 			readonly type: 'terminal-close-requested';
 	  };
 
+export type TerminalPresentationEvent =
+	| {
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly type: 'terminal-provision-completed';
+	  }
+	| {
+			readonly failure: TerminalPresentationFailure;
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly type: 'terminal-provision-failed';
+	  }
+	| {
+			readonly exitCode: number | null;
+			readonly presentationId: TerminalPresentationId;
+			readonly signal: string | null;
+			readonly type: 'terminal-exited';
+	  }
+	| {
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly type: 'terminal-close-completed';
+	  }
+	| {
+			readonly failure: TerminalPresentationFailure;
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly type: 'terminal-close-failed';
+	  };
+
 export function terminalPresentationId(value: string): TerminalPresentationId {
 	return TerminalPresentationIdSchema.parse(value);
 }

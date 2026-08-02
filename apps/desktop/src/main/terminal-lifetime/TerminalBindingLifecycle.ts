@@ -44,10 +44,12 @@ export class TerminalBindingLifecycle {
 		return this.#enqueue(async () => this.#closing.requestClose(retireProjection));
 	}
 
-	recordExit(event: TerminalExited): Promise<void> {
+	recordExit(event: TerminalExited): Promise<TerminalExitDisposition> {
 		return this.#enqueue(async () => {
 			const disposition = await this.#closing.recordExit(event);
-			if (!disposition.handled) await this.#recovery.recordExit(event);
+			if (disposition.handled) return disposition;
+			await this.#recovery.recordExit(event);
+			return disposition;
 		});
 	}
 

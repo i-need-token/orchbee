@@ -25,7 +25,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first).toEqual(second);
 		expect(first.binaryPath).toBe(path.resolve('/private/bin/terminal-host'));
 		expect(first.runtimeDirectory).toBe(path.resolve('/private/runtime'));
-		expect(first.terminalBindingStorePath).toBe(path.resolve('/private/recovery/bindings-v2.json'));
+		expect(first.terminalBindingStorePath).toBe(path.resolve('/private/recovery/bindings-v3.json'));
 		expect(first.terminalLaunch).toMatchObject({
 			currentDirectory: path.resolve('/users/orchbee'),
 			executable: '/bin/zsh',
@@ -47,10 +47,23 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		);
 		expect(configuration.terminalLaunch.executable).toBe('/bin/sh');
 		expect(configuration.endpointId).toMatch(/^[0-9a-f]{32}$/u);
-		expect(configuration.recoveryBindingId).toBe('desktop-terminal-foundation');
 		expect(configuration.terminalBindingStorePath).toBe(
-			path.resolve('/users/orchbee/.config/orchbee/terminal-recovery/bindings-v2.json'),
+			path.resolve('/users/orchbee/.config/orchbee/terminal-recovery/bindings-v3.json'),
 		);
 		expect(configuration.runtimeDirectory).toMatch(/^\/tmp\/orchbee-desktop-[0-9a-f]{12}$/u);
+	});
+
+	it('uses a stable product runtime directory on Windows', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: 'C:\\repo\\apps\\desktop',
+			environment: {},
+			homeDirectory: 'C:\\Users\\orchbee',
+			platform: 'win32',
+			userDataPath: 'C:\\Users\\orchbee\\AppData\\Roaming\\Orchbee',
+		});
+
+		expect(configuration.runtimeDirectory).toBe(
+			path.join('C:\\Users\\orchbee\\AppData\\Roaming\\Orchbee', 'terminal-host'),
+		);
 	});
 });

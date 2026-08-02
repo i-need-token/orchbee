@@ -12,16 +12,27 @@ export interface TerminalDocumentControlOperations {
 	execute(command: TerminalDocumentControlCommand): Promise<TerminalDocumentControlOperationResult>;
 }
 
+export type TerminalDocumentControlResultPosted = (
+	command: TerminalDocumentControlCommand,
+	result: TerminalDocumentControlOperationResult,
+) => void;
+
 export class TerminalDocumentControlBroker {
 	readonly #acceptedOperations = new Map<string, string>();
 	readonly #operations: TerminalDocumentControlOperations;
+	readonly #resultPosted: TerminalDocumentControlResultPosted | undefined;
 	readonly #port: MessagePortMain;
 	#disposed = false;
 	#started = false;
 
-	constructor(port: MessagePortMain, operations: TerminalDocumentControlOperations) {
+	constructor(
+		port: MessagePortMain,
+		operations: TerminalDocumentControlOperations,
+		resultPosted?: TerminalDocumentControlResultPosted,
+	) {
 		this.#port = port;
 		this.#operations = operations;
+		this.#resultPosted = resultPosted;
 	}
 
 	start(): void {
@@ -82,7 +93,12 @@ export class TerminalDocumentControlBroker {
 			this.#retire(true);
 			return;
 		}
-		this.#post(parsed.data);
+		if (!this.#post(parsed.data) || this.#resultPosted === undefined) return;
+		try {
+			this.#resultPosted(command, parsed.data);
+		} catch {
+			this.#retire(true);
+		}
 	}
 
 	#fail(command: TerminalDocumentControlCommand): void {

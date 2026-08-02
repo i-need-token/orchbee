@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { CreationIdSchema, HostEpochSchema } from '@orchbee/terminal-protocol';
+import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createDefaultTerminalProfile } from '../../host';
@@ -25,7 +26,7 @@ afterEach(async () => {
 describe('FileTerminalBindingStore', () => {
 	it('serializes targeted writes without losing unrelated bindings', async () => {
 		const directory = await createTemporaryDirectory();
-		const storePath = path.join(directory, 'recovery', 'bindings-v2.json');
+		const storePath = path.join(directory, 'recovery', 'bindings-v3.json');
 		const store = new FileTerminalBindingStore(storePath, { randomToken: () => 'temporary' });
 		const first = createBinding(1);
 		const second = createBinding(2);
@@ -40,11 +41,11 @@ describe('FileTerminalBindingStore', () => {
 		await store.remove(second.bindingId);
 
 		expect(await store.load()).toEqual({
-			document: { bindings: [requested], version: 2 },
+			document: { bindings: [requested], version: 3 },
 			kind: 'available',
 		});
 		expect((await readFile(storePath, 'utf8')).endsWith('\n')).toBe(true);
-		expect(await readdir(path.dirname(storePath))).toEqual(['bindings-v2.json']);
+		expect(await readdir(path.dirname(storePath))).toEqual(['bindings-v3.json']);
 		const fileMode = process.platform === 'win32' ? 0o600 : (await stat(storePath)).mode & 0o777;
 		const directoryMode =
 			process.platform === 'win32' ? 0o700 : (await stat(path.dirname(storePath))).mode & 0o777;
@@ -54,7 +55,7 @@ describe('FileTerminalBindingStore', () => {
 
 	it('fails closed for corrupt current data and does not overwrite it', async () => {
 		const directory = await createTemporaryDirectory();
-		const storePath = path.join(directory, 'bindings-v2.json');
+		const storePath = path.join(directory, 'bindings-v3.json');
 		await writeFile(storePath, '{not-json', 'utf8');
 		const store = new FileTerminalBindingStore(storePath);
 
@@ -65,7 +66,7 @@ describe('FileTerminalBindingStore', () => {
 
 	it('loads a valid collection larger than the former whole-file byte cap', async () => {
 		const directory = await createTemporaryDirectory();
-		const storePath = path.join(directory, 'bindings-v2.json');
+		const storePath = path.join(directory, 'bindings-v3.json');
 		const document = createTerminalBindingStoreDocument(
 			Array.from({ length: 257 }, (_, index) => createBinding(index + 1)),
 		);
@@ -101,6 +102,7 @@ function createBinding(index: number): TerminalBinding {
 			rows: 24,
 			terminalProfile: createDefaultTerminalProfile(),
 		},
+		presentationId: terminalPresentationId(`presentation-${index.toString().padStart(4, '0')}`),
 		state: { kind: 'planned' },
 	});
 }

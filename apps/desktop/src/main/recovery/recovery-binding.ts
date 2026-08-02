@@ -3,6 +3,7 @@ import type {
 	TerminalLaunchV1_1,
 	TerminalSummary,
 } from '@orchbee/terminal-protocol';
+import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 
 export type TerminalRecoveryOutcome =
 	| {
@@ -44,4 +45,5 @@ export type TerminalRecoveryOutcome =
 export interface TerminalRecoveryBindingConfiguration {
 	readonly bindingId: string;
 	readonly launch: TerminalLaunchV1_1;
+	readonly presentationId: TerminalPresentationId;
 }

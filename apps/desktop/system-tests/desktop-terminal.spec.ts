@@ -97,11 +97,12 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	page.on('worker', () => {
 		workerStarts += 1;
 	});
-	const root = page.locator('#root');
+	const applicationRoot = page.locator('#root');
+	const root = projectedTerminal(page);
 	await expect(root).toHaveAttribute('data-desktop-terminal-state', 'open');
 
-	await expect(root).toHaveAttribute('data-desktop-context-isolated', 'true');
-	await expect(root).toHaveAttribute('data-desktop-sandboxed', 'true');
+	await expect(applicationRoot).toHaveAttribute('data-desktop-context-isolated', 'true');
+	await expect(applicationRoot).toHaveAttribute('data-desktop-sandboxed', 'true');
 	const rendererAuthority = await page.evaluate(() => ({
 		hasGenericOrchbeeApi: 'orchbee' in globalThis,
 		hasNodeRequire: 'require' in globalThis,
@@ -109,7 +110,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	expect(rendererAuthority).toEqual({ hasGenericOrchbeeApi: false, hasNodeRequire: false });
 
 	await application.evaluate(({ BrowserWindow }) => {
-		BrowserWindow.getAllWindows()[0]?.setSize(900, 650);
+		BrowserWindow.getAllWindows()[0]?.setSize(1_200, 650);
 	});
 	const input = page.getByRole('textbox');
 	await input.pressSequentially(
@@ -192,11 +193,11 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	await input.focus();
 	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyC' : 'Control+Shift+KeyC');
 	await expect
-		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
-		.toContain(process.platform === 'darwin' ? 'history-001' : 'interaction-tail');
-	await expect
 		.poll(async () => Number(await root.getAttribute('data-desktop-terminal-copied-bytes')))
 		.toBeGreaterThan(0);
+	await expect
+		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+		.toContain(process.platform === 'darwin' ? 'history-001' : 'interaction-tail');
 
 	await application.evaluate(({ shell }) => {
 		const state = globalThis as typeof globalThis & { __orchbeeOpenedTargets?: string[] };
@@ -293,7 +294,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	const exitedRestart = await launchDesktop();
 	electronApplication = exitedRestart;
 	const exitedPage = await exitedRestart.firstWindow();
-	const exitedRoot = exitedPage.locator('#root');
+	const exitedRoot = projectedTerminal(exitedPage);
 	await expect(exitedRoot).toHaveAttribute('data-desktop-terminal-state', 'exited');
 	await expect(exitedRoot).toHaveAttribute('data-desktop-terminal-final-frame-presented', 'true');
 	const identityAfterExitedRestart = await terminalDocumentIdentity(exitedRoot);
@@ -312,7 +313,7 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 	const firstApplication = electronApplication;
 	if (firstApplication === undefined) throw new Error('Electron application did not start.');
 	const firstPage = await firstApplication.firstWindow();
-	const firstRoot = firstPage.locator('#root');
+	const firstRoot = projectedTerminal(firstPage);
 	await expect(firstRoot).toHaveAttribute('data-desktop-terminal-state', 'open');
 	const input = firstPage.getByRole('textbox');
 	await input.pressSequentially("printf 'recovery-main-marker\\n'");
@@ -321,16 +322,16 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 	const identityBeforeRestart = await terminalDocumentIdentity(firstRoot);
 	if (runtimeDirectory === undefined) throw new Error('Desktop runtime directory is unavailable.');
 	expect(
-		JSON.parse(await readFile(path.join(runtimeDirectory, 'bindings-v2.json'), 'utf8')),
+		JSON.parse(await readFile(path.join(runtimeDirectory, 'bindings-v3.json'), 'utf8')),
 	).toMatchObject({
 		bindings: [
 			{
-				bindingId: 'desktop-terminal-foundation',
 				creationId: identityBeforeRestart.creationId,
+				presentationId: expect.any(String),
 				state: { kind: 'retained' },
 			},
 		],
-		version: 2,
+		version: 3,
 	});
 
 	await firstApplication.close();
@@ -340,7 +341,7 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 	const restartedApplication = await launchDesktop();
 	electronApplication = restartedApplication;
 	const restartedPage = await restartedApplication.firstWindow();
-	const restartedRoot = restartedPage.locator('#root');
+	const restartedRoot = projectedTerminal(restartedPage);
 	await expect(restartedRoot).toHaveAttribute('data-desktop-terminal-state', 'open');
 	await expect(restartedPage.locator('[role="log"]')).toContainText('recovery-main-marker');
 	const identityAfterRestart = await terminalDocumentIdentity(restartedRoot);
@@ -355,6 +356,10 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 async function launchDesktop(): Promise<ElectronApplication> {
 	if (desktopEnvironment === undefined) throw new Error('Desktop test environment is unavailable.');
 	return electron.launch({ args: [desktopMain], env: desktopEnvironment });
+}
+
+function projectedTerminal(page: Awaited<ReturnType<ElectronApplication['firstWindow']>>): Locator {
+	return page.locator('[data-terminal-presentation-id][data-desktop-terminal-state]').first();
 }
 
 async function terminalDocumentIdentity(root: Locator): Promise<{

@@ -38,6 +38,18 @@ composition additionally receives operation/removal ID allocators and a narrow c
 Workbench never allocates or observes Host terminal IDs. Dynamic presentation IDs are opaque and
 must not be reused after a presentation is removed.
 
+A managed application may seed the standalone context with recovered presentations. Each seed
+retains its application-owned PresentationId and launch CWD and is projected as one Tab; Workbench
+still does not infer or persist Project, Workspace, group, split, process, or Host identity. The
+runtime routes every provision, exit, and close result by PresentationId across all terminal
+contexts and rejects missing, duplicate, or stale targets without mutating another presentation.
+
+Applications may inject a `terminalSurface` component. Workbench mounts it only for terminal
+presentations in the displayed Tab and visible Panel layout, passing no Host capability beyond the
+presentation model. Inactive Tabs, other Workspaces, background Projects, and inactive child
+terminals do not mount the surface. This lets Desktop bind attachment and renderer lifetime to
+actual viewport demand while preserving Workbench ownership of logical topology.
+
 Runtime-neutral terminal-presentation identities, lifecycle contracts, and boundary schemas are
 also available from `@orchbee/workbench/terminal-presentation`. Platform applications use that
 narrow entry point instead of importing the React Workbench graph into Main or preload runtimes.
@@ -273,9 +285,10 @@ product action is introduced.
   close, partial failure, retry, stale provision/close completion, and Tab-ready ordering. The
   `TerminalPresentationRemoval` TLA+ model explores `549` distinct states across two concurrent
   presentations and checks atomic topology removal, partial-failure retention, and stale-result
-  immutability. React integration tests cover the initial single-panel projection;
-  Storybook and browser review exercise real context menus, resize handles, headers, panel drops,
-  and dialogs.
+  immutability. React integration tests cover the initial single-panel projection. Managed
+  application integration additionally covers recovered Tab bootstrap, exact lifecycle result
+  routing, delegated Tab close, and attachment demand moving between visible Tabs. Storybook and
+  browser review exercise real context menus, resize handles, headers, panel drops, and dialogs.
 
 ## Use
 
@@ -297,6 +310,7 @@ import {
 	type WorkbenchLayoutStorage,
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchShortcutPlatform,
+	type WorkbenchTerminalSurface,
 } from '@orchbee/workbench';
 import { ActionRuntime } from '@orchbee/actions';
 
@@ -306,12 +320,14 @@ export function ProductInterface({
 	onSettings,
 	projectWorkspaceRuntime,
 	shortcutPlatform,
+	terminalSurface,
 }: {
 	readonly actionRuntime: ActionRuntime;
 	readonly layoutStorage: WorkbenchLayoutStorage;
 	readonly onSettings: WorkbenchHostActionCallback;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
+	readonly terminalSurface?: WorkbenchTerminalSurface;
 }) {
 	return (
 		<Workbench
@@ -320,6 +336,7 @@ export function ProductInterface({
 			onSettings={onSettings}
 			projectWorkspaceRuntime={projectWorkspaceRuntime}
 			shortcutPlatform={shortcutPlatform}
+			terminalSurface={terminalSurface}
 		/>
 	);
 }
@@ -342,8 +359,12 @@ or out-of-range storage falls back to a visible `250px` sidebar and a horizontal
 blocking rendering. The repository-wide ownership and key contract lives in
 [`docs/frontend/browser-storage.md`](../../docs/frontend/browser-storage.md).
 
-Workbench owns the in-memory Tab and Panel context projection; a future platform runtime remains
-authoritative for PTY and terminal-process lifecycles. A desktop host may pass
+Workbench owns the in-memory Tab and Panel context projection; the composing application remains
+authoritative for PTY and terminal-process lifecycle effects. A managed composition dispatches
+typed presentation commands and feeds their typed results back through
+`applyTerminalPresentationEvent(...)`. Tab close is delegated: Workbench marks every contained
+presentation closing, retains topology while results are pending, and removes the Tab from
+`TabModel` only after every exact close completes. A desktop host may pass
 `createCrossWindowDragRuntime` to connect
 the strip's pointer lifecycle to host-owned live-window discovery, compatibility checks, native
 window movement, capture, and move-loop behavior. Workbench and the browser application do not

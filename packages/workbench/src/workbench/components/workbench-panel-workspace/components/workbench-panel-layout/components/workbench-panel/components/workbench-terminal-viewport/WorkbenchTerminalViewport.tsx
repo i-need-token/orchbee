@@ -8,6 +8,7 @@ import type {
 	PanelSplitDirection,
 } from '../../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../types/panel-workspace-view';
+import type { WorkbenchTerminalSurface } from '../../../../../../../../types/workbench-terminal-surface';
 import { useWorkbenchTerminalContextMenu } from './hooks/useWorkbenchTerminalContextMenu';
 import styles from './WorkbenchTerminalViewport.module.css';
 
@@ -15,6 +16,7 @@ interface WorkbenchTerminalViewportProps {
 	readonly panelId: string;
 	readonly terminal: TerminalPresentation;
 	readonly terminalRole: 'child' | 'primary';
+	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 	readonly view: WorkbenchPanelWorkspaceView;
 }
 
@@ -22,6 +24,7 @@ export function WorkbenchTerminalViewport({
 	panelId,
 	terminal,
 	terminalRole,
+	terminalSurface: TerminalSurface,
 	view,
 }: WorkbenchTerminalViewportProps): React.ReactNode {
 	const contextMenu = useWorkbenchTerminalContextMenu({
@@ -80,7 +83,9 @@ export function WorkbenchTerminalViewport({
 				data-terminal-presentation-id={terminal.presentationId}
 				data-terminal-role={terminalRole}
 				tabIndex={0}
-			/>
+			>
+				{TerminalSurface === undefined ? null : <TerminalSurface presentation={terminal} />}
+			</ContextMenuTrigger>
 			<WorkbenchActionContextMenuContent entries={entries} finalFocus={contextMenu.finalFocus} />
 		</ContextMenu>
 	);

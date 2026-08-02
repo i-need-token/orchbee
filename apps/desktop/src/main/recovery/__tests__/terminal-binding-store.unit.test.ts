@@ -1,4 +1,5 @@
 import { CreationIdSchema, HostEpochSchema, TerminalIdSchema } from '@orchbee/terminal-protocol';
+import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it } from 'vitest';
 
 import { createDefaultTerminalProfile } from '../../host';
@@ -32,7 +33,7 @@ describe('terminal binding store model', () => {
 		expect(findTerminalBinding(updated, second.bindingId)).toEqual(requested);
 		expect(removeTerminalBinding(updated, second.bindingId)).toEqual({
 			bindings: [first],
-			version: 2,
+			version: 3,
 		});
 	});
 
@@ -50,7 +51,7 @@ describe('terminal binding store model', () => {
 
 		expect(createTerminalBindingStoreDocument([closing])).toEqual({
 			bindings: [closing],
-			version: 2,
+			version: 3,
 		});
 	});
 
@@ -58,12 +59,12 @@ describe('terminal binding store model', () => {
 		const first = createBinding(1);
 		const second = createBinding(2);
 		expect(
-			TerminalBindingStoreFileSchema.safeParse({ bindings: [second, first], version: 2 }).success,
+			TerminalBindingStoreFileSchema.safeParse({ bindings: [second, first], version: 3 }).success,
 		).toBe(false);
 		expect(
 			TerminalBindingStoreFileSchema.safeParse({
 				bindings: [first, { ...second, creationId: first.creationId }],
-				version: 2,
+				version: 3,
 			}).success,
 		).toBe(false);
 		expect(
@@ -112,6 +113,7 @@ function createBinding(index: number): TerminalBinding {
 			rows: 24,
 			terminalProfile: createDefaultTerminalProfile(),
 		},
+		presentationId: terminalPresentationId(`presentation-${index.toString().padStart(4, '0')}`),
 		state: { kind: 'planned' },
 	});
 }

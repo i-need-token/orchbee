@@ -35,6 +35,14 @@ export const TerminalDocumentControlCommandSchema = z.discriminatedUnion('type',
 ]);
 
 export const TerminalDocumentControlBootstrapSchema = z.strictObject({
+	defaultCwd: boundedLaunchCwdSchema,
+	initialPresentationId: TerminalPresentationIdSchema,
+	presentations: z.array(
+		z.strictObject({
+			launchCwd: boundedLaunchCwdSchema.nullable(),
+			presentationId: TerminalPresentationIdSchema,
+		}),
+	),
 	type: z.literal(TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL),
 });
 
@@ -77,11 +85,15 @@ export const TerminalDocumentControlEventSchema = z.discriminatedUnion('type', [
 ]);
 
 export const TerminalDocumentControlWindowMessageSchema = z.strictObject({
+	bootstrap: TerminalDocumentControlBootstrapSchema,
 	security: z.strictObject({ contextIsolated: z.boolean(), sandboxed: z.boolean() }),
 	type: z.literal(TERMINAL_DOCUMENT_CONTROL_WINDOW_MESSAGE),
 });
 
 export type TerminalDocumentControlCommand = z.infer<typeof TerminalDocumentControlCommandSchema>;
+export type TerminalDocumentControlBootstrap = z.infer<
+	typeof TerminalDocumentControlBootstrapSchema
+>;
 export type TerminalDocumentControlEvent = z.infer<typeof TerminalDocumentControlEventSchema>;
 export type TerminalDocumentControlOperationResult = Exclude<
 	TerminalDocumentControlEvent,

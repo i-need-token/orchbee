@@ -134,6 +134,7 @@ export {
 	CellWidth,
 	CursorShape,
 	decodeTerminalFrame,
+	decodeTerminalFrameRoute,
 	encodeTerminalFrame,
 	TERMINAL_FRAME_FORMAT,
 	TERMINAL_FRAME_HEADER_BYTES,
@@ -164,6 +165,7 @@ export type {
 	CursorShape as CursorShapeValue,
 	DecodedTerminalCells,
 	DecodedTerminalFrame,
+	DecodedTerminalFrameRoute,
 	DecodedTerminalRows,
 	DecodedTerminalStyles,
 	RowPromptClass as RowPromptClassValue,
@@ -273,11 +275,12 @@ export type {
 } from './row-window';
 export {
 	decodeSelectionExportChunk,
+	decodeSelectionExportChunkRoute,
 	encodeSelectionExportChunk,
 	SELECTION_EXPORT_CHUNK_HEADER_BYTES,
 	SelectionExportChunkSchema,
 } from './selection';
-export type { SelectionExportChunk } from './selection';
+export type { DecodedSelectionExportChunkRoute, SelectionExportChunk } from './selection';
 export {
 	createInitialProtocolLifecycleState,
 	HostPhase,

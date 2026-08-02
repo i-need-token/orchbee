@@ -10,6 +10,20 @@ import {
 } from '../terminal-document-control-contract';
 
 describe('terminal document control contract', () => {
+	it('carries recovered presentations without imposing a product count limit', () => {
+		expect(
+			TerminalDocumentControlBootstrapSchema.parse({
+				defaultCwd: '/workspace',
+				initialPresentationId: 'presentation-initial',
+				presentations: [
+					{ launchCwd: '/one', presentationId: 'presentation-1' },
+					{ launchCwd: null, presentationId: 'presentation-2' },
+				],
+				type: TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
+			}).presentations,
+		).toHaveLength(2);
+	});
+
 	it('accepts only presentation-scoped provision and close commands', () => {
 		expect(
 			TerminalDocumentControlCommandSchema.parse({
@@ -105,22 +119,26 @@ describe('terminal document control contract', () => {
 	});
 
 	it('requires the preload security attestation and exact ready message', () => {
-		expect(
-			TerminalDocumentControlBootstrapSchema.safeParse({
-				type: TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
-			}).success,
-		).toBe(true);
+		const bootstrap = {
+			defaultCwd: '/workspace',
+			initialPresentationId: 'presentation-initial',
+			presentations: [],
+			type: TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
+		};
+		expect(TerminalDocumentControlBootstrapSchema.safeParse(bootstrap).success).toBe(true);
 		expect(TerminalDocumentControlBootstrapSchema.safeParse({ type: 'generic-ipc' }).success).toBe(
 			false,
 		);
 		expect(
 			TerminalDocumentControlWindowMessageSchema.safeParse({
+				bootstrap,
 				security: { contextIsolated: true, sandboxed: true },
 				type: 'orchbee.desktop.terminal-document-control-ready',
 			}).success,
 		).toBe(true);
 		expect(
 			TerminalDocumentControlWindowMessageSchema.safeParse({
+				bootstrap,
 				security: { contextIsolated: true, sandboxed: true },
 				type: 'generic-ipc-ready',
 			}).success,

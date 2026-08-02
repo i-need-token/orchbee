@@ -7,6 +7,7 @@ import {
 	TerminalLaunchV1_1Schema,
 	type TerminalIdentity,
 } from '@orchbee/terminal-protocol';
+import { TerminalPresentationIdSchema } from '@orchbee/workbench/terminal-presentation';
 import { z } from 'zod';
 
 export const TerminalBindingIdSchema = z
@@ -46,6 +47,7 @@ export const TerminalBindingSchema = z
 		bindingId: TerminalBindingIdSchema,
 		creationId: CreationIdSchema,
 		launch: TerminalLaunchV1_1Schema,
+		presentationId: TerminalPresentationIdSchema,
 		state: z.discriminatedUnion('kind', [
 			plannedStateSchema,
 			createRequestedStateSchema,
@@ -69,11 +71,12 @@ export const TerminalBindingSchema = z
 const TerminalBindingStoreDocumentSchema = z
 	.strictObject({
 		bindings: z.array(TerminalBindingSchema),
-		version: z.literal(2),
+		version: z.literal(3),
 	})
 	.superRefine((document, context) => {
 		const bindingIds = new Set<string>();
 		const creationIds = new Set<string>();
+		const presentationIds = new Set<string>();
 		const terminalIdentities = new Set<string>();
 		for (const [index, binding] of document.bindings.entries()) {
 			if (index > 0) {
@@ -102,6 +105,14 @@ const TerminalBindingStoreDocumentSchema = z
 				});
 			}
 			creationIds.add(binding.creationId);
+			if (presentationIds.has(binding.presentationId)) {
+				context.addIssue({
+					code: 'custom',
+					message: 'TerminalPresentationId must be unique across bindings',
+					path: ['bindings', index, 'presentationId'],
+				});
+			}
+			presentationIds.add(binding.presentationId);
 			const identity = bindingIdentity(binding);
 			if (identity === null) continue;
 			const identityKey = `${identity.hostEpoch}:${identity.terminalId}`;
@@ -140,7 +151,7 @@ export function createTerminalBindingStoreDocument(
 		bindings: [...bindings].sort((left, right) =>
 			compareBindingIds(left.bindingId, right.bindingId),
 		),
-		version: 2,
+		version: 3,
 	});
 }
 

@@ -1,19 +1,15 @@
 import { randomBytes } from 'node:crypto';
+import { constants } from 'node:os';
 
 import {
-	AttachTerminalSchema,
-	AttachmentCapabilitiesSchema,
-	AttachmentIdSchema,
 	ClientIdSchema,
 	decodeControlJson,
 	MessageKind,
 	TerminalExitedSchema,
-	TerminalPhase,
 	type DecodedProtocolEnvelope,
 	type TerminalExited,
-	type TerminalIdentity,
-	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
+import { TerminalPresentationIdSchema } from '@orchbee/workbench/terminal-presentation';
 import {
 	BrowserWindow,
 	MessageChannelMain,
@@ -21,16 +17,31 @@ import {
 	type MessagePortMain,
 } from 'electron';
 
-import { PROJECTED_ATTACHMENT_IPC_CHANNEL, ProjectedAttachmentBootstrapSchema } from '../../shared';
+import {
+	TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
+	TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
+	TerminalDocumentControlBootstrapSchema,
+	TerminalProjectionControlBootstrapSchema,
+	type ProjectedAttachmentBootstrap,
+	type TerminalDocumentControlCommand,
+	type TerminalDocumentControlEvent,
+	type TerminalDocumentControlOperationResult,
+} from '../../shared';
 import { ProjectedTerminalBroker, type ProjectedTerminalBrokerMetrics } from '../broker';
 import { DevelopmentHostRuntime, type HostConnection } from '../host';
-import { FileTerminalBindingStore, TerminalRecoveryCoordinator } from '../recovery';
 import {
-	TerminalBindingLifecycle,
-	TerminalCloseOrchestrator,
-	type TerminalBindingLifecycleOutcome,
-	type TerminalCloseOutcome,
-} from '../terminal-lifetime';
+	TerminalDocumentControlBroker,
+	type TerminalDocumentControlOperations,
+	type TerminalDocumentControlResultPosted,
+} from '../terminal-document-control';
+import {
+	TerminalProjectionControlBroker,
+	type DesktopTerminalProjectionLease,
+} from '../terminal-projection-control';
+import {
+	composeDesktopTerminalRuntime,
+	type DesktopTerminalRuntime,
+} from './composeDesktopTerminalRuntime';
 import type { DesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 
 interface DesktopBrokerHandle {
@@ -39,10 +50,17 @@ interface DesktopBrokerHandle {
 	start(): void;
 }
 
-interface DesktopTerminalLifecycleHandle {
-	reconcile(): Promise<TerminalBindingLifecycleOutcome>;
-	recordExit(event: TerminalExited): Promise<void>;
-	requestClose(retireProjection: () => Promise<void>): Promise<TerminalCloseOutcome>;
+interface DesktopDocumentBrokerHandle {
+	dispose(): void;
+	publishTerminalExit(
+		event: Extract<TerminalDocumentControlEvent, { readonly type: 'terminal-exited' }>,
+	): boolean;
+	start(): void;
+}
+
+interface DesktopProjectionControlBrokerHandle {
+	dispose(): Promise<void>;
+	start(): void;
 }
 
 export interface DesktopApplicationOptions {
@@ -59,17 +77,32 @@ export interface DesktopApplicationDependencies {
 	readonly createBroker: (
 		host: HostConnection,
 		port: MessagePortMain,
-		bootstrap: ReturnType<typeof ProjectedAttachmentBootstrapSchema.parse>,
+		bootstrap: ProjectedAttachmentBootstrap,
 	) => DesktopBrokerHandle;
+	readonly createDocumentBroker: (
+		port: MessagePortMain,
+		operations: TerminalDocumentControlOperations,
+		resultPosted: TerminalDocumentControlResultPosted,
+	) => DesktopDocumentBrokerHandle;
 	readonly createMessageChannel: () => {
 		readonly port1: MessagePortMain;
 		readonly port2: MessagePortMain;
 	};
-	readonly createTerminalLifecycle: (
+	readonly createProjectionControlBroker: (
+		port: MessagePortMain,
+		service: {
+			open(
+				presentationId: Parameters<DesktopTerminalRuntime['open']>[0],
+			): Promise<DesktopTerminalProjectionLease>;
+		},
+	) => DesktopProjectionControlBrokerHandle;
+	readonly createTerminalRuntime: (
 		host: HostConnection,
 		configuration: DesktopRuntimeConfiguration,
 		randomIdentifier: () => string,
-	) => DesktopTerminalLifecycleHandle;
+		createMessageChannel: DesktopApplicationDependencies['createMessageChannel'],
+		createBroker: DesktopApplicationDependencies['createBroker'],
+	) => DesktopTerminalRuntime;
 	readonly createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
 	readonly randomIdentifier: () => string;
 	readonly writeTrace: (trace: unknown) => void;
@@ -83,22 +116,25 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			runtimeDirectory: configuration.runtimeDirectory,
 		}).connect(),
 	createBroker: (host, port, bootstrap) => new ProjectedTerminalBroker(host, port, bootstrap),
+	createDocumentBroker: (port, operations, resultPosted) =>
+		new TerminalDocumentControlBroker(port, operations, resultPosted),
 	createMessageChannel: () => new MessageChannelMain(),
-	createTerminalLifecycle: (host, configuration, randomIdentifier) => {
-		const store = new FileTerminalBindingStore(configuration.terminalBindingStorePath);
-		return new TerminalBindingLifecycle(
-			new TerminalRecoveryCoordinator(
-				host,
-				store,
-				{
-					bindingId: configuration.recoveryBindingId,
-					launch: configuration.terminalLaunch,
-				},
-				{ randomCreationId: randomIdentifier },
-			),
-			new TerminalCloseOrchestrator(host, store, configuration.recoveryBindingId),
-		);
-	},
+	createProjectionControlBroker: (port, service) =>
+		new TerminalProjectionControlBroker(port, service),
+	createTerminalRuntime: (
+		host,
+		configuration,
+		randomIdentifier,
+		createMessageChannel,
+		createBroker,
+	) =>
+		composeDesktopTerminalRuntime({
+			configuration,
+			createBroker,
+			createMessageChannel,
+			host,
+			randomIdentifier,
+		}),
 	createWindow: (options) => new BrowserWindow(options),
 	randomIdentifier: () => randomBytes(16).toString('hex'),
 	writeTrace: (trace) => console.info(JSON.stringify(trace)),
@@ -107,18 +143,15 @@ const defaultDependencies: DesktopApplicationDependencies = {
 export class DesktopApplication {
 	readonly #dependencies: DesktopApplicationDependencies;
 	readonly #options: DesktopApplicationOptions;
-	#attachmentFailure: Error | undefined;
-	#attachmentTransition = Promise.resolve();
-	#broker: DesktopBrokerHandle | undefined;
 	#connection: HostConnection | undefined;
+	#documentBroker: DesktopDocumentBrokerHandle | undefined;
+	#documentFailure: Error | undefined;
 	#documentGeneration = 0;
-	#identity: TerminalIdentity | undefined;
-	#terminalLifecycle: DesktopTerminalLifecycleHandle | undefined;
+	#documentTransition = Promise.resolve();
+	#projectionControlBroker: DesktopProjectionControlBrokerHandle | undefined;
 	#removeHostListener: (() => void) | undefined;
 	#shuttingDown = false;
-	#summary: TerminalSummary | null | undefined;
-	#terminalClosing = false;
-	#terminalExit: TerminalExited | undefined;
+	#terminalRuntime: DesktopTerminalRuntime | undefined;
 	#window: BrowserWindow | undefined;
 
 	constructor(
@@ -146,25 +179,27 @@ export class DesktopApplication {
 		this.#connection = connection;
 		try {
 			await connection.negotiate(ClientIdSchema.parse(this.#dependencies.randomIdentifier()));
-			const terminalLifecycle = this.#dependencies.createTerminalLifecycle(
+			const terminalRuntime = this.#dependencies.createTerminalRuntime(
 				connection,
 				this.#options.runtime,
 				this.#dependencies.randomIdentifier,
+				this.#dependencies.createMessageChannel,
+				this.#dependencies.createBroker,
 			);
-			this.#terminalLifecycle = terminalLifecycle;
-			const outcome = await terminalLifecycle.reconcile();
-			if (outcome.kind !== 'provisioning' && outcome.kind !== 'recovered') {
-				throw new Error(`Desktop terminal recovery stopped with ${outcome.kind}.`);
+			this.#terminalRuntime = terminalRuntime;
+			const initialization = await terminalRuntime.initialize();
+			if (initialization.kind !== 'ready') {
+				throw new Error(
+					`Desktop terminal runtime initialization stopped with ${initialization.kind}.`,
+				);
 			}
-			this.#identity = outcome.identity;
-			this.#summary = outcome.summary;
-			this.#terminalExit = terminalExitFromSummary(outcome.summary);
 			this.#removeHostListener = connection.onEnvelope(this.#handleHostEnvelope);
 			await this.openWindow();
 		} catch (error) {
 			this.#removeHostListener?.();
 			this.#removeHostListener = undefined;
-			this.#terminalLifecycle = undefined;
+			await this.#terminalRuntime?.dispose();
+			this.#terminalRuntime = undefined;
 			connection.close();
 			this.#connection = undefined;
 			throw error;
@@ -176,10 +211,10 @@ export class DesktopApplication {
 			this.#window?.focus();
 			return;
 		}
-		if (this.#connection === undefined || this.#identity === undefined) {
+		if (this.#connection === undefined || this.#terminalRuntime === undefined) {
 			throw new Error('Desktop application must start before opening a window.');
 		}
-		this.#attachmentFailure = undefined;
+		this.#documentFailure = undefined;
 		const window = this.#dependencies.createWindow({
 			backgroundColor: '#1e1e1e',
 			height: 720,
@@ -206,11 +241,11 @@ export class DesktopApplication {
 			const generation =
 				loadingGeneration === 0 ? this.#beginRendererDocument() : loadingGeneration;
 			loadingGeneration = 0;
-			this.#queueRendererAttachment(window, generation);
+			this.#queueRendererDocument(window, generation);
 		});
 		window.webContents.on('render-process-gone', () => {
 			this.#beginRendererDocument();
-			void this.#attachmentTransition.then(() => {
+			void this.#documentTransition.then(() => {
 				if (this.#window === window && !window.isDestroyed() && !this.#shuttingDown) {
 					window.reload();
 				}
@@ -232,145 +267,130 @@ export class DesktopApplication {
 			}
 			await window.loadURL(rendererUrl.href);
 		}
-		await this.#attachmentTransition;
-		if (this.#attachmentFailure !== undefined) throw this.#attachmentFailure;
-	}
-
-	async requestTerminalClose(): Promise<TerminalCloseOutcome> {
-		const terminalLifecycle = this.#terminalLifecycle;
-		if (terminalLifecycle === undefined) {
-			throw new Error('Desktop application must start before closing its terminal.');
-		}
-		return terminalLifecycle.requestClose(async () => {
-			this.#terminalClosing = true;
-			this.#writeCopyPathTrace('terminal-closing');
-			this.#beginRendererDocument();
-			await this.#attachmentTransition;
-		});
+		await this.#documentTransition;
+		if (this.#documentFailure !== undefined) throw this.#documentFailure;
 	}
 
 	async shutdown(): Promise<void> {
-		if (this.#shuttingDown) return this.#attachmentTransition;
+		if (this.#shuttingDown) return this.#documentTransition;
 		this.#shuttingDown = true;
 		this.#removeHostListener?.();
 		this.#removeHostListener = undefined;
 		this.#writeCopyPathTrace('main-shutdown');
 		this.#beginRendererDocument();
-		await this.#attachmentTransition;
+		await this.#documentTransition;
+		await this.#terminalRuntime?.dispose();
 		this.#connection?.close();
 		this.#connection = undefined;
-		this.#identity = undefined;
-		this.#summary = undefined;
-		this.#terminalClosing = false;
-		this.#terminalExit = undefined;
-		this.#terminalLifecycle = undefined;
+		this.#terminalRuntime = undefined;
 	}
 
 	#beginRendererDocument(): number {
 		const generation = ++this.#documentGeneration;
-		const broker = this.#broker;
-		this.#broker = undefined;
-		const retirement = broker?.dispose() ?? Promise.resolve();
-		this.#attachmentTransition = this.#attachmentTransition.then(async () => retirement);
+		this.#documentBroker?.dispose();
+		this.#documentBroker = undefined;
+		const projectionBroker = this.#projectionControlBroker;
+		this.#projectionControlBroker = undefined;
+		this.#documentTransition = this.#documentTransition.then(async () =>
+			projectionBroker?.dispose(),
+		);
 		return generation;
 	}
 
-	#queueRendererAttachment(window: BrowserWindow, generation: number): void {
-		this.#attachmentTransition = this.#attachmentTransition.then(async () => {
+	#queueRendererDocument(window: BrowserWindow, generation: number): void {
+		this.#documentTransition = this.#documentTransition.then(async () => {
 			try {
-				await this.#attachRendererDocument(window, generation);
+				this.#attachRendererDocument(window, generation);
 			} catch (error) {
-				this.#attachmentFailure =
-					error instanceof Error ? error : new Error('Renderer attachment failed.');
+				this.#documentFailure =
+					error instanceof Error ? error : new Error('Renderer document control failed.');
 			}
 		});
 	}
 
-	async #attachRendererDocument(window: BrowserWindow, generation: number): Promise<void> {
-		const connection = this.#connection;
-		const identity = this.#identity;
+	#attachRendererDocument(window: BrowserWindow, generation: number): void {
+		const terminalRuntime = this.#terminalRuntime;
 		if (
-			connection === undefined ||
-			identity === undefined ||
+			terminalRuntime === undefined ||
 			this.#window !== window ||
 			window.isDestroyed() ||
 			generation !== this.#documentGeneration ||
-			this.#terminalClosing ||
 			this.#shuttingDown
 		) {
 			return;
 		}
-		const readOnly =
-			this.#terminalExit !== undefined ||
-			this.#summary?.phase === TerminalPhase.finishing ||
-			this.#summary?.phase === TerminalPhase.exited;
-		const attachmentId = AttachmentIdSchema.parse(this.#dependencies.randomIdentifier());
-		const capabilities = await connection.requestControl(
-			MessageKind.attachTerminal,
-			AttachTerminalSchema.parse({
-				attachmentId,
-				capabilities: { input: !readOnly, read: true, resize: !readOnly },
-				requestResizeLease: !readOnly,
-				terminalId: identity.terminalId,
-			}),
-			MessageKind.attachmentCapabilities,
-			AttachmentCapabilitiesSchema,
+		const defaultCwd = this.#options.runtime.terminalLaunch.currentDirectory;
+		if (defaultCwd === null) throw new Error('Desktop terminal runtime requires a default CWD.');
+		const documentChannel = this.#dependencies.createMessageChannel();
+		const projectionChannel = this.#dependencies.createMessageChannel();
+		const documentBroker = this.#dependencies.createDocumentBroker(
+			documentChannel.port2,
+			terminalRuntime,
+			this.#handleDocumentResultPosted,
 		);
-		if (
-			capabilities.attachmentId !== attachmentId ||
-			capabilities.terminalId !== identity.terminalId ||
-			!capabilities.capabilities.read ||
-			(readOnly &&
-				(capabilities.capabilities.input ||
-					capabilities.capabilities.resize ||
-					capabilities.resizeLease)) ||
-			(!readOnly &&
-				(!capabilities.capabilities.input ||
-					!capabilities.capabilities.resize ||
-					!capabilities.resizeLease))
-		) {
-			throw new Error('Terminal Host did not grant the required local attachment capabilities.');
-		}
-		const bootstrap = ProjectedAttachmentBootstrapSchema.parse({
-			attachmentId,
-			canInput: capabilities.capabilities.input,
-			canResize: capabilities.resizeLease,
-			creationId: identity.creationId,
-			hostEpoch: identity.hostEpoch,
-			terminalExit: this.#terminalExit ?? null,
-			terminalId: identity.terminalId,
+		const projectionBroker = this.#dependencies.createProjectionControlBroker(
+			projectionChannel.port2,
+			terminalRuntime,
+		);
+		this.#documentBroker = documentBroker;
+		this.#projectionControlBroker = projectionBroker;
+		documentBroker.start();
+		projectionBroker.start();
+		const documentBootstrap = TerminalDocumentControlBootstrapSchema.parse({
+			defaultCwd,
+			initialPresentationId: TerminalPresentationIdSchema.parse(
+				`desktop:presentation:${this.#dependencies.randomIdentifier()}`,
+			),
+			presentations: terminalRuntime.getRecoveredPresentations(),
+			type: TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
 		});
-		const channel = this.#dependencies.createMessageChannel();
-		const broker = this.#dependencies.createBroker(connection, channel.port2, bootstrap);
+		window.webContents.postMessage(TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL, documentBootstrap, [
+			documentChannel.port1,
+		]);
+		window.webContents.postMessage(
+			TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
+			TerminalProjectionControlBootstrapSchema.parse({
+				type: TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
+			}),
+			[projectionChannel.port1],
+		);
+	}
+
+	readonly #handleDocumentResultPosted = (
+		command: TerminalDocumentControlCommand,
+		result: TerminalDocumentControlOperationResult,
+	): void => {
 		if (
-			this.#window !== window ||
-			window.isDestroyed() ||
-			generation !== this.#documentGeneration ||
-			this.#shuttingDown
+			command.type !== 'terminal-provision-requested' ||
+			result.type !== 'terminal-provision-completed'
 		) {
-			await broker.dispose();
 			return;
 		}
-		this.#broker = broker;
-		broker.start();
-		window.webContents.postMessage(PROJECTED_ATTACHMENT_IPC_CHANNEL, bootstrap, [channel.port1]);
-	}
+		const terminalExit = this.#terminalRuntime?.getProjectionTarget(
+			command.presentationId,
+		)?.terminalExit;
+		if (terminalExit !== null && terminalExit !== undefined) {
+			this.#documentBroker?.publishTerminalExit(
+				toDocumentExit(command.presentationId, terminalExit),
+			);
+		}
+	};
 
 	readonly #handleHostEnvelope = (envelope: DecodedProtocolEnvelope): void => {
 		if (envelope.kind !== MessageKind.terminalExited) return;
 		const exited = decodeControlJson(envelope.payload, TerminalExitedSchema);
-		if (!exited.ok || exited.value.identity.terminalId !== this.#identity?.terminalId) return;
-		this.#terminalExit = exited.value;
-		void this.#terminalLifecycle?.recordExit(exited.value).catch(() => {
-			console.error('Orchbee Desktop could not persist terminal exit recovery state.');
+		if (!exited.ok) return;
+		void this.#terminalRuntime?.recordExit(exited.value).then((presentationId) => {
+			if (presentationId === null) return;
+			this.#documentBroker?.publishTerminalExit(toDocumentExit(presentationId, exited.value));
+			this.#writeCopyPathTrace('terminal-exited');
 		});
-		this.#writeCopyPathTrace('terminal-exited');
 	};
 
 	#writeCopyPathTrace(reason: string): void {
 		if (!this.#options.traceCopyPath || this.#connection === undefined) return;
 		this.#dependencies.writeTrace({
-			broker: this.#broker?.metrics ?? null,
+			brokers: this.#terminalRuntime?.getProjectionMetrics() ?? [],
 			hostTransport: this.#connection.metrics,
 			reason,
 			type: 'orchbee.desktop.copy-path',
@@ -378,12 +398,27 @@ export class DesktopApplication {
 	}
 }
 
-function terminalExitFromSummary(summary: TerminalSummary | null): TerminalExited | undefined {
-	return summary?.phase === TerminalPhase.exited && summary.exit !== null
-		? {
-				exit: summary.exit,
-				finalRevision: summary.revision,
-				identity: summary.identity,
-			}
-		: undefined;
+function toDocumentExit(
+	presentationId: Parameters<DesktopTerminalRuntime['getProjectionTarget']>[0],
+	exited: TerminalExited,
+): Extract<TerminalDocumentControlEvent, { readonly type: 'terminal-exited' }> {
+	if (exited.exit.kind === 'exit-code') {
+		return { exitCode: exited.exit.code, presentationId, signal: null, type: 'terminal-exited' };
+	}
+	if (exited.exit.kind === 'signal') {
+		return {
+			exitCode: null,
+			presentationId,
+			signal: signalName(exited.exit.signal),
+			type: 'terminal-exited',
+		};
+	}
+	return { exitCode: null, presentationId, signal: null, type: 'terminal-exited' };
+}
+
+function signalName(signal: number): string {
+	for (const [name, value] of Object.entries(constants.signals)) {
+		if (value === signal) return name;
+	}
+	return `SIGNAL_${signal}`;
 }

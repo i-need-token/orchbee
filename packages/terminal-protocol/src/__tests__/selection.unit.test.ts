@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ProtocolErrorCode } from '../protocol-result';
 import {
 	decodeSelectionExportChunk,
+	decodeSelectionExportChunkRoute,
 	encodeSelectionExportChunk,
 	SELECTION_EXPORT_CHUNK_HEADER_BYTES,
 } from '../selection';
@@ -18,7 +19,9 @@ describe('selection export chunks', () => {
 		});
 		if (!encoded.ok) throw new Error(encoded.detail);
 		const decoded = decodeSelectionExportChunk(encoded.value);
+		const route = decodeSelectionExportChunkRoute(encoded.value);
 		if (!decoded.ok) throw new Error(decoded.detail);
+		if (!route.ok) throw new Error(route.detail);
 
 		expect(decoded.value).toMatchObject({
 			chunkSequence: 7,
@@ -26,6 +29,12 @@ describe('selection export chunks', () => {
 			final: true,
 		});
 		expect(new TextDecoder().decode(decoded.value.bytes)).toBe('selected\ntext');
+		expect(route.value).toEqual({
+			attachmentId: '22'.repeat(16),
+			chunkSequence: 7,
+			exportSequence: 9n,
+			final: true,
+		});
 	});
 
 	it('rejects truncated headers and non-zero reserved bytes', () => {

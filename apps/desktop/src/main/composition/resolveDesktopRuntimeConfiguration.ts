@@ -25,7 +25,6 @@ export interface DesktopRuntimeConfigurationInput {
 export interface DesktopRuntimeConfiguration {
 	readonly binaryPath: string;
 	readonly endpointId: string;
-	readonly recoveryBindingId: string;
 	readonly runtimeDirectory: string;
 	readonly terminalBindingStorePath: string;
 	readonly terminalLaunch: TerminalLaunchV1_1;
@@ -44,7 +43,7 @@ export function resolveDesktopRuntimeConfiguration(
 	if (configuredRuntimeDirectory !== undefined) {
 		runtimeDirectory = path.resolve(configuredRuntimeDirectory);
 	} else if (input.platform === 'win32') {
-		runtimeDirectory = path.join(input.userDataPath, 'terminal-host-slice-5');
+		runtimeDirectory = path.join(input.userDataPath, 'terminal-host');
 	} else {
 		runtimeDirectory = path.join(
 			'/tmp',
@@ -54,7 +53,7 @@ export function resolveDesktopRuntimeConfiguration(
 	const endpointId =
 		input.environment.ORCHBEE_DESKTOP_ENDPOINT_ID ??
 		createHash('sha256')
-			.update('orchbee-desktop-slice-5-development-endpoint-v1')
+			.update('orchbee-desktop-development-endpoint-v1')
 			.digest('hex')
 			.slice(0, 32);
 	const executable =
@@ -69,9 +68,8 @@ export function resolveDesktopRuntimeConfiguration(
 	return {
 		binaryPath,
 		endpointId,
-		recoveryBindingId: 'desktop-terminal-foundation',
 		runtimeDirectory,
-		terminalBindingStorePath: path.join(recoveryDirectory, 'bindings-v2.json'),
+		terminalBindingStorePath: path.join(recoveryDirectory, 'bindings-v3.json'),
 		terminalLaunch: TerminalLaunchV1_1Schema.parse({
 			arguments: [],
 			cellPixelHeight: 16,

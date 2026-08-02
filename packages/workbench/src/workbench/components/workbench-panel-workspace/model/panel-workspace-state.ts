@@ -893,6 +893,13 @@ export function getDisplayedTerminal(panel: PanelLeaf): TerminalPresentation {
 	);
 }
 
+export function findTerminal(
+	root: PanelLayoutNode,
+	presentationId: TerminalPresentationId,
+): TerminalPresentation | null {
+	return findTerminalInNode(root, presentationId);
+}
+
 export function projectPanelDrag(
 	root: PanelLayoutNode,
 	panelId: string,

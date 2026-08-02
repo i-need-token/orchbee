@@ -69,6 +69,35 @@ function renderWorkbench(
 }
 
 describe('Workbench', () => {
+	it('mounts an application-owned terminal surface only inside the displayed viewport', () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('surface'),
+		});
+		const markup = renderToStaticMarkup(
+			createElement(
+				OrchbeeI18nProvider,
+				{ locale: 'en-US' },
+				createElement(
+					TooltipProvider,
+					null,
+					createElement(Workbench, {
+						actionRuntime: new ActionRuntime(),
+						projectWorkspaceRuntime,
+						shortcutPlatform: 'apple',
+						terminalSurface: ({ presentation }) =>
+							createElement('div', {
+								'data-mounted-presentation': presentation.presentationId,
+							}),
+					}),
+				),
+			),
+		);
+
+		expect(markup).toContain('data-mounted-presentation="surface:initial"');
+	});
+
 	it('renders the sidebar chrome and the host-owned tab model', () => {
 		const markup = renderWorkbench();
 

@@ -2,6 +2,7 @@ import * as React from 'react';
 
 import { getDisplayedTerminal, type PanelLeaf } from '../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../types/panel-workspace-view';
+import type { WorkbenchTerminalSurface } from '../../../../../../types/workbench-terminal-surface';
 import { WorkbenchChildTerminalStrip } from './components/workbench-child-terminal-strip/WorkbenchChildTerminalStrip';
 import { WorkbenchPanelDropPlaceholder } from './components/workbench-panel-drop-placeholder/WorkbenchPanelDropPlaceholder';
 import { WorkbenchPanelFocusScrim } from './components/workbench-panel-focus-scrim/WorkbenchPanelFocusScrim';
@@ -11,10 +12,15 @@ import styles from './WorkbenchPanel.module.css';
 
 interface WorkbenchPanelProps {
 	readonly panel: PanelLeaf;
+	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 	readonly view: WorkbenchPanelWorkspaceView;
 }
 
-export function WorkbenchPanel({ panel, view }: WorkbenchPanelProps): React.ReactNode {
+export function WorkbenchPanel({
+	panel,
+	terminalSurface,
+	view,
+}: WorkbenchPanelProps): React.ReactNode {
 	const displayedTerminal = getDisplayedTerminal(panel);
 	const showHeader = view.panelCount > 1 || panel.activeChildPresentationId !== null;
 	const isDropPlaceholder = view.panelDrag.draggingPanelId === panel.id;
@@ -49,6 +55,7 @@ export function WorkbenchPanel({ panel, view }: WorkbenchPanelProps): React.Reac
 				panelId={panel.id}
 				terminal={displayedTerminal}
 				terminalRole={panel.activeChildPresentationId === null ? 'primary' : 'child'}
+				terminalSurface={terminalSurface}
 				view={view}
 			/>
 			{panel.childPresentations.length > 0 && (

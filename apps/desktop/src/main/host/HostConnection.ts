@@ -7,14 +7,21 @@ import {
 	CorrelationIdSchema,
 	decodeControlJson,
 	decodeProtocolEnvelope,
+	decodeSelectionExportChunkRoute,
+	decodeTerminalFrameRoute,
 	encodeProtocolEnvelope,
 	HelloAcceptedSchema,
 	HelloSchema,
+	HistoryChangedSchema,
 	MessageKind,
 	PayloadEncoding,
 	PROTOCOL_LIMITS,
+	ProjectionBlockedSchema,
+	SelectionChangedSchema,
+	SelectionExportFinishedSchema,
 	TypedFailureSchema,
 	type ClientId,
+	type AttachmentId,
 	type DecodedProtocolEnvelope,
 	type HelloAccepted,
 	type HostEpoch,
@@ -54,6 +61,7 @@ export type HostClosedListener = (reason: Error) => void;
 
 export class HostConnection {
 	readonly #assembler: HostRecordAssembler;
+	readonly #attachmentListeners = new Map<AttachmentId, Set<HostEnvelopeListener>>();
 	readonly #closedListeners = new Set<HostClosedListener>();
 	readonly #listeners = new Set<HostEnvelopeListener>();
 	readonly #pending = new Map<string, PendingRequest>();
@@ -227,6 +235,17 @@ export class HostConnection {
 		return () => this.#listeners.delete(listener);
 	}
 
+	onAttachmentEnvelope(attachmentId: AttachmentId, listener: HostEnvelopeListener): () => void {
+		const listeners =
+			this.#attachmentListeners.get(attachmentId) ?? new Set<HostEnvelopeListener>();
+		listeners.add(listener);
+		this.#attachmentListeners.set(attachmentId, listeners);
+		return () => {
+			listeners.delete(listener);
+			if (listeners.size === 0) this.#attachmentListeners.delete(attachmentId);
+		};
+	}
+
 	onClosed(listener: HostClosedListener): () => void {
 		const reason = this.#closedReason;
 		if (reason !== undefined) {
@@ -261,16 +280,55 @@ export class HostConnection {
 		if (this.#hostEpoch !== undefined && envelope.hostEpoch !== this.#hostEpoch) {
 			throw new Error('Host emitted a record for a stale or foreign HostEpoch.');
 		}
-		if (envelope.kind === MessageKind.snapshotFrame || envelope.kind === MessageKind.deltaFrame) {
-			this.#terminalFramesReceived += 1;
-		}
-
 		if (envelope.response) {
 			this.#handleResponse(envelope);
 			return;
 		}
 		if (!envelope.event) throw new Error('Host emitted an unsolicited request record.');
+		const attachmentId = this.#routeAttachmentEvent(envelope);
+		if (attachmentId !== null) {
+			for (const listener of this.#attachmentListeners.get(attachmentId) ?? []) {
+				listener(envelope);
+			}
+			return;
+		}
 		for (const listener of this.#listeners) listener(envelope);
+	}
+
+	#routeAttachmentEvent(envelope: DecodedProtocolEnvelope): AttachmentId | null {
+		switch (envelope.kind) {
+			case MessageKind.snapshotFrame:
+			case MessageKind.deltaFrame: {
+				if (envelope.payloadEncoding !== PayloadEncoding.terminalFrame) {
+					throw new Error('Terminal Host frame used the wrong payload encoding.');
+				}
+				const route = decodeTerminalFrameRoute(envelope.payload);
+				if (!route.ok) throw new Error(route.detail);
+				if (route.value.hostEpoch !== envelope.hostEpoch) {
+					throw new Error('Terminal frame and envelope HostEpoch values differ.');
+				}
+				this.#terminalFramesReceived += 1;
+				return route.value.attachmentId;
+			}
+			case MessageKind.historyChanged:
+				return decodeControlAttachmentId(envelope, HistoryChangedSchema);
+			case MessageKind.projectionBlocked:
+				return decodeControlAttachmentId(envelope, ProjectionBlockedSchema);
+			case MessageKind.selectionChanged:
+				return decodeControlAttachmentId(envelope, SelectionChangedSchema);
+			case MessageKind.selectionExportFinished:
+				return decodeControlAttachmentId(envelope, SelectionExportFinishedSchema);
+			case MessageKind.selectionExportChunk: {
+				if (envelope.payloadEncoding !== PayloadEncoding.rawBytes) {
+					throw new Error('Terminal Host selection export used the wrong payload encoding.');
+				}
+				const route = decodeSelectionExportChunkRoute(envelope.payload);
+				if (!route.ok) throw new Error(route.detail);
+				return route.value.attachmentId;
+			}
+			default:
+				return null;
+		}
 	}
 
 	#handleResponse(envelope: DecodedProtocolEnvelope): void {
@@ -335,4 +393,16 @@ function desktopSupportsProtocol(protocol: ProtocolVersion): boolean {
 		protocol.minor >= DESKTOP_HOST_PROTOCOL_RANGE.minimumMinor &&
 		protocol.minor <= DESKTOP_HOST_PROTOCOL_RANGE.maximumMinor
 	);
+}
+
+function decodeControlAttachmentId<Output extends { readonly attachmentId: AttachmentId }>(
+	envelope: DecodedProtocolEnvelope,
+	schema: z.ZodType<Output>,
+): AttachmentId {
+	if (envelope.payloadEncoding !== PayloadEncoding.controlJson) {
+		throw new Error('Terminal Host attachment event used the wrong payload encoding.');
+	}
+	const decoded = decodeControlJson(envelope.payload, schema);
+	if (!decoded.ok) throw new Error(decoded.detail);
+	return decoded.value.attachmentId;
 }

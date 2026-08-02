@@ -32,6 +32,7 @@ import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessag
 import type { WorkbenchHostActionCallback } from './types/workbench-host-actions';
 import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
 import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
+import type { WorkbenchTerminalSurface } from './types/workbench-terminal-surface';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 import styles from './Workbench.module.css';
 
@@ -43,6 +44,7 @@ export interface WorkbenchProps {
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
+	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
 
 export function Workbench({
@@ -53,6 +55,7 @@ export function Workbench({
 	projectWorkspaceRuntime,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutPlatform,
+	terminalSurface,
 }: WorkbenchProps): React.ReactNode {
 	const tabStripMessages = useWorkbenchTabStripMessages();
 	const view = useWorkbench({
@@ -179,6 +182,7 @@ export function Workbench({
 								onOrientationChange={view.onTabStripOrientationChange}
 								onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
 								orientation={view.tabStripOrientation}
+								onCloseTabs={view.onCloseTabs}
 								parentActionScope={view.actionScope}
 								reserveSidebarToggleSpace={!view.isSidebarVisible}
 								tabModel={view.terminalContext.tabModel}
@@ -190,6 +194,7 @@ export function Workbench({
 									actionRuntime={actionRuntime}
 									panelWorkspaceStore={view.terminalContext.panelWorkspaceStore}
 									parentActionScope={view.actionScope}
+									terminalSurface={terminalSurface}
 								/>
 							</div>
 						</div>

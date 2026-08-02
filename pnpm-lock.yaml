@@ -134,6 +134,9 @@ importers:
       '@orchbee/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
+      '@orchbee/tab-strip':
+        specifier: workspace:^
+        version: link:../../packages/tab-strip
       '@orchbee/terminal':
         specifier: workspace:^
         version: link:../../packages/terminal

@@ -6,6 +6,8 @@ export type {
 	WorkbenchProjectWorkspaceRuntimeOptions,
 	WorkbenchRuntimeTerminalCreateInput,
 	WorkbenchRuntimeTerminalCreateResult,
+	WorkbenchStandaloneTerminalPresentation,
+	WorkbenchTerminalPresentationEventResult,
 } from './model/WorkbenchProjectWorkspaceRuntime';
 export type {
 	WorkbenchTerminalPresentationCommand,
@@ -30,6 +32,11 @@ export type {
 	WorkbenchTerminalCreateCallback,
 } from './types/workbench-host-actions';
 export type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
+export type {
+	WorkbenchTerminalPresentation,
+	WorkbenchTerminalSurface,
+	WorkbenchTerminalSurfaceProps,
+} from './types/workbench-terminal-surface';
 export type { WorkbenchSearchFilter } from './types/workbench-search';
 export type {
 	WorkbenchSearchProvider,

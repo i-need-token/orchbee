@@ -13,6 +13,7 @@ import {
 	type TerminalIdentity,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
+import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createDefaultTerminalProfile, type HostConnection } from '../../host';
@@ -378,6 +379,7 @@ function createBinding(
 			rows: 24,
 			terminalProfile: createDefaultTerminalProfile(),
 		},
+		presentationId: terminalPresentationId(`presentation-${targetBindingId}`),
 		state,
 	};
 }
@@ -410,12 +412,12 @@ function requireDocument(store: MemoryStore): MemoryDocument {
 
 interface MemoryDocument {
 	readonly bindings: TerminalBinding[];
-	readonly version: 2;
+	readonly version: 3;
 }
 
 function createDocument(bindings: readonly TerminalBinding[] = []): MemoryDocument {
 	return {
 		bindings: [...bindings].sort((left, right) => left.bindingId.localeCompare(right.bindingId)),
-		version: 2,
+		version: 3,
 	};
 }

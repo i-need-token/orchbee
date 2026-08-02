@@ -8,6 +8,7 @@ import type {
 import {
 	TerminalDocumentControlBroker,
 	type TerminalDocumentControlOperations,
+	type TerminalDocumentControlResultPosted,
 } from '../TerminalDocumentControlBroker';
 
 type CloseListener = () => void;
@@ -71,13 +72,18 @@ describe('TerminalDocumentControlBroker', () => {
 			presentationId: command.presentationId,
 			type: 'terminal-provision-completed',
 		}));
-		const broker = new TerminalDocumentControlBroker(testPort.port, { execute });
+		const resultPosted = vi.fn<TerminalDocumentControlResultPosted>();
+		const broker = new TerminalDocumentControlBroker(testPort.port, { execute }, resultPosted);
 
 		broker.start();
 		testPort.emitMessage(provisionCommand());
 
 		await vi.waitFor(() => expect(testPort.posted).toHaveLength(1));
 		expect(execute).toHaveBeenCalledOnce();
+		expect(resultPosted).toHaveBeenCalledWith(
+			provisionCommand(),
+			expect.objectContaining({ type: 'terminal-provision-completed' }),
+		);
 		expect(testPort.posted).toEqual([
 			{
 				operationId: 'operation-1',

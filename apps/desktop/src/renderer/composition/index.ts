@@ -1,2 +1,2 @@
-export { startDesktopRenderer } from './startDesktopRenderer';
-export type { DesktopRendererDependencies, DesktopRendererSession } from './startDesktopRenderer';
+export { startDesktopWorkbenchRenderer } from './startDesktopWorkbenchRenderer';
+export type { DesktopWorkbenchRendererSession } from './startDesktopWorkbenchRenderer';

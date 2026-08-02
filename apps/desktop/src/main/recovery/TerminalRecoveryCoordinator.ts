@@ -11,6 +11,10 @@ import {
 	type TerminalLaunchV1_1,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
+import {
+	TerminalPresentationIdSchema,
+	type TerminalPresentationId,
+} from '@orchbee/workbench/terminal-presentation';
 
 import { HostRequestError, readTerminalInventory, type HostConnection } from '../host';
 import type {
@@ -37,6 +41,7 @@ export class TerminalRecoveryCoordinator {
 	readonly #dependencies: TerminalRecoveryCoordinatorDependencies;
 	readonly #host: HostConnection;
 	readonly #launch: TerminalLaunchV1_1;
+	readonly #presentationId: TerminalPresentationId;
 	readonly #store: TerminalBindingStore;
 
 	constructor(
@@ -49,6 +54,7 @@ export class TerminalRecoveryCoordinator {
 		this.#store = store;
 		this.#bindingId = TerminalBindingIdSchema.parse(configuration.bindingId);
 		this.#launch = TerminalLaunchV1_1Schema.parse(configuration.launch);
+		this.#presentationId = TerminalPresentationIdSchema.parse(configuration.presentationId);
 		this.#dependencies = dependencies;
 	}
 
@@ -68,6 +74,7 @@ export class TerminalRecoveryCoordinator {
 				bindingId: this.#bindingId,
 				creationId: CreationIdSchema.parse(this.#dependencies.randomCreationId()),
 				launch: this.#launch,
+				presentationId: this.#presentationId,
 				state: { kind: 'planned' },
 			};
 			if (!(await this.#save(planned))) {
@@ -79,7 +86,10 @@ export class TerminalRecoveryCoordinator {
 		if (binding.state.kind === 'closing') {
 			return reconcileClosing(binding, binding.state, inventory, this.#host.hostEpoch);
 		}
-		if (!launchesEqual(binding.launch, this.#launch)) {
+		if (
+			binding.presentationId !== this.#presentationId ||
+			!launchesEqual(binding.launch, this.#launch)
+		) {
 			return { kind: 'conflict', reason: 'identity-conflict' };
 		}
 		if (binding.state.kind !== 'lost' && countUnboundTerminals(document, inventory) > 0) {

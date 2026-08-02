@@ -422,6 +422,11 @@ export interface DecodedTerminalFrame {
 	readonly title: string | null;
 }
 
+export interface DecodedTerminalFrameRoute {
+	readonly attachmentId: AttachmentId;
+	readonly hostEpoch: HostEpoch;
+}
+
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8', { fatal: true });
 
@@ -1354,4 +1359,16 @@ export function decodeTerminalFrame(bytes: Uint8Array): ProtocolResult<DecodedTe
 		styles: styles.value,
 		title: title.value,
 	});
+}
+
+export function decodeTerminalFrameRoute(
+	bytes: Uint8Array,
+): ProtocolResult<DecodedTerminalFrameRoute> {
+	const header = decodeFrameHeader(bytes);
+	return header.ok
+		? protocolSuccess({
+				attachmentId: header.value.attachmentId,
+				hostEpoch: header.value.hostEpoch,
+			})
+		: header;
 }

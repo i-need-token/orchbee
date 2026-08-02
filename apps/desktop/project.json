@@ -3,12 +3,12 @@
 	"domain": "desktop",
 	"runtime": ["browser", "electron", "node"],
 	"stability": "experimental",
-	"responsibility": "Electron product process composition, durable multi-terminal binding storage, Host inventory reconciliation, serialized per-binding terminal lifetime orchestration, strict document-scoped lifecycle control, terminal-presentation binding registration, sandboxed renderer capability brokering, desktop terminal interaction composition, and the local Desktop-to-Terminal-Host transport boundary.",
+	"responsibility": "Electron product process composition, durable multi-terminal binding storage, Host inventory reconciliation, serialized per-binding terminal lifetime orchestration, strict document-scoped lifecycle and demand-driven projection control, terminal-presentation binding registration, sandboxed renderer capability brokering, Workbench terminal-surface composition, desktop terminal interaction composition, and the local Desktop-to-Terminal-Host transport boundary.",
 	"nonGoals": [
-		"Owning Project, Workspace, Workbench, Tab, Panel, agent, or product-session models in the terminal composition.",
+		"Defining or persisting Project, Workspace, Workbench, Tab, Panel, agent, or product-session models; Desktop only composes their owning package APIs.",
 		"Owning authoritative VT state, PTY processes, terminal scrollback, or terminal history policy.",
 		"Providing network listeners, sharing, remote authentication, mobile clients, or remote terminal gateways.",
 		"Choosing product quit, Panel-close, retention, or confirmation policy and presentation.",
-		"Providing versioned Host installation, Desktop update activation, recovered-terminal product presentation, or product topology."
+		"Providing versioned Host installation, Desktop update activation, or durable product topology reconstruction beyond flat recovered standalone terminal Tabs."
 	]
 }

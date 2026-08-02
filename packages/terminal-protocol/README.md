@@ -17,9 +17,9 @@ terminal, or own Project, Workspace, Workbench, Tab, Panel, agent, or product-se
 | Compatibility        | Protocol `1.0`-`1.4` validation and deterministic highest-overlap minor negotiation                                     |
 | Control              | Handshake, paged inventory, lifecycle, attachment, projection/history demand, row reads, selection/export, and failures |
 | Transport            | A bounded 64-byte envelope for JSON, raw/semantic input, terminal frames, and row-window payloads                       |
-| Projection           | Format-2 full-row snapshots/deltas decoded into typed columns rather than per-cell JavaScript objects                   |
+| Projection           | Format-2 fixed-header route inspection plus full-row snapshots/deltas decoded into typed columns                        |
 | History              | Format-1.1 render/text row windows, stable origins, applied anchors, and explicit eviction semantics                    |
-| Selection            | Host-owned gestures/commands and bounded acknowledged plain, HTML, or VT export chunks                                  |
+| Selection            | Host-owned gestures/commands, fixed-header chunk routing, and bounded acknowledged plain, HTML, or VT exports           |
 | Input                | Bounded raw, key, committed-text, mouse, focus, and paste codecs scoped by `AttachmentId`                               |
 | Lifecycle            | A serializable deterministic transition function that returns commands without performing effects                       |
 | Correctness evidence | Stable-seed property tests, malformed corpus, checked TLA+ models, and Zig conformance tests                            |
@@ -31,6 +31,7 @@ failure variant and never requires catching a thrown exception.
 import {
 	decodeProtocolEnvelope,
 	decodeTerminalFrame,
+	decodeTerminalFrameRoute,
 	PayloadEncoding,
 } from '@orchbee/terminal-protocol';
 
@@ -38,6 +39,10 @@ const envelope = decodeProtocolEnvelope(record);
 if (!envelope.ok) return closePeer(envelope.code);
 
 if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
+	const route = decodeTerminalFrameRoute(envelope.value.payload);
+	if (!route.ok) return closePeer(route.code);
+	forwardToAttachment(route.value.attachmentId, envelope.value.payload);
+
 	const frame = decodeTerminalFrame(envelope.value.payload);
 	if (!frame.ok) return requestSnapshot(frame.code);
 	projectTypedColumns(frame.value.cells, frame.value.rowData);

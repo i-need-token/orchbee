@@ -5,9 +5,13 @@ import type {
 	TerminalPresentationCreation,
 	TerminalPresentationId,
 } from '../../../../terminal-presentation';
-import type { WorkbenchTerminalPresentationComposition } from '../../../model/createWorkbenchPreviewTerminalPresentationComposition';
+import type {
+	WorkbenchTerminalPresentationCommand,
+	WorkbenchTerminalPresentationComposition,
+} from '../../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import {
 	initializePanelWorkspace,
+	collectPanelLeaves,
 	transitionPanelWorkspace,
 	type PanelWorkspaceEvent,
 	type PanelWorkspaceState,
@@ -19,6 +23,12 @@ type Listener = () => void;
 interface PanelWorkspaceStoreOptions {
 	readonly composition: WorkbenchTerminalPresentationComposition;
 	readonly initialCwd?: string | null | undefined;
+	readonly initialPresentations?:
+		| readonly {
+				readonly cwd: string | null;
+				readonly presentationId: TerminalPresentationId;
+		  }[]
+		| undefined;
 	readonly initialPresentationId?: TerminalPresentationId | undefined;
 	readonly initialState?: PanelWorkspaceState | undefined;
 }
@@ -40,13 +50,20 @@ export class PanelWorkspaceStore {
 			return;
 		}
 		const snapshot = tabModel.getSnapshot();
+		if (
+			options.initialPresentations !== undefined &&
+			options.initialPresentations.length !== snapshot.tabs.length
+		) {
+			throw new Error('Initial terminal presentations must match the initial Tab collection.');
+		}
 		const initialTabs = snapshot.tabs.map((tab, index) => ({
-			cwd: options.initialCwd ?? null,
+			cwd: options.initialPresentations?.[index]?.cwd ?? options.initialCwd ?? null,
 			id: tab.id,
 			presentation: this.createPresentation(
-				index === 0
-					? (options.initialPresentationId ?? options.composition.initialPresentationId)
-					: undefined,
+				options.initialPresentations?.[index]?.presentationId ??
+					(index === 0
+						? (options.initialPresentationId ?? options.composition.initialPresentationId)
+						: undefined),
 			),
 			title: tab.title,
 		}));
@@ -102,6 +119,70 @@ export class PanelWorkspaceStore {
 		};
 	}
 
+	public requestTabClose(tabIds: readonly string[]): PanelWorkspaceTransition {
+		const uniqueTabIds = new Set(tabIds);
+		if (tabIds.length === 0 || uniqueTabIds.size !== tabIds.length) {
+			return {
+				commands: [],
+				outcome: 'rejected',
+				rejection: 'invalid-close-operations',
+				state: this.state,
+			};
+		}
+		if (this.composition.kind === 'preview') {
+			const changed = this.tabModel.closeTabs(tabIds);
+			if (this.unsubscribeTabModel === null) this.reconcileTabs();
+			return {
+				commands: [],
+				outcome: changed ? 'applied' : 'unchanged',
+				rejection: null,
+				state: this.state,
+			};
+		}
+
+		let nextState = this.state;
+		const commands: WorkbenchTerminalPresentationCommand[] = [];
+		for (const tabId of tabIds) {
+			const tab = nextState.tabs.find((candidate) => candidate.tabId === tabId);
+			if (tab === undefined) {
+				return {
+					commands: [],
+					outcome: 'rejected',
+					rejection: 'tab-not-found',
+					state: this.state,
+				};
+			}
+			const presentationIds = collectPanelLeaves(tab.root).flatMap((panel) => [
+				panel.primaryPresentation.presentationId,
+				...panel.childPresentations.map((terminal) => terminal.presentationId),
+			]);
+			const close = this.createTerminalCloseRequest(presentationIds);
+			if (close.kind !== 'managed') {
+				return {
+					commands: [],
+					outcome: 'rejected',
+					rejection: 'invalid-close-operations',
+					state: this.state,
+				};
+			}
+			const transition = transitionPanelWorkspace(nextState, {
+				close,
+				tabId,
+				type: 'tab-close-requested',
+			});
+			if (transition.outcome === 'rejected') {
+				return { ...transition, state: this.state };
+			}
+			nextState = transition.state;
+			commands.push(...transition.commands);
+		}
+
+		this.state = nextState;
+		this.emit();
+		this.dispatchCommands(commands);
+		return { commands, outcome: 'applied', rejection: null, state: nextState };
+	}
+
 	public prepareTabCwd(tabId: string, cwd: string | null): void {
 		this.pendingTabCwds.set(tabId, cwd);
 		this.pendingTabPresentations.set(tabId, this.createPresentation());
@@ -141,9 +222,15 @@ export class PanelWorkspaceStore {
 	}
 
 	private dispatchCommands(commands: PanelWorkspaceTransition['commands']): void {
-		if (commands.length > 0 && this.composition.kind === 'managed') {
-			this.composition.dispatchCommands(commands);
-		}
+		if (commands.length === 0 || this.composition.kind !== 'managed') return;
+		const terminalCommands = commands.filter((command) => {
+			if (command.type !== 'tab-close-ready') return true;
+			if (this.tabModel.closeTab(command.tabId) && this.unsubscribeTabModel === null) {
+				this.reconcileTabs();
+			}
+			return false;
+		});
+		if (terminalCommands.length > 0) this.composition.dispatchCommands(terminalCommands);
 	}
 
 	private toTabInputs(snapshot: TabModelSnapshot, initialCwd?: string | null) {

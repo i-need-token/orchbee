@@ -28,12 +28,19 @@ describe('installTerminalDocumentControlBridge', () => {
 		});
 
 		listener?.({ ports: [port] } as IpcRendererEvent, {
+			defaultCwd: '/workspace',
+			initialPresentationId: 'presentation-initial',
+			presentations: [],
 			type: TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
 		});
 
 		const call = vi.mocked(targetWindow.postMessage).mock.calls[0];
 		expect(call?.[0]).toEqual(
 			expect.objectContaining({
+				bootstrap: expect.objectContaining({
+					defaultCwd: '/workspace',
+					initialPresentationId: 'presentation-initial',
+				}),
 				security: { contextIsolated: true, sandboxed: true },
 				type: 'orchbee.desktop.terminal-document-control-ready',
 			}),

@@ -1,7 +1,9 @@
 import { Duplex } from 'node:stream';
+import { readFile } from 'node:fs/promises';
 
 import {
 	ClientIdSchema,
+	AttachmentIdSchema,
 	decodeControlJson,
 	decodeProtocolEnvelope,
 	encodeProtocolEnvelope,
@@ -62,7 +64,14 @@ describe('HostConnection', () => {
 		const connection = new HostConnection(stream);
 		const accepted = await connection.negotiate(ClientIdSchema.parse('22'.repeat(16)));
 		const listener = vi.fn<HostEnvelopeListener>();
+		const attachmentListener = vi.fn<HostEnvelopeListener>();
+		const foreignAttachmentListener = vi.fn<HostEnvelopeListener>();
 		connection.onEnvelope(listener);
+		connection.onAttachmentEnvelope(AttachmentIdSchema.parse('22'.repeat(16)), attachmentListener);
+		connection.onAttachmentEnvelope(
+			AttachmentIdSchema.parse('33'.repeat(16)),
+			foreignAttachmentListener,
+		);
 		const event = encodeProtocolEnvelope({
 			correlationId: null,
 			event: true,
@@ -76,13 +85,51 @@ describe('HostConnection', () => {
 		});
 		if (!event.ok) throw new Error(event.detail);
 		stream.push(event.value);
+		const frame = encodeProtocolEnvelope({
+			correlationId: null,
+			event: true,
+			hostEpoch,
+			kind: MessageKind.deltaFrame,
+			optionalMessage: false,
+			payload: new Uint8Array(
+				await readFile(
+					new URL(
+						'../../../../../../packages/terminal-protocol/fixtures/terminal-frame-v2.bin',
+						import.meta.url,
+					),
+				),
+			),
+			payloadEncoding: PayloadEncoding.terminalFrame,
+			protocol: currentProtocol,
+			response: false,
+		});
+		if (!frame.ok) throw new Error(frame.detail);
+		stream.push(frame.value);
+		const selection = encodeProtocolEnvelope({
+			correlationId: null,
+			event: true,
+			hostEpoch,
+			kind: MessageKind.selectionChanged,
+			optionalMessage: false,
+			payload: new TextEncoder().encode(
+				JSON.stringify({ attachmentId: '22'.repeat(16), state: 'none' }),
+			),
+			payloadEncoding: PayloadEncoding.controlJson,
+			protocol: currentProtocol,
+			response: false,
+		});
+		if (!selection.ok) throw new Error(selection.detail);
+		stream.push(selection.value);
 
 		expect(accepted.hostEpoch).toBe(hostEpoch);
 		expect(connection.hostEpoch).toBe(hostEpoch);
 		expect(connection.protocolVersion).toEqual(currentProtocol);
 		expect(listener).toHaveBeenCalledOnce();
+		expect(attachmentListener).toHaveBeenCalledTimes(2);
+		expect(foreignAttachmentListener).not.toHaveBeenCalled();
 		expect(connection.metrics.recordsSent).toBe(1);
-		expect(connection.metrics.recordsReceived).toBe(2);
+		expect(connection.metrics.recordsReceived).toBe(4);
+		expect(connection.metrics.terminalFramesReceived).toBe(1);
 		connection.close();
 	});
 

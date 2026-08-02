@@ -6,6 +6,7 @@ import {
 	TerminalPhase,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
+import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it } from 'vitest';
 
 import { createDefaultTerminalProfile } from '../../host';
@@ -106,6 +107,7 @@ function createBinding(state: TerminalBinding['state']): TerminalBinding {
 			rows: 24,
 			terminalProfile: createDefaultTerminalProfile(),
 		},
+		presentationId: terminalPresentationId('presentation-1'),
 		state,
 	};
 }

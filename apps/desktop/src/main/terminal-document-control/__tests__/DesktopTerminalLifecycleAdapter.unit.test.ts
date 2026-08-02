@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalDocumentControlCommand } from '../../../shared';
 import { resolveDesktopRuntimeConfiguration } from '../../composition';
-import { TerminalBindingIdSchema } from '../../recovery';
+import { TerminalBindingIdSchema, type TerminalBinding } from '../../recovery';
 import { DesktopTerminalBindingRegistry } from '../../terminal-binding-registry';
 import type {
 	TerminalBindingLifecycleOutcome,
@@ -69,6 +69,9 @@ function createLifecycle(
 } {
 	return {
 		reconcile: vi.fn<typeof reconcile>(reconcile),
+		recordExit: vi
+			.fn<DesktopTerminalBindingLifecyclePort['recordExit']>()
+			.mockResolvedValue({ handled: false }),
 		requestClose: vi.fn<typeof requestClose>(requestClose),
 	};
 }
@@ -92,6 +95,7 @@ function createHarness(
 	const adapter = new DesktopTerminalLifecycleAdapter({
 		allocateFreshBindingId: options.allocateFreshBindingId ?? (() => 'binding-1'),
 		createBindingLifecycle,
+		loadBindings: async () => ({ kind: 'missing' }),
 		registry,
 		retireProjection,
 		terminalLaunch: createTerminalLaunch(),
@@ -210,8 +214,8 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 
 		const firstResult = harness.adapter.execute(provisionCommand());
 		const secondResult = harness.adapter.execute(provisionCommand('presentation-2', 'provision-2'));
-		expect(harness.createBindingLifecycle).toHaveBeenCalledTimes(2);
 		await vi.waitFor(() => {
+			expect(harness.createBindingLifecycle).toHaveBeenCalledTimes(2);
 			expect(firstLifecycle.reconcile).toHaveBeenCalledOnce();
 			expect(secondLifecycle.reconcile).toHaveBeenCalledOnce();
 		});
@@ -323,6 +327,47 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 			type: 'terminal-close-failed',
 		});
 		expect(harness.createBindingLifecycle).not.toHaveBeenCalled();
+	});
+
+	it('resumes durable closing bindings before exposing recovered presentations', async () => {
+		const bindingId = TerminalBindingIdSchema.parse('binding-closing');
+		const closingPresentationId = terminalPresentationId('presentation-closing');
+		const closingBinding: TerminalBinding = {
+			bindingId,
+			creationId: identity.creationId,
+			launch: createTerminalLaunch(),
+			presentationId: closingPresentationId,
+			state: { identity, kind: 'closing' },
+		};
+		const registry = new DesktopTerminalBindingRegistry();
+		const closingLifecycle: DesktopTerminalBindingLifecyclePort = {
+			reconcile: vi
+				.fn<DesktopTerminalBindingLifecyclePort['reconcile']>()
+				.mockResolvedValue({ kind: 'close-completed' }),
+			recordExit: vi.fn<DesktopTerminalBindingLifecyclePort['recordExit']>().mockResolvedValue({
+				handled: true,
+				outcome: { kind: 'closed' },
+			}),
+			requestClose: vi
+				.fn<DesktopTerminalBindingLifecyclePort['requestClose']>()
+				.mockResolvedValue({ kind: 'closed' }),
+		};
+		const adapter = new DesktopTerminalLifecycleAdapter({
+			allocateFreshBindingId: () => 'binding-fresh',
+			createBindingLifecycle: () => closingLifecycle,
+			loadBindings: async () => ({
+				document: { bindings: [closingBinding], version: 3 },
+				kind: 'available',
+			}),
+			registry,
+			retireProjection: async () => undefined,
+			terminalLaunch: createTerminalLaunch(),
+		});
+
+		await expect(adapter.initialize()).resolves.toEqual({ kind: 'ready' });
+		expect(closingLifecycle.reconcile).toHaveBeenCalledOnce();
+		expect(adapter.getRecoveredPresentations()).toEqual([]);
+		expect(registry.size).toBe(0);
 	});
 });
 

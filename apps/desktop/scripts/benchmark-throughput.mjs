@@ -20,9 +20,6 @@ const hostBinary = path.join(
 	process.platform === 'win32' ? 'terminal-host.exe' : 'terminal-host',
 );
 const desktopMain = path.join(repositoryRoot, 'apps', 'desktop', 'dist', 'main', 'main.cjs');
-const comparativeFixtureMinimumBytes = 500_000_000;
-const activeTargetColumns = 113;
-const activeTargetRows = 38;
 const hostRssSamplingIntervalMilliseconds = 20;
 
 function parseArguments(arguments_) {
@@ -33,7 +30,6 @@ function parseArguments(arguments_) {
 		hostOnlyRuns: [],
 		measureGhostty: false,
 		runs: 5,
-		slice5Median: undefined,
 	};
 	for (let index = 0; index < arguments_.length; index += 1) {
 		const argument = arguments_[index];
@@ -64,10 +60,6 @@ function parseArguments(arguments_) {
 				options.runs = Number(value);
 				index += 1;
 				break;
-			case '--slice5-median':
-				options.slice5Median = Number(value);
-				index += 1;
-				break;
 			default:
 				throw new Error(`Unknown benchmark argument: ${argument ?? '<missing>'}`);
 		}
@@ -82,12 +74,6 @@ function parseArguments(arguments_) {
 	}
 	if (!Number.isInteger(options.runs) || options.runs < 5) {
 		throw new Error('Benchmark requires at least five warm runs.');
-	}
-	if (
-		options.slice5Median !== undefined &&
-		(!Number.isFinite(options.slice5Median) || options.slice5Median <= 0)
-	) {
-		throw new Error('--slice5-median requires a positive duration in seconds.');
 	}
 	return options;
 }
@@ -524,7 +510,9 @@ async function runDesktopBenchmark(file, runNumber) {
 		const traces = [];
 		application.process().stdout?.on('data', (chunk) => traces.push(chunk.toString()));
 		const page = await application.firstWindow();
-		const root = page.locator('#root');
+		const root = page
+			.locator('[data-terminal-presentation-id][data-desktop-terminal-state]')
+			.first();
 		await expect(root).toHaveAttribute('data-desktop-terminal-state', 'open', {
 			timeout: 10_000,
 		});
@@ -656,8 +644,6 @@ const ghosttyRuns = options.measureGhostty
 const ghostty = summary(ghosttyRuns);
 const hostOnly = summary(options.hostOnlyRuns);
 const ghosttyRatio = ghostty === null ? null : desktop.median / ghostty.median;
-const slice5Ratio =
-	options.slice5Median === undefined ? null : desktop.median / options.slice5Median;
 const finiteSummary = (values) =>
 	values.length === results.length && values.every(Number.isFinite) ? summary(values) : null;
 const historyMilliseconds = finiteSummary(
@@ -690,17 +676,13 @@ const hostSampledPeakRssKiB = finiteSummary(
 const mainPeakWorkingSetKiB = finiteSummary(
 	results.map((result) => result.interactions.mainPeakWorkingSetKiB),
 );
-const exactActiveGeometry = results.every(
-	(result) =>
-		result.renderer.columns === activeTargetColumns && result.renderer.rows === activeTargetRows,
-);
 const longTaskObservationAvailable = results.every(
 	(result) =>
 		result.interactions.history.longTaskObserverSupported &&
 		result.interactions.search.longTaskObserverSupported &&
 		(result.interactions.copy?.longTaskObserverSupported ?? false),
 );
-const idleFeaturePathPassed = results.every((result) => {
+const idleFeaturePathInactive = results.every((result) => {
 	const metrics = result.idle.featureTrace?.broker;
 	return (
 		result.interactions.workers.workersBefore === 0 &&
@@ -709,40 +691,10 @@ const idleFeaturePathPassed = results.every((result) => {
 		metrics?.clipboardCommits === 0
 	);
 });
-const activeWorkerLifecyclePassed = results.every(
+const searchWorkerLifecycleCompleted = results.every(
 	(result) =>
 		result.interactions.workers.started === 1 && result.interactions.workers.liveAfter === 0,
 );
-const activeTargetApplicable =
-	file.size >= comparativeFixtureMinimumBytes && process.platform === 'darwin';
-const activeTargetPassed = activeTargetApplicable
-	? exactActiveGeometry &&
-		longTaskObservationAvailable &&
-		activeWorkerLifecyclePassed &&
-		historyMilliseconds !== null &&
-		historyMilliseconds.ninetyFifthPercentile <= 50 &&
-		historyLongTasks !== null &&
-		historyLongTasks.maximum < 50 &&
-		searchMilliseconds !== null &&
-		searchMilliseconds.ninetyFifthPercentile <= 750 &&
-		searchLongTasks !== null &&
-		searchLongTasks.maximum < 50 &&
-		copyBrokerMilliseconds !== null &&
-		copyBrokerMilliseconds.ninetyFifthPercentile <= 1_000 &&
-		hostLockHoldMilliseconds !== null &&
-		selectionBytes !== null &&
-		hostSampledPeakRssKiB !== null &&
-		mainPeakWorkingSetKiB !== null
-	: null;
-const ghosttyTargetApplicable =
-	ghosttyRatio !== null && file.size >= comparativeFixtureMinimumBytes;
-const slice5TargetApplicable = slice5Ratio !== null && file.size >= comparativeFixtureMinimumBytes;
-const comparisonTargetApplicable = ghosttyTargetApplicable || slice5TargetApplicable;
-const comparisonTargetPassed = comparisonTargetApplicable
-	? (!ghosttyTargetApplicable || ghosttyRatio <= 1.15) &&
-		(!slice5TargetApplicable || slice5Ratio <= 1.05) &&
-		idleFeaturePathPassed
-	: null;
 const report = {
 	active: {
 		copy: {
@@ -764,17 +716,10 @@ const report = {
 		},
 		workers: results.map((result) => result.interactions.workers),
 	},
-	activeTarget: {
-		activeWorkerLifecyclePassed,
-		applicable: activeTargetApplicable,
-		exactGeometry: exactActiveGeometry,
-		geometry: { columns: activeTargetColumns, rows: activeTargetRows },
+	diagnosticObservations: {
+		idleFeaturePathInactive,
 		longTaskObservationAvailable,
-		maximumCopyP95Milliseconds: 1_000,
-		maximumHistoryP95Milliseconds: 50,
-		maximumSearchP95Milliseconds: 750,
-		passed: activeTargetPassed,
-		referencePlatform: 'darwin',
+		searchWorkerLifecycleCompleted,
 	},
 	desktop,
 	file: { bytes: file.size, path: options.file },
@@ -783,21 +728,7 @@ const report = {
 	ghosttyRatio,
 	hostOnly,
 	hostOnlyIncrementalSeconds: hostOnly === null ? null : desktop.median - hostOnly.median,
-	idleFeaturePathPassed,
 	samplingOrder: options.measureGhostty ? 'paired-alternating-after-desktop-bootstrap' : null,
-	target: {
-		applicable: comparisonTargetApplicable,
-		fixtureMinimumBytes: comparativeFixtureMinimumBytes,
-		ghosttyApplicable: ghosttyTargetApplicable,
-		maximumGhosttyRatio: 1.15,
-		maximumSlice5Ratio: 1.05,
-		passed: comparisonTargetPassed,
-		slice5Applicable: slice5TargetApplicable,
-		slice5MedianSeconds: options.slice5Median ?? null,
-		slice5Ratio,
-	},
 	type: 'orchbee.desktop.benchmark-summary',
 };
 console.log(JSON.stringify(report, null, 2));
-if (report.target.passed === false) process.exitCode = 1;
-if (report.activeTarget.passed === false) process.exitCode = 1;

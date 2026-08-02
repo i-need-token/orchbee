@@ -31,6 +31,13 @@ export const SelectionExportChunkSchema = z.strictObject({
 
 export type SelectionExportChunk = z.infer<typeof SelectionExportChunkSchema>;
 
+export interface DecodedSelectionExportChunkRoute {
+	readonly attachmentId: z.infer<typeof AttachmentIdSchema>;
+	readonly chunkSequence: number;
+	readonly exportSequence: bigint;
+	readonly final: boolean;
+}
+
 export function encodeSelectionExportChunk(value: unknown): ProtocolResult<Uint8Array> {
 	const parsed = SelectionExportChunkSchema.safeParse(value);
 	if (!parsed.success) {
@@ -57,6 +64,17 @@ export function encodeSelectionExportChunk(value: unknown): ProtocolResult<Uint8
 export function decodeSelectionExportChunk(
 	bytes: Uint8Array,
 ): ProtocolResult<SelectionExportChunk> {
+	const route = decodeSelectionExportChunkRoute(bytes);
+	if (!route.ok) return route;
+	const payload = bytes.subarray(SELECTION_EXPORT_CHUNK_HEADER_BYTES);
+	const chunkBytes = new Uint8Array(payload.byteLength);
+	chunkBytes.set(payload);
+	return protocolSuccess({ ...route.value, bytes: chunkBytes });
+}
+
+export function decodeSelectionExportChunkRoute(
+	bytes: Uint8Array,
+): ProtocolResult<DecodedSelectionExportChunkRoute> {
 	if (bytes.byteLength < SELECTION_EXPORT_CHUNK_HEADER_BYTES) {
 		return protocolFailure(
 			ProtocolErrorCode.truncated,
@@ -72,7 +90,6 @@ export function decodeSelectionExportChunk(
 	const chunkSequence = reader.readUint32();
 	const flags = reader.readUint8();
 	const reserved = reader.readBytes(3);
-	const payload = reader.readBytes(bytes.byteLength - SELECTION_EXPORT_CHUNK_HEADER_BYTES);
 	if (reader.failure) return reader.failure;
 	if ((flags & ~1) !== 0 || reserved.some((value) => value !== 0)) {
 		return protocolFailure(
@@ -87,11 +104,8 @@ export function decodeSelectionExportChunk(
 	if (!attachmentText.ok) return attachmentText;
 	const attachmentId = parseAttachmentId(attachmentText.value);
 	if (!attachmentId.ok) return attachmentId;
-	const chunkBytes = new Uint8Array(payload.byteLength);
-	chunkBytes.set(payload);
 	return protocolSuccess({
 		attachmentId: attachmentId.value,
-		bytes: chunkBytes,
 		chunkSequence,
 		exportSequence,
 		final: (flags & 1) !== 0,

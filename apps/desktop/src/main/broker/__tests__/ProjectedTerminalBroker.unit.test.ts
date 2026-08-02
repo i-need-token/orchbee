@@ -43,9 +43,16 @@ function eventEnvelope(
 describe('ProjectedTerminalBroker', () => {
 	it('copies exact frame bytes once and never interprets terminal cells in Main', () => {
 		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
+		let controlListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
 		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(
+				(_attachmentId, listener) => {
+					hostListener = listener;
+					return vi.fn<() => void>();
+				},
+			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>((listener) => {
-				hostListener = listener;
+				controlListener = listener;
 				return vi.fn<() => void>();
 			}),
 		} as unknown as HostConnection;
@@ -85,10 +92,33 @@ describe('ProjectedTerminalBroker', () => {
 		expect(new Uint8Array(posted.frame)).toEqual(new Uint8Array([1, 2, 3]));
 		expect(posted.frame).not.toBe(backing.buffer);
 		expect(broker.metrics).toMatchObject({ frameBytesForwarded: 3, framesForwarded: 1 });
+
+		controlListener?.(
+			eventEnvelope(
+				MessageKind.terminalExited,
+				PayloadEncoding.controlJson,
+				textEncoder.encode(
+					JSON.stringify({
+						exit: { code: 0, kind: 'exit-code' },
+						finalRevision: '1',
+						identity: {
+							creationId: '55'.repeat(16),
+							hostEpoch: bootstrap.hostEpoch,
+							terminalId: '66'.repeat(16),
+						},
+					}),
+				),
+				bootstrap.hostEpoch,
+			),
+		);
+		expect(postMessage).toHaveBeenCalledOnce();
 	});
 
 	it('rejects commands for another attachment before calling the Host', () => {
 		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
 			request: vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(),
 			requestControl: vi
@@ -148,6 +178,9 @@ describe('ProjectedTerminalBroker', () => {
 				payloadEncoding: PayloadEncoding.rowWindow,
 			});
 		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
 			request,
 		} as unknown as HostConnection;
@@ -215,10 +248,13 @@ describe('ProjectedTerminalBroker', () => {
 			},
 		);
 		const host = {
-			onEnvelope: vi.fn<HostConnection['onEnvelope']>((listener) => {
-				hostListener = listener;
-				return vi.fn<() => void>();
-			}),
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(
+				(_attachmentId, listener) => {
+					hostListener = listener;
+					return vi.fn<() => void>();
+				},
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
 			requestControl,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
@@ -309,6 +345,9 @@ describe('ProjectedTerminalBroker', () => {
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 		};
 		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
@@ -369,6 +408,9 @@ describe('ProjectedTerminalBroker', () => {
 				}),
 		);
 		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
 			requestControl,
 		} as unknown as HostConnection;

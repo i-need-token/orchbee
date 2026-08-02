@@ -48,7 +48,7 @@ class MemoryStore implements TerminalBindingStore {
 			) ?? []),
 			binding,
 		].sort((left, right) => left.bindingId.localeCompare(right.bindingId));
-		this.document = { bindings, version: 2 };
+		this.document = { bindings, version: 3 };
 		this.writes.push(binding);
 		return Promise.resolve();
 	}
@@ -56,7 +56,7 @@ class MemoryStore implements TerminalBindingStore {
 	remove(bindingId: TerminalBindingId): Promise<void> {
 		this.document = {
 			bindings: this.document?.bindings.filter((binding) => binding.bindingId !== bindingId) ?? [],
-			version: 2,
+			version: 3,
 		};
 		return Promise.resolve();
 	}

@@ -153,7 +153,15 @@ export class ProjectedTerminalBroker {
 
 	start(): void {
 		if (this.#disposed || this.#removeHostListener !== undefined) return;
-		this.#removeHostListener = this.#host.onEnvelope(this.#handleHostEnvelope);
+		const removeFrameListener = this.#host.onAttachmentEnvelope(
+			this.#bootstrap.attachmentId,
+			this.#handleHostEnvelope,
+		);
+		const removeControlListener = this.#host.onEnvelope(this.#handleHostEnvelope);
+		this.#removeHostListener = () => {
+			removeFrameListener();
+			removeControlListener();
+		};
 		this.#port.on('message', this.#handleRendererMessage);
 		this.#port.on('close', this.#handlePortClose);
 		this.#port.start();
@@ -302,19 +310,19 @@ export class ProjectedTerminalBroker {
 			}
 			case MessageKind.terminalExited: {
 				const event = decodeControlJson(envelope.payload, TerminalExitedSchema);
+				if (!event.ok) {
+					this.#postFailure({
+						code: 'invalid-terminal-exit',
+						message: event.detail,
+						retryable: false,
+					});
+					return;
+				}
 				if (
-					!event.ok ||
 					event.value.identity.creationId !== this.#bootstrap.creationId ||
 					event.value.identity.hostEpoch !== this.#bootstrap.hostEpoch ||
 					event.value.identity.terminalId !== this.#bootstrap.terminalId
 				) {
-					this.#postFailure({
-						code: 'invalid-terminal-exit',
-						message: event.ok
-							? 'Terminal exit identity is outside the scoped attachment.'
-							: event.detail,
-						retryable: false,
-					});
 					return;
 				}
 				this.#port.postMessage({ event: event.value, kind: 'terminal-exited' });
@@ -322,6 +330,7 @@ export class ProjectedTerminalBroker {
 			}
 			case MessageKind.projectionBlocked: {
 				const blocked = decodeControlJson(envelope.payload, ProjectionBlockedSchema);
+				if (blocked.ok && blocked.value.attachmentId !== this.#bootstrap.attachmentId) return;
 				this.#postFailure({
 					code: 'projection-blocked',
 					message: blocked.ok

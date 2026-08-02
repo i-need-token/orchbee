@@ -6,7 +6,11 @@ import type {
 	ActionScope,
 } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import type { TabStripNewTabRequest, TabStripOrientation } from '@orchbee/tab-strip';
+import type {
+	TabStripCloseCallback,
+	TabStripNewTabRequest,
+	TabStripOrientation,
+} from '@orchbee/tab-strip';
 import * as React from 'react';
 
 import {
@@ -71,6 +75,7 @@ interface WorkbenchView {
 	readonly leftPanelSize: string;
 	readonly newTerminal: (() => void) | undefined;
 	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
+	readonly onCloseTabs: TabStripCloseCallback;
 	readonly newTerminalLabel: string;
 	readonly newTerminalShortcutId: string;
 	readonly newTerminalShortcutLabel: string;
@@ -286,6 +291,18 @@ export function useWorkbench({
 		}
 		return { kind: 'completed' };
 	});
+	const closeTabs = useMemoizedFn<
+		void,
+		Parameters<TabStripCloseCallback>,
+		ReturnType<TabStripCloseCallback>
+	>((context, request) => {
+		if (context.signal.aborted) return { kind: 'cancelled' };
+		const result = projectWorkspaceRuntime.requestActiveTerminalTabsClose(request.tabIds);
+		if (result.kind === 'rejected') return { code: result.reason, kind: 'blocked' };
+		if (result.kind === 'unchanged') return { kind: 'unchanged' };
+		context.markCommitted();
+		return { kind: 'completed' };
+	});
 	const actions = useWorkbenchActions({
 		isSidebarVisible,
 		onNewTerminal: createTerminal,
@@ -399,6 +416,7 @@ export function useWorkbench({
 		newTerminalLabel: intl.formatMessage(workbenchMessages.newTerminal),
 		newTerminalShortcutId: WORKBENCH_SHORTCUTS.newTerminal.id,
 		newTerminalShortcutLabel: formatWorkbenchShortcut('newTerminal', shortcutPlatform),
+		onCloseTabs: closeTabs,
 		onLayoutChanged: (_layout, meta) => {
 			if (meta.isUserInteraction) {
 				writeWorkbenchLeftPanelWidth(storage, leftPanelWidth.current);

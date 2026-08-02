@@ -12,6 +12,7 @@ export type {
 	TerminalPresentationCloseRequest,
 	TerminalPresentationCommand,
 	TerminalPresentationCreation,
+	TerminalPresentationEvent,
 	TerminalPresentationFailure,
 	TerminalPresentationId,
 	TerminalPresentationLifecycle,

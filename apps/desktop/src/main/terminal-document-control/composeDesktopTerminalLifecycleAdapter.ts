@@ -22,17 +22,18 @@ export function composeDesktopTerminalLifecycleAdapter(
 ): DesktopTerminalLifecycleAdapter {
 	return new DesktopTerminalLifecycleAdapter({
 		allocateFreshBindingId: composition.allocateFreshBindingId,
-		createBindingLifecycle: (bindingId, launch) =>
+		createBindingLifecycle: (bindingId, launch, presentationId) =>
 			new TerminalBindingLifecycle(
 				new TerminalRecoveryCoordinator(
 					composition.host,
 					composition.store,
-					{ bindingId, launch },
+					{ bindingId, launch, presentationId },
 					{ randomCreationId: composition.randomCreationId },
 				),
 				new TerminalCloseOrchestrator(composition.host, composition.store, bindingId),
 			),
 		registry: composition.registry,
+		loadBindings: () => composition.store.load(),
 		retireProjection: composition.retireProjection,
 		terminalLaunch: composition.terminalLaunch,
 	});

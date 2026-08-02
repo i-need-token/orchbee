@@ -1,5 +1,10 @@
 import { TabModel, type TabStripNewTabRequest } from '@orchbee/tab-strip';
 
+import type {
+	TerminalPresentationEvent,
+	TerminalPresentationId,
+	TerminalPresentationRemovalId,
+} from '../../terminal-presentation';
 import {
 	createProjectWorkspaceState,
 	resolveTerminalCwd,
@@ -11,7 +16,11 @@ import {
 	type TerminalContextCommand,
 } from '../../project-workspace';
 import { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
-import { clonePanelWorkspaceState } from '../components/workbench-panel-workspace/model/panel-workspace-state';
+import {
+	clonePanelWorkspaceState,
+	findTerminal,
+	type TerminalPresentation,
+} from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type { WorkbenchTerminalPresentationComposition } from './createWorkbenchPreviewTerminalPresentationComposition';
 
 type Listener = () => void;
@@ -27,9 +36,20 @@ interface MutableWorkbenchTerminalContext extends WorkbenchTerminalContext {
 
 export interface WorkbenchProjectWorkspaceRuntimeOptions {
 	readonly standaloneCwd: string;
+	readonly standalonePresentations?: readonly WorkbenchStandaloneTerminalPresentation[] | undefined;
 	readonly standaloneTerminalTitle: string;
 	readonly terminalPresentation: WorkbenchTerminalPresentationComposition;
 }
+
+export interface WorkbenchStandaloneTerminalPresentation {
+	readonly cwd: string;
+	readonly presentationId: TerminalPresentationId;
+	readonly title: string;
+}
+
+export type WorkbenchTerminalPresentationEventResult =
+	| { readonly kind: 'applied' | 'unchanged' }
+	| { readonly kind: 'rejected'; readonly reason: string };
 
 export interface WorkbenchRuntimeTerminalCreateInput extends TabStripNewTabRequest {
 	readonly directoryId?: string | undefined;
@@ -57,9 +77,16 @@ export class WorkbenchProjectWorkspaceRuntime {
 			this.state.standaloneTerminalContextId,
 			this.createTerminalContext(
 				this.state.standaloneTerminalContextId,
-				options.standaloneTerminalTitle,
-				options.standaloneCwd,
-				options.terminalPresentation.initialPresentationId,
+				options.standalonePresentations === undefined ||
+					options.standalonePresentations.length === 0
+					? [
+							{
+								cwd: options.standaloneCwd,
+								presentationId: options.terminalPresentation.initialPresentationId,
+								title: options.standaloneTerminalTitle,
+							},
+						]
+					: options.standalonePresentations,
 			),
 		);
 	}
@@ -123,6 +150,55 @@ export class WorkbenchProjectWorkspaceRuntime {
 		return this.getActiveMutableContext().nextTabSequence;
 	}
 
+	public requestActiveTerminalTabsClose(
+		tabIds: readonly string[],
+	): WorkbenchTerminalPresentationEventResult {
+		const transition = this.getActiveMutableContext().panelWorkspaceStore.requestTabClose(tabIds);
+		return transition.outcome === 'rejected'
+			? { kind: 'rejected', reason: transition.rejection ?? 'terminal-close-rejected' }
+			: { kind: transition.outcome };
+	}
+
+	public applyTerminalPresentationEvent(
+		event: TerminalPresentationEvent,
+	): WorkbenchTerminalPresentationEventResult {
+		const matches: Array<{
+			readonly store: PanelWorkspaceStore;
+			readonly tabId: string;
+			readonly terminal: TerminalPresentation;
+		}> = [];
+		for (const context of this.contexts.values()) {
+			for (const tab of context.panelWorkspaceStore.getSnapshot().tabs) {
+				const terminal = findTerminal(tab.root, event.presentationId);
+				if (terminal !== null) {
+					matches.push({ store: context.panelWorkspaceStore, tabId: tab.tabId, terminal });
+				}
+			}
+		}
+		const match = matches.length === 1 ? matches[0] : undefined;
+		if (match === undefined) {
+			return {
+				kind: 'rejected',
+				reason: matches.length === 0 ? 'terminal-not-found' : 'terminal-presentation-conflict',
+			};
+		}
+		const removalId = removalIdForEvent(match.terminal, event);
+		if (
+			(event.type === 'terminal-close-completed' || event.type === 'terminal-close-failed') &&
+			removalId === null
+		) {
+			return { kind: 'rejected', reason: 'stale-operation' };
+		}
+		const transition = match.store.transition(
+			event.type === 'terminal-close-completed' || event.type === 'terminal-close-failed'
+				? { ...event, removalId: requireRemovalId(removalId), tabId: match.tabId }
+				: { ...event, tabId: match.tabId },
+		);
+		return transition.outcome === 'rejected'
+			? { kind: 'rejected', reason: transition.rejection ?? 'terminal-event-rejected' }
+			: { kind: transition.outcome };
+	}
+
 	public transition(
 		event: ProjectWorkspaceEvent,
 		beforeCommit?: (() => void) | undefined,
@@ -165,7 +241,13 @@ export class WorkbenchProjectWorkspaceRuntime {
 			case 'terminal-context-created':
 				this.contexts.set(
 					command.terminalContextId,
-					this.createTerminalContext(command.terminalContextId, command.terminalTitle, command.cwd),
+					this.createTerminalContext(command.terminalContextId, [
+						{
+							cwd: command.cwd,
+							presentationId: this.terminalPresentation.createPresentationId(),
+							title: command.terminalTitle,
+						},
+					]),
 				);
 				break;
 			case 'terminal-context-cloned':
@@ -185,27 +267,27 @@ export class WorkbenchProjectWorkspaceRuntime {
 
 	private createTerminalContext(
 		terminalContextId: string,
-		title: string,
-		cwd: string,
-		initialPresentationId = this.terminalPresentation.createPresentationId(),
+		presentations: readonly WorkbenchStandaloneTerminalPresentation[],
 	): MutableWorkbenchTerminalContext {
+		if (presentations.length === 0)
+			throw new Error('A terminal context requires one presentation.');
 		const tabModel = new TabModel({
 			activeTabId: `${terminalContextId}-tab-1`,
-			tabs: [
-				{
-					group: null,
-					id: `${terminalContextId}-tab-1`,
-					pinned: false,
-					title,
-				},
-			],
+			tabs: presentations.map((presentation, index) => ({
+				group: null,
+				id: `${terminalContextId}-tab-${index + 1}`,
+				pinned: false,
+				title: presentation.title,
+			})),
 		});
 		return {
-			nextTabSequence: 2,
+			nextTabSequence: presentations.length + 1,
 			panelWorkspaceStore: new PanelWorkspaceStore(tabModel, {
 				composition: this.terminalPresentation,
-				initialCwd: cwd,
-				initialPresentationId,
+				initialPresentations: presentations.map((presentation) => ({
+					cwd: presentation.cwd,
+					presentationId: presentation.presentationId,
+				})),
 			}),
 			tabModel,
 		};
@@ -325,4 +407,23 @@ function requireMappedId(
 	const targetId = idMap.get(sourceId);
 	if (targetId === undefined) throw new Error(`${label} ${sourceId} has no clone mapping.`);
 	return targetId;
+}
+
+function removalIdForEvent(
+	terminal: TerminalPresentation,
+	event: TerminalPresentationEvent,
+): TerminalPresentationRemovalId | null {
+	if (event.type !== 'terminal-close-completed' && event.type !== 'terminal-close-failed') {
+		return null;
+	}
+	return terminal.lifecycle.kind === 'closing' || terminal.lifecycle.kind === 'close-failed'
+		? terminal.lifecycle.removalId
+		: null;
+}
+
+function requireRemovalId(
+	removalId: TerminalPresentationRemovalId | null,
+): TerminalPresentationRemovalId {
+	if (removalId === null) throw new Error('A terminal close result requires one removal identity.');
+	return removalId;
 }

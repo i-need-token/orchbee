@@ -5,6 +5,7 @@ import {
 	CellWidth,
 	CursorShape,
 	decodeTerminalFrame,
+	decodeTerminalFrameRoute,
 	encodeTerminalFrame,
 	RowPromptClass,
 	SemanticContent,
@@ -106,5 +107,12 @@ describe('packed terminal frame', () => {
 		expect(decoded.value.cells.graphemeStringIndices).toBeInstanceOf(Uint32Array);
 		expect([...decoded.value.cells.widths]).toEqual([0]);
 		expect([...decoded.value.rowData.indices]).toEqual([0]);
+		expect(decodeTerminalFrameRoute(encoded.value)).toEqual({
+			ok: true,
+			value: {
+				attachmentId: '22222222222222222222222222222222',
+				hostEpoch: '11111111111111111111111111111111',
+			},
+		});
 	});
 });

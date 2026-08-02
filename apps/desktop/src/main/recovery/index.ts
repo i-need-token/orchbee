@@ -7,4 +7,5 @@ export {
 	type TerminalBinding,
 	type TerminalBindingId,
 	type TerminalBindingStore,
+	type TerminalBindingStoreLoadResult,
 } from './terminal-binding-store';

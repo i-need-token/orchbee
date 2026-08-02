@@ -9,6 +9,7 @@ import {
 	type TerminalInventoryCursor,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
+import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createDefaultTerminalProfile, type HostConnection } from '../../host';
@@ -40,6 +41,8 @@ const otherIdentity = {
 };
 const firstRevision = CanonicalUint64TextSchema.parse('1');
 const targetBindingId = TerminalBindingIdSchema.parse('desktop-terminal-foundation');
+const targetPresentationId = terminalPresentationId('desktop:terminal:foundation');
+const otherPresentationId = terminalPresentationId('desktop:terminal:other');
 
 class MemoryStore implements TerminalBindingStore {
 	document: TerminalBindingStoreDocument | undefined;
@@ -251,7 +254,7 @@ function createCoordinator(host: HostConnection, store: TerminalBindingStore) {
 	return new TerminalRecoveryCoordinator(
 		host,
 		store,
-		{ bindingId: targetBindingId, launch: createLaunch() },
+		{ bindingId: targetBindingId, launch: createLaunch(), presentationId: targetPresentationId },
 		{ randomCreationId: () => creationId },
 	);
 }
@@ -265,6 +268,7 @@ function createDocumentBinding(state: 'create-requested' | 'retained'): Terminal
 		bindingId: targetBindingId,
 		creationId,
 		launch: createLaunch(),
+		presentationId: targetPresentationId,
 		state:
 			state === 'retained'
 				? { identity, kind: 'retained' }
@@ -277,6 +281,7 @@ function createOtherBinding(): TerminalBinding {
 		bindingId: TerminalBindingIdSchema.parse('other-binding'),
 		creationId: otherCreationId,
 		launch: createLaunch(),
+		presentationId: otherPresentationId,
 		state: { identity: otherIdentity, kind: 'retained' },
 	});
 }

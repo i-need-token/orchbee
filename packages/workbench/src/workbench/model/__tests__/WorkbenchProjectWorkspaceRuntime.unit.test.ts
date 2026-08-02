@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { WorkbenchDirectory } from '../../../project-workspace';
-import { terminalPresentationId } from '../../../terminal-presentation';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+} from '../../../terminal-presentation';
+import type { WorkbenchTerminalPresentationCommand } from '../createWorkbenchPreviewTerminalPresentationComposition';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../WorkbenchProjectWorkspaceRuntime';
 
@@ -37,6 +42,124 @@ function createRuntime(): WorkbenchProjectWorkspaceRuntime {
 }
 
 describe('WorkbenchProjectWorkspaceRuntime', () => {
+	it('routes managed lifecycle results to recovered standalone presentations by opaque identity', () => {
+		let operationSequence = 1;
+		let removalSequence = 1;
+		const commands: WorkbenchTerminalPresentationCommand[] = [];
+		const runtime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standalonePresentations: [
+				{
+					cwd: '/first',
+					presentationId: terminalPresentationId('managed:first'),
+					title: 'Terminal 1',
+				},
+				{
+					cwd: '/second',
+					presentationId: terminalPresentationId('managed:second'),
+					title: 'Terminal 2',
+				},
+			],
+			standaloneTerminalTitle: 'Terminal',
+			terminalPresentation: {
+				createOperationId: () =>
+					terminalPresentationOperationId(`managed:operation:${operationSequence++}`),
+				createPresentationId: () => terminalPresentationId('managed:dynamic'),
+				createRemovalId: () =>
+					terminalPresentationRemovalId(`managed:removal:${removalSequence++}`),
+				dispatchCommands: (nextCommands) => commands.push(...nextCommands),
+				initialPresentationId: terminalPresentationId('managed:initial'),
+				kind: 'managed',
+			},
+		});
+
+		expect(commands).toEqual([
+			expect.objectContaining({
+				launchCwd: '/first',
+				operationId: 'managed:operation:1',
+				presentationId: 'managed:first',
+				type: 'terminal-provision-requested',
+			}),
+			expect.objectContaining({
+				launchCwd: '/second',
+				operationId: 'managed:operation:2',
+				presentationId: 'managed:second',
+				type: 'terminal-provision-requested',
+			}),
+		]);
+		expect(
+			runtime.applyTerminalPresentationEvent({
+				operationId: terminalPresentationOperationId('managed:operation:1'),
+				presentationId: terminalPresentationId('managed:first'),
+				type: 'terminal-provision-completed',
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(
+			runtime.applyTerminalPresentationEvent({
+				exitCode: 0,
+				presentationId: terminalPresentationId('managed:first'),
+				signal: null,
+				type: 'terminal-exited',
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(
+			runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot().tabs[0]?.root,
+		).toMatchObject({
+			primaryPresentation: { lifecycle: { exitCode: 0, kind: 'exited', signal: null } },
+		});
+		expect(
+			runtime.applyTerminalPresentationEvent({
+				operationId: terminalPresentationOperationId('managed:operation:missing'),
+				presentationId: terminalPresentationId('managed:second'),
+				type: 'terminal-provision-completed',
+			}),
+		).toEqual({ kind: 'rejected', reason: 'stale-operation' });
+	});
+
+	it('keeps a managed Tab until its exact terminal close result completes', () => {
+		let operationSequence = 1;
+		const commands: WorkbenchTerminalPresentationCommand[] = [];
+		const presentationId = terminalPresentationId('managed:close-target');
+		const runtime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: {
+				createOperationId: () =>
+					terminalPresentationOperationId(`managed:close-operation:${operationSequence++}`),
+				createPresentationId: () => presentationId,
+				createRemovalId: () => terminalPresentationRemovalId('managed:close-removal'),
+				dispatchCommands: (nextCommands) => commands.push(...nextCommands),
+				initialPresentationId: presentationId,
+				kind: 'managed',
+			},
+		});
+		runtime.applyTerminalPresentationEvent({
+			operationId: terminalPresentationOperationId('managed:close-operation:1'),
+			presentationId,
+			type: 'terminal-provision-completed',
+		});
+
+		expect(runtime.requestActiveTerminalTabsClose(['terminal-context-1-tab-1'])).toEqual({
+			kind: 'applied',
+		});
+		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toHaveLength(1);
+		expect(commands.at(-1)).toEqual({
+			operationId: 'managed:close-operation:2',
+			presentationId: 'managed:close-target',
+			type: 'terminal-close-requested',
+		});
+
+		expect(
+			runtime.applyTerminalPresentationEvent({
+				operationId: terminalPresentationOperationId('managed:close-operation:2'),
+				presentationId,
+				type: 'terminal-close-completed',
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toHaveLength(0);
+		expect(commands.some((command) => command.type === 'tab-close-ready')).toBe(false);
+	});
+
 	it('starts with one standalone Tab, Panel, and launch CWD', () => {
 		const runtime = createRuntime();
 		const context = runtime.getActiveTerminalContext();
