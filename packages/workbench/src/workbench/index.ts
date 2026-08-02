@@ -7,6 +7,9 @@ export type {
 	WorkbenchRuntimeTerminalCreateInput,
 	WorkbenchRuntimeTerminalCreateResult,
 	WorkbenchStandaloneTerminalPresentation,
+	WorkbenchTerminalSessionStopFailure,
+	WorkbenchTerminalSessionStopRequestResult,
+	WorkbenchTerminalSessionStopSnapshot,
 	WorkbenchTerminalPresentationEventResult,
 } from './model/WorkbenchProjectWorkspaceRuntime';
 export type {

@@ -206,6 +206,11 @@ function intentForLifecycle(
 		case 'restore-failed':
 		case 'exited':
 			return { kind: 'retain' };
+		case 'stopping':
+		case 'stop-failed':
+			return { kind: 'stop', operationId: lifecycle.operationId };
+		case 'stopped':
+			return { kind: 'stopped' };
 		case 'closing':
 		case 'close-failed':
 		case 'closed':
@@ -275,6 +280,10 @@ function lifecycleForIntent(
 			return { kind: 'provisioning', operationId: intent.operationId };
 		case 'retain':
 			return { kind: 'restoring' };
+		case 'stop':
+			return { kind: 'stopping', operationId: intent.operationId };
+		case 'stopped':
+			return { kind: 'stopped' };
 		case 'close':
 			return {
 				kind: 'closing',

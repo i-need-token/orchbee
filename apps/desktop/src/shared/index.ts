@@ -9,6 +9,24 @@ export type {
 	ProjectedAttachmentBootstrap,
 } from './projected-attachment-contract';
 export {
+	DESKTOP_APPLICATION_LIFETIME_IPC_CHANNEL,
+	DESKTOP_APPLICATION_LIFETIME_WINDOW_MESSAGE,
+	DesktopApplicationExitRequestIdSchema,
+	DesktopApplicationLifetimeBootstrapSchema,
+	DesktopApplicationLifetimeMainEventSchema,
+	DesktopApplicationLifetimeRendererCommandSchema,
+	DesktopApplicationLifetimeWindowMessageSchema,
+} from './desktop-application-lifetime-contract';
+export type {
+	DesktopApplicationExitChoice,
+	DesktopApplicationExitFailure,
+	DesktopApplicationExitProgress,
+	DesktopApplicationExitReason,
+	DesktopApplicationExitRequestId,
+	DesktopApplicationLifetimeMainEvent,
+	DesktopApplicationLifetimeRendererCommand,
+} from './desktop-application-lifetime-contract';
+export {
 	TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
 	TERMINAL_DOCUMENT_CONTROL_WINDOW_MESSAGE,
 	TerminalDocumentControlBootstrapSchema,

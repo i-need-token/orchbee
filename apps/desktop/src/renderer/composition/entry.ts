@@ -3,6 +3,7 @@ import '@orchbee/tab-strip/styles.css';
 import '@orchbee/workbench/styles.css';
 
 import {
+	DesktopApplicationLifetimeWindowMessageSchema,
 	TerminalDocumentControlWindowMessageSchema,
 	TerminalProjectionControlWindowMessageSchema,
 	WorkbenchTopologyControlWindowMessageSchema,
@@ -20,6 +21,7 @@ interface DocumentControlReady {
 }
 
 let documentControl: DocumentControlReady | undefined;
+let lifetimeControlPort: MessagePort | undefined;
 let projectionControlPort: MessagePort | undefined;
 let session: DesktopWorkbenchRendererSession | undefined;
 let topologyControlPort: MessagePort | undefined;
@@ -47,33 +49,47 @@ window.addEventListener('message', (event) => {
 			root.dataset['desktopSandboxed'] = String(documentMessage.data.security.sandboxed);
 		}
 	} else {
-		const projectionMessage = TerminalProjectionControlWindowMessageSchema.safeParse(event.data);
-		if (projectionMessage.success) {
+		const lifetimeMessage = DesktopApplicationLifetimeWindowMessageSchema.safeParse(event.data);
+		if (lifetimeMessage.success) {
 			if (
-				projectionControlPort !== undefined ||
-				!projectionMessage.data.security.contextIsolated ||
-				!projectionMessage.data.security.sandboxed
+				lifetimeControlPort !== undefined ||
+				!lifetimeMessage.data.security.contextIsolated ||
+				!lifetimeMessage.data.security.sandboxed
 			) {
 				port.close();
 				return;
 			}
-			projectionControlPort = port;
+			lifetimeControlPort = port;
 		} else {
-			const topologyMessage = WorkbenchTopologyControlWindowMessageSchema.safeParse(event.data);
-			if (
-				!topologyMessage.success ||
-				topologyControlPort !== undefined ||
-				!topologyMessage.data.security.contextIsolated ||
-				!topologyMessage.data.security.sandboxed
-			) {
-				port.close();
-				return;
+			const projectionMessage = TerminalProjectionControlWindowMessageSchema.safeParse(event.data);
+			if (projectionMessage.success) {
+				if (
+					projectionControlPort !== undefined ||
+					!projectionMessage.data.security.contextIsolated ||
+					!projectionMessage.data.security.sandboxed
+				) {
+					port.close();
+					return;
+				}
+				projectionControlPort = port;
+			} else {
+				const topologyMessage = WorkbenchTopologyControlWindowMessageSchema.safeParse(event.data);
+				if (
+					!topologyMessage.success ||
+					topologyControlPort !== undefined ||
+					!topologyMessage.data.security.contextIsolated ||
+					!topologyMessage.data.security.sandboxed
+				) {
+					port.close();
+					return;
+				}
+				topologyControlPort = port;
 			}
-			topologyControlPort = port;
 		}
 	}
 	if (
 		documentControl === undefined ||
+		lifetimeControlPort === undefined ||
 		projectionControlPort === undefined ||
 		topologyControlPort === undefined
 	) {
@@ -82,6 +98,7 @@ window.addEventListener('message', (event) => {
 	const root = document.querySelector('#root');
 	if (!(root instanceof HTMLElement)) {
 		documentControl.port.close();
+		lifetimeControlPort.close();
 		projectionControlPort.close();
 		topologyControlPort.close();
 		return;
@@ -93,6 +110,7 @@ window.addEventListener('message', (event) => {
 		resolveDesktopShortcutPlatform(navigator.platform),
 		window.localStorage,
 		documentControl.bootstrap,
+		lifetimeControlPort,
 		documentControl.port,
 		projectionControlPort,
 		topologyControlPort,
@@ -102,6 +120,7 @@ window.addEventListener('message', (event) => {
 window.addEventListener('unload', () => {
 	session?.dispose();
 	documentControl?.port.close();
+	lifetimeControlPort?.close();
 	projectionControlPort?.close();
 	topologyControlPort?.close();
 });

@@ -1,5 +1,6 @@
 import type { DesktopShortcutPlatform } from '../../terminal-actions';
 import type { DesktopTerminalProjectionClient } from '../../terminal-projection-control';
+import type { TerminalPresentationId } from '@orchbee/workbench';
 import { createContext } from 'react';
 
 export interface DesktopTerminalSurfaceCapability {
@@ -7,6 +8,7 @@ export interface DesktopTerminalSurfaceCapability {
 	readonly preferredLocales: readonly string[];
 	readonly projectionClient: Pick<DesktopTerminalProjectionClient, 'open'>;
 	readonly shortcutPlatform: DesktopShortcutPlatform;
+	startStoppedTerminalSession(presentationId: TerminalPresentationId): void;
 }
 
 export const DesktopTerminalSurfaceCapabilityContext =

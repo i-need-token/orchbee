@@ -56,6 +56,7 @@ afterAll(() => {
 class TestMessagePort extends EventTarget {
 	peer: TestMessagePort | undefined;
 	closed = false;
+	starts = 0;
 
 	close(): void {
 		this.closed = true;
@@ -74,7 +75,7 @@ class TestMessagePort extends EventTarget {
 	}
 
 	start(): void {
-		return;
+		this.starts += 1;
 	}
 }
 
@@ -88,6 +89,7 @@ function createTestChannel(): { readonly port1: MessagePort; readonly port2: Tes
 
 describe('startDesktopWorkbenchRenderer', () => {
 	it('fails closed without rendering or provisioning when durable topology cannot be loaded', async () => {
+		const lifetimeChannel = createTestChannel();
 		const documentChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
 		const topologyChannel = createTestChannel();
@@ -120,6 +122,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 					presentations: [],
 					type: 'orchbee.desktop.terminal-document-control-port',
 				}),
+				lifetimeChannel.port1,
 				documentChannel.port1,
 				projectionChannel.port1,
 				topologyChannel.port1,
@@ -133,12 +136,15 @@ describe('startDesktopWorkbenchRenderer', () => {
 		expect(documentCommands).toEqual([]);
 		expect(root.childElementCount).toBe(0);
 		expect((documentChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((lifetimeChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((lifetimeChannel.port1 as unknown as TestMessagePort).starts).toBe(0);
 		expect((projectionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((topologyChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
 	it('requests projection only for the active visible terminal and switches demand with the Tab', async () => {
+		const lifetimeChannel = createTestChannel();
 		const documentChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
 		const topologyChannel = createTestChannel();
@@ -189,6 +195,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 					],
 					type: 'orchbee.desktop.terminal-document-control-port',
 				}),
+				lifetimeChannel.port1,
 				documentChannel.port1,
 				projectionChannel.port1,
 				topologyChannel.port1,
@@ -197,6 +204,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
 		});
 		await vi.waitFor(() => expect(documentCommands).toHaveLength(2));
+		expect((lifetimeChannel.port1 as unknown as TestMessagePort).starts).toBe(1);
 		expect(topologyCommands.slice(0, 2).map((command) => command.type)).toEqual([
 			'workbench-topology-load-requested',
 			'workbench-topology-commit-requested',
@@ -250,6 +258,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 	});
 
 	it('hydrates retain topology and uses restore-only reconciliation without rewriting intent', async () => {
+		const lifetimeChannel = createTestChannel();
 		const documentChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
 		const topologyChannel = createTestChannel();
@@ -286,6 +295,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 					presentations: [{ launchCwd: '/retained', presentationId: 'presentation-retained' }],
 					type: 'orchbee.desktop.terminal-document-control-port',
 				}),
+				lifetimeChannel.port1,
 				documentChannel.port1,
 				projectionChannel.port1,
 				topologyChannel.port1,

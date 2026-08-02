@@ -117,6 +117,25 @@ function createHarness(
 }
 
 describe('DesktopTerminalLifecycleAdapter', () => {
+	it('drains only bindings absent from the durably referenced topology', async () => {
+		let bindingSequence = 1;
+		const harness = createHarness({
+			allocateFreshBindingId: () => `binding-${bindingSequence++}`,
+		});
+		await harness.adapter.execute(provisionCommand('presentation-1', 'provision-1'));
+		await harness.adapter.execute(provisionCommand('presentation-2', 'provision-2'));
+
+		await expect(
+			harness.adapter.closeBindingsNotReferencedBy(
+				new Set([terminalPresentationId('presentation-1')]),
+			),
+		).resolves.toEqual({ closedCount: 1, failures: [] });
+		expect(harness.registry.getSnapshot()).toEqual([
+			{ bindingId: 'binding-1', presentationId: 'presentation-1' },
+		]);
+		expect(harness.lifecycle.requestClose).toHaveBeenCalledOnce();
+	});
+
 	it('allocates one exact binding and applies only the presentation launch CWD', async () => {
 		const harness = createHarness();
 

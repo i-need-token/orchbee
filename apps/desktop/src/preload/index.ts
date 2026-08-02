@@ -1,3 +1,4 @@
+export { installDesktopApplicationLifetimeBridge } from './installDesktopApplicationLifetimeBridge';
 export { installTerminalDocumentControlBridge } from './installTerminalDocumentControlBridge';
 export type {
 	TerminalDocumentControlIpc,

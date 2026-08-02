@@ -157,6 +157,37 @@ describe('DesktopWorkbenchTopologyCoordinator', () => {
 		expect(topologyPort.commit).not.toHaveBeenCalled();
 	});
 
+	it('flushes only after the current topology is durable and its prepared commands are released', async () => {
+		const runtime = new TestTopologyRuntime();
+		const commit = deferred<{
+			readonly kind: 'committed';
+			readonly revision: WorkbenchTopologyRevision;
+		}>();
+		const topologyPort = { commit: vi.fn<TopologyCommit>(() => commit.promise) };
+		const commandPort = {
+			dispatch: vi.fn<(commands: readonly TerminalPresentationCommand[]) => void>(),
+		};
+		const coordinator = new DesktopWorkbenchTopologyCoordinator(runtime, topologyPort, commandPort);
+		await coordinator.start({
+			document: topology(workbenchTopologyRevision('7')),
+			kind: 'available',
+		});
+		runtime.change(2);
+		coordinator.dispatchCommands([closeCommand()]);
+		const flushed = coordinator.flush();
+		let settled = false;
+		void flushed.then(() => {
+			settled = true;
+		});
+		await vi.waitFor(() => expect(topologyPort.commit).toHaveBeenCalledOnce());
+		expect(settled).toBe(false);
+		expect(commandPort.dispatch).not.toHaveBeenCalled();
+
+		commit.resolve({ kind: 'committed', revision: workbenchTopologyRevision('8') });
+		await expect(flushed).resolves.toEqual({ kind: 'flushed', revision: '8' });
+		expect(commandPort.dispatch).toHaveBeenCalledWith([closeCommand()]);
+	});
+
 	it('binds each command batch to the complete snapshot captured before its commit', async () => {
 		const runtime = new TestTopologyRuntime();
 		const first = deferred<{

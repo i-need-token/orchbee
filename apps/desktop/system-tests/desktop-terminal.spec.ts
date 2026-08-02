@@ -33,25 +33,7 @@ test.beforeEach(async () => {
 	const temporaryRoot = process.platform === 'win32' ? tmpdir() : '/tmp';
 	runtimeDirectory = await mkdtemp(path.join(temporaryRoot, 'orchbee-desktop-system-'));
 	const endpointId = randomBytes(16).toString('hex');
-	hostProcess = spawn(
-		hostBinary,
-		['serve', '--runtime-directory', runtimeDirectory, '--endpoint-id', endpointId],
-		{ stdio: ['pipe', 'pipe', 'pipe'] },
-	);
-	if (process.platform === 'win32') {
-		await wait(250);
-	} else {
-		const endpoint = path.join(runtimeDirectory, `terminal-host-${endpointId}.sock`);
-		await expect
-			.poll(
-				async () =>
-					access(endpoint)
-						.then(() => true)
-						.catch(() => false),
-				{ timeout: 5_000 },
-			)
-			.toBe(true);
-	}
+	hostProcess = await startHost(runtimeDirectory, endpointId);
 
 	const environment = Object.fromEntries(
 		Object.entries(process.env).filter(
@@ -71,7 +53,14 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-	await electronApplication?.close().catch(() => undefined);
+	const runningApplication = electronApplication;
+	if (runningApplication !== undefined) {
+		try {
+			await quitDesktop(runningApplication, await runningApplication.firstWindow(), 'preserve');
+		} catch {
+			await forceCloseDesktop(runningApplication);
+		}
+	}
 	electronApplication = undefined;
 	desktopEnvironment = undefined;
 	const runningHost = hostProcess;
@@ -287,7 +276,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	expect(traceText).toContain('"framesForwarded":');
 	const identityBeforeExitedRestart = await terminalDocumentIdentity(root);
 
-	await application.close();
+	await quitDesktop(application, page, 'preserve');
 	electronApplication = undefined;
 	expect(hostProcess?.exitCode).toBeNull();
 
@@ -305,7 +294,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	expect(identityAfterExitedRestart.attachmentId).not.toBe(
 		identityBeforeExitedRestart.attachmentId,
 	);
-	await exitedRestart.close();
+	await quitDesktop(exitedRestart, exitedPage, 'preserve');
 	electronApplication = undefined;
 });
 
@@ -334,7 +323,7 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 		version: 3,
 	});
 
-	await firstApplication.close();
+	await quitDesktop(firstApplication, firstPage, 'preserve');
 	electronApplication = undefined;
 	expect(hostProcess?.exitCode).toBeNull();
 
@@ -353,9 +342,103 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 	expect(identityAfterRestart.hostEpoch).toBe(identityBeforeRestart.hostEpoch);
 });
 
+test('stops Host sessions while retaining topology and starts a fresh session explicitly', async () => {
+	const firstApplication = electronApplication;
+	if (firstApplication === undefined) throw new Error('Electron application did not start.');
+	const firstPage = await firstApplication.firstWindow();
+	const firstRoot = projectedTerminal(firstPage);
+	await expect(firstRoot).toHaveAttribute('data-desktop-terminal-state', 'open');
+	const stoppedPresentationId = await firstRoot.getAttribute('data-terminal-presentation-id');
+	const input = firstPage.getByRole('textbox');
+	await input.pressSequentially("printf 'stop-policy-marker\\n'; sleep 300");
+	await input.press('Enter');
+	await expect(firstPage.locator('[role="log"]')).toContainText('stop-policy-marker');
+
+	await quitDesktop(firstApplication, firstPage, 'stop');
+	electronApplication = undefined;
+	await expect.poll(() => hostProcess?.exitCode).toBe(0);
+	if (runtimeDirectory === undefined || desktopEnvironment === undefined) {
+		throw new Error('Desktop test environment is unavailable.');
+	}
+	const endpointId = desktopEnvironment['ORCHBEE_DESKTOP_ENDPOINT_ID'];
+	if (endpointId === undefined) throw new Error('Desktop endpoint identity is unavailable.');
+	hostProcess = await startHost(runtimeDirectory, endpointId);
+
+	const restartedApplication = await launchDesktop();
+	electronApplication = restartedApplication;
+	const restartedPage = await restartedApplication.firstWindow();
+	const stoppedSurface = restartedPage.locator('[data-terminal-presentation-id]').first();
+	await expect(stoppedSurface.locator('[data-slot="desktop-terminal-stopped"]')).toBeVisible();
+	expect(await stoppedSurface.getAttribute('data-terminal-presentation-id')).toBe(
+		stoppedPresentationId,
+	);
+
+	await stoppedSurface.locator('[data-slot="desktop-terminal-start-new-session"]').click();
+	const restartedRoot = projectedTerminal(restartedPage);
+	await expect(restartedRoot).toHaveAttribute('data-desktop-terminal-state', 'open');
+	expect(await restartedRoot.getAttribute('data-terminal-presentation-id')).not.toBe(
+		stoppedPresentationId,
+	);
+
+	await quitDesktop(restartedApplication, restartedPage, 'preserve');
+	electronApplication = undefined;
+});
+
 async function launchDesktop(): Promise<ElectronApplication> {
 	if (desktopEnvironment === undefined) throw new Error('Desktop test environment is unavailable.');
 	return electron.launch({ args: [desktopMain], env: desktopEnvironment });
+}
+
+async function startHost(
+	directory: string,
+	endpointId: string,
+): Promise<ChildProcessWithoutNullStreams> {
+	const process = spawn(
+		hostBinary,
+		['serve', '--runtime-directory', directory, '--endpoint-id', endpointId],
+		{ stdio: ['pipe', 'pipe', 'pipe'] },
+	);
+	if (globalThis.process.platform === 'win32') {
+		await wait(250);
+		return process;
+	}
+	const endpoint = path.join(directory, `terminal-host-${endpointId}.sock`);
+	await expect
+		.poll(
+			async () =>
+				access(endpoint)
+					.then(() => true)
+					.catch(() => false),
+			{ timeout: 5_000 },
+		)
+		.toBe(true);
+	return process;
+}
+
+async function quitDesktop(
+	application: ElectronApplication,
+	page: Awaited<ReturnType<ElectronApplication['firstWindow']>>,
+	choice: 'preserve' | 'stop',
+): Promise<void> {
+	const exited = waitForElectronExit(application);
+	await application.evaluate(({ app }) => app.quit());
+	const button = page.locator(`[data-lifetime-choice="${choice}"]`);
+	await expect(button).toBeVisible();
+	await expect(page.locator('[data-lifetime-choice="preserve"]')).toBeFocused();
+	await button.click();
+	await exited;
+}
+
+async function forceCloseDesktop(application: ElectronApplication): Promise<void> {
+	const exited = waitForElectronExit(application);
+	application.process().kill('SIGKILL');
+	await Promise.race([exited, wait(2_000).then(() => undefined)]);
+}
+
+function waitForElectronExit(application: ElectronApplication): Promise<void> {
+	const process = application.process();
+	if (process.exitCode !== null) return Promise.resolve();
+	return new Promise((resolve) => process.once('exit', () => resolve()));
 }
 
 function projectedTerminal(page: Awaited<ReturnType<ElectronApplication['firstWindow']>>): Locator {

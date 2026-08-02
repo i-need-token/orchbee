@@ -33,7 +33,7 @@ const identity = {
 const presentationId = terminalPresentationId('presentation-recovered');
 
 describe('DesktopApplication', () => {
-	it('starts without creating an attachment and transfers three scoped controls to the sandbox', async () => {
+	it('starts without creating an attachment and transfers four scoped controls to the sandbox', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -46,7 +46,12 @@ describe('DesktopApplication', () => {
 			webSecurity: true,
 		});
 		expect(harness.terminalRuntime.open).not.toHaveBeenCalled();
-		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(3);
+		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(4);
+		expect(harness.webContents.postMessage).toHaveBeenCalledWith(
+			'orchbee.desktop.application-lifetime-port',
+			{ type: 'orchbee.desktop.application-lifetime-port' },
+			[expect.anything()],
+		);
 		expect(harness.webContents.postMessage).toHaveBeenCalledWith(
 			'orchbee.desktop.terminal-document-control-port',
 			expect.objectContaining({
@@ -85,7 +90,7 @@ describe('DesktopApplication', () => {
 		);
 		const application = createApplication(harness.dependencies);
 		await application.start();
-		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(3);
+		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(4);
 
 		harness.webContents.emit('did-start-loading');
 		harness.webContents.emit('did-finish-load');
@@ -93,10 +98,10 @@ describe('DesktopApplication', () => {
 		expect(harness.documentBrokers[0]?.dispose).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.dispose).toHaveBeenCalledOnce();
 		expect(harness.topologyBrokers[0]?.dispose).toHaveBeenCalledOnce();
-		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(3);
+		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(4);
 
 		finishRetirement?.();
-		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(6));
+		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(8));
 		expect(harness.documentBrokers).toHaveLength(2);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		expect(harness.topologyBrokers).toHaveLength(2);
@@ -183,6 +188,54 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
+	it('quits only after the scoped lifetime broker authorizes the workflow', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		harness.lifetimeBrokers[0]?.requestExit.mockResolvedValue({
+			forced: false,
+			kind: 'ready',
+			mode: 'preserve',
+		});
+
+		await application.requestExitAndQuit('user-quit');
+
+		expect(application.quitPrepared).toBe(true);
+		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
+		expect(harness.quitApplication).toHaveBeenCalledOnce();
+	});
+
+	it('keeps the last Linux window alive while the user-quit decision is pending', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		const preventDefault = vi.fn<() => void>();
+
+		harness.browserWindow.emit('close', { preventDefault });
+
+		expect(preventDefault).toHaveBeenCalledOnce();
+		expect(harness.lifetimeBrokers[0]?.requestExit).toHaveBeenCalledWith(
+			expect.stringMatching(/^desktop:exit:/u),
+			'user-quit',
+		);
+	});
+
+	it('reopens a closed macOS document before requesting an application-quit decision', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies, 'darwin');
+		await application.start();
+
+		harness.browserWindow.emit('closed');
+		await application.requestExitAndQuit('user-quit');
+
+		expect(harness.createWindow).toHaveBeenCalledTimes(2);
+		expect(harness.lifetimeBrokers).toHaveLength(2);
+		expect(harness.lifetimeBrokers[1]?.requestExit).toHaveBeenCalledWith(
+			expect.stringMatching(/^desktop:exit:/u),
+			'user-quit',
+		);
+	});
+
 	it('stops startup when the binding registry cannot initialize', async () => {
 		const harness = createHarness();
 		harness.terminalRuntime.initialize.mockResolvedValue({ kind: 'conflict' });
@@ -200,6 +253,7 @@ describe('DesktopApplication', () => {
 			() =>
 				new DesktopApplication(
 					{
+						platform: 'linux',
 						preloadPath: '/preload.cjs',
 						rendererFilePath: '/index.html',
 						runtime: createRuntime(),
@@ -212,9 +266,13 @@ describe('DesktopApplication', () => {
 	});
 });
 
-function createApplication(dependencies: DesktopApplicationDependencies): DesktopApplication {
+function createApplication(
+	dependencies: DesktopApplicationDependencies,
+	platform: NodeJS.Platform = 'linux',
+): DesktopApplication {
 	return new DesktopApplication(
 		{
+			platform,
 			preloadPath: '/repo/apps/desktop/dist/preload/preload.cjs',
 			rendererFilePath: '/repo/apps/desktop/dist/renderer/index.html',
 			runtime: createRuntime(),
@@ -279,6 +337,11 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
+	const lifetimeBrokers: Array<{
+		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
+		readonly requestExit: ReturnType<typeof vi.fn>;
+		readonly start: ReturnType<typeof vi.fn<() => void>>;
+	}> = [];
 	const topologyStore: WorkbenchTopologyStore = {
 		commit: vi
 			.fn<WorkbenchTopologyStore['commit']>()
@@ -294,6 +357,9 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		? Result[]
 		: never = [];
 	const terminalRuntime = {
+		closeBindingsNotReferencedBy: vi
+			.fn<DesktopTerminalRuntime['closeBindingsNotReferencedBy']>()
+			.mockResolvedValue({ closedCount: 0, failures: [] }),
 		dispose: vi.fn<DesktopTerminalRuntime['dispose']>().mockResolvedValue(undefined),
 		execute: vi.fn<DesktopTerminalRuntime['execute']>(),
 		getProjectionTarget: vi
@@ -302,10 +368,16 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		getProjectionMetrics: vi
 			.fn<DesktopTerminalRuntime['getProjectionMetrics']>()
 			.mockReturnValue([]),
+		getOwnedBindingCount: vi
+			.fn<DesktopTerminalRuntime['getOwnedBindingCount']>()
+			.mockReturnValue(0),
 		getRecoveredPresentations: vi
 			.fn<DesktopTerminalRuntime['getRecoveredPresentations']>()
 			.mockReturnValue([{ launchCwd: '/workspace', presentationId }]),
 		initialize: vi.fn<DesktopTerminalRuntime['initialize']>().mockResolvedValue({ kind: 'ready' }),
+		inspectUnknownHostTerminalCount: vi
+			.fn<DesktopTerminalRuntime['inspectUnknownHostTerminalCount']>()
+			.mockResolvedValue(0),
 		open: vi.fn<DesktopTerminalRuntime['open']>(),
 		recordExit: vi.fn<DesktopTerminalRuntime['recordExit']>().mockResolvedValue(null),
 	};
@@ -316,6 +388,23 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 	let channelSequence = 0;
 	const dependencies: DesktopApplicationDependencies = {
 		connectHost: vi.fn<DesktopApplicationDependencies['connectHost']>().mockResolvedValue(host),
+		createApplicationLifetimeBroker: vi.fn<
+			DesktopApplicationDependencies['createApplicationLifetimeBroker']
+		>(() => {
+			const broker = {
+				dispose: vi.fn<() => void>(),
+				requestExit: vi
+					.fn<
+						ReturnType<
+							DesktopApplicationDependencies['createApplicationLifetimeBroker']
+						>['requestExit']
+					>()
+					.mockResolvedValue({ kind: 'cancelled' }),
+				start: vi.fn<() => void>(),
+			};
+			lifetimeBrokers.push(broker);
+			return broker;
+		}),
 		createBroker: vi.fn<DesktopApplicationDependencies['createBroker']>(),
 		createDocumentBroker: vi.fn<DesktopApplicationDependencies['createDocumentBroker']>(
 			(_port, _operations, onResultPosted) => {
@@ -366,18 +455,22 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 			.mockReturnValue(topologyStore),
 		createWindow,
 		randomIdentifier: () => '44'.repeat(16),
+		quitApplication: vi.fn<() => void>(),
 		writeTrace: vi.fn<DesktopApplicationDependencies['writeTrace']>(),
 	};
 	return {
+		browserWindow,
 		createWorkbenchTopologyStore: dependencies.createWorkbenchTopologyStore,
 		createWindow,
 		dependencies,
 		documentBrokers,
 		host,
+		lifetimeBrokers,
 		get hostEnvelopeListener() {
 			return hostEnvelopeListener;
 		},
 		projectionBrokers,
+		quitApplication: dependencies.quitApplication,
 		resultPosted,
 		terminalRuntime,
 		topologyBrokers,

@@ -2,6 +2,7 @@ import { TabModel, type TabStripNewTabRequest } from '@orchbee/tab-strip';
 
 import type {
 	TerminalPresentationEvent,
+	TerminalPresentationFailure,
 	TerminalPresentationId,
 	TerminalPresentationRemovalId,
 } from '../../terminal-presentation';
@@ -68,7 +69,29 @@ export type WorkbenchRuntimeTerminalCreateResult =
 			readonly kind: 'created';
 			readonly tabId: string;
 	  }
-	| Extract<ResolveTerminalCwdResult, { kind: 'rejected' }>;
+	| Extract<ResolveTerminalCwdResult, { kind: 'rejected' }>
+	| { readonly kind: 'rejected'; readonly reason: 'terminal-creation-sealed' };
+
+export interface WorkbenchTerminalSessionStopFailure {
+	readonly failure: TerminalPresentationFailure;
+	readonly presentationId: TerminalPresentationId;
+}
+
+export interface WorkbenchTerminalSessionStopSnapshot {
+	readonly complete: boolean;
+	readonly failures: readonly WorkbenchTerminalSessionStopFailure[];
+	readonly presentationCount: number;
+	readonly stoppedCount: number;
+	readonly stoppingCount: number;
+}
+
+export type WorkbenchTerminalSessionStopRequestResult =
+	| {
+			readonly commandCount: number;
+			readonly kind: 'started' | 'unchanged';
+			readonly snapshot: WorkbenchTerminalSessionStopSnapshot;
+	  }
+	| { readonly kind: 'rejected'; readonly reason: string };
 
 export class WorkbenchProjectWorkspaceRuntime {
 	private readonly contexts = new Map<string, MutableWorkbenchTerminalContext>();
@@ -77,6 +100,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 	private readonly listeners = new Set<Listener>();
 	private readonly systemCwd: string;
 	private readonly terminalPresentation: WorkbenchTerminalPresentationComposition;
+	private terminalCreationSealed = false;
 	private readonly topologyListeners = new Set<Listener>();
 	private state = createProjectWorkspaceState();
 
@@ -186,6 +210,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 								break;
 							}
 							case 'closing':
+							case 'stopping':
 								commands.push({
 									operationId: terminal.lifecycle.operationId,
 									presentationId: terminal.presentationId,
@@ -214,6 +239,140 @@ export class WorkbenchProjectWorkspaceRuntime {
 
 	public getTerminalContext(terminalContextId: string): WorkbenchTerminalContext | null {
 		return this.contexts.get(terminalContextId) ?? null;
+	}
+
+	public getTerminalSessionStopSnapshot(): WorkbenchTerminalSessionStopSnapshot {
+		let presentationCount = 0;
+		let stoppedCount = 0;
+		let stoppingCount = 0;
+		const failures: WorkbenchTerminalSessionStopFailure[] = [];
+		for (const context of this.contexts.values()) {
+			for (const tab of context.panelWorkspaceStore.getSnapshot().tabs) {
+				for (const panel of collectPanelLeaves(tab.root)) {
+					for (const terminal of [panel.primaryPresentation, ...panel.childPresentations]) {
+						presentationCount += 1;
+						switch (terminal.lifecycle.kind) {
+							case 'stopped':
+							case 'closed':
+								stoppedCount += 1;
+								break;
+							case 'stopping':
+							case 'closing':
+								stoppingCount += 1;
+								break;
+							case 'stop-failed':
+							case 'close-failed':
+								failures.push({
+									failure: terminal.lifecycle.failure,
+									presentationId: terminal.presentationId,
+								});
+								break;
+							default:
+								break;
+						}
+					}
+				}
+			}
+		}
+		return {
+			complete: failures.length === 0 && stoppedCount === presentationCount,
+			failures,
+			presentationCount,
+			stoppedCount,
+			stoppingCount,
+		};
+	}
+
+	public requestAllTerminalSessionsStop(): WorkbenchTerminalSessionStopRequestResult {
+		if (this.terminalPresentation.kind !== 'managed') {
+			return { kind: 'rejected', reason: 'managed-terminal-runtime-required' };
+		}
+		if (this.terminalCreationSealed) {
+			return {
+				commandCount: 0,
+				kind: 'unchanged',
+				snapshot: this.getTerminalSessionStopSnapshot(),
+			};
+		}
+		this.terminalCreationSealed = true;
+		let commandCount = 0;
+		for (const context of this.contexts.values()) {
+			context.panelWorkspaceStore.sealTerminalCreation();
+			const transition = context.panelWorkspaceStore.requestAllTerminalSessionsStop();
+			if (transition.outcome === 'rejected') {
+				return { kind: 'rejected', reason: transition.rejection ?? 'terminal-stop-rejected' };
+			}
+			commandCount += transition.commands.length;
+		}
+		return {
+			commandCount,
+			kind: commandCount === 0 ? 'unchanged' : 'started',
+			snapshot: this.getTerminalSessionStopSnapshot(),
+		};
+	}
+
+	public retryFailedTerminalSessionStops(): WorkbenchTerminalSessionStopRequestResult {
+		if (!this.terminalCreationSealed) {
+			return { kind: 'rejected', reason: 'terminal-stop-not-started' };
+		}
+		let commandCount = 0;
+		for (const context of this.contexts.values()) {
+			const transition = context.panelWorkspaceStore.retryFailedTerminalSessionStops();
+			if (transition.outcome === 'rejected') {
+				return {
+					kind: 'rejected',
+					reason: transition.rejection ?? 'terminal-stop-retry-rejected',
+				};
+			}
+			commandCount += transition.commands.length;
+		}
+		return {
+			commandCount,
+			kind: commandCount === 0 ? 'unchanged' : 'started',
+			snapshot: this.getTerminalSessionStopSnapshot(),
+		};
+	}
+
+	public startStoppedTerminalSession(
+		presentationId: TerminalPresentationId,
+	): WorkbenchTerminalPresentationEventResult {
+		if (this.terminalCreationSealed) {
+			return { kind: 'rejected', reason: 'terminal-creation-sealed' };
+		}
+		const matches = [...this.contexts.values()].filter((context) =>
+			context.panelWorkspaceStore
+				.getSnapshot()
+				.tabs.some((tab) => findTerminal(tab.root, presentationId) !== null),
+		);
+		const match = matches.length === 1 ? matches[0] : undefined;
+		if (match === undefined) {
+			return {
+				kind: 'rejected',
+				reason: matches.length === 0 ? 'terminal-not-found' : 'terminal-presentation-conflict',
+			};
+		}
+		const composition = this.terminalPresentation;
+		if (composition.kind !== 'managed') {
+			return { kind: 'rejected', reason: 'managed-terminal-runtime-required' };
+		}
+		const nextPresentationId = composition.createPresentationId();
+		if (
+			[...this.contexts.values()].some((context) =>
+				context.panelWorkspaceStore
+					.getSnapshot()
+					.tabs.some((tab) => findTerminal(tab.root, nextPresentationId) !== null),
+			)
+		) {
+			return { kind: 'rejected', reason: 'terminal-presentation-conflict' };
+		}
+		const transition = match.panelWorkspaceStore.startStoppedTerminalSession(presentationId, {
+			kind: 'managed',
+			operationId: composition.createOperationId(),
+			presentationId: nextPresentationId,
+		});
+		return transition.outcome === 'rejected'
+			? { kind: 'rejected', reason: transition.rejection ?? 'terminal-start-rejected' }
+			: { kind: transition.outcome };
 	}
 
 	public getActiveDefaultCwd(): string {
@@ -288,18 +447,29 @@ export class WorkbenchProjectWorkspaceRuntime {
 				reason: matches.length === 0 ? 'terminal-not-found' : 'terminal-presentation-conflict',
 			};
 		}
-		const removalId = removalIdForEvent(match.terminal, event);
-		if (
-			(event.type === 'terminal-close-completed' || event.type === 'terminal-close-failed') &&
-			removalId === null
-		) {
-			return { kind: 'rejected', reason: 'stale-operation' };
+		let transition: ReturnType<PanelWorkspaceStore['transition']>;
+		if (event.type === 'terminal-close-completed' || event.type === 'terminal-close-failed') {
+			if (
+				match.terminal.lifecycle.kind === 'stopping' &&
+				match.terminal.lifecycle.operationId === event.operationId
+			) {
+				transition = match.store.transition(
+					event.type === 'terminal-close-completed'
+						? { ...event, tabId: match.tabId, type: 'terminal-stop-completed' }
+						: { ...event, tabId: match.tabId, type: 'terminal-stop-failed' },
+				);
+			} else {
+				const removalId = removalIdForEvent(match.terminal, event);
+				if (removalId === null) return { kind: 'rejected', reason: 'stale-operation' };
+				transition = match.store.transition({
+					...event,
+					removalId: requireRemovalId(removalId),
+					tabId: match.tabId,
+				});
+			}
+		} else {
+			transition = match.store.transition({ ...event, tabId: match.tabId });
 		}
-		const transition = match.store.transition(
-			event.type === 'terminal-close-completed' || event.type === 'terminal-close-failed'
-				? { ...event, removalId: requireRemovalId(removalId), tabId: match.tabId }
-				: { ...event, tabId: match.tabId },
-		);
 		return transition.outcome === 'rejected'
 			? { kind: 'rejected', reason: transition.rejection ?? 'terminal-event-rejected' }
 			: { kind: transition.outcome };
@@ -311,6 +481,15 @@ export class WorkbenchProjectWorkspaceRuntime {
 	): ProjectWorkspaceTransition {
 		const result = transitionProjectWorkspace(this.state, event);
 		if (result.outcome !== 'applied') return result;
+		if (
+			this.terminalCreationSealed &&
+			result.commands.some(
+				(command) =>
+					command.type === 'terminal-context-created' || command.type === 'terminal-context-cloned',
+			)
+		) {
+			throw new Error('Terminal context creation is sealed for application shutdown.');
+		}
 		beforeCommit?.();
 		for (const command of result.commands) this.applyCommand(command);
 		this.state = result.state;
@@ -321,6 +500,9 @@ export class WorkbenchProjectWorkspaceRuntime {
 	public createTerminal(
 		input: WorkbenchRuntimeTerminalCreateInput,
 	): WorkbenchRuntimeTerminalCreateResult {
+		if (this.terminalCreationSealed) {
+			return { kind: 'rejected', reason: 'terminal-creation-sealed' };
+		}
 		const cwdResult = this.resolveActiveTerminalCwd(input.directoryId);
 		if (cwdResult.kind === 'rejected') return cwdResult;
 		const context = this.getActiveMutableContext();

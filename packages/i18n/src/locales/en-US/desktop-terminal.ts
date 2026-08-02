@@ -35,6 +35,8 @@ export const enUSDesktopTerminalMessages = {
 	'desktop.terminal.link.failed': 'The terminal link could not be opened.',
 	'desktop.terminal.screen': 'Terminal screen',
 	'desktop.terminal.selection.evicted': 'The terminal selection was evicted from retained history.',
+	'desktop.terminal.session.startNew': 'Start New Session',
+	'desktop.terminal.session.stopped': 'Terminal session stopped',
 } as const;
 
 export type DesktopTerminalMessageId = keyof typeof enUSDesktopTerminalMessages;

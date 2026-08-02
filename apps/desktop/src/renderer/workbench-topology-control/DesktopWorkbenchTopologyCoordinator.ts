@@ -28,6 +28,10 @@ type CoordinatorStartResult =
 	| { readonly kind: 'ready'; readonly revision: WorkbenchTopologyRevision }
 	| { readonly kind: 'unavailable'; readonly reason: CoordinatorFailureReason };
 
+export type DesktopWorkbenchTopologyFlushResult =
+	| { readonly kind: 'flushed'; readonly revision: WorkbenchTopologyRevision }
+	| { readonly kind: 'unavailable'; readonly reason: CoordinatorFailureReason };
+
 interface WorkbenchTopologyCommitPort {
 	commit(
 		expectedRevision: WorkbenchTopologyRevision | null,
@@ -52,6 +56,7 @@ export class DesktopWorkbenchTopologyCoordinator {
 	#committedDocument: WorkbenchTopologyDocument | undefined;
 	#disposed = false;
 	#failedReason: CoordinatorFailureReason | null = null;
+	readonly #flushWaiters = new Set<(result: DesktopWorkbenchTopologyFlushResult) => void>();
 	readonly #pendingCommands: TerminalPresentationCommand[] = [];
 	#pumping = false;
 	#scheduled = false;
@@ -72,6 +77,10 @@ export class DesktopWorkbenchTopologyCoordinator {
 
 	get failureReason(): CoordinatorFailureReason | null {
 		return this.#failedReason;
+	}
+
+	get committedRevision(): WorkbenchTopologyRevision | null {
+		return this.#committedDocument?.revision ?? null;
 	}
 
 	async start(
@@ -108,12 +117,31 @@ export class DesktopWorkbenchTopologyCoordinator {
 		this.#schedule();
 	}
 
+	flush(): Promise<DesktopWorkbenchTopologyFlushResult> {
+		if (this.#disposed) {
+			return Promise.resolve({ kind: 'unavailable', reason: 'control-unavailable' });
+		}
+		if (this.#failedReason !== null) {
+			return Promise.resolve({ kind: 'unavailable', reason: this.#failedReason });
+		}
+		if (!this.#started) {
+			return Promise.resolve({ kind: 'unavailable', reason: 'control-unavailable' });
+		}
+		const result = new Promise<DesktopWorkbenchTopologyFlushResult>((resolve) => {
+			this.#flushWaiters.add(resolve);
+		});
+		this.#schedule();
+		this.#settleFlushWaiters();
+		return result;
+	}
+
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#pendingCommands.length = 0;
 		this.#unsubscribeTopology?.();
 		this.#unsubscribeTopology = undefined;
+		this.#settleFlushWaiters();
 	}
 
 	readonly #schedule = (): void => {
@@ -165,6 +193,7 @@ export class DesktopWorkbenchTopologyCoordinator {
 		} finally {
 			this.#pumping = false;
 			if (this.#needsPump()) this.#schedule();
+			else this.#settleFlushWaiters();
 		}
 	}
 
@@ -189,7 +218,30 @@ export class DesktopWorkbenchTopologyCoordinator {
 		this.#failedReason = reason;
 		this.#unsubscribeTopology?.();
 		this.#unsubscribeTopology = undefined;
+		this.#settleFlushWaiters();
 		return { kind: 'unavailable', reason };
+	}
+
+	#settleFlushWaiters(): void {
+		if (this.#flushWaiters.size === 0) return;
+		let result: DesktopWorkbenchTopologyFlushResult | null = null;
+		if (this.#disposed) {
+			result = { kind: 'unavailable', reason: 'control-unavailable' };
+		} else if (this.#failedReason !== null) {
+			result = { kind: 'unavailable', reason: this.#failedReason };
+		} else if (
+			this.#started &&
+			this.#committedDocument !== undefined &&
+			!this.#pumping &&
+			!this.#scheduled &&
+			!this.#needsPump()
+		) {
+			result = { kind: 'flushed', revision: this.#committedDocument.revision };
+		}
+		if (result === null) return;
+		const waiters = [...this.#flushWaiters];
+		this.#flushWaiters.clear();
+		for (const resolve of waiters) resolve(result);
 	}
 }
 

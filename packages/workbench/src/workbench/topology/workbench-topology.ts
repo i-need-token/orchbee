@@ -126,6 +126,11 @@ const presentationIntentSchema = z.discriminatedUnion('kind', [
 	}),
 	z.strictObject({ kind: z.literal('retain') }),
 	z.strictObject({
+		kind: z.literal('stop'),
+		operationId: TerminalPresentationOperationIdSchema,
+	}),
+	z.strictObject({ kind: z.literal('stopped') }),
+	z.strictObject({
 		kind: z.literal('close'),
 		operationId: TerminalPresentationOperationIdSchema,
 		removalId: TerminalPresentationRemovalIdSchema,

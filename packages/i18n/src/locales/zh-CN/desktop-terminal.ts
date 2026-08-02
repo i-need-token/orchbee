@@ -36,4 +36,6 @@ export const zhCNDesktopTerminalMessages = {
 	'desktop.terminal.link.failed': '无法打开终端链接。',
 	'desktop.terminal.screen': '终端屏幕',
 	'desktop.terminal.selection.evicted': '终端所选内容已从保留历史中逐出。',
+	'desktop.terminal.session.startNew': '启动新会话',
+	'desktop.terminal.session.stopped': '终端会话已停止',
 } as const satisfies Readonly<Record<DesktopTerminalMessageId, string>>;

@@ -24,21 +24,25 @@ WorkbenchTopologyDocument
         └── pending removals and allocation sequences
 ```
 
-Presentation intent has exactly three forms:
+Presentation intent has exactly five forms:
 
 | Intent      | Durable meaning                                                                   |
 | ----------- | --------------------------------------------------------------------------------- |
 | `provision` | The presentation is placed and its named operation still requires reconciliation. |
 | `retain`    | A technical binding is expected; absence must not create a replacement shell.     |
 | `close`     | The named operation and removal remain pending until lifecycle reconciliation.    |
+| `stop`      | The named application-exit operation closes the binding while retaining layout.   |
+| `stopped`   | Layout remains, but no technical binding or process is expected.                  |
 
 Projection maps provisioning failures back to `provision`; restoring, reconciling, restore-failed,
-running, or exited observations to `retain`; and close failures or incomplete close results to
-`close`. Hydration maps `retain` to the non-projecting `restoring` lifecycle and maps the other
-intents to their corresponding pending lifecycle without dispatching a command. A runtime adapter
-must reconcile each intent before reporting an authoritative process observation. Restore uses a
-distinct command so an application can require an existing technical binding instead of treating
-absence as permission to provision a replacement.
+running, or exited observations to `retain`; close failures or incomplete close results to `close`;
+application-stop failures or incomplete results to `stop`; and completed application stops to
+`stopped`. Hydration maps `retain` to the non-projecting `restoring` lifecycle, maps `stop` to
+`stopping`, maps `stopped` to a non-projecting stopped lifecycle, and maps the other intents to their
+corresponding pending lifecycle without dispatching a command. A runtime adapter must reconcile
+each pending intent before reporting an authoritative process observation. Restore uses a distinct
+command so an application can require an existing technical binding instead of treating absence as
+permission to provision a replacement.
 
 ## Persisted and excluded data
 
@@ -70,6 +74,11 @@ adapter outcomes; they never authorize truncation, eviction, or identity reuse.
   across the document.
 - Every pending removal names one exact child, Panel, or Tab presentation set. Its presentations
   have matching `close` intent, and close intents never exist outside a pending removal.
+- A `stop` intent never belongs to a pending removal. Its close completion changes the presentation
+  to `stopped` without removing its Tab, Panel, split, title, or launch CWD.
+- A stopped presentation never projects a provision or restore command. Starting it is explicit and
+  atomically replaces it with a fresh `TerminalPresentationId` and provision operation while
+  preserving its product placement, title, and launch CWD.
 - Strict parsing rejects unknown fields. Missing or invalid relationships never receive inferred
   replacements or repairs.
 
@@ -83,9 +92,23 @@ validated document as `initialTopology` reconstructs Project/Workspace, Tab, and
 setting current CWD to absent and emitting no process command. `subscribeTopology(...)` observes
 Project/Workspace transitions and every nested Tab/Panel transition through one application-facing
 projection subscription. `reconcileDurableTerminalPresentations()` is single-start: it replays
-persisted provision and close operation identities and starts one restore-only operation for each
-retain presentation. Restore success becomes running, restore failure remains retain intent, and a
-second reconciliation call is an intentional no-op.
+persisted provision, close, and stop operation identities and starts one restore-only operation for
+each retain presentation. `stopped` emits no command. Restore success becomes running, restore
+failure remains retain intent, and a second reconciliation call is an intentional no-op.
+
+`requestAllTerminalSessionsStop()` seals terminal creation for that runtime generation and changes
+every presentation not already governed by a Panel/Tab removal to `stopping` with a fresh operation.
+The complete topology, containing `stop` intent for every such presentation, must be durably
+committed before any close command is dispatched. A close success changes `stopping` to `stopped`
+and preserves the layout; a close failure changes it to `stop-failed` and keeps `stop` as replay
+authority. Existing removals retain their `close` intent and removal semantics. Retry uses a fresh
+operation identity. Once the first close effect begins, application-stop cancellation is not a
+Workbench transition.
+
+`startStoppedTerminalSession(...)` is the only transition from `stopped` to a live session. It
+replaces the stopped presentation identity with a fresh identity and begins `provision`; it never
+changes Project, Workspace, Tab, Panel, split, title, or launch CWD. Application adapters must not
+invoke it for hidden contexts or as part of topology hydration.
 
 Schema version `1` has no migration reader. A composing application must treat another version or
 an invalid document as unavailable without overwriting or reinterpreting it.
@@ -97,6 +120,8 @@ an invalid document as unavailable without overwriting or reinterpreting it.
 | Strict documents preserve every identity and relationship  | Valid and malformed schema examples plus JSON round trips                 | Selected malformed classes                         |
 | Projection and hydration preserve durable managed topology | Managed running and pending-close runtime round trips                     | Process reconciliation remains application work    |
 | Retain reconciliation never projects provision intent      | Restore success/failure and replay command traces                         | Binding existence is enforced by the application   |
+| Application stop is write-ahead and layout preserving      | `TerminalPresentationStop` TLC model and stop/retry completion tests      | Main-owned unreferenced bindings need app evidence |
+| Stopped sessions never restart implicitly                  | Hydration/reconciliation and explicit fresh-start identity tests          | User interaction is application-owned              |
 | One subscription observes nested durable topology          | Project, Tab, and Panel observer traces                                   | Application commit scheduling remains out of scope |
 | Hierarchical topology remains canonical                    | Fixed-seed `fast-check` generation of 200 ordered multi-Tab/Panel layouts | Up to eight Tabs and four Panels per generated Tab |
 | Preview state cannot claim durability                      | Deterministic rejection test                                              | Preview remains an in-memory product composition   |

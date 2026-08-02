@@ -1,7 +1,12 @@
 export { FormattedMessage } from 'react-intl';
 export type { IntlShape, MessageDescriptor } from 'react-intl';
 
-export { desktopTerminalMessages, workbenchMessages, workbenchTabMessages } from './descriptors';
+export {
+	desktopApplicationLifetimeMessages,
+	desktopTerminalMessages,
+	workbenchMessages,
+	workbenchTabMessages,
+} from './descriptors';
 export type { OrchbeeMessageId } from './locales';
 export {
 	DEFAULT_ORCHBEE_LOCALE,

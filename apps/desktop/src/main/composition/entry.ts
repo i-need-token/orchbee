@@ -6,11 +6,11 @@ import { DesktopApplication } from './DesktopApplication';
 import { resolveDesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 
 let desktopApplication: DesktopApplication | undefined;
-let shutdownComplete = false;
-let shutdownStarted = false;
+let bypassQuitGate = false;
 const singleInstanceLockOwned = app.requestSingleInstanceLock();
 
 if (!singleInstanceLockOwned) {
+	bypassQuitGate = true;
 	app.quit();
 } else {
 	app.on('second-instance', () => {
@@ -33,6 +33,7 @@ if (!singleInstanceLockOwned) {
 				userDataPath: app.getPath('userData'),
 			});
 			desktopApplication = new DesktopApplication({
+				platform: process.platform,
 				preloadPath: path.join(__dirname, '..', 'preload', 'preload.cjs'),
 				rendererFilePath: path.join(__dirname, '..', 'renderer', 'index.html'),
 				...(rendererUrl === undefined ? {} : { rendererUrl }),
@@ -45,19 +46,17 @@ if (!singleInstanceLockOwned) {
 		})
 		.catch((error: unknown) => {
 			console.error('Orchbee Desktop startup failed.', error);
+			bypassQuitGate = true;
 			app.quit();
 		});
 }
 
 app.on('before-quit', (event) => {
-	if (shutdownComplete) return;
+	if (bypassQuitGate || desktopApplication === undefined || desktopApplication.quitPrepared) {
+		return;
+	}
 	event.preventDefault();
-	if (shutdownStarted) return;
-	shutdownStarted = true;
-	void (desktopApplication?.shutdown() ?? Promise.resolve()).finally(() => {
-		shutdownComplete = true;
-		app.quit();
-	});
+	void desktopApplication?.requestExitAndQuit('user-quit');
 });
 
 app.on('window-all-closed', () => {

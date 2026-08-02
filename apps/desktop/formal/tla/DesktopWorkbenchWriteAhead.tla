@@ -1,8 +1,8 @@
 ----------------------- MODULE DesktopWorkbenchWriteAhead -----------------------
 EXTENDS Naturals, TLC
 
-Intents == {"absent", "provision", "retain", "close"}
-Commands == {"none", "provision", "restore", "close"}
+Intents == {"absent", "provision", "retain", "close", "stop", "stopped"}
+Commands == {"none", "provision", "restore", "close", "stop"}
 CommandPhases == {"none", "queued", "dispatched", "completed"}
 Actions == {"init", "request", "commit-started", "commit-succeeded",
   "commit-failed", "dispatch", "effect-completed", "result-applied",
@@ -13,16 +13,20 @@ CommandFor(intent) ==
     [] intent = "provision" -> "provision"
     [] intent = "retain" -> "restore"
     [] intent = "close" -> "close"
+    [] intent = "stop" -> "stop"
+    [] intent = "stopped" -> "none"
 
 CommandCovers(intent, command) ==
   \/ /\ intent = "provision" /\ command = "provision"
   \/ /\ intent = "retain" /\ command = "restore"
   \/ /\ intent = "close" /\ command = "close"
+  \/ /\ intent = "stop" /\ command = "stop"
 
 ResultIntent(command) ==
   CASE command = "provision" -> "retain"
     [] command = "restore" -> "retain"
     [] command = "close" -> "absent"
+    [] command = "stop" -> "stopped"
 
 VARIABLES
   storedIntent,
@@ -89,6 +93,19 @@ RequestClose ==
   /\ UNCHANGED <<storedIntent, commitPending, commitCandidate, connected,
        writable, creationParity>>
   /\ Record("request", "close")
+
+RequestStop ==
+  /\ connected
+  /\ ~commitPending
+  /\ storedIntent = "retain"
+  /\ memoryIntent = storedIntent
+  /\ commandPhase = "none"
+  /\ memoryIntent' = "stop"
+  /\ commandType' = "stop"
+  /\ commandPhase' = "queued"
+  /\ UNCHANGED <<storedIntent, commitPending, commitCandidate, connected,
+       writable, creationParity>>
+  /\ Record("request", "stop")
 
 StartCommit ==
   /\ connected
@@ -167,6 +184,7 @@ Reload ==
 Next ==
   \/ RequestProvision
   \/ RequestClose
+  \/ RequestStop
   \/ StartCommit
   \/ CommitSucceeded
   \/ CommitFailed

@@ -10,8 +10,14 @@ import {
 	type TerminalExited,
 } from '@orchbee/terminal-protocol';
 import { TerminalPresentationIdSchema } from '@orchbee/workbench/terminal-presentation';
+import type {
+	WorkbenchTopologyDocument,
+	WorkbenchTopologyPanelNode,
+	WorkbenchTopologyRevision,
+} from '@orchbee/workbench/topology';
 import {
 	BrowserWindow,
+	app,
 	MessageChannelMain,
 	type BrowserWindowConstructorOptions,
 	type MessagePortMain,
@@ -19,16 +25,28 @@ import {
 
 import {
 	TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
+	DESKTOP_APPLICATION_LIFETIME_IPC_CHANNEL,
 	TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
 	WORKBENCH_TOPOLOGY_CONTROL_IPC_CHANNEL,
 	TerminalDocumentControlBootstrapSchema,
+	DesktopApplicationExitRequestIdSchema,
+	DesktopApplicationLifetimeBootstrapSchema,
 	TerminalProjectionControlBootstrapSchema,
 	WorkbenchTopologyControlBootstrapSchema,
 	type ProjectedAttachmentBootstrap,
+	type DesktopApplicationExitReason,
+	type DesktopApplicationExitRequestId,
+	type DesktopApplicationExitFailure,
 	type TerminalDocumentControlCommand,
 	type TerminalDocumentControlEvent,
 	type TerminalDocumentControlOperationResult,
 } from '../../shared';
+import {
+	DesktopApplicationLifetimeBroker,
+	type DesktopApplicationLifetimeBrokerDependencies,
+	type DesktopApplicationLifetimeDrainResult,
+	type DesktopApplicationLifetimeExitResult,
+} from '../application-lifetime';
 import { ProjectedTerminalBroker, type ProjectedTerminalBrokerMetrics } from '../broker';
 import { DevelopmentHostRuntime, type HostConnection } from '../host';
 import {
@@ -75,7 +93,17 @@ interface DesktopWorkbenchTopologyBrokerHandle {
 	start(): void;
 }
 
+interface DesktopApplicationLifetimeBrokerHandle {
+	dispose(): void;
+	requestExit(
+		requestId: DesktopApplicationExitRequestId,
+		reason: DesktopApplicationExitReason,
+	): Promise<DesktopApplicationLifetimeExitResult>;
+	start(): void;
+}
+
 export interface DesktopApplicationOptions {
+	readonly platform: NodeJS.Platform;
 	readonly preloadPath: string;
 	readonly rendererFilePath: string;
 	readonly rendererUrl?: string;
@@ -91,6 +119,10 @@ export interface DesktopApplicationDependencies {
 		port: MessagePortMain,
 		bootstrap: ProjectedAttachmentBootstrap,
 	) => DesktopBrokerHandle;
+	readonly createApplicationLifetimeBroker: (
+		port: MessagePortMain,
+		dependencies: DesktopApplicationLifetimeBrokerDependencies,
+	) => DesktopApplicationLifetimeBrokerHandle;
 	readonly createDocumentBroker: (
 		port: MessagePortMain,
 		operations: TerminalDocumentControlOperations,
@@ -122,6 +154,7 @@ export interface DesktopApplicationDependencies {
 	readonly createWorkbenchTopologyStore: (filePath: string) => WorkbenchTopologyStore;
 	readonly createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
 	readonly randomIdentifier: () => string;
+	readonly quitApplication: () => void;
 	readonly writeTrace: (trace: unknown) => void;
 }
 
@@ -133,6 +166,8 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			runtimeDirectory: configuration.runtimeDirectory,
 		}).connect(),
 	createBroker: (host, port, bootstrap) => new ProjectedTerminalBroker(host, port, bootstrap),
+	createApplicationLifetimeBroker: (port, dependencies) =>
+		new DesktopApplicationLifetimeBroker(port, dependencies),
 	createDocumentBroker: (port, operations, resultPosted) =>
 		new TerminalDocumentControlBroker(port, operations, resultPosted),
 	createMessageChannel: () => new MessageChannelMain(),
@@ -156,10 +191,12 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	createWorkbenchTopologyStore: (filePath) => new FileWorkbenchTopologyStore(filePath),
 	createWindow: (options) => new BrowserWindow(options),
 	randomIdentifier: () => randomBytes(16).toString('hex'),
+	quitApplication: () => app.quit(),
 	writeTrace: (trace) => console.info(JSON.stringify(trace)),
 };
 
 export class DesktopApplication {
+	#applicationLifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
 	readonly #dependencies: DesktopApplicationDependencies;
 	readonly #options: DesktopApplicationOptions;
 	#connection: HostConnection | undefined;
@@ -167,7 +204,9 @@ export class DesktopApplication {
 	#documentFailure: Error | undefined;
 	#documentGeneration = 0;
 	#documentTransition = Promise.resolve();
+	#exitRequest: Promise<DesktopApplicationLifetimeExitResult> | undefined;
 	#projectionControlBroker: DesktopProjectionControlBrokerHandle | undefined;
+	#quitPrepared = false;
 	#removeHostListener: (() => void) | undefined;
 	#shuttingDown = false;
 	#terminalRuntime: DesktopTerminalRuntime | undefined;
@@ -193,8 +232,41 @@ export class DesktopApplication {
 		return this.#window !== undefined && !this.#window.isDestroyed();
 	}
 
+	get quitPrepared(): boolean {
+		return this.#quitPrepared;
+	}
+
 	focusWindow(): void {
 		if (this.hasWindow) this.#window?.focus();
+	}
+
+	requestExit(reason: DesktopApplicationExitReason): Promise<DesktopApplicationLifetimeExitResult> {
+		if (this.#exitRequest !== undefined) return this.#exitRequest;
+		const broker = this.#applicationLifetimeBroker;
+		if (broker === undefined) return Promise.resolve({ kind: 'unavailable' });
+		const requestId = DesktopApplicationExitRequestIdSchema.parse(
+			`desktop:exit:${this.#dependencies.randomIdentifier()}`,
+		);
+		const request = broker.requestExit(requestId, reason);
+		this.#exitRequest = request;
+		void request.then((result) => {
+			if (this.#exitRequest === request && result.kind !== 'ready') {
+				this.#exitRequest = undefined;
+			}
+		});
+		return request;
+	}
+
+	async requestExitAndQuit(reason: DesktopApplicationExitReason): Promise<void> {
+		if (this.#applicationLifetimeBroker === undefined && !this.#shuttingDown) {
+			if (!this.hasWindow) await this.openWindow();
+			await this.#documentTransition;
+		}
+		const result = await this.requestExit(reason);
+		if (result.kind !== 'ready' || this.#quitPrepared) return;
+		this.#quitPrepared = true;
+		await this.shutdown();
+		this.#dependencies.quitApplication();
 	}
 
 	async start(): Promise<void> {
@@ -275,6 +347,12 @@ export class DesktopApplication {
 				}
 			});
 		});
+		window.on('close', (event) => {
+			if (this.#options.platform !== 'darwin' && !this.#quitPrepared && !this.#shuttingDown) {
+				event.preventDefault();
+				void this.requestExitAndQuit('user-quit');
+			}
+		});
 		window.once('ready-to-show', () => window.show());
 		window.once('closed', () => {
 			this.#writeCopyPathTrace('window-closed');
@@ -311,6 +389,8 @@ export class DesktopApplication {
 
 	#beginRendererDocument(): number {
 		const generation = ++this.#documentGeneration;
+		this.#applicationLifetimeBroker?.dispose();
+		this.#applicationLifetimeBroker = undefined;
 		this.#documentBroker?.dispose();
 		this.#documentBroker = undefined;
 		this.#workbenchTopologyBroker?.dispose();
@@ -347,6 +427,7 @@ export class DesktopApplication {
 		}
 		const defaultCwd = this.#options.runtime.terminalLaunch.currentDirectory;
 		if (defaultCwd === null) throw new Error('Desktop terminal runtime requires a default CWD.');
+		const lifetimeChannel = this.#dependencies.createMessageChannel();
 		const documentChannel = this.#dependencies.createMessageChannel();
 		const projectionChannel = this.#dependencies.createMessageChannel();
 		const topologyChannel = this.#dependencies.createMessageChannel();
@@ -363,10 +444,16 @@ export class DesktopApplication {
 			topologyChannel.port2,
 			this.#workbenchTopologyStore,
 		);
+		const lifetimeBroker = this.#dependencies.createApplicationLifetimeBroker(
+			lifetimeChannel.port2,
+			{ drainForStop: this.#drainForApplicationStop },
+		);
+		this.#applicationLifetimeBroker = lifetimeBroker;
 		this.#documentBroker = documentBroker;
 		this.#projectionControlBroker = projectionBroker;
 		this.#workbenchTopologyBroker = topologyBroker;
 		documentBroker.start();
+		lifetimeBroker.start();
 		projectionBroker.start();
 		topologyBroker.start();
 		const documentBootstrap = TerminalDocumentControlBootstrapSchema.parse({
@@ -380,6 +467,13 @@ export class DesktopApplication {
 		window.webContents.postMessage(TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL, documentBootstrap, [
 			documentChannel.port1,
 		]);
+		window.webContents.postMessage(
+			DESKTOP_APPLICATION_LIFETIME_IPC_CHANNEL,
+			DesktopApplicationLifetimeBootstrapSchema.parse({
+				type: DESKTOP_APPLICATION_LIFETIME_IPC_CHANNEL,
+			}),
+			[lifetimeChannel.port1],
+		);
 		window.webContents.postMessage(
 			TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
 			TerminalProjectionControlBootstrapSchema.parse({
@@ -420,6 +514,65 @@ export class DesktopApplication {
 		}
 	};
 
+	readonly #drainForApplicationStop = async (
+		topologyRevision: WorkbenchTopologyRevision,
+	): Promise<DesktopApplicationLifetimeDrainResult> => {
+		const terminalRuntime = this.#terminalRuntime;
+		if (terminalRuntime === undefined) {
+			return {
+				failures: [typedExitFailure('unreferenced-binding-close-failed', 1, true)],
+				kind: 'failed',
+			};
+		}
+		const loaded = await this.#workbenchTopologyStore.load().catch(() => ({
+			kind: 'unavailable' as const,
+			reason: 'read-failed' as const,
+		}));
+		if (loaded.kind !== 'available' || loaded.document.revision !== topologyRevision) {
+			return {
+				failures: [typedExitFailure('topology-control-unavailable', 1, true)],
+				kind: 'failed',
+			};
+		}
+		const referencedPresentationIds = collectTopologyPresentationIds(loaded.document);
+		const drained = await terminalRuntime.closeBindingsNotReferencedBy(referencedPresentationIds);
+		if (drained.failures.length > 0) {
+			return {
+				failures: [
+					typedExitFailure(
+						'unreferenced-binding-close-failed',
+						drained.failures.length,
+						drained.failures.every((item) => item.failure.retryable),
+					),
+				],
+				kind: 'failed',
+			};
+		}
+		const remainingOwnedBindings = terminalRuntime.getOwnedBindingCount();
+		if (remainingOwnedBindings > 0) {
+			return {
+				failures: [typedExitFailure('terminal-stop-failed', remainingOwnedBindings, true)],
+				kind: 'failed',
+			};
+		}
+		let unknownHostTerminalCount: number;
+		try {
+			unknownHostTerminalCount = await terminalRuntime.inspectUnknownHostTerminalCount();
+		} catch {
+			return {
+				failures: [typedExitFailure('host-inventory-unavailable', 1, true)],
+				kind: 'failed',
+			};
+		}
+		if (unknownHostTerminalCount > 0) {
+			return {
+				failures: [typedExitFailure('host-orphan-detected', unknownHostTerminalCount, false)],
+				kind: 'failed',
+			};
+		}
+		return { closedUnreferencedCount: drained.closedCount, kind: 'completed' };
+	};
+
 	readonly #handleHostEnvelope = (envelope: DecodedProtocolEnvelope): void => {
 		if (envelope.kind !== MessageKind.terminalExited) return;
 		const exited = decodeControlJson(envelope.payload, TerminalExitedSchema);
@@ -440,6 +593,34 @@ export class DesktopApplication {
 			type: 'orchbee.desktop.copy-path',
 		});
 	}
+}
+
+function collectTopologyPresentationIds(
+	document: WorkbenchTopologyDocument,
+): ReadonlySet<ReturnType<typeof TerminalPresentationIdSchema.parse>> {
+	const presentationIds = new Set<ReturnType<typeof TerminalPresentationIdSchema.parse>>();
+	const visit = (node: WorkbenchTopologyPanelNode): void => {
+		if (node.kind === 'panel') {
+			presentationIds.add(node.primaryPresentation.presentationId);
+			for (const presentation of node.childPresentations) {
+				presentationIds.add(presentation.presentationId);
+			}
+			return;
+		}
+		for (const child of node.children) visit(child.node);
+	};
+	for (const context of document.terminalContexts) {
+		for (const tab of context.panelWorkspace.tabs) visit(tab.root);
+	}
+	return presentationIds;
+}
+
+function typedExitFailure(
+	code: DesktopApplicationExitFailure['code'],
+	count: number,
+	retryable: boolean,
+): DesktopApplicationExitFailure {
+	return { code, count, retryable };
 }
 
 function toDocumentExit(

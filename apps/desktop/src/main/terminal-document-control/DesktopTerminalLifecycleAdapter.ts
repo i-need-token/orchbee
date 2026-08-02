@@ -95,6 +95,16 @@ export interface DesktopRecoveredTerminalPresentation {
 	readonly presentationId: TerminalPresentationId;
 }
 
+interface DesktopTerminalBindingDrainFailure {
+	readonly failure: TerminalPresentationFailure;
+	readonly presentationId: TerminalPresentationId;
+}
+
+export interface DesktopTerminalBindingDrainResult {
+	readonly closedCount: number;
+	readonly failures: readonly DesktopTerminalBindingDrainFailure[];
+}
+
 export class DesktopTerminalLifecycleAdapter implements TerminalDocumentControlOperations {
 	readonly #allocateFreshBindingId: () => string;
 	readonly #createBindingLifecycle: DesktopTerminalLifecycleAdapterDependencies['createBindingLifecycle'];
@@ -128,6 +138,64 @@ export class DesktopTerminalLifecycleAdapter implements TerminalDocumentControlO
 				launchCwd: entry.launch.currentDirectory,
 				presentationId: entry.presentationId,
 			}));
+	}
+
+	get bindingCount(): number {
+		return this.#registry.size;
+	}
+
+	async closeBindingsNotReferencedBy(
+		referencedPresentationIds: ReadonlySet<TerminalPresentationId>,
+	): Promise<DesktopTerminalBindingDrainResult> {
+		const initialization = await this.initialize();
+		if (initialization.kind !== 'ready') {
+			const mappedFailure =
+				initialization.kind === 'unavailable'
+					? storageFailure(initialization.reason)
+					: failure('terminal-binding-registry-conflict', false);
+			return {
+				closedCount: 0,
+				failures: this.#registry
+					.getSnapshot()
+					.filter((registration) => !referencedPresentationIds.has(registration.presentationId))
+					.map((registration) => ({
+						failure: mappedFailure,
+						presentationId: registration.presentationId,
+					})),
+			};
+		}
+		const targets = this.#registry
+			.getSnapshot()
+			.filter((registration) => !referencedPresentationIds.has(registration.presentationId));
+		const outcomes = await Promise.all(
+			targets.map(async (registration): Promise<DesktopTerminalBindingDrainFailure | null> => {
+				const entry = this.#entries.get(registration.presentationId);
+				if (entry === undefined) {
+					return {
+						failure: failure('terminal-binding-runtime-unavailable', false),
+						presentationId: registration.presentationId,
+					};
+				}
+				const outcome = await this.#enqueue(entry, async () => {
+					if (entry.retired) return { kind: 'closed' } as const;
+					return entry.lifecycle.requestClose(() => this.#retireProjection(entry.presentationId));
+				});
+				if (outcome.kind !== 'closed') {
+					return { failure: closeFailure(outcome), presentationId: entry.presentationId };
+				}
+				if (!entry.retired && !this.#retireEntry(entry)) {
+					return {
+						failure: failure('terminal-binding-registry-conflict', false),
+						presentationId: entry.presentationId,
+					};
+				}
+				return null;
+			}),
+		);
+		const failures = outcomes.filter(
+			(outcome): outcome is DesktopTerminalBindingDrainFailure => outcome !== null,
+		);
+		return { closedCount: targets.length - failures.length, failures };
 	}
 
 	getProjectionTarget(

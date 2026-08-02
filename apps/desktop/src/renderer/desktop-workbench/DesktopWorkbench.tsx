@@ -10,6 +10,10 @@ import {
 import type { ReactNode } from 'react';
 
 import {
+	DesktopApplicationLifetimeDialog,
+	type DesktopApplicationLifetimeDialogController,
+} from '../desktop-application-lifetime-dialog';
+import {
 	DesktopTerminalSurface,
 	DesktopTerminalSurfaceCapabilityContext,
 	type DesktopTerminalSurfaceCapability,
@@ -18,6 +22,7 @@ import styles from './DesktopWorkbench.module.css';
 
 export interface DesktopWorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
+	readonly applicationLifetimeCoordinator: DesktopApplicationLifetimeDialogController;
 	readonly layoutStorage: WorkbenchLayoutStorage;
 	readonly locale: OrchbeeLocale;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
@@ -27,6 +32,7 @@ export interface DesktopWorkbenchProps {
 
 export function DesktopWorkbench({
 	actionRuntime,
+	applicationLifetimeCoordinator,
 	layoutStorage,
 	locale,
 	projectWorkspaceRuntime,
@@ -38,13 +44,16 @@ export function DesktopWorkbench({
 			<DesktopTerminalSurfaceCapabilityContext.Provider value={terminalSurfaceCapability}>
 				<OrchbeeI18nProvider locale={locale}>
 					<TooltipProvider>
-						<Workbench
-							actionRuntime={actionRuntime}
-							layoutStorage={layoutStorage}
-							projectWorkspaceRuntime={projectWorkspaceRuntime}
-							shortcutPlatform={shortcutPlatform}
-							terminalSurface={DesktopTerminalSurface}
-						/>
+						<>
+							<Workbench
+								actionRuntime={actionRuntime}
+								layoutStorage={layoutStorage}
+								projectWorkspaceRuntime={projectWorkspaceRuntime}
+								shortcutPlatform={shortcutPlatform}
+								terminalSurface={DesktopTerminalSurface}
+							/>
+							<DesktopApplicationLifetimeDialog controller={applicationLifetimeCoordinator} />
+						</>
 					</TooltipProvider>
 				</OrchbeeI18nProvider>
 			</DesktopTerminalSurfaceCapabilityContext.Provider>

@@ -18,6 +18,10 @@ import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import type { TerminalDocumentControlBootstrap } from '../../shared';
+import {
+	DesktopApplicationLifetimeClient,
+	DesktopApplicationLifetimeCoordinator,
+} from '../desktop-application-lifetime-dialog';
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopTerminalDocumentClient } from '../terminal-document-control';
 import { DesktopTerminalProjectionClient } from '../terminal-projection-control';
@@ -40,6 +44,7 @@ export function startDesktopWorkbenchRenderer(
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	storage: Pick<Storage, 'getItem' | 'setItem'>,
 	bootstrap: TerminalDocumentControlBootstrap,
+	lifetimePort: MessagePort,
 	documentPort: MessagePort,
 	projectionPort: MessagePort,
 	topologyPort: MessagePort,
@@ -56,7 +61,9 @@ export function startDesktopWorkbenchRenderer(
 	const projectionClient = new DesktopTerminalProjectionClient(projectionPort);
 	const topologyClient = new DesktopWorkbenchTopologyClient(topologyPort);
 	let actionRuntime: ActionRuntime | undefined;
+	let applicationLifetimeCoordinator: DesktopApplicationLifetimeCoordinator | undefined;
 	let disposed = false;
+	let lifetimeClient: DesktopApplicationLifetimeClient | undefined;
 	let reactRoot: Root | undefined;
 	let topologyCoordinator: DesktopWorkbenchTopologyCoordinator | undefined;
 	let unsubscribeDocument: (() => void) | undefined;
@@ -87,6 +94,8 @@ export function startDesktopWorkbenchRenderer(
 		disposed = true;
 		unsubscribeDocument?.();
 		unsubscribeDocument = undefined;
+		applicationLifetimeCoordinator?.dispose();
+		applicationLifetimeCoordinator = undefined;
 		reactRoot?.unmount();
 		reactRoot = undefined;
 		actionRuntime?.dispose();
@@ -96,6 +105,8 @@ export function startDesktopWorkbenchRenderer(
 		projectionClient.dispose();
 		documentClient.dispose();
 		topologyClient.dispose();
+		if (lifetimeClient === undefined) lifetimePort.close();
+		else lifetimeClient.dispose();
 	};
 
 	const ready = initialize().catch(() => {
@@ -153,11 +164,18 @@ export function startDesktopWorkbenchRenderer(
 			return topologyStart;
 		}
 		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
+		lifetimeClient = new DesktopApplicationLifetimeClient(lifetimePort);
+		applicationLifetimeCoordinator = new DesktopApplicationLifetimeCoordinator(
+			runtime,
+			topologyCoordinator,
+			lifetimeClient,
+		);
 		actionRuntime = new ActionRuntime();
 		reactRoot = createRoot(applicationRoot);
 		reactRoot.render(
 			createElement(DesktopWorkbench, {
 				actionRuntime,
+				applicationLifetimeCoordinator,
 				layoutStorage: storage,
 				locale,
 				projectWorkspaceRuntime: runtime,
@@ -167,6 +185,9 @@ export function startDesktopWorkbenchRenderer(
 					preferredLocales,
 					projectionClient,
 					shortcutPlatform,
+					startStoppedTerminalSession: (presentationId) => {
+						runtime.startStoppedTerminalSession(presentationId);
+					},
 				},
 			}),
 		);

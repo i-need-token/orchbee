@@ -11,7 +11,7 @@ history, and real terminal identity. None of the product topology is stored in t
 
 Main starts without creating a fixed terminal or opening an attachment. It restores the durable
 `TerminalPresentationId` to `TerminalBindingId` registry, owns the private Workbench-topology file
-adapter, and transfers three allowlisted document ports through the sandboxed preload:
+adapter, and transfers four allowlisted document ports through the sandboxed preload:
 
 - lifecycle control accepts only presentation-scoped provision, restore, and close commands and
   publishes correlated results plus terminal exit;
@@ -19,6 +19,8 @@ adapter, and transfers three allowlisted document ports through the sandboxed pr
   viewport.
 - topology control loads or exact-next compare-and-swaps only canonical
   `@orchbee/workbench/topology` documents.
+- application-lifetime control carries only exit reason, user choice, topology flush revision,
+  aggregate progress, and typed failures for the current renderer document.
 
 The renderer has no Node integration, generic Electron IPC, filesystem capability, Host inventory,
 or raw terminal-lifetime authority. Preload transfers exactly one port for each recognized control
@@ -29,8 +31,8 @@ document restores its exact Project, Workspace, Tab, Group, Panel, Split, and pr
 placement. A missing document projects recovered bindings as standalone Tabs and commits revision
 `0` before any initial lifecycle command. An unavailable load or failed first commit creates no
 replacement topology or terminal effect. Unreferenced technical bindings remain preserved but are
-not silently adopted into product topology. Update activation UI, sharing, network clients, and the
-user-facing quit/retention choice remain outside the current composition.
+not silently adopted into product topology. Sharing, network clients, packaging, and update
+activation remain outside the current composition.
 
 Desktop requires Host protocol `1.4` exactly. Electron uses `42.8.0`, the final release in the major
 immediately preceding the current Electron major selected for this repository.
@@ -94,8 +96,33 @@ technical `closing`, retires only that presentation's active projections, and de
 graceful/force/dispose behavior to the existing binding close lifecycle. A Panel or Tab remains in
 Workbench until every exact terminal close result completes; cleanup commits afterward, while the
 previously stored close intent remains replayable if cleanup fails. Renderer reload, a renderer
-crash, window close, and current application shutdown release document attachments but preserve
-Host terminals.
+crash, a normal macOS window close, and uncontrolled Main loss release document attachments but
+preserve Host terminals. A controlled application quit follows the policy below.
+
+## Application lifetime
+
+A normal macOS window close releases only the renderer document. Command+Q, a menu quit, or closing
+the last window on Windows and Linux enters one coalesced user-quit workflow while the renderer is
+still available. When terminal sessions exist, the application-wide dialog offers Keep Sessions
+and Quit as the default, Stop Sessions and Quit as the destructive choice, or Cancel before any
+stop effect. With no sessions, Desktop flushes topology and quits without prompting. The future
+updater enters the same preserve preparation as `update-restart` without prompting; updater
+installation and packaging remain outside this package.
+
+Stop seals terminal creation for the renderer generation, projects every visible and hidden
+Workbench presentation to durable `stop`, compare-and-swaps the complete topology, and only then
+releases close commands. Successful close results change presentations to `stopped` while retaining
+Project, Workspace, Tab, Panel, split, title, and launch CWD. Hydration never starts a stopped
+presentation. Its visible Start New Session action replaces the stopped PresentationId with a fresh
+identity and provisions only that selected presentation.
+
+After referenced presentations stop, Main loads the exact committed topology revision and closes
+every binding that it owns but the topology does not reference. It then requires the binding
+registry to be empty and scans Host inventory. Unknown Host terminals are reported as unresolved;
+they are never silently killed. A partial failure keeps Desktop in an irreversible recovery dialog
+with Retry when supported and an explicit Quit Anyway warning. Quit Anyway may leave processes
+running; the durable `stop` intent remains replay authority for the next start. OS shutdown,
+logout, and forced termination are not claimed by this workflow.
 
 ## Demand-driven projection
 
@@ -142,15 +169,22 @@ Focused traces cover:
 - fixed-header frame routing to only the matching AttachmentId;
 - sandboxed end-to-end input, output, history, search, selection, copy, links, exit, renderer reload,
   and Electron Main restart.
+- user-quit preserve/cancel/stop, hidden-terminal stop, failed-CAS suppression, partial-stop retry,
+  unreferenced-binding drain, unknown-Host-orphan refusal, update-restart preserve, and fresh
+  identity after explicitly starting a stopped session.
 
 Existing TLA+ models continue to check terminal recovery, binding close, lifecycle-adapter
 serialization, projection demand, and Workbench removal safety within their declared finite bounds.
 The Desktop topology-store model additionally checks exact-next CAS, conflict preservation,
 serialization, unavailable storage, generation disposal, and progress for two clients through
 revision `2`.
-The Desktop write-ahead model checks matching durable intent before provision, restore, or close
+The Desktop write-ahead model checks matching durable intent before provision, restore, close, or stop
 dispatch; failed-commit preservation; restore without replacement creation; renderer disposal and
 reload replay; and live-generation progress for one abstract presentation.
+The Desktop application-lifetime model checks prompt and update paths, stop-before-close ordering,
+unreferenced binding drain, cancellation before effects, clean-stop exit, and the explicit forced
+exit escape. Workbench's terminal-stop model checks layout retention, stopped-without-binding,
+retry identity, and fresh PresentationId generation.
 The repository imposes no new throughput acceptance gate for this integration slice; the optional
 benchmark remains a diagnostic tool.
 

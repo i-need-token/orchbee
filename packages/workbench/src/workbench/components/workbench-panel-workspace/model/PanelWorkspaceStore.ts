@@ -38,6 +38,7 @@ export class PanelWorkspaceStore {
 	private readonly pendingTabCwds = new Map<string, string | null>();
 	private readonly pendingTabPresentations = new Map<string, TerminalPresentationCreation>();
 	private readonly composition: WorkbenchTerminalPresentationComposition;
+	private terminalCreationSealed = false;
 	private readonly tabModel: TabModel;
 	private unsubscribeTabModel: (() => void) | null = null;
 	private state: PanelWorkspaceState;
@@ -101,7 +102,113 @@ export class PanelWorkspaceStore {
 	}
 
 	public createTerminalPresentation(): TerminalPresentationCreation {
+		this.assertTerminalCreationAvailable();
 		return this.createPresentation();
+	}
+
+	public sealTerminalCreation(): void {
+		this.terminalCreationSealed = true;
+		this.pendingTabCwds.clear();
+		this.pendingTabPresentations.clear();
+	}
+
+	public requestAllTerminalSessionsStop(): PanelWorkspaceTransition {
+		const composition = this.composition;
+		if (composition.kind !== 'managed') {
+			return rejectedTransition(this.state, 'invalid-close-operations');
+		}
+		const operations = this.collectTerminals()
+			.filter(
+				(terminal) =>
+					terminal.lifecycle.kind !== 'closing' &&
+					terminal.lifecycle.kind !== 'close-failed' &&
+					terminal.lifecycle.kind !== 'closed' &&
+					terminal.lifecycle.kind !== 'stopping' &&
+					terminal.lifecycle.kind !== 'stopped',
+			)
+			.map((terminal) => ({
+				operationId: composition.createOperationId(),
+				presentationId: terminal.presentationId,
+			}));
+		return this.transition({ operations, type: 'terminal-sessions-stop-requested' });
+	}
+
+	public retryFailedTerminalSessionStops(): PanelWorkspaceTransition {
+		const composition = this.composition;
+		if (composition.kind !== 'managed') {
+			return rejectedTransition(this.state, 'invalid-close-operations');
+		}
+		let aggregate: PanelWorkspaceTransition = {
+			commands: [],
+			outcome: 'unchanged',
+			rejection: null,
+			state: this.state,
+		};
+		for (const tab of this.state.tabs) {
+			for (const panel of collectPanelLeaves(tab.root)) {
+				for (const terminal of [panel.primaryPresentation, ...panel.childPresentations]) {
+					if (
+						terminal.lifecycle.kind !== 'stop-failed' &&
+						terminal.lifecycle.kind !== 'close-failed'
+					) {
+						continue;
+					}
+					if (!terminal.lifecycle.failure.retryable) {
+						return rejectedTransition(this.state, 'stale-operation');
+					}
+					const operationId = composition.createOperationId();
+					const result = this.transition(
+						terminal.lifecycle.kind === 'stop-failed'
+							? {
+									operationId,
+									presentationId: terminal.presentationId,
+									tabId: tab.tabId,
+									type: 'terminal-stop-retried',
+								}
+							: {
+									operationId,
+									presentationId: terminal.presentationId,
+									removalId: terminal.lifecycle.removalId,
+									tabId: tab.tabId,
+									type: 'terminal-close-retried',
+								},
+					);
+					if (result.outcome === 'rejected') return result;
+					aggregate = {
+						commands: [...aggregate.commands, ...result.commands],
+						outcome: 'applied',
+						rejection: null,
+						state: result.state,
+					};
+				}
+			}
+		}
+		return aggregate;
+	}
+
+	public startStoppedTerminalSession(
+		presentationId: TerminalPresentationId,
+		presentation: Extract<TerminalPresentationCreation, { readonly kind: 'managed' }>,
+	): PanelWorkspaceTransition {
+		this.assertTerminalCreationAvailable();
+		const composition = this.composition;
+		if (composition.kind !== 'managed') {
+			return rejectedTransition(this.state, 'terminal-session-not-stopped');
+		}
+		const tab = this.state.tabs.find((candidate) =>
+			collectPanelLeaves(candidate.root).some((panel) =>
+				[panel.primaryPresentation, ...panel.childPresentations].some(
+					(terminal) => terminal.presentationId === presentationId,
+				),
+			),
+		);
+		if (tab === undefined) return rejectedTransition(this.state, 'terminal-not-found');
+		return this.transition({
+			presentation,
+			presentationId,
+			tabId: tab.tabId,
+			type: 'terminal-stopped-session-started',
+		});
 	}
 
 	public createTerminalCloseRequest(
@@ -184,6 +291,7 @@ export class PanelWorkspaceStore {
 	}
 
 	public prepareTabCwd(tabId: string, cwd: string | null): void {
+		this.assertTerminalCreationAvailable();
 		this.pendingTabCwds.set(tabId, cwd);
 		this.pendingTabPresentations.set(tabId, this.createPresentation());
 	}
@@ -211,6 +319,7 @@ export class PanelWorkspaceStore {
 	private createPresentation(
 		presentationId?: TerminalPresentationId,
 	): TerminalPresentationCreation {
+		this.assertTerminalCreationAvailable();
 		const resolvedPresentationId = presentationId ?? this.composition.createPresentationId();
 		return this.composition.kind === 'preview'
 			? { kind: 'preview', presentationId: resolvedPresentationId }
@@ -219,6 +328,21 @@ export class PanelWorkspaceStore {
 					operationId: this.composition.createOperationId(),
 					presentationId: resolvedPresentationId,
 				};
+	}
+
+	private assertTerminalCreationAvailable(): void {
+		if (this.terminalCreationSealed) {
+			throw new Error('Terminal creation is sealed for application shutdown.');
+		}
+	}
+
+	private collectTerminals() {
+		return this.state.tabs.flatMap((tab) =>
+			collectPanelLeaves(tab.root).flatMap((panel) => [
+				panel.primaryPresentation,
+				...panel.childPresentations,
+			]),
+		);
 	}
 
 	private dispatchCommands(commands: PanelWorkspaceTransition['commands']): void {
@@ -249,4 +373,11 @@ export class PanelWorkspaceStore {
 			};
 		});
 	}
+}
+
+function rejectedTransition(
+	state: PanelWorkspaceState,
+	rejection: Exclude<PanelWorkspaceTransition['rejection'], null>,
+): PanelWorkspaceTransition {
+	return { commands: [], outcome: 'rejected', rejection, state };
 }

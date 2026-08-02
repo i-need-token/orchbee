@@ -48,6 +48,16 @@ export type TerminalPresentationLifecycle =
 			readonly operationId: TerminalPresentationOperationId;
 	  }
 	| {
+			readonly kind: 'stopping';
+			readonly operationId: TerminalPresentationOperationId;
+	  }
+	| {
+			readonly failure: TerminalPresentationFailure;
+			readonly kind: 'stop-failed';
+			readonly operationId: TerminalPresentationOperationId;
+	  }
+	| { readonly kind: 'stopped' }
+	| {
 			readonly exitCode: number | null;
 			readonly kind: 'exited';
 			readonly signal: string | null;

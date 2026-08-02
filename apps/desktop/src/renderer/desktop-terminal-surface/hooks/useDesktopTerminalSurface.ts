@@ -60,5 +60,7 @@ export function useDesktopTerminalSurface(
 		failureMessage: failed ? intl.formatMessage(desktopTerminalMessages.connectionFailure) : null,
 		projectionState,
 		root,
+		stopped: presentation.lifecycle.kind === 'stopped',
+		startNewSession: () => capability.startStoppedTerminalSession(presentation.presentationId),
 	};
 }

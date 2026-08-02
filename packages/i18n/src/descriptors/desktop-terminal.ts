@@ -133,6 +133,14 @@ export const desktopTerminalMessages = defineMessages({
 		defaultMessage: 'The terminal selection was evicted from retained history.',
 		id: 'desktop.terminal.selection.evicted',
 	},
+	sessionStopped: {
+		defaultMessage: 'Terminal session stopped',
+		id: 'desktop.terminal.session.stopped',
+	},
+	startNewSession: {
+		defaultMessage: 'Start New Session',
+		id: 'desktop.terminal.session.startNew',
+	},
 	useRegex: {
 		defaultMessage: 'Use regular expression',
 		id: 'desktop.terminal.find.useRegex',

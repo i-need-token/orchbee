@@ -64,6 +64,7 @@ describe('useDesktopTerminalSurface', () => {
 							preferredLocales: ['en-US'],
 							projectionClient: { open },
 							shortcutPlatform: 'apple',
+							startStoppedTerminalSession: () => undefined,
 						},
 					},
 					createElement(

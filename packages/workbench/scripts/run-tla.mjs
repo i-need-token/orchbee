@@ -86,6 +86,10 @@ async function runTlc(modelName) {
 }
 
 await provisionJar();
-for (const modelName of ['SearchProviderCoordination', 'TerminalPresentationRemoval']) {
+for (const modelName of [
+	'SearchProviderCoordination',
+	'TerminalPresentationRemoval',
+	'TerminalPresentationStop',
+]) {
 	await runTlc(modelName);
 }

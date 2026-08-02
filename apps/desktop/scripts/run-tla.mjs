@@ -85,6 +85,7 @@ async function runTlc(modelName) {
 
 await provisionJar();
 for (const modelName of [
+	'DesktopApplicationLifetime',
 	'DesktopTerminalLifecycleAdapter',
 	'DesktopWorkbenchTopologyStore',
 	'DesktopWorkbenchWriteAhead',
