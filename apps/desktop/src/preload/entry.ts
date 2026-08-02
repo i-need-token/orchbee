@@ -2,6 +2,7 @@ import { ipcRenderer } from 'electron';
 
 import { installTerminalDocumentControlBridge } from './installTerminalDocumentControlBridge';
 import { installTerminalProjectionControlBridge } from './installTerminalProjectionControlBridge';
+import { installWorkbenchTopologyControlBridge } from './installWorkbenchTopologyControlBridge';
 
 const security = {
 	contextIsolated: process.contextIsolated,
@@ -10,3 +11,4 @@ const security = {
 
 installTerminalDocumentControlBridge(ipcRenderer, window, security);
 installTerminalProjectionControlBridge(ipcRenderer, window, security);
+installWorkbenchTopologyControlBridge(ipcRenderer, window, security);

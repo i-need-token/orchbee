@@ -5,6 +5,7 @@ import '@orchbee/workbench/styles.css';
 import {
 	TerminalDocumentControlWindowMessageSchema,
 	TerminalProjectionControlWindowMessageSchema,
+	WorkbenchTopologyControlWindowMessageSchema,
 	type TerminalDocumentControlBootstrap,
 } from '../../shared';
 import { resolveDesktopShortcutPlatform } from '../terminal-actions';
@@ -21,6 +22,7 @@ interface DocumentControlReady {
 let documentControl: DocumentControlReady | undefined;
 let projectionControlPort: MessagePort | undefined;
 let session: DesktopWorkbenchRendererSession | undefined;
+let topologyControlPort: MessagePort | undefined;
 
 window.addEventListener('message', (event) => {
 	if (event.source !== window || event.ports.length !== 1 || session !== undefined) return;
@@ -46,20 +48,44 @@ window.addEventListener('message', (event) => {
 		}
 	} else {
 		const projectionMessage = TerminalProjectionControlWindowMessageSchema.safeParse(event.data);
-		if (
-			!projectionMessage.success ||
-			projectionControlPort !== undefined ||
-			!projectionMessage.data.security.contextIsolated ||
-			!projectionMessage.data.security.sandboxed
-		) {
-			port.close();
-			return;
+		if (projectionMessage.success) {
+			if (
+				projectionControlPort !== undefined ||
+				!projectionMessage.data.security.contextIsolated ||
+				!projectionMessage.data.security.sandboxed
+			) {
+				port.close();
+				return;
+			}
+			projectionControlPort = port;
+		} else {
+			const topologyMessage = WorkbenchTopologyControlWindowMessageSchema.safeParse(event.data);
+			if (
+				!topologyMessage.success ||
+				topologyControlPort !== undefined ||
+				!topologyMessage.data.security.contextIsolated ||
+				!topologyMessage.data.security.sandboxed
+			) {
+				port.close();
+				return;
+			}
+			topologyControlPort = port;
 		}
-		projectionControlPort = port;
 	}
-	if (documentControl === undefined || projectionControlPort === undefined) return;
+	if (
+		documentControl === undefined ||
+		projectionControlPort === undefined ||
+		topologyControlPort === undefined
+	) {
+		return;
+	}
 	const root = document.querySelector('#root');
-	if (!(root instanceof HTMLElement)) return;
+	if (!(root instanceof HTMLElement)) {
+		documentControl.port.close();
+		projectionControlPort.close();
+		topologyControlPort.close();
+		return;
+	}
 	session = startDesktopWorkbenchRenderer(
 		root,
 		document.documentElement,
@@ -69,6 +95,7 @@ window.addEventListener('message', (event) => {
 		documentControl.bootstrap,
 		documentControl.port,
 		projectionControlPort,
+		topologyControlPort,
 	);
 });
 
@@ -76,4 +103,5 @@ window.addEventListener('unload', () => {
 	session?.dispose();
 	documentControl?.port.close();
 	projectionControlPort?.close();
+	topologyControlPort?.close();
 });

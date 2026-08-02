@@ -35,3 +35,19 @@ export type {
 	TerminalDocumentControlEvent,
 	TerminalDocumentControlOperationResult,
 } from './terminal-document-control-contract';
+export {
+	WORKBENCH_TOPOLOGY_CONTROL_IPC_CHANNEL,
+	WORKBENCH_TOPOLOGY_CONTROL_WINDOW_MESSAGE,
+	WorkbenchTopologyControlBootstrapSchema,
+	WorkbenchTopologyControlCommandSchema,
+	WorkbenchTopologyControlEventSchema,
+	WorkbenchTopologyControlWindowMessageSchema,
+	WorkbenchTopologyRequestIdSchema,
+} from './workbench-topology-control-contract';
+export type {
+	WorkbenchTopologyCommitResult,
+	WorkbenchTopologyControlCommand,
+	WorkbenchTopologyControlEvent,
+	WorkbenchTopologyLoadResult,
+	WorkbenchTopologyRequestId,
+} from './workbench-topology-control-contract';

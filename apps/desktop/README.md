@@ -10,13 +10,15 @@ bindings and privileged effects; `apps/terminal-host` owns PTYs, processes, Ghos
 history, and real terminal identity. None of the product topology is stored in the Host.
 
 Main starts without creating a fixed terminal or opening an attachment. It restores the durable
-`TerminalPresentationId` to `TerminalBindingId` registry and transfers two allowlisted document
-ports through the sandboxed preload:
+`TerminalPresentationId` to `TerminalBindingId` registry, owns the private Workbench-topology file
+adapter, and transfers three allowlisted document ports through the sandboxed preload:
 
 - lifecycle control accepts only presentation-scoped provision and close commands and publishes
   correlated results plus terminal exit;
 - projection control opens and releases one scoped Host attachment for a displayed terminal
   viewport.
+- topology control loads or exact-next compare-and-swaps only canonical
+  `@orchbee/workbench/topology` documents.
 
 The renderer has no Node integration, generic Electron IPC, filesystem capability, Host inventory,
 or raw terminal-lifetime authority. Preload transfers exactly one port for each recognized control
@@ -24,9 +26,10 @@ channel and attests context isolation and sandboxing.
 
 Recovered terminal bindings are currently projected as standalone Workbench tabs. This preserves
 the live process across renderer reload and Electron Main restart without pretending that Project,
-Workspace, Tab-group, or split topology has been durably restored. Product-topology persistence,
-update activation UI, sharing, network clients, and the user-facing quit/retention choice remain
-outside the current composition.
+Workspace, Tab-group, or split topology has been durably restored. The topology store and scoped
+client are present, but the current renderer deliberately performs no topology load or commit until
+write-ahead lifecycle integration exists. Update activation UI, sharing, network clients, and the
+user-facing quit/retention choice remain outside the current composition.
 
 Desktop requires Host protocol `1.4` exactly. Electron uses `42.8.0`, the final release in the major
 immediately preceding the current Electron major selected for this repository.
@@ -63,6 +66,14 @@ No product maximum is imposed on terminals, bindings, or attachments. Active col
 user topology and visible demand; allocation, filesystem, Host, or memory exhaustion returns an
 operation failure instead of evicting or silently truncating another terminal. Host inventory is
 read through generation-scoped protocol pages rather than one bounded global list.
+
+The separate Workbench topology store accepts only the canonical version-1 document through one
+Main-owned serialized writer. A missing store starts at revision `0`; every later commit must name
+the exact current revision and advance it by one. Conflicts, non-next revisions, invalid files, and
+read failures preserve current data. Writes use owner-only temporary files, file synchronization,
+atomic replacement, and parent-directory synchronization where supported. The renderer receives
+only typed load and commit results, never a path, Node error, or general filesystem capability. See
+[`docs/workbench-topology-storage.md`](docs/workbench-topology-storage.md).
 
 Provisioning allocates and persists a fresh binding before creating a terminal. Recovery accepts
 only an exact HostEpoch/TerminalId/CreationId match and never substitutes a new shell for lost
@@ -108,6 +119,8 @@ Focused traces cover:
 
 - strict lifecycle and projection boundary validation, malformed-message retirement, exact
   correlation, cancellation, and renderer-document disposal;
+- strict topology load/CAS boundary validation, shared serialization across renderer generations,
+  invalid-file preservation, atomic replacement, and suppressed late responses;
 - fresh provisioning, multi-binding store preservation, recovery, exited recovery, orphan and
   conflict handling, durable close, and presentation-registry reconstruction;
 - unrelated terminal concurrency, exact close targeting, Tab-close result ordering, and stale
@@ -120,6 +133,9 @@ Focused traces cover:
 
 Existing TLA+ models continue to check terminal recovery, binding close, lifecycle-adapter
 serialization, projection demand, and Workbench removal safety within their declared finite bounds.
+The Desktop topology-store model additionally checks exact-next CAS, conflict preservation,
+serialization, unavailable storage, generation disposal, and progress for two clients through
+revision `2`.
 The repository imposes no new throughput acceptance gate for this integration slice; the optional
 benchmark remains a diagnostic tool.
 

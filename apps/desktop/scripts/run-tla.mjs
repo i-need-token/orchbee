@@ -48,8 +48,7 @@ async function provisionJar() {
 	await rename(temporaryPath, jarPath);
 }
 
-async function runTlc() {
-	const modelName = 'DesktopTerminalLifecycleAdapter';
+async function runTlc(modelName) {
 	const modelPath = path.join(applicationRoot, 'formal', 'tla', `${modelName}.tla`);
 	const configPath = path.join(applicationRoot, 'formal', 'tla', `${modelName}.cfg`);
 	const child = spawn(
@@ -85,4 +84,6 @@ async function runTlc() {
 }
 
 await provisionJar();
-await runTlc();
+for (const modelName of ['DesktopTerminalLifecycleAdapter', 'DesktopWorkbenchTopologyStore']) {
+	await runTlc(modelName);
+}

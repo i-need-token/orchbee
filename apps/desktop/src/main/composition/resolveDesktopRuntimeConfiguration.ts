@@ -28,6 +28,7 @@ export interface DesktopRuntimeConfiguration {
 	readonly runtimeDirectory: string;
 	readonly terminalBindingStorePath: string;
 	readonly terminalLaunch: TerminalLaunchV1_1;
+	readonly workbenchTopologyStorePath: string;
 }
 
 export function resolveDesktopRuntimeConfiguration(
@@ -84,5 +85,6 @@ export function resolveDesktopRuntimeConfiguration(
 			rows: 24,
 			terminalProfile: createDefaultTerminalProfile(),
 		}),
+		workbenchTopologyStorePath: path.join(recoveryDirectory, 'workbench-topology-v1.json'),
 	};
 }

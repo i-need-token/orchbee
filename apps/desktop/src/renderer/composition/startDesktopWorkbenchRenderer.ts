@@ -21,6 +21,7 @@ import type { TerminalDocumentControlBootstrap } from '../../shared';
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopTerminalDocumentClient } from '../terminal-document-control';
 import { DesktopTerminalProjectionClient } from '../terminal-projection-control';
+import { DesktopWorkbenchTopologyClient } from '../workbench-topology-control';
 
 export interface DesktopWorkbenchRendererSession {
 	dispose(): void;
@@ -35,6 +36,7 @@ export function startDesktopWorkbenchRenderer(
 	bootstrap: TerminalDocumentControlBootstrap,
 	documentPort: MessagePort,
 	projectionPort: MessagePort,
+	topologyPort: MessagePort,
 ): DesktopWorkbenchRendererSession {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee Desktop application root element is missing.');
@@ -45,6 +47,7 @@ export function startDesktopWorkbenchRenderer(
 	documentElement.dir = getOrchbeeTextDirection(locale);
 	const documentClient = new DesktopTerminalDocumentClient(documentPort);
 	const projectionClient = new DesktopTerminalProjectionClient(projectionPort);
+	const topologyClient = new DesktopWorkbenchTopologyClient(topologyPort);
 	const terminalPresentation: WorkbenchTerminalPresentationComposition = {
 		createOperationId: () =>
 			terminalPresentationOperationId(`desktop:operation:${crypto.randomUUID()}`),
@@ -101,6 +104,7 @@ export function startDesktopWorkbenchRenderer(
 			actionRuntime.dispose();
 			projectionClient.dispose();
 			documentClient.dispose();
+			topologyClient.dispose();
 		},
 	};
 }

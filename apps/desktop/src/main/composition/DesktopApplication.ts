@@ -20,8 +20,10 @@ import {
 import {
 	TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
 	TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
+	WORKBENCH_TOPOLOGY_CONTROL_IPC_CHANNEL,
 	TerminalDocumentControlBootstrapSchema,
 	TerminalProjectionControlBootstrapSchema,
+	WorkbenchTopologyControlBootstrapSchema,
 	type ProjectedAttachmentBootstrap,
 	type TerminalDocumentControlCommand,
 	type TerminalDocumentControlEvent,
@@ -38,6 +40,11 @@ import {
 	TerminalProjectionControlBroker,
 	type DesktopTerminalProjectionLease,
 } from '../terminal-projection-control';
+import {
+	FileWorkbenchTopologyStore,
+	WorkbenchTopologyControlBroker,
+	type WorkbenchTopologyStore,
+} from '../workbench-topology';
 import {
 	composeDesktopTerminalRuntime,
 	type DesktopTerminalRuntime,
@@ -60,6 +67,11 @@ interface DesktopDocumentBrokerHandle {
 
 interface DesktopProjectionControlBrokerHandle {
 	dispose(): Promise<void>;
+	start(): void;
+}
+
+interface DesktopWorkbenchTopologyBrokerHandle {
+	dispose(): void;
 	start(): void;
 }
 
@@ -103,6 +115,11 @@ export interface DesktopApplicationDependencies {
 		createMessageChannel: DesktopApplicationDependencies['createMessageChannel'],
 		createBroker: DesktopApplicationDependencies['createBroker'],
 	) => DesktopTerminalRuntime;
+	readonly createWorkbenchTopologyBroker: (
+		port: MessagePortMain,
+		store: WorkbenchTopologyStore,
+	) => DesktopWorkbenchTopologyBrokerHandle;
+	readonly createWorkbenchTopologyStore: (filePath: string) => WorkbenchTopologyStore;
 	readonly createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
 	readonly randomIdentifier: () => string;
 	readonly writeTrace: (trace: unknown) => void;
@@ -135,6 +152,8 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			host,
 			randomIdentifier,
 		}),
+	createWorkbenchTopologyBroker: (port, store) => new WorkbenchTopologyControlBroker(port, store),
+	createWorkbenchTopologyStore: (filePath) => new FileWorkbenchTopologyStore(filePath),
 	createWindow: (options) => new BrowserWindow(options),
 	randomIdentifier: () => randomBytes(16).toString('hex'),
 	writeTrace: (trace) => console.info(JSON.stringify(trace)),
@@ -153,6 +172,8 @@ export class DesktopApplication {
 	#shuttingDown = false;
 	#terminalRuntime: DesktopTerminalRuntime | undefined;
 	#window: BrowserWindow | undefined;
+	#workbenchTopologyBroker: DesktopWorkbenchTopologyBrokerHandle | undefined;
+	readonly #workbenchTopologyStore: WorkbenchTopologyStore;
 
 	constructor(
 		options: DesktopApplicationOptions,
@@ -163,6 +184,9 @@ export class DesktopApplication {
 		}
 		this.#options = options;
 		this.#dependencies = dependencies;
+		this.#workbenchTopologyStore = dependencies.createWorkbenchTopologyStore(
+			options.runtime.workbenchTopologyStorePath,
+		);
 	}
 
 	get hasWindow(): boolean {
@@ -289,6 +313,8 @@ export class DesktopApplication {
 		const generation = ++this.#documentGeneration;
 		this.#documentBroker?.dispose();
 		this.#documentBroker = undefined;
+		this.#workbenchTopologyBroker?.dispose();
+		this.#workbenchTopologyBroker = undefined;
 		const projectionBroker = this.#projectionControlBroker;
 		this.#projectionControlBroker = undefined;
 		this.#documentTransition = this.#documentTransition.then(async () =>
@@ -323,6 +349,7 @@ export class DesktopApplication {
 		if (defaultCwd === null) throw new Error('Desktop terminal runtime requires a default CWD.');
 		const documentChannel = this.#dependencies.createMessageChannel();
 		const projectionChannel = this.#dependencies.createMessageChannel();
+		const topologyChannel = this.#dependencies.createMessageChannel();
 		const documentBroker = this.#dependencies.createDocumentBroker(
 			documentChannel.port2,
 			terminalRuntime,
@@ -332,10 +359,16 @@ export class DesktopApplication {
 			projectionChannel.port2,
 			terminalRuntime,
 		);
+		const topologyBroker = this.#dependencies.createWorkbenchTopologyBroker(
+			topologyChannel.port2,
+			this.#workbenchTopologyStore,
+		);
 		this.#documentBroker = documentBroker;
 		this.#projectionControlBroker = projectionBroker;
+		this.#workbenchTopologyBroker = topologyBroker;
 		documentBroker.start();
 		projectionBroker.start();
+		topologyBroker.start();
 		const documentBootstrap = TerminalDocumentControlBootstrapSchema.parse({
 			defaultCwd,
 			initialPresentationId: TerminalPresentationIdSchema.parse(
@@ -353,6 +386,13 @@ export class DesktopApplication {
 				type: TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
 			}),
 			[projectionChannel.port1],
+		);
+		window.webContents.postMessage(
+			WORKBENCH_TOPOLOGY_CONTROL_IPC_CHANNEL,
+			WorkbenchTopologyControlBootstrapSchema.parse({
+				type: WORKBENCH_TOPOLOGY_CONTROL_IPC_CHANNEL,
+			}),
+			[topologyChannel.port1],
 		);
 	}
 

@@ -84,6 +84,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 	it('requests projection only for the active visible terminal and switches demand with the Tab', async () => {
 		const documentChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
+		const topologyChannel = createTestChannel();
 		const documentCommands: TerminalDocumentControlCommand[] = [];
 		const projectionCommands: Array<{ presentationId?: string; type?: string }> = [];
 		documentChannel.port2.addEventListener('message', (event) => {
@@ -115,6 +116,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				}),
 				documentChannel.port1,
 				projectionChannel.port1,
+				topologyChannel.port1,
 			);
 		});
 		await vi.waitFor(() => expect(documentCommands).toHaveLength(2));
@@ -162,6 +164,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		});
 
 		await act(async () => session?.dispose());
+		expect((topologyChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 });
