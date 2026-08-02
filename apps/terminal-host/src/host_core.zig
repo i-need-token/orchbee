@@ -79,9 +79,9 @@ pub const Attachment = struct {
     demand: ProjectionDemand = .paused,
     force_snapshot: bool = true,
     in_flight: ?InFlightFrame = null,
-    last_recovery_sequence: u64 = 0,
+    last_abandoned_sequence: u64 = 0,
     next_sequence: u64 = 1,
-    pending_dirty: bool = true,
+    pending_dirty: bool = false,
     resize_lease: bool,
     terminal_id: Identifier,
 };
@@ -342,7 +342,9 @@ pub const HostCore = struct {
         if (revision == terminal.revision) return .idempotent;
         terminal.revision = revision;
         for (self.attachments.items) |*attachment| {
-            if (equalIdentifier(attachment.terminal_id, terminal_id) and attachment.capabilities.read) {
+            if (equalIdentifier(attachment.terminal_id, terminal_id) and
+                attachment.capabilities.read and attachment.demand == .active)
+            {
                 attachment.pending_dirty = true;
             }
         }
@@ -371,7 +373,9 @@ pub const HostCore = struct {
         terminal.cell_pixel_height = cell_pixel_height;
         terminal.revision = revision;
         for (self.attachments.items) |*attachment| {
-            if (equalIdentifier(attachment.terminal_id, terminal_id) and attachment.capabilities.read) {
+            if (equalIdentifier(attachment.terminal_id, terminal_id) and
+                attachment.capabilities.read and attachment.demand == .active)
+            {
                 if (geometry_changed) attachment.force_snapshot = true;
                 attachment.pending_dirty = true;
                 if (geometry_changed) attachment.blocked = null;
@@ -396,6 +400,19 @@ pub const HostCore = struct {
             attachment.blocked = null;
             attachment.force_snapshot = true;
             attachment.pending_dirty = true;
+        } else {
+            if (attachment.in_flight) |flight| {
+                attachment.last_abandoned_sequence = @max(
+                    attachment.last_abandoned_sequence,
+                    flight.sequence,
+                );
+            }
+            attachment.acknowledged_generation = null;
+            attachment.acknowledged_revision = null;
+            attachment.blocked = null;
+            attachment.force_snapshot = true;
+            attachment.in_flight = null;
+            attachment.pending_dirty = false;
         }
         return .applied;
     }
@@ -454,6 +471,7 @@ pub const HostCore = struct {
         if (!equalIdentifier(attachment.client_id, client_id) or !attachment.capabilities.read) {
             return error.MissingResource;
         }
+        if (sequence != 0 and sequence <= attachment.last_abandoned_sequence) return .idempotent;
         if (attachment.in_flight) |flight| {
             if (flight.sequence != sequence or flight.revision != revision or flight.generation != generation) {
                 return error.InvalidFrameAcknowledgement;
@@ -487,14 +505,14 @@ pub const HostCore = struct {
         if (!equalIdentifier(attachment.client_id, client_id) or !attachment.capabilities.read) {
             return error.MissingResource;
         }
-        if (sequence <= attachment.last_recovery_sequence) return .idempotent;
+        if (sequence != 0 and sequence <= attachment.last_abandoned_sequence) return .idempotent;
         const flight = attachment.in_flight orelse return error.InvalidFrameAcknowledgement;
         if (flight.sequence != sequence) return error.InvalidFrameAcknowledgement;
         attachment.in_flight = null;
+        attachment.last_abandoned_sequence = @max(attachment.last_abandoned_sequence, sequence);
         attachment.force_snapshot = true;
         attachment.pending_dirty = true;
         attachment.blocked = null;
-        attachment.last_recovery_sequence = sequence;
         return .applied;
     }
 
@@ -520,6 +538,17 @@ pub const HostCore = struct {
     pub fn findAttachment(self: *HostCore, attachment_id: Identifier) ?*Attachment {
         const index = self.findAttachmentIndex(attachment_id) orelse return null;
         return &self.attachments.items[index];
+    }
+
+    pub fn hasActiveProjectionDemand(self: *const HostCore, terminal_id: Identifier) bool {
+        for (self.attachments.items) |attachment| {
+            if (equalIdentifier(attachment.terminal_id, terminal_id) and
+                attachment.capabilities.read and attachment.demand == .active)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     fn findAttachmentIndex(self: *const HostCore, attachment_id: Identifier) ?usize {
@@ -730,6 +759,90 @@ test "projection demand gates one in-flight frame and coalesces later revisions"
         core.commitFrame(attachment_id, 9, 9, 1, .delta),
     );
     _ = try core.commitFrame(attachment_id, null, 9, 1, .snapshot);
+}
+
+test "pause abandons delivery state and keeps hidden revisions attachment lazy" {
+    var core = HostCore.init(std.testing.allocator, identifier(1));
+    defer core.deinit();
+    const client = identifier(2);
+    const terminal_id = identifier(4);
+    const attachment_id = identifier(6);
+    _ = try core.connect(client);
+    _ = try core.createTerminal(client, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
+    _ = try core.spawnSucceeded(terminal_id);
+    _ = try core.attach(client, attachment_id, terminal_id, .{
+        .input = false,
+        .read = true,
+        .resize = false,
+    }, false);
+
+    _ = try core.synchronizeRevision(terminal_id, 1);
+    try std.testing.expect(!core.findAttachment(attachment_id).?.pending_dirty);
+    _ = try core.setProjectionDemand(client, attachment_id, .active);
+    _ = try core.commitFrame(attachment_id, null, 1, 1, .snapshot);
+    _ = try core.synchronizeRevision(terminal_id, 2);
+    _ = try core.setProjectionDemand(client, attachment_id, .paused);
+
+    const paused = core.findAttachment(attachment_id).?;
+    try std.testing.expect(paused.in_flight == null);
+    try std.testing.expect(paused.acknowledged_revision == null);
+    try std.testing.expectEqual(@as(u64, 1), paused.last_abandoned_sequence);
+    try std.testing.expect(!paused.pending_dirty);
+    try std.testing.expect(paused.force_snapshot);
+    try std.testing.expect(!core.hasActiveProjectionDemand(terminal_id));
+
+    _ = try core.synchronizeRevision(terminal_id, 3);
+    try std.testing.expect(!core.findAttachment(attachment_id).?.pending_dirty);
+    try std.testing.expectEqual(
+        .idempotent,
+        try core.frameApplied(client, attachment_id, 1, 1, 1),
+    );
+    try std.testing.expectEqual(
+        .idempotent,
+        try core.needSnapshot(client, attachment_id, 1),
+    );
+
+    _ = try core.setProjectionDemand(client, attachment_id, .active);
+    const resumed = try core.commitFrame(attachment_id, null, 3, 1, .snapshot);
+    try std.testing.expectEqual(@as(u64, 2), resumed.sequence);
+    try std.testing.expectEqual(
+        .idempotent,
+        try core.frameApplied(client, attachment_id, 1, 1, 1),
+    );
+    try std.testing.expectEqual(
+        .idempotent,
+        try core.needSnapshot(client, attachment_id, 1),
+    );
+    try std.testing.expectEqual(
+        @as(u64, 2),
+        core.findAttachment(attachment_id).?.in_flight.?.sequence,
+    );
+}
+
+test "active projection demand is aggregated across attachments" {
+    var core = HostCore.init(std.testing.allocator, identifier(1));
+    defer core.deinit();
+    const client = identifier(2);
+    const terminal_id = identifier(4);
+    const first_attachment = identifier(6);
+    const second_attachment = identifier(7);
+    _ = try core.connect(client);
+    _ = try core.createTerminal(client, identifier(3), terminal_id, [_]u8{5} ** 32, 80, 24);
+    _ = try core.spawnSucceeded(terminal_id);
+    for ([_]Identifier{ first_attachment, second_attachment }) |attachment_id| {
+        _ = try core.attach(client, attachment_id, terminal_id, .{
+            .input = false,
+            .read = true,
+            .resize = false,
+        }, false);
+        _ = try core.setProjectionDemand(client, attachment_id, .active);
+    }
+
+    try std.testing.expect(core.hasActiveProjectionDemand(terminal_id));
+    _ = try core.setProjectionDemand(client, first_attachment, .paused);
+    try std.testing.expect(core.hasActiveProjectionDemand(terminal_id));
+    _ = try core.detach(client, second_attachment);
+    try std.testing.expect(!core.hasActiveProjectionDemand(terminal_id));
 }
 
 test "recovery is exact and blocked projection requires explicit pause resume" {

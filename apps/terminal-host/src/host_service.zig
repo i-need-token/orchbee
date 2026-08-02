@@ -324,6 +324,7 @@ pub const HostService = struct {
                 }
             }
             _ = self.core.disconnect(client_id);
+            self.releaseProjectionIfIdle();
         }
         connection.* = .{};
     }
@@ -770,6 +771,7 @@ pub const HostService = struct {
             return;
         };
         if (self.runtime) |runtime| runtime.detachHistory(attachment_id);
+        self.releaseProjectionIfIdle();
         var attachment_buffer: [32]u8 = undefined;
         const payload = try std.fmt.allocPrint(
             self.allocator,
@@ -1019,6 +1021,7 @@ pub const HostService = struct {
             try self.addCoreFailure(outgoing, correlation_id, err);
             return;
         };
+        self.releaseProjectionIfIdle();
         var attachment_buffer: [32]u8 = undefined;
         const payload = try std.fmt.allocPrint(
             self.allocator,
@@ -1710,6 +1713,12 @@ pub const HostService = struct {
             std.debug.assert(flight.sequence == encoded.sequence);
         }
         if (used_opportunity) self.next_projection_at_ns = now + projection_interval_ns;
+    }
+
+    fn releaseProjectionIfIdle(self: *HostService) void {
+        const terminal = self.core.terminal orelse return;
+        if (self.core.hasActiveProjectionDemand(terminal.terminal_id)) return;
+        if (self.runtime) |runtime| runtime.releaseProjectionResources();
     }
 
     fn addProjectionBlocked(
@@ -2951,17 +2960,6 @@ test "protocol 1.1 activates a lazy live projection and accepts semantic text" {
         "{{\"attachmentId\":\"44444444444444444444444444444444\",\"generation\":\"{d}\",\"revision\":\"{d}\",\"sequence\":\"{d}\"}}",
         .{ frame.generation, frame.revision, frame.sequence },
     );
-    var acknowledged = try testRequest(
-        &service,
-        &connection,
-        MessageKind.frame_applied,
-        .control_json,
-        frame_ack_payload,
-        [_]u8{0x64} ** 16,
-    );
-    defer acknowledged.deinit();
-    try std.testing.expectEqual(MessageKind.frame_applied, (try protocol.validateTransportEnvelope(acknowledged.records.items[0])).kind);
-
     const pause_payload =
         \\{"attachmentId":"44444444444444444444444444444444","demand":"paused"}
     ;
@@ -2974,6 +2972,47 @@ test "protocol 1.1 activates a lazy live projection and accepts semantic text" {
         [_]u8{0x66} ** 16,
     );
     defer paused.deinit();
+    try std.testing.expect(!service.runtime.?.projectionResident());
+    try std.testing.expect(service.core.findAttachment([_]u8{0x44} ** 16).?.in_flight == null);
+
+    var acknowledged = try testRequest(
+        &service,
+        &connection,
+        MessageKind.frame_applied,
+        .control_json,
+        frame_ack_payload,
+        [_]u8{0x64} ** 16,
+    );
+    defer acknowledged.deinit();
+    try std.testing.expectEqual(MessageKind.frame_applied, (try protocol.validateTransportEnvelope(acknowledged.records.items[0])).kind);
+
+    service.next_projection_at_ns = 0;
+    var resumed = try testRequest(
+        &service,
+        &connection,
+        MessageKind.set_projection_demand,
+        .control_json,
+        demand_payload,
+        [_]u8{0x67} ** 16,
+    );
+    defer resumed.deinit();
+    try std.testing.expectEqual(@as(usize, 2), resumed.records.items.len);
+    const resumed_envelope = try protocol.validateTransportEnvelope(resumed.records.items[1]);
+    try std.testing.expectEqual(MessageKind.snapshot_frame, resumed_envelope.kind);
+    const resumed_frame = try protocol.validateTerminalFrame(std.testing.allocator, resumed_envelope.payload);
+    try std.testing.expectEqual(frame.sequence + 1, resumed_frame.sequence);
+    try std.testing.expectEqual(@as(u64, 2), service.runtime.?.projectionCounters().render_state_creations);
+
+    var paused_again = try testRequest(
+        &service,
+        &connection,
+        MessageKind.set_projection_demand,
+        .control_json,
+        pause_payload,
+        [_]u8{0x68} ** 16,
+    );
+    defer paused_again.deinit();
+    try std.testing.expect(!service.runtime.?.projectionResident());
     const counters_before_pause = service.runtime.?.projectionCounters();
 
     const input_text: []const u8 = if (builtin.os.tag == .windows) "orchbee\r\n" else "orchbee\n";

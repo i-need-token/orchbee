@@ -427,7 +427,11 @@ export class PackedTerminalStore {
 			}
 			return this.#requireSnapshot('sequence-gap', frame.sequence);
 		}
-		if (frame.sequence !== this.#expectedSequence()) {
+		const expectedSequence = this.#expectedSequence();
+		if (
+			(frame.kind === TerminalFrameKind.snapshot && frame.sequence < expectedSequence) ||
+			(frame.kind === TerminalFrameKind.delta && frame.sequence !== expectedSequence)
+		) {
 			return this.#requireSnapshot('sequence-gap', frame.sequence);
 		}
 

@@ -75,7 +75,9 @@ adapter. It never executes a command itself. The current model covers Host launc
 terminal creation, reordered exit completion, client detach, attachment capabilities, resize lease,
 bounded input, one-frame backpressure, snapshot recovery, and deferred Host upgrade. The refined
 frame model additionally covers mutation/capture separation, projection demand, generation changes,
-capture/encode failure, blocked recovery, duplicates, finalization, and two independent attachments.
+capture/encode failure, pause cancellation, abandoned frame acknowledgments, snapshot sequence-gap
+recovery, capture residency, blocked recovery, duplicates, finalization, and two independent
+attachments.
 The history-interaction model covers one bounded row flight, pending-to-committed anchor promotion,
 coalesced history observation, selection eviction, chunked export, stale search pages, and detach.
 The recovery-binding model covers a single Main owner, durable create intent, same-epoch replay,

@@ -106,8 +106,10 @@ hostConnection.onTerminalExited((event) => terminal.notifyExited(event));
 
 Opening installs frame, renderer, input, and resize handling before it activates projection demand.
 Frame decoding commits into a bounded row-partitioned structure-of-arrays store, schedules a draw,
-then emits `FrameApplied`; exact duplicates are re-acknowledged, while identity, sequence,
-generation, dimension, or base mismatches request a snapshot without mutating the committed grid.
+then emits `FrameApplied`; exact duplicates are re-acknowledged. Deltas require the exact next
+sequence and committed base. A complete snapshot may advance across sequences abandoned by pause or
+recovery, while identity, stale snapshot, generation, dimension, or delta-base mismatches request a
+snapshot without mutating the committed grid.
 The renderer reads packed rows directly without reconstructing `GhosttyCell[]` or another VT state.
 Projected frame telemetry includes the exact committed Host revision drawn by that renderer frame,
 so lifecycle consumers can prove final-revision presentation without depending on whether draw or

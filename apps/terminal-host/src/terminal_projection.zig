@@ -128,24 +128,34 @@ pub const Projection = struct {
     }
 
     pub fn deinit(self: *Projection) void {
-        self.resetRenderState();
-        self.links.deinit(self.allocator);
-        self.row_revisions.deinit(self.allocator);
-        if (self.captured_title) |value| self.allocator.free(value);
-        if (self.captured_current_directory) |value| self.allocator.free(value);
+        self.releaseResources();
         self.* = undefined;
     }
 
     pub fn resetAfterCaptureFailure(self: *Projection) void {
-        self.resetRenderState();
+        self.releaseResources();
     }
 
-    fn resetRenderState(self: *Projection) void {
+    pub fn releaseResources(self: *Projection) void {
         if (self.render_state) |*state| state.deinit(self.allocator);
         self.render_state = null;
-        self.row_revisions.clearRetainingCapacity();
+        self.row_revisions.deinit(self.allocator);
+        self.row_revisions = .empty;
         for (self.links.items) |*row| row.deinit(self.allocator);
-        self.links.clearRetainingCapacity();
+        self.links.deinit(self.allocator);
+        self.links = .empty;
+        if (self.captured_title) |value| self.allocator.free(value);
+        if (self.captured_current_directory) |value| self.allocator.free(value);
+        self.captured_title = null;
+        self.captured_current_directory = null;
+        self.capture_full = false;
+        self.captured_interaction = 0;
+        self.captured_revision = 0;
+        self.captured_scrollback_rows = 0;
+    }
+
+    pub fn isResident(self: *const Projection) bool {
+        return self.render_state != null;
     }
 
     pub fn beginCapture(
@@ -685,4 +695,32 @@ test "projection captures Ghostty state into a valid format 2 snapshot" {
     try std.testing.expectEqual(@as(u64, 1), summary.revision);
     try std.testing.expectEqual(@as(u16, 4), summary.columns);
     try std.testing.expectEqual(@as(u16, 2), summary.rows);
+}
+
+test "projection release frees resident capture resources and recreates lazily" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 4,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("resident");
+
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    try projection.beginCapture(&terminal, 1, 1, 8, 16);
+    projection.endCapture();
+    try std.testing.expect(projection.isResident());
+    try std.testing.expect(projection.row_revisions.capacity > 0);
+
+    projection.releaseResources();
+    try std.testing.expect(!projection.isResident());
+    try std.testing.expectEqual(@as(usize, 0), projection.row_revisions.capacity);
+    try std.testing.expectEqual(@as(usize, 0), projection.links.capacity);
+    try std.testing.expect(projection.captured_title == null);
+    try std.testing.expect(projection.captured_current_directory == null);
+
+    try projection.beginCapture(&terminal, 2, 1, 8, 16);
+    projection.endCapture();
+    try std.testing.expect(projection.isResident());
+    try std.testing.expectEqual(@as(u64, 2), projection.counters.render_state_creations);
 }

@@ -211,6 +211,42 @@ describe('PackedTerminalStore', () => {
 		expect(row?.grapheme(0)).toBe('a');
 	});
 
+	it('accepts a newer complete snapshot across abandoned frame sequences', () => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+		store.apply(bytes(frame('snapshot', 1n, 1n, ['a', 'b'])));
+		const rejected = store.apply(bytes(frame('delta', 2n, 3n, ['x', ''], 2n, [0])));
+		expect(rejected.kind).toBe('snapshot-required');
+
+		const recovered = store.apply(bytes(frame('snapshot', 3n, 3n, ['x', 'y'])));
+		expect(recovered).toEqual({
+			acknowledgement: { attachmentId, generation: '1', revision: '3', sequence: '3' },
+			kind: 'committed',
+		});
+		expect(store.phase).toBe(ProjectedStorePhase.synchronized);
+		expect(store.rows.map((row) => row.grapheme(0))).toEqual(['x', 'y']);
+	});
+
+	it('accepts the first complete snapshot after its initial sequence was abandoned', () => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+
+		expect(store.apply(bytes(frame('snapshot', 2n, 2n, ['x', 'y'])))).toEqual({
+			acknowledgement: { attachmentId, generation: '1', revision: '2', sequence: '2' },
+			kind: 'committed',
+		});
+		expect(store.rows.map((row) => row.grapheme(0))).toEqual(['x', 'y']);
+	});
+
+	it('still rejects a delta that crosses an abandoned frame sequence', () => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+		store.apply(bytes(frame('snapshot', 1n, 1n, ['a', 'b'])));
+
+		expect(store.apply(bytes(frame('delta', 3n, 2n, ['x', ''], 1n, [0])))).toEqual({
+			kind: 'snapshot-required',
+			request: { attachmentId, reason: 'sequence-gap', sequence: '3' },
+		});
+		expect(store.rows.map((row) => row.grapheme(0))).toEqual(['a', 'b']);
+	});
+
 	it('retains no grid after disposal', () => {
 		const store = new PackedTerminalStore(hostEpoch, attachmentId);
 		store.apply(bytes(frame('snapshot', 1n, 1n, ['a', 'b'])));

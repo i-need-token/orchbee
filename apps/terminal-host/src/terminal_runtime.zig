@@ -551,6 +551,20 @@ pub const TerminalRuntime = struct {
         return self.projection.counters;
     }
 
+    pub fn projectionResident(self: *TerminalRuntime) bool {
+        self.projection_mutex.lock();
+        defer self.projection_mutex.unlock();
+        return self.projection.isResident();
+    }
+
+    pub fn releaseProjectionResources(self: *TerminalRuntime) void {
+        self.projection_mutex.lock();
+        defer self.projection_mutex.unlock();
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        self.projection.releaseResources();
+    }
+
     pub fn encodeProjectionFrame(
         self: *TerminalRuntime,
         request: ProjectionEncodeRequest,

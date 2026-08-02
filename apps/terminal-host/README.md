@@ -40,10 +40,13 @@ Host token SID. Endpoint names are identifiers, not secrets.
 
 The Host services one local broker connection at a time while preserving the terminal across broker
 reconnects. A protocol 1.1 readable attachment starts with projection demand paused. Activating it
-lazily creates one reusable Ghostty render state and emits bounded format-2 snapshots or full-row
-deltas with one frame in flight per attachment. Pausing suppresses capture and encoding while PTY
-parsing and canonical revision tracking continue. Title, current directory, cursor, interaction
-modes, and final revision travel with the live projection.
+lazily creates one terminal-owned Ghostty render state and emits bounded format-2 snapshots or
+full-row deltas with one frame in flight per attachment. Pausing abandons that attachment's
+in-flight frame, invalidates its delta base, and suppresses dirty marking, capture, and encoding
+while PTY parsing and canonical revision tracking continue. When no attachment for the terminal has
+active projection demand, the Host releases the render state and projection caches; later activation
+recreates them and emits a full snapshot. Title, current directory, cursor, interaction modes, and
+final revision travel with the live projection.
 
 Protocol 1.2 adds attachment-local history demand, one row request in flight, and render- or
 text-detail row windows bounded to 2 MiB and 4,096 rows. The Host resolves absolute, oldest, tail,
