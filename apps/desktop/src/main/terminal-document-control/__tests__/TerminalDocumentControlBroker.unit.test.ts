@@ -56,6 +56,15 @@ function provisionCommand(operationId = 'operation-1'): TerminalDocumentControlC
 	};
 }
 
+function restoreCommand(operationId = 'restore-1'): TerminalDocumentControlCommand {
+	return {
+		launchCwd: '/workspace/orchbee',
+		operationId: operationId as TerminalDocumentControlCommand['operationId'],
+		presentationId: 'presentation-1' as TerminalDocumentControlCommand['presentationId'],
+		type: 'terminal-restore-requested',
+	};
+}
+
 function createDeferred<Result>() {
 	let resolve = (_result: Result): void => undefined;
 	const promise = new Promise<Result>((nextResolve) => {
@@ -148,6 +157,27 @@ describe('TerminalDocumentControlBroker', () => {
 			},
 		]);
 		expect(JSON.stringify(testPort.posted)).not.toContain('sensitive');
+	});
+
+	it('maps restore execution failure without relabeling it as provision or close', async () => {
+		const testPort = createTestPort();
+		const execute = vi.fn<TerminalDocumentControlOperations['execute']>(async () => {
+			throw new Error('sensitive internal failure');
+		});
+		const broker = new TerminalDocumentControlBroker(testPort.port, { execute });
+		broker.start();
+
+		testPort.emitMessage(restoreCommand());
+
+		await vi.waitFor(() => expect(testPort.posted).toHaveLength(1));
+		expect(testPort.posted).toEqual([
+			{
+				failure: { code: 'document-control-unavailable', retryable: true },
+				operationId: 'restore-1',
+				presentationId: 'presentation-1',
+				type: 'terminal-restore-failed',
+			},
+		]);
 	});
 
 	it('keeps independently reordered completions correlated and drops them after disposal', async () => {

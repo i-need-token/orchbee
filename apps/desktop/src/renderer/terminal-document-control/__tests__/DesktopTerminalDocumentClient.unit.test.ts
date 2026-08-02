@@ -34,6 +34,20 @@ describe('DesktopTerminalDocumentClient', () => {
 		expect(listener).toHaveBeenCalledWith(
 			expect.objectContaining({ presentationId: command.presentationId }),
 		);
+		const restoreCommand = {
+			launchCwd: '/workspace',
+			operationId: terminalPresentationOperationId('restore-1'),
+			presentationId: terminalPresentationId('presentation-1'),
+			type: 'terminal-restore-requested' as const,
+		};
+		client.dispatch([restoreCommand]);
+		await vi.waitFor(() => expect(received).toEqual([command, restoreCommand]));
+		channel.port2.postMessage({
+			operationId: restoreCommand.operationId,
+			presentationId: restoreCommand.presentationId,
+			type: 'terminal-restore-completed',
+		});
+		await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(2));
 		client.dispose();
 		channel.port2.close();
 	});

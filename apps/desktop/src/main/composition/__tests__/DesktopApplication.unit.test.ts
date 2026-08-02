@@ -104,7 +104,7 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
-	it('publishes a recovered exit only after the matching provision result is posted', async () => {
+	it('publishes a recovered exit only after matching provision or restore completion', async () => {
 		const terminalExit: TerminalExited = {
 			exit: { code: 0, kind: 'exit-code' },
 			finalRevision: CanonicalUint64TextSchema.parse('9'),
@@ -132,6 +132,24 @@ describe('DesktopApplication', () => {
 
 		harness.resultPosted[0]?.(command, result);
 
+		expect(harness.documentBrokers[0]?.publishTerminalExit).toHaveBeenCalledWith({
+			exitCode: 0,
+			presentationId,
+			signal: null,
+			type: 'terminal-exited',
+		});
+		harness.documentBrokers[0]?.publishTerminalExit.mockClear();
+		const restoreCommand: TerminalDocumentControlCommand = {
+			launchCwd: '/workspace',
+			operationId: 'restore-1' as TerminalDocumentControlCommand['operationId'],
+			presentationId,
+			type: 'terminal-restore-requested',
+		};
+		harness.resultPosted[0]?.(restoreCommand, {
+			operationId: restoreCommand.operationId,
+			presentationId,
+			type: 'terminal-restore-completed',
+		});
 		expect(harness.documentBrokers[0]?.publishTerminalExit).toHaveBeenCalledWith({
 			exitCode: 0,
 			presentationId,

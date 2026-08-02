@@ -32,10 +32,19 @@ export type TerminalPresentationLifecycle =
 			readonly operationId: TerminalPresentationOperationId;
 	  }
 	| { readonly kind: 'restoring' }
+	| {
+			readonly kind: 'reconciling';
+			readonly operationId: TerminalPresentationOperationId;
+	  }
 	| { readonly kind: 'running' }
 	| {
 			readonly failure: TerminalPresentationFailure;
 			readonly kind: 'provision-failed';
+			readonly operationId: TerminalPresentationOperationId;
+	  }
+	| {
+			readonly failure: TerminalPresentationFailure;
+			readonly kind: 'restore-failed';
 			readonly operationId: TerminalPresentationOperationId;
 	  }
 	| {
@@ -92,6 +101,12 @@ export type TerminalPresentationCommand =
 			readonly type: 'terminal-provision-requested';
 	  }
 	| {
+			readonly launchCwd: string | null;
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly type: 'terminal-restore-requested';
+	  }
+	| {
 			readonly operationId: TerminalPresentationOperationId;
 			readonly presentationId: TerminalPresentationId;
 			readonly type: 'terminal-close-requested';
@@ -108,6 +123,17 @@ export type TerminalPresentationEvent =
 			readonly operationId: TerminalPresentationOperationId;
 			readonly presentationId: TerminalPresentationId;
 			readonly type: 'terminal-provision-failed';
+	  }
+	| {
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly type: 'terminal-restore-completed';
+	  }
+	| {
+			readonly failure: TerminalPresentationFailure;
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly type: 'terminal-restore-failed';
 	  }
 	| {
 			readonly exitCode: number | null;

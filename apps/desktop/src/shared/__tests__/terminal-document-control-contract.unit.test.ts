@@ -24,7 +24,15 @@ describe('terminal document control contract', () => {
 		).toHaveLength(2);
 	});
 
-	it('accepts only presentation-scoped provision and close commands', () => {
+	it('accepts only presentation-scoped provision, restore, and close commands', () => {
+		expect(
+			TerminalDocumentControlCommandSchema.parse({
+				launchCwd: '/workspace/orchbee',
+				operationId: 'operation-restore',
+				presentationId: 'presentation-1',
+				type: 'terminal-restore-requested',
+			}),
+		).toMatchObject({ type: 'terminal-restore-requested' });
 		expect(
 			TerminalDocumentControlCommandSchema.parse({
 				launchCwd: '/workspace/orchbee',
@@ -83,6 +91,13 @@ describe('terminal document control contract', () => {
 				type: 'terminal-provision-completed',
 			}),
 		).toMatchObject({ operationId: 'operation-1', presentationId: 'presentation-1' });
+		expect(
+			TerminalDocumentControlEventSchema.parse({
+				operationId: 'operation-restore',
+				presentationId: 'presentation-1',
+				type: 'terminal-restore-completed',
+			}),
+		).toMatchObject({ type: 'terminal-restore-completed' });
 		expect(
 			TerminalDocumentControlEventSchema.safeParse({
 				hostEpoch: 'epoch-1',

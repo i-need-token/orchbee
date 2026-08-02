@@ -119,6 +119,7 @@ export function useWorkbenchPanelActions({
 					terminal.lifecycle.kind === 'preview' ||
 					terminal.lifecycle.kind === 'provisioning' ||
 					terminal.lifecycle.kind === 'restoring' ||
+					terminal.lifecycle.kind === 'reconciling' ||
 					terminal.lifecycle.kind === 'running',
 			).length;
 		};

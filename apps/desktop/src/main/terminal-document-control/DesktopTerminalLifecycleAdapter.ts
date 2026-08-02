@@ -33,6 +33,10 @@ type ProvisionCommand = Extract<
 	TerminalDocumentControlCommand,
 	{ readonly type: 'terminal-provision-requested' }
 >;
+type RestoreCommand = Extract<
+	TerminalDocumentControlCommand,
+	{ readonly type: 'terminal-restore-requested' }
+>;
 type CloseCommand = Extract<
 	TerminalDocumentControlCommand,
 	{ readonly type: 'terminal-close-requested' }
@@ -65,6 +69,7 @@ interface BindingEntry {
 	identity: TerminalIdentity | null;
 	operationTail: Promise<void>;
 	readonly presentationId: TerminalPresentationId;
+	restorable: boolean;
 	retired: boolean;
 	ready: boolean;
 	summary: TerminalSummary | null;
@@ -169,13 +174,16 @@ export class DesktopTerminalLifecycleAdapter implements TerminalDocumentControlO
 				initialization.kind === 'unavailable'
 					? storageFailure(initialization.reason)
 					: failure('terminal-binding-registry-conflict', false);
-			return command.type === 'terminal-provision-requested'
-				? provisionFailed(command, mappedFailure)
-				: closeFailed(command, mappedFailure);
+			return operationFailed(command, mappedFailure);
 		}
-		return command.type === 'terminal-provision-requested'
-			? this.#executeProvision(command)
-			: this.#executeClose(command);
+		switch (command.type) {
+			case 'terminal-provision-requested':
+				return this.#executeProvision(command);
+			case 'terminal-restore-requested':
+				return this.#executeRestore(command);
+			case 'terminal-close-requested':
+				return this.#executeClose(command);
+		}
 	}
 
 	async #initialize(): Promise<DesktopTerminalLifecycleAdapterInitialization> {
@@ -266,6 +274,7 @@ export class DesktopTerminalLifecycleAdapter implements TerminalDocumentControlO
 				lifecycle,
 				operationTail: Promise.resolve(),
 				presentationId: command.presentationId,
+				restorable: false,
 				retired: false,
 				ready: false,
 				summary: null,
@@ -284,6 +293,7 @@ export class DesktopTerminalLifecycleAdapter implements TerminalDocumentControlO
 			if (outcome.kind === 'provisioning' || outcome.kind === 'recovered') {
 				entry.identity = outcome.identity;
 				entry.ready = true;
+				entry.restorable = true;
 				entry.summary = outcome.summary;
 				entry.terminalExit = terminalExitFromSummary(outcome.summary);
 				return provisionCompleted(command);
@@ -299,6 +309,49 @@ export class DesktopTerminalLifecycleAdapter implements TerminalDocumentControlO
 				);
 			}
 			return provisionFailed(command, recoveryFailure(outcome));
+		});
+	}
+
+	#executeRestore(command: RestoreCommand): Promise<TerminalDocumentControlOperationResult> {
+		if (this.#retiredPresentations.has(command.presentationId)) {
+			return Promise.resolve(
+				restoreFailed(command, failure('terminal-presentation-retired', false)),
+			);
+		}
+		const entry = this.#entries.get(command.presentationId);
+		if (entry === undefined || !entry.restorable) {
+			return Promise.resolve(
+				restoreFailed(command, failure('terminal-identity-unavailable', false)),
+			);
+		}
+		const launch = resolveLaunch(this.#terminalLaunch, command.launchCwd);
+		if (entry.launch.currentDirectory !== launch.currentDirectory) {
+			return Promise.resolve(restoreFailed(command, failure('terminal-launch-conflict', false)));
+		}
+		return this.#enqueue(entry, async () => {
+			if (entry.retired || !entry.restorable) {
+				return restoreFailed(command, failure('terminal-presentation-retired', false));
+			}
+			const outcome = await entry.lifecycle.reconcile();
+			if (outcome.kind === 'provisioning' || outcome.kind === 'recovered') {
+				entry.identity = outcome.identity;
+				entry.ready = true;
+				entry.restorable = true;
+				entry.summary = outcome.summary;
+				entry.terminalExit = terminalExitFromSummary(outcome.summary);
+				return restoreCompleted(command);
+			}
+			if (outcome.kind === 'close-completed') {
+				const retired = this.#retireEntry(entry);
+				return restoreFailed(
+					command,
+					failure(
+						retired ? 'terminal-presentation-retired' : 'terminal-binding-registry-conflict',
+						false,
+					),
+				);
+			}
+			return restoreFailed(command, recoveryFailure(outcome));
 		});
 	}
 
@@ -375,6 +428,7 @@ function entryFromBinding(
 		operationTail: Promise.resolve(),
 		presentationId: binding.presentationId,
 		ready: false,
+		restorable: binding.state.kind === 'retained' || binding.state.kind === 'exited',
 		retired: false,
 		summary: null,
 		terminalExit,
@@ -472,6 +526,26 @@ function provisionFailed(
 	};
 }
 
+function restoreCompleted(command: RestoreCommand): TerminalDocumentControlOperationResult {
+	return {
+		operationId: command.operationId,
+		presentationId: command.presentationId,
+		type: 'terminal-restore-completed',
+	};
+}
+
+function restoreFailed(
+	command: RestoreCommand,
+	failureValue: TerminalPresentationFailure,
+): TerminalDocumentControlOperationResult {
+	return {
+		failure: failureValue,
+		operationId: command.operationId,
+		presentationId: command.presentationId,
+		type: 'terminal-restore-failed',
+	};
+}
+
 function closeCompleted(command: CloseCommand): TerminalDocumentControlOperationResult {
 	return {
 		operationId: command.operationId,
@@ -490,4 +564,18 @@ function closeFailed(
 		presentationId: command.presentationId,
 		type: 'terminal-close-failed',
 	};
+}
+
+function operationFailed(
+	command: TerminalDocumentControlCommand,
+	failureValue: TerminalPresentationFailure,
+): TerminalDocumentControlOperationResult {
+	switch (command.type) {
+		case 'terminal-provision-requested':
+			return provisionFailed(command, failureValue);
+		case 'terminal-restore-requested':
+			return restoreFailed(command, failureValue);
+		case 'terminal-close-requested':
+			return closeFailed(command, failureValue);
+	}
 }

@@ -32,11 +32,13 @@ Presentation intent has exactly three forms:
 | `retain`    | A technical binding is expected; absence must not create a replacement shell.     |
 | `close`     | The named operation and removal remain pending until lifecycle reconciliation.    |
 
-Projection maps provisioning failures back to `provision`, restoring, running, or exited
-observations to `retain`, and close failures or incomplete close results to `close`. Hydration maps
-`retain` to the non-projecting `restoring` lifecycle and maps the other intents to their
-corresponding pending lifecycle without dispatching a command. A runtime adapter must reconcile
-each intent before reporting an authoritative process observation.
+Projection maps provisioning failures back to `provision`; restoring, reconciling, restore-failed,
+running, or exited observations to `retain`; and close failures or incomplete close results to
+`close`. Hydration maps `retain` to the non-projecting `restoring` lifecycle and maps the other
+intents to their corresponding pending lifecycle without dispatching a command. A runtime adapter
+must reconcile each intent before reporting an authoritative process observation. Restore uses a
+distinct command so an application can require an existing technical binding instead of treating
+absence as permission to provision a replacement.
 
 ## Persisted and excluded data
 
@@ -78,7 +80,12 @@ Context order. `parseWorkbenchTopologyDocument(...)` validates an untrusted valu
 `WorkbenchProjectWorkspaceRuntime#getTopologyDocument(...)` projects managed runtime state and
 rejects preview presentations because preview state has no process-lifecycle intent. Passing a
 validated document as `initialTopology` reconstructs Project/Workspace, Tab, and Panel state while
-setting current CWD to absent and emitting no process command.
+setting current CWD to absent and emitting no process command. `subscribeTopology(...)` observes
+Project/Workspace transitions and every nested Tab/Panel transition through one application-facing
+projection subscription. `reconcileDurableTerminalPresentations()` is single-start: it replays
+persisted provision and close operation identities and starts one restore-only operation for each
+retain presentation. Restore success becomes running, restore failure remains retain intent, and a
+second reconciliation call is an intentional no-op.
 
 Schema version `1` has no migration reader. A composing application must treat another version or
 an invalid document as unavailable without overwriting or reinterpreting it.
@@ -89,6 +96,8 @@ an invalid document as unavailable without overwriting or reinterpreting it.
 | ---------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------- |
 | Strict documents preserve every identity and relationship  | Valid and malformed schema examples plus JSON round trips                 | Selected malformed classes                         |
 | Projection and hydration preserve durable managed topology | Managed running and pending-close runtime round trips                     | Process reconciliation remains application work    |
+| Retain reconciliation never projects provision intent      | Restore success/failure and replay command traces                         | Binding existence is enforced by the application   |
+| One subscription observes nested durable topology          | Project, Tab, and Panel observer traces                                   | Application commit scheduling remains out of scope |
 | Hierarchical topology remains canonical                    | Fixed-seed `fast-check` generation of 200 ordered multi-Tab/Panel layouts | Up to eight Tabs and four Panels per generated Tab |
 | Preview state cannot claim durability                      | Deterministic rejection test                                              | Preview remains an in-memory product composition   |
 

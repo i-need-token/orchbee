@@ -28,6 +28,12 @@ export const TerminalDocumentControlCommandSchema = z.discriminatedUnion('type',
 		type: z.literal('terminal-provision-requested'),
 	}),
 	z.strictObject({
+		launchCwd: boundedLaunchCwdSchema.nullable(),
+		operationId: TerminalPresentationOperationIdSchema,
+		presentationId: TerminalPresentationIdSchema,
+		type: z.literal('terminal-restore-requested'),
+	}),
+	z.strictObject({
 		operationId: TerminalPresentationOperationIdSchema,
 		presentationId: TerminalPresentationIdSchema,
 		type: z.literal('terminal-close-requested'),
@@ -71,6 +77,15 @@ export const TerminalDocumentControlEventSchema = z.discriminatedUnion('type', [
 		...terminalDocumentOperationIdentitySchema,
 		failure: TerminalPresentationFailureSchema,
 		type: z.literal('terminal-provision-failed'),
+	}),
+	z.strictObject({
+		...terminalDocumentOperationIdentitySchema,
+		type: z.literal('terminal-restore-completed'),
+	}),
+	z.strictObject({
+		...terminalDocumentOperationIdentitySchema,
+		failure: TerminalPresentationFailureSchema,
+		type: z.literal('terminal-restore-failed'),
 	}),
 	z.strictObject({
 		...terminalDocumentOperationIdentitySchema,

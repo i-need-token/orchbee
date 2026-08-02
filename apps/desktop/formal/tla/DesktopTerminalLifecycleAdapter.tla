@@ -6,15 +6,18 @@ Bindings == {"binding-1", "binding-2"}
 NoBinding == "no-binding"
 NoTarget == "no-target"
 Phases == {"absent", "bound", "retired"}
-Effects == {"none", "provision", "close"}
+Effects == {"none", "provision", "restore", "close"}
 Actions == {
   "init",
   "fresh-provision",
   "retry-provision",
+  "start-restore",
   "queue-close",
   "start-close",
   "provision-completed",
   "provision-failed",
+  "restore-completed",
+  "restore-failed",
   "close-completed",
   "close-failed",
   "unbound-close"
@@ -71,6 +74,14 @@ RetryProvision(presentation) ==
   /\ UNCHANGED <<phase, binding, queuedClose>>
   /\ Record("retry-provision", presentation)
 
+StartRestore(presentation) ==
+  /\ phase[presentation] = "bound"
+  /\ effect[presentation] = "none"
+  /\ ~queuedClose[presentation]
+  /\ effect' = [effect EXCEPT ![presentation] = "restore"]
+  /\ UNCHANGED <<phase, binding, queuedClose>>
+  /\ Record("start-restore", presentation)
+
 QueueClose(presentation) ==
   /\ phase[presentation] = "bound"
   /\ effect[presentation] = "provision"
@@ -95,6 +106,14 @@ FinishProvision(presentation, action) ==
        ![presentation] = IF queuedClose[presentation] THEN "close" ELSE "none"]
   /\ queuedClose' = [queuedClose EXCEPT ![presentation] = FALSE]
   /\ UNCHANGED <<phase, binding>>
+  /\ Record(action, presentation)
+
+FinishRestore(presentation, action) ==
+  /\ action \in {"restore-completed", "restore-failed"}
+  /\ phase[presentation] = "bound"
+  /\ effect[presentation] = "restore"
+  /\ effect' = [effect EXCEPT ![presentation] = "none"]
+  /\ UNCHANGED <<phase, binding, queuedClose>>
   /\ Record(action, presentation)
 
 CloseCompletes(presentation) ==
@@ -125,12 +144,17 @@ Next ==
   \/ \E presentation \in Presentations, candidateBinding \in Bindings:
        FreshProvision(presentation, candidateBinding)
   \/ \E presentation \in Presentations: RetryProvision(presentation)
+  \/ \E presentation \in Presentations: StartRestore(presentation)
   \/ \E presentation \in Presentations: QueueClose(presentation)
   \/ \E presentation \in Presentations: StartClose(presentation)
   \/ \E presentation \in Presentations:
        FinishProvision(presentation, "provision-completed")
   \/ \E presentation \in Presentations:
        FinishProvision(presentation, "provision-failed")
+  \/ \E presentation \in Presentations:
+       FinishRestore(presentation, "restore-completed")
+  \/ \E presentation \in Presentations:
+       FinishRestore(presentation, "restore-failed")
   \/ \E presentation \in Presentations: CloseCompletes(presentation)
   \/ \E presentation \in Presentations: CloseFails(presentation)
   \/ \E presentation \in Presentations: CloseUnbound(presentation)
@@ -171,9 +195,14 @@ TargetedMutationPreservesOthers ==
       /\ binding[other] = previousBinding[other]
 
 FailurePreservesMembership ==
-  lastAction \in {"provision-failed", "close-failed"} =>
+  lastAction \in {"provision-failed", "restore-failed", "close-failed"} =>
     /\ phase = previousPhase
     /\ binding = previousBinding
+
+RestoreNeverAllocatesBinding ==
+  lastAction \in {"start-restore", "restore-completed", "restore-failed"} =>
+    /\ binding = previousBinding
+    /\ binding[lastTarget] # NoBinding
 
 CloseCompletionRetiresTarget ==
   lastAction \in {"close-completed", "unbound-close"} =>

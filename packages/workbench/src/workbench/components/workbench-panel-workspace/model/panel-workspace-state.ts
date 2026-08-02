@@ -192,6 +192,25 @@ export type PanelWorkspaceEvent =
 			readonly type: 'terminal-provision-retried';
 	  }
 	| {
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly tabId: string;
+			readonly type: 'terminal-restore-requested';
+	  }
+	| {
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly tabId: string;
+			readonly type: 'terminal-restore-completed';
+	  }
+	| {
+			readonly failure: TerminalPresentationFailure;
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly tabId: string;
+			readonly type: 'terminal-restore-failed';
+	  }
+	| {
 			readonly exitCode: number | null;
 			readonly presentationId: TerminalPresentationId;
 			readonly signal: string | null;
@@ -1170,6 +1189,64 @@ export function transitionPanelWorkspace(
 				},
 			],
 		);
+	}
+
+	if (event.type === 'terminal-restore-requested') {
+		const terminal = findTerminalInNode(tab.root, event.presentationId);
+		if (terminal === null) return rejected(state, 'terminal-not-found');
+		if (
+			terminal.lifecycle.kind !== 'restoring' &&
+			(terminal.lifecycle.kind !== 'restore-failed' ||
+				!terminal.lifecycle.failure.retryable ||
+				terminal.lifecycle.operationId === event.operationId)
+		) {
+			return rejected(state, 'stale-operation');
+		}
+		return replaceTerminalLifecycle(
+			state,
+			tabIndex,
+			tab,
+			event.presentationId,
+			{ kind: 'reconciling', operationId: event.operationId },
+			[
+				{
+					launchCwd: terminal.launchCwd,
+					operationId: event.operationId,
+					presentationId: event.presentationId,
+					type: 'terminal-restore-requested',
+				},
+			],
+		);
+	}
+
+	if (event.type === 'terminal-restore-completed') {
+		const terminal = findTerminalInNode(tab.root, event.presentationId);
+		if (terminal === null) return rejected(state, 'terminal-not-found');
+		if (
+			terminal.lifecycle.kind !== 'reconciling' ||
+			terminal.lifecycle.operationId !== event.operationId
+		) {
+			return rejected(state, 'stale-operation');
+		}
+		return replaceTerminalLifecycle(state, tabIndex, tab, event.presentationId, {
+			kind: 'running',
+		});
+	}
+
+	if (event.type === 'terminal-restore-failed') {
+		const terminal = findTerminalInNode(tab.root, event.presentationId);
+		if (terminal === null) return rejected(state, 'terminal-not-found');
+		if (
+			terminal.lifecycle.kind !== 'reconciling' ||
+			terminal.lifecycle.operationId !== event.operationId
+		) {
+			return rejected(state, 'stale-operation');
+		}
+		return replaceTerminalLifecycle(state, tabIndex, tab, event.presentationId, {
+			failure: event.failure,
+			kind: 'restore-failed',
+			operationId: event.operationId,
+		});
 	}
 
 	if (event.type === 'terminal-exited') {

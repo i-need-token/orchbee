@@ -111,14 +111,128 @@ describe('workbench topology runtime', () => {
 				},
 			},
 		});
+		const restoredCommands: WorkbenchTerminalPresentationCommand[] = [];
+		const restored = new WorkbenchProjectWorkspaceRuntime({
+			initialTopology: document,
+			standaloneCwd: '/fallback',
+			standaloneTerminalTitle: 'Unused',
+			terminalPresentation: managedComposition(restoredCommands),
+		});
+		expect(restored.getTopologyDocument(workbenchTopologyRevision('8'))).toEqual(document);
+		expect(restored.reconcileDurableTerminalPresentations()).toEqual({
+			commandCount: 1,
+			kind: 'started',
+		});
+		expect(restoredCommands).toContainEqual({
+			operationId: expect.any(String),
+			presentationId: provision.presentationId,
+			type: 'terminal-close-requested',
+		});
+	});
+
+	it('replays a persisted provision intent with its original operation identity', () => {
+		const initialCommands: WorkbenchTerminalPresentationCommand[] = [];
+		const initial = createManagedRuntime(initialCommands);
+		const provision = initialCommands[0];
+		if (provision?.type !== 'terminal-provision-requested') {
+			throw new Error('Expected the initial provision command.');
+		}
+		const document = initial.getTopologyDocument(workbenchTopologyRevision('3'));
+		const replayedCommands: WorkbenchTerminalPresentationCommand[] = [];
+		const replayed = new WorkbenchProjectWorkspaceRuntime({
+			initialTopology: document,
+			standaloneCwd: '/fallback',
+			standaloneTerminalTitle: 'Unused',
+			terminalPresentation: managedComposition(replayedCommands),
+		});
+
+		replayed.reconcileDurableTerminalPresentations();
+
+		expect(replayedCommands).toEqual([provision]);
+		expect(replayed.getTopologyDocument(workbenchTopologyRevision('3'))).toEqual(document);
+	});
+
+	it('reconciles retain intent through restore-only commands without changing durable intent', () => {
+		const initialCommands: WorkbenchTerminalPresentationCommand[] = [];
+		const initial = createManagedRuntime(initialCommands);
+		const provision = initialCommands[0];
+		if (provision?.type !== 'terminal-provision-requested') {
+			throw new Error('Expected the initial provision command.');
+		}
+		initial.applyTerminalPresentationEvent({
+			operationId: provision.operationId,
+			presentationId: provision.presentationId,
+			type: 'terminal-provision-completed',
+		});
+		const document = initial.getTopologyDocument(workbenchTopologyRevision('4'));
+		const restoredCommands: WorkbenchTerminalPresentationCommand[] = [];
+		const restored = new WorkbenchProjectWorkspaceRuntime({
+			initialTopology: document,
+			standaloneCwd: '/fallback',
+			standaloneTerminalTitle: 'Unused',
+			terminalPresentation: managedComposition(restoredCommands),
+		});
+
+		expect(restored.reconcileDurableTerminalPresentations()).toEqual({
+			commandCount: 1,
+			kind: 'started',
+		});
+		expect(restoredCommands).toEqual([
+			{
+				launchCwd: '/workspace',
+				operationId: 'topology:operation:1',
+				presentationId: provision.presentationId,
+				type: 'terminal-restore-requested',
+			},
+		]);
+		expect(restored.getTopologyDocument(workbenchTopologyRevision('4'))).toEqual(document);
 		expect(
-			new WorkbenchProjectWorkspaceRuntime({
-				initialTopology: document,
-				standaloneCwd: '/fallback',
-				standaloneTerminalTitle: 'Unused',
-				terminalPresentation: managedComposition([]),
-			}).getTopologyDocument(workbenchTopologyRevision('8')),
-		).toEqual(document);
+			restored.applyTerminalPresentationEvent({
+				operationId: terminalPresentationOperationId('topology:operation:1'),
+				presentationId: provision.presentationId,
+				type: 'terminal-restore-completed',
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(restored.getTopologyDocument(workbenchTopologyRevision('5'))).toEqual({
+			...document,
+			revision: '5',
+		});
+		expect(restored.reconcileDurableTerminalPresentations()).toEqual({
+			commandCount: 0,
+			kind: 'unchanged',
+		});
+	});
+
+	it('keeps failed restoration as retain intent instead of replacement provision intent', () => {
+		const initialCommands: WorkbenchTerminalPresentationCommand[] = [];
+		const initial = createManagedRuntime(initialCommands);
+		const provision = initialCommands[0];
+		if (provision?.type !== 'terminal-provision-requested') {
+			throw new Error('Expected the initial provision command.');
+		}
+		initial.applyTerminalPresentationEvent({
+			operationId: provision.operationId,
+			presentationId: provision.presentationId,
+			type: 'terminal-provision-completed',
+		});
+		const document = initial.getTopologyDocument(workbenchTopologyRevision('2'));
+		const restored = new WorkbenchProjectWorkspaceRuntime({
+			initialTopology: document,
+			standaloneCwd: '/fallback',
+			standaloneTerminalTitle: 'Unused',
+			terminalPresentation: managedComposition([]),
+		});
+		restored.reconcileDurableTerminalPresentations();
+
+		expect(
+			restored.applyTerminalPresentationEvent({
+				failure: { code: 'terminal-identity-unavailable', retryable: false },
+				operationId: terminalPresentationOperationId('topology:operation:1'),
+				presentationId: provision.presentationId,
+				type: 'terminal-restore-failed',
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(restored.getTopologyDocument(workbenchTopologyRevision('2'))).toEqual(document);
 	});
 
 	it('refuses to project preview-only terminal presentations as durable process intent', () => {

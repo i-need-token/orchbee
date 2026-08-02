@@ -81,20 +81,31 @@ export class DesktopTerminalDocumentClient {
 	}
 
 	#publishLocalFailure(command: TerminalPresentationCommand): void {
-		this.#publish(
-			command.type === 'terminal-provision-requested'
-				? {
-						failure: { code: 'document-control-unavailable', retryable: true },
-						operationId: command.operationId,
-						presentationId: command.presentationId,
-						type: 'terminal-provision-failed',
-					}
-				: {
-						failure: { code: 'document-control-unavailable', retryable: true },
-						operationId: command.operationId,
-						presentationId: command.presentationId,
-						type: 'terminal-close-failed',
-					},
-		);
+		switch (command.type) {
+			case 'terminal-provision-requested':
+				this.#publish({
+					failure: { code: 'document-control-unavailable', retryable: true },
+					operationId: command.operationId,
+					presentationId: command.presentationId,
+					type: 'terminal-provision-failed',
+				});
+				break;
+			case 'terminal-restore-requested':
+				this.#publish({
+					failure: { code: 'document-control-unavailable', retryable: true },
+					operationId: command.operationId,
+					presentationId: command.presentationId,
+					type: 'terminal-restore-failed',
+				});
+				break;
+			case 'terminal-close-requested':
+				this.#publish({
+					failure: { code: 'document-control-unavailable', retryable: true },
+					operationId: command.operationId,
+					presentationId: command.presentationId,
+					type: 'terminal-close-failed',
+				});
+				break;
+		}
 	}
 }

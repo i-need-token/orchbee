@@ -202,6 +202,8 @@ function intentForLifecycle(
 			return { kind: 'provision', operationId: lifecycle.operationId };
 		case 'running':
 		case 'restoring':
+		case 'reconciling':
+		case 'restore-failed':
 		case 'exited':
 			return { kind: 'retain' };
 		case 'closing':

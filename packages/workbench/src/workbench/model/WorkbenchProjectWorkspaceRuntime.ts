@@ -19,10 +19,14 @@ import {
 import { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import {
 	clonePanelWorkspaceState,
+	collectPanelLeaves,
 	findTerminal,
 	type TerminalPresentation,
 } from '../components/workbench-panel-workspace/model/panel-workspace-state';
-import type { WorkbenchTerminalPresentationComposition } from './createWorkbenchPreviewTerminalPresentationComposition';
+import type {
+	WorkbenchTerminalPresentationCommand,
+	WorkbenchTerminalPresentationComposition,
+} from './createWorkbenchPreviewTerminalPresentationComposition';
 import { hydrateWorkbenchTopology, projectWorkbenchTopology } from './workbench-topology-runtime';
 
 type Listener = () => void;
@@ -68,9 +72,12 @@ export type WorkbenchRuntimeTerminalCreateResult =
 
 export class WorkbenchProjectWorkspaceRuntime {
 	private readonly contexts = new Map<string, MutableWorkbenchTerminalContext>();
+	private readonly contextTopologySubscriptions = new Map<string, () => void>();
+	private durableReconciliationStarted = false;
 	private readonly listeners = new Set<Listener>();
 	private readonly systemCwd: string;
 	private readonly terminalPresentation: WorkbenchTerminalPresentationComposition;
+	private readonly topologyListeners = new Set<Listener>();
 	private state = createProjectWorkspaceState();
 
 	public constructor(options: WorkbenchProjectWorkspaceRuntimeOptions) {
@@ -131,6 +138,71 @@ export class WorkbenchProjectWorkspaceRuntime {
 		this.listeners.add(listener);
 		return () => this.listeners.delete(listener);
 	};
+
+	public readonly subscribeTopology = (listener: Listener): (() => void) => {
+		this.topologyListeners.add(listener);
+		this.syncContextTopologySubscriptions();
+		return () => {
+			this.topologyListeners.delete(listener);
+			this.syncContextTopologySubscriptions();
+		};
+	};
+
+	public reconcileDurableTerminalPresentations(): {
+		readonly commandCount: number;
+		readonly kind: 'started' | 'unchanged';
+	} {
+		if (this.terminalPresentation.kind !== 'managed' || this.durableReconciliationStarted) {
+			return { commandCount: 0, kind: 'unchanged' };
+		}
+		this.durableReconciliationStarted = true;
+		const commands: WorkbenchTerminalPresentationCommand[] = [];
+		let commandCount = 0;
+		for (const context of this.contexts.values()) {
+			for (const tab of context.panelWorkspaceStore.getSnapshot().tabs) {
+				for (const panel of collectPanelLeaves(tab.root)) {
+					for (const terminal of [panel.primaryPresentation, ...panel.childPresentations]) {
+						switch (terminal.lifecycle.kind) {
+							case 'provisioning':
+								commands.push({
+									launchCwd: terminal.launchCwd,
+									operationId: terminal.lifecycle.operationId,
+									presentationId: terminal.presentationId,
+									type: 'terminal-provision-requested',
+								});
+								commandCount += 1;
+								break;
+							case 'restoring': {
+								const transition = context.panelWorkspaceStore.transition({
+									operationId: this.terminalPresentation.createOperationId(),
+									presentationId: terminal.presentationId,
+									tabId: tab.tabId,
+									type: 'terminal-restore-requested',
+								});
+								if (transition.outcome !== 'applied') {
+									throw new Error('A durable terminal restore could not be started.');
+								}
+								commandCount += transition.commands.length;
+								break;
+							}
+							case 'closing':
+								commands.push({
+									operationId: terminal.lifecycle.operationId,
+									presentationId: terminal.presentationId,
+									type: 'terminal-close-requested',
+								});
+								commandCount += 1;
+								break;
+							default:
+								break;
+						}
+					}
+				}
+			}
+		}
+		if (commands.length > 0) this.terminalPresentation.dispatchCommands(commands);
+		return { commandCount, kind: 'started' };
+	}
 
 	public getActiveTerminalContext(): WorkbenchTerminalContext {
 		const terminalContextId =
@@ -422,6 +494,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 	}
 
 	private emit(): void {
+		this.syncContextTopologySubscriptions();
 		for (const listener of this.listeners) {
 			try {
 				listener();
@@ -429,6 +502,38 @@ export class WorkbenchProjectWorkspaceRuntime {
 				// Observers cannot take ownership of or relabel an authoritative transition.
 				continue;
 			}
+		}
+		this.emitTopology();
+	}
+
+	private readonly emitTopology = (): void => {
+		for (const listener of this.topologyListeners) {
+			try {
+				listener();
+			} catch {
+				// Topology observers cannot take ownership of an authoritative transition.
+				continue;
+			}
+		}
+	};
+
+	private syncContextTopologySubscriptions(): void {
+		if (this.topologyListeners.size === 0) {
+			for (const unsubscribe of this.contextTopologySubscriptions.values()) unsubscribe();
+			this.contextTopologySubscriptions.clear();
+			return;
+		}
+		for (const [terminalContextId, unsubscribe] of this.contextTopologySubscriptions) {
+			if (this.contexts.has(terminalContextId)) continue;
+			unsubscribe();
+			this.contextTopologySubscriptions.delete(terminalContextId);
+		}
+		for (const [terminalContextId, context] of this.contexts) {
+			if (this.contextTopologySubscriptions.has(terminalContextId)) continue;
+			this.contextTopologySubscriptions.set(
+				terminalContextId,
+				context.panelWorkspaceStore.subscribe(this.emitTopology),
+			);
 		}
 	}
 }

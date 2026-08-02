@@ -21,10 +21,16 @@ import type { TerminalDocumentControlBootstrap } from '../../shared';
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopTerminalDocumentClient } from '../terminal-document-control';
 import { DesktopTerminalProjectionClient } from '../terminal-projection-control';
-import { DesktopWorkbenchTopologyClient } from '../workbench-topology-control';
+import {
+	DesktopWorkbenchTopologyClient,
+	DesktopWorkbenchTopologyCoordinator,
+} from '../workbench-topology-control';
 
 export interface DesktopWorkbenchRendererSession {
 	dispose(): void;
+	readonly ready: Promise<
+		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
+	>;
 }
 
 export function startDesktopWorkbenchRenderer(
@@ -41,6 +47,7 @@ export function startDesktopWorkbenchRenderer(
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee Desktop application root element is missing.');
 	}
+	const applicationRoot = rootElement;
 	const locale = resolveOrchbeeLocale(preferredLocales);
 	const intl = createOrchbeeIntl(locale);
 	documentElement.lang = locale;
@@ -48,6 +55,12 @@ export function startDesktopWorkbenchRenderer(
 	const documentClient = new DesktopTerminalDocumentClient(documentPort);
 	const projectionClient = new DesktopTerminalProjectionClient(projectionPort);
 	const topologyClient = new DesktopWorkbenchTopologyClient(topologyPort);
+	let actionRuntime: ActionRuntime | undefined;
+	let disposed = false;
+	let reactRoot: Root | undefined;
+	let topologyCoordinator: DesktopWorkbenchTopologyCoordinator | undefined;
+	let unsubscribeDocument: (() => void) | undefined;
+	const pendingCommands: TerminalPresentationCommand[] = [];
 	const terminalPresentation: WorkbenchTerminalPresentationComposition = {
 		createOperationId: () =>
 			terminalPresentationOperationId(`desktop:operation:${crypto.randomUUID()}`),
@@ -59,52 +72,105 @@ export function startDesktopWorkbenchRenderer(
 			for (const command of commands) {
 				if (command.type !== 'tab-close-ready') terminalCommands.push(command);
 			}
-			documentClient.dispatch(terminalCommands);
+			if (topologyCoordinator === undefined) {
+				pendingCommands.push(...terminalCommands);
+				return;
+			}
+			topologyCoordinator.dispatchCommands(terminalCommands);
 		},
 		initialPresentationId: bootstrap.initialPresentationId,
 		kind: 'managed',
 	};
-	const recoveredPresentations = bootstrap.presentations.map((presentation, index) => ({
-		cwd: presentation.launchCwd ?? bootstrap.defaultCwd,
-		presentationId: presentation.presentationId,
-		title: intl.formatMessage(workbenchTabMessages.terminalTitle, { number: index + 1 }),
-	}));
-	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-		standaloneCwd: bootstrap.defaultCwd,
-		...(recoveredPresentations.length === 0
-			? {}
-			: { standalonePresentations: recoveredPresentations }),
-		standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle, { number: 1 }),
-		terminalPresentation,
-	});
-	const unsubscribeDocument = documentClient.subscribe((event) => {
-		projectWorkspaceRuntime.applyTerminalPresentationEvent(event);
-	});
-	const actionRuntime = new ActionRuntime();
-	const reactRoot: Root = createRoot(rootElement);
-	reactRoot.render(
-		createElement(DesktopWorkbench, {
-			actionRuntime,
-			layoutStorage: storage,
-			locale,
-			projectWorkspaceRuntime,
-			shortcutPlatform,
-			terminalSurfaceCapability: {
-				documentElement,
-				preferredLocales,
-				projectionClient,
-				shortcutPlatform,
-			},
-		}),
-	);
-	return {
-		dispose: () => {
-			unsubscribeDocument();
-			reactRoot.unmount();
-			actionRuntime.dispose();
-			projectionClient.dispose();
-			documentClient.dispose();
-			topologyClient.dispose();
-		},
+
+	const dispose = (): void => {
+		if (disposed) return;
+		disposed = true;
+		unsubscribeDocument?.();
+		unsubscribeDocument = undefined;
+		reactRoot?.unmount();
+		reactRoot = undefined;
+		actionRuntime?.dispose();
+		actionRuntime = undefined;
+		topologyCoordinator?.dispose();
+		topologyCoordinator = undefined;
+		projectionClient.dispose();
+		documentClient.dispose();
+		topologyClient.dispose();
 	};
+
+	const ready = initialize().catch(() => {
+		dispose();
+		return { kind: 'unavailable', reason: 'runtime-unavailable' } as const;
+	});
+	return { dispose, ready };
+
+	async function initialize(): Promise<
+		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
+	> {
+		const loaded = await topologyClient.load();
+		if (loaded.kind === 'unavailable') {
+			dispose();
+			return loaded;
+		}
+		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
+		const recoveredPresentations = bootstrap.presentations.map((presentation, index) => ({
+			cwd: presentation.launchCwd ?? bootstrap.defaultCwd,
+			presentationId: presentation.presentationId,
+			title: intl.formatMessage(workbenchTabMessages.terminalTitle, { number: index + 1 }),
+		}));
+		const runtimeOptions = {
+			standaloneCwd: bootstrap.defaultCwd,
+			standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle, {
+				number: 1,
+			}),
+			terminalPresentation,
+		};
+		let runtime: WorkbenchProjectWorkspaceRuntime;
+		if (loaded.kind === 'available') {
+			runtime = new WorkbenchProjectWorkspaceRuntime({
+				...runtimeOptions,
+				initialTopology: loaded.document,
+			});
+		} else if (recoveredPresentations.length === 0) {
+			runtime = new WorkbenchProjectWorkspaceRuntime(runtimeOptions);
+		} else {
+			runtime = new WorkbenchProjectWorkspaceRuntime({
+				...runtimeOptions,
+				standalonePresentations: recoveredPresentations,
+			});
+		}
+		unsubscribeDocument = documentClient.subscribe((event) => {
+			runtime.applyTerminalPresentationEvent(event);
+		});
+		topologyCoordinator = new DesktopWorkbenchTopologyCoordinator(
+			runtime,
+			topologyClient,
+			documentClient,
+		);
+		const topologyStart = await topologyCoordinator.start(loaded, pendingCommands.splice(0));
+		if (topologyStart.kind === 'unavailable') {
+			dispose();
+			return topologyStart;
+		}
+		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
+		actionRuntime = new ActionRuntime();
+		reactRoot = createRoot(applicationRoot);
+		reactRoot.render(
+			createElement(DesktopWorkbench, {
+				actionRuntime,
+				layoutStorage: storage,
+				locale,
+				projectWorkspaceRuntime: runtime,
+				shortcutPlatform,
+				terminalSurfaceCapability: {
+					documentElement,
+					preferredLocales,
+					projectionClient,
+					shortcutPlatform,
+				},
+			}),
+		);
+		if (loaded.kind === 'available') runtime.reconcileDurableTerminalPresentations();
+		return { kind: 'ready' };
+	}
 }

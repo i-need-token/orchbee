@@ -13,8 +13,8 @@ Main starts without creating a fixed terminal or opening an attachment. It resto
 `TerminalPresentationId` to `TerminalBindingId` registry, owns the private Workbench-topology file
 adapter, and transfers three allowlisted document ports through the sandboxed preload:
 
-- lifecycle control accepts only presentation-scoped provision and close commands and publishes
-  correlated results plus terminal exit;
+- lifecycle control accepts only presentation-scoped provision, restore, and close commands and
+  publishes correlated results plus terminal exit;
 - projection control opens and releases one scoped Host attachment for a displayed terminal
   viewport.
 - topology control loads or exact-next compare-and-swaps only canonical
@@ -24,11 +24,12 @@ The renderer has no Node integration, generic Electron IPC, filesystem capabilit
 or raw terminal-lifetime authority. Preload transfers exactly one port for each recognized control
 channel and attests context isolation and sandboxing.
 
-Recovered terminal bindings are currently projected as standalone Workbench tabs. This preserves
-the live process across renderer reload and Electron Main restart without pretending that Project,
-Workspace, Tab-group, or split topology has been durably restored. The topology store and scoped
-client are present, but the current renderer deliberately performs no topology load or commit until
-write-ahead lifecycle integration exists. Update activation UI, sharing, network clients, and the
+The renderer loads topology before constructing its managed Workbench runtime. An available
+document restores its exact Project, Workspace, Tab, Group, Panel, Split, and presentation
+placement. A missing document projects recovered bindings as standalone Tabs and commits revision
+`0` before any initial lifecycle command. An unavailable load or failed first commit creates no
+replacement topology or terminal effect. Unreferenced technical bindings remain preserved but are
+not silently adopted into product topology. Update activation UI, sharing, network clients, and the
 user-facing quit/retention choice remain outside the current composition.
 
 Desktop requires Host protocol `1.4` exactly. Electron uses `42.8.0`, the final release in the major
@@ -80,12 +81,21 @@ only an exact HostEpoch/TerminalId/CreationId match and never substitutes a new 
 continuity. A lost create response may replay only the same CreationId and launch in the recorded
 Host epoch. Orphan, conflict, corrupt-ledger, and transport states fail closed.
 
+Retain reconciliation is a separate restore-only operation. It succeeds only for a Binding that
+was already durably retained or exited, or became restorable after successful provision in the same
+Main lifetime. Missing, planned, closing, or lost bindings never allocate a replacement through the
+restore path. Restore failure remains durable retain intent.
+
 One operation tail serializes lifecycle work per presentation while unrelated terminals progress
-independently. Close first persists `closing`, retires only that presentation's active projections,
-then delegates graceful/force/dispose behavior to the existing binding close lifecycle. A Panel or
-Tab remains in Workbench until every exact terminal close result completes; failure retains the
-affected topology for retry. Renderer reload, a renderer crash, window close, and current
-application shutdown release document attachments but preserve Host terminals.
+independently. The Renderer coordinator commits the complete topology containing provision or close
+intent before forwarding the corresponding effect. It coalesces ordinary topology changes while a
+CAS is in flight and stops the generation after conflict or storage failure. Close then persists
+technical `closing`, retires only that presentation's active projections, and delegates
+graceful/force/dispose behavior to the existing binding close lifecycle. A Panel or Tab remains in
+Workbench until every exact terminal close result completes; cleanup commits afterward, while the
+previously stored close intent remains replayable if cleanup fails. Renderer reload, a renderer
+crash, window close, and current application shutdown release document attachments but preserve
+Host terminals.
 
 ## Demand-driven projection
 
@@ -110,7 +120,7 @@ by their existing interaction contracts.
 
 Host `TerminalExited` events are resolved through the authoritative runtime registry, persisted to
 the exact binding, published to Workbench by PresentationId, and also forwarded to any live
-projection. A recovered exited binding is provisioned into Workbench, attached read-only, and
+projection. A recovered exited binding is restored into Workbench, attached read-only, and
 retains its final-revision presentation behavior.
 
 ## Correctness evidence
@@ -121,6 +131,8 @@ Focused traces cover:
   correlation, cancellation, and renderer-document disposal;
 - strict topology load/CAS boundary validation, shared serialization across renderer generations,
   invalid-file preservation, atomic replacement, and suppressed late responses;
+- first-commit and per-command write-ahead ordering, coalesced topology commits, restore-only
+  recovery, failed-CAS effect suppression, and post-effect managed container cleanup;
 - fresh provisioning, multi-binding store preservation, recovery, exited recovery, orphan and
   conflict handling, durable close, and presentation-registry reconstruction;
 - unrelated terminal concurrency, exact close targeting, Tab-close result ordering, and stale
@@ -136,6 +148,9 @@ serialization, projection demand, and Workbench removal safety within their decl
 The Desktop topology-store model additionally checks exact-next CAS, conflict preservation,
 serialization, unavailable storage, generation disposal, and progress for two clients through
 revision `2`.
+The Desktop write-ahead model checks matching durable intent before provision, restore, or close
+dispatch; failed-commit preservation; restore without replacement creation; renderer disposal and
+reload replay; and live-generation progress for one abstract presentation.
 The repository imposes no new throughput acceptance gate for this integration slice; the optional
 benchmark remains a diagnostic tool.
 

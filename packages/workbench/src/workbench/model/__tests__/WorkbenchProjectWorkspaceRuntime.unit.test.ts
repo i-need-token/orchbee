@@ -232,6 +232,23 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(listener).toHaveBeenCalledTimes(1);
 	});
 
+	it('observes complete nested topology and releases child subscriptions with the observer', () => {
+		const runtime = createRuntime();
+		const context = runtime.getActiveTerminalContext();
+		const listener = vi.fn<() => void>();
+		const unsubscribe = runtime.subscribeTopology(listener);
+		const activeTabId = context.tabModel.getSnapshot().activeTabId;
+		if (activeTabId === null) throw new Error('Expected an active Tab.');
+
+		context.tabModel.updateTab(activeTabId, { title: 'Renamed' });
+		expect(listener).toHaveBeenCalled();
+		listener.mockClear();
+		unsubscribe();
+		context.tabModel.updateTab(activeTabId, { title: 'Renamed again' });
+
+		expect(listener).not.toHaveBeenCalled();
+	});
+
 	it('crosses the Action commit point before applying an authoritative transition', () => {
 		const runtime = createRuntime();
 		const initialState = runtime.getSnapshot();

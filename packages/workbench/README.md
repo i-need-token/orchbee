@@ -375,9 +375,13 @@ fabricate those operating-system capabilities.
 `@orchbee/workbench/topology` owns the canonical version-1 document for Project, Workspace, Tab,
 Group, Panel, Split, and terminal-presentation placement. A managed
 `WorkbenchProjectWorkspaceRuntime` projects that document through `getTopologyDocument(...)` and
-may hydrate it through `initialTopology` without dispatching recovered process effects. The
-document persists launch intent and pending provision or close intent, but excludes current CWD,
-Host, Binding, Attachment, process output, history, environment, and transient Tab observations.
+may hydrate it through `initialTopology` without dispatching recovered process effects.
+`subscribeTopology(...)` observes the complete Project/Workspace and nested Tab/Panel projection.
+After an application has established its persistence barrier,
+`reconcileDurableTerminalPresentations()` replays persisted provision and close operations and
+converts retain intent into restore-only commands. The document persists launch intent and pending
+provision or close intent, but excludes current CWD, Host, Binding, Attachment, process output,
+history, environment, and transient Tab observations.
 
 The package performs no storage or IPC effect. A composing application must parse the document at
 its persistence boundary and remains responsible for private storage, revisions, write ordering,

@@ -49,6 +49,19 @@ function closeCommand(
 	};
 }
 
+function restoreCommand(
+	presentation = 'presentation-1',
+	operation = 'restore-1',
+	launchCwd: string | null = '/workspace/orchbee',
+): TerminalDocumentControlCommand {
+	return {
+		launchCwd,
+		operationId: terminalPresentationOperationId(operation),
+		presentationId: terminalPresentationId(presentation),
+		type: 'terminal-restore-requested',
+	};
+}
+
 function createLifecycle(
 	reconcile: () => Promise<TerminalBindingLifecycleOutcome> = async () => ({
 		identity,
@@ -137,6 +150,79 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 		expect(harness.createBindingLifecycle).toHaveBeenCalledOnce();
 		expect(harness.lifecycle.reconcile).toHaveBeenCalledTimes(2);
 		expect(harness.registry.size).toBe(1);
+	});
+
+	it('restores only an already restorable binding and never allocates a replacement', async () => {
+		const retainedLifecycle = createLifecycle(async () => ({
+			identity,
+			kind: 'provisioning',
+			summary: null,
+		}));
+		const allocateFreshBindingId = vi.fn<() => string>(() => 'replacement-binding');
+		const retainedBinding: TerminalBinding = {
+			bindingId: TerminalBindingIdSchema.parse('binding-retained'),
+			creationId: identity.creationId,
+			launch: { ...createTerminalLaunch(), currentDirectory: '/workspace/orchbee' },
+			presentationId: terminalPresentationId('presentation-1'),
+			state: { identity, kind: 'retained' },
+		};
+		const retained = new DesktopTerminalLifecycleAdapter({
+			allocateFreshBindingId,
+			createBindingLifecycle: () => retainedLifecycle,
+			loadBindings: async () => ({
+				document: { bindings: [retainedBinding], version: 3 },
+				kind: 'available',
+			}),
+			registry: new DesktopTerminalBindingRegistry(),
+			retireProjection: async () => undefined,
+			terminalLaunch: createTerminalLaunch(),
+		});
+
+		await expect(retained.execute(restoreCommand())).resolves.toEqual({
+			operationId: 'restore-1',
+			presentationId: 'presentation-1',
+			type: 'terminal-restore-completed',
+		});
+		expect(retainedLifecycle.reconcile).toHaveBeenCalledOnce();
+		expect(allocateFreshBindingId).not.toHaveBeenCalled();
+
+		const missing = createHarness({ allocateFreshBindingId });
+		await expect(missing.adapter.execute(restoreCommand())).resolves.toEqual({
+			failure: { code: 'terminal-identity-unavailable', retryable: false },
+			operationId: 'restore-1',
+			presentationId: 'presentation-1',
+			type: 'terminal-restore-failed',
+		});
+		expect(missing.createBindingLifecycle).not.toHaveBeenCalled();
+		expect(allocateFreshBindingId).not.toHaveBeenCalled();
+	});
+
+	it('rejects restore for a planned binding instead of turning it into provision', async () => {
+		const lifecycle = createLifecycle();
+		const plannedBinding: TerminalBinding = {
+			bindingId: TerminalBindingIdSchema.parse('binding-planned'),
+			creationId: identity.creationId,
+			launch: { ...createTerminalLaunch(), currentDirectory: '/workspace/orchbee' },
+			presentationId: terminalPresentationId('presentation-1'),
+			state: { kind: 'planned' },
+		};
+		const adapter = new DesktopTerminalLifecycleAdapter({
+			allocateFreshBindingId: () => 'replacement-binding',
+			createBindingLifecycle: () => lifecycle,
+			loadBindings: async () => ({
+				document: { bindings: [plannedBinding], version: 3 },
+				kind: 'available',
+			}),
+			registry: new DesktopTerminalBindingRegistry(),
+			retireProjection: async () => undefined,
+			terminalLaunch: createTerminalLaunch(),
+		});
+
+		await expect(adapter.execute(restoreCommand())).resolves.toMatchObject({
+			failure: { code: 'terminal-identity-unavailable', retryable: false },
+			type: 'terminal-restore-failed',
+		});
+		expect(lifecycle.reconcile).not.toHaveBeenCalled();
 	});
 
 	it('rejects launch mutation for an existing presentation without touching its lifecycle', async () => {

@@ -107,18 +107,30 @@ export class TerminalDocumentControlBroker {
 			operationId: command.operationId,
 			presentationId: command.presentationId,
 		};
-		const result: TerminalDocumentControlOperationResult =
-			command.type === 'terminal-provision-requested'
-				? {
-						...identity,
-						failure: { code: 'document-control-unavailable', retryable: true },
-						type: 'terminal-provision-failed',
-					}
-				: {
-						...identity,
-						failure: { code: 'document-control-unavailable', retryable: true },
-						type: 'terminal-close-failed',
-					};
+		let result: TerminalDocumentControlOperationResult;
+		switch (command.type) {
+			case 'terminal-provision-requested':
+				result = {
+					...identity,
+					failure: { code: 'document-control-unavailable', retryable: true },
+					type: 'terminal-provision-failed',
+				};
+				break;
+			case 'terminal-restore-requested':
+				result = {
+					...identity,
+					failure: { code: 'document-control-unavailable', retryable: true },
+					type: 'terminal-restore-failed',
+				};
+				break;
+			case 'terminal-close-requested':
+				result = {
+					...identity,
+					failure: { code: 'document-control-unavailable', retryable: true },
+					type: 'terminal-close-failed',
+				};
+				break;
+		}
 		this.#post(result);
 	}
 
@@ -154,7 +166,16 @@ function operationResultMatches(
 	) {
 		return false;
 	}
-	return command.type === 'terminal-provision-requested'
-		? event.type === 'terminal-provision-completed' || event.type === 'terminal-provision-failed'
-		: event.type === 'terminal-close-completed' || event.type === 'terminal-close-failed';
+	switch (command.type) {
+		case 'terminal-provision-requested':
+			return (
+				event.type === 'terminal-provision-completed' || event.type === 'terminal-provision-failed'
+			);
+		case 'terminal-restore-requested':
+			return (
+				event.type === 'terminal-restore-completed' || event.type === 'terminal-restore-failed'
+			);
+		case 'terminal-close-requested':
+			return event.type === 'terminal-close-completed' || event.type === 'terminal-close-failed';
+	}
 }

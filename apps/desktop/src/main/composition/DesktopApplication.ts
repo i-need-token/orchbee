@@ -401,8 +401,12 @@ export class DesktopApplication {
 		result: TerminalDocumentControlOperationResult,
 	): void => {
 		if (
-			command.type !== 'terminal-provision-requested' ||
-			result.type !== 'terminal-provision-completed'
+			!(
+				(command.type === 'terminal-provision-requested' &&
+					result.type === 'terminal-provision-completed') ||
+				(command.type === 'terminal-restore-requested' &&
+					result.type === 'terminal-restore-completed')
+			)
 		) {
 			return;
 		}
