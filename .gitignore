@@ -25,8 +25,3 @@ zig-out/
 /packages/tab-strip/formal/tla/states/
 /packages/workbench/formal/tla/states/
 /packages/tab-strip/test-results/
-
-# Local terminal dogfood
-/packages/terminal/browser/
-/packages/terminal/demo/
-/packages/terminal/test/

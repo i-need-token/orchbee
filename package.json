@@ -34,7 +34,6 @@
 		"experience:show": "node scripts/experience-catalog.mjs show",
 		"generate:design-token-inventory": "node scripts/generate-design-token-inventory.mjs",
 		"generate:tailwind-token-compat": "node scripts/generate-tailwind-token-compat.mjs",
-		"build:ghostty-wasm": "node scripts/build-ghostty-wasm.mjs",
 		"audit:ghostty-panel": "node scripts/check-ghostty-panel-manifest.mjs && node scripts/generate-ghostty-nerd-font-constraints.mjs --check",
 		"generate:ghostty-panel-data": "node scripts/generate-ghostty-nerd-font-constraints.mjs"
 	},

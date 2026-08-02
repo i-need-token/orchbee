@@ -1,20 +1,29 @@
 # @orchbee/terminal
 
-Terminal surfaces for Orchbee: Ghostty's VT engine compiled to WebAssembly and a source-neutral
-projected Host client, both rendered with WebGPU or Canvas 2D.
+Source-neutral browser client surface for a terminal whose authoritative VT state lives in
+Orchbee Terminal Host.
 
 ## Scope
 
-This package owns browser terminal parsing, projected-frame presentation, rendering, input
-normalization, selection where supported, and browser host integration. It does not own application
-PTY processes, session transport, Electron menus, clipboard permissions, paste dialogs, or external
-navigation. The machine-readable scope contract lives in [`project.json`](project.json).
+This package owns one projected terminal surface:
 
-Package-specific implementation and maintenance references:
+- atomic packed-frame commit and snapshot recovery;
+- WebGPU rendering with a Canvas 2D fallback;
+- bounded history-window presentation;
+- client-side search and nearby-row link discovery;
+- Host-owned selection interaction and copy correlation;
+- keyboard, committed text, IME, mouse, focus, paste, and resize intents; and
+- visible-viewport accessibility.
 
-- [Ghostty WASM API](docs/ghostty-wasm-api.md)
-- [Ghostty Terminal Panel Conformance](docs/ghostty-surface-test-provenance.md)
-- [VS Code Terminal Search Alignment](docs/vscode-search-alignment.md)
+It never receives or parses PTY output, loads a VT engine, or exposes `write(ptyBytes)`. Terminal
+Host owns the PTY, Ghostty VT state, terminal modes, retained history, selection endpoints, and
+mode-dependent input encoding. The application owns transport, terminal inventory, product
+topology, clipboard effects, external navigation, and localized product UI. The machine-readable
+scope contract lives in [`project.json`](project.json).
+
+`ProjectedTerminal` represents exactly one attachment. Project, Workspace, Tab, Panel, and
+visibility policy remain above this package; a hidden terminal does not require a live renderer
+surface, and projection/history demand can be paused independently of the Host runtime.
 
 ## Install
 
@@ -24,59 +33,9 @@ pnpm add @orchbee/terminal
 
 ## Use
 
-```ts
-import { init, Terminal } from '@orchbee/terminal';
-
-await init();
-
-const terminal = new Terminal({
-	cols: 80,
-	rows: 24,
-	// Ghostty measures scrollback page storage in bytes.
-	scrollback: 10_000_000,
-	cursorBlink: true,
-	fontWeight: 'normal',
-	fontWeightBold: 'bold',
-	fontLigatures: true,
-	paddingBalance: 'equal',
-	fontMetricModifiers: {
-		cellHeight: '10%',
-		iconHeight: -1,
-	},
-});
-
-await terminal.open(document.querySelector('#terminal')!);
-terminal.onData((data) => pty.write(data));
-terminal.onBinary((data) => pty.write(Buffer.from(data, 'binary')));
-pty.onData((data) => terminal.write(data));
-```
-
-Pass an explicit WASM URL when your bundler does not preserve package asset URLs:
-
-```ts
-await init({ source: '/assets/ghostty-vt.wasm' });
-```
-
-Route optional Ghostty diagnostics through an application-owned logger. Initialization remains silent when `log` is omitted.
-
-```ts
-await init({
-	source: '/assets/ghostty-vt.wasm',
-	log: (message) => applicationLogger.debug(message),
-});
-```
-
-WebGPU is used when available; Canvas 2D is the fallback. The package includes selection, scrollback, mouse and focus reporting, Ghostty key encoding, OSC 8 and plain-URL links, terminal query responses, the buffer API, and `FitAddon`.
-
-The comparison demos load JetBrains Mono 2.304 variable fonts from Ghostty's pinned dependency and include the upstream OFL-1.1 license.
-
-### Projected Host surface
-
-`ProjectedTerminal` is the sibling API for a terminal whose authoritative VT state lives in
-`apps/terminal-host`. It does not load the Ghostty WASM parser and has no `write(ptyBytes)` method.
-The caller owns transport and forwards dedicated frame buffers plus typed commands without parsing
-cells in Electron or another broker. Electron's Main-to-Renderer route may structured-clone a frame;
-the terminal package does not claim transport-level zero-copy ownership transfer.
+The caller provides opaque Host identity, localized accessibility labels, and a transport-neutral
+command port. Binary frame and row-window payloads are forwarded without VT parsing or per-cell
+broker reconstruction.
 
 ```ts
 import { ProjectedTerminal } from '@orchbee/terminal';
@@ -101,47 +60,55 @@ terminal.onFrameTelemetry((frame) => rendererMetrics.record(frame));
 await terminal.open(document.querySelector('#terminal')!);
 
 hostConnection.onFrame((frameBuffer) => terminal.applyFrame(frameBuffer));
+hostConnection.onRows((rowBuffer) => terminal.applyRows(rowBuffer));
 hostConnection.onTerminalExited((event) => terminal.notifyExited(event));
 ```
 
-Opening installs frame, renderer, input, and resize handling before it activates projection demand.
-Frame decoding commits into a bounded row-partitioned structure-of-arrays store, schedules a draw,
-then emits `FrameApplied`; exact duplicates are re-acknowledged. Deltas require the exact next
-sequence and committed base. A complete snapshot may advance across sequences abandoned by pause or
-recovery, while identity, stale snapshot, generation, dimension, or delta-base mismatches request a
-snapshot without mutating the committed grid.
-The renderer reads packed rows directly without reconstructing `GhosttyCell[]` or another VT state.
-Projected frame telemetry includes the exact committed Host revision drawn by that renderer frame,
-so lifecycle consumers can prove final-revision presentation without depending on whether draw or
-exit notification arrives first.
+Opening installs frame, renderer, input, resize, and accessibility handling before activating
+projection demand. A frame commits into a bounded row-partitioned structure-of-arrays store and is
+acknowledged only after draw scheduling. Exact duplicates are re-acknowledged; invalid identity,
+sequence, generation, dimension, or delta-base input requests a complete snapshot without mutating
+the committed grid.
 
-This live surface currently owns the visible grid, cursor, title/current directory metadata,
-terminal-aware keyboard/IME/mouse/focus/paste intents, resize, bounded history navigation,
-Host-owned selection, lazy client-side search and link discovery, visible-viewport accessibility,
-and exit finalization. Its source-neutral `TerminalBufferRowReader` exposes only bounded,
-asynchronous render- or text-detail row pages for the current Host revision; it never offers a
-synchronous whole-buffer string or makes Renderer a second VT authority.
+The renderer consumes packed rows directly. It never reconstructs a local VT state or a per-cell
+object graph. Frame telemetry records the exact committed Host revision drawn by the renderer.
 
-Bottom-following use retains only the live packed grid. History navigation pauses live projection
-and atomically commits one contiguous packed cache with bounded overscan; stale, evicted, or invalid
-windows recover to a fresh bottom snapshot. Search creates its Worker only after a non-empty query,
-streams bounded text pages, scans completed logical lines while the next Host read is in flight, and
-discards stale revision/generation results. Narrow ASCII pages preserve cell coordinates through an
-implicit identity mapping instead of materializing per-cell mapping objects; Unicode and wide or
-combined graphemes retain explicit mappings. Link lookup lazily reads
-at most the nearby rows and requests application-owned activation only for approved URL targets.
-Selection content is never reconstructed from GPU state: Host endpoints remain authoritative and
-copy completes only after the application reports its platform side effect.
+## History, search, selection, and links
+
+Bottom-following use retains only the current packed grid. Entering history pauses live projection
+and commits one bounded row window with limited overscan. Stale, evicted, or invalid windows recover
+to a fresh bottom snapshot.
+
+Search is client-side. The first non-empty query lazily creates a Worker and streams bounded
+text-detail pages through a source-neutral row reader. Query text and matches never enter Terminal
+Host or an Electron broker.
 
 ```ts
 terminal.scrollLines(-1);
 terminal.updateSearch('failed', { caseSensitive: false, wholeWord: true });
 terminal.findNext();
+```
 
+Selection endpoints and exported content remain authoritative in Terminal Host. The client sends
+gestures and commands, while the application performs the clipboard side effect and reports only
+its outcome.
+
+```ts
 terminal.selectAll();
-const copyResult = await terminal.copySelectionAsync();
-if (copyResult.kind === 'failed') reportCopyFailure(copyResult.code);
+const result = await terminal.copySelectionAsync();
+if (result.kind === 'failed') reportCopyFailure(result.code);
+```
 
+Link discovery reads only bounded nearby rows. `ProjectedTerminal` emits an approved URL request;
+the application decides whether and how to open it. Filesystem and unknown targets are not opened
+by this package.
+
+## Bounded row API
+
+The asynchronous row reader exposes only revision- and generation-pinned pages. It intentionally
+has no synchronous whole-buffer string API.
+
+```ts
 const snapshot = terminal.getBufferRowsSnapshot();
 const rows = await terminal.readBufferRows(
 	{
@@ -156,147 +123,34 @@ const rows = await terminal.readBufferRows(
 );
 ```
 
-The projected surface still intentionally omits synchronous full-buffer access and complete parity
-with every browser/WASM `Terminal` interaction. Electron clipboard, external navigation, action
-bindings, and product find UI stay outside this package.
+## Renderer behavior
 
-## Surface API
+WebGPU is preferred when available; Canvas 2D is the observable fallback. Both paths consume the
+same packed projection, theme, font configuration, selection/search overlays, preedit state, and
+cursor metadata. Renderer health reports initialization, fallback, device loss, recovery, and
+recovery failure.
 
-Platform effects are requested through `TerminalHost`; the terminal core does not own Electron menus, clipboard permissions, paste dialogs, or external navigation.
+Ghostty remains the reference for selected font metrics, shaping boundaries, procedural sprites,
+cursor geometry, and terminal-panel rendering behavior. That reference does not make this package
+a Ghostty VT owner. Maintenance provenance is recorded in
+[`docs/ghostty-surface-test-provenance.md`](docs/ghostty-surface-test-provenance.md).
 
-```ts
-const terminal = new Terminal({
-	host: {
-		capabilities: { contextMenu: true, openTarget: true },
-		clipboard: applicationClipboard,
-		confirmPaste: (request) => showPasteDialog(request),
-		resolveDrop: (request) => resolveDroppedFiles(request.files, request.cwd),
-		showContextMenu: (request) => showApplicationMenu(request),
-		openTarget: (request) => openAllowedTarget(request.target),
-	},
-});
-```
-
-Selection is backed by Ghostty tracked grid references and supports plain, HTML, and VT copy formats, rectangle/word/line/output selection, and endpoint adjustment. A selection is cleared if scrollback eviction removes either endpoint, so copy operations cannot silently target replacement content. OSC 133 prompt/input/output metadata is available on every `CellData` and in context-menu requests, including requests over visible scrollback; delayed context-menu actions keep using the captured absolute buffer cell even if the viewport moves.
-
-`getSelectionPosition()` reports stable absolute active-buffer coordinates, including when later output moves the selected cells out of the viewport; viewport-relative coordinates remain internal to rendering and accessibility.
-
-```ts
-const matches = terminal.findAll('failed', { caseSensitive: false, wholeWord: true });
-terminal.findNext('failed');
-terminal.highlightSearch('failed');
-
-const searchResults = terminal.onSearchResults((event) => {
-	showSearchCount(event.resultIndex, event.resultCount, event.resultLimitReached);
-	showRegexError(event.regexError);
-});
-
-// Interactive find inputs use the built-in 200 ms trailing-edge debounce.
-terminal.updateSearch(searchInput.value, { caseSensitive: false, regex: false });
-terminal.selectOutputAt(column, row);
-terminal.adjustSelection('endOfLine');
-
-const visibleText = terminal.getAccessibleText();
-const visibleRange = terminal.getAccessibleVisibleRange();
-terminal.selectAccessibleRange({ start: visibleRange.start, end: visibleRange.start + 5 });
-
-// Navigation stays ordered when each match is revealed from scrollback.
-terminal.findPrevious('failed');
-
-const telemetry = terminal.onRendererTelemetry((frame) => {
-	recordTerminalFrame(frame.durationMs, frame.atlasUploadBytes, frame.reasons);
-});
-
-const shortcut = terminal.registerKeyEventHandler({
-	id: 'application.open-command-palette',
-	priority: 100,
-	scope: 'application',
-	handle: (event) => {
-		if (!event.metaKey || event.code !== 'KeyK') return false;
-		openCommandPalette();
-		return true;
-	},
-});
-
-searchResults.dispose();
-```
-
-Search follows the [VS Code terminal find contract](docs/vscode-search-alignment.md): matches advance by their full length without overlap, navigation moves forward/backward and wraps, and highlight/result enumeration stops at 20,000 matches by default without making later matches unreachable to navigation. Literal search ignores combining marks while preserving the original grapheme text and cell range. Set `spanLines: true` to let literal or regular-expression queries cross hard line breaks; soft-wrapped rows are always one logical line. `updateSearch()` debounces interactive input for 200 ms, while navigation remains immediate. Terminal output and resize invalidate stale highlights and restart the latest query after the same debounce.
-
-`terminal.capabilities` reports the active renderer and application-provided host capabilities without advertising unsupported graphics protocols.
-
-`scrollback` is Ghostty's page-storage budget in bytes, not a row count. It defaults to 10 MB, is allocated lazily, and accepts `0` to disable history.
-
-`paddingBalance` accepts `false`, `true`, or `"equal"`. The `true` mode caps top padding and shifts excess space to the bottom; `"equal"` centers the grid. CSS padding on the terminal parent remains the explicit minimum. `fontMetricModifiers` mirrors Ghostty's `adjust-*` behavior: integer values add CSS pixels, percentage strings such as `"10%"` change the measured value proportionally, and cell-height changes recenter the face without implicitly resizing the cursor.
-
-`fontWeight` and `fontWeightBold` accept CSS `normal`/`bold` keywords or numeric variable-font weights. The corresponding `FontWeight` type is exported from the package entry point. Both the WebGPU glyph atlas and Canvas 2D fallback use the configured values, so applications can compensate for platform rasterizer differences without substituting a different font face or changing terminal cell geometry.
-
-The exported `fontSizeAdjustmentScale` helper implements Ghostty's fallback-face normalization for `ic-width`, `ex-height`, `cap-height`, and `line-height`. Browser font discovery remains owned by `FontFaceSet`; callers that manage explicit fallback faces can apply the returned scale when constructing those faces.
-
-## Browser behavior
-
-- Hidden-textarea IME input compensates for the browser's composition caret and anchors the candidate UI at the Ghostty-style cursor midpoint; canvas preedit uses one underline without marked-range inversion.
-- Cursor bars, underlines, preedit underlines, and unfocused hollow blocks use one physical pixel; focus restores the configured cursor style and blink behavior.
-- Unsafe paste is classified, sanitized, ordered with keyboard input, optionally confirmed by the host, and rechecked against read-only state after asynchronous confirmation. Sanitization replaces C0 and C1 controls other than tab, line feed, and carriage return before encoding, including when a confirmed paste is emitted.
-- Entering read-only mode first repairs application key and mouse presses; those ordered release records remain deliverable without changing the viewed scrollback or local selection, so the remote application cannot be left in a stuck input state. IME composition, `beforeinput`, and native paste received while already read-only are rejected without emitting application input.
-- Read-only mode returns mouse ownership to the terminal surface even when the active application left mouse reporting enabled, preserving local scrollback navigation, selection, links, and context menus.
-- Key contributions use stable IDs, priority, ownership scope, and state predicates; focus loss repairs missing Kitty key releases and application mouse releases.
-- `Shift+PageUp` and `Shift+PageDown` navigate scrollback locally; unmodified paging keys remain available to the terminal application.
-- Keyboard input and the start of an IME composition return a scrolled viewport to the active prompt before presenting or emitting user text.
-- DEC focus reports preserve the viewed scrollback position and local selection because they are protocol state, not user text input. Moving focus between the terminal host and its hidden input remains inside one focus boundary and does not emit a duplicate focus-in report.
-- Terminal-driven scrollback removal, including `CSI 3 J`, clamps the current and target viewport offsets to retained history.
-- Resizing while viewing history tracks the visible top cell through Ghostty reflow, preserving the logical reading position when wrapped-row counts change and emitting the resulting numeric viewport offset to scroll listeners.
-- Resetting from an alternate screen updates buffer state and emits the primary-buffer transition immediately.
-- Content, viewport, and geometry changes invalidate hovered links so a modifier-click cannot activate a target that moved away from the pointer; both direct activation and context-menu link actions require the requested buffer cell to remain inside the resolved link range.
-- The browser click synthesized after a selection drag is consumed before link activation, preventing a drag across a direct link from opening its target.
-- Dragging a selection through either vertical edge continues on document-level pointer movement and autoscrolls the browser-owned viewport without moving Ghostty's independent internal viewport; releasing outside the canvas preserves the completed selection.
-- Losing focus, hiding the page, or observing pointer movement without the primary button cancels incomplete selection, scrollbar, and application-mouse drags while preserving completed selection text.
-- Hiding the page also stops smooth scroll at the currently rendered offset, so the next wheel gesture cannot resume from an invisible stale target.
-- Concurrent `open()` calls are rejected while font or GPU initialization is pending, and disposal during either await aborts the remaining surface setup.
-- Disposal releases terminal-owned component references after cleanup, allowing removed canvases, input surfaces, selection state, and renderer caches to be collected even if the host retains the disposed Terminal object.
-- Each `resize()` emits one final geometry event; synchronizing `options.cols` and `options.rows` does not expose intermediate dimensions to PTY transports, and `open()` applies a cols/rows option pair atomically.
-- Terminal-driven DECCOLM changes synchronize the JavaScript grid dimensions after Ghostty parses output, then emit `onResize` only after write bookkeeping completes. Dimension polling reuses terminal-owned WASM storage so small PTY chunks do not allocate query buffers.
-- `FitAddon.fit()` always compares its proposed geometry with the terminal's current dimensions, so it restores container fit after an application-driven resize even when the container itself did not change.
-- `FitAddon` uses the full container content width because the terminal scrollbar is an in-canvas overlay, not an external DOM scrollbar that needs a reserved gutter.
-- ResizeObserver notifications that arrive during FitAddon's short resize reentry window remain debounced for a follow-up fit instead of being discarded.
-- Runtime theme replacement resolves omitted foreground, background, cursor, and palette entries from the default theme in both Ghostty and the renderer, so assigning an empty theme fully resets prior custom colors.
-- While stdin is writable, application mouse tracking owns unshifted pointer gestures. Shift keeps an entire drag or wheel gesture terminal-owned even if the modifier is released mid-drag; Shift+right-click and Shift+link activation remain explicit host overrides.
-- Dropped text uses the paste safety pipeline; dropped files require host-owned path resolution and shell quoting.
-- Canvas content has an off-screen accessibility mirror with stable UTF-16/cell offsets, two-way DOM selection, cursor position, and ordered multi-row live output that omits unchanged and empty rows. The live region also identifies text removed by backspace, forward delete, line kills, and wide-grapheme deletion.
-- WebGPU glyphs use physical-pixel rasterization, snap atlas quads to the physical-pixel grid,
-  and rebuild when browser DPR changes.
-- Regular, italic, bold, and bold-italic cells use the configured regular and bold font weights consistently across WebGPU, Canvas 2D, font measurement, preedit text, and the hidden input surface.
-- The configured primary and fallback font list is loaded through `FontFaceSet` before cell metrics are measured; failures surface through `onHostError` without preventing startup.
-- Glyph quads preserve measured ink bounds and bearings instead of clipping italic overhangs or forcing every glyph into one cell-sized rectangle.
-- Nerd Font glyphs use Ghostty's generated constraint table, including adjacent-space width allowance, icon sizing, and grid-aligned stretching. Selected box-drawing, block-element, corner-triangle, and core Powerline characters use Ghostty-compatible procedural sprites in both renderers.
-- Cell, decoration, cursor, and icon metric modifiers share Ghostty's percentage, absolute-delta, clamping, and cell-height recentering rules.
-- Balanced padding distributes fractional grid space around the canvas while respecting explicit parent padding.
-- New WebGPU glyphs upload a merged dirty atlas region without replacing existing texels; colored emoji preserve their RGB while ordinary glyphs remain terminal-tintable.
-- Bounded programming-ligature runs are rasterized as one glyph sequence in both renderers and can be disabled through `fontLigatures`. Longer runs of one repeated character remain cell-by-cell so terminal fill patterns stay uniform, while standalone candidates such as `***` can still form a ligature.
-- Frame telemetry exposes timing, reasons, visited cells, instances, shaping runs, draw calls, upload bytes, and atlas pressure.
-- Renderer health reports actual WebGPU readiness, Canvas fallback reasons, device loss, recovery,
-  and recovery failure; projected and browser/WASM surfaces share those diagnostics and GPU
-  resources without sharing terminal-state authority.
-- WebGPU device loss rebuilds the device, pipelines, atlas texture, buffers, and canvas configuration once.
-- SGR blink, faint, inverse, invisible, overline, strikethrough, underline variants, and underline colors render in both backends.
-- X10, UTF-8, SGR, URXVT, and SGR-pixel mouse reports include horizontal wheel and pixel coordinates.
-- Pointer shape follows Ghostty for mouse reporting, Shift selection override, rectangular selection, and modifier-enabled links.
-- VT output and reset refresh pointer ownership immediately, without waiting for the user to move the mouse.
-- Plain URLs and Unicode, POSIX, or Windows file paths can span soft-wrapped rows; CJK sentence punctuation is excluded, CWD-relative paths resolve against OSC PWD, and file links preserve line/column suffixes.
-
-Current Ghostty alignment and remaining gaps are tracked in [Ghostty Terminal Panel Conformance](docs/ghostty-surface-test-provenance.md).
+Search behavior follows the bounded contract in
+[`docs/vscode-search-alignment.md`](docs/vscode-search-alignment.md). The application owns the find
+surface, query history, shortcuts, and localized labels.
 
 ## Development
 
+Run from the repository root:
+
 ```sh
+pnpm --filter @orchbee/terminal typecheck
 pnpm --filter @orchbee/terminal build
 pnpm --filter @orchbee/terminal test
 pnpm --filter @orchbee/terminal test:exports
-pnpm build:ghostty-wasm # Clones the pinned Ghostty revision and rebuilds the patched WASM asset.
-pnpm audit:ghostty-panel # Requires ../ghostty or GHOSTTY_SOURCE.
 pnpm verify
 ```
 
-The Rslib build emits ESM, CommonJS, TypeScript declarations, and source maps under `dist/`.
-
-When upgrading Ghostty, run `pnpm generate:ghostty-panel-data` to regenerate the Nerd Font constraint table. The panel audit rejects a stale generated table.
+`pnpm audit:ghostty-panel` compares the maintained renderer/font provenance with the pinned Ghostty
+source when `../ghostty` or `GHOSTTY_SOURCE` is available. Run
+`pnpm generate:ghostty-panel-data` only when the pinned Nerd Font constraint table changes.

@@ -1,5 +1,4 @@
 export {
-	DEFAULT_THEME,
 	WebGPURenderer,
 	type PackedRendererMetadata,
 	type PackedRendererRow,

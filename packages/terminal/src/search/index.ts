@@ -1,7 +1,5 @@
 export {
-	findDirectionalTerminalMatch,
 	findTerminalBufferMatches,
-	findTerminalMatches,
 	resolveTerminalSearchResultLimit,
 	searchMatchContainsCell,
 	TERMINAL_SEARCH_DEBOUNCE_MS,
@@ -10,7 +8,6 @@ export {
 	type TerminalSearchMatch,
 	type TerminalSearchOptions,
 	type TerminalSearchResultChangeEvent,
-	type TerminalDirectionalSearchOptions,
 } from './terminal-search';
 export {
 	createProjectedSearchWorker,

@@ -1,185 +1,7 @@
 /**
- * @orchbee/terminal — Ghostty-powered terminal for the browser.
- *
- * High-performance terminal emulation using Ghostty's battle-tested
- * VT100 parser compiled to WebAssembly. Uses the upstream Ghostty
- * C API with iterator-based cell access for rendering.
- *
- * @example
- * ```ts
- * import { init, Terminal, DirtyState } from "@orchbee/terminal";
- *
- * // Initialize (load WASM module)
- * await init({ source: "/ghostty-vt.wasm" });
- *
- * // Create terminal
- * const term = new Terminal(80, 24);
- *
- * // Write data
- * term.write("Hello, world!\r\n");
- *
- * // Per-frame render loop
- * const dirty = term.grid.update();
- * if (dirty !== DirtyState.NONE) {
- *   term.grid.forEachRow((row, reader) => {
- *     while (reader.next()) {
- *       const text = reader.readText();
- *       // ... render text ...
- *     }
- *   });
- *   term.grid.markClean();
- * }
- *
- * term.dispose();
- * ```
+ * Source-neutral client surface for terminals whose authoritative VT state lives in Terminal Host.
  */
 
-// Bridge & initialization
-export { init, getBridge, type InitOptions, WasmBridge } from './wasm-bridge';
-
-// Terminal class
-export {
-	Terminal,
-	type TerminalCapabilities,
-	type TerminalConfig,
-	type TerminalOptions,
-} from './composition';
-
-// Host capabilities
-export {
-	createBrowserTerminalHost,
-	resolveHostCapabilities,
-	type ClipboardPayload,
-	type ClipboardReadRequest,
-	type ClipboardReadSource,
-	type ClipboardTarget,
-	type ClipboardWriteRequest,
-	type ClipboardWriteSource,
-	type ContextMenuActionState,
-	type ContextMenuRequest,
-	type OpenTargetRequest,
-	type PasteConfirmationRequest,
-	type PointerRequest,
-	type TerminalClipboardHost,
-	type TerminalDropRequest,
-	type TerminalDropResolution,
-	type TerminalHost,
-	type TerminalHostCapabilities,
-	type TerminalHostErrorEvent,
-	type TerminalHostOperation,
-	type TerminalInteractionContext,
-	type TerminalModifierState,
-	type TerminalNotificationRequest,
-	type TerminalOpenTarget,
-	type TerminalSelectionSnapshot,
-} from './host';
-
-export {
-	ContextMenuRegistry,
-	type ContextMenuItem,
-	type ContextMenuProvider,
-} from './context-menu';
-
-// GhosttyTerminal compatibility layer
-export { GhosttyTerminal, type GhosttyTerminalSource } from './GhosttyTerminal';
-
-// Grid data reader
-export { Grid, CellReader, type CellData } from './grid';
-
-// Event system
-export { EventEmitter, type IDisposable, type IEvent } from './EventEmitter';
-
-// Actions
-export {
-	TerminalActionRegistry,
-	type TerminalActionContext,
-	type TerminalActionDefinition,
-	type TerminalActionResult,
-	type TerminalActionSource,
-	type TerminalActionState,
-} from './actions';
-
-// Renderer
-export {
-	WebGPURenderer,
-	DEFAULT_THEME,
-	type RendererFrameReason,
-	type RendererFrameTelemetry,
-	type RendererHealthEvent,
-} from './rendering';
-export {
-	applyFontMetricModifier,
-	applyFontMetricModifiers,
-	fontSizeAdjustmentScale,
-	parseFontMetricModifier,
-	type DetailedFontMetrics,
-	type FontFaceMetrics,
-	type ParsedFontMetricModifier,
-} from './font-metrics';
-export {
-	additionalSurfaceMargins,
-	balanceGridPadding,
-	balanceSurfacePadding,
-	calculateSurfaceGrid,
-	type SurfaceGridSize,
-	type SurfaceSize,
-} from './surface-size';
-
-// Input handling
-export {
-	buildPreeditState,
-	calculateInputAnchor,
-	encodePaste,
-	InputHandler,
-	inspectPaste,
-	KeyEventRegistry,
-	OrderedInputDispatcher,
-	type CompositionSelection,
-	type InputAnchorLayout,
-	type InputAnchorRequest,
-	type InputHandlerDependencies,
-	type PasteCodec,
-	type PasteInspection,
-	type PastePolicyOptions,
-	type PasteResult,
-	type PasteSource,
-	type PreeditCellData,
-	type PreeditState,
-	type TerminalKeyEventContext,
-	type TerminalKeyEventHandler,
-} from './input';
-export {
-	AccessibleTextModel,
-	buildAccessibleRow,
-	normalizeAccessibleRows,
-	TerminalAccessibility,
-	type AccessibleCellInput,
-	type AccessibleCursor,
-	type AccessibleOffsetRange,
-	type AccessibleRow,
-	type AccessibleTextPosition,
-	type AccessibleTextRange,
-	type TerminalAccessibilityOptions,
-} from './accessibility';
-export {
-	findTerminalMatches,
-	findTerminalBufferMatches,
-	searchMatchContainsCell,
-	TERMINAL_SEARCH_DEBOUNCE_MS,
-	TERMINAL_SEARCH_RESULT_LIMIT,
-	validateTerminalSearchQuery,
-	type ProjectedSearchWorkerFactory,
-	type ProjectedTerminalSearchEvent,
-	type TerminalSearchMatch,
-	type TerminalSearchOptions,
-	type TerminalSearchResultChangeEvent,
-} from './search';
-export {
-	formatTerminalIdentity,
-	type TerminalProtocolIdentity,
-	readGhosttyBuildCapabilities,
-	type GhosttyBuildCapabilities,
-} from './protocol';
 export { ProjectedHistoryPhase, ProjectedTerminal, ProjectedTerminalPhase } from './projected';
 export type {
 	ProjectedBrokerFailure,
@@ -188,6 +10,7 @@ export type {
 	ProjectedPasteResult,
 	ProjectedPasteReview,
 	ProjectedPasteSource,
+	ProjectedRowsResult,
 	ProjectedTerminalCommand,
 	ProjectedTerminalCommandPort,
 	ProjectedTerminalErrorEvent,
@@ -198,132 +21,38 @@ export type {
 	ProjectedTerminalOptions,
 	ProjectedTerminalPhaseValue,
 	ProjectedTerminalSideEffectResult,
-	ProjectedRowsResult,
 } from './projected';
 
-// Selection
-export {
-	SelectionManager,
-	type ISelectionTerminal,
-	type SelectionCopyResult,
-	type SelectionCell,
-	type SelectionManagerOptions,
-	type SelectionModel,
-	GhosttySelectionController,
-	type GhosttySelectionAdjustment,
-	type GhosttySelectionAutoscroll,
-	type GhosttySelectionGestureAutoscrollTick,
-	type GhosttySelectionGestureDrag,
-	type GhosttySelectionGesturePoint,
-	type GhosttySelectionGesturePress,
-	type GhosttySelectionRange,
-} from './selection';
-
-// Link detection
-export { LinkDetector, type ITerminalForLinkDetector } from './LinkDetector';
-export {
-	detectTerminalRowLinks,
-	isPermittedExternalTerminalTarget,
-	terminalLinkContains,
-} from './terminal-row-links';
-export {
-	OSC8LinkProvider,
-	PathLinkProvider,
-	UrlRegexProvider,
-	type ITerminalForOSC8Provider,
-	type ITerminalForPathProvider,
-	type ITerminalForUrlProvider,
-} from './providers';
-
-// Buffer API
-export { BufferNamespace, Buffer, BufferLine, BufferCell, type BufferTerminal } from './buffer';
-export {
-	bufferRowsFromDecodedWindow,
-	TerminalBufferRowDetail,
-	validateBufferRowsRequest,
-	type BufferRowsResult,
-	type TerminalBufferCellMapping,
-	type TerminalBufferRenderCell,
-	type TerminalBufferRow,
-	type TerminalBufferRowDetail as TerminalBufferRowDetailValue,
-	type TerminalBufferRowReader,
-	type TerminalBufferRows,
-	type TerminalBufferRowsRequest,
-	type TerminalBufferRowsSnapshot,
+export { TerminalBufferRowDetail } from './buffer-rows';
+export type {
+	BufferRowsResult,
+	TerminalBufferCellMapping,
+	TerminalBufferRenderCell,
+	TerminalBufferRow,
+	TerminalBufferRowDetail as TerminalBufferRowDetailValue,
+	TerminalBufferRowReader,
+	TerminalBufferRows,
+	TerminalBufferRowsRequest,
+	TerminalBufferRowsSnapshot,
 } from './buffer-rows';
 
-// Addons
-export { FitAddon } from './addons';
+export type {
+	ProjectedSearchWorkerFactory,
+	ProjectedTerminalSearchEvent,
+	TerminalSearchMatch,
+	TerminalSearchOptions,
+} from './search';
 
-// Types & enums
-export {
-	DirtyState,
-	type RenderStateHandle,
-	RenderStateData,
-	RenderStateOption,
-	RowCellsData,
-	RowData,
-	CellDataField,
-	CellSemanticContent,
-	UnderlineStyle,
-	CellWide,
-	TerminalData,
-	TerminalOption,
-	Result,
-	BuildInfo,
-	DecMode,
-	AnsiMode,
-	buildModeTag,
-	type RGB,
-	type CursorState,
-	type TerminalColors,
-	type TerminalHandle,
-	type WasmExports,
-	type KeyEvent,
-	KeyAction,
-	KeyEncoderOption,
-	Mods,
-	Key,
-	PointTag,
-	CellFlags,
-	type GhosttyCell,
-	TERMINAL_OPTIONS_SIZE,
-	RENDER_STATE_COLORS_SIZE,
-	COLOR_RGB_SIZE,
-	CELL_VALUE_SIZE,
-	STYLE_SIZE,
-	BUFFER_SIZE,
-	POINT_SIZE,
-	GRID_REF_SIZE,
-	// xterm.js-compatible interfaces
-	type ITerminalOptions,
-	type ITheme,
-	type IKeyEvent,
-	type IBufferRange,
-	type ITerminalAddon,
-	type ITerminalCore,
-	type IUnicodeVersionProvider,
-	// Renderer types
-	type FontWeight,
-	type FontMetrics,
-	type FontMetricModifier,
-	type FontMetricModifiers,
-	type FontSizeAdjustment,
-	type PaddingBalance,
-	type SurfacePadding,
-	type RendererOptions,
-	type IRenderable,
-	type IScrollbackProvider,
-	type RenderStateCursor,
-	// Selection types
-	type SelectionCoordinates,
-	// Link detection types
-	type IBufferCellPosition,
-	type ILinkRange,
-	type ILink,
-	type ILinkProvider,
-	type ILinkBufferLine,
-	type ILinkBufferCell,
-	type ILinkBuffer,
-	type ITerminalDimensions,
+export type { RendererFrameReason, RendererFrameTelemetry, RendererHealthEvent } from './rendering';
+export type {
+	FontMetricModifier,
+	FontMetricModifiers,
+	FontSizeAdjustment,
+	FontWeight,
+	ITheme,
+	PaddingBalance,
+	RendererOptions,
 } from './types';
+
+export type { IDisposable, IEvent } from './EventEmitter';
+export type { TerminalOpenTarget } from './terminal-contracts';

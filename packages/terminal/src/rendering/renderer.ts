@@ -1,9 +1,8 @@
 /**
  * WebGPU Renderer for Terminal Display
  *
- * High-performance WebGPU-based renderer that draws the terminal using
- * Ghostty's WASM terminal emulator. Falls back to Canvas 2D when WebGPU
- * is unavailable.
+ * High-performance WebGPU-based renderer for packed Terminal Host projections.
+ * Falls back to Canvas 2D when WebGPU is unavailable.
  *
  * Features:
  * - Glyph atlas texture for efficient text rendering
@@ -24,10 +23,8 @@ import {
 	TerminalUnderlineKindCode,
 } from '@orchbee/terminal-protocol';
 
-import type { SelectionManager } from '../selection';
 import { applyFontMetricModifiers, type DetailedFontMetrics } from '../font-metrics';
 import {
-	cellConstraintWidth,
 	cellConstraintWidthFromReader,
 	constrainGlyph,
 	glyphConstraintForCodepoint,
@@ -36,23 +33,15 @@ import {
 import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from '../ghostty-sprites';
 import { searchMatchContainsCell, type TerminalSearchMatch } from '../search';
 import { additionalSurfaceMargins, balanceGridPadding } from '../surface-size';
-import {
-	buildTextShapingPlan,
-	type TextShapingCell,
-	type TextShapingPlan,
-} from '../buildTextShapingPlan';
-import { CellFlags, UnderlineStyle } from '../types';
+import { buildTextShapingPlan, type TextShapingPlan } from '../buildTextShapingPlan';
 import type {
 	FontMetrics,
 	FontMetricModifiers,
 	FontWeight,
-	GhosttyCell,
-	IRenderable,
-	IScrollbackProvider,
 	ITheme,
+	PaddingBalance,
 	RendererOptions,
 	SelectionCoordinates,
-	PaddingBalance,
 	SurfacePadding,
 } from '../types';
 
@@ -213,11 +202,6 @@ interface GlyphRasterLayout {
 	readonly scaleY: number;
 	readonly target: GlyphSize;
 	readonly targetTop: number;
-}
-
-interface RowTextShaping {
-	readonly texts: readonly string[];
-	readonly plan: TextShapingPlan;
 }
 
 interface PackedRowTextShaping {
@@ -477,19 +461,8 @@ export class WebGPURenderer {
 	private preeditDirty = false;
 	private fontDirty = false;
 
-	/** Get the last rendered cursor position (used by Terminal for onCursorMove). */
-	getCursorPosition(): { x: number; y: number } {
-		return this.lastCursorPosition;
-	}
-
 	// Theme
 	private theme: Required<ITheme>;
-	private palette: string[];
-
-	/** Get the ANSI color palette (16 colors). */
-	getPalette(): readonly string[] {
-		return this.palette;
-	}
 
 	// DPI
 	private devicePixelRatio: number;
@@ -497,17 +470,10 @@ export class WebGPURenderer {
 	private renderedRows = 0;
 	private allowTransparency: boolean;
 
-	// Viewport
-	private lastViewportY = 0;
-	private lastScrollbarOpacity = 0;
-
-	// Buffer reference for grapheme lookups
-	private currentBuffer: IRenderable | null = null;
-
 	// Selection
-	private selectionManager: SelectionManager | undefined;
 	private currentSelectionCoords: SelectionCoordinates | null = null;
 	private projectedSelectionCoords: SelectionCoordinates | null = null;
+	private currentVisibleRows = 0;
 	private searchMatches: readonly TerminalSearchMatch[] = [];
 	private searchMatchesByRow = new Map<number, TerminalSearchMatch[]>();
 	private searchMatchesVersion = 0;
@@ -519,16 +485,8 @@ export class WebGPURenderer {
 	private currentAbsoluteTop = 0;
 
 	// Link hover
-	private hoveredHyperlinkId = 0;
-	private previousHoveredHyperlinkId = 0;
 	private hoveredLinkRange: { startX: number; startY: number; endX: number; endY: number } | null =
 		null;
-	private previousHoveredLinkRange: {
-		startX: number;
-		startY: number;
-		endX: number;
-		endY: number;
-	} | null = null;
 
 	// Glyph atlas (Canvas 2D for rasterization, uploaded as WebGPU texture)
 	private atlasCanvas: HTMLCanvasElement;
@@ -567,8 +525,6 @@ export class WebGPURenderer {
 		this.theme = { ...DEFAULT_THEME, ...options.theme };
 		this.devicePixelRatio = options.devicePixelRatio ?? window.devicePixelRatio ?? 1;
 		this.allowTransparency = options.allowTransparency ?? false;
-
-		this.palette = this.buildPalette();
 
 		this.detailedMetrics = this.measureFont();
 		this.metrics = publicFontMetrics(this.detailedMetrics);
@@ -774,27 +730,6 @@ export class WebGPURenderer {
 		this.metrics = publicFontMetrics(this.detailedMetrics);
 	}
 
-	private buildPalette(): string[] {
-		return [
-			this.theme.black,
-			this.theme.red,
-			this.theme.green,
-			this.theme.yellow,
-			this.theme.blue,
-			this.theme.magenta,
-			this.theme.cyan,
-			this.theme.white,
-			this.theme.brightBlack,
-			this.theme.brightRed,
-			this.theme.brightGreen,
-			this.theme.brightYellow,
-			this.theme.brightBlue,
-			this.theme.brightMagenta,
-			this.theme.brightCyan,
-			this.theme.brightWhite,
-		];
-	}
-
 	// ==========================================================================
 	// WebGPU Pipeline Setup
 	// ==========================================================================
@@ -963,8 +898,8 @@ export class WebGPURenderer {
 		codepoint: number,
 		constraintWidth: 1 | 2,
 	): string {
-		const bold = (flags & CellFlags.BOLD) !== 0 ? 'b' : '';
-		const italic = (flags & CellFlags.ITALIC) !== 0 ? 'i' : '';
+		const bold = (flags & TerminalStyleFlag.bold) !== 0 ? 'b' : '';
+		const italic = (flags & TerminalStyleFlag.italic) !== 0 ? 'i' : '';
 		return JSON.stringify([text, width, codepoint, constraintWidth, `${bold}${italic}`]);
 	}
 
@@ -986,8 +921,9 @@ export class WebGPURenderer {
 		const rasterScale = this.devicePixelRatio;
 		const padding = Math.max(2, Math.ceil(2 * rasterScale));
 
-		const fontStyle = (flags & CellFlags.ITALIC) !== 0 ? 'italic' : 'normal';
-		const fontWeight = (flags & CellFlags.BOLD) !== 0 ? this.fontWeightBold : this.fontWeight;
+		const fontStyle = (flags & TerminalStyleFlag.italic) !== 0 ? 'italic' : 'normal';
+		const fontWeight =
+			(flags & TerminalStyleFlag.bold) !== 0 ? this.fontWeightBold : this.fontWeight;
 		this.atlasCtx.font = canvasFont(
 			fontStyle,
 			fontWeight,
@@ -1210,50 +1146,6 @@ export class WebGPURenderer {
 		this.atlasDirty = true;
 	}
 
-	private prepareGlyphs(
-		buffer: IRenderable,
-		rows: number,
-		viewportY: number,
-		scrollbackProvider: IScrollbackProvider | undefined,
-		scrollbackLength: number,
-		cursor: { readonly x: number; readonly y: number },
-		cursorEnabled: boolean,
-		preeditLayout: PreeditLayout | null,
-	): void {
-		for (let y = 0; y < rows; y++) {
-			const line = this.fetchLine(buffer, y, viewportY, scrollbackProvider, scrollbackLength);
-			if (!line) continue;
-			const shaping = this.buildRowTextShaping(
-				buffer,
-				line,
-				y,
-				viewportY,
-				scrollbackProvider,
-				scrollbackLength,
-				cursor,
-				cursorEnabled,
-				preeditLayout,
-			);
-			for (let x = 0; x < line.length; x++) {
-				const cell = line[x];
-				if (!cell || cell.width === 0 || (cell.flags & CellFlags.INVISIBLE) !== 0) continue;
-				if ((cell.flags & CellFlags.BLINK) !== 0 && !this.textBlinkVisible) continue;
-				const shapingSpan = shaping.plan[x];
-				if (shapingSpan && shapingSpan.start !== x) continue;
-				const text = shapingSpan?.text ?? shaping.texts[x] ?? '';
-				if (text) {
-					this.ensureGlyph(
-						text,
-						cell.flags,
-						shapingSpan?.columns ?? cell.width,
-						cell.codepoint,
-						cellConstraintWidth(line, x, line.length),
-					);
-				}
-			}
-		}
-	}
-
 	private uploadAtlas(): void {
 		if (!this.atlasDirty || !this.device || !this.atlasTexture) return;
 		const bounds = this.atlasDirtyBounds ?? {
@@ -1378,46 +1270,6 @@ export class WebGPURenderer {
 	// Main Rendering
 	// ==========================================================================
 
-	render(
-		buffer: IRenderable,
-		forceAll = false,
-		viewportY = 0,
-		scrollbackProvider?: IScrollbackProvider,
-		scrollbarOpacity = 1,
-	): void {
-		const backend = this.getBackend();
-		if (backend === 'uninitialized') return;
-		const timestamp = rendererNow();
-		const reasons = new Set<RendererFrameReason>();
-		const cursor = buffer.getCursor();
-		if (forceAll || buffer.needsFullRedraw?.()) reasons.add('full');
-		if (viewportY !== this.lastViewportY) reasons.add('viewport');
-		if (
-			this.cursorAppearanceDirty ||
-			cursor.x !== this.lastCursorPosition.x ||
-			cursor.y !== this.lastCursorPosition.y ||
-			cursor.visible !== this.cursorVisible
-		)
-			reasons.add('cursor');
-		if (this.preeditDirty) reasons.add('preedit');
-		if (this.fontDirty) reasons.add('font');
-		if (this.textBlinkDirty) reasons.add('blink');
-		if (this.searchDirty) reasons.add('search');
-		if (scrollbarOpacity !== this.lastScrollbarOpacity) reasons.add('scrollbar');
-		if (reasons.size === 0) reasons.add('dirty');
-
-		this.resetFrameCounters();
-
-		if (this.useWebGPU) {
-			this.renderWebGPU(buffer, forceAll, viewportY, scrollbackProvider, scrollbarOpacity);
-		} else {
-			this.renderCanvas2D(buffer, forceAll, viewportY, scrollbackProvider, scrollbarOpacity);
-		}
-		this.fontDirty = false;
-		this.cursorAppearanceDirty = false;
-		this.completeFrameTelemetry(backend, timestamp, reasons, forceAll, viewportY);
-	}
-
 	/** Draw a Host projection directly from its row-partitioned structure-of-arrays store. */
 	renderPacked(buffer: PackedRendererSource, forceAll = false): void {
 		const backend = this.getBackend();
@@ -1425,6 +1277,7 @@ export class WebGPURenderer {
 		if (backend === 'uninitialized' || !metadata) return;
 		const timestamp = rendererNow();
 		this.currentSelectionCoords = this.projectedSelectionCoords;
+		this.currentVisibleRows = metadata.rows;
 		const reasons = new Set<RendererFrameReason>();
 		if (forceAll || buffer.needsFullRedraw) reasons.add('full');
 		if (
@@ -1810,6 +1663,17 @@ export class WebGPURenderer {
 					underlineColor,
 					alpha,
 				);
+				if (this.hoveredLinkRange && isCellInRange(x, y, this.hoveredLinkRange)) {
+					pushRect(
+						overlayData,
+						cellX,
+						cellY + this.detailedMetrics.underlinePosition,
+						cellWidth,
+						this.detailedMetrics.underlineThickness,
+						[74, 144, 226],
+						alpha,
+					);
+				}
 			}
 		}
 
@@ -2054,409 +1918,6 @@ export class WebGPURenderer {
 		this.device.queue.submit([commandEncoder.finish()]);
 	}
 
-	private renderWebGPU(
-		buffer: IRenderable,
-		_forceAll: boolean,
-		viewportY: number,
-		scrollbackProvider: IScrollbackProvider | undefined,
-		scrollbarOpacity: number,
-	): void {
-		if (!this.device || !this.context || !this.bgPipeline || !this.textPipeline) return;
-
-		this.currentBuffer = buffer;
-		const cursor = buffer.getCursor();
-		this.syncCursorBlink(cursor.blinking);
-		const dims = buffer.getDimensions();
-		const scrollbackLength = scrollbackProvider ? scrollbackProvider.getScrollbackLength() : 0;
-		this.currentAbsoluteTop = scrollbackLength - Math.floor(viewportY);
-		this.syncTextBlink(
-			this.hasBlinkingCells(buffer, dims.rows, viewportY, scrollbackProvider, scrollbackLength),
-		);
-
-		const needsResize =
-			this.canvas.width !== dims.cols * this.metrics.width * this.devicePixelRatio ||
-			this.canvas.height !== dims.rows * this.metrics.height * this.devicePixelRatio;
-		if (needsResize) {
-			this.resize(dims.cols, dims.rows);
-		}
-		this.lastViewportY = viewportY;
-		this.lastScrollbarOpacity = scrollbarOpacity;
-
-		const selectionManager = this.selectionManager;
-		const hasSelection = selectionManager?.hasSelection() ?? false;
-		this.currentSelectionCoords = hasSelection
-			? (selectionManager?.getSelectionCoords() ?? null)
-			: null;
-		if (selectionManager) {
-			selectionManager.clearDirtySelectionRows();
-		}
-
-		const bgData: number[] = [];
-		const textData: number[] = [];
-		const overlayData: number[] = [];
-		const themeBackground = hexToRGB(this.theme.background);
-		const themeForeground = hexToRGB(this.theme.foreground);
-		const cursorColor = hexToRGB(this.theme.cursor);
-		const cursorAccent = hexToRGB(this.theme.cursorAccent);
-		const preeditLayout = viewportY === 0 ? this.getPreeditLayout(cursor, dims.cols) : null;
-		const renderedCursorStyle: RenderedCursorStyle = this.focused ? cursor.style : 'block_hollow';
-		const cursorEnabled =
-			viewportY === 0 &&
-			cursor.visible &&
-			(!this.focused || this.cursorVisible) &&
-			preeditLayout === null;
-		this.prepareGlyphs(
-			buffer,
-			dims.rows,
-			viewportY,
-			scrollbackProvider,
-			scrollbackLength,
-			cursor,
-			cursorEnabled,
-			preeditLayout,
-		);
-		const atlasW = this.atlasCanvas.width;
-		const atlasH = this.atlasCanvas.height;
-
-		for (let y = 0; y < dims.rows; y++) {
-			const line = this.fetchLine(buffer, y, viewportY, scrollbackProvider, scrollbackLength);
-			if (!line) continue;
-			this.frameRowsRendered++;
-			const shaping = this.buildRowTextShaping(
-				buffer,
-				line,
-				y,
-				viewportY,
-				scrollbackProvider,
-				scrollbackLength,
-				cursor,
-				cursorEnabled,
-				preeditLayout,
-			);
-
-			for (let x = 0; x < line.length; x++) {
-				const cell = line[x];
-				if (!cell || cell.width === 0) continue;
-				this.frameCellsVisited++;
-
-				const cellX = x * this.metrics.width;
-				const cellY = y * this.metrics.height;
-				const cellW = this.metrics.width * cell.width;
-				const cellH = this.metrics.height;
-				const isSelected = this.isInSelection(x, y, cell);
-				const searchHighlight = this.getSearchHighlight(x, y);
-				const isBlockCursor =
-					cursorEnabled && renderedCursorStyle === 'block' && cursor.x === x && cursor.y === y;
-				const isFullBlockCursor =
-					isBlockCursor && this.detailedMetrics.cursorHeight === this.detailedMetrics.cellHeight;
-				let bgR: number, bgG: number, bgB: number;
-
-				if (isFullBlockCursor) {
-					[bgR, bgG, bgB] = cursorColor;
-				} else if (isSelected) {
-					[bgR, bgG, bgB] = hexToRGB(this.theme.selectionBackground);
-				} else if (searchHighlight === 'active') {
-					[bgR, bgG, bgB] = hexToRGB(this.theme.searchActiveMatchBackground);
-				} else if (searchHighlight === 'match') {
-					[bgR, bgG, bgB] = hexToRGB(this.theme.searchMatchBackground);
-				} else {
-					bgR = cell.bg_r;
-					bgG = cell.bg_g;
-					bgB = cell.bg_b;
-					if (cell.flags & CellFlags.INVERSE) {
-						bgR = cell.fg_r;
-						bgG = cell.fg_g;
-						bgB = cell.fg_b;
-					}
-				}
-
-				const isDefaultBg =
-					bgR === themeBackground[0] &&
-					bgG === themeBackground[1] &&
-					bgB === themeBackground[2] &&
-					!isSelected &&
-					searchHighlight === null &&
-					!isFullBlockCursor;
-				if (!isDefaultBg) {
-					pushRect(bgData, cellX, cellY, cellW, cellH, [bgR, bgG, bgB]);
-				}
-				if (isBlockCursor && !isFullBlockCursor) {
-					const cursorBox = cursorBlockGeometry(x, y, this.detailedMetrics);
-					pushRect(
-						bgData,
-						cursorBox.x,
-						cursorBox.y,
-						cursorBox.width,
-						cursorBox.height,
-						cursorColor,
-					);
-				}
-
-				if (
-					preeditLayout &&
-					y === preeditLayout.row &&
-					x >= preeditLayout.start &&
-					x < preeditLayout.end
-				) {
-					continue;
-				}
-
-				if ((cell.flags & CellFlags.INVISIBLE) !== 0) continue;
-				if ((cell.flags & CellFlags.BLINK) !== 0 && !this.textBlinkVisible) continue;
-
-				let fgR: number, fgG: number, fgB: number;
-				if (isBlockCursor) {
-					[fgR, fgG, fgB] = cursorAccent;
-				} else if (isSelected) {
-					[fgR, fgG, fgB] = hexToRGB(this.theme.selectionForeground);
-				} else if (searchHighlight === 'active') {
-					[fgR, fgG, fgB] = hexToRGB(this.theme.searchActiveMatchForeground);
-				} else if (searchHighlight === 'match') {
-					[fgR, fgG, fgB] = hexToRGB(this.theme.searchMatchForeground);
-				} else {
-					fgR = cell.fg_r;
-					fgG = cell.fg_g;
-					fgB = cell.fg_b;
-					if (cell.flags & CellFlags.INVERSE) {
-						fgR = cell.bg_r;
-						fgG = cell.bg_g;
-						fgB = cell.bg_b;
-					}
-				}
-
-				const alpha = (cell.flags & CellFlags.FAINT) !== 0 ? 0.5 : 1.0;
-				const shapingSpan = shaping.plan[x];
-				let text = shaping.texts[x] ?? '';
-				if (shapingSpan) text = shapingSpan.start === x ? shapingSpan.text : '';
-				const glyphWidth = shapingSpan?.columns ?? cell.width;
-
-				if (text.length > 0) {
-					if (shapingSpan) this.frameShapingRuns++;
-					const glyph = this.ensureGlyph(
-						text,
-						cell.flags,
-						glyphWidth,
-						cell.codepoint,
-						cellConstraintWidth(line, x, line.length),
-					);
-					if (glyph) {
-						textData.push(
-							cellX + glyph.offsetX,
-							cellY + glyph.offsetY,
-							glyph.renderWidth,
-							glyph.renderHeight,
-							glyph.x / atlasW,
-							glyph.y / atlasH,
-							glyph.w / atlasW,
-							glyph.h / atlasH,
-							fgR / 255,
-							fgG / 255,
-							fgB / 255,
-							alpha,
-							glyph.colored ? 1 : 0,
-						);
-					}
-				}
-
-				const decorationColor: [number, number, number] = [fgR, fgG, fgB];
-				const underlineColor: [number, number, number] =
-					cell.underline_r >= 0
-						? [cell.underline_r, cell.underline_g, cell.underline_b]
-						: decorationColor;
-				if ((cell.flags & CellFlags.UNDERLINE) !== 0) {
-					const style = cell.underline_style || UnderlineStyle.SINGLE;
-					const underlineY = cellY + this.detailedMetrics.underlinePosition;
-					const underlineThickness = this.detailedMetrics.underlineThickness;
-					if (style === UnderlineStyle.DOUBLE) {
-						pushRect(
-							overlayData,
-							cellX,
-							underlineY - underlineThickness,
-							cellW,
-							underlineThickness,
-							underlineColor,
-							alpha,
-						);
-						pushRect(
-							overlayData,
-							cellX,
-							underlineY + underlineThickness,
-							cellW,
-							underlineThickness,
-							underlineColor,
-							alpha,
-						);
-					} else if (style === UnderlineStyle.CURLY) {
-						for (let offset = 0; offset < cellW; offset += 2) {
-							pushRect(
-								overlayData,
-								cellX + offset,
-								underlineY + (Math.floor(offset / 2) % 2),
-								Math.min(2, cellW - offset),
-								underlineThickness,
-								underlineColor,
-								alpha,
-							);
-						}
-					} else if (style === UnderlineStyle.DOTTED || style === UnderlineStyle.DASHED) {
-						const dashWidth = style === UnderlineStyle.DOTTED ? 1 : 3;
-						const gap = style === UnderlineStyle.DOTTED ? 2 : 2;
-						for (let offset = 0; offset < cellW; offset += dashWidth + gap) {
-							pushRect(
-								overlayData,
-								cellX + offset,
-								underlineY,
-								Math.min(dashWidth, cellW - offset),
-								underlineThickness,
-								underlineColor,
-								alpha,
-							);
-						}
-					} else {
-						pushRect(
-							overlayData,
-							cellX,
-							underlineY,
-							cellW,
-							underlineThickness,
-							underlineColor,
-							alpha,
-						);
-					}
-				}
-				if ((cell.flags & CellFlags.STRIKETHROUGH) !== 0) {
-					pushRect(
-						overlayData,
-						cellX,
-						cellY + this.detailedMetrics.strikethroughPosition,
-						cellW,
-						this.detailedMetrics.strikethroughThickness,
-						decorationColor,
-						alpha,
-					);
-				}
-				if (cell.overline) {
-					pushRect(
-						overlayData,
-						cellX,
-						cellY + this.detailedMetrics.overlinePosition,
-						cellW,
-						this.detailedMetrics.overlineThickness,
-						decorationColor,
-						alpha,
-					);
-				}
-				if (cell.hyperlink_id > 0 && cell.hyperlink_id === this.hoveredHyperlinkId) {
-					pushRect(
-						overlayData,
-						cellX,
-						cellY + this.detailedMetrics.underlinePosition,
-						cellW,
-						this.detailedMetrics.underlineThickness,
-						[74, 144, 226],
-					);
-				}
-				if (this.hoveredLinkRange && isCellInRange(x, y, this.hoveredLinkRange)) {
-					pushRect(
-						overlayData,
-						cellX,
-						cellY + this.detailedMetrics.underlinePosition,
-						cellW,
-						this.detailedMetrics.underlineThickness,
-						[74, 144, 226],
-					);
-				}
-			}
-		}
-
-		if (preeditLayout) {
-			const cellY = preeditLayout.row * this.metrics.height;
-			const startX = preeditLayout.start * this.metrics.width;
-			pushRect(
-				bgData,
-				startX,
-				cellY,
-				preeditLayout.width * this.metrics.width,
-				this.metrics.height,
-				themeBackground,
-			);
-			let column = preeditLayout.start;
-			for (const cell of preeditLayout.cells) {
-				const glyph = this.ensureGlyph(cell.text, 0, cell.width);
-				if (glyph) {
-					textData.push(
-						column * this.metrics.width + glyph.offsetX,
-						cellY + glyph.offsetY,
-						glyph.renderWidth,
-						glyph.renderHeight,
-						glyph.x / atlasW,
-						glyph.y / atlasH,
-						glyph.w / atlasW,
-						glyph.h / atlasH,
-						themeForeground[0] / 255,
-						themeForeground[1] / 255,
-						themeForeground[2] / 255,
-						1,
-						glyph.colored ? 1 : 0,
-					);
-				}
-				column += cell.width;
-			}
-			pushRect(
-				overlayData,
-				startX,
-				cellY + this.detailedMetrics.underlinePosition,
-				preeditLayout.width * this.metrics.width,
-				this.detailedMetrics.underlineThickness,
-				themeForeground,
-			);
-		}
-
-		if (cursorEnabled && renderedCursorStyle !== 'block') {
-			const geometries =
-				renderedCursorStyle === 'block_hollow'
-					? cursorOutlineGeometry(cursor.x, cursor.y, this.detailedMetrics)
-					: [cursorStrokeGeometry(renderedCursorStyle, cursor.x, cursor.y, this.detailedMetrics)];
-			for (const geometry of geometries) {
-				pushRect(overlayData, geometry.x, geometry.y, geometry.width, geometry.height, cursorColor);
-			}
-		}
-
-		if (scrollbackLength > 0 && scrollbarOpacity > 0) {
-			const canvasHeight = dims.rows * this.metrics.height;
-			const canvasWidth = dims.cols * this.metrics.width;
-			const scrollbarWidth = 8;
-			const padding = 4;
-			const trackHeight = canvasHeight - padding * 2;
-			const totalLines = scrollbackLength + dims.rows;
-			const thumbHeight = Math.max(20, (dims.rows / totalLines) * trackHeight);
-			const thumbY = padding + (trackHeight - thumbHeight) * (1 - viewportY / scrollbackLength);
-			pushRect(
-				overlayData,
-				canvasWidth - scrollbarWidth - padding,
-				thumbY,
-				scrollbarWidth,
-				thumbHeight,
-				[128, 128, 128],
-				(viewportY > 0 ? 0.5 : 0.3) * scrollbarOpacity,
-			);
-		}
-
-		this.submitWebGPUFrame(
-			bgData,
-			textData,
-			overlayData,
-			dims.cols,
-			dims.rows,
-			hexToRGB(this.theme.background),
-		);
-		this.lastCursorPosition = { x: cursor.x, y: cursor.y };
-		this.preeditDirty = false;
-		this.textBlinkDirty = false;
-		this.searchDirty = false;
-		buffer.clearDirty();
-	}
-
 	// ==========================================================================
 	// Canvas 2D Fallback Render Path
 	// ==========================================================================
@@ -2472,7 +1933,13 @@ export class WebGPURenderer {
 		const cursor = metadata.cursor;
 		this.syncCursorBlink(cursor.blinking);
 		this.syncTextBlink(this.hasPackedBlinkingCells(buffer));
-		if (buffer.needsFullRedraw || this.preeditDirty || this.fontDirty || this.textBlinkDirty) {
+		if (
+			buffer.needsFullRedraw ||
+			this.preeditDirty ||
+			this.fontDirty ||
+			this.textBlinkDirty ||
+			this.searchDirty
+		) {
 			forceAll = true;
 		}
 		const needsResize =
@@ -2707,6 +2174,14 @@ export class WebGPURenderer {
 					this.detailedMetrics.overlineThickness,
 				);
 			}
+			if (this.hoveredLinkRange && isCellInRange(column, rowIndex, this.hoveredLinkRange)) {
+				ctx.strokeStyle = '#4A90E2';
+				ctx.lineWidth = this.detailedMetrics.underlineThickness;
+				ctx.beginPath();
+				ctx.moveTo(cellX, cellY + this.detailedMetrics.underlinePosition);
+				ctx.lineTo(cellX + cellWidth, cellY + this.detailedMetrics.underlinePosition);
+				ctx.stroke();
+			}
 		}
 		if ((flags & TerminalStyleFlag.faint) !== 0) ctx.globalAlpha = 1;
 	}
@@ -2801,400 +2276,6 @@ export class WebGPURenderer {
 		);
 	}
 
-	private renderCanvas2D(
-		buffer: IRenderable,
-		forceAll: boolean,
-		viewportY: number,
-		scrollbackProvider: IScrollbackProvider | undefined,
-		scrollbarOpacity: number,
-	): void {
-		if (!this.ctx2d) return;
-
-		this.currentBuffer = buffer;
-		const cursor = buffer.getCursor();
-		this.syncCursorBlink(cursor.blinking);
-		const dims = buffer.getDimensions();
-		const preeditLayout = viewportY === 0 ? this.getPreeditLayout(cursor, dims.cols) : null;
-		const renderedCursorStyle: RenderedCursorStyle = this.focused ? cursor.style : 'block_hollow';
-		const cursorEnabled =
-			viewportY === 0 &&
-			cursor.visible &&
-			(!this.focused || this.cursorVisible) &&
-			preeditLayout === null;
-		const scrollbackLength = scrollbackProvider ? scrollbackProvider.getScrollbackLength() : 0;
-		this.currentAbsoluteTop = scrollbackLength - Math.floor(viewportY);
-		this.syncTextBlink(
-			this.hasBlinkingCells(buffer, dims.rows, viewportY, scrollbackProvider, scrollbackLength),
-		);
-
-		if (buffer.needsFullRedraw?.()) forceAll = true;
-		if (this.preeditDirty) forceAll = true;
-		if (this.fontDirty) forceAll = true;
-		if (this.textBlinkDirty) forceAll = true;
-		if (this.searchDirty) forceAll = true;
-
-		const needsResize =
-			this.canvas.width !== dims.cols * this.metrics.width * this.devicePixelRatio ||
-			this.canvas.height !== dims.rows * this.metrics.height * this.devicePixelRatio;
-		if (needsResize) {
-			this.resize(dims.cols, dims.rows);
-			forceAll = true;
-		}
-
-		if (viewportY !== this.lastViewportY) {
-			forceAll = true;
-			this.lastViewportY = viewportY;
-		}
-		if (scrollbarOpacity !== this.lastScrollbarOpacity) {
-			forceAll = true;
-			this.lastScrollbarOpacity = scrollbarOpacity;
-		}
-
-		// Selection
-		const selectionManager = this.selectionManager;
-		const hasSelection = selectionManager?.hasSelection() ?? false;
-		const selectionRows = new Set<number>();
-		this.currentSelectionCoords = hasSelection
-			? (selectionManager?.getSelectionCoords() ?? null)
-			: null;
-		if (this.currentSelectionCoords) {
-			const coords = this.currentSelectionCoords;
-			const startRow = Math.max(0, Math.min(coords.startRow, coords.endRow));
-			const endRow = Math.min(dims.rows - 1, Math.max(coords.startRow, coords.endRow));
-			for (let row = startRow; row <= endRow; row++) selectionRows.add(row);
-		}
-		if (selectionManager) {
-			const dirtyRows = selectionManager.getDirtySelectionRows();
-			for (const row of dirtyRows) selectionRows.add(row);
-			selectionManager.clearDirtySelectionRows();
-		}
-
-		// Hyperlink tracking
-		const hyperlinkRows = new Set<number>();
-		const hyperlinkChanged = this.hoveredHyperlinkId !== this.previousHoveredHyperlinkId;
-		const linkRangeChanged =
-			JSON.stringify(this.hoveredLinkRange) !== JSON.stringify(this.previousHoveredLinkRange);
-
-		if (hyperlinkChanged) {
-			for (let y = 0; y < dims.rows; y++) {
-				const line = this.fetchLine(buffer, y, viewportY, scrollbackProvider, scrollbackLength);
-				if (line) {
-					for (const cell of line) {
-						if (
-							cell.hyperlink_id === this.hoveredHyperlinkId ||
-							cell.hyperlink_id === this.previousHoveredHyperlinkId
-						) {
-							hyperlinkRows.add(y);
-							break;
-						}
-					}
-				}
-			}
-			this.previousHoveredHyperlinkId = this.hoveredHyperlinkId;
-		}
-
-		if (linkRangeChanged) {
-			if (this.previousHoveredLinkRange) {
-				for (
-					let y = this.previousHoveredLinkRange.startY;
-					y <= this.previousHoveredLinkRange.endY;
-					y++
-				)
-					hyperlinkRows.add(y);
-			}
-			if (this.hoveredLinkRange) {
-				for (let y = this.hoveredLinkRange.startY; y <= this.hoveredLinkRange.endY; y++)
-					hyperlinkRows.add(y);
-			}
-			this.previousHoveredLinkRange = this.hoveredLinkRange;
-		}
-
-		// Rows to render
-		const rowsToRender = new Set<number>();
-		for (let y = 0; y < dims.rows; y++) {
-			const needsRender =
-				viewportY > 0
-					? true
-					: forceAll || buffer.isRowDirty(y) || selectionRows.has(y) || hyperlinkRows.has(y);
-			if (needsRender) {
-				rowsToRender.add(y);
-				if (y > 0) rowsToRender.add(y - 1);
-				if (y < dims.rows - 1) rowsToRender.add(y + 1);
-			}
-		}
-		if (viewportY === 0) {
-			rowsToRender.add(cursor.y);
-			rowsToRender.add(this.lastCursorPosition.y);
-		}
-
-		const ctx = this.ctx2d;
-
-		for (let y = 0; y < dims.rows; y++) {
-			if (!rowsToRender.has(y)) continue;
-
-			const line = this.fetchLine(buffer, y, viewportY, scrollbackProvider, scrollbackLength);
-			if (!line) continue;
-			this.frameRowsRendered++;
-			const shaping = this.buildRowTextShaping(
-				buffer,
-				line,
-				y,
-				viewportY,
-				scrollbackProvider,
-				scrollbackLength,
-				cursor,
-				cursorEnabled,
-				preeditLayout,
-			);
-
-			const lineY = y * this.metrics.height;
-			const lineWidth = dims.cols * this.metrics.width;
-
-			ctx.clearRect(0, lineY, lineWidth, this.metrics.height);
-			ctx.fillStyle = this.theme.background;
-			if (!this.allowTransparency) ctx.fillRect(0, lineY, lineWidth, this.metrics.height);
-
-			// Pass 1: backgrounds
-			for (let x = 0; x < line.length; x++) {
-				const cell = line[x];
-				if (!cell || cell.width === 0) continue;
-				this.frameCellsVisited++;
-				this.renderCellBackground2D(ctx, cell, x, y);
-			}
-
-			// Pass 2: text + decorations
-			for (let x = 0; x < line.length; x++) {
-				const cell = line[x];
-				if (!cell || cell.width === 0) continue;
-				const shapingSpan = shaping.plan[x];
-				let text = shaping.texts[x] ?? '';
-				if (shapingSpan) text = shapingSpan.start === x ? shapingSpan.text : '';
-				if (
-					text.length > 0 &&
-					(cell.flags & CellFlags.INVISIBLE) === 0 &&
-					((cell.flags & CellFlags.BLINK) === 0 || this.textBlinkVisible)
-				) {
-					this.frameGlyphInstances++;
-					if (shapingSpan) this.frameShapingRuns++;
-				}
-				this.renderCellText2D(
-					ctx,
-					cell,
-					x,
-					y,
-					undefined,
-					text,
-					cellConstraintWidth(line, x, line.length),
-				);
-			}
-		}
-
-		if (preeditLayout) {
-			this.renderPreedit2D(ctx, preeditLayout);
-		} else if (cursorEnabled) {
-			this.renderCursor2D(ctx, cursor.x, cursor.y, renderedCursorStyle);
-		}
-		this.lastCursorPosition = { x: cursor.x, y: cursor.y };
-
-		// Scrollbar
-		if (scrollbackProvider && scrollbarOpacity > 0) {
-			this.renderScrollbar2D(ctx, viewportY, scrollbackLength, dims.rows, scrollbarOpacity);
-		}
-
-		this.preeditDirty = false;
-		this.textBlinkDirty = false;
-		this.searchDirty = false;
-		buffer.clearDirty();
-	}
-
-	// ==========================================================================
-	// Canvas 2D Cell Rendering (Fallback)
-	// ==========================================================================
-
-	private renderCellBackground2D(
-		ctx: CanvasRenderingContext2D,
-		cell: GhosttyCell,
-		x: number,
-		y: number,
-	): void {
-		const cellX = x * this.metrics.width;
-		const cellY = y * this.metrics.height;
-		const cellWidth = this.metrics.width * cell.width;
-
-		const isSelected = this.isInSelection(x, y, cell);
-		const searchHighlight = this.getSearchHighlight(x, y);
-		if (isSelected) {
-			ctx.fillStyle = this.theme.selectionBackground;
-			ctx.fillRect(cellX, cellY, cellWidth, this.metrics.height);
-			return;
-		}
-		if (searchHighlight) {
-			ctx.fillStyle =
-				searchHighlight === 'active'
-					? this.theme.searchActiveMatchBackground
-					: this.theme.searchMatchBackground;
-			ctx.fillRect(cellX, cellY, cellWidth, this.metrics.height);
-			return;
-		}
-
-		let bgR = cell.bg_r,
-			bgG = cell.bg_g,
-			bgB = cell.bg_b;
-		if (cell.flags & CellFlags.INVERSE) {
-			bgR = cell.fg_r;
-			bgG = cell.fg_g;
-			bgB = cell.fg_b;
-		}
-
-		const [themeR, themeG, themeB] = hexToRGB(this.theme.background);
-		if (!(bgR === themeR && bgG === themeG && bgB === themeB)) {
-			ctx.fillStyle = `rgb(${bgR}, ${bgG}, ${bgB})`;
-			ctx.fillRect(cellX, cellY, cellWidth, this.metrics.height);
-		}
-	}
-
-	private renderCellText2D(
-		ctx: CanvasRenderingContext2D,
-		cell: GhosttyCell,
-		x: number,
-		y: number,
-		colorOverride?: string,
-		textOverride?: string,
-		constraintWidth: 1 | 2 = cell.width >= 2 ? 2 : 1,
-	): void {
-		const cellX = x * this.metrics.width;
-		const cellY = y * this.metrics.height;
-		const cellWidth = this.metrics.width * cell.width;
-
-		if (cell.flags & CellFlags.INVISIBLE) return;
-		if ((cell.flags & CellFlags.BLINK) !== 0 && !this.textBlinkVisible) return;
-
-		const isSelected = this.isInSelection(x, y, cell);
-		const searchHighlight = this.getSearchHighlight(x, y);
-
-		const fontStyle = (cell.flags & CellFlags.ITALIC) !== 0 ? 'italic' : 'normal';
-		const fontWeight = (cell.flags & CellFlags.BOLD) !== 0 ? this.fontWeightBold : this.fontWeight;
-		ctx.font = canvasFont(fontStyle, fontWeight, this.fontSize, this.fontFamily);
-
-		if (colorOverride) {
-			ctx.fillStyle = colorOverride;
-		} else if (isSelected) {
-			ctx.fillStyle = this.theme.selectionForeground;
-		} else if (searchHighlight === 'active') {
-			ctx.fillStyle = this.theme.searchActiveMatchForeground;
-		} else if (searchHighlight === 'match') {
-			ctx.fillStyle = this.theme.searchMatchForeground;
-		} else {
-			let fgR = cell.fg_r,
-				fgG = cell.fg_g,
-				fgB = cell.fg_b;
-			if (cell.flags & CellFlags.INVERSE) {
-				fgR = cell.bg_r;
-				fgG = cell.bg_g;
-				fgB = cell.bg_b;
-			}
-			ctx.fillStyle = `rgb(${fgR}, ${fgG}, ${fgB})`;
-		}
-
-		if (cell.flags & CellFlags.FAINT) ctx.globalAlpha = 0.5;
-
-		const char =
-			textOverride ??
-			(cell.grapheme_len > 0 && this.currentBuffer?.getGraphemeString
-				? this.currentBuffer.getGraphemeString(y, x)
-				: String.fromCodePoint(cell.codepoint || 32));
-		this.drawConstrainedText2D(
-			ctx,
-			char,
-			cellX,
-			cellY,
-			cell.codepoint,
-			constraintWidth,
-			cell.width,
-		);
-
-		// Underline
-		if (cell.flags & CellFlags.UNDERLINE) {
-			const underlineY = cellY + this.detailedMetrics.underlinePosition;
-			ctx.strokeStyle =
-				cell.underline_r >= 0
-					? `rgb(${cell.underline_r}, ${cell.underline_g}, ${cell.underline_b})`
-					: ctx.fillStyle;
-			ctx.lineWidth = this.detailedMetrics.underlineThickness;
-			const style = cell.underline_style || UnderlineStyle.SINGLE;
-			if (style === UnderlineStyle.DOTTED) ctx.setLineDash([1, 2]);
-			else if (style === UnderlineStyle.DASHED) ctx.setLineDash([3, 2]);
-			else ctx.setLineDash([]);
-			ctx.beginPath();
-			if (style === UnderlineStyle.CURLY) {
-				ctx.moveTo(cellX, underlineY);
-				for (let offset = 2; offset <= cellWidth; offset += 2) {
-					ctx.lineTo(cellX + offset, underlineY + (Math.floor(offset / 2) % 2));
-				}
-			} else {
-				ctx.moveTo(cellX, underlineY);
-				ctx.lineTo(cellX + cellWidth, underlineY);
-				if (style === UnderlineStyle.DOUBLE) {
-					ctx.moveTo(cellX, underlineY - 2);
-					ctx.lineTo(cellX + cellWidth, underlineY - 2);
-				}
-			}
-			ctx.stroke();
-			ctx.setLineDash([]);
-		}
-
-		// Strikethrough
-		if (cell.flags & CellFlags.STRIKETHROUGH) {
-			const strikeY = cellY + this.detailedMetrics.strikethroughPosition;
-			ctx.strokeStyle = ctx.fillStyle;
-			ctx.lineWidth = this.detailedMetrics.strikethroughThickness;
-			ctx.beginPath();
-			ctx.moveTo(cellX, strikeY);
-			ctx.lineTo(cellX + cellWidth, strikeY);
-			ctx.stroke();
-		}
-
-		if (cell.overline) {
-			ctx.strokeStyle = ctx.fillStyle;
-			ctx.lineWidth = this.detailedMetrics.overlineThickness;
-			ctx.beginPath();
-			ctx.moveTo(cellX, cellY + this.detailedMetrics.overlinePosition);
-			ctx.lineTo(cellX + cellWidth, cellY + this.detailedMetrics.overlinePosition);
-			ctx.stroke();
-		}
-
-		if (cell.flags & CellFlags.FAINT) ctx.globalAlpha = 1.0;
-
-		// Hyperlink underline
-		if (cell.hyperlink_id > 0 && cell.hyperlink_id === this.hoveredHyperlinkId) {
-			const underlineY = cellY + this.detailedMetrics.underlinePosition;
-			ctx.strokeStyle = '#4A90E2';
-			ctx.lineWidth = this.detailedMetrics.underlineThickness;
-			ctx.beginPath();
-			ctx.moveTo(cellX, underlineY);
-			ctx.lineTo(cellX + cellWidth, underlineY);
-			ctx.stroke();
-		}
-
-		// Regex link underline
-		if (this.hoveredLinkRange) {
-			const range = this.hoveredLinkRange;
-			const isInRange =
-				(y === range.startY && x >= range.startX && (y < range.endY || x <= range.endX)) ||
-				(y > range.startY && y < range.endY) ||
-				(y === range.endY && x <= range.endX && (y > range.startY || x >= range.startX));
-			if (isInRange) {
-				const underlineY = cellY + this.detailedMetrics.underlinePosition;
-				ctx.strokeStyle = '#4A90E2';
-				ctx.lineWidth = this.detailedMetrics.underlineThickness;
-				ctx.beginPath();
-				ctx.moveTo(cellX, underlineY);
-				ctx.lineTo(cellX + cellWidth, underlineY);
-				ctx.stroke();
-			}
-		}
-	}
-
 	private drawConstrainedText2D(
 		ctx: CanvasRenderingContext2D,
 		text: string,
@@ -3225,245 +2306,9 @@ export class WebGPURenderer {
 		ctx.restore();
 	}
 
-	private renderCursor2D(
-		ctx: CanvasRenderingContext2D,
-		x: number,
-		y: number,
-		style: RenderedCursorStyle,
-	): void {
-		ctx.fillStyle = this.theme.cursor;
-
-		switch (style) {
-			case 'block': {
-				const geometry = cursorBlockGeometry(x, y, this.detailedMetrics);
-				ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
-				const line = this.currentBuffer?.getLine(y);
-				const cursorCell = line?.[x];
-				if (cursorCell) {
-					ctx.save();
-					ctx.beginPath();
-					ctx.rect(geometry.x, geometry.y, geometry.width, geometry.height);
-					ctx.clip();
-					this.renderCellText2D(
-						ctx,
-						cursorCell,
-						x,
-						y,
-						this.theme.cursorAccent,
-						undefined,
-						line ? cellConstraintWidth(line, x, line.length) : undefined,
-					);
-					ctx.restore();
-				}
-				break;
-			}
-			case 'block_hollow': {
-				for (const geometry of cursorOutlineGeometry(x, y, this.detailedMetrics)) {
-					ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
-				}
-				break;
-			}
-			case 'underline': {
-				const geometry = cursorStrokeGeometry(style, x, y, this.detailedMetrics);
-				ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
-				break;
-			}
-			case 'bar': {
-				const geometry = cursorStrokeGeometry(style, x, y, this.detailedMetrics);
-				ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
-				break;
-			}
-		}
-	}
-
-	private renderPreedit2D(ctx: CanvasRenderingContext2D, layout: PreeditLayout): void {
-		const cellY = layout.row * this.metrics.height;
-		const startX = layout.start * this.metrics.width;
-		const width = layout.width * this.metrics.width;
-		ctx.fillStyle = this.theme.background;
-		ctx.fillRect(startX, cellY, width, this.metrics.height);
-		ctx.font = canvasFont('normal', this.fontWeight, this.fontSize, this.fontFamily);
-		ctx.fillStyle = this.theme.foreground;
-		let column = layout.start;
-		for (const cell of layout.cells) {
-			this.drawConstrainedText2D(
-				ctx,
-				cell.text,
-				column * this.metrics.width,
-				cellY,
-				cell.text.codePointAt(0) ?? 0,
-				cell.width >= 2 ? 2 : 1,
-				cell.width,
-			);
-			column += cell.width;
-		}
-		ctx.fillStyle = this.theme.foreground;
-		ctx.fillRect(
-			startX,
-			cellY + this.detailedMetrics.underlinePosition,
-			width,
-			this.detailedMetrics.underlineThickness,
-		);
-	}
-
-	private renderScrollbar2D(
-		ctx: CanvasRenderingContext2D,
-		viewportY: number,
-		scrollbackLength: number,
-		visibleRows: number,
-		opacity: number,
-	): void {
-		const canvasHeight = this.canvas.height / this.devicePixelRatio;
-		const canvasWidth = this.canvas.width / this.devicePixelRatio;
-
-		const scrollbarWidth = 8;
-		const scrollbarX = canvasWidth - scrollbarWidth - 4;
-		const scrollbarPadding = 4;
-		const scrollbarTrackHeight = canvasHeight - scrollbarPadding * 2;
-
-		ctx.clearRect(scrollbarX - 2, 0, scrollbarWidth + 6, canvasHeight);
-		ctx.fillStyle = this.theme.background;
-		if (!this.allowTransparency) {
-			ctx.fillRect(scrollbarX - 2, 0, scrollbarWidth + 6, canvasHeight);
-		}
-
-		if (opacity <= 0 || scrollbackLength === 0) return;
-
-		const totalLines = scrollbackLength + visibleRows;
-		const thumbHeight = Math.max(20, (visibleRows / totalLines) * scrollbarTrackHeight);
-		const scrollPosition = viewportY / scrollbackLength;
-		const thumbY = scrollbarPadding + (scrollbarTrackHeight - thumbHeight) * (1 - scrollPosition);
-
-		ctx.fillStyle = `rgba(128, 128, 128, ${0.1 * opacity})`;
-		ctx.fillRect(scrollbarX, scrollbarPadding, scrollbarWidth, scrollbarTrackHeight);
-
-		const isScrolled = viewportY > 0;
-		const baseOpacity = isScrolled ? 0.5 : 0.3;
-		ctx.fillStyle = `rgba(128, 128, 128, ${baseOpacity * opacity})`;
-		ctx.fillRect(scrollbarX, thumbY, scrollbarWidth, thumbHeight);
-	}
-
 	// ==========================================================================
 	// Shared Helpers
 	// ==========================================================================
-
-	private fetchLine(
-		buffer: IRenderable,
-		y: number,
-		viewportY: number,
-		scrollbackProvider: IScrollbackProvider | undefined,
-		scrollbackLength: number,
-	): GhosttyCell[] | null {
-		const offset = Math.floor(viewportY);
-		if (offset > 0) {
-			if (y < offset && scrollbackProvider) {
-				const scrollbackOffset = scrollbackLength - offset + y;
-				return scrollbackProvider.getScrollbackLine(scrollbackOffset);
-			}
-			const screenRow = y - offset;
-			return buffer.getLine(screenRow);
-		}
-		return buffer.getLine(y);
-	}
-
-	private resolveCellText(
-		buffer: IRenderable,
-		cell: GhosttyCell,
-		renderRow: number,
-		col: number,
-		viewportY: number,
-		scrollbackProvider: IScrollbackProvider | undefined,
-		scrollbackLength: number,
-	): string {
-		if (cell.grapheme_len === 0) {
-			return cell.codepoint === 0 ? '' : String.fromCodePoint(cell.codepoint);
-		}
-		const offset = Math.floor(viewportY);
-		if (offset > 0 && renderRow < offset) {
-			const historyRow = scrollbackLength - offset + renderRow;
-			return scrollbackProvider?.getScrollbackGraphemeString?.(historyRow, col) ?? '';
-		}
-		const screenRow = offset > 0 ? renderRow - offset : renderRow;
-		return buffer.getGraphemeString?.(screenRow, col) ?? '';
-	}
-
-	private buildRowTextShaping(
-		buffer: IRenderable,
-		line: readonly GhosttyCell[],
-		renderRow: number,
-		viewportY: number,
-		scrollbackProvider: IScrollbackProvider | undefined,
-		scrollbackLength: number,
-		cursor: { readonly x: number; readonly y: number },
-		cursorEnabled: boolean,
-		preeditLayout: PreeditLayout | null,
-	): RowTextShaping {
-		const texts: string[] = [];
-		const cells: TextShapingCell[] = [];
-		for (let column = 0; column < line.length; column++) {
-			const cell = line[column];
-			if (!cell) {
-				texts.push('');
-				cells.push({ text: '', width: 0, styleKey: '', eligible: false });
-				continue;
-			}
-
-			const text = this.resolveCellText(
-				buffer,
-				cell,
-				renderRow,
-				column,
-				viewportY,
-				scrollbackProvider,
-				scrollbackLength,
-			);
-			texts.push(text);
-			const selected = this.isInSelection(column, renderRow, cell);
-			const search = this.getSearchHighlight(column, renderRow) ?? 'none';
-			const cursorBoundary = cursorEnabled && cursor.y === renderRow && cursor.x === column;
-			const preeditBoundary =
-				preeditLayout !== null &&
-				preeditLayout.row === renderRow &&
-				column >= preeditLayout.start &&
-				column < preeditLayout.end;
-			const hidden =
-				(cell.flags & CellFlags.INVISIBLE) !== 0 ||
-				((cell.flags & CellFlags.BLINK) !== 0 && !this.textBlinkVisible);
-			const inverse = (cell.flags & CellFlags.INVERSE) !== 0;
-			const foreground = inverse
-				? `${cell.bg_r},${cell.bg_g},${cell.bg_b}`
-				: `${cell.fg_r},${cell.fg_g},${cell.fg_b}`;
-			const styleKey = [
-				cell.flags,
-				selected ? 'selection' : search,
-				foreground,
-				cell.underline_style,
-				cell.underline_r,
-				cell.underline_g,
-				cell.underline_b,
-				cell.overline ? 1 : 0,
-			].join(':');
-			cells.push({
-				text,
-				width: cell.width,
-				styleKey,
-				eligible:
-					cell.width === 1 && !hidden && !cursorBoundary && !preeditBoundary && text.length === 1,
-			});
-		}
-
-		return {
-			texts,
-			plan: this.fontLigatures
-				? buildTextShapingPlan(cells)
-				: Array.from({ length: cells.length }, () => null),
-		};
-	}
-
-	private isInSelection(x: number, y: number, cell: GhosttyCell): boolean {
-		if (cell.selected) return true;
-		return this.isCoordinateInSelection(x, y);
-	}
 
 	private isCoordinateInSelection(x: number, y: number): boolean {
 		const sel = this.currentSelectionCoords;
@@ -3493,7 +2338,7 @@ export class WebGPURenderer {
 	}
 
 	private indexVisibleSearchMatches(): void {
-		const rows = this.currentBuffer?.getDimensions().rows ?? 0;
+		const rows = this.currentVisibleRows;
 		if (
 			this.indexedSearchMatchesVersion === this.searchMatchesVersion &&
 			this.indexedSearchTop === this.currentAbsoluteTop &&
@@ -3547,20 +2392,6 @@ export class WebGPURenderer {
 		this.cursorVisible = true;
 	}
 
-	private hasBlinkingCells(
-		buffer: IRenderable,
-		rows: number,
-		viewportY: number,
-		scrollbackProvider: IScrollbackProvider | undefined,
-		scrollbackLength: number,
-	): boolean {
-		for (let row = 0; row < rows; row++) {
-			const line = this.fetchLine(buffer, row, viewportY, scrollbackProvider, scrollbackLength);
-			if (line?.some((cell) => (cell.flags & CellFlags.BLINK) !== 0)) return true;
-		}
-		return false;
-	}
-
 	private syncTextBlink(active: boolean): void {
 		if (active === this.textBlinkActive) return;
 		this.textBlinkActive = active;
@@ -3589,12 +2420,6 @@ export class WebGPURenderer {
 	// ==========================================================================
 	// Public API
 	// ==========================================================================
-
-	setTheme(theme: ITheme): void {
-		this.theme = { ...DEFAULT_THEME, ...theme };
-		this.palette = this.buildPalette();
-		this.requestRenderCallback?.();
-	}
 
 	setPreedit(cells: readonly PreeditCell[], selection?: PreeditSelection): void {
 		this.preeditCells = cells
@@ -3725,10 +2550,6 @@ export class WebGPURenderer {
 		return 'uninitialized';
 	}
 
-	setSelectionManager(manager: SelectionManager): void {
-		this.selectionManager = manager;
-	}
-
 	setProjectedViewportState(absoluteTop: number, selection: SelectionCoordinates | null): void {
 		const nextTop = Math.max(0, Math.floor(absoluteTop));
 		if (
@@ -3770,15 +2591,12 @@ export class WebGPURenderer {
 		return this.lastTelemetry;
 	}
 
-	setHoveredHyperlinkId(id: number): void {
-		this.hoveredHyperlinkId = id;
-		this.requestRenderCallback?.();
-	}
-
 	setHoveredLinkRange(
 		range: { startX: number; startY: number; endX: number; endY: number } | null,
 	): void {
+		if (JSON.stringify(this.hoveredLinkRange) === JSON.stringify(range)) return;
 		this.hoveredLinkRange = range;
+		this.searchDirty = true;
 		this.requestRenderCallback?.();
 	}
 

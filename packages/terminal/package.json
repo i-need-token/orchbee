@@ -1,17 +1,16 @@
 {
 	"name": "@orchbee/terminal",
 	"version": "0.1.0",
-	"description": "Ghostty-powered browser and projected Host terminal surfaces with a WebGPU renderer",
+	"description": "Source-neutral projected Terminal Host client surface with WebGPU and Canvas rendering",
 	"keywords": [
-		"ghostty",
+		"client",
+		"projected-terminal",
 		"terminal",
-		"wasm",
-		"webgpu",
-		"xterm"
+		"webgpu"
 	],
 	"files": [
 		"dist",
-		"ghostty-vt.wasm",
+		"docs",
 		"src",
 		"!src/**/__tests__",
 		"README.md"
@@ -27,8 +26,7 @@
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js",
 			"require": "./dist/index.cjs"
-		},
-		"./ghostty-vt.wasm": "./ghostty-vt.wasm"
+		}
 	},
 	"publishConfig": {
 		"access": "public"
@@ -39,7 +37,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"test:exports": "node ../../scripts/check-package-exports.mjs ."
+		"test:exports": "node ../../scripts/check-package-exports.mjs . && node scripts/check-public-api.mjs"
 	},
 	"dependencies": {
 		"@orchbee/terminal-protocol": "workspace:^"

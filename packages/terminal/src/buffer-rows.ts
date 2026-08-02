@@ -11,9 +11,6 @@ import {
 	type SemanticContent as SemanticContentValue,
 } from '@orchbee/terminal-protocol';
 
-import type { CellData } from './types';
-import { CellSemanticContent } from './types';
-
 const textEncoder = new TextEncoder();
 
 export const TerminalBufferRowDetail = {
@@ -184,45 +181,6 @@ export function bufferRowsFromDecodedWindow(
 	};
 }
 
-export function bufferRowFromCells(
-	index: bigint,
-	cells: readonly CellData[],
-	wrap: boolean,
-	hyperlinkAt: (column: number) => string | null,
-	detail: TerminalBufferRowDetail,
-): TerminalBufferRow {
-	const renderCells = cells.map((cell, column) => ({
-		column,
-		grapheme: cellText(cell),
-		hyperlink: cell.hyperlinkId === 0 ? null : hyperlinkAt(column),
-		semanticContent: semanticContent(cell.semanticContent),
-		width: displayWidth(cell.width),
-	})) satisfies readonly TerminalBufferRenderCell[];
-	const prompt = renderCells.some((cell) => cell.semanticContent === SemanticContent.prompt)
-		? RowPromptClass.prompt
-		: RowPromptClass.none;
-	return buildBufferRow(
-		index,
-		renderCells,
-		prompt,
-		wrap,
-		false,
-		detail === TerminalBufferRowDetail.render,
-	);
-}
-
-export function estimateBufferRowsBytes(rows: readonly TerminalBufferRow[]): number {
-	let bytes = 0;
-	for (const row of rows) {
-		bytes += 32 + textEncoder.encode(row.text).byteLength + row.mappings.length * 12;
-		for (const cell of row.cells ?? []) {
-			bytes += 16 + textEncoder.encode(cell.grapheme).byteLength;
-			if (cell.hyperlink !== null) bytes += textEncoder.encode(cell.hyperlink).byteLength;
-		}
-	}
-	return bytes;
-}
-
 function buildBufferRow(
 	index: bigint,
 	cells: readonly TerminalBufferRenderCell[],
@@ -260,12 +218,6 @@ function buildBufferRow(
 	};
 }
 
-function cellText(cell: CellData): string {
-	if (cell.width === 0 || cell.codepoint === 0) return '';
-	if (cell.text) return cell.text;
-	return String.fromCodePoint(cell.codepoint);
-}
-
 function displayWidth(width: number): 0 | 1 | 2 {
 	if (width === TerminalCellWidthCode.wide) return 2;
 	if (width === TerminalCellWidthCode.narrow) return 1;
@@ -281,10 +233,10 @@ function promptClass(value: number): RowPromptClassValue {
 }
 
 function semanticContent(value: number): SemanticContentValue {
-	if (value === TerminalSemanticContentCode.input || value === CellSemanticContent.INPUT) {
+	if (value === TerminalSemanticContentCode.input) {
 		return SemanticContent.input;
 	}
-	if (value === TerminalSemanticContentCode.prompt || value === CellSemanticContent.PROMPT) {
+	if (value === TerminalSemanticContentCode.prompt) {
 		return SemanticContent.prompt;
 	}
 	return SemanticContent.output;

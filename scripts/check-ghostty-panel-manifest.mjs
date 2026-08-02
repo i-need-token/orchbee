@@ -19,12 +19,8 @@ const STATUS_NAMES = [
 	'Application layer',
 ];
 
-const zigRoots = ['src/renderer', 'src/font', 'src/terminal/search'];
+const zigRoots = ['src/renderer', 'src/font'];
 const zigFiles = zigRoots.flatMap((root) => listFiles(path.join(GHOSTTY_ROOT, root), '.zig'));
-zigFiles.push(
-	path.join(GHOSTTY_ROOT, 'src/surface_mouse.zig'),
-	path.join(GHOSTTY_ROOT, 'src/apprt/gtk/class/surface.zig'),
-);
 
 const declarations = zigFiles.flatMap(extractZigDeclarations);
 const upstreamCounts = {
@@ -33,14 +29,6 @@ const upstreamCounts = {
 		.flatMap((root) => listFiles(path.join(GHOSTTY_ROOT, root), '.swift'))
 		.flatMap(extractSwiftDeclarations).length,
 };
-for (const swiftFile of [
-	'macos/Tests/Ghostty/Surface View/SurfaceView+SearchStateTests.swift',
-	'macos/Tests/Ghostty/SurfaceViewAppKitTests.swift',
-	'macos/GhosttyUITests/GhosttyMouseStateTests.swift',
-]) {
-	declarations.push(...extractSwiftDeclarations(path.join(GHOSTTY_ROOT, swiftFile)));
-}
-
 const manifestRows = parseManifest();
 const failures = [];
 const counts = Object.fromEntries(STATUS_NAMES.map((status) => [status, 0]));

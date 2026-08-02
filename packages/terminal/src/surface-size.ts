@@ -35,7 +35,7 @@ export function balanceSurfacePadding(
 	return balanceGridPadding(screen, cell, explicit, grid, mode);
 }
 
-/** Balance padding around an already selected grid, including FitAddon scrollbar space. */
+/** Balance padding around an already selected grid and any reserved scrollbar space. */
 export function balanceGridPadding(
 	screen: SurfaceSize,
 	cell: SurfaceSize,

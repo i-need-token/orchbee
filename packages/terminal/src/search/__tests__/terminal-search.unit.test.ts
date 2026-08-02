@@ -1,49 +1,23 @@
 import { describe, expect, it } from 'vitest';
+
+import type { TerminalBufferRow } from '../../buffer-rows';
 import {
-	findDirectionalTerminalMatch,
 	findTerminalBufferMatches,
-	findTerminalMatches,
 	searchMatchContainsCell,
 	validateTerminalSearchQuery,
 } from '../terminal-search';
-import type { TerminalBufferRow } from '../../buffer-rows';
-import type { CellData } from '../../types';
 
-describe('findTerminalMatches', () => {
+describe('projected terminal search', () => {
 	it('supports case, whole-word, and regular-expression searches', () => {
-		const lines = [line('Error error_error error 42')];
-		expect(findTerminalMatches(lines, 'error')).toHaveLength(4);
-		expect(findTerminalMatches(lines, 'error', { caseSensitive: true })).toHaveLength(3);
-		expect(findTerminalMatches(lines, 'error', { wholeWord: true })).toHaveLength(2);
-		expect(findTerminalMatches(lines, 'e(?:rror)?', { regex: true })).toHaveLength(4);
+		const rows = [row(0n, 'Error error_error error 42')];
+		expect(findTerminalBufferMatches(rows, 'error')).toHaveLength(4);
+		expect(findTerminalBufferMatches(rows, 'error', { caseSensitive: true })).toHaveLength(3);
+		expect(findTerminalBufferMatches(rows, 'error', { wholeWord: true })).toHaveLength(2);
+		expect(findTerminalBufferMatches(rows, 'e(?:rror)?', { regex: true })).toHaveLength(4);
 	});
 
-	it('maps UTF-16 matches to wide terminal cell columns', () => {
-		const lines = [line('A你好B')];
-		expect(findTerminalMatches(lines, '你好')).toEqual([
-			{
-				text: '你好',
-				start: { column: 1, row: 0 },
-				end: { column: 3, row: 0 },
-			},
-		]);
-	});
-
-	it('preserves absolute coordinates when searching source-neutral rows', () => {
-		const rows: TerminalBufferRow[] = [
-			{
-				cells: null,
-				index: 41n,
-				mappings: [
-					{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 },
-					{ byteOffset: 1, column: 1, utf16Offset: 1, width: 2 },
-				],
-				promptClass: 'none',
-				text: 'A蜂',
-				wrap: false,
-				wrapContinuation: false,
-			},
-		];
+	it('preserves absolute coordinates and wide-cell columns', () => {
+		const rows = [rowFromGraphemes(41n, ['A', '蜂'])];
 		expect(findTerminalBufferMatches(rows, '蜂')).toEqual([
 			{
 				end: { column: 1, row: 41 },
@@ -53,20 +27,8 @@ describe('findTerminalMatches', () => {
 		]);
 	});
 
-	it('maps implicit narrow ASCII offsets without materializing cell mappings', () => {
-		const rows: TerminalBufferRow[] = [
-			{
-				cells: null,
-				identityAscii: true,
-				index: 400n,
-				mappings: [],
-				promptClass: 'none',
-				text: 'alpha beta',
-				wrap: false,
-				wrapContinuation: false,
-			},
-		];
-
+	it('maps implicit narrow ASCII offsets without materializing mappings', () => {
+		const rows = [identityAsciiRow(400n, 'alpha beta')];
 		expect(findTerminalBufferMatches(rows, 'beta')).toEqual([
 			{
 				end: { column: 9, row: 400 },
@@ -76,99 +38,44 @@ describe('findTerminalMatches', () => {
 		]);
 	});
 
-	it.each([
-		{
-			lines: [line('Error error_error error 42')],
-			options: { wholeWord: true },
-			query: 'error',
-			wraps: [false],
-		},
-		{
-			lines: [[cell('A', 1), cell('e\u0301', 1), cell('蜂', 2), cell('', 0)]],
-			options: {},
-			query: 'e蜂',
-			wraps: [false],
-		},
-		{
-			lines: [line('wrapped'), line('value')],
-			options: {},
-			query: 'edva',
-			wraps: [true, false],
-		},
-		{
-			lines: [line('alpha 2'), line('beta 3')],
-			options: { regex: true, spanLines: true },
-			query: String.raw`2\s+beta`,
-			wraps: [false, false],
-		},
-	])(
-		'keeps compact buffer-row search aligned with cell search',
-		({ lines, query, options, wraps }) => {
-			const absoluteStart = 41;
-			const expected = findTerminalMatches(lines, query, options, wraps).map((match) => ({
-				...match,
-				end: { ...match.end, row: match.end.row + absoluteStart },
-				start: { ...match.start, row: match.start.row + absoluteStart },
-			}));
-			const rows = lines.map((cells, index) =>
-				bufferRowFromCells(BigInt(absoluteStart + index), cells, wraps[index] ?? false),
-			);
-
-			expect(findTerminalBufferMatches(rows, query, options)).toEqual(expected);
-		},
-	);
-
-	it('does not search terminal padding after the last content cell', () => {
-		expect(findTerminalMatches([[...line('text'), emptyCell(), emptyCell()]], '  ')).toEqual([]);
-	});
-
-	it('searches a logical line across soft-wrapped physical rows', () => {
-		expect(
-			findTerminalMatches([line('wrapped'), line('value')], 'edva', {}, [true, false]),
-		).toEqual([
+	it('searches one logical line across soft-wrapped projected rows', () => {
+		const rows = [row(10n, 'wrapped', true), row(11n, 'value')];
+		expect(findTerminalBufferMatches(rows, 'edva')).toEqual([
 			{
 				text: 'edva',
-				start: { column: 5, row: 0 },
-				end: { column: 1, row: 1 },
+				start: { column: 5, row: 10 },
+				end: { column: 1, row: 11 },
 			},
 		]);
 	});
 
-	it('does not match across a hard line break', () => {
-		expect(findTerminalMatches([line('hello,'), line(' world')], 'hello, world')).toEqual([]);
-	});
-
-	it('matches across hard line breaks when spanLines is enabled', () => {
-		expect(
-			findTerminalMatches([line('test 2'), line('test 3')], 'test 2\ntest 3', {
-				spanLines: true,
-			}),
-		).toEqual([
+	it('crosses hard line breaks only when requested', () => {
+		const rows = [row(20n, 'test 2'), row(21n, 'test 3')];
+		expect(findTerminalBufferMatches(rows, 'test 2\ntest 3')).toEqual([]);
+		expect(findTerminalBufferMatches(rows, 'test 2\ntest 3', { spanLines: true })).toEqual([
 			{
 				text: 'test 2\ntest 3',
-				start: { column: 0, row: 0 },
-				end: { column: 5, row: 1 },
+				start: { column: 0, row: 20 },
+				end: { column: 5, row: 21 },
 			},
 		]);
-	});
-
-	it('supports regular expressions across hard line breaks', () => {
 		expect(
-			findTerminalMatches([line('alpha 2'), line('beta 3')], String.raw`2\s+beta`, {
+			findTerminalBufferMatches(rows, String.raw`2\s+test`, {
 				regex: true,
 				spanLines: true,
 			}),
 		).toEqual([
 			{
-				text: '2\nbeta',
-				start: { column: 6, row: 0 },
-				end: { column: 3, row: 1 },
+				text: '2\ntest',
+				start: { column: 5, row: 20 },
+				end: { column: 3, row: 21 },
 			},
 		]);
 	});
 
-	it('returns repeated matches in forward screen order', () => {
-		expect(findTerminalMatches([line('hello boo! hello boo!')], 'boo!')).toEqual([
+	it('returns repeated matches in forward order without overlap', () => {
+		const rows = [row(0n, 'hello boo! hello boo!')];
+		expect(findTerminalBufferMatches(rows, 'boo!')).toEqual([
 			{
 				text: 'boo!',
 				start: { column: 6, row: 0 },
@@ -180,160 +87,52 @@ describe('findTerminalMatches', () => {
 				end: { column: 20, row: 0 },
 			},
 		]);
+		expect(findTerminalBufferMatches([row(0n, 'xxx')], 'xx')).toHaveLength(1);
+		expect(findTerminalBufferMatches([row(0n, 'ababa')], 'aba', { regex: true })).toHaveLength(1);
 	});
 
-	it('advances literal searches by the full match like VS Code', () => {
-		expect(findTerminalMatches([line('xxx')], 'xx')).toEqual([
-			{
-				text: 'xx',
-				start: { column: 0, row: 0 },
-				end: { column: 1, row: 0 },
-			},
-		]);
-	});
-
-	it('advances regular-expression searches by the full match like VS Code', () => {
-		expect(findTerminalMatches([line('ababa')], 'aba', { regex: true })).toEqual([
-			{
-				text: 'aba',
-				start: { column: 0, row: 0 },
-				end: { column: 2, row: 0 },
-			},
-		]);
-	});
-
-	it('ignores empty regular-expression matches without looping', () => {
-		expect(findTerminalMatches([line('xxx')], '(?=x)', { regex: true })).toEqual([]);
-	});
-
-	it('does not enumerate every suffix for a greedy regular expression', () => {
-		expect(findTerminalMatches([line('x'.repeat(10_000))], '.*', { regex: true })).toHaveLength(1);
-	});
-
-	it('caps collected results for VS Code-compatible bounded highlighting', () => {
-		expect(findTerminalMatches([line('x x x x')], 'x', { maxResults: 2 })).toHaveLength(2);
-		expect(findTerminalMatches([line('xxx')], 'x', { maxResults: 0 })).toEqual([]);
-	});
-
-	it('navigates beyond the bounded highlight collection', () => {
-		const lines = [line('x x x')];
-		const options = { maxResults: 2 };
-		const matches = findTerminalMatches(lines, 'x', options);
-		expect(matches).toHaveLength(2);
+	it('bounds results and handles empty or invalid regular expressions', () => {
+		expect(findTerminalBufferMatches([row(0n, 'x x x x')], 'x', { maxResults: 2 })).toHaveLength(2);
+		expect(findTerminalBufferMatches([row(0n, 'xxx')], 'x', { maxResults: 0 })).toEqual([]);
+		expect(findTerminalBufferMatches([row(0n, 'xxx')], '(?=x)', { regex: true })).toEqual([]);
 		expect(
-			findDirectionalTerminalMatch(lines, 'x', options, [], {
-				start: { column: 2, row: 0 },
-			}),
-		).toMatchObject({ start: { column: 4, row: 0 } });
-		expect(
-			findDirectionalTerminalMatch(lines, 'x', options, [], {
-				reverse: true,
-				start: { column: 0, row: 0 },
-			}),
-		).toMatchObject({ start: { column: 4, row: 0 } });
-	});
-
-	it('reports invalid regular expressions without throwing during search', () => {
+			findTerminalBufferMatches([row(0n, 'x'.repeat(10_000))], '.*', { regex: true }),
+		).toHaveLength(1);
 		expect(validateTerminalSearchQuery('[', { regex: true })).toContain(
 			'Invalid regular expression',
 		);
-		expect(findTerminalMatches([line('text')], '[', { regex: true })).toEqual([]);
-		expect(validateTerminalSearchQuery('[', { regex: false })).toBeNull();
+		expect(findTerminalBufferMatches([row(0n, 'text')], '[', { regex: true })).toEqual([]);
 	});
 
-	it('finds repeated single-cell matches', () => {
-		expect(findTerminalMatches([line('boo boo')], 'b')).toEqual([
-			{
-				text: 'b',
-				start: { column: 0, row: 0 },
-				end: { column: 0, row: 0 },
-			},
-			{
-				text: 'b',
-				start: { column: 4, row: 0 },
-				end: { column: 4, row: 0 },
-			},
-		]);
-	});
-
-	it('returns no matches for an empty query or whitespace-only rows', () => {
-		expect(findTerminalMatches([line('text')], '')).toEqual([]);
-		expect(findTerminalMatches([[emptyCell(), emptyCell()]], 'x')).toEqual([]);
-	});
-
-	it('searches meaningful interior whitespace without including trailing padding', () => {
-		expect(findTerminalMatches([[...line('A  B'), emptyCell(), emptyCell()]], '  ')).toEqual([
-			{
-				text: '  ',
-				start: { column: 1, row: 0 },
-				end: { column: 2, row: 0 },
-			},
-		]);
-	});
-
-	it('maps a multi-codepoint grapheme to one terminal cell', () => {
-		const combining = cell('e\u0301', 1);
-		expect(findTerminalMatches([[cell('A', 1), combining, cell('B', 1)]], 'e\u0301')).toEqual([
+	it('maps combined graphemes to one projected terminal cell', () => {
+		const rows = [rowFromGraphemes(7n, ['A', 'e\u0301', 'B'])];
+		expect(findTerminalBufferMatches(rows, 'e\u0301')).toEqual([
 			{
 				text: 'e\u0301',
-				start: { column: 1, row: 0 },
-				end: { column: 1, row: 0 },
+				start: { column: 1, row: 7 },
+				end: { column: 1, row: 7 },
 			},
 		]);
 	});
 
-	it('finds plain text through Zalgo combining marks', () => {
-		const first = [cell('z\u0336\u0301', 1), cell('a\u0335\u0316', 1), cell('l\u0337\u0307', 1)];
-		const second = [cell('Z\u0335\u030c', 1), cell('a\u0337\u031b', 1), cell('l\u0334\u0302', 1)];
-		const matches = findTerminalMatches([[...first, cell(' ', 1), ...second]], 'zal');
-		expect(matches.map(({ start, end }) => ({ start, end }))).toEqual([
-			{ start: { column: 0, row: 0 }, end: { column: 2, row: 0 } },
-			{ start: { column: 4, row: 0 }, end: { column: 6, row: 0 } },
-		]);
+	it('finds literal text through combining marks while preserving original text', () => {
+		const first = ['z\u0336\u0301', 'a\u0335\u0316', 'l\u0337\u0307'];
+		const second = ['Z\u0335\u030c', 'a\u0337\u031b', 'l\u0334\u0302'];
+		const matches = findTerminalBufferMatches(
+			[rowFromGraphemes(5n, [...first, ' ', ...second])],
+			'zal',
+		);
 		expect(matches.map((match) => match.text)).toEqual([
 			'z\u0336\u0301a\u0335\u0316l\u0337\u0307',
 			'Z\u0335\u030ca\u0337\u031bl\u0334\u0302',
 		]);
 	});
 
-	it.each([
-		{
-			name: 'iTerm2 trivial literal search',
-			text: 'abczal',
-			query: 'zal',
-			options: {},
-			expected: ['zal'],
-		},
-		{
-			name: 'case-insensitive literal search',
-			text: 'Test test',
-			query: 'test',
-			options: {},
-			expected: ['Test', 'test'],
-		},
-		{
-			name: 'case-sensitive literal search',
-			text: 'Test test',
-			query: 'test',
-			options: { caseSensitive: true },
-			expected: ['test'],
-		},
-		{
-			name: 'case-sensitive regular-expression search',
-			text: 'Test test tent',
-			query: 't[es][es]t',
-			options: { caseSensitive: true, regex: true },
-			expected: ['test'],
-		},
-	])('$name', ({ text, query, options, expected }) => {
-		expect(findTerminalMatches([line(text)], query, options).map((match) => match.text)).toEqual(
-			expected,
-		);
-	});
-
 	it('treats Unicode letters and numbers as whole-word characters', () => {
-		const lines = [line('猫42 猫 猫_咪')];
-		expect(findTerminalMatches(lines, '猫', { wholeWord: true })).toEqual([
+		const matches = findTerminalBufferMatches([row(0n, '猫42 猫 猫_咪')], '猫', {
+			wholeWord: true,
+		});
+		expect(matches).toEqual([
 			{
 				text: '猫',
 				start: { column: 5, row: 0 },
@@ -342,7 +141,7 @@ describe('findTerminalMatches', () => {
 		]);
 	});
 
-	it('tests cells inside a multi-row match', () => {
+	it('tests cells inside a multi-row projected match', () => {
 		const match = {
 			text: 'wrapped',
 			start: { column: 4, row: 2 },
@@ -356,67 +155,39 @@ describe('findTerminalMatches', () => {
 	});
 });
 
-function line(value: string): CellData[] {
-	const cells: CellData[] = [];
-	for (const character of value) {
-		const width = /\p{Script=Han}/u.test(character) ? 2 : 1;
-		cells.push(cell(character, width));
-		if (width === 2) cells.push(cell('', 0));
-	}
-	return cells;
-}
-
-function cell(text: string, width: number): CellData {
+function identityAsciiRow(index: bigint, text: string): TerminalBufferRow {
 	return {
-		codepoint: text.codePointAt(0) ?? 0,
-		text: text || ' ',
-		fg: null,
-		bg: null,
-		selected: false,
-		hasStyling: false,
-		flags: 0,
-		width,
-		hyperlinkId: 0,
-		graphemeLen: text ? [...text].length : 0,
-		semanticContent: 0,
-		underlineStyle: 0,
-		underlineColor: null,
-		overline: false,
+		cells: null,
+		identityAscii: true,
+		index,
+		mappings: [],
+		promptClass: 'none',
+		text,
+		wrap: false,
+		wrapContinuation: false,
 	};
 }
 
-function emptyCell(): CellData {
-	return cell('', 1);
+function row(index: bigint, text: string, wrap = false): TerminalBufferRow {
+	return rowFromGraphemes(index, [...text], wrap);
 }
 
-function bufferRowFromCells(
+function rowFromGraphemes(
 	index: bigint,
-	cells: readonly CellData[],
-	wrap: boolean,
+	graphemes: readonly string[],
+	wrap = false,
 ): TerminalBufferRow {
-	let lastContentColumn = -1;
-	for (let column = cells.length - 1; column >= 0; column--) {
-		if ((cells[column]?.graphemeLen ?? 0) > 0) {
-			lastContentColumn = column;
-			break;
-		}
-	}
 	let byteOffset = 0;
+	let column = 0;
 	let text = '';
 	let utf16Offset = 0;
 	const mappings: TerminalBufferRow['mappings'][number][] = [];
-	for (let column = 0; column <= lastContentColumn; column++) {
-		const value = cells[column];
-		if (value === undefined || value.width === 0) continue;
-		const grapheme = value.graphemeLen > 0 ? value.text : ' ';
-		mappings.push({
-			byteOffset,
-			column,
-			utf16Offset,
-			width: value.width === 2 ? 2 : 1,
-		});
+	for (const grapheme of graphemes) {
+		const width = /\p{Script=Han}/u.test(grapheme) ? 2 : 1;
+		mappings.push({ byteOffset, column, utf16Offset, width });
 		text += grapheme;
 		byteOffset += new TextEncoder().encode(grapheme).byteLength;
+		column += width;
 		utf16Offset += grapheme.length;
 	}
 	return {

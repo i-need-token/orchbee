@@ -8,20 +8,3 @@ export type TerminalOpenTarget =
 			readonly column?: number;
 	  }
 	| { readonly kind: 'unknown'; readonly value: string };
-
-/** Serializable contribution to an application-owned terminal context menu. */
-export type ContextMenuItem =
-	| {
-			readonly kind: 'action';
-			readonly actionId: string;
-			readonly group: string;
-			readonly order: number;
-	  }
-	| { readonly kind: 'separator'; readonly group: string; readonly order: number }
-	| {
-			readonly kind: 'submenu';
-			readonly label: string;
-			readonly group: string;
-			readonly order: number;
-			readonly children: readonly ContextMenuItem[];
-	  };
