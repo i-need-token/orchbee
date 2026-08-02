@@ -6,6 +6,7 @@ export type {
 	WorkbenchProjectWorkspaceRuntimeOptions,
 	WorkbenchRuntimeTerminalCreateInput,
 	WorkbenchRuntimeTerminalCreateResult,
+	WorkbenchSharedDocumentApplyResult,
 	WorkbenchStandaloneTerminalPresentation,
 	WorkbenchTerminalSessionStopFailure,
 	WorkbenchTerminalSessionStopRequestResult,

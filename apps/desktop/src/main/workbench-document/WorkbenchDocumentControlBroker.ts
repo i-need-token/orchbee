@@ -1,22 +1,22 @@
 import type { MessageEvent, MessagePortMain } from 'electron';
 
 import {
-	WorkbenchTopologyControlCommandSchema,
-	WorkbenchTopologyControlEventSchema,
-	type WorkbenchTopologyControlCommand,
-	type WorkbenchTopologyControlEvent,
-	type WorkbenchTopologyRequestId,
+	WorkbenchDocumentControlCommandSchema,
+	WorkbenchDocumentControlEventSchema,
+	type WorkbenchDocumentControlCommand,
+	type WorkbenchDocumentControlEvent,
+	type WorkbenchDocumentRequestId,
 } from '../../shared';
-import type { WorkbenchTopologyStore } from './decideWorkbenchTopologyCommit';
+import type { WorkbenchDocumentStore } from './decideWorkbenchDocumentCommit';
 
-export class WorkbenchTopologyControlBroker {
-	readonly #acceptedRequests = new Map<WorkbenchTopologyRequestId, string>();
+export class WorkbenchDocumentControlBroker {
+	readonly #acceptedRequests = new Map<WorkbenchDocumentRequestId, string>();
 	readonly #port: MessagePortMain;
-	readonly #store: WorkbenchTopologyStore;
+	readonly #store: WorkbenchDocumentStore;
 	#disposed = false;
 	#started = false;
 
-	constructor(port: MessagePortMain, store: WorkbenchTopologyStore) {
+	constructor(port: MessagePortMain, store: WorkbenchDocumentStore) {
 		this.#port = port;
 		this.#store = store;
 	}
@@ -43,7 +43,7 @@ export class WorkbenchTopologyControlBroker {
 			this.#retire(true);
 			return;
 		}
-		const parsed = WorkbenchTopologyControlCommandSchema.safeParse(event.data);
+		const parsed = WorkbenchDocumentControlCommandSchema.safeParse(event.data);
 		if (!parsed.success) {
 			this.#retire(true);
 			return;
@@ -58,16 +58,16 @@ export class WorkbenchTopologyControlBroker {
 		void this.#execute(parsed.data);
 	};
 
-	async #execute(command: WorkbenchTopologyControlCommand): Promise<void> {
-		let event: WorkbenchTopologyControlEvent;
-		if (command.type === 'workbench-topology-load-requested') {
+	async #execute(command: WorkbenchDocumentControlCommand): Promise<void> {
+		let event: WorkbenchDocumentControlEvent;
+		if (command.type === 'workbench-document-load-requested') {
 			const result = await this.#store
 				.load()
 				.catch(() => ({ kind: 'unavailable', reason: 'read-failed' }) as const);
 			event = {
 				requestId: command.requestId,
 				result,
-				type: 'workbench-topology-load-completed',
+				type: 'workbench-document-load-completed',
 			};
 		} else {
 			const result = await this.#store
@@ -76,15 +76,15 @@ export class WorkbenchTopologyControlBroker {
 			event = {
 				requestId: command.requestId,
 				result,
-				type: 'workbench-topology-commit-completed',
+				type: 'workbench-document-commit-completed',
 			};
 		}
 		this.#post(event);
 	}
 
-	#post(event: WorkbenchTopologyControlEvent): void {
+	#post(event: WorkbenchDocumentControlEvent): void {
 		if (this.#disposed) return;
-		const parsed = WorkbenchTopologyControlEventSchema.safeParse(event);
+		const parsed = WorkbenchDocumentControlEventSchema.safeParse(event);
 		if (!parsed.success) {
 			this.#retire(true);
 			return;

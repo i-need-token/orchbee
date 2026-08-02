@@ -2,7 +2,7 @@ import type {
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalSessionStopSnapshot,
 } from '@orchbee/workbench';
-import type { WorkbenchTopologyRevision } from '@orchbee/workbench/topology';
+import type { WorkbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 
 import type {
 	DesktopApplicationExitChoice,
@@ -12,7 +12,7 @@ import type {
 	DesktopApplicationLifetimeMainEvent,
 	DesktopApplicationLifetimeRendererCommand,
 } from '../../../shared';
-import type { DesktopWorkbenchTopologyCoordinator } from '../../workbench-topology-control';
+import type { DesktopWorkbenchDocumentCoordinator } from '../../workbench-document-control';
 
 type Listener = () => void;
 
@@ -26,10 +26,10 @@ type LifetimeRuntime = Pick<
 	| 'getTerminalSessionStopSnapshot'
 	| 'requestAllTerminalSessionsStop'
 	| 'retryFailedTerminalSessionStops'
-	| 'subscribeTopology'
+	| 'subscribeDocument'
 >;
 
-type LifetimeTopology = Pick<DesktopWorkbenchTopologyCoordinator, 'committedRevision' | 'flush'>;
+type LifetimeDocument = Pick<DesktopWorkbenchDocumentCoordinator, 'committedRevision' | 'flush'>;
 
 export type DesktopApplicationLifetimeState =
 	| { readonly kind: 'idle' }
@@ -58,17 +58,17 @@ export class DesktopApplicationLifetimeCoordinator {
 	#preparingStop = false;
 	readonly #runtime: LifetimeRuntime;
 	#state: DesktopApplicationLifetimeState = { kind: 'idle' };
-	#stopDurableRevision: WorkbenchTopologyRevision | null = null;
-	readonly #topology: LifetimeTopology;
+	#stopDurableRevision: WorkbenchSharedDocumentRevision | null = null;
+	readonly #document: LifetimeDocument;
 	readonly #unsubscribeLifetime: () => void;
-	readonly #unsubscribeTopology: () => void;
+	readonly #unsubscribeDocument: () => void;
 
-	constructor(runtime: LifetimeRuntime, topology: LifetimeTopology, lifetimePort: LifetimePort) {
+	constructor(runtime: LifetimeRuntime, document: LifetimeDocument, lifetimePort: LifetimePort) {
 		this.#runtime = runtime;
-		this.#topology = topology;
+		this.#document = document;
 		this.#lifetimePort = lifetimePort;
 		this.#unsubscribeLifetime = lifetimePort.subscribe(this.#handleMainEvent);
-		this.#unsubscribeTopology = runtime.subscribeTopology(this.#observeStop);
+		this.#unsubscribeDocument = runtime.subscribeDocument(this.#observeStop);
 	}
 
 	getSnapshot = (): DesktopApplicationLifetimeState => this.#state;
@@ -123,7 +123,7 @@ export class DesktopApplicationLifetimeCoordinator {
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#unsubscribeLifetime();
-		this.#unsubscribeTopology();
+		this.#unsubscribeDocument();
 		this.#listeners.clear();
 	}
 
@@ -164,14 +164,14 @@ export class DesktopApplicationLifetimeCoordinator {
 		requestId: DesktopApplicationExitRequestId,
 		bestEffort: boolean,
 	): Promise<void> {
-		this.#setWorking(requestId, 'flushing-topology', 0, 0, 0);
-		const flushed = await this.#topology.flush();
+		this.#setWorking(requestId, 'flushing-workbench-document', 0, 0, 0);
+		const flushed = await this.#document.flush();
 		if (!this.#isActive(requestId)) return;
 		const revision =
-			flushed.kind === 'flushed' ? flushed.revision : this.#topology.committedRevision;
+			flushed.kind === 'flushed' ? flushed.revision : this.#document.committedRevision;
 		if (revision === null || (flushed.kind === 'unavailable' && !bestEffort)) {
 			this.#failRenderer(requestId, [
-				{ code: 'topology-control-unavailable', count: 1, retryable: false },
+				{ code: 'workbench-document-control-unavailable', count: 1, retryable: false },
 			]);
 			return;
 		}
@@ -179,7 +179,7 @@ export class DesktopApplicationLifetimeCoordinator {
 			mode: 'preserve',
 			presentationCount: this.#runtime.getTerminalSessionStopSnapshot().presentationCount,
 			requestId,
-			topologyRevision: revision,
+			documentRevision: revision,
 			type: 'desktop-application-exit-renderer-prepared',
 		});
 	}
@@ -192,7 +192,7 @@ export class DesktopApplicationLifetimeCoordinator {
 		}
 		this.#setWorking(
 			requestId,
-			'flushing-topology',
+			'flushing-workbench-document',
 			result.snapshot.presentationCount,
 			result.snapshot.stoppedCount,
 			result.snapshot.failures.length,
@@ -201,11 +201,11 @@ export class DesktopApplicationLifetimeCoordinator {
 	}
 
 	async #flushStopWriteAhead(requestId: DesktopApplicationExitRequestId): Promise<void> {
-		const flushed = await this.#topology.flush();
+		const flushed = await this.#document.flush();
 		if (!this.#isActive(requestId)) return;
 		if (flushed.kind === 'unavailable') {
 			this.#failRenderer(requestId, [
-				{ code: 'topology-write-unavailable', count: 1, retryable: false },
+				{ code: 'workbench-document-write-unavailable', count: 1, retryable: false },
 			]);
 			return;
 		}
@@ -245,14 +245,14 @@ export class DesktopApplicationLifetimeCoordinator {
 		requestId: DesktopApplicationExitRequestId,
 		snapshot: WorkbenchTerminalSessionStopSnapshot,
 	): Promise<void> {
-		const finalFlush = await this.#topology.flush();
+		const finalFlush = await this.#document.flush();
 		this.#preparingStop = false;
 		if (!this.#isActive(requestId)) return;
 		const revision =
 			finalFlush.kind === 'flushed' ? finalFlush.revision : this.#stopDurableRevision;
 		if (revision === null) {
 			this.#failRenderer(requestId, [
-				{ code: 'topology-write-unavailable', count: 1, retryable: false },
+				{ code: 'workbench-document-write-unavailable', count: 1, retryable: false },
 			]);
 			return;
 		}
@@ -267,7 +267,7 @@ export class DesktopApplicationLifetimeCoordinator {
 			mode: 'stop',
 			presentationCount: snapshot.presentationCount,
 			requestId,
-			topologyRevision: revision,
+			documentRevision: revision,
 			type: 'desktop-application-exit-renderer-prepared',
 		});
 	}

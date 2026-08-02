@@ -1,4 +1,4 @@
-import { WorkbenchTopologyRevisionSchema } from '@orchbee/workbench/topology';
+import { WorkbenchSharedDocumentRevisionSchema } from '@orchbee/workbench/document';
 import { z } from 'zod';
 
 export const DESKTOP_APPLICATION_LIFETIME_IPC_CHANNEL = 'orchbee.desktop.application-lifetime-port';
@@ -21,8 +21,8 @@ const DesktopApplicationExitFailureSchema = z
 		code: z.enum([
 			'host-inventory-unavailable',
 			'host-orphan-detected',
-			'topology-control-unavailable',
-			'topology-write-unavailable',
+			'workbench-document-control-unavailable',
+			'workbench-document-write-unavailable',
 			'terminal-stop-failed',
 			'unreferenced-binding-close-failed',
 		]),
@@ -39,7 +39,7 @@ const exitProgressSchema = z
 			'awaiting-choice',
 			'draining-unreferenced',
 			'failed',
-			'flushing-topology',
+			'flushing-workbench-document',
 			'stopping-terminals',
 			'verifying-host',
 		]),
@@ -63,7 +63,7 @@ export const DesktopApplicationLifetimeRendererCommandSchema = z.discriminatedUn
 		mode: exitModeSchema,
 		presentationCount: z.number().int().nonnegative(),
 		requestId: DesktopApplicationExitRequestIdSchema,
-		topologyRevision: WorkbenchTopologyRevisionSchema,
+		documentRevision: WorkbenchSharedDocumentRevisionSchema,
 		type: z.literal('desktop-application-exit-renderer-prepared'),
 	}),
 	z.strictObject({

@@ -2,7 +2,7 @@ import type {
 	WorkbenchTerminalSessionStopRequestResult,
 	WorkbenchTerminalSessionStopSnapshot,
 } from '@orchbee/workbench';
-import { workbenchTopologyRevision } from '@orchbee/workbench/topology';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -10,12 +10,12 @@ import {
 	type DesktopApplicationLifetimeMainEvent,
 	type DesktopApplicationLifetimeRendererCommand,
 } from '../../../../shared';
-import type { DesktopWorkbenchTopologyCoordinator } from '../../../workbench-topology-control';
+import type { DesktopWorkbenchDocumentCoordinator } from '../../../workbench-document-control';
 import { DesktopApplicationLifetimeCoordinator } from '../DesktopApplicationLifetimeCoordinator';
 
 function createHarness(sessionCount = 2) {
 	let lifetimeListener: ((event: DesktopApplicationLifetimeMainEvent) => void) | undefined;
-	let topologyListener: (() => void) | undefined;
+	let documentListener: (() => void) | undefined;
 	let snapshot: WorkbenchTerminalSessionStopSnapshot = {
 		complete: false,
 		failures: [],
@@ -36,21 +36,21 @@ function createHarness(sessionCount = 2) {
 			kind: 'started' as const,
 			snapshot,
 		})),
-		subscribeTopology: (listener: () => void) => {
-			topologyListener = listener;
+		subscribeDocument: (listener: () => void) => {
+			documentListener = listener;
 			return () => {
-				topologyListener = undefined;
+				documentListener = undefined;
 			};
 		},
 	};
-	const topology = {
-		committedRevision: workbenchTopologyRevision('5'),
-		flush: vi.fn<DesktopWorkbenchTopologyCoordinator['flush']>().mockResolvedValue({
+	const document = {
+		committedRevision: workbenchSharedDocumentRevision('5'),
+		flush: vi.fn<DesktopWorkbenchDocumentCoordinator['flush']>().mockResolvedValue({
 			kind: 'flushed',
-			revision: workbenchTopologyRevision('6'),
+			revision: workbenchSharedDocumentRevision('6'),
 		}),
 	};
-	const coordinator = new DesktopApplicationLifetimeCoordinator(runtime, topology, {
+	const coordinator = new DesktopApplicationLifetimeCoordinator(runtime, document, {
 		post: (command) => {
 			commands.push(command);
 			return true;
@@ -68,14 +68,14 @@ function createHarness(sessionCount = 2) {
 		emitLifetime(event: DesktopApplicationLifetimeMainEvent) {
 			lifetimeListener?.(event);
 		},
-		emitTopology() {
-			topologyListener?.();
+		emitDocument() {
+			documentListener?.();
 		},
 		runtime,
 		setComplete() {
 			snapshot = { ...snapshot, complete: true, stoppedCount: sessionCount, stoppingCount: 0 };
 		},
-		topology,
+		document,
 	};
 }
 
@@ -100,7 +100,7 @@ describe('DesktopApplicationLifetimeCoordinator', () => {
 				mode: 'preserve',
 				presentationCount: 2,
 				requestId,
-				topologyRevision: '6',
+				documentRevision: '6',
 				type: 'desktop-application-exit-renderer-prepared',
 			}),
 		);
@@ -116,7 +116,7 @@ describe('DesktopApplicationLifetimeCoordinator', () => {
 			type: 'desktop-application-exit-requested',
 		});
 		harness.coordinator.choose('stop');
-		await vi.waitFor(() => expect(harness.topology.flush).toHaveBeenCalledOnce());
+		await vi.waitFor(() => expect(harness.document.flush).toHaveBeenCalledOnce());
 		expect(
 			harness.commands.some(
 				(command) => command.type === 'desktop-application-exit-renderer-prepared',
@@ -124,23 +124,23 @@ describe('DesktopApplicationLifetimeCoordinator', () => {
 		).toBe(false);
 
 		harness.setComplete();
-		harness.emitTopology();
+		harness.emitDocument();
 		await vi.waitFor(() =>
 			expect(harness.commands).toContainEqual({
 				mode: 'stop',
 				presentationCount: 3,
 				requestId,
-				topologyRevision: '6',
+				documentRevision: '6',
 				type: 'desktop-application-exit-renderer-prepared',
 			}),
 		);
 		expect(harness.runtime.requestAllTerminalSessionsStop).toHaveBeenCalledOnce();
-		expect(harness.topology.flush).toHaveBeenCalledTimes(2);
+		expect(harness.document.flush).toHaveBeenCalledTimes(2);
 	});
 
 	it('prepares update restart without prompting even when the flush is best-effort', async () => {
 		const harness = createHarness();
-		harness.topology.flush.mockResolvedValueOnce({
+		harness.document.flush.mockResolvedValueOnce({
 			kind: 'unavailable',
 			reason: 'write-failed',
 		});

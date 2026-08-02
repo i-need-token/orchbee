@@ -1,28 +1,26 @@
 import { EventEmitter } from 'node:events';
 
 import {
-	createWorkbenchTopologyDocument,
-	workbenchTopologyRevision,
-	type WorkbenchTopologyDocument,
-} from '@orchbee/workbench/topology';
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+	type WorkbenchSharedDocument,
+} from '@orchbee/workbench/document';
 import type { MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { WorkbenchTopologyStore } from '../decideWorkbenchTopologyCommit';
-import { WorkbenchTopologyControlBroker } from '../WorkbenchTopologyControlBroker';
+import type { WorkbenchDocumentStore } from '../decideWorkbenchDocumentCommit';
+import { WorkbenchDocumentControlBroker } from '../WorkbenchDocumentControlBroker';
 
-function topology(revision: string): WorkbenchTopologyDocument {
-	return createWorkbenchTopologyDocument({
+function document(revision: string): WorkbenchSharedDocument {
+	return createWorkbenchSharedDocument({
 		projectWorkspace: {
-			activeLocation: { kind: 'standalone' },
-			expandedProjectIds: [],
 			nextProjectSequence: 1,
 			nextTerminalContextSequence: 2,
 			nextWorkspaceSequence: 1,
 			projects: [],
 			standaloneTerminalContextId: 'terminal-context-1',
 		},
-		revision: workbenchTopologyRevision(revision),
+		revision: workbenchSharedDocumentRevision(revision),
 		terminalContexts: [
 			{
 				nextTabSequence: 1,
@@ -35,9 +33,7 @@ function topology(revision: string): WorkbenchTopologyDocument {
 					tabs: [],
 				},
 				tabCollection: {
-					activeTabId: null,
 					groups: [],
-					mostRecentGroupId: null,
 					tabs: [],
 				},
 				terminalContextId: 'terminal-context-1',
@@ -56,30 +52,30 @@ function message(data: unknown, ports: readonly MessagePortMain[] = []) {
 	return { data, ports };
 }
 
-describe('WorkbenchTopologyControlBroker', () => {
+describe('WorkbenchDocumentControlBroker', () => {
 	it('correlates strict load and CAS commit results on one scoped port', async () => {
 		const port = new TestMainPort();
-		const store: WorkbenchTopologyStore = {
-			commit: vi.fn<WorkbenchTopologyStore['commit']>().mockResolvedValue({
+		const store: WorkbenchDocumentStore = {
+			commit: vi.fn<WorkbenchDocumentStore['commit']>().mockResolvedValue({
 				kind: 'committed',
-				revision: workbenchTopologyRevision('0'),
+				revision: workbenchSharedDocumentRevision('0'),
 			}),
-			load: vi.fn<WorkbenchTopologyStore['load']>().mockResolvedValue({ kind: 'missing' }),
+			load: vi.fn<WorkbenchDocumentStore['load']>().mockResolvedValue({ kind: 'missing' }),
 		};
-		const broker = new WorkbenchTopologyControlBroker(port as unknown as MessagePortMain, store);
+		const broker = new WorkbenchDocumentControlBroker(port as unknown as MessagePortMain, store);
 		broker.start();
 
 		port.emit(
 			'message',
-			message({ requestId: 'request-load', type: 'workbench-topology-load-requested' }),
+			message({ requestId: 'request-load', type: 'workbench-document-load-requested' }),
 		);
 		port.emit(
 			'message',
 			message({
-				document: topology('0'),
+				document: document('0'),
 				expectedRevision: null,
 				requestId: 'request-commit',
-				type: 'workbench-topology-commit-requested',
+				type: 'workbench-document-commit-requested',
 			}),
 		);
 
@@ -87,48 +83,48 @@ describe('WorkbenchTopologyControlBroker', () => {
 		expect(port.postMessage).toHaveBeenCalledWith({
 			requestId: 'request-load',
 			result: { kind: 'missing' },
-			type: 'workbench-topology-load-completed',
+			type: 'workbench-document-load-completed',
 		});
 		expect(port.postMessage).toHaveBeenCalledWith({
 			requestId: 'request-commit',
 			result: { kind: 'committed', revision: '0' },
-			type: 'workbench-topology-commit-completed',
+			type: 'workbench-document-commit-completed',
 		});
 	});
 
 	it('retires on request-identity reuse with different content or transferred authority', () => {
 		const port = new TestMainPort();
-		const store: WorkbenchTopologyStore = {
-			commit: vi.fn<WorkbenchTopologyStore['commit']>(),
-			load: vi.fn<WorkbenchTopologyStore['load']>().mockResolvedValue({ kind: 'missing' }),
+		const store: WorkbenchDocumentStore = {
+			commit: vi.fn<WorkbenchDocumentStore['commit']>(),
+			load: vi.fn<WorkbenchDocumentStore['load']>().mockResolvedValue({ kind: 'missing' }),
 		};
-		const broker = new WorkbenchTopologyControlBroker(port as unknown as MessagePortMain, store);
+		const broker = new WorkbenchDocumentControlBroker(port as unknown as MessagePortMain, store);
 		broker.start();
 		port.emit(
 			'message',
-			message({ requestId: 'same-request', type: 'workbench-topology-load-requested' }),
+			message({ requestId: 'same-request', type: 'workbench-document-load-requested' }),
 		);
 		port.emit(
 			'message',
 			message({
-				document: topology('0'),
+				document: document('0'),
 				expectedRevision: null,
 				requestId: 'same-request',
-				type: 'workbench-topology-commit-requested',
+				type: 'workbench-document-commit-requested',
 			}),
 		);
 
 		expect(port.close).toHaveBeenCalledOnce();
 
 		const transferredPort = new TestMainPort();
-		const transferredBroker = new WorkbenchTopologyControlBroker(
+		const transferredBroker = new WorkbenchDocumentControlBroker(
 			transferredPort as unknown as MessagePortMain,
 			store,
 		);
 		transferredBroker.start();
 		transferredPort.emit(
 			'message',
-			message({ requestId: 'transfer-request', type: 'workbench-topology-load-requested' }, [
+			message({ requestId: 'transfer-request', type: 'workbench-document-load-requested' }, [
 				{} as MessagePortMain,
 			]),
 		);
@@ -137,21 +133,21 @@ describe('WorkbenchTopologyControlBroker', () => {
 
 	it('suppresses a completion after its renderer generation is disposed', async () => {
 		let finishLoad:
-			| ((value: Awaited<ReturnType<WorkbenchTopologyStore['load']>>) => void)
+			| ((value: Awaited<ReturnType<WorkbenchDocumentStore['load']>>) => void)
 			| undefined;
-		const store: WorkbenchTopologyStore = {
-			commit: vi.fn<WorkbenchTopologyStore['commit']>(),
+		const store: WorkbenchDocumentStore = {
+			commit: vi.fn<WorkbenchDocumentStore['commit']>(),
 			load: () =>
 				new Promise((resolve) => {
 					finishLoad = resolve;
 				}),
 		};
 		const port = new TestMainPort();
-		const broker = new WorkbenchTopologyControlBroker(port as unknown as MessagePortMain, store);
+		const broker = new WorkbenchDocumentControlBroker(port as unknown as MessagePortMain, store);
 		broker.start();
 		port.emit(
 			'message',
-			message({ requestId: 'late-request', type: 'workbench-topology-load-requested' }),
+			message({ requestId: 'late-request', type: 'workbench-document-load-requested' }),
 		);
 		broker.dispose();
 		finishLoad?.({ kind: 'missing' });

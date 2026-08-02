@@ -1,15 +1,15 @@
 import type {
-	WorkbenchTopologyDocument,
-	WorkbenchTopologyRevision,
-} from '@orchbee/workbench/topology';
+	WorkbenchSharedDocument,
+	WorkbenchSharedDocumentRevision,
+} from '@orchbee/workbench/document';
 
 import {
-	WorkbenchTopologyControlCommandSchema,
-	WorkbenchTopologyControlEventSchema,
-	WorkbenchTopologyRequestIdSchema,
-	type WorkbenchTopologyCommitResult,
-	type WorkbenchTopologyLoadResult,
-	type WorkbenchTopologyRequestId,
+	WorkbenchDocumentControlCommandSchema,
+	WorkbenchDocumentControlEventSchema,
+	WorkbenchDocumentRequestIdSchema,
+	type WorkbenchDocumentCommitResult,
+	type WorkbenchDocumentLoadResult,
+	type WorkbenchDocumentRequestId,
 } from '../../shared';
 
 interface ControlUnavailable {
@@ -17,31 +17,31 @@ interface ControlUnavailable {
 	readonly reason: 'control-unavailable';
 }
 
-export type DesktopWorkbenchTopologyLoadResult = WorkbenchTopologyLoadResult | ControlUnavailable;
-export type DesktopWorkbenchTopologyCommitResult =
-	| WorkbenchTopologyCommitResult
+export type DesktopWorkbenchDocumentLoadResult = WorkbenchDocumentLoadResult | ControlUnavailable;
+export type DesktopWorkbenchDocumentCommitResult =
+	| WorkbenchDocumentCommitResult
 	| ControlUnavailable;
 
 type PendingRequest =
 	| {
 			readonly kind: 'load';
-			readonly resolve: (result: DesktopWorkbenchTopologyLoadResult) => void;
+			readonly resolve: (result: DesktopWorkbenchDocumentLoadResult) => void;
 	  }
 	| {
 			readonly kind: 'commit';
-			readonly resolve: (result: DesktopWorkbenchTopologyCommitResult) => void;
+			readonly resolve: (result: DesktopWorkbenchDocumentCommitResult) => void;
 	  };
 
-export class DesktopWorkbenchTopologyClient {
-	readonly #createRequestId: () => WorkbenchTopologyRequestId;
-	readonly #pending = new Map<WorkbenchTopologyRequestId, PendingRequest>();
+export class DesktopWorkbenchDocumentClient {
+	readonly #createRequestId: () => WorkbenchDocumentRequestId;
+	readonly #pending = new Map<WorkbenchDocumentRequestId, PendingRequest>();
 	readonly #port: MessagePort;
 	#disposed = false;
 
 	constructor(
 		port: MessagePort,
-		createRequestId: () => WorkbenchTopologyRequestId = () =>
-			WorkbenchTopologyRequestIdSchema.parse(`desktop:topology:${crypto.randomUUID()}`),
+		createRequestId: () => WorkbenchDocumentRequestId = () =>
+			WorkbenchDocumentRequestIdSchema.parse(`desktop:document:${crypto.randomUUID()}`),
 	) {
 		this.#port = port;
 		this.#createRequestId = createRequestId;
@@ -50,18 +50,18 @@ export class DesktopWorkbenchTopologyClient {
 		port.start();
 	}
 
-	load(): Promise<DesktopWorkbenchTopologyLoadResult> {
+	load(): Promise<DesktopWorkbenchDocumentLoadResult> {
 		return new Promise((resolve) => {
 			const requestId = this.#begin({ kind: 'load', resolve });
 			if (requestId === null) return;
-			this.#post({ requestId, type: 'workbench-topology-load-requested' });
+			this.#post({ requestId, type: 'workbench-document-load-requested' });
 		});
 	}
 
 	commit(
-		expectedRevision: WorkbenchTopologyRevision | null,
-		document: WorkbenchTopologyDocument,
-	): Promise<DesktopWorkbenchTopologyCommitResult> {
+		expectedRevision: WorkbenchSharedDocumentRevision | null,
+		document: WorkbenchSharedDocument,
+	): Promise<DesktopWorkbenchDocumentCommitResult> {
 		return new Promise((resolve) => {
 			const requestId = this.#begin({ kind: 'commit', resolve });
 			if (requestId === null) return;
@@ -69,7 +69,7 @@ export class DesktopWorkbenchTopologyClient {
 				document,
 				expectedRevision,
 				requestId,
-				type: 'workbench-topology-commit-requested',
+				type: 'workbench-document-commit-requested',
 			});
 		});
 	}
@@ -84,14 +84,14 @@ export class DesktopWorkbenchTopologyClient {
 		this.#port.close();
 	}
 
-	#begin(pending: PendingRequest): WorkbenchTopologyRequestId | null {
+	#begin(pending: PendingRequest): WorkbenchDocumentRequestId | null {
 		if (this.#disposed) {
 			pending.resolve(controlUnavailable());
 			return null;
 		}
-		let requestId: WorkbenchTopologyRequestId;
+		let requestId: WorkbenchDocumentRequestId;
 		try {
-			requestId = WorkbenchTopologyRequestIdSchema.parse(this.#createRequestId());
+			requestId = WorkbenchDocumentRequestIdSchema.parse(this.#createRequestId());
 		} catch {
 			pending.resolve(controlUnavailable());
 			this.dispose();
@@ -107,7 +107,7 @@ export class DesktopWorkbenchTopologyClient {
 	}
 
 	#post(command: unknown): void {
-		const parsed = WorkbenchTopologyControlCommandSchema.safeParse(command);
+		const parsed = WorkbenchDocumentControlCommandSchema.safeParse(command);
 		if (!parsed.success) {
 			this.dispose();
 			return;
@@ -126,7 +126,7 @@ export class DesktopWorkbenchTopologyClient {
 			this.dispose();
 			return;
 		}
-		const event = WorkbenchTopologyControlEventSchema.safeParse(message.data);
+		const event = WorkbenchDocumentControlEventSchema.safeParse(message.data);
 		if (!event.success) {
 			this.dispose();
 			return;
@@ -134,17 +134,17 @@ export class DesktopWorkbenchTopologyClient {
 		const pending = this.#pending.get(event.data.requestId);
 		if (
 			pending === undefined ||
-			(pending.kind === 'load') !== (event.data.type === 'workbench-topology-load-completed')
+			(pending.kind === 'load') !== (event.data.type === 'workbench-document-load-completed')
 		) {
 			this.dispose();
 			return;
 		}
 		this.#pending.delete(event.data.requestId);
-		if (pending.kind === 'load' && event.data.type === 'workbench-topology-load-completed') {
+		if (pending.kind === 'load' && event.data.type === 'workbench-document-load-completed') {
 			pending.resolve(event.data.result);
 			return;
 		}
-		if (pending.kind === 'commit' && event.data.type === 'workbench-topology-commit-completed') {
+		if (pending.kind === 'commit' && event.data.type === 'workbench-document-commit-completed') {
 			pending.resolve(event.data.result);
 		}
 	};

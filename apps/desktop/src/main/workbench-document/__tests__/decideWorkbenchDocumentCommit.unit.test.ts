@@ -1,24 +1,22 @@
 import {
-	createWorkbenchTopologyDocument,
-	workbenchTopologyRevision,
-	type WorkbenchTopologyDocument,
-} from '@orchbee/workbench/topology';
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+	type WorkbenchSharedDocument,
+} from '@orchbee/workbench/document';
 import { describe, expect, it } from 'vitest';
 
-import { decideWorkbenchTopologyCommit } from '../decideWorkbenchTopologyCommit';
+import { decideWorkbenchDocumentCommit } from '../decideWorkbenchDocumentCommit';
 
-function topology(revision: string): WorkbenchTopologyDocument {
-	return createWorkbenchTopologyDocument({
+function document(revision: string): WorkbenchSharedDocument {
+	return createWorkbenchSharedDocument({
 		projectWorkspace: {
-			activeLocation: { kind: 'standalone' },
-			expandedProjectIds: [],
 			nextProjectSequence: 1,
 			nextTerminalContextSequence: 2,
 			nextWorkspaceSequence: 1,
 			projects: [],
 			standaloneTerminalContextId: 'terminal-context-1',
 		},
-		revision: workbenchTopologyRevision(revision),
+		revision: workbenchSharedDocumentRevision(revision),
 		terminalContexts: [
 			{
 				nextTabSequence: 1,
@@ -31,9 +29,7 @@ function topology(revision: string): WorkbenchTopologyDocument {
 					tabs: [],
 				},
 				tabCollection: {
-					activeTabId: null,
 					groups: [],
-					mostRecentGroupId: null,
 					tabs: [],
 				},
 				terminalContextId: 'terminal-context-1',
@@ -42,65 +38,65 @@ function topology(revision: string): WorkbenchTopologyDocument {
 	});
 }
 
-describe('workbench topology store model', () => {
+describe('workbench document store model', () => {
 	it('admits only the initial revision for a missing store', () => {
-		const initial = topology('0');
+		const initial = document('0');
 
-		expect(decideWorkbenchTopologyCommit({ kind: 'missing' }, null, initial)).toEqual({
+		expect(decideWorkbenchDocumentCommit({ kind: 'missing' }, null, initial)).toEqual({
 			document: initial,
 			kind: 'write',
 		});
 		expect(
-			decideWorkbenchTopologyCommit(
+			decideWorkbenchDocumentCommit(
 				{ kind: 'missing' },
-				workbenchTopologyRevision('0'),
-				topology('1'),
+				workbenchSharedDocumentRevision('0'),
+				document('1'),
 			),
 		).toEqual({ actualRevision: null, kind: 'conflict' });
 	});
 
 	it('requires an exact current expectation and exact-next candidate', () => {
-		const current = topology('7');
-		const next = topology('8');
+		const current = document('7');
+		const next = document('8');
 
 		expect(
-			decideWorkbenchTopologyCommit(
+			decideWorkbenchDocumentCommit(
 				{ document: current, kind: 'available' },
 				current.revision,
 				next,
 			),
 		).toEqual({ document: next, kind: 'write' });
 		expect(
-			decideWorkbenchTopologyCommit(
+			decideWorkbenchDocumentCommit(
 				{ document: current, kind: 'available' },
-				workbenchTopologyRevision('6'),
-				topology('7'),
+				workbenchSharedDocumentRevision('6'),
+				document('7'),
 			),
 		).toEqual({ actualRevision: current.revision, kind: 'conflict' });
 		expect(
-			decideWorkbenchTopologyCommit(
+			decideWorkbenchDocumentCommit(
 				{ document: current, kind: 'available' },
 				current.revision,
-				topology('9'),
+				document('9'),
 			),
 		).toEqual({ kind: 'rejected', reason: 'revision-sequence' });
 	});
 
 	it('never authorizes a write over unavailable current data', () => {
 		expect(
-			decideWorkbenchTopologyCommit(
+			decideWorkbenchDocumentCommit(
 				{ kind: 'unavailable', reason: 'invalid' },
 				null,
-				topology('0'),
+				document('0'),
 			),
 		).toEqual({ kind: 'unavailable', reason: 'invalid' });
 	});
 
 	it('increments canonical revisions without a JavaScript number ceiling', () => {
-		const current = topology('999999999999999999999999999999999999');
-		const next = topology('1000000000000000000000000000000000000');
+		const current = document('999999999999999999999999999999999999');
+		const next = document('1000000000000000000000000000000000000');
 		expect(
-			decideWorkbenchTopologyCommit(
+			decideWorkbenchDocumentCommit(
 				{ document: current, kind: 'available' },
 				current.revision,
 				next,

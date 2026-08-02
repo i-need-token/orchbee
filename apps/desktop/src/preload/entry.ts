@@ -3,7 +3,7 @@ import { ipcRenderer } from 'electron';
 import { installDesktopApplicationLifetimeBridge } from './installDesktopApplicationLifetimeBridge';
 import { installTerminalDocumentControlBridge } from './installTerminalDocumentControlBridge';
 import { installTerminalProjectionControlBridge } from './installTerminalProjectionControlBridge';
-import { installWorkbenchTopologyControlBridge } from './installWorkbenchTopologyControlBridge';
+import { installWorkbenchDocumentControlBridge } from './installWorkbenchDocumentControlBridge';
 
 const security = {
 	contextIsolated: process.contextIsolated,
@@ -13,4 +13,4 @@ const security = {
 installTerminalDocumentControlBridge(ipcRenderer, window, security);
 installDesktopApplicationLifetimeBridge(ipcRenderer, window, security);
 installTerminalProjectionControlBridge(ipcRenderer, window, security);
-installWorkbenchTopologyControlBridge(ipcRenderer, window, security);
+installWorkbenchDocumentControlBridge(ipcRenderer, window, security);

@@ -76,6 +76,7 @@ export interface TabModelInit {
 	groups?: readonly TabGroupData[];
 	activeTabId?: string | null;
 	selectedTabIds?: readonly string[];
+	selectionAnchorId?: string | null;
 	mostRecentGroupId?: TabGroupId | null;
 }
 export interface TabModelSnapshot {
@@ -177,7 +178,8 @@ export class TabModel {
 		if (this.activeTabId !== null) {
 			this.selectedTabIds.add(this.activeTabId);
 		}
-		this.selectionAnchorId = this.activeTabId;
+		this.selectionAnchorId =
+			init.selectionAnchorId === undefined ? this.activeTabId : init.selectionAnchorId;
 		const activeGroupId = this.tabs.find((tab) => tab.id === this.activeTabId)?.group ?? null;
 		this.mostRecentGroupId =
 			init.mostRecentGroupId ?? activeGroupId ?? this.groups.at(-1)?.id ?? null;

@@ -9,8 +9,8 @@ export type {
 	TerminalProjectionControlIpc,
 	TerminalProjectionControlWindow,
 } from './installTerminalProjectionControlBridge';
-export { installWorkbenchTopologyControlBridge } from './installWorkbenchTopologyControlBridge';
+export { installWorkbenchDocumentControlBridge } from './installWorkbenchDocumentControlBridge';
 export type {
-	WorkbenchTopologyControlIpc,
-	WorkbenchTopologyControlWindow,
-} from './installWorkbenchTopologyControlBridge';
+	WorkbenchDocumentControlIpc,
+	WorkbenchDocumentControlWindow,
+} from './installWorkbenchDocumentControlBridge';

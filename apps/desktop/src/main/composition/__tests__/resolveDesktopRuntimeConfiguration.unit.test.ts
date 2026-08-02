@@ -26,8 +26,8 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first.binaryPath).toBe(path.resolve('/private/bin/terminal-host'));
 		expect(first.runtimeDirectory).toBe(path.resolve('/private/runtime'));
 		expect(first.terminalBindingStorePath).toBe(path.resolve('/private/recovery/bindings-v3.json'));
-		expect(first.workbenchTopologyStorePath).toBe(
-			path.resolve('/private/recovery/workbench-topology-v1.json'),
+		expect(first.workbenchDocumentStorePath).toBe(
+			path.resolve('/private/recovery/workbench-shared-document-v1.json'),
 		);
 		expect(first.terminalLaunch).toMatchObject({
 			currentDirectory: path.resolve('/users/orchbee'),
@@ -53,8 +53,10 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.terminalBindingStorePath).toBe(
 			path.resolve('/users/orchbee/.config/orchbee/terminal-recovery/bindings-v3.json'),
 		);
-		expect(configuration.workbenchTopologyStorePath).toBe(
-			path.resolve('/users/orchbee/.config/orchbee/terminal-recovery/workbench-topology-v1.json'),
+		expect(configuration.workbenchDocumentStorePath).toBe(
+			path.resolve(
+				'/users/orchbee/.config/orchbee/terminal-recovery/workbench-shared-document-v1.json',
+			),
 		);
 		expect(configuration.runtimeDirectory).toMatch(/^\/tmp\/orchbee-desktop-[0-9a-f]{12}$/u);
 	});

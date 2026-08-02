@@ -6,7 +6,13 @@ import type {
 	TerminalPresentationId,
 	TerminalPresentationRemovalId,
 } from '../../terminal-presentation';
-import type { WorkbenchTopologyDocument, WorkbenchTopologyRevision } from '../topology';
+import {
+	workbenchSharedDocumentRevision,
+	type WorkbenchClientView,
+	type WorkbenchSharedDocument,
+	type WorkbenchSharedDocumentRevision,
+	type WorkbenchSharedPresentation,
+} from '../document';
 import {
 	createProjectWorkspaceState,
 	resolveTerminalCwd,
@@ -22,13 +28,19 @@ import {
 	clonePanelWorkspaceState,
 	collectPanelLeaves,
 	findTerminal,
+	type PanelLayoutNode,
+	type PanelWorkspaceState,
 	type TerminalPresentation,
 } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type {
 	WorkbenchTerminalPresentationCommand,
 	WorkbenchTerminalPresentationComposition,
 } from './createWorkbenchPreviewTerminalPresentationComposition';
-import { hydrateWorkbenchTopology, projectWorkbenchTopology } from './workbench-topology-runtime';
+import {
+	hydrateWorkbenchDocuments,
+	projectWorkbenchClientView,
+	projectWorkbenchSharedDocument,
+} from './workbench-document-runtime';
 
 type Listener = () => void;
 
@@ -42,7 +54,8 @@ interface MutableWorkbenchTerminalContext extends WorkbenchTerminalContext {
 }
 
 export interface WorkbenchProjectWorkspaceRuntimeOptions {
-	readonly initialTopology?: WorkbenchTopologyDocument | undefined;
+	readonly initialClientView?: WorkbenchClientView | undefined;
+	readonly initialDocument?: WorkbenchSharedDocument | undefined;
 	readonly standaloneCwd: string;
 	readonly standalonePresentations?: readonly WorkbenchStandaloneTerminalPresentation[] | undefined;
 	readonly standaloneTerminalTitle: string;
@@ -58,6 +71,10 @@ export interface WorkbenchStandaloneTerminalPresentation {
 export type WorkbenchTerminalPresentationEventResult =
 	| { readonly kind: 'applied' | 'unchanged' }
 	| { readonly kind: 'rejected'; readonly reason: string };
+
+export type WorkbenchSharedDocumentApplyResult =
+	| { readonly kind: 'applied'; readonly clientView: WorkbenchClientView }
+	| { readonly kind: 'unchanged' };
 
 export interface WorkbenchRuntimeTerminalCreateInput extends TabStripNewTabRequest {
 	readonly directoryId?: string | undefined;
@@ -95,22 +112,28 @@ export type WorkbenchTerminalSessionStopRequestResult =
 
 export class WorkbenchProjectWorkspaceRuntime {
 	private readonly contexts = new Map<string, MutableWorkbenchTerminalContext>();
-	private readonly contextTopologySubscriptions = new Map<string, () => void>();
+	private readonly contextDocumentSubscriptions = new Map<string, () => void>();
+	private clientViewFingerprint: string | undefined;
+	private readonly clientViewListeners = new Set<Listener>();
+	private readonly documentListeners = new Set<Listener>();
+	private documentFingerprint: string | undefined;
 	private durableReconciliationStarted = false;
 	private readonly listeners = new Set<Listener>();
 	private readonly systemCwd: string;
 	private readonly terminalPresentation: WorkbenchTerminalPresentationComposition;
 	private terminalCreationSealed = false;
-	private readonly topologyListeners = new Set<Listener>();
 	private state = createProjectWorkspaceState();
 
 	public constructor(options: WorkbenchProjectWorkspaceRuntimeOptions) {
 		this.systemCwd = options.standaloneCwd;
 		this.terminalPresentation = options.terminalPresentation;
-		if (options.initialTopology !== undefined) {
-			const topology = hydrateWorkbenchTopology(options.initialTopology);
-			this.state = topology.projectWorkspace;
-			for (const terminalContext of topology.terminalContexts) {
+		if (options.initialDocument !== undefined) {
+			const documents = hydrateWorkbenchDocuments(
+				options.initialDocument,
+				options.initialClientView,
+			);
+			this.state = documents.projectWorkspace;
+			for (const terminalContext of documents.terminalContexts) {
 				const tabModel = new TabModel(terminalContext.tabCollection);
 				this.contexts.set(terminalContext.terminalContextId, {
 					nextTabSequence: terminalContext.nextTabSequence,
@@ -143,19 +166,47 @@ export class WorkbenchProjectWorkspaceRuntime {
 
 	public readonly getSnapshot = (): ProjectWorkspaceState => this.state;
 
-	public getTopologyDocument(revision: WorkbenchTopologyRevision): WorkbenchTopologyDocument {
-		return projectWorkbenchTopology(
-			{
-				projectWorkspace: this.state,
-				terminalContexts: [...this.contexts].map(([terminalContextId, context]) => ({
-					nextTabSequence: context.nextTabSequence,
-					panelWorkspace: context.panelWorkspaceStore.getSnapshot(),
-					tabCollection: context.tabModel.getSnapshot(),
-					terminalContextId,
-				})),
-			},
-			revision,
-		);
+	public getSharedDocument(revision: WorkbenchSharedDocumentRevision): WorkbenchSharedDocument {
+		return projectWorkbenchSharedDocument(this.runtimeSnapshot(), revision);
+	}
+
+	public getClientView(): WorkbenchClientView {
+		return projectWorkbenchClientView(this.runtimeSnapshot());
+	}
+
+	public applySharedDocument(
+		document: WorkbenchSharedDocument,
+	): WorkbenchSharedDocumentApplyResult {
+		const projected = this.getSharedDocument(document.revision);
+		if (sharedDocumentFingerprint(projected) === sharedDocumentFingerprint(document)) {
+			return { kind: 'unchanged' };
+		}
+		const hydrated = hydrateWorkbenchDocuments(document, this.getClientView());
+		const currentTerminals = collectRuntimeTerminals(this.contexts);
+		const currentPresentations = collectSharedPresentations(projected);
+		const incomingPresentations = collectSharedPresentations(document);
+		for (const unsubscribe of this.contextDocumentSubscriptions.values()) unsubscribe();
+		this.contextDocumentSubscriptions.clear();
+		this.contexts.clear();
+		this.state = hydrated.projectWorkspace;
+		for (const terminalContext of hydrated.terminalContexts) {
+			const tabModel = new TabModel(terminalContext.tabCollection);
+			this.contexts.set(terminalContext.terminalContextId, {
+				nextTabSequence: terminalContext.nextTabSequence,
+				panelWorkspaceStore: new PanelWorkspaceStore(tabModel, {
+					composition: this.terminalPresentation,
+					initialState: preserveRuntimeTerminalObservations(
+						terminalContext.panelWorkspace,
+						currentTerminals,
+						currentPresentations,
+						incomingPresentations,
+					),
+				}),
+				tabModel,
+			});
+		}
+		this.emit();
+		return { clientView: hydrated.clientView, kind: 'applied' };
 	}
 
 	public readonly subscribe = (listener: Listener): (() => void) => {
@@ -163,12 +214,31 @@ export class WorkbenchProjectWorkspaceRuntime {
 		return () => this.listeners.delete(listener);
 	};
 
-	public readonly subscribeTopology = (listener: Listener): (() => void) => {
-		this.topologyListeners.add(listener);
-		this.syncContextTopologySubscriptions();
+	public readonly subscribeClientView = (listener: Listener): (() => void) => {
+		if (this.clientViewListeners.size === 0) {
+			this.clientViewFingerprint = JSON.stringify(this.getClientView());
+		}
+		this.clientViewListeners.add(listener);
+		this.syncContextDocumentSubscriptions();
 		return () => {
-			this.topologyListeners.delete(listener);
-			this.syncContextTopologySubscriptions();
+			this.clientViewListeners.delete(listener);
+			if (this.clientViewListeners.size === 0) this.clientViewFingerprint = undefined;
+			this.syncContextDocumentSubscriptions();
+		};
+	};
+
+	public readonly subscribeDocument = (listener: Listener): (() => void) => {
+		if (this.documentListeners.size === 0) {
+			this.documentFingerprint = sharedDocumentFingerprint(
+				this.getSharedDocument(workbenchSharedDocumentRevision('0')),
+			);
+		}
+		this.documentListeners.add(listener);
+		this.syncContextDocumentSubscriptions();
+		return () => {
+			this.documentListeners.delete(listener);
+			if (this.documentListeners.size === 0) this.documentFingerprint = undefined;
+			this.syncContextDocumentSubscriptions();
 		};
 	};
 
@@ -676,7 +746,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 	}
 
 	private emit(): void {
-		this.syncContextTopologySubscriptions();
+		this.syncContextDocumentSubscriptions();
 		for (const listener of this.listeners) {
 			try {
 				listener();
@@ -685,36 +755,70 @@ export class WorkbenchProjectWorkspaceRuntime {
 				continue;
 			}
 		}
-		this.emitTopology();
+		this.emitDocumentAndClientView();
 	}
 
-	private readonly emitTopology = (): void => {
-		for (const listener of this.topologyListeners) {
-			try {
-				listener();
-			} catch {
-				// Topology observers cannot take ownership of an authoritative transition.
-				continue;
+	private readonly emitDocumentAndClientView = (): void => {
+		if (this.documentListeners.size > 0) {
+			const fingerprint = sharedDocumentFingerprint(
+				this.getSharedDocument(workbenchSharedDocumentRevision('0')),
+			);
+			if (fingerprint !== this.documentFingerprint) {
+				this.documentFingerprint = fingerprint;
+				for (const listener of this.documentListeners) {
+					try {
+						listener();
+					} catch {
+						// Document observers cannot take ownership of an authoritative transition.
+						continue;
+					}
+				}
+			}
+		}
+		if (this.clientViewListeners.size > 0) {
+			const fingerprint = JSON.stringify(this.getClientView());
+			if (fingerprint !== this.clientViewFingerprint) {
+				this.clientViewFingerprint = fingerprint;
+				for (const listener of this.clientViewListeners) {
+					try {
+						listener();
+					} catch {
+						// Client View observers cannot take ownership of an authoritative transition.
+						continue;
+					}
+				}
 			}
 		}
 	};
 
-	private syncContextTopologySubscriptions(): void {
-		if (this.topologyListeners.size === 0) {
-			for (const unsubscribe of this.contextTopologySubscriptions.values()) unsubscribe();
-			this.contextTopologySubscriptions.clear();
+	private runtimeSnapshot() {
+		return {
+			projectWorkspace: this.state,
+			terminalContexts: [...this.contexts].map(([terminalContextId, context]) => ({
+				nextTabSequence: context.nextTabSequence,
+				panelWorkspace: context.panelWorkspaceStore.getSnapshot(),
+				tabCollection: context.tabModel.getSnapshot(),
+				terminalContextId,
+			})),
+		};
+	}
+
+	private syncContextDocumentSubscriptions(): void {
+		if (this.documentListeners.size === 0 && this.clientViewListeners.size === 0) {
+			for (const unsubscribe of this.contextDocumentSubscriptions.values()) unsubscribe();
+			this.contextDocumentSubscriptions.clear();
 			return;
 		}
-		for (const [terminalContextId, unsubscribe] of this.contextTopologySubscriptions) {
+		for (const [terminalContextId, unsubscribe] of this.contextDocumentSubscriptions) {
 			if (this.contexts.has(terminalContextId)) continue;
 			unsubscribe();
-			this.contextTopologySubscriptions.delete(terminalContextId);
+			this.contextDocumentSubscriptions.delete(terminalContextId);
 		}
 		for (const [terminalContextId, context] of this.contexts) {
-			if (this.contextTopologySubscriptions.has(terminalContextId)) continue;
-			this.contextTopologySubscriptions.set(
+			if (this.contextDocumentSubscriptions.has(terminalContextId)) continue;
+			this.contextDocumentSubscriptions.set(
 				terminalContextId,
-				context.panelWorkspaceStore.subscribe(this.emitTopology),
+				context.panelWorkspaceStore.subscribe(this.emitDocumentAndClientView),
 			);
 		}
 	}
@@ -747,4 +851,121 @@ function requireRemovalId(
 ): TerminalPresentationRemovalId {
 	if (removalId === null) throw new Error('A terminal close result requires one removal identity.');
 	return removalId;
+}
+
+function sharedDocumentFingerprint(document: WorkbenchSharedDocument): string {
+	return JSON.stringify([document.version, document.projectWorkspace, document.terminalContexts]);
+}
+
+function collectRuntimeTerminals(
+	contexts: ReadonlyMap<string, MutableWorkbenchTerminalContext>,
+): ReadonlyMap<string, TerminalPresentation> {
+	const terminals = new Map<string, TerminalPresentation>();
+	for (const context of contexts.values()) {
+		for (const tab of context.panelWorkspaceStore.getSnapshot().tabs) {
+			for (const panel of collectPanelLeaves(tab.root)) {
+				for (const terminal of [panel.primaryPresentation, ...panel.childPresentations]) {
+					terminals.set(terminal.presentationId, terminal);
+				}
+			}
+		}
+	}
+	return terminals;
+}
+
+function collectSharedPresentations(
+	document: WorkbenchSharedDocument,
+): ReadonlyMap<string, WorkbenchSharedPresentation> {
+	const presentations = new Map<string, WorkbenchSharedPresentation>();
+	const visit = (
+		node: WorkbenchSharedDocument['terminalContexts'][number]['panelWorkspace']['tabs'][number]['root'],
+	): void => {
+		if (node.kind === 'panel') {
+			for (const presentation of [node.primaryPresentation, ...node.childPresentations]) {
+				presentations.set(presentation.presentationId, presentation);
+			}
+			return;
+		}
+		for (const child of node.children) visit(child.node);
+	};
+	for (const context of document.terminalContexts) {
+		for (const tab of context.panelWorkspace.tabs) visit(tab.root);
+	}
+	return presentations;
+}
+
+function preserveRuntimeTerminalObservations(
+	state: PanelWorkspaceState,
+	currentTerminals: ReadonlyMap<string, TerminalPresentation>,
+	currentPresentations: ReadonlyMap<string, WorkbenchSharedPresentation>,
+	incomingPresentations: ReadonlyMap<string, WorkbenchSharedPresentation>,
+): PanelWorkspaceState {
+	return {
+		...state,
+		tabs: state.tabs.map((tab) => ({
+			...tab,
+			root: preservePanelNodeObservations(
+				tab.root,
+				currentTerminals,
+				currentPresentations,
+				incomingPresentations,
+			),
+		})),
+	};
+}
+
+function preservePanelNodeObservations(
+	node: PanelLayoutNode,
+	currentTerminals: ReadonlyMap<string, TerminalPresentation>,
+	currentPresentations: ReadonlyMap<string, WorkbenchSharedPresentation>,
+	incomingPresentations: ReadonlyMap<string, WorkbenchSharedPresentation>,
+): PanelLayoutNode {
+	if (node.kind === 'panel') {
+		return {
+			...node,
+			childPresentations: node.childPresentations.map((terminal) =>
+				preserveTerminalObservation(
+					terminal,
+					currentTerminals,
+					currentPresentations,
+					incomingPresentations,
+				),
+			),
+			primaryPresentation: preserveTerminalObservation(
+				node.primaryPresentation,
+				currentTerminals,
+				currentPresentations,
+				incomingPresentations,
+			),
+		};
+	}
+	return {
+		...node,
+		children: node.children.map((child) => ({
+			...child,
+			node: preservePanelNodeObservations(
+				child.node,
+				currentTerminals,
+				currentPresentations,
+				incomingPresentations,
+			),
+		})),
+	};
+}
+
+function preserveTerminalObservation(
+	hydrated: TerminalPresentation,
+	currentTerminals: ReadonlyMap<string, TerminalPresentation>,
+	currentPresentations: ReadonlyMap<string, WorkbenchSharedPresentation>,
+	incomingPresentations: ReadonlyMap<string, WorkbenchSharedPresentation>,
+): TerminalPresentation {
+	const current = currentTerminals.get(hydrated.presentationId);
+	const currentPresentation = currentPresentations.get(hydrated.presentationId);
+	const incomingPresentation = incomingPresentations.get(hydrated.presentationId);
+	return current !== undefined &&
+		currentPresentation !== undefined &&
+		incomingPresentation !== undefined &&
+		JSON.stringify(currentPresentation) === JSON.stringify(incomingPresentation)
+		? current
+		: hydrated;
 }

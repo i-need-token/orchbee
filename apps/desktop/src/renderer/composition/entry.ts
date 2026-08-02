@@ -6,7 +6,7 @@ import {
 	DesktopApplicationLifetimeWindowMessageSchema,
 	TerminalDocumentControlWindowMessageSchema,
 	TerminalProjectionControlWindowMessageSchema,
-	WorkbenchTopologyControlWindowMessageSchema,
+	WorkbenchDocumentControlWindowMessageSchema,
 	type TerminalDocumentControlBootstrap,
 } from '../../shared';
 import { resolveDesktopShortcutPlatform } from '../terminal-actions';
@@ -24,7 +24,7 @@ let documentControl: DocumentControlReady | undefined;
 let lifetimeControlPort: MessagePort | undefined;
 let projectionControlPort: MessagePort | undefined;
 let session: DesktopWorkbenchRendererSession | undefined;
-let topologyControlPort: MessagePort | undefined;
+let workbenchDocumentControlPort: MessagePort | undefined;
 
 window.addEventListener('message', (event) => {
 	if (event.source !== window || event.ports.length !== 1 || session !== undefined) return;
@@ -73,17 +73,19 @@ window.addEventListener('message', (event) => {
 				}
 				projectionControlPort = port;
 			} else {
-				const topologyMessage = WorkbenchTopologyControlWindowMessageSchema.safeParse(event.data);
+				const workbenchDocumentMessage = WorkbenchDocumentControlWindowMessageSchema.safeParse(
+					event.data,
+				);
 				if (
-					!topologyMessage.success ||
-					topologyControlPort !== undefined ||
-					!topologyMessage.data.security.contextIsolated ||
-					!topologyMessage.data.security.sandboxed
+					!workbenchDocumentMessage.success ||
+					workbenchDocumentControlPort !== undefined ||
+					!workbenchDocumentMessage.data.security.contextIsolated ||
+					!workbenchDocumentMessage.data.security.sandboxed
 				) {
 					port.close();
 					return;
 				}
-				topologyControlPort = port;
+				workbenchDocumentControlPort = port;
 			}
 		}
 	}
@@ -91,7 +93,7 @@ window.addEventListener('message', (event) => {
 		documentControl === undefined ||
 		lifetimeControlPort === undefined ||
 		projectionControlPort === undefined ||
-		topologyControlPort === undefined
+		workbenchDocumentControlPort === undefined
 	) {
 		return;
 	}
@@ -100,7 +102,7 @@ window.addEventListener('message', (event) => {
 		documentControl.port.close();
 		lifetimeControlPort.close();
 		projectionControlPort.close();
-		topologyControlPort.close();
+		workbenchDocumentControlPort.close();
 		return;
 	}
 	session = startDesktopWorkbenchRenderer(
@@ -113,7 +115,7 @@ window.addEventListener('message', (event) => {
 		lifetimeControlPort,
 		documentControl.port,
 		projectionControlPort,
-		topologyControlPort,
+		workbenchDocumentControlPort,
 	);
 });
 
@@ -122,5 +124,5 @@ window.addEventListener('unload', () => {
 	documentControl?.port.close();
 	lifetimeControlPort?.close();
 	projectionControlPort?.close();
-	topologyControlPort?.close();
+	workbenchDocumentControlPort?.close();
 });

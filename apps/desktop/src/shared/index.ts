@@ -54,18 +54,18 @@ export type {
 	TerminalDocumentControlOperationResult,
 } from './terminal-document-control-contract';
 export {
-	WORKBENCH_TOPOLOGY_CONTROL_IPC_CHANNEL,
-	WORKBENCH_TOPOLOGY_CONTROL_WINDOW_MESSAGE,
-	WorkbenchTopologyControlBootstrapSchema,
-	WorkbenchTopologyControlCommandSchema,
-	WorkbenchTopologyControlEventSchema,
-	WorkbenchTopologyControlWindowMessageSchema,
-	WorkbenchTopologyRequestIdSchema,
-} from './workbench-topology-control-contract';
+	WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL,
+	WORKBENCH_DOCUMENT_CONTROL_WINDOW_MESSAGE,
+	WorkbenchDocumentControlBootstrapSchema,
+	WorkbenchDocumentControlCommandSchema,
+	WorkbenchDocumentControlEventSchema,
+	WorkbenchDocumentControlWindowMessageSchema,
+	WorkbenchDocumentRequestIdSchema,
+} from './workbench-document-control-contract';
 export type {
-	WorkbenchTopologyCommitResult,
-	WorkbenchTopologyControlCommand,
-	WorkbenchTopologyControlEvent,
-	WorkbenchTopologyLoadResult,
-	WorkbenchTopologyRequestId,
-} from './workbench-topology-control-contract';
+	WorkbenchDocumentCommitResult,
+	WorkbenchDocumentControlCommand,
+	WorkbenchDocumentControlEvent,
+	WorkbenchDocumentLoadResult,
+	WorkbenchDocumentRequestId,
+} from './workbench-document-control-contract';

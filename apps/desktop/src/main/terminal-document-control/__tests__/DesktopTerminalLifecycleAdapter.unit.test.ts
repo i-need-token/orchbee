@@ -117,7 +117,7 @@ function createHarness(
 }
 
 describe('DesktopTerminalLifecycleAdapter', () => {
-	it('drains only bindings absent from the durably referenced topology', async () => {
+	it('drains only bindings absent from the durably referenced shared document', async () => {
 		let bindingSequence = 1;
 		const harness = createHarness({
 			allocateFreshBindingId: () => `binding-${bindingSequence++}`,

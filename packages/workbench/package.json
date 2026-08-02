@@ -28,11 +28,11 @@
 			"import": "./dist/terminal-presentation/index.js",
 			"require": "./dist/terminal-presentation/index.cjs"
 		},
-		"./topology": {
-			"@orchbee/source": "./src/workbench/topology/index.ts",
-			"types": "./dist/workbench/topology/index.d.ts",
-			"import": "./dist/topology/index.js",
-			"require": "./dist/topology/index.cjs"
+		"./document": {
+			"@orchbee/source": "./src/workbench/document/index.ts",
+			"types": "./dist/workbench/document/index.d.ts",
+			"import": "./dist/document/index.js",
+			"require": "./dist/document/index.cjs"
 		},
 		"./styles.css": {
 			"@orchbee/source": "./src/styles.ts",

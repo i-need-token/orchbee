@@ -208,7 +208,9 @@ product action is introduced.
 - **Problem and inputs:** A person or future command adapter needs deterministic local panel
   composition without coupling geometry to terminal-process ownership. Trusted inputs are the
   immutable `TabModel` snapshot and semantic UI events. A missing active tab renders no panel
-  workspace; malformed external persistence is out of scope because this model is not persisted.
+  workspace. The shared-document projection persists hierarchy and terminal lifecycle intent,
+  while focus, maximization, active child, and weights project into Client View; malformed storage
+  handling remains an application-boundary concern.
 - **Data:** `PanelWorkspaceState` owns an ordered workspace per tab ID. Each workspace has one
   canonical `PanelLayoutNode` tree, one focused panel ID, and at most one maximized panel ID. A leaf
   owns exactly one primary `TerminalPresentation`, an ordered one-level child list, and zero or one
@@ -370,23 +372,29 @@ the strip's pointer lifecycle to host-owned live-window discovery, compatibility
 window movement, capture, and move-loop behavior. Workbench and the browser application do not
 fabricate those operating-system capabilities.
 
-### Durable topology boundary
+### Shared document and Client View boundary
 
-`@orchbee/workbench/topology` owns the canonical version-1 document for Project, Workspace, Tab,
-Group, Panel, Split, and terminal-presentation placement. A managed
-`WorkbenchProjectWorkspaceRuntime` projects that document through `getTopologyDocument(...)` and
-may hydrate it through `initialTopology` without dispatching recovered process effects.
-`subscribeTopology(...)` observes the complete Project/Workspace and nested Tab/Panel projection.
-After an application has established its persistence barrier,
-`reconcileDurableTerminalPresentations()` replays persisted provision and close operations and
-converts retain intent into restore-only commands. The document persists launch intent and pending
-provision or close intent, but excludes current CWD, Host, Binding, Attachment, process output,
-history, environment, and transient Tab observations.
+`@orchbee/workbench/document` separates the canonical revisioned `WorkbenchSharedDocument` from
+one page's disposable `WorkbenchClientView`. Project, Workspace, Tab/Group membership, Panel/Split
+structure, terminal-presentation placement, and durable lifecycle intent are shared. Active and
+selected navigation, disclosure, focus, maximization, active child presentation, and Split weights
+are client-local. Terminal viewport demand, scroll, search, selection, copy, GPU state, and
+`AttachmentId` remain outside both contracts.
 
-The package performs no storage or IPC effect. A composing application must parse the document at
-its persistence boundary and remains responsible for private storage, revisions, write ordering,
-recovery diagnostics, and eventual Terminal lifecycle effects. The maintained model, invariants,
-and evidence are defined in [`docs/durable-topology.md`](docs/durable-topology.md).
+A managed `WorkbenchProjectWorkspaceRuntime` projects these contracts through
+`getSharedDocument(...)` and `getClientView()`, hydrates them through `initialDocument` and
+`initialClientView`, and can apply a broadcast document through `applySharedDocument(...)` without
+dispatching process effects. `subscribeDocument(...)` supplies the application durability
+coordinator; its shared fingerprint is unchanged by Client View-only transitions. After the
+application establishes its persistence barrier, `reconcileDurableTerminalPresentations()` replays
+persisted provision, close, and stop operations and converts retain intent into restore-only
+commands.
+
+The package performs no storage or IPC effect. A composing application parses the contracts at its
+boundary and owns private storage, shared revisions, write ordering, recovery diagnostics, and
+eventual Terminal lifecycle effects. The version-1 shared document has no reader or alias for the
+unshipped topology schema. The maintained model, invariants, and evidence are defined in
+[`docs/shared-workbench-document.md`](docs/shared-workbench-document.md).
 
 Workbench owns `Mod+B` for `workbench.sidebar.toggle`, `Mod+N` for
 `workbench.terminal.create`, `Mod+K` and `Mod+Shift+P` for the All and Actions inputs of

@@ -7,31 +7,34 @@ Sandboxed Electron product client and scoped local broker for Orchbee's native T
 Desktop composes the shared Workbench with Host-backed projected terminals. Workbench owns Project,
 Workspace, Tab, Panel, and `TerminalPresentationId` state; Electron Main owns durable technical
 bindings and privileged effects; `apps/terminal-host` owns PTYs, processes, Ghostty VT state,
-history, and real terminal identity. None of the product topology is stored in the Host.
+history, and real terminal identity. None of the shared Workbench document is stored in the Host.
 
 Main starts without creating a fixed terminal or opening an attachment. It restores the durable
-`TerminalPresentationId` to `TerminalBindingId` registry, owns the private Workbench-topology file
+`TerminalPresentationId` to `TerminalBindingId` registry, owns the private Workbench shared-document
+file
 adapter, and transfers four allowlisted document ports through the sandboxed preload:
 
 - lifecycle control accepts only presentation-scoped provision, restore, and close commands and
   publishes correlated results plus terminal exit;
 - projection control opens and releases one scoped Host attachment for a displayed terminal
   viewport.
-- topology control loads or exact-next compare-and-swaps only canonical
-  `@orchbee/workbench/topology` documents.
-- application-lifetime control carries only exit reason, user choice, topology flush revision,
+- shared-document control loads or exact-next compare-and-swaps only canonical
+  `WorkbenchSharedDocument` values from `@orchbee/workbench/document`;
+- application-lifetime control carries only exit reason, user choice, shared-document revision,
   aggregate progress, and typed failures for the current renderer document.
 
 The renderer has no Node integration, generic Electron IPC, filesystem capability, Host inventory,
 or raw terminal-lifetime authority. Preload transfers exactly one port for each recognized control
 channel and attests context isolation and sandboxing.
 
-The renderer loads topology before constructing its managed Workbench runtime. An available
-document restores its exact Project, Workspace, Tab, Group, Panel, Split, and presentation
-placement. A missing document projects recovered bindings as standalone Tabs and commits revision
-`0` before any initial lifecycle command. An unavailable load or failed first commit creates no
-replacement topology or terminal effect. Unreferenced technical bindings remain preserved but are
-not silently adopted into product topology. Sharing, network clients, packaging, and update
+The renderer loads the shared document before constructing its managed Workbench runtime. An
+available document restores Project, Workspace, Tab, Group, Panel/Split structure, presentation
+placement, and lifecycle intent, then derives a fresh in-memory Client View. Active navigation,
+disclosure, focus, maximization, active child, and Split weights do not enter the shared file. A
+missing document projects recovered bindings as standalone Tabs and commits revision `0` before
+any initial lifecycle command. An unavailable load or failed first commit creates no replacement
+document or terminal effect. Unreferenced technical bindings remain preserved but are not silently
+adopted into the shared document. Multi-client sharing, network clients, packaging, and update
 activation remain outside the current composition.
 
 Desktop requires Host protocol `1.4` exactly. Electron uses `42.8.0`, the final release in the major
@@ -66,17 +69,19 @@ through owner-only atomic replacement, and never rewritten automatically when in
 unreadable. Launch environment values never enter diagnostics.
 
 No product maximum is imposed on terminals, bindings, or attachments. Active collections grow from
-user topology and visible demand; allocation, filesystem, Host, or memory exhaustion returns an
+shared product structure and visible demand; allocation, filesystem, Host, or memory exhaustion returns an
 operation failure instead of evicting or silently truncating another terminal. Host inventory is
 read through generation-scoped protocol pages rather than one bounded global list.
 
-The separate Workbench topology store accepts only the canonical version-1 document through one
+The separate Workbench shared-document store accepts only the canonical version-1 document through one
 Main-owned serialized writer. A missing store starts at revision `0`; every later commit must name
 the exact current revision and advance it by one. Conflicts, non-next revisions, invalid files, and
 read failures preserve current data. Writes use owner-only temporary files, file synchronization,
 atomic replacement, and parent-directory synchronization where supported. The renderer receives
 only typed load and commit results, never a path, Node error, or general filesystem capability. See
-[`docs/workbench-topology-storage.md`](docs/workbench-topology-storage.md).
+[`docs/workbench-shared-document-storage.md`](docs/workbench-shared-document-storage.md).
+The store uses `workbench-shared-document-v1.json`. It has no reader, alias, or migration for the
+unshipped development topology file; that old path is ignored and not deleted automatically.
 
 Provisioning allocates and persists a fresh binding before creating a terminal. Recovery accepts
 only an exact HostEpoch/TerminalId/CreationId match and never substitutes a new shell for lost
@@ -89,8 +94,8 @@ Main lifetime. Missing, planned, closing, or lost bindings never allocate a repl
 restore path. Restore failure remains durable retain intent.
 
 One operation tail serializes lifecycle work per presentation while unrelated terminals progress
-independently. The Renderer coordinator commits the complete topology containing provision or close
-intent before forwarding the corresponding effect. It coalesces ordinary topology changes while a
+independently. The renderer coordinator commits the complete shared document containing provision
+or close intent before forwarding the corresponding effect. It coalesces shared changes while a
 CAS is in flight and stops the generation after conflict or storage failure. Close then persists
 technical `closing`, retires only that presentation's active projections, and delegates
 graceful/force/dispose behavior to the existing binding close lifecycle. A Panel or Tab remains in
@@ -105,19 +110,19 @@ A normal macOS window close releases only the renderer document. Command+Q, a me
 the last window on Windows and Linux enters one coalesced user-quit workflow while the renderer is
 still available. When terminal sessions exist, the application-wide dialog offers Keep Sessions
 and Quit as the default, Stop Sessions and Quit as the destructive choice, or Cancel before any
-stop effect. With no sessions, Desktop flushes topology and quits without prompting. The future
+stop effect. With no sessions, Desktop flushes the shared document and quits without prompting. The future
 updater enters the same preserve preparation as `update-restart` without prompting; updater
 installation and packaging remain outside this package.
 
 Stop seals terminal creation for the renderer generation, projects every visible and hidden
-Workbench presentation to durable `stop`, compare-and-swaps the complete topology, and only then
+Workbench presentation to durable `stop`, compare-and-swaps the complete shared document, and only then
 releases close commands. Successful close results change presentations to `stopped` while retaining
 Project, Workspace, Tab, Panel, split, title, and launch CWD. Hydration never starts a stopped
 presentation. Its visible Start New Session action replaces the stopped PresentationId with a fresh
 identity and provisions only that selected presentation.
 
-After referenced presentations stop, Main loads the exact committed topology revision and closes
-every binding that it owns but the topology does not reference. It then requires the binding
+After referenced presentations stop, Main loads the exact committed shared-document revision and
+closes every binding that it owns but the document does not reference. It then requires the binding
 registry to be empty and scans Host inventory. Unknown Host terminals are reported as unresolved;
 they are never silently killed. A partial failure keeps Desktop in an irreversible recovery dialog
 with Retry when supported and an explicit Quit Anyway warning. Quit Anyway may leave processes
@@ -156,9 +161,9 @@ Focused traces cover:
 
 - strict lifecycle and projection boundary validation, malformed-message retirement, exact
   correlation, cancellation, and renderer-document disposal;
-- strict topology load/CAS boundary validation, shared serialization across renderer generations,
+- strict shared-document load/CAS boundary validation and serialization across renderer generations,
   invalid-file preservation, atomic replacement, and suppressed late responses;
-- first-commit and per-command write-ahead ordering, coalesced topology commits, restore-only
+- first-commit and per-command write-ahead ordering, coalesced shared commits, restore-only
   recovery, failed-CAS effect suppression, and post-effect managed container cleanup;
 - fresh provisioning, multi-binding store preservation, recovery, exited recovery, orphan and
   conflict handling, durable close, and presentation-registry reconstruction;
@@ -175,7 +180,7 @@ Focused traces cover:
 
 Existing TLA+ models continue to check terminal recovery, binding close, lifecycle-adapter
 serialization, projection demand, and Workbench removal safety within their declared finite bounds.
-The Desktop topology-store model additionally checks exact-next CAS, conflict preservation,
+The Desktop shared-document-store model additionally checks exact-next CAS, conflict preservation,
 serialization, unavailable storage, generation disposal, and progress for two clients through
 revision `2`.
 The Desktop write-ahead model checks matching durable intent before provision, restore, close, or stop

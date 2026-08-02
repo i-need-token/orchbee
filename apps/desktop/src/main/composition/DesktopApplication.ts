@@ -11,10 +11,10 @@ import {
 } from '@orchbee/terminal-protocol';
 import { TerminalPresentationIdSchema } from '@orchbee/workbench/terminal-presentation';
 import type {
-	WorkbenchTopologyDocument,
-	WorkbenchTopologyPanelNode,
-	WorkbenchTopologyRevision,
-} from '@orchbee/workbench/topology';
+	WorkbenchSharedDocument,
+	WorkbenchSharedPanelNode,
+	WorkbenchSharedDocumentRevision,
+} from '@orchbee/workbench/document';
 import {
 	BrowserWindow,
 	app,
@@ -27,12 +27,12 @@ import {
 	TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
 	DESKTOP_APPLICATION_LIFETIME_IPC_CHANNEL,
 	TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
-	WORKBENCH_TOPOLOGY_CONTROL_IPC_CHANNEL,
+	WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL,
 	TerminalDocumentControlBootstrapSchema,
 	DesktopApplicationExitRequestIdSchema,
 	DesktopApplicationLifetimeBootstrapSchema,
 	TerminalProjectionControlBootstrapSchema,
-	WorkbenchTopologyControlBootstrapSchema,
+	WorkbenchDocumentControlBootstrapSchema,
 	type ProjectedAttachmentBootstrap,
 	type DesktopApplicationExitReason,
 	type DesktopApplicationExitRequestId,
@@ -59,10 +59,10 @@ import {
 	type DesktopTerminalProjectionLease,
 } from '../terminal-projection-control';
 import {
-	FileWorkbenchTopologyStore,
-	WorkbenchTopologyControlBroker,
-	type WorkbenchTopologyStore,
-} from '../workbench-topology';
+	FileWorkbenchDocumentStore,
+	WorkbenchDocumentControlBroker,
+	type WorkbenchDocumentStore,
+} from '../workbench-document';
 import {
 	composeDesktopTerminalRuntime,
 	type DesktopTerminalRuntime,
@@ -88,7 +88,7 @@ interface DesktopProjectionControlBrokerHandle {
 	start(): void;
 }
 
-interface DesktopWorkbenchTopologyBrokerHandle {
+interface DesktopWorkbenchDocumentBrokerHandle {
 	dispose(): void;
 	start(): void;
 }
@@ -147,11 +147,11 @@ export interface DesktopApplicationDependencies {
 		createMessageChannel: DesktopApplicationDependencies['createMessageChannel'],
 		createBroker: DesktopApplicationDependencies['createBroker'],
 	) => DesktopTerminalRuntime;
-	readonly createWorkbenchTopologyBroker: (
+	readonly createWorkbenchDocumentBroker: (
 		port: MessagePortMain,
-		store: WorkbenchTopologyStore,
-	) => DesktopWorkbenchTopologyBrokerHandle;
-	readonly createWorkbenchTopologyStore: (filePath: string) => WorkbenchTopologyStore;
+		store: WorkbenchDocumentStore,
+	) => DesktopWorkbenchDocumentBrokerHandle;
+	readonly createWorkbenchDocumentStore: (filePath: string) => WorkbenchDocumentStore;
 	readonly createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
 	readonly randomIdentifier: () => string;
 	readonly quitApplication: () => void;
@@ -187,8 +187,8 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			host,
 			randomIdentifier,
 		}),
-	createWorkbenchTopologyBroker: (port, store) => new WorkbenchTopologyControlBroker(port, store),
-	createWorkbenchTopologyStore: (filePath) => new FileWorkbenchTopologyStore(filePath),
+	createWorkbenchDocumentBroker: (port, store) => new WorkbenchDocumentControlBroker(port, store),
+	createWorkbenchDocumentStore: (filePath) => new FileWorkbenchDocumentStore(filePath),
 	createWindow: (options) => new BrowserWindow(options),
 	randomIdentifier: () => randomBytes(16).toString('hex'),
 	quitApplication: () => app.quit(),
@@ -211,8 +211,8 @@ export class DesktopApplication {
 	#shuttingDown = false;
 	#terminalRuntime: DesktopTerminalRuntime | undefined;
 	#window: BrowserWindow | undefined;
-	#workbenchTopologyBroker: DesktopWorkbenchTopologyBrokerHandle | undefined;
-	readonly #workbenchTopologyStore: WorkbenchTopologyStore;
+	#workbenchDocumentBroker: DesktopWorkbenchDocumentBrokerHandle | undefined;
+	readonly #workbenchDocumentStore: WorkbenchDocumentStore;
 
 	constructor(
 		options: DesktopApplicationOptions,
@@ -223,8 +223,8 @@ export class DesktopApplication {
 		}
 		this.#options = options;
 		this.#dependencies = dependencies;
-		this.#workbenchTopologyStore = dependencies.createWorkbenchTopologyStore(
-			options.runtime.workbenchTopologyStorePath,
+		this.#workbenchDocumentStore = dependencies.createWorkbenchDocumentStore(
+			options.runtime.workbenchDocumentStorePath,
 		);
 	}
 
@@ -393,8 +393,8 @@ export class DesktopApplication {
 		this.#applicationLifetimeBroker = undefined;
 		this.#documentBroker?.dispose();
 		this.#documentBroker = undefined;
-		this.#workbenchTopologyBroker?.dispose();
-		this.#workbenchTopologyBroker = undefined;
+		this.#workbenchDocumentBroker?.dispose();
+		this.#workbenchDocumentBroker = undefined;
 		const projectionBroker = this.#projectionControlBroker;
 		this.#projectionControlBroker = undefined;
 		this.#documentTransition = this.#documentTransition.then(async () =>
@@ -430,7 +430,7 @@ export class DesktopApplication {
 		const lifetimeChannel = this.#dependencies.createMessageChannel();
 		const documentChannel = this.#dependencies.createMessageChannel();
 		const projectionChannel = this.#dependencies.createMessageChannel();
-		const topologyChannel = this.#dependencies.createMessageChannel();
+		const workbenchDocumentChannel = this.#dependencies.createMessageChannel();
 		const documentBroker = this.#dependencies.createDocumentBroker(
 			documentChannel.port2,
 			terminalRuntime,
@@ -440,9 +440,9 @@ export class DesktopApplication {
 			projectionChannel.port2,
 			terminalRuntime,
 		);
-		const topologyBroker = this.#dependencies.createWorkbenchTopologyBroker(
-			topologyChannel.port2,
-			this.#workbenchTopologyStore,
+		const workbenchDocumentBroker = this.#dependencies.createWorkbenchDocumentBroker(
+			workbenchDocumentChannel.port2,
+			this.#workbenchDocumentStore,
 		);
 		const lifetimeBroker = this.#dependencies.createApplicationLifetimeBroker(
 			lifetimeChannel.port2,
@@ -451,11 +451,11 @@ export class DesktopApplication {
 		this.#applicationLifetimeBroker = lifetimeBroker;
 		this.#documentBroker = documentBroker;
 		this.#projectionControlBroker = projectionBroker;
-		this.#workbenchTopologyBroker = topologyBroker;
+		this.#workbenchDocumentBroker = workbenchDocumentBroker;
 		documentBroker.start();
 		lifetimeBroker.start();
 		projectionBroker.start();
-		topologyBroker.start();
+		workbenchDocumentBroker.start();
 		const documentBootstrap = TerminalDocumentControlBootstrapSchema.parse({
 			defaultCwd,
 			initialPresentationId: TerminalPresentationIdSchema.parse(
@@ -482,11 +482,11 @@ export class DesktopApplication {
 			[projectionChannel.port1],
 		);
 		window.webContents.postMessage(
-			WORKBENCH_TOPOLOGY_CONTROL_IPC_CHANNEL,
-			WorkbenchTopologyControlBootstrapSchema.parse({
-				type: WORKBENCH_TOPOLOGY_CONTROL_IPC_CHANNEL,
+			WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL,
+			WorkbenchDocumentControlBootstrapSchema.parse({
+				type: WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL,
 			}),
-			[topologyChannel.port1],
+			[workbenchDocumentChannel.port1],
 		);
 	}
 
@@ -515,7 +515,7 @@ export class DesktopApplication {
 	};
 
 	readonly #drainForApplicationStop = async (
-		topologyRevision: WorkbenchTopologyRevision,
+		documentRevision: WorkbenchSharedDocumentRevision,
 	): Promise<DesktopApplicationLifetimeDrainResult> => {
 		const terminalRuntime = this.#terminalRuntime;
 		if (terminalRuntime === undefined) {
@@ -524,17 +524,17 @@ export class DesktopApplication {
 				kind: 'failed',
 			};
 		}
-		const loaded = await this.#workbenchTopologyStore.load().catch(() => ({
+		const loaded = await this.#workbenchDocumentStore.load().catch(() => ({
 			kind: 'unavailable' as const,
 			reason: 'read-failed' as const,
 		}));
-		if (loaded.kind !== 'available' || loaded.document.revision !== topologyRevision) {
+		if (loaded.kind !== 'available' || loaded.document.revision !== documentRevision) {
 			return {
-				failures: [typedExitFailure('topology-control-unavailable', 1, true)],
+				failures: [typedExitFailure('workbench-document-control-unavailable', 1, true)],
 				kind: 'failed',
 			};
 		}
-		const referencedPresentationIds = collectTopologyPresentationIds(loaded.document);
+		const referencedPresentationIds = collectDocumentPresentationIds(loaded.document);
 		const drained = await terminalRuntime.closeBindingsNotReferencedBy(referencedPresentationIds);
 		if (drained.failures.length > 0) {
 			return {
@@ -595,11 +595,11 @@ export class DesktopApplication {
 	}
 }
 
-function collectTopologyPresentationIds(
-	document: WorkbenchTopologyDocument,
+function collectDocumentPresentationIds(
+	document: WorkbenchSharedDocument,
 ): ReadonlySet<ReturnType<typeof TerminalPresentationIdSchema.parse>> {
 	const presentationIds = new Set<ReturnType<typeof TerminalPresentationIdSchema.parse>>();
-	const visit = (node: WorkbenchTopologyPanelNode): void => {
+	const visit = (node: WorkbenchSharedPanelNode): void => {
 		if (node.kind === 'panel') {
 			presentationIds.add(node.primaryPresentation.presentationId);
 			for (const presentation of node.childPresentations) {

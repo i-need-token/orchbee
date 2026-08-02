@@ -26,9 +26,9 @@ import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopTerminalDocumentClient } from '../terminal-document-control';
 import { DesktopTerminalProjectionClient } from '../terminal-projection-control';
 import {
-	DesktopWorkbenchTopologyClient,
-	DesktopWorkbenchTopologyCoordinator,
-} from '../workbench-topology-control';
+	DesktopWorkbenchDocumentClient,
+	DesktopWorkbenchDocumentCoordinator,
+} from '../workbench-document-control';
 
 export interface DesktopWorkbenchRendererSession {
 	dispose(): void;
@@ -47,7 +47,7 @@ export function startDesktopWorkbenchRenderer(
 	lifetimePort: MessagePort,
 	documentPort: MessagePort,
 	projectionPort: MessagePort,
-	topologyPort: MessagePort,
+	workbenchDocumentPort: MessagePort,
 ): DesktopWorkbenchRendererSession {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee Desktop application root element is missing.');
@@ -59,13 +59,13 @@ export function startDesktopWorkbenchRenderer(
 	documentElement.dir = getOrchbeeTextDirection(locale);
 	const documentClient = new DesktopTerminalDocumentClient(documentPort);
 	const projectionClient = new DesktopTerminalProjectionClient(projectionPort);
-	const topologyClient = new DesktopWorkbenchTopologyClient(topologyPort);
+	const workbenchDocumentClient = new DesktopWorkbenchDocumentClient(workbenchDocumentPort);
 	let actionRuntime: ActionRuntime | undefined;
 	let applicationLifetimeCoordinator: DesktopApplicationLifetimeCoordinator | undefined;
 	let disposed = false;
 	let lifetimeClient: DesktopApplicationLifetimeClient | undefined;
 	let reactRoot: Root | undefined;
-	let topologyCoordinator: DesktopWorkbenchTopologyCoordinator | undefined;
+	let workbenchDocumentCoordinator: DesktopWorkbenchDocumentCoordinator | undefined;
 	let unsubscribeDocument: (() => void) | undefined;
 	const pendingCommands: TerminalPresentationCommand[] = [];
 	const terminalPresentation: WorkbenchTerminalPresentationComposition = {
@@ -79,11 +79,11 @@ export function startDesktopWorkbenchRenderer(
 			for (const command of commands) {
 				if (command.type !== 'tab-close-ready') terminalCommands.push(command);
 			}
-			if (topologyCoordinator === undefined) {
+			if (workbenchDocumentCoordinator === undefined) {
 				pendingCommands.push(...terminalCommands);
 				return;
 			}
-			topologyCoordinator.dispatchCommands(terminalCommands);
+			workbenchDocumentCoordinator.dispatchCommands(terminalCommands);
 		},
 		initialPresentationId: bootstrap.initialPresentationId,
 		kind: 'managed',
@@ -100,11 +100,11 @@ export function startDesktopWorkbenchRenderer(
 		reactRoot = undefined;
 		actionRuntime?.dispose();
 		actionRuntime = undefined;
-		topologyCoordinator?.dispose();
-		topologyCoordinator = undefined;
+		workbenchDocumentCoordinator?.dispose();
+		workbenchDocumentCoordinator = undefined;
 		projectionClient.dispose();
 		documentClient.dispose();
-		topologyClient.dispose();
+		workbenchDocumentClient.dispose();
 		if (lifetimeClient === undefined) lifetimePort.close();
 		else lifetimeClient.dispose();
 	};
@@ -118,7 +118,7 @@ export function startDesktopWorkbenchRenderer(
 	async function initialize(): Promise<
 		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
 	> {
-		const loaded = await topologyClient.load();
+		const loaded = await workbenchDocumentClient.load();
 		if (loaded.kind === 'unavailable') {
 			dispose();
 			return loaded;
@@ -140,7 +140,7 @@ export function startDesktopWorkbenchRenderer(
 		if (loaded.kind === 'available') {
 			runtime = new WorkbenchProjectWorkspaceRuntime({
 				...runtimeOptions,
-				initialTopology: loaded.document,
+				initialDocument: loaded.document,
 			});
 		} else if (recoveredPresentations.length === 0) {
 			runtime = new WorkbenchProjectWorkspaceRuntime(runtimeOptions);
@@ -153,21 +153,24 @@ export function startDesktopWorkbenchRenderer(
 		unsubscribeDocument = documentClient.subscribe((event) => {
 			runtime.applyTerminalPresentationEvent(event);
 		});
-		topologyCoordinator = new DesktopWorkbenchTopologyCoordinator(
+		workbenchDocumentCoordinator = new DesktopWorkbenchDocumentCoordinator(
 			runtime,
-			topologyClient,
+			workbenchDocumentClient,
 			documentClient,
 		);
-		const topologyStart = await topologyCoordinator.start(loaded, pendingCommands.splice(0));
-		if (topologyStart.kind === 'unavailable') {
+		const documentStart = await workbenchDocumentCoordinator.start(
+			loaded,
+			pendingCommands.splice(0),
+		);
+		if (documentStart.kind === 'unavailable') {
 			dispose();
-			return topologyStart;
+			return documentStart;
 		}
 		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
 		lifetimeClient = new DesktopApplicationLifetimeClient(lifetimePort);
 		applicationLifetimeCoordinator = new DesktopApplicationLifetimeCoordinator(
 			runtime,
-			topologyCoordinator,
+			workbenchDocumentCoordinator,
 			lifetimeClient,
 		);
 		actionRuntime = new ActionRuntime();

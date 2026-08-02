@@ -3,10 +3,11 @@
 ## Status and scope
 
 This is the implementation contract for Workbench-owned Project, Directory, Workspace,
-active-location, terminal-context composition, and browser Project onboarding. Workbench maintains
-the live product model and exposes its canonical topology through
-[`durable-topology.md`](durable-topology.md). Filesystem mutation, Git effects, PTY ownership,
-storage I/O, and cross-device synchronization remain outside this contract.
+client-local active location, terminal-context composition, and browser Project onboarding.
+Workbench maintains a per-client live projection over the canonical shared structure and exposes
+their ownership split through [`shared-workbench-document.md`](shared-workbench-document.md).
+Filesystem mutation, Git effects, PTY ownership, storage I/O, and cross-device synchronization
+remain outside this contract.
 
 ## Problem
 

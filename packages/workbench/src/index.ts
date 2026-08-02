@@ -48,6 +48,7 @@ export type {
 	WorkbenchProjectRenameInput,
 	WorkbenchRuntimeTerminalCreateInput,
 	WorkbenchRuntimeTerminalCreateResult,
+	WorkbenchSharedDocumentApplyResult,
 	WorkbenchStandaloneTerminalPresentation,
 	WorkbenchTerminalSessionStopFailure,
 	WorkbenchTerminalSessionStopRequestResult,

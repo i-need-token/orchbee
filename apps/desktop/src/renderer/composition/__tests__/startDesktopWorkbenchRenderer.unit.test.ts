@@ -3,15 +3,15 @@
 import { act } from 'react';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
-	createWorkbenchTopologyDocument,
-	workbenchTopologyRevision,
-} from '@orchbee/workbench/topology';
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+} from '@orchbee/workbench/document';
 import { terminalPresentationId } from '@orchbee/workbench';
 
 import {
 	TerminalDocumentControlBootstrapSchema,
 	type TerminalDocumentControlCommand,
-	type WorkbenchTopologyControlCommand,
+	type WorkbenchDocumentControlCommand,
 } from '../../../shared';
 import { startDesktopWorkbenchRenderer } from '../startDesktopWorkbenchRenderer';
 
@@ -88,22 +88,22 @@ function createTestChannel(): { readonly port1: MessagePort; readonly port2: Tes
 }
 
 describe('startDesktopWorkbenchRenderer', () => {
-	it('fails closed without rendering or provisioning when durable topology cannot be loaded', async () => {
+	it('fails closed without rendering or provisioning when durable document cannot be loaded', async () => {
 		const lifetimeChannel = createTestChannel();
 		const documentChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
-		const topologyChannel = createTestChannel();
+		const workbenchDocumentChannel = createTestChannel();
 		const documentCommands: TerminalDocumentControlCommand[] = [];
 		documentChannel.port2.addEventListener('message', (event) => {
 			documentCommands.push((event as MessageEvent).data as TerminalDocumentControlCommand);
 		});
-		topologyChannel.port2.addEventListener('message', (event) => {
-			const command = (event as MessageEvent).data as WorkbenchTopologyControlCommand;
-			if (command.type !== 'workbench-topology-load-requested') return;
-			topologyChannel.port2.postMessage({
+		workbenchDocumentChannel.port2.addEventListener('message', (event) => {
+			const command = (event as MessageEvent).data as WorkbenchDocumentControlCommand;
+			if (command.type !== 'workbench-document-load-requested') return;
+			workbenchDocumentChannel.port2.postMessage({
 				requestId: command.requestId,
 				result: { kind: 'unavailable', reason: 'read-failed' },
-				type: 'workbench-topology-load-completed',
+				type: 'workbench-document-load-completed',
 			});
 		});
 		const root = document.createElement('div');
@@ -125,7 +125,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				lifetimeChannel.port1,
 				documentChannel.port1,
 				projectionChannel.port1,
-				topologyChannel.port1,
+				workbenchDocumentChannel.port1,
 			);
 			await expect(session.ready).resolves.toEqual({
 				kind: 'unavailable',
@@ -139,7 +139,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		expect((lifetimeChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((lifetimeChannel.port1 as unknown as TestMessagePort).starts).toBe(0);
 		expect((projectionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
-		expect((topologyChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((workbenchDocumentChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
@@ -147,10 +147,10 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const lifetimeChannel = createTestChannel();
 		const documentChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
-		const topologyChannel = createTestChannel();
+		const workbenchDocumentChannel = createTestChannel();
 		const documentCommands: TerminalDocumentControlCommand[] = [];
 		const projectionCommands: Array<{ presentationId?: string; type?: string }> = [];
-		const topologyCommands: WorkbenchTopologyControlCommand[] = [];
+		const workbenchDocumentCommands: WorkbenchDocumentControlCommand[] = [];
 		documentChannel.port2.addEventListener('message', (event) => {
 			documentCommands.push((event as MessageEvent).data as TerminalDocumentControlCommand);
 		});
@@ -159,21 +159,21 @@ describe('startDesktopWorkbenchRenderer', () => {
 				(event as MessageEvent).data as { presentationId?: string; type?: string },
 			);
 		});
-		topologyChannel.port2.addEventListener('message', (event) => {
-			const command = (event as MessageEvent).data as WorkbenchTopologyControlCommand;
-			topologyCommands.push(command);
-			if (command.type === 'workbench-topology-load-requested') {
-				topologyChannel.port2.postMessage({
+		workbenchDocumentChannel.port2.addEventListener('message', (event) => {
+			const command = (event as MessageEvent).data as WorkbenchDocumentControlCommand;
+			workbenchDocumentCommands.push(command);
+			if (command.type === 'workbench-document-load-requested') {
+				workbenchDocumentChannel.port2.postMessage({
 					requestId: command.requestId,
 					result: { kind: 'missing' },
-					type: 'workbench-topology-load-completed',
+					type: 'workbench-document-load-completed',
 				});
 				return;
 			}
-			topologyChannel.port2.postMessage({
+			workbenchDocumentChannel.port2.postMessage({
 				requestId: command.requestId,
 				result: { kind: 'committed', revision: command.document.revision },
-				type: 'workbench-topology-commit-completed',
+				type: 'workbench-document-commit-completed',
 			});
 		});
 		const root = document.createElement('div');
@@ -198,16 +198,16 @@ describe('startDesktopWorkbenchRenderer', () => {
 				lifetimeChannel.port1,
 				documentChannel.port1,
 				projectionChannel.port1,
-				topologyChannel.port1,
+				workbenchDocumentChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
 		});
 		await vi.waitFor(() => expect(documentCommands).toHaveLength(2));
 		expect((lifetimeChannel.port1 as unknown as TestMessagePort).starts).toBe(1);
-		expect(topologyCommands.slice(0, 2).map((command) => command.type)).toEqual([
-			'workbench-topology-load-requested',
-			'workbench-topology-commit-requested',
+		expect(workbenchDocumentCommands.slice(0, 2).map((command) => command.type)).toEqual([
+			'workbench-document-load-requested',
+			'workbench-document-commit-requested',
 		]);
 
 		await act(async () => {
@@ -253,29 +253,29 @@ describe('startDesktopWorkbenchRenderer', () => {
 		});
 
 		await act(async () => session?.dispose());
-		expect((topologyChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((workbenchDocumentChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
-	it('hydrates retain topology and uses restore-only reconciliation without rewriting intent', async () => {
+	it('hydrates retain document and uses restore-only reconciliation without rewriting intent', async () => {
 		const lifetimeChannel = createTestChannel();
 		const documentChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
-		const topologyChannel = createTestChannel();
+		const workbenchDocumentChannel = createTestChannel();
 		const documentCommands: TerminalDocumentControlCommand[] = [];
-		const topologyCommands: WorkbenchTopologyControlCommand[] = [];
-		const topology = createRetainedTopology();
+		const workbenchDocumentCommands: WorkbenchDocumentControlCommand[] = [];
+		const sharedDocument = createRetainedDocument();
 		documentChannel.port2.addEventListener('message', (event) => {
 			documentCommands.push((event as MessageEvent).data as TerminalDocumentControlCommand);
 		});
-		topologyChannel.port2.addEventListener('message', (event) => {
-			const command = (event as MessageEvent).data as WorkbenchTopologyControlCommand;
-			topologyCommands.push(command);
-			if (command.type !== 'workbench-topology-load-requested') return;
-			topologyChannel.port2.postMessage({
+		workbenchDocumentChannel.port2.addEventListener('message', (event) => {
+			const command = (event as MessageEvent).data as WorkbenchDocumentControlCommand;
+			workbenchDocumentCommands.push(command);
+			if (command.type !== 'workbench-document-load-requested') return;
+			workbenchDocumentChannel.port2.postMessage({
 				requestId: command.requestId,
-				result: { document: topology, kind: 'available' },
-				type: 'workbench-topology-load-completed',
+				result: { document: sharedDocument, kind: 'available' },
+				type: 'workbench-document-load-completed',
 			});
 		});
 		const root = document.createElement('div');
@@ -298,7 +298,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				lifetimeChannel.port1,
 				documentChannel.port1,
 				projectionChannel.port1,
-				topologyChannel.port1,
+				workbenchDocumentChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
@@ -309,8 +309,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 			presentationId: 'presentation-retained',
 			type: 'terminal-restore-requested',
 		});
-		expect(topologyCommands.map((command) => command.type)).toEqual([
-			'workbench-topology-load-requested',
+		expect(workbenchDocumentCommands.map((command) => command.type)).toEqual([
+			'workbench-document-load-requested',
 		]);
 
 		await act(async () => {
@@ -325,8 +325,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 			});
 		});
 		await vi.waitFor(() => expect(root.querySelector('[aria-label="Retained"]')).not.toBeNull());
-		expect(topologyCommands.map((command) => command.type)).toEqual([
-			'workbench-topology-load-requested',
+		expect(workbenchDocumentCommands.map((command) => command.type)).toEqual([
+			'workbench-document-load-requested',
 		]);
 
 		await act(async () => session?.dispose());
@@ -334,18 +334,16 @@ describe('startDesktopWorkbenchRenderer', () => {
 	});
 });
 
-function createRetainedTopology() {
-	return createWorkbenchTopologyDocument({
+function createRetainedDocument() {
+	return createWorkbenchSharedDocument({
 		projectWorkspace: {
-			activeLocation: { kind: 'standalone' },
-			expandedProjectIds: [],
 			nextProjectSequence: 1,
 			nextTerminalContextSequence: 2,
 			nextWorkspaceSequence: 1,
 			projects: [],
 			standaloneTerminalContextId: 'terminal-context-1',
 		},
-		revision: workbenchTopologyRevision('4'),
+		revision: workbenchSharedDocumentRevision('4'),
 		terminalContexts: [
 			{
 				nextTabSequence: 2,
@@ -357,10 +355,7 @@ function createRetainedTopology() {
 					pendingRemovals: [],
 					tabs: [
 						{
-							focusedPanelId: 'panel-1',
-							maximizedPanelId: null,
 							root: {
-								activeChildPresentationId: null,
 								childPresentations: [],
 								id: 'panel-1',
 								kind: 'panel',
@@ -376,9 +371,7 @@ function createRetainedTopology() {
 					],
 				},
 				tabCollection: {
-					activeTabId: 'terminal-context-1-tab-1',
 					groups: [],
-					mostRecentGroupId: null,
 					tabs: [
 						{
 							group: null,

@@ -1,4 +1,4 @@
-import type { WorkbenchTopologyRevision } from '@orchbee/workbench/topology';
+import type { WorkbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 import type { MessageEvent, MessagePortMain } from 'electron';
 
 import {
@@ -26,7 +26,7 @@ export type DesktopApplicationLifetimeExitResult =
 
 export interface DesktopApplicationLifetimeBrokerDependencies {
 	readonly drainForStop: (
-		topologyRevision: WorkbenchTopologyRevision,
+		documentRevision: WorkbenchSharedDocumentRevision,
 	) => Promise<DesktopApplicationLifetimeDrainResult>;
 	readonly onRendererCommand?:
 		| ((command: DesktopApplicationLifetimeRendererCommand) => void)
@@ -40,7 +40,7 @@ interface ActiveExitRequest {
 	readonly reason: DesktopApplicationExitReason;
 	readonly requestId: DesktopApplicationExitRequestId;
 	resolve(result: DesktopApplicationLifetimeExitResult): void;
-	stopRevision: WorkbenchTopologyRevision | null;
+	stopRevision: WorkbenchSharedDocumentRevision | null;
 }
 
 export class DesktopApplicationLifetimeBroker {
@@ -131,7 +131,7 @@ export class DesktopApplicationLifetimeBroker {
 					return;
 				}
 				if (request.stopRevision !== null || request.drainPending) return;
-				request.stopRevision = command.topologyRevision;
+				request.stopRevision = command.documentRevision;
 				void this.#drain(request);
 				return;
 			case 'desktop-application-exit-main-retry-requested':

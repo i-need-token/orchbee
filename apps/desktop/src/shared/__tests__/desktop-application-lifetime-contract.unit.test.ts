@@ -12,7 +12,7 @@ describe('desktop application lifetime contract', () => {
 				mode: 'stop',
 				presentationCount: 3,
 				requestId: 'exit-1',
-				topologyRevision: '4',
+				documentRevision: '4',
 				type: 'desktop-application-exit-renderer-prepared',
 			}),
 		).toMatchObject({ mode: 'stop', presentationCount: 3 });
@@ -22,7 +22,7 @@ describe('desktop application lifetime contract', () => {
 				mode: 'stop',
 				presentationCount: 3,
 				requestId: 'exit-1',
-				topologyRevision: '4',
+				documentRevision: '4',
 				type: 'desktop-application-exit-renderer-prepared',
 			}).success,
 		).toBe(false);

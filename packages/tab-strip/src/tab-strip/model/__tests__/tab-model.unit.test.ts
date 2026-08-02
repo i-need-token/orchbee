@@ -202,6 +202,18 @@ function createBoundedTabModel(): TabModel {
 }
 
 describe('TabModel selection', () => {
+	it('restores an explicit selection anchor from a Client View projection', () => {
+		const model = new TabModel({
+			activeTabId: 'c',
+			selectedTabIds: ['b', 'c'],
+			selectionAnchorId: 'b',
+			tabs: ['a', 'b', 'c'].map((id) => makeTab(id)),
+		});
+
+		expect(model.getSnapshot().selectionAnchorId).toBe('b');
+		expect([...model.getSnapshot().selectedTabIds]).toEqual(['b', 'c']);
+	});
+
 	it('supports Chrome anchor range selection and additive ranges', () => {
 		const model = new TabModel({
 			tabs: ['a', 'b', 'c', 'd'].map((id) => makeTab(id)),

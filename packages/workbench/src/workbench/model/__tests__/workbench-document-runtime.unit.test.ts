@@ -3,12 +3,12 @@ import {
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
 } from '../../../terminal-presentation';
-import { workbenchTopologyRevision } from '../../topology';
+import { workbenchSharedDocumentRevision } from '../../document';
 import { describe, expect, it } from 'vitest';
 
 import type { WorkbenchTerminalPresentationCommand } from '../createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../WorkbenchProjectWorkspaceRuntime';
-import { hydrateWorkbenchTopology } from '../workbench-topology-runtime';
+import { hydrateWorkbenchDocuments } from '../workbench-document-runtime';
 
 function managedComposition(commands: WorkbenchTerminalPresentationCommand[]) {
 	let operationSequence = 1;
@@ -16,14 +16,14 @@ function managedComposition(commands: WorkbenchTerminalPresentationCommand[]) {
 	let removalSequence = 1;
 	return {
 		createOperationId: () =>
-			terminalPresentationOperationId(`topology:operation:${operationSequence++}`),
+			terminalPresentationOperationId(`document:operation:${operationSequence++}`),
 		createPresentationId: () =>
-			terminalPresentationId(`topology:presentation:${presentationSequence++}`),
-		createRemovalId: () => terminalPresentationRemovalId(`topology:removal:${removalSequence++}`),
+			terminalPresentationId(`document:presentation:${presentationSequence++}`),
+		createRemovalId: () => terminalPresentationRemovalId(`document:removal:${removalSequence++}`),
 		dispatchCommands: (nextCommands: readonly WorkbenchTerminalPresentationCommand[]) => {
 			commands.push(...nextCommands);
 		},
-		initialPresentationId: terminalPresentationId('topology:presentation:initial'),
+		initialPresentationId: terminalPresentationId('document:presentation:initial'),
 		kind: 'managed' as const,
 	};
 }
@@ -36,8 +36,42 @@ function createManagedRuntime(commands: WorkbenchTerminalPresentationCommand[]) 
 	});
 }
 
-describe('workbench topology runtime', () => {
-	it('projects and hydrates managed topology without dispatching recovered effects', () => {
+describe('Workbench document runtime', () => {
+	it('applies a shared document without effects and reconciles the current Client View', () => {
+		const commands: WorkbenchTerminalPresentationCommand[] = [];
+		const runtime = createManagedRuntime(commands);
+		const provision = commands[0];
+		if (provision?.type !== 'terminal-provision-requested') {
+			throw new Error('Expected the initial provision command.');
+		}
+		runtime.applyTerminalPresentationEvent({
+			operationId: provision.operationId,
+			presentationId: provision.presentationId,
+			type: 'terminal-provision-completed',
+		});
+		const initialDocument = runtime.getSharedDocument(workbenchSharedDocumentRevision('0'));
+		runtime.createTerminal({ groupId: null, source: 'button', title: 'Terminal 2' });
+		expect(runtime.getClientView().terminalContexts[0]?.tabCollection.activeTabId).toBe(
+			'terminal-context-1-tab-2',
+		);
+		const commandCount = commands.length;
+
+		const result = runtime.applySharedDocument(initialDocument);
+
+		expect(result).toMatchObject({ kind: 'applied' });
+		expect(runtime.getClientView().terminalContexts[0]?.tabCollection.activeTabId).toBe(
+			'terminal-context-1-tab-1',
+		);
+		expect(runtime.getSharedDocument(workbenchSharedDocumentRevision('0'))).toEqual(
+			initialDocument,
+		);
+		expect(
+			runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot().tabs[0]?.root,
+		).toMatchObject({ primaryPresentation: { lifecycle: { kind: 'running' } } });
+		expect(commands).toHaveLength(commandCount);
+	});
+
+	it('projects and hydrates managed shared document without dispatching recovered effects', () => {
 		const commands: WorkbenchTerminalPresentationCommand[] = [];
 		const runtime = createManagedRuntime(commands);
 		const provision = commands[0];
@@ -58,18 +92,18 @@ describe('workbench topology runtime', () => {
 			tabId,
 			type: 'terminal-current-cwd-changed',
 		});
-		const document = runtime.getTopologyDocument(workbenchTopologyRevision('7'));
-		const hydrated = hydrateWorkbenchTopology(document);
+		const document = runtime.getSharedDocument(workbenchSharedDocumentRevision('7'));
+		const hydrated = hydrateWorkbenchDocuments(document);
 		const restoredCommands: WorkbenchTerminalPresentationCommand[] = [];
 		const restored = new WorkbenchProjectWorkspaceRuntime({
-			initialTopology: document,
+			initialDocument: document,
 			standaloneCwd: '/fallback',
 			standaloneTerminalTitle: 'Unused',
 			terminalPresentation: managedComposition(restoredCommands),
 		});
 
 		expect(restoredCommands).toEqual([]);
-		expect(restored.getTopologyDocument(workbenchTopologyRevision('7'))).toEqual(document);
+		expect(restored.getSharedDocument(workbenchSharedDocumentRevision('7'))).toEqual(document);
 		expect(hydrated.terminalContexts[0]?.panelWorkspace.tabs[0]?.root).toMatchObject({
 			primaryPresentation: {
 				currentCwd: null,
@@ -95,7 +129,7 @@ describe('workbench topology runtime', () => {
 		if (tabId === null) throw new Error('Expected an active Tab.');
 		runtime.requestActiveTerminalTabsClose([tabId]);
 
-		const document = runtime.getTopologyDocument(workbenchTopologyRevision('8'));
+		const document = runtime.getSharedDocument(workbenchSharedDocumentRevision('8'));
 		const pendingRemoval = document.terminalContexts[0]?.panelWorkspace.pendingRemovals[0];
 		const presentation = document.terminalContexts[0]?.panelWorkspace.tabs[0]?.root;
 
@@ -113,12 +147,12 @@ describe('workbench topology runtime', () => {
 		});
 		const restoredCommands: WorkbenchTerminalPresentationCommand[] = [];
 		const restored = new WorkbenchProjectWorkspaceRuntime({
-			initialTopology: document,
+			initialDocument: document,
 			standaloneCwd: '/fallback',
 			standaloneTerminalTitle: 'Unused',
 			terminalPresentation: managedComposition(restoredCommands),
 		});
-		expect(restored.getTopologyDocument(workbenchTopologyRevision('8'))).toEqual(document);
+		expect(restored.getSharedDocument(workbenchSharedDocumentRevision('8'))).toEqual(document);
 		expect(restored.reconcileDurableTerminalPresentations()).toEqual({
 			commandCount: 1,
 			kind: 'started',
@@ -137,10 +171,10 @@ describe('workbench topology runtime', () => {
 		if (provision?.type !== 'terminal-provision-requested') {
 			throw new Error('Expected the initial provision command.');
 		}
-		const document = initial.getTopologyDocument(workbenchTopologyRevision('3'));
+		const document = initial.getSharedDocument(workbenchSharedDocumentRevision('3'));
 		const replayedCommands: WorkbenchTerminalPresentationCommand[] = [];
 		const replayed = new WorkbenchProjectWorkspaceRuntime({
-			initialTopology: document,
+			initialDocument: document,
 			standaloneCwd: '/fallback',
 			standaloneTerminalTitle: 'Unused',
 			terminalPresentation: managedComposition(replayedCommands),
@@ -149,7 +183,7 @@ describe('workbench topology runtime', () => {
 		replayed.reconcileDurableTerminalPresentations();
 
 		expect(replayedCommands).toEqual([provision]);
-		expect(replayed.getTopologyDocument(workbenchTopologyRevision('3'))).toEqual(document);
+		expect(replayed.getSharedDocument(workbenchSharedDocumentRevision('3'))).toEqual(document);
 	});
 
 	it('reconciles retain intent through restore-only commands without changing durable intent', () => {
@@ -164,10 +198,10 @@ describe('workbench topology runtime', () => {
 			presentationId: provision.presentationId,
 			type: 'terminal-provision-completed',
 		});
-		const document = initial.getTopologyDocument(workbenchTopologyRevision('4'));
+		const document = initial.getSharedDocument(workbenchSharedDocumentRevision('4'));
 		const restoredCommands: WorkbenchTerminalPresentationCommand[] = [];
 		const restored = new WorkbenchProjectWorkspaceRuntime({
-			initialTopology: document,
+			initialDocument: document,
 			standaloneCwd: '/fallback',
 			standaloneTerminalTitle: 'Unused',
 			terminalPresentation: managedComposition(restoredCommands),
@@ -180,20 +214,20 @@ describe('workbench topology runtime', () => {
 		expect(restoredCommands).toEqual([
 			{
 				launchCwd: '/workspace',
-				operationId: 'topology:operation:1',
+				operationId: 'document:operation:1',
 				presentationId: provision.presentationId,
 				type: 'terminal-restore-requested',
 			},
 		]);
-		expect(restored.getTopologyDocument(workbenchTopologyRevision('4'))).toEqual(document);
+		expect(restored.getSharedDocument(workbenchSharedDocumentRevision('4'))).toEqual(document);
 		expect(
 			restored.applyTerminalPresentationEvent({
-				operationId: terminalPresentationOperationId('topology:operation:1'),
+				operationId: terminalPresentationOperationId('document:operation:1'),
 				presentationId: provision.presentationId,
 				type: 'terminal-restore-completed',
 			}),
 		).toEqual({ kind: 'applied' });
-		expect(restored.getTopologyDocument(workbenchTopologyRevision('5'))).toEqual({
+		expect(restored.getSharedDocument(workbenchSharedDocumentRevision('5'))).toEqual({
 			...document,
 			revision: '5',
 		});
@@ -215,9 +249,9 @@ describe('workbench topology runtime', () => {
 			presentationId: provision.presentationId,
 			type: 'terminal-provision-completed',
 		});
-		const document = initial.getTopologyDocument(workbenchTopologyRevision('2'));
+		const document = initial.getSharedDocument(workbenchSharedDocumentRevision('2'));
 		const restored = new WorkbenchProjectWorkspaceRuntime({
-			initialTopology: document,
+			initialDocument: document,
 			standaloneCwd: '/fallback',
 			standaloneTerminalTitle: 'Unused',
 			terminalPresentation: managedComposition([]),
@@ -227,12 +261,12 @@ describe('workbench topology runtime', () => {
 		expect(
 			restored.applyTerminalPresentationEvent({
 				failure: { code: 'terminal-identity-unavailable', retryable: false },
-				operationId: terminalPresentationOperationId('topology:operation:1'),
+				operationId: terminalPresentationOperationId('document:operation:1'),
 				presentationId: provision.presentationId,
 				type: 'terminal-restore-failed',
 			}),
 		).toEqual({ kind: 'applied' });
-		expect(restored.getTopologyDocument(workbenchTopologyRevision('2'))).toEqual(document);
+		expect(restored.getSharedDocument(workbenchSharedDocumentRevision('2'))).toEqual(document);
 	});
 
 	it('refuses to project preview-only terminal presentations as durable process intent', () => {
@@ -246,8 +280,8 @@ describe('workbench topology runtime', () => {
 			},
 		});
 
-		expect(() => runtime.getTopologyDocument(workbenchTopologyRevision('0'))).toThrow(
-			'Preview terminal presentations cannot enter durable topology.',
+		expect(() => runtime.getSharedDocument(workbenchSharedDocumentRevision('0'))).toThrow(
+			'Preview terminal presentations cannot enter a shared document.',
 		);
 	});
 });

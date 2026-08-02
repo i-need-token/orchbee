@@ -3,15 +3,15 @@ import type {
 	WorkbenchProjectWorkspaceRuntime,
 } from '@orchbee/workbench';
 import {
-	workbenchTopologyRevision,
-	type WorkbenchTopologyDocument,
-	type WorkbenchTopologyRevision,
-} from '@orchbee/workbench/topology';
+	workbenchSharedDocumentRevision,
+	type WorkbenchSharedDocument,
+	type WorkbenchSharedDocumentRevision,
+} from '@orchbee/workbench/document';
 
-import type { WorkbenchTopologyCommitResult, WorkbenchTopologyLoadResult } from '../../shared';
+import type { WorkbenchDocumentCommitResult, WorkbenchDocumentLoadResult } from '../../shared';
 
-type InitialTopologyLoadResult = Extract<
-	WorkbenchTopologyLoadResult,
+type InitialDocumentLoadResult = Extract<
+	WorkbenchDocumentLoadResult,
 	{ readonly kind: 'available' | 'missing' }
 >;
 
@@ -25,19 +25,19 @@ type CoordinatorFailureReason =
 	| 'write-failed';
 
 type CoordinatorStartResult =
-	| { readonly kind: 'ready'; readonly revision: WorkbenchTopologyRevision }
+	| { readonly kind: 'ready'; readonly revision: WorkbenchSharedDocumentRevision }
 	| { readonly kind: 'unavailable'; readonly reason: CoordinatorFailureReason };
 
-export type DesktopWorkbenchTopologyFlushResult =
-	| { readonly kind: 'flushed'; readonly revision: WorkbenchTopologyRevision }
+export type DesktopWorkbenchDocumentFlushResult =
+	| { readonly kind: 'flushed'; readonly revision: WorkbenchSharedDocumentRevision }
 	| { readonly kind: 'unavailable'; readonly reason: CoordinatorFailureReason };
 
-interface WorkbenchTopologyCommitPort {
+interface WorkbenchDocumentCommitPort {
 	commit(
-		expectedRevision: WorkbenchTopologyRevision | null,
-		document: WorkbenchTopologyDocument,
+		expectedRevision: WorkbenchSharedDocumentRevision | null,
+		document: WorkbenchSharedDocument,
 	): Promise<
-		| WorkbenchTopologyCommitResult
+		| WorkbenchDocumentCommitResult
 		| { readonly kind: 'unavailable'; readonly reason: 'control-unavailable' }
 	>;
 }
@@ -46,32 +46,32 @@ interface TerminalCommandPort {
 	dispatch(commands: readonly TerminalPresentationCommand[]): void;
 }
 
-type TopologyRuntime = Pick<
+type DocumentRuntime = Pick<
 	WorkbenchProjectWorkspaceRuntime,
-	'getTopologyDocument' | 'subscribeTopology'
+	'getSharedDocument' | 'subscribeDocument'
 >;
 
-export class DesktopWorkbenchTopologyCoordinator {
+export class DesktopWorkbenchDocumentCoordinator {
 	readonly #commandPort: TerminalCommandPort;
-	#committedDocument: WorkbenchTopologyDocument | undefined;
+	#committedDocument: WorkbenchSharedDocument | undefined;
 	#disposed = false;
 	#failedReason: CoordinatorFailureReason | null = null;
-	readonly #flushWaiters = new Set<(result: DesktopWorkbenchTopologyFlushResult) => void>();
+	readonly #flushWaiters = new Set<(result: DesktopWorkbenchDocumentFlushResult) => void>();
 	readonly #pendingCommands: TerminalPresentationCommand[] = [];
 	#pumping = false;
 	#scheduled = false;
 	#started = false;
-	readonly #topologyPort: WorkbenchTopologyCommitPort;
-	readonly #topologyRuntime: TopologyRuntime;
-	#unsubscribeTopology: (() => void) | undefined;
+	readonly #documentPort: WorkbenchDocumentCommitPort;
+	readonly #documentRuntime: DocumentRuntime;
+	#unsubscribeDocument: (() => void) | undefined;
 
 	constructor(
-		topologyRuntime: TopologyRuntime,
-		topologyPort: WorkbenchTopologyCommitPort,
+		documentRuntime: DocumentRuntime,
+		documentPort: WorkbenchDocumentCommitPort,
 		commandPort: TerminalCommandPort,
 	) {
-		this.#topologyRuntime = topologyRuntime;
-		this.#topologyPort = topologyPort;
+		this.#documentRuntime = documentRuntime;
+		this.#documentPort = documentPort;
 		this.#commandPort = commandPort;
 	}
 
@@ -79,12 +79,12 @@ export class DesktopWorkbenchTopologyCoordinator {
 		return this.#failedReason;
 	}
 
-	get committedRevision(): WorkbenchTopologyRevision | null {
+	get committedRevision(): WorkbenchSharedDocumentRevision | null {
 		return this.#committedDocument?.revision ?? null;
 	}
 
 	async start(
-		loaded: InitialTopologyLoadResult,
+		loaded: InitialDocumentLoadResult,
 		initialCommands: readonly TerminalPresentationCommand[] = [],
 	): Promise<CoordinatorStartResult> {
 		if (this.#disposed || this.#started) {
@@ -92,16 +92,16 @@ export class DesktopWorkbenchTopologyCoordinator {
 		}
 		this.#started = true;
 		this.#pendingCommands.push(...initialCommands);
-		this.#unsubscribeTopology = this.#topologyRuntime.subscribeTopology(this.#schedule);
+		this.#unsubscribeDocument = this.#documentRuntime.subscribeDocument(this.#schedule);
 		if (loaded.kind === 'available') {
-			const projected = this.#topologyRuntime.getTopologyDocument(loaded.document.revision);
-			if (topologyFingerprint(projected) !== topologyFingerprint(loaded.document)) {
+			const projected = this.#documentRuntime.getSharedDocument(loaded.document.revision);
+			if (documentFingerprint(projected) !== documentFingerprint(loaded.document)) {
 				return this.#fail('projection-mismatch');
 			}
 			this.#committedDocument = loaded.document;
 		} else {
-			const initial = this.#topologyRuntime.getTopologyDocument(workbenchTopologyRevision('0'));
-			const committed = await this.#topologyPort.commit(null, initial);
+			const initial = this.#documentRuntime.getSharedDocument(workbenchSharedDocumentRevision('0'));
+			const committed = await this.#documentPort.commit(null, initial);
 			if (this.#disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
 			if (committed.kind !== 'committed') return this.#fail(reasonForCommit(committed));
 			if (committed.revision !== initial.revision) return this.#fail('revision-sequence');
@@ -117,7 +117,7 @@ export class DesktopWorkbenchTopologyCoordinator {
 		this.#schedule();
 	}
 
-	flush(): Promise<DesktopWorkbenchTopologyFlushResult> {
+	flush(): Promise<DesktopWorkbenchDocumentFlushResult> {
 		if (this.#disposed) {
 			return Promise.resolve({ kind: 'unavailable', reason: 'control-unavailable' });
 		}
@@ -127,7 +127,7 @@ export class DesktopWorkbenchTopologyCoordinator {
 		if (!this.#started) {
 			return Promise.resolve({ kind: 'unavailable', reason: 'control-unavailable' });
 		}
-		const result = new Promise<DesktopWorkbenchTopologyFlushResult>((resolve) => {
+		const result = new Promise<DesktopWorkbenchDocumentFlushResult>((resolve) => {
 			this.#flushWaiters.add(resolve);
 		});
 		this.#schedule();
@@ -139,8 +139,8 @@ export class DesktopWorkbenchTopologyCoordinator {
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#pendingCommands.length = 0;
-		this.#unsubscribeTopology?.();
-		this.#unsubscribeTopology = undefined;
+		this.#unsubscribeDocument?.();
+		this.#unsubscribeDocument = undefined;
 		this.#settleFlushWaiters();
 	}
 
@@ -169,15 +169,15 @@ export class DesktopWorkbenchTopologyCoordinator {
 			while (!this.#disposed && this.#failedReason === null) {
 				const committed = this.#committedDocument;
 				const commandCount = this.#pendingCommands.length;
-				const candidate = this.#topologyRuntime.getTopologyDocument(
-					nextTopologyRevision(committed.revision),
+				const candidate = this.#documentRuntime.getSharedDocument(
+					nextDocumentRevision(committed.revision),
 				);
-				if (topologyFingerprint(candidate) === topologyFingerprint(committed)) {
+				if (documentFingerprint(candidate) === documentFingerprint(committed)) {
 					if (commandCount === 0) break;
 					this.#dispatchPreparedCommands(commandCount);
 					continue;
 				}
-				const result = await this.#topologyPort.commit(committed.revision, candidate);
+				const result = await this.#documentPort.commit(committed.revision, candidate);
 				if (this.#disposed) return;
 				if (result.kind !== 'committed') {
 					this.#fail(reasonForCommit(result));
@@ -208,23 +208,23 @@ export class DesktopWorkbenchTopologyCoordinator {
 			return false;
 		}
 		if (this.#pendingCommands.length > 0) return true;
-		const projected = this.#topologyRuntime.getTopologyDocument(this.#committedDocument.revision);
-		return topologyFingerprint(projected) !== topologyFingerprint(this.#committedDocument);
+		const projected = this.#documentRuntime.getSharedDocument(this.#committedDocument.revision);
+		return documentFingerprint(projected) !== documentFingerprint(this.#committedDocument);
 	}
 
 	#fail(
 		reason: CoordinatorFailureReason,
 	): Extract<CoordinatorStartResult, { kind: 'unavailable' }> {
 		this.#failedReason = reason;
-		this.#unsubscribeTopology?.();
-		this.#unsubscribeTopology = undefined;
+		this.#unsubscribeDocument?.();
+		this.#unsubscribeDocument = undefined;
 		this.#settleFlushWaiters();
 		return { kind: 'unavailable', reason };
 	}
 
 	#settleFlushWaiters(): void {
 		if (this.#flushWaiters.size === 0) return;
-		let result: DesktopWorkbenchTopologyFlushResult | null = null;
+		let result: DesktopWorkbenchDocumentFlushResult | null = null;
 		if (this.#disposed) {
 			result = { kind: 'unavailable', reason: 'control-unavailable' };
 		} else if (this.#failedReason !== null) {
@@ -245,17 +245,19 @@ export class DesktopWorkbenchTopologyCoordinator {
 	}
 }
 
-function nextTopologyRevision(revision: WorkbenchTopologyRevision): WorkbenchTopologyRevision {
-	return workbenchTopologyRevision((BigInt(revision) + 1n).toString());
+function nextDocumentRevision(
+	revision: WorkbenchSharedDocumentRevision,
+): WorkbenchSharedDocumentRevision {
+	return workbenchSharedDocumentRevision((BigInt(revision) + 1n).toString());
 }
 
-function topologyFingerprint(document: WorkbenchTopologyDocument): string {
+function documentFingerprint(document: WorkbenchSharedDocument): string {
 	return JSON.stringify([document.version, document.projectWorkspace, document.terminalContexts]);
 }
 
 function reasonForCommit(
 	result: Exclude<
-		Awaited<ReturnType<WorkbenchTopologyCommitPort['commit']>>,
+		Awaited<ReturnType<WorkbenchDocumentCommitPort['commit']>>,
 		{ readonly kind: 'committed' }
 	>,
 ): CoordinatorFailureReason {

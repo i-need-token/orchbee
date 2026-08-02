@@ -1,40 +1,40 @@
 import type { IpcRendererEvent } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
-import { WORKBENCH_TOPOLOGY_CONTROL_IPC_CHANNEL } from '../../shared';
+import { WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL } from '../../shared';
 import {
-	installWorkbenchTopologyControlBridge,
-	type WorkbenchTopologyControlIpc,
-	type WorkbenchTopologyControlWindow,
-} from '../installWorkbenchTopologyControlBridge';
+	installWorkbenchDocumentControlBridge,
+	type WorkbenchDocumentControlIpc,
+	type WorkbenchDocumentControlWindow,
+} from '../installWorkbenchDocumentControlBridge';
 
-describe('installWorkbenchTopologyControlBridge', () => {
-	it('transfers one validated topology port without generic IPC authority', () => {
+describe('installWorkbenchDocumentControlBridge', () => {
+	it('transfers one validated document port without generic IPC authority', () => {
 		let listener: ((event: IpcRendererEvent, value: unknown) => void) | undefined;
-		const ipc: WorkbenchTopologyControlIpc = {
-			once: vi.fn<WorkbenchTopologyControlIpc['once']>((channel, nextListener) => {
-				expect(channel).toBe(WORKBENCH_TOPOLOGY_CONTROL_IPC_CHANNEL);
+		const ipc: WorkbenchDocumentControlIpc = {
+			once: vi.fn<WorkbenchDocumentControlIpc['once']>((channel, nextListener) => {
+				expect(channel).toBe(WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL);
 				listener = nextListener;
 			}),
 		};
-		const targetWindow: WorkbenchTopologyControlWindow = {
+		const targetWindow: WorkbenchDocumentControlWindow = {
 			location: { origin: 'null' },
-			postMessage: vi.fn<WorkbenchTopologyControlWindow['postMessage']>(),
+			postMessage: vi.fn<WorkbenchDocumentControlWindow['postMessage']>(),
 		};
 		const port = new MessageChannel().port1;
-		installWorkbenchTopologyControlBridge(ipc, targetWindow, {
+		installWorkbenchDocumentControlBridge(ipc, targetWindow, {
 			contextIsolated: true,
 			sandboxed: true,
 		});
 
 		listener?.({ ports: [port] } as IpcRendererEvent, {
-			type: WORKBENCH_TOPOLOGY_CONTROL_IPC_CHANNEL,
+			type: WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL,
 		});
 
 		const call = vi.mocked(targetWindow.postMessage).mock.calls[0];
 		expect(call?.[0]).toEqual({
 			security: { contextIsolated: true, sandboxed: true },
-			type: 'orchbee.desktop.workbench-topology-control-ready',
+			type: 'orchbee.desktop.workbench-document-control-ready',
 		});
 		expect(call?.[1]).toBe('*');
 		expect(call?.[2]?.[0]).toBe(port);
@@ -42,11 +42,11 @@ describe('installWorkbenchTopologyControlBridge', () => {
 
 	it('drops malformed bootstrap values and ambiguous port sets', () => {
 		let listener: ((event: IpcRendererEvent, value: unknown) => void) | undefined;
-		const targetWindow: WorkbenchTopologyControlWindow = {
+		const targetWindow: WorkbenchDocumentControlWindow = {
 			location: { origin: 'https://desktop.invalid' },
-			postMessage: vi.fn<WorkbenchTopologyControlWindow['postMessage']>(),
+			postMessage: vi.fn<WorkbenchDocumentControlWindow['postMessage']>(),
 		};
-		installWorkbenchTopologyControlBridge(
+		installWorkbenchDocumentControlBridge(
 			{ once: (_channel, nextListener) => (listener = nextListener) },
 			targetWindow,
 			{ contextIsolated: true, sandboxed: true },

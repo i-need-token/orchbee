@@ -87,7 +87,7 @@ await provisionJar();
 for (const modelName of [
 	'DesktopApplicationLifetime',
 	'DesktopTerminalLifecycleAdapter',
-	'DesktopWorkbenchTopologyStore',
+	'DesktopWorkbenchDocumentStore',
 	'DesktopWorkbenchWriteAhead',
 ]) {
 	await runTlc(modelName);

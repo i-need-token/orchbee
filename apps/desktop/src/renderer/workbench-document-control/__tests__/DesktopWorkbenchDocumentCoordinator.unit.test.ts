@@ -7,32 +7,32 @@ import {
 	type WorkbenchTerminalPresentationCommand,
 } from '@orchbee/workbench';
 import {
-	createWorkbenchTopologyDocument,
-	workbenchTopologyRevision,
-	type WorkbenchTopologyDocument,
-	type WorkbenchTopologyRevision,
-} from '@orchbee/workbench/topology';
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+	type WorkbenchSharedDocument,
+	type WorkbenchSharedDocumentRevision,
+} from '@orchbee/workbench/document';
 import { describe, expect, it, vi } from 'vitest';
 
-import { DesktopWorkbenchTopologyCoordinator } from '../DesktopWorkbenchTopologyCoordinator';
+import { DesktopWorkbenchDocumentCoordinator } from '../DesktopWorkbenchDocumentCoordinator';
 
-type TopologyCommit = (
-	expectedRevision: WorkbenchTopologyRevision | null,
-	document: WorkbenchTopologyDocument,
+type DocumentCommit = (
+	expectedRevision: WorkbenchSharedDocumentRevision | null,
+	document: WorkbenchSharedDocument,
 ) => Promise<
-	| { readonly kind: 'committed'; readonly revision: WorkbenchTopologyRevision }
+	| { readonly kind: 'committed'; readonly revision: WorkbenchSharedDocumentRevision }
 	| { readonly kind: 'unavailable'; readonly reason: 'write-failed' }
 >;
 
-class TestTopologyRuntime {
+class TestDocumentRuntime {
 	readonly #listeners = new Set<() => void>();
 	#sequence = 1;
 
-	getTopologyDocument(revision: WorkbenchTopologyRevision): WorkbenchTopologyDocument {
-		return topology(revision, this.#sequence);
+	getSharedDocument(revision: WorkbenchSharedDocumentRevision): WorkbenchSharedDocument {
+		return sharedDocument(revision, this.#sequence);
 	}
 
-	subscribeTopology(listener: () => void): () => void {
+	subscribeDocument(listener: () => void): () => void {
 		this.#listeners.add(listener);
 		return () => this.#listeners.delete(listener);
 	}
@@ -41,16 +41,18 @@ class TestTopologyRuntime {
 		this.#sequence = sequence;
 		for (const listener of this.#listeners) listener();
 	}
+
+	notifyClientViewChange(): void {
+		for (const listener of this.#listeners) listener();
+	}
 }
 
-function topology(
-	revision: WorkbenchTopologyRevision,
+function sharedDocument(
+	revision: WorkbenchSharedDocumentRevision,
 	projectSequence = 1,
-): WorkbenchTopologyDocument {
-	return createWorkbenchTopologyDocument({
+): WorkbenchSharedDocument {
+	return createWorkbenchSharedDocument({
 		projectWorkspace: {
-			activeLocation: { kind: 'standalone' },
-			expandedProjectIds: [],
 			nextProjectSequence: projectSequence,
 			nextTerminalContextSequence: 2,
 			nextWorkspaceSequence: 1,
@@ -70,9 +72,7 @@ function topology(
 					tabs: [],
 				},
 				tabCollection: {
-					activeTabId: null,
 					groups: [],
-					mostRecentGroupId: null,
 					tabs: [],
 				},
 				terminalContextId: 'terminal-context-1',
@@ -115,61 +115,78 @@ function deferred<Value>() {
 	return { promise, resolve };
 }
 
-describe('DesktopWorkbenchTopologyCoordinator', () => {
+describe('DesktopWorkbenchDocumentCoordinator', () => {
 	it('commits missing revision zero before dispatching initial provision', async () => {
-		const runtime = new TestTopologyRuntime();
+		const runtime = new TestDocumentRuntime();
 		const commit = deferred<{
 			readonly kind: 'committed';
-			readonly revision: WorkbenchTopologyRevision;
+			readonly revision: WorkbenchSharedDocumentRevision;
 		}>();
-		const topologyPort = { commit: vi.fn<TopologyCommit>(() => commit.promise) };
+		const documentPort = { commit: vi.fn<DocumentCommit>(() => commit.promise) };
 		const commandPort = {
 			dispatch: vi.fn<(commands: readonly TerminalPresentationCommand[]) => void>(),
 		};
-		const coordinator = new DesktopWorkbenchTopologyCoordinator(runtime, topologyPort, commandPort);
+		const coordinator = new DesktopWorkbenchDocumentCoordinator(runtime, documentPort, commandPort);
 
 		const start = coordinator.start({ kind: 'missing' }, [provisionCommand()]);
 		expect(commandPort.dispatch).not.toHaveBeenCalled();
-		expect(topologyPort.commit).toHaveBeenCalledWith(
+		expect(documentPort.commit).toHaveBeenCalledWith(
 			null,
-			topology(workbenchTopologyRevision('0')),
+			sharedDocument(workbenchSharedDocumentRevision('0')),
 		);
-		commit.resolve({ kind: 'committed', revision: workbenchTopologyRevision('0') });
+		commit.resolve({ kind: 'committed', revision: workbenchSharedDocumentRevision('0') });
 
 		await expect(start).resolves.toEqual({ kind: 'ready', revision: '0' });
 		await vi.waitFor(() => expect(commandPort.dispatch).toHaveBeenCalledWith([provisionCommand()]));
 	});
 
-	it('dispatches restore against already committed retain topology without a redundant write', async () => {
-		const runtime = new TestTopologyRuntime();
-		const topologyPort = { commit: vi.fn<TopologyCommit>() };
+	it('dispatches restore against already committed retain document without a redundant write', async () => {
+		const runtime = new TestDocumentRuntime();
+		const documentPort = { commit: vi.fn<DocumentCommit>() };
 		const commandPort = {
 			dispatch: vi.fn<(commands: readonly TerminalPresentationCommand[]) => void>(),
 		};
-		const coordinator = new DesktopWorkbenchTopologyCoordinator(runtime, topologyPort, commandPort);
+		const coordinator = new DesktopWorkbenchDocumentCoordinator(runtime, documentPort, commandPort);
 
 		await coordinator.start(
-			{ document: topology(workbenchTopologyRevision('7')), kind: 'available' },
+			{ document: sharedDocument(workbenchSharedDocumentRevision('7')), kind: 'available' },
 			[restoreCommand()],
 		);
 
 		await vi.waitFor(() => expect(commandPort.dispatch).toHaveBeenCalledWith([restoreCommand()]));
-		expect(topologyPort.commit).not.toHaveBeenCalled();
+		expect(documentPort.commit).not.toHaveBeenCalled();
 	});
 
-	it('flushes only after the current topology is durable and its prepared commands are released', async () => {
-		const runtime = new TestTopologyRuntime();
+	it('does not commit when a Client View notification leaves the shared fingerprint unchanged', async () => {
+		const runtime = new TestDocumentRuntime();
+		const documentPort = { commit: vi.fn<DocumentCommit>() };
+		const coordinator = new DesktopWorkbenchDocumentCoordinator(runtime, documentPort, {
+			dispatch: vi.fn<(commands: readonly TerminalPresentationCommand[]) => void>(),
+		});
+		await coordinator.start({
+			document: sharedDocument(workbenchSharedDocumentRevision('7')),
+			kind: 'available',
+		});
+
+		runtime.notifyClientViewChange();
+
+		await expect(coordinator.flush()).resolves.toEqual({ kind: 'flushed', revision: '7' });
+		expect(documentPort.commit).not.toHaveBeenCalled();
+	});
+
+	it('flushes only after the current document is durable and its prepared commands are released', async () => {
+		const runtime = new TestDocumentRuntime();
 		const commit = deferred<{
 			readonly kind: 'committed';
-			readonly revision: WorkbenchTopologyRevision;
+			readonly revision: WorkbenchSharedDocumentRevision;
 		}>();
-		const topologyPort = { commit: vi.fn<TopologyCommit>(() => commit.promise) };
+		const documentPort = { commit: vi.fn<DocumentCommit>(() => commit.promise) };
 		const commandPort = {
 			dispatch: vi.fn<(commands: readonly TerminalPresentationCommand[]) => void>(),
 		};
-		const coordinator = new DesktopWorkbenchTopologyCoordinator(runtime, topologyPort, commandPort);
+		const coordinator = new DesktopWorkbenchDocumentCoordinator(runtime, documentPort, commandPort);
 		await coordinator.start({
-			document: topology(workbenchTopologyRevision('7')),
+			document: sharedDocument(workbenchSharedDocumentRevision('7')),
 			kind: 'available',
 		});
 		runtime.change(2);
@@ -179,76 +196,76 @@ describe('DesktopWorkbenchTopologyCoordinator', () => {
 		void flushed.then(() => {
 			settled = true;
 		});
-		await vi.waitFor(() => expect(topologyPort.commit).toHaveBeenCalledOnce());
+		await vi.waitFor(() => expect(documentPort.commit).toHaveBeenCalledOnce());
 		expect(settled).toBe(false);
 		expect(commandPort.dispatch).not.toHaveBeenCalled();
 
-		commit.resolve({ kind: 'committed', revision: workbenchTopologyRevision('8') });
+		commit.resolve({ kind: 'committed', revision: workbenchSharedDocumentRevision('8') });
 		await expect(flushed).resolves.toEqual({ kind: 'flushed', revision: '8' });
 		expect(commandPort.dispatch).toHaveBeenCalledWith([closeCommand()]);
 	});
 
 	it('binds each command batch to the complete snapshot captured before its commit', async () => {
-		const runtime = new TestTopologyRuntime();
+		const runtime = new TestDocumentRuntime();
 		const first = deferred<{
 			readonly kind: 'committed';
-			readonly revision: WorkbenchTopologyRevision;
+			readonly revision: WorkbenchSharedDocumentRevision;
 		}>();
 		const second = deferred<{
 			readonly kind: 'committed';
-			readonly revision: WorkbenchTopologyRevision;
+			readonly revision: WorkbenchSharedDocumentRevision;
 		}>();
-		const topologyPort = {
+		const documentPort = {
 			commit: vi
-				.fn<TopologyCommit>()
+				.fn<DocumentCommit>()
 				.mockReturnValueOnce(first.promise)
 				.mockReturnValueOnce(second.promise),
 		};
 		const commandPort = {
 			dispatch: vi.fn<(commands: readonly TerminalPresentationCommand[]) => void>(),
 		};
-		const coordinator = new DesktopWorkbenchTopologyCoordinator(runtime, topologyPort, commandPort);
+		const coordinator = new DesktopWorkbenchDocumentCoordinator(runtime, documentPort, commandPort);
 		await coordinator.start({
-			document: topology(workbenchTopologyRevision('7')),
+			document: sharedDocument(workbenchSharedDocumentRevision('7')),
 			kind: 'available',
 		});
 
 		runtime.change(2);
 		coordinator.dispatchCommands([provisionCommand()]);
-		await vi.waitFor(() => expect(topologyPort.commit).toHaveBeenCalledTimes(1));
+		await vi.waitFor(() => expect(documentPort.commit).toHaveBeenCalledTimes(1));
 		runtime.change(3);
 		coordinator.dispatchCommands([closeCommand()]);
-		first.resolve({ kind: 'committed', revision: workbenchTopologyRevision('8') });
+		first.resolve({ kind: 'committed', revision: workbenchSharedDocumentRevision('8') });
 
 		await vi.waitFor(() => {
 			expect(commandPort.dispatch).toHaveBeenNthCalledWith(1, [provisionCommand()]);
-			expect(topologyPort.commit).toHaveBeenCalledTimes(2);
+			expect(documentPort.commit).toHaveBeenCalledTimes(2);
 		});
-		expect(topologyPort.commit).toHaveBeenNthCalledWith(
+		expect(documentPort.commit).toHaveBeenNthCalledWith(
 			2,
-			workbenchTopologyRevision('8'),
-			topology(workbenchTopologyRevision('9'), 3),
+			workbenchSharedDocumentRevision('8'),
+			sharedDocument(workbenchSharedDocumentRevision('9'), 3),
 		);
 		expect(commandPort.dispatch).toHaveBeenCalledTimes(1);
-		second.resolve({ kind: 'committed', revision: workbenchTopologyRevision('9') });
+		second.resolve({ kind: 'committed', revision: workbenchSharedDocumentRevision('9') });
 		await vi.waitFor(() =>
 			expect(commandPort.dispatch).toHaveBeenNthCalledWith(2, [closeCommand()]),
 		);
 	});
 
 	it('fails closed after CAS failure and never releases the affected command', async () => {
-		const runtime = new TestTopologyRuntime();
-		const topologyPort = {
+		const runtime = new TestDocumentRuntime();
+		const documentPort = {
 			commit: vi
-				.fn<TopologyCommit>()
+				.fn<DocumentCommit>()
 				.mockResolvedValue({ kind: 'unavailable', reason: 'write-failed' }),
 		};
 		const commandPort = {
 			dispatch: vi.fn<(commands: readonly TerminalPresentationCommand[]) => void>(),
 		};
-		const coordinator = new DesktopWorkbenchTopologyCoordinator(runtime, topologyPort, commandPort);
+		const coordinator = new DesktopWorkbenchDocumentCoordinator(runtime, documentPort, commandPort);
 		await coordinator.start({
-			document: topology(workbenchTopologyRevision('7')),
+			document: sharedDocument(workbenchSharedDocumentRevision('7')),
 			kind: 'available',
 		});
 
@@ -260,14 +277,14 @@ describe('DesktopWorkbenchTopologyCoordinator', () => {
 		runtime.change(3);
 		coordinator.dispatchCommands([closeCommand()]);
 		await Promise.resolve();
-		expect(topologyPort.commit).toHaveBeenCalledOnce();
+		expect(documentPort.commit).toHaveBeenCalledOnce();
 		expect(commandPort.dispatch).not.toHaveBeenCalled();
 	});
 
 	it('persists managed close intent before the effect and commits container cleanup afterward', async () => {
 		let operationSequence = 1;
 		const bufferedCommands: TerminalPresentationCommand[] = [];
-		let coordinator: DesktopWorkbenchTopologyCoordinator | undefined;
+		let coordinator: DesktopWorkbenchDocumentCoordinator | undefined;
 		const runtime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/workspace',
 			standaloneTerminalTitle: 'Terminal 1',
@@ -288,17 +305,17 @@ describe('DesktopWorkbenchTopologyCoordinator', () => {
 			},
 		});
 		const timeline: string[] = [];
-		const committedDocuments: WorkbenchTopologyDocument[] = [];
+		const committedDocuments: WorkbenchSharedDocument[] = [];
 		const dispatchedCommands: TerminalPresentationCommand[] = [];
-		const topologyPort = {
-			commit: vi.fn<TopologyCommit>(
+		const documentPort = {
+			commit: vi.fn<DocumentCommit>(
 				async (
-					_expected: WorkbenchTopologyRevision | null,
-					document: WorkbenchTopologyDocument,
+					_expected: WorkbenchSharedDocumentRevision | null,
+					candidate: WorkbenchSharedDocument,
 				) => {
-					committedDocuments.push(document);
-					timeline.push(`commit:${intentIn(document)}`);
-					return { kind: 'committed' as const, revision: document.revision };
+					committedDocuments.push(candidate);
+					timeline.push(`commit:${intentIn(candidate)}`);
+					return { kind: 'committed' as const, revision: candidate.revision };
 				},
 			),
 		};
@@ -308,7 +325,7 @@ describe('DesktopWorkbenchTopologyCoordinator', () => {
 				for (const command of commands) timeline.push(`dispatch:${command.type}`);
 			},
 		};
-		coordinator = new DesktopWorkbenchTopologyCoordinator(runtime, topologyPort, commandPort);
+		coordinator = new DesktopWorkbenchDocumentCoordinator(runtime, documentPort, commandPort);
 
 		await coordinator.start({ kind: 'missing' }, bufferedCommands.splice(0));
 		await vi.waitFor(() => expect(dispatchedCommands).toHaveLength(1));
@@ -345,8 +362,8 @@ describe('DesktopWorkbenchTopologyCoordinator', () => {
 	});
 });
 
-function intentIn(document: WorkbenchTopologyDocument | undefined): string {
-	const root = document?.terminalContexts[0]?.panelWorkspace.tabs[0]?.root;
+function intentIn(candidateDocument: WorkbenchSharedDocument | undefined): string {
+	const root = candidateDocument?.terminalContexts[0]?.panelWorkspace.tabs[0]?.root;
 	if (root?.kind !== 'panel') return 'absent';
 	return root.primaryPresentation.intent.kind;
 }

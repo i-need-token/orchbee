@@ -16,7 +16,7 @@ import type { BrowserWindow, BrowserWindowConstructorOptions, MessagePortMain } 
 import { describe, expect, it, vi } from 'vitest';
 
 import type { HostConnection } from '../../host';
-import type { WorkbenchTopologyStore } from '../../workbench-topology';
+import type { WorkbenchDocumentStore } from '../../workbench-document';
 import type {
 	TerminalDocumentControlCommand,
 	TerminalDocumentControlOperationResult,
@@ -66,14 +66,14 @@ describe('DesktopApplication', () => {
 			[expect.anything()],
 		);
 		expect(harness.webContents.postMessage).toHaveBeenCalledWith(
-			'orchbee.desktop.workbench-topology-control-port',
-			{ type: 'orchbee.desktop.workbench-topology-control-port' },
+			'orchbee.desktop.workbench-document-control-port',
+			{ type: 'orchbee.desktop.workbench-document-control-port' },
 			[expect.anything()],
 		);
 		expect(harness.documentBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.start).toHaveBeenCalledOnce();
-		expect(harness.topologyBrokers[0]?.start).toHaveBeenCalledOnce();
-		expect(harness.createWorkbenchTopologyStore).toHaveBeenCalledOnce();
+		expect(harness.workbenchDocumentBrokers[0]?.start).toHaveBeenCalledOnce();
+		expect(harness.createWorkbenchDocumentStore).toHaveBeenCalledOnce();
 
 		await application.shutdown();
 		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
@@ -97,15 +97,17 @@ describe('DesktopApplication', () => {
 		await Promise.resolve();
 		expect(harness.documentBrokers[0]?.dispose).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.dispose).toHaveBeenCalledOnce();
-		expect(harness.topologyBrokers[0]?.dispose).toHaveBeenCalledOnce();
+		expect(harness.workbenchDocumentBrokers[0]?.dispose).toHaveBeenCalledOnce();
 		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(4);
 
 		finishRetirement?.();
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(8));
 		expect(harness.documentBrokers).toHaveLength(2);
 		expect(harness.projectionBrokers).toHaveLength(2);
-		expect(harness.topologyBrokers).toHaveLength(2);
-		expect(harness.topologyStoresPassedToBrokers[0]).toBe(harness.topologyStoresPassedToBrokers[1]);
+		expect(harness.workbenchDocumentBrokers).toHaveLength(2);
+		expect(harness.workbenchDocumentStoresPassedToBrokers[0]).toBe(
+			harness.workbenchDocumentStoresPassedToBrokers[1],
+		);
 		await application.shutdown();
 	});
 
@@ -333,7 +335,7 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		readonly dispose: ReturnType<typeof vi.fn<() => Promise<void>>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
-	const topologyBrokers: Array<{
+	const workbenchDocumentBrokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
@@ -342,13 +344,13 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		readonly requestExit: ReturnType<typeof vi.fn>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
-	const topologyStore: WorkbenchTopologyStore = {
+	const workbenchDocumentStore: WorkbenchDocumentStore = {
 		commit: vi
-			.fn<WorkbenchTopologyStore['commit']>()
+			.fn<WorkbenchDocumentStore['commit']>()
 			.mockResolvedValue({ kind: 'unavailable', reason: 'write-failed' }),
-		load: vi.fn<WorkbenchTopologyStore['load']>().mockResolvedValue({ kind: 'missing' }),
+		load: vi.fn<WorkbenchDocumentStore['load']>().mockResolvedValue({ kind: 'missing' }),
 	};
-	const topologyStoresPassedToBrokers: unknown[] = [];
+	const workbenchDocumentStoresPassedToBrokers: unknown[] = [];
 	const resultPosted: DesktopApplicationDependencies['createDocumentBroker'] extends (
 		_port: MessagePortMain,
 		_operations: infer _Operations,
@@ -439,20 +441,20 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		createTerminalRuntime: vi
 			.fn<DesktopApplicationDependencies['createTerminalRuntime']>()
 			.mockReturnValue(terminalRuntime),
-		createWorkbenchTopologyBroker: vi.fn<
-			DesktopApplicationDependencies['createWorkbenchTopologyBroker']
+		createWorkbenchDocumentBroker: vi.fn<
+			DesktopApplicationDependencies['createWorkbenchDocumentBroker']
 		>((_port, store) => {
-			topologyStoresPassedToBrokers.push(store);
+			workbenchDocumentStoresPassedToBrokers.push(store);
 			const broker = {
 				dispose: vi.fn<() => void>(),
 				start: vi.fn<() => void>(),
 			};
-			topologyBrokers.push(broker);
+			workbenchDocumentBrokers.push(broker);
 			return broker;
 		}),
-		createWorkbenchTopologyStore: vi
-			.fn<DesktopApplicationDependencies['createWorkbenchTopologyStore']>()
-			.mockReturnValue(topologyStore),
+		createWorkbenchDocumentStore: vi
+			.fn<DesktopApplicationDependencies['createWorkbenchDocumentStore']>()
+			.mockReturnValue(workbenchDocumentStore),
 		createWindow,
 		randomIdentifier: () => '44'.repeat(16),
 		quitApplication: vi.fn<() => void>(),
@@ -460,7 +462,7 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 	};
 	return {
 		browserWindow,
-		createWorkbenchTopologyStore: dependencies.createWorkbenchTopologyStore,
+		createWorkbenchDocumentStore: dependencies.createWorkbenchDocumentStore,
 		createWindow,
 		dependencies,
 		documentBrokers,
@@ -473,8 +475,8 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		quitApplication: dependencies.quitApplication,
 		resultPosted,
 		terminalRuntime,
-		topologyBrokers,
-		topologyStoresPassedToBrokers,
+		workbenchDocumentBrokers,
+		workbenchDocumentStoresPassedToBrokers,
 		webContents,
 		get windowOptions() {
 			return windowOptions;

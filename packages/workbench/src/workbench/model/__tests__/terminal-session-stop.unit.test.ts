@@ -7,7 +7,7 @@ import {
 	type TerminalPresentationCommand,
 	type TerminalPresentationId,
 } from '../../../terminal-presentation';
-import { workbenchTopologyRevision } from '../../topology';
+import { workbenchSharedDocumentRevision } from '../../document';
 import { collectPanelLeaves } from '../../components/workbench-panel-workspace/model/panel-workspace-state';
 import type {
 	WorkbenchTerminalPresentationCommand,
@@ -21,9 +21,9 @@ interface ManagedFixture {
 }
 
 function createManagedFixture(
-	initialTopology?: ConstructorParameters<
+	initialDocument?: ConstructorParameters<
 		typeof WorkbenchProjectWorkspaceRuntime
-	>[0]['initialTopology'],
+	>[0]['initialDocument'],
 ): ManagedFixture {
 	let operationSequence = 1;
 	let presentationSequence = 2;
@@ -42,7 +42,7 @@ function createManagedFixture(
 	return {
 		commands,
 		runtime: new WorkbenchProjectWorkspaceRuntime({
-			...(initialTopology === undefined ? {} : { initialTopology }),
+			...(initialDocument === undefined ? {} : { initialDocument }),
 			standaloneCwd: '/workspace',
 			standaloneTerminalTitle: 'Terminal 1',
 			terminalPresentation: composition,
@@ -73,7 +73,7 @@ function presentationIds(
 }
 
 describe('durable terminal-session stop', () => {
-	it('stops visible and hidden Tabs without removing their product topology', () => {
+	it('stops visible and hidden Tabs without removing their shared product structure', () => {
 		const fixture = createManagedFixture();
 		const firstProvision = terminalCommands(fixture.commands)[0];
 		if (firstProvision?.type !== 'terminal-provision-requested') {
@@ -99,7 +99,7 @@ describe('durable terminal-session stop', () => {
 			presentationId: secondProvision.presentationId,
 			type: 'terminal-provision-completed',
 		});
-		const topologyBefore = fixture.runtime.getTopologyDocument(workbenchTopologyRevision('1'));
+		const documentBefore = fixture.runtime.getSharedDocument(workbenchSharedDocumentRevision('1'));
 		const idsBefore = presentationIds(fixture.runtime);
 
 		const requested = fixture.runtime.requestAllTerminalSessionsStop();
@@ -115,9 +115,11 @@ describe('durable terminal-session stop', () => {
 				type: 'terminal-close-requested',
 			}),
 		]);
-		const stoppingTopology = fixture.runtime.getTopologyDocument(workbenchTopologyRevision('2'));
+		const stoppingDocument = fixture.runtime.getSharedDocument(
+			workbenchSharedDocumentRevision('2'),
+		);
 		expect(
-			stoppingTopology.terminalContexts[0]?.panelWorkspace.tabs.map(
+			stoppingDocument.terminalContexts[0]?.panelWorkspace.tabs.map(
 				(tab) => tab.root.kind === 'panel' && tab.root.primaryPresentation.intent.kind,
 			),
 		).toEqual(['stop', 'stop']);
@@ -139,22 +141,22 @@ describe('durable terminal-session stop', () => {
 			stoppedCount: 2,
 		});
 		expect(presentationIds(fixture.runtime)).toEqual(idsBefore);
-		const topologyAfter = fixture.runtime.getTopologyDocument(workbenchTopologyRevision('3'));
-		expect(topologyAfter.projectWorkspace).toEqual(topologyBefore.projectWorkspace);
+		const documentAfter = fixture.runtime.getSharedDocument(workbenchSharedDocumentRevision('3'));
+		expect(documentAfter.projectWorkspace).toEqual(documentBefore.projectWorkspace);
 		expect(
-			topologyAfter.terminalContexts[0]?.panelWorkspace.tabs.map((tab) => ({
+			documentAfter.terminalContexts[0]?.panelWorkspace.tabs.map((tab) => ({
 				intent: tab.root.kind === 'panel' && tab.root.primaryPresentation.intent.kind,
 				tabId: tab.tabId,
 			})),
 		).toEqual(
-			topologyBefore.terminalContexts[0]?.panelWorkspace.tabs.map((tab) => ({
+			documentBefore.terminalContexts[0]?.panelWorkspace.tabs.map((tab) => ({
 				intent: 'stopped',
 				tabId: tab.tabId,
 			})),
 		);
 	});
 
-	it('hydrates stopped topology without commands and starts only the selected session freshly', () => {
+	it('hydrates stopped shared document without commands and starts only the selected session freshly', () => {
 		const source = createManagedFixture();
 		const provision = terminalCommands(source.commands)[0];
 		if (provision?.type !== 'terminal-provision-requested') throw new Error('Missing provision.');
@@ -171,7 +173,7 @@ describe('durable terminal-session stop', () => {
 			presentationId: stop.presentationId,
 			type: 'terminal-close-completed',
 		});
-		const stoppedDocument = source.runtime.getTopologyDocument(workbenchTopologyRevision('4'));
+		const stoppedDocument = source.runtime.getSharedDocument(workbenchSharedDocumentRevision('4'));
 		const restored = createManagedFixture(stoppedDocument);
 
 		expect(restored.runtime.reconcileDurableTerminalPresentations()).toEqual({

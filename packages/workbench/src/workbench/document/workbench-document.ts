@@ -67,18 +67,7 @@ const projectSchema = z.strictObject({
 	workspaces: z.array(workspaceSchema),
 });
 
-const activeLocationSchema = z.discriminatedUnion('kind', [
-	z.strictObject({ kind: z.literal('standalone') }),
-	z.strictObject({
-		kind: z.literal('workspace'),
-		projectId: identifierSchema,
-		workspaceId: identifierSchema,
-	}),
-]);
-
 const projectWorkspaceSchema = z.strictObject({
-	activeLocation: activeLocationSchema,
-	expandedProjectIds: z.array(identifierSchema),
 	nextProjectSequence: sequenceSchema,
 	nextTerminalContextSequence: sequenceSchema,
 	nextWorkspaceSequence: sequenceSchema,
@@ -99,7 +88,6 @@ const tabGroupColorSchema = z.enum([
 ]);
 
 const tabGroupSchema = z.strictObject({
-	collapsed: z.boolean(),
 	color: tabGroupColorSchema,
 	id: identifierSchema,
 	title: z.string(),
@@ -113,9 +101,7 @@ const tabSchema = z.strictObject({
 });
 
 const tabCollectionSchema = z.strictObject({
-	activeTabId: nullableIdentifierSchema,
 	groups: z.array(tabGroupSchema),
-	mostRecentGroupId: nullableIdentifierSchema,
 	tabs: z.array(tabSchema),
 });
 
@@ -144,36 +130,33 @@ const presentationSchema = z.strictObject({
 	title: z.string(),
 });
 
-export type WorkbenchTopologyPresentationIntent = z.infer<typeof presentationIntentSchema>;
-export type WorkbenchTopologyPresentation = z.infer<typeof presentationSchema>;
+export type WorkbenchSharedPresentationIntent = z.infer<typeof presentationIntentSchema>;
+export type WorkbenchSharedPresentation = z.infer<typeof presentationSchema>;
 
-interface WorkbenchTopologyPanelLeaf {
-	readonly activeChildPresentationId: z.infer<typeof TerminalPresentationIdSchema> | null;
-	readonly childPresentations: WorkbenchTopologyPresentation[];
+interface WorkbenchSharedPanelLeaf {
+	readonly childPresentations: WorkbenchSharedPresentation[];
 	readonly id: string;
 	readonly kind: 'panel';
-	readonly primaryPresentation: WorkbenchTopologyPresentation;
+	readonly primaryPresentation: WorkbenchSharedPresentation;
 }
 
-interface WorkbenchTopologyPanelSplitChild {
+interface WorkbenchSharedPanelSplitChild {
 	readonly id: string;
-	readonly node: WorkbenchTopologyPanelNode;
-	readonly weight: number;
+	readonly node: WorkbenchSharedPanelNode;
 }
 
-interface WorkbenchTopologyPanelSplit {
-	readonly children: WorkbenchTopologyPanelSplitChild[];
+interface WorkbenchSharedPanelSplit {
+	readonly children: WorkbenchSharedPanelSplitChild[];
 	readonly id: string;
 	readonly kind: 'split';
 	readonly orientation: 'horizontal' | 'vertical';
 }
 
-export type WorkbenchTopologyPanelNode = WorkbenchTopologyPanelLeaf | WorkbenchTopologyPanelSplit;
+export type WorkbenchSharedPanelNode = WorkbenchSharedPanelLeaf | WorkbenchSharedPanelSplit;
 
-const panelNodeSchema: z.ZodType<WorkbenchTopologyPanelNode> = z.lazy(() =>
+const panelNodeSchema: z.ZodType<WorkbenchSharedPanelNode> = z.lazy(() =>
 	z.discriminatedUnion('kind', [
 		z.strictObject({
-			activeChildPresentationId: TerminalPresentationIdSchema.nullable(),
 			childPresentations: z.array(presentationSchema),
 			id: identifierSchema,
 			kind: z.literal('panel'),
@@ -184,7 +167,6 @@ const panelNodeSchema: z.ZodType<WorkbenchTopologyPanelNode> = z.lazy(() =>
 				z.strictObject({
 					id: identifierSchema,
 					node: panelNodeSchema,
-					weight: z.number().finite().nonnegative(),
 				}),
 			),
 			id: identifierSchema,
@@ -195,8 +177,6 @@ const panelNodeSchema: z.ZodType<WorkbenchTopologyPanelNode> = z.lazy(() =>
 );
 
 const tabPanelWorkspaceSchema = z.strictObject({
-	focusedPanelId: identifierSchema,
-	maximizedPanelId: nullableIdentifierSchema,
 	root: panelNodeSchema,
 	tabId: identifierSchema,
 });
@@ -241,22 +221,22 @@ const terminalContextSchema = z.strictObject({
 	terminalContextId: identifierSchema,
 });
 
-export type WorkbenchTopologyTerminalContext = z.infer<typeof terminalContextSchema>;
+export type WorkbenchSharedTerminalContext = z.infer<typeof terminalContextSchema>;
 
-export const WorkbenchTopologyRevisionSchema = z
+export const WorkbenchSharedDocumentRevisionSchema = z
 	.string()
 	.regex(/^(?:0|[1-9][0-9]*)$/u)
-	.brand<'WorkbenchTopologyRevision'>();
-export type WorkbenchTopologyRevision = z.infer<typeof WorkbenchTopologyRevisionSchema>;
+	.brand<'WorkbenchSharedDocumentRevision'>();
+export type WorkbenchSharedDocumentRevision = z.infer<typeof WorkbenchSharedDocumentRevisionSchema>;
 
-const workbenchTopologyDocumentBaseSchema = z.strictObject({
+const workbenchSharedDocumentBaseSchema = z.strictObject({
 	projectWorkspace: projectWorkspaceSchema,
-	revision: WorkbenchTopologyRevisionSchema,
+	revision: WorkbenchSharedDocumentRevisionSchema,
 	terminalContexts: z.array(terminalContextSchema),
 	version: z.literal(1),
 });
 
-export const WorkbenchTopologyDocumentSchema = workbenchTopologyDocumentBaseSchema.superRefine(
+export const WorkbenchSharedDocumentSchema = workbenchSharedDocumentBaseSchema.superRefine(
 	(document, context) => {
 		for (const issue of validateDocument(document)) {
 			context.addIssue({ code: 'custom', message: issue });
@@ -264,13 +244,13 @@ export const WorkbenchTopologyDocumentSchema = workbenchTopologyDocumentBaseSche
 	},
 );
 
-export type WorkbenchTopologyDocument = z.infer<typeof WorkbenchTopologyDocumentSchema>;
-export type WorkbenchTopologyDocumentInput = Omit<WorkbenchTopologyDocument, 'version'>;
+export type WorkbenchSharedDocument = z.infer<typeof WorkbenchSharedDocumentSchema>;
+export type WorkbenchSharedDocumentInput = Omit<WorkbenchSharedDocument, 'version'>;
 
-export function createWorkbenchTopologyDocument(
-	input: WorkbenchTopologyDocumentInput,
-): WorkbenchTopologyDocument {
-	return WorkbenchTopologyDocumentSchema.parse({
+export function createWorkbenchSharedDocument(
+	input: WorkbenchSharedDocumentInput,
+): WorkbenchSharedDocument {
+	return WorkbenchSharedDocumentSchema.parse({
 		...input,
 		terminalContexts: [...input.terminalContexts].sort((left, right) =>
 			compareIdentifiers(left.terminalContextId, right.terminalContextId),
@@ -279,22 +259,28 @@ export function createWorkbenchTopologyDocument(
 	});
 }
 
-export function parseWorkbenchTopologyDocument(value: unknown): WorkbenchTopologyDocument {
-	return WorkbenchTopologyDocumentSchema.parse(value);
+export function parseWorkbenchSharedDocument(value: unknown): WorkbenchSharedDocument {
+	return WorkbenchSharedDocumentSchema.parse(value);
 }
 
-export function workbenchTopologyRevision(value: string): WorkbenchTopologyRevision {
-	return WorkbenchTopologyRevisionSchema.parse(value);
+export function workbenchSharedDocumentRevision(value: string): WorkbenchSharedDocumentRevision {
+	return WorkbenchSharedDocumentRevisionSchema.parse(value);
 }
 
 function validateDocument(
-	document: z.infer<typeof workbenchTopologyDocumentBaseSchema>,
+	document: z.infer<typeof workbenchSharedDocumentBaseSchema>,
 ): readonly string[] {
 	const issues: string[] = [];
 	try {
-		assertProjectWorkspaceInvariants(document.projectWorkspace);
+		assertProjectWorkspaceInvariants({
+			...document.projectWorkspace,
+			activeLocation: { kind: 'standalone' },
+			expandedProjectIds: [],
+		});
 	} catch (error) {
-		issues.push(error instanceof Error ? error.message : 'Invalid Project and Workspace topology.');
+		issues.push(
+			error instanceof Error ? error.message : 'Invalid shared Project and Workspace structure.',
+		);
 	}
 	const referencedContextIds = new Set<string>([
 		document.projectWorkspace.standaloneTerminalContextId,
@@ -333,7 +319,7 @@ function validateDocument(
 }
 
 function validateTerminalContext(
-	terminalContext: WorkbenchTopologyTerminalContext,
+	terminalContext: WorkbenchSharedTerminalContext,
 	globalPresentationIds: Set<string>,
 	issues: string[],
 ): void {
@@ -367,19 +353,6 @@ function validateTerminalContext(
 			issues.push(`Tab group ${groupId} must be contiguous.`);
 		}
 	}
-	if (
-		terminalContext.tabCollection.activeTabId === null
-			? tabIds.size > 0
-			: !tabIds.has(terminalContext.tabCollection.activeTabId)
-	) {
-		issues.push('The active Tab must resolve exactly when the collection is non-empty.');
-	}
-	if (
-		terminalContext.tabCollection.mostRecentGroupId !== null &&
-		!groupIds.has(terminalContext.tabCollection.mostRecentGroupId)
-	) {
-		issues.push('The most recent Tab group must resolve.');
-	}
 	const panelTabIds = terminalContext.panelWorkspace.tabs.map((tab) => tab.tabId);
 	const orderedTabIds = terminalContext.tabCollection.tabs.map((tab) => tab.id);
 	if (!arraysEqual(panelTabIds, orderedTabIds)) {
@@ -389,17 +362,17 @@ function validateTerminalContext(
 }
 
 function validatePanelWorkspace(
-	terminalContext: WorkbenchTopologyTerminalContext,
+	terminalContext: WorkbenchSharedTerminalContext,
 	globalPresentationIds: Set<string>,
 	issues: string[],
 ): void {
 	const panelIds = new Set<string>();
 	const splitIds = new Set<string>();
 	const slotIds = new Set<string>();
-	const presentations = new Map<string, WorkbenchTopologyPresentation>();
-	const panelsByTab = new Map<string, Map<string, WorkbenchTopologyPanelLeaf>>();
+	const presentations = new Map<string, WorkbenchSharedPresentation>();
+	const panelsByTab = new Map<string, Map<string, WorkbenchSharedPanelLeaf>>();
 	for (const tab of terminalContext.panelWorkspace.tabs) {
-		const localPanels = new Map<string, WorkbenchTopologyPanelLeaf>();
+		const localPanels = new Map<string, WorkbenchSharedPanelLeaf>();
 		visitPanelNode(
 			tab.root,
 			null,
@@ -412,12 +385,6 @@ function validatePanelWorkspace(
 			issues,
 		);
 		panelsByTab.set(tab.tabId, localPanels);
-		if (!localPanels.has(tab.focusedPanelId)) {
-			issues.push(`Tab ${tab.tabId} references a missing focused Panel.`);
-		}
-		if (tab.maximizedPanelId !== null && !localPanels.has(tab.maximizedPanelId)) {
-			issues.push(`Tab ${tab.tabId} references a missing maximized Panel.`);
-		}
 	}
 	const removalIds = new Set<string>();
 	const removalPresentationIds = new Set<string>();
@@ -469,24 +436,20 @@ function validatePanelWorkspace(
 }
 
 function visitPanelNode(
-	node: WorkbenchTopologyPanelNode,
-	parentOrientation: WorkbenchTopologyPanelSplit['orientation'] | null,
+	node: WorkbenchSharedPanelNode,
+	parentOrientation: WorkbenchSharedPanelSplit['orientation'] | null,
 	panelIds: Set<string>,
 	splitIds: Set<string>,
 	slotIds: Set<string>,
-	presentations: Map<string, WorkbenchTopologyPresentation>,
+	presentations: Map<string, WorkbenchSharedPresentation>,
 	globalPresentationIds: Set<string>,
-	localPanels: Map<string, WorkbenchTopologyPanelLeaf>,
+	localPanels: Map<string, WorkbenchSharedPanelLeaf>,
 	issues: string[],
 ): void {
 	if (node.kind === 'panel') {
 		if (panelIds.has(node.id)) issues.push(`Duplicate Panel: ${node.id}.`);
 		panelIds.add(node.id);
 		localPanels.set(node.id, node);
-		const childIds = new Set(node.childPresentations.map((item) => item.presentationId));
-		if (node.activeChildPresentationId !== null && !childIds.has(node.activeChildPresentationId)) {
-			issues.push(`Panel ${node.id} references a missing active child presentation.`);
-		}
 		for (const presentation of [node.primaryPresentation, ...node.childPresentations]) {
 			if (globalPresentationIds.has(presentation.presentationId)) {
 				issues.push(`Duplicate TerminalPresentationId: ${presentation.presentationId}.`);
@@ -501,10 +464,6 @@ function visitPanelNode(
 	if (node.children.length < 2) issues.push(`Split ${node.id} has fewer than two children.`);
 	if (parentOrientation === node.orientation) {
 		issues.push(`Split ${node.id} repeats its parent orientation.`);
-	}
-	const totalWeight = node.children.reduce((total, child) => total + child.weight, 0);
-	if (Math.abs(totalWeight - 100) > 0.000_001) {
-		issues.push(`Split ${node.id} weights do not total 100.`);
 	}
 	for (const child of node.children) {
 		if (slotIds.has(child.id)) issues.push(`Duplicate Panel slot: ${child.id}.`);
@@ -525,8 +484,8 @@ function visitPanelNode(
 
 function expectedRemovalPresentationIds(
 	removal: z.infer<typeof pendingRemovalSchema>,
-	root: WorkbenchTopologyPanelNode,
-	panels: ReadonlyMap<string, WorkbenchTopologyPanelLeaf> | undefined,
+	root: WorkbenchSharedPanelNode,
+	panels: ReadonlyMap<string, WorkbenchSharedPanelLeaf> | undefined,
 ): Set<string> | null {
 	if (removal.kind === 'tab') return new Set(collectPresentations(root));
 	const panel = panels?.get(removal.panelId);
@@ -544,7 +503,7 @@ function expectedRemovalPresentationIds(
 	]);
 }
 
-function collectPresentations(node: WorkbenchTopologyPanelNode): readonly string[] {
+function collectPresentations(node: WorkbenchSharedPanelNode): readonly string[] {
 	if (node.kind === 'panel') {
 		return [
 			node.primaryPresentation.presentationId,

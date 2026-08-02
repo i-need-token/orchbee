@@ -41,6 +41,26 @@ function createRuntime(): WorkbenchProjectWorkspaceRuntime {
 	});
 }
 
+function createManagedRuntime(): WorkbenchProjectWorkspaceRuntime {
+	let operationSequence = 1;
+	let presentationSequence = 2;
+	let removalSequence = 1;
+	return new WorkbenchProjectWorkspaceRuntime({
+		standaloneCwd: '/system',
+		standaloneTerminalTitle: 'Terminal 1',
+		terminalPresentation: {
+			createOperationId: () =>
+				terminalPresentationOperationId(`managed:operation:${operationSequence++}`),
+			createPresentationId: () =>
+				terminalPresentationId(`managed:presentation:${presentationSequence++}`),
+			createRemovalId: () => terminalPresentationRemovalId(`managed:removal:${removalSequence++}`),
+			dispatchCommands: () => undefined,
+			initialPresentationId: terminalPresentationId('managed:presentation:1'),
+			kind: 'managed',
+		},
+	});
+}
+
 describe('WorkbenchProjectWorkspaceRuntime', () => {
 	it('routes managed lifecycle results to recovered standalone presentations by opaque identity', () => {
 		let operationSequence = 1;
@@ -232,11 +252,11 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(listener).toHaveBeenCalledTimes(1);
 	});
 
-	it('observes complete nested topology and releases child subscriptions with the observer', () => {
-		const runtime = createRuntime();
+	it('observes complete nested document projection and releases child subscriptions with the observer', () => {
+		const runtime = createManagedRuntime();
 		const context = runtime.getActiveTerminalContext();
 		const listener = vi.fn<() => void>();
-		const unsubscribe = runtime.subscribeTopology(listener);
+		const unsubscribe = runtime.subscribeDocument(listener);
 		const activeTabId = context.tabModel.getSnapshot().activeTabId;
 		if (activeTabId === null) throw new Error('Expected an active Tab.');
 
@@ -247,6 +267,27 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		context.tabModel.updateTab(activeTabId, { title: 'Renamed again' });
 
 		expect(listener).not.toHaveBeenCalled();
+	});
+
+	it('notifies shared-document and Client View observers only for their owned projection', () => {
+		const runtime = createManagedRuntime();
+		runtime.createTerminal({ groupId: null, source: 'button', title: 'Terminal 2' });
+		const context = runtime.getActiveTerminalContext();
+		const documentListener = vi.fn<() => void>();
+		const clientViewListener = vi.fn<() => void>();
+		const unsubscribeDocument = runtime.subscribeDocument(documentListener);
+		const unsubscribeClientView = runtime.subscribeClientView(clientViewListener);
+
+		context.tabModel.selectTab('terminal-context-1-tab-1');
+
+		expect(clientViewListener).toHaveBeenCalledOnce();
+		expect(documentListener).not.toHaveBeenCalled();
+		clientViewListener.mockClear();
+		context.tabModel.updateTab('terminal-context-1-tab-1', { title: 'Renamed' });
+		expect(documentListener).toHaveBeenCalledOnce();
+		expect(clientViewListener).not.toHaveBeenCalled();
+		unsubscribeClientView();
+		unsubscribeDocument();
 	});
 
 	it('crosses the Action commit point before applying an authoritative transition', () => {

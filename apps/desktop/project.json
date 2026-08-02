@@ -3,12 +3,12 @@
 	"domain": "desktop",
 	"runtime": ["browser", "electron", "node"],
 	"stability": "experimental",
-	"responsibility": "Electron product process composition, durable multi-terminal binding storage, private canonical Workbench-topology CAS storage, Host inventory reconciliation, serialized per-binding terminal lifetime orchestration, strict document-scoped lifecycle, topology, and demand-driven projection control, terminal-presentation binding registration, sandboxed renderer capability brokering, Workbench terminal-surface composition, desktop terminal interaction composition, and the local Desktop-to-Terminal-Host transport boundary.",
+	"responsibility": "Electron product process composition, durable multi-terminal binding storage, private canonical shared Workbench document CAS storage, Host inventory reconciliation, serialized per-binding terminal lifetime orchestration, strict renderer-document-scoped lifecycle, shared-document, and demand-driven projection control, terminal-presentation binding registration, sandboxed renderer capability brokering, Workbench terminal-surface composition, desktop terminal interaction composition, and the local Desktop-to-Terminal-Host transport boundary.",
 	"nonGoals": [
 		"Defining Project, Workspace, Workbench, Tab, Panel, agent, or product-session semantics; Desktop persists and composes only their owning package APIs.",
 		"Owning authoritative VT state, PTY processes, terminal scrollback, or terminal history policy.",
 		"Providing network listeners, sharing, remote authentication, mobile clients, or remote terminal gateways.",
 		"Choosing product quit, Panel-close, retention, or confirmation policy and presentation.",
-		"Automatically merging stale topology revisions, repairing invalid persisted topology, providing versioned Host installation, or activating Desktop updates."
+		"Automatically merging stale shared-document revisions, repairing invalid persisted shared documents, persisting Client View, providing versioned Host installation, or activating Desktop updates."
 	]
 }

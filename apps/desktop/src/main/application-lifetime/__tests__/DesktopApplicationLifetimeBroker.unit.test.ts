@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 
-import { workbenchTopologyRevision } from '@orchbee/workbench/topology';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 import type { MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -43,7 +43,7 @@ describe('DesktopApplicationLifetimeBroker', () => {
 				mode: 'preserve',
 				presentationCount: 2,
 				requestId,
-				topologyRevision: '3',
+				documentRevision: '3',
 				type: 'desktop-application-exit-renderer-prepared',
 			}),
 		);
@@ -73,12 +73,12 @@ describe('DesktopApplicationLifetimeBroker', () => {
 				mode: 'stop',
 				presentationCount: 3,
 				requestId,
-				topologyRevision: '7',
+				documentRevision: '7',
 				type: 'desktop-application-exit-renderer-prepared',
 			}),
 		);
 		await vi.waitFor(() => expect(drainForStop).toHaveBeenCalledOnce());
-		expect(drainForStop).toHaveBeenCalledWith(workbenchTopologyRevision('7'));
+		expect(drainForStop).toHaveBeenCalledWith(workbenchSharedDocumentRevision('7'));
 		expect(port.postMessage).toHaveBeenLastCalledWith(
 			expect.objectContaining({ result: expect.objectContaining({ kind: 'failed' }) }),
 		);

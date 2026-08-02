@@ -1,11 +1,11 @@
 import {
-	createWorkbenchTopologyDocument,
-	workbenchTopologyRevision,
-} from '@orchbee/workbench/topology';
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+} from '@orchbee/workbench/document';
 import { describe, expect, it, vi } from 'vitest';
 
-import { WorkbenchTopologyRequestIdSchema } from '../../../shared';
-import { DesktopWorkbenchTopologyClient } from '../DesktopWorkbenchTopologyClient';
+import { WorkbenchDocumentRequestIdSchema } from '../../../shared';
+import { DesktopWorkbenchDocumentClient } from '../DesktopWorkbenchDocumentClient';
 
 class TestMessagePort extends EventTarget {
 	readonly close = vi.fn<() => void>();
@@ -13,17 +13,15 @@ class TestMessagePort extends EventTarget {
 	readonly start = vi.fn<() => void>();
 }
 
-const document = createWorkbenchTopologyDocument({
+const document = createWorkbenchSharedDocument({
 	projectWorkspace: {
-		activeLocation: { kind: 'standalone' },
-		expandedProjectIds: [],
 		nextProjectSequence: 1,
 		nextTerminalContextSequence: 2,
 		nextWorkspaceSequence: 1,
 		projects: [],
 		standaloneTerminalContextId: 'terminal-context-1',
 	},
-	revision: workbenchTopologyRevision('0'),
+	revision: workbenchSharedDocumentRevision('0'),
 	terminalContexts: [
 		{
 			nextTabSequence: 1,
@@ -36,9 +34,7 @@ const document = createWorkbenchTopologyDocument({
 				tabs: [],
 			},
 			tabCollection: {
-				activeTabId: null,
 				groups: [],
-				mostRecentGroupId: null,
 				tabs: [],
 			},
 			terminalContextId: 'terminal-context-1',
@@ -46,25 +42,25 @@ const document = createWorkbenchTopologyDocument({
 	],
 });
 
-describe('DesktopWorkbenchTopologyClient', () => {
+describe('DesktopWorkbenchDocumentClient', () => {
 	it('correlates load and commit outcomes without exposing transport details', async () => {
 		const port = new TestMessagePort();
 		let sequence = 1;
-		const client = new DesktopWorkbenchTopologyClient(port as unknown as MessagePort, () =>
-			WorkbenchTopologyRequestIdSchema.parse(`request-${sequence++}`),
+		const client = new DesktopWorkbenchDocumentClient(port as unknown as MessagePort, () =>
+			WorkbenchDocumentRequestIdSchema.parse(`request-${sequence++}`),
 		);
 
 		const load = client.load();
 		expect(port.postMessage).toHaveBeenLastCalledWith({
 			requestId: 'request-1',
-			type: 'workbench-topology-load-requested',
+			type: 'workbench-document-load-requested',
 		});
 		port.dispatchEvent(
 			new MessageEvent('message', {
 				data: {
 					requestId: 'request-1',
 					result: { kind: 'missing' },
-					type: 'workbench-topology-load-completed',
+					type: 'workbench-document-load-completed',
 				},
 			}),
 		);
@@ -75,14 +71,14 @@ describe('DesktopWorkbenchTopologyClient', () => {
 			document,
 			expectedRevision: null,
 			requestId: 'request-2',
-			type: 'workbench-topology-commit-requested',
+			type: 'workbench-document-commit-requested',
 		});
 		port.dispatchEvent(
 			new MessageEvent('message', {
 				data: {
 					requestId: 'request-2',
 					result: { kind: 'committed', revision: '0' },
-					type: 'workbench-topology-commit-completed',
+					type: 'workbench-document-commit-completed',
 				},
 			}),
 		);
@@ -91,8 +87,8 @@ describe('DesktopWorkbenchTopologyClient', () => {
 
 	it('retires every pending request on malformed, mismatched, or transferred responses', async () => {
 		const port = new TestMessagePort();
-		const client = new DesktopWorkbenchTopologyClient(port as unknown as MessagePort, () =>
-			WorkbenchTopologyRequestIdSchema.parse('request-load'),
+		const client = new DesktopWorkbenchDocumentClient(port as unknown as MessagePort, () =>
+			WorkbenchDocumentRequestIdSchema.parse('request-load'),
 		);
 		const load = client.load();
 
@@ -101,7 +97,7 @@ describe('DesktopWorkbenchTopologyClient', () => {
 				data: {
 					requestId: 'another-request',
 					result: { kind: 'missing' },
-					type: 'workbench-topology-load-completed',
+					type: 'workbench-document-load-completed',
 				},
 			}),
 		);

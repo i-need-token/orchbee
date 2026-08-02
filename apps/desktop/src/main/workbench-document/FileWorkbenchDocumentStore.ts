@@ -3,50 +3,52 @@ import { chmod, mkdir, open, readFile, rename, stat, unlink } from 'node:fs/prom
 import path from 'node:path';
 
 import {
-	parseWorkbenchTopologyDocument,
-	WorkbenchTopologyRevisionSchema,
-	type WorkbenchTopologyDocument,
-	type WorkbenchTopologyRevision,
-} from '@orchbee/workbench/topology';
+	parseWorkbenchSharedDocument,
+	WorkbenchSharedDocumentRevisionSchema,
+	type WorkbenchSharedDocument,
+	type WorkbenchSharedDocumentRevision,
+} from '@orchbee/workbench/document';
 
 import {
-	decideWorkbenchTopologyCommit,
-	type WorkbenchTopologyStore,
-	type WorkbenchTopologyStoreCommitResult,
-	type WorkbenchTopologyStoreLoadResult,
-} from './decideWorkbenchTopologyCommit';
+	decideWorkbenchDocumentCommit,
+	type WorkbenchDocumentStore,
+	type WorkbenchDocumentStoreCommitResult,
+	type WorkbenchDocumentStoreLoadResult,
+} from './decideWorkbenchDocumentCommit';
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
-export interface FileWorkbenchTopologyStoreOptions {
+export interface FileWorkbenchDocumentStoreOptions {
 	readonly randomToken?: () => string;
 }
 
-export class FileWorkbenchTopologyStore implements WorkbenchTopologyStore {
+export class FileWorkbenchDocumentStore implements WorkbenchDocumentStore {
 	readonly #filePath: string;
 	readonly #randomToken: () => string;
 	#operationTail = Promise.resolve();
 
-	constructor(filePath: string, options: FileWorkbenchTopologyStoreOptions = {}) {
+	constructor(filePath: string, options: FileWorkbenchDocumentStoreOptions = {}) {
 		this.#filePath = path.resolve(filePath);
 		this.#randomToken = options.randomToken ?? (() => randomBytes(16).toString('hex'));
 	}
 
-	async load(): Promise<WorkbenchTopologyStoreLoadResult> {
+	async load(): Promise<WorkbenchDocumentStoreLoadResult> {
 		await this.#operationTail;
 		return this.#loadCurrent();
 	}
 
 	commit(
-		expectedRevision: WorkbenchTopologyRevision | null,
-		document: WorkbenchTopologyDocument,
-	): Promise<WorkbenchTopologyStoreCommitResult> {
+		expectedRevision: WorkbenchSharedDocumentRevision | null,
+		document: WorkbenchSharedDocument,
+	): Promise<WorkbenchDocumentStoreCommitResult> {
 		const canonicalExpectedRevision =
-			expectedRevision === null ? null : WorkbenchTopologyRevisionSchema.parse(expectedRevision);
-		const canonicalDocument = parseWorkbenchTopologyDocument(document);
+			expectedRevision === null
+				? null
+				: WorkbenchSharedDocumentRevisionSchema.parse(expectedRevision);
+		const canonicalDocument = parseWorkbenchSharedDocument(document);
 		return this.#enqueue(async () => {
 			const loaded = await this.#loadCurrent();
-			const decision = decideWorkbenchTopologyCommit(
+			const decision = decideWorkbenchDocumentCommit(
 				loaded,
 				canonicalExpectedRevision,
 				canonicalDocument,
@@ -70,12 +72,12 @@ export class FileWorkbenchTopologyStore implements WorkbenchTopologyStore {
 		return result;
 	}
 
-	async #loadCurrent(): Promise<WorkbenchTopologyStoreLoadResult> {
-		return readTopologyFile(this.#filePath);
+	async #loadCurrent(): Promise<WorkbenchDocumentStoreLoadResult> {
+		return readDocumentFile(this.#filePath);
 	}
 
-	async #writeDocument(document: WorkbenchTopologyDocument): Promise<void> {
-		const canonical = parseWorkbenchTopologyDocument(document);
+	async #writeDocument(document: WorkbenchSharedDocument): Promise<void> {
+		const canonical = parseWorkbenchSharedDocument(document);
 		const encoded = Buffer.from(`${JSON.stringify(canonical)}\n`, 'utf8');
 		const directory = path.dirname(this.#filePath);
 		await mkdir(directory, { mode: 0o700, recursive: true });
@@ -108,7 +110,7 @@ export class FileWorkbenchTopologyStore implements WorkbenchTopologyStore {
 	}
 }
 
-async function readTopologyFile(filePath: string): Promise<WorkbenchTopologyStoreLoadResult> {
+async function readDocumentFile(filePath: string): Promise<WorkbenchDocumentStoreLoadResult> {
 	try {
 		const metadata = await stat(filePath);
 		if (!metadata.isFile()) return { kind: 'unavailable', reason: 'invalid' };
@@ -119,7 +121,7 @@ async function readTopologyFile(filePath: string): Promise<WorkbenchTopologyStor
 		} catch {
 			return { kind: 'unavailable', reason: 'invalid' };
 		}
-		const parsed = parseTopologyFile(value);
+		const parsed = parseDocumentFile(value);
 		return parsed === null
 			? { kind: 'unavailable', reason: 'invalid' }
 			: { document: parsed, kind: 'available' };
@@ -129,9 +131,9 @@ async function readTopologyFile(filePath: string): Promise<WorkbenchTopologyStor
 	}
 }
 
-function parseTopologyFile(value: unknown): WorkbenchTopologyDocument | null {
+function parseDocumentFile(value: unknown): WorkbenchSharedDocument | null {
 	try {
-		return parseWorkbenchTopologyDocument(value);
+		return parseWorkbenchSharedDocument(value);
 	} catch {
 		return null;
 	}
