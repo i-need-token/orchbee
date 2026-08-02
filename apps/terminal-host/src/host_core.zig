@@ -31,6 +31,7 @@ pub const Terminal = struct {
     columns: u16,
     creation_id: Identifier,
     exit_result: ?ExitResult = null,
+    force_terminate_requested: bool = false,
     launch_digest: LaunchDigest,
     pending_input_bytes: usize = 0,
     phase: TerminalPhase = .starting,
@@ -274,6 +275,23 @@ pub const HostCore = struct {
         if (terminal.terminate_requested) return .idempotent;
         if (terminal.phase != .running) return error.InvalidPhase;
         terminal.terminate_requested = true;
+        return .applied;
+    }
+
+    pub fn requestForceTerminate(
+        self: *HostCore,
+        connection_id: ConnectionId,
+        terminal_id: Identifier,
+    ) CoreError!TransitionOutcome {
+        if (!self.connected(connection_id)) return error.MissingConnection;
+        const terminal = try self.requireTerminal(terminal_id);
+        if (terminal.force_terminate_requested or terminal.phase == .exited) return .idempotent;
+        if (!terminal.terminate_requested or
+            (terminal.phase != .running and terminal.phase != .finishing))
+        {
+            return error.InvalidPhase;
+        }
+        terminal.force_terminate_requested = true;
         return .applied;
     }
 
@@ -645,6 +663,10 @@ pub const HostCore = struct {
         return self.terminals.count();
     }
 
+    pub fn connectionCount(self: *const HostCore) usize {
+        return self.connections.count();
+    }
+
     pub fn connectionClientId(self: *const HostCore, connection_id: ConnectionId) ?Identifier {
         const connection = self.connections.get(connection_id) orelse return null;
         return connection.client_id;
@@ -826,8 +848,15 @@ test "input, resize, and reordered completion preserve bounds" {
     _ = try core.resize(connection, attachment_id, 120, 40);
     try std.testing.expectEqual(@as(u64, 0), core.findTerminal(terminal_id).?.revision);
 
+    try std.testing.expectError(
+        error.InvalidPhase,
+        core.requestForceTerminate(connection, terminal_id),
+    );
     _ = try core.requestTerminate(connection, terminal_id);
     try std.testing.expectEqual(.idempotent, try core.requestTerminate(connection, terminal_id));
+    try std.testing.expectEqual(.applied, try core.requestForceTerminate(connection, terminal_id));
+    try std.testing.expectEqual(.idempotent, try core.requestForceTerminate(connection, terminal_id));
+    try std.testing.expect(core.findTerminal(terminal_id).?.force_terminate_requested);
     _ = try core.ptyDrained(terminal_id);
     try std.testing.expectEqual(TerminalPhase.finishing, core.findTerminal(terminal_id).?.phase);
     _ = try core.childExited(terminal_id, .{ .exit_code = 0 });

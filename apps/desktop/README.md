@@ -4,11 +4,11 @@ Sandboxed Electron client and scoped local broker for Orchbee's native Terminal 
 
 ## Current scope
 
-Slice 7 retains the Slice 6 interaction path and adds one durable Desktop-owned terminal recovery
-binding. It mounts one app-local `ProjectedTerminal` and binds live projection, bounded history,
-Host-owned selection, client-side find, copy, and approved-link activation through the real Host →
-Electron main → preload → renderer path. Electron main owns the Host socket, record assembly,
-process launch, attachment routing, platform clipboard write, and external-navigation policy.
+The current Desktop foundation mounts one app-local `ProjectedTerminal` and binds live projection,
+bounded history, Host-owned selection, client-side find, copy, and approved-link activation through
+the real Host → Electron main → preload → renderer path. Electron main owns the Host socket, record
+assembly, process launch, attachment routing, platform clipboard write, and external-navigation
+policy.
 Preload forwards one allowlisted `MessagePort`; it exposes no generic IPC, filesystem, executable,
 terminal-enumeration, creation, termination, or disposal capability. The renderer runs sandboxed
 with context isolation and without Node integration.
@@ -16,53 +16,91 @@ with context isolation and without Node integration.
 The application intentionally does not import Workbench or model Project, Workspace, Tab, Panel,
 updates, sharing, network clients, or recovered-terminal product presentation. Closing or
 reloading the renderer, or restarting Electron Main, detaches only the scoped attachment; it never
-terminates or disposes the Host terminal.
+terminates or disposes the Host terminal. Only an explicit per-binding lifetime request may close a
+terminal. The foundation exposes that Main-process operation, but no window, quit, Panel, or
+Workbench action invokes it yet.
 
-Desktop explicitly negotiates protocol 1.2 for this single recovery binding. Protocol 1.3 paged
-inventory and multi-terminal product binding remain outside the current Desktop composition.
+Desktop requires the current Host protocol `1.4` exactly. The handshake envelope and accepted
+version are both `1.4`; an obsolete Host is rejected without creating or adopting a terminal.
 
-## Recovery binding model
+## Terminal binding store and recovery model
 
 The actor is the single running Electron Main process. At startup it must recover the exact terminal
-previously bound to this Desktop foundation, provision the first terminal only when no binding or
-Host inventory exists, and stop without mutating the Host when durable intent is ambiguous. The
-single-instance lock is acquired before any recovery-ledger access. The fixed foundation binding is
-not a Project, Workspace, Tab, or product-session model.
+previously bound to this Desktop foundation, provision it only when the target binding is absent and
+the Host has no unbound terminal, and stop without mutating the Host when durable intent is
+ambiguous. The single-instance lock is acquired before any binding-store access. The fixed
+foundation binding remains only the current composition consumer; neither it nor the store is a
+Project, Workspace, Tab, Panel, or product-session model.
 
-The version-1 ledger contains one opaque binding identifier, one random `CreationId`, the normalized
-launch profile, and exactly one state: `planned`, `create-requested`, `retained`, `exited`, or
-`lost`. `create-requested` records the attempted `HostEpoch`; retained and exited states record the
-complete Host identity; exited additionally records the exit result and final revision. The file is
-bounded, parsed as untrusted input, written through a same-directory temporary file, synchronized,
-atomically renamed, and owner-only on POSIX. Missing, invalid, unreadable, or unwritable state is
-distinct; an invalid or unreadable ledger is never overwritten automatically. Launch environment
-values are sensitive recovery data and never enter diagnostics.
+The version-2 store contains a canonical BindingId-ordered collection. Each `TerminalBinding`
+contains one opaque binding identifier, one random `CreationId`, a normalized launch profile, and
+exactly one state: `planned`, `create-requested`, `retained`, `exited`, `closing`, or `lost`.
+`create-requested` records the attempted `HostEpoch`; retained and exited states record the complete
+Host identity; exited additionally records the exit result and final revision. BindingId,
+CreationId, and retained Host identity are unique, and every identity repeats its owning
+CreationId. The store declares no total binding count or encoded-file-size product limit: each
+record remains strictly bounded, while allocator, filesystem, and storage exhaustion surface as
+operation failures instead of truncating or evicting another binding.
 
-Reconciliation has the following observable outcomes: `provisioning`, `recovered`, `orphaned`,
-`lost`, `conflict`, or `ledger-unavailable`. It obeys these invariants:
+The store parses disk data as untrusted input and accepts only its current version-2 collection
+shape. Targeted writes are serialized inside the one owning Main process, written through a
+same-directory temporary file, synchronized, atomically renamed, and owner-only on POSIX. Missing,
+invalid, unreadable, or unwritable state is distinct; invalid or unreadable data is never
+overwritten automatically. Launch environment values are sensitive recovery data and never enter
+diagnostics.
 
-- A Host mutation occurs only after `planned` and then same-epoch `create-requested` are durable.
+Recovery reconciliation has the following observable outcomes: `provisioning`, `recovered`,
+`closing`, `orphaned`, `lost`, `conflict`, or `ledger-unavailable`. A per-binding lifecycle
+coordinator serializes recovery, explicit close, and `TerminalExited` handling so they cannot race
+one store writer. It consumes `closing` during startup and reports either `close-completed` or a
+safely pending close rather than provisioning a replacement. The combined lifecycle obeys these
+invariants:
+
+- A Host mutation occurs only after `planned` and then same-epoch `create-requested` are durable;
+  each targeted commit preserves every other binding at the semantic record level.
 - A lost Create response may replay the identical `CreationId` and launch only in the recorded
   `HostEpoch`; Host idempotency validates the result. A changed epoch becomes `lost` and never
   silently creates a replacement.
 - Retained and exited bindings recover only an exact `HostEpoch`/`TerminalId`/`CreationId` match.
-  Unmatched inventory is an orphan and is never adopted, terminated, disposed, or hidden by a new
-  terminal.
+  Inventory pages are consumed to one generation-scoped `nextCursor: null`.
+  Duplicate, repeated-cursor, cross-generation, or identity-conflicting pages fail instead of
+  returning a partial inventory. An inventory entry not named by any binding is an orphan and is
+  never adopted, terminated, disposed, or hidden by a new terminal.
 - A recovered exited terminal is attached read-only. Its retained exit is published to the
   renderer immediately, but the terminal surface exposes completion only after a replacement
   snapshot reaches the recorded final revision.
+- An explicit close first persists `closing` with the complete Host identity. Only then does Main
+  retire the renderer broker and await Host detach. For a running target it requests graceful
+  termination, waits an injected five-second grace period, requests protocol-1.4 force termination
+  if the exact terminal has not exited, waits for its exact `TerminalExited`, disposes it, and
+  removes only that binding after the Host acknowledgment. A target already starting or naturally
+  finishing remains safely pending instead of receiving a phase-invalid signal; its later exact
+  exit route completes disposal.
+- A terminal already absent from the current Host or owned by an old `HostEpoch` permits only the
+  target binding to be removed. A `CreationId` or `TerminalId` contradiction is a conflict and
+  never authorizes a signal. Transport loss or an operational failure leaves durable `closing`
+  intent for the next Main process; a later exact exit route completes disposal. Unrelated
+  terminals and bindings are never terminated, disposed, removed, or used as replacements.
 - Every renderer document gets a fresh `AttachmentId`, `MessageChannel`, and broker. Old command
   authority is closed immediately, Host detach is awaited, and only then may the next attachment
-  acquire a resize lease. Stale document generations cannot receive or issue terminal work.
+  acquire a resize lease. Once explicit close retires a document, reload cannot attach another
+  projection to that closing terminal. Stale document generations cannot receive or issue terminal
+  work.
 
-The ledger owns durable Desktop intent; the Host owns terminal inventory, process lifetime, VT
+The binding store owns durable Desktop intent; the Host owns terminal inventory, process lifetime, VT
 state, history, and final revision; each renderer document owns only its current projection. File
 storage, randomness, Host requests, and Electron windows are injected capabilities around a
 deterministic reconciliation policy. Unit traces cover first provision, lost-response retry,
-cross-epoch loss, corrupt ledger, orphan inventory, exited recovery, and ordered attachment
-replacement. The checked `TerminalRecoveryBinding` TLA+ model covers those safety claims within its
-declared two-epoch/two-Main/two-document bounds. The native Electron system trace reloads a renderer
-and restarts Main while asserting stable terminal identity, retained content, and a fresh attachment.
+cross-epoch loss, targeted multi-binding preservation, corrupt storage,
+orphan inventory, paged inventory, exited recovery, and ordered attachment replacement. The checked
+`TerminalRecoveryBinding` TLA+ model covers the existing recovery safety claims within its declared
+two-epoch/two-Main/two-document bounds; binding-count and filesystem exhaustion are deliberately not
+proved by that finite model. The independent `DesktopTerminalBindingClose` model covers durable
+close intent, projection retirement, grace escalation, exact disposal, targeted removal, and Main
+restart for two bindings. Deterministic close traces cover graceful exit, grace-timeout force,
+transport loss, resumed closing, confirmed absence, failed persistence, exact late exit, and
+unrelated-binding preservation. The native Electron system trace reloads a renderer and restarts
+Main while asserting stable terminal identity, retained content, and a fresh attachment.
 
 Main validates and routes packed Host frames and row windows without VT parsing, row
 reconstruction, JSON/base64, or per-cell work. Electron structured-clones each binary projection
@@ -102,7 +140,7 @@ pnpm desktop
 `ORCHBEE_TERMINAL_HOST_BINARY` may select another absolute development/test Host binary.
 `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY` and `ORCHBEE_DESKTOP_ENDPOINT_ID` exist only for controlled
 foundation development and system tests. They are not the versioned installation or discovery design.
-`ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` isolates the sensitive recovery ledger in controlled tests;
+`ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` isolates the sensitive terminal binding store in controlled tests;
 normal development and product composition use the Electron user-data directory.
 The default POSIX development runtime uses a short, per-home private directory under `/tmp` so its
 Unix-domain socket stays inside platform path limits; the Host still enforces owner-only access.

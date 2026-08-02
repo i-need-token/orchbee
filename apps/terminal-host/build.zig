@@ -54,6 +54,14 @@ pub fn build(builder: *std.Build) void {
     benchmark_module.addImport("ghostty-vt", ghostty.module("ghostty-vt"));
     switch (target.result.os.tag) {
         .freebsd, .linux, .macos => {
+            host_module.addCSourceFile(.{
+                .file = builder.path("src/process_session.c"),
+                .flags = &.{"-std=c17"},
+            });
+            benchmark_module.addCSourceFile(.{
+                .file = builder.path("src/process_session.c"),
+                .flags = &.{"-std=c17"},
+            });
             const pty_c = builder.addTranslateC(.{
                 .root_source_file = ghostty.path("src/pty.c"),
                 .target = target,
@@ -77,9 +85,17 @@ pub fn build(builder: *std.Build) void {
                 .file = builder.path("src/local_ipc_windows.c"),
                 .flags = &.{"-std=c17"},
             });
+            host_module.addCSourceFile(.{
+                .file = builder.path("src/process_job_windows.c"),
+                .flags = &.{"-std=c17"},
+            });
             benchmark_module.addIncludePath(builder.path("src"));
             benchmark_module.addCSourceFile(.{
                 .file = builder.path("src/local_ipc_windows.c"),
+                .flags = &.{"-std=c17"},
+            });
+            benchmark_module.addCSourceFile(.{
+                .file = builder.path("src/process_job_windows.c"),
                 .flags = &.{"-std=c17"},
             });
             host_module.linkSystemLibrary("advapi32", .{});

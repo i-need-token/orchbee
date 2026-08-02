@@ -206,7 +206,7 @@ fn stringAt(strings: []const []const u8, index: u32) ProtocolError!?[]const u8 {
 pub fn isKnownMessageKind(kind: u16) bool {
     return switch (kind) {
         1...5,
-        10...17,
+        10...18,
         20...23,
         30...38,
         41...49,
@@ -889,7 +889,7 @@ pub fn encodeTransportEnvelopeVersion(
     response: bool,
     event: bool,
 ) (ProtocolError || std.mem.Allocator.Error)![]u8 {
-    if (protocol_minor > 3) return error.UnsupportedVersion;
+    if (protocol_minor > 4) return error.UnsupportedVersion;
     if (event and response) return error.InvalidField;
     if (payload.len > try maximumPayloadBytes(@intFromEnum(encoding))) return error.LimitExceeded;
     const total_length = transport_envelope_header_bytes + payload.len;

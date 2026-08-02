@@ -2,8 +2,10 @@ import { Duplex } from 'node:stream';
 
 import {
 	ClientIdSchema,
+	decodeControlJson,
 	decodeProtocolEnvelope,
 	encodeProtocolEnvelope,
+	HelloSchema,
 	HostEpochSchema,
 	MessageKind,
 	PayloadEncoding,
@@ -11,11 +13,16 @@ import {
 } from '@orchbee/terminal-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { DESKTOP_HOST_PROTOCOL_VERSION } from '../desktop-host-protocol-version';
+import {
+	DESKTOP_HOST_PROTOCOL_RANGE,
+	DESKTOP_HOST_PROTOCOL_VERSION,
+} from '../desktop-host-protocol-version';
 import { HostConnection, type HostEnvelopeListener } from '../HostConnection';
 
+const currentProtocol = { major: 1, minor: 4 } as const;
+
 describe('HostConnection', () => {
-	it('negotiates the Desktop-pinned protocol and routes validated Host events', async () => {
+	it('offers the current protocol and routes current-version events', async () => {
 		const hostEpoch = HostEpochSchema.parse('11'.repeat(16));
 		let stream: Duplex;
 		stream = new Duplex({
@@ -23,6 +30,10 @@ describe('HostConnection', () => {
 			write(chunk, _encoding, callback) {
 				const request = decodeProtocolEnvelope(new Uint8Array(chunk));
 				if (!request.ok) throw new Error(request.detail);
+				expect(request.value.protocol).toEqual(DESKTOP_HOST_PROTOCOL_VERSION);
+				const hello = decodeControlJson(request.value.payload, HelloSchema);
+				if (!hello.ok) throw new Error(hello.detail);
+				expect(hello.value.protocol).toEqual(DESKTOP_HOST_PROTOCOL_RANGE);
 				const response = encodeProtocolEnvelope({
 					correlationId: request.value.correlationId,
 					event: false,
@@ -34,13 +45,13 @@ describe('HostConnection', () => {
 							frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 							hostEpoch,
 							inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-							protocol: DESKTOP_HOST_PROTOCOL_VERSION,
+							protocol: currentProtocol,
 							rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 							supportedOptionalFeatures: [],
 						}),
 					),
 					payloadEncoding: PayloadEncoding.controlJson,
-					protocol: DESKTOP_HOST_PROTOCOL_VERSION,
+					protocol: currentProtocol,
 					response: true,
 				});
 				if (!response.ok) throw new Error(response.detail);
@@ -60,7 +71,7 @@ describe('HostConnection', () => {
 			optionalMessage: false,
 			payload: new TextEncoder().encode('{}'),
 			payloadEncoding: PayloadEncoding.controlJson,
-			protocol: DESKTOP_HOST_PROTOCOL_VERSION,
+			protocol: currentProtocol,
 			response: false,
 		});
 		if (!event.ok) throw new Error(event.detail);
@@ -68,10 +79,52 @@ describe('HostConnection', () => {
 
 		expect(accepted.hostEpoch).toBe(hostEpoch);
 		expect(connection.hostEpoch).toBe(hostEpoch);
+		expect(connection.protocolVersion).toEqual(currentProtocol);
 		expect(listener).toHaveBeenCalledOnce();
 		expect(connection.metrics.recordsSent).toBe(1);
 		expect(connection.metrics.recordsReceived).toBe(2);
 		connection.close();
+	});
+
+	it('rejects an obsolete Host protocol instead of entering a compatibility mode', async () => {
+		const hostEpoch = HostEpochSchema.parse('12'.repeat(16));
+		const obsoleteProtocol = { major: 1, minor: 3 } as const;
+		let stream: Duplex;
+		stream = new Duplex({
+			read() {},
+			write(chunk, _encoding, callback) {
+				const request = decodeProtocolEnvelope(new Uint8Array(chunk));
+				if (!request.ok) throw new Error(request.detail);
+				const response = encodeProtocolEnvelope({
+					correlationId: request.value.correlationId,
+					event: false,
+					hostEpoch,
+					kind: MessageKind.helloAccepted,
+					optionalMessage: false,
+					payload: new TextEncoder().encode(
+						JSON.stringify({
+							frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
+							hostEpoch,
+							inputBytes: PROTOCOL_LIMITS.maxInputBytes,
+							protocol: obsoleteProtocol,
+							rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+							supportedOptionalFeatures: [],
+						}),
+					),
+					payloadEncoding: PayloadEncoding.controlJson,
+					protocol: obsoleteProtocol,
+					response: true,
+				});
+				if (!response.ok) throw new Error(response.detail);
+				stream.push(response.value);
+				callback();
+			},
+		});
+		const connection = new HostConnection(stream);
+
+		await expect(connection.negotiate(ClientIdSchema.parse('23'.repeat(16)))).rejects.toThrow(
+			'outside the negotiated Desktop protocol',
+		);
 	});
 
 	it('rejects a correlated typed failure without treating it as an event', async () => {
@@ -98,7 +151,7 @@ describe('HostConnection', () => {
 										frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 										hostEpoch,
 										inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-										protocol: DESKTOP_HOST_PROTOCOL_VERSION,
+										protocol: currentProtocol,
 										rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 										supportedOptionalFeatures: [],
 									}
@@ -110,7 +163,7 @@ describe('HostConnection', () => {
 						),
 					),
 					payloadEncoding: PayloadEncoding.controlJson,
-					protocol: DESKTOP_HOST_PROTOCOL_VERSION,
+					protocol: currentProtocol,
 					response: true,
 				});
 				if (!response.ok) throw new Error(response.detail);
@@ -130,5 +183,27 @@ describe('HostConnection', () => {
 			),
 		).rejects.toMatchObject({ code: 'input-backpressure', retryable: true });
 		connection.close();
+	});
+
+	it('notifies current and late close observers exactly once', async () => {
+		const stream = new Duplex({
+			read() {},
+			write(_chunk, _encoding, callback) {
+				callback();
+			},
+		});
+		const connection = new HostConnection(stream);
+		const current = vi.fn<(reason: Error) => void>();
+		const late = vi.fn<(reason: Error) => void>();
+		connection.onClosed(current);
+
+		connection.close();
+		connection.close();
+		connection.onClosed(late);
+
+		await vi.waitFor(() => expect(current).toHaveBeenCalledOnce());
+		await vi.waitFor(() => expect(late).toHaveBeenCalledOnce());
+		expect(current.mock.calls[0]?.[0].message).toBe('Host connection closed.');
+		expect(late.mock.calls[0]?.[0]).toBe(current.mock.calls[0]?.[0]);
 	});
 });

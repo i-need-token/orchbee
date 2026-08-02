@@ -193,12 +193,13 @@ const PosixServer = if (builtin.os.tag == .windows) void else struct {
         return self.socket_path;
     }
 
-    pub fn serveForever(self: *PosixServer, service: *host_service.HostService) !void {
+    pub fn serveUntilIdle(self: *PosixServer, service: *host_service.HostService) !void {
         while (true) {
             self.serveOne(service) catch |err| switch (err) {
                 error.ConnectionClosed, error.PeerIdentityMismatch => continue,
                 else => return err,
             };
+            if (service.canStopWhenIdle()) return;
         }
     }
 
@@ -279,12 +280,13 @@ const WindowsServer = if (builtin.os.tag != .windows) void else struct {
         self.* = undefined;
     }
 
-    pub fn serveForever(self: *WindowsServer, service: *host_service.HostService) !void {
+    pub fn serveUntilIdle(self: *WindowsServer, service: *host_service.HostService) !void {
         while (true) {
             self.serveOne(service) catch |err| switch (err) {
                 error.ConnectionClosed, error.PeerIdentityMismatch => continue,
                 else => return err,
             };
+            if (service.canStopWhenIdle()) return;
         }
     }
 
@@ -529,7 +531,7 @@ test "private local endpoint owns one lifetime lock and serves a handshake" {
         .server = &server,
         .service = &service,
     };
-    const server_thread = try std.Thread.spawn(.{}, serveTestConnection, .{&thread_context});
+    const server_thread = try std.Thread.spawn(.{}, serveTestUntilIdle, .{&thread_context});
 
     var client = try TestClient.connect(&server, std.testing.allocator, endpoint_id);
     try expectHandshakeAccepted(&client);
@@ -611,6 +613,12 @@ const ServeThreadContext = struct {
 
 fn serveTestConnection(context: *ServeThreadContext) void {
     context.server.serveOne(context.service) catch |err| {
+        context.failure = err;
+    };
+}
+
+fn serveTestUntilIdle(context: *ServeThreadContext) void {
+    context.server.serveUntilIdle(context.service) catch |err| {
         context.failure = err;
     };
 }

@@ -77,6 +77,7 @@ const TerminalLifecycleSchema = z.strictObject({
 	childExited: z.boolean(),
 	columns: gridDimensionSchema,
 	creationId: CreationIdSchema,
+	forceTerminateRequested: z.boolean(),
 	launchDigest: launchDigestSchema,
 	pendingInputBytes: z.number().int().min(0).max(PROTOCOL_LIMITS.maxPendingInputBytes),
 	phase: TerminalPhaseSchema,
@@ -147,6 +148,13 @@ export const ProtocolLifecycleStateSchema = z
 		);
 
 		for (const [index, terminal] of state.terminals.entries()) {
+			if (terminal.forceTerminateRequested && !terminal.terminateRequested) {
+				addLifecycleIssue(
+					context,
+					['terminals', index, 'forceTerminateRequested'],
+					'Force termination requires a prior graceful termination request',
+				);
+			}
 			const completionCount = Number(terminal.childExited) + Number(terminal.ptyDrained);
 			if (
 				(terminal.phase === TerminalPhase.starting || terminal.phase === TerminalPhase.running) &&
@@ -269,6 +277,12 @@ export const ProtocolLifecycleEventSchema = z.discriminatedUnion('type', [
 		terminalId: TerminalIdSchema,
 		type: z.literal('terminate-terminal'),
 	}),
+	z.strictObject({
+		...clientEvent,
+		...desktopAuthority,
+		terminalId: TerminalIdSchema,
+		type: z.literal('force-terminate-terminal'),
+	}),
 	z.strictObject({ ...epochEvent, terminalId: TerminalIdSchema, type: z.literal('child-exited') }),
 	z.strictObject({ ...epochEvent, terminalId: TerminalIdSchema, type: z.literal('pty-drained') }),
 	z.strictObject({
@@ -353,6 +367,7 @@ export type LifecycleCommand =
 	  }
 	| { readonly terminalId: string; readonly type: 'spawn-terminal' }
 	| { readonly terminalId: string; readonly type: 'terminate-child' }
+	| { readonly terminalId: string; readonly type: 'force-terminate-child' }
 	| { readonly type: 'close-connections' }
 	| { readonly type: 'stop-host' };
 
@@ -476,12 +491,21 @@ function transitionCurrentState(
 		}
 		case 'disconnect-client': {
 			if (!clientIsConnected(state, event.clientId)) return idempotent(state);
+			const connections = state.connections.filter((clientId) => clientId !== event.clientId);
+			if (
+				connections.length === 0 &&
+				state.terminals.length === 0 &&
+				state.phase === HostPhase.serving &&
+				!state.networkListener
+			) {
+				return applied(createInitialProtocolLifecycleState(), [{ type: 'stop-host' }]);
+			}
 			return applied({
 				...state,
 				attachments: state.attachments.filter(
 					(attachment) => attachment.clientId !== event.clientId,
 				),
-				connections: state.connections.filter((clientId) => clientId !== event.clientId),
+				connections,
 			});
 		}
 		case 'create-terminal': {
@@ -508,6 +532,7 @@ function transitionCurrentState(
 				childExited: false,
 				columns: 80,
 				creationId: event.creationId,
+				forceTerminateRequested: false,
 				launchDigest: event.launchDigest,
 				pendingInputBytes: 0,
 				phase: TerminalPhase.starting,
@@ -574,6 +599,36 @@ function transitionCurrentState(
 					),
 				},
 				[{ terminalId: event.terminalId, type: 'terminate-child' }],
+			);
+		}
+		case 'force-terminate-terminal': {
+			if (event.authority !== LifecycleAuthority.desktop) {
+				return rejected(state, LifecycleRejection.authorityDenied);
+			}
+			if (!clientIsConnected(state, event.clientId)) {
+				return rejected(state, LifecycleRejection.missingConnection);
+			}
+			const terminal = findTerminal(state, event.terminalId);
+			if (!terminal) return rejected(state, LifecycleRejection.missingResource);
+			if (terminal.forceTerminateRequested || terminal.phase === TerminalPhase.exited) {
+				return idempotent(state);
+			}
+			if (
+				!terminal.terminateRequested ||
+				(terminal.phase !== TerminalPhase.running && terminal.phase !== TerminalPhase.finishing)
+			) {
+				return rejected(state, LifecycleRejection.invalidPhase);
+			}
+			return applied(
+				{
+					...state,
+					terminals: state.terminals.map((candidate) =>
+						candidate.terminalId === event.terminalId
+							? { ...candidate, forceTerminateRequested: true }
+							: candidate,
+					),
+				},
+				[{ terminalId: event.terminalId, type: 'force-terminate-child' }],
 			);
 		}
 		case 'child-exited':

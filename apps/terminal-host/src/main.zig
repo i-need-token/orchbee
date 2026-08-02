@@ -29,7 +29,7 @@ pub fn main() !void {
     defer server.deinit();
     var service = host_service.HostService.init(allocator);
     service.trace_interactions = std.process.hasEnvVarConstant("ORCHBEE_TERMINAL_HOST_TRACE");
-    try server.serveForever(&service);
+    try server.serveUntilIdle(&service);
 }
 
 fn parseArguments(arguments: []const []const u8) !ServeConfig {

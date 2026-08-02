@@ -11,6 +11,7 @@ pub const STARTUPINFOEXW = extern struct {
 };
 
 pub const CREATE_UNICODE_ENVIRONMENT: windows.DWORD = 0x0000_0400;
+pub const CREATE_SUSPENDED: windows.DWORD = 0x0000_0004;
 pub const EXTENDED_STARTUPINFO_PRESENT: windows.DWORD = 0x0008_0000;
 pub const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: windows.DWORD = 0x0002_0016;
 
@@ -69,3 +70,21 @@ pub extern "kernel32" fn CreateProcessW(
     startup_info: *windows.STARTUPINFOW,
     process_information: *windows.PROCESS_INFORMATION,
 ) callconv(.winapi) windows.BOOL;
+
+pub extern fn ob_windows_terminal_job_create() ?windows.HANDLE;
+
+pub extern fn ob_windows_terminal_job_assign_and_resume(
+    job: windows.HANDLE,
+    process: windows.HANDLE,
+    thread: windows.HANDLE,
+) windows.BOOL;
+
+pub extern fn ob_windows_terminal_job_terminate(
+    job: windows.HANDLE,
+    exit_code: windows.UINT,
+) windows.BOOL;
+
+pub extern fn ob_windows_terminal_job_active_processes(
+    job: windows.HANDLE,
+    active_processes: *windows.DWORD,
+) windows.BOOL;

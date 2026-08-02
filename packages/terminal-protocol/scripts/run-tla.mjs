@@ -14,10 +14,12 @@ const configuredJarPath = process.env.TERMINAL_PROTOCOL_TLA2TOOLS_JAR;
 const jarPath = configuredJarPath ? path.resolve(configuredJarPath) : bundledJarPath;
 const models = [
 	'TerminalHostLifecycle',
+	'TerminalCloseLifecycle',
 	'TerminalInventoryPagination',
 	'TerminalFrameBackpressure',
 	'TerminalHistoryInteraction',
 	'TerminalRecoveryBinding',
+	'DesktopTerminalBindingClose',
 ];
 
 async function sha1(filePath) {

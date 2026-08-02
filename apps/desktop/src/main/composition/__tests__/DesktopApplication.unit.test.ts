@@ -14,7 +14,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ProjectedTerminalBrokerMetrics } from '../../broker';
 import type { HostConnection } from '../../host';
-import type { TerminalRecoveryOutcome } from '../../recovery';
+import type { TerminalBindingLifecycleOutcome } from '../../terminal-lifetime';
 import { DesktopApplication, type DesktopApplicationDependencies } from '../DesktopApplication';
 import { resolveDesktopRuntimeConfiguration } from '../resolveDesktopRuntimeConfiguration';
 
@@ -127,6 +127,35 @@ describe('DesktopApplication', () => {
 		expect(harness.host.close).toHaveBeenCalledOnce();
 	});
 
+	it('retires the scoped broker before requesting close and blocks later reattachment', async () => {
+		const harness = createHarness({ identity, kind: 'provisioning', summary: null });
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		harness.terminalLifecycle.requestClose.mockImplementationOnce(async (retireProjection) => {
+			await retireProjection();
+			expect(harness.brokers[0]?.dispose).toHaveBeenCalledOnce();
+			return { kind: 'closed' };
+		});
+
+		expect(await application.requestTerminalClose()).toEqual({ kind: 'closed' });
+		harness.webContents.emit('did-start-loading');
+		harness.webContents.emit('did-finish-load');
+		await Promise.resolve();
+
+		expect(harness.requestControl).toHaveBeenCalledOnce();
+		expect(harness.createBroker).toHaveBeenCalledOnce();
+		await application.shutdown();
+	});
+
+	it('stops startup after completing a previously durable close', async () => {
+		const harness = createHarness({ kind: 'close-completed' });
+		const application = createApplication(harness.dependencies);
+
+		await expect(application.start()).rejects.toThrow('close-completed');
+		expect(harness.createWindow).not.toHaveBeenCalled();
+		expect(harness.host.close).toHaveBeenCalledOnce();
+	});
+
 	it('rejects recovery composition without ownership of the single-instance lock', () => {
 		const harness = createHarness({ identity, kind: 'provisioning', summary: null });
 		expect(
@@ -159,7 +188,7 @@ function createApplication(dependencies: DesktopApplicationDependencies): Deskto
 }
 
 function createHarness(
-	outcome: TerminalRecoveryOutcome,
+	outcome: TerminalBindingLifecycleOutcome,
 	firstDispose?: () => Promise<void>,
 	readOnly = false,
 ) {
@@ -184,7 +213,7 @@ function createHarness(
 			frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 			hostEpoch: identity.hostEpoch,
 			inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-			protocol: { major: 1, minor: 2 },
+			protocol: { major: 1, minor: 4 },
 			rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 			supportedOptionalFeatures: [],
 		}),
@@ -225,10 +254,17 @@ function createHarness(
 		brokers.push(broker);
 		return broker;
 	});
-	const recovery = {
-		reconcile: vi.fn<() => Promise<TerminalRecoveryOutcome>>().mockResolvedValue(outcome),
+	const terminalLifecycle = {
+		reconcile: vi.fn<() => Promise<TerminalBindingLifecycleOutcome>>().mockResolvedValue(outcome),
 		recordExit: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+		requestClose: vi
+			.fn<(retireProjection: () => Promise<void>) => Promise<{ readonly kind: 'closed' }>>()
+			.mockResolvedValue({ kind: 'closed' }),
 	};
+	const createWindow = vi.fn<DesktopApplicationDependencies['createWindow']>((options) => {
+		windowOptions = options;
+		return browserWindow;
+	});
 	const dependencies: DesktopApplicationDependencies = {
 		connectHost: vi.fn<DesktopApplicationDependencies['connectHost']>().mockResolvedValue(host),
 		createBroker,
@@ -236,22 +272,21 @@ function createHarness(
 			port1: {} as MessagePortMain,
 			port2: {} as MessagePortMain,
 		}),
-		createRecovery: vi
-			.fn<DesktopApplicationDependencies['createRecovery']>()
-			.mockReturnValue(recovery),
-		createWindow: vi.fn<DesktopApplicationDependencies['createWindow']>((options) => {
-			windowOptions = options;
-			return browserWindow;
-		}),
+		createTerminalLifecycle: vi
+			.fn<DesktopApplicationDependencies['createTerminalLifecycle']>()
+			.mockReturnValue(terminalLifecycle),
+		createWindow,
 		randomIdentifier: () => identifiers.shift() ?? '88'.repeat(16),
 		writeTrace: vi.fn<DesktopApplicationDependencies['writeTrace']>(),
 	};
 	return {
 		brokers,
 		createBroker,
+		createWindow,
 		dependencies,
 		host,
 		requestControl,
+		terminalLifecycle,
 		webContents,
 		get windowOptions() {
 			return windowOptions;

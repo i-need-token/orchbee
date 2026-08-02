@@ -189,6 +189,90 @@ describe('protocol lifecycle identity and survival', () => {
 			}),
 		);
 	});
+
+	it('requires graceful termination before an idempotent force escalation', () => {
+		let state = runningTerminalState();
+		expect(
+			ProtocolLifecycleStateSchema.safeParse({
+				...state,
+				terminals: state.terminals.map((entry) => ({
+					...entry,
+					forceTerminateRequested: true,
+				})),
+			}).success,
+		).toBe(false);
+		const premature = apply(state, {
+			authority: LifecycleAuthority.desktop,
+			clientId: client,
+			epoch,
+			terminalId: terminal,
+			type: 'force-terminate-terminal',
+		});
+		expect(premature).toEqual(
+			expect.objectContaining({
+				commands: [],
+				rejection: LifecycleRejection.invalidPhase,
+				state,
+			}),
+		);
+
+		const graceful = apply(state, {
+			authority: LifecycleAuthority.desktop,
+			clientId: client,
+			epoch,
+			terminalId: terminal,
+			type: 'terminate-terminal',
+		});
+		expect(graceful.commands).toEqual([{ terminalId: terminal, type: 'terminate-child' }]);
+		state = graceful.state;
+		const scoped = apply(state, {
+			authority: LifecycleAuthority.attachment,
+			clientId: client,
+			epoch,
+			terminalId: terminal,
+			type: 'force-terminate-terminal',
+		});
+		expect(scoped).toEqual(
+			expect.objectContaining({
+				commands: [],
+				rejection: LifecycleRejection.authorityDenied,
+				state,
+			}),
+		);
+
+		const forced = apply(state, {
+			authority: LifecycleAuthority.desktop,
+			clientId: client,
+			epoch,
+			terminalId: terminal,
+			type: 'force-terminate-terminal',
+		});
+		expect(forced.commands).toEqual([{ terminalId: terminal, type: 'force-terminate-child' }]);
+		expect(forced.state.terminals[0]).toEqual(
+			expect.objectContaining({ forceTerminateRequested: true, terminateRequested: true }),
+		);
+
+		const retry = apply(forced.state, {
+			authority: LifecycleAuthority.desktop,
+			clientId: client,
+			epoch,
+			terminalId: terminal,
+			type: 'force-terminate-terminal',
+		});
+		expect(retry).toEqual(
+			expect.objectContaining({ commands: [], outcome: LifecycleOutcome.idempotent }),
+		);
+	});
+
+	it('stops an empty local-only Host when its final client disconnects', () => {
+		const disconnected = apply(servingState(), {
+			clientId: client,
+			epoch,
+			type: 'disconnect-client',
+		});
+		expect(disconnected.commands).toEqual([{ type: 'stop-host' }]);
+		expect(disconnected.state).toEqual(createInitialProtocolLifecycleState());
+	});
 });
 
 describe('protocol lifecycle bounded delivery', () => {
@@ -372,6 +456,20 @@ describe('protocol lifecycle update gate and generated traces', () => {
 				type: 'create-terminal',
 			},
 			{ epoch, terminalId: terminal, type: 'spawn-succeeded' },
+			{
+				authority: LifecycleAuthority.desktop,
+				clientId: client,
+				epoch,
+				terminalId: terminal,
+				type: 'terminate-terminal',
+			},
+			{
+				authority: LifecycleAuthority.desktop,
+				clientId: client,
+				epoch,
+				terminalId: terminal,
+				type: 'force-terminate-terminal',
+			},
 			{
 				attachmentId: attachment,
 				authority: LifecycleAuthority.desktop,

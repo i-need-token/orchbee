@@ -26,8 +26,8 @@ export interface DesktopRuntimeConfiguration {
 	readonly binaryPath: string;
 	readonly endpointId: string;
 	readonly recoveryBindingId: string;
-	readonly recoveryLedgerPath: string;
 	readonly runtimeDirectory: string;
+	readonly terminalBindingStorePath: string;
 	readonly terminalLaunch: TerminalLaunchV1_1;
 }
 
@@ -61,19 +61,17 @@ export function resolveDesktopRuntimeConfiguration(
 		input.platform === 'win32'
 			? (input.environment.ComSpec ?? 'C:\\Windows\\System32\\cmd.exe')
 			: (input.environment.SHELL ?? '/bin/sh');
+	const recoveryDirectory = path.resolve(
+		input.environment.ORCHBEE_DESKTOP_RECOVERY_DIRECTORY ??
+			path.join(input.userDataPath, 'terminal-recovery'),
+	);
 
 	return {
 		binaryPath,
 		endpointId,
 		recoveryBindingId: 'desktop-terminal-foundation',
-		recoveryLedgerPath: path.join(
-			path.resolve(
-				input.environment.ORCHBEE_DESKTOP_RECOVERY_DIRECTORY ??
-					path.join(input.userDataPath, 'terminal-recovery'),
-			),
-			'bindings-v1.json',
-		),
 		runtimeDirectory,
+		terminalBindingStorePath: path.join(recoveryDirectory, 'bindings-v2.json'),
 		terminalLaunch: TerminalLaunchV1_1Schema.parse({
 			arguments: [],
 			cellPixelHeight: 16,

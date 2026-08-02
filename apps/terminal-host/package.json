@@ -11,7 +11,7 @@
 		"format:check": "zig fmt --check build.zig build.zig.zon src",
 		"test": "zig build test && node scripts/run-protocol-conformance.mjs",
 		"test:protocol": "node scripts/run-protocol-conformance.mjs",
-		"test:cross": "zig build test-compile -Dtarget=x86_64-linux-gnu -Doptimize=ReleaseSafe && zig build test-compile -Dtarget=aarch64-macos -Doptimize=ReleaseSafe && zig build test-compile -Dtarget=x86_64-windows-gnu -Doptimize=ReleaseSafe"
+		"test:cross": "zig build test-compile -Dtarget=x86_64-linux-gnu -Doptimize=ReleaseSafe && zig build test-compile -Dtarget=x86_64-freebsd -Doptimize=ReleaseSafe && zig build test-compile -Dtarget=aarch64-macos -Doptimize=ReleaseSafe && zig build test-compile -Dtarget=x86_64-windows-gnu -Doptimize=ReleaseSafe"
 	},
 	"devDependencies": {
 		"@orchbee/terminal-protocol": "workspace:^"

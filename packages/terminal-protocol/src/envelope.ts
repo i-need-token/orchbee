@@ -28,6 +28,7 @@ export const MessageKind = {
 	deltaFrame: 42,
 	detachTerminal: 21,
 	disposeTerminal: 13,
+	forceTerminateTerminal: 18,
 	frameApplied: 43,
 	focusInput: 37,
 	hello: 1,

@@ -28,6 +28,19 @@ request is at most the negotiated 1 MiB. A terminal becomes
 classified as a drain. Disconnect removes that connection's attachments and never sends the
 platform termination request.
 
+Protocol 1.4 separates graceful and force termination. The Host never owns the escalation timer:
+Desktop first sends `TerminateTerminal`, may wait for completion, and only then sends
+`ForceTerminateTerminal`. Both requests are independently idempotent, and neither disposes the
+terminal; disposal remains legal only after child exit and PTY drain have both been observed. On
+macOS, Linux, and FreeBSD, the process adapter enumerates current operating-system session members,
+rechecks each membership immediately before signaling, and sends HUP for graceful termination. A
+force request stops the current session, enumerates it again, and sends KILL, so shell job-control
+groups are covered while a process that deliberately entered another session with `setsid()` is
+excluded. On Windows, every child starts suspended, enters a kill-on-close Job Object before its
+first instruction resumes, and force termination ends that Job and its descendants. Final runtime
+destruction also force-cleans an incomplete child/drain pair before joining worker threads; a fully
+completed retained terminal is never signaled again by numeric process identity during disposal.
+
 Protocol 1.3 `ListTerminals` exposes opaque terminal summaries in stable membership pages of at most
 128 terminals and 64 KiB. A cursor carries the inventory generation and next offset; any create or
 dispose changes the generation, so a stale cursor fails instead of mixing memberships. The protocol
@@ -54,7 +67,10 @@ Host token SID. Endpoint names are identifiers, not secrets.
 
 The current local IPC listener services one broker connection at a time while preserving all
 terminals across broker reconnects; the service/core identity model does not conflate reconnects
-that reuse a `ClientId`. A protocol 1.1 readable attachment starts with projection demand paused.
+that reuse a `ClientId`. After a physical connection returns, the listener exits only when no
+connection, terminal, or runtime remains. A retained terminal therefore keeps the Host available
+for reconnect, while an empty Host does not become an orphan process. A protocol 1.1 readable
+attachment starts with projection demand paused.
 Activating it lazily creates one terminal-owned Ghostty render state and emits bounded format-2 snapshots or
 full-row deltas with one frame in flight per attachment. Pausing abandons that attachment's
 in-flight frame, invalidates its delta base, and suppresses dirty marking, capture, and encoding
@@ -120,11 +136,13 @@ build, and checks valid and malformed records. It does not depend on a sibling s
 machine-local checkout.
 
 `test` exercises the current operating system's PTY/process adapter, VT runtimes, multi-terminal
-routing, atomic spawn failure, paged inventory, physical-connection isolation, projection capture
+route isolation, atomic spawn failure, paged inventory, two-phase terminal closure, POSIX session
+termination, physical-connection isolation, projection capture
 and backpressure, semantic input ordering, malformed local transport, connection cleanup, and
 endpoint security. Repository CI is
-configured to run these native tests on Linux, macOS, and Windows. `test:cross` additionally
-compiles the complete test graph for one maintained target in each family; cross-compilation alone
+configured to run these native tests on Linux, macOS, and Windows. Windows-native tests also verify
+that a spawned descendant is retained in the terminal Job. `test:cross` additionally compiles the
+complete test graph for Linux, FreeBSD, macOS, and Windows; cross-compilation alone
 does not claim runtime behavior. Packaging and installer behavior remain outside this slice. Build
 output remains under ignored `.zig-cache/` and `zig-out/` directories.
 
@@ -155,10 +173,12 @@ encoding, tracked selection, and chunked selection export. `src/terminal_runtime
 `src/pty_process.zig`, and `src/pty.zig` own
 VT, process, and PTY effects; `src/benchmark.zig` and `src/benchmark_options.zig` are the repeatable
 focused throughput harness and its tested CLI contract;
-`src/windows_api.zig` is the narrow ConPTY binding. `src/local_ipc.zig`
+`src/windows_api.zig` is the narrow ConPTY and terminal-Job binding. `src/local_ipc.zig`
 owns endpoint bootstrap and record dispatch;
 `src/local_ipc_windows.c` and its header are the narrow Windows ACL, SID, mutex, and named-pipe
-adapter. `src/protocol.zig` is the private bounded native codec, while
+adapter. `src/process_session.c` owns POSIX session enumeration and signaling;
+`src/process_job_windows.c` owns Windows Job creation, assignment, termination, and native test
+inspection. `src/protocol.zig` is the private bounded native codec, while
 `src/protocol_conformance_test.zig` is a test root and never enters the installed executable. The
 Zig build graph is the visibility authority; no other workspace imports these source files, and
 this application exports no native library module.

@@ -29,7 +29,8 @@ VARIABLES
 connectionVars == <<connections, clientOf>>
 hostVars == <<hostPhase, hostEpoch, upgradePending, connectionVars, networkListener>>
 terminalVars ==
-  <<creationOf, terminalPhase, runtimePresent, childExited, ptyDrained, terminalColumns>>
+  <<creationOf, terminalPhase, runtimePresent, childExited, ptyDrained,
+    terminalColumns>>
 attachmentVars ==
   <<attachmentOwner, attachmentTerminal, attachmentEpoch, resizeLease>>
 vars == <<hostVars, terminalVars, attachmentVars>>
@@ -135,8 +136,17 @@ Detach(attachment) ==
 
 Disconnect(connection) ==
   /\ connection \in connections
-  /\ connections' = connections \ {connection}
-  /\ clientOf' = [clientOf EXCEPT ![connection] = None]
+  /\ LET remaining == connections \ {connection}
+     IN
+       /\ connections' = remaining
+       /\ clientOf' = [clientOf EXCEPT ![connection] = None]
+       /\ IF remaining = {} /\ PresentTerminals = {} /\ hostPhase = "serving"
+          THEN
+            /\ hostPhase' = "absent"
+            /\ hostEpoch' = None
+            /\ upgradePending' = FALSE
+          ELSE
+            /\ UNCHANGED <<hostPhase, hostEpoch, upgradePending>>
   /\ attachmentOwner' =
        [attachment \in Attachments |->
           IF attachmentOwner[attachment] = connection THEN None
@@ -153,7 +163,7 @@ Disconnect(connection) ==
        [attachment \in Attachments |->
           IF attachmentOwner[attachment] = connection THEN FALSE
           ELSE resizeLease[attachment]]
-  /\ UNCHANGED <<hostPhase, hostEpoch, upgradePending, networkListener, terminalVars>>
+  /\ UNCHANGED <<networkListener, terminalVars>>
 
 Resize(attachment) ==
   /\ attachment \in Attachments
@@ -344,6 +354,12 @@ NoNetworkListener == ~networkListener
 DisconnectPreservesTerminalState ==
   [][\A connection \in Connections:
        Disconnect(connection) => UNCHANGED terminalVars]_vars
+
+EmptyFinalDisconnectStopsHost ==
+  [][\A connection \in Connections:
+       Disconnect(connection) /\ connections \ {connection} = {}
+         /\ PresentTerminals = {} /\ hostPhase = "serving" =>
+           hostPhase' = "absent"]_vars
 
 DisconnectPreservesOtherAttachments ==
   [][\A connection \in Connections:

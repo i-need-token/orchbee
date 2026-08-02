@@ -1,83 +1,93 @@
 import {
 	CreateTerminalV1_1Schema,
 	CreationIdSchema,
-	EmptyControlSchema,
 	MessageKind,
 	TerminalIdentitySchema,
-	TerminalListSchema,
 	TerminalLaunchV1_1Schema,
 	TerminalPhase,
 	type HostEpoch,
 	type TerminalExited,
 	type TerminalIdentity,
+	type TerminalLaunchV1_1,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
 
-import type { HostConnection } from '../host';
-import { HostRequestError } from '../host';
-import {
-	TerminalRecoveryLedgerDocumentSchema,
-	type TerminalRecoveryBinding,
-	type TerminalRecoveryBindingConfiguration,
-	type TerminalRecoveryLedger,
-	type TerminalRecoveryOutcome,
+import { HostRequestError, readTerminalInventory, type HostConnection } from '../host';
+import type {
+	TerminalRecoveryBindingConfiguration,
+	TerminalRecoveryOutcome,
 } from './recovery-binding';
+import {
+	createTerminalBindingStoreDocument,
+	findTerminalBinding,
+	TerminalBindingIdSchema,
+	terminalBindingIdentity,
+	type TerminalBinding,
+	type TerminalBindingId,
+	type TerminalBindingStore,
+	type TerminalBindingStoreDocument,
+} from './terminal-binding-store';
 
 export interface TerminalRecoveryCoordinatorDependencies {
 	readonly randomCreationId: () => string;
 }
 
 export class TerminalRecoveryCoordinator {
-	readonly #configuration: TerminalRecoveryBindingConfiguration;
+	readonly #bindingId: TerminalBindingId;
 	readonly #dependencies: TerminalRecoveryCoordinatorDependencies;
 	readonly #host: HostConnection;
-	readonly #ledger: TerminalRecoveryLedger;
+	readonly #launch: TerminalLaunchV1_1;
+	readonly #store: TerminalBindingStore;
 
 	constructor(
 		host: HostConnection,
-		ledger: TerminalRecoveryLedger,
+		store: TerminalBindingStore,
 		configuration: TerminalRecoveryBindingConfiguration,
 		dependencies: TerminalRecoveryCoordinatorDependencies,
 	) {
 		this.#host = host;
-		this.#ledger = ledger;
-		this.#configuration = {
-			bindingId: configuration.bindingId,
-			launch: TerminalLaunchV1_1Schema.parse(configuration.launch),
-		};
+		this.#store = store;
+		this.#bindingId = TerminalBindingIdSchema.parse(configuration.bindingId);
+		this.#launch = TerminalLaunchV1_1Schema.parse(configuration.launch);
 		this.#dependencies = dependencies;
 	}
 
 	async reconcile(): Promise<TerminalRecoveryOutcome> {
-		const loaded = await this.#ledger.load();
+		const loaded = await this.#store.load();
 		if (loaded.kind === 'unavailable') {
 			return { kind: 'ledger-unavailable', reason: loaded.reason };
 		}
-		const inventory = await this.#listTerminals();
-		if (loaded.kind === 'missing') {
-			if (inventory.length > 0) return { kind: 'orphaned', terminalCount: inventory.length };
-			const binding: TerminalRecoveryBinding = {
-				bindingId: this.#configuration.bindingId,
+		const document =
+			loaded.kind === 'available' ? loaded.document : createTerminalBindingStoreDocument();
+		const inventory = await readTerminalInventory(this.#host);
+		const binding = findTerminalBinding(document, this.#bindingId);
+		if (binding === undefined) {
+			const unboundCount = countUnboundTerminals(document, inventory);
+			if (unboundCount > 0) return { kind: 'orphaned', terminalCount: unboundCount };
+			const planned: TerminalBinding = {
+				bindingId: this.#bindingId,
 				creationId: CreationIdSchema.parse(this.#dependencies.randomCreationId()),
-				launch: this.#configuration.launch,
+				launch: this.#launch,
 				state: { kind: 'planned' },
 			};
-			if (!(await this.#save(binding))) {
+			if (!(await this.#save(planned))) {
 				return { kind: 'ledger-unavailable', reason: 'write-failed' };
 			}
-			return this.#reconcilePlanned(binding, inventory, true);
+			return this.#reconcilePlanned(planned, true);
 		}
 
-		const binding = loaded.document.binding;
-		if (
-			binding.bindingId !== this.#configuration.bindingId ||
-			!launchesEqual(binding.launch, this.#configuration.launch)
-		) {
+		if (binding.state.kind === 'closing') {
+			return reconcileClosing(binding, binding.state, inventory, this.#host.hostEpoch);
+		}
+		if (!launchesEqual(binding.launch, this.#launch)) {
 			return { kind: 'conflict', reason: 'identity-conflict' };
+		}
+		if (binding.state.kind !== 'lost' && countUnboundTerminals(document, inventory) > 0) {
+			return { kind: 'conflict', reason: 'orphan-conflict' };
 		}
 		switch (binding.state.kind) {
 			case 'planned':
-				return this.#reconcilePlanned(binding, inventory, true);
+				return this.#reconcilePlanned(binding, true);
 			case 'create-requested':
 				return this.#reconcileCreateRequested(binding, binding.state, inventory);
 			case 'retained':
@@ -89,49 +99,33 @@ export class TerminalRecoveryCoordinator {
 	}
 
 	async recordExit(event: TerminalExited): Promise<void> {
-		const loaded = await this.#ledger.load();
+		const loaded = await this.#store.load();
 		if (loaded.kind !== 'available') return;
-		const binding = loaded.document.binding;
+		const binding = findTerminalBinding(loaded.document, this.#bindingId);
 		if (
+			binding === undefined ||
+			binding.state.kind === 'closing' ||
 			binding.state.kind === 'lost' ||
-			!identitiesEqual(bindingIdentity(binding), event.identity)
+			!identitiesEqual(terminalBindingIdentity(binding), event.identity)
 		) {
 			return;
 		}
-		await this.#ledger.save(
-			TerminalRecoveryLedgerDocumentSchema.parse({
-				binding: {
-					...binding,
-					state: {
-						exit: event.exit,
-						finalRevision: event.finalRevision,
-						identity: event.identity,
-						kind: 'exited',
-					},
-				},
-				version: 1,
-			}),
-		);
-	}
-
-	async #listTerminals(): Promise<readonly TerminalSummary[]> {
-		const result = await this.#host.requestControl(
-			MessageKind.listTerminals,
-			EmptyControlSchema.parse({}),
-			MessageKind.listTerminals,
-			TerminalListSchema,
-		);
-		return result.terminals;
+		await this.#store.put({
+			...binding,
+			state: {
+				exit: event.exit,
+				finalRevision: event.finalRevision,
+				identity: event.identity,
+				kind: 'exited',
+			},
+		});
 	}
 
 	async #reconcilePlanned(
-		binding: TerminalRecoveryBinding,
-		inventory: readonly TerminalSummary[],
+		binding: TerminalBinding,
 		isProvisioning: boolean,
 	): Promise<TerminalRecoveryOutcome> {
-		const other = inventory.find((summary) => summary.identity.creationId !== binding.creationId);
-		if (other !== undefined) return { kind: 'conflict', reason: 'orphan-conflict' };
-		const requested: TerminalRecoveryBinding = {
+		const requested: TerminalBinding = {
 			...binding,
 			state: { hostEpoch: this.#host.hostEpoch, kind: 'create-requested' },
 		};
@@ -142,7 +136,7 @@ export class TerminalRecoveryCoordinator {
 	}
 
 	async #reconcileCreateRequested(
-		binding: TerminalRecoveryBinding,
+		binding: TerminalBinding,
 		state: { readonly hostEpoch: HostEpoch; readonly kind: 'create-requested' },
 		inventory: readonly TerminalSummary[],
 	): Promise<TerminalRecoveryOutcome> {
@@ -151,19 +145,18 @@ export class TerminalRecoveryCoordinator {
 		}
 		const match = inventory.find((summary) => summary.identity.creationId === binding.creationId);
 		if (match !== undefined) return this.#validateAndRetain(binding, match);
-		if (inventory.length > 0) return { kind: 'conflict', reason: 'orphan-conflict' };
 		return this.#createAndRetain(binding, false);
 	}
 
 	async #reconcileRetained(
-		binding: TerminalRecoveryBinding,
+		binding: TerminalBinding,
 		state:
 			| { readonly identity: TerminalIdentity; readonly kind: 'retained' }
 			| {
-					readonly identity: TerminalIdentity;
-					readonly kind: 'exited';
 					readonly exit: TerminalExited['exit'];
 					readonly finalRevision: TerminalExited['finalRevision'];
+					readonly identity: TerminalIdentity;
+					readonly kind: 'exited';
 			  },
 		inventory: readonly TerminalSummary[],
 	): Promise<TerminalRecoveryOutcome> {
@@ -181,7 +174,7 @@ export class TerminalRecoveryCoordinator {
 	}
 
 	async #createAndRetain(
-		binding: TerminalRecoveryBinding,
+		binding: TerminalBinding,
 		isProvisioning: boolean,
 	): Promise<TerminalRecoveryOutcome> {
 		let identity: TerminalIdentity;
@@ -204,7 +197,7 @@ export class TerminalRecoveryCoordinator {
 		if (identity.creationId !== binding.creationId || identity.hostEpoch !== this.#host.hostEpoch) {
 			return { kind: 'conflict', reason: 'identity-conflict' };
 		}
-		const retained: TerminalRecoveryBinding = {
+		const retained: TerminalBinding = {
 			...binding,
 			state: { identity, kind: 'retained' },
 		};
@@ -221,7 +214,7 @@ export class TerminalRecoveryCoordinator {
 	}
 
 	async #validateAndRetain(
-		binding: TerminalRecoveryBinding,
+		binding: TerminalBinding,
 		summary: TerminalSummary,
 	): Promise<TerminalRecoveryOutcome> {
 		let identity: TerminalIdentity;
@@ -246,7 +239,7 @@ export class TerminalRecoveryCoordinator {
 		if (summary.phase === TerminalPhase.exited && summary.exit === null) {
 			return { kind: 'conflict', reason: 'identity-conflict' };
 		}
-		const state: TerminalRecoveryBinding['state'] =
+		const state: TerminalBinding['state'] =
 			summary.phase === TerminalPhase.exited && summary.exit !== null
 				? {
 						exit: summary.exit,
@@ -262,10 +255,10 @@ export class TerminalRecoveryCoordinator {
 	}
 
 	async #requireMatchingSummary(
-		creationId: TerminalRecoveryBinding['creationId'],
+		creationId: TerminalBinding['creationId'],
 		identity: TerminalIdentity,
 	): Promise<TerminalSummary> {
-		const inventory = await this.#listTerminals();
+		const inventory = await readTerminalInventory(this.#host);
 		const match = inventory.find((summary) => summary.identity.creationId === creationId);
 		if (match === undefined || !identitiesEqual(match.identity, identity)) {
 			throw new Error('Created terminal is absent from Host inventory.');
@@ -274,7 +267,7 @@ export class TerminalRecoveryCoordinator {
 	}
 
 	async #lose(
-		binding: TerminalRecoveryBinding,
+		binding: TerminalBinding,
 		previousIdentity: TerminalIdentity | null,
 		reason: 'host-epoch-changed' | 'identity-missing',
 	): Promise<TerminalRecoveryOutcome> {
@@ -284,9 +277,9 @@ export class TerminalRecoveryCoordinator {
 		return { kind: 'lost', reason };
 	}
 
-	async #save(binding: TerminalRecoveryBinding): Promise<boolean> {
+	async #save(binding: TerminalBinding): Promise<boolean> {
 		try {
-			await this.#ledger.save(TerminalRecoveryLedgerDocumentSchema.parse({ binding, version: 1 }));
+			await this.#store.put(binding);
 			return true;
 		} catch {
 			return false;
@@ -294,8 +287,43 @@ export class TerminalRecoveryCoordinator {
 	}
 }
 
-function bindingIdentity(binding: TerminalRecoveryBinding): TerminalIdentity | null {
-	return 'identity' in binding.state ? binding.state.identity : null;
+function countUnboundTerminals(
+	document: TerminalBindingStoreDocument,
+	inventory: readonly TerminalSummary[],
+): number {
+	return inventory.filter(
+		(summary) => !document.bindings.some((binding) => bindingOwnsSummary(binding, summary)),
+	).length;
+}
+
+function bindingOwnsSummary(binding: TerminalBinding, summary: TerminalSummary): boolean {
+	if (binding.creationId !== summary.identity.creationId) return false;
+	switch (binding.state.kind) {
+		case 'create-requested':
+			return binding.state.hostEpoch === summary.identity.hostEpoch;
+		case 'retained':
+		case 'exited':
+		case 'closing':
+			return identitiesEqual(binding.state.identity, summary.identity);
+		case 'lost':
+		case 'planned':
+			return false;
+	}
+}
+
+function reconcileClosing(
+	binding: TerminalBinding,
+	state: Extract<TerminalBinding['state'], { readonly kind: 'closing' }>,
+	inventory: readonly TerminalSummary[],
+	hostEpoch: HostEpoch,
+): TerminalRecoveryOutcome {
+	const identity = state.identity;
+	if (identity.hostEpoch !== hostEpoch) return { identity, kind: 'closing', summary: null };
+	const match = inventory.find((summary) => summary.identity.creationId === binding.creationId);
+	if (match === undefined) return { identity, kind: 'closing', summary: null };
+	return identitiesEqual(identity, match.identity)
+		? { identity, kind: 'closing', summary: match }
+		: { kind: 'conflict', reason: 'identity-conflict' };
 }
 
 function identitiesEqual(left: TerminalIdentity | null, right: TerminalIdentity): boolean {
@@ -307,9 +335,6 @@ function identitiesEqual(left: TerminalIdentity | null, right: TerminalIdentity)
 	);
 }
 
-function launchesEqual(
-	left: TerminalRecoveryBinding['launch'],
-	right: TerminalRecoveryBinding['launch'],
-): boolean {
+function launchesEqual(left: TerminalBinding['launch'], right: TerminalBinding['launch']): boolean {
 	return JSON.stringify(left) === JSON.stringify(right);
 }

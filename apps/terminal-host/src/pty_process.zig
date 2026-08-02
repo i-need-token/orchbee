@@ -4,6 +4,8 @@ const builtin = @import("builtin");
 const pty_module = @import("pty.zig");
 const windows_api = @import("windows_api.zig");
 
+extern "c" fn orchbee_signal_process_session(session_id: c_int, signal_number: c_int) c_int;
+
 pub const EnvironmentDelta = struct {
     name: []const u8,
     value: ?[]const u8,
@@ -131,9 +133,14 @@ const PosixProcess = if (builtin.os.tag == .windows) void else struct {
     }
 
     pub fn terminate(self: *const PosixProcess) !void {
-        posix.kill(-self.child_id, posix.SIG.HUP) catch |err| switch (err) {
-            error.ProcessNotFound => {},
-            else => return err,
+        try signalSession(self.child_id, posix.SIG.HUP);
+    }
+
+    pub fn forceTerminate(self: *const PosixProcess) !void {
+        try signalSession(self.child_id, posix.SIG.STOP);
+        signalSession(self.child_id, posix.SIG.KILL) catch |err| {
+            signalSession(self.child_id, posix.SIG.CONT) catch {};
+            return err;
         };
     }
 
@@ -157,11 +164,18 @@ const PosixProcess = if (builtin.os.tag == .windows) void else struct {
         _ = posix.write(error_fd, &marker) catch 0;
         posix.exit(127);
     }
+
+    fn signalSession(session_id: posix.pid_t, signal_number: u8) !void {
+        if (orchbee_signal_process_session(session_id, signal_number) != 0) {
+            return error.SessionTerminationFailed;
+        }
+    }
 };
 
 const WindowsProcess = if (builtin.os.tag != .windows) void else struct {
     const windows = std.os.windows;
 
+    job_handle: windows.HANDLE,
     process_handle: windows.HANDLE,
     pty: pty_module.Pty,
 
@@ -190,6 +204,9 @@ const WindowsProcess = if (builtin.os.tag != .windows) void else struct {
             .rows = launch.rows,
         });
         errdefer pty.deinit();
+        const job_handle = windows_api.ob_windows_terminal_job_create() orelse
+            return windows.unexpectedError(windows.kernel32.GetLastError());
+        errdefer windows.CloseHandle(job_handle);
 
         var attribute_list_size: usize = 0;
         _ = windows_api.InitializeProcThreadAttributeList(null, 1, 0, &attribute_list_size);
@@ -215,7 +232,8 @@ const WindowsProcess = if (builtin.os.tag != .windows) void else struct {
         startup_info.StartupInfo.cb = @sizeOf(windows_api.STARTUPINFOEXW);
         startup_info.lpAttributeList = attribute_list.ptr;
         var process_information: windows.PROCESS_INFORMATION = undefined;
-        const flags = windows_api.CREATE_UNICODE_ENVIRONMENT |
+        const flags = windows_api.CREATE_SUSPENDED |
+            windows_api.CREATE_UNICODE_ENVIRONMENT |
             windows_api.EXTENDED_STARTUPINFO_PRESENT;
         if (windows_api.CreateProcessW(
             null,
@@ -234,12 +252,25 @@ const WindowsProcess = if (builtin.os.tag != .windows) void else struct {
                 else => |err| windows.unexpectedError(err),
             };
         }
-        _ = windows.CloseHandle(process_information.hThread);
-        return .{ .process_handle = process_information.hProcess, .pty = pty };
+        errdefer windows.CloseHandle(process_information.hProcess);
+        defer windows.CloseHandle(process_information.hThread);
+        if (windows_api.ob_windows_terminal_job_assign_and_resume(
+            job_handle,
+            process_information.hProcess,
+            process_information.hThread,
+        ) == 0) {
+            return windows.unexpectedError(windows.kernel32.GetLastError());
+        }
+        return .{
+            .job_handle = job_handle,
+            .process_handle = process_information.hProcess,
+            .pty = pty,
+        };
     }
 
     pub fn deinit(self: *WindowsProcess) void {
         _ = windows.CloseHandle(self.process_handle);
+        _ = windows.CloseHandle(self.job_handle);
         self.pty.deinit();
         self.* = undefined;
     }
@@ -273,6 +304,12 @@ const WindowsProcess = if (builtin.os.tag != .windows) void else struct {
 
     pub fn terminate(self: *const WindowsProcess) !void {
         if (windows.kernel32.TerminateProcess(self.process_handle, 1) == 0) {
+            return windows.unexpectedError(windows.kernel32.GetLastError());
+        }
+    }
+
+    pub fn forceTerminate(self: *const WindowsProcess) !void {
+        if (windows_api.ob_windows_terminal_job_terminate(self.job_handle, 1) == 0) {
             return windows.unexpectedError(windows.kernel32.GetLastError());
         }
     }
@@ -395,4 +432,44 @@ test "failed exec leaves no retained child" {
             .rows = 24,
         }),
     );
+}
+
+test "Windows descendants start inside the terminal kill-on-close Job" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const executable = try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec");
+    defer std.testing.allocator.free(executable);
+    const arguments = [_][]const u8{
+        "/D",
+        "/S",
+        "/C",
+        "start \"\" /B ping -t 127.0.0.1 >nul & ping -t 127.0.0.1 >nul",
+    };
+    var process = try Process.spawn(std.testing.allocator, .{
+        .arguments = &arguments,
+        .columns = 80,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = executable,
+        .rows = 24,
+    });
+    defer process.deinit();
+
+    var observed_descendant = false;
+    for (0..400) |_| {
+        var active_processes: std.os.windows.DWORD = 0;
+        if (windows_api.ob_windows_terminal_job_active_processes(
+            process.job_handle,
+            &active_processes,
+        ) == 0) {
+            return std.os.windows.unexpectedError(std.os.windows.kernel32.GetLastError());
+        }
+        if (active_processes >= 2) {
+            observed_descendant = true;
+            break;
+        }
+        std.Thread.sleep(5 * std.time.ns_per_ms);
+    }
+    try std.testing.expect(observed_descendant);
+    try process.forceTerminate();
+    _ = process.wait();
 }

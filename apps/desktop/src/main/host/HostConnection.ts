@@ -20,10 +20,14 @@ import {
 	type HostEpoch,
 	type MessageKindValue,
 	type PayloadEncodingValue,
+	type ProtocolVersion,
 } from '@orchbee/terminal-protocol';
 import type { z } from 'zod';
 
-import { DESKTOP_HOST_PROTOCOL_VERSION } from './desktop-host-protocol-version';
+import {
+	DESKTOP_HOST_PROTOCOL_RANGE,
+	DESKTOP_HOST_PROTOCOL_VERSION,
+} from './desktop-host-protocol-version';
 import { HostRecordAssembler } from './HostRecordAssembler';
 import { HostRequestError } from './HostRequestError';
 
@@ -46,16 +50,20 @@ export interface HostConnectionMetrics {
 }
 
 export type HostEnvelopeListener = (envelope: DecodedProtocolEnvelope) => void;
+export type HostClosedListener = (reason: Error) => void;
 
 export class HostConnection {
 	readonly #assembler: HostRecordAssembler;
+	readonly #closedListeners = new Set<HostClosedListener>();
 	readonly #listeners = new Set<HostEnvelopeListener>();
 	readonly #pending = new Map<string, PendingRequest>();
 	readonly #stream: Duplex;
 	#bytesReceived = 0;
 	#bytesSent = 0;
 	#closed = false;
+	#closedReason: Error | undefined;
 	#hostEpoch: HostEpoch | undefined;
+	#protocolVersion: ProtocolVersion | undefined;
 	#recordsReceived = 0;
 	#recordsSent = 0;
 	#terminalFramesReceived = 0;
@@ -105,6 +113,13 @@ export class HostConnection {
 		};
 	}
 
+	get protocolVersion(): ProtocolVersion {
+		if (this.#protocolVersion === undefined) {
+			throw new Error('Host connection is not negotiated.');
+		}
+		return this.#protocolVersion;
+	}
+
 	async negotiate(clientId: ClientId): Promise<HelloAccepted> {
 		if (this.#hostEpoch !== undefined) throw new Error('Host connection is already negotiated.');
 		const hello = HelloSchema.parse({
@@ -112,9 +127,9 @@ export class HostConnection {
 			frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 			inputBytes: PROTOCOL_LIMITS.maxInputBytes,
 			protocol: {
-				major: DESKTOP_HOST_PROTOCOL_VERSION.major,
-				maximumMinor: DESKTOP_HOST_PROTOCOL_VERSION.minor,
-				minimumMinor: DESKTOP_HOST_PROTOCOL_VERSION.minor,
+				major: DESKTOP_HOST_PROTOCOL_RANGE.major,
+				maximumMinor: DESKTOP_HOST_PROTOCOL_RANGE.maximumMinor,
+				minimumMinor: DESKTOP_HOST_PROTOCOL_RANGE.minimumMinor,
 			},
 			rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 			supportedOptionalFeatures: [],
@@ -128,12 +143,19 @@ export class HostConnection {
 		);
 		const accepted = decodeControlJson(envelope.payload, HelloAcceptedSchema);
 		if (!accepted.ok) throw new Error(accepted.detail);
-		if (accepted.value.protocol.major !== 1 || accepted.value.protocol.minor !== 2) {
-			throw new Error('Terminal Host did not negotiate required protocol 1.2.');
+		if (!desktopSupportsProtocol(accepted.value.protocol)) {
+			throw new Error('Terminal Host did not negotiate a supported Desktop protocol.');
+		}
+		if (
+			envelope.protocol.major !== accepted.value.protocol.major ||
+			envelope.protocol.minor !== accepted.value.protocol.minor
+		) {
+			throw new Error('HelloAccepted envelope and payload protocol versions differ.');
 		}
 		if (envelope.hostEpoch !== accepted.value.hostEpoch) {
 			throw new Error('HelloAccepted envelope and payload HostEpoch values differ.');
 		}
+		this.#protocolVersion = accepted.value.protocol;
 		this.#hostEpoch = accepted.value.hostEpoch;
 		return accepted.value;
 	}
@@ -164,6 +186,9 @@ export class HostConnection {
 		hostEpoch: HostEpoch | null = this.#hostEpoch ?? null,
 	): Promise<DecodedProtocolEnvelope> {
 		if (this.#closed) return Promise.reject(new Error('Host connection is closed.'));
+		if (kind !== MessageKind.hello && this.#protocolVersion === undefined) {
+			return Promise.reject(new Error('Host connection is not negotiated.'));
+		}
 		const correlationId = CorrelationIdSchema.parse(randomBytes(16).toString('hex'));
 		const encoded = encodeProtocolEnvelope({
 			correlationId,
@@ -173,7 +198,7 @@ export class HostConnection {
 			optionalMessage: false,
 			payload,
 			payloadEncoding,
-			protocol: DESKTOP_HOST_PROTOCOL_VERSION,
+			protocol: this.#protocolVersion ?? DESKTOP_HOST_PROTOCOL_VERSION,
 			response: false,
 		});
 		if (!encoded.ok) return Promise.reject(new Error(encoded.detail));
@@ -202,11 +227,20 @@ export class HostConnection {
 		return () => this.#listeners.delete(listener);
 	}
 
+	onClosed(listener: HostClosedListener): () => void {
+		const reason = this.#closedReason;
+		if (reason !== undefined) {
+			queueMicrotask(() => listener(reason));
+			return () => undefined;
+		}
+		this.#closedListeners.add(listener);
+		return () => this.#closedListeners.delete(listener);
+	}
+
 	close(): void {
 		if (this.#closed) return;
-		this.#closed = true;
+		this.#completeClose(new Error('Host connection closed.'));
 		this.#stream.destroy();
-		this.#rejectPending(new Error('Host connection closed.'));
 	}
 
 	#handleRecord(record: Uint8Array): void {
@@ -215,11 +249,14 @@ export class HostConnection {
 		const envelope = decoded.value;
 		this.#recordsReceived += 1;
 		this.#bytesReceived += record.byteLength;
+		const protocolVersion = this.#protocolVersion;
 		if (
-			envelope.protocol.major !== DESKTOP_HOST_PROTOCOL_VERSION.major ||
-			envelope.protocol.minor !== DESKTOP_HOST_PROTOCOL_VERSION.minor
+			(protocolVersion === undefined && !desktopSupportsProtocol(envelope.protocol)) ||
+			(protocolVersion !== undefined &&
+				(envelope.protocol.major !== protocolVersion.major ||
+					envelope.protocol.minor !== protocolVersion.minor))
 		) {
-			throw new Error('Host emitted a record outside negotiated protocol 1.2.');
+			throw new Error('Host emitted a record outside the negotiated Desktop protocol.');
 		}
 		if (this.#hostEpoch !== undefined && envelope.hostEpoch !== this.#hostEpoch) {
 			throw new Error('Host emitted a record for a stale or foreign HostEpoch.');
@@ -258,24 +295,29 @@ export class HostConnection {
 	}
 
 	#handleClose(): void {
-		if (!this.#closed) {
-			try {
-				this.#assembler.finish();
-			} catch (error) {
-				this.#rejectPending(
-					error instanceof Error ? error : new Error('Host transport ended unexpectedly.'),
-				);
-			}
+		if (this.#closed) return;
+		let reason = new Error('Host connection closed.');
+		try {
+			this.#assembler.finish();
+		} catch (error) {
+			reason = error instanceof Error ? error : new Error('Host transport ended unexpectedly.');
 		}
-		this.#closed = true;
-		this.#rejectPending(new Error('Host connection closed.'));
+		this.#completeClose(reason);
 	}
 
 	#fail(error: Error): void {
 		if (this.#closed) return;
-		this.#closed = true;
-		this.#rejectPending(error);
+		this.#completeClose(error);
 		this.#stream.destroy(error);
+	}
+
+	#completeClose(reason: Error): void {
+		if (this.#closed) return;
+		this.#closed = true;
+		this.#closedReason = reason;
+		this.#rejectPending(reason);
+		for (const listener of this.#closedListeners) queueMicrotask(() => listener(reason));
+		this.#closedListeners.clear();
 	}
 
 	#rejectPending(error: Error): void {
@@ -285,4 +327,12 @@ export class HostConnection {
 		}
 		this.#pending.clear();
 	}
+}
+
+function desktopSupportsProtocol(protocol: ProtocolVersion): boolean {
+	return (
+		protocol.major === DESKTOP_HOST_PROTOCOL_RANGE.major &&
+		protocol.minor >= DESKTOP_HOST_PROTOCOL_RANGE.minimumMinor &&
+		protocol.minor <= DESKTOP_HOST_PROTOCOL_RANGE.maximumMinor
+	);
 }

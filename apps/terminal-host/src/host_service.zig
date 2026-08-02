@@ -24,6 +24,7 @@ const MessageKind = struct {
     const dispose_terminal: u16 = 13;
     const terminal_started: u16 = 14;
     const terminal_exited: u16 = 15;
+    const force_terminate_terminal: u16 = 18;
     const attach_terminal: u16 = 20;
     const detach_terminal: u16 = 21;
     const attachment_capabilities: u16 = 22;
@@ -358,6 +359,12 @@ pub const HostService = struct {
         connection.* = .{};
     }
 
+    pub fn canStopWhenIdle(self: *const HostService) bool {
+        return self.core.connectionCount() == 0 and
+            self.core.terminalCount() == 0 and
+            self.runtimes.count() == 0;
+    }
+
     pub fn pollEvents(self: *HostService, connection: *const ConnectionState) !Outgoing {
         var outgoing = Outgoing.init(self.allocator);
         outgoing.protocol_minor = connection.protocol_minor;
@@ -377,7 +384,7 @@ pub const HostService = struct {
         errdefer outgoing.deinit();
 
         const envelope = protocol.validateTransportEnvelope(record) catch return error.InvalidTransportRecord;
-        if (envelope.protocol_major == 1 and envelope.protocol_minor <= 3) {
+        if (envelope.protocol_major == 1 and envelope.protocol_minor <= 4) {
             outgoing.protocol_minor = envelope.protocol_minor;
         }
         try self.synchronizeRuntimes(&outgoing, connection.connection_id != null);
@@ -385,7 +392,7 @@ pub const HostService = struct {
             try self.addFailure(&outgoing, envelope.correlation_id, "invalid-envelope-role", "client record must be a request", false);
             return outgoing;
         }
-        if (envelope.protocol_major != 1 or envelope.protocol_minor > 3) {
+        if (envelope.protocol_major != 1 or envelope.protocol_minor > 4) {
             try self.addFailure(&outgoing, envelope.correlation_id, "unsupported-version", "unsupported envelope protocol version", false);
             return outgoing;
         }
@@ -418,6 +425,7 @@ pub const HostService = struct {
             MessageKind.list_terminals => try self.handleList(connection.protocol_minor, envelope, correlation_id, &outgoing),
             MessageKind.create_terminal => try self.handleCreate(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
             MessageKind.terminate_terminal => try self.handleTerminate(connection.connection_id.?, envelope, correlation_id, &outgoing),
+            MessageKind.force_terminate_terminal => try self.handleForceTerminate(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
             MessageKind.dispose_terminal => try self.handleDispose(connection.connection_id.?, envelope, correlation_id, &outgoing),
             MessageKind.attach_terminal => try self.handleAttach(connection.connection_id.?, connection.protocol_minor, envelope, correlation_id, &outgoing),
             MessageKind.detach_terminal => try self.handleDetach(connection.connection_id.?, envelope, correlation_id, &outgoing),
@@ -472,10 +480,10 @@ pub const HostService = struct {
             try self.addHandshakeFailure(outgoing, envelope.correlation_id, "invalid-field", "Hello limits or features are invalid", false);
             return;
         }
-        if (hello.protocol.major != 1 or hello.protocol.minimumMinor > 3) {
+        if (hello.protocol.major != 1 or hello.protocol.minimumMinor > 4) {
             const payload = try std.fmt.allocPrint(
                 self.allocator,
-                "{{\"clientRange\":{{\"major\":{d},\"maximumMinor\":{d},\"minimumMinor\":{d}}},\"hostRange\":{{\"major\":1,\"maximumMinor\":3,\"minimumMinor\":0}},\"reason\":\"{s}\"}}",
+                "{{\"clientRange\":{{\"major\":{d},\"maximumMinor\":{d},\"minimumMinor\":{d}}},\"hostRange\":{{\"major\":1,\"maximumMinor\":4,\"minimumMinor\":0}},\"reason\":\"{s}\"}}",
                 .{
                     hello.protocol.major,
                     hello.protocol.maximumMinor,
@@ -488,7 +496,7 @@ pub const HostService = struct {
             connection.close_after_response = true;
             return;
         }
-        const chosen_minor: u16 = @min(hello.protocol.maximumMinor, 3);
+        const chosen_minor: u16 = @min(hello.protocol.maximumMinor, 4);
         outgoing.protocol_minor = chosen_minor;
         const connection_id = self.takeConnectionId() catch {
             try self.addHandshakeFailure(outgoing, envelope.correlation_id, "resource-exhausted", "Host connection identity space is exhausted", false);
@@ -777,6 +785,42 @@ pub const HostService = struct {
         const payload = try terminalAcknowledgedJson(self.allocator, terminal_id);
         defer self.allocator.free(payload);
         try outgoing.add(MessageKind.terminate_terminal, .control_json, payload, correlation_id, self.core.epoch, true, false);
+    }
+
+    fn handleForceTerminate(
+        self: *HostService,
+        connection_id: core_module.ConnectionId,
+        protocol_minor: u16,
+        envelope: protocol.EnvelopeSummary,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !void {
+        if (!try self.requireProtocolV1_4(protocol_minor, correlation_id, outgoing)) return;
+        const target = try self.parseControl(TerminalTargetWire, envelope, correlation_id, outgoing) orelse return;
+        defer target.deinit();
+        const terminal_id = parseIdentifier(target.value.terminalId) catch {
+            try self.addFailure(outgoing, correlation_id, "invalid-identifier", "TerminalId is invalid", false);
+            return;
+        };
+        const outcome = self.core.requestForceTerminate(connection_id, terminal_id) catch |err| {
+            try self.addCoreFailure(outgoing, correlation_id, err);
+            return;
+        };
+        if (outcome == .applied) {
+            const runtime = self.runtimeFor(terminal_id) orelse {
+                self.core.findTerminal(terminal_id).?.force_terminate_requested = false;
+                try self.addFailure(outgoing, correlation_id, "missing-resource", "terminal runtime is missing", false);
+                return;
+            };
+            runtime.forceTerminate() catch {
+                self.core.findTerminal(terminal_id).?.force_terminate_requested = false;
+                try self.addFailure(outgoing, correlation_id, "termination-failed", "platform force-termination request failed", true);
+                return;
+            };
+        }
+        const payload = try terminalAcknowledgedJson(self.allocator, terminal_id);
+        defer self.allocator.free(payload);
+        try outgoing.add(MessageKind.force_terminate_terminal, .control_json, payload, correlation_id, self.core.epoch, true, false);
     }
 
     fn handleDispose(
@@ -1965,6 +2009,17 @@ pub const HostService = struct {
         return false;
     }
 
+    fn requireProtocolV1_4(
+        self: *HostService,
+        protocol_minor: u16,
+        correlation_id: core_module.Identifier,
+        outgoing: *Outgoing,
+    ) !bool {
+        if (protocol_minor >= 4) return true;
+        try self.addFailure(outgoing, correlation_id, "unsupported-version", "operation requires protocol 1.4", false);
+        return false;
+    }
+
     fn requireHistoryRuntime(
         self: *HostService,
         connection_id: core_module.ConnectionId,
@@ -2757,6 +2812,29 @@ test "handshake binds client and negotiates input bytes" {
     service.disconnect(&connection);
 }
 
+test "idle stop requires both the final disconnect and an empty terminal registry" {
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    try std.testing.expect(service.canStopWhenIdle());
+
+    const connection_id: core_module.ConnectionId = 7;
+    _ = try service.core.connect(connection_id, [_]u8{0x21} ** 16);
+    try std.testing.expect(!service.canStopWhenIdle());
+    _ = try service.core.createTerminal(
+        connection_id,
+        [_]u8{0x22} ** 16,
+        [_]u8{0x23} ** 16,
+        [_]u8{0x24} ** 32,
+        80,
+        24,
+    );
+    _ = service.core.disconnect(connection_id);
+    try std.testing.expect(!service.canStopWhenIdle());
+
+    _ = try service.core.spawnFailed([_]u8{0x23} ** 16);
+    try std.testing.expect(service.canStopWhenIdle());
+}
+
 test "equal wire ClientIds receive distinct physical connection identities" {
     var service = HostService.init(std.testing.allocator);
     defer service.deinit();
@@ -2960,6 +3038,128 @@ test "protocol 1.3 pages a stable inventory and rejects stale cursors" {
     const distinct_envelope = try protocol.validateTransportEnvelope(distinct_response.records.items[0]);
     try std.testing.expectEqual(MessageKind.typed_failure, distinct_envelope.kind);
     try std.testing.expect(std.mem.indexOf(u8, distinct_envelope.payload, "protocol-upgrade-required") != null);
+}
+
+test "protocol 1.3 rejects force termination before parsing its payload" {
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var connection: ConnectionState = .{};
+    defer service.disconnect(&connection);
+    try testHandshakeV1_3(&service, &connection, "22222222222222222222222222222222");
+
+    var response = try testRequest(
+        &service,
+        &connection,
+        MessageKind.force_terminate_terminal,
+        .control_json,
+        "{}",
+        [_]u8{0x41} ** 16,
+    );
+    defer response.deinit();
+    try std.testing.expectEqual(@as(usize, 1), response.records.items.len);
+    const envelope = try protocol.validateTransportEnvelope(response.records.items[0]);
+    try std.testing.expectEqual(MessageKind.typed_failure, envelope.kind);
+    try std.testing.expect(std.mem.indexOf(u8, envelope.payload, "unsupported-version") != null);
+}
+
+test "protocol 1.4 force-terminates every retained POSIX session member" {
+    if (@import("builtin").os.tag == .windows) return error.SkipZigTest;
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .{};
+    defer {
+        for (service.runtimes.values()) |entry| entry.runtime.forceTerminate() catch {};
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshakeV1_4(&service, &connection, "22222222222222222222222222222222");
+
+    const arguments = [_][]const u8{
+        "-c",
+        "trap '' HUP; set -m; printf ready; while :; do sleep 600 & wait; done",
+    };
+    const create_payload = try testCreatePayloadV1_3(
+        "33333333333333333333333333333333",
+        "/bin/sh",
+        &arguments,
+    );
+    defer std.testing.allocator.free(create_payload);
+    var created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        create_payload,
+        [_]u8{0x42} ** 16,
+    );
+    defer created.deinit();
+    const terminal_id = service.core.terminals.keys()[0];
+    var ready = false;
+    for (0..400) |_| {
+        const plain = try service.findRuntime(terminal_id).?.plainString(std.testing.allocator);
+        defer std.testing.allocator.free(plain);
+        if (std.mem.indexOf(u8, plain, "ready") != null) {
+            ready = true;
+            break;
+        }
+        std.Thread.sleep(5 * std.time.ns_per_ms);
+    }
+    try std.testing.expect(ready);
+    const target = try testTerminalTargetPayload(terminal_id);
+    defer std.testing.allocator.free(target);
+
+    var premature = try testRequest(
+        &service,
+        &connection,
+        MessageKind.force_terminate_terminal,
+        .control_json,
+        target,
+        [_]u8{0x43} ** 16,
+    );
+    defer premature.deinit();
+    try std.testing.expectEqual(
+        MessageKind.typed_failure,
+        (try protocol.validateTransportEnvelope(premature.records.items[0])).kind,
+    );
+
+    var graceful = try testRequest(
+        &service,
+        &connection,
+        MessageKind.terminate_terminal,
+        .control_json,
+        target,
+        [_]u8{0x44} ** 16,
+    );
+    defer graceful.deinit();
+    try std.testing.expectEqual(
+        MessageKind.terminate_terminal,
+        (try protocol.validateTransportEnvelope(graceful.records.items[0])).kind,
+    );
+
+    var forced = try testRequest(
+        &service,
+        &connection,
+        MessageKind.force_terminate_terminal,
+        .control_json,
+        target,
+        [_]u8{0x45} ** 16,
+    );
+    defer forced.deinit();
+    try std.testing.expectEqual(
+        MessageKind.force_terminate_terminal,
+        (try protocol.validateTransportEnvelope(forced.records.items[0])).kind,
+    );
+    try std.testing.expect(service.core.findTerminal(terminal_id).?.force_terminate_requested);
+
+    for (0..400) |_| {
+        var events = try service.pollEvents(&connection);
+        events.deinit();
+        if (service.core.findTerminal(terminal_id).?.phase == .exited) break;
+        std.Thread.sleep(5 * std.time.ns_per_ms);
+    }
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.exited,
+        service.core.findTerminal(terminal_id).?.phase,
+    );
 }
 
 test "malformed request receives a correlated typed failure without state mutation" {
@@ -3752,6 +3952,14 @@ fn testHandshakeV1_3(
     client_id: []const u8,
 ) !void {
     try testHandshakeVersion(service, connection, client_id, 3);
+}
+
+fn testHandshakeV1_4(
+    service: *HostService,
+    connection: *ConnectionState,
+    client_id: []const u8,
+) !void {
+    try testHandshakeVersion(service, connection, client_id, 4);
 }
 
 fn testHandshakeVersion(

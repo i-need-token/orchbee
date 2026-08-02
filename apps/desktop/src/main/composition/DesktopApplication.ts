@@ -24,11 +24,13 @@ import {
 import { PROJECTED_ATTACHMENT_IPC_CHANNEL, ProjectedAttachmentBootstrapSchema } from '../../shared';
 import { ProjectedTerminalBroker, type ProjectedTerminalBrokerMetrics } from '../broker';
 import { DevelopmentHostRuntime, type HostConnection } from '../host';
+import { FileTerminalBindingStore, TerminalRecoveryCoordinator } from '../recovery';
 import {
-	FileTerminalRecoveryLedger,
-	TerminalRecoveryCoordinator,
-	type TerminalRecoveryOutcome,
-} from '../recovery';
+	TerminalBindingLifecycle,
+	TerminalCloseOrchestrator,
+	type TerminalBindingLifecycleOutcome,
+	type TerminalCloseOutcome,
+} from '../terminal-lifetime';
 import type { DesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 
 interface DesktopBrokerHandle {
@@ -37,9 +39,10 @@ interface DesktopBrokerHandle {
 	start(): void;
 }
 
-interface DesktopTerminalRecoveryHandle {
-	reconcile(): Promise<TerminalRecoveryOutcome>;
+interface DesktopTerminalLifecycleHandle {
+	reconcile(): Promise<TerminalBindingLifecycleOutcome>;
 	recordExit(event: TerminalExited): Promise<void>;
+	requestClose(retireProjection: () => Promise<void>): Promise<TerminalCloseOutcome>;
 }
 
 export interface DesktopApplicationOptions {
@@ -62,11 +65,11 @@ export interface DesktopApplicationDependencies {
 		readonly port1: MessagePortMain;
 		readonly port2: MessagePortMain;
 	};
-	readonly createRecovery: (
+	readonly createTerminalLifecycle: (
 		host: HostConnection,
 		configuration: DesktopRuntimeConfiguration,
 		randomIdentifier: () => string,
-	) => DesktopTerminalRecoveryHandle;
+	) => DesktopTerminalLifecycleHandle;
 	readonly createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
 	readonly randomIdentifier: () => string;
 	readonly writeTrace: (trace: unknown) => void;
@@ -81,16 +84,21 @@ const defaultDependencies: DesktopApplicationDependencies = {
 		}).connect(),
 	createBroker: (host, port, bootstrap) => new ProjectedTerminalBroker(host, port, bootstrap),
 	createMessageChannel: () => new MessageChannelMain(),
-	createRecovery: (host, configuration, randomIdentifier) =>
-		new TerminalRecoveryCoordinator(
-			host,
-			new FileTerminalRecoveryLedger(configuration.recoveryLedgerPath),
-			{
-				bindingId: configuration.recoveryBindingId,
-				launch: configuration.terminalLaunch,
-			},
-			{ randomCreationId: randomIdentifier },
-		),
+	createTerminalLifecycle: (host, configuration, randomIdentifier) => {
+		const store = new FileTerminalBindingStore(configuration.terminalBindingStorePath);
+		return new TerminalBindingLifecycle(
+			new TerminalRecoveryCoordinator(
+				host,
+				store,
+				{
+					bindingId: configuration.recoveryBindingId,
+					launch: configuration.terminalLaunch,
+				},
+				{ randomCreationId: randomIdentifier },
+			),
+			new TerminalCloseOrchestrator(host, store, configuration.recoveryBindingId),
+		);
+	},
 	createWindow: (options) => new BrowserWindow(options),
 	randomIdentifier: () => randomBytes(16).toString('hex'),
 	writeTrace: (trace) => console.info(JSON.stringify(trace)),
@@ -105,10 +113,11 @@ export class DesktopApplication {
 	#connection: HostConnection | undefined;
 	#documentGeneration = 0;
 	#identity: TerminalIdentity | undefined;
-	#recovery: DesktopTerminalRecoveryHandle | undefined;
+	#terminalLifecycle: DesktopTerminalLifecycleHandle | undefined;
 	#removeHostListener: (() => void) | undefined;
 	#shuttingDown = false;
 	#summary: TerminalSummary | null | undefined;
+	#terminalClosing = false;
 	#terminalExit: TerminalExited | undefined;
 	#window: BrowserWindow | undefined;
 
@@ -137,13 +146,13 @@ export class DesktopApplication {
 		this.#connection = connection;
 		try {
 			await connection.negotiate(ClientIdSchema.parse(this.#dependencies.randomIdentifier()));
-			const recovery = this.#dependencies.createRecovery(
+			const terminalLifecycle = this.#dependencies.createTerminalLifecycle(
 				connection,
 				this.#options.runtime,
 				this.#dependencies.randomIdentifier,
 			);
-			this.#recovery = recovery;
-			const outcome = await recovery.reconcile();
+			this.#terminalLifecycle = terminalLifecycle;
+			const outcome = await terminalLifecycle.reconcile();
 			if (outcome.kind !== 'provisioning' && outcome.kind !== 'recovered') {
 				throw new Error(`Desktop terminal recovery stopped with ${outcome.kind}.`);
 			}
@@ -155,7 +164,7 @@ export class DesktopApplication {
 		} catch (error) {
 			this.#removeHostListener?.();
 			this.#removeHostListener = undefined;
-			this.#recovery = undefined;
+			this.#terminalLifecycle = undefined;
 			connection.close();
 			this.#connection = undefined;
 			throw error;
@@ -227,6 +236,19 @@ export class DesktopApplication {
 		if (this.#attachmentFailure !== undefined) throw this.#attachmentFailure;
 	}
 
+	async requestTerminalClose(): Promise<TerminalCloseOutcome> {
+		const terminalLifecycle = this.#terminalLifecycle;
+		if (terminalLifecycle === undefined) {
+			throw new Error('Desktop application must start before closing its terminal.');
+		}
+		return terminalLifecycle.requestClose(async () => {
+			this.#terminalClosing = true;
+			this.#writeCopyPathTrace('terminal-closing');
+			this.#beginRendererDocument();
+			await this.#attachmentTransition;
+		});
+	}
+
 	async shutdown(): Promise<void> {
 		if (this.#shuttingDown) return this.#attachmentTransition;
 		this.#shuttingDown = true;
@@ -239,8 +261,9 @@ export class DesktopApplication {
 		this.#connection = undefined;
 		this.#identity = undefined;
 		this.#summary = undefined;
+		this.#terminalClosing = false;
 		this.#terminalExit = undefined;
-		this.#recovery = undefined;
+		this.#terminalLifecycle = undefined;
 	}
 
 	#beginRendererDocument(): number {
@@ -272,6 +295,7 @@ export class DesktopApplication {
 			this.#window !== window ||
 			window.isDestroyed() ||
 			generation !== this.#documentGeneration ||
+			this.#terminalClosing ||
 			this.#shuttingDown
 		) {
 			return;
@@ -337,7 +361,7 @@ export class DesktopApplication {
 		const exited = decodeControlJson(envelope.payload, TerminalExitedSchema);
 		if (!exited.ok || exited.value.identity.terminalId !== this.#identity?.terminalId) return;
 		this.#terminalExit = exited.value;
-		void this.#recovery?.recordExit(exited.value).catch(() => {
+		void this.#terminalLifecycle?.recordExit(exited.value).catch(() => {
 			console.error('Orchbee Desktop could not persist terminal exit recovery state.');
 		});
 		this.#writeCopyPathTrace('terminal-exited');

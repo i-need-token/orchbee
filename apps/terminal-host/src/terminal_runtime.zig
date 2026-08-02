@@ -289,6 +289,10 @@ pub const TerminalRuntime = struct {
     }
 
     pub fn destroy(self: *TerminalRuntime) void {
+        const final_state = self.completion();
+        if (!final_state.child_exited or !final_state.pty_drained) {
+            self.process.forceTerminate() catch {};
+        }
         self.joinThreads();
         self.stream.deinit();
         self.process.deinit();
@@ -524,6 +528,10 @@ pub const TerminalRuntime = struct {
 
     pub fn terminate(self: *const TerminalRuntime) !void {
         try self.process.terminate();
+    }
+
+    pub fn forceTerminate(self: *const TerminalRuntime) !void {
+        try self.process.forceTerminate();
     }
 
     pub fn plainString(self: *TerminalRuntime, allocator: std.mem.Allocator) ![]const u8 {

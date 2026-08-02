@@ -6,6 +6,7 @@ import {
 	TerminalIdSchema,
 	TerminalPhase,
 	type TerminalExited,
+	type TerminalInventoryCursor,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
 import { describe, expect, it, vi } from 'vitest';
@@ -13,33 +14,47 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDefaultTerminalProfile, type HostConnection } from '../../host';
 import { TerminalRecoveryCoordinator } from '../TerminalRecoveryCoordinator';
 import {
-	TerminalRecoveryLedgerDocumentSchema,
-	type TerminalRecoveryLedger,
-	type TerminalRecoveryLedgerDocument,
-	type TerminalRecoveryLedgerLoadResult,
-} from '../recovery-binding';
+	createTerminalBindingStoreDocument,
+	putTerminalBinding,
+	removeTerminalBinding,
+	TerminalBindingIdSchema,
+	TerminalBindingSchema,
+	type TerminalBinding,
+	type TerminalBindingId,
+	type TerminalBindingStore,
+	type TerminalBindingStoreDocument,
+	type TerminalBindingStoreLoadResult,
+} from '../terminal-binding-store';
 
 const creationId = CreationIdSchema.parse('11'.repeat(16));
+const otherCreationId = CreationIdSchema.parse('12'.repeat(16));
 const firstEpoch = HostEpochSchema.parse('22'.repeat(16));
 const secondEpoch = HostEpochSchema.parse('23'.repeat(16));
 const terminalId = TerminalIdSchema.parse('33'.repeat(16));
+const otherTerminalId = TerminalIdSchema.parse('34'.repeat(16));
 const identity = { creationId, hostEpoch: firstEpoch, terminalId };
+const otherIdentity = {
+	creationId: otherCreationId,
+	hostEpoch: firstEpoch,
+	terminalId: otherTerminalId,
+};
 const firstRevision = CanonicalUint64TextSchema.parse('1');
+const targetBindingId = TerminalBindingIdSchema.parse('desktop-terminal-foundation');
 
-class MemoryLedger implements TerminalRecoveryLedger {
-	document: TerminalRecoveryLedgerDocument | undefined;
-	readonly unavailable: TerminalRecoveryLedgerLoadResult | undefined;
-	readonly writes: TerminalRecoveryLedgerDocument[] = [];
+class MemoryStore implements TerminalBindingStore {
+	document: TerminalBindingStoreDocument | undefined;
+	readonly unavailable: TerminalBindingStoreLoadResult | undefined;
+	readonly writes: TerminalBinding[] = [];
 
 	constructor(
-		document?: TerminalRecoveryLedgerDocument,
-		unavailable?: TerminalRecoveryLedgerLoadResult,
+		document?: TerminalBindingStoreDocument,
+		unavailable?: TerminalBindingStoreLoadResult,
 	) {
 		this.document = document;
 		this.unavailable = unavailable;
 	}
 
-	load(): Promise<TerminalRecoveryLedgerLoadResult> {
+	load(): Promise<TerminalBindingStoreLoadResult> {
 		return Promise.resolve(
 			this.unavailable ??
 				(this.document === undefined
@@ -48,25 +63,36 @@ class MemoryLedger implements TerminalRecoveryLedger {
 		);
 	}
 
-	save(document: TerminalRecoveryLedgerDocument): Promise<void> {
-		this.document = document;
-		this.writes.push(document);
+	put(binding: TerminalBinding): Promise<void> {
+		this.document = putTerminalBinding(
+			this.document ?? createTerminalBindingStoreDocument(),
+			binding,
+		);
+		this.writes.push(binding);
+		return Promise.resolve();
+	}
+
+	remove(bindingId: TerminalBindingId): Promise<void> {
+		this.document = removeTerminalBinding(
+			this.document ?? createTerminalBindingStoreDocument(),
+			bindingId,
+		);
 		return Promise.resolve();
 	}
 }
 
 describe('TerminalRecoveryCoordinator', () => {
 	it('persists planned and requested states before provisioning one terminal', async () => {
-		const ledger = new MemoryLedger();
-		const host = createHost(firstEpoch, [], identity);
-		const coordinator = createCoordinator(host.value, ledger);
+		const store = new MemoryStore();
+		const host = createHost(firstEpoch, [[]], identity);
+		const coordinator = createCoordinator(host.value, store);
 
 		expect(await coordinator.reconcile()).toEqual({
 			identity,
 			kind: 'provisioning',
 			summary: null,
 		});
-		expect(ledger.writes.map((write) => write.binding.state.kind)).toEqual([
+		expect(store.writes.map((binding) => binding.state.kind)).toEqual([
 			'planned',
 			'create-requested',
 			'retained',
@@ -75,91 +101,132 @@ describe('TerminalRecoveryCoordinator', () => {
 	});
 
 	it('recovers a lost create response by replaying the same creation in the same epoch', async () => {
-		const ledger = new MemoryLedger();
-		const firstHost = createHost(firstEpoch, [], new Error('response lost'));
-		const first = createCoordinator(firstHost.value, ledger);
+		const store = new MemoryStore();
+		const firstHost = createHost(firstEpoch, [[]], new Error('response lost'));
+		const first = createCoordinator(firstHost.value, store);
 
 		expect(await first.reconcile()).toEqual({
 			kind: 'lost',
 			reason: 'create-response-unavailable',
 		});
-		expect(ledger.document?.binding.state).toEqual({
+		expect(targetBinding(store).state).toEqual({
 			hostEpoch: firstEpoch,
 			kind: 'create-requested',
 		});
 
 		const summary = createSummary();
-		const secondHost = createHost(firstEpoch, [summary], identity);
-		const second = createCoordinator(secondHost.value, ledger);
+		const secondHost = createHost(firstEpoch, [[summary]], identity);
+		const second = createCoordinator(secondHost.value, store);
 		expect(await second.reconcile()).toEqual({ identity, kind: 'recovered', summary });
 		expect(secondHost.requestKinds).toEqual([
 			MessageKind.listTerminals,
 			MessageKind.createTerminal,
 		]);
-		expect(ledger.document?.binding.creationId).toBe(creationId);
+		expect(targetBinding(store).creationId).toBe(creationId);
 	});
 
 	it('marks a requested binding lost without creating across Host epochs', async () => {
-		const ledger = new MemoryLedger(createDocument('create-requested'));
-		const host = createHost(secondEpoch, [], identity);
+		const store = new MemoryStore(createDocument('create-requested'));
+		const host = createHost(secondEpoch, [[]], identity);
 
-		expect(await createCoordinator(host.value, ledger).reconcile()).toEqual({
+		expect(await createCoordinator(host.value, store).reconcile()).toEqual({
 			kind: 'lost',
 			reason: 'host-epoch-changed',
 		});
 		expect(host.requestKinds).toEqual([MessageKind.listTerminals]);
-		expect(ledger.document?.binding.state.kind).toBe('lost');
+		expect(targetBinding(store).state.kind).toBe('lost');
 	});
 
-	it('leaves an unmatched Host terminal orphaned when no ledger exists', async () => {
-		const ledger = new MemoryLedger();
-		const host = createHost(firstEpoch, [createSummary()], identity);
+	it('leaves an unmatched Host terminal orphaned when the target binding is absent', async () => {
+		const store = new MemoryStore();
+		const host = createHost(firstEpoch, [[createSummary()]], identity);
 
-		expect(await createCoordinator(host.value, ledger).reconcile()).toEqual({
+		expect(await createCoordinator(host.value, store).reconcile()).toEqual({
 			kind: 'orphaned',
 			terminalCount: 1,
 		});
 		expect(host.requestKinds).toEqual([MessageKind.listTerminals]);
-		expect(ledger.writes).toHaveLength(0);
+		expect(store.writes).toHaveLength(0);
 	});
 
-	it('fails closed before Host inventory access when the ledger is corrupt', async () => {
-		const ledger = new MemoryLedger(undefined, { kind: 'unavailable', reason: 'invalid' });
-		const host = createHost(firstEpoch, [], identity);
+	it('recognizes another managed binding instead of treating it as an orphan', async () => {
+		const other = createOtherBinding();
+		const store = new MemoryStore(createTerminalBindingStoreDocument([other]));
+		const host = createHost(firstEpoch, [[createSummary({ identity: otherIdentity })]], identity);
 
-		expect(await createCoordinator(host.value, ledger).reconcile()).toEqual({
+		expect(await createCoordinator(host.value, store).reconcile()).toEqual({
+			identity,
+			kind: 'provisioning',
+			summary: null,
+		});
+		expect(
+			store.document?.bindings.find((binding) => binding.bindingId === other.bindingId),
+		).toEqual(other);
+	});
+
+	it('does not conceal an identity-conflicting terminal behind another binding CreationId', async () => {
+		const other = createOtherBinding();
+		const store = new MemoryStore(createTerminalBindingStoreDocument([other]));
+		const conflictingSummary = createSummary({
+			identity: {
+				...otherIdentity,
+				terminalId: TerminalIdSchema.parse('35'.repeat(16)),
+			},
+		});
+		const host = createHost(firstEpoch, [[conflictingSummary]], identity);
+
+		expect(await createCoordinator(host.value, store).reconcile()).toEqual({
+			kind: 'orphaned',
+			terminalCount: 1,
+		});
+		expect(store.writes).toHaveLength(0);
+	});
+
+	it('fails closed before Host inventory access when the store is corrupt', async () => {
+		const store = new MemoryStore(undefined, { kind: 'unavailable', reason: 'invalid' });
+		const host = createHost(firstEpoch, [[]], identity);
+
+		expect(await createCoordinator(host.value, store).reconcile()).toEqual({
 			kind: 'ledger-unavailable',
 			reason: 'invalid',
 		});
 		expect(host.requestKinds).toHaveLength(0);
 	});
 
-	it('validates a retained exited terminal and records its final revision', async () => {
-		const ledger = new MemoryLedger(createDocument('retained'));
-		const summary = createSummary({
-			exit: { code: 0, kind: 'exit-code' },
-			phase: TerminalPhase.exited,
-			revision: CanonicalUint64TextSchema.parse('9'),
-		});
-		const host = createHost(firstEpoch, [summary], identity);
+	it('consumes every stable inventory page before recovering the target', async () => {
+		const summary = createSummary();
+		const otherSummary = createSummary({ identity: otherIdentity });
+		const store = new MemoryStore(
+			createTerminalBindingStoreDocument([createDocumentBinding('retained'), createOtherBinding()]),
+		);
+		const host = createHost(firstEpoch, [[otherSummary], [summary]], identity);
 
-		expect(await createCoordinator(host.value, ledger).reconcile()).toEqual({
+		expect(await createCoordinator(host.value, store).reconcile()).toEqual({
 			identity,
 			kind: 'recovered',
 			summary,
 		});
-		expect(ledger.document?.binding.state).toEqual({
-			exit: { code: 0, kind: 'exit-code' },
-			finalRevision: '9',
-			identity,
-			kind: 'exited',
-		});
+		expect(host.listCursors).toEqual([null, { inventoryGeneration: '7', offset: '1' }]);
 	});
 
-	it('persists a matching asynchronous terminal exit only after retention', async () => {
-		const ledger = new MemoryLedger(createDocument('retained'));
-		const host = createHost(firstEpoch, [createSummary()], identity);
-		const coordinator = createCoordinator(host.value, ledger);
+	it('rejects a repeated inventory cursor instead of exposing a partial scan', async () => {
+		const store = new MemoryStore(createDocument('retained'));
+		const host = createHost(firstEpoch, [[createSummary()], [], []], identity, true);
+
+		await expect(createCoordinator(host.value, store).reconcile()).rejects.toThrow(
+			'repeated a pagination cursor',
+		);
+		expect(host.requestKinds).toEqual([MessageKind.listTerminals, MessageKind.listTerminals]);
+		expect(store.writes).toHaveLength(0);
+	});
+
+	it('records a matching exit without replacing another binding', async () => {
+		const other = createOtherBinding();
+		const store = new MemoryStore(
+			createTerminalBindingStoreDocument([createDocumentBinding('retained'), other]),
+		);
+		const host = createHost(firstEpoch, [[createSummary()]], identity);
+		const coordinator = createCoordinator(host.value, store);
 		const exited: TerminalExited = {
 			exit: { code: 7, kind: 'exit-code' },
 			finalRevision: CanonicalUint64TextSchema.parse('12'),
@@ -168,55 +235,95 @@ describe('TerminalRecoveryCoordinator', () => {
 
 		await coordinator.recordExit(exited);
 
-		expect(ledger.document?.binding.state).toEqual({
+		expect(targetBinding(store).state).toEqual({
 			exit: exited.exit,
 			finalRevision: exited.finalRevision,
 			identity,
 			kind: 'exited',
 		});
+		expect(
+			store.document?.bindings.find((binding) => binding.bindingId === other.bindingId),
+		).toEqual(other);
 	});
 });
 
-function createCoordinator(host: HostConnection, ledger: TerminalRecoveryLedger) {
+function createCoordinator(host: HostConnection, store: TerminalBindingStore) {
 	return new TerminalRecoveryCoordinator(
 		host,
-		ledger,
-		{ bindingId: 'desktop-terminal-foundation', launch: createLaunch() },
+		store,
+		{ bindingId: targetBindingId, launch: createLaunch() },
 		{ randomCreationId: () => creationId },
 	);
 }
 
-function createDocument(state: 'create-requested' | 'retained') {
-	return TerminalRecoveryLedgerDocumentSchema.parse({
-		binding: {
-			bindingId: 'desktop-terminal-foundation',
-			creationId,
-			launch: createLaunch(),
-			state:
-				state === 'retained'
-					? { identity, kind: 'retained' }
-					: { hostEpoch: firstEpoch, kind: 'create-requested' },
-		},
-		version: 1,
+function createDocument(state: 'create-requested' | 'retained'): TerminalBindingStoreDocument {
+	return createTerminalBindingStoreDocument([createDocumentBinding(state)]);
+}
+
+function createDocumentBinding(state: 'create-requested' | 'retained'): TerminalBinding {
+	return TerminalBindingSchema.parse({
+		bindingId: targetBindingId,
+		creationId,
+		launch: createLaunch(),
+		state:
+			state === 'retained'
+				? { identity, kind: 'retained' }
+				: { hostEpoch: firstEpoch, kind: 'create-requested' },
+	});
+}
+
+function createOtherBinding(): TerminalBinding {
+	return TerminalBindingSchema.parse({
+		bindingId: TerminalBindingIdSchema.parse('other-binding'),
+		creationId: otherCreationId,
+		launch: createLaunch(),
+		state: { identity: otherIdentity, kind: 'retained' },
 	});
 }
 
 function createHost(
-	hostEpoch: typeof firstEpoch,
-	inventory: readonly TerminalSummary[],
+	hostEpoch: typeof firstEpoch | typeof secondEpoch,
+	pages: readonly (readonly TerminalSummary[])[],
 	createResult: typeof identity | Error,
-): { readonly requestKinds: number[]; readonly value: HostConnection } {
+	repeatCursor = false,
+): {
+	readonly listCursors: Array<TerminalInventoryCursor | null>;
+	readonly requestKinds: number[];
+	readonly value: HostConnection;
+} {
+	const listCursors: Array<TerminalInventoryCursor | null> = [];
 	const requestKinds: number[] = [];
-	const requestControl = vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(async (kind) => {
-		requestKinds.push(kind as number);
-		if (kind === MessageKind.listTerminals) return { terminals: inventory };
-		if (kind === MessageKind.createTerminal) {
-			if (createResult instanceof Error) throw createResult;
-			return createResult;
-		}
-		throw new Error(`Unexpected request kind ${String(kind)}`);
-	});
+	const requestControl = vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(
+		async (kind, value) => {
+			requestKinds.push(kind as number);
+			if (kind === MessageKind.listTerminals) {
+				const cursor = (value as { readonly cursor: TerminalInventoryCursor | null }).cursor;
+				listCursors.push(cursor);
+				const pageIndex = cursor === null ? 0 : Number(cursor.offset);
+				const terminals = pages[pageIndex] ?? [];
+				const hasNext = pageIndex + 1 < pages.length;
+				return {
+					inventoryGeneration: CanonicalUint64TextSchema.parse('7'),
+					nextCursor: hasNext
+						? {
+								inventoryGeneration: CanonicalUint64TextSchema.parse('7'),
+								offset: CanonicalUint64TextSchema.parse(
+									repeatCursor && pageIndex > 0 ? '1' : String(pageIndex + 1),
+								),
+							}
+						: null,
+					terminals,
+				};
+			}
+			if (kind === MessageKind.createTerminal) {
+				if (createResult instanceof Error) throw createResult;
+				return createResult;
+			}
+			throw new Error(`Unexpected request kind ${String(kind)}`);
+		},
+	);
 	return {
+		listCursors,
 		requestKinds,
 		value: { hostEpoch, requestControl } as unknown as HostConnection,
 	};
@@ -247,4 +354,12 @@ function createSummary(overrides: Partial<TerminalSummary> = {}): TerminalSummar
 		terminateRequested: false,
 		...overrides,
 	};
+}
+
+function targetBinding(store: MemoryStore): TerminalBinding {
+	const binding = store.document?.bindings.find(
+		(candidate) => candidate.bindingId === targetBindingId,
+	);
+	if (binding === undefined) throw new Error('Target binding is missing.');
+	return binding;
 }

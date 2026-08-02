@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { access, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
@@ -319,6 +319,19 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 	await input.press('Enter');
 	await expect(firstPage.locator('[role="log"]')).toContainText('recovery-main-marker');
 	const identityBeforeRestart = await terminalDocumentIdentity(firstRoot);
+	if (runtimeDirectory === undefined) throw new Error('Desktop runtime directory is unavailable.');
+	expect(
+		JSON.parse(await readFile(path.join(runtimeDirectory, 'bindings-v2.json'), 'utf8')),
+	).toMatchObject({
+		bindings: [
+			{
+				bindingId: 'desktop-terminal-foundation',
+				creationId: identityBeforeRestart.creationId,
+				state: { kind: 'retained' },
+			},
+		],
+		version: 2,
+	});
 
 	await firstApplication.close();
 	electronApplication = undefined;

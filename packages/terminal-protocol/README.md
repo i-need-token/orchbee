@@ -14,7 +14,7 @@ terminal, or own Project, Workspace, Workbench, Tab, Panel, agent, or product-se
 | Area                 | Public contract                                                                                                         |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Identity             | Strict non-zero 128-bit `HostEpoch`, `CreationId`, `TerminalId`, `ClientId`, and `AttachmentId` values                  |
-| Compatibility        | Protocol `1.0`/`1.1`/`1.2`/`1.3` validation and deterministic highest-overlap minor negotiation                         |
+| Compatibility        | Protocol `1.0`-`1.4` validation and deterministic highest-overlap minor negotiation                                     |
 | Control              | Handshake, paged inventory, lifecycle, attachment, projection/history demand, row reads, selection/export, and failures |
 | Transport            | A bounded 64-byte envelope for JSON, raw/semantic input, terminal frames, and row-window payloads                       |
 | Projection           | Format-2 full-row snapshots/deltas decoded into typed columns rather than per-cell JavaScript objects                   |
@@ -87,6 +87,10 @@ not move recovery or product topology ownership into this package or the Host.
 
 The registry lifecycle model separates physical connections from repeatable wire `ClientId` values,
 checks atomic multi-terminal/runtime membership, and checks targeted disconnect/disposal isolation.
+An empty local-only Host stops when its final physical client disconnects; any retained terminal
+prevents that stop. The close lifecycle model independently checks graceful-before-force closure,
+scoped-authority rejection, and targeted terminate/force/dispose isolation without multiplying the
+registry state space.
 The inventory model checks generation-scoped pages for exact completion, no duplicates, and stale
 cursor rejection. The complete current contract, wire layouts, transition record, refinement
 mapping, claims, and evidence limits are in
