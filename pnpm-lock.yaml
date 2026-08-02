@@ -143,6 +143,9 @@ importers:
       '@orchbee/ui':
         specifier: workspace:^
         version: link:../../packages/ui
+      '@orchbee/workbench':
+        specifier: workspace:^
+        version: link:../../packages/workbench
       electron:
         specifier: 42.8.0
         version: 42.8.0

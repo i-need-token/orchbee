@@ -24,6 +24,13 @@ describe('terminal presentation contracts', () => {
 		expect(
 			TerminalPresentationFailureSchema.parse({ code: 'host-unavailable', retryable: true }),
 		).toEqual({ code: 'host-unavailable', retryable: true });
+		expect(
+			TerminalPresentationFailureSchema.safeParse({
+				code: 'host-unavailable',
+				retryable: true,
+				unexpected: true,
+			}).success,
+		).toBe(false);
 		expect(TerminalPresentationFailureSchema.safeParse({ code: '', retryable: true }).success).toBe(
 			false,
 		);

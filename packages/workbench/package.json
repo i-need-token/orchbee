@@ -22,6 +22,12 @@
 			"import": "./dist/index.js",
 			"require": "./dist/index.cjs"
 		},
+		"./terminal-presentation": {
+			"@orchbee/source": "./src/terminal-presentation/index.ts",
+			"types": "./dist/terminal-presentation/index.d.ts",
+			"import": "./dist/terminal-presentation/index.js",
+			"require": "./dist/terminal-presentation/index.cjs"
+		},
 		"./styles.css": {
 			"@orchbee/source": "./src/styles.ts",
 			"default": "./dist/index.css"

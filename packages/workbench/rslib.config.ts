@@ -17,6 +17,10 @@ export default defineConfig({
 		{ format: 'cjs', syntax: 'es2022' },
 	],
 	source: {
+		entry: {
+			index: './src/index.ts',
+			'terminal-presentation/index': './src/terminal-presentation/index.ts',
+		},
 		tsconfigPath: './tsconfig.build.json',
 	},
 	output: {

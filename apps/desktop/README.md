@@ -23,6 +23,43 @@ Workbench action invokes it yet.
 Desktop requires the current Host protocol `1.4` exactly. The handshake envelope and accepted
 version are both `1.4`; an obsolete Host is rejected without creating or adopting a terminal.
 
+## Terminal document control foundation
+
+Desktop defines one document-scoped lifecycle control contract for the later Workbench
+integration. Its renderer-to-Main commands are exactly `terminal-provision-requested` and
+`terminal-close-requested`; results are correlated provision/close completion or failure events,
+plus presentation-scoped terminal exit. Every command carries only Workbench-owned
+`TerminalPresentationId` and operation identity. `TerminalBindingId`, `HostEpoch`, `CreationId`,
+`TerminalId`, executable choice, environment, arbitrary channel names, and generic IPC operations
+are absent from the document contract. Launch CWD is nullable and bounded per message by the Host
+protocol's 16 KiB UTF-8 string limit.
+
+Preload installs an allowlisted transfer bridge for this control port alongside the existing
+projected-attachment bridge. It accepts one exact bootstrap shape and one transferred port, then
+attests the sandbox and context-isolation flags to the renderer. Structurally malformed commands or
+conflicting reuse of one operation ID retire the document port. An exact repeated command is
+idempotent; independently completed commands remain correlated; late completions after document
+retirement are dropped. Adapter exceptions become a fixed retryable failure code and never expose
+exception text. Main composition does not publish this port and Renderer does not consume it in
+the current slice, so the existing single-terminal foundation remains the only live product path.
+
+`DesktopTerminalBindingRegistry` is the Main-owned technical identity index for that later path. It
+maintains a strict bijection between product `TerminalPresentationId` and Desktop
+`TerminalBindingId`, treats an exact repeated association as idempotent, rejects either-side
+conflicts without mutation, and removes only an exact expected association. The registry does not
+allocate or persist Binding IDs, own product lifecycle, retain Host identity, create a terminal, or
+choose recovery policy. Durable bindings remain owned by the version-2 binding store and product
+phase remains owned by Workbench. No product terminal, binding, or attachment count threshold is
+introduced; allocator, storage, and memory exhaustion remain explicit operation failures rather
+than eviction or truncation policy.
+
+Contract tests cover strict boundary rejection and privileged-identity exclusion. Registry traces
+cover bijection, idempotence, both conflict directions, exact removal, canonical observation, and a
+multi-entry set without eviction. Broker traces cover invalid capability retirement, duplicate and
+conflicting operation IDs, reordered completion, disposal, fixed failure mapping, and typed exit
+publication. These tests do not claim live Workbench binding, viewport attachment, Main restart
+recovery, or end-to-end lifecycle behavior; those remain later integration slices.
+
 ## Terminal binding store and recovery model
 
 The actor is the single running Electron Main process. At startup it must recover the exact terminal

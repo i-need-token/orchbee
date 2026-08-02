@@ -11,3 +11,16 @@ export type {
 	DesktopRendererCommand,
 	ProjectedAttachmentBootstrap,
 } from './projected-attachment-contract';
+export {
+	TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
+	TERMINAL_DOCUMENT_CONTROL_WINDOW_MESSAGE,
+	TerminalDocumentControlBootstrapSchema,
+	TerminalDocumentControlCommandSchema,
+	TerminalDocumentControlEventSchema,
+	TerminalDocumentControlWindowMessageSchema,
+} from './terminal-document-control-contract';
+export type {
+	TerminalDocumentControlCommand,
+	TerminalDocumentControlEvent,
+	TerminalDocumentControlOperationResult,
+} from './terminal-document-control-contract';

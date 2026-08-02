@@ -18,7 +18,7 @@ export const TerminalPresentationRemovalIdSchema =
 export type TerminalPresentationRemovalId = z.infer<typeof TerminalPresentationRemovalIdSchema>;
 
 export const TerminalPresentationFailureSchema = z
-	.object({
+	.strictObject({
 		code: z.string().min(1).max(128),
 		retryable: z.boolean(),
 	})

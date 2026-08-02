@@ -21,6 +21,7 @@
 		"@orchbee/terminal": "workspace:^",
 		"@orchbee/terminal-protocol": "workspace:^",
 		"@orchbee/ui": "workspace:^",
+		"@orchbee/workbench": "workspace:^",
 		"electron": "42.8.0",
 		"react": "catalog:",
 		"react-dom": "catalog:",

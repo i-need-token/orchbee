@@ -1,8 +1,12 @@
 import { ipcRenderer } from 'electron';
 
 import { installProjectedAttachmentBridge } from './installProjectedAttachmentBridge';
+import { installTerminalDocumentControlBridge } from './installTerminalDocumentControlBridge';
 
-installProjectedAttachmentBridge(ipcRenderer, window, {
+const security = {
 	contextIsolated: process.contextIsolated,
 	sandboxed: process.sandboxed,
-});
+};
+
+installProjectedAttachmentBridge(ipcRenderer, window, security);
+installTerminalDocumentControlBridge(ipcRenderer, window, security);

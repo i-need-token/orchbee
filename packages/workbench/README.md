@@ -38,6 +38,10 @@ composition additionally receives operation/removal ID allocators and a narrow c
 Workbench never allocates or observes Host terminal IDs. Dynamic presentation IDs are opaque and
 must not be reused after a presentation is removed.
 
+Runtime-neutral terminal-presentation identities, lifecycle contracts, and boundary schemas are
+also available from `@orchbee/workbench/terminal-presentation`. Platform applications use that
+narrow entry point instead of importing the React Workbench graph into Main or preload runtimes.
+
 ## Experience catalog
 
 Workbench keeps reviewed interaction and business-component Manifests in
