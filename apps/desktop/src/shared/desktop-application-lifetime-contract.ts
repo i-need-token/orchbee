@@ -21,7 +21,7 @@ const DesktopApplicationExitFailureSchema = z
 		code: z.enum([
 			'host-inventory-unavailable',
 			'host-orphan-detected',
-			'workbench-document-control-unavailable',
+			'shared-document-control-unavailable',
 			'workbench-document-write-unavailable',
 			'terminal-stop-failed',
 			'unreferenced-binding-close-failed',
@@ -96,6 +96,11 @@ export const DesktopApplicationLifetimeMainEventSchema = z.discriminatedUnion('t
 		reason: exitReasonSchema,
 		requestId: DesktopApplicationExitRequestIdSchema,
 		type: z.literal('desktop-application-exit-requested'),
+	}),
+	z.strictObject({
+		mode: exitModeSchema,
+		requestId: DesktopApplicationExitRequestIdSchema,
+		type: z.literal('desktop-application-exit-mode-accepted'),
 	}),
 	z.strictObject({
 		requestId: DesktopApplicationExitRequestIdSchema,

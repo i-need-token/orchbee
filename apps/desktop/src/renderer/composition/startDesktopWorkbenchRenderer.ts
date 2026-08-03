@@ -10,25 +10,21 @@ import {
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
 	WorkbenchProjectWorkspaceRuntime,
-	type TerminalPresentationCommand,
 	type WorkbenchTerminalPresentationComposition,
 	type WorkbenchShortcutPlatform,
 } from '@orchbee/workbench';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
-import type { TerminalDocumentControlBootstrap } from '../../shared';
+import type { DesktopClientSessionBootstrap } from '../../shared';
+import { DesktopClientSessionClient } from '../client-session';
 import {
 	DesktopApplicationLifetimeClient,
 	DesktopApplicationLifetimeCoordinator,
 } from '../desktop-application-lifetime-dialog';
 import { DesktopWorkbench } from '../desktop-workbench';
-import { DesktopTerminalDocumentClient } from '../terminal-document-control';
 import { DesktopTerminalProjectionClient } from '../terminal-projection-control';
-import {
-	DesktopWorkbenchDocumentClient,
-	DesktopWorkbenchDocumentCoordinator,
-} from '../workbench-document-control';
+import { DesktopWorkbenchDocumentCoordinator } from '../workbench-document-control';
 
 export interface DesktopWorkbenchRendererSession {
 	dispose(): void;
@@ -43,11 +39,10 @@ export function startDesktopWorkbenchRenderer(
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	storage: Pick<Storage, 'getItem' | 'setItem'>,
-	bootstrap: TerminalDocumentControlBootstrap,
+	bootstrap: DesktopClientSessionBootstrap,
 	lifetimePort: MessagePort,
-	documentPort: MessagePort,
+	clientSessionPort: MessagePort,
 	projectionPort: MessagePort,
-	workbenchDocumentPort: MessagePort,
 ): DesktopWorkbenchRendererSession {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee Desktop application root element is missing.');
@@ -57,34 +52,21 @@ export function startDesktopWorkbenchRenderer(
 	const intl = createOrchbeeIntl(locale);
 	documentElement.lang = locale;
 	documentElement.dir = getOrchbeeTextDirection(locale);
-	const documentClient = new DesktopTerminalDocumentClient(documentPort);
+	const clientSession = new DesktopClientSessionClient(clientSessionPort, bootstrap);
 	const projectionClient = new DesktopTerminalProjectionClient(projectionPort);
-	const workbenchDocumentClient = new DesktopWorkbenchDocumentClient(workbenchDocumentPort);
 	let actionRuntime: ActionRuntime | undefined;
 	let applicationLifetimeCoordinator: DesktopApplicationLifetimeCoordinator | undefined;
 	let disposed = false;
 	let lifetimeClient: DesktopApplicationLifetimeClient | undefined;
 	let reactRoot: Root | undefined;
 	let workbenchDocumentCoordinator: DesktopWorkbenchDocumentCoordinator | undefined;
-	let unsubscribeDocument: (() => void) | undefined;
-	const pendingCommands: TerminalPresentationCommand[] = [];
 	const terminalPresentation: WorkbenchTerminalPresentationComposition = {
 		createOperationId: () =>
 			terminalPresentationOperationId(`desktop:operation:${crypto.randomUUID()}`),
 		createPresentationId: () =>
 			terminalPresentationId(`desktop:presentation:${crypto.randomUUID()}`),
 		createRemovalId: () => terminalPresentationRemovalId(`desktop:removal:${crypto.randomUUID()}`),
-		dispatchCommands: (commands) => {
-			const terminalCommands: TerminalPresentationCommand[] = [];
-			for (const command of commands) {
-				if (command.type !== 'tab-close-ready') terminalCommands.push(command);
-			}
-			if (workbenchDocumentCoordinator === undefined) {
-				pendingCommands.push(...terminalCommands);
-				return;
-			}
-			workbenchDocumentCoordinator.dispatchCommands(terminalCommands);
-		},
+		dispatchCommands: () => undefined,
 		initialPresentationId: bootstrap.initialPresentationId,
 		kind: 'managed',
 	};
@@ -92,8 +74,6 @@ export function startDesktopWorkbenchRenderer(
 	const dispose = (): void => {
 		if (disposed) return;
 		disposed = true;
-		unsubscribeDocument?.();
-		unsubscribeDocument = undefined;
 		applicationLifetimeCoordinator?.dispose();
 		applicationLifetimeCoordinator = undefined;
 		reactRoot?.unmount();
@@ -102,9 +82,8 @@ export function startDesktopWorkbenchRenderer(
 		actionRuntime = undefined;
 		workbenchDocumentCoordinator?.dispose();
 		workbenchDocumentCoordinator = undefined;
+		clientSession.dispose();
 		projectionClient.dispose();
-		documentClient.dispose();
-		workbenchDocumentClient.dispose();
 		if (lifetimeClient === undefined) lifetimePort.close();
 		else lifetimeClient.dispose();
 	};
@@ -118,17 +97,6 @@ export function startDesktopWorkbenchRenderer(
 	async function initialize(): Promise<
 		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
 	> {
-		const loaded = await workbenchDocumentClient.load();
-		if (loaded.kind === 'unavailable') {
-			dispose();
-			return loaded;
-		}
-		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
-		const recoveredPresentations = bootstrap.presentations.map((presentation, index) => ({
-			cwd: presentation.launchCwd ?? bootstrap.defaultCwd,
-			presentationId: presentation.presentationId,
-			title: intl.formatMessage(workbenchTabMessages.terminalTitle, { number: index + 1 }),
-		}));
 		const runtimeOptions = {
 			standaloneCwd: bootstrap.defaultCwd,
 			standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle, {
@@ -136,32 +104,15 @@ export function startDesktopWorkbenchRenderer(
 			}),
 			terminalPresentation,
 		};
-		let runtime: WorkbenchProjectWorkspaceRuntime;
-		if (loaded.kind === 'available') {
-			runtime = new WorkbenchProjectWorkspaceRuntime({
-				...runtimeOptions,
-				initialDocument: loaded.document,
-			});
-		} else if (recoveredPresentations.length === 0) {
-			runtime = new WorkbenchProjectWorkspaceRuntime(runtimeOptions);
-		} else {
-			runtime = new WorkbenchProjectWorkspaceRuntime({
-				...runtimeOptions,
-				standalonePresentations: recoveredPresentations,
-			});
-		}
-		unsubscribeDocument = documentClient.subscribe((event) => {
-			runtime.applyTerminalPresentationEvent(event);
+		const runtime = new WorkbenchProjectWorkspaceRuntime({
+			...runtimeOptions,
+			initialDocument:
+				bootstrap.documentState.kind === 'available'
+					? bootstrap.documentState.document
+					: bootstrap.initializationDocument,
 		});
-		workbenchDocumentCoordinator = new DesktopWorkbenchDocumentCoordinator(
-			runtime,
-			workbenchDocumentClient,
-			documentClient,
-		);
-		const documentStart = await workbenchDocumentCoordinator.start(
-			loaded,
-			pendingCommands.splice(0),
-		);
+		workbenchDocumentCoordinator = new DesktopWorkbenchDocumentCoordinator(runtime, clientSession);
+		const documentStart = await workbenchDocumentCoordinator.start();
 		if (documentStart.kind === 'unavailable') {
 			dispose();
 			return documentStart;
@@ -194,7 +145,6 @@ export function startDesktopWorkbenchRenderer(
 				},
 			}),
 		);
-		if (loaded.kind === 'available') runtime.reconcileDurableTerminalPresentations();
 		return { kind: 'ready' };
 	}
 }

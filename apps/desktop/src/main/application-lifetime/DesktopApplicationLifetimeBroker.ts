@@ -8,7 +8,6 @@ import {
 	type DesktopApplicationExitReason,
 	type DesktopApplicationExitRequestId,
 	type DesktopApplicationLifetimeMainEvent,
-	type DesktopApplicationLifetimeRendererCommand,
 } from '../../shared';
 
 export type DesktopApplicationLifetimeDrainResult =
@@ -28,9 +27,7 @@ export interface DesktopApplicationLifetimeBrokerDependencies {
 	readonly drainForStop: (
 		documentRevision: WorkbenchSharedDocumentRevision,
 	) => Promise<DesktopApplicationLifetimeDrainResult>;
-	readonly onRendererCommand?:
-		| ((command: DesktopApplicationLifetimeRendererCommand) => void)
-		| undefined;
+	readonly prepareMode?: ((mode: 'preserve' | 'stop') => boolean) | undefined;
 }
 
 interface ActiveExitRequest {
@@ -40,6 +37,7 @@ interface ActiveExitRequest {
 	readonly reason: DesktopApplicationExitReason;
 	readonly requestId: DesktopApplicationExitRequestId;
 	resolve(result: DesktopApplicationLifetimeExitResult): void;
+	mode: 'preserve' | 'stop' | null;
 	stopRevision: WorkbenchSharedDocumentRevision | null;
 }
 
@@ -80,6 +78,7 @@ export class DesktopApplicationLifetimeBroker {
 			reason,
 			requestId,
 			resolve: resolveRequest,
+			mode: null,
 			stopRevision: null,
 		};
 		this.#post({ reason, requestId, type: 'desktop-application-exit-requested' });
@@ -105,21 +104,52 @@ export class DesktopApplicationLifetimeBroker {
 			return;
 		}
 		const command = parsed.data;
-		this.#dependencies.onRendererCommand?.(command);
 		const request = this.#activeRequest;
 		if (request === undefined || command.requestId !== request.requestId) return;
 		switch (command.type) {
-			case 'desktop-application-exit-choice':
+			case 'desktop-application-exit-choice': {
+				if (command.choice === 'cancel' || request.mode !== null) return;
+				if (this.#dependencies.prepareMode?.(command.choice) === false) {
+					this.#post({
+						requestId: request.requestId,
+						result: {
+							failures: [
+								{
+									code: 'shared-document-control-unavailable',
+									count: 1,
+									retryable: false,
+								},
+							],
+							kind: 'failed',
+						},
+						type: 'desktop-application-exit-main-completed',
+					});
+					request.failed = true;
+					return;
+				}
+				request.mode = command.choice;
+				this.#post({
+					mode: command.choice,
+					requestId: request.requestId,
+					type: 'desktop-application-exit-mode-accepted',
+				});
 				return;
+			}
 			case 'desktop-application-exit-progress':
 				if (command.progress.phase === 'failed') request.failed = true;
 				return;
 			case 'desktop-application-exit-cancelled':
-				if (!request.drainPending && !request.failed && request.stopRevision === null) {
+				if (
+					request.mode === null &&
+					!request.drainPending &&
+					!request.failed &&
+					request.stopRevision === null
+				) {
 					this.#finish({ kind: 'cancelled' });
 				}
 				return;
 			case 'desktop-application-exit-renderer-prepared':
+				if (request.mode !== command.mode) return;
 				request.failed = false;
 				if (command.mode === 'preserve') {
 					this.#post({

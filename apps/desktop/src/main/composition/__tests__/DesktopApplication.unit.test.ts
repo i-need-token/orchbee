@@ -12,15 +12,18 @@ import {
 	type TerminalExited,
 } from '@orchbee/terminal-protocol';
 import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 import type { BrowserWindow, BrowserWindowConstructorOptions, MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { HostConnection } from '../../host';
+import type { DesktopApplicationLifetimeBrokerDependencies } from '../../application-lifetime';
+import {
+	DesktopClientSessionBroker,
+	DesktopClientSessionCoordinator,
+	DesktopTerminalIntentReconciler,
+} from '../../client-session';
 import type { WorkbenchDocumentStore } from '../../workbench-document';
-import type {
-	TerminalDocumentControlCommand,
-	TerminalDocumentControlOperationResult,
-} from '../../../shared';
 import type { DesktopTerminalRuntime } from '../composeDesktopTerminalRuntime';
 import { DesktopApplication, type DesktopApplicationDependencies } from '../DesktopApplication';
 import { resolveDesktopRuntimeConfiguration } from '../resolveDesktopRuntimeConfiguration';
@@ -32,8 +35,14 @@ const identity = {
 };
 const presentationId = terminalPresentationId('presentation-recovered');
 
+class TestMainPort extends EventEmitter {
+	readonly close = vi.fn<() => void>();
+	readonly postMessage = vi.fn<(value: unknown) => void>();
+	readonly start = vi.fn<() => void>();
+}
+
 describe('DesktopApplication', () => {
-	it('starts without creating an attachment and transfers four scoped controls to the sandbox', async () => {
+	it('starts without creating an attachment and transfers three scoped controls to the sandbox', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -46,17 +55,18 @@ describe('DesktopApplication', () => {
 			webSecurity: true,
 		});
 		expect(harness.terminalRuntime.open).not.toHaveBeenCalled();
-		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(4);
+		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(3);
 		expect(harness.webContents.postMessage).toHaveBeenCalledWith(
 			'orchbee.desktop.application-lifetime-port',
 			{ type: 'orchbee.desktop.application-lifetime-port' },
 			[expect.anything()],
 		);
 		expect(harness.webContents.postMessage).toHaveBeenCalledWith(
-			'orchbee.desktop.terminal-document-control-port',
+			'orchbee.desktop.client-session-port',
 			expect.objectContaining({
 				defaultCwd: '/users/orchbee',
-				presentations: [{ launchCwd: '/workspace', presentationId }],
+				documentState: { kind: 'missing' },
+				type: 'orchbee.desktop.client-session-port',
 			}),
 			[expect.anything()],
 		);
@@ -65,14 +75,8 @@ describe('DesktopApplication', () => {
 			{ type: 'orchbee.desktop.terminal-projection-control-port' },
 			[expect.anything()],
 		);
-		expect(harness.webContents.postMessage).toHaveBeenCalledWith(
-			'orchbee.desktop.workbench-document-control-port',
-			{ type: 'orchbee.desktop.workbench-document-control-port' },
-			[expect.anything()],
-		);
-		expect(harness.documentBrokers[0]?.start).toHaveBeenCalledOnce();
+		expect(harness.clientSessionPorts[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.start).toHaveBeenCalledOnce();
-		expect(harness.workbenchDocumentBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.createWorkbenchDocumentStore).toHaveBeenCalledOnce();
 
 		await application.shutdown();
@@ -80,7 +84,7 @@ describe('DesktopApplication', () => {
 		expect(harness.host.close).toHaveBeenCalledOnce();
 	});
 
-	it('awaits old document projection retirement before publishing reload controls', async () => {
+	it('awaits the old client session attachment retirement before publishing reload controls', async () => {
 		let finishRetirement: (() => void) | undefined;
 		const harness = createHarness(
 			() =>
@@ -90,79 +94,51 @@ describe('DesktopApplication', () => {
 		);
 		const application = createApplication(harness.dependencies);
 		await application.start();
-		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(4);
+		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(3);
 
 		harness.webContents.emit('did-start-loading');
 		harness.webContents.emit('did-finish-load');
 		await Promise.resolve();
-		expect(harness.documentBrokers[0]?.dispose).toHaveBeenCalledOnce();
+		expect(harness.clientSessionPorts[0]?.close).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.dispose).toHaveBeenCalledOnce();
-		expect(harness.workbenchDocumentBrokers[0]?.dispose).toHaveBeenCalledOnce();
-		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(4);
+		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(3);
 
 		finishRetirement?.();
-		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(8));
-		expect(harness.documentBrokers).toHaveLength(2);
+		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(6));
+		expect(harness.clientSessionPorts).toHaveLength(2);
 		expect(harness.projectionBrokers).toHaveLength(2);
-		expect(harness.workbenchDocumentBrokers).toHaveLength(2);
-		expect(harness.workbenchDocumentStoresPassedToBrokers[0]).toBe(
-			harness.workbenchDocumentStoresPassedToBrokers[1],
-		);
 		await application.shutdown();
 	});
 
-	it('publishes a recovered exit only after matching provision or restore completion', async () => {
-		const terminalExit: TerminalExited = {
-			exit: { code: 0, kind: 'exit-code' },
-			finalRevision: CanonicalUint64TextSchema.parse('9'),
-			identity,
-		};
+	it('places recovered terminals in the shared initialization document without eager projection', async () => {
 		const harness = createHarness();
-		harness.terminalRuntime.getProjectionTarget.mockReturnValue({
-			identity,
-			readOnly: true,
-			terminalExit,
-		});
 		const application = createApplication(harness.dependencies);
 		await application.start();
-		const command: TerminalDocumentControlCommand = {
-			launchCwd: '/workspace',
-			operationId: 'operation-1' as TerminalDocumentControlCommand['operationId'],
-			presentationId,
-			type: 'terminal-provision-requested',
-		};
-		const result: TerminalDocumentControlOperationResult = {
-			operationId: command.operationId,
-			presentationId,
-			type: 'terminal-provision-completed',
-		};
 
-		harness.resultPosted[0]?.(command, result);
-
-		expect(harness.documentBrokers[0]?.publishTerminalExit).toHaveBeenCalledWith({
-			exitCode: 0,
-			presentationId,
-			signal: null,
-			type: 'terminal-exited',
+		const bootstrap = harness.webContents.postMessage.mock.calls.find(
+			(call) => call[0] === 'orchbee.desktop.client-session-port',
+		)?.[1];
+		expect(bootstrap).toMatchObject({
+			initializationDocument: {
+				terminalContexts: [
+					expect.objectContaining({
+						panelWorkspace: expect.objectContaining({
+							tabs: [
+								expect.objectContaining({
+									root: expect.objectContaining({
+										primaryPresentation: expect.objectContaining({
+											intent: { kind: 'retain' },
+											presentationId,
+										}),
+									}),
+								}),
+							],
+						}),
+					}),
+				],
+			},
 		});
-		harness.documentBrokers[0]?.publishTerminalExit.mockClear();
-		const restoreCommand: TerminalDocumentControlCommand = {
-			launchCwd: '/workspace',
-			operationId: 'restore-1' as TerminalDocumentControlCommand['operationId'],
-			presentationId,
-			type: 'terminal-restore-requested',
-		};
-		harness.resultPosted[0]?.(restoreCommand, {
-			operationId: restoreCommand.operationId,
-			presentationId,
-			type: 'terminal-restore-completed',
-		});
-		expect(harness.documentBrokers[0]?.publishTerminalExit).toHaveBeenCalledWith({
-			exitCode: 0,
-			presentationId,
-			signal: null,
-			type: 'terminal-exited',
-		});
+		expect(harness.terminalRuntime.open).not.toHaveBeenCalled();
 		await application.shutdown();
 	});
 
@@ -170,6 +146,27 @@ describe('DesktopApplication', () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 		await application.start();
+		const bootstrap = harness.webContents.postMessage.mock.calls.find(
+			(call) => call[0] === 'orchbee.desktop.client-session-port',
+		)?.[1] as { readonly initializationDocument?: unknown } | undefined;
+		harness.workbenchDocumentStore.commit.mockResolvedValueOnce({
+			kind: 'committed',
+			revision: workbenchSharedDocumentRevision('0'),
+		});
+		harness.clientSessionPorts[0]?.emit('message', {
+			data: {
+				document: bootstrap?.initializationDocument,
+				expectedRevision: null,
+				requestId: 'proposal-initial',
+				type: 'shared-document-proposed',
+			},
+			ports: [],
+		});
+		await vi.waitFor(() => {
+			expect(harness.clientSessionPorts[0]?.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: 'shared-document-published' }),
+			);
+		});
 		const terminalExit: TerminalExited = {
 			exit: { kind: 'signal', signal: 15 },
 			finalRevision: CanonicalUint64TextSchema.parse('12'),
@@ -180,12 +177,50 @@ describe('DesktopApplication', () => {
 		harness.hostEnvelopeListener?.(terminalExitedEnvelope(terminalExit));
 
 		await vi.waitFor(() => {
-			expect(harness.documentBrokers[0]?.publishTerminalExit).toHaveBeenCalledWith({
-				exitCode: null,
-				presentationId,
-				signal: 'SIGTERM',
-				type: 'terminal-exited',
-			});
+			expect(harness.clientSessionPorts[0]?.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					event: {
+						exitCode: null,
+						presentationId,
+						signal: 'SIGTERM',
+						type: 'terminal-exited',
+					},
+					type: 'terminal-presentation-event-published',
+				}),
+			);
+		});
+		await application.shutdown();
+	});
+
+	it('enters coordinator quiescing before acknowledging an application lifetime mode', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		const bootstrap = harness.webContents.postMessage.mock.calls.find(
+			(call) => call[0] === 'orchbee.desktop.client-session-port',
+		)?.[1] as { readonly initializationDocument?: unknown } | undefined;
+
+		expect(harness.lifetimeDependencies[0]?.prepareMode?.('preserve')).toBe(true);
+		harness.clientSessionPorts[0]?.emit('message', {
+			data: {
+				document: bootstrap?.initializationDocument,
+				expectedRevision: null,
+				requestId: 'proposal-after-quiesce',
+				type: 'shared-document-proposed',
+			},
+			ports: [],
+		});
+
+		await vi.waitFor(() => {
+			expect(harness.clientSessionPorts[0]?.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					result: expect.objectContaining({
+						kind: 'rejected',
+						reason: 'application-quiescing',
+					}),
+					type: 'shared-document-proposal-completed',
+				}),
+			);
 		});
 		await application.shutdown();
 	});
@@ -326,17 +361,9 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		webContents,
 	}) as unknown as BrowserWindow;
 	let windowOptions: BrowserWindowConstructorOptions | undefined;
-	const documentBrokers: Array<{
-		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
-		readonly publishTerminalExit: ReturnType<typeof vi.fn<() => boolean>>;
-		readonly start: ReturnType<typeof vi.fn<() => void>>;
-	}> = [];
+	const clientSessionPorts: TestMainPort[] = [];
 	const projectionBrokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => Promise<void>>>;
-		readonly start: ReturnType<typeof vi.fn<() => void>>;
-	}> = [];
-	const workbenchDocumentBrokers: Array<{
-		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
 	const lifetimeBrokers: Array<{
@@ -344,20 +371,13 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		readonly requestExit: ReturnType<typeof vi.fn>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
-	const workbenchDocumentStore: WorkbenchDocumentStore = {
+	const lifetimeDependencies: DesktopApplicationLifetimeBrokerDependencies[] = [];
+	const workbenchDocumentStore = {
 		commit: vi
 			.fn<WorkbenchDocumentStore['commit']>()
 			.mockResolvedValue({ kind: 'unavailable', reason: 'write-failed' }),
 		load: vi.fn<WorkbenchDocumentStore['load']>().mockResolvedValue({ kind: 'missing' }),
-	};
-	const workbenchDocumentStoresPassedToBrokers: unknown[] = [];
-	const resultPosted: DesktopApplicationDependencies['createDocumentBroker'] extends (
-		_port: MessagePortMain,
-		_operations: infer _Operations,
-		result: infer Result,
-	) => unknown
-		? Result[]
-		: never = [];
+	} satisfies WorkbenchDocumentStore;
 	const terminalRuntime = {
 		closeBindingsNotReferencedBy: vi
 			.fn<DesktopTerminalRuntime['closeBindingsNotReferencedBy']>()
@@ -387,12 +407,13 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		windowOptions = options;
 		return browserWindow;
 	});
-	let channelSequence = 0;
+	let identifierSequence = 0;
 	const dependencies: DesktopApplicationDependencies = {
 		connectHost: vi.fn<DesktopApplicationDependencies['connectHost']>().mockResolvedValue(host),
 		createApplicationLifetimeBroker: vi.fn<
 			DesktopApplicationDependencies['createApplicationLifetimeBroker']
-		>(() => {
+		>((_port, brokerDependencies) => {
+			lifetimeDependencies.push(brokerDependencies);
 			const broker = {
 				dispose: vi.fn<() => void>(),
 				requestExit: vi
@@ -408,21 +429,18 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 			return broker;
 		}),
 		createBroker: vi.fn<DesktopApplicationDependencies['createBroker']>(),
-		createDocumentBroker: vi.fn<DesktopApplicationDependencies['createDocumentBroker']>(
-			(_port, _operations, onResultPosted) => {
-				resultPosted.push(onResultPosted);
-				const broker = {
-					dispose: vi.fn<() => void>(),
-					publishTerminalExit: vi.fn<() => boolean>().mockReturnValue(true),
-					start: vi.fn<() => void>(),
-				};
-				documentBrokers.push(broker);
-				return broker;
+		createClientSessionBroker: vi.fn<DesktopApplicationDependencies['createClientSessionBroker']>(
+			(port, coordinator, disposeAttachments) => {
+				const mainPort = port as unknown as TestMainPort;
+				clientSessionPorts.push(mainPort);
+				return new DesktopClientSessionBroker(port, coordinator, { disposeAttachments });
 			},
 		),
+		createClientSessionCoordinator: (coordinatorDependencies) =>
+			new DesktopClientSessionCoordinator(coordinatorDependencies),
 		createMessageChannel: () => ({
-			port1: { id: ++channelSequence } as unknown as MessagePortMain,
-			port2: { id: ++channelSequence } as unknown as MessagePortMain,
+			port1: new TestMainPort() as unknown as MessagePortMain,
+			port2: new TestMainPort() as unknown as MessagePortMain,
 		}),
 		createProjectionControlBroker: vi.fn<
 			DesktopApplicationDependencies['createProjectionControlBroker']
@@ -441,43 +459,34 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		createTerminalRuntime: vi
 			.fn<DesktopApplicationDependencies['createTerminalRuntime']>()
 			.mockReturnValue(terminalRuntime),
-		createWorkbenchDocumentBroker: vi.fn<
-			DesktopApplicationDependencies['createWorkbenchDocumentBroker']
-		>((_port, store) => {
-			workbenchDocumentStoresPassedToBrokers.push(store);
-			const broker = {
-				dispose: vi.fn<() => void>(),
-				start: vi.fn<() => void>(),
-			};
-			workbenchDocumentBrokers.push(broker);
-			return broker;
-		}),
+		createTerminalIntentReconciler: (reconcilerDependencies) =>
+			new DesktopTerminalIntentReconciler(reconcilerDependencies),
 		createWorkbenchDocumentStore: vi
 			.fn<DesktopApplicationDependencies['createWorkbenchDocumentStore']>()
 			.mockReturnValue(workbenchDocumentStore),
 		createWindow,
-		randomIdentifier: () => '44'.repeat(16),
+		getPreferredLocales: () => ['en-US'],
+		randomIdentifier: () => (++identifierSequence).toString(16).padStart(32, '0'),
 		quitApplication: vi.fn<() => void>(),
 		writeTrace: vi.fn<DesktopApplicationDependencies['writeTrace']>(),
 	};
 	return {
 		browserWindow,
+		clientSessionPorts,
 		createWorkbenchDocumentStore: dependencies.createWorkbenchDocumentStore,
 		createWindow,
 		dependencies,
-		documentBrokers,
 		host,
 		lifetimeBrokers,
+		lifetimeDependencies,
 		get hostEnvelopeListener() {
 			return hostEnvelopeListener;
 		},
 		projectionBrokers,
 		quitApplication: dependencies.quitApplication,
-		resultPosted,
 		terminalRuntime,
-		workbenchDocumentBrokers,
-		workbenchDocumentStoresPassedToBrokers,
 		webContents,
+		workbenchDocumentStore,
 		get windowOptions() {
 			return windowOptions;
 		},

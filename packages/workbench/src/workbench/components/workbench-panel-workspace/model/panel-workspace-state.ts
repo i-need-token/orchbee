@@ -202,6 +202,12 @@ export type PanelWorkspaceEvent =
 			readonly operationId: TerminalPresentationOperationId;
 			readonly presentationId: TerminalPresentationId;
 			readonly tabId: string;
+			readonly type: 'terminal-restore-started';
+	  }
+	| {
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
+			readonly tabId: string;
 			readonly type: 'terminal-restore-completed';
 	  }
 	| {
@@ -1446,6 +1452,21 @@ export function transitionPanelWorkspace(
 				},
 			],
 		);
+	}
+
+	if (event.type === 'terminal-restore-started') {
+		const terminal = findTerminalInNode(tab.root, event.presentationId);
+		if (terminal === null) return rejected(state, 'terminal-not-found');
+		if (terminal.lifecycle.kind === 'reconciling') {
+			return terminal.lifecycle.operationId === event.operationId
+				? unchanged(state)
+				: rejected(state, 'stale-operation');
+		}
+		if (terminal.lifecycle.kind !== 'restoring') return rejected(state, 'stale-operation');
+		return replaceTerminalLifecycle(state, tabIndex, tab, event.presentationId, {
+			kind: 'reconciling',
+			operationId: event.operationId,
+		});
 	}
 
 	if (event.type === 'terminal-restore-completed') {

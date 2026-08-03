@@ -2,6 +2,15 @@
 
 Browser composition entry for the Orchbee Workbench.
 
+## Composition boundary
+
+`apps/web` is the single runnable product UI for both a normal browser page and Electron's renderer.
+Environment adapters may provide different transport and privileged capabilities, but they compose
+the same Workbench, Workspace, Tab, Panel, and projected-terminal application. Desktop must not
+maintain a parallel renderer UI. The current browser preview uses its in-memory adapter; the
+accepted Desktop integration replaces the temporary `apps/desktop/src/renderer` composition with
+an Electron client-session adapter in this application.
+
 ## Local development preview
 
 `pnpm web` renders the Workbench shell with its localized sidebar, standalone terminal context,

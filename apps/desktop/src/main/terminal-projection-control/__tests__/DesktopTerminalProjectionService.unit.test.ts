@@ -41,11 +41,17 @@ function createHarness(readOnly = false) {
 		if (kind !== MessageKind.attachTerminal) return value as never;
 		const request = value as {
 			readonly attachmentId: AttachmentId;
+			readonly capabilities: {
+				readonly input: boolean;
+				readonly read: boolean;
+				readonly resize: boolean;
+			};
+			readonly requestResizeLease: boolean;
 		};
 		return {
 			attachmentId: request.attachmentId,
-			capabilities: { input: !readOnly, read: true, resize: !readOnly },
-			resizeLease: !readOnly,
+			capabilities: request.capabilities,
+			resizeLease: request.requestResizeLease,
 			terminalId: identity.terminalId,
 		} as never;
 	});
@@ -111,6 +117,67 @@ describe('DesktopTerminalProjectionService', () => {
 			expect.anything(),
 		);
 		expect(lease.bootstrap).toMatchObject({ canInput: false, canResize: false });
+	});
+
+	it('grants one resize owner and keeps later clients as input-capable observers', async () => {
+		const harness = createHarness();
+		const presentation = terminalPresentationId('presentation-shared');
+
+		const first = await harness.service.open(presentation);
+		const second = await harness.service.open(presentation);
+
+		expect(first.bootstrap).toMatchObject({ canInput: true, canResize: true });
+		expect(second.bootstrap).toMatchObject({ canInput: true, canResize: false });
+		expect(harness.requestControl).toHaveBeenNthCalledWith(
+			1,
+			MessageKind.attachTerminal,
+			expect.objectContaining({
+				capabilities: { input: true, read: true, resize: true },
+				requestResizeLease: true,
+			}),
+			MessageKind.attachmentCapabilities,
+			expect.anything(),
+		);
+		expect(harness.requestControl).toHaveBeenNthCalledWith(
+			2,
+			MessageKind.attachTerminal,
+			expect.objectContaining({
+				capabilities: { input: true, read: true, resize: false },
+				requestResizeLease: false,
+			}),
+			MessageKind.attachmentCapabilities,
+			expect.anything(),
+		);
+
+		await first.dispose();
+		const nextOwner = await harness.service.open(presentation);
+		expect(second.bootstrap.canResize).toBe(false);
+		expect(nextOwner.bootstrap.canResize).toBe(true);
+	});
+
+	it('serializes concurrent opens so they cannot both request the resize lease', async () => {
+		const harness = createHarness();
+		const presentation = terminalPresentationId('presentation-concurrent');
+		let releaseFirst: (() => void) | undefined;
+		const firstResponse = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		const defaultImplementation = harness.requestControl.getMockImplementation();
+		harness.requestControl.mockImplementationOnce(async (...arguments_) => {
+			await firstResponse;
+			if (defaultImplementation === undefined) throw new Error('Missing Host response.');
+			return defaultImplementation(...arguments_);
+		});
+
+		const first = harness.service.open(presentation);
+		const second = harness.service.open(presentation);
+		await vi.waitFor(() => expect(harness.requestControl).toHaveBeenCalledOnce());
+		await Promise.resolve();
+		expect(harness.requestControl).toHaveBeenCalledOnce();
+		releaseFirst?.();
+
+		expect((await first).bootstrap.canResize).toBe(true);
+		expect((await second).bootstrap.canResize).toBe(false);
 	});
 
 	it('rejects a presentation that has no reconciled Host identity', async () => {

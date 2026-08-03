@@ -1,23 +1,20 @@
-import type {
-	TerminalPresentationCommand,
-	WorkbenchProjectWorkspaceRuntime,
-} from '@orchbee/workbench';
+import type { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
 import {
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
 	type WorkbenchSharedDocumentRevision,
 } from '@orchbee/workbench/document';
 
-import type { WorkbenchDocumentCommitResult, WorkbenchDocumentLoadResult } from '../../shared';
-
-type InitialDocumentLoadResult = Extract<
-	WorkbenchDocumentLoadResult,
-	{ readonly kind: 'available' | 'missing' }
->;
+import type {
+	DesktopClientSessionBootstrap,
+	DesktopClientSessionEvent,
+	DesktopDocumentProposalResult,
+} from '../../shared';
 
 type CoordinatorFailureReason =
-	| 'conflict'
+	| 'application-quiescing'
 	| 'control-unavailable'
+	| 'exit-transition'
 	| 'invalid'
 	| 'projection-mismatch'
 	| 'read-failed'
@@ -32,47 +29,46 @@ export type DesktopWorkbenchDocumentFlushResult =
 	| { readonly kind: 'flushed'; readonly revision: WorkbenchSharedDocumentRevision }
 	| { readonly kind: 'unavailable'; readonly reason: CoordinatorFailureReason };
 
-interface WorkbenchDocumentCommitPort {
-	commit(
+interface DesktopClientSessionPort {
+	readonly bootstrap: DesktopClientSessionBootstrap;
+	propose(
 		expectedRevision: WorkbenchSharedDocumentRevision | null,
 		document: WorkbenchSharedDocument,
-	): Promise<
-		| WorkbenchDocumentCommitResult
-		| { readonly kind: 'unavailable'; readonly reason: 'control-unavailable' }
-	>;
-}
-
-interface TerminalCommandPort {
-	dispatch(commands: readonly TerminalPresentationCommand[]): void;
+	): Promise<DesktopDocumentProposalResult>;
+	subscribe(
+		listener: (
+			publication: Exclude<
+				DesktopClientSessionEvent,
+				{ readonly type: 'shared-document-proposal-completed' }
+			>,
+		) => void,
+	): () => void;
 }
 
 type DocumentRuntime = Pick<
 	WorkbenchProjectWorkspaceRuntime,
-	'getSharedDocument' | 'subscribeDocument'
+	| 'applySharedDocument'
+	| 'applyTerminalPresentationEvent'
+	| 'getSharedDocument'
+	| 'subscribeDocument'
 >;
 
 export class DesktopWorkbenchDocumentCoordinator {
-	readonly #commandPort: TerminalCommandPort;
-	#committedDocument: WorkbenchSharedDocument | undefined;
+	#committedDocument: WorkbenchSharedDocument | null = null;
 	#disposed = false;
 	#failedReason: CoordinatorFailureReason | null = null;
 	readonly #flushWaiters = new Set<(result: DesktopWorkbenchDocumentFlushResult) => void>();
-	readonly #pendingCommands: TerminalPresentationCommand[] = [];
 	#pumping = false;
 	#scheduled = false;
+	readonly #session: DesktopClientSessionPort;
 	#started = false;
-	readonly #documentPort: WorkbenchDocumentCommitPort;
 	readonly #documentRuntime: DocumentRuntime;
 	#unsubscribeDocument: (() => void) | undefined;
+	#unsubscribeSession: (() => void) | undefined;
 
-	constructor(
-		documentRuntime: DocumentRuntime,
-		documentPort: WorkbenchDocumentCommitPort,
-		commandPort: TerminalCommandPort,
-	) {
+	constructor(documentRuntime: DocumentRuntime, session: DesktopClientSessionPort) {
 		this.#documentRuntime = documentRuntime;
-		this.#documentPort = documentPort;
-		this.#commandPort = commandPort;
+		this.#session = session;
 	}
 
 	get failureReason(): CoordinatorFailureReason | null {
@@ -83,38 +79,29 @@ export class DesktopWorkbenchDocumentCoordinator {
 		return this.#committedDocument?.revision ?? null;
 	}
 
-	async start(
-		loaded: InitialDocumentLoadResult,
-		initialCommands: readonly TerminalPresentationCommand[] = [],
-	): Promise<CoordinatorStartResult> {
+	async start(): Promise<CoordinatorStartResult> {
 		if (this.#disposed || this.#started) {
 			return { kind: 'unavailable', reason: 'control-unavailable' };
 		}
 		this.#started = true;
-		this.#pendingCommands.push(...initialCommands);
-		this.#unsubscribeDocument = this.#documentRuntime.subscribeDocument(this.#schedule);
-		if (loaded.kind === 'available') {
-			const projected = this.#documentRuntime.getSharedDocument(loaded.document.revision);
-			if (documentFingerprint(projected) !== documentFingerprint(loaded.document)) {
-				return this.#fail('projection-mismatch');
-			}
-			this.#committedDocument = loaded.document;
-		} else {
-			const initial = this.#documentRuntime.getSharedDocument(workbenchSharedDocumentRevision('0'));
-			const committed = await this.#documentPort.commit(null, initial);
-			if (this.#disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
-			if (committed.kind !== 'committed') return this.#fail(reasonForCommit(committed));
-			if (committed.revision !== initial.revision) return this.#fail('revision-sequence');
-			this.#committedDocument = initial;
+		const bootstrap = this.#session.bootstrap;
+		this.#committedDocument =
+			bootstrap.documentState.kind === 'available' ? bootstrap.documentState.document : null;
+		const expected = this.#committedDocument ?? bootstrap.initializationDocument;
+		const projected = this.#documentRuntime.getSharedDocument(expected.revision);
+		if (documentFingerprint(projected) !== documentFingerprint(expected)) {
+			return this.#fail('projection-mismatch');
 		}
-		this.#schedule();
-		return { kind: 'ready', revision: this.#committedDocument.revision };
-	}
-
-	dispatchCommands(commands: readonly TerminalPresentationCommand[]): void {
-		if (this.#disposed || this.#failedReason !== null || commands.length === 0) return;
-		this.#pendingCommands.push(...commands);
-		this.#schedule();
+		this.#unsubscribeSession = this.#session.subscribe(this.#applyPublication);
+		this.#unsubscribeDocument = this.#documentRuntime.subscribeDocument(this.#schedule);
+		for (const event of bootstrap.terminalEvents) {
+			const result = this.#documentRuntime.applyTerminalPresentationEvent(event);
+			if (result.kind === 'rejected') return this.#fail('projection-mismatch');
+		}
+		await this.#pump();
+		if (this.#failedReason !== null) return { kind: 'unavailable', reason: this.#failedReason };
+		const revision = this.#committedDocument?.revision;
+		return revision === undefined ? this.#fail('control-unavailable') : { kind: 'ready', revision };
 	}
 
 	flush(): Promise<DesktopWorkbenchDocumentFlushResult> {
@@ -138,11 +125,36 @@ export class DesktopWorkbenchDocumentCoordinator {
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
-		this.#pendingCommands.length = 0;
 		this.#unsubscribeDocument?.();
 		this.#unsubscribeDocument = undefined;
+		this.#unsubscribeSession?.();
+		this.#unsubscribeSession = undefined;
 		this.#settleFlushWaiters();
 	}
+
+	readonly #applyPublication = (
+		publication: Exclude<
+			DesktopClientSessionEvent,
+			{ readonly type: 'shared-document-proposal-completed' }
+		>,
+	): void => {
+		if (this.#disposed || this.#failedReason !== null) return;
+		switch (publication.type) {
+			case 'shared-document-published':
+				this.#committedDocument = publication.document;
+				this.#documentRuntime.applySharedDocument(publication.document);
+				this.#schedule();
+				break;
+			case 'terminal-presentation-event-published': {
+				const result = this.#documentRuntime.applyTerminalPresentationEvent(publication.event);
+				if (result.kind === 'rejected') this.#fail('projection-mismatch');
+				break;
+			}
+			case 'client-session-coordinator-unavailable':
+				this.#fail(publication.reason);
+				break;
+		}
+	};
 
 	readonly #schedule = (): void => {
 		if (this.#disposed || this.#failedReason !== null || !this.#started || this.#scheduled) {
@@ -156,39 +168,34 @@ export class DesktopWorkbenchDocumentCoordinator {
 	};
 
 	async #pump(): Promise<void> {
-		if (
-			this.#disposed ||
-			this.#failedReason !== null ||
-			this.#pumping ||
-			this.#committedDocument === undefined
-		) {
-			return;
-		}
+		if (this.#disposed || this.#failedReason !== null || this.#pumping) return;
 		this.#pumping = true;
 		try {
 			while (!this.#disposed && this.#failedReason === null) {
 				const committed = this.#committedDocument;
-				const commandCount = this.#pendingCommands.length;
 				const candidate = this.#documentRuntime.getSharedDocument(
-					nextDocumentRevision(committed.revision),
+					nextDocumentRevision(committed?.revision ?? null),
 				);
-				if (documentFingerprint(candidate) === documentFingerprint(committed)) {
-					if (commandCount === 0) break;
-					this.#dispatchPreparedCommands(commandCount);
-					continue;
+				if (
+					committed !== null &&
+					documentFingerprint(candidate) === documentFingerprint(committed)
+				) {
+					break;
 				}
-				const result = await this.#documentPort.commit(committed.revision, candidate);
+				const result = await this.#session.propose(committed?.revision ?? null, candidate);
 				if (this.#disposed) return;
-				if (result.kind !== 'committed') {
-					this.#fail(reasonForCommit(result));
-					return;
+				switch (result.kind) {
+					case 'committed':
+					case 'converged':
+					case 'stale':
+						this.#committedDocument = result.document;
+						this.#documentRuntime.applySharedDocument(result.document);
+						continue;
+					case 'rejected':
+					case 'unavailable':
+						this.#fail(result.reason);
+						return;
 				}
-				if (result.revision !== candidate.revision) {
-					this.#fail('revision-sequence');
-					return;
-				}
-				this.#committedDocument = candidate;
-				this.#dispatchPreparedCommands(commandCount);
 			}
 		} finally {
 			this.#pumping = false;
@@ -197,24 +204,16 @@ export class DesktopWorkbenchDocumentCoordinator {
 		}
 	}
 
-	#dispatchPreparedCommands(commandCount: number): void {
-		if (commandCount === 0) return;
-		const commands = this.#pendingCommands.splice(0, commandCount);
-		this.#commandPort.dispatch(commands);
-	}
-
 	#needsPump(): boolean {
-		if (this.#disposed || this.#failedReason !== null || this.#committedDocument === undefined) {
-			return false;
-		}
-		if (this.#pendingCommands.length > 0) return true;
+		if (this.#disposed || this.#failedReason !== null || !this.#started) return false;
+		if (this.#committedDocument === null) return true;
 		const projected = this.#documentRuntime.getSharedDocument(this.#committedDocument.revision);
 		return documentFingerprint(projected) !== documentFingerprint(this.#committedDocument);
 	}
 
 	#fail(
 		reason: CoordinatorFailureReason,
-	): Extract<CoordinatorStartResult, { kind: 'unavailable' }> {
+	): Extract<CoordinatorStartResult, { readonly kind: 'unavailable' }> {
 		this.#failedReason = reason;
 		this.#unsubscribeDocument?.();
 		this.#unsubscribeDocument = undefined;
@@ -231,7 +230,7 @@ export class DesktopWorkbenchDocumentCoordinator {
 			result = { kind: 'unavailable', reason: this.#failedReason };
 		} else if (
 			this.#started &&
-			this.#committedDocument !== undefined &&
+			this.#committedDocument !== null &&
 			!this.#pumping &&
 			!this.#scheduled &&
 			!this.#needsPump()
@@ -246,27 +245,13 @@ export class DesktopWorkbenchDocumentCoordinator {
 }
 
 function nextDocumentRevision(
-	revision: WorkbenchSharedDocumentRevision,
+	revision: WorkbenchSharedDocumentRevision | null,
 ): WorkbenchSharedDocumentRevision {
-	return workbenchSharedDocumentRevision((BigInt(revision) + 1n).toString());
+	return revision === null
+		? workbenchSharedDocumentRevision('0')
+		: workbenchSharedDocumentRevision((BigInt(revision) + 1n).toString());
 }
 
 function documentFingerprint(document: WorkbenchSharedDocument): string {
 	return JSON.stringify([document.version, document.projectWorkspace, document.terminalContexts]);
-}
-
-function reasonForCommit(
-	result: Exclude<
-		Awaited<ReturnType<WorkbenchDocumentCommitPort['commit']>>,
-		{ readonly kind: 'committed' }
-	>,
-): CoordinatorFailureReason {
-	switch (result.kind) {
-		case 'conflict':
-			return 'conflict';
-		case 'rejected':
-			return 'revision-sequence';
-		case 'unavailable':
-			return result.reason;
-	}
 }

@@ -10,32 +10,38 @@ bindings and privileged effects; `apps/terminal-host` owns PTYs, processes, Ghos
 history, and real terminal identity. None of the shared Workbench document is stored in the Host.
 
 Main starts without creating a fixed terminal or opening an attachment. It restores the durable
-`TerminalPresentationId` to `TerminalBindingId` registry, owns the private Workbench shared-document
-file
-adapter, and transfers four allowlisted document ports through the sandboxed preload:
+`TerminalPresentationId` to `TerminalBindingId` registry, owns one process-wide canonical Workbench
+shared-document coordinator, and transfers three allowlisted capabilities through the sandboxed
+preload:
 
-- lifecycle control accepts only presentation-scoped provision, restore, and close commands and
-  publishes correlated results plus terminal exit;
-- projection control opens and releases one scoped Host attachment for a displayed terminal
-  viewport.
-- shared-document control loads or exact-next compare-and-swaps only canonical
-  `WorkbenchSharedDocument` values from `@orchbee/workbench/document`;
-- application-lifetime control carries only exit reason, user choice, shared-document revision,
-  aggregate progress, and typed failures for the current renderer document.
+- client-session control delivers one atomic document/terminal-observation bootstrap, accepts
+  complete exact-next shared-document proposals, and publishes one ordered canonical event stream;
+- projection control opens and releases scoped Host attachments only for displayed terminal
+  viewports;
+- application-lifetime control carries only exit reason, user choice, quiescing acknowledgement,
+  shared-document revision, aggregate progress, and typed failures for the current renderer page.
 
 The renderer has no Node integration, generic Electron IPC, filesystem capability, Host inventory,
-or raw terminal-lifetime authority. Preload transfers exactly one port for each recognized control
-channel and attests context isolation and sandboxing.
+or raw terminal-lifetime authority. It cannot invoke provision, restore, close, or storage CAS
+effects directly. Preload transfers exactly one port for each recognized control channel and
+attests context isolation and sandboxing.
 
-The renderer loads the shared document before constructing its managed Workbench runtime. An
-available document restores Project, Workspace, Tab, Group, Panel/Split structure, presentation
-placement, and lifecycle intent, then derives a fresh in-memory Client View. Active navigation,
-disclosure, focus, maximization, active child, and Split weights do not enter the shared file. A
-missing document projects recovered bindings as standalone Tabs and commits revision `0` before
-any initial lifecycle command. An unavailable load or failed first commit creates no replacement
-document or terminal effect. Unreferenced technical bindings remain preserved but are not silently
-adopted into the shared document. Multi-client sharing, network clients, packaging, and update
-activation remain outside the current composition.
+Main loads and validates the shared document once before admitting clients. An available document
+restores Project, Workspace, Tab, Group, Panel/Split structure, presentation placement, and
+lifecycle intent; every page derives a fresh in-memory Client View. Active navigation, disclosure,
+focus, maximization, active child, and Split weights do not enter the shared file. A missing
+document projects every recovered binding as a standalone `retain` Tab and gives each joining page
+the same revision-`0` initialization seed. The first accepted proposal persists that seed before
+Main performs restore/provision effects. An unavailable load or failed first commit creates no
+replacement document or terminal effect. Unreferenced technical bindings remain preserved but are
+not silently adopted into the shared document.
+
+The coordinator is transport-neutral and supports independent page sessions without a product
+count ceiling. This slice exposes the Electron `MessagePort` adapter; a network Gateway remains
+outside Desktop. The accepted renderer target is the single `apps/web` application in both a normal
+browser and Electron. The current `apps/desktop/src/renderer` composition is the staged local
+consumer that will be replaced by that entry, not a second UI owner. See
+[`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md).
 
 Desktop requires Host protocol `1.4` exactly. Electron uses `42.8.0`, the final release in the major
 immediately preceding the current Electron major selected for this repository.
@@ -46,7 +52,7 @@ The maintained identity chain is:
 
 ```text
 Workbench TerminalPresentationId
-        │ document lifecycle command
+        │ committed shared-document intent
         ▼
 Desktop TerminalBindingId ── durable binding store
         │ recovery reconciliation
@@ -73,12 +79,13 @@ shared product structure and visible demand; allocation, filesystem, Host, or me
 operation failure instead of evicting or silently truncating another terminal. Host inventory is
 read through generation-scoped protocol pages rather than one bounded global list.
 
-The separate Workbench shared-document store accepts only the canonical version-1 document through one
-Main-owned serialized writer. A missing store starts at revision `0`; every later commit must name
-the exact current revision and advance it by one. Conflicts, non-next revisions, invalid files, and
-read failures preserve current data. Writes use owner-only temporary files, file synchronization,
-atomic replacement, and parent-directory synchronization where supported. The renderer receives
-only typed load and commit results, never a path, Node error, or general filesystem capability. See
+The separate Workbench shared-document store accepts only the canonical version-1 document through
+one Main-owned serialized writer. A missing store starts at revision `0`; every later commit must
+name the exact current revision and advance it by one. Conflicts, non-next revisions, invalid files,
+and read failures preserve current data. Writes use owner-only temporary files, file
+synchronization, atomic replacement, and parent-directory synchronization where supported. A
+client receives only an atomic bootstrap, typed proposal result, and ordered publication; it never
+receives a path, Node error, store capability, or general filesystem capability. See
 [`docs/workbench-shared-document-storage.md`](docs/workbench-shared-document-storage.md).
 The store uses `workbench-shared-document-v1.json`. It has no reader, alias, or migration for the
 unshipped development topology file; that old path is ignored and not deleted automatically.
@@ -94,19 +101,20 @@ Main lifetime. Missing, planned, closing, or lost bindings never allocate a repl
 restore path. Restore failure remains durable retain intent.
 
 One operation tail serializes lifecycle work per presentation while unrelated terminals progress
-independently. The renderer coordinator commits the complete shared document containing provision
-or close intent before forwarding the corresponding effect. It coalesces shared changes while a
-CAS is in flight and stops the generation after conflict or storage failure. Close then persists
+independently. The Main coordinator persists and publishes the complete shared document containing
+provision, close, or stop intent before deriving the corresponding effect. Its FIFO proposal queue
+uses first-writer-wins for divergent concurrent complete documents and converges equivalent races.
+Close then persists
 technical `closing`, retires only that presentation's active projections, and delegates
 graceful/force/dispose behavior to the existing binding close lifecycle. A Panel or Tab remains in
 Workbench until every exact terminal close result completes; cleanup commits afterward, while the
 previously stored close intent remains replayable if cleanup fails. Renderer reload, a renderer
-crash, a normal macOS window close, and uncontrolled Main loss release document attachments but
-preserve Host terminals. A controlled application quit follows the policy below.
+crash, a normal macOS window close, and uncontrolled Main loss release that page's projection
+attachments but preserve Host terminals. A controlled application quit follows the policy below.
 
 ## Application lifetime
 
-A normal macOS window close releases only the renderer document. Command+Q, a menu quit, or closing
+A normal macOS window close releases only the renderer page. Command+Q, a menu quit, or closing
 the last window on Windows and Linux enters one coalesced user-quit workflow while the renderer is
 still available. When terminal sessions exist, the application-wide dialog offers Keep Sessions
 and Quit as the default, Stop Sessions and Quit as the destructive choice, or Cancel before any
@@ -114,7 +122,12 @@ stop effect. With no sessions, Desktop flushes the shared document and quits wit
 updater enters the same preserve preparation as `update-restart` without prompting; updater
 installation and packaging remain outside this package.
 
-Stop seals terminal creation for the renderer generation, projects every visible and hidden
+Before preserve or stop preparation, Main acknowledges that the application-wide coordinator has
+entered quiescing. This acknowledgement orders the lifetime and client-session ports: other pages
+cannot race a new shared change into the preparation window. A replacement renderer may resume only
+the same quiescing mode after the former exit owner disconnects.
+
+Stop seals terminal creation for the exit-owner page, projects every visible and hidden
 Workbench presentation to durable `stop`, compare-and-swaps the complete shared document, and only then
 releases close commands. Successful close results change presentations to `stopped` while retaining
 Project, Workspace, Tab, Panel, split, title, and launch CWD. Hydration never starts a stopped
@@ -139,9 +152,11 @@ therefore hold no renderer, GPU surface, frame stream, history cache, search Wor
 attachment.
 
 Each successful request receives a fresh AttachmentId, capability bootstrap, and private
-`MessagePort`. Running terminals request read/input/resize authority; exited terminals attach
-read-only with their retained final revision. Multiple visible split panels may hold independent
-attachments, with no global attachment threshold.
+`MessagePort`. For one running presentation, serialized opens grant read/input/resize to the first
+successful attachment and read/input without resize to later observers. Existing observers are not
+promoted when the owner detaches; the next new attachment may acquire resize. Exited terminals
+attach read-only with their retained final revision. Multiple visible split panels and page clients
+may hold independent attachments, with no global attachment threshold.
 
 `HostConnection` reads and validates the fixed terminal-frame header once, then routes the binary
 record directly by AttachmentId. Main performs no VT parsing, row reconstruction, JSON/base64
@@ -159,18 +174,19 @@ retains its final-revision presentation behavior.
 
 Focused traces cover:
 
-- strict lifecycle and projection boundary validation, malformed-message retirement, exact
-  correlation, cancellation, and renderer-document disposal;
-- strict shared-document load/CAS boundary validation and serialization across renderer generations,
-  invalid-file preservation, atomic replacement, and suppressed late responses;
-- first-commit and per-command write-ahead ordering, coalesced shared commits, restore-only
-  recovery, failed-CAS effect suppression, and post-effect managed container cleanup;
+- strict client-session and projection boundary validation, malformed-message retirement, exact
+  proposal correlation, and page attachment disposal;
+- atomic bootstrap, FIFO complete-document proposals, first-writer-wins races, stale rollback with
+  Client View preservation, invalid-file preservation, and one ordered publication stream;
+- first-commit and per-command write-ahead ordering, Main-owned restore-only recovery, failed-store
+  effect suppression, and post-effect managed container cleanup;
 - fresh provisioning, multi-binding store preservation, recovery, exited recovery, orphan and
   conflict handling, durable close, and presentation-registry reconstruction;
 - unrelated terminal concurrency, exact close targeting, Tab-close result ordering, and stale
   result rejection;
 - two recovered Workbench tabs where both lifecycle records reconcile but only the active visible
   Tab has an attachment, followed by exact release/open behavior on Tab switch;
+- concurrent viewers with exactly one resize owner, observer non-promotion, and next-open ownership;
 - fixed-header frame routing to only the matching AttachmentId;
 - sandboxed end-to-end input, output, history, search, selection, copy, links, exit, renderer reload,
   and Electron Main restart.
@@ -181,8 +197,10 @@ Focused traces cover:
 Existing TLA+ models continue to check terminal recovery, binding close, lifecycle-adapter
 serialization, projection demand, and Workbench removal safety within their declared finite bounds.
 The Desktop shared-document-store model additionally checks exact-next CAS, conflict preservation,
-serialization, unavailable storage, generation disposal, and progress for two clients through
-revision `2`.
+serialization, unavailable storage, generation disposal, and progress through revision `2`.
+The Desktop multi-client model checks two sessions, missing/available bootstrap, equivalent and
+divergent races, effect publication ordering, attachment/session ownership, disconnect, quiescing
+handoff, unavailable storage, and bounded publication progress.
 The Desktop write-ahead model checks matching durable intent before provision, restore, close, or stop
 dispatch; failed-commit preservation; restore without replacement creation; renderer disposal and
 reload replay; and live-generation progress for one abstract presentation.

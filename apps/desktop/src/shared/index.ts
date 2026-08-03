@@ -17,6 +17,21 @@ export {
 	DesktopApplicationLifetimeRendererCommandSchema,
 	DesktopApplicationLifetimeWindowMessageSchema,
 } from './desktop-application-lifetime-contract';
+export {
+	DESKTOP_CLIENT_SESSION_IPC_CHANNEL,
+	DESKTOP_CLIENT_SESSION_WINDOW_MESSAGE,
+	DesktopClientSessionBootstrapSchema,
+	DesktopClientSessionCommandSchema,
+	DesktopClientSessionEventSchema,
+	DesktopClientSessionRequestIdSchema,
+	DesktopClientSessionWindowMessageSchema,
+} from './desktop-client-session-contract';
+export type {
+	DesktopClientSessionBootstrap,
+	DesktopClientSessionEvent,
+	DesktopClientSessionRequestId,
+	DesktopDocumentProposalResult,
+} from './desktop-client-session-contract';
 export type {
 	DesktopApplicationExitChoice,
 	DesktopApplicationExitFailure,
@@ -26,14 +41,6 @@ export type {
 	DesktopApplicationLifetimeMainEvent,
 	DesktopApplicationLifetimeRendererCommand,
 } from './desktop-application-lifetime-contract';
-export {
-	TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
-	TERMINAL_DOCUMENT_CONTROL_WINDOW_MESSAGE,
-	TerminalDocumentControlBootstrapSchema,
-	TerminalDocumentControlCommandSchema,
-	TerminalDocumentControlEventSchema,
-	TerminalDocumentControlWindowMessageSchema,
-} from './terminal-document-control-contract';
 export {
 	TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
 	TERMINAL_PROJECTION_CONTROL_WINDOW_MESSAGE,
@@ -47,25 +54,3 @@ export type {
 	TerminalProjectionControlEvent,
 	TerminalProjectionRequestId,
 } from './terminal-projection-control-contract';
-export type {
-	TerminalDocumentControlBootstrap,
-	TerminalDocumentControlCommand,
-	TerminalDocumentControlEvent,
-	TerminalDocumentControlOperationResult,
-} from './terminal-document-control-contract';
-export {
-	WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL,
-	WORKBENCH_DOCUMENT_CONTROL_WINDOW_MESSAGE,
-	WorkbenchDocumentControlBootstrapSchema,
-	WorkbenchDocumentControlCommandSchema,
-	WorkbenchDocumentControlEventSchema,
-	WorkbenchDocumentControlWindowMessageSchema,
-	WorkbenchDocumentRequestIdSchema,
-} from './workbench-document-control-contract';
-export type {
-	WorkbenchDocumentCommitResult,
-	WorkbenchDocumentControlCommand,
-	WorkbenchDocumentControlEvent,
-	WorkbenchDocumentLoadResult,
-	WorkbenchDocumentRequestId,
-} from './workbench-document-control-contract';

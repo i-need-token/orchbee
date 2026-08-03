@@ -1,21 +1,29 @@
 // @vitest-environment jsdom
 
 import { act } from 'react';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
+	type WorkbenchSharedDocument,
 } from '@orchbee/workbench/document';
-import { terminalPresentationId } from '@orchbee/workbench';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	type TerminalPresentationEvent,
+} from '@orchbee/workbench/terminal-presentation';
 
 import {
-	TerminalDocumentControlBootstrapSchema,
-	type TerminalDocumentControlCommand,
-	type WorkbenchDocumentControlCommand,
+	DESKTOP_CLIENT_SESSION_IPC_CHANNEL,
+	DesktopClientSessionBootstrapSchema,
+	DesktopClientSessionCommandSchema,
+	DesktopClientSessionEventSchema,
+	type DesktopClientSessionBootstrap,
 } from '../../../shared';
 import { startDesktopWorkbenchRenderer } from '../startDesktopWorkbenchRenderer';
 
 const originalResizeObserver = globalThis.ResizeObserver;
+type DesktopClientSessionCommand = ReturnType<typeof DesktopClientSessionCommandSchema.parse>;
 
 class ResizeObserverMock {
 	disconnect(): void {
@@ -42,6 +50,10 @@ beforeAll(() => {
 	});
 });
 
+beforeEach(() => {
+	window.localStorage.clear();
+});
+
 afterAll(() => {
 	Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
 		configurable: true,
@@ -54,8 +66,8 @@ afterAll(() => {
 });
 
 class TestMessagePort extends EventTarget {
-	peer: TestMessagePort | undefined;
 	closed = false;
+	peer: TestMessagePort | undefined;
 	starts = 0;
 
 	close(): void {
@@ -87,24 +99,48 @@ function createTestChannel(): { readonly port1: MessagePort; readonly port2: Tes
 	return { port1: port1 as unknown as MessagePort, port2 };
 }
 
-describe('startDesktopWorkbenchRenderer', () => {
-	it('fails closed without rendering or provisioning when durable document cannot be loaded', async () => {
-		const lifetimeChannel = createTestChannel();
-		const documentChannel = createTestChannel();
-		const projectionChannel = createTestChannel();
-		const workbenchDocumentChannel = createTestChannel();
-		const documentCommands: TerminalDocumentControlCommand[] = [];
-		documentChannel.port2.addEventListener('message', (event) => {
-			documentCommands.push((event as MessageEvent).data as TerminalDocumentControlCommand);
-		});
-		workbenchDocumentChannel.port2.addEventListener('message', (event) => {
-			const command = (event as MessageEvent).data as WorkbenchDocumentControlCommand;
-			if (command.type !== 'workbench-document-load-requested') return;
-			workbenchDocumentChannel.port2.postMessage({
+function serveSuccessfulClientSession(port: TestMessagePort): DesktopClientSessionCommand[] {
+	const commands: DesktopClientSessionCommand[] = [];
+	let sequence = 0n;
+	port.addEventListener('message', (event) => {
+		const command = DesktopClientSessionCommandSchema.parse((event as MessageEvent).data);
+		commands.push(command);
+		sequence += 1n;
+		port.postMessage(
+			DesktopClientSessionEventSchema.parse({
+				document: command.document,
+				sequence: sequence.toString(),
+				type: 'shared-document-published',
+			}),
+		);
+		port.postMessage(
+			DesktopClientSessionEventSchema.parse({
 				requestId: command.requestId,
-				result: { kind: 'unavailable', reason: 'read-failed' },
-				type: 'workbench-document-load-completed',
-			});
+				result: { document: command.document, kind: 'committed' },
+				type: 'shared-document-proposal-completed',
+			}),
+		);
+	});
+	return commands;
+}
+
+describe('startDesktopWorkbenchRenderer', () => {
+	it('fails closed without rendering when the initial shared-document commit is unavailable', async () => {
+		const lifetimeChannel = createTestChannel();
+		const clientSessionChannel = createTestChannel();
+		const projectionChannel = createTestChannel();
+		const initializationDocument = provisionDocument('0', ['Terminal 1']);
+		const commands: DesktopClientSessionCommand[] = [];
+		clientSessionChannel.port2.addEventListener('message', (event) => {
+			const command = DesktopClientSessionCommandSchema.parse((event as MessageEvent).data);
+			commands.push(command);
+			clientSessionChannel.port2.postMessage(
+				DesktopClientSessionEventSchema.parse({
+					requestId: command.requestId,
+					result: { document: null, kind: 'unavailable', reason: 'read-failed' },
+					type: 'shared-document-proposal-completed',
+				}),
+			);
 		});
 		const root = document.createElement('div');
 		document.body.appendChild(root);
@@ -116,69 +152,38 @@ describe('startDesktopWorkbenchRenderer', () => {
 				['en-US'],
 				'apple',
 				window.localStorage,
-				TerminalDocumentControlBootstrapSchema.parse({
-					defaultCwd: '/workspace',
-					initialPresentationId: 'presentation-initial',
-					presentations: [],
-					type: 'orchbee.desktop.terminal-document-control-port',
-				}),
+				bootstrap({ kind: 'missing' }, initializationDocument),
 				lifetimeChannel.port1,
-				documentChannel.port1,
+				clientSessionChannel.port1,
 				projectionChannel.port1,
-				workbenchDocumentChannel.port1,
 			);
-			await expect(session.ready).resolves.toEqual({
-				kind: 'unavailable',
-				reason: 'read-failed',
-			});
+			await expect(session.ready).resolves.toEqual({ kind: 'unavailable', reason: 'read-failed' });
 		});
 
-		expect(documentCommands).toEqual([]);
+		expect(commands).toHaveLength(1);
 		expect(root.childElementCount).toBe(0);
-		expect((documentChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((clientSessionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((lifetimeChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
-		expect((lifetimeChannel.port1 as unknown as TestMessagePort).starts).toBe(0);
 		expect((projectionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
-		expect((workbenchDocumentChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
-	it('requests projection only for the active visible terminal and switches demand with the Tab', async () => {
+	it('projects only the visible Tab while client-only selection stays out of the shared document', async () => {
 		const lifetimeChannel = createTestChannel();
-		const documentChannel = createTestChannel();
+		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
-		const workbenchDocumentChannel = createTestChannel();
-		const documentCommands: TerminalDocumentControlCommand[] = [];
+		const sharedDocument = provisionDocument('4', ['Terminal 1', 'Terminal 2']);
+		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
 		const projectionCommands: Array<{ presentationId?: string; type?: string }> = [];
-		const workbenchDocumentCommands: WorkbenchDocumentControlCommand[] = [];
-		documentChannel.port2.addEventListener('message', (event) => {
-			documentCommands.push((event as MessageEvent).data as TerminalDocumentControlCommand);
-		});
 		projectionChannel.port2.addEventListener('message', (event) => {
 			projectionCommands.push(
 				(event as MessageEvent).data as { presentationId?: string; type?: string },
 			);
 		});
-		workbenchDocumentChannel.port2.addEventListener('message', (event) => {
-			const command = (event as MessageEvent).data as WorkbenchDocumentControlCommand;
-			workbenchDocumentCommands.push(command);
-			if (command.type === 'workbench-document-load-requested') {
-				workbenchDocumentChannel.port2.postMessage({
-					requestId: command.requestId,
-					result: { kind: 'missing' },
-					type: 'workbench-document-load-completed',
-				});
-				return;
-			}
-			workbenchDocumentChannel.port2.postMessage({
-				requestId: command.requestId,
-				result: { kind: 'committed', revision: command.document.revision },
-				type: 'workbench-document-commit-completed',
-			});
-		});
 		const root = document.createElement('div');
 		document.body.appendChild(root);
 		let session: ReturnType<typeof startDesktopWorkbenchRenderer> | undefined;
+
 		await act(async () => {
 			const started = startDesktopWorkbenchRenderer(
 				root,
@@ -186,38 +191,17 @@ describe('startDesktopWorkbenchRenderer', () => {
 				['en-US'],
 				'apple',
 				window.localStorage,
-				TerminalDocumentControlBootstrapSchema.parse({
-					defaultCwd: '/workspace',
-					initialPresentationId: 'presentation-initial',
-					presentations: [
-						{ launchCwd: '/one', presentationId: 'presentation-1' },
-						{ launchCwd: '/two', presentationId: 'presentation-2' },
-					],
-					type: 'orchbee.desktop.terminal-document-control-port',
-				}),
+				bootstrap(
+					{ document: sharedDocument, kind: 'available' },
+					sharedDocument,
+					provisionCompletedEvents(2),
+				),
 				lifetimeChannel.port1,
-				documentChannel.port1,
+				clientSessionChannel.port1,
 				projectionChannel.port1,
-				workbenchDocumentChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
-		});
-		await vi.waitFor(() => expect(documentCommands).toHaveLength(2));
-		expect((lifetimeChannel.port1 as unknown as TestMessagePort).starts).toBe(1);
-		expect(workbenchDocumentCommands.slice(0, 2).map((command) => command.type)).toEqual([
-			'workbench-document-load-requested',
-			'workbench-document-commit-requested',
-		]);
-
-		await act(async () => {
-			for (const command of documentCommands) {
-				documentChannel.port2.postMessage({
-					operationId: command.operationId,
-					presentationId: command.presentationId,
-					type: 'terminal-provision-completed',
-				});
-			}
 		});
 		await vi.waitFor(() => {
 			expect(projectionCommands).toEqual([
@@ -227,6 +211,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				}),
 			]);
 		});
+		const proposalCountAfterStartup = sessionCommands.length;
 
 		const secondTab = [...root.querySelectorAll<HTMLElement>('[role="tab"]')].find((tab) =>
 			tab.getAttribute('aria-label')?.includes('Terminal 2'),
@@ -251,36 +236,27 @@ describe('startDesktopWorkbenchRenderer', () => {
 				]),
 			);
 		});
+		expect(sessionCommands).toHaveLength(proposalCountAfterStartup);
 
 		await act(async () => session?.dispose());
-		expect((workbenchDocumentChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
-	it('hydrates retain document and uses restore-only reconciliation without rewriting intent', async () => {
+	it('hydrates retained terminals from Main observations without issuing renderer effects', async () => {
 		const lifetimeChannel = createTestChannel();
-		const documentChannel = createTestChannel();
+		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
-		const workbenchDocumentChannel = createTestChannel();
-		const documentCommands: TerminalDocumentControlCommand[] = [];
-		const workbenchDocumentCommands: WorkbenchDocumentControlCommand[] = [];
-		const sharedDocument = createRetainedDocument();
-		documentChannel.port2.addEventListener('message', (event) => {
-			documentCommands.push((event as MessageEvent).data as TerminalDocumentControlCommand);
-		});
-		workbenchDocumentChannel.port2.addEventListener('message', (event) => {
-			const command = (event as MessageEvent).data as WorkbenchDocumentControlCommand;
-			workbenchDocumentCommands.push(command);
-			if (command.type !== 'workbench-document-load-requested') return;
-			workbenchDocumentChannel.port2.postMessage({
-				requestId: command.requestId,
-				result: { document: sharedDocument, kind: 'available' },
-				type: 'workbench-document-load-completed',
-			});
-		});
+		const sharedDocument = retainedDocument('4');
+		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
 		const root = document.createElement('div');
 		document.body.appendChild(root);
 		let session: ReturnType<typeof startDesktopWorkbenchRenderer> | undefined;
+		const operationId = terminalPresentationOperationId('restore-1');
+		const presentationId = terminalPresentationId('presentation-retained');
+		const terminalEvents: readonly TerminalPresentationEvent[] = [
+			{ operationId, presentationId, type: 'terminal-restore-started' },
+			{ operationId, presentationId, type: 'terminal-restore-completed' },
+		];
 
 		await act(async () => {
 			const started = startDesktopWorkbenchRenderer(
@@ -289,52 +265,100 @@ describe('startDesktopWorkbenchRenderer', () => {
 				['en-US'],
 				'apple',
 				window.localStorage,
-				TerminalDocumentControlBootstrapSchema.parse({
-					defaultCwd: '/workspace',
-					initialPresentationId: 'presentation-unused',
-					presentations: [{ launchCwd: '/retained', presentationId: 'presentation-retained' }],
-					type: 'orchbee.desktop.terminal-document-control-port',
-				}),
+				bootstrap({ document: sharedDocument, kind: 'available' }, sharedDocument, terminalEvents),
 				lifetimeChannel.port1,
-				documentChannel.port1,
+				clientSessionChannel.port1,
 				projectionChannel.port1,
-				workbenchDocumentChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
 		});
-		await vi.waitFor(() => expect(documentCommands).toHaveLength(1));
-		expect(documentCommands[0]).toMatchObject({
-			launchCwd: '/retained',
-			presentationId: 'presentation-retained',
-			type: 'terminal-restore-requested',
-		});
-		expect(workbenchDocumentCommands.map((command) => command.type)).toEqual([
-			'workbench-document-load-requested',
-		]);
 
-		await act(async () => {
-			const restore = documentCommands[0];
-			if (restore?.type !== 'terminal-restore-requested') {
-				throw new Error('Expected a restore command.');
-			}
-			documentChannel.port2.postMessage({
-				operationId: restore.operationId,
-				presentationId: restore.presentationId,
-				type: 'terminal-restore-completed',
-			});
-		});
-		await vi.waitFor(() => expect(root.querySelector('[aria-label="Retained"]')).not.toBeNull());
-		expect(workbenchDocumentCommands.map((command) => command.type)).toEqual([
-			'workbench-document-load-requested',
-		]);
+		expect(
+			[...root.querySelectorAll<HTMLElement>('[role="tab"]')].map((tab) =>
+				tab.getAttribute('aria-label'),
+			),
+		).toEqual(expect.arrayContaining([expect.stringContaining('Retained')]));
+		expect(sessionCommands).toEqual([]);
 
 		await act(async () => session?.dispose());
 		root.remove();
 	});
 });
 
-function createRetainedDocument() {
+function bootstrap(
+	documentState:
+		| { readonly document: WorkbenchSharedDocument; readonly kind: 'available' }
+		| { readonly kind: 'missing' },
+	initializationDocument: WorkbenchSharedDocument,
+	terminalEvents: readonly TerminalPresentationEvent[] = [],
+): DesktopClientSessionBootstrap {
+	return DesktopClientSessionBootstrapSchema.parse({
+		clientSessionId: 'client-1',
+		defaultCwd: '/workspace',
+		documentState,
+		initialPresentationId: 'presentation-initial',
+		initializationDocument,
+		sequence: '0',
+		terminalEvents,
+		type: DESKTOP_CLIENT_SESSION_IPC_CHANNEL,
+	});
+}
+
+function provisionCompletedEvents(count: number): readonly TerminalPresentationEvent[] {
+	return Array.from({ length: count }, (_, index) => {
+		const sequence = index + 1;
+		return {
+			operationId: terminalPresentationOperationId(`operation-${sequence}`),
+			presentationId: terminalPresentationId(`presentation-${sequence}`),
+			type: 'terminal-provision-completed',
+		};
+	});
+}
+
+function provisionDocument(revision: string, titles: readonly string[]): WorkbenchSharedDocument {
+	return documentWithPresentations(
+		revision,
+		titles.map((title, index) => {
+			const sequence = index + 1;
+			return {
+				intent: {
+					kind: 'provision' as const,
+					operationId: terminalPresentationOperationId(`operation-${sequence}`),
+				},
+				launchCwd: `/workspace/${sequence}`,
+				presentationId: terminalPresentationId(`presentation-${sequence}`),
+				title,
+			};
+		}),
+	);
+}
+
+function retainedDocument(revision: string): WorkbenchSharedDocument {
+	return documentWithPresentations(revision, [
+		{
+			intent: { kind: 'retain' as const },
+			launchCwd: '/retained',
+			presentationId: terminalPresentationId('presentation-retained'),
+			title: 'Retained',
+		},
+	]);
+}
+
+function documentWithPresentations(
+	revision: string,
+	presentations: ReadonlyArray<{
+		readonly intent:
+			| { readonly kind: 'retain' }
+			| {
+					readonly kind: 'provision';
+					readonly operationId: ReturnType<typeof terminalPresentationOperationId>;
+			  };
+		readonly launchCwd: string;
+		readonly presentationId: ReturnType<typeof terminalPresentationId>;
+		readonly title: string;
+	}>,
+): WorkbenchSharedDocument {
 	return createWorkbenchSharedDocument({
 		projectWorkspace: {
 			nextProjectSequence: 1,
@@ -343,43 +367,34 @@ function createRetainedDocument() {
 			projects: [],
 			standaloneTerminalContextId: 'terminal-context-1',
 		},
-		revision: workbenchSharedDocumentRevision('4'),
+		revision: workbenchSharedDocumentRevision(revision),
 		terminalContexts: [
 			{
-				nextTabSequence: 2,
+				nextTabSequence: presentations.length + 1,
 				panelWorkspace: {
-					nextPanelSequence: 2,
+					nextPanelSequence: presentations.length + 1,
 					nextPanelSlotSequence: 1,
 					nextSplitSequence: 1,
-					nextTerminalSequence: 2,
+					nextTerminalSequence: presentations.length + 1,
 					pendingRemovals: [],
-					tabs: [
-						{
-							root: {
-								childPresentations: [],
-								id: 'panel-1',
-								kind: 'panel',
-								primaryPresentation: {
-									intent: { kind: 'retain' },
-									launchCwd: '/retained',
-									presentationId: terminalPresentationId('presentation-retained'),
-									title: 'Retained',
-								},
-							},
-							tabId: 'terminal-context-1-tab-1',
+					tabs: presentations.map((presentation, index) => ({
+						root: {
+							childPresentations: [],
+							id: `panel-${index + 1}`,
+							kind: 'panel' as const,
+							primaryPresentation: presentation,
 						},
-					],
+						tabId: `tab-${index + 1}`,
+					})),
 				},
 				tabCollection: {
 					groups: [],
-					tabs: [
-						{
-							group: null,
-							id: 'terminal-context-1-tab-1',
-							pinned: false,
-							title: 'Retained',
-						},
-					],
+					tabs: presentations.map((presentation, index) => ({
+						group: null,
+						id: `tab-${index + 1}`,
+						pinned: false,
+						title: presentation.title,
+					})),
 				},
 				terminalContextId: 'terminal-context-1',
 			},

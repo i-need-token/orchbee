@@ -38,6 +38,7 @@
 		"@types/node": "catalog:",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
+		"fast-check": "4.9.0",
 		"storybook-react-rsbuild": "catalog:",
 		"vitest": "catalog:"
 	}

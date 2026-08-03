@@ -137,6 +137,11 @@ export type TerminalPresentationEvent =
 	| {
 			readonly operationId: TerminalPresentationOperationId;
 			readonly presentationId: TerminalPresentationId;
+			readonly type: 'terminal-restore-started';
+	  }
+	| {
+			readonly operationId: TerminalPresentationOperationId;
+			readonly presentationId: TerminalPresentationId;
 			readonly type: 'terminal-restore-completed';
 	  }
 	| {

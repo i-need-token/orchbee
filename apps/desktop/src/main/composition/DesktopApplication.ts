@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { constants } from 'node:os';
 
+import { createOrchbeeIntl, resolveOrchbeeLocale, workbenchTabMessages } from '@orchbee/i18n';
 import {
 	ClientIdSchema,
 	decodeControlJson,
@@ -9,7 +10,13 @@ import {
 	type DecodedProtocolEnvelope,
 	type TerminalExited,
 } from '@orchbee/terminal-protocol';
-import { TerminalPresentationIdSchema } from '@orchbee/workbench/terminal-presentation';
+import {
+	type TerminalPresentationIdSchema,
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+	type TerminalPresentationEvent,
+} from '@orchbee/workbench/terminal-presentation';
 import type {
 	WorkbenchSharedDocument,
 	WorkbenchSharedPanelNode,
@@ -24,22 +31,17 @@ import {
 } from 'electron';
 
 import {
-	TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
 	DESKTOP_APPLICATION_LIFETIME_IPC_CHANNEL,
+	DESKTOP_CLIENT_SESSION_IPC_CHANNEL,
 	TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
-	WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL,
-	TerminalDocumentControlBootstrapSchema,
 	DesktopApplicationExitRequestIdSchema,
 	DesktopApplicationLifetimeBootstrapSchema,
 	TerminalProjectionControlBootstrapSchema,
-	WorkbenchDocumentControlBootstrapSchema,
+	type DesktopClientSessionBootstrap,
 	type ProjectedAttachmentBootstrap,
 	type DesktopApplicationExitReason,
 	type DesktopApplicationExitRequestId,
 	type DesktopApplicationExitFailure,
-	type TerminalDocumentControlCommand,
-	type TerminalDocumentControlEvent,
-	type TerminalDocumentControlOperationResult,
 } from '../../shared';
 import {
 	DesktopApplicationLifetimeBroker,
@@ -48,25 +50,24 @@ import {
 	type DesktopApplicationLifetimeExitResult,
 } from '../application-lifetime';
 import { ProjectedTerminalBroker, type ProjectedTerminalBrokerMetrics } from '../broker';
-import { DevelopmentHostRuntime, type HostConnection } from '../host';
 import {
-	TerminalDocumentControlBroker,
-	type TerminalDocumentControlOperations,
-	type TerminalDocumentControlResultPosted,
-} from '../terminal-document-control';
+	DesktopClientSessionBroker,
+	DesktopClientSessionCoordinator,
+	DesktopTerminalIntentReconciler,
+	type DesktopClientSessionCoordinatorDependencies,
+	type DesktopTerminalIntentReconcilerDependencies,
+} from '../client-session';
+import { DevelopmentHostRuntime, type HostConnection } from '../host';
 import {
 	TerminalProjectionControlBroker,
 	type DesktopTerminalProjectionLease,
 } from '../terminal-projection-control';
-import {
-	FileWorkbenchDocumentStore,
-	WorkbenchDocumentControlBroker,
-	type WorkbenchDocumentStore,
-} from '../workbench-document';
+import { FileWorkbenchDocumentStore, type WorkbenchDocumentStore } from '../workbench-document';
 import {
 	composeDesktopTerminalRuntime,
 	type DesktopTerminalRuntime,
 } from './composeDesktopTerminalRuntime';
+import { createDesktopWorkbenchInitializationDocument } from './createDesktopWorkbenchInitializationDocument';
 import type { DesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 
 interface DesktopBrokerHandle {
@@ -75,21 +76,14 @@ interface DesktopBrokerHandle {
 	start(): void;
 }
 
-interface DesktopDocumentBrokerHandle {
-	dispose(): void;
-	publishTerminalExit(
-		event: Extract<TerminalDocumentControlEvent, { readonly type: 'terminal-exited' }>,
-	): boolean;
+interface DesktopClientSessionBrokerHandle {
+	readonly bootstrap: DesktopClientSessionBootstrap;
+	dispose(): Promise<void>;
 	start(): void;
 }
 
 interface DesktopProjectionControlBrokerHandle {
 	dispose(): Promise<void>;
-	start(): void;
-}
-
-interface DesktopWorkbenchDocumentBrokerHandle {
-	dispose(): void;
 	start(): void;
 }
 
@@ -123,11 +117,14 @@ export interface DesktopApplicationDependencies {
 		port: MessagePortMain,
 		dependencies: DesktopApplicationLifetimeBrokerDependencies,
 	) => DesktopApplicationLifetimeBrokerHandle;
-	readonly createDocumentBroker: (
+	readonly createClientSessionBroker: (
 		port: MessagePortMain,
-		operations: TerminalDocumentControlOperations,
-		resultPosted: TerminalDocumentControlResultPosted,
-	) => DesktopDocumentBrokerHandle;
+		coordinator: DesktopClientSessionCoordinator,
+		disposeAttachments: () => Promise<void>,
+	) => DesktopClientSessionBrokerHandle;
+	readonly createClientSessionCoordinator: (
+		dependencies: DesktopClientSessionCoordinatorDependencies,
+	) => DesktopClientSessionCoordinator;
 	readonly createMessageChannel: () => {
 		readonly port1: MessagePortMain;
 		readonly port2: MessagePortMain;
@@ -147,12 +144,12 @@ export interface DesktopApplicationDependencies {
 		createMessageChannel: DesktopApplicationDependencies['createMessageChannel'],
 		createBroker: DesktopApplicationDependencies['createBroker'],
 	) => DesktopTerminalRuntime;
-	readonly createWorkbenchDocumentBroker: (
-		port: MessagePortMain,
-		store: WorkbenchDocumentStore,
-	) => DesktopWorkbenchDocumentBrokerHandle;
+	readonly createTerminalIntentReconciler: (
+		dependencies: DesktopTerminalIntentReconcilerDependencies,
+	) => DesktopTerminalIntentReconciler;
 	readonly createWorkbenchDocumentStore: (filePath: string) => WorkbenchDocumentStore;
 	readonly createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
+	readonly getPreferredLocales: () => readonly string[];
 	readonly randomIdentifier: () => string;
 	readonly quitApplication: () => void;
 	readonly writeTrace: (trace: unknown) => void;
@@ -168,8 +165,10 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	createBroker: (host, port, bootstrap) => new ProjectedTerminalBroker(host, port, bootstrap),
 	createApplicationLifetimeBroker: (port, dependencies) =>
 		new DesktopApplicationLifetimeBroker(port, dependencies),
-	createDocumentBroker: (port, operations, resultPosted) =>
-		new TerminalDocumentControlBroker(port, operations, resultPosted),
+	createClientSessionBroker: (port, coordinator, disposeAttachments) =>
+		new DesktopClientSessionBroker(port, coordinator, { disposeAttachments }),
+	createClientSessionCoordinator: (dependencies) =>
+		new DesktopClientSessionCoordinator(dependencies),
 	createMessageChannel: () => new MessageChannelMain(),
 	createProjectionControlBroker: (port, service) =>
 		new TerminalProjectionControlBroker(port, service),
@@ -187,9 +186,11 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			host,
 			randomIdentifier,
 		}),
-	createWorkbenchDocumentBroker: (port, store) => new WorkbenchDocumentControlBroker(port, store),
+	createTerminalIntentReconciler: (dependencies) =>
+		new DesktopTerminalIntentReconciler(dependencies),
 	createWorkbenchDocumentStore: (filePath) => new FileWorkbenchDocumentStore(filePath),
 	createWindow: (options) => new BrowserWindow(options),
+	getPreferredLocales: () => app.getPreferredSystemLanguages(),
 	randomIdentifier: () => randomBytes(16).toString('hex'),
 	quitApplication: () => app.quit(),
 	writeTrace: (trace) => console.info(JSON.stringify(trace)),
@@ -197,10 +198,11 @@ const defaultDependencies: DesktopApplicationDependencies = {
 
 export class DesktopApplication {
 	#applicationLifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
+	#clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
+	#clientSessionCoordinator: DesktopClientSessionCoordinator | undefined;
 	readonly #dependencies: DesktopApplicationDependencies;
 	readonly #options: DesktopApplicationOptions;
 	#connection: HostConnection | undefined;
-	#documentBroker: DesktopDocumentBrokerHandle | undefined;
 	#documentFailure: Error | undefined;
 	#documentGeneration = 0;
 	#documentTransition = Promise.resolve();
@@ -210,8 +212,8 @@ export class DesktopApplication {
 	#removeHostListener: (() => void) | undefined;
 	#shuttingDown = false;
 	#terminalRuntime: DesktopTerminalRuntime | undefined;
+	#terminalIntentReconciler: DesktopTerminalIntentReconciler | undefined;
 	#window: BrowserWindow | undefined;
-	#workbenchDocumentBroker: DesktopWorkbenchDocumentBrokerHandle | undefined;
 	readonly #workbenchDocumentStore: WorkbenchDocumentStore;
 
 	constructor(
@@ -289,11 +291,69 @@ export class DesktopApplication {
 					`Desktop terminal runtime initialization stopped with ${initialization.kind}.`,
 				);
 			}
+			const defaultCwd = this.#options.runtime.terminalLaunch.currentDirectory;
+			if (defaultCwd === null) {
+				throw new Error('Desktop terminal runtime requires a default CWD.');
+			}
+			const initialPresentationId = terminalPresentationId(
+				`desktop:presentation:${this.#dependencies.randomIdentifier()}`,
+			);
+			const intl = createOrchbeeIntl(
+				resolveOrchbeeLocale(this.#dependencies.getPreferredLocales()),
+			);
+			const createOperationId = () =>
+				terminalPresentationOperationId(
+					`desktop:operation:${this.#dependencies.randomIdentifier()}`,
+				);
+			const initializationDocument = createDesktopWorkbenchInitializationDocument({
+				createOperationId,
+				createPresentationId: () =>
+					terminalPresentationId(`desktop:presentation:${this.#dependencies.randomIdentifier()}`),
+				createRemovalId: () =>
+					terminalPresentationRemovalId(`desktop:removal:${this.#dependencies.randomIdentifier()}`),
+				defaultCwd,
+				initialPresentationId,
+				recoveredPresentations: terminalRuntime.getRecoveredPresentations(),
+				terminalTitle: (sequence) =>
+					intl.formatMessage(workbenchTabMessages.terminalTitle, { number: sequence }),
+			});
+			const terminalIntentReconciler = this.#dependencies.createTerminalIntentReconciler({
+				createOperationId,
+				execute: async (command) => terminalRuntime.execute(command),
+				getTerminalExit: (presentationId) => {
+					const terminalExit = terminalRuntime.getProjectionTarget(presentationId)?.terminalExit;
+					return terminalExit === null || terminalExit === undefined
+						? null
+						: toDocumentExit(presentationId, terminalExit);
+				},
+			});
+			const clientSessionCoordinator = this.#dependencies.createClientSessionCoordinator({
+				createClientSessionId: () => `desktop:client:${this.#dependencies.randomIdentifier()}`,
+				defaultCwd,
+				getTerminalEvents: () => terminalIntentReconciler.getTerminalEvents(),
+				initialPresentationId,
+				initializationDocument,
+				reconcileDocument: (document, publish) =>
+					terminalIntentReconciler.reconcileDocument(document, publish),
+				store: this.#workbenchDocumentStore,
+				validateDocument: (document) => terminalIntentReconciler.validateDocument(document),
+			});
+			const coordinatorStart = await clientSessionCoordinator.start();
+			if (coordinatorStart.kind !== 'ready') {
+				throw new Error(
+					`Desktop client session coordinator stopped with ${coordinatorStart.reason}.`,
+				);
+			}
+			this.#terminalIntentReconciler = terminalIntentReconciler;
+			this.#clientSessionCoordinator = clientSessionCoordinator;
 			this.#removeHostListener = connection.onEnvelope(this.#handleHostEnvelope);
 			await this.openWindow();
 		} catch (error) {
 			this.#removeHostListener?.();
 			this.#removeHostListener = undefined;
+			await this.#clientSessionCoordinator?.dispose();
+			this.#clientSessionCoordinator = undefined;
+			this.#terminalIntentReconciler = undefined;
 			await this.#terminalRuntime?.dispose();
 			this.#terminalRuntime = undefined;
 			connection.close();
@@ -381,6 +441,9 @@ export class DesktopApplication {
 		this.#writeCopyPathTrace('main-shutdown');
 		this.#beginRendererDocument();
 		await this.#documentTransition;
+		await this.#clientSessionCoordinator?.dispose();
+		this.#clientSessionCoordinator = undefined;
+		this.#terminalIntentReconciler = undefined;
 		await this.#terminalRuntime?.dispose();
 		this.#connection?.close();
 		this.#connection = undefined;
@@ -391,15 +454,14 @@ export class DesktopApplication {
 		const generation = ++this.#documentGeneration;
 		this.#applicationLifetimeBroker?.dispose();
 		this.#applicationLifetimeBroker = undefined;
-		this.#documentBroker?.dispose();
-		this.#documentBroker = undefined;
-		this.#workbenchDocumentBroker?.dispose();
-		this.#workbenchDocumentBroker = undefined;
+		const clientSessionBroker = this.#clientSessionBroker;
+		this.#clientSessionBroker = undefined;
 		const projectionBroker = this.#projectionControlBroker;
 		this.#projectionControlBroker = undefined;
-		this.#documentTransition = this.#documentTransition.then(async () =>
-			projectionBroker?.dispose(),
-		);
+		this.#documentTransition = this.#documentTransition.then(async () => {
+			if (clientSessionBroker === undefined) await projectionBroker?.dispose();
+			else await clientSessionBroker.dispose();
+		});
 		return generation;
 	}
 
@@ -416,8 +478,10 @@ export class DesktopApplication {
 
 	#attachRendererDocument(window: BrowserWindow, generation: number): void {
 		const terminalRuntime = this.#terminalRuntime;
+		const clientSessionCoordinator = this.#clientSessionCoordinator;
 		if (
 			terminalRuntime === undefined ||
+			clientSessionCoordinator === undefined ||
 			this.#window !== window ||
 			window.isDestroyed() ||
 			generation !== this.#documentGeneration ||
@@ -425,48 +489,40 @@ export class DesktopApplication {
 		) {
 			return;
 		}
-		const defaultCwd = this.#options.runtime.terminalLaunch.currentDirectory;
-		if (defaultCwd === null) throw new Error('Desktop terminal runtime requires a default CWD.');
 		const lifetimeChannel = this.#dependencies.createMessageChannel();
-		const documentChannel = this.#dependencies.createMessageChannel();
+		const clientSessionChannel = this.#dependencies.createMessageChannel();
 		const projectionChannel = this.#dependencies.createMessageChannel();
-		const workbenchDocumentChannel = this.#dependencies.createMessageChannel();
-		const documentBroker = this.#dependencies.createDocumentBroker(
-			documentChannel.port2,
-			terminalRuntime,
-			this.#handleDocumentResultPosted,
-		);
 		const projectionBroker = this.#dependencies.createProjectionControlBroker(
 			projectionChannel.port2,
 			terminalRuntime,
 		);
-		const workbenchDocumentBroker = this.#dependencies.createWorkbenchDocumentBroker(
-			workbenchDocumentChannel.port2,
-			this.#workbenchDocumentStore,
+		const clientSessionBroker = this.#dependencies.createClientSessionBroker(
+			clientSessionChannel.port2,
+			clientSessionCoordinator,
+			async () => projectionBroker.dispose(),
 		);
 		const lifetimeBroker = this.#dependencies.createApplicationLifetimeBroker(
 			lifetimeChannel.port2,
-			{ drainForStop: this.#drainForApplicationStop },
+			{
+				drainForStop: this.#drainForApplicationStop,
+				prepareMode: (mode) =>
+					clientSessionCoordinator.beginQuiescing(
+						clientSessionBroker.bootstrap.clientSessionId,
+						mode,
+					),
+			},
 		);
 		this.#applicationLifetimeBroker = lifetimeBroker;
-		this.#documentBroker = documentBroker;
+		this.#clientSessionBroker = clientSessionBroker;
 		this.#projectionControlBroker = projectionBroker;
-		this.#workbenchDocumentBroker = workbenchDocumentBroker;
-		documentBroker.start();
+		clientSessionBroker.start();
 		lifetimeBroker.start();
 		projectionBroker.start();
-		workbenchDocumentBroker.start();
-		const documentBootstrap = TerminalDocumentControlBootstrapSchema.parse({
-			defaultCwd,
-			initialPresentationId: TerminalPresentationIdSchema.parse(
-				`desktop:presentation:${this.#dependencies.randomIdentifier()}`,
-			),
-			presentations: terminalRuntime.getRecoveredPresentations(),
-			type: TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL,
-		});
-		window.webContents.postMessage(TERMINAL_DOCUMENT_CONTROL_IPC_CHANNEL, documentBootstrap, [
-			documentChannel.port1,
-		]);
+		window.webContents.postMessage(
+			DESKTOP_CLIENT_SESSION_IPC_CHANNEL,
+			clientSessionBroker.bootstrap,
+			[clientSessionChannel.port1],
+		);
 		window.webContents.postMessage(
 			DESKTOP_APPLICATION_LIFETIME_IPC_CHANNEL,
 			DesktopApplicationLifetimeBootstrapSchema.parse({
@@ -481,38 +537,7 @@ export class DesktopApplication {
 			}),
 			[projectionChannel.port1],
 		);
-		window.webContents.postMessage(
-			WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL,
-			WorkbenchDocumentControlBootstrapSchema.parse({
-				type: WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL,
-			}),
-			[workbenchDocumentChannel.port1],
-		);
 	}
-
-	readonly #handleDocumentResultPosted = (
-		command: TerminalDocumentControlCommand,
-		result: TerminalDocumentControlOperationResult,
-	): void => {
-		if (
-			!(
-				(command.type === 'terminal-provision-requested' &&
-					result.type === 'terminal-provision-completed') ||
-				(command.type === 'terminal-restore-requested' &&
-					result.type === 'terminal-restore-completed')
-			)
-		) {
-			return;
-		}
-		const terminalExit = this.#terminalRuntime?.getProjectionTarget(
-			command.presentationId,
-		)?.terminalExit;
-		if (terminalExit !== null && terminalExit !== undefined) {
-			this.#documentBroker?.publishTerminalExit(
-				toDocumentExit(command.presentationId, terminalExit),
-			);
-		}
-	};
 
 	readonly #drainForApplicationStop = async (
 		documentRevision: WorkbenchSharedDocumentRevision,
@@ -530,7 +555,7 @@ export class DesktopApplication {
 		}));
 		if (loaded.kind !== 'available' || loaded.document.revision !== documentRevision) {
 			return {
-				failures: [typedExitFailure('workbench-document-control-unavailable', 1, true)],
+				failures: [typedExitFailure('shared-document-control-unavailable', 1, true)],
 				kind: 'failed',
 			};
 		}
@@ -579,7 +604,9 @@ export class DesktopApplication {
 		if (!exited.ok) return;
 		void this.#terminalRuntime?.recordExit(exited.value).then((presentationId) => {
 			if (presentationId === null) return;
-			this.#documentBroker?.publishTerminalExit(toDocumentExit(presentationId, exited.value));
+			const event = toDocumentExit(presentationId, exited.value);
+			if (this.#terminalIntentReconciler?.recordExternalEvent(event) !== true) return;
+			this.#clientSessionCoordinator?.publishTerminalEvent(event);
 			this.#writeCopyPathTrace('terminal-exited');
 		});
 	};
@@ -626,7 +653,7 @@ function typedExitFailure(
 function toDocumentExit(
 	presentationId: Parameters<DesktopTerminalRuntime['getProjectionTarget']>[0],
 	exited: TerminalExited,
-): Extract<TerminalDocumentControlEvent, { readonly type: 'terminal-exited' }> {
+): Extract<TerminalPresentationEvent, { readonly type: 'terminal-exited' }> {
 	if (exited.exit.kind === 'exit-code') {
 		return { exitCode: exited.exit.code, presentationId, signal: null, type: 'terminal-exited' };
 	}

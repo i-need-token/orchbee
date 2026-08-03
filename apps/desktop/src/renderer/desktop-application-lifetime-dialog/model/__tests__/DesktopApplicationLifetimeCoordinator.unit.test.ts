@@ -64,6 +64,16 @@ function createHarness(sessionCount = 2) {
 	});
 	return {
 		commands,
+		acknowledgeMode(
+			requestId: ReturnType<typeof DesktopApplicationExitRequestIdSchema.parse>,
+			mode: 'preserve' | 'stop',
+		) {
+			lifetimeListener?.({
+				mode,
+				requestId,
+				type: 'desktop-application-exit-mode-accepted',
+			});
+		},
 		coordinator,
 		emitLifetime(event: DesktopApplicationLifetimeMainEvent) {
 			lifetimeListener?.(event);
@@ -95,6 +105,8 @@ describe('DesktopApplicationLifetimeCoordinator', () => {
 		});
 
 		harness.coordinator.choose('preserve');
+		expect(harness.document.flush).not.toHaveBeenCalled();
+		harness.acknowledgeMode(requestId, 'preserve');
 		await vi.waitFor(() =>
 			expect(harness.commands).toContainEqual({
 				mode: 'preserve',
@@ -116,6 +128,8 @@ describe('DesktopApplicationLifetimeCoordinator', () => {
 			type: 'desktop-application-exit-requested',
 		});
 		harness.coordinator.choose('stop');
+		expect(harness.runtime.requestAllTerminalSessionsStop).not.toHaveBeenCalled();
+		harness.acknowledgeMode(requestId, 'stop');
 		await vi.waitFor(() => expect(harness.document.flush).toHaveBeenCalledOnce());
 		expect(
 			harness.commands.some(
@@ -150,6 +164,8 @@ describe('DesktopApplicationLifetimeCoordinator', () => {
 			requestId,
 			type: 'desktop-application-exit-requested',
 		});
+		expect(harness.document.flush).not.toHaveBeenCalled();
+		harness.acknowledgeMode(requestId, 'preserve');
 
 		await vi.waitFor(() =>
 			expect(harness.commands).toContainEqual(
@@ -172,6 +188,7 @@ describe('DesktopApplicationLifetimeCoordinator', () => {
 			requestId,
 			type: 'desktop-application-exit-requested',
 		});
+		harness.acknowledgeMode(requestId, 'preserve');
 
 		await vi.waitFor(() =>
 			expect(harness.commands).toContainEqual(

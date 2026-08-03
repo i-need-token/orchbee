@@ -7,14 +7,12 @@ import {
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
 import type {
+	TerminalPresentationCommand,
+	TerminalPresentationEvent,
 	TerminalPresentationFailure,
 	TerminalPresentationId,
 } from '@orchbee/workbench/terminal-presentation';
 
-import type {
-	TerminalDocumentControlCommand,
-	TerminalDocumentControlOperationResult,
-} from '../../shared';
 import {
 	TerminalBindingIdSchema,
 	type TerminalBinding,
@@ -27,20 +25,26 @@ import type {
 	TerminalCloseOutcome,
 	TerminalExitDisposition,
 } from '../terminal-lifetime';
-import type { TerminalDocumentControlOperations } from './TerminalDocumentControlBroker';
-
 type ProvisionCommand = Extract<
-	TerminalDocumentControlCommand,
+	TerminalPresentationCommand,
 	{ readonly type: 'terminal-provision-requested' }
 >;
 type RestoreCommand = Extract<
-	TerminalDocumentControlCommand,
+	TerminalPresentationCommand,
 	{ readonly type: 'terminal-restore-requested' }
 >;
 type CloseCommand = Extract<
-	TerminalDocumentControlCommand,
+	TerminalPresentationCommand,
 	{ readonly type: 'terminal-close-requested' }
 >;
+type TerminalOperationResult = Exclude<
+	TerminalPresentationEvent,
+	{ readonly type: 'terminal-exited' | 'terminal-restore-started' }
+>;
+
+export interface DesktopTerminalLifecycleOperations {
+	execute(command: TerminalPresentationCommand): Promise<TerminalOperationResult>;
+}
 
 export interface DesktopTerminalBindingLifecyclePort {
 	reconcile(): Promise<TerminalBindingLifecycleOutcome>;
@@ -105,7 +109,7 @@ export interface DesktopTerminalBindingDrainResult {
 	readonly failures: readonly DesktopTerminalBindingDrainFailure[];
 }
 
-export class DesktopTerminalLifecycleAdapter implements TerminalDocumentControlOperations {
+export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycleOperations {
 	readonly #allocateFreshBindingId: () => string;
 	readonly #createBindingLifecycle: DesktopTerminalLifecycleAdapterDependencies['createBindingLifecycle'];
 	readonly #entries = new Map<TerminalPresentationId, BindingEntry>();
@@ -233,9 +237,7 @@ export class DesktopTerminalLifecycleAdapter implements TerminalDocumentControlO
 		return entry.retired ? null : presentationId;
 	}
 
-	async execute(
-		command: TerminalDocumentControlCommand,
-	): Promise<TerminalDocumentControlOperationResult> {
+	async execute(command: TerminalPresentationCommand): Promise<TerminalOperationResult> {
 		const initialization = await this.initialize();
 		if (initialization.kind !== 'ready') {
 			const mappedFailure =
@@ -291,7 +293,7 @@ export class DesktopTerminalLifecycleAdapter implements TerminalDocumentControlO
 		return { kind: 'ready' };
 	}
 
-	#executeProvision(command: ProvisionCommand): Promise<TerminalDocumentControlOperationResult> {
+	#executeProvision(command: ProvisionCommand): Promise<TerminalOperationResult> {
 		if (this.#retiredPresentations.has(command.presentationId)) {
 			return Promise.resolve(
 				provisionFailed(command, failure('terminal-presentation-retired', false)),
@@ -380,7 +382,7 @@ export class DesktopTerminalLifecycleAdapter implements TerminalDocumentControlO
 		});
 	}
 
-	#executeRestore(command: RestoreCommand): Promise<TerminalDocumentControlOperationResult> {
+	#executeRestore(command: RestoreCommand): Promise<TerminalOperationResult> {
 		if (this.#retiredPresentations.has(command.presentationId)) {
 			return Promise.resolve(
 				restoreFailed(command, failure('terminal-presentation-retired', false)),
@@ -423,7 +425,7 @@ export class DesktopTerminalLifecycleAdapter implements TerminalDocumentControlO
 		});
 	}
 
-	#executeClose(command: CloseCommand): Promise<TerminalDocumentControlOperationResult> {
+	#executeClose(command: CloseCommand): Promise<TerminalOperationResult> {
 		if (this.#retiredPresentations.has(command.presentationId)) {
 			return Promise.resolve(closeCompleted(command));
 		}
@@ -574,7 +576,7 @@ function failure(code: string, retryable: boolean): TerminalPresentationFailure 
 	return { code, retryable };
 }
 
-function provisionCompleted(command: ProvisionCommand): TerminalDocumentControlOperationResult {
+function provisionCompleted(command: ProvisionCommand): TerminalOperationResult {
 	return {
 		operationId: command.operationId,
 		presentationId: command.presentationId,
@@ -585,7 +587,7 @@ function provisionCompleted(command: ProvisionCommand): TerminalDocumentControlO
 function provisionFailed(
 	command: ProvisionCommand,
 	failureValue: TerminalPresentationFailure,
-): TerminalDocumentControlOperationResult {
+): TerminalOperationResult {
 	return {
 		failure: failureValue,
 		operationId: command.operationId,
@@ -594,7 +596,7 @@ function provisionFailed(
 	};
 }
 
-function restoreCompleted(command: RestoreCommand): TerminalDocumentControlOperationResult {
+function restoreCompleted(command: RestoreCommand): TerminalOperationResult {
 	return {
 		operationId: command.operationId,
 		presentationId: command.presentationId,
@@ -605,7 +607,7 @@ function restoreCompleted(command: RestoreCommand): TerminalDocumentControlOpera
 function restoreFailed(
 	command: RestoreCommand,
 	failureValue: TerminalPresentationFailure,
-): TerminalDocumentControlOperationResult {
+): TerminalOperationResult {
 	return {
 		failure: failureValue,
 		operationId: command.operationId,
@@ -614,7 +616,7 @@ function restoreFailed(
 	};
 }
 
-function closeCompleted(command: CloseCommand): TerminalDocumentControlOperationResult {
+function closeCompleted(command: CloseCommand): TerminalOperationResult {
 	return {
 		operationId: command.operationId,
 		presentationId: command.presentationId,
@@ -625,7 +627,7 @@ function closeCompleted(command: CloseCommand): TerminalDocumentControlOperation
 function closeFailed(
 	command: CloseCommand,
 	failureValue: TerminalPresentationFailure,
-): TerminalDocumentControlOperationResult {
+): TerminalOperationResult {
 	return {
 		failure: failureValue,
 		operationId: command.operationId,
@@ -635,9 +637,9 @@ function closeFailed(
 }
 
 function operationFailed(
-	command: TerminalDocumentControlCommand,
+	command: TerminalPresentationCommand,
 	failureValue: TerminalPresentationFailure,
-): TerminalDocumentControlOperationResult {
+): TerminalOperationResult {
 	switch (command.type) {
 		case 'terminal-provision-requested':
 			return provisionFailed(command, failureValue);

@@ -5,7 +5,7 @@ import {
 } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { TerminalDocumentControlCommand } from '../../../shared';
+import type { TerminalPresentationCommand } from '@orchbee/workbench/terminal-presentation';
 import { resolveDesktopRuntimeConfiguration } from '../../composition';
 import { TerminalBindingIdSchema, type TerminalBinding } from '../../recovery';
 import { DesktopTerminalBindingRegistry } from '../../terminal-binding-registry';
@@ -29,7 +29,7 @@ function provisionCommand(
 	presentation = 'presentation-1',
 	operation = 'provision-1',
 	launchCwd: string | null = '/workspace/orchbee',
-): TerminalDocumentControlCommand {
+): TerminalPresentationCommand {
 	return {
 		launchCwd,
 		operationId: terminalPresentationOperationId(operation),
@@ -41,7 +41,7 @@ function provisionCommand(
 function closeCommand(
 	presentation = 'presentation-1',
 	operation = 'close-1',
-): TerminalDocumentControlCommand {
+): TerminalPresentationCommand {
 	return {
 		operationId: terminalPresentationOperationId(operation),
 		presentationId: terminalPresentationId(presentation),
@@ -53,7 +53,7 @@ function restoreCommand(
 	presentation = 'presentation-1',
 	operation = 'restore-1',
 	launchCwd: string | null = '/workspace/orchbee',
-): TerminalDocumentControlCommand {
+): TerminalPresentationCommand {
 	return {
 		launchCwd,
 		operationId: terminalPresentationOperationId(operation),

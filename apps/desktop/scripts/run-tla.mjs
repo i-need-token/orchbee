@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -51,41 +52,49 @@ async function provisionJar() {
 async function runTlc(modelName) {
 	const modelPath = path.join(applicationRoot, 'formal', 'tla', `${modelName}.tla`);
 	const configPath = path.join(applicationRoot, 'formal', 'tla', `${modelName}.cfg`);
-	const child = spawn(
-		'java',
-		[
-			'-XX:+UseParallelGC',
-			'-jar',
-			jarPath,
-			'-fp',
-			'0',
-			'-workers',
-			'1',
-			'-config',
-			configPath,
-			modelPath,
-		],
-		{ cwd: applicationRoot, stdio: 'inherit' },
-	);
-	await new Promise((resolve, reject) => {
-		child.once('error', reject);
-		child.once('exit', (code, signal) => {
-			if (signal) {
-				reject(new Error(`TLC terminated by ${signal}`));
-				return;
-			}
-			if (code !== 0) {
-				reject(new Error(`TLC exited with status ${code}`));
-				return;
-			}
-			resolve();
+	const modelDirectory = await mkdtemp(path.join(tmpdir(), `orchbee-tla-${modelName}-`));
+	try {
+		const child = spawn(
+			'java',
+			[
+				'-XX:+UseParallelGC',
+				'-jar',
+				jarPath,
+				'-fp',
+				'0',
+				'-workers',
+				'1',
+				'-metadir',
+				modelDirectory,
+				'-config',
+				configPath,
+				modelPath,
+			],
+			{ cwd: applicationRoot, stdio: 'inherit' },
+		);
+		await new Promise((resolve, reject) => {
+			child.once('error', reject);
+			child.once('exit', (code, signal) => {
+				if (signal) {
+					reject(new Error(`TLC terminated by ${signal}`));
+					return;
+				}
+				if (code !== 0) {
+					reject(new Error(`TLC exited with status ${code}`));
+					return;
+				}
+				resolve();
+			});
 		});
-	});
+	} finally {
+		await rm(modelDirectory, { force: true, recursive: true });
+	}
 }
 
 await provisionJar();
 for (const modelName of [
 	'DesktopApplicationLifetime',
+	'DesktopMultiClientSession',
 	'DesktopTerminalLifecycleAdapter',
 	'DesktopWorkbenchDocumentStore',
 	'DesktopWorkbenchWriteAhead',

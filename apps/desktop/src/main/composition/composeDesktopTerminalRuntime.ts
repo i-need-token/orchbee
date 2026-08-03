@@ -12,8 +12,8 @@ import {
 	type DesktopTerminalBindingDrainResult,
 	type DesktopRecoveredTerminalPresentation,
 	type DesktopTerminalLifecycleAdapterInitialization,
+	type DesktopTerminalLifecycleOperations,
 	type DesktopTerminalProjectionTarget,
-	type TerminalDocumentControlOperations,
 } from '../terminal-document-control';
 import {
 	DesktopTerminalProjectionService,
@@ -22,7 +22,7 @@ import {
 } from '../terminal-projection-control';
 import type { DesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 
-export interface DesktopTerminalRuntime extends TerminalDocumentControlOperations {
+export interface DesktopTerminalRuntime extends DesktopTerminalLifecycleOperations {
 	closeBindingsNotReferencedBy(
 		referencedPresentationIds: ReadonlySet<TerminalPresentationId>,
 	): Promise<DesktopTerminalBindingDrainResult>;

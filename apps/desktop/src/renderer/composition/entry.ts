@@ -3,11 +3,10 @@ import '@orchbee/tab-strip/styles.css';
 import '@orchbee/workbench/styles.css';
 
 import {
+	DesktopClientSessionWindowMessageSchema,
 	DesktopApplicationLifetimeWindowMessageSchema,
-	TerminalDocumentControlWindowMessageSchema,
 	TerminalProjectionControlWindowMessageSchema,
-	WorkbenchDocumentControlWindowMessageSchema,
-	type TerminalDocumentControlBootstrap,
+	type DesktopClientSessionBootstrap,
 } from '../../shared';
 import { resolveDesktopShortcutPlatform } from '../terminal-actions';
 import {
@@ -15,38 +14,37 @@ import {
 	type DesktopWorkbenchRendererSession,
 } from './startDesktopWorkbenchRenderer';
 
-interface DocumentControlReady {
-	readonly bootstrap: TerminalDocumentControlBootstrap;
+interface ClientSessionReady {
+	readonly bootstrap: DesktopClientSessionBootstrap;
 	readonly port: MessagePort;
 }
 
-let documentControl: DocumentControlReady | undefined;
+let clientSession: ClientSessionReady | undefined;
 let lifetimeControlPort: MessagePort | undefined;
 let projectionControlPort: MessagePort | undefined;
 let session: DesktopWorkbenchRendererSession | undefined;
-let workbenchDocumentControlPort: MessagePort | undefined;
 
 window.addEventListener('message', (event) => {
 	if (event.source !== window || event.ports.length !== 1 || session !== undefined) return;
 	const port = event.ports[0];
 	if (port === undefined) return;
-	const documentMessage = TerminalDocumentControlWindowMessageSchema.safeParse(event.data);
-	if (documentMessage.success) {
+	const clientSessionMessage = DesktopClientSessionWindowMessageSchema.safeParse(event.data);
+	if (clientSessionMessage.success) {
 		if (
-			documentControl !== undefined ||
-			!documentMessage.data.security.contextIsolated ||
-			!documentMessage.data.security.sandboxed
+			clientSession !== undefined ||
+			!clientSessionMessage.data.security.contextIsolated ||
+			!clientSessionMessage.data.security.sandboxed
 		) {
 			port.close();
 			return;
 		}
-		documentControl = { bootstrap: documentMessage.data.bootstrap, port };
+		clientSession = { bootstrap: clientSessionMessage.data.bootstrap, port };
 		const root = document.querySelector('#root');
 		if (root instanceof HTMLElement) {
 			root.dataset['desktopContextIsolated'] = String(
-				documentMessage.data.security.contextIsolated,
+				clientSessionMessage.data.security.contextIsolated,
 			);
-			root.dataset['desktopSandboxed'] = String(documentMessage.data.security.sandboxed);
+			root.dataset['desktopSandboxed'] = String(clientSessionMessage.data.security.sandboxed);
 		}
 	} else {
 		const lifetimeMessage = DesktopApplicationLifetimeWindowMessageSchema.safeParse(event.data);
@@ -73,36 +71,23 @@ window.addEventListener('message', (event) => {
 				}
 				projectionControlPort = port;
 			} else {
-				const workbenchDocumentMessage = WorkbenchDocumentControlWindowMessageSchema.safeParse(
-					event.data,
-				);
-				if (
-					!workbenchDocumentMessage.success ||
-					workbenchDocumentControlPort !== undefined ||
-					!workbenchDocumentMessage.data.security.contextIsolated ||
-					!workbenchDocumentMessage.data.security.sandboxed
-				) {
-					port.close();
-					return;
-				}
-				workbenchDocumentControlPort = port;
+				port.close();
+				return;
 			}
 		}
 	}
 	if (
-		documentControl === undefined ||
+		clientSession === undefined ||
 		lifetimeControlPort === undefined ||
-		projectionControlPort === undefined ||
-		workbenchDocumentControlPort === undefined
+		projectionControlPort === undefined
 	) {
 		return;
 	}
 	const root = document.querySelector('#root');
 	if (!(root instanceof HTMLElement)) {
-		documentControl.port.close();
+		clientSession.port.close();
 		lifetimeControlPort.close();
 		projectionControlPort.close();
-		workbenchDocumentControlPort.close();
 		return;
 	}
 	session = startDesktopWorkbenchRenderer(
@@ -111,18 +96,16 @@ window.addEventListener('message', (event) => {
 		navigator.languages,
 		resolveDesktopShortcutPlatform(navigator.platform),
 		window.localStorage,
-		documentControl.bootstrap,
+		clientSession.bootstrap,
 		lifetimeControlPort,
-		documentControl.port,
+		clientSession.port,
 		projectionControlPort,
-		workbenchDocumentControlPort,
 	);
 });
 
 window.addEventListener('unload', () => {
 	session?.dispose();
-	documentControl?.port.close();
+	clientSession?.port.close();
 	lifetimeControlPort?.close();
 	projectionControlPort?.close();
-	workbenchDocumentControlPort?.close();
 });

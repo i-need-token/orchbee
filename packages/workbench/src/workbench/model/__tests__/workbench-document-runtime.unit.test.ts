@@ -111,6 +111,26 @@ describe('Workbench document runtime', () => {
 				lifecycle: { kind: 'restoring' },
 			},
 		});
+
+		const restoreOperationId = terminalPresentationOperationId('main:restore:1');
+		expect(
+			restored.applyTerminalPresentationEvent({
+				operationId: restoreOperationId,
+				presentationId: provision.presentationId,
+				type: 'terminal-restore-started',
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(restoredCommands).toEqual([]);
+		expect(
+			restored.applyTerminalPresentationEvent({
+				operationId: restoreOperationId,
+				presentationId: provision.presentationId,
+				type: 'terminal-restore-completed',
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(
+			restored.getActiveTerminalContext().panelWorkspaceStore.getSnapshot().tabs[0]?.root,
+		).toMatchObject({ primaryPresentation: { lifecycle: { kind: 'running' } } });
 	});
 
 	it('preserves a durable close intent and its exact pending removal', () => {

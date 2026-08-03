@@ -24,8 +24,10 @@ describe('DesktopApplicationLifetimeBroker', () => {
 	it('coalesces duplicate requests and prepares preserve without draining', async () => {
 		const port = new TestMainPort();
 		const drainForStop = vi.fn<DesktopApplicationLifetimeBrokerDependencies['drainForStop']>();
+		const prepareMode = vi.fn<(mode: 'preserve' | 'stop') => boolean>().mockReturnValue(true);
 		const broker = new DesktopApplicationLifetimeBroker(port as unknown as MessagePortMain, {
 			drainForStop,
+			prepareMode,
 		});
 		broker.start();
 		const requestId = DesktopApplicationExitRequestIdSchema.parse('exit-1');
@@ -36,6 +38,16 @@ describe('DesktopApplicationLifetimeBroker', () => {
 		);
 		expect(first).toBe(duplicate);
 		expect(port.postMessage).toHaveBeenCalledTimes(1);
+		port.emit(
+			'message',
+			message({ choice: 'preserve', requestId, type: 'desktop-application-exit-choice' }),
+		);
+		expect(prepareMode).toHaveBeenCalledWith('preserve');
+		expect(port.postMessage).toHaveBeenLastCalledWith({
+			mode: 'preserve',
+			requestId,
+			type: 'desktop-application-exit-mode-accepted',
+		});
 
 		port.emit(
 			'message',
@@ -63,10 +75,15 @@ describe('DesktopApplicationLifetimeBroker', () => {
 			.mockResolvedValueOnce({ closedUnreferencedCount: 1, kind: 'completed' });
 		const broker = new DesktopApplicationLifetimeBroker(port as unknown as MessagePortMain, {
 			drainForStop,
+			prepareMode: () => true,
 		});
 		broker.start();
 		const requestId = DesktopApplicationExitRequestIdSchema.parse('exit-stop');
 		const result = broker.requestExit(requestId, 'user-quit');
+		port.emit(
+			'message',
+			message({ choice: 'stop', requestId, type: 'desktop-application-exit-choice' }),
+		);
 		port.emit(
 			'message',
 			message({

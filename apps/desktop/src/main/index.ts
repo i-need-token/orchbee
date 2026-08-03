@@ -15,11 +15,10 @@ export type {
 export {
 	composeDesktopTerminalLifecycleAdapter,
 	DesktopTerminalLifecycleAdapter,
-	TerminalDocumentControlBroker,
 } from './terminal-document-control';
 export type {
 	DesktopTerminalBindingLifecyclePort,
 	DesktopTerminalLifecycleAdapterComposition,
 	DesktopTerminalLifecycleAdapterDependencies,
-	TerminalDocumentControlOperations,
+	DesktopTerminalLifecycleOperations,
 } from './terminal-document-control';

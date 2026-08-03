@@ -63,11 +63,13 @@ class DesktopTerminalProjectionError extends Error {
 interface ActiveLease {
 	readonly dispose: () => Promise<void>;
 	readonly metrics: ProjectedTerminalBrokerMetrics;
+	readonly ownsResize: boolean;
 }
 
 export class DesktopTerminalProjectionService {
 	readonly #activeLeases = new Map<TerminalPresentationId, Set<ActiveLease>>();
 	readonly #dependencies: DesktopTerminalProjectionServiceDependencies;
+	readonly #openTails = new Map<TerminalPresentationId, Promise<void>>();
 	readonly #retirementGenerations = new Map<TerminalPresentationId, number>();
 	#disposed = false;
 
@@ -76,23 +78,52 @@ export class DesktopTerminalProjectionService {
 	}
 
 	async open(presentationId: TerminalPresentationId): Promise<DesktopTerminalProjectionLease> {
+		const previous = this.#openTails.get(presentationId) ?? Promise.resolve();
+		const operation = previous.then(async () => this.#openSerialized(presentationId));
+		const tail = operation.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.#openTails.set(presentationId, tail);
+		void tail.then(() => {
+			if (this.#openTails.get(presentationId) === tail) {
+				this.#openTails.delete(presentationId);
+			}
+		});
+		return operation;
+	}
+
+	async #openSerialized(
+		presentationId: TerminalPresentationId,
+	): Promise<DesktopTerminalProjectionLease> {
 		if (this.#disposed) throw projectionError('terminal-projection-unavailable', true);
 		const target = this.#dependencies.getProjectionTarget(presentationId);
 		if (target === null) throw projectionError('terminal-presentation-not-ready', true);
 		const retirementGeneration = this.#retirementGenerations.get(presentationId) ?? 0;
 		const attachmentId = AttachmentIdSchema.parse(this.#dependencies.randomAttachmentId());
+		const requestResizeLease =
+			!target.readOnly &&
+			![...(this.#activeLeases.get(presentationId) ?? [])].some((lease) => lease.ownsResize);
 		const capabilities = await this.#dependencies.host.requestControl(
 			MessageKind.attachTerminal,
 			AttachTerminalSchema.parse({
 				attachmentId,
-				capabilities: { input: !target.readOnly, read: true, resize: !target.readOnly },
-				requestResizeLease: !target.readOnly,
+				capabilities: { input: !target.readOnly, read: true, resize: requestResizeLease },
+				requestResizeLease,
 				terminalId: target.identity.terminalId,
 			}),
 			MessageKind.attachmentCapabilities,
 			AttachmentCapabilitiesSchema,
 		);
-		if (!capabilitiesMatch(attachmentId, target.identity, target.readOnly, capabilities)) {
+		if (
+			!capabilitiesMatch(
+				attachmentId,
+				target.identity,
+				!target.readOnly,
+				requestResizeLease,
+				capabilities,
+			)
+		) {
 			await this.#dependencies.host
 				.requestControl(
 					MessageKind.detachTerminal,
@@ -133,6 +164,7 @@ export class DesktopTerminalProjectionService {
 			get metrics() {
 				return broker.metrics;
 			},
+			ownsResize: bootstrap.canResize,
 		};
 		if (
 			this.#disposed ||
@@ -166,6 +198,7 @@ export class DesktopTerminalProjectionService {
 			presentationId,
 			(this.#retirementGenerations.get(presentationId) ?? 0) + 1,
 		);
+		await this.#openTails.get(presentationId);
 		const leases = [...(this.#activeLeases.get(presentationId) ?? [])];
 		await Promise.all(leases.map(async (lease) => lease.dispose()));
 	}
@@ -173,6 +206,7 @@ export class DesktopTerminalProjectionService {
 	async dispose(): Promise<void> {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		await Promise.all(this.#openTails.values());
 		const leases = [...this.#activeLeases.values()].flatMap((active) => [...active]);
 		await Promise.all(leases.map(async (lease) => lease.dispose()));
 	}
@@ -181,20 +215,17 @@ export class DesktopTerminalProjectionService {
 function capabilitiesMatch(
 	attachmentId: ReturnType<typeof AttachmentIdSchema.parse>,
 	identity: TerminalIdentity,
-	readOnly: boolean,
+	canInput: boolean,
+	requestedResizeLease: boolean,
 	capabilities: ReturnType<typeof AttachmentCapabilitiesSchema.parse>,
 ): boolean {
 	return (
 		capabilities.attachmentId === attachmentId &&
 		capabilities.terminalId === identity.terminalId &&
 		capabilities.capabilities.read &&
-		(readOnly
-			? !capabilities.capabilities.input &&
-				!capabilities.capabilities.resize &&
-				!capabilities.resizeLease
-			: capabilities.capabilities.input &&
-				capabilities.capabilities.resize &&
-				capabilities.resizeLease)
+		capabilities.capabilities.input === canInput &&
+		capabilities.capabilities.resize === requestedResizeLease &&
+		capabilities.resizeLease === requestedResizeLease
 	);
 }
 

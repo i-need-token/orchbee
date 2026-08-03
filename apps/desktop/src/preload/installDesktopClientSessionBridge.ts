@@ -1,35 +1,36 @@
 import type { IpcRendererEvent } from 'electron';
 
 import {
-	WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL,
-	WORKBENCH_DOCUMENT_CONTROL_WINDOW_MESSAGE,
-	WorkbenchDocumentControlBootstrapSchema,
-	WorkbenchDocumentControlWindowMessageSchema,
+	DESKTOP_CLIENT_SESSION_IPC_CHANNEL,
+	DESKTOP_CLIENT_SESSION_WINDOW_MESSAGE,
+	DesktopClientSessionBootstrapSchema,
+	DesktopClientSessionWindowMessageSchema,
 } from '../shared';
 
-export interface WorkbenchDocumentControlIpc {
+export interface DesktopClientSessionIpc {
 	once(channel: string, listener: (event: IpcRendererEvent, value: unknown) => void): void;
 }
 
-export interface WorkbenchDocumentControlWindow {
+export interface DesktopClientSessionWindow {
 	readonly location: Pick<Location, 'origin'>;
 	postMessage(message: unknown, targetOrigin: string, transfer: Transferable[]): void;
 }
 
-export function installWorkbenchDocumentControlBridge(
-	ipc: WorkbenchDocumentControlIpc,
-	targetWindow: WorkbenchDocumentControlWindow,
+export function installDesktopClientSessionBridge(
+	ipc: DesktopClientSessionIpc,
+	targetWindow: DesktopClientSessionWindow,
 	security: { readonly contextIsolated: boolean; readonly sandboxed: boolean },
 ): void {
-	ipc.once(WORKBENCH_DOCUMENT_CONTROL_IPC_CHANNEL, (event, value) => {
-		const bootstrap = WorkbenchDocumentControlBootstrapSchema.safeParse(value);
+	ipc.once(DESKTOP_CLIENT_SESSION_IPC_CHANNEL, (event, value) => {
+		const bootstrap = DesktopClientSessionBootstrapSchema.safeParse(value);
 		if (!bootstrap.success || event.ports.length !== 1) return;
 		const port = event.ports[0];
 		if (port === undefined) return;
 		targetWindow.postMessage(
-			WorkbenchDocumentControlWindowMessageSchema.parse({
+			DesktopClientSessionWindowMessageSchema.parse({
+				bootstrap: bootstrap.data,
 				security,
-				type: WORKBENCH_DOCUMENT_CONTROL_WINDOW_MESSAGE,
+				type: DESKTOP_CLIENT_SESSION_WINDOW_MESSAGE,
 			}),
 			targetWindow.location.origin === 'null' ? '*' : targetWindow.location.origin,
 			[port],

@@ -55,6 +55,13 @@ export class DesktopApplicationLifetimeCoordinator {
 	#disposed = false;
 	readonly #lifetimePort: LifetimePort;
 	readonly #listeners = new Set<Listener>();
+	#pendingMode:
+		| {
+				readonly bestEffort: boolean;
+				readonly mode: 'preserve' | 'stop';
+				readonly requestId: DesktopApplicationExitRequestId;
+		  }
+		| undefined;
 	#preparingStop = false;
 	readonly #runtime: LifetimeRuntime;
 	#state: DesktopApplicationLifetimeState = { kind: 'idle' };
@@ -82,17 +89,13 @@ export class DesktopApplicationLifetimeCoordinator {
 	choose(choice: DesktopApplicationExitChoice): void {
 		if (this.#state.kind !== 'awaiting-choice' || this.#disposed) return;
 		const { requestId } = this.#state;
-		this.#post({ choice, requestId, type: 'desktop-application-exit-choice' });
 		if (choice === 'cancel') {
+			this.#post({ choice, requestId, type: 'desktop-application-exit-choice' });
 			this.#post({ requestId, type: 'desktop-application-exit-cancelled' });
 			this.#setState({ kind: 'idle' });
 			return;
 		}
-		if (choice === 'preserve') {
-			void this.#preparePreserve(requestId, false);
-			return;
-		}
-		void this.#beginStop(requestId);
+		this.#requestMode(requestId, choice, false);
 	}
 
 	retry(): void {
@@ -122,6 +125,7 @@ export class DesktopApplicationLifetimeCoordinator {
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#pendingMode = undefined;
 		this.#unsubscribeLifetime();
 		this.#unsubscribeDocument();
 		this.#listeners.clear();
@@ -132,10 +136,11 @@ export class DesktopApplicationLifetimeCoordinator {
 		if (event.type === 'desktop-application-exit-requested') {
 			if (this.#state.kind !== 'idle') return;
 			this.#stopDurableRevision = null;
+			this.#pendingMode = undefined;
 			const stopSnapshot = this.#runtime.getTerminalSessionStopSnapshot();
 			const sessionCount = stopSnapshot.presentationCount - stopSnapshot.stoppedCount;
 			if (event.reason === 'update-restart' || sessionCount === 0) {
-				void this.#preparePreserve(event.requestId, event.reason === 'update-restart');
+				this.#requestMode(event.requestId, 'preserve', event.reason === 'update-restart');
 				return;
 			}
 			this.#setState({ kind: 'awaiting-choice', requestId: event.requestId, sessionCount });
@@ -148,6 +153,23 @@ export class DesktopApplicationLifetimeCoordinator {
 			return;
 		}
 		if (this.#state.kind === 'idle' || event.requestId !== this.#state.requestId) return;
+		if (event.type === 'desktop-application-exit-mode-accepted') {
+			const pending = this.#pendingMode;
+			if (
+				pending === undefined ||
+				pending.requestId !== event.requestId ||
+				pending.mode !== event.mode
+			) {
+				return;
+			}
+			this.#pendingMode = undefined;
+			if (event.mode === 'preserve') {
+				void this.#preparePreserve(event.requestId, pending.bestEffort);
+			} else {
+				void this.#beginStop(event.requestId);
+			}
+			return;
+		}
 		if (event.result.kind === 'completed') {
 			this.#setState({ kind: 'exiting', requestId: event.requestId });
 			return;
@@ -160,6 +182,23 @@ export class DesktopApplicationLifetimeCoordinator {
 		});
 	};
 
+	#requestMode(
+		requestId: DesktopApplicationExitRequestId,
+		mode: 'preserve' | 'stop',
+		bestEffort: boolean,
+	): void {
+		if (
+			this.#disposed ||
+			this.#pendingMode !== undefined ||
+			(this.#state.kind !== 'idle' && this.#state.requestId !== requestId)
+		) {
+			return;
+		}
+		this.#pendingMode = { bestEffort, mode, requestId };
+		this.#setWorking(requestId, 'flushing-workbench-document', 0, 0, 0);
+		this.#post({ choice: mode, requestId, type: 'desktop-application-exit-choice' });
+	}
+
 	async #preparePreserve(
 		requestId: DesktopApplicationExitRequestId,
 		bestEffort: boolean,
@@ -171,7 +210,7 @@ export class DesktopApplicationLifetimeCoordinator {
 			flushed.kind === 'flushed' ? flushed.revision : this.#document.committedRevision;
 		if (revision === null || (flushed.kind === 'unavailable' && !bestEffort)) {
 			this.#failRenderer(requestId, [
-				{ code: 'workbench-document-control-unavailable', count: 1, retryable: false },
+				{ code: 'shared-document-control-unavailable', count: 1, retryable: false },
 			]);
 			return;
 		}
