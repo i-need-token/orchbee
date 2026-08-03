@@ -60,6 +60,8 @@ export interface ProjectedTerminalBrokerDependencies {
 	readonly writeClipboardText: (text: string) => Promise<void> | void;
 }
 
+export type ProjectedTerminalBrokerEffectTarget = 'client' | 'desktop';
+
 const defaultDependencies: ProjectedTerminalBrokerDependencies = {
 	openExternal: async (target) => {
 		const { shell } = await import('electron');
@@ -101,6 +103,7 @@ export interface ProjectedTerminalBrokerMetrics {
 export class ProjectedTerminalBroker {
 	readonly #bootstrap: ProjectedAttachmentBootstrap;
 	readonly #dependencies: ProjectedTerminalBrokerDependencies;
+	readonly #effectTarget: ProjectedTerminalBrokerEffectTarget;
 	readonly #host: HostConnection;
 	readonly #port: MessagePortMain;
 	#activeSelectionCopy: ActiveSelectionCopy | undefined;
@@ -127,11 +130,13 @@ export class ProjectedTerminalBroker {
 		port: MessagePortMain,
 		bootstrap: ProjectedAttachmentBootstrap,
 		dependencies: ProjectedTerminalBrokerDependencies = defaultDependencies,
+		effectTarget: ProjectedTerminalBrokerEffectTarget = 'desktop',
 	) {
 		this.#host = host;
 		this.#port = port;
 		this.#bootstrap = bootstrap;
 		this.#dependencies = dependencies;
+		this.#effectTarget = effectTarget;
 	}
 
 	get metrics(): ProjectedTerminalBrokerMetrics {
@@ -476,6 +481,12 @@ export class ProjectedTerminalBroker {
 				);
 				return;
 			case 'link-open':
+				if (this.#effectTarget === 'client') {
+					throw new BrokerOperationError(
+						'link-client-effect-required',
+						'This attachment requires its client environment to open links.',
+					);
+				}
 				await this.#openExternal(command.payload.target);
 				this.#port.postMessage({
 					kind: 'link-opened',
@@ -671,16 +682,29 @@ export class ProjectedTerminalBroker {
 				'Terminal Host selection export is not valid UTF-8.',
 			);
 		}
-		await this.#dependencies.writeClipboardText(text);
+		const byteLength = state.buffer.byteLength;
+		if (this.#effectTarget === 'desktop') {
+			await this.#dependencies.writeClipboardText(text);
+			this.#clipboardCommits += 1;
+		} else {
+			const content = new Uint8Array(byteLength);
+			content.set(state.buffer);
+			this.#port.postMessage({
+				content: content.buffer,
+				kind: 'selection-copy-content',
+				requestSequence: state.requestSequence,
+			});
+		}
 		if (this.#activeSelectionCopy !== state) return;
-		this.#clipboardCommits += 1;
 		this.#lastSelectionCopyMilliseconds = performance.now() - state.startedAtMilliseconds;
 		this.#activeSelectionCopy = undefined;
-		this.#port.postMessage({
-			byteLength: state.buffer.byteLength,
-			kind: 'selection-copied',
-			requestSequence: state.requestSequence,
-		});
+		if (this.#effectTarget === 'desktop') {
+			this.#port.postMessage({
+				byteLength,
+				kind: 'selection-copied',
+				requestSequence: state.requestSequence,
+			});
+		}
 	}
 
 	async #openExternal(target: string): Promise<void> {

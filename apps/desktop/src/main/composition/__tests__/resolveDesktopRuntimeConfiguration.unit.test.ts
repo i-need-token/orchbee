@@ -25,6 +25,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first).toEqual(second);
 		expect(first.binaryPath).toBe(path.resolve('/private/bin/terminal-host'));
 		expect(first.runtimeDirectory).toBe(path.resolve('/private/runtime'));
+		expect(first.gateway).toEqual({ kind: 'disabled' });
 		expect(first.terminalBindingStorePath).toBe(path.resolve('/private/recovery/bindings-v3.json'));
 		expect(first.workbenchDocumentStorePath).toBe(
 			path.resolve('/private/recovery/workbench-shared-document-v1.json'),
@@ -34,6 +35,33 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			executable: '/bin/zsh',
 		});
 		expect(first.terminalLaunch.terminalProfile.palette).toHaveLength(256);
+	});
+
+	it('enables only the explicit local Gateway entry', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			environment: {
+				ORCHBEE_DESKTOP_GATEWAY: '1',
+				ORCHBEE_GATEWAY_ENTRY_PATH: path.resolve('/private/gateway.cjs'),
+			},
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin',
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(configuration.gateway).toEqual({
+			entryPath: path.resolve('/private/gateway.cjs'),
+			kind: 'enabled',
+		});
+		expect(() =>
+			resolveDesktopRuntimeConfiguration({
+				applicationPath: path.resolve('/repo/apps/desktop'),
+				environment: { ORCHBEE_DESKTOP_GATEWAY: 'yes' },
+				homeDirectory: path.resolve('/users/orchbee'),
+				platform: 'darwin',
+				userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			}),
+		).toThrow('ORCHBEE_DESKTOP_GATEWAY must be 0 or 1.');
 	});
 
 	it('uses the built sibling Host and platform shell defaults when no override exists', () => {

@@ -16,6 +16,7 @@ export function useProjectedTerminalSurface(
 	const intl = useOrchbeeIntl();
 	const root = React.useRef<HTMLDivElement>(null);
 	const [failed, setFailed] = React.useState(false);
+	const [projectionGeneration, setProjectionGeneration] = React.useState(0);
 	const projectable =
 		presentation.lifecycle.kind === 'running' || presentation.lifecycle.kind === 'exited';
 
@@ -42,9 +43,16 @@ export function useProjectedTerminalSurface(
 					capability.shortcutPlatform,
 					attachment.bootstrap,
 					attachment.transport,
+					undefined,
+					capability.platformEffects,
 				);
 				if (cancelled) rendererSession.dispose();
-				else session = rendererSession;
+				else {
+					session = rendererSession;
+					void rendererSession.transportUnavailable.then(() => {
+						if (!cancelled) setProjectionGeneration((generation) => generation + 1);
+					});
+				}
 			})
 			.catch(() => {
 				if (!cancelled) setFailed(true);
@@ -54,7 +62,7 @@ export function useProjectedTerminalSurface(
 			session?.dispose();
 			projection.release();
 		};
-	}, [capability, presentation.presentationId, projectable]);
+	}, [capability, presentation.presentationId, projectable, projectionGeneration]);
 
 	let projectionState: ProjectedTerminalSurfaceView['projectionState'] = 'inactive';
 	if (projectable) projectionState = 'requested';

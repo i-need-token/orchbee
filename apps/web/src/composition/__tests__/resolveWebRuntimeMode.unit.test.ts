@@ -8,8 +8,9 @@ describe('resolveWebRuntimeMode', () => {
 		expect(resolveWebRuntimeMode('?unrelated=value')).toBe('browser');
 	});
 
-	it('selects Desktop only for one exact explicit marker', () => {
+	it('selects one exact explicit shared-client marker', () => {
 		expect(resolveWebRuntimeMode('?orchbee-runtime=desktop')).toBe('desktop');
+		expect(resolveWebRuntimeMode('?orchbee-runtime=gateway')).toBe('gateway');
 		expect(resolveWebRuntimeMode('?orchbee-runtime=browser')).toBe('invalid');
 		expect(resolveWebRuntimeMode('?orchbee-runtime=desktop&orchbee-runtime=desktop')).toBe(
 			'invalid',

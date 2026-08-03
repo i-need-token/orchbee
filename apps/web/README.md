@@ -11,14 +11,19 @@ maintain a parallel renderer UI. The shared Workbench client runtime owns shared
 coordination, projected-terminal presentation, search, actions, and its narrow client-session and
 projection ports. It has no Electron, `MessagePort`, network, or application-lifetime dependency.
 
-The current browser preview uses its in-memory composition. Desktop supplies `MessagePort`
-adapters for the shared client-session and projection ports, then layers its Electron-only
-application-lifetime dialog beside the common application. Generic Workbench client payloads come
-from `@orchbee/workbench-client-protocol`; only Electron bootstrap and application-lifetime
-payloads come from `@orchbee/desktop-client-protocol`. A future Gateway adapter will reuse the same
-shared client runtime for an authoritative Browser client without adding another renderer. The URL
-marker `?orchbee-runtime=desktop` selects Desktop mode; an absent marker selects Browser Preview,
-and invalid or duplicate values fail closed without falling back.
+The Browser Preview uses its in-memory composition. Desktop supplies `MessagePort` adapters for the
+shared client-session and projection ports, then layers its Electron-only application-lifetime
+dialog beside the common application. The local Gateway adapter uses one authenticated control
+WebSocket per page and one binary WebSocket per visible terminal attachment. Both adapters compose
+the same `createWorkbenchClientRuntime`; neither implements another Workbench renderer. Generic
+Workbench client payloads come from `@orchbee/workbench-client-protocol`; only Gateway
+authentication/framing comes from `@orchbee/gateway-protocol`, and only Electron bootstrap and
+application-lifetime payloads come from `@orchbee/desktop-client-protocol`.
+
+The URL marker `?orchbee-runtime=desktop` selects Desktop mode,
+`?orchbee-runtime=gateway` selects an authenticated Gateway Browser client, and an absent marker
+selects Browser Preview. Gateway port, version, and lifetime capability must appear exactly once in
+the fragment. Invalid, duplicate, or incomplete values fail closed without falling back.
 
 ## Local development preview
 
@@ -32,11 +37,18 @@ Project Folder and terminal CWD without claiming that the path exists. `New Fold
 visible but disabled because the composition performs no filesystem, Git, PTY, or durable-storage
 effect.
 
-The composition also owns locale and shortcut-platform setup. Native folder selection, Git
-worktree management, PTY rendering, terminal search, and persistence will be composed into the
-shell only through an environment adapter with accepted ownership and recovery contracts. The
-current ordinary Browser page remains an in-memory preview and does not connect to Desktop Main;
-the network Gateway that will make Browser pages peers of Electron remains a later slice.
+The composition also owns locale and shortcut-platform setup. Native folder selection and Git
+worktree management remain absent until an environment adapter owns their effects. An ordinary URL
+without a runtime marker remains the in-memory Preview and does not connect to Desktop Main. A
+Gateway URL printed by Desktop creates a fresh page session and Client View over the same canonical
+Workbench document and terminal presentations as Electron and every other authenticated page.
+Closing that page releases only its attachments; reopening the URL creates a fresh session and full
+projection snapshots.
+
+Gateway selection copy obtains bounded UTF-8 selection bytes from Terminal Host and commits them
+with the Browser Clipboard API. Gateway links use a local Browser effect restricted to `http`,
+`https`, and `mailto`; the page receives no Electron Main effect capability. Electron continues to
+use its Main-owned clipboard and external-link effects.
 
 For the complete local Desktop flow, run the Web server and Electron process in separate terminals:
 
@@ -46,4 +58,6 @@ pnpm desktop
 ```
 
 Electron loads the same Web development URL and selects Desktop mode explicitly. `apps/desktop`
-does not build, copy, or own a renderer bundle.
+does not build, copy, or own a renderer bundle. When the local Gateway is enabled, Desktop prints
+one `ORCHBEE_BROWSER_CLIENT_URL=<url>` line; open that complete fragment-bearing URL in one or more
+Browser pages. Treat it as a process-lifetime secret.

@@ -336,6 +336,135 @@ describe('ProjectedTerminalBroker', () => {
 		expect(broker.metrics.lastSelectionExportStartMilliseconds).toBeGreaterThanOrEqual(0);
 	});
 
+	it('returns Host selection bytes to a Browser attachment without granting Main effects', async () => {
+		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+		};
+		const requestControl = vi.fn<(kind: number, value: unknown) => Promise<unknown>>(
+			async (kind, value) => {
+				if (kind === MessageKind.selectionExport) {
+					const exportRequest = value as { exportSequence: string };
+					return {
+						attachmentId: bootstrap.attachmentId,
+						byteLength: 8,
+						exportSequence: exportRequest.exportSequence,
+						format: 'plain',
+					};
+				}
+				if (kind === MessageKind.selectionExportChunkApplied) return value;
+				throw new Error(`unexpected Host control kind ${kind}`);
+			},
+		);
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(
+				(_attachmentId, listener) => {
+					hostListener = listener;
+					return vi.fn<() => void>();
+				},
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const openExternal = vi.fn<(_target: string) => Promise<void>>().mockResolvedValue();
+		const writeClipboardText = vi.fn<(text: string) => void>();
+		const broker = new ProjectedTerminalBroker(
+			host,
+			port,
+			bootstrap,
+			{ openExternal, writeClipboardText },
+			'client',
+		);
+		broker.start();
+		emitter.emit('message', {
+			data: {
+				kind: 'selection-copy',
+				payload: { attachmentId: bootstrap.attachmentId, requestSequence: '7' },
+			},
+		});
+		await vi.waitFor(() => expect(requestControl).toHaveBeenCalled());
+		const chunk = encodeSelectionExportChunk({
+			attachmentId: bootstrap.attachmentId,
+			bytes: textEncoder.encode('selected'),
+			chunkSequence: 0,
+			exportSequence: 1n,
+			final: true,
+		});
+		if (!chunk.ok) throw new Error(chunk.detail);
+		hostListener?.(
+			eventEnvelope(
+				MessageKind.selectionExportChunk,
+				PayloadEncoding.rawBytes,
+				chunk.value,
+				bootstrap.hostEpoch,
+			),
+		);
+		await vi.waitFor(() =>
+			expect(requestControl).toHaveBeenCalledWith(
+				MessageKind.selectionExportChunkApplied,
+				expect.anything(),
+				MessageKind.selectionExportChunkApplied,
+				expect.anything(),
+			),
+		);
+		hostListener?.(
+			eventEnvelope(
+				MessageKind.selectionExportFinished,
+				PayloadEncoding.controlJson,
+				textEncoder.encode(
+					JSON.stringify({
+						attachmentId: bootstrap.attachmentId,
+						byteLength: 8,
+						exportSequence: '1',
+						status: 'completed',
+					}),
+				),
+				bootstrap.hostEpoch,
+			),
+		);
+
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ kind: 'selection-copy-content', requestSequence: '7' }),
+			),
+		);
+		const copyEvent = postMessage.mock.calls.find(
+			(call) => (call[0] as { kind?: string }).kind === 'selection-copy-content',
+		)?.[0] as { content: ArrayBuffer } | undefined;
+		expect(new TextDecoder().decode(copyEvent?.content)).toBe('selected');
+		expect(writeClipboardText).not.toHaveBeenCalled();
+		expect(broker.metrics.clipboardCommits).toBe(0);
+
+		emitter.emit('message', {
+			data: {
+				kind: 'link-open',
+				payload: {
+					attachmentId: bootstrap.attachmentId,
+					requestSequence: '8',
+					target: 'https://orchbee.dev',
+				},
+			},
+		});
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({
+				failure: expect.objectContaining({ code: 'link-client-effect-required' }),
+				kind: 'failure',
+			}),
+		);
+		expect(openExternal).not.toHaveBeenCalled();
+	});
+
 	it('allows only explicit web and mail schemes through the external-link effect', async () => {
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),

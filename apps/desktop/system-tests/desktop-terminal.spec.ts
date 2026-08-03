@@ -9,10 +9,12 @@ import { setTimeout as wait } from 'node:timers/promises';
 
 import {
 	_electron as electron,
+	chromium,
 	expect,
 	test,
 	type ElectronApplication,
 	type Locator,
+	type Page,
 } from '@playwright/test';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..', '..', '..');
@@ -25,7 +27,10 @@ const hostBinary = path.join(
 	process.platform === 'win32' ? 'terminal-host.exe' : 'terminal-host',
 );
 const desktopMain = path.join(repositoryRoot, 'apps', 'desktop', 'dist', 'main', 'main.cjs');
+const gatewayMain = path.join(repositoryRoot, 'apps', 'gateway', 'dist', 'main', 'gateway.cjs');
 const webDist = path.join(repositoryRoot, 'apps', 'web', 'dist');
+
+const applicationOutput = new WeakMap<ElectronApplication, string[]>();
 
 let electronApplication: ElectronApplication | undefined;
 let desktopEnvironment: Record<string, string> | undefined;
@@ -67,11 +72,13 @@ test.beforeEach(async () => {
 	desktopEnvironment = {
 		...environment,
 		ORCHBEE_DESKTOP_ENDPOINT_ID: endpointId,
+		ORCHBEE_DESKTOP_GATEWAY: '1',
 		ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: runtimeDirectory,
 		ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: runtimeDirectory,
 		ORCHBEE_DESKTOP_RENDERER_URL: currentRendererUrl,
 		ORCHBEE_DESKTOP_TRACE: '1',
 		ORCHBEE_TERMINAL_HOST_BINARY: hostBinary,
+		ORCHBEE_GATEWAY_ENTRY_PATH: gatewayMain,
 		SHELL: process.platform === 'win32' ? (environment['ComSpec'] ?? 'cmd.exe') : '/bin/sh',
 	};
 	electronApplication = await launchDesktop();
@@ -329,6 +336,212 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	electronApplication = undefined;
 });
 
+test('shares one Workbench and Host terminal with two authenticated Browser clients', async () => {
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const currentRendererUrl = rendererUrl;
+	if (currentRendererUrl === undefined) throw new Error('Web renderer server is unavailable.');
+	const gatewayUrl = await waitForGatewayBrowserUrl(application);
+	const desktopPage = await application.firstWindow();
+	const desktopRoot = projectedTerminal(desktopPage);
+	await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const desktopIdentity = await terminalDocumentIdentity(desktopRoot);
+	const sharedPresentationId = await desktopRoot.getAttribute('data-terminal-presentation-id');
+
+	const browser = await chromium.launch();
+	try {
+		const context = await browser.newContext();
+		await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
+			origin: new URL(currentRendererUrl).origin,
+		});
+		const firstBrowserPage = await context.newPage();
+		const secondBrowserPage = await context.newPage();
+		const firstSockets = trackGatewaySockets(firstBrowserPage);
+		const secondSockets = trackGatewaySockets(secondBrowserPage);
+		await firstBrowserPage.goto(gatewayUrl);
+		const firstRoot = projectedTerminal(firstBrowserPage);
+		const secondRoot = projectedTerminal(secondBrowserPage);
+		await expect(firstRoot)
+			.toHaveAttribute('data-projected-terminal-state', 'open')
+			.catch((error: unknown) => {
+				const safeDesktopOutput = (applicationOutput.get(application) ?? [])
+					.join('')
+					.split(/\r?\n/u)
+					.filter((line) => !line.startsWith('ORCHBEE_BROWSER_CLIENT_URL='));
+				throw new Error(
+					`First Browser projection failed. Browser=${JSON.stringify(firstSockets.events)} Desktop=${safeDesktopOutput.join('\n')}`,
+					{ cause: error },
+				);
+			});
+		await secondBrowserPage.goto(gatewayUrl);
+		await expect(secondRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		const firstIdentity = await terminalDocumentIdentity(firstRoot);
+		const secondIdentity = await terminalDocumentIdentity(secondRoot);
+		expect(firstIdentity).toMatchObject({
+			creationId: desktopIdentity.creationId,
+			terminalId: desktopIdentity.terminalId,
+		});
+		expect(secondIdentity).toMatchObject({
+			creationId: desktopIdentity.creationId,
+			terminalId: desktopIdentity.terminalId,
+		});
+		expect(
+			new Set([
+				desktopIdentity.attachmentId,
+				firstIdentity.attachmentId,
+				secondIdentity.attachmentId,
+			]).size,
+		).toBe(3);
+		expect(await firstRoot.getAttribute('data-terminal-presentation-id')).toBe(
+			sharedPresentationId,
+		);
+		expect(await secondRoot.getAttribute('data-terminal-presentation-id')).toBe(
+			sharedPresentationId,
+		);
+		await expect.poll(() => gatewaySocketCount(firstSockets, '/v1/control')).toBe(1);
+		await expect.poll(() => gatewaySocketCount(secondSockets, '/v1/control')).toBe(1);
+		await expect.poll(() => gatewaySocketCount(firstSockets, '/v1/attachment')).toBe(1);
+		await expect.poll(() => gatewaySocketCount(secondSockets, '/v1/attachment')).toBe(1);
+
+		const firstInput = firstBrowserPage.getByRole('textbox');
+		await firstInput.pressSequentially("printf 'gateway-shared-terminal-marker\\n'");
+		await firstInput.press('Enter');
+		await expect(firstBrowserPage.locator('[role="log"]')).toContainText(
+			'gateway-shared-terminal-marker',
+		);
+		await expect(secondBrowserPage.locator('[role="log"]')).toContainText(
+			'gateway-shared-terminal-marker',
+		);
+		await expect(desktopPage.locator('[role="log"]')).toContainText(
+			'gateway-shared-terminal-marker',
+		);
+
+		await firstBrowserPage.getByRole('button', { name: 'New tab' }).click();
+		const firstTabs = workbenchTabs(firstBrowserPage);
+		const secondTabs = workbenchTabs(secondBrowserPage);
+		const desktopTabs = workbenchTabs(desktopPage);
+		await expect(firstTabs).toHaveCount(2);
+		await expect(secondTabs).toHaveCount(2);
+		await expect(desktopTabs).toHaveCount(2);
+		await expect(projectedTerminal(firstBrowserPage)).toHaveAttribute(
+			'data-projected-terminal-state',
+			'open',
+		);
+		expect(
+			await projectedTerminal(firstBrowserPage).getAttribute('data-terminal-presentation-id'),
+		).not.toBe(sharedPresentationId);
+		expect(
+			await projectedTerminal(secondBrowserPage).getAttribute('data-terminal-presentation-id'),
+		).toBe(sharedPresentationId);
+		expect(await projectedTerminal(desktopPage).getAttribute('data-terminal-presentation-id')).toBe(
+			sharedPresentationId,
+		);
+
+		await firstBrowserPage.close();
+		const secondInput = secondBrowserPage.getByRole('textbox');
+		await secondInput.pressSequentially("printf 'gateway-after-disconnect-marker\\n'");
+		await secondInput.press('Enter');
+		await expect(desktopPage.locator('[role="log"]')).toContainText(
+			'gateway-after-disconnect-marker',
+		);
+
+		const replacementPage = await context.newPage();
+		const replacementSockets = trackGatewaySockets(replacementPage);
+		await replacementPage.goto(gatewayUrl);
+		await expect(workbenchTabs(replacementPage)).toHaveCount(2);
+		await workbenchTabs(replacementPage).first().click();
+		const replacementRoot = projectedTerminal(replacementPage);
+		await expect(replacementRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		expect(await replacementRoot.getAttribute('data-terminal-presentation-id')).toBe(
+			sharedPresentationId,
+		);
+		const replacementIdentity = await terminalDocumentIdentity(replacementRoot);
+		expect(replacementIdentity).toMatchObject({
+			creationId: desktopIdentity.creationId,
+			terminalId: desktopIdentity.terminalId,
+		});
+		expect(replacementIdentity.attachmentId).not.toBe(firstIdentity.attachmentId);
+		await expect(replacementPage.locator('[role="log"]')).toContainText(
+			'gateway-after-disconnect-marker',
+		);
+		await expect.poll(() => gatewaySocketCount(replacementSockets, '/v1/control')).toBe(1);
+		await expect
+			.poll(() => gatewaySocketCount(replacementSockets, '/v1/attachment'))
+			.toBeGreaterThanOrEqual(1);
+
+		const linkTarget = new URL('/gateway-link-target', currentRendererUrl).href;
+		await secondInput.pressSequentially(`printf 'browser-copy-marker ${linkTarget}\\n'`);
+		await secondInput.press('Enter');
+		const secondLog = secondBrowserPage.locator('[role="log"]');
+		await expect(secondLog).toContainText('browser-copy-marker');
+		const secondCanvas = secondBrowserPage.locator('canvas');
+		const secondRows = secondLog.locator(':scope > div');
+		const selectionStart = await terminalCellCenter(
+			secondRoot,
+			secondCanvas,
+			secondRows,
+			'browser-copy-marker',
+			0,
+		);
+		const selectionEnd = await terminalCellCenter(
+			secondRoot,
+			secondCanvas,
+			secondRows,
+			'browser-copy-marker',
+			18,
+		);
+		await secondBrowserPage.mouse.move(selectionStart.x, selectionStart.y);
+		await secondBrowserPage.mouse.down();
+		await secondBrowserPage.mouse.move(selectionEnd.x, selectionEnd.y);
+		await secondBrowserPage.mouse.up();
+		await expect(secondRoot).toHaveAttribute('data-projected-terminal-selection-state', 'active');
+		await secondInput.focus();
+		await secondBrowserPage.keyboard.press(
+			process.platform === 'darwin' ? 'Meta+KeyC' : 'Control+Shift+KeyC',
+		);
+		await expect
+			.poll(async () =>
+				Number(await secondRoot.getAttribute('data-projected-terminal-copied-bytes')),
+			)
+			.toBeGreaterThan(0);
+		await expect
+			.poll(() => secondBrowserPage.evaluate(() => navigator.clipboard.readText()))
+			.toContain('browser-copy-marker');
+
+		const link = await terminalCellCenter(secondRoot, secondCanvas, secondRows, linkTarget, 4);
+		const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+		const popupPromise = secondBrowserPage.waitForEvent('popup');
+		await secondBrowserPage.keyboard.down(primaryModifier);
+		await secondBrowserPage.mouse.move(link.x, link.y);
+		await expect
+			.poll(() => secondCanvas.evaluate((element) => element.style.cursor))
+			.toBe('pointer');
+		await secondBrowserPage.mouse.click(link.x, link.y);
+		await secondBrowserPage.keyboard.up(primaryModifier);
+		const popup = await popupPromise;
+		await popup.waitForLoadState('domcontentloaded');
+		expect(new URL(popup.url()).pathname).toBe('/gateway-link-target');
+		await popup.close();
+
+		const rejectedPage = await context.newPage();
+		let rejectedControlClosed = false;
+		rejectedPage.on('websocket', (socket) => {
+			if (new URL(socket.url()).pathname === '/v1/control') {
+				socket.on('close', () => {
+					rejectedControlClosed = true;
+				});
+			}
+		});
+		const rejectedUrl = withGatewayCapability(gatewayUrl, 'b'.repeat(43));
+		await rejectedPage.goto(rejectedUrl);
+		await expect.poll(() => rejectedControlClosed).toBe(true);
+		await expect(projectedTerminal(rejectedPage)).toHaveCount(0);
+	} finally {
+		await browser.close();
+	}
+});
+
 test('restarts Electron Main while retaining the Host terminal identity and contents', async () => {
 	const firstApplication = electronApplication;
 	if (firstApplication === undefined) throw new Error('Electron application did not start.');
@@ -418,10 +631,30 @@ test('stops Host sessions while retaining topology and starts a fresh session ex
 async function launchDesktop(): Promise<ElectronApplication> {
 	if (desktopEnvironment === undefined) throw new Error('Desktop test environment is unavailable.');
 	if (runtimeDirectory === undefined) throw new Error('Desktop runtime directory is unavailable.');
-	return electron.launch({
+	const application = await electron.launch({
 		args: [`--user-data-dir=${path.join(runtimeDirectory, 'electron-user-data')}`, desktopMain],
 		env: desktopEnvironment,
 	});
+	const output: string[] = [];
+	application.process().stdout?.on('data', (chunk: Buffer) => output.push(chunk.toString()));
+	application.process().stderr?.on('data', (chunk: Buffer) => output.push(chunk.toString()));
+	applicationOutput.set(application, output);
+	return application;
+}
+
+async function waitForGatewayBrowserUrl(application: ElectronApplication): Promise<string> {
+	const output = applicationOutput.get(application);
+	if (output === undefined) throw new Error('Desktop output capture is unavailable.');
+	let browserUrl: string | null = null;
+	await expect
+		.poll(() => {
+			const match = /ORCHBEE_BROWSER_CLIENT_URL=([^\r\n]+)/u.exec(output.join(''));
+			browserUrl = match?.[1] ?? null;
+			return browserUrl;
+		})
+		.not.toBeNull();
+	if (browserUrl === null) throw new Error('Desktop did not publish a Browser Gateway URL.');
+	return browserUrl;
 }
 
 async function startWebRendererServer(): Promise<{
@@ -536,8 +769,76 @@ function waitForElectronExit(application: ElectronApplication): Promise<void> {
 	return new Promise((resolve) => process.once('exit', () => resolve()));
 }
 
-function projectedTerminal(page: Awaited<ReturnType<ElectronApplication['firstWindow']>>): Locator {
+function projectedTerminal(page: Page): Locator {
 	return page.locator('[data-terminal-presentation-id][data-projected-terminal-state]').first();
+}
+
+function workbenchTabs(page: Page): Locator {
+	return page.locator('[data-slot="workbench-tab-bar"] [role="tab"]');
+}
+
+interface GatewaySocketTrace {
+	readonly events: string[];
+	readonly urls: string[];
+}
+
+function trackGatewaySockets(page: Page): GatewaySocketTrace {
+	const trace: GatewaySocketTrace = { events: [], urls: [] };
+	page.on('console', (message) => trace.events.push(`console:${message.type()}:${message.text()}`));
+	page.on('pageerror', (error) => trace.events.push(`pageerror:${error.message}`));
+	page.on('websocket', (socket) => {
+		const pathname = new URL(socket.url()).pathname;
+		trace.urls.push(socket.url());
+		trace.events.push(`socket:${pathname}:opened`);
+		socket.on('framesent', (event) =>
+			trace.events.push(`socket:${pathname}:sent:${gatewayFrameShape(event.payload)}`),
+		);
+		socket.on('framereceived', (event) =>
+			trace.events.push(`socket:${pathname}:received:${gatewayFrameShape(event.payload)}`),
+		);
+		socket.on('socketerror', (error) => trace.events.push(`socket:${pathname}:error:${error}`));
+		socket.on('close', () => trace.events.push(`socket:${pathname}:closed`));
+	});
+	return trace;
+}
+
+function gatewaySocketCount(trace: GatewaySocketTrace, pathname: string): number {
+	return trace.urls.filter((url) => new URL(url).pathname === pathname).length;
+}
+
+function gatewayFrameShape(payload: string | Buffer): string {
+	if (typeof payload !== 'string') return `binary:${payload.byteLength}`;
+	try {
+		const value: unknown = JSON.parse(payload);
+		if (typeof value === 'object' && value !== null && 'type' in value) {
+			const type = String(value.type);
+			if (type === 'gateway-control-ready' && 'bootstrap' in value) {
+				const bootstrap = value.bootstrap;
+				if (
+					typeof bootstrap === 'object' &&
+					bootstrap !== null &&
+					'documentState' in bootstrap &&
+					typeof bootstrap.documentState === 'object' &&
+					bootstrap.documentState !== null &&
+					'kind' in bootstrap.documentState
+				) {
+					return `text:${Buffer.byteLength(payload)}:${type}:${String(bootstrap.documentState.kind)}`;
+				}
+			}
+			return `text:${Buffer.byteLength(payload)}:${type}`;
+		}
+	} catch {
+		return `text:${Buffer.byteLength(payload)}:invalid-json`;
+	}
+	return `text:${Buffer.byteLength(payload)}`;
+}
+
+function withGatewayCapability(browserUrl: string, capability: string): string {
+	const url = new URL(browserUrl);
+	const fragment = new URLSearchParams(url.hash.slice(1));
+	fragment.set('orchbee-gateway-capability', capability);
+	url.hash = fragment.toString();
+	return url.href;
 }
 
 async function terminalDocumentIdentity(root: Locator): Promise<{

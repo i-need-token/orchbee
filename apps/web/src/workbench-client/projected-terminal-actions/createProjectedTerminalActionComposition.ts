@@ -7,6 +7,7 @@ import {
 } from '@orchbee/actions';
 
 import type { TerminalFindController } from '../terminal-find-surface';
+import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import type { ProjectedTerminalActionCatalog } from './projected-terminal-action-ids';
 import {
 	registerProjectedTerminalActions,
@@ -30,6 +31,7 @@ export interface ProjectedTerminalActionComposition {
 export function createProjectedTerminalActionComposition(
 	terminal: ProjectedTerminalActionTarget,
 	findController: TerminalFindController,
+	platformEffects: ProjectedTerminalPlatformEffects = {},
 ): ProjectedTerminalActionComposition {
 	const runtime = new ActionRuntime();
 	const applicationScope = runtime.createScope('workbench.application');
@@ -38,6 +40,7 @@ export function createProjectedTerminalActionComposition(
 	const typedRuntime = createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime);
 	const registrations = registerProjectedTerminalActions({
 		findController,
+		platformEffects,
 		scope: terminalScope,
 		terminal,
 		typedRuntime,

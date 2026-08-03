@@ -17,6 +17,7 @@ import {
 
 import type { WorkbenchClientSessionClient } from '../client-session';
 import type { ProjectedTerminalSurfaceCapability } from '../projected-terminal-surface';
+import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import type { TerminalProjectionClient } from '../terminal-projection';
 import { WorkbenchDocumentCoordinator } from '../workbench-document-control';
 
@@ -38,6 +39,7 @@ export interface CreateWorkbenchClientRuntimeOptions {
 	readonly preferredLocales: readonly string[];
 	readonly projectionClient: TerminalProjectionClient;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
+	readonly terminalPlatformEffects?: ProjectedTerminalPlatformEffects;
 }
 
 export function createWorkbenchClientRuntime({
@@ -46,6 +48,7 @@ export function createWorkbenchClientRuntime({
 	preferredLocales,
 	projectionClient,
 	shortcutPlatform,
+	terminalPlatformEffects = {},
 }: CreateWorkbenchClientRuntimeOptions): WorkbenchClientRuntime {
 	const bootstrap = clientSession.bootstrap;
 	const locale = resolveOrchbeeLocale(preferredLocales);
@@ -81,6 +84,7 @@ export function createWorkbenchClientRuntime({
 	const terminalSurfaceCapability: ProjectedTerminalSurfaceCapability = {
 		documentElement,
 		preferredLocales,
+		platformEffects: terminalPlatformEffects,
 		projectionClient,
 		shortcutPlatform,
 		startStoppedTerminalSession: (presentationId) => {

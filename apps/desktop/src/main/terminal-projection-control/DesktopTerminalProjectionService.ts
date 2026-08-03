@@ -15,7 +15,10 @@ import type {
 	TerminalPresentationId,
 } from '@orchbee/workbench/terminal-presentation';
 import type { MessagePortMain } from 'electron';
-import type { ProjectedTerminalBrokerMetrics } from '../broker';
+import type {
+	ProjectedTerminalBrokerEffectTarget,
+	ProjectedTerminalBrokerMetrics,
+} from '../broker';
 import type { HostConnection } from '../host';
 import type { DesktopTerminalProjectionTarget } from '../terminal-document-control';
 
@@ -32,11 +35,16 @@ export interface DesktopTerminalProjectionLease {
 	dispose(): Promise<void>;
 }
 
+export interface DesktopTerminalProjectionOpenOptions {
+	readonly brokerEffectTarget: ProjectedTerminalBrokerEffectTarget;
+}
+
 export interface DesktopTerminalProjectionServiceDependencies {
 	readonly createBroker: (
 		host: HostConnection,
 		port: MessagePortMain,
 		bootstrap: ProjectedAttachmentBootstrap,
+		effectTarget: ProjectedTerminalBrokerEffectTarget,
 	) => DesktopProjectionBrokerHandle;
 	readonly createMessageChannel: () => {
 		readonly port1: MessagePortMain;
@@ -76,9 +84,12 @@ export class DesktopTerminalProjectionService {
 		this.#dependencies = dependencies;
 	}
 
-	async open(presentationId: TerminalPresentationId): Promise<DesktopTerminalProjectionLease> {
+	async open(
+		presentationId: TerminalPresentationId,
+		options: DesktopTerminalProjectionOpenOptions = { brokerEffectTarget: 'desktop' },
+	): Promise<DesktopTerminalProjectionLease> {
 		const previous = this.#openTails.get(presentationId) ?? Promise.resolve();
-		const operation = previous.then(async () => this.#openSerialized(presentationId));
+		const operation = previous.then(async () => this.#openSerialized(presentationId, options));
 		const tail = operation.then(
 			() => undefined,
 			() => undefined,
@@ -94,6 +105,7 @@ export class DesktopTerminalProjectionService {
 
 	async #openSerialized(
 		presentationId: TerminalPresentationId,
+		options: DesktopTerminalProjectionOpenOptions,
 	): Promise<DesktopTerminalProjectionLease> {
 		if (this.#disposed) throw projectionError('terminal-projection-unavailable', true);
 		const target = this.#dependencies.getProjectionTarget(presentationId);
@@ -148,6 +160,7 @@ export class DesktopTerminalProjectionService {
 			this.#dependencies.host,
 			channel.port2,
 			bootstrap,
+			options.brokerEffectTarget,
 		);
 		let disposed = false;
 		const activeLease: ActiveLease = {

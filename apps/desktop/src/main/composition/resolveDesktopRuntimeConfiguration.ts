@@ -7,12 +7,18 @@ import { createDefaultTerminalProfile } from '../host';
 
 export interface DesktopRuntimeEnvironment {
 	readonly ORCHBEE_DESKTOP_ENDPOINT_ID?: string;
+	readonly ORCHBEE_DESKTOP_GATEWAY?: string;
 	readonly ORCHBEE_DESKTOP_RECOVERY_DIRECTORY?: string;
 	readonly ORCHBEE_DESKTOP_RUNTIME_DIRECTORY?: string;
+	readonly ORCHBEE_GATEWAY_ENTRY_PATH?: string;
 	readonly ORCHBEE_TERMINAL_HOST_BINARY?: string;
 	readonly SHELL?: string;
 	readonly ComSpec?: string;
 }
+
+export type DesktopGatewayRuntimeConfiguration =
+	| { readonly kind: 'disabled' }
+	| { readonly entryPath: string; readonly kind: 'enabled' };
 
 export interface DesktopRuntimeConfigurationInput {
 	readonly applicationPath: string;
@@ -25,6 +31,7 @@ export interface DesktopRuntimeConfigurationInput {
 export interface DesktopRuntimeConfiguration {
 	readonly binaryPath: string;
 	readonly endpointId: string;
+	readonly gateway: DesktopGatewayRuntimeConfiguration;
 	readonly runtimeDirectory: string;
 	readonly terminalBindingStorePath: string;
 	readonly terminalLaunch: TerminalLaunchV1_1;
@@ -65,10 +72,25 @@ export function resolveDesktopRuntimeConfiguration(
 		input.environment.ORCHBEE_DESKTOP_RECOVERY_DIRECTORY ??
 			path.join(input.userDataPath, 'terminal-recovery'),
 	);
+	const gatewayFlag = input.environment.ORCHBEE_DESKTOP_GATEWAY;
+	if (gatewayFlag !== undefined && gatewayFlag !== '0' && gatewayFlag !== '1') {
+		throw new Error('ORCHBEE_DESKTOP_GATEWAY must be 0 or 1.');
+	}
+	const gateway: DesktopGatewayRuntimeConfiguration =
+		gatewayFlag === '1'
+			? {
+					entryPath: path.resolve(
+						input.environment.ORCHBEE_GATEWAY_ENTRY_PATH ??
+							path.join(input.applicationPath, '..', 'gateway', 'dist', 'main', 'gateway.cjs'),
+					),
+					kind: 'enabled',
+				}
+			: { kind: 'disabled' };
 
 	return {
 		binaryPath,
 		endpointId,
+		gateway,
 		runtimeDirectory,
 		terminalBindingStorePath: path.join(recoveryDirectory, 'bindings-v3.json'),
 		terminalLaunch: TerminalLaunchV1_1Schema.parse({

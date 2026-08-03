@@ -18,6 +18,11 @@ Applications parse every untrusted IPC or network value with these schemas at th
 boundary. A transport owner remains responsible for framing, authentication, binary transfer,
 backpressure, and connection retirement.
 
+Selection export remains attachment-scoped. A Desktop-effect attachment receives
+`selection-copied` after Main commits the clipboard effect; a client-effect attachment receives
+`selection-copy-content` with bounded UTF-8 bytes and commits those bytes through its own platform
+clipboard before reporting local completion. Neither event grants a generic clipboard capability.
+
 ## Verification
 
 Run from the repository root:

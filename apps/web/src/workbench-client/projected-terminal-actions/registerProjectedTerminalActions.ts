@@ -11,6 +11,7 @@ import type { ProjectedTerminalSideEffectResult, TerminalOpenTarget } from '@orc
 import type { SelectionChanged } from '@orchbee/terminal-protocol';
 
 import type { TerminalFindController } from '../terminal-find-surface';
+import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import {
 	PROJECTED_TERMINAL_ACTION_IDS,
 	type ProjectedTerminalActionCatalog,
@@ -28,6 +29,7 @@ export interface ProjectedTerminalActionTarget {
 
 export interface RegisterProjectedTerminalActionsOptions {
 	readonly findController: TerminalFindController;
+	readonly platformEffects?: ProjectedTerminalPlatformEffects;
 	readonly scope: ActionScope;
 	readonly terminal: ProjectedTerminalActionTarget;
 	readonly typedRuntime: TypedActionRuntime<ProjectedTerminalActionCatalog>;
@@ -35,6 +37,7 @@ export interface RegisterProjectedTerminalActionsOptions {
 
 export function registerProjectedTerminalActions({
 	findController,
+	platformEffects = {},
 	scope,
 	terminal,
 	typedRuntime,
@@ -184,7 +187,8 @@ export function registerProjectedTerminalActions({
 							return { code: 'link-policy-blocked', kind: 'blocked' };
 						}
 						if (context.signal.aborted) return { kind: 'cancelled' };
-						const result = await terminal.openLinkAsync(input.target.url);
+						const result = await (platformEffects.openExternal?.(input.target.url) ??
+							terminal.openLinkAsync(input.target.url));
 						if (result.kind === 'completed') {
 							context.markCommitted();
 							return { kind: 'completed' };

@@ -31,4 +31,16 @@ describe('projected terminal contract', () => {
 		if (parsed.kind !== 'frame') throw new Error('Expected a projected terminal frame event.');
 		expect(parsed.frame).toBe(frame);
 	});
+
+	it('bounds Browser-owned selection copy content', () => {
+		const content = new ArrayBuffer(32);
+
+		expect(
+			ProjectedTerminalEventSchema.parse({
+				content,
+				kind: 'selection-copy-content',
+				requestSequence: '1',
+			}),
+		).toMatchObject({ content, kind: 'selection-copy-content', requestSequence: '1' });
+	});
 });

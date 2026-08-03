@@ -2,5 +2,6 @@ export { DesktopTerminalProjectionService } from './DesktopTerminalProjectionSer
 export type {
 	DesktopProjectionBrokerHandle,
 	DesktopTerminalProjectionLease,
+	DesktopTerminalProjectionOpenOptions,
 } from './DesktopTerminalProjectionService';
 export { TerminalProjectionControlBroker } from './TerminalProjectionControlBroker';

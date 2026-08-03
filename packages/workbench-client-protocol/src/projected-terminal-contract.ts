@@ -83,6 +83,16 @@ export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ frame: z.instanceof(ArrayBuffer), kind: z.literal('frame') }),
 	z.strictObject({ event: HistoryChangedSchema, kind: z.literal('history-changed') }),
 	z.strictObject({
+		content: z
+			.instanceof(ArrayBuffer)
+			.refine(
+				(value) => value.byteLength <= PROTOCOL_LIMITS.maxSelectionExportBytes,
+				'Selection copy content exceeds the protocol limit.',
+			),
+		kind: z.literal('selection-copy-content'),
+		requestSequence: CanonicalUint64TextSchema,
+	}),
+	z.strictObject({
 		byteLength: z.number().int().min(0).max(PROTOCOL_LIMITS.maxSelectionExportBytes),
 		kind: z.literal('selection-copied'),
 		requestSequence: CanonicalUint64TextSchema,

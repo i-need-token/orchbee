@@ -13,6 +13,7 @@ import type {
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ProjectedTerminalTransport } from '../../terminal-projection';
+import type { ProjectedTerminalPlatformEffects } from '../../projected-terminal-platform-effects';
 import {
 	startProjectedTerminalRenderer,
 	type ProjectedTerminalRendererDependencies,
@@ -49,6 +50,11 @@ describe('startProjectedTerminalRenderer', () => {
 		const applyRows = vi.fn<ProjectedTerminal['applyRows']>(() => 'committed');
 		const notifyLinkOpened = vi.fn<ProjectedTerminal['notifyLinkOpened']>();
 		const notifyExited = vi.fn<ProjectedTerminal['notifyExited']>();
+		const notifyBrokerFailure = vi.fn<ProjectedTerminal['notifyBrokerFailure']>();
+		const notifySelectionCopied = vi.fn<ProjectedTerminal['notifySelectionCopied']>();
+		const writeClipboardText = vi.fn<
+			NonNullable<ProjectedTerminalPlatformEffects['writeClipboardText']>
+		>(async () => ({ kind: 'completed' as const }));
 		let emitExit: Parameters<ProjectedTerminal['onExit']>[0] = () => undefined;
 		let emitFrameTelemetry: Parameters<ProjectedTerminal['onFrameTelemetry']>[0] = () => undefined;
 		let options: ProjectedTerminalOptions | undefined;
@@ -73,11 +79,11 @@ describe('startProjectedTerminalRenderer', () => {
 							totalRows: 0n,
 						})),
 						notifyExited,
-						notifyBrokerFailure: vi.fn<ProjectedTerminal['notifyBrokerFailure']>(),
+						notifyBrokerFailure,
 						notifyHistoryChanged: vi.fn<ProjectedTerminal['notifyHistoryChanged']>(),
 						notifyLinkOpened,
 						notifySelectionChanged: vi.fn<ProjectedTerminal['notifySelectionChanged']>(),
-						notifySelectionCopied: vi.fn<ProjectedTerminal['notifySelectionCopied']>(),
+						notifySelectionCopied,
 						onError: vi.fn<ProjectedTerminal['onError']>(() => ({
 							dispose: vi.fn<() => void>(),
 						})),
@@ -168,11 +174,20 @@ describe('startProjectedTerminalRenderer', () => {
 				bootstrap,
 				transport,
 				dependencies,
+				{ writeClipboardText },
 			);
 			emitTransportMessage({ frame: new Uint8Array([1, 2, 3]).buffer, kind: 'frame' });
 			emitTransportMessage({ kind: 'link-opened', requestSequence: '9' });
+			emitTransportMessage({
+				content: new TextEncoder().encode('copied from Host').buffer,
+				kind: 'selection-copy-content',
+				requestSequence: '10',
+			});
 			expect(applyFrame).toHaveBeenCalledOnce();
 			expect(notifyLinkOpened).toHaveBeenCalledWith('9');
+			await vi.waitFor(() => expect(writeClipboardText).toHaveBeenCalledWith('copied from Host'));
+			expect(notifySelectionCopied).toHaveBeenCalledWith(16, '10');
+			expect(notifyBrokerFailure).not.toHaveBeenCalled();
 			const telemetry: ProjectedTerminalFrameTelemetry = {
 				atlasGlyphCount: 0,
 				atlasGlyphsCreated: 0,

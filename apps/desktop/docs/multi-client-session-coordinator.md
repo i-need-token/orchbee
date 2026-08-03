@@ -5,8 +5,8 @@
 One Orchbee application runtime may be observed and controlled by several independent pages. An
 Electron renderer page and a Browser page have the same Workbench-client meaning: each owns a
 private Client View and terminal viewport state while every page observes one recoverable shared
-Workbench document and one set of terminal processes. Electron Main, preload, a future Gateway,
-and the Terminal Host are adapters or authorities, not clients.
+Workbench document and one set of terminal processes. Electron Main, preload, the local Browser
+Gateway, and the Terminal Host are adapters or authorities, not clients.
 
 Desktop Main owns one `DesktopClientSessionCoordinator`. It serializes shared-document proposals,
 persists one canonical revision chain, reconciles durable terminal intents once for the application,
@@ -23,9 +23,10 @@ atomic renderer bootstrap and application-lifetime messages. There is no compati
 the former unshipped Desktop-prefixed page-client contract.
 
 `apps/web` is the repository's runnable Web product entry and the canonical product renderer for
-both environments. The current normal browser mode is an in-memory preview; a future Gateway will
-provide its shared runtime capability adapter. An Electron `BrowserWindow` loads the same
-application with one atomic three-port capability bundle injected by preload. The platform-neutral
+all client environments. An absent runtime marker selects the in-memory Browser Preview; the local
+Gateway marker authenticates an ordinary Browser page as a peer of Electron. An Electron
+`BrowserWindow` loads the same application with one atomic three-port capability bundle injected by
+preload. The platform-neutral
 Workbench client runtime under `apps/web` consumes narrow client-session and projection ports and
 owns document coordination, projected-terminal presentation, search, and actions without depending
 on Electron, `MessagePort`, or a network transport. Desktop adapters supply the Electron ports and
@@ -219,7 +220,8 @@ and `1`). `provision` represents
 an effect that leaves a terminal alive, `stop` represents terminal-ending effects including close,
 and `none` represents a document-only change. Each abstract client identity connects and proposes at
 most once; a reconnect is a fresh identity, as required by the production contract. Stateful
-property tests use fixed seeds and generated client actions. The real Electron-plus-Browser trace,
-Gateway
-authentication, network backpressure, and explicit resize-control transfer belong to later slices.
-No throughput acceptance gate is added; the terminal frame hot path is unchanged.
+property tests use fixed seeds and generated client actions. The real
+Electron-plus-two-Browser trace covers Gateway authentication, independent page sessions, shared
+canonical state, attachment disconnect/reconnect, Browser effects, and exact attachment
+backpressure recovery. Explicit resize-control transfer remains outside this contract. No
+throughput acceptance gate is added; the terminal frame hot path is unchanged.

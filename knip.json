@@ -86,6 +86,15 @@
 			],
 			"project": ["src/**/*.{ts,tsx}!", "*.ts"]
 		},
+		"packages/gateway-protocol": {
+			"entry": [
+				"src/index.ts!",
+				"src/**/*.unit.test.{ts,tsx}!",
+				"rslib.config.ts!",
+				"vitest.config.ts!"
+			],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
+		},
 		"packages/terminal": {
 			"entry": [
 				"src/index.ts",
@@ -140,6 +149,16 @@
 				"system-tests/*.ts!",
 				"*.ts!"
 			]
+		},
+		"apps/gateway": {
+			"entry": [
+				"src/index.ts!",
+				"src/composition/entry.ts!",
+				"src/**/*.unit.test.{ts,tsx}!",
+				"rsbuild.config.ts!",
+				"vitest.config.ts!"
+			],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
 		},
 		"apps/storybook": {
 			"entry": [

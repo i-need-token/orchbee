@@ -22,6 +22,7 @@ import {
 	installProjectedTerminalShortcuts,
 	type ProjectedTerminalShortcutPlatform,
 } from '../projected-terminal-actions';
+import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import type { ProjectedTerminalTransport } from '../terminal-projection';
 
 type ProjectedTerminalDriver = Pick<
@@ -66,6 +67,7 @@ export interface ProjectedTerminalRendererDependencies {
 
 export interface ProjectedTerminalRendererSession {
 	dispose(): void;
+	readonly transportUnavailable: Promise<void>;
 }
 
 const defaultDependencies: ProjectedTerminalRendererDependencies = {
@@ -82,6 +84,7 @@ export async function startProjectedTerminalRenderer(
 	bootstrap: ProjectedAttachmentBootstrap,
 	transport: ProjectedTerminalTransport,
 	dependencies: ProjectedTerminalRendererDependencies = defaultDependencies,
+	platformEffects: ProjectedTerminalPlatformEffects = {},
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
@@ -103,6 +106,10 @@ export async function startProjectedTerminalRenderer(
 	let finalRevision: bigint | undefined;
 	let lastRenderedRevision: bigint | undefined;
 	let renderedFrames = 0;
+	let resolveTransportUnavailable: (() => void) | undefined;
+	const transportUnavailable = new Promise<void>((resolve) => {
+		resolveTransportUnavailable = resolve;
+	});
 	const updateFinalPresentation = (): void => {
 		if (
 			finalRevision !== undefined &&
@@ -147,7 +154,11 @@ export async function startProjectedTerminalRenderer(
 		terminal,
 		terminal.getBufferRowsSnapshot().totalRows,
 	);
-	const actions = createProjectedTerminalActionComposition(terminal, findController);
+	const actions = createProjectedTerminalActionComposition(
+		terminal,
+		findController,
+		platformEffects,
+	);
 	const subscriptions = [
 		terminal.onError((event) => {
 			if (
@@ -269,6 +280,14 @@ export async function startProjectedTerminalRenderer(
 			case 'selection-changed':
 				terminal.notifySelectionChanged(event.data.event);
 				return;
+			case 'selection-copy-content':
+				void applyClientSelectionCopy(
+					terminal,
+					event.data.content,
+					event.data.requestSequence,
+					platformEffects,
+				);
+				return;
 			case 'selection-copied':
 				terminal.notifySelectionCopied(event.data.byteLength, event.data.requestSequence);
 				return;
@@ -277,7 +296,11 @@ export async function startProjectedTerminalRenderer(
 				return;
 		}
 	};
-	const unsubscribeTransport = transport.subscribe(handleMessage, reportFailure);
+	const unsubscribeTransport = transport.subscribe(handleMessage, () => {
+		reportFailure();
+		resolveTransportUnavailable?.();
+		resolveTransportUnavailable = undefined;
+	});
 
 	const findRoot = rootElement.ownerDocument.createElement('div');
 	findRoot.dataset['projectedTerminalFindSurface'] = 'true';
@@ -351,5 +374,57 @@ export async function startProjectedTerminalRenderer(
 			status.remove();
 			findRoot.remove();
 		},
+		transportUnavailable,
 	};
+}
+
+async function applyClientSelectionCopy(
+	terminal: Pick<ProjectedTerminalDriver, 'notifyBrokerFailure' | 'notifySelectionCopied'>,
+	content: ArrayBuffer,
+	requestSequence: Parameters<ProjectedTerminalDriver['notifySelectionCopied']>[1],
+	platformEffects: ProjectedTerminalPlatformEffects,
+): Promise<void> {
+	const writeClipboardText = platformEffects.writeClipboardText;
+	if (writeClipboardText === undefined) {
+		terminal.notifyBrokerFailure({
+			code: 'client-clipboard-unavailable',
+			message: 'The client clipboard effect is unavailable.',
+			operation: 'copy',
+			requestSequence,
+			retryable: false,
+		});
+		return;
+	}
+	let text: string;
+	try {
+		text = new TextDecoder('utf-8', { fatal: true }).decode(content);
+	} catch {
+		terminal.notifyBrokerFailure({
+			code: 'invalid-copy-utf8',
+			message: 'The exported selection is not valid UTF-8.',
+			operation: 'copy',
+			requestSequence,
+			retryable: false,
+		});
+		return;
+	}
+	let result: Awaited<
+		ReturnType<NonNullable<ProjectedTerminalPlatformEffects['writeClipboardText']>>
+	>;
+	try {
+		result = await writeClipboardText(text);
+	} catch {
+		result = { code: 'client-clipboard-failed', kind: 'failed', retryable: false };
+	}
+	if (result.kind === 'completed') {
+		terminal.notifySelectionCopied(content.byteLength, requestSequence);
+		return;
+	}
+	terminal.notifyBrokerFailure({
+		code: result.kind === 'failed' ? result.code : 'client-copy-cancelled',
+		message: 'The client clipboard effect did not complete.',
+		operation: 'copy',
+		requestSequence,
+		retryable: result.kind === 'failed' && result.retryable,
+	});
 }

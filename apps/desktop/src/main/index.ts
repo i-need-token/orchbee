@@ -2,6 +2,7 @@ export { DesktopApplication } from './composition';
 export type { DesktopApplicationDependencies, DesktopApplicationOptions } from './composition';
 export {
 	resolveDesktopRuntimeConfiguration,
+	type DesktopGatewayRuntimeConfiguration,
 	type DesktopRuntimeConfiguration,
 	type DesktopRuntimeConfigurationInput,
 	type DesktopRuntimeEnvironment,

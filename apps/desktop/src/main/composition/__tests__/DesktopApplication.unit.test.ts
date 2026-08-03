@@ -11,6 +11,7 @@ import {
 	type DecodedProtocolEnvelope,
 	type TerminalExited,
 } from '@orchbee/terminal-protocol';
+import { GatewayClientConnectionIdSchema } from '@orchbee/gateway-protocol';
 import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 import type { BrowserWindow, BrowserWindowConstructorOptions, MessagePortMain } from 'electron';
@@ -74,10 +75,64 @@ describe('DesktopApplication', () => {
 		expect(harness.clientSessionPorts[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.createWorkbenchDocumentStore).toHaveBeenCalledOnce();
+		expect(harness.createGatewayRuntime).not.toHaveBeenCalled();
 
 		await application.shutdown();
 		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
 		expect(harness.host.close).toHaveBeenCalledOnce();
+	});
+
+	it('starts the development Gateway with fresh page-scoped controls and no lifetime authority', async () => {
+		const harness = createHarness();
+		const application = createApplication(
+			harness.dependencies,
+			'linux',
+			createRuntime({
+				ORCHBEE_DESKTOP_GATEWAY: '1',
+				ORCHBEE_GATEWAY_ENTRY_PATH: '/repo/apps/gateway/dist/main/gateway.cjs',
+			}),
+		);
+
+		await application.start();
+
+		expect(harness.createGatewayRuntime).toHaveBeenCalledWith(
+			{
+				entryPath: '/repo/apps/gateway/dist/main/gateway.cjs',
+				rendererUrl: 'http://127.0.0.1:3000/',
+			},
+			{ openClient: expect.any(Function) },
+		);
+		expect(harness.gatewayRuntime.start).toHaveBeenCalledOnce();
+		expect(harness.publishGatewayBrowserUrl).toHaveBeenCalledWith(
+			'http://127.0.0.1:3000/?orchbee-runtime=gateway#gateway-capability',
+		);
+		expect(harness.gatewayRuntime.start.mock.invocationCallOrder[0]).toBeLessThan(
+			harness.createWindow.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+		);
+
+		const gatewayDependencies = harness.createGatewayRuntime.mock.calls[0]?.[1];
+		if (gatewayDependencies === undefined)
+			throw new Error('Gateway dependencies were not created.');
+		const gatewayClient = gatewayDependencies.openClient(
+			GatewayClientConnectionIdSchema.parse('gateway:client:1'),
+		);
+		expect(harness.clientSessionPorts).toHaveLength(2);
+		expect(harness.projectionBrokers).toHaveLength(2);
+		expect(harness.lifetimeBrokers).toHaveLength(1);
+		const desktopBootstrap = harness.webContents.postMessage.mock.calls[0]?.[1] as
+			| { readonly clientSession?: { readonly clientSessionId?: string } }
+			| undefined;
+		expect(gatewayClient.bootstrap.clientSessionId).not.toBe(
+			desktopBootstrap?.clientSession?.clientSessionId,
+		);
+		await harness.projectionServices[1]?.open(presentationId);
+		expect(harness.terminalRuntime.open).toHaveBeenCalledWith(presentationId, {
+			brokerEffectTarget: 'client',
+		});
+
+		await gatewayClient.dispose();
+		await application.shutdown();
+		expect(harness.gatewayRuntime.dispose).toHaveBeenCalledOnce();
 	});
 
 	it('awaits the old client session attachment retirement before publishing reload controls', async () => {
@@ -306,13 +361,14 @@ describe('DesktopApplication', () => {
 function createApplication(
 	dependencies: DesktopApplicationDependencies,
 	platform: NodeJS.Platform = 'linux',
+	runtime = createRuntime(),
 ): DesktopApplication {
 	return new DesktopApplication(
 		{
 			platform,
 			preloadPath: '/repo/apps/desktop/dist/preload/preload.cjs',
 			rendererUrl: 'http://127.0.0.1:3000/',
-			runtime: createRuntime(),
+			runtime,
 			singleInstanceLockOwned: true,
 			traceCopyPath: false,
 		},
@@ -365,6 +421,9 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		readonly dispose: ReturnType<typeof vi.fn<() => Promise<void>>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
+	const projectionServices: Array<
+		Parameters<DesktopApplicationDependencies['createProjectionControlBroker']>[1]
+	> = [];
 	const lifetimeBrokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly requestExit: ReturnType<typeof vi.fn>;
@@ -406,6 +465,17 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		windowOptions = options;
 		return browserWindow;
 	});
+	const gatewayRuntime = {
+		dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+		start: vi.fn<() => Promise<{ readonly browserUrl: string }>>().mockResolvedValue({
+			browserUrl: 'http://127.0.0.1:3000/?orchbee-runtime=gateway#gateway-capability',
+		}),
+	};
+	const createGatewayRuntime = vi
+		.fn<DesktopApplicationDependencies['createGatewayRuntime']>()
+		.mockReturnValue(gatewayRuntime);
+	const publishGatewayBrowserUrl =
+		vi.fn<DesktopApplicationDependencies['publishGatewayBrowserUrl']>();
 	let identifierSequence = 0;
 	const dependencies: DesktopApplicationDependencies = {
 		connectHost: vi.fn<DesktopApplicationDependencies['connectHost']>().mockResolvedValue(host),
@@ -437,13 +507,15 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		),
 		createClientSessionCoordinator: (coordinatorDependencies) =>
 			new DesktopClientSessionCoordinator(coordinatorDependencies),
+		createGatewayRuntime,
 		createMessageChannel: () => ({
 			port1: new TestMainPort() as unknown as MessagePortMain,
 			port2: new TestMainPort() as unknown as MessagePortMain,
 		}),
 		createProjectionControlBroker: vi.fn<
 			DesktopApplicationDependencies['createProjectionControlBroker']
-		>(() => {
+		>((_port, service) => {
+			projectionServices.push(service);
 			const broker = {
 				dispose: vi.fn<() => Promise<void>>(
 					projectionBrokers.length === 0 && firstProjectionDispose !== undefined
@@ -465,6 +537,7 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 			.mockReturnValue(workbenchDocumentStore),
 		createWindow,
 		getPreferredLocales: () => ['en-US'],
+		publishGatewayBrowserUrl,
 		randomIdentifier: () => (++identifierSequence).toString(16).padStart(32, '0'),
 		quitApplication: vi.fn<() => void>(),
 		writeTrace: vi.fn<DesktopApplicationDependencies['writeTrace']>(),
@@ -472,9 +545,11 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 	return {
 		browserWindow,
 		clientSessionPorts,
+		createGatewayRuntime,
 		createWorkbenchDocumentStore: dependencies.createWorkbenchDocumentStore,
 		createWindow,
 		dependencies,
+		gatewayRuntime,
 		host,
 		lifetimeBrokers,
 		lifetimeDependencies,
@@ -482,6 +557,8 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 			return hostEnvelopeListener;
 		},
 		projectionBrokers,
+		projectionServices,
+		publishGatewayBrowserUrl,
 		quitApplication: dependencies.quitApplication,
 		terminalRuntime,
 		webContents,
@@ -508,10 +585,14 @@ function terminalExitedEnvelope(event: TerminalExited): DecodedProtocolEnvelope 
 	};
 }
 
-function createRuntime() {
+function createRuntime(
+	environment: Parameters<typeof resolveDesktopRuntimeConfiguration>[0]['environment'] = {
+		SHELL: '/bin/sh',
+	},
+) {
 	return resolveDesktopRuntimeConfiguration({
 		applicationPath: '/repo/apps/desktop',
-		environment: { SHELL: '/bin/sh' },
+		environment,
 		homeDirectory: '/users/orchbee',
 		platform: 'linux',
 		userDataPath: '/users/orchbee/.config/orchbee',

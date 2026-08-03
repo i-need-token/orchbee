@@ -1,0 +1,28 @@
+{
+	"name": "@orchbee/gateway",
+	"version": "0.1.0",
+	"private": true,
+	"description": "On-demand loopback Browser Gateway utility process for local development",
+	"type": "module",
+	"main": "./dist/main/gateway.cjs",
+	"scripts": {
+		"dev": "rsbuild build --watch",
+		"build": "rsbuild build --log-level error",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"@orchbee/gateway-protocol": "workspace:^",
+		"@orchbee/workbench": "workspace:^",
+		"@orchbee/workbench-client-protocol": "workspace:^",
+		"ws": "catalog:"
+	},
+	"devDependencies": {
+		"@rsbuild/core": "catalog:",
+		"@types/node": "catalog:",
+		"@types/ws": "catalog:",
+		"electron": "42.8.0",
+		"vitest": "catalog:"
+	}
+}

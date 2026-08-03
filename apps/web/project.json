@@ -3,11 +3,11 @@
 	"domain": "web",
 	"runtime": ["browser", "electron"],
 	"stability": "experimental",
-	"responsibility": "Sole Workbench product renderer for browser and Electron clients, including the platform-neutral page-client runtime and explicit environment capability adapters.",
+	"responsibility": "Sole Workbench product renderer for browser and Electron clients, including the platform-neutral page-client runtime, Electron and local Gateway transport adapters, and explicit Browser platform-effect adapters.",
 	"nonGoals": [
 		"Owning reusable product interface behavior or reusable UI primitives.",
 		"Owning the supported-locale contract, product message descriptors, or translation catalogs.",
-		"Owning authoritative PTY processes, remote session synchronization, or deployment services.",
+		"Owning authoritative PTY processes, Gateway listeners or authentication, remote session synchronization, or deployment services.",
 		"Owning Electron Main, preload, Node, or native desktop privileged capability implementations."
 	]
 }

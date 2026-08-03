@@ -1,0 +1,1 @@
+export { createBrowserTerminalPlatformEffects } from './createBrowserTerminalPlatformEffects';

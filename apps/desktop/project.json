@@ -3,11 +3,11 @@
 	"domain": "desktop",
 	"runtime": ["electron", "node"],
 	"stability": "experimental",
-	"responsibility": "Electron Main and preload composition, durable multi-terminal binding storage, one canonical shared Workbench document writer and transport-neutral multi-client session coordinator, Host inventory reconciliation, serialized per-binding terminal lifetime orchestration, demand-driven multi-viewer projection control, terminal-presentation binding registration, Electron MessagePort adapters for transport-neutral Workbench client contracts, atomic sandboxed bootstrap and application-lifetime capability brokering, and the local Desktop-to-Terminal-Host transport boundary.",
+	"responsibility": "Electron Main and preload composition, durable multi-terminal binding storage, one canonical shared Workbench document writer and transport-neutral multi-client session coordinator, Host inventory reconciliation, serialized per-binding terminal lifetime orchestration, demand-driven multi-viewer projection control, terminal-presentation binding registration, Electron MessagePort adapters for transport-neutral Workbench client contracts, atomic sandboxed bootstrap and application-lifetime capability brokering, on-demand local Browser Gateway Utility lifecycle and scoped page-capability allocation, and the local Desktop-to-Terminal-Host transport boundary.",
 	"nonGoals": [
 		"Defining Project, Workspace, Workbench, Tab, Panel, agent, or product-session semantics; Desktop persists and composes only their owning package APIs.",
 		"Owning authoritative VT state, PTY processes, terminal scrollback, or terminal history policy.",
-		"Providing network listeners, sharing, remote authentication, mobile clients, or remote terminal gateways.",
+		"Implementing the Gateway network listener, WebSocket framing, or Browser authentication, and providing LAN sharing, accounts, mobile clients, or remote terminal gateways.",
 		"Owning a second Workbench product UI separate from the canonical apps/web application.",
 		"Choosing product quit, Panel-close, retention, or confirmation policy and presentation.",
 		"Automatically merging stale shared-document revisions, repairing invalid persisted shared documents, persisting Client View, providing versioned Host installation, or activating Desktop updates."

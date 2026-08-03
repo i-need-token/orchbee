@@ -6,8 +6,9 @@ Sandboxed Electron product client and scoped local broker for Orchbee's native T
 
 Desktop composes the shared Workbench with Host-backed projected terminals. Workbench owns Project,
 Workspace, Tab, Panel, and `TerminalPresentationId` state; Electron Main owns durable technical
-bindings and privileged effects; `apps/terminal-host` owns PTYs, processes, Ghostty VT state,
-history, and real terminal identity. None of the shared Workbench document is stored in the Host.
+bindings and Electron-only privileged effects; `apps/terminal-host` owns PTYs, processes, Ghostty
+VT state, history, and real terminal identity. A Browser client commits clipboard and allowlisted
+link effects in its own page. None of the shared Workbench document is stored in the Host.
 
 Main starts without creating a fixed terminal or opening an attachment. It restores the durable
 `TerminalPresentationId` to `TerminalBindingId` registry, owns one process-wide canonical Workbench
@@ -44,11 +45,14 @@ replacement document or terminal effect. Unreferenced technical bindings remain 
 not silently adopted into the shared document.
 
 The coordinator is transport-neutral and supports independent page sessions without a product
-count ceiling. This slice exposes the Electron `MessagePort` adapter; a network Gateway remains
-outside Desktop. `apps/web` owns the platform-neutral Workbench client runtime and the single
-renderer application used in both a normal browser and Electron. Desktop supplies only its
-transport and lifecycle adapters, loads the loopback development URL with the explicit
-`?orchbee-runtime=desktop` marker, and owns no renderer source or renderer build. See
+count ceiling. Electron uses a direct `MessagePort` adapter. Local Browser development starts
+`apps/gateway` as an on-demand Utility Process; Desktop owns its lifetime and allocates exactly one
+client-session/projection port pair per authenticated page, while the Utility owns the loopback
+listener, authentication, framing, and transport backpressure. The Gateway never receives an
+application-lifetime port or a Host connection. `apps/web` owns the platform-neutral Workbench
+client runtime and the single renderer application used in an ordinary browser, a Gateway Browser
+client, and Electron. Desktop loads the loopback development URL with the explicit
+`?orchbee-runtime=desktop` marker and owns no renderer source or renderer build. See
 [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md).
 
 Desktop requires Host protocol `1.4` exactly. Electron uses `42.8.0`, the final release in the major
@@ -173,6 +177,12 @@ History, selection, copy, link, and accessibility behavior remains attachment-sc
 bottom-following use creates no history cache or search Worker; these resources are activated only
 by their existing interaction contracts.
 
+Electron attachments commit selection export through Main's clipboard and open allowlisted links
+through Electron. Gateway attachments receive bounded selection bytes, commit them through the
+Browser Clipboard API, and open `http`, `https`, or `mailto` targets through a local Browser gesture.
+The Browser never receives a generic Electron effect port. Attachment transport backpressure
+retires only that attachment; the visible surface requests a fresh projection and full snapshot.
+
 Host `TerminalExited` events are resolved through the authoritative runtime registry, persisted to
 the exact binding, published to Workbench by PresentationId, and also forwarded to any live
 projection. A recovered exited binding is restored into Workbench, attached read-only, and
@@ -197,7 +207,10 @@ Focused traces cover:
 - concurrent viewers with exactly one resize owner, observer non-promotion, and next-open ownership;
 - fixed-header frame routing to only the matching AttachmentId;
 - sandboxed end-to-end input, output, history, search, selection, copy, links, exit, renderer reload,
-  and Electron Main restart.
+  and Electron Main restart;
+- one Electron renderer and two ordinary Browser pages sharing canonical Workbench and terminal
+  state while retaining fresh page sessions, Client Views, and attachment identities, including
+  Browser copy, link, disconnect, rejection, and reconnect behavior;
 - user-quit preserve/cancel/stop, hidden-terminal stop, failed-CAS suppression, partial-stop retry,
   unreferenced-binding drain, unknown-Host-orphan refusal, update-restart preserve, and fresh
   identity after explicitly starting a stopped session.
@@ -231,10 +244,16 @@ pnpm desktop
 ```
 
 `pnpm desktop` defaults to `http://127.0.0.1:3000/`; an explicit loopback Web server can be selected
-with `ORCHBEE_DESKTOP_RENDERER_URL`. Desktop appends the runtime marker before navigation. A
-packaged renderer and updater remain outside this development slice.
+with `ORCHBEE_DESKTOP_RENDERER_URL`. Desktop appends the Electron runtime marker before navigation,
+builds and starts the local Browser Gateway by default, and prints one
+`ORCHBEE_BROWSER_CLIENT_URL=<url>` line. Open that complete process-lifetime URL in each Browser page
+that should join the same canonical Workbench. The capability stays in the fragment and must not be
+persisted or copied into diagnostics. Set `ORCHBEE_DESKTOP_GATEWAY=0` to disable the Utility Process.
+A packaged renderer and updater remain outside this development slice.
 
 `ORCHBEE_TERMINAL_HOST_BINARY` selects an absolute development/test Host binary.
+`ORCHBEE_GATEWAY_ENTRY_PATH` selects the built development Gateway entry when the default sibling
+path is not used.
 `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`, `ORCHBEE_DESKTOP_ENDPOINT_ID`, and
 `ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` isolate controlled development and system-test state. They are
 not a versioned Host installation or discovery mechanism. The default POSIX runtime uses a short
@@ -245,14 +264,12 @@ Run package checks from the repository root:
 ```sh
 pnpm --filter @orchbee/desktop typecheck
 pnpm --filter @orchbee/desktop test
-pnpm --filter @orchbee/desktop test:tla
+pnpm --filter @orchbee/gateway-protocol test
+pnpm --filter @orchbee/gateway test
 pnpm --filter @orchbee/web build
 pnpm --filter @orchbee/desktop build
 pnpm --filter @orchbee/desktop test:system
 ```
-
-The change-triggered `test:tla` command requires Java 17 or newer for its pinned TLA+ runner. The
-ignored app-local `.tools/` directory may cache the verified runner JAR.
 
 The optional throughput harness requires an absolute large-output fixture and at least five runs:
 

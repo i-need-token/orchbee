@@ -8,6 +8,7 @@ export type {
 	TerminalProjectionClient,
 	TerminalProjectionRequest,
 } from './terminal-projection';
+export type { ProjectedTerminalPlatformEffects } from './projected-terminal-platform-effects';
 export { WorkbenchClientApplication } from './workbench-client-application';
 export type { WorkbenchClientApplicationProps } from './workbench-client-application';
 export { WorkbenchDocumentCoordinator } from './workbench-document-control';

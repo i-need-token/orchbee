@@ -3,7 +3,10 @@ import type { TerminalPresentationId } from '@orchbee/workbench/terminal-present
 import type { MessagePortMain } from 'electron';
 
 import type { ProjectedAttachmentBootstrap } from '@orchbee/workbench-client-protocol';
-import type { ProjectedTerminalBrokerMetrics } from '../broker';
+import type {
+	ProjectedTerminalBrokerEffectTarget,
+	ProjectedTerminalBrokerMetrics,
+} from '../broker';
 import { readTerminalInventory, type HostConnection } from '../host';
 import { FileTerminalBindingStore } from '../recovery';
 import { DesktopTerminalBindingRegistry } from '../terminal-binding-registry';
@@ -19,6 +22,7 @@ import {
 	DesktopTerminalProjectionService,
 	type DesktopProjectionBrokerHandle,
 	type DesktopTerminalProjectionLease,
+	type DesktopTerminalProjectionOpenOptions,
 } from '../terminal-projection-control';
 import type { DesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 
@@ -35,7 +39,10 @@ export interface DesktopTerminalRuntime extends DesktopTerminalLifecycleOperatio
 	getRecoveredPresentations(): readonly DesktopRecoveredTerminalPresentation[];
 	initialize(): Promise<DesktopTerminalLifecycleAdapterInitialization>;
 	inspectUnknownHostTerminalCount(): Promise<number>;
-	open(presentationId: TerminalPresentationId): Promise<DesktopTerminalProjectionLease>;
+	open(
+		presentationId: TerminalPresentationId,
+		options?: DesktopTerminalProjectionOpenOptions,
+	): Promise<DesktopTerminalProjectionLease>;
 	recordExit(event: TerminalExited): Promise<TerminalPresentationId | null>;
 }
 
@@ -45,6 +52,7 @@ export interface DesktopTerminalRuntimeComposition {
 		host: HostConnection,
 		port: MessagePortMain,
 		bootstrap: ProjectedAttachmentBootstrap,
+		effectTarget: ProjectedTerminalBrokerEffectTarget,
 	) => DesktopProjectionBrokerHandle;
 	readonly createMessageChannel: () => {
 		readonly port1: MessagePortMain;
@@ -93,7 +101,7 @@ export function composeDesktopTerminalRuntime(
 			}
 			return (await readTerminalInventory(composition.host)).length;
 		},
-		open: async (presentationId) => projectionService.open(presentationId),
+		open: async (presentationId, options) => projectionService.open(presentationId, options),
 		recordExit: async (event) => adapter.recordExit(event),
 	};
 }

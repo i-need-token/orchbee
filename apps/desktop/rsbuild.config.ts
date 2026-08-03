@@ -12,6 +12,9 @@ if (typeof electronExecutable !== 'string') {
 export default defineConfig(() => {
 	let desktopProcess: ChildProcess | undefined;
 	const rendererUrl = process.env['ORCHBEE_DESKTOP_RENDERER_URL'] ?? 'http://127.0.0.1:3000/';
+	const gatewayEntryPath =
+		process.env['ORCHBEE_GATEWAY_ENTRY_PATH'] ??
+		path.resolve('..', 'gateway', 'dist', 'main', 'gateway.cjs');
 	const launchDesktopPlugin: RsbuildPlugin = {
 		name: 'orchbee-desktop-development-launcher',
 		apply: 'serve',
@@ -21,7 +24,9 @@ export default defineConfig(() => {
 				desktopProcess = spawn(electronExecutable, [path.resolve('dist/main/main.cjs')], {
 					env: {
 						...process.env,
+						ORCHBEE_DESKTOP_GATEWAY: process.env['ORCHBEE_DESKTOP_GATEWAY'] ?? '1',
 						ORCHBEE_DESKTOP_RENDERER_URL: rendererUrl,
+						ORCHBEE_GATEWAY_ENTRY_PATH: gatewayEntryPath,
 					},
 					stdio: 'inherit',
 				});

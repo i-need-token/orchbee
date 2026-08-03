@@ -48,7 +48,11 @@ import {
 	type DesktopApplicationLifetimeDrainResult,
 	type DesktopApplicationLifetimeExitResult,
 } from '../application-lifetime';
-import { ProjectedTerminalBroker, type ProjectedTerminalBrokerMetrics } from '../broker';
+import {
+	ProjectedTerminalBroker,
+	type ProjectedTerminalBrokerEffectTarget,
+	type ProjectedTerminalBrokerMetrics,
+} from '../broker';
 import {
 	DesktopClientSessionBroker,
 	DesktopClientSessionCoordinator,
@@ -56,6 +60,12 @@ import {
 	type DesktopClientSessionCoordinatorDependencies,
 	type DesktopTerminalIntentReconcilerDependencies,
 } from '../client-session';
+import {
+	LocalDevelopmentGatewayRuntime,
+	type DesktopGatewayClientHandle,
+	type LocalDevelopmentGatewayRuntimeDependencies,
+	type LocalDevelopmentGatewayRuntimeOptions,
+} from '../gateway';
 import { DevelopmentHostRuntime, type HostConnection } from '../host';
 import {
 	TerminalProjectionControlBroker,
@@ -95,6 +105,11 @@ interface DesktopApplicationLifetimeBrokerHandle {
 	start(): void;
 }
 
+interface DesktopGatewayRuntimeHandle {
+	dispose(): Promise<void>;
+	start(): Promise<{ readonly browserUrl: string }>;
+}
+
 export interface DesktopApplicationOptions {
 	readonly platform: NodeJS.Platform;
 	readonly preloadPath: string;
@@ -110,6 +125,7 @@ export interface DesktopApplicationDependencies {
 		host: HostConnection,
 		port: MessagePortMain,
 		bootstrap: ProjectedAttachmentBootstrap,
+		effectTarget: ProjectedTerminalBrokerEffectTarget,
 	) => DesktopBrokerHandle;
 	readonly createApplicationLifetimeBroker: (
 		port: MessagePortMain,
@@ -123,6 +139,10 @@ export interface DesktopApplicationDependencies {
 	readonly createClientSessionCoordinator: (
 		dependencies: DesktopClientSessionCoordinatorDependencies,
 	) => DesktopClientSessionCoordinator;
+	readonly createGatewayRuntime: (
+		options: LocalDevelopmentGatewayRuntimeOptions,
+		dependencies: Pick<LocalDevelopmentGatewayRuntimeDependencies, 'openClient'>,
+	) => DesktopGatewayRuntimeHandle;
 	readonly createMessageChannel: () => {
 		readonly port1: MessagePortMain;
 		readonly port2: MessagePortMain;
@@ -150,6 +170,7 @@ export interface DesktopApplicationDependencies {
 	readonly getPreferredLocales: () => readonly string[];
 	readonly randomIdentifier: () => string;
 	readonly quitApplication: () => void;
+	readonly publishGatewayBrowserUrl: (url: string) => void;
 	readonly writeTrace: (trace: unknown) => void;
 }
 
@@ -160,13 +181,16 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			endpointId: configuration.endpointId,
 			runtimeDirectory: configuration.runtimeDirectory,
 		}).connect(),
-	createBroker: (host, port, bootstrap) => new ProjectedTerminalBroker(host, port, bootstrap),
+	createBroker: (host, port, bootstrap, effectTarget) =>
+		new ProjectedTerminalBroker(host, port, bootstrap, undefined, effectTarget),
 	createApplicationLifetimeBroker: (port, dependencies) =>
 		new DesktopApplicationLifetimeBroker(port, dependencies),
 	createClientSessionBroker: (port, coordinator, disposeAttachments) =>
 		new DesktopClientSessionBroker(port, coordinator, { disposeAttachments }),
 	createClientSessionCoordinator: (dependencies) =>
 		new DesktopClientSessionCoordinator(dependencies),
+	createGatewayRuntime: (options, dependencies) =>
+		new LocalDevelopmentGatewayRuntime(options, dependencies),
 	createMessageChannel: () => new MessageChannelMain(),
 	createProjectionControlBroker: (port, service) =>
 		new TerminalProjectionControlBroker(port, service),
@@ -189,6 +213,7 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	createWorkbenchDocumentStore: (filePath) => new FileWorkbenchDocumentStore(filePath),
 	createWindow: (options) => new BrowserWindow(options),
 	getPreferredLocales: () => app.getPreferredSystemLanguages(),
+	publishGatewayBrowserUrl: (url) => console.info(`ORCHBEE_BROWSER_CLIENT_URL=${url}`),
 	randomIdentifier: () => randomBytes(16).toString('hex'),
 	quitApplication: () => app.quit(),
 	writeTrace: (trace) => console.info(JSON.stringify(trace)),
@@ -205,6 +230,7 @@ export class DesktopApplication {
 	#documentGeneration = 0;
 	#documentTransition = Promise.resolve();
 	#exitRequest: Promise<DesktopApplicationLifetimeExitResult> | undefined;
+	#gatewayRuntime: DesktopGatewayRuntimeHandle | undefined;
 	#projectionControlBroker: DesktopProjectionControlBrokerHandle | undefined;
 	#quitPrepared = false;
 	#removeHostListener: (() => void) | undefined;
@@ -345,10 +371,24 @@ export class DesktopApplication {
 			this.#terminalIntentReconciler = terminalIntentReconciler;
 			this.#clientSessionCoordinator = clientSessionCoordinator;
 			this.#removeHostListener = connection.onEnvelope(this.#handleHostEnvelope);
+			if (this.#options.runtime.gateway.kind === 'enabled') {
+				const gatewayRuntime = this.#dependencies.createGatewayRuntime(
+					{
+						entryPath: this.#options.runtime.gateway.entryPath,
+						rendererUrl: this.#options.rendererUrl,
+					},
+					{ openClient: () => this.#openGatewayClient() },
+				);
+				this.#gatewayRuntime = gatewayRuntime;
+				const gateway = await gatewayRuntime.start();
+				this.#dependencies.publishGatewayBrowserUrl(gateway.browserUrl);
+			}
 			await this.openWindow();
 		} catch (error) {
 			this.#removeHostListener?.();
 			this.#removeHostListener = undefined;
+			await this.#gatewayRuntime?.dispose();
+			this.#gatewayRuntime = undefined;
 			await this.#clientSessionCoordinator?.dispose();
 			this.#clientSessionCoordinator = undefined;
 			this.#terminalIntentReconciler = undefined;
@@ -436,6 +476,8 @@ export class DesktopApplication {
 		this.#writeCopyPathTrace('main-shutdown');
 		this.#beginRendererDocument();
 		await this.#documentTransition;
+		await this.#gatewayRuntime?.dispose();
+		this.#gatewayRuntime = undefined;
 		await this.#clientSessionCoordinator?.dispose();
 		this.#clientSessionCoordinator = undefined;
 		this.#terminalIntentReconciler = undefined;
@@ -521,6 +563,48 @@ export class DesktopApplication {
 			}),
 			[clientSessionChannel.port1, projectionChannel.port1, lifetimeChannel.port1],
 		);
+	}
+
+	#openGatewayClient(): DesktopGatewayClientHandle {
+		const terminalRuntime = this.#terminalRuntime;
+		const clientSessionCoordinator = this.#clientSessionCoordinator;
+		if (
+			terminalRuntime === undefined ||
+			clientSessionCoordinator === undefined ||
+			this.#shuttingDown
+		) {
+			throw new Error('Desktop Gateway client control is unavailable.');
+		}
+		const clientSessionChannel = this.#dependencies.createMessageChannel();
+		const projectionChannel = this.#dependencies.createMessageChannel();
+		const projectionBroker = this.#dependencies.createProjectionControlBroker(
+			projectionChannel.port2,
+			{
+				open: async (presentationId) =>
+					terminalRuntime.open(presentationId, { brokerEffectTarget: 'client' }),
+			},
+		);
+		let clientSessionBroker: DesktopClientSessionBrokerHandle;
+		try {
+			clientSessionBroker = this.#dependencies.createClientSessionBroker(
+				clientSessionChannel.port2,
+				clientSessionCoordinator,
+				async () => projectionBroker.dispose(),
+			);
+		} catch (error) {
+			void projectionBroker.dispose();
+			clientSessionChannel.port1.close();
+			projectionChannel.port1.close();
+			throw error;
+		}
+		clientSessionBroker.start();
+		projectionBroker.start();
+		return {
+			bootstrap: clientSessionBroker.bootstrap,
+			clientSessionPort: clientSessionChannel.port1,
+			dispose: async () => clientSessionBroker.dispose(),
+			projectionPort: projectionChannel.port1,
+		};
 	}
 
 	readonly #drainForApplicationStop = async (
