@@ -542,6 +542,259 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 	}
 });
 
+test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow', async () => {
+	test.setTimeout(90_000);
+	let application = electronApplication;
+	const currentRuntimeDirectory = runtimeDirectory;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	if (currentRuntimeDirectory === undefined) {
+		throw new Error('Desktop runtime directory is unavailable.');
+	}
+	const projectName = path.basename(currentRuntimeDirectory);
+	const gatewayUrl = await waitForGatewayBrowserUrl(application);
+	let desktopPage = await application.firstWindow();
+	desktopPage.setDefaultTimeout(10_000);
+	const browser = await chromium.launch();
+	let browserContext = await browser.newContext();
+	let browserPage = await browserContext.newPage();
+	browserPage.setDefaultTimeout(10_000);
+	const browserSockets = trackGatewaySockets(browserPage);
+
+	try {
+		await browserPage.goto(gatewayUrl);
+		await expect(projectedTerminal(browserPage)).toHaveAttribute(
+			'data-projected-terminal-state',
+			'open',
+		);
+
+		await browserPage.getByRole('button', { name: 'Create Project' }).click();
+		await browserPage.getByRole('menuitem', { name: 'Select Folder…' }).click();
+		const createProjectDialog = browserPage.locator('[data-slot="workbench-project-create"]');
+		await createProjectDialog.getByLabel('Folder path').fill(currentRuntimeDirectory);
+		await createProjectDialog.getByRole('button', { name: 'Create' }).click();
+		await expect(createProjectDialog).not.toBeAttached();
+		await expandProject(browserPage, projectName);
+		await expect(workbenchWorkspace(browserPage, 'Primary')).toBeVisible();
+
+		const browserProjectRoot = projectedTerminal(browserPage);
+		await expect(browserProjectRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		const primaryPresentationId = await browserProjectRoot.getAttribute(
+			'data-terminal-presentation-id',
+		);
+		if (primaryPresentationId === null) {
+			throw new Error('Primary Workspace presentation identity is unavailable.');
+		}
+		const primaryInput = browserProjectRoot.getByRole('textbox');
+		await primaryInput.pressSequentially("pwd; printf 'lwf-primary-marker\\n'", { delay: 1 });
+		await primaryInput.press('Enter');
+		await expect(browserProjectRoot.locator('[role="log"]')).toContainText(currentRuntimeDirectory);
+		await expect(browserProjectRoot.locator('[role="log"]')).toContainText('lwf-primary-marker');
+
+		await expandProject(desktopPage, projectName);
+		await workbenchWorkspace(desktopPage, 'Primary').click();
+		const desktopPrimaryRoot = projectedTerminalFor(desktopPage, primaryPresentationId);
+		await expect(desktopPrimaryRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		await expect(desktopPrimaryRoot.locator('[role="log"]')).toContainText('lwf-primary-marker');
+		const primaryIdentity = await terminalDocumentIdentity(browserProjectRoot);
+		expect(await terminalDocumentIdentity(desktopPrimaryRoot)).toMatchObject({
+			creationId: primaryIdentity.creationId,
+			terminalId: primaryIdentity.terminalId,
+		});
+
+		await browserPage
+			.locator(
+				`[data-slot="workbench-terminal-viewport"][data-terminal-presentation-id="${primaryPresentationId}"]`,
+			)
+			.click({ button: 'right' });
+		await browserPage.getByRole('menuitem', { name: 'Split right' }).click();
+		await expect(projectedTerminals(browserPage)).toHaveCount(2);
+		await expect(projectedTerminals(desktopPage)).toHaveCount(2);
+		await waitForProjectedTerminalsOpen(browserPage);
+		await waitForProjectedTerminalsOpen(desktopPage);
+		const splitPresentationIds = await projectedTerminalPresentationIds(browserPage);
+		const splitPresentationId = splitPresentationIds.find(
+			(presentationId) => presentationId !== primaryPresentationId,
+		);
+		if (splitPresentationId === undefined) {
+			throw new Error('Split terminal presentation identity is unavailable.');
+		}
+		const splitRoot = projectedTerminalFor(browserPage, splitPresentationId);
+		const splitInput = splitRoot.getByRole('textbox');
+		await splitInput.pressSequentially("printf 'lwf-split-marker\\n'", { delay: 1 });
+		await splitInput.press('Enter');
+		await expect(
+			projectedTerminalFor(desktopPage, splitPresentationId).locator('[role="log"]'),
+		).toContainText('lwf-split-marker');
+		const splitIdentity = await terminalDocumentIdentity(splitRoot);
+
+		const attachmentClosesBeforeTabSwitch = gatewaySocketEventCount(
+			browserSockets,
+			'socket:/v1/attachment:closed',
+		);
+		await browserPage.getByRole('button', { name: 'New tab' }).click();
+		await expect(workbenchTabs(browserPage)).toHaveCount(2);
+		await expect(workbenchTabs(desktopPage)).toHaveCount(2);
+		await expect(projectedTerminals(browserPage)).toHaveCount(1);
+		await expect(projectedTerminals(desktopPage)).toHaveCount(2);
+		await expect
+			.poll(() => gatewaySocketEventCount(browserSockets, 'socket:/v1/attachment:closed'))
+			.toBeGreaterThanOrEqual(attachmentClosesBeforeTabSwitch + 2);
+		const secondTabRoot = projectedTerminal(browserPage);
+		await expect(secondTabRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		const secondTabPresentationId = await secondTabRoot.getAttribute(
+			'data-terminal-presentation-id',
+		);
+		if (secondTabPresentationId === null) {
+			throw new Error('Second Tab presentation identity is unavailable.');
+		}
+		const secondTabIdentity = await terminalDocumentIdentity(secondTabRoot);
+		expect(secondTabIdentity.terminalId).not.toBe(primaryIdentity.terminalId);
+		expect(secondTabIdentity.terminalId).not.toBe(splitIdentity.terminalId);
+		expect(await projectedTerminal(desktopPage).getAttribute('data-terminal-presentation-id')).toBe(
+			primaryPresentationId,
+		);
+
+		await workbenchTabs(browserPage).first().click();
+		await expect(projectedTerminals(browserPage)).toHaveCount(2);
+		await waitForProjectedTerminalsOpen(browserPage);
+		const primaryIdentityAfterTabReturn = await terminalDocumentIdentity(
+			projectedTerminalFor(browserPage, primaryPresentationId),
+		);
+		const splitIdentityAfterTabReturn = await terminalDocumentIdentity(
+			projectedTerminalFor(browserPage, splitPresentationId),
+		);
+		expect(primaryIdentityAfterTabReturn).toMatchObject({
+			creationId: primaryIdentity.creationId,
+			terminalId: primaryIdentity.terminalId,
+		});
+		expect(splitIdentityAfterTabReturn).toMatchObject({
+			creationId: splitIdentity.creationId,
+			terminalId: splitIdentity.terminalId,
+		});
+		expect(primaryIdentityAfterTabReturn.attachmentId).not.toBe(primaryIdentity.attachmentId);
+		expect(splitIdentityAfterTabReturn.attachmentId).not.toBe(splitIdentity.attachmentId);
+
+		const splitPanel = browserPage.locator('[data-slot="workbench-panel"]').filter({
+			has: projectedTerminalFor(browserPage, splitPresentationId),
+		});
+		await splitPanel.getByRole('button', { name: 'Close' }).click();
+		const closeConfirmation = browserPage.getByRole('alertdialog', {
+			name: 'Close running terminal?',
+		});
+		await expect(closeConfirmation).toBeVisible();
+		await closeConfirmation.getByRole('button', { name: 'Close anyway' }).click();
+		await expect(projectedTerminalFor(browserPage, splitPresentationId)).toHaveCount(0);
+		await expect(projectedTerminalFor(desktopPage, splitPresentationId)).toHaveCount(0);
+		await expect(projectedTerminals(browserPage)).toHaveCount(1);
+		await expect(projectedTerminals(desktopPage)).toHaveCount(1);
+		const retainedPrimaryIdentity = await terminalDocumentIdentity(projectedTerminal(browserPage));
+		expect(retainedPrimaryIdentity).toMatchObject({
+			creationId: primaryIdentity.creationId,
+			terminalId: primaryIdentity.terminalId,
+		});
+
+		const browserProject = browserPage.locator('li[data-project-id]').filter({
+			has: browserPage.getByRole('button', { name: `Collapse project: ${projectName}` }),
+		});
+		await browserProject
+			.getByRole('button', { name: `Collapse project: ${projectName}` })
+			.click({ button: 'right' });
+		await browserPage.getByRole('menuitem', { name: 'New Workspace' }).hover();
+		const projectFolderMenuItem = browserPage.getByRole('menuitem', {
+			exact: true,
+			name: projectName,
+		});
+		await expect(projectFolderMenuItem).toBeVisible();
+		await projectFolderMenuItem.click();
+		await expect(workbenchWorkspace(browserPage, projectName)).toBeVisible();
+		await expect(workbenchWorkspace(desktopPage, projectName)).toBeVisible();
+		await expect(projectedTerminals(browserPage)).toHaveCount(1);
+		await expect(projectedTerminals(desktopPage)).toHaveCount(1);
+		const secondaryWorkspaceRoot = projectedTerminal(browserPage);
+		await expect(secondaryWorkspaceRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		const secondaryPresentationId = await secondaryWorkspaceRoot.getAttribute(
+			'data-terminal-presentation-id',
+		);
+		if (secondaryPresentationId === null) {
+			throw new Error('Secondary Workspace presentation identity is unavailable.');
+		}
+		const secondaryInput = secondaryWorkspaceRoot.getByRole('textbox');
+		await secondaryInput.pressSequentially("pwd; printf 'lwf-secondary-marker\\n'", { delay: 1 });
+		await secondaryInput.press('Enter');
+		await expect(secondaryWorkspaceRoot.locator('[role="log"]')).toContainText(
+			currentRuntimeDirectory,
+		);
+		const secondaryIdentity = await terminalDocumentIdentity(secondaryWorkspaceRoot);
+		expect(secondaryIdentity.terminalId).not.toBe(primaryIdentity.terminalId);
+		expect(await projectedTerminal(desktopPage).getAttribute('data-terminal-presentation-id')).toBe(
+			primaryPresentationId,
+		);
+		if (secondTabIdentity.terminalId === null) {
+			throw new Error('Second Tab Host terminal identity is unavailable.');
+		}
+		const bindingStorePath = path.join(currentRuntimeDirectory, 'bindings-v3.json');
+		expect(await readFile(bindingStorePath, 'utf8')).toContain(secondTabIdentity.terminalId);
+
+		await browserContext.close();
+		await quitDesktop(application, desktopPage, 'preserve');
+		electronApplication = undefined;
+		expect(await readFile(bindingStorePath, 'utf8')).toContain(secondTabIdentity.terminalId);
+		application = await launchDesktop();
+		electronApplication = application;
+		desktopPage = await application.firstWindow();
+		desktopPage.setDefaultTimeout(10_000);
+		expect(await readFile(bindingStorePath, 'utf8')).toContain(secondTabIdentity.terminalId);
+		await expandProject(desktopPage, projectName);
+		await expect(desktopPage.locator('[data-slot="workbench-sidebar-workspace"]')).toHaveCount(2);
+		await workbenchWorkspace(desktopPage, 'Primary').click();
+		await expect(workbenchTabs(desktopPage)).toHaveCount(2);
+		await workbenchTabs(desktopPage).first().click();
+		const restartedPrimaryRoot = projectedTerminalFor(desktopPage, primaryPresentationId);
+		await expect(restartedPrimaryRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		expect(await terminalDocumentIdentity(restartedPrimaryRoot)).toMatchObject({
+			creationId: primaryIdentity.creationId,
+			terminalId: primaryIdentity.terminalId,
+		});
+		await workbenchTabs(desktopPage).nth(1).click();
+		const restartedSecondTabRoot = projectedTerminalFor(desktopPage, secondTabPresentationId);
+		await expect(restartedSecondTabRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		expect(await terminalDocumentIdentity(restartedSecondTabRoot)).toMatchObject({
+			creationId: secondTabIdentity.creationId,
+			terminalId: secondTabIdentity.terminalId,
+		});
+		await workbenchWorkspace(desktopPage, projectName).click();
+		const restartedSecondaryRoot = projectedTerminalFor(desktopPage, secondaryPresentationId);
+		await expect(restartedSecondaryRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		expect(await terminalDocumentIdentity(restartedSecondaryRoot)).toMatchObject({
+			creationId: secondaryIdentity.creationId,
+			terminalId: secondaryIdentity.terminalId,
+		});
+
+		const restartedGatewayUrl = await waitForGatewayBrowserUrl(application);
+		browserContext = await browser.newContext();
+		browserPage = await browserContext.newPage();
+		browserPage.setDefaultTimeout(10_000);
+		await browserPage.goto(restartedGatewayUrl);
+		await expandProject(browserPage, projectName);
+		await expect(browserPage.locator('[data-slot="workbench-sidebar-workspace"]')).toHaveCount(2);
+		await workbenchWorkspace(browserPage, 'Primary').click();
+		await expect(workbenchTabs(browserPage)).toHaveCount(2);
+		await workbenchTabs(browserPage).first().click();
+		const reconnectedPrimaryRoot = projectedTerminalFor(browserPage, primaryPresentationId);
+		await expect(reconnectedPrimaryRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		const reconnectedPrimaryIdentity = await terminalDocumentIdentity(reconnectedPrimaryRoot);
+		expect(reconnectedPrimaryIdentity).toMatchObject({
+			creationId: primaryIdentity.creationId,
+			terminalId: primaryIdentity.terminalId,
+		});
+		expect(reconnectedPrimaryIdentity.attachmentId).not.toBe(
+			primaryIdentityAfterTabReturn.attachmentId,
+		);
+	} finally {
+		await browser.close();
+	}
+});
+
 test('restarts Electron Main while retaining the Host terminal identity and contents', async () => {
 	const firstApplication = electronApplication;
 	if (firstApplication === undefined) throw new Error('Electron application did not start.');
@@ -754,7 +1007,16 @@ async function quitDesktop(
 	await expect(button).toBeVisible();
 	await expect(page.locator('[data-lifetime-choice="preserve"]')).toBeFocused();
 	await button.click();
-	await exited;
+	await Promise.race([
+		exited,
+		wait(10_000).then(async () => {
+			const visibleState = await page
+				.locator('body')
+				.innerText()
+				.catch(() => 'renderer-unavailable');
+			throw new Error(`Desktop did not exit after ${choice}: ${visibleState}`);
+		}),
+	]);
 }
 
 async function forceCloseDesktop(application: ElectronApplication): Promise<void> {
@@ -773,8 +1035,50 @@ function projectedTerminal(page: Page): Locator {
 	return page.locator('[data-terminal-presentation-id][data-projected-terminal-state]').first();
 }
 
+function projectedTerminals(page: Page): Locator {
+	return page.locator('[data-terminal-presentation-id][data-projected-terminal-state]');
+}
+
+function projectedTerminalFor(page: Page, presentationId: string): Locator {
+	return page.locator(
+		`[data-terminal-presentation-id="${presentationId}"][data-projected-terminal-state]`,
+	);
+}
+
 function workbenchTabs(page: Page): Locator {
 	return page.locator('[data-slot="workbench-tab-bar"] [role="tab"]');
+}
+
+function workbenchWorkspace(page: Page, name: string): Locator {
+	return page.locator('[data-slot="workbench-sidebar-workspace"]').filter({ hasText: name });
+}
+
+async function expandProject(page: Page, name: string): Promise<void> {
+	const project = page.locator('[data-slot="workbench-sidebar-project"]').filter({ hasText: name });
+	await expect(project).toBeVisible();
+	if ((await project.getAttribute('aria-expanded')) !== 'true') await project.click();
+	await expect(project).toHaveAttribute('aria-expanded', 'true');
+}
+
+async function waitForProjectedTerminalsOpen(page: Page): Promise<void> {
+	const terminals = projectedTerminals(page);
+	await expect
+		.poll(async () => {
+			const states = await terminals.evaluateAll((elements) =>
+				elements.map((element) => element.getAttribute('data-projected-terminal-state')),
+			);
+			return states.length > 0 && states.every((state) => state === 'open');
+		})
+		.toBe(true);
+}
+
+async function projectedTerminalPresentationIds(page: Page): Promise<readonly string[]> {
+	return projectedTerminals(page).evaluateAll((elements) =>
+		elements.flatMap((element) => {
+			const presentationId = element.getAttribute('data-terminal-presentation-id');
+			return presentationId === null ? [] : [presentationId];
+		}),
+	);
 }
 
 interface GatewaySocketTrace {
@@ -804,6 +1108,10 @@ function trackGatewaySockets(page: Page): GatewaySocketTrace {
 
 function gatewaySocketCount(trace: GatewaySocketTrace, pathname: string): number {
 	return trace.urls.filter((url) => new URL(url).pathname === pathname).length;
+}
+
+function gatewaySocketEventCount(trace: GatewaySocketTrace, event: string): number {
+	return trace.events.filter((candidate) => candidate === event).length;
 }
 
 function gatewayFrameShape(payload: string | Buffer): string {
