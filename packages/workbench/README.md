@@ -119,9 +119,10 @@ destination through `workbench.settings.open`.
 local catalog after typing. Matching normalizes Unicode, case, and repeated whitespace and ranks
 exact localized titles, title prefixes, title-token prefixes, localized keywords, canonical English
 titles, and fuzzy subsequences in deterministic tiers. The `Agents` filter is present as the
-accepted navigation slot but remains empty until an agent-owned searchable read model and
-navigation Action are composed. Async providers, file search, Agent fallback, persistent MRU, and
-user-editable keybindings remain outside the current implementation.
+accepted navigation slot but remains empty because no agent-owned searchable read model or
+navigation Action is currently composed. The provider coordinator accepts bounded synchronous or
+asynchronous providers and rejects stale completions. File search, Agent fallback, persistent MRU,
+and user-editable keybindings remain outside the current implementation.
 
 The dialog keeps DOM focus in its combobox. Up and Down move `aria-activedescendant` through
 inspectable results, Enter opens or runs the highlighted row, Escape returns from a nested picker

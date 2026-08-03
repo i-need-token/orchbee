@@ -8,12 +8,10 @@ invocations, execution, confirmation, concurrency, and cancellation after invoca
 providers and their semantic data remain with their feature owners; the application composition
 selects providers and platform adapters.
 
-The accepted delivery order is:
-
-1. complete bounded asynchronous provider coordination in Workbench;
-2. compose an Agent-owned read model and navigation Action without automatic submission;
-3. compose active Terminal-instance Actions without transferring Terminal lifecycle ownership to
-   Workbench.
+The current implementation includes bounded synchronous and asynchronous provider coordination,
+local Actions and Settings projections, deterministic ranking, nested Action input, retry, failure
+isolation, accessibility behavior, and stale-completion rejection. No Agent-owned or active
+Terminal-instance provider is currently composed.
 
 File search, persistent query or action history, user-defined keybindings, action chaining, opaque
 ranking, telemetry containing query or result data, and Workbench-owned Agent or Terminal runtime
@@ -100,10 +98,6 @@ against session, revision, provider ID, and attempt even when its provider ignor
 - One accepted result reaches at most one prepared Action execution.
 - Closing, provider cancellation, picker cancellation, highlight, hover, and prefetch invoke no
   product Action.
-- Agent fallback may prefill an owned composer only; it never submits, starts a process, or incurs
-  external cost.
-- Terminal results stay bound to the exact active instance registration that produced their
-  invocation.
 
 ## Correctness evidence
 
@@ -121,14 +115,13 @@ The TLA+ merge configuration explores two providers, two open sessions, bounded 
 attempts, cancellation, failure, retry, reordered completion, close, and reopen. Progress assumes a
 current uncancelled provider run eventually settles; it makes no network-availability claim.
 
-## Integration sequence
+## Maintenance
 
-1. Maintain this record and its claim mapping before production behavior changes.
-2. Implement and test the pure provider state transition.
-3. Check the bounded TLA+ model and convert any shortest counterexample into a deterministic
-   regression;
-4. implement the provider lifecycle adapter against the stable transition;
-5. integrate the adapter through one responsibility-focused Hook;
-6. project loading, failure, retry, results, focus, and announcements in React;
-7. compose real Agent and Terminal owners only after their separate public contracts are accepted;
-8. run package correctness evidence and the root merge gate without retries.
+- Keep the provider state transition, coordinator, React adapter, TLA+ model, and deterministic
+  regressions aligned whenever provider lifecycle semantics change.
+- Convert a shortest model counterexample into a deterministic regression before changing the
+  implementation.
+- Compose providers through the public provider and Action Runtime contracts; do not give a
+  provider a Workbench state writer or arbitrary execution callback.
+- Admit Agent-owned or Terminal-instance results only after their semantic owner exposes an
+  accepted read-model and Action contract.

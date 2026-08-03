@@ -316,5 +316,5 @@ API and its only application consumer atomically; do not retain a compatibility 
 
 The first delivery writes no authoritative Project data and performs no disk or process effect.
 Rollback removes the new model and preview composition and restores the prior flat in-memory
-Workbench inputs. The product proposal remains until later platform effects are accepted,
-implemented, and their stable facts converge into their owning authorities.
+Workbench inputs. Future platform effects remain outside this current authority until they are
+separately accepted, implemented, and documented by their semantic owners.
