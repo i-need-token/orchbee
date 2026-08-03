@@ -1,7 +1,7 @@
 import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it, vi } from 'vitest';
 
-import { TerminalProjectionRequestIdSchema } from '@orchbee/desktop-client-protocol';
+import { TerminalProjectionRequestIdSchema } from '@orchbee/workbench-client-protocol';
 import { DesktopTerminalProjectionClient } from '../DesktopTerminalProjectionClient';
 
 const bootstrap = {

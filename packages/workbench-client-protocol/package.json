@@ -1,0 +1,40 @@
+{
+	"name": "@orchbee/workbench-client-protocol",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Transport-neutral Workbench page-client capability protocols",
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"@orchbee/source": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		}
+	},
+	"scripts": {
+		"build": "rslib build --log-level error",
+		"dev": "rslib build --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:exports": "node ../../scripts/check-package-exports.mjs ."
+	},
+	"dependencies": {
+		"@orchbee/terminal-protocol": "workspace:^",
+		"@orchbee/workbench": "workspace:^",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@rslib/core": "catalog:",
+		"vitest": "catalog:"
+	}
+}

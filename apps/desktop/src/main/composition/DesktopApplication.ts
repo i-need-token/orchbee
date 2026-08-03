@@ -9,8 +9,6 @@ import {
 	type DesktopApplicationExitFailure,
 	type DesktopApplicationExitReason,
 	type DesktopApplicationExitRequestId,
-	type DesktopClientSessionBootstrap,
-	type ProjectedAttachmentBootstrap,
 } from '@orchbee/desktop-client-protocol';
 import {
 	ClientIdSchema,
@@ -32,6 +30,10 @@ import type {
 	WorkbenchSharedPanelNode,
 	WorkbenchSharedDocumentRevision,
 } from '@orchbee/workbench/document';
+import type {
+	ProjectedAttachmentBootstrap,
+	WorkbenchClientSessionBootstrap,
+} from '@orchbee/workbench-client-protocol';
 import {
 	BrowserWindow,
 	app,
@@ -74,7 +76,7 @@ interface DesktopBrokerHandle {
 }
 
 interface DesktopClientSessionBrokerHandle {
-	readonly bootstrap: DesktopClientSessionBootstrap;
+	readonly bootstrap: WorkbenchClientSessionBootstrap;
 	dispose(): Promise<void>;
 	start(): void;
 }

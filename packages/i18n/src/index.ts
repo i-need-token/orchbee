@@ -3,7 +3,7 @@ export type { IntlShape, MessageDescriptor } from 'react-intl';
 
 export {
 	desktopApplicationLifetimeMessages,
-	desktopTerminalMessages,
+	projectedTerminalMessages,
 	workbenchMessages,
 	workbenchTabMessages,
 } from './descriptors';

@@ -1,19 +1,19 @@
 {
 	"$schema": "../../../../schemas/experience-component.schema.json",
-	"id": "desktop.terminal-find-surface",
+	"id": "projected-terminal.find-surface",
 	"kind": "business",
 	"status": "canonical",
-	"name": "Desktop Terminal Find Surface",
-	"description": "Provides bounded, keyboard-first search of retained content for one projected Desktop terminal.",
+	"name": "Projected Terminal Find Surface",
+	"description": "Provides bounded, keyboard-first search of retained content for one projected terminal client.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": ["search-terminal", "navigate-terminal-match"],
-	"implementation": ["apps/web/src/desktop-client/terminal-find-surface/TerminalFindSurface.tsx"],
+	"implementation": ["apps/web/src/workbench-client/terminal-find-surface/TerminalFindSurface.tsx"],
 	"stories": [
 		{
 			"exportName": "MatchResults",
 			"file": "apps/web/stories/terminal-find-surface.stories.tsx",
-			"id": "applications-web-desktop-terminal-find-surface--match-results",
+			"id": "applications-web-projected-terminal-find-surface--match-results",
 			"states": [
 				"Inspect deterministic completed, searching, and invalid-expression states with localized status output.",
 				"Use the query field, option toggles, match navigation controls, and Escape close behavior entirely by keyboard."
@@ -22,7 +22,7 @@
 	],
 	"uses": [],
 	"useWhen": [
-		"A single projected Desktop terminal must search only content retained by its Terminal Host attachment."
+		"A single projected terminal client must search only content retained by its Terminal Host attachment."
 	],
 	"avoidWhen": [
 		"Search spans Workbench Actions, settings, projects, or multiple providers instead of one terminal buffer."

@@ -3,16 +3,16 @@ import type { ProjectedTerminalSearchEvent } from '@orchbee/terminal';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 import {
-	DesktopTerminalFindController,
+	TerminalFindController,
 	TerminalFindSurface,
-} from '../src/desktop-client/terminal-find-surface';
+} from '../src/workbench-client/terminal-find-surface';
 
 const completedController = createController('agent', 'complete');
 const searchingController = createController('orchestration', 'searching');
 const invalidController = createController('[agent', 'error');
 
 const meta = {
-	title: 'Desktop Terminal/Find Surface',
+	title: 'Projected Terminal/Find Surface',
 	component: TerminalFindSurface,
 	decorators: [
 		(Story) => (
@@ -54,8 +54,8 @@ export const InvalidExpression: Story = {
 function createController(
 	query: string,
 	state: ProjectedTerminalSearchEvent['state'],
-): DesktopTerminalFindController {
-	const controller = new DesktopTerminalFindController({
+): TerminalFindController {
+	const controller = new TerminalFindController({
 		clearSearch: () => undefined,
 		updateSearch: () => undefined,
 	});

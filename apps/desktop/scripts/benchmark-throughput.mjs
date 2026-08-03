@@ -385,7 +385,7 @@ async function measureDesktopInteractions(page, root, application, hostProcess) 
 
 	await canvas.hover();
 	const renderedFramesBeforeHistory = Number(
-		await root.getAttribute('data-desktop-terminal-rendered-frames'),
+		await root.getAttribute('data-projected-terminal-rendered-frames'),
 	);
 	const history = await measureMainThreadOperation(
 		page,
@@ -393,9 +393,11 @@ async function measureDesktopInteractions(page, root, application, hostProcess) 
 			await page.mouse.wheel(0, -2_000);
 			await expect(accessibility).toHaveAttribute('aria-live', 'off');
 			await expect
-				.poll(async () => Number(await root.getAttribute('data-desktop-terminal-rendered-frames')))
+				.poll(async () =>
+					Number(await root.getAttribute('data-projected-terminal-rendered-frames')),
+				)
 				.toBeGreaterThan(renderedFramesBeforeHistory);
-			return Number(await root.getAttribute('data-desktop-terminal-rendered-at-milliseconds'));
+			return Number(await root.getAttribute('data-projected-terminal-rendered-at-milliseconds'));
 		},
 		{ eventType: 'wheel', locator: canvas },
 	);
@@ -414,7 +416,7 @@ async function measureDesktopInteractions(page, root, application, hostProcess) 
 				timeout: 10_000,
 			});
 			return Number(
-				await root.getAttribute('data-desktop-terminal-search-completed-at-milliseconds'),
+				await root.getAttribute('data-projected-terminal-search-completed-at-milliseconds'),
 			);
 		},
 		{ eventType: 'input', locator: findInput },
@@ -430,8 +432,8 @@ async function measureDesktopInteractions(page, root, application, hostProcess) 
 	if (process.platform === 'darwin') {
 		await input.focus();
 		await page.keyboard.press('Meta+KeyA');
-		await expect(root).toHaveAttribute('data-desktop-terminal-selection-state', 'active');
-		const copiedBytesBefore = await root.getAttribute('data-desktop-terminal-copied-bytes');
+		await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
+		const copiedBytesBefore = await root.getAttribute('data-projected-terminal-copied-bytes');
 		const key = await beginMainThreadMeasurement(page, {
 			eventType: 'keydown',
 			locator: input,
@@ -441,17 +443,17 @@ async function measureDesktopInteractions(page, root, application, hostProcess) 
 				await page.keyboard.press('Meta+KeyC');
 				await expect
 					.poll(async () => {
-						const value = await root.getAttribute('data-desktop-terminal-copied-bytes');
+						const value = await root.getAttribute('data-projected-terminal-copied-bytes');
 						return value !== copiedBytesBefore && Number(value) > 0;
 					})
 					.toBe(true);
 			});
 			const copiedAtMilliseconds = Number(
-				await root.getAttribute('data-desktop-terminal-copied-at-milliseconds'),
+				await root.getAttribute('data-projected-terminal-copied-at-milliseconds'),
 			);
 			copy = {
 				...(await finishMainThreadMeasurement(page, key, copiedAtMilliseconds)),
-				byteLength: Number(await root.getAttribute('data-desktop-terminal-copied-bytes')),
+				byteLength: Number(await root.getAttribute('data-projected-terminal-copied-bytes')),
 				hostSampledPeakRssKiB: sampled.sampledPeakRssKiB,
 			};
 		} catch (error) {
@@ -513,9 +515,9 @@ async function runDesktopBenchmark(file, runNumber) {
 		application.process().stdout?.on('data', (chunk) => traces.push(chunk.toString()));
 		const page = await application.firstWindow();
 		const root = page
-			.locator('[data-terminal-presentation-id][data-desktop-terminal-state]')
+			.locator('[data-terminal-presentation-id][data-projected-terminal-state]')
 			.first();
-		await expect(root).toHaveAttribute('data-desktop-terminal-state', 'open', {
+		await expect(root).toHaveAttribute('data-projected-terminal-state', 'open', {
 			timeout: 10_000,
 		});
 		await application.evaluate(({ app }) => app.getAppMetrics());
@@ -527,22 +529,22 @@ async function runDesktopBenchmark(file, runNumber) {
 		await input.pressSequentially(command);
 		const started = performance.now();
 		await input.press('Enter');
-		await expect(root).toHaveAttribute('data-desktop-terminal-state', 'exited', {
+		await expect(root).toHaveAttribute('data-projected-terminal-state', 'exited', {
 			timeout: 180_000,
 		});
-		await expect(root).toHaveAttribute('data-desktop-terminal-final-frame-presented', 'true', {
+		await expect(root).toHaveAttribute('data-projected-terminal-final-frame-presented', 'true', {
 			timeout: 10_000,
 		});
 		const wallSeconds = (performance.now() - started) / 1000;
 		const renderer = await root.evaluate((element) => ({
-			cellPixelHeight: Number(element.getAttribute('data-desktop-terminal-cell-pixel-height')),
-			cellPixelWidth: Number(element.getAttribute('data-desktop-terminal-cell-pixel-width')),
-			committedFrames: Number(element.getAttribute('data-desktop-terminal-committed-frames')),
-			columns: Number(element.getAttribute('data-desktop-terminal-columns')),
-			health: element.getAttribute('data-desktop-terminal-renderer-health'),
-			renderedFrames: Number(element.getAttribute('data-desktop-terminal-rendered-frames')),
-			renderer: element.getAttribute('data-desktop-terminal-renderer'),
-			rows: Number(element.getAttribute('data-desktop-terminal-rows')),
+			cellPixelHeight: Number(element.getAttribute('data-projected-terminal-cell-pixel-height')),
+			cellPixelWidth: Number(element.getAttribute('data-projected-terminal-cell-pixel-width')),
+			committedFrames: Number(element.getAttribute('data-projected-terminal-committed-frames')),
+			columns: Number(element.getAttribute('data-projected-terminal-columns')),
+			health: element.getAttribute('data-projected-terminal-renderer-health'),
+			renderedFrames: Number(element.getAttribute('data-projected-terminal-rendered-frames')),
+			renderer: element.getAttribute('data-projected-terminal-renderer'),
+			rows: Number(element.getAttribute('data-projected-terminal-rows')),
 		}));
 		await expect
 			.poll(() =>

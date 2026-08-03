@@ -3,7 +3,7 @@
 	"domain": "web",
 	"runtime": ["browser", "electron"],
 	"stability": "experimental",
-	"responsibility": "Sole Workbench product renderer for browser and Electron clients, with explicit runtime-mode capability composition.",
+	"responsibility": "Sole Workbench product renderer for browser and Electron clients, including the platform-neutral page-client runtime and explicit environment capability adapters.",
 	"nonGoals": [
 		"Owning reusable product interface behavior or reusable UI primitives.",
 		"Owning the supported-locale contract, product message descriptors, or translation catalogs.",

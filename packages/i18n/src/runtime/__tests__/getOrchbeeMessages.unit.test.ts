@@ -70,10 +70,10 @@ describe('getOrchbeeMessages', () => {
 		expect(getOrchbeeMessages('zh-CN')['workbench.sidebar.actions.hide']).toBe('隐藏边栏');
 	});
 
-	it('ships localized Desktop terminal labels', () => {
-		expect(getOrchbeeMessages('en-US')['desktop.terminal.input']).toBe('Terminal input');
-		expect(getOrchbeeMessages('zh-CN')['desktop.terminal.input']).toBe('终端输入');
-		expect(getOrchbeeMessages('en-US')['desktop.terminal.screen']).toBe('Terminal screen');
-		expect(getOrchbeeMessages('zh-CN')['desktop.terminal.screen']).toBe('终端屏幕');
+	it('ships localized projected terminal labels', () => {
+		expect(getOrchbeeMessages('en-US')['terminal.projected.input']).toBe('Terminal input');
+		expect(getOrchbeeMessages('zh-CN')['terminal.projected.input']).toBe('终端输入');
+		expect(getOrchbeeMessages('en-US')['terminal.projected.screen']).toBe('Terminal screen');
+		expect(getOrchbeeMessages('zh-CN')['terminal.projected.screen']).toBe('终端屏幕');
 	});
 });

@@ -2,23 +2,19 @@ import type {
 	TerminalPresentationFailure,
 	TerminalPresentationId,
 } from '@orchbee/workbench/terminal-presentation';
-
 import {
 	TerminalProjectionControlEventSchema,
 	TerminalProjectionRequestIdSchema,
-	type ProjectedAttachmentBootstrap,
+	type ProjectedTerminalCommand,
 	type TerminalProjectionRequestId,
-} from '@orchbee/desktop-client-protocol';
+} from '@orchbee/workbench-client-protocol';
 
-interface DesktopTerminalProjection {
-	readonly bootstrap: ProjectedAttachmentBootstrap;
-	readonly port: MessagePort;
-}
-
-interface DesktopTerminalProjectionRequest {
-	readonly result: Promise<DesktopTerminalProjection>;
-	release(): void;
-}
+import type {
+	ProjectedTerminalTransport,
+	TerminalProjection,
+	TerminalProjectionClient,
+	TerminalProjectionRequest,
+} from '../../workbench-client';
 
 class DesktopTerminalProjectionRequestError extends Error {
 	readonly failure: TerminalPresentationFailure;
@@ -31,14 +27,14 @@ class DesktopTerminalProjectionRequestError extends Error {
 }
 
 interface PendingProjection {
-	port: MessagePort | null;
 	readonly presentationId: TerminalPresentationId;
 	readonly reject: (error: Error) => void;
 	released: boolean;
-	readonly resolve: (projection: DesktopTerminalProjection) => void;
+	readonly resolve: (projection: TerminalProjection) => void;
+	transport: ProjectedTerminalTransport | null;
 }
 
-export class DesktopTerminalProjectionClient {
+export class DesktopTerminalProjectionClient implements TerminalProjectionClient {
 	readonly #createRequestId: () => TerminalProjectionRequestId;
 	readonly #pending = new Map<TerminalProjectionRequestId, PendingProjection>();
 	readonly #port: MessagePort;
@@ -56,20 +52,20 @@ export class DesktopTerminalProjectionClient {
 		port.start();
 	}
 
-	open(presentationId: TerminalPresentationId): DesktopTerminalProjectionRequest {
+	open(presentationId: TerminalPresentationId): TerminalProjectionRequest {
 		const requestId = this.#createRequestId();
-		let resolve = (_projection: DesktopTerminalProjection): void => undefined;
+		let resolve = (_projection: TerminalProjection): void => undefined;
 		let reject = (_error: Error): void => undefined;
-		const result = new Promise<DesktopTerminalProjection>((nextResolve, nextReject) => {
+		const result = new Promise<TerminalProjection>((nextResolve, nextReject) => {
 			resolve = nextResolve;
 			reject = nextReject;
 		});
 		const pending: PendingProjection = {
-			port: null,
 			presentationId,
 			reject,
 			released: false,
 			resolve,
+			transport: null,
 		};
 		this.#pending.set(requestId, pending);
 		if (this.#disposed) {
@@ -100,7 +96,7 @@ export class DesktopTerminalProjectionClient {
 		this.#port.removeEventListener('messageerror', this.#handleMessageError);
 		for (const pending of this.#pending.values()) {
 			pending.released = true;
-			pending.port?.close();
+			pending.transport?.close();
 			pending.reject(unavailableError());
 		}
 		this.#pending.clear();
@@ -111,6 +107,7 @@ export class DesktopTerminalProjectionClient {
 		if (this.#disposed) return;
 		const event = TerminalProjectionControlEventSchema.safeParse(message.data);
 		if (!event.success) {
+			closePorts(message.ports);
 			this.dispose();
 			return;
 		}
@@ -120,13 +117,13 @@ export class DesktopTerminalProjectionClient {
 			pending.presentationId !== event.data.presentationId ||
 			pending.released
 		) {
-			for (const port of message.ports) port.close();
+			closePorts(message.ports);
 			this.dispose();
 			return;
 		}
 		if (event.data.type === 'terminal-projection-failed') {
 			if (message.ports.length !== 0) {
-				for (const port of message.ports) port.close();
+				closePorts(message.ports);
 				this.dispose();
 				return;
 			}
@@ -135,13 +132,14 @@ export class DesktopTerminalProjectionClient {
 			return;
 		}
 		const rendererPort = message.ports[0];
-		if (rendererPort === undefined || message.ports.length !== 1 || pending.port !== null) {
-			for (const port of message.ports) port.close();
+		if (rendererPort === undefined || message.ports.length !== 1 || pending.transport !== null) {
+			closePorts(message.ports);
 			this.dispose();
 			return;
 		}
-		pending.port = rendererPort;
-		pending.resolve({ bootstrap: event.data.bootstrap, port: rendererPort });
+		const transport = new MessagePortProjectedTerminalTransport(rendererPort);
+		pending.transport = transport;
+		pending.resolve({ bootstrap: event.data.bootstrap, transport });
 	};
 
 	readonly #handleMessageError = (): void => {
@@ -152,8 +150,8 @@ export class DesktopTerminalProjectionClient {
 		if (pending.released) return;
 		pending.released = true;
 		this.#pending.delete(requestId);
-		pending.port?.close();
-		if (pending.port === null) pending.reject(releasedError());
+		pending.transport?.close();
+		if (pending.transport === null) pending.reject(releasedError());
 		if (this.#disposed) return;
 		try {
 			this.#port.postMessage({
@@ -165,6 +163,45 @@ export class DesktopTerminalProjectionClient {
 			this.dispose();
 		}
 	}
+}
+
+class MessagePortProjectedTerminalTransport implements ProjectedTerminalTransport {
+	readonly #port: MessagePort;
+
+	constructor(port: MessagePort) {
+		this.#port = port;
+	}
+
+	close(): void {
+		this.#port.close();
+	}
+
+	send(command: ProjectedTerminalCommand): void {
+		this.#port.postMessage(command);
+	}
+
+	subscribe(listener: (value: unknown) => void, unavailable: () => void): () => void {
+		const handleMessage = (message: MessageEvent<unknown>): void => {
+			if (message.ports.length !== 0) {
+				closePorts(message.ports);
+				unavailable();
+				return;
+			}
+			listener(message.data);
+		};
+		const handleMessageError = (): void => unavailable();
+		this.#port.addEventListener('message', handleMessage);
+		this.#port.addEventListener('messageerror', handleMessageError);
+		this.#port.start();
+		return () => {
+			this.#port.removeEventListener('message', handleMessage);
+			this.#port.removeEventListener('messageerror', handleMessageError);
+		};
+	}
+}
+
+function closePorts(ports: readonly MessagePort[]): void {
+	for (const port of ports) port.close();
 }
 
 function unavailableError(): DesktopTerminalProjectionRequestError {

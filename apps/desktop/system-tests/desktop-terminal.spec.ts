@@ -120,7 +120,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 		'data-terminal-projection-state',
 		'requested',
 	);
-	await expect(root).toHaveAttribute('data-desktop-terminal-state', 'open');
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
 	const rendererAuthority = await page.evaluate(() => ({
 		hasGenericOrchbeeApi: 'orchbee' in globalThis,
 		hasNodeRequire: 'require' in globalThis,
@@ -142,7 +142,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	const accessibleRows = accessibility.locator(':scope > div');
 	await expect
 		.poll(async () => accessibleRows.count())
-		.toBe(Number(await root.getAttribute('data-desktop-terminal-rows')));
+		.toBe(Number(await root.getAttribute('data-projected-terminal-rows')));
 	expect(page.workers()).toHaveLength(0);
 
 	const canvas = page.locator('canvas');
@@ -198,20 +198,22 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	await page.mouse.down();
 	await page.mouse.move(markerEnd.x, markerEnd.y);
 	await page.mouse.up();
-	await expect(root).toHaveAttribute('data-desktop-terminal-selection-state', 'active');
+	await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
 
 	if (process.platform === 'darwin') {
-		const gestureSelectionStart = await root.getAttribute('data-desktop-terminal-selection-start');
+		const gestureSelectionStart = await root.getAttribute(
+			'data-projected-terminal-selection-start',
+		);
 		await input.focus();
 		await page.keyboard.press('Meta+KeyA');
 		await expect
-			.poll(() => root.getAttribute('data-desktop-terminal-selection-start'))
+			.poll(() => root.getAttribute('data-projected-terminal-selection-start'))
 			.not.toBe(gestureSelectionStart);
 	}
 	await input.focus();
 	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyC' : 'Control+Shift+KeyC');
 	await expect
-		.poll(async () => Number(await root.getAttribute('data-desktop-terminal-copied-bytes')))
+		.poll(async () => Number(await root.getAttribute('data-projected-terminal-copied-bytes')))
 		.toBeGreaterThan(0);
 	await expect
 		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
@@ -273,7 +275,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	await application.evaluate(({ BrowserWindow }) => {
 		BrowserWindow.getAllWindows()[0]?.webContents.reload();
 	});
-	await expect(root).toHaveAttribute('data-desktop-terminal-state', 'open');
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
 	await expect
 		.poll(async () => (await terminalDocumentIdentity(root)).attachmentId)
 		.not.toBe(identityBeforeReload.attachmentId);
@@ -287,16 +289,16 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	await input.focus();
 	await input.pressSequentially('stty size; exit', { delay: 1 });
 	await input.press('Enter');
-	await expect(root).toHaveAttribute('data-desktop-terminal-state', 'exited');
-	await expect(root).toHaveAttribute('data-desktop-terminal-final-frame-presented', 'true');
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'exited');
+	await expect(root).toHaveAttribute('data-projected-terminal-final-frame-presented', 'true');
 	await expect
-		.poll(async () => Number(await root.getAttribute('data-desktop-terminal-committed-frames')))
+		.poll(async () => Number(await root.getAttribute('data-projected-terminal-committed-frames')))
 		.toBeGreaterThan(0);
 	await expect
-		.poll(async () => Number(await root.getAttribute('data-desktop-terminal-rendered-frames')))
+		.poll(async () => Number(await root.getAttribute('data-projected-terminal-rendered-frames')))
 		.toBeGreaterThan(0);
 	await expect(root).toHaveAttribute(
-		'data-desktop-terminal-renderer-health',
+		'data-projected-terminal-renderer-health',
 		/^(?:fallback|ready|recovering|lost|recovery-failed)$/u,
 	);
 	await expect.poll(() => traceLines.join('').includes('orchbee.desktop.copy-path')).toBe(true);
@@ -313,8 +315,8 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	electronApplication = exitedRestart;
 	const exitedPage = await exitedRestart.firstWindow();
 	const exitedRoot = projectedTerminal(exitedPage);
-	await expect(exitedRoot).toHaveAttribute('data-desktop-terminal-state', 'exited');
-	await expect(exitedRoot).toHaveAttribute('data-desktop-terminal-final-frame-presented', 'true');
+	await expect(exitedRoot).toHaveAttribute('data-projected-terminal-state', 'exited');
+	await expect(exitedRoot).toHaveAttribute('data-projected-terminal-final-frame-presented', 'true');
 	const identityAfterExitedRestart = await terminalDocumentIdentity(exitedRoot);
 	expect(identityAfterExitedRestart).toMatchObject({
 		creationId: identityBeforeExitedRestart.creationId,
@@ -332,7 +334,7 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 	if (firstApplication === undefined) throw new Error('Electron application did not start.');
 	const firstPage = await firstApplication.firstWindow();
 	const firstRoot = projectedTerminal(firstPage);
-	await expect(firstRoot).toHaveAttribute('data-desktop-terminal-state', 'open');
+	await expect(firstRoot).toHaveAttribute('data-projected-terminal-state', 'open');
 	const input = firstPage.getByRole('textbox');
 	await input.pressSequentially("printf 'recovery-main-marker\\n'");
 	await input.press('Enter');
@@ -360,7 +362,7 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 	electronApplication = restartedApplication;
 	const restartedPage = await restartedApplication.firstWindow();
 	const restartedRoot = projectedTerminal(restartedPage);
-	await expect(restartedRoot).toHaveAttribute('data-desktop-terminal-state', 'open');
+	await expect(restartedRoot).toHaveAttribute('data-projected-terminal-state', 'open');
 	await expect(restartedPage.locator('[role="log"]')).toContainText('recovery-main-marker');
 	const identityAfterRestart = await terminalDocumentIdentity(restartedRoot);
 	expect(identityAfterRestart).toMatchObject({
@@ -376,7 +378,7 @@ test('stops Host sessions while retaining topology and starts a fresh session ex
 	if (firstApplication === undefined) throw new Error('Electron application did not start.');
 	const firstPage = await firstApplication.firstWindow();
 	const firstRoot = projectedTerminal(firstPage);
-	await expect(firstRoot).toHaveAttribute('data-desktop-terminal-state', 'open');
+	await expect(firstRoot).toHaveAttribute('data-projected-terminal-state', 'open');
 	const stoppedPresentationId = await firstRoot.getAttribute('data-terminal-presentation-id');
 	const input = firstPage.getByRole('textbox');
 	await input.pressSequentially("printf 'stop-policy-marker\\n'; sleep 300");
@@ -397,14 +399,14 @@ test('stops Host sessions while retaining topology and starts a fresh session ex
 	electronApplication = restartedApplication;
 	const restartedPage = await restartedApplication.firstWindow();
 	const stoppedSurface = restartedPage.locator('[data-terminal-presentation-id]').first();
-	await expect(stoppedSurface.locator('[data-slot="desktop-terminal-stopped"]')).toBeVisible();
+	await expect(stoppedSurface.locator('[data-slot="projected-terminal-stopped"]')).toBeVisible();
 	expect(await stoppedSurface.getAttribute('data-terminal-presentation-id')).toBe(
 		stoppedPresentationId,
 	);
 
-	await stoppedSurface.locator('[data-slot="desktop-terminal-start-new-session"]').click();
+	await stoppedSurface.locator('[data-slot="projected-terminal-start-new-session"]').click();
 	const restartedRoot = projectedTerminal(restartedPage);
-	await expect(restartedRoot).toHaveAttribute('data-desktop-terminal-state', 'open');
+	await expect(restartedRoot).toHaveAttribute('data-projected-terminal-state', 'open');
 	expect(await restartedRoot.getAttribute('data-terminal-presentation-id')).not.toBe(
 		stoppedPresentationId,
 	);
@@ -535,7 +537,7 @@ function waitForElectronExit(application: ElectronApplication): Promise<void> {
 }
 
 function projectedTerminal(page: Awaited<ReturnType<ElectronApplication['firstWindow']>>): Locator {
-	return page.locator('[data-terminal-presentation-id][data-desktop-terminal-state]').first();
+	return page.locator('[data-terminal-presentation-id][data-projected-terminal-state]').first();
 }
 
 async function terminalDocumentIdentity(root: Locator): Promise<{
@@ -545,10 +547,10 @@ async function terminalDocumentIdentity(root: Locator): Promise<{
 	readonly terminalId: string | null;
 }> {
 	return {
-		attachmentId: await root.getAttribute('data-desktop-terminal-attachment-id'),
-		creationId: await root.getAttribute('data-desktop-terminal-creation-id'),
-		hostEpoch: await root.getAttribute('data-desktop-terminal-host-epoch'),
-		terminalId: await root.getAttribute('data-desktop-terminal-id'),
+		attachmentId: await root.getAttribute('data-projected-terminal-attachment-id'),
+		creationId: await root.getAttribute('data-projected-terminal-creation-id'),
+		hostEpoch: await root.getAttribute('data-projected-terminal-host-epoch'),
+		terminalId: await root.getAttribute('data-projected-terminal-id'),
 	};
 }
 
@@ -572,8 +574,8 @@ async function terminalCellCenter(
 	}
 	const bounds = await canvas.boundingBox();
 	if (bounds === null) throw new Error('Terminal canvas has no bounding box.');
-	const columns = Number(await root.getAttribute('data-desktop-terminal-columns'));
-	const visibleRows = Number(await root.getAttribute('data-desktop-terminal-rows'));
+	const columns = Number(await root.getAttribute('data-projected-terminal-columns'));
+	const visibleRows = Number(await root.getAttribute('data-projected-terminal-rows'));
 	return {
 		x: bounds.x + (location.column + columnOffset + 0.5) * (bounds.width / columns),
 		y: bounds.y + (location.row + 0.5) * (bounds.height / visibleRows),

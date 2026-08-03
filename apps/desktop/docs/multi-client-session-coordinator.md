@@ -16,13 +16,23 @@ core. It does not open a network listener, authenticate a remote peer, persist C
 concurrent semantic actions, add an application package dependency, or make application-lifetime
 control available to an ordinary client.
 
+Transport-neutral page payloads belong to `@orchbee/workbench-client-protocol`: session bootstrap,
+document proposals and publications, projection-control requests, attachment bootstrap, and the
+projected-terminal command/event stream. `@orchbee/desktop-client-protocol` owns only Electron's
+atomic renderer bootstrap and application-lifetime messages. There is no compatibility alias for
+the former unshipped Desktop-prefixed page-client contract.
+
 `apps/web` is the repository's runnable Web product entry and the canonical product renderer for
 both environments. The current normal browser mode is an in-memory preview; a future Gateway will
 provide its shared runtime capability adapter. An Electron `BrowserWindow` loads the same
-application with one atomic three-port capability bundle injected by preload. Desktop owns no
-parallel Workspace, Tab, Panel, terminal UI implementation, or renderer build. Shared
-implementation belongs to the owning frontend packages, while runnable entry composition remains
-under `apps/web` rather than a new `packages/web` workspace.
+application with one atomic three-port capability bundle injected by preload. The platform-neutral
+Workbench client runtime under `apps/web` consumes narrow client-session and projection ports and
+owns document coordination, projected-terminal presentation, search, and actions without depending
+on Electron, `MessagePort`, or a network transport. Desktop adapters supply the Electron ports and
+layer the application-lifetime UI beside that common runtime. Desktop owns no parallel Workspace,
+Tab, Panel, terminal UI implementation, or renderer build. Shared implementation belongs to the
+owning frontend packages, while runnable entry composition remains under `apps/web` rather than a
+new `packages/web` workspace.
 
 ## Inputs and boundaries
 

@@ -1,0 +1,114 @@
+import { ActionRuntime } from '@orchbee/actions';
+import {
+	createOrchbeeIntl,
+	getOrchbeeTextDirection,
+	resolveOrchbeeLocale,
+	type OrchbeeLocale,
+	workbenchTabMessages,
+} from '@orchbee/i18n';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+	WorkbenchProjectWorkspaceRuntime,
+	type WorkbenchTerminalPresentationComposition,
+	type WorkbenchShortcutPlatform,
+} from '@orchbee/workbench';
+
+import type { WorkbenchClientSessionClient } from '../client-session';
+import type { ProjectedTerminalSurfaceCapability } from '../projected-terminal-surface';
+import type { TerminalProjectionClient } from '../terminal-projection';
+import { WorkbenchDocumentCoordinator } from '../workbench-document-control';
+
+export interface WorkbenchClientRuntime {
+	readonly actionRuntime: ActionRuntime;
+	readonly documentCoordinator: WorkbenchDocumentCoordinator;
+	readonly locale: OrchbeeLocale;
+	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	readonly ready: Promise<
+		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
+	>;
+	readonly terminalSurfaceCapability: ProjectedTerminalSurfaceCapability;
+	dispose(): void;
+}
+
+export interface CreateWorkbenchClientRuntimeOptions {
+	readonly clientSession: WorkbenchClientSessionClient;
+	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'>;
+	readonly preferredLocales: readonly string[];
+	readonly projectionClient: TerminalProjectionClient;
+	readonly shortcutPlatform: WorkbenchShortcutPlatform;
+}
+
+export function createWorkbenchClientRuntime({
+	clientSession,
+	documentElement,
+	preferredLocales,
+	projectionClient,
+	shortcutPlatform,
+}: CreateWorkbenchClientRuntimeOptions): WorkbenchClientRuntime {
+	const bootstrap = clientSession.bootstrap;
+	const locale = resolveOrchbeeLocale(preferredLocales);
+	const intl = createOrchbeeIntl(locale);
+	documentElement.lang = locale;
+	documentElement.dir = getOrchbeeTextDirection(locale);
+	const actionRuntime = new ActionRuntime();
+	const terminalPresentation: WorkbenchTerminalPresentationComposition = {
+		createOperationId: () =>
+			terminalPresentationOperationId(`workbench:operation:${crypto.randomUUID()}`),
+		createPresentationId: () =>
+			terminalPresentationId(`workbench:presentation:${crypto.randomUUID()}`),
+		createRemovalId: () =>
+			terminalPresentationRemovalId(`workbench:removal:${crypto.randomUUID()}`),
+		dispatchCommands: () => undefined,
+		initialPresentationId: bootstrap.initialPresentationId,
+		kind: 'managed',
+	};
+	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+		initialDocument:
+			bootstrap.documentState.kind === 'available'
+				? bootstrap.documentState.document
+				: bootstrap.initializationDocument,
+		standaloneCwd: bootstrap.defaultCwd,
+		standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle, { number: 1 }),
+		terminalPresentation,
+	});
+	const documentCoordinator = new WorkbenchDocumentCoordinator(
+		projectWorkspaceRuntime,
+		clientSession,
+	);
+	let disposed = false;
+	const terminalSurfaceCapability: ProjectedTerminalSurfaceCapability = {
+		documentElement,
+		preferredLocales,
+		projectionClient,
+		shortcutPlatform,
+		startStoppedTerminalSession: (presentationId) => {
+			projectWorkspaceRuntime.startStoppedTerminalSession(presentationId);
+		},
+	};
+	const dispose = (): void => {
+		if (disposed) return;
+		disposed = true;
+		actionRuntime.dispose();
+		documentCoordinator.dispose();
+		clientSession.dispose();
+		projectionClient.dispose();
+	};
+	const ready = documentCoordinator.start().then((result) => {
+		if (result.kind === 'unavailable') return result;
+		return disposed
+			? ({ kind: 'unavailable', reason: 'control-unavailable' } as const)
+			: ({ kind: 'ready' } as const);
+	});
+
+	return {
+		actionRuntime,
+		dispose,
+		documentCoordinator,
+		locale,
+		projectWorkspaceRuntime,
+		ready,
+		terminalSurfaceCapability,
+	};
+}

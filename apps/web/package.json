@@ -20,6 +20,7 @@
 		"@orchbee/terminal-protocol": "workspace:^",
 		"@orchbee/ui": "workspace:^",
 		"@orchbee/workbench": "workspace:^",
+		"@orchbee/workbench-client-protocol": "workspace:^",
 		"react": "catalog:",
 		"react-dom": "catalog:"
 	},

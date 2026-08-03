@@ -21,6 +21,12 @@ sandboxed preload. Its three ports have one fixed order:
 - application-lifetime control carries only exit reason, user choice, quiescing acknowledgement,
   shared-document revision, aggregate progress, and typed failures for the current renderer page.
 
+The client-session and projection payloads are platform-neutral contracts from
+`@orchbee/workbench-client-protocol`. `@orchbee/desktop-client-protocol` owns only the atomic
+Electron renderer bootstrap and Electron application-lifetime contract. Desktop Main and the Web
+renderer each adapt the generic contracts to their end of a `MessagePort`; neither transport detail
+enters the shared Workbench client runtime.
+
 The renderer has no Node integration, generic Electron IPC, filesystem capability, Host inventory,
 or raw terminal-lifetime authority. It cannot invoke provision, restore, close, or storage CAS
 effects directly. Preload accepts exactly one bootstrap, verifies all three ports together,
@@ -39,9 +45,10 @@ not silently adopted into the shared document.
 
 The coordinator is transport-neutral and supports independent page sessions without a product
 count ceiling. This slice exposes the Electron `MessagePort` adapter; a network Gateway remains
-outside Desktop. The accepted renderer target is the single `apps/web` application in both a normal
-browser and Electron. Desktop Main loads its loopback development URL with the explicit
-`?orchbee-runtime=desktop` marker; `apps/desktop` owns no renderer source or renderer build. See
+outside Desktop. `apps/web` owns the platform-neutral Workbench client runtime and the single
+renderer application used in both a normal browser and Electron. Desktop supplies only its
+transport and lifecycle adapters, loads the loopback development URL with the explicit
+`?orchbee-runtime=desktop` marker, and owns no renderer source or renderer build. See
 [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md).
 
 Desktop requires Host protocol `1.4` exactly. Electron uses `42.8.0`, the final release in the major

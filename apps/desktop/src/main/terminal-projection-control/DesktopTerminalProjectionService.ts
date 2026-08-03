@@ -1,7 +1,7 @@
 import {
 	ProjectedAttachmentBootstrapSchema,
 	type ProjectedAttachmentBootstrap,
-} from '@orchbee/desktop-client-protocol';
+} from '@orchbee/workbench-client-protocol';
 import {
 	AttachTerminalSchema,
 	AttachmentAcknowledgedSchema,

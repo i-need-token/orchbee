@@ -2,7 +2,7 @@ import type { TerminalExited } from '@orchbee/terminal-protocol';
 import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import type { MessagePortMain } from 'electron';
 
-import type { ProjectedAttachmentBootstrap } from '@orchbee/desktop-client-protocol';
+import type { ProjectedAttachmentBootstrap } from '@orchbee/workbench-client-protocol';
 import type { ProjectedTerminalBrokerMetrics } from '../broker';
 import { readTerminalInventory, type HostConnection } from '../host';
 import { FileTerminalBindingStore } from '../recovery';

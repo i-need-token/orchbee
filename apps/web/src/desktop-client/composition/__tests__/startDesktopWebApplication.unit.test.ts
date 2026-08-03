@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
 import {
-	DESKTOP_CLIENT_SESSION_BOOTSTRAP,
 	DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 	DESKTOP_RENDERER_BOOTSTRAP_WINDOW_MESSAGE,
 } from '@orchbee/desktop-client-protocol';
+import { WORKBENCH_CLIENT_SESSION_BOOTSTRAP } from '@orchbee/workbench-client-protocol';
 import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
@@ -144,7 +144,7 @@ function rendererMessage(): unknown {
 				initializationDocument: documentState,
 				sequence: '0',
 				terminalEvents: [],
-				type: DESKTOP_CLIENT_SESSION_BOOTSTRAP,
+				type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 			},
 			type: DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 		},

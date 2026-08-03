@@ -4,7 +4,7 @@ import {
 	TerminalProjectionControlEventSchema,
 	type TerminalProjectionControlEvent,
 	type TerminalProjectionRequestId,
-} from '@orchbee/desktop-client-protocol';
+} from '@orchbee/workbench-client-protocol';
 import {
 	TerminalPresentationFailureSchema,
 	type TerminalPresentationId,

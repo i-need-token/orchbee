@@ -14,16 +14,16 @@ import {
 } from '@orchbee/workbench/terminal-presentation';
 
 import {
-	DESKTOP_CLIENT_SESSION_BOOTSTRAP,
-	DesktopClientSessionBootstrapSchema,
-	DesktopClientSessionCommandSchema,
-	DesktopClientSessionEventSchema,
-	type DesktopClientSessionBootstrap,
-} from '@orchbee/desktop-client-protocol';
+	WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
+	WorkbenchClientSessionBootstrapSchema,
+	WorkbenchClientSessionCommandSchema,
+	WorkbenchClientSessionEventSchema,
+	type WorkbenchClientSessionBootstrap,
+} from '@orchbee/workbench-client-protocol';
 import { startDesktopWorkbenchRenderer } from '../startDesktopWorkbenchRenderer';
 
 const originalResizeObserver = globalThis.ResizeObserver;
-type DesktopClientSessionCommand = ReturnType<typeof DesktopClientSessionCommandSchema.parse>;
+type WorkbenchClientSessionCommand = ReturnType<typeof WorkbenchClientSessionCommandSchema.parse>;
 
 class ResizeObserverMock {
 	disconnect(): void {
@@ -99,22 +99,22 @@ function createTestChannel(): { readonly port1: MessagePort; readonly port2: Tes
 	return { port1: port1 as unknown as MessagePort, port2 };
 }
 
-function serveSuccessfulClientSession(port: TestMessagePort): DesktopClientSessionCommand[] {
-	const commands: DesktopClientSessionCommand[] = [];
+function serveSuccessfulClientSession(port: TestMessagePort): WorkbenchClientSessionCommand[] {
+	const commands: WorkbenchClientSessionCommand[] = [];
 	let sequence = 0n;
 	port.addEventListener('message', (event) => {
-		const command = DesktopClientSessionCommandSchema.parse((event as MessageEvent).data);
+		const command = WorkbenchClientSessionCommandSchema.parse((event as MessageEvent).data);
 		commands.push(command);
 		sequence += 1n;
 		port.postMessage(
-			DesktopClientSessionEventSchema.parse({
+			WorkbenchClientSessionEventSchema.parse({
 				document: command.document,
 				sequence: sequence.toString(),
 				type: 'shared-document-published',
 			}),
 		);
 		port.postMessage(
-			DesktopClientSessionEventSchema.parse({
+			WorkbenchClientSessionEventSchema.parse({
 				requestId: command.requestId,
 				result: { document: command.document, kind: 'committed' },
 				type: 'shared-document-proposal-completed',
@@ -130,12 +130,12 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
 		const initializationDocument = provisionDocument('0', ['Terminal 1']);
-		const commands: DesktopClientSessionCommand[] = [];
+		const commands: WorkbenchClientSessionCommand[] = [];
 		clientSessionChannel.port2.addEventListener('message', (event) => {
-			const command = DesktopClientSessionCommandSchema.parse((event as MessageEvent).data);
+			const command = WorkbenchClientSessionCommandSchema.parse((event as MessageEvent).data);
 			commands.push(command);
 			clientSessionChannel.port2.postMessage(
-				DesktopClientSessionEventSchema.parse({
+				WorkbenchClientSessionEventSchema.parse({
 					requestId: command.requestId,
 					result: { document: null, kind: 'unavailable', reason: 'read-failed' },
 					type: 'shared-document-proposal-completed',
@@ -292,8 +292,8 @@ function bootstrap(
 		| { readonly kind: 'missing' },
 	initializationDocument: WorkbenchSharedDocument,
 	terminalEvents: readonly TerminalPresentationEvent[] = [],
-): DesktopClientSessionBootstrap {
-	return DesktopClientSessionBootstrapSchema.parse({
+): WorkbenchClientSessionBootstrap {
+	return WorkbenchClientSessionBootstrapSchema.parse({
 		clientSessionId: 'client-1',
 		defaultCwd: '/workspace',
 		documentState,
@@ -301,7 +301,7 @@ function bootstrap(
 		initializationDocument,
 		sequence: '0',
 		terminalEvents,
-		type: DESKTOP_CLIENT_SESSION_BOOTSTRAP,
+		type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 	});
 }
 

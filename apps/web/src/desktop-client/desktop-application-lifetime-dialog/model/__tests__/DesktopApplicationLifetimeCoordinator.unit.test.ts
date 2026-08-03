@@ -10,7 +10,7 @@ import {
 	type DesktopApplicationLifetimeMainEvent,
 	type DesktopApplicationLifetimeRendererCommand,
 } from '@orchbee/desktop-client-protocol';
-import type { DesktopWorkbenchDocumentCoordinator } from '../../../workbench-document-control';
+import type { WorkbenchDocumentCoordinator } from '../../../../workbench-client';
 import { DesktopApplicationLifetimeCoordinator } from '../DesktopApplicationLifetimeCoordinator';
 
 function createHarness(sessionCount = 2) {
@@ -45,7 +45,7 @@ function createHarness(sessionCount = 2) {
 	};
 	const document = {
 		committedRevision: workbenchSharedDocumentRevision('5'),
-		flush: vi.fn<DesktopWorkbenchDocumentCoordinator['flush']>().mockResolvedValue({
+		flush: vi.fn<WorkbenchDocumentCoordinator['flush']>().mockResolvedValue({
 			kind: 'flushed',
 			revision: workbenchSharedDocumentRevision('6'),
 		}),

@@ -1,10 +1,10 @@
 import { enUSDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
-import { enUSDesktopTerminalMessages } from './desktop-terminal';
+import { enUSProjectedTerminalMessages } from './projected-terminal';
 import { enUSWorkbenchMessages } from './workbench';
 
 export const enUSMessages = {
 	...enUSDesktopApplicationLifetimeMessages,
-	...enUSDesktopTerminalMessages,
+	...enUSProjectedTerminalMessages,
 	...enUSWorkbenchMessages,
 } as const;
 

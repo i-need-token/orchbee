@@ -1,7 +1,5 @@
-import {
-	DESKTOP_CLIENT_SESSION_BOOTSTRAP,
-	DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
-} from '@orchbee/desktop-client-protocol';
+import { DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL } from '@orchbee/desktop-client-protocol';
+import { WORKBENCH_CLIENT_SESSION_BOOTSTRAP } from '@orchbee/workbench-client-protocol';
 import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
@@ -107,7 +105,7 @@ function rendererBootstrap(): unknown {
 			initializationDocument: document,
 			sequence: '0',
 			terminalEvents: [],
-			type: DESKTOP_CLIENT_SESSION_BOOTSTRAP,
+			type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 		},
 		type: DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 	};

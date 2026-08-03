@@ -32,7 +32,7 @@ describe('DesktopClientSessionBroker', () => {
 		expect(broker.bootstrap).toMatchObject({
 			documentState: { kind: 'missing' },
 			sequence: '0',
-			type: 'orchbee.desktop.client-session-bootstrap',
+			type: 'orchbee.workbench.client-session-bootstrap',
 		});
 		expect(port.start).toHaveBeenCalledOnce();
 		port.emit('message', {

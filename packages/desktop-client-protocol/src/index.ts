@@ -1,31 +1,8 @@
 export {
-	DesktopRendererCommandSchema,
-	DesktopRendererEventSchema,
-	ProjectedAttachmentBootstrapSchema,
-} from './projected-attachment-contract';
-export type {
-	DesktopBrokerFailure,
-	DesktopRendererCommand,
-	ProjectedAttachmentBootstrap,
-} from './projected-attachment-contract';
-export {
 	DesktopApplicationExitRequestIdSchema,
 	DesktopApplicationLifetimeMainEventSchema,
 	DesktopApplicationLifetimeRendererCommandSchema,
 } from './desktop-application-lifetime-contract';
-export {
-	DESKTOP_CLIENT_SESSION_BOOTSTRAP,
-	DesktopClientSessionBootstrapSchema,
-	DesktopClientSessionCommandSchema,
-	DesktopClientSessionEventSchema,
-	DesktopClientSessionRequestIdSchema,
-} from './desktop-client-session-contract';
-export type {
-	DesktopClientSessionBootstrap,
-	DesktopClientSessionEvent,
-	DesktopClientSessionRequestId,
-	DesktopDocumentProposalResult,
-} from './desktop-client-session-contract';
 export type {
 	DesktopApplicationExitChoice,
 	DesktopApplicationExitFailure,
@@ -43,12 +20,3 @@ export {
 	DesktopRendererBootstrapWindowMessageSchema,
 } from './desktop-renderer-bootstrap-contract';
 export type { DesktopRendererBootstrap } from './desktop-renderer-bootstrap-contract';
-export {
-	TerminalProjectionControlCommandSchema,
-	TerminalProjectionControlEventSchema,
-	TerminalProjectionRequestIdSchema,
-} from './terminal-projection-control-contract';
-export type {
-	TerminalProjectionControlEvent,
-	TerminalProjectionRequestId,
-} from './terminal-projection-control-contract';

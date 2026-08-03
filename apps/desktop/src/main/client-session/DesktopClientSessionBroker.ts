@@ -1,12 +1,12 @@
 import type { MessageEvent, MessagePortMain } from 'electron';
 
 import {
-	DESKTOP_CLIENT_SESSION_BOOTSTRAP,
-	DesktopClientSessionBootstrapSchema,
-	DesktopClientSessionCommandSchema,
-	DesktopClientSessionEventSchema,
-	type DesktopClientSessionBootstrap,
-} from '@orchbee/desktop-client-protocol';
+	WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
+	WorkbenchClientSessionBootstrapSchema,
+	WorkbenchClientSessionCommandSchema,
+	WorkbenchClientSessionEventSchema,
+	type WorkbenchClientSessionBootstrap,
+} from '@orchbee/workbench-client-protocol';
 import type {
 	DesktopClientSessionCoordinator,
 	DesktopClientSessionHandle,
@@ -40,12 +40,12 @@ export class DesktopClientSessionBroker implements DesktopClientSessionPublisher
 		this.#handle = registration.handle;
 	}
 
-	get bootstrap(): DesktopClientSessionBootstrap {
+	get bootstrap(): WorkbenchClientSessionBootstrap {
 		const documentState =
 			this.#handle.bootstrap.kind === 'available'
 				? { document: this.#handle.bootstrap.document, kind: 'available' as const }
 				: { kind: 'missing' as const };
-		return DesktopClientSessionBootstrapSchema.parse({
+		return WorkbenchClientSessionBootstrapSchema.parse({
 			clientSessionId: this.#handle.clientSessionId,
 			defaultCwd: this.#handle.bootstrap.defaultCwd,
 			documentState,
@@ -53,7 +53,7 @@ export class DesktopClientSessionBroker implements DesktopClientSessionPublisher
 			initializationDocument: this.#handle.bootstrap.initializationDocument,
 			sequence: this.#handle.bootstrap.sequence,
 			terminalEvents: this.#handle.bootstrap.terminalEvents,
-			type: DESKTOP_CLIENT_SESSION_BOOTSTRAP,
+			type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 		});
 	}
 
@@ -70,7 +70,7 @@ export class DesktopClientSessionBroker implements DesktopClientSessionPublisher
 
 	publish(publication: DesktopClientSessionPublication): void {
 		if (this.#disposed) throw new Error('Desktop client session port is closed.');
-		const event = DesktopClientSessionEventSchema.parse(publication);
+		const event = WorkbenchClientSessionEventSchema.parse(publication);
 		this.#port.postMessage(event);
 	}
 
@@ -90,7 +90,7 @@ export class DesktopClientSessionBroker implements DesktopClientSessionPublisher
 			void this.dispose();
 			return;
 		}
-		const command = DesktopClientSessionCommandSchema.safeParse(message.data);
+		const command = WorkbenchClientSessionCommandSchema.safeParse(message.data);
 		if (!command.success) {
 			void this.dispose();
 			return;
@@ -105,7 +105,7 @@ export class DesktopClientSessionBroker implements DesktopClientSessionPublisher
 				if (this.#disposed) return;
 				try {
 					this.#port.postMessage(
-						DesktopClientSessionEventSchema.parse({
+						WorkbenchClientSessionEventSchema.parse({
 							requestId: command.data.requestId,
 							result,
 							type: 'shared-document-proposal-completed',

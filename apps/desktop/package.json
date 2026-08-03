@@ -22,6 +22,7 @@
 		"@orchbee/i18n": "workspace:^",
 		"@orchbee/terminal-protocol": "workspace:^",
 		"@orchbee/workbench": "workspace:^",
+		"@orchbee/workbench-client-protocol": "workspace:^",
 		"electron": "42.8.0",
 		"zod": "catalog:"
 	},

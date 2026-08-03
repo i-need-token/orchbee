@@ -1,11 +1,11 @@
 import type { MessageEvent, MessagePortMain } from 'electron';
 
 import {
-	DesktopRendererCommandSchema,
-	type DesktopBrokerFailure,
-	type DesktopRendererCommand,
+	ProjectedTerminalCommandSchema,
 	type ProjectedAttachmentBootstrap,
-} from '@orchbee/desktop-client-protocol';
+	type ProjectedTerminalCommand,
+	type ProjectedTerminalFailure,
+} from '@orchbee/workbench-client-protocol';
 
 import {
 	AttachmentAcknowledgedSchema,
@@ -202,7 +202,7 @@ export class ProjectedTerminalBroker {
 	readonly #handleRendererMessage = (event: MessageEvent): void => {
 		if (this.#disposed) return;
 		const rawMessage: unknown = event.data;
-		const parsed = DesktopRendererCommandSchema.safeParse(rawMessage);
+		const parsed = ProjectedTerminalCommandSchema.safeParse(rawMessage);
 		if (!parsed.success || parsed.data.payload.attachmentId !== this.#bootstrap.attachmentId) {
 			this.#commandsRejected += 1;
 			this.#postFailure({
@@ -345,7 +345,7 @@ export class ProjectedTerminalBroker {
 		}
 	};
 
-	async #dispatch(command: DesktopRendererCommand): Promise<void> {
+	async #dispatch(command: ProjectedTerminalCommand): Promise<void> {
 		switch (command.kind) {
 			case 'focus-input':
 				return this.#requestEncoded(
@@ -754,14 +754,14 @@ export class ProjectedTerminalBroker {
 		await this.#host.request(kind, PayloadEncoding.rawBytes, encoded.value, expectedKind);
 	}
 
-	#postFailure(failure: DesktopBrokerFailure): void {
+	#postFailure(failure: ProjectedTerminalFailure): void {
 		if (!this.#disposed) this.#port.postMessage({ failure, kind: 'failure' });
 	}
 }
 
 function failureContext(
-	command: DesktopRendererCommand,
-): Pick<DesktopBrokerFailure, 'operation' | 'requestSequence'> {
+	command: ProjectedTerminalCommand,
+): Pick<ProjectedTerminalFailure, 'operation' | 'requestSequence'> {
 	switch (command.kind) {
 		case 'selection-copy':
 			return { operation: 'copy', requestSequence: command.payload.requestSequence };

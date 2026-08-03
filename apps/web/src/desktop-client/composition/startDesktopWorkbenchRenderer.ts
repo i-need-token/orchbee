@@ -1,22 +1,9 @@
-import { ActionRuntime } from '@orchbee/actions';
-import {
-	createOrchbeeIntl,
-	getOrchbeeTextDirection,
-	resolveOrchbeeLocale,
-	workbenchTabMessages,
-} from '@orchbee/i18n';
-import {
-	terminalPresentationId,
-	terminalPresentationOperationId,
-	terminalPresentationRemovalId,
-	WorkbenchProjectWorkspaceRuntime,
-	type WorkbenchTerminalPresentationComposition,
-	type WorkbenchShortcutPlatform,
-} from '@orchbee/workbench';
+import type { WorkbenchShortcutPlatform } from '@orchbee/workbench';
+import type { WorkbenchClientSessionBootstrap } from '@orchbee/workbench-client-protocol';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
-import type { DesktopClientSessionBootstrap } from '@orchbee/desktop-client-protocol';
+import { createWorkbenchClientRuntime, type WorkbenchClientRuntime } from '../../workbench-client';
 import { DesktopClientSessionClient } from '../client-session';
 import {
 	DesktopApplicationLifetimeClient,
@@ -24,7 +11,6 @@ import {
 } from '../desktop-application-lifetime-dialog';
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopTerminalProjectionClient } from '../terminal-projection-control';
-import { DesktopWorkbenchDocumentCoordinator } from '../workbench-document-control';
 
 export interface DesktopWorkbenchRendererSession {
 	dispose(): void;
@@ -39,7 +25,7 @@ export function startDesktopWorkbenchRenderer(
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	storage: Pick<Storage, 'getItem' | 'setItem'>,
-	bootstrap: DesktopClientSessionBootstrap,
+	bootstrap: WorkbenchClientSessionBootstrap,
 	lifetimePort: MessagePort,
 	clientSessionPort: MessagePort,
 	projectionPort: MessagePort,
@@ -48,28 +34,19 @@ export function startDesktopWorkbenchRenderer(
 		throw new Error('The Orchbee Desktop application root element is missing.');
 	}
 	const applicationRoot = rootElement;
-	const locale = resolveOrchbeeLocale(preferredLocales);
-	const intl = createOrchbeeIntl(locale);
-	documentElement.lang = locale;
-	documentElement.dir = getOrchbeeTextDirection(locale);
 	const clientSession = new DesktopClientSessionClient(clientSessionPort, bootstrap);
 	const projectionClient = new DesktopTerminalProjectionClient(projectionPort);
-	let actionRuntime: ActionRuntime | undefined;
+	const runtime = createWorkbenchClientRuntime({
+		clientSession,
+		documentElement,
+		preferredLocales,
+		projectionClient,
+		shortcutPlatform,
+	});
 	let applicationLifetimeCoordinator: DesktopApplicationLifetimeCoordinator | undefined;
 	let disposed = false;
 	let lifetimeClient: DesktopApplicationLifetimeClient | undefined;
 	let reactRoot: Root | undefined;
-	let workbenchDocumentCoordinator: DesktopWorkbenchDocumentCoordinator | undefined;
-	const terminalPresentation: WorkbenchTerminalPresentationComposition = {
-		createOperationId: () =>
-			terminalPresentationOperationId(`desktop:operation:${crypto.randomUUID()}`),
-		createPresentationId: () =>
-			terminalPresentationId(`desktop:presentation:${crypto.randomUUID()}`),
-		createRemovalId: () => terminalPresentationRemovalId(`desktop:removal:${crypto.randomUUID()}`),
-		dispatchCommands: () => undefined,
-		initialPresentationId: bootstrap.initialPresentationId,
-		kind: 'managed',
-	};
 
 	const dispose = (): void => {
 		if (disposed) return;
@@ -78,71 +55,44 @@ export function startDesktopWorkbenchRenderer(
 		applicationLifetimeCoordinator = undefined;
 		reactRoot?.unmount();
 		reactRoot = undefined;
-		actionRuntime?.dispose();
-		actionRuntime = undefined;
-		workbenchDocumentCoordinator?.dispose();
-		workbenchDocumentCoordinator = undefined;
-		clientSession.dispose();
-		projectionClient.dispose();
+		runtime.dispose();
 		if (lifetimeClient === undefined) lifetimePort.close();
 		else lifetimeClient.dispose();
 	};
 
-	const ready = initialize().catch(() => {
+	const ready = initialize(runtime).catch(() => {
 		dispose();
 		return { kind: 'unavailable', reason: 'runtime-unavailable' } as const;
 	});
 	return { dispose, ready };
 
-	async function initialize(): Promise<
+	async function initialize(
+		workbenchClientRuntime: WorkbenchClientRuntime,
+	): Promise<
 		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
 	> {
-		const runtimeOptions = {
-			standaloneCwd: bootstrap.defaultCwd,
-			standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle, {
-				number: 1,
-			}),
-			terminalPresentation,
-		};
-		const runtime = new WorkbenchProjectWorkspaceRuntime({
-			...runtimeOptions,
-			initialDocument:
-				bootstrap.documentState.kind === 'available'
-					? bootstrap.documentState.document
-					: bootstrap.initializationDocument,
-		});
-		workbenchDocumentCoordinator = new DesktopWorkbenchDocumentCoordinator(runtime, clientSession);
-		const documentStart = await workbenchDocumentCoordinator.start();
-		if (documentStart.kind === 'unavailable') {
+		const runtimeStart = await workbenchClientRuntime.ready;
+		if (runtimeStart.kind === 'unavailable') {
 			dispose();
-			return documentStart;
+			return runtimeStart;
 		}
 		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
 		lifetimeClient = new DesktopApplicationLifetimeClient(lifetimePort);
 		applicationLifetimeCoordinator = new DesktopApplicationLifetimeCoordinator(
-			runtime,
-			workbenchDocumentCoordinator,
+			workbenchClientRuntime.projectWorkspaceRuntime,
+			workbenchClientRuntime.documentCoordinator,
 			lifetimeClient,
 		);
-		actionRuntime = new ActionRuntime();
 		reactRoot = createRoot(applicationRoot);
 		reactRoot.render(
 			createElement(DesktopWorkbench, {
-				actionRuntime,
+				actionRuntime: workbenchClientRuntime.actionRuntime,
 				applicationLifetimeCoordinator,
 				layoutStorage: storage,
-				locale,
-				projectWorkspaceRuntime: runtime,
+				locale: workbenchClientRuntime.locale,
+				projectWorkspaceRuntime: workbenchClientRuntime.projectWorkspaceRuntime,
 				shortcutPlatform,
-				terminalSurfaceCapability: {
-					documentElement,
-					preferredLocales,
-					projectionClient,
-					shortcutPlatform,
-					startStoppedTerminalSession: (presentationId) => {
-						runtime.startStoppedTerminalSession(presentationId);
-					},
-				},
+				terminalSurfaceCapability: workbenchClientRuntime.terminalSurfaceCapability,
 			}),
 		);
 		return { kind: 'ready' };

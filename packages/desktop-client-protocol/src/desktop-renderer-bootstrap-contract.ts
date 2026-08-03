@@ -1,6 +1,5 @@
+import { WorkbenchClientSessionBootstrapSchema } from '@orchbee/workbench-client-protocol';
 import { z } from 'zod';
-
-import { DesktopClientSessionBootstrapSchema } from './desktop-client-session-contract';
 
 export const DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL = 'orchbee.desktop.renderer-bootstrap';
 export const DESKTOP_RENDERER_BOOTSTRAP_WINDOW_MESSAGE = 'orchbee.desktop.renderer-bootstrap-ready';
@@ -12,7 +11,7 @@ export const DESKTOP_RENDERER_PORT_ROLES = [
 ] as const;
 
 export const DesktopRendererBootstrapSchema = z.strictObject({
-	clientSession: DesktopClientSessionBootstrapSchema,
+	clientSession: WorkbenchClientSessionBootstrapSchema,
 	type: z.literal(DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL),
 });
 

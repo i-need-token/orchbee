@@ -1,10 +1,10 @@
 import type { OrchbeeMessageId } from '../en-US';
 import { zhCNDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
-import { zhCNDesktopTerminalMessages } from './desktop-terminal';
+import { zhCNProjectedTerminalMessages } from './projected-terminal';
 import { zhCNWorkbenchMessages } from './workbench';
 
 export const zhCNMessages = {
 	...zhCNDesktopApplicationLifetimeMessages,
-	...zhCNDesktopTerminalMessages,
+	...zhCNProjectedTerminalMessages,
 	...zhCNWorkbenchMessages,
 } as const satisfies Readonly<Record<OrchbeeMessageId, string>>;

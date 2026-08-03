@@ -12,7 +12,7 @@ import type {
 	DesktopApplicationLifetimeMainEvent,
 	DesktopApplicationLifetimeRendererCommand,
 } from '@orchbee/desktop-client-protocol';
-import type { DesktopWorkbenchDocumentCoordinator } from '../../workbench-document-control';
+import type { WorkbenchDocumentCoordinator } from '../../../workbench-client';
 
 type Listener = () => void;
 
@@ -29,7 +29,7 @@ type LifetimeRuntime = Pick<
 	| 'subscribeDocument'
 >;
 
-type LifetimeDocument = Pick<DesktopWorkbenchDocumentCoordinator, 'committedRevision' | 'flush'>;
+type LifetimeDocument = Pick<WorkbenchDocumentCoordinator, 'committedRevision' | 'flush'>;
 
 export type DesktopApplicationLifetimeState =
 	| { readonly kind: 'idle' }

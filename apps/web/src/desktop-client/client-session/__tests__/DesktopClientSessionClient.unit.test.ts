@@ -5,10 +5,10 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-	DESKTOP_CLIENT_SESSION_BOOTSTRAP,
-	DesktopClientSessionBootstrapSchema,
-	DesktopClientSessionRequestIdSchema,
-} from '@orchbee/desktop-client-protocol';
+	WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
+	WorkbenchClientSessionBootstrapSchema,
+	WorkbenchClientSessionRequestIdSchema,
+} from '@orchbee/workbench-client-protocol';
 import { DesktopClientSessionClient } from '../DesktopClientSessionClient';
 
 class TestMessagePort extends EventTarget {
@@ -43,7 +43,7 @@ const document = createWorkbenchSharedDocument({
 	],
 });
 
-const bootstrap = DesktopClientSessionBootstrapSchema.parse({
+const bootstrap = WorkbenchClientSessionBootstrapSchema.parse({
 	clientSessionId: 'client-1',
 	defaultCwd: '/workspace',
 	documentState: { kind: 'missing' },
@@ -51,14 +51,14 @@ const bootstrap = DesktopClientSessionBootstrapSchema.parse({
 	initializationDocument: document,
 	sequence: '4',
 	terminalEvents: [],
-	type: DESKTOP_CLIENT_SESSION_BOOTSTRAP,
+	type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 });
 
 describe('DesktopClientSessionClient', () => {
 	it('correlates a proposal while independently publishing strict sequenced events', async () => {
 		const port = new TestMessagePort();
 		const client = new DesktopClientSessionClient(port as unknown as MessagePort, bootstrap, () =>
-			DesktopClientSessionRequestIdSchema.parse('request-1'),
+			WorkbenchClientSessionRequestIdSchema.parse('request-1'),
 		);
 		const publications: string[] = [];
 		client.subscribe((publication) => publications.push(publication.type));
@@ -93,7 +93,7 @@ describe('DesktopClientSessionClient', () => {
 	it('retires pending proposals on a sequence gap or unknown completion', async () => {
 		const port = new TestMessagePort();
 		const client = new DesktopClientSessionClient(port as unknown as MessagePort, bootstrap, () =>
-			DesktopClientSessionRequestIdSchema.parse('request-1'),
+			WorkbenchClientSessionRequestIdSchema.parse('request-1'),
 		);
 		const proposal = client.propose(null, document);
 

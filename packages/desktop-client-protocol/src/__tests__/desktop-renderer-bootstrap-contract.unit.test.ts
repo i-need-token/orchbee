@@ -50,7 +50,7 @@ describe('Desktop renderer bootstrap contract', () => {
 				initializationDocument,
 				sequence: '0',
 				terminalEvents: [],
-				type: 'orchbee.desktop.client-session-bootstrap',
+				type: 'orchbee.workbench.client-session-bootstrap',
 			},
 			type: DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 		});

@@ -1,18 +1,18 @@
 export {
 	enUSDesktopApplicationLifetimeMessages,
-	enUSDesktopTerminalMessages,
+	enUSProjectedTerminalMessages,
 	enUSMessages,
 	enUSWorkbenchMessages,
 } from './en-US';
 export type {
 	DesktopApplicationLifetimeMessageId,
-	DesktopTerminalMessageId,
+	ProjectedTerminalMessageId,
 	OrchbeeMessageId,
 	WorkbenchMessageId,
 } from './en-US';
 export {
 	zhCNDesktopApplicationLifetimeMessages,
-	zhCNDesktopTerminalMessages,
+	zhCNProjectedTerminalMessages,
 	zhCNMessages,
 	zhCNWorkbenchMessages,
 } from './zh-CN';

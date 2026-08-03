@@ -1,4 +1,4 @@
 export { zhCNDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
-export { zhCNDesktopTerminalMessages } from './desktop-terminal';
+export { zhCNProjectedTerminalMessages } from './projected-terminal';
 export { zhCNMessages } from './messages';
 export { zhCNWorkbenchMessages } from './workbench';

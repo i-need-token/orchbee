@@ -7,10 +7,18 @@ Browser composition entry for the Orchbee Workbench.
 `apps/web` is the single runnable product UI for both a normal browser page and Electron's renderer.
 Environment adapters may provide different transport and privileged capabilities, but they compose
 the same Workbench, Workspace, Tab, Panel, and projected-terminal application. Desktop must not
-maintain a parallel renderer UI. The current browser preview uses its in-memory adapter; the
-Desktop runtime uses the Electron client-session, projection, and application-lifetime adapters in
-this application. The URL marker `?orchbee-runtime=desktop` selects Desktop mode; an absent marker
-selects Browser Preview, and invalid or duplicate values fail closed without falling back.
+maintain a parallel renderer UI. The shared Workbench client runtime owns shared-document
+coordination, projected-terminal presentation, search, actions, and its narrow client-session and
+projection ports. It has no Electron, `MessagePort`, network, or application-lifetime dependency.
+
+The current browser preview uses its in-memory composition. Desktop supplies `MessagePort`
+adapters for the shared client-session and projection ports, then layers its Electron-only
+application-lifetime dialog beside the common application. Generic Workbench client payloads come
+from `@orchbee/workbench-client-protocol`; only Electron bootstrap and application-lifetime
+payloads come from `@orchbee/desktop-client-protocol`. A future Gateway adapter will reuse the same
+shared client runtime for an authoritative Browser client without adding another renderer. The URL
+marker `?orchbee-runtime=desktop` selects Desktop mode; an absent marker selects Browser Preview,
+and invalid or duplicate values fail closed without falling back.
 
 ## Local development preview
 
