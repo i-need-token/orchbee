@@ -8,6 +8,12 @@ import path from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 
 import {
+	createRsbuild,
+	loadConfig,
+	mergeRsbuildConfig,
+	type RsbuildDevServer,
+} from '@rsbuild/core';
+import {
 	_electron as electron,
 	chromium,
 	expect,
@@ -28,30 +34,45 @@ const hostBinary = path.join(
 );
 const desktopMain = path.join(repositoryRoot, 'apps', 'desktop', 'dist', 'main', 'main.cjs');
 const gatewayMain = path.join(repositoryRoot, 'apps', 'gateway', 'dist', 'main', 'gateway.cjs');
+const webRoot = path.join(repositoryRoot, 'apps', 'web');
 const webDist = path.join(repositoryRoot, 'apps', 'web', 'dist');
 
 const applicationOutput = new WeakMap<ElectronApplication, string[]>();
 
 let electronApplication: ElectronApplication | undefined;
 let desktopEnvironment: Record<string, string> | undefined;
+let developmentRendererServer: RsbuildDevServer | undefined;
+let developmentRendererUrl: string | undefined;
 let hostProcess: ChildProcessWithoutNullStreams | undefined;
 let rendererServer: Server | undefined;
 let rendererUrl: string | undefined;
 let runtimeDirectory: string | undefined;
 
 test.beforeAll(async () => {
-	const started = await startWebRendererServer();
-	rendererServer = started.server;
-	rendererUrl = started.url;
+	const staticRenderer = await startWebRendererServer();
+	rendererServer = staticRenderer.server;
+	rendererUrl = staticRenderer.url;
+	try {
+		const developmentRenderer = await startWebRendererDevelopmentServer();
+		developmentRendererServer = developmentRenderer.server;
+		developmentRendererUrl = developmentRenderer.url;
+	} catch (error) {
+		await closeWebRendererServer(staticRenderer.server);
+		rendererServer = undefined;
+		rendererUrl = undefined;
+		throw error;
+	}
 });
 
 test.afterAll(async () => {
-	const server = rendererServer;
-	if (server !== undefined) {
-		await new Promise<void>((resolve, reject) => {
-			server.close((error) => (error === undefined ? resolve() : reject(error)));
-		});
+	try {
+		await developmentRendererServer?.close();
+	} finally {
+		const server = rendererServer;
+		if (server !== undefined) await closeWebRendererServer(server);
 	}
+	developmentRendererServer = undefined;
+	developmentRendererUrl = undefined;
 	rendererServer = undefined;
 	rendererUrl = undefined;
 });
@@ -334,6 +355,197 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	);
 	await quitDesktop(exitedRestart, exitedPage, 'preserve');
 	electronApplication = undefined;
+});
+
+test('runs Electron and an authenticated Browser peer from the real Web development server', async () => {
+	test.setTimeout(90_000);
+	const staticApplication = electronApplication;
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	const currentRuntimeDirectory = runtimeDirectory;
+	if (staticApplication === undefined) throw new Error('Electron application did not start.');
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	if (currentRuntimeDirectory === undefined) {
+		throw new Error('Desktop runtime directory is unavailable.');
+	}
+
+	const staticPage = await staticApplication.firstWindow();
+	const staticRoot = projectedTerminal(staticPage);
+	await expect(staticRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const staticIdentity = await terminalDocumentIdentity(staticRoot);
+	await quitDesktop(staticApplication, staticPage, 'preserve');
+	electronApplication = undefined;
+
+	const currentEnvironment = desktopEnvironment;
+	if (currentEnvironment === undefined) throw new Error('Desktop test environment is unavailable.');
+	desktopEnvironment = {
+		...currentEnvironment,
+		ORCHBEE_DESKTOP_RENDERER_URL: currentDevelopmentRendererUrl,
+	};
+	const developmentApplication = await launchDesktop();
+	electronApplication = developmentApplication;
+	const desktopPage = await developmentApplication.firstWindow();
+	desktopPage.setDefaultTimeout(10_000);
+	await developmentApplication.evaluate(({ BrowserWindow }) => {
+		BrowserWindow.getAllWindows()[0]?.setSize(1_280, 720);
+	});
+	expect(new URL(desktopPage.url()).origin).toBe(new URL(currentDevelopmentRendererUrl).origin);
+	expect(new URL(desktopPage.url()).searchParams.get('orchbee-runtime')).toBe('desktop');
+	const desktopRoot = projectedTerminal(desktopPage);
+	await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const desktopIdentity = await terminalDocumentIdentity(desktopRoot);
+	expect(desktopIdentity).toMatchObject({
+		creationId: staticIdentity.creationId,
+		terminalId: staticIdentity.terminalId,
+	});
+	expect(desktopIdentity.attachmentId).not.toBe(staticIdentity.attachmentId);
+	const desktopPresentationId = await desktopRoot.getAttribute('data-terminal-presentation-id');
+	if (desktopPresentationId === null) {
+		throw new Error('Desktop terminal presentation identity is unavailable.');
+	}
+
+	const gatewayUrl = await waitForGatewayBrowserUrl(developmentApplication);
+	const browser = await chromium.launch();
+	try {
+		const context = await browser.newContext({ viewport: { height: 720, width: 1_280 } });
+		const browserPage = await context.newPage();
+		browserPage.setDefaultTimeout(10_000);
+		const browserSockets = trackGatewaySockets(browserPage);
+		await browserPage.goto(gatewayUrl);
+		expect(new URL(browserPage.url()).origin).toBe(new URL(currentDevelopmentRendererUrl).origin);
+		expect(new URL(browserPage.url()).searchParams.get('orchbee-runtime')).toBe('gateway');
+		await expect
+			.poll(() => browserSockets.urls.some((url) => socketUsesRendererOrigin(url, gatewayUrl)))
+			.toBe(true);
+		const browserRoot = projectedTerminal(browserPage);
+		await expect(browserRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		const browserIdentity = await terminalDocumentIdentity(browserRoot);
+		expect(browserIdentity).toMatchObject({
+			creationId: desktopIdentity.creationId,
+			terminalId: desktopIdentity.terminalId,
+		});
+		expect(browserIdentity.attachmentId).not.toBe(desktopIdentity.attachmentId);
+		expect(await browserRoot.getAttribute('data-terminal-presentation-id')).toBe(
+			desktopPresentationId,
+		);
+
+		const browserInput = browserRoot.getByRole('textbox');
+		await browserInput.pressSequentially("printf 'ldw-development-marker\\n'", { delay: 1 });
+		await browserInput.press('Enter');
+		await expect(browserRoot.locator('[role="log"]')).toContainText('ldw-development-marker');
+		await expect(desktopRoot.locator('[role="log"]')).toContainText('ldw-development-marker');
+
+		for (const page of [desktopPage, browserPage]) {
+			await expectVisibleLayout(page.locator('#root'));
+			await expectVisibleLayout(page.locator('[data-slot="workbench-sidebar"]'));
+			await expectVisibleLayout(page.locator('[data-slot="workbench-tab-bar"]'));
+			await expectVisibleLayout(page.locator('[data-slot="workbench-panel-workspace"]'));
+			await expectVisibleLayout(page.locator('[data-slot="workbench-panel"]'));
+			await expectVisibleLayout(page.locator('[data-slot="workbench-terminal-viewport"]'));
+		}
+
+		await desktopPage.addInitScript(() => {
+			const storageKey = 'orchbee-system-test-client-session-ids';
+			window.addEventListener('message', (event: MessageEvent<unknown>) => {
+				const candidate = event.data as {
+					readonly bootstrap?: {
+						readonly clientSession?: { readonly clientSessionId?: unknown };
+					};
+					readonly type?: unknown;
+				};
+				const clientSessionId = candidate.bootstrap?.clientSession?.clientSessionId;
+				if (
+					candidate.type !== 'orchbee.desktop.renderer-bootstrap-ready' ||
+					typeof clientSessionId !== 'string'
+				) {
+					return;
+				}
+				const previous = JSON.parse(sessionStorage.getItem(storageKey) ?? '[]') as unknown;
+				const ids = Array.isArray(previous)
+					? previous.filter((value): value is string => typeof value === 'string')
+					: [];
+				ids.push(clientSessionId);
+				sessionStorage.setItem(storageKey, JSON.stringify(ids));
+			});
+		});
+		const desktopSocketUrls: string[] = [];
+		desktopPage.on('websocket', (socket) => desktopSocketUrls.push(socket.url()));
+		const identityBeforeReload = await terminalDocumentIdentity(desktopRoot);
+		await developmentApplication.evaluate(({ BrowserWindow }) => {
+			BrowserWindow.getAllWindows()[0]?.webContents.reload();
+		});
+		await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		await expect(desktopRoot.locator('[role="log"]')).toContainText('ldw-development-marker');
+		await expect.poll(() => desktopClientSessionIds(desktopPage)).toHaveLength(1);
+		const identityAfterFirstReload = await terminalDocumentIdentity(desktopRoot);
+		expect(identityAfterFirstReload).toMatchObject({
+			creationId: identityBeforeReload.creationId,
+			terminalId: identityBeforeReload.terminalId,
+		});
+		expect(identityAfterFirstReload.attachmentId).not.toBe(identityBeforeReload.attachmentId);
+
+		await developmentApplication.evaluate(({ BrowserWindow }) => {
+			BrowserWindow.getAllWindows()[0]?.webContents.reload();
+		});
+		await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		await expect(desktopRoot.locator('[role="log"]')).toContainText('ldw-development-marker');
+		await expect.poll(() => desktopClientSessionIds(desktopPage)).toHaveLength(2);
+		const clientSessionIds = await desktopClientSessionIds(desktopPage);
+		expect(new Set(clientSessionIds).size).toBe(2);
+		const identityAfterSecondReload = await terminalDocumentIdentity(desktopRoot);
+		expect(identityAfterSecondReload).toMatchObject({
+			creationId: identityBeforeReload.creationId,
+			terminalId: identityBeforeReload.terminalId,
+		});
+		expect(identityAfterSecondReload.attachmentId).not.toBe(identityAfterFirstReload.attachmentId);
+		await expect
+			.poll(() =>
+				desktopSocketUrls.some((url) =>
+					socketUsesRendererOrigin(url, currentDevelopmentRendererUrl),
+				),
+			)
+			.toBe(true);
+
+		const previewPage = await context.newPage();
+		await previewPage.goto(currentDevelopmentRendererUrl);
+		expect(new URL(previewPage.url()).searchParams.get('orchbee-runtime')).toBeNull();
+		await expect(projectedTerminal(previewPage)).toHaveCount(0);
+		await expectVisibleLayout(previewPage.locator('[data-slot="workbench-sidebar"]'));
+		await expectVisibleLayout(previewPage.locator('[data-slot="workbench-tab-bar"]'));
+		await expect(previewPage.locator('[data-slot="workbench-sidebar-project"]')).toHaveCount(0);
+
+		const projectName = path.basename(currentRuntimeDirectory);
+		await browserPage.getByRole('button', { name: 'Create Project' }).click();
+		await browserPage.getByRole('menuitem', { name: 'Select Folder…' }).click();
+		const createProjectDialog = browserPage.locator('[data-slot="workbench-project-create"]');
+		await createProjectDialog.getByLabel('Folder path').fill(currentRuntimeDirectory);
+		await createProjectDialog.getByRole('button', { name: 'Create' }).click();
+		await expect(createProjectDialog).not.toBeAttached();
+		await expandProject(browserPage, projectName);
+		await expect(workbenchWorkspace(browserPage, 'Primary')).toBeVisible();
+		await expandProject(desktopPage, projectName);
+		await expect(workbenchWorkspace(desktopPage, 'Primary')).toBeVisible();
+		await expect(previewPage.locator('[data-slot="workbench-sidebar-project"]')).toHaveCount(0);
+
+		const attachmentClosesBeforeDisconnect = gatewaySocketEventCount(
+			browserSockets,
+			'socket:/v1/attachment:closed',
+		);
+		await browserPage.goto(currentDevelopmentRendererUrl);
+		expect(new URL(browserPage.url()).searchParams.get('orchbee-runtime')).toBeNull();
+		await expect(projectedTerminal(browserPage)).toHaveCount(0);
+		await expect
+			.poll(() => gatewaySocketEventCount(browserSockets, 'socket:/v1/attachment:closed'))
+			.toBeGreaterThan(attachmentClosesBeforeDisconnect);
+		await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		expect(await terminalDocumentIdentity(desktopRoot)).toMatchObject({
+			creationId: identityAfterSecondReload.creationId,
+			terminalId: identityAfterSecondReload.terminalId,
+		});
+	} finally {
+		await browser.close();
+	}
 });
 
 test('shares one Workbench and Host terminal with two authenticated Browser clients', async () => {
@@ -932,6 +1144,66 @@ async function startWebRendererServer(): Promise<{
 	return { server, url: `http://127.0.0.1:${address.port}/` };
 }
 
+async function startWebRendererDevelopmentServer(): Promise<{
+	readonly server: RsbuildDevServer;
+	readonly url: string;
+}> {
+	const port = await reserveLoopbackPort();
+	const loaded = await loadConfig({ command: 'dev', cwd: webRoot });
+	const config = mergeRsbuildConfig(loaded.content, {
+		server: { host: '127.0.0.1', port, strictPort: true },
+	});
+	const rsbuild = await createRsbuild({
+		callerName: 'orchbee-desktop-system-test',
+		cwd: webRoot,
+		rsbuildConfig: config,
+	});
+	const initialCompilation = new Promise<Error | undefined>((resolve) => {
+		rsbuild.onAfterDevCompile(({ isFirstCompile, stats }) => {
+			if (!isFirstCompile) return;
+			resolve(
+				stats.hasErrors()
+					? new Error(
+							`Web development compilation failed.\n${stats.toString({ all: false, errorDetails: true, errors: true })}`,
+						)
+					: undefined,
+			);
+		});
+	});
+	const started = await rsbuild.startDevServer({ getPortSilently: true });
+	const compilationError = await initialCompilation;
+	if (compilationError !== undefined) {
+		await started.server.close();
+		throw compilationError;
+	}
+	return { server: started.server, url: `http://127.0.0.1:${started.port}/` };
+}
+
+async function reserveLoopbackPort(): Promise<number> {
+	const server = createServer();
+	await new Promise<void>((resolve, reject) => {
+		server.once('error', reject);
+		server.listen(0, '127.0.0.1', () => {
+			server.off('error', reject);
+			resolve();
+		});
+	});
+	const address = server.address() as AddressInfo | null;
+	if (address === null) {
+		await closeWebRendererServer(server);
+		throw new Error('Loopback port reservation did not publish an address.');
+	}
+	const port = address.port;
+	await closeWebRendererServer(server);
+	return port;
+}
+
+async function closeWebRendererServer(server: Server): Promise<void> {
+	await new Promise<void>((resolve, reject) => {
+		server.close((error) => (error === undefined ? resolve() : reject(error)));
+	});
+}
+
 async function serveWebRendererRequest(
 	requestUrl: string | undefined,
 	response: ServerResponse,
@@ -1060,6 +1332,25 @@ async function expandProject(page: Page, name: string): Promise<void> {
 	await expect(project).toHaveAttribute('aria-expanded', 'true');
 }
 
+async function expectVisibleLayout(locator: Locator): Promise<void> {
+	await expect(locator).toBeVisible();
+	const bounds = await locator.boundingBox();
+	expect(bounds).not.toBeNull();
+	expect(bounds?.width).toBeGreaterThan(0);
+	expect(bounds?.height).toBeGreaterThan(0);
+}
+
+async function desktopClientSessionIds(page: Page): Promise<readonly string[]> {
+	return page.evaluate(() => {
+		const value = JSON.parse(
+			sessionStorage.getItem('orchbee-system-test-client-session-ids') ?? '[]',
+		) as unknown;
+		return Array.isArray(value)
+			? value.filter((candidate): candidate is string => typeof candidate === 'string')
+			: [];
+	});
+}
+
 async function waitForProjectedTerminalsOpen(page: Page): Promise<void> {
 	const terminals = projectedTerminals(page);
 	await expect
@@ -1112,6 +1403,12 @@ function gatewaySocketCount(trace: GatewaySocketTrace, pathname: string): number
 
 function gatewaySocketEventCount(trace: GatewaySocketTrace, event: string): number {
 	return trace.events.filter((candidate) => candidate === event).length;
+}
+
+function socketUsesRendererOrigin(socketUrl: string, rendererSourceUrl: string): boolean {
+	const socket = new URL(socketUrl);
+	const renderer = new URL(rendererSourceUrl);
+	return socket.hostname === renderer.hostname && socket.port === renderer.port;
 }
 
 function gatewayFrameShape(payload: string | Buffer): string {

@@ -35,7 +35,7 @@ The name combines **orch**estrator with **bee**—independent workers coordinati
 
 <!-- TODO: Add GIF showing fast rendering with heavy output (e.g. build logs, large git diffs) -->
 
-On desktop, Orchbee keeps the PTY and Ghostty VT authority in a lightweight native Host and sends display-cadenced packed frames to a WebGPU renderer. The browser runtime retains Ghostty VT through WebAssembly. Both paths avoid moving raw terminal output through the UI process for a GPU-accelerated terminal experience.
+Orchbee keeps PTY and Ghostty VT emulation authoritative in the lightweight native Terminal Host. Electron and authenticated Browser clients consume the same display-cadenced projected frames through the shared Web renderer, using WebGPU when available with a fallback renderer. Clients never reparse PTY output.
 
 ### Agent-to-Agent Collaboration
 
@@ -81,18 +81,20 @@ pnpm test
 pnpm build
 ```
 
-Start the browser Workbench with its deterministic in-memory session adapter:
+Start the browser Workbench Preview with its deterministic in-memory session adapter:
 
 ```bash
 pnpm web
 ```
 
-Build the native Terminal Host and start the current single-terminal Desktop slice:
+For the complete local multi-client flow, build the native Terminal Host once and keep `pnpm web` running. In a second terminal, start Electron; it loads that same Web development renderer:
 
 ```bash
 pnpm --filter @orchbee/terminal-host build
 pnpm desktop
 ```
+
+Desktop prints an `ORCHBEE_BROWSER_CLIENT_URL`. Open that complete URL in a browser to join the same shared Workbench document and Host terminal sessions as Electron. Opening the unmarked `pnpm web` URL directly remains an isolated Preview.
 
 </details>
 
@@ -103,7 +105,7 @@ pnpm desktop
 - **TypeScript** — application and shared package code
 - **Node.js** — repository tooling and Electron privileged runtime
 - **Zig** — native terminal Host runtime
-- **Ghostty VT + WebAssembly** — native and browser terminal emulation
+- **Ghostty VT** — terminal emulation owned by the native Terminal Host
 - **WebGPU** — GPU-accelerated terminal rendering
 
 ## Community

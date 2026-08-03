@@ -35,7 +35,7 @@ Orchbee 将彼此孤立的终端面板变成管理整个 AI Agent 军团的指�
 
 <!-- TODO: 添加 GIF 展示大量输出（如构建日志、大型 git diff）下的流畅渲染 -->
 
-在桌面端，Orchbee 将 PTY 和 Ghostty VT 权威保留在轻量的原生 Host 中，并按显示节奏把紧凑帧发送给 WebGPU renderer。浏览器运行时则继续通过 WebAssembly 使用 Ghostty VT。两条路径都避免让原始终端输出穿过 UI process，以提供 GPU 加速的终端体验。
+Orchbee 将 PTY 与 Ghostty VT 模拟的权威实现保留在轻量的原生 Terminal Host 中。Electron 与经过认证的浏览器客户端通过同一套 Web renderer 消费按显示节奏生成的投影帧，并在可用时使用 WebGPU，否则使用后备 renderer。客户端不会再次解析 PTY 输出。
 
 ### Agent 间协作
 
@@ -81,18 +81,20 @@ pnpm test
 pnpm build
 ```
 
-使用确定性的内存 Session 适配器启动浏览器 Workbench：
+使用确定性的内存 Session 适配器启动浏览器 Workbench Preview：
 
 ```bash
 pnpm web
 ```
 
-构建原生 Terminal Host，并启动当前的单终端 Desktop 切片：
+如需体验完整的本地多客户端流程，先构建一次原生 Terminal Host，并保持 `pnpm web` 运行。然后在第二个终端中启动 Electron；Electron 会加载同一个 Web 开发 renderer：
 
 ```bash
 pnpm --filter @orchbee/terminal-host build
 pnpm desktop
 ```
+
+Desktop 会打印一个 `ORCHBEE_BROWSER_CLIENT_URL`。在浏览器中打开这个完整 URL，即可与 Electron 加入同一个共享 Workbench 文档和 Host 终端会话。直接打开未带标记的 `pnpm web` URL 时，仍然是隔离的 Preview。
 
 </details>
 
@@ -103,7 +105,7 @@ pnpm desktop
 - **TypeScript** — 应用与共享包代码
 - **Node.js** — 仓库工具和 Electron 特权运行时
 - **Zig** — 原生终端 Host 运行时
-- **Ghostty VT + WebAssembly** — 原生和浏览器终端模拟
+- **Ghostty VT** — 由原生 Terminal Host 负责的终端模拟
 - **WebGPU** — GPU 加速终端渲染
 
 ## 社区
