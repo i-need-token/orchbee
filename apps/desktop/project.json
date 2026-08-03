@@ -1,9 +1,9 @@
 {
 	"$schema": "../../schemas/project-contract.schema.json",
 	"domain": "desktop",
-	"runtime": ["browser", "electron", "node"],
+	"runtime": ["electron", "node"],
 	"stability": "experimental",
-	"responsibility": "Electron product process composition, durable multi-terminal binding storage, one canonical shared Workbench document writer and transport-neutral multi-client session coordinator, Host inventory reconciliation, serialized per-binding terminal lifetime orchestration, demand-driven multi-viewer projection control, terminal-presentation binding registration, sandboxed client-session, projection, and application-lifetime capability brokering, temporary Electron renderer composition during convergence on apps/web, and the local Desktop-to-Terminal-Host transport boundary.",
+	"responsibility": "Electron Main and preload composition, durable multi-terminal binding storage, one canonical shared Workbench document writer and transport-neutral multi-client session coordinator, Host inventory reconciliation, serialized per-binding terminal lifetime orchestration, demand-driven multi-viewer projection control, terminal-presentation binding registration, atomic sandboxed client-session, projection, and application-lifetime capability brokering, and the local Desktop-to-Terminal-Host transport boundary.",
 	"nonGoals": [
 		"Defining Project, Workspace, Workbench, Tab, Panel, agent, or product-session semantics; Desktop persists and composes only their owning package APIs.",
 		"Owning authoritative VT state, PTY processes, terminal scrollback, or terminal history policy.",

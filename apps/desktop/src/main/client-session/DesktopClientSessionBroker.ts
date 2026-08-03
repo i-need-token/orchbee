@@ -1,12 +1,12 @@
 import type { MessageEvent, MessagePortMain } from 'electron';
 
 import {
-	DESKTOP_CLIENT_SESSION_IPC_CHANNEL,
+	DESKTOP_CLIENT_SESSION_BOOTSTRAP,
 	DesktopClientSessionBootstrapSchema,
 	DesktopClientSessionCommandSchema,
 	DesktopClientSessionEventSchema,
 	type DesktopClientSessionBootstrap,
-} from '../../shared';
+} from '@orchbee/desktop-client-protocol';
 import type {
 	DesktopClientSessionCoordinator,
 	DesktopClientSessionHandle,
@@ -53,7 +53,7 @@ export class DesktopClientSessionBroker implements DesktopClientSessionPublisher
 			initializationDocument: this.#handle.bootstrap.initializationDocument,
 			sequence: this.#handle.bootstrap.sequence,
 			terminalEvents: this.#handle.bootstrap.terminalEvents,
-			type: DESKTOP_CLIENT_SESSION_IPC_CHANNEL,
+			type: DESKTOP_CLIENT_SESSION_BOOTSTRAP,
 		});
 	}
 

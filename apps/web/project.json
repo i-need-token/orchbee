@@ -1,13 +1,13 @@
 {
 	"$schema": "../../schemas/project-contract.schema.json",
 	"domain": "web",
-	"runtime": ["browser"],
+	"runtime": ["browser", "electron"],
 	"stability": "experimental",
-	"responsibility": "Browser product entry point and browser capability composition for the Orchbee workbench.",
+	"responsibility": "Sole Workbench product renderer for browser and Electron clients, with explicit runtime-mode capability composition.",
 	"nonGoals": [
 		"Owning reusable product interface behavior or reusable UI primitives.",
 		"Owning the supported-locale contract, product message descriptors, or translation catalogs.",
 		"Owning authoritative PTY processes, remote session synchronization, or deployment services.",
-		"Providing Electron, Node, or native desktop capability implementations."
+		"Owning Electron Main, preload, Node, or native desktop privileged capability implementations."
 	]
 }

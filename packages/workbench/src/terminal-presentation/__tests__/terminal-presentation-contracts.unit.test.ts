@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	TerminalPresentationFailureSchema,
+	TerminalPresentationEventSchema,
 	TerminalPresentationIdSchema,
 	TerminalPresentationOperationIdSchema,
 	TerminalPresentationRemovalIdSchema,
@@ -37,5 +38,36 @@ describe('terminal presentation contracts', () => {
 		expect(TerminalPresentationFailureSchema.safeParse({ code: 'host-unavailable' }).success).toBe(
 			false,
 		);
+	});
+
+	it('parses every terminal observation and rejects commands or ambiguous exits', () => {
+		const operationId = terminalPresentationOperationId('operation-1');
+		const presentationId = terminalPresentationId('presentation-1');
+		const events = [
+			{ operationId, presentationId, type: 'terminal-provision-completed' },
+			{ operationId, presentationId, type: 'terminal-restore-started' },
+			{ operationId, presentationId, type: 'terminal-restore-completed' },
+			{ operationId, presentationId, type: 'terminal-close-completed' },
+			{ exitCode: 0, presentationId, signal: null, type: 'terminal-exited' },
+		] as const;
+
+		expect(events.every((event) => TerminalPresentationEventSchema.safeParse(event).success)).toBe(
+			true,
+		);
+		expect(
+			TerminalPresentationEventSchema.safeParse({
+				exitCode: 1,
+				presentationId,
+				signal: 'SIGTERM',
+				type: 'terminal-exited',
+			}).success,
+		).toBe(false);
+		expect(
+			TerminalPresentationEventSchema.safeParse({
+				operationId,
+				presentationId,
+				type: 'terminal-provision-requested',
+			}).success,
+		).toBe(false);
 	});
 });

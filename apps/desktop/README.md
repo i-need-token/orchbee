@@ -11,8 +11,8 @@ history, and real terminal identity. None of the shared Workbench document is st
 
 Main starts without creating a fixed terminal or opening an attachment. It restores the durable
 `TerminalPresentationId` to `TerminalBindingId` registry, owns one process-wide canonical Workbench
-shared-document coordinator, and transfers three allowlisted capabilities through the sandboxed
-preload:
+shared-document coordinator, and transfers one atomic allowlisted capability bundle through the
+sandboxed preload. Its three ports have one fixed order:
 
 - client-session control delivers one atomic document/terminal-observation bootstrap, accepts
   complete exact-next shared-document proposals, and publishes one ordered canonical event stream;
@@ -23,8 +23,9 @@ preload:
 
 The renderer has no Node integration, generic Electron IPC, filesystem capability, Host inventory,
 or raw terminal-lifetime authority. It cannot invoke provision, restore, close, or storage CAS
-effects directly. Preload transfers exactly one port for each recognized control channel and
-attests context isolation and sandboxing.
+effects directly. Preload accepts exactly one bootstrap, verifies all three ports together,
+preserves their fixed client-session/projection/application-lifetime order, and attests context
+isolation and sandboxing. A partial or malformed bundle starts no renderer runtime.
 
 Main loads and validates the shared document once before admitting clients. An available document
 restores Project, Workspace, Tab, Group, Panel/Split structure, presentation placement, and
@@ -39,8 +40,8 @@ not silently adopted into the shared document.
 The coordinator is transport-neutral and supports independent page sessions without a product
 count ceiling. This slice exposes the Electron `MessagePort` adapter; a network Gateway remains
 outside Desktop. The accepted renderer target is the single `apps/web` application in both a normal
-browser and Electron. The current `apps/desktop/src/renderer` composition is the staged local
-consumer that will be replaced by that entry, not a second UI owner. See
+browser and Electron. Desktop Main loads its loopback development URL with the explicit
+`?orchbee-runtime=desktop` marker; `apps/desktop` owns no renderer source or renderer build. See
 [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md).
 
 Desktop requires Host protocol `1.4` exactly. Electron uses `42.8.0`, the final release in the major
@@ -213,12 +214,18 @@ benchmark remains a diagnostic tool.
 
 ## Development
 
-Build the selected development Host, then start Desktop:
+Build the selected development Host, then run the canonical Web renderer and Desktop in separate
+terminals:
 
 ```sh
 pnpm --filter @orchbee/terminal-host build
+pnpm web
 pnpm desktop
 ```
+
+`pnpm desktop` defaults to `http://127.0.0.1:3000/`; an explicit loopback Web server can be selected
+with `ORCHBEE_DESKTOP_RENDERER_URL`. Desktop appends the runtime marker before navigation. A
+packaged renderer and updater remain outside this development slice.
 
 `ORCHBEE_TERMINAL_HOST_BINARY` selects an absolute development/test Host binary.
 `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`, `ORCHBEE_DESKTOP_ENDPOINT_ID`, and
@@ -232,6 +239,7 @@ Run package checks from the repository root:
 pnpm --filter @orchbee/desktop typecheck
 pnpm --filter @orchbee/desktop test
 pnpm --filter @orchbee/desktop test:tla
+pnpm --filter @orchbee/web build
 pnpm --filter @orchbee/desktop build
 pnpm --filter @orchbee/desktop test:system
 ```
@@ -246,6 +254,9 @@ pnpm --filter @orchbee/desktop benchmark -- \
   --file /absolute/path/to/large-output.txt \
   --runs 5
 ```
+
+Keep `pnpm web` running while using the benchmark, or set `ORCHBEE_DESKTOP_RENDERER_URL` to another
+loopback Web development server.
 
 It can also collect controlled Ghostty and Host-only references. Results are diagnostic evidence;
 they are not a merge or slice-completion gate in the current development phase.

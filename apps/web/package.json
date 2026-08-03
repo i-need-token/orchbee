@@ -13,8 +13,11 @@
 	},
 	"dependencies": {
 		"@orchbee/actions": "workspace:^",
+		"@orchbee/desktop-client-protocol": "workspace:^",
 		"@orchbee/i18n": "workspace:^",
 		"@orchbee/tab-strip": "workspace:^",
+		"@orchbee/terminal": "workspace:^",
+		"@orchbee/terminal-protocol": "workspace:^",
 		"@orchbee/ui": "workspace:^",
 		"@orchbee/workbench": "workspace:^",
 		"react": "catalog:",
@@ -27,6 +30,8 @@
 		"@rsbuild/plugin-tailwindcss": "catalog:",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
+		"jsdom": "29.1.1",
+		"storybook-react-rsbuild": "catalog:",
 		"vitest": "catalog:"
 	}
 }

@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "desktop-client-protocol",
+	"runtime": ["universal"],
+	"stability": "experimental",
+	"responsibility": "Strict data contracts for the sandboxed Desktop renderer capability bundle, shared-document client session, terminal projection control, application lifetime control, and projected attachment stream.",
+	"nonGoals": [
+		"Owning Electron Main, preload, renderer, Gateway, network, authentication, or transport lifecycle implementations.",
+		"Owning Workbench document, TerminalPresentation, PTY, VT, terminal process, or product-interface semantics.",
+		"Providing generic IPC, arbitrary Electron channels, compatibility aliases, or a protocol for ordinary Browser clients."
+	]
+}

@@ -1,6 +1,13 @@
 import type { MessageEvent, MessagePortMain } from 'electron';
 
 import {
+	DesktopRendererCommandSchema,
+	type DesktopBrokerFailure,
+	type DesktopRendererCommand,
+	type ProjectedAttachmentBootstrap,
+} from '@orchbee/desktop-client-protocol';
+
+import {
 	AttachmentAcknowledgedSchema,
 	CanonicalUint64TextSchema,
 	decodeControlJson,
@@ -28,13 +35,6 @@ import {
 	type SelectionExportChunk,
 	type SelectionExportCancel,
 } from '@orchbee/terminal-protocol';
-
-import {
-	DesktopRendererCommandSchema,
-	type DesktopBrokerFailure,
-	type DesktopRendererCommand,
-	type ProjectedAttachmentBootstrap,
-} from '../../shared';
 import type { HostConnection } from '../host';
 import { HostRequestError } from '../host';
 

@@ -1,5 +1,6 @@
 export {
 	TerminalPresentationFailureSchema,
+	TerminalPresentationEventSchema,
 	TerminalPresentationIdSchema,
 	TerminalPresentationOperationIdSchema,
 	TerminalPresentationRemovalIdSchema,

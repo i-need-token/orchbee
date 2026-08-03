@@ -1,15 +1,15 @@
 import type { MessageEvent, MessagePortMain } from 'electron';
 import {
-	TerminalPresentationFailureSchema,
-	type TerminalPresentationId,
-} from '@orchbee/workbench/terminal-presentation';
-
-import {
 	TerminalProjectionControlCommandSchema,
 	TerminalProjectionControlEventSchema,
 	type TerminalProjectionControlEvent,
 	type TerminalProjectionRequestId,
-} from '../../shared';
+} from '@orchbee/desktop-client-protocol';
+import {
+	TerminalPresentationFailureSchema,
+	type TerminalPresentationId,
+} from '@orchbee/workbench/terminal-presentation';
+
 import type {
 	DesktopTerminalProjectionLease,
 	DesktopTerminalProjectionService,

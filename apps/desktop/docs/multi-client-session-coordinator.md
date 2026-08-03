@@ -17,13 +17,12 @@ concurrent semantic actions, add an application package dependency, or make appl
 control available to an ordinary client.
 
 `apps/web` is the repository's runnable Web product entry and the canonical product renderer for
-both environments. A normal browser loads it with a Gateway capability adapter; an Electron
-`BrowserWindow` loads the same application with capabilities injected by preload. Desktop owns no
-parallel Workspace, Tab, Panel, or terminal UI implementation. During the staged convergence,
-`apps/desktop/src/renderer` may contain only the temporary Electron composition being replaced; its
-product UI is not a second architectural owner. Shared implementation belongs to the owning
-frontend packages, while runnable entry composition remains under `apps/web` rather than a new
-`packages/web` workspace.
+both environments. The current normal browser mode is an in-memory preview; a future Gateway will
+provide its shared runtime capability adapter. An Electron `BrowserWindow` loads the same
+application with one atomic three-port capability bundle injected by preload. Desktop owns no
+parallel Workspace, Tab, Panel, terminal UI implementation, or renderer build. Shared
+implementation belongs to the owning frontend packages, while runnable entry composition remains
+under `apps/web` rather than a new `packages/web` workspace.
 
 ## Inputs and boundaries
 

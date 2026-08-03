@@ -1,14 +1,10 @@
 import { ipcRenderer } from 'electron';
 
-import { installDesktopClientSessionBridge } from './installDesktopClientSessionBridge';
-import { installDesktopApplicationLifetimeBridge } from './installDesktopApplicationLifetimeBridge';
-import { installTerminalProjectionControlBridge } from './installTerminalProjectionControlBridge';
+import { installDesktopRendererBootstrapBridge } from './installDesktopRendererBootstrapBridge';
 
 const security = {
 	contextIsolated: process.contextIsolated,
 	sandboxed: process.sandboxed,
 };
 
-installDesktopClientSessionBridge(ipcRenderer, window, security);
-installDesktopApplicationLifetimeBridge(ipcRenderer, window, security);
-installTerminalProjectionControlBridge(ipcRenderer, window, security);
+installDesktopRendererBootstrapBridge(ipcRenderer, window, security);

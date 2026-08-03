@@ -1,4 +1,8 @@
 import {
+	ProjectedAttachmentBootstrapSchema,
+	type ProjectedAttachmentBootstrap,
+} from '@orchbee/desktop-client-protocol';
+import {
 	AttachTerminalSchema,
 	AttachmentAcknowledgedSchema,
 	AttachmentCapabilitiesSchema,
@@ -11,11 +15,6 @@ import type {
 	TerminalPresentationId,
 } from '@orchbee/workbench/terminal-presentation';
 import type { MessagePortMain } from 'electron';
-
-import {
-	ProjectedAttachmentBootstrapSchema,
-	type ProjectedAttachmentBootstrap,
-} from '../../shared';
 import type { ProjectedTerminalBrokerMetrics } from '../broker';
 import type { HostConnection } from '../host';
 import type { DesktopTerminalProjectionTarget } from '../terminal-document-control';

@@ -4,7 +4,7 @@ import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 import type { MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
-import { DesktopApplicationExitRequestIdSchema } from '../../../shared';
+import { DesktopApplicationExitRequestIdSchema } from '@orchbee/desktop-client-protocol';
 import {
 	DesktopApplicationLifetimeBroker,
 	type DesktopApplicationLifetimeBrokerDependencies,

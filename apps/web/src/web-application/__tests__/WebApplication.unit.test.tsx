@@ -1,3 +1,11 @@
+import { ActionRuntime } from '@orchbee/actions';
+import { OrchbeeI18nProvider } from '@orchbee/i18n';
+import { TooltipProvider } from '@orchbee/ui/components';
+import {
+	createWorkbenchPreviewTerminalPresentationComposition,
+	terminalPresentationId,
+	WorkbenchProjectWorkspaceRuntime,
+} from '@orchbee/workbench';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -6,15 +14,32 @@ import { WebApplication } from '../WebApplication';
 
 describe('WebApplication', () => {
 	it('renders the Workbench with the initial terminal tabs', () => {
+		const actionRuntime = new ActionRuntime();
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/workspace',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
+				terminalPresentationId('web:standalone:initial'),
+			),
+		});
 		const markup = renderToStaticMarkup(
-			createElement(WebApplication, {
-				layoutStorage: {
-					getItem: () => '{"width":320}',
-					setItem: () => undefined,
-				},
-				locale: 'en-US',
-				shortcutPlatform: 'apple',
-			}),
+			createElement(
+				OrchbeeI18nProvider,
+				{ locale: 'en-US' },
+				createElement(
+					TooltipProvider,
+					undefined,
+					createElement(WebApplication, {
+						actionRuntime,
+						layoutStorage: {
+							getItem: () => '{"width":320}',
+							setItem: () => undefined,
+						},
+						projectWorkspaceRuntime,
+						shortcutPlatform: 'apple',
+					}),
+				),
+			),
 		);
 
 		expect(markup).toContain('data-slot="workbench-left-panel"');
@@ -28,5 +53,6 @@ describe('WebApplication', () => {
 		expect(markup).not.toContain('data-slot="workbench-sidebar-workspace"');
 		expect(markup).not.toContain('Local shell');
 		expect(markup).not.toContain('本地 Shell');
+		actionRuntime.dispose();
 	});
 });

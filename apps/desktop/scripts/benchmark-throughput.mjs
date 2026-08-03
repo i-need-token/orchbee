@@ -496,11 +496,13 @@ async function runDesktopBenchmark(file, runNumber) {
 			Object.entries(process.env).filter((entry) => entry[1] !== undefined),
 		);
 		application = await electron.launch({
-			args: [desktopMain],
+			args: [`--user-data-dir=${path.join(runtimeDirectory, 'electron-user-data')}`, desktopMain],
 			env: {
 				...environment,
 				ORCHBEE_DESKTOP_ENDPOINT_ID: endpointId,
 				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: runtimeDirectory,
+				ORCHBEE_DESKTOP_RENDERER_URL:
+					process.env.ORCHBEE_DESKTOP_RENDERER_URL ?? 'http://127.0.0.1:3000/',
 				ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: runtimeDirectory,
 				ORCHBEE_DESKTOP_TRACE: '1',
 				ORCHBEE_TERMINAL_HOST_BINARY: hostBinary,

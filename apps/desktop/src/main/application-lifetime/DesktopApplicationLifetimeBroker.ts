@@ -8,7 +8,7 @@ import {
 	type DesktopApplicationExitReason,
 	type DesktopApplicationExitRequestId,
 	type DesktopApplicationLifetimeMainEvent,
-} from '../../shared';
+} from '@orchbee/desktop-client-protocol';
 
 export type DesktopApplicationLifetimeDrainResult =
 	| { readonly closedUnreferencedCount: number; readonly kind: 'completed' }

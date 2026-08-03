@@ -5,5 +5,5 @@
 		"lib": ["es2023", "dom", "dom.iterable"],
 		"types": ["node", "react", "react-dom", "vitest/globals"]
 	},
-	"include": [".storybook", "src", "../../apps/desktop/stories", "../../packages/*/stories"]
+	"include": [".storybook", "src", "../../apps/web/stories", "../../packages/*/stories"]
 }

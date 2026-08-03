@@ -21,9 +21,9 @@ const config: StorybookConfig = {
 			titlePrefix: 'Packages/TabStrip',
 		},
 		{
-			directory: '../../../apps/desktop/stories',
+			directory: '../../../apps/web/stories',
 			files: '**/*.stories.@(ts|tsx)',
-			titlePrefix: 'Apps/Desktop',
+			titlePrefix: 'Applications/Web',
 		},
 	],
 	addons: ['@storybook/addon-docs', '@storybook/addon-a11y'],

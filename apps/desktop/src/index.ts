@@ -19,9 +19,3 @@ export type {
 	DesktopTerminalLifecycleAdapterDependencies,
 	DesktopTerminalLifecycleOperations,
 } from './main';
-export { startDesktopRenderer, startDesktopWorkbenchRenderer } from './renderer';
-export type {
-	DesktopRendererDependencies,
-	DesktopRendererSession,
-	DesktopWorkbenchRendererSession,
-} from './renderer';

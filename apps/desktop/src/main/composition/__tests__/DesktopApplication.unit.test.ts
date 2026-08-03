@@ -42,7 +42,7 @@ class TestMainPort extends EventEmitter {
 }
 
 describe('DesktopApplication', () => {
-	it('starts without creating an attachment and transfers three scoped controls to the sandbox', async () => {
+	it('starts without creating an attachment and atomically transfers three scoped controls', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -55,25 +55,21 @@ describe('DesktopApplication', () => {
 			webSecurity: true,
 		});
 		expect(harness.terminalRuntime.open).not.toHaveBeenCalled();
-		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(3);
-		expect(harness.webContents.postMessage).toHaveBeenCalledWith(
-			'orchbee.desktop.application-lifetime-port',
-			{ type: 'orchbee.desktop.application-lifetime-port' },
-			[expect.anything()],
+		expect(harness.browserWindow.loadURL).toHaveBeenCalledWith(
+			'http://127.0.0.1:3000/?orchbee-runtime=desktop',
 		);
+		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 		expect(harness.webContents.postMessage).toHaveBeenCalledWith(
-			'orchbee.desktop.client-session-port',
+			'orchbee.desktop.renderer-bootstrap',
 			expect.objectContaining({
-				defaultCwd: '/users/orchbee',
-				documentState: { kind: 'missing' },
-				type: 'orchbee.desktop.client-session-port',
+				clientSession: expect.objectContaining({
+					defaultCwd: '/users/orchbee',
+					documentState: { kind: 'missing' },
+					type: 'orchbee.desktop.client-session-bootstrap',
+				}),
+				type: 'orchbee.desktop.renderer-bootstrap',
 			}),
-			[expect.anything()],
-		);
-		expect(harness.webContents.postMessage).toHaveBeenCalledWith(
-			'orchbee.desktop.terminal-projection-control-port',
-			{ type: 'orchbee.desktop.terminal-projection-control-port' },
-			[expect.anything()],
+			[expect.anything(), expect.anything(), expect.anything()],
 		);
 		expect(harness.clientSessionPorts[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.start).toHaveBeenCalledOnce();
@@ -94,17 +90,17 @@ describe('DesktopApplication', () => {
 		);
 		const application = createApplication(harness.dependencies);
 		await application.start();
-		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(3);
+		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 
 		harness.webContents.emit('did-start-loading');
 		harness.webContents.emit('did-finish-load');
 		await Promise.resolve();
 		expect(harness.clientSessionPorts[0]?.close).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.dispose).toHaveBeenCalledOnce();
-		expect(harness.webContents.postMessage).toHaveBeenCalledTimes(3);
+		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 
 		finishRetirement?.();
-		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(6));
+		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
 		expect(harness.clientSessionPorts).toHaveLength(2);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		await application.shutdown();
@@ -116,9 +112,9 @@ describe('DesktopApplication', () => {
 		await application.start();
 
 		const bootstrap = harness.webContents.postMessage.mock.calls.find(
-			(call) => call[0] === 'orchbee.desktop.client-session-port',
-		)?.[1];
-		expect(bootstrap).toMatchObject({
+			(call) => call[0] === 'orchbee.desktop.renderer-bootstrap',
+		)?.[1] as { readonly clientSession?: unknown } | undefined;
+		expect(bootstrap?.clientSession).toMatchObject({
 			initializationDocument: {
 				terminalContexts: [
 					expect.objectContaining({
@@ -147,15 +143,17 @@ describe('DesktopApplication', () => {
 		const application = createApplication(harness.dependencies);
 		await application.start();
 		const bootstrap = harness.webContents.postMessage.mock.calls.find(
-			(call) => call[0] === 'orchbee.desktop.client-session-port',
-		)?.[1] as { readonly initializationDocument?: unknown } | undefined;
+			(call) => call[0] === 'orchbee.desktop.renderer-bootstrap',
+		)?.[1] as
+			| { readonly clientSession?: { readonly initializationDocument?: unknown } }
+			| undefined;
 		harness.workbenchDocumentStore.commit.mockResolvedValueOnce({
 			kind: 'committed',
 			revision: workbenchSharedDocumentRevision('0'),
 		});
 		harness.clientSessionPorts[0]?.emit('message', {
 			data: {
-				document: bootstrap?.initializationDocument,
+				document: bootstrap?.clientSession?.initializationDocument,
 				expectedRevision: null,
 				requestId: 'proposal-initial',
 				type: 'shared-document-proposed',
@@ -197,13 +195,15 @@ describe('DesktopApplication', () => {
 		const application = createApplication(harness.dependencies);
 		await application.start();
 		const bootstrap = harness.webContents.postMessage.mock.calls.find(
-			(call) => call[0] === 'orchbee.desktop.client-session-port',
-		)?.[1] as { readonly initializationDocument?: unknown } | undefined;
+			(call) => call[0] === 'orchbee.desktop.renderer-bootstrap',
+		)?.[1] as
+			| { readonly clientSession?: { readonly initializationDocument?: unknown } }
+			| undefined;
 
 		expect(harness.lifetimeDependencies[0]?.prepareMode?.('preserve')).toBe(true);
 		harness.clientSessionPorts[0]?.emit('message', {
 			data: {
-				document: bootstrap?.initializationDocument,
+				document: bootstrap?.clientSession?.initializationDocument,
 				expectedRevision: null,
 				requestId: 'proposal-after-quiesce',
 				type: 'shared-document-proposed',
@@ -292,7 +292,7 @@ describe('DesktopApplication', () => {
 					{
 						platform: 'linux',
 						preloadPath: '/preload.cjs',
-						rendererFilePath: '/index.html',
+						rendererUrl: 'http://127.0.0.1:3000/',
 						runtime: createRuntime(),
 						singleInstanceLockOwned: false,
 						traceCopyPath: false,
@@ -311,7 +311,7 @@ function createApplication(
 		{
 			platform,
 			preloadPath: '/repo/apps/desktop/dist/preload/preload.cjs',
-			rendererFilePath: '/repo/apps/desktop/dist/renderer/index.html',
+			rendererUrl: 'http://127.0.0.1:3000/',
 			runtime: createRuntime(),
 			singleInstanceLockOwned: true,
 			traceCopyPath: false,
@@ -351,11 +351,10 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 	const browserWindow = Object.assign(new EventEmitter(), {
 		focus: vi.fn<BrowserWindow['focus']>(),
 		isDestroyed: vi.fn<BrowserWindow['isDestroyed']>(() => false),
-		loadFile: vi.fn<BrowserWindow['loadFile']>(async () => {
+		loadURL: vi.fn<BrowserWindow['loadURL']>(async () => {
 			webContents.emit('did-start-loading');
 			webContents.emit('did-finish-load');
 		}),
-		loadURL: vi.fn<BrowserWindow['loadURL']>().mockResolvedValue(undefined),
 		reload: vi.fn<BrowserWindow['reload']>(),
 		show: vi.fn<BrowserWindow['show']>(),
 		webContents,

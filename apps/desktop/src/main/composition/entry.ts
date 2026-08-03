@@ -25,6 +25,9 @@ if (!singleInstanceLockOwned) {
 		.whenReady()
 		.then(async () => {
 			const rendererUrl = process.env['ORCHBEE_DESKTOP_RENDERER_URL'];
+			if (rendererUrl === undefined) {
+				throw new Error('ORCHBEE_DESKTOP_RENDERER_URL is required.');
+			}
 			const runtime = resolveDesktopRuntimeConfiguration({
 				applicationPath: app.getAppPath(),
 				environment: process.env,
@@ -35,8 +38,7 @@ if (!singleInstanceLockOwned) {
 			desktopApplication = new DesktopApplication({
 				platform: process.platform,
 				preloadPath: path.join(__dirname, '..', 'preload', 'preload.cjs'),
-				rendererFilePath: path.join(__dirname, '..', 'renderer', 'index.html'),
-				...(rendererUrl === undefined ? {} : { rendererUrl }),
+				rendererUrl,
 				runtime,
 				singleInstanceLockOwned,
 				traceCopyPath: process.env['ORCHBEE_DESKTOP_TRACE'] === '1',

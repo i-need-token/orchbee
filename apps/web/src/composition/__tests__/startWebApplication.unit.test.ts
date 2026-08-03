@@ -5,11 +5,13 @@ import { startWebApplication } from '../startWebApplication';
 
 const reactRootMocks = vi.hoisted(() => {
 	const render = vi.fn<(node: unknown) => void>();
+	const unmount = vi.fn<() => void>();
 	return {
-		createRoot: vi.fn<(rootElement: Element) => { readonly render: typeof render }>(() => ({
-			render,
-		})),
+		createRoot: vi.fn<
+			(rootElement: Element) => { readonly render: typeof render; readonly unmount: typeof unmount }
+		>(() => ({ render, unmount })),
 		render,
+		unmount,
 	};
 });
 
@@ -28,11 +30,20 @@ describe('startWebApplication', () => {
 			setItem: () => undefined,
 		};
 
-		startWebApplication(rootElement, documentElement, ['zh-CN'], 'apple', layoutStorage);
+		const session = startWebApplication(
+			rootElement,
+			documentElement,
+			['zh-CN'],
+			'apple',
+			layoutStorage,
+		);
 
 		expect(documentElement).toEqual({ dir: 'ltr', lang: 'zh-CN' });
 		expect(createRoot).toHaveBeenCalledWith(rootElement);
 		expect(reactRootMocks.render).toHaveBeenCalledOnce();
+
+		session.dispose();
+		expect(reactRootMocks.unmount).toHaveBeenCalledOnce();
 	});
 
 	it('rejects a missing application root before rendering', () => {

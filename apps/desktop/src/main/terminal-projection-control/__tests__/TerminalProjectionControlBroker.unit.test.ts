@@ -1,7 +1,7 @@
 import type { MessageEvent, MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { TerminalProjectionControlCommandSchema } from '../../../shared';
+import type { TerminalProjectionControlCommandSchema } from '@orchbee/desktop-client-protocol';
 import type {
 	DesktopTerminalProjectionLease,
 	DesktopTerminalProjectionService,

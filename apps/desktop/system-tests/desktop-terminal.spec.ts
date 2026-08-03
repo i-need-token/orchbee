@@ -1,6 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer, type Server, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
@@ -23,11 +25,31 @@ const hostBinary = path.join(
 	process.platform === 'win32' ? 'terminal-host.exe' : 'terminal-host',
 );
 const desktopMain = path.join(repositoryRoot, 'apps', 'desktop', 'dist', 'main', 'main.cjs');
+const webDist = path.join(repositoryRoot, 'apps', 'web', 'dist');
 
 let electronApplication: ElectronApplication | undefined;
 let desktopEnvironment: Record<string, string> | undefined;
 let hostProcess: ChildProcessWithoutNullStreams | undefined;
+let rendererServer: Server | undefined;
+let rendererUrl: string | undefined;
 let runtimeDirectory: string | undefined;
+
+test.beforeAll(async () => {
+	const started = await startWebRendererServer();
+	rendererServer = started.server;
+	rendererUrl = started.url;
+});
+
+test.afterAll(async () => {
+	const server = rendererServer;
+	if (server !== undefined) {
+		await new Promise<void>((resolve, reject) => {
+			server.close((error) => (error === undefined ? resolve() : reject(error)));
+		});
+	}
+	rendererServer = undefined;
+	rendererUrl = undefined;
+});
 
 test.beforeEach(async () => {
 	const temporaryRoot = process.platform === 'win32' ? tmpdir() : '/tmp';
@@ -40,11 +62,14 @@ test.beforeEach(async () => {
 			(entry): entry is [string, string] => entry[1] !== undefined,
 		),
 	);
+	const currentRendererUrl = rendererUrl;
+	if (currentRendererUrl === undefined) throw new Error('Web renderer server is unavailable.');
 	desktopEnvironment = {
 		...environment,
 		ORCHBEE_DESKTOP_ENDPOINT_ID: endpointId,
 		ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: runtimeDirectory,
 		ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: runtimeDirectory,
+		ORCHBEE_DESKTOP_RENDERER_URL: currentRendererUrl,
 		ORCHBEE_DESKTOP_TRACE: '1',
 		ORCHBEE_TERMINAL_HOST_BINARY: hostBinary,
 		SHELL: process.platform === 'win32' ? (environment['ComSpec'] ?? 'cmd.exe') : '/bin/sh',
@@ -82,16 +107,20 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	const traceLines: string[] = [];
 	application.process().stdout?.on('data', (chunk: Buffer) => traceLines.push(chunk.toString()));
 	const page = await application.firstWindow();
+	expect(new URL(page.url()).searchParams.get('orchbee-runtime')).toBe('desktop');
 	let workerStarts = 0;
 	page.on('worker', () => {
 		workerStarts += 1;
 	});
 	const applicationRoot = page.locator('#root');
 	const root = projectedTerminal(page);
-	await expect(root).toHaveAttribute('data-desktop-terminal-state', 'open');
-
 	await expect(applicationRoot).toHaveAttribute('data-desktop-context-isolated', 'true');
 	await expect(applicationRoot).toHaveAttribute('data-desktop-sandboxed', 'true');
+	await expect(page.locator('[data-terminal-projection-state]').first()).toHaveAttribute(
+		'data-terminal-projection-state',
+		'requested',
+	);
+	await expect(root).toHaveAttribute('data-desktop-terminal-state', 'open');
 	const rendererAuthority = await page.evaluate(() => ({
 		hasGenericOrchbeeApi: 'orchbee' in globalThis,
 		hasNodeRequire: 'require' in globalThis,
@@ -386,7 +415,71 @@ test('stops Host sessions while retaining topology and starts a fresh session ex
 
 async function launchDesktop(): Promise<ElectronApplication> {
 	if (desktopEnvironment === undefined) throw new Error('Desktop test environment is unavailable.');
-	return electron.launch({ args: [desktopMain], env: desktopEnvironment });
+	if (runtimeDirectory === undefined) throw new Error('Desktop runtime directory is unavailable.');
+	return electron.launch({
+		args: [`--user-data-dir=${path.join(runtimeDirectory, 'electron-user-data')}`, desktopMain],
+		env: desktopEnvironment,
+	});
+}
+
+async function startWebRendererServer(): Promise<{
+	readonly server: Server;
+	readonly url: string;
+}> {
+	const server = createServer((request, response) => {
+		void serveWebRendererRequest(request.url, response);
+	});
+	await new Promise<void>((resolve, reject) => {
+		server.once('error', reject);
+		server.listen(0, '127.0.0.1', () => {
+			server.off('error', reject);
+			resolve();
+		});
+	});
+	const address = server.address() as AddressInfo | null;
+	if (address === null) {
+		server.close();
+		throw new Error('Web renderer server did not publish an address.');
+	}
+	return { server, url: `http://127.0.0.1:${address.port}/` };
+}
+
+async function serveWebRendererRequest(
+	requestUrl: string | undefined,
+	response: ServerResponse,
+): Promise<void> {
+	try {
+		const pathname = new URL(requestUrl ?? '/', 'http://127.0.0.1').pathname;
+		const relativePath = pathname === '/' ? 'index.html' : decodeURIComponent(pathname.slice(1));
+		const filePath = path.resolve(webDist, relativePath);
+		if (filePath !== webDist && !filePath.startsWith(`${webDist}${path.sep}`)) {
+			response.statusCode = 400;
+			response.end();
+			return;
+		}
+		const body = await readFile(filePath);
+		response.statusCode = 200;
+		response.setHeader('content-type', contentTypeFor(filePath));
+		response.end(body);
+	} catch {
+		response.statusCode = 404;
+		response.end();
+	}
+}
+
+function contentTypeFor(filePath: string): string {
+	switch (path.extname(filePath)) {
+		case '.css':
+			return 'text/css; charset=utf-8';
+		case '.html':
+			return 'text/html; charset=utf-8';
+		case '.js':
+			return 'text/javascript; charset=utf-8';
+		case '.ttf':
+			return 'font/ttf';
+		default:
+			return 'application/octet-stream';
+	}
 }
 
 async function startHost(

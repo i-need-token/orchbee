@@ -3,6 +3,16 @@ import { constants } from 'node:os';
 
 import { createOrchbeeIntl, resolveOrchbeeLocale, workbenchTabMessages } from '@orchbee/i18n';
 import {
+	DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
+	DesktopApplicationExitRequestIdSchema,
+	DesktopRendererBootstrapSchema,
+	type DesktopApplicationExitFailure,
+	type DesktopApplicationExitReason,
+	type DesktopApplicationExitRequestId,
+	type DesktopClientSessionBootstrap,
+	type ProjectedAttachmentBootstrap,
+} from '@orchbee/desktop-client-protocol';
+import {
 	ClientIdSchema,
 	decodeControlJson,
 	MessageKind,
@@ -30,19 +40,6 @@ import {
 	type MessagePortMain,
 } from 'electron';
 
-import {
-	DESKTOP_APPLICATION_LIFETIME_IPC_CHANNEL,
-	DESKTOP_CLIENT_SESSION_IPC_CHANNEL,
-	TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
-	DesktopApplicationExitRequestIdSchema,
-	DesktopApplicationLifetimeBootstrapSchema,
-	TerminalProjectionControlBootstrapSchema,
-	type DesktopClientSessionBootstrap,
-	type ProjectedAttachmentBootstrap,
-	type DesktopApplicationExitReason,
-	type DesktopApplicationExitRequestId,
-	type DesktopApplicationExitFailure,
-} from '../../shared';
 import {
 	DesktopApplicationLifetimeBroker,
 	type DesktopApplicationLifetimeBrokerDependencies,
@@ -99,8 +96,7 @@ interface DesktopApplicationLifetimeBrokerHandle {
 export interface DesktopApplicationOptions {
 	readonly platform: NodeJS.Platform;
 	readonly preloadPath: string;
-	readonly rendererFilePath: string;
-	readonly rendererUrl?: string;
+	readonly rendererUrl: string;
 	readonly runtime: DesktopRuntimeConfiguration;
 	readonly singleInstanceLockOwned: boolean;
 	readonly traceCopyPath: boolean;
@@ -420,15 +416,12 @@ export class DesktopApplication {
 			if (this.#window === window) this.#window = undefined;
 		});
 
-		if (this.#options.rendererUrl === undefined) {
-			await window.loadFile(this.#options.rendererFilePath);
-		} else {
-			const rendererUrl = new URL(this.#options.rendererUrl);
-			if (rendererUrl.protocol !== 'http:' || rendererUrl.hostname !== '127.0.0.1') {
-				throw new Error('Development renderer URL must use loopback HTTP.');
-			}
-			await window.loadURL(rendererUrl.href);
+		const rendererUrl = new URL(this.#options.rendererUrl);
+		if (rendererUrl.protocol !== 'http:' || rendererUrl.hostname !== '127.0.0.1') {
+			throw new Error('Development renderer URL must use loopback HTTP.');
 		}
+		rendererUrl.searchParams.set('orchbee-runtime', 'desktop');
+		await window.loadURL(rendererUrl.href);
 		await this.#documentTransition;
 		if (this.#documentFailure !== undefined) throw this.#documentFailure;
 	}
@@ -519,23 +512,12 @@ export class DesktopApplication {
 		lifetimeBroker.start();
 		projectionBroker.start();
 		window.webContents.postMessage(
-			DESKTOP_CLIENT_SESSION_IPC_CHANNEL,
-			clientSessionBroker.bootstrap,
-			[clientSessionChannel.port1],
-		);
-		window.webContents.postMessage(
-			DESKTOP_APPLICATION_LIFETIME_IPC_CHANNEL,
-			DesktopApplicationLifetimeBootstrapSchema.parse({
-				type: DESKTOP_APPLICATION_LIFETIME_IPC_CHANNEL,
+			DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
+			DesktopRendererBootstrapSchema.parse({
+				clientSession: clientSessionBroker.bootstrap,
+				type: DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 			}),
-			[lifetimeChannel.port1],
-		);
-		window.webContents.postMessage(
-			TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
-			TerminalProjectionControlBootstrapSchema.parse({
-				type: TERMINAL_PROJECTION_CONTROL_IPC_CHANNEL,
-			}),
-			[projectionChannel.port1],
+			[clientSessionChannel.port1, projectionChannel.port1, lifetimeChannel.port1],
 		);
 	}
 

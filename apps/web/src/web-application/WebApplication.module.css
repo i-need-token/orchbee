@@ -2,12 +2,20 @@
 :global(body),
 :global(#root) {
 	height: 100%;
-}
-
-:global(body) {
 	margin: 0;
 }
 
+:global(body) {
+	background: var(--ob-sys-color-surface-canvas);
+	overflow: hidden;
+}
+
 .root {
+	box-sizing: border-box;
 	height: 100%;
+	min-height: 0;
+	min-width: 0;
+	overflow: hidden;
+	position: relative;
+	width: 100%;
 }

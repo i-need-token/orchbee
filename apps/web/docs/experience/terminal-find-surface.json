@@ -1,0 +1,36 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "desktop.terminal-find-surface",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Desktop Terminal Find Surface",
+	"description": "Provides bounded, keyboard-first search of retained content for one projected Desktop terminal.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": ["search-terminal", "navigate-terminal-match"],
+	"implementation": ["apps/web/src/desktop-client/terminal-find-surface/TerminalFindSurface.tsx"],
+	"stories": [
+		{
+			"exportName": "MatchResults",
+			"file": "apps/web/stories/terminal-find-surface.stories.tsx",
+			"id": "applications-web-desktop-terminal-find-surface--match-results",
+			"states": [
+				"Inspect deterministic completed, searching, and invalid-expression states with localized status output.",
+				"Use the query field, option toggles, match navigation controls, and Escape close behavior entirely by keyboard."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"A single projected Desktop terminal must search only content retained by its Terminal Host attachment."
+	],
+	"avoidWhen": [
+		"Search spans Workbench Actions, settings, projects, or multiple providers instead of one terminal buffer."
+	],
+	"invariants": [
+		"Opening the surface does not create a search Worker until a non-empty query survives the debounce.",
+		"Search status never exposes raw terminal content or engine error text as product-facing copy.",
+		"Closing the surface restores terminal focus and discards no more than twenty in-memory query-history entries."
+	],
+	"references": ["apps/web/README.md"]
+}

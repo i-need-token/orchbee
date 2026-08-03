@@ -168,6 +168,57 @@ export type TerminalPresentationEvent =
 			readonly type: 'terminal-close-failed';
 	  };
 
+const terminalPresentationOperationIdentitySchema = {
+	operationId: TerminalPresentationOperationIdSchema,
+	presentationId: TerminalPresentationIdSchema,
+} as const;
+
+const terminalPresentationExitSchema = z
+	.strictObject({
+		exitCode: z.number().int().min(0).max(0xffff_ffff).nullable(),
+		presentationId: TerminalPresentationIdSchema,
+		signal: z.string().min(1).max(128).nullable(),
+		type: z.literal('terminal-exited'),
+	})
+	.refine((event) => event.exitCode === null || event.signal === null, {
+		message: 'A terminal exit cannot contain both an exit code and a signal',
+	});
+
+export const TerminalPresentationEventSchema = z.discriminatedUnion('type', [
+	z.strictObject({
+		...terminalPresentationOperationIdentitySchema,
+		type: z.literal('terminal-provision-completed'),
+	}),
+	z.strictObject({
+		...terminalPresentationOperationIdentitySchema,
+		failure: TerminalPresentationFailureSchema,
+		type: z.literal('terminal-provision-failed'),
+	}),
+	z.strictObject({
+		...terminalPresentationOperationIdentitySchema,
+		type: z.literal('terminal-restore-started'),
+	}),
+	z.strictObject({
+		...terminalPresentationOperationIdentitySchema,
+		type: z.literal('terminal-restore-completed'),
+	}),
+	z.strictObject({
+		...terminalPresentationOperationIdentitySchema,
+		failure: TerminalPresentationFailureSchema,
+		type: z.literal('terminal-restore-failed'),
+	}),
+	z.strictObject({
+		...terminalPresentationOperationIdentitySchema,
+		type: z.literal('terminal-close-completed'),
+	}),
+	z.strictObject({
+		...terminalPresentationOperationIdentitySchema,
+		failure: TerminalPresentationFailureSchema,
+		type: z.literal('terminal-close-failed'),
+	}),
+	terminalPresentationExitSchema,
+]) satisfies z.ZodType<TerminalPresentationEvent>;
+
 export function terminalPresentationId(value: string): TerminalPresentationId {
 	return TerminalPresentationIdSchema.parse(value);
 }
