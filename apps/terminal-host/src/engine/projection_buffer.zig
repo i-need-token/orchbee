@@ -32,6 +32,32 @@ const StringRange = struct {
     offset: u32,
 };
 
+fn preflightGeometry(
+    columns: usize,
+    rows: usize,
+    cell_pixel_width: u16,
+    cell_pixel_height: u16,
+) error{ProjectionTooLarge}!usize {
+    if (columns == 0 or columns > protocol.Limits.frame_columns or
+        rows == 0 or rows > protocol.Limits.frame_rows or
+        cell_pixel_width == 0 or cell_pixel_width > protocol.Limits.cell_pixel_dimension or
+        cell_pixel_height == 0 or cell_pixel_height > protocol.Limits.cell_pixel_dimension)
+    {
+        return error.ProjectionTooLarge;
+    }
+    const cell_count = std.math.mul(usize, rows, columns) catch
+        return error.ProjectionTooLarge;
+    if (cell_count > protocol.Limits.frame_cells) return error.ProjectionTooLarge;
+    const pixel_width = std.math.mul(usize, columns, cell_pixel_width) catch
+        return error.ProjectionTooLarge;
+    const pixel_height = std.math.mul(usize, rows, cell_pixel_height) catch
+        return error.ProjectionTooLarge;
+    if (pixel_width > std.math.maxInt(u16) or pixel_height > std.math.maxInt(u16)) {
+        return error.ProjectionTooLarge;
+    }
+    return cell_count;
+}
+
 fn alignForward(value: usize, alignment: usize) error{ProjectionTooLarge}!usize {
     const remainder = value % alignment;
     if (remainder == 0) return value;
@@ -108,9 +134,12 @@ pub fn encodeRenderSnapshot(
     pins: []const ghostty_vt.Pin,
     parameters: Parameters,
 ) !u32 {
-    const cell_count = std.math.mul(usize, pins.len, terminal.cols) catch
-        return error.ProjectionTooLarge;
-    if (cell_count > protocol.Limits.frame_cells) return error.ProjectionTooLarge;
+    const cell_count = try preflightGeometry(
+        terminal.cols,
+        pins.len,
+        parameters.cell_pixel_width,
+        parameters.cell_pixel_height,
+    );
     const layout = try calculateLayout(pins.len, cell_count);
     const frame_offset = writer.written().len;
     try writer.appendZeros(layout.string_offset);

@@ -1,4 +1,5 @@
 const std = @import("std");
+const target_builtin = @import("builtin");
 
 const ghostty_vt = @import("ghostty-vt");
 const model = @import("terminal-host-model");
@@ -21,6 +22,7 @@ const max_pty_read_batch_bytes = protocol.Limits.pty_read_batch_bytes;
 // legal full client queue cannot manufacture a terminal-integrity failure.
 const pending_terminal_reply_capacity_bytes = max_pty_read_batch_bytes;
 const max_pending_terminal_reply_entries = 4096;
+const max_pty_write_slice_bytes = 64 * 1024;
 const max_process_containment_observations = 8;
 const process_containment_observation_delay_ns = 10 * std.time.ns_per_ms;
 const required_consecutive_containment_observations = 2;
@@ -57,6 +59,54 @@ const InputReservation = struct {
 const InputSource = enum {
     client,
     terminal,
+};
+
+const ReaderBatchOutcome = enum {
+    committed,
+    failure_fenced,
+    output_aborted,
+    runtime_failed,
+};
+
+const FirstContainmentAttempt = enum(u8) {
+    none,
+    engine_pending,
+    host_pending,
+    host_running,
+    done,
+};
+
+const RuntimeTestingHooks = if (target_builtin.is_test) struct {
+    abort_read: ?*const fn (*anyopaque) anyerror!void = null,
+    contain_process_tree: ?*const fn (*anyopaque) anyerror!void = null,
+    context: ?*anyopaque = null,
+    finish_pty_after_child_exit: ?*const fn (*anyopaque) anyerror!void = null,
+    host_containment_waiting: ?*const fn (*anyopaque) void = null,
+    read_pty: ?*const fn (*anyopaque, []u8) anyerror!usize = null,
+    reader_batch_finished: ?*const fn (*anyopaque, ReaderBatchOutcome) void = null,
+    reader_stopped: ?*const fn (*anyopaque) void = null,
+    resize_effect_returned: ?*const fn (*anyopaque) void = null,
+    resize_pty: ?*const fn (
+        *anyopaque,
+        terminal_geometry.Geometry,
+        terminal_geometry.Geometry,
+    ) anyerror!void = null,
+    write_pty: ?*const fn (*anyopaque, []const u8) anyerror!usize = null,
+    writer_slice_copied: ?*const fn (*anyopaque) void = null,
+    writer_slice_started: ?*const fn (*anyopaque) void = null,
+} else struct {};
+
+const WriterSlice = struct {
+    identifier: u64,
+    length: usize,
+    offset: usize,
+    source: InputSource,
+};
+
+const WriterSliceStart = enum {
+    started,
+    stopped,
+    ownership_lost,
 };
 
 const InputCharge = struct {
@@ -167,6 +217,11 @@ pub const RuntimeFailureKind = enum(u8) {
     worker_integrity = 6,
 };
 
+pub const HostFailureFenceResult = union(enum) {
+    host_won,
+    engine_won: RuntimeFailureKind,
+};
+
 pub const CompletionState = union(enum) {
     pending,
     normal,
@@ -259,6 +314,7 @@ pub const PreparedInput = struct {
             try self.runtime.publishInput(reservation.?, owned);
         } else {
             std.debug.assert(reservation == null);
+            try self.runtime.validatePreparedInputCommit();
         }
         return byte_count;
     }
@@ -313,6 +369,17 @@ pub const TerminalRuntime = struct {
     containment_confirmed: std.atomic.Value(bool) = .init(false),
     containment_mutex: std.Thread.Mutex = .{},
     exit_result: ?pty_process.ExitResult = null,
+    // terminal_mutex and input_mutex jointly protect this irreversible gate.
+    // Parser/state readers observe it while holding terminal_mutex; queue and
+    // writer-start readers observe it while holding input_mutex.
+    failure_fenced: bool = false,
+    // A successful engine fence winner owns the first bounded containment
+    // attempt. A Host-originated fence reserves that attempt for Host cleanup;
+    // later Host retries wait for an engine_pending owner to publish done.
+    first_containment_attempt: std.atomic.Value(FirstContainmentAttempt) =
+        .init(.none),
+    first_containment_condition: std.Thread.Condition = .{},
+    first_containment_mutex: std.Thread.Mutex = .{},
     generation: u64 = 1,
     history: terminal_history.Manager,
     // input_mutex and input_condition protect queue order, charged bytes,
@@ -346,12 +413,18 @@ pub const TerminalRuntime = struct {
     projection: terminal_projection.Projection,
     projection_mutex: std.Thread.Mutex = .{},
     pty_drained: std.atomic.Value(bool) = .init(false),
-    // pty_write_mutex serializes child input from queued input and VT callbacks.
-    pty_write_mutex: std.Thread.Mutex = .{},
+    // Ghostty may discover a reply-admission failure synchronously while a
+    // reader batch is being parsed. terminal_mutex protects this deferred
+    // marker until the complete batch has committed coherently.
+    reply_failure_pending: bool = false,
     // A failed Ghostty resize may leave its internal screen state undefined.
     // Once set, no new terminal work is admitted and the owner must tear down
     // the runtime instead of attempting to continue with mixed geometry.
     resize_fenced: std.atomic.Value(bool) = .init(false),
+    // terminal_mutex owns the interval between a successful resize preflight
+    // and its canonical commit or platform compensation. Normal completion
+    // cannot publish while this effect is in flight.
+    resize_effect_in_flight: bool = false,
     stream: ghostty_vt.TerminalStream,
     scrollback_bytes: usize,
     startup_condition: std.Thread.Condition = .{},
@@ -361,6 +434,7 @@ pub const TerminalRuntime = struct {
     // terminal_mutex protects terminal parsing, history, generation, scrollback,
     // and cell geometry as one state transition.
     terminal_mutex: std.Thread.Mutex = .{},
+    testing_hooks: RuntimeTestingHooks = .{},
     threads_joined: bool = false,
     wait_thread: ?std.Thread = null,
     writer_stop: bool = false,
@@ -423,6 +497,11 @@ pub const TerminalRuntime = struct {
             .scrollback_bytes = options.scrollback_bytes,
             .terminal = resources.terminal,
         };
+        if (comptime target_builtin.is_test and
+            @hasDecl(@TypeOf(spawner.*), "terminalRuntimeTestingHooks"))
+        {
+            self.testing_hooks = spawner.terminalRuntimeTestingHooks();
+        }
         errdefer self.cleanupFailedThreadStartup();
         self.stream = .init(self.terminal.vtHandler());
         self.stream.handler.effects.write_pty = writePtyEffect;
@@ -498,6 +577,13 @@ pub const TerminalRuntime = struct {
         self.containment_mutex.lock();
         defer self.containment_mutex.unlock();
         if (self.containment_confirmed.load(.acquire)) return;
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.contain_process_tree) |contain| {
+                try contain(self.testing_hooks.context.?);
+                self.containment_confirmed.store(true, .release);
+                return;
+            }
+        }
         var consecutive_contained: usize = 0;
         var last_failure: anyerror = error.ProcessContainmentIncomplete;
         for (0..max_process_containment_observations) |observation| {
@@ -531,6 +617,91 @@ pub const TerminalRuntime = struct {
         return last_failure;
     }
 
+    fn completeFirstContainmentAttempt(
+        self: *TerminalRuntime,
+        expected: FirstContainmentAttempt,
+    ) void {
+        self.first_containment_mutex.lock();
+        std.debug.assert(self.first_containment_attempt.load(.acquire) == expected);
+        self.first_containment_attempt.store(.done, .release);
+        self.first_containment_condition.broadcast();
+        self.first_containment_mutex.unlock();
+    }
+
+    fn notifyHostContainmentWaiting(self: *TerminalRuntime) void {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.host_containment_waiting) |notify| {
+                notify(self.testing_hooks.context.?);
+            }
+        }
+    }
+
+    /// Returns true only to the Host caller that owns a Host-originated first
+    /// attempt. Engine-owned pending work is awaited without terminal_mutex or
+    /// input_mutex; a completed engine attempt turns every Host call into a
+    /// retry rather than allowing Host to overtake it.
+    fn awaitFirstContainmentAttempt(self: *TerminalRuntime) bool {
+        while (true) {
+            self.first_containment_mutex.lock();
+            switch (self.first_containment_attempt.load(.acquire)) {
+                .none, .done => {
+                    self.first_containment_mutex.unlock();
+                    return false;
+                },
+                .host_pending => {
+                    self.first_containment_attempt.store(.host_running, .release);
+                    self.first_containment_mutex.unlock();
+                    return true;
+                },
+                .engine_pending, .host_running => {
+                    self.first_containment_mutex.unlock();
+                    self.notifyHostContainmentWaiting();
+                    self.first_containment_mutex.lock();
+                    while (switch (self.first_containment_attempt.load(.acquire)) {
+                        .engine_pending, .host_running => true,
+                        .none, .host_pending, .done => false,
+                    }) {
+                        self.first_containment_condition.wait(&self.first_containment_mutex);
+                    }
+                    self.first_containment_mutex.unlock();
+                },
+            }
+        }
+    }
+
+    fn stopIoForShutdown(self: *TerminalRuntime) void {
+        self.output_abort_requested.store(true, .release);
+        // Synchronize with the reader's post-read commit boundary. A batch
+        // that already won terminal_mutex finishes before this returns; every
+        // later batch observes output_abort_requested and is discarded.
+        self.terminal_mutex.lock();
+        self.input_mutex.lock();
+        self.writer_stop = true;
+        self.input_condition.broadcast();
+        self.input_mutex.unlock();
+        self.terminal_mutex.unlock();
+    }
+
+    fn finishPtyAfterChildExit(self: *TerminalRuntime) !void {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.finish_pty_after_child_exit) |finish| {
+                return finish(self.testing_hooks.context.?);
+            }
+        }
+        try self.process.finishPtyAfterChildExit();
+    }
+
+    fn releaseOutputForShutdown(self: *TerminalRuntime) !void {
+        var failed = false;
+        self.finishPtyAfterChildExit() catch {
+            failed = true;
+        };
+        self.abortOutputRead() catch {
+            failed = true;
+        };
+        if (failed) return error.OutputReleaseFailed;
+    }
+
     pub fn shutdown(self: *TerminalRuntime) ShutdownError!void {
         if (self.threads_joined) {
             std.debug.assert(self.containment_confirmed.load(.acquire));
@@ -538,18 +709,25 @@ pub const TerminalRuntime = struct {
                 return error.ProcessIdentityReleaseFailed;
             return;
         }
+        // Stop every future writer start and reader commit before any fallible
+        // cleanup. Ordinary shutdown keeps TerminalExited semantics; a failure
+        // fence, when present, remains the stronger unavailable classification.
+        self.stopIoForShutdown();
+        const owns_host_first_attempt = self.awaitFirstContainmentAttempt();
+        defer {
+            if (owns_host_first_attempt) {
+                self.completeFirstContainmentAttempt(.host_running);
+            }
+        }
         if (!self.containment_confirmed.load(.acquire)) {
             self.containProcessTree() catch return error.ProcessContainmentFailed;
         }
         // On Windows, closing the pseudoconsole is the operation that releases
         // blocked input and output pipe calls. Containment makes that close safe
         // even when process observation failed before the wait worker could do it.
-        self.process.finishPtyAfterChildExit() catch
-            return error.OutputReleaseFailed;
-        self.abortOutputRead() catch return error.OutputReleaseFailed;
+        self.releaseOutputForShutdown() catch return error.OutputReleaseFailed;
         self.input_mutex.lock();
         self.release_process_identity = true;
-        self.writer_stop = true;
         self.input_condition.broadcast();
         self.input_mutex.unlock();
         self.joinThreads();
@@ -631,6 +809,7 @@ pub const TerminalRuntime = struct {
                     .worker_integrity => error.WorkerIntegrityFailed,
                 },
             }
+            if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
             self.input_condition.wait(&self.input_mutex);
         }
     }
@@ -639,15 +818,49 @@ pub const TerminalRuntime = struct {
         return self.resize_fenced.load(.acquire);
     }
 
-    fn hasFatalRuntimeFailure(self: *const TerminalRuntime) bool {
-        return switch (self.completion_classification.load()) {
-            .failed => true,
-            .pending, .normal => false,
-        };
+    /// Closes the shared failure gate while terminal_mutex is already held.
+    /// Every failure-fence write follows terminal_mutex -> input_mutex, and the
+    /// winning engine classification is published in that same transition.
+    fn closeFailureFenceLocked(
+        self: *TerminalRuntime,
+        failure: ?RuntimeFailureKind,
+    ) bool {
+        self.input_mutex.lock();
+        defer self.input_mutex.unlock();
+        if (self.failure_fenced) return false;
+        self.failure_fenced = true;
+        self.writer_stop = true;
+        if (failure) |classification| {
+            self.completion_classification.markFailure(classification);
+        }
+        std.debug.assert(self.first_containment_attempt.load(.acquire) == .none);
+        self.first_containment_attempt.store(
+            if (failure == null) .host_pending else .engine_pending,
+            .release,
+        );
+        self.input_condition.broadcast();
+        return true;
     }
 
-    fn publishPrimaryFailure(self: *TerminalRuntime, failure: RuntimeFailureKind) void {
-        self.completion_classification.markFailure(failure);
+    fn closeFailureFence(
+        self: *TerminalRuntime,
+        failure: ?RuntimeFailureKind,
+    ) bool {
+        self.terminal_mutex.lock();
+        const won = self.closeFailureFenceLocked(failure);
+        self.terminal_mutex.unlock();
+        return won;
+    }
+
+    /// Host-side effect failures have their own Core classification. This
+    /// bounded engine transition closes I/O before Core publishes that cause;
+    /// fallible containment deliberately remains a later owner phase.
+    pub fn fenceHostFailure(self: *TerminalRuntime) HostFailureFenceResult {
+        if (self.closeFailureFence(null)) return .host_won;
+        return if (self.primaryFailure()) |failure|
+            .{ .engine_won = failure }
+        else
+            .host_won;
     }
 
     pub fn primaryFailure(self: *const TerminalRuntime) ?RuntimeFailureKind {
@@ -659,6 +872,7 @@ pub const TerminalRuntime = struct {
 
     fn ensureRuntimeWorkAvailableLocked(self: *const TerminalRuntime) !void {
         if (self.isResizeFenced()) return error.TerminalResizeFailed;
+        if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
         switch (self.completion_classification.load()) {
             .pending => {},
             .normal, .failed => return error.TerminalRuntimeUnavailable,
@@ -667,14 +881,14 @@ pub const TerminalRuntime = struct {
 
     fn ensureReadableStateAvailableLocked(self: *const TerminalRuntime) !void {
         if (self.isResizeFenced()) return error.TerminalResizeFailed;
-        if (self.hasFatalRuntimeFailure() and
-            !self.containment_confirmed.load(.acquire))
-        {
+        if (self.failure_fenced and !self.containment_confirmed.load(.acquire)) {
             return error.TerminalRuntimeUnavailable;
         }
     }
 
-    pub fn readableStateAvailable(self: *const TerminalRuntime) bool {
+    pub fn readableStateAvailable(self: *TerminalRuntime) bool {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
         self.ensureReadableStateAvailableLocked() catch return false;
         return true;
     }
@@ -947,7 +1161,11 @@ pub const TerminalRuntime = struct {
     }
 
     pub fn resize(self: *TerminalRuntime, columns: u16, rows: u16) !void {
-        _ = try self.resizeGeometry(columns, rows, self.cell_pixel_width, self.cell_pixel_height);
+        self.terminal_mutex.lock();
+        const cell_pixel_width = self.cell_pixel_width;
+        const cell_pixel_height = self.cell_pixel_height;
+        self.terminal_mutex.unlock();
+        _ = try self.resizeGeometry(columns, rows, cell_pixel_width, cell_pixel_height);
     }
 
     pub fn resizeGeometry(
@@ -958,50 +1176,121 @@ pub const TerminalRuntime = struct {
         cell_pixel_height: u16,
     ) !u64 {
         self.terminal_mutex.lock();
-        defer self.terminal_mutex.unlock();
-        try self.ensureRuntimeWorkAvailableLocked();
+        self.ensureRuntimeWorkAvailableLocked() catch |err| {
+            self.terminal_mutex.unlock();
+            return err;
+        };
+        if (self.resize_effect_in_flight) {
+            self.terminal_mutex.unlock();
+            return error.TerminalRuntimeUnavailable;
+        }
         const old_columns = self.terminal.cols;
         const old_rows = self.terminal.rows;
         const cells_changed = old_columns != columns or old_rows != rows;
         const pixels_changed = self.cell_pixel_width != cell_pixel_width or
             self.cell_pixel_height != cell_pixel_height;
-        if (!cells_changed and !pixels_changed) return self.revision.load(.acquire);
-        const next_generation = std.math.add(u64, self.generation, 1) catch
+        if (!cells_changed and !pixels_changed) {
+            const revision = self.revision.load(.acquire);
+            self.terminal_mutex.unlock();
+            return revision;
+        }
+        if (self.generation == std.math.maxInt(u64) or
+            self.revision.load(.monotonic) == std.math.maxInt(u64))
+        {
+            self.terminal_mutex.unlock();
             return error.RevisionOverflow;
-        const revision = std.math.add(u64, self.revision.load(.monotonic), 1) catch
-            return error.RevisionOverflow;
-        resizePtyWithRollback(
-            &self.process,
-            .{
-                .cell_pixel_height = self.cell_pixel_height,
-                .cell_pixel_width = self.cell_pixel_width,
-                .columns = old_columns,
-                .rows = old_rows,
-            },
-            .{
-                .cell_pixel_height = cell_pixel_height,
-                .cell_pixel_width = cell_pixel_width,
-                .columns = columns,
-                .rows = rows,
-            },
-        ) catch |err| {
+        }
+        const previous_geometry: terminal_geometry.Geometry = .{
+            .cell_pixel_height = self.cell_pixel_height,
+            .cell_pixel_width = self.cell_pixel_width,
+            .columns = old_columns,
+            .rows = old_rows,
+        };
+        const next_geometry: terminal_geometry.Geometry = .{
+            .cell_pixel_height = cell_pixel_height,
+            .cell_pixel_width = cell_pixel_width,
+            .columns = columns,
+            .rows = rows,
+        };
+        self.resize_effect_in_flight = true;
+        self.terminal_mutex.unlock();
+
+        const resize_effect_result = self.resizePtyEffect(previous_geometry, next_geometry);
+        // This notification exposes the post-platform-effect interval to
+        // deterministic tests. The effect has returned, its result has not
+        // been consumed, and no engine state mutex is held. Restore effects
+        // deliberately bypass this one-shot initial-effect seam.
+        self.notifyResizeEffectReturned();
+        resize_effect_result catch |err| {
             if (err == error.ResizeRollbackFailed) {
                 self.fenceResizeFailure();
+                return err;
             }
+            self.terminal_mutex.lock();
+            const failure_fenced = self.failure_fenced;
+            std.debug.assert(self.resize_effect_in_flight);
+            self.resize_effect_in_flight = false;
+            self.terminal_mutex.unlock();
+            if (failure_fenced) return error.TerminalRuntimeUnavailable;
+            self.markNormalCompletionReady();
             return err;
+        };
+
+        self.terminal_mutex.lock();
+        if (self.failure_fenced) {
+            self.terminal_mutex.unlock();
+            const compensation = self.compensateResizeEffect(
+                previous_geometry,
+                next_geometry,
+            );
+            if (compensation.rollback_failed) return error.ResizeRollbackFailed;
+            return error.TerminalRuntimeUnavailable;
+        }
+        // HostRuntimeAggregate is the sole geometry writer. PTY output and
+        // configuration may advance while the platform effect is in flight,
+        // but no second geometry effect may overtake this commit.
+        std.debug.assert(self.terminal.cols == old_columns);
+        std.debug.assert(self.terminal.rows == old_rows);
+        std.debug.assert(self.cell_pixel_width == previous_geometry.cell_pixel_width);
+        std.debug.assert(self.cell_pixel_height == previous_geometry.cell_pixel_height);
+        const next_generation = std.math.add(u64, self.generation, 1) catch {
+            self.terminal_mutex.unlock();
+            const compensation = self.compensateResizeEffect(
+                previous_geometry,
+                next_geometry,
+            );
+            if (compensation.rollback_failed) return error.ResizeRollbackFailed;
+            if (compensation.failure_fenced) return error.TerminalRuntimeUnavailable;
+            return error.RevisionOverflow;
+        };
+        const revision = std.math.add(u64, self.revision.load(.monotonic), 1) catch {
+            self.terminal_mutex.unlock();
+            const compensation = self.compensateResizeEffect(
+                previous_geometry,
+                next_geometry,
+            );
+            if (compensation.rollback_failed) return error.ResizeRollbackFailed;
+            if (compensation.failure_fenced) return error.TerminalRuntimeUnavailable;
+            return error.RevisionOverflow;
         };
         if (cells_changed) {
             self.terminal.resize(self.allocator, columns, rows) catch |err| {
-                self.process.resizePixels(
-                    old_columns,
-                    old_rows,
-                    self.cell_pixel_width,
-                    self.cell_pixel_height,
-                ) catch {
-                    self.fenceResizeFailure();
-                    return error.ResizeRollbackFailed;
+                self.resize_fenced.store(true, .release);
+                const won = self.closeFailureFenceLocked(.resize);
+                self.terminal_mutex.unlock();
+                const rollback_failed = rollback: {
+                    self.restorePtyGeometry(
+                        next_geometry,
+                        previous_geometry,
+                    ) catch break :rollback true;
+                    break :rollback false;
                 };
-                self.fenceResizeFailure();
+                self.terminal_mutex.lock();
+                std.debug.assert(self.resize_effect_in_flight);
+                self.resize_effect_in_flight = false;
+                self.terminal_mutex.unlock();
+                if (won) self.finishFailureFence();
+                if (rollback_failed) return error.ResizeRollbackFailed;
                 return err;
             };
         }
@@ -1010,24 +1299,109 @@ pub const TerminalRuntime = struct {
         self.generation = next_generation;
         self.revision.store(revision, .release);
         self.history.generationChanged(&self.terminal, revision, self.generation);
+        std.debug.assert(self.resize_effect_in_flight);
+        self.resize_effect_in_flight = false;
+        self.terminal_mutex.unlock();
+        self.markNormalCompletionReady();
         return revision;
     }
 
     fn fenceResizeFailure(self: *TerminalRuntime) void {
-        self.publishPrimaryFailure(.resize);
+        self.terminal_mutex.lock();
         self.resize_fenced.store(true, .release);
-        // Stop both sides of the PTY before any worker can observe more bytes
-        // against the potentially-corrupt Ghostty screen.
-        self.abortOutputRead() catch {};
-        self.input_mutex.lock();
-        self.writer_stop = true;
-        self.input_condition.broadcast();
-        self.input_mutex.unlock();
-        self.containAfterRuntimeFailure();
+        const won = self.closeFailureFenceLocked(.resize);
+        self.resize_effect_in_flight = false;
+        self.terminal_mutex.unlock();
+        if (won) self.finishFailureFence();
+    }
+
+    const ResizeCompensation = struct {
+        failure_fenced: bool,
+        rollback_failed: bool,
+    };
+
+    fn compensateResizeEffect(
+        self: *TerminalRuntime,
+        previous_geometry: terminal_geometry.Geometry,
+        next_geometry: terminal_geometry.Geometry,
+    ) ResizeCompensation {
+        const rollback_failed = rollback: {
+            self.restorePtyGeometry(next_geometry, previous_geometry) catch
+                break :rollback true;
+            break :rollback false;
+        };
+        self.terminal_mutex.lock();
+        var won = false;
+        if (rollback_failed) {
+            self.resize_fenced.store(true, .release);
+            won = self.closeFailureFenceLocked(.resize);
+        }
+        std.debug.assert(self.resize_effect_in_flight);
+        self.resize_effect_in_flight = false;
+        const failure_fenced = self.failure_fenced;
+        self.terminal_mutex.unlock();
+        if (won) self.finishFailureFence();
+        if (!failure_fenced) self.markNormalCompletionReady();
+        return .{
+            .failure_fenced = failure_fenced,
+            .rollback_failed = rollback_failed,
+        };
+    }
+
+    fn notifyResizeEffectReturned(self: *TerminalRuntime) void {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.resize_effect_returned) |notify| {
+                notify(self.testing_hooks.context.?);
+            }
+        }
+    }
+
+    fn resizePtyEffect(
+        self: *TerminalRuntime,
+        previous_geometry: terminal_geometry.Geometry,
+        next_geometry: terminal_geometry.Geometry,
+    ) !void {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.resize_pty) |resize_pty| {
+                return resize_pty(
+                    self.testing_hooks.context.?,
+                    previous_geometry,
+                    next_geometry,
+                );
+            }
+        }
+        try resizePtyWithRollback(&self.process, previous_geometry, next_geometry);
+    }
+
+    fn restorePtyGeometry(
+        self: *TerminalRuntime,
+        current_geometry: terminal_geometry.Geometry,
+        previous_geometry: terminal_geometry.Geometry,
+    ) !void {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.resize_pty) |resize_pty| {
+                return resize_pty(
+                    self.testing_hooks.context.?,
+                    current_geometry,
+                    previous_geometry,
+                );
+            }
+        }
+        try self.process.resizePixels(
+            previous_geometry.columns,
+            previous_geometry.rows,
+            previous_geometry.cell_pixel_width,
+            previous_geometry.cell_pixel_height,
+        );
     }
 
     fn abortOutputRead(self: *TerminalRuntime) !void {
         self.output_abort_requested.store(true, .release);
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.abort_read) |abort_read| {
+                return abort_read(self.testing_hooks.context.?);
+            }
+        }
         try self.process.abortRead();
     }
 
@@ -1584,6 +1958,7 @@ pub const TerminalRuntime = struct {
     ) !InputReservation {
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
+        if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
         if (self.writer_stop) return error.TerminalExited;
         if (source == .client and self.client_input_closed) return error.TerminalExited;
         const capacity_bytes = inputCapacityBytes(source);
@@ -1595,6 +1970,7 @@ pub const TerminalRuntime = struct {
         {
             if (!wait) return error.InputBackpressure;
             self.input_condition.wait(&self.input_mutex);
+            if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
             if (self.writer_stop) return error.TerminalExited;
             if (source == .client and self.client_input_closed) return error.TerminalExited;
         }
@@ -1612,6 +1988,13 @@ pub const TerminalRuntime = struct {
         return .{ .identifier = identifier, .reserved_bytes = byte_count };
     }
 
+    fn validatePreparedInputCommit(self: *TerminalRuntime) !void {
+        self.input_mutex.lock();
+        defer self.input_mutex.unlock();
+        if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
+        if (self.writer_stop) return error.TerminalExited;
+    }
+
     fn publishInput(self: *TerminalRuntime, reservation: InputReservation, bytes: []u8) !void {
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
@@ -1619,11 +2002,12 @@ pub const TerminalRuntime = struct {
             if (entry.identifier != reservation.identifier) continue;
             std.debug.assert(entry.bytes == null);
             std.debug.assert(bytes.len <= reservation.reserved_bytes);
-            if (self.writer_stop) {
+            if (self.failure_fenced or self.writer_stop) {
                 self.releaseInputCharge(entry.*);
                 _ = self.input_entries.orderedRemove(index);
                 self.allocator.free(bytes);
                 self.input_condition.broadcast();
+                if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
                 return error.TerminalExited;
             }
             self.inputCharge(entry.source).bytes -= reservation.reserved_bytes - bytes.len;
@@ -1640,6 +2024,7 @@ pub const TerminalRuntime = struct {
             return;
         }
         self.allocator.free(bytes);
+        if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
         return error.TerminalExited;
     }
 
@@ -1690,71 +2075,60 @@ pub const TerminalRuntime = struct {
         return null;
     }
 
-    fn writeAll(self: *TerminalRuntime, bytes: []const u8) !void {
-        self.pty_write_mutex.lock();
-        defer self.pty_write_mutex.unlock();
-        var offset: usize = 0;
-        while (offset < bytes.len) {
-            const written = try self.process.write(bytes[offset..]);
-            if (written == 0) return error.WriteZero;
-            offset += written;
+    fn readPty(self: *TerminalRuntime, buffer: []u8) !usize {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.read_pty) |read| {
+                return read(self.testing_hooks.context.?, buffer);
+            }
         }
+        return self.process.read(buffer);
     }
 
-    fn markTerminalReplyDropped(self: *TerminalRuntime) void {
-        // Ghostty invokes this callback while readerThread owns terminal_mutex.
-        self.publishPrimaryFailure(.terminal_reply);
-        self.fenceRuntimeIo();
-        self.containAfterRuntimeFailure();
+    fn writePtySlice(self: *TerminalRuntime, bytes: []const u8) !usize {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.write_pty) |write| {
+                return write(self.testing_hooks.context.?, bytes);
+            }
+        }
+        return self.process.write(bytes);
     }
 
-    fn fenceRuntimeIo(self: *TerminalRuntime) void {
+    fn finishFailureFence(self: *TerminalRuntime) void {
+        // The bounded fence and classification are already visible. External
+        // PTY/process operations and fallible containment happen only after
+        // both engine state locks have been released.
+        defer self.completeFirstContainmentAttempt(.engine_pending);
         self.abortOutputRead() catch {};
-        self.input_mutex.lock();
-        self.writer_stop = true;
-        self.input_condition.broadcast();
-        self.input_mutex.unlock();
+        self.containAfterRuntimeFailure();
     }
 
     fn containAfterRuntimeFailure(self: *TerminalRuntime) void {
         self.containProcessTree() catch {};
     }
 
+    fn recordFailure(self: *TerminalRuntime, failure: RuntimeFailureKind) void {
+        if (self.closeFailureFence(failure)) self.finishFailureFence();
+    }
+
     fn recordReaderFailure(self: *TerminalRuntime) void {
-        self.terminal_mutex.lock();
-        defer self.terminal_mutex.unlock();
-        self.publishPrimaryFailure(.pty_read);
-        self.fenceRuntimeIo();
-        self.containAfterRuntimeFailure();
+        self.recordFailure(.pty_read);
     }
 
     fn recordWorkerIntegrityFailure(self: *TerminalRuntime) void {
-        self.terminal_mutex.lock();
-        defer self.terminal_mutex.unlock();
-        self.publishPrimaryFailure(.worker_integrity);
-        self.fenceRuntimeIo();
-        self.containAfterRuntimeFailure();
+        self.recordFailure(.worker_integrity);
     }
 
     fn recordWriterFailure(self: *TerminalRuntime) void {
-        self.terminal_mutex.lock();
-        defer self.terminal_mutex.unlock();
-        self.publishPrimaryFailure(.pty_write);
-        self.abortOutputRead() catch {};
+        const won = self.closeFailureFence(.pty_write);
         self.input_mutex.lock();
-        self.writer_stop = true;
         self.clearInputQueueLocked();
         self.input_mutex.unlock();
-        self.containAfterRuntimeFailure();
+        if (won) self.finishFailureFence();
     }
 
     fn releaseProcessIdentityFromWorker(self: *TerminalRuntime) void {
         self.process.releaseProcessIdentity() catch {
-            self.terminal_mutex.lock();
-            self.publishPrimaryFailure(.process_observation);
-            self.fenceRuntimeIo();
-            self.containAfterRuntimeFailure();
-            self.terminal_mutex.unlock();
+            self.recordFailure(.process_observation);
             return;
         };
         self.markNormalCompletionReady();
@@ -1766,7 +2140,7 @@ pub const TerminalRuntime = struct {
         // .normal and is rejected by ensureRuntimeWorkAvailableLocked.
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
-        if (self.hasFatalRuntimeFailure() or
+        if (self.failure_fenced or self.resize_effect_in_flight or
             !self.child_exited.load(.acquire) or
             !self.pty_drained.load(.acquire) or
             !self.writer_stopped.load(.acquire)) return;
@@ -1779,16 +2153,16 @@ pub const TerminalRuntime = struct {
     fn writePtyEffect(handler: *ghostty_vt.TerminalStream.Handler, bytes: [:0]const u8) void {
         const self = runtimeFromHandler(handler);
         const reservation = self.reserveInput(bytes.len, false, .terminal) catch {
-            self.markTerminalReplyDropped();
+            self.reply_failure_pending = true;
             return;
         };
         const copy = self.allocator.dupe(u8, bytes) catch {
             self.cancelInput(reservation.identifier);
-            self.markTerminalReplyDropped();
+            self.reply_failure_pending = true;
             return;
         };
         self.publishInput(reservation, copy) catch {
-            self.markTerminalReplyDropped();
+            self.reply_failure_pending = true;
         };
     }
 
@@ -1822,15 +2196,116 @@ pub const TerminalRuntime = struct {
         return runtimeFromHandler(handler).profile.version_response;
     }
 
+    fn readerMayRead(self: *TerminalRuntime) bool {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        return !self.failure_fenced and
+            !self.output_abort_requested.load(.acquire);
+    }
+
+    fn notifyReaderBatchFinished(
+        self: *TerminalRuntime,
+        outcome: ReaderBatchOutcome,
+    ) void {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.reader_batch_finished) |notify| {
+                notify(self.testing_hooks.context.?, outcome);
+            }
+        }
+    }
+
+    fn notifyReaderStopped(self: *TerminalRuntime) void {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.reader_stopped) |notify| {
+                notify(self.testing_hooks.context.?);
+            }
+        }
+    }
+
+    fn commitReaderBatch(
+        self: *TerminalRuntime,
+        bytes: []const u8,
+    ) ReaderBatchOutcome {
+        self.terminal_mutex.lock();
+        if (self.failure_fenced) {
+            self.terminal_mutex.unlock();
+            self.notifyReaderBatchFinished(.failure_fenced);
+            return .failure_fenced;
+        }
+        if (self.output_abort_requested.load(.acquire)) {
+            self.terminal_mutex.unlock();
+            self.notifyReaderBatchFinished(.output_aborted);
+            return .output_aborted;
+        }
+
+        const current_revision = self.revision.load(.monotonic);
+        if (current_revision == std.math.maxInt(u64) or
+            self.generation == std.math.maxInt(u64))
+        {
+            const won = self.closeFailureFenceLocked(.worker_integrity);
+            self.terminal_mutex.unlock();
+            self.notifyReaderBatchFinished(.runtime_failed);
+            if (won) self.finishFailureFence();
+            return .runtime_failed;
+        }
+
+        std.debug.assert(!self.reply_failure_pending);
+        const previous_screen = self.terminal.screens.active_key;
+        // Ghostty's 1049 path can reset the active screen without changing
+        // its key (for example, enabling it twice). Isolate the terminal clear
+        // marker for this batch so same-key replacement still invalidates
+        // history while preserving a clear already pending for the renderer.
+        const previous_clear = self.terminal.flags.dirty.clear;
+        self.terminal.flags.dirty.clear = false;
+        self.stream.nextSlice(bytes);
+        const screen_reset = self.terminal.flags.dirty.clear;
+        self.terminal.flags.dirty.clear = previous_clear or screen_reset;
+        const screen_changed = previous_screen != self.terminal.screens.active_key or
+            screen_reset;
+        if (screen_changed) self.generation += 1;
+        const revision = current_revision + 1;
+        self.revision.store(revision, .release);
+        if (screen_changed) {
+            self.history.screenChanged(&self.terminal);
+        } else {
+            self.history.noteMutation(&self.terminal, revision, self.generation);
+        }
+        _ = self.output_batches_since_sync.fetchAdd(1, .release);
+
+        const reply_failed = self.reply_failure_pending;
+        self.reply_failure_pending = false;
+        const reply_failure_won = reply_failed and
+            self.closeFailureFenceLocked(.terminal_reply);
+        self.terminal_mutex.unlock();
+
+        const outcome: ReaderBatchOutcome = if (reply_failed)
+            .runtime_failed
+        else
+            .committed;
+        self.notifyReaderBatchFinished(outcome);
+        if (reply_failure_won) self.finishFailureFence();
+        return outcome;
+    }
+
+    fn publishPtyDrained(self: *TerminalRuntime) bool {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        self.input_mutex.lock();
+        defer self.input_mutex.unlock();
+        if (self.failure_fenced) return false;
+        self.pty_drained.store(true, .release);
+        self.writer_stop = true;
+        self.input_condition.broadcast();
+        return true;
+    }
+
     fn readerThread(self: *TerminalRuntime) void {
+        defer self.notifyReaderStopped();
         if (!self.awaitStartup()) return;
         var buffer: [max_pty_read_batch_bytes]u8 = undefined;
         while (true) {
-            if (self.hasFatalRuntimeFailure()) {
-                self.containAfterRuntimeFailure();
-                return;
-            }
-            const length = self.process.read(&buffer) catch {
+            if (!self.readerMayRead()) return;
+            const length = self.readPty(&buffer) catch {
                 if (self.output_abort_requested.load(.acquire)) return;
                 self.recordReaderFailure();
                 return;
@@ -1839,51 +2314,10 @@ pub const TerminalRuntime = struct {
                 if (self.output_abort_requested.load(.acquire)) return;
                 break;
             }
-            if (self.isResizeFenced()) return;
-            self.terminal_mutex.lock();
-            const current_revision = self.revision.load(.monotonic);
-            if (current_revision == std.math.maxInt(u64) or
-                self.generation == std.math.maxInt(u64))
-            {
-                self.terminal_mutex.unlock();
-                self.recordWorkerIntegrityFailure();
-                return;
-            }
-            const previous_screen = self.terminal.screens.active_key;
-            // Ghostty's 1049 path can reset the active screen without changing
-            // its key (for example, enabling it twice). Isolate the terminal
-            // clear marker for this batch so that same-key screen replacement
-            // still invalidates history and forces a new projection generation,
-            // while preserving a clear already pending for the renderer.
-            const previous_clear = self.terminal.flags.dirty.clear;
-            self.terminal.flags.dirty.clear = false;
-            self.stream.nextSlice(buffer[0..length]);
-            const screen_reset = self.terminal.flags.dirty.clear;
-            self.terminal.flags.dirty.clear = previous_clear or screen_reset;
-            const screen_changed = previous_screen != self.terminal.screens.active_key or screen_reset;
-            if (screen_changed) {
-                self.generation += 1;
-            }
-            const revision = current_revision + 1;
-            self.revision.store(revision, .release);
-            if (screen_changed) {
-                self.history.screenChanged(&self.terminal);
-            } else {
-                self.history.noteMutation(&self.terminal, revision, self.generation);
-            }
-            self.terminal_mutex.unlock();
-            _ = self.output_batches_since_sync.fetchAdd(1, .release);
-            if (self.hasFatalRuntimeFailure()) {
-                self.containAfterRuntimeFailure();
-                return;
-            }
+            if (self.commitReaderBatch(buffer[0..length]) != .committed) return;
         }
         if (self.output_abort_requested.load(.acquire)) return;
-        self.pty_drained.store(true, .release);
-        self.input_mutex.lock();
-        self.writer_stop = true;
-        self.input_condition.broadcast();
-        self.input_mutex.unlock();
+        _ = self.publishPtyDrained();
     }
 
     fn closeClientInput(self: *TerminalRuntime) void {
@@ -1901,14 +2335,14 @@ pub const TerminalRuntime = struct {
         };
         self.child_exited.store(true, .release);
         self.closeClientInput();
-        self.process.finishPtyAfterChildExit() catch {
+        self.finishPtyAfterChildExit() catch {
             self.recordProcessObservationFailure();
             return;
         };
         self.input_mutex.lock();
         while ((!self.pty_drained.load(.acquire) or
             !self.writer_stopped.load(.acquire)) and
-            !self.hasFatalRuntimeFailure() and
+            !self.failure_fenced and
             !self.release_process_identity)
         {
             self.input_condition.wait(&self.input_mutex);
@@ -1916,7 +2350,7 @@ pub const TerminalRuntime = struct {
         const release_requested = self.release_process_identity;
         const normally_drained = self.pty_drained.load(.acquire) and
             self.writer_stopped.load(.acquire) and
-            !self.hasFatalRuntimeFailure();
+            !self.failure_fenced;
         self.input_mutex.unlock();
         if (!release_requested and normally_drained) {
             const contained = self.processTreeAlreadyContained() catch {
@@ -1942,17 +2376,90 @@ pub const TerminalRuntime = struct {
     }
 
     fn recordProcessObservationFailure(self: *TerminalRuntime) void {
-        self.terminal_mutex.lock();
-        self.publishPrimaryFailure(.process_observation);
-        self.fenceRuntimeIo();
-        self.containAfterRuntimeFailure();
-        self.terminal_mutex.unlock();
+        self.recordFailure(.process_observation);
         self.input_mutex.lock();
         while (!self.release_process_identity) {
             self.input_condition.wait(&self.input_mutex);
         }
         self.input_mutex.unlock();
         self.releaseProcessIdentityFromWorker();
+    }
+
+    fn notifyWriterSliceCopied(self: *TerminalRuntime) void {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.writer_slice_copied) |notify| {
+                notify(self.testing_hooks.context.?);
+            }
+        }
+    }
+
+    fn notifyWriterSliceStarted(self: *TerminalRuntime) void {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.writer_slice_started) |notify| {
+                notify(self.testing_hooks.context.?);
+            }
+        }
+    }
+
+    fn startWriterSlice(
+        self: *TerminalRuntime,
+        slice: WriterSlice,
+    ) WriterSliceStart {
+        self.input_mutex.lock();
+        defer self.input_mutex.unlock();
+        if (self.failure_fenced or self.writer_stop) {
+            self.clearInputQueueLocked();
+            return .stopped;
+        }
+        const current_index = self.inputEntryIndex(slice.identifier) orelse
+            return .ownership_lost;
+        const current = self.input_entries.items[current_index];
+        const current_bytes = current.bytes orelse return .ownership_lost;
+        if (current.identifier != slice.identifier or
+            current.offset != slice.offset or
+            current.source != slice.source or
+            current.offset > current_bytes.len or
+            slice.length == 0 or
+            slice.length > current_bytes.len - current.offset)
+        {
+            return .ownership_lost;
+        }
+        // This successful recheck is the write-start linearization point. A
+        // later fence may stop the next slice, but this exact bounded platform
+        // call is allowed to complete and is accounted once.
+        return .started;
+    }
+
+    fn accountWriterSlice(
+        self: *TerminalRuntime,
+        slice: WriterSlice,
+        written: usize,
+    ) bool {
+        self.input_mutex.lock();
+        defer self.input_mutex.unlock();
+        const current_index = self.inputEntryIndex(slice.identifier) orelse return false;
+        const current = &self.input_entries.items[current_index];
+        if (current.offset != slice.offset or current.source != slice.source or
+            current.bytes == null or written == 0 or written > slice.length)
+        {
+            return false;
+        }
+        current.offset += written;
+        if (current.offset == current.bytes.?.len) {
+            self.releaseInputCharge(current.*);
+            self.allocator.free(current.bytes.?);
+            _ = self.input_entries.orderedRemove(current_index);
+            self.input_condition.broadcast();
+        }
+        return true;
+    }
+
+    fn stopWriterAfterOwnershipLoss(self: *TerminalRuntime) void {
+        const won = self.closeFailureFence(.worker_integrity);
+        self.input_mutex.lock();
+        self.clearInputQueueLocked();
+        self.input_mutex.unlock();
+        if (won) self.finishFailureFence();
     }
 
     fn writerThread(self: *TerminalRuntime) void {
@@ -1963,13 +2470,15 @@ pub const TerminalRuntime = struct {
             self.input_mutex.unlock();
         }
         if (!self.awaitStartup()) return;
-        var batch: [64 * 1024]u8 = undefined;
+        var batch: [max_pty_write_slice_bytes]u8 = undefined;
         while (true) {
             self.input_mutex.lock();
-            while (!self.writer_stop and nextWritableInputEntry(self.input_entries.items) == null) {
+            while (!self.writer_stop and !self.failure_fenced and
+                nextWritableInputEntry(self.input_entries.items) == null)
+            {
                 self.input_condition.wait(&self.input_mutex);
             }
-            if (self.writer_stop) {
+            if (self.writer_stop or self.failure_fenced) {
                 self.clearInputQueueLocked();
                 self.input_mutex.unlock();
                 return;
@@ -1987,29 +2496,39 @@ pub const TerminalRuntime = struct {
             }
             const available = bytes[entry.offset..];
             const length = @min(batch.len, available.len);
-            const identifier = entry.identifier;
-            const source = entry.source;
+            const slice: WriterSlice = .{
+                .identifier = entry.identifier,
+                .length = length,
+                .offset = entry.offset,
+                .source = entry.source,
+            };
             @memcpy(batch[0..length], available[0..length]);
             self.input_mutex.unlock();
 
-            self.writeAll(batch[0..length]) catch {
+            self.notifyWriterSliceCopied();
+            switch (self.startWriterSlice(slice)) {
+                .started => {},
+                .stopped => return,
+                .ownership_lost => {
+                    self.stopWriterAfterOwnershipLoss();
+                    return;
+                },
+            }
+            self.notifyWriterSliceStarted();
+            const written = self.writePtySlice(batch[0..length]) catch {
                 self.recordWriterFailure();
                 return;
             };
-
-            self.input_mutex.lock();
-            const current_index = self.inputEntryIndex(identifier) orelse unreachable;
-            const current = &self.input_entries.items[current_index];
-            current.offset += length;
-            if (current.offset == current.bytes.?.len) {
-                self.releaseInputCharge(current.*);
-                self.allocator.free(current.bytes.?);
-                _ = self.input_entries.orderedRemove(current_index);
-                self.input_condition.broadcast();
+            if (written == 0 or written > length) {
+                self.recordWriterFailure();
+                return;
             }
-            self.input_mutex.unlock();
-            if (source == .client) {
-                _ = self.written_since_sync.fetchAdd(length, .release);
+            if (!self.accountWriterSlice(slice, written)) {
+                self.stopWriterAfterOwnershipLoss();
+                return;
+            }
+            if (slice.source == .client) {
+                _ = self.written_since_sync.fetchAdd(written, .release);
             }
         }
     }
@@ -2065,12 +2584,15 @@ pub const testing = if (@import("builtin").is_test) struct {
     pub const applyScrollbackBytesFn = applyScrollbackBytes;
     pub const cancelInputFn = TerminalRuntime.cancelInput;
     pub const closeClientInputFn = TerminalRuntime.closeClientInput;
+    pub const closeFailureFenceFn = TerminalRuntime.closeFailureFence;
     pub const CompletionClassificationType = CompletionClassification;
     pub const completionClassificationLoadFn = CompletionClassification.load;
     pub const createWithOptionsUsingSpawnerFn = TerminalRuntime.createWithOptionsUsingSpawner;
     pub const deinitOwnedProfileFn = OwnedProfile.deinit;
     pub const InputReservationType = InputReservation;
     pub const InputEntryType = InputEntry;
+    pub const InputSourceType = InputSource;
+    pub const FirstContainmentAttemptType = FirstContainmentAttempt;
     pub const initOwnedProfileFn = OwnedProfile.init;
     pub const modifiersFn = terminal_input_encoding.testing.modifiersFn;
     pub const mouseEncodeEventFn = terminal_input_encoding.testing.mouseEncodeEventFn;
@@ -2080,24 +2602,51 @@ pub const testing = if (@import("builtin").is_test) struct {
     pub const pending_input_limit = pending_input_capacity_bytes;
     pub const pending_terminal_reply_entry_limit = max_pending_terminal_reply_entries;
     pub const pending_terminal_reply_limit = pending_terminal_reply_capacity_bytes;
+    pub const writer_slice_limit = max_pty_write_slice_bytes;
     pub const publishInputFn = TerminalRuntime.publishInput;
     pub const markCompletionFailureFn = CompletionClassification.markFailure;
     pub const markCompletionNormalFn = CompletionClassification.markNormal;
+    pub const markNormalCompletionReadyFn = TerminalRuntime.markNormalCompletionReady;
     pub const recordWorkerIntegrityFailureFn = TerminalRuntime.recordWorkerIntegrityFailure;
     pub const recordReaderFailureFn = TerminalRuntime.recordReaderFailure;
     pub const recordWriterFailureFn = TerminalRuntime.recordWriterFailure;
+    pub const ReaderBatchOutcomeType = ReaderBatchOutcome;
     pub const reserveInputFn = TerminalRuntime.reserveInput;
     pub const resizePtyWithRollbackFn = resizePtyWithRollback;
+    pub const RuntimeTestingHooksType = RuntimeTestingHooks;
 
-    pub fn recordTerminalReplyFailure(runtime: *TerminalRuntime) void {
+    pub fn clearTestingHooks(runtime: *TerminalRuntime) void {
+        runtime.testing_hooks = .{};
+    }
+
+    pub fn firstContainmentAttempt(
+        runtime: *const TerminalRuntime,
+    ) FirstContainmentAttempt {
+        return runtime.first_containment_attempt.load(.acquire);
+    }
+
+    pub fn failureFenced(runtime: *TerminalRuntime) bool {
         runtime.terminal_mutex.lock();
         defer runtime.terminal_mutex.unlock();
-        runtime.markTerminalReplyDropped();
+        return runtime.failure_fenced;
+    }
+
+    pub fn releaseOutputForShutdown(runtime: *TerminalRuntime) !void {
+        runtime.stopIoForShutdown();
+        try runtime.releaseOutputForShutdown();
+    }
+
+    pub fn resizeEffectInFlight(runtime: *TerminalRuntime) bool {
+        runtime.terminal_mutex.lock();
+        defer runtime.terminal_mutex.unlock();
+        return runtime.resize_effect_in_flight;
+    }
+
+    pub fn recordTerminalReplyFailure(runtime: *TerminalRuntime) void {
+        runtime.recordFailure(.terminal_reply);
     }
 
     pub fn fenceResizeFailure(runtime: *TerminalRuntime) void {
-        runtime.terminal_mutex.lock();
-        defer runtime.terminal_mutex.unlock();
         runtime.fenceResizeFailure();
     }
 } else struct {};

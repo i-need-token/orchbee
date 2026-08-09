@@ -359,6 +359,28 @@ pub const HostRuntimeAggregate = struct {
         terminal_id: core_module.TerminalId,
         mode: TerminationMode,
     ) TerminationError!core_module.TransitionOutcome {
+        var dispatcher: SystemTerminationDispatcher = .{};
+        var failure_fencer: RuntimeFailureFencer = .{};
+        var containment: RuntimeFailureContainment = .{ .maintenance = &self.maintenance };
+        return self.requestTerminationUsing(
+            connection_id,
+            terminal_id,
+            mode,
+            &dispatcher,
+            &failure_fencer,
+            &containment,
+        );
+    }
+
+    fn requestTerminationUsing(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        terminal_id: core_module.TerminalId,
+        mode: TerminationMode,
+        dispatcher: anytype,
+        failure_fencer: anytype,
+        containment: anytype,
+    ) TerminationError!core_module.TransitionOutcome {
         const request: core_module.TerminationRequest = switch (mode) {
             .graceful => .graceful,
             .force => .force,
@@ -381,13 +403,25 @@ pub const HostRuntimeAggregate = struct {
             return error.TerminalRuntimeMissing;
         };
         if (admission == .containment_retry) {
-            self.maintenance.containRuntimeFailure(&self.core_state, terminal_id, runtime) catch
+            containment.contain(&self.core_state, terminal_id, runtime) catch
                 return error.TerminationDispatchFailed;
             return .applied;
         }
-        dispatchTermination(runtime, mode) catch {
-            self.core_state.commitTerminationDispatchFailure(terminal_id);
-            self.maintenance.containRuntimeFailure(&self.core_state, terminal_id, runtime) catch {};
+        dispatcher.dispatch(runtime, mode) catch {
+            // The engine gate is the first visible failure transition. Core
+            // publishes the Host-side primary cause only after admission,
+            // writer start, and reader mutation are irreversibly closed.
+            switch (failure_fencer.fence(runtime)) {
+                .host_won => self.core_state.commitTerminationDispatchFailure(terminal_id),
+                .engine_won => |failure| {
+                    const transition = self.core_state.runtimeFailed(
+                        terminal_id,
+                        runtimeFailureFromEngineKind(failure),
+                    ) catch unreachable;
+                    std.debug.assert(transition == .applied);
+                },
+            }
+            containment.contain(&self.core_state, terminal_id, runtime) catch {};
             return error.TerminationDispatchFailed;
         };
         self.core_state.commitPreparedTermination(terminal_id, request);
@@ -617,7 +651,16 @@ pub const HostRuntimeAggregate = struct {
             if (err == error.RevisionOverflow) return error.TerminalRevisionOverflow;
             if (err == error.TerminalRuntimeUnavailable) return error.TerminalRuntimeUnavailable;
             if (!runtime.isResizeFenced()) return error.RuntimeResizeFailed;
-            self.maintenance.recordUnsafeResizeFailure(&self.core_state, terminal_id, runtime);
+            const failure = runtime.primaryFailure() orelse .resize;
+            _ = self.core_state.runtimeFailed(
+                terminal_id,
+                runtimeFailureFromEngineKind(failure),
+            ) catch unreachable;
+            self.maintenance.containRuntimeFailure(
+                &self.core_state,
+                terminal_id,
+                runtime,
+            ) catch {};
             return error.UnsafeRuntimeAfterResizeFailure;
         };
         self.core_state.synchronizeGeometry(
@@ -724,6 +767,38 @@ pub const HostRuntimeAggregate = struct {
     }
 };
 
+const SystemTerminationDispatcher = struct {
+    fn dispatch(
+        _: *SystemTerminationDispatcher,
+        runtime: *terminal_runtime.TerminalRuntime,
+        mode: TerminationMode,
+    ) !void {
+        try dispatchTermination(runtime, mode);
+    }
+};
+
+const RuntimeFailureFencer = struct {
+    fn fence(
+        _: *RuntimeFailureFencer,
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) terminal_runtime.HostFailureFenceResult {
+        return runtime.fenceHostFailure();
+    }
+};
+
+const RuntimeFailureContainment = struct {
+    maintenance: *host_runtime_maintenance.Maintenance,
+
+    fn contain(
+        self: *RuntimeFailureContainment,
+        core: *core_module.HostCore,
+        terminal_id: core_module.TerminalId,
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) !void {
+        try self.maintenance.containRuntimeFailure(core, terminal_id, runtime);
+    }
+};
+
 fn dispatchTermination(
     runtime: *terminal_runtime.TerminalRuntime,
     mode: TerminationMode,
@@ -732,6 +807,19 @@ fn dispatchTermination(
         .graceful => try runtime.terminate(),
         .force => try runtime.forceTerminate(),
     }
+}
+
+fn runtimeFailureFromEngineKind(
+    failure: terminal_runtime.RuntimeFailureKind,
+) core_module.RuntimeFailure {
+    return switch (failure) {
+        .resize => .apply_resize,
+        .process_observation => .observe_process,
+        .pty_read => .read_output,
+        .pty_write => .write_input,
+        .terminal_reply => .admit_terminal_reply,
+        .worker_integrity => .synchronize_worker,
+    };
 }
 
 fn attachmentBinding(attachment: *const core_module.Attachment) AttachmentBinding {
@@ -780,10 +868,30 @@ fn cleanupRetryScanIndexForTesting(aggregate: *const HostRuntimeAggregate) usize
     return aggregate.maintenance.cleanupRetryScanIndex();
 }
 
+fn requestTerminationUsingForTesting(
+    aggregate: *HostRuntimeAggregate,
+    connection_id: core_module.ConnectionId,
+    terminal_id: core_module.TerminalId,
+    mode: TerminationMode,
+    dispatcher: anytype,
+    failure_fencer: anytype,
+    containment: anytype,
+) TerminationError!core_module.TransitionOutcome {
+    return aggregate.requestTerminationUsing(
+        connection_id,
+        terminal_id,
+        mode,
+        dispatcher,
+        failure_fencer,
+        containment,
+    );
+}
+
 pub const testing = if (target_builtin.is_test) struct {
     pub const cleanupFailureFn = host_runtime_maintenance.cleanupFailure;
     pub const cleanupRetryScanIndexFn = cleanupRetryScanIndexForTesting;
     pub const recordUnsafeResizeFailureFn = recordUnsafeResizeFailureForTesting;
+    pub const requestTerminationUsingFn = requestTerminationUsingForTesting;
     pub const runtimeFailureFromObservationFn =
         host_runtime_maintenance.runtimeFailureFromObservation;
     pub const shutdownAndReleaseTerminalEnginesFn = shutdownAndReleaseTerminalEngines;

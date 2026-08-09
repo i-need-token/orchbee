@@ -10,8 +10,6 @@ pub const max_bytes = protocol.Limits.row_window_bytes;
 pub const max_entries = protocol.Limits.frame_cells;
 pub const header_bytes = protocol.terminal_row_window_header_bytes;
 
-const capture_bytes = max_bytes;
-
 pub const RequestMetadata = struct {
     attachment_id: identifiers.AttachmentId,
     detail: protocol.RowWindowDetail,
@@ -71,20 +69,14 @@ fn encodeToWriter(
     {
         return error.InvalidRequest;
     }
-    const capture = try scratch_allocator.alloc(u8, capture_bytes);
-    defer scratch_allocator.free(capture);
-    var fixed: std.heap.FixedBufferAllocator = .init(capture);
-    const capture_allocator = fixed.allocator();
-    var pins: std.ArrayList(ghostty_vt.Pin) = .empty;
-    defer pins.deinit(capture_allocator);
-    try pins.ensureTotalCapacity(capture_allocator, parameters.row_count);
+    const pins = try scratch_allocator.alloc(ghostty_vt.Pin, parameters.row_count);
+    defer scratch_allocator.free(pins);
     var iterator = parameters.start_pin.rowIterator(.right_down, null);
-    while (pins.items.len < parameters.row_count) {
-        const pin = iterator.next() orelse break;
+    for (pins) |*captured_pin| {
+        const pin = iterator.next() orelse return error.InvalidRequest;
         if (pin.cells(.all).len != terminal.cols) return error.InvalidRequest;
-        pins.appendAssumeCapacity(pin);
+        captured_pin.* = pin;
     }
-    if (pins.items.len != parameters.row_count) return error.InvalidRequest;
 
     try writer.appendZeros(header_bytes);
     const body_offset = writer.written().len;
@@ -92,7 +84,7 @@ fn encodeToWriter(
         .render => try projection_buffer.encodeRenderSnapshot(
             writer,
             terminal,
-            pins.items,
+            pins,
             .{
                 .attachment_id = parameters.request.attachment_id,
                 .cell_pixel_height = parameters.cell_pixel_height,
@@ -104,7 +96,7 @@ fn encodeToWriter(
                 .start_row = parameters.start_row,
             },
         ),
-        .text => try encodeTextBody(writer, pins.items),
+        .text => try encodeTextBody(writer, pins),
     };
     const body_length = writer.written().len - body_offset;
     var header = render_encoding.FixedLimitedWriter.init(

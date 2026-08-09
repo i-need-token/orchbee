@@ -947,11 +947,18 @@ test "detach retry is idempotent within one broker session" {
     try std.testing.expect(service.runtime_aggregate.core().findAttachment(attachment_id) == null);
 }
 
-test "current protocol pages a stable inventory and rejects stale cursors" {
+test "current protocol rejects a cursor made stale by disposal and freshly pages exact inventory" {
+    const inventory_count = 130;
+    const fresh_page_size = 17;
+    const TestInventoryTerminal = struct {
+        identity: struct {
+            terminalId: []const u8,
+        },
+    };
     const TestInventoryPage = struct {
         inventoryGeneration: []const u8,
         nextCursor: ?InventoryCursorWire,
-        terminals: []std.json.Value,
+        terminals: []TestInventoryTerminal,
     };
 
     var service = HostService.init(std.testing.allocator);
@@ -975,6 +982,8 @@ test "current protocol pages a stable inventory and rejects stale cursors" {
         replay_payload,
     );
     defer replay_request.deinit();
+    var terminal_ids: [inventory_count]core_module.TerminalId = undefined;
+    terminal_ids[0] = replay_terminal_id;
     _ = try service.runtime_aggregate.core().createTerminal(
         active.connection_id,
         replay_creation_id,
@@ -983,9 +992,10 @@ test "current protocol pages a stable inventory and rejects stale cursors" {
         80,
         24,
     );
-    for (1..130) |index| {
+    for (1..inventory_count) |index| {
         const creation_id = testId(core_module.CreationId, 0x31, index);
         const terminal_id = testId(core_module.TerminalId, 0x32, index);
+        terminal_ids[index] = terminal_id;
         _ = try service.runtime_aggregate.core().createTerminal(
             active.connection_id,
             creation_id,
@@ -1011,7 +1021,7 @@ test "current protocol pages a stable inventory and rejects stale cursors" {
         TestInventoryPage,
         std.testing.allocator,
         first_envelope.payload,
-        .{},
+        .{ .ignore_unknown_fields = true },
     );
     defer first_page.deinit();
     try std.testing.expectEqual(@as(usize, 128), first_page.value.terminals.len);
@@ -1027,37 +1037,23 @@ test "current protocol pages a stable inventory and rejects stale cursors" {
         },
     );
     defer std.testing.allocator.free(second_payload);
-    var second_response = try testRequest(
-        &service,
-        &connection,
-        MessageKind.list_terminals,
-        .control_json,
-        second_payload,
-        [_]u8{0x42} ** 16,
-    );
-    defer second_response.deinit();
-    const second_envelope = try protocol.validateTransportEnvelope(second_response.records()[0]);
-    const second_page = try std.json.parseFromSlice(
-        TestInventoryPage,
-        std.testing.allocator,
-        second_envelope.payload,
-        .{},
-    );
-    defer second_page.deinit();
-    try std.testing.expectEqual(@as(usize, 2), second_page.value.terminals.len);
-    try std.testing.expect(second_page.value.nextCursor == null);
-    try std.testing.expectEqualStrings(
-        first_page.value.inventoryGeneration,
-        second_page.value.inventoryGeneration,
-    );
 
-    _ = try service.runtime_aggregate.core().createTerminal(
-        active.connection_id,
-        testId(core_module.CreationId, 0x31, 130),
-        testId(core_module.TerminalId, 0x32, 130),
-        [_]u8{0xee} ** 32,
-        80,
-        24,
+    _ = try service.runtime_aggregate.core().childExited(
+        replay_terminal_id,
+        .{ .exit_code = 0 },
+    );
+    _ = try service.runtime_aggregate.core().ptyDrained(replay_terminal_id);
+    const generation_before_disposal = service.runtime_aggregate.core().inventoryGeneration();
+    try std.testing.expectEqual(
+        .applied,
+        try service.runtime_aggregate.core().disposeTerminal(
+            active.connection_id,
+            replay_terminal_id,
+        ),
+    );
+    try std.testing.expectEqual(
+        generation_before_disposal + 1,
+        service.runtime_aggregate.core().inventoryGeneration(),
     );
     var stale_response = try testRequest(
         &service,
@@ -1068,9 +1064,92 @@ test "current protocol pages a stable inventory and rejects stale cursors" {
         [_]u8{0x43} ** 16,
     );
     defer stale_response.deinit();
-    const stale_envelope = try protocol.validateTransportEnvelope(stale_response.records()[0]);
-    try std.testing.expectEqual(MessageKind.typed_failure, stale_envelope.kind);
-    try std.testing.expect(std.mem.indexOf(u8, stale_envelope.payload, "stale-inventory-cursor") != null);
+    try expectSingleFailureCode(&stale_response, "stale-inventory-cursor");
+
+    const fresh_generation = service.runtime_aggregate.core().inventoryGeneration();
+    var seen = [_]bool{false} ** inventory_count;
+    var next_offset: ?usize = 0;
+    var page_count: usize = 0;
+    var terminal_count: usize = 0;
+    while (next_offset) |offset| {
+        const fresh_payload = if (offset == 0)
+            try std.fmt.allocPrint(
+                std.testing.allocator,
+                "{{\"cursor\":null,\"maximumTerminals\":{d}}}",
+                .{fresh_page_size},
+            )
+        else
+            try std.fmt.allocPrint(
+                std.testing.allocator,
+                "{{\"cursor\":{{\"inventoryGeneration\":\"{d}\",\"offset\":\"{d}\"}},\"maximumTerminals\":{d}}}",
+                .{ fresh_generation, offset, fresh_page_size },
+            );
+        defer std.testing.allocator.free(fresh_payload);
+        var fresh_response = try testRequest(
+            &service,
+            &connection,
+            MessageKind.list_terminals,
+            .control_json,
+            fresh_payload,
+            testIdentifier(0x50, page_count),
+        );
+        defer fresh_response.deinit();
+        try std.testing.expectEqual(@as(usize, 1), fresh_response.records().len);
+        const fresh_envelope = try protocol.validateTransportEnvelope(
+            fresh_response.records()[0],
+        );
+        try std.testing.expectEqual(MessageKind.list_terminals, fresh_envelope.kind);
+        const fresh_page = try std.json.parseFromSlice(
+            TestInventoryPage,
+            std.testing.allocator,
+            fresh_envelope.payload,
+            .{ .ignore_unknown_fields = true },
+        );
+        defer fresh_page.deinit();
+        try std.testing.expectEqual(
+            fresh_generation,
+            try std.fmt.parseUnsigned(u64, fresh_page.value.inventoryGeneration, 10),
+        );
+        try std.testing.expect(fresh_page.value.terminals.len > 0);
+
+        for (fresh_page.value.terminals) |terminal| {
+            var matched_index: ?usize = null;
+            for (terminal_ids, 0..) |expected_terminal_id, index| {
+                var terminal_buffer: [32]u8 = undefined;
+                if (std.mem.eql(
+                    u8,
+                    terminal.identity.terminalId,
+                    identifierText(expected_terminal_id, &terminal_buffer),
+                )) {
+                    matched_index = index;
+                    break;
+                }
+            }
+            const index = matched_index orelse return error.TestUnexpectedResult;
+            try std.testing.expect(index != 0);
+            try std.testing.expect(!seen[index]);
+            seen[index] = true;
+            terminal_count += 1;
+        }
+
+        page_count += 1;
+        next_offset = if (fresh_page.value.nextCursor) |cursor| cursor_offset: {
+            try std.testing.expectEqual(
+                fresh_generation,
+                try std.fmt.parseUnsigned(u64, cursor.inventoryGeneration, 10),
+            );
+            const parsed_offset = try std.fmt.parseUnsigned(usize, cursor.offset, 10);
+            try std.testing.expect(parsed_offset > offset);
+            break :cursor_offset parsed_offset;
+        } else null;
+    }
+
+    try std.testing.expectEqual(@as(usize, 8), page_count);
+    try std.testing.expectEqual(inventory_count - 1, terminal_count);
+    try std.testing.expect(!seen[0]);
+    for (seen[1..]) |retained_was_seen| {
+        try std.testing.expect(retained_was_seen);
+    }
 }
 
 test "force termination rejects an invalid payload" {

@@ -4,13 +4,19 @@ EXTENDS TLC
 \* Refines runtime-model claims TH-008 and TH-009 through ChildExited,
 \* PtyDrained, WriterQuiesced, ClassifyNormalCompletion, EnterFailure,
 \* ContainmentBlocked, CleanupRetryDue, RetryContainment,
-\* ConfirmContainment, MutateVisibleState, and Dispose. Registry identity,
+\* ConfirmContainment, BeginResizeEffect, CommitResizeEffect,
+\* CompensateResizeEffect, MutateVisibleState, and Dispose. Registry identity,
 \* broker retention, and multi-runtime shutdown are intentionally owned by
 \* TerminalHostRegistry and TerminalHostShutdown so their independent state
 \* dimensions do not multiply this per-terminal lifecycle proof.
 \* visibleVersion abstracts content, generation, geometry, configuration, and
-\* revision. settledVersion captures the exact tuple published by the terminal
-\* outcome and remains immutable until explicit disposal.
+\* revision. resizeEffectInFlight exposes the production interval in which a
+\* platform resize has started but its canonical commit or compensation has
+\* not settled. Normal classification waits for that interval to close.
+\* EnterFailure is the visible-state fence: the version committed before that
+\* transition remains immutable throughout containment and after settlement.
+\* settledVersion captures the exact tuple published by the terminal outcome
+\* and remains immutable until explicit disposal.
 
 CONSTANTS Versions, InitialVersion
 
@@ -37,12 +43,15 @@ VARIABLES
   cleanupFailure,
   cleanupRetryDue,
   processResolution,
+  resizeEffectInFlight,
+  resizeTargetVersion,
   visibleVersion,
   settledVersion
 
 vars ==
   <<phase, terminationIntent, writerQuiesced, normalCompletionReady,
-    cleanupFailure, cleanupRetryDue, processResolution, visibleVersion,
+    cleanupFailure, cleanupRetryDue, processResolution,
+    resizeEffectInFlight, resizeTargetVersion, visibleVersion,
     settledVersion>>
 
 Init ==
@@ -54,6 +63,8 @@ Init ==
   /\ cleanupFailure = None
   /\ cleanupRetryDue = FALSE
   /\ processResolution = "pending"
+  /\ resizeEffectInFlight = FALSE
+  /\ resizeTargetVersion = None
   /\ visibleVersion = InitialVersion
   /\ settledVersion = None
 
@@ -67,7 +78,8 @@ ChildExited ==
                          ELSE settledVersion
   /\ UNCHANGED <<terminationIntent, writerQuiesced,
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
-                  processResolution, visibleVersion>>
+                  processResolution, resizeEffectInFlight,
+                  resizeTargetVersion, visibleVersion>>
 
 PtyDrained ==
   /\ \/ phase = "running"
@@ -79,7 +91,8 @@ PtyDrained ==
                          ELSE settledVersion
   /\ UNCHANGED <<terminationIntent, writerQuiesced,
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
-                  processResolution, visibleVersion>>
+                  processResolution, resizeEffectInFlight,
+                  resizeTargetVersion, visibleVersion>>
 
 WriterQuiesced ==
   /\ phase \in NormalPhases
@@ -87,16 +100,19 @@ WriterQuiesced ==
   /\ writerQuiesced' = TRUE
   /\ UNCHANGED <<phase, terminationIntent, normalCompletionReady,
                   cleanupFailure, cleanupRetryDue, processResolution,
-                  visibleVersion, settledVersion>>
+                  resizeEffectInFlight, resizeTargetVersion, visibleVersion,
+                  settledVersion>>
 
 ClassifyNormalCompletion ==
   /\ phase \in {"finishing_child", "finishing_output"}
   /\ writerQuiesced
   /\ ~normalCompletionReady
+  /\ ~resizeEffectInFlight
   /\ normalCompletionReady' = TRUE
   /\ UNCHANGED <<phase, terminationIntent, writerQuiesced,
                   cleanupFailure, cleanupRetryDue, processResolution,
-                  visibleVersion, settledVersion>>
+                  resizeEffectInFlight, resizeTargetVersion, visibleVersion,
+                  settledVersion>>
 
 EnterFailure ==
   /\ phase \in NormalPhases
@@ -106,7 +122,8 @@ EnterFailure ==
   /\ cleanupFailure' = None
   /\ cleanupRetryDue' = FALSE
   /\ processResolution' = "pending"
-  /\ UNCHANGED <<writerQuiesced, visibleVersion, settledVersion>>
+  /\ UNCHANGED <<writerQuiesced, resizeEffectInFlight,
+                  resizeTargetVersion, visibleVersion, settledVersion>>
 
 RequestGraceful(effectSucceeds) ==
   /\ phase \in NormalPhases
@@ -118,6 +135,7 @@ RequestGraceful(effectSucceeds) ==
        /\ terminationIntent' = "graceful"
        /\ UNCHANGED <<phase, writerQuiesced, normalCompletionReady,
                        cleanupFailure, cleanupRetryDue, processResolution,
+                       resizeEffectInFlight, resizeTargetVersion,
                        visibleVersion, settledVersion>>
      ELSE EnterFailure
 
@@ -131,6 +149,7 @@ RequestForce(effectSucceeds) ==
        /\ terminationIntent' = "force"
        /\ UNCHANGED <<phase, writerQuiesced, normalCompletionReady,
                        cleanupFailure, cleanupRetryDue, processResolution,
+                       resizeEffectInFlight, resizeTargetVersion,
                        visibleVersion, settledVersion>>
      ELSE EnterFailure
 
@@ -141,7 +160,8 @@ ContainmentBlocked(cleanup) ==
   /\ cleanupFailure' = cleanup
   /\ cleanupRetryDue' = FALSE
   /\ UNCHANGED <<terminationIntent, writerQuiesced,
-                  normalCompletionReady, processResolution, visibleVersion,
+                  normalCompletionReady, processResolution,
+                  resizeEffectInFlight, resizeTargetVersion, visibleVersion,
                   settledVersion>>
 
 CleanupRetryDue ==
@@ -150,7 +170,8 @@ CleanupRetryDue ==
   /\ cleanupRetryDue' = TRUE
   /\ UNCHANGED <<phase, terminationIntent, writerQuiesced,
                   normalCompletionReady, cleanupFailure, processResolution,
-                  visibleVersion, settledVersion>>
+                  resizeEffectInFlight, resizeTargetVersion, visibleVersion,
+                  settledVersion>>
 
 RetryContainment(succeeds, nextCleanup, observation) ==
   /\ phase = "containment_blocked"
@@ -158,13 +179,15 @@ RetryContainment(succeeds, nextCleanup, observation) ==
   /\ succeeds \in BOOLEAN
   /\ nextCleanup \in CleanupFailures
   /\ observation \in CompletedProcessResolutions
+  /\ (succeeds => ~resizeEffectInFlight)
   /\ phase' = IF succeeds THEN "failed" ELSE phase
   /\ cleanupFailure' = IF succeeds THEN None ELSE nextCleanup
   /\ cleanupRetryDue' = FALSE
   /\ processResolution' = IF succeeds THEN observation ELSE "pending"
   /\ settledVersion' = IF succeeds THEN visibleVersion ELSE None
   /\ UNCHANGED <<terminationIntent, writerQuiesced,
-                  normalCompletionReady, visibleVersion>>
+                  normalCompletionReady, resizeEffectInFlight,
+                  resizeTargetVersion, visibleVersion>>
 
 CleanupRetryAttempt ==
   \E succeeds \in BOOLEAN, nextCleanup \in CleanupFailures,
@@ -174,30 +197,67 @@ CleanupRetryAttempt ==
 ConfirmContainment(observation) ==
   /\ phase = "containing_failure"
   /\ observation \in CompletedProcessResolutions
+  /\ ~resizeEffectInFlight
   /\ phase' = "failed"
   /\ cleanupFailure' = None
   /\ cleanupRetryDue' = FALSE
   /\ processResolution' = observation
   /\ settledVersion' = visibleVersion
   /\ UNCHANGED <<terminationIntent, writerQuiesced,
-                  normalCompletionReady, visibleVersion>>
+                  normalCompletionReady, resizeEffectInFlight,
+                  resizeTargetVersion, visibleVersion>>
+
+BeginResizeEffect(nextVersion) ==
+  /\ phase \in NormalPhases
+  /\ ~normalCompletionReady
+  /\ ~resizeEffectInFlight
+  /\ nextVersion \in Versions
+  /\ nextVersion # visibleVersion
+  /\ resizeEffectInFlight' = TRUE
+  /\ resizeTargetVersion' = nextVersion
+  /\ UNCHANGED <<phase, terminationIntent, writerQuiesced,
+                  normalCompletionReady, cleanupFailure, cleanupRetryDue,
+                  processResolution, visibleVersion, settledVersion>>
+
+CommitResizeEffect ==
+  /\ resizeEffectInFlight
+  /\ phase \in NormalPhases
+  /\ ~normalCompletionReady
+  /\ visibleVersion' = resizeTargetVersion
+  /\ resizeEffectInFlight' = FALSE
+  /\ resizeTargetVersion' = None
+  /\ UNCHANGED <<phase, terminationIntent, writerQuiesced,
+                  normalCompletionReady, cleanupFailure, cleanupRetryDue,
+                  processResolution, settledVersion>>
+
+CompensateResizeEffect ==
+  /\ resizeEffectInFlight
+  /\ phase # "disposed"
+  /\ resizeEffectInFlight' = FALSE
+  /\ resizeTargetVersion' = None
+  /\ UNCHANGED <<phase, terminationIntent, writerQuiesced,
+                  normalCompletionReady, cleanupFailure, cleanupRetryDue,
+                  processResolution, visibleVersion, settledVersion>>
 
 MutateVisibleState(nextVersion) ==
-  /\ phase \notin SettledPhases \cup {"disposed"}
+  /\ phase \in NormalPhases
   /\ ~normalCompletionReady
   /\ nextVersion \in Versions
   /\ nextVersion # visibleVersion
   /\ visibleVersion' = nextVersion
   /\ UNCHANGED <<phase, terminationIntent, writerQuiesced,
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
-                  processResolution, settledVersion>>
+                  processResolution, resizeEffectInFlight,
+                  resizeTargetVersion, settledVersion>>
 
 Dispose ==
   /\ phase \in SettledPhases
+  /\ ~resizeEffectInFlight
   /\ phase' = "disposed"
   /\ UNCHANGED <<terminationIntent, writerQuiesced,
                   normalCompletionReady, cleanupFailure, cleanupRetryDue,
-                  processResolution, visibleVersion, settledVersion>>
+                  processResolution, resizeEffectInFlight,
+                  resizeTargetVersion, visibleVersion, settledVersion>>
 
 Next ==
   \/ ChildExited
@@ -212,6 +272,9 @@ Next ==
   \/ CleanupRetryAttempt
   \/ \E observation \in CompletedProcessResolutions:
        ConfirmContainment(observation)
+  \/ \E version \in Versions: BeginResizeEffect(version)
+  \/ CommitResizeEffect
+  \/ CompensateResizeEffect
   \/ \E version \in Versions: MutateVisibleState(version)
   \/ Dispose
 
@@ -229,10 +292,14 @@ TypeOK ==
   /\ cleanupFailure \in CleanupFailures \cup {None}
   /\ cleanupRetryDue \in BOOLEAN
   /\ processResolution \in ProcessResolutions
+  /\ resizeEffectInFlight \in BOOLEAN
+  /\ resizeTargetVersion \in Versions \cup {None}
   /\ visibleVersion \in Versions
   /\ settledVersion \in Versions \cup {None}
 
 LifecycleIntegrity ==
+  /\ resizeEffectInFlight <=> resizeTargetVersion # None
+  /\ resizeEffectInFlight => ~normalCompletionReady
   /\ (phase # "disposed" /\ normalCompletionReady) =>
        phase \in {"finishing_child", "finishing_output", "exited"}
   /\ phase = "running" =>
@@ -296,6 +363,10 @@ SettledStateIsFrozen ==
   [][(/\ phase \in SettledPhases
       /\ phase' \in SettledPhases) =>
        UNCHANGED <<visibleVersion, settledVersion>>]_vars
+
+FailureEntryFreezesVisibleState ==
+  [][(phase \in FailurePhases \/ phase' \in FailurePhases) =>
+       UNCHANGED visibleVersion]_vars
 
 BlockedCleanupEventuallyBecomesDue ==
   (phase = "containment_blocked" /\ ~cleanupRetryDue) ~>

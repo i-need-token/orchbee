@@ -14,6 +14,88 @@ const SelectionSnapshot = subject.SelectionSnapshot;
 const AttachmentId = subject.AttachmentId;
 const HostEpoch = subject.HostEpoch;
 
+const RecordingAllocator = struct {
+    backing: std.mem.Allocator,
+    alloc_request_count: usize = 0,
+    free_count: usize = 0,
+    max_requested: usize = 0,
+    row_window_request_count: usize = 0,
+
+    fn init(backing: std.mem.Allocator) RecordingAllocator {
+        return .{ .backing = backing };
+    }
+
+    fn allocator(self: *RecordingAllocator) std.mem.Allocator {
+        return .{ .ptr = self, .vtable = &vtable };
+    }
+
+    fn reset(self: *RecordingAllocator) void {
+        self.alloc_request_count = 0;
+        self.free_count = 0;
+        self.max_requested = 0;
+        self.row_window_request_count = 0;
+    }
+
+    fn recordRequest(self: *RecordingAllocator, len: usize) void {
+        self.max_requested = @max(self.max_requested, len);
+        if (len == protocol.Limits.row_window_bytes) self.row_window_request_count += 1;
+    }
+
+    fn alloc(
+        context: *anyopaque,
+        len: usize,
+        alignment: std.mem.Alignment,
+        return_address: usize,
+    ) ?[*]u8 {
+        const self: *RecordingAllocator = @ptrCast(@alignCast(context));
+        self.alloc_request_count += 1;
+        self.recordRequest(len);
+        return self.backing.rawAlloc(len, alignment, return_address);
+    }
+
+    fn resize(
+        context: *anyopaque,
+        memory: []u8,
+        alignment: std.mem.Alignment,
+        new_len: usize,
+        return_address: usize,
+    ) bool {
+        const self: *RecordingAllocator = @ptrCast(@alignCast(context));
+        self.recordRequest(new_len);
+        return self.backing.rawResize(memory, alignment, new_len, return_address);
+    }
+
+    fn remap(
+        context: *anyopaque,
+        memory: []u8,
+        alignment: std.mem.Alignment,
+        new_len: usize,
+        return_address: usize,
+    ) ?[*]u8 {
+        const self: *RecordingAllocator = @ptrCast(@alignCast(context));
+        self.recordRequest(new_len);
+        return self.backing.rawRemap(memory, alignment, new_len, return_address);
+    }
+
+    fn free(
+        context: *anyopaque,
+        memory: []u8,
+        alignment: std.mem.Alignment,
+        return_address: usize,
+    ) void {
+        const self: *RecordingAllocator = @ptrCast(@alignCast(context));
+        self.free_count += 1;
+        self.backing.rawFree(memory, alignment, return_address);
+    }
+
+    const vtable: std.mem.Allocator.VTable = .{
+        .alloc = alloc,
+        .resize = resize,
+        .remap = remap,
+        .free = free,
+    };
+};
+
 fn attachmentId(byte: u8) AttachmentId {
     return AttachmentId.fromBytes([_]u8{byte} ** 16);
 }
@@ -137,6 +219,258 @@ test "render row window writes directly into caller-owned storage" {
     const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, rows.bytes);
     try std.testing.expectEqual(protocol.RowWindowDetail.render, summary.detail);
     try std.testing.expectEqual(@as(u16, 1), summary.row_count);
+}
+
+test "one empty text row fits exact caller storage with one-kibibyte scratch" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 1,
+        .rows = 1,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x0a);
+    try manager.attach(attachment);
+
+    var destination: [124]u8 = undefined;
+    var scratch_storage: [1024]u8 align(@alignOf(ghostty_vt.Pin)) = undefined;
+    var scratch = std.heap.FixedBufferAllocator.init(scratch_storage[0..]);
+    const rows = try manager.readRowsInto(
+        scratch.allocator(),
+        destination[0..],
+        &terminal,
+        1,
+        1,
+        8,
+        16,
+        .{
+            .attachment_id = attachment,
+            .detail = .text,
+            .generation = 1,
+            .host_epoch = hostEpoch(1),
+            .maximum_bytes = destination.len,
+            .origin = .{ .absolute = 0 },
+            .purpose = .search,
+            .request_sequence = 1,
+            .revision = 1,
+            .row_count = 1,
+        },
+    );
+
+    try std.testing.expect(rows.bytes.ptr == destination[0..].ptr);
+    try std.testing.expectEqual(@as(usize, 124), rows.bytes.len);
+    const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, rows.bytes);
+    try std.testing.expectEqual(protocol.RowWindowDetail.text, summary.detail);
+    try std.testing.expectEqual(@as(u16, 1), summary.columns);
+    try std.testing.expectEqual(@as(u16, 1), summary.row_count);
+    try std.testing.expectEqual(@as(u32, 0), summary.entry_count);
+}
+
+test "empty text row scratch is exactly bounded by requested pin storage" {
+    const maximum_rows: u16 = protocol.Limits.row_window_rows;
+    const maximum_serialized_bytes = protocol.terminal_row_window_header_bytes +
+        @as(usize, maximum_rows) * 12;
+    const maximum_pin_storage_bytes = @sizeOf(ghostty_vt.Pin) * @as(usize, maximum_rows);
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 1,
+        .max_scrollback = 10_000_000,
+        .rows = 1,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    while (terminal.screens.active.pages.total_rows < maximum_rows) {
+        try terminal.printString("\n");
+    }
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x0b);
+    try manager.attach(attachment);
+    var destination: [maximum_serialized_bytes]u8 = undefined;
+    var scratch_storage: [maximum_pin_storage_bytes]u8 align(@alignOf(ghostty_vt.Pin)) = undefined;
+
+    for ([_]u16{ 1, maximum_rows }, 1..) |row_count, request_sequence| {
+        const pin_storage_bytes = @sizeOf(ghostty_vt.Pin) * @as(usize, row_count);
+        var fixed = std.heap.FixedBufferAllocator.init(scratch_storage[0..pin_storage_bytes]);
+        var recording = RecordingAllocator.init(fixed.allocator());
+        recording.reset();
+        const rows = try manager.readRowsInto(
+            recording.allocator(),
+            destination[0..],
+            &terminal,
+            1,
+            1,
+            8,
+            16,
+            .{
+                .attachment_id = attachment,
+                .detail = .text,
+                .generation = 1,
+                .host_epoch = hostEpoch(1),
+                .maximum_bytes = destination.len,
+                .origin = .{ .absolute = 0 },
+                .purpose = .search,
+                .request_sequence = @intCast(request_sequence),
+                .revision = 1,
+                .row_count = row_count,
+            },
+        );
+
+        const expected_length = protocol.terminal_row_window_header_bytes +
+            @as(usize, row_count) * 12;
+        try std.testing.expectEqual(expected_length, rows.bytes.len);
+        try std.testing.expect(rows.bytes.len <= protocol.Limits.row_window_bytes);
+        const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, rows.bytes);
+        try std.testing.expectEqual(row_count, summary.row_count);
+        try std.testing.expectEqual(pin_storage_bytes, recording.max_requested);
+        try std.testing.expectEqual(@as(usize, 1), recording.alloc_request_count);
+        try std.testing.expectEqual(@as(usize, 1), recording.free_count);
+        try std.testing.expectEqual(@as(usize, 0), recording.row_window_request_count);
+        try std.testing.expect(recording.max_requested < protocol.Limits.row_window_bytes / 8);
+    }
+}
+
+test "failed row encoding releases pin storage before request state can commit" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 1,
+        .rows = 1,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x0c);
+    try manager.attach(attachment);
+    var destination: [protocol.terminal_row_window_header_bytes]u8 = undefined;
+    var recording = RecordingAllocator.init(std.testing.allocator);
+
+    try std.testing.expectError(
+        error.ProjectionTooLarge,
+        manager.readRowsInto(
+            recording.allocator(),
+            destination[0..],
+            &terminal,
+            1,
+            1,
+            8,
+            16,
+            .{
+                .attachment_id = attachment,
+                .detail = .text,
+                .generation = 1,
+                .host_epoch = hostEpoch(1),
+                .maximum_bytes = destination.len,
+                .origin = .{ .absolute = 0 },
+                .purpose = .viewport,
+                .request_sequence = 1,
+                .revision = 1,
+                .row_count = 1,
+            },
+        ),
+    );
+    try std.testing.expectEqual(@sizeOf(ghostty_vt.Pin), recording.max_requested);
+    try std.testing.expectEqual(@as(usize, 1), recording.alloc_request_count);
+    try std.testing.expectEqual(@as(usize, 1), recording.free_count);
+    try std.testing.expectEqual(@as(usize, 0), recording.row_window_request_count);
+    const state = findState(&manager, attachment).?;
+    try std.testing.expectEqual(@as(u64, 0), state.last_row_request_sequence);
+    try std.testing.expect(state.pending == null);
+}
+
+test "render row pixel height rejects before consuming viewport request state" {
+    const valid_row_count: u16 = 3_640;
+    const invalid_row_count: u16 = valid_row_count + 1;
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .max_scrollback = 10_000_000,
+        .rows = 1,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    while (terminal.screens.active.pages.total_rows < invalid_row_count) {
+        try terminal.printString("\n");
+    }
+    try std.testing.expectEqual(
+        @as(usize, invalid_row_count),
+        terminal.screens.active.pages.total_rows,
+    );
+
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(10);
+    try manager.attach(attachment);
+    const valid = try manager.readRows(
+        std.testing.allocator,
+        &terminal,
+        1,
+        1,
+        8,
+        18,
+        .{
+            .attachment_id = attachment,
+            .detail = .render,
+            .generation = 1,
+            .host_epoch = hostEpoch(1),
+            .maximum_bytes = max_row_window_bytes,
+            .origin = .{ .absolute = 0 },
+            .purpose = .search,
+            .request_sequence = 1,
+            .revision = 1,
+            .row_count = valid_row_count,
+        },
+    );
+    defer std.testing.allocator.free(valid.bytes);
+    const valid_summary = try protocol.validateTerminalRowWindow(
+        std.testing.allocator,
+        valid.bytes,
+    );
+    try std.testing.expectEqual(valid_row_count, valid_summary.row_count);
+
+    const destination = try std.testing.allocator.alloc(u8, max_row_window_bytes);
+    defer std.testing.allocator.free(destination);
+    var viewport_request: subject.ReadRequest = .{
+        .attachment_id = attachment,
+        .detail = .render,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = max_row_window_bytes,
+        .origin = .{ .absolute = 0 },
+        .purpose = .viewport,
+        .request_sequence = 2,
+        .revision = 1,
+        .row_count = invalid_row_count,
+    };
+    try std.testing.expectError(
+        error.ProjectionTooLarge,
+        manager.readRowsInto(
+            std.testing.allocator,
+            destination,
+            &terminal,
+            1,
+            1,
+            8,
+            18,
+            viewport_request,
+        ),
+    );
+    const state_after_rejection = findState(&manager, attachment).?;
+    try std.testing.expectEqual(@as(u64, 1), state_after_rejection.last_row_request_sequence);
+    try std.testing.expect(state_after_rejection.pending == null);
+
+    viewport_request.row_count = valid_row_count;
+    const retried = try manager.readRowsInto(
+        std.testing.allocator,
+        destination,
+        &terminal,
+        1,
+        1,
+        8,
+        18,
+        viewport_request,
+    );
+    const retried_summary = try protocol.validateTerminalRowWindow(
+        std.testing.allocator,
+        retried.bytes,
+    );
+    try std.testing.expectEqual(valid_row_count, retried_summary.row_count);
+    try std.testing.expectEqual(@as(u64, 2), retried_summary.sequence);
+    try manager.rowsApplied(&terminal, attachment, 2, 1, 1);
 }
 
 test "text row encoding preserves ordinary ASCII identity" {

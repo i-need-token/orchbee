@@ -333,6 +333,95 @@ test "attachment routing and terminal disposal are exact across registries" {
     try std.testing.expect(core.findAttachment(second_attachment) != null);
 }
 
+test "large inventory disposal swap-removes both indexes and advances one generation per terminal" {
+    const inventory_count = 192;
+    var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
+    defer core.deinit();
+    const connection: ConnectionId = 2;
+    _ = try core.connect(connection, testId(ClientId, 3));
+
+    var creation_ids: [inventory_count]CreationId = undefined;
+    var terminal_ids: [inventory_count]TerminalId = undefined;
+    for (&creation_ids, &terminal_ids, 0..) |*creation_id, *terminal_id, index| {
+        const identity_byte: u8 = @intCast(index + 1);
+        creation_id.* = testId(CreationId, identity_byte);
+        terminal_id.* = testId(TerminalId, identity_byte);
+        try std.testing.expectEqual(
+            .applied,
+            try core.createTerminal(
+                connection,
+                creation_id.*,
+                terminal_id.*,
+                [_]u8{identity_byte} ** 32,
+                80,
+                24,
+            ),
+        );
+        _ = try core.childExited(terminal_id.*, .{ .exit_code = @intCast(index) });
+        _ = try core.ptyDrained(terminal_id.*);
+    }
+    try expectCoreInvariants(&core);
+
+    const former_final_creation = creation_ids[inventory_count - 1];
+    const former_final_terminal = terminal_ids[inventory_count - 1];
+    for (creation_ids, terminal_ids, 0..) |creation_id, terminal_id, removed_index| {
+        const generation_before = core.inventoryGeneration();
+        try std.testing.expectEqual(
+            .applied,
+            try core.disposeTerminal(connection, terminal_id),
+        );
+        const generation_after = core.inventoryGeneration();
+        try std.testing.expectEqual(generation_before + 1, generation_after);
+        try std.testing.expectEqual(inventory_count - removed_index - 1, core.terminalCount());
+        try std.testing.expectEqual(
+            inventory_count - removed_index - 1,
+            subject.testing.creationCount(&core),
+        );
+        try std.testing.expect(core.findTerminal(terminal_id) == null);
+        try std.testing.expect(!subject.testing.containsCreation(&core, creation_id));
+        try std.testing.expect(subject.testing.creationTerminal(&core, creation_id) == null);
+
+        if (removed_index == 0) {
+            try std.testing.expectEqual(
+                former_final_terminal.bytes,
+                core.terminalKeys()[0].bytes,
+            );
+            try std.testing.expectEqual(
+                former_final_terminal.bytes,
+                core.terminalValues()[0].terminal_id.bytes,
+            );
+            try std.testing.expectEqual(
+                former_final_creation.bytes,
+                subject.testing.creationKeys(&core)[0].bytes,
+            );
+            try std.testing.expectEqual(
+                former_final_terminal.bytes,
+                subject.testing.creationValues(&core)[0].bytes,
+            );
+        }
+
+        for (creation_ids[0 .. removed_index + 1], terminal_ids[0 .. removed_index + 1]) |removed_creation_id, removed_terminal_id| {
+            try std.testing.expect(core.findTerminal(removed_terminal_id) == null);
+            try std.testing.expect(!subject.testing.containsCreation(&core, removed_creation_id));
+        }
+        for (creation_ids[removed_index + 1 ..], terminal_ids[removed_index + 1 ..]) |retained_creation_id, retained_terminal_id| {
+            try std.testing.expect(core.findTerminal(retained_terminal_id) != null);
+            const bound_terminal_id = subject.testing.creationTerminal(
+                &core,
+                retained_creation_id,
+            ) orelse return error.TestUnexpectedResult;
+            try std.testing.expect(bound_terminal_id.eql(retained_terminal_id));
+        }
+        try expectCoreInvariants(&core);
+
+        try std.testing.expectEqual(
+            .idempotent,
+            try core.disposeTerminal(connection, terminal_id),
+        );
+        try std.testing.expectEqual(generation_after, core.inventoryGeneration());
+    }
+}
+
 test "inventory generation exhaustion leaves membership unchanged" {
     var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
     defer core.deinit();

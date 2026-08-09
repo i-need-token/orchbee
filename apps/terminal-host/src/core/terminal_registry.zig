@@ -114,8 +114,10 @@ pub const Registry = struct {
     }
 
     /// Removes a retained session and its creation binding as one infallible
-    /// commit. Inventory generation is intentionally unchanged during fatal
-    /// Host teardown because no later inventory can be observed.
+    /// commit. Observable removal may swap the final index slots into the
+    /// removed positions before advancing the inventory generation. Inventory
+    /// generation is intentionally unchanged during fatal Host teardown
+    /// because no later inventory can be observed.
     pub fn removeAssumePresent(
         self: *Registry,
         terminal_id: TerminalId,
@@ -127,8 +129,8 @@ pub const Registry = struct {
         if (update_inventory_generation) {
             std.debug.assert(self.inventory_generation != std.math.maxInt(u64));
         }
-        _ = self.creations.orderedRemove(terminal.creation_id);
-        _ = self.terminals.orderedRemove(terminal_id);
+        _ = self.creations.swapRemove(terminal.creation_id);
+        _ = self.terminals.swapRemove(terminal_id);
         if (update_inventory_generation) self.inventory_generation += 1;
         return terminal;
     }

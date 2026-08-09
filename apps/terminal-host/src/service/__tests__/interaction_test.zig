@@ -8,20 +8,111 @@ const service_boundary = @import("terminal-host-service");
 
 const core_module = core_boundary.state;
 const control_encode = control_boundary.encode;
+const control_wire = control_boundary.wire;
 const host_outgoing = service_boundary.testing.outgoing;
 const host_runtime_aggregate = service_boundary.testing.runtime_aggregate;
 const subject = service_boundary.testing.interaction;
+const service_subject = service_boundary.service;
 const terminal_launch = engine_boundary.launch;
 const terminal_runtime = engine_boundary.runtime;
 
 const features = [_]u16{22};
 const palette = [_]u32{0} ** 256;
 
+const RecordingAllocator = struct {
+    backing: std.mem.Allocator,
+    alloc_request_count: usize = 0,
+    max_requested: usize = 0,
+    row_window_request_count: usize = 0,
+
+    fn init(backing: std.mem.Allocator) RecordingAllocator {
+        return .{ .backing = backing };
+    }
+
+    fn allocator(self: *RecordingAllocator) std.mem.Allocator {
+        return .{ .ptr = self, .vtable = &vtable };
+    }
+
+    fn reset(self: *RecordingAllocator) void {
+        self.alloc_request_count = 0;
+        self.max_requested = 0;
+        self.row_window_request_count = 0;
+    }
+
+    fn recordRequest(self: *RecordingAllocator, len: usize) void {
+        self.max_requested = @max(self.max_requested, len);
+        if (len == protocol.Limits.row_window_bytes) self.row_window_request_count += 1;
+    }
+
+    fn alloc(
+        context: *anyopaque,
+        len: usize,
+        alignment: std.mem.Alignment,
+        return_address: usize,
+    ) ?[*]u8 {
+        const self: *RecordingAllocator = @ptrCast(@alignCast(context));
+        self.alloc_request_count += 1;
+        self.recordRequest(len);
+        return self.backing.rawAlloc(len, alignment, return_address);
+    }
+
+    fn resize(
+        context: *anyopaque,
+        memory: []u8,
+        alignment: std.mem.Alignment,
+        new_len: usize,
+        return_address: usize,
+    ) bool {
+        const self: *RecordingAllocator = @ptrCast(@alignCast(context));
+        self.recordRequest(new_len);
+        return self.backing.rawResize(memory, alignment, new_len, return_address);
+    }
+
+    fn remap(
+        context: *anyopaque,
+        memory: []u8,
+        alignment: std.mem.Alignment,
+        new_len: usize,
+        return_address: usize,
+    ) ?[*]u8 {
+        const self: *RecordingAllocator = @ptrCast(@alignCast(context));
+        self.recordRequest(new_len);
+        return self.backing.rawRemap(memory, alignment, new_len, return_address);
+    }
+
+    fn free(
+        context: *anyopaque,
+        memory: []u8,
+        alignment: std.mem.Alignment,
+        return_address: usize,
+    ) void {
+        const self: *RecordingAllocator = @ptrCast(@alignCast(context));
+        self.backing.rawFree(memory, alignment, return_address);
+    }
+
+    const vtable: std.mem.Allocator.VTable = .{
+        .alloc = alloc,
+        .resize = resize,
+        .remap = remap,
+        .free = free,
+    };
+};
+
 fn testId(comptime Id: type, byte: u8) Id {
     return Id.fromBytes([_]u8{byte} ** 16);
 }
 
 fn testLaunch(arguments: []const []const u8) terminal_launch.Launch {
+    return testLaunchWithGeometry(arguments, 80, 24, 8, 16);
+}
+
+fn testLaunchWithGeometry(
+    arguments: []const []const u8,
+    columns: u16,
+    rows: u16,
+    cell_pixel_width: u16,
+    cell_pixel_height: u16,
+) terminal_launch.Launch {
     return .{
         .arguments = arguments,
         .configuration = null,
@@ -29,10 +120,10 @@ fn testLaunch(arguments: []const []const u8) terminal_launch.Launch {
         .environment = &.{},
         .executable = "/bin/sh",
         .geometry = .{
-            .cell_pixel_height = 16,
-            .cell_pixel_width = 8,
-            .columns = 80,
-            .rows = 24,
+            .cell_pixel_height = cell_pixel_height,
+            .cell_pixel_width = cell_pixel_width,
+            .columns = columns,
+            .rows = rows,
         },
         .profile = .{
             .color_scheme = .dark,
@@ -61,10 +152,36 @@ fn createReadableRuntime(
     connection_id: core_module.ConnectionId,
     attachment_id: core_module.AttachmentId,
 ) !TestRuntime {
+    return createReadableRuntimeWithGeometry(
+        aggregate,
+        connection_id,
+        attachment_id,
+        80,
+        24,
+        8,
+        16,
+    );
+}
+
+fn createReadableRuntimeWithGeometry(
+    aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
+    connection_id: core_module.ConnectionId,
+    attachment_id: core_module.AttachmentId,
+    columns: u16,
+    rows: u16,
+    cell_pixel_width: u16,
+    cell_pixel_height: u16,
+) !TestRuntime {
     const arguments = [_][]const u8{ "-c", "read value" };
     const validated = try terminal_launch.inspect(
         std.testing.allocator,
-        testLaunch(&arguments),
+        testLaunchWithGeometry(
+            &arguments,
+            columns,
+            rows,
+            cell_pixel_width,
+            cell_pixel_height,
+        ),
     );
     _ = try aggregate.core().connect(
         connection_id,
@@ -89,6 +206,55 @@ fn createReadableRuntime(
     return .{
         .runtime = aggregate.runtimeFor(terminal_id).?,
     };
+}
+
+fn retainRows(runtime: *terminal_runtime.TerminalRuntime, row_count: usize) !void {
+    runtime.terminal_mutex.lock();
+    defer runtime.terminal_mutex.unlock();
+    while (runtime.terminal.screens.active.pages.total_rows < row_count) {
+        try runtime.terminal.printString("\n");
+    }
+    try std.testing.expectEqual(
+        row_count,
+        runtime.terminal.screens.active.pages.total_rows,
+    );
+}
+
+fn requestRenderRows(
+    service: *service_subject.HostService,
+    connection: *service_subject.ConnectionState,
+    attachment_id: core_module.AttachmentId,
+    geometry: terminal_runtime.Geometry,
+    request_sequence: u64,
+    row_count: u16,
+    correlation_byte: u8,
+) !host_outgoing.Outgoing {
+    var attachment_buffer: [32]u8 = undefined;
+    const payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"render\",\"generation\":\"{d}\",\"maximumBytes\":{d},\"origin\":{{\"kind\":\"absolute\",\"row\":\"0\"}},\"purpose\":\"viewport\",\"requestSequence\":\"{d}\",\"revision\":\"{d}\",\"rowCount\":{d}}}",
+        .{
+            control_encode.identifierText(attachment_id, &attachment_buffer),
+            geometry.generation,
+            protocol.Limits.row_window_bytes,
+            request_sequence,
+            geometry.revision,
+            row_count,
+        },
+    );
+    defer std.testing.allocator.free(payload);
+    const record = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        protocol.MessageKind.read_rows,
+        .control_json,
+        payload,
+        [_]u8{correlation_byte} ** 16,
+        service.runtime_aggregate.core().epoch.bytes,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(record);
+    return service.handle(connection, record);
 }
 
 fn fillOutgoingLeaving(
@@ -222,6 +388,157 @@ test "readable capability binds identity and provisional export rollback restore
     retried.commit();
     retried.deinit();
     _ = try interaction.cancelSelectionExport(7);
+}
+
+test "read rows service boundary maps oversized render geometry to limit exceeded" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const valid_row_count: u16 = 3_640;
+    const invalid_row_count: u16 = valid_row_count + 1;
+    var service = service_subject.HostService.init(std.testing.allocator);
+    var connection: service_subject.ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    const connection_id: core_module.ConnectionId = 1;
+    const attachment_id = testId(core_module.AttachmentId, 0x3a);
+    const binding = try createReadableRuntimeWithGeometry(
+        &service.runtime_aggregate,
+        connection_id,
+        attachment_id,
+        8,
+        24,
+        8,
+        18,
+    );
+    connection = .{ .active = .{
+        .connection_id = connection_id,
+        .limits = .{
+            .frame_bytes = protocol.Limits.frame_bytes,
+            .input_bytes = protocol.Limits.input_bytes,
+            .row_window_bytes = protocol.Limits.row_window_bytes,
+        },
+    } };
+    try retainRows(binding.runtime, invalid_row_count);
+    const geometry = binding.runtime.geometry();
+
+    var oversized = try requestRenderRows(
+        &service,
+        &connection,
+        attachment_id,
+        geometry,
+        1,
+        invalid_row_count,
+        0x41,
+    );
+    defer oversized.deinit();
+    try std.testing.expectEqual(@as(usize, 1), oversized.records().len);
+    const failure_envelope = try protocol.validateTransportEnvelope(oversized.records()[0]);
+    try std.testing.expectEqual(protocol.MessageKind.typed_failure, failure_envelope.kind);
+    const Failure = struct {
+        code: []const u8,
+        message: []const u8,
+        retryable: bool,
+    };
+    const failure = try control_wire.decode(
+        Failure,
+        std.testing.allocator,
+        failure_envelope.payload,
+    );
+    defer failure.deinit();
+    try std.testing.expectEqualStrings("limit-exceeded", failure.value.code);
+
+    var adjacent = try requestRenderRows(
+        &service,
+        &connection,
+        attachment_id,
+        geometry,
+        1,
+        valid_row_count,
+        0x42,
+    );
+    defer adjacent.deinit();
+    try std.testing.expectEqual(@as(usize, 1), adjacent.records().len);
+    const rows_envelope = try protocol.validateTransportEnvelope(adjacent.records()[0]);
+    try std.testing.expectEqual(protocol.MessageKind.rows_snapshot, rows_envelope.kind);
+    const summary = try protocol.validateTerminalRowWindow(
+        std.testing.allocator,
+        rows_envelope.payload,
+    );
+    try std.testing.expectEqual(valid_row_count, summary.row_count);
+    try std.testing.expectEqual(@as(u64, 1), summary.sequence);
+}
+
+test "read rows service boundary uses bounded scratch for an exact empty text row" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var recording = RecordingAllocator.init(std.testing.allocator);
+    var service = service_subject.HostService.init(recording.allocator());
+    var connection: service_subject.ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    const connection_id: core_module.ConnectionId = 1;
+    const attachment_id = testId(core_module.AttachmentId, 0x3b);
+    const binding = try createReadableRuntimeWithGeometry(
+        &service.runtime_aggregate,
+        connection_id,
+        attachment_id,
+        1,
+        1,
+        8,
+        16,
+    );
+    connection = .{ .active = .{
+        .connection_id = connection_id,
+        .limits = .{
+            .frame_bytes = protocol.Limits.frame_bytes,
+            .input_bytes = protocol.Limits.input_bytes,
+            .row_window_bytes = protocol.Limits.row_window_bytes,
+        },
+    } };
+    const geometry = binding.runtime.geometry();
+    var attachment_buffer: [32]u8 = undefined;
+    const payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"{d}\",\"maximumBytes\":124,\"origin\":{{\"kind\":\"absolute\",\"row\":\"0\"}},\"purpose\":\"search\",\"requestSequence\":\"1\",\"revision\":\"{d}\",\"rowCount\":1}}",
+        .{
+            control_encode.identifierText(attachment_id, &attachment_buffer),
+            geometry.generation,
+            geometry.revision,
+        },
+    );
+    defer std.testing.allocator.free(payload);
+    const record = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        protocol.MessageKind.read_rows,
+        .control_json,
+        payload,
+        [_]u8{0x43} ** 16,
+        service.runtime_aggregate.core().epoch.bytes,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(record);
+
+    recording.reset();
+    var outgoing = try service.handle(&connection, record);
+    defer outgoing.deinit();
+
+    try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
+    const envelope = try protocol.validateTransportEnvelope(outgoing.records()[0]);
+    try std.testing.expectEqual(protocol.MessageKind.rows_snapshot, envelope.kind);
+    try std.testing.expectEqual(@as(usize, 124), envelope.payload.len);
+    const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, envelope.payload);
+    try std.testing.expectEqual(protocol.RowWindowDetail.text, summary.detail);
+    try std.testing.expectEqual(@as(u16, 1), summary.columns);
+    try std.testing.expectEqual(@as(u16, 1), summary.row_count);
+    try std.testing.expectEqual(@as(u32, 0), summary.entry_count);
+    try std.testing.expect(recording.alloc_request_count > 0);
+    try std.testing.expectEqual(@as(usize, 0), recording.row_window_request_count);
+    try std.testing.expect(recording.max_requested < protocol.Limits.row_window_bytes);
 }
 
 test "batch full commits the interaction prefix and retries the current attachment" {

@@ -10,6 +10,7 @@ const terminal_launch = engine_boundary.launch;
 const terminal_runtime = engine_boundary.runtime;
 
 const fenceResizeFailure = terminal_runtime.testing.fenceResizeFailure;
+const recordReaderFailure = terminal_runtime.testing.recordReaderFailureFn;
 const recordUnsafeResizeFailure = subject.testing.recordUnsafeResizeFailureFn;
 
 const features = [_]u16{22};
@@ -231,6 +232,312 @@ test "missing runtime enters retryable worker-integrity containment" {
         .stopping => return error.TestUnexpectedResult,
     }
     _ = aggregate.disconnect(connection_id);
+}
+
+test "termination dispatch failure fences input before Core publication and cleanup retry" {
+    const builtin = @import("builtin");
+    const FailingDispatcher = struct {
+        calls: usize = 0,
+
+        pub fn dispatch(
+            self: *@This(),
+            _: *terminal_runtime.TerminalRuntime,
+            _: subject.TerminationMode,
+        ) !void {
+            self.calls += 1;
+            return error.InjectedTerminationDispatchFailure;
+        }
+    };
+    const ObservingFailureFencer = struct {
+        calls: usize = 0,
+        core: *core_module.HostCore,
+        core_failure_unpublished_before_fence: bool = false,
+        fence_closed_before_return: bool = false,
+        result: ?terminal_runtime.HostFailureFenceResult = null,
+        terminal_id: core_module.TerminalId,
+
+        pub fn fence(
+            self: *@This(),
+            runtime: *terminal_runtime.TerminalRuntime,
+        ) terminal_runtime.HostFailureFenceResult {
+            self.calls += 1;
+            const terminal = self.core.findTerminal(self.terminal_id) orelse unreachable;
+            self.core_failure_unpublished_before_fence = terminal.runtimeFailure() == null;
+            const result = runtime.fenceHostFailure();
+            self.result = result;
+            self.fence_closed_before_return = terminal_runtime.testing.failureFenced(runtime);
+            return result;
+        }
+    };
+    const ScriptedContainment = struct {
+        calls: usize = 0,
+        core_failure_visible_after_fence: bool = false,
+        prepared_input_rejected: bool = false,
+        preparation: *input_admission.Preparation,
+        retry_kept_fence_closed: bool = false,
+
+        pub fn contain(
+            self: *@This(),
+            core: *core_module.HostCore,
+            terminal_id: core_module.TerminalId,
+            runtime: *terminal_runtime.TerminalRuntime,
+        ) !void {
+            self.calls += 1;
+            const terminal = core.findTerminal(terminal_id) orelse unreachable;
+            if (self.calls == 1) {
+                self.core_failure_visible_after_fence =
+                    terminal_runtime.testing.failureFenced(runtime) and
+                    terminal.phase() == .containing_failure and
+                    terminal.runtimeFailure().?.stage() == .dispatch_termination;
+                self.prepared_input_rejected = switch (self.preparation.commit()) {
+                    .runtime_rejected => |rejection| rejection == .terminal_runtime_unavailable,
+                    else => false,
+                };
+                _ = core.failureContainmentBlocked(
+                    terminal_id,
+                    .release_output,
+                    0,
+                ) catch unreachable;
+                return error.InjectedOutputReleaseFailure;
+            }
+
+            self.retry_kept_fence_closed = terminal_runtime.testing.failureFenced(runtime);
+            _ = core.synchronizeRevision(
+                terminal_id,
+                runtime.completion().final_revision,
+            ) catch unreachable;
+            _ = core.failureContained(
+                terminal_id,
+                .{ .unavailable = .observe_process },
+            ) catch unreachable;
+        }
+    };
+
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const creation_id = testId(core_module.CreationId, 0x75);
+    const attachment_id = testId(core_module.AttachmentId, 0x76);
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x74),
+    );
+    var launch = validMissingExecutableLaunch();
+    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const windows_arguments = [_][]const u8{
+        "/D",
+        "/S",
+        "/C",
+        "more",
+    };
+    launch.executable = if (windows_executable) |value| value else "/bin/cat";
+    launch.arguments = if (builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &.{};
+    const validated = try terminal_launch.inspect(std.testing.allocator, launch);
+    var create_preparation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        creation_id,
+        validated,
+        .{},
+    );
+    defer create_preparation.deinit();
+    const created = try aggregate.commitPreparedTerminal(&create_preparation);
+    const terminal_id = switch (created) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    _ = try aggregate.attach(
+        connection_id,
+        attachment_id,
+        terminal_id,
+        .{ .input = true, .read = false, .resize = false },
+        false,
+    );
+    const runtime = aggregate.runtimeFor(terminal_id).?;
+    var input_preparation = aggregate.prepareRawInput(
+        connection_id,
+        attachment_id,
+        "prepared-before-dispatch",
+    );
+    defer input_preparation.deinit();
+    try std.testing.expect(input_preparation.accepted() != null);
+
+    var dispatcher: FailingDispatcher = .{};
+    var failure_fencer: ObservingFailureFencer = .{
+        .core = aggregate.core(),
+        .terminal_id = terminal_id,
+    };
+    var containment: ScriptedContainment = .{ .preparation = &input_preparation };
+    const requestTerminationUsing = subject.testing.requestTerminationUsingFn;
+    try std.testing.expectError(
+        error.TerminationDispatchFailed,
+        requestTerminationUsing(
+            &aggregate,
+            connection_id,
+            terminal_id,
+            .graceful,
+            &dispatcher,
+            &failure_fencer,
+            &containment,
+        ),
+    );
+
+    try std.testing.expect(failure_fencer.core_failure_unpublished_before_fence);
+    try std.testing.expect(failure_fencer.fence_closed_before_return);
+    switch (failure_fencer.result.?) {
+        .host_won => {},
+        .engine_won => return error.ExpectedHostFenceWinner,
+    }
+    try std.testing.expect(containment.core_failure_visible_after_fence);
+    try std.testing.expect(containment.prepared_input_rejected);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    const blocked = aggregate.core().findTerminal(terminal_id).?.failureContainment() orelse
+        return error.ExpectedBlockedContainment;
+    switch (blocked) {
+        .blocked => |state| try std.testing.expectEqual(
+            core_module.RuntimeCleanupFailure.release_output,
+            state.cleanup_failure,
+        ),
+        .stopping => return error.ExpectedBlockedContainment,
+    }
+    try std.testing.expectError(
+        error.TerminalRuntimeUnavailable,
+        runtime.prepareRawInput("closed"),
+    );
+
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.applied,
+        try requestTerminationUsing(
+            &aggregate,
+            connection_id,
+            terminal_id,
+            .force,
+            &dispatcher,
+            &failure_fencer,
+            &containment,
+        ),
+    );
+    try std.testing.expect(containment.retry_kept_fence_closed);
+    try std.testing.expectEqual(@as(usize, 1), dispatcher.calls);
+    try std.testing.expectEqual(@as(usize, 1), failure_fencer.calls);
+    try std.testing.expectEqual(@as(usize, 2), containment.calls);
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.failed,
+        aggregate.core().findTerminal(terminal_id).?.phase(),
+    );
+    try std.testing.expectError(
+        error.TerminalRuntimeUnavailable,
+        runtime.prepareRawInput("still-closed"),
+    );
+}
+
+test "engine failure between dispatch and Host fencing remains the Core primary cause" {
+    const builtin = @import("builtin");
+    const FailingDispatcher = struct {
+        pub fn dispatch(
+            _: *@This(),
+            _: *terminal_runtime.TerminalRuntime,
+            _: subject.TerminationMode,
+        ) !void {
+            return error.InjectedTerminationDispatchFailure;
+        }
+    };
+    const EngineWinningFencer = struct {
+        result: ?terminal_runtime.HostFailureFenceResult = null,
+
+        pub fn fence(
+            self: *@This(),
+            runtime: *terminal_runtime.TerminalRuntime,
+        ) terminal_runtime.HostFailureFenceResult {
+            // This capability is the exact synchronization seam after the
+            // failed dispatch and before the Host attempts its bounded fence.
+            recordReaderFailure(runtime);
+            const result = runtime.fenceHostFailure();
+            self.result = result;
+            return result;
+        }
+    };
+    const ObservingContainment = struct {
+        calls: usize = 0,
+        retained_engine_cause: bool = false,
+
+        pub fn contain(
+            self: *@This(),
+            core: *core_module.HostCore,
+            terminal_id: core_module.TerminalId,
+            _: *terminal_runtime.TerminalRuntime,
+        ) !void {
+            self.calls += 1;
+            const failure = core.findTerminal(terminal_id).?.runtimeFailure().?;
+            self.retained_engine_cause = failure.kind() == .pty_read and
+                failure.stage() == .read_output;
+            return error.InjectedContainmentObservationStop;
+        }
+    };
+
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x78),
+    );
+    var launch = validMissingExecutableLaunch();
+    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "more" };
+    launch.executable = if (windows_executable) |value| value else "/bin/cat";
+    launch.arguments = if (builtin.os.tag == .windows) &windows_arguments else &.{};
+    const validated = try terminal_launch.inspect(std.testing.allocator, launch);
+    var creation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x79),
+        validated,
+        .{},
+    );
+    defer creation.deinit();
+    const terminal_id = switch (try aggregate.commitPreparedTerminal(&creation)) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+
+    var dispatcher: FailingDispatcher = .{};
+    var fencer: EngineWinningFencer = .{};
+    var containment: ObservingContainment = .{};
+    try std.testing.expectError(
+        error.TerminationDispatchFailed,
+        subject.testing.requestTerminationUsingFn(
+            &aggregate,
+            connection_id,
+            terminal_id,
+            .force,
+            &dispatcher,
+            &fencer,
+            &containment,
+        ),
+    );
+
+    switch (fencer.result.?) {
+        .engine_won => |failure| try std.testing.expectEqual(
+            terminal_runtime.RuntimeFailureKind.pty_read,
+            failure,
+        ),
+        .host_won => return error.ExpectedEngineFenceWinner,
+    }
+    try std.testing.expect(containment.retained_engine_cause);
+    try std.testing.expectEqual(@as(usize, 1), containment.calls);
+    const retained = aggregate.core().findTerminal(terminal_id).?.runtimeFailure().?;
+    try std.testing.expectEqual(core_module.RuntimeFailureKind.pty_read, retained.kind());
+    try std.testing.expectEqual(core_module.RuntimeFailureStage.read_output, retained.stage());
 }
 
 test "runtime completion synchronization emits one typed exit notice" {
