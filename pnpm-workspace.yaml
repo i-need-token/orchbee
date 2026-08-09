@@ -5,6 +5,9 @@ packages:
 catalogs:
   default:
     '@base-ui/react': ^1.6.0
+    '@electron/packager': ^20.2.0
+    '@fastify/static': ^10.1.3
+    '@fastify/websocket': ^11.3.0
     '@rslib/core': ^0.23.2
     '@rsbuild/core': ^2.1.6
     '@rsbuild/plugin-react': ^2.1.0
@@ -12,6 +15,7 @@ catalogs:
     '@rsbuild/plugin-tailwindcss': ^2.0.3
     '@storybook/addon-a11y': ^10.5.0
     '@storybook/addon-docs': ^10.5.0
+    '@tanstack/react-router': ^1.170.23
     '@types/react': ^19.2.17
     '@types/react-dom': ^19.2.3
     '@types/node': ^26.1.0
@@ -19,6 +23,7 @@ catalogs:
     '@vscode/codicons': 0.0.45
     class-variance-authority: ^0.7.1
     clsx: ^2.1.1
+    fastify: ^5.11.3
     knip: ^6.26.0
     lucide-react: ^1.24.0
     oxc-parser: ^0.137.0
