@@ -80,6 +80,32 @@ describe('LocalDevelopmentBrowserGateway', () => {
 
 		expect(opened.connectionId).toMatch(/^gateway:client:[0-9a-f]{32}$/u);
 	});
+
+	it('terminates an attachment still awaiting authentication when stopping', async () => {
+		const parent = new FakeParentPort();
+		gateway = new LocalDevelopmentBrowserGateway(parent);
+		gateway.start();
+		parent.emit(
+			GatewayDesktopCommandSchema.parse({
+				allowedOrigin,
+				capability,
+				type: 'gateway-start',
+			}),
+		);
+		const listening = await parent.waitFor((event) => event.type === 'gateway-listening');
+		if (listening.type !== 'gateway-listening') throw new Error('Gateway did not listen.');
+		const attachment = await openWebSocket(
+			`ws://127.0.0.1:${listening.port}/v1/attachment`,
+			allowedOrigin,
+		);
+		const closed = waitForClose(attachment);
+
+		await gateway.dispose();
+		await closed;
+
+		expect(attachment.readyState).toBe(WebSocket.CLOSED);
+		expect(parent.events.at(-1)).toEqual({ type: 'gateway-stopped' });
+	});
 });
 
 class FakeParentPort implements GatewayParentPort {

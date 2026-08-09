@@ -70,7 +70,7 @@ export interface GatewayParentPort {
 }
 
 interface AttachmentRegistration {
-	accept(socket: NodeWebSocket, authentication: GatewayAttachmentClientMessage): void;
+	accept(socket: NodeWebSocket, authentication: GatewayAttachmentClientMessage): boolean;
 	reject(): void;
 }
 
@@ -103,6 +103,7 @@ export class LocalDevelopmentBrowserGateway {
 	#disposePromise: Promise<void> | undefined;
 	#disposed = false;
 	readonly #pages = new Map<GatewayClientConnectionId, GatewayPageConnection>();
+	readonly #pendingAttachmentSockets = new Set<NodeWebSocket>();
 	readonly #parentPort: GatewayParentPort;
 	#server: Server | undefined;
 	#started = false;
@@ -266,7 +267,14 @@ export class LocalDevelopmentBrowserGateway {
 	}
 
 	#acceptAttachmentSocket(socket: NodeWebSocket): void {
+		if (this.#disposed) {
+			socket.terminate();
+			return;
+		}
 		let settled = false;
+		const handleClose = (): void => {
+			this.#pendingAttachmentSockets.delete(socket);
+		};
 		const reject = (): void => {
 			if (settled) return;
 			settled = true;
@@ -292,8 +300,13 @@ export class LocalDevelopmentBrowserGateway {
 				sendAttachmentFailure(socket, 'authentication-rejected', false);
 				return;
 			}
-			registration.accept(socket, authentication.value);
+			if (registration.accept(socket, authentication.value)) {
+				socket.off('close', handleClose);
+				this.#pendingAttachmentSockets.delete(socket);
+			}
 		};
+		this.#pendingAttachmentSockets.add(socket);
+		socket.once('close', handleClose);
 		socket.once('error', handleError);
 		socket.once('message', handleMessage);
 	}
@@ -311,6 +324,8 @@ export class LocalDevelopmentBrowserGateway {
 		this.#pages.clear();
 		for (const registration of this.#attachments.values()) registration.reject();
 		this.#attachments.clear();
+		for (const socket of this.#pendingAttachmentSockets) socket.terminate();
+		this.#pendingAttachmentSockets.clear();
 		const webSocketServer = this.#webSocketServer;
 		this.#webSocketServer = undefined;
 		webSocketServer?.close();
@@ -704,7 +719,7 @@ class GatewayAttachment implements AttachmentRegistration {
 		this.#options = options;
 	}
 
-	accept(socket: NodeWebSocket, authentication: GatewayAttachmentClientMessage): void {
+	accept(socket: NodeWebSocket, authentication: GatewayAttachmentClientMessage): boolean {
 		if (
 			this.#retired ||
 			this.#socket !== undefined ||
@@ -712,7 +727,7 @@ class GatewayAttachment implements AttachmentRegistration {
 			!capabilitiesEqual(authentication.attachmentCapability, this.#options.attachmentCapability)
 		) {
 			sendAttachmentFailure(socket, 'authentication-rejected', false);
-			return;
+			return false;
 		}
 		this.#socket = socket;
 		socket.on('message', this.#handleSocketMessage);
@@ -728,6 +743,7 @@ class GatewayAttachment implements AttachmentRegistration {
 			if (error !== undefined && error !== null) this.retire(true);
 		});
 		this.#options.port.start();
+		return true;
 	}
 
 	reject(): void {
