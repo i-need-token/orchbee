@@ -33,6 +33,8 @@ export type {
 export type {
 	WorkbenchHostActionCallback,
 	WorkbenchHostActionResult,
+	WorkbenchNavigationPort,
+	WorkbenchNavigationTarget,
 	WorkbenchTerminalCreateCallback,
 } from './types/workbench-host-actions';
 export type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
