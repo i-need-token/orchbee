@@ -75,12 +75,7 @@ adapter registers definitions and invokes them. Its `register(...)` method check
 ID, input, and handler output against the catalog, while `execute(...)` checks invocation input and
 execution output.
 
-`execute(...)` always returns an `ActionExecution` immediately. A synchronous handler may already
-have a terminal snapshot; an asynchronous handler exposes the same handle, `completion`, progress,
-cooperative cancellation signal, and explicit commit point. Completion resolves to a structured
-result and never rejects with an unclassified handler, confirmation, validation, availability, or
-concurrency-key exception. Each definition declares `parallel`, `reject-duplicate`,
-`replace-latest`, or `serialize` behavior for its semantic concurrency key.
+`execute(...)` captures one shallow read-only invocation snapshot before resolution and always returns an `ActionExecution` immediately. Availability, confirmation, concurrency, and handler phases observe that same snapshot. A synchronous handler may already have a terminal snapshot; an asynchronous handler exposes the same handle, `completion`, progress, cooperative cancellation signal, and explicit commit point. Completion resolves to a structured result and never rejects with an unclassified handler, confirmation, validation, availability, or concurrency-key exception. Each definition declares `parallel`, `reject-duplicate`, `replace-latest`, or `serialize` behavior for its semantic concurrency key.
 
 The repository-wide semantic and lifecycle contract is
 [`docs/frontend/actions.md`](../../docs/frontend/actions.md).

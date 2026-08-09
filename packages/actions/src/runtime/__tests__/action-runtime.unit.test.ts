@@ -333,6 +333,43 @@ describe('ActionRuntime', () => {
 		expect(handler).not.toHaveBeenCalled();
 	});
 
+	it('keeps the invocation target stable through asynchronous confirmation', async () => {
+		const confirmation = deferred<boolean>();
+		const confirmedTargets: string[] = [];
+		const executedTargets: string[] = [];
+		const runtime = new ActionRuntime({
+			confirm: (_confirmation, invocation) => {
+				confirmedTargets.push(invocation.target?.id ?? 'missing');
+				return confirmation.promise;
+			},
+		});
+		const scope = runtime.createScope('application');
+		runtime.register(
+			scope,
+			action(
+				'test.confirmed-target.run',
+				(context) => {
+					executedTargets.push(context.target?.id ?? 'missing');
+					return { kind: 'completed' };
+				},
+				{ confirmation: true },
+			),
+		);
+		const target = { id: 'before-confirmation', type: 'resource' };
+		const execution = runtime.execute('test.confirmed-target.run', undefined, {
+			scope,
+			source: 'button',
+			target,
+		});
+
+		target.id = 'after-confirmation';
+		confirmation.resolve(true);
+
+		await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
+		expect(confirmedTargets).toEqual(['before-confirmation']);
+		expect(executedTargets).toEqual(['before-confirmation']);
+	});
+
 	it('releases a serialized queue when an awaiting confirmation is cancelled', async () => {
 		const firstConfirmation = deferred<boolean>();
 		let confirmationCount = 0;
@@ -894,6 +931,51 @@ describe('ActionRuntime', () => {
 			kind: 'completed',
 			value: 'second',
 		});
+	});
+
+	it('drains a large serialized queue of cancelled executions without recursion', async () => {
+		const firstCompletion = deferred<ActionResult<string>>();
+		let handlerCallCount = 0;
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('application');
+		runtime.register(
+			scope,
+			action(
+				'test.serialize-cancelled.run',
+				() => {
+					handlerCallCount += 1;
+					return handlerCallCount === 1
+						? firstCompletion.promise
+						: { kind: 'completed', value: 'successor' };
+				},
+				{ concurrency: 'serialize' },
+			),
+		);
+		const first = runtime.execute('test.serialize-cancelled.run', undefined, {
+			scope,
+			source: 'programmatic',
+		});
+		const cancelled = Array.from({ length: 25_000 }, () =>
+			runtime.execute('test.serialize-cancelled.run', undefined, {
+				scope,
+				source: 'programmatic',
+			}),
+		);
+		for (const execution of cancelled) execution.cancel();
+		await Promise.all(cancelled.map((execution) => execution.completion));
+		const successor = runtime.execute('test.serialize-cancelled.run', undefined, {
+			scope,
+			source: 'programmatic',
+		});
+
+		firstCompletion.resolve({ kind: 'completed', value: 'first' });
+
+		await expect(first.completion).resolves.toEqual({ kind: 'completed', value: 'first' });
+		await expect(successor.completion).resolves.toEqual({
+			kind: 'completed',
+			value: 'successor',
+		});
+		expect(handlerCallCount).toBe(2);
 	});
 
 	it('notifies on registration and disposal and returns unsupported for missing actions', () => {

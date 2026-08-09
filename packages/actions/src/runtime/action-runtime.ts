@@ -42,6 +42,7 @@ interface StoredAction {
 
 interface ConcurrencyEntry {
 	active: ManagedActionExecution<unknown> | null;
+	draining: boolean;
 	readonly queue: Array<() => void>;
 }
 
@@ -556,11 +557,13 @@ export class ActionRuntime implements ActionDisposable {
 			execution.settle({ kind: 'cancelled' });
 			return execution;
 		}
-		this.assertOwnedScope(invocation.scope);
-		const resolved = this.resolve(actionId, invocation.scope);
+		const invocationScope = invocation.scope;
+		this.assertOwnedScope(invocationScope);
+		const boundInvocation = this.snapshotInvocation(invocation, invocationScope);
+		const resolved = this.resolve(actionId, invocationScope);
 		if (
 			resolved === null ||
-			(invocation.source === 'automation' && resolved.action.automation !== 'allowed')
+			(boundInvocation.source === 'automation' && resolved.action.automation !== 'allowed')
 		) {
 			execution.settle({ kind: 'unsupported' });
 			return execution;
@@ -574,7 +577,7 @@ export class ActionRuntime implements ActionDisposable {
 			resolved.action,
 			resolved.scope,
 			parsed,
-			invocation,
+			boundInvocation,
 			execution,
 		);
 	}
@@ -883,11 +886,27 @@ export class ActionRuntime implements ActionDisposable {
 			return;
 		}
 		entry.active = null;
-		const next = entry.queue.shift();
-		if (next === undefined) {
-			this.concurrencyEntries.delete(key);
-		} else {
-			next();
+		this.drainConcurrencyEntry(key, entry);
+	}
+
+	private drainConcurrencyEntry(key: string, entry: ConcurrencyEntry): void {
+		if (entry.draining) {
+			return;
+		}
+		entry.draining = true;
+		try {
+			while (entry.active === null) {
+				const next = entry.queue.shift();
+				if (next === undefined) {
+					if (this.concurrencyEntries.get(key) === entry) {
+						this.concurrencyEntries.delete(key);
+					}
+					return;
+				}
+				next();
+			}
+		} finally {
+			entry.draining = false;
 		}
 	}
 
@@ -1081,7 +1100,7 @@ export class ActionRuntime implements ActionDisposable {
 		}
 		const entry = this.concurrencyEntries.get(key);
 		if (entry === undefined) {
-			this.concurrencyEntries.set(key, { active: execution, queue: [] });
+			this.concurrencyEntries.set(key, { active: execution, draining: false, queue: [] });
 			return true;
 		}
 		if (policy === 'reject-duplicate') {
