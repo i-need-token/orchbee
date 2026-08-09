@@ -164,6 +164,10 @@ pub const ExportCancellation = struct {
     export_sequence: u64,
 };
 
+pub const PreparedExportCancellation = struct {
+    cancellation: ExportCancellation,
+};
+
 pub const ExportChunkToken = struct {
     attachment_id: AttachmentId,
     chunk_sequence: u32,
@@ -662,30 +666,29 @@ pub const Manager = struct {
         return cancellation;
     }
 
-    /// Read the next cancellation without consuming it. Callers must use
-    /// acknowledgeSelectionExportCancellation only after the corresponding
-    /// event has been appended to an outbound batch. This keeps allocator
-    /// failures from losing a cancellation that still needs delivery.
-    pub fn peekSelectionExportCancellation(
+    /// Prepare the exact FIFO head without consuming it. Callers commit this
+    /// token only after its corresponding event is part of a complete outbound
+    /// batch, so every earlier fallible step leaves the cancellation retryable.
+    pub fn prepareSelectionExportCancellation(
         self: *Manager,
         attachment_id: AttachmentId,
-    ) HistoryError!?ExportCancellation {
+    ) HistoryError!?PreparedExportCancellation {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
         if (state.pending_export_cancellation_count == 0) return null;
-        return state.pending_export_cancellations[0];
+        return .{ .cancellation = state.pending_export_cancellations[0] };
     }
 
-    pub fn acknowledgeSelectionExportCancellation(
+    pub fn commitPreparedSelectionExportCancellation(
         self: *Manager,
-        attachment_id: AttachmentId,
-        expected: ExportCancellation,
-    ) HistoryError!void {
-        const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        if (state.pending_export_cancellation_count == 0 or
-            !self.sameCancellation(state.pending_export_cancellations[0], expected))
-        {
-            return error.InvalidAcknowledgement;
-        }
+        prepared: PreparedExportCancellation,
+    ) void {
+        const expected = prepared.cancellation;
+        const state = self.find(expected.attachment_id) orelse unreachable;
+        std.debug.assert(state.pending_export_cancellation_count > 0);
+        std.debug.assert(self.sameCancellation(
+            state.pending_export_cancellations[0],
+            expected,
+        ));
         if (state.pending_export_cancellation_count > 1) {
             std.mem.copyForwards(
                 ExportCancellation,

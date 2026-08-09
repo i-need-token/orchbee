@@ -158,6 +158,7 @@ pub const HistoryReadRequest = terminal_history.ReadRequest;
 pub const HistoryRows = terminal_history.EncodedRows;
 pub const SelectionCommandRequest = terminal_history.SelectionCommandRequest;
 pub const SelectionExportCancellation = terminal_history.ExportCancellation;
+pub const PreparedSelectionExportCancellation = terminal_history.PreparedExportCancellation;
 pub const SelectionExportChunk = terminal_history.EncodedExportChunk;
 pub const SelectionExportChunkToken = terminal_history.ExportChunkToken;
 pub const SelectionExportFinished = terminal_history.ExportFinished;
@@ -1733,25 +1734,23 @@ pub const TerminalRuntime = struct {
         return self.history.takeSelectionExportCancellation(attachment_id);
     }
 
-    pub fn peekSelectionExportCancellation(
+    pub fn prepareSelectionExportCancellation(
         self: *TerminalRuntime,
         attachment_id: identifiers.AttachmentId,
-    ) !?SelectionExportCancellation {
+    ) !?PreparedSelectionExportCancellation {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
         try self.ensureReadableStateAvailableLocked();
-        return self.history.peekSelectionExportCancellation(attachment_id);
+        return self.history.prepareSelectionExportCancellation(attachment_id);
     }
 
-    pub fn acknowledgeSelectionExportCancellation(
+    pub fn commitPreparedSelectionExportCancellation(
         self: *TerminalRuntime,
-        attachment_id: identifiers.AttachmentId,
-        cancellation: SelectionExportCancellation,
-    ) !void {
+        prepared: PreparedSelectionExportCancellation,
+    ) void {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
-        try self.ensureReadableStateAvailableLocked();
-        try self.history.acknowledgeSelectionExportCancellation(attachment_id, cancellation);
+        self.history.commitPreparedSelectionExportCancellation(prepared);
     }
 
     pub fn applySelectionGesture(

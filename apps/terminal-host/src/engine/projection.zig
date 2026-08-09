@@ -248,7 +248,7 @@ pub const Projection = struct {
             self.counters.render_state_creations += 1;
         }
         const state = &self.render_state.?;
-        try state.beginUpdate(self.allocator, terminal);
+        try state.update(self.allocator, terminal);
 
         const dimensions_changed = self.row_revisions.items.len != state.rows;
         self.capture_full = dimensions_changed or generation != self.captured_generation or
@@ -309,7 +309,6 @@ pub const Projection = struct {
 
     pub fn endCapture(self: *Projection) void {
         const state = &self.render_state.?;
-        state.endUpdate();
         const dirties = state.row_data.items(.dirty);
         for (dirties, 0..) |*dirty, row_index| {
             if (self.capture_full or dirty.*) self.row_revisions.items[row_index] = self.captured_revision;

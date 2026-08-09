@@ -16,6 +16,11 @@ const service_subject = service_boundary.service;
 const terminal_launch = engine_boundary.launch;
 const terminal_runtime = engine_boundary.runtime;
 
+const createWithOptionsUsingSpawner = terminal_runtime.testing.createWithOptionsUsingSpawnerFn;
+const recordReaderFailure = terminal_runtime.testing.recordReaderFailureFn;
+const RuntimeTestingHooks = terminal_runtime.testing.RuntimeTestingHooksType;
+const SchedulerTestingHooks = subject.testing.SchedulerTestingHooksType;
+
 const features = [_]u16{22};
 const palette = [_]u32{0} ** 256;
 
@@ -145,6 +150,7 @@ fn testLaunchWithGeometry(
 
 const TestRuntime = struct {
     runtime: *terminal_runtime.TerminalRuntime,
+    terminal_id: core_module.TerminalId,
 };
 
 fn createReadableRuntime(
@@ -205,7 +211,179 @@ fn createReadableRuntimeWithGeometry(
     );
     return .{
         .runtime = aggregate.runtimeFor(terminal_id).?,
+        .terminal_id = terminal_id,
     };
+}
+
+const HookedThreadSpawner = struct {
+    hooks: RuntimeTestingHooks,
+
+    pub fn terminalRuntimeTestingHooks(self: *HookedThreadSpawner) RuntimeTestingHooks {
+        return self.hooks;
+    }
+
+    pub fn spawn(
+        _: *HookedThreadSpawner,
+        comptime thread_function: fn (*terminal_runtime.TerminalRuntime) void,
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) !std.Thread {
+        return std.Thread.spawn(.{}, thread_function, .{runtime});
+    }
+};
+
+fn createHookedReadableRuntime(
+    aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
+    connection_id: core_module.ConnectionId,
+    creation_id: core_module.CreationId,
+    terminal_id: core_module.TerminalId,
+    attachment_id: core_module.AttachmentId,
+    hooks: RuntimeTestingHooks,
+) !TestRuntime {
+    const arguments = [_][]const u8{ "-c", "read value" };
+    const validated = try terminal_launch.inspect(
+        std.testing.allocator,
+        testLaunch(&arguments),
+    );
+    var preparation = try validated.prepareRuntime(std.testing.allocator, .{});
+    defer preparation.deinit(std.testing.allocator);
+    try aggregate.core().reserveTerminal();
+    var spawner: HookedThreadSpawner = .{ .hooks = hooks };
+    const runtime = try createWithOptionsUsingSpawner(
+        std.testing.allocator,
+        preparation.process_launch,
+        preparation.runtime_options,
+        &spawner,
+    );
+    aggregate.core().commitRunningTerminal(
+        connection_id,
+        creation_id,
+        terminal_id,
+        validated.launch_digest,
+        preparation.process_launch.columns,
+        preparation.process_launch.rows,
+        preparation.process_launch.cell_pixel_width,
+        preparation.process_launch.cell_pixel_height,
+        preparation.configuration,
+        runtime,
+    );
+    _ = try aggregate.attach(
+        connection_id,
+        attachment_id,
+        terminal_id,
+        .{ .input = false, .read = true, .resize = false },
+        false,
+    );
+    return .{ .runtime = runtime, .terminal_id = terminal_id };
+}
+
+const ContainmentFailureProbe = struct {
+    allow_success: bool = false,
+    contain_calls: usize = 0,
+    runtime: ?*terminal_runtime.TerminalRuntime = null,
+
+    fn fromContext(context: *anyopaque) *ContainmentFailureProbe {
+        return @ptrCast(@alignCast(context));
+    }
+
+    fn contain(context: *anyopaque) anyerror!void {
+        const self = fromContext(context);
+        self.contain_calls += 1;
+        if (!self.allow_success) return error.InjectedContainmentFailure;
+        try self.runtime.?.forceTerminate();
+    }
+
+    fn hooks(self: *ContainmentFailureProbe) RuntimeTestingHooks {
+        return .{
+            .contain_process_tree = contain,
+            .context = self,
+        };
+    }
+};
+
+const CancellationCommitBarrier = struct {
+    calls: usize = 0,
+    runtime: *terminal_runtime.TerminalRuntime,
+
+    fn fromContext(context: *anyopaque) *CancellationCommitBarrier {
+        return @ptrCast(@alignCast(context));
+    }
+
+    fn afterRecordsAppended(context: *anyopaque) void {
+        const self = fromContext(context);
+        self.calls += 1;
+        recordReaderFailure(self.runtime);
+    }
+
+    fn hooks(self: *CancellationCommitBarrier) SchedulerTestingHooks {
+        return .{
+            .after_cancellation_records_appended = afterRecordsAppended,
+            .context = self,
+        };
+    }
+};
+
+fn queueSelectionExportCancellation(
+    runtime: *terminal_runtime.TerminalRuntime,
+    attachment_id: core_module.AttachmentId,
+    export_sequence: u64,
+) !terminal_runtime.SelectionExportCancellation {
+    const geometry = runtime.geometry();
+    _ = try runtime.applySelectionCommand(.{
+        .attachment_id = attachment_id,
+        .command = .select_all,
+        .generation = geometry.generation,
+        .revision = geometry.revision,
+    });
+    const started = (try runtime.startSelectionExport(
+        attachment_id,
+        export_sequence,
+        .plain,
+    )).started;
+    _ = try runtime.resizeGeometry(
+        geometry.columns + 1,
+        geometry.rows,
+        geometry.cell_pixel_width,
+        geometry.cell_pixel_height,
+    );
+    _ = try runtime.takeSelectionEvent(attachment_id);
+    return .{
+        .attachment_id = attachment_id,
+        .byte_length = started.byte_length,
+        .export_sequence = started.export_sequence,
+    };
+}
+
+fn pendingCancellation(
+    runtime: *terminal_runtime.TerminalRuntime,
+    attachment_id: core_module.AttachmentId,
+) !?terminal_runtime.SelectionExportCancellation {
+    runtime.terminal_mutex.lock();
+    defer runtime.terminal_mutex.unlock();
+    const prepared = try runtime.history.prepareSelectionExportCancellation(attachment_id);
+    return if (prepared) |token| token.cancellation else null;
+}
+
+fn expectCancellationRecord(
+    record: []const u8,
+    cancellation: terminal_runtime.SelectionExportCancellation,
+) !void {
+    const envelope = try protocol.validateTransportEnvelope(record);
+    try std.testing.expectEqual(protocol.MessageKind.selection_export_finished, envelope.kind);
+    try std.testing.expect(envelope.correlation_id == null);
+    try std.testing.expect(!envelope.response);
+    try std.testing.expect(envelope.event);
+    var attachment_buffer: [32]u8 = undefined;
+    const expected_payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"byteLength\":{d},\"exportSequence\":\"{d}\",\"status\":\"cancelled\"}}",
+        .{
+            control_encode.identifierText(cancellation.attachment_id, &attachment_buffer),
+            cancellation.byte_length,
+            cancellation.export_sequence,
+        },
+    );
+    defer std.testing.allocator.free(expected_payload);
+    try std.testing.expectEqualSlices(u8, expected_payload, envelope.payload);
 }
 
 fn retainRows(runtime: *terminal_runtime.TerminalRuntime, row_count: usize) !void {
@@ -714,7 +892,7 @@ test "full cancellation record remains queued until a later batch commits it" {
         ),
     );
     try std.testing.expect(
-        (try binding.runtime.peekSelectionExportCancellation(attachment_id)) != null,
+        (try binding.runtime.prepareSelectionExportCancellation(attachment_id)) != null,
     );
 
     var retry = host_outgoing.Outgoing.init(std.testing.allocator);
@@ -730,6 +908,242 @@ test "full cancellation record remains queued until a later batch commits it" {
     try std.testing.expectEqual(protocol.MessageKind.selection_export_finished, finished.kind);
     try std.testing.expect(std.mem.indexOf(u8, finished.payload, "\"status\":\"cancelled\"") != null);
     try std.testing.expect(
-        (try binding.runtime.peekSelectionExportCancellation(attachment_id)) == null,
+        (try binding.runtime.prepareSelectionExportCancellation(attachment_id)) == null,
     );
+}
+
+test "THCR-001 scheduler commits an appended cancellation across fatal containment failure" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var probe: ContainmentFailureProbe = .{};
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    defer probe.allow_success = true;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(connection_id, testId(core_module.ClientId, 0x70));
+    const attachment_id = testId(core_module.AttachmentId, 0x71);
+    const binding = try createHookedReadableRuntime(
+        &aggregate,
+        connection_id,
+        testId(core_module.CreationId, 0x72),
+        testId(core_module.TerminalId, 0x73),
+        attachment_id,
+        probe.hooks(),
+    );
+    probe.runtime = binding.runtime;
+    const cancellation = try queueSelectionExportCancellation(
+        binding.runtime,
+        attachment_id,
+        1,
+    );
+    try std.testing.expectEqualDeep(
+        cancellation,
+        (try pendingCancellation(binding.runtime, attachment_id)).?,
+    );
+
+    var barrier: CancellationCommitBarrier = .{ .runtime = binding.runtime };
+    var scheduler: subject.Scheduler = .{};
+    subject.testing.setSchedulerTestingHooks(&scheduler, barrier.hooks());
+    var outgoing = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer outgoing.deinit();
+    try std.testing.expectEqual(
+        host_outgoing.ScheduleOutcome.complete,
+        try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            &outgoing,
+        ),
+    );
+
+    try std.testing.expectEqual(@as(usize, 1), barrier.calls);
+    try std.testing.expectEqual(@as(usize, 1), probe.contain_calls);
+    try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
+    try expectCancellationRecord(outgoing.records()[0], cancellation);
+    try std.testing.expect((try pendingCancellation(binding.runtime, attachment_id)) == null);
+    try std.testing.expect(!binding.runtime.readableStateAvailable());
+    try std.testing.expectEqual(
+        terminal_runtime.RuntimeFailureKind.pty_read,
+        binding.runtime.primaryFailure().?,
+    );
+
+    aggregate.synchronizeRuntimes();
+    try std.testing.expectEqual(@as(usize, 2), probe.contain_calls);
+    const blocked = aggregate.core().findTerminal(binding.terminal_id).?;
+    try std.testing.expectEqual(core_module.TerminalPhase.containing_failure, blocked.phase());
+    try std.testing.expectEqual(core_module.RuntimeFailure.read_output, blocked.runtimeFailure().?);
+    switch (blocked.failureContainment().?) {
+        .blocked => |containment| try std.testing.expectEqual(
+            core_module.RuntimeCleanupFailure.contain_process,
+            containment.cleanup_failure,
+        ),
+        .stopping => return error.ExpectedBlockedContainment,
+    }
+
+    _ = try aggregate.core().failureContainmentBlocked(
+        binding.terminal_id,
+        .contain_process,
+        0,
+    );
+    probe.allow_success = true;
+    aggregate.synchronizeRuntimes();
+    try std.testing.expectEqual(@as(usize, 3), probe.contain_calls);
+    const retained_failure = aggregate.core().findTerminal(binding.terminal_id).?;
+    try std.testing.expectEqual(core_module.TerminalPhase.failed, retained_failure.phase());
+    try std.testing.expectEqual(
+        core_module.RuntimeFailure.read_output,
+        retained_failure.runtimeFailure().?,
+    );
+}
+
+test "THCR-001 complete two-cancellation batch has no committed prefix" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var later_probe: ContainmentFailureProbe = .{};
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    defer later_probe.allow_success = true;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(connection_id, testId(core_module.ClientId, 0x80));
+    const first_attachment_id = testId(core_module.AttachmentId, 0x81);
+    const first = try createHookedReadableRuntime(
+        &aggregate,
+        connection_id,
+        testId(core_module.CreationId, 0x82),
+        testId(core_module.TerminalId, 0x83),
+        first_attachment_id,
+        .{},
+    );
+    const later_attachment_id = testId(core_module.AttachmentId, 0x84);
+    const later = try createHookedReadableRuntime(
+        &aggregate,
+        connection_id,
+        testId(core_module.CreationId, 0x85),
+        testId(core_module.TerminalId, 0x86),
+        later_attachment_id,
+        later_probe.hooks(),
+    );
+    later_probe.runtime = later.runtime;
+    const first_cancellation = try queueSelectionExportCancellation(
+        first.runtime,
+        first_attachment_id,
+        11,
+    );
+    const later_cancellation = try queueSelectionExportCancellation(
+        later.runtime,
+        later_attachment_id,
+        22,
+    );
+
+    var barrier: CancellationCommitBarrier = .{ .runtime = later.runtime };
+    var scheduler: subject.Scheduler = .{};
+    subject.testing.setSchedulerTestingHooks(&scheduler, barrier.hooks());
+    var outgoing = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer outgoing.deinit();
+    try std.testing.expectEqual(
+        host_outgoing.ScheduleOutcome.complete,
+        try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            &outgoing,
+        ),
+    );
+
+    try std.testing.expectEqual(@as(usize, 1), barrier.calls);
+    try std.testing.expectEqual(@as(usize, 2), outgoing.records().len);
+    try expectCancellationRecord(outgoing.records()[0], first_cancellation);
+    try expectCancellationRecord(outgoing.records()[1], later_cancellation);
+    try std.testing.expect((try pendingCancellation(first.runtime, first_attachment_id)) == null);
+    try std.testing.expect((try pendingCancellation(later.runtime, later_attachment_id)) == null);
+    try std.testing.expect(first.runtime.readableStateAvailable());
+    try std.testing.expect(!later.runtime.readableStateAvailable());
+}
+
+test "THCR-001 allocator failure preserves every prepared cancellation" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const first_attachment_id = testId(core_module.AttachmentId, 0x92);
+    const binding = try createReadableRuntime(&aggregate, connection_id, first_attachment_id);
+    const second_attachment_id = testId(core_module.AttachmentId, 0x93);
+    _ = try aggregate.attach(
+        connection_id,
+        second_attachment_id,
+        binding.terminal_id,
+        .{ .input = false, .read = true, .resize = false },
+        false,
+    );
+    const first_cancellation = try queueSelectionExportCancellation(
+        binding.runtime,
+        first_attachment_id,
+        31,
+    );
+    const second_cancellation = try queueSelectionExportCancellation(
+        binding.runtime,
+        second_attachment_id,
+        32,
+    );
+    while (try binding.runtime.takeSelectionEvent(first_attachment_id)) |_| {}
+    while (try binding.runtime.takeSelectionEvent(second_attachment_id)) |_| {}
+
+    var allocation_counter = std.testing.FailingAllocator.init(
+        std.testing.allocator,
+        .{},
+    );
+    const counting_allocator = allocation_counter.allocator();
+    const sampled_payload = try control_encode.selectionExportFinished(
+        counting_allocator,
+        first_cancellation,
+        subject.SelectionExportStatus.cancelled,
+    );
+    counting_allocator.free(sampled_payload);
+    const cancellation_allocation_count = allocation_counter.alloc_index;
+
+    var scheduler: subject.Scheduler = .{};
+    var failed = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer failed.deinit();
+    var failing = std.testing.FailingAllocator.init(
+        std.testing.allocator,
+        .{ .fail_index = cancellation_allocation_count },
+    );
+    // The allocating writer maps its backing allocator exhaustion to WriteFailed.
+    try std.testing.expectError(
+        error.WriteFailed,
+        scheduler.schedule(
+            failing.allocator(),
+            &aggregate,
+            connection_id,
+            &failed,
+        ),
+    );
+    try std.testing.expectEqual(@as(usize, 1), failed.records().len);
+    try expectCancellationRecord(failed.records()[0], first_cancellation);
+    try std.testing.expectEqualDeep(
+        first_cancellation,
+        (try pendingCancellation(binding.runtime, first_attachment_id)).?,
+    );
+    try std.testing.expectEqualDeep(
+        second_cancellation,
+        (try pendingCancellation(binding.runtime, second_attachment_id)).?,
+    );
+
+    var retry = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer retry.deinit();
+    try std.testing.expectEqual(
+        host_outgoing.ScheduleOutcome.complete,
+        try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            &retry,
+        ),
+    );
+    try std.testing.expectEqual(@as(usize, 2), retry.records().len);
+    try expectCancellationRecord(retry.records()[0], first_cancellation);
+    try expectCancellationRecord(retry.records()[1], second_cancellation);
+    try std.testing.expect((try pendingCancellation(binding.runtime, first_attachment_id)) == null);
+    try std.testing.expect((try pendingCancellation(binding.runtime, second_attachment_id)) == null);
 }

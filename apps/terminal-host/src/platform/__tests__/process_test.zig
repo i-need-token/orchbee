@@ -13,6 +13,44 @@ const windowsCommandLine = subject.testing.windowsCommandLineFn;
 
 const ProcessReadResult = anyerror!usize;
 
+test "Windows API test facade exposes only process test dependencies" {
+    comptime {
+        const declarations = @typeInfo(windows_api).@"struct".decls;
+        if (declarations.len != 4) {
+            @compileError(std.fmt.comptimePrint(
+                "terminal-host-platform.testing.windows_api exposes {d} declarations; expected exactly 4",
+                .{declarations.len},
+            ));
+        } else {
+            for ([_][]const u8{
+                "CreateProcessW",
+                "CREATE_SUSPENDED",
+                "ob_windows_terminal_job_assign_and_resume",
+                "ob_windows_terminal_job_active_processes",
+            }) |name| {
+                if (!@hasDecl(windows_api, name)) {
+                    @compileError(std.fmt.comptimePrint(
+                        "terminal-host-platform.testing.windows_api is missing {s}",
+                        .{name},
+                    ));
+                }
+            }
+            for ([_][]const u8{
+                "CreatePipe",
+                "STARTUPINFOEXW",
+                "ob_windows_terminal_job_terminate",
+            }) |name| {
+                if (@hasDecl(windows_api, name)) {
+                    @compileError(std.fmt.comptimePrint(
+                        "terminal-host-platform.testing.windows_api unexpectedly exposes {s}",
+                        .{name},
+                    ));
+                }
+            }
+        }
+    }
+}
+
 const ProcessReader = struct {
     process: *Process,
     output: []u8,

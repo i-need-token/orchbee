@@ -3,6 +3,7 @@ const ghostty_vt = @import("ghostty-vt");
 const engine_boundary = @import("terminal-host-engine");
 const model_boundary = @import("terminal-host-model");
 const platform_boundary = @import("terminal-host-platform");
+const protocol = @import("terminal-protocol");
 const subject = engine_boundary.runtime;
 const pty_process = platform_boundary.process;
 
@@ -518,6 +519,100 @@ fn expectCanonicalSnapshotEqual(
     try std.testing.expectEqualStrings(expected.text, actual.text);
     try std.testing.expectEqual(expected.total_rows, actual.total_rows);
     try std.testing.expectEqual(expected.written_bytes, actual.written_bytes);
+}
+
+fn readFrameInt(comptime Integer: type, bytes: []const u8, offset: usize) !Integer {
+    const width = @sizeOf(Integer);
+    if (offset > bytes.len -| width) return error.TestUnexpectedFrame;
+    return std.mem.readInt(Integer, bytes[offset..][0..width], .little);
+}
+
+fn projectionFrameRowOffset(bytes: []const u8) !usize {
+    const string_count = try readFrameInt(u32, bytes, 124);
+    const style_count = try readFrameInt(u16, bytes, 128);
+    var offset: usize = protocol.terminal_frame_header_bytes;
+    for (0..string_count) |_| {
+        const length = try readFrameInt(u32, bytes, offset);
+        offset = std.math.add(usize, offset, 4 + @as(usize, length)) catch
+            return error.TestUnexpectedFrame;
+        if (offset > bytes.len) return error.TestUnexpectedFrame;
+    }
+    return std.math.add(usize, offset, @as(usize, style_count) * 20) catch
+        error.TestUnexpectedFrame;
+}
+
+fn expectIncludedProjectionRows(bytes: []const u8, expected: []const u16) !void {
+    const columns = try readFrameInt(u16, bytes, 88);
+    const row_count = try readFrameInt(u16, bytes, 130);
+    try std.testing.expectEqual(expected.len, row_count);
+    var offset = try projectionFrameRowOffset(bytes);
+    for (expected) |expected_row| {
+        try std.testing.expectEqual(expected_row, try readFrameInt(u16, bytes, offset));
+        offset = std.math.add(usize, offset, 8 + @as(usize, columns) * 8) catch
+            return error.TestUnexpectedFrame;
+    }
+}
+
+const FrameHyperlinkObservation = struct {
+    any: bool,
+    target: bool,
+};
+
+fn observeFrameHyperlinks(
+    bytes: []const u8,
+    expected_target: []const u8,
+) !FrameHyperlinkObservation {
+    const string_count = try readFrameInt(u32, bytes, 124);
+    const style_count = try readFrameInt(u16, bytes, 128);
+    var target_index: ?u32 = null;
+    var offset: usize = protocol.terminal_frame_header_bytes;
+    for (0..string_count) |index| {
+        const length = try readFrameInt(u32, bytes, offset);
+        offset = std.math.add(usize, offset, 4) catch return error.TestUnexpectedFrame;
+        if (offset > bytes.len -| length) return error.TestUnexpectedFrame;
+        if (std.mem.eql(u8, bytes[offset..][0..length], expected_target)) {
+            target_index = @intCast(index);
+        }
+        offset += length;
+    }
+
+    var observation: FrameHyperlinkObservation = .{ .any = false, .target = false };
+    for (0..style_count) |_| {
+        const hyperlink_index = try readFrameInt(u32, bytes, offset + 12);
+        if (hyperlink_index != std.math.maxInt(u32)) {
+            observation.any = true;
+            if (target_index != null and hyperlink_index == target_index.?) {
+                observation.target = true;
+            }
+        }
+        offset = std.math.add(usize, offset, 20) catch return error.TestUnexpectedFrame;
+    }
+    return observation;
+}
+
+fn writeProjectionOutput(runtime: *TerminalRuntime, bytes: []const u8) !u64 {
+    runtime.terminal_mutex.lock();
+    defer runtime.terminal_mutex.unlock();
+    runtime.stream.nextSlice(bytes);
+    const revision = std.math.add(u64, runtime.revision.load(.monotonic), 1) catch
+        return error.TestUnexpectedRevisionOverflow;
+    runtime.revision.store(revision, .release);
+    return revision;
+}
+
+fn expectProjectionRowRevisions(runtime: *TerminalRuntime, expected: []const u64) !void {
+    runtime.projection_mutex.lock();
+    defer runtime.projection_mutex.unlock();
+    try std.testing.expectEqualSlices(u64, expected, runtime.projection.row_revisions.items);
+}
+
+fn expectProjectionLinkTargets(runtime: *TerminalRuntime, expected: []const []const u8) !void {
+    runtime.projection_mutex.lock();
+    defer runtime.projection_mutex.unlock();
+    try std.testing.expectEqual(expected.len, runtime.projection.link_table.values.items.len);
+    for (expected, runtime.projection.link_table.values.items) |expected_target, actual_target| {
+        try std.testing.expectEqualStrings(expected_target, actual_target);
+    }
 }
 
 fn expectInputQueuesCleared(runtime: *TerminalRuntime) !void {
@@ -1120,6 +1215,115 @@ test "runtime resets projection resources after encode failure" {
     try std.testing.expect(frame.bytes.len > 0);
 }
 
+test "runtime projection preserves resize and hyperlink transitions" {
+    const builtin = @import("builtin");
+    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
+    const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 31 127.0.0.1 >nul" };
+    const arguments = if (builtin.os.tag == .windows) &windows_arguments else &posix_arguments;
+    const runtime = try TerminalRuntime.create(std.testing.allocator, .{
+        .arguments = arguments,
+        .columns = 4,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = executable,
+        .rows = 2,
+    });
+    defer runtime.destroy();
+
+    const attachment_id = AttachmentId.fromBytes([_]u8{0x52} ** 16);
+    const host_epoch = HostEpoch.fromBytes([_]u8{0x37} ** 16);
+    const hyperlink_target = "https://projection.example/linked";
+    const initial_revision = try writeProjectionOutput(runtime, "\x1b[HAA");
+    const initial_geometry = runtime.geometry();
+    try std.testing.expectEqual(initial_revision, initial_geometry.revision);
+
+    const initial = try runtime.encodeProjectionFrameOwned(std.testing.allocator, 32, .{
+        .attachment_id = attachment_id,
+        .base_generation = null,
+        .base_revision = null,
+        .force_snapshot = true,
+        .host_epoch = host_epoch,
+        .maximum_bytes = protocol.Limits.frame_bytes,
+        .sequence = 1,
+    });
+    defer std.testing.allocator.free(initial.allocation);
+    const initial_summary = try protocol.validateTerminalFrame(std.testing.allocator, initial.bytes);
+    try std.testing.expectEqual(protocol.FrameKind.snapshot, initial_summary.kind);
+    try std.testing.expectEqual(@as(u16, 4), initial_summary.columns);
+    try std.testing.expectEqual(@as(u16, 2), initial_summary.rows);
+    try std.testing.expectEqual(@as(u16, 2), initial_summary.row_count);
+    try std.testing.expectEqual(initial_revision, initial_summary.revision);
+    try expectIncludedProjectionRows(initial.bytes, &.{ 0, 1 });
+    try expectProjectionRowRevisions(runtime, &.{ initial_revision, initial_revision });
+    const initial_links = try observeFrameHyperlinks(initial.bytes, hyperlink_target);
+    try std.testing.expect(!initial_links.any);
+    try std.testing.expect(!initial_links.target);
+
+    const linked_revision = try writeProjectionOutput(
+        runtime,
+        "\x1b[H\x1b]8;;" ++ hyperlink_target ++ "\x07BB\x1b]8;;\x07",
+    );
+    const delta = try runtime.encodeProjectionFrameOwned(std.testing.allocator, 32, .{
+        .attachment_id = attachment_id,
+        .base_generation = initial_summary.generation,
+        .base_revision = initial_revision,
+        .force_snapshot = false,
+        .host_epoch = host_epoch,
+        .maximum_bytes = protocol.Limits.frame_bytes,
+        .sequence = 2,
+    });
+    defer std.testing.allocator.free(delta.allocation);
+    const delta_summary = try protocol.validateTerminalFrame(std.testing.allocator, delta.bytes);
+    try std.testing.expectEqual(protocol.FrameKind.delta, delta_summary.kind);
+    try std.testing.expectEqual(@as(u16, 4), delta_summary.columns);
+    try std.testing.expectEqual(@as(u16, 2), delta_summary.rows);
+    try std.testing.expectEqual(@as(u16, 1), delta_summary.row_count);
+    try std.testing.expectEqual(initial_revision, delta_summary.base_revision.?);
+    try std.testing.expectEqual(linked_revision, delta_summary.revision);
+    try expectIncludedProjectionRows(delta.bytes, &.{0});
+    try expectProjectionRowRevisions(runtime, &.{ linked_revision, initial_revision });
+    try expectProjectionLinkTargets(runtime, &.{hyperlink_target});
+    const delta_links = try observeFrameHyperlinks(delta.bytes, hyperlink_target);
+    try std.testing.expect(delta_links.any);
+    try std.testing.expect(delta_links.target);
+
+    const unlinked_revision = try writeProjectionOutput(runtime, "\x1b[HCC");
+    const resized_revision = try runtime.resizeGeometry(5, 3, 8, 16);
+    try std.testing.expectEqual(unlinked_revision + 1, resized_revision);
+    const resized = try runtime.encodeProjectionFrameOwned(std.testing.allocator, 32, .{
+        .attachment_id = attachment_id,
+        .base_generation = initial_summary.generation,
+        .base_revision = linked_revision,
+        .force_snapshot = false,
+        .host_epoch = host_epoch,
+        .maximum_bytes = protocol.Limits.frame_bytes,
+        .sequence = 3,
+    });
+    defer std.testing.allocator.free(resized.allocation);
+    const resized_summary = try protocol.validateTerminalFrame(std.testing.allocator, resized.bytes);
+    try std.testing.expectEqual(protocol.FrameKind.snapshot, resized_summary.kind);
+    try std.testing.expectEqual(@as(u16, 5), resized_summary.columns);
+    try std.testing.expectEqual(@as(u16, 3), resized_summary.rows);
+    try std.testing.expectEqual(@as(u16, 3), resized_summary.row_count);
+    try std.testing.expectEqual(initial_summary.generation + 1, resized_summary.generation);
+    try std.testing.expectEqual(resized_revision, resized_summary.revision);
+    try expectIncludedProjectionRows(resized.bytes, &.{ 0, 1, 2 });
+    try expectProjectionRowRevisions(
+        runtime,
+        &.{ resized_revision, resized_revision, resized_revision },
+    );
+    try expectProjectionLinkTargets(runtime, &.{});
+    const resized_links = try observeFrameHyperlinks(resized.bytes, hyperlink_target);
+    try std.testing.expect(!resized_links.any);
+    try std.testing.expect(!resized_links.target);
+}
+
 test "terminal generated replies are excluded from client input accounting" {
     const builtin = @import("builtin");
     if (builtin.os.tag == .windows) return error.SkipZigTest;
@@ -1412,6 +1616,67 @@ test "a PTY batch winning terminal_mutex commits once and freezes at the later f
     try std.testing.expectEqualStrings(committed.text, frozen.text);
     try std.testing.expectEqual(@as(u64, 1), runtime.takeOutputBatches());
     try std.testing.expectEqual(@as(usize, 1), probe.readCallCount());
+}
+
+test "prepared export cancellation commits after an uncontained fatal failure" {
+    var probe: ContainmentProbe = .{ .pause_first_attempt = false };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer {
+        clearTestingHooks(runtime);
+        runtime.destroy();
+    }
+
+    const attachment_id = AttachmentId.fromBytes([_]u8{0x91} ** 16);
+    var attachment = try runtime.prepareAttachment(attachment_id, false, true);
+    defer attachment.deinit();
+    attachment.commit();
+    {
+        runtime.terminal_mutex.lock();
+        defer runtime.terminal_mutex.unlock();
+        try runtime.terminal.printString("prepared cancellation");
+    }
+
+    const geometry = runtime.geometry();
+    _ = try runtime.applySelectionCommand(.{
+        .attachment_id = attachment_id,
+        .command = .select_all,
+        .generation = geometry.generation,
+        .revision = geometry.revision,
+    });
+    const started = (try runtime.startSelectionExport(attachment_id, 1, .plain)).started;
+    _ = try runtime.resizeGeometry(
+        geometry.columns + 1,
+        geometry.rows,
+        geometry.cell_pixel_width,
+        geometry.cell_pixel_height,
+    );
+    _ = try runtime.takeSelectionEvent(attachment_id);
+    const prepared = (try runtime.prepareSelectionExportCancellation(attachment_id)).?;
+    try std.testing.expectEqual(started.byte_length, prepared.cancellation.byte_length);
+    try std.testing.expectEqual(started.export_sequence, prepared.cancellation.export_sequence);
+    try std.testing.expect(prepared.cancellation.attachment_id.eql(attachment_id));
+
+    recordReaderFailure(runtime);
+    try std.testing.expect(!runtime.readableStateAvailable());
+    try std.testing.expectError(
+        error.TerminalRuntimeUnavailable,
+        runtime.plainString(std.testing.allocator),
+    );
+    {
+        runtime.terminal_mutex.lock();
+        defer runtime.terminal_mutex.unlock();
+        const retained = (try runtime.history.prepareSelectionExportCancellation(attachment_id)).?;
+        try std.testing.expectEqualDeep(prepared, retained);
+    }
+
+    runtime.commitPreparedSelectionExportCancellation(prepared);
+    {
+        runtime.terminal_mutex.lock();
+        defer runtime.terminal_mutex.unlock();
+        try std.testing.expect(
+            (try runtime.history.prepareSelectionExportCancellation(attachment_id)) == null,
+        );
+    }
 }
 
 test "terminal reply failure fences only after its coherent reader batch commits" {

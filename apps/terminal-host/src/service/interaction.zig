@@ -1,4 +1,5 @@
 const std = @import("std");
+const target_builtin = @import("builtin");
 
 const core_module = @import("terminal-host-core").state;
 const control_encode = @import("terminal-host-control").encode;
@@ -13,6 +14,11 @@ const max_schedule_scan_per_poll = 64;
 const max_scheduled_attachments_per_poll = 8;
 
 const MessageKind = protocol.MessageKind;
+
+const SchedulerTestingHooks = if (target_builtin.is_test) struct {
+    after_cancellation_records_appended: ?*const fn (*anyopaque) void = null,
+    context: ?*anyopaque = null,
+} else struct {};
 
 pub const ScheduleOutcome = host_outgoing.ScheduleOutcome;
 
@@ -272,6 +278,19 @@ pub const SelectionExportHandoff = struct {
 
 pub const Scheduler = struct {
     scan_index: usize = 0,
+    testing_hooks: SchedulerTestingHooks = .{},
+
+    fn notifyAfterCancellationRecordsAppended(
+        self: *Scheduler,
+        cancellation_count: usize,
+    ) void {
+        if (comptime target_builtin.is_test) {
+            if (cancellation_count == 0) return;
+            if (self.testing_hooks.after_cancellation_records_appended) |notify| {
+                notify(self.testing_hooks.context.?);
+            }
+        }
+    }
 
     pub fn schedule(
         self: *Scheduler,
@@ -289,8 +308,7 @@ pub const Scheduler = struct {
         var scheduled: usize = 0;
         var outcome: ScheduleOutcome = .complete;
         const PendingCancellation = struct {
-            attachment_id: core_module.AttachmentId,
-            cancellation: terminal_runtime.SelectionExportCancellation,
+            prepared: terminal_runtime.PreparedSelectionExportCancellation,
             runtime: *terminal_runtime.TerminalRuntime,
         };
         const PendingMutation = union(enum) {
@@ -414,7 +432,7 @@ pub const Scheduler = struct {
                     },
                 }
             }
-            const pending_cancellation = runtime.peekSelectionExportCancellation(
+            const prepared_cancellation = runtime.prepareSelectionExportCancellation(
                 attachment.attachment_id,
             ) catch |err| switch (err) {
                 error.TerminalResizeFailed, error.TerminalRuntimeUnavailable => {
@@ -422,7 +440,8 @@ pub const Scheduler = struct {
                 },
                 else => return err,
             };
-            if (pending_cancellation) |cancellation| {
+            if (prepared_cancellation) |prepared| {
+                const cancellation = prepared.cancellation;
                 switch (try appendSelectionExportFinished(
                     allocator,
                     outgoing,
@@ -439,8 +458,7 @@ pub const Scheduler = struct {
                         // built. Any earlier error leaves it available to retry.
                         std.debug.assert(pending_cancellation_count < pending_cancellations.len);
                         pending_cancellations[pending_cancellation_count] = .{
-                            .attachment_id = attachment.attachment_id,
-                            .cancellation = cancellation,
+                            .prepared = prepared,
                             .runtime = runtime,
                         };
                         pending_cancellation_count += 1;
@@ -488,19 +506,28 @@ pub const Scheduler = struct {
                 }
             }
         }
-        // No fallible work follows these acknowledgements. Keeping them until
+        self.notifyAfterCancellationRecordsAppended(pending_cancellation_count);
+        // No fallible work follows these commits. Keeping them until
         // the complete interaction batch is built makes the dequeue atomic
         // with respect to every allocator failure in this scheduler.
         for (pending_cancellations[0..pending_cancellation_count]) |pending| {
-            pending.runtime.acknowledgeSelectionExportCancellation(
-                pending.attachment_id,
-                pending.cancellation,
-            ) catch unreachable;
+            pending.runtime.commitPreparedSelectionExportCancellation(pending.prepared);
         }
         self.scan_index = (start + scanned) % count;
         return outcome;
     }
 };
+
+pub const testing = if (target_builtin.is_test) struct {
+    pub const SchedulerTestingHooksType = SchedulerTestingHooks;
+
+    pub fn setSchedulerTestingHooks(
+        scheduler: *Scheduler,
+        hooks: SchedulerTestingHooks,
+    ) void {
+        scheduler.testing_hooks = hooks;
+    }
+} else struct {};
 
 pub fn appendSelectionChanged(
     allocator: std.mem.Allocator,

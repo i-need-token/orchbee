@@ -55,6 +55,34 @@ test "projection captures Ghostty state into a valid OBTF 0.0.1 snapshot" {
     try std.testing.expectEqual(@as(u16, 2), summary.rows);
 }
 
+test "projection completes Ghostty render updates before exposing captured styles" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 2,
+        .rows = 1,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice("\x1b[1mA");
+
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    try projection.beginCapture(&terminal, 1, 1, 8, 16);
+    projection.endCapture();
+
+    stream.nextSlice("\x1b[H\x1b[0;3mB");
+    try projection.beginCapture(&terminal, 2, 1, 8, 16);
+
+    const state = &projection.render_state.?;
+    try std.testing.expectEqual(@as(usize, 0), state.pending_styles.items.len);
+    const cell = state.row_data.items(.cells)[0].get(0);
+    try std.testing.expectEqual(@as(u21, 'B'), cell.raw.codepoint());
+    try std.testing.expect(!cell.style.flags.bold);
+    try std.testing.expect(cell.style.flags.italic);
+
+    projection.endCapture();
+}
+
 test "projection capture deduplicates repeated hyperlink URIs" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
         .cols = 4,
