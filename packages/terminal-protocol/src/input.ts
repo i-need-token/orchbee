@@ -9,9 +9,12 @@ import {
 	parseAttachmentId,
 } from './identifiers';
 import type { AttachmentId } from './identifiers';
+import { isInputRequestKind, MessageKind } from './envelope';
+import type { MessageKind as MessageKindValue } from './envelope';
 import { PROTOCOL_LIMITS } from './limits';
 import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-result';
 import type { ProtocolResult } from './protocol-result';
+import { containsUnpairedSurrogate } from './containsUnpairedSurrogate';
 
 export const WRITE_INPUT_ATTACHMENT_BYTES = IDENTIFIER_BYTE_LENGTH;
 export const KEY_INPUT_HEADER_BYTES = 32;
@@ -249,18 +252,48 @@ const mouseButtonSchema = z.union([
 	z.literal(MouseButton.eleven),
 ]);
 
-export const TerminalModifiersSchema = z.strictObject({
-	alt: z.boolean(),
-	altRight: z.boolean(),
-	capsLock: z.boolean(),
-	control: z.boolean(),
-	controlRight: z.boolean(),
-	meta: z.boolean(),
-	metaRight: z.boolean(),
-	numLock: z.boolean(),
-	shift: z.boolean(),
-	shiftRight: z.boolean(),
-});
+const modifierNames = [
+	'alt',
+	'altRight',
+	'capsLock',
+	'control',
+	'controlRight',
+	'meta',
+	'metaRight',
+	'numLock',
+	'shift',
+	'shiftRight',
+] as const;
+
+export const TerminalModifiersSchema = z
+	.strictObject({
+		alt: z.boolean(),
+		altRight: z.boolean(),
+		capsLock: z.boolean(),
+		control: z.boolean(),
+		controlRight: z.boolean(),
+		meta: z.boolean(),
+		metaRight: z.boolean(),
+		numLock: z.boolean(),
+		shift: z.boolean(),
+		shiftRight: z.boolean(),
+	})
+	.superRefine((modifiers, context) => {
+		for (const [right, base] of [
+			['altRight', 'alt'],
+			['controlRight', 'control'],
+			['metaRight', 'meta'],
+			['shiftRight', 'shift'],
+		] as const) {
+			if (modifiers[right] && !modifiers[base]) {
+				context.addIssue({
+					code: 'custom',
+					message: `${right} requires ${base}`,
+					path: [right],
+				});
+			}
+		}
+	});
 
 const unicodeCodepointSchema = z
 	.number()
@@ -273,6 +306,10 @@ const boundedInputTextSchema = z
 	.string()
 	.min(1)
 	.superRefine((value, context) => {
+		if (containsUnpairedSurrogate(value)) {
+			context.addIssue({ code: 'custom', message: 'Input text contains an unpaired surrogate' });
+			return;
+		}
 		if (textEncoder.encode(value).byteLength > PROTOCOL_LIMITS.maxInputBytes) {
 			context.addIssue({
 				code: 'custom',
@@ -282,6 +319,10 @@ const boundedInputTextSchema = z
 	});
 
 const boundedKeyTextSchema = z.string().superRefine((value, context) => {
+	if (containsUnpairedSurrogate(value)) {
+		context.addIssue({ code: 'custom', message: 'Key text contains an unpaired surrogate' });
+		return;
+	}
 	if (textEncoder.encode(value).byteLength > PROTOCOL_LIMITS.maxKeyTextBytes) {
 		context.addIssue({
 			code: 'custom',
@@ -300,16 +341,28 @@ export const WriteInputSchema = z.strictObject({
 		),
 });
 
-export const KeyInputSchema = z.strictObject({
-	action: keyActionSchema,
-	attachmentId: AttachmentIdSchema,
-	composing: z.boolean(),
-	consumedModifiers: TerminalModifiersSchema,
-	key: keyCodeSchema,
-	modifiers: TerminalModifiersSchema,
-	text: boundedKeyTextSchema,
-	unshiftedCodepoint: unicodeCodepointSchema,
-});
+export const KeyInputSchema = z
+	.strictObject({
+		action: keyActionSchema,
+		attachmentId: AttachmentIdSchema,
+		composing: z.boolean(),
+		consumedModifiers: TerminalModifiersSchema,
+		key: keyCodeSchema,
+		modifiers: TerminalModifiersSchema,
+		text: boundedKeyTextSchema,
+		unshiftedCodepoint: unicodeCodepointSchema,
+	})
+	.superRefine((input, context) => {
+		for (const modifier of modifierNames) {
+			if (input.consumedModifiers[modifier] && !input.modifiers[modifier]) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Consumed modifiers must be a subset of active modifiers',
+					path: ['consumedModifiers', modifier],
+				});
+			}
+		}
+	});
 
 const attachmentTextShape = {
 	attachmentId: AttachmentIdSchema,
@@ -320,15 +373,43 @@ export const TextInputSchema = z.strictObject(attachmentTextShape);
 
 export const PasteInputSchema = z.strictObject(attachmentTextShape);
 
-export const MouseInputSchema = z.strictObject({
-	action: mouseActionSchema,
-	attachmentId: AttachmentIdSchema,
-	button: mouseButtonSchema.nullable(),
-	modifiers: TerminalModifiersSchema,
-	pressedButtons: z.number().int().min(0).max(MOUSE_BUTTON_FLAGS_MASK),
-	x: z.number().finite().min(-MAX_FLOAT32).max(MAX_FLOAT32),
-	y: z.number().finite().min(-MAX_FLOAT32).max(MAX_FLOAT32),
-});
+export const MouseInputSchema = z
+	.strictObject({
+		action: mouseActionSchema,
+		attachmentId: AttachmentIdSchema,
+		button: mouseButtonSchema.nullable(),
+		modifiers: TerminalModifiersSchema,
+		pressedButtons: z.number().int().min(0).max(MOUSE_BUTTON_FLAGS_MASK),
+		x: z.number().finite().min(-MAX_FLOAT32).max(MAX_FLOAT32),
+		y: z.number().finite().min(-MAX_FLOAT32).max(MAX_FLOAT32),
+	})
+	.superRefine((input, context) => {
+		if (input.action !== MouseAction.motion && input.button === null) {
+			context.addIssue({
+				code: 'custom',
+				message: 'Mouse press and release require a button',
+				path: ['button'],
+			});
+		}
+		if (input.action === MouseAction.motion) {
+			if (input.button === null && input.pressedButtons !== 0) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Mouse motion with pressed buttons requires an active button',
+					path: ['button'],
+				});
+			} else if (
+				input.button !== null &&
+				(input.pressedButtons & (1 << (input.button - 1))) === 0
+			) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Mouse motion button must be present in pressedButtons',
+					path: ['pressedButtons'],
+				});
+			}
+		}
+	});
 
 export const FocusInputSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
@@ -438,7 +519,7 @@ function decodeModifiers(flags: number): ProtocolResult<TerminalModifiers> {
 			'Terminal modifiers contain unknown required bits',
 		);
 	}
-	return protocolSuccess({
+	const parsed = TerminalModifiersSchema.safeParse({
 		alt: (flags & (1 << 2)) !== 0,
 		altRight: (flags & (1 << 8)) !== 0,
 		capsLock: (flags & (1 << 4)) !== 0,
@@ -450,6 +531,8 @@ function decodeModifiers(flags: number): ProtocolResult<TerminalModifiers> {
 		shift: (flags & 1) !== 0,
 		shiftRight: (flags & (1 << 6)) !== 0,
 	});
+	if (!parsed.success) return validationFailure('Terminal modifiers', parsed.error.issues);
+	return protocolSuccess(parsed.data);
 }
 
 function decodeUtf8(bytes: Uint8Array, field: string): ProtocolResult<string> {
@@ -468,6 +551,44 @@ export function encodeWriteInput(value: unknown): ProtocolResult<Uint8Array> {
 	payload.set(identifierBytes(parsed.data.attachmentId));
 	payload.set(parsed.data.bytes, WRITE_INPUT_ATTACHMENT_BYTES);
 	return protocolSuccess(payload);
+}
+
+/**
+ * Encodes only client-to-Host input requests. The message kind chooses the
+ * binary codec, so producers do not maintain a parallel kind-to-format map.
+ */
+export function encodeInputRequest(
+	kind: MessageKindValue,
+	value: unknown,
+): ProtocolResult<Uint8Array> {
+	if (!isInputRequestKind(kind)) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			`Message kind ${kind} is not an input request`,
+		);
+	}
+	switch (kind) {
+		case MessageKind.writeInput:
+			return encodeWriteInput(value);
+		case MessageKind.keyInput:
+			return encodeKeyInput(value);
+		case MessageKind.textInput:
+			return encodeTextInput(value);
+		case MessageKind.mouseInput:
+			return encodeMouseInput(value);
+		case MessageKind.focusInput:
+			return encodeFocusInput(value);
+		case MessageKind.pasteInput:
+			return encodePasteInput(value);
+	}
+	return missingInputRequestCodec(kind);
+}
+
+function missingInputRequestCodec(kind: never): ProtocolResult<Uint8Array> {
+	return protocolFailure(
+		ProtocolErrorCode.invalidField,
+		`Input request codec is missing for message kind ${String(kind)}`,
+	);
 }
 
 export function decodeWriteInput(payload: Uint8Array): ProtocolResult<DecodedWriteInput> {

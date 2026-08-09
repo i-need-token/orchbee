@@ -3,31 +3,80 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import {
-	encodeFocusInput,
-	encodeKeyInput,
-	encodeMouseInput,
-	encodePasteInput,
+	AttachmentAcknowledgedSchema,
+	AttachmentCapabilitiesSchema,
+	CURRENT_PROTOCOL_VERSION,
+	EmptyControlSchema,
+	encodeControlJson,
+	encodeControlRequest,
+	encodeInputRequest,
 	encodeProtocolEnvelope,
+	encodeTerminalProjectionBuffer,
 	encodeTerminalRowWindow,
 	encodeTerminalFrame,
-	encodeTextInput,
-	encodeWriteInput,
+	HelloAcceptedSchema,
+	HistoryChangedSchema,
+	HistoryDemandAcceptedSchema,
+	InputAcceptedSchema,
+	MESSAGE_CONTRACTS,
+	MessageKind,
+	PROTOCOL_LIMITS,
+	ProjectionBlockedSchema,
+	ProjectionDemandAcceptedSchema,
+	ProtocolRejectedSchema,
+	ResizeAcceptedSchema,
+	SelectionChangedSchema,
+	SelectionExportFinishedSchema,
+	SelectionExportStartedSchema,
+	TerminalAcknowledgedSchema,
+	TerminalConfigurationAcceptedSchema,
+	TerminalDefaultsAcceptedSchema,
+	TerminalExitedSchema,
+	TerminalFailedSchema,
+	TERMINAL_FRAME_FORMAT,
+	TerminalIdentitySchema,
+	TerminalListSchema,
+	TERMINAL_PROJECTION_BUFFER_FORMAT,
+	TERMINAL_ROW_WINDOW_FORMAT,
+	TerminalStartedSchema,
+	TypedFailureSchema,
 } from '../dist/index.js';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fixturesDirectory = path.join(packageRoot, 'fixtures');
-const canonicalPath = path.join(fixturesDirectory, 'canonical-v1.json');
-const framePath = path.join(fixturesDirectory, 'terminal-frame-v2.bin');
-const envelopePath = path.join(fixturesDirectory, 'transport-envelope-v1.bin');
-const inputPath = path.join(fixturesDirectory, 'write-input-v1.bin');
-const keyInputPath = path.join(fixturesDirectory, 'key-input-v1_1.bin');
-const textInputPath = path.join(fixturesDirectory, 'text-input-v1_1.bin');
-const mouseInputPath = path.join(fixturesDirectory, 'mouse-input-v1_1.bin');
-const focusInputPath = path.join(fixturesDirectory, 'focus-input-v1_1.bin');
-const pasteInputPath = path.join(fixturesDirectory, 'paste-input-v1_1.bin');
-const malformedPath = path.join(fixturesDirectory, 'malformed-frame-v2.json');
-const rowWindowPath = path.join(fixturesDirectory, 'terminal-row-window-v1.bin');
-const malformedRowWindowPath = path.join(fixturesDirectory, 'malformed-row-window-v1.json');
+
+function versionText(version) {
+	return `${version.major}.${version.minor}.${version.patch}`;
+}
+
+const protocolVersion = versionText(CURRENT_PROTOCOL_VERSION);
+const frameVersion = versionText(TERMINAL_FRAME_FORMAT);
+const projectionVersion = versionText(TERMINAL_PROJECTION_BUFFER_FORMAT);
+const rowWindowVersion = versionText(TERMINAL_ROW_WINDOW_FORMAT);
+const canonicalPath = path.join(fixturesDirectory, 'canonical.json');
+const framePath = path.join(fixturesDirectory, `terminal-frame-v${frameVersion}.bin`);
+const projectionPath = path.join(
+	fixturesDirectory,
+	`terminal-projection-buffer-v${projectionVersion}.bin`,
+);
+const envelopePath = path.join(fixturesDirectory, `transport-envelope-v${protocolVersion}.bin`);
+const inputPath = path.join(fixturesDirectory, `write-input-v${protocolVersion}.bin`);
+const keyInputPath = path.join(fixturesDirectory, `key-input-v${protocolVersion}.bin`);
+const textInputPath = path.join(fixturesDirectory, `text-input-v${protocolVersion}.bin`);
+const mouseInputPath = path.join(fixturesDirectory, `mouse-input-v${protocolVersion}.bin`);
+const focusInputPath = path.join(fixturesDirectory, `focus-input-v${protocolVersion}.bin`);
+const pasteInputPath = path.join(fixturesDirectory, `paste-input-v${protocolVersion}.bin`);
+const terminalFailedPath = path.join(fixturesDirectory, `terminal-failed-v${protocolVersion}.json`);
+const controlConformancePath = path.join(
+	fixturesDirectory,
+	`control-conformance-v${protocolVersion}.json`,
+);
+const malformedPath = path.join(fixturesDirectory, `malformed-frame-v${frameVersion}.json`);
+const rowWindowPath = path.join(fixturesDirectory, `terminal-row-window-v${rowWindowVersion}.bin`);
+const malformedRowWindowPath = path.join(
+	fixturesDirectory,
+	`malformed-row-window-v${rowWindowVersion}.json`,
+);
 const checkOnly = process.argv.includes('--check');
 
 function bytesFromBase64(value) {
@@ -66,6 +115,553 @@ function encodeOrThrow(result, name) {
 	if (!result.ok)
 		throw new Error(`${name} fixture failed to encode: ${result.code}: ${result.detail}`);
 	return result.value;
+}
+
+function controlText(schema, value, name) {
+	const encoded = encodeControlJson(value, schema);
+	if (!encoded.ok)
+		throw new Error(`${name} control fixture failed to encode: ${encoded.code}: ${encoded.detail}`);
+	return new TextDecoder('utf-8', { fatal: true }).decode(encoded.value);
+}
+
+function controlTexts(schema, values, name) {
+	return values.map((value, index) => controlText(schema, value, `${name}[${index}]`));
+}
+
+function controlRequestText(kind, value, name) {
+	const encoded = encodeControlRequest(kind, value);
+	if (!encoded.ok)
+		throw new Error(`${name} control request failed to encode: ${encoded.code}: ${encoded.detail}`);
+	return new TextDecoder('utf-8', { fatal: true }).decode(encoded.value);
+}
+
+function controlRequestTexts(kind, values, name) {
+	return values.map((value, index) => controlRequestText(kind, value, `${name}[${index}]`));
+}
+
+function protocolLimitName(name) {
+	const semanticName = name.startsWith('max') ? name.slice(3) : name;
+	return semanticName.replaceAll(/([a-z\d])([A-Z])/g, '$1_$2').toLowerCase();
+}
+
+function protocolLimitsFixture() {
+	return Object.fromEntries(
+		Object.entries(PROTOCOL_LIMITS).map(([name, value]) => [protocolLimitName(name), value]),
+	);
+}
+
+function createControlConformanceFixture() {
+	const attachmentId = '22'.repeat(16);
+	const creationId = '33'.repeat(16);
+	const terminalId = '44'.repeat(16);
+	const hostEpoch = '11'.repeat(16);
+	const clientId = '55'.repeat(16);
+	const protocol = CURRENT_PROTOCOL_VERSION;
+	const terminalProfile = {
+		colorScheme: 'dark',
+		defaultBackgroundRgb: 0x10_10_10,
+		defaultCursorRgb: null,
+		defaultForegroundRgb: 0xf0_f0_f0,
+		deviceAttributes: {
+			primaryConformanceLevel: 65,
+			primaryFeatures: [1, 4],
+			secondaryDeviceType: 1,
+			secondaryFirmwareVersion: 2,
+			secondaryRomCartridge: 0,
+			tertiaryUnitId: 42,
+		},
+		enquiryResponse: '\u001b[?1;2c',
+		palette: Array.from({ length: 256 }, (_, index) => index * 0x01_01_01),
+		versionResponse: '\u001b[>1;2;3c',
+	};
+	const launch = {
+		arguments: ['--login', '项目'],
+		cellPixelHeight: 16,
+		cellPixelWidth: 8,
+		columns: 120,
+		configuration: null,
+		currentDirectory: '/tmp/项目',
+		environment: [
+			{ name: 'EMPTY', value: '' },
+			{ name: 'REMOVE_ME', value: null },
+		],
+		executable: '/bin/sh',
+		rows: 40,
+		terminalProfile,
+	};
+	const attachment = { attachmentId, generation: '3', revision: '42' };
+	const point = { column: 4, row: '100' };
+	const failure = (kind, stage) => ({ kind, stage });
+	const processObservation = (index) => {
+		if (index === 1) {
+			return {
+				failure: failure('process-observation', 'observe-process'),
+				kind: 'unavailable',
+			};
+		}
+		switch (index % 3) {
+			case 0:
+				return { kind: 'observed', result: { code: 1, kind: 'exit-code' } };
+			case 1:
+				return { kind: 'observed', result: { kind: 'signal', signal: 15 } };
+			default:
+				return { kind: 'observed', result: { kind: 'unknown', value: 7 } };
+		}
+	};
+	const identity = { creationId, hostEpoch, terminalId };
+	const summary = {
+		columns: 120,
+		configuration: { scrollbackBytes: 10_000_000 },
+		configurationRevision: '2',
+		identity,
+		revision: '42',
+		rows: 40,
+	};
+	const failurePairs = [
+		['process-control', 'dispatch-termination'],
+		['process-observation', 'observe-process'],
+		['pty-read', 'read-output'],
+		['pty-write', 'write-input'],
+		['resize', 'apply-resize'],
+		['terminal-reply', 'admit-terminal-reply'],
+		['worker-integrity', 'synchronize-worker'],
+	];
+	const registeredMessageKinds = Object.values(MessageKind).sort((left, right) => left - right);
+	if (new Set(registeredMessageKinds).size !== registeredMessageKinds.length) {
+		throw new Error('The message-kind registry contains duplicate numeric values');
+	}
+	const messageContracts = registeredMessageKinds.map((kind) => {
+		const contract = MESSAGE_CONTRACTS[kind];
+		return {
+			event_encoding: contract.eventEncoding,
+			kind,
+			name: contract.name,
+			request:
+				contract.request === null
+					? null
+					: {
+							payload_encoding: contract.request.payloadEncoding,
+							success_kind: contract.request.successKind,
+						},
+			response_encoding: contract.responseEncoding,
+		};
+	});
+
+	const commands = {
+		attach_terminal: controlRequestText(
+			MessageKind.attachTerminal,
+			{
+				attachmentId,
+				capabilities: { input: true, read: true, resize: false },
+				requestResizeLease: false,
+				terminalId,
+			},
+			'AttachTerminal',
+		),
+		create_terminal: controlRequestText(
+			MessageKind.createTerminal,
+			{ creationId, launch },
+			'CreateTerminal',
+		),
+		detach_terminal: controlRequestText(
+			MessageKind.detachTerminal,
+			{ attachmentId },
+			'DetachTerminal',
+		),
+		empty: controlRequestText(MessageKind.ping, {}, 'Ping'),
+		frame_applied: controlRequestText(
+			MessageKind.frameApplied,
+			{ ...attachment, sequence: '7' },
+			'FrameApplied',
+		),
+		hello: controlRequestText(
+			MessageKind.hello,
+			{
+				clientId,
+				frameBytes: 8 * 1024 * 1024,
+				inputBytes: 1024 * 1024,
+				protocol,
+				rowWindowBytes: 2 * 1024 * 1024,
+				supportedOptionalFeatures: ['future-x'],
+			},
+			'Hello',
+		),
+		history_demand: controlRequestTexts(
+			MessageKind.setHistoryDemand,
+			['following-bottom', 'viewing-history'].map((demand) => ({ attachmentId, demand })),
+			'SetHistoryDemand',
+		),
+		history_observed: controlRequestText(
+			MessageKind.historyObserved,
+			attachment,
+			'HistoryObserved',
+		),
+		list_terminals: controlRequestText(
+			MessageKind.listTerminals,
+			{
+				cursor: { inventoryGeneration: '9', offset: '2' },
+				maximumTerminals: 64,
+			},
+			'ListTerminals',
+		),
+		need_snapshot: controlRequestTexts(
+			MessageKind.needSnapshot,
+			[
+				'base-mismatch',
+				'decoder-rejected',
+				'dimensions-mismatch',
+				'generation-mismatch',
+				'identity-mismatch',
+				'sequence-gap',
+				'store-reset',
+			].map((reason, index) => ({ attachmentId, reason, sequence: String(index + 1) })),
+			'NeedSnapshot',
+		),
+		projection_demand: controlRequestTexts(
+			MessageKind.setProjectionDemand,
+			['active', 'paused'].map((demand) => ({ attachmentId, demand })),
+			'SetProjectionDemand',
+		),
+		read_rows: controlRequestTexts(
+			MessageKind.readRows,
+			[
+				{ detail: 'text', origin: { kind: 'absolute', row: '10' }, purpose: 'buffer' },
+				{ detail: 'render', origin: { kind: 'oldest', offset: 2 }, purpose: 'search' },
+				{ detail: 'text', origin: { delta: -1, kind: 'committed' }, purpose: 'viewport' },
+				{ detail: 'render', origin: { kind: 'tail', rowsBefore: 3 }, purpose: 'buffer' },
+			].map((request, index) => ({
+				...attachment,
+				...request,
+				maximumBytes: 65_536,
+				requestSequence: String(index + 1),
+				rowCount: 20,
+			})),
+			'ReadRows',
+		),
+		resize_terminal: controlRequestText(
+			MessageKind.resizeTerminal,
+			{
+				attachmentId,
+				cellPixelHeight: 16,
+				cellPixelWidth: 8,
+				columns: 100,
+				rows: 30,
+			},
+			'ResizeTerminal',
+		),
+		rows_applied: controlRequestText(
+			MessageKind.rowsApplied,
+			{ ...attachment, requestSequence: '8' },
+			'RowsApplied',
+		),
+		selection_command: controlRequestTexts(
+			MessageKind.selectionCommand,
+			[
+				{ ...attachment, command: 'clear' },
+				{ ...attachment, command: 'select-all' },
+				{ ...attachment, command: 'select-output', point },
+			],
+			'SelectionCommand',
+		),
+		selection_export: controlRequestTexts(
+			MessageKind.selectionExport,
+			['html', 'plain', 'vt'].map((format, index) => ({
+				attachmentId,
+				exportSequence: String(index + 1),
+				format,
+			})),
+			'SelectionExport',
+		),
+		selection_export_cancel: controlRequestTexts(
+			MessageKind.selectionExportCancel,
+			['clipboard-failed', 'disposed', 'replaced', 'user'].map((reason, index) => ({
+				attachmentId,
+				exportSequence: String(index + 1),
+				reason,
+			})),
+			'SelectionExportCancel',
+		),
+		selection_export_chunk_applied: controlRequestText(
+			MessageKind.selectionExportChunkApplied,
+			{ attachmentId, chunkSequence: 2, exportSequence: '9' },
+			'SelectionExportChunkApplied',
+		),
+		selection_gesture: controlRequestTexts(
+			MessageKind.selectionGesture,
+			['start', 'update', 'end'].map((action, index) => ({
+				action,
+				...attachment,
+				clickCount: index + 1,
+				point,
+				rectangle: index === 1,
+			})),
+			'SelectionGesture',
+		),
+		set_terminal_defaults: controlRequestText(
+			MessageKind.setTerminalDefaults,
+			{ configuration: { scrollbackBytes: 25_000_000 } },
+			'SetTerminalDefaults',
+		),
+		terminal_target: controlRequestText(
+			MessageKind.terminateTerminal,
+			{ terminalId },
+			'TerminalTarget',
+		),
+		update_terminal_configuration: controlRequestText(
+			MessageKind.updateTerminalConfiguration,
+			{ configuration: { scrollbackBytes: 0 }, terminalId },
+			'UpdateTerminalConfiguration',
+		),
+	};
+
+	const terminalSummaries = [
+		{
+			...summary,
+			exit: null,
+			failure: null,
+			failureContainment: null,
+			phase: 'running',
+			process: null,
+			terminateRequested: false,
+		},
+		{
+			...summary,
+			exit: { kind: 'unknown', value: 7 },
+			failure: null,
+			failureContainment: null,
+			phase: 'finishing',
+			process: null,
+			terminateRequested: true,
+		},
+		{
+			...summary,
+			exit: null,
+			failure: failure('pty-read', 'read-output'),
+			failureContainment: { kind: 'stopping', process: null },
+			phase: 'containing-failure',
+			process: null,
+			terminateRequested: true,
+		},
+		{
+			...summary,
+			exit: null,
+			failure: failure('resize', 'apply-resize'),
+			failureContainment: {
+				cleanupFailure: failure('pty-read', 'release-output'),
+				kind: 'blocked',
+				process: { kind: 'observed', result: { code: 1, kind: 'exit-code' } },
+			},
+			phase: 'containing-failure',
+			process: null,
+			terminateRequested: true,
+		},
+		{
+			...summary,
+			exit: { kind: 'signal', signal: 15 },
+			failure: null,
+			failureContainment: null,
+			phase: 'exited',
+			process: null,
+			terminateRequested: true,
+		},
+		{
+			...summary,
+			exit: null,
+			failure: failure('worker-integrity', 'synchronize-worker'),
+			failureContainment: null,
+			phase: 'failed',
+			process: {
+				failure: failure('process-observation', 'observe-process'),
+				kind: 'unavailable',
+			},
+			terminateRequested: true,
+		},
+	];
+	const outputs = {
+		attachment_acknowledged: controlText(
+			AttachmentAcknowledgedSchema,
+			{ attachmentId },
+			'AttachmentAcknowledged',
+		),
+		attachment_capabilities: controlText(
+			AttachmentCapabilitiesSchema,
+			{
+				attachmentId,
+				capabilities: { input: true, read: true, resize: false },
+				resizeLease: false,
+				terminalId,
+			},
+			'AttachmentCapabilities',
+		),
+		empty: controlText(EmptyControlSchema, {}, 'EmptyControl'),
+		frame_applied: commands.frame_applied,
+		hello_accepted: controlText(
+			HelloAcceptedSchema,
+			{
+				frameBytes: 8 * 1024 * 1024,
+				hostEpoch,
+				hostVersion: '0.1.0',
+				inputBytes: 1024 * 1024,
+				protocol,
+				rowWindowBytes: 2 * 1024 * 1024,
+				supportedOptionalFeatures: [],
+			},
+			'HelloAccepted',
+		),
+		history_changed: controlTexts(
+			HistoryChangedSchema,
+			['evicted', 'none', 'valid'].map((anchorStatus) => ({
+				anchorStatus,
+				...attachment,
+				totalRows: '125',
+			})),
+			'HistoryChanged',
+		),
+		history_demand_accepted: controlTexts(
+			HistoryDemandAcceptedSchema,
+			['following-bottom', 'viewing-history'].map((demand) => ({ attachmentId, demand })),
+			'HistoryDemandAccepted',
+		),
+		history_observed: commands.history_observed,
+		input_accepted: controlText(
+			InputAcceptedSchema,
+			{ acceptedBytes: 12, attachmentId },
+			'InputAccepted',
+		),
+		need_snapshot: commands.need_snapshot,
+		projection_blocked: controlTexts(
+			ProjectionBlockedSchema,
+			['capture-allocation-failed', 'projection-too-large'].map((reason) => ({
+				attachmentId,
+				reason,
+				revision: '42',
+			})),
+			'ProjectionBlocked',
+		),
+		projection_demand_accepted: controlTexts(
+			ProjectionDemandAcceptedSchema,
+			['active', 'paused'].map((demand) => ({ attachmentId, demand })),
+			'ProjectionDemandAccepted',
+		),
+		protocol_rejected: controlText(
+			ProtocolRejectedSchema,
+			{ client: { major: 0, minor: 1, patch: 0 }, host: protocol, reason: 'version-mismatch' },
+			'ProtocolRejected',
+		),
+		resize_accepted: controlText(
+			ResizeAcceptedSchema,
+			{
+				attachmentId,
+				cellPixelHeight: 16,
+				cellPixelWidth: 8,
+				columns: 100,
+				revision: '43',
+				rows: 30,
+			},
+			'ResizeAccepted',
+		),
+		rows_applied: commands.rows_applied,
+		selection_changed: controlTexts(
+			SelectionChangedSchema,
+			[
+				{ attachmentId, state: 'none' },
+				{ attachmentId, state: 'evicted' },
+				{
+					attachmentId,
+					end: { column: 7, row: '102' },
+					preview: null,
+					rectangle: true,
+					start: point,
+					state: 'active',
+				},
+			],
+			'SelectionChanged',
+		),
+		selection_export_chunk_applied: commands.selection_export_chunk_applied,
+		selection_export_finished: controlTexts(
+			SelectionExportFinishedSchema,
+			['cancelled', 'completed'].map((status) => ({
+				attachmentId,
+				byteLength: 12,
+				exportSequence: '9',
+				status,
+			})),
+			'SelectionExportFinished',
+		),
+		selection_export_started: controlTexts(
+			SelectionExportStartedSchema,
+			['html', 'plain', 'vt'].map((format, index) => ({
+				attachmentId,
+				byteLength: 10 + index,
+				exportSequence: String(index + 1),
+				format,
+			})),
+			'SelectionExportStarted',
+		),
+		terminal_acknowledged: controlText(
+			TerminalAcknowledgedSchema,
+			{ terminalId },
+			'TerminalAcknowledged',
+		),
+		terminal_configuration_accepted: controlText(
+			TerminalConfigurationAcceptedSchema,
+			{
+				configuration: { scrollbackBytes: 25_000_000 },
+				configurationRevision: '3',
+				generation: '4',
+				historyRowsEvicted: '5',
+				revision: '43',
+				terminalId,
+			},
+			'TerminalConfigurationAccepted',
+		),
+		terminal_defaults_accepted: controlText(
+			TerminalDefaultsAcceptedSchema,
+			{ configuration: { scrollbackBytes: 25_000_000 }, revision: '3' },
+			'TerminalDefaultsAccepted',
+		),
+		terminal_exited: controlTexts(
+			TerminalExitedSchema,
+			[
+				{ exit: { code: 0, kind: 'exit-code' }, finalRevision: '42', identity },
+				{ exit: { kind: 'signal', signal: 15 }, finalRevision: '42', identity },
+				{ exit: { kind: 'unknown', value: 7 }, finalRevision: '42', identity },
+			],
+			'TerminalExited',
+		),
+		terminal_failed: controlTexts(
+			TerminalFailedSchema,
+			failurePairs.map(([kind, stage], index) => ({
+				failure: failure(kind, stage),
+				finalRevision: String(42 + index),
+				identity,
+				process: processObservation(index),
+			})),
+			'TerminalFailed',
+		),
+		terminal_identity: controlText(TerminalIdentitySchema, identity, 'TerminalIdentity'),
+		terminal_list: controlText(
+			TerminalListSchema,
+			{ inventoryGeneration: '9', nextCursor: null, terminals: terminalSummaries },
+			'TerminalList',
+		),
+		terminal_started: controlText(TerminalStartedSchema, identity, 'TerminalStarted'),
+		typed_failure: controlTexts(
+			TypedFailureSchema,
+			[
+				{ code: 'invalid-state', message: 'The command is not legal now.', retryable: false },
+				{ code: 'backpressure', message: 'Try again later.', retryable: true },
+			],
+			'TypedFailure',
+		),
+	};
+
+	return {
+		commands,
+		message_contracts: messageContracts,
+		outputs,
+		protocol_limits: protocolLimitsFixture(),
+	};
 }
 
 function locateTables(bytes) {
@@ -219,26 +815,55 @@ const frameBytes = encodeOrThrow(
 	encodeTerminalFrame(frameFromJson(canonical.frame)),
 	'terminal frame',
 );
+const projectionBytes = encodeOrThrow(
+	encodeTerminalProjectionBuffer({ ...frameFromJson(canonical.frame), extensions: [] }),
+	'terminal projection buffer',
+);
 const rowWindowBytes = encodeOrThrow(
 	encodeTerminalRowWindow(rowWindowFromJson(canonical.rowWindow)),
 	'terminal row window',
 );
 const envelopeBytes = encodeOrThrow(
-	encodeProtocolEnvelope({ ...canonical.transportEnvelope, payload: frameBytes }),
+	encodeProtocolEnvelope({
+		...canonical.transportEnvelope,
+		payload: frameBytes,
+		protocol: CURRENT_PROTOCOL_VERSION,
+	}),
 	'transport envelope',
 );
 const inputBytes = encodeOrThrow(
-	encodeWriteInput({
+	encodeInputRequest(MessageKind.writeInput, {
 		attachmentId: canonical.writeInput.attachmentId,
 		bytes: bytesFromBase64(canonical.writeInput.bytesBase64),
 	}),
 	'write input',
 );
-const keyInputBytes = encodeOrThrow(encodeKeyInput(canonical.keyInput), 'key input');
-const textInputBytes = encodeOrThrow(encodeTextInput(canonical.textInput), 'text input');
-const mouseInputBytes = encodeOrThrow(encodeMouseInput(canonical.mouseInput), 'mouse input');
-const focusInputBytes = encodeOrThrow(encodeFocusInput(canonical.focusInput), 'focus input');
-const pasteInputBytes = encodeOrThrow(encodePasteInput(canonical.pasteInput), 'paste input');
+const keyInputBytes = encodeOrThrow(
+	encodeInputRequest(MessageKind.keyInput, canonical.keyInput),
+	'key input',
+);
+const textInputBytes = encodeOrThrow(
+	encodeInputRequest(MessageKind.textInput, canonical.textInput),
+	'text input',
+);
+const mouseInputBytes = encodeOrThrow(
+	encodeInputRequest(MessageKind.mouseInput, canonical.mouseInput),
+	'mouse input',
+);
+const focusInputBytes = encodeOrThrow(
+	encodeInputRequest(MessageKind.focusInput, canonical.focusInput),
+	'focus input',
+);
+const pasteInputBytes = encodeOrThrow(
+	encodeInputRequest(MessageKind.pasteInput, canonical.pasteInput),
+	'paste input',
+);
+const terminalFailedBytes = new TextEncoder().encode(
+	`${JSON.stringify(TerminalFailedSchema.parse(canonical.terminalFailed), null, '\t')}\n`,
+);
+const controlConformanceBytes = new TextEncoder().encode(
+	`${JSON.stringify(createControlConformanceFixture(), null, '\t')}\n`,
+);
 const malformedBytes = new TextEncoder().encode(
 	`${JSON.stringify({ cases: malformedCorpus(frameBytes) }, null, '\t')}\n`,
 );
@@ -248,6 +873,7 @@ const malformedRowWindowBytes = new TextEncoder().encode(
 
 if (checkOnly) {
 	await compareFile(framePath, frameBytes);
+	await compareFile(projectionPath, projectionBytes);
 	await compareFile(envelopePath, envelopeBytes);
 	await compareFile(inputPath, inputBytes);
 	await compareFile(keyInputPath, keyInputBytes);
@@ -255,11 +881,14 @@ if (checkOnly) {
 	await compareFile(mouseInputPath, mouseInputBytes);
 	await compareFile(focusInputPath, focusInputBytes);
 	await compareFile(pasteInputPath, pasteInputBytes);
+	await compareFile(terminalFailedPath, terminalFailedBytes);
+	await compareFile(controlConformancePath, controlConformanceBytes);
 	await compareFile(malformedPath, malformedBytes);
 	await compareFile(rowWindowPath, rowWindowBytes);
 	await compareFile(malformedRowWindowPath, malformedRowWindowBytes);
 } else {
 	await writeFile(framePath, frameBytes);
+	await writeFile(projectionPath, projectionBytes);
 	await writeFile(envelopePath, envelopeBytes);
 	await writeFile(inputPath, inputBytes);
 	await writeFile(keyInputPath, keyInputBytes);
@@ -267,6 +896,8 @@ if (checkOnly) {
 	await writeFile(mouseInputPath, mouseInputBytes);
 	await writeFile(focusInputPath, focusInputBytes);
 	await writeFile(pasteInputPath, pasteInputBytes);
+	await writeFile(terminalFailedPath, terminalFailedBytes);
+	await writeFile(controlConformancePath, controlConformanceBytes);
 	await writeFile(malformedPath, malformedBytes);
 	await writeFile(rowWindowPath, rowWindowBytes);
 	await writeFile(malformedRowWindowPath, malformedRowWindowBytes);

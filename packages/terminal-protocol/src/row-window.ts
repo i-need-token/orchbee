@@ -12,22 +12,30 @@ import {
 } from './identifiers';
 import type { AttachmentId, HostEpoch } from './identifiers';
 import {
-	decodeTerminalFrame,
-	encodeTerminalFrame,
 	RowPromptClass,
 	TerminalFrameKind,
 	TerminalFrameSchema,
 	TerminalRowFlag,
 	TerminalRowPromptClassCode,
 } from './frame';
-import type { DecodedTerminalFrame, RowPromptClass as RowPromptClassValue } from './frame';
+import type { RowPromptClass as RowPromptClassValue } from './frame';
 import { PROTOCOL_LIMITS } from './limits';
 import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-result';
 import type { ProtocolResult } from './protocol-result';
+import { containsUnpairedSurrogate } from './containsUnpairedSurrogate';
+import {
+	decodeTerminalProjectionBuffer,
+	encodeTerminalProjectionBufferWithin,
+	viewTerminalProjectionBuffer,
+} from './projection-buffer';
+import type { DecodedTerminalProjectionBuffer } from './projection-buffer';
+import { utf8ByteLength } from './utf8';
 
 export const TERMINAL_ROW_WINDOW_HEADER_BYTES = 112;
 export const TERMINAL_ROW_WINDOW_MAGIC = new Uint8Array([0x4f, 0x42, 0x52, 0x57]);
-export const TERMINAL_ROW_WINDOW_FORMAT = { major: 1, minor: 1 } as const;
+// Keep this synchronized with Zig. Released changes (>= 1.0.0) also update
+// docs/version-history.md in the same change.
+export const TERMINAL_ROW_WINDOW_FORMAT = { major: 0, minor: 0, patch: 1 } as const;
 
 export const TerminalTextRowFlag = {
 	identityAscii: 0x04,
@@ -57,6 +65,9 @@ const columnSchema = z
 	.int()
 	.min(0)
 	.max(PROTOCOL_LIMITS.maxFrameColumns - 1);
+const EMPTY_UINT8_ARRAY = new Uint8Array(0);
+const EMPTY_UINT16_ARRAY = new Uint16Array(0);
+const EMPTY_UINT32_ARRAY = new Uint32Array(0);
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8', { fatal: true });
 
@@ -101,7 +112,8 @@ export const TerminalRenderRowWindowSchema = z
 			window.frame.sequence !== window.sequence ||
 			window.frame.revision !== window.revision ||
 			window.frame.generation !== window.generation ||
-			window.frame.columns !== window.columns
+			window.frame.columns !== window.columns ||
+			window.frame.scrollbackRows !== window.startRow
 		) {
 			context.addIssue({
 				code: 'custom',
@@ -134,6 +146,22 @@ export const TerminalTextRowWindowSchema = z
 		}
 		let mappingCount = 0;
 		for (const [rowOffset, row] of window.rows.entries()) {
+			if (containsUnpairedSurrogate(row.text)) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Row text contains an unpaired UTF-16 surrogate',
+					path: ['rows', rowOffset, 'text'],
+				});
+				continue;
+			}
+			const priorRow = window.rows[rowOffset - 1];
+			if (priorRow !== undefined && priorRow.wrap !== row.wrapContinuation) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Adjacent row wrap flags must agree',
+					path: ['rows', rowOffset, 'wrapContinuation'],
+				});
+			}
 			if (row.index !== window.startRow + BigInt(rowOffset)) {
 				context.addIssue({
 					code: 'custom',
@@ -141,19 +169,29 @@ export const TerminalTextRowWindowSchema = z
 					path: ['rows', rowOffset, 'index'],
 				});
 			}
-			const textBytes = textEncoder.encode(row.text);
+			const textByteLength = utf8ByteLength(row.text);
+			if (textByteLength > 0 && row.mappings.length === 0) {
+				context.addIssue({
+					code: 'custom',
+					message: 'A non-empty text row requires a mapping',
+					path: ['rows', rowOffset, 'mappings'],
+				});
+			}
 			let previousByteOffset = -1;
 			let previousUtf16Offset = -1;
-			let previousColumn = -1;
+			let previousColumnEnd = 0;
+			const textPosition = { byteOffset: 0, utf16Offset: 0 };
 			for (const [mappingOffset, mapping] of row.mappings.entries()) {
 				mappingCount += 1;
 				if (
-					mapping.byteOffset > textBytes.byteLength ||
-					mapping.utf16Offset > row.text.length ||
-					mapping.column >= window.columns ||
+					mapping.byteOffset >= textByteLength ||
+					mapping.utf16Offset >= row.text.length ||
+					mapping.column + mapping.width > window.columns ||
+					(mappingOffset === 0 && (mapping.byteOffset !== 0 || mapping.utf16Offset !== 0)) ||
+					!matchesTextPosition(row.text, mapping.byteOffset, mapping.utf16Offset, textPosition) ||
 					mapping.byteOffset <= previousByteOffset ||
 					mapping.utf16Offset <= previousUtf16Offset ||
-					mapping.column <= previousColumn
+					mapping.column < previousColumnEnd
 				) {
 					context.addIssue({
 						code: 'custom',
@@ -163,7 +201,7 @@ export const TerminalTextRowWindowSchema = z
 				}
 				previousByteOffset = mapping.byteOffset;
 				previousUtf16Offset = mapping.utf16Offset;
-				previousColumn = mapping.column;
+				previousColumnEnd = mapping.column + mapping.width;
 			}
 		}
 		if (mappingCount > PROTOCOL_LIMITS.maxFrameCells) {
@@ -174,6 +212,62 @@ export const TerminalTextRowWindowSchema = z
 			});
 		}
 	});
+
+interface Utf8Position {
+	byteOffset: number;
+	utf16Offset: number;
+}
+
+function matchesTextPosition(
+	text: string,
+	targetByteOffset: number,
+	targetUtf16Offset: number,
+	position: Utf8Position,
+): boolean {
+	while (position.byteOffset < targetByteOffset && position.utf16Offset < text.length) {
+		const codeUnit = text.charCodeAt(position.utf16Offset);
+		let encodedLength = 3;
+		let utf16Length = 1;
+		if (codeUnit <= 0x7f) encodedLength = 1;
+		else if (codeUnit <= 0x7ff) encodedLength = 2;
+		else if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+			encodedLength = 4;
+			utf16Length = 2;
+		}
+		position.byteOffset += encodedLength;
+		position.utf16Offset += utf16Length;
+	}
+	return position.byteOffset === targetByteOffset && position.utf16Offset === targetUtf16Offset;
+}
+
+function isAscii(bytes: Uint8Array): boolean {
+	for (const byte of bytes) {
+		if (byte > 0x7f) return false;
+	}
+	return true;
+}
+
+/** Advances over already-validated UTF-8 without materializing every scalar boundary. */
+function matchesUtf8Position(
+	bytes: Uint8Array,
+	targetByteOffset: number,
+	targetUtf16Offset: number,
+	position: Utf8Position,
+): boolean {
+	while (position.byteOffset < targetByteOffset) {
+		const leadingByte = bytes[position.byteOffset];
+		if (leadingByte === undefined) return false;
+		let encodedLength: number;
+		if (leadingByte <= 0x7f) encodedLength = 1;
+		else if (leadingByte >= 0xc2 && leadingByte <= 0xdf) encodedLength = 2;
+		else if (leadingByte >= 0xe0 && leadingByte <= 0xef) encodedLength = 3;
+		else if (leadingByte >= 0xf0 && leadingByte <= 0xf4) encodedLength = 4;
+		else return false;
+		position.byteOffset += encodedLength;
+		position.utf16Offset += encodedLength === 4 ? 2 : 1;
+	}
+	return position.byteOffset === targetByteOffset && position.utf16Offset === targetUtf16Offset;
+}
 
 export const TerminalRowWindowSchema = z.discriminatedUnion('detail', [
 	TerminalRenderRowWindowSchema,
@@ -214,8 +308,7 @@ interface DecodedTerminalRowWindowBase {
 
 export interface DecodedTerminalRenderRowWindow extends DecodedTerminalRowWindowBase {
 	readonly detail: 'render';
-	readonly frame: DecodedTerminalFrame;
-	readonly frameBytes: Uint8Array;
+	readonly frame: DecodedTerminalProjectionBuffer;
 }
 
 export interface DecodedTerminalTextRowWindow extends DecodedTerminalRowWindowBase {
@@ -231,7 +324,6 @@ interface RowWindowHeader extends DecodedTerminalRowWindowBase {
 	readonly bodyLength: number;
 	readonly detail: TerminalRowWindowDetail;
 	readonly entryCount: number;
-	readonly formatMinor: number;
 	readonly rowCount: number;
 }
 
@@ -294,40 +386,43 @@ function encodeHeader(
 	writer.writeUint16(0);
 	writer.writeUint32(entryCount);
 	writer.writeUint32(body.byteLength);
-	writer.writeBytes(new Uint8Array(12));
+	writer.writeUint8(TERMINAL_ROW_WINDOW_FORMAT.patch);
+	writer.writeBytes(new Uint8Array(11));
 	writer.writeBytes(body);
 	return protocolSuccess(writer.bytes());
 }
 
 function encodeTextBody(window: TerminalTextRowWindow): ProtocolResult<Uint8Array> {
-	const encodedRows = window.rows.map((row) => textEncoder.encode(row.text));
-	const identityRows = window.rows.map((row, rowOffset) =>
-		usesIdentityAsciiMapping(row, encodedRows[rowOffset] ?? new Uint8Array()),
-	);
+	const textByteLengths: number[] = [];
+	const identityRows: boolean[] = [];
+	const maximumBodyBytes = PROTOCOL_LIMITS.maxRowWindowBytes - TERMINAL_ROW_WINDOW_HEADER_BYTES;
 	let bodyLength = 0;
-	for (const [rowOffset, row] of window.rows.entries()) {
-		const serializedMappingCount = identityRows[rowOffset] ? 0 : row.mappings.length;
+	for (const row of window.rows) {
+		const textByteLength = utf8ByteLength(row.text);
+		const identityAscii = usesIdentityAsciiMapping(row);
+		textByteLengths.push(textByteLength);
+		identityRows.push(identityAscii);
+		const serializedMappingCount = identityAscii ? 0 : row.mappings.length;
 		const mappingsLength = checkedMultiply(serializedMappingCount, TEXT_MAPPING_BYTES);
 		if (!mappingsLength.ok) return mappingsLength;
-		const rowLength = checkedAdd(
-			TEXT_ROW_HEADER_BYTES,
-			encodedRows[rowOffset]?.byteLength ?? 0,
-			mappingsLength.value,
-		);
+		const rowLength = checkedAdd(TEXT_ROW_HEADER_BYTES, textByteLength, mappingsLength.value);
 		if (!rowLength.ok) return rowLength;
 		const nextLength = checkedAdd(bodyLength, rowLength.value);
 		if (!nextLength.ok) return nextLength;
 		bodyLength = nextLength.value;
-	}
-	if (bodyLength > PROTOCOL_LIMITS.maxRowWindowBytes) {
-		return protocolFailure(ProtocolErrorCode.limitExceeded, 'Text row body exceeds its limit');
+		if (bodyLength > maximumBodyBytes) {
+			return protocolFailure(ProtocolErrorCode.limitExceeded, 'Text row body exceeds its limit');
+		}
 	}
 
 	const writer = new BinaryWriter(bodyLength);
 	for (const [rowOffset, row] of window.rows.entries()) {
-		const text = encodedRows[rowOffset];
-		if (!text) {
-			return protocolFailure(ProtocolErrorCode.invalidField, 'Text row encoding is missing');
+		const text = textEncoder.encode(row.text);
+		if (text.byteLength !== textByteLengths[rowOffset]) {
+			return protocolFailure(
+				ProtocolErrorCode.invalidField,
+				'Text row encoding is inconsistent with its bounded preflight',
+			);
 		}
 		writer.writeUint8(
 			(row.wrap ? TerminalRowFlag.wrap : 0) |
@@ -350,14 +445,13 @@ function encodeTextBody(window: TerminalTextRowWindow): ProtocolResult<Uint8Arra
 	return protocolSuccess(writer.bytes());
 }
 
-function usesIdentityAsciiMapping(row: TerminalTextRow, encodedText: Uint8Array): boolean {
-	if (encodedText.byteLength !== row.text.length || row.mappings.length !== row.text.length) {
-		return false;
-	}
-	for (const [index, byte] of encodedText.entries()) {
+function usesIdentityAsciiMapping(row: TerminalTextRow): boolean {
+	if (row.mappings.length !== row.text.length) return false;
+	for (let index = 0; index < row.text.length; index += 1) {
+		const codeUnit = row.text.charCodeAt(index);
 		const mapping = row.mappings[index];
 		if (
-			byte > 0x7f ||
+			codeUnit > 0x7f ||
 			mapping === undefined ||
 			mapping.byteOffset !== index ||
 			mapping.utf16Offset !== index ||
@@ -380,7 +474,10 @@ export function encodeTerminalRowWindow(value: unknown): ProtocolResult<Uint8Arr
 	}
 	const window = parsed.data;
 	if (window.detail === TerminalRowWindowDetail.render) {
-		const encoded = encodeTerminalFrame(window.frame);
+		const encoded = encodeTerminalProjectionBufferWithin(
+			window.frame,
+			PROTOCOL_LIMITS.maxRowWindowBytes - TERMINAL_ROW_WINDOW_HEADER_BYTES,
+		);
 		if (!encoded.ok) return encoded;
 		return encodeHeader(
 			window,
@@ -397,6 +494,10 @@ export function encodeTerminalRowWindow(value: unknown): ProtocolResult<Uint8Arr
 
 function isMagic(bytes: Uint8Array): boolean {
 	return TERMINAL_ROW_WINDOW_MAGIC.every((value, index) => bytes[index] === value);
+}
+
+function isSharedMemory(buffer: ArrayBufferLike): boolean {
+	return typeof SharedArrayBuffer === 'function' && buffer instanceof SharedArrayBuffer;
 }
 
 function allZero(bytes: Uint8Array): boolean {
@@ -439,17 +540,19 @@ function decodeHeader(bytes: Uint8Array): ProtocolResult<RowWindowHeader> {
 	const reserved = reader.readUint16();
 	const entryCount = reader.readUint32();
 	const bodyLength = reader.readUint32();
-	const reservedTail = reader.readBytes(12);
+	const formatPatch = reader.readUint8();
+	const reservedTail = reader.readBytes(11);
 	if (reader.failure) return reader.failure;
 
 	if (
 		formatMajor !== TERMINAL_ROW_WINDOW_FORMAT.major ||
-		formatMinor > TERMINAL_ROW_WINDOW_FORMAT.minor ||
+		formatMinor !== TERMINAL_ROW_WINDOW_FORMAT.minor ||
+		formatPatch !== TERMINAL_ROW_WINDOW_FORMAT.patch ||
 		headerLength !== TERMINAL_ROW_WINDOW_HEADER_BYTES
 	) {
 		return protocolFailure(
 			ProtocolErrorCode.unsupportedVersion,
-			`Unsupported terminal row-window format ${formatMajor}.${formatMinor}`,
+			`Unsupported terminal row-window format ${formatMajor}.${formatMinor}.${formatPatch}`,
 		);
 	}
 	if (totalLength !== bytes.byteLength || bodyLength !== bytes.byteLength - headerLength) {
@@ -489,7 +592,6 @@ function decodeHeader(bytes: Uint8Array): ProtocolResult<RowWindowHeader> {
 		columns,
 		detail: detail.value,
 		entryCount,
-		formatMinor,
 		generation,
 		hostEpoch: hostEpoch.value,
 		ignoredOptionalFlags: flags & 0x7f,
@@ -504,8 +606,9 @@ function decodeHeader(bytes: Uint8Array): ProtocolResult<RowWindowHeader> {
 function decodeRenderWindow(
 	header: RowWindowHeader,
 	body: Uint8Array,
+	decodeProjection: (bytes: Uint8Array) => ProtocolResult<DecodedTerminalProjectionBuffer>,
 ): ProtocolResult<DecodedTerminalRenderRowWindow> {
-	const decoded = decodeTerminalFrame(body);
+	const decoded = decodeProjection(body);
 	if (!decoded.ok) return decoded;
 	const frame = decoded.value;
 	if (
@@ -516,6 +619,7 @@ function decodeRenderWindow(
 		frame.revision !== header.revision ||
 		frame.generation !== header.generation ||
 		frame.columns !== header.columns ||
+		frame.scrollbackRows !== header.startRow ||
 		frame.rows !== header.rowCount ||
 		header.entryCount !== frame.rows * frame.columns
 	) {
@@ -529,7 +633,6 @@ function decodeRenderWindow(
 		columns: header.columns,
 		detail: TerminalRowWindowDetail.render,
 		frame,
-		frameBytes: body.slice(),
 		generation: header.generation,
 		hostEpoch: header.hostEpoch,
 		ignoredOptionalFlags: header.ignoredOptionalFlags,
@@ -554,8 +657,7 @@ function decodeTextWindow(
 		const textLength = reader.readUint32();
 		const mappingCount = reader.readUint32();
 		if (reader.failure) return reader.failure;
-		const supportedRowFlags =
-			ROW_FLAGS_MASK | (header.formatMinor >= 1 ? TerminalTextRowFlag.identityAscii : 0);
+		const supportedRowFlags = ROW_FLAGS_MASK | TerminalTextRowFlag.identityAscii;
 		if (reserved !== 0 || (rowFlags & ~supportedRowFlags) !== 0) {
 			return protocolFailure(
 				ProtocolErrorCode.unknownRequiredFlag,
@@ -579,9 +681,7 @@ function decodeTextWindow(
 		}
 		if (
 			identityAscii &&
-			(mappingCount !== 0 ||
-				encodedText.byteLength > header.columns ||
-				!encodedText.every((byte) => byte <= 0x7f))
+			(mappingCount !== 0 || encodedText.byteLength > header.columns || !isAscii(encodedText))
 		) {
 			return protocolFailure(
 				ProtocolErrorCode.invalidField,
@@ -589,19 +689,26 @@ function decodeTextWindow(
 			);
 		}
 		const logicalMappingCount = identityAscii ? encodedText.byteLength : mappingCount;
+		if (!identityAscii && encodedText.byteLength > 0 && mappingCount === 0) {
+			return protocolFailure(
+				ProtocolErrorCode.invalidField,
+				'A non-empty text row requires a mapping',
+			);
+		}
 		if (logicalMappingCount > PROTOCOL_LIMITS.maxFrameCells - decodedMappings) {
 			return protocolFailure(
 				ProtocolErrorCode.limitExceeded,
 				'Text row mapping table exceeds a limit',
 			);
 		}
-		const byteOffsets = new Uint32Array(mappingCount);
-		const utf16Offsets = new Uint32Array(mappingCount);
-		const columns = new Uint16Array(mappingCount);
-		const widths = new Uint8Array(mappingCount);
+		const byteOffsets = mappingCount === 0 ? EMPTY_UINT32_ARRAY : new Uint32Array(mappingCount);
+		const utf16Offsets = mappingCount === 0 ? EMPTY_UINT32_ARRAY : new Uint32Array(mappingCount);
+		const columns = mappingCount === 0 ? EMPTY_UINT16_ARRAY : new Uint16Array(mappingCount);
+		const widths = mappingCount === 0 ? EMPTY_UINT8_ARRAY : new Uint8Array(mappingCount);
 		let previousByteOffset = -1;
 		let previousUtf16Offset = -1;
-		let previousColumn = -1;
+		let previousColumnEnd = 0;
+		const textPosition = { byteOffset: 0, utf16Offset: 0 };
 		for (let mappingOffset = 0; mappingOffset < mappingCount; mappingOffset += 1) {
 			const byteOffset = reader.readUint32();
 			const utf16Offset = reader.readUint32();
@@ -616,13 +723,15 @@ function decodeTextWindow(
 				);
 			}
 			if (
-				byteOffset > encodedText.byteLength ||
-				utf16Offset > text.length ||
-				column >= header.columns ||
+				byteOffset >= encodedText.byteLength ||
+				utf16Offset >= text.length ||
+				column + width > header.columns ||
 				(width !== 1 && width !== 2) ||
+				(mappingOffset === 0 && (byteOffset !== 0 || utf16Offset !== 0)) ||
+				!matchesUtf8Position(encodedText, byteOffset, utf16Offset, textPosition) ||
 				byteOffset <= previousByteOffset ||
 				utf16Offset <= previousUtf16Offset ||
-				column <= previousColumn
+				column < previousColumnEnd
 			) {
 				return protocolFailure(ProtocolErrorCode.invalidField, 'Text mapping is not canonical');
 			}
@@ -632,11 +741,16 @@ function decodeTextWindow(
 			widths[mappingOffset] = width;
 			previousByteOffset = byteOffset;
 			previousUtf16Offset = utf16Offset;
-			previousColumn = column;
+			previousColumnEnd = column + width;
 		}
 		decodedMappings += logicalMappingCount;
 		const promptClass = promptClassFromCode(promptClassValue);
 		if (!promptClass.ok) return promptClass;
+		const wrap = (rowFlags & TerminalRowFlag.wrap) !== 0;
+		const wrapContinuation = (rowFlags & TerminalRowFlag.wrapContinuation) !== 0;
+		if (rows.at(-1)?.wrap !== undefined && rows.at(-1)?.wrap !== wrapContinuation) {
+			return protocolFailure(ProtocolErrorCode.invalidField, 'Adjacent row wrap flags disagree');
+		}
 		rows.push({
 			byteOffsets,
 			columns,
@@ -646,8 +760,8 @@ function decodeTextWindow(
 			text,
 			utf16Offsets,
 			widths,
-			wrap: (rowFlags & TerminalRowFlag.wrap) !== 0,
-			wrapContinuation: (rowFlags & TerminalRowFlag.wrapContinuation) !== 0,
+			wrap,
+			wrapContinuation,
 		});
 	}
 	if (reader.offset !== body.byteLength || decodedMappings !== header.entryCount) {
@@ -671,10 +785,40 @@ function decodeTextWindow(
 export function decodeTerminalRowWindow(
 	bytes: Uint8Array,
 ): ProtocolResult<DecodedTerminalRowWindow> {
+	if (bytes.byteLength > PROTOCOL_LIMITS.maxRowWindowBytes) {
+		return protocolFailure(
+			ProtocolErrorCode.limitExceeded,
+			'Terminal row window exceeds its limit',
+		);
+	}
+	let stableBytes = bytes;
+	if (isSharedMemory(bytes.buffer)) {
+		stableBytes = new Uint8Array(bytes.byteLength);
+		stableBytes.set(bytes);
+	}
+	const header = decodeHeader(stableBytes);
+	if (!header.ok) return header;
+	const body = stableBytes.subarray(TERMINAL_ROW_WINDOW_HEADER_BYTES);
+	return header.value.detail === TerminalRowWindowDetail.render
+		? decodeRenderWindow(header.value, body, decodeTerminalProjectionBuffer)
+		: decodeTextWindow(header.value, body);
+}
+
+/**
+ * Returns direct typed views for a capability-scoped local Host render window. Text windows and
+ * all fixed routing metadata remain strictly decoded; external input must use decodeTerminalRowWindow.
+ */
+export function viewTerminalRowWindow(bytes: Uint8Array): ProtocolResult<DecodedTerminalRowWindow> {
+	if (isSharedMemory(bytes.buffer)) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Trusted row-window views do not accept shared memory',
+		);
+	}
 	const header = decodeHeader(bytes);
 	if (!header.ok) return header;
 	const body = bytes.subarray(TERMINAL_ROW_WINDOW_HEADER_BYTES);
 	return header.value.detail === TerminalRowWindowDetail.render
-		? decodeRenderWindow(header.value, body)
+		? decodeRenderWindow(header.value, body, viewTerminalProjectionBuffer)
 		: decodeTextWindow(header.value, body);
 }

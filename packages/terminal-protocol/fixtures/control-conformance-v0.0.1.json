@@ -1,0 +1,633 @@
+{
+	"commands": {
+		"attach_terminal": "{\"attachmentId\":\"22222222222222222222222222222222\",\"capabilities\":{\"input\":true,\"read\":true,\"resize\":false},\"requestResizeLease\":false,\"terminalId\":\"44444444444444444444444444444444\"}",
+		"create_terminal": "{\"creationId\":\"33333333333333333333333333333333\",\"launch\":{\"arguments\":[\"--login\",\"项目\"],\"columns\":120,\"configuration\":null,\"currentDirectory\":\"/tmp/项目\",\"environment\":[{\"name\":\"EMPTY\",\"value\":\"\"},{\"name\":\"REMOVE_ME\",\"value\":null}],\"executable\":\"/bin/sh\",\"rows\":40,\"cellPixelHeight\":16,\"cellPixelWidth\":8,\"terminalProfile\":{\"colorScheme\":\"dark\",\"defaultBackgroundRgb\":1052688,\"defaultCursorRgb\":null,\"defaultForegroundRgb\":15790320,\"deviceAttributes\":{\"primaryConformanceLevel\":65,\"primaryFeatures\":[1,4],\"secondaryDeviceType\":1,\"secondaryFirmwareVersion\":2,\"secondaryRomCartridge\":0,\"tertiaryUnitId\":42},\"enquiryResponse\":\"\\u001b[?1;2c\",\"palette\":[0,65793,131586,197379,263172,328965,394758,460551,526344,592137,657930,723723,789516,855309,921102,986895,1052688,1118481,1184274,1250067,1315860,1381653,1447446,1513239,1579032,1644825,1710618,1776411,1842204,1907997,1973790,2039583,2105376,2171169,2236962,2302755,2368548,2434341,2500134,2565927,2631720,2697513,2763306,2829099,2894892,2960685,3026478,3092271,3158064,3223857,3289650,3355443,3421236,3487029,3552822,3618615,3684408,3750201,3815994,3881787,3947580,4013373,4079166,4144959,4210752,4276545,4342338,4408131,4473924,4539717,4605510,4671303,4737096,4802889,4868682,4934475,5000268,5066061,5131854,5197647,5263440,5329233,5395026,5460819,5526612,5592405,5658198,5723991,5789784,5855577,5921370,5987163,6052956,6118749,6184542,6250335,6316128,6381921,6447714,6513507,6579300,6645093,6710886,6776679,6842472,6908265,6974058,7039851,7105644,7171437,7237230,7303023,7368816,7434609,7500402,7566195,7631988,7697781,7763574,7829367,7895160,7960953,8026746,8092539,8158332,8224125,8289918,8355711,8421504,8487297,8553090,8618883,8684676,8750469,8816262,8882055,8947848,9013641,9079434,9145227,9211020,9276813,9342606,9408399,9474192,9539985,9605778,9671571,9737364,9803157,9868950,9934743,10000536,10066329,10132122,10197915,10263708,10329501,10395294,10461087,10526880,10592673,10658466,10724259,10790052,10855845,10921638,10987431,11053224,11119017,11184810,11250603,11316396,11382189,11447982,11513775,11579568,11645361,11711154,11776947,11842740,11908533,11974326,12040119,12105912,12171705,12237498,12303291,12369084,12434877,12500670,12566463,12632256,12698049,12763842,12829635,12895428,12961221,13027014,13092807,13158600,13224393,13290186,13355979,13421772,13487565,13553358,13619151,13684944,13750737,13816530,13882323,13948116,14013909,14079702,14145495,14211288,14277081,14342874,14408667,14474460,14540253,14606046,14671839,14737632,14803425,14869218,14935011,15000804,15066597,15132390,15198183,15263976,15329769,15395562,15461355,15527148,15592941,15658734,15724527,15790320,15856113,15921906,15987699,16053492,16119285,16185078,16250871,16316664,16382457,16448250,16514043,16579836,16645629,16711422,16777215],\"versionResponse\":\"\\u001b[>1;2;3c\"}}}",
+		"detach_terminal": "{\"attachmentId\":\"22222222222222222222222222222222\"}",
+		"empty": "{}",
+		"frame_applied": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"7\"}",
+		"hello": "{\"clientId\":\"55555555555555555555555555555555\",\"frameBytes\":8388608,\"inputBytes\":1048576,\"protocol\":{\"major\":0,\"minor\":0,\"patch\":1},\"rowWindowBytes\":2097152,\"supportedOptionalFeatures\":[\"future-x\"]}",
+		"history_demand": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"following-bottom\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"viewing-history\"}"
+		],
+		"history_observed": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\"}",
+		"list_terminals": "{\"cursor\":{\"inventoryGeneration\":\"9\",\"offset\":\"2\"},\"maximumTerminals\":64}",
+		"need_snapshot": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"base-mismatch\",\"sequence\":\"1\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"decoder-rejected\",\"sequence\":\"2\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"dimensions-mismatch\",\"sequence\":\"3\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"generation-mismatch\",\"sequence\":\"4\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"identity-mismatch\",\"sequence\":\"5\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"sequence-gap\",\"sequence\":\"6\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"store-reset\",\"sequence\":\"7\"}"
+		],
+		"projection_demand": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"active\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"paused\"}"
+		],
+		"read_rows": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"detail\":\"text\",\"generation\":\"3\",\"maximumBytes\":65536,\"origin\":{\"kind\":\"absolute\",\"row\":\"10\"},\"purpose\":\"buffer\",\"requestSequence\":\"1\",\"revision\":\"42\",\"rowCount\":20}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"detail\":\"render\",\"generation\":\"3\",\"maximumBytes\":65536,\"origin\":{\"kind\":\"oldest\",\"offset\":2},\"purpose\":\"search\",\"requestSequence\":\"2\",\"revision\":\"42\",\"rowCount\":20}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"detail\":\"text\",\"generation\":\"3\",\"maximumBytes\":65536,\"origin\":{\"delta\":-1,\"kind\":\"committed\"},\"purpose\":\"viewport\",\"requestSequence\":\"3\",\"revision\":\"42\",\"rowCount\":20}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"detail\":\"render\",\"generation\":\"3\",\"maximumBytes\":65536,\"origin\":{\"kind\":\"tail\",\"rowsBefore\":3},\"purpose\":\"buffer\",\"requestSequence\":\"4\",\"revision\":\"42\",\"rowCount\":20}"
+		],
+		"resize_terminal": "{\"attachmentId\":\"22222222222222222222222222222222\",\"cellPixelHeight\":16,\"cellPixelWidth\":8,\"columns\":100,\"rows\":30}",
+		"rows_applied": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"requestSequence\":\"8\",\"revision\":\"42\"}",
+		"selection_command": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"command\":\"clear\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"command\":\"select-all\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"command\":\"select-output\",\"point\":{\"column\":4,\"row\":\"100\"}}"
+		],
+		"selection_export": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"exportSequence\":\"1\",\"format\":\"html\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"exportSequence\":\"2\",\"format\":\"plain\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"exportSequence\":\"3\",\"format\":\"vt\"}"
+		],
+		"selection_export_cancel": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"exportSequence\":\"1\",\"reason\":\"clipboard-failed\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"exportSequence\":\"2\",\"reason\":\"disposed\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"exportSequence\":\"3\",\"reason\":\"replaced\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"exportSequence\":\"4\",\"reason\":\"user\"}"
+		],
+		"selection_export_chunk_applied": "{\"attachmentId\":\"22222222222222222222222222222222\",\"chunkSequence\":2,\"exportSequence\":\"9\"}",
+		"selection_gesture": [
+			"{\"action\":\"start\",\"attachmentId\":\"22222222222222222222222222222222\",\"clickCount\":1,\"generation\":\"3\",\"point\":{\"column\":4,\"row\":\"100\"},\"rectangle\":false,\"revision\":\"42\"}",
+			"{\"action\":\"update\",\"attachmentId\":\"22222222222222222222222222222222\",\"clickCount\":2,\"generation\":\"3\",\"point\":{\"column\":4,\"row\":\"100\"},\"rectangle\":true,\"revision\":\"42\"}",
+			"{\"action\":\"end\",\"attachmentId\":\"22222222222222222222222222222222\",\"clickCount\":3,\"generation\":\"3\",\"point\":{\"column\":4,\"row\":\"100\"},\"rectangle\":false,\"revision\":\"42\"}"
+		],
+		"set_terminal_defaults": "{\"configuration\":{\"scrollbackBytes\":25000000}}",
+		"terminal_target": "{\"terminalId\":\"44444444444444444444444444444444\"}",
+		"update_terminal_configuration": "{\"configuration\":{\"scrollbackBytes\":0},\"terminalId\":\"44444444444444444444444444444444\"}"
+	},
+	"message_contracts": [
+		{
+			"event_encoding": null,
+			"kind": 1,
+			"name": "Hello",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 2
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 2,
+			"name": "HelloAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 3,
+			"name": "ProtocolRejected",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 4,
+			"name": "Ping",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 4
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 5,
+			"name": "TypedFailure",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 10,
+			"name": "ListTerminals",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 10
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 11,
+			"name": "CreateTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 11
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 12,
+			"name": "TerminateTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 12
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 13,
+			"name": "DisposeTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 13
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 14,
+			"name": "TerminalStarted",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 15,
+			"name": "TerminalExited",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 18,
+			"name": "ForceTerminateTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 18
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 19,
+			"name": "TerminalFailed",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 20,
+			"name": "AttachTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 22
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 21,
+			"name": "DetachTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 21
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 22,
+			"name": "AttachmentCapabilities",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 30,
+			"name": "WriteInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 31,
+			"name": "InputAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 32,
+			"name": "ResizeTerminal",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 33
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 33,
+			"name": "ResizeAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 34,
+			"name": "KeyInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 35,
+			"name": "TextInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 36,
+			"name": "MouseInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 37,
+			"name": "FocusInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 38,
+			"name": "PasteInput",
+			"request": {
+				"payload_encoding": "raw-bytes",
+				"success_kind": 31
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "terminal-frame",
+			"kind": 41,
+			"name": "SnapshotFrame",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "terminal-frame",
+			"kind": 42,
+			"name": "DeltaFrame",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 43,
+			"name": "FrameApplied",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 43
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 44,
+			"name": "NeedSnapshot",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 44
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 45,
+			"name": "ReadRows",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 46
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 46,
+			"name": "RowsSnapshot",
+			"request": null,
+			"response_encoding": "row-window"
+		},
+		{
+			"event_encoding": null,
+			"kind": 47,
+			"name": "SetProjectionDemand",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 48
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 48,
+			"name": "ProjectionDemandAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 49,
+			"name": "ProjectionBlocked",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 50,
+			"name": "RowsApplied",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 50
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 51,
+			"name": "SetHistoryDemand",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 52
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 52,
+			"name": "HistoryDemandAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 53,
+			"name": "HistoryChanged",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 54,
+			"name": "HistoryObserved",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 54
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 60,
+			"name": "SelectionGesture",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 62
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 61,
+			"name": "SelectionCommand",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 62
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 62,
+			"name": "SelectionChanged",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 63,
+			"name": "SelectionExport",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 64
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 64,
+			"name": "SelectionExportStarted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "raw-bytes",
+			"kind": 65,
+			"name": "SelectionExportChunk",
+			"request": null,
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 66,
+			"name": "SelectionExportChunkApplied",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 66
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": "control-json",
+			"kind": 67,
+			"name": "SelectionExportFinished",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 68,
+			"name": "SelectionExportCancel",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 67
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 70,
+			"name": "SetTerminalDefaults",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 71
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 71,
+			"name": "TerminalDefaultsAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
+			"kind": 72,
+			"name": "UpdateTerminalConfiguration",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 73
+			},
+			"response_encoding": null
+		},
+		{
+			"event_encoding": null,
+			"kind": 73,
+			"name": "TerminalConfigurationAccepted",
+			"request": null,
+			"response_encoding": "control-json"
+		}
+	],
+	"outputs": {
+		"attachment_acknowledged": "{\"attachmentId\":\"22222222222222222222222222222222\"}",
+		"attachment_capabilities": "{\"attachmentId\":\"22222222222222222222222222222222\",\"capabilities\":{\"input\":true,\"read\":true,\"resize\":false},\"resizeLease\":false,\"terminalId\":\"44444444444444444444444444444444\"}",
+		"empty": "{}",
+		"frame_applied": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"7\"}",
+		"hello_accepted": "{\"frameBytes\":8388608,\"hostEpoch\":\"11111111111111111111111111111111\",\"hostVersion\":\"0.1.0\",\"inputBytes\":1048576,\"protocol\":{\"major\":0,\"minor\":0,\"patch\":1},\"rowWindowBytes\":2097152,\"supportedOptionalFeatures\":[]}",
+		"history_changed": [
+			"{\"anchorStatus\":\"evicted\",\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"totalRows\":\"125\"}",
+			"{\"anchorStatus\":\"none\",\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"totalRows\":\"125\"}",
+			"{\"anchorStatus\":\"valid\",\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"totalRows\":\"125\"}"
+		],
+		"history_demand_accepted": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"following-bottom\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"viewing-history\"}"
+		],
+		"history_observed": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\"}",
+		"input_accepted": "{\"acceptedBytes\":12,\"attachmentId\":\"22222222222222222222222222222222\"}",
+		"need_snapshot": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"base-mismatch\",\"sequence\":\"1\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"decoder-rejected\",\"sequence\":\"2\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"dimensions-mismatch\",\"sequence\":\"3\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"generation-mismatch\",\"sequence\":\"4\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"identity-mismatch\",\"sequence\":\"5\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"sequence-gap\",\"sequence\":\"6\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"store-reset\",\"sequence\":\"7\"}"
+		],
+		"projection_blocked": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"capture-allocation-failed\",\"revision\":\"42\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"projection-too-large\",\"revision\":\"42\"}"
+		],
+		"projection_demand_accepted": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"active\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"paused\"}"
+		],
+		"protocol_rejected": "{\"client\":{\"major\":0,\"minor\":1,\"patch\":0},\"host\":{\"major\":0,\"minor\":0,\"patch\":1},\"reason\":\"version-mismatch\"}",
+		"resize_accepted": "{\"attachmentId\":\"22222222222222222222222222222222\",\"cellPixelHeight\":16,\"cellPixelWidth\":8,\"columns\":100,\"revision\":\"43\",\"rows\":30}",
+		"rows_applied": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"requestSequence\":\"8\",\"revision\":\"42\"}",
+		"selection_changed": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"state\":\"none\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"state\":\"evicted\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"end\":{\"column\":7,\"row\":\"102\"},\"preview\":null,\"rectangle\":true,\"start\":{\"column\":4,\"row\":\"100\"},\"state\":\"active\"}"
+		],
+		"selection_export_chunk_applied": "{\"attachmentId\":\"22222222222222222222222222222222\",\"chunkSequence\":2,\"exportSequence\":\"9\"}",
+		"selection_export_finished": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"byteLength\":12,\"exportSequence\":\"9\",\"status\":\"cancelled\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"byteLength\":12,\"exportSequence\":\"9\",\"status\":\"completed\"}"
+		],
+		"selection_export_started": [
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"byteLength\":10,\"exportSequence\":\"1\",\"format\":\"html\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"byteLength\":11,\"exportSequence\":\"2\",\"format\":\"plain\"}",
+			"{\"attachmentId\":\"22222222222222222222222222222222\",\"byteLength\":12,\"exportSequence\":\"3\",\"format\":\"vt\"}"
+		],
+		"terminal_acknowledged": "{\"terminalId\":\"44444444444444444444444444444444\"}",
+		"terminal_configuration_accepted": "{\"configuration\":{\"scrollbackBytes\":25000000},\"configurationRevision\":\"3\",\"generation\":\"4\",\"historyRowsEvicted\":\"5\",\"revision\":\"43\",\"terminalId\":\"44444444444444444444444444444444\"}",
+		"terminal_defaults_accepted": "{\"configuration\":{\"scrollbackBytes\":25000000},\"revision\":\"3\"}",
+		"terminal_exited": [
+			"{\"exit\":{\"code\":0,\"kind\":\"exit-code\"},\"finalRevision\":\"42\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"}}",
+			"{\"exit\":{\"kind\":\"signal\",\"signal\":15},\"finalRevision\":\"42\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"}}",
+			"{\"exit\":{\"kind\":\"unknown\",\"value\":7},\"finalRevision\":\"42\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"}}"
+		],
+		"terminal_failed": [
+			"{\"failure\":{\"kind\":\"process-control\",\"stage\":\"dispatch-termination\"},\"finalRevision\":\"42\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"process\":{\"kind\":\"observed\",\"result\":{\"code\":1,\"kind\":\"exit-code\"}}}",
+			"{\"failure\":{\"kind\":\"process-observation\",\"stage\":\"observe-process\"},\"finalRevision\":\"43\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"process\":{\"failure\":{\"kind\":\"process-observation\",\"stage\":\"observe-process\"},\"kind\":\"unavailable\"}}",
+			"{\"failure\":{\"kind\":\"pty-read\",\"stage\":\"read-output\"},\"finalRevision\":\"44\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"process\":{\"kind\":\"observed\",\"result\":{\"kind\":\"unknown\",\"value\":7}}}",
+			"{\"failure\":{\"kind\":\"pty-write\",\"stage\":\"write-input\"},\"finalRevision\":\"45\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"process\":{\"kind\":\"observed\",\"result\":{\"code\":1,\"kind\":\"exit-code\"}}}",
+			"{\"failure\":{\"kind\":\"resize\",\"stage\":\"apply-resize\"},\"finalRevision\":\"46\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"process\":{\"kind\":\"observed\",\"result\":{\"kind\":\"signal\",\"signal\":15}}}",
+			"{\"failure\":{\"kind\":\"terminal-reply\",\"stage\":\"admit-terminal-reply\"},\"finalRevision\":\"47\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"process\":{\"kind\":\"observed\",\"result\":{\"kind\":\"unknown\",\"value\":7}}}",
+			"{\"failure\":{\"kind\":\"worker-integrity\",\"stage\":\"synchronize-worker\"},\"finalRevision\":\"48\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"process\":{\"kind\":\"observed\",\"result\":{\"code\":1,\"kind\":\"exit-code\"}}}"
+		],
+		"terminal_identity": "{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"}",
+		"terminal_list": "{\"inventoryGeneration\":\"9\",\"nextCursor\":null,\"terminals\":[{\"columns\":120,\"configuration\":{\"scrollbackBytes\":10000000},\"configurationRevision\":\"2\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"revision\":\"42\",\"rows\":40,\"failure\":null,\"failureContainment\":null,\"process\":null,\"exit\":null,\"phase\":\"running\",\"terminateRequested\":false},{\"columns\":120,\"configuration\":{\"scrollbackBytes\":10000000},\"configurationRevision\":\"2\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"revision\":\"42\",\"rows\":40,\"failure\":null,\"failureContainment\":null,\"process\":null,\"exit\":{\"kind\":\"unknown\",\"value\":7},\"phase\":\"finishing\",\"terminateRequested\":true},{\"columns\":120,\"configuration\":{\"scrollbackBytes\":10000000},\"configurationRevision\":\"2\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"revision\":\"42\",\"rows\":40,\"exit\":null,\"failure\":{\"kind\":\"pty-read\",\"stage\":\"read-output\"},\"failureContainment\":{\"kind\":\"stopping\",\"process\":null},\"phase\":\"containing-failure\",\"process\":null,\"terminateRequested\":true},{\"columns\":120,\"configuration\":{\"scrollbackBytes\":10000000},\"configurationRevision\":\"2\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"revision\":\"42\",\"rows\":40,\"exit\":null,\"failure\":{\"kind\":\"resize\",\"stage\":\"apply-resize\"},\"failureContainment\":{\"cleanupFailure\":{\"kind\":\"pty-read\",\"stage\":\"release-output\"},\"kind\":\"blocked\",\"process\":{\"kind\":\"observed\",\"result\":{\"code\":1,\"kind\":\"exit-code\"}}},\"phase\":\"containing-failure\",\"process\":null,\"terminateRequested\":true},{\"columns\":120,\"configuration\":{\"scrollbackBytes\":10000000},\"configurationRevision\":\"2\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"revision\":\"42\",\"rows\":40,\"failure\":null,\"failureContainment\":null,\"process\":null,\"exit\":{\"kind\":\"signal\",\"signal\":15},\"phase\":\"exited\",\"terminateRequested\":true},{\"columns\":120,\"configuration\":{\"scrollbackBytes\":10000000},\"configurationRevision\":\"2\",\"identity\":{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"},\"revision\":\"42\",\"rows\":40,\"exit\":null,\"failure\":{\"kind\":\"worker-integrity\",\"stage\":\"synchronize-worker\"},\"failureContainment\":null,\"phase\":\"failed\",\"process\":{\"failure\":{\"kind\":\"process-observation\",\"stage\":\"observe-process\"},\"kind\":\"unavailable\"},\"terminateRequested\":true}]}",
+		"terminal_started": "{\"creationId\":\"33333333333333333333333333333333\",\"hostEpoch\":\"11111111111111111111111111111111\",\"terminalId\":\"44444444444444444444444444444444\"}",
+		"typed_failure": [
+			"{\"code\":\"invalid-state\",\"message\":\"The command is not legal now.\",\"retryable\":false}",
+			"{\"code\":\"backpressure\",\"message\":\"Try again later.\",\"retryable\":true}"
+		]
+	},
+	"protocol_limits": {
+		"control_json_bytes": 65536,
+		"extension_bytes": 1048576,
+		"frame_bytes": 8388608,
+		"frame_cells": 262144,
+		"frame_columns": 4096,
+		"frame_extensions": 64,
+		"frame_rows": 4096,
+		"frame_strings": 4096,
+		"frame_styles": 1024,
+		"cell_pixel_dimension": 4096,
+		"input_bytes": 1048576,
+		"input_accepted_bytes": 1048592,
+		"inventory_page_terminals": 128,
+		"key_text_bytes": 4096,
+		"launch_arguments": 4096,
+		"launch_environment_entries": 1024,
+		"environment_name_bytes": 32768,
+		"optional_feature_name_bytes": 64,
+		"optional_features": 64,
+		"pending_input_bytes": 4194304,
+		"pty_read_batch_bytes": 262144,
+		"row_window_bytes": 2097152,
+		"row_window_rows": 4096,
+		"search_query_bytes": 16384,
+		"selection_export_bytes": 16777216,
+		"selection_export_chunk_bytes": 1048576,
+		"selection_preview_bytes": 4096,
+		"terminal_profile_features": 64,
+		"terminal_response_bytes": 256,
+		"terminal_profile_palette_entries": 256,
+		"scrollback_bytes": 1000000000,
+		"string_bytes": 16384,
+		"transport_record_bytes": 8388672,
+		"raw_payload_bytes": 1048608,
+		"semantic_input_payload_bytes": 1048608,
+		"write_input_payload_bytes": 1048592
+	}
+}

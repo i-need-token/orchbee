@@ -234,7 +234,6 @@
 		"kind": 42,
 		"optionalMessage": false,
 		"payloadEncoding": "terminal-frame",
-		"protocol": { "major": 1, "minor": 1 },
 		"response": false
 	},
 	"focusInput": {
@@ -300,6 +299,22 @@
 	"textInput": {
 		"attachmentId": "22222222222222222222222222222222",
 		"text": "中文"
+	},
+	"terminalFailed": {
+		"failure": {
+			"kind": "pty-read",
+			"stage": "read-output"
+		},
+		"finalRevision": "42",
+		"identity": {
+			"creationId": "33333333333333333333333333333333",
+			"hostEpoch": "11111111111111111111111111111111",
+			"terminalId": "44444444444444444444444444444444"
+		},
+		"process": {
+			"kind": "observed",
+			"result": { "code": 1, "kind": "exit-code" }
+		}
 	},
 	"writeInput": {
 		"attachmentId": "22222222222222222222222222222222",

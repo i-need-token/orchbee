@@ -1,65 +1,31 @@
 import { z } from 'zod';
 
-import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-result';
-import type { ProtocolResult } from './protocol-result';
-
 const protocolComponentSchema = z.number().int().min(0).max(65_535);
+// Cross-language contract: search for `terminal-host-version-wire-limit`
+// before changing this value, then update every occurrence together.
+const MAX_HOST_VERSION_BYTES = 64;
+
+export const SemanticVersionTextSchema = z
+	.string()
+	.min(5)
+	.max(MAX_HOST_VERSION_BYTES)
+	.regex(
+		/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/,
+		'Expected a semantic version',
+	);
 
 export const ProtocolVersionSchema = z.strictObject({
 	major: protocolComponentSchema,
 	minor: protocolComponentSchema,
+	patch: protocolComponentSchema,
 });
 
-export const ProtocolVersionRangeSchema = z
-	.strictObject({
-		major: protocolComponentSchema,
-		maximumMinor: protocolComponentSchema,
-		minimumMinor: protocolComponentSchema,
-	})
-	.refine((value) => value.minimumMinor <= value.maximumMinor, {
-		message: 'minimumMinor must not exceed maximumMinor',
-	});
-
 export type ProtocolVersion = z.infer<typeof ProtocolVersionSchema>;
-export type ProtocolVersionRange = z.infer<typeof ProtocolVersionRangeSchema>;
 
+// Keep this synchronized with Zig. Released changes (>= 1.0.0) also update
+// docs/version-history.md in the same change.
 export const CURRENT_PROTOCOL_VERSION = {
-	major: 1,
-	minor: 4,
+	major: 0,
+	minor: 0,
+	patch: 1,
 } as const satisfies ProtocolVersion;
-
-export const CURRENT_PROTOCOL_RANGE = {
-	major: CURRENT_PROTOCOL_VERSION.major,
-	maximumMinor: CURRENT_PROTOCOL_VERSION.minor,
-	minimumMinor: 0,
-} as const satisfies ProtocolVersionRange;
-
-export function negotiateProtocolVersion(
-	clientRange: unknown,
-	hostRange: unknown,
-): ProtocolResult<ProtocolVersion> {
-	const client = ProtocolVersionRangeSchema.safeParse(clientRange);
-	const host = ProtocolVersionRangeSchema.safeParse(hostRange);
-	if (!client.success || !host.success) {
-		return protocolFailure(
-			ProtocolErrorCode.invalidField,
-			'Protocol negotiation requires valid client and Host ranges',
-		);
-	}
-	if (client.data.major !== host.data.major) {
-		return protocolFailure(
-			ProtocolErrorCode.unsupportedVersion,
-			'Client and Host protocol majors do not overlap',
-		);
-	}
-
-	const minimumMinor = Math.max(client.data.minimumMinor, host.data.minimumMinor);
-	const maximumMinor = Math.min(client.data.maximumMinor, host.data.maximumMinor);
-	if (minimumMinor > maximumMinor) {
-		return protocolFailure(
-			ProtocolErrorCode.unsupportedVersion,
-			'Client and Host protocol minor ranges do not overlap',
-		);
-	}
-	return protocolSuccess({ major: client.data.major, minor: maximumMinor });
-}

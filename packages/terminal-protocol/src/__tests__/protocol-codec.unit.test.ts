@@ -33,17 +33,20 @@ import {
 import { parseHostEpoch } from '../identifiers';
 import { ProtocolErrorCode } from '../protocol-result';
 import { decodeTerminalRowWindow, TerminalRowWindowDetail } from '../row-window';
-import { CURRENT_PROTOCOL_RANGE, negotiateProtocolVersion } from '../version';
+import { CURRENT_PROTOCOL_VERSION } from '../version';
 
 const hostEpoch = parseHostEpoch('11111111111111111111111111111111');
 if (!hostEpoch.ok) throw new Error(hostEpoch.detail);
 
-const frameFixtureUrl = new URL('../../fixtures/terminal-frame-v2.bin', import.meta.url);
-const envelopeFixtureUrl = new URL('../../fixtures/transport-envelope-v1.bin', import.meta.url);
-const malformedFixtureUrl = new URL('../../fixtures/malformed-frame-v2.json', import.meta.url);
-const rowWindowFixtureUrl = new URL('../../fixtures/terminal-row-window-v1.bin', import.meta.url);
+const frameFixtureUrl = new URL('../../fixtures/terminal-frame-v0.0.1.bin', import.meta.url);
+const envelopeFixtureUrl = new URL('../../fixtures/transport-envelope-v0.0.1.bin', import.meta.url);
+const malformedFixtureUrl = new URL('../../fixtures/malformed-frame-v0.0.1.json', import.meta.url);
+const rowWindowFixtureUrl = new URL(
+	'../../fixtures/terminal-row-window-v0.0.1.bin',
+	import.meta.url,
+);
 const malformedRowWindowFixtureUrl = new URL(
-	'../../fixtures/malformed-row-window-v1.json',
+	'../../fixtures/malformed-row-window-v0.0.1.json',
 	import.meta.url,
 );
 
@@ -84,7 +87,21 @@ async function fixtureBytes(url: URL): Promise<Uint8Array> {
 	return new Uint8Array(await readFile(url));
 }
 
-describe('terminal protocol identifiers and negotiation', () => {
+function locateFrameTables(bytes: Uint8Array): {
+	readonly firstRow: number;
+	readonly firstStyle: number;
+} {
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+	const stringCount = view.getUint32(124, true);
+	const styleCount = view.getUint16(128, true);
+	let offset = 160;
+	for (let index = 0; index < stringCount; index += 1) {
+		offset += 4 + view.getUint32(offset, true);
+	}
+	return { firstRow: offset + styleCount * 20, firstStyle: offset };
+}
+
+describe('terminal protocol identifiers and handshake input', () => {
 	it('accepts only canonical non-zero 128-bit identifiers', () => {
 		expect(parseHostEpoch('11111111111111111111111111111111').ok).toBe(true);
 		expect(parseHostEpoch('11111111-1111-1111-1111-111111111111')).toEqual(
@@ -93,21 +110,6 @@ describe('terminal protocol identifiers and negotiation', () => {
 		expect(parseHostEpoch('00000000000000000000000000000000')).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidIdentifier, ok: false }),
 		);
-	});
-
-	it('selects the highest minor shared by one protocol major', () => {
-		expect(
-			negotiateProtocolVersion(
-				{ major: 1, maximumMinor: 4, minimumMinor: 1 },
-				{ major: 1, maximumMinor: 3, minimumMinor: 2 },
-			),
-		).toEqual({ ok: true, value: { major: 1, minor: 3 } });
-		expect(
-			negotiateProtocolVersion(
-				{ major: 1, maximumMinor: 1, minimumMinor: 0 },
-				{ major: 2, maximumMinor: 1, minimumMinor: 0 },
-			),
-		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.unsupportedVersion, ok: false }));
 	});
 
 	it('rejects malformed and oversized control JSON before it becomes trusted data', () => {
@@ -121,7 +123,7 @@ describe('terminal protocol identifiers and negotiation', () => {
 						clientId: '33333333333333333333333333333333',
 						frameBytes: 1024,
 						inputBytes: 1024,
-						protocol: CURRENT_PROTOCOL_RANGE,
+						protocol: CURRENT_PROTOCOL_VERSION,
 						rowWindowBytes: 1024,
 						supportedOptionalFeatures: [],
 					}),
@@ -131,7 +133,7 @@ describe('terminal protocol identifiers and negotiation', () => {
 		).toEqual(
 			expect.objectContaining({
 				ok: true,
-				value: expect.objectContaining({ protocol: CURRENT_PROTOCOL_RANGE }),
+				value: expect.objectContaining({ protocol: CURRENT_PROTOCOL_VERSION }),
 			}),
 		);
 	});
@@ -151,7 +153,7 @@ describe('transport envelope codec', () => {
 				kind: MessageKind.deltaFrame,
 				knownMessage: true,
 				payloadEncoding: PayloadEncoding.terminalFrame,
-				protocol: { major: 1, minor: 1 },
+				protocol: CURRENT_PROTOCOL_VERSION,
 			}),
 		);
 		expect(decoded.value.payload).toEqual(frameBytes);
@@ -187,18 +189,34 @@ describe('transport envelope codec', () => {
 			assertProperty(
 				property(
 					uint8Array({ maxLength: 512 }),
-					constantFrom('request', 'response', 'event'),
-					(payload, role) => {
+					constantFrom(
+						{
+							kind: MessageKind.writeInput,
+							payloadEncoding: PayloadEncoding.rawBytes,
+							role: 'request',
+						},
+						{
+							kind: MessageKind.inputAccepted,
+							payloadEncoding: PayloadEncoding.controlJson,
+							role: 'response',
+						},
+						{
+							kind: MessageKind.selectionExportChunk,
+							payloadEncoding: PayloadEncoding.rawBytes,
+							role: 'event',
+						},
+					),
+					(payload, contract) => {
 						const encoded = encodeProtocolEnvelope({
 							correlationId: null,
-							event: role === 'event',
+							event: contract.role === 'event',
 							hostEpoch: hostEpoch.value,
-							kind: MessageKind.writeInput,
+							kind: contract.kind,
 							optionalMessage: false,
 							payload,
-							payloadEncoding: PayloadEncoding.rawBytes,
-							protocol: { major: 1, minor: 0 },
-							response: role === 'response',
+							payloadEncoding: contract.payloadEncoding,
+							protocol: { major: 0, minor: 0, patch: 1 },
+							response: contract.role === 'response',
 						});
 						if (!encoded.ok) return false;
 						const decoded = decodeProtocolEnvelope(encoded.value);
@@ -264,6 +282,41 @@ describe('terminal frame codec', () => {
 				result: expect.objectContaining({ code: fixture.code, ok: false }),
 			});
 		}
+	});
+
+	it('rejects non-canonical style, wrap, and spacer-head encodings', async () => {
+		const canonical = await fixtureBytes(frameFixtureUrl);
+		const tables = locateFrameTables(canonical);
+
+		const invalidUnderline = canonical.slice();
+		invalidUnderline[tables.firstStyle + 18] = 6;
+		expect(decodeTerminalFrame(invalidUnderline)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+
+		const invalidSpacerHead = canonical.slice();
+		const nonFinalCellFlags = tables.firstRow + 8 + 4 * 8 + 6;
+		invalidSpacerHead[nonFinalCellFlags] =
+			((invalidSpacerHead[nonFinalCellFlags] ?? 0) & ~0b11) | 0b11;
+		expect(decodeTerminalFrame(invalidSpacerHead)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+
+		const invalidWrapContinuation = canonical.slice();
+		const columns = new DataView(canonical.buffer, canonical.byteOffset).getUint16(88, true);
+		const secondRow = tables.firstRow + 8 + columns * 8;
+		invalidWrapContinuation[secondRow + 2] = (invalidWrapContinuation[secondRow + 2] ?? 0) & ~0b10;
+		expect(decodeTerminalFrame(invalidWrapContinuation)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+	});
+
+	it('rejects a frame patch outside the exact current format', async () => {
+		const differentPatch = (await fixtureBytes(frameFixtureUrl)).slice();
+		differentPatch[144] = 2;
+		expect(decodeTerminalFrame(differentPatch)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.unsupportedVersion, ok: false }),
+		);
 	});
 
 	it('round-trips generated bounded rows without per-cell decoded objects', () => {
@@ -392,5 +445,45 @@ describe('terminal row-window codec', () => {
 				result: expect.objectContaining({ code: fixture.code, ok: false }),
 			});
 		}
+	});
+
+	it('rejects non-canonical text mapping, prompt, wrap, and patch fields', async () => {
+		const canonical = await fixtureBytes(rowWindowFixtureUrl);
+		const view = new DataView(canonical.buffer, canonical.byteOffset, canonical.byteLength);
+		const firstTextLength = view.getUint32(116, true);
+		const firstMappingCount = view.getUint32(120, true);
+		const firstMapping = 124 + firstTextLength;
+		const secondMapping = firstMapping + 12;
+		const secondRow = firstMapping + firstMappingCount * 12;
+
+		const mismatchedUnicodeOffsets = canonical.slice();
+		new DataView(mismatchedUnicodeOffsets.buffer).setUint32(secondMapping, 2, true);
+		expect(decodeTerminalRowWindow(mismatchedUnicodeOffsets)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+
+		const overlappingColumns = canonical.slice();
+		overlappingColumns[firstMapping + 10] = 2;
+		expect(decodeTerminalRowWindow(overlappingColumns)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+
+		const invalidPrompt = canonical.slice();
+		invalidPrompt[113] = 3;
+		expect(decodeTerminalRowWindow(invalidPrompt)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+
+		const invalidWrapContinuation = canonical.slice();
+		invalidWrapContinuation[secondRow] = (invalidWrapContinuation[secondRow] ?? 0) & ~0b10;
+		expect(decodeTerminalRowWindow(invalidWrapContinuation)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+
+		const differentPatch = canonical.slice();
+		differentPatch[100] = 2;
+		expect(decodeTerminalRowWindow(differentPatch)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.unsupportedVersion, ok: false }),
+		);
 	});
 });

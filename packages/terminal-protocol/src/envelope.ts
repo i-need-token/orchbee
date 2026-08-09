@@ -12,6 +12,8 @@ import {
 } from './identifiers';
 import type { CorrelationId, HostEpoch } from './identifiers';
 import { PROTOCOL_LIMITS } from './limits';
+import { isKnownMessageKind, messagePayloadEncoding, PayloadEncoding } from './message-contract';
+import type { MessageRole, PayloadEncoding as PayloadEncodingValue } from './message-contract';
 import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-result';
 import type { ProtocolResult } from './protocol-result';
 import { ProtocolVersionSchema } from './version';
@@ -20,69 +22,24 @@ import type { ProtocolVersion } from './version';
 export const TRANSPORT_ENVELOPE_HEADER_BYTES = 64;
 export const TRANSPORT_ENVELOPE_MAGIC = new Uint8Array([0x4f, 0x42, 0x54, 0x50]);
 
-export const MessageKind = {
-	attachTerminal: 20,
-	attachmentCapabilities: 22,
-	createTerminal: 11,
-	currentDirectoryChanged: 17,
-	deltaFrame: 42,
-	detachTerminal: 21,
-	disposeTerminal: 13,
-	forceTerminateTerminal: 18,
-	frameApplied: 43,
-	focusInput: 37,
-	hello: 1,
-	helloAccepted: 2,
-	inputAccepted: 31,
-	listTerminals: 10,
-	needSnapshot: 44,
-	keyInput: 34,
-	mouseInput: 36,
-	pasteInput: 38,
-	ping: 4,
-	projectionDemandAccepted: 48,
-	projectionBlocked: 49,
-	rowsApplied: 50,
-	setHistoryDemand: 51,
-	historyDemandAccepted: 52,
-	historyChanged: 53,
-	historyObserved: 54,
-	protocolRejected: 3,
-	readRows: 45,
-	resizeAccepted: 33,
-	resizeLeaseChanged: 23,
-	resizeTerminal: 32,
-	rowsSnapshot: 46,
-	selectionGesture: 60,
-	selectionCommand: 61,
-	selectionChanged: 62,
-	selectionExport: 63,
-	selectionExportStarted: 64,
-	selectionExportChunk: 65,
-	selectionExportChunkApplied: 66,
-	selectionExportFinished: 67,
-	selectionExportCancel: 68,
-	setProjectionDemand: 47,
-	snapshotFrame: 41,
-	terminalExited: 15,
-	terminalStarted: 14,
-	terminateTerminal: 12,
-	titleChanged: 16,
-	textInput: 35,
-	typedFailure: 5,
-	writeInput: 30,
-} as const;
-
-export type MessageKind = (typeof MessageKind)[keyof typeof MessageKind];
-
-export const PayloadEncoding = {
-	controlJson: 'control-json',
-	rawBytes: 'raw-bytes',
-	rowWindow: 'row-window',
-	terminalFrame: 'terminal-frame',
-} as const;
-
-export type PayloadEncoding = (typeof PayloadEncoding)[keyof typeof PayloadEncoding];
+export {
+	isControlRequestKind,
+	isInputRequestKind,
+	isKnownMessageKind,
+	messageContract,
+	messagePayloadEncoding,
+	MESSAGE_CONTRACTS,
+	MessageKind,
+	PayloadEncoding,
+	requestMessageContract,
+} from './message-contract';
+export type {
+	ControlRequestKind,
+	InputRequestKind,
+	MessageContract,
+	MessageRole,
+	RequestMessageContract,
+} from './message-contract';
 
 const payloadEncodingSchema = z.enum(PayloadEncoding);
 const uint16Schema = z.number().int().min(0).max(65_535);
@@ -114,6 +71,25 @@ export const ProtocolEnvelopeSchema = z
 				path: ['kind'],
 			});
 		}
+		if (!(value.event && value.response)) {
+			let role: MessageRole = 'request';
+			if (value.event) role = 'event';
+			else if (value.response) role = 'response';
+			const expectedEncoding = messagePayloadEncoding(value.kind, role);
+			if (isKnownMessageKind(value.kind) && expectedEncoding === null) {
+				context.addIssue({
+					code: 'custom',
+					message: `Message kind ${value.kind} cannot be used as a ${role}`,
+					path: ['kind'],
+				});
+			} else if (expectedEncoding !== null && value.payloadEncoding !== expectedEncoding) {
+				context.addIssue({
+					code: 'custom',
+					message: `Message kind ${value.kind} requires ${expectedEncoding} for ${role}`,
+					path: ['payloadEncoding'],
+				});
+			}
+		}
 		const maximum = maximumPayloadBytes(value.payloadEncoding);
 		if (value.payload.byteLength > maximum) {
 			context.addIssue({
@@ -135,7 +111,7 @@ export interface DecodedProtocolEnvelope {
 	readonly knownMessage: boolean;
 	readonly optionalMessage: boolean;
 	readonly payload: Uint8Array;
-	readonly payloadEncoding: PayloadEncoding;
+	readonly payloadEncoding: PayloadEncodingValue;
 	readonly protocol: ProtocolVersion;
 	readonly response: boolean;
 }
@@ -149,11 +125,7 @@ const EnvelopeFlag = {
 	requiredPartitionMask: 0xff00,
 } as const;
 
-function isKnownMessageKind(value: number): boolean {
-	return Object.values(MessageKind).some((kind) => kind === value);
-}
-
-function maximumPayloadBytes(encoding: PayloadEncoding): number {
+function maximumPayloadBytes(encoding: PayloadEncodingValue): number {
 	switch (encoding) {
 		case PayloadEncoding.controlJson:
 			return PROTOCOL_LIMITS.maxControlJsonBytes;
@@ -166,7 +138,7 @@ function maximumPayloadBytes(encoding: PayloadEncoding): number {
 	}
 }
 
-function payloadEncodingCode(encoding: PayloadEncoding): number {
+function payloadEncodingCode(encoding: PayloadEncodingValue): number {
 	switch (encoding) {
 		case PayloadEncoding.controlJson:
 			return 1;
@@ -179,7 +151,7 @@ function payloadEncodingCode(encoding: PayloadEncoding): number {
 	}
 }
 
-function payloadEncodingFromCode(code: number): ProtocolResult<PayloadEncoding> {
+function payloadEncodingFromCode(code: number): ProtocolResult<PayloadEncodingValue> {
 	switch (code) {
 		case 1:
 			return protocolSuccess(PayloadEncoding.controlJson);
@@ -261,7 +233,8 @@ export function encodeProtocolEnvelope(value: unknown): ProtocolResult<Uint8Arra
 			? identifierBytes(parsed.data.hostEpoch)
 			: new Uint8Array(IDENTIFIER_BYTE_LENGTH),
 	);
-	writer.writeBytes(new Uint8Array(8));
+	writer.writeUint16(parsed.data.protocol.patch);
+	writer.writeBytes(new Uint8Array(6));
 	writer.writeBytes(parsed.data.payload);
 	return protocolSuccess(writer.bytes());
 }
@@ -295,7 +268,8 @@ export function decodeProtocolEnvelope(bytes: Uint8Array): ProtocolResult<Decode
 	const reservedByte = reader.readUint8();
 	const correlationBytes = reader.readBytes(IDENTIFIER_BYTE_LENGTH);
 	const hostEpochBytes = reader.readBytes(IDENTIFIER_BYTE_LENGTH);
-	const reserved = reader.readBytes(8);
+	const patch = reader.readUint16();
+	const reserved = reader.readBytes(6);
 	if (reader.failure) return reader.failure;
 
 	if (headerLength !== TRANSPORT_ENVELOPE_HEADER_BYTES) {
@@ -362,7 +336,7 @@ export function decodeProtocolEnvelope(bytes: Uint8Array): ProtocolResult<Decode
 		optionalMessage,
 		payload: bytes.subarray(headerLength),
 		payloadEncoding: encoding.value,
-		protocol: { major, minor },
+		protocol: { major, minor, patch },
 		response: (flags & EnvelopeFlag.response) !== 0,
 	});
 }

@@ -7,6 +7,7 @@ import {
 	decodeTerminalFrame,
 	decodeTerminalFrameRoute,
 	encodeTerminalFrame,
+	inspectTerminalFrameHeader,
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
@@ -16,7 +17,7 @@ import {
 
 describe('packed terminal frame', () => {
 	it('decodes complete rows into typed columns', () => {
-		const encoded = encodeTerminalFrame({
+		const frame = {
 			activeScreen: ActiveScreen.primary,
 			attachmentId: '22222222222222222222222222222222',
 			baseRevision: null,
@@ -100,7 +101,8 @@ describe('packed terminal frame', () => {
 				},
 			],
 			title: null,
-		});
+		} as const;
+		const encoded = encodeTerminalFrame(frame);
 		if (!encoded.ok) throw new Error(encoded.detail);
 		const decoded = decodeTerminalFrame(encoded.value);
 		if (!decoded.ok) throw new Error(decoded.detail);
@@ -114,5 +116,20 @@ describe('packed terminal frame', () => {
 				hostEpoch: '11111111111111111111111111111111',
 			},
 		});
+		expect(inspectTerminalFrameHeader(encoded.value)).toEqual({
+			ok: true,
+			value: {
+				attachmentId: '22222222222222222222222222222222',
+				baseRevision: null,
+				generation: 1n,
+				hostEpoch: '11111111111111111111111111111111',
+				kind: TerminalFrameKind.snapshot,
+				revision: 0n,
+				sequence: 1n,
+			},
+		});
+		expect(encodeTerminalFrame({ ...frame, title: '\ud800' })).toEqual(
+			expect.objectContaining({ code: 'invalid-field', ok: false }),
+		);
 	});
 });

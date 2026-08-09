@@ -14,10 +14,13 @@ import type { AttachmentId, HostEpoch } from './identifiers';
 import { PROTOCOL_LIMITS } from './limits';
 import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-result';
 import type { ProtocolResult } from './protocol-result';
+import { containsUnpairedSurrogate } from './containsUnpairedSurrogate';
 
 export const TERMINAL_FRAME_HEADER_BYTES = 160;
 export const TERMINAL_FRAME_MAGIC = new Uint8Array([0x4f, 0x42, 0x54, 0x46]);
-export const TERMINAL_FRAME_FORMAT = { major: 2, minor: 0 } as const;
+// Keep this synchronized with Zig. Released changes (>= 1.0.0) also update
+// docs/version-history.md in the same change.
+export const TERMINAL_FRAME_FORMAT = { major: 0, minor: 0, patch: 1 } as const;
 
 const MAX_UINT16 = 0xffff;
 const MAX_UINT32 = 0xffff_ffff;
@@ -313,6 +316,29 @@ export const TerminalFrameSchema = z
 				);
 			}
 			previousRow = row.index;
+			const priorRow = frame.rowData[rowOffset - 1];
+			if (
+				priorRow !== undefined &&
+				row.index === priorRow.index + 1 &&
+				priorRow.wrap !== row.wrapContinuation
+			) {
+				addIssue(
+					context,
+					['rowData', rowOffset, 'wrapContinuation'],
+					'Adjacent row wrap flags must agree',
+				);
+			}
+			if (
+				priorRow?.cells.at(-1)?.width === CellWidth.spacerHead &&
+				row.index === priorRow.index + 1 &&
+				row.cells[0]?.width !== CellWidth.wide
+			) {
+				addIssue(
+					context,
+					['rowData', rowOffset, 'cells', 0, 'width'],
+					'A row after spacer-head must begin with the wrapped wide cell',
+				);
+			}
 			for (const [cellOffset, cell] of row.cells.entries()) {
 				validateStringBytes(
 					cell.grapheme,
@@ -326,7 +352,7 @@ export const TerminalFrameSchema = z
 						'Cell style index is outside the style table',
 					);
 				}
-				validateWidthSequence(row.cells, rowOffset, cellOffset, context);
+				validateWidthSequence(row, rowOffset, cellOffset, context);
 			}
 		}
 		if (totalCells > PROTOCOL_LIMITS.maxFrameCells) {
@@ -339,7 +365,7 @@ export const TerminalFrameSchema = z
 				addIssue(
 					context,
 					['extensions', index, 'required'],
-					'Format 2.0 has no recognized required extensions',
+					'Format 0.0.1 has no recognized required extensions',
 				);
 			}
 			extensionBytes += extension.data.byteLength;
@@ -427,6 +453,16 @@ export interface DecodedTerminalFrameRoute {
 	readonly hostEpoch: HostEpoch;
 }
 
+export interface InspectedTerminalFrameHeader {
+	readonly attachmentId: AttachmentId;
+	readonly baseRevision: bigint | null;
+	readonly generation: bigint;
+	readonly hostEpoch: HostEpoch;
+	readonly kind: TerminalFrameKind;
+	readonly revision: bigint;
+	readonly sequence: bigint;
+}
+
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8', { fatal: true });
 
@@ -439,17 +475,23 @@ function validateStringBytes(
 	path: readonly PropertyKey[],
 	context: z.RefinementCtx,
 ): void {
-	if (value !== null && textEncoder.encode(value).byteLength > PROTOCOL_LIMITS.maxStringBytes) {
+	if (value === null) return;
+	if (containsUnpairedSurrogate(value)) {
+		addIssue(context, path, 'String contains an unpaired UTF-16 surrogate');
+		return;
+	}
+	if (textEncoder.encode(value).byteLength > PROTOCOL_LIMITS.maxStringBytes) {
 		addIssue(context, path, `String exceeds ${PROTOCOL_LIMITS.maxStringBytes} UTF-8 bytes`);
 	}
 }
 
 function validateWidthSequence(
-	cells: readonly TerminalCell[],
+	row: TerminalRow,
 	rowOffset: number,
 	cellOffset: number,
 	context: z.RefinementCtx,
 ): void {
+	const cells = row.cells;
 	const cell = cells[cellOffset];
 	if (!cell) return;
 	const previous = cells[cellOffset - 1];
@@ -466,6 +508,13 @@ function validateWidthSequence(
 			context,
 			['rowData', rowOffset, 'cells', cellOffset, 'width'],
 			'Spacer-tail cells must follow a wide cell',
+		);
+	}
+	if (cell.width === CellWidth.spacerHead && (cellOffset !== cells.length - 1 || !row.wrap)) {
+		addIssue(
+			context,
+			['rowData', rowOffset, 'cells', cellOffset, 'width'],
+			'Spacer-head is valid only in the last column of a wrapped row',
 		);
 	}
 }
@@ -795,7 +844,8 @@ export function encodeTerminalFrame(value: unknown): ProtocolResult<Uint8Array> 
 	writer.writeUint16(frame.cellPixelWidth);
 	writer.writeUint16(frame.cellPixelHeight);
 	writer.writeUint32(cellCount);
-	writer.writeBytes(new Uint8Array(16));
+	writer.writeUint8(TERMINAL_FRAME_FORMAT.patch);
+	writer.writeBytes(new Uint8Array(15));
 
 	for (const string of encodedStrings) {
 		writer.writeUint32(string.byteLength);
@@ -925,17 +975,19 @@ function decodeFrameHeader(bytes: Uint8Array): ProtocolResult<FrameHeader> {
 	const cellPixelWidth = reader.readUint16();
 	const cellPixelHeight = reader.readUint16();
 	const cellCount = reader.readUint32();
-	const reservedTail = reader.readBytes(16);
+	const formatPatch = reader.readUint8();
+	const reservedTail = reader.readBytes(15);
 	if (reader.failure) return reader.failure;
 
 	if (
 		formatMajor !== TERMINAL_FRAME_FORMAT.major ||
-		formatMinor > TERMINAL_FRAME_FORMAT.minor ||
+		formatMinor !== TERMINAL_FRAME_FORMAT.minor ||
+		formatPatch !== TERMINAL_FRAME_FORMAT.patch ||
 		headerLength !== TERMINAL_FRAME_HEADER_BYTES
 	) {
 		return protocolFailure(
 			ProtocolErrorCode.unsupportedVersion,
-			`Unsupported terminal frame format ${formatMajor}.${formatMinor}`,
+			`Unsupported terminal frame format ${formatMajor}.${formatMinor}.${formatPatch}`,
 		);
 	}
 	if (totalLength !== bytes.byteLength) {
@@ -1100,15 +1152,14 @@ function readStyles(
 		underlineKinds[index] = reader.readUint8();
 		const reserved = reader.readUint8();
 		if (reader.failure) return reader.failure;
-		if (
-			reserved !== 0 ||
-			((flags[index] ?? 0) & ~STYLE_FLAGS_MASK) !== 0 ||
-			(underlineKinds[index] ?? 0) > 5
-		) {
+		if (reserved !== 0 || ((flags[index] ?? 0) & ~STYLE_FLAGS_MASK) !== 0) {
 			return protocolFailure(
 				ProtocolErrorCode.unknownRequiredFlag,
 				`Style ${index} has unknown flags`,
 			);
+		}
+		if ((underlineKinds[index] ?? 0) > 5) {
+			return protocolFailure(ProtocolErrorCode.invalidField, `Style ${index} is invalid`);
 		}
 		if (
 			!validColorCode(foregroundColors[index] ?? 0) ||
@@ -1136,15 +1187,19 @@ interface RowScan {
 
 function scanRows(
 	reader: BinaryReader,
+	bytes: Uint8Array,
 	header: FrameHeader,
 	stringCount: number,
 ): ProtocolResult<RowScan> {
 	const rowsOffset = reader.offset;
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 	const indices = new Uint16Array(header.rowCount);
 	const flags = new Uint8Array(header.rowCount);
 	const promptClasses = new Uint8Array(header.rowCount);
 	const cellOffsets = new Uint32Array(header.rowCount);
 	let previousRow = -1;
+	let previousRowFlags = 0;
+	let previousSpacerHead = false;
 	let totalCells = 0;
 
 	for (let rowOffset = 0; rowOffset < header.rowCount; rowOffset += 1) {
@@ -1154,9 +1209,13 @@ function scanRows(
 		const cellCount = reader.readUint16();
 		const reserved = reader.readUint16();
 		if (reader.failure) return reader.failure;
+		if (reserved !== 0 || (rowFlags & ~ROW_FLAGS_MASK) !== 0) {
+			return protocolFailure(
+				ProtocolErrorCode.unknownRequiredFlag,
+				`Row ${rowOffset} has unknown flags`,
+			);
+		}
 		if (
-			reserved !== 0 ||
-			(rowFlags & ~ROW_FLAGS_MASK) !== 0 ||
 			promptClass > 2 ||
 			cellCount !== header.columns ||
 			row >= header.rows ||
@@ -1164,6 +1223,14 @@ function scanRows(
 			(header.kind === TerminalFrameKind.snapshot && row !== rowOffset)
 		) {
 			return protocolFailure(ProtocolErrorCode.invalidField, `Row ${rowOffset} is invalid`);
+		}
+		const followsPriorRow = previousRow >= 0 && row === previousRow + 1;
+		if (
+			followsPriorRow &&
+			((previousRowFlags & TerminalRowFlag.wrap) !== 0) !==
+				((rowFlags & TerminalRowFlag.wrapContinuation) !== 0)
+		) {
+			return protocolFailure(ProtocolErrorCode.invalidField, 'Adjacent row wrap flags disagree');
 		}
 		indices[rowOffset] = row;
 		flags[rowOffset] = rowFlags;
@@ -1173,33 +1240,53 @@ function scanRows(
 		previousRow = row;
 
 		let previousWidth = -1;
+		let firstWidth = -1;
+		let spacerHead = false;
+		const cellRecordsOffset = reader.offset;
+		reader.readBytes(cellCount * CELL_RECORD_BYTES);
+		if (reader.failure) return reader.failure;
 		for (let cellOffset = 0; cellOffset < cellCount; cellOffset += 1) {
-			const graphemeIndex = reader.readUint32();
-			const styleIndex = reader.readUint16();
-			const cellFlags = reader.readUint8();
-			const cellReserved = reader.readUint8();
-			if (reader.failure) return reader.failure;
+			const recordOffset = cellRecordsOffset + cellOffset * CELL_RECORD_BYTES;
+			const graphemeIndex = view.getUint32(recordOffset, true);
+			const styleIndex = view.getUint16(recordOffset + 4, true);
+			const cellFlags = view.getUint8(recordOffset + 6);
+			const cellReserved = view.getUint8(recordOffset + 7);
 			const width = cellFlags & 0b11;
 			const semantic = (cellFlags >> 2) & 0b11;
+			if (cellReserved !== 0 || (cellFlags & ~CELL_FLAGS_MASK) !== 0) {
+				return protocolFailure(
+					ProtocolErrorCode.unknownRequiredFlag,
+					`Cell ${cellOffset} in row ${row} has unknown flags`,
+				);
+			}
 			if (
-				cellReserved !== 0 ||
-				(cellFlags & ~CELL_FLAGS_MASK) !== 0 ||
 				semantic > 2 ||
 				graphemeIndex >= stringCount ||
 				styleIndex >= header.styleCount ||
 				(width === 2 && previousWidth !== 1) ||
-				(previousWidth === 1 && width !== 2)
+				(previousWidth === 1 && width !== 2) ||
+				(width === 3 && (cellOffset !== cellCount - 1 || (rowFlags & TerminalRowFlag.wrap) === 0))
 			) {
 				return protocolFailure(
 					ProtocolErrorCode.invalidField,
 					`Cell ${cellOffset} in row ${row} is invalid`,
 				);
 			}
+			if (cellOffset === 0) firstWidth = width;
+			if (width === 3) spacerHead = true;
 			previousWidth = width;
 		}
 		if (previousWidth === 1) {
 			return protocolFailure(ProtocolErrorCode.invalidField, `Row ${row} ends with a wide cell`);
 		}
+		if (followsPriorRow && previousSpacerHead && firstWidth !== 1) {
+			return protocolFailure(
+				ProtocolErrorCode.invalidField,
+				'A row after spacer-head does not begin with a wide cell',
+			);
+		}
+		previousRowFlags = rowFlags;
+		previousSpacerHead = spacerHead;
 	}
 	if (totalCells !== header.cellCount) {
 		return protocolFailure(
@@ -1220,22 +1307,22 @@ function readCells(
 	const widths = new Uint8Array(header.cellCount);
 	const semanticContents = new Uint8Array(header.cellCount);
 	const protectedCells = new Uint8Array(header.cellCount);
-	const reader = new BinaryReader(bytes, scan.rowsOffset);
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+	let recordOffset = scan.rowsOffset;
 	let cellOffset = 0;
 	for (let rowOffset = 0; rowOffset < header.rowCount; rowOffset += 1) {
-		reader.readBytes(ROW_HEADER_BYTES);
+		recordOffset += ROW_HEADER_BYTES;
 		for (let column = 0; column < header.columns; column += 1) {
-			graphemeStringIndices[cellOffset] = reader.readUint32();
-			styleIndices[cellOffset] = reader.readUint16();
-			const flags = reader.readUint8();
-			reader.readUint8();
+			graphemeStringIndices[cellOffset] = view.getUint32(recordOffset, true);
+			styleIndices[cellOffset] = view.getUint16(recordOffset + 4, true);
+			const flags = view.getUint8(recordOffset + 6);
 			widths[cellOffset] = flags & 0b11;
 			semanticContents[cellOffset] = (flags >> 2) & 0b11;
 			protectedCells[cellOffset] = (flags >> 4) & 1;
+			recordOffset += CELL_RECORD_BYTES;
 			cellOffset += 1;
 		}
 	}
-	if (reader.failure) return reader.failure;
 	return protocolSuccess({
 		graphemeStringIndices,
 		protected: protectedCells,
@@ -1259,7 +1346,7 @@ function readExtensions(
 		if ((flags & 0x8000) !== 0) {
 			return protocolFailure(
 				ProtocolErrorCode.unknownRequiredFlag,
-				`Frame extension ${kind} is required but unknown to format 2.0`,
+				`Frame extension ${kind} is required but unknown to format 0.0.1`,
 			);
 		}
 		totalBytes += length;
@@ -1303,7 +1390,7 @@ export function decodeTerminalFrame(bytes: Uint8Array): ProtocolResult<DecodedTe
 	if (!strings.ok) return strings;
 	const styles = readStyles(reader, header.value.styleCount, strings.value.length);
 	if (!styles.ok) return styles;
-	const scan = scanRows(reader, header.value, strings.value.length);
+	const scan = scanRows(reader, bytes, header.value, strings.value.length);
 	if (!scan.ok) return scan;
 	const extensions = readExtensions(reader, header.value.extensionCount);
 	if (!extensions.ok) return extensions;
@@ -1359,6 +1446,27 @@ export function decodeTerminalFrame(bytes: Uint8Array): ProtocolResult<DecodedTe
 		styles: styles.value,
 		title: title.value,
 	});
+}
+
+/**
+ * Validates only the fixed header. Payload data is safe to consume only after `decodeTerminalFrame`
+ * succeeds; this narrower result exists for routing and immutable duplicate recognition.
+ */
+export function inspectTerminalFrameHeader(
+	bytes: Uint8Array,
+): ProtocolResult<InspectedTerminalFrameHeader> {
+	const header = decodeFrameHeader(bytes);
+	return header.ok
+		? protocolSuccess({
+				attachmentId: header.value.attachmentId,
+				baseRevision: header.value.baseRevision,
+				generation: header.value.generation,
+				hostEpoch: header.value.hostEpoch,
+				kind: header.value.kind,
+				revision: header.value.revision,
+				sequence: header.value.sequence,
+			})
+		: header;
 }
 
 export function decodeTerminalFrameRoute(

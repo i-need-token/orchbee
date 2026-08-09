@@ -3,8 +3,9 @@
 	"domain": "terminal-protocol",
 	"runtime": ["universal"],
 	"stability": "experimental",
-	"responsibility": "Transport-neutral terminal Host identities, negotiation, paged inventory, lifecycle and history-interaction semantics, binary projection/input/selection codecs, and cross-language conformance fixtures.",
+	"responsibility": "Transport-neutral Terminal Host wire identities, exact-version handshake, bounded control schemas and binary projection/input/selection codecs, and cross-language conformance fixtures.",
 	"nonGoals": [
+		"Owning Terminal Host lifecycle, delivery, retry, recovery, or concurrency semantics.",
 		"Owning PTY processes, terminal emulation, local IPC endpoints, network listeners, authentication, encryption, or transport scheduling.",
 		"Owning Electron lifecycle, renderer routing, WebGPU projection, product presentation, or platform effects.",
 		"Owning Project, Workspace, Workbench, Tab, Panel, agent, or product-session models.",
