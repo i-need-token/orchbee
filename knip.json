@@ -160,6 +160,16 @@
 			],
 			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
 		},
+		"apps/server": {
+			"entry": [
+				"src/index.ts!",
+				"src/composition/entry.ts!",
+				"src/**/*.unit.test.{ts,tsx}!",
+				"rsbuild.config.ts!",
+				"vitest.config.ts!"
+			],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
+		},
 		"apps/storybook": {
 			"entry": [
 				".storybook/main.ts!",

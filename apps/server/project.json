@@ -1,0 +1,13 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "server",
+	"runtime": ["node"],
+	"stability": "experimental",
+	"responsibility": "Loopback-only foundation for Orchbee Server HTTP and WebSocket ingress, trusted renderer delivery, Browser Router fallback, route-namespace isolation, and listener lifecycle.",
+	"nonGoals": [
+		"Defining product HTTP APIs, WebSocket messages, remote-client protocols, capability-node protocols, product state, work scheduling, or terminal execution.",
+		"Providing token-to-Cookie authentication, authorization, TLS, Internet or LAN exposure, discovery, relay, rate limiting, or production deployment policy.",
+		"Replacing the local-development Browser Gateway or changing the Terminal Host private transport boundary.",
+		"Owning the Web renderer, Browser Router, Electron lifecycle, Desktop settings, or opt-in sharing user experience."
+	]
+}
