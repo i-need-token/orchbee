@@ -34,7 +34,15 @@ export interface LocalDevelopmentGatewayRuntimeOptions {
 export interface LocalDevelopmentGatewayRuntimeDependencies {
 	readonly createCapability: () => ReturnType<typeof GatewayCapabilitySchema.parse>;
 	readonly createProcess: (entryPath: string) => DesktopGatewayUtilityProcess;
-	readonly openClient: (connectionId: GatewayClientConnectionId) => DesktopGatewayClientHandle;
+	readonly openClient: (
+		connectionId: GatewayClientConnectionId,
+	) => Promise<DesktopGatewayClientHandle>;
+}
+
+interface GatewayClientRecord {
+	readonly handle: DesktopGatewayClientHandle;
+	disposePromise: Promise<void> | undefined;
+	retiring: boolean;
 }
 
 export interface LocalDevelopmentGatewayStartResult {
@@ -73,7 +81,9 @@ const defaultDependencies: Omit<LocalDevelopmentGatewayRuntimeDependencies, 'ope
 export class LocalDevelopmentGatewayRuntime {
 	readonly #browserBaseUrl: URL;
 	readonly #capability: ReturnType<typeof GatewayCapabilitySchema.parse>;
-	readonly #clients = new Map<GatewayClientConnectionId, DesktopGatewayClientHandle>();
+	readonly #clients = new Map<GatewayClientConnectionId, GatewayClientRecord>();
+	readonly #clientOperationTails = new Map<GatewayClientConnectionId, Promise<void>>();
+	readonly #clientRetryTimers = new Map<GatewayClientConnectionId, ReturnType<typeof setTimeout>>();
 	readonly #dependencies: LocalDevelopmentGatewayRuntimeDependencies;
 	#disposePromise: Promise<void> | undefined;
 	#disposed = false;
@@ -83,6 +93,7 @@ export class LocalDevelopmentGatewayRuntime {
 	#resolveStart: ((result: LocalDevelopmentGatewayStartResult) => void) | undefined;
 	#rejectStart: ((error: Error) => void) | undefined;
 	#startPromise: Promise<LocalDevelopmentGatewayStartResult> | undefined;
+	#backgroundFailure: Error | undefined;
 
 	constructor(
 		options: LocalDevelopmentGatewayRuntimeOptions,
@@ -93,6 +104,10 @@ export class LocalDevelopmentGatewayRuntime {
 		this.#dependencies = { ...defaultDependencies, ...dependencies };
 		this.#capability = this.#dependencies.createCapability();
 		this.#browserBaseUrl = validateRendererUrl(options.rendererUrl);
+	}
+
+	get backgroundFailure(): Error | undefined {
+		return this.#backgroundFailure;
 	}
 
 	start(): Promise<LocalDevelopmentGatewayStartResult> {
@@ -112,20 +127,20 @@ export class LocalDevelopmentGatewayRuntime {
 		return this.#startPromise;
 	}
 
-	dispose(): Promise<void> {
-		return (this.#disposePromise ??= this.#dispose());
-	}
-
 	readonly #handleSpawn = (): void => {
 		const process = this.#process;
 		if (this.#disposed || process === undefined) return;
-		process.postMessage(
-			GatewayDesktopCommandSchema.parse({
-				allowedOrigin: this.#browserBaseUrl.origin,
-				capability: this.#capability,
-				type: 'gateway-start',
-			}),
-		);
+		try {
+			process.postMessage(
+				GatewayDesktopCommandSchema.parse({
+					allowedOrigin: this.#browserBaseUrl.origin,
+					capability: this.#capability,
+					type: 'gateway-start',
+				}),
+			);
+		} catch (error: unknown) {
+			this.#fail(toError(error, 'Local Browser Gateway start transfer failed.'));
+		}
 	};
 
 	readonly #handleMessage = (message: unknown): void => {
@@ -152,16 +167,18 @@ export class LocalDevelopmentGatewayRuntime {
 				return;
 			}
 			case 'gateway-client-open-requested':
-				setImmediate(() => {
-					try {
-						this.#openClient(event.connectionId);
-					} catch {
-						this.#fail(new Error('Local Browser Gateway client opening failed.'));
-					}
-				});
+				this.#runBackground(
+					this.#enqueueClientOperation(event.connectionId, () =>
+						this.#openClient(event.connectionId),
+					),
+				);
 				return;
 			case 'gateway-client-close-requested':
-				void this.#closeClient(event.connectionId);
+				this.#runBackground(
+					this.#enqueueClientOperation(event.connectionId, () =>
+						this.#closeClient(event.connectionId),
+					),
+				);
 				return;
 			case 'gateway-failed':
 				this.#fail(new Error(`Local Browser Gateway failed with ${event.code}.`));
@@ -178,7 +195,7 @@ export class LocalDevelopmentGatewayRuntime {
 		}
 	};
 
-	#openClient(connectionId: GatewayClientConnectionId): void {
+	async #openClient(connectionId: GatewayClientConnectionId): Promise<void> {
 		if (this.#disposed) return;
 		const process = this.#process;
 		if (process === undefined) {
@@ -191,18 +208,23 @@ export class LocalDevelopmentGatewayRuntime {
 		}
 		let client: DesktopGatewayClientHandle;
 		try {
-			client = this.#dependencies.openClient(connectionId);
-		} catch {
-			process.postMessage(
-				GatewayDesktopCommandSchema.parse({
-					connectionId,
-					reason: 'client-session-unavailable',
-					type: 'gateway-client-open-failed',
-				}),
-			);
+			client = await this.#dependencies.openClient(connectionId);
+		} catch (error: unknown) {
+			this.#postClientOpenFailure(process, connectionId, 'client-session-unavailable');
+			this.#fail(toError(error, 'Local Browser Gateway client opening failed.'));
 			return;
 		}
-		this.#clients.set(connectionId, client);
+		const record: GatewayClientRecord = {
+			disposePromise: undefined,
+			handle: client,
+			retiring: false,
+		};
+		this.#clients.set(connectionId, record);
+		if (this.#disposed || this.#process !== process) {
+			record.retiring = true;
+			await this.#disposeClient(connectionId, record);
+			return;
+		}
 		try {
 			process.postMessage(
 				GatewayDesktopCommandSchema.parse({
@@ -212,47 +234,176 @@ export class LocalDevelopmentGatewayRuntime {
 				}),
 				[client.clientSessionPort, client.projectionPort],
 			);
-		} catch {
-			this.#clients.delete(connectionId);
-			void client.dispose();
-			this.#fail(new Error('Local Browser Gateway client transfer failed.'));
+		} catch (error: unknown) {
+			record.retiring = true;
+			this.#postClientOpenFailure(process, connectionId, 'client-session-unavailable');
+			let disposeError: unknown;
+			try {
+				await this.#disposeClient(connectionId, record);
+			} catch (cleanupError: unknown) {
+				disposeError = cleanupError;
+				this.#scheduleClientRetry(connectionId, record);
+			}
+			const transferError = toError(error, 'Local Browser Gateway client transfer failed.');
+			this.#fail(transferError);
+			if (disposeError !== undefined) {
+				throw new AggregateError(
+					[transferError, disposeError],
+					'Local Browser Gateway client transfer cleanup failed.',
+				);
+			}
+			throw transferError;
 		}
 	}
 
 	async #closeClient(connectionId: GatewayClientConnectionId): Promise<void> {
-		const client = this.#clients.get(connectionId);
-		if (client === undefined) return;
-		this.#clients.delete(connectionId);
-		await client.dispose();
+		const record = this.#clients.get(connectionId);
+		if (record === undefined) return;
+		record.retiring = true;
+		try {
+			await this.#disposeClient(connectionId, record);
+		} catch (error: unknown) {
+			this.#scheduleClientRetry(connectionId, record);
+			throw error;
+		}
 	}
 
 	#fail(error: Error): void {
+		this.#backgroundFailure = error;
 		this.#rejectStart?.(error);
 		this.#resolveStart = undefined;
 		this.#rejectStart = undefined;
-		void this.dispose();
+		this.#runBackground(this.dispose());
+	}
+
+	dispose(): Promise<void> {
+		if (this.#disposePromise !== undefined) return this.#disposePromise;
+		const operation = this.#dispose();
+		this.#disposePromise = operation.catch((error: unknown) => {
+			this.#disposePromise = undefined;
+			throw error;
+		});
+		return this.#disposePromise;
 	}
 
 	async #dispose(): Promise<void> {
-		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#rejectStart?.(new Error('Local Browser Gateway stopped before listening.'));
 		this.#resolveStart = undefined;
 		this.#rejectStart = undefined;
 		for (const removeListener of this.#removeProcessListeners) removeListener();
 		this.#removeProcessListeners = [];
-		const clients = [...this.#clients.values()];
-		this.#clients.clear();
-		await Promise.all(clients.map(async (client) => client.dispose()));
+		await Promise.allSettled(this.#clientOperationTails.values());
+		const cleanupResults = await Promise.allSettled(
+			[...this.#clients.entries()].map(async ([connectionId, record]) => {
+				record.retiring = true;
+				await this.#disposeClient(connectionId, record);
+			}),
+		);
+		const failures = cleanupResults.flatMap((result) =>
+			result.status === 'rejected' ? [result.reason] : [],
+		);
 		const process = this.#process;
-		this.#process = undefined;
 		if (process !== undefined) {
 			try {
 				process.postMessage(GatewayDesktopCommandSchema.parse({ type: 'gateway-stop' }));
-			} catch {
+			} catch (error: unknown) {
 				// The process may already be gone; killing remains the final capability revocation.
+				failures.push(error);
 			}
-			process.kill();
+			try {
+				process.kill();
+				this.#process = undefined;
+			} catch (error: unknown) {
+				failures.push(error);
+			}
+		}
+		if (failures.length > 0) {
+			throw new AggregateError(failures, 'Local Browser Gateway disposal did not converge.');
+		}
+	}
+
+	#enqueueClientOperation(
+		connectionId: GatewayClientConnectionId,
+		operation: () => Promise<void>,
+	): Promise<void> {
+		const previous = this.#clientOperationTails.get(connectionId) ?? Promise.resolve();
+		const result = previous.then(operation);
+		const tail = result.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.#clientOperationTails.set(connectionId, tail);
+		void tail.then(() => {
+			if (this.#clientOperationTails.get(connectionId) === tail) {
+				this.#clientOperationTails.delete(connectionId);
+			}
+		});
+		return result;
+	}
+
+	async #disposeClient(
+		connectionId: GatewayClientConnectionId,
+		record: GatewayClientRecord,
+	): Promise<void> {
+		if (record.disposePromise !== undefined) return record.disposePromise;
+		const operation = Promise.resolve()
+			.then(() => record.handle.dispose())
+			.then(() => {
+				if (this.#clients.get(connectionId) === record) this.#clients.delete(connectionId);
+				const timer = this.#clientRetryTimers.get(connectionId);
+				if (timer !== undefined) clearTimeout(timer);
+				this.#clientRetryTimers.delete(connectionId);
+			});
+		record.disposePromise = operation.catch((error: unknown) => {
+			record.disposePromise = undefined;
+			throw error;
+		});
+		return record.disposePromise;
+	}
+
+	#scheduleClientRetry(connectionId: GatewayClientConnectionId, record: GatewayClientRecord): void {
+		if (this.#disposed || this.#clientRetryTimers.has(connectionId)) return;
+		const timer = setTimeout(() => {
+			this.#clientRetryTimers.delete(connectionId);
+			this.#runBackground(
+				this.#disposeClient(connectionId, record).catch((error: unknown) => {
+					this.#scheduleClientRetry(connectionId, record);
+					throw error;
+				}),
+			);
+		}, 25);
+		timer.unref?.();
+		this.#clientRetryTimers.set(connectionId, timer);
+	}
+
+	#runBackground(operation: Promise<unknown>): void {
+		void operation.catch((error: unknown) => {
+			this.#backgroundFailure = toError(
+				error,
+				'Local Browser Gateway background operation failed.',
+			);
+		});
+	}
+
+	#postClientOpenFailure(
+		process: DesktopGatewayUtilityProcess,
+		connectionId: GatewayClientConnectionId,
+		reason: 'client-session-unavailable',
+	): void {
+		try {
+			process.postMessage(
+				GatewayDesktopCommandSchema.parse({
+					connectionId,
+					reason,
+					type: 'gateway-client-open-failed',
+				}),
+			);
+		} catch (error: unknown) {
+			this.#backgroundFailure = toError(
+				error,
+				'Local Browser Gateway failed to report client opening failure.',
+			);
 		}
 	}
 }
@@ -268,4 +419,8 @@ function validateRendererUrl(value: string): URL {
 		throw new Error('Local Browser Gateway renderer URL must use loopback HTTP.');
 	}
 	return url;
+}
+
+function toError(error: unknown, fallback: string): Error {
+	return error instanceof Error ? error : new Error(fallback, { cause: error });
 }

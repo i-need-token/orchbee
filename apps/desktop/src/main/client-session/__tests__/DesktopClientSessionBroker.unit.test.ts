@@ -81,6 +81,75 @@ describe('DesktopClientSessionBroker', () => {
 		expect(coordinator.sessionCount).toBe(0);
 	});
 
+	it('retries a failed attachment capability during session retirement', async () => {
+		const coordinator = await startedCoordinator(storeWith());
+		const port = new TestMainPort();
+		const disposeAttachments = vi
+			.fn<() => Promise<void>>()
+			.mockRejectedValueOnce(new Error('projection cleanup failed'))
+			.mockResolvedValue(undefined);
+		const broker = new DesktopClientSessionBroker(port as unknown as MessagePortMain, coordinator, {
+			disposeAttachments,
+		});
+
+		await expect(broker.dispose()).rejects.toThrow('projection cleanup failed');
+		await expect(coordinator.dispose()).resolves.toBeUndefined();
+		expect(disposeAttachments).toHaveBeenCalledTimes(2);
+	});
+
+	it('contains proposal retirement rejection while preserving the coordinator retry owner', async () => {
+		let releaseRetry: (() => void) | undefined;
+		const retry = new Promise<void>((resolve) => {
+			releaseRetry = resolve;
+		});
+		const store = storeWith();
+		let sessionSequence = 0;
+		const coordinator = new DesktopClientSessionCoordinator({
+			createClientSessionId: () => `client-${++sessionSequence}`,
+			defaultCwd: '/workspace',
+			getTerminalEvents: () => [],
+			initialPresentationId: terminalPresentationId('presentation-initial'),
+			initializationDocument: document('0', 'Initial'),
+			reconcileDocument: async () => undefined,
+			store,
+			validateDocument: () => false,
+		});
+		await expect(coordinator.start()).resolves.toEqual({ kind: 'ready' });
+		const disposeAttachments = vi
+			.fn<() => Promise<void>>()
+			.mockRejectedValueOnce(new Error('projection cleanup failed'))
+			.mockImplementationOnce(() => retry);
+		const port = new TestMainPort();
+		const broker = new DesktopClientSessionBroker(port as unknown as MessagePortMain, coordinator, {
+			disposeAttachments,
+		});
+		broker.start();
+		const unhandledRejections: unknown[] = [];
+		const onUnhandledRejection = (reason: unknown): void => {
+			unhandledRejections.push(reason);
+		};
+		process.on('unhandledRejection', onUnhandledRejection);
+		try {
+			port.emit('message', {
+				data: {
+					document: document('0', 'Invalid'),
+					expectedRevision: null,
+					requestId: 'invalid-proposal',
+					type: 'shared-document-proposed',
+				},
+				ports: [],
+			});
+			await vi.waitFor(() => expect(disposeAttachments).toHaveBeenCalledOnce());
+			expect(unhandledRejections).toEqual([]);
+			const coordinatorDisposal = coordinator.dispose();
+			releaseRetry?.();
+			await expect(coordinatorDisposal).resolves.toBeUndefined();
+			expect(disposeAttachments).toHaveBeenCalledTimes(2);
+		} finally {
+			process.off('unhandledRejection', onUnhandledRejection);
+		}
+	});
+
 	it('ignores an exact request replay and retires a conflicting reuse', async () => {
 		let finishCommit:
 			| ((result: Awaited<ReturnType<WorkbenchDocumentStore['commit']>>) => void)

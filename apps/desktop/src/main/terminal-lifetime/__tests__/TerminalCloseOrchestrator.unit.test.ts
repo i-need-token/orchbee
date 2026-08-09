@@ -139,16 +139,7 @@ describe('TerminalCloseOrchestrator', () => {
 			createDocument([createBinding({ identity, kind: 'closing' })]),
 			trace,
 		);
-		const host = new HostHarness(
-			hostEpoch,
-			[
-				createSummary({
-					exit: { code: 0, kind: 'exit-code' },
-					phase: TerminalPhase.exited,
-				}),
-			],
-			trace,
-		);
+		const host = new HostHarness(hostEpoch, [createExitedSummary()], trace);
 		const orchestrator = new TerminalCloseOrchestrator(host.value, store, bindingId);
 
 		expect(await orchestrator.requestClose(() => Promise.resolve())).toEqual({ kind: 'closed' });
@@ -180,7 +171,7 @@ describe('TerminalCloseOrchestrator', () => {
 
 	it('keeps a naturally finishing target pending until its exact exit arrives', async () => {
 		const store = new MemoryStore(createDocument([createBinding({ identity, kind: 'retained' })]));
-		const host = new HostHarness(hostEpoch, [createSummary({ phase: TerminalPhase.finishing })]);
+		const host = new HostHarness(hostEpoch, [createFinishingSummary()]);
 		const orchestrator = new TerminalCloseOrchestrator(host.value, store, bindingId);
 
 		expect(await orchestrator.requestClose(() => Promise.resolve())).toEqual({
@@ -353,7 +344,7 @@ class HostHarness {
 			optionalMessage: false,
 			payload: new TextEncoder().encode(JSON.stringify(event)),
 			payloadEncoding: PayloadEncoding.controlJson,
-			protocol: { major: 1, minor: 4 },
+			protocol: { major: 0, minor: 0, patch: 1 },
 			response: false,
 		};
 		for (const listener of this.#envelopeListeners) listener(envelope);
@@ -373,6 +364,7 @@ function createBinding(
 			cellPixelHeight: 16,
 			cellPixelWidth: 8,
 			columns: 80,
+			configuration: null,
 			currentDirectory: '/users/orchbee',
 			environment: [],
 			executable: '/bin/sh',
@@ -384,16 +376,48 @@ function createBinding(
 	};
 }
 
-function createSummary(overrides: Partial<TerminalSummary> = {}): TerminalSummary {
+type RunningTerminalSummary = Extract<
+	TerminalSummary,
+	{ readonly phase: typeof TerminalPhase.running }
+>;
+
+function createSummary(overrides: Partial<RunningTerminalSummary> = {}): RunningTerminalSummary {
 	return {
 		columns: 80,
+		configuration: { scrollbackBytes: 10_000_000 },
+		configurationRevision: CanonicalUint64TextSchema.parse('1'),
 		exit: null,
+		failure: null,
+		failureContainment: null,
 		identity,
 		phase: TerminalPhase.running,
+		process: null,
 		revision: CanonicalUint64TextSchema.parse('4'),
 		rows: 24,
 		terminateRequested: false,
 		...overrides,
+	};
+}
+
+function createFinishingSummary(): Extract<
+	TerminalSummary,
+	{ readonly phase: typeof TerminalPhase.finishing }
+> {
+	return {
+		...createSummary(),
+		exit: null,
+		phase: TerminalPhase.finishing,
+	};
+}
+
+function createExitedSummary(): Extract<
+	TerminalSummary,
+	{ readonly phase: typeof TerminalPhase.exited }
+> {
+	return {
+		...createSummary(),
+		exit: { code: 0, kind: 'exit-code' },
+		phase: TerminalPhase.exited,
 	};
 }
 

@@ -79,6 +79,68 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(trace).toEqual(['reconcile:0']);
 	});
 
+	it('does not replay a terminal event live after it was included in bootstrap', async () => {
+		const terminalEvent = {
+			exitCode: 0,
+			presentationId: terminalPresentationId('presentation-bootstrapped-exit'),
+			signal: null,
+			type: 'terminal-exited',
+		} as const;
+		const coordinator = coordinatorWith(storeWith({ kind: 'missing' }), {
+			getTerminalEvents: () => [terminalEvent],
+		});
+		await coordinator.start();
+		const publications: DesktopClientSessionPublication[] = [];
+		const session = register(coordinator, publisher(publications));
+
+		expect(session.bootstrap.terminalEvents).toEqual([terminalEvent]);
+		expect(coordinator.publishTerminalEvent(terminalEvent)).toBe(true);
+		expect(publications).toEqual([]);
+		const laterEvent = { ...terminalEvent, presentationId: terminalPresentationId('later-exit') };
+		expect(coordinator.publishTerminalEvent(laterEvent)).toBe(true);
+		expect(publications).toMatchObject([
+			{ event: laterEvent, sequence: '1', type: 'terminal-presentation-event-published' },
+		]);
+	});
+
+	it('retries a partially published exit with its original sequence and skips successes', async () => {
+		const terminalEvent = {
+			exitCode: 0,
+			presentationId: terminalPresentationId('partial-publication'),
+			signal: null,
+			type: 'terminal-exited',
+		} as const;
+		const coordinator = coordinatorWith(storeWith({ kind: 'missing' }));
+		await coordinator.start();
+		const firstPublications: DesktopClientSessionPublication[] = [];
+		let failSecond = true;
+		const first = register(coordinator, publisher(firstPublications));
+		const secondPublications: DesktopClientSessionPublication[] = [];
+		const second = register(
+			coordinator,
+			publisher(secondPublications, false, () => {
+				if (failSecond) {
+					failSecond = false;
+					return true;
+				}
+				return false;
+			}),
+		);
+
+		expect(coordinator.publishTerminalEvent(terminalEvent)).toBe(false);
+		expect(firstPublications).toHaveLength(1);
+		expect(secondPublications).toHaveLength(0);
+		await second.dispose();
+		const replacementPublications: DesktopClientSessionPublication[] = [];
+		register(coordinator, publisher(replacementPublications));
+
+		expect(coordinator.publishTerminalEvent(terminalEvent)).toBe(true);
+		expect(firstPublications).toHaveLength(1);
+		expect(replacementPublications).toHaveLength(1);
+		expect(replacementPublications[0]?.sequence).toBe(firstPublications[0]?.sequence);
+		expect(second.clientSessionId).not.toBe(first.clientSessionId);
+	});
+
 	it('returns canonical state without a write for a divergent stale proposal', async () => {
 		const canonical = document('4', 'Canonical');
 		const store = storeWith({ document: canonical, kind: 'available' });
@@ -230,15 +292,17 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(coordinator.beginQuiescing(replacement.clientSessionId, 'stop')).toBe(true);
 	});
 
-	it('retires a failed attachment disposer without affecting coordinator availability', async () => {
+	it('retains a failed attachment disposer for a later retirement retry', async () => {
 		const coordinator = coordinatorWith(storeWith({ kind: 'missing' }));
 		await coordinator.start();
 		const failingPublisher = publisher();
 		failingPublisher.disposeAttachments.mockRejectedValueOnce(new Error('attachment failure'));
 		const session = register(coordinator, failingPublisher);
 
-		await expect(session.dispose()).resolves.toBeUndefined();
+		await expect(session.dispose()).rejects.toThrow('attachment failure');
 		expect(coordinator.sessionCount).toBe(0);
+		await expect(coordinator.dispose()).resolves.toBeUndefined();
+		expect(failingPublisher.disposeAttachments).toHaveBeenCalledTimes(2);
 	});
 });
 
@@ -246,13 +310,14 @@ function coordinatorWith(
 	store: WorkbenchDocumentStore,
 	overrides: Partial<{
 		readonly reconcileDocument: DesktopClientSessionCoordinatorConstructor['reconcileDocument'];
+		readonly getTerminalEvents: DesktopClientSessionCoordinatorConstructor['getTerminalEvents'];
 	}> = {},
 ): DesktopClientSessionCoordinator {
 	let clientSequence = 0;
 	return new DesktopClientSessionCoordinator({
 		createClientSessionId: () => `client-${++clientSequence}`,
 		defaultCwd: '/workspace',
-		getTerminalEvents: () => [],
+		getTerminalEvents: overrides.getTerminalEvents ?? (() => []),
 		initialPresentationId: terminalPresentationId('presentation-initial'),
 		initializationDocument: document('0', 'Initial'),
 		reconcileDocument: overrides.reconcileDocument ?? (async () => undefined),
@@ -277,13 +342,14 @@ function register(
 function publisher(
 	publications: DesktopClientSessionPublication[] = [],
 	throwOnPublish = false,
+	onPublish: (() => boolean) | undefined = undefined,
 ): DesktopClientSessionPublisher & {
 	readonly disposeAttachments: ReturnType<typeof vi.fn<() => Promise<void>>>;
 } {
 	return {
 		disposeAttachments: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 		publish: (publication) => {
-			if (throwOnPublish) throw new Error('publication failed');
+			if (throwOnPublish || onPublish?.() === true) throw new Error('publication failed');
 			publications.push(publication);
 		},
 	};

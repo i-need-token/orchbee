@@ -12,24 +12,24 @@ import {
 	CanonicalUint64TextSchema,
 	decodeControlJson,
 	decodeSelectionExportChunk,
-	encodeFocusInput,
-	encodeKeyInput,
-	encodeMouseInput,
-	encodePasteInput,
-	encodeTextInput,
+	FrameAppliedSchema,
 	HistoryChangedSchema,
 	HistoryDemandAcceptedSchema,
 	HistoryObservedSchema,
 	MessageKind,
+	NeedSnapshotSchema,
 	PayloadEncoding,
 	ProjectionBlockedSchema,
+	ProjectionDemandAcceptedSchema,
 	PROTOCOL_LIMITS,
+	ResizeAcceptedSchema,
 	RowsAppliedSchema,
 	SelectionChangedSchema,
 	SelectionExportChunkAppliedSchema,
 	SelectionExportFinishedSchema,
 	SelectionExportStartedSchema,
 	TerminalExitedSchema,
+	TerminalFailedSchema,
 	type DecodedProtocolEnvelope,
 	type MessageKindValue,
 	type SelectionExportChunk,
@@ -39,8 +39,13 @@ import type { HostConnection } from '../host';
 import { HostRequestError } from '../host';
 
 const MAX_IN_FLIGHT_RENDERER_REQUESTS = 64;
-const textEncoder = new TextEncoder();
 const fatalTextDecoder = new TextDecoder('utf-8', { fatal: true });
+
+function copyExactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+	const copy = new Uint8Array(bytes.byteLength);
+	copy.set(bytes);
+	return copy.buffer;
+}
 
 interface ActiveSelectionCopy {
 	buffer: Uint8Array | undefined;
@@ -61,6 +66,10 @@ export interface ProjectedTerminalBrokerDependencies {
 }
 
 export type ProjectedTerminalBrokerEffectTarget = 'client' | 'desktop';
+
+export interface ProjectedTerminalBrokerLifecycle {
+	readonly onCleanupRequested: (error: unknown) => void;
+}
 
 const defaultDependencies: ProjectedTerminalBrokerDependencies = {
 	openExternal: async (target) => {
@@ -105,11 +114,13 @@ export class ProjectedTerminalBroker {
 	readonly #dependencies: ProjectedTerminalBrokerDependencies;
 	readonly #effectTarget: ProjectedTerminalBrokerEffectTarget;
 	readonly #host: HostConnection;
+	readonly #onCleanupRequested: ((error: unknown) => void) | undefined;
 	readonly #port: MessagePortMain;
 	#activeSelectionCopy: ActiveSelectionCopy | undefined;
 	#clipboardCommits = 0;
 	#commandsAccepted = 0;
 	#commandsRejected = 0;
+	#cleanupRequested = false;
 	#disposePromise: Promise<void> | undefined;
 	#disposed = false;
 	#externalTargetsOpened = 0;
@@ -118,6 +129,7 @@ export class ProjectedTerminalBroker {
 	#inFlightRequests = 0;
 	#lastSelectionCopyMilliseconds: number | null = null;
 	#lastSelectionExportStartMilliseconds: number | null = null;
+	#latestTerminalOutcomeRevision: bigint | undefined;
 	#nextExportSequence = 1n;
 	#removeHostListener: (() => void) | undefined;
 	#rowWindowBytesForwarded = 0;
@@ -131,8 +143,10 @@ export class ProjectedTerminalBroker {
 		bootstrap: ProjectedAttachmentBootstrap,
 		dependencies: ProjectedTerminalBrokerDependencies = defaultDependencies,
 		effectTarget: ProjectedTerminalBrokerEffectTarget = 'desktop',
+		lifecycle?: ProjectedTerminalBrokerLifecycle,
 	) {
 		this.#host = host;
+		this.#onCleanupRequested = lifecycle?.onCleanupRequested;
 		this.#port = port;
 		this.#bootstrap = bootstrap;
 		this.#dependencies = dependencies;
@@ -182,26 +196,67 @@ export class ProjectedTerminalBroker {
 		this.#port.off('message', this.#handleRendererMessage);
 		this.#port.off('close', this.#handlePortClose);
 		this.#port.close();
-		this.#disposePromise = this.#detach(activeCopy);
+		this.#disposePromise = this.#detach(activeCopy).catch((error: unknown) => {
+			// Main-side listeners stay revoked after a failed detach; retrying the
+			// same AttachmentId is the only safe way to converge Host cleanup.
+			this.#disposePromise = undefined;
+			throw error;
+		});
 		return this.#disposePromise;
 	}
 
 	readonly #handlePortClose = (): void => {
-		void this.dispose();
+		this.#requestCleanup(
+			new BrokerOperationError(
+				'renderer-port-closed',
+				'Renderer attachment port closed; the Host attachment must be detached.',
+				true,
+			),
+		);
 	};
+
+	#requestCleanup(error: unknown): void {
+		if (this.#cleanupRequested) return;
+		this.#cleanupRequested = true;
+		if (this.#onCleanupRequested !== undefined) {
+			try {
+				this.#onCleanupRequested(error);
+			} catch {
+				void this.dispose().catch(() => undefined);
+			}
+			return;
+		}
+		void this.dispose().catch(() => undefined);
+	}
+
+	#postMessage(message: unknown, transfer?: readonly MessagePortMain[]): boolean {
+		if (this.#disposed) return false;
+		try {
+			if (transfer === undefined) this.#port.postMessage(message);
+			else this.#port.postMessage(message, [...transfer]);
+			return true;
+		} catch (error: unknown) {
+			this.#requestCleanup(error);
+			return false;
+		}
+	}
 
 	async #detach(activeCopy: ActiveSelectionCopy | undefined): Promise<void> {
 		if (activeCopy !== undefined) {
 			await this.#requestSelectionExportCancel(activeCopy, 'disposed').catch(() => undefined);
 		}
-		await this.#host
-			.requestControl(
-				MessageKind.detachTerminal,
-				{ attachmentId: this.#bootstrap.attachmentId },
-				MessageKind.detachTerminal,
-				AttachmentAcknowledgedSchema,
-			)
-			.catch(() => undefined);
+		const acknowledgement = await this.#host.requestControl(
+			MessageKind.detachTerminal,
+			{ attachmentId: this.#bootstrap.attachmentId },
+			AttachmentAcknowledgedSchema,
+		);
+		if (acknowledgement.attachmentId !== this.#bootstrap.attachmentId) {
+			throw new BrokerOperationError(
+				'attachment-ack-mismatch',
+				'Terminal Host acknowledged a different attachment during detach.',
+				true,
+			);
+		}
 	}
 
 	readonly #handleRendererMessage = (event: MessageEvent): void => {
@@ -268,7 +323,7 @@ export class ProjectedTerminalBroker {
 					});
 					return;
 				}
-				this.#port.postMessage({ event: event.value, kind: 'history-changed' });
+				this.#postMessage({ event: event.value, kind: 'history-changed' });
 				return;
 			}
 			case MessageKind.selectionChanged: {
@@ -283,7 +338,7 @@ export class ProjectedTerminalBroker {
 					});
 					return;
 				}
-				this.#port.postMessage({ event: event.value, kind: 'selection-changed' });
+				this.#postMessage({ event: event.value, kind: 'selection-changed' });
 				return;
 			}
 			case MessageKind.selectionExportChunk:
@@ -306,11 +361,9 @@ export class ProjectedTerminalBroker {
 					});
 					return;
 				}
-				const frameBytes = new Uint8Array(envelope.payload.byteLength);
-				frameBytes.set(envelope.payload);
 				this.#framesForwarded += 1;
-				this.#frameBytesForwarded += frameBytes.byteLength;
-				this.#port.postMessage({ frame: frameBytes.buffer, kind: 'frame' });
+				this.#frameBytesForwarded += envelope.payload.byteLength;
+				this.#postMessage({ frame: copyExactArrayBuffer(envelope.payload), kind: 'frame' });
 				return;
 			}
 			case MessageKind.terminalExited: {
@@ -330,7 +383,45 @@ export class ProjectedTerminalBroker {
 				) {
 					return;
 				}
-				this.#port.postMessage({ event: event.value, kind: 'terminal-exited' });
+				const revision = BigInt(event.value.finalRevision);
+				if (
+					this.#latestTerminalOutcomeRevision !== undefined &&
+					revision <= this.#latestTerminalOutcomeRevision
+				) {
+					return;
+				}
+				if (this.#postMessage({ event: event.value, kind: 'terminal-exited' })) {
+					this.#latestTerminalOutcomeRevision = revision;
+				}
+				return;
+			}
+			case MessageKind.terminalFailed: {
+				const event = decodeControlJson(envelope.payload, TerminalFailedSchema);
+				if (!event.ok) {
+					this.#postFailure({
+						code: 'invalid-terminal-failure',
+						message: event.detail,
+						retryable: false,
+					});
+					return;
+				}
+				if (
+					event.value.identity.creationId !== this.#bootstrap.creationId ||
+					event.value.identity.hostEpoch !== this.#bootstrap.hostEpoch ||
+					event.value.identity.terminalId !== this.#bootstrap.terminalId
+				) {
+					return;
+				}
+				const revision = BigInt(event.value.finalRevision);
+				if (
+					this.#latestTerminalOutcomeRevision !== undefined &&
+					revision <= this.#latestTerminalOutcomeRevision
+				) {
+					return;
+				}
+				if (this.#postMessage({ event: event.value, kind: 'terminal-failed' })) {
+					this.#latestTerminalOutcomeRevision = revision;
+				}
 				return;
 			}
 			case MessageKind.projectionBlocked: {
@@ -353,51 +444,31 @@ export class ProjectedTerminalBroker {
 	async #dispatch(command: ProjectedTerminalCommand): Promise<void> {
 		switch (command.kind) {
 			case 'focus-input':
-				return this.#requestEncoded(
-					MessageKind.focusInput,
-					encodeFocusInput(command.payload),
-					MessageKind.inputAccepted,
-				);
+				return this.#requestInput(MessageKind.focusInput, command.payload);
 			case 'frame-applied':
-				await this.#host.request(
+				await this.#host.requestControl(
 					MessageKind.frameApplied,
-					PayloadEncoding.controlJson,
-					textEncoder.encode(JSON.stringify(command.payload)),
-					MessageKind.frameApplied,
+					command.payload,
+					FrameAppliedSchema,
 				);
 				return;
 			case 'key-input':
-				return this.#requestEncoded(
-					MessageKind.keyInput,
-					encodeKeyInput(command.payload),
-					MessageKind.inputAccepted,
-				);
+				return this.#requestInput(MessageKind.keyInput, command.payload);
 			case 'mouse-input':
-				return this.#requestEncoded(
-					MessageKind.mouseInput,
-					encodeMouseInput(command.payload),
-					MessageKind.inputAccepted,
-				);
+				return this.#requestInput(MessageKind.mouseInput, command.payload);
 			case 'need-snapshot':
-				await this.#host.request(
+				await this.#host.requestControl(
 					MessageKind.needSnapshot,
-					PayloadEncoding.controlJson,
-					textEncoder.encode(JSON.stringify(command.payload)),
-					MessageKind.needSnapshot,
+					command.payload,
+					NeedSnapshotSchema,
 				);
 				return;
 			case 'paste-input':
-				return this.#requestEncoded(
-					MessageKind.pasteInput,
-					encodePasteInput(command.payload),
-					MessageKind.inputAccepted,
-				);
+				return this.#requestInput(MessageKind.pasteInput, command.payload);
 			case 'read-rows': {
-				const response = await this.#host.request(
+				const response = await this.#host.requestControlEnvelope(
 					MessageKind.readRows,
-					PayloadEncoding.controlJson,
-					textEncoder.encode(JSON.stringify(command.payload)),
-					MessageKind.rowsSnapshot,
+					command.payload,
 				);
 				if (
 					response.payloadEncoding !== PayloadEncoding.rowWindow ||
@@ -409,26 +480,22 @@ export class ProjectedTerminalBroker {
 						'Terminal Host returned an invalid or oversized row window.',
 					);
 				}
-				const rows = new Uint8Array(response.payload.byteLength);
-				rows.set(response.payload);
 				this.#rowWindowsForwarded += 1;
-				this.#rowWindowBytesForwarded += rows.byteLength;
-				this.#port.postMessage({ kind: 'rows', rows: rows.buffer });
+				this.#rowWindowBytesForwarded += response.payload.byteLength;
+				this.#postMessage({ kind: 'rows', rows: copyExactArrayBuffer(response.payload) });
 				return;
 			}
 			case 'resize-terminal':
-				await this.#host.request(
+				await this.#host.requestControl(
 					MessageKind.resizeTerminal,
-					PayloadEncoding.controlJson,
-					textEncoder.encode(JSON.stringify(command.payload)),
-					MessageKind.resizeAccepted,
+					command.payload,
+					ResizeAcceptedSchema,
 				);
 				return;
 			case 'rows-applied':
 				await this.#host.requestControl(
 					MessageKind.rowsApplied,
 					command.payload,
-					MessageKind.rowsApplied,
 					RowsAppliedSchema,
 				);
 				return;
@@ -436,7 +503,6 @@ export class ProjectedTerminalBroker {
 				await this.#host.requestControl(
 					MessageKind.historyObserved,
 					command.payload,
-					MessageKind.historyObserved,
 					HistoryObservedSchema,
 				);
 				return;
@@ -449,7 +515,6 @@ export class ProjectedTerminalBroker {
 				const selection = await this.#host.requestControl(
 					kind,
 					command.payload,
-					MessageKind.selectionChanged,
 					SelectionChangedSchema,
 				);
 				if (selection.attachmentId !== this.#bootstrap.attachmentId) {
@@ -458,7 +523,7 @@ export class ProjectedTerminalBroker {
 						'Terminal Host selection response is outside the scoped attachment.',
 					);
 				}
-				this.#port.postMessage({ event: selection, kind: 'selection-changed' });
+				this.#postMessage({ event: selection, kind: 'selection-changed' });
 				return;
 			}
 			case 'selection-copy':
@@ -468,16 +533,14 @@ export class ProjectedTerminalBroker {
 				await this.#host.requestControl(
 					MessageKind.setHistoryDemand,
 					command.payload,
-					MessageKind.historyDemandAccepted,
 					HistoryDemandAcceptedSchema,
 				);
 				return;
 			case 'set-projection-demand':
-				await this.#host.request(
+				await this.#host.requestControl(
 					MessageKind.setProjectionDemand,
-					PayloadEncoding.controlJson,
-					textEncoder.encode(JSON.stringify(command.payload)),
-					MessageKind.projectionDemandAccepted,
+					command.payload,
+					ProjectionDemandAcceptedSchema,
 				);
 				return;
 			case 'link-open':
@@ -488,17 +551,13 @@ export class ProjectedTerminalBroker {
 					);
 				}
 				await this.#openExternal(command.payload.target);
-				this.#port.postMessage({
+				this.#postMessage({
 					kind: 'link-opened',
 					requestSequence: command.payload.requestSequence,
 				});
 				return;
 			case 'text-input':
-				return this.#requestEncoded(
-					MessageKind.textInput,
-					encodeTextInput(command.payload),
-					MessageKind.inputAccepted,
-				);
+				return this.#requestInput(MessageKind.textInput, command.payload);
 		}
 	}
 
@@ -537,7 +596,6 @@ export class ProjectedTerminalBroker {
 					exportSequence,
 					format: 'plain',
 				},
-				MessageKind.selectionExportStarted,
 				SelectionExportStartedSchema,
 			);
 			this.#lastSelectionExportStartMilliseconds = performance.now() - state.startedAtMilliseconds;
@@ -633,7 +691,6 @@ export class ProjectedTerminalBroker {
 				chunkSequence: chunk.chunkSequence,
 				exportSequence: state.exportSequence,
 			},
-			MessageKind.selectionExportChunkApplied,
 			SelectionExportChunkAppliedSchema,
 		);
 	}
@@ -648,6 +705,16 @@ export class ProjectedTerminalBroker {
 		const decoded = decodeControlJson(envelope.payload, SelectionExportFinishedSchema);
 		if (!decoded.ok) throw new BrokerOperationError('invalid-copy-finish', decoded.detail);
 		const state = this.#activeSelectionCopy;
+		if (
+			state !== undefined &&
+			decoded.value.status === 'cancelled' &&
+			decoded.value.attachmentId === this.#bootstrap.attachmentId &&
+			state.byteLength === undefined &&
+			state.buffer === undefined &&
+			BigInt(decoded.value.exportSequence) < BigInt(state.exportSequence)
+		) {
+			return;
+		}
 		if (
 			state === undefined ||
 			decoded.value.attachmentId !== this.#bootstrap.attachmentId ||
@@ -689,7 +756,7 @@ export class ProjectedTerminalBroker {
 		} else {
 			const content = new Uint8Array(byteLength);
 			content.set(state.buffer);
-			this.#port.postMessage({
+			this.#postMessage({
 				content: content.buffer,
 				kind: 'selection-copy-content',
 				requestSequence: state.requestSequence,
@@ -699,7 +766,7 @@ export class ProjectedTerminalBroker {
 		this.#lastSelectionCopyMilliseconds = performance.now() - state.startedAtMilliseconds;
 		this.#activeSelectionCopy = undefined;
 		if (this.#effectTarget === 'desktop') {
-			this.#port.postMessage({
+			this.#postMessage({
 				byteLength,
 				kind: 'selection-copied',
 				requestSequence: state.requestSequence,
@@ -764,22 +831,16 @@ export class ProjectedTerminalBroker {
 				exportSequence: state.exportSequence,
 				reason,
 			},
-			MessageKind.selectionExportFinished,
 			SelectionExportFinishedSchema,
 		);
 	}
 
-	async #requestEncoded(
-		kind: MessageKindValue,
-		encoded: ReturnType<typeof encodeTextInput>,
-		expectedKind: MessageKindValue,
-	): Promise<void> {
-		if (!encoded.ok) throw new Error(encoded.detail);
-		await this.#host.request(kind, PayloadEncoding.rawBytes, encoded.value, expectedKind);
+	async #requestInput(kind: MessageKindValue, value: unknown): Promise<void> {
+		await this.#host.requestInput(kind, value);
 	}
 
 	#postFailure(failure: ProjectedTerminalFailure): void {
-		if (!this.#disposed) this.#port.postMessage({ failure, kind: 'failure' });
+		this.#postMessage({ failure, kind: 'failure' });
 	}
 }
 

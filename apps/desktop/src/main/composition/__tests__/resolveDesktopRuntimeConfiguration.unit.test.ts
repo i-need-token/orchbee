@@ -12,7 +12,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 				ORCHBEE_DESKTOP_ENDPOINT_ID: 'ab'.repeat(16),
 				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: path.resolve('/private/recovery'),
 				ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: path.resolve('/private/runtime'),
-				ORCHBEE_TERMINAL_HOST_BINARY: path.resolve('/private/bin/terminal-host'),
+				ORCHBEE_TERMINAL_HOST_BINARY: path.resolve('/private/bin/orchbee-terminal-host'),
 				SHELL: '/bin/zsh',
 			},
 			homeDirectory: path.resolve('/users/orchbee'),
@@ -23,17 +23,22 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		const second = resolveDesktopRuntimeConfiguration(input);
 
 		expect(first).toEqual(second);
-		expect(first.binaryPath).toBe(path.resolve('/private/bin/terminal-host'));
+		expect(first.binaryPath).toBe(path.resolve('/private/bin/orchbee-terminal-host'));
 		expect(first.runtimeDirectory).toBe(path.resolve('/private/runtime'));
 		expect(first.gateway).toEqual({ kind: 'disabled' });
 		expect(first.terminalBindingStorePath).toBe(path.resolve('/private/recovery/bindings-v3.json'));
+		expect(first.terminalExitPublicationLedgerPath).toBe(
+			path.resolve('/private/recovery/terminal-exit-publications-v1.json'),
+		);
 		expect(first.workbenchDocumentStorePath).toBe(
 			path.resolve('/private/recovery/workbench-shared-document-v1.json'),
 		);
 		expect(first.terminalLaunch).toMatchObject({
+			configuration: null,
 			currentDirectory: path.resolve('/users/orchbee'),
 			executable: '/bin/zsh',
 		});
+		expect(first.terminalConfiguration).toEqual({ scrollbackBytes: 10_000_000 });
 		expect(first.terminalLaunch.terminalProfile.palette).toHaveLength(256);
 	});
 
@@ -74,7 +79,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		});
 
 		expect(configuration.binaryPath).toBe(
-			path.resolve('/repo/apps/terminal-host/zig-out/bin/terminal-host'),
+			path.resolve('/repo/apps/terminal-host/zig-out/bin/orchbee-terminal-host'),
 		);
 		expect(configuration.terminalLaunch.executable).toBe('/bin/sh');
 		expect(configuration.endpointId).toMatch(/^[0-9a-f]{32}$/u);
@@ -89,6 +94,61 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.runtimeDirectory).toMatch(/^\/tmp\/orchbee-desktop-[0-9a-f]{12}$/u);
 	});
 
+	it('uses the packaged Host resource outside the application archive', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/Applications/Orchbee.app/Contents/Resources/app.asar'),
+			environment: {},
+			homeDirectory: path.resolve('/users/orchbee'),
+			packagedResourcesPath: path.resolve('/Applications/Orchbee.app/Contents/Resources'),
+			platform: 'darwin',
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(configuration.binaryPath).toBe(
+			path.resolve('/Applications/Orchbee.app/Contents/Resources/orchbee-terminal-host'),
+		);
+	});
+
+	it('repairs an unsupported Darwin UTF-8 locale before launching the shell', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			environment: {
+				LANG: 'en_US.UTF-8',
+				LC_ALL: 'C.UTF-8',
+				LC_CTYPE: 'C.UTF-8',
+			},
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin',
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(configuration.terminalLaunch.environment).toEqual([
+			{ name: 'COLORTERM', value: 'truecolor' },
+			{ name: 'TERM', value: 'xterm-256color' },
+			{ name: 'LC_ALL', value: null },
+			{ name: 'LC_CTYPE', value: 'en_US.UTF-8' },
+		]);
+	});
+
+	it('preserves an explicit Darwin UTF-8 locale', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			environment: {
+				LANG: 'en_US.UTF-8',
+				LC_ALL: 'zh_CN.UTF-8',
+				LC_CTYPE: 'en_US.UTF-8',
+			},
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin',
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(configuration.terminalLaunch.environment).toEqual([
+			{ name: 'COLORTERM', value: 'truecolor' },
+			{ name: 'TERM', value: 'xterm-256color' },
+		]);
+	});
+
 	it('uses a stable product runtime directory on Windows', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
 			applicationPath: 'C:\\repo\\apps\\desktop',
@@ -101,5 +161,35 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.runtimeDirectory).toBe(
 			path.join('C:\\Users\\orchbee\\AppData\\Roaming\\Orchbee', 'terminal-host'),
 		);
+	});
+
+	it('scopes the singleton endpoint to the product profile and validates the startup default', () => {
+		const first = resolveDesktopRuntimeConfiguration({
+			applicationPath: '/repo/apps/desktop',
+			environment: { ORCHBEE_TERMINAL_SCROLLBACK_BYTES: '25000000' },
+			homeDirectory: '/users/orchbee',
+			platform: 'linux',
+			userDataPath: '/users/orchbee/.config/orchbee',
+		});
+		const second = resolveDesktopRuntimeConfiguration({
+			applicationPath: '/repo/apps/desktop',
+			environment: {},
+			homeDirectory: '/users/orchbee',
+			platform: 'linux',
+			userDataPath: '/users/orchbee/.config/orchbee-beta',
+		});
+
+		expect(first.endpointId).not.toBe(second.endpointId);
+		expect(first.runtimeDirectory).not.toBe(second.runtimeDirectory);
+		expect(first.terminalConfiguration).toEqual({ scrollbackBytes: 25_000_000 });
+		expect(() =>
+			resolveDesktopRuntimeConfiguration({
+				applicationPath: '/repo/apps/desktop',
+				environment: { ORCHBEE_TERMINAL_SCROLLBACK_BYTES: '1000000001' },
+				homeDirectory: '/users/orchbee',
+				platform: 'linux',
+				userDataPath: '/users/orchbee/.config/orchbee',
+			}),
+		).toThrow('exceeds the supported range');
 	});
 });

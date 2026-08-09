@@ -21,6 +21,7 @@ export interface DesktopClientSessionBrokerDependencies {
 export class DesktopClientSessionBroker implements DesktopClientSessionPublisher {
 	readonly #disposeAttachmentsCapability: () => Promise<void>;
 	#disposed = false;
+	#disposeAttachmentsPromise: Promise<void> | undefined;
 	readonly #handle: DesktopClientSessionHandle;
 	readonly #port: MessagePortMain;
 	readonly #requests = new Map<string, string>();
@@ -74,25 +75,38 @@ export class DesktopClientSessionBroker implements DesktopClientSessionPublisher
 		this.#port.postMessage(event);
 	}
 
-	async disposeAttachments(): Promise<void> {
-		if (this.#disposed) return;
-		this.#disposed = true;
-		this.#port.off('message', this.#handleMessage);
-		this.#port.off('close', this.#handleClose);
-		this.#port.close();
-		await this.#disposeAttachmentsCapability();
+	disposeAttachments(): Promise<void> {
+		if (this.#disposeAttachmentsPromise !== undefined) return this.#disposeAttachmentsPromise;
+		if (!this.#disposed) {
+			this.#disposed = true;
+			this.#port.off('message', this.#handleMessage);
+			this.#port.off('close', this.#handleClose);
+			this.#port.close();
+		}
+		let disposal: Promise<void>;
+		try {
+			disposal = this.#disposeAttachmentsCapability();
+		} catch (error: unknown) {
+			disposal = Promise.reject(error);
+		}
+		const operation = disposal.catch((error: unknown) => {
+			this.#disposeAttachmentsPromise = undefined;
+			throw error;
+		});
+		this.#disposeAttachmentsPromise = operation;
+		return operation;
 	}
 
 	readonly #handleMessage = (message: MessageEvent): void => {
 		if (this.#disposed) return;
 		if (message.ports.length !== 0) {
 			for (const port of message.ports) port.close();
-			void this.dispose();
+			void this.dispose().catch(() => undefined);
 			return;
 		}
 		const command = WorkbenchClientSessionCommandSchema.safeParse(message.data);
 		if (!command.success) {
-			void this.dispose();
+			void this.dispose().catch(() => undefined);
 			return;
 		}
 		const fingerprint = JSON.stringify(command.data);
@@ -112,12 +126,19 @@ export class DesktopClientSessionBroker implements DesktopClientSessionPublisher
 						}),
 					);
 				} catch {
-					void this.dispose();
+					void this.dispose().catch(() => undefined);
 				}
+			})
+			.catch(() => {
+				// Proposal effects may fail after the coordinator has accepted the
+				// document (for example, a first detach attempt). Retire this session
+				// through the coordinator so its attachment cleanup remains a retry
+				// owner instead of becoming an unhandled rejection.
+				if (!this.#disposed) void this.#handle.dispose().catch(() => undefined);
 			});
 	};
 
 	readonly #handleClose = (): void => {
-		void this.dispose();
+		void this.dispose().catch(() => undefined);
 	};
 }

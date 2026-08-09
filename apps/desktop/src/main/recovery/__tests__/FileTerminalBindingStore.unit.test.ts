@@ -96,6 +96,7 @@ function createBinding(index: number): TerminalBinding {
 			cellPixelHeight: 16,
 			cellPixelWidth: 8,
 			columns: 80,
+			configuration: null,
 			currentDirectory: '/users/orchbee',
 			environment: [{ name: 'TERM', value: 'xterm-256color' }],
 			executable: '/bin/sh',

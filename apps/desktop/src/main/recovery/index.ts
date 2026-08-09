@@ -1,5 +1,10 @@
 export { FileTerminalBindingStore } from './FileTerminalBindingStore';
-export { TerminalRecoveryCoordinator } from './TerminalRecoveryCoordinator';
+export { TerminalExitSpillStore, type TerminalExitSpillReason } from './TerminalExitSpillStore';
+export { TerminalExitPublicationLedger } from './TerminalExitPublicationLedger';
+export {
+	TerminalRecoveryCoordinator,
+	type TerminalExitPersistenceResult,
+} from './TerminalRecoveryCoordinator';
 export type { TerminalRecoveryOutcome } from './recovery-binding';
 export {
 	findTerminalBinding,

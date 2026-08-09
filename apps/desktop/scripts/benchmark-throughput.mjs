@@ -17,7 +17,7 @@ const hostBinary = path.join(
 	'terminal-host',
 	'zig-out',
 	'bin',
-	process.platform === 'win32' ? 'terminal-host.exe' : 'terminal-host',
+	process.platform === 'win32' ? 'orchbee-terminal-host.exe' : 'orchbee-terminal-host',
 );
 const desktopMain = path.join(repositoryRoot, 'apps', 'desktop', 'dist', 'main', 'main.cjs');
 const hostRssSamplingIntervalMilliseconds = 20;

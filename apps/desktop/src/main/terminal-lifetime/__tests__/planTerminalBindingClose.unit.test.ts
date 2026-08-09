@@ -101,6 +101,7 @@ function createBinding(state: TerminalBinding['state']): TerminalBinding {
 			cellPixelHeight: 16,
 			cellPixelWidth: 8,
 			columns: 80,
+			configuration: null,
 			currentDirectory: '/users/orchbee',
 			environment: [],
 			executable: '/bin/sh',
@@ -112,12 +113,22 @@ function createBinding(state: TerminalBinding['state']): TerminalBinding {
 	};
 }
 
-function createSummary(overrides: Partial<TerminalSummary> = {}): TerminalSummary {
+type RunningTerminalSummary = Extract<
+	TerminalSummary,
+	{ readonly phase: typeof TerminalPhase.running }
+>;
+
+function createSummary(overrides: Partial<RunningTerminalSummary> = {}): RunningTerminalSummary {
 	return {
 		columns: 80,
+		configuration: { scrollbackBytes: 10_000_000 },
+		configurationRevision: CanonicalUint64TextSchema.parse('1'),
 		exit: null,
+		failure: null,
+		failureContainment: null,
 		identity,
 		phase: TerminalPhase.running,
+		process: null,
 		revision: CanonicalUint64TextSchema.parse('4'),
 		rows: 24,
 		terminateRequested: false,

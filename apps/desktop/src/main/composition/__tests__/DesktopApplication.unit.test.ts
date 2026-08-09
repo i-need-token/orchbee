@@ -1,4 +1,7 @@
 import { EventEmitter } from 'node:events';
+import { mkdir, mkdtemp, readFile, rename, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 import {
 	CanonicalUint64TextSchema,
@@ -10,10 +13,19 @@ import {
 	TerminalIdSchema,
 	type DecodedProtocolEnvelope,
 	type TerminalExited,
+	type TerminalFailed,
+	type TerminalIdentity,
+	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
 import { GatewayClientConnectionIdSchema } from '@orchbee/gateway-protocol';
-import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
-import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
+import {
+	terminalPresentationId,
+	type TerminalPresentationEvent,
+} from '@orchbee/workbench/terminal-presentation';
+import {
+	workbenchSharedDocumentRevision,
+	type WorkbenchSharedDocument,
+} from '@orchbee/workbench/document';
 import type { BrowserWindow, BrowserWindowConstructorOptions, MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -25,7 +37,15 @@ import {
 	DesktopTerminalIntentReconciler,
 } from '../../client-session';
 import type { WorkbenchDocumentStore } from '../../workbench-document';
-import type { DesktopTerminalRuntime } from '../composeDesktopTerminalRuntime';
+import {
+	TerminalExitSpillStore,
+	type TerminalExitPublicationLedger,
+	type TerminalExitSpillReason,
+} from '../../recovery';
+import {
+	composeDesktopTerminalRuntime,
+	type DesktopTerminalRuntime,
+} from '../composeDesktopTerminalRuntime';
 import { DesktopApplication, type DesktopApplicationDependencies } from '../DesktopApplication';
 import { resolveDesktopRuntimeConfiguration } from '../resolveDesktopRuntimeConfiguration';
 
@@ -43,6 +63,63 @@ class TestMainPort extends EventEmitter {
 }
 
 describe('DesktopApplication', () => {
+	it('registers the Host exit listener before terminal runtime reconciliation', async () => {
+		const harness = createHarness();
+		const initialization =
+			createDeferred<Awaited<ReturnType<DesktopTerminalRuntime['initialize']>>>();
+		harness.terminalRuntime.initialize.mockReturnValue(initialization.promise);
+		const application = createApplication(harness.dependencies);
+		const start = application.start();
+
+		await vi.waitFor(() => expect(harness.host.onEnvelope).toHaveBeenCalledOnce());
+		const event: TerminalExited = {
+			exit: { kind: 'signal', signal: 15 },
+			finalRevision: CanonicalUint64TextSchema.parse('1'),
+			identity,
+		};
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+		await vi.waitFor(() =>
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledWith(event),
+		);
+
+		initialization.resolve({ kind: 'ready' });
+		await start;
+		await application.shutdown();
+	});
+
+	it('publishes a Host runtime failure as the retained presentation outcome', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		await proposeInitializationDocument(harness, 'terminal-runtime-failure');
+		const event: TerminalFailed = {
+			failure: { kind: 'pty-read', stage: 'read-output' },
+			finalRevision: CanonicalUint64TextSchema.parse('9'),
+			identity,
+			process: { kind: 'observed', result: { code: 1, kind: 'exit-code' } },
+		};
+		harness.terminalRuntime.recordFailure.mockResolvedValueOnce(presentationId);
+
+		harness.hostEnvelopeListener?.(terminalFailedEnvelope(event));
+
+		await vi.waitFor(() =>
+			expect(terminalEventPublications(harness, 'terminal-failed')).toContainEqual(
+				expect.objectContaining({
+					event: {
+						failure: {
+							code: 'terminal-runtime-pty-read-read-output',
+							retryable: false,
+						},
+						presentationId,
+						type: 'terminal-failed',
+					},
+				}),
+			),
+		);
+		expect(harness.terminalRuntime.recordFailure).toHaveBeenCalledWith(event);
+		await application.shutdown();
+	});
+
 	it('starts without creating an attachment and atomically transfers three scoped controls', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
@@ -56,9 +133,7 @@ describe('DesktopApplication', () => {
 			webSecurity: true,
 		});
 		expect(harness.terminalRuntime.open).not.toHaveBeenCalled();
-		expect(harness.browserWindow.loadURL).toHaveBeenCalledWith(
-			'http://127.0.0.1:3000/?orchbee-runtime=desktop',
-		);
+		expect(harness.browserWindow.loadURL).toHaveBeenCalledWith('http://127.0.0.1:3000/');
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 		expect(harness.webContents.postMessage).toHaveBeenCalledWith(
 			'orchbee.desktop.renderer-bootstrap',
@@ -76,10 +151,85 @@ describe('DesktopApplication', () => {
 		expect(harness.projectionBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.createWorkbenchDocumentStore).toHaveBeenCalledOnce();
 		expect(harness.createGatewayRuntime).not.toHaveBeenCalled();
+		expect(harness.requestControl).toHaveBeenCalledWith(
+			MessageKind.setTerminalDefaults,
+			{ configuration: { scrollbackBytes: 10_000_000 } },
+			expect.anything(),
+		);
 
 		await application.shutdown();
 		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
 		expect(harness.host.close).toHaveBeenCalledOnce();
+	});
+
+	it('loads a packaged Browser Router path from the custom application origin', async () => {
+		const harness = createHarness();
+		const application = createApplication(
+			harness.dependencies,
+			'linux',
+			createRuntime(),
+			false,
+			'orchbee://app/projects/project-1',
+		);
+
+		await application.start();
+
+		expect(harness.browserWindow.loadURL).toHaveBeenCalledWith('orchbee://app/projects/project-1');
+		await application.shutdown();
+	});
+
+	it('rolls back all renderer controls when bootstrap postMessage fails', async () => {
+		const harness = createHarness();
+		harness.webContents.postMessage.mockImplementationOnce(() => {
+			throw new Error('renderer bootstrap post failed');
+		});
+		const application = createApplication(harness.dependencies);
+
+		await expect(application.start()).rejects.toThrow('renderer bootstrap post failed');
+		expect(harness.lifetimeBrokers[0]?.dispose).toHaveBeenCalledOnce();
+		expect(harness.clientSessionPorts[0]?.close).toHaveBeenCalled();
+		expect(harness.projectionBrokers[0]?.dispose).toHaveBeenCalledOnce();
+		for (const channel of harness.messageChannels) {
+			expect(channel.port1.close).toHaveBeenCalled();
+			expect(channel.port2.close).toHaveBeenCalled();
+		}
+		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
+		expect(harness.host.close).toHaveBeenCalledOnce();
+	});
+
+	it('rolls back channels when a renderer broker factory fails', async () => {
+		const harness = createHarness();
+		harness.createProjectionControlBroker.mockImplementationOnce(() => {
+			throw new Error('renderer projection broker factory failed');
+		});
+		const application = createApplication(harness.dependencies);
+
+		await expect(application.start()).rejects.toThrow('renderer projection broker factory failed');
+		expect(harness.messageChannels).toHaveLength(3);
+		for (const channel of harness.messageChannels) {
+			expect(channel.port1.close).toHaveBeenCalledOnce();
+			expect(channel.port2.close).toHaveBeenCalledOnce();
+		}
+	});
+
+	it('rolls back started renderer brokers when a broker start fails', async () => {
+		const harness = createHarness();
+		harness.createProjectionControlBroker.mockImplementationOnce(() => {
+			const broker = {
+				dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+				start: vi.fn<() => void>(() => {
+					throw new Error('renderer projection broker start failed');
+				}),
+			};
+			harness.projectionBrokers.push(broker);
+			return broker;
+		});
+		const application = createApplication(harness.dependencies);
+
+		await expect(application.start()).rejects.toThrow('renderer projection broker start failed');
+		expect(harness.lifetimeBrokers[0]?.dispose).toHaveBeenCalledOnce();
+		expect(harness.clientSessionPorts[0]?.close).toHaveBeenCalled();
+		expect(harness.projectionBrokers[0]?.dispose).toHaveBeenCalledOnce();
 	});
 
 	it('starts the development Gateway with fresh page-scoped controls and no lifetime authority', async () => {
@@ -113,7 +263,7 @@ describe('DesktopApplication', () => {
 		const gatewayDependencies = harness.createGatewayRuntime.mock.calls[0]?.[1];
 		if (gatewayDependencies === undefined)
 			throw new Error('Gateway dependencies were not created.');
-		const gatewayClient = gatewayDependencies.openClient(
+		const gatewayClient = await gatewayDependencies.openClient(
 			GatewayClientConnectionIdSchema.parse('gateway:client:1'),
 		);
 		expect(harness.clientSessionPorts).toHaveLength(2);
@@ -133,6 +283,94 @@ describe('DesktopApplication', () => {
 		await gatewayClient.dispose();
 		await application.shutdown();
 		expect(harness.gatewayRuntime.dispose).toHaveBeenCalledOnce();
+	});
+
+	it('retains gateway cleanup ownership and continues teardown when gateway disposal rejects', async () => {
+		const harness = createHarness();
+		const application = createApplication(
+			harness.dependencies,
+			'linux',
+			createRuntime({
+				ORCHBEE_DESKTOP_GATEWAY: '1',
+				ORCHBEE_GATEWAY_ENTRY_PATH: '/repo/apps/gateway/dist/main/gateway.cjs',
+			}),
+		);
+		await application.start();
+		const gatewayDependencies = harness.createGatewayRuntime.mock.calls[0]?.[1];
+		if (gatewayDependencies === undefined)
+			throw new Error('Gateway dependencies were not created.');
+		await gatewayDependencies.openClient(
+			GatewayClientConnectionIdSchema.parse('gateway:client:failure'),
+		);
+		harness.gatewayRuntime.dispose.mockRejectedValueOnce(new Error('gateway disposal failed'));
+
+		await expect(application.shutdown()).rejects.toThrow('Gateway disposal did not converge');
+		expect(harness.projectionBrokers[1]?.dispose).toHaveBeenCalledOnce();
+		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
+		expect(harness.host.close).toHaveBeenCalledOnce();
+
+		await expect(application.shutdown()).resolves.toBeUndefined();
+		expect(harness.gatewayRuntime.dispose).toHaveBeenCalledTimes(2);
+	});
+
+	it('compensates gateway client channels when a broker factory or start fails', async () => {
+		const gatewayRuntimeOptions = createRuntime({
+			ORCHBEE_DESKTOP_GATEWAY: '1',
+			ORCHBEE_GATEWAY_ENTRY_PATH: '/repo/apps/gateway/dist/main/gateway.cjs',
+		});
+		const factoryHarness = createHarness();
+		const factoryApplication = createApplication(
+			factoryHarness.dependencies,
+			'linux',
+			gatewayRuntimeOptions,
+		);
+		await factoryApplication.start();
+		const factoryDependencies = factoryHarness.createGatewayRuntime.mock.calls[0]?.[1];
+		if (factoryDependencies === undefined)
+			throw new Error('Gateway dependencies were not created.');
+		factoryHarness.createProjectionControlBroker.mockImplementationOnce(() => {
+			throw new Error('gateway projection factory failed');
+		});
+		await expect(
+			factoryDependencies.openClient(
+				GatewayClientConnectionIdSchema.parse('gateway:client:factory'),
+			),
+		).rejects.toThrow('gateway projection factory failed');
+		expect(factoryHarness.messageChannels).toHaveLength(5);
+		for (const channel of factoryHarness.messageChannels.slice(3)) {
+			expect(channel.port1.close).toHaveBeenCalledOnce();
+			expect(channel.port2.close).toHaveBeenCalledOnce();
+		}
+		await factoryApplication.shutdown();
+
+		const startHarness = createHarness();
+		const startApplication = createApplication(
+			startHarness.dependencies,
+			'linux',
+			gatewayRuntimeOptions,
+		);
+		await startApplication.start();
+		const startDependencies = startHarness.createGatewayRuntime.mock.calls[0]?.[1];
+		if (startDependencies === undefined) throw new Error('Gateway dependencies were not created.');
+		startHarness.createProjectionControlBroker.mockImplementationOnce(() => {
+			const broker = {
+				dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+				start: vi.fn<() => void>(() => {
+					throw new Error('gateway projection start failed');
+				}),
+			};
+			startHarness.projectionBrokers.push(broker);
+			return broker;
+		});
+		await expect(
+			startDependencies.openClient(GatewayClientConnectionIdSchema.parse('gateway:client:start')),
+		).rejects.toThrow('gateway projection start failed');
+		expect(startHarness.projectionBrokers[1]?.dispose).toHaveBeenCalledOnce();
+		for (const channel of startHarness.messageChannels.slice(3)) {
+			expect(channel.port1.close).toHaveBeenCalledOnce();
+			expect(channel.port2.close).toHaveBeenCalled();
+		}
+		await startApplication.shutdown();
 	});
 
 	it('awaits the old client session attachment retirement before publishing reload controls', async () => {
@@ -157,6 +395,32 @@ describe('DesktopApplication', () => {
 		finishRetirement?.();
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
 		expect(harness.clientSessionPorts).toHaveLength(2);
+		expect(harness.projectionBrokers).toHaveLength(2);
+		await application.shutdown();
+	});
+
+	it('fails closed across a rejected renderer retirement and bootstraps once after retry', async () => {
+		const projectionDispose = vi
+			.fn<() => Promise<void>>()
+			.mockRejectedValueOnce(new Error('renderer projection retirement failed'))
+			.mockResolvedValue(undefined);
+		const harness = createHarness(projectionDispose);
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
+
+		harness.webContents.emit('did-start-loading');
+		harness.webContents.emit('did-finish-load');
+		await vi.waitFor(() => expect(projectionDispose).toHaveBeenCalledTimes(2));
+		await Promise.resolve();
+		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
+		expect(harness.messageChannels).toHaveLength(3);
+		expect(harness.projectionBrokers).toHaveLength(1);
+
+		harness.webContents.emit('did-start-loading');
+		harness.webContents.emit('did-finish-load');
+		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
+		expect(harness.messageChannels).toHaveLength(6);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		await application.shutdown();
 	});
@@ -225,7 +489,12 @@ describe('DesktopApplication', () => {
 			finalRevision: CanonicalUint64TextSchema.parse('12'),
 			identity,
 		};
-		harness.terminalRuntime.recordExit.mockResolvedValue(presentationId);
+		harness.terminalRuntime.recordExitOutcome
+			.mockResolvedValueOnce({
+				kind: 'published',
+				presentationId,
+			})
+			.mockResolvedValue({ kind: 'ignored' });
 
 		harness.hostEnvelopeListener?.(terminalExitedEnvelope(terminalExit));
 
@@ -242,7 +511,599 @@ describe('DesktopApplication', () => {
 				}),
 			);
 		});
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(terminalExit));
+		await vi.waitFor(() =>
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledOnce(),
+		);
+		expect(
+			harness.clientSessionPorts[0]?.postMessage.mock.calls.filter(([value]) => {
+				const publication = value as
+					| {
+							readonly event?: {
+								readonly presentationId?: unknown;
+								readonly type?: unknown;
+							};
+							readonly type?: unknown;
+					  }
+					| undefined;
+				return (
+					publication?.type === 'terminal-presentation-event-published' &&
+					publication.event?.type === 'terminal-exited' &&
+					publication.event.presentationId === presentationId
+				);
+			}).length,
+		).toBe(1);
 		await application.shutdown();
+	});
+
+	it.each(['false', 'throw'] as const)(
+		'keeps an exit out of bootstrap until the publication ledger mark succeeds (%s)',
+		async (failureMode) => {
+			const harness = createHarness(undefined, true);
+			const application = createApplication(harness.dependencies);
+			await application.start();
+			await proposeInitializationDocument(harness, `publication-ledger-${failureMode}`);
+			const event = terminalExitFor(101);
+			harness.terminalRuntime.recordExitOutcome.mockResolvedValue({
+				finalRevision: event.finalRevision,
+				kind: 'durable',
+				presentationId,
+			});
+			let allowPublication = false;
+			harness.terminalExitPublicationLedger.markPublished.mockImplementation((publishedEvent) => {
+				if (!allowPublication) {
+					if (failureMode === 'throw') throw new Error('publication ledger write failed');
+					return false;
+				}
+				harness.publishedExitLedgerEvents.push(publishedEvent);
+				return true;
+			});
+
+			harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+			await vi.waitFor(() =>
+				expect(harness.terminalExitPublicationLedger.markPublished).toHaveBeenCalled(),
+			);
+			expect(harness.publishedExitLedgerEvents).toEqual([]);
+			expect(terminalEventPublications(harness)).toHaveLength(0);
+			expect(harness.terminalExitSpillStore.list()).toContainEqual(
+				expect.objectContaining({ event, reason: 'host-admission', state: 'pending' }),
+			);
+
+			harness.webContents.emit('did-start-loading');
+			harness.webContents.emit('did-finish-load');
+			await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
+			const reloadBootstrap = latestRendererBootstrap(harness);
+			expect(reloadBootstrap?.clientSession?.terminalEvents ?? []).not.toContainEqual(
+				expect.objectContaining({ type: 'terminal-exited', presentationId }),
+			);
+
+			allowPublication = true;
+			await vi.waitFor(() => expect(terminalEventPublications(harness)).toHaveLength(1));
+			expect(harness.publishedExitLedgerEvents).toEqual([event]);
+			expect(harness.terminalExitSpillStore.list()).toEqual([]);
+			const attemptsAfterSuccess = harness.terminalRuntime.recordExitOutcome.mock.calls.length;
+			harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+			await new Promise((resolve) => setImmediate(resolve));
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledTimes(attemptsAfterSuccess);
+			await application.shutdown();
+		},
+	);
+
+	it('retains the Main owner when the live publication callback throws', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		await proposeInitializationDocument(harness, 'publication-callback-throws');
+		const event = terminalExitFor(102);
+		harness.terminalRuntime.recordExitOutcome.mockResolvedValue({
+			finalRevision: event.finalRevision,
+			kind: 'durable',
+			presentationId,
+		});
+		let failLivePublication = true;
+		harness.clientSessionPorts[0]?.postMessage.mockImplementation((value) => {
+			const publication = value as { readonly event?: { readonly type?: string } };
+			if (failLivePublication && publication.event?.type === 'terminal-exited') {
+				failLivePublication = false;
+				throw new Error('renderer publication failed');
+			}
+		});
+
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+		await vi.waitFor(() =>
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledOnce(),
+		);
+		await vi.waitFor(() => expect(harness.clientSessionPorts[0]?.close).toHaveBeenCalled());
+		harness.webContents.emit('did-start-loading');
+		harness.webContents.emit('did-finish-load');
+		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
+		expect(terminalEventPublications(harness)).toHaveLength(1);
+		expect(latestRendererBootstrap(harness)?.clientSession?.terminalEvents).toContainEqual(
+			expect.objectContaining({ presentationId, type: 'terminal-exited' }),
+		);
+		expect(harness.terminalExitPublicationLedger.markPublished).toHaveBeenCalledTimes(1);
+		expect(harness.terminalExitPublicationLedger.list()).toEqual([{ event }]);
+		await application.shutdown();
+	});
+
+	it('keeps a real composed exit through association spill and restart without replay', async () => {
+		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-composition-'));
+		try {
+			const runtime = createRuntime({
+				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory,
+				SHELL: '/bin/sh',
+			});
+			const firstHarness = createHarness(
+				undefined,
+				false,
+				() => new TerminalExitSpillStore(runtime.terminalExitSpillPath),
+			);
+			installRealTerminalRuntime(firstHarness);
+			const createResponse = createDeferred<TerminalIdentity>();
+			configureRealHost(firstHarness, () => createResponse.promise, []);
+			const firstApplication = createApplication(firstHarness.dependencies, 'linux', runtime);
+			await firstApplication.start();
+			const firstBootstrap = rendererBootstrap(firstHarness);
+			const document = firstBootstrap?.clientSession?.initializationDocument as
+				| WorkbenchSharedDocument
+				| undefined;
+			if (document === undefined) throw new Error('Real composition did not produce a document.');
+			firstHarness.workbenchDocumentStore.commit.mockResolvedValueOnce({
+				kind: 'committed',
+				revision: workbenchSharedDocumentRevision('0'),
+			});
+			firstHarness.clientSessionPorts[0]?.emit('message', {
+				data: {
+					document,
+					expectedRevision: null,
+					requestId: 'real-composition-proposal',
+					type: 'shared-document-proposed',
+				},
+				ports: [],
+			});
+			await vi.waitFor(() =>
+				expect(
+					firstHarness.requestControl.mock.calls.some(
+						([kind]) => kind === MessageKind.createTerminal,
+					),
+				).toBe(true),
+			);
+			const createRequest = firstHarness.requestControl.mock.calls.find(
+				([kind]) => kind === MessageKind.createTerminal,
+			)?.[1] as { readonly creationId: string } | undefined;
+			if (createRequest === undefined)
+				throw new Error('Real composition create request was not observed.');
+			const event: TerminalExited = {
+				exit: { code: 17, kind: 'exit-code' },
+				finalRevision: CanonicalUint64TextSchema.parse('2'),
+				identity: {
+					...identity,
+					creationId: CreationIdSchema.parse(createRequest.creationId),
+				},
+			};
+			firstHarness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+			await vi.waitFor(async () => {
+				const spill = new TerminalExitSpillStore(runtime.terminalExitSpillPath);
+				await spill.load();
+				expect(spill.list()).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({ event, reason: 'association-pending', state: 'pending' }),
+					]),
+				);
+			});
+			createResponse.resolve(event.identity);
+			await vi.waitFor(() =>
+				expect(
+					firstHarness.clientSessionPorts[0]?.postMessage.mock.calls.filter(
+						([value]) =>
+							(value as { readonly event?: { readonly type?: string } } | undefined)?.event
+								?.type === 'terminal-exited',
+					).length,
+				).toBe(1),
+			);
+			await firstApplication.shutdown();
+
+			const secondHarness = createHarness(
+				undefined,
+				false,
+				() => new TerminalExitSpillStore(runtime.terminalExitSpillPath),
+			);
+			installRealTerminalRuntime(secondHarness);
+			configureRealHost(secondHarness, async () => identity, [terminalSummary(event)]);
+			secondHarness.workbenchDocumentStore.load.mockResolvedValue({
+				document,
+				kind: 'available',
+			});
+			const secondApplication = createApplication(secondHarness.dependencies, 'linux', runtime);
+			await secondApplication.start();
+			expect(secondHarness.terminalExitPublicationLedger.list()).toEqual([{ event }]);
+			secondHarness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+			await new Promise((resolve) => setImmediate(resolve));
+			const secondBootstrap = rendererBootstrap(secondHarness);
+			const secondClientSession = secondBootstrap?.clientSession;
+			if (secondClientSession === undefined) throw new Error('Missing recovered client session.');
+			const secondExitEvents = (secondClientSession.terminalEvents ?? []).filter(
+				(candidate) => candidate.type === 'terminal-exited',
+			);
+			expect(secondExitEvents).toHaveLength(1);
+			await secondApplication.shutdown();
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	it('journals a Host exit before the synchronous listener returns', async () => {
+		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-composition-'));
+		try {
+			const runtime = createRuntime({
+				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory,
+				SHELL: '/bin/sh',
+			});
+			const harness = createHarness(
+				undefined,
+				false,
+				() => new TerminalExitSpillStore(runtime.terminalExitSpillPath),
+			);
+			const attempt =
+				createDeferred<Awaited<ReturnType<DesktopTerminalRuntime['recordExitOutcome']>>>();
+			harness.terminalRuntime.recordExitOutcome.mockReturnValue(attempt.promise);
+			const application = createApplication(harness.dependencies, 'linux', runtime);
+			await application.start();
+			const event = terminalExitFor(103);
+
+			harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+			const recovered = new TerminalExitSpillStore(runtime.terminalExitSpillPath);
+			expect(await recovered.load()).toEqual({ kind: 'ready' });
+			expect(recovered.list()).toEqual([
+				expect.objectContaining({ event, reason: 'host-admission', state: 'pending' }),
+			]);
+
+			attempt.resolve({ kind: 'ignored' });
+			await application.shutdown();
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	it('records a durable rejection when the pending journal cannot admit an exit', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		const event = terminalExitFor(104);
+		harness.terminalExitSpillAdmit.mockImplementationOnce(() => {
+			throw new Error('pending journal write failed');
+		});
+
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+		expect(harness.terminalExitSpillStore.reject).toHaveBeenCalledWith(event, 'write-failed');
+		expect(harness.terminalRuntime.recordExitOutcome).not.toHaveBeenCalled();
+		await application.shutdown();
+	});
+
+	it('records a durable rejection when the pending journal is full', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		const event = terminalExitFor(105);
+		harness.terminalExitSpillAdmit.mockReturnValueOnce({ kind: 'full' });
+
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+		expect(harness.terminalExitSpillStore.reject).toHaveBeenCalledWith(
+			event,
+			'pending-journal-full',
+		);
+		expect(harness.terminalRuntime.recordExitOutcome).not.toHaveBeenCalled();
+		await application.shutdown();
+	});
+
+	it('keeps a real composed exit owned while binding persistence is temporarily unavailable', async () => {
+		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-composition-'));
+		try {
+			const runtime = createRuntime({
+				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory,
+				SHELL: '/bin/sh',
+			});
+			const harness = createHarness(
+				undefined,
+				false,
+				() => new TerminalExitSpillStore(runtime.terminalExitSpillPath),
+			);
+			installRealTerminalRuntime(harness);
+			configureRealHost(harness, async () => identity, []);
+			const application = createApplication(harness.dependencies, 'linux', runtime, true);
+			await application.start();
+			const bootstrap = rendererBootstrap(harness);
+			const document = bootstrap?.clientSession?.initializationDocument;
+			if (document === undefined) throw new Error('Real composition did not produce a document.');
+			harness.workbenchDocumentStore.commit.mockResolvedValueOnce({
+				kind: 'committed',
+				revision: workbenchSharedDocumentRevision('0'),
+			});
+			harness.clientSessionPorts[0]?.emit('message', {
+				data: {
+					document,
+					expectedRevision: null,
+					requestId: 'real-composition-persistence-proposal',
+					type: 'shared-document-proposed',
+				},
+				ports: [],
+			});
+			await vi.waitFor(() =>
+				expect(
+					harness.requestControl.mock.calls.some(([kind]) => kind === MessageKind.createTerminal),
+				).toBe(true),
+			);
+			const createRequest = harness.requestControl.mock.calls.find(
+				([kind]) => kind === MessageKind.createTerminal,
+			)?.[1] as { readonly creationId: string } | undefined;
+			if (createRequest === undefined)
+				throw new Error('Real composition create request was not observed.');
+			const event: TerminalExited = {
+				exit: { code: 18, kind: 'exit-code' },
+				finalRevision: CanonicalUint64TextSchema.parse('2'),
+				identity: {
+					...identity,
+					creationId: CreationIdSchema.parse(createRequest.creationId),
+				},
+			};
+			await vi.waitFor(async () => {
+				const stored = await readFile(runtime.terminalBindingStorePath, 'utf8');
+				expect(stored).toContain(createRequest.creationId);
+			});
+			const backupPath = `${runtime.terminalBindingStorePath}.backup`;
+			await rename(runtime.terminalBindingStorePath, backupPath);
+			await mkdir(runtime.terminalBindingStorePath);
+			harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+			await vi.waitFor(() =>
+				expect(harness.dependencies.writeTrace).toHaveBeenCalledWith(
+					expect.objectContaining({ reason: 'terminal-exit-durability' }),
+				),
+			);
+			await rm(runtime.terminalBindingStorePath, { recursive: true });
+			await rename(backupPath, runtime.terminalBindingStorePath);
+			await vi.waitFor(() =>
+				expect(
+					harness.clientSessionPorts[0]?.postMessage.mock.calls.filter(
+						([value]) =>
+							(value as { readonly event?: { readonly type?: string } } | undefined)?.event
+								?.type === 'terminal-exited',
+					).length,
+				).toBe(1),
+			);
+			harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+			await new Promise((resolve) => setImmediate(resolve));
+			expect(
+				harness.clientSessionPorts[0]?.postMessage.mock.calls.filter(
+					([value]) =>
+						(value as { readonly event?: { readonly type?: string } } | undefined)?.event?.type ===
+						'terminal-exited',
+				).length,
+			).toBe(1);
+			await application.shutdown();
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	it('retries a failed Host exit through the Main envelope owner', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		harness.terminalRuntime.recordExitOutcome
+			.mockResolvedValueOnce({
+				code: 'terminal-exit-persistence-failed',
+				kind: 'retryable',
+				reason: 'durability',
+			})
+			.mockResolvedValueOnce({ kind: 'ignored' });
+
+		harness.hostEnvelopeListener?.(
+			terminalExitedEnvelope({
+				exit: { kind: 'signal', signal: 15 },
+				finalRevision: CanonicalUint64TextSchema.parse('12'),
+				identity,
+			}),
+		);
+		await vi.waitFor(() =>
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledTimes(2),
+		);
+		await application.shutdown();
+	});
+
+	it('does not spill an exit consumed by close retirement', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		harness.terminalRuntime.recordExitOutcome.mockResolvedValue({
+			kind: 'ignored',
+			reason: 'closed',
+		});
+		const event = terminalExitFor(90);
+
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+		await vi.waitFor(() =>
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledOnce(),
+		);
+		await new Promise((resolve) => setTimeout(resolve, 75));
+		expect(harness.terminalExitSpillStore.admit).not.toHaveBeenCalledWith(
+			event,
+			'unknown-identity',
+		);
+		expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledOnce();
+
+		await application.shutdown();
+	});
+
+	it('exposes bounded Main exit backpressure without evicting admitted identities', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies, 'linux', createRuntime(), true);
+		await application.start();
+		harness.terminalRuntime.recordExitOutcome.mockResolvedValue({
+			code: 'terminal-exit-persistence-failed',
+			kind: 'retryable',
+			reason: 'durability',
+		});
+
+		for (let index = 0; index < 65; index += 1) {
+			harness.hostEnvelopeListener?.(
+				terminalExitedEnvelope({
+					exit: { code: index, kind: 'exit-code' },
+					finalRevision: CanonicalUint64TextSchema.parse('1'),
+					identity: {
+						creationId: identity.creationId,
+						hostEpoch: identity.hostEpoch,
+						terminalId: TerminalIdSchema.parse((index + 1).toString(16).padStart(32, '0')),
+					},
+				}),
+			);
+		}
+
+		await vi.waitFor(() =>
+			expect(harness.dependencies.writeTrace).toHaveBeenCalledWith(
+				expect.objectContaining({ reason: 'terminal-exit-spilled' }),
+			),
+		);
+		expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledTimes(64);
+		expect(harness.terminalExitSpillStore.admit).toHaveBeenCalledWith(
+			expect.objectContaining({ exit: { code: 64, kind: 'exit-code' } }),
+			'queue-full',
+		);
+
+		harness.terminalRuntime.recordExitOutcome.mockResolvedValue({ kind: 'ignored' });
+		await application.shutdown();
+	});
+
+	it('durably classifies an identity that cannot be associated without occupying Main retry slots', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		harness.terminalRuntime.recordExitOutcome.mockResolvedValue({
+			code: 'terminal-exit-identity-unknown',
+			kind: 'unattributed',
+			reason: 'unknown-identity',
+		});
+		const event = terminalExitFor(91);
+
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+		await vi.waitFor(() =>
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledOnce(),
+		);
+		await vi.waitFor(() =>
+			expect(harness.terminalExitSpillStore.admit).toHaveBeenCalledWith(event, 'unknown-identity'),
+		);
+		await new Promise((resolve) => setTimeout(resolve, 75));
+		expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledOnce();
+
+		const next = terminalExitFor(92);
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(next));
+		await vi.waitFor(() =>
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledTimes(2),
+		);
+		await application.shutdown();
+	});
+
+	it('does not timer-retry an unknown result after an exact observation', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		const event = terminalExitFor(94);
+		harness.terminalRuntime.recordExitOutcome.mockResolvedValue({
+			code: 'terminal-exit-identity-unknown',
+			kind: 'unattributed',
+			reason: 'unknown-identity',
+		});
+		harness.identityObservedListener?.(event.identity);
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+		await vi.waitFor(() =>
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledOnce(),
+		);
+		await new Promise((resolve) => setTimeout(resolve, 75));
+		expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledOnce();
+		await application.shutdown();
+	});
+
+	it('parks association-pending exits until the exact identity is observed', async () => {
+		const harness = createHarness(undefined, true);
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		let associated = false;
+		harness.terminalRuntime.recordExitOutcome.mockImplementation(async () =>
+			associated
+				? { kind: 'published', presentationId }
+				: {
+						code: 'terminal-exit-association-pending',
+						kind: 'retryable',
+						reason: 'association',
+					},
+		);
+		const event = terminalExitFor(92);
+
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+		await vi.waitFor(() =>
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledTimes(3),
+		);
+		await vi.waitFor(() =>
+			expect(harness.terminalExitSpillAdmit).toHaveBeenCalledWith(event, 'association-pending'),
+		);
+		const attemptsBeforeAssociation = harness.terminalRuntime.recordExitOutcome.mock.calls.length;
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledTimes(
+			attemptsBeforeAssociation,
+		);
+
+		associated = true;
+		harness.identityObservedListener?.(event.identity);
+		await vi.waitFor(() =>
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledTimes(
+				attemptsBeforeAssociation + 1,
+			),
+		);
+		await application.shutdown();
+	});
+
+	it('moves a retryable exit to durable shutdown ownership before tearing down the application', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		harness.terminalRuntime.recordExitOutcome.mockResolvedValue({
+			code: 'terminal-exit-persistence-failed',
+			kind: 'retryable',
+			reason: 'durability',
+		});
+		const event = terminalExitFor(93);
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+		await vi.waitFor(() =>
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledOnce(),
+		);
+
+		await expect(application.shutdown()).resolves.toBeUndefined();
+		expect(harness.terminalExitSpillStore.admit).toHaveBeenCalledWith(event, 'shutdown');
+		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
+		expect(harness.host.close).toHaveBeenCalledOnce();
+	});
+
+	it('continues teardown when shutdown exit reconciliation cannot admit its durable handoff', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		harness.terminalRuntime.recordExitOutcome.mockResolvedValue({
+			code: 'terminal-exit-persistence-failed',
+			kind: 'retryable',
+			reason: 'durability',
+		});
+		harness.terminalExitSpillAdmit.mockImplementation((_event, reason) => {
+			if (reason === 'shutdown') throw new Error('shutdown spill unavailable');
+			return { kind: 'admitted' };
+		});
+		const event = terminalExitFor(94);
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(event));
+		await vi.waitFor(() =>
+			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledOnce(),
+		);
+
+		await expect(application.shutdown()).rejects.toThrow('shutdown spill unavailable');
+		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
+		expect(harness.host.close).toHaveBeenCalledOnce();
 	});
 
 	it('enters coordinator quiescing before acknowledging an application lifetime mode', async () => {
@@ -339,6 +1200,19 @@ describe('DesktopApplication', () => {
 		expect(harness.host.close).toHaveBeenCalledOnce();
 	});
 
+	it('stops startup when the singleton Host does not accept the requested defaults', async () => {
+		const harness = createHarness();
+		harness.requestControl.mockResolvedValueOnce({
+			configuration: { scrollbackBytes: 20_000_000 },
+			revision: '2',
+		});
+		const application = createApplication(harness.dependencies);
+
+		await expect(application.start()).rejects.toThrow('did not accept');
+		expect(harness.terminalRuntime.initialize).not.toHaveBeenCalled();
+		expect(harness.host.close).toHaveBeenCalledOnce();
+	});
+
 	it('requires ownership of the single-instance lock', () => {
 		const harness = createHarness();
 		expect(
@@ -362,24 +1236,36 @@ function createApplication(
 	dependencies: DesktopApplicationDependencies,
 	platform: NodeJS.Platform = 'linux',
 	runtime = createRuntime(),
+	traceCopyPath = false,
+	rendererUrl = 'http://127.0.0.1:3000/',
 ): DesktopApplication {
 	return new DesktopApplication(
 		{
 			platform,
 			preloadPath: '/repo/apps/desktop/dist/preload/preload.cjs',
-			rendererUrl: 'http://127.0.0.1:3000/',
+			rendererUrl,
 			runtime,
 			singleInstanceLockOwned: true,
-			traceCopyPath: false,
+			traceCopyPath,
 		},
 		dependencies,
 	);
 }
 
-function createHarness(firstProjectionDispose?: () => Promise<void>) {
+function createHarness(
+	firstProjectionDispose?: () => Promise<void>,
+	trackSpill = false,
+	spillStoreFactory?: () => TerminalExitSpillStore,
+) {
 	let hostEnvelopeListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
+	let identityObservedListener: ((identity: TerminalIdentity) => void) | undefined;
+	const requestControl = vi.fn<HostConnection['requestControl']>().mockResolvedValue({
+		configuration: { scrollbackBytes: 10_000_000 },
+		revision: '1',
+	});
 	const host = {
 		close: vi.fn<HostConnection['close']>(),
+		hostEpoch: identity.hostEpoch,
 		metrics: {
 			bytesReceived: 0,
 			bytesSent: 0,
@@ -390,11 +1276,13 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		negotiate: vi.fn<HostConnection['negotiate']>().mockResolvedValue({
 			frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 			hostEpoch: identity.hostEpoch,
+			hostVersion: '0.1.0',
 			inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-			protocol: { major: 1, minor: 4 },
+			protocol: { major: 0, minor: 0, patch: 1 },
 			rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 			supportedOptionalFeatures: [],
 		}),
+		requestControl,
 		onEnvelope: vi.fn<HostConnection['onEnvelope']>((listener) => {
 			hostEnvelopeListener = listener;
 			return vi.fn<() => void>();
@@ -430,6 +1318,102 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
 	const lifetimeDependencies: DesktopApplicationLifetimeBrokerDependencies[] = [];
+	const messageChannels: Array<{ readonly port1: TestMainPort; readonly port2: TestMainPort }> = [];
+	const trackedSpills: Array<{
+		readonly event: TerminalExited;
+		readonly reason: TerminalExitSpillReason;
+		readonly state: 'pending';
+	}> = [];
+	const trackedRejections: TerminalExited[] = [];
+	const terminalExitSpillAdmit = vi
+		.fn<TerminalExitSpillStore['admit']>()
+		.mockImplementation((event, reason) => {
+			if (trackSpill) {
+				const key = JSON.stringify(event.identity);
+				const existingIndex = trackedSpills.findIndex(
+					(entry) => JSON.stringify(entry.event.identity) === key,
+				);
+				if (existingIndex === -1) trackedSpills.push({ event, reason, state: 'pending' });
+				else trackedSpills[existingIndex] = { event, reason, state: 'pending' };
+			}
+			return { kind: 'admitted' };
+		});
+	const terminalExitSpillList = vi
+		.fn<TerminalExitSpillStore['list']>()
+		.mockImplementation(() => (trackSpill ? trackedSpills : []));
+	const terminalExitSpillRemove = vi
+		.fn<TerminalExitSpillStore['remove']>()
+		.mockImplementation((eventOrIdentity) => {
+			if (!trackSpill) return;
+			const key =
+				typeof eventOrIdentity === 'string'
+					? eventOrIdentity
+					: JSON.stringify(eventOrIdentity.identity);
+			const index = trackedSpills.findIndex(
+				(entry) => JSON.stringify(entry.event.identity) === key,
+			);
+			if (index !== -1) trackedSpills.splice(index, 1);
+		});
+	const terminalExitSpillIsRejected = vi
+		.fn<TerminalExitSpillStore['isRejected']>()
+		.mockImplementation((event) =>
+			trackedRejections.some(
+				(candidate) =>
+					JSON.stringify(candidate.identity) === JSON.stringify(event.identity) &&
+					BigInt(candidate.finalRevision) >= BigInt(event.finalRevision),
+			),
+		);
+	const terminalExitSpillReject = vi
+		.fn<TerminalExitSpillStore['reject']>()
+		.mockImplementation((event) => {
+			if (!trackSpill) return { kind: 'recorded' };
+			trackedRejections.push(event);
+			return { kind: 'recorded' };
+		});
+	const terminalExitSpillStore = {
+		admit: terminalExitSpillAdmit,
+		isRejected: terminalExitSpillIsRejected,
+		list: terminalExitSpillList,
+		load: vi.fn<TerminalExitSpillStore['load']>().mockResolvedValue({ kind: 'ready' }),
+		reject: terminalExitSpillReject,
+		remove: terminalExitSpillRemove,
+	} as unknown as TerminalExitSpillStore;
+	const publishedExitLedgerEvents: TerminalExited[] = [];
+	const terminalExitPublicationLedgerMarkPublished = vi
+		.fn<TerminalExitPublicationLedger['markPublished']>()
+		.mockImplementation((event) => {
+			const existingIndex = publishedExitLedgerEvents.findIndex(
+				(candidate) => JSON.stringify(candidate.identity) === JSON.stringify(event.identity),
+			);
+			if (existingIndex === -1) {
+				publishedExitLedgerEvents.push(event);
+				return true;
+			}
+			const existing = publishedExitLedgerEvents[existingIndex];
+			if (existing === undefined || BigInt(existing.finalRevision) >= BigInt(event.finalRevision)) {
+				return true;
+			}
+			publishedExitLedgerEvents[existingIndex] = event;
+			return true;
+		});
+	const terminalExitPublicationLedger = {
+		has: vi
+			.fn<TerminalExitPublicationLedger['has']>()
+			.mockImplementation((event) =>
+				publishedExitLedgerEvents.some(
+					(candidate) =>
+						JSON.stringify(candidate.identity) === JSON.stringify(event.identity) &&
+						BigInt(candidate.finalRevision) >= BigInt(event.finalRevision),
+				),
+			),
+		list: vi
+			.fn<TerminalExitPublicationLedger['list']>()
+			.mockImplementation(() => publishedExitLedgerEvents.map((event) => ({ event }))),
+		load: vi.fn<TerminalExitPublicationLedger['load']>().mockResolvedValue({ kind: 'ready' }),
+		markPublished: terminalExitPublicationLedgerMarkPublished,
+	} as unknown as TerminalExitPublicationLedger & {
+		readonly markPublished: typeof terminalExitPublicationLedgerMarkPublished;
+	};
 	const workbenchDocumentStore = {
 		commit: vi
 			.fn<WorkbenchDocumentStore['commit']>()
@@ -445,6 +1429,13 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		getProjectionTarget: vi
 			.fn<DesktopTerminalRuntime['getProjectionTarget']>()
 			.mockReturnValue(null),
+		getDurableTerminalExit: vi
+			.fn<DesktopTerminalRuntime['getDurableTerminalExit']>()
+			.mockReturnValue(null),
+		getTerminalFailure: vi.fn<DesktopTerminalRuntime['getTerminalFailure']>().mockReturnValue(null),
+		commitExitPublication: vi
+			.fn<NonNullable<DesktopTerminalRuntime['commitExitPublication']>>()
+			.mockReturnValue(true),
 		getProjectionMetrics: vi
 			.fn<DesktopTerminalRuntime['getProjectionMetrics']>()
 			.mockReturnValue([]),
@@ -460,6 +1451,15 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 			.mockResolvedValue(0),
 		open: vi.fn<DesktopTerminalRuntime['open']>(),
 		recordExit: vi.fn<DesktopTerminalRuntime['recordExit']>().mockResolvedValue(null),
+		recordExitOutcome: vi
+			.fn<DesktopTerminalRuntime['recordExitOutcome']>()
+			.mockResolvedValue({ kind: 'ignored' }),
+		recordFailure: vi.fn<DesktopTerminalRuntime['recordFailure']>().mockResolvedValue(null),
+		setIdentityObservedListener: vi.fn<
+			NonNullable<DesktopTerminalRuntime['setIdentityObservedListener']>
+		>((listener) => {
+			identityObservedListener = listener;
+		}),
 	};
 	const createWindow = vi.fn<DesktopApplicationDependencies['createWindow']>((options) => {
 		windowOptions = options;
@@ -476,6 +1476,24 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		.mockReturnValue(gatewayRuntime);
 	const publishGatewayBrowserUrl =
 		vi.fn<DesktopApplicationDependencies['publishGatewayBrowserUrl']>();
+	const createProjectionControlBroker = vi.fn<
+		DesktopApplicationDependencies['createProjectionControlBroker']
+	>((_port, service) => {
+		projectionServices.push(service);
+		const broker = {
+			dispose: vi.fn<() => Promise<void>>(
+				projectionBrokers.length === 0 && firstProjectionDispose !== undefined
+					? firstProjectionDispose
+					: () => Promise.resolve(),
+			),
+			start: vi.fn<() => void>(),
+		};
+		projectionBrokers.push(broker);
+		return broker;
+	});
+	const createTerminalRuntime = vi
+		.fn<DesktopApplicationDependencies['createTerminalRuntime']>()
+		.mockReturnValue(terminalRuntime);
 	let identifierSequence = 0;
 	const dependencies: DesktopApplicationDependencies = {
 		connectHost: vi.fn<DesktopApplicationDependencies['connectHost']>().mockResolvedValue(host),
@@ -508,28 +1526,18 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		createClientSessionCoordinator: (coordinatorDependencies) =>
 			new DesktopClientSessionCoordinator(coordinatorDependencies),
 		createGatewayRuntime,
-		createMessageChannel: () => ({
-			port1: new TestMainPort() as unknown as MessagePortMain,
-			port2: new TestMainPort() as unknown as MessagePortMain,
-		}),
-		createProjectionControlBroker: vi.fn<
-			DesktopApplicationDependencies['createProjectionControlBroker']
-		>((_port, service) => {
-			projectionServices.push(service);
-			const broker = {
-				dispose: vi.fn<() => Promise<void>>(
-					projectionBrokers.length === 0 && firstProjectionDispose !== undefined
-						? firstProjectionDispose
-						: () => Promise.resolve(),
-				),
-				start: vi.fn<() => void>(),
+		createMessageChannel: vi.fn<DesktopApplicationDependencies['createMessageChannel']>(() => {
+			const channel = { port1: new TestMainPort(), port2: new TestMainPort() };
+			messageChannels.push(channel);
+			return channel as unknown as {
+				readonly port1: MessagePortMain;
+				readonly port2: MessagePortMain;
 			};
-			projectionBrokers.push(broker);
-			return broker;
 		}),
-		createTerminalRuntime: vi
-			.fn<DesktopApplicationDependencies['createTerminalRuntime']>()
-			.mockReturnValue(terminalRuntime),
+		createProjectionControlBroker,
+		createTerminalRuntime,
+		createTerminalExitSpillStore: () => spillStoreFactory?.() ?? terminalExitSpillStore,
+		createTerminalExitPublicationLedger: () => terminalExitPublicationLedger,
 		createTerminalIntentReconciler: (reconcilerDependencies) =>
 			new DesktopTerminalIntentReconciler(reconcilerDependencies),
 		createWorkbenchDocumentStore: vi
@@ -546,6 +1554,8 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		browserWindow,
 		clientSessionPorts,
 		createGatewayRuntime,
+		createProjectionControlBroker,
+		createTerminalRuntime,
 		createWorkbenchDocumentStore: dependencies.createWorkbenchDocumentStore,
 		createWindow,
 		dependencies,
@@ -553,19 +1563,172 @@ function createHarness(firstProjectionDispose?: () => Promise<void>) {
 		host,
 		lifetimeBrokers,
 		lifetimeDependencies,
+		messageChannels,
 		get hostEnvelopeListener() {
 			return hostEnvelopeListener;
+		},
+		get identityObservedListener() {
+			return identityObservedListener;
 		},
 		projectionBrokers,
 		projectionServices,
 		publishGatewayBrowserUrl,
 		quitApplication: dependencies.quitApplication,
+		requestControl,
 		terminalRuntime,
+		terminalExitSpillAdmit,
+		terminalExitSpillStore,
+		terminalExitPublicationLedger,
+		publishedExitLedgerEvents,
 		webContents,
 		workbenchDocumentStore,
 		get windowOptions() {
 			return windowOptions;
 		},
+	};
+}
+
+function installRealTerminalRuntime(harness: ReturnType<typeof createHarness>): void {
+	harness.createTerminalRuntime.mockImplementation(
+		(host, configuration, randomIdentifier, createMessageChannel, createBroker) => {
+			return composeDesktopTerminalRuntime({
+				configuration,
+				createBroker,
+				createMessageChannel,
+				host,
+				randomIdentifier,
+			});
+		},
+	);
+}
+
+function configureRealHost(
+	harness: ReturnType<typeof createHarness>,
+	createResponse: () => Promise<TerminalIdentity> | TerminalIdentity,
+	inventory: readonly TerminalSummary[],
+): void {
+	harness.requestControl.mockImplementation(async (kind, value) => {
+		switch (kind) {
+			case MessageKind.createTerminal: {
+				const requested = value as { readonly creationId: string };
+				return {
+					...(await createResponse()),
+					creationId: CreationIdSchema.parse(requested.creationId),
+				} as never;
+			}
+			case MessageKind.listTerminals:
+				return {
+					inventoryGeneration: '1',
+					nextCursor: null,
+					terminals: inventory,
+				} as never;
+			case MessageKind.setTerminalDefaults:
+				return { configuration: { scrollbackBytes: 10_000_000 }, revision: '1' } as never;
+			default:
+				throw new Error(`Unexpected real-composition Host request ${kind}.`);
+		}
+	});
+}
+
+function rendererBootstrap(harness: ReturnType<typeof createHarness>):
+	| {
+			readonly clientSession?: {
+				readonly initializationDocument?: WorkbenchSharedDocument;
+				readonly terminalEvents?: readonly TerminalPresentationEvent[];
+			};
+	  }
+	| undefined {
+	return harness.webContents.postMessage.mock.calls.find(
+		(call) => call[0] === 'orchbee.desktop.renderer-bootstrap',
+	)?.[1] as
+		| {
+				readonly clientSession?: {
+					readonly initializationDocument?: WorkbenchSharedDocument;
+					readonly terminalEvents?: readonly TerminalPresentationEvent[];
+				};
+		  }
+		| undefined;
+}
+
+async function proposeInitializationDocument(
+	harness: ReturnType<typeof createHarness>,
+	requestId: string,
+): Promise<void> {
+	const bootstrap = rendererBootstrap(harness);
+	const document = bootstrap?.clientSession?.initializationDocument;
+	const port = harness.clientSessionPorts[0];
+	if (document === undefined || port === undefined) {
+		throw new Error('Renderer bootstrap is missing the initialization document.');
+	}
+	harness.workbenchDocumentStore.commit.mockResolvedValueOnce({
+		kind: 'committed',
+		revision: document.revision,
+	});
+	port.emit('message', {
+		data: {
+			document,
+			expectedRevision: null,
+			requestId,
+			type: 'shared-document-proposed',
+		},
+		ports: [],
+	});
+	await vi.waitFor(() =>
+		expect(port.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({ type: 'shared-document-published' }),
+		),
+	);
+	await vi.waitFor(() =>
+		expect(port.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({ requestId, type: 'shared-document-proposal-completed' }),
+		),
+	);
+}
+
+function latestRendererBootstrap(
+	harness: ReturnType<typeof createHarness>,
+): ReturnType<typeof rendererBootstrap> {
+	return harness.webContents.postMessage.mock.calls
+		.filter((call) => call[0] === 'orchbee.desktop.renderer-bootstrap')
+		.at(-1)?.[1] as ReturnType<typeof rendererBootstrap>;
+}
+
+function terminalEventPublications(
+	harness: ReturnType<typeof createHarness>,
+	eventType = 'terminal-exited',
+): readonly unknown[] {
+	return harness.clientSessionPorts.flatMap((port) =>
+		port.postMessage.mock.calls
+			.filter(([value]) => {
+				const publication = value as
+					| {
+							readonly event?: { readonly type?: string };
+							readonly type?: string;
+					  }
+					| undefined;
+				return (
+					publication?.type === 'terminal-presentation-event-published' &&
+					publication.event?.type === eventType
+				);
+			})
+			.map(([value]) => value),
+	);
+}
+
+function terminalSummary(event: TerminalExited): TerminalSummary {
+	return {
+		columns: 80,
+		configuration: { scrollbackBytes: 10_000_000 },
+		configurationRevision: CanonicalUint64TextSchema.parse('1'),
+		exit: event.exit,
+		failure: null,
+		failureContainment: null,
+		identity: event.identity,
+		phase: 'exited',
+		process: null,
+		revision: event.finalRevision,
+		rows: 24,
+		terminateRequested: false,
 	};
 }
 
@@ -580,9 +1743,45 @@ function terminalExitedEnvelope(event: TerminalExited): DecodedProtocolEnvelope 
 		optionalMessage: false,
 		payload: new TextEncoder().encode(JSON.stringify(event)),
 		payloadEncoding: PayloadEncoding.controlJson,
-		protocol: { major: 1, minor: 4 },
+		protocol: { major: 0, minor: 0, patch: 1 },
 		response: false,
 	};
+}
+
+function terminalFailedEnvelope(event: TerminalFailed): DecodedProtocolEnvelope {
+	return {
+		correlationId: null,
+		event: true,
+		hostEpoch: identity.hostEpoch,
+		ignoredOptionalFlags: 0,
+		kind: MessageKind.terminalFailed,
+		knownMessage: true,
+		optionalMessage: false,
+		payload: new TextEncoder().encode(JSON.stringify(event)),
+		payloadEncoding: PayloadEncoding.controlJson,
+		protocol: { major: 0, minor: 0, patch: 1 },
+		response: false,
+	};
+}
+
+function terminalExitFor(code: number): TerminalExited {
+	return {
+		exit: { code, kind: 'exit-code' },
+		finalRevision: CanonicalUint64TextSchema.parse(String(code + 1)),
+		identity: {
+			creationId: identity.creationId,
+			hostEpoch: identity.hostEpoch,
+			terminalId: TerminalIdSchema.parse((code + 100).toString(16).padStart(32, '0')),
+		},
+	};
+}
+
+function createDeferred<Value>(): { promise: Promise<Value>; resolve: (value: Value) => void } {
+	let resolvePromise: (value: Value) => void = () => undefined;
+	const promise = new Promise<Value>((resolve) => {
+		resolvePromise = resolve;
+	});
+	return { promise, resolve: resolvePromise };
 }
 
 function createRuntime(

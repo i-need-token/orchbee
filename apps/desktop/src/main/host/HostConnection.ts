@@ -5,14 +5,18 @@ import type { Duplex } from 'node:stream';
 import {
 	ClientIdSchema,
 	CorrelationIdSchema,
+	CURRENT_PROTOCOL_VERSION,
 	decodeControlJson,
 	decodeProtocolEnvelope,
 	decodeSelectionExportChunkRoute,
 	decodeTerminalFrameRoute,
+	encodeControlRequest,
+	encodeInputRequest,
 	encodeProtocolEnvelope,
 	HelloAcceptedSchema,
 	HelloSchema,
 	HistoryChangedSchema,
+	messagePayloadEncoding,
 	MessageKind,
 	PayloadEncoding,
 	PROTOCOL_LIMITS,
@@ -26,21 +30,17 @@ import {
 	type HelloAccepted,
 	type HostEpoch,
 	type MessageKindValue,
+	type MessageRole,
+	requestMessageContract,
 	type PayloadEncodingValue,
 	type ProtocolVersion,
 } from '@orchbee/terminal-protocol';
 import type { z } from 'zod';
 
-import {
-	DESKTOP_HOST_PROTOCOL_RANGE,
-	DESKTOP_HOST_PROTOCOL_VERSION,
-} from './desktop-host-protocol-version';
 import { HostRecordAssembler } from './HostRecordAssembler';
 import { HostRequestError } from './HostRequestError';
 
 const REQUEST_TIMEOUT_MILLISECONDS = 10_000;
-const textEncoder = new TextEncoder();
-
 interface PendingRequest {
 	readonly expectedKind: MessageKindValue;
 	readonly reject: (error: Error) => void;
@@ -134,19 +134,19 @@ export class HostConnection {
 			clientId: ClientIdSchema.parse(clientId),
 			frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 			inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-			protocol: {
-				major: DESKTOP_HOST_PROTOCOL_RANGE.major,
-				maximumMinor: DESKTOP_HOST_PROTOCOL_RANGE.maximumMinor,
-				minimumMinor: DESKTOP_HOST_PROTOCOL_RANGE.minimumMinor,
-			},
+			protocol: CURRENT_PROTOCOL_VERSION,
 			rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 			supportedOptionalFeatures: [],
 		});
-		const envelope = await this.request(
+		const helloPayload = encodeControlRequest(MessageKind.hello, hello);
+		if (!helloPayload.ok) throw new Error(helloPayload.detail);
+		const helloContract = requestMessageContract(MessageKind.hello);
+		if (helloContract === null) throw new Error('Hello request contract is missing.');
+		const envelope = await this.#request(
 			MessageKind.hello,
-			PayloadEncoding.controlJson,
-			textEncoder.encode(JSON.stringify(hello)),
-			MessageKind.helloAccepted,
+			helloContract.payloadEncoding,
+			helloPayload.value,
+			helloContract.successKind,
 			null,
 		);
 		const accepted = decodeControlJson(envelope.payload, HelloAcceptedSchema);
@@ -156,7 +156,8 @@ export class HostConnection {
 		}
 		if (
 			envelope.protocol.major !== accepted.value.protocol.major ||
-			envelope.protocol.minor !== accepted.value.protocol.minor
+			envelope.protocol.minor !== accepted.value.protocol.minor ||
+			envelope.protocol.patch !== accepted.value.protocol.patch
 		) {
 			throw new Error('HelloAccepted envelope and payload protocol versions differ.');
 		}
@@ -168,25 +169,39 @@ export class HostConnection {
 		return accepted.value;
 	}
 
+	requestControlEnvelope(kind: MessageKindValue, value: unknown): Promise<DecodedProtocolEnvelope> {
+		const contract = requestMessageContract(kind);
+		if (contract?.payloadEncoding !== PayloadEncoding.controlJson) {
+			return Promise.reject(new Error(`Message kind ${kind} is not a control request.`));
+		}
+		const payload = encodeControlRequest(kind, value);
+		if (!payload.ok) return Promise.reject(new Error(payload.detail));
+		return this.#request(kind, contract.payloadEncoding, payload.value, contract.successKind);
+	}
+
 	requestControl<Output>(
 		kind: MessageKindValue,
 		value: unknown,
-		expectedKind: MessageKindValue,
 		responseSchema: z.ZodType<Output>,
 	): Promise<Output> {
-		return this.request(
-			kind,
-			PayloadEncoding.controlJson,
-			textEncoder.encode(JSON.stringify(value)),
-			expectedKind,
-		).then((envelope) => {
+		return this.requestControlEnvelope(kind, value).then((envelope) => {
 			const decoded = decodeControlJson(envelope.payload, responseSchema);
 			if (!decoded.ok) throw new Error(decoded.detail);
 			return decoded.value;
 		});
 	}
 
-	request(
+	requestInput(kind: MessageKindValue, value: unknown): Promise<DecodedProtocolEnvelope> {
+		const contract = requestMessageContract(kind);
+		if (contract?.payloadEncoding !== PayloadEncoding.rawBytes) {
+			return Promise.reject(new Error(`Message kind ${kind} is not an input request.`));
+		}
+		const payload = encodeInputRequest(kind, value);
+		if (!payload.ok) return Promise.reject(new Error(payload.detail));
+		return this.#request(kind, contract.payloadEncoding, payload.value, contract.successKind);
+	}
+
+	#request(
 		kind: MessageKindValue,
 		payloadEncoding: PayloadEncodingValue,
 		payload: Uint8Array,
@@ -206,7 +221,7 @@ export class HostConnection {
 			optionalMessage: false,
 			payload,
 			payloadEncoding,
-			protocol: this.#protocolVersion ?? DESKTOP_HOST_PROTOCOL_VERSION,
+			protocol: this.#protocolVersion ?? CURRENT_PROTOCOL_VERSION,
 			response: false,
 		});
 		if (!encoded.ok) return Promise.reject(new Error(encoded.detail));
@@ -273,12 +288,21 @@ export class HostConnection {
 			(protocolVersion === undefined && !desktopSupportsProtocol(envelope.protocol)) ||
 			(protocolVersion !== undefined &&
 				(envelope.protocol.major !== protocolVersion.major ||
-					envelope.protocol.minor !== protocolVersion.minor))
+					envelope.protocol.minor !== protocolVersion.minor ||
+					envelope.protocol.patch !== protocolVersion.patch))
 		) {
 			throw new Error('Host emitted a record outside the negotiated Desktop protocol.');
 		}
 		if (this.#hostEpoch !== undefined && envelope.hostEpoch !== this.#hostEpoch) {
 			throw new Error('Host emitted a record for a stale or foreign HostEpoch.');
+		}
+		if (!envelope.knownMessage) return;
+		let role: MessageRole = 'request';
+		if (envelope.response) role = 'response';
+		else if (envelope.event) role = 'event';
+		const expectedEncoding = messagePayloadEncoding(envelope.kind, role);
+		if (expectedEncoding === null || envelope.payloadEncoding !== expectedEncoding) {
+			throw new Error(`Terminal Host emitted an invalid ${role} message contract.`);
 		}
 		if (envelope.response) {
 			this.#handleResponse(envelope);
@@ -389,9 +413,9 @@ export class HostConnection {
 
 function desktopSupportsProtocol(protocol: ProtocolVersion): boolean {
 	return (
-		protocol.major === DESKTOP_HOST_PROTOCOL_RANGE.major &&
-		protocol.minor >= DESKTOP_HOST_PROTOCOL_RANGE.minimumMinor &&
-		protocol.minor <= DESKTOP_HOST_PROTOCOL_RANGE.maximumMinor
+		protocol.major === CURRENT_PROTOCOL_VERSION.major &&
+		protocol.minor === CURRENT_PROTOCOL_VERSION.minor &&
+		protocol.patch === CURRENT_PROTOCOL_VERSION.patch
 	);
 }
 

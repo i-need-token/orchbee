@@ -14,9 +14,13 @@ import {
 	ClientIdSchema,
 	decodeControlJson,
 	MessageKind,
+	TerminalDefaultsAcceptedSchema,
 	TerminalExitedSchema,
+	TerminalFailedSchema,
 	type DecodedProtocolEnvelope,
 	type TerminalExited,
+	type TerminalFailed,
+	type TerminalIdentity,
 } from '@orchbee/terminal-protocol';
 import {
 	type TerminalPresentationIdSchema,
@@ -51,6 +55,7 @@ import {
 import {
 	ProjectedTerminalBroker,
 	type ProjectedTerminalBrokerEffectTarget,
+	type ProjectedTerminalBrokerLifecycle,
 	type ProjectedTerminalBrokerMetrics,
 } from '../broker';
 import {
@@ -68,9 +73,15 @@ import {
 } from '../gateway';
 import { DevelopmentHostRuntime, type HostConnection } from '../host';
 import {
+	TerminalExitPublicationLedger,
+	TerminalExitSpillStore,
+	type TerminalExitSpillReason,
+} from '../recovery';
+import {
 	TerminalProjectionControlBroker,
 	type DesktopTerminalProjectionLease,
 } from '../terminal-projection-control';
+import type { DesktopTerminalExitRecordResult } from '../terminal-document-control';
 import { FileWorkbenchDocumentStore, type WorkbenchDocumentStore } from '../workbench-document';
 import {
 	composeDesktopTerminalRuntime,
@@ -110,6 +121,16 @@ interface DesktopGatewayRuntimeHandle {
 	start(): Promise<{ readonly browserUrl: string }>;
 }
 
+interface GatewayClientResourceOwner {
+	dispose(): Promise<void>;
+}
+
+type TerminalExitPublicationResult = 'already-committed' | 'committed' | 'pending';
+
+const MAX_PENDING_TERMINAL_EXIT_RETRIES = 64;
+const TERMINAL_EXIT_RETRY_DELAY_MILLISECONDS = 25;
+const TERMINAL_EXIT_ASSOCIATION_RETRY_LIMIT = 3;
+
 export interface DesktopApplicationOptions {
 	readonly platform: NodeJS.Platform;
 	readonly preloadPath: string;
@@ -126,6 +147,7 @@ export interface DesktopApplicationDependencies {
 		port: MessagePortMain,
 		bootstrap: ProjectedAttachmentBootstrap,
 		effectTarget: ProjectedTerminalBrokerEffectTarget,
+		lifecycle?: ProjectedTerminalBrokerLifecycle,
 	) => DesktopBrokerHandle;
 	readonly createApplicationLifetimeBroker: (
 		port: MessagePortMain,
@@ -162,6 +184,10 @@ export interface DesktopApplicationDependencies {
 		createMessageChannel: DesktopApplicationDependencies['createMessageChannel'],
 		createBroker: DesktopApplicationDependencies['createBroker'],
 	) => DesktopTerminalRuntime;
+	readonly createTerminalExitSpillStore?: (filePath: string) => TerminalExitSpillStore;
+	readonly createTerminalExitPublicationLedger?: (
+		filePath: string,
+	) => TerminalExitPublicationLedger;
 	readonly createTerminalIntentReconciler: (
 		dependencies: DesktopTerminalIntentReconcilerDependencies,
 	) => DesktopTerminalIntentReconciler;
@@ -180,9 +206,10 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			binaryPath: configuration.binaryPath,
 			endpointId: configuration.endpointId,
 			runtimeDirectory: configuration.runtimeDirectory,
+			terminalDefaults: configuration.terminalConfiguration,
 		}).connect(),
-	createBroker: (host, port, bootstrap, effectTarget) =>
-		new ProjectedTerminalBroker(host, port, bootstrap, undefined, effectTarget),
+	createBroker: (host, port, bootstrap, effectTarget, lifecycle) =>
+		new ProjectedTerminalBroker(host, port, bootstrap, undefined, effectTarget, lifecycle),
 	createApplicationLifetimeBroker: (port, dependencies) =>
 		new DesktopApplicationLifetimeBroker(port, dependencies),
 	createClientSessionBroker: (port, coordinator, disposeAttachments) =>
@@ -210,6 +237,7 @@ const defaultDependencies: DesktopApplicationDependencies = {
 		}),
 	createTerminalIntentReconciler: (dependencies) =>
 		new DesktopTerminalIntentReconciler(dependencies),
+	createTerminalExitPublicationLedger: (filePath) => new TerminalExitPublicationLedger(filePath),
 	createWorkbenchDocumentStore: (filePath) => new FileWorkbenchDocumentStore(filePath),
 	createWindow: (options) => new BrowserWindow(options),
 	getPreferredLocales: () => app.getPreferredSystemLanguages(),
@@ -231,12 +259,35 @@ export class DesktopApplication {
 	#documentTransition = Promise.resolve();
 	#exitRequest: Promise<DesktopApplicationLifetimeExitResult> | undefined;
 	#gatewayRuntime: DesktopGatewayRuntimeHandle | undefined;
+	readonly #pendingGatewayClientCleanups = new Set<GatewayClientResourceOwner>();
+	#pendingRendererBootstrapCleanup: (() => Promise<void>) | undefined;
 	#projectionControlBroker: DesktopProjectionControlBrokerHandle | undefined;
 	#quitPrepared = false;
 	#removeHostListener: (() => void) | undefined;
 	#shuttingDown = false;
+	#shutdownPromise: Promise<void> | undefined;
 	#terminalRuntime: DesktopTerminalRuntime | undefined;
 	#terminalIntentReconciler: DesktopTerminalIntentReconciler | undefined;
+	readonly #pendingTerminalExits = new Map<string, TerminalExited>();
+	readonly #terminalExitAttempts = new Map<string, Promise<void>>();
+	readonly #terminalExitPublicationReservations = new Map<
+		string,
+		{
+			readonly event: TerminalExited;
+			readonly presentationId: ReturnType<typeof terminalPresentationId>;
+		}
+	>();
+	readonly #publishedTerminalExitRevisions = new Map<string, TerminalExited['finalRevision']>();
+	readonly #associatedTerminalExitKeys = new Set<string>();
+	readonly #unknownIdentityAttempts = new Set<string>();
+	#terminalExitRetryOwnerDisposed = false;
+	#terminalExitRetryOwnerClosing = false;
+	#terminalExitRetryTimer: ReturnType<typeof setTimeout> | undefined;
+	readonly #terminalExitAttemptCounts = new Map<string, number>();
+	readonly #terminalExitSpillStore: TerminalExitSpillStore;
+	readonly #terminalExitPublicationLedger: TerminalExitPublicationLedger;
+	#terminalExitSpillReady = false;
+	#pendingRendererDocumentRetirement: (() => Promise<void>) | undefined;
 	#window: BrowserWindow | undefined;
 	readonly #workbenchDocumentStore: WorkbenchDocumentStore;
 
@@ -249,6 +300,13 @@ export class DesktopApplication {
 		}
 		this.#options = options;
 		this.#dependencies = dependencies;
+		this.#terminalExitSpillStore =
+			dependencies.createTerminalExitSpillStore?.(options.runtime.terminalExitSpillPath) ??
+			new TerminalExitSpillStore(options.runtime.terminalExitSpillPath);
+		this.#terminalExitPublicationLedger =
+			dependencies.createTerminalExitPublicationLedger?.(
+				options.runtime.terminalExitPublicationLedgerPath,
+			) ?? new TerminalExitPublicationLedger(options.runtime.terminalExitPublicationLedgerPath);
 		this.#workbenchDocumentStore = dependencies.createWorkbenchDocumentStore(
 			options.runtime.workbenchDocumentStorePath,
 		);
@@ -301,6 +359,30 @@ export class DesktopApplication {
 		this.#connection = connection;
 		try {
 			await connection.negotiate(ClientIdSchema.parse(this.#dependencies.randomIdentifier()));
+			const acceptedDefaults = await connection.requestControl(
+				MessageKind.setTerminalDefaults,
+				{ configuration: this.#options.runtime.terminalConfiguration },
+				TerminalDefaultsAcceptedSchema,
+			);
+			if (
+				acceptedDefaults.configuration.scrollbackBytes !==
+				this.#options.runtime.terminalConfiguration.scrollbackBytes
+			) {
+				throw new Error('Terminal Host did not accept the requested terminal defaults.');
+			}
+			const publicationLedgerLoad = await this.#terminalExitPublicationLedger.load();
+			if (publicationLedgerLoad.kind !== 'ready') {
+				throw new Error(
+					`Terminal exit publication ledger is unavailable: ${publicationLedgerLoad.reason}.`,
+				);
+			}
+			const spillLoad = await this.#terminalExitSpillStore.load(
+				this.#terminalExitPublicationLedger,
+			);
+			if (spillLoad.kind !== 'ready') {
+				throw new Error(`Terminal exit spill store is unavailable: ${spillLoad.reason}.`);
+			}
+			this.#terminalExitSpillReady = true;
 			const terminalRuntime = this.#dependencies.createTerminalRuntime(
 				connection,
 				this.#options.runtime,
@@ -309,6 +391,8 @@ export class DesktopApplication {
 				this.#dependencies.createBroker,
 			);
 			this.#terminalRuntime = terminalRuntime;
+			terminalRuntime.setIdentityObservedListener?.(this.#handleTerminalIdentityObserved);
+			this.#removeHostListener = connection.onEnvelope(this.#handleHostEnvelope);
 			const initialization = await terminalRuntime.initialize();
 			if (initialization.kind !== 'ready') {
 				throw new Error(
@@ -344,11 +428,13 @@ export class DesktopApplication {
 			const terminalIntentReconciler = this.#dependencies.createTerminalIntentReconciler({
 				createOperationId,
 				execute: async (command) => terminalRuntime.execute(command),
-				getTerminalExit: (presentationId) => {
-					const terminalExit = terminalRuntime.getProjectionTarget(presentationId)?.terminalExit;
-					return terminalExit === null || terminalExit === undefined
-						? null
-						: toDocumentExit(presentationId, terminalExit);
+				getTerminalOutcome: (presentationId) => {
+					const terminalFailure = terminalRuntime.getTerminalFailure(presentationId);
+					if (terminalFailure !== null) {
+						return toDocumentFailure(presentationId, terminalFailure);
+					}
+					const terminalExit = terminalRuntime.getDurableTerminalExit(presentationId);
+					return terminalExit === null ? null : toDocumentExit(presentationId, terminalExit);
 				},
 			});
 			const clientSessionCoordinator = this.#dependencies.createClientSessionCoordinator({
@@ -358,19 +444,26 @@ export class DesktopApplication {
 				initialPresentationId,
 				initializationDocument,
 				reconcileDocument: (document, publish) =>
-					terminalIntentReconciler.reconcileDocument(document, publish),
+					terminalIntentReconciler.reconcileDocument(document, (event) => {
+						if (event.type === 'terminal-exited') {
+							return this.#commitReconciledTerminalExit(terminalRuntime, event, publish);
+						}
+						publish(event);
+						return true;
+					}),
 				store: this.#workbenchDocumentStore,
 				validateDocument: (document) => terminalIntentReconciler.validateDocument(document),
 			});
+			this.#terminalIntentReconciler = terminalIntentReconciler;
+			this.#clientSessionCoordinator = clientSessionCoordinator;
 			const coordinatorStart = await clientSessionCoordinator.start();
 			if (coordinatorStart.kind !== 'ready') {
 				throw new Error(
 					`Desktop client session coordinator stopped with ${coordinatorStart.reason}.`,
 				);
 			}
-			this.#terminalIntentReconciler = terminalIntentReconciler;
-			this.#clientSessionCoordinator = clientSessionCoordinator;
-			this.#removeHostListener = connection.onEnvelope(this.#handleHostEnvelope);
+			this.#promoteSpilledTerminalExits();
+			this.#scheduleTerminalExitRetry();
 			if (this.#options.runtime.gateway.kind === 'enabled') {
 				const gatewayRuntime = this.#dependencies.createGatewayRuntime(
 					{
@@ -387,16 +480,37 @@ export class DesktopApplication {
 		} catch (error) {
 			this.#removeHostListener?.();
 			this.#removeHostListener = undefined;
-			await this.#gatewayRuntime?.dispose();
-			this.#gatewayRuntime = undefined;
-			await this.#clientSessionCoordinator?.dispose();
-			this.#clientSessionCoordinator = undefined;
-			this.#terminalIntentReconciler = undefined;
-			await this.#terminalRuntime?.dispose();
-			this.#terminalRuntime = undefined;
+			let cleanupFailure: unknown;
+			try {
+				await this.#disposeTerminalExitRetryOwner();
+			} catch (cleanupError: unknown) {
+				cleanupFailure = cleanupError;
+			}
+			try {
+				await this.#disposeGatewayResources();
+			} catch (cleanupError: unknown) {
+				cleanupFailure ??= cleanupError;
+			}
+			try {
+				const coordinator = this.#clientSessionCoordinator;
+				await coordinator?.dispose();
+				if (this.#clientSessionCoordinator === coordinator) {
+					this.#clientSessionCoordinator = undefined;
+					this.#terminalIntentReconciler = undefined;
+				}
+			} catch (cleanupError: unknown) {
+				cleanupFailure ??= cleanupError;
+			}
+			try {
+				const terminalRuntime = this.#terminalRuntime;
+				await terminalRuntime?.dispose();
+				if (this.#terminalRuntime === terminalRuntime) this.#terminalRuntime = undefined;
+			} catch (cleanupError: unknown) {
+				cleanupFailure ??= cleanupError;
+			}
 			connection.close();
 			this.#connection = undefined;
-			throw error;
+			throw cleanupFailure ?? error;
 		}
 	}
 
@@ -459,32 +573,99 @@ export class DesktopApplication {
 		});
 
 		const rendererUrl = new URL(this.#options.rendererUrl);
-		if (rendererUrl.protocol !== 'http:' || rendererUrl.hostname !== '127.0.0.1') {
-			throw new Error('Development renderer URL must use loopback HTTP.');
+		if (!isPermittedDesktopRendererUrl(rendererUrl)) {
+			throw new Error('Desktop renderer URL must use loopback HTTP or the packaged origin.');
 		}
-		rendererUrl.searchParams.set('orchbee-runtime', 'desktop');
 		await window.loadURL(rendererUrl.href);
 		await this.#documentTransition;
 		if (this.#documentFailure !== undefined) throw this.#documentFailure;
 	}
 
 	async shutdown(): Promise<void> {
-		if (this.#shuttingDown) return this.#documentTransition;
+		if (this.#shutdownPromise !== undefined) return this.#shutdownPromise;
 		this.#shuttingDown = true;
+		const operation = this.#shutdownInternal();
+		this.#shutdownPromise = operation.catch((error: unknown) => {
+			this.#shutdownPromise = undefined;
+			throw error;
+		});
+		return this.#shutdownPromise;
+	}
+
+	async #shutdownInternal(): Promise<void> {
 		this.#removeHostListener?.();
 		this.#removeHostListener = undefined;
-		this.#writeCopyPathTrace('main-shutdown');
-		this.#beginRendererDocument();
-		await this.#documentTransition;
-		await this.#gatewayRuntime?.dispose();
-		this.#gatewayRuntime = undefined;
-		await this.#clientSessionCoordinator?.dispose();
-		this.#clientSessionCoordinator = undefined;
-		this.#terminalIntentReconciler = undefined;
-		await this.#terminalRuntime?.dispose();
+		let firstFailure: unknown;
+		try {
+			await this.#disposeTerminalExitRetryOwner();
+		} catch (error: unknown) {
+			firstFailure = error;
+			this.#writeCopyPathTrace('terminal-exit-retry-owner-failed-during-shutdown');
+		}
+		try {
+			this.#writeCopyPathTrace('main-shutdown');
+			this.#beginRendererDocument();
+			await this.#documentTransition;
+		} catch (error: unknown) {
+			firstFailure ??= error;
+		}
+		try {
+			await this.#disposeGatewayResources();
+		} catch (error: unknown) {
+			firstFailure ??= error;
+		}
+		try {
+			const coordinator = this.#clientSessionCoordinator;
+			await coordinator?.dispose();
+			if (this.#clientSessionCoordinator === coordinator) {
+				this.#clientSessionCoordinator = undefined;
+				this.#terminalIntentReconciler = undefined;
+			}
+		} catch (error: unknown) {
+			firstFailure ??= error;
+		}
+		try {
+			const terminalRuntime = this.#terminalRuntime;
+			await terminalRuntime?.dispose();
+			if (this.#terminalRuntime === terminalRuntime) this.#terminalRuntime = undefined;
+		} catch (error: unknown) {
+			firstFailure ??= error;
+		}
 		this.#connection?.close();
 		this.#connection = undefined;
-		this.#terminalRuntime = undefined;
+		if (firstFailure !== undefined) throw firstFailure;
+	}
+
+	async #disposePendingGatewayClientCleanups(): Promise<void> {
+		if (this.#pendingGatewayClientCleanups.size === 0) return;
+		const results = await Promise.allSettled(
+			[...this.#pendingGatewayClientCleanups].map((owner) => owner.dispose()),
+		);
+		const failures = results.flatMap((result) =>
+			result.status === 'rejected' ? [result.reason] : [],
+		);
+		if (failures.length > 0) {
+			throw new AggregateError(failures, 'Desktop Gateway client cleanup did not converge.');
+		}
+	}
+
+	async #disposeGatewayResources(): Promise<void> {
+		const gatewayRuntime = this.#gatewayRuntime;
+		const failures: unknown[] = [];
+		try {
+			await gatewayRuntime?.dispose();
+		} catch (error: unknown) {
+			failures.push(error);
+		}
+		try {
+			await this.#disposePendingGatewayClientCleanups();
+		} catch (error: unknown) {
+			failures.push(error);
+		}
+		if (failures.length > 0) {
+			throw new AggregateError(failures, 'Desktop Gateway disposal did not converge.');
+		}
+		if (this.#gatewayRuntime === gatewayRuntime) this.#gatewayRuntime = undefined;
 	}
 
 	#beginRendererDocument(): number {
@@ -495,9 +676,66 @@ export class DesktopApplication {
 		this.#clientSessionBroker = undefined;
 		const projectionBroker = this.#projectionControlBroker;
 		this.#projectionControlBroker = undefined;
-		this.#documentTransition = this.#documentTransition.then(async () => {
-			if (clientSessionBroker === undefined) await projectionBroker?.dispose();
-			else await clientSessionBroker.dispose();
+		let retirementPromise: Promise<void> | undefined;
+		const retire = async (): Promise<void> => {
+			if (retirementPromise !== undefined) return retirementPromise;
+			const operation = (async () => {
+				let firstFailure: unknown;
+				let clientDisposeFailed = false;
+				try {
+					await clientSessionBroker?.dispose();
+				} catch (error: unknown) {
+					clientDisposeFailed = true;
+					firstFailure = error;
+				}
+				if (clientSessionBroker === undefined || clientDisposeFailed) {
+					try {
+						await projectionBroker?.dispose();
+					} catch (error: unknown) {
+						firstFailure ??= error;
+					}
+				}
+				if (firstFailure !== undefined) throw firstFailure;
+			})();
+			retirementPromise = operation.catch((error: unknown) => {
+				retirementPromise = undefined;
+				throw error;
+			});
+			return retirementPromise;
+		};
+		if (clientSessionBroker !== undefined || projectionBroker !== undefined) {
+			this.#pendingRendererDocumentRetirement ??= retire;
+		}
+		const transition = this.#documentTransition.then(async () => {
+			let firstFailure: unknown;
+			if (this.#pendingRendererBootstrapCleanup !== undefined) {
+				const cleanup = this.#pendingRendererBootstrapCleanup;
+				try {
+					await cleanup();
+					if (this.#pendingRendererBootstrapCleanup === cleanup) {
+						this.#pendingRendererBootstrapCleanup = undefined;
+					}
+				} catch (error: unknown) {
+					firstFailure = error;
+				}
+			}
+			const retirement = this.#pendingRendererDocumentRetirement;
+			if (retirement !== undefined) {
+				try {
+					await retirement();
+					if (this.#pendingRendererDocumentRetirement === retirement) {
+						this.#pendingRendererDocumentRetirement = undefined;
+					}
+				} catch (error: unknown) {
+					firstFailure ??= error;
+				}
+			}
+			if (firstFailure !== undefined) throw firstFailure;
+			this.#documentFailure = undefined;
+		});
+		this.#documentTransition = transition.catch((error: unknown) => {
+			this.#documentFailure =
+				error instanceof Error ? error : new Error('Renderer document cleanup failed.');
 		});
 		return generation;
 	}
@@ -505,7 +743,7 @@ export class DesktopApplication {
 	#queueRendererDocument(window: BrowserWindow, generation: number): void {
 		this.#documentTransition = this.#documentTransition.then(async () => {
 			try {
-				this.#attachRendererDocument(window, generation);
+				await this.#attachRendererDocument(window, generation);
 			} catch (error) {
 				this.#documentFailure =
 					error instanceof Error ? error : new Error('Renderer document control failed.');
@@ -513,12 +751,14 @@ export class DesktopApplication {
 		});
 	}
 
-	#attachRendererDocument(window: BrowserWindow, generation: number): void {
+	async #attachRendererDocument(window: BrowserWindow, generation: number): Promise<void> {
 		const terminalRuntime = this.#terminalRuntime;
 		const clientSessionCoordinator = this.#clientSessionCoordinator;
 		if (
 			terminalRuntime === undefined ||
 			clientSessionCoordinator === undefined ||
+			this.#pendingRendererDocumentRetirement !== undefined ||
+			this.#pendingRendererBootstrapCleanup !== undefined ||
 			this.#window !== window ||
 			window.isDestroyed() ||
 			generation !== this.#documentGeneration ||
@@ -526,46 +766,92 @@ export class DesktopApplication {
 		) {
 			return;
 		}
-		const lifetimeChannel = this.#dependencies.createMessageChannel();
-		const clientSessionChannel = this.#dependencies.createMessageChannel();
-		const projectionChannel = this.#dependencies.createMessageChannel();
-		const projectionBroker = this.#dependencies.createProjectionControlBroker(
-			projectionChannel.port2,
-			terminalRuntime,
-		);
-		const clientSessionBroker = this.#dependencies.createClientSessionBroker(
-			clientSessionChannel.port2,
-			clientSessionCoordinator,
-			async () => projectionBroker.dispose(),
-		);
-		const lifetimeBroker = this.#dependencies.createApplicationLifetimeBroker(
-			lifetimeChannel.port2,
-			{
+		let lifetimeChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
+		let clientSessionChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
+		let projectionChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
+		let projectionBroker: DesktopProjectionControlBrokerHandle | undefined;
+		let clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
+		let lifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
+		const cleanup = async (): Promise<void> => {
+			let firstFailure: unknown;
+			try {
+				lifetimeBroker?.dispose();
+			} catch (error: unknown) {
+				firstFailure ??= error;
+			}
+			let clientDisposeFailed = false;
+			try {
+				await clientSessionBroker?.dispose();
+			} catch (error: unknown) {
+				clientDisposeFailed = true;
+				firstFailure ??= error;
+			}
+			if (clientSessionBroker === undefined || clientDisposeFailed) {
+				try {
+					await projectionBroker?.dispose();
+				} catch (error: unknown) {
+					firstFailure ??= error;
+				}
+			}
+			closeRendererChannel(lifetimeChannel);
+			closeRendererChannel(clientSessionChannel);
+			closeRendererChannel(projectionChannel);
+			if (firstFailure !== undefined) throw firstFailure;
+		};
+		try {
+			lifetimeChannel = this.#dependencies.createMessageChannel();
+			clientSessionChannel = this.#dependencies.createMessageChannel();
+			projectionChannel = this.#dependencies.createMessageChannel();
+			projectionBroker = this.#dependencies.createProjectionControlBroker(
+				projectionChannel.port2,
+				terminalRuntime,
+			);
+			clientSessionBroker = this.#dependencies.createClientSessionBroker(
+				clientSessionChannel.port2,
+				clientSessionCoordinator,
+				async () => {
+					await projectionBroker?.dispose();
+				},
+			);
+			lifetimeBroker = this.#dependencies.createApplicationLifetimeBroker(lifetimeChannel.port2, {
 				drainForStop: this.#drainForApplicationStop,
 				prepareMode: (mode) =>
 					clientSessionCoordinator.beginQuiescing(
-						clientSessionBroker.bootstrap.clientSessionId,
+						clientSessionBroker?.bootstrap.clientSessionId ?? '',
 						mode,
 					),
-			},
-		);
-		this.#applicationLifetimeBroker = lifetimeBroker;
-		this.#clientSessionBroker = clientSessionBroker;
-		this.#projectionControlBroker = projectionBroker;
-		clientSessionBroker.start();
-		lifetimeBroker.start();
-		projectionBroker.start();
-		window.webContents.postMessage(
-			DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
-			DesktopRendererBootstrapSchema.parse({
-				clientSession: clientSessionBroker.bootstrap,
-				type: DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
-			}),
-			[clientSessionChannel.port1, projectionChannel.port1, lifetimeChannel.port1],
-		);
+			});
+			clientSessionBroker.start();
+			lifetimeBroker.start();
+			projectionBroker.start();
+			window.webContents.postMessage(
+				DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
+				DesktopRendererBootstrapSchema.parse({
+					clientSession: clientSessionBroker.bootstrap,
+					type: DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
+				}),
+				[clientSessionChannel.port1, projectionChannel.port1, lifetimeChannel.port1],
+			);
+			this.#applicationLifetimeBroker = lifetimeBroker;
+			this.#clientSessionBroker = clientSessionBroker;
+			this.#projectionControlBroker = projectionBroker;
+		} catch (error: unknown) {
+			this.#pendingRendererBootstrapCleanup = cleanup;
+			await cleanup();
+			if (this.#pendingRendererBootstrapCleanup === cleanup) {
+				this.#pendingRendererBootstrapCleanup = undefined;
+			}
+			throw error;
+		}
 	}
 
-	#openGatewayClient(): DesktopGatewayClientHandle {
+	async #openGatewayClient(): Promise<DesktopGatewayClientHandle> {
 		const terminalRuntime = this.#terminalRuntime;
 		const clientSessionCoordinator = this.#clientSessionCoordinator;
 		if (
@@ -575,36 +861,80 @@ export class DesktopApplication {
 		) {
 			throw new Error('Desktop Gateway client control is unavailable.');
 		}
-		const clientSessionChannel = this.#dependencies.createMessageChannel();
-		const projectionChannel = this.#dependencies.createMessageChannel();
-		const projectionBroker = this.#dependencies.createProjectionControlBroker(
-			projectionChannel.port2,
-			{
+		let clientSessionChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
+		let projectionChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
+		let projectionBroker: DesktopProjectionControlBrokerHandle | undefined;
+		let clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
+		let disposalPromise: Promise<void> | undefined;
+		let disposed = false;
+		const cleanup = async (): Promise<void> => {
+			if (disposed) return;
+			if (disposalPromise !== undefined) return disposalPromise;
+			const operation = (async () => {
+				let firstFailure: unknown;
+				let clientDisposeFailed = false;
+				try {
+					await clientSessionBroker?.dispose();
+				} catch (error: unknown) {
+					clientDisposeFailed = true;
+					firstFailure = error;
+				}
+				if (clientSessionBroker === undefined || clientDisposeFailed) {
+					try {
+						await projectionBroker?.dispose();
+					} catch (error: unknown) {
+						firstFailure ??= error;
+					}
+				}
+				closeRendererChannel(clientSessionChannel);
+				closeRendererChannel(projectionChannel);
+				if (firstFailure !== undefined) throw firstFailure;
+				disposed = true;
+				this.#pendingGatewayClientCleanups.delete(owner);
+			})();
+			disposalPromise = operation.catch((error: unknown) => {
+				disposalPromise = undefined;
+				throw error;
+			});
+			return disposalPromise;
+		};
+		const owner: GatewayClientResourceOwner = { dispose: cleanup };
+		this.#pendingGatewayClientCleanups.add(owner);
+		try {
+			clientSessionChannel = this.#dependencies.createMessageChannel();
+			projectionChannel = this.#dependencies.createMessageChannel();
+			projectionBroker = this.#dependencies.createProjectionControlBroker(projectionChannel.port2, {
 				open: async (presentationId) =>
 					terminalRuntime.open(presentationId, { brokerEffectTarget: 'client' }),
-			},
-		);
-		let clientSessionBroker: DesktopClientSessionBrokerHandle;
-		try {
+			});
 			clientSessionBroker = this.#dependencies.createClientSessionBroker(
 				clientSessionChannel.port2,
 				clientSessionCoordinator,
-				async () => projectionBroker.dispose(),
+				async () => projectionBroker?.dispose(),
 			);
-		} catch (error) {
-			void projectionBroker.dispose();
-			clientSessionChannel.port1.close();
-			projectionChannel.port1.close();
+			clientSessionBroker.start();
+			projectionBroker.start();
+			return {
+				bootstrap: clientSessionBroker.bootstrap,
+				clientSessionPort: clientSessionChannel.port1,
+				dispose: cleanup,
+				projectionPort: projectionChannel.port1,
+			};
+		} catch (error: unknown) {
+			try {
+				await cleanup();
+			} catch (cleanupError: unknown) {
+				throw new AggregateError(
+					[error, cleanupError],
+					'Desktop Gateway client bootstrap compensation failed.',
+				);
+			}
 			throw error;
 		}
-		clientSessionBroker.start();
-		projectionBroker.start();
-		return {
-			bootstrap: clientSessionBroker.bootstrap,
-			clientSessionPort: clientSessionChannel.port1,
-			dispose: async () => clientSessionBroker.dispose(),
-			projectionPort: projectionChannel.port1,
-		};
 	}
 
 	readonly #drainForApplicationStop = async (
@@ -667,27 +997,494 @@ export class DesktopApplication {
 	};
 
 	readonly #handleHostEnvelope = (envelope: DecodedProtocolEnvelope): void => {
-		if (envelope.kind !== MessageKind.terminalExited) return;
-		const exited = decodeControlJson(envelope.payload, TerminalExitedSchema);
-		if (!exited.ok) return;
-		void this.#terminalRuntime?.recordExit(exited.value).then((presentationId) => {
-			if (presentationId === null) return;
-			const event = toDocumentExit(presentationId, exited.value);
-			if (this.#terminalIntentReconciler?.recordExternalEvent(event) !== true) return;
-			this.#clientSessionCoordinator?.publishTerminalEvent(event);
-			this.#writeCopyPathTrace('terminal-exited');
+		if (envelope.kind === MessageKind.terminalExited) {
+			const exited = decodeControlJson(envelope.payload, TerminalExitedSchema);
+			if (exited.ok) this.#acceptTerminalExit(exited.value);
+			return;
+		}
+		if (envelope.kind !== MessageKind.terminalFailed) return;
+		const failed = decodeControlJson(envelope.payload, TerminalFailedSchema);
+		if (!failed.ok) return;
+		this.#acceptTerminalFailure(failed.value);
+	};
+
+	#acceptTerminalFailure(event: TerminalFailed): void {
+		const runtime = this.#terminalRuntime;
+		if (runtime === undefined) return;
+		void runtime
+			.recordFailure(event)
+			.then((presentationId) => {
+				if (presentationId === null) return;
+				const reconciler = this.#terminalIntentReconciler;
+				const coordinator = this.#clientSessionCoordinator;
+				if (reconciler === undefined || coordinator === undefined) return;
+				const documentEvent = toDocumentFailure(presentationId, event);
+				if (!reconciler.recordExternalEvent(documentEvent)) return;
+				coordinator.publishTerminalEvent(documentEvent);
+				this.#writeCopyPathTrace('terminal-failed');
+			})
+			.catch(() => this.#writeCopyPathTrace('terminal-failure-association-failed'));
+	}
+
+	#acceptTerminalExit(event: TerminalExited): void {
+		const key = terminalExitIdentityKey(event);
+		if (
+			this.#isTerminalExitPublished(event) &&
+			!this.#terminalExitPublicationReservations.has(key)
+		) {
+			return;
+		}
+		if (this.#terminalExitSpillReady && this.#terminalExitSpillStore.isRejected(event)) return;
+		if (!this.#admitPendingTerminalExit(event, 'host-admission')) return;
+		if (this.#terminalExitRetryOwnerDisposed || this.#terminalExitRetryOwnerClosing) {
+			if (!this.#spillTerminalExit(event, 'shutdown')) {
+				throw new Error('Desktop terminal exit owner is closed and its spill is full.');
+			}
+			this.#writeCopyPathTrace('terminal-exit-spilled-during-shutdown');
+			return;
+		}
+		const existing = this.#pendingTerminalExits.get(key);
+		if (
+			existing === undefined &&
+			this.#pendingTerminalExits.size >= MAX_PENDING_TERMINAL_EXIT_RETRIES
+		) {
+			// The Host event has no ACK/redelivery. Persist before returning from
+			// this listener so a full in-memory owner cannot lose the envelope.
+			const spill = this.#spillTerminalExit(event, 'queue-full');
+			if (!spill) {
+				this.#writeCopyPathTrace('terminal-exit-spill-full');
+				throw new Error('Desktop terminal exit spill admission is full.');
+			}
+			this.#writeCopyPathTrace('terminal-exit-spilled');
+			this.#scheduleTerminalExitRetry();
+			return;
+		}
+		if (existing === undefined) {
+			this.#pendingTerminalExits.set(key, event);
+			this.#terminalExitAttemptCounts.set(key, 0);
+		} else if (BigInt(event.finalRevision) > BigInt(existing.finalRevision)) {
+			this.#pendingTerminalExits.set(key, event);
+			this.#terminalExitAttemptCounts.set(key, 0);
+		}
+		void this.#attemptTerminalExit(key);
+	}
+
+	#admitPendingTerminalExit(event: TerminalExited, reason: TerminalExitSpillReason): boolean {
+		if (!this.#terminalExitSpillReady) {
+			throw new Error('Desktop terminal exit pending journal is not ready.');
+		}
+		try {
+			const admission = this.#terminalExitSpillStore.admit(event, reason);
+			if (admission.kind === 'admitted') return true;
+			const rejection = this.#terminalExitSpillStore.reject(event, 'pending-journal-full');
+			if (rejection.kind === 'recorded') {
+				this.#writeCopyPathTrace('terminal-exit-rejected-pending-journal-full');
+				return false;
+			}
+			throw new Error('Desktop terminal exit rejection journal is full.');
+		} catch (error: unknown) {
+			try {
+				const rejection = this.#terminalExitSpillStore.reject(event, 'write-failed');
+				if (rejection.kind === 'recorded') {
+					this.#writeCopyPathTrace('terminal-exit-rejected-write-failed');
+					return false;
+				}
+			} catch (rejectionError: unknown) {
+				throw new AggregateError(
+					[error, rejectionError],
+					'Desktop terminal exit pending journal failed closed.',
+				);
+			}
+			throw error;
+		}
+	}
+
+	#attemptTerminalExit(key: string): Promise<void> {
+		const existingAttempt = this.#terminalExitAttempts.get(key);
+		if (existingAttempt !== undefined) return existingAttempt;
+		const operation = this.#recordPendingTerminalExit(key).catch(() => {
+			// A failed attempt keeps the event in the Main-owned bounded queue and
+			// schedules a later retry. This branch is deliberately contained so a
+			// Host envelope can never create an unhandled rejection.
+			this.#writeCopyPathTrace('terminal-exit-persistence-failed');
 		});
+		this.#terminalExitAttempts.set(key, operation);
+		void operation.then(() => {
+			if (this.#terminalExitAttempts.get(key) === operation) {
+				this.#terminalExitAttempts.delete(key);
+			}
+			if (
+				!this.#terminalExitRetryOwnerDisposed &&
+				!this.#terminalExitRetryOwnerClosing &&
+				this.#pendingTerminalExits.has(key)
+			) {
+				this.#scheduleTerminalExitRetry();
+			}
+		});
+		return operation;
+	}
+
+	#publishTerminalExit(
+		runtime: DesktopTerminalRuntime,
+		event: TerminalExited,
+		presentationId: ReturnType<typeof terminalPresentationId>,
+		publish: (
+			event: Extract<TerminalPresentationEvent, { readonly type: 'terminal-exited' }>,
+		) => unknown,
+	): TerminalExitPublicationResult {
+		const key = terminalExitIdentityKey(event);
+		const reconciler = this.#terminalIntentReconciler;
+		if (reconciler === undefined) return 'pending';
+		let currentReservation = this.#terminalExitPublicationReservations.get(key);
+		if (
+			currentReservation === undefined ||
+			BigInt(currentReservation.event.finalRevision) !== BigInt(event.finalRevision)
+		) {
+			const documentEvent = toDocumentExit(presentationId, event);
+			if (this.#isTerminalExitPublished(event) && reconciler.hasExternalEvent(documentEvent)) {
+				return 'already-committed';
+			}
+			if (!reconciler.reserveExternalEvent(documentEvent)) return 'pending';
+			currentReservation = {
+				event,
+				presentationId,
+			};
+			this.#terminalExitPublicationReservations.set(key, currentReservation);
+		}
+		if (currentReservation === undefined) return 'pending';
+		const reservationEvent = currentReservation.event;
+		const documentEvent = toDocumentExit(currentReservation.presentationId, reservationEvent);
+		if (
+			!reconciler.hasExternalEvent(documentEvent) &&
+			!reconciler.reserveExternalEvent(documentEvent)
+		) {
+			return 'pending';
+		}
+		const ledgerCommitted = this.#isTerminalExitPublished(reservationEvent);
+		if (!ledgerCommitted) {
+			let committed: boolean;
+			try {
+				committed = runtime.commitExitPublication?.(reservationEvent) ?? true;
+			} catch {
+				this.#writeCopyPathTrace('terminal-exit-adapter-commit-failed');
+				return 'pending';
+			}
+			if (!committed) return 'pending';
+			const marked = this.#markTerminalExitPublished(reservationEvent);
+			if (!marked) return 'pending';
+			this.#publishedTerminalExitRevisions.set(key, reservationEvent.finalRevision);
+		}
+		const externalEventCommitted = reconciler.commitExternalEvent(documentEvent);
+		if (!externalEventCommitted) return 'pending';
+		try {
+			if (publish(documentEvent) === false) return 'pending';
+		} catch {
+			this.#writeCopyPathTrace('terminal-exit-publication-failed');
+			return 'pending';
+		}
+		this.#terminalExitPublicationReservations.delete(key);
+		this.#removePublishedTerminalExitFromPending(reservationEvent);
+		return ledgerCommitted ? 'already-committed' : 'committed';
+	}
+
+	#commitReconciledTerminalExit(
+		runtime: DesktopTerminalRuntime,
+		event: TerminalPresentationEvent,
+		publish: (event: TerminalPresentationEvent) => unknown,
+	): boolean {
+		if (event.type !== 'terminal-exited') return true;
+		const terminalExit = runtime.getDurableTerminalExit(event.presentationId);
+		if (terminalExit === null) return false;
+		const publication = this.#publishTerminalExit(
+			runtime,
+			terminalExit,
+			event.presentationId,
+			publish,
+		);
+		if (publication === 'pending') {
+			this.#acceptTerminalExit(terminalExit);
+			return false;
+		}
+		return true;
+	}
+
+	#isTerminalExitPublished(event: TerminalExited): boolean {
+		const publishedRevision = this.#publishedTerminalExitRevisions.get(
+			terminalExitIdentityKey(event),
+		);
+		if (
+			publishedRevision !== undefined &&
+			BigInt(publishedRevision) >= BigInt(event.finalRevision)
+		) {
+			return true;
+		}
+		if (!this.#terminalExitSpillReady) return false;
+		try {
+			return this.#terminalExitPublicationLedger.has(event);
+		} catch {
+			return false;
+		}
+	}
+
+	#markTerminalExitPublished(event: TerminalExited): boolean {
+		try {
+			return this.#terminalExitPublicationLedger.markPublished(event);
+		} catch {
+			this.#writeCopyPathTrace('terminal-exit-publication-ledger-mark-failed');
+			return false;
+		}
+	}
+
+	async #recordPendingTerminalExit(key: string): Promise<void> {
+		const event = this.#pendingTerminalExits.get(key);
+		const runtime = this.#terminalRuntime;
+		if (event === undefined || runtime === undefined) return;
+		this.#terminalExitAttemptCounts.set(key, (this.#terminalExitAttemptCounts.get(key) ?? 0) + 1);
+		const outcome = await this.#recordTerminalExit(runtime, event);
+		if (outcome.kind === 'retryable') {
+			this.#writeCopyPathTrace(`terminal-exit-${outcome.reason}`);
+			if (
+				(outcome.reason === 'association' || outcome.reason === 'buffer-full') &&
+				(this.#terminalExitAttemptCounts.get(key) ?? 0) >= TERMINAL_EXIT_ASSOCIATION_RETRY_LIMIT
+			) {
+				if (this.#spillTerminalExit(event, 'association-pending')) {
+					runtime.releasePendingExit?.(event);
+					this.#deleteTerminalExitIfCurrent(key, event, false);
+					this.#writeCopyPathTrace('terminal-exit-association-spilled');
+				} else {
+					this.#writeCopyPathTrace('terminal-exit-spill-full');
+				}
+			}
+			return;
+		}
+		if (outcome.kind === 'unattributed') {
+			this.#unknownIdentityAttempts.add(key);
+			if (this.#spillTerminalExit(event, 'unknown-identity')) {
+				this.#deleteTerminalExitIfCurrent(key, event, false);
+				this.#writeCopyPathTrace('terminal-exit-unknown-identity');
+			} else {
+				this.#writeCopyPathTrace('terminal-exit-spill-full');
+			}
+			return;
+		}
+		if (outcome.kind === 'committed') {
+			const publication = this.#publishTerminalExit(
+				runtime,
+				event,
+				outcome.presentationId,
+				(documentEvent) => {
+					const coordinator = this.#clientSessionCoordinator;
+					if (coordinator === undefined)
+						throw new Error('Desktop client session coordinator is unavailable.');
+					return coordinator.publishTerminalEvent(documentEvent);
+				},
+			);
+			if (publication === 'pending') return;
+			if (publication === 'committed') this.#writeCopyPathTrace('terminal-exited');
+			this.#deleteTerminalExitIfCurrent(key, event);
+			return;
+		}
+		if (outcome.kind === 'ignored') {
+			// A close lifecycle can consume the exit while retiring its binding;
+			// there is no publication to commit or spill in that case.
+			if (outcome.reason === 'closed' || this.#isTerminalExitPublished(event)) {
+				this.#deleteTerminalExitIfCurrent(key, event);
+			}
+			return;
+		}
+		if (outcome.kind === 'durable' || outcome.kind === 'published') {
+			const publication = this.#publishTerminalExit(
+				runtime,
+				event,
+				outcome.presentationId,
+				(documentEvent) => {
+					const coordinator = this.#clientSessionCoordinator;
+					if (coordinator === undefined)
+						throw new Error('Desktop client session coordinator is unavailable.');
+					return coordinator.publishTerminalEvent(documentEvent);
+				},
+			);
+			if (publication === 'pending') return;
+			if (publication === 'committed') this.#writeCopyPathTrace('terminal-exited');
+		}
+		this.#deleteTerminalExitIfCurrent(key, event);
+	}
+
+	async #recordTerminalExit(
+		runtime: DesktopTerminalRuntime,
+		event: TerminalExited,
+	): Promise<DesktopTerminalExitRecordResult> {
+		if (typeof runtime.recordExitOutcome === 'function') {
+			return runtime.recordExitOutcome(event);
+		}
+		const presentationId = await runtime.recordExit(event);
+		return presentationId === null
+			? { kind: 'ignored' }
+			: { finalRevision: event.finalRevision, kind: 'durable', presentationId };
+	}
+
+	#removePublishedTerminalExitFromPending(event: TerminalExited): void {
+		if (!this.#terminalExitSpillReady) return;
+		try {
+			this.#terminalExitSpillStore.remove(event);
+		} catch {
+			// The publication ledger and reconciler are already authoritative. Keep
+			// the pending journal entry as a durable compaction retry if this cleanup
+			// write fails.
+			this.#writeCopyPathTrace('terminal-exit-pending-journal-compaction-failed');
+		}
+	}
+
+	#deleteTerminalExitIfCurrent(key: string, event: TerminalExited, removeSpill = true): void {
+		const current = this.#pendingTerminalExits.get(key);
+		if (current !== undefined && BigInt(current.finalRevision) <= BigInt(event.finalRevision)) {
+			this.#pendingTerminalExits.delete(key);
+			this.#terminalExitAttemptCounts.delete(key);
+			if (removeSpill) this.#removePublishedTerminalExitFromPending(event);
+		}
+	}
+
+	#scheduleTerminalExitRetry(): void {
+		if (
+			this.#terminalExitRetryOwnerDisposed ||
+			this.#terminalExitRetryOwnerClosing ||
+			(this.#pendingTerminalExits.size === 0 && !this.#hasRetryableSpilledTerminalExits()) ||
+			this.#terminalExitRetryTimer !== undefined
+		) {
+			return;
+		}
+		const timer = setTimeout(() => {
+			this.#terminalExitRetryTimer = undefined;
+			this.#promoteSpilledTerminalExits();
+			for (const key of this.#pendingTerminalExits.keys()) void this.#attemptTerminalExit(key);
+			this.#scheduleTerminalExitRetry();
+		}, TERMINAL_EXIT_RETRY_DELAY_MILLISECONDS);
+		timer.unref?.();
+		this.#terminalExitRetryTimer = timer;
+	}
+
+	async #disposeTerminalExitRetryOwner(): Promise<void> {
+		if (this.#terminalExitRetryOwnerDisposed && this.#pendingTerminalExits.size === 0) return;
+		this.#terminalExitRetryOwnerClosing = true;
+		if (this.#terminalExitRetryTimer !== undefined) {
+			clearTimeout(this.#terminalExitRetryTimer);
+			this.#terminalExitRetryTimer = undefined;
+		}
+		await Promise.all(this.#terminalExitAttempts.values());
+		for (const key of this.#pendingTerminalExits.keys()) {
+			await this.#attemptTerminalExit(key);
+		}
+		await Promise.all(this.#terminalExitAttempts.values());
+		if (this.#pendingTerminalExits.size > 0) {
+			let spillFailure: Error | undefined;
+			for (const [key, event] of this.#pendingTerminalExits) {
+				try {
+					if (!this.#spillTerminalExit(event, 'shutdown')) {
+						spillFailure = new Error('Desktop terminal exit spill admission is full.');
+						break;
+					}
+					this.#deleteTerminalExitIfCurrent(key, event, false);
+				} catch (error: unknown) {
+					spillFailure = error instanceof Error ? error : new Error('Terminal exit spill failed.');
+					break;
+				}
+			}
+			if (spillFailure !== undefined) {
+				this.#terminalExitRetryOwnerClosing = false;
+				this.#writeCopyPathTrace('terminal-exit-retry-pending-on-dispose');
+				throw spillFailure;
+			}
+		}
+		this.#terminalExitRetryOwnerDisposed = true;
+		this.#terminalExitRetryOwnerClosing = false;
+	}
+
+	#spillTerminalExit(event: TerminalExited, reason: TerminalExitSpillReason): boolean {
+		if (!this.#terminalExitSpillReady) return false;
+		return this.#terminalExitSpillStore.admit(event, reason).kind === 'admitted';
+	}
+
+	#hasRetryableSpilledTerminalExits(): boolean {
+		if (!this.#terminalExitSpillReady) return false;
+		return this.#terminalExitSpillStore.list().some((entry) => {
+			if (this.#isTerminalExitPublished(entry.event)) return false;
+			if (
+				entry.reason === 'host-admission' ||
+				entry.reason === 'queue-full' ||
+				entry.reason === 'shutdown'
+			) {
+				return true;
+			}
+			const key = terminalExitIdentityKey(entry.event);
+			return this.#associatedTerminalExitKeys.has(key) && !this.#unknownIdentityAttempts.has(key);
+		});
+	}
+
+	#promoteSpilledTerminalExits(): void {
+		if (!this.#terminalExitSpillReady) return;
+		const available = MAX_PENDING_TERMINAL_EXIT_RETRIES - this.#pendingTerminalExits.size;
+		if (available <= 0) return;
+		const candidates = this.#terminalExitSpillStore
+			.list()
+			.filter((entry) => {
+				if (this.#isTerminalExitPublished(entry.event)) {
+					this.#removePublishedTerminalExitFromPending(entry.event);
+					return false;
+				}
+				if (
+					entry.reason === 'host-admission' ||
+					entry.reason === 'queue-full' ||
+					entry.reason === 'shutdown'
+				) {
+					return true;
+				}
+				const key = terminalExitIdentityKey(entry.event);
+				return this.#associatedTerminalExitKeys.has(key) && !this.#unknownIdentityAttempts.has(key);
+			})
+			.slice(0, available);
+		for (const entry of candidates) {
+			const key = terminalExitIdentityKey(entry.event);
+			if (this.#pendingTerminalExits.has(key)) continue;
+			this.#pendingTerminalExits.set(key, entry.event);
+			this.#terminalExitAttemptCounts.set(key, 0);
+			void this.#attemptTerminalExit(key);
+		}
+	}
+
+	readonly #handleTerminalIdentityObserved = (identity: TerminalIdentity): void => {
+		const key = terminalExitIdentityKey(identity);
+		this.#associatedTerminalExitKeys.add(key);
+		this.#unknownIdentityAttempts.delete(key);
+		if (this.#pendingTerminalExits.has(key)) {
+			void this.#attemptTerminalExit(key);
+		} else {
+			this.#promoteSpilledTerminalExits();
+		}
+		this.#scheduleTerminalExitRetry();
 	};
 
 	#writeCopyPathTrace(reason: string): void {
 		if (!this.#options.traceCopyPath || this.#connection === undefined) return;
-		this.#dependencies.writeTrace({
-			brokers: this.#terminalRuntime?.getProjectionMetrics() ?? [],
-			hostTransport: this.#connection.metrics,
-			reason,
-			type: 'orchbee.desktop.copy-path',
-		});
+		try {
+			this.#dependencies.writeTrace({
+				brokers: this.#terminalRuntime?.getProjectionMetrics() ?? [],
+				hostTransport: this.#connection.metrics,
+				reason,
+				type: 'orchbee.desktop.copy-path',
+			});
+		} catch {
+			// Diagnostics are subordinate to the durable owner and cannot change its
+			// retry or rejection state.
+		}
 	}
+}
+
+function isPermittedDesktopRendererUrl(url: URL): boolean {
+	if (url.username !== '' || url.password !== '') return false;
+	return (
+		(url.protocol === 'http:' && url.hostname === '127.0.0.1') ||
+		(url.protocol === 'orchbee:' && url.hostname === 'app' && url.port === '')
+	);
 }
 
 function collectDocumentPresentationIds(
@@ -718,6 +1515,22 @@ function typedExitFailure(
 	return { code, count, retryable };
 }
 
+function closeRendererChannel(
+	channel: { readonly port1: MessagePortMain; readonly port2: MessagePortMain } | undefined,
+): void {
+	if (channel === undefined) return;
+	try {
+		channel.port1.close();
+	} catch {
+		// Renderer bootstrap rollback is best effort after ownership is retained.
+	}
+	try {
+		channel.port2.close();
+	} catch {
+		// Renderer bootstrap rollback is best effort after ownership is retained.
+	}
+}
+
 function toDocumentExit(
 	presentationId: Parameters<DesktopTerminalRuntime['getProjectionTarget']>[0],
 	exited: TerminalExited,
@@ -734,6 +1547,25 @@ function toDocumentExit(
 		};
 	}
 	return { exitCode: null, presentationId, signal: null, type: 'terminal-exited' };
+}
+
+function toDocumentFailure(
+	presentationId: Parameters<DesktopTerminalRuntime['getProjectionTarget']>[0],
+	failed: TerminalFailed,
+): Extract<TerminalPresentationEvent, { readonly type: 'terminal-failed' }> {
+	return {
+		failure: {
+			code: `terminal-runtime-${failed.failure.kind}-${failed.failure.stage}`,
+			retryable: false,
+		},
+		presentationId,
+		type: 'terminal-failed',
+	};
+}
+
+function terminalExitIdentityKey(source: TerminalExited | TerminalIdentity): string {
+	const identity = 'identity' in source ? source.identity : source;
+	return `${identity.hostEpoch}:${identity.creationId}:${identity.terminalId}`;
 }
 
 function signalName(signal: number): string {

@@ -1,12 +1,18 @@
 import path from 'node:path';
 
-import { app } from 'electron';
+import { app, net, protocol } from 'electron';
 
+import {
+	DESKTOP_RENDERER_URL,
+	installDesktopRendererScheme,
+	registerDesktopRendererScheme,
+} from '../desktop-renderer-protocol';
 import { DesktopApplication } from './DesktopApplication';
 import { resolveDesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 
 let desktopApplication: DesktopApplication | undefined;
 let bypassQuitGate = false;
+registerDesktopRendererScheme(protocol);
 const singleInstanceLockOwned = app.requestSingleInstanceLock();
 
 if (!singleInstanceLockOwned) {
@@ -24,14 +30,26 @@ if (!singleInstanceLockOwned) {
 	void app
 		.whenReady()
 		.then(async () => {
-			const rendererUrl = process.env['ORCHBEE_DESKTOP_RENDERER_URL'];
-			if (rendererUrl === undefined) {
-				throw new Error('ORCHBEE_DESKTOP_RENDERER_URL is required.');
+			let rendererUrl: string;
+			if (app.isPackaged) {
+				await installDesktopRendererScheme(
+					protocol,
+					path.join(process.resourcesPath, 'dist'),
+					(fileUrl) => net.fetch(fileUrl),
+				);
+				rendererUrl = DESKTOP_RENDERER_URL;
+			} else {
+				const developmentRendererUrl = process.env['ORCHBEE_DESKTOP_RENDERER_URL'];
+				if (developmentRendererUrl === undefined) {
+					throw new Error('ORCHBEE_DESKTOP_RENDERER_URL is required in development.');
+				}
+				rendererUrl = developmentRendererUrl;
 			}
 			const runtime = resolveDesktopRuntimeConfiguration({
 				applicationPath: app.getAppPath(),
 				environment: process.env,
 				homeDirectory: app.getPath('home'),
+				...(app.isPackaged ? { packagedResourcesPath: process.resourcesPath } : {}),
 				platform: process.platform,
 				userDataPath: app.getPath('userData'),
 			});

@@ -35,7 +35,7 @@ function eventEnvelope(
 		optionalMessage: false,
 		payload,
 		payloadEncoding,
-		protocol: { major: 1, minor: 2 },
+		protocol: { major: 0, minor: 0, patch: 1 },
 		response: false,
 	};
 }
@@ -65,14 +65,17 @@ describe('ProjectedTerminalBroker', () => {
 		}) as unknown as MessagePortMain;
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
 			canResize: true,
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
 		};
 		const broker = new ProjectedTerminalBroker(host, port, bootstrap);
 		broker.start();
 		const backing = new Uint8Array([99, 1, 2, 3, 88]);
+		const payload = backing.subarray(1, 4);
 		hostListener?.({
 			correlationId: null,
 			event: true,
@@ -81,16 +84,22 @@ describe('ProjectedTerminalBroker', () => {
 			kind: MessageKind.snapshotFrame,
 			knownMessage: true,
 			optionalMessage: false,
-			payload: backing.subarray(1, 4),
+			payload,
 			payloadEncoding: PayloadEncoding.terminalFrame,
-			protocol: { major: 1, minor: 1 },
+			protocol: { major: 0, minor: 0, patch: 1 },
 			response: false,
 		});
 
-		const posted = postMessage.mock.calls[0]?.[0] as { frame: ArrayBuffer; kind: string };
+		const posted = postMessage.mock.calls[0]?.[0] as { frame: unknown; kind: string };
 		expect(posted.kind).toBe('frame');
+		expect(posted.frame).toBeInstanceOf(ArrayBuffer);
+		if (!(posted.frame instanceof ArrayBuffer)) {
+			throw new Error('Expected an exact projected frame ArrayBuffer.');
+		}
+		expect(posted.frame.byteLength).toBe(payload.byteLength);
 		expect(new Uint8Array(posted.frame)).toEqual(new Uint8Array([1, 2, 3]));
-		expect(posted.frame).not.toBe(backing.buffer);
+		const clonedFrame = structuredClone(posted.frame);
+		expect(clonedFrame.byteLength).toBe(payload.byteLength);
 		expect(broker.metrics).toMatchObject({ frameBytesForwarded: 3, framesForwarded: 1 });
 
 		controlListener?.(
@@ -111,7 +120,28 @@ describe('ProjectedTerminalBroker', () => {
 				bootstrap.hostEpoch,
 			),
 		);
-		expect(postMessage).toHaveBeenCalledOnce();
+		const exit = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: '1',
+			identity: {
+				creationId: bootstrap.creationId,
+				hostEpoch: bootstrap.hostEpoch,
+				terminalId: bootstrap.terminalId,
+			},
+		};
+		const validExitEnvelope = eventEnvelope(
+			MessageKind.terminalExited,
+			PayloadEncoding.controlJson,
+			textEncoder.encode(JSON.stringify(exit)),
+			bootstrap.hostEpoch,
+		);
+		controlListener?.(validExitEnvelope);
+		controlListener?.(validExitEnvelope);
+		expect(postMessage).toHaveBeenCalledTimes(2);
+		expect(postMessage.mock.calls[1]?.[0]).toEqual({
+			event: exit,
+			kind: 'terminal-exited',
+		});
 	});
 
 	it('rejects commands for another attachment before calling the Host', () => {
@@ -120,7 +150,7 @@ describe('ProjectedTerminalBroker', () => {
 				vi.fn<() => void>(),
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
-			request: vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(),
+			requestInput: vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(),
 			requestControl: vi
 				.fn<(...arguments_: unknown[]) => Promise<unknown>>()
 				.mockResolvedValue(undefined),
@@ -134,10 +164,12 @@ describe('ProjectedTerminalBroker', () => {
 		}) as unknown as MessagePortMain;
 		const broker = new ProjectedTerminalBroker(host, port, {
 			attachmentId: AttachmentIdSchema.parse('55'.repeat(16)),
+			canInput: true,
 			canResize: true,
 			creationId: CreationIdSchema.parse('66'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('77'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('88'.repeat(16)),
+			terminalOutcome: null,
 		});
 		broker.start();
 		emitter.emit('message', {
@@ -150,7 +182,7 @@ describe('ProjectedTerminalBroker', () => {
 			},
 		});
 
-		expect(host.request).not.toHaveBeenCalled();
+		expect(host.requestInput).not.toHaveBeenCalled();
 		expect(postMessage).toHaveBeenCalledWith({
 			failure: expect.objectContaining({ code: 'renderer-capability-rejected' }),
 			kind: 'failure',
@@ -161,12 +193,16 @@ describe('ProjectedTerminalBroker', () => {
 	it('routes one bounded row response without interpreting its cells in Main', async () => {
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
 			canResize: true,
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
 		};
-		const request = vi
+		const responseBacking = new Uint8Array([99, 7, 8, 9, 88]);
+		const responsePayload = responseBacking.subarray(1, 4);
+		const requestControlEnvelope = vi
 			.fn<
 				(...arguments_: unknown[]) => Promise<{
 					readonly payload: Uint8Array;
@@ -174,7 +210,7 @@ describe('ProjectedTerminalBroker', () => {
 				}>
 			>()
 			.mockResolvedValue({
-				payload: new Uint8Array([7, 8, 9]),
+				payload: responsePayload,
 				payloadEncoding: PayloadEncoding.rowWindow,
 			});
 		const host = {
@@ -182,7 +218,7 @@ describe('ProjectedTerminalBroker', () => {
 				vi.fn<() => void>(),
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
-			request,
+			requestControlEnvelope,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
 		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
@@ -215,8 +251,15 @@ describe('ProjectedTerminalBroker', () => {
 				expect.objectContaining({ kind: 'rows', rows: expect.any(ArrayBuffer) }),
 			);
 		});
-		const posted = postMessage.mock.calls[0]?.[0] as { rows: ArrayBuffer };
+		const posted = postMessage.mock.calls[0]?.[0] as { rows: unknown };
+		expect(posted.rows).toBeInstanceOf(ArrayBuffer);
+		if (!(posted.rows instanceof ArrayBuffer)) {
+			throw new Error('Expected an exact projected row-window ArrayBuffer.');
+		}
+		expect(posted.rows.byteLength).toBe(responsePayload.byteLength);
 		expect(new Uint8Array(posted.rows)).toEqual(new Uint8Array([7, 8, 9]));
+		const clonedRows = structuredClone(posted.rows);
+		expect(clonedRows.byteLength).toBe(responsePayload.byteLength);
 		expect(broker.metrics).toMatchObject({
 			rowWindowBytesForwarded: 3,
 			rowWindowsForwarded: 1,
@@ -227,10 +270,12 @@ describe('ProjectedTerminalBroker', () => {
 		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
 			canResize: true,
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
 		};
 		const requestControl = vi.fn<(kind: number, value: unknown) => Promise<unknown>>(
 			async (kind, value) => {
@@ -297,7 +342,6 @@ describe('ProjectedTerminalBroker', () => {
 			expect(requestControl).toHaveBeenCalledWith(
 				MessageKind.selectionExportChunkApplied,
 				expect.objectContaining({ chunkSequence: 0, exportSequence: '1' }),
-				MessageKind.selectionExportChunkApplied,
 				expect.anything(),
 			);
 		});
@@ -336,14 +380,210 @@ describe('ProjectedTerminalBroker', () => {
 		expect(broker.metrics.lastSelectionExportStartMilliseconds).toBeGreaterThanOrEqual(0);
 	});
 
-	it('returns Host selection bytes to a Browser attachment without granting Main effects', async () => {
+	it('ignores a predecessor cancellation while the next selection export is still starting', async () => {
 		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
+		let resolveFirstStart: ((value: unknown) => void) | undefined;
+		let resolveSecondStart: ((value: unknown) => void) | undefined;
+		let selectionExportRequests = 0;
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
 			canResize: true,
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+		};
+		const firstStarted = {
+			attachmentId: bootstrap.attachmentId,
+			byteLength: 8,
+			exportSequence: '1',
+			format: 'plain',
+		};
+		const secondStarted = {
+			attachmentId: bootstrap.attachmentId,
+			byteLength: 8,
+			exportSequence: '2',
+			format: 'plain',
+		};
+		const cancelledFirstExport = (): void => {
+			hostListener?.(
+				eventEnvelope(
+					MessageKind.selectionExportFinished,
+					PayloadEncoding.controlJson,
+					textEncoder.encode(
+						JSON.stringify({
+							attachmentId: bootstrap.attachmentId,
+							byteLength: firstStarted.byteLength,
+							exportSequence: firstStarted.exportSequence,
+							status: 'cancelled',
+						}),
+					),
+					bootstrap.hostEpoch,
+				),
+			);
+		};
+		const failureCount = (): number =>
+			postMessage.mock.calls.filter(
+				([message]) => (message as { kind?: string }).kind === 'failure',
+			).length;
+		const requestControl = vi.fn<(kind: number, value: unknown) => Promise<unknown>>(
+			async (kind, value) => {
+				if (kind === MessageKind.selectionExport) {
+					selectionExportRequests += 1;
+					const exportRequest = value as { exportSequence: string };
+					if (selectionExportRequests === 1) {
+						if (exportRequest.exportSequence !== firstStarted.exportSequence) {
+							throw new Error(`unexpected first export sequence ${exportRequest.exportSequence}`);
+						}
+						return new Promise((resolve) => {
+							resolveFirstStart = resolve;
+						});
+					}
+					if (
+						selectionExportRequests !== 2 ||
+						exportRequest.exportSequence !== secondStarted.exportSequence
+					) {
+						throw new Error(`unexpected selection export request ${selectionExportRequests}`);
+					}
+					// HostConnection can route an event from the same read before the
+					// response to this request is resolved.
+					cancelledFirstExport();
+					return new Promise((resolve) => {
+						resolveSecondStart = resolve;
+					});
+				}
+				if (kind === MessageKind.selectionExportChunkApplied) return value;
+				throw new Error(`unexpected Host control kind ${kind}`);
+			},
+		);
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(
+				(_attachmentId, listener) => {
+					hostListener = listener;
+					return vi.fn<() => void>();
+				},
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const writeClipboardText = vi.fn<(text: string) => void>();
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap, {
+			openExternal: vi.fn<(target: string) => Promise<void>>().mockResolvedValue(undefined),
+			writeClipboardText,
+		});
+		broker.start();
+
+		emitter.emit('message', {
+			data: {
+				kind: 'selection-copy',
+				payload: { attachmentId: bootstrap.attachmentId, requestSequence: '7' },
+			},
+		});
+		await vi.waitFor(() =>
+			expect(requestControl).toHaveBeenCalledWith(
+				MessageKind.selectionExport,
+				expect.objectContaining({ exportSequence: firstStarted.exportSequence }),
+				expect.anything(),
+			),
+		);
+		expect(resolveFirstStart).toBeTypeOf('function');
+		resolveFirstStart?.(firstStarted);
+		await vi.waitFor(() =>
+			expect(broker.metrics.lastSelectionExportStartMilliseconds).toBeGreaterThanOrEqual(0),
+		);
+		cancelledFirstExport();
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({
+				failure: expect.objectContaining({
+					code: 'copy-cancelled',
+					operation: 'copy',
+					requestSequence: '7',
+					retryable: true,
+				}),
+				kind: 'failure',
+			}),
+		);
+		expect(failureCount()).toBe(1);
+
+		emitter.emit('message', {
+			data: {
+				kind: 'selection-copy',
+				payload: { attachmentId: bootstrap.attachmentId, requestSequence: '8' },
+			},
+		});
+		await vi.waitFor(() => expect(selectionExportRequests).toBe(2));
+		await Promise.resolve();
+		expect(failureCount()).toBe(1);
+		expect(resolveSecondStart).toBeTypeOf('function');
+		resolveSecondStart?.(secondStarted);
+		const secondChunk = encodeSelectionExportChunk({
+			attachmentId: bootstrap.attachmentId,
+			bytes: textEncoder.encode('selected'),
+			chunkSequence: 0,
+			exportSequence: 2n,
+			final: true,
+		});
+		if (!secondChunk.ok) throw new Error(secondChunk.detail);
+		await vi.waitFor(() =>
+			expect(requestControl).toHaveBeenCalledWith(
+				MessageKind.selectionExport,
+				expect.objectContaining({ exportSequence: secondStarted.exportSequence }),
+				expect.anything(),
+			),
+		);
+		hostListener?.(
+			eventEnvelope(
+				MessageKind.selectionExportChunk,
+				PayloadEncoding.rawBytes,
+				secondChunk.value,
+				bootstrap.hostEpoch,
+			),
+		);
+		await vi.waitFor(() =>
+			expect(requestControl).toHaveBeenCalledWith(
+				MessageKind.selectionExportChunkApplied,
+				expect.objectContaining({ exportSequence: secondStarted.exportSequence }),
+				expect.anything(),
+			),
+		);
+		hostListener?.(
+			eventEnvelope(
+				MessageKind.selectionExportFinished,
+				PayloadEncoding.controlJson,
+				textEncoder.encode(
+					JSON.stringify({
+						attachmentId: bootstrap.attachmentId,
+						byteLength: secondStarted.byteLength,
+						exportSequence: secondStarted.exportSequence,
+						status: 'completed',
+					}),
+				),
+				bootstrap.hostEpoch,
+			),
+		);
+		await vi.waitFor(() => expect(writeClipboardText).toHaveBeenCalledWith('selected'));
+		expect(writeClipboardText).toHaveBeenCalledTimes(1);
+		expect(failureCount()).toBe(1);
+	});
+
+	it('returns Host selection bytes to a Browser attachment without granting Main effects', async () => {
+		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
 		};
 		const requestControl = vi.fn<(kind: number, value: unknown) => Promise<unknown>>(
 			async (kind, value) => {
@@ -414,7 +654,6 @@ describe('ProjectedTerminalBroker', () => {
 			expect(requestControl).toHaveBeenCalledWith(
 				MessageKind.selectionExportChunkApplied,
 				expect.anything(),
-				MessageKind.selectionExportChunkApplied,
 				expect.anything(),
 			),
 		);
@@ -468,10 +707,12 @@ describe('ProjectedTerminalBroker', () => {
 	it('allows only explicit web and mail schemes through the external-link effect', async () => {
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
 			canResize: true,
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
 		};
 		const host = {
 			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
@@ -521,13 +762,64 @@ describe('ProjectedTerminalBroker', () => {
 		expect(broker.metrics.externalTargetsOpened).toBe(1);
 	});
 
-	it('awaits Host detach exactly once before completing attachment retirement', async () => {
+	it('hands renderer postMessage failure to the cleanup owner before detaching', async () => {
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
 			canResize: true,
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+		};
+		const requestControl = vi
+			.fn<(...arguments_: unknown[]) => Promise<unknown>>()
+			.mockResolvedValue({ attachmentId: bootstrap.attachmentId });
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>().mockImplementationOnce(() => {
+			throw new Error('renderer port failed');
+		});
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		let broker: ProjectedTerminalBroker;
+		const onCleanupRequested = vi.fn<() => void>(() => {
+			void broker.dispose().catch(() => undefined);
+		});
+		broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
+			onCleanupRequested,
+		});
+		broker.start();
+
+		emitter.emit('message', { data: { malformed: true } });
+
+		await vi.waitFor(() => expect(requestControl).toHaveBeenCalledOnce());
+		expect(onCleanupRequested).toHaveBeenCalledOnce();
+		expect(requestControl).toHaveBeenCalledWith(
+			MessageKind.detachTerminal,
+			{ attachmentId: bootstrap.attachmentId },
+			expect.anything(),
+		);
+	});
+
+	it('awaits Host detach exactly once before completing attachment retirement', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
 		};
 		let finishDetach: (() => void) | undefined;
 		const requestControl = vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(
@@ -558,7 +850,6 @@ describe('ProjectedTerminalBroker', () => {
 		expect(requestControl).toHaveBeenCalledWith(
 			MessageKind.detachTerminal,
 			{ attachmentId: bootstrap.attachmentId },
-			MessageKind.detachTerminal,
 			expect.anything(),
 		);
 		let completed = false;
@@ -571,5 +862,81 @@ describe('ProjectedTerminalBroker', () => {
 		await first;
 		expect(completed).toBe(true);
 		expect(requestControl).toHaveBeenCalledOnce();
+	});
+
+	it('surfaces a failed detach and retries the same AttachmentId', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+		};
+		const requestControl = vi
+			.fn<(...arguments_: unknown[]) => Promise<unknown>>()
+			.mockRejectedValueOnce(new Error('detach unavailable'))
+			.mockResolvedValue({ attachmentId: bootstrap.attachmentId });
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage: vi.fn<(...arguments_: unknown[]) => void>(),
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap);
+		broker.start();
+
+		await expect(broker.dispose()).rejects.toThrow('detach unavailable');
+		await expect(broker.dispose()).resolves.toBeUndefined();
+		expect(requestControl).toHaveBeenCalledTimes(2);
+		expect(requestControl).toHaveBeenNthCalledWith(
+			1,
+			MessageKind.detachTerminal,
+			{ attachmentId: bootstrap.attachmentId },
+			expect.anything(),
+		);
+	});
+
+	it('treats a mismatched detach ACK as a retryable cleanup failure', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+		};
+		const requestControl = vi
+			.fn<(...arguments_: unknown[]) => Promise<unknown>>()
+			.mockResolvedValueOnce({ attachmentId: AttachmentIdSchema.parse('ff'.repeat(16)) })
+			.mockResolvedValue({ attachmentId: bootstrap.attachmentId });
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage: vi.fn<(...arguments_: unknown[]) => void>(),
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap);
+		broker.start();
+
+		await expect(broker.dispose()).rejects.toMatchObject({ code: 'attachment-ack-mismatch' });
+		await expect(broker.dispose()).resolves.toBeUndefined();
+		expect(requestControl).toHaveBeenCalledTimes(2);
 	});
 });

@@ -79,13 +79,18 @@ function createHost(
 function createSummary(index: number): TerminalSummary {
 	return {
 		columns: 80,
+		configuration: { scrollbackBytes: 10_000_000 },
+		configurationRevision: CanonicalUint64TextSchema.parse('1'),
 		exit: null,
+		failure: null,
+		failureContainment: null,
 		identity: {
 			creationId: CreationIdSchema.parse(index.toString(16).padStart(32, '0')),
 			hostEpoch,
 			terminalId: TerminalIdSchema.parse((index + 16).toString(16).padStart(32, '0')),
 		},
 		phase: TerminalPhase.running,
+		process: null,
 		revision: CanonicalUint64TextSchema.parse('1'),
 		rows: 24,
 		terminateRequested: false,

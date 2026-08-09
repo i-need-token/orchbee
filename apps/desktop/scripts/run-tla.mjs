@@ -95,9 +95,11 @@ await provisionJar();
 for (const modelName of [
 	'DesktopApplicationLifetime',
 	'DesktopMultiClientSession',
+	'DesktopTerminalBindingClose',
 	'DesktopTerminalLifecycleAdapter',
 	'DesktopWorkbenchDocumentStore',
 	'DesktopWorkbenchWriteAhead',
+	'TerminalRecoveryBinding',
 ]) {
 	await runTlc(modelName);
 }

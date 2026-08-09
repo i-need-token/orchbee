@@ -11,9 +11,10 @@ import {
 describe('DevelopmentHostRuntime', () => {
 	it('uses the private platform endpoint shape without treating its ID as a secret', () => {
 		const common = {
-			binaryPath: path.resolve('/opt/orchbee/terminal-host'),
+			binaryPath: path.resolve('/opt/orchbee/orchbee-terminal-host'),
 			endpointId: 'ab'.repeat(16),
 			runtimeDirectory: path.resolve('/tmp/orchbee-runtime'),
+			terminalDefaults: { scrollbackBytes: 10_000_000 },
 		};
 
 		expect(new DevelopmentHostRuntime({ ...common, platform: 'darwin' }).endpoint).toBe(
@@ -41,12 +42,13 @@ describe('DevelopmentHostRuntime', () => {
 		};
 		const runtime = new DevelopmentHostRuntime(
 			{
-				binaryPath: path.resolve('/opt/orchbee/terminal-host'),
+				binaryPath: path.resolve('/opt/orchbee/orchbee-terminal-host'),
 				connectionAttempts: 2,
 				endpointId: 'cd'.repeat(16),
 				platform: 'linux',
 				retryDelayMilliseconds: 1,
 				runtimeDirectory: path.resolve('/tmp/orchbee-runtime'),
+				terminalDefaults: { scrollbackBytes: 25_000_000 },
 			},
 			dependencies,
 		);
@@ -57,6 +59,18 @@ describe('DevelopmentHostRuntime', () => {
 			'linux',
 		);
 		expect(dependencies.launch).toHaveBeenCalledOnce();
+		expect(dependencies.launch).toHaveBeenCalledWith(
+			path.resolve('/opt/orchbee/orchbee-terminal-host'),
+			[
+				'serve',
+				'--runtime-directory',
+				path.resolve('/tmp/orchbee-runtime'),
+				'--endpoint-id',
+				'cd'.repeat(16),
+				'--scrollback-bytes',
+				'25000000',
+			],
+		);
 		expect(connect).toHaveBeenCalledTimes(3);
 		expect(dependencies.wait).toHaveBeenCalledWith(1);
 	});

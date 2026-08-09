@@ -14,9 +14,9 @@ import type {
 export interface DesktopTerminalIntentReconcilerDependencies {
 	readonly createOperationId: () => TerminalPresentationOperationId;
 	readonly execute: (command: TerminalPresentationCommand) => Promise<TerminalPresentationEvent>;
-	readonly getTerminalExit: (
+	readonly getTerminalOutcome: (
 		presentationId: TerminalPresentationId,
-	) => Extract<TerminalPresentationEvent, { readonly type: 'terminal-exited' }> | null;
+	) => TerminalOutcomeEvent | null;
 }
 
 interface DurableOperationRecord {
@@ -28,19 +28,25 @@ interface RetainRecord {
 	readonly operationId: TerminalPresentationOperationId;
 }
 
+type TerminalOutcomeEvent = Extract<
+	TerminalPresentationEvent,
+	{ readonly type: 'terminal-exited' | 'terminal-failed' }
+>;
+
 export class DesktopTerminalIntentReconciler {
 	readonly #createOperationId: () => TerminalPresentationOperationId;
 	#currentPresentationIds = new Set<TerminalPresentationId>();
 	readonly #events = new Map<TerminalPresentationId, readonly TerminalPresentationEvent[]>();
 	readonly #execute: DesktopTerminalIntentReconcilerDependencies['execute'];
-	readonly #getTerminalExit: DesktopTerminalIntentReconcilerDependencies['getTerminalExit'];
+	readonly #externalEventReservations = new Map<TerminalPresentationId, TerminalOutcomeEvent>();
+	readonly #getTerminalOutcome: DesktopTerminalIntentReconcilerDependencies['getTerminalOutcome'];
 	readonly #operations = new Map<TerminalPresentationOperationId, DurableOperationRecord>();
 	readonly #retained = new Map<TerminalPresentationId, RetainRecord>();
 
 	constructor(dependencies: DesktopTerminalIntentReconcilerDependencies) {
 		this.#createOperationId = dependencies.createOperationId;
 		this.#execute = dependencies.execute;
-		this.#getTerminalExit = dependencies.getTerminalExit;
+		this.#getTerminalOutcome = dependencies.getTerminalOutcome;
 	}
 
 	validateDocument(document: WorkbenchSharedDocument): boolean {
@@ -63,17 +69,41 @@ export class DesktopTerminalIntentReconciler {
 			.flatMap(([, events]) => [...events]);
 	}
 
-	recordExternalEvent(
-		event: Extract<TerminalPresentationEvent, { readonly type: 'terminal-exited' }>,
-	): boolean {
+	hasExternalEvent(event: TerminalOutcomeEvent): boolean {
+		return (this.#events.get(event.presentationId) ?? []).some(
+			(candidate) => isTerminalOutcomeEvent(candidate) && terminalOutcomesEqual(candidate, event),
+		);
+	}
+
+	reserveExternalEvent(event: TerminalOutcomeEvent): boolean {
 		if (!this.#currentPresentationIds.has(event.presentationId)) return false;
-		this.#recordEvent(event);
+		const currentOutcome = (this.#events.get(event.presentationId) ?? []).find(
+			isTerminalOutcomeEvent,
+		);
+		if (currentOutcome !== undefined) return terminalOutcomesEqual(currentOutcome, event);
+		const reservation = this.#externalEventReservations.get(event.presentationId);
+		if (reservation !== undefined && !terminalOutcomesEqual(reservation, event)) return false;
+		this.#externalEventReservations.set(event.presentationId, event);
 		return true;
+	}
+
+	commitExternalEvent(event: TerminalOutcomeEvent): boolean {
+		if (this.hasExternalEvent(event)) return true;
+		const reservation = this.#externalEventReservations.get(event.presentationId);
+		if (reservation === undefined || !terminalOutcomesEqual(reservation, event)) return false;
+		this.#recordEvent(event);
+		this.#externalEventReservations.delete(event.presentationId);
+		return true;
+	}
+
+	recordExternalEvent(event: TerminalOutcomeEvent): boolean {
+		if (this.hasExternalEvent(event)) return false;
+		return this.reserveExternalEvent(event) && this.commitExternalEvent(event);
 	}
 
 	async reconcileDocument(
 		document: WorkbenchSharedDocument,
-		publish: (event: TerminalPresentationEvent) => void,
+		publish: (event: TerminalPresentationEvent) => unknown,
 	): Promise<void> {
 		const presentations = sharedPresentations(document);
 		const currentOperationIds = new Set<TerminalPresentationOperationId>(
@@ -95,12 +125,21 @@ export class DesktopTerminalIntentReconciler {
 			if (presentation?.intent.kind !== 'retain') this.#retained.delete(presentationId);
 		}
 		for (const presentationId of this.#events.keys()) {
-			if (!currentPresentationIds.has(presentationId)) this.#events.delete(presentationId);
+			if (!currentPresentationIds.has(presentationId)) {
+				this.#events.delete(presentationId);
+				this.#externalEventReservations.delete(presentationId);
+			}
+		}
+		for (const presentationId of this.#externalEventReservations.keys()) {
+			if (!currentPresentationIds.has(presentationId)) {
+				this.#externalEventReservations.delete(presentationId);
+			}
 		}
 
 		for (const presentation of presentations) {
 			if (presentation.intent.kind === 'stopped') {
 				this.#events.delete(presentation.presentationId);
+				this.#externalEventReservations.delete(presentation.presentationId);
 				continue;
 			}
 			if (presentation.intent.kind === 'retain') {
@@ -120,16 +159,13 @@ export class DesktopTerminalIntentReconciler {
 
 	async #reconcileRetain(
 		presentation: WorkbenchSharedPresentation,
-		publish: (event: TerminalPresentationEvent) => void,
+		publish: (event: TerminalPresentationEvent) => unknown,
 	): Promise<void> {
 		if (this.#retained.has(presentation.presentationId)) return;
 		const operationId = this.#createOperationId();
 		this.#retained.set(presentation.presentationId, { operationId });
 		const previous = this.#events.get(presentation.presentationId) ?? [];
-		const previousExit = previous.find(
-			(event): event is Extract<TerminalPresentationEvent, { readonly type: 'terminal-exited' }> =>
-				event.type === 'terminal-exited',
-		);
+		const previousOutcome = previous.find(isTerminalOutcomeEvent);
 		const alreadyRunning = previous.some(
 			(event) =>
 				event.type === 'terminal-provision-completed' ||
@@ -148,7 +184,7 @@ export class DesktopTerminalIntentReconciler {
 				type: 'terminal-restore-completed',
 			} as const;
 			this.#recordEvent(completed);
-			if (previousExit !== undefined) this.#recordEvent(previousExit);
+			if (previousOutcome !== undefined) this.#recordEvent(previousOutcome);
 			return;
 		}
 		publish(started);
@@ -191,7 +227,8 @@ export class DesktopTerminalIntentReconciler {
 				];
 				break;
 			case 'terminal-exited':
-				next = [...current.filter((candidate) => candidate.type !== 'terminal-exited'), event];
+			case 'terminal-failed':
+				next = [...current.filter((candidate) => !isTerminalOutcomeEvent(candidate)), event];
 				break;
 			default:
 				next = [event];
@@ -201,8 +238,18 @@ export class DesktopTerminalIntentReconciler {
 
 	#recordAndPublishResult(
 		result: TerminalPresentationEvent,
-		publish: (event: TerminalPresentationEvent) => void,
+		publish: (event: TerminalPresentationEvent) => unknown,
 	): void {
+		if (result.type === 'terminal-exited' || result.type === 'terminal-failed') {
+			if (result.type === 'terminal-failed') {
+				this.#recordEvent(result);
+				publish(result);
+				return;
+			}
+			if (publish(result) === false) return;
+			this.#recordEvent(result);
+			return;
+		}
 		this.#recordEvent(result);
 		publish(result);
 		if (
@@ -211,11 +258,33 @@ export class DesktopTerminalIntentReconciler {
 		) {
 			return;
 		}
-		const exit = this.#getTerminalExit(result.presentationId);
-		if (exit === null) return;
-		this.#recordEvent(exit);
-		publish(exit);
+		const outcome = this.#getTerminalOutcome(result.presentationId);
+		if (outcome === null) return;
+		if (outcome.type === 'terminal-failed') {
+			this.#recordEvent(outcome);
+			publish(outcome);
+			return;
+		}
+		if (publish(outcome) === false) return;
+		this.#recordEvent(outcome);
 	}
+}
+
+function isTerminalOutcomeEvent(event: TerminalPresentationEvent): event is TerminalOutcomeEvent {
+	return event.type === 'terminal-exited' || event.type === 'terminal-failed';
+}
+
+function terminalOutcomesEqual(left: TerminalOutcomeEvent, right: TerminalOutcomeEvent): boolean {
+	if (left.type !== right.type) return false;
+	if (left.type === 'terminal-exited' && right.type === 'terminal-exited') {
+		return left.exitCode === right.exitCode && left.signal === right.signal;
+	}
+	if (left.type === 'terminal-failed' && right.type === 'terminal-failed') {
+		return (
+			left.failure.code === right.failure.code && left.failure.retryable === right.failure.retryable
+		);
+	}
+	return false;
 }
 
 const mismatchFailure: TerminalPresentationFailure = {
@@ -286,7 +355,13 @@ function resultMatchesCommand(
 	command: TerminalPresentationCommand,
 	result: TerminalPresentationEvent,
 ): boolean {
-	if (result.type === 'terminal-exited' || result.type === 'terminal-restore-started') return false;
+	if (
+		result.type === 'terminal-exited' ||
+		result.type === 'terminal-failed' ||
+		result.type === 'terminal-restore-started'
+	) {
+		return false;
+	}
 	if (
 		result.operationId !== command.operationId ||
 		result.presentationId !== command.presentationId

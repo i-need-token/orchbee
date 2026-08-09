@@ -1,4 +1,13 @@
-import { CreationIdSchema, HostEpochSchema, TerminalIdSchema } from '@orchbee/terminal-protocol';
+import {
+	CreationIdSchema,
+	CanonicalUint64TextSchema,
+	HostEpochSchema,
+	type TerminalExited,
+	type TerminalFailed,
+	TerminalPhase,
+	TerminalIdSchema,
+	type TerminalSummary,
+} from '@orchbee/terminal-protocol';
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
@@ -12,6 +21,7 @@ import { DesktopTerminalBindingRegistry } from '../../terminal-binding-registry'
 import type {
 	TerminalBindingLifecycleOutcome,
 	TerminalCloseOutcome,
+	TerminalExitDisposition,
 } from '../../terminal-lifetime';
 import {
 	DesktopTerminalLifecycleAdapter,
@@ -76,6 +86,7 @@ function createLifecycle(
 	},
 ): DesktopTerminalBindingLifecyclePort & {
 	readonly reconcile: ReturnType<typeof vi.fn<() => Promise<TerminalBindingLifecycleOutcome>>>;
+	readonly recordExit: ReturnType<typeof vi.fn<DesktopTerminalBindingLifecyclePort['recordExit']>>;
 	readonly requestClose: ReturnType<
 		typeof vi.fn<(retireProjection: () => Promise<void>) => Promise<TerminalCloseOutcome>>
 	>;
@@ -216,6 +227,49 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 		expect(allocateFreshBindingId).not.toHaveBeenCalled();
 	});
 
+	it('recovers a failed terminal from Host inventory as observable read-only state', async () => {
+		const failedSummary = createFailedSummary();
+		const retainedLifecycle = createLifecycle(async () => ({
+			identity,
+			kind: 'recovered',
+			summary: failedSummary,
+		}));
+		const retainedBinding: TerminalBinding = {
+			bindingId: TerminalBindingIdSchema.parse('binding-retained'),
+			creationId: identity.creationId,
+			launch: { ...createTerminalLaunch(), currentDirectory: '/workspace/orchbee' },
+			presentationId: terminalPresentationId('presentation-1'),
+			state: { identity, kind: 'retained' },
+		};
+		const adapter = new DesktopTerminalLifecycleAdapter({
+			allocateFreshBindingId: () => 'binding-fresh',
+			createBindingLifecycle: () => retainedLifecycle,
+			loadBindings: async () => ({
+				document: { bindings: [retainedBinding], version: 3 },
+				kind: 'available',
+			}),
+			registry: new DesktopTerminalBindingRegistry(),
+			retireProjection: async () => undefined,
+			terminalLaunch: createTerminalLaunch(),
+		});
+
+		await expect(adapter.execute(restoreCommand())).resolves.toMatchObject({
+			type: 'terminal-restore-completed',
+		});
+		const failure: TerminalFailed = {
+			failure: failedSummary.failure,
+			finalRevision: failedSummary.revision,
+			identity,
+			process: failedSummary.process,
+		};
+		expect(adapter.getTerminalFailure(terminalPresentationId('presentation-1'))).toEqual(failure);
+		expect(adapter.getProjectionTarget(terminalPresentationId('presentation-1'))).toEqual({
+			identity,
+			readOnly: true,
+			terminalOutcome: { event: failure, kind: 'failed' },
+		});
+	});
+
 	it('rejects restore for a planned binding instead of turning it into provision', async () => {
 		const lifecycle = createLifecycle();
 		const plannedBinding: TerminalBinding = {
@@ -305,6 +359,233 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 		expect(harness.registry.size).toBe(0);
 	});
 
+	it('observes a Host exit before an in-flight lifecycle operation completes', async () => {
+		const reconcile = createDeferred<TerminalBindingLifecycleOutcome>();
+		const lifecycle = createLifecycle();
+		lifecycle.reconcile
+			.mockResolvedValueOnce({ identity, kind: 'provisioning', summary: null })
+			.mockImplementationOnce(() => reconcile.promise);
+		const harness = createHarness({ createBindingLifecycle: () => lifecycle });
+		const presentationId = terminalPresentationId('presentation-1');
+		await harness.adapter.execute(provisionCommand());
+
+		const inFlight = harness.adapter.execute(provisionCommand('presentation-1', 'provision-2'));
+		await vi.waitFor(() => expect(lifecycle.reconcile).toHaveBeenCalledTimes(2));
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+
+		const exit = harness.adapter.recordExit(event);
+		expect(harness.adapter.getProjectionTarget(presentationId)).toMatchObject({
+			readOnly: true,
+			terminalOutcome: { event: event, kind: 'exited' },
+		});
+		expect(lifecycle.recordExit).not.toHaveBeenCalled();
+
+		reconcile.resolve({ identity, kind: 'provisioning', summary: null });
+		await expect(inFlight).resolves.toMatchObject({ type: 'terminal-provision-completed' });
+		await expect(exit).resolves.toBe(presentationId);
+	});
+
+	it('associates a create response before the store save and replays its buffered exit', async () => {
+		const reconcile = createDeferred<TerminalBindingLifecycleOutcome>();
+		const lifecycle = createLifecycle(() => reconcile.promise);
+		let associateIdentity: ((nextIdentity: typeof identity) => void) | undefined;
+		const harness = createHarness({
+			createBindingLifecycle: (_bindingId, _launch, _presentationId, onIdentityObserved) => {
+				associateIdentity = onIdentityObserved;
+				return lifecycle;
+			},
+		});
+		const presentationId = terminalPresentationId('presentation-1');
+		const provision = harness.adapter.execute(provisionCommand());
+		await vi.waitFor(() => expect(lifecycle.reconcile).toHaveBeenCalledOnce());
+
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('3'),
+			identity,
+		};
+		const exit = harness.adapter.recordExit(event);
+		expect(harness.adapter.getProjectionTarget(presentationId)).toBeNull();
+		expect(lifecycle.recordExit).not.toHaveBeenCalled();
+
+		associateIdentity?.(identity);
+		expect(harness.adapter.findPresentationByIdentity(identity)).toBe(presentationId);
+		expect(harness.adapter.getDurableTerminalExit(presentationId)).toBeNull();
+		reconcile.resolve({ identity, kind: 'provisioning', summary: null });
+
+		await expect(provision).resolves.toMatchObject({ type: 'terminal-provision-completed' });
+		await expect(exit).resolves.toBe(presentationId);
+		expect(lifecycle.recordExit).toHaveBeenCalledWith(event);
+		expect(harness.adapter.getProjectionTarget(presentationId)).toMatchObject({
+			readOnly: true,
+			terminalOutcome: { event: event, kind: 'exited' },
+		});
+		expect(harness.adapter.getDurableTerminalExit(presentationId)).toEqual(event);
+	});
+
+	it('replays a buffered runtime failure without letting a stale reconcile clear it', async () => {
+		const reconcile = createDeferred<TerminalBindingLifecycleOutcome>();
+		const lifecycle = createLifecycle(() => reconcile.promise);
+		let associateIdentity: ((nextIdentity: typeof identity) => void) | undefined;
+		const harness = createHarness({
+			createBindingLifecycle: (_bindingId, _launch, _presentationId, onIdentityObserved) => {
+				associateIdentity = onIdentityObserved;
+				return lifecycle;
+			},
+		});
+		const presentationId = terminalPresentationId('presentation-1');
+		const provision = harness.adapter.execute(provisionCommand());
+		await vi.waitFor(() => expect(lifecycle.reconcile).toHaveBeenCalledOnce());
+		const event: TerminalFailed = {
+			failure: { kind: 'pty-read', stage: 'read-output' },
+			finalRevision: CanonicalUint64TextSchema.parse('7'),
+			identity,
+			process: { kind: 'observed', result: { code: 1, kind: 'exit-code' } },
+		};
+		const failure = harness.adapter.recordFailure(event);
+
+		associateIdentity?.(identity);
+		reconcile.resolve({ identity, kind: 'provisioning', summary: null });
+
+		await expect(provision).resolves.toMatchObject({ type: 'terminal-provision-completed' });
+		await expect(failure).resolves.toBe(presentationId);
+		expect(harness.adapter.getTerminalFailure(presentationId)).toEqual(event);
+		expect(harness.adapter.getProjectionTarget(presentationId)).toMatchObject({
+			readOnly: true,
+			terminalOutcome: { event, kind: 'failed' },
+		});
+		expect(lifecycle.recordExit).not.toHaveBeenCalled();
+	});
+
+	it('fails reconciliation when inventory contradicts an observed runtime failure', async () => {
+		const reconcile = createDeferred<TerminalBindingLifecycleOutcome>();
+		const lifecycle = createLifecycle(() => reconcile.promise);
+		let associateIdentity: ((nextIdentity: typeof identity) => void) | undefined;
+		const harness = createHarness({
+			createBindingLifecycle: (_bindingId, _launch, _presentationId, onIdentityObserved) => {
+				associateIdentity = onIdentityObserved;
+				return lifecycle;
+			},
+		});
+		const presentationId = terminalPresentationId('presentation-1');
+		const provision = harness.adapter.execute(provisionCommand());
+		await vi.waitFor(() => expect(lifecycle.reconcile).toHaveBeenCalledOnce());
+		const event: TerminalFailed = {
+			failure: { kind: 'pty-read', stage: 'read-output' },
+			finalRevision: CanonicalUint64TextSchema.parse('7'),
+			identity,
+			process: { kind: 'observed', result: { code: 1, kind: 'exit-code' } },
+		};
+		const observed = harness.adapter.recordFailure(event);
+
+		associateIdentity?.(identity);
+		reconcile.resolve({ identity, kind: 'recovered', summary: createExitedSummary() });
+
+		await expect(provision).resolves.toMatchObject({
+			failure: { code: 'terminal-outcome-conflict', retryable: false },
+			type: 'terminal-provision-failed',
+		});
+		await expect(observed).resolves.toBe(presentationId);
+		expect(harness.adapter.getTerminalFailure(presentationId)).toEqual(event);
+		expect(harness.adapter.getProjectionTarget(presentationId)).toMatchObject({
+			readOnly: true,
+			terminalOutcome: { event, kind: 'failed' },
+		});
+	});
+
+	it('returns a typed association-pending outcome without holding the Main retry owner', async () => {
+		const reconcile = createDeferred<TerminalBindingLifecycleOutcome>();
+		const lifecycle = createLifecycle(() => reconcile.promise);
+		let associateIdentity: ((nextIdentity: typeof identity) => void) | undefined;
+		const harness = createHarness({
+			createBindingLifecycle: (_bindingId, _launch, _presentationId, onIdentityObserved) => {
+				associateIdentity = onIdentityObserved;
+				return lifecycle;
+			},
+		});
+		const provision = harness.adapter.execute(provisionCommand());
+		await vi.waitFor(() => expect(lifecycle.reconcile).toHaveBeenCalledOnce());
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('3'),
+			identity: {
+				creationId: CreationIdSchema.parse('55'.repeat(16)),
+				hostEpoch: identity.hostEpoch,
+				terminalId: TerminalIdSchema.parse('66'.repeat(16)),
+			},
+		};
+
+		await expect(harness.adapter.recordExitOutcome(event)).resolves.toEqual({
+			code: 'terminal-exit-association-pending',
+			kind: 'retryable',
+			reason: 'association',
+		});
+		expect(lifecycle.recordExit).not.toHaveBeenCalled();
+
+		associateIdentity?.(event.identity);
+		reconcile.resolve({ identity: event.identity, kind: 'provisioning', summary: null });
+		await expect(provision).resolves.toMatchObject({ type: 'terminal-provision-completed' });
+		await vi.waitFor(() => expect(lifecycle.recordExit).toHaveBeenCalledWith(event));
+	});
+
+	it('preserves admitted exits and applies explicit identity backpressure at overflow', async () => {
+		const reconcile = createDeferred<TerminalBindingLifecycleOutcome>();
+		const lifecycle = createLifecycle(() => reconcile.promise);
+		let associateIdentity: ((nextIdentity: typeof identity) => void) | undefined;
+		const harness = createHarness({
+			createBindingLifecycle: (_bindingId, _launch, _presentationId, onIdentityObserved) => {
+				associateIdentity = onIdentityObserved;
+				return lifecycle;
+			},
+		});
+		const provision = harness.adapter.execute(provisionCommand());
+		await vi.waitFor(() => expect(lifecycle.reconcile).toHaveBeenCalledOnce());
+
+		const bufferedEvents: TerminalExited[] = Array.from({ length: 64 }, (_, index) => ({
+			exit: { code: index, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse(String(index + 1)),
+			identity:
+				index === 0
+					? identity
+					: {
+							creationId: CreationIdSchema.parse((index + 10).toString(16).padStart(32, '0')),
+							hostEpoch: identity.hostEpoch,
+							terminalId: TerminalIdSchema.parse((index + 10).toString(16).padStart(32, '0')),
+						},
+		}));
+		const buffered = bufferedEvents.map((event) => harness.adapter.recordExit(event));
+		const overflowEvent: TerminalExited = {
+			exit: { code: 64, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('65'),
+			identity: {
+				creationId: CreationIdSchema.parse('4a'.repeat(16)),
+				hostEpoch: identity.hostEpoch,
+				terminalId: TerminalIdSchema.parse('4b'.repeat(16)),
+			},
+		};
+		const overflow = harness.adapter.recordExit(overflowEvent);
+		await expect(overflow).rejects.toMatchObject({ code: 'terminal-exit-buffer-full' });
+		await expect(harness.adapter.recordExitOutcome(overflowEvent)).resolves.toEqual({
+			code: 'terminal-exit-buffer-full',
+			kind: 'retryable',
+			reason: 'buffer-full',
+		});
+		expect(lifecycle.recordExit).not.toHaveBeenCalled();
+
+		associateIdentity?.(identity);
+		reconcile.resolve({ identity, kind: 'provisioning', summary: null });
+		await expect(provision).resolves.toMatchObject({ type: 'terminal-provision-completed' });
+		await expect(buffered[0]).resolves.toBe(terminalPresentationId('presentation-1'));
+		expect(lifecycle.recordExit).toHaveBeenCalledWith(bufferedEvents[0]);
+
+		harness.adapter.dispose();
+		await expect(Promise.all(buffered)).resolves.toHaveLength(64);
+	});
+
 	it('allows independent presentations to reconcile concurrently', async () => {
 		const first = createDeferred<TerminalBindingLifecycleOutcome>();
 		const second = createDeferred<TerminalBindingLifecycleOutcome>();
@@ -379,6 +660,39 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 		});
 	});
 
+	it('suppresses and retries exit publication after close retirement conflicts', async () => {
+		const harness = createHarness();
+		await harness.adapter.execute(provisionCommand());
+		const presentationId = terminalPresentationId('presentation-1');
+		harness.registry.remove(presentationId, TerminalBindingIdSchema.parse('binding-1'));
+		harness.registry.register({
+			bindingId: TerminalBindingIdSchema.parse('replacement-binding'),
+			presentationId,
+		});
+
+		await expect(harness.adapter.execute(closeCommand())).resolves.toMatchObject({
+			failure: { code: 'terminal-binding-registry-conflict', retryable: false },
+			type: 'terminal-close-failed',
+		});
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		expect(harness.lifecycle.recordExit).not.toHaveBeenCalled();
+
+		harness.registry.remove(presentationId, TerminalBindingIdSchema.parse('replacement-binding'));
+		harness.registry.register({
+			bindingId: TerminalBindingIdSchema.parse('binding-1'),
+			presentationId,
+		});
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		expect(harness.registry.size).toBe(0);
+		expect(harness.lifecycle.recordExit).not.toHaveBeenCalled();
+	});
+
 	it('makes an unbound close idempotent and permanently rejects presentation reuse', async () => {
 		const harness = createHarness();
 
@@ -393,6 +707,404 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 			type: 'terminal-provision-failed',
 		});
 		expect(harness.createBindingLifecycle).not.toHaveBeenCalled();
+	});
+
+	it('persists monotonic exit revisions until Main explicitly commits publication', async () => {
+		const harness = createHarness();
+		await harness.adapter.execute(provisionCommand());
+		const first: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+		const revised: TerminalExited = {
+			...first,
+			finalRevision: CanonicalUint64TextSchema.parse('3'),
+		};
+
+		await expect(harness.adapter.recordExit(first)).resolves.toBe(
+			terminalPresentationId('presentation-1'),
+		);
+		await expect(harness.adapter.recordExit(first)).resolves.toBe(
+			terminalPresentationId('presentation-1'),
+		);
+		expect(harness.adapter.commitExitPublication(first)).toBe(true);
+		await expect(harness.adapter.recordExit(first)).resolves.toBeNull();
+		await expect(harness.adapter.recordExit(revised)).resolves.toBe(
+			terminalPresentationId('presentation-1'),
+		);
+		expect(harness.adapter.commitExitPublication(revised)).toBe(true);
+		await expect(harness.adapter.recordExit(revised)).resolves.toBeNull();
+		expect(harness.lifecycle.recordExit).toHaveBeenCalledTimes(2);
+		expect(
+			harness.adapter.getProjectionTarget(terminalPresentationId('presentation-1')),
+		).toMatchObject({
+			readOnly: true,
+			terminalOutcome: { event: revised, kind: 'exited' },
+		});
+	});
+
+	it('serializes concurrent duplicate exit deliveries until Main commits them', async () => {
+		const harness = createHarness();
+		await harness.adapter.execute(provisionCommand());
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+		const firstRecord = createDeferred<{ readonly handled: false }>();
+		harness.lifecycle.recordExit.mockImplementationOnce(() => firstRecord.promise);
+
+		const first = harness.adapter.recordExit(event);
+		const second = harness.adapter.recordExit(event);
+		await vi.waitFor(() => expect(harness.lifecycle.recordExit).toHaveBeenCalledOnce());
+		firstRecord.resolve({ handled: false });
+
+		await expect(first).resolves.toBe(terminalPresentationId('presentation-1'));
+		await expect(second).resolves.toBe(terminalPresentationId('presentation-1'));
+		expect(harness.adapter.commitExitPublication(event)).toBe(true);
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		expect(harness.lifecycle.recordExit).toHaveBeenCalledOnce();
+	});
+
+	it('keeps a higher observed revision authoritative while an older exit is in flight', async () => {
+		const harness = createHarness();
+		await harness.adapter.execute(provisionCommand());
+		const older: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+		const newer: TerminalExited = {
+			...older,
+			finalRevision: CanonicalUint64TextSchema.parse('3'),
+		};
+		const firstRecord = createDeferred<TerminalExitDisposition>();
+		harness.lifecycle.recordExit.mockImplementationOnce(() => firstRecord.promise);
+
+		const first = harness.adapter.recordExit(older);
+		await vi.waitFor(() => expect(harness.lifecycle.recordExit).toHaveBeenCalledOnce());
+		const second = harness.adapter.recordExit(newer);
+		expect(
+			harness.adapter.getProjectionTarget(terminalPresentationId('presentation-1')),
+		).toMatchObject({
+			readOnly: true,
+			terminalOutcome: { event: newer, kind: 'exited' },
+		});
+
+		firstRecord.resolve({ handled: false });
+		await expect(first).resolves.toBeNull();
+		await expect(second).resolves.toBe(terminalPresentationId('presentation-1'));
+		expect(harness.adapter.commitExitPublication(newer)).toBe(true);
+		await expect(harness.adapter.recordExit(newer)).resolves.toBeNull();
+		expect(harness.lifecycle.recordExit).toHaveBeenNthCalledWith(1, older);
+		expect(harness.lifecycle.recordExit).toHaveBeenNthCalledWith(2, newer);
+	});
+
+	it('keeps an exit revision retryable when durable recording fails', async () => {
+		const harness = createHarness();
+		await harness.adapter.execute(provisionCommand());
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+		harness.lifecycle.recordExit.mockRejectedValueOnce(new Error('transient store failure'));
+
+		await expect(harness.adapter.recordExit(event)).rejects.toThrow('transient store failure');
+		expect(
+			harness.adapter.getProjectionTarget(terminalPresentationId('presentation-1')),
+		).toMatchObject({
+			readOnly: true,
+			terminalOutcome: { event, kind: 'exited' },
+		});
+		await expect(harness.adapter.recordExit(event)).resolves.toBe(
+			terminalPresentationId('presentation-1'),
+		);
+		expect(harness.adapter.commitExitPublication(event)).toBe(true);
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		expect(harness.lifecycle.recordExit).toHaveBeenCalledTimes(2);
+	});
+
+	it('retries pending exit recording without republishing the presentation', async () => {
+		const harness = createHarness();
+		await harness.adapter.execute(provisionCommand());
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+		const firstRecord = createDeferred<TerminalExitDisposition>();
+		harness.lifecycle.recordExit
+			.mockReset()
+			.mockImplementationOnce(() => firstRecord.promise)
+			.mockResolvedValueOnce({ handled: false });
+
+		const first = harness.adapter.recordExit(event);
+		await vi.waitFor(() => expect(harness.lifecycle.recordExit).toHaveBeenCalledOnce());
+		expect(
+			harness.adapter.getProjectionTarget(terminalPresentationId('presentation-1')),
+		).toMatchObject({
+			readOnly: true,
+			terminalOutcome: { event, kind: 'exited' },
+		});
+		firstRecord.resolve({
+			handled: true,
+			outcome: { kind: 'pending', reason: 'terminal-not-running' },
+		});
+
+		await expect(first).resolves.toBeNull();
+		await expect(harness.adapter.recordExit(event)).resolves.toBe(
+			terminalPresentationId('presentation-1'),
+		);
+		expect(harness.adapter.commitExitPublication(event)).toBe(true);
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		await expect(
+			harness.adapter.recordExit({ ...event, finalRevision: CanonicalUint64TextSchema.parse('1') }),
+		).resolves.toBeNull();
+		expect(harness.lifecycle.recordExit).toHaveBeenCalledTimes(2);
+		expect(
+			harness.adapter.getProjectionTarget(terminalPresentationId('presentation-1')),
+		).toMatchObject({
+			readOnly: true,
+			terminalOutcome: { event, kind: 'exited' },
+		});
+	});
+
+	it('waits for durable persistence before publishing a store-unavailable exit', async () => {
+		const harness = createHarness();
+		await harness.adapter.execute(provisionCommand());
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+		harness.lifecycle.recordExit
+			.mockResolvedValueOnce({
+				handled: true,
+				outcome: { kind: 'store-unavailable', reason: 'read-failed' },
+			})
+			.mockResolvedValueOnce({ handled: false });
+
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		expect(
+			harness.adapter.getProjectionTarget(terminalPresentationId('presentation-1')),
+		).toMatchObject({
+			readOnly: true,
+			terminalOutcome: { event, kind: 'exited' },
+		});
+		await expect(harness.adapter.recordExit(event)).resolves.toBe(
+			terminalPresentationId('presentation-1'),
+		);
+		expect(harness.adapter.commitExitPublication(event)).toBe(true);
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		await expect(
+			harness.adapter.recordExit({ ...event, finalRevision: CanonicalUint64TextSchema.parse('1') }),
+		).resolves.toBeNull();
+		expect(harness.lifecycle.recordExit).toHaveBeenCalledTimes(2);
+	});
+
+	it('keeps recovery persistence retryable when handled-false reports store unavailability', async () => {
+		const harness = createHarness();
+		await harness.adapter.execute(provisionCommand());
+		const presentationId = terminalPresentationId('presentation-1');
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+		harness.lifecycle.recordExit
+			.mockResolvedValueOnce({
+				handled: false,
+				durable: false,
+				outcome: { kind: 'store-unavailable', reason: 'read-failed' },
+			})
+			.mockResolvedValueOnce({ handled: false });
+
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		expect(harness.adapter.getProjectionTarget(presentationId)).toMatchObject({
+			readOnly: true,
+			terminalOutcome: { event: event, kind: 'exited' },
+		});
+		await expect(harness.adapter.recordExit(event)).resolves.toBe(presentationId);
+		expect(harness.adapter.commitExitPublication(event)).toBe(true);
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		expect(harness.lifecycle.recordExit).toHaveBeenCalledTimes(2);
+	});
+
+	it('retires a handled closed exit before suppressing publication', async () => {
+		const harness = createHarness();
+		await harness.adapter.execute(provisionCommand());
+		harness.lifecycle.recordExit.mockResolvedValue({
+			handled: true,
+			outcome: { kind: 'closed' },
+		});
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		expect(harness.registry.size).toBe(0);
+		expect(
+			harness.adapter.getProjectionTarget(terminalPresentationId('presentation-1')),
+		).toBeNull();
+	});
+
+	it('reports a close-consumed exit as ignored after successful retirement', async () => {
+		const harness = createHarness();
+		await harness.adapter.execute(provisionCommand());
+		harness.lifecycle.recordExit.mockResolvedValue({
+			handled: true,
+			outcome: { kind: 'closed' },
+		});
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+
+		await expect(harness.adapter.recordExitOutcome(event)).resolves.toEqual({
+			kind: 'ignored',
+			reason: 'closed',
+		});
+		expect(harness.registry.size).toBe(0);
+	});
+
+	it('suppresses a closed exit when registry retirement fails and retries retirement later', async () => {
+		const harness = createHarness();
+		await harness.adapter.execute(provisionCommand());
+		const presentationId = terminalPresentationId('presentation-1');
+		harness.registry.remove(presentationId, TerminalBindingIdSchema.parse('binding-1'));
+		harness.registry.register({
+			bindingId: TerminalBindingIdSchema.parse('replacement-binding'),
+			presentationId,
+		});
+		harness.lifecycle.recordExit.mockResolvedValue({
+			handled: true,
+			outcome: { kind: 'closed' },
+		});
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		expect(harness.registry.getByPresentationId(presentationId)).toEqual({
+			bindingId: 'replacement-binding',
+			presentationId,
+		});
+		expect(harness.adapter.getProjectionTarget(presentationId)).toMatchObject({
+			terminalOutcome: { event: event, kind: 'exited' },
+		});
+
+		harness.registry.remove(presentationId, TerminalBindingIdSchema.parse('replacement-binding'));
+		harness.registry.register({
+			bindingId: TerminalBindingIdSchema.parse('binding-1'),
+			presentationId,
+		});
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		expect(harness.registry.size).toBe(0);
+		expect(harness.adapter.getProjectionTarget(presentationId)).toBeNull();
+		expect(harness.lifecycle.recordExit).toHaveBeenCalledOnce();
+	});
+
+	it('observes an exit read-only while close retirement is pending without recording it', async () => {
+		const harness = createHarness();
+		await harness.adapter.execute(provisionCommand());
+		const presentationId = terminalPresentationId('presentation-1');
+		harness.registry.remove(presentationId, TerminalBindingIdSchema.parse('binding-1'));
+		harness.registry.register({
+			bindingId: TerminalBindingIdSchema.parse('replacement-binding'),
+			presentationId,
+		});
+
+		await expect(harness.adapter.execute(closeCommand())).resolves.toMatchObject({
+			failure: { code: 'terminal-binding-registry-conflict', retryable: false },
+			type: 'terminal-close-failed',
+		});
+		expect(harness.adapter.getProjectionTarget(presentationId)).toMatchObject({
+			readOnly: true,
+			terminalOutcome: null,
+		});
+
+		const event: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		expect(harness.adapter.getProjectionTarget(presentationId)).toMatchObject({
+			readOnly: true,
+			terminalOutcome: { event: event, kind: 'exited' },
+		});
+		expect(harness.lifecycle.recordExit).not.toHaveBeenCalled();
+
+		harness.registry.remove(presentationId, TerminalBindingIdSchema.parse('replacement-binding'));
+		harness.registry.register({
+			bindingId: TerminalBindingIdSchema.parse('binding-1'),
+			presentationId,
+		});
+		await expect(harness.adapter.recordExit(event)).resolves.toBeNull();
+		expect(harness.registry.size).toBe(0);
+		expect(harness.lifecycle.recordExit).not.toHaveBeenCalled();
+	});
+
+	it('does not claim an exited summary was published until Main commits it', async () => {
+		const provisionLifecycle = createLifecycle();
+		provisionLifecycle.reconcile
+			.mockResolvedValueOnce({ identity, kind: 'provisioning', summary: null })
+			.mockResolvedValueOnce({
+				identity,
+				kind: 'recovered',
+				summary: createExitedSummary(),
+			});
+		const provision = createHarness({ createBindingLifecycle: () => provisionLifecycle });
+		await provision.adapter.execute(provisionCommand());
+		await provision.adapter.execute(provisionCommand('presentation-1', 'provision-2'));
+
+		const restoreLifecycle = createLifecycle(async () => ({
+			identity,
+			kind: 'recovered',
+			summary: createExitedSummary(),
+		}));
+		const retainedBinding: TerminalBinding = {
+			bindingId: TerminalBindingIdSchema.parse('binding-retained'),
+			creationId: identity.creationId,
+			launch: { ...createTerminalLaunch(), currentDirectory: '/workspace/orchbee' },
+			presentationId: terminalPresentationId('presentation-1'),
+			state: { identity, kind: 'retained' },
+		};
+		const restore = new DesktopTerminalLifecycleAdapter({
+			allocateFreshBindingId: () => 'binding-fresh',
+			createBindingLifecycle: () => restoreLifecycle,
+			loadBindings: async () => ({
+				document: { bindings: [retainedBinding], version: 3 },
+				kind: 'available',
+			}),
+			registry: new DesktopTerminalBindingRegistry(),
+			retireProjection: async () => undefined,
+			terminalLaunch: createTerminalLaunch(),
+		});
+		await restore.execute(restoreCommand());
+
+		const recoveredExit: TerminalExited = {
+			exit: { code: 0, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('4'),
+			identity,
+		};
+		await expect(provision.adapter.recordExit(recoveredExit)).resolves.toBe(
+			terminalPresentationId('presentation-1'),
+		);
+		await expect(restore.recordExit(recoveredExit)).resolves.toBe(
+			terminalPresentationId('presentation-1'),
+		);
+		expect(provision.adapter.commitExitPublication(recoveredExit)).toBe(true);
+		expect(restore.commitExitPublication(recoveredExit)).toBe(true);
+		await expect(provision.adapter.recordExit(recoveredExit)).resolves.toBeNull();
+		await expect(restore.recordExit(recoveredExit)).resolves.toBeNull();
 	});
 
 	it('maps expected recovery and storage outcomes to stable presentation failures', async () => {
@@ -484,6 +1196,43 @@ function createTerminalLaunch() {
 		platform: 'linux',
 		userDataPath: '/users/orchbee/.config/orchbee',
 	}).terminalLaunch;
+}
+
+function createExitedSummary(): TerminalSummary {
+	return {
+		columns: 80,
+		configuration: { scrollbackBytes: 10_000_000 },
+		configurationRevision: CanonicalUint64TextSchema.parse('1'),
+		exit: { code: 0, kind: 'exit-code' },
+		failure: null,
+		failureContainment: null,
+		identity,
+		phase: TerminalPhase.exited,
+		process: null,
+		revision: CanonicalUint64TextSchema.parse('4'),
+		rows: 24,
+		terminateRequested: false,
+	};
+}
+
+function createFailedSummary(): Extract<
+	TerminalSummary,
+	{ readonly phase: typeof TerminalPhase.failed }
+> {
+	return {
+		columns: 80,
+		configuration: { scrollbackBytes: 10_000_000 },
+		configurationRevision: CanonicalUint64TextSchema.parse('1'),
+		exit: null,
+		failure: { kind: 'pty-read', stage: 'read-output' },
+		failureContainment: null,
+		identity,
+		phase: TerminalPhase.failed,
+		process: { kind: 'observed', result: { code: 1, kind: 'exit-code' } },
+		revision: CanonicalUint64TextSchema.parse('7'),
+		rows: 24,
+		terminateRequested: true,
+	};
 }
 
 function createDeferred<Value>() {

@@ -13,10 +13,11 @@ import {
 	workbenchSharedDocumentRevision,
 } from '@orchbee/workbench/document';
 import type { MessagePortMain } from 'electron';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
 	LocalDevelopmentGatewayRuntime,
+	type DesktopGatewayClientHandle,
 	type DesktopGatewayUtilityProcess,
 } from '../LocalDevelopmentGatewayRuntime';
 
@@ -70,7 +71,7 @@ describe('LocalDevelopmentGatewayRuntime', () => {
 			{
 				createCapability: () => GatewayCapabilitySchema.parse('a'.repeat(43)),
 				createProcess: () => process,
-				openClient: () => ({
+				openClient: async () => ({
 					bootstrap,
 					clientSessionPort,
 					dispose: async () => {
@@ -105,15 +106,123 @@ describe('LocalDevelopmentGatewayRuntime', () => {
 		expect(opened?.ports).toEqual([clientSessionPort, projectionPort]);
 
 		process.emitMessage({ connectionId, type: 'gateway-client-close-requested' });
-		await Promise.resolve();
+		await vi.waitFor(() => expect(disposedClients).toBe(1));
 		expect(disposedClients).toBe(1);
 		await runtime.dispose();
 		expect(process.killed).toBe(true);
+	});
+
+	it('kills the Utility Process even when one client retirement rejects, then retries the owner', async () => {
+		const process = new FakeUtilityProcess();
+		let firstRetirementFailed = true;
+		const firstDispose = vi.fn<() => Promise<void>>(async () => {
+			if (firstRetirementFailed) throw new Error('first client retirement failed');
+		});
+		const secondDispose = vi.fn<() => Promise<void>>(async () => undefined);
+		const runtime = createRuntime(process, async (connectionId) => ({
+			bootstrap,
+			clientSessionPort: fakePort(),
+			dispose: connectionId.endsWith(':1') ? firstDispose : secondDispose,
+			projectionPort: fakePort(),
+		}));
+		await startRuntime(runtime, process);
+		process.emitMessage({
+			connectionId: GatewayClientConnectionIdSchema.parse('gateway:client:1'),
+			type: 'gateway-client-open-requested',
+		});
+		process.emitMessage({
+			connectionId: GatewayClientConnectionIdSchema.parse('gateway:client:2'),
+			type: 'gateway-client-open-requested',
+		});
+		await vi.waitFor(() => expect(process.messages).toHaveLength(3));
+
+		await expect(runtime.dispose()).rejects.toThrow('did not converge');
+		expect(firstDispose).toHaveBeenCalledOnce();
+		expect(secondDispose).toHaveBeenCalledOnce();
+		expect(process.killed).toBe(true);
+
+		firstRetirementFailed = false;
+		await expect(runtime.dispose()).resolves.toBeUndefined();
+		expect(firstDispose).toHaveBeenCalledTimes(2);
+	});
+
+	it('contains rejected close disposal in the retry owner without an unhandled rejection', async () => {
+		const process = new FakeUtilityProcess();
+		let shouldReject = true;
+		const disposeClient = vi.fn<() => Promise<void>>(async () => {
+			if (shouldReject) {
+				shouldReject = false;
+				throw new Error('close disposal failed');
+			}
+		});
+		const runtime = createRuntime(process, async () => ({
+			bootstrap,
+			clientSessionPort: fakePort(),
+			dispose: disposeClient,
+			projectionPort: fakePort(),
+		}));
+		await startRuntime(runtime, process);
+		const unhandled: unknown[] = [];
+		const onUnhandled = (reason: unknown): void => {
+			unhandled.push(reason);
+		};
+		globalThis.process.on('unhandledRejection', onUnhandled);
+		try {
+			const connectionId = GatewayClientConnectionIdSchema.parse('gateway:client:close');
+			process.emitMessage({ connectionId, type: 'gateway-client-open-requested' });
+			await vi.waitFor(() => expect(process.messages).toHaveLength(2));
+			process.emitMessage({ connectionId, type: 'gateway-client-close-requested' });
+			await vi.waitFor(() => expect(disposeClient).toHaveBeenCalledTimes(2));
+			expect(runtime.backgroundFailure).toBeInstanceOf(Error);
+			expect(unhandled).toEqual([]);
+		} finally {
+			globalThis.process.off('unhandledRejection', onUnhandled);
+			await runtime.dispose();
+		}
+	});
+
+	it('serializes an open/close race and retires a client after transfer failure', async () => {
+		const process = new FakeUtilityProcess();
+		const clientReady = createDeferred<DesktopGatewayClientHandle>();
+		const disposeClient = vi.fn<() => Promise<void>>(async () => undefined);
+		const runtime = createRuntime(process, async () => clientReady.promise);
+		await startRuntime(runtime, process);
+		const connectionId = GatewayClientConnectionIdSchema.parse('gateway:client:race');
+		process.emitMessage({ connectionId, type: 'gateway-client-open-requested' });
+		process.emitMessage({ connectionId, type: 'gateway-client-close-requested' });
+		clientReady.resolve({
+			bootstrap,
+			clientSessionPort: fakePort(),
+			dispose: disposeClient,
+			projectionPort: fakePort(),
+		});
+		await vi.waitFor(() => expect(disposeClient).toHaveBeenCalledOnce());
+		expect(process.messages).toHaveLength(2);
+
+		const transferProcess = new FakeUtilityProcess();
+		transferProcess.throwOnClientTransfer = true;
+		const transferDispose = vi.fn<() => Promise<void>>(async () => undefined);
+		const transferRuntime = createRuntime(transferProcess, async () => ({
+			bootstrap,
+			clientSessionPort: fakePort(),
+			dispose: transferDispose,
+			projectionPort: fakePort(),
+		}));
+		await startRuntime(transferRuntime, transferProcess);
+		transferProcess.emitMessage({
+			connectionId: GatewayClientConnectionIdSchema.parse('gateway:client:transfer'),
+			type: 'gateway-client-open-requested',
+		});
+		await vi.waitFor(() => expect(transferDispose).toHaveBeenCalledOnce());
+		expect(transferProcess.killed).toBe(true);
+		await transferRuntime.dispose();
+		await runtime.dispose();
 	});
 });
 
 class FakeUtilityProcess implements DesktopGatewayUtilityProcess {
 	killed = false;
+	throwOnClientTransfer = false;
 	readonly messages: Array<{
 		readonly message: unknown;
 		readonly ports: readonly MessagePortMain[];
@@ -142,6 +251,14 @@ class FakeUtilityProcess implements DesktopGatewayUtilityProcess {
 	}
 
 	postMessage(message: unknown, ports: readonly MessagePortMain[] = []): void {
+		const command = GatewayDesktopCommandSchema.safeParse(message);
+		if (
+			this.throwOnClientTransfer &&
+			command.success &&
+			command.data.type === 'gateway-client-opened'
+		) {
+			throw new Error('client transfer failed');
+		}
 		this.messages.push({ message, ports });
 	}
 
@@ -152,6 +269,46 @@ class FakeUtilityProcess implements DesktopGatewayUtilityProcess {
 	emitSpawn(): void {
 		for (const listener of this.#spawnListeners) listener();
 	}
+}
+
+function createRuntime(
+	process: FakeUtilityProcess,
+	openClient: NonNullable<
+		ConstructorParameters<typeof LocalDevelopmentGatewayRuntime>[1]['openClient']
+	>,
+): LocalDevelopmentGatewayRuntime {
+	return new LocalDevelopmentGatewayRuntime(
+		{
+			entryPath: '/repo/apps/gateway/dist/main/gateway.cjs',
+			rendererUrl: 'http://127.0.0.1:3000/',
+		},
+		{
+			createCapability: () => GatewayCapabilitySchema.parse('a'.repeat(43)),
+			createProcess: () => process,
+			openClient,
+		},
+	);
+}
+
+async function startRuntime(
+	runtime: LocalDevelopmentGatewayRuntime,
+	process: FakeUtilityProcess,
+): Promise<void> {
+	const started = runtime.start();
+	process.emitSpawn();
+	process.emitMessage({ port: 42_000, type: 'gateway-listening' });
+	await started;
+}
+
+function createDeferred<Value>(): {
+	promise: Promise<Value>;
+	resolve: (value: Value) => void;
+} {
+	let resolvePromise: (value: Value) => void = () => undefined;
+	const promise = new Promise<Value>((resolve) => {
+		resolvePromise = resolve;
+	});
+	return { promise, resolve: resolvePromise };
 }
 
 function fakePort(): MessagePortMain {

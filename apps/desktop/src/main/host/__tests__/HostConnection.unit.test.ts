@@ -4,8 +4,10 @@ import { readFile } from 'node:fs/promises';
 import {
 	ClientIdSchema,
 	AttachmentIdSchema,
+	CURRENT_PROTOCOL_VERSION,
 	decodeControlJson,
 	decodeProtocolEnvelope,
+	EmptyControlSchema,
 	encodeProtocolEnvelope,
 	HelloSchema,
 	HostEpochSchema,
@@ -15,13 +17,9 @@ import {
 } from '@orchbee/terminal-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-	DESKTOP_HOST_PROTOCOL_RANGE,
-	DESKTOP_HOST_PROTOCOL_VERSION,
-} from '../desktop-host-protocol-version';
 import { HostConnection, type HostEnvelopeListener } from '../HostConnection';
 
-const currentProtocol = { major: 1, minor: 4 } as const;
+const currentProtocol = CURRENT_PROTOCOL_VERSION;
 
 describe('HostConnection', () => {
 	it('offers the current protocol and routes current-version events', async () => {
@@ -32,10 +30,10 @@ describe('HostConnection', () => {
 			write(chunk, _encoding, callback) {
 				const request = decodeProtocolEnvelope(new Uint8Array(chunk));
 				if (!request.ok) throw new Error(request.detail);
-				expect(request.value.protocol).toEqual(DESKTOP_HOST_PROTOCOL_VERSION);
+				expect(request.value.protocol).toEqual(CURRENT_PROTOCOL_VERSION);
 				const hello = decodeControlJson(request.value.payload, HelloSchema);
 				if (!hello.ok) throw new Error(hello.detail);
-				expect(hello.value.protocol).toEqual(DESKTOP_HOST_PROTOCOL_RANGE);
+				expect(hello.value.protocol).toEqual(CURRENT_PROTOCOL_VERSION);
 				const response = encodeProtocolEnvelope({
 					correlationId: request.value.correlationId,
 					event: false,
@@ -46,6 +44,7 @@ describe('HostConnection', () => {
 						JSON.stringify({
 							frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 							hostEpoch,
+							hostVersion: '0.1.0',
 							inputBytes: PROTOCOL_LIMITS.maxInputBytes,
 							protocol: currentProtocol,
 							rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
@@ -94,7 +93,7 @@ describe('HostConnection', () => {
 			payload: new Uint8Array(
 				await readFile(
 					new URL(
-						'../../../../../../packages/terminal-protocol/fixtures/terminal-frame-v2.bin',
+						'../../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.1.bin',
 						import.meta.url,
 					),
 				),
@@ -133,9 +132,9 @@ describe('HostConnection', () => {
 		connection.close();
 	});
 
-	it('rejects an obsolete Host protocol instead of entering a compatibility mode', async () => {
+	it('rejects a different Host protocol instead of entering a compatibility mode', async () => {
 		const hostEpoch = HostEpochSchema.parse('12'.repeat(16));
-		const obsoleteProtocol = { major: 1, minor: 3 } as const;
+		const differentProtocol = { major: 0, minor: 0, patch: 2 } as const;
 		let stream: Duplex;
 		stream = new Duplex({
 			read() {},
@@ -152,14 +151,15 @@ describe('HostConnection', () => {
 						JSON.stringify({
 							frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 							hostEpoch,
+							hostVersion: '0.1.0',
 							inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-							protocol: obsoleteProtocol,
+							protocol: differentProtocol,
 							rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 							supportedOptionalFeatures: [],
 						}),
 					),
 					payloadEncoding: PayloadEncoding.controlJson,
-					protocol: obsoleteProtocol,
+					protocol: differentProtocol,
 					response: true,
 				});
 				if (!response.ok) throw new Error(response.detail);
@@ -197,6 +197,7 @@ describe('HostConnection', () => {
 								? {
 										frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
 										hostEpoch,
+										hostVersion: '0.1.0',
 										inputBytes: PROTOCOL_LIMITS.maxInputBytes,
 										protocol: currentProtocol,
 										rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
@@ -222,12 +223,7 @@ describe('HostConnection', () => {
 		await connection.negotiate(ClientIdSchema.parse('44'.repeat(16)));
 
 		await expect(
-			connection.request(
-				MessageKind.ping,
-				PayloadEncoding.controlJson,
-				new TextEncoder().encode('{}'),
-				MessageKind.ping,
-			),
+			connection.requestControl(MessageKind.ping, {}, EmptyControlSchema),
 		).rejects.toMatchObject({ code: 'input-backpressure', retryable: true });
 		connection.close();
 	});

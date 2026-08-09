@@ -7,6 +7,7 @@ import {
 	TerminalPhase,
 	type TerminalExited,
 	type TerminalInventoryCursor,
+	type TerminalIdentity,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
 import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
@@ -48,13 +49,16 @@ class MemoryStore implements TerminalBindingStore {
 	document: TerminalBindingStoreDocument | undefined;
 	readonly unavailable: TerminalBindingStoreLoadResult | undefined;
 	readonly writes: TerminalBinding[] = [];
+	failNextWriteKind: TerminalBinding['state']['kind'] | undefined;
 
 	constructor(
 		document?: TerminalBindingStoreDocument,
 		unavailable?: TerminalBindingStoreLoadResult,
+		failNextWriteKind?: TerminalBinding['state']['kind'],
 	) {
 		this.document = document;
 		this.unavailable = unavailable;
+		this.failNextWriteKind = failNextWriteKind;
 	}
 
 	load(): Promise<TerminalBindingStoreLoadResult> {
@@ -67,6 +71,10 @@ class MemoryStore implements TerminalBindingStore {
 	}
 
 	put(binding: TerminalBinding): Promise<void> {
+		if (this.failNextWriteKind === binding.state.kind) {
+			this.failNextWriteKind = undefined;
+			return Promise.reject(new Error('transient store failure'));
+		}
 		this.document = putTerminalBinding(
 			this.document ?? createTerminalBindingStoreDocument(),
 			binding,
@@ -236,7 +244,7 @@ describe('TerminalRecoveryCoordinator', () => {
 			identity,
 		};
 
-		await coordinator.recordExit(exited);
+		await expect(coordinator.recordExit(exited)).resolves.toEqual({ durable: true });
 
 		expect(targetBinding(store).state).toEqual({
 			exit: exited.exit,
@@ -248,14 +256,64 @@ describe('TerminalRecoveryCoordinator', () => {
 			store.document?.bindings.find((binding) => binding.bindingId === other.bindingId),
 		).toEqual(other);
 	});
+
+	it('reports an unavailable store instead of treating exit persistence as durable', async () => {
+		const store = new MemoryStore(undefined, { kind: 'unavailable', reason: 'read-failed' });
+		const host = createHost(firstEpoch, [[]], identity);
+		const coordinator = createCoordinator(host.value, store);
+		const exited: TerminalExited = {
+			exit: { code: 7, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('12'),
+			identity,
+		};
+
+		expect(await coordinator.recordExit(exited)).toEqual({
+			durable: false,
+			reason: 'read-failed',
+		});
+		expect(host.requestKinds).toHaveLength(0);
+	});
+
+	it('associates the create identity before a failed retention save and persists its exit on retry', async () => {
+		const store = new MemoryStore(undefined, undefined, 'retained');
+		const host = createHost(firstEpoch, [[]], identity);
+		const onIdentityObserved = vi.fn<(observedIdentity: typeof identity) => void>();
+		const coordinator = createCoordinator(host.value, store, onIdentityObserved);
+
+		expect(await coordinator.reconcile()).toEqual({
+			kind: 'ledger-unavailable',
+			reason: 'write-failed',
+		});
+		expect(onIdentityObserved).toHaveBeenCalledWith(identity);
+		expect(store.writes.at(-1)?.state.kind).toBe('create-requested');
+
+		const exited: TerminalExited = {
+			exit: { code: 9, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('13'),
+			identity,
+		};
+		expect(await coordinator.recordExit(exited)).toEqual({ durable: true });
+		expect(targetBinding(store).state).toEqual({
+			exit: exited.exit,
+			finalRevision: exited.finalRevision,
+			identity,
+			kind: 'exited',
+		});
+	});
 });
 
-function createCoordinator(host: HostConnection, store: TerminalBindingStore) {
+function createCoordinator(
+	host: HostConnection,
+	store: TerminalBindingStore,
+	onIdentityObserved?: (observedIdentity: TerminalIdentity) => void,
+) {
 	return new TerminalRecoveryCoordinator(
 		host,
 		store,
 		{ bindingId: targetBindingId, launch: createLaunch(), presentationId: targetPresentationId },
-		{ randomCreationId: () => creationId },
+		onIdentityObserved === undefined
+			? { randomCreationId: () => creationId }
+			: { onIdentityObserved, randomCreationId: () => creationId },
 	);
 }
 
@@ -340,6 +398,7 @@ function createLaunch() {
 		cellPixelHeight: 16,
 		cellPixelWidth: 8,
 		columns: 80,
+		configuration: null,
 		currentDirectory: '/users/orchbee',
 		environment: [{ name: 'TERM', value: 'xterm-256color' }],
 		executable: '/bin/sh',
@@ -348,12 +407,22 @@ function createLaunch() {
 	};
 }
 
-function createSummary(overrides: Partial<TerminalSummary> = {}): TerminalSummary {
+type RunningTerminalSummary = Extract<
+	TerminalSummary,
+	{ readonly phase: typeof TerminalPhase.running }
+>;
+
+function createSummary(overrides: Partial<RunningTerminalSummary> = {}): RunningTerminalSummary {
 	return {
 		columns: 80,
+		configuration: { scrollbackBytes: 10_000_000 },
+		configurationRevision: CanonicalUint64TextSchema.parse('1'),
 		exit: null,
+		failure: null,
+		failureContainment: null,
 		identity,
 		phase: TerminalPhase.running,
+		process: null,
 		revision: firstRevision,
 		rows: 24,
 		terminateRequested: false,

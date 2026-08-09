@@ -1,4 +1,4 @@
-import type { TerminalLaunchV1_1 } from '@orchbee/terminal-protocol';
+import type { TerminalIdentity, TerminalLaunch } from '@orchbee/terminal-protocol';
 import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 
 import type { HostConnection } from '../host';
@@ -10,11 +10,12 @@ import { DesktopTerminalLifecycleAdapter } from './DesktopTerminalLifecycleAdapt
 export interface DesktopTerminalLifecycleAdapterComposition {
 	readonly allocateFreshBindingId: () => string;
 	readonly host: HostConnection;
+	readonly onIdentityObserved?: (identity: TerminalIdentity) => void;
 	readonly randomCreationId: () => string;
 	readonly registry: DesktopTerminalBindingRegistry;
 	readonly retireProjection: (presentationId: TerminalPresentationId) => Promise<void>;
 	readonly store: TerminalBindingStore;
-	readonly terminalLaunch: TerminalLaunchV1_1;
+	readonly terminalLaunch: TerminalLaunch;
 }
 
 export function composeDesktopTerminalLifecycleAdapter(
@@ -22,18 +23,24 @@ export function composeDesktopTerminalLifecycleAdapter(
 ): DesktopTerminalLifecycleAdapter {
 	return new DesktopTerminalLifecycleAdapter({
 		allocateFreshBindingId: composition.allocateFreshBindingId,
-		createBindingLifecycle: (bindingId, launch, presentationId) =>
+		createBindingLifecycle: (bindingId, launch, presentationId, onIdentityObserved) =>
 			new TerminalBindingLifecycle(
 				new TerminalRecoveryCoordinator(
 					composition.host,
 					composition.store,
 					{ bindingId, launch, presentationId },
-					{ randomCreationId: composition.randomCreationId },
+					{
+						onIdentityObserved,
+						randomCreationId: composition.randomCreationId,
+					},
 				),
 				new TerminalCloseOrchestrator(composition.host, composition.store, bindingId),
 			),
 		registry: composition.registry,
 		loadBindings: () => composition.store.load(),
+		...(composition.onIdentityObserved === undefined
+			? {}
+			: { onIdentityObserved: composition.onIdentityObserved }),
 		retireProjection: composition.retireProjection,
 		terminalLaunch: composition.terminalLaunch,
 	});

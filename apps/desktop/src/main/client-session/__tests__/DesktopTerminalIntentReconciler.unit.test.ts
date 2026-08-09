@@ -145,7 +145,7 @@ describe('DesktopTerminalIntentReconciler', () => {
 		]);
 	});
 
-	it('records Host exits only for presentations in the current canonical document', async () => {
+	it('records Host outcomes only for presentations in the current canonical document', async () => {
 		const reconciler = reconcilerWith(async (command) => ({
 			operationId: command.operationId,
 			presentationId: command.presentationId,
@@ -164,20 +164,60 @@ describe('DesktopTerminalIntentReconciler', () => {
 
 		expect(reconciler.recordExternalEvent(unknownExit)).toBe(false);
 		await reconciler.reconcileDocument(document('4', { kind: 'retain' }), () => undefined);
-		expect(reconciler.recordExternalEvent(knownExit)).toBe(true);
+		expect(reconciler.reserveExternalEvent(knownExit)).toBe(true);
+		expect(reconciler.getTerminalEvents()).not.toContainEqual(knownExit);
+		expect(reconciler.commitExternalEvent(knownExit)).toBe(true);
+		expect(reconciler.recordExternalEvent(knownExit)).toBe(false);
 		expect(reconciler.recordExternalEvent(unknownExit)).toBe(false);
 		expect(reconciler.getTerminalEvents()).toContainEqual(knownExit);
+		const conflictingFailure = {
+			failure: { code: 'terminal-runtime-pty-read-read-output', retryable: false },
+			presentationId: knownExit.presentationId,
+			type: 'terminal-failed',
+		} as const;
+		expect(reconciler.recordExternalEvent(conflictingFailure)).toBe(false);
+	});
+
+	it('publishes a recovered runtime failure immediately after restore completes', async () => {
+		const failure = {
+			failure: { code: 'terminal-runtime-pty-write-write-input', retryable: false },
+			presentationId: terminalPresentationId('presentation-1'),
+			type: 'terminal-failed',
+		} as const;
+		const reconciler = reconcilerWith(
+			async (command) => ({
+				operationId: command.operationId,
+				presentationId: command.presentationId,
+				type: 'terminal-restore-completed',
+			}),
+			() => failure,
+		);
+		const published: TerminalPresentationEvent[] = [];
+
+		await reconciler.reconcileDocument(document('5', { kind: 'retain' }), (event) =>
+			published.push(event),
+		);
+
+		expect(published.map((event) => event.type)).toEqual([
+			'terminal-restore-started',
+			'terminal-restore-completed',
+			'terminal-failed',
+		]);
+		expect(reconciler.getTerminalEvents()).toContainEqual(failure);
 	});
 });
 
 function reconcilerWith(
 	execute: (command: TerminalPresentationCommand) => Promise<TerminalPresentationEvent>,
+	getTerminalOutcome: ConstructorParameters<
+		typeof DesktopTerminalIntentReconciler
+	>[0]['getTerminalOutcome'] = () => null,
 ): DesktopTerminalIntentReconciler {
 	let operationSequence = 0;
 	return new DesktopTerminalIntentReconciler({
 		createOperationId: () => terminalPresentationOperationId(`main:restore:${++operationSequence}`),
 		execute,
-		getTerminalExit: () => null,
+		getTerminalOutcome,
 	});
 }
 

@@ -16,9 +16,10 @@ import type {
 } from './DesktopTerminalProjectionService';
 
 interface ProjectionRequest {
+	disposalPromise: Promise<void> | undefined;
 	lease: DesktopTerminalProjectionLease | null;
 	readonly presentationId: TerminalPresentationId;
-	released: boolean;
+	releaseRequested: boolean;
 }
 
 export class TerminalProjectionControlBroker {
@@ -44,18 +45,30 @@ export class TerminalProjectionControlBroker {
 	}
 
 	dispose(): Promise<void> {
-		return (this.#disposePromise ??= this.#retire(true));
+		return this.#startRetire(true);
 	}
 
 	readonly #handlePortClose = (): void => {
-		this.#disposePromise ??= this.#retire(false);
+		void this.#startRetire(false).catch(() => undefined);
 	};
+
+	#startRetire(closePort: boolean): Promise<void> {
+		if (this.#disposePromise !== undefined) return this.#disposePromise;
+		const operation = this.#retire(closePort);
+		let tracked: Promise<void>;
+		tracked = operation.catch((error: unknown) => {
+			if (this.#disposePromise === tracked) this.#disposePromise = undefined;
+			throw error;
+		});
+		this.#disposePromise = tracked;
+		return tracked;
+	}
 
 	readonly #handleRendererMessage = (event: MessageEvent): void => {
 		if (this.#disposed) return;
 		const parsed = TerminalProjectionControlCommandSchema.safeParse(event.data);
 		if (!parsed.success) {
-			this.#disposePromise ??= this.#retire(true);
+			void this.#startRetire(true).catch(() => undefined);
 			return;
 		}
 		const command = parsed.data;
@@ -63,34 +76,59 @@ export class TerminalProjectionControlBroker {
 		if (command.type === 'terminal-projection-open-requested') {
 			if (existing !== undefined) {
 				if (existing.presentationId !== command.presentationId) {
-					this.#disposePromise ??= this.#retire(true);
+					void this.#startRetire(true).catch(() => undefined);
 				}
 				return;
 			}
 			const request: ProjectionRequest = {
+				disposalPromise: undefined,
 				lease: null,
 				presentationId: command.presentationId,
-				released: false,
+				releaseRequested: false,
 			};
 			this.#requests.set(command.requestId, request);
 			const task = this.#open(command.requestId, command.presentationId, request);
 			this.#openTasks.add(task);
-			void task.finally(() => this.#openTasks.delete(task));
+			void task.then(
+				() => this.#openTasks.delete(task),
+				() => this.#openTasks.delete(task),
+			);
 			return;
 		}
 		if (existing === undefined || existing.presentationId !== command.presentationId) {
-			this.#disposePromise ??= this.#retire(true);
+			void this.#startRetire(true).catch(() => undefined);
 			return;
 		}
-		if (existing.released) return;
-		existing.released = true;
-		const lease = existing.lease;
-		existing.lease = null;
-		if (lease !== null) {
-			this.#requests.delete(command.requestId);
-			void lease.dispose();
-		}
+		existing.releaseRequested = true;
+		void this.#disposeRequest(command.requestId, existing).catch(() => undefined);
 	};
+
+	async #disposeRequest(
+		requestId: TerminalProjectionRequestId,
+		request: ProjectionRequest,
+	): Promise<void> {
+		if (request.disposalPromise !== undefined) return request.disposalPromise;
+		const lease = request.lease;
+		if (lease === null) return;
+		const operation = lease
+			.dispose()
+			.then(() => {
+				request.lease = null;
+				if (this.#requests.get(requestId) === request) this.#requests.delete(requestId);
+			})
+			.catch((error: unknown) => {
+				request.disposalPromise = undefined;
+				this.#post({
+					failure: { code: 'terminal-projection-cleanup-failed', retryable: true },
+					presentationId: request.presentationId,
+					requestId,
+					type: 'terminal-projection-failed',
+				});
+				throw error;
+			});
+		request.disposalPromise = operation;
+		return operation;
+	}
 
 	async #open(
 		requestId: TerminalProjectionRequestId,
@@ -99,12 +137,15 @@ export class TerminalProjectionControlBroker {
 	): Promise<void> {
 		try {
 			const lease = await this.#service.open(presentationId);
-			if (this.#disposed || request.released) {
-				await lease.dispose();
-				this.#requests.delete(requestId);
+			request.lease = lease;
+			if (this.#disposed || request.releaseRequested) {
+				try {
+					await this.#disposeRequest(requestId, request);
+				} catch {
+					return;
+				}
 				return;
 			}
-			request.lease = lease;
 			const event = TerminalProjectionControlEventSchema.parse({
 				bootstrap: lease.bootstrap,
 				presentationId,
@@ -114,12 +155,23 @@ export class TerminalProjectionControlBroker {
 			try {
 				this.#port.postMessage(event, [lease.rendererPort]);
 			} catch {
-				request.lease = null;
-				await lease.dispose();
-				this.#disposePromise ??= this.#retire(true);
+				request.releaseRequested = true;
+				try {
+					await this.#disposeRequest(requestId, request);
+				} catch {
+					// The request and lease remain owned by this broker and can be
+					// retried by a later release or broker retirement.
+				}
+				void this.#startRetire(true).catch(() => undefined);
 			}
 		} catch (error) {
-			if (this.#disposed || request.released) return;
+			if (this.#disposed) throw error;
+			if (request.releaseRequested) {
+				if (request.lease === null && this.#requests.get(requestId) === request) {
+					this.#requests.delete(requestId);
+				}
+				return;
+			}
 			const failure = TerminalPresentationFailureSchema.safeParse(
 				error instanceof Error ? error.cause : undefined,
 			);
@@ -139,32 +191,45 @@ export class TerminalProjectionControlBroker {
 		if (this.#disposed) return;
 		const parsed = TerminalProjectionControlEventSchema.safeParse(event);
 		if (!parsed.success) {
-			this.#disposePromise ??= this.#retire(true);
+			void this.#startRetire(true).catch(() => undefined);
 			return;
 		}
 		try {
 			this.#port.postMessage(parsed.data);
 		} catch {
-			this.#disposePromise ??= this.#retire(true);
+			void this.#startRetire(true).catch(() => undefined);
 		}
 	}
 
 	async #retire(closePort: boolean): Promise<void> {
-		if (this.#disposed) return;
 		this.#disposed = true;
 		if (this.#started) {
 			this.#port.off('message', this.#handleRendererMessage);
 			this.#port.off('close', this.#handlePortClose);
 		}
 		if (closePort) this.#port.close();
-		const leases = [...this.#requests.values()].flatMap((request) => {
-			request.released = true;
-			const lease = request.lease;
-			request.lease = null;
-			return lease === null ? [] : [lease];
-		});
-		await Promise.all(leases.map(async (lease) => lease.dispose()));
-		await Promise.all(this.#openTasks);
+		let failed = false;
+		let firstFailure: unknown;
+		for (const [, request] of this.#requests) request.releaseRequested = true;
+		await Promise.all(
+			[...this.#openTasks].map(async (task) => {
+				try {
+					await task;
+				} catch (error: unknown) {
+					failed = true;
+					firstFailure ??= error;
+				}
+			}),
+		);
+		for (const [requestId, request] of this.#requests) {
+			try {
+				await this.#disposeRequest(requestId, request);
+			} catch (error: unknown) {
+				failed = true;
+				firstFailure ??= error;
+			}
+		}
+		if (failed) throw firstFailure;
 		this.#requests.clear();
 	}
 }

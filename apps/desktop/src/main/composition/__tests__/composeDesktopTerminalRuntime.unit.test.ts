@@ -2,6 +2,20 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import {
+	CanonicalUint64TextSchema,
+	CreationIdSchema,
+	HostEpochSchema,
+	MessageKind,
+	TerminalIdSchema,
+	TerminalIdentitySchema,
+	type TerminalExited,
+	type TerminalIdentity,
+} from '@orchbee/terminal-protocol';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+} from '@orchbee/workbench/terminal-presentation';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { HostConnection } from '../../host';
@@ -49,4 +63,99 @@ describe('composeDesktopTerminalRuntime', () => {
 		expect(createMessageChannel).not.toHaveBeenCalled();
 		await runtime.dispose();
 	});
+
+	it('keeps the Main publication handoff after delayed identity association', async () => {
+		const directory = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-runtime-'));
+		temporaryDirectories.push(directory);
+		const hostEpoch = HostEpochSchema.parse('22'.repeat(16));
+		const identity: TerminalIdentity = {
+			creationId: CreationIdSchema.parse('11'.repeat(16)),
+			hostEpoch,
+			terminalId: TerminalIdSchema.parse('33'.repeat(16)),
+		};
+		const createResponse = createDeferred<TerminalIdentity>();
+		const requestControl = vi.fn<HostConnection['requestControl']>(async (kind) => {
+			if (kind === MessageKind.listTerminals) {
+				return {
+					inventoryGeneration: '1',
+					nextCursor: null,
+					terminals: [],
+				} as never;
+			}
+			if (kind === MessageKind.createTerminal) return createResponse.promise as never;
+			throw new Error(`Unexpected Host request ${kind}.`);
+		});
+		const host = { hostEpoch, requestControl } as unknown as HostConnection;
+		const runtime = composeDesktopTerminalRuntime({
+			configuration: resolveDesktopRuntimeConfiguration({
+				applicationPath: directory,
+				environment: { ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory },
+				homeDirectory: directory,
+				platform: 'darwin',
+				userDataPath: directory,
+			}),
+			createBroker: vi.fn<DesktopTerminalRuntimeComposition['createBroker']>(),
+			createMessageChannel: vi.fn<DesktopTerminalRuntimeComposition['createMessageChannel']>(),
+			host,
+			randomIdentifier: () => '11'.repeat(16),
+		});
+
+		await expect(runtime.initialize()).resolves.toEqual({ kind: 'ready' });
+		const presentationId = terminalPresentationId('presentation-delayed-exit');
+		const provisioning = runtime.execute({
+			launchCwd: directory,
+			operationId: terminalPresentationOperationId('provision-delayed-exit'),
+			presentationId,
+			type: 'terminal-provision-requested',
+		});
+		await vi.waitFor(() =>
+			expect(requestControl).toHaveBeenCalledWith(
+				MessageKind.createTerminal,
+				expect.anything(),
+				expect.anything(),
+			),
+		);
+
+		const event: TerminalExited = {
+			exit: { code: 17, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('2'),
+			identity,
+		};
+		await expect(runtime.recordExitOutcome(event)).resolves.toMatchObject({
+			kind: 'retryable',
+			reason: 'association',
+		});
+		createResponse.resolve(TerminalIdentitySchema.parse(identity));
+		await expect(provisioning).resolves.toMatchObject({
+			presentationId,
+			type: 'terminal-provision-completed',
+		});
+
+		await expect(runtime.recordExitOutcome(event)).resolves.toEqual({
+			finalRevision: event.finalRevision,
+			kind: 'durable',
+			presentationId,
+		});
+		await expect(runtime.recordExitOutcome(event)).resolves.toEqual({
+			finalRevision: event.finalRevision,
+			kind: 'durable',
+			presentationId,
+		});
+		expect(runtime.commitExitPublication?.(event)).toBe(true);
+		await expect(runtime.recordExitOutcome(event)).resolves.toEqual({
+			finalRevision: event.finalRevision,
+			kind: 'committed',
+			presentationId,
+		});
+		expect(runtime.getDurableTerminalExit(presentationId)).toEqual(event);
+		await runtime.dispose();
+	});
 });
+
+function createDeferred<Value>(): { promise: Promise<Value>; resolve: (value: Value) => void } {
+	let resolvePromise: (value: Value) => void = () => undefined;
+	const promise = new Promise<Value>((resolve) => {
+		resolvePromise = resolve;
+	});
+	return { promise, resolve: resolvePromise };
+}

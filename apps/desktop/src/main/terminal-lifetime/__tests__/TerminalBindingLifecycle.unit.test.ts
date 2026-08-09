@@ -7,7 +7,7 @@ import {
 } from '@orchbee/terminal-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { TerminalRecoveryOutcome } from '../../recovery';
+import type { TerminalExitPersistenceResult, TerminalRecoveryOutcome } from '../../recovery';
 import { TerminalBindingLifecycle } from '../TerminalBindingLifecycle';
 import type { TerminalCloseOutcome, TerminalExitDisposition } from '../TerminalCloseOrchestrator';
 
@@ -92,12 +92,32 @@ describe('TerminalBindingLifecycle', () => {
 		await lifecycle.recordExit(exit);
 		expect(recovery.recordExit).toHaveBeenCalledOnce();
 	});
+
+	it('propagates unavailable recovery persistence without changing close handling', async () => {
+		const recovery = createRecovery(
+			{ identity, kind: 'provisioning', summary: null },
+			{ durable: false, reason: 'read-failed' },
+		);
+		const closing = createClosing({ kind: 'closed' }, { handled: false });
+		const lifecycle = new TerminalBindingLifecycle(recovery, closing);
+
+		expect(await lifecycle.recordExit(exit)).toEqual({
+			handled: false,
+			durable: false,
+			outcome: { kind: 'store-unavailable', reason: 'read-failed' },
+		});
+	});
 });
 
-function createRecovery(outcome: TerminalRecoveryOutcome) {
+function createRecovery(
+	outcome: TerminalRecoveryOutcome,
+	exitPersistence: TerminalExitPersistenceResult | void = undefined,
+) {
 	return {
 		reconcile: vi.fn<() => Promise<TerminalRecoveryOutcome>>().mockResolvedValue(outcome),
-		recordExit: vi.fn<(event: TerminalExited) => Promise<void>>().mockResolvedValue(undefined),
+		recordExit: vi
+			.fn<(event: TerminalExited) => Promise<TerminalExitPersistenceResult | void>>()
+			.mockResolvedValue(exitPersistence),
 	};
 }
 

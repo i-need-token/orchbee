@@ -1,11 +1,11 @@
 import type { TerminalExited } from '@orchbee/terminal-protocol';
 
-import type { TerminalRecoveryOutcome } from '../recovery';
+import type { TerminalExitPersistenceResult, TerminalRecoveryOutcome } from '../recovery';
 import type { TerminalCloseOutcome, TerminalExitDisposition } from './TerminalCloseOrchestrator';
 
 interface TerminalBindingRecoveryPort {
 	reconcile(): Promise<TerminalRecoveryOutcome>;
-	recordExit(event: TerminalExited): Promise<void>;
+	recordExit(event: TerminalExited): Promise<TerminalExitPersistenceResult | void>;
 }
 
 interface TerminalBindingClosePort {
@@ -48,7 +48,14 @@ export class TerminalBindingLifecycle {
 		return this.#enqueue(async () => {
 			const disposition = await this.#closing.recordExit(event);
 			if (disposition.handled) return disposition;
-			await this.#recovery.recordExit(event);
+			const persistence = await this.#recovery.recordExit(event);
+			if (persistence !== undefined && !persistence.durable) {
+				return {
+					...disposition,
+					durable: false,
+					outcome: { kind: 'store-unavailable', reason: persistence.reason },
+				};
+			}
 			return disposition;
 		});
 	}

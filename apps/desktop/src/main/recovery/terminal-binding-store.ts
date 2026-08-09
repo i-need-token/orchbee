@@ -4,7 +4,7 @@ import {
 	ExitResultSchema,
 	HostEpochSchema,
 	TerminalIdentitySchema,
-	TerminalLaunchV1_1Schema,
+	TerminalLaunchSchema,
 	type TerminalIdentity,
 } from '@orchbee/terminal-protocol';
 import { TerminalPresentationIdSchema } from '@orchbee/workbench/terminal-presentation';
@@ -46,7 +46,7 @@ export const TerminalBindingSchema = z
 	.strictObject({
 		bindingId: TerminalBindingIdSchema,
 		creationId: CreationIdSchema,
-		launch: TerminalLaunchV1_1Schema,
+		launch: TerminalLaunchSchema,
 		presentationId: TerminalPresentationIdSchema,
 		state: z.discriminatedUnion('kind', [
 			plannedStateSchema,

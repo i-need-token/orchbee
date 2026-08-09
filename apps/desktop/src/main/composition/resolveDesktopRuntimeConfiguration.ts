@@ -1,17 +1,27 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 
-import { TerminalLaunchV1_1Schema, type TerminalLaunchV1_1 } from '@orchbee/terminal-protocol';
+import {
+	DEFAULT_TERMINAL_CONFIGURATION,
+	TerminalConfigurationSchema,
+	TerminalLaunchSchema,
+	type TerminalConfiguration,
+	type TerminalLaunch,
+} from '@orchbee/terminal-protocol';
 
 import { createDefaultTerminalProfile } from '../host';
 
 export interface DesktopRuntimeEnvironment {
+	readonly LANG?: string;
+	readonly LC_ALL?: string;
+	readonly LC_CTYPE?: string;
 	readonly ORCHBEE_DESKTOP_ENDPOINT_ID?: string;
 	readonly ORCHBEE_DESKTOP_GATEWAY?: string;
 	readonly ORCHBEE_DESKTOP_RECOVERY_DIRECTORY?: string;
 	readonly ORCHBEE_DESKTOP_RUNTIME_DIRECTORY?: string;
 	readonly ORCHBEE_GATEWAY_ENTRY_PATH?: string;
 	readonly ORCHBEE_TERMINAL_HOST_BINARY?: string;
+	readonly ORCHBEE_TERMINAL_SCROLLBACK_BYTES?: string;
 	readonly SHELL?: string;
 	readonly ComSpec?: string;
 }
@@ -24,6 +34,7 @@ export interface DesktopRuntimeConfigurationInput {
 	readonly applicationPath: string;
 	readonly environment: DesktopRuntimeEnvironment;
 	readonly homeDirectory: string;
+	readonly packagedResourcesPath?: string | undefined;
 	readonly platform: NodeJS.Platform;
 	readonly userDataPath: string;
 }
@@ -34,36 +45,62 @@ export interface DesktopRuntimeConfiguration {
 	readonly gateway: DesktopGatewayRuntimeConfiguration;
 	readonly runtimeDirectory: string;
 	readonly terminalBindingStorePath: string;
-	readonly terminalLaunch: TerminalLaunchV1_1;
+	readonly terminalExitPublicationLedgerPath: string;
+	readonly terminalExitSpillPath: string;
+	readonly terminalConfiguration: TerminalConfiguration;
+	readonly terminalLaunch: TerminalLaunch;
 	readonly workbenchDocumentStorePath: string;
 }
 
 export function resolveDesktopRuntimeConfiguration(
 	input: DesktopRuntimeConfigurationInput,
 ): DesktopRuntimeConfiguration {
-	const binaryName = input.platform === 'win32' ? 'terminal-host.exe' : 'terminal-host';
+	const binaryName =
+		input.platform === 'win32' ? 'orchbee-terminal-host.exe' : 'orchbee-terminal-host';
 	const configuredBinary = input.environment.ORCHBEE_TERMINAL_HOST_BINARY;
 	const configuredRuntimeDirectory = input.environment.ORCHBEE_DESKTOP_RUNTIME_DIRECTORY;
-	const binaryPath = configuredBinary
-		? path.resolve(configuredBinary)
-		: path.resolve(input.applicationPath, '..', 'terminal-host', 'zig-out', 'bin', binaryName);
+	const productScopeDigest = createHash('sha256')
+		.update('orchbee-terminal-host-product-scope-v1\0')
+		.update(input.userDataPath)
+		.digest('hex');
+	let binaryPath: string;
+	if (configuredBinary !== undefined) {
+		binaryPath = path.resolve(configuredBinary);
+	} else if (input.packagedResourcesPath !== undefined) {
+		binaryPath = path.resolve(input.packagedResourcesPath, binaryName);
+	} else {
+		binaryPath = path.resolve(
+			input.applicationPath,
+			'..',
+			'terminal-host',
+			'zig-out',
+			'bin',
+			binaryName,
+		);
+	}
 	let runtimeDirectory: string;
 	if (configuredRuntimeDirectory !== undefined) {
 		runtimeDirectory = path.resolve(configuredRuntimeDirectory);
 	} else if (input.platform === 'win32') {
 		runtimeDirectory = path.join(input.userDataPath, 'terminal-host');
 	} else {
-		runtimeDirectory = path.join(
-			'/tmp',
-			`orchbee-desktop-${createHash('sha256').update(input.homeDirectory).digest('hex').slice(0, 12)}`,
-		);
+		runtimeDirectory = path.join('/tmp', `orchbee-desktop-${productScopeDigest.slice(0, 12)}`);
 	}
 	const endpointId =
-		input.environment.ORCHBEE_DESKTOP_ENDPOINT_ID ??
-		createHash('sha256')
-			.update('orchbee-desktop-development-endpoint-v1')
-			.digest('hex')
-			.slice(0, 32);
+		input.environment.ORCHBEE_DESKTOP_ENDPOINT_ID ?? productScopeDigest.slice(0, 32);
+	const configuredScrollbackBytes = input.environment.ORCHBEE_TERMINAL_SCROLLBACK_BYTES;
+	let terminalConfiguration = DEFAULT_TERMINAL_CONFIGURATION;
+	if (configuredScrollbackBytes !== undefined) {
+		if (!/^(?:0|[1-9][0-9]*)$/u.test(configuredScrollbackBytes)) {
+			throw new Error('ORCHBEE_TERMINAL_SCROLLBACK_BYTES must be a decimal byte count.');
+		}
+		const scrollbackBytes = Number(configuredScrollbackBytes);
+		const parsed = TerminalConfigurationSchema.safeParse({ scrollbackBytes });
+		if (!parsed.success) {
+			throw new Error('ORCHBEE_TERMINAL_SCROLLBACK_BYTES exceeds the supported range.');
+		}
+		terminalConfiguration = parsed.data;
+	}
 	const executable =
 		input.platform === 'win32'
 			? (input.environment.ComSpec ?? 'C:\\Windows\\System32\\cmd.exe')
@@ -86,6 +123,10 @@ export function resolveDesktopRuntimeConfiguration(
 					kind: 'enabled',
 				}
 			: { kind: 'disabled' };
+	const terminalLocaleEnvironment = resolveTerminalLocaleEnvironment(
+		input.environment,
+		input.platform,
+	);
 
 	return {
 		binaryPath,
@@ -93,15 +134,23 @@ export function resolveDesktopRuntimeConfiguration(
 		gateway,
 		runtimeDirectory,
 		terminalBindingStorePath: path.join(recoveryDirectory, 'bindings-v3.json'),
-		terminalLaunch: TerminalLaunchV1_1Schema.parse({
+		terminalExitPublicationLedgerPath: path.join(
+			recoveryDirectory,
+			'terminal-exit-publications-v1.json',
+		),
+		terminalExitSpillPath: path.join(recoveryDirectory, 'terminal-exits-v1.json'),
+		terminalConfiguration,
+		terminalLaunch: TerminalLaunchSchema.parse({
 			arguments: [],
 			cellPixelHeight: 16,
 			cellPixelWidth: 8,
 			columns: 80,
+			configuration: null,
 			currentDirectory: input.homeDirectory,
 			environment: [
 				{ name: 'COLORTERM', value: 'truecolor' },
 				{ name: 'TERM', value: 'xterm-256color' },
+				...terminalLocaleEnvironment,
 			],
 			executable,
 			rows: 24,
@@ -109,4 +158,42 @@ export function resolveDesktopRuntimeConfiguration(
 		}),
 		workbenchDocumentStorePath: path.join(recoveryDirectory, 'workbench-shared-document-v1.json'),
 	};
+}
+
+function resolveTerminalLocaleEnvironment(
+	environment: DesktopRuntimeEnvironment,
+	platform: NodeJS.Platform,
+): TerminalLaunch['environment'] {
+	if (platform === 'win32') return [];
+
+	const effectiveLocale =
+		nonEmpty(environment.LC_ALL) ??
+		nonEmpty(environment.LC_CTYPE) ??
+		nonEmpty(environment.LANG);
+	if (effectiveLocale !== undefined && isSupportedUtf8Locale(effectiveLocale, platform)) {
+		return [];
+	}
+
+	const fallbackLocale = platform === 'darwin' ? 'en_US.UTF-8' : 'C.UTF-8';
+	return [
+		...(nonEmpty(environment.LC_ALL) === undefined
+			? []
+			: [{ name: 'LC_ALL', value: null } as const]),
+		{ name: 'LC_CTYPE', value: fallbackLocale },
+	];
+}
+
+function nonEmpty(value: string | undefined): string | undefined {
+	return value === undefined || value.length === 0 ? undefined : value;
+}
+
+function isSupportedUtf8Locale(value: string, platform: NodeJS.Platform): boolean {
+	const localeWithoutModifier = value.split('@', 1)[0];
+	if (localeWithoutModifier === undefined || !/(?:^|\.)utf-?8$/iu.test(localeWithoutModifier)) {
+		return false;
+	}
+
+	return !(
+		platform === 'darwin' && localeWithoutModifier.replaceAll('-', '').toLowerCase() === 'c.utf8'
+	);
 }

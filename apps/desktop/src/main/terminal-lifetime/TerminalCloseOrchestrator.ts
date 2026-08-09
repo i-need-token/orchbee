@@ -3,10 +3,12 @@ import {
 	MessageKind,
 	TerminalAcknowledgedSchema,
 	TerminalExitedSchema,
+	TerminalFailedSchema,
 	TerminalPhase,
 	TerminalTargetSchema,
 	type DecodedProtocolEnvelope,
 	type TerminalExited,
+	type TerminalFailed,
 	type TerminalIdentity,
 } from '@orchbee/terminal-protocol';
 
@@ -40,6 +42,8 @@ export interface TerminalCloseOrchestratorDependencies {
 
 export interface TerminalExitDisposition {
 	readonly handled: boolean;
+	/** Present and false when exit persistence was unavailable after close routing declined it. */
+	readonly durable?: boolean;
 	readonly outcome?: TerminalCloseOutcome;
 }
 
@@ -75,7 +79,7 @@ export class TerminalCloseOrchestrator {
 			return this.#removeBinding();
 		}
 
-		const exits = new TerminalExitObservation(this.#host, binding.creationId);
+		const outcomes = new TerminalOutcomeObservation(this.#host, binding.creationId);
 		const closure = new HostCloseObservation(this.#host);
 		try {
 			if (binding.state.kind === 'create-requested') {
@@ -88,7 +92,7 @@ export class TerminalCloseOrchestrator {
 				await retireProjection();
 				const outcome = await this.#driveTerminalClose(
 					{ ...plan, binding: toClosingBinding(plan.binding, plan.identity) },
-					exits,
+					outcomes,
 					closure,
 				);
 				return outcome;
@@ -104,14 +108,14 @@ export class TerminalCloseOrchestrator {
 			const inventory = await readTerminalInventory(this.#host);
 			const plan = planTerminalBindingClose(closingBinding, inventory, this.#host.hostEpoch);
 			if (plan.kind !== 'close-terminal') return this.#finishNonTerminalPlan(plan);
-			const outcome = await this.#driveTerminalClose(plan, exits, closure);
+			const outcome = await this.#driveTerminalClose(plan, outcomes, closure);
 			return outcome;
 		} catch (error) {
 			await Promise.resolve();
 			if (closure.closed) return { kind: 'pending', reason: 'transport-unavailable' };
 			throw error;
 		} finally {
-			exits.dispose();
+			outcomes.dispose();
 			closure.dispose();
 		}
 	}
@@ -121,6 +125,7 @@ export class TerminalCloseOrchestrator {
 		if (loaded.kind === 'unavailable') {
 			return {
 				handled: true,
+				durable: false,
 				outcome: { kind: 'store-unavailable', reason: loaded.reason },
 			};
 		}
@@ -134,9 +139,12 @@ export class TerminalCloseOrchestrator {
 		}
 		const closure = new HostCloseObservation(this.#host);
 		try {
+			const outcome = await this.#disposeTerminal(event.identity, closure);
+			const durable = outcome.kind !== 'pending' && outcome.kind !== 'store-unavailable';
 			return {
 				handled: true,
-				outcome: await this.#disposeTerminal(event.identity, closure),
+				...(durable ? {} : { durable: false }),
+				outcome,
 			};
 		} finally {
 			closure.dispose();
@@ -145,17 +153,18 @@ export class TerminalCloseOrchestrator {
 
 	async #driveTerminalClose(
 		plan: Extract<TerminalClosePlan, { readonly kind: 'close-terminal' }>,
-		exits: TerminalExitObservation,
+		outcomes: TerminalOutcomeObservation,
 		closure: HostCloseObservation,
 		refreshCount = 0,
 	): Promise<TerminalCloseOutcome> {
-		if (exits.has(plan.identity) || plan.summary.phase === TerminalPhase.exited) {
+		if (
+			outcomes.has(plan.identity) ||
+			plan.summary.phase === TerminalPhase.exited ||
+			plan.summary.phase === TerminalPhase.failed
+		) {
 			return this.#disposeTerminal(plan.identity, closure);
 		}
-		if (
-			plan.summary.phase === TerminalPhase.starting ||
-			(plan.summary.phase === TerminalPhase.finishing && !plan.summary.terminateRequested)
-		) {
+		if (plan.summary.phase === TerminalPhase.finishing && !plan.summary.terminateRequested) {
 			return { kind: 'pending', reason: 'terminal-not-running' };
 		}
 
@@ -163,32 +172,34 @@ export class TerminalCloseOrchestrator {
 			try {
 				await this.#requestTerminalLifecycle(MessageKind.terminateTerminal, plan.identity);
 			} catch (error) {
-				return this.#recoverRejectedMutation(error, plan.binding, exits, closure, refreshCount);
+				return this.#recoverRejectedMutation(error, plan.binding, outcomes, closure, refreshCount);
 			}
-			if (exits.has(plan.identity)) return this.#disposeTerminal(plan.identity, closure);
+			if (outcomes.has(plan.identity)) return this.#disposeTerminal(plan.identity, closure);
 		}
 
-		const graceResult = await Promise.race([
-			exits.waitFor(plan.identity).then(() => 'exit' as const),
-			closure.wait().then(() => 'closed' as const),
-			this.#waitForGracePeriod().then(() => 'grace' as const),
-		]);
-		if (graceResult === 'exit') return this.#disposeTerminal(plan.identity, closure);
-		if (graceResult === 'closed') {
-			return { kind: 'pending', reason: 'transport-unavailable' };
+		if (plan.summary.phase !== TerminalPhase.containingFailure) {
+			const graceResult = await Promise.race([
+				outcomes.waitFor(plan.identity).then(() => 'outcome' as const),
+				closure.wait().then(() => 'closed' as const),
+				this.#waitForGracePeriod().then(() => 'grace' as const),
+			]);
+			if (graceResult === 'outcome') return this.#disposeTerminal(plan.identity, closure);
+			if (graceResult === 'closed') {
+				return { kind: 'pending', reason: 'transport-unavailable' };
+			}
 		}
 
 		try {
 			await this.#requestTerminalLifecycle(MessageKind.forceTerminateTerminal, plan.identity);
 		} catch (error) {
-			return this.#recoverRejectedMutation(error, plan.binding, exits, closure, refreshCount);
+			return this.#recoverRejectedMutation(error, plan.binding, outcomes, closure, refreshCount);
 		}
-		if (exits.has(plan.identity)) return this.#disposeTerminal(plan.identity, closure);
-		const exitResult = await Promise.race([
-			exits.waitFor(plan.identity).then(() => 'exit' as const),
+		if (outcomes.has(plan.identity)) return this.#disposeTerminal(plan.identity, closure);
+		const outcomeResult = await Promise.race([
+			outcomes.waitFor(plan.identity).then(() => 'outcome' as const),
 			closure.wait().then(() => 'closed' as const),
 		]);
-		return exitResult === 'exit'
+		return outcomeResult === 'outcome'
 			? this.#disposeTerminal(plan.identity, closure)
 			: { kind: 'pending', reason: 'transport-unavailable' };
 	}
@@ -196,7 +207,7 @@ export class TerminalCloseOrchestrator {
 	async #recoverRejectedMutation(
 		error: unknown,
 		binding: TerminalBinding,
-		exits: TerminalExitObservation,
+		outcomes: TerminalOutcomeObservation,
 		closure: HostCloseObservation,
 		refreshCount: number,
 	): Promise<TerminalCloseOutcome> {
@@ -212,7 +223,7 @@ export class TerminalCloseOrchestrator {
 		const inventory = await readTerminalInventory(this.#host);
 		const plan = planTerminalBindingClose(binding, inventory, this.#host.hostEpoch);
 		if (plan.kind !== 'close-terminal') return this.#finishNonTerminalPlan(plan);
-		return this.#driveTerminalClose(plan, exits, closure, refreshCount + 1);
+		return this.#driveTerminalClose(plan, outcomes, closure, refreshCount + 1);
 	}
 
 	async #disposeTerminal(
@@ -239,7 +250,6 @@ export class TerminalCloseOrchestrator {
 		const acknowledged = await this.#host.requestControl(
 			kind,
 			TerminalTargetSchema.parse({ terminalId: identity.terminalId }),
-			kind,
 			TerminalAcknowledgedSchema,
 		);
 		if (acknowledged.terminalId !== identity.terminalId) {
@@ -308,11 +318,13 @@ class HostCloseObservation {
 	}
 }
 
-class TerminalExitObservation {
-	readonly #events = new Map<string, TerminalExited>();
+type TerminalOutcome = TerminalExited | TerminalFailed;
+
+class TerminalOutcomeObservation {
+	readonly #events = new Map<string, TerminalOutcome>();
 	readonly #removeListener: () => void;
 	readonly #targetCreationId: TerminalIdentity['creationId'];
-	readonly #waiters = new Map<string, (event: TerminalExited) => void>();
+	readonly #waiters = new Map<string, (event: TerminalOutcome) => void>();
 
 	constructor(host: HostConnection, targetCreationId: TerminalIdentity['creationId']) {
 		this.#targetCreationId = targetCreationId;
@@ -329,7 +341,7 @@ class TerminalExitObservation {
 		return event !== undefined && identitiesEqual(event.identity, identity);
 	}
 
-	waitFor(identity: TerminalIdentity): Promise<TerminalExited> {
+	waitFor(identity: TerminalIdentity): Promise<TerminalOutcome> {
 		const key = identityKey(identity);
 		const existing = this.#events.get(key);
 		if (existing !== undefined && identitiesEqual(existing.identity, identity)) {
@@ -339,12 +351,22 @@ class TerminalExitObservation {
 	}
 
 	#handleEnvelope(envelope: DecodedProtocolEnvelope): void {
-		if (envelope.kind !== MessageKind.terminalExited) return;
-		const decoded = decodeControlJson(envelope.payload, TerminalExitedSchema);
-		if (!decoded.ok || decoded.value.identity.creationId !== this.#targetCreationId) return;
-		const key = identityKey(decoded.value.identity);
-		this.#events.set(key, decoded.value);
-		this.#waiters.get(key)?.(decoded.value);
+		if (envelope.kind === MessageKind.terminalExited) {
+			const decoded = decodeControlJson(envelope.payload, TerminalExitedSchema);
+			if (decoded.ok) this.#recordOutcome(decoded.value);
+			return;
+		}
+		if (envelope.kind === MessageKind.terminalFailed) {
+			const decoded = decodeControlJson(envelope.payload, TerminalFailedSchema);
+			if (decoded.ok) this.#recordOutcome(decoded.value);
+		}
+	}
+
+	#recordOutcome(outcome: TerminalOutcome): void {
+		if (outcome.identity.creationId !== this.#targetCreationId) return;
+		const key = identityKey(outcome.identity);
+		this.#events.set(key, outcome);
+		this.#waiters.get(key)?.(outcome);
 		this.#waiters.delete(key);
 	}
 }

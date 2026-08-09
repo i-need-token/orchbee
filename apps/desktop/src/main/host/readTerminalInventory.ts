@@ -1,10 +1,10 @@
 import {
-	ListTerminalsV1_3Schema,
+	ListTerminalsSchema,
 	MessageKind,
 	PROTOCOL_LIMITS,
-	TerminalListV1_3Schema,
+	TerminalListSchema,
 	type TerminalInventoryCursor,
-	type TerminalListV1_3,
+	type TerminalList,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
 
@@ -20,14 +20,13 @@ export async function readTerminalInventory(
 	let cursor: TerminalInventoryCursor | null = null;
 	let inventoryGeneration: string | undefined;
 	do {
-		const page: TerminalListV1_3 = await host.requestControl(
+		const page: TerminalList = await host.requestControl(
 			MessageKind.listTerminals,
-			ListTerminalsV1_3Schema.parse({
+			ListTerminalsSchema.parse({
 				cursor,
 				maximumTerminals: PROTOCOL_LIMITS.maxInventoryPageTerminals,
 			}),
-			MessageKind.listTerminals,
-			TerminalListV1_3Schema,
+			TerminalListSchema,
 		);
 		if (inventoryGeneration !== undefined && page.inventoryGeneration !== inventoryGeneration) {
 			throw new Error('Terminal inventory changed generation within one scan.');

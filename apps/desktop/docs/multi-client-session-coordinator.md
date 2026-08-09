@@ -66,6 +66,18 @@ DesktopClientSessionCoordinator
     └── attachment-session disposal capability
 ```
 
+The surrounding Desktop Main composition owns the cross-boundary cleanup and exit-delivery owners:
+
+```text
+Desktop Main lifecycle/projection owners
+├── bounded TerminalExited retry queue (identity + newest revision)
+├── durable pending-journal/rejection owner (queue-full, association, shutdown, unknown)
+├── separate durable publication ledger (identity + newest published revision)
+├── pending Host detach set for post-attach failures
+├── active projection leases and resize ownership
+└── retiring ClientSession records with retryable attachment disposal
+```
+
 `ClientSessionId` and event sequence are Main-lifetime identities. They are never stored in the
 shared document or recovery files. Client View and terminal viewport state remain page-local.
 `TerminalId`, Binding identity, PTY/VT state, history, and process state remain Terminal Host or
@@ -155,7 +167,9 @@ Network transport backpressure and resynchronization are Gateway responsibilitie
 ## Disconnect and projection policy
 
 Closing either required session-control capability retires the page session, stops later requests,
-and awaits disposal of that session's attachment leases. A proposal already validated and accepted
+and awaits disposal of that session's attachment leases. A failed disposal leaves the session in
+Main's retiring set and is retried by a later retirement or coordinator disposal; it is not converted
+to a completed release. A proposal already validated and accepted
 by Main may finish after its initiator disconnects; its durable result is published to remaining
 sessions. A queued but unaccepted client request is discarded.
 
@@ -196,8 +210,32 @@ application. An ordinary page close is never application quit.
   document, existing Host processes, and already-open projections.
 - One malformed, stale, disconnected, or blocked client never retires another client.
 - A publication failure retires only its target session.
-- A terminal-effect failure becomes one matching presentation observation; it does not relabel the
-  durable intent or retry without an explicit new operation/restart reconciliation.
+- A terminal-exit publication that reaches some sessions and fails on another retains one sequence
+  and retries only sessions that have not accepted that exact event; successful sessions are not
+  replayed and a retry does not allocate a sequence gap.
+- An exit durability or association failure is a typed retryable outcome. Before the Host listener
+  returns, Desktop Main synchronously admits every accepted `TerminalExited` to the owner-only durable
+  pending journal. The bounded 64-entry in-memory retry queue is only a scheduler/cache; it is not the
+  crash-recovery owner, and the current Host event envelope still has no acknowledgement/redelivery
+  field. The pending journal, publication ledger, and durable rejection journal have independent
+  capacities. Queue-full and shutdown entries can be promoted for retry; an association-pending or
+  unknown identity is parked until the exact identity is observed and then promoted. Unknown entries
+  do not receive an unbounded timer retry loop. Pending ownership is removed only after the runtime
+  result, adapter commit, publication-ledger admission, reconciler visibility, and live publication
+  have succeeded. Pending-journal full/write failure records a durable rejection when possible and
+  otherwise fails closed; it is never represented only by a trace message. A bootstrap reads only the
+  reconciler's committed visible observations, not a pending reservation or an uncommitted ledger
+  attempt.
+- The Workbench terminal-presentation publication is Main's only lifecycle publication. An attachment's
+  `ProjectedTerminalBroker` may forward a separate identity-checked raw `terminal-exited` or
+  `terminal-failed` transport notification with monotonic per-attachment revision filtering. That
+  notification is not a coordinator sequence event and is not an exactly-once claim across the two
+  channels. Main records `terminal-failed` as the retained presentation outcome before broadcasting
+  it; a failed session is read-only and remains explicitly closable. Failure recovery comes from the
+  surviving Host's inventory rather than the exit-specific spill and publication ledgers.
+- Projection cleanup failures are retained by the service-level lease/detach owner. Renderer port-close,
+  malformed-control, postMessage, session-retirement, and post-attach factory/start failures converge
+  through later release, retirement, or dispose retry; a request is cleared only after detach succeeds.
 - No compatibility reader, alias, or migration is provided for the removed unshipped single-client
   IPC contract. The version-1 shared-document file format and path do not change.
 
@@ -225,3 +263,11 @@ Electron-plus-two-Browser trace covers Gateway authentication, independent page 
 canonical state, attachment disconnect/reconnect, Browser effects, and exact attachment
 backpressure recovery. Explicit resize-control transfer remains outside this contract. No
 throughput acceptance gate is added; the terminal frame hot path is unchanged.
+
+The terminal-recovery TLA+ model is intentionally narrower than the production coordinator: it is an
+owner-retention abstraction. Its finite live-publication failure counter makes failed attempts
+observable and preserves publication pending; live publication may succeed directly on the first
+attempt or later after failures, with a publication-count guard preventing duplicate handoff. It does
+not model session retirement, partial session delivery, sequence allocation, renderer, transport, or
+filesystem behavior, and passing TLC is bounded evidence rather than a proof of the production
+implementation.

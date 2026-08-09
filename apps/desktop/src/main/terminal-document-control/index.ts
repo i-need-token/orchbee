@@ -2,6 +2,7 @@ export { DesktopTerminalLifecycleAdapter } from './DesktopTerminalLifecycleAdapt
 export type {
 	DesktopTerminalBindingLifecyclePort,
 	DesktopTerminalBindingDrainResult,
+	DesktopTerminalExitRecordResult,
 	DesktopTerminalLifecycleAdapterDependencies,
 	DesktopTerminalLifecycleAdapterInitialization,
 	DesktopTerminalLifecycleOperations,

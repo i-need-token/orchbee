@@ -109,6 +109,8 @@ export type DesktopClientSessionRegistrationResult =
 
 interface ClientSessionRecord {
 	connected: boolean;
+	readonly terminalExitEventKeys: Set<string>;
+	retirementPromise: Promise<void> | undefined;
 	readonly publisher: DesktopClientSessionPublisher;
 	readonly requests: Map<
 		string,
@@ -123,6 +125,14 @@ export class DesktopClientSessionCoordinator {
 	#proposalTail = Promise.resolve();
 	#sequence = 0n;
 	readonly #sessions = new Map<string, ClientSessionRecord>();
+	readonly #retiringSessions = new Map<string, ClientSessionRecord>();
+	readonly #pendingTerminalExitPublications = new Map<
+		string,
+		Extract<
+			DesktopClientSessionPublication,
+			{ readonly type: 'terminal-presentation-event-published' }
+		>
+	>();
 	#started = false;
 	#unavailableReason: 'invalid' | 'read-failed' | 'write-failed' | undefined;
 	#startResult:
@@ -191,8 +201,15 @@ export class DesktopClientSessionCoordinator {
 			};
 		}
 		const clientSessionId = this.#allocateClientSessionId();
+		const terminalEvents = this.#dependencies.getTerminalEvents();
 		const record: ClientSessionRecord = {
 			connected: true,
+			terminalExitEventKeys: new Set(
+				terminalEvents
+					.filter((event) => event.type === 'terminal-exited')
+					.map(terminalExitEventKey),
+			),
+			retirementPromise: undefined,
 			publisher,
 			requests: new Map(),
 		};
@@ -205,7 +222,7 @@ export class DesktopClientSessionCoordinator {
 						initializationDocument: this.#dependencies.initializationDocument,
 						kind: 'missing',
 						sequence: this.#sequence.toString(),
-						terminalEvents: this.#dependencies.getTerminalEvents(),
+						terminalEvents,
 					}
 				: {
 						defaultCwd: this.#dependencies.defaultCwd,
@@ -214,7 +231,7 @@ export class DesktopClientSessionCoordinator {
 						initializationDocument: this.#dependencies.initializationDocument,
 						kind: 'available',
 						sequence: this.#sequence.toString(),
-						terminalEvents: this.#dependencies.getTerminalEvents(),
+						terminalEvents,
 					};
 		return {
 			handle: {
@@ -241,23 +258,51 @@ export class DesktopClientSessionCoordinator {
 	}
 
 	async dispose(): Promise<void> {
-		if (this.#phase.kind === 'disposed') return;
-		this.#phase = { kind: 'disposed' };
-		const sessionIds = [...this.#sessions.keys()];
-		await Promise.all(sessionIds.map(async (sessionId) => this.#retireSession(sessionId)));
+		if (this.#phase.kind !== 'disposed') this.#phase = { kind: 'disposed' };
+		const sessionIds = new Set([...this.#sessions.keys(), ...this.#retiringSessions.keys()]);
+		if (sessionIds.size === 0) return;
+		const results = await Promise.allSettled(
+			[...sessionIds].map(async (sessionId) => this.#retireSession(sessionId)),
+		);
+		const failure = results.find(
+			(result): result is PromiseRejectedResult => result.status === 'rejected',
+		);
+		if (failure !== undefined) throw failure.reason;
 	}
 
-	readonly publishTerminalEvent = (event: TerminalPresentationEvent): void => {
-		this.#broadcast({
-			event,
-			sequence: this.#nextSequence(),
-			type: 'terminal-presentation-event-published',
-		});
+	readonly publishTerminalEvent = (event: TerminalPresentationEvent): boolean => {
+		if (event.type !== 'terminal-exited') {
+			return this.#broadcast({
+				event,
+				sequence: this.#nextSequence(),
+				type: 'terminal-presentation-event-published',
+			});
+		}
+		if (this.#terminalEventIsCaughtUp(event)) {
+			this.#pendingTerminalExitPublications.delete(terminalExitEventKey(event));
+			return true;
+		}
+		const key = terminalExitEventKey(event);
+		const publication =
+			this.#pendingTerminalExitPublications.get(key) ??
+			({
+				event,
+				sequence: this.#nextSequence(),
+				type: 'terminal-presentation-event-published',
+			} as const);
+		this.#pendingTerminalExitPublications.set(key, publication);
+		const published = this.#broadcastTerminalExit(publication, key);
+		if (published) this.#pendingTerminalExitPublications.delete(key);
+		return published;
 	};
 
 	#allocateClientSessionId(): string {
 		const clientSessionId = this.#dependencies.createClientSessionId();
-		if (clientSessionId.length === 0 || this.#sessions.has(clientSessionId)) {
+		if (
+			clientSessionId.length === 0 ||
+			this.#sessions.has(clientSessionId) ||
+			this.#retiringSessions.has(clientSessionId)
+		) {
 			throw new Error('Desktop client session identity allocation conflicted.');
 		}
 		return clientSessionId;
@@ -281,7 +326,7 @@ export class DesktopClientSessionCoordinator {
 		const existing = session.requests.get(requestId);
 		if (existing !== undefined) {
 			if (existing.fingerprint === fingerprint) return existing.result;
-			void this.#retireSession(clientSessionId);
+			void this.#retireSession(clientSessionId).catch(() => undefined);
 			return Promise.resolve({
 				document: this.#canonicalDocument,
 				kind: 'rejected',
@@ -361,15 +406,57 @@ export class DesktopClientSessionCoordinator {
 		return { document: this.#canonicalDocument, kind: 'unavailable', reason };
 	}
 
-	#broadcast(publication: DesktopClientSessionPublication): void {
+	#broadcast(publication: DesktopClientSessionPublication): boolean {
+		let published = true;
+		const terminalEventKey =
+			publication.type === 'terminal-presentation-event-published' &&
+			publication.event.type === 'terminal-exited'
+				? terminalExitEventKey(publication.event)
+				: undefined;
 		for (const [clientSessionId, session] of this.#sessions) {
 			if (!session.connected) continue;
 			try {
 				session.publisher.publish(publication);
+				if (terminalEventKey !== undefined) {
+					session.terminalExitEventKeys.add(terminalEventKey);
+				}
 			} catch {
-				void this.#retireSession(clientSessionId);
+				published = false;
+				void this.#retireSession(clientSessionId).catch(() => undefined);
 			}
 		}
+		return published;
+	}
+
+	#broadcastTerminalExit(
+		publication: Extract<
+			DesktopClientSessionPublication,
+			{ readonly type: 'terminal-presentation-event-published' }
+		>,
+		key: string,
+	): boolean {
+		let published = true;
+		for (const [clientSessionId, session] of this.#sessions) {
+			if (!session.connected || session.terminalExitEventKeys.has(key)) continue;
+			try {
+				session.publisher.publish(publication);
+				session.terminalExitEventKeys.add(key);
+			} catch {
+				published = false;
+				void this.#retireSession(clientSessionId).catch(() => undefined);
+			}
+		}
+		return published;
+	}
+
+	#terminalEventIsCaughtUp(
+		event: Extract<TerminalPresentationEvent, { readonly type: 'terminal-exited' }>,
+	): boolean {
+		const key = terminalExitEventKey(event);
+		for (const session of this.#sessions.values()) {
+			if (session.connected && !session.terminalExitEventKeys.has(key)) return false;
+		}
+		return true;
 	}
 
 	#nextSequence(): string {
@@ -378,12 +465,39 @@ export class DesktopClientSessionCoordinator {
 	}
 
 	async #retireSession(clientSessionId: string): Promise<void> {
-		const session = this.#sessions.get(clientSessionId);
-		if (session === undefined || !session.connected) return;
-		session.connected = false;
-		this.#sessions.delete(clientSessionId);
-		await session.publisher.disposeAttachments().catch(() => undefined);
+		const session =
+			this.#sessions.get(clientSessionId) ?? this.#retiringSessions.get(clientSessionId);
+		if (session === undefined) return;
+		if (session.retirementPromise !== undefined) return session.retirementPromise;
+		if (session.connected) {
+			session.connected = false;
+			this.#sessions.delete(clientSessionId);
+			this.#retiringSessions.set(clientSessionId, session);
+		}
+		let disposal: Promise<void>;
+		try {
+			disposal = session.publisher.disposeAttachments();
+		} catch (error: unknown) {
+			disposal = Promise.reject(error);
+		}
+		const operation = disposal.then(
+			() => {
+				this.#retiringSessions.delete(clientSessionId);
+			},
+			(error: unknown) => {
+				session.retirementPromise = undefined;
+				throw error;
+			},
+		);
+		session.retirementPromise = operation;
+		return operation;
 	}
+}
+
+function terminalExitEventKey(
+	event: Extract<TerminalPresentationEvent, { readonly type: 'terminal-exited' }>,
+): string {
+	return JSON.stringify(event);
 }
 
 function resultFromDecision(

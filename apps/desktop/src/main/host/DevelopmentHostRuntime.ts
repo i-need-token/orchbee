@@ -3,6 +3,11 @@ import { chmod, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 
+import {
+	TerminalConfigurationSchema,
+	type TerminalConfiguration,
+} from '@orchbee/terminal-protocol';
+
 import { HostConnection } from './HostConnection';
 
 const DEFAULT_CONNECTION_ATTEMPTS = 250;
@@ -16,6 +21,7 @@ export interface DevelopmentHostRuntimeOptions {
 	readonly platform?: NodeJS.Platform;
 	readonly retryDelayMilliseconds?: number;
 	readonly runtimeDirectory: string;
+	readonly terminalDefaults: TerminalConfiguration;
 }
 
 export interface DevelopmentHostRuntimeDependencies {
@@ -56,6 +62,7 @@ export class DevelopmentHostRuntime {
 	readonly #platform: NodeJS.Platform;
 	readonly #retryDelayMilliseconds: number;
 	readonly #runtimeDirectory: string;
+	readonly #terminalDefaults: TerminalConfiguration;
 
 	constructor(
 		options: DevelopmentHostRuntimeOptions,
@@ -78,6 +85,7 @@ export class DevelopmentHostRuntime {
 		this.#retryDelayMilliseconds =
 			options.retryDelayMilliseconds ?? DEFAULT_RETRY_DELAY_MILLISECONDS;
 		this.#runtimeDirectory = options.runtimeDirectory;
+		this.#terminalDefaults = TerminalConfigurationSchema.parse(options.terminalDefaults);
 		if (this.#attempts < 1) throw new Error('At least one Host connection attempt is required.');
 		if (this.#retryDelayMilliseconds < 0) {
 			throw new Error('Host connection retry delay must not be negative.');
@@ -101,6 +109,8 @@ export class DevelopmentHostRuntime {
 				this.#runtimeDirectory,
 				'--endpoint-id',
 				this.#endpointId,
+				'--scrollback-bytes',
+				String(this.#terminalDefaults.scrollbackBytes),
 			]);
 		}
 

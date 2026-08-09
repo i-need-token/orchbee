@@ -1,14 +1,14 @@
 import {
-	CreateTerminalV1_1Schema,
+	CreateTerminalSchema,
 	CreationIdSchema,
 	MessageKind,
 	TerminalIdentitySchema,
-	TerminalLaunchV1_1Schema,
+	TerminalLaunchSchema,
 	TerminalPhase,
 	type HostEpoch,
 	type TerminalExited,
 	type TerminalIdentity,
-	type TerminalLaunchV1_1,
+	type TerminalLaunch,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
 import {
@@ -34,15 +34,24 @@ import {
 
 export interface TerminalRecoveryCoordinatorDependencies {
 	readonly randomCreationId: () => string;
+	readonly onIdentityObserved?: (identity: TerminalIdentity) => void;
 }
+
+export type TerminalExitPersistenceResult =
+	| { readonly durable: true }
+	| {
+			readonly durable: false;
+			readonly reason: 'invalid' | 'read-failed' | 'write-failed';
+	  };
 
 export class TerminalRecoveryCoordinator {
 	readonly #bindingId: TerminalBindingId;
 	readonly #dependencies: TerminalRecoveryCoordinatorDependencies;
 	readonly #host: HostConnection;
-	readonly #launch: TerminalLaunchV1_1;
+	readonly #launch: TerminalLaunch;
 	readonly #presentationId: TerminalPresentationId;
 	readonly #store: TerminalBindingStore;
+	#associatedIdentity: TerminalIdentity | null = null;
 
 	constructor(
 		host: HostConnection,
@@ -53,7 +62,7 @@ export class TerminalRecoveryCoordinator {
 		this.#host = host;
 		this.#store = store;
 		this.#bindingId = TerminalBindingIdSchema.parse(configuration.bindingId);
-		this.#launch = TerminalLaunchV1_1Schema.parse(configuration.launch);
+		this.#launch = TerminalLaunchSchema.parse(configuration.launch);
 		this.#presentationId = TerminalPresentationIdSchema.parse(configuration.presentationId);
 		this.#dependencies = dependencies;
 	}
@@ -108,27 +117,55 @@ export class TerminalRecoveryCoordinator {
 		}
 	}
 
-	async recordExit(event: TerminalExited): Promise<void> {
+	async recordExit(event: TerminalExited): Promise<TerminalExitPersistenceResult | void> {
 		const loaded = await this.#store.load();
-		if (loaded.kind !== 'available') return;
+		if (loaded.kind === 'unavailable') {
+			return { durable: false, reason: loaded.reason };
+		}
+		if (loaded.kind === 'missing') return { durable: true };
 		const binding = findTerminalBinding(loaded.document, this.#bindingId);
+		let bindingIdentity: TerminalIdentity | null;
+		if (binding === undefined) {
+			bindingIdentity = null;
+		} else if (binding.state.kind === 'create-requested') {
+			const associatedIdentity = this.#associatedIdentity;
+			bindingIdentity =
+				associatedIdentity !== null &&
+				associatedIdentity.creationId === binding.creationId &&
+				associatedIdentity.hostEpoch === binding.state.hostEpoch
+					? associatedIdentity
+					: null;
+		} else {
+			bindingIdentity = terminalBindingIdentity(binding);
+		}
 		if (
 			binding === undefined ||
 			binding.state.kind === 'closing' ||
 			binding.state.kind === 'lost' ||
-			!identitiesEqual(terminalBindingIdentity(binding), event.identity)
+			!identitiesEqual(bindingIdentity, event.identity)
 		) {
-			return;
+			return { durable: true };
 		}
-		await this.#store.put({
-			...binding,
-			state: {
-				exit: event.exit,
-				finalRevision: event.finalRevision,
-				identity: event.identity,
-				kind: 'exited',
-			},
-		});
+		if (
+			binding.state.kind === 'exited' &&
+			BigInt(event.finalRevision) <= BigInt(binding.state.finalRevision)
+		) {
+			return { durable: true };
+		}
+		try {
+			await this.#store.put({
+				...binding,
+				state: {
+					exit: event.exit,
+					finalRevision: event.finalRevision,
+					identity: event.identity,
+					kind: 'exited',
+				},
+			});
+			return { durable: true };
+		} catch {
+			return { durable: false, reason: 'write-failed' };
+		}
 	}
 
 	async #reconcilePlanned(
@@ -191,11 +228,10 @@ export class TerminalRecoveryCoordinator {
 		try {
 			identity = await this.#host.requestControl(
 				MessageKind.createTerminal,
-				CreateTerminalV1_1Schema.parse({
+				CreateTerminalSchema.parse({
 					creationId: binding.creationId,
 					launch: binding.launch,
 				}),
-				MessageKind.createTerminal,
 				TerminalIdentitySchema,
 			);
 		} catch (error) {
@@ -207,6 +243,7 @@ export class TerminalRecoveryCoordinator {
 		if (identity.creationId !== binding.creationId || identity.hostEpoch !== this.#host.hostEpoch) {
 			return { kind: 'conflict', reason: 'identity-conflict' };
 		}
+		this.#observeIdentity(identity);
 		const retained: TerminalBinding = {
 			...binding,
 			state: { identity, kind: 'retained' },
@@ -231,11 +268,10 @@ export class TerminalRecoveryCoordinator {
 		try {
 			identity = await this.#host.requestControl(
 				MessageKind.createTerminal,
-				CreateTerminalV1_1Schema.parse({
+				CreateTerminalSchema.parse({
 					creationId: binding.creationId,
 					launch: binding.launch,
 				}),
-				MessageKind.createTerminal,
 				TerminalIdentitySchema,
 			);
 		} catch (error) {
@@ -249,6 +285,7 @@ export class TerminalRecoveryCoordinator {
 		if (summary.phase === TerminalPhase.exited && summary.exit === null) {
 			return { kind: 'conflict', reason: 'identity-conflict' };
 		}
+		this.#observeIdentity(identity);
 		const state: TerminalBinding['state'] =
 			summary.phase === TerminalPhase.exited && summary.exit !== null
 				? {
@@ -294,6 +331,14 @@ export class TerminalRecoveryCoordinator {
 		} catch {
 			return false;
 		}
+	}
+
+	#observeIdentity(identity: TerminalIdentity): void {
+		if (this.#associatedIdentity !== null && !identitiesEqual(this.#associatedIdentity, identity)) {
+			throw new Error('Terminal Recovery Coordinator observed a conflicting Host identity.');
+		}
+		this.#associatedIdentity = identity;
+		this.#dependencies.onIdentityObserved?.(identity);
 	}
 }
 
