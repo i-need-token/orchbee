@@ -563,47 +563,13 @@ fn duplicateOptional(allocator: std.mem.Allocator, value: ?[:0]const u8) !?[]u8 
 
 pub const testing = if (@import("builtin").is_test) struct {
     pub const frame_byte_limit = max_frame_bytes;
-    pub const linkTableBoundaryFn = linkTableBoundary;
-    pub const repeatedLinkCountFn = repeatedLinkCount;
+    pub const link_cache_byte_limit = max_link_cache_bytes;
+    pub const link_entry_limit = max_frame_strings;
+    pub const link_value_byte_limit = max_string_bytes;
+    pub const LinkTableType = LinkTable;
+    pub const linkTableDeinitFn = LinkTable.deinit;
+    pub const linkTableInitFn = LinkTable.init;
+    pub const linkTableInternFn = LinkTable.intern;
+    pub const projection_source = @embedFile("projection.zig");
     pub const StringTableType = StringTable;
 } else struct {};
-
-fn linkTableBoundary(allocator: std.mem.Allocator) !void {
-    var aggregate = LinkTable.init(allocator);
-    defer aggregate.deinit();
-    var value: [max_string_bytes]u8 = undefined;
-    var aggregate_entry_count: usize = 0;
-    while (true) : (aggregate_entry_count += 1) {
-        @memset(&value, 'x');
-        const prefix = try std.fmt.bufPrint(value[0..8], "{d:0>8}", .{aggregate_entry_count});
-        std.debug.assert(prefix.len == 8);
-        _ = aggregate.intern(allocator, &value) catch |err| switch (err) {
-            error.ProjectionTooLarge => break,
-            else => return err,
-        };
-    }
-    try std.testing.expectEqual(aggregate_entry_count, aggregate.values.items.len);
-    try std.testing.expect(aggregate.byte_count <= max_link_cache_bytes);
-    try std.testing.expectEqual(max_link_cache_bytes, aggregate.byte_count);
-
-    var distinct = LinkTable.init(allocator);
-    defer distinct.deinit();
-    var small_value: [16]u8 = undefined;
-    for (0..max_frame_strings) |index| {
-        @memset(&small_value, ' ');
-        _ = try std.fmt.bufPrint(small_value[0..8], "{d:0>8}", .{index});
-        _ = try distinct.intern(allocator, &small_value);
-    }
-    @memset(&small_value, ' ');
-    _ = try std.fmt.bufPrint(small_value[0..8], "{d:0>8}", .{max_frame_strings});
-    try std.testing.expectError(error.ProjectionTooLarge, distinct.intern(allocator, &small_value));
-    try std.testing.expectEqual(max_frame_strings, distinct.values.items.len);
-}
-
-fn repeatedLinkCount(allocator: std.mem.Allocator) !usize {
-    var table = LinkTable.init(allocator);
-    defer table.deinit();
-    _ = try table.intern(allocator, "https://example.com");
-    _ = try table.intern(allocator, "https://example.com");
-    return table.values.items.len;
-}

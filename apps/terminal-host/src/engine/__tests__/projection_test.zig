@@ -5,9 +5,15 @@ const subject = @import("terminal-host-engine").testing.projection;
 
 const FrameKind = subject.FrameKind;
 const max_frame_bytes = subject.testing.frame_byte_limit;
+const max_link_cache_bytes = subject.testing.link_cache_byte_limit;
+const max_link_entries = subject.testing.link_entry_limit;
+const max_link_value_bytes = subject.testing.link_value_byte_limit;
+const LinkTable = subject.testing.LinkTableType;
+const linkTableDeinit = subject.testing.linkTableDeinitFn;
+const linkTableInit = subject.testing.linkTableInitFn;
+const linkTableIntern = subject.testing.linkTableInternFn;
 const Projection = subject.Projection;
 const StringTable = subject.testing.StringTableType;
-const linkTableBoundary = subject.testing.linkTableBoundaryFn;
 const AttachmentId = subject.AttachmentId;
 const HostEpoch = subject.HostEpoch;
 
@@ -166,9 +172,59 @@ test "projection omits invalid UTF-8 optional strings" {
 }
 
 test "projection interns repeated hyperlink URIs" {
-    try std.testing.expectEqual(@as(usize, 1), try subject.testing.repeatedLinkCountFn(std.testing.allocator));
+    try std.testing.expectEqual(@as(usize, 1), try repeatedLinkCount(std.testing.allocator));
 }
 
 test "projection link cache enforces aggregate and distinct-entry budgets" {
     try linkTableBoundary(std.testing.allocator);
+}
+
+test "production projection source excludes executable test scenarios" {
+    const source = subject.testing.projection_source;
+    inline for (.{ "std.testing", "linkTableBoundary", "repeatedLinkCount" }) |forbidden| {
+        try std.testing.expect(std.mem.indexOf(u8, source, forbidden) == null);
+    }
+}
+
+fn linkTableBoundary(allocator: std.mem.Allocator) !void {
+    var aggregate: LinkTable = linkTableInit(allocator);
+    defer linkTableDeinit(&aggregate);
+    var value: [max_link_value_bytes]u8 = undefined;
+    var aggregate_entry_count: usize = 0;
+    while (true) : (aggregate_entry_count += 1) {
+        @memset(&value, 'x');
+        const prefix = try std.fmt.bufPrint(value[0..8], "{d:0>8}", .{aggregate_entry_count});
+        std.debug.assert(prefix.len == 8);
+        _ = linkTableIntern(&aggregate, allocator, &value) catch |err| switch (err) {
+            error.ProjectionTooLarge => break,
+            else => return err,
+        };
+    }
+    try std.testing.expectEqual(aggregate_entry_count, aggregate.values.items.len);
+    try std.testing.expect(aggregate.byte_count <= max_link_cache_bytes);
+    try std.testing.expectEqual(max_link_cache_bytes, aggregate.byte_count);
+
+    var distinct: LinkTable = linkTableInit(allocator);
+    defer linkTableDeinit(&distinct);
+    var small_value: [16]u8 = undefined;
+    for (0..max_link_entries) |index| {
+        @memset(&small_value, ' ');
+        _ = try std.fmt.bufPrint(small_value[0..8], "{d:0>8}", .{index});
+        _ = try linkTableIntern(&distinct, allocator, &small_value);
+    }
+    @memset(&small_value, ' ');
+    _ = try std.fmt.bufPrint(small_value[0..8], "{d:0>8}", .{max_link_entries});
+    try std.testing.expectError(
+        error.ProjectionTooLarge,
+        linkTableIntern(&distinct, allocator, &small_value),
+    );
+    try std.testing.expectEqual(max_link_entries, distinct.values.items.len);
+}
+
+fn repeatedLinkCount(allocator: std.mem.Allocator) !usize {
+    var table: LinkTable = linkTableInit(allocator);
+    defer linkTableDeinit(&table);
+    _ = try linkTableIntern(&table, allocator, "https://example.com");
+    _ = try linkTableIntern(&table, allocator, "https://example.com");
+    return table.values.items.len;
 }
