@@ -1,8 +1,9 @@
 ---------------------- MODULE TerminalFrameBackpressure ----------------------
-EXTENDS Naturals, TLC
+EXTENDS FiniteSets, Naturals, TLC
 
 \* Refines runtime-model claims TH-006, TH-010, TH-011, and TH-012.
-\* Mutate, ResizeOrScreenSwitch, SetDemand, Capture, Emit, FrameApplied,
+\* Mutate, ResizeOrScreenSwitch, SetDemand, Capture, PrepareFrame,
+\* AcquireReadCommit, Emit, PublishFailure, ConfirmContainment, FrameApplied,
 \* NeedSnapshot, and Finalize model the canonical-state and delivery-flight
 \* transitions named by the package contract. Source-scoped input admission and
 \* reply priority are owned by TerminalInputBackpressure so independent queue
@@ -22,6 +23,7 @@ VARIABLES
   capturedGeneration,
   demand,
   blocked,
+  blockedRevision,
   acknowledgedRevision,
   acknowledgedGeneration,
   inFlight,
@@ -33,16 +35,24 @@ VARIABLES
   lastAppliedSequence,
   lastAbandonedSequence,
   pendingDirty,
-  forceSnapshot
+  forceSnapshot,
+  provisional,
+  commitGuard,
+  failurePublished,
+  containmentConfirmed,
+  handoffDuringUnconfirmed
 
 vars ==
   <<revision, generation, finalized, captured, capturedRevision,
-    capturedGeneration, demand, blocked, acknowledgedRevision,
+    capturedGeneration, demand, blocked, blockedRevision, acknowledgedRevision,
     acknowledgedGeneration, inFlight, frameBase, frameRevision,
     frameGeneration, frameSequence, nextSequence, lastAppliedSequence,
-    lastAbandonedSequence, pendingDirty, forceSnapshot>>
+    lastAbandonedSequence, pendingDirty, forceSnapshot, provisional,
+    commitGuard, failurePublished, containmentConfirmed,
+    handoffDuringUnconfirmed>>
 
 AnyDemand(demands) == \E attachment \in Attachments: demands[attachment]
+Readable == ~failurePublished \/ containmentConfirmed
 
 Init ==
   /\ revision = 0
@@ -53,6 +63,7 @@ Init ==
   /\ capturedGeneration = 1
   /\ demand = [attachment \in Attachments |-> FALSE]
   /\ blocked = [attachment \in Attachments |-> FALSE]
+  /\ blockedRevision = [attachment \in Attachments |-> None]
   /\ acknowledgedRevision = [attachment \in Attachments |-> None]
   /\ acknowledgedGeneration = [attachment \in Attachments |-> NoGeneration]
   /\ inFlight = [attachment \in Attachments |-> FALSE]
@@ -65,25 +76,34 @@ Init ==
   /\ lastAbandonedSequence = [attachment \in Attachments |-> 0]
   /\ pendingDirty = [attachment \in Attachments |-> FALSE]
   /\ forceSnapshot = [attachment \in Attachments |-> TRUE]
+  /\ provisional = [attachment \in Attachments |-> FALSE]
+  /\ commitGuard = {}
+  /\ failurePublished = FALSE
+  /\ containmentConfirmed = FALSE
+  /\ handoffDuringUnconfirmed = FALSE
 
 Mutate ==
   /\ ~finalized
+  /\ ~failurePublished
+  /\ commitGuard = {}
   /\ revision < MaxRevision
   /\ revision' = revision + 1
-  /\ blocked' = [attachment \in Attachments |-> FALSE]
   /\ pendingDirty' =
        [attachment \in Attachments |->
           IF demand[attachment] THEN TRUE ELSE pendingDirty[attachment]]
-  /\ forceSnapshot' = [attachment \in Attachments |->
-       IF blocked[attachment] THEN TRUE ELSE forceSnapshot[attachment]]
   /\ UNCHANGED <<generation, finalized, captured, capturedRevision,
-                  capturedGeneration, demand, acknowledgedRevision,
+                  capturedGeneration, demand, blocked, blockedRevision,
+                  acknowledgedRevision,
                   acknowledgedGeneration, inFlight, frameBase, frameRevision,
                   frameGeneration, frameSequence, nextSequence,
-                  lastAppliedSequence, lastAbandonedSequence>>
+                  lastAppliedSequence, lastAbandonedSequence, forceSnapshot,
+                  provisional, commitGuard, failurePublished,
+                  containmentConfirmed, handoffDuringUnconfirmed>>
 
 ResizeOrScreenSwitch ==
   /\ ~finalized
+  /\ ~failurePublished
+  /\ commitGuard = {}
   /\ revision < MaxRevision
   /\ generation < MaxGeneration
   /\ revision' = revision + 1
@@ -93,15 +113,18 @@ ResizeOrScreenSwitch ==
        [attachment \in Attachments |->
           IF demand[attachment] THEN TRUE ELSE pendingDirty[attachment]]
   /\ forceSnapshot' = [attachment \in Attachments |-> TRUE]
-  /\ blocked' = [attachment \in Attachments |-> FALSE]
   /\ UNCHANGED <<finalized, capturedRevision, capturedGeneration, demand,
+                  blocked, blockedRevision,
                   acknowledgedRevision, acknowledgedGeneration, inFlight,
                   frameBase, frameRevision, frameGeneration, frameSequence,
-                  nextSequence, lastAppliedSequence, lastAbandonedSequence>>
+                  nextSequence, lastAppliedSequence, lastAbandonedSequence,
+                  provisional, commitGuard, failurePublished,
+                  containmentConfirmed, handoffDuringUnconfirmed>>
 
 SetDemand(attachment, active) ==
   /\ attachment \in Attachments
   /\ active \in BOOLEAN
+  /\ commitGuard = {}
   /\ LET nextDemand == [demand EXCEPT ![attachment] = active]
          becomingActive == active /\ ~demand[attachment]
          becomingPaused == ~active /\ demand[attachment]
@@ -111,6 +134,9 @@ SetDemand(attachment, active) ==
        /\ blocked' = IF becomingActive \/ becomingPaused
                         THEN [blocked EXCEPT ![attachment] = FALSE]
                         ELSE blocked
+       /\ blockedRevision' = IF becomingActive \/ becomingPaused
+              THEN [blockedRevision EXCEPT ![attachment] = None]
+              ELSE blockedRevision
        /\ acknowledgedRevision' = IF becomingPaused
               THEN [acknowledgedRevision EXCEPT ![attachment] = None]
               ELSE acknowledgedRevision
@@ -131,17 +157,27 @@ SetDemand(attachment, active) ==
        /\ forceSnapshot' = IF becomingActive \/ becomingPaused
               THEN [forceSnapshot EXCEPT ![attachment] = TRUE]
               ELSE forceSnapshot
+       /\ provisional' = IF becomingActive \/ becomingPaused
+              THEN [provisional EXCEPT ![attachment] = FALSE]
+              ELSE provisional
   /\ UNCHANGED <<revision, generation, finalized, capturedRevision,
                   capturedGeneration, frameBase, frameRevision,
                   frameGeneration, frameSequence, nextSequence,
-                  lastAppliedSequence>>
+                  lastAppliedSequence, commitGuard, failurePublished,
+                  containmentConfirmed, handoffDuringUnconfirmed>>
 
-ReadyForCapture(attachment) ==
+ReadyForProjection(attachment) ==
   /\ demand[attachment]
   /\ pendingDirty[attachment]
   /\ ~inFlight[attachment]
   /\ ~blocked[attachment]
   /\ nextSequence[attachment] <= MaxSequence
+
+ReadyForCapture(attachment) ==
+  /\ ReadyForProjection(attachment)
+  /\ Readable
+  /\ ~provisional[attachment]
+  /\ commitGuard = {}
 
 Capture ==
   /\ \E attachment \in Attachments: ReadyForCapture(attachment)
@@ -149,48 +185,103 @@ Capture ==
   /\ capturedRevision' = revision
   /\ capturedGeneration' = generation
   /\ UNCHANGED <<revision, generation, finalized, demand, blocked,
+                  blockedRevision,
                   acknowledgedRevision, acknowledgedGeneration, inFlight,
                   frameBase, frameRevision, frameGeneration, frameSequence,
                   nextSequence, lastAppliedSequence, lastAbandonedSequence,
-                  pendingDirty, forceSnapshot>>
+                  pendingDirty, forceSnapshot, provisional, commitGuard,
+                  failurePublished, containmentConfirmed,
+                  handoffDuringUnconfirmed>>
 
 CaptureFailure(attachment) ==
   /\ attachment \in Attachments
   /\ ReadyForCapture(attachment)
   /\ captured' = FALSE
   /\ blocked' = [blocked EXCEPT ![attachment] = TRUE]
+  /\ blockedRevision' = [blockedRevision EXCEPT ![attachment] = revision]
   /\ UNCHANGED <<revision, generation, finalized, capturedRevision,
                   capturedGeneration, demand, acknowledgedRevision,
                   acknowledgedGeneration, inFlight, frameBase, frameRevision,
                   frameGeneration, frameSequence, nextSequence,
                   lastAppliedSequence, lastAbandonedSequence,
-                  pendingDirty, forceSnapshot>>
+                  pendingDirty, forceSnapshot, provisional, commitGuard,
+                  failurePublished, containmentConfirmed,
+                  handoffDuringUnconfirmed>>
 
 ReadyToEncode(attachment) ==
-  /\ ReadyForCapture(attachment)
+  /\ ReadyForProjection(attachment)
   /\ captured
-  /\ capturedRevision = revision
-  /\ capturedGeneration = generation
+  /\ capturedRevision <= revision
+  /\ capturedGeneration <= generation
+  /\ ~provisional[attachment]
 
 EncodeFailure(attachment) ==
   /\ attachment \in Attachments
   /\ ReadyToEncode(attachment)
+  /\ Readable
   /\ blocked' = [blocked EXCEPT ![attachment] = TRUE]
+  /\ blockedRevision' =
+       [blockedRevision EXCEPT ![attachment] = capturedRevision]
   /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
                   capturedGeneration, demand, acknowledgedRevision,
                   acknowledgedGeneration, inFlight, frameBase, frameRevision,
                   frameGeneration, frameSequence, nextSequence,
                   lastAppliedSequence, lastAbandonedSequence,
-                  pendingDirty, forceSnapshot>>
+                  pendingDirty, forceSnapshot, provisional, commitGuard,
+                  failurePublished, containmentConfirmed,
+                  handoffDuringUnconfirmed>>
+
+PrepareFrame(attachment) ==
+  /\ attachment \in Attachments
+  /\ ReadyToEncode(attachment)
+  /\ Readable
+  /\ provisional' = [provisional EXCEPT ![attachment] = TRUE]
+  /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
+                  capturedGeneration, demand, blocked, blockedRevision,
+                  acknowledgedRevision, acknowledgedGeneration, inFlight,
+                  frameBase, frameRevision, frameGeneration, frameSequence,
+                  nextSequence, lastAppliedSequence, lastAbandonedSequence,
+                  pendingDirty, forceSnapshot, commitGuard, failurePublished,
+                  containmentConfirmed, handoffDuringUnconfirmed>>
+
+AcquireReadCommit(attachment) ==
+  /\ attachment \in Attachments
+  /\ provisional[attachment]
+  /\ commitGuard = {}
+  /\ Readable
+  /\ commitGuard' = {attachment}
+  /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
+                  capturedGeneration, demand, blocked, blockedRevision,
+                  acknowledgedRevision, acknowledgedGeneration, inFlight,
+                  frameBase, frameRevision, frameGeneration, frameSequence,
+                  nextSequence, lastAppliedSequence, lastAbandonedSequence,
+                  pendingDirty, forceSnapshot, provisional, failurePublished,
+                  containmentConfirmed, handoffDuringUnconfirmed>>
+
+RejectProvisional(attachment) ==
+  /\ attachment \in Attachments
+  /\ provisional[attachment]
+  /\ commitGuard = {}
+  /\ failurePublished
+  /\ ~containmentConfirmed
+  /\ provisional' = [provisional EXCEPT ![attachment] = FALSE]
+  /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
+                  capturedGeneration, demand, blocked, blockedRevision,
+                  acknowledgedRevision, acknowledgedGeneration, inFlight,
+                  frameBase, frameRevision, frameGeneration, frameSequence,
+                  nextSequence, lastAppliedSequence, lastAbandonedSequence,
+                  pendingDirty, forceSnapshot, commitGuard, failurePublished,
+                  containmentConfirmed, handoffDuringUnconfirmed>>
 
 Emit(attachment) ==
   /\ attachment \in Attachments
-  /\ ReadyToEncode(attachment)
+  /\ provisional[attachment]
+  /\ commitGuard = {attachment}
   /\ inFlight' = [inFlight EXCEPT ![attachment] = TRUE]
   /\ frameBase' = [frameBase EXCEPT
        ![attachment] = IF forceSnapshot[attachment]
                          \/ acknowledgedRevision[attachment] = None
-                         \/ acknowledgedGeneration[attachment] # generation
+                         \/ acknowledgedGeneration[attachment] # capturedGeneration
                       THEN None
                       ELSE acknowledgedRevision[attachment]]
   /\ frameRevision' = [frameRevision EXCEPT ![attachment] = capturedRevision]
@@ -199,10 +290,59 @@ Emit(attachment) ==
   /\ nextSequence' = [nextSequence EXCEPT ![attachment] = @ + 1]
   /\ pendingDirty' = [pendingDirty EXCEPT ![attachment] = FALSE]
   /\ forceSnapshot' = [forceSnapshot EXCEPT ![attachment] = FALSE]
+  /\ provisional' = [provisional EXCEPT ![attachment] = FALSE]
+  /\ commitGuard' = {}
+  /\ handoffDuringUnconfirmed' =
+       handoffDuringUnconfirmed \/ (failurePublished /\ ~containmentConfirmed)
   /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
-                  capturedGeneration, demand, blocked, acknowledgedRevision,
+                  capturedGeneration, demand, blocked, blockedRevision,
+                  acknowledgedRevision,
                   acknowledgedGeneration, lastAppliedSequence,
-                  lastAbandonedSequence>>
+                  lastAbandonedSequence, failurePublished,
+                  containmentConfirmed>>
+
+RefreshBlocked(attachment) ==
+  /\ attachment \in Attachments
+  /\ blocked[attachment]
+  /\ blockedRevision[attachment] < revision
+  /\ commitGuard = {}
+  /\ blocked' = [blocked EXCEPT ![attachment] = FALSE]
+  /\ blockedRevision' = [blockedRevision EXCEPT ![attachment] = None]
+  /\ pendingDirty' = [pendingDirty EXCEPT ![attachment] = TRUE]
+  /\ forceSnapshot' = [forceSnapshot EXCEPT ![attachment] = TRUE]
+  /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
+                  capturedGeneration, demand, acknowledgedRevision,
+                  acknowledgedGeneration, inFlight, frameBase, frameRevision,
+                  frameGeneration, frameSequence, nextSequence,
+                  lastAppliedSequence, lastAbandonedSequence, provisional,
+                  commitGuard, failurePublished, containmentConfirmed,
+                  handoffDuringUnconfirmed>>
+
+PublishFailure ==
+  /\ ~failurePublished
+  /\ commitGuard = {}
+  /\ failurePublished' = TRUE
+  /\ captured' = FALSE
+  /\ UNCHANGED <<revision, generation, finalized, capturedRevision,
+                  capturedGeneration, demand, blocked, blockedRevision,
+                  acknowledgedRevision, acknowledgedGeneration, inFlight,
+                  frameBase, frameRevision, frameGeneration, frameSequence,
+                  nextSequence, lastAppliedSequence, lastAbandonedSequence,
+                  pendingDirty, forceSnapshot, provisional, commitGuard,
+                  containmentConfirmed, handoffDuringUnconfirmed>>
+
+ConfirmContainment ==
+  /\ failurePublished
+  /\ ~containmentConfirmed
+  /\ commitGuard = {}
+  /\ containmentConfirmed' = TRUE
+  /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
+                  capturedGeneration, demand, blocked, blockedRevision,
+                  acknowledgedRevision, acknowledgedGeneration, inFlight,
+                  frameBase, frameRevision, frameGeneration, frameSequence,
+                  nextSequence, lastAppliedSequence, lastAbandonedSequence,
+                  pendingDirty, forceSnapshot, provisional, commitGuard,
+                  failurePublished, handoffDuringUnconfirmed>>
 
 FrameApplied(attachment) ==
   /\ attachment \in Attachments
@@ -219,9 +359,11 @@ FrameApplied(attachment) ==
        THEN [pendingDirty EXCEPT ![attachment] = TRUE]
        ELSE pendingDirty
   /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
-                  capturedGeneration, demand, blocked, frameBase,
+                  capturedGeneration, demand, blocked, blockedRevision, frameBase,
                   frameRevision, frameGeneration, frameSequence,
-                  nextSequence, lastAbandonedSequence, forceSnapshot>>
+                  nextSequence, lastAbandonedSequence, forceSnapshot,
+                  provisional, commitGuard, failurePublished,
+                  containmentConfirmed, handoffDuringUnconfirmed>>
 
 DuplicateFrameApplied(attachment) ==
   /\ attachment \in Attachments
@@ -243,10 +385,13 @@ NeedSnapshot(attachment) ==
   /\ pendingDirty' = [pendingDirty EXCEPT ![attachment] = TRUE]
   /\ forceSnapshot' = [forceSnapshot EXCEPT ![attachment] = TRUE]
   /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
-                  capturedGeneration, demand, blocked, acknowledgedRevision,
+                  capturedGeneration, demand, blocked, blockedRevision,
+                  acknowledgedRevision,
                   acknowledgedGeneration, frameBase, frameRevision,
                   frameGeneration, frameSequence, nextSequence,
-                  lastAppliedSequence>>
+                  lastAppliedSequence, provisional, commitGuard,
+                  failurePublished, containmentConfirmed,
+                  handoffDuringUnconfirmed>>
 
 AbandonedNeedSnapshot(attachment) ==
   /\ attachment \in Attachments
@@ -255,25 +400,35 @@ AbandonedNeedSnapshot(attachment) ==
 
 Finalize ==
   /\ ~finalized
+  /\ commitGuard = {}
   /\ finalized' = TRUE
   /\ UNCHANGED <<revision, generation, captured, capturedRevision,
-                  capturedGeneration, demand, blocked, acknowledgedRevision,
+                  capturedGeneration, demand, blocked, blockedRevision,
+                  acknowledgedRevision,
                   acknowledgedGeneration, inFlight, frameBase, frameRevision,
                   frameGeneration, frameSequence, nextSequence,
                   lastAppliedSequence, lastAbandonedSequence,
-                  pendingDirty, forceSnapshot>>
+                  pendingDirty, forceSnapshot, provisional, commitGuard,
+                  failurePublished, containmentConfirmed,
+                  handoffDuringUnconfirmed>>
 
 Next ==
   \/ Mutate
   \/ ResizeOrScreenSwitch
   \/ Capture
   \/ Finalize
+  \/ PublishFailure
+  \/ ConfirmContainment
   \/ \E attachment \in Attachments:
        \/ SetDemand(attachment, TRUE)
        \/ SetDemand(attachment, FALSE)
        \/ CaptureFailure(attachment)
        \/ EncodeFailure(attachment)
+       \/ PrepareFrame(attachment)
+       \/ AcquireReadCommit(attachment)
+       \/ RejectProvisional(attachment)
        \/ Emit(attachment)
+       \/ RefreshBlocked(attachment)
        \/ FrameApplied(attachment)
        \/ DuplicateFrameApplied(attachment)
        \/ AbandonedFrameApplied(attachment)
@@ -284,7 +439,11 @@ Spec ==
   /\ Init
   /\ [][Next]_vars
   /\ WF_vars(Capture)
+  /\ \A attachment \in Attachments: WF_vars(PrepareFrame(attachment))
+  /\ \A attachment \in Attachments: WF_vars(AcquireReadCommit(attachment))
+  /\ \A attachment \in Attachments: WF_vars(RejectProvisional(attachment))
   /\ \A attachment \in Attachments: WF_vars(Emit(attachment))
+  /\ \A attachment \in Attachments: WF_vars(RefreshBlocked(attachment))
   /\ \A attachment \in Attachments: WF_vars(FrameApplied(attachment))
 
 TypeOK ==
@@ -296,6 +455,7 @@ TypeOK ==
   /\ capturedGeneration \in 1..MaxGeneration
   /\ demand \in [Attachments -> BOOLEAN]
   /\ blocked \in [Attachments -> BOOLEAN]
+  /\ blockedRevision \in [Attachments -> 0..None]
   /\ acknowledgedRevision \in [Attachments -> 0..None]
   /\ acknowledgedGeneration \in [Attachments -> 1..NoGeneration]
   /\ inFlight \in [Attachments -> BOOLEAN]
@@ -308,6 +468,11 @@ TypeOK ==
   /\ lastAbandonedSequence \in [Attachments -> 0..MaxSequence]
   /\ pendingDirty \in [Attachments -> BOOLEAN]
   /\ forceSnapshot \in [Attachments -> BOOLEAN]
+  /\ provisional \in [Attachments -> BOOLEAN]
+  /\ commitGuard \subseteq Attachments
+  /\ failurePublished \in BOOLEAN
+  /\ containmentConfirmed \in BOOLEAN
+  /\ handoffDuringUnconfirmed \in BOOLEAN
 
 OneFrameAndDirtyMarker ==
   \A attachment \in Attachments:
@@ -334,13 +499,45 @@ SequenceCommittedOnlyWithFrame ==
 
 PausedOrBlockedCannotBecomeReady ==
   \A attachment \in Attachments:
-    (~demand[attachment] \/ blocked[attachment]) => ~ReadyForCapture(attachment)
+    (~demand[attachment] \/ blocked[attachment]) => ~ReadyForProjection(attachment)
 
 PausedOwnsNoDeliveryWork ==
   \A attachment \in Attachments:
-    ~demand[attachment] => ~inFlight[attachment] /\ ~pendingDirty[attachment]
+    ~demand[attachment] =>
+      /\ ~inFlight[attachment]
+      /\ ~pendingDirty[attachment]
+      /\ ~provisional[attachment]
+      /\ attachment \notin commitGuard
 
-NoDemandOwnsNoCapture == ~AnyDemand(demand) => ~captured
+NoDemandOwnsNoCapture ==
+  ~AnyDemand(demand) =>
+    /\ ~captured
+    /\ commitGuard = {}
+    /\ \A attachment \in Attachments: ~provisional[attachment]
+
+BlockedRevisionNamesAttempt ==
+  \A attachment \in Attachments:
+    /\ blocked[attachment] => blockedRevision[attachment] <= revision
+    /\ ~blocked[attachment] => blockedRevision[attachment] = None
+
+ProvisionalOwnsNoFlight ==
+  \A attachment \in Attachments:
+    provisional[attachment] =>
+      /\ demand[attachment]
+      /\ pendingDirty[attachment]
+      /\ ~blocked[attachment]
+      /\ ~inFlight[attachment]
+
+CommitGuardOwnsProvisional ==
+  /\ Cardinality(commitGuard) <= 1
+  /\ \A attachment \in commitGuard: provisional[attachment]
+
+UnconfirmedFailurePermitsNoNewFrameHandoff ==
+  /\ ~handoffDuringUnconfirmed
+  /\ (failurePublished /\ ~containmentConfirmed) => commitGuard = {}
+
+ContainmentConfirmationFollowsFailure ==
+  containmentConfirmed => failurePublished
 
 ReadyDemandEventuallyEmits ==
   \A attachment \in Attachments:

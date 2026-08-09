@@ -1737,6 +1737,7 @@ test "projection batch mutations can roll back before transport handoff" {
     const block_commit = try core.blockProjectionTransaction(
         attachment_id,
         .capture_allocation_failed,
+        0,
     );
     try std.testing.expectEqual(
         ProjectionBlock.capture_allocation_failed,
@@ -1746,6 +1747,80 @@ test "projection batch mutations can roll back before transport handoff" {
     const rolled_back_block = core.findAttachment(attachment_id).?;
     try std.testing.expect(rolled_back_block.projectionBlocked() == null);
     try std.testing.expect(rolled_back_block.projectionReady().?.forceSnapshot());
+}
+
+test "projection block records the attempted revision and refreshes from a newer observation" {
+    var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
+    defer core.deinit();
+    const connection: ConnectionId = 2;
+    const terminal_id = testId(TerminalId, 4);
+    const attachment_id = testId(AttachmentId, 6);
+    _ = try core.connect(connection, testId(ClientId, 2));
+    _ = try core.createTerminal(
+        connection,
+        testId(CreationId, 3),
+        terminal_id,
+        [_]u8{5} ** 32,
+        80,
+        24,
+    );
+    _ = try core.attach(connection, attachment_id, terminal_id, .{
+        .input = false,
+        .read = true,
+        .resize = false,
+    }, false);
+    _ = try core.synchronizeRevision(terminal_id, 4);
+    _ = try core.setProjectionDemand(connection, attachment_id, .active);
+    const flight = try core.commitFrame(attachment_id, null, 4, 1, .snapshot);
+    _ = try core.frameApplied(
+        connection,
+        attachment_id,
+        flight.sequence,
+        flight.revision,
+        flight.generation,
+    );
+    _ = try core.synchronizeRevision(terminal_id, 6);
+
+    const ready_before = core.findAttachment(attachment_id).?.projectionReady().?;
+    const sequence_before = core.findAttachment(attachment_id).?.nextProjectionSequence();
+    try std.testing.expectError(
+        error.InvalidPhase,
+        core.blockProjectionTransaction(
+            attachment_id,
+            .capture_allocation_failed,
+            7,
+        ),
+    );
+    const after_invalid = core.findAttachment(attachment_id).?;
+    try std.testing.expectEqualDeep(ready_before, after_invalid.projectionReady().?);
+    try std.testing.expectEqual(sequence_before, after_invalid.nextProjectionSequence());
+
+    const block_commit = try core.blockProjectionTransaction(
+        attachment_id,
+        .capture_allocation_failed,
+        5,
+    );
+    try std.testing.expectEqual(@as(u64, 5), block_commit.blocked.observed_revision);
+    try std.testing.expectEqualDeep(ready_before.base(), block_commit.blocked.base);
+    try core.rollbackProjectionBlock(block_commit);
+    const rolled_back = core.findAttachment(attachment_id).?;
+    try std.testing.expectEqualDeep(ready_before, rolled_back.projectionReady().?);
+    try std.testing.expectEqual(sequence_before, rolled_back.nextProjectionSequence());
+
+    const committed_block = try core.blockProjectionTransaction(
+        attachment_id,
+        .projection_too_large,
+        5,
+    );
+    try std.testing.expectEqual(@as(u64, 5), committed_block.blocked.observed_revision);
+    const refreshed = core.findAttachment(attachment_id).?;
+    try std.testing.expect(refreshed.projectionBlocked() == null);
+    try std.testing.expect(refreshed.projectionReady().?.forceSnapshot());
+    try std.testing.expectEqualDeep(
+        ready_before.base(),
+        refreshed.projectionReady().?.base(),
+    );
+    try std.testing.expectEqual(sequence_before, refreshed.nextProjectionSequence());
 }
 
 test "maximum frame sequence can never be acknowledged as a phantom retry" {
@@ -1906,7 +1981,7 @@ test "recovery is exact and blocked projection requires explicit pause resume" {
     _ = try core.commitFrame(attachment_id, null, 3, 1, .snapshot);
     _ = try core.frameApplied(connection, attachment_id, 2, 3, 1);
 
-    try core.blockProjection(attachment_id, .capture_allocation_failed);
+    try core.blockProjection(attachment_id, .capture_allocation_failed, 3);
     try std.testing.expectError(
         error.InvalidPhase,
         core.commitFrame(attachment_id, null, 3, 1, .snapshot),
@@ -1947,7 +2022,7 @@ test "an initial projection block remains stable until a newer terminal revision
     _ = try core.synchronizeRevision(terminal_id, 1);
     _ = try core.setProjectionDemand(connection, attachment_id, .active);
 
-    try core.blockProjection(attachment_id, .projection_too_large);
+    try core.blockProjection(attachment_id, .projection_too_large, 1);
     const first_observation = core.findAttachment(attachment_id).?.projectionBlocked().?;
     const second_observation = core.findAttachment(attachment_id).?.projectionBlocked().?;
     try std.testing.expectEqual(@as(u64, 1), first_observation.observed_revision);
@@ -2061,7 +2136,11 @@ test "projection transition sequences preserve core invariants after every actio
             .paused => _ = try core.setProjectionDemand(connection, attachment_id, .active),
             .ready => |ready| {
                 if (step % 7 == 0) {
-                    try core.blockProjection(attachment_id, .capture_allocation_failed);
+                    try core.blockProjection(
+                        attachment_id,
+                        .capture_allocation_failed,
+                        core.findTerminal(terminal_id).?.observedRevision(),
+                    );
                 } else if (step % 11 == 0) {
                     _ = try core.setProjectionDemand(connection, attachment_id, .paused);
                 } else {

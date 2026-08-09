@@ -691,21 +691,29 @@ pub const HostCore = struct {
         self: *HostCore,
         attachment_id: AttachmentId,
         reason: ProjectionBlock,
+        failed_revision: u64,
     ) CoreError!void {
-        _ = try self.blockProjectionTransaction(attachment_id, reason);
+        _ = try self.blockProjectionTransaction(
+            attachment_id,
+            reason,
+            failed_revision,
+        );
     }
 
     pub fn blockProjectionTransaction(
         self: *HostCore,
         attachment_id: AttachmentId,
         reason: ProjectionBlock,
+        failed_revision: u64,
     ) CoreError!ProjectionBlockCommit {
-        const attachment = self.mutableAttachment(attachment_id) orelse return error.MissingResource;
+        const attachment = self.rawAttachment(attachment_id) orelse return error.MissingResource;
         const terminal = try self.requireTerminal(attachment.terminal_id);
+        if (failed_revision > terminal.observedRevision()) return error.InvalidPhase;
+        self.refreshAttachmentProjectionState(attachment);
         return attachment.projection.block(
             attachment_id,
             reason,
-            terminal.observedRevision(),
+            failed_revision,
         );
     }
 

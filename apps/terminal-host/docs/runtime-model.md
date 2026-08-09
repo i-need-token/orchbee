@@ -318,7 +318,9 @@ ingestion, retains the last revision known to be coherent, records the first lin
 failure as its typed primary cause, and starts
 force containment exactly once. Inventory and failure state remain observable throughout
 containment. Runtime-backed projection, history, and selection are suspended while containment is
-unconfirmed. After containment, existing read attachments may inspect retained coherent state;
+unconfirmed. A projection frame captured before the fence still requires the serialized
+read-commit guard, so an unconfirmed failure cannot gain a new frame handoff through a stale
+readability sample. After containment, existing read attachments may inspect retained coherent state;
 resize corruption is the exception because the emulator cannot guarantee that its failed mutation
 left a readable screen. When the owned process tree is confirmed stopped and runtime resources are
 contained, the terminal becomes `settled.failed`, publishes its typed outcome, and remains
@@ -404,9 +406,13 @@ const ProjectionDelivery = union(enum) {
 `FrameBase` includes the exact acknowledged generation, revision, and sequence. The nested ready
 union makes a delta without a base unrepresentable; a snapshot may retain its old base only for
 duplicate-acknowledgement recognition and does not use that base for delta capture. A blocked
-delivery records the terminal revision that failed; it remains blocked until a newer revision or
-an explicit pause/resume invalidates it. In particular, the absence of an acknowledged base does
-not itself unblock an initial snapshot failure. `base_before` lets a negative acknowledgement
+delivery records the exact revision captured or attempted under the engine's terminal-state mutex,
+even when the scheduler has already observed a newer revision by the time encoding fails. Core
+rejects a failed revision newer than its current terminal observation. A block remains stable only
+while that observation is not newer than the failed revision; lazy attachment refresh therefore
+makes an already-observed newer revision snapshot-ready without another PTY mutation or demand
+toggle. In particular, the absence of an acknowledged base does not itself unblock an initial
+snapshot failure. `base_before` lets a negative acknowledgement
 invalidate the current flight without inventing an acknowledged base. Frame commit advances
 `next_sequence` and enters `in_flight` as one transaction; rollback restores both. Pausing an
 in-flight delivery records its sequence as abandoned before entering `paused`, so a late
@@ -419,6 +425,17 @@ the Host never re-encodes different bytes or different commit metadata for that 
 If transport fails after handoff, the broker session and its attachments are destroyed instead of
 reusing or reconstructing the published sequence. This invariant lets the capability-scoped local
 client recognize a duplicate from its fixed header without hashing or decoding the payload again.
+
+An encoded projection frame remains provisional after capture. Egress first reserves record and
+byte capacity and adopts the one encoded allocation, then the engine acquires a read-commit guard
+on the same terminal-state mutex used by completion and failure publication. The guard revalidates
+resize fencing, completion classification, the failure fence, and containment confirmation, and
+remains held through the allocation-free outgoing-record and Core-flight commit. If failure
+publication wins while containment is unconfirmed, cancelling the provisional adoption releases
+its capacity and allocation without advancing the flight, sequence, projection cadence, scheduler
+position, or visible outgoing batch. If the guard wins, exactly one frame commits before a failure
+publisher can acquire the mutex. Confirmed containment may again admit retained read-only state;
+resize failure never does.
 
 History row delivery and selection export use the same principle: each flight has one positive,
 strictly increasing sequence; only its exact acknowledgement can commit it. Stale or duplicate
@@ -517,8 +534,10 @@ Outgoing records are built as a transaction over connection-scoped delivery stat
   command reply.
 - A record is first encoded and checked against record and byte limits. Large binary producers
   either write directly into a response reservation or return one owned allocation with transport
-  header headroom. Egress adopts that allocation without copying; ownership transfers only when
-  the record is appended, while rejection or batch fullness leaves release with the producer.
+  header headroom. Egress adopts that allocation without copying. Immediate adoption transfers
+  ownership when the record is appended; provisional adoption transfers it with a capacity
+  reservation whose cancellation releases the exact allocation. Rejection or batch fullness
+  leaves release with the producer.
 - Its flight or acknowledgement state becomes committed only if that exact record is included in
   the batch handed to Local IPC.
 - If the next record does not fit, the already prepared prefix is returned normally and the next
@@ -529,6 +548,9 @@ Outgoing records are built as a transaction over connection-scoped delivery stat
 - Before handoff, allocation or encoding failure rolls back all provisional delivery transitions
   and releases exactly one owner-held payload allocation. No large payload is reconstructed merely
   to cross the engine-to-egress ownership boundary.
+- Projection adoption remains provisional until a terminal read-commit guard is held. Guard
+  rejection cancels the reservation; guard success makes outgoing-record and Core-flight commit
+  allocation-free and serial with failure publication.
 - After handoff, any short or failed write closes the broker session. All of its attachments and
   delivery flights are destroyed. Retained terminals and their canonical state survive.
 
@@ -569,10 +591,10 @@ supposed to carry it.
 | ------------- | ------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------- |
 | absent        | authorized attach with at least one capability          | projection `paused`           | Create exactly one broker-scoped capability binding; a resize lease requires resize capability |
 | `paused`      | activate demand                                         | `ready.snapshot(base = null)` | Lazily acquire terminal render resources as needed                                             |
-| `ready`       | capture included in egress batch                        | `in_flight`                   | Commit the exact encoded frame and its base together                                           |
+| `ready`       | provisional frame wins the serialized read-commit guard | `in_flight`                   | Commit its reserved outgoing record, exact frame, base, and sequence together                   |
 | `in_flight`   | exact applied acknowledgement                           | `ready`                       | Promote only the acknowledged base                                                             |
-| `ready`       | capture cannot be represented within its semantic bound | `blocked`                     | Record the failed terminal revision and do not spin on the same state                          |
-| `blocked`     | terminal advances to a newer revision                   | `ready.snapshot`              | Invalidate the failed capture and retry from a snapshot                                        |
+| `ready`       | capture cannot be represented within its semantic bound | `blocked`                     | Record the exact captured or attempted revision, which cannot exceed the current observation   |
+| `blocked`     | Core already observes a revision newer than the failure  | `ready.snapshot`              | Lazily invalidate the failed capture and retry without requiring another terminal mutation     |
 | active state  | pause                                                   | `paused`                      | Abandon the flight and invalidate its delta base                                               |
 | any state     | detach or broker loss                                   | absent                        | Release pins, flights, selections, exports, and capability authority                           |
 
@@ -587,11 +609,11 @@ Stable claim identifiers are used by tests, models, and review findings.
 | `TH-003` | At most one broker session exists per endpoint, and every attachment operation is authorized by that physical session plus its `AttachmentId`.                                                                                                                                                                        |
 | `TH-004` | Broker loss destroys only broker-scoped capabilities; it never terminates or disposes a retained terminal.                                                                                                                                                                                                            |
 | `TH-005` | Creation is atomic and idempotent by `HostEpoch + CreationId + launch fingerprint` while the terminal is retained; explicit disposal releases that identity. Failures admit neither a terminal nor an orphan process.                                                                                                 |
-| `TH-006` | PTY output, input encoding, projection, history, and selection use one canonical Ghostty state and coherent revision/generation pair.                                                                                                                                                                                 |
+| `TH-006` | PTY output, input encoding, projection, history, and selection use one canonical Ghostty state and coherent revision/generation pair; a failed projection names its exact captured or attempted revision.                                                                                                                    |
 | `TH-007` | Accepted client input occupies exactly one client-FIFO position; rejected input occupies none; terminal replies have independent bounded admission and priority at each writer slice; an unknown client-input result is never automatically replayed.                                                                 |
 | `TH-008` | Normal exit is published only after child completion, normal output closure, and writer quiescence, irrespective of observation order. Settlement captures one final revision; terminal-owned content, generation, geometry, configuration, and revisions cannot advance afterward.                                   |
-| `TH-009` | An unrecoverable runtime failure is explicit, fences unsafe I/O, and cannot be reported as normal drain or normal exit. Cleanup remains Host-owned and retryable without a broker; a settled outcome cannot be rewritten by a later cleanup symptom or removed before its exact publication commits, and disposal never silently orphans an uncontained process tree. |
-| `TH-010` | An outgoing delivery transition commits if and only if its exact record is in the handed-off batch; batch fullness returns a committed prefix without dropping it. A handed-off frame record is immutable for its scoped sequence and is never reconstructed with different bytes.                                    |
+| `TH-009` | An unrecoverable runtime failure is explicit, fences unsafe I/O, and cannot be reported as normal drain or normal exit. Unconfirmed containment admits no new frame handoff. Cleanup remains Host-owned and retryable without a broker; a settled outcome cannot be rewritten by a later cleanup symptom or removed before its exact publication commits, and disposal never silently orphans an uncontained process tree. |
+| `TH-010` | An outgoing delivery transition commits if and only if its exact record is in the handed-off batch; batch fullness returns a committed prefix without dropping it. Projection record and flight commit are allocation-free while holding the engine read-commit guard. A handed-off frame record is immutable for its scoped sequence and is never reconstructed with different bytes. |
 | `TH-011` | At most one frame, row request, or export chunk of each kind is in flight per attachment; only the exact scoped acknowledgement advances it. A published frame sequence identifies one immutable record for that Host epoch and attachment.                                                                           |
 | `TH-012` | Bounds and backpressure reject or defer the current operation without corrupting retained registries, canonical terminal state, delivery bases, or sequence numbers.                                                                                                                                                  |
 | `TH-013` | Every successfully acquired resource has one release owner and is released at most once; a teardown pass attempts every retained runtime even when one attempt fails, and never reports failed cleanup as clean shutdown.                                                                                             |
@@ -625,7 +647,7 @@ coverage alone is insufficient.
 | [Delivery TLA+ model](../formal/tla/TerminalHostDelivery.tla)                  | `TH-003`, `TH-010`, `TH-011`, batch prefixes, acknowledgement races, pause/detach, reconnect, and transport failure; checked bounds live in its adjacent `.cfg`                                                                                                                     |
 | [Request-outcome TLA+ model](../formal/tla/TerminalHostRequestOutcome.tla)     | `TH-005`, `TH-007`, `TH-010`, prepare/commit/handoff, retryable rejection, delivered reply, unknown result, idempotent replay, and forbidden non-replayable retry                                                                                                                   |
 | [Inventory TLA+ model](../formal/tla/TerminalInventoryPagination.tla)          | `TH-002`, `TH-012`, generation-scoped pagination, exact membership, duplicate prevention, and stale-cursor rejection                                                                                                                                                                |
-| [Frame-delivery TLA+ model](../formal/tla/TerminalFrameBackpressure.tla)       | `TH-006`, `TH-010`, `TH-011`, `TH-012`, two-attachment projection mutation/capture separation, one flight per attachment, acknowledgement bases, pause/abandonment, and blocked snapshot recovery; checked bounds live in its adjacent `.cfg`                                       |
+| [Frame-delivery TLA+ model](../formal/tla/TerminalFrameBackpressure.tla)       | `TH-006`, `TH-009`, `TH-010`, `TH-011`, `TH-012`, two-attachment projection mutation/capture separation, exact failed revisions, provisional frame commit, failure publication and containment confirmation, no unconfirmed-failure handoff, one flight per attachment, acknowledgement bases, pause/abandonment, and blocked snapshot recovery; checked bounds live in its adjacent `.cfg` |
 | [Input-backpressure TLA+ model](../formal/tla/TerminalInputBackpressure.tla)   | `TH-007`, `TH-012`, independent client/reply admission budgets, client FIFO ownership, post-exit client closure, writer shutdown cleanup, terminal-reply priority, and client progress or explicit reply preemption; checked bounds live in its adjacent `.cfg`                     |
 | [History-interaction TLA+ model](../formal/tla/TerminalHistoryInteraction.tla) | `TH-002`, `TH-006`, `TH-010`, `TH-011`, `TH-012`, row flights and anchors, history observation, selection eviction, acknowledged export chunks, stale search pages, and detach cleanup                                                                                              |
 | Stateful property tests                                                        | `TH-001` through `TH-013` as applicable to each owner: registry/index coherence, lifecycle command sequences, attachment capability sequences, projection sequences, history/export sequences, and invariant checks after every action                                              |
@@ -650,19 +672,20 @@ these entries successfully.
 | `TH-001`, `TH-002` | `src/core/__tests__/state_test.zig`: `multi-terminal creation is idempotent without a product count cap`, `attachment routing and terminal disposal are exact across registries`, and all three stateful transition property suites; `src/service/__tests__/runtime_aggregate_test.zig`: `failed runtime creation leaves no retained terminal commit`                                                                                                                                                                                                                                                                                                              |
 | `TH-003`, `TH-004` | `src/service/__tests__/service_test.zig`: `a second broker is rejected until the active broker disconnects` and `disconnect removes every broker attachment and preserves retained terminals`; `src/core/__tests__/state_test.zig`: `one broker owns every attachment and disconnect preserves terminals`; `src/transport/__tests__/root_test.zig`: failed-handoff preservation                                                                                                                                                                                                                                                                                    |
 | `TH-005`           | `src/service/__tests__/runtime_aggregate_test.zig`: creation replay and failed creation; `src/service/__tests__/service_test.zig`: real PTY disconnect/replay and isolated spawn failure; `src/engine/__tests__/runtime_test.zig`: startup-thread and process-spawn cleanup                                                                                                                                                                                                                                                                                                                                                                                        |
-| `TH-006`           | `src/engine/__tests__/runtime_test.zig`: canonical PTY parsing and semantic input; `src/engine/__tests__/projection_test.zig`: bounded snapshot/delta capture; `src/engine/__tests__/history_test.zig`: render/text rows, reflow preservation, screen/eviction invalidation, selection, and export                                                                                                                                                                                                                                                                                                                                                                 |
+| `TH-006`           | `src/engine/__tests__/runtime_test.zig`: canonical PTY parsing, semantic input, and exact attempted projection revision; `src/core/__tests__/state_test.zig`: explicit failed-revision validation, rollback, and lazy newer-observation refresh; `src/service/__tests__/projection_test.zig`: both post-capture and stale-pre-capture revision races; `src/engine/__tests__/projection_test.zig`: bounded snapshot/delta capture; `src/engine/__tests__/history_test.zig`: render/text rows, reflow preservation, screen/eviction invalidation, selection, and export |
 | `TH-007`           | `src/engine/__tests__/runtime_test.zig`: source-scoped bounded queues, terminal-reply priority, reservation cancellation, client FIFO, zero-output, and client-byte settlement; `src/service/__tests__/runtime_aggregate_test.zig`: input preparation rollback; `src/service/__tests__/service_test.zig`: raw/semantic input failure equivalence                                                                                                                                                                                                                                                                                                                   |
-| `TH-008`, `TH-009` | `src/model/__tests__/lifecycle_test.zig`: matching publication-gated disposal for both settled outcome kinds; `src/core/__tests__/state_test.zig`: both finishing orders, exact settled-revision checks, terminal outcome immutability, failure containment, and publication-gated removal; `src/engine/__tests__/runtime_test.zig`: atomic completion classification, full terminal-owned state freeze, and broker-independent worker containment; `src/service/__tests__/service_test.zig`: one-shot settled outcome handoff, bounded-batch retention, native dispose retry, and rejected post-exit configuration; `src/service/__tests__/runtime_aggregate_test.zig`: completion synchronization, failed-runtime publication gating, exact cleanup phases, and fair blocked-cleanup retry selection; `src/transport/__tests__/root_test.zig`: brokerless maintenance across accept timeouts |
-| `TH-010`, `TH-011` | `src/service/__tests__/outgoing_test.zig`: prefix, reservation, rollback, and allocation failure; `src/service/__tests__/projection_test.zig`: full-prefix delivery; `src/service/__tests__/interaction_test.zig`: full-prefix and allocator rollback; `src/service/__tests__/service_test.zig`: outcome handoff and scheduler fairness; `src/engine/__tests__/history_test.zig`: row/export sequence and ABA rejection                                                                                                                                                                                                                                            |
+| `TH-008`, `TH-009` | `src/model/__tests__/lifecycle_test.zig`: matching publication-gated disposal for both settled outcome kinds; `src/core/__tests__/state_test.zig`: both finishing orders, exact settled-revision checks, terminal outcome immutability, failure containment, and publication-gated removal; `src/engine/__tests__/runtime_test.zig`: atomic completion classification, full terminal-owned state freeze, and broker-independent worker containment; `src/service/__tests__/projection_test.zig`: both serialized frame-commit/failure-publication orders; `src/service/__tests__/service_test.zig`: one-shot settled outcome handoff, bounded-batch retention, native dispose retry, and rejected post-exit configuration; `src/service/__tests__/runtime_aggregate_test.zig`: completion synchronization, failed-runtime publication gating, exact cleanup phases, and fair blocked-cleanup retry selection; `src/transport/__tests__/root_test.zig`: brokerless maintenance across accept timeouts |
+| `TH-010`, `TH-011` | `src/service/__tests__/outgoing_test.zig`: prefix, reservation, provisional adoption cancellation, rollback, and allocation failure; `src/service/__tests__/projection_test.zig`: full-prefix delivery, exact failure rollback, scheduler preservation, and serialized read commit; `src/service/__tests__/interaction_test.zig`: full-prefix and allocator rollback; `src/service/__tests__/service_test.zig`: outcome handoff and scheduler fairness; `src/engine/__tests__/history_test.zig`: row/export sequence and ABA rejection |
 | `TH-012`           | All limit tests in `src/protocol/__tests__/root_test.zig`, `src/engine/__tests__/runtime_test.zig`, `src/engine/__tests__/projection_test.zig`, and `src/engine/__tests__/history_test.zig`; `src/service/__tests__/service_test.zig`: reply reservation failure; `src/__tests__/protocol_conformance_test.zig`: complete TypeScript/native limit equality                                                                                                                                                                                                                                                                                                         |
 | `TH-013`           | `src/engine/__tests__/runtime_test.zig`: partial startup ownership and contained destruction; `src/platform/__tests__/process_test.zig`: failed exec, POSIX session containment, and Windows Job assignment; `src/service/__tests__/runtime_aggregate_test.zig`: `runtime destruction starts only after every shutdown succeeds`; `src/transport/__tests__/root_test.zig`: endpoint and connection cleanup                                                                                                                                                                                                                                                         |
 | `TH-014`           | `src/control/__tests__/decode_test.zig`, `src/control/__tests__/wire_test.zig`, `src/protocol/__tests__/root_test.zig` (including exhaustive registry-owned dispatch operations), and `src/__tests__/protocol_conformance_test.zig`; `src/service/__tests__/service_test.zig`: malformed, stale-epoch, unknown-optional, and role/encoding rejection before dispatch                                                                                                                                                                                                                                                                                               |
 
 The deterministic commit-seam set is: creation preparation/spawn/admission; control-reply
 reservation; raw and semantic queue reservation/publication; resize effect and unsafe rollback;
-projection capture/encoding; row, history, selection, and export provisional mutation; batch
-prefix/full behavior; lifecycle outcome handoff; Local IPC partial write; process observation and
-containment; and multi-runtime shutdown. A new fallible seam must be added to this set and receive a
+projection capture/encoding, provisional payload adoption, and serialized read commit; row,
+history, selection, and export provisional mutation; batch prefix/full behavior; lifecycle outcome
+handoff; Local IPC partial write; process observation and containment; and multi-runtime shutdown.
+A new fallible seam must be added to this set and receive a
 named failure test before the implementation may rely on `catch unreachable` after that seam.
 
 ## Review rule

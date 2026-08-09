@@ -33,6 +33,13 @@ fn expectReserved(outcome: subject.ReserveOutcome) !subject.RecordReservation {
     };
 }
 
+fn expectPrepared(outcome: subject.AdoptionOutcome) !subject.PayloadAdoption {
+    return switch (outcome) {
+        .full => error.ExpectedAdoptionPreparation,
+        .prepared => |prepared| prepared,
+    };
+}
+
 test "Outgoing encodes valid delivery identities and rolls back only the matching append" {
     var outgoing = Outgoing.init(std.testing.allocator);
     defer outgoing.deinit();
@@ -410,6 +417,39 @@ test "Outgoing adopts an envelope-ready payload allocation without copying" {
     try std.testing.expectEqualStrings(payload, envelope.payload);
     try std.testing.expect(envelope.payload.ptr == payload_storage.ptr);
     try outgoing.rollback(token);
+}
+
+test "Outgoing cancellation releases a provisional adoption and its exact capacity" {
+    var outgoing = Outgoing.init(std.testing.allocator);
+    defer outgoing.deinit();
+    const host_epoch = testEpoch(0x4a);
+    const payload = "provisional projection";
+    const allocation = try outgoing.ownedPayloadAllocator().alloc(
+        u8,
+        subject.owned_payload_prefix_bytes + payload.len,
+    );
+    const payload_storage = allocation[subject.owned_payload_prefix_bytes..];
+    @memcpy(payload_storage, payload);
+
+    var adoption = try expectPrepared(try outgoing.prepareAdoptPayload(
+        MessageKind.snapshot_frame,
+        .terminal_frame,
+        allocation,
+        payload_storage,
+        .{ .event = host_epoch },
+    ));
+    try std.testing.expectEqual(@as(usize, 0), outgoing.records().len);
+    try std.testing.expectEqual(@as(usize, 1), subject.testing.reservedRecordCount(&outgoing));
+    try std.testing.expectEqual(
+        allocation.len,
+        subject.testing.reservedByteCount(&outgoing),
+    );
+
+    adoption.deinit();
+    try std.testing.expectEqual(@as(usize, 0), outgoing.records().len);
+    try std.testing.expectEqual(@as(usize, 0), subject.testing.byteCount(&outgoing));
+    try std.testing.expectEqual(@as(usize, 0), subject.testing.reservedRecordCount(&outgoing));
+    try std.testing.expectEqual(@as(usize, 0), subject.testing.reservedByteCount(&outgoing));
 }
 
 test "Outgoing leaves no record or reservation when preparation allocation fails" {

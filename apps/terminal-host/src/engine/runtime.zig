@@ -68,6 +68,11 @@ const ReaderBatchOutcome = enum {
     runtime_failed,
 };
 
+const ReadCommitCheckpoint = enum {
+    before_lock,
+    locked,
+};
+
 const FirstContainmentAttempt = enum(u8) {
     none,
     engine_pending,
@@ -80,9 +85,12 @@ const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     abort_read: ?*const fn (*anyopaque) anyerror!void = null,
     contain_process_tree: ?*const fn (*anyopaque) anyerror!void = null,
     context: ?*anyopaque = null,
+    failure_fence_starting: ?*const fn (*anyopaque) void = null,
     finish_pty_after_child_exit: ?*const fn (*anyopaque) anyerror!void = null,
     host_containment_waiting: ?*const fn (*anyopaque) void = null,
+    projection_capture_starting: ?*const fn (*anyopaque) void = null,
     read_pty: ?*const fn (*anyopaque, []u8) anyerror!usize = null,
+    read_commit_checkpoint: ?*const fn (*anyopaque, ReadCommitCheckpoint) void = null,
     reader_batch_finished: ?*const fn (*anyopaque, ReaderBatchOutcome) void = null,
     reader_stopped: ?*const fn (*anyopaque) void = null,
     resize_effect_returned: ?*const fn (*anyopaque) void = null,
@@ -152,6 +160,29 @@ pub const ProjectionEncodeRequest = terminal_projection.EncodeRequest;
 pub const AttachmentId = identifiers.AttachmentId;
 pub const HostEpoch = identifiers.HostEpoch;
 pub const ProjectionFrame = terminal_projection.EncodedFrame;
+pub const ProjectionBlockReason = enum {
+    capture_allocation_failed,
+    projection_too_large,
+};
+pub const ProjectionBlockedCapture = struct {
+    attempted_revision: u64,
+    reason: ProjectionBlockReason,
+};
+pub const ProjectionEncodeOutcome = union(enum) {
+    blocked: ProjectionBlockedCapture,
+    frame: ProjectionFrame,
+};
+pub const ProjectionEncodeError = error{
+    TerminalResizeFailed,
+    TerminalRuntimeUnavailable,
+};
+
+fn projectionBlockReason(err: anyerror) ProjectionBlockReason {
+    return switch (err) {
+        error.ProjectionTooLarge => .projection_too_large,
+        else => .capture_allocation_failed,
+    };
+}
 pub const HistoryDemand = terminal_history.HistoryDemand;
 pub const HistoryEvent = terminal_history.HistoryEvent;
 pub const HistoryReadRequest = terminal_history.ReadRequest;
@@ -357,6 +388,18 @@ pub const PreparedAttachment = struct {
 
     pub fn deinit(self: *PreparedAttachment) void {
         if (self.state == .pending) self.runtime.terminal_mutex.unlock();
+        self.* = undefined;
+    }
+};
+
+/// Serializes the allocation-free frame handoff against failure publication.
+/// A successful guard retains terminal_mutex until the caller has committed or
+/// rolled back both the outgoing record and the matching Core flight.
+pub const ReadCommitGuard = struct {
+    runtime: *TerminalRuntime,
+
+    pub fn deinit(self: *ReadCommitGuard) void {
+        self.runtime.terminal_mutex.unlock();
         self.* = undefined;
     }
 };
@@ -847,6 +890,11 @@ pub const TerminalRuntime = struct {
         self: *TerminalRuntime,
         failure: ?RuntimeFailureKind,
     ) bool {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.failure_fence_starting) |notify| {
+                notify(self.testing_hooks.context.?);
+            }
+        }
         self.terminal_mutex.lock();
         const won = self.closeFailureFenceLocked(failure);
         self.terminal_mutex.unlock();
@@ -882,6 +930,13 @@ pub const TerminalRuntime = struct {
 
     fn ensureReadableStateAvailableLocked(self: *const TerminalRuntime) !void {
         if (self.isResizeFenced()) return error.TerminalResizeFailed;
+        switch (self.completion_classification.load()) {
+            .failed => |failure| {
+                if (failure == .resize) return error.TerminalResizeFailed;
+                if (!self.failure_fenced) return error.TerminalRuntimeUnavailable;
+            },
+            .pending, .normal => {},
+        }
         if (self.failure_fenced and !self.containment_confirmed.load(.acquire)) {
             return error.TerminalRuntimeUnavailable;
         }
@@ -892,6 +947,25 @@ pub const TerminalRuntime = struct {
         defer self.terminal_mutex.unlock();
         self.ensureReadableStateAvailableLocked() catch return false;
         return true;
+    }
+
+    pub fn acquireReadCommitGuard(
+        self: *TerminalRuntime,
+    ) ProjectionEncodeError!ReadCommitGuard {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.read_commit_checkpoint) |notify| {
+                notify(self.testing_hooks.context.?, .before_lock);
+            }
+        }
+        self.terminal_mutex.lock();
+        errdefer self.terminal_mutex.unlock();
+        try self.ensureReadableStateAvailableLocked();
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.read_commit_checkpoint) |notify| {
+                notify(self.testing_hooks.context.?, .locked);
+            }
+        }
+        return .{ .runtime = self };
     }
 
     fn joinThreads(self: *TerminalRuntime) void {
@@ -1518,7 +1592,13 @@ pub const TerminalRuntime = struct {
         self: *TerminalRuntime,
         request: ProjectionEncodeRequest,
     ) !ProjectionFrame {
-        return self.encodeProjectionFrameOwned(self.allocator, 0, request);
+        return switch (try self.encodeProjectionFrameOwned(self.allocator, 0, request)) {
+            .frame => |frame| frame,
+            .blocked => |blocked| switch (blocked.reason) {
+                .capture_allocation_failed => error.CaptureAllocationFailed,
+                .projection_too_large => error.ProjectionTooLarge,
+            },
+        };
     }
 
     pub fn encodeProjectionFrameOwned(
@@ -1526,10 +1606,15 @@ pub const TerminalRuntime = struct {
         output_allocator: std.mem.Allocator,
         output_prefix_bytes: usize,
         request: ProjectionEncodeRequest,
-    ) !ProjectionFrame {
+    ) ProjectionEncodeError!ProjectionEncodeOutcome {
         self.projection_mutex.lock();
         defer self.projection_mutex.unlock();
 
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.projection_capture_starting) |notify| {
+                notify(self.testing_hooks.context.?);
+            }
+        }
         self.terminal_mutex.lock();
         self.ensureReadableStateAvailableLocked() catch |err| {
             self.terminal_mutex.unlock();
@@ -1547,14 +1632,17 @@ pub const TerminalRuntime = struct {
             ) catch |err| {
                 self.terminal_mutex.unlock();
                 self.projection.resetAfterCaptureFailure();
-                return err;
+                return .{ .blocked = .{
+                    .attempted_revision = revision,
+                    .reason = projectionBlockReason(err),
+                } };
             };
             self.terminal_mutex.unlock();
             self.projection.endCapture();
         } else {
             self.terminal_mutex.unlock();
         }
-        return self.projection.encodeOwned(
+        const frame = self.projection.encodeOwned(
             output_allocator,
             output_prefix_bytes,
             request,
@@ -1566,8 +1654,13 @@ pub const TerminalRuntime = struct {
             // would make a failed capture permanently resident until an
             // unrelated future capture happened to clean it up.
             self.projection.resetAfterCaptureFailure();
-            return err;
+            return .{ .blocked = .{
+                .attempted_revision = revision,
+                .reason = projectionBlockReason(err),
+            } };
         };
+        std.debug.assert(frame.revision == revision);
+        return .{ .frame = frame };
     }
 
     pub fn prepareAttachment(
@@ -2584,6 +2677,7 @@ pub const testing = if (@import("builtin").is_test) struct {
     pub const cancelInputFn = TerminalRuntime.cancelInput;
     pub const closeClientInputFn = TerminalRuntime.closeClientInput;
     pub const closeFailureFenceFn = TerminalRuntime.closeFailureFence;
+    pub const commitReaderBatchFn = TerminalRuntime.commitReaderBatch;
     pub const CompletionClassificationType = CompletionClassification;
     pub const completionClassificationLoadFn = CompletionClassification.load;
     pub const createWithOptionsUsingSpawnerFn = TerminalRuntime.createWithOptionsUsingSpawner;
@@ -2610,6 +2704,7 @@ pub const testing = if (@import("builtin").is_test) struct {
     pub const recordReaderFailureFn = TerminalRuntime.recordReaderFailure;
     pub const recordWriterFailureFn = TerminalRuntime.recordWriterFailure;
     pub const ReaderBatchOutcomeType = ReaderBatchOutcome;
+    pub const ReadCommitCheckpointType = ReadCommitCheckpoint;
     pub const reserveInputFn = TerminalRuntime.reserveInput;
     pub const resizePtyWithRollbackFn = resizePtyWithRollback;
     pub const RuntimeTestingHooksType = RuntimeTestingHooks;

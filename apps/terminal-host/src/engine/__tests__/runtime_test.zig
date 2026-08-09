@@ -47,6 +47,15 @@ const resizePtyWithRollback = subject.testing.resizePtyWithRollbackFn;
 const RuntimeTestingHooks = subject.testing.RuntimeTestingHooksType;
 const Geometry = model_boundary.geometry.Geometry;
 
+fn requireProjectionFrame(
+    outcome: subject.ProjectionEncodeOutcome,
+) !subject.ProjectionFrame {
+    return switch (outcome) {
+        .frame => |frame| frame,
+        .blocked => error.UnexpectedProjectionBlock,
+    };
+}
+
 const TestGate = struct {
     condition: std.Thread.Condition = .{},
     mutex: std.Thread.Mutex = .{},
@@ -1196,6 +1205,26 @@ test "runtime resets projection resources after encode failure" {
         .maximum_bytes = 0,
         .sequence = 1,
     };
+    const attempted_revision = runtime.geometry().revision;
+    const blocked = try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        failed_request,
+    );
+    switch (blocked) {
+        .blocked => |failure| {
+            try std.testing.expectEqual(attempted_revision, failure.attempted_revision);
+            try std.testing.expectEqual(
+                subject.ProjectionBlockReason.projection_too_large,
+                failure.reason,
+            );
+        },
+        .frame => |frame| {
+            std.testing.allocator.free(frame.allocation);
+            return error.ExpectedProjectionBlock;
+        },
+    }
+    try std.testing.expect(!runtime.projectionResident());
     try std.testing.expectError(
         error.ProjectionTooLarge,
         runtime.encodeProjectionFrame(failed_request),
@@ -1243,15 +1272,19 @@ test "runtime projection preserves resize and hyperlink transitions" {
     const initial_geometry = runtime.geometry();
     try std.testing.expectEqual(initial_revision, initial_geometry.revision);
 
-    const initial = try runtime.encodeProjectionFrameOwned(std.testing.allocator, 32, .{
-        .attachment_id = attachment_id,
-        .base_generation = null,
-        .base_revision = null,
-        .force_snapshot = true,
-        .host_epoch = host_epoch,
-        .maximum_bytes = protocol.Limits.frame_bytes,
-        .sequence = 1,
-    });
+    const initial = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        32,
+        .{
+            .attachment_id = attachment_id,
+            .base_generation = null,
+            .base_revision = null,
+            .force_snapshot = true,
+            .host_epoch = host_epoch,
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 1,
+        },
+    ));
     defer std.testing.allocator.free(initial.allocation);
     const initial_summary = try protocol.validateTerminalFrame(std.testing.allocator, initial.bytes);
     try std.testing.expectEqual(protocol.FrameKind.snapshot, initial_summary.kind);
@@ -1269,15 +1302,19 @@ test "runtime projection preserves resize and hyperlink transitions" {
         runtime,
         "\x1b[H\x1b]8;;" ++ hyperlink_target ++ "\x07BB\x1b]8;;\x07",
     );
-    const delta = try runtime.encodeProjectionFrameOwned(std.testing.allocator, 32, .{
-        .attachment_id = attachment_id,
-        .base_generation = initial_summary.generation,
-        .base_revision = initial_revision,
-        .force_snapshot = false,
-        .host_epoch = host_epoch,
-        .maximum_bytes = protocol.Limits.frame_bytes,
-        .sequence = 2,
-    });
+    const delta = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        32,
+        .{
+            .attachment_id = attachment_id,
+            .base_generation = initial_summary.generation,
+            .base_revision = initial_revision,
+            .force_snapshot = false,
+            .host_epoch = host_epoch,
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 2,
+        },
+    ));
     defer std.testing.allocator.free(delta.allocation);
     const delta_summary = try protocol.validateTerminalFrame(std.testing.allocator, delta.bytes);
     try std.testing.expectEqual(protocol.FrameKind.delta, delta_summary.kind);
@@ -1296,15 +1333,19 @@ test "runtime projection preserves resize and hyperlink transitions" {
     const unlinked_revision = try writeProjectionOutput(runtime, "\x1b[HCC");
     const resized_revision = try runtime.resizeGeometry(5, 3, 8, 16);
     try std.testing.expectEqual(unlinked_revision + 1, resized_revision);
-    const resized = try runtime.encodeProjectionFrameOwned(std.testing.allocator, 32, .{
-        .attachment_id = attachment_id,
-        .base_generation = initial_summary.generation,
-        .base_revision = linked_revision,
-        .force_snapshot = false,
-        .host_epoch = host_epoch,
-        .maximum_bytes = protocol.Limits.frame_bytes,
-        .sequence = 3,
-    });
+    const resized = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        32,
+        .{
+            .attachment_id = attachment_id,
+            .base_generation = initial_summary.generation,
+            .base_revision = linked_revision,
+            .force_snapshot = false,
+            .host_epoch = host_epoch,
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 3,
+        },
+    ));
     defer std.testing.allocator.free(resized.allocation);
     const resized_summary = try protocol.validateTerminalFrame(std.testing.allocator, resized.bytes);
     try std.testing.expectEqual(protocol.FrameKind.snapshot, resized_summary.kind);

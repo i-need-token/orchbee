@@ -42,6 +42,11 @@ pub const ReserveOutcome = union(enum) {
     reserved: RecordReservation,
 };
 
+pub const AdoptionOutcome = union(enum) {
+    full,
+    prepared: PayloadAdoption,
+};
+
 pub const ScheduleOutcome = enum {
     complete,
     batch_full,
@@ -129,6 +134,55 @@ pub const RecordReservation = struct {
                 self.maximum_record_length,
                 self.allocation.?,
             );
+        }
+        self.* = undefined;
+    }
+};
+
+/// Owns one already-encoded payload and its promised batch capacity until the
+/// caller reaches an allocation-free commit point. Cancelling a pending value
+/// releases both the capacity and the adopted allocation without publishing a
+/// record.
+pub const PayloadAdoption = struct {
+    allocation: ?[]u8,
+    append_id: u64,
+    delivery: DeliveryMetadata,
+    encoding: protocol.PayloadEncoding,
+    kind: u16,
+    outgoing: *Outgoing,
+    payload_length: usize,
+    state: ReservationState = .pending,
+
+    pub fn commit(self: *PayloadAdoption) AppendToken {
+        std.debug.assert(self.state == .pending);
+        const allocation = self.allocation.?;
+        const payload = allocation[owned_payload_prefix_bytes..];
+        std.debug.assert(payload.len == self.payload_length);
+        const record = protocol.finalizeTransportEnvelope(
+            allocation,
+            self.kind,
+            self.encoding,
+            payload.len,
+            self.delivery.correlation_id,
+            if (self.delivery.host_epoch) |epoch| epoch.bytes else null,
+            self.delivery.response,
+            self.delivery.event,
+        ) catch unreachable;
+        const token = self.outgoing.commitReservation(
+            self.append_id,
+            allocation.len,
+            allocation,
+            record,
+        );
+        self.allocation = null;
+        self.state = .consumed;
+        return token;
+    }
+
+    pub fn deinit(self: *PayloadAdoption) void {
+        if (self.state == .pending) {
+            const allocation = self.allocation.?;
+            self.outgoing.cancelReservation(allocation.len, allocation);
         }
         self.* = undefined;
     }
@@ -243,17 +297,18 @@ pub const Outgoing = struct {
         return .{ .appended = reservation.commitPayload(kind, encoding, payload) };
     }
 
-    /// Adopts one exact allocation whose payload begins after the transport
-    /// header prefix. Ownership transfers only for `.appended`; on `.full` or
-    /// error the caller still owns and must release `allocation`.
-    pub fn adoptPayload(
+    /// Prepares one exact allocation whose payload begins after the transport
+    /// header prefix. `.prepared` transfers ownership and promises enough batch
+    /// capacity for `PayloadAdoption.commit` to remain allocation-free. On
+    /// `.full` or error the caller retains ownership.
+    pub fn prepareAdoptPayload(
         self: *Outgoing,
         kind: u16,
         encoding: protocol.PayloadEncoding,
         allocation: []u8,
         payload: []const u8,
         delivery: Delivery,
-    ) !AppendOutcome {
+    ) !AdoptionOutcome {
         if (allocation.len != owned_payload_prefix_bytes + payload.len or
             payload.ptr != allocation.ptr + owned_payload_prefix_bytes)
         {
@@ -277,32 +332,43 @@ pub const Outgoing = struct {
         const required_capacity = self.record_storage.items.len + self.reserved_records + 1;
         try self.record_storage.ensureTotalCapacity(self.allocator, required_capacity);
         try self.record_views.ensureTotalCapacity(self.allocator, required_capacity);
-        const record = protocol.finalizeTransportEnvelope(
-            allocation,
+        self.next_append_id = next_append_id;
+        self.reserved_bytes += allocation.len;
+        self.reserved_records += 1;
+        return .{ .prepared = .{
+            .allocation = allocation,
+            .append_id = append_id,
+            .delivery = metadata,
+            .encoding = encoding,
+            .kind = kind,
+            .outgoing = self,
+            .payload_length = payload.len,
+        } };
+    }
+
+    /// Immediately adopts a payload through the provisional reservation path.
+    /// Ownership transfers only for `.appended`; on `.full` or error the caller
+    /// still owns and must release `allocation`.
+    pub fn adoptPayload(
+        self: *Outgoing,
+        kind: u16,
+        encoding: protocol.PayloadEncoding,
+        allocation: []u8,
+        payload: []const u8,
+        delivery: Delivery,
+    ) !AppendOutcome {
+        var adoption = switch (try self.prepareAdoptPayload(
             kind,
             encoding,
-            payload.len,
-            metadata.correlation_id,
-            if (metadata.host_epoch) |epoch| epoch.bytes else null,
-            metadata.response,
-            metadata.event,
-        ) catch unreachable;
-        const token: AppendToken = .{
-            .append_id = append_id,
-            .byte_count_before = self.byte_count,
-            .previous_append_id = self.last_append_id,
-            .record_count_before = self.record_storage.items.len,
+            allocation,
+            payload,
+            delivery,
+        )) {
+            .full => return .full,
+            .prepared => |prepared| prepared,
         };
-        self.next_append_id = next_append_id;
-        self.record_storage.appendAssumeCapacity(.{
-            .allocation = allocation,
-            .bytes = record,
-        });
-        self.record_views.appendAssumeCapacity(record);
-        self.allocation_byte_count += allocation.len;
-        self.byte_count += record.len;
-        self.last_append_id = append_id;
-        return .{ .appended = token };
+        defer adoption.deinit();
+        return .{ .appended = adoption.commit() };
     }
 
     pub fn rollback(self: *Outgoing, token: AppendToken) error{InvalidAppendToken}!void {

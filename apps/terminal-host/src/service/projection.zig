@@ -17,6 +17,7 @@ const MessageKind = protocol.MessageKind;
 const ProjectionAppendOutcome = union(enum) {
     appended: core_module.ProjectionFrameCommit,
     batch_full,
+    unavailable,
 };
 
 const TestClockState = if (target_builtin.is_test) struct {
@@ -78,6 +79,7 @@ pub const Scheduler = struct {
         var scanned: usize = 0;
         var scheduled: usize = 0;
         var outcome: host_outgoing.ScheduleOutcome = .complete;
+        var retry_current = false;
         var used_terminal_ids: [max_scheduled_attachments_per_poll]core_module.TerminalId = undefined;
         var used_terminal_count: usize = 0;
         const PendingMutation = union(enum) {
@@ -135,7 +137,7 @@ pub const Scheduler = struct {
                 core.projectionCaughtUp(attachment.attachment_id) catch unreachable;
                 continue;
             }
-            var encoded = runtime.encodeProjectionFrameOwned(
+            const encode_outcome = runtime.encodeProjectionFrameOwned(
                 outgoing.ownedPayloadAllocator(),
                 host_outgoing.owned_payload_prefix_bytes,
                 .{
@@ -147,51 +149,54 @@ pub const Scheduler = struct {
                     .maximum_bytes = maximum_frame_bytes,
                     .sequence = attachment.nextProjectionSequence(),
                 },
-            ) catch |err| {
-                if (err == error.TerminalResizeFailed or
-                    err == error.TerminalRuntimeUnavailable)
-                {
-                    used_terminal_count -= 1;
-                    scheduled -= 1;
+            ) catch {
+                used_terminal_count -= 1;
+                scheduled -= 1;
+                continue :scan;
+            };
+            var encoded = switch (encode_outcome) {
+                .blocked => |blocked| {
+                    const reason: core_module.ProjectionBlock = switch (blocked.reason) {
+                        .capture_allocation_failed => .capture_allocation_failed,
+                        .projection_too_large => .projection_too_large,
+                    };
+                    const latest_geometry = runtime.geometry();
+                    _ = core.synchronizeRevision(
+                        attachment.terminal_id,
+                        latest_geometry.revision,
+                    ) catch unreachable;
+                    const append_outcome = try appendProjectionBlocked(
+                        allocator,
+                        core.epoch,
+                        outgoing,
+                        attachment.attachment_id,
+                        reason,
+                        blocked.attempted_revision,
+                    );
+                    const append_token = switch (append_outcome) {
+                        .appended => |token| token,
+                        .full => {
+                            scanned -= 1;
+                            used_terminal_count -= 1;
+                            scheduled -= 1;
+                            outcome = .batch_full;
+                            break :scan;
+                        },
+                    };
+                    const block_commit = core.blockProjectionTransaction(
+                        attachment.attachment_id,
+                        reason,
+                        blocked.attempted_revision,
+                    ) catch |block_err| {
+                        outgoing.rollback(append_token) catch unreachable;
+                        return block_err;
+                    };
+                    std.debug.assert(pending_mutation_count < pending_mutations.len);
+                    pending_mutations[pending_mutation_count] = .{ .block = block_commit };
+                    pending_mutation_count += 1;
                     continue :scan;
-                }
-                const reason: core_module.ProjectionBlock = switch (err) {
-                    error.ProjectionTooLarge => .projection_too_large,
-                    else => .capture_allocation_failed,
-                };
-                const blocked_geometry = runtime.geometry();
-                _ = core.synchronizeRevision(
-                    attachment.terminal_id,
-                    blocked_geometry.revision,
-                ) catch unreachable;
-                const append_outcome = try appendProjectionBlocked(
-                    allocator,
-                    core.epoch,
-                    outgoing,
-                    attachment.attachment_id,
-                    reason,
-                    blocked_geometry.revision,
-                );
-                const append_token = switch (append_outcome) {
-                    .appended => |token| token,
-                    .full => {
-                        scanned -= 1;
-                        used_terminal_count -= 1;
-                        outcome = .batch_full;
-                        break :scan;
-                    },
-                };
-                const block_commit = core.blockProjectionTransaction(
-                    attachment.attachment_id,
-                    reason,
-                ) catch |block_err| {
-                    outgoing.rollback(append_token) catch unreachable;
-                    return block_err;
-                };
-                std.debug.assert(pending_mutation_count < pending_mutations.len);
-                pending_mutations[pending_mutation_count] = .{ .block = block_commit };
-                pending_mutation_count += 1;
-                continue;
+                },
+                .frame => |frame| frame,
             };
             defer if (encoded.allocation.len != 0) {
                 outgoing.ownedPayloadAllocator().free(encoded.allocation);
@@ -203,6 +208,7 @@ pub const Scheduler = struct {
             };
             switch (try appendProjectionFrame(
                 aggregate,
+                runtime,
                 outgoing,
                 attachment.attachment_id,
                 message_kind,
@@ -216,12 +222,20 @@ pub const Scheduler = struct {
                 .batch_full => {
                     scanned -= 1;
                     used_terminal_count -= 1;
+                    scheduled -= 1;
                     outcome = .batch_full;
+                    break :scan;
+                },
+                .unavailable => {
+                    scanned -= 1;
+                    used_terminal_count -= 1;
+                    scheduled -= 1;
+                    retry_current = true;
                     break :scan;
                 },
             }
         }
-        self.scan_index = if (outcome == .batch_full)
+        self.scan_index = if (outcome == .batch_full or retry_current)
             (start + scanned) % count
         else if (start + 1 == count)
             0
@@ -239,24 +253,29 @@ pub const Scheduler = struct {
 
 fn appendProjectionFrame(
     aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
+    runtime: *terminal_runtime.TerminalRuntime,
     outgoing: *host_outgoing.Outgoing,
     attachment_id: core_module.AttachmentId,
     message_kind: u16,
     encoded: *terminal_runtime.ProjectionFrame,
 ) !ProjectionAppendOutcome {
     const core = aggregate.core();
-    const append_token = switch (try outgoing.adoptPayload(
+    var adoption = switch (try outgoing.prepareAdoptPayload(
         message_kind,
         .terminal_frame,
         encoded.allocation,
         encoded.bytes,
         .{ .event = core.epoch },
     )) {
-        .appended => |token| token,
+        .prepared => |prepared| prepared,
         .full => return .batch_full,
     };
     encoded.allocation = &.{};
     encoded.bytes = &.{};
+    defer adoption.deinit();
+    var read_commit = runtime.acquireReadCommitGuard() catch return .unavailable;
+    defer read_commit.deinit();
+    const append_token = adoption.commit();
     const commit = core.commitFrameTransaction(
         attachment_id,
         encoded.base_revision,
