@@ -1,3 +1,4 @@
+import { PROTOCOL_LIMITS } from '@orchbee/terminal-protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -19,6 +20,41 @@ describe('projected terminal contract', () => {
 			ProjectedTerminalCommandSchema.safeParse({
 				kind: 'selection-copy',
 				payload: { requestSequence: '1' },
+			}).success,
+		).toBe(false);
+	});
+
+	it('bounds link targets by their UTF-8 representation', () => {
+		const prefix = 'https://example.com/';
+		const exactAsciiTarget = `${prefix}${'a'.repeat(
+			PROTOCOL_LIMITS.maxStringBytes - prefix.length,
+		)}`;
+		const target = `https://example.com/${'界'.repeat(
+			Math.ceil(PROTOCOL_LIMITS.maxStringBytes / 3),
+		)}`;
+		expect(new TextEncoder().encode(exactAsciiTarget).byteLength).toBe(
+			PROTOCOL_LIMITS.maxStringBytes,
+		);
+		expect(
+			ProjectedTerminalCommandSchema.safeParse({
+				kind: 'link-open',
+				payload: { attachmentId, requestSequence: '1', target: exactAsciiTarget },
+			}).success,
+		).toBe(true);
+		expect(
+			ProjectedTerminalCommandSchema.safeParse({
+				kind: 'link-open',
+				payload: { attachmentId, requestSequence: '1', target: `${exactAsciiTarget}a` },
+			}).success,
+		).toBe(false);
+		expect(target.length).toBeLessThan(PROTOCOL_LIMITS.maxStringBytes);
+		expect(new TextEncoder().encode(target).byteLength).toBeGreaterThan(
+			PROTOCOL_LIMITS.maxStringBytes,
+		);
+		expect(
+			ProjectedTerminalCommandSchema.safeParse({
+				kind: 'link-open',
+				payload: { attachmentId, requestSequence: '1', target },
 			}).success,
 		).toBe(false);
 	});

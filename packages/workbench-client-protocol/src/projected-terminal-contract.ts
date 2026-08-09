@@ -26,6 +26,17 @@ import {
 } from '@orchbee/terminal-protocol';
 import { z } from 'zod';
 
+const utf8Encoder = new TextEncoder();
+
+const projectedTerminalLinkTargetSchema = z
+	.string()
+	.min(1)
+	.max(PROTOCOL_LIMITS.maxStringBytes)
+	.refine(
+		(value) => utf8Encoder.encode(value).byteLength <= PROTOCOL_LIMITS.maxStringBytes,
+		`Link target exceeds ${PROTOCOL_LIMITS.maxStringBytes} UTF-8 bytes.`,
+	);
+
 export const ProjectedAttachmentBootstrapSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	canInput: z.boolean().optional(),
@@ -63,7 +74,7 @@ export const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
 		payload: z.strictObject({
 			attachmentId: AttachmentIdSchema,
 			requestSequence: CanonicalUint64TextSchema,
-			target: z.string().min(1).max(PROTOCOL_LIMITS.maxStringBytes),
+			target: projectedTerminalLinkTargetSchema,
 		}),
 	}),
 	z.strictObject({ kind: z.literal('text-input'), payload: TextInputSchema }),
