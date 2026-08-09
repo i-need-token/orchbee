@@ -6,6 +6,8 @@ import type {
 
 export interface ProjectedTerminalTransport {
 	close(): void;
+	/** Declares whether projection payloads cross an external validation boundary. */
+	readonly projectionBufferTrust: 'external' | 'local-host';
 	send(command: ProjectedTerminalCommand): void;
 	subscribe(listener: (value: unknown) => void, unavailable: () => void): () => void;
 }

@@ -307,6 +307,7 @@ function intentForLifecycle(
 		case 'reconciling':
 		case 'restore-failed':
 		case 'exited':
+		case 'failed':
 			return { kind: 'retain' };
 		case 'stopping':
 		case 'stop-failed':

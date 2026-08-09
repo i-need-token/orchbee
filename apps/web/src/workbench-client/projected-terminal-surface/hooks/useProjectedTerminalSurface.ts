@@ -18,7 +18,9 @@ export function useProjectedTerminalSurface(
 	const [failed, setFailed] = React.useState(false);
 	const [projectionGeneration, setProjectionGeneration] = React.useState(0);
 	const projectable =
-		presentation.lifecycle.kind === 'running' || presentation.lifecycle.kind === 'exited';
+		presentation.lifecycle.kind === 'running' ||
+		presentation.lifecycle.kind === 'exited' ||
+		presentation.lifecycle.kind === 'failed';
 
 	if (capability === null) {
 		throw new Error('ProjectedTerminalSurface requires its client capability.');

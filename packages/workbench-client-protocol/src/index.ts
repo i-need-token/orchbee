@@ -1,10 +1,12 @@
 export {
 	ProjectedAttachmentBootstrapSchema,
+	ProjectedTerminalOutcomeSchema,
 	ProjectedTerminalCommandSchema,
 	ProjectedTerminalEventSchema,
 } from './projected-terminal-contract';
 export type {
 	ProjectedAttachmentBootstrap,
+	ProjectedTerminalOutcome,
 	ProjectedTerminalCommand,
 	ProjectedTerminalEvent,
 	ProjectedTerminalFailure,

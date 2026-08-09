@@ -136,6 +136,7 @@ describe('startProjectedTerminalRenderer', () => {
 		let emitTransportMessage: (value: unknown) => void = () => undefined;
 		const transport: ProjectedTerminalTransport = {
 			close: vi.fn<() => void>(),
+			projectionBufferTrust: 'local-host',
 			send: vi.fn<ProjectedTerminalTransport['send']>(),
 			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>((listener) => {
 				emitTransportMessage = listener;
@@ -145,17 +146,20 @@ describe('startProjectedTerminalRenderer', () => {
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: false,
-			canResize: true,
+			canResize: false,
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
-			terminalExit: {
-				exit: { code: 0, kind: 'exit-code' as const },
-				finalRevision: CanonicalUint64TextSchema.parse('1'),
-				identity: {
-					creationId: CreationIdSchema.parse('22'.repeat(16)),
-					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
-					terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: {
+				event: {
+					exit: { code: 0, kind: 'exit-code' as const },
+					finalRevision: CanonicalUint64TextSchema.parse('1'),
+					identity: {
+						creationId: CreationIdSchema.parse('22'.repeat(16)),
+						hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+						terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+					},
 				},
+				kind: 'exited' as const,
 			},
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 		};
@@ -175,6 +179,9 @@ describe('startProjectedTerminalRenderer', () => {
 				transport,
 				dependencies,
 				{ writeClipboardText },
+			);
+			expect(dependencies.createTerminal).toHaveBeenCalledWith(
+				expect.objectContaining({ projectionBufferTrust: 'local-host' }),
 			);
 			emitTransportMessage({ frame: new Uint8Array([1, 2, 3]).buffer, kind: 'frame' });
 			emitTransportMessage({ kind: 'link-opened', requestSequence: '9' });
@@ -232,7 +239,7 @@ describe('startProjectedTerminalRenderer', () => {
 				fontSize: 15,
 			});
 			expect(options?.inputEnabled).toBe(false);
-			expect(notifyExited).toHaveBeenCalledWith(bootstrap.terminalExit);
+			expect(notifyExited).toHaveBeenCalledWith(bootstrap.terminalOutcome.event);
 			expect(dataset['projectedTerminalAttachmentId']).toBe(bootstrap.attachmentId);
 			expect(dataset['projectedTerminalState']).toBe('exited');
 			expect(dataset['projectedTerminalCommittedFrames']).toBe('1');

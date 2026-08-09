@@ -254,6 +254,12 @@ export type PanelWorkspaceEvent =
 			readonly type: 'terminal-exited';
 	  }
 	| {
+			readonly failure: TerminalPresentationFailure;
+			readonly presentationId: TerminalPresentationId;
+			readonly tabId: string;
+			readonly type: 'terminal-failed';
+	  }
+	| {
 			readonly operationId: TerminalPresentationOperationId;
 			readonly presentationId: TerminalPresentationId;
 			readonly removalId: TerminalPresentationRemovalId;
@@ -1105,6 +1111,22 @@ export function projectPanelDrag(
 	return result.changed ? result.node : removal.node;
 }
 
+function canSettleTerminalLifecycle(lifecycle: TerminalPresentationLifecycle): boolean {
+	return (
+		lifecycle.kind === 'provisioning' ||
+		lifecycle.kind === 'restoring' ||
+		lifecycle.kind === 'reconciling' ||
+		lifecycle.kind === 'running'
+	);
+}
+
+function failuresEqual(
+	left: TerminalPresentationFailure,
+	right: TerminalPresentationFailure,
+): boolean {
+	return left.code === right.code && left.retryable === right.retryable;
+}
+
 export function transitionPanelWorkspace(
 	state: PanelWorkspaceState,
 	event: PanelWorkspaceEvent,
@@ -1508,11 +1530,30 @@ export function transitionPanelWorkspace(
 				? unchanged(state)
 				: rejected(state, 'stale-operation');
 		}
-		if (terminal.lifecycle.kind !== 'running') return rejected(state, 'stale-operation');
+		if (!canSettleTerminalLifecycle(terminal.lifecycle)) {
+			return rejected(state, 'stale-operation');
+		}
 		return replaceTerminalLifecycle(state, tabIndex, tab, event.presentationId, {
 			exitCode: event.exitCode,
 			kind: 'exited',
 			signal: event.signal,
+		});
+	}
+
+	if (event.type === 'terminal-failed') {
+		const terminal = findTerminalInNode(tab.root, event.presentationId);
+		if (terminal === null) return rejected(state, 'terminal-not-found');
+		if (terminal.lifecycle.kind === 'failed') {
+			return failuresEqual(terminal.lifecycle.failure, event.failure)
+				? unchanged(state)
+				: rejected(state, 'stale-operation');
+		}
+		if (!canSettleTerminalLifecycle(terminal.lifecycle)) {
+			return rejected(state, 'stale-operation');
+		}
+		return replaceTerminalLifecycle(state, tabIndex, tab, event.presentationId, {
+			failure: event.failure,
+			kind: 'failed',
 		});
 	}
 

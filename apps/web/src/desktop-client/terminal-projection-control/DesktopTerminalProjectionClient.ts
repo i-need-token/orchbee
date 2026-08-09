@@ -167,6 +167,7 @@ export class DesktopTerminalProjectionClient implements TerminalProjectionClient
 
 class MessagePortProjectedTerminalTransport implements ProjectedTerminalTransport {
 	readonly #port: MessagePort;
+	readonly projectionBufferTrust = 'local-host' as const;
 
 	constructor(port: MessagePort) {
 		this.#port = port;

@@ -883,6 +883,37 @@ describe('panel workspace state', () => {
 		]);
 	});
 
+	it('accepts an authoritative runtime failure before provisioning completes', () => {
+		const initialization = initializePanelWorkspace([
+			{
+				id: 'tab-a',
+				presentation: managedPresentation('presentation-1', 'provision-1'),
+				title: 'Terminal 1',
+			},
+		]);
+		const failure = { code: 'terminal-runtime-pty-read-read-output', retryable: false };
+		const failed = transitionPanelWorkspaceCore(initialization.state, {
+			failure,
+			presentationId: terminalPresentationId('presentation-1'),
+			tabId: 'tab-a',
+			type: 'terminal-failed',
+		});
+
+		expect(failed.outcome).toBe('applied');
+		expect(
+			findPanel(requireDefined(failed.state.tabs[0]).root, 'panel-1')?.primaryPresentation
+				.lifecycle,
+		).toEqual({ failure, kind: 'failed' });
+		expect(
+			transitionPanelWorkspaceCore(failed.state, {
+				operationId: terminalPresentationOperationId('provision-1'),
+				presentationId: terminalPresentationId('presentation-1'),
+				tabId: 'tab-a',
+				type: 'terminal-provision-completed',
+			}),
+		).toMatchObject({ outcome: 'rejected', rejection: 'stale-operation' });
+	});
+
 	it('keeps a partially closed Panel until failed terminals retry and complete', () => {
 		const initialization = initializePanelWorkspace([
 			{

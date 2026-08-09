@@ -11,6 +11,7 @@ const bootstrap = {
 	creationId: '22'.repeat(16),
 	hostEpoch: '33'.repeat(16),
 	terminalId: '44'.repeat(16),
+	terminalOutcome: null,
 };
 
 describe('DesktopTerminalProjectionClient', () => {

@@ -63,6 +63,10 @@ export type TerminalPresentationLifecycle =
 			readonly signal: string | null;
 	  }
 	| {
+			readonly failure: TerminalPresentationFailure;
+			readonly kind: 'failed';
+	  }
+	| {
 			readonly kind: 'closing';
 			readonly operationId: TerminalPresentationOperationId;
 			readonly removalId: TerminalPresentationRemovalId;
@@ -157,6 +161,11 @@ export type TerminalPresentationEvent =
 			readonly type: 'terminal-exited';
 	  }
 	| {
+			readonly failure: TerminalPresentationFailure;
+			readonly presentationId: TerminalPresentationId;
+			readonly type: 'terminal-failed';
+	  }
+	| {
 			readonly operationId: TerminalPresentationOperationId;
 			readonly presentationId: TerminalPresentationId;
 			readonly type: 'terminal-close-completed';
@@ -206,6 +215,11 @@ export const TerminalPresentationEventSchema = z.discriminatedUnion('type', [
 		...terminalPresentationOperationIdentitySchema,
 		failure: TerminalPresentationFailureSchema,
 		type: z.literal('terminal-restore-failed'),
+	}),
+	z.strictObject({
+		failure: TerminalPresentationFailureSchema,
+		presentationId: TerminalPresentationIdSchema,
+		type: z.literal('terminal-failed'),
 	}),
 	z.strictObject({
 		...terminalPresentationOperationIdentitySchema,

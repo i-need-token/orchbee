@@ -13,7 +13,7 @@ import {
 	PasteInputSchema,
 	PROTOCOL_LIMITS,
 	ReadRowsSchema,
-	ResizeTerminalV1_1Schema,
+	ResizeTerminalSchema,
 	RowsAppliedSchema,
 	SelectionChangedSchema,
 	SelectionCommandSchema,
@@ -21,6 +21,7 @@ import {
 	SetHistoryDemandSchema,
 	SetProjectionDemandSchema,
 	TerminalExitedSchema,
+	TerminalFailedSchema,
 	TerminalIdSchema,
 	TextInputSchema,
 } from '@orchbee/terminal-protocol';
@@ -37,15 +38,45 @@ const projectedTerminalLinkTargetSchema = z
 		`Link target exceeds ${PROTOCOL_LIMITS.maxStringBytes} UTF-8 bytes.`,
 	);
 
-export const ProjectedAttachmentBootstrapSchema = z.strictObject({
-	attachmentId: AttachmentIdSchema,
-	canInput: z.boolean().optional(),
-	canResize: z.boolean(),
-	creationId: CreationIdSchema,
-	hostEpoch: HostEpochSchema,
-	terminalExit: TerminalExitedSchema.nullable().optional(),
-	terminalId: TerminalIdSchema,
-});
+export const ProjectedTerminalOutcomeSchema = z
+	.discriminatedUnion('kind', [
+		z.strictObject({ event: TerminalExitedSchema, kind: z.literal('exited') }),
+		z.strictObject({ event: TerminalFailedSchema, kind: z.literal('failed') }),
+	])
+	.nullable();
+
+export const ProjectedAttachmentBootstrapSchema = z
+	.strictObject({
+		attachmentId: AttachmentIdSchema,
+		canInput: z.boolean(),
+		canResize: z.boolean(),
+		creationId: CreationIdSchema,
+		hostEpoch: HostEpochSchema,
+		terminalId: TerminalIdSchema,
+		terminalOutcome: ProjectedTerminalOutcomeSchema,
+	})
+	.superRefine((bootstrap, context) => {
+		const outcome = bootstrap.terminalOutcome;
+		if (outcome === null) return;
+		if (bootstrap.canInput || bootstrap.canResize) {
+			context.addIssue({
+				code: 'custom',
+				message: 'A terminal with a final outcome cannot grant mutable capabilities.',
+				path: ['terminalOutcome'],
+			});
+		}
+		if (
+			outcome.event.identity.creationId !== bootstrap.creationId ||
+			outcome.event.identity.hostEpoch !== bootstrap.hostEpoch ||
+			outcome.event.identity.terminalId !== bootstrap.terminalId
+		) {
+			context.addIssue({
+				code: 'custom',
+				message: 'The terminal outcome identity must match the attachment bootstrap identity.',
+				path: ['terminalOutcome', 'event', 'identity'],
+			});
+		}
+	});
 
 export const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('focus-input'), payload: FocusInputSchema }),
@@ -55,7 +86,7 @@ export const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('need-snapshot'), payload: NeedSnapshotSchema }),
 	z.strictObject({ kind: z.literal('paste-input'), payload: PasteInputSchema }),
 	z.strictObject({ kind: z.literal('read-rows'), payload: ReadRowsSchema }),
-	z.strictObject({ kind: z.literal('resize-terminal'), payload: ResizeTerminalV1_1Schema }),
+	z.strictObject({ kind: z.literal('resize-terminal'), payload: ResizeTerminalSchema }),
 	z.strictObject({ kind: z.literal('rows-applied'), payload: RowsAppliedSchema }),
 	z.strictObject({ kind: z.literal('history-observed'), payload: HistoryObservedSchema }),
 	z.strictObject({ kind: z.literal('selection-command'), payload: SelectionCommandSchema }),
@@ -117,10 +148,12 @@ export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('link-opened'), requestSequence: CanonicalUint64TextSchema }),
 	z.strictObject({ kind: z.literal('rows'), rows: ProjectedTerminalBinarySchema }),
 	z.strictObject({ event: TerminalExitedSchema, kind: z.literal('terminal-exited') }),
+	z.strictObject({ event: TerminalFailedSchema, kind: z.literal('terminal-failed') }),
 	z.strictObject({ failure: ProjectedTerminalFailureSchema, kind: z.literal('failure') }),
 ]);
 
 export type ProjectedAttachmentBootstrap = z.infer<typeof ProjectedAttachmentBootstrapSchema>;
+export type ProjectedTerminalOutcome = z.infer<typeof ProjectedTerminalOutcomeSchema>;
 export type ProjectedTerminalCommand = z.infer<typeof ProjectedTerminalCommandSchema>;
 export type ProjectedTerminalEvent = z.infer<typeof ProjectedTerminalEventSchema>;
 export type ProjectedTerminalFailure = z.infer<typeof ProjectedTerminalFailureSchema>;

@@ -50,6 +50,7 @@ describe('GatewayTerminalProjectionClient', () => {
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
 		};
 		control.emit(
 			GatewayControlServerMessageSchema.parse({

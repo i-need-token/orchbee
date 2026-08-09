@@ -55,52 +55,61 @@ function TestHarness({
 }
 
 describe('useProjectedTerminalSurface', () => {
-	it('acquires projection for a running presentation and releases it on unmount', async () => {
-		const release = vi.fn<() => void>();
-		const open = vi.fn<TerminalProjectionClient['open']>(() => ({
-			release,
-			result: new Promise(() => undefined),
-		}));
-		const presentation: WorkbenchTerminalPresentation = {
-			currentCwd: '/workspace',
-			launchCwd: '/workspace',
-			lifecycle: { kind: 'running' },
-			presentationId: terminalPresentationId('presentation-1'),
-			title: 'Terminal 1',
-		};
-		const container = document.createElement('div');
-		document.body.appendChild(container);
-		const root = createRoot(container);
+	it.each([
+		{ kind: 'running' },
+		{
+			failure: { code: 'terminal-runtime-pty-read-read-output', retryable: false },
+			kind: 'failed',
+		},
+	] as const)(
+		'acquires projection for a $kind presentation and releases it on unmount',
+		async (lifecycle) => {
+			const release = vi.fn<() => void>();
+			const open = vi.fn<TerminalProjectionClient['open']>(() => ({
+				release,
+				result: new Promise(() => undefined),
+			}));
+			const presentation: WorkbenchTerminalPresentation = {
+				currentCwd: '/workspace',
+				launchCwd: '/workspace',
+				lifecycle,
+				presentationId: terminalPresentationId('presentation-1'),
+				title: 'Terminal 1',
+			};
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			const root = createRoot(container);
 
-		await act(async () => {
-			root.render(
-				createElement(
-					ProjectedTerminalSurfaceCapabilityContext.Provider,
-					{
-						value: {
-							documentElement: document.documentElement,
-							preferredLocales: ['en-US'],
-							platformEffects: {},
-							projectionClient: { open },
-							shortcutPlatform: 'apple',
-							startStoppedTerminalSession: () => undefined,
-						},
-					},
+			await act(async () => {
+				root.render(
 					createElement(
-						OrchbeeI18nProvider,
-						{ locale: 'en-US' },
-						createElement(TestHarness, { presentation }),
+						ProjectedTerminalSurfaceCapabilityContext.Provider,
+						{
+							value: {
+								documentElement: document.documentElement,
+								preferredLocales: ['en-US'],
+								platformEffects: {},
+								projectionClient: { open },
+								shortcutPlatform: 'apple',
+								startStoppedTerminalSession: () => undefined,
+							},
+						},
+						createElement(
+							OrchbeeI18nProvider,
+							{ locale: 'en-US' },
+							createElement(TestHarness, { presentation }),
+						),
 					),
-				),
-			);
-		});
+				);
+			});
 
-		expect(open).toHaveBeenCalledWith(presentation.presentationId);
-		expect(container.firstElementChild?.getAttribute('data-projection-state')).toBe('requested');
-		await act(async () => root.unmount());
-		expect(release).toHaveBeenCalledOnce();
-		container.remove();
-	});
+			expect(open).toHaveBeenCalledWith(presentation.presentationId);
+			expect(container.firstElementChild?.getAttribute('data-projection-state')).toBe('requested');
+			await act(async () => root.unmount());
+			expect(release).toHaveBeenCalledOnce();
+			container.remove();
+		},
+	);
 
 	it('reopens a fresh projection after an attachment transport becomes unavailable', async () => {
 		let resolveTransportUnavailable: (() => void) | undefined;
@@ -117,6 +126,7 @@ describe('useProjectedTerminalSurface', () => {
 		const secondRelease = vi.fn<() => void>();
 		const transport: ProjectedTerminalTransport = {
 			close: vi.fn<() => void>(),
+			projectionBufferTrust: 'external',
 			send: vi.fn<ProjectedTerminalTransport['send']>(),
 			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
 		};
@@ -134,6 +144,7 @@ describe('useProjectedTerminalSurface', () => {
 							creationId: CreationIdSchema.parse('22'.repeat(16)),
 							hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 							terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+							terminalOutcome: null,
 						},
 						transport,
 					}),

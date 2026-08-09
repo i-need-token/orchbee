@@ -241,6 +241,7 @@ class GatewayAttachmentTransport implements ProjectedTerminalTransport {
 		readonly event: ProjectedTerminalEvent;
 	}> = [];
 	readonly ready: Promise<void>;
+	readonly projectionBufferTrust = 'external' as const;
 	#rejectReady: ((error: Error) => void) | undefined;
 	#resolveReady: (() => void) | undefined;
 	readonly #socket: WebSocket;

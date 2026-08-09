@@ -29,10 +29,12 @@ describe('terminal projection control contract', () => {
 			TerminalProjectionControlEventSchema.safeParse({
 				bootstrap: {
 					attachmentId: '11'.repeat(16),
+					canInput: true,
 					canResize: true,
 					creationId: '22'.repeat(16),
 					hostEpoch: '33'.repeat(16),
 					terminalId: '44'.repeat(16),
+					terminalOutcome: null,
 				},
 				presentationId: 'presentation-1',
 				requestId: 'projection-1',

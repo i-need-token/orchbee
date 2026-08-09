@@ -144,12 +144,35 @@ export async function startProjectedTerminalRenderer(
 		port: {
 			send: (command) => transport.send(command),
 		},
+		projectionBufferTrust: transport.projectionBufferTrust,
 		renderer: {
 			fontFamily: '"Menlo", monospace',
 			fontSize: 15,
 		},
 		terminalId: bootstrap.terminalId,
 	});
+	const reportRuntimeFailure = (
+		event: Extract<
+			NonNullable<ProjectedAttachmentBootstrap['terminalOutcome']>,
+			{ readonly kind: 'failed' }
+		>['event'],
+	): void => {
+		rootElement.dataset['projectedTerminalState'] = 'failed';
+		rootElement.dataset['projectedTerminalFailureKind'] = event.failure.kind;
+		rootElement.dataset['projectedTerminalFailureStage'] = event.failure.stage;
+		rootElement.dataset['projectedTerminalFinalRevision'] = event.finalRevision;
+		finalRevision = BigInt(event.finalRevision);
+		const message = intl.formatMessage(projectedTerminalMessages.runtimeFailure);
+		status.textContent = message;
+		status.hidden = false;
+		terminal.notifyBrokerFailure({
+			code: `terminal-${event.failure.kind}`,
+			message,
+			operation: 'connection',
+			retryable: false,
+		});
+		updateFinalPresentation();
+	};
 	const findController = new TerminalFindController(
 		terminal,
 		terminal.getBufferRowsSnapshot().totalRows,
@@ -294,6 +317,9 @@ export async function startProjectedTerminalRenderer(
 			case 'terminal-exited':
 				terminal.notifyExited(event.data.event);
 				return;
+			case 'terminal-failed':
+				reportRuntimeFailure(event.data.event);
+				return;
 		}
 	};
 	const unsubscribeTransport = transport.subscribe(handleMessage, () => {
@@ -308,8 +334,11 @@ export async function startProjectedTerminalRenderer(
 	let disposeShortcuts: (() => void) | undefined;
 	try {
 		await terminal.open(rootElement);
-		if (bootstrap.terminalExit !== null && bootstrap.terminalExit !== undefined) {
-			terminal.notifyExited(bootstrap.terminalExit);
+		rootElement.dataset['projectedTerminalState'] = 'open';
+		if (bootstrap.terminalOutcome?.kind === 'exited') {
+			terminal.notifyExited(bootstrap.terminalOutcome.event);
+		} else if (bootstrap.terminalOutcome?.kind === 'failed') {
+			reportRuntimeFailure(bootstrap.terminalOutcome.event);
 		}
 		rootElement.appendChild(findRoot);
 		findSurface = dependencies.mountFindSurface({
@@ -345,7 +374,6 @@ export async function startProjectedTerminalRenderer(
 			terminalRoot: rootElement,
 			terminalScope: actions.terminalScope,
 		});
-		rootElement.dataset['projectedTerminalState'] = 'open';
 		terminal.focus();
 	} catch (error) {
 		reportFailure();

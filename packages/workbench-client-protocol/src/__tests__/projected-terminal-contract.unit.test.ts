@@ -2,13 +2,100 @@ import { PROTOCOL_LIMITS } from '@orchbee/terminal-protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+	ProjectedAttachmentBootstrapSchema,
 	ProjectedTerminalCommandSchema,
 	ProjectedTerminalEventSchema,
 } from '../projected-terminal-contract';
 
 const attachmentId = '11'.repeat(16);
+const identity = {
+	creationId: '22'.repeat(16),
+	hostEpoch: '33'.repeat(16),
+	terminalId: '44'.repeat(16),
+};
+const bootstrap = {
+	attachmentId,
+	canInput: false,
+	canResize: false,
+	...identity,
+};
 
 describe('projected terminal contract', () => {
+	it('represents a terminal outcome as one identity-bound union', () => {
+		const exited = {
+			event: {
+				exit: { code: 0, kind: 'exit-code' },
+				finalRevision: '7',
+				identity,
+			},
+			kind: 'exited',
+		};
+		const failed = {
+			event: {
+				failure: { kind: 'pty-read', stage: 'read-output' },
+				finalRevision: '8',
+				identity,
+				process: {
+					kind: 'observed',
+					result: { code: 1, kind: 'exit-code' },
+				},
+			},
+			kind: 'failed',
+		};
+
+		expect(
+			ProjectedAttachmentBootstrapSchema.safeParse({ ...bootstrap, terminalOutcome: null }).success,
+		).toBe(true);
+		expect(
+			ProjectedAttachmentBootstrapSchema.safeParse({ ...bootstrap, terminalOutcome: exited })
+				.success,
+		).toBe(true);
+		expect(
+			ProjectedAttachmentBootstrapSchema.safeParse({ ...bootstrap, terminalOutcome: failed })
+				.success,
+		).toBe(true);
+		expect(ProjectedAttachmentBootstrapSchema.safeParse(bootstrap).success).toBe(false);
+		expect(
+			ProjectedAttachmentBootstrapSchema.safeParse({
+				...bootstrap,
+				terminalExit: exited.event,
+				terminalFailure: failed.event,
+				terminalOutcome: null,
+			}).success,
+		).toBe(false);
+	});
+
+	it('rejects mutable capabilities or a mismatched identity after a final outcome', () => {
+		const terminalOutcome = {
+			event: {
+				exit: { code: 0, kind: 'exit-code' },
+				finalRevision: '7',
+				identity,
+			},
+			kind: 'exited',
+		};
+
+		expect(
+			ProjectedAttachmentBootstrapSchema.safeParse({
+				...bootstrap,
+				canInput: true,
+				terminalOutcome,
+			}).success,
+		).toBe(false);
+		expect(
+			ProjectedAttachmentBootstrapSchema.safeParse({
+				...bootstrap,
+				terminalOutcome: {
+					...terminalOutcome,
+					event: {
+						...terminalOutcome.event,
+						identity: { ...identity, terminalId: '55'.repeat(16) },
+					},
+				},
+			}).success,
+		).toBe(false);
+	});
+
 	it('keeps commands scoped to their attachment identity', () => {
 		expect(
 			ProjectedTerminalCommandSchema.safeParse({

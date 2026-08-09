@@ -49,6 +49,11 @@ describe('terminal presentation contracts', () => {
 			{ operationId, presentationId, type: 'terminal-restore-completed' },
 			{ operationId, presentationId, type: 'terminal-close-completed' },
 			{ exitCode: 0, presentationId, signal: null, type: 'terminal-exited' },
+			{
+				failure: { code: 'terminal-runtime-pty-read-read-output', retryable: false },
+				presentationId,
+				type: 'terminal-failed',
+			},
 		] as const;
 
 		expect(events.every((event) => TerminalPresentationEventSchema.safeParse(event).success)).toBe(
