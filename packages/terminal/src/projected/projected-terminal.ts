@@ -332,6 +332,7 @@ export class ProjectedTerminal {
 	readonly #options: ProjectedTerminalOptions;
 	readonly #pressedKeys = new Map<string, KeyFacts>();
 	readonly #pressedModifierCodes = new Set<string>();
+	readonly #pressedMouseButtons = new Set<Exclude<MouseInput['button'], null>>();
 	readonly #store: PackedTerminalStore;
 	readonly #selectionEmitter = new EventEmitter<SelectionChanged>();
 	readonly #selectionCopiedEmitter = new EventEmitter<{
@@ -360,6 +361,7 @@ export class ProjectedTerminal {
 	#lastComposition: SentInput | undefined;
 	#lastGeometry: ResizeGeometry | undefined;
 	#lastKeyInput: SentInput | undefined;
+	#lastMouseInput: MouseInput | undefined;
 	#lastPaste: (SentInput & { readonly source: 'beforeinput' | 'clipboard' }) | undefined;
 	#listenerDisposers: Array<() => void> = [];
 	#hoveredLink: ILink | undefined;
@@ -2003,13 +2005,42 @@ export class ProjectedTerminal {
 	readonly #handleBlur = (): void => {
 		this.#renderer?.setFocused(false);
 		if (this.#options.inputEnabled === false) return;
+		this.#releasePressedKeys();
+		this.#releasePressedMouseButtons();
 		this.#sendInput({
 			kind: 'focus-input',
 			payload: { attachmentId: this.#attachmentId, focused: false },
 		});
-		this.#pressedKeys.clear();
 		this.#pressedModifierCodes.clear();
 	};
+
+	#releasePressedKeys(): void {
+		for (const facts of this.#pressedKeys.values()) this.#sendKey(facts, KeyAction.release);
+		this.#pressedKeys.clear();
+	}
+
+	#releasePressedMouseButtons(): void {
+		const last = this.#lastMouseInput;
+		if (last === undefined) {
+			this.#pressedMouseButtons.clear();
+			return;
+		}
+		let pressedButtons = last.pressedButtons;
+		for (const button of this.#pressedMouseButtons) {
+			pressedButtons &= ~(1 << (button - 1));
+			this.#sendInput({
+				kind: 'mouse-input',
+				payload: {
+					...last,
+					action: MouseAction.release,
+					button,
+					pressedButtons,
+				},
+			});
+		}
+		this.#pressedMouseButtons.clear();
+		this.#lastMouseInput = { ...last, pressedButtons };
+	}
 
 	readonly #handlePointerDown = (event: PointerEvent): void => {
 		this.focus();
@@ -2217,17 +2248,28 @@ export class ProjectedTerminal {
 			0,
 			metadata.rows * metadata.cellPixelHeight,
 		);
+		const payload: MouseInput = {
+			action,
+			attachmentId: this.#attachmentId,
+			button: activeButton,
+			modifiers: this.#modifiers(event),
+			pressedButtons,
+			x,
+			y,
+		};
+		if (
+			action === MouseAction.press &&
+			activeButton !== null &&
+			(pressedButtons & (1 << (activeButton - 1))) !== 0
+		) {
+			this.#pressedMouseButtons.add(activeButton);
+		} else if (action === MouseAction.release && activeButton !== null) {
+			this.#pressedMouseButtons.delete(activeButton);
+		}
+		this.#lastMouseInput = payload;
 		this.#sendInput({
 			kind: 'mouse-input',
-			payload: {
-				action,
-				attachmentId: this.#attachmentId,
-				button: activeButton,
-				modifiers: this.#modifiers(event),
-				pressedButtons,
-				x,
-				y,
-			},
+			payload,
 		});
 	}
 

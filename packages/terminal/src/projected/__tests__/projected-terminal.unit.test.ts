@@ -931,6 +931,107 @@ describe('ProjectedTerminal', () => {
 		expect(commands.some((command) => command.kind === 'paste-input')).toBe(false);
 	});
 
+	it('releases pressed keys before reporting focus loss', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch('keydown', {
+			altKey: false,
+			code: 'KeyA',
+			ctrlKey: false,
+			getModifierState: () => false,
+			isComposing: false,
+			key: 'a',
+			keyCode: 65,
+			metaKey: false,
+			preventDefault: () => {},
+			repeat: false,
+			shiftKey: false,
+			stopPropagation: () => {},
+			type: 'keydown',
+		} as unknown as KeyboardEvent);
+		input.dispatch('blur', { type: 'blur' } as FocusEvent);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'key-input' || command.kind === 'focus-input')
+				.map((command) =>
+					command.kind === 'key-input' ? `${command.kind}:${command.payload.action}` : command.kind,
+				),
+		).toEqual(['key-input:press', 'key-input:release', 'focus-input']);
+		terminal.dispose();
+	});
+
+	it('releases application-owned mouse buttons on focus loss', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				mouseButton: true,
+			}),
+		);
+		(terminal.canvas as unknown as FakeElement).dispatch('pointerdown', {
+			altKey: false,
+			button: 0,
+			buttons: 1,
+			clientX: 2,
+			clientY: 2,
+			ctrlKey: false,
+			metaKey: false,
+			preventDefault: () => {},
+			shiftKey: false,
+			type: 'pointerdown',
+		} as unknown as PointerEvent);
+		(terminal.textarea as unknown as FakeElement).dispatch('blur', {
+			type: 'blur',
+		} as FocusEvent);
+
+		const mouse = commands.filter((command) => command.kind === 'mouse-input');
+		expect(mouse.map((command) => command.payload.action)).toEqual([
+			MouseAction.press,
+			MouseAction.release,
+		]);
+		expect(mouse.at(-1)?.payload).toMatchObject({
+			button: MouseButton.left,
+			pressedButtons: 0,
+		});
+		terminal.dispose();
+	});
+
 	it('keeps local selection available when PTY input is read-only', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
