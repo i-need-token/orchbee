@@ -2,14 +2,17 @@ import {
 	decodeTerminalFrame,
 	CanonicalUint64TextSchema,
 	FrameAppliedSchema,
+	inspectTerminalFrameHeader,
 	TerminalCellWidthCode,
 	TerminalFrameKind,
 	type ActiveScreenValue,
 	type AttachmentId,
 	type CursorShapeValue,
 	type DecodedTerminalFrame,
+	type DecodedTerminalProjectionBuffer,
 	type FrameApplied,
 	type HostEpoch,
+	type InspectedTerminalFrameHeader,
 	type NeedSnapshot,
 	type TerminalInteraction,
 } from '@orchbee/terminal-protocol';
@@ -75,9 +78,9 @@ export interface ProjectedTerminalMetadata {
 interface PackedTerminalRowBacking {
 	readonly backgroundColors: Uint32Array;
 	readonly foregroundColors: Uint32Array;
-	readonly graphemeLengths: Uint32Array;
+	readonly graphemeLengths: Uint16Array | Uint32Array;
 	readonly graphemeOffsets: Uint32Array;
-	readonly hyperlinkLengths: Uint32Array;
+	readonly hyperlinkLengths: Uint16Array | Uint32Array;
 	readonly hyperlinkOffsets: Uint32Array;
 	readonly protectedCells: Uint8Array;
 	readonly semanticContents: Uint8Array;
@@ -179,12 +182,12 @@ export class PackedTerminalRowView {
 }
 
 interface PackedGrid {
+	readonly directByteLength?: number;
 	readonly rows: readonly PackedTerminalRowView[];
 }
 
 interface LastCommit {
 	readonly baseRevision: bigint | null;
-	readonly fingerprint: readonly [number, number, number, number];
 	readonly generation: bigint;
 	readonly kind: string;
 	readonly revision: bigint;
@@ -194,7 +197,7 @@ interface LastCommit {
 function decodeRowString(
 	backing: PackedTerminalRowBacking,
 	offsets: Uint32Array,
-	lengths: Uint32Array,
+	lengths: Uint16Array | Uint32Array,
 	column: number,
 ): string {
 	const offset = offsets[column];
@@ -205,90 +208,163 @@ function decodeRowString(
 	return textDecoder.decode(backing.stringBytes.subarray(offset, offset + length));
 }
 
-function fingerprint(bytes: Uint8Array): readonly [number, number, number, number] {
-	let first = 0x811c_9dc5;
-	let second = 0x9e37_79b9;
-	let third = 0x85eb_ca6b;
-	let fourth = 0xc2b2_ae35;
-	for (const byte of bytes) {
-		first = Math.imul(first ^ byte, 0x0100_0193) >>> 0;
-		second = Math.imul(second ^ byte, 0x27d4_eb2d) >>> 0;
-		third = Math.imul(third ^ byte, 0x1656_67b1) >>> 0;
-		fourth = Math.imul(fourth ^ byte, 0x9e37_79b1) >>> 0;
-	}
-	return [first, second, third, fourth];
+interface PackedFrameBuildContext {
+	readonly encodedStrings: (Uint8Array | undefined)[];
+	readonly referencedStrings: number[];
+	readonly seenAtRow: Uint32Array;
+	readonly sharedCellColumns: PackedFrameCellColumns | null;
+	readonly stringLengths: Uint32Array;
+	readonly stringOffsets: Uint32Array;
 }
 
-function equalFingerprint(
-	left: readonly [number, number, number, number],
-	right: readonly [number, number, number, number],
-): boolean {
-	return left.every((value, index) => value === right[index]);
+interface PackedFrameCellColumns {
+	readonly backgroundColors: Uint32Array;
+	readonly foregroundColors: Uint32Array;
+	readonly graphemeLengths: Uint32Array;
+	readonly graphemeOffsets: Uint32Array;
+	readonly hyperlinkLengths: Uint32Array;
+	readonly hyperlinkOffsets: Uint32Array;
+	readonly styleFlags: Uint16Array;
+	readonly underlineColors: Uint32Array;
+	readonly underlineKinds: Uint8Array;
 }
 
-function buildRowBacking(frame: DecodedTerminalFrame, rowOffset: number): PackedTerminalRowBacking {
+function createPackedFrameCellColumns(cellCount: number): PackedFrameCellColumns {
+	const hyperlinkOffsets = new Uint32Array(cellCount);
+	hyperlinkOffsets.fill(NO_STRING_OFFSET);
+	return {
+		backgroundColors: new Uint32Array(cellCount),
+		foregroundColors: new Uint32Array(cellCount),
+		graphemeLengths: new Uint32Array(cellCount),
+		graphemeOffsets: new Uint32Array(cellCount),
+		hyperlinkLengths: new Uint32Array(cellCount),
+		hyperlinkOffsets,
+		styleFlags: new Uint16Array(cellCount),
+		underlineColors: new Uint32Array(cellCount),
+		underlineKinds: new Uint8Array(cellCount),
+	};
+}
+
+function createPackedFrameBuildContext(
+	frame: DecodedTerminalFrame,
+	sharePackedCellColumns: boolean,
+): PackedFrameBuildContext {
+	return {
+		encodedStrings: Array.from({ length: frame.strings.length }, () => undefined),
+		referencedStrings: [],
+		seenAtRow: new Uint32Array(frame.strings.length),
+		sharedCellColumns: sharePackedCellColumns
+			? createPackedFrameCellColumns(frame.cells.widths.length)
+			: null,
+		stringLengths: new Uint32Array(frame.strings.length),
+		stringOffsets: new Uint32Array(frame.strings.length),
+	};
+}
+
+function buildRowBacking(
+	frame: DecodedTerminalFrame,
+	rowOffset: number,
+	context: PackedFrameBuildContext,
+	borrowDecodedCellColumns: boolean,
+): PackedTerminalRowBacking {
 	const cellOffset = frame.rowData.cellOffsets[rowOffset];
 	if (cellOffset === undefined) throw new Error('Decoded frame omitted a row cell offset');
 	const columns = frame.columns;
-	const foregroundColors = new Uint32Array(columns);
-	const backgroundColors = new Uint32Array(columns);
-	const underlineColors = new Uint32Array(columns);
-	const styleFlags = new Uint16Array(columns);
-	const underlineKinds = new Uint8Array(columns);
-	const widths = frame.cells.widths.slice(cellOffset, cellOffset + columns);
-	const semanticContents = frame.cells.semanticContents.slice(cellOffset, cellOffset + columns);
-	const protectedCells = frame.cells.protected.slice(cellOffset, cellOffset + columns);
-	const graphemeOffsets = new Uint32Array(columns);
-	const graphemeLengths = new Uint32Array(columns);
-	const hyperlinkOffsets = new Uint32Array(columns);
-	const hyperlinkLengths = new Uint32Array(columns);
-	graphemeOffsets.fill(NO_STRING_OFFSET);
-	hyperlinkOffsets.fill(NO_STRING_OFFSET);
+	const cellEnd = cellOffset + columns;
+	const sharedCellColumns = context.sharedCellColumns;
+	const foregroundColors =
+		sharedCellColumns?.foregroundColors.subarray(cellOffset, cellEnd) ?? new Uint32Array(columns);
+	const backgroundColors =
+		sharedCellColumns?.backgroundColors.subarray(cellOffset, cellEnd) ?? new Uint32Array(columns);
+	const underlineColors =
+		sharedCellColumns?.underlineColors.subarray(cellOffset, cellEnd) ?? new Uint32Array(columns);
+	const styleFlags =
+		sharedCellColumns?.styleFlags.subarray(cellOffset, cellEnd) ?? new Uint16Array(columns);
+	const underlineKinds =
+		sharedCellColumns?.underlineKinds.subarray(cellOffset, cellEnd) ?? new Uint8Array(columns);
+	const widths = borrowDecodedCellColumns
+		? frame.cells.widths.subarray(cellOffset, cellEnd)
+		: frame.cells.widths.slice(cellOffset, cellEnd);
+	const semanticContents = borrowDecodedCellColumns
+		? frame.cells.semanticContents.subarray(cellOffset, cellEnd)
+		: frame.cells.semanticContents.slice(cellOffset, cellEnd);
+	const protectedCells = borrowDecodedCellColumns
+		? frame.cells.protected.subarray(cellOffset, cellEnd)
+		: frame.cells.protected.slice(cellOffset, cellEnd);
+	const graphemeOffsets =
+		sharedCellColumns?.graphemeOffsets.subarray(cellOffset, cellEnd) ?? new Uint32Array(columns);
+	const graphemeLengths =
+		sharedCellColumns?.graphemeLengths.subarray(cellOffset, cellEnd) ?? new Uint32Array(columns);
+	const hyperlinkOffsets =
+		sharedCellColumns?.hyperlinkOffsets.subarray(cellOffset, cellEnd) ?? new Uint32Array(columns);
+	const hyperlinkLengths =
+		sharedCellColumns?.hyperlinkLengths.subarray(cellOffset, cellEnd) ?? new Uint32Array(columns);
+	if (sharedCellColumns === null) hyperlinkOffsets.fill(NO_STRING_OFFSET);
 
-	const encoded = new Map<number, Uint8Array>();
-	const referencedStrings = new Set<number>();
+	const rowToken = rowOffset + 1;
+	context.referencedStrings.length = 0;
+	let byteLength = 0;
 	for (let column = 0; column < columns; column += 1) {
-		const absolute = cellOffset + column;
+		const absolute: number = cellOffset + column;
 		const graphemeIndex = frame.cells.graphemeStringIndices[absolute];
-		const styleIndex = frame.cells.styleIndices[absolute];
+		const styleIndex: number | undefined = frame.cells.styleIndices[absolute];
 		if (graphemeIndex === undefined || styleIndex === undefined) {
 			throw new Error('Decoded frame omitted a cell table value');
 		}
-		referencedStrings.add(graphemeIndex);
+		if (context.seenAtRow[graphemeIndex] !== rowToken) {
+			const value = frame.strings[graphemeIndex];
+			if (value === undefined) throw new Error('Decoded frame references a missing string');
+			const encoded = context.encodedStrings[graphemeIndex] ?? textEncoder.encode(value);
+			context.encodedStrings[graphemeIndex] = encoded;
+			context.seenAtRow[graphemeIndex] = rowToken;
+			context.referencedStrings.push(graphemeIndex);
+			byteLength += encoded.byteLength;
+		}
 		const hyperlinkIndex = frame.styles.hyperlinkStringIndices[styleIndex];
-		if (hyperlinkIndex !== undefined && hyperlinkIndex !== NO_STRING_OFFSET) {
-			referencedStrings.add(hyperlinkIndex);
+		if (
+			hyperlinkIndex !== undefined &&
+			hyperlinkIndex !== NO_STRING_OFFSET &&
+			context.seenAtRow[hyperlinkIndex] !== rowToken
+		) {
+			const value = frame.strings[hyperlinkIndex];
+			if (value === undefined) throw new Error('Decoded frame references a missing string');
+			const encoded = context.encodedStrings[hyperlinkIndex] ?? textEncoder.encode(value);
+			context.encodedStrings[hyperlinkIndex] = encoded;
+			context.seenAtRow[hyperlinkIndex] = rowToken;
+			context.referencedStrings.push(hyperlinkIndex);
+			byteLength += encoded.byteLength;
 		}
 	}
 
-	let byteLength = 0;
-	for (const index of referencedStrings) {
-		const value = frame.strings[index];
-		if (value === undefined) throw new Error('Decoded frame references a missing string');
-		const bytes = textEncoder.encode(value);
-		encoded.set(index, bytes);
-		byteLength += bytes.byteLength;
-	}
 	const stringBytes = new Uint8Array(byteLength);
-	const locations = new Map<number, readonly [number, number]>();
 	let nextOffset = 0;
-	for (const [index, bytes] of encoded) {
+	for (const index of context.referencedStrings) {
+		const bytes = context.encodedStrings[index];
+		if (bytes === undefined) throw new Error('Decoded frame references a missing string');
 		stringBytes.set(bytes, nextOffset);
-		locations.set(index, [nextOffset, bytes.byteLength]);
+		context.stringOffsets[index] = nextOffset;
+		context.stringLengths[index] = bytes.byteLength;
 		nextOffset += bytes.byteLength;
 	}
 
 	for (let column = 0; column < columns; column += 1) {
-		const absolute = cellOffset + column;
+		const absolute: number = cellOffset + column;
 		const graphemeIndex = frame.cells.graphemeStringIndices[absolute];
-		const styleIndex = frame.cells.styleIndices[absolute];
+		const styleIndex: number | undefined = frame.cells.styleIndices[absolute];
 		if (graphemeIndex === undefined || styleIndex === undefined) {
 			throw new Error('Decoded frame omitted a cell table value');
 		}
-		const graphemeLocation = locations.get(graphemeIndex);
-		if (!graphemeLocation) throw new Error('Decoded frame omitted a grapheme string');
-		graphemeOffsets[column] = graphemeLocation[0];
-		graphemeLengths[column] = graphemeLocation[1];
+		const graphemeOffset = context.stringOffsets[graphemeIndex];
+		const graphemeLength = context.stringLengths[graphemeIndex];
+		if (
+			graphemeOffset === undefined ||
+			graphemeLength === undefined ||
+			context.seenAtRow[graphemeIndex] !== rowToken
+		) {
+			throw new Error('Decoded frame omitted a grapheme string');
+		}
+		graphemeOffsets[column] = graphemeOffset;
+		graphemeLengths[column] = graphemeLength;
 		foregroundColors[column] = frame.styles.foregroundColors[styleIndex] ?? 0;
 		backgroundColors[column] = frame.styles.backgroundColors[styleIndex] ?? 0;
 		underlineColors[column] = frame.styles.underlineColors[styleIndex] ?? 0;
@@ -296,10 +372,17 @@ function buildRowBacking(frame: DecodedTerminalFrame, rowOffset: number): Packed
 		underlineKinds[column] = frame.styles.underlineKinds[styleIndex] ?? 0;
 		const hyperlinkIndex = frame.styles.hyperlinkStringIndices[styleIndex];
 		if (hyperlinkIndex !== undefined && hyperlinkIndex !== NO_STRING_OFFSET) {
-			const hyperlinkLocation = locations.get(hyperlinkIndex);
-			if (!hyperlinkLocation) throw new Error('Decoded frame omitted a hyperlink string');
-			hyperlinkOffsets[column] = hyperlinkLocation[0];
-			hyperlinkLengths[column] = hyperlinkLocation[1];
+			const hyperlinkOffset = context.stringOffsets[hyperlinkIndex];
+			const hyperlinkLength = context.stringLengths[hyperlinkIndex];
+			if (
+				hyperlinkOffset === undefined ||
+				hyperlinkLength === undefined ||
+				context.seenAtRow[hyperlinkIndex] !== rowToken
+			) {
+				throw new Error('Decoded frame omitted a hyperlink string');
+			}
+			hyperlinkOffsets[column] = hyperlinkOffset;
+			hyperlinkLengths[column] = hyperlinkLength;
 		}
 	}
 
@@ -358,7 +441,29 @@ function metadataFromFrame(frame: DecodedTerminalFrame): ProjectedTerminalMetada
 	};
 }
 
-function acknowledgement(frame: DecodedTerminalFrame): ProjectedFrameAcknowledgement {
+function metadataFromProjectionBuffer(
+	frame: DecodedTerminalProjectionBuffer,
+): ProjectedTerminalMetadata {
+	return {
+		activeScreen: frame.activeScreen,
+		cellPixelHeight: frame.cellPixelHeight,
+		cellPixelWidth: frame.cellPixelWidth,
+		columns: frame.columns,
+		currentDirectory: frame.currentDirectory,
+		cursor: frame.cursor,
+		defaultColors: frame.defaultColors,
+		generation: frame.generation,
+		interaction: frame.interaction,
+		revision: frame.revision,
+		rows: frame.rows,
+		scrollbackRows: frame.scrollbackRows,
+		title: frame.title,
+	};
+}
+
+function acknowledgement(
+	frame: DecodedTerminalFrame | DecodedTerminalProjectionBuffer | InspectedTerminalFrameHeader,
+): ProjectedFrameAcknowledgement {
 	return FrameAppliedSchema.parse({
 		attachmentId: frame.attachmentId,
 		generation: frame.generation.toString(),
@@ -398,7 +503,9 @@ export class PackedTerminalStore {
 	}
 
 	get byteLength(): number {
-		return this.rows.reduce((total, row) => total + row.byteLength, 0);
+		return (
+			this.#grid?.directByteLength ?? this.rows.reduce((total, row) => total + row.byteLength, 0)
+		);
 	}
 
 	get lastFrameKind(): string | null {
@@ -407,26 +514,27 @@ export class PackedTerminalStore {
 
 	apply(bytes: Uint8Array): ProjectedFrameApplyResult {
 		if (this.#phase === ProjectedStorePhase.disposed) return { kind: 'disposed' };
+		const inspected = inspectTerminalFrameHeader(bytes);
+		if (!inspected.ok) return this.#requireSnapshot('decoder-rejected', this.#expectedSequence());
+		const header = inspected.value;
+		if (header.hostEpoch !== this.hostEpoch || header.attachmentId !== this.attachmentId) {
+			return this.#requireSnapshot('identity-mismatch', header.sequence);
+		}
+		if (this.#lastCommit && header.sequence === this.#lastCommit.sequence) {
+			if (
+				header.revision === this.#lastCommit.revision &&
+				header.generation === this.#lastCommit.generation &&
+				header.baseRevision === this.#lastCommit.baseRevision &&
+				header.kind === this.#lastCommit.kind
+			) {
+				return { acknowledgement: acknowledgement(header), kind: 'duplicate' };
+			}
+			return this.#requireSnapshot('sequence-gap', header.sequence);
+		}
+
 		const decoded = decodeTerminalFrame(bytes);
 		if (!decoded.ok) return this.#requireSnapshot('decoder-rejected', this.#expectedSequence());
 		const frame = decoded.value;
-		if (frame.hostEpoch !== this.hostEpoch || frame.attachmentId !== this.attachmentId) {
-			return this.#requireSnapshot('identity-mismatch', frame.sequence);
-		}
-
-		const incomingFingerprint = fingerprint(bytes);
-		if (this.#lastCommit && frame.sequence === this.#lastCommit.sequence) {
-			if (
-				frame.revision === this.#lastCommit.revision &&
-				frame.generation === this.#lastCommit.generation &&
-				frame.baseRevision === this.#lastCommit.baseRevision &&
-				frame.kind === this.#lastCommit.kind &&
-				equalFingerprint(incomingFingerprint, this.#lastCommit.fingerprint)
-			) {
-				return { acknowledgement: acknowledgement(frame), kind: 'duplicate' };
-			}
-			return this.#requireSnapshot('sequence-gap', frame.sequence);
-		}
 		const expectedSequence = this.#expectedSequence();
 		if (
 			(frame.kind === TerminalFrameKind.snapshot && frame.sequence < expectedSequence) ||
@@ -439,15 +547,16 @@ export class PackedTerminalStore {
 			if (this.#metadata && frame.revision < this.#metadata.revision) {
 				return this.#requireSnapshot('base-mismatch', frame.sequence);
 			}
+			const buildContext = createPackedFrameBuildContext(frame, false);
 			const stagedRows = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => {
-				const backing = buildRowBacking(frame, rowOffset);
+				const backing = buildRowBacking(frame, rowOffset, buildContext, false);
 				return new PackedTerminalRowView(rowIndex, backing);
 			});
 			this.#grid = { rows: stagedRows };
 			this.#metadata = metadataFromFrame(frame);
 			this.#phase = ProjectedStorePhase.synchronized;
 			this.#fullRedraw = true;
-			this.#recordCommit(frame, incomingFingerprint);
+			this.#recordCommit(frame);
 			return { acknowledgement: acknowledgement(frame), kind: 'committed' };
 		}
 
@@ -467,8 +576,9 @@ export class PackedTerminalStore {
 			return this.#requireSnapshot('base-mismatch', frame.sequence);
 		}
 
+		const buildContext = createPackedFrameBuildContext(frame, false);
 		const staged = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => ({
-			backing: buildRowBacking(frame, rowOffset),
+			backing: buildRowBacking(frame, rowOffset, buildContext, false),
 			rowIndex,
 		}));
 		for (const replacement of staged) {
@@ -477,7 +587,7 @@ export class PackedTerminalStore {
 			row.replace(replacement.backing);
 		}
 		this.#metadata = metadataFromFrame(frame);
-		this.#recordCommit(frame, incomingFingerprint);
+		this.#recordCommit(frame);
 		return { acknowledgement: acknowledgement(frame), kind: 'committed' };
 	}
 
@@ -485,7 +595,24 @@ export class PackedTerminalStore {
 		if (this.#phase === ProjectedStorePhase.disposed) return { kind: 'disposed' };
 		const decoded = decodeTerminalFrame(bytes);
 		if (!decoded.ok) return { kind: 'invalid' };
-		const frame = decoded.value;
+		return this.#replaceSnapshot(decoded.value, maximumBytes, bytes);
+	}
+
+	/** Commits one immutable history snapshot that was already validated by the row-window decoder. */
+	replaceDecodedSnapshot(
+		frame: DecodedTerminalFrame,
+		maximumBytes: number,
+	): ProjectedSnapshotReplaceResult {
+		if (this.#phase === ProjectedStorePhase.disposed) return { kind: 'disposed' };
+		return this.#replaceSnapshot(frame, maximumBytes, null);
+	}
+
+	/** Retains one immutable OBPB 0.0.1 buffer and exposes per-row typed views without repacking. */
+	replaceProjectionBufferSnapshot(
+		frame: DecodedTerminalProjectionBuffer,
+		maximumBytes: number,
+	): ProjectedSnapshotReplaceResult {
+		if (this.#phase === ProjectedStorePhase.disposed) return { kind: 'disposed' };
 		if (
 			frame.kind !== TerminalFrameKind.snapshot ||
 			frame.hostEpoch !== this.hostEpoch ||
@@ -493,8 +620,61 @@ export class PackedTerminalStore {
 		) {
 			return { kind: 'invalid' };
 		}
+		if (frame.bytes.byteLength > maximumBytes) return { kind: 'too-large' };
 		const stagedRows = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => {
-			const backing = buildRowBacking(frame, rowOffset);
+			const cellOffset = rowOffset * frame.columns;
+			const cellEnd = cellOffset + frame.columns;
+			return new PackedTerminalRowView(rowIndex, {
+				backgroundColors: frame.cells.backgroundColors.subarray(cellOffset, cellEnd),
+				foregroundColors: frame.cells.foregroundColors.subarray(cellOffset, cellEnd),
+				graphemeLengths: frame.cells.graphemeLengths.subarray(cellOffset, cellEnd),
+				graphemeOffsets: frame.cells.graphemeOffsets.subarray(cellOffset, cellEnd),
+				hyperlinkLengths: frame.cells.hyperlinkLengths.subarray(cellOffset, cellEnd),
+				hyperlinkOffsets: frame.cells.hyperlinkOffsets.subarray(cellOffset, cellEnd),
+				protectedCells: frame.cells.protected.subarray(cellOffset, cellEnd),
+				promptClass: frame.rowData.promptClasses[rowOffset] ?? 0,
+				rowFlags: frame.rowData.flags[rowOffset] ?? 0,
+				semanticContents: frame.cells.semanticContents.subarray(cellOffset, cellEnd),
+				stringBytes: frame.stringBytes,
+				styleFlags: frame.cells.styleFlags.subarray(cellOffset, cellEnd),
+				underlineColors: frame.cells.underlineColors.subarray(cellOffset, cellEnd),
+				underlineKinds: frame.cells.underlineKinds.subarray(cellOffset, cellEnd),
+				widths: frame.cells.widths.subarray(cellOffset, cellEnd),
+			});
+		});
+		this.#grid = { directByteLength: frame.bytes.byteLength, rows: stagedRows };
+		this.#metadata = metadataFromProjectionBuffer(frame);
+		this.#phase = ProjectedStorePhase.synchronized;
+		this.#fullRedraw = true;
+		this.#lastCommit = {
+			baseRevision: frame.baseRevision,
+			generation: frame.generation,
+			kind: frame.kind,
+			revision: frame.revision,
+			sequence: frame.sequence,
+		};
+		return {
+			acknowledgement: acknowledgement(frame),
+			byteLength: frame.bytes.byteLength,
+			kind: 'committed',
+		};
+	}
+
+	#replaceSnapshot(
+		frame: DecodedTerminalFrame,
+		maximumBytes: number,
+		sourceBytes: Uint8Array | null,
+	): ProjectedSnapshotReplaceResult {
+		if (
+			frame.kind !== TerminalFrameKind.snapshot ||
+			frame.hostEpoch !== this.hostEpoch ||
+			frame.attachmentId !== this.attachmentId
+		) {
+			return { kind: 'invalid' };
+		}
+		const buildContext = createPackedFrameBuildContext(frame, sourceBytes === null);
+		const stagedRows = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => {
+			const backing = buildRowBacking(frame, rowOffset, buildContext, sourceBytes === null);
 			return new PackedTerminalRowView(rowIndex, backing);
 		});
 		const byteLength = stagedRows.reduce((total, row) => total + row.byteLength, 0);
@@ -503,7 +683,7 @@ export class PackedTerminalStore {
 		this.#metadata = metadataFromFrame(frame);
 		this.#phase = ProjectedStorePhase.synchronized;
 		this.#fullRedraw = true;
-		this.#recordCommit(frame, fingerprint(bytes));
+		this.#recordCommit(frame);
 		return { acknowledgement: acknowledgement(frame), byteLength, kind: 'committed' };
 	}
 
@@ -524,13 +704,9 @@ export class PackedTerminalStore {
 		return (this.#lastCommit?.sequence ?? 0n) + 1n;
 	}
 
-	#recordCommit(
-		frame: DecodedTerminalFrame,
-		frameFingerprint: readonly [number, number, number, number],
-	): void {
+	#recordCommit(frame: DecodedTerminalFrame): void {
 		this.#lastCommit = {
 			baseRevision: frame.baseRevision,
-			fingerprint: frameFingerprint,
 			generation: frame.generation,
 			kind: frame.kind,
 			revision: frame.revision,

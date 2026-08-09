@@ -4,6 +4,8 @@ import {
 	CursorShape,
 	encodeTerminalRowWindow,
 	encodeTerminalFrame,
+	MouseAction,
+	MouseButton,
 	parseAttachmentId,
 	parseCreationId,
 	parseHostEpoch,
@@ -28,6 +30,7 @@ import {
 
 interface FakeElement {
 	readonly attributes: Map<string, string>;
+	readonly capturedPointers: Set<number>;
 	readonly children: FakeElement[];
 	readonly dataset: DOMStringMap;
 	readonly listeners: Map<string, Set<EventListener>>;
@@ -41,14 +44,24 @@ interface FakeElement {
 	width: number;
 	appendChild(child: FakeElement): FakeElement;
 	dispatch(type: string, event: Event): void;
+	releasePointerCapture(pointerId: number): void;
 	remove(): void;
+	setPointerCapture(pointerId: number): void;
 }
 
 interface FakeBrowser {
 	readonly document: Document;
 	readonly frames: Map<number, FrameRequestCallback>;
+	readonly mediaQueries: FakeMediaQueryList[];
 	readonly root: HTMLElement;
+	dispatchWindow(type: string): void;
 	flushFrames(): void;
+	setDevicePixelRatio(value: number): void;
+}
+
+interface FakeMediaQueryList {
+	readonly media: string;
+	dispatchChange(): void;
 }
 
 const interaction = {
@@ -97,6 +110,8 @@ function terminalFrame(
 	baseRevision: bigint | null = null,
 	rowIndices: readonly number[] = [0, 1],
 	scrollbackRows = 0n,
+	frameInteraction: TerminalFrame['interaction'] = interaction,
+	cursor: { readonly column: number; readonly row: number } = { column: 0, row: 0 },
 ): Uint8Array {
 	const frame: TerminalFrame = {
 		activeScreen: ActiveScreen.primary,
@@ -107,8 +122,8 @@ function terminalFrame(
 		columns: 2,
 		cursor: {
 			blinking: false,
-			column: 0,
-			row: 0,
+			column: cursor.column,
+			row: cursor.row,
 			shape: CursorShape.block,
 			visible: true,
 			wideTail: false,
@@ -118,7 +133,7 @@ function terminalFrame(
 		extensions: [],
 		generation: 1n,
 		hostEpoch,
-		interaction,
+		interaction: frameInteraction,
 		kind: kind === 'snapshot' ? TerminalFrameKind.snapshot : TerminalFrameKind.delta,
 		revision,
 		rowData: rowIndices.map((index) => ({
@@ -297,11 +312,14 @@ function createContext(): CanvasRenderingContext2D {
 function createFakeBrowser(): FakeBrowser {
 	let nextFrame = 1;
 	const frames = new Map<number, FrameRequestCallback>();
+	const mediaQueries: FakeMediaQueryList[] = [];
+	const windowListeners = new Map<string, Set<EventListener>>();
 	const context = createContext();
 	const createElement = (tagName: string): FakeElement => {
 		const listeners = new Map<string, Set<EventListener>>();
 		const element: FakeElement & Record<string, unknown> = {
 			attributes: new Map(),
+			capturedPointers: new Set<number>(),
 			children: [],
 			clientHeight: 360,
 			clientWidth: 720,
@@ -345,9 +363,11 @@ function createFakeBrowser(): FakeBrowser {
 				if (parent) parent.children.splice(parent.children.indexOf(element), 1);
 				element.parentElement = null;
 			},
+			releasePointerCapture: (pointerId: number) => element.capturedPointers.delete(pointerId),
 			removeEventListener: (type: string, listener: EventListener) => {
 				listeners.get(type)?.delete(listener);
 			},
+			setPointerCapture: (pointerId: number) => element.capturedPointers.add(pointerId),
 			setAttribute: (name: string, value: string) => element.attributes.set(name, value),
 		};
 		Object.defineProperty(element, 'ownerDocument', { get: () => document });
@@ -355,6 +375,11 @@ function createFakeBrowser(): FakeBrowser {
 	};
 
 	const defaultView = {
+		addEventListener: (type: string, listener: EventListener) => {
+			const entries = windowListeners.get(type) ?? new Set<EventListener>();
+			entries.add(listener);
+			windowListeners.set(type, entries);
+		},
 		cancelAnimationFrame: (handle: number) => frames.delete(handle),
 		devicePixelRatio: 1,
 		getComputedStyle: () => ({
@@ -363,6 +388,25 @@ function createFakeBrowser(): FakeBrowser {
 			paddingRight: '0px',
 			paddingTop: '0px',
 		}),
+		matchMedia: (media: string) => {
+			const listeners = new Set<EventListener>();
+			const query: FakeMediaQueryList = {
+				media,
+				dispatchChange: () => {
+					for (const listener of listeners) listener({ type: 'change' } as Event);
+				},
+			};
+			mediaQueries.push(query);
+			return {
+				addEventListener: (_type: string, listener: EventListener) => listeners.add(listener),
+				matches: true,
+				media,
+				removeEventListener: (_type: string, listener: EventListener) => listeners.delete(listener),
+			};
+		},
+		removeEventListener: (type: string, listener: EventListener) => {
+			windowListeners.get(type)?.delete(listener);
+		},
 		requestAnimationFrame: (callback: FrameRequestCallback) => {
 			const handle = nextFrame++;
 			frames.set(handle, callback);
@@ -379,12 +423,19 @@ function createFakeBrowser(): FakeBrowser {
 	const root = createElement('div') as unknown as HTMLElement;
 	return {
 		document,
+		dispatchWindow: (type) => {
+			for (const listener of windowListeners.get(type) ?? []) listener({ type } as Event);
+		},
 		frames,
+		mediaQueries,
 		root,
 		flushFrames: () => {
 			const callbacks = [...frames.values()];
 			frames.clear();
 			for (const callback of callbacks) callback(16);
+		},
+		setDevicePixelRatio: (value) => {
+			defaultView.devicePixelRatio = value;
 		},
 	};
 }
@@ -398,6 +449,97 @@ function exitEvent(finalRevision: string): TerminalExited {
 }
 
 describe('ProjectedTerminal', () => {
+	it('waits for the configured font and keeps the IME textarea font in sync', async () => {
+		const browser = createFakeBrowser();
+		let finishFontLoad: (() => void) | undefined;
+		const fontLoad = vi.fn(
+			() =>
+				new Promise<FontFace[]>((resolve) => {
+					finishFontLoad = () => resolve([]);
+				}),
+		);
+		Object.defineProperty(browser.document, 'fonts', {
+			configurable: true,
+			value: { load: fontLoad },
+		});
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			renderer: { fontFamily: '"Menlo", monospace', fontSize: 17, fontWeight: 500 },
+			terminalId,
+		});
+
+		const opening = terminal.open(browser.root);
+		await vi.waitFor(() => expect(fontLoad).toHaveBeenCalledOnce());
+		expect(fontLoad).toHaveBeenCalledWith('500 17px "Menlo", monospace', 'MW你🚀');
+		expect(commands).toEqual([]);
+		finishFontLoad?.();
+		await opening;
+
+		expect(terminal.textarea?.style.fontFamily).toBe('"Menlo", monospace');
+		expect(terminal.textarea?.style.fontSize).toBe('17px');
+		expect(terminal.textarea?.style.fontWeight).toBe('500');
+		terminal.dispose();
+	});
+
+	it('anchors the native IME candidate window to the projected cursor', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => {} },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				1n,
+				1n,
+				['a', 'b'],
+				null,
+				[0, 1],
+				0n,
+				interaction,
+				{ column: 1, row: 1 },
+			),
+		);
+		const input = terminal.textarea as unknown as FakeElement & {
+			selectionEnd: number;
+			selectionStart: number;
+		};
+		input.selectionStart = 1;
+		input.selectionEnd = 1;
+
+		input.dispatch('compositionstart', {
+			data: '你',
+			type: 'compositionstart',
+		} as unknown as CompositionEvent);
+
+		expect(input.style.left).toBe('4px');
+		expect(input.style.top).toBe('16px');
+		expect(input.style.width).toBe('16px');
+		expect(input.style.height).toBe('16px');
+		expect(input.style.lineHeight).toBe('16px');
+		terminal.dispose();
+	});
+
 	it('activates only after opening, acknowledges after scheduling, and renders packed rows', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -495,6 +637,12 @@ describe('ProjectedTerminal', () => {
 
 		terminal.applyFrame(terminalFrame('snapshot', 2n, 2n, ['x', 'b']));
 		expect(exited).toHaveBeenCalledWith(exitEvent('2'));
+		terminal.notifyExited(exitEvent('1'));
+		terminal.notifyExited(exitEvent('3'));
+		expect(exited).toHaveBeenCalledTimes(1);
+		terminal.applyFrame(terminalFrame('snapshot', 3n, 3n, ['x', 'b']));
+		expect(exited).toHaveBeenCalledTimes(2);
+		expect(exited).toHaveBeenLastCalledWith(exitEvent('3'));
 		terminal.dispose();
 	});
 
@@ -683,6 +831,192 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('keeps local selection available when PTY input is read-only', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			inputEnabled: false,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		const canvas = terminal.canvas as unknown as FakeElement;
+
+		canvas.dispatch('pointerdown', {
+			altKey: false,
+			button: 0,
+			buttons: 1,
+			clientX: 2,
+			clientY: 2,
+			ctrlKey: false,
+			detail: 1,
+			metaKey: false,
+			pointerId: 7,
+			preventDefault: () => {},
+			shiftKey: false,
+			type: 'pointerdown',
+		} as unknown as PointerEvent);
+
+		expect(commands.at(-1)).toEqual({
+			kind: 'selection-gesture',
+			payload: expect.objectContaining({ action: 'start', attachmentId }),
+		});
+		expect(canvas.capturedPointers.has(7)).toBe(true);
+		expect(commands.some((command) => command.kind === 'focus-input')).toBe(false);
+		expect(commands.some((command) => command.kind === 'mouse-input')).toBe(false);
+
+		terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+		canvas.dispatch('pointerup', {
+			altKey: false,
+			button: 0,
+			buttons: 0,
+			clientX: 2,
+			clientY: 2,
+			ctrlKey: false,
+			detail: 1,
+			metaKey: false,
+			pointerId: 7,
+			preventDefault: () => {},
+			shiftKey: false,
+			type: 'pointerup',
+		} as unknown as PointerEvent);
+		browser.flushFrames();
+
+		expect(commands.at(-1)).toEqual({
+			kind: 'selection-gesture',
+			payload: expect.objectContaining({ action: 'end', attachmentId }),
+		});
+		expect(canvas.capturedPointers.has(7)).toBe(false);
+		terminal.dispose();
+	});
+
+	it('ends an active selection when pointer capture is lost', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		const canvas = terminal.canvas as unknown as FakeElement;
+
+		canvas.dispatch('pointerdown', {
+			altKey: false,
+			button: 0,
+			buttons: 1,
+			clientX: 2,
+			clientY: 2,
+			ctrlKey: false,
+			detail: 1,
+			metaKey: false,
+			pointerId: 9,
+			preventDefault: () => {},
+			shiftKey: false,
+			type: 'pointerdown',
+		} as unknown as PointerEvent);
+		terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+		canvas.dispatch('pointermove', {
+			altKey: false,
+			buttons: 1,
+			clientX: 12,
+			clientY: 2,
+			ctrlKey: false,
+			metaKey: false,
+			pointerId: 9,
+			preventDefault: () => {},
+			shiftKey: false,
+			type: 'pointermove',
+		} as unknown as PointerEvent);
+		browser.flushFrames();
+		terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+		canvas.capturedPointers.delete(9);
+		canvas.dispatch('lostpointercapture', {
+			pointerId: 9,
+			type: 'lostpointercapture',
+		} as unknown as PointerEvent);
+		browser.flushFrames();
+
+		const gestures = commands.filter((command) => command.kind === 'selection-gesture');
+		expect(gestures.map((command) => command.payload.action)).toEqual(['start', 'update', 'end']);
+		terminal.dispose();
+	});
+
+	it('identifies the active button on mouse drag motion', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				mouseButton: true,
+			}),
+		);
+
+		const preventDefault = vi.fn<() => void>();
+		(terminal.canvas as unknown as FakeElement).dispatch('pointermove', {
+			altKey: false,
+			buttons: 1,
+			clientX: 8,
+			clientY: 18,
+			ctrlKey: false,
+			metaKey: false,
+			preventDefault,
+			shiftKey: false,
+			type: 'pointermove',
+		} as unknown as PointerEvent);
+
+		expect(commands.at(-1)).toEqual({
+			kind: 'mouse-input',
+			payload: expect.objectContaining({
+				action: MouseAction.motion,
+				attachmentId,
+				button: MouseButton.left,
+				pressedButtons: 1,
+			}),
+		});
+		expect(preventDefault).toHaveBeenCalledOnce();
+		terminal.dispose();
+	});
+
 	it('rejects a terminal exit from a different creation identity', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -788,5 +1122,50 @@ describe('ProjectedTerminal', () => {
 			},
 		});
 		terminal.dispose();
+	});
+
+	it('updates renderer and PTY pixel geometry when the device pixel ratio changes', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			canResize: true,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+
+		await terminal.open(browser.root);
+		const initialResize = commands.findLast((command) => command.kind === 'resize-terminal');
+		if (initialResize?.kind !== 'resize-terminal') throw new Error('initial resize is missing');
+		expect(browser.mediaQueries.at(-1)?.media).toBe('(resolution: 1dppx)');
+
+		browser.setDevicePixelRatio(2);
+		browser.mediaQueries.at(-1)?.dispatchChange();
+
+		const resizeCommands = commands.filter((command) => command.kind === 'resize-terminal');
+		expect(resizeCommands).toHaveLength(2);
+		const changedResize = resizeCommands.at(-1);
+		if (changedResize?.kind !== 'resize-terminal') throw new Error('DPR resize is missing');
+		expect(changedResize.payload).toEqual({
+			...initialResize.payload,
+			cellPixelHeight: initialResize.payload.cellPixelHeight * 2,
+			cellPixelWidth: initialResize.payload.cellPixelWidth * 2,
+		});
+		expect(browser.mediaQueries.at(-1)?.media).toBe('(resolution: 2dppx)');
+		terminal.dispose();
+
+		browser.setDevicePixelRatio(3);
+		browser.dispatchWindow('resize');
+		expect(commands.filter((command) => command.kind === 'resize-terminal')).toHaveLength(2);
 	});
 });

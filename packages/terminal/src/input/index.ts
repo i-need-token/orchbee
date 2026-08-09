@@ -5,3 +5,8 @@ export {
 	type PreeditCellData,
 	type PreeditState,
 } from './preedit';
+export {
+	calculateInputAnchor,
+	type InputAnchorLayout,
+	type InputAnchorRequest,
+} from './calculateInputAnchor';

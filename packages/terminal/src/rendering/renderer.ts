@@ -34,6 +34,11 @@ import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from '../g
 import { searchMatchContainsCell, type TerminalSearchMatch } from '../search';
 import { additionalSurfaceMargins, balanceGridPadding } from '../surface-size';
 import { buildTextShapingPlan, type TextShapingPlan } from '../buildTextShapingPlan';
+import {
+	DEFAULT_RENDERER_FONT_FAMILY,
+	DEFAULT_RENDERER_FONT_SIZE,
+	DEFAULT_RENDERER_FONT_WEIGHT,
+} from '../types';
 import type {
 	FontMetrics,
 	FontMetricModifiers,
@@ -514,9 +519,9 @@ export class WebGPURenderer {
 	constructor(canvas: HTMLCanvasElement, options: RendererOptions = {}) {
 		this.canvas = canvas;
 		this.format = 'bgra8unorm';
-		this.fontSize = options.fontSize ?? 15;
-		this.fontFamily = options.fontFamily ?? 'monospace';
-		this.fontWeight = options.fontWeight ?? 'normal';
+		this.fontSize = options.fontSize ?? DEFAULT_RENDERER_FONT_SIZE;
+		this.fontFamily = options.fontFamily ?? DEFAULT_RENDERER_FONT_FAMILY;
+		this.fontWeight = options.fontWeight ?? DEFAULT_RENDERER_FONT_WEIGHT;
 		this.fontWeightBold = options.fontWeightBold ?? 'bold';
 		this.fontLigatures = options.fontLigatures ?? true;
 		this.fontMetricModifiers = { ...options.fontMetricModifiers };

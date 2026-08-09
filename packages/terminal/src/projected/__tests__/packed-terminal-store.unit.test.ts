@@ -2,7 +2,9 @@ import {
 	ActiveScreen,
 	CellWidth,
 	CursorShape,
+	decodeTerminalFrame,
 	encodeTerminalFrame,
+	encodeTerminalProjectionBuffer,
 	parseAttachmentId,
 	parseHostEpoch,
 	RowPromptClass,
@@ -10,6 +12,7 @@ import {
 	TerminalColorKind,
 	TerminalFrameKind,
 	UnderlineKind,
+	viewTerminalProjectionBuffer,
 	type TerminalFrame,
 } from '@orchbee/terminal-protocol';
 import { describe, expect, it } from 'vitest';
@@ -130,7 +133,62 @@ function bytes(value: TerminalFrame): Uint8Array {
 	return encoded.value;
 }
 
+function decodedFrame(value: TerminalFrame) {
+	const decoded = decodeTerminalFrame(bytes(value));
+	if (!decoded.ok) throw new Error(decoded.detail);
+	return decoded.value;
+}
+
 describe('PackedTerminalStore', () => {
+	it('retains an OBPB 0.0.1 snapshot as direct typed views without per-cell repacking', () => {
+		const encoded = encodeTerminalProjectionBuffer(frame('snapshot', 1n, 1n, ['蜂', 'b']));
+		if (!encoded.ok) throw new Error(encoded.detail);
+		const viewed = viewTerminalProjectionBuffer(encoded.value);
+		if (!viewed.ok) throw new Error(viewed.detail);
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+
+		const result = store.replaceProjectionBufferSnapshot(viewed.value, 1024 * 1024);
+
+		expect(result).toEqual({
+			acknowledgement: { attachmentId, generation: '1', revision: '1', sequence: '1' },
+			byteLength: encoded.value.byteLength,
+			kind: 'committed',
+		});
+		expect(store.byteLength).toBe(encoded.value.byteLength);
+		expect(store.rows[0]?.widths.buffer).toBe(encoded.value.buffer);
+		expect(store.rows[0]?.foregroundColors.buffer).toBe(encoded.value.buffer);
+		expect(store.rows.map((row) => row.grapheme(0))).toEqual(['蜂', 'b']);
+	});
+
+	it('commits an already-decoded immutable history snapshot without source bytes', () => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+		const snapshot = frame('snapshot', 1n, 1n, ['a', 'b']);
+		const result = store.replaceDecodedSnapshot(decodedFrame(snapshot), 1024 * 1024);
+		expect(result).toEqual({
+			acknowledgement: { attachmentId, generation: '1', revision: '1', sequence: '1' },
+			byteLength: expect.any(Number),
+			kind: 'committed',
+		});
+		expect(store.rows.map((row) => row.grapheme(0))).toEqual(['a', 'b']);
+
+		const duplicate = store.apply(bytes(snapshot));
+		expect(duplicate).toEqual({
+			acknowledgement: { attachmentId, generation: '1', revision: '1', sequence: '1' },
+			kind: 'duplicate',
+		});
+	});
+
+	it('rejects an oversized decoded snapshot without exposing staged rows', () => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+		const result = store.replaceDecodedSnapshot(
+			decodedFrame(frame('snapshot', 1n, 1n, ['a', 'b'])),
+			0,
+		);
+		expect(result).toEqual({ kind: 'too-large' });
+		expect(store.phase).toBe(ProjectedStorePhase.empty);
+		expect(store.rows).toEqual([]);
+	});
+
 	it('stages a snapshot and atomically exposes packed stable rows', () => {
 		const store = new PackedTerminalStore(hostEpoch, attachmentId);
 		const result = store.apply(bytes(frame('snapshot', 1n, 1n, ['a', 'b'])));
@@ -195,6 +253,35 @@ describe('PackedTerminalStore', () => {
 		expect(duplicate.kind).toBe('duplicate');
 		expect(store.rows[0]).toBe(row);
 		expect(row?.dirty).toBe(false);
+	});
+
+	it('recognizes immutable duplicate identity without revisiting payload bytes', () => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+		store.apply(bytes(frame('snapshot', 1n, 1n, ['a', 'b'])));
+		const duplicateBytes = bytes(frame('snapshot', 1n, 1n, ['x', 'b']));
+		const lastByte = duplicateBytes.length - 1;
+		duplicateBytes[lastByte] = 1;
+		expect(decodeTerminalFrame(duplicateBytes).ok).toBe(false);
+
+		expect(store.apply(duplicateBytes)).toEqual({
+			acknowledgement: { attachmentId, generation: '1', revision: '1', sequence: '1' },
+			kind: 'duplicate',
+		});
+		expect(store.rows.map((row) => row.grapheme(0))).toEqual(['a', 'b']);
+	});
+
+	it('strictly decodes a new sequence after fixed-header inspection', () => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+		store.apply(bytes(frame('snapshot', 1n, 1n, ['a', 'b'])));
+		const nextBytes = bytes(frame('delta', 2n, 2n, ['x', ''], 1n, [0]));
+		const lastByte = nextBytes.length - 1;
+		nextBytes[lastByte] = 1;
+
+		expect(store.apply(nextBytes)).toEqual({
+			kind: 'snapshot-required',
+			request: { attachmentId, reason: 'decoder-rejected', sequence: '2' },
+		});
+		expect(store.rows.map((row) => row.grapheme(0))).toEqual(['a', 'b']);
 	});
 
 	it('requests a snapshot on a bad base without exposing staged rows', () => {

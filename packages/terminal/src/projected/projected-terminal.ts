@@ -7,6 +7,7 @@ import {
 	PROTOCOL_LIMITS,
 	TerminalFrameKind,
 	TerminalKeyCode,
+	viewTerminalRowWindow,
 	type AttachmentId,
 	type CanonicalUint64Text,
 	type CreationId,
@@ -21,7 +22,7 @@ import {
 	type PasteInput,
 	type ProjectionDemand,
 	type ReadRows,
-	type ResizeTerminalV1_1,
+	type ResizeTerminal,
 	type RowsApplied,
 	type SelectionChanged,
 	type SelectionCommand,
@@ -43,7 +44,11 @@ import {
 	type TerminalBufferRowsRequest,
 	type TerminalBufferRowsSnapshot,
 } from '../buffer-rows';
-import { buildPreeditState, shouldSuppressComposingControlInput } from '../input';
+import {
+	buildPreeditState,
+	calculateInputAnchor,
+	shouldSuppressComposingControlInput,
+} from '../input';
 import {
 	type RendererFrameTelemetry,
 	type RendererHealthEvent,
@@ -62,6 +67,11 @@ import {
 	isPermittedExternalTerminalTarget,
 	terminalLinkContains,
 } from '../terminal-row-links';
+import {
+	DEFAULT_RENDERER_FONT_FAMILY,
+	DEFAULT_RENDERER_FONT_SIZE,
+	DEFAULT_RENDERER_FONT_WEIGHT,
+} from '../types';
 import type { ILink, RendererOptions } from '../types';
 import {
 	PackedTerminalStore,
@@ -88,7 +98,7 @@ export type ProjectedTerminalCommand =
 	| { readonly kind: 'need-snapshot'; readonly payload: NeedSnapshot }
 	| { readonly kind: 'paste-input'; readonly payload: PasteInput }
 	| { readonly kind: 'read-rows'; readonly payload: ReadRows }
-	| { readonly kind: 'resize-terminal'; readonly payload: ResizeTerminalV1_1 }
+	| { readonly kind: 'resize-terminal'; readonly payload: ResizeTerminal }
 	| { readonly kind: 'rows-applied'; readonly payload: RowsApplied }
 	| { readonly kind: 'history-observed'; readonly payload: HistoryObserved }
 	| { readonly kind: 'selection-command'; readonly payload: SelectionCommand }
@@ -150,6 +160,8 @@ export interface ProjectedTerminalOptions {
 	readonly inputEnabled?: boolean;
 	readonly labels: ProjectedTerminalLabels;
 	readonly port: ProjectedTerminalCommandPort;
+	/** Trust boundary for OBPB 0.0.1 render buffers. Omitted means strict external validation. */
+	readonly projectionBufferTrust?: 'external' | 'local-host';
 	readonly renderer?: RendererOptions;
 	readonly reviewPaste?: (review: ProjectedPasteReview) => boolean | Promise<boolean>;
 	readonly searchWorkerFactory?: ProjectedSearchWorkerFactory;
@@ -158,7 +170,15 @@ export interface ProjectedTerminalOptions {
 
 export interface ProjectedTerminalErrorEvent {
 	readonly error: unknown;
-	readonly operation: 'command' | 'frame' | 'history' | 'open' | 'render' | 'resize' | 'selection';
+	readonly operation:
+		| 'command'
+		| 'font'
+		| 'frame'
+		| 'history'
+		| 'open'
+		| 'render'
+		| 'resize'
+		| 'selection';
 }
 
 export interface ProjectedBrokerFailure {
@@ -322,6 +342,7 @@ export class ProjectedTerminal {
 	#demand: ProjectionDemand = 'active';
 	#demandSent: ProjectionDemand | undefined;
 	#devicePixelRatio = 1;
+	#devicePixelRatioQuery: MediaQueryList | undefined;
 	#frameHandle: ScheduledFrame | undefined;
 	#historyGeneration = 1n;
 	#historyPhase: ProjectedHistoryPhase = ProjectedHistoryPhase.followingBottom;
@@ -344,10 +365,13 @@ export class ProjectedTerminal {
 	#linkLookupActive = false;
 	#pendingLinkPoint: PendingLinkPoint | undefined;
 	#pendingExit: TerminalExited | undefined;
+	#latestExitFinalRevision: bigint | undefined;
 	#pendingHistoryDelta = 0;
 	#pendingHistoryTargetRow: bigint | undefined;
 	#pendingSelectionGesture: PendingSelectionGesture | undefined;
 	#phase: ProjectedTerminalPhase = ProjectedTerminalPhase.constructed;
+	#preeditCaretPixelOffset = 0;
+	#preeditCellWidth = 0;
 	#renderer: WebGPURenderer | undefined;
 	#resizeObserver: ResizeObserver | undefined;
 	#root: HTMLElement | undefined;
@@ -357,6 +381,8 @@ export class ProjectedTerminal {
 	#selectionGestureHandle: ScheduledFrame | undefined;
 	#selectionGestureInFlight = false;
 	#selectionGestureActive = false;
+	#selectionGestureLast: Omit<PendingSelectionGesture, 'action'> | undefined;
+	#selectionGesturePointerId: number | undefined;
 	#searchController: ProjectedSearchController | undefined;
 	#sideEffectSequence = 1n;
 
@@ -422,6 +448,11 @@ export class ProjectedTerminal {
 			const view = document.defaultView;
 			this.#devicePixelRatio =
 				this.#options.renderer?.devicePixelRatio ?? view?.devicePixelRatio ?? 1;
+			const fontFamily = this.#options.renderer?.fontFamily ?? DEFAULT_RENDERER_FONT_FAMILY;
+			const fontSize = this.#options.renderer?.fontSize ?? DEFAULT_RENDERER_FONT_SIZE;
+			const fontWeight = this.#options.renderer?.fontWeight ?? DEFAULT_RENDERER_FONT_WEIGHT;
+			await this.#loadConfiguredFont(document, fontFamily, fontSize, fontWeight);
+			if (this.#isDisposed()) return;
 			const canvas = document.createElement('canvas');
 			canvas.setAttribute('aria-hidden', 'true');
 			canvas.style.display = 'block';
@@ -446,6 +477,12 @@ export class ProjectedTerminal {
 			input.style.overflow = 'hidden';
 			input.style.whiteSpace = 'nowrap';
 			input.style.resize = 'none';
+			input.style.color = 'transparent';
+			input.style.background = 'transparent';
+			input.style.caretColor = 'transparent';
+			input.style.fontFamily = fontFamily;
+			input.style.fontSize = `${fontSize}px`;
+			input.style.fontWeight = String(fontWeight);
 			root.appendChild(input);
 			this.#input = input;
 
@@ -470,7 +507,10 @@ export class ProjectedTerminal {
 				document.removeEventListener('selectionchange', this.#handleAccessibilitySelectionChange),
 			);
 
-			const renderer = new WebGPURenderer(canvas, this.#options.renderer);
+			const renderer = new WebGPURenderer(canvas, {
+				...this.#options.renderer,
+				devicePixelRatio: this.#devicePixelRatio,
+			});
 			renderer.setHealthChangeCallback((event) => this.#healthEmitter.fire(event));
 			renderer.setFrameTelemetryCallback((event) => {
 				const revision = this.#visibleStore().metadata?.revision;
@@ -485,6 +525,7 @@ export class ProjectedTerminal {
 			this.#installInputListeners(canvas, input);
 			await renderer.initGPU();
 			if (this.#isDisposed()) return;
+			this.#installDevicePixelRatioListeners(view);
 			this.#installResizeObserver(root);
 			this.#phase = ProjectedTerminalPhase.open;
 			this.#sendDemandIfNeeded();
@@ -637,7 +678,10 @@ export class ProjectedTerminal {
 		const bytes = rowWindow instanceof Uint8Array ? rowWindow : new Uint8Array(rowWindow);
 		this.#rowFlight = undefined;
 		if (flight.kind === 'buffer') flight.removeAbortListener();
-		const decoded = decodeTerminalRowWindow(bytes);
+		const decoded =
+			this.#options.projectionBufferTrust === 'local-host'
+				? viewTerminalRowWindow(bytes)
+				: decodeTerminalRowWindow(bytes);
 		if (
 			!decoded.ok ||
 			bytes.byteLength > flight.maximumBytes ||
@@ -693,7 +737,7 @@ export class ProjectedTerminal {
 			return 'rejected';
 		}
 		const staged = new PackedTerminalStore(this.#hostEpoch, this.#attachmentId);
-		const result = staged.replaceSnapshot(window.frameBytes, MAX_HISTORY_CACHE_BYTES);
+		const result = staged.replaceProjectionBufferSnapshot(window.frame, MAX_HISTORY_CACHE_BYTES);
 		if (result.kind !== 'committed') {
 			staged.dispose();
 			this.#errorEmitter.fire({
@@ -1015,6 +1059,14 @@ export class ProjectedTerminal {
 			});
 			return;
 		}
+		const finalRevision = BigInt(event.finalRevision);
+		if (
+			this.#latestExitFinalRevision !== undefined &&
+			finalRevision <= this.#latestExitFinalRevision
+		) {
+			return;
+		}
+		this.#latestExitFinalRevision = finalRevision;
 		this.#pendingExit = event;
 		this.#finalizeExitIfCaughtUp();
 	}
@@ -1066,6 +1118,11 @@ export class ProjectedTerminal {
 		this.#linkCompletions.clear();
 		this.#resizeObserver?.disconnect();
 		this.#resizeObserver = undefined;
+		this.#devicePixelRatioQuery?.removeEventListener(
+			'change',
+			this.#handleDevicePixelRatioChange,
+		);
+		this.#devicePixelRatioQuery = undefined;
 		for (const dispose of this.#listenerDisposers.splice(0)) dispose();
 		this.#renderer?.dispose();
 		this.#renderer = undefined;
@@ -1095,6 +1152,7 @@ export class ProjectedTerminal {
 	#scheduleRender(): boolean {
 		if (this.#phase === ProjectedTerminalPhase.disposed || !this.#renderer) return false;
 		this.#syncProjectedViewportState();
+		this.#updateInputPosition();
 		if (this.#frameHandle !== undefined) return true;
 		const callback = (): void => {
 			this.#frameHandle = undefined;
@@ -1605,19 +1663,22 @@ export class ProjectedTerminal {
 	}
 
 	#installInputListeners(canvas: HTMLCanvasElement, input: HTMLTextAreaElement): void {
-		if (this.#options.inputEnabled === false) return;
-		this.#listen(input, 'keydown', this.#handleKeyDown);
-		this.#listen(input, 'keyup', this.#handleKeyUp);
-		this.#listen(input, 'beforeinput', this.#handleBeforeInput);
-		this.#listen(input, 'compositionstart', this.#handleCompositionStart);
-		this.#listen(input, 'compositionupdate', this.#handleCompositionUpdate);
-		this.#listen(input, 'compositionend', this.#handleCompositionEnd);
-		this.#listen(input, 'paste', this.#handlePaste);
+		if (this.#options.inputEnabled !== false) {
+			this.#listen(input, 'keydown', this.#handleKeyDown);
+			this.#listen(input, 'keyup', this.#handleKeyUp);
+			this.#listen(input, 'beforeinput', this.#handleBeforeInput);
+			this.#listen(input, 'compositionstart', this.#handleCompositionStart);
+			this.#listen(input, 'compositionupdate', this.#handleCompositionUpdate);
+			this.#listen(input, 'compositionend', this.#handleCompositionEnd);
+			this.#listen(input, 'paste', this.#handlePaste);
+		}
 		this.#listen(input, 'focus', this.#handleFocus);
 		this.#listen(input, 'blur', this.#handleBlur);
 		this.#listen(canvas, 'pointerdown', this.#handlePointerDown);
 		this.#listen(canvas, 'pointerup', this.#handlePointerUp);
 		this.#listen(canvas, 'pointermove', this.#handlePointerMove);
+		this.#listen(canvas, 'pointercancel', this.#handlePointerCancel);
+		this.#listen(canvas, 'lostpointercapture', this.#handleLostPointerCapture);
 		this.#listen(canvas, 'pointerleave', this.#handlePointerLeave);
 		this.#listen(canvas, 'click', this.#handleClick);
 		this.#listen(canvas, 'wheel', this.#handleWheel, { passive: false });
@@ -1784,6 +1845,8 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleCompositionStart = (event: CompositionEvent): void => {
+		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) this.scrollToBottom();
+		if (this.#selection.state !== 'none') this.clearSelection();
 		this.#composing = true;
 		this.#updatePreedit(event.data ?? '');
 	};
@@ -1796,6 +1859,9 @@ export class ProjectedTerminal {
 		const wasComposing = this.#composing;
 		this.#composing = false;
 		this.#renderer?.setPreedit([]);
+		this.#preeditCellWidth = 0;
+		this.#preeditCaretPixelOffset = 0;
+		this.#updateInputPosition();
 		const data = event.data ?? '';
 		if (
 			data &&
@@ -1815,7 +1881,45 @@ export class ProjectedTerminal {
 			end: input?.selectionEnd ?? data.length,
 		};
 		const state = buildPreeditState(data, selection, unicodeCellWidth);
+		this.#preeditCellWidth = state.width;
+		const caretOffset = Math.max(0, Math.min(data.length, input?.selectionEnd ?? data.length));
+		this.#preeditCaretPixelOffset = data
+			? (this.#renderer?.measureTextWidth(data.slice(0, caretOffset)) ??
+				state.selection.end * (this.#renderer?.getMetrics().width ?? 0))
+			: 0;
 		this.#renderer?.setPreedit(state.cells, state.selection);
+		this.#updateInputPosition();
+	}
+
+	#updateInputPosition(): void {
+		const input = this.#input;
+		const root = this.#root;
+		const canvas = this.#canvas;
+		const renderer = this.#renderer;
+		const metadata = this.#store.metadata ?? this.metadata;
+		if (!input || !root || !canvas || !renderer || metadata === null) return;
+		const rootBounds = root.getBoundingClientRect();
+		const canvasBounds = canvas.getBoundingClientRect();
+		const metrics = renderer.getMetrics();
+		const anchor = calculateInputAnchor({
+			canvasLeft: canvasBounds.left,
+			canvasTop: canvasBounds.top,
+			cellHeight: metrics.height,
+			cellWidth: metrics.width,
+			columns: metadata.columns,
+			cursorColumn: metadata.cursor.column,
+			cursorRow: metadata.cursor.row,
+			elementLeft: rootBounds.left,
+			elementTop: rootBounds.top,
+			preeditCaretPixelOffset: this.#preeditCaretPixelOffset,
+			preeditCellWidth: this.#preeditCellWidth,
+			rows: metadata.rows,
+		});
+		input.style.left = `${anchor.left}px`;
+		input.style.top = `${anchor.top}px`;
+		input.style.width = `${anchor.width}px`;
+		input.style.height = `${anchor.height}px`;
+		input.style.lineHeight = `${anchor.height}px`;
 	}
 
 	#sendText(text: string): void {
@@ -1864,6 +1968,8 @@ export class ProjectedTerminal {
 
 	readonly #handleFocus = (): void => {
 		this.#renderer?.setFocused(true);
+		this.#updateInputPosition();
+		if (this.#options.inputEnabled === false) return;
 		this.#send({
 			kind: 'focus-input',
 			payload: { attachmentId: this.#attachmentId, focused: true },
@@ -1872,6 +1978,7 @@ export class ProjectedTerminal {
 
 	readonly #handleBlur = (): void => {
 		this.#renderer?.setFocused(false);
+		if (this.#options.inputEnabled === false) return;
 		this.#send({
 			kind: 'focus-input',
 			payload: { attachmentId: this.#attachmentId, focused: false },
@@ -1882,7 +1989,7 @@ export class ProjectedTerminal {
 
 	readonly #handlePointerDown = (event: PointerEvent): void => {
 		this.focus();
-		if (this.#mouseOwned('press')) {
+		if (this.#mouseOwned('press', event.buttons, event.shiftKey)) {
 			this.#sendMouse(event, MouseAction.press, domMouseButton(event.button));
 			event.preventDefault();
 			return;
@@ -1902,52 +2009,72 @@ export class ProjectedTerminal {
 		}
 		const point = this.#selectionPoint(event);
 		if (point === null) return;
-		this.#selectionGestureActive = true;
-		this.#startSelectionGesture({
-			action: 'start',
+		const gesture = {
 			clickCount: clamp(event.detail, 1, 3),
 			point,
 			rectangle: event.altKey,
+		};
+		this.#selectionGestureActive = true;
+		this.#selectionGestureLast = gesture;
+		this.#selectionGesturePointerId = event.pointerId;
+		try {
+			this.#canvas?.setPointerCapture(event.pointerId);
+		} catch {
+			// Pointer capture is best-effort; document-level cancellation still ends the gesture.
+		}
+		this.#startSelectionGesture({
+			action: 'start',
+			...gesture,
 		});
 		event.preventDefault();
 	};
 
 	readonly #handlePointerUp = (event: PointerEvent): void => {
-		if (this.#selectionGestureActive && event.button === 0) {
+		if (
+			this.#selectionGestureActive &&
+			event.button === 0 &&
+			(this.#selectionGesturePointerId === undefined ||
+				this.#selectionGesturePointerId === event.pointerId)
+		) {
 			const point = this.#selectionPoint(event);
-			this.#selectionGestureActive = false;
-			if (point !== null) {
-				this.#queueSelectionGesture({
-					action: 'end',
-					clickCount: clamp(event.detail, 1, 3),
+			if (point !== null && this.#selectionGestureLast !== undefined) {
+				this.#selectionGestureLast = {
+					...this.#selectionGestureLast,
 					point,
 					rectangle: event.altKey,
-				});
+				};
 			}
+			this.#finishSelectionGesture(true);
 			event.preventDefault();
 			return;
 		}
-		if (!this.#mouseOwned('release')) return;
+		if (!this.#mouseOwned('release', event.buttons, event.shiftKey)) return;
 		this.#sendMouse(event, MouseAction.release, domMouseButton(event.button));
 		event.preventDefault();
 	};
 
 	readonly #handlePointerMove = (event: PointerEvent): void => {
-		if (this.#selectionGestureActive && (event.buttons & 1) !== 0) {
+		if (
+			this.#selectionGestureActive &&
+			(event.buttons & 1) !== 0 &&
+			(this.#selectionGesturePointerId === undefined ||
+				this.#selectionGesturePointerId === event.pointerId)
+		) {
 			this.#clearHoveredLink();
 			const point = this.#selectionPoint(event);
 			if (point !== null) {
-				this.#queueSelectionGesture({
-					action: 'update',
-					clickCount: 1,
+				const gesture = {
+					clickCount: this.#selectionGestureLast?.clickCount ?? 1,
 					point,
 					rectangle: event.altKey,
-				});
+				};
+				this.#selectionGestureLast = gesture;
+				this.#queueSelectionGesture({ action: 'update', ...gesture });
 			}
 			event.preventDefault();
 			return;
 		}
-		if (this.#mouseOwned('motion', event.buttons)) {
+		if (this.#mouseOwned('motion', event.buttons, event.shiftKey)) {
 			this.#clearHoveredLink();
 			this.#sendMouse(event, MouseAction.motion, null);
 			event.preventDefault();
@@ -1968,6 +2095,34 @@ export class ProjectedTerminal {
 
 	readonly #handlePointerLeave = (): void => this.#clearHoveredLink();
 
+	readonly #handlePointerCancel = (event: PointerEvent): void => {
+		if (this.#selectionGesturePointerId !== event.pointerId) return;
+		this.#finishSelectionGesture(true);
+		event.preventDefault();
+	};
+
+	readonly #handleLostPointerCapture = (event: PointerEvent): void => {
+		if (this.#selectionGesturePointerId !== event.pointerId) return;
+		this.#finishSelectionGesture(false);
+	};
+
+	#finishSelectionGesture(releaseCapture: boolean): void {
+		if (!this.#selectionGestureActive) return;
+		const canvas = this.#canvas;
+		const pointerId = this.#selectionGesturePointerId;
+		const gesture = this.#selectionGestureLast;
+		this.#selectionGestureActive = false;
+		this.#selectionGestureLast = undefined;
+		this.#selectionGesturePointerId = undefined;
+		if (gesture !== undefined) this.#queueSelectionGesture({ action: 'end', ...gesture });
+		if (!releaseCapture || pointerId === undefined) return;
+		try {
+			canvas?.releasePointerCapture(pointerId);
+		} catch {
+			// Browsers may release capture before pointerup is dispatched.
+		}
+	}
+
 	readonly #handleClick = (event: MouseEvent): void => {
 		if (!event.ctrlKey && !event.metaKey) return;
 		const point = this.#selectionPoint(event);
@@ -1987,7 +2142,7 @@ export class ProjectedTerminal {
 
 	readonly #handleWheel = (event: WheelEvent): void => {
 		if (event.deltaY === 0) return;
-		if (this.#mouseOwned('press')) {
+		if (this.#mouseOwned('press', event.buttons, event.shiftKey)) {
 			this.#sendMouse(
 				event,
 				MouseAction.press,
@@ -2001,7 +2156,8 @@ export class ProjectedTerminal {
 		event.preventDefault();
 	};
 
-	#mouseOwned(action: MouseInput['action'], buttons = 0): boolean {
+	#mouseOwned(action: MouseInput['action'], buttons = 0, shift = false): boolean {
+		if (this.#options.inputEnabled === false || shift) return false;
 		const interaction = this.#store.metadata?.interaction;
 		if (!interaction) return false;
 		if (action === MouseAction.release) return true;
@@ -2021,6 +2177,11 @@ export class ProjectedTerminal {
 		const canvas = this.#canvas;
 		const renderer = this.#renderer;
 		if (!metadata || !canvas || !renderer) return;
+		const pressedButtons = domPressedButtons(event.buttons);
+		const activeButton =
+			action === MouseAction.motion && button === null
+				? firstPressedMouseButton(pressedButtons)
+				: button;
 		const rectangle = canvas.getBoundingClientRect();
 		const x = clamp(
 			((event.clientX - rectangle.left) / renderer.charWidth) * metadata.cellPixelWidth,
@@ -2037,9 +2198,9 @@ export class ProjectedTerminal {
 			payload: {
 				action,
 				attachmentId: this.#attachmentId,
-				button,
+				button: activeButton,
 				modifiers: this.#modifiers(event),
-				pressedButtons: domPressedButtons(event.buttons),
+				pressedButtons,
 				x,
 				y,
 			},
@@ -2050,6 +2211,65 @@ export class ProjectedTerminal {
 		if (this.#options.canResize !== true || typeof ResizeObserver === 'undefined') return;
 		this.#resizeObserver = new ResizeObserver(() => this.#sendResizeIfChanged());
 		this.#resizeObserver.observe(root);
+	}
+
+	#installDevicePixelRatioListeners(view: Window | null): void {
+		if (view === null || this.#options.renderer?.devicePixelRatio !== undefined) return;
+		view.addEventListener('resize', this.#handleWindowResize);
+		this.#listenerDisposers.push(() =>
+			view.removeEventListener('resize', this.#handleWindowResize),
+		);
+		this.#watchDevicePixelRatio(view);
+	}
+
+	readonly #handleWindowResize = (): void => {
+		this.#syncDevicePixelRatio();
+		this.#renderer?.syncSurfacePadding();
+		this.#updateInputPosition();
+		this.#sendResizeIfChanged();
+	};
+
+	readonly #handleDevicePixelRatioChange = (): void => {
+		this.#syncDevicePixelRatio();
+	};
+
+	#syncDevicePixelRatio(): void {
+		const view = this.#root?.ownerDocument.defaultView;
+		const renderer = this.#renderer;
+		if (view === null || view === undefined || renderer === undefined) return;
+		const ratio = view.devicePixelRatio ?? 1;
+		if (!renderer.setDevicePixelRatio(ratio)) return;
+		this.#devicePixelRatio = Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+		this.#watchDevicePixelRatio(view);
+		this.#updateInputPosition();
+		this.#sendResizeIfChanged();
+	}
+
+	#watchDevicePixelRatio(view: Window): void {
+		this.#devicePixelRatioQuery?.removeEventListener(
+			'change',
+			this.#handleDevicePixelRatioChange,
+		);
+		this.#devicePixelRatioQuery = undefined;
+		if (typeof view.matchMedia !== 'function') return;
+		const query = view.matchMedia(`(resolution: ${this.#devicePixelRatio}dppx)`);
+		query.addEventListener('change', this.#handleDevicePixelRatioChange);
+		this.#devicePixelRatioQuery = query;
+	}
+
+	async #loadConfiguredFont(
+		document: Document,
+		fontFamily: string,
+		fontSize: number,
+		fontWeight: number | 'bold' | 'normal',
+	): Promise<void> {
+		const fonts = document.fonts;
+		if (!fonts || typeof fonts.load !== 'function') return;
+		try {
+			await fonts.load(`${fontWeight} ${fontSize}px ${fontFamily}`, 'MW你🚀');
+		} catch (error) {
+			if (!this.#isDisposed()) this.#errorEmitter.fire({ error, operation: 'font' });
+		}
 	}
 
 	#sendResizeIfChanged(): void {
@@ -2332,7 +2552,32 @@ function domPressedButtons(buttons: number): number {
 	if ((buttons & 4) !== 0) normalized |= 1 << (MouseButton.middle - 1);
 	if ((buttons & 8) !== 0) normalized |= 1 << (MouseButton.four - 1);
 	if ((buttons & 16) !== 0) normalized |= 1 << (MouseButton.five - 1);
+	if ((buttons & 32) !== 0) normalized |= 1 << (MouseButton.six - 1);
+	if ((buttons & 64) !== 0) normalized |= 1 << (MouseButton.seven - 1);
+	if ((buttons & 128) !== 0) normalized |= 1 << (MouseButton.eight - 1);
+	if ((buttons & 256) !== 0) normalized |= 1 << (MouseButton.nine - 1);
+	if ((buttons & 512) !== 0) normalized |= 1 << (MouseButton.ten - 1);
+	if ((buttons & 1_024) !== 0) normalized |= 1 << (MouseButton.eleven - 1);
 	return normalized;
+}
+
+function firstPressedMouseButton(buttons: number): MouseInput['button'] {
+	for (const button of [
+		MouseButton.left,
+		MouseButton.right,
+		MouseButton.middle,
+		MouseButton.four,
+		MouseButton.five,
+		MouseButton.six,
+		MouseButton.seven,
+		MouseButton.eight,
+		MouseButton.nine,
+		MouseButton.ten,
+		MouseButton.eleven,
+	]) {
+		if ((buttons & (1 << (button - 1))) !== 0) return button;
+	}
+	return null;
 }
 
 function sanitizePaste(text: string): { readonly replaced: number; readonly sanitized: string } {

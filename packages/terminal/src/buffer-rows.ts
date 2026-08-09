@@ -12,6 +12,7 @@ import {
 } from '@orchbee/terminal-protocol';
 
 const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 
 export const TerminalBufferRowDetail = {
 	render: 'render',
@@ -146,16 +147,24 @@ export function bufferRowsFromDecodedWindow(
 
 	const frame = window.frame;
 	const rows = Array.from(frame.rowData.indices, (_rowIndex, rowOffset) => {
-		const cellOffset = frame.rowData.cellOffsets[rowOffset] ?? 0;
+		const cellOffset = rowOffset * frame.columns;
 		const cells = Array.from({ length: frame.columns }, (_, column) => {
 			const absolute = cellOffset + column;
-			const stringIndex = frame.cells.graphemeStringIndices[absolute] ?? 0;
-			const styleIndex = frame.cells.styleIndices[absolute] ?? 0;
-			const hyperlinkIndex = frame.styles.hyperlinkStringIndices[styleIndex] ?? 0xffff_ffff;
+			const graphemeOffset = frame.cells.graphemeOffsets[absolute] ?? 0;
+			const graphemeLength = frame.cells.graphemeLengths[absolute] ?? 0;
+			const hyperlinkOffset = frame.cells.hyperlinkOffsets[absolute] ?? 0xffff_ffff;
+			const hyperlinkLength = frame.cells.hyperlinkLengths[absolute] ?? 0;
 			return {
 				column,
-				grapheme: frame.strings[stringIndex] ?? '',
-				hyperlink: hyperlinkIndex === 0xffff_ffff ? null : (frame.strings[hyperlinkIndex] ?? null),
+				grapheme: textDecoder.decode(
+					frame.stringBytes.subarray(graphemeOffset, graphemeOffset + graphemeLength),
+				),
+				hyperlink:
+					hyperlinkOffset === 0xffff_ffff
+						? null
+						: textDecoder.decode(
+								frame.stringBytes.subarray(hyperlinkOffset, hyperlinkOffset + hyperlinkLength),
+							),
 				semanticContent: semanticContent(frame.cells.semanticContents[absolute] ?? 0),
 				width: displayWidth(frame.cells.widths[absolute] ?? TerminalCellWidthCode.narrow),
 			} satisfies TerminalBufferRenderCell;
