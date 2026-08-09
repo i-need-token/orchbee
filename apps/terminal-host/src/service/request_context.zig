@@ -13,6 +13,51 @@ const protocol = @import("terminal-protocol");
 const Outgoing = host_outgoing.Outgoing;
 const WireIdentifier = identifiers.IdentifierBytes;
 
+pub const ControlDecodeFailure = struct {
+    code: []const u8,
+    kind: Kind,
+    retryable: bool,
+
+    pub const Kind = enum {
+        inspection_resource,
+        invalid_identifier,
+        invalid_payload,
+    };
+};
+
+pub fn classifyControlDecodeError(
+    err: control_decode.DecodeError,
+) error{OutOfMemory}!ControlDecodeFailure {
+    return switch (err) {
+        error.OutOfMemory => error.OutOfMemory,
+        error.CommandInspectionOutOfMemory => .{
+            .code = "resource-exhausted",
+            .kind = .inspection_resource,
+            .retryable = true,
+        },
+        error.InvalidIdentifier => .{
+            .code = "invalid-identifier",
+            .kind = .invalid_identifier,
+            .retryable = false,
+        },
+        error.InvalidUtf8 => .{
+            .code = "invalid-utf8",
+            .kind = .invalid_payload,
+            .retryable = false,
+        },
+        error.InvalidJson => .{
+            .code = "invalid-json",
+            .kind = .invalid_payload,
+            .retryable = false,
+        },
+        error.InvalidField => .{
+            .code = "invalid-field",
+            .kind = .invalid_payload,
+            .retryable = false,
+        },
+    };
+}
+
 /// The complete authority available to one post-handshake request. Request
 /// families share this context instead of importing HostService or reaching
 /// into connection lifecycle state.
@@ -119,30 +164,19 @@ pub const Context = struct {
         err: control_decode.DecodeError,
         invalid_message: []const u8,
     ) !void {
-        return switch (err) {
-            error.OutOfMemory => error.OutOfMemory,
-            error.CommandInspectionOutOfMemory => self.addFailure(
-                outgoing,
-                correlation_id,
-                "resource-exhausted",
-                "Host could not inspect the control command",
-                true,
-            ),
-            error.InvalidIdentifier => self.addFailure(
-                outgoing,
-                correlation_id,
-                "invalid-identifier",
-                "control payload contains an invalid identifier",
-                false,
-            ),
-            error.InvalidControlJson, error.InvalidField => self.addFailure(
-                outgoing,
-                correlation_id,
-                "invalid-field",
-                invalid_message,
-                false,
-            ),
+        const failure = try classifyControlDecodeError(err);
+        const message = switch (failure.kind) {
+            .inspection_resource => "Host could not inspect the control command",
+            .invalid_identifier => "control payload contains an invalid identifier",
+            .invalid_payload => invalid_message,
         };
+        return self.addFailure(
+            outgoing,
+            correlation_id,
+            failure.code,
+            message,
+            failure.retryable,
+        );
     }
 
     pub fn addCoreFailure(

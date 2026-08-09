@@ -3,19 +3,130 @@ const std = @import("std");
 pub const Parsed = std.json.Parsed;
 
 pub const DecodeError = error{
-    InvalidControlJson,
+    InvalidField,
+    InvalidJson,
+    InvalidUtf8,
     OutOfMemory,
 };
+
+const max_safe_integer: f64 = 9_007_199_254_740_991.0;
 
 pub fn decode(
     comptime Wire: type,
     allocator: std.mem.Allocator,
     payload: []const u8,
 ) DecodeError!std.json.Parsed(Wire) {
-    return std.json.parseFromSlice(Wire, allocator, payload, .{}) catch |err| switch (err) {
-        error.OutOfMemory => error.OutOfMemory,
-        else => error.InvalidControlJson,
+    if (!std.unicode.utf8ValidateSlice(payload)) return error.InvalidUtf8;
+
+    var dynamic = std.json.parseFromSlice(
+        std.json.Value,
+        allocator,
+        payload,
+        .{ .parse_numbers = false },
+    ) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.InvalidJson,
     };
+    errdefer dynamic.deinit();
+
+    refineValue(Wire, &dynamic.value) catch return error.InvalidField;
+    const value = std.json.parseFromValueLeaky(
+        Wire,
+        dynamic.arena.allocator(),
+        dynamic.value,
+        .{},
+    ) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.InvalidField,
+    };
+    return .{ .arena = dynamic.arena, .value = value };
+}
+
+fn refineValue(comptime T: type, value: *std.json.Value) error{InvalidField}!void {
+    if (T == std.json.Value) return;
+
+    switch (@typeInfo(T)) {
+        .bool => if (value.* != .bool) return error.InvalidField,
+        .int => try refineInteger(T, value),
+        .optional => |optional| switch (value.*) {
+            .null => {},
+            else => try refineValue(optional.child, value),
+        },
+        .@"struct" => |struct_info| {
+            if (struct_info.is_tuple) {
+                if (value.* != .array or value.array.items.len != struct_info.fields.len) {
+                    return error.InvalidField;
+                }
+                inline for (struct_info.fields, 0..) |field, index| {
+                    try refineValue(field.type, &value.array.items[index]);
+                }
+                return;
+            }
+            if (value.* != .object) return error.InvalidField;
+
+            var fields_seen = [_]bool{false} ** struct_info.fields.len;
+            var iterator = value.object.iterator();
+            while (iterator.next()) |entry| {
+                inline for (struct_info.fields, 0..) |field, index| {
+                    if (std.mem.eql(u8, field.name, entry.key_ptr.*)) {
+                        try refineValue(field.type, entry.value_ptr);
+                        fields_seen[index] = true;
+                        break;
+                    }
+                } else return error.InvalidField;
+            }
+            inline for (struct_info.fields, fields_seen) |field, seen| {
+                if (!seen and field.default_value_ptr == null) return error.InvalidField;
+            }
+        },
+        .@"union" => {
+            if (!@hasDecl(T, "wire_present_child")) return error.InvalidField;
+            switch (value.*) {
+                .null => {},
+                else => try refineValue(T.wire_present_child, value),
+            }
+        },
+        .array => |array| {
+            if (value.* != .array or value.array.items.len != array.len) {
+                return error.InvalidField;
+            }
+            for (value.array.items) |*item| try refineValue(array.child, item);
+        },
+        .pointer => |pointer| switch (pointer.size) {
+            .one => try refineValue(pointer.child, value),
+            .slice => {
+                if (pointer.child == u8) {
+                    if (value.* != .string) return error.InvalidField;
+                    return;
+                }
+                if (value.* != .array) return error.InvalidField;
+                for (value.array.items) |*item| try refineValue(pointer.child, item);
+            },
+            else => return error.InvalidField,
+        },
+        else => return error.InvalidField,
+    }
+}
+
+fn refineInteger(comptime T: type, value: *std.json.Value) error{InvalidField}!void {
+    const lexeme = switch (value.*) {
+        .number_string => |number| number,
+        else => return error.InvalidField,
+    };
+    // The pinned Zig conversion is the admitted refinement for ECMAScript
+    // decimal-to-binary64 conversion; integer constraints apply afterward.
+    const number = std.fmt.parseFloat(f64, lexeme) catch return error.InvalidField;
+    if (!std.math.isFinite(number) or @trunc(number) != number or
+        number < -max_safe_integer or number > max_safe_integer)
+    {
+        return error.InvalidField;
+    }
+    const minimum: f64 = @floatFromInt(std.math.minInt(T));
+    const maximum: f64 = @floatFromInt(std.math.maxInt(T));
+    if (number < minimum or number > maximum) return error.InvalidField;
+
+    const normalized: i64 = @intFromFloat(number);
+    value.* = .{ .integer = normalized };
 }
 
 // These types own the control JSON shape only. host_control_decode owns the
@@ -25,6 +136,8 @@ pub fn Present(comptime T: type) type {
         missing,
         null_value,
         value: T,
+
+        pub const wire_present_child = T;
 
         pub fn jsonParse(
             allocator: std.mem.Allocator,
@@ -36,6 +149,17 @@ pub fn Present(comptime T: type) type {
                 return .null_value;
             }
             return .{ .value = try std.json.innerParse(T, allocator, source, options) };
+        }
+
+        pub fn jsonParseFromValue(
+            allocator: std.mem.Allocator,
+            source: std.json.Value,
+            options: std.json.ParseOptions,
+        ) !@This() {
+            if (source == .null) return .null_value;
+            return .{
+                .value = try std.json.innerParseFromValue(T, allocator, source, options),
+            };
         }
     };
 }

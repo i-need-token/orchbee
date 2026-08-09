@@ -10,7 +10,7 @@ const control_decode = control_boundary.decode;
 const core_module = core_boundary.state;
 const terminal_history = engine_boundary.history;
 
-test "control decoder owns JSON syntax and strict object validation" {
+test "control decoder classifies UTF-8 JSON grammar and typed shape failures" {
     const valid = try subject.decode(
         subject.TerminalTarget,
         std.testing.allocator,
@@ -23,7 +23,15 @@ test "control decoder owns JSON syntax and strict object validation" {
     );
 
     try std.testing.expectError(
-        error.InvalidControlJson,
+        error.InvalidUtf8,
+        subject.decode(
+            subject.Empty,
+            std.testing.allocator,
+            &[_]u8{0xff},
+        ),
+    );
+    try std.testing.expectError(
+        error.InvalidField,
         subject.decode(
             subject.TerminalTarget,
             std.testing.allocator,
@@ -31,11 +39,11 @@ test "control decoder owns JSON syntax and strict object validation" {
         ),
     );
     try std.testing.expectError(
-        error.InvalidControlJson,
+        error.InvalidJson,
         subject.decode(subject.TerminalTarget, std.testing.allocator, "{"),
     );
     try std.testing.expectError(
-        error.InvalidControlJson,
+        error.InvalidJson,
         subject.decode(
             subject.TerminalTarget,
             std.testing.allocator,
@@ -43,7 +51,7 @@ test "control decoder owns JSON syntax and strict object validation" {
         ),
     );
     try std.testing.expectError(
-        error.InvalidControlJson,
+        error.InvalidJson,
         subject.decode(
             subject.TerminalTarget,
             std.testing.allocator,
@@ -51,11 +59,88 @@ test "control decoder owns JSON syntax and strict object validation" {
         ),
     );
     try std.testing.expectError(
-        error.InvalidControlJson,
+        error.InvalidJson,
         subject.decode(
             subject.TerminalTarget,
             std.testing.allocator,
             "{\"terminalId\":\"\\ud800\"}",
+        ),
+    );
+}
+
+test "control decoder requires exact scalar token kinds" {
+    try std.testing.expectError(
+        error.InvalidField,
+        control_decode.decodeListTerminals(
+            std.testing.allocator,
+            "{\"cursor\":null,\"maximumTerminals\":\"1\"}",
+        ),
+    );
+
+    const identifier_bytes = [_]u16{49} ** 32;
+    var payload_writer: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer payload_writer.deinit();
+    try std.json.Stringify.value(
+        .{ .terminalId = identifier_bytes },
+        .{},
+        &payload_writer.writer,
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        control_decode.decodeTerminalTarget(
+            std.testing.allocator,
+            payload_writer.written(),
+        ),
+    );
+}
+
+test "control integer refinement follows binary64 before integer constraints" {
+    var rounded = try control_decode.decodeListTerminals(
+        std.testing.allocator,
+        "{\"cursor\":null,\"maximumTerminals\":1.0000000000000001}",
+    );
+    defer rounded.deinit();
+    try std.testing.expectEqual(@as(usize, 1), rounded.value.maximum_terminals);
+
+    var underflow = try control_decode.decodeSetTerminalDefaults(
+        std.testing.allocator,
+        "{\"configuration\":{\"scrollbackBytes\":-1e-4000}}",
+    );
+    defer underflow.deinit();
+    try std.testing.expectEqual(@as(usize, 0), underflow.value.scrollback_bytes);
+
+    const SafeInteger = struct { value: i64 };
+    const safe = try subject.decode(
+        SafeInteger,
+        std.testing.allocator,
+        "{\"value\":9007199254740991}",
+    );
+    defer safe.deinit();
+    try std.testing.expectEqual(@as(i64, 9_007_199_254_740_991), safe.value.value);
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decode(
+            SafeInteger,
+            std.testing.allocator,
+            "{\"value\":9007199254740992}",
+        ),
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decode(
+            SafeInteger,
+            std.testing.allocator,
+            "{\"value\":1e4000}",
+        ),
+    );
+
+    const TargetRange = struct { value: u16 };
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decode(
+            TargetRange,
+            std.testing.allocator,
+            "{\"value\":65536}",
         ),
     );
 }

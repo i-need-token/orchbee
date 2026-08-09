@@ -10,6 +10,7 @@ const host_failure = @import("failure.zig");
 const host_interaction = @import("interaction.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_projection = @import("projection.zig");
+const host_request_context = @import("request_context.zig");
 const host_request_dispatch = @import("request_dispatch.zig");
 const host_response = @import("response.zig");
 const host_runtime_aggregate = @import("runtime_aggregate.zig");
@@ -358,30 +359,20 @@ pub const HostService = struct {
             return;
         }
         var decoded = control_decode.decodeHello(self.allocator, envelope.payload) catch |err| {
-            switch (err) {
-                error.OutOfMemory => return err,
-                error.CommandInspectionOutOfMemory => try self.addHandshakeFailure(
-                    outgoing,
-                    envelope.correlation_id,
-                    "resource-exhausted",
-                    "Host could not inspect the Hello command",
-                    true,
-                ),
-                error.InvalidIdentifier => try self.addHandshakeFailure(
-                    outgoing,
-                    envelope.correlation_id,
-                    "invalid-identifier",
-                    "ClientId is invalid",
-                    false,
-                ),
-                error.InvalidControlJson, error.InvalidField => try self.addHandshakeFailure(
-                    outgoing,
-                    envelope.correlation_id,
-                    "invalid-field",
-                    "Hello control payload is invalid",
-                    false,
-                ),
-            }
+            const failure = host_request_context.classifyControlDecodeError(err) catch
+                return error.OutOfMemory;
+            const message = switch (failure.kind) {
+                .inspection_resource => "Host could not inspect the Hello command",
+                .invalid_identifier => "ClientId is invalid",
+                .invalid_payload => "Hello control payload is invalid",
+            };
+            try self.addHandshakeFailure(
+                outgoing,
+                envelope.correlation_id,
+                failure.code,
+                message,
+                failure.retryable,
+            );
             connection.* = .closing;
             return;
         };

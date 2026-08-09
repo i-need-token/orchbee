@@ -630,5 +630,91 @@
 		"raw_payload_bytes": 1048608,
 		"semantic_input_payload_bytes": 1048608,
 		"write_input_payload_bytes": 1048592
-	}
+	},
+	"raw_cases": [
+		{
+			"decoder": "empty",
+			"expected_code": "invalid-utf8",
+			"expected_integer": null,
+			"name": "invalid-utf8-byte",
+			"payload_base64": "/w=="
+		},
+		{
+			"decoder": "empty",
+			"expected_code": "invalid-json",
+			"expected_integer": null,
+			"name": "malformed-json-grammar",
+			"payload_base64": "ew=="
+		},
+		{
+			"decoder": "list-terminals",
+			"expected_code": "invalid-field",
+			"expected_integer": null,
+			"name": "numeric-string-does-not-coerce",
+			"payload_base64": "eyJjdXJzb3IiOm51bGwsIm1heGltdW1UZXJtaW5hbHMiOiIxIn0="
+		},
+		{
+			"decoder": "terminal-target",
+			"expected_code": "invalid-field",
+			"expected_integer": null,
+			"name": "byte-array-does-not-coerce-to-string",
+			"payload_base64": "eyJ0ZXJtaW5hbElkIjpbNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDksNDldfQ=="
+		},
+		{
+			"decoder": "list-terminals",
+			"expected_code": null,
+			"expected_integer": 1,
+			"name": "binary64-rounds-decimal-to-one",
+			"payload_base64": "eyJjdXJzb3IiOm51bGwsIm1heGltdW1UZXJtaW5hbHMiOjEuMDAwMDAwMDAwMDAwMDAwMX0="
+		},
+		{
+			"decoder": "set-terminal-defaults",
+			"expected_code": null,
+			"expected_integer": 0,
+			"name": "binary64-negative-underflow-normalizes-to-zero",
+			"payload_base64": "eyJjb25maWd1cmF0aW9uIjp7InNjcm9sbGJhY2tCeXRlcyI6LTFlLTQwMDB9fQ=="
+		},
+		{
+			"decoder": "empty",
+			"expected_code": "invalid-field",
+			"expected_integer": null,
+			"name": "unknown-member",
+			"payload_base64": "eyJleHRyYSI6dHJ1ZX0="
+		},
+		{
+			"decoder": "list-terminals",
+			"expected_code": "invalid-json",
+			"expected_integer": null,
+			"name": "exact-duplicate-member",
+			"payload_base64": "eyJjdXJzb3IiOm51bGwsIm1heGltdW1UZXJtaW5hbHMiOjEsIm1heGltdW1UZXJtaW5hbHMiOjJ9"
+		},
+		{
+			"decoder": "list-terminals",
+			"expected_code": "invalid-json",
+			"expected_integer": null,
+			"name": "escaped-equivalent-duplicate-member",
+			"payload_base64": "eyJjdXJzb3IiOm51bGwsIm1heGltdW1UZXJtaW5hbHMiOjEsIm1heFx1MDA2OW11bVRlcm1pbmFscyI6Mn0="
+		},
+		{
+			"decoder": "terminal-target",
+			"expected_code": "invalid-json",
+			"expected_integer": null,
+			"name": "unpaired-high-surrogate",
+			"payload_base64": "eyJ0ZXJtaW5hbElkIjoiXHVkODAwIn0="
+		},
+		{
+			"decoder": "list-terminals",
+			"expected_code": "invalid-field",
+			"expected_integer": null,
+			"name": "unsafe-integer",
+			"payload_base64": "eyJjdXJzb3IiOm51bGwsIm1heGltdW1UZXJtaW5hbHMiOjkwMDcxOTkyNTQ3NDA5OTJ9"
+		},
+		{
+			"decoder": "list-terminals",
+			"expected_code": "invalid-field",
+			"expected_integer": null,
+			"name": "nonfinite-binary64-result",
+			"payload_base64": "eyJjdXJzb3IiOm51bGwsIm1heGltdW1UZXJtaW5hbHMiOjFlNDAwMH0="
+		}
+	]
 }

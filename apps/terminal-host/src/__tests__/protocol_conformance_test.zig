@@ -103,6 +103,14 @@ const ControlMessageContractFixture = struct {
     response_encoding: ?[]const u8,
 };
 
+const ControlRawCaseFixture = struct {
+    decoder: []const u8,
+    expected_code: ?[]const u8,
+    expected_integer: ?u64,
+    name: []const u8,
+    payload_base64: []const u8,
+};
+
 const ProtocolLimitsFixture = struct {
     cell_pixel_dimension: u64,
     control_json_bytes: u64,
@@ -147,6 +155,7 @@ const ControlConformanceFixture = struct {
     message_contracts: []const ControlMessageContractFixture,
     outputs: ControlOutputsFixture,
     protocol_limits: ProtocolLimitsFixture,
+    raw_cases: []const ControlRawCaseFixture,
 };
 
 const TestIdentifier = struct { bytes: [16]u8 };
@@ -588,6 +597,58 @@ test "every TypeScript control command fixture crosses the native typed decoder"
     for (commands.selection_export_cancel) |payload| {
         var decoded = try control_decode.decodeSelectionExportCancel(allocator, payload);
         defer decoded.deinit();
+    }
+}
+
+test "TypeScript raw control cases cross strict native admission" {
+    const allocator = std.testing.allocator;
+    const fixture = try parseControlFixture(allocator);
+    defer fixture.deinit();
+    try std.testing.expectEqual(@as(usize, 12), fixture.value.raw_cases.len);
+
+    for (fixture.value.raw_cases) |case| {
+        const payload_length = try std.base64.standard.Decoder.calcSizeForSlice(
+            case.payload_base64,
+        );
+        const payload = try allocator.alloc(u8, payload_length);
+        defer allocator.free(payload);
+        try std.base64.standard.Decoder.decode(payload, case.payload_base64);
+
+        if (std.mem.eql(u8, case.decoder, "empty")) {
+            try expectRawControlCase(
+                control_decode.decodeEmpty,
+                noObservedInteger,
+                case,
+                payload,
+            );
+        } else if (std.mem.eql(u8, case.decoder, "list-terminals")) {
+            try expectRawControlCase(
+                control_decode.decodeListTerminals,
+                listTerminalsObservedInteger,
+                case,
+                payload,
+            );
+        } else if (std.mem.eql(u8, case.decoder, "set-terminal-defaults")) {
+            try expectRawControlCase(
+                control_decode.decodeSetTerminalDefaults,
+                defaultsObservedInteger,
+                case,
+                payload,
+            );
+        } else if (std.mem.eql(u8, case.decoder, "terminal-target")) {
+            try expectRawControlCase(
+                control_decode.decodeTerminalTarget,
+                noObservedInteger,
+                case,
+                payload,
+            );
+        } else {
+            std.debug.print("unknown raw control decoder in {s}: {s}\n", .{
+                case.name,
+                case.decoder,
+            });
+            return error.TestUnexpectedResult;
+        }
     }
 }
 
@@ -1346,6 +1407,62 @@ fn parseControlFixture(
         control_fixture,
         .{},
     );
+}
+
+fn expectRawControlCase(
+    comptime decode_fn: anytype,
+    comptime observed_integer_fn: anytype,
+    case: ControlRawCaseFixture,
+    payload: []const u8,
+) !void {
+    var decoded = decode_fn(std.testing.allocator, payload) catch |err| {
+        const expected_code = case.expected_code orelse {
+            std.debug.print("raw control case unexpectedly failed: {s}: {s}\n", .{
+                case.name,
+                @errorName(err),
+            });
+            return err;
+        };
+        try std.testing.expectEqualStrings(expected_code, controlDecodeErrorCode(err));
+        try std.testing.expect(case.expected_integer == null);
+        return;
+    };
+    defer decoded.deinit();
+
+    if (case.expected_code) |expected_code| {
+        std.debug.print("raw control case unexpectedly accepted: {s}: {s}\n", .{
+            case.name,
+            expected_code,
+        });
+        return error.TestExpectedError;
+    }
+    try std.testing.expectEqual(
+        case.expected_integer,
+        observed_integer_fn(decoded.value),
+    );
+}
+
+fn controlDecodeErrorCode(err: control_decode.DecodeError) []const u8 {
+    return switch (err) {
+        error.InvalidUtf8 => "invalid-utf8",
+        error.InvalidJson => "invalid-json",
+        error.InvalidField => "invalid-field",
+        error.InvalidIdentifier => "invalid-identifier",
+        error.CommandInspectionOutOfMemory => "resource-exhausted",
+        error.OutOfMemory => "out-of-memory",
+    };
+}
+
+fn noObservedInteger(_: anytype) ?u64 {
+    return null;
+}
+
+fn listTerminalsObservedInteger(value: anytype) ?u64 {
+    return @intCast(value.maximum_terminals);
+}
+
+fn defaultsObservedInteger(value: anytype) ?u64 {
+    return @intCast(value.scrollback_bytes);
 }
 
 fn encodeWithWriter(

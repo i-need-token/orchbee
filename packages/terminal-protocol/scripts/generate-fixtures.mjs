@@ -18,6 +18,7 @@ import {
 	HistoryChangedSchema,
 	HistoryDemandAcceptedSchema,
 	InputAcceptedSchema,
+	ListTerminalsSchema,
 	MESSAGE_CONTRACTS,
 	MessageKind,
 	PROTOCOL_LIMITS,
@@ -28,6 +29,7 @@ import {
 	SelectionChangedSchema,
 	SelectionExportFinishedSchema,
 	SelectionExportStartedSchema,
+	SetTerminalDefaultsSchema,
 	TerminalAcknowledgedSchema,
 	TerminalConfigurationAcceptedSchema,
 	TerminalDefaultsAcceptedSchema,
@@ -39,6 +41,7 @@ import {
 	TERMINAL_PROJECTION_BUFFER_FORMAT,
 	TERMINAL_ROW_WINDOW_FORMAT,
 	TerminalStartedSchema,
+	TerminalTargetSchema,
 	TypedFailureSchema,
 } from '../dist/index.js';
 
@@ -137,6 +140,165 @@ function controlRequestText(kind, value, name) {
 
 function controlRequestTexts(kind, values, name) {
 	return values.map((value, index) => controlRequestText(kind, value, `${name}[${index}]`));
+}
+
+function referenceControlResult(bytes, schema, selectInteger) {
+	let text;
+	try {
+		text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+	} catch {
+		return { code: 'invalid-utf8', integer: null };
+	}
+
+	let value;
+	try {
+		value = JSON.parse(text);
+	} catch {
+		return { code: 'invalid-json', integer: null };
+	}
+	const parsed = schema.safeParse(value);
+	if (!parsed.success) return { code: 'invalid-field', integer: null };
+	return {
+		code: null,
+		integer: selectInteger === null ? null : selectInteger(parsed.data),
+	};
+}
+
+function rawControlCase({
+	decoder,
+	expectedCode,
+	expectedInteger = null,
+	name,
+	payload,
+	referenceNegativeZero = false,
+	schema,
+	selectInteger = null,
+	strictJson = false,
+}) {
+	const bytes = typeof payload === 'string' ? new TextEncoder().encode(payload) : payload;
+	const reference = referenceControlResult(bytes, schema, selectInteger);
+	if (referenceNegativeZero && !Object.is(reference.integer, -0)) {
+		throw new Error(`${name} reference result must preserve JavaScript negative zero`);
+	}
+	if (strictJson) {
+		if (
+			expectedCode !== 'invalid-json' ||
+			reference.code === 'invalid-utf8' ||
+			reference.code === 'invalid-json'
+		) {
+			throw new Error(`${name} strict JSON case must extend valid JSON.parse grammar`);
+		}
+	} else {
+		if (reference.code !== expectedCode || reference.integer !== expectedInteger) {
+			throw new Error(
+				`${name} reference result ${JSON.stringify(reference)} does not match the fixture expectation`,
+			);
+		}
+	}
+	return {
+		decoder,
+		expected_code: expectedCode,
+		expected_integer: expectedInteger,
+		name,
+		payload_base64: Buffer.from(bytes).toString('base64'),
+	};
+}
+
+function rawControlCases() {
+	return [
+		rawControlCase({
+			decoder: 'empty',
+			expectedCode: 'invalid-utf8',
+			name: 'invalid-utf8-byte',
+			payload: new Uint8Array([0xff]),
+			schema: EmptyControlSchema,
+		}),
+		rawControlCase({
+			decoder: 'empty',
+			expectedCode: 'invalid-json',
+			name: 'malformed-json-grammar',
+			payload: '{',
+			schema: EmptyControlSchema,
+		}),
+		rawControlCase({
+			decoder: 'list-terminals',
+			expectedCode: 'invalid-field',
+			name: 'numeric-string-does-not-coerce',
+			payload: '{"cursor":null,"maximumTerminals":"1"}',
+			schema: ListTerminalsSchema,
+		}),
+		rawControlCase({
+			decoder: 'terminal-target',
+			expectedCode: 'invalid-field',
+			name: 'byte-array-does-not-coerce-to-string',
+			payload: JSON.stringify({ terminalId: Array.from({ length: 32 }, () => 49) }),
+			schema: TerminalTargetSchema,
+		}),
+		rawControlCase({
+			decoder: 'list-terminals',
+			expectedCode: null,
+			expectedInteger: 1,
+			name: 'binary64-rounds-decimal-to-one',
+			payload: '{"cursor":null,"maximumTerminals":1.0000000000000001}',
+			schema: ListTerminalsSchema,
+			selectInteger: (value) => value.maximumTerminals,
+		}),
+		rawControlCase({
+			decoder: 'set-terminal-defaults',
+			expectedCode: null,
+			expectedInteger: 0,
+			name: 'binary64-negative-underflow-normalizes-to-zero',
+			payload: '{"configuration":{"scrollbackBytes":-1e-4000}}',
+			referenceNegativeZero: true,
+			schema: SetTerminalDefaultsSchema,
+			selectInteger: (value) => value.configuration.scrollbackBytes,
+		}),
+		rawControlCase({
+			decoder: 'empty',
+			expectedCode: 'invalid-field',
+			name: 'unknown-member',
+			payload: '{"extra":true}',
+			schema: EmptyControlSchema,
+		}),
+		rawControlCase({
+			decoder: 'list-terminals',
+			expectedCode: 'invalid-json',
+			name: 'exact-duplicate-member',
+			payload: '{"cursor":null,"maximumTerminals":1,"maximumTerminals":2}',
+			schema: ListTerminalsSchema,
+			strictJson: true,
+		}),
+		rawControlCase({
+			decoder: 'list-terminals',
+			expectedCode: 'invalid-json',
+			name: 'escaped-equivalent-duplicate-member',
+			payload: String.raw`{"cursor":null,"maximumTerminals":1,"max\u0069mumTerminals":2}`,
+			schema: ListTerminalsSchema,
+			strictJson: true,
+		}),
+		rawControlCase({
+			decoder: 'terminal-target',
+			expectedCode: 'invalid-json',
+			name: 'unpaired-high-surrogate',
+			payload: String.raw`{"terminalId":"\ud800"}`,
+			schema: TerminalTargetSchema,
+			strictJson: true,
+		}),
+		rawControlCase({
+			decoder: 'list-terminals',
+			expectedCode: 'invalid-field',
+			name: 'unsafe-integer',
+			payload: '{"cursor":null,"maximumTerminals":9007199254740992}',
+			schema: ListTerminalsSchema,
+		}),
+		rawControlCase({
+			decoder: 'list-terminals',
+			expectedCode: 'invalid-field',
+			name: 'nonfinite-binary64-result',
+			payload: '{"cursor":null,"maximumTerminals":1e4000}',
+			schema: ListTerminalsSchema,
+		}),
+	];
 }
 
 function protocolLimitName(name) {
@@ -668,6 +830,7 @@ function createControlConformanceFixture() {
 		message_contracts: messageContracts,
 		outputs,
 		protocol_limits: protocolLimitsFixture(),
+		raw_cases: rawControlCases(),
 	};
 }
 

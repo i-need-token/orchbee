@@ -50,6 +50,20 @@ fn activeConnection(connection: *const ConnectionState) !*const ConnectionState.
     };
 }
 
+fn expectSingleFailureCode(outgoing: *const Outgoing, expected_code: []const u8) !void {
+    try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
+    const envelope = try protocol.validateTransportEnvelope(outgoing.records()[0]);
+    try std.testing.expectEqual(MessageKind.typed_failure, envelope.kind);
+    const Failure = struct {
+        code: []const u8,
+        message: []const u8,
+        retryable: bool,
+    };
+    const failure = try control_wire.decode(Failure, std.testing.allocator, envelope.payload);
+    defer failure.deinit();
+    try std.testing.expectEqualStrings(expected_code, failure.value.code);
+}
+
 fn testClientId() core_module.ClientId {
     return core_module.ClientId.fromBytes([_]u8{0x22} ** 16);
 }
@@ -507,6 +521,106 @@ test "pre-handshake role failures do not publish the HostEpoch" {
     try std.testing.expectEqual(MessageKind.typed_failure, response.kind);
     try std.testing.expect(response.host_epoch == null);
     try std.testing.expect(connection.shouldClose());
+}
+
+test "active control decode failures retain distinct public codes" {
+    const invalid_utf8 = [_]u8{0xff};
+    const cases = [_]struct {
+        code: []const u8,
+        payload: []const u8,
+    }{
+        .{ .code = "invalid-utf8", .payload = &invalid_utf8 },
+        .{ .code = "invalid-json", .payload = "{" },
+        .{ .code = "invalid-field", .payload = "{\"extra\":true}" },
+    };
+
+    for (cases) |case| {
+        var service = HostService.init(std.testing.allocator);
+        defer service.deinit();
+        var connection = testActiveConnectionState();
+        const active = try activeConnection(&connection);
+        _ = try service.runtime_aggregate.core().connect(active.connection_id, testClientId());
+
+        var outgoing = try testRequest(
+            &service,
+            &connection,
+            MessageKind.ping,
+            .control_json,
+            case.payload,
+            [_]u8{0x30} ** 16,
+        );
+        defer outgoing.deinit();
+        try expectSingleFailureCode(&outgoing, case.code);
+        try std.testing.expect(!connection.shouldClose());
+        try std.testing.expectEqual(
+            @as(usize, 0),
+            service.runtime_aggregate.core().terminalCount(),
+        );
+        service.disconnect(&connection);
+    }
+}
+
+test "malformed Hello decode failures retain distinct public codes and close" {
+    const invalid_utf8 = [_]u8{0xff};
+    const cases = [_]struct {
+        code: []const u8,
+        payload: []const u8,
+    }{
+        .{ .code = "invalid-utf8", .payload = &invalid_utf8 },
+        .{ .code = "invalid-json", .payload = "{" },
+        .{ .code = "invalid-field", .payload = "{}" },
+    };
+
+    for (cases) |case| {
+        var service = HostService.init(std.testing.allocator);
+        defer service.deinit();
+        var connection: ConnectionState = .awaiting_hello;
+        const record = try protocol.encodeTransportEnvelope(
+            std.testing.allocator,
+            MessageKind.hello,
+            .control_json,
+            case.payload,
+            null,
+            null,
+            false,
+            false,
+        );
+        defer std.testing.allocator.free(record);
+
+        var outgoing = try service.handle(&connection, record);
+        defer outgoing.deinit();
+        try expectSingleFailureCode(&outgoing, case.code);
+        try std.testing.expect(connection.shouldClose());
+        try std.testing.expectEqual(
+            @as(usize, 0),
+            service.runtime_aggregate.core().connectionCount(),
+        );
+    }
+}
+
+test "SetTerminalDefaults token coercion is rejected before mutation" {
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "22222222222222222222222222222222");
+    const defaults_before = service.terminal_defaults;
+    const revision_before = service.terminal_defaults_revision;
+
+    var outgoing = try testRequest(
+        &service,
+        &connection,
+        MessageKind.set_terminal_defaults,
+        .control_json,
+        "{\"configuration\":{\"scrollbackBytes\":\"25000000\"}}",
+        [_]u8{0x31} ** 16,
+    );
+    defer outgoing.deinit();
+    try expectSingleFailureCode(&outgoing, "invalid-field");
+    try std.testing.expectEqualDeep(defaults_before, service.terminal_defaults);
+    try std.testing.expectEqual(revision_before, service.terminal_defaults_revision);
 }
 
 test "IPC updates terminal defaults and retained terminal configuration" {
