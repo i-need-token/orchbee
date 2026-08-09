@@ -2,20 +2,28 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const frameFixture = require.resolve('@orchbee/terminal-protocol/fixtures/terminal-frame-v2.bin');
+const frameFixture =
+	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-frame-v0.0.1.bin');
+const projectionFixture =
+	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-projection-buffer-v0.0.1.bin');
 const envelopeFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/transport-envelope-v1.bin');
-const inputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/write-input-v1.bin');
-const keyInputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/key-input-v1_1.bin');
-const textInputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/text-input-v1_1.bin');
+	require.resolve('@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.1.bin');
+const inputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/write-input-v0.0.1.bin');
+const keyInputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/key-input-v0.0.1.bin');
+const textInputFixture =
+	require.resolve('@orchbee/terminal-protocol/fixtures/text-input-v0.0.1.bin');
 const mouseInputFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/mouse-input-v1_1.bin');
+	require.resolve('@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.1.bin');
 const focusInputFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/focus-input-v1_1.bin');
+	require.resolve('@orchbee/terminal-protocol/fixtures/focus-input-v0.0.1.bin');
 const pasteInputFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/paste-input-v1_1.bin');
+	require.resolve('@orchbee/terminal-protocol/fixtures/paste-input-v0.0.1.bin');
+const terminalFailedFixture =
+	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.1.json');
+const controlFixture =
+	require.resolve('@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.1.json');
 const rowWindowFixture =
-	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-row-window-v1.bin');
+	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-row-window-v0.0.1.bin');
 
 const child = spawn(
 	'zig',
@@ -23,6 +31,7 @@ const child = spawn(
 		'build',
 		'test-protocol',
 		`-Dframe-fixture=${frameFixture}`,
+		`-Dprojection-fixture=${projectionFixture}`,
 		`-Denvelope-fixture=${envelopeFixture}`,
 		`-Dinput-fixture=${inputFixture}`,
 		`-Dkey-input-fixture=${keyInputFixture}`,
@@ -30,6 +39,8 @@ const child = spawn(
 		`-Dmouse-input-fixture=${mouseInputFixture}`,
 		`-Dfocus-input-fixture=${focusInputFixture}`,
 		`-Dpaste-input-fixture=${pasteInputFixture}`,
+		`-Dterminal-failed-fixture=${terminalFailedFixture}`,
+		`-Dcontrol-fixture=${controlFixture}`,
 		`-Drow-window-fixture=${rowWindowFixture}`,
 	],
 	{ stdio: 'inherit' },

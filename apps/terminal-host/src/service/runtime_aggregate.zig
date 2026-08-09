@@ -1,0 +1,793 @@
+const std = @import("std");
+const target_builtin = @import("builtin");
+
+const core_module = @import("terminal-host-core").state;
+const terminal_engine = @import("terminal-host-engine");
+const host_input_admission = @import("input_admission.zig");
+const host_runtime_maintenance = @import("runtime_maintenance.zig");
+const model = @import("terminal-host-model");
+const identifiers = model.identifiers;
+const terminal_configuration = model.configuration;
+const terminal_geometry = model.geometry;
+const terminal_input = @import("terminal-input");
+const terminal_launch = terminal_engine.launch;
+const terminal_runtime = terminal_engine.runtime;
+
+pub const TerminalIdentity = struct {
+    creation_id: core_module.CreationId,
+    terminal_id: core_module.TerminalId,
+};
+
+pub const TerminalExitNotice = host_runtime_maintenance.TerminalExitNotice;
+pub const TerminalFailureNotice = host_runtime_maintenance.TerminalFailureNotice;
+pub const TerminalOutcomeNotice = host_runtime_maintenance.TerminalOutcomeNotice;
+pub const PendingOutcomeBatch = host_runtime_maintenance.PendingOutcomeBatch;
+
+pub const TerminationMode = enum {
+    graceful,
+    force,
+};
+
+pub const TerminalConfigurationUpdate = struct {
+    configuration: terminal_configuration.Configuration,
+    configuration_revision: u64,
+    generation: u64,
+    history_rows_evicted: u64,
+    revision: u64,
+    terminal_id: core_module.TerminalId,
+};
+
+pub const TerminalResize = struct {
+    attachment_id: core_module.AttachmentId,
+    geometry: terminal_geometry.Geometry,
+    revision: u64,
+    terminal_id: core_module.TerminalId,
+};
+
+pub const CreateOutcome = union(enum) {
+    created: TerminalIdentity,
+    replayed: TerminalIdentity,
+
+    pub fn identity(self: CreateOutcome) TerminalIdentity {
+        return switch (self) {
+            .created => |value| value,
+            .replayed => |value| value,
+        };
+    }
+
+    pub fn isCreated(self: CreateOutcome) bool {
+        return switch (self) {
+            .created => true,
+            .replayed => false,
+        };
+    }
+};
+
+const PendingCreate = struct {
+    allocator: std.mem.Allocator,
+    connection_id: core_module.ConnectionId,
+    creation_id: core_module.CreationId,
+    launch_digest: terminal_launch.Digest,
+    runtime_preparation: terminal_launch.RuntimePreparation,
+    terminal_id: core_module.TerminalId,
+};
+
+pub const CreatePreparation = union(enum) {
+    replayed: TerminalIdentity,
+    pending: PendingCreate,
+    consumed,
+
+    pub fn deinit(self: *CreatePreparation) void {
+        switch (self.*) {
+            .pending => |*pending| pending.runtime_preparation.deinit(pending.allocator),
+            .replayed, .consumed => {},
+        }
+        self.* = .consumed;
+    }
+
+    pub fn identity(self: *const CreatePreparation) TerminalIdentity {
+        return switch (self.*) {
+            .replayed => |value| value,
+            .pending => |pending| .{
+                .creation_id = pending.creation_id,
+                .terminal_id = pending.terminal_id,
+            },
+            .consumed => unreachable,
+        };
+    }
+
+    pub fn requiresEffect(self: *const CreatePreparation) bool {
+        return switch (self.*) {
+            .pending => true,
+            .replayed => false,
+            .consumed => unreachable,
+        };
+    }
+};
+
+pub const AttachmentBinding = struct {
+    attachment_id: core_module.AttachmentId,
+    capabilities: core_module.Capabilities,
+    resize_lease: bool,
+    terminal_id: core_module.TerminalId,
+};
+
+pub const AttachOutcome = struct {
+    binding: AttachmentBinding,
+    transition: core_module.TransitionOutcome,
+};
+
+pub const AcceptedInput = host_input_admission.AcceptedInput;
+pub const InputRejection = host_input_admission.Rejection;
+pub const InputAdmission = host_input_admission.Admission;
+pub const InputPreparation = host_input_admission.Preparation;
+
+pub const CreatePrepareError = core_module.CoreError || std.mem.Allocator.Error || error{
+    LaunchPreparationOutOfMemory,
+};
+
+pub const CreateCommitError = error{
+    RuntimeAllocationOutOfMemory,
+    RuntimeSpawnFailed,
+};
+
+pub const AttachError = core_module.CoreError || std.mem.Allocator.Error || error{
+    HistoryAttachmentFailed,
+    TerminalRuntimeMissing,
+    TerminalRuntimeUnavailable,
+};
+
+pub const DisposeError = core_module.CoreError || error{TerminalRuntimeMissing};
+
+pub const DisposeResult = union(enum) {
+    transition: core_module.TransitionOutcome,
+    cleanup_blocked: core_module.RuntimeCleanupFailure,
+};
+
+pub const TerminationError = core_module.CoreError || error{
+    TerminalRuntimeMissing,
+    TerminationDispatchFailed,
+};
+
+pub const ConfigurationUpdateError = error{
+    ConfigurationRevisionOverflow,
+    InvalidConfiguration,
+    InvalidPhase,
+    MissingConnection,
+    MissingResource,
+    RuntimeStateDiverged,
+    TerminalRevisionOverflow,
+    TerminalRuntimeMissing,
+    TerminalRuntimeUnavailable,
+};
+
+pub const ResizeError = core_module.CoreError || error{
+    InvalidGeometry,
+    RuntimeResizeFailed,
+    RuntimeStateDiverged,
+    TerminalRevisionOverflow,
+    TerminalRuntimeMissing,
+    TerminalRuntimeUnavailable,
+    UnsafeRuntimeAfterResizeFailure,
+};
+
+// HostRuntimeAggregate is the single owner of the deterministic Core record
+// and the native runtime bound to each retained TerminalId.
+pub const HostRuntimeAggregate = struct {
+    allocator: std.mem.Allocator,
+    core_state: core_module.HostCore,
+    maintenance: host_runtime_maintenance.Maintenance = .{},
+
+    pub fn init(allocator: std.mem.Allocator) HostRuntimeAggregate {
+        return .{
+            .allocator = allocator,
+            .core_state = .init(allocator, identifiers.HostEpoch.random()),
+        };
+    }
+
+    pub fn deinitChecked(
+        self: *HostRuntimeAggregate,
+        request_incomplete_termination: bool,
+    ) !void {
+        if (request_incomplete_termination) {
+            // Runtime destruction escalates to force termination when this
+            // graceful request fails or the PTY has not drained.
+            for (self.core_state.terminalValues()) |session| {
+                const engine = session.runtime() orelse continue;
+                const completion = engine.completion();
+                if (!completion.child_exited or !completion.pty_drained) {
+                    engine.terminate() catch {};
+                }
+            }
+        }
+        try shutdownAndReleaseTerminalEngines(self);
+        self.core_state.deinit();
+        self.* = undefined;
+    }
+
+    fn ownedTerminalCount(self: *const HostRuntimeAggregate) usize {
+        return self.core_state.terminalCount();
+    }
+
+    fn runtimeAtOwnedTerminal(
+        self: *HostRuntimeAggregate,
+        index: usize,
+    ) ?*terminal_runtime.TerminalRuntime {
+        return self.core_state.terminalValues()[index].runtime();
+    }
+
+    fn takeLastOwnedRuntime(
+        self: *HostRuntimeAggregate,
+    ) ?*terminal_runtime.TerminalRuntime {
+        const index = self.core_state.terminalCount() - 1;
+        const terminal_id = self.core_state.terminalKeys()[index];
+        return self.core_state.takeTerminalForHostShutdown(terminal_id).runtimePointer();
+    }
+
+    pub fn core(self: *HostRuntimeAggregate) *core_module.HostCore {
+        return &self.core_state;
+    }
+
+    pub fn isEmpty(self: *const HostRuntimeAggregate) bool {
+        return self.core_state.connectionCount() == 0 and
+            self.core_state.terminalCount() == 0;
+    }
+
+    pub fn runtimeCount(self: *const HostRuntimeAggregate) usize {
+        var count: usize = 0;
+        for (self.core_state.terminalValues()) |session| {
+            if (session.runtime() != null) count += 1;
+        }
+        return count;
+    }
+
+    pub fn runtimeFor(
+        self: *HostRuntimeAggregate,
+        terminal_id: core_module.TerminalId,
+    ) ?*terminal_runtime.TerminalRuntime {
+        const session = self.core_state.findTerminal(terminal_id) orelse return null;
+        return session.runtime();
+    }
+
+    pub fn nextProjectionAt(
+        self: *HostRuntimeAggregate,
+        terminal_id: core_module.TerminalId,
+    ) ?i128 {
+        const runtime = self.runtimeFor(terminal_id) orelse return null;
+        return runtime.nextProjectionAt();
+    }
+
+    pub fn setNextProjectionAt(
+        self: *HostRuntimeAggregate,
+        terminal_id: core_module.TerminalId,
+        next_projection_at_ns: i128,
+    ) bool {
+        const runtime = self.runtimeFor(terminal_id) orelse return false;
+        runtime.setNextProjectionAt(next_projection_at_ns);
+        return true;
+    }
+
+    pub fn prepareCreateTerminal(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        creation_id: core_module.CreationId,
+        validated_launch: terminal_launch.Validated,
+        default_configuration: terminal_configuration.Configuration,
+    ) CreatePrepareError!CreatePreparation {
+        if (try self.core_state.resolveCreation(
+            connection_id,
+            creation_id,
+            validated_launch.launch_digest,
+        )) |terminal_id| {
+            const terminal = self.core_state.findTerminal(terminal_id) orelse unreachable;
+            return .{ .replayed = .{
+                .creation_id = terminal.creation_id,
+                .terminal_id = terminal_id,
+            } };
+        }
+
+        var prepared_launch = validated_launch.prepareRuntime(
+            self.allocator,
+            default_configuration,
+        ) catch return error.LaunchPreparationOutOfMemory;
+        errdefer prepared_launch.deinit(self.allocator);
+
+        try self.core_state.reserveTerminal();
+
+        var terminal_id = identifiers.TerminalId.random();
+        while (self.core_state.findTerminal(terminal_id) != null) {
+            terminal_id = identifiers.TerminalId.random();
+        }
+
+        return .{ .pending = .{
+            .allocator = self.allocator,
+            .connection_id = connection_id,
+            .creation_id = creation_id,
+            .launch_digest = validated_launch.launch_digest,
+            .runtime_preparation = prepared_launch,
+            .terminal_id = terminal_id,
+        } };
+    }
+
+    pub fn commitPreparedTerminal(
+        self: *HostRuntimeAggregate,
+        preparation: *CreatePreparation,
+    ) CreateCommitError!CreateOutcome {
+        switch (preparation.*) {
+            .replayed => |identity| return .{ .replayed = identity },
+            .consumed => unreachable,
+            .pending => |*pending| {
+                const runtime = terminal_runtime.TerminalRuntime.createWithOptions(
+                    self.allocator,
+                    pending.runtime_preparation.process_launch,
+                    pending.runtime_preparation.runtime_options,
+                ) catch |err| {
+                    return if (err == error.OutOfMemory)
+                        error.RuntimeAllocationOutOfMemory
+                    else
+                        error.RuntimeSpawnFailed;
+                };
+                // All domain capacity and the complete engine exist before
+                // this infallible commit. The caller has already encoded and
+                // reserved the records that make the commit observable.
+                self.core_state.commitRunningTerminal(
+                    pending.connection_id,
+                    pending.creation_id,
+                    pending.terminal_id,
+                    pending.launch_digest,
+                    pending.runtime_preparation.process_launch.columns,
+                    pending.runtime_preparation.process_launch.rows,
+                    pending.runtime_preparation.process_launch.cell_pixel_width,
+                    pending.runtime_preparation.process_launch.cell_pixel_height,
+                    pending.runtime_preparation.configuration,
+                    runtime,
+                );
+                const identity: TerminalIdentity = .{
+                    .creation_id = pending.creation_id,
+                    .terminal_id = pending.terminal_id,
+                };
+                pending.runtime_preparation.deinit(self.allocator);
+                preparation.* = .consumed;
+                return .{ .created = identity };
+            },
+        }
+    }
+
+    pub fn requestTermination(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        terminal_id: core_module.TerminalId,
+        mode: TerminationMode,
+    ) TerminationError!core_module.TransitionOutcome {
+        const request: core_module.TerminationRequest = switch (mode) {
+            .graceful => .graceful,
+            .force => .force,
+        };
+        const admission = try self.core_state.prepareTermination(
+            connection_id,
+            terminal_id,
+            request,
+        );
+        if (admission == .replay) return .idempotent;
+
+        const runtime = self.runtimeFor(terminal_id) orelse {
+            const failure: core_module.RuntimeFailure = .synchronize_worker;
+            _ = self.core_state.runtimeFailed(terminal_id, failure) catch {};
+            _ = self.core_state.failureContainmentBlocked(
+                terminal_id,
+                .contain_process,
+                host_runtime_maintenance.nextCleanupRetryAt(),
+            ) catch {};
+            return error.TerminalRuntimeMissing;
+        };
+        if (admission == .containment_retry) {
+            self.maintenance.containRuntimeFailure(&self.core_state, terminal_id, runtime) catch
+                return error.TerminationDispatchFailed;
+            return .applied;
+        }
+        dispatchTermination(runtime, mode) catch {
+            self.core_state.commitTerminationDispatchFailure(terminal_id);
+            self.maintenance.containRuntimeFailure(&self.core_state, terminal_id, runtime) catch {};
+            return error.TerminationDispatchFailed;
+        };
+        self.core_state.commitPreparedTermination(terminal_id, request);
+        return .applied;
+    }
+
+    pub fn attach(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+        terminal_id: core_module.TerminalId,
+        capabilities: core_module.Capabilities,
+        request_resize_lease: bool,
+    ) AttachError!AttachOutcome {
+        const admission = try self.core_state.validateAttachmentAdmission(
+            connection_id,
+            attachment_id,
+            terminal_id,
+            capabilities,
+            request_resize_lease,
+        );
+        if (admission == .replay) {
+            return .{
+                .binding = attachmentBinding(self.core_state.findAttachment(attachment_id).?),
+                .transition = .idempotent,
+            };
+        }
+
+        const runtime = self.runtimeFor(terminal_id) orelse return error.TerminalRuntimeMissing;
+        var runtime_preparation = runtime.prepareAttachment(
+            attachment_id,
+            capabilities.input or capabilities.resize,
+            capabilities.read,
+        ) catch |err| return switch (err) {
+            error.OutOfMemory => error.HistoryAttachmentFailed,
+            error.TerminalResizeFailed, error.TerminalRuntimeUnavailable => error.TerminalRuntimeUnavailable,
+        };
+        defer runtime_preparation.deinit();
+        const transition = try self.core_state.attach(
+            connection_id,
+            attachment_id,
+            terminal_id,
+            capabilities,
+            request_resize_lease,
+        );
+        std.debug.assert(transition == .applied);
+        runtime_preparation.commit();
+        const attachment = self.core_state.findAttachment(attachment_id) orelse unreachable;
+        return .{
+            .binding = attachmentBinding(attachment),
+            .transition = transition,
+        };
+    }
+
+    pub fn acceptRawInput(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+        bytes: []const u8,
+    ) InputAdmission {
+        var preparation = self.prepareRawInput(connection_id, attachment_id, bytes);
+        defer preparation.deinit();
+        return preparation.commit();
+    }
+
+    pub fn prepareRawInput(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+        bytes: []const u8,
+    ) InputPreparation {
+        const attachment = self.core_state.authorizeInput(
+            connection_id,
+            attachment_id,
+        ) catch |err| return InputPreparation.initCoreRejected(err);
+        const terminal_id = attachment.terminal_id;
+        const runtime = self.runtimeFor(terminal_id) orelse
+            return InputPreparation.initRuntimeMissing();
+
+        const runtime_input = runtime.prepareRawInput(bytes) catch |err|
+            return InputPreparation.initRuntimeRejected(err);
+        return InputPreparation.initPrepared(attachment_id, runtime_input);
+    }
+
+    pub fn acceptSemanticInput(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+        input: terminal_input.SemanticInput,
+        maximum_bytes: usize,
+    ) InputAdmission {
+        var preparation = self.prepareSemanticInput(
+            connection_id,
+            attachment_id,
+            input,
+            maximum_bytes,
+        );
+        defer preparation.deinit();
+        return preparation.commit();
+    }
+
+    pub fn prepareSemanticInput(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+        input: terminal_input.SemanticInput,
+        maximum_bytes: usize,
+    ) InputPreparation {
+        const attachment = self.core_state.authorizeInput(
+            connection_id,
+            attachment_id,
+        ) catch |err| return InputPreparation.initCoreRejected(err);
+        const terminal_id = attachment.terminal_id;
+        const runtime = self.runtimeFor(terminal_id) orelse
+            return InputPreparation.initRuntimeMissing();
+
+        const runtime_input = runtime.prepareSemanticInput(input, maximum_bytes) catch |err|
+            return InputPreparation.initRuntimeRejected(err);
+        return InputPreparation.initPrepared(attachment_id, runtime_input);
+    }
+
+    pub fn detach(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+    ) core_module.CoreError!core_module.TransitionOutcome {
+        if (self.core_state.findAttachment(attachment_id) == null) {
+            return self.core_state.detach(connection_id, attachment_id);
+        }
+        const terminal_id = (try self.core_state.resolveAttachment(
+            connection_id,
+            attachment_id,
+            .none,
+        )).terminal_id;
+        // resolveAttachment proved the only fallible Core precondition. Commit
+        // broker authority first, then release infallible runtime-derived state.
+        const transition = self.core_state.detach(connection_id, attachment_id) catch unreachable;
+        if (self.runtimeFor(terminal_id)) |runtime| runtime.detachHistory(attachment_id);
+        self.releaseProjectionIfIdle(terminal_id);
+        return transition;
+    }
+
+    pub fn updateTerminalConfiguration(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        terminal_id: core_module.TerminalId,
+        configuration: terminal_configuration.Configuration,
+    ) ConfigurationUpdateError!TerminalConfigurationUpdate {
+        if (!terminal_configuration.valid(configuration)) return error.InvalidConfiguration;
+        if (self.core_state.connectionClientId(connection_id) == null) return error.MissingConnection;
+        const terminal = self.core_state.findTerminal(terminal_id) orelse return error.MissingResource;
+        if (!terminal.acceptsConfigurationUpdate()) return error.InvalidPhase;
+        if (terminal.effectiveConfiguration().scrollback_bytes != configuration.scrollback_bytes and
+            terminal.configurationRevision() == std.math.maxInt(u64))
+        {
+            return error.ConfigurationRevisionOverflow;
+        }
+        const runtime = self.runtimeFor(terminal_id) orelse return error.TerminalRuntimeMissing;
+        if (runtime.configuration().scrollback_bytes !=
+            terminal.effectiveConfiguration().scrollback_bytes)
+        {
+            return error.RuntimeStateDiverged;
+        }
+        if (runtime.geometry().revision < terminal.observedRevision()) return error.RuntimeStateDiverged;
+        const runtime_update = runtime.updateConfiguration(configuration) catch |err| {
+            return switch (err) {
+                error.InvalidConfiguration => error.InvalidConfiguration,
+                error.RevisionOverflow => error.TerminalRevisionOverflow,
+                error.TerminalResizeFailed => error.TerminalRuntimeUnavailable,
+                error.TerminalRuntimeUnavailable => error.TerminalRuntimeUnavailable,
+            };
+        };
+
+        // All Core checks happen before the runtime mutation. HostService is
+        // single-owner, so these commits cannot fail without an invariant
+        // violation after the runtime has accepted the update.
+        _ = self.core_state.updateTerminalConfiguration(
+            connection_id,
+            terminal_id,
+            configuration,
+        ) catch unreachable;
+        _ = self.core_state.synchronizeRevision(
+            terminal_id,
+            runtime_update.revision,
+        ) catch unreachable;
+        const updated_terminal = self.core_state.findTerminal(terminal_id).?;
+        return .{
+            .configuration = updated_terminal.effectiveConfiguration(),
+            .configuration_revision = updated_terminal.configurationRevision(),
+            .generation = runtime_update.generation,
+            .history_rows_evicted = runtime_update.history_rows_evicted,
+            .revision = runtime_update.revision,
+            .terminal_id = terminal_id,
+        };
+    }
+
+    pub fn resizeTerminal(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+        geometry: terminal_geometry.Geometry,
+    ) ResizeError!TerminalResize {
+        if (!terminal_geometry.isValid(geometry)) return error.InvalidGeometry;
+        const attachment = self.core_state.resolveAttachment(
+            connection_id,
+            attachment_id,
+            .resize,
+        ) catch |err| return err;
+        if (!attachment.resize_lease) return error.ResizeLeaseDenied;
+        const terminal_id = attachment.terminal_id;
+        const runtime = self.runtimeFor(terminal_id) orelse return error.TerminalRuntimeMissing;
+        _ = try self.core_state.resize(
+            connection_id,
+            attachment_id,
+            geometry.columns,
+            geometry.rows,
+        );
+        if (runtime.geometry().revision < self.core_state.findTerminal(terminal_id).?.observedRevision()) {
+            return error.RuntimeStateDiverged;
+        }
+        const revision = runtime.resizeGeometry(
+            geometry.columns,
+            geometry.rows,
+            geometry.cell_pixel_width,
+            geometry.cell_pixel_height,
+        ) catch |err| {
+            if (err == error.RevisionOverflow) return error.TerminalRevisionOverflow;
+            if (err == error.TerminalRuntimeUnavailable) return error.TerminalRuntimeUnavailable;
+            if (!runtime.isResizeFenced()) return error.RuntimeResizeFailed;
+            self.maintenance.recordUnsafeResizeFailure(&self.core_state, terminal_id, runtime);
+            return error.UnsafeRuntimeAfterResizeFailure;
+        };
+        self.core_state.synchronizeGeometry(
+            terminal_id,
+            geometry.columns,
+            geometry.rows,
+            geometry.cell_pixel_width,
+            geometry.cell_pixel_height,
+            revision,
+        ) catch unreachable;
+        return .{
+            .attachment_id = attachment_id,
+            .geometry = geometry,
+            .revision = revision,
+            .terminal_id = terminal_id,
+        };
+    }
+
+    pub fn disconnect(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+    ) core_module.TransitionOutcome {
+        while (self.core_state.attachmentsForConnection(connection_id).len > 0) {
+            const attachment_ids = self.core_state.attachmentsForConnection(connection_id);
+            const attachment_id = attachment_ids[attachment_ids.len - 1];
+            const terminal_id = self.core_state.findAttachment(attachment_id).?.terminal_id;
+            _ = self.core_state.detach(connection_id, attachment_id) catch unreachable;
+            if (self.runtimeFor(terminal_id)) |runtime| {
+                runtime.detachHistory(attachment_id);
+            }
+            self.releaseProjectionIfIdle(terminal_id);
+        }
+        return self.core_state.disconnect(connection_id);
+    }
+
+    pub fn setProjectionDemand(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+        demand: core_module.ProjectionDemand,
+    ) core_module.CoreError!core_module.TransitionOutcome {
+        const attachment = try self.core_state.resolveAttachment(connection_id, attachment_id, .read);
+        const terminal_id = attachment.terminal_id;
+        const transition = try self.core_state.setProjectionDemand(connection_id, attachment_id, demand);
+        self.releaseProjectionIfIdle(terminal_id);
+        return transition;
+    }
+
+    pub fn synchronizeRuntimes(self: *HostRuntimeAggregate) void {
+        self.maintenance.synchronizeRuntimes(&self.core_state);
+    }
+
+    /// Synchronizes exactly the bounded inventory slice that is about to be
+    /// serialized. This gives one page a coherent Host observation boundary
+    /// even when the fair background scan covers fewer terminals per poll.
+    pub fn synchronizeTerminalRange(
+        self: *HostRuntimeAggregate,
+        offset: usize,
+        maximum_terminals: usize,
+    ) void {
+        self.maintenance.synchronizeTerminalRange(
+            &self.core_state,
+            offset,
+            maximum_terminals,
+        );
+    }
+
+    pub fn pendingOutcomes(
+        self: *HostRuntimeAggregate,
+        maximum_notices: usize,
+    ) PendingOutcomeBatch {
+        return self.maintenance.pendingOutcomes(&self.core_state, maximum_notices);
+    }
+
+    pub fn disposeTerminal(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        terminal_id: core_module.TerminalId,
+    ) DisposeError!DisposeResult {
+        const admission = try self.core_state.validateTerminalDisposal(
+            connection_id,
+            terminal_id,
+        );
+        if (admission == .idempotent) return .{ .transition = .idempotent };
+        const runtime = self.runtimeFor(terminal_id) orelse return error.TerminalRuntimeMissing;
+
+        // Dispose is the final owner handoff. Join the engine while its
+        // TerminalSession still retains it; a failed shutdown leaves the
+        // complete session intact so the operation can be retried safely.
+        runtime.shutdown() catch |err| {
+            return .{ .cleanup_blocked = host_runtime_maintenance.cleanupFailure(err) };
+        };
+        self.core_state.commitTerminalRemoval(terminal_id);
+        runtime.destroyAfterShutdown();
+        return .{ .transition = .applied };
+    }
+
+    fn releaseProjectionIfIdle(
+        self: *HostRuntimeAggregate,
+        terminal_id: core_module.TerminalId,
+    ) void {
+        if (self.core_state.hasActiveProjectionDemand(terminal_id)) return;
+        if (self.runtimeFor(terminal_id)) |runtime| runtime.releaseProjectionResources();
+    }
+};
+
+fn dispatchTermination(
+    runtime: *terminal_runtime.TerminalRuntime,
+    mode: TerminationMode,
+) !void {
+    switch (mode) {
+        .graceful => try runtime.terminate(),
+        .force => try runtime.forceTerminate(),
+    }
+}
+
+fn attachmentBinding(attachment: *const core_module.Attachment) AttachmentBinding {
+    return .{
+        .attachment_id = attachment.attachment_id,
+        .capabilities = attachment.capabilities,
+        .resize_lease = attachment.resize_lease,
+        .terminal_id = attachment.terminal_id,
+    };
+}
+
+fn shutdownAndReleaseTerminalEngines(owner: anytype) !void {
+    var first_error: ?anyerror = null;
+    for (0..owner.ownedTerminalCount()) |index| {
+        const engine = owner.runtimeAtOwnedTerminal(index) orelse continue;
+        engine.shutdown() catch |err| {
+            if (first_error == null) first_error = err;
+        };
+    }
+    if (first_error) |err| return err;
+    while (owner.ownedTerminalCount() > 0) {
+        if (owner.takeLastOwnedRuntime()) |engine| engine.destroyAfterShutdown();
+    }
+}
+
+fn recordUnsafeResizeFailureForTesting(
+    aggregate: *HostRuntimeAggregate,
+    terminal_id: core_module.TerminalId,
+    runtime: *terminal_runtime.TerminalRuntime,
+) void {
+    aggregate.maintenance.recordUnsafeResizeFailure(
+        &aggregate.core_state,
+        terminal_id,
+        runtime,
+    );
+}
+
+fn takeDueCleanupRetryForTesting(
+    aggregate: *HostRuntimeAggregate,
+    now_ns: i128,
+) ?core_module.TerminalId {
+    return aggregate.maintenance.takeDueCleanupRetry(&aggregate.core_state, now_ns);
+}
+
+fn cleanupRetryScanIndexForTesting(aggregate: *const HostRuntimeAggregate) usize {
+    return aggregate.maintenance.cleanupRetryScanIndex();
+}
+
+pub const testing = if (target_builtin.is_test) struct {
+    pub const cleanupFailureFn = host_runtime_maintenance.cleanupFailure;
+    pub const cleanupRetryScanIndexFn = cleanupRetryScanIndexForTesting;
+    pub const recordUnsafeResizeFailureFn = recordUnsafeResizeFailureForTesting;
+    pub const runtimeFailureFromObservationFn =
+        host_runtime_maintenance.runtimeFailureFromObservation;
+    pub const shutdownAndReleaseTerminalEnginesFn = shutdownAndReleaseTerminalEngines;
+    pub const synchronizeRuntimeCompletionFn =
+        host_runtime_maintenance.synchronizeRuntimeCompletion;
+    pub const takeDueCleanupRetryFn = takeDueCleanupRetryForTesting;
+} else struct {};

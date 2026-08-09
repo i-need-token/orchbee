@@ -2,6 +2,10 @@ const builtin = @import("builtin");
 const std = @import("std");
 
 const required_zig_version = "0.15.2";
+const default_host_version = "0.1.0";
+// Cross-language contract: search for `terminal-host-version-wire-limit`
+// before changing this value, then update every occurrence together.
+const max_host_version_bytes = 64;
 
 fn readFixture(
     builder: *std.Build,
@@ -24,24 +28,82 @@ pub fn build(builder: *std.Build) void {
 
     const target = builder.standardTargetOptions(.{});
     const optimize = builder.standardOptimizeOption(.{});
+    const host_version = builder.option(
+        []const u8,
+        "host-version",
+        "Semantic version embedded in orchbee-terminal-host",
+    ) orelse default_host_version;
+    _ = std.SemanticVersion.parse(host_version) catch
+        std.debug.panic("invalid terminal Host semantic version: {s}", .{host_version});
+    if (host_version.len > max_host_version_bytes) {
+        std.debug.panic(
+            "terminal Host semantic version exceeds {d} bytes",
+            .{max_host_version_bytes},
+        );
+    }
+    const build_options = builder.addOptions();
+    build_options.addOption([]const u8, "host_version", host_version);
 
-    const host_module = builder.createModule(.{
-        .root_source_file = builder.path("src/main.zig"),
+    const terminal_input_module = builder.createModule(.{
+        .root_source_file = builder.path("src/protocol/semantic_input.zig"),
         .target = target,
         .optimize = optimize,
     });
     const protocol_module = builder.createModule(.{
-        .root_source_file = builder.path("src/protocol.zig"),
+        .root_source_file = builder.path("src/protocol/root.zig"),
         .target = target,
         .optimize = optimize,
     });
-    host_module.addImport("terminal-protocol", protocol_module);
-    const benchmark_module = builder.createModule(.{
-        .root_source_file = builder.path("src/benchmark.zig"),
+    const model_module = builder.createModule(.{
+        .root_source_file = builder.path("src/model/root.zig"),
         .target = target,
         .optimize = optimize,
     });
-    benchmark_module.addImport("terminal-protocol", protocol_module);
+    const platform_module = builder.createModule(.{
+        .root_source_file = builder.path("src/platform/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const engine_module = builder.createModule(.{
+        .root_source_file = builder.path("src/engine/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const core_module = builder.createModule(.{
+        .root_source_file = builder.path("src/core/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const control_module = builder.createModule(.{
+        .root_source_file = builder.path("src/control/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const service_module = builder.createModule(.{
+        .root_source_file = builder.path("src/service/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const transport_module = builder.createModule(.{
+        .root_source_file = builder.path("src/transport/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const cli_module = builder.createModule(.{
+        .root_source_file = builder.path("src/cli/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const terminal_host_module = builder.createModule(.{
+        .root_source_file = builder.path("src/terminal_host.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const executable_module = builder.createModule(.{
+        .root_source_file = builder.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 
     const ghostty = builder.dependency("ghostty", .{
         .target = target,
@@ -50,16 +112,129 @@ pub fn build(builder: *std.Build) void {
         .@"emit-xcframework" = false,
         .@"lib-version-string" = "1.3.2",
     });
-    host_module.addImport("ghostty-vt", ghostty.module("ghostty-vt"));
-    benchmark_module.addImport("ghostty-vt", ghostty.module("ghostty-vt"));
+
+    protocol_module.addImport("terminal-input", terminal_input_module);
+    model_module.addImport("terminal-protocol", protocol_module);
+    engine_module.addImport("ghostty-vt", ghostty.module("ghostty-vt"));
+    engine_module.addImport("terminal-input", terminal_input_module);
+    engine_module.addImport("terminal-protocol", protocol_module);
+    engine_module.addImport("terminal-host-model", model_module);
+    engine_module.addImport("terminal-host-platform", platform_module);
+    core_module.addImport("terminal-host-engine", engine_module);
+    core_module.addImport("terminal-host-model", model_module);
+    control_module.addImport("terminal-protocol", protocol_module);
+    control_module.addImport("terminal-host-core", core_module);
+    control_module.addImport("terminal-host-engine", engine_module);
+    control_module.addImport("terminal-host-model", model_module);
+    service_module.addImport("terminal-input", terminal_input_module);
+    service_module.addImport("terminal-protocol", protocol_module);
+    service_module.addImport("terminal-host-control", control_module);
+    service_module.addImport("terminal-host-core", core_module);
+    service_module.addImport("terminal-host-engine", engine_module);
+    service_module.addImport("terminal-host-model", model_module);
+    service_module.addImport("terminal-host-platform", platform_module);
+    service_module.addOptions("build-options", build_options);
+    transport_module.addImport("terminal-protocol", protocol_module);
+    transport_module.addImport("terminal-host-service", service_module);
+    cli_module.addImport("terminal-host-model", model_module);
+    cli_module.addImport("terminal-host-transport", transport_module);
+    terminal_host_module.addImport("terminal-host-cli", cli_module);
+    terminal_host_module.addImport("terminal-host-service", service_module);
+    terminal_host_module.addImport("terminal-host-transport", transport_module);
+    executable_module.addImport("terminal-host", terminal_host_module);
+    const benchmark_module = builder.createModule(.{
+        .root_source_file = builder.path("src/benchmark/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    benchmark_module.addImport("terminal-host-cli", cli_module);
+    benchmark_module.addImport("terminal-host-engine", engine_module);
+    benchmark_module.addImport("terminal-host-model", model_module);
+
+    const cli_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/cli/__tests__/cli_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    cli_test_module.addImport("terminal-host-cli", cli_module);
+    cli_test_module.addImport("terminal-host-model", model_module);
+    const benchmark_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/benchmark/__tests__/benchmark_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    benchmark_test_module.addImport("terminal-host-benchmark", benchmark_module);
+    const protocol_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/protocol/__tests__/protocol_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    protocol_test_module.addImport("terminal-input", terminal_input_module);
+    protocol_test_module.addImport("terminal-protocol", protocol_module);
+    const model_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/model/__tests__/model_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    model_test_module.addImport("terminal-host-model", model_module);
+    const platform_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/platform/__tests__/platform_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    platform_test_module.addImport("terminal-host-platform", platform_module);
+    const engine_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/engine/__tests__/engine_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    engine_test_module.addImport("ghostty-vt", ghostty.module("ghostty-vt"));
+    engine_test_module.addImport("terminal-protocol", protocol_module);
+    engine_test_module.addImport("terminal-host-engine", engine_module);
+    engine_test_module.addImport("terminal-host-model", model_module);
+    engine_test_module.addImport("terminal-host-platform", platform_module);
+    const core_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/core/__tests__/core_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    core_test_module.addImport("terminal-host-core", core_module);
+    core_test_module.addImport("terminal-host-model", model_module);
+    const control_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/control/__tests__/control_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    control_test_module.addImport("terminal-protocol", protocol_module);
+    control_test_module.addImport("terminal-host-control", control_module);
+    control_test_module.addImport("terminal-host-core", core_module);
+    control_test_module.addImport("terminal-host-engine", engine_module);
+    const service_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/service/__tests__/service_boundary_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    service_test_module.addImport("terminal-protocol", protocol_module);
+    service_test_module.addImport("terminal-host-control", control_module);
+    service_test_module.addImport("terminal-host-core", core_module);
+    service_test_module.addImport("terminal-host-engine", engine_module);
+    service_test_module.addImport("terminal-host-model", model_module);
+    service_test_module.addImport("terminal-host-platform", platform_module);
+    service_test_module.addImport("terminal-host-service", service_module);
+    const transport_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/transport/__tests__/transport_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    transport_test_module.addImport("terminal-protocol", protocol_module);
+    transport_test_module.addImport("terminal-host-core", core_module);
+    transport_test_module.addImport("terminal-host-service", service_module);
+    transport_test_module.addImport("terminal-host-transport", transport_module);
+
     switch (target.result.os.tag) {
         .freebsd, .linux, .macos => {
-            host_module.addCSourceFile(.{
-                .file = builder.path("src/process_session.c"),
-                .flags = &.{"-std=c17"},
-            });
-            benchmark_module.addCSourceFile(.{
-                .file = builder.path("src/process_session.c"),
+            platform_module.addCSourceFile(.{
+                .file = builder.path("src/platform/process_session.c"),
                 .flags = &.{"-std=c17"},
             });
             const pty_c = builder.addTranslateC(.{
@@ -68,45 +243,41 @@ pub fn build(builder: *std.Build) void {
                 .optimize = optimize,
             });
             if (target.result.os.tag == .macos) {
-                const libc = std.zig.LibCInstallation.findNative(.{
-                    .allocator = builder.allocator,
-                    .target = &target.result,
-                    .verbose = false,
-                }) catch @panic("could not locate native macOS libc headers");
-                pty_c.addSystemIncludePath(.{ .cwd_relative = libc.sys_include_dir.? });
+                if (builtin.target.os.tag.isDarwin()) {
+                    const libc = std.zig.LibCInstallation.findNative(.{
+                        .allocator = builder.allocator,
+                        .target = &target.result,
+                        .verbose = false,
+                    }) catch @panic("could not locate native macOS libc headers");
+                    pty_c.addSystemIncludePath(.{ .cwd_relative = libc.sys_include_dir.? });
+                } else {
+                    pty_c.addAfterIncludePath(
+                        builder.path("src/platform/darwin-cross-headers"),
+                    );
+                }
             }
             const pty_module = pty_c.createModule();
-            host_module.addImport("pty-c", pty_module);
-            benchmark_module.addImport("pty-c", pty_module);
+            platform_module.addImport("pty-c", pty_module);
         },
         .windows => {
-            host_module.addIncludePath(builder.path("src"));
-            host_module.addCSourceFile(.{
-                .file = builder.path("src/local_ipc_windows.c"),
+            transport_module.addIncludePath(builder.path("src/transport"));
+            transport_test_module.addIncludePath(builder.path("src/transport"));
+            transport_module.addCSourceFile(.{
+                .file = builder.path("src/transport/local_ipc_windows.c"),
                 .flags = &.{"-std=c17"},
             });
-            host_module.addCSourceFile(.{
-                .file = builder.path("src/process_job_windows.c"),
+            transport_module.linkSystemLibrary("advapi32", .{});
+            platform_module.addCSourceFile(.{
+                .file = builder.path("src/platform/process_job_windows.c"),
                 .flags = &.{"-std=c17"},
             });
-            benchmark_module.addIncludePath(builder.path("src"));
-            benchmark_module.addCSourceFile(.{
-                .file = builder.path("src/local_ipc_windows.c"),
-                .flags = &.{"-std=c17"},
-            });
-            benchmark_module.addCSourceFile(.{
-                .file = builder.path("src/process_job_windows.c"),
-                .flags = &.{"-std=c17"},
-            });
-            host_module.linkSystemLibrary("advapi32", .{});
-            benchmark_module.linkSystemLibrary("advapi32", .{});
         },
         else => {},
     }
 
     const executable = builder.addExecutable(.{
-        .name = "terminal-host",
-        .root_module = host_module,
+        .name = "orchbee-terminal-host",
+        .root_module = executable_module,
     });
     executable.linkLibC();
     builder.installArtifact(executable);
@@ -124,34 +295,43 @@ pub fn build(builder: *std.Build) void {
     );
     benchmark_step.dependOn(&run_benchmark.step);
 
-    const tests = builder.addTest(.{ .root_module = host_module });
-    tests.linkLibC();
-    const run_tests = builder.addRunArtifact(tests);
-    const benchmark_options_tests = builder.addTest(.{
-        .root_module = builder.createModule(.{
-            .root_source_file = builder.path("src/benchmark_options.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
-    });
-    const run_benchmark_options_tests = builder.addRunArtifact(benchmark_options_tests);
-    const test_step = builder.step("test", "Run terminal Host foundation tests");
-    test_step.dependOn(&run_tests.step);
-    test_step.dependOn(&run_benchmark_options_tests.step);
-
+    const test_step = builder.step("test", "Run terminal Host tests");
     const test_compile_step = builder.step(
         "test-compile",
-        "Compile terminal Host foundation tests without running them",
+        "Compile terminal Host executables and tests without running them",
     );
-    test_compile_step.dependOn(&tests.step);
+    test_compile_step.dependOn(&executable.step);
     test_compile_step.dependOn(&benchmark_executable.step);
-    test_compile_step.dependOn(&benchmark_options_tests.step);
+    for ([_]*std.Build.Module{
+        cli_test_module,
+        benchmark_test_module,
+        protocol_test_module,
+        model_test_module,
+        platform_test_module,
+        engine_test_module,
+        core_test_module,
+        control_test_module,
+        service_test_module,
+        transport_test_module,
+    }) |test_module| {
+        const tests = builder.addTest(.{ .root_module = test_module });
+        tests.linkLibC();
+        const run_tests = builder.addRunArtifact(tests);
+        test_step.dependOn(&run_tests.step);
+        test_compile_step.dependOn(&tests.step);
+    }
 
     const conformance_options = builder.addOptions();
     conformance_options.addOption([]const u8, "frame_fixture", readFixture(
         builder,
         "frame-fixture",
         "Canonical terminal frame fixture path",
+        8 * 1024 * 1024,
+    ));
+    conformance_options.addOption([]const u8, "projection_fixture", readFixture(
+        builder,
+        "projection-fixture",
+        "Canonical terminal projection-buffer fixture path",
         8 * 1024 * 1024,
     ));
     conformance_options.addOption([]const u8, "envelope_fixture", readFixture(
@@ -186,18 +366,33 @@ pub fn build(builder: *std.Build) void {
         "Canonical terminal row-window fixture path",
         2 * 1024 * 1024,
     ));
+    conformance_options.addOption([]const u8, "terminal_failed_fixture", readFixture(
+        builder,
+        "terminal-failed-fixture",
+        "Canonical TerminalFailed fixture path",
+        64 * 1024,
+    ));
+    conformance_options.addOption([]const u8, "control_fixture", readFixture(
+        builder,
+        "control-fixture",
+        "Canonical cross-language control fixture path",
+        2 * 1024 * 1024,
+    ));
     const conformance_module = builder.createModule(.{
-        .root_source_file = builder.path("src/protocol_conformance_test.zig"),
+        .root_source_file = builder.path("src/__tests__/protocol_conformance_test.zig"),
         .target = target,
         .optimize = optimize,
     });
     conformance_module.addImport("terminal-protocol", protocol_module);
+    conformance_module.addImport("terminal-host-control", control_module);
     conformance_module.addOptions("conformance-options", conformance_options);
     const conformance_tests = builder.addTest(.{ .root_module = conformance_module });
+    conformance_tests.linkLibC();
     const run_conformance_tests = builder.addRunArtifact(conformance_tests);
     const conformance_step = builder.step(
         "test-protocol",
         "Run terminal protocol cross-language conformance tests",
     );
     conformance_step.dependOn(&run_conformance_tests.step);
+    test_compile_step.dependOn(&conformance_tests.step);
 }

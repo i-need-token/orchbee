@@ -3,10 +3,12 @@
 	"domain": "terminal-host",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Native multi-terminal and per-terminal runtime registries, pinned Ghostty VT integration, demand-driven projection, bounded terminal history and selection authority, semantic input authority, PTY lifecycle, and private local IPC endpoint for the local terminal Host.",
+	"responsibility": "Local authoritative terminal-execution service for one trusted Desktop broker, owning retained terminal lifecycle, PTY and process trees, canonical Ghostty state, attachment-scoped input, projection, history, and selection, and the private local IPC endpoint.",
 	"nonGoals": [
 		"Owning Project, Workspace, Workbench, Tab, Panel, agent, or product-session models.",
-		"Owning Electron lifecycle, product presentation, renderer behavior, or platform UI effects.",
+		"Owning Electron lifecycle, product recovery or update policy, presentation, renderer behavior, or platform UI effects.",
+		"Owning concurrent independent brokers, same-user application isolation, or multi-tenant authorization.",
+		"Providing durable PTY migration or recovery across Host-process or operating-system crashes.",
 		"Owning network listeners, remote authentication, encryption, or sharing gateway behavior."
 	]
 }

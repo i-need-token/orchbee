@@ -1,0 +1,354 @@
+---------------------- MODULE TerminalFrameBackpressure ----------------------
+EXTENDS Naturals, TLC
+
+\* Refines runtime-model claims TH-006, TH-010, TH-011, and TH-012.
+\* Mutate, ResizeOrScreenSwitch, SetDemand, Capture, Emit, FrameApplied,
+\* NeedSnapshot, and Finalize model the canonical-state and delivery-flight
+\* transitions named by the package contract. Source-scoped input admission and
+\* reply priority are owned by TerminalInputBackpressure so independent queue
+\* state does not multiply the two-attachment frame state.
+
+CONSTANTS Attachments, MaxRevision, MaxGeneration, MaxSequence
+
+None == MaxRevision + 1
+NoGeneration == MaxGeneration + 1
+
+VARIABLES
+  revision,
+  generation,
+  finalized,
+  captured,
+  capturedRevision,
+  capturedGeneration,
+  demand,
+  blocked,
+  acknowledgedRevision,
+  acknowledgedGeneration,
+  inFlight,
+  frameBase,
+  frameRevision,
+  frameGeneration,
+  frameSequence,
+  nextSequence,
+  lastAppliedSequence,
+  lastAbandonedSequence,
+  pendingDirty,
+  forceSnapshot
+
+vars ==
+  <<revision, generation, finalized, captured, capturedRevision,
+    capturedGeneration, demand, blocked, acknowledgedRevision,
+    acknowledgedGeneration, inFlight, frameBase, frameRevision,
+    frameGeneration, frameSequence, nextSequence, lastAppliedSequence,
+    lastAbandonedSequence, pendingDirty, forceSnapshot>>
+
+AnyDemand(demands) == \E attachment \in Attachments: demands[attachment]
+
+Init ==
+  /\ revision = 0
+  /\ generation = 1
+  /\ finalized = FALSE
+  /\ captured = FALSE
+  /\ capturedRevision = 0
+  /\ capturedGeneration = 1
+  /\ demand = [attachment \in Attachments |-> FALSE]
+  /\ blocked = [attachment \in Attachments |-> FALSE]
+  /\ acknowledgedRevision = [attachment \in Attachments |-> None]
+  /\ acknowledgedGeneration = [attachment \in Attachments |-> NoGeneration]
+  /\ inFlight = [attachment \in Attachments |-> FALSE]
+  /\ frameBase = [attachment \in Attachments |-> None]
+  /\ frameRevision = [attachment \in Attachments |-> 0]
+  /\ frameGeneration = [attachment \in Attachments |-> 1]
+  /\ frameSequence = [attachment \in Attachments |-> 0]
+  /\ nextSequence = [attachment \in Attachments |-> 1]
+  /\ lastAppliedSequence = [attachment \in Attachments |-> 0]
+  /\ lastAbandonedSequence = [attachment \in Attachments |-> 0]
+  /\ pendingDirty = [attachment \in Attachments |-> FALSE]
+  /\ forceSnapshot = [attachment \in Attachments |-> TRUE]
+
+Mutate ==
+  /\ ~finalized
+  /\ revision < MaxRevision
+  /\ revision' = revision + 1
+  /\ blocked' = [attachment \in Attachments |-> FALSE]
+  /\ pendingDirty' =
+       [attachment \in Attachments |->
+          IF demand[attachment] THEN TRUE ELSE pendingDirty[attachment]]
+  /\ forceSnapshot' = [attachment \in Attachments |->
+       IF blocked[attachment] THEN TRUE ELSE forceSnapshot[attachment]]
+  /\ UNCHANGED <<generation, finalized, captured, capturedRevision,
+                  capturedGeneration, demand, acknowledgedRevision,
+                  acknowledgedGeneration, inFlight, frameBase, frameRevision,
+                  frameGeneration, frameSequence, nextSequence,
+                  lastAppliedSequence, lastAbandonedSequence>>
+
+ResizeOrScreenSwitch ==
+  /\ ~finalized
+  /\ revision < MaxRevision
+  /\ generation < MaxGeneration
+  /\ revision' = revision + 1
+  /\ generation' = generation + 1
+  /\ captured' = FALSE
+  /\ pendingDirty' =
+       [attachment \in Attachments |->
+          IF demand[attachment] THEN TRUE ELSE pendingDirty[attachment]]
+  /\ forceSnapshot' = [attachment \in Attachments |-> TRUE]
+  /\ blocked' = [attachment \in Attachments |-> FALSE]
+  /\ UNCHANGED <<finalized, capturedRevision, capturedGeneration, demand,
+                  acknowledgedRevision, acknowledgedGeneration, inFlight,
+                  frameBase, frameRevision, frameGeneration, frameSequence,
+                  nextSequence, lastAppliedSequence, lastAbandonedSequence>>
+
+SetDemand(attachment, active) ==
+  /\ attachment \in Attachments
+  /\ active \in BOOLEAN
+  /\ LET nextDemand == [demand EXCEPT ![attachment] = active]
+         becomingActive == active /\ ~demand[attachment]
+         becomingPaused == ~active /\ demand[attachment]
+     IN
+       /\ demand' = nextDemand
+       /\ captured' = IF AnyDemand(nextDemand) THEN captured ELSE FALSE
+       /\ blocked' = IF becomingActive \/ becomingPaused
+                        THEN [blocked EXCEPT ![attachment] = FALSE]
+                        ELSE blocked
+       /\ acknowledgedRevision' = IF becomingPaused
+              THEN [acknowledgedRevision EXCEPT ![attachment] = None]
+              ELSE acknowledgedRevision
+       /\ acknowledgedGeneration' = IF becomingPaused
+              THEN [acknowledgedGeneration EXCEPT ![attachment] = NoGeneration]
+              ELSE acknowledgedGeneration
+       /\ inFlight' = IF becomingPaused
+                          THEN [inFlight EXCEPT ![attachment] = FALSE]
+                          ELSE inFlight
+       /\ lastAbandonedSequence' = IF becomingPaused /\ inFlight[attachment]
+              THEN [lastAbandonedSequence EXCEPT ![attachment] = frameSequence[attachment]]
+              ELSE lastAbandonedSequence
+       /\ pendingDirty' = IF becomingActive
+              THEN [pendingDirty EXCEPT ![attachment] = TRUE]
+              ELSE IF becomingPaused
+                THEN [pendingDirty EXCEPT ![attachment] = FALSE]
+                ELSE pendingDirty
+       /\ forceSnapshot' = IF becomingActive \/ becomingPaused
+              THEN [forceSnapshot EXCEPT ![attachment] = TRUE]
+              ELSE forceSnapshot
+  /\ UNCHANGED <<revision, generation, finalized, capturedRevision,
+                  capturedGeneration, frameBase, frameRevision,
+                  frameGeneration, frameSequence, nextSequence,
+                  lastAppliedSequence>>
+
+ReadyForCapture(attachment) ==
+  /\ demand[attachment]
+  /\ pendingDirty[attachment]
+  /\ ~inFlight[attachment]
+  /\ ~blocked[attachment]
+  /\ nextSequence[attachment] <= MaxSequence
+
+Capture ==
+  /\ \E attachment \in Attachments: ReadyForCapture(attachment)
+  /\ captured' = TRUE
+  /\ capturedRevision' = revision
+  /\ capturedGeneration' = generation
+  /\ UNCHANGED <<revision, generation, finalized, demand, blocked,
+                  acknowledgedRevision, acknowledgedGeneration, inFlight,
+                  frameBase, frameRevision, frameGeneration, frameSequence,
+                  nextSequence, lastAppliedSequence, lastAbandonedSequence,
+                  pendingDirty, forceSnapshot>>
+
+CaptureFailure(attachment) ==
+  /\ attachment \in Attachments
+  /\ ReadyForCapture(attachment)
+  /\ captured' = FALSE
+  /\ blocked' = [blocked EXCEPT ![attachment] = TRUE]
+  /\ UNCHANGED <<revision, generation, finalized, capturedRevision,
+                  capturedGeneration, demand, acknowledgedRevision,
+                  acknowledgedGeneration, inFlight, frameBase, frameRevision,
+                  frameGeneration, frameSequence, nextSequence,
+                  lastAppliedSequence, lastAbandonedSequence,
+                  pendingDirty, forceSnapshot>>
+
+ReadyToEncode(attachment) ==
+  /\ ReadyForCapture(attachment)
+  /\ captured
+  /\ capturedRevision = revision
+  /\ capturedGeneration = generation
+
+EncodeFailure(attachment) ==
+  /\ attachment \in Attachments
+  /\ ReadyToEncode(attachment)
+  /\ blocked' = [blocked EXCEPT ![attachment] = TRUE]
+  /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
+                  capturedGeneration, demand, acknowledgedRevision,
+                  acknowledgedGeneration, inFlight, frameBase, frameRevision,
+                  frameGeneration, frameSequence, nextSequence,
+                  lastAppliedSequence, lastAbandonedSequence,
+                  pendingDirty, forceSnapshot>>
+
+Emit(attachment) ==
+  /\ attachment \in Attachments
+  /\ ReadyToEncode(attachment)
+  /\ inFlight' = [inFlight EXCEPT ![attachment] = TRUE]
+  /\ frameBase' = [frameBase EXCEPT
+       ![attachment] = IF forceSnapshot[attachment]
+                         \/ acknowledgedRevision[attachment] = None
+                         \/ acknowledgedGeneration[attachment] # generation
+                      THEN None
+                      ELSE acknowledgedRevision[attachment]]
+  /\ frameRevision' = [frameRevision EXCEPT ![attachment] = capturedRevision]
+  /\ frameGeneration' = [frameGeneration EXCEPT ![attachment] = capturedGeneration]
+  /\ frameSequence' = [frameSequence EXCEPT ![attachment] = nextSequence[attachment]]
+  /\ nextSequence' = [nextSequence EXCEPT ![attachment] = @ + 1]
+  /\ pendingDirty' = [pendingDirty EXCEPT ![attachment] = FALSE]
+  /\ forceSnapshot' = [forceSnapshot EXCEPT ![attachment] = FALSE]
+  /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
+                  capturedGeneration, demand, blocked, acknowledgedRevision,
+                  acknowledgedGeneration, lastAppliedSequence,
+                  lastAbandonedSequence>>
+
+FrameApplied(attachment) ==
+  /\ attachment \in Attachments
+  /\ inFlight[attachment]
+  /\ acknowledgedRevision' =
+       [acknowledgedRevision EXCEPT ![attachment] = frameRevision[attachment]]
+  /\ acknowledgedGeneration' =
+       [acknowledgedGeneration EXCEPT ![attachment] = frameGeneration[attachment]]
+  /\ lastAppliedSequence' =
+       [lastAppliedSequence EXCEPT ![attachment] = frameSequence[attachment]]
+  /\ inFlight' = [inFlight EXCEPT ![attachment] = FALSE]
+  /\ pendingDirty' = IF frameRevision[attachment] < revision
+                         \/ frameGeneration[attachment] # generation
+       THEN [pendingDirty EXCEPT ![attachment] = TRUE]
+       ELSE pendingDirty
+  /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
+                  capturedGeneration, demand, blocked, frameBase,
+                  frameRevision, frameGeneration, frameSequence,
+                  nextSequence, lastAbandonedSequence, forceSnapshot>>
+
+DuplicateFrameApplied(attachment) ==
+  /\ attachment \in Attachments
+  /\ ~inFlight[attachment]
+  /\ lastAppliedSequence[attachment] > 0
+  /\ UNCHANGED vars
+
+AbandonedFrameApplied(attachment) ==
+  /\ attachment \in Attachments
+  /\ lastAbandonedSequence[attachment] > 0
+  /\ UNCHANGED vars
+
+NeedSnapshot(attachment) ==
+  /\ attachment \in Attachments
+  /\ inFlight[attachment]
+  /\ inFlight' = [inFlight EXCEPT ![attachment] = FALSE]
+  /\ lastAbandonedSequence' =
+       [lastAbandonedSequence EXCEPT ![attachment] = frameSequence[attachment]]
+  /\ pendingDirty' = [pendingDirty EXCEPT ![attachment] = TRUE]
+  /\ forceSnapshot' = [forceSnapshot EXCEPT ![attachment] = TRUE]
+  /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
+                  capturedGeneration, demand, blocked, acknowledgedRevision,
+                  acknowledgedGeneration, frameBase, frameRevision,
+                  frameGeneration, frameSequence, nextSequence,
+                  lastAppliedSequence>>
+
+AbandonedNeedSnapshot(attachment) ==
+  /\ attachment \in Attachments
+  /\ lastAbandonedSequence[attachment] > 0
+  /\ UNCHANGED vars
+
+Finalize ==
+  /\ ~finalized
+  /\ finalized' = TRUE
+  /\ UNCHANGED <<revision, generation, captured, capturedRevision,
+                  capturedGeneration, demand, blocked, acknowledgedRevision,
+                  acknowledgedGeneration, inFlight, frameBase, frameRevision,
+                  frameGeneration, frameSequence, nextSequence,
+                  lastAppliedSequence, lastAbandonedSequence,
+                  pendingDirty, forceSnapshot>>
+
+Next ==
+  \/ Mutate
+  \/ ResizeOrScreenSwitch
+  \/ Capture
+  \/ Finalize
+  \/ \E attachment \in Attachments:
+       \/ SetDemand(attachment, TRUE)
+       \/ SetDemand(attachment, FALSE)
+       \/ CaptureFailure(attachment)
+       \/ EncodeFailure(attachment)
+       \/ Emit(attachment)
+       \/ FrameApplied(attachment)
+       \/ DuplicateFrameApplied(attachment)
+       \/ AbandonedFrameApplied(attachment)
+       \/ NeedSnapshot(attachment)
+       \/ AbandonedNeedSnapshot(attachment)
+
+Spec ==
+  /\ Init
+  /\ [][Next]_vars
+  /\ WF_vars(Capture)
+  /\ \A attachment \in Attachments: WF_vars(Emit(attachment))
+  /\ \A attachment \in Attachments: WF_vars(FrameApplied(attachment))
+
+TypeOK ==
+  /\ revision \in 0..MaxRevision
+  /\ generation \in 1..MaxGeneration
+  /\ finalized \in BOOLEAN
+  /\ captured \in BOOLEAN
+  /\ capturedRevision \in 0..MaxRevision
+  /\ capturedGeneration \in 1..MaxGeneration
+  /\ demand \in [Attachments -> BOOLEAN]
+  /\ blocked \in [Attachments -> BOOLEAN]
+  /\ acknowledgedRevision \in [Attachments -> 0..None]
+  /\ acknowledgedGeneration \in [Attachments -> 1..NoGeneration]
+  /\ inFlight \in [Attachments -> BOOLEAN]
+  /\ frameBase \in [Attachments -> 0..None]
+  /\ frameRevision \in [Attachments -> 0..MaxRevision]
+  /\ frameGeneration \in [Attachments -> 1..MaxGeneration]
+  /\ frameSequence \in [Attachments -> Nat]
+  /\ nextSequence \in [Attachments -> 1..(MaxSequence + 1)]
+  /\ lastAppliedSequence \in [Attachments -> Nat]
+  /\ lastAbandonedSequence \in [Attachments -> 0..MaxSequence]
+  /\ pendingDirty \in [Attachments -> BOOLEAN]
+  /\ forceSnapshot \in [Attachments -> BOOLEAN]
+
+OneFrameAndDirtyMarker ==
+  \A attachment \in Attachments:
+    /\ inFlight[attachment] \in BOOLEAN
+    /\ pendingDirty[attachment] \in BOOLEAN
+
+DeltaBaseMatchesAcknowledgement ==
+  \A attachment \in Attachments:
+    inFlight[attachment] /\ frameBase[attachment] # None =>
+      /\ frameBase[attachment] = acknowledgedRevision[attachment]
+      /\ frameBase[attachment] < frameRevision[attachment]
+      /\ frameGeneration[attachment] = acknowledgedGeneration[attachment]
+
+FrameNamesCapturedCanonicalState ==
+  \A attachment \in Attachments:
+    inFlight[attachment] =>
+      /\ frameRevision[attachment] <= revision
+      /\ frameGeneration[attachment] <= generation
+
+SequenceCommittedOnlyWithFrame ==
+  \A attachment \in Attachments:
+    /\ frameSequence[attachment] < nextSequence[attachment]
+    /\ inFlight[attachment] => frameSequence[attachment] > lastAppliedSequence[attachment]
+
+PausedOrBlockedCannotBecomeReady ==
+  \A attachment \in Attachments:
+    (~demand[attachment] \/ blocked[attachment]) => ~ReadyForCapture(attachment)
+
+PausedOwnsNoDeliveryWork ==
+  \A attachment \in Attachments:
+    ~demand[attachment] => ~inFlight[attachment] /\ ~pendingDirty[attachment]
+
+NoDemandOwnsNoCapture == ~AnyDemand(demand) => ~captured
+
+ReadyDemandEventuallyEmits ==
+  \A attachment \in Attachments:
+    ReadyToEncode(attachment) ~>
+      (inFlight[attachment] \/ blocked[attachment] \/ ~demand[attachment] \/ ~captured)
+
+InFlightEventuallyClears ==
+  \A attachment \in Attachments:
+    inFlight[attachment] ~> ~inFlight[attachment]
+
+=============================================================================

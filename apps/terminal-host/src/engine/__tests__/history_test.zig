@@ -1,0 +1,1030 @@
+const std = @import("std");
+const ghostty_vt = @import("ghostty-vt");
+const protocol = @import("terminal-protocol");
+const subject = @import("terminal-host-engine").history;
+
+const findState = subject.testing.findStateFn;
+const Manager = subject.Manager;
+const max_row_window_bytes = subject.testing.row_window_byte_limit;
+const max_pending_export_cancellations = subject.max_pending_export_cancellations;
+const Detail = subject.Detail;
+const ExportCancellation = subject.ExportCancellation;
+const SelectionGestureAction = subject.SelectionGestureAction;
+const SelectionSnapshot = subject.SelectionSnapshot;
+const AttachmentId = subject.AttachmentId;
+const HostEpoch = subject.HostEpoch;
+
+fn attachmentId(byte: u8) AttachmentId {
+    return AttachmentId.fromBytes([_]u8{byte} ** 16);
+}
+
+fn hostEpoch(byte: u8) HostEpoch {
+    return HostEpoch.fromBytes([_]u8{byte} ** 16);
+}
+
+fn readSingleRow(
+    terminal: *ghostty_vt.Terminal,
+    manager: *Manager,
+    attachment: AttachmentId,
+    detail: Detail,
+    request_sequence: u64,
+) ![]u8 {
+    try manager.attach(attachment);
+    const rows = try manager.readRows(std.testing.allocator, terminal, 1, 1, 8, 16, .{
+        .attachment_id = attachment,
+        .detail = detail,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = max_row_window_bytes,
+        .origin = .{ .absolute = 0 },
+        .purpose = .search,
+        .request_sequence = request_sequence,
+        .revision = 1,
+        .row_count = 1,
+    });
+    return rows.bytes;
+}
+
+test "idle manager owns no tracked pins or row capture" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const initial_pins = terminal.screens.active.pages.countTrackedPins();
+    try manager.attach(attachmentId(2));
+    try std.testing.expectEqual(@as(usize, 1), manager.states.items.len);
+    try std.testing.expectEqual(initial_pins, terminal.screens.active.pages.countTrackedPins());
+}
+
+test "text row window is bounded and cross-language valid" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("alpha\r\nbeta");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(2);
+    try manager.attach(attachment);
+    const rows = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 8, 16, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = max_row_window_bytes,
+        .origin = .{ .absolute = 0 },
+        .purpose = .search,
+        .request_sequence = 1,
+        .revision = 1,
+        .row_count = 2,
+    });
+    defer std.testing.allocator.free(rows.bytes);
+    const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, rows.bytes);
+    try std.testing.expectEqual(protocol.RowWindowDetail.text, summary.detail);
+    try std.testing.expectEqual(@as(u16, 2), summary.row_count);
+    try std.testing.expectEqual(@as(u8, 0), rows.bytes[5]);
+    try std.testing.expect(rows.bytes[112] & 0x04 != 0);
+    try std.testing.expectEqual(
+        @as(u32, 0),
+        std.mem.readInt(u32, rows.bytes[120..124], .little),
+    );
+
+    rows.bytes[5] = 1;
+    try std.testing.expectError(
+        error.UnsupportedVersion,
+        protocol.validateTerminalRowWindow(std.testing.allocator, rows.bytes),
+    );
+}
+
+test "render row window writes directly into caller-owned storage" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("direct");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(9);
+    try manager.attach(attachment);
+    var storage: [4096]u8 = undefined;
+    const rows = try manager.readRowsInto(
+        std.testing.allocator,
+        &storage,
+        &terminal,
+        1,
+        1,
+        8,
+        16,
+        .{
+            .attachment_id = attachment,
+            .detail = .render,
+            .generation = 1,
+            .host_epoch = hostEpoch(1),
+            .maximum_bytes = storage.len,
+            .origin = .{ .absolute = 0 },
+            .purpose = .search,
+            .request_sequence = 1,
+            .revision = 1,
+            .row_count = 1,
+        },
+    );
+    try std.testing.expect(rows.bytes.ptr == &storage);
+    const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, rows.bytes);
+    try std.testing.expectEqual(protocol.RowWindowDetail.render, summary.detail);
+    try std.testing.expectEqual(@as(u16, 1), summary.row_count);
+}
+
+test "text row encoding preserves ordinary ASCII identity" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 1,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("abc");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(3);
+    const rows = try readSingleRow(&terminal, &manager, attachment, .text, 1);
+    defer std.testing.allocator.free(rows);
+
+    const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, rows);
+    try std.testing.expectEqual(protocol.RowWindowDetail.text, summary.detail);
+    try std.testing.expectEqual(@as(u32, 3), summary.entry_count);
+    try std.testing.expectEqual(@as(usize, 127), rows.len);
+    try std.testing.expectEqual(@as(u8, 0x04), rows[112] & 0x04);
+    try std.testing.expectEqual(@as(u32, 3), std.mem.readInt(u32, rows[116..120], .little));
+    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(u32, rows[120..124], .little));
+    try std.testing.expectEqualSlices(u8, "abc", rows[124..127]);
+}
+
+test "text row encoding preserves combining grapheme bytes and mappings" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 1,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("e\u{0301}");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(4);
+    const rows = try readSingleRow(&terminal, &manager, attachment, .text, 1);
+    defer std.testing.allocator.free(rows);
+
+    const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, rows);
+    const expected_text = [_]u8{ 'e', 0xcc, 0x81 };
+    try std.testing.expectEqual(protocol.RowWindowDetail.text, summary.detail);
+    try std.testing.expectEqual(@as(u32, 1), summary.entry_count);
+    try std.testing.expectEqual(@as(u8, 0), rows[112] & 0x04);
+    try std.testing.expectEqual(@as(u32, 3), std.mem.readInt(u32, rows[116..120], .little));
+    try std.testing.expectEqual(@as(u32, 1), std.mem.readInt(u32, rows[120..124], .little));
+    try std.testing.expectEqualSlices(u8, &expected_text, rows[124..127]);
+    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(u32, rows[127..131], .little));
+    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(u32, rows[131..135], .little));
+    try std.testing.expectEqual(@as(u16, 0), std.mem.readInt(u16, rows[135..137], .little));
+    try std.testing.expectEqual(@as(u8, 1), rows[137]);
+    try std.testing.expectEqual(@as(u8, 0), rows[138]);
+}
+
+test "render row encoding preserves combining grapheme string mapping" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 1,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("e\u{0301}");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(5);
+    const rows = try readSingleRow(&terminal, &manager, attachment, .render, 1);
+    defer std.testing.allocator.free(rows);
+
+    const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, rows);
+    const frame = rows[112..];
+    const expected_text = [_]u8{ 'e', 0xcc, 0x81 };
+    try std.testing.expectEqual(protocol.RowWindowDetail.render, summary.detail);
+    try std.testing.expectEqual(@as(u32, 8), summary.entry_count);
+    try std.testing.expectEqualSlices(u8, "OBPB", frame[0..4]);
+    try std.testing.expectEqual(@as(u16, 1), std.mem.readInt(u16, frame[18..20], .little));
+    try std.testing.expectEqual(@as(u32, 8), std.mem.readInt(u32, frame[20..24], .little));
+    try std.testing.expectEqual(@as(u32, 3), std.mem.readInt(u32, frame[140..144], .little));
+    const grapheme_offsets_start = std.mem.readInt(u32, frame[184..188], .little);
+    const grapheme_lengths_start = std.mem.readInt(u32, frame[192..196], .little);
+    const widths_start = std.mem.readInt(u32, frame[256..260], .little);
+    const strings_start = std.mem.readInt(u32, frame[280..284], .little);
+    try std.testing.expectEqualSlices(
+        u8,
+        &expected_text,
+        frame[strings_start..][0..expected_text.len],
+    );
+    inline for (0..8) |column| {
+        try std.testing.expectEqual(
+            if (column == 0) @as(u32, 0) else @as(u32, 3),
+            std.mem.readInt(
+                u32,
+                frame[grapheme_offsets_start + column * 4 ..][0..4],
+                .little,
+            ),
+        );
+        try std.testing.expectEqual(
+            if (column == 0) @as(u16, 3) else @as(u16, 0),
+            std.mem.readInt(
+                u16,
+                frame[grapheme_lengths_start + column * 2 ..][0..2],
+                .little,
+            ),
+        );
+        try std.testing.expectEqual(@as(u8, 0), frame[widths_start + column]);
+    }
+}
+
+test "screen replacement publishes one selection eviction event" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("selected");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(2);
+    try manager.attach(attachment);
+
+    const selected = try manager.applySelectionCommand(&terminal, 1, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 1,
+    });
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(selected));
+
+    manager.screenChanged(&terminal);
+    const event = (try manager.takeSelectionEvent(attachment)).?;
+    try std.testing.expectEqual(SelectionSnapshot.evicted, std.meta.activeTag(event));
+    try manager.rollbackSelectionEvent(attachment, event);
+    try std.testing.expectEqual(
+        SelectionSnapshot.evicted,
+        std.meta.activeTag((try manager.takeSelectionEvent(attachment)).?),
+    );
+    try std.testing.expect((try manager.takeSelectionEvent(attachment)) == null);
+}
+
+test "invalid gesture start leaves tracked state unchanged" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(2);
+    try manager.attach(attachment);
+    const initial_pins = terminal.screens.active.pages.countTrackedPins();
+
+    try std.testing.expectError(
+        error.InvalidRequest,
+        manager.applyGesture(&terminal, 1, 1, .{
+            .action = .start,
+            .attachment_id = attachment,
+            .click_count = 0,
+            .generation = 1,
+            .point = .{ .column = 0, .row = 0 },
+            .rectangle = false,
+            .revision = 1,
+        }),
+    );
+    const state = findState(&manager, attachment).?;
+    try std.testing.expect(state.gesture_anchor == null);
+    try std.testing.expect(state.selection == null);
+    try std.testing.expectEqual(initial_pins, terminal.screens.active.pages.countTrackedPins());
+}
+
+test "single click release clears selection without creating a one-cell range" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("alpha");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(3);
+    try manager.attach(attachment);
+
+    const pressed = try manager.applyGesture(&terminal, 1, 1, .{
+        .action = .start,
+        .attachment_id = attachment,
+        .click_count = 1,
+        .generation = 1,
+        .point = .{ .column = 2, .row = 0 },
+        .rectangle = false,
+        .revision = 1,
+    });
+    try std.testing.expectEqual(SelectionSnapshot.none, std.meta.activeTag(pressed));
+
+    const released = try manager.applyGesture(&terminal, 1, 1, .{
+        .action = .end,
+        .attachment_id = attachment,
+        .click_count = 1,
+        .generation = 1,
+        .point = .{ .column = 2, .row = 0 },
+        .rectangle = false,
+        .revision = 1,
+    });
+    try std.testing.expectEqual(SelectionSnapshot.none, std.meta.activeTag(released));
+}
+
+test "cell drag and repeated clicks retain terminal selection semantics" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 12,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("alpha beta");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(4);
+    try manager.attach(attachment);
+
+    _ = try manager.applyGesture(&terminal, 1, 1, .{
+        .action = .start,
+        .attachment_id = attachment,
+        .click_count = 1,
+        .generation = 1,
+        .point = .{ .column = 0, .row = 0 },
+        .rectangle = false,
+        .revision = 1,
+    });
+    const dragged = try manager.applyGesture(&terminal, 1, 1, .{
+        .action = .update,
+        .attachment_id = attachment,
+        .click_count = 1,
+        .generation = 1,
+        .point = .{ .column = 2, .row = 0 },
+        .rectangle = false,
+        .revision = 1,
+    });
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(dragged));
+    try std.testing.expectEqual(@as(u16, 0), dragged.active.start.column);
+    try std.testing.expectEqual(@as(u16, 2), dragged.active.end.column);
+    _ = try manager.applyGesture(&terminal, 1, 1, .{
+        .action = .end,
+        .attachment_id = attachment,
+        .click_count = 1,
+        .generation = 1,
+        .point = .{ .column = 2, .row = 0 },
+        .rectangle = false,
+        .revision = 1,
+    });
+
+    const word = try manager.applyGesture(&terminal, 1, 1, .{
+        .action = .start,
+        .attachment_id = attachment,
+        .click_count = 2,
+        .generation = 1,
+        .point = .{ .column = 7, .row = 0 },
+        .rectangle = false,
+        .revision = 1,
+    });
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(word));
+    try std.testing.expectEqual(@as(u16, 6), word.active.start.column);
+    try std.testing.expectEqual(@as(u16, 9), word.active.end.column);
+
+    const line = try manager.applyGesture(&terminal, 1, 1, .{
+        .action = .start,
+        .attachment_id = attachment,
+        .click_count = 3,
+        .generation = 1,
+        .point = .{ .column = 1, .row = 0 },
+        .rectangle = false,
+        .revision = 1,
+    });
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(line));
+}
+
+test "every gesture phase rejects an invalid click count" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(2);
+    try manager.attach(attachment);
+    _ = try manager.applyGesture(&terminal, 1, 1, .{
+        .action = .start,
+        .attachment_id = attachment,
+        .click_count = 1,
+        .generation = 1,
+        .point = .{ .column = 0, .row = 0 },
+        .rectangle = false,
+        .revision = 1,
+    });
+
+    inline for (.{ SelectionGestureAction.update, SelectionGestureAction.end }) |action| {
+        try std.testing.expectError(
+            error.InvalidRequest,
+            manager.applyGesture(&terminal, 1, 1, .{
+                .action = action,
+                .attachment_id = attachment,
+                .click_count = 0,
+                .generation = 1,
+                .point = .{ .column = 1, .row = 0 },
+                .rectangle = false,
+                .revision = 1,
+            }),
+        );
+        try std.testing.expect(findState(&manager, attachment).?.gesture_anchor != null);
+    }
+}
+
+test "row request sequences are strictly monotonic and allocation failure is retryable" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("alpha");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(2);
+    try manager.attach(attachment);
+
+    const first = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 1, 1, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = 4096,
+        .origin = .{ .tail = 0 },
+        .purpose = .viewport,
+        .request_sequence = 1,
+        .revision = 1,
+        .row_count = 1,
+    });
+    defer std.testing.allocator.free(first.bytes);
+    try manager.rowsApplied(&terminal, attachment, 1, 1, 1);
+    try std.testing.expectError(
+        error.InvalidRequest,
+        manager.readRows(std.testing.allocator, &terminal, 1, 1, 1, 1, .{
+            .attachment_id = attachment,
+            .detail = .text,
+            .generation = 1,
+            .host_epoch = hostEpoch(1),
+            .maximum_bytes = 4096,
+            .origin = .{ .tail = 0 },
+            .purpose = .viewport,
+            .request_sequence = 1,
+            .revision = 1,
+            .row_count = 1,
+        }),
+    );
+
+    var failing = std.testing.FailingAllocator.init(std.testing.allocator, .{ .fail_index = 0 });
+    try std.testing.expectError(
+        error.OutOfMemory,
+        manager.readRows(failing.allocator(), &terminal, 1, 1, 1, 1, .{
+            .attachment_id = attachment,
+            .detail = .text,
+            .generation = 1,
+            .host_epoch = hostEpoch(1),
+            .maximum_bytes = 4096,
+            .origin = .{ .tail = 0 },
+            .purpose = .viewport,
+            .request_sequence = 2,
+            .revision = 1,
+            .row_count = 1,
+        }),
+    );
+    const second = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 1, 1, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = 4096,
+        .origin = .{ .tail = 0 },
+        .purpose = .viewport,
+        .request_sequence = 2,
+        .revision = 1,
+        .row_count = 1,
+    });
+    defer std.testing.allocator.free(second.bytes);
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.rowsApplied(&terminal, attachment, 1, 1, 1),
+    );
+    try manager.rowsApplied(&terminal, attachment, 2, 1, 1);
+}
+
+test "history events wait for pending viewport rows" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(6);
+    try manager.attach(attachment);
+    try manager.setDemand(&terminal, attachment, .viewing_history);
+
+    const rows = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 1, 1, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = 4096,
+        .origin = .{ .tail = 0 },
+        .purpose = .viewport,
+        .request_sequence = 1,
+        .revision = 1,
+        .row_count = 1,
+    });
+    defer std.testing.allocator.free(rows.bytes);
+    const state = findState(&manager, attachment).?;
+    try std.testing.expect(state.pending != null);
+
+    try terminal.printString("x");
+    manager.noteMutation(&terminal, 2, 1);
+
+    try std.testing.expect((try manager.takeHistoryEvent(&terminal, attachment, 2, 1)) == null);
+    try std.testing.expect(state.history_dirty);
+
+    try manager.rowsApplied(&terminal, attachment, 1, 1, 1);
+    const event = (try manager.takeHistoryEvent(&terminal, attachment, 2, 1)).?;
+    try std.testing.expect(attachment.eql(event.attachment_id));
+    try std.testing.expectEqual(@as(u64, 2), event.revision);
+    try std.testing.expectEqual(@as(u64, 1), event.generation);
+    try std.testing.expectEqual(@as(u64, 2), event.total_rows);
+    try manager.rollbackHistoryEvent(attachment, event);
+    const retried = (try manager.takeHistoryEvent(&terminal, attachment, 2, 1)).?;
+    try std.testing.expectEqualDeep(event, retried);
+    try manager.historyObserved(attachment, 2, 1);
+    try manager.historyObserved(attachment, 2, 1);
+}
+
+test "invalid selection command preserves an active gesture" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(2);
+    try manager.attach(attachment);
+    _ = try manager.applyGesture(&terminal, 1, 1, .{
+        .action = .start,
+        .attachment_id = attachment,
+        .click_count = 1,
+        .generation = 1,
+        .point = .{ .column = 0, .row = 0 },
+        .rectangle = false,
+        .revision = 1,
+    });
+    const gesture_anchor = findState(&manager, attachment).?.gesture_anchor.?.pin;
+    const tracked_pins = terminal.screens.active.pages.countTrackedPins();
+
+    try std.testing.expectError(
+        error.InvalidPoint,
+        manager.applySelectionCommand(&terminal, 1, 1, .{
+            .attachment_id = attachment,
+            .command = .{ .select_output = .{ .column = 0, .row = 10_000 } },
+            .generation = 1,
+            .revision = 1,
+        }),
+    );
+    const state = findState(&manager, attachment).?;
+    try std.testing.expectEqual(gesture_anchor, state.gesture_anchor.?.pin);
+    try std.testing.expect(state.selection == null);
+    try std.testing.expectEqual(tracked_pins, terminal.screens.active.pages.countTrackedPins());
+}
+
+test "generation changes invalidate anchors gesture selection and export" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("selected");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(2);
+    try manager.attach(attachment);
+    try manager.setDemand(&terminal, attachment, .viewing_history);
+    const initial_pins = terminal.screens.active.pages.countTrackedPins();
+    const initial_history_event = (try manager.takeHistoryEvent(
+        &terminal,
+        attachment,
+        1,
+        1,
+    )).?;
+    try std.testing.expectEqual(@as(u64, 1), initial_history_event.revision);
+
+    const first_rows = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 1, 1, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = 4096,
+        .origin = .{ .tail = 0 },
+        .purpose = .viewport,
+        .request_sequence = 1,
+        .revision = 1,
+        .row_count = 1,
+    });
+    defer std.testing.allocator.free(first_rows.bytes);
+    try manager.rowsApplied(&terminal, attachment, 1, 1, 1);
+    const second_rows = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 1, 1, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = 4096,
+        .origin = .{ .tail = 0 },
+        .purpose = .viewport,
+        .request_sequence = 2,
+        .revision = 1,
+        .row_count = 1,
+    });
+    defer std.testing.allocator.free(second_rows.bytes);
+    _ = try manager.applyGesture(&terminal, 1, 1, .{
+        .action = .start,
+        .attachment_id = attachment,
+        .click_count = 2,
+        .generation = 1,
+        .point = .{ .column = 0, .row = 0 },
+        .rectangle = false,
+        .revision = 1,
+    });
+    const started = try manager.startExport(&terminal, attachment, 7, .plain);
+    const active_state = findState(&manager, attachment).?;
+    try std.testing.expect(active_state.committed != null);
+    try std.testing.expect(active_state.pending != null);
+    try std.testing.expect(active_state.gesture_anchor != null);
+    try std.testing.expect(active_state.selection != null);
+    try std.testing.expect(active_state.export_state != null);
+
+    manager.generationChanged(&terminal, 2, 2);
+
+    const invalidated = findState(&manager, attachment).?;
+    try std.testing.expect(invalidated.committed == null);
+    try std.testing.expect(invalidated.pending == null);
+    try std.testing.expect(invalidated.gesture_anchor == null);
+    try std.testing.expect(invalidated.selection == null);
+    try std.testing.expect(invalidated.export_state == null);
+    try std.testing.expect(invalidated.history_dirty);
+    try std.testing.expect(invalidated.history_in_flight == null);
+    try std.testing.expectEqual(initial_pins, terminal.screens.active.pages.countTrackedPins());
+    try std.testing.expectEqual(
+        SelectionSnapshot.evicted,
+        std.meta.activeTag((try manager.takeSelectionEvent(attachment)).?),
+    );
+    const cancellation = (try manager.takeSelectionExportCancellation(attachment)).?;
+    try std.testing.expect(attachment.eql(cancellation.attachment_id));
+    try std.testing.expectEqual(started.byte_length, cancellation.byte_length);
+    try std.testing.expectEqual(started.export_sequence, cancellation.export_sequence);
+    try std.testing.expect((try manager.takeSelectionExportCancellation(attachment)) == null);
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.rowsApplied(&terminal, attachment, 2, 1, 1),
+    );
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.cancelExport(attachment, 7),
+    );
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.historyObserved(attachment, 1, 1),
+    );
+    const current_history_event = (try manager.takeHistoryEvent(
+        &terminal,
+        attachment,
+        2,
+        2,
+    )).?;
+    try std.testing.expectEqual(@as(u64, 2), current_history_event.revision);
+    try std.testing.expectEqual(@as(u64, 2), current_history_event.generation);
+    try manager.historyObserved(attachment, 2, 2);
+}
+
+test "selection eviction cancels an in-flight export" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("selected");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(2);
+    try manager.attach(attachment);
+    _ = try manager.applySelectionCommand(&terminal, 1, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 1,
+    });
+    const started = try manager.startExport(&terminal, attachment, 9, .plain);
+    const state = findState(&manager, attachment).?;
+    if (state.selection) |*selection| selection.startPtr().garbage = true;
+
+    manager.noteMutation(&terminal, 2, 1);
+
+    try std.testing.expect(state.selection == null);
+    try std.testing.expect(state.export_state == null);
+    try std.testing.expectEqual(
+        SelectionSnapshot.evicted,
+        std.meta.activeTag((try manager.takeSelectionEvent(attachment)).?),
+    );
+    const cancellation = (try manager.takeSelectionExportCancellation(attachment)).?;
+    try std.testing.expect(attachment.eql(cancellation.attachment_id));
+    try std.testing.expectEqual(started.byte_length, cancellation.byte_length);
+    try std.testing.expectEqual(started.export_sequence, cancellation.export_sequence);
+    try std.testing.expect((try manager.takeSelectionExportCancellation(attachment)) == null);
+    try std.testing.expect((try manager.encodeNextExportChunk(std.testing.allocator, attachment)) == null);
+    try std.testing.expect((try manager.exportChunkApplied(attachment, 9, 0)) == null);
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.exportChunkApplied(attachment, 8, 0),
+    );
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.exportChunkApplied(attachment, 0, 0),
+    );
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.cancelExport(attachment, 9),
+    );
+
+    _ = try manager.applySelectionCommand(&terminal, 2, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 2,
+    });
+    const newer_started = try manager.startExport(&terminal, attachment, 10, .plain);
+    try std.testing.expect((try manager.exportChunkApplied(attachment, 9, 0)) == null);
+    const newer_chunk = (try manager.encodeNextExportChunk(std.testing.allocator, attachment)).?;
+    defer std.testing.allocator.free(newer_chunk.bytes);
+    const newer_finished = (try manager.exportChunkApplied(attachment, 10, 0)).?;
+    try std.testing.expect(attachment.eql(newer_finished.attachment_id));
+    try std.testing.expectEqual(newer_started.byte_length, newer_finished.byte_length);
+    try std.testing.expectEqual(@as(u64, 10), newer_finished.export_sequence);
+    try std.testing.expect((try manager.exportChunkApplied(attachment, 10, 0)) == null);
+}
+
+test "repeated selection eviction preserves every queued export cancellation" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("selected");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(7);
+    try manager.attach(attachment);
+
+    _ = try manager.applySelectionCommand(&terminal, 1, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 1,
+    });
+    const first_started = try manager.startExport(&terminal, attachment, 9, .plain);
+    const state = findState(&manager, attachment).?;
+    if (state.selection) |*selection| selection.startPtr().garbage = true;
+    manager.noteMutation(&terminal, 2, 1);
+
+    _ = try manager.applySelectionCommand(&terminal, 2, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 2,
+    });
+    const second_started = try manager.startExport(&terminal, attachment, 10, .plain);
+    if (state.selection) |*selection| selection.startPtr().garbage = true;
+    manager.noteMutation(&terminal, 3, 1);
+
+    const first_cancellation = (try manager.takeSelectionExportCancellation(attachment)).?;
+    const second_cancellation = (try manager.takeSelectionExportCancellation(attachment)).?;
+    try std.testing.expectEqual(@as(u64, 9), first_cancellation.export_sequence);
+    try std.testing.expectEqual(first_started.byte_length, first_cancellation.byte_length);
+    try std.testing.expectEqual(@as(u64, 10), second_cancellation.export_sequence);
+    try std.testing.expectEqual(second_started.byte_length, second_cancellation.byte_length);
+    try std.testing.expect((try manager.takeSelectionExportCancellation(attachment)) == null);
+    try std.testing.expect((try manager.exportChunkApplied(attachment, 9, 0)) == null);
+    try std.testing.expect((try manager.exportChunkApplied(attachment, 10, 0)) == null);
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.exportChunkApplied(attachment, 8, 0),
+    );
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.exportChunkApplied(attachment, 0, 0),
+    );
+}
+
+test "export sequences reject ABA acknowledgements and failed starts do not consume identity" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("selected");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(2);
+    try manager.attach(attachment);
+    _ = try manager.applySelectionCommand(&terminal, 1, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 1,
+    });
+
+    _ = try manager.startExport(&terminal, attachment, 7, .plain);
+    const first_chunk = (try manager.encodeNextExportChunk(std.testing.allocator, attachment)).?;
+    defer std.testing.allocator.free(first_chunk.bytes);
+    try manager.rollbackExportChunk(first_chunk.token);
+    const retried_chunk = (try manager.encodeNextExportChunk(std.testing.allocator, attachment)).?;
+    defer std.testing.allocator.free(retried_chunk.bytes);
+    try std.testing.expectEqual(first_chunk.token.export_sequence, retried_chunk.token.export_sequence);
+    try std.testing.expectEqual(first_chunk.token.chunk_sequence, retried_chunk.token.chunk_sequence);
+    try std.testing.expectEqualSlices(u8, first_chunk.bytes, retried_chunk.bytes);
+    _ = (try manager.exportChunkApplied(attachment, 7, 0)).?;
+    try std.testing.expect((try manager.exportChunkApplied(attachment, 7, 0)) == null);
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.exportChunkApplied(attachment, 0, 0),
+    );
+    try std.testing.expectError(
+        error.InvalidRequest,
+        manager.startExport(&terminal, attachment, 7, .plain),
+    );
+
+    var failing = std.testing.FailingAllocator.init(std.testing.allocator, .{ .fail_index = 0 });
+    manager.allocator = failing.allocator();
+    try std.testing.expectError(
+        error.OutOfMemory,
+        manager.startExport(&terminal, attachment, 8, .plain),
+    );
+    manager.allocator = std.testing.allocator;
+    _ = try manager.startExport(&terminal, attachment, 8, .plain);
+    const second_chunk = (try manager.encodeNextExportChunk(std.testing.allocator, attachment)).?;
+    defer std.testing.allocator.free(second_chunk.bytes);
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.exportChunkApplied(attachment, 7, 0),
+    );
+    _ = (try manager.exportChunkApplied(attachment, 8, 0)).?;
+}
+
+test "a final export chunk does not require another chunk sequence" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("selected");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(9);
+    try manager.attach(attachment);
+    _ = try manager.applySelectionCommand(&terminal, 1, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 1,
+    });
+    _ = try manager.startExport(&terminal, attachment, 1, .plain);
+    const state = findState(&manager, attachment).?;
+    state.export_state.?.chunk_sequence = std.math.maxInt(u32);
+    const chunk = (try manager.encodeNextExportChunk(std.testing.allocator, attachment)).?;
+    defer std.testing.allocator.free(chunk.bytes);
+    try std.testing.expectEqual(std.math.maxInt(u32), chunk.token.chunk_sequence);
+    const finished = (try manager.exportChunkApplied(
+        attachment,
+        1,
+        std.math.maxInt(u32),
+    )).?;
+    try std.testing.expectEqual(@as(u64, 1), finished.export_sequence);
+    try std.testing.expect(state.export_state == null);
+}
+
+test "failed replacement rollback restores full invalidation history and cancellation FIFO" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("selected");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(8);
+    try manager.attach(attachment);
+
+    _ = try manager.applySelectionCommand(&terminal, 1, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 1,
+    });
+    const first_started = try manager.startExport(&terminal, attachment, 1, .plain);
+    const state = findState(&manager, attachment).?;
+    if (state.selection) |*selection| selection.startPtr().garbage = true;
+    manager.noteMutation(&terminal, 2, 1);
+
+    _ = try manager.applySelectionCommand(&terminal, 2, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 2,
+    });
+    const second_started = try manager.startExport(&terminal, attachment, 2, .plain);
+    if (state.selection) |*selection| selection.startPtr().garbage = true;
+    manager.noteMutation(&terminal, 3, 1);
+
+    _ = try manager.applySelectionCommand(&terminal, 3, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 3,
+    });
+
+    try std.testing.expectEqual(@as(usize, max_pending_export_cancellations), state.invalidated_export_count);
+    const invalidation_history = try manager.snapshotInvalidatedExportHistory(attachment);
+    try std.testing.expectEqual(@as(usize, max_pending_export_cancellations), invalidation_history.count);
+    try std.testing.expectEqual(@as(u64, 1), invalidation_history.entries[0].export_sequence);
+    try std.testing.expectEqual(@as(u64, 2), invalidation_history.entries[1].export_sequence);
+
+    var cancellations = std.mem.zeroes([max_pending_export_cancellations]ExportCancellation);
+    var cancellation_count: usize = 0;
+    while (try manager.takeSelectionExportCancellation(attachment)) |cancellation| {
+        cancellations[cancellation_count] = cancellation;
+        cancellation_count += 1;
+    }
+    try std.testing.expectEqual(@as(usize, max_pending_export_cancellations), cancellation_count);
+    try std.testing.expectEqual(first_started.export_sequence, cancellations[0].export_sequence);
+    try std.testing.expectEqual(second_started.export_sequence, cancellations[1].export_sequence);
+
+    const replacement_transaction = try manager.startExportTransaction(
+        &terminal,
+        attachment,
+        3,
+        .plain,
+    );
+    const replacement = replacement_transaction.started;
+    if (state.selection) |*selection| selection.startPtr().garbage = true;
+    manager.noteMutation(&terminal, 4, 1);
+    try std.testing.expectEqual(@as(u64, 3), state.invalidated_exports[1].export_sequence);
+    try std.testing.expectEqual(@as(usize, 1), state.pending_export_cancellation_count);
+    try std.testing.expectEqual(@as(u64, 3), state.pending_export_cancellations[0].export_sequence);
+
+    manager.rollbackExportStart(
+        attachment,
+        replacement.export_sequence,
+        replacement_transaction.previous_completed_export_sequence,
+        replacement_transaction.previous_last_export_sequence,
+        cancellations[0..cancellation_count],
+        invalidation_history,
+    );
+
+    try std.testing.expect(state.export_state == null);
+    try std.testing.expectEqual(@as(usize, max_pending_export_cancellations), state.invalidated_export_count);
+    try std.testing.expectEqual(@as(u64, 1), state.invalidated_exports[0].export_sequence);
+    try std.testing.expectEqual(@as(u64, 2), state.invalidated_exports[1].export_sequence);
+    const restored_first = (try manager.takeSelectionExportCancellation(attachment)).?;
+    try std.testing.expectEqual(first_started.export_sequence, restored_first.export_sequence);
+    try std.testing.expectEqual(first_started.byte_length, restored_first.byte_length);
+    const restored_second = (try manager.takeSelectionExportCancellation(attachment)).?;
+    try std.testing.expectEqual(second_started.export_sequence, restored_second.export_sequence);
+    try std.testing.expectEqual(second_started.byte_length, restored_second.byte_length);
+    try std.testing.expect((try manager.takeSelectionExportCancellation(attachment)) == null);
+    _ = try manager.applySelectionCommand(&terminal, 4, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 4,
+    });
+    const retried_replacement = try manager.startExport(
+        &terminal,
+        attachment,
+        replacement.export_sequence,
+        .plain,
+    );
+    try std.testing.expectEqual(replacement.export_sequence, retried_replacement.export_sequence);
+    _ = try manager.cancelExport(attachment, replacement.export_sequence);
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.exportChunkApplied(attachment, replacement.export_sequence, 0),
+    );
+    try std.testing.expect((try manager.exportChunkApplied(attachment, first_started.export_sequence, 0)) == null);
+    try std.testing.expect((try manager.exportChunkApplied(attachment, second_started.export_sequence, 0)) == null);
+}

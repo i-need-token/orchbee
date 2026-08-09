@@ -1,0 +1,192 @@
+const std = @import("std");
+const subject = @import("terminal-protocol");
+
+const PayloadEncoding = subject.PayloadEncoding;
+const Reader = subject.testing.ReaderType;
+const encodeTransportEnvelope = subject.encodeTransportEnvelope;
+const finalizeTransportEnvelope = subject.finalizeTransportEnvelope;
+const isKnownMessageKind = subject.isKnownMessageKind;
+const max_control_json_bytes = subject.Limits.control_json_bytes;
+const optionalIdentifier = subject.testing.optionalIdentifierFn;
+const terminal_frame_header_bytes = subject.terminal_frame_header_bytes;
+const transportRecordLength = subject.transportRecordLength;
+const transport_envelope_header_bytes = subject.transport_envelope_header_bytes;
+const validateTerminalFrame = subject.validateTerminalFrame;
+
+test "frame validator rejects zero required identifiers" {
+    var bytes = [_]u8{0} ** terminal_frame_header_bytes;
+    @memcpy(bytes[0..4], "OBTF");
+    try std.testing.expectError(
+        error.InvalidIdentifier,
+        validateTerminalFrame(std.testing.allocator, &bytes),
+    );
+}
+
+test "reader rejects an impossible starting offset even for an empty read" {
+    const empty = [_]u8{};
+    var reader = Reader.init(&empty, 1);
+    try std.testing.expectError(error.Truncated, reader.readBytes(0));
+}
+
+test "optional and encoded identifiers preserve the invalid identifier error" {
+    const zero_identifier = [_]u8{0} ** 16;
+    try std.testing.expectError(error.InvalidIdentifier, optionalIdentifier(&.{ 1, 2, 3 }));
+    try std.testing.expectError(
+        error.InvalidIdentifier,
+        encodeTransportEnvelope(
+            std.testing.allocator,
+            4,
+            .control_json,
+            "{}",
+            zero_identifier,
+            null,
+            false,
+            false,
+        ),
+    );
+    try std.testing.expectError(
+        error.InvalidIdentifier,
+        encodeTransportEnvelope(
+            std.testing.allocator,
+            4,
+            .control_json,
+            "{}",
+            null,
+            zero_identifier,
+            false,
+            false,
+        ),
+    );
+}
+
+test "required envelope encoder rejects unknown message kinds before allocation" {
+    try std.testing.expectError(
+        error.UnknownRequiredMessage,
+        encodeTransportEnvelope(
+            std.testing.allocator,
+            200,
+            .control_json,
+            "{}",
+            null,
+            null,
+            false,
+            false,
+        ),
+    );
+}
+
+test "required envelope encoder rejects a registered kind with the wrong role or encoding" {
+    try std.testing.expectError(
+        error.InvalidField,
+        encodeTransportEnvelope(
+            std.testing.allocator,
+            subject.MessageKind.terminal_started,
+            .control_json,
+            "{}",
+            null,
+            [_]u8{0x33} ** 16,
+            false,
+            false,
+        ),
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        encodeTransportEnvelope(
+            std.testing.allocator,
+            subject.MessageKind.write_input,
+            .control_json,
+            "{}",
+            [_]u8{0x22} ** 16,
+            [_]u8{0x33} ** 16,
+            false,
+            false,
+        ),
+    );
+}
+
+test "transport record length applies the encoding bound before allocation" {
+    var header = [_]u8{0} ** transport_envelope_header_bytes;
+    @memcpy(header[0..4], "OBTP");
+    std.mem.writeInt(u16, header[4..6], transport_envelope_header_bytes, .little);
+    header[22] = @intFromEnum(PayloadEncoding.control_json);
+    const oversized_control_bytes: u32 = max_control_json_bytes + 1;
+    std.mem.writeInt(
+        u32,
+        header[8..12],
+        transport_envelope_header_bytes + oversized_control_bytes,
+        .little,
+    );
+    std.mem.writeInt(u32, header[12..16], oversized_control_bytes, .little);
+    try std.testing.expectError(error.LimitExceeded, transportRecordLength(&header));
+
+    std.mem.writeInt(u32, header[8..12], transport_envelope_header_bytes, .little);
+    std.mem.writeInt(u32, header[12..16], 0, .little);
+    header[22] = 0xff;
+    try std.testing.expectError(error.InvalidField, transportRecordLength(&header));
+}
+
+test "transport envelope finalizes a payload already written into reserved storage" {
+    var storage: [transport_envelope_header_bytes + 64]u8 = undefined;
+    const payload = "{\"reserved\":true}";
+    @memcpy(storage[transport_envelope_header_bytes..][0..payload.len], payload);
+    const record = try finalizeTransportEnvelope(
+        &storage,
+        subject.MessageKind.ping,
+        .control_json,
+        payload.len,
+        [_]u8{0x22} ** 16,
+        [_]u8{0x33} ** 16,
+        true,
+        false,
+    );
+    const envelope = try subject.validateTransportEnvelope(record);
+    try std.testing.expectEqualStrings(payload, envelope.payload);
+    try std.testing.expectEqual(
+        transport_envelope_header_bytes + payload.len,
+        record.len,
+    );
+}
+
+test "message kind registry contains exactly the current declared kinds" {
+    var declared = [_]bool{false} ** 65_536;
+    inline for (@typeInfo(subject.MessageKind).@"struct".decls) |declaration| {
+        const kind: u16 = @field(subject.MessageKind, declaration.name);
+        try std.testing.expect(!declared[kind]);
+        declared[kind] = true;
+        try std.testing.expect(isKnownMessageKind(kind));
+    }
+    for (0..65_536) |value| {
+        const kind: u16 = @intCast(value);
+        try std.testing.expectEqual(
+            declared[value],
+            isKnownMessageKind(kind),
+        );
+    }
+}
+
+test "every native request dispatch operation is owned by the registry" {
+    const operation_count = @typeInfo(subject.RequestOperation).@"enum".fields.len;
+    var seen = [_]bool{false} ** operation_count;
+    inline for (@typeInfo(subject.MessageKind).@"struct".decls) |declaration| {
+        const kind: u16 = @field(subject.MessageKind, declaration.name);
+        const contract = subject.messageContract(kind).?;
+        if (contract.request) |request| {
+            seen[@intFromEnum(request.operation)] = true;
+        }
+    }
+    for (seen) |registered| try std.testing.expect(registered);
+
+    const semantic_kinds = [_]u16{
+        subject.MessageKind.focus_input,
+        subject.MessageKind.key_input,
+        subject.MessageKind.mouse_input,
+        subject.MessageKind.paste_input,
+        subject.MessageKind.text_input,
+    };
+    for (semantic_kinds) |kind| {
+        try std.testing.expectEqual(
+            subject.RequestOperation.semantic_input,
+            subject.messageContract(kind).?.request.?.operation,
+        );
+    }
+}

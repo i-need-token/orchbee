@@ -1,0 +1,95 @@
+const terminal_input = @import("terminal-input");
+const contract = @import("contract.zig");
+const envelope = @import("envelope.zig");
+const frame_codec = @import("frame.zig");
+const input_codec = @import("input.zig");
+const projection_buffer_codec = @import("projection_buffer.zig");
+const row_window_codec = @import("row_window.zig");
+const wire = @import("wire.zig");
+
+pub const FocusInput = terminal_input.FocusInput;
+pub const KeyAction = terminal_input.KeyAction;
+pub const KeyInput = terminal_input.KeyInput;
+pub const Modifiers = terminal_input.Modifiers;
+pub const MouseAction = terminal_input.MouseAction;
+pub const MouseButton = terminal_input.MouseButton;
+pub const MouseButtons = terminal_input.MouseButtons;
+pub const MouseInput = terminal_input.MouseInput;
+pub const MouseMotion = terminal_input.MouseMotion;
+pub const PasteInput = terminal_input.PasteInput;
+pub const SemanticInput = terminal_input.SemanticInput;
+pub const TextInput = terminal_input.TextInput;
+
+pub const terminal_frame_header_bytes = contract.terminal_frame_header_bytes;
+pub const terminal_frame_magic = contract.terminal_frame_magic;
+pub const terminal_frame_format_major = contract.terminal_frame_format_major;
+pub const terminal_frame_format_minor = contract.terminal_frame_format_minor;
+pub const terminal_frame_format_patch = contract.terminal_frame_format_patch;
+pub const terminal_projection_buffer_header_bytes = contract.terminal_projection_buffer_header_bytes;
+pub const terminal_projection_buffer_magic = contract.terminal_projection_buffer_magic;
+pub const terminal_projection_buffer_format_major = contract.terminal_projection_buffer_format_major;
+pub const terminal_projection_buffer_format_minor = contract.terminal_projection_buffer_format_minor;
+pub const terminal_projection_buffer_format_patch = contract.terminal_projection_buffer_format_patch;
+pub const terminal_row_window_header_bytes = contract.terminal_row_window_header_bytes;
+pub const terminal_row_window_magic = contract.terminal_row_window_magic;
+pub const terminal_row_window_format_major = contract.terminal_row_window_format_major;
+pub const terminal_row_window_format_minor = contract.terminal_row_window_format_minor;
+pub const terminal_row_window_format_patch = contract.terminal_row_window_format_patch;
+pub const transport_envelope_header_bytes = contract.transport_envelope_header_bytes;
+pub const current_protocol_major = contract.current_protocol_major;
+pub const current_protocol_minor = contract.current_protocol_minor;
+pub const current_protocol_patch = contract.current_protocol_patch;
+pub const Limits = contract.Limits;
+pub const MessageKind = contract.MessageKind;
+
+pub const ProtocolError = contract.ProtocolError;
+
+pub const FrameKind = frame_codec.FrameKind;
+pub const CursorShape = frame_codec.CursorShape;
+pub const ActiveScreen = frame_codec.ActiveScreen;
+
+pub const RowWindowDetail = row_window_codec.RowWindowDetail;
+pub const RowWindowSummary = row_window_codec.RowWindowSummary;
+
+pub const FrameSummary = frame_codec.FrameSummary;
+pub const ProjectionBufferSummary = projection_buffer_codec.ProjectionBufferSummary;
+
+pub const EnvelopeSummary = envelope.Summary;
+pub const PayloadEncoding = contract.PayloadEncoding;
+pub const RequestOperation = contract.RequestOperation;
+pub const RequestMessageContract = contract.RequestMessageContract;
+pub const MessageContract = contract.MessageContract;
+pub const messageContract = contract.messageContract;
+pub const messagePayloadEncoding = contract.messagePayloadEncoding;
+
+pub const WriteInputSummary = input_codec.WriteInputSummary;
+pub const DecodedSemanticInput = input_codec.DecodedSemanticInput;
+pub const validateWriteInput = input_codec.validateWriteInput;
+pub const validateKeyInput = input_codec.validateKeyInput;
+pub const validateCommittedTextInput = input_codec.validateCommittedTextInput;
+pub const validatePasteInput = input_codec.validatePasteInput;
+pub const validateMouseInput = input_codec.validateMouseInput;
+pub const validateFocusInput = input_codec.validateFocusInput;
+pub const validateSemanticInput = input_codec.validateSemanticInput;
+
+const Reader = wire.Reader;
+const optionalIdentifier = wire.optionalIdentifier;
+
+pub const isKnownMessageKind = contract.isKnownMessageKind;
+
+pub const validateTerminalFrame = frame_codec.validateTerminalFrame;
+pub const validateTerminalProjectionBuffer = projection_buffer_codec.validateTerminalProjectionBuffer;
+
+pub const validateTerminalRowWindow = row_window_codec.validateTerminalRowWindow;
+
+pub const validateTransportEnvelope = envelope.validateTransportEnvelope;
+pub const transportRecordLength = envelope.transportRecordLength;
+pub const encodeTransportEnvelope = envelope.encodeTransportEnvelope;
+pub const transportEnvelopeLength = envelope.transportEnvelopeLength;
+pub const transportEnvelopeAllocationLength = envelope.transportEnvelopeAllocationLength;
+pub const finalizeTransportEnvelope = envelope.finalizeTransportEnvelope;
+
+pub const testing = if (@import("builtin").is_test) struct {
+    pub const optionalIdentifierFn = optionalIdentifier;
+    pub const ReaderType = Reader;
+} else struct {};

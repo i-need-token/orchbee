@@ -1,0 +1,189 @@
+const std = @import("std");
+const control_boundary = @import("terminal-host-control");
+
+const subject = control_boundary.decode;
+const wire = control_boundary.wire;
+
+const attachment_id = "11111111111111111111111111111111";
+
+test "Hello optional feature names use a bounded UTF-8 byte length" {
+    const ascii = [_][]const u8{"a"};
+    var hello: wire.Hello = .{
+        .clientId = "11111111111111111111111111111111",
+        .frameBytes = 1024,
+        .inputBytes = 1024,
+        .protocol = .{ .major = 0, .minor = 0, .patch = 1 },
+        .rowWindowBytes = 1024,
+        .supportedOptionalFeatures = &ascii,
+    };
+    try std.testing.expect(subject.validHello(hello));
+    const empty = [_][]const u8{""};
+    hello.supportedOptionalFeatures = &empty;
+    try std.testing.expect(!subject.validHello(hello));
+    const combining_21 = "e\u{0301}" ** 21;
+    const combining_feature = [_][]const u8{combining_21[0..]};
+    hello.supportedOptionalFeatures = &combining_feature;
+    try std.testing.expect(subject.validHello(hello));
+    const sixteen_emojis = "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀";
+    const seventeen_emojis = "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀";
+    const features = [_][]const u8{sixteen_emojis};
+    hello.supportedOptionalFeatures = &features;
+    try std.testing.expect(subject.validHello(hello));
+    const oversized_features = [_][]const u8{seventeen_emojis};
+    hello.supportedOptionalFeatures = &oversized_features;
+    try std.testing.expect(!subject.validHello(hello));
+    var many_features: [65][]const u8 = undefined;
+    @memset(&many_features, "x");
+    hello.supportedOptionalFeatures = &many_features;
+    try std.testing.expect(!subject.validHello(hello));
+}
+
+test "typed control decoder distinguishes identifiers from field failures" {
+    try std.testing.expectError(
+        error.InvalidIdentifier,
+        subject.decodeFrameApplied(
+            std.testing.allocator,
+            "{\"attachmentId\":\"00000000000000000000000000000000\",\"generation\":\"1\",\"revision\":\"2\",\"sequence\":\"3\"}",
+        ),
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeFrameApplied(
+            std.testing.allocator,
+            "{\"attachmentId\":\"11111111111111111111111111111111\",\"generation\":\"01\",\"revision\":\"2\",\"sequence\":\"3\"}",
+        ),
+    );
+}
+
+test "canonical uint64 text rejects alternate spellings and overflow" {
+    try std.testing.expectEqual(@as(u64, 0), try subject.parseCanonicalU64("0"));
+    try std.testing.expectEqual(
+        std.math.maxInt(u64),
+        try subject.parseCanonicalU64("18446744073709551615"),
+    );
+    try std.testing.expectError(error.InvalidField, subject.parseCanonicalU64("00"));
+    try std.testing.expectError(error.InvalidField, subject.parseCanonicalU64("+1"));
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.parseCanonicalU64("18446744073709551616"),
+    );
+}
+
+test "typed decoder rejects zero generation and attachment-local flight sequences" {
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeFrameApplied(
+            std.testing.allocator,
+            "{\"attachmentId\":\"11111111111111111111111111111111\",\"generation\":\"0\",\"revision\":\"0\",\"sequence\":\"1\"}",
+        ),
+    );
+    const zero_row_sequence = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"rowsBefore\":0}},\"purpose\":\"viewport\",\"requestSequence\":\"0\",\"revision\":\"0\",\"rowCount\":1}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeReadRows(std.testing.allocator, zero_row_sequence),
+    );
+    const zero_export_sequence = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"exportSequence\":\"0\",\"format\":\"plain\"}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeSelectionExport(std.testing.allocator, zero_export_sequence),
+    );
+}
+
+test "typed decoder enforces discriminated row origins" {
+    const valid_payload = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"rowsBefore\":4}},\"purpose\":\"viewport\",\"requestSequence\":\"2\",\"revision\":\"3\",\"rowCount\":12}}",
+        .{attachment_id},
+    );
+    var decoded = try subject.decodeReadRows(std.testing.allocator, valid_payload);
+    defer decoded.deinit();
+    try std.testing.expectEqual(@as(u16, 12), decoded.value.row_count);
+    try std.testing.expectEqual(@as(u32, 4), decoded.value.origin.tail);
+
+    const extra_variant_field = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"row\":\"4\",\"rowsBefore\":4}},\"purpose\":\"viewport\",\"requestSequence\":\"2\",\"revision\":\"3\",\"rowCount\":12}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeReadRows(std.testing.allocator, extra_variant_field),
+    );
+
+    const excessive_delta: wire.RowOrigin = .{
+        .delta = .{ .value = 4097 },
+        .kind = "committed",
+    };
+    try std.testing.expectError(error.InvalidField, subject.parseRowOrigin(excessive_delta));
+}
+
+test "typed decoder closes native validation gaps from the TypeScript schema" {
+    const zero_rows = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"rowsBefore\":0}},\"purpose\":\"viewport\",\"requestSequence\":\"2\",\"revision\":\"3\",\"rowCount\":0}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeReadRows(std.testing.allocator, zero_rows),
+    );
+
+    const zero_clicks = std.fmt.comptimePrint(
+        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":0,\"generation\":\"1\",\"point\":{{\"column\":0,\"row\":\"0\"}},\"rectangle\":false,\"revision\":\"1\"}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeSelectionGesture(std.testing.allocator, zero_clicks),
+    );
+
+    const wide_point = std.fmt.comptimePrint(
+        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":1,\"generation\":\"1\",\"point\":{{\"column\":4096,\"row\":\"0\"}},\"rectangle\":false,\"revision\":\"1\"}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeSelectionGesture(std.testing.allocator, wide_point),
+    );
+
+    const empty_capabilities = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":false,\"read\":false,\"resize\":false}},\"requestResizeLease\":false,\"terminalId\":\"22222222222222222222222222222222\"}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeAttachTerminal(std.testing.allocator, empty_capabilities),
+    );
+
+    const lease_without_resize = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":true,\"read\":false,\"resize\":false}},\"requestResizeLease\":true,\"terminalId\":\"22222222222222222222222222222222\"}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeAttachTerminal(std.testing.allocator, lease_without_resize),
+    );
+}
+
+test "selection command decoder rejects illegal union combinations" {
+    const null_clear = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"command\":\"clear\",\"generation\":\"1\",\"point\":null,\"revision\":\"1\"}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeSelectionCommand(std.testing.allocator, null_clear),
+    );
+
+    const missing_select_output = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"command\":\"select-output\",\"generation\":\"1\",\"revision\":\"1\"}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeSelectionCommand(std.testing.allocator, missing_select_output),
+    );
+}
