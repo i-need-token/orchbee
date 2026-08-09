@@ -166,20 +166,25 @@ function resolveTerminalLocaleEnvironment(
 ): TerminalLaunch['environment'] {
 	if (platform === 'win32') return [];
 
-	const effectiveLocale =
-		nonEmpty(environment.LC_ALL) ??
-		nonEmpty(environment.LC_CTYPE) ??
-		nonEmpty(environment.LANG);
-	if (effectiveLocale !== undefined && isSupportedUtf8Locale(effectiveLocale, platform)) {
-		return [];
-	}
-
+	const lcAll = nonEmpty(environment.LC_ALL);
+	if (lcAll !== undefined && isSupportedUtf8Locale(lcAll, platform)) return [];
+	const lcCtype = nonEmpty(environment.LC_CTYPE);
+	const lang = nonEmpty(environment.LANG);
 	const fallbackLocale = platform === 'darwin' ? 'en_US.UTF-8' : 'C.UTF-8';
+	const resolvedLocale =
+		[lcCtype, lang].find(
+			(value): value is string => value !== undefined && isSupportedUtf8Locale(value, platform),
+		) ?? fallbackLocale;
+	const langNeedsRepair = lang !== undefined && !isSupportedUtf8Locale(lang, platform);
+	const lcCtypeNeedsRepair =
+		lcCtype === undefined
+			? lang === undefined || langNeedsRepair
+			: !isSupportedUtf8Locale(lcCtype, platform);
+
 	return [
-		...(nonEmpty(environment.LC_ALL) === undefined
-			? []
-			: [{ name: 'LC_ALL', value: null } as const]),
-		{ name: 'LC_CTYPE', value: fallbackLocale },
+		...(lcAll === undefined ? [] : [{ name: 'LC_ALL', value: null } as const]),
+		...(langNeedsRepair ? [{ name: 'LANG', value: resolvedLocale } as const] : []),
+		...(lcCtypeNeedsRepair ? [{ name: 'LC_CTYPE', value: resolvedLocale } as const] : []),
 	];
 }
 

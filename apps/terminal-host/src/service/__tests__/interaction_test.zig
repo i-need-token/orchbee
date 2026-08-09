@@ -379,7 +379,7 @@ test "full cancellation record remains queued until a later batch commits it" {
         geometry.cell_pixel_height,
     );
     try std.testing.expectEqual(
-        terminal_runtime.SelectionSnapshot.evicted,
+        terminal_runtime.SelectionSnapshot.active,
         std.meta.activeTag((try binding.runtime.takeSelectionEvent(attachment_id)).?),
     );
 

@@ -4,6 +4,7 @@ import {
 	AttachmentIdSchema,
 	CanonicalUint64TextSchema,
 	CreationIdSchema,
+	CURRENT_PROTOCOL_VERSION,
 	encodeSelectionExportChunk,
 	HostEpochSchema,
 	MessageKind,
@@ -35,7 +36,7 @@ function eventEnvelope(
 		optionalMessage: false,
 		payload,
 		payloadEncoding,
-		protocol: { major: 0, minor: 0, patch: 1 },
+		protocol: CURRENT_PROTOCOL_VERSION,
 		response: false,
 	};
 }
@@ -86,7 +87,7 @@ describe('ProjectedTerminalBroker', () => {
 			optionalMessage: false,
 			payload,
 			payloadEncoding: PayloadEncoding.terminalFrame,
-			protocol: { major: 0, minor: 0, patch: 1 },
+			protocol: CURRENT_PROTOCOL_VERSION,
 			response: false,
 		});
 

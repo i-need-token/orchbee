@@ -73,6 +73,7 @@ describe('composeDesktopTerminalRuntime', () => {
 			hostEpoch,
 			terminalId: TerminalIdSchema.parse('33'.repeat(16)),
 		};
+		const createRequested = createDeferred<void>();
 		const createResponse = createDeferred<TerminalIdentity>();
 		const requestControl = vi.fn<HostConnection['requestControl']>(async (kind) => {
 			if (kind === MessageKind.listTerminals) {
@@ -82,7 +83,10 @@ describe('composeDesktopTerminalRuntime', () => {
 					terminals: [],
 				} as never;
 			}
-			if (kind === MessageKind.createTerminal) return createResponse.promise as never;
+			if (kind === MessageKind.createTerminal) {
+				createRequested.resolve(undefined);
+				return createResponse.promise as never;
+			}
 			throw new Error(`Unexpected Host request ${kind}.`);
 		});
 		const host = { hostEpoch, requestControl } as unknown as HostConnection;
@@ -108,12 +112,11 @@ describe('composeDesktopTerminalRuntime', () => {
 			presentationId,
 			type: 'terminal-provision-requested',
 		});
-		await vi.waitFor(() =>
-			expect(requestControl).toHaveBeenCalledWith(
-				MessageKind.createTerminal,
-				expect.anything(),
-				expect.anything(),
-			),
+		await expect(createRequested.promise).resolves.toBeUndefined();
+		expect(requestControl).toHaveBeenCalledWith(
+			MessageKind.createTerminal,
+			expect.anything(),
+			expect.anything(),
 		);
 
 		const event: TerminalExited = {

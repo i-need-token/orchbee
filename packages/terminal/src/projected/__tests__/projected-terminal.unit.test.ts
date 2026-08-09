@@ -1,5 +1,6 @@
 import {
 	ActiveScreen,
+	CanonicalUint64TextSchema,
 	CellWidth,
 	CursorShape,
 	encodeTerminalRowWindow,
@@ -33,6 +34,7 @@ interface FakeElement {
 	readonly capturedPointers: Set<number>;
 	readonly children: FakeElement[];
 	readonly dataset: DOMStringMap;
+	readonly firstChild: Node | null;
 	readonly listeners: Map<string, Set<EventListener>>;
 	clientHeight: number;
 	clientWidth: number;
@@ -43,7 +45,10 @@ interface FakeElement {
 	value: string;
 	width: number;
 	appendChild(child: FakeElement): FakeElement;
+	closest(selector: string): FakeElement | null;
+	contains(node: unknown): boolean;
 	dispatch(type: string, event: Event): void;
+	getAttribute(name: string): string | null;
 	releasePointerCapture(pointerId: number): void;
 	remove(): void;
 	setPointerCapture(pointerId: number): void;
@@ -57,6 +62,12 @@ interface FakeBrowser {
 	dispatchWindow(type: string): void;
 	flushFrames(): void;
 	setDevicePixelRatio(value: number): void;
+	selectAccessibilityText(
+		startRow: number,
+		startOffset: number,
+		endRow: number,
+		endOffset: number,
+	): void;
 }
 
 interface FakeMediaQueryList {
@@ -314,6 +325,51 @@ function createFakeBrowser(): FakeBrowser {
 	const frames = new Map<number, FrameRequestCallback>();
 	const mediaQueries: FakeMediaQueryList[] = [];
 	const windowListeners = new Map<string, Set<EventListener>>();
+	const documentListeners = new Map<string, Set<EventListener>>();
+	interface FakeRange {
+		endContainer: Node;
+		endOffset: number;
+		setEnd(node: Node, offset: number): void;
+		setStart(node: Node, offset: number): void;
+		startContainer: Node;
+		startOffset: number;
+	}
+	let selectedRange: FakeRange | undefined;
+	const domSelection = {
+		addRange: (range: Range) => {
+			selectedRange = range as unknown as FakeRange;
+		},
+		get anchorNode() {
+			return selectedRange?.startContainer ?? null;
+		},
+		get anchorOffset() {
+			return selectedRange?.startOffset ?? 0;
+		},
+		get focusNode() {
+			return selectedRange?.endContainer ?? null;
+		},
+		get focusOffset() {
+			return selectedRange?.endOffset ?? 0;
+		},
+		get isCollapsed() {
+			return (
+				selectedRange === undefined ||
+				(selectedRange.startContainer === selectedRange.endContainer &&
+					selectedRange.startOffset === selectedRange.endOffset)
+			);
+		},
+		get rangeCount() {
+			return selectedRange === undefined ? 0 : 1;
+		},
+		getRangeAt: () => {
+			if (selectedRange === undefined) throw new Error('selection range is unavailable');
+			return selectedRange as unknown as Range;
+		},
+		removeAllRanges: () => {
+			selectedRange = undefined;
+		},
+	} as unknown as Selection;
+	let selection: Selection | null = domSelection;
 	const context = createContext();
 	const createElement = (tagName: string): FakeElement => {
 		const listeners = new Map<string, Set<EventListener>>();
@@ -323,6 +379,11 @@ function createFakeBrowser(): FakeBrowser {
 			children: [],
 			clientHeight: 360,
 			clientWidth: 720,
+			get firstChild() {
+				return element.textContent === null
+					? null
+					: ({ nodeType: 3, parentElement: element } as unknown as Node);
+			},
 			height: 0,
 			dataset: {},
 			listeners,
@@ -342,10 +403,32 @@ function createFakeBrowser(): FakeBrowser {
 				element.children.push(child);
 				return child;
 			},
+			closest: (selector: string) => {
+				if (
+					selector === '[data-terminal-absolute-row]' &&
+					element.attributes.has('data-terminal-absolute-row')
+				) {
+					return element;
+				}
+				return element.parentElement?.closest(selector) ?? null;
+			},
+			contains: (node: unknown) => {
+				if (node === element) return true;
+				if (
+					typeof node === 'object' &&
+					node !== null &&
+					'parentElement' in node &&
+					(node as { readonly parentElement?: unknown }).parentElement === element
+				) {
+					return true;
+				}
+				return element.children.some((child) => child.contains(node));
+			},
 			dispatch: (type: string, event: Event) => {
 				for (const listener of listeners.get(type) ?? []) listener(event);
 			},
 			focus: () => element.dispatch('focus', { type: 'focus' } as Event),
+			getAttribute: (name: string) => element.attributes.get(name) ?? null,
 			getBoundingClientRect: () => ({
 				bottom: 360,
 				height: 360,
@@ -414,11 +497,34 @@ function createFakeBrowser(): FakeBrowser {
 		},
 	};
 	const document = {
-		addEventListener: () => undefined,
+		addEventListener: (type: string, listener: EventListener) => {
+			const entries = documentListeners.get(type) ?? new Set<EventListener>();
+			entries.add(listener);
+			documentListeners.set(type, entries);
+		},
 		createElement,
+		createRange: () => {
+			const range: FakeRange = {
+				endContainer: root as unknown as Node,
+				endOffset: 0,
+				setEnd: (node, offset) => {
+					range.endContainer = node;
+					range.endOffset = offset;
+				},
+				setStart: (node, offset) => {
+					range.startContainer = node;
+					range.startOffset = offset;
+				},
+				startContainer: root as unknown as Node,
+				startOffset: 0,
+			};
+			return range as unknown as Range;
+		},
 		defaultView,
-		getSelection: () => null,
-		removeEventListener: () => undefined,
+		getSelection: () => selection,
+		removeEventListener: (type: string, listener: EventListener) => {
+			documentListeners.get(type)?.delete(listener);
+		},
 	} as unknown as Document;
 	const root = createElement('div') as unknown as HTMLElement;
 	return {
@@ -437,6 +543,22 @@ function createFakeBrowser(): FakeBrowser {
 		setDevicePixelRatio: (value) => {
 			defaultView.devicePixelRatio = value;
 		},
+		selectAccessibilityText: (startRow, startOffset, endRow, endOffset) => {
+			const accessibilityRoot = (root as unknown as FakeElement).children[2];
+			const startElement = accessibilityRoot?.children[startRow];
+			const endElement = accessibilityRoot?.children[endRow];
+			if (!startElement || !endElement) throw new Error('accessibility row is unavailable');
+			const startContainer = { nodeType: 3, parentElement: startElement } as unknown as Node;
+			const endContainer = { nodeType: 3, parentElement: endElement } as unknown as Node;
+			selection = {
+				getRangeAt: () => ({ endContainer, endOffset, startContainer, startOffset }),
+				isCollapsed: false,
+				rangeCount: 1,
+			} as unknown as Selection;
+			for (const listener of documentListeners.get('selectionchange') ?? []) {
+				listener({ type: 'selectionchange' } as Event);
+			}
+		},
 	};
 }
 
@@ -452,7 +574,7 @@ describe('ProjectedTerminal', () => {
 	it('waits for the configured font and keeps the IME textarea font in sync', async () => {
 		const browser = createFakeBrowser();
 		let finishFontLoad: (() => void) | undefined;
-		const fontLoad = vi.fn(
+		const fontLoad = vi.fn<() => Promise<FontFace[]>>(
 			() =>
 				new Promise<FontFace[]>((resolve) => {
 					finishFontLoad = () => resolve([]);
@@ -490,6 +612,7 @@ describe('ProjectedTerminal', () => {
 		expect(terminal.textarea?.style.fontFamily).toBe('"Menlo", monospace');
 		expect(terminal.textarea?.style.fontSize).toBe('17px');
 		expect(terminal.textarea?.style.fontWeight).toBe('500');
+		expect((browser.root as unknown as FakeElement).children[2]?.style['userSelect']).toBe('text');
 		terminal.dispose();
 	});
 
@@ -508,17 +631,10 @@ describe('ProjectedTerminal', () => {
 		});
 		await terminal.open(browser.root);
 		terminal.applyFrame(
-			terminalFrame(
-				'snapshot',
-				1n,
-				1n,
-				['a', 'b'],
-				null,
-				[0, 1],
-				0n,
-				interaction,
-				{ column: 1, row: 1 },
-			),
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, interaction, {
+				column: 1,
+				row: 1,
+			}),
 		);
 		const input = terminal.textarea as unknown as FakeElement & {
 			selectionEnd: number;
@@ -532,11 +648,11 @@ describe('ProjectedTerminal', () => {
 			type: 'compositionstart',
 		} as unknown as CompositionEvent);
 
-		expect(input.style.left).toBe('4px');
-		expect(input.style.top).toBe('16px');
-		expect(input.style.width).toBe('16px');
-		expect(input.style.height).toBe('16px');
-		expect(input.style.lineHeight).toBe('16px');
+		expect(input.style['left']).toBe('4px');
+		expect(input.style['top']).toBe('16px');
+		expect(input.style['width']).toBe('16px');
+		expect(input.style['height']).toBe('16px');
+		expect(input.style['lineHeight']).toBe('16px');
 		terminal.dispose();
 	});
 
@@ -746,6 +862,46 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('mirrors a Host selection into the accessible DOM at absolute scrollback rows', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => {} },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
+
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 0, row: CanonicalUint64TextSchema.parse('11') },
+			preview: null,
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('10') },
+			state: 'active',
+		});
+
+		const selection = browser.document.getSelection();
+		expect(selection?.rangeCount).toBe(1);
+		const range = selection?.getRangeAt(0);
+		const accessibilityRoot = (browser.root as unknown as FakeElement).children[2];
+		expect(
+			(range?.startContainer as unknown as { readonly parentElement?: FakeElement })?.parentElement,
+		).toBe(accessibilityRoot?.children[0]);
+		expect(range?.startOffset).toBe(0);
+		expect(
+			(range?.endContainer as unknown as { readonly parentElement?: FakeElement })?.parentElement,
+		).toBe(accessibilityRoot?.children[1]);
+		expect(range?.endOffset).toBe(1);
+		terminal.dispose();
+	});
+
 	it('retries an oversized history overscan with the exact visible viewport', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -837,7 +993,7 @@ describe('ProjectedTerminal', () => {
 		vi.stubGlobal('window', browser.document.defaultView);
 		vi.stubGlobal('navigator', {});
 		let finishReview: ((approved: boolean) => void) | undefined;
-		const reviewPaste = vi.fn(
+		const reviewPaste = vi.fn<() => Promise<boolean>>(
 			() =>
 				new Promise<boolean>((resolve) => {
 					finishReview = resolve;
@@ -885,9 +1041,7 @@ describe('ProjectedTerminal', () => {
 		await vi.waitFor(() =>
 			expect(
 				commands
-					.filter(
-						(command) => command.kind === 'key-input' || command.kind === 'paste-input',
-					)
+					.filter((command) => command.kind === 'key-input' || command.kind === 'paste-input')
 					.map((command) => command.kind),
 			).toEqual(['paste-input', 'key-input']),
 		);
@@ -900,7 +1054,7 @@ describe('ProjectedTerminal', () => {
 		vi.stubGlobal('window', browser.document.defaultView);
 		vi.stubGlobal('navigator', {});
 		let finishReview: ((approved: boolean) => void) | undefined;
-		const reviewPaste = vi.fn(
+		const reviewPaste = vi.fn<() => Promise<boolean>>(
 			() =>
 				new Promise<boolean>((resolve) => {
 					finishReview = resolve;
@@ -951,6 +1105,7 @@ describe('ProjectedTerminal', () => {
 		});
 		await terminal.open(browser.root);
 		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
 
 		input.dispatch('keydown', {
 			altKey: false,
@@ -973,9 +1128,62 @@ describe('ProjectedTerminal', () => {
 			commands
 				.filter((command) => command.kind === 'key-input' || command.kind === 'focus-input')
 				.map((command) =>
-					command.kind === 'key-input' ? `${command.kind}:${command.payload.action}` : command.kind,
+					command.kind === 'key-input'
+						? `${command.kind}:${command.payload.action}`
+						: `${command.kind}:${command.payload.focused}`,
 				),
-		).toEqual(['key-input:press', 'key-input:release', 'focus-input']);
+		).toEqual(['focus-input:true', 'key-input:press', 'key-input:release', 'focus-input:false']);
+		terminal.dispose();
+	});
+
+	it('repairs pressed input when the window loses focus without a textarea blur', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('keydown', {
+			altKey: false,
+			code: 'KeyA',
+			ctrlKey: false,
+			getModifierState: () => false,
+			isComposing: false,
+			key: 'a',
+			keyCode: 65,
+			metaKey: false,
+			preventDefault: () => {},
+			repeat: false,
+			shiftKey: false,
+			stopPropagation: () => {},
+			type: 'keydown',
+		} as unknown as KeyboardEvent);
+
+		browser.dispatchWindow('blur');
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'key-input' || command.kind === 'focus-input')
+				.map((command) =>
+					command.kind === 'key-input'
+						? `${command.kind}:${command.payload.action}`
+						: `${command.kind}:${command.payload.focused}`,
+				),
+		).toEqual(['focus-input:true', 'key-input:press', 'key-input:release', 'focus-input:false']);
 		terminal.dispose();
 	});
 
@@ -1028,6 +1236,44 @@ describe('ProjectedTerminal', () => {
 		expect(mouse.at(-1)?.payload).toMatchObject({
 			button: MouseButton.left,
 			pressedButtons: 0,
+		});
+		terminal.dispose();
+	});
+
+	it('sends an accessibility DOM range as one explicit cell-range command', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+
+		browser.selectAccessibilityText(0, 0, 0, 1);
+
+		expect(commands.at(-1)).toEqual({
+			kind: 'selection-command',
+			payload: {
+				attachmentId,
+				command: 'set-range',
+				end: { column: 0, row: '0' },
+				generation: '1',
+				rectangle: false,
+				revision: '1',
+				start: { column: 0, row: '0' },
+			},
 		});
 		terminal.dispose();
 	});
@@ -1346,7 +1592,10 @@ describe('ProjectedTerminal', () => {
 		});
 
 		await terminal.open(browser.root);
-		const initialResize = commands.findLast((command) => command.kind === 'resize-terminal');
+		const initialResize = commands
+			.slice()
+			.reverse()
+			.find((command) => command.kind === 'resize-terminal');
 		if (initialResize?.kind !== 'resize-terminal') throw new Error('initial resize is missing');
 		expect(browser.mediaQueries.at(-1)?.media).toBe('(resolution: 1dppx)');
 

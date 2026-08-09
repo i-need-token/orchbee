@@ -386,6 +386,13 @@ export const SelectionCommandSchema = z.discriminatedUnion('command', [
 	z.strictObject({ ...selectionCommandShape, command: z.literal('select-all') }),
 	z.strictObject({
 		...selectionCommandShape,
+		command: z.literal('set-range'),
+		end: SelectionPointSchema,
+		rectangle: z.boolean(),
+		start: SelectionPointSchema,
+	}),
+	z.strictObject({
+		...selectionCommandShape,
 		command: z.literal('select-output'),
 		point: SelectionPointSchema,
 	}),

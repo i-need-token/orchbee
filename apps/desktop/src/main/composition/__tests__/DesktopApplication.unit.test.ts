@@ -6,6 +6,7 @@ import path from 'node:path';
 import {
 	CanonicalUint64TextSchema,
 	CreationIdSchema,
+	CURRENT_PROTOCOL_VERSION,
 	HostEpochSchema,
 	MessageKind,
 	PayloadEncoding,
@@ -1278,7 +1279,7 @@ function createHarness(
 			hostEpoch: identity.hostEpoch,
 			hostVersion: '0.1.0',
 			inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-			protocol: { major: 0, minor: 0, patch: 1 },
+			protocol: CURRENT_PROTOCOL_VERSION,
 			rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 			supportedOptionalFeatures: [],
 		}),
@@ -1743,7 +1744,7 @@ function terminalExitedEnvelope(event: TerminalExited): DecodedProtocolEnvelope 
 		optionalMessage: false,
 		payload: new TextEncoder().encode(JSON.stringify(event)),
 		payloadEncoding: PayloadEncoding.controlJson,
-		protocol: { major: 0, minor: 0, patch: 1 },
+		protocol: CURRENT_PROTOCOL_VERSION,
 		response: false,
 	};
 }
@@ -1759,7 +1760,7 @@ function terminalFailedEnvelope(event: TerminalFailed): DecodedProtocolEnvelope 
 		optionalMessage: false,
 		payload: new TextEncoder().encode(JSON.stringify(event)),
 		payloadEncoding: PayloadEncoding.controlJson,
-		protocol: { major: 0, minor: 0, patch: 1 },
+		protocol: CURRENT_PROTOCOL_VERSION,
 		response: false,
 	};
 }

@@ -818,15 +818,36 @@ fn parseSelectionPoint(
 fn parseSelectionCommand(
     value: control_wire.SelectionCommand,
 ) error{InvalidField}!terminal_history.SelectionCommand {
-    if (std.mem.eql(u8, value.command, "clear") and value.point == .missing) return .clear;
-    if (std.mem.eql(u8, value.command, "select-all") and value.point == .missing) {
+    const range_fields_missing = value.start == .missing and value.end == .missing and
+        value.rectangle == .missing;
+    if (std.mem.eql(u8, value.command, "clear") and value.point == .missing and
+        range_fields_missing) return .clear;
+    if (std.mem.eql(u8, value.command, "select-all") and value.point == .missing and
+        range_fields_missing)
+    {
         return .select_all;
     }
-    if (std.mem.eql(u8, value.command, "select-output")) {
+    if (std.mem.eql(u8, value.command, "select-output") and range_fields_missing) {
         return .{ .select_output = try parseSelectionPoint(switch (value.point) {
             .value => |point| point,
             .missing, .null_value => return error.InvalidField,
         }) };
+    }
+    if (std.mem.eql(u8, value.command, "set-range") and value.point == .missing) {
+        return .{ .set_range = .{
+            .end = try parseSelectionPoint(switch (value.end) {
+                .value => |point| point,
+                .missing, .null_value => return error.InvalidField,
+            }),
+            .rectangle = switch (value.rectangle) {
+                .value => |rectangle| rectangle,
+                .missing, .null_value => return error.InvalidField,
+            },
+            .start = try parseSelectionPoint(switch (value.start) {
+                .value => |point| point,
+                .missing, .null_value => return error.InvalidField,
+            }),
+        } };
     }
     return error.InvalidField;
 }

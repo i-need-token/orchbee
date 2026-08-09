@@ -130,6 +130,23 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		]);
 	});
 
+	it('repairs a Darwin C.UTF-8 LANG even when LC_ALL is absent', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			environment: { LANG: 'C.UTF-8' },
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin',
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(configuration.terminalLaunch.environment).toEqual([
+			{ name: 'COLORTERM', value: 'truecolor' },
+			{ name: 'TERM', value: 'xterm-256color' },
+			{ name: 'LANG', value: 'en_US.UTF-8' },
+			{ name: 'LC_CTYPE', value: 'en_US.UTF-8' },
+		]);
+	});
+
 	it('preserves an explicit Darwin UTF-8 locale', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
 			applicationPath: path.resolve('/repo/apps/desktop'),

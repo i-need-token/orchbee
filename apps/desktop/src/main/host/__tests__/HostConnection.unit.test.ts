@@ -134,7 +134,10 @@ describe('HostConnection', () => {
 
 	it('rejects a different Host protocol instead of entering a compatibility mode', async () => {
 		const hostEpoch = HostEpochSchema.parse('12'.repeat(16));
-		const differentProtocol = { major: 0, minor: 0, patch: 2 } as const;
+		const differentProtocol = {
+			...CURRENT_PROTOCOL_VERSION,
+			patch: CURRENT_PROTOCOL_VERSION.patch + 1,
+		};
 		let stream: Duplex;
 		stream = new Duplex({
 			read() {},

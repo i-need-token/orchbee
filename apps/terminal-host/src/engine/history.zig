@@ -108,6 +108,11 @@ pub const SelectionGesture = struct {
 pub const SelectionCommand = union(enum) {
     clear,
     select_all,
+    set_range: struct {
+        end: SelectionPoint,
+        rectangle: bool,
+        start: SelectionPoint,
+    },
     select_output: SelectionPoint,
 };
 
@@ -504,9 +509,35 @@ pub const Manager = struct {
         revision: u64,
         generation: u64,
     ) void {
-        _ = revision;
-        _ = generation;
-        self.screenChanged(terminal);
+        for (self.states.items) |*state| {
+            self.releaseAnchor(terminal, &state.pending);
+            self.releaseGesture(terminal, state);
+            state.history_in_flight = null;
+
+            if (state.committed) |*anchor| {
+                if (anchorValid(terminal, anchor.*)) {
+                    anchor.revision = revision;
+                    anchor.generation = generation;
+                } else {
+                    self.releaseAnchor(terminal, &state.committed);
+                }
+            }
+
+            if (state.selection != null) {
+                const snapshot = self.selectionSnapshot(terminal, state) catch .evicted;
+                switch (snapshot) {
+                    .active => state.selection_event = snapshot,
+                    .evicted, .none => {
+                        self.releaseSelection(terminal, state);
+                        state.selection_event = .evicted;
+                        self.invalidateExport(state);
+                    },
+                }
+            }
+            self.invalidateExport(state);
+
+            if (state.demand == .viewing_history) state.history_dirty = true;
+        }
     }
 
     pub fn screenChanged(
@@ -830,6 +861,11 @@ pub const Manager = struct {
                 .init(screen.pages.getTopLeft(.screen), end, false)
             else
                 null,
+            .set_range => |range| .init(
+                try pointPin(screen, range.start),
+                try pointPin(screen, range.end),
+                range.rectangle,
+            ),
             .select_output => |point| screen.selectOutput(try pointPin(screen, point)),
         };
         try self.replaceSelection(terminal, state, selection);

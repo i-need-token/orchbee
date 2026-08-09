@@ -55,7 +55,7 @@ hostConnection.onRows((rowBuffer) => terminal.applyRows(rowBuffer));
 hostConnection.onTerminalExited((event) => terminal.notifyExited(event));
 ```
 
-Opening installs frame, renderer, input, resize, and accessibility handling before activating projection demand. A frame commits into a bounded row-partitioned structure-of-arrays store and is acknowledged only after draw scheduling. Exact duplicates are re-acknowledged; invalid identity, sequence, generation, dimension, or delta-base input requests a complete snapshot without mutating the committed grid.
+Opening waits for the configured face (including representative Latin, CJK, and emoji glyphs), then installs frame, renderer, input, resize, and accessibility handling before activating projection demand. The hidden IME control uses the same font and follows the projected cursor so the native candidate window stays aligned. Device-pixel-ratio changes rebuild renderer geometry and terminal pixel dimensions instead of leaving a stale atlas. A frame commits into a bounded row-partitioned structure-of-arrays store and is acknowledged only after draw scheduling. Exact duplicates are re-acknowledged; invalid identity, sequence, generation, dimension, or delta-base input requests a complete snapshot without mutating the committed grid.
 
 The renderer consumes packed rows directly. It never reconstructs a local VT state or a per-cell object graph. Frame telemetry records the exact committed Host revision drawn by the renderer.
 
@@ -73,7 +73,7 @@ terminal.updateSearch('failed', { caseSensitive: false, wholeWord: true });
 terminal.findNext();
 ```
 
-Selection endpoints and exported content remain authoritative in Terminal Host. The client sends gestures and commands, while the application performs the clipboard side effect and reports only its outcome.
+Selection endpoints and exported content remain authoritative in Terminal Host. Pointer drags use gesture messages; a plain click does not synthesize a one-cell selection. Assistive-technology DOM ranges use one explicit cell-range command, with UTF-16 offsets mapped across combining, wide, and surrogate-pair graphemes. Host selection is mirrored back into the visible-viewport accessibility tree when both endpoints are visible. Read-only attachments retain local focus, scrolling, and selection behavior without emitting PTY input. The application performs the clipboard side effect and reports only its outcome.
 
 ```ts
 terminal.selectAll();
@@ -104,7 +104,7 @@ const rows = await terminal.readBufferRows(
 
 ## Renderer behavior
 
-WebGPU is preferred when available; Canvas 2D is the observable fallback. Both paths consume the same packed projection, theme, font configuration, selection/search overlays, preedit state, and cursor metadata. Renderer health reports initialization, fallback, device loss, recovery, and recovery failure.
+WebGPU is preferred when available; Canvas 2D is the observable fallback. Both paths consume the same packed projection, theme, font configuration, selection/search overlays, preedit state, and cursor metadata. Packed graphemes preserve CJK, combining, and emoji cell widths; bold, faint, italic, underline variants, strikethrough, and overline use the projected Ghostty style flags. Renderer health reports initialization, fallback, device loss, recovery, and recovery failure.
 
 Ghostty remains the reference for selected font metrics, shaping boundaries, procedural sprites, cursor geometry, and terminal-panel rendering behavior. That reference does not make this package a Ghostty VT owner. Maintenance provenance is recorded in [`docs/ghostty-surface-test-provenance.md`](docs/ghostty-surface-test-provenance.md).
 

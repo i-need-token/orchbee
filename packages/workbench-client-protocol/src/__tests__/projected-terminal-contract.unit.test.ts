@@ -111,6 +111,23 @@ describe('projected terminal contract', () => {
 		).toBe(false);
 	});
 
+	it('carries explicit accessible selection ranges without reconstructing a pointer gesture', () => {
+		expect(
+			ProjectedTerminalCommandSchema.safeParse({
+				kind: 'selection-command',
+				payload: {
+					attachmentId,
+					command: 'set-range',
+					end: { column: 5, row: '8' },
+					generation: '2',
+					rectangle: false,
+					revision: '3',
+					start: { column: 1, row: '7' },
+				},
+			}).success,
+		).toBe(true);
+	});
+
 	it('bounds link targets by their UTF-8 representation', () => {
 		const prefix = 'https://example.com/';
 		const exactAsciiTarget = `${prefix}${'a'.repeat(

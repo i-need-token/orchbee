@@ -12,7 +12,7 @@ test "Hello optional feature names use a bounded UTF-8 byte length" {
         .clientId = "11111111111111111111111111111111",
         .frameBytes = 1024,
         .inputBytes = 1024,
-        .protocol = .{ .major = 0, .minor = 0, .patch = 1 },
+        .protocol = .{ .major = 0, .minor = 0, .patch = 2 },
         .rowWindowBytes = 1024,
         .supportedOptionalFeatures = &ascii,
     };
@@ -186,4 +186,36 @@ test "selection command decoder rejects illegal union combinations" {
         error.InvalidField,
         subject.decodeSelectionCommand(std.testing.allocator, missing_select_output),
     );
+
+    const missing_range_end = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"command\":\"set-range\",\"generation\":\"1\",\"rectangle\":false,\"revision\":\"1\",\"start\":{{\"column\":0,\"row\":\"0\"}}}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeSelectionCommand(std.testing.allocator, missing_range_end),
+    );
+
+    const range_with_point = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"command\":\"set-range\",\"end\":{{\"column\":2,\"row\":\"0\"}},\"generation\":\"1\",\"point\":{{\"column\":1,\"row\":\"0\"}},\"rectangle\":false,\"revision\":\"1\",\"start\":{{\"column\":0,\"row\":\"0\"}}}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeSelectionCommand(std.testing.allocator, range_with_point),
+    );
+}
+
+test "selection command decoder accepts one explicit range shape" {
+    const range = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"command\":\"set-range\",\"end\":{{\"column\":4,\"row\":\"12\"}},\"generation\":\"3\",\"rectangle\":true,\"revision\":\"9\",\"start\":{{\"column\":2,\"row\":\"10\"}}}}",
+        .{attachment_id},
+    );
+    var decoded = try subject.decodeSelectionCommand(std.testing.allocator, range);
+    defer decoded.deinit();
+    try std.testing.expectEqual(@as(u16, 2), decoded.value.command.set_range.start.column);
+    try std.testing.expectEqual(@as(u64, 10), decoded.value.command.set_range.start.row);
+    try std.testing.expectEqual(@as(u16, 4), decoded.value.command.set_range.end.column);
+    try std.testing.expectEqual(@as(u64, 12), decoded.value.command.set_range.end.row);
+    try std.testing.expect(decoded.value.command.set_range.rectangle);
 }

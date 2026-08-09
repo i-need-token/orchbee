@@ -220,9 +220,12 @@ pub const SelectionGesture = struct {
 pub const SelectionCommand = struct {
     attachmentId: []const u8,
     command: []const u8,
+    end: Present(SelectionPoint) = .missing,
     generation: []const u8,
     point: Present(SelectionPoint) = .missing,
+    rectangle: Present(bool) = .missing,
     revision: []const u8,
+    start: Present(SelectionPoint) = .missing,
 };
 
 pub const SelectionExport = struct {

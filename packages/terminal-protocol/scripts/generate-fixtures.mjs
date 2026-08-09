@@ -359,6 +359,13 @@ function createControlConformanceFixture() {
 			[
 				{ ...attachment, command: 'clear' },
 				{ ...attachment, command: 'select-all' },
+				{
+					...attachment,
+					command: 'set-range',
+					end: { column: 9, row: '43' },
+					rectangle: true,
+					start: point,
+				},
 				{ ...attachment, command: 'select-output', point },
 			],
 			'SelectionCommand',

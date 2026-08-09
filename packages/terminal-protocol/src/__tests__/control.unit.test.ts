@@ -22,6 +22,7 @@ import {
 	RuntimeCleanupFailureSchema,
 	RuntimeFailureSchema,
 	SelectionChangedSchema,
+	SelectionCommandSchema,
 	SelectionExportSchema,
 	SetTerminalDefaultsSchema,
 	SetProjectionDemandSchema,
@@ -73,9 +74,26 @@ const nestedObjectSchema = z.object({
 	a: z.object({ x: z.number() }),
 	b: z.object({ x: z.number() }),
 });
-const currentProtocolVersion = { major: 0, minor: 0, patch: 1 } as const;
+const currentProtocolVersion = { major: 0, minor: 0, patch: 2 } as const;
 
 describe('control schemas', () => {
+	it('represents an explicit terminal-cell selection range without pointer gesture semantics', () => {
+		const command = {
+			attachmentId: '11'.repeat(16),
+			command: 'set-range',
+			end: { column: 7, row: '12' },
+			generation: '3',
+			rectangle: true,
+			revision: '9',
+			start: { column: 2, row: '10' },
+		};
+
+		expect(SelectionCommandSchema.safeParse(command).success).toBe(true);
+		expect(SelectionCommandSchema.safeParse({ ...command, point: command.start }).success).toBe(
+			false,
+		);
+	});
+
 	it('requires every attachment to carry meaningful authority', () => {
 		const attachment = {
 			attachmentId: '11'.repeat(16),
@@ -398,8 +416,8 @@ describe('control schemas', () => {
 			'"frameBytes":1024,"frameBytes":1024',
 		);
 		const duplicateNested = validHello.replace(
-			'"major":0,"minor":0,"patch":1',
-			'"major":0,"minor":0,"minor":0,"patch":1',
+			'"major":0,"minor":0,"patch":2',
+			'"major":0,"minor":0,"minor":0,"patch":2',
 		);
 		expect(decodeControlJson(new TextEncoder().encode(duplicateRoot), HelloSchema)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidJson, ok: false }),

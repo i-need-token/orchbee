@@ -1,6 +1,7 @@
 import {
 	CanonicalUint64TextSchema,
 	CreationIdSchema,
+	CURRENT_PROTOCOL_VERSION,
 	HostEpochSchema,
 	MessageKind,
 	PayloadEncoding,
@@ -344,7 +345,7 @@ class HostHarness {
 			optionalMessage: false,
 			payload: new TextEncoder().encode(JSON.stringify(event)),
 			payloadEncoding: PayloadEncoding.controlJson,
-			protocol: { major: 0, minor: 0, patch: 1 },
+			protocol: CURRENT_PROTOCOL_VERSION,
 			response: false,
 		};
 		for (const listener of this.#envelopeListeners) listener(envelope);

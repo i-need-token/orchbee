@@ -37,6 +37,7 @@ import {
 } from '@orchbee/terminal-protocol';
 
 import { EventEmitter, type IEvent } from '../EventEmitter';
+import { AccessibleTextModel, buildAccessibleRow, type AccessibleRow } from '../accessibility';
 import {
 	bufferRowsFromDecodedWindow,
 	validateBufferRowsRequest,
@@ -306,7 +307,8 @@ type ScheduledFrame =
 	| { readonly kind: 'timeout'; readonly value: ReturnType<typeof setTimeout> };
 
 export class ProjectedTerminal {
-	readonly #accessibilityColumnMappings: number[][] = [];
+	readonly #accessibilityModel = new AccessibleTextModel();
+	readonly #accessibilityModelRows: AccessibleRow[] = [];
 	readonly #accessibilityRows: Element[] = [];
 	readonly #attachmentId: AttachmentId;
 	readonly #creationId: CreationId;
@@ -341,7 +343,10 @@ export class ProjectedTerminal {
 	}>();
 	readonly #searchEmitter = new EventEmitter<ProjectedTerminalSearchEvent>();
 	readonly #terminalId: TerminalId;
+	#accessibilityAppliedOffsets: { readonly end: number; readonly start: number } | undefined;
+	#accessibilityOwnsDomSelection = false;
 	#accessibilityRoot: HTMLDivElement | undefined;
+	#accessibilityVisibleStart = 0n;
 	#canvas: HTMLCanvasElement | undefined;
 	#composing = false;
 	#demand: ProjectionDemand = 'active';
@@ -357,6 +362,7 @@ export class ProjectedTerminal {
 	#historyTotalRows = 0n;
 	#historyRowsBefore = 0;
 	#input: HTMLTextAreaElement | undefined;
+	#inputFocused = false;
 	#lastBeforeInput: SentInput | undefined;
 	#lastComposition: SentInput | undefined;
 	#lastGeometry: ResizeGeometry | undefined;
@@ -391,6 +397,7 @@ export class ProjectedTerminal {
 	#selectionGesturePointerId: number | undefined;
 	#searchController: ProjectedSearchController | undefined;
 	#sideEffectSequence = 1n;
+	#synchronizingAccessibilitySelection = false;
 
 	constructor(options: ProjectedTerminalOptions) {
 		this.#options = options;
@@ -506,6 +513,7 @@ export class ProjectedTerminal {
 			accessibilityRoot.style.overflow = 'hidden';
 			accessibilityRoot.style.clipPath = 'inset(50%)';
 			accessibilityRoot.style.whiteSpace = 'pre';
+			accessibilityRoot.style.userSelect = 'text';
 			root.appendChild(accessibilityRoot);
 			this.#accessibilityRoot = accessibilityRoot;
 			document.addEventListener('selectionchange', this.#handleAccessibilitySelectionChange);
@@ -875,6 +883,7 @@ export class ProjectedTerminal {
 		this.#selection = selection;
 		this.#selectionGestureInFlight = false;
 		this.#selectionEmitter.fire(selection);
+		this.#syncAccessibilitySelection();
 		this.#scheduleSelectionGesture();
 		this.#scheduleRender();
 	}
@@ -1026,10 +1035,7 @@ export class ProjectedTerminal {
 		return await this.#inputDispatcher.dispatch(() => this.#performPaste(text, source));
 	}
 
-	async #performPaste(
-		text: string,
-		source: ProjectedPasteSource,
-	): Promise<ProjectedPasteResult> {
+	async #performPaste(text: string, source: ProjectedPasteSource): Promise<ProjectedPasteResult> {
 		if (!text) return { kind: 'empty' };
 		const { sanitized, replaced } = sanitizePaste(text);
 		if (!sanitized || textEncoder.encode(sanitized).byteLength > PROTOCOL_LIMITS.maxInputBytes) {
@@ -1056,7 +1062,7 @@ export class ProjectedTerminal {
 			const approved = await this.#options.reviewPaste?.(review);
 			if (approved !== true) return { kind: 'blocked', review };
 		}
-		if (this.#isDisposed() || this.#options.inputEnabled === false) {
+		if (this.#isDisposed()) {
 			return { kind: 'blocked', review };
 		}
 		this.#send({
@@ -1102,6 +1108,7 @@ export class ProjectedTerminal {
 			this.#demand = 'paused';
 			this.#sendDemandIfNeeded();
 		}
+		this.#repairInputState(true);
 		this.#phase = ProjectedTerminalPhase.disposed;
 		this.#historyPhase = ProjectedHistoryPhase.disposed;
 		const rowFlight = this.#rowFlight;
@@ -1137,10 +1144,7 @@ export class ProjectedTerminal {
 		this.#linkCompletions.clear();
 		this.#resizeObserver?.disconnect();
 		this.#resizeObserver = undefined;
-		this.#devicePixelRatioQuery?.removeEventListener(
-			'change',
-			this.#handleDevicePixelRatioChange,
-		);
+		this.#devicePixelRatioQuery?.removeEventListener('change', this.#handleDevicePixelRatioChange);
 		this.#devicePixelRatioQuery = undefined;
 		for (const dispose of this.#listenerDisposers.splice(0)) dispose();
 		this.#renderer?.dispose();
@@ -1151,7 +1155,11 @@ export class ProjectedTerminal {
 		this.#canvas?.remove();
 		this.#input?.remove();
 		this.#accessibilityRoot?.remove();
+		this.#accessibilityModel.update([]);
+		this.#accessibilityModelRows.length = 0;
 		this.#accessibilityRows.length = 0;
+		this.#accessibilityAppliedOffsets = undefined;
+		this.#accessibilityOwnsDomSelection = false;
 		this.#canvas = undefined;
 		this.#input = undefined;
 		this.#accessibilityRoot = undefined;
@@ -1400,6 +1408,7 @@ export class ProjectedTerminal {
 			this.#historyPhase === ProjectedHistoryPhase.followingBottom
 				? this.#historyTotalRows - visibleRows
 				: this.#historyStartRow;
+		this.#accessibilityVisibleStart = visibleStart;
 		if (row >= visibleStart && row < visibleStart + visibleRows) {
 			this.#scheduleRender();
 			return;
@@ -1572,6 +1581,21 @@ export class ProjectedTerminal {
 		});
 	}
 
+	#sendSelectionRange(start: SelectionGesture['point'], end: SelectionGesture['point']): void {
+		this.#send({
+			kind: 'selection-command',
+			payload: {
+				attachmentId: this.#attachmentId,
+				command: 'set-range',
+				end,
+				generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
+				rectangle: false,
+				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
+				start,
+			},
+		});
+	}
+
 	#queueSelectionGesture(gesture: PendingSelectionGesture): void {
 		this.#pendingSelectionGesture = gesture;
 		this.#scheduleSelectionGesture();
@@ -1672,9 +1696,11 @@ export class ProjectedTerminal {
 		}
 	}
 
-	#sendInput(command: ProjectedTerminalCommand): void {
+	#sendInput(command: ProjectedTerminalCommand, allowAfterDispose = false): void {
 		this.#inputDispatcher.dispatchSync(() => {
-			if (this.#isDisposed() || this.#options.inputEnabled === false) return;
+			if ((!allowAfterDispose && this.#isDisposed()) || this.#options.inputEnabled === false) {
+				return;
+			}
 			this.#send(command);
 		});
 	}
@@ -1708,6 +1734,14 @@ export class ProjectedTerminal {
 		this.#listen(canvas, 'pointerleave', this.#handlePointerLeave);
 		this.#listen(canvas, 'click', this.#handleClick);
 		this.#listen(canvas, 'wheel', this.#handleWheel, { passive: false });
+		const document = canvas.ownerDocument;
+		document.addEventListener('visibilitychange', this.#handleVisibilityChange);
+		this.#listenerDisposers.push(() =>
+			document.removeEventListener('visibilitychange', this.#handleVisibilityChange),
+		);
+		const view = document.defaultView;
+		view?.addEventListener('blur', this.#handleWindowBlur);
+		this.#listenerDisposers.push(() => view?.removeEventListener('blur', this.#handleWindowBlur));
 	}
 
 	#listen<K extends keyof HTMLElementEventMap>(
@@ -1759,11 +1793,14 @@ export class ProjectedTerminal {
 		this.#refreshHoveredLinkModifiers(event);
 	};
 
-	#sendKey(facts: KeyFacts, action: KeyInput['action']): void {
-		this.#sendInput({
-			kind: 'key-input',
-			payload: { action, attachmentId: this.#attachmentId, ...facts },
-		});
+	#sendKey(facts: KeyFacts, action: KeyInput['action'], allowAfterDispose = false): void {
+		this.#sendInput(
+			{
+				kind: 'key-input',
+				payload: { action, attachmentId: this.#attachmentId, ...facts },
+			},
+			allowAfterDispose,
+		);
 	}
 
 	#keyFacts(event: KeyboardEvent): KeyFacts | null {
@@ -1995,7 +2032,8 @@ export class ProjectedTerminal {
 	readonly #handleFocus = (): void => {
 		this.#renderer?.setFocused(true);
 		this.#updateInputPosition();
-		if (this.#options.inputEnabled === false) return;
+		if (this.#options.inputEnabled === false || this.#inputFocused) return;
+		this.#inputFocused = true;
 		this.#sendInput({
 			kind: 'focus-input',
 			payload: { attachmentId: this.#attachmentId, focused: true },
@@ -2004,22 +2042,44 @@ export class ProjectedTerminal {
 
 	readonly #handleBlur = (): void => {
 		this.#renderer?.setFocused(false);
-		if (this.#options.inputEnabled === false) return;
-		this.#releasePressedKeys();
-		this.#releasePressedMouseButtons();
-		this.#sendInput({
-			kind: 'focus-input',
-			payload: { attachmentId: this.#attachmentId, focused: false },
-		});
-		this.#pressedModifierCodes.clear();
+		this.#repairInputState();
 	};
 
-	#releasePressedKeys(): void {
-		for (const facts of this.#pressedKeys.values()) this.#sendKey(facts, KeyAction.release);
+	readonly #handleWindowBlur = (): void => {
+		this.#renderer?.setFocused(false);
+		this.#repairInputState();
+	};
+
+	readonly #handleVisibilityChange = (): void => {
+		if (this.#root?.ownerDocument.visibilityState === 'hidden') this.#handleWindowBlur();
+	};
+
+	#repairInputState(allowAfterDispose = false): void {
+		this.#finishSelectionGesture(true);
+		if (this.#options.inputEnabled === false) return;
+		this.#releasePressedKeys(allowAfterDispose);
+		this.#releasePressedMouseButtons(allowAfterDispose);
+		if (this.#inputFocused) {
+			this.#sendInput(
+				{
+					kind: 'focus-input',
+					payload: { attachmentId: this.#attachmentId, focused: false },
+				},
+				allowAfterDispose,
+			);
+		}
+		this.#inputFocused = false;
+		this.#pressedModifierCodes.clear();
+	}
+
+	#releasePressedKeys(allowAfterDispose = false): void {
+		for (const facts of this.#pressedKeys.values()) {
+			this.#sendKey(facts, KeyAction.release, allowAfterDispose);
+		}
 		this.#pressedKeys.clear();
 	}
 
-	#releasePressedMouseButtons(): void {
+	#releasePressedMouseButtons(allowAfterDispose = false): void {
 		const last = this.#lastMouseInput;
 		if (last === undefined) {
 			this.#pressedMouseButtons.clear();
@@ -2028,15 +2088,18 @@ export class ProjectedTerminal {
 		let pressedButtons = last.pressedButtons;
 		for (const button of this.#pressedMouseButtons) {
 			pressedButtons &= ~(1 << (button - 1));
-			this.#sendInput({
-				kind: 'mouse-input',
-				payload: {
-					...last,
-					action: MouseAction.release,
-					button,
-					pressedButtons,
+			this.#sendInput(
+				{
+					kind: 'mouse-input',
+					payload: {
+						...last,
+						action: MouseAction.release,
+						button,
+						pressedButtons,
+					},
 				},
-			});
+				allowAfterDispose,
+			);
 		}
 		this.#pressedMouseButtons.clear();
 		this.#lastMouseInput = { ...last, pressedButtons };
@@ -2075,7 +2138,7 @@ export class ProjectedTerminal {
 		try {
 			this.#canvas?.setPointerCapture(event.pointerId);
 		} catch {
-			// Pointer capture is best-effort; document-level cancellation still ends the gesture.
+			// Window-focus and visibility repair still ends a gesture when capture is unavailable.
 		}
 		this.#startSelectionGesture({
 			action: 'start',
@@ -2312,10 +2375,7 @@ export class ProjectedTerminal {
 	}
 
 	#watchDevicePixelRatio(view: Window): void {
-		this.#devicePixelRatioQuery?.removeEventListener(
-			'change',
-			this.#handleDevicePixelRatioChange,
-		);
+		this.#devicePixelRatioQuery?.removeEventListener('change', this.#handleDevicePixelRatioChange);
 		this.#devicePixelRatioQuery = undefined;
 		if (typeof view.matchMedia !== 'function') return;
 		const query = view.matchMedia(`(resolution: ${this.#devicePixelRatio}dppx)`);
@@ -2401,26 +2461,21 @@ export class ProjectedTerminal {
 		}
 		while (this.#accessibilityRows.length > metadata.rows) {
 			this.#accessibilityRows.pop()?.remove();
-			this.#accessibilityColumnMappings.pop();
+			this.#accessibilityModelRows.pop();
 		}
 		for (let rowIndex = 0; rowIndex < metadata.rows; rowIndex++) {
 			const row = store.rows[rowIndex];
 			const element = this.#accessibilityRows[rowIndex];
-			if (!row || !element || (!row.dirty && !store.needsFullRedraw)) continue;
-			let text = '';
-			const columnMappings: number[] = [];
-			for (let column = 0; column < metadata.columns; column++) {
-				if (projectedCellDisplayWidth(row.widths[column] ?? 0) > 0) {
-					const grapheme = row.grapheme(column) || ' ';
-					text += grapheme;
-					for (let offset = 0; offset < grapheme.length; offset++) {
-						columnMappings.push(column);
-					}
-				}
+			if (!row || !element) continue;
+			if (row.dirty || store.needsFullRedraw || !this.#accessibilityModelRows[rowIndex]) {
+				const cells = Array.from({ length: metadata.columns }, (_, column) => {
+					const width = projectedCellDisplayWidth(row.widths[column] ?? 0);
+					return { text: width > 0 ? row.grapheme(column) : '', width };
+				});
+				const accessibleRow = buildAccessibleRow(cells, metadata.columns);
+				element.textContent = accessibleRow.text;
+				this.#accessibilityModelRows[rowIndex] = accessibleRow;
 			}
-			const visibleText = text.trimEnd() || ' ';
-			element.textContent = visibleText;
-			this.#accessibilityColumnMappings[rowIndex] = columnMappings.slice(0, visibleText.length);
 			const absoluteRow =
 				this.#historyPhase === ProjectedHistoryPhase.followingBottom
 					? this.#historyTotalRows - BigInt(metadata.rows) + BigInt(rowIndex)
@@ -2429,10 +2484,12 @@ export class ProjectedTerminal {
 			element.setAttribute('aria-setsize', this.#historyTotalRows.toString());
 			element.setAttribute('data-terminal-absolute-row', absoluteRow.toString());
 		}
+		this.#accessibilityModel.update(this.#accessibilityModelRows);
 		const visibleStart =
 			this.#historyPhase === ProjectedHistoryPhase.followingBottom
 				? this.#historyTotalRows - BigInt(metadata.rows)
 				: this.#historyStartRow;
+		this.#accessibilityVisibleStart = visibleStart;
 		const visibleEnd =
 			this.#historyTotalRows === 0n
 				? 0n
@@ -2457,67 +2514,183 @@ export class ProjectedTerminal {
 			).toString(),
 		);
 		root.setAttribute('data-terminal-retained-rows', this.#historyTotalRows.toString());
+		this.#syncAccessibilitySelection();
 	}
 
 	readonly #handleAccessibilitySelectionChange = (): void => {
 		if (
 			this.#phase === ProjectedTerminalPhase.disposed ||
+			this.#synchronizingAccessibilitySelection ||
 			this.#selectionGestureInFlight ||
 			this.#selectionGestureActive
 		) {
 			return;
 		}
 		const selection = this.#root?.ownerDocument.getSelection();
-		if (
-			selection === undefined ||
-			selection === null ||
-			selection.rangeCount !== 1 ||
-			selection.isCollapsed
-		) {
+		if (selection === undefined || selection === null || selection.rangeCount !== 1) {
+			this.#clearAccessibilitySelectionFromDom();
+			return;
+		}
+		if (selection.isCollapsed) {
+			this.#clearAccessibilitySelectionFromDom();
 			return;
 		}
 		const range = selection.getRangeAt(0);
-		const start = this.#accessibilitySelectionPoint(
-			range.startContainer,
-			range.startOffset,
-			'start',
-		);
-		const end = this.#accessibilitySelectionPoint(range.endContainer, range.endOffset, 'end');
+		const startOffset = this.#accessibilitySelectionOffset(range.startContainer, range.startOffset);
+		const endOffset = this.#accessibilitySelectionOffset(range.endContainer, range.endOffset);
+		if (startOffset === null || endOffset === null || startOffset === endOffset) {
+			this.#clearAccessibilitySelectionFromDom();
+			return;
+		}
+		const normalizedOffsets = {
+			end: Math.max(startOffset, endOffset),
+			start: Math.min(startOffset, endOffset),
+		};
+		if (
+			this.#accessibilityAppliedOffsets?.start === normalizedOffsets.start &&
+			this.#accessibilityAppliedOffsets.end === normalizedOffsets.end
+		) {
+			this.#accessibilityAppliedOffsets = undefined;
+			this.#accessibilityOwnsDomSelection = true;
+			return;
+		}
+		const terminalRange = this.#accessibilityModel.offsetsToInclusiveTerminalRange({
+			end: normalizedOffsets.end,
+			start: normalizedOffsets.start,
+		});
+		const start = this.#accessibilitySelectionPoint(terminalRange.start);
+		const end = this.#accessibilitySelectionPoint(terminalRange.end);
 		if (start === null || end === null) return;
-		this.#startSelectionGesture({
-			action: 'start',
-			clickCount: 1,
-			point: start,
-			rectangle: false,
-		});
-		this.#queueSelectionGesture({
-			action: 'end',
-			clickCount: 1,
-			point: end,
-			rectangle: false,
-		});
+		this.#accessibilityOwnsDomSelection = true;
+		this.#sendSelectionRange(start, end);
 	};
 
-	#accessibilitySelectionPoint(
-		node: Node,
-		offset: number,
-		edge: 'end' | 'start',
-	): SelectionGesture['point'] | null {
+	#clearAccessibilitySelectionFromDom(): void {
+		if (!this.#accessibilityOwnsDomSelection) return;
+		this.#accessibilityAppliedOffsets = undefined;
+		this.#accessibilityOwnsDomSelection = false;
+		this.#sendSelectionCommand('clear');
+	}
+
+	#accessibilitySelectionOffset(node: Node, offset: number): number | null {
 		const element = isElementNode(node) ? node : node.parentElement;
 		if (element === null) return null;
 		const rowElement = element.closest('[data-terminal-absolute-row]');
-		if (rowElement === null || !this.#accessibilityRoot?.contains(rowElement)) {
-			return null;
-		}
+		if (rowElement === null || !this.#accessibilityRoot?.contains(rowElement)) return null;
 		const rowIndex = this.#accessibilityRows.indexOf(rowElement);
-		const mapping = this.#accessibilityColumnMappings[rowIndex];
-		const absoluteRow = rowElement.getAttribute('data-terminal-absolute-row');
-		if (mapping === undefined || mapping.length === 0 || absoluteRow === null) return null;
-		const mappingOffset = clamp(edge === 'end' ? offset - 1 : offset, 0, mapping.length - 1);
+		if (rowIndex < 0) return null;
+		const rowStart = this.#accessibilityModel.positionToOffset({ column: 0, row: rowIndex });
+		const rowLength = this.#accessibilityModelRows[rowIndex]?.text.length ?? 0;
+		const localOffset = node === rowElement ? (offset > 0 ? rowLength : 0) : offset;
+		return rowStart + clamp(localOffset, 0, rowLength);
+	}
+
+	#accessibilitySelectionPoint(position: {
+		readonly column: number;
+		readonly row: number;
+	}): SelectionGesture['point'] | null {
+		const rowElement = this.#accessibilityRows[position.row];
+		const absoluteRow = rowElement?.getAttribute('data-terminal-absolute-row');
+		if (absoluteRow === undefined || absoluteRow === null) return null;
 		return {
-			column: mapping[mappingOffset] ?? 0,
+			column: position.column,
 			row: CanonicalUint64TextSchema.parse(absoluteRow),
 		};
+	}
+
+	#syncAccessibilitySelection(): void {
+		const root = this.#accessibilityRoot;
+		const selection = this.#selection;
+		if (
+			root === undefined ||
+			selection.state !== 'active' ||
+			selection.rectangle ||
+			typeof root.ownerDocument.createRange !== 'function'
+		) {
+			this.#clearOwnedAccessibilityDomSelection();
+			return;
+		}
+
+		const startRow = BigInt(selection.start.row) - this.#accessibilityVisibleStart;
+		const endRow = BigInt(selection.end.row) - this.#accessibilityVisibleStart;
+		if (
+			startRow < 0n ||
+			endRow < 0n ||
+			startRow >= BigInt(this.#accessibilityModelRows.length) ||
+			endRow >= BigInt(this.#accessibilityModelRows.length)
+		) {
+			this.#clearOwnedAccessibilityDomSelection();
+			return;
+		}
+
+		const offsets = this.#accessibilityModel.inclusiveTerminalRangeToOffsets({
+			end: { column: selection.end.column, row: Number(endRow) },
+			start: { column: selection.start.column, row: Number(startRow) },
+		});
+		const start = this.#accessibilityDomPoint(
+			this.#accessibilityModel.offsetToPosition(offsets.start, 'backward'),
+		);
+		const end = this.#accessibilityDomPoint(
+			this.#accessibilityModel.offsetToPosition(offsets.end, 'forward'),
+		);
+		const domSelection = root.ownerDocument.getSelection();
+		if (start === null || end === null || domSelection === null) return;
+
+		const range = root.ownerDocument.createRange();
+		try {
+			range.setStart(start.node, start.offset);
+			range.setEnd(end.node, end.offset);
+		} catch {
+			return;
+		}
+		this.#synchronizingAccessibilitySelection = true;
+		try {
+			domSelection.removeAllRanges();
+			domSelection.addRange(range);
+			this.#accessibilityAppliedOffsets = offsets;
+			this.#accessibilityOwnsDomSelection = true;
+		} finally {
+			this.#synchronizingAccessibilitySelection = false;
+		}
+	}
+
+	#accessibilityDomPoint(position: {
+		readonly column: number;
+		readonly row: number;
+	}): { readonly node: Node; readonly offset: number } | null {
+		const row = this.#accessibilityRows[position.row];
+		const node = row?.firstChild;
+		if (!row || !node) return null;
+		const rowStart = this.#accessibilityModel.positionToOffset({
+			column: 0,
+			row: position.row,
+		});
+		return {
+			node,
+			offset: clamp(
+				this.#accessibilityModel.positionToOffset(position) - rowStart,
+				0,
+				row.textContent?.length ?? 0,
+			),
+		};
+	}
+
+	#clearOwnedAccessibilityDomSelection(): void {
+		const root = this.#accessibilityRoot;
+		const selection = root?.ownerDocument.getSelection();
+		const ownsCurrentSelection =
+			selection?.anchorNode !== null &&
+			selection?.anchorNode !== undefined &&
+			root?.contains(selection.anchorNode);
+		if (!this.#accessibilityOwnsDomSelection && !ownsCurrentSelection) return;
+		this.#accessibilityAppliedOffsets = undefined;
+		this.#accessibilityOwnsDomSelection = false;
+		this.#synchronizingAccessibilitySelection = true;
+		try {
+			selection?.removeAllRanges();
+		} finally {
+			this.#synchronizingAccessibilitySelection = false;
+		}
 	}
 
 	#finalizeExitIfCaughtUp(): void {

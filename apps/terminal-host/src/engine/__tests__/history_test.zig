@@ -406,6 +406,35 @@ test "cell drag and repeated clicks retain terminal selection semantics" {
     try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(line));
 }
 
+test "explicit range command preserves endpoints and rectangle semantics" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("abcdef");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(5);
+    try manager.attach(attachment);
+
+    const selected = try manager.applySelectionCommand(&terminal, 1, 1, .{
+        .attachment_id = attachment,
+        .command = .{ .set_range = .{
+            .end = .{ .column = 4, .row = 0 },
+            .rectangle = true,
+            .start = .{ .column = 1, .row = 0 },
+        } },
+        .generation = 1,
+        .revision = 1,
+    });
+
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(selected));
+    try std.testing.expectEqual(@as(u16, 1), selected.active.start.column);
+    try std.testing.expectEqual(@as(u16, 4), selected.active.end.column);
+    try std.testing.expect(selected.active.rectangle);
+}
+
 test "every gesture phase rejects an invalid click count" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
         .cols = 8,
@@ -605,7 +634,7 @@ test "invalid selection command preserves an active gesture" {
     try std.testing.expectEqual(tracked_pins, terminal.screens.active.pages.countTrackedPins());
 }
 
-test "generation changes invalidate anchors gesture selection and export" {
+test "screen changes invalidate anchors gesture selection and export" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
@@ -670,7 +699,7 @@ test "generation changes invalidate anchors gesture selection and export" {
     try std.testing.expect(active_state.selection != null);
     try std.testing.expect(active_state.export_state != null);
 
-    manager.generationChanged(&terminal, 2, 2);
+    manager.screenChanged(&terminal);
 
     const invalidated = findState(&manager, attachment).?;
     try std.testing.expect(invalidated.committed == null);
@@ -711,6 +740,42 @@ test "generation changes invalidate anchors gesture selection and export" {
     try std.testing.expectEqual(@as(u64, 2), current_history_event.revision);
     try std.testing.expectEqual(@as(u64, 2), current_history_event.generation);
     try manager.historyObserved(attachment, 2, 2);
+}
+
+test "reflow generation preserves a valid tracked selection and cancels stale export bytes" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("abcdef");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(8);
+    try manager.attach(attachment);
+    _ = try manager.applySelectionCommand(&terminal, 1, 1, .{
+        .attachment_id = attachment,
+        .command = .{ .set_range = .{
+            .end = .{ .column = 4, .row = 0 },
+            .rectangle = false,
+            .start = .{ .column = 1, .row = 0 },
+        } },
+        .generation = 1,
+        .revision = 1,
+    });
+    _ = try manager.startExport(&terminal, attachment, 9, .plain);
+
+    try terminal.resize(std.testing.allocator, 4, 2);
+    manager.generationChanged(&terminal, 2, 2);
+
+    const state = findState(&manager, attachment).?;
+    try std.testing.expect(state.selection != null);
+    try std.testing.expect(state.export_state == null);
+    try std.testing.expectEqual(
+        SelectionSnapshot.active,
+        std.meta.activeTag((try manager.takeSelectionEvent(attachment)).?),
+    );
+    try std.testing.expect((try manager.takeSelectionExportCancellation(attachment)) != null);
 }
 
 test "selection eviction cancels an in-flight export" {

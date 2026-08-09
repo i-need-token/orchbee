@@ -154,8 +154,7 @@ function createPackedGraphemeSource(
 	let column = 0;
 	for (const cell of cells) {
 		graphemes[column] = cell.text;
-		widths[column] =
-			cell.width === 2 ? TerminalCellWidthCode.wide : TerminalCellWidthCode.narrow;
+		widths[column] = cell.width === 2 ? TerminalCellWidthCode.wide : TerminalCellWidthCode.narrow;
 		flags[column] = cell.flags ?? 0;
 		underlineKinds[column] = cell.underline ?? TerminalUnderlineKindCode.none;
 		column += cell.width;
@@ -448,21 +447,23 @@ describe('projected terminal renderer', () => {
 		const textPaints: Array<{ readonly alpha: number; readonly font: string }> = [];
 		const decorationAlphas: number[] = [];
 		const decorationFillAlphas: number[] = [];
-		const fillText: CanvasRenderingContext2D['fillText'] = function () {
+		const fillText: CanvasRenderingContext2D['fillText'] = function (
+			this: CanvasRenderingContext2D,
+		) {
 			textPaints.push({ alpha: this.globalAlpha, font: this.font });
 		};
-		const stroke: CanvasRenderingContext2D['stroke'] = function () {
+		const stroke: CanvasRenderingContext2D['stroke'] = function (this: CanvasRenderingContext2D) {
 			decorationAlphas.push(this.globalAlpha);
 		};
-		const fillRect: CanvasRenderingContext2D['fillRect'] = function () {
+		const fillRect: CanvasRenderingContext2D['fillRect'] = function (
+			this: CanvasRenderingContext2D,
+		) {
 			if (this.globalAlpha === 0.5) decorationFillAlphas.push(this.globalAlpha);
 		};
 		vi.stubGlobal('document', {
 			createElement: () => createCanvas(undefined, {}, fillText, fillRect, stroke),
 		});
-		const renderer = new WebGPURenderer(
-			createCanvas(undefined, {}, fillText, fillRect, stroke),
-		);
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText, fillRect, stroke));
 		await renderer.initGPU();
 		const source = createPackedGraphemeSource([
 			{
