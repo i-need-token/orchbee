@@ -47,6 +47,7 @@ import {
 import {
 	buildPreeditState,
 	calculateInputAnchor,
+	OrderedInputDispatcher,
 	shouldSuppressComposingControlInput,
 } from '../input';
 import {
@@ -319,6 +320,9 @@ export class ProjectedTerminal {
 	readonly #healthEmitter = new EventEmitter<RendererHealthEvent>();
 	readonly #historyEmitter = new EventEmitter<HistoryChanged>();
 	readonly #hostEpoch: HostEpoch;
+	readonly #inputDispatcher = new OrderedInputDispatcher((error) =>
+		this.#errorEmitter.fire({ error, operation: 'command' }),
+	);
 	readonly #metadataEmitter = new EventEmitter<ProjectedTerminalMetadata>();
 	readonly #linkOpenEmitter = new EventEmitter<ProjectedTerminalLinkOpenRequest>();
 	readonly #linkCompletions = new Map<
@@ -1017,6 +1021,13 @@ export class ProjectedTerminal {
 	}
 
 	async paste(text: string, source: ProjectedPasteSource = 'api'): Promise<ProjectedPasteResult> {
+		return await this.#inputDispatcher.dispatch(() => this.#performPaste(text, source));
+	}
+
+	async #performPaste(
+		text: string,
+		source: ProjectedPasteSource,
+	): Promise<ProjectedPasteResult> {
 		if (!text) return { kind: 'empty' };
 		const { sanitized, replaced } = sanitizePaste(text);
 		if (!sanitized || textEncoder.encode(sanitized).byteLength > PROTOCOL_LIMITS.maxInputBytes) {
@@ -1030,6 +1041,9 @@ export class ProjectedTerminal {
 			source,
 			text: sanitized,
 		};
+		if (this.#isDisposed() || this.#options.inputEnabled === false) {
+			return { kind: 'blocked', review };
+		}
 		const protectedByBracketedPaste =
 			review.bracketed && review.multiline && !review.embeddedBracketTerminator;
 		const requiresReview =
@@ -1039,6 +1053,9 @@ export class ProjectedTerminal {
 		if (requiresReview) {
 			const approved = await this.#options.reviewPaste?.(review);
 			if (approved !== true) return { kind: 'blocked', review };
+		}
+		if (this.#isDisposed() || this.#options.inputEnabled === false) {
+			return { kind: 'blocked', review };
 		}
 		this.#send({
 			kind: 'paste-input',
@@ -1653,6 +1670,13 @@ export class ProjectedTerminal {
 		}
 	}
 
+	#sendInput(command: ProjectedTerminalCommand): void {
+		this.#inputDispatcher.dispatchSync(() => {
+			if (this.#isDisposed() || this.#options.inputEnabled === false) return;
+			this.#send(command);
+		});
+	}
+
 	#sendDemandIfNeeded(): void {
 		if (this.#phase !== ProjectedTerminalPhase.open || this.#demand === this.#demandSent) return;
 		this.#send({
@@ -1734,7 +1758,7 @@ export class ProjectedTerminal {
 	};
 
 	#sendKey(facts: KeyFacts, action: KeyInput['action']): void {
-		this.#send({
+		this.#sendInput({
 			kind: 'key-input',
 			payload: { action, attachmentId: this.#attachmentId, ...facts },
 		});
@@ -1924,7 +1948,7 @@ export class ProjectedTerminal {
 
 	#sendText(text: string): void {
 		if (textEncoder.encode(text).byteLength > PROTOCOL_LIMITS.maxInputBytes) return;
-		this.#send({
+		this.#sendInput({
 			kind: 'text-input',
 			payload: { attachmentId: this.#attachmentId, text },
 		});
@@ -1970,7 +1994,7 @@ export class ProjectedTerminal {
 		this.#renderer?.setFocused(true);
 		this.#updateInputPosition();
 		if (this.#options.inputEnabled === false) return;
-		this.#send({
+		this.#sendInput({
 			kind: 'focus-input',
 			payload: { attachmentId: this.#attachmentId, focused: true },
 		});
@@ -1979,7 +2003,7 @@ export class ProjectedTerminal {
 	readonly #handleBlur = (): void => {
 		this.#renderer?.setFocused(false);
 		if (this.#options.inputEnabled === false) return;
-		this.#send({
+		this.#sendInput({
 			kind: 'focus-input',
 			payload: { attachmentId: this.#attachmentId, focused: false },
 		});
@@ -2193,7 +2217,7 @@ export class ProjectedTerminal {
 			0,
 			metadata.rows * metadata.cellPixelHeight,
 		);
-		this.#send({
+		this.#sendInput({
 			kind: 'mouse-input',
 			payload: {
 				action,

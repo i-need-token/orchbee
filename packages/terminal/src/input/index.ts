@@ -10,3 +10,4 @@ export {
 	type InputAnchorLayout,
 	type InputAnchorRequest,
 } from './calculateInputAnchor';
+export { OrderedInputDispatcher } from './OrderedInputDispatcher';

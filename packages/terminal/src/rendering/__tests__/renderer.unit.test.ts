@@ -2,6 +2,7 @@ import {
 	TerminalCellWidthCode,
 	TerminalColorEncoding,
 	TerminalStyleFlag,
+	TerminalUnderlineKindCode,
 } from '@orchbee/terminal-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -134,6 +135,75 @@ function createPackedSource(
 		},
 		rows,
 		styleFlags,
+	};
+}
+
+function createPackedGraphemeSource(
+	cells: readonly {
+		readonly flags?: number;
+		readonly text: string;
+		readonly underline?: number;
+		readonly width: 1 | 2;
+	}[],
+): TestPackedSource {
+	const columns = cells.reduce((total, cell) => total + cell.width, 0);
+	const graphemes = Array.from({ length: columns }, () => '');
+	const widths = new Uint8Array(columns).fill(TerminalCellWidthCode.spacerTail);
+	const flags = new Uint16Array(columns);
+	const underlineKinds = new Uint8Array(columns);
+	let column = 0;
+	for (const cell of cells) {
+		graphemes[column] = cell.text;
+		widths[column] =
+			cell.width === 2 ? TerminalCellWidthCode.wide : TerminalCellWidthCode.narrow;
+		flags[column] = cell.flags ?? 0;
+		underlineKinds[column] = cell.underline ?? TerminalUnderlineKindCode.none;
+		column += cell.width;
+	}
+	const dirtyRows = new Set([0]);
+	let full = true;
+	const markRenderedMock = vi.fn<() => void>(() => {
+		full = false;
+		dirtyRows.clear();
+	});
+	return {
+		dirtyRows,
+		markRendered: markRenderedMock,
+		markRenderedMock,
+		metadata: {
+			columns,
+			cursor: {
+				blinking: false,
+				column: 0,
+				row: 0,
+				shape: 'block',
+				visible: false,
+			},
+			defaultColors: {
+				backgroundRgb: 0x10_14_18,
+				cursorRgb: null,
+				foregroundRgb: 0xd8_de_e9,
+			},
+			rows: 1,
+		},
+		get needsFullRedraw() {
+			return full;
+		},
+		rows: [
+			{
+				backgroundColors: new Uint32Array(columns).fill(TerminalColorEncoding.default),
+				get dirty() {
+					return dirtyRows.has(0);
+				},
+				foregroundColors: new Uint32Array(columns).fill(TerminalColorEncoding.default),
+				grapheme: (index) => graphemes[index] ?? '',
+				styleFlags: flags,
+				underlineColors: new Uint32Array(columns).fill(TerminalColorEncoding.none),
+				underlineKinds,
+				widths,
+			},
+		],
+		styleFlags: [flags],
 	};
 }
 
@@ -344,6 +414,75 @@ describe('projected terminal renderer', () => {
 		renderer.renderPacked(source);
 
 		expect(texts).toContain('你');
+		renderer.dispose();
+	});
+
+	it('renders CJK, combining, and emoji graphemes once across packed wide-cell tails', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const fillText = vi.fn<CanvasRenderingContext2D['fillText']>();
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, fillText),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText));
+		await renderer.initGPU();
+		const source = createPackedGraphemeSource([
+			{ text: '中', width: 2 },
+			{ text: 'e\u0301', width: 1 },
+			{ text: '👩‍💻', width: 2 },
+		]);
+
+		renderer.renderPacked(source);
+
+		expect(fillText.mock.calls.map(([text]) => text)).toEqual(['中', 'e\u0301', '👩‍💻']);
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({
+			cellsVisited: 3,
+			glyphInstances: 3,
+		});
+		renderer.dispose();
+	});
+
+	it('applies packed Ghostty text style and decoration flags together', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const textPaints: Array<{ readonly alpha: number; readonly font: string }> = [];
+		const decorationAlphas: number[] = [];
+		const decorationFillAlphas: number[] = [];
+		const fillText: CanvasRenderingContext2D['fillText'] = function () {
+			textPaints.push({ alpha: this.globalAlpha, font: this.font });
+		};
+		const stroke: CanvasRenderingContext2D['stroke'] = function () {
+			decorationAlphas.push(this.globalAlpha);
+		};
+		const fillRect: CanvasRenderingContext2D['fillRect'] = function () {
+			if (this.globalAlpha === 0.5) decorationFillAlphas.push(this.globalAlpha);
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, fillText, fillRect, stroke),
+		});
+		const renderer = new WebGPURenderer(
+			createCanvas(undefined, {}, fillText, fillRect, stroke),
+		);
+		await renderer.initGPU();
+		const source = createPackedGraphemeSource([
+			{
+				flags:
+					TerminalStyleFlag.bold |
+					TerminalStyleFlag.faint |
+					TerminalStyleFlag.italic |
+					TerminalStyleFlag.overline |
+					TerminalStyleFlag.strikethrough,
+				text: 'A',
+				underline: TerminalUnderlineKindCode.single,
+				width: 1,
+			},
+		]);
+
+		renderer.renderPacked(source);
+
+		expect(textPaints).toEqual([{ alpha: 0.5, font: 'italic bold 15px monospace' }]);
+		expect(decorationAlphas).toEqual([0.5]);
+		expect(decorationFillAlphas).toEqual([0.5, 0.5]);
 		renderer.dispose();
 	});
 

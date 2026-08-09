@@ -831,6 +831,106 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('keeps observed key input behind an asynchronous paste decision', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		let finishReview: ((approved: boolean) => void) | undefined;
+		const reviewPaste = vi.fn(
+			() =>
+				new Promise<boolean>((resolve) => {
+					finishReview = resolve;
+				}),
+		);
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			reviewPaste,
+			terminalId,
+		});
+		await terminal.open(browser.root);
+
+		const paste = terminal.paste('one\ntwo');
+		await vi.waitFor(() => expect(reviewPaste).toHaveBeenCalledOnce());
+		(terminal.textarea as unknown as FakeElement).dispatch('keydown', {
+			altKey: false,
+			code: 'KeyA',
+			ctrlKey: false,
+			getModifierState: () => false,
+			isComposing: false,
+			key: 'a',
+			keyCode: 65,
+			metaKey: false,
+			preventDefault: () => {},
+			repeat: false,
+			shiftKey: false,
+			stopPropagation: () => {},
+			type: 'keydown',
+		} as unknown as KeyboardEvent);
+
+		expect(
+			commands.filter((command) => command.kind === 'key-input' || command.kind === 'paste-input'),
+		).toEqual([]);
+		finishReview?.(true);
+		await expect(paste).resolves.toEqual(expect.objectContaining({ kind: 'sent' }));
+		await vi.waitFor(() =>
+			expect(
+				commands
+					.filter(
+						(command) => command.kind === 'key-input' || command.kind === 'paste-input',
+					)
+					.map((command) => command.kind),
+			).toEqual(['paste-input', 'key-input']),
+		);
+		terminal.dispose();
+	});
+
+	it('rechecks terminal lifetime after an asynchronous paste decision', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		let finishReview: ((approved: boolean) => void) | undefined;
+		const reviewPaste = vi.fn(
+			() =>
+				new Promise<boolean>((resolve) => {
+					finishReview = resolve;
+				}),
+		);
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			reviewPaste,
+			terminalId,
+		});
+		await terminal.open(browser.root);
+
+		const paste = terminal.paste('one\ntwo');
+		await vi.waitFor(() => expect(reviewPaste).toHaveBeenCalledOnce());
+		terminal.dispose();
+		finishReview?.(true);
+
+		await expect(paste).resolves.toEqual(expect.objectContaining({ kind: 'blocked' }));
+		expect(commands.some((command) => command.kind === 'paste-input')).toBe(false);
+	});
+
 	it('keeps local selection available when PTY input is read-only', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
