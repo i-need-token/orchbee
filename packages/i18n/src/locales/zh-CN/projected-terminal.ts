@@ -10,6 +10,7 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.action.selectAll': '选择所有保留的终端输出',
 	'terminal.projected.action.unavailable': '此终端操作当前不可用。',
 	'terminal.projected.connectionFailure': '终端连接失败。',
+	'terminal.projected.runtimeFailure': '终端会话因运行时故障而停止。',
 	'terminal.projected.copy.completed': '已复制 {byteLength, number} 字节。',
 	'terminal.projected.copy.failed': '无法复制终端所选内容。',
 	'terminal.projected.find.close': '关闭查找',

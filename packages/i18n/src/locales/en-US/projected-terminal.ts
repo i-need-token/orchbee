@@ -8,6 +8,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.action.selectAll': 'Select all retained terminal output',
 	'terminal.projected.action.unavailable': 'This terminal action is unavailable.',
 	'terminal.projected.connectionFailure': 'The terminal connection failed.',
+	'terminal.projected.runtimeFailure': 'The terminal session stopped after a runtime failure.',
 	'terminal.projected.copy.completed': 'Copied {byteLength, number} bytes.',
 	'terminal.projected.copy.failed': 'The terminal selection could not be copied.',
 	'terminal.projected.find.close': 'Close find',

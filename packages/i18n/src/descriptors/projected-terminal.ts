@@ -17,6 +17,10 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'The terminal connection failed.',
 		id: 'terminal.projected.connectionFailure',
 	},
+	runtimeFailure: {
+		defaultMessage: 'The terminal session stopped after a runtime failure.',
+		id: 'terminal.projected.runtimeFailure',
+	},
 	copyAction: {
 		defaultMessage: 'Copy selection',
 		id: 'terminal.projected.action.copy',
