@@ -10,6 +10,7 @@ import { workbenchMessages } from '@orchbee/i18n';
 
 import { deriveProjectNameFromPath, type ProjectWorkspaceEvent } from '../../project-workspace';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -28,6 +29,7 @@ import {
 } from './workbench-action-ids';
 
 interface RegisterWorkbenchProjectWorkspaceActionsOptions {
+	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly primaryWorkspaceName: string;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly scope: ActionScope;
@@ -68,6 +70,7 @@ function enteredFolderForPath(path: string) {
 }
 
 export function registerWorkbenchProjectWorkspaceActions({
+	navigation,
 	primaryWorkspaceName,
 	projectWorkspaceRuntime,
 	scope,
@@ -199,11 +202,13 @@ export function registerWorkbenchProjectWorkspaceActions({
 				}),
 				handler: {
 					execute: (context) =>
-						resultFor(
-							transitionWithCommit(context, projectWorkspaceRuntime, {
-								type: 'standalone-activated',
-							}),
-						),
+						navigation === undefined
+							? resultFor(
+									transitionWithCommit(context, projectWorkspaceRuntime, {
+										type: 'standalone-activated',
+									}),
+								)
+							: navigation.navigate(context, { kind: 'standalone' }),
 				},
 				id: WORKBENCH_ACTION_IDS.activateStandalone,
 				input: noActionInput,
@@ -291,13 +296,19 @@ export function registerWorkbenchProjectWorkspaceActions({
 				},
 				handler: {
 					execute: (context, input) =>
-						resultFor(
-							transitionWithCommit(context, projectWorkspaceRuntime, {
-								projectId: input.projectId,
-								type: 'workspace-activated',
-								workspaceId: input.workspaceId,
-							}),
-						),
+						navigation === undefined
+							? resultFor(
+									transitionWithCommit(context, projectWorkspaceRuntime, {
+										projectId: input.projectId,
+										type: 'workspace-activated',
+										workspaceId: input.workspaceId,
+									}),
+								)
+							: navigation.navigate(context, {
+									kind: 'workspace',
+									projectId: input.projectId,
+									workspaceId: input.workspaceId,
+								}),
 				},
 				id: WORKBENCH_ACTION_IDS.activateWorkspace,
 				input: workbenchWorkspaceInput,

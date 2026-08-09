@@ -23,6 +23,7 @@ import {
 import { startDesktopWorkbenchRenderer } from '../startDesktopWorkbenchRenderer';
 
 const originalResizeObserver = globalThis.ResizeObserver;
+const originalScrollTo = window.scrollTo;
 type WorkbenchClientSessionCommand = ReturnType<typeof WorkbenchClientSessionCommandSchema.parse>;
 
 class ResizeObserverMock {
@@ -48,10 +49,15 @@ beforeAll(() => {
 		configurable: true,
 		value: ResizeObserverMock,
 	});
+	Object.defineProperty(window, 'scrollTo', {
+		configurable: true,
+		value: () => undefined,
+	});
 });
 
 beforeEach(() => {
 	window.localStorage.clear();
+	window.history.replaceState({}, '', '/');
 });
 
 afterAll(() => {
@@ -62,6 +68,10 @@ afterAll(() => {
 	Object.defineProperty(globalThis, 'ResizeObserver', {
 		configurable: true,
 		value: originalResizeObserver,
+	});
+	Object.defineProperty(window, 'scrollTo', {
+		configurable: true,
+		value: originalScrollTo,
 	});
 });
 

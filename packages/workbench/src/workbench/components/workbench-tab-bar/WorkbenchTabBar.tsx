@@ -7,6 +7,7 @@ import {
 	type TabStripMessages,
 	type TabStripNewTabRequest,
 	type TabStripOrientation,
+	type TabStripSelectCallback,
 } from '@orchbee/tab-strip';
 import type { ReactNode } from 'react';
 
@@ -19,6 +20,7 @@ interface WorkbenchTabBarProps {
 	readonly onNewTerminal: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
 	readonly onOrientationChange: (orientation: TabStripOrientation) => void;
+	readonly onSelectTab?: TabStripSelectCallback | undefined;
 	readonly onVerticalCollapsedChange: (collapsed: boolean) => void;
 	readonly orientation: TabStripOrientation;
 	readonly reserveSidebarToggleSpace: boolean;
@@ -33,6 +35,7 @@ export function WorkbenchTabBar({
 	onNewTerminal,
 	onCloseTabs,
 	onOrientationChange,
+	onSelectTab,
 	onVerticalCollapsedChange,
 	orientation,
 	parentActionScope,
@@ -64,6 +67,7 @@ export function WorkbenchTabBar({
 				onNewTab={onNewTerminal}
 				onCloseTabs={onCloseTabs}
 				onOrientationChange={onOrientationChange}
+				onSelectTab={onSelectTab}
 				orientation={orientation}
 				parentActionScope={parentActionScope}
 				showGroupHoverCards={false}

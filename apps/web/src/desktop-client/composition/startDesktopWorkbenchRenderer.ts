@@ -3,7 +3,12 @@ import type { WorkbenchClientSessionBootstrap } from '@orchbee/workbench-client-
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
-import { createWorkbenchClientRuntime, type WorkbenchClientRuntime } from '../../workbench-client';
+import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
+import {
+	createWorkbenchClientRuntime,
+	ProjectedTerminalSurface,
+	type WorkbenchClientRuntime,
+} from '../../workbench-client';
 import { DesktopClientSessionClient } from '../client-session';
 import {
 	DesktopApplicationLifetimeClient,
@@ -47,6 +52,7 @@ export function startDesktopWorkbenchRenderer(
 	let disposed = false;
 	let lifetimeClient: DesktopApplicationLifetimeClient | undefined;
 	let reactRoot: Root | undefined;
+	let routing: WebApplicationRouting | undefined;
 
 	const dispose = (): void => {
 		if (disposed) return;
@@ -55,6 +61,8 @@ export function startDesktopWorkbenchRenderer(
 		applicationLifetimeCoordinator = undefined;
 		reactRoot?.unmount();
 		reactRoot = undefined;
+		routing?.dispose();
+		routing = undefined;
 		runtime.dispose();
 		if (lifetimeClient === undefined) lifetimePort.close();
 		else lifetimeClient.dispose();
@@ -83,15 +91,20 @@ export function startDesktopWorkbenchRenderer(
 			workbenchClientRuntime.documentCoordinator,
 			lifetimeClient,
 		);
+		const nextRouting = createWebApplicationRouting({
+			actionRuntime: workbenchClientRuntime.actionRuntime,
+			layoutStorage: storage,
+			projectWorkspaceRuntime: workbenchClientRuntime.projectWorkspaceRuntime,
+			shortcutPlatform,
+			terminalSurface: ProjectedTerminalSurface,
+		});
+		routing = nextRouting;
 		reactRoot = createRoot(applicationRoot);
 		reactRoot.render(
 			createElement(DesktopWorkbench, {
-				actionRuntime: workbenchClientRuntime.actionRuntime,
 				applicationLifetimeCoordinator,
-				layoutStorage: storage,
 				locale: workbenchClientRuntime.locale,
-				projectWorkspaceRuntime: workbenchClientRuntime.projectWorkspaceRuntime,
-				shortcutPlatform,
+				router: nextRouting.router,
 				terminalSurfaceCapability: workbenchClientRuntime.terminalSurfaceCapability,
 			}),
 		);

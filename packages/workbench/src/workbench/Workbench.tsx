@@ -29,7 +29,10 @@ import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar'
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
-import type { WorkbenchHostActionCallback } from './types/workbench-host-actions';
+import type {
+	WorkbenchHostActionCallback,
+	WorkbenchNavigationPort,
+} from './types/workbench-host-actions';
 import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
 import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
 import type { WorkbenchTerminalSurface } from './types/workbench-terminal-surface';
@@ -40,6 +43,7 @@ export interface WorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
+	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
@@ -51,6 +55,7 @@ export function Workbench({
 	actionRuntime,
 	createCrossWindowDragRuntime,
 	layoutStorage,
+	navigation,
 	onSettings,
 	projectWorkspaceRuntime,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
@@ -60,6 +65,7 @@ export function Workbench({
 	const tabStripMessages = useWorkbenchTabStripMessages();
 	const view = useWorkbench({
 		actionRuntime,
+		navigation,
 		onSettings,
 		projectWorkspaceRuntime,
 		shortcutPlatform,
@@ -183,6 +189,7 @@ export function Workbench({
 								onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
 								orientation={view.tabStripOrientation}
 								onCloseTabs={view.onCloseTabs}
+								onSelectTab={navigation?.selectTab}
 								parentActionScope={view.actionScope}
 								reserveSidebarToggleSpace={!view.isSidebarVisible}
 								tabModel={view.terminalContext.tabModel}

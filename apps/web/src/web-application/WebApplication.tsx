@@ -2,6 +2,7 @@ import type { ActionRuntime } from '@orchbee/actions';
 import {
 	Workbench,
 	type WorkbenchLayoutStorage,
+	type WorkbenchNavigationPort,
 	type WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchShortcutPlatform,
 	type WorkbenchTerminalSurface,
@@ -13,6 +14,7 @@ import styles from './WebApplication.module.css';
 export interface WebApplicationProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
+	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
@@ -21,6 +23,7 @@ export interface WebApplicationProps {
 export function WebApplication({
 	actionRuntime,
 	layoutStorage,
+	navigation,
 	projectWorkspaceRuntime,
 	shortcutPlatform,
 	terminalSurface,
@@ -30,6 +33,7 @@ export function WebApplication({
 			<Workbench
 				actionRuntime={actionRuntime}
 				layoutStorage={layoutStorage}
+				navigation={navigation}
 				projectWorkspaceRuntime={projectWorkspaceRuntime}
 				shortcutPlatform={shortcutPlatform}
 				terminalSurface={terminalSurface}

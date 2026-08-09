@@ -1,0 +1,27 @@
+.root {
+	display: grid;
+	height: 100%;
+	box-sizing: border-box;
+	place-items: center;
+	padding: var(--ob-ref-space-8);
+	background: var(--ob-sys-color-surface-canvas);
+}
+
+.content {
+	display: grid;
+	max-width: var(--ob-ref-layout-prose-width);
+	gap: var(--ob-ref-space-2);
+	text-align: center;
+}
+
+.title {
+	margin: 0;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-heading-md);
+}
+
+.description {
+	margin: 0;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-body-md);
+}

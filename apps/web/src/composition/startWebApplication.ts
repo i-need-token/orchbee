@@ -14,10 +14,11 @@ import {
 	type WorkbenchLayoutStorage,
 	type WorkbenchShortcutPlatform,
 } from '@orchbee/workbench';
+import { RouterProvider } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
-import { WebApplication } from '../web-application';
+import { createWebApplicationRouting } from '../application-routing';
 
 interface WebApplicationSession {
 	dispose(): void;
@@ -45,6 +46,12 @@ export function startWebApplication(
 			terminalPresentationId('web:standalone:initial'),
 		),
 	});
+	const routing = createWebApplicationRouting({
+		actionRuntime,
+		layoutStorage,
+		projectWorkspaceRuntime,
+		shortcutPlatform,
+	});
 	let reactRoot: Root | undefined = createRoot(rootElement);
 
 	reactRoot.render(
@@ -54,12 +61,7 @@ export function startWebApplication(
 			createElement(
 				TooltipProvider,
 				undefined,
-				createElement(WebApplication, {
-					actionRuntime,
-					layoutStorage,
-					projectWorkspaceRuntime,
-					shortcutPlatform,
-				}),
+				createElement(RouterProvider, { router: routing.router }),
 			),
 		),
 	);
@@ -67,6 +69,7 @@ export function startWebApplication(
 		dispose: () => {
 			reactRoot?.unmount();
 			reactRoot = undefined;
+			routing.dispose();
 			actionRuntime.dispose();
 		},
 	};

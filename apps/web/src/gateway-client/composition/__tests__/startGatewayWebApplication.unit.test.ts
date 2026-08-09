@@ -12,6 +12,7 @@ import {
 import type { Root } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { WebApplicationRouting } from '../../../application-routing';
 import type { TerminalProjectionClient, WorkbenchClientRuntime } from '../../../workbench-client';
 import type { GatewayControlConnection } from '../../connection';
 import type { GatewayTerminalProjectionClient } from '../../terminal-projection';
@@ -82,6 +83,14 @@ describe('startGatewayWebApplication', () => {
 			terminalSurfaceCapability: {},
 		} as unknown as WorkbenchClientRuntime;
 		const createRuntime = vi.fn<GatewayWebApplicationDependencies['createRuntime']>(() => runtime);
+		const routingDispose = vi.fn<() => void>();
+		const createRouting = vi.fn<GatewayWebApplicationDependencies['createRouting']>(
+			() =>
+				({
+					dispose: routingDispose,
+					router: {},
+				}) as unknown as WebApplicationRouting,
+		);
 		const render = vi.fn<Root['render']>();
 		const unmount = vi.fn<Root['unmount']>();
 		const connection = GatewayBrowserConnectionSchema.parse({
@@ -106,6 +115,7 @@ describe('startGatewayWebApplication', () => {
 						open: vi.fn<TerminalProjectionClient['open']>(),
 					}) as unknown as GatewayTerminalProjectionClient,
 				createReactRoot: () => ({ render, unmount }) as unknown as Root,
+				createRouting,
 				createRuntime,
 			},
 		);
@@ -114,8 +124,10 @@ describe('startGatewayWebApplication', () => {
 		expect(createRuntime).toHaveBeenCalledWith(
 			expect.objectContaining({ terminalPlatformEffects: expect.any(Object) }),
 		);
+		expect(createRouting).toHaveBeenCalledOnce();
 		expect(render).toHaveBeenCalledOnce();
 		session.dispose();
+		expect(routingDispose).toHaveBeenCalledOnce();
 		expect(runtimeDispose).toHaveBeenCalledOnce();
 		expect(close).toHaveBeenCalled();
 		expect(unmount).toHaveBeenCalledOnce();

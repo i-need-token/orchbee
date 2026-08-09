@@ -11,7 +11,11 @@ import { resolveWebRuntimeMode } from './resolveWebRuntimeMode';
 
 const rootElement = document.querySelector('#root');
 const shortcutPlatform = resolveShortcutPlatform(navigator.platform);
-const runtimeMode = resolveWebRuntimeMode(window.location.search);
+const runtimeMode = resolveWebRuntimeMode({
+	protocol: window.location.protocol,
+	search: window.location.search,
+	userAgent: navigator.userAgent,
+});
 
 if (runtimeMode === 'browser') {
 	const session = startWebApplication(

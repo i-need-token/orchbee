@@ -57,6 +57,8 @@ export type {
 	WorkbenchActionCatalog,
 	WorkbenchHostActionCallback,
 	WorkbenchHostActionResult,
+	WorkbenchNavigationPort,
+	WorkbenchNavigationTarget,
 	WorkbenchShortcutPlatform,
 	WorkbenchSearchFilter,
 	WorkbenchSearchOpenInput,

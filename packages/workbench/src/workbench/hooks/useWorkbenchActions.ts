@@ -30,12 +30,14 @@ import {
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type {
 	WorkbenchHostActionCallback,
+	WorkbenchNavigationPort,
 	WorkbenchTerminalCreateCallback,
 } from '../types/workbench-host-actions';
 import type { WorkbenchShortcutBinding } from '../utils/workbench-shortcuts';
 
 interface UseWorkbenchActionsOptions {
 	readonly isSidebarVisible: boolean;
+	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onNewTerminal: WorkbenchTerminalCreateCallback | undefined;
 	readonly openSearch: (input: WorkbenchSearchOpenInput) => void;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
@@ -66,6 +68,7 @@ interface WorkbenchActions {
 
 export function useWorkbenchActions({
 	isSidebarVisible,
+	navigation,
 	onNewTerminal,
 	openSearch,
 	onSettings,
@@ -120,6 +123,7 @@ export function useWorkbenchActions({
 		});
 		const registrations = [
 			...registerWorkbenchProjectWorkspaceActions({
+				navigation,
 				primaryWorkspaceName,
 				projectWorkspaceRuntime,
 				scope,
@@ -240,6 +244,7 @@ export function useWorkbenchActions({
 		};
 	}, [
 		isSidebarVisible,
+		navigation,
 		onNewTerminal,
 		onSettings,
 		openSearch,

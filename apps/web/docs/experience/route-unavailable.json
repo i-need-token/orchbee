@@ -1,0 +1,36 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "web.route-unavailable",
+	"kind": "experience",
+	"status": "reviewed",
+	"name": "Route Unavailable",
+	"description": "Explains that an explicit Project, Workspace, or Tab route no longer resolves without silently choosing a different destination.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": ["explain-unavailable-route"],
+	"implementation": ["apps/web/src/route-unavailable/RouteUnavailable.tsx"],
+	"stories": [
+		{
+			"exportName": "English",
+			"file": "apps/web/stories/route-unavailable.stories.tsx",
+			"id": "applications-web-routing-route-unavailable--english",
+			"states": [
+				"Inspect the retained unavailable address with concise explanatory copy in English and Simplified Chinese."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"A deep link explicitly identifies a Project, Workspace, or Tab that no longer exists."
+	],
+	"avoidWhen": [
+		"A route is merely incomplete and can be canonicalized to its first ordered descendant.",
+		"The application has not completed authentication or runtime initialization and owns a different recovery state."
+	],
+	"invariants": [
+		"The current address is retained so the stale identifier remains observable and shareable for diagnosis.",
+		"The surface never silently activates a different Project, Workspace, or Tab.",
+		"All user-facing copy is provided by the Orchbee localization catalog."
+	],
+	"references": ["apps/web/docs/navigation-routing.md"]
+}

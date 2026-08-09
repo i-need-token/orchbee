@@ -26,6 +26,7 @@ import type { ProjectWorkspaceState } from '../../project-workspace';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
 import type {
 	WorkbenchHostActionCallback,
+	WorkbenchNavigationPort,
 	WorkbenchTerminalCreateCallback,
 } from '../types/workbench-host-actions';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
@@ -178,6 +179,7 @@ interface WorkbenchView {
 
 interface UseWorkbenchOptions {
 	readonly actionRuntime: ActionRuntime;
+	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
@@ -186,6 +188,7 @@ interface UseWorkbenchOptions {
 
 export function useWorkbench({
 	actionRuntime,
+	navigation,
 	onSettings,
 	projectWorkspaceRuntime,
 	shortcutPlatform,
@@ -305,6 +308,7 @@ export function useWorkbench({
 	});
 	const actions = useWorkbenchActions({
 		isSidebarVisible,
+		navigation,
 		onNewTerminal: createTerminal,
 		onSettings,
 		openSearch,

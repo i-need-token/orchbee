@@ -14,21 +14,15 @@ export interface DesktopWorkbenchProps extends Omit<WorkbenchClientApplicationPr
 }
 
 export function DesktopWorkbench({
-	actionRuntime,
 	applicationLifetimeCoordinator,
-	layoutStorage,
 	locale,
-	projectWorkspaceRuntime,
-	shortcutPlatform,
+	router,
 	terminalSurfaceCapability,
 }: DesktopWorkbenchProps): ReactNode {
 	return (
 		<WorkbenchClientApplication
-			actionRuntime={actionRuntime}
-			layoutStorage={layoutStorage}
 			locale={locale}
-			projectWorkspaceRuntime={projectWorkspaceRuntime}
-			shortcutPlatform={shortcutPlatform}
+			router={router}
 			terminalSurfaceCapability={terminalSurfaceCapability}
 		>
 			<DesktopApplicationLifetimeDialog controller={applicationLifetimeCoordinator} />

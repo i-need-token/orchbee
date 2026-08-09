@@ -8,7 +8,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { terminalPresentationId } from '../../../terminal-presentation';
 import { WORKBENCH_ACTION_IDS } from '../../actions/workbench-action-ids';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
-import type { WorkbenchTerminalCreateCallback } from '../../types/workbench-host-actions';
+import type {
+	WorkbenchNavigationPort,
+	WorkbenchTerminalCreateCallback,
+} from '../../types/workbench-host-actions';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
 import { useWorkbenchActions } from '../useWorkbenchActions';
 
@@ -21,12 +24,14 @@ function createTestTerminalPresentationComposition(scope: string) {
 interface WorkbenchActionsHarnessProps {
 	readonly captureScope?: ((scope: ReturnType<ActionRuntime['createScope']>) => void) | undefined;
 	readonly onNewTerminal?: WorkbenchTerminalCreateCallback | undefined;
+	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly projectWorkspaceRuntime?: WorkbenchProjectWorkspaceRuntime | undefined;
 	readonly runtime: ActionRuntime;
 }
 
 function WorkbenchActionsHarness({
 	captureScope,
+	navigation,
 	onNewTerminal,
 	projectWorkspaceRuntime: providedProjectWorkspaceRuntime,
 	runtime,
@@ -48,6 +53,7 @@ function WorkbenchActionsHarness({
 	);
 	const actions = useWorkbenchActions({
 		isSidebarVisible,
+		navigation,
 		onNewTerminal,
 		onSettings: undefined,
 		openSearch: () => undefined,
@@ -90,6 +96,64 @@ function WorkbenchActionsHarness({
 afterEach(() => cleanup());
 
 describe('useWorkbenchActions', () => {
+	it('delegates location navigation without mutating the Workbench first', async () => {
+		const runtime = new ActionRuntime();
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('route-navigation'),
+		});
+		projectWorkspaceRuntime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'directory-1',
+				kind: 'folder',
+				name: 'orchbee',
+				path: '/workspace/orchbee',
+				source: 'selected',
+			},
+			launchConfigurations: [],
+			primaryWorkspaceLaunchConfigurationId: null,
+			primaryWorkspaceName: 'Primary',
+			projectName: 'orchbee',
+			terminalTitle: 'Terminal 1',
+			type: 'project-created',
+		});
+		const navigate = vi.fn<WorkbenchNavigationPort['navigate']>((context) => {
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
+		const navigation: WorkbenchNavigationPort = {
+			navigate,
+			selectTab: () => ({ kind: 'unchanged' }),
+		};
+		let actionScope: ReturnType<ActionRuntime['createScope']> | undefined;
+		render(
+			React.createElement(WorkbenchActionsHarness, {
+				captureScope: (scope) => {
+					actionScope = scope;
+				},
+				navigation,
+				projectWorkspaceRuntime,
+				runtime,
+			}),
+		);
+		if (actionScope === undefined) throw new Error('Expected the Workbench action scope.');
+
+		await runtime.execute(WORKBENCH_ACTION_IDS.activateStandalone, undefined, {
+			scope: actionScope,
+			source: 'button',
+		}).completion;
+
+		expect(navigate).toHaveBeenCalledWith(expect.anything(), { kind: 'standalone' });
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+			kind: 'workspace',
+			projectId: 'project-1',
+			workspaceId: 'workspace-1',
+		});
+	});
+
 	it('registers enumerable actions and routes product controls through their handlers', async () => {
 		const runtime = new ActionRuntime();
 		const onNewTerminal = vi.fn<WorkbenchTerminalCreateCallback>(() => ({

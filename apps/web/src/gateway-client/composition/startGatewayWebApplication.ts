@@ -3,8 +3,10 @@ import type { WorkbenchShortcutPlatform } from '@orchbee/workbench';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
+import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
 import {
 	createWorkbenchClientRuntime,
+	ProjectedTerminalSurface,
 	WorkbenchClientApplication,
 	WorkbenchClientSessionClient,
 	type WorkbenchClientRuntime,
@@ -27,6 +29,7 @@ export interface GatewayWebApplicationDependencies {
 		connection: GatewayBrowserConnection,
 	) => GatewayTerminalProjectionClient;
 	readonly createReactRoot: (element: Element) => Root;
+	readonly createRouting: typeof createWebApplicationRouting;
 	readonly createRuntime: typeof createWorkbenchClientRuntime;
 }
 
@@ -35,6 +38,7 @@ const defaultDependencies: GatewayWebApplicationDependencies = {
 	createProjectionClient: (control, connection) =>
 		new GatewayTerminalProjectionClient(control, connection),
 	createReactRoot: (element) => createRoot(element),
+	createRouting: createWebApplicationRouting,
 	createRuntime: createWorkbenchClientRuntime,
 };
 
@@ -55,12 +59,15 @@ export function startGatewayWebApplication(
 	let control: GatewayControlConnection | undefined;
 	let disposed = false;
 	let reactRoot: Root | undefined;
+	let routing: WebApplicationRouting | undefined;
 	let runtime: WorkbenchClientRuntime | undefined;
 	const dispose = (): void => {
 		if (disposed) return;
 		disposed = true;
 		reactRoot?.unmount();
 		reactRoot = undefined;
+		routing?.dispose();
+		routing = undefined;
 		runtime?.dispose();
 		runtime = undefined;
 		control?.close();
@@ -119,14 +126,19 @@ export function startGatewayWebApplication(
 			return runtimeStart;
 		}
 		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
+		const nextRouting = dependencies.createRouting({
+			actionRuntime: nextRuntime.actionRuntime,
+			layoutStorage: storage,
+			projectWorkspaceRuntime: nextRuntime.projectWorkspaceRuntime,
+			shortcutPlatform,
+			terminalSurface: ProjectedTerminalSurface,
+		});
+		routing = nextRouting;
 		reactRoot = dependencies.createReactRoot(applicationRoot);
 		reactRoot.render(
 			createElement(WorkbenchClientApplication, {
-				actionRuntime: nextRuntime.actionRuntime,
-				layoutStorage: storage,
 				locale: nextRuntime.locale,
-				projectWorkspaceRuntime: nextRuntime.projectWorkspaceRuntime,
-				shortcutPlatform,
+				router: nextRouting.router,
 				terminalSurfaceCapability: nextRuntime.terminalSurfaceCapability,
 			}),
 		);
