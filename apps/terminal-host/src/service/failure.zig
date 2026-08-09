@@ -76,6 +76,7 @@ pub fn fromCore(err: CoreFailure) Details {
         error.InventoryGenerationOverflow => .{ .code = "resource-exhausted", .message = "terminal inventory generation space is exhausted", .retryable = false },
         error.MissingConnection => .{ .code = "missing-connection", .message = "client connection is not active", .retryable = false },
         error.MissingResource => .{ .code = "missing-resource", .message = "terminal or attachment is missing", .retryable = false },
+        error.OutcomePublicationPending => .{ .code = "outcome-publication-pending", .message = "terminal outcome publication is pending", .retryable = true },
         error.RevisionOverflow => .{ .code = "resource-exhausted", .message = "terminal revision space is exhausted", .retryable = false },
         error.ResizeLeaseDenied => .{ .code = "resize-lease-denied", .message = "attachment does not own the resize lease", .retryable = false },
         error.SequenceOverflow => .{ .code = "resource-exhausted", .message = "attachment frame sequence space is exhausted", .retryable = false },

@@ -20,6 +20,27 @@ fn testId(comptime Id: type, byte: u8) Id {
     return Id.fromBytes([_]u8{byte} ** 16);
 }
 
+fn publishPendingOutcome(
+    aggregate: *subject.HostRuntimeAggregate,
+    terminal_id: core_module.TerminalId,
+) !void {
+    const terminal = aggregate.core().findTerminal(terminal_id) orelse
+        return error.ExpectedTerminal;
+    const pending = terminal.pendingOutcome() orelse return error.ExpectedPendingOutcome;
+    const token = switch (pending) {
+        .exited => |outcome| outcome.token,
+        .failed => |outcome| outcome.token,
+    };
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.applied,
+        aggregate.core().markOutcomePublished(token),
+    );
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.idempotent,
+        aggregate.core().markOutcomePublished(token),
+    );
+}
+
 test "runtime input errors close over the Host admission vocabulary" {
     try std.testing.expectEqual(
         input_admission.Rejection.backpressure,
@@ -171,6 +192,7 @@ test "dispose preserves an exited Core record when its runtime is missing" {
     );
     _ = try aggregate.core().childExited(terminal_id, .{ .exit_code = 0 });
     _ = try aggregate.core().ptyDrained(terminal_id);
+    try publishPendingOutcome(&aggregate, terminal_id);
 
     try std.testing.expectError(
         error.TerminalRuntimeMissing,
@@ -613,6 +635,7 @@ test "runtime completion synchronization emits one typed exit notice" {
         exited,
     ) == null);
 
+    try publishPendingOutcome(&aggregate, terminal_id);
     _ = try aggregate.core().disposeTerminal(connection_id, terminal_id);
     _ = aggregate.disconnect(connection_id);
 }
@@ -765,6 +788,7 @@ test "configuration and resize preflight preserve Core without a runtime" {
 
     _ = try aggregate.core().childExited(terminal_id, .{ .exit_code = 0 });
     _ = try aggregate.core().ptyDrained(terminal_id);
+    try publishPendingOutcome(&aggregate, terminal_id);
     _ = try aggregate.core().disposeTerminal(connection_id, terminal_id);
     _ = aggregate.disconnect(connection_id);
 }
@@ -849,6 +873,7 @@ test "input admission identifies its failing owner without retaining Core credit
     _ = try aggregate.detach(connection_id, attachment_id);
     _ = try aggregate.core().childExited(terminal_id, .{ .exit_code = 0 });
     _ = try aggregate.core().ptyDrained(terminal_id);
+    try publishPendingOutcome(&aggregate, terminal_id);
     _ = try aggregate.core().disposeTerminal(connection_id, terminal_id);
     _ = aggregate.disconnect(connection_id);
 }
@@ -970,13 +995,30 @@ test "unsafe resize failure is retained as an observable disposable terminal" {
     try std.testing.expectEqual(core_module.RuntimeFailureKind.resize, retained.runtimeFailure().?.kind());
     try std.testing.expect(!runtime.readableStateAvailable());
     const pending = retained.pendingOutcome() orelse return error.ExpectedFailedOutcome;
-    switch (pending) {
-        .failed => |outcome| {
+    const token = switch (pending) {
+        .failed => |outcome| failed: {
             try std.testing.expect(outcome.terminal_id.eql(terminal_id));
             try std.testing.expectEqual(core_module.RuntimeFailureKind.resize, outcome.failure.kind());
+            break :failed outcome.token;
         },
         .exited => return error.ExpectedFailedOutcome,
-    }
+    };
+
+    try std.testing.expectError(
+        error.OutcomePublicationPending,
+        aggregate.disposeTerminal(connection_id, terminal_id),
+    );
+    try std.testing.expect(aggregate.runtimeFor(terminal_id) == runtime);
+    try std.testing.expectEqual(@as(usize, 1), aggregate.runtimeCount());
+    try std.testing.expect(aggregate.core().findTerminal(terminal_id).?.pendingOutcome() != null);
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.applied,
+        aggregate.core().markOutcomePublished(token),
+    );
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.idempotent,
+        aggregate.core().markOutcomePublished(token),
+    );
 
     switch (try aggregate.disposeTerminal(connection_id, terminal_id)) {
         .transition => |transition| try std.testing.expectEqual(
@@ -986,6 +1028,13 @@ test "unsafe resize failure is retained as an observable disposable terminal" {
         .cleanup_blocked => return error.ExpectedSuccessfulDisposal,
     }
     try std.testing.expect(aggregate.core().findTerminal(terminal_id) == null);
+    switch (try aggregate.disposeTerminal(connection_id, terminal_id)) {
+        .transition => |transition| try std.testing.expectEqual(
+            core_module.TransitionOutcome.idempotent,
+            transition,
+        ),
+        .cleanup_blocked => return error.ExpectedIdempotentDisposal,
+    }
     _ = aggregate.disconnect(connection_id);
 }
 

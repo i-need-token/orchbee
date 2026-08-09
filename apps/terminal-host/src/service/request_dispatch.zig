@@ -43,14 +43,14 @@ pub const Dispatcher = struct {
 
     pub fn dispatch(
         self: *Dispatcher,
-        operation: protocol.RequestOperation,
+        request_contract: protocol.RequestMessageContract,
         connection_id: core_module.ConnectionId,
         limits: Limits,
         envelope: protocol.EnvelopeSummary,
         correlation_id: WireIdentifier,
         outgoing: *Outgoing,
     ) !void {
-        switch (operation) {
+        switch (request_contract.operation) {
             .hello => unreachable,
             .ping,
             .list_terminals,
@@ -64,7 +64,7 @@ pub const Dispatcher = struct {
             .update_terminal_configuration,
             => try host_terminal_requests.dispatch(
                 &self.context,
-                operation,
+                request_contract.operation,
                 connection_id,
                 self.terminal_defaults,
                 self.terminal_defaults_revision,
@@ -80,7 +80,7 @@ pub const Dispatcher = struct {
             .set_projection_demand,
             => try host_io_requests.dispatch(
                 &self.context,
-                operation,
+                request_contract,
                 connection_id,
                 limits.input_bytes,
                 envelope,
@@ -98,7 +98,7 @@ pub const Dispatcher = struct {
             .selection_export_cancel,
             => try host_interaction_requests.dispatch(
                 &self.context,
-                operation,
+                request_contract.operation,
                 connection_id,
                 limits.row_window_bytes,
                 self.trace_interactions,

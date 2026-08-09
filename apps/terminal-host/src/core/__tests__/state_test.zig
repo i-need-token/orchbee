@@ -20,6 +20,30 @@ fn testId(comptime Id: type, byte: u8) Id {
     return Id.fromBytes([_]u8{byte} ** 16);
 }
 
+fn pendingOutcomeToken(
+    core: *HostCore,
+    terminal_id: TerminalId,
+) !subject.OutcomePublicationToken {
+    const terminal = core.findTerminal(terminal_id) orelse return error.ExpectedTerminal;
+    const pending = terminal.pendingOutcome() orelse return error.ExpectedPendingOutcome;
+    return switch (pending) {
+        .exited => |outcome| outcome.token,
+        .failed => |outcome| outcome.token,
+    };
+}
+
+fn publishPendingOutcome(core: *HostCore, terminal_id: TerminalId) !void {
+    const token = try pendingOutcomeToken(core, terminal_id);
+    try std.testing.expectEqual(
+        subject.TransitionOutcome.applied,
+        core.markOutcomePublished(token),
+    );
+    try std.testing.expectEqual(
+        subject.TransitionOutcome.idempotent,
+        core.markOutcomePublished(token),
+    );
+}
+
 fn expectCoreInvariants(core: *HostCore) !void {
     try std.testing.expect(core.connectionCount() <= 1);
     if (core.connectionCount() == 0) {
@@ -472,11 +496,89 @@ test "attachment routing and terminal disposal are exact across registries" {
 
     _ = try core.childExited(first_terminal, .{ .exit_code = 0 });
     _ = try core.ptyDrained(first_terminal);
+    try publishPendingOutcome(&core, first_terminal);
     _ = try core.disposeTerminal(first_connection, first_terminal);
     try std.testing.expect(core.findTerminal(first_terminal) == null);
     try std.testing.expect(core.findAttachment(first_attachment) == null);
     try std.testing.expect(core.findTerminal(second_terminal) != null);
     try std.testing.expect(core.findAttachment(second_attachment) != null);
+}
+
+test "terminal disposal preserves pending exited and failed outcomes" {
+    var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 0xd0));
+    defer core.deinit();
+    const connection: ConnectionId = 2;
+    _ = try core.connect(connection, testId(ClientId, 0xd1));
+
+    for (0..2) |case_index| {
+        const identity_byte: u8 = @intCast(0xd2 + case_index);
+        const terminal_id = testId(TerminalId, identity_byte);
+        const attachment_id = testId(AttachmentId, identity_byte + 0x10);
+        _ = try core.createTerminal(
+            connection,
+            testId(CreationId, identity_byte),
+            terminal_id,
+            [_]u8{identity_byte} ** 32,
+            80,
+            24,
+        );
+        _ = try core.attach(
+            connection,
+            attachment_id,
+            terminal_id,
+            .{ .input = false, .read = true, .resize = false },
+            false,
+        );
+        if (case_index == 0) {
+            _ = try core.childExited(terminal_id, .{ .exit_code = 0 });
+            _ = try core.ptyDrained(terminal_id);
+        } else {
+            _ = try core.runtimeFailed(terminal_id, .read_output);
+            _ = try core.failureContained(
+                terminal_id,
+                .{ .observed = .{ .exit_code = 1 } },
+            );
+        }
+
+        const generation_before = core.inventoryGeneration();
+        const token = try pendingOutcomeToken(&core, terminal_id);
+        try std.testing.expectError(
+            error.OutcomePublicationPending,
+            core.disposeTerminal(connection, terminal_id),
+        );
+        try std.testing.expectEqual(generation_before, core.inventoryGeneration());
+        try std.testing.expect(core.findTerminal(terminal_id) != null);
+        try std.testing.expect(core.findAttachment(attachment_id) != null);
+        try std.testing.expect(core.findTerminal(terminal_id).?.pendingOutcome() != null);
+
+        var mismatched_token = token;
+        mismatched_token.final_revision += 1;
+        try std.testing.expectEqual(
+            subject.TransitionOutcome.idempotent,
+            core.markOutcomePublished(mismatched_token),
+        );
+        try std.testing.expectError(
+            error.OutcomePublicationPending,
+            core.disposeTerminal(connection, terminal_id),
+        );
+        try std.testing.expectEqual(
+            subject.TransitionOutcome.applied,
+            core.markOutcomePublished(token),
+        );
+        try std.testing.expectEqual(
+            subject.TransitionOutcome.idempotent,
+            core.markOutcomePublished(token),
+        );
+        try std.testing.expectEqual(
+            subject.TransitionOutcome.applied,
+            try core.disposeTerminal(connection, terminal_id),
+        );
+        try std.testing.expect(core.findAttachment(attachment_id) == null);
+        try std.testing.expectEqual(
+            subject.TransitionOutcome.idempotent,
+            try core.disposeTerminal(connection, terminal_id),
+        );
+    }
 }
 
 test "first attachment allocation failures leave no broker commit" {
@@ -665,6 +767,7 @@ test "large inventory disposal swap-removes both indexes and advances one genera
     const former_final_terminal = terminal_ids[inventory_count - 1];
     for (creation_ids, terminal_ids, 0..) |creation_id, terminal_id, removed_index| {
         const generation_before = core.inventoryGeneration();
+        try publishPendingOutcome(&core, terminal_id);
         try std.testing.expectEqual(
             .applied,
             try core.disposeTerminal(connection, terminal_id),
@@ -874,6 +977,7 @@ test "input authority, resize, and reordered completion preserve bounds" {
         core.synchronizeGeometry(terminal_id, 120, 40, 10, 20, 1),
     );
     try std.testing.expectEqual(.idempotent, try core.disposeTerminal(connection, testId(TerminalId, 9)));
+    try publishPendingOutcome(&core, terminal_id);
     _ = try core.disposeTerminal(connection, terminal_id);
     try std.testing.expect(core.findTerminal(terminal_id) == null);
 }
@@ -1454,6 +1558,7 @@ test "attachment capability sequences preserve broker and terminal indexes" {
 
     _ = try core.childExited(terminal_id, .{ .exit_code = 0 });
     _ = try core.ptyDrained(terminal_id);
+    try publishPendingOutcome(&core, terminal_id);
     _ = try core.disposeTerminal(connection, terminal_id);
     _ = core.disconnect(connection);
     try expectCoreInvariants(&core);

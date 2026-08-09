@@ -310,7 +310,7 @@ pub const HostService = struct {
             self.trace_interactions,
         );
         try request_dispatcher.dispatch(
-            request_contract.operation,
+            request_contract,
             active_connection.connection_id,
             .{
                 .input_bytes = active_connection.limits.input_bytes,
@@ -603,6 +603,7 @@ pub const testing = if (target_builtin.is_test) struct {
     pub const beginShutdownFn = HostService.beginShutdown;
     pub const InputFailureType = InputFailure;
     pub const OutcomePublicationHandoffType = OutcomePublicationHandoff;
+    pub const RequestDispatcherType = host_request_dispatch.Dispatcher;
     pub const commitOutcomePublicationHandoffFn = OutcomePublicationHandoff.commit;
     pub const cleanupFailureDetailsFn = cleanupFailureDetails;
     pub const identifierTextFn = control_encode.identifierText;

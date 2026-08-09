@@ -68,6 +68,7 @@ pub const CoreError = error{
     InventoryGenerationOverflow,
     MissingConnection,
     MissingResource,
+    OutcomePublicationPending,
     RevisionOverflow,
     ResizeLeaseDenied,
     SequenceOverflow,
@@ -389,6 +390,7 @@ pub const HostCore = struct {
     pub fn commitTerminalRemoval(self: *HostCore, terminal_id: TerminalId) void {
         const terminal = self.terminal_registry.get(terminal_id).?;
         std.debug.assert(terminal.phase() == .exited or terminal.phase() == .failed);
+        std.debug.assert(terminal.pendingOutcome() == null);
         self.removeTerminalAttachments(terminal_id);
         _ = self.terminal_registry.removeAssumePresent(terminal_id, true);
     }

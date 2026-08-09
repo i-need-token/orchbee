@@ -231,6 +231,62 @@ describe('HostConnection', () => {
 		connection.close();
 	});
 
+	it('rejects a different registered correlated response kind without replaying', async () => {
+		const hostEpoch = HostEpochSchema.parse('55'.repeat(16));
+		let nonHelloRequestCount = 0;
+		let stream: Duplex;
+		stream = new Duplex({
+			read() {},
+			write(chunk, _encoding, callback) {
+				const request = decodeProtocolEnvelope(new Uint8Array(chunk));
+				if (!request.ok) throw new Error(request.detail);
+				const hello = request.value.kind === MessageKind.hello;
+				if (!hello) {
+					nonHelloRequestCount += 1;
+					expect(request.value.kind).toBe(MessageKind.ping);
+				}
+				const response = encodeProtocolEnvelope({
+					correlationId: request.value.correlationId,
+					event: false,
+					hostEpoch,
+					kind: hello ? MessageKind.helloAccepted : MessageKind.listTerminals,
+					optionalMessage: false,
+					payload: new TextEncoder().encode(
+						JSON.stringify(
+							hello
+								? {
+										frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
+										hostEpoch,
+										hostVersion: '0.1.0',
+										inputBytes: PROTOCOL_LIMITS.maxInputBytes,
+										protocol: currentProtocol,
+										rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+										supportedOptionalFeatures: [],
+									}
+								: {},
+						),
+					),
+					payloadEncoding: PayloadEncoding.controlJson,
+					protocol: currentProtocol,
+					response: true,
+				});
+				if (!response.ok) throw new Error(response.detail);
+				stream.push(response.value);
+				callback();
+			},
+		});
+		const connection = new HostConnection(stream);
+		await connection.negotiate(ClientIdSchema.parse('66'.repeat(16)));
+
+		await expect(connection.requestControlEnvelope(MessageKind.ping, {})).rejects.toThrow(
+			`Host response kind ${MessageKind.listTerminals} does not match ${MessageKind.ping}.`,
+		);
+		await new Promise<void>((resolve) => setImmediate(resolve));
+		expect(nonHelloRequestCount).toBe(1);
+		expect(connection.metrics.recordsSent).toBe(2);
+		connection.close();
+	});
+
 	it('notifies current and late close observers exactly once', async () => {
 		const stream = new Duplex({
 			read() {},

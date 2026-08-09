@@ -27,6 +27,7 @@ const InputFailure = subject.testing.InputFailureType;
 const InventoryCursorWire = control_wire.InventoryCursor;
 const MessageKind = protocol.MessageKind;
 const OutcomePublicationHandoff = subject.testing.OutcomePublicationHandoffType;
+const RequestDispatcher = subject.testing.RequestDispatcherType;
 const TerminalConfigurationWire = control_wire.TerminalConfiguration;
 const beginShutdown = subject.testing.beginShutdownFn;
 const commitOutcomePublicationHandoff = subject.testing.commitOutcomePublicationHandoffFn;
@@ -100,6 +101,27 @@ fn retainFailedTerminal(
         .{ .observed = .{ .exit_code = 9 } },
     );
     return terminal_id;
+}
+
+fn publishPendingCoreOutcome(
+    service: *HostService,
+    terminal_id: core_module.TerminalId,
+) !void {
+    const terminal = service.runtime_aggregate.core().findTerminal(terminal_id) orelse
+        return error.ExpectedTerminal;
+    const pending = terminal.pendingOutcome() orelse return error.ExpectedPendingOutcome;
+    const token = switch (pending) {
+        .exited => |outcome| outcome.token,
+        .failed => |outcome| outcome.token,
+    };
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.applied,
+        service.runtime_aggregate.core().markOutcomePublished(token),
+    );
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.idempotent,
+        service.runtime_aggregate.core().markOutcomePublished(token),
+    );
 }
 
 fn fillOutgoingLeaving(
@@ -218,6 +240,7 @@ test "failed terminal outcome is emitted once with typed process evidence" {
 test "full outgoing batch leaves a failed outcome pending for the next handoff" {
     var service = HostService.init(std.testing.allocator);
     defer service.deinit();
+    const connection = testActiveConnectionState();
     const connection_id: core_module.ConnectionId = 1;
     _ = try service.runtime_aggregate.core().connect(
         connection_id,
@@ -242,18 +265,168 @@ test "full outgoing batch leaves a failed outcome pending for the next handoff" 
     try synchronizeRuntimeLifecycle(&service, &full, &blocked_handoff);
     commitOutcomePublicationHandoff(&blocked_handoff, service.runtime_aggregate.core());
     try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id).?.pendingOutcome() != null);
-
-    var retry = Outgoing.init(std.testing.allocator);
-    defer retry.deinit();
-    var retry_handoff: OutcomePublicationHandoff = .{};
-    try synchronizeRuntimeLifecycle(&service, &retry, &retry_handoff);
-    try std.testing.expectEqual(@as(usize, 1), retry.records().len);
-    try std.testing.expectEqual(
-        MessageKind.terminal_failed,
-        (try protocol.validateTransportEnvelope(retry.records()[0])).kind,
+    try std.testing.expectError(
+        error.OutcomePublicationPending,
+        service.runtime_aggregate.core().disposeTerminal(connection_id, terminal_id),
     );
-    commitOutcomePublicationHandoff(&retry_handoff, service.runtime_aggregate.core());
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id) != null);
+
+    var retry = try service.pollEvents(&connection);
+    defer retry.deinit();
+    try std.testing.expectEqual(@as(usize, 1), retry.records().len);
+    const event = try protocol.validateTransportEnvelope(retry.records()[0]);
+    try std.testing.expectEqual(MessageKind.terminal_failed, event.kind);
+    var terminal_buffer: [32]u8 = undefined;
+    try std.testing.expect(
+        std.mem.indexOf(
+            u8,
+            event.payload,
+            identifierText(terminal_id, &terminal_buffer),
+        ) != null,
+    );
     try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id).?.pendingOutcome() == null);
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.applied,
+        try service.runtime_aggregate.core().disposeTerminal(connection_id, terminal_id),
+    );
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.idempotent,
+        try service.runtime_aggregate.core().disposeTerminal(connection_id, terminal_id),
+    );
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id) == null);
+}
+
+test "DisposeTerminal retains a native exit until its poll handoff commits" {
+    const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "exit 0" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "exit /B 0" };
+    const arguments: []const []const u8 = if (target_builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    const create_payload = try testCreatePayload(
+        "34343434343434343434343434343434",
+        executable,
+        arguments,
+    );
+    defer std.testing.allocator.free(create_payload);
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "35353535353535353535353535353535");
+    var created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        create_payload,
+        [_]u8{0x36} ** 16,
+    );
+    defer created.deinit();
+    const terminal_id = service.runtime_aggregate.core().terminalKeys()[0];
+    const retained_runtime = findRuntime(&service, terminal_id).?;
+    const completion = try retained_runtime.waitForCompletion();
+    try std.testing.expectEqual(
+        terminal_runtime.CompletionState.normal,
+        completion.classification,
+    );
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.running,
+        service.runtime_aggregate.core().findTerminal(terminal_id).?.phase(),
+    );
+
+    const dispose_payload = try testTerminalTargetPayload(terminal_id);
+    defer std.testing.allocator.free(dispose_payload);
+    const generation_before = service.runtime_aggregate.core().inventoryGeneration();
+    var rejected = try testRequest(
+        &service,
+        &connection,
+        MessageKind.dispose_terminal,
+        .control_json,
+        dispose_payload,
+        [_]u8{0x37} ** 16,
+    );
+    defer rejected.deinit();
+    try expectSingleFailureCode(&rejected, "outcome-publication-pending");
+    const rejection_envelope = try protocol.validateTransportEnvelope(rejected.records()[0]);
+    const Failure = struct {
+        code: []const u8,
+        message: []const u8,
+        retryable: bool,
+    };
+    const failure = try control_wire.decode(
+        Failure,
+        std.testing.allocator,
+        rejection_envelope.payload,
+    );
+    defer failure.deinit();
+    try std.testing.expect(failure.value.retryable);
+    try std.testing.expectEqual(generation_before, service.runtime_aggregate.core().inventoryGeneration());
+    try std.testing.expect(findRuntime(&service, terminal_id) == retained_runtime);
+    try std.testing.expectEqual(@as(usize, 1), service.runtime_aggregate.runtimeCount());
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id).?.pendingOutcome() != null);
+
+    var events = try service.pollEvents(&connection);
+    defer events.deinit();
+    try std.testing.expectEqual(@as(usize, 1), events.records().len);
+    const exit_event = try protocol.validateTransportEnvelope(events.records()[0]);
+    try std.testing.expectEqual(MessageKind.terminal_exited, exit_event.kind);
+    var terminal_buffer: [32]u8 = undefined;
+    try std.testing.expect(
+        std.mem.indexOf(
+            u8,
+            exit_event.payload,
+            identifierText(terminal_id, &terminal_buffer),
+        ) != null,
+    );
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id).?.pendingOutcome() == null);
+    try std.testing.expect(findRuntime(&service, terminal_id) == retained_runtime);
+
+    var duplicate_events = try service.pollEvents(&connection);
+    defer duplicate_events.deinit();
+    try std.testing.expectEqual(@as(usize, 0), duplicate_events.records().len);
+
+    var disposed = try testRequest(
+        &service,
+        &connection,
+        MessageKind.dispose_terminal,
+        .control_json,
+        dispose_payload,
+        [_]u8{0x38} ** 16,
+    );
+    defer disposed.deinit();
+    try std.testing.expectEqual(@as(usize, 1), disposed.records().len);
+    try std.testing.expectEqual(
+        MessageKind.dispose_terminal,
+        (try protocol.validateTransportEnvelope(disposed.records()[0])).kind,
+    );
+    try std.testing.expectEqual(@as(usize, 0), service.runtime_aggregate.runtimeCount());
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id) == null);
+
+    var repeated = try testRequest(
+        &service,
+        &connection,
+        MessageKind.dispose_terminal,
+        .control_json,
+        dispose_payload,
+        [_]u8{0x39} ** 16,
+    );
+    defer repeated.deinit();
+    try std.testing.expectEqual(@as(usize, 1), repeated.records().len);
+    try std.testing.expectEqual(
+        MessageKind.dispose_terminal,
+        (try protocol.validateTransportEnvelope(repeated.records()[0])).kind,
+    );
+    try std.testing.expectEqual(@as(usize, 0), service.runtime_aggregate.runtimeCount());
 }
 
 test "settled outcome handoff publishes once and rejects revision advancement" {
@@ -397,6 +570,255 @@ test "protocol identifier failures retain their public error code" {
     try std.testing.expectEqualStrings(
         "invalid-identifier",
         protocolErrorCode(error.InvalidIdentifier),
+    );
+}
+
+test "I/O successful responses use supplied request contracts and publish input once" {
+    const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "ping -n 31 127.0.0.1 >nul" };
+    const arguments: []const []const u8 = if (target_builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    const create_payload = try testCreatePayload(
+        "49494949494949494949494949494949",
+        executable,
+        arguments,
+    );
+    defer std.testing.allocator.free(create_payload);
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "48484848484848484848484848484848");
+    var created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        create_payload,
+        [_]u8{0x49} ** 16,
+    );
+    defer created.deinit();
+    const terminal_id = service.runtime_aggregate.core().terminalKeys()[0];
+    const attachment_id = core_module.AttachmentId.fromBytes([_]u8{0x4a} ** 16);
+    var attachment_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    const attach_payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":true,\"read\":true,\"resize\":true}},\"requestResizeLease\":true,\"terminalId\":\"{s}\"}}",
+        .{
+            identifierText(attachment_id, &attachment_buffer),
+            identifierText(terminal_id, &terminal_buffer),
+        },
+    );
+    defer std.testing.allocator.free(attach_payload);
+    var attached = try testRequest(
+        &service,
+        &connection,
+        MessageKind.attach_terminal,
+        .control_json,
+        attach_payload,
+        [_]u8{0x4a} ** 16,
+    );
+    defer attached.deinit();
+    const runtime = findRuntime(&service, terminal_id).?;
+
+    // This unpublished first FIFO entry prevents the writer from consuming
+    // later committed input while the test counts exact publications.
+    var publication_barrier = try runtime.prepareRawInput("publication barrier");
+    defer publication_barrier.deinit();
+
+    var raw_payload = [_]u8{0} ** 17;
+    @memcpy(raw_payload[0..16], &attachment_id.bytes);
+    raw_payload[16] = 'r';
+
+    var key_payload = [_]u8{0} ** 37;
+    @memcpy(key_payload[0..16], &attachment_id.bytes);
+    key_payload[16] = 1;
+    std.mem.writeInt(u16, key_payload[22..24], 4, .little);
+    std.mem.writeInt(u32, key_payload[24..28], 'a', .little);
+    std.mem.writeInt(u32, key_payload[28..32], 1, .little);
+    @memcpy(key_payload[32..36], "KeyA");
+    key_payload[36] = 'a';
+
+    var text_payload = [_]u8{0} ** 21;
+    @memcpy(text_payload[0..16], &attachment_id.bytes);
+    std.mem.writeInt(u32, text_payload[16..20], 1, .little);
+    text_payload[20] = 't';
+
+    var mouse_payload = [_]u8{0} ** 32;
+    @memcpy(mouse_payload[0..16], &attachment_id.bytes);
+    mouse_payload[16] = 0;
+    mouse_payload[17] = 1;
+    std.mem.writeInt(u32, mouse_payload[20..24], @bitCast(@as(f32, 8)), .little);
+    std.mem.writeInt(u32, mouse_payload[24..28], @bitCast(@as(f32, 16)), .little);
+    std.mem.writeInt(u16, mouse_payload[28..30], 1, .little);
+
+    var focus_payload = [_]u8{0} ** 20;
+    @memcpy(focus_payload[0..16], &attachment_id.bytes);
+    focus_payload[16] = 1;
+
+    var paste_payload = [_]u8{0} ** 21;
+    @memcpy(paste_payload[0..16], &attachment_id.bytes);
+    std.mem.writeInt(u32, paste_payload[16..20], 1, .little);
+    paste_payload[20] = 'p';
+
+    const input_cases = [_]struct {
+        kind: u16,
+        must_publish: bool,
+        payload: []const u8,
+    }{
+        .{ .kind = MessageKind.write_input, .must_publish = true, .payload = &raw_payload },
+        .{ .kind = MessageKind.key_input, .must_publish = true, .payload = &key_payload },
+        .{ .kind = MessageKind.text_input, .must_publish = true, .payload = &text_payload },
+        .{ .kind = MessageKind.mouse_input, .must_publish = false, .payload = &mouse_payload },
+        .{ .kind = MessageKind.focus_input, .must_publish = false, .payload = &focus_payload },
+        .{ .kind = MessageKind.paste_input, .must_publish = true, .payload = &paste_payload },
+    };
+    var input_acceptances: usize = 0;
+    for (input_cases, 0..) |input_case, index| {
+        const request_contract = try syntheticIoRequestContract(
+            input_case.kind,
+            MessageKind.ping,
+        );
+        const publications_before = publishedClientInputCount(runtime);
+        const correlation_id = testIdentifier(0x4b, index);
+        var outgoing = try testRequestWithContract(
+            &service,
+            &connection,
+            request_contract,
+            input_case.kind,
+            input_case.payload,
+            correlation_id,
+        );
+        defer outgoing.deinit();
+        const envelope = try expectContractSuccess(
+            &outgoing,
+            request_contract,
+            correlation_id,
+        );
+        const InputAccepted = struct {
+            acceptedBytes: usize,
+            attachmentId: []const u8,
+        };
+        const accepted = try control_wire.decode(
+            InputAccepted,
+            std.testing.allocator,
+            envelope.payload,
+        );
+        defer accepted.deinit();
+        input_acceptances += 1;
+        var expected_attachment_buffer: [32]u8 = undefined;
+        try std.testing.expectEqualStrings(
+            identifierText(attachment_id, &expected_attachment_buffer),
+            accepted.value.attachmentId,
+        );
+        const publications_after = publishedClientInputCount(runtime);
+        if (accepted.value.acceptedBytes == 0) {
+            try std.testing.expect(!input_case.must_publish);
+            try std.testing.expectEqual(publications_before, publications_after);
+        } else {
+            try std.testing.expectEqual(publications_before + 1, publications_after);
+        }
+    }
+    try std.testing.expectEqual(input_cases.len, input_acceptances);
+
+    const resize_contract = try syntheticIoRequestContract(
+        MessageKind.resize_terminal,
+        MessageKind.ping,
+    );
+    var resized = try testRequestWithContract(
+        &service,
+        &connection,
+        resize_contract,
+        MessageKind.resize_terminal,
+        "{\"attachmentId\":\"4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a\",\"cellPixelHeight\":16,\"cellPixelWidth\":8,\"columns\":81,\"rows\":24}",
+        [_]u8{0x51} ** 16,
+    );
+    defer resized.deinit();
+    _ = try expectContractSuccess(&resized, resize_contract, [_]u8{0x51} ** 16);
+
+    const demand_contract = try syntheticIoRequestContract(
+        MessageKind.set_projection_demand,
+        MessageKind.ping,
+    );
+    var demanded = try testRequestWithContract(
+        &service,
+        &connection,
+        demand_contract,
+        MessageKind.set_projection_demand,
+        "{\"attachmentId\":\"4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a\",\"demand\":\"active\"}",
+        [_]u8{0x52} ** 16,
+    );
+    defer demanded.deinit();
+    _ = try expectContractSuccess(&demanded, demand_contract, [_]u8{0x52} ** 16);
+
+    try std.testing.expect(service.runtime_aggregate.setNextProjectionAt(terminal_id, 0));
+    var first_frame_batch = try service.pollEvents(&connection);
+    defer first_frame_batch.deinit();
+    const first_frame = try onlyTerminalFrame(&first_frame_batch);
+    var need_snapshot_buffer: [160]u8 = undefined;
+    const need_snapshot_payload = try std.fmt.bufPrint(
+        &need_snapshot_buffer,
+        "{{\"attachmentId\":\"4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a\",\"reason\":\"base-mismatch\",\"sequence\":\"{d}\"}}",
+        .{first_frame.sequence},
+    );
+    const need_snapshot_contract = try syntheticIoRequestContract(
+        MessageKind.need_snapshot,
+        MessageKind.ping,
+    );
+    var snapshot_requested = try testRequestWithContract(
+        &service,
+        &connection,
+        need_snapshot_contract,
+        MessageKind.need_snapshot,
+        need_snapshot_payload,
+        [_]u8{0x53} ** 16,
+    );
+    defer snapshot_requested.deinit();
+    _ = try expectContractSuccess(
+        &snapshot_requested,
+        need_snapshot_contract,
+        [_]u8{0x53} ** 16,
+    );
+
+    try std.testing.expect(service.runtime_aggregate.setNextProjectionAt(terminal_id, 0));
+    var second_frame_batch = try service.pollEvents(&connection);
+    defer second_frame_batch.deinit();
+    const second_frame = try onlyTerminalFrame(&second_frame_batch);
+    var frame_applied_buffer: [256]u8 = undefined;
+    const frame_applied_payload = try std.fmt.bufPrint(
+        &frame_applied_buffer,
+        "{{\"attachmentId\":\"4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a\",\"generation\":\"{d}\",\"revision\":\"{d}\",\"sequence\":\"{d}\"}}",
+        .{ second_frame.generation, second_frame.revision, second_frame.sequence },
+    );
+    const frame_applied_contract = try syntheticIoRequestContract(
+        MessageKind.frame_applied,
+        MessageKind.ping,
+    );
+    var frame_applied = try testRequestWithContract(
+        &service,
+        &connection,
+        frame_applied_contract,
+        MessageKind.frame_applied,
+        frame_applied_payload,
+        [_]u8{0x54} ** 16,
+    );
+    defer frame_applied.deinit();
+    _ = try expectContractSuccess(
+        &frame_applied,
+        frame_applied_contract,
+        [_]u8{0x54} ** 16,
     );
 }
 
@@ -814,6 +1236,7 @@ test "idle stop requires both the final disconnect and an empty terminal registr
     );
     _ = try service.runtime_aggregate.core().childExited(terminal_id, .{ .exit_code = 0 });
     _ = try service.runtime_aggregate.core().ptyDrained(terminal_id);
+    try publishPendingCoreOutcome(&service, terminal_id);
     _ = try service.runtime_aggregate.core().disposeTerminal(connection_id, terminal_id);
     _ = service.runtime_aggregate.core().disconnect(connection_id);
     try std.testing.expect(service.canStopWhenIdle());
@@ -1043,6 +1466,7 @@ test "current protocol rejects a cursor made stale by disposal and freshly pages
         .{ .exit_code = 0 },
     );
     _ = try service.runtime_aggregate.core().ptyDrained(replay_terminal_id);
+    try publishPendingCoreOutcome(&service, replay_terminal_id);
     const generation_before_disposal = service.runtime_aggregate.core().inventoryGeneration();
     try std.testing.expectEqual(
         .applied,
@@ -2736,6 +3160,111 @@ test "selection export request emits pending cancellation before a newer export 
     );
     try std.testing.expectEqual(@as(u64, 4), retried_handoff.started.export_sequence);
     _ = try runtime.cancelSelectionExport(attachment_id, 4);
+}
+
+fn syntheticIoRequestContract(
+    request_kind: u16,
+    success_kind: u16,
+) !protocol.RequestMessageContract {
+    const registered = protocol.messageContract(request_kind) orelse
+        return error.ExpectedRegisteredRequest;
+    const request = registered.request orelse return error.ExpectedRegisteredRequest;
+    const success = protocol.messageContract(success_kind) orelse
+        return error.ExpectedRegisteredResponse;
+    try std.testing.expect(success.response_encoding != null);
+    try std.testing.expectEqual(
+        protocol.PayloadEncoding.control_json,
+        success.response_encoding.?,
+    );
+    try std.testing.expect(request.success_kind != success_kind);
+    return .{
+        .operation = request.operation,
+        .payload_encoding = request.payload_encoding,
+        .success_kind = success_kind,
+    };
+}
+
+fn testRequestWithContract(
+    service: *HostService,
+    connection: *ConnectionState,
+    request_contract: protocol.RequestMessageContract,
+    kind: u16,
+    payload: []const u8,
+    correlation_id: WireIdentifier,
+) !Outgoing {
+    const record = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        kind,
+        request_contract.payload_encoding,
+        payload,
+        correlation_id,
+        service.runtime_aggregate.core().epoch.bytes,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(record);
+    const envelope = try protocol.validateTransportEnvelope(record);
+    const active = try activeConnection(connection);
+    service.runtime_aggregate.synchronizeRuntimes();
+    var outgoing = Outgoing.init(std.testing.allocator);
+    errdefer outgoing.deinit();
+    var dispatcher = RequestDispatcher.init(
+        service.allocator,
+        &service.runtime_aggregate,
+        &service.terminal_defaults,
+        &service.terminal_defaults_revision,
+        service.trace_interactions,
+    );
+    try dispatcher.dispatch(
+        request_contract,
+        active.connection_id,
+        .{
+            .input_bytes = active.limits.input_bytes,
+            .row_window_bytes = active.limits.row_window_bytes,
+        },
+        envelope,
+        correlation_id,
+        &outgoing,
+    );
+    return outgoing;
+}
+
+fn expectContractSuccess(
+    outgoing: *const Outgoing,
+    request_contract: protocol.RequestMessageContract,
+    correlation_id: WireIdentifier,
+) !protocol.EnvelopeSummary {
+    try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
+    const envelope = try protocol.validateTransportEnvelope(outgoing.records()[0]);
+    try std.testing.expect(envelope.response);
+    try std.testing.expect(!envelope.event);
+    try std.testing.expectEqualSlices(u8, &correlation_id, &envelope.correlation_id.?);
+    try std.testing.expectEqual(request_contract.success_kind, envelope.kind);
+    return envelope;
+}
+
+fn publishedClientInputCount(runtime: *terminal_runtime.TerminalRuntime) usize {
+    runtime.input_mutex.lock();
+    defer runtime.input_mutex.unlock();
+    var count: usize = 0;
+    for (runtime.input_entries.items) |entry| {
+        if (entry.source == terminal_runtime.testing.InputSourceType.client and
+            entry.bytes != null)
+        {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+fn onlyTerminalFrame(outgoing: *const Outgoing) !protocol.FrameSummary {
+    try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
+    const envelope = try protocol.validateTransportEnvelope(outgoing.records()[0]);
+    try std.testing.expect(
+        envelope.kind == MessageKind.snapshot_frame or
+            envelope.kind == MessageKind.delta_frame,
+    );
+    return protocol.validateTerminalFrame(std.testing.allocator, envelope.payload);
 }
 
 fn testHandshake(

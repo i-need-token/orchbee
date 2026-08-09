@@ -12,7 +12,6 @@ const identifiers = @import("terminal-host-model").identifiers;
 const protocol = @import("terminal-protocol");
 
 const Context = host_request_context.Context;
-const MessageKind = protocol.MessageKind;
 const Outgoing = host_outgoing.Outgoing;
 const WireIdentifier = identifiers.IdentifierBytes;
 const coreError = host_failure.fromCore;
@@ -23,15 +22,18 @@ const semanticInputFailureMessage = host_failure.semanticInputMessage;
 
 pub fn dispatch(
     context: *Context,
-    operation: protocol.RequestOperation,
+    request_contract: protocol.RequestMessageContract,
     connection_id: core_module.ConnectionId,
     negotiated_input_bytes: usize,
     envelope: protocol.EnvelopeSummary,
     correlation_id: WireIdentifier,
     outgoing: *Outgoing,
 ) !void {
-    var handler: Handler = .{ .context = context };
-    switch (operation) {
+    var handler: Handler = .{
+        .context = context,
+        .request_contract = request_contract,
+    };
+    switch (request_contract.operation) {
         .write_input => try handler.handleInput(
             connection_id,
             negotiated_input_bytes,
@@ -61,6 +63,7 @@ pub fn dispatch(
 
 const Handler = struct {
     context: *Context,
+    request_contract: protocol.RequestMessageContract,
 
     fn handleInput(
         self: *Handler,
@@ -103,7 +106,7 @@ const Handler = struct {
             .accepted => |committed| {
                 std.debug.assert(committed.attachment_id.eql(accepted.attachment_id));
                 std.debug.assert(committed.byte_count == accepted.byte_count);
-                _ = response.commitControl(MessageKind.input_accepted, &output);
+                _ = response.commitControl(self.request_contract.success_kind, &output);
             },
             .runtime_rejected => |err| {
                 const failure = inputFailure(err);
@@ -161,7 +164,7 @@ const Handler = struct {
             .accepted => |committed| {
                 std.debug.assert(committed.attachment_id.eql(accepted.attachment_id));
                 std.debug.assert(committed.byte_count == accepted.byte_count);
-                _ = response.commitControl(MessageKind.input_accepted, &output);
+                _ = response.commitControl(self.request_contract.success_kind, &output);
             },
             .runtime_rejected => |err| {
                 const failure = inputFailure(err);
@@ -201,7 +204,7 @@ const Handler = struct {
         };
         var output = response.writer();
         control_encode.writeFrameApplied(&output, request) catch unreachable;
-        _ = response.commitControl(MessageKind.frame_applied, &output);
+        _ = response.commitControl(self.request_contract.success_kind, &output);
     }
 
     fn handleNeedSnapshot(
@@ -228,7 +231,7 @@ const Handler = struct {
         };
         var output = response.writer();
         control_encode.writeNeedSnapshot(&output, request) catch unreachable;
-        _ = response.commitControl(MessageKind.need_snapshot, &output);
+        _ = response.commitControl(self.request_contract.success_kind, &output);
     }
 
     fn handleProjectionDemand(
@@ -259,7 +262,7 @@ const Handler = struct {
             request.attachment_id,
             request.demand,
         ) catch unreachable;
-        _ = response.commitControl(MessageKind.projection_demand_accepted, &output);
+        _ = response.commitControl(self.request_contract.success_kind, &output);
     }
 
     fn handleResize(
@@ -296,6 +299,6 @@ const Handler = struct {
         };
         var output = response.writer();
         control_encode.writeResizeAccepted(&output, resized) catch unreachable;
-        _ = response.commitControl(MessageKind.resize_accepted, &output);
+        _ = response.commitControl(self.request_contract.success_kind, &output);
     }
 };

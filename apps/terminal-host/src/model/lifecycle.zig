@@ -197,6 +197,7 @@ pub const Error = error{
     FailureContainmentIncomplete,
     InvalidPhase,
     InvalidProcessObservation,
+    OutcomePublicationPending,
 };
 
 pub const Lifecycle = union(enum) {
@@ -512,7 +513,12 @@ pub const Lifecycle = union(enum) {
     pub fn requireDisposable(self: Lifecycle) Error!void {
         return switch (self) {
             .containing_failure => error.FailureContainmentIncomplete,
-            .exited, .failed => {},
+            .exited => |state| if (state.publication == .pending)
+                error.OutcomePublicationPending
+            else {},
+            .failed => |state| if (state.publication == .pending)
+                error.OutcomePublicationPending
+            else {},
             .running, .finishing => error.InvalidPhase,
         };
     }

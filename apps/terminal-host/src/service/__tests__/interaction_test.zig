@@ -520,6 +520,12 @@ test "readable interaction capability distinguishes authorization from runtime o
     _ = try aggregate.core().detach(connection_id, input_attachment_id);
     _ = try aggregate.core().childExited(terminal_id, .{ .exit_code = 0 });
     _ = try aggregate.core().ptyDrained(terminal_id);
+    const pending = aggregate.core().findTerminal(terminal_id).?.pendingOutcome() orelse
+        return error.ExpectedPendingOutcome;
+    _ = aggregate.core().markOutcomePublished(switch (pending) {
+        .exited => |outcome| outcome.token,
+        .failed => |outcome| outcome.token,
+    });
     _ = try aggregate.core().disposeTerminal(connection_id, terminal_id);
     _ = aggregate.disconnect(connection_id);
 }
