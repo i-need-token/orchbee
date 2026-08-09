@@ -28,28 +28,17 @@ The root entry currently retains the `Button` compatibility export. The explicit
 
 `Tabs` also exposes the `workspace` variant used for full-height application work areas. Compose it with `TabsBar`, a workspace `TabsList`, one `TabsItem` per trigger, and an independent one-pixel `TabsDivider` between adjacent items. Tab triggers do not draw their own separators. `TabsBar` is `35px` high, composed of a `34px` content area and a `1px` bottom border, and may contain product-owned controls beside the semantic tab list. Each item is at most `200px` wide and shrinks equally when space is constrained. Unselected tabs use the brighter base surface, hover adds a lighter surface without changing the label color, and the selected tab uses the darker selected surface. The UI package provides accessible Base UI interaction and responsive chrome; product packages remain responsible for tab data and semantic actions such as selection, creation, and closure.
 
-Dropdown, context, menubar, and submenu surfaces use the shared `250px` menu width and shrink only
-when the available viewport is narrower. Product consumers keep the primitive default instead of
-assigning one-off menu widths. Their content, trigger, and interaction contract follows the
-repository [frontend menu standard](../../docs/frontend/menus.md).
+Dropdown, context, menubar, and submenu surfaces use the shared `250px` menu width and shrink only when the available viewport is narrower. Product consumers keep the primitive default instead of assigning one-off menu widths. Their content, trigger, and interaction contract follows the repository [frontend menu standard](../../docs/frontend/menus.md).
 
-Default Dialog and Alert Dialog surfaces use the shared `480px` width, constrained by the
-viewport, and shadow without an outer outline. Their action footers share the content surface and
-rely on spacing instead of a divider or tinted footer band.
+Default Dialog and Alert Dialog surfaces use the shared `480px` width, constrained by the viewport, and shadow without an outer outline. Their action footers share the content surface and rely on spacing instead of a divider or tinted footer band.
 
 ## Product icons
 
 Product code consumes `ProductIcon` through the package API and uses its Orchbee-owned name allowlist. It must not import Codicons CSS, vendor class names, font characters, or asset paths directly. The package stylesheet loads the icon font once, while `ProductIcon` keeps every glyph decorative so the owning control supplies the accessible name. `ProductIcon` and generated primitive icon defaults use the shared `14px` small-icon size; a non-default glyph size is an explicit `ProductIcon` component variant rather than a consumer override. Compact section-heading actions use the documented `13px` section-action variant. Leading Dropdown, Context, and Menubar icons use the `16px` menu-leading variant while trailing disclosure arrows remain `14px`.
 
-The product allowlist contains `sidebar-left`, `add`, `arrow-left`, `close`, `ellipsis`,
-`more-vertical`, `pin`, `search`, `settings`, and `terminal`, backed by their corresponding
-Codicons glyphs. Generated shadcn sources retain their upstream Lucide dependencies inside the
-generated compatibility boundary. See the repository
-[frontend styling standard](../../docs/frontend/styling.md) and
-[third-party notices](../../THIRD_PARTY_NOTICES.md).
+The product allowlist contains `sidebar-left`, `add`, `arrow-left`, `close`, `ellipsis`, `more-vertical`, `pin`, `search`, `settings`, and `terminal`, backed by their corresponding Codicons glyphs. Generated shadcn sources retain their upstream Lucide dependencies inside the generated compatibility boundary. See the repository [frontend styling standard](../../docs/frontend/styling.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).
 
-The resizable component facade exports `ResizablePanelGroupHandle` for product adapters that need
-to constrain live layouts through the group imperative API.
+The resizable component facade exports `ResizablePanelGroupHandle` for product adapters that need to constrain live layouts through the group imperative API.
 
 ## Refresh components
 
@@ -61,14 +50,9 @@ pnpm --dir packages/ui exec shadcn add --all --overwrite
 
 The repository owns a complete snapshot of the official Base UI registry rather than adding primitives on demand. Review the CLI diff before accepting a refresh because focused Orchbee compatibility adaptations may need to be reapplied. Do not hand-write a primitive that is available from shadcn.
 
-The snapshot uses `@orchbee/foundation/react` where generated event callbacks need the repository's
-stable-identity and latest-render-value contract. Preserve that focused adaptation when refreshing
-the affected registry components unless upstream provides the same contract.
+The snapshot uses `@orchbee/foundation/react` where generated event callbacks need the repository's stable-identity and latest-render-value contract. Preserve that focused adaptation when refreshing the affected registry components unless upstream provides the same contract.
 
-The snapshot also maps dropdown and context menu geometry to the shared Orchbee menu-width token.
-It also omits the upstream tooltip arrow so every shared Tooltip surface keeps the Orchbee visual
-contract, and normalizes generated primitive icon defaults to `14px`. Preserve these focused
-adaptations when refreshing those primitives.
+The snapshot also maps dropdown and context menu geometry to the shared Orchbee menu-width token. It also omits the upstream tooltip arrow so every shared Tooltip surface keeps the Orchbee visual contract, and normalizes generated primitive icon defaults to `14px`. Preserve these focused adaptations when refreshing those primitives.
 
 Generated Tailwind utilities remain part of the component source. [`src/styles.css`](src/styles.css) contains the Tailwind/shadcn imports, maps shadcn's compatibility variables to `@orchbee/design-tokens`, and owns the base layer required by those utilities, including the application-wide CSS-native scrollbar normalization. It does not define the Orchbee token vocabulary. The full workflow lives in [`docs/frontend/styling.md`](../../docs/frontend/styling.md).
 

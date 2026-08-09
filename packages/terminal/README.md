@@ -1,7 +1,6 @@
 # @orchbee/terminal
 
-Source-neutral browser client surface for a terminal whose authoritative VT state lives in
-Orchbee Terminal Host.
+Source-neutral browser client surface for a terminal whose authoritative VT state lives in Orchbee Terminal Host.
 
 ## Scope
 
@@ -15,15 +14,9 @@ This package owns one projected terminal surface:
 - keyboard, committed text, IME, mouse, focus, paste, and resize intents; and
 - visible-viewport accessibility.
 
-It never receives or parses PTY output, loads a VT engine, or exposes `write(ptyBytes)`. Terminal
-Host owns the PTY, Ghostty VT state, terminal modes, retained history, selection endpoints, and
-mode-dependent input encoding. The application owns transport, terminal inventory, product
-topology, clipboard effects, external navigation, and localized product UI. The machine-readable
-scope contract lives in [`project.json`](project.json).
+It never receives or parses PTY output, loads a VT engine, or exposes `write(ptyBytes)`. Terminal Host owns the PTY, Ghostty VT state, terminal modes, retained history, selection endpoints, and mode-dependent input encoding. The application owns transport, terminal inventory, product topology, clipboard effects, external navigation, and localized product UI. The machine-readable scope contract lives in [`project.json`](project.json).
 
-`ProjectedTerminal` represents exactly one attachment. Project, Workspace, Tab, Panel, and
-visibility policy remain above this package; a hidden terminal does not require a live renderer
-surface, and projection/history demand can be paused independently of the Host runtime.
+`ProjectedTerminal` represents exactly one attachment. Project, Workspace, Tab, Panel, and visibility policy remain above this package; a hidden terminal does not require a live renderer surface, and projection/history demand can be paused independently of the Host runtime.
 
 ## Install
 
@@ -33,9 +26,7 @@ pnpm add @orchbee/terminal
 
 ## Use
 
-The caller provides opaque Host identity, localized accessibility labels, and a transport-neutral
-command port. Binary frame and row-window payloads are forwarded without VT parsing or per-cell
-broker reconstruction.
+The caller provides opaque Host identity, localized accessibility labels, and a transport-neutral command port. Binary frame and row-window payloads are forwarded without VT parsing or per-cell broker reconstruction.
 
 ```ts
 import { ProjectedTerminal } from '@orchbee/terminal';
@@ -64,24 +55,17 @@ hostConnection.onRows((rowBuffer) => terminal.applyRows(rowBuffer));
 hostConnection.onTerminalExited((event) => terminal.notifyExited(event));
 ```
 
-Opening installs frame, renderer, input, resize, and accessibility handling before activating
-projection demand. A frame commits into a bounded row-partitioned structure-of-arrays store and is
-acknowledged only after draw scheduling. Exact duplicates are re-acknowledged; invalid identity,
-sequence, generation, dimension, or delta-base input requests a complete snapshot without mutating
-the committed grid.
+Opening installs frame, renderer, input, resize, and accessibility handling before activating projection demand. A frame commits into a bounded row-partitioned structure-of-arrays store and is acknowledged only after draw scheduling. Exact duplicates are re-acknowledged; invalid identity, sequence, generation, dimension, or delta-base input requests a complete snapshot without mutating the committed grid.
 
-The renderer consumes packed rows directly. It never reconstructs a local VT state or a per-cell
-object graph. Frame telemetry records the exact committed Host revision drawn by the renderer.
+The renderer consumes packed rows directly. It never reconstructs a local VT state or a per-cell object graph. Frame telemetry records the exact committed Host revision drawn by the renderer.
+
+Row-window input is strictly decoded by default. An application adapter may set `projectionBufferTrust: 'local-host'` only when it owns an immutable, same-user, capability-scoped Terminal Host transport. That path retains the OBPB format-`0.0.1` buffer and creates typed-array views without rescanning or repacking every cell. Gateway, network, plugin, and persisted input must retain the default `external` behavior.
 
 ## History, search, selection, and links
 
-Bottom-following use retains only the current packed grid. Entering history pauses live projection
-and commits one bounded row window with limited overscan. Stale, evicted, or invalid windows recover
-to a fresh bottom snapshot.
+Bottom-following use retains only the current packed grid. Entering history pauses live projection and commits one bounded row window with limited overscan. Stale, evicted, or invalid windows recover to a fresh bottom snapshot.
 
-Search is client-side. The first non-empty query lazily creates a Worker and streams bounded
-text-detail pages through a source-neutral row reader. Query text and matches never enter Terminal
-Host or an Electron broker.
+Search is client-side. The first non-empty query lazily creates a Worker and streams bounded text-detail pages through a source-neutral row reader. Query text and matches never enter Terminal Host or an Electron broker.
 
 ```ts
 terminal.scrollLines(-1);
@@ -89,9 +73,7 @@ terminal.updateSearch('failed', { caseSensitive: false, wholeWord: true });
 terminal.findNext();
 ```
 
-Selection endpoints and exported content remain authoritative in Terminal Host. The client sends
-gestures and commands, while the application performs the clipboard side effect and reports only
-its outcome.
+Selection endpoints and exported content remain authoritative in Terminal Host. The client sends gestures and commands, while the application performs the clipboard side effect and reports only its outcome.
 
 ```ts
 terminal.selectAll();
@@ -99,14 +81,11 @@ const result = await terminal.copySelectionAsync();
 if (result.kind === 'failed') reportCopyFailure(result.code);
 ```
 
-Link discovery reads only bounded nearby rows. `ProjectedTerminal` emits an approved URL request;
-the application decides whether and how to open it. Filesystem and unknown targets are not opened
-by this package.
+Link discovery reads only bounded nearby rows. `ProjectedTerminal` emits an approved URL request; the application decides whether and how to open it. Filesystem and unknown targets are not opened by this package.
 
 ## Bounded row API
 
-The asynchronous row reader exposes only revision- and generation-pinned pages. It intentionally
-has no synchronous whole-buffer string API.
+The asynchronous row reader exposes only revision- and generation-pinned pages. It intentionally has no synchronous whole-buffer string API.
 
 ```ts
 const snapshot = terminal.getBufferRowsSnapshot();
@@ -125,19 +104,11 @@ const rows = await terminal.readBufferRows(
 
 ## Renderer behavior
 
-WebGPU is preferred when available; Canvas 2D is the observable fallback. Both paths consume the
-same packed projection, theme, font configuration, selection/search overlays, preedit state, and
-cursor metadata. Renderer health reports initialization, fallback, device loss, recovery, and
-recovery failure.
+WebGPU is preferred when available; Canvas 2D is the observable fallback. Both paths consume the same packed projection, theme, font configuration, selection/search overlays, preedit state, and cursor metadata. Renderer health reports initialization, fallback, device loss, recovery, and recovery failure.
 
-Ghostty remains the reference for selected font metrics, shaping boundaries, procedural sprites,
-cursor geometry, and terminal-panel rendering behavior. That reference does not make this package
-a Ghostty VT owner. Maintenance provenance is recorded in
-[`docs/ghostty-surface-test-provenance.md`](docs/ghostty-surface-test-provenance.md).
+Ghostty remains the reference for selected font metrics, shaping boundaries, procedural sprites, cursor geometry, and terminal-panel rendering behavior. That reference does not make this package a Ghostty VT owner. Maintenance provenance is recorded in [`docs/ghostty-surface-test-provenance.md`](docs/ghostty-surface-test-provenance.md).
 
-Search behavior follows the bounded contract in
-[`docs/vscode-search-alignment.md`](docs/vscode-search-alignment.md). The application owns the find
-surface, query history, shortcuts, and localized labels.
+Search behavior follows the bounded contract in [`docs/vscode-search-alignment.md`](docs/vscode-search-alignment.md). The application owns the find surface, query history, shortcuts, and localized labels.
 
 ## Development
 
@@ -151,6 +122,4 @@ pnpm --filter @orchbee/terminal test:exports
 pnpm verify
 ```
 
-`pnpm audit:ghostty-panel` compares the maintained renderer/font provenance with the pinned Ghostty
-source when `../ghostty` or `GHOSTTY_SOURCE` is available. Run
-`pnpm generate:ghostty-panel-data` only when the pinned Nerd Font constraint table changes.
+`pnpm audit:ghostty-panel` compares the maintained renderer/font provenance with the pinned Ghostty source when `../ghostty` or `GHOSTTY_SOURCE` is available. Run `pnpm generate:ghostty-panel-data` only when the pinned Nerd Font constraint table changes.

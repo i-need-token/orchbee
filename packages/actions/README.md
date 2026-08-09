@@ -2,11 +2,7 @@
 
 Framework-independent runtime for Orchbee product-semantic Actions.
 
-The package owns scoped registration and resolution, discovery, availability rechecks, observable
-sync/async execution, confirmation, cooperative cancellation, progress, and explicit concurrency
-policy. Feature packages retain their authoritative state and register handlers that call their
-existing domain operations. Applications create one `ActionRuntime` per mounted composition and
-inject the runtime or a narrower invocation capability.
+The package owns scoped registration and resolution, discovery, availability rechecks, observable sync/async execution, confirmation, cooperative cancellation, progress, and explicit concurrency policy. Feature packages retain their authoritative state and register handlers that call their existing domain operations. Applications create one `ActionRuntime` per mounted composition and inject the runtime or a narrower invocation capability.
 
 ## Use
 
@@ -56,29 +52,15 @@ registration.dispose();
 runtime.dispose();
 ```
 
-Action definitions own stable IDs, descriptors, dynamic-input validation, availability,
-confirmation, execution policy, and result mapping. The runtime is not a product-state Store and
-does not grant automation authority merely because an Action can be enumerated.
+Action definitions own stable IDs, descriptors, dynamic-input validation, availability, confirmation, execution policy, and result mapping. The runtime is not a product-state Store and does not grant automation authority merely because an Action can be enumerated.
 
-`discover(...)` resolves the active scope outward by default. A global command surface can request
-descendant registrations from its application scope and receives scope-bound `ready` or
-`requires-input` results. An unresolved action is enumerable only when its definition supplies
-`getDiscoveryAvailability`; pass its runtime-owned token and collected input to
-`prepareInvocation(...)`, then execute the resulting opaque `PreparedActionInvocation` with
-`executePrepared(...)`. The token retains the validator's canonical input and exact registration
-identity; disposal or replacement blocks execution instead of falling back to another registration.
-Validators must return owner-owned canonical values and copy any caller-owned mutable collection or
-nested value retained for later execution.
+`discover(...)` resolves the active scope outward by default. A global command surface can request descendant registrations from its application scope and receives scope-bound `ready` or `requires-input` results. An unresolved action is enumerable only when its definition supplies `getDiscoveryAvailability`; pass its runtime-owned token and collected input to `prepareInvocation(...)`, then execute the resulting opaque `PreparedActionInvocation` with `executePrepared(...)`. The token retains the validator's canonical input and exact registration identity; disposal or replacement blocks execution instead of falling back to another registration. Validators must return owner-owned canonical values and copy any caller-owned mutable collection or nested value retained for later execution.
 
-An owner-defined Action catalog is effective only when the same `createTypedActionRuntime(...)`
-adapter registers definitions and invokes them. Its `register(...)` method checks each definition's
-ID, input, and handler output against the catalog, while `execute(...)` checks invocation input and
-execution output.
+An owner-defined Action catalog is effective only when the same `createTypedActionRuntime(...)` adapter registers definitions and invokes them. Its `register(...)` method checks each definition's ID, input, and handler output against the catalog, while `execute(...)` checks invocation input and execution output.
 
 `execute(...)` captures one shallow read-only invocation snapshot before resolution and always returns an `ActionExecution` immediately. Availability, confirmation, concurrency, and handler phases observe that same snapshot. A synchronous handler may already have a terminal snapshot; an asynchronous handler exposes the same handle, `completion`, progress, cooperative cancellation signal, and explicit commit point. Completion resolves to a structured result and never rejects with an unclassified handler, confirmation, validation, availability, or concurrency-key exception. Each definition declares `parallel`, `reject-duplicate`, `replace-latest`, or `serialize` behavior for its semantic concurrency key.
 
-The repository-wide semantic and lifecycle contract is
-[`docs/frontend/actions.md`](../../docs/frontend/actions.md).
+The repository-wide semantic and lifecycle contract is [`docs/frontend/actions.md`](../../docs/frontend/actions.md).
 
 ```sh
 pnpm --filter @orchbee/actions verify:correctness
