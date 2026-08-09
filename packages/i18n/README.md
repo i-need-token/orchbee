@@ -4,8 +4,7 @@ Locale contracts, formatting runtime, and shipped product translations for Orchb
 
 ## React composition
 
-Applications resolve their ordered platform preferences and install one provider above all product
-presentation:
+Applications resolve their ordered platform preferences and install one provider above all product presentation:
 
 ```tsx
 import { getOrchbeeTextDirection, OrchbeeI18nProvider, resolveOrchbeeLocale } from '@orchbee/i18n';
@@ -36,9 +35,7 @@ const intl = createOrchbeeIntl(locale);
 const formattedNumber = intl.formatNumber(1234);
 ```
 
-Applications own locale preference, detection, persistence, and document synchronization. This
-package owns locale normalization, formatting, message descriptors, and translations; it does not
-read platform globals or mutate document state.
+Applications own locale preference, detection, persistence, and document synchronization. This package owns locale normalization, formatting, message descriptors, and translations; it does not read platform globals or mutate document state.
 
 ## Catalog structure
 
@@ -47,12 +44,14 @@ Product copy is physically separated by locale and mirrored by product domain:
 ```text
 src/locales/
 ├── en-US/
+│   ├── application-routing.ts
 │   ├── desktop-application-lifetime.ts
 │   ├── index.ts
 │   ├── messages.ts
 │   ├── projected-terminal.ts
 │   └── workbench.ts
 └── zh-CN/
+	├── application-routing.ts
 	├── desktop-application-lifetime.ts
 	├── index.ts
 	├── messages.ts
@@ -60,20 +59,11 @@ src/locales/
 	└── workbench.ts
 ```
 
-The Workbench domain owns shared navigation and layout copy. The projected-terminal domain owns the
-transport-independent projected terminal, find, selection, copy, and link experience. The Desktop
-application-lifetime domain owns Electron-only quit and recovery copy. Add each future product
-domain beneath both locale directories and export the matching descriptors in the same change.
-Runtime English and Simplified Chinese catalog values never share an authored file. Directory names
-use the canonical BCP 47 identifier and casing, and catalog tests enforce message-ID and ICU-variable
-parity across every shipped locale.
+The application-routing domain owns unavailable-address and navigation-recovery copy. The Workbench domain owns shared navigation and layout copy. The projected-terminal domain owns the transport-independent projected terminal, find, selection, copy, and link experience. The Desktop application-lifetime domain owns Electron-only quit and recovery copy. Add each future product domain beneath both locale directories and export the matching descriptors in the same change. Runtime English and Simplified Chinese catalog values never share an authored file. Directory names use the canonical BCP 47 identifier and casing, and catalog tests enforce message-ID and ICU-variable parity across every shipped locale.
 
 ## Product language
 
-[`docs/product-language.md`](docs/product-language.md) owns the approved `en-US` and `zh-CN`
-terminology mappings and repeated interaction labels used during message authoring and review.
-Catalogs remain authoritative for complete runtime messages. Update the reference and every
-affected locale catalog together when an approved product-language decision changes.
+[`docs/product-language.md`](docs/product-language.md) owns the approved `en-US` and `zh-CN` terminology mappings and repeated interaction labels used during message authoring and review. Catalogs remain authoritative for complete runtime messages. Update the reference and every affected locale catalog together when an approved product-language decision changes.
 
 ## Development
 
@@ -84,5 +74,4 @@ pnpm --filter @orchbee/i18n test
 pnpm --filter @orchbee/i18n test:exports
 ```
 
-The authoring, fallback, and verification contract is defined in
-[`docs/frontend/localization.md`](../../docs/frontend/localization.md).
+The authoring, fallback, and verification contract is defined in [`docs/frontend/localization.md`](../../docs/frontend/localization.md).

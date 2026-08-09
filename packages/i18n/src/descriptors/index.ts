@@ -1,3 +1,4 @@
+export { applicationRoutingMessages } from './application-routing';
 export { desktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 export { projectedTerminalMessages } from './projected-terminal';
 export { workbenchMessages } from './workbench';

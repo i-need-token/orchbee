@@ -1,3 +1,5 @@
+export { enUSApplicationRoutingMessages } from './application-routing';
+export type { ApplicationRoutingMessageId } from './application-routing';
 export { enUSDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 export type { DesktopApplicationLifetimeMessageId } from './desktop-application-lifetime';
 export { enUSProjectedTerminalMessages } from './projected-terminal';

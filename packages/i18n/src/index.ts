@@ -2,6 +2,7 @@ export { FormattedMessage } from 'react-intl';
 export type { IntlShape, MessageDescriptor } from 'react-intl';
 
 export {
+	applicationRoutingMessages,
 	desktopApplicationLifetimeMessages,
 	projectedTerminalMessages,
 	workbenchMessages,
