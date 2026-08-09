@@ -164,6 +164,152 @@ fn expectCoreInvariants(core: *HostCore) !void {
     );
 }
 
+const ExpectedAttachment = struct {
+    attachment_id: AttachmentId,
+    capabilities: Capabilities,
+    resize_lease: bool,
+};
+
+fn initAttachmentRollbackCore(
+    allocator: std.mem.Allocator,
+    connection_id: ConnectionId,
+    terminal_id: TerminalId,
+) !HostCore {
+    var core = HostCore.init(allocator, testId(HostEpoch, 0xa0));
+    errdefer core.deinit();
+    try std.testing.expectEqual(
+        .applied,
+        try core.connect(connection_id, testId(ClientId, 0xa1)),
+    );
+    try std.testing.expectEqual(
+        .applied,
+        try core.createTerminal(
+            connection_id,
+            testId(CreationId, 0xa2),
+            terminal_id,
+            [_]u8{0xa3} ** 32,
+            80,
+            24,
+        ),
+    );
+    return core;
+}
+
+fn addExpectedAttachments(
+    core: *HostCore,
+    connection_id: ConnectionId,
+    terminal_id: TerminalId,
+    expected: []const ExpectedAttachment,
+) !void {
+    for (expected) |attachment| {
+        try std.testing.expectEqual(
+            .applied,
+            try core.attach(
+                connection_id,
+                attachment.attachment_id,
+                terminal_id,
+                attachment.capabilities,
+                attachment.resize_lease,
+            ),
+        );
+    }
+}
+
+fn expectAttachmentSnapshot(
+    core: *HostCore,
+    terminal_id: TerminalId,
+    expected: []const ExpectedAttachment,
+    absent_attachment_id: ?AttachmentId,
+) !void {
+    try std.testing.expectEqual(expected.len, core.attachmentCount());
+    try std.testing.expectEqual(
+        expected.len,
+        subject.testing.indexedAttachmentCount(core),
+    );
+
+    const indexed_ids = subject.testing.attachmentIdsForTerminal(core, terminal_id);
+    if (expected.len == 0) {
+        try std.testing.expect(indexed_ids == null);
+    } else {
+        const ids = indexed_ids orelse return error.TestUnexpectedResult;
+        try std.testing.expectEqual(expected.len, ids.len);
+        for (expected, 0..) |attachment, index| {
+            try std.testing.expect(ids[index].eql(attachment.attachment_id));
+        }
+    }
+
+    var expected_resize_leases: usize = 0;
+    for (expected, 0..) |attachment, index| {
+        const retained = core.findAttachment(attachment.attachment_id) orelse
+            return error.TestUnexpectedResult;
+        try std.testing.expect(retained.attachment_id.eql(attachment.attachment_id));
+        try std.testing.expect(retained.terminal_id.eql(terminal_id));
+        try std.testing.expect(retained.capabilities == attachment.capabilities);
+        try std.testing.expectEqual(attachment.resize_lease, retained.resize_lease);
+        try std.testing.expectEqual(index, retained.terminal_attachment_index);
+        expected_resize_leases += @intFromBool(attachment.resize_lease);
+    }
+
+    var actual_resize_leases: usize = 0;
+    for (core.attachmentValues()) |attachment| {
+        if (attachment.terminal_id.eql(terminal_id) and attachment.resize_lease) {
+            actual_resize_leases += 1;
+        }
+    }
+    try std.testing.expectEqual(expected_resize_leases, actual_resize_leases);
+    if (absent_attachment_id) |attachment_id| {
+        try std.testing.expect(core.findAttachment(attachment_id) == null);
+    }
+    try expectCoreInvariants(core);
+}
+
+fn expectAttachOutOfMemoryPreservesSnapshot(
+    connection_id: ConnectionId,
+    terminal_id: TerminalId,
+    preexisting: []const ExpectedAttachment,
+    candidate: ExpectedAttachment,
+    allocation_offset: usize,
+    reject_remap: bool,
+) !void {
+    var failing = std.testing.FailingAllocator.init(std.testing.allocator, .{});
+    var core = try initAttachmentRollbackCore(
+        failing.allocator(),
+        connection_id,
+        terminal_id,
+    );
+    defer core.deinit();
+    try addExpectedAttachments(&core, connection_id, terminal_id, preexisting);
+
+    const allocation_start = failing.alloc_index;
+    const resize_start = failing.resize_index;
+    failing.fail_index = allocation_start + allocation_offset;
+    if (reject_remap) failing.resize_fail_index = resize_start;
+    try std.testing.expectError(
+        error.OutOfMemory,
+        core.attach(
+            connection_id,
+            candidate.attachment_id,
+            terminal_id,
+            candidate.capabilities,
+            candidate.resize_lease,
+        ),
+    );
+    try std.testing.expect(failing.has_induced_failure);
+    try std.testing.expectEqual(failing.fail_index, failing.alloc_index);
+    if (reject_remap) {
+        try std.testing.expectEqual(resize_start, failing.resize_index);
+    }
+    failing.fail_index = std.math.maxInt(usize);
+    failing.resize_fail_index = std.math.maxInt(usize);
+
+    try expectAttachmentSnapshot(
+        &core,
+        terminal_id,
+        preexisting,
+        candidate.attachment_id,
+    );
+}
+
 test "primary runtime failure stage determines its only legal kind" {
     const FailureCase = struct {
         failure: subject.RuntimeFailure,
@@ -331,6 +477,159 @@ test "attachment routing and terminal disposal are exact across registries" {
     try std.testing.expect(core.findAttachment(first_attachment) == null);
     try std.testing.expect(core.findTerminal(second_terminal) != null);
     try std.testing.expect(core.findAttachment(second_attachment) != null);
+}
+
+test "first attachment allocation failures leave no broker commit" {
+    const connection_id: ConnectionId = 0xa4;
+    const terminal_id = testId(TerminalId, 0xa5);
+    const candidate: ExpectedAttachment = .{
+        .attachment_id = testId(AttachmentId, 0xa6),
+        .capabilities = .{ .input = true, .read = true, .resize = true },
+        .resize_lease = true,
+    };
+
+    var attach_allocation_count: usize = 0;
+    {
+        var allocation_counter = std.testing.FailingAllocator.init(
+            std.testing.allocator,
+            .{},
+        );
+        var core = try initAttachmentRollbackCore(
+            allocation_counter.allocator(),
+            connection_id,
+            terminal_id,
+        );
+        defer core.deinit();
+
+        const allocation_start = allocation_counter.alloc_index;
+        const resize_start = allocation_counter.resize_index;
+        try addExpectedAttachments(&core, connection_id, terminal_id, &.{candidate});
+        attach_allocation_count = allocation_counter.alloc_index - allocation_start;
+        try std.testing.expectEqual(@as(usize, 3), attach_allocation_count);
+        try std.testing.expectEqual(
+            resize_start,
+            allocation_counter.resize_index,
+        );
+        try expectAttachmentSnapshot(&core, terminal_id, &.{candidate}, null);
+    }
+
+    for (0..attach_allocation_count) |allocation_offset| {
+        try expectAttachOutOfMemoryPreservesSnapshot(
+            connection_id,
+            terminal_id,
+            &.{},
+            candidate,
+            allocation_offset,
+            false,
+        );
+    }
+}
+
+test "populated attachment growth rolls back every allocation failure" {
+    const connection_id: ConnectionId = 0xb0;
+    const terminal_id = testId(TerminalId, 0xb1);
+    // Zig 0.15.2 gives an unmanaged ArrayList its first capacity from one
+    // cache line. Fill that capacity so the candidate append must grow the
+    // per-terminal ID list; the allocator deltas below verify the growth.
+    const populated_count = @max(1, std.atomic.cache_line / @sizeOf(AttachmentId));
+    var expected: [populated_count + 1]ExpectedAttachment = undefined;
+    for (expected[0..populated_count], 0..) |*attachment, index| {
+        attachment.* = .{
+            .attachment_id = testId(AttachmentId, @intCast(0xc0 + index)),
+            .capabilities = switch (index % 3) {
+                0 => .{ .input = true, .read = true, .resize = true },
+                1 => .{ .input = true, .read = false, .resize = false },
+                2 => .{ .input = false, .read = true, .resize = false },
+                else => unreachable,
+            },
+            .resize_lease = index == 0,
+        };
+    }
+    expected[populated_count] = .{
+        .attachment_id = testId(AttachmentId, 0xf0),
+        .capabilities = .{ .input = true, .read = true, .resize = true },
+        .resize_lease = false,
+    };
+    const preexisting = expected[0..populated_count];
+    const candidate = expected[populated_count];
+
+    var ordinary_allocation_count: usize = 0;
+    var ordinary_resize_count: usize = 0;
+    {
+        var allocation_counter = std.testing.FailingAllocator.init(
+            std.testing.allocator,
+            .{},
+        );
+        var core = try initAttachmentRollbackCore(
+            allocation_counter.allocator(),
+            connection_id,
+            terminal_id,
+        );
+        defer core.deinit();
+        try addExpectedAttachments(&core, connection_id, terminal_id, preexisting);
+
+        const allocation_start = allocation_counter.alloc_index;
+        const resize_start = allocation_counter.resize_index;
+        try addExpectedAttachments(&core, connection_id, terminal_id, &.{candidate});
+        ordinary_allocation_count = allocation_counter.alloc_index - allocation_start;
+        ordinary_resize_count = allocation_counter.resize_index - resize_start;
+        try std.testing.expect(
+            ordinary_allocation_count > 0 or ordinary_resize_count > 0,
+        );
+        try expectAttachmentSnapshot(&core, terminal_id, &expected, null);
+    }
+
+    for (0..ordinary_allocation_count) |allocation_offset| {
+        try expectAttachOutOfMemoryPreservesSnapshot(
+            connection_id,
+            terminal_id,
+            preexisting,
+            candidate,
+            allocation_offset,
+            false,
+        );
+    }
+
+    // ArrayList growth tries allocator.remap before allocating a replacement.
+    // Pinning the current resize index rejects every candidate-time remap;
+    // the measured allocation delta therefore enumerates every fallback and
+    // later allocation that can return OutOfMemory on this commit path.
+    var remap_fallback_allocation_count: usize = 0;
+    {
+        var allocation_counter = std.testing.FailingAllocator.init(
+            std.testing.allocator,
+            .{},
+        );
+        var core = try initAttachmentRollbackCore(
+            allocation_counter.allocator(),
+            connection_id,
+            terminal_id,
+        );
+        defer core.deinit();
+        try addExpectedAttachments(&core, connection_id, terminal_id, preexisting);
+
+        const allocation_start = allocation_counter.alloc_index;
+        const resize_start = allocation_counter.resize_index;
+        allocation_counter.resize_fail_index = resize_start;
+        try addExpectedAttachments(&core, connection_id, terminal_id, &.{candidate});
+        remap_fallback_allocation_count =
+            allocation_counter.alloc_index - allocation_start;
+        try std.testing.expect(remap_fallback_allocation_count > 0);
+        try std.testing.expectEqual(resize_start, allocation_counter.resize_index);
+        allocation_counter.resize_fail_index = std.math.maxInt(usize);
+        try expectAttachmentSnapshot(&core, terminal_id, &expected, null);
+    }
+
+    for (0..remap_fallback_allocation_count) |allocation_offset| {
+        try expectAttachOutOfMemoryPreservesSnapshot(
+            connection_id,
+            terminal_id,
+            preexisting,
+            candidate,
+            allocation_offset,
+            true,
+        );
+    }
 }
 
 test "large inventory disposal swap-removes both indexes and advances one generation per terminal" {
