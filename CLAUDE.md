@@ -22,7 +22,7 @@
 
 - **Architecture**: `docs/ARCHITECTURE.md` — system architecture, dependency direction, data flow
 - **Applications**: `docs/APPLICATIONS.md` — runnable workspace placement, shape, and lifecycle
-- **Module Boundaries**: `docs/MODULE-BOUNDARIES.md` — source-tree visibility, entry points, composition, and cycles
+- **Module Boundaries**: `docs/MODULE-BOUNDARIES.md` — semantic module design, source-tree visibility, entry points, composition, and cycles
 - **Packages**: `docs/PACKAGES.md` — package naming, exports, builds, dependencies, and versioning
 - **Projects**: `docs/PROJECTS.md` — machine-readable workspace scope and responsibility contracts
 - **Code Style**: `docs/CODESTYLE.md` — comments, naming, file structure conventions
@@ -33,6 +33,7 @@
 - **Development**: `docs/DEVELOPMENT.md` — change classification, decision authority, staged governed-write control, and convergence
 - **Modeling and Correctness**: `docs/MODELING-AND-CORRECTNESS.md` — model-first behavior design and risk-based correctness evidence
 - **TypeScript**: `docs/TYPESCRIPT.md` — zero-compromise type safety, forbidden patterns
+- **Zig**: `docs/ZIG.md` — native naming, resource ownership, safety, concurrency, and testing
 - **Testing**: `docs/TESTING.md` — test layout, execution, and regression requirements
 - **Frontend Package Boundaries**: `docs/frontend/package-boundaries.md` — frontend workspace placement, semantic ownership, dependency direction, and platform ports
 - **Frontend React**: `docs/frontend/react.md` — component ownership, file boundaries, state, Effects, Hooks, Zustand, and testing

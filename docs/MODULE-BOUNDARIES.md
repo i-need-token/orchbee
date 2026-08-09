@@ -1,5 +1,40 @@
 # Module Boundaries
 
+## Semantic module design
+
+Apply this section to every authored language. Start with the accepted domain contract and modeling
+record in [`MODELING-AND-CORRECTNESS.md`](MODELING-AND-CORRECTNESS.md); this section owns only the
+mapping from those semantic responsibilities to source modules. Change authorization and task
+slicing remain in [`DEVELOPMENT.md`](DEVELOPMENT.md), cross-workspace direction remains in
+[`ARCHITECTURE.md`](ARCHITECTURE.md), and language-specific visibility remains in the sections below
+and the owning language standard.
+
+| Module role                 | Owned responsibility                                                                                  | Excluded responsibility                                                     |
+| --------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Deterministic domain module | One cohesive domain contract, its canonical types, principal operation, result, and invariant set     | Workflow order, framework lifecycle, and external mechanisms                |
+| State owner or aggregate    | One cohesive set of mutable facts, allowed transitions, invariants, and authoritative commit boundary | Unrelated state, another owner’s writes, and adapter mechanics              |
+| Workflow                    | Phase order, short-circuiting, retry, recovery, and coordination through typed owner operations       | Reimplementing domain decisions or mutating another module’s internal state |
+| Adapter                     | Translation between one external capability and canonical domain inputs, outputs, events, or commands | Domain policy and independent authoritative state                           |
+| Composition root            | Construction, dependency wiring, and owned runtime lifetime                                           | Domain decisions and hidden state machines                                  |
+
+- Admit a module only when its responsibility fits one sentence and its typed inputs, outputs,
+  owner, allowed dependencies, affected claims, and evidence can be named.
+- Split a responsibility when it contains independently changing contracts, owners, invariant
+  sets, workflow phases, or adapter capabilities. Keep behavior together when one owner and commit
+  boundary must preserve its invariants; line count, file count, framework category, and test
+  convenience never determine the boundary.
+- Put reusable code with the nearest semantic owner. Create a shared domain module only for a
+  stable named contract with real consumers; coincidental duplication and catch-all utility
+  groupings do not establish ownership.
+- Communicate through typed operations, results, events, and commands. Do not expose internal state
+  or mutation solely to make an extraction compile.
+- Follow authority in the dependency direction: workflows and adapters depend on visible domain
+  operations, while domain and state-owner modules never depend on their orchestrator, framework
+  shell, or composition root.
+- Reject an extraction that creates a cycle, a broad internal public API, callbacks into its former
+  parent, or coordinated writes outside one owner. Return to the domain model and correct ownership
+  or the commit boundary instead.
+
 ## Source module tree
 
 `orchbee/module-boundaries` enforces:

@@ -68,8 +68,9 @@ Traditional Chinese fallback. The authoritative message and visual-review requir
 
 ## Native application tests
 
-- Keep Zig unit tests in the owning `.zig` module and expose them through the application's
-  non-interactive `test` script.
+- Keep every Zig test and test-only helper under the owning source tree's `__tests__` directory,
+  and expose every test root through the application's non-interactive `test` script. Zig-specific
+  layout, naming, and white-box access are authoritative in [`docs/ZIG.md`](ZIG.md#testing).
 - Compile every maintained operating-system family through `test:cross`; do not claim runtime,
   ABI, PTY, IPC, packaging, or installer behavior from cross-compilation alone.
 - Run platform behavior and integration tests on their native operating system before claiming

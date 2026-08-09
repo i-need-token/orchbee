@@ -50,3 +50,7 @@ retryCount += 1;
 ## React
 
 React 专属规则的权威来源是 [`docs/frontend/react.md`](frontend/react.md)。
+
+## Zig
+
+Zig 专属的命名、资源、失败、边界、并发和测试规则的权威来源是 [`docs/ZIG.md`](ZIG.md)。

@@ -50,3 +50,7 @@ retryCount += 1;
 ## React
 
 React-specific rules are authoritative in [`docs/frontend/react.md`](frontend/react.md).
+
+## Zig
+
+Zig-specific naming, resource, failure, boundary, concurrency, and testing rules are authoritative in [`docs/ZIG.md`](ZIG.md).

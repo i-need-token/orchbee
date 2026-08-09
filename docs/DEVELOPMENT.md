@@ -168,6 +168,10 @@ framework category. Do not use tasks such as “implement the feature,” “ref
 the tests.” A task graph is execution state and remains in the active tool, issue, or review unless
 it has an independent durable consumer.
 
+When a slice changes source structure, map accepted semantic responsibilities to modules through
+[Semantic module design](MODULE-BOUNDARIES.md#semantic-module-design). Task slices remain execution
+units and never create module boundaries by themselves.
+
 Modeled and consequential work requires a fresh read-only challenge pass after Slice and before
 Implement. The review checks the change authorization, model, task graph, and evidence for
 ambiguity, contradiction, missing claims, ownership leaks, unsupported assumptions, and tasks that

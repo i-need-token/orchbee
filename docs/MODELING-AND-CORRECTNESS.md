@@ -100,19 +100,36 @@ declare function observe<State, Observable>(state: State): Observable;
 - Make state, events, commands, and observations serializable for correctness-gated behavior, or provide a lossless canonical trace.
 - Test complete transition sequences, including reversal, interruption, cancellation, rollback, and re-entry.
 
-A workflow owns phase order, short-circuiting, retry, recovery, and effects; domain units own decisions.
+A workflow owns phase order, short-circuiting, retry, recovery, and effects; domain units own
+decisions. Select only the applicable phases and order them according to the owned contract.
 
-| Phase     | Consumes                            | Produces                       | Effect policy            |
-| --------- | ----------------------------------- | ------------------------------ | ------------------------ |
-| Normalize | Untrusted or legacy input           | Canonical domain input         | Boundary validation only |
-| Decide    | Canonical input and semantic intent | Decision or projection         | Deterministic            |
-| Prepare   | Decision plus external capabilities | Prepared data or typed failure | Effects allowed          |
-| Present   | Prepared domain result              | Public output model            | No new domain decisions  |
+| Phase     | Consumes                                 | Produces                            | Effect policy                       |
+| --------- | ---------------------------------------- | ----------------------------------- | ----------------------------------- |
+| Normalize | Untrusted or legacy input                | Canonical domain input              | Boundary validation only            |
+| Decide    | Canonical input and semantic intent      | Decision or projection              | Deterministic                       |
+| Prepare   | Decision plus external capabilities      | Prepared data or typed failure      | No untracked authoritative mutation |
+| Commit    | Prepared result plus authoritative state | Committed state and semantic result | Named authoritative commit          |
+| Publish   | Committed semantic result                | Delivery result or tracked outcome  | Explicit delivery semantics         |
+| Present   | Prepared or committed domain result      | Public output model                 | No new domain decisions             |
 
 - Give every phase the smallest capability and typed input/output it needs.
 - Document every writer if a mutable workflow context is unavoidable.
 - Never convert an unexpected failure into empty success unless the output type defines degraded behavior.
-- Test deterministic phases directly and the orchestrator separately for order, calls, short-circuiting, retry, recovery, and error mapping.
+- Test deterministic phases directly and the orchestrator separately for order, calls, short-circuiting, retry, recovery, commit boundaries, publication outcomes, and error mapping.
+
+### Commit and publication boundaries
+
+- Name the authoritative commit point and classify every fallible action as pre-commit or
+  post-commit. Complete fallible allocation, encoding, validation, and capacity checks before commit
+  when the contract permits it.
+- A pre-commit failure leaves authoritative state unchanged or invokes rollback owned by the same
+  boundary. A post-commit failure preserves and reports the committed outcome, then follows an
+  explicit idempotency, retry, compensation, or terminal-failure policy.
+- Never mutate one owner and then perform untracked fallible work before another required mutation
+  or effect. Put the work under one owner and commit boundary, or represent the partial outcome and
+  recovery path in the model.
+- When several capabilities cannot commit atomically, model the intermediate and ambiguous outcomes;
+  do not claim atomic behavior that the implementation cannot provide.
 
 ## Test and interaction design
 
@@ -327,7 +344,10 @@ Implementation order:
 
 Return to the earlier artifact whenever a later step exposes an unresolved decision.
 
-React ownership follows [`frontend/react.md`](frontend/react.md), visual decisions follow [`frontend/visual-foundations.md`](frontend/visual-foundations.md), and cross-workspace dependencies follow [`ARCHITECTURE.md`](ARCHITECTURE.md).
+Source decomposition and visibility follow [`MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md), React
+ownership follows [`frontend/react.md`](frontend/react.md), visual decisions follow
+[`frontend/visual-foundations.md`](frontend/visual-foundations.md), and cross-workspace dependencies
+follow [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Verification and completion
 
