@@ -10,6 +10,25 @@ apps/* -> packages/* -> external dependencies
 - Packages may depend on other packages only through their declared package exports.
 - Code shared by multiple apps belongs in a package.
 
+## Product runtime modules
+
+```mermaid
+flowchart TB
+	Web["apps/web<br/>shared renderer and page-client runtime"]
+	Workbench["@orchbee/workbench<br/>Project / Workspace / Tab / Panel"]
+	Terminal["@orchbee/terminal<br/>projected terminal client surface"]
+
+	Web -. "composes" .-> Workbench
+	Web -. "composes" .-> Terminal
+	Web -->|"runs as"| Electron["Electron renderer"]
+	Web -->|"runs as"| Browser["Browser page"]
+
+	Electron <-->|"@orchbee/desktop-client-protocol<br/>+ @orchbee/workbench-client-protocol<br/>through preload MessagePorts"| Desktop["apps/desktop<br/>Electron Main, session coordination,<br/>bindings, and application lifetime"]
+	Browser <-->|"@orchbee/gateway-protocol<br/>over WebSocket"| Gateway["apps/gateway<br/>local development browser bridge"]
+	Gateway <-->|"@orchbee/workbench-client-protocol<br/>over scoped MessagePorts"| Desktop
+	Desktop <-->|"@orchbee/terminal-protocol<br/>over private local IPC"| Host["apps/terminal-host<br/>PTY / process / Ghostty VT / history authority"]
+```
+
 ## Package boundaries
 
 - Runnable product and development workspaces follow [`docs/APPLICATIONS.md`](APPLICATIONS.md).
@@ -22,7 +41,7 @@ apps/* -> packages/* -> external dependencies
 ## Source module boundaries
 
 - Source trees use hierarchical visibility and explicit `index.ts` entry points.
-- [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md) owns visibility, re-export, test, composition, and cycle rules.
+- [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md) owns semantic module design, visibility, re-export, test, composition, and cycle rules.
 - `orchbee/module-boundaries` and `import/no-cycle` enforce those rules.
 
 ## Project registry

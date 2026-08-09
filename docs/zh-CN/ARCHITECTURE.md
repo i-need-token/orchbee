@@ -10,6 +10,25 @@ apps/* -> packages/* -> 外部依赖
 - 包只能通过其他包声明的包导出来依赖它们。
 - 多个应用共享的代码应放入包中。
 
+## 产品运行时模块
+
+```mermaid
+flowchart TB
+	Web["apps/web<br/>共享 renderer 与页面客户端 runtime"]
+	Workbench["@orchbee/workbench<br/>Project / Workspace / Tab / Panel"]
+	Terminal["@orchbee/terminal<br/>Projected Terminal 客户端界面"]
+
+	Web -. "组合" .-> Workbench
+	Web -. "组合" .-> Terminal
+	Web -->|"运行形态"| Electron["Electron renderer"]
+	Web -->|"运行形态"| Browser["Browser 页面"]
+
+	Electron <-->|"@orchbee/desktop-client-protocol<br/>+ @orchbee/workbench-client-protocol<br/>通过 preload MessagePorts"| Desktop["apps/desktop<br/>Electron Main、Session 协调、<br/>Binding 与应用生命周期"]
+	Browser <-->|"@orchbee/gateway-protocol<br/>通过 WebSocket"| Gateway["apps/gateway<br/>本地开发 Browser bridge"]
+	Gateway <-->|"@orchbee/workbench-client-protocol<br/>通过 scoped MessagePorts"| Desktop
+	Desktop <-->|"@orchbee/terminal-protocol<br/>通过私有本地 IPC"| Host["apps/terminal-host<br/>PTY / process / Ghostty VT / history 权威"]
+```
+
 ## 包边界
 
 - 可运行的产品和开发工作区遵循 [`docs/APPLICATIONS.md`](APPLICATIONS.md)。
@@ -22,7 +41,7 @@ apps/* -> packages/* -> 外部依赖
 ## 源模块边界
 
 - 源码树使用分层可见性和显式 `index.ts` 入口点。
-- [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md) 负责可见性、重新导出、测试、组合和循环依赖规则。
+- [`docs/MODULE-BOUNDARIES.md`](MODULE-BOUNDARIES.md) 负责语义模块设计、可见性、重新导出、测试、组合和循环依赖规则。
 - `orchbee/module-boundaries` 和 `import/no-cycle` 强制执行这些规则。
 
 ## 项目注册表
