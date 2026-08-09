@@ -37,7 +37,11 @@ import type { TabCloseSource } from '../layout/tab-closing-mode';
 import type { TabModel } from '../model/tab-model';
 import type { TabStripComboButtonController } from '../model/tab-strip-combo-button';
 import type { TabStripMessages } from '../types/tab-strip-messages';
-import type { TabStripCloseCallback, TabStripNewTabRequest } from '../types/tab-strip-options';
+import type {
+	TabStripCloseCallback,
+	TabStripNewTabRequest,
+	TabStripSelectCallback,
+} from '../types/tab-strip-options';
 import type { TabStripActions } from '../types/tab-strip-actions';
 import { createGroupForTabs, createNewTabGroup } from '../utils/tab-strip-internals';
 
@@ -50,6 +54,7 @@ interface UseTabStripActionsOptions {
 	readonly onMoveTabsToNewWindow: ((tabIds: readonly string[]) => void) | undefined;
 	readonly onNewTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs: TabStripCloseCallback | undefined;
+	readonly onSelectTab: TabStripSelectCallback | undefined;
 	readonly parentActionScope: ActionScope | undefined;
 	readonly requestCloseTabs: (tabIds: readonly string[], source?: TabCloseSource) => void;
 	readonly onVerticalCollapsedChange: ((collapsed: boolean) => void) | undefined;
@@ -68,6 +73,7 @@ export function useTabStripActions({
 	onMoveTabsToNewWindow,
 	onNewTab,
 	onCloseTabs,
+	onSelectTab,
 	parentActionScope,
 	requestCloseTabs,
 	onVerticalCollapsedChange,
@@ -222,22 +228,24 @@ export function useTabStripActions({
 					getAvailability: (_context, input) => tabAvailability([input.tabId]),
 					handler: {
 						execute: (context, input) =>
-							commit(context, () => {
-								switch (input.mode) {
-									case 'add-range':
-										model.addSelectionFromAnchorTo(input.tabId);
-										break;
-									case 'extend':
-										model.extendSelectionTo(input.tabId);
-										break;
-									case 'replace':
-										model.selectTab(input.tabId);
-										break;
-									case 'toggle':
-										model.toggleSelected(input.tabId);
-										break;
-								}
-							}),
+							onSelectTab === undefined
+								? commit(context, () => {
+										switch (input.mode) {
+											case 'add-range':
+												model.addSelectionFromAnchorTo(input.tabId);
+												break;
+											case 'extend':
+												model.extendSelectionTo(input.tabId);
+												break;
+											case 'replace':
+												model.selectTab(input.tabId);
+												break;
+											case 'toggle':
+												model.toggleSelected(input.tabId);
+												break;
+										}
+									})
+								: onSelectTab(context, input),
 					},
 					id: TAB_STRIP_ACTION_IDS.selectTab,
 					input: tabSelectionInput,
@@ -696,6 +704,7 @@ export function useTabStripActions({
 		onMoveTabsToNewWindow,
 		onNewTab,
 		onCloseTabs,
+		onSelectTab,
 		onVerticalCollapsedChange,
 		onVerticalExpandOnHoverChange,
 		onVerticalTabSearchClick,

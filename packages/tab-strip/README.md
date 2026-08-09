@@ -1,16 +1,10 @@
 # @orchbee/tab-strip
 
-Complete reusable React tab-strip capability. The package combines the public component, its
-domain model, layout rules, accessibility projections, drag interactions, and recursively owned
-private component tree behind one package entry. It is an Rslib library, not a standalone site.
+Complete reusable React tab-strip capability. The package combines the public component, its domain model, layout rules, accessibility projections, drag interactions, and recursively owned private component tree behind one package entry. It is an Rslib library, not a standalone site.
 
 ## Scope
 
-The package owns tab and group transitions, selection invariants, pinned and grouped ordering,
-horizontal and vertical layout, drag geometry, accessibility projections, hover cards, menus, and
-deterministic React event integration. Consumers own application composition, terminal sessions,
-navigation, persistence, product localization, theme token values, and platform or cross-window
-host implementations.
+The package owns tab and group transitions, selection invariants, pinned and grouped ordering, horizontal and vertical layout, drag geometry, accessibility projections, hover cards, menus, and deterministic React event integration. Consumers own application composition, terminal sessions, navigation, persistence, product localization, theme token values, and platform or cross-window host implementations.
 
 ## Entry points
 
@@ -22,47 +16,24 @@ import '@orchbee/tab-strip/styles.css';
 ```
 
 - `@orchbee/tab-strip` exposes the component and the selected contracts needed to create and host it.
-- `@orchbee/ui/styles.css` provides the shared primitive styles and design-token registry used by
-  the context menu.
+- `@orchbee/ui/styles.css` provides the shared primitive styles and design-token registry used by the context menu.
 - `@orchbee/tab-strip/styles.css` provides the component's CSS Module output for built consumers.
 
-Product hosts may provide the complete `TabStripMessages` contract to localize visible controls,
-menus, accessibility names, and live-region announcements. The built-in English messages remain a
-reference fallback for package tests and non-product fixtures; Orchbee product surfaces supply the
-contract from `@orchbee/i18n`.
+Product hosts may provide the complete `TabStripMessages` contract to localize visible controls, menus, accessibility names, and live-region announcements. The built-in English messages remain a reference fallback for package tests and non-product fixtures; Orchbee product surfaces supply the contract from `@orchbee/i18n`.
 
-Product compositions pass their mounted `ActionRuntime` and parent `ActionScope`. The tab strip
-registers one child scope whose actions own selection, creation, close, grouping, pinning,
-preference, and committed movement semantics. Buttons, keyboard interactions, and context menus
-invoke those same actions. A standalone fixture may omit the runtime; the component then owns and
-disposes an isolated fallback runtime that is not visible to the application command surface.
+Product compositions pass their mounted `ActionRuntime` and parent `ActionScope`. The tab strip registers one child scope whose actions own selection, creation, close, grouping, pinning, preference, and committed movement semantics. Buttons, keyboard interactions, and context menus invoke those same actions. A standalone fixture may omit the runtime; the component then owns and disposes an isolated fallback runtime that is not visible to the application command surface.
 
-Local composition closes known Tab IDs synchronously through `TabModel`. A terminal-owning
-composition instead supplies `onCloseTabs`. The same `tabs.tab.close` Action then delegates its
-validated ID set and execution context without mutating `TabModel`; the owner marks the commit point
-and removes Tabs only after its terminal-close orchestration succeeds. A pending or partially
-failed close therefore cannot make Tab Strip delete topology early.
+Local composition closes known Tab IDs synchronously through `TabModel`. A terminal-owning composition instead supplies `onCloseTabs`. The same `tabs.tab.close` Action then delegates its validated ID set and execution context without mutating `TabModel`; the owner marks the commit point and removes Tabs only after its terminal-close orchestration succeeds. A pending or partially failed close therefore cannot make Tab Strip delete topology early.
 
-Pointer movement and drag geometry remain local gesture state. Model changes shown during a drag
-are reversible previews; accepting a local drop rolls the preview back and invokes
-`tabs.layout.apply-arrangement` to commit the final arrangement through the Action lifecycle.
+A composition whose URL is authoritative may supply `onSelectTab`. The `tabs.tab.select` Action delegates its validated `TabSelectionInput` and execution context before any local `TabModel` write; the owner commits navigation, then applies the selection when that route is observed. Omitting the callback preserves the package-owned local selection transition. This port does not move routing, history, or URL parsing into Tab Strip.
 
-Horizontal hosts may provide `horizontalLeadingActions` for controls that must share the tab-strip
-surface. The tab track consumes only the remaining width, so hosted controls never overlap the
-first tab or require a separately painted sibling region.
+Pointer movement and drag geometry remain local gesture state. Model changes shown during a drag are reversible previews; accepting a local drop rolls the preview back and invokes `tabs.layout.apply-arrangement` to commit the final arrangement through the Action lifecycle.
 
-Hosts that support both orientations pass the controlled `orientation` value and
-`onOrientationChange`. Right-clicking blank strip space then exposes the localized action for
-opening or closing vertical tabs; tab, group, and new-tab controls keep their own context menus.
+Horizontal hosts may provide `horizontalLeadingActions` for controls that must share the tab-strip surface. The tab track consumes only the remaining width, so hosted controls never overlap the first tab or require a separately painted sibling region.
 
-The package API intentionally has no React or browser-vendor subpath. Desktop compositions import
-the cross-window contracts from the package root: `CrossWindowTabDragRuntime` owns model handoff,
-cancel restoration, attached-model liveness, and destination layout sequencing;
-`DomTabDragRegistry` adapts live bounds, z-order, liveness, and compatibility decisions supplied by
-the host. `TabStrip` accepts a `createCrossWindowDragRuntime` factory, while native window creation,
-movement, capture, move loops, and source-window disposal remain host responsibilities. The browser
-application does not synthesize those operating-system capabilities. Upstream source attribution
-and license obligations are recorded in [`NOTICE.reference`](NOTICE.reference).
+Hosts that support both orientations pass the controlled `orientation` value and `onOrientationChange`. Right-clicking blank strip space then exposes the localized action for opening or closing vertical tabs; tab, group, and new-tab controls keep their own context menus.
+
+The package API intentionally has no React or browser-vendor subpath. Desktop compositions import the cross-window contracts from the package root: `CrossWindowTabDragRuntime` owns model handoff, cancel restoration, attached-model liveness, and destination layout sequencing; `DomTabDragRegistry` adapts live bounds, z-order, liveness, and compatibility decisions supplied by the host. `TabStrip` accepts a `createCrossWindowDragRuntime` factory, while native window creation, movement, capture, move loops, and source-window disposal remain host responsibilities. The browser application does not synthesize those operating-system capabilities. Upstream source attribution and license obligations are recorded in [`NOTICE.reference`](NOTICE.reference).
 
 ## Source ownership
 
@@ -95,31 +66,19 @@ src/
     └── utils/
 ```
 
-`TabStrip.tsx` is the narrow public adapter. `TabStripView` composes the prepared horizontal,
-vertical, overlay, and menu regions. Private components repeat the same ownership structure
-recursively and have no barrels. The four semantic subsystems are cohesive facets of this complete
-component capability, not separately consumable source modules; selected public contracts are
-re-exported only through `tab-strip/index.ts` and the package root.
+`TabStrip.tsx` is the narrow public adapter. `TabStripView` composes the prepared horizontal, vertical, overlay, and menu regions. Private components repeat the same ownership structure recursively and have no barrels. The four semantic subsystems are cohesive facets of this complete component capability, not separately consumable source modules; selected public contracts are re-exported only through `tab-strip/index.ts` and the package root.
 
 ## Correctness
 
 The general `TabModel` state machine has three complementary layers:
 
 - deterministic regressions preserve each known minimal counterexample;
-- bounded state-space exploration enumerates every modeled selection, close, pin, group, and
-  keyboard-movement transition through depth three from a canonical grouped seed (15,497
-  transitions and 952 distinct states);
+- bounded state-space exploration enumerates every modeled selection, close, pin, group, and keyboard-movement transition through depth three from a canonical grouped seed (15,497 transitions and 952 distinct states);
 - fixed-seed property tests exercise 200 reproducible action sequences of up to 100 transitions.
 
-An independent test invariant checker validates tab and group identity, the pinned prefix,
-contiguous group membership, active and selected identities, the selection anchor, and recent-group
-references after every transition. The production model asserts the same structural boundaries so
-invalid restored state and invalid intermediate mutations fail at their source.
+An independent test invariant checker validates tab and group identity, the pinned prefix, contiguous group membership, active and selected identities, the selection anchor, and recent-group references after every transition. The production model asserts the same structural boundaries so invalid restored state and invalid intermediate mutations fail at their source.
 
-Horizontal group drag additionally carries a TLA+ model, a Lean proof for contiguous-block
-movement, focused property tests, and deterministic browser traces. See the
-[`horizontal group-drag contract`](docs/horizontal-group-drag.md) and
-[`formal/README.md`](formal/README.md).
+Horizontal group drag additionally carries a TLA+ model, a Lean proof for contiguous-block movement, focused property tests, and deterministic browser traces. See the [`horizontal group-drag contract`](docs/horizontal-group-drag.md) and [`formal/README.md`](formal/README.md).
 
 ```sh
 pnpm --filter @orchbee/tab-strip typecheck

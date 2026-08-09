@@ -7,7 +7,11 @@ import { TAB_STRIP_ACTION_IDS } from '../../actions/tab-strip-action-contracts';
 import { DEFAULT_TAB_STRIP_MESSAGES } from '../../constants/default-tab-strip-messages';
 import { TabModel } from '../../model/tab-model';
 import { TabStripComboButtonController } from '../../model/tab-strip-combo-button';
-import type { TabStripCloseCallback, TabStripNewTabRequest } from '../../types/tab-strip-options';
+import type {
+	TabStripCloseCallback,
+	TabStripNewTabRequest,
+	TabStripSelectCallback,
+} from '../../types/tab-strip-options';
 import type { TabStripActions } from '../../types/tab-strip-actions';
 import { useTabStripActions } from '../useTabStripActions';
 
@@ -18,6 +22,7 @@ interface HarnessProps {
 	readonly model: TabModel;
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
 	readonly onNewTab?: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
+	readonly onSelectTab?: TabStripSelectCallback | undefined;
 	readonly parentScope: ActionScope;
 	readonly runtime: ActionRuntime;
 }
@@ -29,6 +34,7 @@ function Harness({
 	model,
 	onCloseTabs,
 	onNewTab,
+	onSelectTab,
 	parentScope,
 	runtime,
 }: HarnessProps): ReactNode {
@@ -41,6 +47,7 @@ function Harness({
 		onMoveTabsToNewWindow: undefined,
 		onNewTab,
 		onCloseTabs,
+		onSelectTab,
 		parentActionScope: parentScope,
 		requestCloseTabs: (tabIds) => {
 			model.closeTabs(tabIds);
@@ -59,6 +66,59 @@ function Harness({
 afterEach(() => cleanup());
 
 describe('useTabStripActions', () => {
+	it('delegates Tab selection before mutating the model', async () => {
+		const runtime = new ActionRuntime();
+		const parentScope = runtime.createScope('workbench');
+		const model = new TabModel({
+			activeTabId: 'tab-1',
+			tabs: [
+				{ group: null, id: 'tab-1', pinned: false, title: 'Tab 1' },
+				{ group: null, id: 'tab-2', pinned: false, title: 'Tab 2' },
+			],
+		});
+		let releaseSelection: (() => void) | undefined;
+		const selectionGate = new Promise<void>((resolve) => {
+			releaseSelection = resolve;
+		});
+		const onSelectTab = vi.fn<TabStripSelectCallback>(async (context, input) => {
+			await selectionGate;
+			context.markCommitted();
+			model.selectTab(input.tabId);
+			return { kind: 'completed' };
+		});
+		let actions: TabStripActions | undefined;
+		render(
+			createElement(Harness, {
+				captureActions: (candidate) => {
+					actions = candidate;
+				},
+				captureScope: () => undefined,
+				model,
+				onSelectTab,
+				parentScope,
+				runtime,
+			}),
+		);
+		if (actions === undefined || releaseSelection === undefined) {
+			throw new Error('Expected delegated selection fixtures.');
+		}
+
+		const execution = actions.execute(
+			TAB_STRIP_ACTION_IDS.selectTab,
+			{ mode: 'extend', tabId: 'tab-2' },
+			'pointer',
+		);
+		expect(model.getSnapshot().activeTabId).toBe('tab-1');
+		expect(onSelectTab).toHaveBeenCalledWith(expect.anything(), {
+			mode: 'extend',
+			tabId: 'tab-2',
+		});
+
+		releaseSelection();
+		await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
+		expect(model.getSnapshot().activeTabId).toBe('tab-2');
+	});
+
 	it('delegates close completion without deleting the Tab before the owner commits', async () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');

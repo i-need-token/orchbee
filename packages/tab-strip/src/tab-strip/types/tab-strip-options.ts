@@ -7,6 +7,7 @@ import type {
 	ActionScope,
 } from '@orchbee/actions';
 
+import type { TabSelectionInput } from '../actions/tab-strip-action-contracts';
 import type { TabHoverCardController } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
 import type { HoverCardThumbnailSource } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-observer';
 import type { TabData, TabGroupData, TabModel } from '../model/tab-model';
@@ -50,6 +51,11 @@ export interface TabStripCloseRequest {
 export type TabStripCloseCallback = (
 	context: ActionExecutionContext,
 	request: TabStripCloseRequest,
+) => ActionResult<void> | Promise<ActionResult<void>>;
+
+export type TabStripSelectCallback = (
+	context: ActionExecutionContext,
+	input: TabSelectionInput,
 ) => ActionResult<void> | Promise<ActionResult<void>>;
 
 export interface TabStripOptions {
@@ -96,5 +102,6 @@ export interface TabStripOptions {
 	ariaLabel?: string;
 	onNewTab?: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	onCloseTabs?: TabStripCloseCallback | undefined;
+	onSelectTab?: TabStripSelectCallback | undefined;
 	onNewTabButtonPressed?: () => void;
 }

@@ -11,6 +11,7 @@ import type {
 	TabStripCloseRequest,
 	TabStripNewTabRequest,
 	TabStripOptions,
+	TabStripSelectCallback,
 } from './types/tab-strip-options';
 
 export interface TabStripProps extends TabStripOptions {
@@ -24,6 +25,7 @@ export type {
 	TabStripCloseCallback,
 	TabStripCloseRequest,
 	TabStripNewTabRequest,
+	TabStripSelectCallback,
 	TabStripMessages,
 };
 
