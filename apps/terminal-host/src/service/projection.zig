@@ -19,8 +19,47 @@ const ProjectionAppendOutcome = union(enum) {
     batch_full,
 };
 
+const TestClockState = if (target_builtin.is_test) struct {
+    const Sample = struct {
+        elapsed_ns: u64,
+        wall_time_ns: i128,
+    };
+
+    const Mode = union(enum) {
+        system,
+        logical: Sample,
+        timer_unsupported,
+    };
+
+    mode: Mode = .system,
+    sample_count: usize = 0,
+} else struct {};
+
 pub const Scheduler = struct {
     scan_index: usize = 0,
+    timer: ?std.time.Timer = null,
+    test_clock: TestClockState = .{},
+
+    fn sampleElapsed(self: *Scheduler) std.time.Timer.Error!u64 {
+        if (target_builtin.is_test) {
+            switch (self.test_clock.mode) {
+                .logical => |sample| {
+                    // Wall time is present only to let tests vary it while
+                    // cadence observes the monotonic elapsed value.
+                    _ = sample.wall_time_ns;
+                    self.test_clock.sample_count += 1;
+                    return sample.elapsed_ns;
+                },
+                .timer_unsupported => {
+                    std.debug.assert(self.timer == null);
+                    return error.TimerUnsupported;
+                },
+                .system => {},
+            }
+        }
+        if (self.timer == null) self.timer = try std.time.Timer.start();
+        return self.timer.?.read();
+    }
 
     pub fn schedule(
         self: *Scheduler,
@@ -34,7 +73,7 @@ pub const Scheduler = struct {
         if (core.connectionClientId(connection_id) == null) return .complete;
         const count = core.attachmentCount();
         if (count == 0) return .complete;
-        const now = std.time.nanoTimestamp();
+        const now: i128 = @intCast(try self.sampleElapsed());
         const start = self.scan_index % count;
         var scanned: usize = 0;
         var scheduled: usize = 0;
@@ -182,7 +221,12 @@ pub const Scheduler = struct {
                 },
             }
         }
-        self.scan_index = (start + scanned) % count;
+        self.scan_index = if (outcome == .batch_full)
+            (start + scanned) % count
+        else if (start + 1 == count)
+            0
+        else
+            start + 1;
         for (used_terminal_ids[0..used_terminal_count]) |terminal_id| {
             _ = aggregate.setNextProjectionAt(
                 terminal_id,
@@ -253,6 +297,39 @@ fn appendProjectionBlocked(
     );
 }
 
+fn setClockSampleForTesting(
+    scheduler: *Scheduler,
+    wall_time_ns: i128,
+    elapsed_ns: u64,
+) void {
+    scheduler.test_clock.mode = .{ .logical = .{
+        .elapsed_ns = elapsed_ns,
+        .wall_time_ns = wall_time_ns,
+    } };
+}
+
+fn failTimerInitializationForTesting(scheduler: *Scheduler) void {
+    std.debug.assert(scheduler.timer == null);
+    scheduler.test_clock.mode = .timer_unsupported;
+}
+
+fn clockSampleCountForTesting(scheduler: *const Scheduler) usize {
+    return scheduler.test_clock.sample_count;
+}
+
+fn scanIndexForTesting(scheduler: *const Scheduler) usize {
+    return scheduler.scan_index;
+}
+
+fn timerInitializedForTesting(scheduler: *const Scheduler) bool {
+    return scheduler.timer != null;
+}
+
 pub const testing = if (target_builtin.is_test) struct {
     pub const appendProjectionFrameFn = appendProjectionFrame;
+    pub const clockSampleCountFn = clockSampleCountForTesting;
+    pub const failTimerInitializationFn = failTimerInitializationForTesting;
+    pub const scanIndexFn = scanIndexForTesting;
+    pub const setClockSampleFn = setClockSampleForTesting;
+    pub const timerInitializedFn = timerInitializedForTesting;
 } else struct {};

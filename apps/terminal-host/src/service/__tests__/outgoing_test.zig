@@ -233,6 +233,132 @@ test "Outgoing reserves capacity before payload construction and commits without
     try outgoing.rollback(token);
 }
 
+test "Outgoing adoption retains capacity promised to a pending reservation" {
+    var outgoing = Outgoing.init(std.testing.allocator);
+    defer outgoing.deinit();
+    const host_epoch = testEpoch(0x48);
+
+    for ([_][]const u8{ "{\"record\":1}", "{\"record\":2}", "{\"record\":3}" }) |payload| {
+        _ = try expectAppended(try outgoing.append(
+            MessageKind.terminal_started,
+            .control_json,
+            payload,
+            .{ .event = host_epoch },
+        ));
+    }
+
+    const correlation_id = [_]u8{0x38} ** 16;
+    const reserved_payload = "reserved response";
+    var reservation = try expectReserved(try outgoing.reserve(
+        reserved_payload.len,
+        .{ .response = .{
+            .correlation_id = correlation_id,
+            .host_epoch = host_epoch,
+        } },
+    ));
+    defer reservation.deinit();
+
+    const adopted_payload = "adopted projection";
+    const adopted_allocation = try outgoing.ownedPayloadAllocator().alloc(
+        u8,
+        subject.owned_payload_prefix_bytes + adopted_payload.len,
+    );
+    var caller_owns_adopted_allocation = true;
+    defer if (caller_owns_adopted_allocation) {
+        outgoing.ownedPayloadAllocator().free(adopted_allocation);
+    };
+    const adopted_payload_storage = adopted_allocation[subject.owned_payload_prefix_bytes..];
+    @memcpy(adopted_payload_storage, adopted_payload);
+
+    _ = try expectAppended(try outgoing.adoptPayload(
+        MessageKind.snapshot_frame,
+        .terminal_frame,
+        adopted_allocation,
+        adopted_payload_storage,
+        .{ .event = host_epoch },
+    ));
+    caller_owns_adopted_allocation = false;
+    _ = reservation.commitPayload(
+        MessageKind.ping,
+        .control_json,
+        reserved_payload,
+    );
+
+    try std.testing.expectEqual(@as(usize, 5), outgoing.records().len);
+    try std.testing.expectEqual(@as(usize, 0), subject.testing.reservedRecordCount(&outgoing));
+    try std.testing.expectEqual(@as(usize, 0), subject.testing.reservedByteCount(&outgoing));
+    for (outgoing.records()) |record| {
+        _ = try protocol.validateTransportEnvelope(record);
+    }
+    const adopted_envelope = try protocol.validateTransportEnvelope(outgoing.records()[3]);
+    try std.testing.expectEqualStrings(adopted_payload, adopted_envelope.payload);
+    try std.testing.expect(adopted_envelope.payload.ptr == adopted_payload_storage.ptr);
+    try std.testing.expect(!caller_owns_adopted_allocation);
+    const reserved_envelope = try protocol.validateTransportEnvelope(outgoing.records()[4]);
+    try std.testing.expectEqualStrings(reserved_payload, reserved_envelope.payload);
+}
+
+test "Outgoing adoption allocation failure preserves caller ownership and reservations" {
+    var failing = std.testing.FailingAllocator.init(std.testing.allocator, .{});
+    var outgoing = Outgoing.init(failing.allocator());
+    defer outgoing.deinit();
+    const host_epoch = testEpoch(0x48);
+
+    for (0..7) |_| {
+        _ = try expectAppended(try outgoing.append(
+            MessageKind.terminal_started,
+            .control_json,
+            "{}",
+            .{ .event = host_epoch },
+        ));
+    }
+
+    var reservation = try expectReserved(try outgoing.reserve(
+        1,
+        .{ .event = host_epoch },
+    ));
+    defer reservation.deinit();
+    const reserved_bytes_before = subject.testing.reservedByteCount(&outgoing);
+    const byte_count_before = subject.testing.byteCount(&outgoing);
+
+    const payload = "caller owned";
+    const allocation = try outgoing.ownedPayloadAllocator().alloc(
+        u8,
+        subject.owned_payload_prefix_bytes + payload.len,
+    );
+    var caller_owns_allocation = true;
+    defer if (caller_owns_allocation) outgoing.ownedPayloadAllocator().free(allocation);
+    const payload_storage = allocation[subject.owned_payload_prefix_bytes..];
+    @memcpy(payload_storage, payload);
+
+    failing.fail_index = failing.alloc_index;
+    failing.resize_fail_index = failing.resize_index;
+    const adoption_result = outgoing.adoptPayload(
+        MessageKind.snapshot_frame,
+        .terminal_frame,
+        allocation,
+        payload_storage,
+        .{ .event = host_epoch },
+    );
+    if (adoption_result) |outcome| {
+        switch (outcome) {
+            .appended => caller_owns_allocation = false,
+            .full => {},
+        }
+    } else |_| {}
+    try std.testing.expectError(
+        error.OutOfMemory,
+        adoption_result,
+    );
+
+    try std.testing.expect(failing.has_induced_failure);
+    try std.testing.expectEqualStrings(payload, payload_storage);
+    try std.testing.expectEqual(@as(usize, 7), outgoing.records().len);
+    try std.testing.expectEqual(byte_count_before, subject.testing.byteCount(&outgoing));
+    try std.testing.expectEqual(@as(usize, 1), subject.testing.reservedRecordCount(&outgoing));
+    try std.testing.expectEqual(reserved_bytes_before, subject.testing.reservedByteCount(&outgoing));
+}
+
 test "Outgoing cancellation releases reserved batch capacity" {
     var outgoing = Outgoing.init(std.testing.allocator);
     defer outgoing.deinit();

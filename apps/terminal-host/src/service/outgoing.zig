@@ -274,7 +274,7 @@ pub const Outgoing = struct {
         const append_id = self.next_append_id;
         const next_append_id = std.math.add(u64, append_id, 1) catch
             return error.OutgoingAppendIdentityExhausted;
-        const required_capacity = self.record_storage.items.len + 1;
+        const required_capacity = self.record_storage.items.len + self.reserved_records + 1;
         try self.record_storage.ensureTotalCapacity(self.allocator, required_capacity);
         try self.record_views.ensureTotalCapacity(self.allocator, required_capacity);
         const record = protocol.finalizeTransportEnvelope(
