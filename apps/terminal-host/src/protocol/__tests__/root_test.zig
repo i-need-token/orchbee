@@ -190,3 +190,30 @@ test "every native request dispatch operation is owned by the registry" {
         );
     }
 }
+
+test "semantic input preserves U+FEFF and rejects a BOM-prefixed key" {
+    var text_payload = [_]u8{0x22} ** 23;
+    std.mem.writeInt(u32, text_payload[16..20], 3, .little);
+    @memcpy(text_payload[20..23], "\xef\xbb\xbf");
+
+    const decoded_text = try subject.validateCommittedTextInput(&text_payload);
+    const text = switch (decoded_text.input) {
+        .text => |value| value,
+        else => return error.TestUnexpectedResult,
+    };
+    try std.testing.expectEqualSlices(u8, "\xef\xbb\xbf", text.text);
+
+    const decoded_paste = try subject.validatePasteInput(&text_payload);
+    const paste = switch (decoded_paste.input) {
+        .paste => |value| value,
+        else => return error.TestUnexpectedResult,
+    };
+    try std.testing.expectEqualSlices(u8, "\xef\xbb\xbf", paste.text);
+
+    var key_payload = [_]u8{0} ** 37;
+    @memset(key_payload[0..16], 0x22);
+    key_payload[16] = 1;
+    std.mem.writeInt(u16, key_payload[22..24], 5, .little);
+    @memcpy(key_payload[32..37], "\xef\xbb\xbfF1");
+    try std.testing.expectError(error.InvalidField, subject.validateKeyInput(&key_payload));
+}

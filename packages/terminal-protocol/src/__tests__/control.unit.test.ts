@@ -7,6 +7,7 @@ import {
 	CanonicalUint64TextSchema,
 	DEFAULT_TERMINAL_CONFIGURATION,
 	decodeControlJson,
+	EmptyControlSchema,
 	encodeControlJson,
 	FailureContainmentSchema,
 	FrameAppliedSchema,
@@ -248,6 +249,16 @@ describe('control schemas', () => {
 		expect(decodeControlJson(new Uint8Array([0xff]), TerminalLaunchSchema)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidUtf8, ok: false }),
 		);
+	});
+
+	it('rejects a UTF-8 BOM before control JSON without changing plain JSON', () => {
+		expect(
+			decodeControlJson(new Uint8Array([0xef, 0xbb, 0xbf, 0x7b, 0x7d]), EmptyControlSchema),
+		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.invalidJson, ok: false }));
+		expect(decodeControlJson(new Uint8Array([0x7b, 0x7d]), EmptyControlSchema)).toEqual({
+			ok: true,
+			value: {},
+		});
 	});
 
 	it('rejects zero for generation and attachment-local flight sequences', () => {

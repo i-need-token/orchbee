@@ -1,0 +1,25 @@
+{
+	"cases": [
+		{
+			"decoder": "key-input",
+			"expected_code": "invalid-field",
+			"expected_text_base64": null,
+			"name": "bom-prefixed-f1-key",
+			"payload_base64": "IiIiIiIiIiIiIiIiIiIiIgEAAAAAAAUAAAAAAAAAAADvu79GMQ=="
+		},
+		{
+			"decoder": "text-input",
+			"expected_code": null,
+			"expected_text_base64": "77u/",
+			"name": "leading-ufeff-text",
+			"payload_base64": "IiIiIiIiIiIiIiIiIiIiIgMAAADvu78="
+		},
+		{
+			"decoder": "paste-input",
+			"expected_code": null,
+			"expected_text_base64": "77u/",
+			"name": "leading-ufeff-paste",
+			"payload_base64": "IiIiIiIiIiIiIiIiIiIiIgMAAADvu78="
+		}
+	]
+}

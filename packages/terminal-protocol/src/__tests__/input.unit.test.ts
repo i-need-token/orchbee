@@ -15,6 +15,7 @@ import {
 	encodeTextInput,
 	encodeWriteInput,
 	FocusInputSchema,
+	KEY_INPUT_HEADER_BYTES,
 	KeyAction,
 	MouseAction,
 	MouseButton,
@@ -166,6 +167,31 @@ describe('semantic terminal input payloads', () => {
 		);
 	});
 
+	it('rejects a BOM-prefixed key instead of canonicalizing it to F1', () => {
+		const encoded = encodeKeyInput({
+			action: KeyAction.press,
+			attachmentId,
+			composing: false,
+			consumedModifiers: noModifiers,
+			key: 'F1',
+			modifiers: noModifiers,
+			text: '',
+			unshiftedCodepoint: 0,
+		});
+		if (!encoded.ok) throw new Error(encoded.detail);
+		const payload = new Uint8Array(encoded.value.byteLength + 3);
+		payload.set(encoded.value.subarray(0, KEY_INPUT_HEADER_BYTES));
+		new DataView(payload.buffer).setUint16(22, 5, true);
+		payload.set([0xef, 0xbb, 0xbf, 0x46, 0x31], KEY_INPUT_HEADER_BYTES);
+
+		expect(payload.subarray(KEY_INPUT_HEADER_BYTES)).toEqual(
+			new Uint8Array([0xef, 0xbb, 0xbf, 0x46, 0x31]),
+		);
+		expect(decodeKeyInput(payload)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+	});
+
 	it('keeps committed text separate from approved paste intent', () => {
 		const committed = { attachmentId, text: '中文' };
 		const text = encodeTextInput(committed);
@@ -192,6 +218,19 @@ describe('semantic terminal input payloads', () => {
 				unshiftedCodepoint: 0,
 			}),
 		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }));
+	});
+
+	it('round-trips an exact leading U+FEFF through text and paste payloads', () => {
+		const value = { attachmentId, text: '\ufeff' };
+		const text = encodeTextInput(value);
+		const paste = encodePasteInput(value);
+		if (!text.ok) throw new Error(text.detail);
+		if (!paste.ok) throw new Error(paste.detail);
+
+		expect(text.value.subarray(-3)).toEqual(new Uint8Array([0xef, 0xbb, 0xbf]));
+		expect(paste.value.subarray(-3)).toEqual(new Uint8Array([0xef, 0xbb, 0xbf]));
+		expect(decodeTextInput(text.value)).toEqual({ ok: true, value });
+		expect(decodePasteInput(paste.value)).toEqual({ ok: true, value });
 	});
 
 	it('round-trips finite terminal-space mouse coordinates and pressed-button state', () => {

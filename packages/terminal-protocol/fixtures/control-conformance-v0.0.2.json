@@ -647,6 +647,13 @@
 			"payload_base64": "ew=="
 		},
 		{
+			"decoder": "empty",
+			"expected_code": "invalid-json",
+			"expected_integer": null,
+			"name": "initial-utf8-bom",
+			"payload_base64": "77u/e30="
+		},
+		{
 			"decoder": "list-terminals",
 			"expected_code": "invalid-field",
 			"expected_integer": null,

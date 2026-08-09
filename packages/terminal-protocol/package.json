@@ -34,6 +34,7 @@
 		"./fixtures/terminal-row-window-v0.0.1.bin": "./fixtures/terminal-row-window-v0.0.1.bin",
 		"./fixtures/text-input-v0.0.2.bin": "./fixtures/text-input-v0.0.2.bin",
 		"./fixtures/transport-envelope-v0.0.2.bin": "./fixtures/transport-envelope-v0.0.2.bin",
+		"./fixtures/utf8-bom-conformance-v0.0.2.json": "./fixtures/utf8-bom-conformance-v0.0.2.json",
 		"./fixtures/write-input-v0.0.2.bin": "./fixtures/write-input-v0.0.2.bin"
 	},
 	"scripts": {

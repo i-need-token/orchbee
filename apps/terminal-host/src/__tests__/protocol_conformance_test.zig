@@ -18,6 +18,7 @@ const paste_input_fixture = options.paste_input_fixture;
 const row_window_fixture = options.row_window_fixture;
 const terminal_failed_fixture = options.terminal_failed_fixture;
 const control_fixture = options.control_fixture;
+const utf8_bom_fixture = options.utf8_bom_fixture;
 
 fn fixturePrefix(bytes: []const u8, length: usize) []const u8 {
     std.debug.assert(bytes.len >= length);
@@ -156,6 +157,18 @@ const ControlConformanceFixture = struct {
     outputs: ControlOutputsFixture,
     protocol_limits: ProtocolLimitsFixture,
     raw_cases: []const ControlRawCaseFixture,
+};
+
+const Utf8BomInputCaseFixture = struct {
+    decoder: []const u8,
+    expected_code: ?[]const u8,
+    expected_text_base64: ?[]const u8,
+    name: []const u8,
+    payload_base64: []const u8,
+};
+
+const Utf8BomConformanceFixture = struct {
+    cases: []const Utf8BomInputCaseFixture,
 };
 
 const TestIdentifier = struct { bytes: [16]u8 };
@@ -604,7 +617,7 @@ test "TypeScript raw control cases cross strict native admission" {
     const allocator = std.testing.allocator;
     const fixture = try parseControlFixture(allocator);
     defer fixture.deinit();
-    try std.testing.expectEqual(@as(usize, 12), fixture.value.raw_cases.len);
+    try std.testing.expectEqual(@as(usize, 13), fixture.value.raw_cases.len);
 
     for (fixture.value.raw_cases) |case| {
         const payload_length = try std.base64.standard.Decoder.calcSizeForSlice(
@@ -1153,6 +1166,70 @@ test "canonical TypeScript semantic-input fixtures conform in Zig" {
     try std.testing.expectError(error.InvalidField, protocol.validateKeyInput(invalid_key));
 }
 
+test "TypeScript UTF-8 BOM input cases cross native admission" {
+    const allocator = std.testing.allocator;
+    const fixture = try parseUtf8BomFixture(allocator);
+    defer fixture.deinit();
+    try std.testing.expectEqual(@as(usize, 3), fixture.value.cases.len);
+
+    for (fixture.value.cases) |case| {
+        const kind = if (std.mem.eql(u8, case.decoder, "key-input"))
+            protocol.MessageKind.key_input
+        else if (std.mem.eql(u8, case.decoder, "text-input"))
+            protocol.MessageKind.text_input
+        else if (std.mem.eql(u8, case.decoder, "paste-input"))
+            protocol.MessageKind.paste_input
+        else {
+            std.debug.print("unknown UTF-8 BOM input decoder in {s}: {s}\n", .{
+                case.name,
+                case.decoder,
+            });
+            return error.TestUnexpectedResult;
+        };
+        const payload_length = try std.base64.standard.Decoder.calcSizeForSlice(
+            case.payload_base64,
+        );
+        const payload = try allocator.alloc(u8, payload_length);
+        defer allocator.free(payload);
+        try std.base64.standard.Decoder.decode(payload, case.payload_base64);
+
+        const decoded = protocol.validateSemanticInput(kind, payload) catch |err| {
+            const expected_code = case.expected_code orelse {
+                std.debug.print("UTF-8 BOM input case unexpectedly failed: {s}: {s}\n", .{
+                    case.name,
+                    @errorName(err),
+                });
+                return err;
+            };
+            try std.testing.expectEqualStrings(expected_code, protocolErrorCode(err));
+            try std.testing.expect(case.expected_text_base64 == null);
+            continue;
+        };
+
+        if (case.expected_code) |expected_code| {
+            std.debug.print("UTF-8 BOM input case unexpectedly accepted: {s}: {s}\n", .{
+                case.name,
+                expected_code,
+            });
+            return error.TestExpectedError;
+        }
+        const expected_text_base64 = case.expected_text_base64 orelse
+            return error.TestUnexpectedResult;
+        const expected_text_length = try std.base64.standard.Decoder.calcSizeForSlice(
+            expected_text_base64,
+        );
+        const expected_text = try allocator.alloc(u8, expected_text_length);
+        defer allocator.free(expected_text);
+        try std.base64.standard.Decoder.decode(expected_text, expected_text_base64);
+        const actual_text = switch (decoded.input) {
+            .text => |value| value.text,
+            .paste => |value| value.text,
+            else => return error.TestUnexpectedResult,
+        };
+        try std.testing.expectEqualSlices(u8, expected_text, actual_text);
+    }
+}
+
 test "native semantic-input decoder rejects non-canonical intent with matching errors" {
     const allocator = std.testing.allocator;
 
@@ -1409,6 +1486,18 @@ fn parseControlFixture(
     );
 }
 
+fn parseUtf8BomFixture(
+    allocator: std.mem.Allocator,
+) !std.json.Parsed(Utf8BomConformanceFixture) {
+    try std.testing.expect(utf8_bom_fixture.len > 0);
+    return std.json.parseFromSlice(
+        Utf8BomConformanceFixture,
+        allocator,
+        utf8_bom_fixture,
+        .{},
+    );
+}
+
 fn expectRawControlCase(
     comptime decode_fn: anytype,
     comptime observed_integer_fn: anytype,
@@ -1450,6 +1539,21 @@ fn controlDecodeErrorCode(err: control_decode.DecodeError) []const u8 {
         error.InvalidIdentifier => "invalid-identifier",
         error.CommandInspectionOutOfMemory => "resource-exhausted",
         error.OutOfMemory => "out-of-memory",
+    };
+}
+
+fn protocolErrorCode(err: protocol.ProtocolError) []const u8 {
+    return switch (err) {
+        error.InvalidField => "invalid-field",
+        error.InvalidIdentifier => "invalid-identifier",
+        error.InvalidMagic => "invalid-magic",
+        error.InvalidUtf8 => "invalid-utf8",
+        error.LengthMismatch => "length-mismatch",
+        error.LimitExceeded => "limit-exceeded",
+        error.Truncated => "truncated",
+        error.UnknownRequiredFlag => "unknown-required-flag",
+        error.UnknownRequiredMessage => "unknown-required-message",
+        error.UnsupportedVersion => "unsupported-version",
     };
 }
 

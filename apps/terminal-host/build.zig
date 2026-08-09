@@ -378,6 +378,12 @@ pub fn build(builder: *std.Build) void {
         "Canonical cross-language control fixture path",
         2 * 1024 * 1024,
     ));
+    conformance_options.addOption([]const u8, "utf8_bom_fixture", readFixture(
+        builder,
+        "utf8-bom-fixture",
+        "UTF-8 BOM conformance fixture path",
+        64 * 1024,
+    ));
     const conformance_module = builder.createModule(.{
         .root_source_file = builder.path("src/__tests__/protocol_conformance_test.zig"),
         .target = target,

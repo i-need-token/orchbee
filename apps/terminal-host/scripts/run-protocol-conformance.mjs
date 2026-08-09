@@ -22,6 +22,8 @@ const terminalFailedFixture =
 	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.2.json');
 const controlFixture =
 	require.resolve('@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.2.json');
+const utf8BomFixture =
+	require.resolve('@orchbee/terminal-protocol/fixtures/utf8-bom-conformance-v0.0.2.json');
 const rowWindowFixture =
 	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-row-window-v0.0.1.bin');
 
@@ -41,6 +43,7 @@ const child = spawn(
 		`-Dpaste-input-fixture=${pasteInputFixture}`,
 		`-Dterminal-failed-fixture=${terminalFailedFixture}`,
 		`-Dcontrol-fixture=${controlFixture}`,
+		`-Dutf8-bom-fixture=${utf8BomFixture}`,
 		`-Drow-window-fixture=${rowWindowFixture}`,
 	],
 	{ stdio: 'inherit' },

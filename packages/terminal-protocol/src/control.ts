@@ -840,7 +840,7 @@ export type RuntimeFailure = z.infer<typeof RuntimeFailureSchema>;
 export type RuntimeCleanupFailure = z.infer<typeof RuntimeCleanupFailureSchema>;
 export type UpdateTerminalConfiguration = z.infer<typeof UpdateTerminalConfigurationSchema>;
 
-const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+const utf8Decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
 export function encodeControlJson<Output>(
 	value: unknown,

@@ -6,6 +6,9 @@ import {
 	AttachmentAcknowledgedSchema,
 	AttachmentCapabilitiesSchema,
 	CURRENT_PROTOCOL_VERSION,
+	decodeKeyInput,
+	decodePasteInput,
+	decodeTextInput,
 	EmptyControlSchema,
 	encodeControlJson,
 	encodeControlRequest,
@@ -18,6 +21,7 @@ import {
 	HistoryChangedSchema,
 	HistoryDemandAcceptedSchema,
 	InputAcceptedSchema,
+	KEY_INPUT_HEADER_BYTES,
 	ListTerminalsSchema,
 	MESSAGE_CONTRACTS,
 	MessageKind,
@@ -73,6 +77,10 @@ const terminalFailedPath = path.join(fixturesDirectory, `terminal-failed-v${prot
 const controlConformancePath = path.join(
 	fixturesDirectory,
 	`control-conformance-v${protocolVersion}.json`,
+);
+const utf8BomConformancePath = path.join(
+	fixturesDirectory,
+	`utf8-bom-conformance-v${protocolVersion}.json`,
 );
 const malformedPath = path.join(fixturesDirectory, `malformed-frame-v${frameVersion}.json`);
 const rowWindowPath = path.join(fixturesDirectory, `terminal-row-window-v${rowWindowVersion}.bin`);
@@ -221,6 +229,14 @@ function rawControlCases() {
 			schema: EmptyControlSchema,
 		}),
 		rawControlCase({
+			decoder: 'empty',
+			expectedCode: 'invalid-json',
+			name: 'initial-utf8-bom',
+			payload: new Uint8Array([0xef, 0xbb, 0xbf, 0x7b, 0x7d]),
+			schema: EmptyControlSchema,
+			strictJson: true,
+		}),
+		rawControlCase({
 			decoder: 'list-terminals',
 			expectedCode: 'invalid-field',
 			name: 'numeric-string-does-not-coerce',
@@ -299,6 +315,108 @@ function rawControlCases() {
 			schema: ListTerminalsSchema,
 		}),
 	];
+}
+
+function decodeUtf8BomInput(decoder, payload) {
+	switch (decoder) {
+		case 'key-input':
+			return decodeKeyInput(payload);
+		case 'paste-input':
+			return decodePasteInput(payload);
+		case 'text-input':
+			return decodeTextInput(payload);
+		default:
+			throw new Error(`Unknown UTF-8 BOM input decoder: ${decoder}`);
+	}
+}
+
+function utf8BomInputCase({ decoder, expectedCode, expectedText = null, name, payload }) {
+	const result = decodeUtf8BomInput(decoder, payload);
+	if (expectedCode === null) {
+		if (!result.ok || result.value.text !== expectedText) {
+			throw new Error(`${name} did not preserve its expected text`);
+		}
+	} else if (result.ok || result.code !== expectedCode) {
+		throw new Error(`${name} did not produce ${expectedCode}`);
+	}
+	return {
+		decoder,
+		expected_code: expectedCode,
+		expected_text_base64:
+			expectedText === null ? null : Buffer.from(expectedText, 'utf8').toString('base64'),
+		name,
+		payload_base64: Buffer.from(payload).toString('base64'),
+	};
+}
+
+function createUtf8BomConformanceFixture() {
+	const attachmentId = '22'.repeat(16);
+	const modifiers = {
+		alt: false,
+		altRight: false,
+		capsLock: false,
+		control: false,
+		controlRight: false,
+		meta: false,
+		metaRight: false,
+		numLock: false,
+		shift: false,
+		shiftRight: false,
+	};
+	const key = encodeOrThrow(
+		encodeInputRequest(MessageKind.keyInput, {
+			action: 'press',
+			attachmentId,
+			composing: false,
+			consumedModifiers: modifiers,
+			key: 'F1',
+			modifiers,
+			text: '',
+			unshiftedCodepoint: 0,
+		}),
+		'UTF-8 BOM key input',
+	);
+	const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
+	const bomKey = new Uint8Array(key.byteLength + bom.byteLength);
+	const keyBody = key.subarray(KEY_INPUT_HEADER_BYTES);
+	bomKey.set(key.subarray(0, KEY_INPUT_HEADER_BYTES));
+	new DataView(bomKey.buffer).setUint16(22, bom.byteLength + keyBody.byteLength, true);
+	bomKey.set(bom, KEY_INPUT_HEADER_BYTES);
+	bomKey.set(keyBody, KEY_INPUT_HEADER_BYTES + bom.byteLength);
+	const textValue = { attachmentId, text: '\ufeff' };
+	const text = encodeOrThrow(
+		encodeInputRequest(MessageKind.textInput, textValue),
+		'UTF-8 BOM text input',
+	);
+	const paste = encodeOrThrow(
+		encodeInputRequest(MessageKind.pasteInput, textValue),
+		'UTF-8 BOM paste input',
+	);
+
+	return {
+		cases: [
+			utf8BomInputCase({
+				decoder: 'key-input',
+				expectedCode: 'invalid-field',
+				name: 'bom-prefixed-f1-key',
+				payload: bomKey,
+			}),
+			utf8BomInputCase({
+				decoder: 'text-input',
+				expectedCode: null,
+				expectedText: textValue.text,
+				name: 'leading-ufeff-text',
+				payload: text,
+			}),
+			utf8BomInputCase({
+				decoder: 'paste-input',
+				expectedCode: null,
+				expectedText: textValue.text,
+				name: 'leading-ufeff-paste',
+				payload: paste,
+			}),
+		],
+	};
 }
 
 function protocolLimitName(name) {
@@ -1034,6 +1152,9 @@ const terminalFailedBytes = new TextEncoder().encode(
 const controlConformanceBytes = new TextEncoder().encode(
 	`${JSON.stringify(createControlConformanceFixture(), null, '\t')}\n`,
 );
+const utf8BomConformanceBytes = new TextEncoder().encode(
+	`${JSON.stringify(createUtf8BomConformanceFixture(), null, '\t')}\n`,
+);
 const malformedBytes = new TextEncoder().encode(
 	`${JSON.stringify({ cases: malformedCorpus(frameBytes) }, null, '\t')}\n`,
 );
@@ -1053,6 +1174,7 @@ if (checkOnly) {
 	await compareFile(pasteInputPath, pasteInputBytes);
 	await compareFile(terminalFailedPath, terminalFailedBytes);
 	await compareFile(controlConformancePath, controlConformanceBytes);
+	await compareFile(utf8BomConformancePath, utf8BomConformanceBytes);
 	await compareFile(malformedPath, malformedBytes);
 	await compareFile(rowWindowPath, rowWindowBytes);
 	await compareFile(malformedRowWindowPath, malformedRowWindowBytes);
@@ -1068,6 +1190,7 @@ if (checkOnly) {
 	await writeFile(pasteInputPath, pasteInputBytes);
 	await writeFile(terminalFailedPath, terminalFailedBytes);
 	await writeFile(controlConformancePath, controlConformanceBytes);
+	await writeFile(utf8BomConformancePath, utf8BomConformanceBytes);
 	await writeFile(malformedPath, malformedBytes);
 	await writeFile(rowWindowPath, rowWindowBytes);
 	await writeFile(malformedRowWindowPath, malformedRowWindowBytes);

@@ -11,6 +11,17 @@ const core_module = core_boundary.state;
 const terminal_history = engine_boundary.history;
 
 test "control decoder classifies UTF-8 JSON grammar and typed shape failures" {
+    const plain_empty = try subject.decode(subject.Empty, std.testing.allocator, "{}");
+    defer plain_empty.deinit();
+    try std.testing.expectError(
+        error.InvalidJson,
+        subject.decode(
+            subject.Empty,
+            std.testing.allocator,
+            &.{ 0xef, 0xbb, 0xbf, 0x7b, 0x7d },
+        ),
+    );
+
     const valid = try subject.decode(
         subject.TerminalTarget,
         std.testing.allocator,

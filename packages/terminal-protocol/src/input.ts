@@ -28,7 +28,7 @@ const KEY_FLAGS_MASK = 0b1;
 const MODIFIER_FLAGS_MASK = 0x03ff;
 const MOUSE_BUTTON_FLAGS_MASK = 0x07ff;
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder('utf-8', { fatal: true });
+const textDecoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
 export const TerminalKeyCode = [
 	'Unidentified',
