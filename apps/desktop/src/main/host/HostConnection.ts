@@ -41,8 +41,11 @@ import { HostRecordAssembler } from './HostRecordAssembler';
 import { HostRequestError } from './HostRequestError';
 
 const REQUEST_TIMEOUT_MILLISECONDS = 10_000;
+const MAX_ADMITTED_REQUEST_BYTES = 4 * 1024 * 1024;
+const MAX_ADMITTED_REQUEST_RECORDS = 64;
 interface PendingRequest {
 	readonly expectedKind: MessageKindValue;
+	readonly recordBytes: number;
 	readonly reject: (error: Error) => void;
 	readonly resolve: (envelope: DecodedProtocolEnvelope) => void;
 	readonly timeout: ReturnType<typeof setTimeout>;
@@ -51,6 +54,9 @@ interface PendingRequest {
 export interface HostConnectionMetrics {
 	readonly bytesReceived: number;
 	readonly bytesSent: number;
+	readonly outboundAdmittedBytes: number;
+	readonly outboundAdmittedRecords: number;
+	readonly outboundWriteBlocked: boolean;
 	readonly recordsReceived: number;
 	readonly recordsSent: number;
 	readonly terminalFramesReceived: number;
@@ -60,6 +66,11 @@ export type HostEnvelopeListener = (envelope: DecodedProtocolEnvelope) => void;
 export type HostClosedListener = (reason: Error) => void;
 
 export class HostConnection {
+	static readonly outboundAdmissionLimits = Object.freeze({
+		bytes: MAX_ADMITTED_REQUEST_BYTES,
+		records: MAX_ADMITTED_REQUEST_RECORDS,
+	});
+
 	readonly #assembler: HostRecordAssembler;
 	readonly #attachmentListeners = new Map<AttachmentId, Set<HostEnvelopeListener>>();
 	readonly #closedListeners = new Set<HostClosedListener>();
@@ -71,6 +82,9 @@ export class HostConnection {
 	#closed = false;
 	#closedReason: Error | undefined;
 	#hostEpoch: HostEpoch | undefined;
+	#outboundAdmittedBytes = 0;
+	#outboundAdmittedRecords = 0;
+	#outboundWriteBlocked = false;
 	#protocolVersion: ProtocolVersion | undefined;
 	#recordsReceived = 0;
 	#recordsSent = 0;
@@ -80,6 +94,7 @@ export class HostConnection {
 		this.#stream = stream;
 		this.#assembler = new HostRecordAssembler((record) => this.#handleRecord(record));
 		stream.on('data', (chunk: unknown) => {
+			if (this.#closed) return;
 			if (!(chunk instanceof Uint8Array)) {
 				this.#fail(new Error('Host transport emitted a non-binary chunk.'));
 				return;
@@ -89,6 +104,9 @@ export class HostConnection {
 			} catch (error) {
 				this.#fail(error instanceof Error ? error : new Error('Host record assembly failed.'));
 			}
+		});
+		stream.on('drain', () => {
+			if (!this.#closed) this.#outboundWriteBlocked = false;
 		});
 		stream.once('error', (error: Error) => this.#fail(error));
 		stream.once('close', () => this.#handleClose());
@@ -115,6 +133,9 @@ export class HostConnection {
 		return {
 			bytesReceived: this.#bytesReceived,
 			bytesSent: this.#bytesSent,
+			outboundAdmittedBytes: this.#outboundAdmittedBytes,
+			outboundAdmittedRecords: this.#outboundAdmittedRecords,
+			outboundWriteBlocked: this.#outboundWriteBlocked,
 			recordsReceived: this.#recordsReceived,
 			recordsSent: this.#recordsSent,
 			terminalFramesReceived: this.#terminalFramesReceived,
@@ -208,7 +229,9 @@ export class HostConnection {
 		expectedKind: MessageKindValue,
 		hostEpoch: HostEpoch | null = this.#hostEpoch ?? null,
 	): Promise<DecodedProtocolEnvelope> {
-		if (this.#closed) return Promise.reject(new Error('Host connection is closed.'));
+		if (this.#closed) {
+			return Promise.reject(this.#closedReason ?? new Error('Host connection is closed.'));
+		}
 		if (kind !== MessageKind.hello && this.#protocolVersion === undefined) {
 			return Promise.reject(new Error('Host connection is not negotiated.'));
 		}
@@ -225,23 +248,76 @@ export class HostConnection {
 			response: false,
 		});
 		if (!encoded.ok) return Promise.reject(new Error(encoded.detail));
+		if (this.#pending.has(correlationId)) {
+			return Promise.reject(new Error('Terminal Host request correlation is already pending.'));
+		}
 
 		return new Promise((resolve, reject) => {
+			const admissionError = this.#admitOutbound(encoded.value.byteLength);
+			if (admissionError !== undefined) {
+				reject(admissionError);
+				return;
+			}
 			const timeout = setTimeout(() => {
-				this.#pending.delete(correlationId);
-				reject(new Error(`Terminal Host request ${kind} timed out.`));
+				if (!this.#pending.has(correlationId)) return;
+				this.#retireOutcomeUnknown(
+					`Terminal Host request ${kind} reached its deadline after transport handoff; its outcome is unknown.`,
+				);
 			}, REQUEST_TIMEOUT_MILLISECONDS);
-			this.#pending.set(correlationId, { expectedKind, reject, resolve, timeout });
+			this.#pending.set(correlationId, {
+				expectedKind,
+				recordBytes: encoded.value.byteLength,
+				reject,
+				resolve,
+				timeout,
+			});
 			this.#recordsSent += 1;
 			this.#bytesSent += encoded.value.byteLength;
-			this.#stream.write(encoded.value, (error) => {
-				if (error === null || error === undefined) return;
-				const pending = this.#pending.get(correlationId);
-				if (pending === undefined) return;
-				clearTimeout(pending.timeout);
-				this.#pending.delete(correlationId);
-				pending.reject(error);
-			});
+			try {
+				const canContinueWriting = this.#stream.write(encoded.value, (error) => {
+					if (error === null || error === undefined || !this.#pending.has(correlationId)) {
+						return;
+					}
+					this.#retireOutcomeUnknown(
+						'Terminal Host transport failed after request handoff; pending outcomes are unknown.',
+						error,
+					);
+				});
+				if (!canContinueWriting && !this.#closed) this.#outboundWriteBlocked = true;
+			} catch (error) {
+				const writeError =
+					error instanceof Error ? error : new Error('Terminal Host transport write failed.');
+				this.#retireOutcomeUnknown(
+					'Terminal Host transport failed after request handoff; pending outcomes are unknown.',
+					writeError,
+				);
+			}
+		});
+	}
+
+	#admitOutbound(recordBytes: number): Error | undefined {
+		if (!Number.isSafeInteger(recordBytes) || recordBytes <= 0) {
+			return new Error('Terminal Host outbound record length is invalid.');
+		}
+		if (this.#outboundWriteBlocked) return this.#backpressureError();
+		const nextBytes = this.#outboundAdmittedBytes + recordBytes;
+		const nextRecords = this.#outboundAdmittedRecords + 1;
+		if (!Number.isSafeInteger(nextBytes) || !Number.isSafeInteger(nextRecords)) {
+			return new Error('Terminal Host outbound admission accounting overflowed.');
+		}
+		if (nextBytes > MAX_ADMITTED_REQUEST_BYTES || nextRecords > MAX_ADMITTED_REQUEST_RECORDS) {
+			return this.#backpressureError();
+		}
+		this.#outboundAdmittedBytes = nextBytes;
+		this.#outboundAdmittedRecords = nextRecords;
+		return undefined;
+	}
+
+	#backpressureError(): HostRequestError {
+		return new HostRequestError({
+			code: 'host-transport-backpressure',
+			message: 'The bounded Desktop-to-Host request transport is saturated.',
+			retryable: true,
 		});
 	}
 
@@ -358,10 +434,8 @@ export class HostConnection {
 	#handleResponse(envelope: DecodedProtocolEnvelope): void {
 		const correlationId = envelope.correlationId;
 		if (correlationId === null) throw new Error('Host response omitted its correlation ID.');
-		const pending = this.#pending.get(correlationId);
+		const pending = this.#takePending(correlationId);
 		if (pending === undefined) throw new Error('Host response correlation is unknown or expired.');
-		clearTimeout(pending.timeout);
-		this.#pending.delete(correlationId);
 		if (envelope.kind === MessageKind.typedFailure) {
 			const failure = decodeControlJson(envelope.payload, TypedFailureSchema);
 			pending.reject(failure.ok ? new HostRequestError(failure.value) : new Error(failure.detail));
@@ -384,30 +458,79 @@ export class HostConnection {
 		} catch (error) {
 			reason = error instanceof Error ? error : new Error('Host transport ended unexpectedly.');
 		}
+		if (this.#hostEpoch !== undefined && this.#pending.size > 0) {
+			reason = this.#outcomeUnknownError(
+				'Terminal Host connection closed after request handoff; pending outcomes are unknown.',
+			);
+		}
 		this.#completeClose(reason);
 	}
 
 	#fail(error: Error): void {
 		if (this.#closed) return;
+		if (this.#hostEpoch !== undefined && this.#pending.size > 0) {
+			this.#retireOutcomeUnknown(
+				'Terminal Host connection failed after request handoff; pending outcomes are unknown.',
+				error,
+			);
+			return;
+		}
 		this.#completeClose(error);
 		this.#stream.destroy(error);
+	}
+
+	#retireOutcomeUnknown(message: string, transportError?: Error): void {
+		if (this.#closed) return;
+		const reason = this.#outcomeUnknownError(message);
+		this.#completeClose(reason);
+		this.#stream.destroy(transportError ?? reason);
+	}
+
+	#outcomeUnknownError(message: string): HostRequestError {
+		return new HostRequestError({
+			code: 'host-request-outcome-unknown',
+			message,
+			retryable: false,
+		});
 	}
 
 	#completeClose(reason: Error): void {
 		if (this.#closed) return;
 		this.#closed = true;
 		this.#closedReason = reason;
+		this.#outboundWriteBlocked = false;
 		this.#rejectPending(reason);
 		for (const listener of this.#closedListeners) queueMicrotask(() => listener(reason));
 		this.#closedListeners.clear();
 	}
 
 	#rejectPending(error: Error): void {
-		for (const pending of this.#pending.values()) {
-			clearTimeout(pending.timeout);
-			pending.reject(error);
+		for (const correlationId of this.#pending.keys()) {
+			this.#takePending(correlationId)?.reject(error);
 		}
-		this.#pending.clear();
+		if (this.#outboundAdmittedBytes !== 0 || this.#outboundAdmittedRecords !== 0) {
+			throw new Error('Terminal Host outbound admission accounting did not reach zero.');
+		}
+	}
+
+	#takePending(correlationId: string): PendingRequest | undefined {
+		const pending = this.#pending.get(correlationId);
+		if (pending === undefined) return undefined;
+		this.#pending.delete(correlationId);
+		clearTimeout(pending.timeout);
+		const nextBytes = this.#outboundAdmittedBytes - pending.recordBytes;
+		const nextRecords = this.#outboundAdmittedRecords - 1;
+		if (
+			!Number.isSafeInteger(nextBytes) ||
+			!Number.isSafeInteger(nextRecords) ||
+			nextBytes < 0 ||
+			nextRecords < 0
+		) {
+			throw new Error('Terminal Host outbound admission accounting underflowed.');
+		}
+		this.#outboundAdmittedBytes = nextBytes;
+		this.#outboundAdmittedRecords = nextRecords;
+		return pending;
 	}
 }
 

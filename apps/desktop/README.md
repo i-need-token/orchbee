@@ -22,6 +22,8 @@ The coordinator is transport-neutral and supports independent page sessions with
 
 Desktop requires the single current Host protocol `0.0.2` exactly; pre-release builds do not negotiate or document historical protocol variants. Electron uses `42.8.0`, the final release in the major immediately preceding the current Electron major selected for this repository.
 
+`HostConnection` owns one connection-global outbound window across every broker caller: at most 64 unanswered request records and 4 MiB of encoded request bytes. It retains that admission until the correlated response or connection failure. A full window or a Node writable that has returned `false` rejects work before handoff with retryable `host-transport-backpressure`; no request write resumes before `drain`. If a handed-off request reaches its deadline, Desktop retires the connection and rejects all pending and future requests with non-retryable `host-request-outcome-unknown`, so input is never replayed after an ambiguous result. The broker's 64-command per-attachment window remains an additional capability-local guard.
+
 Desktop scopes one Terminal Host endpoint to its product `userData` identity, which separates OS users, product profiles, and release-channel data roots. The short POSIX runtime path and Windows named-pipe identity are derived from that scope; explicit endpoint and runtime overrides exist only for controlled development and tests. After every successful handshake, Desktop sends the current terminal default through `SetTerminalDefaults`, so reconnecting to an already-running singleton has the same result as a fresh CLI launch. Product settings UI and durable preference storage remain a later Desktop-owned slice.
 
 ## Lifecycle and identity ownership

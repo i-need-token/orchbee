@@ -21,6 +21,55 @@ import { HostConnection, type HostEnvelopeListener } from '../HostConnection';
 
 const currentProtocol = CURRENT_PROTOCOL_VERSION;
 
+function createControlledHostStream(highWaterMark: number) {
+	const blockedWriteCallbacks: Array<(error?: Error | null) => void> = [];
+	const hostEpoch = HostEpochSchema.parse('aa'.repeat(16));
+	const stream = new Duplex({
+		highWaterMark,
+		read() {},
+		write(chunk, _encoding, callback) {
+			const request = decodeProtocolEnvelope(new Uint8Array(chunk));
+			if (!request.ok) throw new Error(request.detail);
+			if (request.value.kind !== MessageKind.hello) {
+				blockedWriteCallbacks.push(callback);
+				return;
+			}
+			const response = encodeProtocolEnvelope({
+				correlationId: request.value.correlationId,
+				event: false,
+				hostEpoch,
+				kind: MessageKind.helloAccepted,
+				optionalMessage: false,
+				payload: new TextEncoder().encode(
+					JSON.stringify({
+						frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
+						hostEpoch,
+						hostVersion: '0.1.0',
+						inputBytes: PROTOCOL_LIMITS.maxInputBytes,
+						protocol: currentProtocol,
+						rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+						supportedOptionalFeatures: [],
+					}),
+				),
+				payloadEncoding: PayloadEncoding.controlJson,
+				protocol: currentProtocol,
+				response: true,
+			});
+			if (!response.ok) throw new Error(response.detail);
+			stream.push(response.value);
+			callback();
+		},
+	});
+	return { blockedWriteCallbacks, hostEpoch, stream };
+}
+
+async function createNegotiatedControlledHost(highWaterMark: number) {
+	const controlled = createControlledHostStream(highWaterMark);
+	const connection = new HostConnection(controlled.stream);
+	await connection.negotiate(ClientIdSchema.parse('bb'.repeat(16)));
+	return { connection, ...controlled };
+}
+
 describe('HostConnection', () => {
 	it('offers the current protocol and routes current-version events', async () => {
 		const hostEpoch = HostEpochSchema.parse('11'.repeat(16));
@@ -129,6 +178,10 @@ describe('HostConnection', () => {
 		expect(connection.metrics.recordsSent).toBe(1);
 		expect(connection.metrics.recordsReceived).toBe(4);
 		expect(connection.metrics.terminalFramesReceived).toBe(1);
+		expect(connection.metrics).toMatchObject({
+			outboundAdmittedBytes: 0,
+			outboundAdmittedRecords: 0,
+		});
 		connection.close();
 	});
 
@@ -228,6 +281,10 @@ describe('HostConnection', () => {
 		await expect(
 			connection.requestControl(MessageKind.ping, {}, EmptyControlSchema),
 		).rejects.toMatchObject({ code: 'input-backpressure', retryable: true });
+		expect(connection.metrics).toMatchObject({
+			outboundAdmittedBytes: 0,
+			outboundAdmittedRecords: 0,
+		});
 		connection.close();
 	});
 
@@ -284,7 +341,363 @@ describe('HostConnection', () => {
 		await new Promise<void>((resolve) => setImmediate(resolve));
 		expect(nonHelloRequestCount).toBe(1);
 		expect(connection.metrics.recordsSent).toBe(2);
+		expect(connection.metrics).toMatchObject({
+			outboundAdmittedBytes: 0,
+			outboundAdmittedRecords: 0,
+		});
 		connection.close();
+	});
+
+	it('stops request writes after Writable backpressure until drain', async () => {
+		const attachmentId = AttachmentIdSchema.parse('88'.repeat(16));
+		const { blockedWriteCallbacks, connection, stream } =
+			await createNegotiatedControlledHost(4096);
+		const write = vi.spyOn(stream, 'write');
+		const submitLargeInput = () =>
+			connection.requestInput(MessageKind.textInput, {
+				attachmentId,
+				text: 'x'.repeat(PROTOCOL_LIMITS.maxInputBytes),
+			});
+		const submitControl = () => connection.requestControlEnvelope(MessageKind.ping, {});
+		const requests = [
+			submitLargeInput(),
+			submitControl(),
+			connection.requestInput(MessageKind.focusInput, { attachmentId, focused: true }),
+		];
+
+		try {
+			const rejected = await Promise.allSettled(requests.slice(1));
+			expect(write.mock.results[0]?.value).toBe(false);
+			expect(stream.writableNeedDrain).toBe(true);
+			expect(write).toHaveBeenCalledOnce();
+			expect(rejected).toEqual([
+				expect.objectContaining({
+					reason: expect.objectContaining({
+						code: 'host-transport-backpressure',
+						retryable: true,
+					}),
+					status: 'rejected',
+				}),
+				expect.objectContaining({
+					reason: expect.objectContaining({
+						code: 'host-transport-backpressure',
+						retryable: true,
+					}),
+					status: 'rejected',
+				}),
+			]);
+			expect(connection.metrics.outboundAdmittedRecords).toBe(1);
+			expect(connection.metrics.outboundAdmittedBytes).toBe(stream.writableLength);
+			expect(connection.metrics.outboundAdmittedBytes).toBeLessThanOrEqual(
+				HostConnection.outboundAdmissionLimits.bytes,
+			);
+			expect(connection.metrics.outboundWriteBlocked).toBe(true);
+			const drained = new Promise<void>((resolve) => stream.once('drain', resolve));
+			blockedWriteCallbacks.shift()?.();
+			await drained;
+			expect(connection.metrics.outboundWriteBlocked).toBe(false);
+			requests.push(submitControl());
+			expect(write).toHaveBeenCalledTimes(2);
+			expect(write.mock.results[1]?.value).toBe(true);
+		} finally {
+			connection.close();
+			await Promise.allSettled(requests);
+			expect(connection.metrics).toMatchObject({
+				outboundAdmittedBytes: 0,
+				outboundAdmittedRecords: 0,
+			});
+		}
+	});
+
+	it('enforces aggregate byte and record admission limits across callers', async () => {
+		const attachmentId = AttachmentIdSchema.parse('cc'.repeat(16));
+		const maximumText = 'x'.repeat(PROTOCOL_LIMITS.maxInputBytes);
+		const byteControlled = await createNegotiatedControlledHost(
+			HostConnection.outboundAdmissionLimits.bytes + 1024,
+		);
+		const byteWrite = vi.spyOn(byteControlled.stream, 'write');
+		const submitFromFirstCaller = () =>
+			byteControlled.connection.requestInput(MessageKind.textInput, {
+				attachmentId,
+				text: maximumText,
+			});
+		const submitFromSecondCaller = () =>
+			byteControlled.connection.requestInput(MessageKind.pasteInput, {
+				attachmentId,
+				text: maximumText,
+			});
+		const byteRequests = [
+			submitFromFirstCaller(),
+			submitFromSecondCaller(),
+			submitFromFirstCaller(),
+		];
+		const byteOverflow = submitFromSecondCaller();
+
+		try {
+			await expect(byteOverflow).rejects.toMatchObject({
+				code: 'host-transport-backpressure',
+				retryable: true,
+			});
+			expect(byteWrite).toHaveBeenCalledTimes(3);
+			expect(byteControlled.connection.metrics.outboundAdmittedRecords).toBe(3);
+			expect(byteControlled.connection.metrics.outboundAdmittedBytes).toBe(
+				byteControlled.stream.writableLength,
+			);
+			expect(byteControlled.connection.metrics.outboundAdmittedBytes).toBeLessThanOrEqual(
+				HostConnection.outboundAdmissionLimits.bytes,
+			);
+		} finally {
+			byteControlled.connection.close();
+			await Promise.allSettled([...byteRequests, byteOverflow]);
+		}
+
+		const recordControlled = await createNegotiatedControlledHost(64 * 1024);
+		const recordWrite = vi.spyOn(recordControlled.stream, 'write');
+		const recordRequests = Array.from(
+			{ length: HostConnection.outboundAdmissionLimits.records },
+			(_, index) =>
+				index % 2 === 0
+					? recordControlled.connection.requestControlEnvelope(MessageKind.ping, {})
+					: recordControlled.connection.requestInput(MessageKind.focusInput, {
+							attachmentId,
+							focused: true,
+						}),
+		);
+		const recordOverflow = recordControlled.connection.requestControlEnvelope(MessageKind.ping, {});
+
+		try {
+			await expect(recordOverflow).rejects.toMatchObject({
+				code: 'host-transport-backpressure',
+				retryable: true,
+			});
+			expect(recordWrite).toHaveBeenCalledTimes(HostConnection.outboundAdmissionLimits.records);
+			expect(recordControlled.connection.metrics.outboundAdmittedRecords).toBe(
+				HostConnection.outboundAdmissionLimits.records,
+			);
+			expect(recordControlled.connection.metrics.outboundAdmittedBytes).toBeLessThanOrEqual(
+				HostConnection.outboundAdmissionLimits.bytes,
+			);
+		} finally {
+			recordControlled.connection.close();
+			await Promise.allSettled([...recordRequests, recordOverflow]);
+		}
+	});
+
+	it('retires every handed-off request as outcome unknown at the first deadline', async () => {
+		vi.useFakeTimers();
+		const controlled = await createNegotiatedControlledHost(4096);
+		try {
+			const attachmentId = AttachmentIdSchema.parse('dd'.repeat(16));
+			const write = vi.spyOn(controlled.stream, 'write');
+			const closeListener = vi.fn<(reason: Error) => void>();
+			controlled.connection.onClosed(closeListener);
+			const requests = [
+				controlled.connection.requestControlEnvelope(MessageKind.ping, {}),
+				controlled.connection.requestInput(MessageKind.textInput, {
+					attachmentId,
+					text: 'x'.repeat(PROTOCOL_LIMITS.maxInputBytes),
+				}),
+			];
+			const settlementCounts = [0, 0];
+			const observedRequests = requests.map((request, index) =>
+				request.then(
+					(value) => {
+						settlementCounts[index] = (settlementCounts[index] ?? 0) + 1;
+						return value;
+					},
+					(error: unknown) => {
+						settlementCounts[index] = (settlementCounts[index] ?? 0) + 1;
+						return error;
+					},
+				),
+			);
+
+			expect(write.mock.results.map((result) => result.value)).toEqual([true, false]);
+			expect(controlled.connection.metrics).toMatchObject({
+				outboundAdmittedBytes: controlled.stream.writableLength,
+				outboundAdmittedRecords: 2,
+				outboundWriteBlocked: true,
+			});
+
+			await vi.advanceTimersByTimeAsync(10_000);
+			const outcomes = await Promise.all(observedRequests);
+			expect(outcomes[0]).toMatchObject({
+				code: 'host-request-outcome-unknown',
+				retryable: false,
+			});
+			expect(outcomes[1]).toBe(outcomes[0]);
+			expect(settlementCounts).toEqual([1, 1]);
+			expect(controlled.stream.destroyed).toBe(true);
+			expect(controlled.connection.metrics).toMatchObject({
+				outboundAdmittedBytes: 0,
+				outboundAdmittedRecords: 0,
+				outboundWriteBlocked: false,
+			});
+			await Promise.resolve();
+			expect(closeListener).toHaveBeenCalledOnce();
+			expect(closeListener.mock.calls[0]?.[0]).toBe(outcomes[0]);
+
+			let futureOutcome: unknown;
+			try {
+				await controlled.connection.requestControlEnvelope(MessageKind.ping, {});
+			} catch (error) {
+				futureOutcome = error;
+			}
+			expect(futureOutcome).toBe(outcomes[0]);
+
+			const firstChunk: unknown = write.mock.calls[0]?.[0];
+			if (!(firstChunk instanceof Uint8Array)) {
+				throw new Error('Expected the first handed-off request to be binary.');
+			}
+			const firstRequest = decodeProtocolEnvelope(firstChunk);
+			if (!firstRequest.ok) throw new Error(firstRequest.detail);
+			const lateResponse = encodeProtocolEnvelope({
+				correlationId: firstRequest.value.correlationId,
+				event: false,
+				hostEpoch: controlled.hostEpoch,
+				kind: MessageKind.ping,
+				optionalMessage: false,
+				payload: new TextEncoder().encode('{}'),
+				payloadEncoding: PayloadEncoding.controlJson,
+				protocol: currentProtocol,
+				response: true,
+			});
+			if (!lateResponse.ok) throw new Error(lateResponse.detail);
+			const lateCloseListener = vi.fn<(reason: Error) => void>();
+			controlled.connection.onClosed(lateCloseListener);
+			controlled.blockedWriteCallbacks.shift()?.();
+			controlled.stream.emit('drain');
+			controlled.stream.emit('data', lateResponse.value);
+			await Promise.resolve();
+
+			expect(settlementCounts).toEqual([1, 1]);
+			expect(closeListener).toHaveBeenCalledOnce();
+			expect(lateCloseListener).toHaveBeenCalledOnce();
+			expect(lateCloseListener.mock.calls[0]?.[0]).toBe(outcomes[0]);
+			expect(controlled.connection.metrics).toMatchObject({
+				outboundAdmittedBytes: 0,
+				outboundAdmittedRecords: 0,
+				recordsReceived: 1,
+			});
+		} finally {
+			controlled.connection.close();
+			controlled.blockedWriteCallbacks.shift()?.();
+			vi.useRealTimers();
+		}
+	});
+
+	it('keeps repeated 64-command caller waves bounded around saturation and retirement', async () => {
+		vi.useFakeTimers();
+		const controlled = await createNegotiatedControlledHost(4096);
+		try {
+			const attachmentId = AttachmentIdSchema.parse('ee'.repeat(16));
+			const write = vi.spyOn(controlled.stream, 'write');
+			const handedOff = controlled.connection.requestInput(MessageKind.textInput, {
+				attachmentId,
+				text: 'x'.repeat(PROTOCOL_LIMITS.maxInputBytes),
+			});
+			const handedOffOutcome = handedOff.catch((error: unknown) => error);
+			const saturatedWritableLength = controlled.stream.writableLength;
+
+			const submitSaturatedWave = async () => {
+				const waveResults = await Promise.allSettled(
+					Array.from({ length: 64 }, (_, index) =>
+						index % 2 === 0
+							? controlled.connection.requestControlEnvelope(MessageKind.ping, {})
+							: controlled.connection.requestInput(MessageKind.focusInput, {
+									attachmentId,
+									focused: true,
+								}),
+					),
+				);
+				expect(waveResults).toHaveLength(64);
+				expect(
+					waveResults.every(
+						(result) =>
+							result.status === 'rejected' &&
+							result.reason instanceof Error &&
+							'code' in result.reason &&
+							result.reason.code === 'host-transport-backpressure',
+					),
+				).toBe(true);
+				expect(write).toHaveBeenCalledOnce();
+				expect(controlled.stream.writableLength).toBe(saturatedWritableLength);
+				expect(controlled.connection.metrics).toMatchObject({
+					outboundAdmittedBytes: saturatedWritableLength,
+					outboundAdmittedRecords: 1,
+				});
+			};
+			await submitSaturatedWave();
+			await vi.advanceTimersByTimeAsync(3000);
+			await submitSaturatedWave();
+			await vi.advanceTimersByTimeAsync(3000);
+			await submitSaturatedWave();
+			await vi.advanceTimersByTimeAsync(3000);
+
+			await vi.advanceTimersByTimeAsync(1000);
+			const timeoutOutcome = await handedOffOutcome;
+			expect(timeoutOutcome).toMatchObject({
+				code: 'host-request-outcome-unknown',
+				retryable: false,
+			});
+			await vi.advanceTimersByTimeAsync(20_000);
+			const retiredWave = await Promise.allSettled(
+				Array.from({ length: 64 }, () =>
+					controlled.connection.requestControlEnvelope(MessageKind.ping, {}),
+				),
+			);
+			expect(
+				retiredWave.every(
+					(result) => result.status === 'rejected' && result.reason === timeoutOutcome,
+				),
+			).toBe(true);
+			expect(write).toHaveBeenCalledOnce();
+			expect(controlled.stream.writableLength).toBeLessThanOrEqual(saturatedWritableLength);
+			expect(controlled.connection.metrics).toMatchObject({
+				outboundAdmittedBytes: 0,
+				outboundAdmittedRecords: 0,
+			});
+		} finally {
+			controlled.connection.close();
+			controlled.blockedWriteCallbacks.shift()?.();
+			vi.useRealTimers();
+		}
+	});
+
+	it('releases all admission when a handed-off write callback fails', async () => {
+		const controlled = await createNegotiatedControlledHost(4096);
+		const request = controlled.connection.requestControlEnvelope(MessageKind.ping, {});
+		const outcome = request.catch((error: unknown) => error);
+		expect(controlled.connection.metrics.outboundAdmittedRecords).toBe(1);
+
+		controlled.blockedWriteCallbacks.shift()?.(new Error('blocked write failed'));
+		await expect(outcome).resolves.toMatchObject({
+			code: 'host-request-outcome-unknown',
+			retryable: false,
+		});
+		expect(controlled.connection.metrics).toMatchObject({
+			outboundAdmittedBytes: 0,
+			outboundAdmittedRecords: 0,
+		});
+		expect(controlled.stream.destroyed).toBe(true);
+	});
+
+	it('reports an external close with handed-off work as outcome unknown', async () => {
+		const controlled = await createNegotiatedControlledHost(4096);
+		const outcome = controlled.connection
+			.requestControlEnvelope(MessageKind.ping, {})
+			.catch((error: unknown) => error);
+		expect(controlled.connection.metrics.outboundAdmittedRecords).toBe(1);
+
+		controlled.stream.destroy();
+		await expect(outcome).resolves.toMatchObject({
+			code: 'host-request-outcome-unknown',
+			retryable: false,
+		});
+		expect(controlled.connection.metrics).toMatchObject({
+			outboundAdmittedBytes: 0,
+			outboundAdmittedRecords: 0,
+		});
 	});
 
 	it('notifies current and late close observers exactly once', async () => {
@@ -298,6 +711,10 @@ describe('HostConnection', () => {
 		const current = vi.fn<(reason: Error) => void>();
 		const late = vi.fn<(reason: Error) => void>();
 		connection.onClosed(current);
+		const negotiationOutcome = connection
+			.negotiate(ClientIdSchema.parse('ff'.repeat(16)))
+			.catch((error: unknown) => error);
+		expect(connection.metrics.outboundAdmittedRecords).toBe(1);
 
 		connection.close();
 		connection.close();
@@ -307,5 +724,10 @@ describe('HostConnection', () => {
 		await vi.waitFor(() => expect(late).toHaveBeenCalledOnce());
 		expect(current.mock.calls[0]?.[0].message).toBe('Host connection closed.');
 		expect(late.mock.calls[0]?.[0]).toBe(current.mock.calls[0]?.[0]);
+		expect(await negotiationOutcome).toBe(current.mock.calls[0]?.[0]);
+		expect(connection.metrics).toMatchObject({
+			outboundAdmittedBytes: 0,
+			outboundAdmittedRecords: 0,
+		});
 	});
 });
