@@ -11,6 +11,18 @@ const Process = subject.Process;
 const posixExecutableCandidates = subject.testing.posixExecutableCandidatesFn;
 const windowsCommandLine = subject.testing.windowsCommandLineFn;
 
+const ProcessReadResult = anyerror!usize;
+
+const ProcessReader = struct {
+    process: *Process,
+    output: []u8,
+    result: ?ProcessReadResult = null,
+
+    fn run(self: *@This()) void {
+        self.result = self.process.read(self.output);
+    }
+};
+
 test "PTY process preserves exact arguments, environment, and exit" {
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
         try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
@@ -45,7 +57,11 @@ test "PTY process preserves exact arguments, environment, and exit" {
     defer process.deinit();
 
     var output: [256]u8 = undefined;
-    const length = try process.read(&output);
+    var reader: ProcessReader = .{ .process = &process, .output = &output };
+    var reader_thread = try std.Thread.spawn(.{}, ProcessReader.run, .{&reader});
+    process.registerReaderThread(reader_thread.getHandle());
+    reader_thread.join();
+    const length = try reader.result.?;
     try std.testing.expect(std.mem.indexOf(u8, output[0..length], "environment:argument with spaces") != null);
     try std.testing.expectEqual(ExitResult{ .exit_code = 0 }, try process.wait());
     if (builtin.os.tag != .windows) {
