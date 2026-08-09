@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PROTOCOL_LIMITS } from '@orchbee/terminal-protocol';
 import {
 	ProjectedTerminalCommandSchema,
 	ProjectedTerminalEventSchema,
@@ -10,6 +11,7 @@ import {
 	encodeGatewayAttachmentClientFrame,
 	encodeGatewayAttachmentServerFrame,
 } from '../gateway-attachment-codec';
+import { GATEWAY_LIMITS } from '../gateway-control-contract';
 
 const attachmentId = '11'.repeat(16);
 
@@ -49,6 +51,17 @@ describe('Gateway attachment binary codec', () => {
 			ok: true,
 			value: { content: selection, kind: 'selection-copy-content', requestSequence: '9' },
 		});
+	});
+
+	it('fits the maximum selection payload within the bounded attachment queue', () => {
+		const event = ProjectedTerminalEventSchema.parse({
+			content: new ArrayBuffer(PROTOCOL_LIMITS.maxSelectionExportBytes),
+			kind: 'selection-copy-content',
+			requestSequence: '18446744073709551615',
+		});
+		const frame = encodeGatewayAttachmentServerFrame(event);
+
+		expect(frame.byteLength).toBeLessThanOrEqual(GATEWAY_LIMITS.maxAttachmentBufferedBytes);
 	});
 
 	it('rejects truncation and direction confusion', () => {

@@ -7,13 +7,15 @@ import {
 } from '@orchbee/workbench-client-protocol';
 import type { z } from 'zod';
 
+import {
+	GATEWAY_ATTACHMENT_FRAME_HEADER_BYTES,
+	GATEWAY_ATTACHMENT_MAX_METADATA_BYTES,
+} from './gateway-attachment-wire-contract';
 import { GATEWAY_LIMITS } from './gateway-control-contract';
 import type { GatewayDecodeResult } from './gateway-json-codec';
 
-const HEADER_BYTES = 16;
 const MAGIC = 0x4f_42_47_57;
 const WIRE_VERSION = 1;
-const MAX_METADATA_BYTES = 128;
 const textDecoder = new TextDecoder('utf-8', { fatal: true });
 const textEncoder = new TextEncoder();
 
@@ -112,7 +114,7 @@ export function decodeGatewayAttachmentServerFrame(
 		case AttachmentFrameKind.serverSelectionCopyContent: {
 			if (
 				metadata.byteLength === 0 ||
-				metadata.byteLength > MAX_METADATA_BYTES ||
+				metadata.byteLength > GATEWAY_ATTACHMENT_MAX_METADATA_BYTES ||
 				payload.byteLength > PROTOCOL_LIMITS.maxSelectionExportBytes
 			) {
 				return { detail: 'Gateway selection content has invalid metadata or size.', ok: false };
@@ -139,7 +141,7 @@ export function decodeGatewayAttachmentServerFrame(
 }
 
 function decodeWireFrame(frame: ArrayBuffer): GatewayDecodeResult<DecodedWireFrame> {
-	if (frame.byteLength < HEADER_BYTES) {
+	if (frame.byteLength < GATEWAY_ATTACHMENT_FRAME_HEADER_BYTES) {
 		return { detail: 'Gateway attachment frame is truncated.', ok: false };
 	}
 	const view = new DataView(frame);
@@ -154,8 +156,8 @@ function decodeWireFrame(frame: ArrayBuffer): GatewayDecodeResult<DecodedWireFra
 	const metadataLength = view.getUint32(8);
 	const payloadLength = view.getUint32(12);
 	if (
-		metadataLength > MAX_METADATA_BYTES ||
-		HEADER_BYTES + metadataLength + payloadLength !== frame.byteLength
+		metadataLength > GATEWAY_ATTACHMENT_MAX_METADATA_BYTES ||
+		GATEWAY_ATTACHMENT_FRAME_HEADER_BYTES + metadataLength + payloadLength !== frame.byteLength
 	) {
 		return { detail: 'Gateway attachment frame lengths are invalid.', ok: false };
 	}
@@ -164,8 +166,11 @@ function decodeWireFrame(frame: ArrayBuffer): GatewayDecodeResult<DecodedWireFra
 		ok: true,
 		value: {
 			kind: view.getUint8(5),
-			metadata: bytes.subarray(HEADER_BYTES, HEADER_BYTES + metadataLength),
-			payload: bytes.subarray(HEADER_BYTES + metadataLength),
+			metadata: bytes.subarray(
+				GATEWAY_ATTACHMENT_FRAME_HEADER_BYTES,
+				GATEWAY_ATTACHMENT_FRAME_HEADER_BYTES + metadataLength,
+			),
+			payload: bytes.subarray(GATEWAY_ATTACHMENT_FRAME_HEADER_BYTES + metadataLength),
 		},
 	};
 }
@@ -175,10 +180,12 @@ function encodeWireFrame(
 	metadata: Uint8Array,
 	payload: Uint8Array,
 ): ArrayBuffer {
-	if (metadata.byteLength > MAX_METADATA_BYTES) {
+	if (metadata.byteLength > GATEWAY_ATTACHMENT_MAX_METADATA_BYTES) {
 		throw new Error('Gateway attachment metadata exceeds its limit.');
 	}
-	const frame = new ArrayBuffer(HEADER_BYTES + metadata.byteLength + payload.byteLength);
+	const frame = new ArrayBuffer(
+		GATEWAY_ATTACHMENT_FRAME_HEADER_BYTES + metadata.byteLength + payload.byteLength,
+	);
 	const view = new DataView(frame);
 	view.setUint32(0, MAGIC);
 	view.setUint8(4, WIRE_VERSION);
@@ -188,8 +195,8 @@ function encodeWireFrame(
 	view.setUint32(8, metadata.byteLength);
 	view.setUint32(12, payload.byteLength);
 	const bytes = new Uint8Array(frame);
-	bytes.set(metadata, HEADER_BYTES);
-	bytes.set(payload, HEADER_BYTES + metadata.byteLength);
+	bytes.set(metadata, GATEWAY_ATTACHMENT_FRAME_HEADER_BYTES);
+	bytes.set(payload, GATEWAY_ATTACHMENT_FRAME_HEADER_BYTES + metadata.byteLength);
 	return frame;
 }
 

@@ -1,3 +1,4 @@
+import { PROTOCOL_LIMITS } from '@orchbee/terminal-protocol';
 import {
 	TerminalProjectionControlCommandSchema,
 	TerminalProjectionControlEventSchema,
@@ -8,12 +9,15 @@ import {
 import { WorkbenchSharedDocumentSchema } from '@orchbee/workbench/document';
 import { z } from 'zod';
 
+import { GATEWAY_ATTACHMENT_MAX_FRAME_OVERHEAD_BYTES } from './gateway-attachment-wire-contract';
+
 export const GATEWAY_PROTOCOL_VERSION = '1.0';
 export const GATEWAY_CONTROL_PATH = '/v1/control';
 export const GATEWAY_ATTACHMENT_PATH = '/v1/attachment';
 
 export const GATEWAY_LIMITS = {
-	maxAttachmentBufferedBytes: 16 * 1024 * 1024,
+	maxAttachmentBufferedBytes:
+		PROTOCOL_LIMITS.maxSelectionExportBytes + GATEWAY_ATTACHMENT_MAX_FRAME_OVERHEAD_BYTES,
 	maxAttachmentJsonBytes: 2 * 1024 * 1024,
 	maxControlBufferedBytes: 16 * 1024 * 1024,
 	maxControlMessageBytes: 16 * 1024 * 1024,
