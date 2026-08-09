@@ -66,13 +66,13 @@ export function encodeGatewayAttachmentServerFrame(event: ProjectedTerminalEvent
 			return encodeWireFrame(
 				AttachmentFrameKind.serverFrame,
 				new Uint8Array(),
-				new Uint8Array(canonical.frame),
+				binaryBytes(canonical.frame),
 			);
 		case 'rows':
 			return encodeWireFrame(
 				AttachmentFrameKind.serverRows,
 				new Uint8Array(),
-				new Uint8Array(canonical.rows),
+				binaryBytes(canonical.rows),
 			);
 		case 'selection-copy-content':
 			return encodeWireFrame(
@@ -242,4 +242,8 @@ function copyArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 	const copy = new Uint8Array(bytes.byteLength);
 	copy.set(bytes);
 	return copy.buffer;
+}
+
+function binaryBytes(value: ArrayBuffer | Uint8Array): Uint8Array {
+	return value instanceof Uint8Array ? value : new Uint8Array(value);
 }

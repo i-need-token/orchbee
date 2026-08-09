@@ -30,6 +30,10 @@ describe('projected terminal contract', () => {
 		expect(parsed.kind).toBe('frame');
 		if (parsed.kind !== 'frame') throw new Error('Expected a projected terminal frame event.');
 		expect(parsed.frame).toBe(frame);
+
+		const rows = new Uint8Array(new ArrayBuffer(48), 8, 32);
+		const parsedRows = ProjectedTerminalEventSchema.parse({ kind: 'rows', rows });
+		expect(parsedRows).toMatchObject({ kind: 'rows', rows });
 	});
 
 	it('bounds Browser-owned selection copy content', () => {

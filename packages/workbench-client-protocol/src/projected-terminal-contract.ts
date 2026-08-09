@@ -79,8 +79,13 @@ const ProjectedTerminalFailureSchema = z.strictObject({
 	retryable: z.boolean(),
 });
 
+const ProjectedTerminalBinarySchema = z.union([
+	z.instanceof(ArrayBuffer),
+	z.instanceof(Uint8Array),
+]);
+
 export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
-	z.strictObject({ frame: z.instanceof(ArrayBuffer), kind: z.literal('frame') }),
+	z.strictObject({ frame: ProjectedTerminalBinarySchema, kind: z.literal('frame') }),
 	z.strictObject({ event: HistoryChangedSchema, kind: z.literal('history-changed') }),
 	z.strictObject({
 		content: z
@@ -99,7 +104,7 @@ export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
 	}),
 	z.strictObject({ event: SelectionChangedSchema, kind: z.literal('selection-changed') }),
 	z.strictObject({ kind: z.literal('link-opened'), requestSequence: CanonicalUint64TextSchema }),
-	z.strictObject({ kind: z.literal('rows'), rows: z.instanceof(ArrayBuffer) }),
+	z.strictObject({ kind: z.literal('rows'), rows: ProjectedTerminalBinarySchema }),
 	z.strictObject({ event: TerminalExitedSchema, kind: z.literal('terminal-exited') }),
 	z.strictObject({ failure: ProjectedTerminalFailureSchema, kind: z.literal('failure') }),
 ]);
