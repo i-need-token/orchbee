@@ -88,6 +88,64 @@ fn buildRenderRowWindow(allocator: std.mem.Allocator, snapshot: []const u8) ![]u
     return bytes;
 }
 
+const TextRowWindowMapping = struct {
+    byte_offset: u32,
+    utf16_offset: u32,
+    column: u16,
+    width: u8,
+};
+
+/// Hand-assembles a one-row text-detail row window directly from wire layout so
+/// conformance tests can feed the native validator a corpus the Host cannot emit.
+fn buildTextRowWindow(
+    allocator: std.mem.Allocator,
+    columns: u16,
+    text: []const u8,
+    mappings: []const TextRowWindowMapping,
+) ![]u8 {
+    const mapping_count: u32 = @intCast(mappings.len);
+    const body_length: u32 = 12 + @as(u32, @intCast(text.len)) + mapping_count * 12;
+    const total: usize = protocol.terminal_row_window_header_bytes + body_length;
+    const bytes = try allocator.alloc(u8, total);
+    @memcpy(bytes[0..4], protocol.terminal_row_window_magic);
+    bytes[4] = protocol.terminal_row_window_format_major;
+    bytes[5] = protocol.terminal_row_window_format_minor;
+    bytes[6] = 2; // text detail
+    bytes[7] = 0; // flags
+    std.mem.writeInt(u32, bytes[8..12], @intCast(total), .little);
+    std.mem.writeInt(u16, bytes[12..14], protocol.terminal_row_window_header_bytes, .little);
+    std.mem.writeInt(u16, bytes[14..16], columns, .little);
+    @memset(bytes[16..32], 0x11); // host epoch
+    @memset(bytes[32..48], 0x22); // attachment id
+    std.mem.writeInt(u64, bytes[48..56], 7, .little); // sequence
+    std.mem.writeInt(u64, bytes[56..64], 42, .little); // revision
+    std.mem.writeInt(u64, bytes[64..72], 3, .little); // generation
+    std.mem.writeInt(u64, bytes[72..80], 125, .little); // total rows
+    std.mem.writeInt(u64, bytes[80..88], 123, .little); // start row
+    std.mem.writeInt(u16, bytes[88..90], 1, .little); // row count
+    std.mem.writeInt(u16, bytes[90..92], 0, .little); // reserved
+    std.mem.writeInt(u32, bytes[92..96], mapping_count, .little); // entry count
+    std.mem.writeInt(u32, bytes[96..100], body_length, .little); // body length
+    bytes[100] = protocol.terminal_row_window_format_patch;
+    @memset(bytes[101..112], 0); // reserved tail
+    bytes[112] = 0; // row flags: no wrap, not identity-ascii
+    bytes[113] = 0; // prompt class: none
+    std.mem.writeInt(u16, bytes[114..116], 0, .little);
+    std.mem.writeInt(u32, bytes[116..120], @intCast(text.len), .little);
+    std.mem.writeInt(u32, bytes[120..124], mapping_count, .little);
+    @memcpy(bytes[124..][0..text.len], text);
+    var offset: usize = 124 + text.len;
+    for (mappings) |mapping| {
+        std.mem.writeInt(u32, bytes[offset..][0..4], mapping.byte_offset, .little);
+        std.mem.writeInt(u32, bytes[offset + 4 ..][0..4], mapping.utf16_offset, .little);
+        std.mem.writeInt(u16, bytes[offset + 8 ..][0..2], mapping.column, .little);
+        bytes[offset + 10] = mapping.width;
+        bytes[offset + 11] = 0;
+        offset += 12;
+    }
+    return bytes;
+}
+
 const ControlCommandsFixture = struct {
     attach_terminal: []const u8,
     create_terminal: []const u8,
@@ -1596,6 +1654,75 @@ test "native row-window decoder rejects non-canonical mappings, wrap, prompt, an
         error.UnsupportedVersion,
         protocol.validateTerminalRowWindow(allocator, different_patch),
     );
+}
+
+test "native text row window rejects one mapped cell spanning more than the per-cell string bound" {
+    const allocator = std.testing.allocator;
+    const text = try allocator.alloc(u8, 16_385);
+    defer allocator.free(text);
+    @memset(text, 0x61);
+    const mappings = [_]TextRowWindowMapping{.{
+        .byte_offset = 0,
+        .utf16_offset = 0,
+        .column = 0,
+        .width = 1,
+    }};
+    const window = try buildTextRowWindow(allocator, 1, text, &mappings);
+    defer allocator.free(window);
+    try std.testing.expectEqual(@as(usize, 16_521), window.len);
+    try std.testing.expectError(
+        error.LimitExceeded,
+        protocol.validateTerminalRowWindow(allocator, window),
+    );
+}
+
+test "native text row window admits one mapped cell at exactly the per-cell string bound" {
+    const allocator = std.testing.allocator;
+    const text = try allocator.alloc(u8, 16_384);
+    defer allocator.free(text);
+    @memset(text, 0x61);
+    const mappings = [_]TextRowWindowMapping{.{
+        .byte_offset = 0,
+        .utf16_offset = 0,
+        .column = 0,
+        .width = 1,
+    }};
+    const window = try buildTextRowWindow(allocator, 1, text, &mappings);
+    defer allocator.free(window);
+    const summary = try protocol.validateTerminalRowWindow(allocator, window);
+    try std.testing.expectEqual(@as(u32, 1), summary.entry_count);
+}
+
+test "native text row window rejects an over-cap interior mapped cell span" {
+    const allocator = std.testing.allocator;
+    const text = try allocator.alloc(u8, 16_386);
+    defer allocator.free(text);
+    @memset(text, 0x61);
+    const mappings = [_]TextRowWindowMapping{
+        .{ .byte_offset = 0, .utf16_offset = 0, .column = 0, .width = 1 },
+        .{ .byte_offset = 16_385, .utf16_offset = 16_385, .column = 1, .width = 1 },
+    };
+    const window = try buildTextRowWindow(allocator, 2, text, &mappings);
+    defer allocator.free(window);
+    try std.testing.expectError(
+        error.LimitExceeded,
+        protocol.validateTerminalRowWindow(allocator, window),
+    );
+}
+
+test "native text row window admits aggregate row text above the per-cell bound with bounded spans" {
+    const allocator = std.testing.allocator;
+    const text = try allocator.alloc(u8, 32_768);
+    defer allocator.free(text);
+    @memset(text, 0x61);
+    const mappings = [_]TextRowWindowMapping{
+        .{ .byte_offset = 0, .utf16_offset = 0, .column = 0, .width = 1 },
+        .{ .byte_offset = 16_384, .utf16_offset = 16_384, .column = 1, .width = 1 },
+    };
+    const window = try buildTextRowWindow(allocator, 2, text, &mappings);
+    defer allocator.free(window);
+    const summary = try protocol.validateTerminalRowWindow(allocator, window);
+    try std.testing.expectEqual(@as(u32, 2), summary.entry_count);
 }
 
 test "native WriteInput decoder rejects unscoped and oversized payloads" {

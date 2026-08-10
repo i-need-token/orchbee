@@ -12,6 +12,7 @@ const max_row_window_bytes = contract.Limits.row_window_bytes;
 const max_frame_cells = contract.Limits.frame_cells;
 const max_frame_columns = contract.Limits.frame_columns;
 const max_frame_rows = contract.Limits.frame_rows;
+const max_string_bytes = contract.Limits.string_bytes;
 const terminal_row_window_header_bytes = contract.terminal_row_window_header_bytes;
 const terminal_row_window_magic = contract.terminal_row_window_magic;
 const terminal_row_window_format_major = contract.terminal_row_window_format_major;
@@ -208,9 +209,19 @@ fn validateTextRowWindowBody(
             if (text_byte_position != byte_offset or text_utf16_position != utf16_offset) {
                 return error.InvalidField;
             }
+            if (previous_byte != null and
+                @as(usize, byte_offset - previous_byte.?) > max_string_bytes)
+            {
+                return error.LimitExceeded;
+            }
             previous_byte = byte_offset;
             previous_utf16 = utf16_offset;
             previous_column_end = @as(u32, column) + width;
+        }
+        if (mapping_count > 0 and
+            @as(usize, text.len) - @as(usize, previous_byte.?) > max_string_bytes)
+        {
+            return error.LimitExceeded;
         }
         entries += mapping_count;
     }

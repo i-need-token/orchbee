@@ -469,10 +469,13 @@ so the 262,144-entry bound is unchanged. Unicode, wide-cell, combining-grapheme,
 rows retain explicit mappings. A non-empty explicit row has at least one mapping beginning at byte
 and UTF-16 offset zero. Every mapping begins on one UTF-8 codepoint boundary, names the matching
 UTF-16 position, fits inside the column count, and does not overlap the preceding mapped cell.
-Adjacent row wrap flags agree. Text row, logical-mapping, byte, UTF-8, ordering, and identity
-relationships are strictly validated. The exported row-window decoder uses the strict projection
-buffer decoder. The separately named local row-window view uses the projection-buffer structural
-view and does not perform a second per-cell semantic scan.
+Each mapping delimits one logical cell, so the one UTF-8 string bound (16 KiB) applies per mapped
+cell: every byte span from a mapping start to the next mapping start, and the final span to row
+text end, must not exceed 16,384 bytes. A row whose mapped-cell spans are each bounded may still
+aggregate above 16 KiB. Adjacent row wrap flags agree. Text row, logical-mapping, byte, UTF-8,
+ordering, identity, and per-cell span relationships are strictly validated. The exported row-window
+decoder uses the strict projection buffer decoder. The separately named local row-window view uses
+the projection-buffer structural view and does not perform a second per-cell semantic scan.
 
 ## Host-owned selection and export
 
@@ -518,6 +521,10 @@ The handshake may select smaller transport payload bounds. It never raises these
 | Selection export / one chunk          |     16 MiB / 1 MiB |
 | One UTF-8 string                      |             16 KiB |
 | Strings / styles / row records        | 4096 / 1024 / 4096 |
+
+`One UTF-8 string` bounds each serialized string and, for text row windows, each logical cell's
+byte span: the bytes from a mapping start to the next mapping start, and the final span to row
+text end, must fit in 16,384 bytes. Aggregate row text is not capped by this per-cell bound.
 | Cells / frame extensions              |        262144 / 64 |
 | Total extension bytes                 |              1 MiB |
 | Grid columns / rows                   |        4096 / 4096 |

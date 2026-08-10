@@ -199,9 +199,29 @@ export const TerminalTextRowWindowSchema = z
 						path: ['rows', rowOffset, 'mappings', mappingOffset],
 					});
 				}
+				if (
+					previousByteOffset >= 0 &&
+					mapping.byteOffset - previousByteOffset > PROTOCOL_LIMITS.maxStringBytes
+				) {
+					context.addIssue({
+						code: 'custom',
+						message: 'Text cell mapping spans a byte range above the per-cell limit',
+						path: ['rows', rowOffset, 'mappings', mappingOffset],
+					});
+				}
 				previousByteOffset = mapping.byteOffset;
 				previousUtf16Offset = mapping.utf16Offset;
 				previousColumnEnd = mapping.column + mapping.width;
+			}
+			if (
+				row.mappings.length > 0 &&
+				textByteLength - previousByteOffset > PROTOCOL_LIMITS.maxStringBytes
+			) {
+				context.addIssue({
+					code: 'custom',
+					message: 'Text cell mapping spans a byte range above the per-cell limit',
+					path: ['rows', rowOffset, 'mappings', row.mappings.length - 1],
+				});
 			}
 		}
 		if (mappingCount > PROTOCOL_LIMITS.maxFrameCells) {
@@ -735,6 +755,15 @@ function decodeTextWindow(
 			) {
 				return protocolFailure(ProtocolErrorCode.invalidField, 'Text mapping is not canonical');
 			}
+			if (
+				previousByteOffset >= 0 &&
+				byteOffset - previousByteOffset > PROTOCOL_LIMITS.maxStringBytes
+			) {
+				return protocolFailure(
+					ProtocolErrorCode.limitExceeded,
+					'Text cell mapping spans a byte range above its limit',
+				);
+			}
 			byteOffsets[mappingOffset] = byteOffset;
 			utf16Offsets[mappingOffset] = utf16Offset;
 			columns[mappingOffset] = column;
@@ -742,6 +771,16 @@ function decodeTextWindow(
 			previousByteOffset = byteOffset;
 			previousUtf16Offset = utf16Offset;
 			previousColumnEnd = column + width;
+		}
+		if (
+			mappingCount > 0 &&
+			encodedText.byteLength - (byteOffsets[mappingCount - 1] ?? 0) >
+				PROTOCOL_LIMITS.maxStringBytes
+		) {
+			return protocolFailure(
+				ProtocolErrorCode.limitExceeded,
+				'Text cell mapping spans a byte range above its limit',
+			);
 		}
 		decodedMappings += logicalMappingCount;
 		const promptClass = promptClassFromCode(promptClassValue);

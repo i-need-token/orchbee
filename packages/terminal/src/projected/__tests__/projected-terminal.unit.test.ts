@@ -11,6 +11,7 @@ import {
 	parseCreationId,
 	parseHostEpoch,
 	parseTerminalId,
+	PROTOCOL_LIMITS,
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
@@ -284,6 +285,49 @@ function renderRowWindow(
 	});
 	if (!encoded.ok) throw new Error(encoded.detail);
 	return encoded.value;
+}
+
+/**
+ * Hand-assembles a one-row text-detail row window whose single mapped cell spans
+ * `textLength` narrow ASCII bytes, so tests can drive the strict decoder with a
+ * corpus the encoder refuses to emit after the per-cell bound is enforced.
+ */
+function textRowWindow(sequence: bigint, textLength: number): Uint8Array {
+	const bodyLength = 12 + textLength + 12;
+	const total = 112 + bodyLength;
+	const bytes = new Uint8Array(total);
+	const view = new DataView(bytes.buffer);
+	bytes.set([0x4f, 0x42, 0x52, 0x57], 0); // OBRW
+	bytes[4] = 0;
+	bytes[5] = 0;
+	bytes[6] = 2; // text detail
+	bytes[7] = 0;
+	view.setUint32(8, total, true);
+	view.setUint16(12, 112, true);
+	view.setUint16(14, 1, true); // columns
+	bytes.fill(0x11, 16, 32); // host epoch
+	bytes.fill(0x22, 32, 48); // attachment id
+	view.setBigUint64(48, sequence, true);
+	view.setBigUint64(56, 42n, true); // revision
+	view.setBigUint64(64, 1n, true); // generation
+	view.setBigUint64(72, 12n, true); // total rows
+	view.setBigUint64(80, 0n, true); // start row
+	view.setUint16(88, 1, true); // row count
+	view.setUint32(92, 1, true); // entry count
+	view.setUint32(96, bodyLength, true);
+	bytes[100] = 1; // format patch
+	bytes[112] = 0; // row flags: no wrap, not identity-ascii
+	bytes[113] = 0; // prompt class: none
+	view.setUint16(114, 0, true);
+	view.setUint32(116, textLength, true);
+	view.setUint32(120, 1, true);
+	bytes.fill(0x61, 124, 124 + textLength); // narrow ASCII text
+	view.setUint32(124 + textLength, 0, true); // byte offset
+	view.setUint32(124 + textLength + 4, 0, true); // UTF-16 offset
+	view.setUint16(124 + textLength + 8, 0, true); // column
+	bytes[124 + textLength + 10] = 1; // width
+	bytes[124 + textLength + 11] = 0; // reserved
+	return bytes;
 }
 
 function createContext(): CanvasRenderingContext2D {
@@ -859,6 +903,57 @@ describe('ProjectedTerminal', () => {
 		terminal.applyFrame(terminalFrame('snapshot', 2n, 2n, ['new-a', 'new-b'], null, [0, 1], 10n));
 		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.followingBottom);
 		expect(terminal.metadata?.title).toBe('test');
+		terminal.dispose();
+	});
+
+	it('rejects a text row flight with an over-cap mapped cell without committing buffer rows', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 42n, ['a', 'b'], null, [0, 1], 10n));
+
+		const rows = terminal.readBufferRows(
+			{
+				detail: 'text',
+				generation: 1n,
+				maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+				revision: 42n,
+				rowCount: 1,
+				startRow: 0n,
+			},
+			new AbortController().signal,
+		);
+		const read = commands.at(-1);
+		if (read?.kind !== 'read-rows') throw new Error('buffer rows request was not sent');
+		expect(read.payload.detail).toBe('text');
+
+		expect(
+			terminal.applyRows(textRowWindow(BigInt(read.payload.requestSequence), 16_385)),
+		).toBe('rejected');
+		await expect(rows).resolves.toEqual({
+			generation: 1n,
+			kind: 'unavailable',
+			revision: 42n,
+			totalRows: 12n,
+		});
+		expect(commands).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ kind: 'rows-applied' })]),
+		);
 		terminal.dispose();
 	});
 

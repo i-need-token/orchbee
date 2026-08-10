@@ -14,6 +14,9 @@ import { ProtocolErrorCode } from '../protocol-result';
 import {
 	decodeTerminalRowWindow,
 	encodeTerminalRowWindow,
+	TERMINAL_ROW_WINDOW_FORMAT,
+	TERMINAL_ROW_WINDOW_HEADER_BYTES,
+	TERMINAL_ROW_WINDOW_MAGIC,
 	TerminalRowWindowDetail,
 	viewTerminalRowWindow,
 } from '../row-window';
@@ -55,6 +58,66 @@ const style = {
 	underline: { kind: TerminalColorKind.none },
 	underlineKind: UnderlineKind.none,
 } as const;
+
+interface TextRowWindowMapping {
+	readonly byteOffset: number;
+	readonly column: number;
+	readonly utf16Offset: number;
+	readonly width: 1 | 2;
+}
+
+/**
+ * Hand-assembles a one-row text-detail row window directly from wire layout so
+ * tests can feed the strict binary decoder a corpus that the encoder refuses.
+ */
+function buildTextRowWindow(
+	text: string,
+	mappings: readonly TextRowWindowMapping[],
+	columns: number,
+): Uint8Array {
+	const encodedText = new TextEncoder().encode(text);
+	const mappingCount = mappings.length;
+	const bodyLength = 12 + encodedText.byteLength + mappingCount * 12;
+	const total = TERMINAL_ROW_WINDOW_HEADER_BYTES + bodyLength;
+	const bytes = new Uint8Array(total);
+	const view = new DataView(bytes.buffer);
+	bytes.set(TERMINAL_ROW_WINDOW_MAGIC, 0);
+	bytes[4] = TERMINAL_ROW_WINDOW_FORMAT.major;
+	bytes[5] = TERMINAL_ROW_WINDOW_FORMAT.minor;
+	bytes[6] = 2; // text detail
+	bytes[7] = 0;
+	view.setUint32(8, total, true);
+	view.setUint16(12, TERMINAL_ROW_WINDOW_HEADER_BYTES, true);
+	view.setUint16(14, columns, true);
+	bytes.fill(0x11, 16, 32);
+	bytes.fill(0x22, 32, 48);
+	view.setBigUint64(48, 7n, true);
+	view.setBigUint64(56, 42n, true);
+	view.setBigUint64(64, 3n, true);
+	view.setBigUint64(72, 125n, true);
+	view.setBigUint64(80, 123n, true);
+	view.setUint16(88, 1, true);
+	view.setUint16(90, 0, true);
+	view.setUint32(92, mappingCount, true);
+	view.setUint32(96, bodyLength, true);
+	bytes[100] = TERMINAL_ROW_WINDOW_FORMAT.patch;
+	bytes[112] = 0; // row flags: no wrap, not identity-ascii
+	bytes[113] = 0; // prompt class: none
+	view.setUint16(114, 0, true);
+	view.setUint32(116, encodedText.byteLength, true);
+	view.setUint32(120, mappingCount, true);
+	bytes.set(encodedText, 124);
+	let offset = 124 + encodedText.byteLength;
+	for (const mapping of mappings) {
+		view.setUint32(offset, mapping.byteOffset, true);
+		view.setUint32(offset + 4, mapping.utf16Offset, true);
+		view.setUint16(offset + 8, mapping.column, true);
+		bytes[offset + 10] = mapping.width;
+		bytes[offset + 11] = 0;
+		offset += 12;
+	}
+	return bytes;
+}
 
 describe('packed terminal row windows', () => {
 	it('round-trips a render window through the nested OBPB 0.0.1 projection buffer', () => {
@@ -438,5 +501,117 @@ describe('packed terminal row windows', () => {
 		if (!decoded.ok) throw new Error(decoded.detail);
 		expect(new TextDecoder().decode(decoded.value.bytes)).toBe('selected');
 		expect(decoded.value.final).toBe(true);
+	});
+
+	it('rejects the exact one-mapping over-cap text row-window corpus at binary admission', () => {
+		const bytes = buildTextRowWindow(
+			'a'.repeat(16_385),
+			[{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 }],
+			1,
+		);
+		expect(bytes.byteLength).toBe(16_521);
+		expect(decodeTerminalRowWindow(bytes)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.limitExceeded, ok: false }),
+		);
+	});
+
+	it('accepts a one-mapping cell span at the 16 KiB bound and rejects one byte above', () => {
+		const window = {
+			attachmentId: '22222222222222222222222222222222',
+			columns: 1,
+			detail: TerminalRowWindowDetail.text,
+			generation: 1n,
+			hostEpoch: '11111111111111111111111111111111',
+			revision: 42n,
+			rows: [
+				{
+					index: 123n,
+					mappings: [{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 }],
+					promptClass: RowPromptClass.none,
+					text: 'a'.repeat(16_384),
+					wrap: false,
+					wrapContinuation: false,
+				},
+			],
+			sequence: 7n,
+			startRow: 123n,
+			totalRows: 125n,
+		} as const;
+		const encoded = encodeTerminalRowWindow(window);
+		expect(encoded).toEqual(expect.objectContaining({ ok: true }));
+		if (!encoded.ok) return;
+		expect(decodeTerminalRowWindow(encoded.value)).toEqual(expect.objectContaining({ ok: true }));
+	});
+
+	it('rejects an interior mapped cell span above the per-cell bound even when the row tail is short', () => {
+		const bytes = buildTextRowWindow(
+			'a'.repeat(16_386),
+			[
+				{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 },
+				{ byteOffset: 16_385, column: 1, utf16Offset: 16_385, width: 1 },
+			],
+			2,
+		);
+		expect(decodeTerminalRowWindow(bytes)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.limitExceeded, ok: false }),
+		);
+	});
+
+	it('round-trips aggregate row text above the per-cell bound when every cell span is bounded', () => {
+		const window = {
+			attachmentId: '22222222222222222222222222222222',
+			columns: 2,
+			detail: TerminalRowWindowDetail.text,
+			generation: 1n,
+			hostEpoch: '11111111111111111111111111111111',
+			revision: 42n,
+			rows: [
+				{
+					index: 123n,
+					mappings: [
+						{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 },
+						{ byteOffset: 16_384, column: 1, utf16Offset: 16_384, width: 1 },
+					],
+					promptClass: RowPromptClass.none,
+					text: 'a'.repeat(32_768),
+					wrap: false,
+					wrapContinuation: false,
+				},
+			],
+			sequence: 7n,
+			startRow: 123n,
+			totalRows: 125n,
+		} as const;
+		const encoded = encodeTerminalRowWindow(window);
+		expect(encoded).toEqual(expect.objectContaining({ ok: true }));
+		if (!encoded.ok) return;
+		expect(decodeTerminalRowWindow(encoded.value)).toEqual(expect.objectContaining({ ok: true }));
+	});
+
+	it('rejects an over-cap mapped cell at encoding', () => {
+		const window = {
+			attachmentId: '22222222222222222222222222222222',
+			columns: 1,
+			detail: TerminalRowWindowDetail.text,
+			generation: 1n,
+			hostEpoch: '11111111111111111111111111111111',
+			revision: 42n,
+			rows: [
+				{
+					index: 123n,
+					mappings: [{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 }],
+					promptClass: RowPromptClass.none,
+					text: 'a'.repeat(16_385),
+					wrap: false,
+					wrapContinuation: false,
+				},
+			],
+			sequence: 7n,
+			startRow: 123n,
+			totalRows: 125n,
+		} as const;
+		expect(encodeTerminalRowWindow(window)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
 	});
 });
