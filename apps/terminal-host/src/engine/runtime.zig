@@ -11,6 +11,7 @@ const terminal_geometry = model.geometry;
 const terminal_history = @import("history.zig");
 const terminal_input = @import("terminal-input");
 const terminal_input_encoding = @import("input_encoding.zig");
+const terminal_launch = @import("launch.zig");
 const terminal_profile = @import("profile.zig");
 const terminal_projection = @import("projection.zig");
 
@@ -40,6 +41,110 @@ pub const Options = struct {
     profile: ?TerminalProfile = null,
     scrollback_bytes: usize = terminal_configuration.default_scrollback_bytes,
 };
+
+pub const ProcessLaunch = pty_process.Launch;
+
+// A null runtime profile resolves to the Ghostty default at creation time
+// (terminalColors(null) and OwnedProfile.init(null)). The canonical launch
+// inspector requires a non-optional profile, so this valid stand-in is used
+// only to satisfy that inspection when no explicit profile was supplied; its
+// fields are never applied to the runtime.
+const validation_default_profile: terminal_profile.Profile = .{
+    .color_scheme = .dark,
+    .default_background_rgb = 0,
+    .default_cursor_rgb = null,
+    .default_foreground_rgb = 0xffffff,
+    .device_primary_conformance_level = 62,
+    .device_primary_features = &.{22},
+    .device_secondary_type = 1,
+    .device_secondary_firmware_version = 0,
+    .device_secondary_rom_cartridge = 0,
+    .device_tertiary_unit_id = 0,
+    .enquiry_response = "",
+    .palette = &[_]u32{0} ** 256,
+    .version_response = "Orchbee",
+};
+
+/// Raw runtime starts carry cell-pixel authority twice (the PTY launch and the
+/// runtime options). One canonical boundary resolves them before any Ghostty
+/// allocation or thread/process effect: a launch-supplied zero pixel dimension
+/// inherits the options value, and any explicitly supplied launch value must
+/// agree with the options value.
+fn resolveCellPixelDimension(launch_pixel: u16, options_pixel: u16) ?u16 {
+    if (launch_pixel == 0) return options_pixel;
+    if (launch_pixel != options_pixel) return null;
+    return launch_pixel;
+}
+
+const CheckedPreparation = struct {
+    process_launch: pty_process.Launch,
+    runtime_options: Options,
+};
+
+/// Every runtime start passes one canonical checked preparation boundary before
+/// allocation or spawn. The boundary reuses terminal_launch.inspect so raw and
+/// IPC creation share the same grid + pixel geometry, scrollback, profile,
+/// process-string, count, environment-name, and duplicate-name rules, including
+/// the target-operating-system environment identity.
+fn prepareCheckedLaunch(
+    allocator: std.mem.Allocator,
+    launch: pty_process.Launch,
+    options: Options,
+) (error{ InvalidLaunch, InvalidTerminalProfile } || std.mem.Allocator.Error)!CheckedPreparation {
+    if (options.profile) |profile| if (!terminal_profile.valid(profile)) {
+        return error.InvalidTerminalProfile;
+    };
+    const pixel_width = resolveCellPixelDimension(launch.cell_pixel_width, options.cell_pixel_width) orelse
+        return error.InvalidLaunch;
+    const pixel_height = resolveCellPixelDimension(launch.cell_pixel_height, options.cell_pixel_height) orelse
+        return error.InvalidLaunch;
+    const geometry: terminal_geometry.Geometry = .{
+        .cell_pixel_height = pixel_height,
+        .cell_pixel_width = pixel_width,
+        .columns = launch.columns,
+        .rows = launch.rows,
+    };
+    const configuration: terminal_configuration.Configuration = .{
+        .scrollback_bytes = options.scrollback_bytes,
+    };
+
+    const environment = try allocator.alloc(terminal_launch.EnvironmentEntry, launch.environment.len);
+    defer allocator.free(environment);
+    for (environment, launch.environment) |*target, source| {
+        target.* = .{ .name = source.name, .value = source.value };
+    }
+
+    const launch_to_inspect: terminal_launch.Launch = .{
+        .arguments = launch.arguments,
+        .configuration = configuration,
+        .current_directory = launch.current_directory,
+        .environment = environment,
+        .executable = launch.executable,
+        .geometry = geometry,
+        .profile = options.profile orelse validation_default_profile,
+    };
+    _ = try terminal_launch.inspect(allocator, launch_to_inspect);
+
+    return .{
+        .process_launch = .{
+            .arguments = launch.arguments,
+            .cell_pixel_height = pixel_height,
+            .cell_pixel_width = pixel_width,
+            .columns = geometry.columns,
+            .current_directory = launch.current_directory,
+            .environment = launch.environment,
+            .executable = launch.executable,
+            .rows = geometry.rows,
+            .stdin_fd = launch.stdin_fd,
+        },
+        .runtime_options = .{
+            .cell_pixel_height = pixel_height,
+            .cell_pixel_width = pixel_width,
+            .profile = options.profile,
+            .scrollback_bytes = options.scrollback_bytes,
+        },
+    };
+}
 
 const OwnedProfile = terminal_profile.Owned;
 
@@ -508,19 +613,23 @@ pub const TerminalRuntime = struct {
         options: Options,
         spawner: anytype,
     ) !*TerminalRuntime {
-        const colors = try terminal_profile.terminalColors(options.profile);
+        const checked = try prepareCheckedLaunch(allocator, launch, options);
+        const resolved_launch = checked.process_launch;
+        const resolved_options = checked.runtime_options;
+
+        const colors = try terminal_profile.terminalColors(resolved_options.profile);
         const self = try allocator.create(TerminalRuntime);
         errdefer allocator.destroy(self);
 
         const resources = resources: {
-            var profile = try OwnedProfile.init(allocator, options.profile);
+            var profile = try OwnedProfile.init(allocator, resolved_options.profile);
             errdefer profile.deinit(allocator);
 
             var terminal: ghostty_vt.Terminal = try .init(allocator, .{
-                .cols = launch.columns,
+                .cols = resolved_launch.columns,
                 .colors = colors,
-                .max_scrollback = options.scrollback_bytes,
-                .rows = launch.rows,
+                .max_scrollback = resolved_options.scrollback_bytes,
+                .rows = resolved_launch.rows,
             });
             errdefer terminal.deinit(allocator);
             break :resources .{
@@ -531,14 +640,14 @@ pub const TerminalRuntime = struct {
 
         self.* = .{
             .allocator = allocator,
-            .cell_pixel_height = options.cell_pixel_height,
-            .cell_pixel_width = options.cell_pixel_width,
+            .cell_pixel_height = resolved_options.cell_pixel_height,
+            .cell_pixel_width = resolved_options.cell_pixel_width,
             .process = undefined,
             .profile = resources.profile,
             .projection = .init(allocator),
             .history = .init(allocator),
             .stream = undefined,
-            .scrollback_bytes = options.scrollback_bytes,
+            .scrollback_bytes = resolved_options.scrollback_bytes,
             .terminal = resources.terminal,
         };
         if (comptime target_builtin.is_test and
@@ -558,7 +667,7 @@ pub const TerminalRuntime = struct {
         self.wait_thread = try spawner.spawn(waitThread, self);
         self.reader_thread = try spawner.spawn(readerThread, self);
         self.writer_thread = try spawner.spawn(writerThread, self);
-        self.process = try pty_process.Process.spawn(allocator, launch);
+        self.process = try pty_process.Process.spawn(allocator, resolved_launch);
         self.process.registerReaderThread(self.reader_thread.?.getHandle());
         self.finishStartup(.ready);
         return self;

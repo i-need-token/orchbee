@@ -230,6 +230,111 @@ test "dispose cleanup failures preserve their exact owner phase" {
     }
 }
 
+// THCR-027 regression: DisposeTerminal on an already-blocked cleanup phase
+// flattened the exact cleanup phase into the generic cleanup-incomplete code.
+// Each blocked phase must answer one retryable typed failure with its exact
+// cleanup-* code and retain the terminal for the independent maintenance retry.
+test "DisposeTerminal returns the exact cleanup code for every blocked containment phase" {
+    const cases = [_]struct {
+        failure: core_module.RuntimeCleanupFailure,
+        code: []const u8,
+    }{
+        .{ .failure = .contain_process, .code = "cleanup-contain-process" },
+        .{ .failure = .release_output, .code = "cleanup-release-output" },
+        .{ .failure = .release_process_identity, .code = "cleanup-release-process-identity" },
+    };
+    for (cases, 0..) |case, index| {
+        var service = HostService.init(std.testing.allocator);
+        defer service.deinit();
+        var connection: ConnectionState = .awaiting_hello;
+        defer service.disconnect(&connection);
+        try testHandshake(&service, &connection, "22222222222222222222222222222222");
+        const active = try activeConnection(&connection);
+        const terminal_id = testId(core_module.TerminalId, 0x61, index);
+        _ = try service.runtime_aggregate.core().createTerminal(
+            active.connection_id,
+            testId(core_module.CreationId, 0x62, index),
+            terminal_id,
+            [_]u8{0x63} ** 32,
+            80,
+            24,
+        );
+        _ = try service.runtime_aggregate.core().runtimeFailed(terminal_id, .read_output);
+        // A never-due retry deadline keeps the blocked phase stable so the
+        // request cannot race the independent maintenance retry.
+        _ = try service.runtime_aggregate.core().failureContainmentBlocked(
+            terminal_id,
+            case.failure,
+            std.math.maxInt(i128),
+        );
+
+        const payload = try testTerminalTargetPayload(terminal_id);
+        defer std.testing.allocator.free(payload);
+        var rejected = try testRequest(
+            &service,
+            &connection,
+            MessageKind.dispose_terminal,
+            .control_json,
+            payload,
+            testIdentifier(0x64, index),
+        );
+        defer rejected.deinit();
+        try std.testing.expectEqual(@as(usize, 1), rejected.records().len);
+        const envelope = try protocol.validateTransportEnvelope(rejected.records()[0]);
+        try std.testing.expectEqual(MessageKind.typed_failure, envelope.kind);
+        const Failure = struct {
+            code: []const u8,
+            message: []const u8,
+            retryable: bool,
+        };
+        const failure = try control_wire.decode(
+            Failure,
+            std.testing.allocator,
+            envelope.payload,
+        );
+        defer failure.deinit();
+        try std.testing.expectEqualStrings(case.code, failure.value.code);
+        try std.testing.expect(failure.value.retryable);
+        try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id) != null);
+    }
+}
+
+// THCR-027 boundary: while containment is still stopping there is no retained
+// failing cleanup phase, so disposal keeps the generic incomplete-containment
+// response and the terminal remains retained.
+test "DisposeTerminal keeps incomplete-containment while cleanup is stopping" {
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var connection: ConnectionState = .awaiting_hello;
+    defer service.disconnect(&connection);
+    try testHandshake(&service, &connection, "22222222222222222222222222222222");
+    const active = try activeConnection(&connection);
+    const terminal_id = testId(core_module.TerminalId, 0x65, 0);
+    _ = try service.runtime_aggregate.core().createTerminal(
+        active.connection_id,
+        testId(core_module.CreationId, 0x66, 0),
+        terminal_id,
+        [_]u8{0x67} ** 32,
+        80,
+        24,
+    );
+    _ = try service.runtime_aggregate.core().runtimeFailed(terminal_id, .read_output);
+
+    const payload = try testTerminalTargetPayload(terminal_id);
+    defer std.testing.allocator.free(payload);
+    var rejected = try testRequest(
+        &service,
+        &connection,
+        MessageKind.dispose_terminal,
+        .control_json,
+        payload,
+        [_]u8{0x68} ** 16,
+    );
+    defer rejected.deinit();
+    try expectSingleFailureCode(&rejected, "cleanup-incomplete");
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id) != null);
+}
+
 test "failed terminal outcome is emitted once with typed process evidence" {
     var service = HostService.init(std.testing.allocator);
     var connection: ConnectionState = .awaiting_hello;
@@ -466,6 +571,216 @@ test "DisposeTerminal retains a native exit until its poll handoff commits" {
         (try protocol.validateTransportEnvelope(repeated.records()[0])).kind,
     );
     try std.testing.expectEqual(@as(usize, 0), service.runtime_aggregate.runtimeCount());
+}
+
+// THCR-036 regression: with 64 model-only fillers and one native target at
+// registry index 64, the bounded 64-entry fair scan skips the target when the
+// cursor starts at zero. The engine's published normal completion is therefore
+// never linearized into Core before DisposeTerminal. The repair performs an
+// exact-terminal synchronization pass before the disposal phase decision, so
+// the settled target reaches the retryable outcome-publication-pending barrier
+// instead of being rejected as invalid-phase against a stale running lifecycle.
+test "DisposeTerminal settles a skipped exact target through HostService" {
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "37373737373737373737373737373737");
+    const active = try activeConnection(&connection);
+    const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "exit 0" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "exit /B 0" };
+    const arguments: []const []const u8 = if (target_builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    const target = try createSkippedNativeTarget(
+        &service,
+        active.connection_id,
+        executable,
+        arguments,
+    );
+    const completion = try findRuntime(&service, target.terminal_id).?.waitForCompletion();
+    try std.testing.expectEqual(
+        terminal_runtime.CompletionState.normal,
+        completion.classification,
+    );
+    // The engine has published normal completion, but the bounded background
+    // scan has not visited this target, so Core still observes running.
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.running,
+        service.runtime_aggregate.core().findTerminal(target.terminal_id).?.phase(),
+    );
+
+    const dispose_payload = try testTerminalTargetPayload(target.terminal_id);
+    defer std.testing.allocator.free(dispose_payload);
+    var rejected = try testRequest(
+        &service,
+        &connection,
+        MessageKind.dispose_terminal,
+        .control_json,
+        dispose_payload,
+        [_]u8{0x75} ** 16,
+    );
+    defer rejected.deinit();
+    // The exact pass settles the target, so disposal reaches the retryable
+    // publication barrier rather than a stale invalid-phase rejection.
+    try expectSingleFailureCode(&rejected, "outcome-publication-pending");
+    const rejection_envelope = try protocol.validateTransportEnvelope(rejected.records()[0]);
+    const Failure = struct {
+        code: []const u8,
+        message: []const u8,
+        retryable: bool,
+    };
+    const failure = try control_wire.decode(
+        Failure,
+        std.testing.allocator,
+        rejection_envelope.payload,
+    );
+    defer failure.deinit();
+    try std.testing.expect(failure.value.retryable);
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(target.terminal_id) != null);
+
+    // The bounded outcome scan also skips this target once, so poll until the
+    // settled outcome event is handed off and its publication commits.
+    var exit_event_handed_off = false;
+    for (0..4) |_| {
+        var events = try service.pollEvents(&connection);
+        defer events.deinit();
+        for (events.records()) |record| {
+            const envelope = try protocol.validateTransportEnvelope(record);
+            if (envelope.kind == MessageKind.terminal_exited) {
+                exit_event_handed_off = true;
+            }
+        }
+        if (exit_event_handed_off) break;
+    }
+    try std.testing.expect(exit_event_handed_off);
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(target.terminal_id) != null);
+
+    var disposed = try testRequest(
+        &service,
+        &connection,
+        MessageKind.dispose_terminal,
+        .control_json,
+        dispose_payload,
+        [_]u8{0x76} ** 16,
+    );
+    defer disposed.deinit();
+    try std.testing.expectEqual(@as(usize, 1), disposed.records().len);
+    try std.testing.expectEqual(
+        MessageKind.dispose_terminal,
+        (try protocol.validateTransportEnvelope(disposed.records()[0])).kind,
+    );
+    try std.testing.expectEqual(@as(usize, 0), service.runtime_aggregate.runtimeCount());
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(target.terminal_id) == null);
+    try std.testing.expect(!core_module.testing.containsCreation(
+        service.runtime_aggregate.core(),
+        target.creation_id,
+    ));
+}
+
+// THCR-036 transport-level confirmation: the exact-terminal synchronization
+// pass makes the fully buffered DisposeTerminal outcome independent of the
+// fair-scan cursor. Running the same skipped-target setup with the cursor
+// outside the target's slice and with the cursor advanced so the bounded pass
+// covers the target produces identical transport-level results: the retryable
+// publication barrier, the single outcome event, then the disposal
+// acknowledgement and removal from both registry indexes.
+test "dispose transport behavior is independent of the fair-scan cursor" {
+    try disposeSkippedTargetThroughTransport(0);
+    try disposeSkippedTargetThroughTransport(64);
+}
+
+fn disposeSkippedTargetThroughTransport(cursor: usize) !void {
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "39393939393939393939393939393939");
+    const active = try activeConnection(&connection);
+    const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "exit 0" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "exit /B 0" };
+    const arguments: []const []const u8 = if (target_builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    const target = try createSkippedNativeTarget(
+        &service,
+        active.connection_id,
+        executable,
+        arguments,
+    );
+    const completion = try findRuntime(&service, target.terminal_id).?.waitForCompletion();
+    try std.testing.expectEqual(
+        terminal_runtime.CompletionState.normal,
+        completion.classification,
+    );
+    // Advancing the fair cursor makes the bounded pass cover the target before
+    // the request; leaving it at zero keeps the target outside that pass.
+    if (cursor == 64) service.runtime_aggregate.synchronizeRuntimes();
+
+    const dispose_payload = try testTerminalTargetPayload(target.terminal_id);
+    defer std.testing.allocator.free(dispose_payload);
+    var rejected = try testRequest(
+        &service,
+        &connection,
+        MessageKind.dispose_terminal,
+        .control_json,
+        dispose_payload,
+        [_]u8{0x7b} ** 16,
+    );
+    defer rejected.deinit();
+    try expectSingleFailureCode(&rejected, "outcome-publication-pending");
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(target.terminal_id) != null);
+
+    // The bounded outcome scan also skips this target once, so poll until the
+    // settled outcome event is handed off and its publication commits.
+    var exit_event_handed_off = false;
+    for (0..4) |_| {
+        var events = try service.pollEvents(&connection);
+        defer events.deinit();
+        for (events.records()) |record| {
+            const envelope = try protocol.validateTransportEnvelope(record);
+            if (envelope.kind == MessageKind.terminal_exited) {
+                exit_event_handed_off = true;
+            }
+        }
+        if (exit_event_handed_off) break;
+    }
+    try std.testing.expect(exit_event_handed_off);
+
+    var disposed = try testRequest(
+        &service,
+        &connection,
+        MessageKind.dispose_terminal,
+        .control_json,
+        dispose_payload,
+        [_]u8{0x7c} ** 16,
+    );
+    defer disposed.deinit();
+    try std.testing.expectEqual(@as(usize, 1), disposed.records().len);
+    try std.testing.expectEqual(
+        MessageKind.dispose_terminal,
+        (try protocol.validateTransportEnvelope(disposed.records()[0])).kind,
+    );
+    try std.testing.expectEqual(@as(usize, 0), service.runtime_aggregate.runtimeCount());
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(target.terminal_id) == null);
 }
 
 test "settled outcome handoff publishes once and rejects revision advancement" {
@@ -3843,6 +4158,76 @@ fn testRawInputPayload(
     @memcpy(payload[0..attachment_id.bytes.len], &attachment_id.bytes);
     @memcpy(payload[attachment_id.bytes.len..], input);
     return payload;
+}
+
+const SkippedNativeTarget = struct {
+    creation_id: core_module.CreationId,
+    terminal_id: core_module.TerminalId,
+};
+
+/// THCR-036 setup: 64 model-only filler sessions followed by one native
+/// target. Registry keys are insertion-ordered, so the target sits at index 64
+/// and stays outside the bounded 64-entry fair background slice while the
+/// cursor starts at zero.
+fn createSkippedNativeTarget(
+    service: *HostService,
+    connection_id: core_module.ConnectionId,
+    executable: []const u8,
+    arguments: []const []const u8,
+) !SkippedNativeTarget {
+    for (0..64) |offset| {
+        _ = try service.runtime_aggregate.core().createTerminal(
+            connection_id,
+            testId(core_module.CreationId, 0x71, offset),
+            testId(core_module.TerminalId, 0x72, offset),
+            [_]u8{0x73} ** 32,
+            80,
+            24,
+        );
+    }
+    const creation_id = testId(core_module.CreationId, 0x74, 0);
+    const features = [_]u16{22};
+    const palette = [_]u32{0} ** 256;
+    const validated = try engine_boundary.launch.inspect(std.testing.allocator, .{
+        .arguments = arguments,
+        .configuration = null,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = executable,
+        .geometry = .{
+            .cell_pixel_height = 16,
+            .cell_pixel_width = 8,
+            .columns = 80,
+            .rows = 24,
+        },
+        .profile = .{
+            .color_scheme = .dark,
+            .default_background_rgb = 0,
+            .default_cursor_rgb = null,
+            .default_foreground_rgb = 0xffffff,
+            .device_primary_conformance_level = 62,
+            .device_primary_features = &features,
+            .device_secondary_type = 1,
+            .device_secondary_firmware_version = 0,
+            .device_secondary_rom_cartridge = 0,
+            .device_tertiary_unit_id = 0,
+            .enquiry_response = "",
+            .palette = &palette,
+            .version_response = "Orchbee test",
+        },
+    });
+    var preparation = try service.runtime_aggregate.prepareCreateTerminal(
+        connection_id,
+        creation_id,
+        validated,
+        .{},
+    );
+    defer preparation.deinit();
+    const terminal_id = switch (try service.runtime_aggregate.commitPreparedTerminal(&preparation)) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    return .{ .creation_id = creation_id, .terminal_id = terminal_id };
 }
 
 fn testTerminalTargetPayload(terminal_id: core_module.TerminalId) ![]u8 {

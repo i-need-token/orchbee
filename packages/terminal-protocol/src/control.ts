@@ -157,6 +157,11 @@ function validateLaunchEnvironment(
 	launch: { readonly environment: readonly { readonly name: string }[] },
 	context: z.RefinementCtx,
 ): void {
+	// Wire-level identity: two names that are identical exactly as written are
+	// one JSON member and cannot be a delta. Names that differ only by case
+	// (for example `Path` and `PATH`) remain distinct on the wire; the Host
+	// decides their target-operating-system identity when it prepares the
+	// launch (see prepareLaunchEnvironment below).
 	const names = launch.environment.map((entry) => entry.name);
 	if (new Set(names).size !== names.length) {
 		context.addIssue({
@@ -165,6 +170,52 @@ function validateLaunchEnvironment(
 			path: ['environment'],
 		});
 	}
+}
+
+/** A Host operating system that defines environment-name identity. */
+export type EnvironmentTarget = 'posix' | 'windows';
+
+/**
+ * Environment names are target-operating-system environment identifiers. Fold
+ * a name to its target-identity canonical form: POSIX names are case-sensitive
+ * (identity is the exact name), while Windows names are case-insensitive
+ * (identity is the case-folded name). The ASCII fold here mirrors the native
+ * Host canonicalization for the tested corpus; the native implementation is
+ * authoritative for non-ASCII codepoints.
+ */
+export function canonicalEnvironmentName(name: string, target: EnvironmentTarget): string {
+	if (target !== 'windows') return name;
+	let folded = '';
+	for (const character of name) {
+		const code = character.charCodeAt(0);
+		folded += code >= 0x61 && code <= 0x7a ? String.fromCharCode(code - 0x20) : character;
+	}
+	return folded;
+}
+
+/**
+ * Host-side preparation for one declared target OS. The wire schema admits
+ * distinct names; this boundary applies the target identity rule and rejects
+ * duplicates that only the target OS considers equal. The native Host applies
+ * the identical rule and reports a typed `invalid-field` failure, and the
+ * `CreationId` launch digest uses the same folded names.
+ */
+export function prepareLaunchEnvironment(
+	environment: readonly { readonly name: string; readonly value: string | null }[],
+	target: EnvironmentTarget,
+): ProtocolResult<readonly { readonly name: string; readonly value: string | null }[]> {
+	const seen = new Set<string>();
+	for (const entry of environment) {
+		const folded = canonicalEnvironmentName(entry.name, target);
+		if (seen.has(folded)) {
+			return protocolFailure(
+				ProtocolErrorCode.invalidField,
+				`Duplicate environment name '${entry.name}' for the ${target} target`,
+			);
+		}
+		seen.add(folded);
+	}
+	return protocolSuccess(environment);
 }
 
 const responseTextSchema = z

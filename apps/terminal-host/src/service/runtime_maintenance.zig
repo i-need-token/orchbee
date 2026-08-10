@@ -142,6 +142,23 @@ pub const Maintenance = struct {
         }
     }
 
+    /// Synchronizes exactly one retained terminal independently of the fair
+    /// background cursor. A terminal-scoped command performs this exact pass
+    /// before its Core admission check so a target the bounded background scan
+    /// has not yet visited still receives target-aware ordering: an
+    /// already-published engine classification is copied, and containment is
+    /// completed or recorded, before any termination dispatch or disposal
+    /// phase decision.
+    pub fn synchronizeTerminal(
+        self: *Maintenance,
+        core: *core_module.HostCore,
+        terminal_id: core_module.TerminalId,
+    ) void {
+        const terminal = core.findTerminal(terminal_id) orelse return;
+        const runtime = terminal.runtime() orelse return;
+        self.synchronizeRuntime(core, terminal_id, runtime);
+    }
+
     pub fn pendingOutcomes(
         self: *Maintenance,
         core: *core_module.HostCore,

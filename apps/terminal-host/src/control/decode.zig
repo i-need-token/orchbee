@@ -284,6 +284,11 @@ pub fn decodeCreateTerminal(
         },
         .profile = profile,
     };
+    // The canonical launch inspector applies the target-OS environment-name
+    // identity rule (case-sensitive on POSIX, case-insensitive on Windows) and
+    // the CreationId digest normalization before any Host dispatch. A rejected
+    // launch, including target-duplicate environment names, is reported as the
+    // typed `invalid-field` failure below.
     return .{
         .parsed = parsed,
         .value = .{

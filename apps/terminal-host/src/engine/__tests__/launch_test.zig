@@ -102,6 +102,45 @@ test "launch inspection produces an unambiguous order-independent digest" {
     );
 }
 
+test "launch environment identity follows the target operating system" {
+    // Environment names are target-OS identifiers. The same wire corpus admits
+    // `Path` and `PATH` as distinct variables on a POSIX target and rejects
+    // them as duplicates on a Windows target with the typed InvalidLaunch
+    // failure before any Host dispatch. This mirrors prepareLaunchEnvironment
+    // in packages/terminal-protocol/src/control.ts.
+    const environment_aliases = [_]EnvironmentEntry{
+        .{ .name = "Path", .value = "first" },
+        .{ .name = "PATH", .value = "second" },
+    };
+    const launch = validLaunch(&environment_aliases);
+    if (target_builtin.os.tag == .windows) {
+        try std.testing.expectError(
+            error.InvalidLaunch,
+            subject.inspect(std.testing.allocator, launch),
+        );
+    } else {
+        _ = try subject.inspect(std.testing.allocator, launch);
+    }
+
+    // The CreationId digest uses the same normalization: equivalent folded
+    // inputs produce one fingerprint on Windows and distinct fingerprints on
+    // POSIX, so idempotent replays stay stable and platform-consistent.
+    const path_upper = [_]EnvironmentEntry{
+        .{ .name = "PATH", .value = "same" },
+    };
+    const path_mixed = [_]EnvironmentEntry{
+        .{ .name = "Path", .value = "same" },
+    };
+    const upper = validLaunch(&path_upper);
+    const mixed = validLaunch(&path_mixed);
+    const upper_digest = try subject.inspect(std.testing.allocator, upper);
+    const mixed_digest = try subject.inspect(std.testing.allocator, mixed);
+    try std.testing.expectEqual(
+        target_builtin.os.tag == .windows,
+        std.mem.eql(u8, &upper_digest.launch_digest, &mixed_digest.launch_digest),
+    );
+}
+
 test "validated launch prepares short-lived runtime input only after inspection" {
     const environment = [_]EnvironmentEntry{
         .{ .name = "ORCHBEE_TEST", .value = "enabled" },

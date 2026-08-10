@@ -75,10 +75,20 @@ Unicode code points may therefore use more than one byte while remaining within 
 `TerminalLaunch` contains a literal executable plus an argument array; it never contains a
 shell-joined command string. `currentDirectory: null` means inherit the Host launch context.
 Environment entries are a delta: `value: null` removes or leaves the variable absent, while `""`
-sets an explicitly empty value. Names are unique and cannot contain `=`. No launch string may contain
+sets an explicitly empty value. Names cannot contain `=`. No launch string may contain
 U+0000 because executable, argument, directory, name, and value fields cross an operating-system
 process boundary. Product secrets and values remain payload data and are excluded from normal
 diagnostics.
+
+Environment names are unique on the wire exactly as written: two entries whose names are identical
+as written are rejected, while names that differ only by case (for example `Path` and `PATH`) remain
+distinct wire names. Environment names are then target-operating-system environment identifiers, and
+the Host applies the target OS's identity rule when it prepares a launch: on a POSIX target, names
+are case-sensitive, so `Path` and `PATH` are distinct variables; on Windows, names are
+case-insensitive, so the same two entries are duplicates and the Host rejects the `CreateTerminal`
+with a typed `invalid-field` failure before any process or PTY effect. The `CreationId` launch
+fingerprint uses the same normalization as the target identity rule, so equivalent folded inputs
+produce a stable, platform-consistent digest.
 
 `TerminalConfiguration` currently contains `scrollbackBytes`. Its built-in default is 10,000,000
 decimal bytes, zero disables retained scrollback, and the safety maximum is 1,000,000,000 decimal

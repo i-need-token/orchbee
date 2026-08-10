@@ -127,9 +127,28 @@ fn isValid(launch: Launch) bool {
 
 fn environmentNamesEqual(left: []const u8, right: []const u8) bool {
     if (target_builtin.os.tag == .windows) {
-        return (std.process.EnvMap.EnvNameHashContext{}).eql(left, right);
+        var left_iterator = std.unicode.Wtf8View.initUnchecked(left).iterator();
+        var right_iterator = std.unicode.Wtf8View.initUnchecked(right).iterator();
+        while (true) {
+            const left_codepoint = left_iterator.nextCodepoint() orelse break;
+            const right_codepoint = right_iterator.nextCodepoint() orelse return false;
+            if (upcaseEnvironmentCodepoint(left_codepoint) !=
+                upcaseEnvironmentCodepoint(right_codepoint)) return false;
+        }
+        return right_iterator.nextCodepoint() == null;
     }
     return std.mem.eql(u8, left, right);
+}
+
+/// Environment names are target-operating-system identifiers: POSIX names are
+/// case-sensitive, while Windows names are case-insensitive. This single
+/// codepoint fold is the canonical identity rule for both duplicate rejection
+/// and the CreationId launch digest, so the fingerprint is stable and
+/// platform-consistent.
+fn upcaseEnvironmentCodepoint(codepoint: u21) u21 {
+    if (codepoint <= std.math.maxInt(u16))
+        return std.os.windows.ntdll.RtlUpcaseUnicodeChar(@as(u16, @intCast(codepoint)));
+    return codepoint;
 }
 
 fn containsNul(value: []const u8) bool {
@@ -228,10 +247,7 @@ fn canonicalEnvironmentName(
     errdefer output.deinit(allocator);
     var iterator = std.unicode.Wtf8View.initUnchecked(name).iterator();
     while (iterator.nextCodepoint()) |codepoint| {
-        const normalized = if (codepoint <= std.math.maxInt(u16))
-            std.os.windows.ntdll.RtlUpcaseUnicodeChar(@intCast(codepoint))
-        else
-            codepoint;
+        const normalized = upcaseEnvironmentCodepoint(codepoint);
         var encoded: [4]u8 = undefined;
         const length = std.unicode.wtf8Encode(normalized, &encoded) catch unreachable;
         try output.appendSlice(allocator, encoded[0..length]);

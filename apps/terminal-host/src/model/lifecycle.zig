@@ -19,6 +19,16 @@ pub const TerminationAdmission = enum {
     replay,
 };
 
+/// Disposal admission for a retained lifecycle: a settled published terminal
+/// is disposable; an already-blocked cleanup carries the exact failing phase
+/// that must be reported to the caller; stopping containment has no retained
+/// failing cleanup phase yet, so it stays incomplete containment.
+pub const DisposableAdmission = union(enum) {
+    dispose,
+    containment_stopping,
+    cleanup_blocked: RuntimeCleanupFailure,
+};
+
 pub const ExitResult = union(enum) {
     exit_code: u32,
     signal: u32,
@@ -510,15 +520,20 @@ pub const Lifecycle = union(enum) {
         }
     }
 
-    pub fn requireDisposable(self: Lifecycle) Error!void {
+    pub fn requireDisposable(self: Lifecycle) Error!DisposableAdmission {
         return switch (self) {
-            .containing_failure => error.FailureContainmentIncomplete,
+            .containing_failure => |state| switch (state.containment) {
+                .stopping => .containment_stopping,
+                .blocked => |blocked| .{ .cleanup_blocked = blocked.cleanup_failure },
+            },
             .exited => |state| if (state.publication == .pending)
                 error.OutcomePublicationPending
-            else {},
+            else
+                .dispose,
             .failed => |state| if (state.publication == .pending)
                 error.OutcomePublicationPending
-            else {},
+            else
+                .dispose,
             .running, .finishing => error.InvalidPhase,
         };
     }

@@ -44,11 +44,28 @@ test "exited and failed outcomes require matching publication before disposal" {
             lifecycle_model.TransitionOutcome.applied,
             lifecycle.markOutcomePublished(kind),
         );
-        try lifecycle.requireDisposable();
+        _ = try lifecycle.requireDisposable();
         try std.testing.expectEqual(
             lifecycle_model.TransitionOutcome.idempotent,
             lifecycle.markOutcomePublished(kind),
         );
         try std.testing.expect(lifecycle.pendingOutcome() == null);
+    }
+}
+
+test "requireDisposable distinguishes stopping from blocked cleanup containment" {
+    var lifecycle: lifecycle_model.Lifecycle = .{ .running = .{} };
+    _ = lifecycle.runtimeFailed(.read_output);
+    try std.testing.expectEqual(
+        lifecycle_model.DisposableAdmission.containment_stopping,
+        try lifecycle.requireDisposable(),
+    );
+    _ = lifecycle.containmentBlocked(.release_process_identity, 123) catch unreachable;
+    switch (try lifecycle.requireDisposable()) {
+        .cleanup_blocked => |failure| try std.testing.expectEqual(
+            lifecycle_model.RuntimeCleanupFailure.release_process_identity,
+            failure,
+        ),
+        else => return error.ExpectedCleanupBlockedAdmission,
     }
 }

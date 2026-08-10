@@ -21,6 +21,17 @@ pub const ConnectionId = broker_session.ConnectionId;
 pub const TerminalPhase = terminal_lifecycle.Phase;
 pub const TransitionOutcome = terminal_lifecycle.TransitionOutcome;
 pub const TerminationAdmission = terminal_lifecycle.TerminationAdmission;
+
+/// Disposal admission across the Core boundary: an absent terminal is an
+/// idempotent no-op; a settled published terminal is disposable; stopping
+/// containment has no retained failing phase; blocked containment carries the
+/// exact cleanup phase that the service must report as the typed failure.
+pub const TerminalDisposalAdmission = union(enum) {
+    idempotent,
+    dispose,
+    containment_stopping,
+    cleanup_blocked: terminal_lifecycle.RuntimeCleanupFailure,
+};
 pub const ExitResult = terminal_lifecycle.ExitResult;
 pub const TerminationRequest = terminal_lifecycle.TerminationRequest;
 pub const RuntimeFailureKind = terminal_lifecycle.RuntimeFailureKind;
@@ -385,7 +396,15 @@ pub const HostCore = struct {
         terminal_id: TerminalId,
     ) CoreError!TransitionOutcome {
         const admission = try self.validateTerminalDisposal(connection_id, terminal_id);
-        if (admission == .idempotent) return .idempotent;
+        switch (admission) {
+            .idempotent => return .idempotent,
+            // The Core convenience path has no cleanup-phase payload, so both
+            // containment barriers reject as incomplete containment here;
+            // HostRuntimeAggregate carries the typed blocked phase to the
+            // service boundary instead.
+            .containment_stopping, .cleanup_blocked => return error.FailureContainmentIncomplete,
+            .dispose => {},
+        }
         const terminal = self.terminal_registry.get(terminal_id).?;
         // This convenience path exists for deterministic Core model tests.
         // Production sessions always carry a native engine and are removed by
@@ -415,12 +434,16 @@ pub const HostCore = struct {
         self: *HostCore,
         connection_id: ConnectionId,
         terminal_id: TerminalId,
-    ) CoreError!TransitionOutcome {
+    ) CoreError!TerminalDisposalAdmission {
         if (!self.connected(connection_id)) return error.MissingConnection;
         const terminal = self.terminal_registry.get(terminal_id) orelse return .idempotent;
-        try terminal.lifecycle.requireDisposable();
+        switch (try terminal.lifecycle.requireDisposable()) {
+            .dispose => {},
+            .containment_stopping => return .containment_stopping,
+            .cleanup_blocked => |failure| return .{ .cleanup_blocked = failure },
+        }
         try self.terminal_registry.requireGenerationAdvance();
-        return .applied;
+        return .dispose;
     }
 
     pub fn attach(

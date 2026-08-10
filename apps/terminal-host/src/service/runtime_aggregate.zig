@@ -385,6 +385,12 @@ pub const HostRuntimeAggregate = struct {
         failure_fencer: anytype,
         containment: anytype,
     ) TerminationError!core_module.TransitionOutcome {
+        // THCR-036: the bounded background scan may not have visited this
+        // exact terminal. Copy an already-published engine classification
+        // (normal completion or failure) and complete or record containment
+        // before any Core admission or dispatch decision, so a skipped target
+        // is never dispatched against a stale running/finishing lifecycle.
+        self.synchronizeTerminal(terminal_id);
         const request: core_module.TerminationRequest = switch (mode) {
             .graceful => .graceful,
             .force => .force,
@@ -746,16 +752,44 @@ pub const HostRuntimeAggregate = struct {
         return self.maintenance.pendingOutcomes(&self.core_state, maximum_notices);
     }
 
+    /// Synchronizes exactly one retained terminal independently of the fair
+    /// background cursor. requestTermination and disposeTerminal invoke this
+    /// before their Core admission checks so a command target the bounded
+    /// background scan has not yet visited still receives target-aware
+    /// ordering; the 64-entry fair scan remains solely for background
+    /// maintenance.
+    pub fn synchronizeTerminal(
+        self: *HostRuntimeAggregate,
+        terminal_id: core_module.TerminalId,
+    ) void {
+        self.maintenance.synchronizeTerminal(&self.core_state, terminal_id);
+    }
+
     pub fn disposeTerminal(
         self: *HostRuntimeAggregate,
         connection_id: core_module.ConnectionId,
         terminal_id: core_module.TerminalId,
     ) DisposeError!DisposeResult {
+        // THCR-036: the bounded background scan may not have visited this
+        // exact terminal. Synchronize its already-published engine
+        // classification and complete or record containment before the
+        // disposal phase decision, so a settled target is never rejected as
+        // invalid-phase against a stale running/finishing lifecycle.
+        self.synchronizeTerminal(terminal_id);
         const admission = try self.core_state.validateTerminalDisposal(
             connection_id,
             terminal_id,
         );
-        if (admission == .idempotent) return .{ .transition = .idempotent };
+        switch (admission) {
+            .idempotent => return .{ .transition = .idempotent },
+            // An already-blocked cleanup retains its exact failing phase.
+            // Return it directly before any runtime lookup or shutdown; the
+            // independent maintenance pass retries cleanup and this request
+            // never mutates or retries the blocked phase.
+            .cleanup_blocked => |failure| return .{ .cleanup_blocked = failure },
+            .containment_stopping => return error.FailureContainmentIncomplete,
+            .dispose => {},
+        }
         const runtime = self.runtimeFor(terminal_id) orelse return error.TerminalRuntimeMissing;
 
         // Dispose is the final owner handoff. Join the engine while its

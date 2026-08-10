@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const argument_options = @import("terminal-host-cli").argument_options;
+const terminal_geometry = @import("terminal-host-model").geometry;
 
 const bytes_option = "--bytes";
 const cell_pixel_height_option = "--cell-pixel-height";
@@ -85,6 +86,17 @@ fn parseBenchmark(arguments: []const []const u8) !Config {
     if (config.bytes == 0 or config.cell_pixel_height == 0 or
         config.cell_pixel_width == 0 or config.columns == 0 or config.rows == 0)
     {
+        return error.InvalidArguments;
+    }
+    // The benchmark must not launch a grid that the canonical launch boundary
+    // would reject. Validate combined grid + pixel geometry at the parser so an
+    // invalid benchmark configuration fails before any process or PTY effect.
+    if (!terminal_geometry.isValid(.{
+        .cell_pixel_height = config.cell_pixel_height,
+        .cell_pixel_width = config.cell_pixel_width,
+        .columns = config.columns,
+        .rows = config.rows,
+    })) {
         return error.InvalidArguments;
     }
     return config;

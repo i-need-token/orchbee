@@ -45,6 +45,39 @@ fn emitGeneratedFixture(byte_count: u64) !void {
     try file_writer.interface.flush();
 }
 
+pub const StartupPlan = struct {
+    launch: terminal_runtime.ProcessLaunch,
+    options: terminal_runtime.Options,
+};
+
+/// The benchmark carries one canonical geometry authority. The PTY launch and
+/// the runtime options both receive the requested cell-pixel dimensions so the
+/// reported geometry and the initial PTY winsize agree.
+fn buildStartupPlan(
+    config: Config,
+    executable: []const u8,
+    arguments: []const []const u8,
+    stdin_fd: ?isize,
+) StartupPlan {
+    return .{
+        .launch = .{
+            .arguments = arguments,
+            .cell_pixel_height = config.cell_pixel_height,
+            .cell_pixel_width = config.cell_pixel_width,
+            .columns = config.columns,
+            .current_directory = null,
+            .environment = &.{},
+            .executable = executable,
+            .rows = config.rows,
+            .stdin_fd = stdin_fd,
+        },
+        .options = .{
+            .cell_pixel_height = config.cell_pixel_height,
+            .cell_pixel_width = config.cell_pixel_width,
+        },
+    };
+}
+
 fn runBenchmark(allocator: std.mem.Allocator, config: Config) !void {
     if (config.file_path != null and builtin.os.tag == .windows) {
         return error.FileFixtureUnsupported;
@@ -75,18 +108,8 @@ fn runBenchmark(allocator: std.mem.Allocator, config: Config) !void {
         @intCast(input.handle)
     else
         null;
-    const runtime = try terminal_runtime.TerminalRuntime.createWithOptions(allocator, .{
-        .arguments = child_arguments,
-        .columns = config.columns,
-        .current_directory = null,
-        .environment = &.{},
-        .executable = child_executable,
-        .rows = config.rows,
-        .stdin_fd = stdin_fd,
-    }, .{
-        .cell_pixel_height = config.cell_pixel_height,
-        .cell_pixel_width = config.cell_pixel_width,
-    });
+    const plan = buildStartupPlan(config, child_executable, child_arguments, stdin_fd);
+    const runtime = try terminal_runtime.TerminalRuntime.createWithOptions(allocator, plan.launch, plan.options);
     defer runtime.destroy();
 
     var frames: u64 = 0;
@@ -247,6 +270,7 @@ fn optionalDelta(after: ?u64, before: ?u64) ?u64 {
 
 pub const testing = if (builtin.is_test) struct {
     pub const BenchmarkOptionsModule = benchmark_options;
+    pub const buildStartupPlanFn = buildStartupPlan;
     pub const Completion = terminal_runtime.Completion;
     pub const display_interval_ns = display_interval_nanoseconds;
     pub const nextDisplayDeadlineFn = nextDisplayDeadline;

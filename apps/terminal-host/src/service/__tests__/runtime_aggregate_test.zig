@@ -96,6 +96,144 @@ fn validMissingExecutableLaunch() terminal_launch.Launch {
     };
 }
 
+/// THCR-036 native launch that exits immediately with status zero. The
+/// resulting engine publishes a normal completion without any HostService
+/// interaction.
+fn validatedImmediateExitLaunch() !terminal_launch.Validated {
+    const builtin = @import("builtin");
+    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "exit 0" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "exit /B 0" };
+    const arguments: []const []const u8 = if (builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    var launch = validMissingExecutableLaunch();
+    launch.executable = executable;
+    launch.arguments = arguments;
+    return terminal_launch.inspect(std.testing.allocator, launch);
+}
+
+/// THCR-036 native launch that keeps running until containment stops it, so a
+/// deterministic engine failure can be published before the child exits.
+fn validatedLongRunningLaunch() !terminal_launch.Validated {
+    const builtin = @import("builtin");
+    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/cat";
+    const posix_arguments = [_][]const u8{};
+    const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "more" };
+    const arguments: []const []const u8 = if (builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    var launch = validMissingExecutableLaunch();
+    launch.executable = executable;
+    launch.arguments = arguments;
+    return terminal_launch.inspect(std.testing.allocator, launch);
+}
+
+/// THCR-036 setup: 64 model-only filler sessions followed by one native
+/// target. Registry keys are insertion-ordered, so the target sits at index 64
+/// and stays outside every 64-entry fair background slice while the cursor
+/// starts at zero.
+fn createSkippedTarget(
+    aggregate: *subject.HostRuntimeAggregate,
+    connection_id: core_module.ConnectionId,
+    validated: terminal_launch.Validated,
+) !core_module.TerminalId {
+    for (0..64) |offset| {
+        _ = try aggregate.core().createTerminal(
+            connection_id,
+            testId(core_module.CreationId, @intCast(0x10 + offset)),
+            testId(core_module.TerminalId, @intCast(0x50 + offset)),
+            [_]u8{0x80} ** 32,
+            80,
+            24,
+        );
+    }
+    var preparation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x90),
+        validated,
+        .{},
+    );
+    defer preparation.deinit();
+    return switch (try aggregate.commitPreparedTerminal(&preparation)) {
+        .created => |identity| identity.terminal_id,
+        .replayed => error.ExpectedCreatedTerminal,
+    };
+}
+
+const CountingTerminationDispatcher = struct {
+    calls: usize = 0,
+
+    pub fn dispatch(
+        self: *@This(),
+        _: *terminal_runtime.TerminalRuntime,
+        _: subject.TerminationMode,
+    ) !void {
+        self.calls += 1;
+    }
+};
+
+const FailingTerminationDispatcher = struct {
+    calls: usize = 0,
+
+    pub fn dispatch(
+        self: *@This(),
+        _: *terminal_runtime.TerminalRuntime,
+        _: subject.TerminationMode,
+    ) !void {
+        self.calls += 1;
+        return error.InjectedTerminationDispatchFailure;
+    }
+};
+
+const SkippedTargetObservingFencer = struct {
+    calls: usize = 0,
+    result: ?terminal_runtime.HostFailureFenceResult = null,
+
+    pub fn fence(
+        self: *@This(),
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) terminal_runtime.HostFailureFenceResult {
+        self.calls += 1;
+        const result = runtime.fenceHostFailure();
+        self.result = result;
+        return result;
+    }
+};
+
+const SkippedTargetObservingContainment = struct {
+    calls: usize = 0,
+
+    pub fn contain(
+        self: *@This(),
+        core: *core_module.HostCore,
+        terminal_id: core_module.TerminalId,
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) !void {
+        self.calls += 1;
+        _ = core.synchronizeRevision(
+            terminal_id,
+            runtime.completion().final_revision,
+        ) catch unreachable;
+        _ = core.failureContained(
+            terminal_id,
+            .{ .unavailable = .observe_process },
+        ) catch unreachable;
+    }
+};
+
 test "failed runtime creation leaves no retained terminal commit" {
     var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
     defer aggregate.deinitChecked(false) catch unreachable;
@@ -565,6 +703,135 @@ test "engine failure between dispatch and Host fencing remains the Core primary 
     const retained = aggregate.core().findTerminal(terminal_id).?.runtimeFailure().?;
     try std.testing.expectEqual(core_module.RuntimeFailureKind.pty_read, retained.kind());
     try std.testing.expectEqual(core_module.RuntimeFailureStage.read_output, retained.stage());
+}
+
+// THCR-036 regression: the bounded background scan visits at most 64 registry
+// positions per poll, so a target past that slice can publish a normal engine
+// completion that Core has not yet linearized. Graceful and force termination
+// used to evaluate the stale running lifecycle, dispatch a platform effect,
+// and commit a termination intent. The exact-terminal synchronization pass
+// must copy the already-published normal classification first, so every
+// request is replay-only, Core is exited immediately, and no dispatch occurs.
+test "termination of a skipped settled target is replay-only without dispatch" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x21),
+    );
+    const validated = try validatedImmediateExitLaunch();
+    const terminal_id = try createSkippedTarget(&aggregate, connection_id, validated);
+    const completion = try aggregate.runtimeFor(terminal_id).?.waitForCompletion();
+    try std.testing.expectEqual(
+        terminal_runtime.CompletionState.normal,
+        completion.classification,
+    );
+    // The engine has published normal completion, but the bounded background
+    // scan has not visited this target, so Core still observes running.
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.running,
+        aggregate.core().findTerminal(terminal_id).?.phase(),
+    );
+
+    var dispatcher: CountingTerminationDispatcher = .{};
+    var fencer: SkippedTargetObservingFencer = .{};
+    var containment: SkippedTargetObservingContainment = .{};
+    const requestTerminationUsing = subject.testing.requestTerminationUsingFn;
+
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.idempotent,
+        try requestTerminationUsing(
+            &aggregate,
+            connection_id,
+            terminal_id,
+            .graceful,
+            &dispatcher,
+            &fencer,
+            &containment,
+        ),
+    );
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.exited,
+        aggregate.core().findTerminal(terminal_id).?.phase(),
+    );
+    try std.testing.expectEqual(
+        core_module.TerminationRequest.none,
+        aggregate.core().findTerminal(terminal_id).?.terminationRequest(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), dispatcher.calls);
+    try std.testing.expectEqual(@as(usize, 0), fencer.calls);
+    try std.testing.expectEqual(@as(usize, 0), containment.calls);
+
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.idempotent,
+        try requestTerminationUsing(
+            &aggregate,
+            connection_id,
+            terminal_id,
+            .force,
+            &dispatcher,
+            &fencer,
+            &containment,
+        ),
+    );
+    try std.testing.expectEqual(@as(usize, 0), dispatcher.calls);
+    try std.testing.expectEqual(
+        core_module.TerminationRequest.none,
+        aggregate.core().findTerminal(terminal_id).?.terminationRequest(),
+    );
+    _ = aggregate.disconnect(connection_id);
+}
+
+// THCR-036 regression: an engine failure published on a skipped target must be
+// copied into Core by the exact pass before any dispatch decision. The failing
+// termination dispatcher must never be reached, and dispatch_termination can
+// never become the primary outcome.
+test "exact pass retains a skipped target engine failure without dispatch" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x31),
+    );
+    const validated = try validatedLongRunningLaunch();
+    const terminal_id = try createSkippedTarget(&aggregate, connection_id, validated);
+    const runtime = aggregate.runtimeFor(terminal_id).?;
+    // Publish a deterministic engine failure without HostService.
+    recordReaderFailure(runtime);
+    try std.testing.expectEqual(
+        terminal_runtime.CompletionState{ .failed = .pty_read },
+        runtime.completion().classification,
+    );
+
+    var dispatcher: FailingTerminationDispatcher = .{};
+    var fencer: SkippedTargetObservingFencer = .{};
+    var containment: SkippedTargetObservingContainment = .{};
+    const requestTerminationUsing = subject.testing.requestTerminationUsingFn;
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.idempotent,
+        try requestTerminationUsing(
+            &aggregate,
+            connection_id,
+            terminal_id,
+            .force,
+            &dispatcher,
+            &fencer,
+            &containment,
+        ),
+    );
+    try std.testing.expectEqual(@as(usize, 0), dispatcher.calls);
+    try std.testing.expectEqual(@as(usize, 0), fencer.calls);
+    try std.testing.expectEqual(@as(usize, 0), containment.calls);
+    const retained = aggregate.core().findTerminal(terminal_id).?.runtimeFailure().?;
+    try std.testing.expectEqual(core_module.RuntimeFailureKind.pty_read, retained.kind());
+    try std.testing.expectEqual(core_module.RuntimeFailureStage.read_output, retained.stage());
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.failed,
+        aggregate.core().findTerminal(terminal_id).?.phase(),
+    );
+    _ = aggregate.disconnect(connection_id);
 }
 
 test "runtime completion synchronization emits one typed exit notice" {
@@ -1305,6 +1572,75 @@ test "runtime shutdown errors retain their exact cleanup phase" {
         core_module.RuntimeCleanupFailure.release_process_identity,
         cleanupFailure(error.ProcessIdentityReleaseFailed),
     );
+}
+
+// THCR-027 regression: DisposeTerminal on an already-blocked cleanup phase
+// flattened the exact RuntimeCleanupFailure into a payload-free
+// FailureContainmentIncomplete error, so the aggregate could never produce
+// DisposeResult.cleanup_blocked for a phase blocked before this request. Each
+// retained variant must round-trip through disposal unchanged and leave the
+// blocked terminal and its attachments fully retained for the independent
+// maintenance retry.
+test "dispose returns the retained cleanup phase for every blocked containment variant" {
+    const cases = [_]core_module.RuntimeCleanupFailure{
+        .contain_process,
+        .release_output,
+        .release_process_identity,
+    };
+    for (cases) |cleanup_failure| {
+        var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+        defer aggregate.deinitChecked(false) catch unreachable;
+        const connection_id: core_module.ConnectionId = 1;
+        _ = try aggregate.core().connect(
+            connection_id,
+            testId(core_module.ClientId, 0x11),
+        );
+        const terminal_id = testId(core_module.TerminalId, 0x12);
+        const attachment_id = testId(core_module.AttachmentId, 0x13);
+        _ = try aggregate.core().createTerminal(
+            connection_id,
+            testId(core_module.CreationId, 0x14),
+            terminal_id,
+            [_]u8{0x15} ** 32,
+            80,
+            24,
+        );
+        _ = try aggregate.core().attach(
+            connection_id,
+            attachment_id,
+            terminal_id,
+            .{ .input = false, .read = true, .resize = false },
+            false,
+        );
+        _ = try aggregate.core().runtimeFailed(terminal_id, .read_output);
+        // A never-due retry deadline keeps the blocked phase stable for this
+        // deterministic request; the independent maintenance pass retries it.
+        _ = try aggregate.core().failureContainmentBlocked(
+            terminal_id,
+            cleanup_failure,
+            std.math.maxInt(i128),
+        );
+
+        switch (try aggregate.disposeTerminal(connection_id, terminal_id)) {
+            .cleanup_blocked => |retained| try std.testing.expectEqual(
+                cleanup_failure,
+                retained,
+            ),
+            .transition => return error.ExpectedCleanupBlockedDisposal,
+        }
+        try std.testing.expect(aggregate.core().findTerminal(terminal_id) != null);
+        try std.testing.expect(aggregate.core().findAttachment(attachment_id) != null);
+        const containment = aggregate.core().findTerminal(terminal_id).?.failureContainment() orelse
+            return error.ExpectedBlockedContainment;
+        switch (containment) {
+            .blocked => |blocked| {
+                try std.testing.expectEqual(cleanup_failure, blocked.cleanup_failure);
+                try std.testing.expectEqual(@as(i128, std.math.maxInt(i128)), blocked.retry_at_ns);
+            },
+            .stopping => return error.ExpectedBlockedContainment,
+        }
+        _ = aggregate.disconnect(connection_id);
+    }
 }
 
 test "blocked cleanup retry selection is fair across retained terminals" {

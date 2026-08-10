@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
 	AttachmentCapabilitiesSchema,
 	AttachTerminalSchema,
+	canonicalEnvironmentName,
 	CanonicalUint64TextSchema,
 	DEFAULT_TERMINAL_CONFIGURATION,
 	decodeControlJson,
@@ -16,6 +17,7 @@ import {
 	InputAcceptedSchema,
 	ListTerminalsSchema,
 	NeedSnapshotSchema,
+	prepareLaunchEnvironment,
 	ProcessObservationSchema,
 	ReadRowsSchema,
 	ResizeTerminalSchema,
@@ -179,6 +181,78 @@ describe('control schemas', () => {
 				retryable: false,
 			}).success,
 		).toBe(false);
+	});
+
+	it('treats environment names as target-operating-system identifiers', () => {
+		// The wire schema admits names that differ only by case, because they
+		// are distinct JSON members; the Host decides their target identity.
+		expect(
+			TerminalLaunchSchema.safeParse({
+				...launch,
+				environment: [
+					{ name: 'Path', value: 'a' },
+					{ name: 'PATH', value: 'b' },
+				],
+			}).success,
+		).toBe(true);
+		// Two names identical exactly as written are one wire member and rejected.
+		expect(
+			TerminalLaunchSchema.safeParse({
+				...launch,
+				environment: [
+					{ name: 'Path', value: 'a' },
+					{ name: 'Path', value: 'b' },
+				],
+			}).success,
+		).toBe(false);
+
+		// Target-specific preparation applies the OS identity rule.
+		expect(canonicalEnvironmentName('Path', 'posix')).toBe('Path');
+		expect(canonicalEnvironmentName('Path', 'windows')).toBe('PATH');
+		const distinctCase = [
+			{ name: 'Path', value: 'a' },
+			{ name: 'PATH', value: 'b' },
+		];
+		expect(prepareLaunchEnvironment(distinctCase, 'posix').ok).toBe(true);
+		expect(prepareLaunchEnvironment(distinctCase, 'windows')).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+		const exactDuplicate = [
+			{ name: 'Path', value: 'a' },
+			{ name: 'Path', value: 'b' },
+		];
+		expect(prepareLaunchEnvironment(exactDuplicate, 'posix')).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+		expect(prepareLaunchEnvironment(exactDuplicate, 'windows')).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+	});
+
+	it('mirrors native launch environment admission for the declared target', () => {
+		// Cross-language parity corpus: the native launch inspector admits the
+		// same entries for the same declared target (launch_test.zig), and the
+		// CreationId digest folds Windows names identically.
+		const corpus = {
+			distinctCase: [
+				{ name: 'Path', value: 'a' },
+				{ name: 'PATH', value: 'b' },
+			],
+			exactDuplicate: [
+				{ name: 'Path', value: 'a' },
+				{ name: 'Path', value: 'b' },
+			],
+			uniqueNames: [
+				{ name: 'ALPHA', value: '1' },
+				{ name: 'BETA', value: null },
+			],
+		} as const;
+		expect(prepareLaunchEnvironment(corpus.distinctCase, 'posix').ok).toBe(true);
+		expect(prepareLaunchEnvironment(corpus.distinctCase, 'windows').ok).toBe(false);
+		expect(prepareLaunchEnvironment(corpus.exactDuplicate, 'posix').ok).toBe(false);
+		expect(prepareLaunchEnvironment(corpus.exactDuplicate, 'windows').ok).toBe(false);
+		expect(prepareLaunchEnvironment(corpus.uniqueNames, 'posix').ok).toBe(true);
+		expect(prepareLaunchEnvironment(corpus.uniqueNames, 'windows').ok).toBe(true);
 	});
 
 	it('bounds direct schema text by encoded bytes', () => {
