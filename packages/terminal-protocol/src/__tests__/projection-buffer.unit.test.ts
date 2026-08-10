@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -238,5 +240,145 @@ describe('terminal projection buffer', () => {
 		expect(viewTerminalProjectionBuffer(bytes)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
+	});
+
+	it('classifies every canonical OBPB mutation like the native strict validator', async () => {
+		const fixtureUrl = new URL(
+			'../../fixtures/terminal-projection-buffer-v0.0.1.bin',
+			import.meta.url,
+		);
+		const bytes = new Uint8Array(await readFile(fixtureUrl));
+		const fixtureSectionOffset = (section: number) =>
+			new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(
+				160 + section * 8,
+				true,
+			);
+		const width = fixtureSectionOffset(TerminalProjectionSection.widths);
+		const rowFlags = fixtureSectionOffset(TerminalProjectionSection.rowFlags);
+		const rowIndices = fixtureSectionOffset(TerminalProjectionSection.rowIndices);
+		const prompt = fixtureSectionOffset(TerminalProjectionSection.rowPromptClasses);
+		const stringSection = fixtureSectionOffset(TerminalProjectionSection.stringBytes);
+		const graphemeLengths = fixtureSectionOffset(TerminalProjectionSection.graphemeLengths);
+		const graphemeOffsets = fixtureSectionOffset(TerminalProjectionSection.graphemeOffsets);
+		const foreground = fixtureSectionOffset(TerminalProjectionSection.foregroundColors);
+		const styleFlags = fixtureSectionOffset(TerminalProjectionSection.styleFlags);
+		const underlineKinds = fixtureSectionOffset(TerminalProjectionSection.underlineKinds);
+		const semantic = fixtureSectionOffset(TerminalProjectionSection.semanticContents);
+		const protectedCells = fixtureSectionOffset(TerminalProjectionSection.protectedCells);
+		const cases = [
+			{
+				name: 'width-out-of-range',
+				offset: width,
+				bytes: [0xff],
+				code: ProtocolErrorCode.invalidField,
+			},
+			{
+				name: 'row-flag-unknown',
+				offset: rowFlags,
+				bytes: [0x05],
+				code: ProtocolErrorCode.unknownRequiredFlag,
+			},
+			{
+				name: 'row-index-out-of-range',
+				offset: rowIndices + 2,
+				bytes: [0x02, 0x00],
+				code: ProtocolErrorCode.invalidField,
+			},
+			{
+				name: 'prompt-class-out-of-range',
+				offset: prompt,
+				bytes: [0x03],
+				code: ProtocolErrorCode.invalidField,
+			},
+			{
+				name: 'whole-string-invalid-utf8',
+				offset: stringSection + 25,
+				bytes: [0xff],
+				code: ProtocolErrorCode.invalidUtf8,
+			},
+			{
+				name: 'grapheme-length-splits-scalar',
+				offset: graphemeLengths,
+				bytes: [0x02, 0x00],
+				code: ProtocolErrorCode.invalidUtf8,
+			},
+			{
+				name: 'grapheme-offset-null-nonnullable',
+				offset: graphemeOffsets,
+				bytes: [0xff, 0xff, 0xff, 0xff],
+				code: ProtocolErrorCode.invalidField,
+			},
+			{
+				name: 'color-out-of-range',
+				offset: foreground,
+				bytes: [0x00, 0x00, 0x00, 0x04],
+				code: ProtocolErrorCode.invalidField,
+			},
+			{
+				name: 'style-flag-unknown',
+				offset: styleFlags,
+				bytes: [0x00, 0x01],
+				code: ProtocolErrorCode.unknownRequiredFlag,
+			},
+			{
+				name: 'underline-kind-out-of-range',
+				offset: underlineKinds,
+				bytes: [0x06],
+				code: ProtocolErrorCode.invalidField,
+			},
+			{
+				name: 'width-spacer-tail-without-head',
+				offset: width,
+				bytes: [0x02],
+				code: ProtocolErrorCode.invalidField,
+			},
+			{
+				name: 'row-ends-with-wide-cell',
+				offset: width + 5,
+				bytes: [0x01],
+				code: ProtocolErrorCode.invalidField,
+			},
+			{
+				name: 'semantic-out-of-range',
+				offset: semantic,
+				bytes: [0x03],
+				code: ProtocolErrorCode.invalidField,
+			},
+			{
+				name: 'protected-out-of-range',
+				offset: protectedCells,
+				bytes: [0x02],
+				code: ProtocolErrorCode.invalidField,
+			},
+			{
+				name: 'adjacent-wrap-disagreement',
+				offset: rowFlags + 1,
+				bytes: [0x00],
+				code: ProtocolErrorCode.invalidField,
+			},
+			{
+				name: 'interaction-unknown-required-flag',
+				offset: 108,
+				bytes: [0x8d, 0x62, 0x04, 0x00],
+				code: ProtocolErrorCode.unknownRequiredFlag,
+			},
+			{
+				name: 'interaction-mouse-mode-conflict',
+				offset: 108,
+				bytes: [0x9d, 0x62, 0x00, 0x00],
+				code: ProtocolErrorCode.invalidField,
+			},
+		];
+		for (const fixtureCase of cases) {
+			const mutated = bytes.slice();
+			mutated.set(fixtureCase.bytes, fixtureCase.offset);
+			expect({
+				name: fixtureCase.name,
+				result: decodeTerminalProjectionBuffer(mutated),
+			}).toEqual({
+				name: fixtureCase.name,
+				result: expect.objectContaining({ code: fixtureCase.code, ok: false }),
+			});
+		}
 	});
 });

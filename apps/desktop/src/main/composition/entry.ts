@@ -45,12 +45,23 @@ if (!singleInstanceLockOwned) {
 				}
 				rendererUrl = developmentRendererUrl;
 			}
+			let posixRuntimeBaseDirectory: string | undefined;
+			if (process.platform === 'linux') {
+				const getEffectiveUserId = process.geteuid;
+				if (getEffectiveUserId === undefined) {
+					throw new Error('Linux effective-user identity is unavailable.');
+				}
+				posixRuntimeBaseDirectory = `/run/user/${getEffectiveUserId()}`;
+			} else if (process.platform !== 'win32') {
+				posixRuntimeBaseDirectory = app.getPath('temp');
+			}
 			const runtime = resolveDesktopRuntimeConfiguration({
 				applicationPath: app.getAppPath(),
 				environment: process.env,
 				homeDirectory: app.getPath('home'),
 				...(app.isPackaged ? { packagedResourcesPath: process.resourcesPath } : {}),
 				platform: process.platform,
+				posixRuntimeBaseDirectory,
 				userDataPath: app.getPath('userData'),
 			});
 			desktopApplication = new DesktopApplication({

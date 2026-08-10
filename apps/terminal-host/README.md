@@ -49,11 +49,11 @@ The complete state model, retry classes, commit boundaries, invariants, and evid
 
 ## Trust and continuity boundary
 
-The runtime directory and endpoint are private to the operating-system user. POSIX uses owned runtime-directory permissions, a lifetime lock, peer-UID validation, and a private Unix-domain socket. Windows uses an owned non-reparse runtime directory, protected DACLs, a singleton mutex, a local named pipe, and peer-SID validation.
+The runtime directory and endpoint are private to the operating-system user. POSIX uses a trusted per-user rendezvous, a no-follow directory descriptor, effective-UID ownership, private mode, removal and validation of extended and inheritable ACLs, a lifetime lock, and post-bind validation of the actual Unix-domain socket. Host and Desktop both require the connected peer's effective UID through kernel credentials on every connection. Windows uses an owned non-reparse runtime directory, protected DACLs, a singleton mutex, a local named pipe, and peer-SID validation.
 
 These controls establish a same-user trust boundary. The endpoint identifier is not a secret, and Terminal Host does not distinguish one same-user application from another. It is not a multi-tenant service.
 
-Desktop reconnect is supported while the Host survives. PTY migration or recovery after a Host or operating-system crash is not promised.
+Desktop reconnect is supported while the Host survives. The POSIX authenticated transport helper owns only its proxy connection and bounded buffers; closing it does not terminate or otherwise own the Host. PTY migration or recovery after a Host or operating-system crash is not promised.
 
 Process-tree ownership follows the containment domain created at launch: a dedicated POSIX session or a Windows kill-on-close Job. Cleanup is complete only after that domain has no live members. Preventing a trusted same-user child from deliberately escaping a POSIX session is not an isolation promise.
 
@@ -69,6 +69,8 @@ orchbee-terminal-host serve \
 ```
 
 Desktop derives the runtime directory and endpoint identifier from its product user-data scope; the Host treats both as infrastructure values and does not infer product topology from them.
+
+On POSIX, Desktop also uses the binary's private `posix-prepare-runtime` and `posix-connect` operations. The former prepares and validates the runtime-directory descriptor. The latter validates the directory and endpoint, connects, checks kernel peer credentials, reports authentication on file descriptor 3, and only then proxies bounded stdio to the socket. These operations are an internal Desktop/Host composition ABI, not a protocol compatibility layer or a general client interface.
 
 `--scrollback-bytes` sets the startup default for newly created terminals. The current default is 10,000,000 decimal bytes; accepted values range from `0` through `1,000,000,000`. A broker may replace the process default for later terminals or supply an explicit configuration when creating one. Zero disables retained scrollback.
 
@@ -99,6 +101,17 @@ pnpm verify
 ```
 
 `test` runs the current platform's native tests and cross-language protocol conformance. `test:protocol` runs protocol conformance alone. `test:cross` compiles the complete test graph for Linux, FreeBSD, macOS, and Windows; cross-compilation is not runtime evidence for those platforms. Repository CI supplies native Linux, macOS, and Windows behavior evidence.
+
+The narrower POSIX endpoint-security evidence can be run without the complete Host suite:
+
+```sh
+(cd apps/terminal-host && zig build test-cli)
+(cd apps/terminal-host && zig build test-transport)
+(cd apps/terminal-host && zig build test-transport-compile -Dtarget=x86_64-linux-gnu)
+(cd apps/terminal-host && zig build test-transport-compile -Dtarget=x86_64-freebsd)
+```
+
+The native macOS run exercises real libc ACL inheritance and `getpeereid`; the cross-target steps compile the Linux `SO_PEERCRED` and FreeBSD `getpeereid` branches but are not runtime evidence for those systems.
 
 `test:tla` model-checks the Host-owned registry, per-terminal lifecycle, multi-runtime shutdown, delivery, and request-outcome abstractions. It is change-triggered correctness evidence and is intentionally not part of the ordinary `test` or `pnpm verify` gate. It uses `java` from `PATH` by default; set `TERMINAL_HOST_JAVA` to an explicit Java executable when the runtime is installed elsewhere. Each model has a 120-second default budget so accidental state-space multiplication fails explicitly; `TERMINAL_HOST_TLA_TIMEOUT_MILLISECONDS` may override that budget for a slower verified environment.
 

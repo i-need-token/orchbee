@@ -233,6 +233,11 @@ pub fn build(builder: *std.Build) void {
 
     switch (target.result.os.tag) {
         .freebsd, .linux, .macos => {
+            transport_module.addIncludePath(builder.path("src/transport"));
+            transport_module.addCSourceFile(.{
+                .file = builder.path("src/transport/posix_endpoint_security.c"),
+                .flags = &.{"-std=c17"},
+            });
             platform_module.addCSourceFile(.{
                 .file = builder.path("src/platform/process_session.c"),
                 .flags = &.{"-std=c17"},
@@ -255,6 +260,13 @@ pub fn build(builder: *std.Build) void {
                         builder.path("src/platform/darwin-cross-headers"),
                     );
                 }
+            }
+            if (target.result.os.tag == .macos) {
+                transport_test_module.addIncludePath(builder.path("src/transport/__tests__"));
+                transport_test_module.addCSourceFile(.{
+                    .file = builder.path("src/transport/__tests__/posix_endpoint_security_test.c"),
+                    .flags = &.{"-std=c17"},
+                });
             }
             const pty_module = pty_c.createModule();
             platform_module.addImport("pty-c", pty_module);
@@ -302,6 +314,33 @@ pub fn build(builder: *std.Build) void {
     );
     test_compile_step.dependOn(&executable.step);
     test_compile_step.dependOn(&benchmark_executable.step);
+    const focused_cli_tests = builder.addTest(.{
+        .name = "terminal-host-cli-tests",
+        .root_module = cli_test_module,
+    });
+    focused_cli_tests.linkLibC();
+    const run_focused_cli_tests = builder.addRunArtifact(focused_cli_tests);
+    const focused_cli_test_step = builder.step(
+        "test-cli",
+        "Run Terminal Host launcher argument tests",
+    );
+    focused_cli_test_step.dependOn(&run_focused_cli_tests.step);
+    const focused_transport_tests = builder.addTest(.{
+        .name = "terminal-host-transport-tests",
+        .root_module = transport_test_module,
+    });
+    focused_transport_tests.linkLibC();
+    const run_focused_transport_tests = builder.addRunArtifact(focused_transport_tests);
+    const focused_transport_test_step = builder.step(
+        "test-transport",
+        "Run terminal Host local-transport tests",
+    );
+    focused_transport_test_step.dependOn(&run_focused_transport_tests.step);
+    const focused_transport_compile_step = builder.step(
+        "test-transport-compile",
+        "Compile terminal Host local-transport tests without running them",
+    );
+    focused_transport_compile_step.dependOn(&focused_transport_tests.step);
     for ([_]*std.Build.Module{
         cli_test_module,
         benchmark_test_module,

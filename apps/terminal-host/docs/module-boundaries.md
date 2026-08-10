@@ -48,7 +48,7 @@ implementation file, or exposes mutable internals so a caller can bypass the own
 - The build graph is executable visibility authority. Adding an allowed edge requires updating this
   reference and `build.zig` in the same accepted structural change.
 - Native C and header files live with their owning adapter: process containment under
-  `src/platform/`, and Windows local IPC under `src/transport/`.
+  `src/platform/`, and POSIX endpoint security or Windows local IPC under `src/transport/`.
 
 ## Review gate
 

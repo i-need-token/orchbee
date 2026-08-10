@@ -35,6 +35,59 @@ fn readFixtureU32(bytes: []const u8, offset: usize) u32 {
     return std.mem.readInt(u32, bytes[offset..][0..@sizeOf(u32)], .little);
 }
 
+fn projectionSectionOffset(bytes: []const u8, section: usize) usize {
+    return @as(usize, readFixtureU32(bytes, 160 + section * 8));
+}
+
+fn expectProjectionMutation(
+    expected: protocol.ProtocolError,
+    bytes: []const u8,
+    name: []const u8,
+) !void {
+    const result = protocol.validateTerminalProjectionBuffer(bytes);
+    if (result) |_| {
+        std.debug.print("projection mutation unexpectedly accepted: {s}\n", .{name});
+        return error.TestExpectedError;
+    } else |err| {
+        if (err != expected) {
+            std.debug.print("projection mutation {s}: expected {s}, got {s}\n", .{
+                name,
+                @errorName(expected),
+                @errorName(err),
+            });
+            return error.TestUnexpectedError;
+        }
+    }
+}
+
+fn buildRenderRowWindow(allocator: std.mem.Allocator, snapshot: []const u8) ![]u8 {
+    const total = protocol.terminal_row_window_header_bytes + snapshot.len;
+    const bytes = try allocator.alloc(u8, total);
+    @memcpy(bytes[0..4], protocol.terminal_row_window_magic);
+    bytes[4] = protocol.terminal_row_window_format_major;
+    bytes[5] = protocol.terminal_row_window_format_minor;
+    bytes[6] = 1; // render detail
+    bytes[7] = 0; // flags
+    std.mem.writeInt(u32, bytes[8..12], @intCast(total), .little);
+    std.mem.writeInt(u16, bytes[12..14], protocol.terminal_row_window_header_bytes, .little);
+    std.mem.writeInt(u16, bytes[14..16], 6, .little); // columns
+    @memset(bytes[16..32], 0x11); // host epoch
+    @memset(bytes[32..48], 0x22); // attachment id
+    std.mem.writeInt(u64, bytes[48..56], 7, .little); // sequence
+    std.mem.writeInt(u64, bytes[56..64], 42, .little); // revision
+    std.mem.writeInt(u64, bytes[64..72], 3, .little); // generation
+    std.mem.writeInt(u64, bytes[72..80], 125, .little); // total rows
+    std.mem.writeInt(u64, bytes[80..88], 123, .little); // start row
+    std.mem.writeInt(u16, bytes[88..90], 2, .little); // row count
+    std.mem.writeInt(u16, bytes[90..92], 0, .little); // reserved
+    std.mem.writeInt(u32, bytes[92..96], 12, .little); // entry count
+    std.mem.writeInt(u32, bytes[96..100], @intCast(snapshot.len), .little); // body length
+    bytes[100] = protocol.terminal_row_window_format_patch;
+    @memset(bytes[101..112], 0); // reserved tail
+    @memcpy(bytes[112..], snapshot);
+    return bytes;
+}
+
 const ControlCommandsFixture = struct {
     attach_terminal: []const u8,
     create_terminal: []const u8,
@@ -385,6 +438,109 @@ test "canonical TypeScript terminal projection-buffer fixture conforms in Zig" {
     try std.testing.expectEqual(@as(u64, 123), summary.scrollback_rows);
     try std.testing.expectEqualSlices(u8, &([_]u8{0x11} ** 16), &summary.host_epoch);
     try std.testing.expectEqualSlices(u8, &([_]u8{0x22} ** 16), &summary.attachment_id);
+}
+
+test "projection strict scan rejects an out-of-range first width byte" {
+    const allocator = std.testing.allocator;
+    const mutated = try allocator.dupe(u8, projection_fixture);
+    defer allocator.free(mutated);
+    // Slot 12 (widths) offset is read from the canonical section directory.
+    const width_section = projectionSectionOffset(mutated, 12);
+    mutated[width_section] = 0xff;
+    try std.testing.expectError(
+        error.InvalidField,
+        protocol.validateTerminalProjectionBuffer(mutated),
+    );
+}
+
+test "projection strict scan matches the TypeScript decoder on every mutation class" {
+    const allocator = std.testing.allocator;
+    const width = projectionSectionOffset(projection_fixture, 12);
+    const row_flags = projectionSectionOffset(projection_fixture, 1);
+    const row_indices = projectionSectionOffset(projection_fixture, 0);
+    const prompt = projectionSectionOffset(projection_fixture, 2);
+    const string_section = projectionSectionOffset(projection_fixture, 15);
+    const grapheme_lengths = projectionSectionOffset(projection_fixture, 4);
+    const grapheme_offsets = projectionSectionOffset(projection_fixture, 3);
+    const foreground = projectionSectionOffset(projection_fixture, 7);
+    const style_flags = projectionSectionOffset(projection_fixture, 10);
+    const underline_kinds = projectionSectionOffset(projection_fixture, 11);
+    const semantic = projectionSectionOffset(projection_fixture, 13);
+    const protected_cells = projectionSectionOffset(projection_fixture, 14);
+
+    const cases = [_]struct {
+        name: []const u8,
+        offset: usize,
+        bytes: []const u8,
+        expected: protocol.ProtocolError,
+    }{
+        .{ .name = "width-out-of-range", .offset = width, .bytes = &.{0xff}, .expected = error.InvalidField },
+        .{ .name = "row-flag-unknown", .offset = row_flags, .bytes = &.{0x05}, .expected = error.UnknownRequiredFlag },
+        .{ .name = "row-index-out-of-range", .offset = row_indices + 2, .bytes = &.{ 0x02, 0x00 }, .expected = error.InvalidField },
+        .{ .name = "prompt-class-out-of-range", .offset = prompt, .bytes = &.{0x03}, .expected = error.InvalidField },
+        .{ .name = "whole-string-invalid-utf8", .offset = string_section + 25, .bytes = &.{0xff}, .expected = error.InvalidUtf8 },
+        .{ .name = "grapheme-length-splits-scalar", .offset = grapheme_lengths, .bytes = &.{ 0x02, 0x00 }, .expected = error.InvalidUtf8 },
+        .{ .name = "grapheme-offset-null-nonnullable", .offset = grapheme_offsets, .bytes = &.{ 0xff, 0xff, 0xff, 0xff }, .expected = error.InvalidField },
+        .{ .name = "color-out-of-range", .offset = foreground, .bytes = &.{ 0x00, 0x00, 0x00, 0x04 }, .expected = error.InvalidField },
+        .{ .name = "style-flag-unknown", .offset = style_flags, .bytes = &.{ 0x00, 0x01 }, .expected = error.UnknownRequiredFlag },
+        .{ .name = "underline-kind-out-of-range", .offset = underline_kinds, .bytes = &.{0x06}, .expected = error.InvalidField },
+        .{ .name = "width-spacer-tail-without-head", .offset = width, .bytes = &.{0x02}, .expected = error.InvalidField },
+        .{ .name = "row-ends-with-wide-cell", .offset = width + 5, .bytes = &.{0x01}, .expected = error.InvalidField },
+        .{ .name = "semantic-out-of-range", .offset = semantic, .bytes = &.{0x03}, .expected = error.InvalidField },
+        .{ .name = "protected-out-of-range", .offset = protected_cells, .bytes = &.{0x02}, .expected = error.InvalidField },
+        .{ .name = "adjacent-wrap-disagreement", .offset = row_flags + 1, .bytes = &.{0x00}, .expected = error.InvalidField },
+        .{ .name = "interaction-unknown-required-flag", .offset = 108, .bytes = &.{ 0x8d, 0x62, 0x04, 0x00 }, .expected = error.UnknownRequiredFlag },
+        .{ .name = "interaction-mouse-mode-conflict", .offset = 108, .bytes = &.{ 0x9d, 0x62, 0x00, 0x00 }, .expected = error.InvalidField },
+    };
+
+    for (cases) |case| {
+        const mutated = try allocator.dupe(u8, projection_fixture);
+        defer allocator.free(mutated);
+        @memcpy(mutated[case.offset..][0..case.bytes.len], case.bytes);
+        try expectProjectionMutation(case.expected, mutated, case.name);
+    }
+}
+
+test "render row window delegates to the strict projection scan" {
+    const allocator = std.testing.allocator;
+    const snapshot = try allocator.dupe(u8, projection_fixture);
+    defer allocator.free(snapshot);
+    snapshot[6] = 1; // snapshot kind
+    std.mem.writeInt(u64, snapshot[64..72], std.math.maxInt(u64), .little); // no base revision
+    const window = try buildRenderRowWindow(allocator, snapshot);
+    defer allocator.free(window);
+    const summary = try protocol.validateTerminalRowWindow(allocator, window);
+    try std.testing.expectEqual(protocol.RowWindowDetail.render, summary.detail);
+    try std.testing.expectEqual(@as(u16, 2), summary.row_count);
+
+    const width_section = projectionSectionOffset(snapshot, 12);
+    window[112 + width_section] = 0xff;
+    try std.testing.expectError(
+        error.InvalidField,
+        protocol.validateTerminalRowWindow(allocator, window),
+    );
+}
+
+test "projection interaction unknown required flag is typed separately from invalid field" {
+    const allocator = std.testing.allocator;
+    const unknown_interaction = try allocator.dupe(u8, projection_fixture);
+    defer allocator.free(unknown_interaction);
+    std.mem.writeInt(u32, unknown_interaction[108..112], 0x0004_628d, .little);
+    try std.testing.expectError(
+        error.UnknownRequiredFlag,
+        protocol.validateTerminalProjectionBuffer(unknown_interaction),
+    );
+}
+
+test "projection simultaneous mouse modes remain invalid field" {
+    const allocator = std.testing.allocator;
+    const conflicting_modes = try allocator.dupe(u8, projection_fixture);
+    defer allocator.free(conflicting_modes);
+    std.mem.writeInt(u32, conflicting_modes[108..112], 0x0000_629d, .little);
+    try std.testing.expectError(
+        error.InvalidField,
+        protocol.validateTerminalProjectionBuffer(conflicting_modes),
+    );
 }
 
 test "canonical TypeScript terminal row-window fixture conforms in Zig" {

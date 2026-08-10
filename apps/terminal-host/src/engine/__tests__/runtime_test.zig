@@ -367,6 +367,22 @@ fn createRuntimeWithHooks(hooks: RuntimeTestingHooks) !*TerminalRuntime {
     }, .{}, &spawner);
 }
 
+fn createRuntimeWithHooksAndCommand(
+    hooks: RuntimeTestingHooks,
+    executable: []const u8,
+    arguments: []const []const u8,
+) !*TerminalRuntime {
+    var spawner: HookedThreadSpawner = .{ .hooks = hooks };
+    return createWithOptionsUsingSpawner(std.testing.allocator, .{
+        .arguments = arguments,
+        .columns = 80,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = executable,
+        .rows = 24,
+    }, .{}, &spawner);
+}
+
 fn waitForWriterStop(runtime: *TerminalRuntime) void {
     runtime.input_mutex.lock();
     while (!runtime.writer_stopped.load(.acquire)) {
@@ -459,6 +475,40 @@ const WriterProbe = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         return .{ .bytes = self.write_bytes, .calls = self.write_calls };
+    }
+};
+
+/// Simulates a root-exit descendant that keeps the PTY slave open: the reader
+/// blocks instead of observing EOF, so pty_drained stays false and writer_stop
+/// stays false even after child_exited has been published. Releasing the gate
+/// returns EOF so the runtime can drain and shut down normally.
+const DescendantProbe = struct {
+    read_gate: TestGate = .{},
+    write_bytes: usize = 0,
+    write_calls: usize = 0,
+    write_mutex: std.Thread.Mutex = .{},
+
+    fn fromContext(context: *anyopaque) *DescendantProbe {
+        return @ptrCast(@alignCast(context));
+    }
+
+    fn read(context: *anyopaque, _: []u8) anyerror!usize {
+        const self = fromContext(context);
+        self.read_gate.pause();
+        return 0;
+    }
+
+    fn write(context: *anyopaque, bytes: []const u8) anyerror!usize {
+        const self = fromContext(context);
+        self.write_mutex.lock();
+        self.write_calls += 1;
+        self.write_bytes += bytes.len;
+        self.write_mutex.unlock();
+        return bytes.len;
+    }
+
+    fn hooks(self: *DescendantProbe) RuntimeTestingHooks {
+        return .{ .context = self, .read_pty = read, .write_pty = write };
     }
 };
 
@@ -1574,6 +1624,143 @@ test "prepared input losing the failure fence is unavailable and releases its re
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
     try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
     try std.testing.expectEqual(subject.RuntimeFailureKind.pty_read, runtime.primaryFailure().?);
+}
+
+test "post-exit client closure rejects a prepared client commit and releases its reservation" {
+    const runtime = try createRuntimeWithHooks(.{});
+    defer runtime.destroy();
+
+    var prepared = try runtime.prepareTextInput("prepared", std.math.maxInt(usize));
+    defer prepared.deinit();
+    try std.testing.expectEqual(@as(usize, 8), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 1), runtime.client_input_charge.entries);
+
+    // Root exit closes client admission while writer_stop is still false; the
+    // previously reserved publication must fail at its one commit boundary.
+    closeClientInput(runtime);
+    try std.testing.expectError(error.TerminalExited, prepared.commit());
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    runtime.input_mutex.lock();
+    defer runtime.input_mutex.unlock();
+    try std.testing.expectEqual(@as(usize, 0), runtime.input_entries.items.len);
+    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.entries);
+    try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
+}
+
+test "client input publication linearizes against post-exit client closure" {
+    // Order 1: publication acquires input_mutex before closure. It is accepted
+    // exactly once and stays as the queue's single published client entry.
+    {
+        var probe: WriterProbe = .{ .pause_at = .copied };
+        const runtime = try createRuntimeWithHooks(probe.hooks());
+        defer {
+            probe.copied.release();
+            clearTestingHooks(runtime);
+            runtime.destroy();
+        }
+        const first = try reserveInput(runtime, 1, false, .client);
+        try publishInput(runtime, first, try std.testing.allocator.dupe(u8, "a"));
+        probe.copied.wait();
+        closeClientInput(runtime);
+        runtime.input_mutex.lock();
+        try std.testing.expectEqual(@as(usize, 1), runtime.input_entries.items.len);
+        try std.testing.expectEqual(@as(usize, 1), runtime.client_input_charge.bytes);
+        try std.testing.expectEqual(@as(usize, 1), runtime.client_input_charge.entries);
+        runtime.input_mutex.unlock();
+    }
+
+    // Order 2: closure acquires input_mutex before publication. The reservation
+    // is removed, its byte and entry charge released, and the owned bytes freed.
+    {
+        const runtime = try createRuntimeWithHooks(.{});
+        defer runtime.destroy();
+        const second = try reserveInput(runtime, 1, false, .client);
+        closeClientInput(runtime);
+        try std.testing.expectError(
+            error.TerminalExited,
+            publishInput(runtime, second, try std.testing.allocator.dupe(u8, "b")),
+        );
+        runtime.input_mutex.lock();
+        try std.testing.expectEqual(@as(usize, 0), runtime.input_entries.items.len);
+        try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.bytes);
+        try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.entries);
+        runtime.input_mutex.unlock();
+    }
+}
+
+test "client admission closure rejects client commits while terminal replies still publish" {
+    var probe: WriterProbe = .{ .pause_at = .copied };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer {
+        probe.copied.release();
+        clearTestingHooks(runtime);
+        runtime.destroy();
+    }
+
+    // A terminal-generated reply reservation still publishes after client
+    // admission has closed; only client source entries are gated.
+    const reply = try reserveInput(runtime, 1, false, .terminal);
+    closeClientInput(runtime);
+    try publishInput(runtime, reply, try std.testing.allocator.dupe(u8, "r"));
+    probe.copied.wait();
+    runtime.input_mutex.lock();
+    try std.testing.expectEqual(@as(usize, 1), runtime.input_entries.items.len);
+    try std.testing.expectEqual(@as(usize, 1), runtime.terminal_reply_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 1), runtime.terminal_reply_charge.entries);
+    runtime.input_mutex.unlock();
+
+    // A zero-byte prepared semantic input shares the same one-phase commit gate.
+    var noop = try runtime.prepareFocusInput(false, std.math.maxInt(usize));
+    defer noop.deinit();
+    try std.testing.expectEqual(@as(usize, 0), noop.byteCount());
+    try std.testing.expectError(error.TerminalExited, noop.commit());
+    runtime.input_mutex.lock();
+    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.entries);
+    runtime.input_mutex.unlock();
+}
+
+test "post-exit descendant keeping the PTY open cannot receive a later committed client input" {
+    const builtin = @import("builtin");
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var probe: DescendantProbe = .{};
+    const arguments = [_][]const u8{ "-c", "sleep 30" };
+    const runtime = try createRuntimeWithHooksAndCommand(probe.hooks(), "/bin/sh", &arguments);
+    defer {
+        probe.read_gate.release();
+        clearTestingHooks(runtime);
+        runtime.destroy();
+    }
+
+    // The root child is still running: reserve a client FIFO position and its bytes.
+    const descendant_text = "descendant-input";
+    var prepared = try runtime.prepareTextInput(descendant_text, std.math.maxInt(usize));
+    defer prepared.deinit();
+    try std.testing.expectEqual(descendant_text.len, runtime.pendingInputBytes());
+
+    // Root exit closes client admission; the PTY-holding descendant keeps the
+    // writer running, so writer_stop stays false.
+    try runtime.terminate();
+    runtime.input_mutex.lock();
+    while (!runtime.child_exited.load(.acquire)) {
+        runtime.input_condition.wait(&runtime.input_mutex);
+    }
+    const writer_still_open = !runtime.writer_stop;
+    runtime.input_mutex.unlock();
+    try std.testing.expect(writer_still_open);
+
+    // A preparation committed only after child exit is rejected and its bytes
+    // never reach the descendant's PTY.
+    try std.testing.expectError(error.TerminalExited, prepared.commit());
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    runtime.input_mutex.lock();
+    try std.testing.expectEqual(@as(usize, 0), runtime.input_entries.items.len);
+    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.entries);
+    runtime.input_mutex.unlock();
+    try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
 }
 
 test "client and reply writer slices obey the final failure-fence ordering" {

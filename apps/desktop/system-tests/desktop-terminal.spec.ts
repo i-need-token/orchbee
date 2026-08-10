@@ -1255,7 +1255,7 @@ async function startHost(
 		await wait(250);
 		return process;
 	}
-	const endpoint = path.join(directory, `terminal-host-${endpointId}.sock`);
+	const endpoint = path.join(directory, `${endpointId}.s`);
 	await expect
 		.poll(
 			async () =>

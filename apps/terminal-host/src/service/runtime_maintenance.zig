@@ -6,6 +6,11 @@ const terminal_runtime = @import("terminal-host-engine").runtime;
 
 const max_runtime_sync_per_poll = 64;
 const cleanup_retry_delay_ns: i128 = std.time.ns_per_s;
+/// Bounded number of cleanup-eligibility inspections allowed per
+/// synchronization pass. The cleanup-retry cursor advances by the number of
+/// terminals actually inspected, so a registry larger than this budget never
+/// turns one nominally bounded pass into a full-registry scan.
+const cleanup_retry_inspection_budget = 16;
 
 pub const TerminalExitNotice = struct {
     creation_id: core_module.CreationId,
@@ -61,9 +66,42 @@ pub const PendingOutcomeBatch = struct {
     }
 };
 
+/// Host-lifetime monotonic clock for cleanup-retry scheduling. Both the
+/// one-second retry deadline and the due-eligibility check read this clock, so
+/// an adjustable wall clock (CLOCK_REALTIME / system calendar time) can neither
+/// postpone nor accelerate cleanup retries. Production samples elapsed
+/// monotonic time since the clock's first scheduling use and clamps readings so
+/// they never go backward; tests inject a logical clock.
+pub const CleanupClock = struct {
+    epoch: ?std.time.Instant = null,
+    previous: ?std.time.Instant = null,
+    context: ?*anyopaque = null,
+    read_ns: *const fn (clock: *CleanupClock) i128 = readMonotonicNs,
+
+    pub fn now(self: *CleanupClock) i128 {
+        return self.read_ns(self);
+    }
+
+    fn readMonotonicNs(self: *CleanupClock) i128 {
+        const current = std.time.Instant.now() catch unreachable;
+        if (self.epoch) |epoch| {
+            var reading = current;
+            if (reading.order(self.previous.?) == .lt) {
+                reading = self.previous.?;
+            }
+            self.previous = reading;
+            return @as(i128, reading.since(epoch));
+        }
+        self.epoch = current;
+        self.previous = current;
+        return 0;
+    }
+};
+
 /// Owns fair runtime-observation scans, cleanup retry scheduling, and the
 /// conversion of immutable engine observations into Host lifecycle facts.
 pub const Maintenance = struct {
+    cleanup_clock: CleanupClock = .{},
     cleanup_retry_scan_index: usize = 0,
     outcome_scan_index: usize = 0,
     runtime_sync_index: usize = 0,
@@ -83,7 +121,7 @@ pub const Maintenance = struct {
             self.synchronizeRuntime(core, terminal_id, runtime);
         }
         self.runtime_sync_index = (start + limit) % count;
-        self.retryOneBlockedCleanup(core, std.time.nanoTimestamp());
+        self.retryOneBlockedCleanup(core, self.cleanup_clock.now());
     }
 
     /// Synchronizes exactly the bounded inventory slice that is about to be
@@ -142,7 +180,7 @@ pub const Maintenance = struct {
     }
 
     pub fn containRuntimeFailure(
-        _: *Maintenance,
+        self: *Maintenance,
         core: *core_module.HostCore,
         terminal_id: core_module.TerminalId,
         runtime: *terminal_runtime.TerminalRuntime,
@@ -151,7 +189,7 @@ pub const Maintenance = struct {
             _ = core.failureContainmentBlocked(
                 terminal_id,
                 cleanupFailure(err),
-                nextCleanupRetryAt(),
+                self.nextCleanupRetryAt(),
             ) catch unreachable;
             return err;
         };
@@ -175,8 +213,10 @@ pub const Maintenance = struct {
         const count = core.terminalCount();
         if (count == 0) return null;
         const start = self.cleanup_retry_scan_index % count;
-        for (0..count) |offset| {
-            const index = (start + offset) % count;
+        const limit = @min(count, cleanup_retry_inspection_budget);
+        var inspected: usize = 0;
+        while (inspected < limit) : (inspected += 1) {
+            const index = (start + inspected) % count;
             const terminal_id = core.terminalKeys()[index];
             const terminal = core.terminalValues()[index];
             const retry_at_ns = terminal.lifecycle.cleanupRetryAt() orelse continue;
@@ -184,8 +224,19 @@ pub const Maintenance = struct {
             self.cleanup_retry_scan_index = (index + 1) % count;
             return terminal_id;
         }
-        self.cleanup_retry_scan_index = (start + 1) % count;
+        self.cleanup_retry_scan_index = (start + inspected) % count;
         return null;
+    }
+
+    /// Computes the next cleanup retry deadline from the Host-lifetime
+    /// monotonic clock with saturating one-second arithmetic. The deadline is
+    /// internal scheduling state, not part of the wire summary.
+    pub fn nextCleanupRetryAt(self: *Maintenance) i128 {
+        return std.math.add(
+            i128,
+            self.cleanup_clock.now(),
+            cleanup_retry_delay_ns,
+        ) catch std.math.maxInt(i128);
     }
 
     pub fn cleanupRetryScanIndex(self: *const Maintenance) usize {
@@ -261,14 +312,6 @@ pub fn cleanupFailure(
         error.OutputReleaseFailed => .release_output,
         error.ProcessIdentityReleaseFailed => .release_process_identity,
     };
-}
-
-pub fn nextCleanupRetryAt() i128 {
-    return std.math.add(
-        i128,
-        std.time.nanoTimestamp(),
-        cleanup_retry_delay_ns,
-    ) catch std.math.maxInt(i128);
 }
 
 fn exitResult(result: pty_process.ExitResult) core_module.ExitResult {

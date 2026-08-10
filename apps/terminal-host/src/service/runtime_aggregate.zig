@@ -398,7 +398,7 @@ pub const HostRuntimeAggregate = struct {
             _ = self.core_state.failureContainmentBlocked(
                 terminal_id,
                 .contain_process,
-                host_runtime_maintenance.nextCleanupRetryAt(),
+                self.maintenance.nextCleanupRetryAt(),
             ) catch {};
             return error.TerminalRuntimeMissing;
         };

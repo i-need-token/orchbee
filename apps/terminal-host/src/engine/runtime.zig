@@ -2084,7 +2084,10 @@ pub const TerminalRuntime = struct {
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
         if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
-        if (self.writer_stop) return error.TerminalExited;
+        // Zero-byte prepared semantic inputs share the same post-exit client
+        // admission gate so every PreparedInput.commit has one phase boundary.
+        if (self.writer_stop or self.client_input_closed or
+            self.child_exited.load(.acquire)) return error.TerminalExited;
     }
 
     fn publishInput(self: *TerminalRuntime, reservation: InputReservation, bytes: []u8) !void {
@@ -2094,7 +2097,17 @@ pub const TerminalRuntime = struct {
             if (entry.identifier != reservation.identifier) continue;
             std.debug.assert(entry.bytes == null);
             std.debug.assert(bytes.len <= reservation.reserved_bytes);
-            if (self.failure_fenced or self.writer_stop) {
+            // Root exit closes client admission under this same mutex. A client
+            // reservation prepared while running must still be rejected at this
+            // final publication boundary, even while a PTY-holding descendant
+            // keeps writer_stop false. child_exited is the running-to-finishing
+            // fact itself; including it closes the window before closeClientInput
+            // publishes. Terminal-generated replies remain publishable until the
+            // writer actually stops.
+            if (self.failure_fenced or self.writer_stop or
+                (entry.source == .client and
+                    (self.client_input_closed or self.child_exited.load(.acquire))))
+            {
                 self.releaseInputCharge(entry.*);
                 _ = self.input_entries.orderedRemove(index);
                 self.allocator.free(bytes);

@@ -13,6 +13,11 @@ const fenceResizeFailure = terminal_runtime.testing.fenceResizeFailure;
 const recordReaderFailure = terminal_runtime.testing.recordReaderFailureFn;
 const recordUnsafeResizeFailure = subject.testing.recordUnsafeResizeFailureFn;
 
+// Must match `cleanup_retry_inspection_budget` in
+// src/service/runtime_maintenance.zig. The cursor-advance assertions below
+// validate the bounded per-pass scan; a drift in either constant fails them.
+const cleanup_retry_inspection_budget = 16;
+
 const features = [_]u16{22};
 const palette = [_]u32{0} ** 256;
 
@@ -1285,4 +1290,357 @@ test "blocked cleanup retry selection is fair across retained terminals" {
     try std.testing.expectEqual(first_terminal_id, takeDueCleanupRetry(&aggregate, 0).?);
     try std.testing.expectEqual(second_terminal_id, takeDueCleanupRetry(&aggregate, 0).?);
     try std.testing.expectEqual(first_terminal_id, takeDueCleanupRetry(&aggregate, 0).?);
+}
+
+test "cleanup retry deadlines live in a monotonic scheduling domain" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0xa1),
+    );
+    const terminal_id = testId(core_module.TerminalId, 0xa2);
+    _ = try aggregate.core().createTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0xa3),
+        terminal_id,
+        [_]u8{0xa4} ** 32,
+        80,
+        24,
+    );
+
+    try std.testing.expectError(
+        error.TerminalRuntimeMissing,
+        aggregate.requestTermination(connection_id, terminal_id, .graceful),
+    );
+    const containment = aggregate.core().findTerminal(terminal_id).?.failureContainment() orelse
+        return error.TestUnexpectedResult;
+    const retry_at_ns = switch (containment) {
+        .blocked => |blocked| blocked.retry_at_ns,
+        .stopping => return error.TestUnexpectedResult,
+    };
+    // The retry deadline must be one second past the Host-lifetime monotonic
+    // clock reading, not a wall-clock epoch value. A fresh aggregate reads the
+    // clock for the first time during this transition, so the deadline is
+    // exactly one second of monotonic elapsed time.
+    try std.testing.expect(retry_at_ns < std.time.ns_per_min);
+}
+
+test "blocked cleanup retry becomes due exactly at the monotonic deadline" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0xa5),
+    );
+    const terminal_id = testId(core_module.TerminalId, 0xa6);
+    _ = try aggregate.core().createTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0xa7),
+        terminal_id,
+        [_]u8{0xa8} ** 32,
+        80,
+        24,
+    );
+    _ = try aggregate.core().runtimeFailed(terminal_id, .read_output);
+    const schedule_at_ns: i128 = 2 * std.time.ns_per_s;
+    _ = try aggregate.core().failureContainmentBlocked(
+        terminal_id,
+        .contain_process,
+        schedule_at_ns + std.time.ns_per_s,
+    );
+
+    const takeDueCleanupRetry = subject.testing.takeDueCleanupRetryFn;
+    // A wall-clock reading moved one hour backward must not postpone the
+    // monotonic deadline's eligibility.
+    try std.testing.expect(
+        takeDueCleanupRetry(
+            &aggregate,
+            schedule_at_ns + std.time.ns_per_s - std.time.ns_per_hour,
+        ) == null,
+    );
+    // Advancing the monotonic reading to exactly the deadline makes it due.
+    try std.testing.expectEqual(
+        terminal_id,
+        takeDueCleanupRetry(&aggregate, schedule_at_ns + std.time.ns_per_s).?,
+    );
+}
+
+test "synchronizeRuntimes uses the maintenance monotonic clock for due checks" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0xa9),
+    );
+    const first_terminal_id = testId(core_module.TerminalId, 0xaa);
+    const second_terminal_id = testId(core_module.TerminalId, 0xab);
+    _ = try aggregate.core().createTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0xac),
+        first_terminal_id,
+        [_]u8{0xad} ** 32,
+        80,
+        24,
+    );
+    _ = try aggregate.core().createTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0xae),
+        second_terminal_id,
+        [_]u8{0xaf} ** 32,
+        80,
+        24,
+    );
+    // A one-nanosecond deadline is due only to a clock that has already read
+    // past one nanosecond. A freshly created maintenance clock reads zero.
+    _ = try aggregate.core().runtimeFailed(first_terminal_id, .read_output);
+    _ = try aggregate.core().failureContainmentBlocked(
+        first_terminal_id,
+        .contain_process,
+        1,
+    );
+
+    aggregate.synchronizeRuntimes();
+
+    // The first terminal must not be selected as a due cleanup retry: its
+    // one-nanosecond deadline is ahead of the monotonic reading, so the bounded
+    // miss scan advances the cursor by the inspected slice instead of returning
+    // it.
+    try std.testing.expectEqual(
+        @as(usize, 0),
+        subject.testing.cleanupRetryScanIndexFn(&aggregate),
+    );
+}
+
+test "cleanup retry miss advances the cursor by exactly one bounded slice" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0xb0),
+    );
+    for (0..cleanup_retry_inspection_budget * 2) |offset| {
+        _ = try aggregate.core().createTerminal(
+            connection_id,
+            testId(core_module.CreationId, @intCast(0xc0 + offset)),
+            testId(core_module.TerminalId, @intCast(0xd0 + offset)),
+            [_]u8{0xe0} ** 32,
+            80,
+            24,
+        );
+    }
+    const takeDueCleanupRetry = subject.testing.takeDueCleanupRetryFn;
+    try std.testing.expect(takeDueCleanupRetry(&aggregate, 0) == null);
+    // A miss inspects exactly one bounded slice and advances the cursor by the
+    // number of terminals actually inspected.
+    try std.testing.expectEqual(
+        cleanup_retry_inspection_budget,
+        subject.testing.cleanupRetryScanIndexFn(&aggregate),
+    );
+}
+
+test "due cleanup retry beyond the first slice is selected on the next pass" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0xb1),
+    );
+    for (0..cleanup_retry_inspection_budget) |offset| {
+        _ = try aggregate.core().createTerminal(
+            connection_id,
+            testId(core_module.CreationId, @intCast(0xc0 + offset)),
+            testId(core_module.TerminalId, @intCast(0xd0 + offset)),
+            [_]u8{0xe0} ** 32,
+            80,
+            24,
+        );
+    }
+    const due_terminal_id = testId(core_module.TerminalId, 0xf0);
+    _ = try aggregate.core().createTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0xf1),
+        due_terminal_id,
+        [_]u8{0xf2} ** 32,
+        80,
+        24,
+    );
+    _ = try aggregate.core().runtimeFailed(due_terminal_id, .read_output);
+    _ = try aggregate.core().failureContainmentBlocked(
+        due_terminal_id,
+        .contain_process,
+        0,
+    );
+
+    const takeDueCleanupRetry = subject.testing.takeDueCleanupRetryFn;
+    // The only due terminal sits immediately beyond the first bounded slice.
+    try std.testing.expect(takeDueCleanupRetry(&aggregate, 0) == null);
+    try std.testing.expectEqual(
+        cleanup_retry_inspection_budget,
+        subject.testing.cleanupRetryScanIndexFn(&aggregate),
+    );
+    try std.testing.expectEqual(
+        due_terminal_id,
+        takeDueCleanupRetry(&aggregate, 0).?,
+    );
+}
+
+test "cleanup retry selection stays round-robin and bounded across slices" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0xb2),
+    );
+    // Running terminals occupy indices 0..15 and 17..49; the only due blocked
+    // terminals sit on slice boundaries at indices 16 and 33.
+    for (0..cleanup_retry_inspection_budget) |offset| {
+        _ = try aggregate.core().createTerminal(
+            connection_id,
+            testId(core_module.CreationId, @intCast(0x10 + offset)),
+            testId(core_module.TerminalId, @intCast(0x30 + offset)),
+            [_]u8{0x40} ** 32,
+            80,
+            24,
+        );
+    }
+    const first_due_id = testId(core_module.TerminalId, 0x50);
+    _ = try aggregate.core().createTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x51),
+        first_due_id,
+        [_]u8{0x52} ** 32,
+        80,
+        24,
+    );
+    for (0..cleanup_retry_inspection_budget) |offset| {
+        _ = try aggregate.core().createTerminal(
+            connection_id,
+            testId(core_module.CreationId, @intCast(0x20 + offset)),
+            testId(core_module.TerminalId, @intCast(0x60 + offset)),
+            [_]u8{0x70} ** 32,
+            80,
+            24,
+        );
+    }
+    const second_due_id = testId(core_module.TerminalId, 0x80);
+    _ = try aggregate.core().createTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x81),
+        second_due_id,
+        [_]u8{0x82} ** 32,
+        80,
+        24,
+    );
+    for (0..cleanup_retry_inspection_budget) |offset| {
+        _ = try aggregate.core().createTerminal(
+            connection_id,
+            testId(core_module.CreationId, @intCast(0x90 + offset)),
+            testId(core_module.TerminalId, @intCast(0xa0 + offset)),
+            [_]u8{0xb0} ** 32,
+            80,
+            24,
+        );
+    }
+    _ = try aggregate.core().runtimeFailed(first_due_id, .read_output);
+    _ = try aggregate.core().failureContainmentBlocked(
+        first_due_id,
+        .contain_process,
+        0,
+    );
+    _ = try aggregate.core().runtimeFailed(second_due_id, .read_output);
+    _ = try aggregate.core().failureContainmentBlocked(
+        second_due_id,
+        .contain_process,
+        0,
+    );
+
+    const takeDueCleanupRetry = subject.testing.takeDueCleanupRetryFn;
+    try std.testing.expect(takeDueCleanupRetry(&aggregate, 0) == null);
+    try std.testing.expectEqual(first_due_id, takeDueCleanupRetry(&aggregate, 0).?);
+    try std.testing.expect(takeDueCleanupRetry(&aggregate, 0) == null);
+    try std.testing.expectEqual(second_due_id, takeDueCleanupRetry(&aggregate, 0).?);
+    try std.testing.expect(takeDueCleanupRetry(&aggregate, 0) == null);
+    try std.testing.expect(takeDueCleanupRetry(&aggregate, 0) == null);
+    try std.testing.expectEqual(first_due_id, takeDueCleanupRetry(&aggregate, 0).?);
+}
+
+test "cleanup retry cursor normalization stays safe across terminal removal" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0xb3),
+    );
+    var running_ids: [cleanup_retry_inspection_budget * 2]core_module.TerminalId = undefined;
+    for (0..cleanup_retry_inspection_budget * 2) |offset| {
+        const terminal_id = testId(core_module.TerminalId, @intCast(0xc0 + offset));
+        running_ids[offset] = terminal_id;
+        _ = try aggregate.core().createTerminal(
+            connection_id,
+            testId(core_module.CreationId, @intCast(0xd0 + offset)),
+            terminal_id,
+            [_]u8{0xe0} ** 32,
+            80,
+            24,
+        );
+    }
+    const due_terminal_id = testId(core_module.TerminalId, 0xf0);
+    _ = try aggregate.core().createTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0xf1),
+        due_terminal_id,
+        [_]u8{0xf2} ** 32,
+        80,
+        24,
+    );
+    _ = try aggregate.core().runtimeFailed(due_terminal_id, .read_output);
+    _ = try aggregate.core().failureContainmentBlocked(
+        due_terminal_id,
+        .contain_process,
+        0,
+    );
+
+    const takeDueCleanupRetry = subject.testing.takeDueCleanupRetryFn;
+    const terminal_count_before = aggregate.core().terminalCount();
+    // The first bounded pass scans only the first slice and misses.
+    try std.testing.expect(takeDueCleanupRetry(&aggregate, 0) == null);
+    const cursor_before_removal = subject.testing.cleanupRetryScanIndexFn(&aggregate);
+    try std.testing.expect(cursor_before_removal <= terminal_count_before);
+
+    // Remove every running terminal; swap-remove reorders the retained slots
+    // and shrinks the registry far below the stored cursor.
+    for (running_ids) |terminal_id| {
+        _ = try aggregate.core().childExited(terminal_id, .{ .exit_code = 0 });
+        _ = try aggregate.core().ptyDrained(terminal_id);
+        try publishPendingOutcome(&aggregate, terminal_id);
+        try std.testing.expectEqual(
+            core_module.TransitionOutcome.applied,
+            try aggregate.core().disposeTerminal(connection_id, terminal_id),
+        );
+    }
+
+    // The stored cursor must re-normalize against the shrunken registry and no
+    // due retained terminal may be skipped indefinitely.
+    var attempts: usize = 0;
+    var selected = false;
+    while (attempts < terminal_count_before * 2) : (attempts += 1) {
+        if (takeDueCleanupRetry(&aggregate, 0)) |selected_id| {
+            try std.testing.expect(selected_id.eql(due_terminal_id));
+            selected = true;
+            break;
+        }
+    }
+    try std.testing.expect(selected);
+    try std.testing.expect(
+        subject.testing.cleanupRetryScanIndexFn(&aggregate) <
+            aggregate.core().terminalCount(),
+    );
 }

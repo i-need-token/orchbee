@@ -15,6 +15,7 @@ const pty_process = platform_boundary.process;
 const terminal_configuration = model_boundary.configuration;
 const terminal_history = engine_boundary.history;
 const terminal_runtime = engine_boundary.runtime;
+const host_input_admission = service_boundary.testing.input_admission;
 const host_outgoing = service_boundary.testing.outgoing;
 
 const WireIdentifier = [16]u8;
@@ -1059,6 +1060,99 @@ test "semantic input service preserves negotiated limits and total mouse encodin
     try expectInputAcceptedBytes(&accepted_noop, attachment_id, 0);
     try std.testing.expectEqual(@as(usize, 12_323), runtime.pendingInputBytes());
     try std.testing.expectEqual(@as(usize, 5), inputEntryCount(runtime));
+}
+
+test "semantic input preparation commits to a terminal-exited rejection after client admission closes" {
+    const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "ping -n 31 127.0.0.1 >nul" };
+    const arguments: []const []const u8 = if (target_builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    const create_payload = try testCreatePayload(
+        "4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d",
+        executable,
+        arguments,
+    );
+    defer std.testing.allocator.free(create_payload);
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c");
+    var created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        create_payload,
+        [_]u8{0x4d} ** 16,
+    );
+    defer created.deinit();
+    const terminal_id = service.runtime_aggregate.core().terminalKeys()[0];
+    const attachment_id = core_module.AttachmentId.fromBytes([_]u8{0x4e} ** 16);
+    var attachment_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    const attach_payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":true,\"read\":true,\"resize\":true}},\"requestResizeLease\":true,\"terminalId\":\"{s}\"}}",
+        .{
+            identifierText(attachment_id, &attachment_buffer),
+            identifierText(terminal_id, &terminal_buffer),
+        },
+    );
+    defer std.testing.allocator.free(attach_payload);
+    var attached = try testRequest(
+        &service,
+        &connection,
+        MessageKind.attach_terminal,
+        .control_json,
+        attach_payload,
+        [_]u8{0x4e} ** 16,
+    );
+    defer attached.deinit();
+    const active = try activeConnection(&connection);
+    const runtime = findRuntime(&service, terminal_id).?;
+
+    // A semantic input prepared while the root runs reserves one client FIFO
+    // position whose bytes are not yet published.
+    var preparation = service.runtime_aggregate.prepareSemanticInput(
+        active.connection_id,
+        attachment_id,
+        .{ .text = .{ .text = "post-exit" } },
+        std.math.maxInt(usize),
+    );
+    defer preparation.deinit();
+    try std.testing.expect(preparation.accepted() != null);
+    try std.testing.expectEqual(@as(usize, 9), runtime.pendingInputBytes());
+
+    // Closing runtime client admission after the exit must turn the commit into
+    // a non-retryable invalid-phase rejection instead of an acceptance.
+    terminal_runtime.testing.closeClientInputFn(runtime);
+    switch (preparation.commit()) {
+        .runtime_rejected => |rejection| {
+            try std.testing.expectEqual(
+                host_input_admission.Rejection.terminal_exited,
+                rejection,
+            );
+            try std.testing.expectEqualDeep(
+                InputFailure{ .code = "invalid-phase", .retryable = false },
+                inputFailure(rejection),
+            );
+        },
+        .accepted, .core_rejected, .runtime_missing => return error.ExpectedPostExitInputRejection,
+    }
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), inputEntryCount(runtime));
 }
 
 test "handshake binds client and negotiates input bytes" {

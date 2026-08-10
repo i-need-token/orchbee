@@ -51,6 +51,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			},
 			homeDirectory: path.resolve('/users/orchbee'),
 			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
 			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
 		});
 
@@ -64,6 +65,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 				environment: { ORCHBEE_DESKTOP_GATEWAY: 'yes' },
 				homeDirectory: path.resolve('/users/orchbee'),
 				platform: 'darwin',
+				posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
 				userDataPath: path.resolve('/users/orchbee/library/orchbee'),
 			}),
 		).toThrow('ORCHBEE_DESKTOP_GATEWAY must be 0 or 1.');
@@ -75,6 +77,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			environment: {},
 			homeDirectory: path.resolve('/users/orchbee'),
 			platform: 'linux',
+			posixRuntimeBaseDirectory: path.resolve('/run/user/501'),
 			userDataPath: path.resolve('/users/orchbee/.config/orchbee'),
 		});
 
@@ -91,7 +94,24 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 				'/users/orchbee/.config/orchbee/terminal-recovery/workbench-shared-document-v1.json',
 			),
 		);
-		expect(configuration.runtimeDirectory).toMatch(/^\/tmp\/orchbee-desktop-[0-9a-f]{12}$/u);
+		expect(configuration.runtimeDirectory).toMatch(/^\/run\/user\/501\/ob-[0-9a-f]{12}$/u);
+		expect(configuration.runtimeDirectory).not.toMatch(/^\/(?:private\/)?tmp(?:\/|$)/u);
+	});
+
+	it('keeps the macOS product rendezvous stable beneath its trusted per-user base', () => {
+		const input = {
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			environment: {},
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin' as const,
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		};
+		const first = resolveDesktopRuntimeConfiguration(input);
+		const second = resolveDesktopRuntimeConfiguration(input);
+
+		expect(first.runtimeDirectory).toBe(second.runtimeDirectory);
+		expect(first.runtimeDirectory).toMatch(/^\/private\/var\/folders\/user\/T\/ob-[0-9a-f]{12}$/u);
 	});
 
 	it('uses the packaged Host resource outside the application archive', () => {
@@ -101,6 +121,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			homeDirectory: path.resolve('/users/orchbee'),
 			packagedResourcesPath: path.resolve('/Applications/Orchbee.app/Contents/Resources'),
 			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
 			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
 		});
 
@@ -119,6 +140,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			},
 			homeDirectory: path.resolve('/users/orchbee'),
 			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
 			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
 		});
 
@@ -136,6 +158,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			environment: { LANG: 'C.UTF-8' },
 			homeDirectory: path.resolve('/users/orchbee'),
 			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
 			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
 		});
 
@@ -157,6 +180,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			},
 			homeDirectory: path.resolve('/users/orchbee'),
 			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
 			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
 		});
 
@@ -186,6 +210,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			environment: { ORCHBEE_TERMINAL_SCROLLBACK_BYTES: '25000000' },
 			homeDirectory: '/users/orchbee',
 			platform: 'linux',
+			posixRuntimeBaseDirectory: path.resolve('/run/user/501'),
 			userDataPath: '/users/orchbee/.config/orchbee',
 		});
 		const second = resolveDesktopRuntimeConfiguration({
@@ -193,6 +218,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			environment: {},
 			homeDirectory: '/users/orchbee',
 			platform: 'linux',
+			posixRuntimeBaseDirectory: path.resolve('/run/user/501'),
 			userDataPath: '/users/orchbee/.config/orchbee-beta',
 		});
 
@@ -205,8 +231,22 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 				environment: { ORCHBEE_TERMINAL_SCROLLBACK_BYTES: '1000000001' },
 				homeDirectory: '/users/orchbee',
 				platform: 'linux',
+				posixRuntimeBaseDirectory: path.resolve('/run/user/501'),
 				userDataPath: '/users/orchbee/.config/orchbee',
 			}),
 		).toThrow('exceeds the supported range');
+	});
+
+	it('rejects a deterministic default rendezvous beneath shared temporary storage', () => {
+		expect(() =>
+			resolveDesktopRuntimeConfiguration({
+				applicationPath: '/repo/apps/desktop',
+				environment: {},
+				homeDirectory: '/users/orchbee',
+				platform: 'darwin',
+				posixRuntimeBaseDirectory: '/private/tmp/user-controlled',
+				userDataPath: '/users/orchbee/library/orchbee',
+			}),
+		).toThrow('must not be under shared temporary storage');
 	});
 });

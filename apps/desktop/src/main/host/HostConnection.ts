@@ -112,7 +112,7 @@ export class HostConnection {
 		stream.once('close', () => this.#handleClose());
 	}
 
-	static connect(endpoint: string): Promise<HostConnection> {
+	static connectNamedPipe(endpoint: string): Promise<HostConnection> {
 		return new Promise((resolve, reject) => {
 			const socket = createConnection(endpoint);
 			const handleError = (error: Error): void => reject(error);

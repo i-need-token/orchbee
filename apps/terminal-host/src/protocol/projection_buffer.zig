@@ -10,6 +10,14 @@ const directory_offset = 160;
 const max_u32 = std.math.maxInt(u32);
 const no_base_revision = std.math.maxInt(u64);
 const section_element_bytes = [_]u8{ 2, 1, 1, 4, 2, 4, 2, 4, 4, 4, 2, 1, 1, 1, 1, 1 };
+const row_flags_mask: u8 = 0x03;
+const style_flags_mask: u16 = 0x00ff;
+const interaction_mask: u32 = 0x0003_ffff;
+const mouse_mode_mask: u32 = 0x0000_00f0;
+const mouse_format_mask: u32 = 0x0000_0f00;
+const color_rgb_mask: u32 = 0x00ff_ffff;
+const color_default: u32 = 0x0100_0000;
+const color_none: u32 = 0x0200_0000;
 
 pub const ProjectionBufferSummary = struct {
     attachment_id: [16]u8,
@@ -65,11 +73,81 @@ fn validateMetadataString(bytes: []const u8, offset: u32, length: u32) contract.
         if (length != 0) return error.InvalidField;
         return;
     }
+    if (length > contract.Limits.string_bytes) return error.LimitExceeded;
     if (offset > bytes.len or length > bytes.len - offset) return error.InvalidField;
     if (!std.unicode.utf8ValidateSlice(bytes[offset..][0..length])) return error.InvalidUtf8;
 }
 
-pub fn validateTerminalProjectionBuffer(bytes: []const u8) contract.ProtocolError!ProjectionBufferSummary {
+fn validProjectionColor(value: u32) bool {
+    return value <= color_rgb_mask or value == color_default or value == color_none;
+}
+
+fn isUtf8Boundary(bytes: []const u8, offset: usize) bool {
+    if (offset == 0 or offset == bytes.len) return true;
+    return bytes[offset] & 0xc0 != 0x80;
+}
+
+const StringRangeStatus = enum {
+    valid,
+    invalid_null,
+    limit_exceeded,
+    invalid_range,
+    invalid_boundary,
+};
+
+fn stringRangeStatus(
+    string_bytes: []const u8,
+    offset: u32,
+    length: u32,
+    nullable: bool,
+) StringRangeStatus {
+    if (offset == max_u32) {
+        return if (nullable and length == 0) .valid else .invalid_null;
+    }
+    if (length > contract.Limits.string_bytes) return .limit_exceeded;
+    if (offset > string_bytes.len or length > string_bytes.len - offset) return .invalid_range;
+    const end = @as(usize, offset) + length;
+    if (!isUtf8Boundary(string_bytes, offset) or !isUtf8Boundary(string_bytes, end)) {
+        return .invalid_boundary;
+    }
+    return .valid;
+}
+
+fn requireStringRange(status: StringRangeStatus) contract.ProtocolError!void {
+    switch (status) {
+        .valid => {},
+        .invalid_null, .invalid_range => return error.InvalidField,
+        .limit_exceeded => return error.LimitExceeded,
+        .invalid_boundary => return error.InvalidUtf8,
+    }
+}
+
+fn sectionSlice(bytes: []const u8, layout: Layout, section: usize) []const u8 {
+    const offset = @as(usize, layout.offsets[section]);
+    const length = @as(usize, layout.lengths[section]);
+    return bytes[offset..][0..length];
+}
+
+const ParsedProjection = struct {
+    attachment_id: [16]u8,
+    base_revision: ?u64,
+    columns: u16,
+    generation: u64,
+    host_epoch: [16]u8,
+    kind: frame_codec.FrameKind,
+    layout: Layout,
+    revision: u64,
+    row_count: u16,
+    rows: u16,
+    scrollback_rows: u64,
+    sequence: u64,
+};
+
+/// Validates the fixed header, canonical section layout and directory, alignment padding,
+/// reserved fields, interaction flags, and the two nullable metadata strings. It deliberately
+/// does not rescan per-cell values produced from canonical Ghostty state; that strict scan is
+/// performed by `validateProjectionSections` after this private structural helper succeeds.
+fn parseProjectionBuffer(bytes: []const u8) contract.ProtocolError!ParsedProjection {
     if (bytes.len < contract.terminal_projection_buffer_header_bytes) return error.Truncated;
     if (bytes.len > contract.Limits.frame_bytes) return error.LimitExceeded;
     try wire.requireMagic(bytes, contract.terminal_projection_buffer_magic);
@@ -144,15 +222,11 @@ pub fn validateTerminalProjectionBuffer(bytes: []const u8) contract.ProtocolErro
         @as(u32, columns) * cell_pixel_width > std.math.maxInt(u16) or
         @as(u32, rows) * cell_pixel_height > std.math.maxInt(u16) or
         cursor_shape < 1 or cursor_shape > 3 or active_screen < 1 or active_screen > 2 or
-        foreground > 0x00ff_ffff or background > 0x00ff_ffff or
-        (cursor_color != 0x0100_0000 and cursor_color > 0x00ff_ffff) or
-        interaction & ~@as(u32, 0x0003_ffff) != 0)
+        foreground > color_rgb_mask or background > color_rgb_mask or
+        (cursor_color != color_default and cursor_color > color_rgb_mask))
     {
         return error.InvalidField;
     }
-    const mouse_modes = @popCount(interaction & 0x0000_00f0);
-    const mouse_formats = @popCount(interaction & 0x0000_0f00);
-    if (mouse_modes > 1 or mouse_formats > 1) return error.InvalidField;
     const kind: frame_codec.FrameKind = switch (kind_code) {
         1 => .snapshot,
         2 => .delta,
@@ -178,12 +252,17 @@ pub fn validateTerminalProjectionBuffer(bytes: []const u8) contract.ProtocolErro
             return error.InvalidField;
         }
         for (bytes[prior_end..layout.offsets[section]]) |byte| {
-            if (byte != 0) return error.UnknownRequiredFlag;
+            if (byte != 0) return error.InvalidField;
         }
         prior_end = @as(usize, layout.offsets[section]) + layout.lengths[section];
     }
-    const strings_offset = layout.offsets[15];
-    const strings = bytes[strings_offset..][0..string_byte_length];
+    if (interaction & ~interaction_mask != 0) return error.UnknownRequiredFlag;
+    if (@popCount(interaction & mouse_mode_mask) > 1 or
+        @popCount(interaction & mouse_format_mask) > 1)
+    {
+        return error.InvalidField;
+    }
+    const strings = sectionSlice(bytes, layout, 15);
     try validateMetadataString(strings, title_offset, title_length);
     try validateMetadataString(strings, directory_value_offset, directory_length);
     return .{
@@ -193,10 +272,159 @@ pub fn validateTerminalProjectionBuffer(bytes: []const u8) contract.ProtocolErro
         .generation = generation,
         .host_epoch = host_epoch,
         .kind = kind,
+        .layout = layout,
         .revision = revision,
         .row_count = row_count,
         .rows = rows,
         .scrollback_rows = scrollback_rows,
         .sequence = sequence,
+    };
+}
+
+/// Performs the complete strict section scan matching `decodeTerminalProjectionBuffer`:
+/// whole-string UTF-8, row indices/flags/prompt classes, adjacent wrap agreement, and per-cell
+/// colors, style flags, underline kinds, widths, semantic/protected values, string ranges, and
+/// wide-cell topology. This is the trusted-view boundary used for raw, Gateway, and external
+/// records; the private structural helper above never admits payload cells.
+fn validateProjectionSections(
+    bytes: []const u8,
+    parsed: ParsedProjection,
+) contract.ProtocolError!void {
+    const layout = parsed.layout;
+    const strings = sectionSlice(bytes, layout, 15);
+    if (!std.unicode.utf8ValidateSlice(strings)) return error.InvalidUtf8;
+
+    const row_indices = sectionSlice(bytes, layout, 0);
+    const row_flags = sectionSlice(bytes, layout, 1);
+    const prompt_classes = sectionSlice(bytes, layout, 2);
+    const grapheme_offsets = sectionSlice(bytes, layout, 3);
+    const grapheme_lengths = sectionSlice(bytes, layout, 4);
+    const hyperlink_offsets = sectionSlice(bytes, layout, 5);
+    const hyperlink_lengths = sectionSlice(bytes, layout, 6);
+    const foreground_colors = sectionSlice(bytes, layout, 7);
+    const background_colors = sectionSlice(bytes, layout, 8);
+    const underline_colors = sectionSlice(bytes, layout, 9);
+    const style_flags = sectionSlice(bytes, layout, 10);
+    const underline_kinds = sectionSlice(bytes, layout, 11);
+    const widths = sectionSlice(bytes, layout, 12);
+    const semantic_contents = sectionSlice(bytes, layout, 13);
+    const protected_cells = sectionSlice(bytes, layout, 14);
+
+    const columns = parsed.columns;
+    var previous_row: ?u16 = null;
+    var previous_row_flags: u8 = 0;
+    var previous_spacer_head = false;
+    for (0..@as(usize, parsed.row_count)) |row_offset| {
+        const row = std.mem.readInt(u16, row_indices[2 * row_offset ..][0..2], .little);
+        const row_flags_value = row_flags[row_offset];
+        const prompt_class = prompt_classes[row_offset];
+        if (row_flags_value & ~row_flags_mask != 0) return error.UnknownRequiredFlag;
+        if (prompt_class > 2 or row >= parsed.rows or
+            (previous_row != null and row <= previous_row.?) or
+            (parsed.kind == .snapshot and row != @as(u16, @intCast(row_offset))))
+        {
+            return error.InvalidField;
+        }
+        const follows_prior_row = if (previous_row) |prior_row|
+            row == prior_row + 1
+        else
+            false;
+        if (follows_prior_row and
+            ((previous_row_flags & 1 != 0) != (row_flags_value & 2 != 0)))
+        {
+            return error.InvalidField;
+        }
+        const first_cell = row_offset * @as(usize, columns);
+        const end_cell = first_cell + @as(usize, columns);
+        var previous_width: ?u8 = null;
+        var first_width: ?u8 = null;
+        var spacer_head = false;
+        for (first_cell..end_cell) |cell_offset| {
+            const style_flags_value = std.mem.readInt(
+                u16,
+                style_flags[2 * cell_offset ..][0..2],
+                .little,
+            );
+            const width = widths[cell_offset];
+            const semantic = semantic_contents[cell_offset];
+            const protected_cell = protected_cells[cell_offset];
+            const underline_kind = underline_kinds[cell_offset];
+            const foreground = std.mem.readInt(
+                u32,
+                foreground_colors[4 * cell_offset ..][0..4],
+                .little,
+            );
+            const background = std.mem.readInt(
+                u32,
+                background_colors[4 * cell_offset ..][0..4],
+                .little,
+            );
+            const underline = std.mem.readInt(
+                u32,
+                underline_colors[4 * cell_offset ..][0..4],
+                .little,
+            );
+            if (style_flags_value & ~style_flags_mask != 0) return error.UnknownRequiredFlag;
+            if (width > 3 or semantic > 2 or protected_cell > 1 or underline_kind > 5 or
+                !validProjectionColor(foreground) or
+                !validProjectionColor(background) or
+                !validProjectionColor(underline) or
+                (width == 2 and previous_width != 1) or
+                (previous_width == 1 and width != 2) or
+                (width == 3 and (cell_offset != end_cell - 1 or row_flags_value & 1 == 0)))
+            {
+                return error.InvalidField;
+            }
+            const grapheme_offset = std.mem.readInt(
+                u32,
+                grapheme_offsets[4 * cell_offset ..][0..4],
+                .little,
+            );
+            const grapheme_length = std.mem.readInt(
+                u16,
+                grapheme_lengths[2 * cell_offset ..][0..2],
+                .little,
+            );
+            try requireStringRange(stringRangeStatus(strings, grapheme_offset, grapheme_length, false));
+            const hyperlink_offset = std.mem.readInt(
+                u32,
+                hyperlink_offsets[4 * cell_offset ..][0..4],
+                .little,
+            );
+            const hyperlink_length = std.mem.readInt(
+                u16,
+                hyperlink_lengths[2 * cell_offset ..][0..2],
+                .little,
+            );
+            try requireStringRange(stringRangeStatus(strings, hyperlink_offset, hyperlink_length, true));
+            if (cell_offset == first_cell) first_width = width;
+            if (width == 3) spacer_head = true;
+            previous_width = width;
+        }
+        if (previous_width == 1) return error.InvalidField;
+        if (follows_prior_row and previous_spacer_head and first_width != 1) {
+            return error.InvalidField;
+        }
+        previous_row = row;
+        previous_row_flags = row_flags_value;
+        previous_spacer_head = spacer_head;
+    }
+}
+
+pub fn validateTerminalProjectionBuffer(bytes: []const u8) contract.ProtocolError!ProjectionBufferSummary {
+    const parsed = try parseProjectionBuffer(bytes);
+    try validateProjectionSections(bytes, parsed);
+    return .{
+        .attachment_id = parsed.attachment_id,
+        .base_revision = parsed.base_revision,
+        .columns = parsed.columns,
+        .generation = parsed.generation,
+        .host_epoch = parsed.host_epoch,
+        .kind = parsed.kind,
+        .revision = parsed.revision,
+        .row_count = parsed.row_count,
+        .rows = parsed.rows,
+        .scrollback_rows = parsed.scrollback_rows,
+        .sequence = parsed.sequence,
     };
 }

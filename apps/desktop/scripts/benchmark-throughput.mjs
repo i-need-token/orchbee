@@ -118,7 +118,7 @@ async function waitForEndpoint(runtimeDirectory, endpointId, hostProcess, stderr
 		await wait(250);
 		return;
 	}
-	const endpoint = path.join(runtimeDirectory, `terminal-host-${endpointId}.sock`);
+	const endpoint = path.join(runtimeDirectory, `${endpointId}.s`);
 	for (let attempt = 0; attempt < 250; attempt += 1) {
 		if (hostProcess.exitCode !== null) {
 			throw new Error(`Terminal Host exited before publishing its endpoint: ${stderr.join('')}`);

@@ -1194,6 +1194,7 @@ function createTerminalLaunch() {
 		environment: { SHELL: '/bin/sh' },
 		homeDirectory: '/users/orchbee',
 		platform: 'linux',
+		posixRuntimeBaseDirectory: '/run/user/501',
 		userDataPath: '/users/orchbee/.config/orchbee',
 	}).terminalLaunch;
 }

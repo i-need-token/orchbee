@@ -36,6 +36,7 @@ export interface DesktopRuntimeConfigurationInput {
 	readonly homeDirectory: string;
 	readonly packagedResourcesPath?: string | undefined;
 	readonly platform: NodeJS.Platform;
+	readonly posixRuntimeBaseDirectory?: string | undefined;
 	readonly userDataPath: string;
 }
 
@@ -84,7 +85,20 @@ export function resolveDesktopRuntimeConfiguration(
 	} else if (input.platform === 'win32') {
 		runtimeDirectory = path.join(input.userDataPath, 'terminal-host');
 	} else {
-		runtimeDirectory = path.join('/tmp', `orchbee-desktop-${productScopeDigest.slice(0, 12)}`);
+		const runtimeBaseDirectory = input.posixRuntimeBaseDirectory;
+		if (runtimeBaseDirectory === undefined) {
+			throw new Error('A trusted POSIX runtime base directory is required.');
+		}
+		const resolvedRuntimeBase = path.resolve(runtimeBaseDirectory);
+		if (
+			resolvedRuntimeBase === '/tmp' ||
+			resolvedRuntimeBase.startsWith('/tmp/') ||
+			resolvedRuntimeBase === '/private/tmp' ||
+			resolvedRuntimeBase.startsWith('/private/tmp/')
+		) {
+			throw new Error('The default POSIX runtime base must not be under shared temporary storage.');
+		}
+		runtimeDirectory = path.join(resolvedRuntimeBase, `ob-${productScopeDigest.slice(0, 12)}`);
 	}
 	const endpointId =
 		input.environment.ORCHBEE_DESKTOP_ENDPOINT_ID ?? productScopeDigest.slice(0, 32);

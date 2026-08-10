@@ -16,14 +16,14 @@ fn runtimeDirectory() []const u8 {
 fn expectServe(command: subject.Command) !subject.ServeOptions {
     return switch (command) {
         .serve => |options| options,
-        .version => error.ExpectedServeCommand,
+        .posix_connect, .posix_prepare_runtime, .version => error.ExpectedServeCommand,
     };
 }
 
 test "launcher recognizes only the exact version command" {
     switch (try subject.parse(&.{"--version"})) {
         .version => {},
-        .serve => return error.ExpectedVersionCommand,
+        .posix_connect, .posix_prepare_runtime, .serve => return error.ExpectedVersionCommand,
     }
     try std.testing.expectError(error.InvalidArguments, subject.parse(&.{}));
     try std.testing.expectError(
@@ -31,6 +31,44 @@ test "launcher recognizes only the exact version command" {
         subject.parse(&.{ "--version", "extra" }),
     );
     try std.testing.expectError(error.InvalidArguments, subject.parse(&.{"version"}));
+}
+
+test "launcher parses only the typed private POSIX helper commands" {
+    const runtime_directory = runtimeDirectory();
+    switch (try subject.parse(&.{
+        "posix-prepare-runtime",
+        "--runtime-directory",
+        runtime_directory,
+    })) {
+        .posix_prepare_runtime => |options| try std.testing.expectEqualStrings(
+            runtime_directory,
+            options.runtime_directory,
+        ),
+        else => return error.ExpectedPosixPrepareCommand,
+    }
+    switch (try subject.parse(&.{
+        "posix-connect",
+        "--runtime-directory",
+        runtime_directory,
+        "--endpoint-id",
+        "0123456789abcdef0123456789abcdef",
+    })) {
+        .posix_connect => |options| {
+            try std.testing.expectEqualStrings(runtime_directory, options.runtime_directory);
+            try std.testing.expectEqualStrings(
+                "0123456789abcdef0123456789abcdef",
+                options.endpoint_id,
+            );
+        },
+        else => return error.ExpectedPosixConnectCommand,
+    }
+    try std.testing.expectError(error.InvalidArguments, subject.parse(&.{
+        "posix-prepare-runtime",
+        "--runtime-directory",
+        runtime_directory,
+        "--endpoint-id",
+        "0123456789abcdef0123456789abcdef",
+    }));
 }
 
 test "launcher parses the private serve command into typed options" {

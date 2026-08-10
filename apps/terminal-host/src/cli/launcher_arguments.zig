@@ -7,6 +7,8 @@ const terminal_configuration = @import("terminal-host-model").configuration;
 const endpoint_id_option = "--endpoint-id";
 const runtime_directory_option = "--runtime-directory";
 const scrollback_bytes_option = "--scrollback-bytes";
+const posix_prepare_command = "posix-prepare-runtime";
+const posix_connect_command = "posix-connect";
 const serve_option_names = [_][]const u8{
     endpoint_id_option,
     runtime_directory_option,
@@ -14,8 +16,19 @@ const serve_option_names = [_][]const u8{
 };
 
 pub const Command = union(enum) {
+    posix_connect: EndpointOptions,
+    posix_prepare_runtime: RuntimeDirectoryOptions,
     version,
     serve: ServeOptions,
+};
+
+pub const EndpointOptions = struct {
+    endpoint_id: []const u8,
+    runtime_directory: []const u8,
+};
+
+pub const RuntimeDirectoryOptions = struct {
+    runtime_directory: []const u8,
 };
 
 pub const ServeOptions = struct {
@@ -28,9 +41,19 @@ pub fn parse(arguments: []const []const u8) !Command {
     if (arguments.len == 1 and std.mem.eql(u8, arguments[0], "--version")) {
         return .version;
     }
-    if (arguments.len == 0 or !std.mem.eql(u8, arguments[0], "serve")) {
-        return error.InvalidArguments;
+    if (arguments.len == 0) return error.InvalidArguments;
+    if (std.mem.eql(u8, arguments[0], posix_prepare_command)) {
+        const options = try argument_options.Options.parse(arguments[1..]);
+        try options.ensureOnly(&.{runtime_directory_option});
+        const runtime_directory = try options.require(runtime_directory_option);
+        if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
+        return .{ .posix_prepare_runtime = .{ .runtime_directory = runtime_directory } };
     }
+    if (std.mem.eql(u8, arguments[0], posix_connect_command)) {
+        const endpoint = try parseEndpointOptions(arguments[1..]);
+        return .{ .posix_connect = endpoint };
+    }
+    if (!std.mem.eql(u8, arguments[0], "serve")) return error.InvalidArguments;
 
     const options = try argument_options.Options.parse(arguments[1..]);
     try options.ensureOnly(&serve_option_names);
@@ -51,4 +74,17 @@ pub fn parse(arguments: []const []const u8) !Command {
         .runtime_directory = runtime_directory,
         .terminal_defaults = terminal_defaults,
     } };
+}
+
+fn parseEndpointOptions(arguments: []const []const u8) !EndpointOptions {
+    const options = try argument_options.Options.parse(arguments);
+    try options.ensureOnly(&.{ endpoint_id_option, runtime_directory_option });
+    const runtime_directory = try options.require(runtime_directory_option);
+    const endpoint_id = try options.require(endpoint_id_option);
+    if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
+    if (!local_ipc.validEndpointId(endpoint_id)) return error.InvalidEndpointId;
+    return .{
+        .endpoint_id = endpoint_id,
+        .runtime_directory = runtime_directory,
+    };
 }

@@ -12,6 +12,17 @@ pub fn main() !void {
     if (arguments.len == 0) return error.InvalidArguments;
 
     switch (try launcher_arguments.parse(arguments[1..])) {
+        .posix_connect => |options| try local_ipc.runPosixClientProxy(
+            allocator,
+            options.runtime_directory,
+            options.endpoint_id,
+            .{ .handle = 3 },
+            std.fs.File.stdin(),
+            std.fs.File.stdout(),
+        ),
+        .posix_prepare_runtime => |options| try local_ipc.preparePosixRuntimeDirectory(
+            options.runtime_directory,
+        ),
         .version => try writeVersion(),
         .serve => |options| try serve(allocator, options),
     }

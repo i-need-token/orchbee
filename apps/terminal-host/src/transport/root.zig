@@ -3,6 +3,8 @@ const builtin = @import("builtin");
 
 const host_service = @import("terminal-host-service").service;
 const protocol = @import("terminal-protocol");
+const posix_endpoint_security = @import("posix_endpoint_security.zig");
+const posix_proxy = @import("posix_proxy.zig");
 
 const windows_c = if (builtin.os.tag == .windows) @cImport({
     @cInclude("local_ipc_windows.h");
@@ -51,6 +53,35 @@ pub fn validEndpointId(endpoint_id: []const u8) bool {
         else => return false,
     };
     return true;
+}
+
+pub fn preparePosixRuntimeDirectory(runtime_directory: []const u8) !void {
+    if (builtin.os.tag == .windows) return error.UnsupportedPlatform;
+    var directory = try posix_endpoint_security.prepareRuntimeDirectory(runtime_directory);
+    directory.close();
+}
+
+pub fn runPosixClientProxy(
+    allocator: std.mem.Allocator,
+    runtime_directory: []const u8,
+    endpoint_id: []const u8,
+    status: std.fs.File,
+    input: std.fs.File,
+    output: std.fs.File,
+) !void {
+    if (builtin.os.tag == .windows) return error.UnsupportedPlatform;
+    defer status.close();
+    const stream = posix_endpoint_security.connectAuthenticated(
+        allocator,
+        runtime_directory,
+        endpoint_id,
+    ) catch |failure| {
+        try status.writeAll(&.{posix_endpoint_security.statusForConnectError(failure)});
+        return;
+    };
+    defer stream.close();
+    try status.writeAll(&.{posix_endpoint_security.authenticated_status_ready});
+    try posix_proxy.run(stream.handle, input.handle, output.handle);
 }
 
 fn serveConnection(transport: anytype, service: *host_service.HostService) !void {
@@ -312,56 +343,46 @@ const PosixServer = if (builtin.os.tag == .windows) void else struct {
         if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
         if (!validEndpointId(endpoint_id)) return error.InvalidEndpointId;
 
-        var directory = try std.fs.openDirAbsolute(runtime_directory, .{ .no_follow = true });
+        var directory = try posix_endpoint_security.prepareRuntimeDirectory(runtime_directory);
         errdefer directory.close();
-        const directory_stat = try std.posix.fstat(directory.fd);
-        if (directory_stat.uid != std.posix.geteuid() or directory_stat.mode & 0o077 != 0) {
-            return error.InsecureRuntimeDirectory;
-        }
 
-        const lock_name = try std.fmt.allocPrint(
-            allocator,
-            "terminal-host-{s}.lock",
-            .{endpoint_id},
-        );
+        const lock_name = try posix_endpoint_security.lockName(allocator, endpoint_id);
         errdefer allocator.free(lock_name);
-        var lock_file = directory.createFile(lock_name, .{
-            .lock = .exclusive,
-            .lock_nonblocking = true,
-            .mode = 0o600,
-            .truncate = false,
-        }) catch |err| switch (err) {
-            error.WouldBlock => return error.AlreadyRunning,
-            else => return err,
-        };
-        errdefer lock_file.close();
-        try lock_file.chmod(0o600);
-
-        const socket_name = try std.fmt.allocPrint(
-            allocator,
-            "terminal-host-{s}.sock",
-            .{endpoint_id},
+        var lock_file = try posix_endpoint_security.acquireLock(
+            directory,
+            lock_name,
+            std.posix.geteuid(),
         );
+        errdefer lock_file.close();
+
+        const socket_name = try posix_endpoint_security.endpointName(allocator, endpoint_id);
         errdefer allocator.free(socket_name);
         const socket_path = try std.fs.path.join(
             allocator,
             &.{ runtime_directory, socket_name },
         );
         errdefer allocator.free(socket_path);
-        const address = std.net.Address.initUnix(socket_path) catch return error.EndpointPathTooLong;
-
         directory.deleteFile(socket_name) catch |err| switch (err) {
             error.FileNotFound => {},
             else => return err,
         };
         errdefer directory.deleteFile(socket_name) catch {};
+
+        var original_directory = try std.fs.cwd().openDir(".", .{});
+        defer original_directory.close();
+        try std.posix.fchdir(directory.fd);
+        var restored_directory = false;
+        defer if (!restored_directory) std.posix.fchdir(original_directory.fd) catch {};
+        const address = std.net.Address.initUnix(socket_name) catch return error.EndpointPathTooLong;
         var listener = try address.listen(.{ .kernel_backlog = 8 });
         errdefer listener.deinit();
-        try std.posix.fchmodat(directory.fd, socket_name, 0o600, 0);
-        const socket_stat = try directory.statFile(socket_name);
-        if (socket_stat.kind != .unix_domain_socket or socket_stat.mode & 0o077 != 0) {
-            return error.InsecureEndpoint;
-        }
+        try posix_endpoint_security.secureEndpoint(
+            directory,
+            socket_name,
+            std.posix.geteuid(),
+        );
+        try std.posix.fchdir(original_directory.fd);
+        restored_directory = true;
 
         return .{
             .allocator = allocator,
@@ -424,47 +445,13 @@ const PosixServer = if (builtin.os.tag == .windows) void else struct {
     fn acceptAndServe(self: *PosixServer, service: *host_service.HostService) !void {
         var accepted = try self.listener.accept();
         defer accepted.stream.close();
-        if (!try sameUserPeer(accepted.stream.handle)) return error.PeerIdentityMismatch;
+        try posix_endpoint_security.requirePeerEffectiveUid(
+            accepted.stream.handle,
+            std.posix.geteuid(),
+        );
         var connection: PosixConnection = .{ .stream = accepted.stream };
         serveAcceptedConnection(&connection, service);
     }
-
-    fn sameUserPeer(socket: std.posix.socket_t) !bool {
-        return switch (builtin.os.tag) {
-            .linux => linuxSameUserPeer(socket),
-            .freebsd, .macos => bsdSameUserPeer(socket),
-            else => unreachable,
-        };
-    }
-
-    fn linuxSameUserPeer(socket: std.posix.socket_t) !bool {
-        const Credentials = extern struct {
-            pid: c_int,
-            uid: std.posix.uid_t,
-            gid: std.posix.gid_t,
-        };
-        var credentials: Credentials = undefined;
-        try std.posix.getsockopt(
-            socket,
-            std.posix.SOL.SOCKET,
-            std.posix.SO.PEERCRED,
-            std.mem.asBytes(&credentials),
-        );
-        return credentials.uid == std.posix.geteuid();
-    }
-
-    fn bsdSameUserPeer(socket: std.posix.socket_t) !bool {
-        var user: std.posix.uid_t = undefined;
-        var group: std.posix.gid_t = undefined;
-        if (getpeereid(socket, &user, &group) != 0) return error.PeerIdentityUnavailable;
-        return user == std.posix.geteuid();
-    }
-
-    extern "c" fn getpeereid(
-        socket: c_int,
-        effective_user: *std.posix.uid_t,
-        effective_group: *std.posix.gid_t,
-    ) c_int;
 };
 
 const WindowsServer = if (builtin.os.tag != .windows) void else struct {
@@ -610,6 +597,8 @@ pub const testing = if (builtin.is_test) struct {
     pub const readRecordWithTimeoutFn = readRecordWithTimeout;
     pub const requireWindowsStatusFn = requireWindowsStatus;
     pub const posixSendFlags = posix_send_flags;
+    pub const posixEndpointSecurity = posix_endpoint_security;
+    pub const posixProxy = posix_proxy;
     pub const serveAcceptedConnectionFn = serveAcceptedConnection;
     pub const serveConnectionFn = serveConnection;
     pub const serveConnectionWithHandshakeTimeoutFn = serveConnectionWithHandshakeTimeout;

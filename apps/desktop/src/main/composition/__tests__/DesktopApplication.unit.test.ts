@@ -1795,6 +1795,7 @@ function createRuntime(
 		environment,
 		homeDirectory: '/users/orchbee',
 		platform: 'linux',
+		posixRuntimeBaseDirectory: '/run/user/501',
 		userDataPath: '/users/orchbee/.config/orchbee',
 	});
 }

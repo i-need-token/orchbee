@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { chmod, mkdir } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 
@@ -9,6 +9,10 @@ import {
 } from '@orchbee/terminal-protocol';
 
 import { HostConnection } from './HostConnection';
+import {
+	connectAuthenticatedPosixHost,
+	preparePosixHostRuntimeDirectory,
+} from './posix-host-endpoint';
 
 const DEFAULT_CONNECTION_ATTEMPTS = 250;
 const DEFAULT_RETRY_DELAY_MILLISECONDS = 20;
@@ -25,14 +29,27 @@ export interface DevelopmentHostRuntimeOptions {
 }
 
 export interface DevelopmentHostRuntimeDependencies {
-	readonly connect: (endpoint: string) => Promise<HostConnection>;
+	readonly connect: (
+		endpoint: string,
+		binaryPath: string,
+		runtimeDirectory: string,
+		endpointId: string,
+		platform: NodeJS.Platform,
+	) => Promise<HostConnection>;
 	readonly launch: (binaryPath: string, arguments_: readonly string[]) => Promise<void>;
-	readonly prepareDirectory: (directory: string, platform: NodeJS.Platform) => Promise<void>;
+	readonly prepareDirectory: (
+		directory: string,
+		platform: NodeJS.Platform,
+		binaryPath: string,
+	) => Promise<void>;
 	readonly wait: (milliseconds: number) => Promise<void>;
 }
 
 const defaultDependencies: DevelopmentHostRuntimeDependencies = {
-	connect: (endpoint) => HostConnection.connect(endpoint),
+	connect: (endpoint, binaryPath, runtimeDirectory, endpointId, platform) =>
+		platform === 'win32'
+			? HostConnection.connectNamedPipe(endpoint)
+			: connectAuthenticatedPosixHost(binaryPath, runtimeDirectory, endpointId),
 	launch: (binaryPath, arguments_) =>
 		new Promise((resolve, reject) => {
 			const child = spawn(binaryPath, arguments_, {
@@ -47,10 +64,10 @@ const defaultDependencies: DevelopmentHostRuntimeDependencies = {
 				resolve();
 			});
 		}),
-	prepareDirectory: async (directory, platform) => {
-		await mkdir(directory, { mode: 0o700, recursive: true });
-		if (platform !== 'win32') await chmod(directory, 0o700);
-	},
+	prepareDirectory: (directory, platform, binaryPath) =>
+		platform === 'win32'
+			? mkdir(directory, { mode: 0o700, recursive: true }).then(() => undefined)
+			: preparePosixHostRuntimeDirectory(binaryPath, directory),
 	wait: (milliseconds) => wait(milliseconds),
 };
 
@@ -95,13 +112,17 @@ export class DevelopmentHostRuntime {
 	get endpoint(): string {
 		return this.#platform === 'win32'
 			? `\\\\.\\pipe\\orchbee-terminal-host-${this.#endpointId}`
-			: path.join(this.#runtimeDirectory, `terminal-host-${this.#endpointId}.sock`);
+			: path.join(this.#runtimeDirectory, `${this.#endpointId}.s`);
 	}
 
 	async connect(): Promise<HostConnection> {
-		await this.#dependencies.prepareDirectory(this.#runtimeDirectory, this.#platform);
+		await this.#dependencies.prepareDirectory(
+			this.#runtimeDirectory,
+			this.#platform,
+			this.#binaryPath,
+		);
 		try {
-			return await this.#dependencies.connect(this.endpoint);
+			return await this.#connectOnce();
 		} catch {
 			await this.#dependencies.launch(this.#binaryPath, [
 				'serve',
@@ -117,7 +138,7 @@ export class DevelopmentHostRuntime {
 		let lastError = new Error('Development Terminal Host did not publish its endpoint.');
 		for (let attempt = 0; attempt < this.#attempts; attempt += 1) {
 			try {
-				return await this.#dependencies.connect(this.endpoint);
+				return await this.#connectOnce();
 			} catch (error) {
 				lastError =
 					error instanceof Error
@@ -129,5 +150,15 @@ export class DevelopmentHostRuntime {
 			}
 		}
 		throw lastError;
+	}
+
+	#connectOnce(): Promise<HostConnection> {
+		return this.#dependencies.connect(
+			this.endpoint,
+			this.#binaryPath,
+			this.#runtimeDirectory,
+			this.#endpointId,
+			this.#platform,
+		);
 	}
 }

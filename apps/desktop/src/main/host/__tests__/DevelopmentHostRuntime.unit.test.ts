@@ -18,18 +18,18 @@ describe('DevelopmentHostRuntime', () => {
 		};
 
 		expect(new DevelopmentHostRuntime({ ...common, platform: 'darwin' }).endpoint).toBe(
-			path.join(common.runtimeDirectory, `terminal-host-${common.endpointId}.sock`),
+			path.join(common.runtimeDirectory, `${common.endpointId}.s`),
 		);
 		expect(new DevelopmentHostRuntime({ ...common, platform: 'win32' }).endpoint).toBe(
 			`\\\\.\\pipe\\orchbee-terminal-host-${common.endpointId}`,
 		);
 	});
 
-	it('launches the explicit binary once and retries the bounded connection', async () => {
+	it('launches once after an unauthenticated probe and revalidates every bounded retry', async () => {
 		const connection = {} as HostConnection;
 		const connect = vi
 			.fn<DevelopmentHostRuntimeDependencies['connect']>()
-			.mockRejectedValueOnce(new Error('missing endpoint'))
+			.mockRejectedValueOnce(new Error('peer effective UID does not match'))
 			.mockRejectedValueOnce(new Error('starting'))
 			.mockResolvedValueOnce(connection);
 		const dependencies: DevelopmentHostRuntimeDependencies = {
@@ -57,6 +57,7 @@ describe('DevelopmentHostRuntime', () => {
 		expect(dependencies.prepareDirectory).toHaveBeenCalledWith(
 			path.resolve('/tmp/orchbee-runtime'),
 			'linux',
+			path.resolve('/opt/orchbee/orchbee-terminal-host'),
 		);
 		expect(dependencies.launch).toHaveBeenCalledOnce();
 		expect(dependencies.launch).toHaveBeenCalledWith(
@@ -72,6 +73,42 @@ describe('DevelopmentHostRuntime', () => {
 			],
 		);
 		expect(connect).toHaveBeenCalledTimes(3);
+		expect(connect).toHaveBeenNthCalledWith(
+			3,
+			path.join(path.resolve('/tmp/orchbee-runtime'), `${'cd'.repeat(16)}.s`),
+			path.resolve('/opt/orchbee/orchbee-terminal-host'),
+			path.resolve('/tmp/orchbee-runtime'),
+			'cd'.repeat(16),
+			'linux',
+		);
 		expect(dependencies.wait).toHaveBeenCalledWith(1);
+	});
+
+	it('requests native identity verification again on every Desktop reconnect', async () => {
+		const connection = {} as HostConnection;
+		const dependencies: DevelopmentHostRuntimeDependencies = {
+			connect: vi.fn<DevelopmentHostRuntimeDependencies['connect']>().mockResolvedValue(connection),
+			launch: vi.fn<DevelopmentHostRuntimeDependencies['launch']>().mockResolvedValue(undefined),
+			prepareDirectory: vi
+				.fn<DevelopmentHostRuntimeDependencies['prepareDirectory']>()
+				.mockResolvedValue(undefined),
+			wait: vi.fn<DevelopmentHostRuntimeDependencies['wait']>().mockResolvedValue(undefined),
+		};
+		const runtime = new DevelopmentHostRuntime(
+			{
+				binaryPath: path.resolve('/opt/orchbee/orchbee-terminal-host'),
+				endpointId: 'ef'.repeat(16),
+				platform: 'darwin',
+				runtimeDirectory: path.resolve('/private/runtime'),
+				terminalDefaults: { scrollbackBytes: 10_000_000 },
+			},
+			dependencies,
+		);
+
+		await expect(runtime.connect()).resolves.toBe(connection);
+		await expect(runtime.connect()).resolves.toBe(connection);
+		expect(dependencies.connect).toHaveBeenCalledTimes(2);
+		expect(dependencies.prepareDirectory).toHaveBeenCalledTimes(2);
+		expect(dependencies.launch).not.toHaveBeenCalled();
 	});
 });
