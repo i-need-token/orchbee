@@ -248,6 +248,22 @@ describe('semantic terminal input payloads', () => {
 		expect(decodeMouseInput(encoded.value)).toEqual({ ok: true, value: input });
 	});
 
+	it('round-trips the exact finite float32 coordinate boundary', () => {
+		const maximumFloat32 = 3.4028234663852886e38;
+		const input = {
+			action: MouseAction.release,
+			attachmentId,
+			button: MouseButton.left,
+			modifiers: noModifiers,
+			pressedButtons: 0,
+			x: maximumFloat32,
+			y: -maximumFloat32,
+		};
+		const encoded = encodeMouseInput(input);
+		if (!encoded.ok) throw new Error(encoded.detail);
+		expect(decodeMouseInput(encoded.value)).toEqual({ ok: true, value: input });
+	});
+
 	it('rejects mouse coordinates that cannot survive float32 encoding', () => {
 		const encoded = encodeMouseInput({
 			action: MouseAction.motion,

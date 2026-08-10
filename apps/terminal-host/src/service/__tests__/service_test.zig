@@ -65,6 +65,44 @@ fn expectSingleFailureCode(outgoing: *const Outgoing, expected_code: []const u8)
     try std.testing.expectEqualStrings(expected_code, failure.value.code);
 }
 
+fn expectInputAcceptedBytes(
+    outgoing: *const Outgoing,
+    attachment_id: core_module.AttachmentId,
+    expected_bytes: usize,
+) !void {
+    try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
+    const envelope = try protocol.validateTransportEnvelope(outgoing.records()[0]);
+    try std.testing.expectEqual(MessageKind.input_accepted, envelope.kind);
+    const InputAccepted = struct {
+        acceptedBytes: usize,
+        attachmentId: []const u8,
+    };
+    const accepted = try control_wire.decode(
+        InputAccepted,
+        std.testing.allocator,
+        envelope.payload,
+    );
+    defer accepted.deinit();
+    try std.testing.expectEqual(expected_bytes, accepted.value.acceptedBytes);
+    var attachment_buffer: [32]u8 = undefined;
+    try std.testing.expectEqualStrings(
+        identifierText(attachment_id, &attachment_buffer),
+        accepted.value.attachmentId,
+    );
+}
+
+fn parseTerminalInput(runtime: *terminal_runtime.TerminalRuntime, bytes: []const u8) void {
+    runtime.terminal_mutex.lock();
+    defer runtime.terminal_mutex.unlock();
+    runtime.stream.nextSlice(bytes);
+}
+
+fn inputEntryCount(runtime: *terminal_runtime.TerminalRuntime) usize {
+    runtime.input_mutex.lock();
+    defer runtime.input_mutex.unlock();
+    return runtime.input_entries.items.len;
+}
+
 fn testClientId() core_module.ClientId {
     return core_module.ClientId.fromBytes([_]u8{0x22} ** 16);
 }
@@ -820,6 +858,207 @@ test "I/O successful responses use supplied request contracts and publish input 
         frame_applied_contract,
         [_]u8{0x54} ** 16,
     );
+}
+
+test "semantic input service preserves negotiated limits and total mouse encoding" {
+    const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "ping -n 31 127.0.0.1 >nul" };
+    const arguments: []const []const u8 = if (target_builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    const create_payload = try testCreatePayload(
+        "55555555555555555555555555555555",
+        executable,
+        arguments,
+    );
+    defer std.testing.allocator.free(create_payload);
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    const client_id = "56565656565656565656565656565656";
+    try testHandshakeWithInputBytes(&service, &connection, client_id, 12_293);
+    var created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        create_payload,
+        [_]u8{0x55} ** 16,
+    );
+    defer created.deinit();
+    const terminal_id = service.runtime_aggregate.core().terminalKeys()[0];
+    const first_attachment_id = core_module.AttachmentId.fromBytes([_]u8{0x57} ** 16);
+    var first_attachment_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    const first_attach_payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":true,\"read\":true,\"resize\":true}},\"requestResizeLease\":true,\"terminalId\":\"{s}\"}}",
+        .{
+            identifierText(first_attachment_id, &first_attachment_buffer),
+            identifierText(terminal_id, &terminal_buffer),
+        },
+    );
+    defer std.testing.allocator.free(first_attach_payload);
+    var first_attached = try testRequest(
+        &service,
+        &connection,
+        MessageKind.attach_terminal,
+        .control_json,
+        first_attach_payload,
+        [_]u8{0x57} ** 16,
+    );
+    defer first_attached.deinit();
+    const runtime = findRuntime(&service, terminal_id).?;
+    parseTerminalInput(runtime, "\x1b[>24u");
+
+    const key_payload = try std.testing.allocator.alloc(u8, 32 + 4 + 4_096);
+    defer std.testing.allocator.free(key_payload);
+    @memset(key_payload, 0);
+    @memcpy(key_payload[0..16], &first_attachment_id.bytes);
+    key_payload[16] = 1;
+    std.mem.writeInt(u16, key_payload[22..24], 4, .little);
+    std.mem.writeInt(u32, key_payload[24..28], 'a', .little);
+    std.mem.writeInt(u32, key_payload[28..32], 4_096, .little);
+    @memcpy(key_payload[32..36], "KeyA");
+    @memset(key_payload[36..], 'a');
+
+    var rejected = try testRequest(
+        &service,
+        &connection,
+        MessageKind.key_input,
+        .raw_bytes,
+        key_payload,
+        [_]u8{0x58} ** 16,
+    );
+    defer rejected.deinit();
+    try expectSingleFailureCode(&rejected, "limit-exceeded");
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), inputEntryCount(runtime));
+
+    service.disconnect(&connection);
+    try testHandshakeWithInputBytes(&service, &connection, client_id, 12_294);
+    const attachment_id = core_module.AttachmentId.fromBytes([_]u8{0x59} ** 16);
+    var attachment_buffer: [32]u8 = undefined;
+    const attach_payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":true,\"read\":true,\"resize\":true}},\"requestResizeLease\":true,\"terminalId\":\"{s}\"}}",
+        .{
+            identifierText(attachment_id, &attachment_buffer),
+            identifierText(terminal_id, &terminal_buffer),
+        },
+    );
+    defer std.testing.allocator.free(attach_payload);
+    var attached = try testRequest(
+        &service,
+        &connection,
+        MessageKind.attach_terminal,
+        .control_json,
+        attach_payload,
+        [_]u8{0x59} ** 16,
+    );
+    defer attached.deinit();
+    @memcpy(key_payload[0..16], &attachment_id.bytes);
+
+    // An unpublished first entry keeps the writer from consuming committed
+    // entries while this test checks exact service-level queue charges.
+    var publication_barrier = try runtime.prepareRawInput("b");
+    defer publication_barrier.deinit();
+    try std.testing.expectEqual(@as(usize, 1), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 1), inputEntryCount(runtime));
+
+    var accepted_key = try testRequest(
+        &service,
+        &connection,
+        MessageKind.key_input,
+        .raw_bytes,
+        key_payload,
+        [_]u8{0x5a} ** 16,
+    );
+    defer accepted_key.deinit();
+    try expectInputAcceptedBytes(&accepted_key, attachment_id, 12_294);
+    try std.testing.expectEqual(@as(usize, 12_295), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 2), inputEntryCount(runtime));
+
+    parseTerminalInput(runtime, "\x1b[?1000h\x1b[?1006h");
+    var mouse_payload = [_]u8{0} ** 32;
+    @memcpy(mouse_payload[0..16], &attachment_id.bytes);
+    mouse_payload[16] = 0;
+    mouse_payload[17] = 10;
+    std.mem.writeInt(u16, mouse_payload[28..30], 1 << 9, .little);
+    var accepted_ten = try testRequest(
+        &service,
+        &connection,
+        MessageKind.mouse_input,
+        .raw_bytes,
+        &mouse_payload,
+        [_]u8{0x5b} ** 16,
+    );
+    defer accepted_ten.deinit();
+    try expectInputAcceptedBytes(&accepted_ten, attachment_id, 11);
+    try std.testing.expectEqual(@as(usize, 12_306), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 3), inputEntryCount(runtime));
+
+    mouse_payload[17] = 11;
+    std.mem.writeInt(u16, mouse_payload[28..30], 1 << 10, .little);
+    var accepted_eleven = try testRequest(
+        &service,
+        &connection,
+        MessageKind.mouse_input,
+        .raw_bytes,
+        &mouse_payload,
+        [_]u8{0x5c} ** 16,
+    );
+    defer accepted_eleven.deinit();
+    try expectInputAcceptedBytes(&accepted_eleven, attachment_id, 11);
+    try std.testing.expectEqual(@as(usize, 12_317), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 4), inputEntryCount(runtime));
+
+    parseTerminalInput(runtime, "\x1b[?1006l");
+    mouse_payload[16] = 1;
+    mouse_payload[17] = 1;
+    std.mem.writeInt(u32, mouse_payload[20..24], 0x7f7fffff, .little);
+    std.mem.writeInt(u16, mouse_payload[28..30], 0, .little);
+    var accepted_boundary = try testRequest(
+        &service,
+        &connection,
+        MessageKind.mouse_input,
+        .raw_bytes,
+        &mouse_payload,
+        [_]u8{0x5d} ** 16,
+    );
+    defer accepted_boundary.deinit();
+    try expectInputAcceptedBytes(&accepted_boundary, attachment_id, 6);
+    try std.testing.expectEqual(@as(usize, 12_323), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 5), inputEntryCount(runtime));
+
+    parseTerminalInput(runtime, "\x1b[?1000l");
+    mouse_payload[16] = 0;
+    mouse_payload[17] = 10;
+    std.mem.writeInt(u32, mouse_payload[20..24], 0, .little);
+    std.mem.writeInt(u16, mouse_payload[28..30], 1 << 9, .little);
+    var accepted_noop = try testRequest(
+        &service,
+        &connection,
+        MessageKind.mouse_input,
+        .raw_bytes,
+        &mouse_payload,
+        [_]u8{0x5e} ** 16,
+    );
+    defer accepted_noop.deinit();
+    try expectInputAcceptedBytes(&accepted_noop, attachment_id, 0);
+    try std.testing.expectEqual(@as(usize, 12_323), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 5), inputEntryCount(runtime));
 }
 
 test "handshake binds client and negotiates input bytes" {
@@ -3272,9 +3511,23 @@ fn testHandshake(
     connection: *ConnectionState,
     client_id: []const u8,
 ) !void {
+    return testHandshakeWithInputBytes(service, connection, client_id, 2_048);
+}
+
+fn testHandshakeWithInputBytes(
+    service: *HostService,
+    connection: *ConnectionState,
+    client_id: []const u8,
+    input_bytes: usize,
+) !void {
     try std.testing.expectEqual(
         MessageKind.hello_accepted,
-        try testHandshakeResponseKind(service, connection, client_id),
+        try testHandshakeResponseKindWithInputBytes(
+            service,
+            connection,
+            client_id,
+            input_bytes,
+        ),
     );
 }
 
@@ -3283,11 +3536,21 @@ fn testHandshakeResponseKind(
     connection: *ConnectionState,
     client_id: []const u8,
 ) !u16 {
+    return testHandshakeResponseKindWithInputBytes(service, connection, client_id, 2_048);
+}
+
+fn testHandshakeResponseKindWithInputBytes(
+    service: *HostService,
+    connection: *ConnectionState,
+    client_id: []const u8,
+    input_bytes: usize,
+) !u16 {
     const payload = try std.fmt.allocPrint(
         std.testing.allocator,
-        "{{\"clientId\":\"{s}\",\"frameBytes\":1048576,\"inputBytes\":2048,\"protocol\":{{\"major\":{d},\"minor\":{d},\"patch\":{d}}},\"rowWindowBytes\":4096,\"supportedOptionalFeatures\":[]}}",
+        "{{\"clientId\":\"{s}\",\"frameBytes\":1048576,\"inputBytes\":{d},\"protocol\":{{\"major\":{d},\"minor\":{d},\"patch\":{d}}},\"rowWindowBytes\":4096,\"supportedOptionalFeatures\":[]}}",
         .{
             client_id,
+            input_bytes,
             protocol.current_protocol_major,
             protocol.current_protocol_minor,
             protocol.current_protocol_patch,

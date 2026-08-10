@@ -375,6 +375,41 @@ fn waitForWriterStop(runtime: *TerminalRuntime) void {
     runtime.input_mutex.unlock();
 }
 
+fn createIdleRuntime(options: subject.Options) !*TerminalRuntime {
+    return createIdleRuntimeWithGeometry(80, 24, options);
+}
+
+fn createIdleRuntimeWithGeometry(
+    columns: u16,
+    rows: u16,
+    options: subject.Options,
+) !*TerminalRuntime {
+    const builtin = @import("builtin");
+    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
+    const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 31 127.0.0.1 >nul" };
+    const arguments = if (builtin.os.tag == .windows) &windows_arguments else &posix_arguments;
+    return TerminalRuntime.createWithOptions(std.testing.allocator, .{
+        .arguments = arguments,
+        .columns = columns,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = executable,
+        .rows = rows,
+    }, options);
+}
+
+fn parseTerminalInput(runtime: *TerminalRuntime, bytes: []const u8) void {
+    runtime.terminal_mutex.lock();
+    defer runtime.terminal_mutex.unlock();
+    runtime.stream.nextSlice(bytes);
+}
+
 const WriterPause = enum {
     copied,
     started,
@@ -2203,6 +2238,295 @@ test "semantic input limits apply to encoded terminal bytes" {
         runtime.enqueueTextInputWithLimit("abcd", 3),
     );
     try std.testing.expectEqual(@as(usize, 0), try runtime.enqueueFocusInputWithLimit(true, 0));
+    try runtime.forceTerminate();
+}
+
+test "finite mouse coordinates remain bounded across tracking modes and formats" {
+    const runtime = try createIdleRuntime(.{
+        .cell_pixel_height = 16,
+        .cell_pixel_width = 8,
+    });
+    defer runtime.destroy();
+
+    const maximum_finite: f32 = @bitCast(@as(u32, 0x7f7fffff));
+    parseTerminalInput(runtime, "\x1b[?1000h");
+    var boundary_release = try runtime.prepareMouseInput(.{
+        .action = .{ .release = .left },
+        .modifiers = .{},
+        .pressed_buttons = .{},
+        .x = maximum_finite,
+        .y = 0,
+    }, std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(u8, "\x1b[M#p!", boundary_release.bytes.?);
+    boundary_release.deinit();
+
+    const clear_modes =
+        "\x1b[?1000l\x1b[?1002l\x1b[?1003l" ++
+        "\x1b[?1005l\x1b[?1006l\x1b[?1015l\x1b[?1016l";
+    const tracking_modes = [_][]const u8{
+        "\x1b[?1000h",
+        "\x1b[?1002h",
+        "\x1b[?1003h",
+    };
+    const formats = [_][]const u8{
+        "",
+        "\x1b[?1005h",
+        "\x1b[?1006h",
+        "\x1b[?1015h",
+        "\x1b[?1016h",
+    };
+    const positions = [_][2]f32{
+        .{ maximum_finite, 0 },
+        .{ -maximum_finite, 0 },
+        .{ 0, maximum_finite },
+        .{ 0, -maximum_finite },
+    };
+    for (tracking_modes) |tracking_mode| {
+        for (formats) |format| {
+            parseTerminalInput(runtime, clear_modes);
+            parseTerminalInput(runtime, tracking_mode);
+            parseTerminalInput(runtime, format);
+            for (positions) |position| {
+                var prepared = try runtime.prepareMouseInput(.{
+                    .action = .{ .release = .left },
+                    .modifiers = .{},
+                    .pressed_buttons = .{},
+                    .x = position[0],
+                    .y = position[1],
+                }, std.math.maxInt(usize));
+                try std.testing.expect(prepared.byteCount() > 0);
+                try std.testing.expect(prepared.byteCount() <= subject.max_mouse_encoded_bytes);
+                prepared.deinit();
+            }
+        }
+    }
+
+    parseTerminalInput(runtime, clear_modes ++ "\x1b[?1000h");
+    var outside_press = try runtime.prepareMouseInput(.{
+        .action = .{ .press = .left },
+        .modifiers = .{},
+        .pressed_buttons = .{},
+        .x = maximum_finite,
+        .y = 0,
+    }, std.math.maxInt(usize));
+    try std.testing.expectEqual(@as(usize, 0), outside_press.byteCount());
+    outside_press.deinit();
+
+    parseTerminalInput(runtime, clear_modes ++ "\x1b[?1002h\x1b[?1006h");
+    var outside_drag = try runtime.prepareMouseInput(.{
+        .action = .{ .motion = .{ .drag = .left } },
+        .modifiers = .{},
+        .pressed_buttons = .{ .left = true },
+        .x = maximum_finite,
+        .y = 0,
+    }, std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(u8, "\x1b[<32;80;1M", outside_drag.bytes.?);
+    outside_drag.deinit();
+
+    parseTerminalInput(runtime, clear_modes ++ "\x1b[?1000h\x1b[?1016h");
+    var representable_pixels = try runtime.prepareMouseInput(.{
+        .action = .{ .release = .left },
+        .modifiers = .{},
+        .pressed_buttons = .{},
+        .x = 650,
+        .y = 10,
+    }, std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(
+        u8,
+        "\x1b[<0;650;10m",
+        representable_pixels.bytes.?,
+    );
+    representable_pixels.deinit();
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try runtime.forceTerminate();
+}
+
+test "finite mouse normalization is safe at maximum legal pixel geometry" {
+    const runtime = try createIdleRuntimeWithGeometry(17, 17, .{
+        .cell_pixel_height = 3_855,
+        .cell_pixel_width = 3_855,
+    });
+    defer runtime.destroy();
+    const maximum_finite: f32 = @bitCast(@as(u32, 0x7f7fffff));
+
+    parseTerminalInput(runtime, "\x1b[?1000h");
+    var grid_release = try runtime.prepareMouseInput(.{
+        .action = .{ .release = .left },
+        .modifiers = .{},
+        .pressed_buttons = .{},
+        .x = maximum_finite,
+        .y = maximum_finite,
+    }, std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(u8, "\x1b[M#11", grid_release.bytes.?);
+    grid_release.deinit();
+
+    parseTerminalInput(runtime, "\x1b[?1016h");
+    var positive_pixels = try runtime.prepareMouseInput(.{
+        .action = .{ .release = .left },
+        .modifiers = .{},
+        .pressed_buttons = .{},
+        .x = maximum_finite,
+        .y = maximum_finite,
+    }, std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(
+        u8,
+        "\x1b[<0;2147483520;2147483520m",
+        positive_pixels.bytes.?,
+    );
+    positive_pixels.deinit();
+
+    var negative_pixels = try runtime.prepareMouseInput(.{
+        .action = .{ .release = .left },
+        .modifiers = .{},
+        .pressed_buttons = .{},
+        .x = -maximum_finite,
+        .y = -maximum_finite,
+    }, std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(
+        u8,
+        "\x1b[<0;-2147483648;-2147483648m",
+        negative_pixels.bytes.?,
+    );
+    negative_pixels.deinit();
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try runtime.forceTerminate();
+}
+
+test "maximum key text uses the negotiated encoded-byte limit" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+    parseTerminalInput(runtime, "\x1b[>24u");
+
+    const a_text = [_]u8{'a'} ** 4096;
+    const a_input: subject.KeyInput = .{
+        .action = .press,
+        .composing = false,
+        .consumed_modifiers = .{},
+        .key = "KeyA",
+        .modifiers = .{},
+        .text = &a_text,
+        .unshifted_codepoint = 'a',
+    };
+    try std.testing.expectError(
+        error.InputLimitExceeded,
+        runtime.prepareKeyInput(a_input, 12_293),
+    );
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+
+    var prepared_a = try runtime.prepareKeyInput(a_input, 12_294);
+    try std.testing.expectEqual(@as(usize, 12_294), prepared_a.byteCount());
+    try std.testing.expectEqual(@as(usize, 12_294), runtime.pendingInputBytes());
+    prepared_a.deinit();
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+
+    const d_text = [_]u8{'d'} ** 4096;
+    var prepared_d = try runtime.prepareKeyInput(.{
+        .action = .press,
+        .composing = false,
+        .consumed_modifiers = .{},
+        .key = "KeyD",
+        .modifiers = .{},
+        .text = &d_text,
+        .unshifted_codepoint = 'd',
+    }, 16_391);
+    try std.testing.expectEqual(@as(usize, 16_391), prepared_d.byteCount());
+    prepared_d.deinit();
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+
+    var failing = std.testing.FailingAllocator.init(
+        std.testing.allocator,
+        .{ .fail_index = 0 },
+    );
+    const runtime_allocator = runtime.allocator;
+    runtime.allocator = failing.allocator();
+    const allocation_result = runtime.prepareKeyInput(a_input, 12_294);
+    runtime.allocator = runtime_allocator;
+    try std.testing.expectError(error.OutOfMemory, allocation_result);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try runtime.forceTerminate();
+}
+
+test "every admitted mouse button has a normal SGR encoding" {
+    const runtime = try createIdleRuntime(.{
+        .cell_pixel_height = 16,
+        .cell_pixel_width = 8,
+    });
+    defer runtime.destroy();
+    parseTerminalInput(runtime, "\x1b[?1000h\x1b[?1006h");
+
+    const cases = [_]struct {
+        button: protocol.MouseButton,
+        expected: []const u8,
+    }{
+        .{ .button = .left, .expected = "\x1b[<0;1;1M" },
+        .{ .button = .right, .expected = "\x1b[<2;1;1M" },
+        .{ .button = .middle, .expected = "\x1b[<1;1;1M" },
+        .{ .button = .four, .expected = "\x1b[<64;1;1M" },
+        .{ .button = .five, .expected = "\x1b[<65;1;1M" },
+        .{ .button = .six, .expected = "\x1b[<66;1;1M" },
+        .{ .button = .seven, .expected = "\x1b[<67;1;1M" },
+        .{ .button = .eight, .expected = "\x1b[<128;1;1M" },
+        .{ .button = .nine, .expected = "\x1b[<129;1;1M" },
+        .{ .button = .ten, .expected = "\x1b[<130;1;1M" },
+        .{ .button = .eleven, .expected = "\x1b[<131;1;1M" },
+    };
+    for (cases) |case| {
+        var prepared = try runtime.prepareMouseInput(.{
+            .action = .{ .press = case.button },
+            .modifiers = .{},
+            .pressed_buttons = .{},
+            .x = 0,
+            .y = 0,
+        }, std.math.maxInt(usize));
+        try std.testing.expectEqualSlices(u8, case.expected, prepared.bytes.?);
+        prepared.deinit();
+    }
+
+    const clear_modes =
+        "\x1b[?1000l\x1b[?1002l\x1b[?1003l" ++
+        "\x1b[?1005l\x1b[?1006l\x1b[?1015l\x1b[?1016l";
+    const tracking_modes = [_][]const u8{
+        "\x1b[?1000h",
+        "\x1b[?1002h",
+        "\x1b[?1003h",
+    };
+    const formats = [_][]const u8{
+        "",
+        "\x1b[?1005h",
+        "\x1b[?1006h",
+        "\x1b[?1015h",
+        "\x1b[?1016h",
+    };
+    for (tracking_modes) |tracking_mode| {
+        for (formats) |format| {
+            parseTerminalInput(runtime, clear_modes);
+            parseTerminalInput(runtime, tracking_mode);
+            parseTerminalInput(runtime, format);
+            for ([_]protocol.MouseButton{ .ten, .eleven }) |button| {
+                var prepared = try runtime.prepareMouseInput(.{
+                    .action = .{ .press = button },
+                    .modifiers = .{},
+                    .pressed_buttons = .{},
+                    .x = 0,
+                    .y = 0,
+                }, std.math.maxInt(usize));
+                try std.testing.expect(prepared.byteCount() > 0);
+                prepared.deinit();
+            }
+        }
+    }
+
+    parseTerminalInput(runtime, clear_modes);
+    var suppressed = try runtime.prepareMouseInput(.{
+        .action = .{ .press = .ten },
+        .modifiers = .{},
+        .pressed_buttons = .{},
+        .x = 0,
+        .y = 0,
+    }, std.math.maxInt(usize));
+    try std.testing.expectEqual(@as(usize, 0), suppressed.byteCount());
+    suppressed.deinit();
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
     try runtime.forceTerminate();
 }
 

@@ -217,3 +217,20 @@ test "semantic input preserves U+FEFF and rejects a BOM-prefixed key" {
     @memcpy(key_payload[32..37], "\xef\xbb\xbfF1");
     try std.testing.expectError(error.InvalidField, subject.validateKeyInput(&key_payload));
 }
+
+test "mouse input admits the exact finite float32 coordinate boundary" {
+    var payload = [_]u8{0} ** 32;
+    @memset(payload[0..16], 0x22);
+    payload[16] = 1;
+    payload[17] = 1;
+    std.mem.writeInt(u32, payload[20..24], 0x7f7fffff, .little);
+    std.mem.writeInt(u32, payload[24..28], 0xff7fffff, .little);
+
+    const decoded = try subject.validateMouseInput(&payload);
+    const mouse = switch (decoded.input) {
+        .mouse => |value| value,
+        else => return error.TestUnexpectedResult,
+    };
+    try std.testing.expectEqual(@as(u32, 0x7f7fffff), @as(u32, @bitCast(mouse.x)));
+    try std.testing.expectEqual(@as(u32, 0xff7fffff), @as(u32, @bitCast(mouse.y)));
+}
