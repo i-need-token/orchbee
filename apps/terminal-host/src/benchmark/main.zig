@@ -82,6 +82,9 @@ fn runBenchmark(allocator: std.mem.Allocator, config: Config) !void {
     if (config.file_path != null and builtin.os.tag == .windows) {
         return error.FileFixtureUnsupported;
     }
+    if (config.file_path != null) {
+        try requireFileFixtureUtilities(allocator);
+    }
     const executable = try std.fs.selfExePathAlloc(allocator);
     defer allocator.free(executable);
     var fixture_input: ?std.fs.File = null;
@@ -94,8 +97,8 @@ fn runBenchmark(allocator: std.mem.Allocator, config: Config) !void {
     const byte_text = try std.fmt.allocPrint(allocator, "{d}", .{byte_count});
     defer allocator.free(byte_text);
     const generated_arguments = [_][]const u8{ "--emit", byte_text };
-    const file_arguments = [_][]const u8{ "-p", "/bin/cat", "-n" };
-    const child_executable = if (config.file_path == null) executable else "/usr/bin/time";
+    const file_arguments = [_][]const u8{ "-p", "cat", "-n" };
+    const child_executable = if (config.file_path == null) executable else "time";
     const child_arguments: []const []const u8 = if (config.file_path == null)
         &generated_arguments
     else
@@ -142,11 +145,7 @@ fn runBenchmark(allocator: std.mem.Allocator, config: Config) !void {
                 frames += 1;
                 allocator.free(frame.allocation);
             }
-            if (completion.child_exited and completion.pty_drained and
-                acknowledged_revision != null and acknowledged_revision.? >= completion.final_revision)
-            {
-                break;
-            }
+            if (activePollDone(completion, acknowledged_revision)) break;
             next_display_deadline = nextDisplayDeadline(
                 next_display_deadline,
                 timer.read(),
@@ -222,10 +221,52 @@ fn openRegularFixture(path: []const u8) !FixtureInput {
     return .{ .byte_count = status.size, .file = input };
 }
 
+/// POSIX fallback search path when the benchmark's own environment carries no
+/// PATH. Mirrors the runtime platform's POSIX default so the pre-launch check
+/// agrees with the child's actual executable resolution.
+const default_utility_search_path = "/usr/local/bin:/bin/:/usr/bin";
+
+/// True when `utility` resolves to an executable on the given PATH. Empty
+/// PATH components resolve against the current directory, matching the runtime
+/// platform's effective-PATH semantics.
+fn executableOnPath(path: []const u8, utility: []const u8) bool {
+    var iterator = std.mem.splitScalar(u8, path, ':');
+    while (iterator.next()) |directory| {
+        const prefix = if (directory.len == 0) "." else directory;
+        const separator = if (std.mem.endsWith(u8, prefix, "/")) "" else "/";
+        var buffer: [std.posix.PATH_MAX]u8 = undefined;
+        const candidate = std.fmt.bufPrint(&buffer, "{s}{s}{s}", .{ prefix, separator, utility }) catch continue;
+        if (std.posix.access(candidate, std.posix.X_OK)) |_| {
+            return true;
+        } else |_| {}
+    }
+    return false;
+}
+
+/// The file-fixture workload launches `time -p cat -n` resolved through the
+/// child's effective PATH rather than fixed FHS paths. Both utilities must be
+/// reachable on that PATH before any process or PTY effect so an unavailable
+/// utility fails with a clear, deterministic error.
+fn requireFileFixtureUtilitiesOnPath(path: []const u8) !void {
+    if (!executableOnPath(path, "time")) return error.BenchmarkUtilityUnavailable;
+    if (!executableOnPath(path, "cat")) return error.BenchmarkUtilityUnavailable;
+}
+
+fn requireFileFixtureUtilities(allocator: std.mem.Allocator) !void {
+    if (builtin.os.tag == .windows) return;
+    var environment = try std.process.getEnvMap(allocator);
+    defer environment.deinit();
+    const path = environment.get("PATH") orelse default_utility_search_path;
+    try requireFileFixtureUtilitiesOnPath(path);
+}
+
+/// Live runtime health while the active loop is still polling. `.pending` is
+/// the runtime's ordinary in-progress state (gated workers and the child are
+/// still settling) and continues polling; only a classified failure ends the
+/// benchmark.
 fn validateRuntimeHealth(completion: terminal_runtime.Completion) !void {
     return switch (completion.classification) {
-        .pending => error.RuntimeCompletionPending,
-        .normal => {},
+        .pending, .normal => {},
         .failed => |failure| switch (failure) {
             .process_observation => error.ProcessObservationFailed,
             .pty_read => error.PtyReadFailed,
@@ -237,8 +278,29 @@ fn validateRuntimeHealth(completion: terminal_runtime.Completion) !void {
     };
 }
 
+/// The active loop is complete only once the runtime has classified normal
+/// (child exit, output drain, and writer quiescence are all guaranteed) and
+/// the acknowledged projection revision has caught up to the final revision.
+/// Pending is the ordinary live state and continues; failed is surfaced by
+/// live health validation before this decision is reached.
+fn activePollDone(completion: terminal_runtime.Completion, acknowledged_revision: ?u64) bool {
+    return switch (completion.classification) {
+        .pending, .failed => false,
+        .normal => acknowledged_revision != null and acknowledged_revision.? >= completion.final_revision,
+    };
+}
+
+/// Final completion validation after the benchmark loop has settled. Only a
+/// normal classification with a successful child exit is accepted; pending is
+/// rejected here because the loop has already decided the runtime is done.
 fn validateCompletion(completion: terminal_runtime.Completion) !void {
     try validateRuntimeHealth(completion);
+    switch (completion.classification) {
+        .pending => return error.RuntimeCompletionPending,
+        .normal => {},
+        // validateRuntimeHealth already surfaced every failed classification.
+        .failed => unreachable,
+    }
     const exit_result = completion.exit_result orelse return error.MissingExitResult;
     switch (exit_result) {
         .exit_code => |code| if (code != 0) return error.ChildExitedNonZero,
@@ -269,11 +331,15 @@ fn optionalDelta(after: ?u64, before: ?u64) ?u64 {
 }
 
 pub const testing = if (builtin.is_test) struct {
+    pub const activePollDoneFn = activePollDone;
     pub const BenchmarkOptionsModule = benchmark_options;
     pub const buildStartupPlanFn = buildStartupPlan;
     pub const Completion = terminal_runtime.Completion;
     pub const display_interval_ns = display_interval_nanoseconds;
+    pub const executableOnPathFn = executableOnPath;
     pub const nextDisplayDeadlineFn = nextDisplayDeadline;
     pub const openRegularFixtureFn = openRegularFixture;
+    pub const requireFileFixtureUtilitiesOnPathFn = requireFileFixtureUtilitiesOnPath;
     pub const validateCompletionFn = validateCompletion;
+    pub const validateRuntimeHealthFn = validateRuntimeHealth;
 } else struct {};

@@ -367,3 +367,85 @@ describe('semantic terminal input payloads', () => {
 		expect(FocusInputSchema.safeParse({ attachmentId, focused: true }).success).toBe(true);
 	});
 });
+
+describe('semantic-input rejection parity with the native mirror', () => {
+	const fPlusOneKeyPayload = new Uint8Array([
+		0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+		0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+		0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x46, 0x2b, 0x31,
+	]);
+
+	it('rejects the non-contract F+1 key code as invalid-field', () => {
+		expect(decodeKeyInput(fPlusOneKeyPayload)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+	});
+
+	it('reports length-mismatch for a zero-declared text length with a body', () => {
+		const encoded = encodeTextInput({ attachmentId, text: 'abc' });
+		if (!encoded.ok) throw new Error(encoded.detail);
+		const zeroLength = encoded.value.slice();
+		zeroLength[16] = 0;
+		zeroLength[17] = 0;
+		zeroLength[18] = 0;
+		zeroLength[19] = 0;
+		expect(decodeTextInput(zeroLength)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.lengthMismatch, ok: false }),
+		);
+		expect(decodePasteInput(zeroLength)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.lengthMismatch, ok: false }),
+		);
+	});
+
+	it('rejects a header-only text payload as invalid-field', () => {
+		const headerOnly = new Uint8Array(20);
+		headerOnly.set(new Uint8Array(Array.from({ length: 16 }, () => 0x22)));
+		expect(decodeTextInput(headerOnly)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+	});
+
+	it('classifies pressed-buttons overflow as invalid-field', () => {
+		const encoded = encodeMouseInput({
+			action: MouseAction.motion,
+			attachmentId,
+			button: MouseButton.left,
+			modifiers: { ...noModifiers, alt: true },
+			pressedButtons: 1,
+			x: 10.5,
+			y: -2.25,
+		});
+		if (!encoded.ok) throw new Error(encoded.detail);
+		const bit11 = encoded.value.slice();
+		bit11[29] = (bit11[29] ?? 0) | 0x08; // pressed-buttons bit 11 (0x0800)
+		expect(decodeMouseInput(bit11)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+	});
+
+	it('retains unknown-required-flag for reserved and unknown modifier bits', () => {
+		const encoded = encodeMouseInput({
+			action: MouseAction.motion,
+			attachmentId,
+			button: MouseButton.left,
+			modifiers: { ...noModifiers, alt: true },
+			pressedButtons: 1,
+			x: 10.5,
+			y: -2.25,
+		});
+		if (!encoded.ok) throw new Error(encoded.detail);
+		const reserved = encoded.value.slice();
+		reserved[30] = 1;
+		expect(decodeMouseInput(reserved)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
+		);
+		const unknownModifier = encoded.value.slice();
+		unknownModifier[18] = 0x00;
+		unknownModifier[19] = 0x10; // modifier bit 12
+		expect(decodeMouseInput(unknownModifier)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
+		);
+	});
+});

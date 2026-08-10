@@ -1505,6 +1505,101 @@ test "native semantic-input decoder rejects non-canonical intent with matching e
     try std.testing.expectEqual(protocol.MouseButton.four, wheel_button);
 }
 
+fn buildKeyInputPayload(allocator: std.mem.Allocator, key: []const u8) ![]u8 {
+    const bytes = try allocator.alloc(u8, 32 + key.len);
+    @memset(bytes, 0);
+    @memset(bytes[0..16], 0x01); // non-zero attachment id
+    bytes[16] = 1; // action: press
+    bytes[17] = 0; // flags: not composing
+    std.mem.writeInt(u16, bytes[22..24], @intCast(key.len), .little);
+    @memcpy(bytes[32..][0..key.len], key);
+    return bytes;
+}
+
+fn buildTextInputPayload(allocator: std.mem.Allocator, text_length: u32, body: []const u8) ![]u8 {
+    const bytes = try allocator.alloc(u8, 20 + body.len);
+    @memset(bytes, 0);
+    @memset(bytes[0..16], 0x22); // non-zero attachment id
+    std.mem.writeInt(u32, bytes[16..20], text_length, .little);
+    @memcpy(bytes[20..], body);
+    return bytes;
+}
+
+test "native key decoder rejects the non-contract F+1 function code" {
+    const allocator = std.testing.allocator;
+    const key = try buildKeyInputPayload(allocator, "F+1");
+    defer allocator.free(key);
+    // The reachable 35-byte payload: attachment 0x01 x16, press, zero flags,
+    // modifiers, consumed modifiers, codepoint and text length, key length 3,
+    // and the bytes 0x46 0x2b 0x31 ("F+1") as the function key.
+    try std.testing.expectEqual(@as(usize, 35), key.len);
+    try std.testing.expectEqualSlices(u8, &([_]u8{0x01} ** 16), key[0..16]);
+    try std.testing.expectEqualSlices(u8, "F+1", key[32..]);
+    try std.testing.expectError(error.InvalidField, protocol.validateKeyInput(key));
+}
+
+test "native key decoder still admits contract function codes F1..F25" {
+    const allocator = std.testing.allocator;
+    for ([_][]const u8{ "F1", "F2", "F9", "F10", "F25" }) |key_name| {
+        const key = try buildKeyInputPayload(allocator, key_name);
+        defer allocator.free(key);
+        const decoded = try protocol.validateKeyInput(key);
+        const value = switch (decoded.input) {
+            .key => |value| value,
+            else => return error.TestUnexpectedResult,
+        };
+        try std.testing.expectEqualStrings(key_name, value.key);
+    }
+}
+
+test "native text decoder checks declared length before rejecting empty text" {
+    const allocator = std.testing.allocator;
+    // Reachable corruption: a valid nonempty TextInput with its little-endian
+    // declared length (bytes 16..20) zeroed while the body is retained.
+    const zero_length_text = try allocator.dupe(u8, text_input_fixture);
+    defer allocator.free(zero_length_text);
+    std.mem.writeInt(u32, zero_length_text[16..20], 0, .little);
+    try std.testing.expectError(
+        error.LengthMismatch,
+        protocol.validateCommittedTextInput(zero_length_text),
+    );
+    try std.testing.expectError(error.LengthMismatch, protocol.validatePasteInput(zero_length_text));
+
+    // A header-only payload with a truly empty declared text is an invalid
+    // field, matching the TypeScript min-length rejection of empty text.
+    const empty_payload = try buildTextInputPayload(allocator, 0, "");
+    defer allocator.free(empty_payload);
+    try std.testing.expectError(
+        error.InvalidField,
+        protocol.validateCommittedTextInput(empty_payload),
+    );
+}
+
+test "native mouse decoder classifies pressed-buttons overflow as an invalid field" {
+    const allocator = std.testing.allocator;
+    const mouse = try allocator.dupe(u8, mouse_input_fixture);
+    defer allocator.free(mouse);
+    // pressed_buttons is the u16 at bytes 28..30; setting byte 29 bit 3 adds
+    // pressed-buttons bit 11 (0x0800) to the fixture's pressed left button.
+    mouse[29] |= 0x08;
+    const pressed = std.mem.readInt(u16, mouse[28..30], .little);
+    try std.testing.expect(pressed & 0x0800 != 0);
+    try std.testing.expectError(error.InvalidField, protocol.validateMouseInput(mouse));
+}
+
+test "native mouse decoder retains unknown-required-flag for reserved and modifier bits" {
+    const allocator = std.testing.allocator;
+    const reserved = try allocator.dupe(u8, mouse_input_fixture);
+    defer allocator.free(reserved);
+    std.mem.writeInt(u16, reserved[30..32], 1, .little);
+    try std.testing.expectError(error.UnknownRequiredFlag, protocol.validateMouseInput(reserved));
+
+    const unknown_modifier = try allocator.dupe(u8, mouse_input_fixture);
+    defer allocator.free(unknown_modifier);
+    std.mem.writeInt(u16, unknown_modifier[18..20], 1 << 12, .little);
+    try std.testing.expectError(error.UnknownRequiredFlag, protocol.validateMouseInput(unknown_modifier));
+}
+
 test "native decoder rejects malformed magic and unknown required extension" {
     const allocator = std.testing.allocator;
     const invalid_magic = try allocator.dupe(u8, frame_fixture);

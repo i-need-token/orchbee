@@ -66,7 +66,9 @@ fn validKeyCode(key: []const u8) bool {
         return true;
     }
     if (key.len >= 2 and key.len <= 3 and key[0] == 'F') {
-        const number = std.fmt.parseInt(u8, key[1..], 10) catch 0;
+        // parseUnsigned rejects a leading '+' or '-', so a suffix such as
+        // "+1" can never decode as a valid function key; parseInt accepts it.
+        const number = std.fmt.parseUnsigned(u8, key[1..], 10) catch 0;
         if (number >= 1 and number <= 25 and (key.len == 2 or key[1] != '0')) return true;
     }
     inline for (.{
@@ -173,8 +175,8 @@ fn validateTextInput(bytes: []const u8) ProtocolError!AttachmentTextSummary {
     var reader = Reader.init(bytes, 0);
     const attachment_id = try copyIdentifier(try reader.readBytes(16));
     const text_length = try reader.readInt(u32);
-    if (text_length == 0) return error.InvalidField;
     if (text_length != bytes.len - 20) return error.LengthMismatch;
+    if (text_length == 0) return error.InvalidField;
     const text = try reader.readBytes(text_length);
     if (!std.unicode.utf8ValidateSlice(text)) return error.InvalidUtf8;
     return .{ .attachment_id = attachment_id, .text = text };
@@ -208,10 +210,11 @@ pub fn validateMouseInput(bytes: []const u8) ProtocolError!DecodedSemanticInput 
     const y: f32 = @bitCast(try reader.readInt(u32));
     const pressed_buttons = try reader.readInt(u16);
     const reserved = try reader.readInt(u16);
-    if (reserved != 0 or !modifiersHaveKnownBits(modifiers) or
-        pressed_buttons & ~@as(u16, 0x07ff) != 0)
-    {
+    if (reserved != 0 or !modifiersHaveKnownBits(modifiers)) {
         return error.UnknownRequiredFlag;
+    }
+    if (pressed_buttons & ~@as(u16, 0x07ff) != 0) {
+        return error.InvalidField;
     }
     if (!modifiersAreCanonical(modifiers) or action_code > 2 or button_code > 11 or
         (action_code != 2 and button_code == 0) or !std.math.isFinite(x) or !std.math.isFinite(y))

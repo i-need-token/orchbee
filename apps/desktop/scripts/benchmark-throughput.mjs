@@ -193,7 +193,7 @@ async function runGhosttyBenchmark(file, geometry, runNumber, ghosttyApplication
 	const command = [
 		`touch ${shellQuote(readyMarker)}`,
 		`while test ! -f ${shellQuote(triggerMarker)}; do sleep 0.01; done`,
-		`/usr/bin/time -p /bin/cat -n ${shellQuote(file)}`,
+		`time -p cat -n ${shellQuote(file)}`,
 		'command_status=$?',
 		`printf '%s\\n' "$command_status" > ${shellQuote(statusFile)}`,
 		`touch ${shellQuote(doneMarker)}`,
@@ -524,7 +524,7 @@ async function runDesktopBenchmark(file, runNumber) {
 		await wait(1_000);
 		const idleElectronProcesses = await application.evaluate(({ app }) => app.getAppMetrics());
 		const idleHost = readHostProcessMetrics(hostProcess);
-		const command = `/usr/bin/time -p /bin/cat -n ${shellQuote(file)}; exit`;
+		const command = `time -p cat -n ${shellQuote(file)}; exit`;
 		const input = page.getByRole('textbox');
 		await input.pressSequentially(command);
 		const started = performance.now();

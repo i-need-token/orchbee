@@ -285,3 +285,158 @@ test "Windows Job assignment failure terminates the suspended child" {
         windows.kernel32.WaitForSingleObject(process_information.hProcess, 5_000),
     );
 }
+
+fn windowsCandidateStrings(allocator: std.mem.Allocator, candidates: []const [:0]u16) ![][]const u8 {
+    const strings = try allocator.alloc([]const u8, candidates.len);
+    for (candidates, 0..) |candidate, index| {
+        strings[index] = try std.unicode.utf16LeToUtf8Alloc(allocator, std.mem.sliceTo(candidate, 0));
+    }
+    return strings;
+}
+
+fn hasString(strings: []const []const u8, needle: []const u8) bool {
+    for (strings) |string| {
+        if (std.mem.eql(u8, string, needle)) return true;
+    }
+    return false;
+}
+
+fn indexOfString(strings: []const []const u8, needle: []const u8) ?usize {
+    for (strings, 0..) |string, index| {
+        if (std.mem.eql(u8, string, needle)) return index;
+    }
+    return null;
+}
+
+test "Windows absent PATH does not reintroduce the excluded current directory" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const candidates = try subject.testing.windowsSearchCandidatesFn(
+        arena,
+        "probe",
+        "C:\\app",
+        "C:\\work",
+        "C:\\Windows\\System32",
+        false,
+        null,
+    );
+    const strings = try windowsCandidateStrings(arena, candidates);
+    try std.testing.expectEqual(@as(usize, 4), candidates.len);
+    try std.testing.expect(!hasString(strings, "C:\\work\\probe.exe"));
+    try std.testing.expect(!hasString(strings, "C:\\work\\probe"));
+    try std.testing.expect(hasString(strings, "C:\\app\\probe.exe"));
+    try std.testing.expect(hasString(strings, "C:\\Windows\\System32\\probe.exe"));
+}
+
+test "Windows explicit relative PATH entries resolve against the parent current directory" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const candidates = try subject.testing.windowsSearchCandidatesFn(
+        arena,
+        "probe",
+        "C:\\app",
+        "C:\\work",
+        "C:\\Windows\\System32",
+        false,
+        "bin;other",
+    );
+    const strings = try windowsCandidateStrings(arena, candidates);
+    try std.testing.expect(hasString(strings, "C:\\work\\bin\\probe.exe"));
+    try std.testing.expect(hasString(strings, "C:\\work\\other\\probe.exe"));
+    try std.testing.expect(!hasString(strings, "C:\\work\\probe.exe"));
+}
+
+test "Windows implicit current-directory slot follows the policy flag only" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const with_cwd = try subject.testing.windowsSearchCandidatesFn(
+        arena,
+        "probe",
+        "C:\\app",
+        "C:\\work",
+        "C:\\Windows\\System32",
+        true,
+        null,
+    );
+    const without_cwd = try subject.testing.windowsSearchCandidatesFn(
+        arena,
+        "probe",
+        "C:\\app",
+        "C:\\work",
+        "C:\\Windows\\System32",
+        false,
+        null,
+    );
+    const with_strings = try windowsCandidateStrings(arena, with_cwd);
+    const without_strings = try windowsCandidateStrings(arena, without_cwd);
+    try std.testing.expect(hasString(with_strings, "C:\\work\\probe.exe"));
+    try std.testing.expect(!hasString(without_strings, "C:\\work\\probe.exe"));
+    try std.testing.expectEqual(@as(usize, 5), with_cwd.len);
+    try std.testing.expectEqual(@as(usize, 4), without_cwd.len);
+}
+
+test "Windows drive-relative PATH components keep drive-relative semantics and search order" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const candidates = try subject.testing.windowsSearchCandidatesFn(
+        arena,
+        "probe",
+        "D:\\app",
+        "D:\\work",
+        "C:\\Windows\\System32",
+        false,
+        "C:tools;bin;C:\\Program Files\\tools;\\rooted;D:\\fully\\qualified;",
+    );
+    const strings = try windowsCandidateStrings(arena, candidates);
+
+    // Fixed application and system slots retain their existing precedence.
+    try std.testing.expect(hasString(strings, "D:\\app\\probe.exe"));
+    try std.testing.expect(hasString(strings, "C:\\Windows\\System32\\probe.exe"));
+    try std.testing.expect(hasString(strings, "C:\\Windows\\probe.exe"));
+
+    // A drive-relative component keeps its drive-relative syntax and is never
+    // prefixed with the parent current directory.
+    try std.testing.expect(hasString(strings, "C:tools\\probe.exe"));
+    try std.testing.expect(!hasString(strings, "D:\\work\\C:tools\\probe.exe"));
+
+    // Ordinary-relative, rooted, and fully qualified entries resolve exactly
+    // as before, and PATH entries retain their supplied search order.
+    const expected_path_order = [_][]const u8{
+        "C:tools\\probe.exe",
+        "D:\\work\\bin\\probe.exe",
+        "C:\\Program Files\\tools\\probe.exe",
+        "\\rooted\\probe.exe",
+        "D:\\fully\\qualified\\probe.exe",
+        "D:\\work\\probe.exe",
+    };
+    var previous_index: ?usize = null;
+    for (expected_path_order) |expected_string| {
+        const found_index = indexOfString(strings, expected_string) orelse
+            return error.TestExpectedResultMissing;
+        if (previous_index) |prior| try std.testing.expect(prior < found_index);
+        previous_index = found_index;
+    }
+}
+
+test "Windows drive-only PATH component joins without a backslash" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const candidates = try subject.testing.windowsSearchCandidatesFn(
+        arena,
+        "probe",
+        "D:\\app",
+        "D:\\work",
+        "C:\\Windows\\System32",
+        false,
+        "C:;D:\\work",
+    );
+    const strings = try windowsCandidateStrings(arena, candidates);
+    try std.testing.expect(hasString(strings, "C:probe.exe"));
+    try std.testing.expect(!hasString(strings, "C:\\probe.exe"));
+    try std.testing.expect(hasString(strings, "D:\\work\\probe.exe"));
+}

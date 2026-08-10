@@ -131,6 +131,8 @@ pnpm --filter @orchbee/terminal-host benchmark -- \
   --mode active
 ```
 
+The file-fixture mode runs the repository's fixed workload as `time -p cat -n`, resolving both utilities through the child's effective `PATH` rather than fixed FHS paths; the Desktop harness applies the same synchronized policy. A maintained POSIX environment needs `time` and `cat` reachable on `PATH`, and the benchmark reports a clear error otherwise.
+
 `ORCHBEE_TERMINAL_HOST_TRACE=1` enables bounded interaction timing records for the controlled Desktop benchmark harness. It is a test diagnostic, not product telemetry.
 
 Build output remains in ignored `.zig-cache/` and `zig-out/` directories.
