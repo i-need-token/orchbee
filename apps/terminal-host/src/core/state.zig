@@ -89,6 +89,11 @@ pub const HostCore = struct {
     broker: ?BrokerSession = null,
     epoch: HostEpoch,
     terminal_registry: TerminalRegistry,
+    /// Test-only: the active-projection-demand scan count captured from the
+    /// broker session when it disconnects. The session owns the live counter,
+    /// which is destroyed with the session; this field preserves it so a
+    /// disconnect teardown can assert its demand-query work afterwards.
+    last_active_read_demand_scans: usize = 0,
 
     pub fn init(allocator: std.mem.Allocator, epoch: HostEpoch) HostCore {
         return .{
@@ -131,6 +136,9 @@ pub const HostCore = struct {
     pub fn disconnect(self: *HostCore, connection_id: ConnectionId) TransitionOutcome {
         const broker = if (self.broker) |*active| active else return .idempotent;
         if (!broker.owns(connection_id)) return .idempotent;
+        if (target_builtin.is_test) {
+            self.last_active_read_demand_scans = broker_session.testing.activeReadDemandScans(broker);
+        }
         broker.deinit();
         self.broker = null;
         return .applied;
@@ -606,11 +614,8 @@ pub const HostCore = struct {
     ) CoreError!TransitionOutcome {
         const attachment = try self.resolveMutableAttachment(connection_id, attachment_id, .read);
         if (attachment.projectionDemand() == demand) return .idempotent;
-        if (demand == .active) {
-            attachment.projection.activate();
-        } else {
-            attachment.projection.pause();
-        }
+        const broker = if (self.broker) |*active| active else unreachable;
+        broker.applyProjectionDemand(attachment_id, demand);
         return .applied;
     }
 
@@ -806,10 +811,15 @@ pub const HostCore = struct {
         return attachment;
     }
 
-    pub fn hasActiveProjectionDemand(self: *const HostCore, terminal_id: TerminalId) bool {
+    pub fn hasActiveProjectionDemand(self: *HostCore, terminal_id: TerminalId) bool {
         if (self.terminal_registry.get(terminal_id) == null) return false;
         const broker = if (self.broker) |*active| active else return false;
         return broker.hasActiveProjectionDemand(terminal_id);
+    }
+
+    pub fn attachmentCountForTerminal(self: *const HostCore, terminal_id: TerminalId) usize {
+        const broker = if (self.broker) |*active| active else return 0;
+        return broker.attachmentCountForTerminal(terminal_id);
     }
 
     pub fn terminalCount(self: *const HostCore) usize {
@@ -932,6 +942,17 @@ pub const testing = if (@import("builtin").is_test) struct {
     ) ?[]const AttachmentId {
         const broker = if (core.broker) |*active| active else return null;
         return broker.idsForTerminal(terminal_id);
+    }
+
+    pub fn activeReadDemandScans(core: *const HostCore) usize {
+        const broker = if (core.broker) |*active| active else return core.last_active_read_demand_scans;
+        return broker_session.testing.activeReadDemandScans(broker);
+    }
+
+    pub fn resetActiveReadDemandScans(core: *HostCore) void {
+        core.last_active_read_demand_scans = 0;
+        const broker = if (core.broker) |*active| active else return;
+        broker_session.testing.resetActiveReadDemandScans(broker);
     }
 
     pub fn indexedAttachmentCount(core: *const HostCore) usize {

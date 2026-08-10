@@ -607,7 +607,11 @@ test "first attachment allocation failures leave no broker commit" {
         const resize_start = allocation_counter.resize_index;
         try addExpectedAttachments(&core, connection_id, terminal_id, &.{candidate});
         attach_allocation_count = allocation_counter.alloc_index - allocation_start;
-        try std.testing.expectEqual(@as(usize, 3), attach_allocation_count);
+        // The O(1) active-read-demand aggregate reserves its per-terminal
+        // entry at first attach, so a fresh terminal costs four allocations:
+        // the per-terminal ID list, its first entry, the demand-aggregate
+        // entry, and the attachment map entry.
+        try std.testing.expectEqual(@as(usize, 4), attach_allocation_count);
         try std.testing.expectEqual(
             resize_start,
             allocation_counter.resize_index,
@@ -1952,6 +1956,116 @@ test "active projection demand is aggregated across attachments" {
     try std.testing.expect(core.hasActiveProjectionDemand(terminal_id));
     _ = try core.detach(connection, second_attachment);
     try std.testing.expect(!core.hasActiveProjectionDemand(terminal_id));
+}
+
+fn expectActiveDemandAggregateExact(core: *HostCore) !void {
+    for (core.terminalKeys()) |terminal_id| {
+        var expected = false;
+        for (core.attachmentValues()) |attachment| {
+            if (!attachment.terminal_id.eql(terminal_id)) continue;
+            if (attachment.capabilities.read and attachment.projectionDemand() == .active) {
+                expected = true;
+                break;
+            }
+        }
+        try std.testing.expectEqual(
+            expected,
+            core.hasActiveProjectionDemand(terminal_id),
+        );
+    }
+}
+
+// THCR-026 regression: the O(1) per-terminal active-read-demand aggregate must
+// remain exact across demand transitions, swap removals, and final removal.
+test "active-demand aggregate stays exact across demand transitions and swap removals" {
+    var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 0x90));
+    defer core.deinit();
+    const connection: ConnectionId = 2;
+    _ = try core.connect(connection, testId(ClientId, 0x91));
+
+    const terminal_a = testId(TerminalId, 0x92);
+    const terminal_b = testId(TerminalId, 0x93);
+    const terminal_c = testId(TerminalId, 0x94);
+    for ([_]TerminalId{ terminal_a, terminal_b, terminal_c }, 0..) |terminal_id, index| {
+        _ = try core.createTerminal(
+            connection,
+            testId(CreationId, @intCast(0x95 + index)),
+            terminal_id,
+            [_]u8{@intCast(0x95 + index)} ** 32,
+            80,
+            24,
+        );
+    }
+
+    const read_a = testId(AttachmentId, 0xa0);
+    const read_b = testId(AttachmentId, 0xa1);
+    const read_c = testId(AttachmentId, 0xa2);
+    const input_b = testId(AttachmentId, 0xa3);
+    const read_d = testId(AttachmentId, 0xa4);
+    const resize_only = testId(AttachmentId, 0xa5);
+    // terminal_a: read_a, read_b; terminal_b: read_c, input_b, read_d;
+    // terminal_c: resize-only lease (never read-capable).
+    _ = try core.attach(connection, read_a, terminal_a, .{ .input = false, .read = true, .resize = false }, false);
+    _ = try core.attach(connection, read_b, terminal_a, .{ .input = false, .read = true, .resize = false }, false);
+    _ = try core.attach(connection, read_c, terminal_b, .{ .input = false, .read = true, .resize = false }, false);
+    _ = try core.attach(connection, input_b, terminal_b, .{ .input = true, .read = false, .resize = false }, false);
+    _ = try core.attach(connection, read_d, terminal_b, .{ .input = false, .read = true, .resize = false }, false);
+    _ = try core.attach(connection, resize_only, terminal_c, .{ .input = false, .read = false, .resize = true }, true);
+    try expectActiveDemandAggregateExact(&core);
+    try std.testing.expect(!core.hasActiveProjectionDemand(terminal_a));
+    try std.testing.expect(!core.hasActiveProjectionDemand(terminal_b));
+    try std.testing.expect(!core.hasActiveProjectionDemand(terminal_c));
+
+    // Activate a paused read on each terminal; the aggregate follows.
+    _ = try core.setProjectionDemand(connection, read_a, .active);
+    try std.testing.expect(core.hasActiveProjectionDemand(terminal_a));
+    try expectActiveDemandAggregateExact(&core);
+    _ = try core.setProjectionDemand(connection, read_d, .active);
+    try std.testing.expect(core.hasActiveProjectionDemand(terminal_b));
+    try expectActiveDemandAggregateExact(&core);
+
+    // Pause one active read while another remains active.
+    _ = try core.setProjectionDemand(connection, read_d, .paused);
+    try std.testing.expect(core.hasActiveProjectionDemand(terminal_a));
+    try std.testing.expect(!core.hasActiveProjectionDemand(terminal_b));
+    try expectActiveDemandAggregateExact(&core);
+
+    // Swap-remove a non-last paused read from terminal_a (list [read_a, read_b];
+    // removing read_a swaps read_b into its slot).
+    _ = try core.detach(connection, read_a);
+    try std.testing.expect(!core.hasActiveProjectionDemand(terminal_a));
+    try expectActiveDemandAggregateExact(&core);
+
+    // Swap-remove a non-last input-only from terminal_b (list [read_c, input_b,
+    // read_d]; removing input_b swaps read_d into its slot).
+    _ = try core.detach(connection, input_b);
+    try std.testing.expect(!core.hasActiveProjectionDemand(terminal_b));
+    try expectActiveDemandAggregateExact(&core);
+
+    // Activate read_c, then final-remove the last active-read attachment.
+    _ = try core.setProjectionDemand(connection, read_c, .active);
+    try std.testing.expect(core.hasActiveProjectionDemand(terminal_b));
+    try expectActiveDemandAggregateExact(&core);
+    _ = try core.detach(connection, read_c);
+    try std.testing.expect(!core.hasActiveProjectionDemand(terminal_b));
+    try expectActiveDemandAggregateExact(&core);
+
+    // A replacement attachment on the same terminal re-enters cleanly.
+    const replacement = testId(AttachmentId, 0xa6);
+    _ = try core.attach(connection, replacement, terminal_b, .{ .input = false, .read = true, .resize = false }, false);
+    try std.testing.expect(!core.hasActiveProjectionDemand(terminal_b));
+    try expectActiveDemandAggregateExact(&core);
+    _ = try core.setProjectionDemand(connection, replacement, .active);
+    try std.testing.expect(core.hasActiveProjectionDemand(terminal_b));
+    try expectActiveDemandAggregateExact(&core);
+
+    // Disconnect drains every terminal aggregate to zero while retaining them.
+    _ = core.disconnect(connection);
+    for ([_]TerminalId{ terminal_a, terminal_b, terminal_c }) |terminal_id| {
+        try std.testing.expect(!core.hasActiveProjectionDemand(terminal_id));
+        try std.testing.expect(core.findTerminal(terminal_id) != null);
+    }
+    try expectActiveDemandAggregateExact(&core);
 }
 
 test "recovery is exact and blocked projection requires explicit pause resume" {

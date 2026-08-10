@@ -1161,6 +1161,62 @@ test "disconnect removes all broker attachments without removing terminals" {
     );
 }
 
+// THCR-026 regression: disconnect used to re-scan the shrinking per-terminal
+// attachment list after every removal, so N input-only attachments on one
+// terminal caused N(N-1)/2 active-demand list visits and N projection-release
+// decisions. The repair keeps the demand query O(1) and performs a single-pass
+// teardown that releases projection resources at most once per terminal.
+test "disconnect teardown is linear for many input-only attachments" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x40),
+    );
+    const terminal_id = testId(core_module.TerminalId, 0x41);
+    _ = try aggregate.core().createTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x42),
+        terminal_id,
+        [_]u8{0x43} ** 32,
+        80,
+        24,
+    );
+    const attachment_count = 256;
+    for (0..attachment_count) |index| {
+        _ = try aggregate.core().attach(
+            connection_id,
+            testId(core_module.AttachmentId, @intCast(index)),
+            terminal_id,
+            .{ .input = true, .read = false, .resize = false },
+            false,
+        );
+    }
+    try std.testing.expectEqual(attachment_count, aggregate.core().attachmentCount());
+
+    core_module.testing.resetActiveReadDemandScans(aggregate.core());
+    subject.testing.resetProjectionReleaseDecisions(&aggregate);
+    try std.testing.expectEqual(
+        core_module.TransitionOutcome.applied,
+        aggregate.disconnect(connection_id),
+    );
+
+    // Every active-demand query is O(1) and examines zero attachment entries.
+    // The pre-fix walk examined 255+254+...+0 = 32,640 entries.
+    try std.testing.expectEqual(
+        @as(usize, 0),
+        core_module.testing.activeReadDemandScans(aggregate.core()),
+    );
+    // Projection resources are released at most once per affected terminal.
+    try std.testing.expect(
+        subject.testing.projectionReleaseDecisions(&aggregate) <= 1,
+    );
+    try std.testing.expectEqual(@as(usize, 0), aggregate.core().attachmentCount());
+    try std.testing.expect(aggregate.core().findTerminal(terminal_id) != null);
+    try std.testing.expectEqual(@as(usize, 0), aggregate.core().connectionCount());
+}
+
 test "runtime destruction starts only after every shutdown succeeds" {
     const FakeRuntime = struct {
         destroy_calls: usize = 0,

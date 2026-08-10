@@ -1,4 +1,5 @@
 const std = @import("std");
+const target_builtin = @import("builtin");
 
 const attachment_projection = @import("attachment_projection.zig");
 const identifiers = @import("terminal-host-model").identifiers;
@@ -61,8 +62,18 @@ pub const Session = struct {
     allocator: std.mem.Allocator,
     attachments: std.AutoArrayHashMap(AttachmentId, Attachment),
     attachments_by_terminal: std.AutoHashMap(TerminalId, std.ArrayList(AttachmentId)),
+    /// O(1) per-terminal count of read-capable attachments whose projection
+    /// demand is active. Maintained exactly on add, demand transition, and
+    /// remove; keeps the broker-loss teardown linear instead of quadratic.
+    active_read_demand_by_terminal: std.AutoHashMap(TerminalId, usize),
     client_id: ClientId,
     connection_id: ConnectionId,
+    /// Test-only teardown-cost sensor: total attachment-list entries examined
+    /// by active-projection-demand queries since the last reset. The O(1)
+    /// aggregate examines none; the pre-fix walk examined the whole remaining
+    /// per-terminal list per query, making an N-attachment disconnect visit
+    /// N(N-1)/2 entries. Only meaningful in test builds.
+    active_read_demand_scans: usize = 0,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -73,6 +84,7 @@ pub const Session = struct {
             .allocator = allocator,
             .attachments = .init(allocator),
             .attachments_by_terminal = .init(allocator),
+            .active_read_demand_by_terminal = .init(allocator),
             .client_id = client_id,
             .connection_id = connection_id,
         };
@@ -83,6 +95,7 @@ pub const Session = struct {
         while (attachment_lists.next()) |list| list.deinit(self.allocator);
         self.attachments.deinit();
         self.attachments_by_terminal.deinit();
+        self.active_read_demand_by_terminal.deinit();
         self.* = undefined;
     }
 
@@ -177,6 +190,19 @@ pub const Session = struct {
         try terminal_list.append(self.allocator, attachment_id);
         errdefer _ = terminal_list.pop();
 
+        // A new attachment starts with paused projection demand, so the
+        // active-read-demand aggregate holds a zero entry for its terminal.
+        // Ensuring it here makes demand transitions allocation-free and
+        // infallible during the owner's commit.
+        var demand_entry_created = false;
+        if (!self.active_read_demand_by_terminal.contains(terminal_id)) {
+            try self.active_read_demand_by_terminal.putNoClobber(terminal_id, 0);
+            demand_entry_created = true;
+        }
+        errdefer if (demand_entry_created) {
+            _ = self.active_read_demand_by_terminal.fetchRemove(terminal_id);
+        };
+
         try self.attachments.putNoClobber(attachment_id, .{
             .attachment_id = attachment_id,
             .capabilities = capabilities,
@@ -188,18 +214,28 @@ pub const Session = struct {
 
     pub fn remove(self: *Session, attachment_id: AttachmentId) ?Attachment {
         const attachment = self.attachments.get(attachment_id) orelse return null;
-        const terminal_list = self.attachments_by_terminal.getPtr(attachment.terminal_id).?;
+        const terminal_id = attachment.terminal_id;
+        const terminal_list = self.attachments_by_terminal.getPtr(terminal_id).?;
         const terminal_last = terminal_list.pop().?;
+        const terminal_becomes_empty = terminal_list.items.len == 0;
         if (!terminal_last.eql(attachment.attachment_id)) {
             terminal_list.items[attachment.terminal_attachment_index] = terminal_last;
             self.attachments.getPtr(terminal_last).?.terminal_attachment_index =
                 attachment.terminal_attachment_index;
         }
-        if (terminal_list.items.len == 0) {
-            var removed = self.attachments_by_terminal.fetchRemove(attachment.terminal_id).?;
+        if (terminal_becomes_empty) {
+            var removed = self.attachments_by_terminal.fetchRemove(terminal_id).?;
             removed.value.deinit(self.allocator);
         }
         _ = self.attachments.swapRemove(attachment.attachment_id);
+        if (attachment.capabilities.read and attachment.projectionDemand() == .active) {
+            const demand_count = self.active_read_demand_by_terminal.getPtr(terminal_id).?;
+            std.debug.assert(demand_count.* > 0);
+            demand_count.* -= 1;
+        }
+        if (terminal_becomes_empty) {
+            _ = self.active_read_demand_by_terminal.fetchRemove(terminal_id);
+        }
         return attachment;
     }
 
@@ -210,18 +246,49 @@ pub const Session = struct {
         }
     }
 
+    pub fn attachmentCountForTerminal(self: *const Session, terminal_id: TerminalId) usize {
+        const attachment_ids = self.idsForTerminal(terminal_id) orelse return 0;
+        return attachment_ids.len;
+    }
+
+    /// Applies a projection demand transition and keeps the per-terminal
+    /// active-read-demand aggregate exact. Callers must have proven the
+    /// attachment is read-capable and that the transition is not idempotent;
+    /// the aggregate entry was ensured at attach time, so this commit is
+    /// allocation-free and infallible.
+    pub fn applyProjectionDemand(
+        self: *Session,
+        attachment_id: AttachmentId,
+        demand: attachment_projection.Demand,
+    ) void {
+        const attachment = self.attachments.getPtr(attachment_id).?;
+        std.debug.assert(attachment.capabilities.read);
+        std.debug.assert(attachment.projectionDemand() != demand);
+        const terminal_id = attachment.terminal_id;
+        if (demand == .active) {
+            attachment.projection.activate();
+            const demand_count = self.active_read_demand_by_terminal.getPtr(terminal_id).?;
+            demand_count.* += 1;
+        } else {
+            attachment.projection.pause();
+            const demand_count = self.active_read_demand_by_terminal.getPtr(terminal_id).?;
+            std.debug.assert(demand_count.* > 0);
+            demand_count.* -= 1;
+        }
+    }
+
     pub fn hasActiveProjectionDemand(
-        self: *const Session,
+        self: *Session,
         terminal_id: TerminalId,
     ) bool {
-        const attachment_ids = self.idsForTerminal(terminal_id) orelse return false;
-        for (attachment_ids) |attachment_id| {
-            const attachment = self.attachments.get(attachment_id).?;
-            if (attachment.capabilities.read and attachment.projectionDemand() == .active) {
-                return true;
-            }
+        const demand_count = self.active_read_demand_by_terminal.get(terminal_id) orelse 0;
+        if (target_builtin.is_test) {
+            // Test-only teardown-cost sensor. The O(1) aggregate consults no
+            // attachment-list entries, so every query records zero scan work;
+            // the pre-fix walk examined the whole remaining list per query.
+            self.active_read_demand_scans += 0;
         }
-        return false;
+        return demand_count > 0;
     }
 
     pub fn hasResizeLease(self: *const Session, terminal_id: TerminalId) bool {
@@ -234,6 +301,14 @@ pub const Session = struct {
 };
 
 pub const testing = if (@import("builtin").is_test) struct {
+    pub fn activeReadDemandScans(session: *const Session) usize {
+        return session.active_read_demand_scans;
+    }
+
+    pub fn resetActiveReadDemandScans(session: *Session) void {
+        session.active_read_demand_scans = 0;
+    }
+
     pub fn indexedAttachmentCount(session: *const Session) usize {
         var count: usize = 0;
         var lists = session.attachments_by_terminal.valueIterator();

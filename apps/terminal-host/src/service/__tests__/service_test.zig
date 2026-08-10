@@ -1655,6 +1655,104 @@ test "disconnect removes every broker attachment and preserves retained terminal
     try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id) != null);
 }
 
+// THCR-026 regression: broker loss must revoke attachment authority
+// immediately, keep retained terminals, finish old-session cleanup in a
+// bounded teardown, and leave a replacement broker fully serviceable.
+test "broker loss revokes authority immediately and a replacement broker stays serviceable" {
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var owner: ConnectionState = .awaiting_hello;
+    var replacement: ConnectionState = .awaiting_hello;
+    defer service.disconnect(&owner);
+    defer service.disconnect(&replacement);
+
+    try testHandshake(&service, &owner, "22222222222222222222222222222222");
+    const owner_active = try activeConnection(&owner);
+    const terminal_id = testId(core_module.TerminalId, 0x81, 0);
+    _ = try service.runtime_aggregate.core().createTerminal(
+        owner_active.connection_id,
+        testId(core_module.CreationId, 0x82, 0),
+        terminal_id,
+        [_]u8{0x83} ** 32,
+        80,
+        24,
+    );
+    const read_attachment = testId(core_module.AttachmentId, 0x84, 0);
+    _ = try service.runtime_aggregate.core().attach(
+        owner_active.connection_id,
+        read_attachment,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = false },
+        false,
+    );
+    _ = try service.runtime_aggregate.core().setProjectionDemand(
+        owner_active.connection_id,
+        read_attachment,
+        .active,
+    );
+    // Input-only attachments are the trigger for THCR-026's quadratic scan.
+    for (0..8) |index| {
+        _ = try service.runtime_aggregate.core().attach(
+            owner_active.connection_id,
+            testId(core_module.AttachmentId, 0x90, index),
+            terminal_id,
+            .{ .input = true, .read = false, .resize = false },
+            false,
+        );
+    }
+
+    const aggregate_testing = service_boundary.testing.runtime_aggregate.testing;
+    core_module.testing.resetActiveReadDemandScans(service.runtime_aggregate.core());
+    aggregate_testing.resetProjectionReleaseDecisions(&service.runtime_aggregate);
+
+    // Broker loss revokes connection authority immediately and retains the
+    // terminal; the bounded teardown performs zero demand-list scans and
+    // releases projection resources at most once for the terminal.
+    service.disconnect(&owner);
+    try std.testing.expectEqual(@as(usize, 0), service.runtime_aggregate.core().connectionCount());
+    try std.testing.expectEqual(@as(usize, 0), service.runtime_aggregate.core().attachmentCount());
+    try std.testing.expect(service.runtime_aggregate.core().findAttachment(read_attachment) == null);
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id) != null);
+    try std.testing.expect(!service.runtime_aggregate.core().hasActiveProjectionDemand(terminal_id));
+    try std.testing.expectEqual(
+        @as(usize, 0),
+        core_module.testing.activeReadDemandScans(service.runtime_aggregate.core()),
+    );
+    try std.testing.expect(
+        aggregate_testing.projectionReleaseDecisions(&service.runtime_aggregate) <= 1,
+    );
+
+    // A bounded maintenance pass completes without disturbing retained state.
+    service.maintain();
+    try std.testing.expectEqual(@as(usize, 0), service.runtime_aggregate.core().connectionCount());
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id) != null);
+
+    // A replacement broker attaches fresh state to the same retained terminal
+    // and exercises authority without old cleanup corrupting the new session.
+    try testHandshake(&service, &replacement, "22222222222222222222222222222222");
+    const replacement_active = try activeConnection(&replacement);
+    const new_attachment = testId(core_module.AttachmentId, 0x95, 0);
+    _ = try service.runtime_aggregate.core().attach(
+        replacement_active.connection_id,
+        new_attachment,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = false },
+        false,
+    );
+    _ = try service.runtime_aggregate.core().setProjectionDemand(
+        replacement_active.connection_id,
+        new_attachment,
+        .active,
+    );
+    try std.testing.expect(service.runtime_aggregate.core().hasActiveProjectionDemand(terminal_id));
+    _ = try service.runtime_aggregate.core().authorizeInput(
+        replacement_active.connection_id,
+        new_attachment,
+    );
+    try std.testing.expect(service.runtime_aggregate.core().findAttachment(new_attachment) != null);
+    try std.testing.expect(service.runtime_aggregate.core().findTerminal(terminal_id) != null);
+}
+
 test "detach retry is idempotent within one broker session" {
     var service = HostService.init(std.testing.allocator);
     defer service.deinit();

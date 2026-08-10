@@ -177,6 +177,10 @@ pub const HostRuntimeAggregate = struct {
     allocator: std.mem.Allocator,
     core_state: core_module.HostCore,
     maintenance: host_runtime_maintenance.Maintenance = .{},
+    /// Test-only teardown-cost sensor: total projection-release decisions
+    /// (demand idle) recorded since the last reset. A bounded disconnect
+    /// releases projection resources at most once per affected terminal.
+    projection_release_decisions: usize = 0,
 
     pub fn init(allocator: std.mem.Allocator) HostRuntimeAggregate {
         return .{
@@ -683,6 +687,11 @@ pub const HostRuntimeAggregate = struct {
         self: *HostRuntimeAggregate,
         connection_id: core_module.ConnectionId,
     ) core_module.TransitionOutcome {
+        // Bulk one-pass teardown: detach every attachment exactly once, then
+        // release projection resources at most once per affected terminal
+        // (when its last attachment is removed). The O(1) active-demand
+        // aggregate keeps each release decision constant-cost, so an
+        // N-attachment disconnect is linear instead of quadratic.
         while (self.core_state.attachmentsForConnection(connection_id).len > 0) {
             const attachment_ids = self.core_state.attachmentsForConnection(connection_id);
             const attachment_id = attachment_ids[attachment_ids.len - 1];
@@ -691,7 +700,9 @@ pub const HostRuntimeAggregate = struct {
             if (self.runtimeFor(terminal_id)) |runtime| {
                 runtime.detachHistory(attachment_id);
             }
-            self.releaseProjectionIfIdle(terminal_id);
+            if (self.core_state.attachmentCountForTerminal(terminal_id) == 0) {
+                self.releaseProjectionIfIdle(terminal_id);
+            }
         }
         return self.core_state.disconnect(connection_id);
     }
@@ -763,6 +774,7 @@ pub const HostRuntimeAggregate = struct {
         terminal_id: core_module.TerminalId,
     ) void {
         if (self.core_state.hasActiveProjectionDemand(terminal_id)) return;
+        if (target_builtin.is_test) self.projection_release_decisions += 1;
         if (self.runtimeFor(terminal_id)) |runtime| runtime.releaseProjectionResources();
     }
 };
@@ -890,6 +902,13 @@ fn requestTerminationUsingForTesting(
 pub const testing = if (target_builtin.is_test) struct {
     pub const cleanupFailureFn = host_runtime_maintenance.cleanupFailure;
     pub const cleanupRetryScanIndexFn = cleanupRetryScanIndexForTesting;
+    pub fn projectionReleaseDecisions(aggregate: *const HostRuntimeAggregate) usize {
+        return aggregate.projection_release_decisions;
+    }
+
+    pub fn resetProjectionReleaseDecisions(aggregate: *HostRuntimeAggregate) void {
+        aggregate.projection_release_decisions = 0;
+    }
     pub const recordUnsafeResizeFailureFn = recordUnsafeResizeFailureForTesting;
     pub const requestTerminationUsingFn = requestTerminationUsingForTesting;
     pub const runtimeFailureFromObservationFn =
