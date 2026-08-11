@@ -171,12 +171,44 @@ pub const ResizeError = core_module.CoreError || error{
     UnsafeRuntimeAfterResizeFailure,
 };
 
+/// THDD-001 retained-cleanup observability status. While a fatal-teardown pass
+/// leaves an unconfirmed-contained process tree, the Host keeps the cleanup
+/// ownership and retries containment on the bounded backoff schedule; this
+/// status surfaces the retained-cleanup state (active), the bounded retry
+/// progress (attempts), and the permanent-failure policy outcome (exhausted).
+pub const RetainedCleanupStatus = struct {
+    active: bool = false,
+    attempts: usize = 0,
+    exhausted: bool = false,
+};
+
+/// Outcome of the bounded retained-cleanup window (THDD-001). complete means
+/// every retained process tree became containment-confirmed and teardown can
+/// finish; retained_failed means the bounded retry budget was exhausted while
+/// a tree was still unconfirmed, leaving an explicitly retained failed-cleanup
+/// state instead of a silent orphan.
+pub const RetainedCleanupResult = enum {
+    complete,
+    retained_failed,
+};
+
+/// Bounded number of retained-cleanup passes before the permanent-failure
+/// policy leaves an explicit retained failed state. Production paces each pass
+/// by the bounded cleanup-retry backoff cadence, so the window retries on that
+/// bounded schedule rather than spinning.
+const retained_cleanup_max_attempts = 32;
+
+const retained_cleanup_backoff_ns = std.time.ns_per_s;
+
 // HostRuntimeAggregate is the single owner of the deterministic Core record
 // and the native runtime bound to each retained TerminalId.
 pub const HostRuntimeAggregate = struct {
     allocator: std.mem.Allocator,
     core_state: core_module.HostCore,
     maintenance: host_runtime_maintenance.Maintenance = .{},
+    /// THDD-001 observability: retained-cleanup ownership state after a failed
+    /// fatal-teardown pass (see RetainedCleanupStatus).
+    retained_cleanup: RetainedCleanupStatus = .{},
     /// Test-only teardown-cost sensor: total projection-release decisions
     /// (demand idle) recorded since the last reset. A bounded disconnect
     /// releases projection resources at most once per affected terminal.
@@ -204,9 +236,125 @@ pub const HostRuntimeAggregate = struct {
                 }
             }
         }
+        shutdownAndReleaseTerminalEngines(self) catch |err| {
+            // THDD-001: a failed fatal-teardown pass must never abandon an
+            // unconfirmed process tree after one failed pass. Retain the
+            // cleanup ownership by recording the exact blocked containment with
+            // a bounded retry deadline, so the bounded cleanup-retry scheduler
+            // retries it and the release owner stays alive until containment is
+            // confirmed. The complete aggregate is retained for that window.
+            self.retainUnconfirmedCleanup();
+            return err;
+        };
+        self.core_state.deinit();
+        self.* = undefined;
+    }
+
+    /// Whether the Host still owns any retained process tree that is not
+    /// confirmed contained (THDD-001). While true, teardown must not release
+    /// the cleanup ownership and the release owner must keep retrying.
+    pub fn retainedCleanupPending(self: *const HostRuntimeAggregate) bool {
+        for (self.core_state.terminalValues()) |session| {
+            const runtime = session.runtime() orelse continue;
+            if (!runtime.containmentConfirmed()) return true;
+        }
+        return false;
+    }
+
+    /// THDD-001 observability status for the retained-cleanup state.
+    pub fn retainedCleanupStatus(self: *const HostRuntimeAggregate) RetainedCleanupStatus {
+        return self.retained_cleanup;
+    }
+
+    /// One retained-cleanup pass: drives the existing bounded cleanup-retry
+    /// scheduler (so only retries whose bounded backoff deadline is due fire)
+    /// and returns whether every retained tree is now containment-confirmed.
+    pub fn runRetainedCleanupPass(self: *HostRuntimeAggregate) bool {
+        self.synchronizeRuntimes();
+        self.retained_cleanup.attempts += 1;
+        return !self.retainedCleanupPending();
+    }
+
+    /// THDD-001 bounded retained-cleanup window. Reuses the existing bounded
+    /// cleanup-retry scheduler and its monotonic backoff cadence; each pass
+    /// retries only due cleanups. On the bounded budget being exhausted with a
+    /// tree still unconfirmed, the permanent-failure policy leaves an explicit
+    /// retained failed state (observable via retainedCleanupStatus) and never
+    /// silently releases the tree. The caller surfaces the retained-failed
+    /// outcome as the loud shutdown signal.
+    pub fn runRetainedCleanupWindow(self: *HostRuntimeAggregate) RetainedCleanupResult {
+        var attempts: usize = 0;
+        while (attempts < retained_cleanup_max_attempts) : (attempts += 1) {
+            if (self.runRetainedCleanupPass()) {
+                std.log.info("terminal Host completed retained cleanup after {d} pass(es)", .{attempts + 1});
+                return .complete;
+            }
+            if (comptime !target_builtin.is_test) {
+                std.Thread.sleep(retained_cleanup_backoff_ns);
+            }
+        }
+        self.markRetainedCleanupExhausted();
+        return .retained_failed;
+    }
+
+    /// Completes teardown once every retained runtime is containment-confirmed.
+    /// Destroys the runtimes and releases the Core record, mirroring the
+    /// successful fatal-teardown path.
+    pub fn finishRetainedCleanup(self: *HostRuntimeAggregate) !void {
         try shutdownAndReleaseTerminalEngines(self);
         self.core_state.deinit();
         self.* = undefined;
+    }
+
+    /// THDD-001: records retained cleanup ownership for every retained runtime
+    /// whose process tree is not confirmed contained after a failed
+    /// fatal-teardown pass. Each such terminal becomes `containing_failure` with
+    /// a blocked containment and a bounded retry deadline, so the existing
+    /// cleanup-retry scheduler can retry it without a broker.
+    fn retainUnconfirmedCleanup(self: *HostRuntimeAggregate) void {
+        var retained: bool = false;
+        for (self.core_state.terminalValues()) |session| {
+            const terminal_id = session.terminal_id;
+            const engine = session.runtime() orelse continue;
+            if (engine.containmentConfirmed()) continue;
+            retained = true;
+            const primary_failure: core_module.RuntimeFailure = switch (engine.completion().classification) {
+                .failed => |kind| runtimeFailureFromEngineKind(kind),
+                .pending, .normal => .observe_process,
+            };
+            _ = self.core_state.runtimeFailed(terminal_id, primary_failure) catch continue;
+            _ = self.core_state.failureContainmentBlocked(
+                terminal_id,
+                .contain_process,
+                self.maintenance.nextCleanupRetryAt(),
+            ) catch continue;
+        }
+        if (retained) {
+            self.retained_cleanup = .{ .active = true };
+        }
+    }
+
+    /// THDD-001 permanent-failure policy: after the bounded retained-cleanup
+    /// budget is exhausted, every still-unconfirmed blocked cleanup becomes a
+    /// stable explicit retained failed state (never-due retry) that is never
+    /// silently released. The observable status records the exhausted outcome.
+    fn markRetainedCleanupExhausted(self: *HostRuntimeAggregate) void {
+        for (self.core_state.terminalValues()) |session| {
+            const terminal_id = session.terminal_id;
+            const runtime = session.runtime() orelse continue;
+            if (runtime.containmentConfirmed()) continue;
+            const containment = session.failureContainment() orelse continue;
+            const cleanup_failure: core_module.RuntimeCleanupFailure = switch (containment) {
+                .blocked => |blocked| blocked.cleanup_failure,
+                .stopping => .contain_process,
+            };
+            _ = self.core_state.failureContainmentBlocked(
+                terminal_id,
+                cleanup_failure,
+                std.math.maxInt(i128),
+            ) catch continue;
+        }
+        self.retained_cleanup.exhausted = true;
     }
 
     fn ownedTerminalCount(self: *const HostRuntimeAggregate) usize {
@@ -910,6 +1058,10 @@ fn takeDueCleanupRetryForTesting(
     return aggregate.maintenance.takeDueCleanupRetry(&aggregate.core_state, now_ns);
 }
 
+fn retainUnconfirmedCleanupForTesting(aggregate: *HostRuntimeAggregate) void {
+    aggregate.retainUnconfirmedCleanup();
+}
+
 fn cleanupRetryScanIndexForTesting(aggregate: *const HostRuntimeAggregate) usize {
     return aggregate.maintenance.cleanupRetryScanIndex();
 }
@@ -936,12 +1088,38 @@ fn requestTerminationUsingForTesting(
 pub const testing = if (target_builtin.is_test) struct {
     pub const cleanupFailureFn = host_runtime_maintenance.cleanupFailure;
     pub const cleanupRetryScanIndexFn = cleanupRetryScanIndexForTesting;
+    pub const CleanupClockType = host_runtime_maintenance.CleanupClock;
+    pub const RetainedCleanupResultType = RetainedCleanupResult;
+    pub const RetainedCleanupStatusType = RetainedCleanupStatus;
+    pub fn finishRetainedCleanup(aggregate: *HostRuntimeAggregate) !void {
+        try aggregate.finishRetainedCleanup();
+    }
+    pub fn markRetainedCleanupExhausted(aggregate: *HostRuntimeAggregate) void {
+        aggregate.markRetainedCleanupExhausted();
+    }
     pub fn projectionReleaseDecisions(aggregate: *const HostRuntimeAggregate) usize {
         return aggregate.projection_release_decisions;
     }
 
     pub fn resetProjectionReleaseDecisions(aggregate: *HostRuntimeAggregate) void {
         aggregate.projection_release_decisions = 0;
+    }
+    pub fn retainedCleanupPending(aggregate: *const HostRuntimeAggregate) bool {
+        return aggregate.retainedCleanupPending();
+    }
+    pub const retainedCleanupStatusFn = HostRuntimeAggregate.retainedCleanupStatus;
+    pub const retainUnconfirmedCleanupFn = retainUnconfirmedCleanupForTesting;
+    pub fn runRetainedCleanupPass(aggregate: *HostRuntimeAggregate) bool {
+        return aggregate.runRetainedCleanupPass();
+    }
+    pub const runRetainedCleanupWindowFn = HostRuntimeAggregate.runRetainedCleanupWindow;
+    pub fn setCleanupClockForTesting(
+        aggregate: *HostRuntimeAggregate,
+        read_ns: *const fn (*host_runtime_maintenance.CleanupClock) i128,
+        context: ?*anyopaque,
+    ) void {
+        aggregate.maintenance.cleanup_clock.read_ns = read_ns;
+        aggregate.maintenance.cleanup_clock.context = context;
     }
     pub const recordUnsafeResizeFailureFn = recordUnsafeResizeFailureForTesting;
     pub const requestTerminationUsingFn = requestTerminationUsingForTesting;

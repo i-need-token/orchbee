@@ -24,6 +24,12 @@ const max_pty_read_batch_bytes = protocol.Limits.pty_read_batch_bytes;
 const pending_terminal_reply_capacity_bytes = max_pty_read_batch_bytes;
 const max_pending_terminal_reply_entries = 4096;
 const max_pty_write_slice_bytes = 64 * 1024;
+// Terminal-generated replies keep priority within a bounded reply burst: the
+// writer yields to a waiting accepted client entry once this many reply slices
+// have been written in the current burst. Sustained reply work therefore
+// cannot starve accepted client input indefinitely; each slice is at most
+// max_pty_write_slice_bytes, so a burst is at most 4 MiB of reply work.
+const max_terminal_reply_burst_slices = 64;
 const max_process_containment_observations = 8;
 const process_containment_observation_delay_ns = 10 * std.time.ns_per_ms;
 const required_consecutive_containment_observations = 2;
@@ -242,13 +248,28 @@ fn inputCapacityEntries(source: InputSource) usize {
 }
 
 /// Terminal protocol replies are selected before client bytes at each bounded
-/// write slice. Relative order remains FIFO within each source. A pending
-/// reply reservation blocks another client slice until its allocation is
-/// either published or cancelled.
+/// write slice within a full reply burst. Relative order remains FIFO within
+/// each source. A pending reply reservation blocks another client slice until
+/// its allocation is either published or cancelled.
 fn nextWritableInputEntry(entries: []const InputEntry) ?usize {
+    return selectWritableInputEntry(entries, max_terminal_reply_burst_slices);
+}
+
+/// Budget-aware writer selection. Terminal-generated replies retain priority
+/// while the reply burst has budget; once the burst is exhausted the writer
+/// yields to a waiting accepted client entry so sustained reply work cannot
+/// starve client input indefinitely. Replies still make progress when no client
+/// entry is waiting, and a pending reply reservation (bytes == null) blocks the
+/// next slice until its allocation is published or cancelled.
+fn selectWritableInputEntry(
+    entries: []const InputEntry,
+    terminal_reply_burst_remaining: usize,
+) ?usize {
     for (entries, 0..) |entry, index| {
         if (entry.source != .terminal) continue;
         if (entry.bytes == null) return null;
+        if (terminal_reply_burst_remaining == 0 and
+            entries[0].bytes != null and entries[0].source == .client) return 0;
         return index;
     }
     if (entries.len == 0 or entries[0].bytes == null) return null;
@@ -540,6 +561,10 @@ pub const TerminalRuntime = struct {
     input_mutex: std.Thread.Mutex = .{},
     input_next_identifier: u64 = 1,
     terminal_reply_charge: InputCharge = .{},
+    // Reply-burst budget remaining before the writer yields to a waiting
+    // accepted client entry. Only the writer thread mutates it, under
+    // input_mutex.
+    terminal_reply_burst_remaining: usize = max_terminal_reply_burst_slices,
     // Distinguishes an owner-requested read interruption from a normal PTY EOF.
     // Only the reader may publish pty_drained, and only after a non-aborted EOF.
     output_abort_requested: std.atomic.Value(bool) = .init(false),
@@ -1641,11 +1666,25 @@ pub const TerminalRuntime = struct {
         };
     }
 
-    pub fn terminate(self: *const TerminalRuntime) !void {
+    pub fn terminate(self: *TerminalRuntime) !void {
+        // Confirmed containment makes termination an idempotent no-op without
+        // consulting the platform session. The POSIX process-identity fence
+        // still serializes signal vs. release even when this atomic read is
+        // stale, so a reused numeric SID is never signaled after release.
+        if (self.containment_confirmed.load(.acquire)) return;
         try self.process.terminate();
     }
 
-    pub fn forceTerminate(self: *const TerminalRuntime) !void {
+    /// Whether the owned process tree has been confirmed contained. The Host
+    /// uses this to decide whether it may still release cleanup ownership
+    /// (THDD-001): while false, the retained process identity must stay owned
+    /// and cleanup retried, never silently abandoned.
+    pub fn containmentConfirmed(self: *const TerminalRuntime) bool {
+        return self.containment_confirmed.load(.acquire);
+    }
+
+    pub fn forceTerminate(self: *TerminalRuntime) !void {
+        if (self.containment_confirmed.load(.acquire)) return;
         try self.process.forceTerminate();
     }
 
@@ -2665,6 +2704,16 @@ pub const TerminalRuntime = struct {
             _ = self.input_entries.orderedRemove(current_index);
             self.input_condition.broadcast();
         }
+        // A terminal slice consumes the reply burst; a client slice ends and
+        // restarts it. The bound guarantees a waiting accepted client entry is
+        // selected within a bounded number of terminal-reply slices.
+        if (slice.source == .terminal) {
+            if (self.terminal_reply_burst_remaining > 0) {
+                self.terminal_reply_burst_remaining -= 1;
+            }
+        } else {
+            self.terminal_reply_burst_remaining = max_terminal_reply_burst_slices;
+        }
         return true;
     }
 
@@ -2688,7 +2737,10 @@ pub const TerminalRuntime = struct {
         while (true) {
             self.input_mutex.lock();
             while (!self.writer_stop and !self.failure_fenced and
-                nextWritableInputEntry(self.input_entries.items) == null)
+                selectWritableInputEntry(
+                    self.input_entries.items,
+                    self.terminal_reply_burst_remaining,
+                ) == null)
             {
                 self.input_condition.wait(&self.input_mutex);
             }
@@ -2697,7 +2749,10 @@ pub const TerminalRuntime = struct {
                 self.input_mutex.unlock();
                 return;
             }
-            const entry_index = nextWritableInputEntry(self.input_entries.items) orelse unreachable;
+            const entry_index = selectWritableInputEntry(
+                self.input_entries.items,
+                self.terminal_reply_burst_remaining,
+            ) orelse unreachable;
             const entry = &self.input_entries.items[entry_index];
             const bytes = entry.bytes.?;
             if (bytes.len == 0) {

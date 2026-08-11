@@ -187,6 +187,214 @@ test "POSIX force termination recovers from partial signaling failures" {
     );
 }
 
+const TestSignal = struct {
+    condition: std.Thread.Condition = .{},
+    mutex: std.Thread.Mutex = .{},
+    reached: bool = false,
+
+    fn notify(self: *TestSignal) void {
+        self.mutex.lock();
+        self.reached = true;
+        self.condition.broadcast();
+        self.mutex.unlock();
+    }
+
+    fn wait(self: *TestSignal) void {
+        self.mutex.lock();
+        while (!self.reached) self.condition.wait(&self.mutex);
+        self.mutex.unlock();
+    }
+};
+
+const TestGate = struct {
+    condition: std.Thread.Condition = .{},
+    mutex: std.Thread.Mutex = .{},
+    reached: bool = false,
+    released: bool = false,
+
+    fn pause(self: *TestGate) void {
+        self.mutex.lock();
+        self.reached = true;
+        self.condition.broadcast();
+        while (!self.released) self.condition.wait(&self.mutex);
+        self.mutex.unlock();
+    }
+
+    fn waitReached(self: *TestGate) void {
+        self.mutex.lock();
+        while (!self.reached) self.condition.wait(&self.mutex);
+        self.mutex.unlock();
+    }
+
+    fn release(self: *TestGate) void {
+        self.mutex.lock();
+        self.released = true;
+        self.condition.broadcast();
+        self.mutex.unlock();
+    }
+};
+
+// THCR-006 regression: the POSIX process-identity owner must never consult the
+// numeric session identifier after the session leader has been reaped. Once
+// releaseProcessIdentity has freed the SID, a reused numeric session must
+// receive no HUP, STOP, KILL, or CONT from a graceful or force request.
+test "POSIX session identity never signals a reused numeric session after release" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const SessionIdentityState = subject.testing.SessionIdentityStateType;
+    const RecordingSignaler = struct {
+        calls: [16]u8 = undefined,
+        count: usize = 0,
+
+        pub fn signal(self: *@This(), _: std.posix.pid_t, signal_number: u8) !void {
+            if (self.count >= self.calls.len) return error.TooManySignals;
+            self.calls[self.count] = signal_number;
+            self.count += 1;
+        }
+    };
+    const RecordingReaper = struct {
+        reaped: usize = 0,
+
+        pub fn reap(self: *@This(), _: std.posix.pid_t) !void {
+            self.reaped += 1;
+        }
+    };
+
+    var identity: SessionIdentityState = .{};
+    var signaler: RecordingSignaler = .{};
+    var reaper: RecordingReaper = .{};
+    const session_id: std.posix.pid_t = 4242;
+
+    // While the original identity is retained, graceful and force requests
+    // signal exactly the owned session.
+    try identity.signal(session_id, &signaler, std.posix.SIG.HUP);
+    try identity.forceTerminate(session_id, &signaler);
+    try std.testing.expectEqual(@as(usize, 3), signaler.count);
+    try std.testing.expectEqualSlices(
+        u8,
+        &.{ std.posix.SIG.HUP, std.posix.SIG.STOP, std.posix.SIG.KILL },
+        signaler.calls[0..signaler.count],
+    );
+    try std.testing.expectEqual(@as(u64, 2), identity.signals_issued.load(.monotonic));
+
+    // Release the original identity: the numeric SID is now free and may be
+    // rebound to an unrelated same-user session (PID churn).
+    try identity.release(session_id, &reaper);
+    try std.testing.expectEqual(@as(usize, 1), reaper.reaped);
+    try std.testing.expect(identity.isReleased());
+
+    // Bind the same numeric SID to a foreign session and request termination.
+    // Both modes must succeed as idempotent no-ops without a single signal.
+    const signals_before = signaler.count;
+    try identity.signal(session_id, &signaler, std.posix.SIG.HUP);
+    try identity.forceTerminate(session_id, &signaler);
+    try std.testing.expectEqual(signals_before, signaler.count);
+    try std.testing.expectEqual(
+        @as(u64, 2),
+        identity.signals_issued.load(.monotonic),
+    );
+
+    // Containment confirmation is trivially true after release: the freed
+    // session identifier is never enumerated again.
+    const CountingQuery = struct {
+        calls: *std.atomic.Value(usize),
+        pub fn liveMembers(self: *@This(), _: std.posix.pid_t, count: *u32) !void {
+            _ = self.calls.fetchAdd(1, .monotonic);
+            count.* = 1;
+        }
+    };
+    var query_calls: std.atomic.Value(usize) = .init(0);
+    var query: CountingQuery = .{ .calls = &query_calls };
+    try std.testing.expect(try identity.contained(session_id, &query));
+    try std.testing.expectEqual(@as(usize, 0), query_calls.load(.monotonic));
+}
+
+// THCR-006 regression: the identity fence serializes check-and-signal against
+// release. When termination wins the fence first it signals only the retained
+// launch session, and release cannot pass the fence until signaling completes.
+test "POSIX session identity release waits for in-flight session signaling" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const SessionIdentityState = subject.testing.SessionIdentityStateType;
+    const BlockingSignaler = struct {
+        entered: *TestSignal,
+        gate: *TestGate,
+
+        pub fn signal(self: *@This(), _: std.posix.pid_t, _: u8) !void {
+            self.entered.notify();
+            // Hold the identity fence until the test releases the gate.
+            self.gate.pause();
+        }
+    };
+    const Reaper = struct {
+        reaped: *std.atomic.Value(usize),
+        pub fn reap(self: @This(), _: std.posix.pid_t) !void {
+            _ = self.reaped.fetchAdd(1, .monotonic);
+        }
+    };
+    const ReleaseObserver = struct {
+        attempted: TestSignal = .{},
+        completed: TestSignal = .{},
+        reaped: std.atomic.Value(usize) = .init(0),
+
+        pub fn run(
+            self: *@This(),
+            identity: *SessionIdentityState,
+            session_id: std.posix.pid_t,
+        ) void {
+            self.attempted.notify();
+            identity.release(session_id, Reaper{ .reaped = &self.reaped }) catch
+                std.debug.panic("unexpected release failure", .{});
+            self.completed.notify();
+        }
+    };
+
+    var identity: SessionIdentityState = .{};
+    var entered = TestSignal{};
+    var gate = TestGate{};
+    var signaler: BlockingSignaler = .{ .entered = &entered, .gate = &gate };
+    var observer: ReleaseObserver = .{};
+    const session_id: std.posix.pid_t = 4242;
+
+    // Signal holds the identity fence (paused inside the signaler).
+    var signal_thread = try std.Thread.spawn(.{}, signalThreadRun, .{
+        &identity,
+        session_id,
+        &signaler,
+        std.posix.SIG.HUP,
+    });
+    defer signal_thread.join();
+    entered.wait();
+
+    // A concurrent release starts but cannot pass the fence until the in-flight
+    // signal completes.
+    var release_thread = try std.Thread.spawn(.{}, ReleaseObserver.run, .{
+        &observer,
+        &identity,
+        session_id,
+    });
+    defer release_thread.join();
+    observer.attempted.wait();
+    try std.testing.expect(!identity.isReleased());
+    try std.testing.expectEqual(@as(usize, 0), observer.reaped.load(.monotonic));
+
+    // Releasing the gate completes the signal; release then passes the fence.
+    gate.release();
+    observer.completed.wait();
+    try std.testing.expect(identity.isReleased());
+    try std.testing.expectEqual(@as(usize, 1), observer.reaped.load(.monotonic));
+}
+
+fn signalThreadRun(
+    identity: *subject.testing.SessionIdentityStateType,
+    session_id: std.posix.pid_t,
+    signaler: anytype,
+    signal_number: u8,
+) void {
+    identity.signal(session_id, signaler, signal_number) catch
+        std.debug.panic("unexpected signal failure", .{});
+}
+
 test "Windows descendants start inside the terminal kill-on-close Job" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     const executable = try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec");
@@ -440,3 +648,112 @@ test "Windows drive-only PATH component joins without a backslash" {
     try std.testing.expect(!hasString(strings, "C:\\probe.exe"));
     try std.testing.expect(hasString(strings, "D:\\work\\probe.exe"));
 }
+
+// THCR-028 regression. Linux writes the task name unescaped inside
+// /proc/<pid>/stat. A name embedding '\n' truncates a single fgets line, and a
+// name embedding the bytes ") Z\n" can then masquerade a sleeping process as a
+// non-live zombie. The parser reads the complete record and classifies by the
+// kernel-added final ") <state> " delimiter, failing closed on truncation.
+const native_procstat = struct {
+    extern "c" fn orchbee_process_stat_record_is_live(
+        record: [*]const u8,
+        length: usize,
+        live: *c_int,
+    ) c_int;
+
+    fn isLive(record: []const u8) !bool {
+        var live: c_int = 0;
+        if (orchbee_process_stat_record_is_live(record.ptr, record.len, &live) != 0) {
+            return error.InvalidProcessStatRecord;
+        }
+        return live != 0;
+    }
+};
+
+test "Linux /proc stat record parser uses the final kernel-added state (THCR-028)" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    // An ordinary newline inside the task name: the real final state is live 'S'.
+    try std.testing.expect(try native_procstat.isLive("123 (name\n) S 456 ...\n"));
+    // A task name forging ") Z" before a newline: still live 'S' from the
+    // kernel-added delimiter, never the forged byte.
+    try std.testing.expect(try native_procstat.isLive("123 (worker) Z\n) S 456 ...\n"));
+    // A task name ending in ')' keeps the kernel delimiter as the last ')'.
+    try std.testing.expect(try native_procstat.isLive("123 (abc)) S 456 ...\n"));
+    // A genuinely terminal zombie is still non-live, including one with a
+    // newline-bearing name.
+    try std.testing.expect(!try native_procstat.isLive("123 (sleep) Z 456 ...\n"));
+    try std.testing.expect(!try native_procstat.isLive("123 (worker\n) Z 456 ...\n"));
+    // The truncated first line that fgets would have produced fails closed
+    // instead of reporting the forged 'Z' as the process state.
+    try std.testing.expectError(
+        error.InvalidProcessStatRecord,
+        native_procstat.isLive("123 (worker) Z\n"),
+    );
+    try std.testing.expectError(
+        error.InvalidProcessStatRecord,
+        native_procstat.isLive("123 (x) \n"),
+    );
+    try std.testing.expectError(error.InvalidProcessStatRecord, native_procstat.isLive(""));
+}
+
+const NativeSessionQuery = struct {
+    pub fn liveMembers(_: @This(), session_id: std.posix.pid_t, count: *u32) !void {
+        if (orchbee_process_session_live_members(session_id, count) != 0) {
+            return error.ProcessContainmentQueryFailed;
+        }
+    }
+};
+
+const NativeSessionReaper = struct {
+    pub fn reap(_: @This(), session_id: std.posix.pid_t) !void {
+        if (orchbee_reap_process_exit(session_id) != 0) return error.ProcessReapFailed;
+    }
+};
+
+// THCR-028 regression: a session leader whose main-thread comm embeds an
+// ordinary newline must still complete containment observation and be reaped.
+// On the base parser the zombie's stat record was truncated at the newline, so
+// every live-members query failed with EIO and identity release gated on
+// containment could never progress.
+test "Linux session leader with a newline comm completes containment and reaps (THCR-028)" {
+    if (builtin.os.tag != .linux) return error.SkipZigTest;
+
+    const PR_SET_NAME: c_int = 15;
+    const SessionIdentityState = subject.testing.SessionIdentityStateType;
+
+    const child_id = try std.posix.fork();
+    if (child_id == 0) {
+        // Child: become the session leader, set a newline-bearing main-thread
+        // comm, and exit; the zombie retains that comm.
+        _ = std.posix.setsid() catch std.posix.exit(1);
+        _ = std.os.linux.prctl(PR_SET_NAME, @intFromPtr("worker\n"), 0, 0, 0);
+        std.posix.exit(0);
+    }
+    var identity: SessionIdentityState = .{};
+    defer identity.release(child_id, NativeSessionReaper{}) catch {};
+
+    // Observe the exit without reaping so the leader stays a zombie with the
+    // newline comm.
+    var result_kind: c_int = 0;
+    var result_value: u32 = 0;
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_observe_process_exit(child_id, &result_kind, &result_value),
+    );
+
+    // Containment must observe no live members (the zombie is non-live) and the
+    // leader must then be reaped, completing instead of failing the query.
+    try std.testing.expect(try identity.contained(child_id, NativeSessionQuery{}));
+    try std.testing.expect(!identity.isReleased());
+    try identity.release(child_id, NativeSessionReaper{});
+    try std.testing.expect(identity.isReleased());
+}
+
+extern "c" fn orchbee_process_session_live_members(session_id: c_int, count: *u32) c_int;
+extern "c" fn orchbee_observe_process_exit(
+    process_id: c_int,
+    result_kind: *c_int,
+    result_value: *u32,
+) c_int;
+extern "c" fn orchbee_reap_process_exit(process_id: c_int) c_int;

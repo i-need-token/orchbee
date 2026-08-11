@@ -347,8 +347,15 @@ transport progress is not a cleanup scheduler gate.
 
 Client input and terminal-generated protocol replies share one PTY writer but not one admission
 budget. Accepted client inputs retain FIFO order relative to other client inputs. Terminal replies
-retain FIFO order relative to other terminal replies and receive priority at each bounded writer
-slice, so a large client paste cannot sit ahead of a reply required by the child to make progress.
+retain FIFO order relative to other terminal replies and receive priority within a bounded reply
+burst: the writer delivers at most `max_terminal_reply_burst_slices` terminal-reply slices before
+yielding to a waiting accepted client entry. Each slice is at most
+`max_pty_write_slice_bytes`, so the burst bounds the reply work a client entry may wait behind.
+Replies therefore still sit ahead of a large client paste when the child needs a reply to make
+progress, but sustained reply work cannot starve accepted client input indefinitely. Once the burst
+is exhausted the writer yields to a waiting client entry and the burst restarts after that client
+slice; replies continue to make progress whenever no client entry is waiting. `InputAccepted`
+remains queue-admission-only and never promises delivery order relative to terminal replies.
 
 The client-byte and client-entry limits cannot consume the bounded terminal-reply byte and entry
 budgets. Exhausting a client budget is ordinary retryable backpressure and never becomes a terminal
@@ -370,6 +377,38 @@ silently orphan a process tree or release memory still reachable by a worker. Th
 terminal until process containment, worker quiescence, and identity release all succeed. The Host
 retries independently of broker connectivity on a bounded schedule and limits attempts per poll;
 `retry_at_ns` is internal monotonic scheduling state and is not part of the wire summary.
+
+### Fatal-teardown retained cleanup (THDD-001)
+
+A fatal teardown is the Host's last-pass shutdown after `serveUntilIdle` fails with an error other
+than a recoverable class such as `PeerIdentityMismatch` (for example listener descriptor exhaustion).
+The teardown attempts to stop and join every retained runtime. When one retained POSIX process tree
+cannot be confirmed contained — session observation or signaling fails throughout the bounded
+containment window, or live members never produce two consecutive empty observations before the
+eight-attempt limit — the single failed pass must NOT abandon the tree. THDD-001 makes the ownership
+explicit:
+
+- **Retained cleanup ownership**: the failed terminal transitions to `containing_failure.blocked`
+  with the typed `contain_process` cleanup failure and a bounded retry deadline derived from the same
+  Host-lifetime monotonic cleanup clock used by the broker-independent scheduler. The aggregate, the
+  runtime, and the POSIX session identity are fully retained; containment was not confirmed, so the
+  session leader identity is never released (the session-identity fence from THCR-006 holds).
+- **Bounded backoff cadence**: the Host enters a retained-cleanup window that reuses the existing
+  bounded cleanup-retry scheduler. Each pass retries only cleanups whose `retry_at_ns` deadline is
+  due, so retries fire on the same one-second bounded backoff cadence rather than spinning. The
+  window is bounded to a fixed number of passes.
+- **Endpoint and lifetime-lock behavior**: during the window the local endpoint stays bound and the
+  lifetime lock stays held (the server is deinitialized only after the window resolves), so no second
+  Host can start for the same endpoint while an unconfirmed tree is still owned. The Host accepts no
+  new broker sessions while the lifecycle is shutting down.
+- **Observability**: the retained-cleanup state is surfaced by an observable status (`active`,
+  `attempts`, `exhausted`) and by completion/exhaustion logs, so an operator can see that cleanup is
+  being retried rather than silently dropped.
+- **Permanent-failure policy**: after the bounded budget is exhausted with a tree still unconfirmed,
+  the Host does not silently orphan or release it. The blocked cleanup becomes a stable explicit
+  retained failed state (never-due retry), the observable status records `exhausted`, the failure is
+  surfaced loudly, and teardown exits with the shutdown failure instead of pretending a clean
+  release.
 
 ### Attachment delivery
 
@@ -521,8 +560,11 @@ at one transition boundary.
 A normal self-exit is legal only when no broker and no retained terminal remain. During fatal
 process teardown, a failure while stopping one terminal is recorded but does not prevent the Host
 from attempting to stop and join every other terminal. Errors are aggregated after every retained
-runtime receives its attempt. A failed teardown pass is not described as clean resource release;
-Host-process continuity after that fatal boundary is outside the contract.
+runtime receives its attempt. A failed teardown pass is not described as clean resource release. If
+the failed pass leaves an unconfirmed process tree, the Host does not exit through that boundary:
+it retains the cleanup ownership and retries on the bounded backoff schedule for a bounded window
+before reaching the permanent-failure state, so an unconfirmed tree is never silently orphaned
+(see "Fatal-teardown retained cleanup (THDD-001)").
 
 ## Egress transaction
 
@@ -610,7 +652,7 @@ Stable claim identifiers are used by tests, models, and review findings.
 | `TH-004` | Broker loss destroys only broker-scoped capabilities; it never terminates or disposes a retained terminal.                                                                                                                                                                                                            |
 | `TH-005` | Creation is atomic and idempotent by `HostEpoch + CreationId + launch fingerprint` while the terminal is retained; explicit disposal releases that identity. Failures admit neither a terminal nor an orphan process.                                                                                                 |
 | `TH-006` | PTY output, input encoding, projection, history, and selection use one canonical Ghostty state and coherent revision/generation pair; a failed projection names its exact captured or attempted revision.                                                                                                                    |
-| `TH-007` | Accepted client input occupies exactly one client-FIFO position; rejected input occupies none; terminal replies have independent bounded admission and priority at each writer slice; an unknown client-input result is never automatically replayed.                                                                 |
+| `TH-007` | Accepted client input occupies exactly one client-FIFO position; rejected input occupies none; terminal replies have independent bounded admission and priority within a bounded reply burst after which the writer yields to a waiting accepted client entry; an unknown client-input result is never automatically replayed. |
 | `TH-008` | Normal exit is published only after child completion, normal output closure, and writer quiescence, irrespective of observation order. Settlement captures one final revision; terminal-owned content, generation, geometry, configuration, and revisions cannot advance afterward.                                   |
 | `TH-009` | An unrecoverable runtime failure is explicit, fences unsafe I/O, and cannot be reported as normal drain or normal exit. Unconfirmed containment admits no new frame handoff. Cleanup remains Host-owned and retryable without a broker; a settled outcome cannot be rewritten by a later cleanup symptom or removed before its exact publication commits, and disposal never silently orphans an uncontained process tree. |
 | `TH-010` | An outgoing delivery transition commits if and only if its exact record is in the handed-off batch; batch fullness returns a committed prefix without dropping it. Projection record and flight commit are allocation-free while holding the engine read-commit guard. A handed-off frame record is immutable for its scoped sequence and is never reconstructed with different bytes. |
@@ -648,7 +690,8 @@ coverage alone is insufficient.
 | [Request-outcome TLA+ model](../formal/tla/TerminalHostRequestOutcome.tla)     | `TH-005`, `TH-007`, `TH-010`, prepare/commit/handoff, retryable rejection, delivered reply, unknown result, idempotent replay, and forbidden non-replayable retry                                                                                                                   |
 | [Inventory TLA+ model](../formal/tla/TerminalInventoryPagination.tla)          | `TH-002`, `TH-012`, generation-scoped pagination, exact membership, duplicate prevention, and stale-cursor rejection                                                                                                                                                                |
 | [Frame-delivery TLA+ model](../formal/tla/TerminalFrameBackpressure.tla)       | `TH-006`, `TH-009`, `TH-010`, `TH-011`, `TH-012`, two-attachment projection mutation/capture separation, exact failed revisions, provisional frame commit, failure publication and containment confirmation, no unconfirmed-failure handoff, one flight per attachment, acknowledgement bases, pause/abandonment, and blocked snapshot recovery; checked bounds live in its adjacent `.cfg` |
-| [Input-backpressure TLA+ model](../formal/tla/TerminalInputBackpressure.tla)   | `TH-007`, `TH-012`, independent client/reply admission budgets, client FIFO ownership, post-exit client closure, writer shutdown cleanup, terminal-reply priority, and client progress or explicit reply preemption; checked bounds live in its adjacent `.cfg`                     |
+| [Input-backpressure TLA+ model](../formal/tla/TerminalInputBackpressure.tla)   | `TH-007`, `TH-012`, independent client/reply admission budgets, client FIFO ownership, post-exit client closure, writer shutdown cleanup, terminal-reply priority within a bounded reply burst, and bounded client progress (no unbounded starvation behind reply work); checked bounds live in its adjacent `.cfg`                     |
+| [Process-identity TLA+ model](../formal/tla/TerminalHostProcessIdentity.tla)   | `TH-008`, `TH-009`, `TH-013`, completion sampling, containment confirmation, reap, SID rebinding, and request dispatch; every emitted process signal targets the retained launch identity and a rebound session never receives a signal; checked bounds live in its adjacent `.cfg`       |
 | [History-interaction TLA+ model](../formal/tla/TerminalHistoryInteraction.tla) | `TH-002`, `TH-006`, `TH-010`, `TH-011`, `TH-012`, row flights and anchors, history observation, selection eviction, acknowledged export chunks, stale search pages, and detach cleanup                                                                                              |
 | Stateful property tests                                                        | `TH-001` through `TH-013` as applicable to each owner: registry/index coherence, lifecycle command sequences, attachment capability sequences, projection sequences, history/export sequences, and invariant checks after every action                                              |
 | Deterministic fault-injection tests                                            | Allocation, encoding, spawn, queue admission, resize, PTY I/O, process observation, reply handoff, partial batch, and multi-runtime shutdown failures at every commit seam                                                                                                          |
@@ -673,7 +716,7 @@ these entries successfully.
 | `TH-003`, `TH-004` | `src/service/__tests__/service_test.zig`: `a second broker is rejected until the active broker disconnects` and `disconnect removes every broker attachment and preserves retained terminals`; `src/core/__tests__/state_test.zig`: `one broker owns every attachment and disconnect preserves terminals`; `src/transport/__tests__/root_test.zig`: failed-handoff preservation                                                                                                                                                                                                                                                                                    |
 | `TH-005`           | `src/service/__tests__/runtime_aggregate_test.zig`: creation replay and failed creation; `src/service/__tests__/service_test.zig`: real PTY disconnect/replay and isolated spawn failure; `src/engine/__tests__/runtime_test.zig`: startup-thread and process-spawn cleanup                                                                                                                                                                                                                                                                                                                                                                                        |
 | `TH-006`           | `src/engine/__tests__/runtime_test.zig`: canonical PTY parsing, semantic input, and exact attempted projection revision; `src/core/__tests__/state_test.zig`: explicit failed-revision validation, rollback, and lazy newer-observation refresh; `src/service/__tests__/projection_test.zig`: both post-capture and stale-pre-capture revision races; `src/engine/__tests__/projection_test.zig`: bounded snapshot/delta capture; `src/engine/__tests__/history_test.zig`: render/text rows, reflow preservation, screen/eviction invalidation, selection, and export |
-| `TH-007`           | `src/engine/__tests__/runtime_test.zig`: source-scoped bounded queues, terminal-reply priority, reservation cancellation, client FIFO, zero-output, and client-byte settlement; `src/service/__tests__/runtime_aggregate_test.zig`: input preparation rollback; `src/service/__tests__/service_test.zig`: raw/semantic input failure equivalence                                                                                                                                                                                                                                                                                                                   |
+| `TH-007`           | `src/engine/__tests__/runtime_test.zig`: source-scoped bounded queues, terminal-reply priority within a bounded reply burst (an accepted client entry is delivered within the reply burst bound), exact burst yield, reservation cancellation, client FIFO, zero-output, and client-byte settlement; `src/service/__tests__/runtime_aggregate_test.zig`: input preparation rollback; `src/service/__tests__/service_test.zig`: raw/semantic input failure equivalence and `InputAccepted` queue-admission-only semantics                                                                                                                                                                                                                                                                                                                   |
 | `TH-008`, `TH-009` | `src/model/__tests__/lifecycle_test.zig`: matching publication-gated disposal for both settled outcome kinds; `src/core/__tests__/state_test.zig`: both finishing orders, exact settled-revision checks, terminal outcome immutability, failure containment, and publication-gated removal; `src/engine/__tests__/runtime_test.zig`: atomic completion classification, full terminal-owned state freeze, and broker-independent worker containment; `src/service/__tests__/projection_test.zig`: both serialized frame-commit/failure-publication orders; `src/service/__tests__/service_test.zig`: one-shot settled outcome handoff, bounded-batch retention, native dispose retry, and rejected post-exit configuration; `src/service/__tests__/runtime_aggregate_test.zig`: completion synchronization, failed-runtime publication gating, exact cleanup phases, and fair blocked-cleanup retry selection; `src/transport/__tests__/root_test.zig`: brokerless maintenance across accept timeouts |
 | `TH-010`, `TH-011` | `src/service/__tests__/outgoing_test.zig`: prefix, reservation, provisional adoption cancellation, rollback, and allocation failure; `src/service/__tests__/projection_test.zig`: full-prefix delivery, exact failure rollback, scheduler preservation, and serialized read commit; `src/service/__tests__/interaction_test.zig`: full-prefix and allocator rollback; `src/service/__tests__/service_test.zig`: outcome handoff and scheduler fairness; `src/engine/__tests__/history_test.zig`: row/export sequence and ABA rejection |
 | `TH-012`           | All limit tests in `src/protocol/__tests__/root_test.zig`, `src/engine/__tests__/runtime_test.zig`, `src/engine/__tests__/projection_test.zig`, and `src/engine/__tests__/history_test.zig`; `src/service/__tests__/service_test.zig`: reply reservation failure; `src/__tests__/protocol_conformance_test.zig`: complete TypeScript/native limit equality                                                                                                                                                                                                                                                                                                         |

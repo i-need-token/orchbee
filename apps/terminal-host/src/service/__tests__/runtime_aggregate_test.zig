@@ -5,6 +5,7 @@ const service_boundary = @import("terminal-host-service");
 
 const core_module = core_boundary.state;
 const input_admission = service_boundary.testing.input_admission;
+const pty_process = @import("terminal-host-platform").process;
 const subject = service_boundary.testing.runtime_aggregate;
 const terminal_launch = engine_boundary.launch;
 const terminal_runtime = engine_boundary.runtime;
@@ -1556,6 +1557,337 @@ test "runtime destruction starts only after every shutdown succeeds" {
     }
     try std.testing.expectEqual(@as(usize, 0), owner.ownedTerminalCount());
     for (engines) |engine| try std.testing.expect(engine == null);
+}
+
+// THDD-001: a retained runtime whose process tree is not confirmed contained
+// must keep its cleanup ownership after a failed fatal-teardown pass. The
+// probe injects session-observation/signaling failures into the engine's
+// bounded containment attempt; when it stops failing it force-terminates the
+// real child session so the subsequent identity release completes.
+const RetainedCleanupProbe = struct {
+    failures_remaining: usize,
+    contains: usize = 0,
+    runtime: ?*terminal_runtime.TerminalRuntime = null,
+
+    fn fromContext(context: *anyopaque) *RetainedCleanupProbe {
+        return @ptrCast(@alignCast(context));
+    }
+
+    fn contain(context: *anyopaque) anyerror!void {
+        const self = fromContext(context);
+        self.contains += 1;
+        if (self.failures_remaining > 0) {
+            self.failures_remaining -= 1;
+            return error.InjectedSessionObservationFailure;
+        }
+        // Successful containment: actually terminate the real child session so
+        // the subsequent process-identity release completes deterministically.
+        try self.runtime.?.forceTerminate();
+    }
+
+    fn hooks(self: *RetainedCleanupProbe) terminal_runtime.testing.RuntimeTestingHooksType {
+        return .{
+            .contain_process_tree = contain,
+            .context = self,
+        };
+    }
+};
+
+const HookedThreadSpawner = struct {
+    hooks: terminal_runtime.testing.RuntimeTestingHooksType,
+
+    pub fn terminalRuntimeTestingHooks(self: *HookedThreadSpawner) terminal_runtime.testing.RuntimeTestingHooksType {
+        return self.hooks;
+    }
+
+    pub fn spawn(
+        _: *HookedThreadSpawner,
+        comptime thread_function: fn (*terminal_runtime.TerminalRuntime) void,
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) !std.Thread {
+        return std.Thread.spawn(.{}, thread_function, .{runtime});
+    }
+};
+
+fn longRunningProcessLaunch() !pty_process.Launch {
+    const builtin = @import("builtin");
+    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
+    const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 31 127.0.0.1 >nul" };
+    const arguments: []const []const u8 = if (builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    return .{
+        .arguments = arguments,
+        .cell_pixel_height = 16,
+        .cell_pixel_width = 8,
+        .columns = 80,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = executable,
+        .rows = 24,
+    };
+}
+
+fn commitHookedRuntime(
+    aggregate: *subject.HostRuntimeAggregate,
+    connection_id: core_module.ConnectionId,
+    terminal_id: core_module.TerminalId,
+    probe: *RetainedCleanupProbe,
+) !*terminal_runtime.TerminalRuntime {
+    const process_launch = try longRunningProcessLaunch();
+    var spawner: HookedThreadSpawner = .{ .hooks = probe.hooks() };
+    const runtime = try terminal_runtime.testing.createWithOptionsUsingSpawnerFn(
+        std.testing.allocator,
+        process_launch,
+        .{ .cell_pixel_height = 16, .cell_pixel_width = 8 },
+        &spawner,
+    );
+    probe.runtime = runtime;
+    try aggregate.core().reserveTerminal();
+    aggregate.core().commitRunningTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x42),
+        terminal_id,
+        [_]u8{0x43} ** 32,
+        80,
+        24,
+        8,
+        16,
+        .{},
+        runtime,
+    );
+    return runtime;
+}
+
+// THDD-001 controllable logical clock for the maintenance cleanup scheduler.
+// Production samples real monotonic time; tests substitute this so the bounded
+// cleanup-retry deadline can be advanced deterministically without sleeping.
+const LogicalCleanupClock = struct {
+    now_ns: i128 = 0,
+};
+
+fn readLogicalCleanupNs(clock: *subject.testing.CleanupClockType) i128 {
+    return @as(*LogicalCleanupClock, @ptrCast(@alignCast(clock.context.?))).now_ns;
+}
+
+// THDD-001 regression (base RED): a fatal-teardown pass whose containment
+// window fails must NOT abandon the unconfirmed process tree after one failed
+// pass. The terminal is retained with an explicit blocked-cleanup containment
+// (retained cleanup ownership), so the bounded cleanup-retry scheduler can
+// retry it instead of silently orphaning the tree.
+test "THDD-001 fatal teardown retains cleanup ownership for an unconfirmed process tree" {
+    var probe: RetainedCleanupProbe = .{ .failures_remaining = 1 };
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x41),
+    );
+    const terminal_id = testId(core_module.TerminalId, 0x44);
+    _ = try commitHookedRuntime(&aggregate, connection_id, terminal_id, &probe);
+
+    // The bounded containment window fails on the single fatal-teardown pass.
+    try std.testing.expectError(
+        error.ProcessContainmentFailed,
+        aggregate.deinitChecked(false),
+    );
+    // Retained cleanup ownership: the terminal stays observable with an
+    // explicit blocked containment instead of being abandoned or released.
+    const retained = aggregate.core().findTerminal(terminal_id) orelse
+        return error.TerminalNotRetained;
+    try std.testing.expect(retained.failureContainment() != null);
+}
+
+// THDD-001 deterministic evidence: fatal teardown retains the cleanup
+// ownership for an unconfirmed process tree, retries containment on the bounded
+// backoff schedule (driven by the controllable cleanup-retry clock), and lets
+// the release owner release only after a later successful containment
+// observation completes cleanup.
+test "THDD-001 fatal teardown retries containment on the bounded backoff schedule and releases only after containment" {
+    var probe: RetainedCleanupProbe = .{ .failures_remaining = 2 };
+    var logical_clock: LogicalCleanupClock = .{};
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    var finished = false;
+    defer if (!finished) aggregate.finishRetainedCleanup() catch {};
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x51),
+    );
+    const terminal_id = testId(core_module.TerminalId, 0x54);
+    _ = try commitHookedRuntime(&aggregate, connection_id, terminal_id, &probe);
+    subject.testing.setCleanupClockForTesting(&aggregate, readLogicalCleanupNs, &logical_clock);
+
+    // The containment window fails on the fatal-teardown pass.
+    try std.testing.expectError(
+        error.ProcessContainmentFailed,
+        aggregate.deinitChecked(false),
+    );
+
+    // Retained cleanup ownership: observable blocked containment and status.
+    const terminal = aggregate.core().findTerminal(terminal_id) orelse
+        return error.TerminalNotRetained;
+    const containment = terminal.failureContainment() orelse
+        return error.TerminalNotRetained;
+    const first_retry_at_ns = switch (containment) {
+        .blocked => |blocked| blocked.retry_at_ns,
+        .stopping => return error.TerminalNotBlocked,
+    };
+    const initial_status = aggregate.retainedCleanupStatus();
+    try std.testing.expect(initial_status.active);
+    try std.testing.expect(!initial_status.exhausted);
+    try std.testing.expect(aggregate.retainedCleanupPending());
+    try std.testing.expect(!aggregate.runtimeFor(terminal_id).?.containmentConfirmed());
+
+    // Bounded backoff: the first retry is not due before its deadline and
+    // becomes due exactly at it.
+    const takeDueCleanupRetry = subject.testing.takeDueCleanupRetryFn;
+    try std.testing.expect(takeDueCleanupRetry(&aggregate, first_retry_at_ns - 1) == null);
+    try std.testing.expectEqual(
+        terminal_id,
+        takeDueCleanupRetry(&aggregate, first_retry_at_ns).?,
+    );
+
+    // The first retry still fails containment, so the retained ownership is
+    // re-scheduled on the same bounded backoff cadence.
+    logical_clock.now_ns = first_retry_at_ns;
+    try std.testing.expect(!aggregate.runRetainedCleanupPass());
+    const second_containment = aggregate.core().findTerminal(terminal_id).?.failureContainment() orelse
+        return error.TerminalNotRetained;
+    const second_retry_at_ns = switch (second_containment) {
+        .blocked => |blocked| blocked.retry_at_ns,
+        .stopping => return error.TerminalNotBlocked,
+    };
+    try std.testing.expect(second_retry_at_ns > first_retry_at_ns);
+    try std.testing.expect(aggregate.retainedCleanupPending());
+
+    // A later successful containment observation completes cleanup.
+    logical_clock.now_ns = second_retry_at_ns;
+    try std.testing.expect(aggregate.runRetainedCleanupPass());
+    try std.testing.expect(!aggregate.retainedCleanupPending());
+    try std.testing.expect(aggregate.runtimeFor(terminal_id).?.containmentConfirmed());
+
+    // The release owner may release only now, with the tree contained. The
+    // successful finish destroys the runtimes and releases the Core record;
+    // after this point the aggregate is consumed (undefined).
+    try aggregate.finishRetainedCleanup();
+    finished = true;
+}
+
+// THDD-001 boundary evidence: after the bounded retry budget is exhausted the
+// tree is never silently orphaned and never released while unconfirmed; it is
+// in an explicitly retained/observable failed-cleanup state.
+test "THDD-001 retained-cleanup budget exhaustion leaves an explicit retained failed state, never a silent orphan" {
+    var probe: RetainedCleanupProbe = .{ .failures_remaining = std.math.maxInt(usize) };
+    var logical_clock: LogicalCleanupClock = .{};
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer {
+        probe.failures_remaining = 0;
+        aggregate.finishRetainedCleanup() catch {};
+    }
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x61),
+    );
+    const terminal_id = testId(core_module.TerminalId, 0x64);
+    _ = try commitHookedRuntime(&aggregate, connection_id, terminal_id, &probe);
+    subject.testing.setCleanupClockForTesting(&aggregate, readLogicalCleanupNs, &logical_clock);
+
+    try std.testing.expectError(
+        error.ProcessContainmentFailed,
+        aggregate.deinitChecked(false),
+    );
+    try std.testing.expect(aggregate.retainedCleanupPending());
+
+    // A static clock means no retry ever becomes due; the bounded window
+    // exhausts its budget instead of abandoning the tree.
+    try std.testing.expectEqual(
+        subject.testing.RetainedCleanupResultType.retained_failed,
+        aggregate.runRetainedCleanupWindow(),
+    );
+
+    // Permanent-failure policy: explicit retained failed state, observable.
+    const status = aggregate.retainedCleanupStatus();
+    try std.testing.expect(status.active);
+    try std.testing.expect(status.exhausted);
+    try std.testing.expect(aggregate.retainedCleanupPending());
+
+    // No release while unconfirmed: containment is not confirmed and the
+    // terminal stays observable with a stable never-due blocked cleanup.
+    const runtime = aggregate.runtimeFor(terminal_id).?;
+    try std.testing.expect(!runtime.containmentConfirmed());
+    const terminal = aggregate.core().findTerminal(terminal_id) orelse
+        return error.TerminalNotRetained;
+    const containment = terminal.failureContainment() orelse
+        return error.TerminalNotRetained;
+    switch (containment) {
+        .blocked => |blocked| {
+            try std.testing.expectEqual(
+                core_module.RuntimeCleanupFailure.contain_process,
+                blocked.cleanup_failure,
+            );
+            try std.testing.expectEqual(@as(i128, std.math.maxInt(i128)), blocked.retry_at_ns);
+        },
+        .stopping => return error.TerminalNotBlocked,
+    }
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.containing_failure,
+        terminal.phase(),
+    );
+}
+
+// THDD-001 observability evidence: the retained-cleanup state is surfaced as
+// an observable status (active, attempts, exhausted) across the window.
+test "THDD-001 retained-cleanup state is surfaced as observable status" {
+    var probe: RetainedCleanupProbe = .{ .failures_remaining = 1 };
+    var logical_clock: LogicalCleanupClock = .{};
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.finishRetainedCleanup() catch {};
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x71),
+    );
+    const terminal_id = testId(core_module.TerminalId, 0x74);
+    _ = try commitHookedRuntime(&aggregate, connection_id, terminal_id, &probe);
+    subject.testing.setCleanupClockForTesting(&aggregate, readLogicalCleanupNs, &logical_clock);
+
+    try std.testing.expectError(
+        error.ProcessContainmentFailed,
+        aggregate.deinitChecked(false),
+    );
+    const after_failure = aggregate.retainedCleanupStatus();
+    try std.testing.expect(after_failure.active);
+    try std.testing.expect(!after_failure.exhausted);
+
+    // A retained-cleanup pass is counted even when no retry is due (the static
+    // clock never advances past the bounded backoff deadline).
+    _ = aggregate.runRetainedCleanupPass();
+    const after_pass = aggregate.retainedCleanupStatus();
+    try std.testing.expect(after_pass.active);
+    try std.testing.expect(after_pass.attempts >= 1);
+
+    // The permanent-failure policy marks the exhausted outcome.
+    subject.testing.markRetainedCleanupExhausted(&aggregate);
+    const exhausted = aggregate.retainedCleanupStatus();
+    try std.testing.expect(exhausted.active);
+    try std.testing.expect(exhausted.exhausted);
+    try std.testing.expectEqual(
+        @as(i128, std.math.maxInt(i128)),
+        switch (aggregate.core().findTerminal(terminal_id).?.failureContainment().?) {
+            .blocked => |blocked| blocked.retry_at_ns,
+            .stopping => return error.TerminalNotBlocked,
+        },
+    );
 }
 
 test "runtime shutdown errors retain their exact cleanup phase" {

@@ -176,6 +176,27 @@ pub const HostService = struct {
         self.* = undefined;
     }
 
+    /// THDD-001: whether a failed fatal-teardown pass left an unconfirmed
+    /// process tree that the Host still owns and must keep retrying cleanup for.
+    pub fn retainedCleanupPending(self: *const HostService) bool {
+        return self.runtime_aggregate.retainedCleanupPending();
+    }
+
+    /// THDD-001: bounded retained-cleanup window. Runs while the endpoint and
+    /// lifetime lock stay held by the caller; the aggregate reuses the existing
+    /// bounded cleanup-retry scheduler so unconfirmed trees are retried on its
+    /// bounded backoff cadence instead of being abandoned after one failed pass.
+    pub fn runRetainedCleanupWindow(self: *HostService) host_runtime_aggregate.RetainedCleanupResult {
+        return self.runtime_aggregate.runRetainedCleanupWindow();
+    }
+
+    /// THDD-001: completes teardown once every retained process tree is
+    /// containment-confirmed, mirroring the successful deinitChecked path.
+    pub fn finishRetainedCleanup(self: *HostService) !void {
+        try self.runtime_aggregate.finishRetainedCleanup();
+        self.* = undefined;
+    }
+
     fn beginShutdown(self: *HostService) bool {
         if (self.lifecycle == .shutting_down) return false;
         self.lifecycle = .shutting_down;

@@ -38,6 +38,10 @@ const max_pending_input_bytes = subject.testing.pending_input_limit;
 const max_pending_input_entries = subject.testing.pending_input_entry_limit;
 const max_pending_terminal_reply_bytes = subject.testing.pending_terminal_reply_limit;
 const max_writer_slice_bytes = subject.testing.writer_slice_limit;
+// The terminal-reply burst bound the writer enforces before yielding to a
+// waiting accepted client entry. It mirrors max_terminal_reply_burst_slices in
+// runtime.zig and is the contract value documented in runtime-model.md.
+const terminal_reply_burst_bound: usize = 64;
 const publishInput = subject.testing.publishInputFn;
 const recordReaderFailure = subject.testing.recordReaderFailureFn;
 const recordTerminalReplyFailure = subject.testing.recordTerminalReplyFailure;
@@ -490,6 +494,103 @@ const WriterProbe = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         return .{ .bytes = self.write_bytes, .calls = self.write_calls };
+    }
+};
+
+/// A gate that pauses the writer after every slice copy, not just the first.
+/// The writer blocks in `pause()` until the test releases it, so tests observe
+/// and control each written slice deterministically without sleeps. A
+/// generation counter makes `wait()` return only when the writer has parked at
+/// a park the caller has not yet observed, so a `wait()` immediately following
+/// an `unpause()` cannot return while the writer is still leaving the previous
+/// park.
+const RepeatingGate = struct {
+    condition: std.Thread.Condition = .{},
+    mutex: std.Thread.Mutex = .{},
+    generation: usize = 0,
+    last_returned: usize = 0,
+    release: bool = false,
+
+    fn pause(self: *RepeatingGate) void {
+        self.mutex.lock();
+        self.release = false;
+        self.generation += 1;
+        self.condition.broadcast();
+        while (!self.release) self.condition.wait(&self.mutex);
+        self.mutex.unlock();
+    }
+
+    fn wait(self: *RepeatingGate) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        while (self.release or self.generation == self.last_returned) {
+            self.condition.wait(&self.mutex);
+        }
+        self.last_returned = self.generation;
+    }
+
+    fn unpause(self: *RepeatingGate) void {
+        self.mutex.lock();
+        self.release = true;
+        self.condition.broadcast();
+        self.mutex.unlock();
+    }
+};
+
+/// Drives the writer one slice at a time and records the first byte of every
+/// written slice, so tests can count the terminal-reply slices that precede a
+/// client slice and assert the bounded reply burst without any sleeps.
+const BurstProbe = struct {
+    gate: RepeatingGate = .{},
+    // Once set, the writer stops pausing per slice and drains freely so the
+    // test can end without a gate deadlock at shutdown.
+    detached: std.atomic.Value(bool) = .init(false),
+    mutex: std.Thread.Mutex = .{},
+    written: [512]u8 = undefined,
+    write_count: usize = 0,
+
+    fn fromContext(context: *anyopaque) *BurstProbe {
+        return @ptrCast(@alignCast(context));
+    }
+
+    fn sliceCopied(context: *anyopaque) void {
+        const self = fromContext(context);
+        if (!self.detached.load(.acquire)) self.gate.pause();
+    }
+
+    fn write(context: *anyopaque, bytes: []const u8) anyerror!usize {
+        const self = fromContext(context);
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.write_count < self.written.len) {
+            self.written[self.write_count] = bytes[0];
+        }
+        self.write_count += 1;
+        return bytes.len;
+    }
+
+    fn hooks(self: *BurstProbe) RuntimeTestingHooks {
+        return .{
+            .context = self,
+            .write_pty = write,
+            .writer_slice_copied = sliceCopied,
+        };
+    }
+
+    /// First byte of the most recently written slice, or null when no slice has
+    /// been written yet.
+    fn lastWritten(self: *BurstProbe) ?u8 {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.write_count == 0) return null;
+        return self.written[self.write_count - 1];
+    }
+
+    /// First bytes of every written slice so far.
+    fn writtenBytes(self: *BurstProbe) []const u8 {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.written[0..self.write_count];
     }
 };
 
@@ -1592,6 +1693,101 @@ test "terminal replies preempt client slices without reordering either source" {
 
     entries[0].bytes = null;
     try std.testing.expectEqual(@as(?usize, null), nextWritableInputEntry(&entries));
+}
+
+/// Drives the writer one slice at a time, parking after every slice copy so
+/// every write is observed deterministically. A terminal reply is replenished
+/// after every reply slice, so the reply stream never runs dry while the
+/// accepted client entry waits. Returns the number of reply slices written
+/// before the client slice, or null when the client entry was never written
+/// within `maximum_reply_slices` (unbounded starvation).
+fn driveReplyBurstUntilClient(
+    runtime: *TerminalRuntime,
+    probe: *BurstProbe,
+    maximum_reply_slices: usize,
+) !?usize {
+    var reply_slices: usize = 0;
+    while (reply_slices < maximum_reply_slices) {
+        probe.gate.unpause();
+        probe.gate.wait();
+        const first_byte = probe.lastWritten() orelse unreachable;
+        if (first_byte == 'a') return reply_slices;
+        reply_slices += 1;
+        const reply_reservation = try reserveInput(runtime, 3, false, .terminal);
+        try publishInput(runtime, reply_reservation, try std.testing.allocator.dupe(u8, "rrr"));
+    }
+    return null;
+}
+
+test "accepted client entry makes bounded progress behind a continuously replenished reply stream" {
+    var probe: BurstProbe = .{};
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer runtime.destroy();
+    defer {
+        probe.detached.store(true, .release);
+        probe.gate.unpause();
+    }
+
+    // A child continuously emits reply-producing queries. Admit one full reply
+    // burst and park the writer on it before accepting the client entry, so the
+    // client waits behind reply work deterministically.
+    for (0..terminal_reply_burst_bound) |_| {
+        const reply_reservation = try reserveInput(runtime, 3, false, .terminal);
+        try publishInput(runtime, reply_reservation, try std.testing.allocator.dupe(u8, "rrr"));
+    }
+    probe.gate.wait();
+    const client_reservation = try reserveInput(runtime, 5, false, .client);
+    try publishInput(runtime, client_reservation, try std.testing.allocator.dupe(u8, "aaaaa"));
+
+    // The reply stream is replenished as the writer drains it. Without the
+    // reply burst bound the accepted client entry would starve behind the
+    // endless stream; with the bound it is delivered after exactly one burst.
+    const before_client = try driveReplyBurstUntilClient(
+        runtime,
+        &probe,
+        4 * terminal_reply_burst_bound,
+    );
+    if (before_client == null) return error.ClientStarvedBehindReplyStream;
+    try std.testing.expectEqual(@as(usize, terminal_reply_burst_bound), before_client.?);
+    try std.testing.expectEqual(@as(usize, 5), runtime.takeWrittenBytes());
+}
+
+test "terminal reply burst enforces the exact yield bound and replies keep priority within the burst" {
+    var probe: BurstProbe = .{};
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer runtime.destroy();
+    defer {
+        probe.detached.store(true, .release);
+        probe.gate.unpause();
+    }
+
+    // The accepted client entry holds the front FIFO position while a reply
+    // stream larger than one burst sits behind it. Reserve it first so the
+    // writer parks on a reply slice, then publish it before driving.
+    const client_reservation = try reserveInput(runtime, 5, false, .client);
+    for (0..2 * terminal_reply_burst_bound) |_| {
+        const reply_reservation = try reserveInput(runtime, 3, false, .terminal);
+        try publishInput(runtime, reply_reservation, try std.testing.allocator.dupe(u8, "rrr"));
+    }
+    probe.gate.wait();
+    try publishInput(runtime, client_reservation, try std.testing.allocator.dupe(u8, "aaaaa"));
+
+    const before_client = try driveReplyBurstUntilClient(
+        runtime,
+        &probe,
+        4 * terminal_reply_burst_bound,
+    );
+    if (before_client == null) return error.ClientStarvedBehindReplyStream;
+    // Exactly one reply burst precedes the client: the writer yields after the
+    // bounded slice budget, not after the whole injected stream.
+    try std.testing.expectEqual(@as(usize, terminal_reply_burst_bound), before_client.?);
+    // Within the burst every written slice is a terminal reply (priority), and
+    // the accepted client entry is delivered once the writer yields.
+    const written = probe.writtenBytes();
+    for (written[0..terminal_reply_burst_bound]) |byte| {
+        try std.testing.expectEqual(@as(u8, 'r'), byte);
+    }
+    try std.testing.expectEqual(@as(usize, 5), runtime.takeWrittenBytes());
 }
 
 test "discarding prepared input releases its ordered queue reservation" {
@@ -3284,4 +3480,115 @@ test "POSIX PTY child reads TIOCGWINSZ matching the canonical launch geometry" {
     try std.testing.expectEqual(plan.columns, column);
     try std.testing.expectEqual(@as(u16, plan.columns * plan.cell_pixel_width), xpixel);
     try std.testing.expectEqual(@as(u16, plan.rows * plan.cell_pixel_height), ypixel);
+}
+
+fn parseDescendantPid(text: []const u8) ?std.posix.pid_t {
+    const marker = "ORCHBEE-DESC ";
+    const marker_index = std.mem.indexOf(u8, text, marker) orelse return null;
+    const rest = text[marker_index + marker.len ..];
+    const digit_end = std.mem.indexOfAny(u8, rest, " \n\r") orelse rest.len;
+    return std.fmt.parseInt(std.posix.pid_t, rest[0..digit_end], 10) catch null;
+}
+
+fn procCommEquals(pid: std.posix.pid_t, expected: []const u8) bool {
+    var path_buffer: [64]u8 = undefined;
+    const path = std.fmt.bufPrint(&path_buffer, "/proc/{d}/comm", .{pid}) catch return false;
+    const file = std.fs.openFileAbsolute(path, .{}) catch return false;
+    defer file.close();
+    var comm_buffer: [64]u8 = undefined;
+    const count = file.readAll(&comm_buffer) catch return false;
+    var end = count;
+    while (end > 0 and (comm_buffer[end - 1] == '\n' or comm_buffer[end - 1] == '\r')) end -= 1;
+    return std.mem.eql(u8, comm_buffer[0..end], expected);
+}
+
+fn processAlive(pid: std.posix.pid_t) bool {
+    std.posix.kill(pid, 0) catch |err| switch (err) {
+        error.ProcessNotFound => return false,
+        else => return true,
+    };
+    return true;
+}
+
+// THCR-028 regression: a session leader that forks a descendant which closes
+// its PTY descriptors and writes a forged ") Z\n" task name must not make the
+// engine confirm containment while that descendant is still alive. Before
+// disposal the descendant is a live, uncontained session member and the leader
+// identity stays retained; shutdown kills the descendant, confirms containment,
+// and only then releases the leader identity.
+test "Linux session descendant with a forged newline comm stays contained until shutdown kills it (THCR-028)" {
+    const builtin = @import("builtin");
+    if (builtin.os.tag != .linux) return error.SkipZigTest;
+
+    // The leader forks one background subshell that closes its PTY descriptors,
+    // writes the forged "worker) Z\nX" main-thread comm (the embedded newline is
+    // not trailing, so /proc/self/comm keeps it), and blocks forever reading
+    // /dev/zero; the leader echoes the descendant PID and exits. On the pre-fix
+    // parser the single fgets line reads as a non-live 'Z'.
+    const script =
+        "( printf 'worker) Z\\nX' >/proc/self/comm; exec 0</dev/zero 1>&- 2>&-; read x ) & " ++
+        "printf 'ORCHBEE-DESC %s\\n' \"$!\"; exit 0";
+    const arguments = [_][]const u8{ "-c", script };
+    const runtime = try TerminalRuntime.createWithOptions(std.testing.allocator, .{
+        .arguments = &arguments,
+        .columns = 80,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = "/bin/sh",
+        .rows = 24,
+    }, .{});
+    defer runtime.destroy();
+
+    const completion = try runtime.waitForCompletion();
+    try std.testing.expect(completion.pty_drained);
+
+    var snapshot = try canonicalSnapshot(runtime);
+    defer snapshot.deinit();
+    const descendant_pid = parseDescendantPid(snapshot.text) orelse
+        return error.DescendantPidMissing;
+    // Best-effort cleanup: on the pre-fix parser containment is spoof-confirmed,
+    // so a failed shutdown would leave the descendant running. Ensure it dies.
+    defer {
+        if (processAlive(descendant_pid)) {
+            std.posix.kill(descendant_pid, std.posix.SIG.KILL) catch {};
+        }
+    }
+
+    // Wait until the descendant has actually written the forged comm; only that
+    // state exercises the spoof on the pre-fix parser.
+    var forged_comm = false;
+    for (0..1000) |_| {
+        if (procCommEquals(descendant_pid, "worker) Z\nX")) {
+            forged_comm = true;
+            break;
+        }
+        std.Thread.sleep(5 * std.time.ns_per_ms);
+    }
+    try std.testing.expect(forged_comm);
+
+    // The descendant is a live, uncontained session member: containment must
+    // not be confirmed and the leader identity must remain retained.
+    try std.testing.expect(processAlive(descendant_pid));
+    try std.testing.expect(!runtime.containment_confirmed.load(.acquire));
+    try std.testing.expect(!try runtime.process.processTreeContained());
+    try std.testing.expect(!runtime.process.identityReleased());
+
+    // Shutdown force-terminates the session, confirms containment, and only
+    // then releases the retained leader identity.
+    try runtime.shutdown();
+    try std.testing.expect(runtime.containment_confirmed.load(.acquire));
+    try std.testing.expect(runtime.process.identityReleased());
+    try std.testing.expect(try runtime.process.processTreeContained());
+
+    // The descendant was killed and, once the leader identity is released, is
+    // reparented and reaped by init so it is fully gone rather than stopped.
+    var descendant_gone = false;
+    for (0..1000) |_| {
+        if (!processAlive(descendant_pid)) {
+            descendant_gone = true;
+            break;
+        }
+        std.Thread.sleep(5 * std.time.ns_per_ms);
+    }
+    try std.testing.expect(descendant_gone);
 }

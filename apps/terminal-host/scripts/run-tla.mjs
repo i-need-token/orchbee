@@ -32,6 +32,7 @@ const models = [
 	'TerminalFrameBackpressure',
 	'TerminalInputBackpressure',
 	'TerminalHistoryInteraction',
+	'TerminalHostProcessIdentity',
 ];
 
 async function sha1(filePath) {

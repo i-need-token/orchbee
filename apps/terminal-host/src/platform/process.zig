@@ -44,6 +44,88 @@ pub const Process = switch (builtin.os.tag) {
     else => @compileError("terminal-host has no process implementation for this target"),
 };
 
+/// Serializes session signaling, containment confirmation, and identity release
+/// at the POSIX process-identity owner (THCR-006). The numeric session
+/// identifier is consulted for signaling only while the launch session leader is
+/// retained; once waitpid has released the identity (or the session is confirmed
+/// contained), graceful and force requests become idempotent no-ops that never
+/// enumerate processes by the numeric identifier. A reused numeric SID can
+/// therefore never receive HUP, STOP, KILL, or CONT from a settled terminal.
+const SessionIdentityState = if (builtin.os.tag == .windows)
+    struct {}
+else
+    struct {
+        mutex: std.Thread.Mutex = .{},
+        released: std.atomic.Value(bool) = .init(false),
+        signals_issued: std.atomic.Value(u64) = .init(0),
+
+        pub fn signal(
+            self: *SessionIdentityState,
+            session_id: std.posix.pid_t,
+            signaler: anytype,
+            signal_number: u8,
+        ) !void {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            if (self.released.load(.acquire)) return;
+            _ = self.signals_issued.fetchAdd(1, .monotonic);
+            try signaler.signal(session_id, signal_number);
+        }
+
+        pub fn forceTerminate(
+            self: *SessionIdentityState,
+            session_id: std.posix.pid_t,
+            signaler: anytype,
+        ) !void {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            if (self.released.load(.acquire)) return;
+            _ = self.signals_issued.fetchAdd(1, .monotonic);
+            try sessionForceTerminate(session_id, signaler);
+        }
+
+        pub fn contained(
+            self: *SessionIdentityState,
+            session_id: std.posix.pid_t,
+            query: anytype,
+        ) !bool {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            if (self.released.load(.acquire)) return true;
+            var count: u32 = 0;
+            try query.liveMembers(session_id, &count);
+            return count == 0;
+        }
+
+        pub fn release(
+            self: *SessionIdentityState,
+            session_id: std.posix.pid_t,
+            reaper: anytype,
+        ) !void {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            if (self.released.load(.acquire)) return;
+            try reaper.reap(session_id);
+            self.released.store(true, .release);
+        }
+
+        pub fn isReleased(self: *const SessionIdentityState) bool {
+            return self.released.load(.acquire);
+        }
+    };
+
+/// STOP narrows the race in which a descendant can create another session
+/// member while the platform enumerates it. A partial STOP failure must not
+/// leave already-stopped members frozen forever. POSIX-only: the constant
+/// table is not meaningful on Windows.
+fn sessionForceTerminate(session_id: std.posix.pid_t, signaler: anytype) !void {
+    signaler.signal(session_id, std.posix.SIG.STOP) catch {};
+    signaler.signal(session_id, std.posix.SIG.KILL) catch |err| {
+        signaler.signal(session_id, std.posix.SIG.CONT) catch {};
+        return err;
+    };
+}
+
 const PosixProcess = if (builtin.os.tag == .windows) void else struct {
     const posix = std.posix;
     const default_path = "/usr/local/bin:/bin/:/usr/bin";
@@ -52,6 +134,11 @@ const PosixProcess = if (builtin.os.tag == .windows) void else struct {
     exit_reaped: bool = false,
     exit_result: ?ExitResult = null,
     pty: pty_module.Pty,
+    // Serialized process-identity fence shared by signaling, containment
+    // confirmation, and release. child_id doubles as the session identifier;
+    // it is safe to pass to the session signaler only while the leader is
+    // retained (see SessionIdentityState).
+    identity: SessionIdentityState = .{},
 
     pub fn spawn(allocator: std.mem.Allocator, launch: Launch) !PosixProcess {
         var environment = try environmentForLaunch(allocator, launch.environment);
@@ -132,7 +219,7 @@ const PosixProcess = if (builtin.os.tag == .windows) void else struct {
             _ = posix.waitpid(child_id, 0);
             return error.SpawnFailed;
         }
-        return .{ .child_id = child_id, .pty = pty };
+        return .{ .child_id = child_id, .pty = pty, .identity = .{} };
     }
 
     pub fn deinit(self: *PosixProcess) void {
@@ -174,20 +261,16 @@ const PosixProcess = if (builtin.os.tag == .windows) void else struct {
         });
     }
 
-    pub fn terminate(self: *const PosixProcess) !void {
-        try signalSession(self.child_id, posix.SIG.HUP);
+    pub fn terminate(self: *PosixProcess) !void {
+        try self.identity.signal(self.child_id, NativeSessionSignaler{}, posix.SIG.HUP);
     }
 
-    pub fn forceTerminate(self: *const PosixProcess) !void {
-        try forceTerminateSession(self.child_id, NativeSessionSignaler{});
+    pub fn forceTerminate(self: *PosixProcess) !void {
+        try self.identity.forceTerminate(self.child_id, NativeSessionSignaler{});
     }
 
-    pub fn processTreeContained(self: *const PosixProcess) !bool {
-        var live_members: u32 = 0;
-        if (orchbee_process_session_live_members(self.child_id, &live_members) != 0) {
-            return error.ProcessContainmentQueryFailed;
-        }
-        return live_members == 0;
+    pub fn processTreeContained(self: *PosixProcess) !bool {
+        return try self.identity.contained(self.child_id, NativeSessionQuery{});
     }
 
     pub fn wait(self: *PosixProcess) !ExitResult {
@@ -211,8 +294,21 @@ const PosixProcess = if (builtin.os.tag == .windows) void else struct {
 
     pub fn releaseProcessIdentity(self: *PosixProcess) !void {
         if (self.exit_reaped) return;
-        if (orchbee_reap_process_exit(self.child_id) != 0) return error.ProcessReapFailed;
+        try self.identity.release(self.child_id, NativeSessionReaper{});
         self.exit_reaped = true;
+    }
+
+    /// True once waitpid has reaped the session leader. After this point the
+    /// numeric session identifier is no longer owned and is never consulted for
+    /// signaling, containment enumeration, or release again.
+    pub fn identityReleased(self: *const PosixProcess) bool {
+        return self.identity.isReleased();
+    }
+
+    /// Counts every session-signaler consultation that passed the identity
+    /// fence. Test evidence asserts that a settled identity never increases it.
+    pub fn signalsIssued(self: *const PosixProcess) u64 {
+        return self.identity.signals_issued.load(.monotonic);
     }
 
     pub fn finishPtyAfterChildExit(_: *PosixProcess) !void {}
@@ -328,15 +424,22 @@ const PosixProcess = if (builtin.os.tag == .windows) void else struct {
         }
     };
 
+    const NativeSessionQuery = struct {
+        fn liveMembers(_: NativeSessionQuery, session_id: posix.pid_t, count: *u32) !void {
+            if (orchbee_process_session_live_members(session_id, count) != 0) {
+                return error.ProcessContainmentQueryFailed;
+            }
+        }
+    };
+
+    const NativeSessionReaper = struct {
+        fn reap(_: NativeSessionReaper, session_id: posix.pid_t) !void {
+            if (orchbee_reap_process_exit(session_id) != 0) return error.ProcessReapFailed;
+        }
+    };
+
     pub fn forceTerminateSession(session_id: posix.pid_t, signaler: anytype) !void {
-        // STOP narrows the race in which a descendant can create another
-        // session member while the platform enumerates it. A partial STOP
-        // failure must not leave already-stopped members frozen forever.
-        signaler.signal(session_id, posix.SIG.STOP) catch {};
-        signaler.signal(session_id, posix.SIG.KILL) catch |err| {
-            signaler.signal(session_id, posix.SIG.CONT) catch {};
-            return err;
-        };
+        return sessionForceTerminate(session_id, signaler);
     }
 };
 
@@ -664,6 +767,14 @@ const WindowsProcess = if (builtin.os.tag != .windows) void else struct {
 
     pub fn releaseProcessIdentity(_: *WindowsProcess) !void {}
 
+    pub fn identityReleased(_: *const WindowsProcess) bool {
+        return true;
+    }
+
+    pub fn signalsIssued(_: *const WindowsProcess) u64 {
+        return 0;
+    }
+
     pub fn finishPtyAfterChildExit(self: *WindowsProcess) !void {
         // Holding HPCON keeps the pseudoconsole alive, but closing it while a
         // descendant is still attached sends that descendant CTRL_CLOSE_EVENT
@@ -809,6 +920,7 @@ fn windowsCommandLine(allocator: std.mem.Allocator, arguments: []const []const u
 pub const testing = if (builtin.is_test) struct {
     pub const posixExecutableCandidatesFn = posixExecutableCandidatesForTesting;
     pub const PosixProcessType = PosixProcess;
+    pub const SessionIdentityStateType = SessionIdentityState;
     pub const windowsCommandLineFn = windowsCommandLine;
     pub const windowsSearchCandidatesFn = windowsSearchCandidates;
 } else struct {};

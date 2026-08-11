@@ -177,7 +177,10 @@ lease without resize authority are malformed at the protocol boundary.
 one to the negotiated `inputBytes` terminal bytes. The hard terminal-byte maximum is 1 MiB, so the
 largest raw payload is 1 MiB plus 16 bytes. The attachment resolves the terminal and input
 capability; `TerminalId` never appears in this payload. `InputAccepted` means the complete terminal
-byte suffix was committed once to the ordered bounded Host queue. A broken connection before that
+byte suffix was committed once to the ordered bounded Host queue. It is queue-admission-only and
+does not promise the bytes have reached the terminal writer, so terminal-generated replies may be
+delivered ahead of accepted client bytes under the Host's bounded reply-priority policy. A broken
+connection before that
 response leaves the outcome unknown and never authorizes replay.
 
 TypeScript producers use `encodeInputRequest`; the message kind selects the raw or semantic binary

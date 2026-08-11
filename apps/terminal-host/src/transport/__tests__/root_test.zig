@@ -223,6 +223,41 @@ test "recoverable accept failure still evaluates the idle exit condition" {
     try std.testing.expectEqual(@as(usize, 1), server.calls);
 }
 
+// THDD-001 evidence: a PeerIdentityMismatch-class accept failure still follows
+// the existing recoverable path. It is swallowed by the local-IPC recoverable
+// filter, the idle exit condition is still evaluated, and it never escalates to
+// a fatal teardown or the retained-cleanup window.
+test "THDD-001 PeerIdentityMismatch accept failure stays on the recoverable path without retained-cleanup escalation" {
+    const PeerMismatchServer = struct {
+        calls: usize = 0,
+
+        pub fn serveOne(self: *@This(), _: *host_service.HostService) !void {
+            self.calls += 1;
+            return error.PeerIdentityMismatch;
+        }
+
+        pub fn serveOneBefore(self: *@This(), _: *host_service.HostService, _: u32) !bool {
+            self.calls += 1;
+            return error.PeerIdentityMismatch;
+        }
+    };
+    const recoverable = struct {
+        fn check(err: anyerror) bool {
+            return err == error.PeerIdentityMismatch;
+        }
+    }.check;
+
+    var service = host_service.HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var server: PeerMismatchServer = .{};
+
+    try serveUntilIdleLoop(&server, &service, recoverable);
+    // The recoverable accept failure was absorbed and the loop exited through
+    // the idle condition, not through the error (no fatal escalation).
+    try std.testing.expectEqual(@as(usize, 1), server.calls);
+    try std.testing.expect(service.canStopWhenIdle());
+}
+
 test "accept timeouts continue Host maintenance without a broker" {
     const MaintenanceService = struct {
         idle: bool = false,

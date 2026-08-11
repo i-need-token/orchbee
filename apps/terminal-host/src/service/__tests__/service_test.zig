@@ -1470,6 +1470,101 @@ test "semantic input preparation commits to a terminal-exited rejection after cl
     try std.testing.expectEqual(@as(usize, 0), inputEntryCount(runtime));
 }
 
+test "InputAccepted stays queue-admission-only while terminal replies queue ahead of the client entry" {
+    const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "ping -n 31 127.0.0.1 >nul" };
+    const arguments: []const []const u8 = if (target_builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    const create_payload = try testCreatePayload(
+        "5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d",
+        executable,
+        arguments,
+    );
+    defer std.testing.allocator.free(create_payload);
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e");
+    var created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        create_payload,
+        [_]u8{0x5d} ** 16,
+    );
+    defer created.deinit();
+    const terminal_id = service.runtime_aggregate.core().terminalKeys()[0];
+    const attachment_id = core_module.AttachmentId.fromBytes([_]u8{0x5f} ** 16);
+    var attachment_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    const attach_payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":true,\"read\":true,\"resize\":true}},\"requestResizeLease\":true,\"terminalId\":\"{s}\"}}",
+        .{
+            identifierText(attachment_id, &attachment_buffer),
+            identifierText(terminal_id, &terminal_buffer),
+        },
+    );
+    defer std.testing.allocator.free(attach_payload);
+    var attached = try testRequest(
+        &service,
+        &connection,
+        MessageKind.attach_terminal,
+        .control_json,
+        attach_payload,
+        [_]u8{0x5f} ** 16,
+    );
+    defer attached.deinit();
+    const runtime = findRuntime(&service, terminal_id).?;
+
+    // An unpublished first client entry parks the writer, so accepted client
+    // bytes are provably not delivered while the queue is inspected.
+    var publication_barrier = try runtime.prepareRawInput("b");
+    defer publication_barrier.deinit();
+    try std.testing.expectEqual(@as(usize, 1), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 1), inputEntryCount(runtime));
+
+    // A child continuously emits reply-producing queries ahead of the client.
+    parseTerminalInput(runtime, "\x1b[c");
+    parseTerminalInput(runtime, "\x1b[c");
+    parseTerminalInput(runtime, "\x1b[c");
+
+    // A client WriteInput is admitted to the ordered bounded queue. InputAccepted
+    // is queue-admission-only: it reports the exact committed byte count at
+    // admission and does not promise the bytes reached the terminal writer, so
+    // it is unaffected by the reply burst sitting ahead.
+    var input_payload: [16 + 3]u8 = undefined;
+    @memset(input_payload[0..16], 0x5f);
+    @memcpy(input_payload[16..], "abc");
+    var accepted = try testRequest(
+        &service,
+        &connection,
+        MessageKind.write_input,
+        .raw_bytes,
+        &input_payload,
+        [_]u8{0x60} ** 16,
+    );
+    defer accepted.deinit();
+    try expectInputAcceptedBytes(&accepted, attachment_id, 3);
+    // The acknowledgement committed the client bytes to the queue; nothing has
+    // been delivered to the terminal writer yet.
+    try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
+    try std.testing.expect(runtime.pendingInputBytes() >= 4);
+}
+
 test "handshake binds client and negotiates input bytes" {
     var service = HostService.init(std.testing.allocator);
     defer service.deinit();
@@ -2446,6 +2541,279 @@ test "current protocol force-terminates every retained POSIX session member" {
     try std.testing.expectEqual(
         core_module.TerminalPhase.exited,
         service.runtime_aggregate.core().findTerminal(terminal_id).?.phase(),
+    );
+}
+
+const TerminationBarrierGate = struct {
+    condition: std.Thread.Condition = .{},
+    mutex: std.Thread.Mutex = .{},
+    reached: bool = false,
+    released: bool = false,
+
+    fn pause(self: *TerminationBarrierGate) void {
+        self.mutex.lock();
+        self.reached = true;
+        self.condition.broadcast();
+        while (!self.released) self.condition.wait(&self.mutex);
+        self.mutex.unlock();
+    }
+
+    fn release(self: *TerminationBarrierGate) void {
+        self.mutex.lock();
+        self.released = true;
+        self.condition.broadcast();
+        self.mutex.unlock();
+    }
+};
+
+const TerminationBarrierSignal = struct {
+    condition: std.Thread.Condition = .{},
+    mutex: std.Thread.Mutex = .{},
+    reached: bool = false,
+
+    fn notify(self: *TerminationBarrierSignal) void {
+        self.mutex.lock();
+        self.reached = true;
+        self.condition.broadcast();
+        self.mutex.unlock();
+    }
+
+    fn wait(self: *TerminationBarrierSignal) void {
+        self.mutex.lock();
+        while (!self.reached) self.condition.wait(&self.mutex);
+        self.mutex.unlock();
+    }
+};
+
+const aggregate_module = service_boundary.testing.runtime_aggregate;
+
+// THCR-006 regression: dispatch pauses after admission observed a pending
+// engine, then the wait worker confirms the empty session and reaps the leader.
+// The resumed real terminate/forceTerminate must be an idempotent no-op that
+// never consults the now-reused numeric session identifier.
+const PausingTerminationDispatcher = struct {
+    entered: *TerminationBarrierSignal,
+    gate: *TerminationBarrierGate,
+    runtime: ?*terminal_runtime.TerminalRuntime = null,
+    mode: ?aggregate_module.TerminationMode = null,
+
+    pub fn dispatch(
+        self: *@This(),
+        runtime: *terminal_runtime.TerminalRuntime,
+        mode: aggregate_module.TerminationMode,
+    ) !void {
+        self.runtime = runtime;
+        self.mode = mode;
+        self.entered.notify();
+        self.gate.pause();
+        switch (mode) {
+            .graceful => try runtime.terminate(),
+            .force => try runtime.forceTerminate(),
+        }
+    }
+};
+
+const NoopTerminationFencer = struct {
+    pub fn fence(
+        _: *@This(),
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) terminal_runtime.HostFailureFenceResult {
+        return runtime.fenceHostFailure();
+    }
+};
+
+const NoopTerminationContainment = struct {
+    pub fn contain(
+        _: *@This(),
+        _: *core_module.HostCore,
+        _: core_module.TerminalId,
+        _: *terminal_runtime.TerminalRuntime,
+    ) !void {}
+};
+
+const TerminationRequestOutcome = struct {
+    result: ?core_module.TransitionOutcome = null,
+    failure: ?anyerror = null,
+
+    fn run(
+        self: *@This(),
+        aggregate: *aggregate_module.HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        terminal_id: core_module.TerminalId,
+        mode: aggregate_module.TerminationMode,
+        dispatcher: anytype,
+        fencer: anytype,
+        containment: anytype,
+    ) void {
+        self.result = aggregate_module.testing.requestTerminationUsingFn(
+            aggregate,
+            connection_id,
+            terminal_id,
+            mode,
+            dispatcher,
+            fencer,
+            containment,
+        ) catch |err| blk: {
+            self.failure = err;
+            break :blk null;
+        };
+    }
+};
+
+/// Drives one termination-mode variant of the THCR-006 Host barrier: the
+/// initial synchronization observes a pending engine, the request is admitted
+/// for dispatch, and while dispatch is paused the wait worker completes
+/// empty-session confirmation and reaps the session leader. The resumed signal
+/// must be an idempotent no-op; the numeric SID is never consulted again.
+fn driveIdentityReleasedTerminationBarrier(
+    service: *HostService,
+    connection: *ConnectionState,
+    terminal_id: core_module.TerminalId,
+    mode: aggregate_module.TerminationMode,
+) !void {
+    const runtime = findRuntime(service, terminal_id) orelse return error.ExpectedRuntime;
+    var entered = TerminationBarrierSignal{};
+    var gate = TerminationBarrierGate{};
+    var dispatcher: PausingTerminationDispatcher = .{ .entered = &entered, .gate = &gate };
+    var fencer: NoopTerminationFencer = .{};
+    var containment: NoopTerminationContainment = .{};
+    var outcome: TerminationRequestOutcome = .{};
+    const active = try activeConnection(connection);
+
+    var request_thread: ?std.Thread = try std.Thread.spawn(.{}, TerminationRequestOutcome.run, .{
+        &outcome,
+        &service.runtime_aggregate,
+        active.connection_id,
+        terminal_id,
+        mode,
+        &dispatcher,
+        &fencer,
+        &containment,
+    });
+    defer {
+        gate.release();
+        if (request_thread) |thread| thread.join();
+    }
+
+    // Admission observed the running engine and is pausing before the signal.
+    entered.wait();
+    try std.testing.expectEqual(mode, dispatcher.mode.?);
+    try std.testing.expectEqual(
+        terminal_runtime.CompletionState.pending,
+        runtime.completion().classification,
+    );
+
+    // Complete the wait-worker path: empty-session confirmation and reap.
+    // The test drives the ORIGINAL owned session to exit; this is the signal
+    // the retained identity is allowed to receive.
+    try runtime.process.forceTerminate();
+    _ = try runtime.waitForCompletion();
+    try std.testing.expect(runtime.process.identityReleased());
+
+    // The numeric SID is free and may be rebound to a foreign session. Resume
+    // dispatch: the real terminate/forceTerminate must not consult it.
+    const signals_before = runtime.process.signalsIssued();
+    gate.release();
+    request_thread.?.join();
+    request_thread = null;
+
+    try std.testing.expect(outcome.failure == null);
+    try std.testing.expectEqual(core_module.TransitionOutcome.applied, outcome.result.?);
+    try std.testing.expectEqual(signals_before, runtime.process.signalsIssued());
+
+    // The terminal settles with its eventual normal exit.
+    service.runtime_aggregate.synchronizeTerminal(terminal_id);
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.exited,
+        service.runtime_aggregate.core().findTerminal(terminal_id).?.phase(),
+    );
+    // A replayed request after settlement is idempotent and never dispatches:
+    // the gate is already released, so a (regression) dispatch would return
+    // immediately but still fail the idempotent assertion below.
+    var replay_outcome: TerminationRequestOutcome = .{};
+    var replay_dispatcher: PausingTerminationDispatcher = .{ .entered = &entered, .gate = &gate };
+    const replay_thread = try std.Thread.spawn(.{}, TerminationRequestOutcome.run, .{
+        &replay_outcome,
+        &service.runtime_aggregate,
+        active.connection_id,
+        terminal_id,
+        mode,
+        &replay_dispatcher,
+        &fencer,
+        &containment,
+    });
+    replay_thread.join();
+    try std.testing.expectEqual(core_module.TransitionOutcome.idempotent, replay_outcome.result.?);
+    try std.testing.expect(replay_outcome.failure == null);
+}
+
+test "graceful termination after identity release never signals a reused session" {
+    if (@import("builtin").os.tag == .windows) return error.SkipZigTest;
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "22222222222222222222222222222222");
+
+    const arguments = [_][]const u8{ "-c", "sleep 30" };
+    const create_payload = try testCreatePayload(
+        "33333333333333333333333333333333",
+        "/bin/sh",
+        &arguments,
+    );
+    defer std.testing.allocator.free(create_payload);
+    var created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        create_payload,
+        [_]u8{0x42} ** 16,
+    );
+    defer created.deinit();
+    const terminal_id = service.runtime_aggregate.core().terminalKeys()[0];
+    try driveIdentityReleasedTerminationBarrier(
+        &service,
+        &connection,
+        terminal_id,
+        aggregate_module.TerminationMode.graceful,
+    );
+}
+
+test "force termination after identity release never signals a reused session" {
+    if (@import("builtin").os.tag == .windows) return error.SkipZigTest;
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "22222222222222222222222222222222");
+
+    const arguments = [_][]const u8{ "-c", "sleep 30" };
+    const create_payload = try testCreatePayload(
+        "33333333333333333333333333333333",
+        "/bin/sh",
+        &arguments,
+    );
+    defer std.testing.allocator.free(create_payload);
+    var created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        create_payload,
+        [_]u8{0x42} ** 16,
+    );
+    defer created.deinit();
+    const terminal_id = service.runtime_aggregate.core().terminalKeys()[0];
+    try driveIdentityReleasedTerminationBarrier(
+        &service,
+        &connection,
+        terminal_id,
+        aggregate_module.TerminationMode.force,
     );
 }
 

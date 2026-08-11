@@ -27,6 +27,43 @@
 
 typedef int (*process_visitor)(pid_t pid, void *context);
 
+/// Parses a complete Linux /proc/<pid>/stat record and reports whether the
+/// process is live. Linux writes the task name unescaped inside parentheses, so
+/// a name containing ')' or '\n' makes the first ')' ambiguous; the kernel
+/// appends its own ") <state> " suffix after the whole name and every later
+/// field is numeric, so the final ')' of the record is always that kernel
+/// delimiter. Truncated, oversized, or otherwise malformed records fail closed
+/// with EIO rather than being classified by a name-controlled byte. Exposed so
+/// the pure record parser is testable on every POSIX target; the Linux
+/// process_is_live adapter is its only production caller.
+int orchbee_process_stat_record_is_live(const char *record, size_t length, int *live) {
+    if (record == NULL || live == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (length == 0) {
+        errno = EIO;
+        return -1;
+    }
+    const char *delimiter = NULL;
+    for (size_t index = 0; index < length; ++index) {
+        if (record[index] == ')') delimiter = &record[index];
+    }
+    if (delimiter == NULL) {
+        errno = EIO;
+        return -1;
+    }
+    const size_t offset = (size_t)(delimiter - record);
+    if (offset + 3 >= length || delimiter[1] != ' ' ||
+        delimiter[2] == ' ' || delimiter[2] == '\0' || delimiter[3] != ' ') {
+        errno = EIO;
+        return -1;
+    }
+    const char state = delimiter[2];
+    *live = state != 'Z' && state != 'X' && state != 'x';
+    return 0;
+}
+
 #if defined(__APPLE__)
 static int visit_processes(process_visitor visitor, void *context) {
     int capacity = proc_listallpids(NULL, 0);
@@ -223,26 +260,47 @@ static int process_is_live(pid_t pid, int *live) {
         }
         return -1;
     }
-    char stat[4096];
-    if (fgets(stat, sizeof(stat), file) == NULL) {
-        const int read_error = errno;
-        fclose(file);
-        if (read_error == ENOENT) {
-            *live = 0;
-            return 0;
+    // Read the complete record through EOF. A task name may embed '\n' (and
+    // ')'), so a single fgets line can truncate the record and let a
+    // name-controlled byte masquerade as the state. An oversized record fails
+    // closed as malformed rather than being silently truncated.
+    enum { stat_buffer_capacity = 4096 };
+    char stat[stat_buffer_capacity + 1];
+    size_t length = 0;
+    int read_error = 0;
+    for (;;) {
+        const size_t count = fread(
+            stat + length,
+            1,
+            stat_buffer_capacity - length,
+            file
+        );
+        if (count == 0) {
+            if (ferror(file)) read_error = errno == 0 ? EIO : errno;
+            break;
         }
-        errno = read_error == 0 ? EIO : read_error;
+        length += count;
+        if (length == stat_buffer_capacity) {
+            char probe;
+            if (fread(&probe, 1, 1, file) == 0) {
+                if (ferror(file)) read_error = errno == 0 ? EIO : errno;
+                break;
+            }
+            read_error = EOVERFLOW;
+            break;
+        }
+    }
+    if (fclose(file) != 0 && read_error == 0) read_error = errno == 0 ? EIO : errno;
+    if (read_error == ENOENT) {
+        *live = 0;
+        return 0;
+    }
+    if (read_error != 0) {
+        errno = read_error;
         return -1;
     }
-    if (fclose(file) != 0) return -1;
-    char *name_end = strrchr(stat, ')');
-    if (name_end == NULL || name_end[1] != ' ' || name_end[2] == '\0') {
-        errno = EIO;
-        return -1;
-    }
-    const char state = name_end[2];
-    *live = state != 'Z' && state != 'X' && state != 'x';
-    return 0;
+    stat[length] = '\0';
+    return orchbee_process_stat_record_is_live(stat, length, live);
 }
 #else
 #error "Unsupported POSIX platform"
