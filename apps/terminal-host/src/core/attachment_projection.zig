@@ -204,6 +204,17 @@ pub const State = struct {
     ) Error!Transition {
         if (sequence != 0 and sequence <= self.last_abandoned_sequence) return .idempotent;
         if (self.inFlight()) |flight| {
+            // A replay of the already-applied prior frame is an idempotent
+            // no-op even while a newer frame is in flight; it never advances or
+            // clears the newer flight. The retained base carries the exact
+            // immutable acknowledgement tuple of that earlier frame.
+            if (flight.base_before) |base| {
+                if (base.sequence == sequence and base.revision == revision and
+                    base.generation == generation)
+                {
+                    return .idempotent;
+                }
+            }
             if (flight.frame.sequence != sequence or flight.frame.revision != revision or
                 flight.frame.generation != generation)
             {

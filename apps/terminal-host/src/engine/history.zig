@@ -209,6 +209,17 @@ const TrackedAnchor = struct {
     screen_key: ghostty_vt.ScreenSet.Key,
 };
 
+// The immutable acknowledgement identity of the latest applied viewport row
+// window. It is recorded when pending rows commit and is never rewritten by
+// noteMutation or generationChanged, which only refresh the mutable committed
+// anchor's revision and generation. An exact replay of this tuple is an
+// idempotent no-op even while a newer row window is pending.
+const AppliedRowsIdentity = struct {
+    generation: u64,
+    revision: u64,
+    sequence: u64,
+};
+
 const ExportState = struct {
     attachment_id: AttachmentId,
     bytes_length: usize,
@@ -225,6 +236,7 @@ const ExportState = struct {
 const AttachmentState = struct {
     attachment_id: AttachmentId,
     committed: ?TrackedAnchor = null,
+    committed_ack: ?AppliedRowsIdentity = null,
     demand: HistoryDemand = .following_bottom,
     export_state: ?ExportState = null,
     gesture_anchor: ?TrackedAnchor = null,
@@ -468,9 +480,14 @@ pub const Manager = struct {
         generation: u64,
     ) HistoryError!void {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        if (state.committed) |committed| {
-            if (state.pending == null and committed.request_sequence == request_sequence and
-                committed.revision == revision and committed.generation == generation)
+        // A replay of the already-applied rows is an idempotent no-op even
+        // while a newer row window is pending; it never clears or advances the
+        // newer flight. The immutable acknowledgement tuple is preserved
+        // separately from the mutable committed anchor, whose revision and
+        // generation may be refreshed by later mutations.
+        if (state.committed_ack) |ack| {
+            if (ack.sequence == request_sequence and ack.revision == revision and
+                ack.generation == generation)
             {
                 return;
             }
@@ -487,6 +504,11 @@ pub const Manager = struct {
         }
         self.releaseAnchor(terminal, &state.committed);
         state.committed = pending;
+        state.committed_ack = .{
+            .generation = generation,
+            .revision = revision,
+            .sequence = request_sequence,
+        };
         state.pending = null;
     }
 
@@ -950,7 +972,10 @@ pub const Manager = struct {
             .format = format,
             .storage = storage,
         };
-        state.last_completed_export_sequence = null;
+        // Starting a newer export must not clear the completion watermark of
+        // the last completed export; a replay of that export's final chunk
+        // acknowledgement stays an idempotent no-op while the newer export is
+        // in flight.
         state.last_export_sequence = export_sequence;
         return .{
             .attachment_id = attachment_id,
@@ -1053,14 +1078,14 @@ pub const Manager = struct {
         for (state.invalidated_exports[0..state.invalidated_export_count]) |cancellation| {
             if (self.sameExport(cancellation, attachment_id, export_sequence)) return null;
         }
-        const export_state = if (state.export_state) |*value| value else {
-            const completed = state.last_completed_export_sequence orelse
-                return error.InvalidAcknowledgement;
-            return if (completed == export_sequence)
-                null
-            else
-                error.InvalidAcknowledgement;
-        };
+        // A replay of the last completed export's acknowledgement is an
+        // idempotent no-op even while a newer export is in flight; it never
+        // advances or clears the newer export's offset, chunk, or in-flight
+        // state.
+        if (state.last_completed_export_sequence) |completed| {
+            if (completed == export_sequence) return null;
+        }
+        const export_state = if (state.export_state) |*value| value else return error.InvalidAcknowledgement;
         if (export_sequence != export_state.export_sequence) return error.InvalidAcknowledgement;
         if (chunk_sequence < export_state.chunk_sequence) return null;
         if (!export_state.chunk_in_flight or chunk_sequence != export_state.chunk_sequence) {
@@ -1101,7 +1126,6 @@ pub const Manager = struct {
             .byte_length = export_state.bytes_length,
             .export_sequence = export_sequence,
         };
-        state.last_completed_export_sequence = null;
         self.releaseExport(state);
         return finished;
     }

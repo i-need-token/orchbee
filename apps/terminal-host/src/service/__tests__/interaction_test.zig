@@ -1190,21 +1190,90 @@ fn dispatchHistoryObserved(
     generation: u64,
     correlation_byte: u8,
 ) !host_outgoing.Outgoing {
+    return dispatchControlAcknowledgement(
+        service,
+        connection,
+        protocol.MessageKind.history_observed,
+        attachment_id,
+        sequence,
+        revision,
+        generation,
+        correlation_byte,
+        "sequence",
+    );
+}
+
+fn dispatchFrameApplied(
+    service: *service_subject.HostService,
+    connection: *service_subject.ConnectionState,
+    attachment_id: core_module.AttachmentId,
+    sequence: u64,
+    revision: u64,
+    generation: u64,
+    correlation_byte: u8,
+) !host_outgoing.Outgoing {
+    return dispatchControlAcknowledgement(
+        service,
+        connection,
+        protocol.MessageKind.frame_applied,
+        attachment_id,
+        sequence,
+        revision,
+        generation,
+        correlation_byte,
+        "sequence",
+    );
+}
+
+fn dispatchRowsApplied(
+    service: *service_subject.HostService,
+    connection: *service_subject.ConnectionState,
+    attachment_id: core_module.AttachmentId,
+    request_sequence: u64,
+    revision: u64,
+    generation: u64,
+    correlation_byte: u8,
+) !host_outgoing.Outgoing {
+    return dispatchControlAcknowledgement(
+        service,
+        connection,
+        protocol.MessageKind.rows_applied,
+        attachment_id,
+        request_sequence,
+        revision,
+        generation,
+        correlation_byte,
+        "requestSequence",
+    );
+}
+
+fn dispatchControlAcknowledgement(
+    service: *service_subject.HostService,
+    connection: *service_subject.ConnectionState,
+    kind: u16,
+    attachment_id: core_module.AttachmentId,
+    sequence: u64,
+    revision: u64,
+    generation: u64,
+    correlation_byte: u8,
+    sequence_field: []const u8,
+) !host_outgoing.Outgoing {
     var attachment_buffer: [32]u8 = undefined;
     const payload = try std.fmt.allocPrint(
         std.testing.allocator,
-        "{{\"attachmentId\":\"{s}\",\"generation\":\"{d}\",\"revision\":\"{d}\",\"sequence\":\"{d}\"}}",
+        "{{\"attachmentId\":\"{s}\",\"generation\":\"{d}\",\"revision\":\"{d}\",\"{s}\":\"{d}\"}}",
         .{
             control_encode.identifierText(attachment_id, &attachment_buffer),
             generation,
             revision,
+            sequence_field,
             sequence,
         },
     );
     defer std.testing.allocator.free(payload);
     const record = try protocol.encodeTransportEnvelope(
         std.testing.allocator,
-        protocol.MessageKind.history_observed,
+        kind,
         .control_json,
         payload,
         [_]u8{correlation_byte} ** 16,
@@ -1214,6 +1283,70 @@ fn dispatchHistoryObserved(
     );
     defer std.testing.allocator.free(record);
     return service.handle(connection, record);
+}
+
+fn dispatchSelectionExportChunkApplied(
+    service: *service_subject.HostService,
+    connection: *service_subject.ConnectionState,
+    attachment_id: core_module.AttachmentId,
+    export_sequence: u64,
+    chunk_sequence: u32,
+    correlation_byte: u8,
+) !host_outgoing.Outgoing {
+    var attachment_buffer: [32]u8 = undefined;
+    const payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"chunkSequence\":{d},\"exportSequence\":\"{d}\"}}",
+        .{
+            control_encode.identifierText(attachment_id, &attachment_buffer),
+            chunk_sequence,
+            export_sequence,
+        },
+    );
+    defer std.testing.allocator.free(payload);
+    const record = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        protocol.MessageKind.selection_export_chunk_applied,
+        .control_json,
+        payload,
+        [_]u8{correlation_byte} ** 16,
+        service.runtime_aggregate.core().epoch.bytes,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(record);
+    return service.handle(connection, record);
+}
+
+fn exportChunkInBatch(
+    outgoing: *const host_outgoing.Outgoing,
+    expected_export_sequence: u64,
+) !?u32 {
+    for (outgoing.records()) |record| {
+        const envelope = try protocol.validateTransportEnvelope(record);
+        if (envelope.kind != protocol.MessageKind.selection_export_chunk) continue;
+        const export_sequence = std.mem.readInt(u64, envelope.payload[16..24], .little);
+        if (export_sequence != expected_export_sequence) continue;
+        return std.mem.readInt(u32, envelope.payload[24..28], .little);
+    }
+    return null;
+}
+
+fn expectSameKindAcknowledgementSuccess(
+    outgoing: *const host_outgoing.Outgoing,
+    kind: u16,
+    correlation_byte: u8,
+) !void {
+    try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
+    const envelope = try protocol.validateTransportEnvelope(outgoing.records()[0]);
+    try std.testing.expectEqual(kind, envelope.kind);
+    try std.testing.expect(envelope.response);
+    try std.testing.expect(!envelope.event);
+    try std.testing.expectEqualSlices(
+        u8,
+        &[_]u8{correlation_byte} ** 16,
+        &envelope.correlation_id.?,
+    );
 }
 
 test "THCR-013 service schedules distinct wire sequences and the exact acknowledgement unblocks later mutation" {
@@ -1309,4 +1442,338 @@ test "THCR-013 service schedules distinct wire sequences and the exact acknowled
     const third_event = try historyChangedSummary(third.records()[0]);
     try std.testing.expectEqual(second_event.sequence + 1, third_event.sequence);
     try std.testing.expectEqual(second_event.revision + 1, third_event.revision);
+}
+
+// THCR-029 regression: a late duplicate of an already-applied frame
+// acknowledgement must return the registered same-kind success response rather
+// than a typed_failure, while a newer frame is in flight.
+test "THCR-029 frame late duplicate request returns the same-kind success response" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var service = service_subject.HostService.init(std.testing.allocator);
+    var connection: service_subject.ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    const connection_id: core_module.ConnectionId = 1;
+    const attachment_id = testId(core_module.AttachmentId, 0x1d);
+    _ = try createReadableRuntime(
+        &service.runtime_aggregate,
+        connection_id,
+        attachment_id,
+    );
+    connection = .{ .active = .{
+        .connection_id = connection_id,
+        .limits = .{
+            .frame_bytes = protocol.Limits.frame_bytes,
+            .input_bytes = protocol.Limits.input_bytes,
+            .row_window_bytes = protocol.Limits.row_window_bytes,
+        },
+    } };
+    _ = try service.runtime_aggregate.setProjectionDemand(connection_id, attachment_id, .active);
+    const first = try service.runtime_aggregate.core().commitFrame(
+        attachment_id,
+        null,
+        1,
+        1,
+        .snapshot,
+    );
+    try std.testing.expectEqual(@as(u64, 1), first.sequence);
+    _ = try service.runtime_aggregate.core().frameApplied(
+        connection_id,
+        attachment_id,
+        1,
+        1,
+        1,
+    );
+    const second = try service.runtime_aggregate.core().commitFrame(
+        attachment_id,
+        1,
+        2,
+        1,
+        .delta,
+    );
+    try std.testing.expectEqual(@as(u64, 2), second.sequence);
+
+    // Replaying frame 1's acknowledgement while frame 2 is in flight must be
+    // an idempotent no-op returned as the registered frame_applied success.
+    var replayed = try dispatchFrameApplied(
+        &service,
+        &connection,
+        attachment_id,
+        1,
+        1,
+        1,
+        0x21,
+    );
+    defer replayed.deinit();
+    try expectSameKindAcknowledgementSuccess(
+        &replayed,
+        protocol.MessageKind.frame_applied,
+        0x21,
+    );
+    try std.testing.expectEqual(
+        @as(u64, 2),
+        service.runtime_aggregate.core().findAttachment(attachment_id).?.projectionInFlight().?.frame.sequence,
+    );
+
+    var applied = try dispatchFrameApplied(
+        &service,
+        &connection,
+        attachment_id,
+        2,
+        2,
+        1,
+        0x22,
+    );
+    defer applied.deinit();
+    try expectSameKindAcknowledgementSuccess(
+        &applied,
+        protocol.MessageKind.frame_applied,
+        0x22,
+    );
+}
+
+// THCR-029 regression: a late duplicate of the applied row window
+// acknowledgement must return the registered same-kind success response rather
+// than a typed_failure, while a newer row window is pending.
+test "THCR-029 rows late duplicate request returns the same-kind success response" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var service = service_subject.HostService.init(std.testing.allocator);
+    var connection: service_subject.ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    const connection_id: core_module.ConnectionId = 1;
+    const attachment_id = testId(core_module.AttachmentId, 0x1e);
+    const binding = try createReadableRuntime(
+        &service.runtime_aggregate,
+        connection_id,
+        attachment_id,
+    );
+    connection = .{ .active = .{
+        .connection_id = connection_id,
+        .limits = .{
+            .frame_bytes = protocol.Limits.frame_bytes,
+            .input_bytes = protocol.Limits.input_bytes,
+            .row_window_bytes = protocol.Limits.row_window_bytes,
+        },
+    } };
+    const geometry = binding.runtime.geometry();
+
+    var first = try requestRenderRows(
+        &service,
+        &connection,
+        attachment_id,
+        geometry,
+        1,
+        1,
+        0x23,
+    );
+    defer first.deinit();
+    try std.testing.expectEqual(
+        protocol.MessageKind.rows_snapshot,
+        (try protocol.validateTransportEnvelope(first.records()[0])).kind,
+    );
+    var applied_first = try dispatchRowsApplied(
+        &service,
+        &connection,
+        attachment_id,
+        1,
+        geometry.revision,
+        geometry.generation,
+        0x24,
+    );
+    defer applied_first.deinit();
+    try expectSameKindAcknowledgementSuccess(
+        &applied_first,
+        protocol.MessageKind.rows_applied,
+        0x24,
+    );
+
+    var second = try requestRenderRows(
+        &service,
+        &connection,
+        attachment_id,
+        geometry,
+        2,
+        1,
+        0x25,
+    );
+    defer second.deinit();
+    try std.testing.expectEqual(
+        protocol.MessageKind.rows_snapshot,
+        (try protocol.validateTransportEnvelope(second.records()[0])).kind,
+    );
+
+    // Replaying window 1's acknowledgement while window 2 is pending must be
+    // an idempotent no-op returned as the registered rows_applied success.
+    var replayed = try dispatchRowsApplied(
+        &service,
+        &connection,
+        attachment_id,
+        1,
+        geometry.revision,
+        geometry.generation,
+        0x26,
+    );
+    defer replayed.deinit();
+    try expectSameKindAcknowledgementSuccess(
+        &replayed,
+        protocol.MessageKind.rows_applied,
+        0x26,
+    );
+
+    var applied_second = try dispatchRowsApplied(
+        &service,
+        &connection,
+        attachment_id,
+        2,
+        geometry.revision,
+        geometry.generation,
+        0x27,
+    );
+    defer applied_second.deinit();
+    try expectSameKindAcknowledgementSuccess(
+        &applied_second,
+        protocol.MessageKind.rows_applied,
+        0x27,
+    );
+}
+
+// THCR-029 regression: replaying the acknowledgement of the last completed
+// export must return the registered same-kind success response rather than a
+// typed_failure, while a newer export is in flight.
+test "THCR-029 export late duplicate request returns the same-kind success response" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var service = service_subject.HostService.init(std.testing.allocator);
+    var connection: service_subject.ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    const connection_id: core_module.ConnectionId = 1;
+    const attachment_id = testId(core_module.AttachmentId, 0x1f);
+    const binding = try createReadableRuntime(
+        &service.runtime_aggregate,
+        connection_id,
+        attachment_id,
+    );
+    connection = .{ .active = .{
+        .connection_id = connection_id,
+        .limits = .{
+            .frame_bytes = protocol.Limits.frame_bytes,
+            .input_bytes = protocol.Limits.input_bytes,
+            .row_window_bytes = protocol.Limits.row_window_bytes,
+        },
+    } };
+    const geometry = binding.runtime.geometry();
+    _ = try binding.runtime.applySelectionCommand(.{
+        .attachment_id = attachment_id,
+        .command = .select_all,
+        .generation = geometry.generation,
+        .revision = geometry.revision,
+    });
+    _ = (try binding.runtime.startSelectionExport(
+        attachment_id,
+        7,
+        .plain,
+    )).started;
+
+    var first_batch = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer first_batch.deinit();
+    var scheduler: subject.Scheduler = .{};
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &service.runtime_aggregate,
+        connection_id,
+        &first_batch,
+    );
+    try std.testing.expectEqual(@as(u32, 0), (try exportChunkInBatch(&first_batch, 7)).?);
+    var completed_seven = try dispatchSelectionExportChunkApplied(
+        &service,
+        &connection,
+        attachment_id,
+        7,
+        0,
+        0x28,
+    );
+    defer completed_seven.deinit();
+    try expectExportChunkAcknowledgementFinished(
+        &completed_seven,
+        0x28,
+    );
+
+    _ = (try binding.runtime.startSelectionExport(
+        attachment_id,
+        8,
+        .plain,
+    )).started;
+    var second_batch = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer second_batch.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &service.runtime_aggregate,
+        connection_id,
+        &second_batch,
+    );
+    try std.testing.expectEqual(@as(u32, 0), (try exportChunkInBatch(&second_batch, 8)).?);
+
+    // Replaying export 7's final chunk acknowledgement while export 8 is in
+    // flight must be an idempotent no-op with the registered same-kind success
+    // and no new finished event.
+    var replayed_seven = try dispatchSelectionExportChunkApplied(
+        &service,
+        &connection,
+        attachment_id,
+        7,
+        0,
+        0x29,
+    );
+    defer replayed_seven.deinit();
+    try expectSameKindAcknowledgementSuccess(
+        &replayed_seven,
+        protocol.MessageKind.selection_export_chunk_applied,
+        0x29,
+    );
+    try std.testing.expectEqual(@as(usize, 1), replayed_seven.records().len);
+
+    var applied_eight = try dispatchSelectionExportChunkApplied(
+        &service,
+        &connection,
+        attachment_id,
+        8,
+        0,
+        0x2a,
+    );
+    defer applied_eight.deinit();
+    try expectExportChunkAcknowledgementFinished(
+        &applied_eight,
+        0x2a,
+    );
+}
+
+fn expectExportChunkAcknowledgementFinished(
+    outgoing: *const host_outgoing.Outgoing,
+    correlation_byte: u8,
+) !void {
+    try std.testing.expectEqual(@as(usize, 2), outgoing.records().len);
+    const acknowledgement = try protocol.validateTransportEnvelope(outgoing.records()[0]);
+    try std.testing.expectEqual(
+        protocol.MessageKind.selection_export_chunk_applied,
+        acknowledgement.kind,
+    );
+    try std.testing.expect(acknowledgement.response);
+    try std.testing.expect(!acknowledgement.event);
+    try std.testing.expectEqualSlices(
+        u8,
+        &[_]u8{correlation_byte} ** 16,
+        &acknowledgement.correlation_id.?,
+    );
+    const finished = try protocol.validateTransportEnvelope(outgoing.records()[1]);
+    try std.testing.expectEqual(protocol.MessageKind.selection_export_finished, finished.kind);
 }

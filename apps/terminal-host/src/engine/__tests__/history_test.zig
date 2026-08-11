@@ -877,10 +877,11 @@ test "row request sequences are strictly monotonic and allocation failure is ret
         .row_count = 1,
     });
     defer std.testing.allocator.free(second.bytes);
-    try std.testing.expectError(
-        error.InvalidAcknowledgement,
-        manager.rowsApplied(&terminal, attachment, 1, 1, 1),
-    );
+    // THCR-029: a replay of the already-applied window 1 is an idempotent
+    // no-op even while window 2 is pending, and it must not clear the newer
+    // flight.
+    try manager.rowsApplied(&terminal, attachment, 1, 1, 1);
+    try std.testing.expect(findState(&manager, attachment).?.pending != null);
     try manager.rowsApplied(&terminal, attachment, 2, 1, 1);
 }
 
@@ -1295,10 +1296,9 @@ test "export sequences reject ABA acknowledgements and failed starts do not cons
     _ = try manager.startExport(&terminal, attachment, 8, .plain);
     const second_chunk = (try manager.encodeNextExportChunk(std.testing.allocator, attachment)).?;
     defer std.testing.allocator.free(second_chunk.bytes);
-    try std.testing.expectError(
-        error.InvalidAcknowledgement,
-        manager.exportChunkApplied(attachment, 7, 0),
-    );
+    // THCR-029: a replay of the completed export 7 acknowledgement is an
+    // idempotent no-op even while export 8 is in flight.
+    try std.testing.expect((try manager.exportChunkApplied(attachment, 7, 0)) == null);
     _ = (try manager.exportChunkApplied(attachment, 8, 0)).?;
 }
 
@@ -1512,4 +1512,158 @@ test "THCR-013 replaying an earlier acknowledgement never clears a newer same-re
     const third = (try manager.takeHistoryEvent(&terminal, attachment, 2, 1)).?;
     try std.testing.expectEqual(second.sequence + 1, third.sequence);
     try manager.historyObserved(attachment, third.sequence, third.revision, third.generation);
+}
+
+// THCR-029 regression: an exact duplicate of the already-applied viewport row
+// window acknowledgement must be an idempotent no-op even while a newer row
+// window is pending, and it must never clear or advance the newer flight.
+test "THCR-029 replaying an earlier row acknowledgement is idempotent while a newer window is pending" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("alpha");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x1a);
+    try manager.attach(attachment);
+
+    const first = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 1, 1, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = 4096,
+        .origin = .{ .tail = 0 },
+        .purpose = .viewport,
+        .request_sequence = 1,
+        .revision = 1,
+        .row_count = 1,
+    });
+    defer std.testing.allocator.free(first.bytes);
+    try manager.rowsApplied(&terminal, attachment, 1, 1, 1);
+
+    const second = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 1, 1, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = 4096,
+        .origin = .{ .tail = 0 },
+        .purpose = .viewport,
+        .request_sequence = 2,
+        .revision = 1,
+        .row_count = 1,
+    });
+    defer std.testing.allocator.free(second.bytes);
+    const state = findState(&manager, attachment).?;
+    try std.testing.expect(state.pending != null);
+    try std.testing.expectEqual(@as(u64, 2), state.pending.?.request_sequence);
+
+    // Replaying the applied window-1 acknowledgement must not clear the
+    // pending window-2 flight.
+    try manager.rowsApplied(&terminal, attachment, 1, 1, 1);
+    try std.testing.expect(state.pending != null);
+    try std.testing.expectEqual(@as(u64, 2), state.pending.?.request_sequence);
+    try std.testing.expectEqual(@as(u64, 1), state.pending.?.revision);
+    try std.testing.expectEqual(@as(u64, 1), state.pending.?.generation);
+
+    try manager.rowsApplied(&terminal, attachment, 2, 1, 1);
+    try std.testing.expect(state.pending == null);
+    try std.testing.expectEqual(@as(u64, 2), state.committed.?.request_sequence);
+}
+
+// THCR-029 regression: a normal mutation refreshes the committed anchor's
+// revision and generation, but the immutable acknowledgement tuple of the
+// applied rows must remain replayable as a no-op without touching the
+// mutation-refreshed anchor.
+test "THCR-029 row replay identity survives mutation-refreshed anchors" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("alpha");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x1b);
+    try manager.attach(attachment);
+    try manager.setDemand(&terminal, attachment, .viewing_history);
+
+    const rows = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 1, 1, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = 4096,
+        .origin = .{ .tail = 0 },
+        .purpose = .viewport,
+        .request_sequence = 1,
+        .revision = 1,
+        .row_count = 1,
+    });
+    defer std.testing.allocator.free(rows.bytes);
+    try manager.rowsApplied(&terminal, attachment, 1, 1, 1);
+    const state = findState(&manager, attachment).?;
+    try std.testing.expect(state.committed != null);
+    const anchor_before = state.committed.?;
+
+    try terminal.printString("x");
+    manager.noteMutation(&terminal, 2, 1);
+    try std.testing.expectEqual(@as(u64, 2), state.committed.?.revision);
+    try std.testing.expectEqual(@as(u64, 1), state.committed.?.generation);
+
+    // Replaying the original tuple must succeed and leave the refreshed anchor
+    // byte-for-byte unchanged.
+    try manager.rowsApplied(&terminal, attachment, 1, 1, 1);
+    try std.testing.expectEqual(@as(u64, 2), state.committed.?.revision);
+    try std.testing.expectEqual(@as(u64, 1), state.committed.?.generation);
+    try std.testing.expectEqual(anchor_before.pin, state.committed.?.pin);
+}
+
+// THCR-029 regression: replaying the acknowledgement of the last completed
+// export must be an idempotent no-op even while a newer export is in flight,
+// and it must not advance the newer export's offset, chunk, or in-flight state.
+test "THCR-029 replaying a completed export acknowledgement leaves a newer export untouched" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("selected");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x1c);
+    try manager.attach(attachment);
+    _ = try manager.applySelectionCommand(&terminal, 1, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 1,
+    });
+
+    _ = try manager.startExport(&terminal, attachment, 7, .plain);
+    const first_chunk = (try manager.encodeNextExportChunk(std.testing.allocator, attachment)).?;
+    defer std.testing.allocator.free(first_chunk.bytes);
+    _ = (try manager.exportChunkApplied(attachment, 7, 0)).?;
+
+    _ = try manager.startExport(&terminal, attachment, 8, .plain);
+    const second_chunk = (try manager.encodeNextExportChunk(std.testing.allocator, attachment)).?;
+    defer std.testing.allocator.free(second_chunk.bytes);
+    const state = findState(&manager, attachment).?;
+    const export_before = state.export_state.?;
+
+    // Replaying export 7's final chunk acknowledgement is an idempotent no-op
+    // while export 8 is in flight.
+    try std.testing.expect((try manager.exportChunkApplied(attachment, 7, 0)) == null);
+    try std.testing.expectEqual(
+        export_before.export_sequence,
+        state.export_state.?.export_sequence,
+    );
+    try std.testing.expectEqual(export_before.next_offset, state.export_state.?.next_offset);
+    try std.testing.expectEqual(export_before.chunk_sequence, state.export_state.?.chunk_sequence);
+    try std.testing.expectEqual(export_before.chunk_in_flight, state.export_state.?.chunk_in_flight);
+
+    _ = (try manager.exportChunkApplied(attachment, 8, 0)).?;
 }

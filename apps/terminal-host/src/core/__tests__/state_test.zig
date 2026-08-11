@@ -2290,6 +2290,26 @@ test "projection transition sequences preserve core invariants after every actio
                         attachment_id,
                         flight.frame.sequence,
                     );
+                } else if (step % 5 == 2) {
+                    // THCR-029 replay interleaving: while a newer frame is in
+                    // flight, an acknowledgement of the retained prior base must
+                    // be an idempotent no-op that never clears the newer flight.
+                    if (flight.base_before) |base| {
+                        try std.testing.expectEqual(
+                            subject.TransitionOutcome.idempotent,
+                            try core.frameApplied(
+                                connection,
+                                attachment_id,
+                                base.sequence,
+                                base.revision,
+                                base.generation,
+                            ),
+                        );
+                        try std.testing.expectEqual(
+                            flight.frame.sequence,
+                            core.findAttachment(attachment_id).?.projectionInFlight().?.frame.sequence,
+                        );
+                    }
                 } else {
                     _ = try core.frameApplied(
                         connection,
@@ -2314,4 +2334,54 @@ test "projection transition sequences preserve core invariants after every actio
         }
         try expectCoreInvariants(&core);
     }
+}
+
+// THCR-029 regression: an exact duplicate of an already-applied frame
+// acknowledgement must be an idempotent no-op even while a newer frame is in
+// flight, and it must never advance or clear the newer flight.
+test "THCR-029 replaying an earlier frame acknowledgement is idempotent while a newer flight is in flight" {
+    var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
+    defer core.deinit();
+    const connection: ConnectionId = 2;
+    const terminal_id = testId(TerminalId, 4);
+    const attachment_id = testId(AttachmentId, 6);
+    _ = try core.connect(connection, testId(ClientId, 2));
+    _ = try core.createTerminal(
+        connection,
+        testId(CreationId, 3),
+        terminal_id,
+        [_]u8{5} ** 32,
+        80,
+        24,
+    );
+    _ = try core.attach(connection, attachment_id, terminal_id, .{
+        .input = false,
+        .read = true,
+        .resize = false,
+    }, false);
+    _ = try core.synchronizeRevision(terminal_id, 1);
+    _ = try core.setProjectionDemand(connection, attachment_id, .active);
+
+    const first = try core.commitFrame(attachment_id, null, 1, 1, .snapshot);
+    try std.testing.expectEqual(@as(u64, 1), first.sequence);
+    try std.testing.expectEqual(
+        .applied,
+        try core.frameApplied(connection, attachment_id, 1, 1, 1),
+    );
+
+    _ = try core.synchronizeRevision(terminal_id, 2);
+    const second = try core.commitFrame(attachment_id, 1, 2, 1, .delta);
+    try std.testing.expectEqual(@as(u64, 2), second.sequence);
+    const before = core.findAttachment(attachment_id).?.projectionInFlight().?;
+    try std.testing.expectEqual(
+        .idempotent,
+        try core.frameApplied(connection, attachment_id, 1, 1, 1),
+    );
+    const after = core.findAttachment(attachment_id).?.projectionInFlight().?;
+    try std.testing.expectEqualDeep(before, after);
+    try std.testing.expectEqual(
+        .applied,
+        try core.frameApplied(connection, attachment_id, 2, 2, 1),
+    );
+    try expectCoreInvariants(&core);
 }
