@@ -111,6 +111,23 @@ test "PTY process preserves exact arguments, environment, and exit" {
     if (builtin.os.tag != .windows) try std.testing.expect(process.exit_reaped);
 }
 
+// THCR-041 regression: after WaitForSingleObject returns WAIT_OBJECT_0 the
+// child process object has signaled and the process is definitively terminated.
+// Every DWORD returned by a successful GetExitCodeProcess is then a genuine
+// exit status. STILL_ACTIVE (259) describes a running process only; a
+// terminated process may legitimately exit with status 259, so the value must
+// be preserved as `exit_code` instead of being rejected as observation failure.
+// This pure decision runs on every platform.
+test "terminated Windows exit codes are preserved, never observation failure (THCR-041)" {
+    const classify = subject.testing.windowsTerminatedExitResultFn;
+    for ([_]u32{ 0, 1, 258, 259, 260, 0xffff_ffff }) |code| {
+        try std.testing.expectEqual(
+            ExitResult{ .exit_code = code },
+            try classify(code),
+        );
+    }
+}
+
 test "failed exec leaves no retained child" {
     try std.testing.expectError(
         error.SpawnFailed,
@@ -492,6 +509,38 @@ test "Windows Job assignment failure terminates the suspended child" {
         @as(windows.DWORD, windows.WAIT_OBJECT_0),
         windows.kernel32.WaitForSingleObject(process_information.hProcess, 5_000),
     );
+}
+
+// THCR-041 regression: a Windows child that terminates with the DWORD exit
+// status 259 (the numeric value of STILL_ACTIVE) must be observed as that exact
+// exit_code, never as ProcessObservationFailed. Native Windows execution
+// required; compiled for `x86_64-windows-gnu` on non-Windows hosts.
+test "Windows wait preserves exact exit codes 258/259/260 (THCR-041)" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const executable = try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec");
+    defer std.testing.allocator.free(executable);
+    for ([_]u32{ 258, 259, 260 }) |expected_code| {
+        var command_buffer: [32]u8 = undefined;
+        const exit_command = try std.fmt.bufPrint(
+            &command_buffer,
+            "exit {d}",
+            .{expected_code},
+        );
+        const arguments = [_][]const u8{ "/D", "/S", "/C", exit_command };
+        var process = try Process.spawn(std.testing.allocator, .{
+            .arguments = &arguments,
+            .columns = 80,
+            .current_directory = null,
+            .environment = &.{},
+            .executable = executable,
+            .rows = 24,
+        });
+        defer process.deinit();
+        try std.testing.expectEqual(
+            ExitResult{ .exit_code = expected_code },
+            try process.wait(),
+        );
+    }
 }
 
 fn windowsCandidateStrings(allocator: std.mem.Allocator, candidates: []const [:0]u16) ![][]const u8 {

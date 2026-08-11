@@ -913,6 +913,87 @@ test "runtime completion synchronization emits one typed exit notice" {
     _ = aggregate.disconnect(connection_id);
 }
 
+// THCR-041 regression: a Windows child that terminates with exit status 259
+// (STILL_ACTIVE's numeric value) must synchronize through the service
+// lifecycle into exactly one TerminalExited outcome carrying code 259, with no
+// TerminalFailed observe-process/unavailable outcome. Native Windows execution
+// required; compiled for `x86_64-windows-gnu` on non-Windows.
+test "Windows exit code 259 synchronizes as one TerminalExited with code 259 (THCR-041)" {
+    const builtin = @import("builtin");
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x51),
+    );
+    const windows_executable = try std.process.getEnvVarOwned(
+        std.testing.allocator,
+        "ComSpec",
+    );
+    defer std.testing.allocator.free(windows_executable);
+    var launch = validMissingExecutableLaunch();
+    launch.executable = windows_executable;
+    launch.arguments = &.{ "/D", "/Q", "/C", "exit 259" };
+    const validated = try terminal_launch.inspect(std.testing.allocator, launch);
+    var preparation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x52),
+        validated,
+        .{},
+    );
+    defer preparation.deinit();
+    const created = try aggregate.commitPreparedTerminal(&preparation);
+    const terminal_id = try switch (created) {
+        .created => |identity| identity.terminal_id,
+        .replayed => error.ExpectedCreatedTerminal,
+    };
+
+    const completion = try aggregate.runtimeFor(terminal_id).?.waitForCompletion();
+    try std.testing.expectEqual(
+        terminal_runtime.CompletionState.normal,
+        completion.classification,
+    );
+    try std.testing.expectEqual(
+        pty_process.ExitResult{ .exit_code = 259 },
+        completion.exit_result.?,
+    );
+
+    // The maintenance pass copies that normal engine completion into Core.
+    aggregate.synchronizeRuntimes();
+
+    const terminal = aggregate.core().findTerminal(terminal_id).?;
+    try std.testing.expectEqual(core_module.TerminalPhase.exited, terminal.phase());
+    const pending = terminal.pendingOutcome() orelse
+        return error.ExpectedExitedOutcome;
+    switch (pending) {
+        .exited => |outcome| {
+            try std.testing.expect(outcome.terminal_id.eql(terminal_id));
+            switch (outcome.result) {
+                .exit_code => |code| try std.testing.expectEqual(@as(u32, 259), code),
+                .signal, .unknown => return error.ExpectedExitCode,
+            }
+        },
+        .failed => return error.ExpectedExitedOutcome,
+    }
+
+    // Exactly one outcome exists: publishing it is applied once and idempotent
+    // thereafter, and a later synchronization publishes nothing new.
+    try publishPendingOutcome(&aggregate, terminal_id);
+    try std.testing.expect(
+        aggregate.core().findTerminal(terminal_id).?.pendingOutcome() == null,
+    );
+    aggregate.synchronizeRuntimes();
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.exited,
+        aggregate.core().findTerminal(terminal_id).?.phase(),
+    );
+
+    _ = try aggregate.core().disposeTerminal(connection_id, terminal_id);
+    _ = aggregate.disconnect(connection_id);
+}
+
 test "process observation failure maps to a distinct runtime failure" {
     const runtimeFailureFromObservation = subject.testing.runtimeFailureFromObservationFn;
     const failure = runtimeFailureFromObservation(.{

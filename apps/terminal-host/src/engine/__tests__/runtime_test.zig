@@ -1339,6 +1339,46 @@ test "runtime parses PTY output before exposing canonical terminal state" {
     try std.testing.expect(std.mem.indexOf(u8, plain, "host:orchbee") != null);
 }
 
+// THCR-041 regression: a Windows child that terminates with exit status 259
+// (STILL_ACTIVE's numeric value) must classify as a normal engine completion
+// carrying exit_code 259 with the child exited, PTY drained, and writer fully
+// quiesced. It must never be treated as a process-observation failure. Native
+// Windows execution required; compiled for `x86_64-windows-gnu` on non-Windows.
+test "Windows child exiting 259 completes normally with exit code 259 (THCR-041)" {
+    const builtin = @import("builtin");
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const executable = try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec");
+    defer std.testing.allocator.free(executable);
+    const arguments = [_][]const u8{ "/D", "/S", "/C", "exit 259" };
+    const runtime = try TerminalRuntime.create(std.testing.allocator, .{
+        .arguments = &arguments,
+        .columns = 80,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = executable,
+        .rows = 24,
+    });
+    defer runtime.destroy();
+
+    const completion = try runtime.waitForCompletion();
+    try runtime.shutdown();
+    try std.testing.expect(completion.child_exited);
+    try std.testing.expect(completion.pty_drained);
+    try std.testing.expect(completion.writer_stopped);
+    switch (completion.classification) {
+        .normal => {},
+        .pending, .failed => return error.ExpectedNormalCompletion,
+    }
+    try std.testing.expectEqual(
+        @as(?subject.RuntimeFailureKind, null),
+        runtime.primaryFailure(),
+    );
+    try std.testing.expectEqual(
+        pty_process.ExitResult{ .exit_code = 259 },
+        completion.exit_result.?,
+    );
+}
+
 test "normal completion freezes revision generation geometry and configuration" {
     const builtin = @import("builtin");
     if (builtin.os.tag == .windows) return error.SkipZigTest;

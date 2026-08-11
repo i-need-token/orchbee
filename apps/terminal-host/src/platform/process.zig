@@ -566,7 +566,6 @@ fn windowsSearchCandidates(
 
 const WindowsProcess = if (builtin.os.tag != .windows) void else struct {
     const windows = std.os.windows;
-    const still_active_exit_code: windows.DWORD = 259;
 
     job_handle: windows.HANDLE,
     process_handle: windows.HANDLE,
@@ -761,8 +760,7 @@ const WindowsProcess = if (builtin.os.tag != .windows) void else struct {
         if (windows.kernel32.GetExitCodeProcess(self.process_handle, &code) == 0) {
             return error.ProcessObservationFailed;
         }
-        if (code == still_active_exit_code) return error.ProcessObservationFailed;
-        return .{ .exit_code = code };
+        return windowsTerminatedExitResult(code);
     }
 
     pub fn releaseProcessIdentity(_: *WindowsProcess) !void {}
@@ -865,6 +863,20 @@ const WindowsProcess = if (builtin.os.tag != .windows) void else struct {
     }
 };
 
+/// Classifies the DWORD that GetExitCodeProcess returned after
+/// WaitForSingleObject reported WAIT_OBJECT_0 on the child process handle. A
+/// signaled wait proves the process object has terminated, so every returned
+/// DWORD is the process's actual exit status and participates in normal
+/// completion (TH-008). STILL_ACTIVE (259) describes a process that is still
+/// running; a terminated process may legitimately exit with status 259, so the
+/// value is preserved as `exit_code` rather than rejected as observation
+/// failure (THCR-041). A failed wait or failed GetExitCodeProcess call is
+/// mapped to `ProcessObservationFailed` by the caller, never by this
+/// classification.
+fn windowsTerminatedExitResult(code: u32) !ExitResult {
+    return .{ .exit_code = code };
+}
+
 fn pixelExtent(cells: u16, cell_pixels: u16) !u16 {
     return std.math.mul(u16, cells, cell_pixels);
 }
@@ -923,6 +935,7 @@ pub const testing = if (builtin.is_test) struct {
     pub const SessionIdentityStateType = SessionIdentityState;
     pub const windowsCommandLineFn = windowsCommandLine;
     pub const windowsSearchCandidatesFn = windowsSearchCandidates;
+    pub const windowsTerminatedExitResultFn = windowsTerminatedExitResult;
 } else struct {};
 
 fn posixExecutableCandidatesForTesting(
