@@ -573,7 +573,7 @@ function createControlConformanceFixture() {
 		),
 		history_observed: controlRequestText(
 			MessageKind.historyObserved,
-			attachment,
+			{ ...attachment, sequence: '5' },
 			'HistoryObserved',
 		),
 		list_terminals: controlRequestText(
@@ -797,9 +797,10 @@ function createControlConformanceFixture() {
 		),
 		history_changed: controlTexts(
 			HistoryChangedSchema,
-			['evicted', 'none', 'valid'].map((anchorStatus) => ({
+			['evicted', 'none', 'valid'].map((anchorStatus, index) => ({
 				anchorStatus,
 				...attachment,
+				sequence: String(index + 1),
 				totalRows: '125',
 			})),
 			'HistoryChanged',

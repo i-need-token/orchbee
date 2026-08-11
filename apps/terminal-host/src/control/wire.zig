@@ -324,6 +324,7 @@ pub const HistoryObserved = struct {
     attachmentId: []const u8,
     generation: []const u8,
     revision: []const u8,
+    sequence: []const u8,
 };
 
 pub const SelectionPoint = struct {

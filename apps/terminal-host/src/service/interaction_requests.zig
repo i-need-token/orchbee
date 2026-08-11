@@ -235,7 +235,7 @@ const Handler = struct {
         ) orelse return;
         var response = try prepareControlResponse(outgoing, correlation_id, self.context.core().epoch);
         defer response.deinit();
-        interaction.historyObserved(request.revision, request.generation) catch |err| {
+        interaction.historyObserved(request.sequence, request.revision, request.generation) catch |err| {
             response.commitFailure(interactionFailure(err, "HistoryObserved failed"));
             return;
         };

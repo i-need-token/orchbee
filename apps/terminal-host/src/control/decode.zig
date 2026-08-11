@@ -132,6 +132,7 @@ pub const HistoryObserved = struct {
     attachment_id: identifiers.AttachmentId,
     generation: u64,
     revision: u64,
+    sequence: u64,
 };
 
 pub const SelectionGesture = struct {
@@ -592,6 +593,7 @@ pub fn decodeHistoryObserved(
             ),
             .generation = try parsePositiveCanonicalU64(parsed.value.generation),
             .revision = try parseCanonicalU64(parsed.value.revision),
+            .sequence = try parsePositiveCanonicalU64(parsed.value.sequence),
         },
     };
 }

@@ -442,8 +442,13 @@ request that fails before installation does not consume its sequence. A response
 anchor; the matching `RowsApplied` promotes it to the committed anchor, so a delayed acknowledgement
 from an earlier row request cannot promote a later anchor. Resize invalidates pending generation-pinned row captures,
 but a committed tracked anchor may follow a valid Ghostty reflow pin. Screen generation change, detach, or Ghostty page
-eviction invalidates affected anchors. `HistoryChanged` coalesces while one event awaits the exact
-`HistoryObserved` revision/generation acknowledgment.
+eviction invalidates affected anchors. `HistoryChanged` coalesces while one event awaits its exact
+acknowledgement. Every `HistoryChanged` event and its `HistoryObserved` acknowledgement carry a
+positive attachment-local event `sequence` that strictly increases for the attachment lifetime and
+is never reused; a `HistoryObserved` echoes the exact `sequence` of the event it acknowledges. A
+stale or duplicate acknowledgement whose `sequence` is older than the currently in-flight event is
+an idempotent no-op and never clears a newer flight, while the revision/generation identity remains
+validated for the exactly matching flight.
 
 Every row window begins with this fixed 112-byte little-endian header:
 

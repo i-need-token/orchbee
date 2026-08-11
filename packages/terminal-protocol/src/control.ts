@@ -398,6 +398,7 @@ export const HistoryChangedSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	generation: positiveCanonicalUint64TextSchema,
 	revision: CanonicalUint64TextSchema,
+	sequence: positiveCanonicalUint64TextSchema,
 	totalRows: CanonicalUint64TextSchema,
 });
 
@@ -405,6 +406,7 @@ export const HistoryObservedSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	generation: positiveCanonicalUint64TextSchema,
 	revision: CanonicalUint64TextSchema,
+	sequence: positiveCanonicalUint64TextSchema,
 });
 
 export const SelectionPointSchema = z.strictObject({

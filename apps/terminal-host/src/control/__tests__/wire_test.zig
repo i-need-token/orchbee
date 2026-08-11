@@ -210,9 +210,10 @@ test "control acknowledgements are encoded from typed values" {
         .attachment_id = attachment_id,
         .generation = 9,
         .revision = 10,
+        .sequence = 7,
     });
     try std.testing.expectEqualStrings(
-        "{\"attachmentId\":\"11111111111111111111111111111111\",\"generation\":\"9\",\"revision\":\"10\"}",
+        "{\"attachmentId\":\"11111111111111111111111111111111\",\"generation\":\"9\",\"revision\":\"10\",\"sequence\":\"7\"}",
         output.buffered(),
     );
 

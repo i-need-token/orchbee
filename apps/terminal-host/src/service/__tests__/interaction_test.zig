@@ -16,6 +16,7 @@ const service_subject = service_boundary.service;
 const terminal_launch = engine_boundary.launch;
 const terminal_runtime = engine_boundary.runtime;
 
+const commitReaderBatch = terminal_runtime.testing.commitReaderBatchFn;
 const createWithOptionsUsingSpawner = terminal_runtime.testing.createWithOptionsUsingSpawnerFn;
 const recordReaderFailure = terminal_runtime.testing.recordReaderFailureFn;
 const RuntimeTestingHooks = terminal_runtime.testing.RuntimeTestingHooksType;
@@ -1152,4 +1153,160 @@ test "THCR-001 allocator failure preserves every prepared cancellation" {
     try expectCancellationRecord(retry.records()[1], second_cancellation);
     try std.testing.expect((try pendingCancellation(binding.runtime, first_attachment_id)) == null);
     try std.testing.expect((try pendingCancellation(binding.runtime, second_attachment_id)) == null);
+}
+
+const HistoryChangedSummary = struct {
+    generation: u64,
+    revision: u64,
+    sequence: u64,
+};
+
+fn historyChangedSummary(record: []const u8) !HistoryChangedSummary {
+    const envelope = try protocol.validateTransportEnvelope(record);
+    try std.testing.expectEqual(protocol.MessageKind.history_changed, envelope.kind);
+    const Wire = struct {
+        anchorStatus: []const u8,
+        attachmentId: []const u8,
+        generation: []const u8,
+        revision: []const u8,
+        sequence: []const u8,
+        totalRows: []const u8,
+    };
+    const parsed = try control_wire.decode(Wire, std.testing.allocator, envelope.payload);
+    defer parsed.deinit();
+    return .{
+        .generation = try std.fmt.parseInt(u64, parsed.value.generation, 10),
+        .revision = try std.fmt.parseInt(u64, parsed.value.revision, 10),
+        .sequence = try std.fmt.parseInt(u64, parsed.value.sequence, 10),
+    };
+}
+
+fn dispatchHistoryObserved(
+    service: *service_subject.HostService,
+    connection: *service_subject.ConnectionState,
+    attachment_id: core_module.AttachmentId,
+    sequence: u64,
+    revision: u64,
+    generation: u64,
+    correlation_byte: u8,
+) !host_outgoing.Outgoing {
+    var attachment_buffer: [32]u8 = undefined;
+    const payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"generation\":\"{d}\",\"revision\":\"{d}\",\"sequence\":\"{d}\"}}",
+        .{
+            control_encode.identifierText(attachment_id, &attachment_buffer),
+            generation,
+            revision,
+            sequence,
+        },
+    );
+    defer std.testing.allocator.free(payload);
+    const record = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        protocol.MessageKind.history_observed,
+        .control_json,
+        payload,
+        [_]u8{correlation_byte} ** 16,
+        service.runtime_aggregate.core().epoch.bytes,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(record);
+    return service.handle(connection, record);
+}
+
+test "THCR-013 service schedules distinct wire sequences and the exact acknowledgement unblocks later mutation" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var service = service_subject.HostService.init(std.testing.allocator);
+    var connection: service_subject.ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    const connection_id: core_module.ConnectionId = 1;
+    const attachment_id = testId(core_module.AttachmentId, 0x16);
+    const binding = try createReadableRuntime(
+        &service.runtime_aggregate,
+        connection_id,
+        attachment_id,
+    );
+    connection = .{ .active = .{
+        .connection_id = connection_id,
+        .limits = .{
+            .frame_bytes = protocol.Limits.frame_bytes,
+            .input_bytes = protocol.Limits.input_bytes,
+            .row_window_bytes = protocol.Limits.row_window_bytes,
+        },
+    } };
+    try binding.runtime.setHistoryDemand(attachment_id, .viewing_history);
+    var scheduler: subject.Scheduler = .{};
+
+    var first = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer first.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &service.runtime_aggregate,
+        connection_id,
+        &first,
+    );
+    try std.testing.expectEqual(@as(usize, 1), first.records().len);
+    const first_event = try historyChangedSummary(first.records()[0]);
+    try std.testing.expectEqual(@as(u64, 1), first_event.sequence);
+    var ack1 = try dispatchHistoryObserved(
+        &service,
+        &connection,
+        attachment_id,
+        first_event.sequence,
+        first_event.revision,
+        first_event.generation,
+        0x61,
+    );
+    defer ack1.deinit();
+
+    // Leave and re-enter viewing history without a terminal mutation, so the
+    // next event carries the same revision/generation identity.
+    try binding.runtime.setHistoryDemand(attachment_id, .following_bottom);
+    try binding.runtime.setHistoryDemand(attachment_id, .viewing_history);
+
+    var second = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer second.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &service.runtime_aggregate,
+        connection_id,
+        &second,
+    );
+    try std.testing.expectEqual(@as(usize, 1), second.records().len);
+    const second_event = try historyChangedSummary(second.records()[0]);
+    try std.testing.expectEqual(first_event.sequence + 1, second_event.sequence);
+    try std.testing.expectEqual(first_event.revision, second_event.revision);
+    try std.testing.expectEqual(first_event.generation, second_event.generation);
+    var ack2 = try dispatchHistoryObserved(
+        &service,
+        &connection,
+        attachment_id,
+        second_event.sequence,
+        second_event.revision,
+        second_event.generation,
+        0x62,
+    );
+    defer ack2.deinit();
+
+    // Mutate and confirm the scheduler emits the next history event after the
+    // exact second-sequence acknowledgement.
+    std.debug.assert(commitReaderBatch(binding.runtime, "x") == .committed);
+    var third = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer third.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &service.runtime_aggregate,
+        connection_id,
+        &third,
+    );
+    try std.testing.expectEqual(@as(usize, 1), third.records().len);
+    const third_event = try historyChangedSummary(third.records()[0]);
+    try std.testing.expectEqual(second_event.sequence + 1, third_event.sequence);
+    try std.testing.expectEqual(second_event.revision + 1, third_event.revision);
 }

@@ -1936,13 +1936,14 @@ pub const TerminalRuntime = struct {
     pub fn historyObserved(
         self: *TerminalRuntime,
         attachment_id: identifiers.AttachmentId,
+        sequence: u64,
         revision: u64,
         generation: u64,
     ) !void {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
         try self.ensureReadableStateAvailableLocked();
-        try self.history.historyObserved(attachment_id, revision, generation);
+        try self.history.historyObserved(attachment_id, sequence, revision, generation);
     }
 
     pub fn takeSelectionEvent(

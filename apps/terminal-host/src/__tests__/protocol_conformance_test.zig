@@ -1065,6 +1065,7 @@ test "native control replies and events conform to TypeScript schemas" {
             .attachment_id = attachment_id,
             .generation = 3,
             .revision = 42,
+            .sequence = 5,
         }),
     );
     try expectOwnedJson(
@@ -1092,14 +1093,15 @@ test "native control replies and events conform to TypeScript schemas" {
     }
     const anchor_statuses = [_]TestAnchorStatus{ .evicted, .none, .valid };
     try std.testing.expectEqual(anchor_statuses.len, outputs.history_changed.len);
-    for (anchor_statuses, outputs.history_changed) |anchor_status, expected| {
-        try expectOwnedJson(allocator, expected, try control_encode.historyChanged(
+    for (anchor_statuses, 0..) |anchor_status, index| {
+        try expectOwnedJson(allocator, outputs.history_changed[index], try control_encode.historyChanged(
             allocator,
             .{
                 .anchor_status = anchor_status,
                 .attachment_id = attachment_id,
                 .generation = 3,
                 .revision = 42,
+                .sequence = index + 1,
                 .total_rows = 125,
             },
         ));

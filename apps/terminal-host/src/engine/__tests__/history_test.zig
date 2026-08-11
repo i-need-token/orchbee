@@ -926,9 +926,17 @@ test "history events wait for pending viewport rows" {
     try std.testing.expectEqual(@as(u64, 2), event.total_rows);
     try manager.rollbackHistoryEvent(attachment, event);
     const retried = (try manager.takeHistoryEvent(&terminal, attachment, 2, 1)).?;
-    try std.testing.expectEqualDeep(event, retried);
-    try manager.historyObserved(attachment, 2, 1);
-    try manager.historyObserved(attachment, 2, 1);
+    // A rolled-back event is retried with the identical content but a fresh,
+    // monotonic sequence identity.
+    try std.testing.expectEqual(event.anchor_status, retried.anchor_status);
+    try std.testing.expect(event.attachment_id.eql(retried.attachment_id));
+    try std.testing.expectEqual(event.generation, retried.generation);
+    try std.testing.expectEqual(event.revision, retried.revision);
+    try std.testing.expectEqual(event.total_rows, retried.total_rows);
+    try std.testing.expectEqual(event.sequence + 1, retried.sequence);
+    try manager.historyObserved(attachment, retried.sequence, retried.revision, retried.generation);
+    // A duplicate acknowledgement of the observed sequence is an idempotent no-op.
+    try manager.historyObserved(attachment, retried.sequence, retried.revision, retried.generation);
 }
 
 test "invalid selection command preserves an active gesture" {
@@ -1061,9 +1069,12 @@ test "screen changes invalidate anchors gesture selection and export" {
         error.InvalidAcknowledgement,
         manager.cancelExport(attachment, 7),
     );
+    // A late acknowledgement of the abandoned event is an idempotent no-op,
+    // while a sequence that was never issued is still rejected.
+    try manager.historyObserved(attachment, initial_history_event.sequence, 1, 1);
     try std.testing.expectError(
         error.InvalidAcknowledgement,
-        manager.historyObserved(attachment, 1, 1),
+        manager.historyObserved(attachment, 99, 1, 1),
     );
     const current_history_event = (try manager.takeHistoryEvent(
         &terminal,
@@ -1073,7 +1084,13 @@ test "screen changes invalidate anchors gesture selection and export" {
     )).?;
     try std.testing.expectEqual(@as(u64, 2), current_history_event.revision);
     try std.testing.expectEqual(@as(u64, 2), current_history_event.generation);
-    try manager.historyObserved(attachment, 2, 2);
+    try std.testing.expectEqual(initial_history_event.sequence + 1, current_history_event.sequence);
+    try manager.historyObserved(
+        attachment,
+        current_history_event.sequence,
+        current_history_event.revision,
+        current_history_event.generation,
+    );
 }
 
 test "reflow generation preserves a valid tracked selection and cancels stale export bytes" {
@@ -1426,4 +1443,73 @@ test "failed replacement rollback restores full invalidation history and cancell
     );
     try std.testing.expect((try manager.exportChunkApplied(attachment, first_started.export_sequence, 0)) == null);
     try std.testing.expect((try manager.exportChunkApplied(attachment, second_started.export_sequence, 0)) == null);
+}
+
+test "THCR-013 re-entering viewing history after an acknowledgement reissues a distinct sequence" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x13);
+    try manager.attach(attachment);
+    try manager.setDemand(&terminal, attachment, .viewing_history);
+
+    const first = (try manager.takeHistoryEvent(&terminal, attachment, 1, 1)).?;
+    try std.testing.expectEqual(@as(u64, 1), first.sequence);
+    try manager.historyObserved(attachment, first.sequence, first.revision, first.generation);
+
+    // Leave viewing history without a terminal mutation and re-enter, so the
+    // revision/generation identity of the next event is unchanged.
+    try manager.setDemand(&terminal, attachment, .following_bottom);
+    try manager.setDemand(&terminal, attachment, .viewing_history);
+
+    const second = (try manager.takeHistoryEvent(&terminal, attachment, 1, 1)).?;
+    try std.testing.expectEqual(first.sequence + 1, second.sequence);
+    try std.testing.expectEqual(@as(u64, 1), second.revision);
+    try manager.historyObserved(attachment, second.sequence, second.revision, second.generation);
+
+    // A later ordinary mutation must publish a fresh event.
+    try terminal.printString("x");
+    manager.noteMutation(&terminal, 2, 1);
+    const third = (try manager.takeHistoryEvent(&terminal, attachment, 2, 1)).?;
+    try std.testing.expectEqual(second.sequence + 1, third.sequence);
+    try std.testing.expectEqual(@as(u64, 2), third.revision);
+    try manager.historyObserved(attachment, third.sequence, third.revision, third.generation);
+}
+
+test "THCR-013 replaying an earlier acknowledgement never clears a newer same-revision flight" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x14);
+    try manager.attach(attachment);
+    try manager.setDemand(&terminal, attachment, .viewing_history);
+
+    const first = (try manager.takeHistoryEvent(&terminal, attachment, 1, 1)).?;
+    try manager.historyObserved(attachment, first.sequence, first.revision, first.generation);
+
+    try manager.setDemand(&terminal, attachment, .following_bottom);
+    try manager.setDemand(&terminal, attachment, .viewing_history);
+    const second = (try manager.takeHistoryEvent(&terminal, attachment, 1, 1)).?;
+    try std.testing.expectEqual(first.sequence + 1, second.sequence);
+
+    // Replaying the first event's acknowledgement must not clear the newer
+    // same-revision flight, so no further event is available while it remains.
+    try manager.historyObserved(attachment, first.sequence, first.revision, first.generation);
+    try std.testing.expect((try manager.takeHistoryEvent(&terminal, attachment, 1, 1)) == null);
+
+    // Acknowledging the second sequence clears exactly that flight.
+    try manager.historyObserved(attachment, second.sequence, second.revision, second.generation);
+    try terminal.printString("x");
+    manager.noteMutation(&terminal, 2, 1);
+    const third = (try manager.takeHistoryEvent(&terminal, attachment, 2, 1)).?;
+    try std.testing.expectEqual(second.sequence + 1, third.sequence);
+    try manager.historyObserved(attachment, third.sequence, third.revision, third.generation);
 }

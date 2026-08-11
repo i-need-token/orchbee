@@ -481,6 +481,15 @@ strictly increasing sequence; only its exact acknowledgement can commit it. Stal
 acknowledgements cannot advance a newer flight. Pausing projection or destroying the attachment
 abandons its flight and invalidates its delta base without changing canonical terminal state.
 
+Every `HistoryChanged` event allocates a positive attachment-local monotonic event sequence
+transactionally with its handoff; the sequence is never reused or reset by a demand change, so a
+re-entered viewing-history session without a terminal mutation still publishes a distinct identity.
+A `HistoryObserved` carries the acknowledged event's own sequence. The Host clears exactly the
+currently in-flight event whose sequence and revision/generation match; an acknowledgement older
+than the current flight — already observed, abandoned by a demand change or screen/generation
+invalidation, or superseded by a later event — is an idempotent no-op and never clears a newer
+flight.
+
 A successful cell-grid resize advances content revision and projection generation. It abandons
 generation-pinned pending row captures and cancels already encoded selection-export bytes. A
 committed history anchor and active selection remain attached to Ghostty's tracked pins when those

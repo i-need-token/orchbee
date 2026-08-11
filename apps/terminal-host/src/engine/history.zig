@@ -81,6 +81,7 @@ pub const HistoryEvent = struct {
     attachment_id: AttachmentId,
     generation: u64,
     revision: u64,
+    sequence: u64,
     total_rows: u64,
 };
 
@@ -231,9 +232,14 @@ const AttachmentState = struct {
     gesture_dragged: bool = false,
     history_dirty: bool = false,
     history_in_flight: ?HistoryEvent = null,
+    // The next positive attachment-local history-event sequence. It advances
+    // once per installed event and is never reused, restored, or reset by a
+    // demand change, so any acknowledgement older than the current in-flight
+    // event (or than this watermark when no event is in flight) refers to an
+    // already observed or abandoned event and is an idempotent no-op.
+    history_next_sequence: u64 = 1,
     last_completed_export_sequence: ?u64 = null,
     last_export_sequence: u64 = 0,
-    last_history_observation: ?HistoryEvent = null,
     invalidated_exports: [max_pending_export_cancellations]ExportCancellation = undefined,
     invalidated_export_count: usize = 0,
     last_row_request_sequence: u64 = 0,
@@ -585,10 +591,14 @@ pub const Manager = struct {
             .attachment_id = attachment_id,
             .generation = generation,
             .revision = revision,
+            .sequence = state.history_next_sequence,
             .total_rows = @intCast(terminal.screens.active.pages.total_rows),
         };
         state.history_dirty = false;
         state.history_in_flight = event;
+        // The sequence is consumed on installation and never restored by a
+        // rollback, so it is monotonic and never reused once handed off.
+        state.history_next_sequence += 1;
         return event;
     }
 
@@ -612,19 +622,28 @@ pub const Manager = struct {
     pub fn historyObserved(
         self: *Manager,
         attachment_id: AttachmentId,
+        sequence: u64,
         revision: u64,
         generation: u64,
     ) HistoryError!void {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        if (state.last_history_observation) |observed| {
-            if (observed.revision == revision and observed.generation == generation) return;
-        }
-        const event = state.history_in_flight orelse return error.InvalidAcknowledgement;
-        if (event.revision != revision or event.generation != generation) {
+        const event = state.history_in_flight orelse {
+            // No event is in flight. A sequence below the next unissued identity
+            // refers to an already observed or abandoned event and is an
+            // idempotent no-op; a higher one was never issued.
+            if (sequence < state.history_next_sequence) return;
+            return error.InvalidAcknowledgement;
+        };
+        // A stale or duplicate acknowledgement older than the current flight is
+        // an idempotent no-op and never clears a newer flight.
+        if (sequence < event.sequence) return;
+        if (sequence > event.sequence) return error.InvalidAcknowledgement;
+        // Revision and generation remain validated for the exactly matching
+        // flight, so a wrong identity never clears it.
+        if (revision != event.revision or generation != event.generation) {
             return error.InvalidAcknowledgement;
         }
         state.history_in_flight = null;
-        state.last_history_observation = event;
     }
 
     pub fn takeSelectionEvent(
@@ -1352,6 +1371,7 @@ fn sameHistoryEvent(left: HistoryEvent, right: HistoryEvent) bool {
         left.attachment_id.eql(right.attachment_id) and
         left.generation == right.generation and
         left.revision == right.revision and
+        left.sequence == right.sequence and
         left.total_rows == right.total_rows;
 }
 

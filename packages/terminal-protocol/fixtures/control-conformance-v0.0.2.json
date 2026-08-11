@@ -10,7 +10,7 @@
 			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"following-bottom\"}",
 			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"viewing-history\"}"
 		],
-		"history_observed": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\"}",
+		"history_observed": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"5\"}",
 		"list_terminals": "{\"cursor\":{\"inventoryGeneration\":\"9\",\"offset\":\"2\"},\"maximumTerminals\":64}",
 		"need_snapshot": [
 			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"base-mismatch\",\"sequence\":\"1\"}",
@@ -523,15 +523,15 @@
 		"frame_applied": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"7\"}",
 		"hello_accepted": "{\"frameBytes\":8388608,\"hostEpoch\":\"11111111111111111111111111111111\",\"hostVersion\":\"0.1.0\",\"inputBytes\":1048576,\"protocol\":{\"major\":0,\"minor\":0,\"patch\":2},\"rowWindowBytes\":2097152,\"supportedOptionalFeatures\":[]}",
 		"history_changed": [
-			"{\"anchorStatus\":\"evicted\",\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"totalRows\":\"125\"}",
-			"{\"anchorStatus\":\"none\",\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"totalRows\":\"125\"}",
-			"{\"anchorStatus\":\"valid\",\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"totalRows\":\"125\"}"
+			"{\"anchorStatus\":\"evicted\",\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"1\",\"totalRows\":\"125\"}",
+			"{\"anchorStatus\":\"none\",\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"2\",\"totalRows\":\"125\"}",
+			"{\"anchorStatus\":\"valid\",\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"3\",\"totalRows\":\"125\"}"
 		],
 		"history_demand_accepted": [
 			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"following-bottom\"}",
 			"{\"attachmentId\":\"22222222222222222222222222222222\",\"demand\":\"viewing-history\"}"
 		],
-		"history_observed": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\"}",
+		"history_observed": "{\"attachmentId\":\"22222222222222222222222222222222\",\"generation\":\"3\",\"revision\":\"42\",\"sequence\":\"5\"}",
 		"input_accepted": "{\"acceptedBytes\":12,\"attachmentId\":\"22222222222222222222222222222222\"}",
 		"need_snapshot": [
 			"{\"attachmentId\":\"22222222222222222222222222222222\",\"reason\":\"base-mismatch\",\"sequence\":\"1\"}",

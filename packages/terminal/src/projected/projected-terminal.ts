@@ -37,7 +37,13 @@ import {
 } from '@orchbee/terminal-protocol';
 
 import { EventEmitter, type IEvent } from '../EventEmitter';
-import { AccessibleTextModel, buildAccessibleRow, type AccessibleRow } from '../accessibility';
+import {
+	AccessibleTextModel,
+	buildAccessibleRow,
+	createAccessibilityAnnouncement,
+	detectAccessibilityDeletion,
+	type AccessibleRow,
+} from '../accessibility';
 import {
 	bufferRowsFromDecodedWindow,
 	validateBufferRowsRequest,
@@ -64,6 +70,7 @@ import {
 	type TerminalSearchMatch,
 	type TerminalSearchOptions,
 } from '../search';
+import { calculateSurfaceGrid } from '../surface-size';
 import {
 	detectTerminalRowLinks,
 	isPermittedExternalTerminalTarget,
@@ -74,7 +81,7 @@ import {
 	DEFAULT_RENDERER_FONT_SIZE,
 	DEFAULT_RENDERER_FONT_WEIGHT,
 } from '../types';
-import type { ILink, RendererOptions } from '../types';
+import type { ILink, RendererOptions, SurfacePadding } from '../types';
 import {
 	PackedTerminalStore,
 	PackedTerminalViewport,
@@ -91,6 +98,24 @@ const BRACKETED_PASTE_END = '\u001b[201~';
 const MAX_PTY_PIXEL_DIMENSION = 0xffff;
 const MAX_HISTORY_CACHE_BYTES = 8 * 1024 * 1024;
 const HISTORY_OVERSCAN_ROWS = 16;
+const SELECTION_AUTOSCROLL_INTERVAL_MS = 16;
+
+function cssPixels(value: string): number {
+	const parsed = Number.parseFloat(value);
+	return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+}
+
+function readSurfacePadding(root: HTMLElement): SurfacePadding {
+	const view = root.ownerDocument.defaultView;
+	if (view === null) return { bottom: 0, left: 0, right: 0, top: 0 };
+	const style = view.getComputedStyle(root);
+	return {
+		bottom: cssPixels(style.paddingBottom),
+		left: cssPixels(style.paddingLeft),
+		right: cssPixels(style.paddingRight),
+		top: cssPixels(style.paddingTop),
+	};
+}
 
 export type ProjectedTerminalCommand =
 	| { readonly kind: 'focus-input'; readonly payload: FocusInput }
@@ -129,12 +154,20 @@ export interface ProjectedTerminalCommandPort {
 }
 
 export interface ProjectedTerminalLabels {
+	/** Localized deletion announcement for assistive technology. */
+	readonly deleted?: (text: string) => string;
 	/** Localized current/retained row-range description for assistive technology. */
 	readonly historyRange?: (start: bigint, end: bigint, total: bigint) => string;
 	/** Localized label for the hidden keyboard/IME input. */
 	readonly input: string;
+	/** Localized label for one absolute terminal row; row is one-based. */
+	readonly row?: (row: bigint, text: string) => string;
 	/** Localized label for the visible-viewport accessibility mirror. */
 	readonly screen: string;
+	/** Localized screen label with a one-based absolute cursor position. */
+	readonly screenCursor?: (row: bigint, column: number) => string;
+	/** Localized description of the bounded Host selection preview. */
+	readonly selectedText?: (text: string) => string;
 }
 
 export interface ProjectedPasteReview {
@@ -157,6 +190,8 @@ export interface ProjectedTerminalOptions {
 	readonly attachmentId: AttachmentId;
 	readonly autoActivate?: boolean;
 	readonly canResize?: boolean;
+	/** Copy a completed pointer or semantic-output selection, matching the legacy surface. */
+	readonly copyOnSelect?: boolean;
 	readonly creationId: CreationId;
 	readonly hostEpoch: HostEpoch;
 	readonly inputEnabled?: boolean;
@@ -287,6 +322,12 @@ interface PendingSelectionGesture {
 	readonly rectangle: boolean;
 }
 
+interface PendingSelectionPointer {
+	readonly clientX: number;
+	readonly clientY: number;
+	readonly rectangle: boolean;
+}
+
 interface PendingLinkPoint {
 	readonly column: number;
 	readonly control: boolean;
@@ -343,8 +384,12 @@ export class ProjectedTerminal {
 	}>();
 	readonly #searchEmitter = new EventEmitter<ProjectedTerminalSearchEvent>();
 	readonly #terminalId: TerminalId;
+	#accessibilityAnnouncement: HTMLDivElement | undefined;
 	#accessibilityAppliedOffsets: { readonly end: number; readonly start: number } | undefined;
 	#accessibilityOwnsDomSelection = false;
+	#accessibilityPreviousCursor: { readonly column: number; readonly row: number } | undefined;
+	#accessibilityPreviousModelRows: readonly AccessibleRow[] = [];
+	#accessibilityPreviousRows: readonly string[] = [];
 	#accessibilityRoot: HTMLDivElement | undefined;
 	#accessibilityVisibleStart = 0n;
 	#canvas: HTMLCanvasElement | undefined;
@@ -391,10 +436,15 @@ export class ProjectedTerminal {
 	#rowRequestSequence = 1n;
 	#selection: SelectionChanged;
 	#selectionGestureHandle: ScheduledFrame | undefined;
+	#selectionGestureActionInFlight: SelectionGesture['action'] | undefined;
 	#selectionGestureInFlight = false;
 	#selectionGestureActive = false;
 	#selectionGestureLast: Omit<PendingSelectionGesture, 'action'> | undefined;
 	#selectionGesturePointerId: number | undefined;
+	#selectionAutoscrollDirection: 'down' | 'up' | undefined;
+	#selectionAutoscrollInterval: ReturnType<typeof setInterval> | undefined;
+	#selectionPointer: PendingSelectionPointer | undefined;
+	#copySelectionAfterNextSelectionChange = false;
 	#searchController: ProjectedSearchController | undefined;
 	#sideEffectSequence = 1n;
 	#synchronizingAccessibilitySelection = false;
@@ -501,8 +551,7 @@ export class ProjectedTerminal {
 
 			const accessibilityRoot = document.createElement('div');
 			accessibilityRoot.setAttribute('aria-label', this.#options.labels.screen);
-			accessibilityRoot.setAttribute('aria-live', 'polite');
-			accessibilityRoot.setAttribute('aria-relevant', 'additions text');
+			accessibilityRoot.setAttribute('aria-live', 'off');
 			accessibilityRoot.setAttribute('role', 'log');
 			accessibilityRoot.style.position = 'absolute';
 			accessibilityRoot.style.width = '1px';
@@ -516,6 +565,22 @@ export class ProjectedTerminal {
 			accessibilityRoot.style.userSelect = 'text';
 			root.appendChild(accessibilityRoot);
 			this.#accessibilityRoot = accessibilityRoot;
+
+			const accessibilityAnnouncement = document.createElement('div');
+			accessibilityAnnouncement.setAttribute('aria-atomic', 'true');
+			accessibilityAnnouncement.setAttribute('aria-live', 'polite');
+			accessibilityAnnouncement.setAttribute('role', 'status');
+			accessibilityAnnouncement.style.position = 'absolute';
+			accessibilityAnnouncement.style.width = '1px';
+			accessibilityAnnouncement.style.height = '1px';
+			accessibilityAnnouncement.style.margin = '-1px';
+			accessibilityAnnouncement.style.padding = '0';
+			accessibilityAnnouncement.style.border = '0';
+			accessibilityAnnouncement.style.overflow = 'hidden';
+			accessibilityAnnouncement.style.clipPath = 'inset(50%)';
+			accessibilityAnnouncement.style.whiteSpace = 'nowrap';
+			root.appendChild(accessibilityAnnouncement);
+			this.#accessibilityAnnouncement = accessibilityAnnouncement;
 			document.addEventListener('selectionchange', this.#handleAccessibilitySelectionChange);
 			this.#listenerDisposers.push(() =>
 				document.removeEventListener('selectionchange', this.#handleAccessibilitySelectionChange),
@@ -536,7 +601,7 @@ export class ProjectedTerminal {
 			});
 			renderer.setRenderRequestCallback(() => this.#scheduleRender());
 			this.#renderer = renderer;
-			this.#installInputListeners(canvas, input);
+			this.#installInputListeners(root, canvas, input);
 			await renderer.initGPU();
 			if (this.#isDisposed()) return;
 			this.#installDevicePixelRatioListeners(view);
@@ -792,6 +857,7 @@ export class ProjectedTerminal {
 			this.#metadataEmitter.fire(metadata);
 			this.#updateAccessibility(metadata);
 		}
+		this.#continueSelectionAutoscrollGesture();
 		this.#scheduleRender();
 		this.#dispatchPendingHistoryIntent();
 		return 'committed';
@@ -859,6 +925,7 @@ export class ProjectedTerminal {
 				attachmentId: this.#attachmentId,
 				generation: event.generation,
 				revision: event.revision,
+				sequence: event.sequence,
 			},
 		});
 		this.#historyEmitter.fire(event);
@@ -880,12 +947,24 @@ export class ProjectedTerminal {
 
 	notifySelectionChanged(selection: SelectionChanged): void {
 		if (selection.attachmentId !== this.#attachmentId) return;
+		const completedGesture = this.#selectionGestureActionInFlight;
+		const copyAfterSelectionCommand = this.#copySelectionAfterNextSelectionChange;
 		this.#selection = selection;
+		this.#selectionGestureActionInFlight = undefined;
 		this.#selectionGestureInFlight = false;
+		this.#copySelectionAfterNextSelectionChange = false;
 		this.#selectionEmitter.fire(selection);
+		this.#updateAccessibilityDescription();
 		this.#syncAccessibilitySelection();
 		this.#scheduleSelectionGesture();
 		this.#scheduleRender();
+		if (
+			selection.state === 'active' &&
+			this.#options.copyOnSelect !== false &&
+			(completedGesture === 'end' || copyAfterSelectionCommand)
+		) {
+			this.copySelection();
+		}
 	}
 
 	notifySelectionCopied(byteLength: number, requestSequence: CanonicalUint64Text): void {
@@ -944,7 +1023,9 @@ export class ProjectedTerminal {
 			complete?.({ code: failure.code, kind: 'failed', retryable: failure.retryable });
 		}
 		if (failure.operation === undefined || failure.operation === 'selection') {
+			this.#selectionGestureActionInFlight = undefined;
 			this.#selectionGestureInFlight = false;
+			this.#copySelectionAfterNextSelectionChange = false;
 			this.#scheduleSelectionGesture();
 		}
 		if (!recoveredOverscan) {
@@ -1135,6 +1216,7 @@ export class ProjectedTerminal {
 		this.#selectionGestureHandle = undefined;
 		this.#pendingHistoryDelta = 0;
 		this.#pendingHistoryTargetRow = undefined;
+		this.#stopSelectionAutoscroll();
 		this.#searchController?.dispose();
 		this.#searchController = undefined;
 		this.#clearHoveredLink();
@@ -1155,13 +1237,18 @@ export class ProjectedTerminal {
 		this.#canvas?.remove();
 		this.#input?.remove();
 		this.#accessibilityRoot?.remove();
+		this.#accessibilityAnnouncement?.remove();
 		this.#accessibilityModel.update([]);
 		this.#accessibilityModelRows.length = 0;
 		this.#accessibilityRows.length = 0;
 		this.#accessibilityAppliedOffsets = undefined;
 		this.#accessibilityOwnsDomSelection = false;
+		this.#accessibilityPreviousCursor = undefined;
+		this.#accessibilityPreviousModelRows = [];
+		this.#accessibilityPreviousRows = [];
 		this.#canvas = undefined;
 		this.#input = undefined;
+		this.#accessibilityAnnouncement = undefined;
 		this.#accessibilityRoot = undefined;
 		this.#root = undefined;
 		this.#errorEmitter.dispose();
@@ -1378,6 +1465,7 @@ export class ProjectedTerminal {
 			this.#metadataEmitter.fire(metadata);
 			this.#updateAccessibility(metadata);
 		}
+		this.#continueSelectionAutoscrollGesture();
 		this.#scheduleRender();
 	}
 
@@ -1581,6 +1669,20 @@ export class ProjectedTerminal {
 		});
 	}
 
+	#sendSelectionOutput(point: SelectionGesture['point']): void {
+		this.#copySelectionAfterNextSelectionChange = this.#options.copyOnSelect !== false;
+		this.#send({
+			kind: 'selection-command',
+			payload: {
+				attachmentId: this.#attachmentId,
+				command: 'select-output',
+				generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
+				point,
+				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
+			},
+		});
+	}
+
 	#sendSelectionRange(start: SelectionGesture['point'], end: SelectionGesture['point']): void {
 		this.#send({
 			kind: 'selection-command',
@@ -1636,6 +1738,7 @@ export class ProjectedTerminal {
 	}
 
 	#sendSelectionGesture(gesture: PendingSelectionGesture): void {
+		this.#selectionGestureActionInFlight = gesture.action;
 		this.#send({
 			kind: 'selection-gesture',
 			payload: {
@@ -1648,18 +1751,22 @@ export class ProjectedTerminal {
 	}
 
 	#selectionPoint(event: MouseEvent): SelectionGesture['point'] | null {
+		return this.#selectionPointFromClient(event.clientX, event.clientY);
+	}
+
+	#selectionPointFromClient(clientX: number, clientY: number): SelectionGesture['point'] | null {
 		const canvas = this.#canvas;
 		const renderer = this.#renderer;
 		const metadata = this.metadata;
 		if (!canvas || !renderer || !metadata) return null;
 		const bounds = canvas.getBoundingClientRect();
 		const column = clamp(
-			Math.floor((event.clientX - bounds.left) / renderer.charWidth),
+			Math.floor((clientX - bounds.left) / renderer.charWidth),
 			0,
 			metadata.columns - 1,
 		);
 		const viewportRow = clamp(
-			Math.floor((event.clientY - bounds.top) / renderer.charHeight),
+			Math.floor((clientY - bounds.top) / renderer.charHeight),
 			0,
 			metadata.rows - 1,
 		);
@@ -1671,6 +1778,74 @@ export class ProjectedTerminal {
 			column,
 			row: CanonicalUint64TextSchema.parse((startRow + BigInt(viewportRow)).toString()),
 		};
+	}
+
+	#updateSelectionAutoscroll(pointer: PendingSelectionPointer): void {
+		this.#selectionPointer = pointer;
+		const direction = this.#selectionAutoscrollDirectionAt(pointer.clientY);
+		if (direction === this.#selectionAutoscrollDirection) return;
+		this.#clearSelectionAutoscrollInterval();
+		this.#selectionAutoscrollDirection = direction;
+		if (direction === undefined) return;
+		this.#selectionAutoscrollInterval = globalThis.setInterval(
+			this.#runSelectionAutoscrollTick,
+			SELECTION_AUTOSCROLL_INTERVAL_MS,
+		);
+	}
+
+	#selectionAutoscrollDirectionAt(clientY: number): 'down' | 'up' | undefined {
+		const bounds = this.#canvas?.getBoundingClientRect();
+		if (bounds === undefined) return undefined;
+		if (clientY < bounds.top) return 'up';
+		return clientY > bounds.bottom ? 'down' : undefined;
+	}
+
+	readonly #runSelectionAutoscrollTick = (): void => {
+		const pointer = this.#selectionPointer;
+		const direction = this.#selectionAutoscrollDirection;
+		if (
+			!this.#selectionGestureActive ||
+			pointer === undefined ||
+			direction === undefined ||
+			this.#selectionAutoscrollDirectionAt(pointer.clientY) !== direction
+		) {
+			this.#stopSelectionAutoscroll();
+			return;
+		}
+		if (
+			this.#rowFlight !== undefined ||
+			this.#selectionGestureInFlight ||
+			this.#pendingSelectionGesture !== undefined
+		) {
+			return;
+		}
+		this.scrollLines(direction === 'up' ? -1 : 1);
+	};
+
+	#continueSelectionAutoscrollGesture(): void {
+		const pointer = this.#selectionPointer;
+		if (!this.#selectionGestureActive || pointer === undefined) return;
+		const point = this.#selectionPointFromClient(pointer.clientX, pointer.clientY);
+		if (point === null) return;
+		const gesture = {
+			clickCount: this.#selectionGestureLast?.clickCount ?? 1,
+			point,
+			rectangle: pointer.rectangle,
+		};
+		this.#selectionGestureLast = gesture;
+		this.#queueSelectionGesture({ action: 'update', ...gesture });
+	}
+
+	#stopSelectionAutoscroll(): void {
+		this.#clearSelectionAutoscrollInterval();
+		this.#selectionAutoscrollDirection = undefined;
+		this.#selectionPointer = undefined;
+	}
+
+	#clearSelectionAutoscrollInterval(): void {
+		if (this.#selectionAutoscrollInterval === undefined) return;
+		globalThis.clearInterval(this.#selectionAutoscrollInterval);
+		this.#selectionAutoscrollInterval = undefined;
 	}
 
 	#nextRowRequestSequence(): CanonicalUint64Text {
@@ -1714,7 +1889,11 @@ export class ProjectedTerminal {
 		this.#demandSent = this.#demand;
 	}
 
-	#installInputListeners(canvas: HTMLCanvasElement, input: HTMLTextAreaElement): void {
+	#installInputListeners(
+		root: HTMLElement,
+		canvas: HTMLCanvasElement,
+		input: HTMLTextAreaElement,
+	): void {
 		if (this.#options.inputEnabled !== false) {
 			this.#listen(input, 'keydown', this.#handleKeyDown);
 			this.#listen(input, 'keyup', this.#handleKeyUp);
@@ -1723,6 +1902,8 @@ export class ProjectedTerminal {
 			this.#listen(input, 'compositionupdate', this.#handleCompositionUpdate);
 			this.#listen(input, 'compositionend', this.#handleCompositionEnd);
 			this.#listen(input, 'paste', this.#handlePaste);
+			this.#listen(root, 'dragover', this.#handleDragOver);
+			this.#listen(root, 'drop', this.#handleDrop);
 		}
 		this.#listen(input, 'focus', this.#handleFocus);
 		this.#listen(input, 'blur', this.#handleBlur);
@@ -2016,6 +2197,25 @@ export class ProjectedTerminal {
 		this.#lastPaste = { source: 'clipboard', text, time: projectedNow() };
 	};
 
+	readonly #handleDragOver = (event: DragEvent): void => {
+		const transfer = event.dataTransfer;
+		if (transfer === null || !this.#supportsPlainTextDrop(transfer)) return;
+		event.preventDefault();
+		transfer.dropEffect = 'copy';
+	};
+
+	readonly #handleDrop = (event: DragEvent): void => {
+		const transfer = event.dataTransfer;
+		if (transfer === null || !this.#supportsPlainTextDrop(transfer)) return;
+		event.preventDefault();
+		event.stopPropagation();
+		void this.paste(transfer.getData('text/plain'), 'drop');
+	};
+
+	#supportsPlainTextDrop(transfer: DataTransfer): boolean {
+		return transfer.files.length === 0 && [...transfer.types].includes('text/plain');
+	}
+
 	#isDuplicatePaste(text: string, source: 'beforeinput' | 'clipboard'): boolean {
 		const previous = this.#lastPaste;
 		return previous !== undefined && previous.source !== source && this.#isRecent(previous, text);
@@ -2113,6 +2313,7 @@ export class ProjectedTerminal {
 			return;
 		}
 		if (event.button !== 0) return;
+		this.#stopSelectionAutoscroll();
 		const hoveredLink = this.#hoveredLink;
 		const hoveredPoint = this.#selectionPoint(event);
 		if (
@@ -2132,9 +2333,19 @@ export class ProjectedTerminal {
 			point,
 			rectangle: event.altKey,
 		};
+		if ((event.ctrlKey || event.metaKey) && gesture.clickCount === 3) {
+			this.#sendSelectionOutput(point);
+			event.preventDefault();
+			return;
+		}
 		this.#selectionGestureActive = true;
 		this.#selectionGestureLast = gesture;
 		this.#selectionGesturePointerId = event.pointerId;
+		this.#selectionPointer = {
+			clientX: event.clientX,
+			clientY: event.clientY,
+			rectangle: event.altKey,
+		};
 		try {
 			this.#canvas?.setPointerCapture(event.pointerId);
 		} catch {
@@ -2179,6 +2390,11 @@ export class ProjectedTerminal {
 				this.#selectionGesturePointerId === event.pointerId)
 		) {
 			this.#clearHoveredLink();
+			this.#updateSelectionAutoscroll({
+				clientX: event.clientX,
+				clientY: event.clientY,
+				rectangle: event.altKey,
+			});
 			const point = this.#selectionPoint(event);
 			if (point !== null) {
 				const gesture = {
@@ -2232,6 +2448,7 @@ export class ProjectedTerminal {
 		this.#selectionGestureActive = false;
 		this.#selectionGestureLast = undefined;
 		this.#selectionGesturePointerId = undefined;
+		this.#stopSelectionAutoscroll();
 		if (gesture !== undefined) this.#queueSelectionGesture({ action: 'end', ...gesture });
 		if (!releaseCapture || pointerId === undefined) return;
 		try {
@@ -2338,8 +2555,14 @@ export class ProjectedTerminal {
 
 	#installResizeObserver(root: HTMLElement): void {
 		if (this.#options.canResize !== true || typeof ResizeObserver === 'undefined') return;
-		this.#resizeObserver = new ResizeObserver(() => this.#sendResizeIfChanged());
+		this.#resizeObserver = new ResizeObserver(() => this.#handleSurfaceResize());
 		this.#resizeObserver.observe(root);
+	}
+
+	#handleSurfaceResize(): void {
+		this.#renderer?.syncSurfacePadding();
+		this.#updateInputPosition();
+		this.#sendResizeIfChanged();
 	}
 
 	#installDevicePixelRatioListeners(view: Window | null): void {
@@ -2404,6 +2627,11 @@ export class ProjectedTerminal {
 		const renderer = this.#renderer;
 		if (!root || !renderer || root.clientWidth <= 0 || root.clientHeight <= 0) return;
 		const metrics = renderer.getMetrics();
+		const grid = calculateSurfaceGrid(
+			{ height: root.clientHeight, width: root.clientWidth },
+			{ height: metrics.height, width: metrics.width },
+			readSurfacePadding(root),
+		);
 		const cellPixelHeight = clamp(
 			Math.round(metrics.height * this.#devicePixelRatio),
 			1,
@@ -2415,7 +2643,7 @@ export class ProjectedTerminal {
 			PROTOCOL_LIMITS.maxCellPixelDimension,
 		);
 		const columns = clamp(
-			Math.floor(root.clientWidth / metrics.width),
+			grid.columns,
 			1,
 			Math.min(
 				PROTOCOL_LIMITS.maxFrameColumns,
@@ -2423,7 +2651,7 @@ export class ProjectedTerminal {
 			),
 		);
 		const rows = clamp(
-			Math.floor(root.clientHeight / metrics.height),
+			grid.rows,
 			1,
 			Math.min(
 				PROTOCOL_LIMITS.maxFrameRows,
@@ -2448,7 +2676,7 @@ export class ProjectedTerminal {
 	#updateAccessibility(metadata: ProjectedTerminalMetadata): void {
 		const root = this.#accessibilityRoot;
 		if (!root) return;
-		root.setAttribute(
+		this.#accessibilityAnnouncement?.setAttribute(
 			'aria-live',
 			this.#historyPhase === ProjectedHistoryPhase.followingBottom ? 'polite' : 'off',
 		);
@@ -2480,6 +2708,13 @@ export class ProjectedTerminal {
 				this.#historyPhase === ProjectedHistoryPhase.followingBottom
 					? this.#historyTotalRows - BigInt(metadata.rows) + BigInt(rowIndex)
 					: this.#historyStartRow + BigInt(rowIndex);
+			const rowLabel = this.#options.labels.row;
+			if (rowLabel !== undefined) {
+				element.setAttribute(
+					'aria-label',
+					rowLabel(absoluteRow + 1n, this.#accessibilityModelRows[rowIndex]?.text ?? ' '),
+				);
+			}
 			element.setAttribute('aria-posinset', (absoluteRow + 1n).toString());
 			element.setAttribute('aria-setsize', this.#historyTotalRows.toString());
 			element.setAttribute('data-terminal-absolute-row', absoluteRow.toString());
@@ -2494,17 +2729,14 @@ export class ProjectedTerminal {
 			this.#historyTotalRows === 0n
 				? 0n
 				: minBigInt(this.#historyTotalRows, visibleStart + BigInt(metadata.rows));
-		const historyRange = this.#options.labels.historyRange;
-		if (historyRange !== undefined) {
-			root.setAttribute(
-				'aria-description',
-				historyRange(
-					this.#historyTotalRows === 0n ? 0n : visibleStart + 1n,
-					visibleEnd,
-					this.#historyTotalRows,
-				),
-			);
-		}
+		const screenCursor = this.#options.labels.screenCursor;
+		root.setAttribute(
+			'aria-label',
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom && screenCursor !== undefined
+				? screenCursor(visibleStart + BigInt(metadata.cursor.row) + 1n, metadata.cursor.column + 1)
+				: this.#options.labels.screen,
+		);
+		this.#updateAccessibilityDescription(metadata, visibleStart, visibleEnd);
 		root.setAttribute('aria-rowcount', this.#historyTotalRows.toString());
 		root.setAttribute(
 			'data-terminal-visible-row-start',
@@ -2514,7 +2746,72 @@ export class ProjectedTerminal {
 			).toString(),
 		);
 		root.setAttribute('data-terminal-retained-rows', this.#historyTotalRows.toString());
+		this.#updateAccessibilityAnnouncement(metadata);
 		this.#syncAccessibilitySelection();
+	}
+
+	#updateAccessibilityDescription(
+		metadata = this.metadata,
+		visibleStart?: bigint,
+		visibleEnd?: bigint,
+	): void {
+		const root = this.#accessibilityRoot;
+		if (root === undefined || metadata === null) return;
+		const start =
+			visibleStart ??
+			(this.#historyPhase === ProjectedHistoryPhase.followingBottom
+				? this.#historyTotalRows - BigInt(metadata.rows)
+				: this.#historyStartRow);
+		const end =
+			visibleEnd ??
+			(this.#historyTotalRows === 0n
+				? 0n
+				: minBigInt(this.#historyTotalRows, start + BigInt(metadata.rows)));
+		const descriptions: string[] = [];
+		const historyRange = this.#options.labels.historyRange;
+		if (historyRange !== undefined) {
+			descriptions.push(
+				historyRange(this.#historyTotalRows === 0n ? 0n : start + 1n, end, this.#historyTotalRows),
+			);
+		}
+		if (this.#selection.state === 'active' && this.#selection.preview) {
+			const selectedText = this.#options.labels.selectedText;
+			if (selectedText !== undefined) descriptions.push(selectedText(this.#selection.preview));
+		}
+		root.setAttribute('aria-description', descriptions.join(' '));
+	}
+
+	#updateAccessibilityAnnouncement(metadata: ProjectedTerminalMetadata): void {
+		const rows = this.#accessibilityModelRows.map((row) => row.text);
+		const cursor = metadata.cursor;
+		const previousCursor = this.#accessibilityPreviousCursor;
+		const deletion =
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom &&
+			previousCursor?.row === cursor.row
+				? detectAccessibilityDeletion(
+						this.#accessibilityPreviousModelRows[cursor.row] ?? buildAccessibleRow([], 0),
+						this.#accessibilityModelRows[cursor.row] ?? buildAccessibleRow([], 0),
+						previousCursor.column,
+						cursor.column,
+					)
+				: null;
+		const changedRows = createAccessibilityAnnouncement(rows, this.#accessibilityPreviousRows);
+		const announcement =
+			deletion !== null && this.#options.labels.deleted !== undefined
+				? this.#options.labels.deleted(deletion)
+				: changedRows;
+		const liveRegion = this.#accessibilityAnnouncement;
+		if (
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom &&
+			announcement &&
+			liveRegion !== undefined &&
+			liveRegion.textContent !== announcement
+		) {
+			liveRegion.textContent = announcement;
+		}
+		this.#accessibilityPreviousRows = rows;
+		this.#accessibilityPreviousModelRows = [...this.#accessibilityModelRows];
+		this.#accessibilityPreviousCursor = { column: cursor.column, row: cursor.row };
 	}
 
 	readonly #handleAccessibilitySelectionChange = (): void => {

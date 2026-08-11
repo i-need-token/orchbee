@@ -175,10 +175,16 @@ pub const ReadableAttachment = struct {
 
     pub fn historyObserved(
         self: ReadableAttachment,
+        sequence: u64,
         revision: u64,
         generation: u64,
     ) !void {
-        try self.state.runtime.historyObserved(self.state.attachment_id, revision, generation);
+        try self.state.runtime.historyObserved(
+            self.state.attachment_id,
+            sequence,
+            revision,
+            generation,
+        );
     }
 
     pub fn applySelectionGesture(

@@ -313,11 +313,12 @@ pub fn writeHistoryDemandAccepted(writer: *std.Io.Writer, request: anytype) !voi
 pub fn writeHistoryObserved(writer: *std.Io.Writer, observed: anytype) !void {
     var attachment_buffer: [32]u8 = undefined;
     try writer.print(
-        "{{\"attachmentId\":\"{s}\",\"generation\":\"{d}\",\"revision\":\"{d}\"}}",
+        "{{\"attachmentId\":\"{s}\",\"generation\":\"{d}\",\"revision\":\"{d}\",\"sequence\":\"{d}\"}}",
         .{
             identifierText(observed.attachment_id, &attachment_buffer),
             observed.generation,
             observed.revision,
+            observed.sequence,
         },
     );
 }
@@ -365,12 +366,13 @@ pub fn historyChanged(allocator: std.mem.Allocator, event: anytype) ![]u8 {
     };
     return std.fmt.allocPrint(
         allocator,
-        "{{\"anchorStatus\":\"{s}\",\"attachmentId\":\"{s}\",\"generation\":\"{d}\",\"revision\":\"{d}\",\"totalRows\":\"{d}\"}}",
+        "{{\"anchorStatus\":\"{s}\",\"attachmentId\":\"{s}\",\"generation\":\"{d}\",\"revision\":\"{d}\",\"sequence\":\"{d}\",\"totalRows\":\"{d}\"}}",
         .{
             anchor_status,
             identifierText(event.attachment_id, &attachment_buffer),
             event.generation,
             event.revision,
+            event.sequence,
             event.total_rows,
         },
     );
