@@ -10,7 +10,7 @@ export const PROTOCOL_LIMITS = {
 	maxFrameStyles: 1024,
 	maxCellPixelDimension: 4096,
 	maxInputBytes: 1024 * 1024,
-	maxInputAcceptedBytes: 1024 * 1024 + 16,
+	maxInputAcceptedBytes: 1024 * 1024,
 	maxInventoryPageTerminals: 128,
 	maxKeyTextBytes: 4096,
 	maxLaunchArguments: 4096,

@@ -605,7 +605,7 @@
 		"frame_styles": 1024,
 		"cell_pixel_dimension": 4096,
 		"input_bytes": 1048576,
-		"input_accepted_bytes": 1048592,
+		"input_accepted_bytes": 1048576,
 		"inventory_page_terminals": 128,
 		"key_text_bytes": 4096,
 		"launch_arguments": 4096,

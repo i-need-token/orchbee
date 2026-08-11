@@ -1077,6 +1077,12 @@ test "I/O successful responses use supplied request contracts and publish input 
             identifierText(attachment_id, &expected_attachment_buffer),
             accepted.value.attachmentId,
         );
+        if (input_case.kind == MessageKind.write_input) {
+            try std.testing.expectEqual(
+                @as(usize, input_case.payload.len - 16),
+                accepted.value.acceptedBytes,
+            );
+        }
         const publications_after = publishedClientInputCount(runtime);
         if (accepted.value.acceptedBytes == 0) {
             try std.testing.expect(!input_case.must_publish);

@@ -583,6 +583,17 @@ describe('control schemas', () => {
 		).toBe(true);
 	});
 
+	it('bounds acknowledged input bytes to the input-byte limit', () => {
+		const parse = (acceptedBytes: number) =>
+			InputAcceptedSchema.safeParse({
+				acceptedBytes,
+				attachmentId: '22222222222222222222222222222222',
+			});
+		expect(parse(1024 * 1024).success).toBe(true);
+		expect(parse(1024 * 1024 + 1).success).toBe(false);
+		expect(parse(1024 * 1024 + 16).success).toBe(false);
+	});
+
 	it('bounds current inventory pages without bounding total inventory', () => {
 		const request = {
 			cursor: {

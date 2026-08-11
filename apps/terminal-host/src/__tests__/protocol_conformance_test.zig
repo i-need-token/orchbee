@@ -711,6 +711,11 @@ test "TypeScript and native protocol limits are identical" {
     }
 }
 
+test "acknowledged input bytes equal the input bound while the raw payload reserves the attachment identity" {
+    try std.testing.expectEqual(protocol.Limits.input_bytes, protocol.Limits.input_accepted_bytes);
+    try std.testing.expectEqual(protocol.Limits.input_bytes + 16, protocol.Limits.write_input_payload_bytes);
+}
+
 test "every TypeScript control command fixture crosses the native typed decoder" {
     const allocator = std.testing.allocator;
     const fixture = try parseControlFixture(allocator);
