@@ -1,11 +1,19 @@
 const builtin = @import("builtin");
 const std = @import("std");
+// Imported into the build script (not as a build module) so the envelope
+// fixture cap is computed from the authoritative protocol record limit.
+const contract = @import("src/protocol/contract.zig");
 
 const required_zig_version = "0.15.2";
 const default_host_version = "0.1.0";
 // Cross-language contract: search for `terminal-host-version-wire-limit`
 // before changing this value, then update every occurrence together.
 const max_host_version_bytes = 64;
+// The envelope fixture may legally span the full transport-record bound: a
+// 64-byte OBTP header declaring an 8 MiB terminal-frame payload. Tied to the
+// authoritative protocol record limit so a framing change cannot silently
+// make the boundary fixture unreachable; the conformance test asserts the tie.
+const envelope_fixture_max_bytes = contract.Limits.transport_record_bytes;
 
 fn readFixture(
     builder: *std.Build,
@@ -377,8 +385,9 @@ pub fn build(builder: *std.Build) void {
         builder,
         "envelope-fixture",
         "Canonical transport envelope fixture path",
-        8 * 1024 * 1024,
+        envelope_fixture_max_bytes,
     ));
+    conformance_options.addOption(usize, "envelope_fixture_max_bytes", envelope_fixture_max_bytes);
     conformance_options.addOption([]const u8, "input_fixture", readFixture(
         builder,
         "input-fixture",

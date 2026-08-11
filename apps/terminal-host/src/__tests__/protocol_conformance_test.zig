@@ -9,6 +9,7 @@ const control_encode = control_boundary.encode;
 const frame_fixture = options.frame_fixture;
 const projection_fixture = options.projection_fixture;
 const envelope_fixture = options.envelope_fixture;
+const envelope_fixture_max_bytes = options.envelope_fixture_max_bytes;
 const input_fixture = options.input_fixture;
 const key_input_fixture = options.key_input_fixture;
 const text_input_fixture = options.text_input_fixture;
@@ -627,6 +628,94 @@ test "canonical TypeScript envelope carries the exact canonical frame" {
     try std.testing.expectEqual(protocol.current_protocol_minor, summary.protocol_minor);
     try std.testing.expectEqual(protocol.current_protocol_patch, summary.protocol_patch);
     try std.testing.expectEqualSlices(u8, frame_fixture, summary.payload);
+}
+
+/// Hand-assembles a wire-valid OBTP transport envelope whose terminal-frame
+/// payload is exactly the frame bound, making the whole record equal the
+/// transport-record bound (64-byte header + 8 MiB payload). The payload is
+/// opaque to the envelope validator, so a zero-filled body is a valid
+/// terminal-frame payload declaration for envelope admission purposes.
+fn buildBoundaryEnvelopeRecord(allocator: std.mem.Allocator) ![]u8 {
+    const payload_length = protocol.Limits.frame_bytes;
+    const record_length = protocol.transport_envelope_header_bytes + payload_length;
+    const bytes = try allocator.alloc(u8, record_length);
+    errdefer allocator.free(bytes);
+    @memset(bytes, 0);
+    @memcpy(bytes[0..4], "OBTP");
+    std.mem.writeInt(u16, bytes[4..6], protocol.transport_envelope_header_bytes, .little);
+    std.mem.writeInt(u16, bytes[6..8], 4, .little); // flags: event
+    std.mem.writeInt(u32, bytes[8..12], @intCast(record_length), .little);
+    std.mem.writeInt(u32, bytes[12..16], @intCast(payload_length), .little);
+    std.mem.writeInt(u16, bytes[16..18], protocol.current_protocol_major, .little);
+    std.mem.writeInt(u16, bytes[18..20], protocol.current_protocol_minor, .little);
+    std.mem.writeInt(u16, bytes[20..22], protocol.MessageKind.delta_frame, .little);
+    bytes[22] = @intFromEnum(protocol.PayloadEncoding.terminal_frame);
+    std.mem.writeInt(u16, bytes[56..58], protocol.current_protocol_patch, .little);
+    return bytes;
+}
+
+test "envelope fixture cap is tied to the authoritative transport-record bound" {
+    try std.testing.expectEqual(protocol.Limits.transport_record_bytes, envelope_fixture_max_bytes);
+    try std.testing.expectEqual(
+        protocol.Limits.frame_bytes + protocol.transport_envelope_header_bytes,
+        envelope_fixture_max_bytes,
+    );
+}
+
+test "envelope fixture admission admits a record at the transport-record bound" {
+    const allocator = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const record = try buildBoundaryEnvelopeRecord(allocator);
+    defer allocator.free(record);
+    try std.testing.expectEqual(protocol.Limits.transport_record_bytes, record.len);
+
+    const path = "envelope-at-record-bound.bin";
+    {
+        const file = try tmp.dir.createFile(path, .{});
+        defer file.close();
+        try file.writeAll(record);
+    }
+    const admitted = try tmp.dir.readFileAlloc(allocator, path, envelope_fixture_max_bytes);
+    defer allocator.free(admitted);
+    try std.testing.expectEqual(protocol.Limits.transport_record_bytes, admitted.len);
+
+    const summary = try protocol.validateTransportEnvelope(admitted);
+    try std.testing.expectEqual(@as(usize, protocol.Limits.frame_bytes), summary.payload.len);
+    try std.testing.expectEqual(@as(u16, 42), summary.kind);
+    try std.testing.expectEqual(@as(u8, 3), summary.payload_encoding);
+
+    // When the build is configured with a boundary-size envelope fixture, the
+    // fixture itself must validate to the frame-bound payload as well.
+    if (envelope_fixture.len == protocol.Limits.transport_record_bytes) {
+        const fixture_summary = try protocol.validateTransportEnvelope(envelope_fixture);
+        try std.testing.expectEqual(@as(usize, protocol.Limits.frame_bytes), fixture_summary.payload.len);
+    }
+}
+
+test "envelope fixture admission rejects one byte over the transport-record bound" {
+    const allocator = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const record = try buildBoundaryEnvelopeRecord(allocator);
+    defer allocator.free(record);
+    const over = try allocator.alloc(u8, record.len + 1);
+    defer allocator.free(over);
+    @memcpy(over[0..record.len], record);
+    over[record.len] = 0;
+
+    const path = "envelope-over-record-bound.bin";
+    {
+        const file = try tmp.dir.createFile(path, .{});
+        defer file.close();
+        try file.writeAll(over);
+    }
+    try std.testing.expectError(
+        error.FileTooBig,
+        tmp.dir.readFileAlloc(allocator, path, envelope_fixture_max_bytes),
+    );
 }
 
 test "canonical TypeScript TerminalFailed fixture matches the native encoder" {
