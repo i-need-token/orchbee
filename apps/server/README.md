@@ -1,9 +1,9 @@
 # `@orchbee/server`
 
-`@orchbee/server` is the runnable foundation for the Orchbee application backend. The current
-slice owns one loopback HTTP listener, WebSocket Upgrade integration on that same listener,
-trusted Web renderer delivery, and Browser Router fallback. It does not yet expose a product API
-or a production WebSocket contract.
+`@orchbee/server` is the runnable HTTP renderer foundation for Orchbee. The current slice owns one
+explicit loopback or trusted-LAN-preview listener, WebSocket Upgrade integration on that same
+listener, trusted Web renderer delivery, and Browser Router fallback. It does not expose a product
+API or a production WebSocket contract.
 
 The accepted future direction and reserved security decisions remain in
 [`proposals/platform/connected-client-capability-service.md`](../../proposals/platform/connected-client-capability-service.md).
@@ -33,7 +33,8 @@ navigation accidentally.
 1. Process configuration is parsed before any socket is opened.
 2. The renderer root, `index.html`, and `static/` directory must exist as trusted local build
    inputs before Fastify can become ready.
-3. The listener binds only to `127.0.0.1`; other hosts are rejected at configuration parsing.
+3. The listener defaults to `127.0.0.1`; only the explicit trusted-LAN preview value `0.0.0.0` is
+   also accepted at configuration parsing.
 4. HTTP and WebSocket routes share one HTTP/1.1 listener and therefore one origin and port.
 5. API, WebSocket, and static namespaces never fall through to the Browser Router entry.
 6. Closing the returned running-server handle closes the shared listener and every connection it
@@ -53,13 +54,17 @@ ORCHBEE_SERVER_RENDERER_ROOT=/absolute/path/to/apps/web/dist \
   pnpm --filter @orchbee/server start
 ```
 
-`ORCHBEE_SERVER_PORT` defaults to `0`, so the operating system selects an available port and the
-process prints the resulting short origin. `ORCHBEE_SERVER_HOST` may be omitted or explicitly set
-to `127.0.0.1`; no other value is accepted in this slice.
+`ORCHBEE_SERVER_PORT` defaults to `0`, so the operating system selects an available port. The
+process emits one structured, non-secret readiness record containing the actual host and port.
+`ORCHBEE_SERVER_HOST` may be omitted, set to `127.0.0.1`, or explicitly set to `0.0.0.0`. Desktop
+uses the last value only after the user chooses trusted-LAN preview and pairs this static server
+with an exact-Origin, capability-authenticated Gateway.
 
 ## Deliberate omissions
 
-This foundation does not authorize LAN binding. Token-to-Cookie login, Cookie scope, TLS, Origin
-policy, CSRF protection, rate limits, sharing activation, Desktop child-process supervision,
-actual API routes, and actual WebSocket messages require separately accepted slices. The future
+The `0.0.0.0` mode is a trusted-LAN HTTP preview, not a production deployment mode. This Server
+does not authenticate static renderer requests; terminal authority remains behind the separate
+Gateway's exact-Origin and process-lifetime capability checks. Token-to-Cookie login, Cookie scope,
+TLS, Internet exposure, discovery, CSRF protection, rate limits, background service operation,
+actual API routes, and actual WebSocket messages remain omitted. The future
 `remote-client-protocol` and `capability-node-protocol` packages are therefore not created here.

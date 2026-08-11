@@ -1,0 +1,33 @@
+import type { DesktopBrowserAccessMessageId } from '../en-US';
+
+export const zhCNDesktopBrowserAccessMessages = {
+	'desktop.browserAccess.actions.copyLink': '复制链接',
+	'desktop.browserAccess.actions.copied': '已复制',
+	'desktop.browserAccess.actions.enableLocalNetwork': '启用局域网预览',
+	'desktop.browserAccess.actions.openBrowser': '打开浏览器',
+	'desktop.browserAccess.actions.openThisComputer': '在本机打开',
+	'desktop.browserAccess.actions.stop': '停止浏览器访问',
+	'desktop.browserAccess.actions.switchLoopback': '仅限本机',
+	'desktop.browserAccess.address.localNetwork': '局域网',
+	'desktop.browserAccess.address.thisComputer': '本机',
+	'desktop.browserAccess.addresses': '访问地址',
+	'desktop.browserAccess.close': '关闭浏览器访问',
+	'desktop.browserAccess.description': '在 Orchbee 当前进程运行期间，通过浏览器使用桌面端终端。',
+	'desktop.browserAccess.error.browserOpenFailed': '无法打开系统浏览器。',
+	'desktop.browserAccess.error.clipboardWriteFailed': '无法复制访问链接。',
+	'desktop.browserAccess.error.desktopQuiescing': 'Orchbee 正在退出。',
+	'desktop.browserAccess.error.gatewayUnavailable': '浏览器网关不可用。',
+	'desktop.browserAccess.error.invalidOrigin': '该访问地址已失效。',
+	'desktop.browserAccess.error.networkAddressUnavailable': '没有可用的私有 IPv4 地址。',
+	'desktop.browserAccess.error.serverUnavailable': 'Web 服务器不可用。',
+	'desktop.browserAccess.progress.starting': '正在启动浏览器访问…',
+	'desktop.browserAccess.progress.stopping': '正在停止浏览器访问…',
+	'desktop.browserAccess.status.localNetwork': '可信局域网内可访问',
+	'desktop.browserAccess.status.loopback': '仅本机可访问',
+	'desktop.browserAccess.status.stopped': '浏览器访问已关闭',
+	'desktop.browserAccess.status.stoppedDescription': '选择访问模式前，不会监听任何 Web 端口。',
+	'desktop.browserAccess.title': '浏览器访问',
+	'desktop.browserAccess.warning.description':
+		'局域网预览使用 HTTP。任何获得访问链接的人都能完全控制你的终端，直到你停止浏览器访问或退出 Orchbee。请仅在可信网络中使用，并且不要分享该链接。',
+	'desktop.browserAccess.warning.title': '仅限可信网络：链接具有完整终端控制权',
+} as const satisfies Record<DesktopBrowserAccessMessageId, string>;

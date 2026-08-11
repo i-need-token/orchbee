@@ -39,11 +39,13 @@ afterAll(() => {
 });
 
 function createRuntime(): WorkbenchProjectWorkspaceRuntime {
+	let presentationSequence = 0;
 	const runtime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/system',
 		standaloneTerminalTitle: 'Standalone',
 		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
 			terminalPresentationId('router-test:initial'),
+			() => terminalPresentationId(`router-test:dynamic:${(presentationSequence += 1)}`),
 		),
 	});
 	runtime.transition({

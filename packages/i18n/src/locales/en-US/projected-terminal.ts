@@ -7,6 +7,11 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.action.openLink': 'Open terminal link',
 	'terminal.projected.action.selectAll': 'Select all retained terminal output',
 	'terminal.projected.action.unavailable': 'This terminal action is unavailable.',
+	'terminal.projected.accessibility.deleted': 'Deleted: {text}',
+	'terminal.projected.accessibility.row': 'Terminal row {row}: {text}',
+	'terminal.projected.accessibility.screenCursor':
+		'Terminal screen, cursor at row {row}, column {column}',
+	'terminal.projected.accessibility.selection': 'Selected text: {text}',
 	'terminal.projected.connectionFailure': 'The terminal connection failed.',
 	'terminal.projected.runtimeFailure': 'The terminal session stopped after a runtime failure.',
 	'terminal.projected.copy.completed': 'Copied {byteLength, number} bytes.',

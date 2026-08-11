@@ -4,6 +4,7 @@ export type { IntlShape, MessageDescriptor } from 'react-intl';
 export {
 	applicationRoutingMessages,
 	desktopApplicationLifetimeMessages,
+	desktopBrowserAccessMessages,
 	projectedTerminalMessages,
 	workbenchMessages,
 	workbenchTabMessages,

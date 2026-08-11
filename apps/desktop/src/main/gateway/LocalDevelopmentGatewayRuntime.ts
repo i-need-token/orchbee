@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import {
 	encodeGatewayBrowserFragment,
 	GatewayBrowserConnectionSchema,
+	type GatewayBindHost,
 	GatewayCapabilitySchema,
 	GatewayDesktopCommandSchema,
 	GatewayUtilityEventSchema,
@@ -27,8 +28,9 @@ export interface DesktopGatewayUtilityProcess {
 }
 
 export interface LocalDevelopmentGatewayRuntimeOptions {
+	readonly bindHost: GatewayBindHost;
 	readonly entryPath: string;
-	readonly rendererUrl: string;
+	readonly rendererOrigins: readonly string[];
 }
 
 export interface LocalDevelopmentGatewayRuntimeDependencies {
@@ -47,6 +49,10 @@ interface GatewayClientRecord {
 
 export interface LocalDevelopmentGatewayStartResult {
 	readonly browserUrl: string;
+	readonly browserUrls: readonly {
+		readonly origin: string;
+		readonly url: string;
+	}[];
 }
 
 const defaultDependencies: Omit<LocalDevelopmentGatewayRuntimeDependencies, 'openClient'> = {
@@ -79,7 +85,7 @@ const defaultDependencies: Omit<LocalDevelopmentGatewayRuntimeDependencies, 'ope
 };
 
 export class LocalDevelopmentGatewayRuntime {
-	readonly #browserBaseUrl: URL;
+	readonly #browserBaseUrls: readonly URL[];
 	readonly #capability: ReturnType<typeof GatewayCapabilitySchema.parse>;
 	readonly #clients = new Map<GatewayClientConnectionId, GatewayClientRecord>();
 	readonly #clientOperationTails = new Map<GatewayClientConnectionId, Promise<void>>();
@@ -103,7 +109,7 @@ export class LocalDevelopmentGatewayRuntime {
 		this.#options = options;
 		this.#dependencies = { ...defaultDependencies, ...dependencies };
 		this.#capability = this.#dependencies.createCapability();
-		this.#browserBaseUrl = validateRendererUrl(options.rendererUrl);
+		this.#browserBaseUrls = validateRendererOrigins(options.rendererOrigins);
 	}
 
 	get backgroundFailure(): Error | undefined {
@@ -133,7 +139,8 @@ export class LocalDevelopmentGatewayRuntime {
 		try {
 			process.postMessage(
 				GatewayDesktopCommandSchema.parse({
-					allowedOrigin: this.#browserBaseUrl.origin,
+					allowedOrigins: this.#browserBaseUrls.map((url) => url.origin),
+					bindHost: this.#options.bindHost,
 					capability: this.#capability,
 					type: 'gateway-start',
 				}),
@@ -158,10 +165,18 @@ export class LocalDevelopmentGatewayRuntime {
 					port: event.port,
 					protocolVersion: '1.0',
 				});
-				const browserUrl = new URL(this.#browserBaseUrl.href);
-				browserUrl.searchParams.set('orchbee-runtime', 'gateway');
-				browserUrl.hash = encodeGatewayBrowserFragment(connection);
-				this.#resolveStart?.({ browserUrl: browserUrl.href });
+				const browserUrls = this.#browserBaseUrls.map((baseUrl) => {
+					const browserUrl = new URL(baseUrl.href);
+					browserUrl.searchParams.set('orchbee-runtime', 'gateway');
+					browserUrl.hash = encodeGatewayBrowserFragment(connection);
+					return { origin: baseUrl.origin, url: browserUrl.href };
+				});
+				const primary = browserUrls[0];
+				if (primary === undefined) {
+					this.#fail(new Error('Local Browser Gateway has no renderer Origin.'));
+					return;
+				}
+				this.#resolveStart?.({ browserUrl: primary.url, browserUrls });
 				this.#resolveStart = undefined;
 				this.#rejectStart = undefined;
 				return;
@@ -408,17 +423,22 @@ export class LocalDevelopmentGatewayRuntime {
 	}
 }
 
-function validateRendererUrl(value: string): URL {
-	const url = new URL(value);
-	if (
-		url.protocol !== 'http:' ||
-		url.hostname !== '127.0.0.1' ||
-		url.username !== '' ||
-		url.password !== ''
-	) {
-		throw new Error('Local Browser Gateway renderer URL must use loopback HTTP.');
+function validateRendererOrigins(values: readonly string[]): readonly URL[] {
+	if (values.length === 0 || values.length > 32 || new Set(values).size !== values.length) {
+		throw new Error('Local Browser Gateway requires unique bounded renderer Origins.');
 	}
-	return url;
+	return values.map((value) => {
+		const url = new URL(value);
+		if (
+			url.origin !== value ||
+			url.protocol !== 'http:' ||
+			url.username !== '' ||
+			url.password !== ''
+		) {
+			throw new Error('Local Browser Gateway renderer URLs must be exact HTTP Origins.');
+		}
+		return new URL(`${url.origin}/`);
+	});
 }
 
 function toError(error: unknown, fallback: string): Error {

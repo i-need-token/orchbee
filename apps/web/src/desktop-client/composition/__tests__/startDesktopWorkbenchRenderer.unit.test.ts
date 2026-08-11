@@ -139,6 +139,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const lifetimeChannel = createTestChannel();
 		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
+		const browserAccessChannel = createTestChannel();
 		const initializationDocument = provisionDocument('0', ['Terminal 1']);
 		const commands: WorkbenchClientSessionCommand[] = [];
 		clientSessionChannel.port2.addEventListener('message', (event) => {
@@ -166,6 +167,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
 				projectionChannel.port1,
+				browserAccessChannel.port1,
 			);
 			await expect(session.ready).resolves.toEqual({ kind: 'unavailable', reason: 'read-failed' });
 		});
@@ -175,6 +177,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		expect((clientSessionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((lifetimeChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((projectionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((browserAccessChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
@@ -182,6 +185,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const lifetimeChannel = createTestChannel();
 		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
+		const browserAccessChannel = createTestChannel();
 		const sharedDocument = provisionDocument('4', ['Terminal 1', 'Terminal 2']);
 		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
 		const projectionCommands: Array<{ presentationId?: string; type?: string }> = [];
@@ -209,6 +213,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
 				projectionChannel.port1,
+				browserAccessChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
@@ -247,6 +252,15 @@ describe('startDesktopWorkbenchRenderer', () => {
 			);
 		});
 		expect(sessionCommands).toHaveLength(proposalCountAfterStartup);
+		const settings = root.querySelector<HTMLElement>('[data-slot="workbench-sidebar-settings"]');
+		expect(settings).not.toBeNull();
+		await act(async () => {
+			settings?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		});
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-slot="desktop-browser-access-dialog"]')).not.toBeNull();
+		});
+		expect(document.body.textContent).toContain('Full terminal control on trusted networks only');
 
 		await act(async () => session?.dispose());
 		root.remove();
@@ -256,6 +270,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const lifetimeChannel = createTestChannel();
 		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
+		const browserAccessChannel = createTestChannel();
 		const sharedDocument = retainedDocument('4');
 		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
 		const root = document.createElement('div');
@@ -279,6 +294,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
 				projectionChannel.port1,
+				browserAccessChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });

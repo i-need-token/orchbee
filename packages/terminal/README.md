@@ -55,7 +55,7 @@ hostConnection.onRows((rowBuffer) => terminal.applyRows(rowBuffer));
 hostConnection.onTerminalExited((event) => terminal.notifyExited(event));
 ```
 
-Opening waits for the configured face (including representative Latin, CJK, and emoji glyphs), then installs frame, renderer, input, resize, and accessibility handling before activating projection demand. The hidden IME control uses the same font and follows the projected cursor so the native candidate window stays aligned. Device-pixel-ratio changes rebuild renderer geometry and terminal pixel dimensions instead of leaving a stale atlas. A frame commits into a bounded row-partitioned structure-of-arrays store and is acknowledged only after draw scheduling. Exact duplicates are re-acknowledged; invalid identity, sequence, generation, dimension, or delta-base input requests a complete snapshot without mutating the committed grid.
+Opening waits for the configured face (including representative Latin, CJK, and emoji glyphs), then installs frame, renderer, input, resize, and accessibility handling before activating projection demand. Surface sizing subtracts computed padding from the available grid. Every observed container change rebalances the canvas and input anchor immediately, while a PTY resize is emitted only when the resulting cell or pixel geometry changes. The hidden IME control uses the same font and follows the projected cursor so the native candidate window stays aligned. Device-pixel-ratio changes rebuild renderer geometry and terminal pixel dimensions instead of leaving a stale atlas. A frame commits into a bounded row-partitioned structure-of-arrays store and is acknowledged only after draw scheduling. Exact duplicates are re-acknowledged; invalid identity, sequence, generation, dimension, or delta-base input requests a complete snapshot without mutating the committed grid.
 
 The renderer consumes packed rows directly. It never reconstructs a local VT state or a per-cell object graph. Frame telemetry records the exact committed Host revision drawn by the renderer.
 
@@ -73,7 +73,7 @@ terminal.updateSearch('failed', { caseSensitive: false, wholeWord: true });
 terminal.findNext();
 ```
 
-Selection endpoints and exported content remain authoritative in Terminal Host. Pointer drags use gesture messages; a plain click does not synthesize a one-cell selection. Assistive-technology DOM ranges use one explicit cell-range command, with UTF-16 offsets mapped across combining, wide, and surrogate-pair graphemes. Host selection is mirrored back into the visible-viewport accessibility tree when both endpoints are visible. Read-only attachments retain local focus, scrolling, and selection behavior without emitting PTY input. The application performs the clipboard side effect and reports only its outcome.
+Selection endpoints and exported content remain authoritative in Terminal Host. Pointer drags use gesture messages; a plain click does not synthesize a one-cell selection. Dragging beyond the viewport advances retained history through bounded row-window requests and continues the same Host gesture at the newly exposed row. A modifier-assisted triple click requests Ghostty's semantic command-output selection. Completed pointer and semantic-output selections request copy by default; set `copyOnSelect: false` to opt out. Assistive-technology DOM ranges use one explicit cell-range command, with UTF-16 offsets mapped across combining, wide, and surrogate-pair graphemes. Host selection is mirrored back into the visible-viewport accessibility tree when both endpoints are visible. Read-only attachments retain local focus, scrolling, and selection behavior without emitting PTY input. The application performs the clipboard side effect and reports only its outcome.
 
 ```ts
 terminal.selectAll();
@@ -82,6 +82,10 @@ if (result.kind === 'failed') reportCopyFailure(result.code);
 ```
 
 Link discovery reads only bounded nearby rows. `ProjectedTerminal` emits an approved URL request; the application decides whether and how to open it. Filesystem and unknown targets are not opened by this package.
+
+Plain-text drops follow the same sanitization, review, ordering, and Host input path as paste. File drops are intentionally left to an application-owned capability that can resolve paths without exposing filesystem authority to the projected client.
+
+The off-screen accessibility mirror labels absolute rows and the cursor with caller-provided localized text. A separate polite status region announces only changed visible output, including localized deletion announcements, while live updates are disabled during retained-history inspection.
 
 ## Bounded row API
 

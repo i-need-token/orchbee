@@ -1,6 +1,7 @@
 export {
 	enUSApplicationRoutingMessages,
 	enUSDesktopApplicationLifetimeMessages,
+	enUSDesktopBrowserAccessMessages,
 	enUSProjectedTerminalMessages,
 	enUSMessages,
 	enUSWorkbenchMessages,
@@ -8,6 +9,7 @@ export {
 export type {
 	ApplicationRoutingMessageId,
 	DesktopApplicationLifetimeMessageId,
+	DesktopBrowserAccessMessageId,
 	ProjectedTerminalMessageId,
 	OrchbeeMessageId,
 	WorkbenchMessageId,
@@ -15,6 +17,7 @@ export type {
 export {
 	zhCNApplicationRoutingMessages,
 	zhCNDesktopApplicationLifetimeMessages,
+	zhCNDesktopBrowserAccessMessages,
 	zhCNProjectedTerminalMessages,
 	zhCNMessages,
 	zhCNWorkbenchMessages,

@@ -4,7 +4,9 @@ import { startOrchbeeServer } from './startOrchbeeServer';
 const configuration = resolveServerConfiguration(process.env);
 void startOrchbeeServer(configuration).then(
 	(server) => {
-		process.stdout.write(`Orchbee Server listening at ${server.origin}\n`);
+		process.stdout.write(
+			`ORCHBEE_SERVER_LISTENING=${JSON.stringify({ host: server.host, port: server.port })}\n`,
+		);
 		const closeServer = (): void => {
 			void server.close();
 		};

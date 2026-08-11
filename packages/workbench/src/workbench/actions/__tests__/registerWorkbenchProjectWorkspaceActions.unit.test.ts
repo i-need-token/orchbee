@@ -8,8 +8,10 @@ import { registerWorkbenchProjectWorkspaceActions } from '../registerWorkbenchPr
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../workbench-action-ids';
 
 function createTestTerminalPresentationComposition(scope: string) {
+	let sequence = 0;
 	return createWorkbenchPreviewTerminalPresentationComposition(
 		terminalPresentationId(`${scope}:initial`),
+		() => terminalPresentationId(`${scope}:dynamic:${(sequence += 1)}`),
 	);
 }
 

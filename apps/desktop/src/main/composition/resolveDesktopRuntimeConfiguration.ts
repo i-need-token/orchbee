@@ -20,15 +20,22 @@ export interface DesktopRuntimeEnvironment {
 	readonly ORCHBEE_DESKTOP_RECOVERY_DIRECTORY?: string;
 	readonly ORCHBEE_DESKTOP_RUNTIME_DIRECTORY?: string;
 	readonly ORCHBEE_GATEWAY_ENTRY_PATH?: string;
+	readonly ORCHBEE_SERVER_ENTRY_PATH?: string;
 	readonly ORCHBEE_TERMINAL_HOST_BINARY?: string;
 	readonly ORCHBEE_TERMINAL_SCROLLBACK_BYTES?: string;
+	readonly ORCHBEE_WEB_RENDERER_ROOT?: string;
 	readonly SHELL?: string;
 	readonly ComSpec?: string;
 }
 
-export type DesktopGatewayRuntimeConfiguration =
+export type DesktopBrowserAccessRuntimeConfiguration =
 	| { readonly kind: 'disabled' }
-	| { readonly entryPath: string; readonly kind: 'enabled' };
+	| {
+			readonly gatewayEntryPath: string;
+			readonly kind: 'enabled';
+			readonly rendererRoot: string;
+			readonly serverEntryPath: string;
+	  };
 
 export interface DesktopRuntimeConfigurationInput {
 	readonly applicationPath: string;
@@ -42,8 +49,8 @@ export interface DesktopRuntimeConfigurationInput {
 
 export interface DesktopRuntimeConfiguration {
 	readonly binaryPath: string;
+	readonly browserAccess: DesktopBrowserAccessRuntimeConfiguration;
 	readonly endpointId: string;
-	readonly gateway: DesktopGatewayRuntimeConfiguration;
 	readonly runtimeDirectory: string;
 	readonly terminalBindingStorePath: string;
 	readonly terminalExitPublicationLedgerPath: string;
@@ -127,16 +134,31 @@ export function resolveDesktopRuntimeConfiguration(
 	if (gatewayFlag !== undefined && gatewayFlag !== '0' && gatewayFlag !== '1') {
 		throw new Error('ORCHBEE_DESKTOP_GATEWAY must be 0 or 1.');
 	}
-	const gateway: DesktopGatewayRuntimeConfiguration =
-		gatewayFlag === '1'
-			? {
-					entryPath: path.resolve(
-						input.environment.ORCHBEE_GATEWAY_ENTRY_PATH ??
-							path.join(input.applicationPath, '..', 'gateway', 'dist', 'main', 'gateway.cjs'),
-					),
-					kind: 'enabled',
-				}
-			: { kind: 'disabled' };
+	const browserAccessEnabled =
+		gatewayFlag === '1' || (gatewayFlag === undefined && input.packagedResourcesPath !== undefined);
+	const browserAccess: DesktopBrowserAccessRuntimeConfiguration = browserAccessEnabled
+		? {
+				gatewayEntryPath: path.resolve(
+					input.environment.ORCHBEE_GATEWAY_ENTRY_PATH ??
+						(input.packagedResourcesPath === undefined
+							? path.join(input.applicationPath, '..', 'gateway', 'dist', 'main', 'gateway.cjs')
+							: path.join(input.packagedResourcesPath, 'orchbee-gateway.cjs')),
+				),
+				kind: 'enabled',
+				rendererRoot: path.resolve(
+					input.environment.ORCHBEE_WEB_RENDERER_ROOT ??
+						(input.packagedResourcesPath === undefined
+							? path.join(input.applicationPath, '..', 'web', 'dist')
+							: path.join(input.packagedResourcesPath, 'dist')),
+				),
+				serverEntryPath: path.resolve(
+					input.environment.ORCHBEE_SERVER_ENTRY_PATH ??
+						(input.packagedResourcesPath === undefined
+							? path.join(input.applicationPath, '..', 'server', 'dist', 'main', 'server.cjs')
+							: path.join(input.packagedResourcesPath, 'orchbee-server.cjs')),
+				),
+			}
+		: { kind: 'disabled' };
 	const terminalLocaleEnvironment = resolveTerminalLocaleEnvironment(
 		input.environment,
 		input.platform,
@@ -144,8 +166,8 @@ export function resolveDesktopRuntimeConfiguration(
 
 	return {
 		binaryPath,
+		browserAccess,
 		endpointId,
-		gateway,
 		runtimeDirectory,
 		terminalBindingStorePath: path.join(recoveryDirectory, 'bindings-v3.json'),
 		terminalExitPublicationLedgerPath: path.join(

@@ -3,7 +3,9 @@ import type { ServerConfiguration } from './resolveServerConfiguration';
 
 export interface RunningOrchbeeServer {
 	readonly close: () => Promise<void>;
+	readonly host: ServerConfiguration['host'];
 	readonly origin: string;
+	readonly port: number;
 }
 
 export async function startOrchbeeServer(
@@ -14,8 +16,15 @@ export async function startOrchbeeServer(
 		host: configuration.host,
 		port: configuration.port,
 	});
+	const address = server.server.address();
+	if (address === null || typeof address === 'string') {
+		await server.close();
+		throw new Error('Orchbee Server did not expose a TCP listener address.');
+	}
 	return {
 		close: () => server.close(),
+		host: configuration.host,
 		origin,
+		port: address.port,
 	};
 }

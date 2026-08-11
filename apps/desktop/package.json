@@ -9,7 +9,7 @@
 		"benchmark": "node scripts/benchmark-throughput.mjs",
 		"dev": "rsbuild dev",
 		"build": "rsbuild build --log-level error",
-		"package": "pnpm --filter @orchbee/terminal-host build && pnpm --filter @orchbee/web... build && pnpm --filter @orchbee/desktop... build && node scripts/package.mjs",
+		"package": "pnpm --filter @orchbee/terminal-host build && pnpm --filter @orchbee/server... build && pnpm --filter @orchbee/gateway... build && pnpm --filter @orchbee/web... build && pnpm --filter @orchbee/desktop... build && node scripts/package.mjs",
 		"start": "electron dist/main/main.cjs",
 		"typecheck": "tsc --noEmit",
 		"test": "pnpm test:unit",

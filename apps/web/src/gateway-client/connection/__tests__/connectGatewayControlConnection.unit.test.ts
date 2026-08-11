@@ -59,7 +59,10 @@ describe('connectGatewayControlConnection', () => {
 			port: 42_000,
 			protocolVersion: '1.0',
 		});
-		const connecting = connectGatewayControlConnection(connection, () => socket.asWebSocket());
+		const connecting = connectGatewayControlConnection(connection, '192.168.1.14', (url) => {
+			expect(url).toBe('ws://192.168.1.14:42000/v1/control');
+			return socket.asWebSocket();
+		});
 		socket.open();
 		expect(socket.sent[0]).toContain('gateway-control-authenticate');
 		socket.receive(

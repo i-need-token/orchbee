@@ -23,7 +23,9 @@ if (
 	throw new Error('The Desktop package identity is unavailable.');
 }
 const desktopBuild = path.join(applicationRoot, 'dist');
+const gatewayBuild = path.join(repositoryRoot, 'apps', 'gateway', 'dist', 'main', 'gateway.cjs');
 const rendererBuild = path.join(repositoryRoot, 'apps', 'web', 'dist');
+const serverBuild = path.join(repositoryRoot, 'apps', 'server', 'dist', 'main', 'server.cjs');
 const terminalHostBinaryName =
 	process.platform === 'win32' ? 'orchbee-terminal-host.exe' : 'orchbee-terminal-host';
 const terminalHostBinary = path.join(
@@ -39,12 +41,17 @@ await Promise.all([
 	access(path.join(desktopBuild, 'main', 'main.cjs')),
 	access(path.join(desktopBuild, 'preload', 'preload.cjs')),
 	access(path.join(rendererBuild, 'index.html')),
+	access(gatewayBuild),
+	access(serverBuild),
 	access(terminalHostBinary),
 ]);
 
 const stagingRoot = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-package-'));
 try {
 	await cp(desktopBuild, path.join(stagingRoot, 'dist'), { recursive: true });
+	const stagedGateway = path.join(stagingRoot, 'orchbee-gateway.cjs');
+	const stagedServer = path.join(stagingRoot, 'orchbee-server.cjs');
+	await Promise.all([cp(gatewayBuild, stagedGateway), cp(serverBuild, stagedServer)]);
 	await writeFile(
 		path.join(stagingRoot, 'package.json'),
 		`${JSON.stringify(
@@ -64,7 +71,7 @@ try {
 		asar: true,
 		dir: stagingRoot,
 		electronVersion: electronPackage.version,
-		extraResource: [rendererBuild, terminalHostBinary],
+		extraResource: [rendererBuild, stagedGateway, stagedServer, terminalHostBinary],
 		name: 'Orchbee',
 		out: path.join(applicationRoot, 'out'),
 		overwrite: true,

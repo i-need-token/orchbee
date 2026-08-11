@@ -15,11 +15,13 @@ import { WebApplication } from '../WebApplication';
 describe('WebApplication', () => {
 	it('renders the Workbench with the initial terminal tabs', () => {
 		const actionRuntime = new ActionRuntime();
+		let presentationSequence = 0;
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/workspace',
 			standaloneTerminalTitle: 'Terminal 1',
 			terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
 				terminalPresentationId('web:standalone:initial'),
+				() => terminalPresentationId(`web:test:dynamic:${(presentationSequence += 1)}`),
 			),
 		});
 		const markup = renderToStaticMarkup(

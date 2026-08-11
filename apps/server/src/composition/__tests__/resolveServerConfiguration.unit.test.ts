@@ -25,13 +25,19 @@ describe('resolveServerConfiguration', () => {
 		).toBe(43_110);
 	});
 
-	it('rejects LAN binding and invalid deployment inputs before listening', () => {
-		expect(() =>
+	it('accepts the explicit LAN-preview listener and rejects invalid deployment inputs', () => {
+		expect(
 			resolveServerConfiguration({
 				ORCHBEE_SERVER_HOST: '0.0.0.0',
 				ORCHBEE_SERVER_RENDERER_ROOT: rendererRoot,
 			}),
-		).toThrow(/127\.0\.0\.1/u);
+		).toEqual({ host: '0.0.0.0', port: 0, rendererRoot });
+		expect(() =>
+			resolveServerConfiguration({
+				ORCHBEE_SERVER_HOST: '192.168.1.14',
+				ORCHBEE_SERVER_RENDERER_ROOT: rendererRoot,
+			}),
+		).toThrow(/127\.0\.0\.1|0\.0\.0\.0/u);
 		expect(() =>
 			resolveServerConfiguration({
 				ORCHBEE_SERVER_PORT: '65536',

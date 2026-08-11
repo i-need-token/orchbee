@@ -14,7 +14,7 @@ import {
 } from '../desktop-renderer-bootstrap-contract';
 
 describe('Desktop renderer bootstrap contract', () => {
-	it('parses one atomic client bootstrap with a fixed three-capability port order', () => {
+	it('parses one atomic client bootstrap with a fixed four-capability port order', () => {
 		const initialPresentationId = terminalPresentationId('presentation-initial');
 		const initializationDocument = createWorkbenchSharedDocument({
 			projectWorkspace: {
@@ -59,6 +59,7 @@ describe('Desktop renderer bootstrap contract', () => {
 			'client-session',
 			'terminal-projection',
 			'application-lifetime',
+			'browser-access',
 		]);
 		expect(
 			DesktopRendererBootstrapWindowMessageSchema.parse({

@@ -32,7 +32,8 @@ describe('LocalDevelopmentBrowserGateway', () => {
 		gateway.start();
 		parent.emit(
 			GatewayDesktopCommandSchema.parse({
-				allowedOrigin,
+				allowedOrigins: [allowedOrigin],
+				bindHost: '127.0.0.1',
 				capability,
 				type: 'gateway-start',
 			}),
@@ -81,13 +82,36 @@ describe('LocalDevelopmentBrowserGateway', () => {
 		expect(opened.connectionId).toMatch(/^gateway:client:[0-9a-f]{32}$/u);
 	});
 
+	it('binds the explicit LAN preview and accepts only configured private Origins', async () => {
+		const parent = new FakeParentPort();
+		gateway = new LocalDevelopmentBrowserGateway(parent);
+		gateway.start();
+		parent.emit(
+			GatewayDesktopCommandSchema.parse({
+				allowedOrigins: [allowedOrigin, 'http://192.168.1.14:3000'],
+				bindHost: '0.0.0.0',
+				capability,
+				type: 'gateway-start',
+			}),
+		);
+		const listening = await parent.waitFor((event) => event.type === 'gateway-listening');
+		if (listening.type !== 'gateway-listening') throw new Error('Gateway did not listen.');
+		const url = `ws://127.0.0.1:${listening.port}/v1/control`;
+
+		await expect(rejectedUpgrade(url, 'http://192.168.1.15:3000')).resolves.toBe(403);
+		const accepted = await openWebSocket(url, 'http://192.168.1.14:3000');
+		accepted.close();
+		await waitForClose(accepted);
+	});
+
 	it('terminates an attachment still awaiting authentication when stopping', async () => {
 		const parent = new FakeParentPort();
 		gateway = new LocalDevelopmentBrowserGateway(parent);
 		gateway.start();
 		parent.emit(
 			GatewayDesktopCommandSchema.parse({
-				allowedOrigin,
+				allowedOrigins: [allowedOrigin],
+				bindHost: '127.0.0.1',
 				capability,
 				type: 'gateway-start',
 			}),

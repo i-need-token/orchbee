@@ -60,13 +60,15 @@ export function startDesktopWebApplication(
 		const clientSessionPort = event.ports[0];
 		const projectionPort = event.ports[1];
 		const lifetimePort = event.ports[2];
+		const browserAccessPort = event.ports[3];
 		if (
 			!message.success ||
 			!message.data.security.contextIsolated ||
 			!message.data.security.sandboxed ||
 			clientSessionPort === undefined ||
 			projectionPort === undefined ||
-			lifetimePort === undefined
+			lifetimePort === undefined ||
+			browserAccessPort === undefined
 		) {
 			closeMessagePorts(event.ports);
 			dispose();
@@ -83,6 +85,7 @@ export function startDesktopWebApplication(
 				lifetimePort,
 				clientSessionPort,
 				projectionPort,
+				browserAccessPort,
 			);
 			if (rootElement instanceof HTMLElement) {
 				rootElement.dataset['desktopContextIsolated'] = 'true';

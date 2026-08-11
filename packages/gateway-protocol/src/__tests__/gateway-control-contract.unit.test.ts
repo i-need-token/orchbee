@@ -17,6 +17,25 @@ describe('Gateway control contract', () => {
 		).toMatchObject({ port: 42_000, protocolVersion: '1.0' });
 	});
 
+	it('bounds the trusted Desktop listener and Origin configuration', () => {
+		expect(
+			GatewayDesktopCommandSchema.parse({
+				allowedOrigins: ['http://127.0.0.1:3000'],
+				bindHost: '127.0.0.1',
+				capability: 'a'.repeat(43),
+				type: 'gateway-start',
+			}),
+		).toMatchObject({ bindHost: '127.0.0.1' });
+		expect(
+			GatewayDesktopCommandSchema.safeParse({
+				allowedOrigins: [],
+				bindHost: '0.0.0.0',
+				capability: 'a'.repeat(43),
+				type: 'gateway-start',
+			}).success,
+		).toBe(false);
+	});
+
 	it('keeps transferred ports outside structured payload authority', () => {
 		expect(
 			GatewayDesktopCommandSchema.safeParse({

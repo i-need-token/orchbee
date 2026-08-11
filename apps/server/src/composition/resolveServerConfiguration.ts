@@ -2,7 +2,7 @@ import { isAbsolute } from 'node:path';
 import { z } from 'zod';
 
 const ServerConfigurationInputSchema = z.strictObject({
-	host: z.literal('127.0.0.1').default('127.0.0.1'),
+	host: z.enum(['127.0.0.1', '0.0.0.0']).default('127.0.0.1'),
 	port: z
 		.string()
 		.regex(/^\d+$/u)
@@ -13,7 +13,7 @@ const ServerConfigurationInputSchema = z.strictObject({
 });
 
 export interface ServerConfiguration {
-	readonly host: '127.0.0.1';
+	readonly host: '0.0.0.0' | '127.0.0.1';
 	readonly port: number;
 	readonly rendererRoot: string;
 }

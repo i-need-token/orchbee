@@ -15,6 +15,7 @@ import {
 	type WorkbenchShortcutPlatform,
 } from '@orchbee/workbench';
 
+import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 import type { WorkbenchClientSessionClient } from '../client-session';
 import type { ProjectedTerminalSurfaceCapability } from '../projected-terminal-surface';
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
@@ -58,11 +59,11 @@ export function createWorkbenchClientRuntime({
 	const actionRuntime = new ActionRuntime();
 	const terminalPresentation: WorkbenchTerminalPresentationComposition = {
 		createOperationId: () =>
-			terminalPresentationOperationId(`workbench:operation:${crypto.randomUUID()}`),
+			terminalPresentationOperationId(`workbench:operation:${createBrowserRandomIdentifier()}`),
 		createPresentationId: () =>
-			terminalPresentationId(`workbench:presentation:${crypto.randomUUID()}`),
+			terminalPresentationId(`workbench:presentation:${createBrowserRandomIdentifier()}`),
 		createRemovalId: () =>
-			terminalPresentationRemovalId(`workbench:removal:${crypto.randomUUID()}`),
+			terminalPresentationRemovalId(`workbench:removal:${createBrowserRandomIdentifier()}`),
 		dispatchCommands: () => undefined,
 		initialPresentationId: bootstrap.initialPresentationId,
 		kind: 'managed',

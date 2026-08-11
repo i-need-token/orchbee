@@ -9,6 +9,22 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'This terminal action is unavailable.',
 		id: 'terminal.projected.action.unavailable',
 	},
+	accessibilityDeleted: {
+		defaultMessage: 'Deleted: {text}',
+		id: 'terminal.projected.accessibility.deleted',
+	},
+	accessibilityRow: {
+		defaultMessage: 'Terminal row {row}: {text}',
+		id: 'terminal.projected.accessibility.row',
+	},
+	accessibilityScreenCursor: {
+		defaultMessage: 'Terminal screen, cursor at row {row}, column {column}',
+		id: 'terminal.projected.accessibility.screenCursor',
+	},
+	accessibilitySelection: {
+		defaultMessage: 'Selected text: {text}',
+		id: 'terminal.projected.accessibility.selection',
+	},
 	closeFind: {
 		defaultMessage: 'Close find',
 		id: 'terminal.projected.find.close',

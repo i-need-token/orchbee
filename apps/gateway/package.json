@@ -2,7 +2,7 @@
 	"name": "@orchbee/gateway",
 	"version": "0.1.0",
 	"private": true,
-	"description": "On-demand loopback Browser Gateway utility process for local development",
+	"description": "On-demand capability-authenticated Browser Gateway utility process",
 	"type": "module",
 	"main": "./dist/main/gateway.cjs",
 	"scripts": {

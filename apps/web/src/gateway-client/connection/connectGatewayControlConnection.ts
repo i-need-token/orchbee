@@ -12,6 +12,8 @@ import type {
 	WorkbenchClientSessionCommandSchema,
 } from '@orchbee/workbench-client-protocol';
 
+import { createGatewayWebSocketUrl } from './createGatewayWebSocketUrl';
+
 export interface GatewayControlConnection {
 	readonly bootstrap: WorkbenchClientSessionBootstrap;
 	close(): void;
@@ -28,9 +30,12 @@ export type GatewayWebSocketFactory = (url: string) => WebSocket;
 
 export async function connectGatewayControlConnection(
 	connection: GatewayBrowserConnection,
+	hostname: string,
 	createWebSocket: GatewayWebSocketFactory = (url) => new WebSocket(url),
 ): Promise<GatewayControlConnection> {
-	const socket = createWebSocket(`ws://127.0.0.1:${connection.port}${GATEWAY_CONTROL_PATH}`);
+	const socket = createWebSocket(
+		createGatewayWebSocketUrl(hostname, connection.port, GATEWAY_CONTROL_PATH),
+	);
 	const control = new BrowserGatewayControlConnection(socket, connection);
 	await control.ready;
 	return control;

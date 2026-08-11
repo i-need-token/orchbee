@@ -22,7 +22,7 @@ export default defineConfig(({ command }) => ({
 				content:
 					command === 'dev'
 						? "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: http:"
-						: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws://127.0.0.1:*",
+						: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws:",
 				'http-equiv': 'Content-Security-Policy',
 			},
 			viewport: 'width=device-width, initial-scale=1.0',

@@ -1,4 +1,20 @@
 export {
+	DesktopBrowserAccessFailureCodeSchema,
+	DesktopBrowserAccessMainEventSchema,
+	DesktopBrowserAccessModeSchema,
+	DesktopBrowserAccessRendererCommandSchema,
+	DesktopBrowserAccessRequestIdSchema,
+	DesktopBrowserAccessStateSchema,
+} from './desktop-browser-access-contract';
+export type {
+	DesktopBrowserAccessFailureCode,
+	DesktopBrowserAccessMainEvent,
+	DesktopBrowserAccessMode,
+	DesktopBrowserAccessRendererCommand,
+	DesktopBrowserAccessRequestId,
+	DesktopBrowserAccessState,
+} from './desktop-browser-access-contract';
+export {
 	DesktopApplicationExitRequestIdSchema,
 	DesktopApplicationLifetimeMainEventSchema,
 	DesktopApplicationLifetimeRendererCommandSchema,

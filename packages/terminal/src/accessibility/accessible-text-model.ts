@@ -27,6 +27,52 @@ export interface AccessibleRow {
 	readonly text: string;
 }
 
+/** Build one concise live-region update from visible rows whose text changed in place. */
+export function createAccessibilityAnnouncement(
+	rows: readonly string[],
+	previousRows: readonly string[],
+): string {
+	return rows
+		.filter((text, row) => text.trim().length > 0 && text !== previousRows[row])
+		.join('\n');
+}
+
+/** Detect the grapheme removed around a stable or left-moving terminal cursor. */
+export function detectAccessibilityDeletion(
+	previousRow: AccessibleRow,
+	currentRow: AccessibleRow,
+	previousCursorColumn: number,
+	currentCursorColumn: number,
+): string | null {
+	if (currentCursorColumn > previousCursorColumn || previousRow.text === currentRow.text) {
+		return null;
+	}
+	if (currentCursorColumn < previousCursorColumn) {
+		const start = rowOffset(previousRow, currentCursorColumn);
+		const end = rowOffset(previousRow, previousCursorColumn);
+		const previous = previousRow.text.slice(start, end);
+		const current = currentRow.text.slice(
+			rowOffset(currentRow, currentCursorColumn),
+			rowOffset(currentRow, previousCursorColumn),
+		);
+		return previous && previous !== current ? previous : null;
+	}
+
+	const previousStart = rowOffset(previousRow, currentCursorColumn);
+	const currentStart = rowOffset(currentRow, currentCursorColumn);
+	const previousTail = previousRow.text.slice(previousStart);
+	const currentTail = currentRow.text.slice(currentStart);
+	if (!previousTail.trim()) return null;
+	if (!currentTail.trim()) return previousTail.trim();
+	if (previousTail.startsWith(currentTail)) return null;
+	const segment = previousRow.segments.find(
+		(candidate) =>
+			currentCursorColumn >= candidate.column &&
+			currentCursorColumn < candidate.column + candidate.width,
+	);
+	return segment ? previousRow.text.slice(segment.start, segment.end) : null;
+}
+
 /** Preserve UTF-16 and terminal-cell boundaries while producing screen-reader text. */
 export function buildAccessibleRow(
 	cells: readonly AccessibleCellInput[],
@@ -184,6 +230,10 @@ export class AccessibleTextModel {
 		}
 		return this.offsetToPosition(normalized, 'backward');
 	}
+}
+
+function rowOffset(row: AccessibleRow, column: number): number {
+	return row.columnOffsets[clamp(column, 0, row.columnCount)] ?? row.text.length;
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

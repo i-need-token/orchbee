@@ -1,0 +1,42 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "desktop.browser-access-dialog",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Desktop Browser Access Dialog",
+	"description": "Owns explicit process-lifetime loopback and trusted-local-network Browser access controls without exposing capability links to renderer state.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": ["open-browser-access", "share-trusted-local-network-access", "stop-browser-access"],
+	"implementation": [
+		"apps/web/src/desktop-client/desktop-browser-access-dialog/DesktopBrowserAccessDialog.tsx",
+		"apps/web/src/desktop-client/desktop-browser-access-dialog/model/DesktopBrowserAccessController.ts"
+	],
+	"stories": [
+		{
+			"exportName": "Stopped",
+			"file": "apps/web/stories/browser-access-dialog.stories.tsx",
+			"id": "applications-web-desktop-browser-access-dialog--stopped",
+			"states": [
+				"Inspect the stopped state, local-only primary action, and the full-control HTTP warning before enabling local-network preview.",
+				"Inspect the active trusted-LAN state with one loopback address, multiple private IPv4 addresses, per-address copy actions, revocation, and both shipped locales."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"The Desktop process must explicitly start, inspect, switch, or revoke process-lifetime Browser access.",
+		"A trusted local network needs an HTTP preview link with full terminal control and an explicit warning."
+	],
+	"avoidWhen": [
+		"A Browser-connected Gateway page is already consuming access and must not gain listener lifecycle authority.",
+		"Internet exposure, TLS, account authentication, public IP publication, or a background service is required."
+	],
+	"invariants": [
+		"Browser access begins stopped and loopback is the default start mode; local-network binding requires an explicit user action.",
+		"The dialog receives only sanitized origins and bounded failure codes, never a capability fragment or complete access URL.",
+		"Capability copy and system-Browser open effects remain Main-owned and are available only for active exact origins.",
+		"Local-network preview always presents the HTTP and full-terminal-control warning and offers immediate revocation."
+	],
+	"references": ["apps/web/README.md"]
+}

@@ -14,6 +14,10 @@ import {
 	DesktopApplicationLifetimeClient,
 	DesktopApplicationLifetimeCoordinator,
 } from '../desktop-application-lifetime-dialog';
+import {
+	DesktopBrowserAccessClient,
+	DesktopBrowserAccessController,
+} from '../desktop-browser-access-dialog';
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopTerminalProjectionClient } from '../terminal-projection-control';
 
@@ -34,6 +38,7 @@ export function startDesktopWorkbenchRenderer(
 	lifetimePort: MessagePort,
 	clientSessionPort: MessagePort,
 	projectionPort: MessagePort,
+	browserAccessPort: MessagePort,
 ): DesktopWorkbenchRendererSession {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee Desktop application root element is missing.');
@@ -41,6 +46,9 @@ export function startDesktopWorkbenchRenderer(
 	const applicationRoot = rootElement;
 	const clientSession = new DesktopClientSessionClient(clientSessionPort, bootstrap);
 	const projectionClient = new DesktopTerminalProjectionClient(projectionPort);
+	const browserAccessController = new DesktopBrowserAccessController(
+		new DesktopBrowserAccessClient(browserAccessPort),
+	);
 	const runtime = createWorkbenchClientRuntime({
 		clientSession,
 		documentElement,
@@ -59,6 +67,7 @@ export function startDesktopWorkbenchRenderer(
 		disposed = true;
 		applicationLifetimeCoordinator?.dispose();
 		applicationLifetimeCoordinator = undefined;
+		browserAccessController.dispose();
 		reactRoot?.unmount();
 		reactRoot = undefined;
 		routing?.dispose();
@@ -94,6 +103,10 @@ export function startDesktopWorkbenchRenderer(
 		const nextRouting = createWebApplicationRouting({
 			actionRuntime: workbenchClientRuntime.actionRuntime,
 			layoutStorage: storage,
+			onSettings: () => {
+				browserAccessController.open();
+				return { kind: 'completed' };
+			},
 			projectWorkspaceRuntime: workbenchClientRuntime.projectWorkspaceRuntime,
 			shortcutPlatform,
 			terminalSurface: ProjectedTerminalSurface,
@@ -103,6 +116,7 @@ export function startDesktopWorkbenchRenderer(
 		reactRoot.render(
 			createElement(DesktopWorkbench, {
 				applicationLifetimeCoordinator,
+				browserAccessController,
 				locale: workbenchClientRuntime.locale,
 				router: nextRouting.router,
 				terminalSurfaceCapability: workbenchClientRuntime.terminalSurfaceCapability,

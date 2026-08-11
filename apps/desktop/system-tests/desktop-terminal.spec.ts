@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
-import { createServer, type Server, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -22,6 +22,7 @@ import {
 	type Locator,
 	type Page,
 } from '@playwright/test';
+import { decodeGatewayBrowserFragment, GATEWAY_CONTROL_PATH } from '@orchbee/gateway-protocol';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..', '..', '..');
 const hostBinary = path.join(
@@ -34,6 +35,7 @@ const hostBinary = path.join(
 );
 const desktopMain = path.join(repositoryRoot, 'apps', 'desktop', 'dist', 'main', 'main.cjs');
 const gatewayMain = path.join(repositoryRoot, 'apps', 'gateway', 'dist', 'main', 'gateway.cjs');
+const serverMain = path.join(repositoryRoot, 'apps', 'server', 'dist', 'main', 'server.cjs');
 const webRoot = path.join(repositoryRoot, 'apps', 'web');
 const webDist = path.join(repositoryRoot, 'apps', 'web', 'dist');
 
@@ -100,6 +102,8 @@ test.beforeEach(async () => {
 		ORCHBEE_DESKTOP_TRACE: '1',
 		ORCHBEE_TERMINAL_HOST_BINARY: hostBinary,
 		ORCHBEE_GATEWAY_ENTRY_PATH: gatewayMain,
+		ORCHBEE_SERVER_ENTRY_PATH: serverMain,
+		ORCHBEE_WEB_RENDERER_ROOT: webDist,
 		SHELL: process.platform === 'win32' ? (environment['ComSpec'] ?? 'cmd.exe') : '/bin/sh',
 	};
 	electronApplication = await launchDesktop();
@@ -135,7 +139,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	const traceLines: string[] = [];
 	application.process().stdout?.on('data', (chunk: Buffer) => traceLines.push(chunk.toString()));
 	const page = await application.firstWindow();
-	expect(new URL(page.url()).searchParams.get('orchbee-runtime')).toBe('desktop');
+	expect(new URL(page.url()).searchParams.get('orchbee-runtime')).toBeNull();
 	let workerStarts = 0;
 	page.on('worker', () => {
 		workerStarts += 1;
@@ -149,24 +153,46 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 		'requested',
 	);
 	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expectTerminalSurfaceAppearance(root);
 	const rendererAuthority = await page.evaluate(() => ({
 		hasGenericOrchbeeApi: 'orchbee' in globalThis,
 		hasNodeRequire: 'require' in globalThis,
 	}));
 	expect(rendererAuthority).toEqual({ hasGenericOrchbeeApi: false, hasNodeRequire: false });
 
+	const initialWindowColumns = Number(await root.getAttribute('data-projected-terminal-columns'));
 	await application.evaluate(({ BrowserWindow }) => {
 		BrowserWindow.getAllWindows()[0]?.setSize(1_200, 650);
 	});
+	await expect
+		.poll(async () => Number(await root.getAttribute('data-projected-terminal-columns')))
+		.toBeGreaterThan(initialWindowColumns);
+	const visibleSidebarColumns = Number(await root.getAttribute('data-projected-terminal-columns'));
+	await page.locator('[data-slot="workbench-sidebar-toggle"]').click();
+	await expect
+		.poll(async () => Number(await root.getAttribute('data-projected-terminal-columns')))
+		.toBeGreaterThan(visibleSidebarColumns);
+	await page.locator('[data-slot="workbench-sidebar-toggle"]').click();
+	await expect
+		.poll(async () => Number(await root.getAttribute('data-projected-terminal-columns')))
+		.toBe(visibleSidebarColumns);
 	const input = page.getByRole('textbox');
+	await input.pressSequentially(
+		`printf '\\344\\270\\255\\346\\226\\207-\\346\\230\\276\\347\\244\\272-OK\\n'`,
+		{ delay: 1 },
+	);
+	await input.press('Enter');
+	const accessibility = page.locator('[role="log"]');
+	await expect(accessibility).toContainText('中文-显示-OK');
 	await input.pressSequentially(
 		`i=1; while [ "$i" -le 160 ]; do printf 'history-%03d searchable-agent\\n' "$i"; i=$((i+1)); done; printf 'interaction-%s-marker allowed=https://orchbee.dev blocked=file:///tmp/orchbee-blocked\\n' tail`,
 		{ delay: 1 },
 	);
 	await input.press('Enter');
-	const accessibility = page.locator('[role="log"]');
+	const accessibilityAnnouncement = root.locator('[role="status"]').first();
 	await expect(accessibility).toContainText('interaction-tail-marker');
-	await expect(accessibility).toHaveAttribute('aria-live', 'polite');
+	await expect(accessibility).toHaveAttribute('aria-live', 'off');
+	await expect(accessibilityAnnouncement).toHaveAttribute('aria-live', 'polite');
 	const accessibleRows = accessibility.locator(':scope > div');
 	await expect
 		.poll(async () => accessibleRows.count())
@@ -179,7 +205,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	);
 	await canvas.hover();
 	await page.mouse.wheel(0, -2_000);
-	await expect(accessibility).toHaveAttribute('aria-live', 'off');
+	await expect(accessibilityAnnouncement).toHaveAttribute('aria-live', 'off');
 	await expect
 		.poll(async () =>
 			BigInt((await accessibleRows.first().getAttribute('data-terminal-absolute-row')) ?? '0'),
@@ -205,7 +231,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 
 	await input.focus();
 	await input.press('ArrowRight');
-	await expect(accessibility).toHaveAttribute('aria-live', 'polite');
+	await expect(accessibilityAnnouncement).toHaveAttribute('aria-live', 'polite');
 	await expect(accessibility).toContainText('interaction-tail-marker');
 
 	const markerStart = await terminalCellCenter(
@@ -227,6 +253,12 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	await page.mouse.move(markerEnd.x, markerEnd.y);
 	await page.mouse.up();
 	await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
+	await expect
+		.poll(async () => Number(await root.getAttribute('data-projected-terminal-copied-bytes')))
+		.toBeGreaterThan(0);
+	await expect
+		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+		.toContain('interaction');
 
 	if (process.platform === 'darwin') {
 		const gestureSelectionStart = await root.getAttribute(
@@ -357,7 +389,71 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	electronApplication = undefined;
 });
 
-test('runs Electron and an authenticated Browser peer from the real Web development server', async () => {
+test('opts into trusted LAN Browser access through the Desktop UI', async () => {
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const desktopPage = await application.firstWindow();
+	desktopPage.setDefaultTimeout(10_000);
+	await application.evaluate(({ BrowserWindow }) => {
+		BrowserWindow.getAllWindows()[0]?.setSize(1_280, 720);
+	});
+	await expect(projectedTerminal(desktopPage)).toHaveAttribute(
+		'data-projected-terminal-state',
+		'open',
+	);
+
+	await desktopPage.locator('[data-slot="workbench-sidebar-settings"]').click();
+	const dialog = desktopPage.locator('[data-slot="desktop-browser-access-dialog"]');
+	await expect(dialog).toBeVisible();
+	await dialog.locator('[data-browser-access-action="start-local-network"]').click();
+	let origins: readonly string[] = [];
+	await expect
+		.poll(async () => {
+			origins = await dialog.locator('code').allTextContents();
+			return origins.length;
+		})
+		.toBeGreaterThan(1);
+	const localOrigin = origins.find((origin) => new URL(origin).hostname === '127.0.0.1');
+	const networkOrigins = origins.filter((origin) => new URL(origin).hostname !== '127.0.0.1');
+	expect(localOrigin).toBeDefined();
+	expect(networkOrigins.length).toBeGreaterThan(0);
+	expect(networkOrigins.every((origin) => isRfc1918IPv4(new URL(origin).hostname))).toBe(true);
+
+	const networkOrigin = networkOrigins[0];
+	if (networkOrigin === undefined) throw new Error('LAN Browser access origin is unavailable.');
+	await dialog.locator('li').filter({ hasText: networkOrigin }).getByRole('button').click();
+	let browserUrl = '';
+	await expect
+		.poll(async () => {
+			browserUrl = await application.evaluate(({ clipboard }) => clipboard.readText());
+			return browserUrl === '' ? '' : new URL(browserUrl).origin;
+		})
+		.toBe(networkOrigin);
+
+	const browser = await chromium.launch();
+	try {
+		const browserPage = await browser.newPage();
+		const browserSockets = trackGatewaySockets(browserPage);
+		await browserPage.goto(browserUrl);
+		expect(new URL(browserPage.url()).origin).toBe(networkOrigin);
+		try {
+			const browserRoot = projectedTerminal(browserPage);
+			await expect(browserRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+			await expectTerminalSurfaceAppearance(browserRoot);
+		} catch (error: unknown) {
+			throw new Error(`LAN Browser access failed: ${browserSockets.events.join(' | ')}`, {
+				cause: error,
+			});
+		}
+	} finally {
+		await browser.close();
+	}
+	await dialog.locator('[data-browser-access-action="stop"]').click();
+	await expect(dialog.locator('code')).toHaveCount(0);
+});
+
+test('opens an authenticated Browser peer through the Desktop Browser-access UI', async () => {
 	test.setTimeout(90_000);
 	const staticApplication = electronApplication;
 	const currentDevelopmentRendererUrl = developmentRendererUrl;
@@ -391,7 +487,7 @@ test('runs Electron and an authenticated Browser peer from the real Web developm
 		BrowserWindow.getAllWindows()[0]?.setSize(1_280, 720);
 	});
 	expect(new URL(desktopPage.url()).origin).toBe(new URL(currentDevelopmentRendererUrl).origin);
-	expect(new URL(desktopPage.url()).searchParams.get('orchbee-runtime')).toBe('desktop');
+	expect(new URL(desktopPage.url()).searchParams.get('orchbee-runtime')).toBeNull();
 	const desktopRoot = projectedTerminal(desktopPage);
 	await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
 	const desktopIdentity = await terminalDocumentIdentity(desktopRoot);
@@ -405,7 +501,7 @@ test('runs Electron and an authenticated Browser peer from the real Web developm
 		throw new Error('Desktop terminal presentation identity is unavailable.');
 	}
 
-	const gatewayUrl = await waitForGatewayBrowserUrl(developmentApplication);
+	const gatewayUrl = await openLoopbackBrowserAccess(developmentApplication, desktopPage);
 	const browser = await chromium.launch();
 	try {
 		const context = await browser.newContext({ viewport: { height: 720, width: 1_280 } });
@@ -413,10 +509,10 @@ test('runs Electron and an authenticated Browser peer from the real Web developm
 		browserPage.setDefaultTimeout(10_000);
 		const browserSockets = trackGatewaySockets(browserPage);
 		await browserPage.goto(gatewayUrl);
-		expect(new URL(browserPage.url()).origin).toBe(new URL(currentDevelopmentRendererUrl).origin);
+		expect(new URL(browserPage.url()).origin).toBe(new URL(gatewayUrl).origin);
 		expect(new URL(browserPage.url()).searchParams.get('orchbee-runtime')).toBe('gateway');
 		await expect
-			.poll(() => browserSockets.urls.some((url) => socketUsesRendererOrigin(url, gatewayUrl)))
+			.poll(() => browserSockets.urls.some((url) => socketUsesGatewayConnection(url, gatewayUrl)))
 			.toBe(true);
 		const browserRoot = projectedTerminal(browserPage);
 		await expect(browserRoot).toHaveAttribute('data-projected-terminal-state', 'open');
@@ -554,8 +650,8 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 	if (application === undefined) throw new Error('Electron application did not start.');
 	const currentRendererUrl = rendererUrl;
 	if (currentRendererUrl === undefined) throw new Error('Web renderer server is unavailable.');
-	const gatewayUrl = await waitForGatewayBrowserUrl(application);
 	const desktopPage = await application.firstWindow();
+	const gatewayUrl = await openLoopbackBrowserAccess(application, desktopPage);
 	const desktopRoot = projectedTerminal(desktopPage);
 	await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
 	const desktopIdentity = await terminalDocumentIdentity(desktopRoot);
@@ -565,7 +661,7 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 	try {
 		const context = await browser.newContext();
 		await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
-			origin: new URL(currentRendererUrl).origin,
+			origin: new URL(gatewayUrl).origin,
 		});
 		const firstBrowserPage = await context.newPage();
 		const secondBrowserPage = await context.newPage();
@@ -579,8 +675,7 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 			.catch((error: unknown) => {
 				const safeDesktopOutput = (applicationOutput.get(application) ?? [])
 					.join('')
-					.split(/\r?\n/u)
-					.filter((line) => !line.startsWith('ORCHBEE_BROWSER_CLIENT_URL='));
+					.split(/\r?\n/u);
 				throw new Error(
 					`First Browser projection failed. Browser=${JSON.stringify(firstSockets.events)} Desktop=${safeDesktopOutput.join('\n')}`,
 					{ cause: error },
@@ -763,8 +858,8 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 		throw new Error('Desktop runtime directory is unavailable.');
 	}
 	const projectName = path.basename(currentRuntimeDirectory);
-	const gatewayUrl = await waitForGatewayBrowserUrl(application);
 	let desktopPage = await application.firstWindow();
+	const gatewayUrl = await openLoopbackBrowserAccess(application, desktopPage);
 	desktopPage.setDefaultTimeout(10_000);
 	const browser = await chromium.launch();
 	let browserContext = await browser.newContext();
@@ -982,7 +1077,7 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 			terminalId: secondaryIdentity.terminalId,
 		});
 
-		const restartedGatewayUrl = await waitForGatewayBrowserUrl(application);
+		const restartedGatewayUrl = await openLoopbackBrowserAccess(application, desktopPage);
 		browserContext = await browser.newContext();
 		browserPage = await browserContext.newPage();
 		browserPage.setDefaultTimeout(10_000);
@@ -1107,18 +1202,37 @@ async function launchDesktop(): Promise<ElectronApplication> {
 	return application;
 }
 
-async function waitForGatewayBrowserUrl(application: ElectronApplication): Promise<string> {
-	const output = applicationOutput.get(application);
-	if (output === undefined) throw new Error('Desktop output capture is unavailable.');
+async function openLoopbackBrowserAccess(
+	application: ElectronApplication,
+	page: Page,
+): Promise<string> {
+	await application.evaluate(({ shell }) => {
+		const state = globalThis as typeof globalThis & { __orchbeeBrowserAccessUrl?: string };
+		delete state.__orchbeeBrowserAccessUrl;
+		Object.defineProperty(shell, 'openExternal', {
+			configurable: true,
+			value: async (url: string) => {
+				state.__orchbeeBrowserAccessUrl = url;
+			},
+		});
+	});
+	await page.locator('[data-slot="workbench-sidebar-settings"]').click();
+	const dialog = page.locator('[data-slot="desktop-browser-access-dialog"]');
+	await expect(dialog).toBeVisible();
+	await dialog.locator('[data-browser-access-action="open-local"]').click();
 	let browserUrl: string | null = null;
 	await expect
-		.poll(() => {
-			const match = /ORCHBEE_BROWSER_CLIENT_URL=([^\r\n]+)/u.exec(output.join(''));
-			browserUrl = match?.[1] ?? null;
+		.poll(async () => {
+			browserUrl = await application.evaluate(
+				() =>
+					(globalThis as typeof globalThis & { __orchbeeBrowserAccessUrl?: string })
+						.__orchbeeBrowserAccessUrl ?? null,
+			);
 			return browserUrl;
 		})
 		.not.toBeNull();
-	if (browserUrl === null) throw new Error('Desktop did not publish a Browser Gateway URL.');
+	await page.keyboard.press('Escape');
+	if (browserUrl === null) throw new Error('Desktop did not open a Browser access URL.');
 	return browserUrl;
 }
 
@@ -1127,7 +1241,7 @@ async function startWebRendererServer(): Promise<{
 	readonly url: string;
 }> {
 	const server = createServer((request, response) => {
-		void serveWebRendererRequest(request.url, response);
+		void serveWebRendererRequest(request, response);
 	});
 	await new Promise<void>((resolve, reject) => {
 		server.once('error', reject);
@@ -1205,11 +1319,11 @@ async function closeWebRendererServer(server: Server): Promise<void> {
 }
 
 async function serveWebRendererRequest(
-	requestUrl: string | undefined,
+	request: Pick<IncomingMessage, 'headers' | 'method' | 'url'>,
 	response: ServerResponse,
 ): Promise<void> {
 	try {
-		const pathname = new URL(requestUrl ?? '/', 'http://127.0.0.1').pathname;
+		const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
 		const relativePath = pathname === '/' ? 'index.html' : decodeURIComponent(pathname.slice(1));
 		const filePath = path.resolve(webDist, relativePath);
 		if (filePath !== webDist && !filePath.startsWith(`${webDist}${path.sep}`)) {
@@ -1222,9 +1336,29 @@ async function serveWebRendererRequest(
 		response.setHeader('content-type', contentTypeFor(filePath));
 		response.end(body);
 	} catch {
+		await serveWebRendererDocumentFallback(request, response);
+	}
+}
+
+async function serveWebRendererDocumentFallback(
+	request: Pick<IncomingMessage, 'headers' | 'method' | 'url'>,
+	response: ServerResponse,
+): Promise<void> {
+	const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+	const isReservedNamespace = ['/api', '/static', '/ws'].some(
+		(namespace) => pathname === namespace || pathname.startsWith(`${namespace}/`),
+	);
+	const acceptsHtml = request.headers.accept?.toLowerCase().includes('text/html') ?? false;
+	if (request.method !== 'GET' || isReservedNamespace || !acceptsHtml) {
 		response.statusCode = 404;
 		response.end();
+		return;
 	}
+	const body = await readFile(path.join(webDist, 'index.html'));
+	response.statusCode = 200;
+	response.setHeader('cache-control', 'no-cache');
+	response.setHeader('content-type', 'text/html; charset=utf-8');
+	response.end(body);
 }
 
 function contentTypeFor(filePath: string): string {
@@ -1340,6 +1474,33 @@ async function expectVisibleLayout(locator: Locator): Promise<void> {
 	expect(bounds?.height).toBeGreaterThan(0);
 }
 
+async function expectTerminalSurfaceAppearance(locator: Locator): Promise<void> {
+	await expect
+		.poll(() =>
+			locator.evaluate((element) => {
+				const style = getComputedStyle(element);
+				return {
+					backgroundColor: style.backgroundColor,
+					paddingBottom: style.paddingBottom,
+					paddingLeft: style.paddingLeft,
+					paddingRight: style.paddingRight,
+					paddingTop: style.paddingTop,
+					statusPosition: getComputedStyle(
+						element.querySelector('[data-projected-terminal-status="true"]') ?? element,
+					).position,
+				};
+			}),
+		)
+		.toEqual({
+			backgroundColor: 'rgb(252, 252, 252)',
+			paddingBottom: '8px',
+			paddingLeft: '8px',
+			paddingRight: '8px',
+			paddingTop: '8px',
+			statusPosition: 'absolute',
+		});
+}
+
 async function desktopClientSessionIds(page: Page): Promise<readonly string[]> {
 	return page.evaluate(() => {
 		const value = JSON.parse(
@@ -1409,6 +1570,30 @@ function socketUsesRendererOrigin(socketUrl: string, rendererSourceUrl: string):
 	const socket = new URL(socketUrl);
 	const renderer = new URL(rendererSourceUrl);
 	return socket.hostname === renderer.hostname && socket.port === renderer.port;
+}
+
+function socketUsesGatewayConnection(socketUrl: string, rendererSourceUrl: string): boolean {
+	const socket = new URL(socketUrl);
+	const renderer = new URL(rendererSourceUrl);
+	const connection = decodeGatewayBrowserFragment(renderer.hash);
+	return (
+		connection !== null &&
+		socket.hostname === renderer.hostname &&
+		socket.port === String(connection.port) &&
+		socket.pathname === GATEWAY_CONTROL_PATH
+	);
+}
+
+function isRfc1918IPv4(value: string): boolean {
+	const octets = value.split('.').map(Number);
+	if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet))) return false;
+	const first = octets[0];
+	const second = octets[1];
+	return (
+		first === 10 ||
+		(first === 172 && second !== undefined && second >= 16 && second <= 31) ||
+		(first === 192 && second === 168)
+	);
 }
 
 function gatewayFrameShape(payload: string | Buffer): string {

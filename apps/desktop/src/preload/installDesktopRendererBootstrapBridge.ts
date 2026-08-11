@@ -30,10 +30,12 @@ export function installDesktopRendererBootstrapBridge(
 		const clientSessionPort = event.ports[0];
 		const terminalProjectionPort = event.ports[1];
 		const applicationLifetimePort = event.ports[2];
+		const browserAccessPort = event.ports[3];
 		if (
 			clientSessionPort === undefined ||
 			terminalProjectionPort === undefined ||
-			applicationLifetimePort === undefined
+			applicationLifetimePort === undefined ||
+			browserAccessPort === undefined
 		) {
 			closeTransferredPorts(event.ports);
 			return;
@@ -46,7 +48,7 @@ export function installDesktopRendererBootstrapBridge(
 					type: DESKTOP_RENDERER_BOOTSTRAP_WINDOW_MESSAGE,
 				}),
 				targetWindow.location.origin === 'null' ? '*' : targetWindow.location.origin,
-				[clientSessionPort, terminalProjectionPort, applicationLifetimePort],
+				[clientSessionPort, terminalProjectionPort, applicationLifetimePort, browserAccessPort],
 			);
 		} catch {
 			closeTransferredPorts(event.ports);

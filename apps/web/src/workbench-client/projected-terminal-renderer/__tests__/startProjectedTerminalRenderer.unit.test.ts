@@ -8,6 +8,7 @@ import {
 import type {
 	ProjectedTerminal,
 	ProjectedTerminalFrameTelemetry,
+	ProjectedTerminalMetadata,
 	ProjectedTerminalOptions,
 } from '@orchbee/terminal';
 import { describe, expect, it, vi } from 'vitest';
@@ -44,6 +45,7 @@ describe('startProjectedTerminalRenderer', () => {
 					.mockReturnValueOnce(status)
 					.mockReturnValueOnce(findRoot),
 			},
+			style: {},
 		} as unknown as HTMLElement;
 		const documentElement = { dir: '', lang: '' };
 		const applyFrame = vi.fn<ProjectedTerminal['applyFrame']>(() => 'committed');
@@ -57,6 +59,7 @@ describe('startProjectedTerminalRenderer', () => {
 		>(async () => ({ kind: 'completed' as const }));
 		let emitExit: Parameters<ProjectedTerminal['onExit']>[0] = () => undefined;
 		let emitFrameTelemetry: Parameters<ProjectedTerminal['onFrameTelemetry']>[0] = () => undefined;
+		let emitMetadata: Parameters<ProjectedTerminal['onMetadataChange']>[0] | undefined;
 		let options: ProjectedTerminalOptions | undefined;
 		const dependencies: ProjectedTerminalRendererDependencies = {
 			createTerminal: vi.fn<ProjectedTerminalRendererDependencies['createTerminal']>(
@@ -101,9 +104,10 @@ describe('startProjectedTerminalRenderer', () => {
 						onLinkOpenRequest: vi.fn<ProjectedTerminal['onLinkOpenRequest']>(() => ({
 							dispose: vi.fn<() => void>(),
 						})),
-						onMetadataChange: vi.fn<ProjectedTerminal['onMetadataChange']>(() => ({
-							dispose: vi.fn<() => void>(),
-						})),
+						onMetadataChange: vi.fn<ProjectedTerminal['onMetadataChange']>((listener) => {
+							emitMetadata = listener;
+							return { dispose: vi.fn<() => void>() };
+						}),
 						onRendererHealth: vi.fn<ProjectedTerminal['onRendererHealth']>(() => ({
 							dispose: vi.fn<() => void>(),
 						})),
@@ -134,12 +138,14 @@ describe('startProjectedTerminalRenderer', () => {
 			})),
 		};
 		let emitTransportMessage: (value: unknown) => void = () => undefined;
+		let emitTransportUnavailable: (() => void) | undefined;
 		const transport: ProjectedTerminalTransport = {
 			close: vi.fn<() => void>(),
 			projectionBufferTrust: 'local-host',
 			send: vi.fn<ProjectedTerminalTransport['send']>(),
-			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>((listener) => {
+			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>((listener, unavailable) => {
 				emitTransportMessage = listener;
+				emitTransportUnavailable = unavailable;
 				return vi.fn<() => void>();
 			}),
 		};
@@ -220,6 +226,18 @@ describe('startProjectedTerminalRenderer', () => {
 				viewportY: 0,
 			};
 			emitFrameTelemetry(telemetry);
+			if (emitMetadata === undefined) throw new Error('metadata listener is missing');
+			emitMetadata({
+				cellPixelHeight: 18,
+				cellPixelWidth: 9,
+				columns: 80,
+				defaultColors: {
+					backgroundRgb: 0x12_34_56,
+					cursorRgb: null,
+					foregroundRgb: 0xfe_dc_ba,
+				},
+				rows: 24,
+			} as ProjectedTerminalMetadata);
 			emitExit({
 				exit: { code: 0, kind: 'exit-code' },
 				finalRevision: CanonicalUint64TextSchema.parse('1'),
@@ -232,12 +250,21 @@ describe('startProjectedTerminalRenderer', () => {
 
 			expect(documentElement).toEqual({ dir: 'ltr', lang: 'zh-CN' });
 			expect(options?.labels).toEqual(
-				expect.objectContaining({ input: '终端输入', screen: '终端屏幕' }),
+				expect.objectContaining({
+					input: '终端输入',
+					screen: '终端屏幕',
+				}),
 			);
+			expect(options?.labels.deleted?.('甲')).toBe('已删除：甲');
+			expect(options?.labels.row?.(2n, '中文')).toBe('终端第 2 行：中文');
+			expect(options?.labels.screenCursor?.(3n, 4)).toBe('终端屏幕，光标位于第 3 行、第 4 列');
+			expect(options?.labels.selectedText?.('内容')).toBe('已选择文本：内容');
 			expect(options?.renderer).toEqual({
 				fontFamily: '"Menlo", monospace',
 				fontSize: 15,
+				paddingBalance: true,
 			});
+			expect(root.style.backgroundColor).toBe('#123456');
 			expect(options?.inputEnabled).toBe(false);
 			expect(notifyExited).toHaveBeenCalledWith(bootstrap.terminalOutcome.event);
 			expect(dataset['projectedTerminalAttachmentId']).toBe(bootstrap.attachmentId);
@@ -245,6 +272,15 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(dataset['projectedTerminalCommittedFrames']).toBe('1');
 			expect(dataset['projectedTerminalFinalFramePresented']).toBe('true');
 			expect(dataset['projectedTerminalRenderedRevision']).toBe('1');
+			if (emitTransportUnavailable === undefined) {
+				throw new Error('transport unavailable listener is missing');
+			}
+			emitTransportUnavailable();
+			expect(status).toMatchObject({
+				dataset: { projectedTerminalStatus: 'true' },
+				hidden: false,
+				textContent: '终端连接失败。',
+			});
 			session.dispose();
 		} finally {
 			Object.defineProperty(globalThis, 'HTMLElement', {

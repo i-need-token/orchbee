@@ -18,7 +18,6 @@ import {
 	type TerminalIdentity,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
-import { GatewayClientConnectionIdSchema } from '@orchbee/gateway-protocol';
 import {
 	terminalPresentationId,
 	type TerminalPresentationEvent,
@@ -121,7 +120,7 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
-	it('starts without creating an attachment and atomically transfers three scoped controls', async () => {
+	it('starts without creating an attachment and atomically transfers four scoped controls', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -146,12 +145,13 @@ describe('DesktopApplication', () => {
 				}),
 				type: 'orchbee.desktop.renderer-bootstrap',
 			}),
-			[expect.anything(), expect.anything(), expect.anything()],
+			[expect.anything(), expect.anything(), expect.anything(), expect.anything()],
 		);
 		expect(harness.clientSessionPorts[0]?.start).toHaveBeenCalledOnce();
+		expect(harness.browserAccessBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.createWorkbenchDocumentStore).toHaveBeenCalledOnce();
-		expect(harness.createGatewayRuntime).not.toHaveBeenCalled();
+		expect(harness.createBrowserAccessRuntime).not.toHaveBeenCalled();
 		expect(harness.requestControl).toHaveBeenCalledWith(
 			MessageKind.setTerminalDefaults,
 			{ configuration: { scrollbackBytes: 10_000_000 } },
@@ -206,7 +206,7 @@ describe('DesktopApplication', () => {
 		const application = createApplication(harness.dependencies);
 
 		await expect(application.start()).rejects.toThrow('renderer projection broker factory failed');
-		expect(harness.messageChannels).toHaveLength(3);
+		expect(harness.messageChannels).toHaveLength(4);
 		for (const channel of harness.messageChannels) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
@@ -233,7 +233,7 @@ describe('DesktopApplication', () => {
 		expect(harness.projectionBrokers[0]?.dispose).toHaveBeenCalledOnce();
 	});
 
-	it('starts the development Gateway with fresh page-scoped controls and no lifetime authority', async () => {
+	it('owns stopped Browser access resources and creates fresh page-scoped controls on demand', async () => {
 		const harness = createHarness();
 		const application = createApplication(
 			harness.dependencies,
@@ -246,27 +246,20 @@ describe('DesktopApplication', () => {
 
 		await application.start();
 
-		expect(harness.createGatewayRuntime).toHaveBeenCalledWith(
+		expect(harness.createBrowserAccessRuntime).toHaveBeenCalledWith(
 			{
-				entryPath: '/repo/apps/gateway/dist/main/gateway.cjs',
-				rendererUrl: 'http://127.0.0.1:3000/',
+				gatewayEntryPath: '/repo/apps/gateway/dist/main/gateway.cjs',
+				rendererRoot: '/repo/apps/web/dist',
+				serverEntryPath: '/repo/apps/server/dist/main/server.cjs',
 			},
-			{ openClient: expect.any(Function) },
+			expect.any(Function),
 		);
-		expect(harness.gatewayRuntime.start).toHaveBeenCalledOnce();
-		expect(harness.publishGatewayBrowserUrl).toHaveBeenCalledWith(
-			'http://127.0.0.1:3000/?orchbee-runtime=gateway#gateway-capability',
-		);
-		expect(harness.gatewayRuntime.start.mock.invocationCallOrder[0]).toBeLessThan(
-			harness.createWindow.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
-		);
+		expect(harness.browserAccessRuntime.start).not.toHaveBeenCalled();
+		expect(harness.browserAccessBrokers[0]?.runtime).toBe(harness.browserAccessRuntime);
 
-		const gatewayDependencies = harness.createGatewayRuntime.mock.calls[0]?.[1];
-		if (gatewayDependencies === undefined)
-			throw new Error('Gateway dependencies were not created.');
-		const gatewayClient = await gatewayDependencies.openClient(
-			GatewayClientConnectionIdSchema.parse('gateway:client:1'),
-		);
+		const openClient = harness.createBrowserAccessRuntime.mock.calls[0]?.[1];
+		if (openClient === undefined) throw new Error('Browser access client factory was not created.');
+		const gatewayClient = await openClient();
 		expect(harness.clientSessionPorts).toHaveLength(2);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		expect(harness.lifetimeBrokers).toHaveLength(1);
@@ -283,10 +276,10 @@ describe('DesktopApplication', () => {
 
 		await gatewayClient.dispose();
 		await application.shutdown();
-		expect(harness.gatewayRuntime.dispose).toHaveBeenCalledOnce();
+		expect(harness.browserAccessRuntime.dispose).toHaveBeenCalledOnce();
 	});
 
-	it('retains gateway cleanup ownership and continues teardown when gateway disposal rejects', async () => {
+	it('retains Browser cleanup ownership and continues teardown when runtime disposal rejects', async () => {
 		const harness = createHarness();
 		const application = createApplication(
 			harness.dependencies,
@@ -297,24 +290,25 @@ describe('DesktopApplication', () => {
 			}),
 		);
 		await application.start();
-		const gatewayDependencies = harness.createGatewayRuntime.mock.calls[0]?.[1];
-		if (gatewayDependencies === undefined)
-			throw new Error('Gateway dependencies were not created.');
-		await gatewayDependencies.openClient(
-			GatewayClientConnectionIdSchema.parse('gateway:client:failure'),
+		const openClient = harness.createBrowserAccessRuntime.mock.calls[0]?.[1];
+		if (openClient === undefined) throw new Error('Browser access client factory was not created.');
+		await openClient();
+		harness.browserAccessRuntime.dispose.mockRejectedValueOnce(
+			new Error('Browser access disposal failed'),
 		);
-		harness.gatewayRuntime.dispose.mockRejectedValueOnce(new Error('gateway disposal failed'));
 
-		await expect(application.shutdown()).rejects.toThrow('Gateway disposal did not converge');
+		await expect(application.shutdown()).rejects.toThrow(
+			'Desktop Browser access disposal did not converge',
+		);
 		expect(harness.projectionBrokers[1]?.dispose).toHaveBeenCalledOnce();
 		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
 		expect(harness.host.close).toHaveBeenCalledOnce();
 
 		await expect(application.shutdown()).resolves.toBeUndefined();
-		expect(harness.gatewayRuntime.dispose).toHaveBeenCalledTimes(2);
+		expect(harness.browserAccessRuntime.dispose).toHaveBeenCalledTimes(2);
 	});
 
-	it('compensates gateway client channels when a broker factory or start fails', async () => {
+	it('compensates Browser client channels when a broker factory or start fails', async () => {
 		const gatewayRuntimeOptions = createRuntime({
 			ORCHBEE_DESKTOP_GATEWAY: '1',
 			ORCHBEE_GATEWAY_ENTRY_PATH: '/repo/apps/gateway/dist/main/gateway.cjs',
@@ -326,19 +320,15 @@ describe('DesktopApplication', () => {
 			gatewayRuntimeOptions,
 		);
 		await factoryApplication.start();
-		const factoryDependencies = factoryHarness.createGatewayRuntime.mock.calls[0]?.[1];
-		if (factoryDependencies === undefined)
-			throw new Error('Gateway dependencies were not created.');
+		const factoryOpenClient = factoryHarness.createBrowserAccessRuntime.mock.calls[0]?.[1];
+		if (factoryOpenClient === undefined)
+			throw new Error('Browser access client factory was not created.');
 		factoryHarness.createProjectionControlBroker.mockImplementationOnce(() => {
 			throw new Error('gateway projection factory failed');
 		});
-		await expect(
-			factoryDependencies.openClient(
-				GatewayClientConnectionIdSchema.parse('gateway:client:factory'),
-			),
-		).rejects.toThrow('gateway projection factory failed');
-		expect(factoryHarness.messageChannels).toHaveLength(5);
-		for (const channel of factoryHarness.messageChannels.slice(3)) {
+		await expect(factoryOpenClient()).rejects.toThrow('gateway projection factory failed');
+		expect(factoryHarness.messageChannels).toHaveLength(6);
+		for (const channel of factoryHarness.messageChannels.slice(4)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
 		}
@@ -351,8 +341,9 @@ describe('DesktopApplication', () => {
 			gatewayRuntimeOptions,
 		);
 		await startApplication.start();
-		const startDependencies = startHarness.createGatewayRuntime.mock.calls[0]?.[1];
-		if (startDependencies === undefined) throw new Error('Gateway dependencies were not created.');
+		const startOpenClient = startHarness.createBrowserAccessRuntime.mock.calls[0]?.[1];
+		if (startOpenClient === undefined)
+			throw new Error('Browser access client factory was not created.');
 		startHarness.createProjectionControlBroker.mockImplementationOnce(() => {
 			const broker = {
 				dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
@@ -363,11 +354,9 @@ describe('DesktopApplication', () => {
 			startHarness.projectionBrokers.push(broker);
 			return broker;
 		});
-		await expect(
-			startDependencies.openClient(GatewayClientConnectionIdSchema.parse('gateway:client:start')),
-		).rejects.toThrow('gateway projection start failed');
+		await expect(startOpenClient()).rejects.toThrow('gateway projection start failed');
 		expect(startHarness.projectionBrokers[1]?.dispose).toHaveBeenCalledOnce();
-		for (const channel of startHarness.messageChannels.slice(3)) {
+		for (const channel of startHarness.messageChannels.slice(4)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalled();
 		}
@@ -386,8 +375,7 @@ describe('DesktopApplication', () => {
 		await application.start();
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 
-		harness.webContents.emit('did-start-loading');
-		harness.webContents.emit('did-finish-load');
+		emitRendererDocumentLoad(harness.webContents);
 		await Promise.resolve();
 		expect(harness.clientSessionPorts[0]?.close).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.dispose).toHaveBeenCalledOnce();
@@ -397,6 +385,32 @@ describe('DesktopApplication', () => {
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
 		expect(harness.clientSessionPorts).toHaveLength(2);
 		expect(harness.projectionBrokers).toHaveLength(2);
+		await application.shutdown();
+	});
+
+	it('preserves renderer controls across same-document and subframe navigation', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+
+		harness.webContents.emit('did-start-loading');
+		harness.webContents.emit('did-start-navigation', {
+			isMainFrame: true,
+			isSameDocument: true,
+			url: 'http://127.0.0.1:3000/terminal/tabs/terminal-context-1-tab-1',
+		});
+		harness.webContents.emit('did-start-loading');
+		harness.webContents.emit('did-start-navigation', {
+			isMainFrame: false,
+			isSameDocument: false,
+			url: 'http://127.0.0.1:3000/frame',
+		});
+		await new Promise((resolve) => setImmediate(resolve));
+
+		expect(harness.clientSessionPorts[0]?.close).not.toHaveBeenCalled();
+		expect(harness.projectionBrokers[0]?.dispose).not.toHaveBeenCalled();
+		expect(harness.messageChannels).toHaveLength(4);
+		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 		await application.shutdown();
 	});
 
@@ -410,18 +424,16 @@ describe('DesktopApplication', () => {
 		await application.start();
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 
-		harness.webContents.emit('did-start-loading');
-		harness.webContents.emit('did-finish-load');
+		emitRendererDocumentLoad(harness.webContents);
 		await vi.waitFor(() => expect(projectionDispose).toHaveBeenCalledTimes(2));
 		await Promise.resolve();
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
-		expect(harness.messageChannels).toHaveLength(3);
+		expect(harness.messageChannels).toHaveLength(4);
 		expect(harness.projectionBrokers).toHaveLength(1);
 
-		harness.webContents.emit('did-start-loading');
-		harness.webContents.emit('did-finish-load');
+		emitRendererDocumentLoad(harness.webContents);
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
-		expect(harness.messageChannels).toHaveLength(6);
+		expect(harness.messageChannels).toHaveLength(8);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		await application.shutdown();
 	});
@@ -570,8 +582,7 @@ describe('DesktopApplication', () => {
 				expect.objectContaining({ event, reason: 'host-admission', state: 'pending' }),
 			);
 
-			harness.webContents.emit('did-start-loading');
-			harness.webContents.emit('did-finish-load');
+			emitRendererDocumentLoad(harness.webContents);
 			await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
 			const reloadBootstrap = latestRendererBootstrap(harness);
 			expect(reloadBootstrap?.clientSession?.terminalEvents ?? []).not.toContainEqual(
@@ -615,8 +626,7 @@ describe('DesktopApplication', () => {
 			expect(harness.terminalRuntime.recordExitOutcome).toHaveBeenCalledOnce(),
 		);
 		await vi.waitFor(() => expect(harness.clientSessionPorts[0]?.close).toHaveBeenCalled());
-		harness.webContents.emit('did-start-loading');
-		harness.webContents.emit('did-finish-load');
+		emitRendererDocumentLoad(harness.webContents);
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
 		expect(terminalEventPublications(harness)).toHaveLength(1);
 		expect(latestRendererBootstrap(harness)?.clientSession?.terminalEvents).toContainEqual(
@@ -1253,6 +1263,16 @@ function createApplication(
 	);
 }
 
+function emitRendererDocumentLoad(webContents: EventEmitter): void {
+	webContents.emit('did-start-loading');
+	webContents.emit('did-start-navigation', {
+		isMainFrame: true,
+		isSameDocument: false,
+		url: 'http://127.0.0.1:3000/',
+	});
+	webContents.emit('did-finish-load');
+}
+
 function createHarness(
 	firstProjectionDispose?: () => Promise<void>,
 	trackSpill = false,
@@ -1297,8 +1317,7 @@ function createHarness(
 		focus: vi.fn<BrowserWindow['focus']>(),
 		isDestroyed: vi.fn<BrowserWindow['isDestroyed']>(() => false),
 		loadURL: vi.fn<BrowserWindow['loadURL']>(async () => {
-			webContents.emit('did-start-loading');
-			webContents.emit('did-finish-load');
+			emitRendererDocumentLoad(webContents);
 		}),
 		reload: vi.fn<BrowserWindow['reload']>(),
 		show: vi.fn<BrowserWindow['show']>(),
@@ -1306,6 +1325,11 @@ function createHarness(
 	}) as unknown as BrowserWindow;
 	let windowOptions: BrowserWindowConstructorOptions | undefined;
 	const clientSessionPorts: TestMainPort[] = [];
+	const browserAccessBrokers: Array<{
+		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
+		readonly runtime: Parameters<DesktopApplicationDependencies['createBrowserAccessBroker']>[1];
+		readonly start: ReturnType<typeof vi.fn<() => void>>;
+	}> = [];
 	const projectionBrokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => Promise<void>>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
@@ -1466,17 +1490,24 @@ function createHarness(
 		windowOptions = options;
 		return browserWindow;
 	});
-	const gatewayRuntime = {
+	type BrowserAccessRuntime = ReturnType<
+		DesktopApplicationDependencies['createBrowserAccessRuntime']
+	>;
+	const browserAccessRuntime = {
+		copyAccessLink: vi
+			.fn<BrowserAccessRuntime['copyAccessLink']>()
+			.mockResolvedValue({ phase: 'stopped' }),
 		dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-		start: vi.fn<() => Promise<{ readonly browserUrl: string }>>().mockResolvedValue({
-			browserUrl: 'http://127.0.0.1:3000/?orchbee-runtime=gateway#gateway-capability',
-		}),
-	};
-	const createGatewayRuntime = vi
-		.fn<DesktopApplicationDependencies['createGatewayRuntime']>()
-		.mockReturnValue(gatewayRuntime);
-	const publishGatewayBrowserUrl =
-		vi.fn<DesktopApplicationDependencies['publishGatewayBrowserUrl']>();
+		getSnapshot: vi.fn<BrowserAccessRuntime['getSnapshot']>().mockReturnValue({ phase: 'stopped' }),
+		openLocalBrowser: vi
+			.fn<BrowserAccessRuntime['openLocalBrowser']>()
+			.mockResolvedValue({ phase: 'stopped' }),
+		start: vi.fn<BrowserAccessRuntime['start']>().mockResolvedValue({ phase: 'stopped' }),
+		stop: vi.fn<BrowserAccessRuntime['stop']>().mockResolvedValue({ phase: 'stopped' }),
+	} satisfies ReturnType<DesktopApplicationDependencies['createBrowserAccessRuntime']>;
+	const createBrowserAccessRuntime = vi
+		.fn<DesktopApplicationDependencies['createBrowserAccessRuntime']>()
+		.mockReturnValue(browserAccessRuntime);
 	const createProjectionControlBroker = vi.fn<
 		DesktopApplicationDependencies['createProjectionControlBroker']
 	>((_port, service) => {
@@ -1516,6 +1547,18 @@ function createHarness(
 			lifetimeBrokers.push(broker);
 			return broker;
 		}),
+		createBrowserAccessBroker: vi.fn<DesktopApplicationDependencies['createBrowserAccessBroker']>(
+			(_port, runtime) => {
+				const broker = {
+					dispose: vi.fn<() => void>(),
+					runtime,
+					start: vi.fn<() => void>(),
+				};
+				browserAccessBrokers.push(broker);
+				return broker;
+			},
+		),
+		createBrowserAccessRuntime,
 		createBroker: vi.fn<DesktopApplicationDependencies['createBroker']>(),
 		createClientSessionBroker: vi.fn<DesktopApplicationDependencies['createClientSessionBroker']>(
 			(port, coordinator, disposeAttachments) => {
@@ -1526,7 +1569,6 @@ function createHarness(
 		),
 		createClientSessionCoordinator: (coordinatorDependencies) =>
 			new DesktopClientSessionCoordinator(coordinatorDependencies),
-		createGatewayRuntime,
 		createMessageChannel: vi.fn<DesktopApplicationDependencies['createMessageChannel']>(() => {
 			const channel = { port1: new TestMainPort(), port2: new TestMainPort() };
 			messageChannels.push(channel);
@@ -1546,21 +1588,21 @@ function createHarness(
 			.mockReturnValue(workbenchDocumentStore),
 		createWindow,
 		getPreferredLocales: () => ['en-US'],
-		publishGatewayBrowserUrl,
 		randomIdentifier: () => (++identifierSequence).toString(16).padStart(32, '0'),
 		quitApplication: vi.fn<() => void>(),
 		writeTrace: vi.fn<DesktopApplicationDependencies['writeTrace']>(),
 	};
 	return {
+		browserAccessBrokers,
+		browserAccessRuntime,
 		browserWindow,
 		clientSessionPorts,
-		createGatewayRuntime,
+		createBrowserAccessRuntime,
 		createProjectionControlBroker,
 		createTerminalRuntime,
 		createWorkbenchDocumentStore: dependencies.createWorkbenchDocumentStore,
 		createWindow,
 		dependencies,
-		gatewayRuntime,
 		host,
 		lifetimeBrokers,
 		lifetimeDependencies,
@@ -1573,7 +1615,6 @@ function createHarness(
 		},
 		projectionBrokers,
 		projectionServices,
-		publishGatewayBrowserUrl,
 		quitApplication: dependencies.quitApplication,
 		requestControl,
 		terminalRuntime,

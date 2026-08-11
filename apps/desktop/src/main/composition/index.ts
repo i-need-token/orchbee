@@ -5,7 +5,7 @@ export type {
 } from './DesktopApplication';
 export {
 	resolveDesktopRuntimeConfiguration,
-	type DesktopGatewayRuntimeConfiguration,
+	type DesktopBrowserAccessRuntimeConfiguration,
 	type DesktopRuntimeConfiguration,
 	type DesktopRuntimeConfigurationInput,
 	type DesktopRuntimeEnvironment,

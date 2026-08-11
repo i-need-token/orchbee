@@ -16,6 +16,7 @@ export {
 	GatewayAttachmentClientMessageSchema,
 	GatewayAttachmentServerMessageSchema,
 	GatewayAttachmentSocketIdSchema,
+	GatewayBindHostSchema,
 	GatewayBrowserConnectionSchema,
 	GatewayCapabilitySchema,
 	GatewayClientConnectionIdSchema,
@@ -27,6 +28,7 @@ export {
 export type {
 	GatewayAttachmentClientMessage,
 	GatewayAttachmentServerMessage,
+	GatewayBindHost,
 	GatewayBrowserConnection,
 	GatewayCapability,
 	GatewayClientConnectionId,

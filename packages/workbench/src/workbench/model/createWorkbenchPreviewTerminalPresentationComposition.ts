@@ -1,5 +1,4 @@
 import {
-	terminalPresentationId,
 	type TerminalPresentationCommand,
 	type TerminalPresentationId,
 	type TerminalPresentationOperationId,
@@ -34,9 +33,10 @@ export type WorkbenchTerminalPresentationComposition =
 
 export function createWorkbenchPreviewTerminalPresentationComposition(
 	initialPresentationId: TerminalPresentationId,
+	createPresentationId: () => TerminalPresentationId,
 ): WorkbenchTerminalPresentationComposition {
 	return {
-		createPresentationId: () => terminalPresentationId(`preview:${globalThis.crypto.randomUUID()}`),
+		createPresentationId,
 		initialPresentationId,
 		kind: 'preview',
 	};

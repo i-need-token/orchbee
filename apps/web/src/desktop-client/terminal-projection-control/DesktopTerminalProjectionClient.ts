@@ -9,6 +9,7 @@ import {
 	type TerminalProjectionRequestId,
 } from '@orchbee/workbench-client-protocol';
 
+import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 import type {
 	ProjectedTerminalTransport,
 	TerminalProjection,
@@ -43,7 +44,9 @@ export class DesktopTerminalProjectionClient implements TerminalProjectionClient
 	constructor(
 		port: MessagePort,
 		createRequestId: () => TerminalProjectionRequestId = () =>
-			TerminalProjectionRequestIdSchema.parse(`desktop:projection:${crypto.randomUUID()}`),
+			TerminalProjectionRequestIdSchema.parse(
+				`desktop:projection:${createBrowserRandomIdentifier()}`,
+			),
 	) {
 		this.#port = port;
 		this.#createRequestId = createRequestId;

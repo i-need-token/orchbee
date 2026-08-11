@@ -25,7 +25,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first).toEqual(second);
 		expect(first.binaryPath).toBe(path.resolve('/private/bin/orchbee-terminal-host'));
 		expect(first.runtimeDirectory).toBe(path.resolve('/private/runtime'));
-		expect(first.gateway).toEqual({ kind: 'disabled' });
+		expect(first.browserAccess).toEqual({ kind: 'disabled' });
 		expect(first.terminalBindingStorePath).toBe(path.resolve('/private/recovery/bindings-v3.json'));
 		expect(first.terminalExitPublicationLedgerPath).toBe(
 			path.resolve('/private/recovery/terminal-exit-publications-v1.json'),
@@ -42,12 +42,14 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first.terminalLaunch.terminalProfile.palette).toHaveLength(256);
 	});
 
-	it('enables only the explicit local Gateway entry', () => {
+	it('enables only the explicit Browser access resource set in development', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
 			applicationPath: path.resolve('/repo/apps/desktop'),
 			environment: {
 				ORCHBEE_DESKTOP_GATEWAY: '1',
 				ORCHBEE_GATEWAY_ENTRY_PATH: path.resolve('/private/gateway.cjs'),
+				ORCHBEE_SERVER_ENTRY_PATH: path.resolve('/private/server.cjs'),
+				ORCHBEE_WEB_RENDERER_ROOT: path.resolve('/private/web'),
 			},
 			homeDirectory: path.resolve('/users/orchbee'),
 			platform: 'darwin',
@@ -55,9 +57,11 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
 		});
 
-		expect(configuration.gateway).toEqual({
-			entryPath: path.resolve('/private/gateway.cjs'),
+		expect(configuration.browserAccess).toEqual({
+			gatewayEntryPath: path.resolve('/private/gateway.cjs'),
 			kind: 'enabled',
+			rendererRoot: path.resolve('/private/web'),
+			serverEntryPath: path.resolve('/private/server.cjs'),
 		});
 		expect(() =>
 			resolveDesktopRuntimeConfiguration({
@@ -128,6 +132,16 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.binaryPath).toBe(
 			path.resolve('/Applications/Orchbee.app/Contents/Resources/orchbee-terminal-host'),
 		);
+		expect(configuration.browserAccess).toEqual({
+			gatewayEntryPath: path.resolve(
+				'/Applications/Orchbee.app/Contents/Resources/orchbee-gateway.cjs',
+			),
+			kind: 'enabled',
+			rendererRoot: path.resolve('/Applications/Orchbee.app/Contents/Resources/dist'),
+			serverEntryPath: path.resolve(
+				'/Applications/Orchbee.app/Contents/Resources/orchbee-server.cjs',
+			),
+		});
 	});
 
 	it('repairs an unsupported Darwin UTF-8 locale before launching the shell', () => {

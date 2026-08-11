@@ -27,6 +27,7 @@ export interface GatewayWebApplicationDependencies {
 	readonly createProjectionClient: (
 		control: GatewayControlConnection,
 		connection: GatewayBrowserConnection,
+		hostname: string,
 	) => GatewayTerminalProjectionClient;
 	readonly createReactRoot: (element: Element) => Root;
 	readonly createRouting: typeof createWebApplicationRouting;
@@ -35,8 +36,8 @@ export interface GatewayWebApplicationDependencies {
 
 const defaultDependencies: GatewayWebApplicationDependencies = {
 	connectControl: connectGatewayControlConnection,
-	createProjectionClient: (control, connection) =>
-		new GatewayTerminalProjectionClient(control, connection),
+	createProjectionClient: (control, connection, hostname) =>
+		new GatewayTerminalProjectionClient(control, connection, hostname),
 	createReactRoot: (element) => createRoot(element),
 	createRouting: createWebApplicationRouting,
 	createRuntime: createWorkbenchClientRuntime,
@@ -82,13 +83,14 @@ export function startGatewayWebApplication(
 	async function initialize(): Promise<
 		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
 	> {
-		const nextControl = await dependencies.connectControl(connection);
+		const hostname = targetWindow.location.hostname;
+		const nextControl = await dependencies.connectControl(connection, hostname);
 		if (disposed) {
 			nextControl.close();
 			return { kind: 'unavailable', reason: 'control-unavailable' };
 		}
 		control = nextControl;
-		const projectionClient = dependencies.createProjectionClient(nextControl, connection);
+		const projectionClient = dependencies.createProjectionClient(nextControl, connection, hostname);
 		const clientSession = new WorkbenchClientSessionClient(
 			{
 				close: () => nextControl.close(),

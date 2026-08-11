@@ -94,6 +94,7 @@ export async function startProjectedTerminalRenderer(
 	documentElement.lang = locale;
 	documentElement.dir = getOrchbeeTextDirection(locale);
 	const status = rootElement.ownerDocument.createElement('div');
+	status.dataset['projectedTerminalStatus'] = 'true';
 	status.hidden = true;
 	status.setAttribute('role', 'alert');
 	rootElement.appendChild(status);
@@ -132,6 +133,8 @@ export async function startProjectedTerminalRenderer(
 		hostEpoch: bootstrap.hostEpoch,
 		inputEnabled: bootstrap.canInput !== false,
 		labels: {
+			deleted: (text) =>
+				intl.formatMessage(projectedTerminalMessages.accessibilityDeleted, { text }),
 			historyRange: (start, end, total) =>
 				intl.formatMessage(projectedTerminalMessages.historyRange, {
 					end: end.toString(),
@@ -139,7 +142,19 @@ export async function startProjectedTerminalRenderer(
 					total: total.toString(),
 				}),
 			input: intl.formatMessage(projectedTerminalMessages.input),
+			row: (row, text) =>
+				intl.formatMessage(projectedTerminalMessages.accessibilityRow, {
+					row: row.toString(),
+					text,
+				}),
 			screen: intl.formatMessage(projectedTerminalMessages.screen),
+			screenCursor: (row, column) =>
+				intl.formatMessage(projectedTerminalMessages.accessibilityScreenCursor, {
+					column,
+					row: row.toString(),
+				}),
+			selectedText: (text) =>
+				intl.formatMessage(projectedTerminalMessages.accessibilitySelection, { text }),
 		},
 		port: {
 			send: (command) => transport.send(command),
@@ -148,6 +163,7 @@ export async function startProjectedTerminalRenderer(
 		renderer: {
 			fontFamily: '"Menlo", monospace',
 			fontSize: 15,
+			paddingBalance: true,
 		},
 		terminalId: bootstrap.terminalId,
 	});
@@ -217,6 +233,7 @@ export async function startProjectedTerminalRenderer(
 			).completion;
 		}),
 		terminal.onMetadataChange((metadata) => {
+			rootElement.style.backgroundColor = terminalRgbColor(metadata.defaultColors.backgroundRgb);
 			rootElement.dataset['projectedTerminalCellPixelHeight'] = String(metadata.cellPixelHeight);
 			rootElement.dataset['projectedTerminalCellPixelWidth'] = String(metadata.cellPixelWidth);
 			rootElement.dataset['projectedTerminalColumns'] = String(metadata.columns);
@@ -404,6 +421,10 @@ export async function startProjectedTerminalRenderer(
 		},
 		transportUnavailable,
 	};
+}
+
+function terminalRgbColor(value: number): string {
+	return `#${value.toString(16).padStart(6, '0')}`;
 }
 
 async function applyClientSelectionCopy(

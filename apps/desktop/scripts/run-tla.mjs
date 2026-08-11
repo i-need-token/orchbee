@@ -94,7 +94,9 @@ async function runTlc(modelName) {
 await provisionJar();
 for (const modelName of [
 	'DesktopApplicationLifetime',
+	'DesktopBrowserAccessLifecycle',
 	'DesktopMultiClientSession',
+	'DesktopRendererDocumentLifecycle',
 	'DesktopTerminalBindingClose',
 	'DesktopTerminalLifecycleAdapter',
 	'DesktopWorkbenchDocumentStore',

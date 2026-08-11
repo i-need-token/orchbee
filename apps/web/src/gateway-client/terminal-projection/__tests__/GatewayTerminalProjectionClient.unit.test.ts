@@ -36,7 +36,11 @@ describe('GatewayTerminalProjectionClient', () => {
 		const client = new GatewayTerminalProjectionClient(
 			control,
 			connection,
-			() => socket.asWebSocket(),
+			'192.168.1.14',
+			(url) => {
+				expect(url).toBe('ws://192.168.1.14:42000/v1/attachment');
+				return socket.asWebSocket();
+			},
 			() => requestId,
 		);
 		const request = client.open(presentationId);

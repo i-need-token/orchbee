@@ -20,13 +20,18 @@ import {
 	type TerminalProjectionRequestId,
 } from '@orchbee/workbench-client-protocol';
 
+import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 import type {
 	ProjectedTerminalTransport,
 	TerminalProjection,
 	TerminalProjectionClient,
 	TerminalProjectionRequest,
 } from '../../workbench-client';
-import type { GatewayControlConnection, GatewayWebSocketFactory } from '../connection';
+import {
+	createGatewayWebSocketUrl,
+	type GatewayControlConnection,
+	type GatewayWebSocketFactory,
+} from '../connection';
 
 class GatewayTerminalProjectionRequestError extends Error {
 	readonly failure: TerminalPresentationFailure;
@@ -51,6 +56,7 @@ export class GatewayTerminalProjectionClient implements TerminalProjectionClient
 	readonly #control: GatewayControlConnection;
 	readonly #createRequestId: () => TerminalProjectionRequestId;
 	readonly #createWebSocket: GatewayWebSocketFactory;
+	readonly #hostname: string;
 	#disposed = false;
 	readonly #pending = new Map<TerminalProjectionRequestId, PendingProjection>();
 	readonly #unsubscribeControl: () => void;
@@ -58,12 +64,16 @@ export class GatewayTerminalProjectionClient implements TerminalProjectionClient
 	constructor(
 		control: GatewayControlConnection,
 		connection: GatewayBrowserConnection,
+		hostname: string,
 		createWebSocket: GatewayWebSocketFactory = (url) => new WebSocket(url),
 		createRequestId: () => TerminalProjectionRequestId = () =>
-			TerminalProjectionRequestIdSchema.parse(`gateway:projection:${crypto.randomUUID()}`),
+			TerminalProjectionRequestIdSchema.parse(
+				`gateway:projection:${createBrowserRandomIdentifier()}`,
+			),
 	) {
 		this.#control = control;
 		this.#connection = connection;
+		this.#hostname = hostname;
 		this.#createWebSocket = createWebSocket;
 		this.#createRequestId = createRequestId;
 		this.#unsubscribeControl = control.subscribeProjection(
@@ -159,6 +169,7 @@ export class GatewayTerminalProjectionClient implements TerminalProjectionClient
 			attachmentSocketId: message.attachmentSocketId,
 			connection: this.#connection,
 			createWebSocket: this.#createWebSocket,
+			hostname: this.#hostname,
 		});
 		pending.transport = transport;
 		void transport.ready.then(
@@ -228,6 +239,7 @@ interface GatewayAttachmentTransportOptions {
 	>['attachmentSocketId'];
 	readonly connection: GatewayBrowserConnection;
 	readonly createWebSocket: GatewayWebSocketFactory;
+	readonly hostname: string;
 }
 
 class GatewayAttachmentTransport implements ProjectedTerminalTransport {
@@ -250,7 +262,7 @@ class GatewayAttachmentTransport implements ProjectedTerminalTransport {
 	constructor(options: GatewayAttachmentTransportOptions) {
 		this.#options = options;
 		this.#socket = options.createWebSocket(
-			`ws://127.0.0.1:${options.connection.port}${GATEWAY_ATTACHMENT_PATH}`,
+			createGatewayWebSocketUrl(options.hostname, options.connection.port, GATEWAY_ATTACHMENT_PATH),
 		);
 		this.#socket.binaryType = 'arraybuffer';
 		this.ready = new Promise((resolve, reject) => {

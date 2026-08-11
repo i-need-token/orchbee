@@ -19,6 +19,7 @@ import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { createWebApplicationRouting } from '../application-routing';
+import { createBrowserRandomIdentifier } from '../browser-random-identifier';
 
 interface WebApplicationSession {
 	dispose(): void;
@@ -44,6 +45,7 @@ export function startWebApplication(
 		}),
 		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
 			terminalPresentationId('web:standalone:initial'),
+			() => terminalPresentationId(`web:preview:${createBrowserRandomIdentifier()}`),
 		),
 	});
 	const routing = createWebApplicationRouting({

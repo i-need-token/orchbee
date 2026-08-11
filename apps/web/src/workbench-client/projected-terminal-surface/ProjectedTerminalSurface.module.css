@@ -10,11 +10,28 @@
 }
 
 .terminalSurface {
+	box-sizing: border-box;
 	height: 100%;
 	min-height: 0;
 	min-width: 0;
+	overflow: hidden;
+	padding: var(--ob-ref-space-2);
 	position: relative;
 	width: 100%;
+	background: var(--ob-sys-color-surface-canvas);
+}
+
+.terminalSurface > [data-projected-terminal-status='true'] {
+	box-sizing: border-box;
+	inline-size: 100%;
+	padding: var(--ob-ref-space-2);
+	position: absolute;
+	z-index: var(--ob-ref-layer-raised);
+	inset-block-start: 0;
+	inset-inline-start: 0;
+	pointer-events: none;
+	background: var(--ob-sys-color-surface-raised);
+	color: var(--ob-sys-color-text-primary);
 }
 
 .stopped {

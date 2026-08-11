@@ -3,8 +3,8 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"desktop": "pnpm --filter @orchbee/gateway build && pnpm --filter @orchbee/desktop dev",
-		"desktop:build": "pnpm --filter @orchbee/gateway build && pnpm --filter @orchbee/desktop... build",
+		"desktop": "pnpm --filter @orchbee/server... build && pnpm --filter @orchbee/gateway... build && pnpm --filter @orchbee/web... build && pnpm --parallel --filter @orchbee/web --filter @orchbee/desktop dev",
+		"desktop:build": "pnpm --filter @orchbee/server... build && pnpm --filter @orchbee/gateway... build && pnpm --filter @orchbee/web... build && pnpm --filter @orchbee/desktop... build",
 		"desktop:package": "pnpm --filter @orchbee/desktop package",
 		"web": "pnpm --filter @orchbee/web dev",
 		"web:build": "pnpm --filter @orchbee/web... build",

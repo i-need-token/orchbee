@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
+import { isIPv4 } from 'node:net';
 import type { Duplex } from 'node:stream';
 
 import {
@@ -18,6 +19,7 @@ import {
 	GatewayDesktopCommandSchema,
 	GatewayUtilityEventSchema,
 	type GatewayAttachmentClientMessage,
+	type GatewayBindHost,
 	type GatewayCapability,
 	type GatewayClientConnectionId,
 	type GatewayControlServerMessage,
@@ -97,7 +99,7 @@ interface PendingProjection {
 }
 
 export class LocalDevelopmentBrowserGateway {
-	#allowedOrigin: string | undefined;
+	readonly #allowedOrigins = new Set<string>();
 	readonly #attachments = new Map<string, AttachmentRegistration>();
 	#capability: GatewayCapability | undefined;
 	#disposePromise: Promise<void> | undefined;
@@ -144,7 +146,7 @@ export class LocalDevelopmentBrowserGateway {
 					void this.dispose();
 					return;
 				}
-				void this.#startServer(command.allowedOrigin, command.capability);
+				void this.#startServer(command.bindHost, command.allowedOrigins, command.capability);
 				return;
 			case 'gateway-client-opened': {
 				const page = this.#pages.get(command.connectionId);
@@ -177,13 +179,17 @@ export class LocalDevelopmentBrowserGateway {
 		}
 	};
 
-	async #startServer(allowedOrigin: string, capability: GatewayCapability): Promise<void> {
-		if (!isExactLoopbackOrigin(allowedOrigin)) {
+	async #startServer(
+		bindHost: GatewayBindHost,
+		allowedOrigins: readonly string[],
+		capability: GatewayCapability,
+	): Promise<void> {
+		if (!isAllowedOriginConfiguration(bindHost, allowedOrigins)) {
 			this.#postParent({ code: 'invalid-configuration', type: 'gateway-failed' });
 			await this.dispose();
 			return;
 		}
-		this.#allowedOrigin = allowedOrigin;
+		for (const origin of allowedOrigins) this.#allowedOrigins.add(origin);
 		this.#capability = capability;
 		const server = createServer((_request, response) => {
 			response.statusCode = 404;
@@ -199,7 +205,7 @@ export class LocalDevelopmentBrowserGateway {
 			const pathname = requestPathname(request.url);
 			if (
 				this.#disposed ||
-				request.headers.origin !== this.#allowedOrigin ||
+				!this.#allowedOrigins.has(request.headers.origin ?? '') ||
 				(pathname !== GATEWAY_CONTROL_PATH && pathname !== GATEWAY_ATTACHMENT_PATH)
 			) {
 				rejectUpgrade(socket);
@@ -216,7 +222,7 @@ export class LocalDevelopmentBrowserGateway {
 			else socket.close(1008, 'Gateway channel rejected.');
 		});
 		try {
-			await listenLoopback(server);
+			await listen(server, bindHost);
 		} catch {
 			this.#postParent({ code: 'listen-failed', type: 'gateway-failed' });
 			await this.dispose();
@@ -836,19 +842,52 @@ function capabilitiesEqual(left: GatewayCapability, right: GatewayCapability): b
 	return leftBytes.byteLength === rightBytes.byteLength && timingSafeEqual(leftBytes, rightBytes);
 }
 
-function isExactLoopbackOrigin(value: string): boolean {
-	try {
-		const url = new URL(value);
-		return (
-			url.origin === value &&
-			url.protocol === 'http:' &&
-			url.hostname === '127.0.0.1' &&
-			url.username === '' &&
-			url.password === ''
-		);
-	} catch {
+function isAllowedOriginConfiguration(
+	bindHost: GatewayBindHost,
+	allowedOrigins: readonly string[],
+): boolean {
+	if (allowedOrigins.length === 0 || new Set(allowedOrigins).size !== allowedOrigins.length) {
 		return false;
 	}
+	let hasLoopback = false;
+	let hasPrivateNetwork = false;
+	for (const value of allowedOrigins) {
+		const hostname = exactHttpOriginHostname(value);
+		if (hostname === null) return false;
+		if (hostname === '127.0.0.1') hasLoopback = true;
+		else if (isPrivateIPv4(hostname)) hasPrivateNetwork = true;
+		else return false;
+	}
+	return bindHost === '127.0.0.1'
+		? hasLoopback && !hasPrivateNetwork
+		: hasLoopback && hasPrivateNetwork;
+}
+
+function exactHttpOriginHostname(value: string): string | null {
+	try {
+		const url = new URL(value);
+		return url.origin === value &&
+			url.protocol === 'http:' &&
+			url.username === '' &&
+			url.password === '' &&
+			isIPv4(url.hostname)
+			? url.hostname
+			: null;
+	} catch {
+		return null;
+	}
+}
+
+function isPrivateIPv4(value: string): boolean {
+	if (!isIPv4(value)) return false;
+	const octets = value.split('.').map(Number);
+	const first = octets[0];
+	const second = octets[1];
+	return (
+		first === 10 ||
+		(first === 172 && second !== undefined && second >= 16 && second <= 31) ||
+		(first === 192 && second === 168)
+	);
 }
 
 function requestPathname(value: string | undefined): string | null {
@@ -863,11 +902,11 @@ function rejectUpgrade(socket: Duplex): void {
 	socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
 }
 
-function listenLoopback(server: Server): Promise<void> {
+function listen(server: Server, host: GatewayBindHost): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const handleError = (error: Error): void => reject(error);
 		server.once('error', handleError);
-		server.listen(0, '127.0.0.1', () => {
+		server.listen(0, host, () => {
 			server.off('error', handleError);
 			resolve();
 		});

@@ -3,10 +3,10 @@
 	"domain": "gateway",
 	"runtime": ["electron", "node"],
 	"stability": "experimental",
-	"responsibility": "On-demand Electron Utility Process that authenticates same-machine Browser pages, translates strict WebSocket framing to Desktop-scoped client-session and projection MessagePorts, and owns network backpressure cleanup.",
+	"responsibility": "On-demand Electron Utility Process that authenticates exact-origin loopback or trusted-LAN Browser pages with a process-lifetime capability, translates strict WebSocket framing to Desktop-scoped client-session and projection MessagePorts, and owns network backpressure cleanup.",
 	"nonGoals": [
 		"Connecting directly to Terminal Host, owning Workbench documents, terminal presentations, bindings, PTYs, VT state, processes, or application lifetime.",
-		"Serving the Web application, storing Client View, exposing a LAN listener, discovering peers, providing accounts or TLS, or owning product settings UI.",
+		"Serving the Web application, storing Client View, discovering peers, providing accounts, TLS, Internet exposure, or a background service, or owning product settings UI.",
 		"Imposing product terminal, client-session, or attachment count ceilings, or retaining a Browser page after its control connection closes."
 	]
 }

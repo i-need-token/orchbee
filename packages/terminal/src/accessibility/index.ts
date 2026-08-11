@@ -1,6 +1,8 @@
 export {
 	AccessibleTextModel,
 	buildAccessibleRow,
+	createAccessibilityAnnouncement,
+	detectAccessibilityDeletion,
 	type AccessibleCellInput,
 	type AccessibleOffsetRange,
 	type AccessibleRow,

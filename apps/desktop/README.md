@@ -6,19 +6,20 @@ Sandboxed Electron product client and scoped local broker for Orchbee's native T
 
 Desktop composes the shared Workbench with Host-backed projected terminals. Workbench owns Project, Workspace, Tab, Panel, and `TerminalPresentationId` state; Electron Main owns durable technical bindings and Electron-only privileged effects; `apps/terminal-host` owns PTYs, processes, Ghostty VT state, history, and real terminal identity. A Browser client commits clipboard and allowlisted link effects in its own page. None of the shared Workbench document is stored in the Host.
 
-Main starts without creating a fixed terminal or opening an attachment. It restores the durable `TerminalPresentationId` to `TerminalBindingId` registry, owns one process-wide canonical Workbench shared-document coordinator, and transfers one atomic allowlisted capability bundle through the sandboxed preload. Its three ports have one fixed order:
+Main starts without creating a fixed terminal, opening an attachment, or starting a Web listener. It restores the durable `TerminalPresentationId` to `TerminalBindingId` registry, owns one process-wide canonical Workbench shared-document coordinator, and transfers one atomic allowlisted capability bundle through the sandboxed preload. Its four ports have one fixed order:
 
 - client-session control delivers one atomic document/terminal-observation bootstrap, accepts complete exact-next shared-document proposals, and publishes one ordered canonical event stream;
 - projection control opens and releases scoped Host attachments only for displayed terminal viewports;
-- application-lifetime control carries only exit reason, user choice, quiescing acknowledgement, shared-document revision, aggregate progress, and typed failures for the current renderer page.
+- application-lifetime control carries only exit reason, user choice, quiescing acknowledgement, shared-document revision, aggregate progress, and typed failures for the current renderer page;
+- Browser-access control carries only explicit start, mode-switch, open, copy, stop, sanitized Origin state, and bounded failures. It never carries the capability-bearing URL.
 
-The client-session and projection payloads are platform-neutral contracts from `@orchbee/workbench-client-protocol`. `@orchbee/desktop-client-protocol` owns only the atomic Electron renderer bootstrap and Electron application-lifetime contract. Desktop Main and the Web renderer each adapt the generic contracts to their end of a `MessagePort`; neither transport detail enters the shared Workbench client runtime.
+The client-session and projection payloads are platform-neutral contracts from `@orchbee/workbench-client-protocol`. `@orchbee/desktop-client-protocol` owns the atomic Electron renderer bootstrap, Electron application-lifetime contract, and narrow Browser-access command contract. Desktop Main and the Web renderer each adapt the generic contracts to their end of a `MessagePort`; neither transport detail enters the shared Workbench client runtime.
 
-The renderer has no Node integration, generic Electron IPC, filesystem capability, Host inventory, or raw terminal-lifetime authority. It cannot invoke provision, restore, close, or storage CAS effects directly. Preload accepts exactly one bootstrap, verifies all three ports together, preserves their fixed client-session/projection/application-lifetime order, and attests context isolation and sandboxing. A partial or malformed bundle starts no renderer runtime.
+The renderer has no Node integration, generic Electron IPC, filesystem capability, Host inventory, or raw terminal-lifetime authority. It cannot invoke provision, restore, close, or storage CAS effects directly. Preload accepts exactly one bootstrap, verifies all four ports together, preserves their fixed client-session/projection/application-lifetime/Browser-access order, and attests context isolation and sandboxing. A partial or malformed bundle starts no renderer runtime.
 
 Main loads and validates the shared document once before admitting clients. An available document restores Project, Workspace, Tab, Group, Panel/Split structure, presentation placement, and lifecycle intent; every page derives a fresh in-memory Client View. Active navigation, disclosure, focus, maximization, active child, and Split weights do not enter the shared file. A missing document projects every recovered binding as a standalone `retain` Tab and gives each joining page the same revision-`0` initialization seed. The first accepted proposal persists that seed before Main performs restore/provision effects. An unavailable load or failed first commit creates no replacement document or terminal effect. Unreferenced technical bindings remain preserved but are not silently adopted into the shared document.
 
-The coordinator is transport-neutral and supports independent page sessions without a product count ceiling. Electron uses a direct `MessagePort` adapter. Local Browser development starts `apps/gateway` as an on-demand Utility Process; Desktop owns its lifetime and allocates exactly one client-session/projection port pair per authenticated page, while the Utility owns the loopback listener, authentication, framing, and transport backpressure. The Gateway never receives an application-lifetime port or a Host connection. `apps/web` owns the platform-neutral Workbench client runtime and the single renderer application used in an ordinary browser, a Gateway Browser client, and Electron. Development Electron is discovered from its User-Agent on the loopback Web origin. Packaged Desktop registers the standard secure `orchbee:` scheme before Electron becomes ready, serves the Web build from `orchbee://app`, and falls back to `index.html` for Browser Router document requests. Desktop owns renderer resource delivery, not another renderer source tree. See [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) and [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md).
+The coordinator is transport-neutral and supports independent page sessions without a product count ceiling. Electron uses a direct `MessagePort` adapter. Explicit Browser access starts `apps/server` and `apps/gateway` as on-demand Utility Processes; Desktop owns both lifetimes and allocates exactly one client-session/projection port pair per authenticated page. Server owns static renderer delivery, while Gateway owns exact-Origin admission, capability authentication, framing, and transport backpressure on loopback or an explicitly selected trusted LAN. Gateway never receives an application-lifetime port or a Host connection. `apps/web` owns the platform-neutral Workbench client runtime and the single renderer application used in an ordinary browser, a Gateway Browser client, and Electron. Development Electron is discovered from its User-Agent on the loopback Web origin. Packaged Desktop registers the standard secure `orchbee:` scheme before Electron becomes ready, serves the Web build from `orchbee://app`, and falls back to `index.html` for Browser Router document requests. Desktop owns renderer resource delivery, not another renderer source tree. See [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) and [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md).
 
 Desktop requires the single current Host protocol `0.0.2` exactly; pre-release builds do not negotiate or document historical protocol variants. Electron uses `42.8.0`, the final release in the major immediately preceding the current Electron major selected for this repository.
 
@@ -26,7 +27,68 @@ Desktop requires the single current Host protocol `0.0.2` exactly; pre-release b
 
 Before it constructs `HostConnection` on POSIX, Desktop asks the packaged native Host helper to validate the runtime directory and actual socket, connect, and authenticate the server's effective UID from kernel peer credentials. Only an authenticated same-UID connection can suppress Host launch, and every retry or later Desktop reconnect repeats the check. The helper is a bounded stdio proxy for that one connection; its exit cannot own or terminate the retained Host process, and its transport preserves `HostConnection` admission and unknown-outcome behavior unchanged.
 
-Desktop scopes one Terminal Host endpoint to its product `userData` identity, which separates OS users, product profiles, and release-channel data roots. The short POSIX runtime path is a stable product-scoped child of the operating system's trusted per-user runtime location (`/run/user/<effective-uid>` on Linux and Electron's per-user temporary location on macOS), never a deterministic child of shared `/tmp`. The Windows named-pipe identity is derived from the same product scope. Explicit endpoint and runtime overrides exist only for controlled development and tests; POSIX overrides still pass through native no-follow owner, private-mode, and ACL preparation and validation. After every successful handshake, Desktop sends the current terminal default through `SetTerminalDefaults`, so reconnecting to an already-running singleton has the same result as a fresh CLI launch. Product settings UI and durable preference storage remain a later Desktop-owned slice.
+Desktop scopes one Terminal Host endpoint to its product `userData` identity, which separates OS users, product profiles, and release-channel data roots. The short POSIX runtime path is a stable product-scoped child of the operating system's trusted per-user runtime location (`/run/user/<effective-uid>` on Linux and Electron's per-user temporary location on macOS), never a deterministic child of shared `/tmp`. The Windows named-pipe identity is derived from the same product scope. Explicit endpoint and runtime overrides exist only for controlled development and tests; POSIX overrides still pass through native no-follow owner, private-mode, and ACL preparation and validation. After every successful handshake, Desktop sends the current terminal default through `SetTerminalDefaults`, so reconnecting to an already-running singleton has the same result as a fresh CLI launch. New terminals use a light profile aligned with the Workbench canvas; retained terminals preserve the profile stored with their existing Host session. Product settings UI and durable preference storage remain a later Desktop-owned slice.
+
+## Renderer document lifecycle
+
+Electron Main owns the renderer-document generation and its client-session, projection, and application-lifetime controls. Electron `did-start-navigation` details are the trusted navigation input; Main classifies them with one deterministic policy before changing that generation:
+
+| Main frame | Same document | Result                               |
+| ---------- | ------------- | ------------------------------------ |
+| Yes        | No            | Start a renderer document generation |
+| Yes        | Yes           | No-op                                |
+| No         | No            | No-op                                |
+| No         | Yes           | No-op                                |
+
+A renderer document start retires the previous page controls and records the pending generation. `did-finish-load` publishes one fresh atomic bootstrap only for the latest generation; retirement failure keeps that generation closed. Same-document Browser Router updates and subframe navigation preserve the current generation and every live control. Renderer-process loss and window close remain explicit retirement paths, while Host terminals and the canonical shared document survive page retirement. This model does not add projection retries, control-port timeouts, or a new IPC contract.
+
+`startsDesktopRendererDocument` owns the pure decision. `DesktopApplication` owns generation transitions and Electron effects. Unit tests cover all four decision rows and full navigation/reload sequencing; `DesktopRendererDocumentLifecycle` checks ignored-navigation preservation, current-generation control ownership, retirement before replacement, and bounded pending-generation progress through generation `2`. Electron 42.8.0 supplies the navigation classification and event order; operating-system termination before Electron emits an event remains outside this claim.
+
+## Browser access preview
+
+Desktop owns an opt-in Browser-access workflow for the same canonical Workbench and terminal
+sessions. Browser access is stopped at process start. Choosing **This Computer** starts the trusted
+Web renderer Server and authenticated Gateway on ephemeral `127.0.0.1` ports. Choosing **Local
+Network Preview** is a separate explicit action that binds both listeners to `0.0.0.0`, while
+publishing only detected RFC 1918 IPv4 origins. The unspecified listener address is never a client
+URL. Public interface addresses, IPv6, hostnames, discovery, Internet ingress, and background
+service installation are outside this preview.
+
+The complete access URL contains one process-lifetime high-entropy capability in its fragment.
+Desktop Main owns that secret and performs copy and system-Browser effects itself. The sandboxed
+renderer receives only the selected mode, lifecycle phase, and non-secret HTTP origins; it never
+receives the fragment, Gateway port, capability, child-process handle, or arbitrary clipboard and
+URL capabilities. Anyone who obtains a copied preview link can observe and control the shared
+Workbench and terminals until Browser access stops. HTTP traffic is unencrypted. The UI labels and
+warns about that accepted preview boundary; TLS, login, durable credentials, revocation finer than
+process lifetime, and production remote-client protocol are non-goals.
+
+The workflow has one authoritative Desktop Main owner and the following serialized transitions:
+
+| Current phase      | Intent or result                 | Next phase                                           |
+| ------------------ | -------------------------------- | ---------------------------------------------------- |
+| `stopped`          | Start one selected mode          | `server-starting`                                    |
+| `server-starting`  | Server owns an ephemeral port    | `gateway-starting`, or `stopping` if intent changed  |
+| `gateway-starting` | Gateway owns an ephemeral port   | `ready`, or `stopping` if intent changed             |
+| `ready`            | Same-mode start                  | No-op; reuse the capability and listeners            |
+| `ready`            | Stop or choose the other mode    | `stopping`                                           |
+| Any starting phase | Allocation or validation failure | `stopping`                                           |
+| `stopping`         | Both owned resources are retired | `stopped`, then start a queued mode when one remains |
+| Any live phase     | Desktop shutdown                 | `stopping`, then terminal `disposed`                 |
+
+At most one Server and one Gateway belong to a Desktop process. A ready Gateway always has its
+matching Server. Failed or superseded starts clean partial resources before another start, and
+Desktop shutdown revokes the capability even if a renderer page has disappeared. The Server owns
+static HTTP delivery only. The Gateway owns exact-Origin admission, capability authentication,
+framing, and page sockets. Desktop Main remains the only writer of shared product state and grants a
+fresh page-scoped client-session/projection pair only after authentication.
+
+`DesktopBrowserAccessLifecycle` checks resource ownership, single-mode readiness, cleanup, and
+eventual capability revocation under fair completion of owned process effects. Deterministic unit
+tests cover address policy, same-mode coalescing, mode replacement, partial-start compensation,
+copy/open confinement, and shutdown. Real Server/Gateway tests cover both bind modes, exact-Origin
+rejection, wrong-capability rejection, and remote-host WebSocket construction. The packaged system
+path verifies the four required resources and one Electron plus Browser shared-session trace.
 
 ## Lifecycle and identity ownership
 
@@ -103,19 +165,18 @@ Focused traces cover:
 - one Electron renderer and two ordinary Browser pages sharing canonical Workbench and terminal state while retaining fresh page sessions, Client Views, and attachment identities, including Browser copy, link, disconnect, rejection, and reconnect behavior;
 - user-quit preserve/cancel/stop, hidden-terminal stop, failed-CAS suppression, partial-stop retry, unreferenced-binding drain, unknown-Host-orphan refusal, update-restart preserve, and fresh identity after explicitly starting a stopped session.
 
-Existing TLA+ models continue to check terminal recovery, binding close, lifecycle-adapter serialization, projection demand, and Workbench removal safety within their declared finite bounds. The Desktop shared-document-store model additionally checks exact-next CAS, conflict preservation, serialization, unavailable storage, generation disposal, and progress through revision `2`. The Desktop multi-client model checks two sessions, missing/available bootstrap, equivalent and divergent races, effect publication ordering, attachment/session ownership, disconnect, quiescing handoff, unavailable storage, and bounded publication progress. The Desktop write-ahead model checks matching durable intent before provision, restore, close, or stop dispatch; failed-commit preservation; restore without replacement creation; renderer disposal and reload replay; and live-generation progress for one abstract presentation. The Desktop application-lifetime model checks prompt and update paths, stop-before-close ordering, unreferenced binding drain, cancellation before effects, clean-stop exit, and the explicit forced exit escape. Workbench's terminal-stop model checks layout retention, stopped-without-binding, retry identity, and fresh PresentationId generation. The repository imposes no new throughput acceptance gate for this integration slice; the optional benchmark remains a diagnostic tool.
+Existing TLA+ models continue to check terminal recovery, binding close, lifecycle-adapter serialization, projection demand, and Workbench removal safety within their declared finite bounds. The Desktop renderer-document model checks ignored same-document and subframe navigation, generation-scoped control replacement, and bounded load progress. The Desktop shared-document-store model additionally checks exact-next CAS, conflict preservation, serialization, unavailable storage, generation disposal, and progress through revision `2`. The Desktop multi-client model checks two sessions, missing/available bootstrap, equivalent and divergent races, effect publication ordering, attachment/session ownership, disconnect, quiescing handoff, unavailable storage, and bounded publication progress. The Desktop write-ahead model checks matching durable intent before provision, restore, close, or stop dispatch; failed-commit preservation; restore without replacement creation; renderer disposal and reload replay; and live-generation progress for one abstract presentation. The Desktop application-lifetime model checks prompt and update paths, stop-before-close ordering, unreferenced binding drain, cancellation before effects, clean-stop exit, and the explicit forced exit escape. Workbench's terminal-stop model checks layout retention, stopped-without-binding, retry identity, and fresh PresentationId generation. The repository imposes no new throughput acceptance gate for this integration slice; the optional benchmark remains a diagnostic tool.
 
 ## Development
 
-Build the selected development Host, then run the canonical Web renderer and Desktop in separate terminals:
+Build the selected development Host, then start the canonical Web development server and Desktop together:
 
 ```sh
 pnpm --filter @orchbee/terminal-host build
-pnpm web
 pnpm desktop
 ```
 
-`pnpm desktop` defaults to `http://127.0.0.1:3000/`; an explicit loopback Web server can be selected with `ORCHBEE_DESKTOP_RENDERER_URL`. Electron's User-Agent selects the Desktop adapter without changing the development URL. Desktop builds and starts the local Browser Gateway by default and prints one `ORCHBEE_BROWSER_CLIENT_URL=<url>` line. Open that complete process-lifetime URL in each Browser page that should join the same canonical Workbench. The capability stays in the fragment and must not be persisted or copied into diagnostics. Set `ORCHBEE_DESKTOP_GATEWAY=0` to disable the Utility Process.
+`pnpm desktop` builds the Browser-access Server, Gateway, and static Web resources, then runs the Web development server and Electron together. Electron defaults to `http://127.0.0.1:3000/`; an explicit loopback Web server can be selected with `ORCHBEE_DESKTOP_RENDERER_URL`. Open **Settings → Browser access** to start loopback access or explicitly enable trusted-LAN preview. Desktop never prints or returns the capability-bearing URL to renderer state; its Main process performs the Copy Link and Open Browser effects. Set `ORCHBEE_DESKTOP_GATEWAY=0` to remove Browser-access resources from a development launch.
 
 Build an unsigned current-platform application bundle with:
 
@@ -123,9 +184,9 @@ Build an unsigned current-platform application bundle with:
 pnpm desktop:package
 ```
 
-The command builds the Terminal Host, Web renderer, and Electron Main/preload bundles before packaging. The Web build is a read-only resource served from `orchbee://app`; the native Host remains executable outside `app.asar`. The output is generated beneath `apps/desktop/out/` and is not a signed installer or release artifact.
+The command builds the Terminal Host, Web renderer, Browser Server, Gateway, and Electron Main/preload bundles before packaging. The Web build is both a read-only `orchbee://app` resource and the on-demand Browser renderer root; the native Host, Server, and Gateway entries remain available outside `app.asar`. The output is generated beneath `apps/desktop/out/` and is not a signed installer or release artifact.
 
-`ORCHBEE_TERMINAL_HOST_BINARY` selects an absolute development/test Host binary. `ORCHBEE_TERMINAL_SCROLLBACK_BYTES` selects the temporary development startup/default scrollback budget in decimal bytes from `0` through `1000000000`; the built-in default is `10000000`. `ORCHBEE_GATEWAY_ENTRY_PATH` selects the built development Gateway entry when the default sibling path is not used. `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`, `ORCHBEE_DESKTOP_ENDPOINT_ID`, and `ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` isolate controlled development and system-test state. They are not a versioned Host installation or discovery mechanism. The default POSIX runtime uses the short stable product-scoped child of the trusted per-user runtime location described above; an explicit runtime directory is still prepared and validated by the native endpoint-security boundary.
+`ORCHBEE_TERMINAL_HOST_BINARY` selects an absolute development/test Host binary. `ORCHBEE_TERMINAL_SCROLLBACK_BYTES` selects the temporary development startup/default scrollback budget in decimal bytes from `0` through `1000000000`; the built-in default is `10000000`. `ORCHBEE_GATEWAY_ENTRY_PATH`, `ORCHBEE_SERVER_ENTRY_PATH`, and `ORCHBEE_WEB_RENDERER_ROOT` select explicit development Browser-access resources when the default sibling builds are not used. `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`, `ORCHBEE_DESKTOP_ENDPOINT_ID`, and `ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` isolate controlled development and system-test state. They are not a versioned Host installation or discovery mechanism. The default POSIX runtime uses the short stable product-scoped child of the trusted per-user runtime location described above; an explicit runtime directory is still prepared and validated by the native endpoint-security boundary.
 
 Run package checks from the repository root:
 

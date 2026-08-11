@@ -10,11 +10,13 @@ import { WorkbenchRouteCoordinator } from '../WorkbenchRouteCoordinator';
 type WorkbenchRouteNavigation = ConstructorParameters<typeof WorkbenchRouteCoordinator>[1];
 
 function createRuntime(): WorkbenchProjectWorkspaceRuntime {
+	let presentationSequence = 0;
 	const runtime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/system',
 		standaloneTerminalTitle: 'Standalone',
 		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
 			terminalPresentationId('test:initial'),
+			() => terminalPresentationId(`test:dynamic:${(presentationSequence += 1)}`),
 		),
 	});
 	runtime.transition({

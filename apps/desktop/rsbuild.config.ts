@@ -15,6 +15,11 @@ export default defineConfig(() => {
 	const gatewayEntryPath =
 		process.env['ORCHBEE_GATEWAY_ENTRY_PATH'] ??
 		path.resolve('..', 'gateway', 'dist', 'main', 'gateway.cjs');
+	const serverEntryPath =
+		process.env['ORCHBEE_SERVER_ENTRY_PATH'] ??
+		path.resolve('..', 'server', 'dist', 'main', 'server.cjs');
+	const webRendererRoot =
+		process.env['ORCHBEE_WEB_RENDERER_ROOT'] ?? path.resolve('..', 'web', 'dist');
 	const launchDesktopPlugin: RsbuildPlugin = {
 		name: 'orchbee-desktop-development-launcher',
 		apply: 'serve',
@@ -27,6 +32,8 @@ export default defineConfig(() => {
 						ORCHBEE_DESKTOP_GATEWAY: process.env['ORCHBEE_DESKTOP_GATEWAY'] ?? '1',
 						ORCHBEE_DESKTOP_RENDERER_URL: rendererUrl,
 						ORCHBEE_GATEWAY_ENTRY_PATH: gatewayEntryPath,
+						ORCHBEE_SERVER_ENTRY_PATH: serverEntryPath,
+						ORCHBEE_WEB_RENDERER_ROOT: webRendererRoot,
 					},
 					stdio: 'inherit',
 				});

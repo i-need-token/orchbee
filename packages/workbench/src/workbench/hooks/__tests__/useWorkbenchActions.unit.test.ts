@@ -16,8 +16,10 @@ import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWo
 import { useWorkbenchActions } from '../useWorkbenchActions';
 
 function createTestTerminalPresentationComposition(scope: string) {
+	let sequence = 0;
 	return createWorkbenchPreviewTerminalPresentationComposition(
 		terminalPresentationId(`${scope}:initial`),
+		() => terminalPresentationId(`${scope}:dynamic:${(sequence += 1)}`),
 	);
 }
 

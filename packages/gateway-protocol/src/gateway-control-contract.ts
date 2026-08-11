@@ -43,6 +43,8 @@ export const GatewayAttachmentSocketIdSchema = z
 	.regex(/^[A-Za-z0-9:._-]+$/u)
 	.brand<'GatewayAttachmentSocketId'>();
 
+export const GatewayBindHostSchema = z.enum(['127.0.0.1', '0.0.0.0']);
+
 export const GatewayBrowserConnectionSchema = z.strictObject({
 	capability: GatewayCapabilitySchema,
 	port: z.number().int().min(1).max(65_535),
@@ -55,7 +57,8 @@ const gatewayWorkbenchClientSessionBootstrapSchema = WorkbenchClientSessionBoots
 
 export const GatewayDesktopCommandSchema = z.discriminatedUnion('type', [
 	z.strictObject({
-		allowedOrigin: z.string().min(1).max(2048),
+		allowedOrigins: z.array(z.string().min(1).max(2048)).min(1).max(32),
+		bindHost: GatewayBindHostSchema,
 		capability: GatewayCapabilitySchema,
 		type: z.literal('gateway-start'),
 	}),
@@ -169,6 +172,7 @@ export const GatewayAttachmentServerMessageSchema = z.discriminatedUnion('type',
 
 export type GatewayAttachmentClientMessage = z.infer<typeof GatewayAttachmentClientMessageSchema>;
 export type GatewayAttachmentServerMessage = z.infer<typeof GatewayAttachmentServerMessageSchema>;
+export type GatewayBindHost = z.infer<typeof GatewayBindHostSchema>;
 export type GatewayBrowserConnection = z.infer<typeof GatewayBrowserConnectionSchema>;
 export type GatewayCapability = z.infer<typeof GatewayCapabilitySchema>;
 export type GatewayClientConnectionId = z.infer<typeof GatewayClientConnectionIdSchema>;

@@ -65,12 +65,13 @@ import {
 	type DesktopClientSessionCoordinatorDependencies,
 	type DesktopTerminalIntentReconcilerDependencies,
 } from '../client-session';
+import { type DesktopGatewayClientHandle } from '../gateway';
 import {
-	LocalDevelopmentGatewayRuntime,
-	type DesktopGatewayClientHandle,
-	type LocalDevelopmentGatewayRuntimeDependencies,
-	type LocalDevelopmentGatewayRuntimeOptions,
-} from '../gateway';
+	DesktopBrowserAccessBroker,
+	DesktopBrowserAccessRuntime,
+	type DesktopBrowserAccessBrokerRuntime,
+	type DesktopBrowserAccessRuntimeOptions,
+} from '../browser-access';
 import { DevelopmentHostRuntime, type HostConnection } from '../host';
 import {
 	TerminalExitPublicationLedger,
@@ -89,6 +90,7 @@ import {
 } from './composeDesktopTerminalRuntime';
 import { createDesktopWorkbenchInitializationDocument } from './createDesktopWorkbenchInitializationDocument';
 import type { DesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
+import { startsDesktopRendererDocument } from './startsDesktopRendererDocument';
 
 interface DesktopBrokerHandle {
 	readonly metrics: ProjectedTerminalBrokerMetrics;
@@ -116,9 +118,13 @@ interface DesktopApplicationLifetimeBrokerHandle {
 	start(): void;
 }
 
-interface DesktopGatewayRuntimeHandle {
+interface DesktopBrowserAccessBrokerHandle {
+	dispose(): void;
+	start(): void;
+}
+
+interface DesktopBrowserAccessRuntimeHandle extends DesktopBrowserAccessBrokerRuntime {
 	dispose(): Promise<void>;
-	start(): Promise<{ readonly browserUrl: string }>;
 }
 
 interface GatewayClientResourceOwner {
@@ -153,6 +159,14 @@ export interface DesktopApplicationDependencies {
 		port: MessagePortMain,
 		dependencies: DesktopApplicationLifetimeBrokerDependencies,
 	) => DesktopApplicationLifetimeBrokerHandle;
+	readonly createBrowserAccessBroker: (
+		port: MessagePortMain,
+		runtime: DesktopBrowserAccessBrokerRuntime,
+	) => DesktopBrowserAccessBrokerHandle;
+	readonly createBrowserAccessRuntime: (
+		options: DesktopBrowserAccessRuntimeOptions,
+		openClient: () => Promise<DesktopGatewayClientHandle>,
+	) => DesktopBrowserAccessRuntimeHandle;
 	readonly createClientSessionBroker: (
 		port: MessagePortMain,
 		coordinator: DesktopClientSessionCoordinator,
@@ -161,10 +175,6 @@ export interface DesktopApplicationDependencies {
 	readonly createClientSessionCoordinator: (
 		dependencies: DesktopClientSessionCoordinatorDependencies,
 	) => DesktopClientSessionCoordinator;
-	readonly createGatewayRuntime: (
-		options: LocalDevelopmentGatewayRuntimeOptions,
-		dependencies: Pick<LocalDevelopmentGatewayRuntimeDependencies, 'openClient'>,
-	) => DesktopGatewayRuntimeHandle;
 	readonly createMessageChannel: () => {
 		readonly port1: MessagePortMain;
 		readonly port2: MessagePortMain;
@@ -196,7 +206,6 @@ export interface DesktopApplicationDependencies {
 	readonly getPreferredLocales: () => readonly string[];
 	readonly randomIdentifier: () => string;
 	readonly quitApplication: () => void;
-	readonly publishGatewayBrowserUrl: (url: string) => void;
 	readonly writeTrace: (trace: unknown) => void;
 }
 
@@ -212,12 +221,13 @@ const defaultDependencies: DesktopApplicationDependencies = {
 		new ProjectedTerminalBroker(host, port, bootstrap, undefined, effectTarget, lifecycle),
 	createApplicationLifetimeBroker: (port, dependencies) =>
 		new DesktopApplicationLifetimeBroker(port, dependencies),
+	createBrowserAccessBroker: (port, runtime) => new DesktopBrowserAccessBroker(port, runtime),
+	createBrowserAccessRuntime: (options, openClient) =>
+		new DesktopBrowserAccessRuntime(options, { openClient }),
 	createClientSessionBroker: (port, coordinator, disposeAttachments) =>
 		new DesktopClientSessionBroker(port, coordinator, { disposeAttachments }),
 	createClientSessionCoordinator: (dependencies) =>
 		new DesktopClientSessionCoordinator(dependencies),
-	createGatewayRuntime: (options, dependencies) =>
-		new LocalDevelopmentGatewayRuntime(options, dependencies),
 	createMessageChannel: () => new MessageChannelMain(),
 	createProjectionControlBroker: (port, service) =>
 		new TerminalProjectionControlBroker(port, service),
@@ -241,14 +251,29 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	createWorkbenchDocumentStore: (filePath) => new FileWorkbenchDocumentStore(filePath),
 	createWindow: (options) => new BrowserWindow(options),
 	getPreferredLocales: () => app.getPreferredSystemLanguages(),
-	publishGatewayBrowserUrl: (url) => console.info(`ORCHBEE_BROWSER_CLIENT_URL=${url}`),
 	randomIdentifier: () => randomBytes(16).toString('hex'),
 	quitApplication: () => app.quit(),
 	writeTrace: (trace) => console.info(JSON.stringify(trace)),
 };
 
+const unavailableBrowserAccessRuntime: DesktopBrowserAccessBrokerRuntime = {
+	copyAccessLink: async () => unavailableBrowserAccess(),
+	getSnapshot: () => ({ phase: 'stopped' }),
+	openLocalBrowser: async () => unavailableBrowserAccess(),
+	start: async () => unavailableBrowserAccess(),
+	stop: async () => unavailableBrowserAccess(),
+};
+
+function unavailableBrowserAccess(): never {
+	throw Object.assign(new Error('Desktop Browser access resources are unavailable.'), {
+		code: 'server-unavailable' as const,
+	});
+}
+
 export class DesktopApplication {
 	#applicationLifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
+	#browserAccessBroker: DesktopBrowserAccessBrokerHandle | undefined;
+	#browserAccessRuntime: DesktopBrowserAccessRuntimeHandle | undefined;
 	#clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
 	#clientSessionCoordinator: DesktopClientSessionCoordinator | undefined;
 	readonly #dependencies: DesktopApplicationDependencies;
@@ -258,7 +283,6 @@ export class DesktopApplication {
 	#documentGeneration = 0;
 	#documentTransition = Promise.resolve();
 	#exitRequest: Promise<DesktopApplicationLifetimeExitResult> | undefined;
-	#gatewayRuntime: DesktopGatewayRuntimeHandle | undefined;
 	readonly #pendingGatewayClientCleanups = new Set<GatewayClientResourceOwner>();
 	#pendingRendererBootstrapCleanup: (() => Promise<void>) | undefined;
 	#projectionControlBroker: DesktopProjectionControlBrokerHandle | undefined;
@@ -464,17 +488,15 @@ export class DesktopApplication {
 			}
 			this.#promoteSpilledTerminalExits();
 			this.#scheduleTerminalExitRetry();
-			if (this.#options.runtime.gateway.kind === 'enabled') {
-				const gatewayRuntime = this.#dependencies.createGatewayRuntime(
+			if (this.#options.runtime.browserAccess.kind === 'enabled') {
+				this.#browserAccessRuntime = this.#dependencies.createBrowserAccessRuntime(
 					{
-						entryPath: this.#options.runtime.gateway.entryPath,
-						rendererUrl: this.#options.rendererUrl,
+						gatewayEntryPath: this.#options.runtime.browserAccess.gatewayEntryPath,
+						rendererRoot: this.#options.runtime.browserAccess.rendererRoot,
+						serverEntryPath: this.#options.runtime.browserAccess.serverEntryPath,
 					},
-					{ openClient: () => this.#openGatewayClient() },
+					() => this.#openGatewayClient(),
 				);
-				this.#gatewayRuntime = gatewayRuntime;
-				const gateway = await gatewayRuntime.start();
-				this.#dependencies.publishGatewayBrowserUrl(gateway.browserUrl);
 			}
 			await this.openWindow();
 		} catch (error) {
@@ -487,7 +509,7 @@ export class DesktopApplication {
 				cleanupFailure = cleanupError;
 			}
 			try {
-				await this.#disposeGatewayResources();
+				await this.#disposeBrowserAccessResources();
 			} catch (cleanupError: unknown) {
 				cleanupFailure ??= cleanupError;
 			}
@@ -542,7 +564,8 @@ export class DesktopApplication {
 		let loadingGeneration = 0;
 		window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 		window.webContents.on('will-navigate', (event) => event.preventDefault());
-		window.webContents.on('did-start-loading', () => {
+		window.webContents.on('did-start-navigation', (navigation) => {
+			if (!startsDesktopRendererDocument(navigation)) return;
 			loadingGeneration = this.#beginRendererDocument();
 		});
 		window.webContents.on('did-finish-load', () => {
@@ -610,7 +633,7 @@ export class DesktopApplication {
 			firstFailure ??= error;
 		}
 		try {
-			await this.#disposeGatewayResources();
+			await this.#disposeBrowserAccessResources();
 		} catch (error: unknown) {
 			firstFailure ??= error;
 		}
@@ -649,11 +672,11 @@ export class DesktopApplication {
 		}
 	}
 
-	async #disposeGatewayResources(): Promise<void> {
-		const gatewayRuntime = this.#gatewayRuntime;
+	async #disposeBrowserAccessResources(): Promise<void> {
+		const browserAccessRuntime = this.#browserAccessRuntime;
 		const failures: unknown[] = [];
 		try {
-			await gatewayRuntime?.dispose();
+			await browserAccessRuntime?.dispose();
 		} catch (error: unknown) {
 			failures.push(error);
 		}
@@ -663,15 +686,19 @@ export class DesktopApplication {
 			failures.push(error);
 		}
 		if (failures.length > 0) {
-			throw new AggregateError(failures, 'Desktop Gateway disposal did not converge.');
+			throw new AggregateError(failures, 'Desktop Browser access disposal did not converge.');
 		}
-		if (this.#gatewayRuntime === gatewayRuntime) this.#gatewayRuntime = undefined;
+		if (this.#browserAccessRuntime === browserAccessRuntime) {
+			this.#browserAccessRuntime = undefined;
+		}
 	}
 
 	#beginRendererDocument(): number {
 		const generation = ++this.#documentGeneration;
 		this.#applicationLifetimeBroker?.dispose();
 		this.#applicationLifetimeBroker = undefined;
+		this.#browserAccessBroker?.dispose();
+		this.#browserAccessBroker = undefined;
 		const clientSessionBroker = this.#clientSessionBroker;
 		this.#clientSessionBroker = undefined;
 		const projectionBroker = this.#projectionControlBroker;
@@ -769,6 +796,9 @@ export class DesktopApplication {
 		let lifetimeChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
+		let browserAccessChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
 		let clientSessionChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
@@ -778,10 +808,16 @@ export class DesktopApplication {
 		let projectionBroker: DesktopProjectionControlBrokerHandle | undefined;
 		let clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
 		let lifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
+		let browserAccessBroker: DesktopBrowserAccessBrokerHandle | undefined;
 		const cleanup = async (): Promise<void> => {
 			let firstFailure: unknown;
 			try {
 				lifetimeBroker?.dispose();
+			} catch (error: unknown) {
+				firstFailure ??= error;
+			}
+			try {
+				browserAccessBroker?.dispose();
 			} catch (error: unknown) {
 				firstFailure ??= error;
 			}
@@ -800,12 +836,14 @@ export class DesktopApplication {
 				}
 			}
 			closeRendererChannel(lifetimeChannel);
+			closeRendererChannel(browserAccessChannel);
 			closeRendererChannel(clientSessionChannel);
 			closeRendererChannel(projectionChannel);
 			if (firstFailure !== undefined) throw firstFailure;
 		};
 		try {
 			lifetimeChannel = this.#dependencies.createMessageChannel();
+			browserAccessChannel = this.#dependencies.createMessageChannel();
 			clientSessionChannel = this.#dependencies.createMessageChannel();
 			projectionChannel = this.#dependencies.createMessageChannel();
 			projectionBroker = this.#dependencies.createProjectionControlBroker(
@@ -827,7 +865,12 @@ export class DesktopApplication {
 						mode,
 					),
 			});
+			browserAccessBroker = this.#dependencies.createBrowserAccessBroker(
+				browserAccessChannel.port2,
+				this.#browserAccessRuntime ?? unavailableBrowserAccessRuntime,
+			);
 			clientSessionBroker.start();
+			browserAccessBroker.start();
 			lifetimeBroker.start();
 			projectionBroker.start();
 			window.webContents.postMessage(
@@ -836,9 +879,15 @@ export class DesktopApplication {
 					clientSession: clientSessionBroker.bootstrap,
 					type: DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 				}),
-				[clientSessionChannel.port1, projectionChannel.port1, lifetimeChannel.port1],
+				[
+					clientSessionChannel.port1,
+					projectionChannel.port1,
+					lifetimeChannel.port1,
+					browserAccessChannel.port1,
+				],
 			);
 			this.#applicationLifetimeBroker = lifetimeBroker;
+			this.#browserAccessBroker = browserAccessBroker;
 			this.#clientSessionBroker = clientSessionBroker;
 			this.#projectionControlBroker = projectionBroker;
 		} catch (error: unknown) {

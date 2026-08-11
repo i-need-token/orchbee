@@ -65,8 +65,9 @@ describe('LocalDevelopmentGatewayRuntime', () => {
 		let disposedClients = 0;
 		const runtime = new LocalDevelopmentGatewayRuntime(
 			{
+				bindHost: '127.0.0.1',
 				entryPath: '/repo/apps/gateway/dist/main/gateway.cjs',
-				rendererUrl: 'http://127.0.0.1:3000/',
+				rendererOrigins: ['http://127.0.0.1:3000'],
 			},
 			{
 				createCapability: () => GatewayCapabilitySchema.parse('a'.repeat(43)),
@@ -85,7 +86,8 @@ describe('LocalDevelopmentGatewayRuntime', () => {
 		process.emitSpawn();
 		const startCommand = GatewayDesktopCommandSchema.parse(process.messages[0]?.message);
 		expect(startCommand).toMatchObject({
-			allowedOrigin: 'http://127.0.0.1:3000',
+			allowedOrigins: ['http://127.0.0.1:3000'],
+			bindHost: '127.0.0.1',
 			type: 'gateway-start',
 		});
 
@@ -279,8 +281,9 @@ function createRuntime(
 ): LocalDevelopmentGatewayRuntime {
 	return new LocalDevelopmentGatewayRuntime(
 		{
+			bindHost: '127.0.0.1',
 			entryPath: '/repo/apps/gateway/dist/main/gateway.cjs',
-			rendererUrl: 'http://127.0.0.1:3000/',
+			rendererOrigins: ['http://127.0.0.1:3000'],
 		},
 		{
 			createCapability: () => GatewayCapabilitySchema.parse('a'.repeat(43)),

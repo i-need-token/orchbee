@@ -10,6 +10,7 @@ export function WorkbenchRoute(): ReactNode {
 			actionRuntime={application.actionRuntime}
 			layoutStorage={application.layoutStorage}
 			navigation={coordinator.navigation}
+			onSettings={application.onSettings}
 			projectWorkspaceRuntime={application.projectWorkspaceRuntime}
 			shortcutPlatform={application.shortcutPlatform}
 			terminalSurface={application.terminalSurface}

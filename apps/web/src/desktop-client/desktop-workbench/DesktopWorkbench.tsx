@@ -8,13 +8,19 @@ import {
 	DesktopApplicationLifetimeDialog,
 	type DesktopApplicationLifetimeDialogController,
 } from '../desktop-application-lifetime-dialog';
+import {
+	DesktopBrowserAccessDialog,
+	type DesktopBrowserAccessController,
+} from '../desktop-browser-access-dialog';
 
 export interface DesktopWorkbenchProps extends Omit<WorkbenchClientApplicationProps, 'children'> {
 	readonly applicationLifetimeCoordinator: DesktopApplicationLifetimeDialogController;
+	readonly browserAccessController: DesktopBrowserAccessController;
 }
 
 export function DesktopWorkbench({
 	applicationLifetimeCoordinator,
+	browserAccessController,
 	locale,
 	router,
 	terminalSurfaceCapability,
@@ -26,6 +32,7 @@ export function DesktopWorkbench({
 			terminalSurfaceCapability={terminalSurfaceCapability}
 		>
 			<DesktopApplicationLifetimeDialog controller={applicationLifetimeCoordinator} />
+			<DesktopBrowserAccessDialog controller={browserAccessController} />
 		</WorkbenchClientApplication>
 	);
 }

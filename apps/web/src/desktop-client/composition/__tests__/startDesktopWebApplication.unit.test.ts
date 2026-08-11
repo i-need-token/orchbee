@@ -19,7 +19,7 @@ import {
 describe('startDesktopWebApplication', () => {
 	it('starts the managed renderer once from one trusted atomic capability bundle', () => {
 		const harness = createHarness();
-		const ports = messagePorts(3);
+		const ports = messagePorts(4);
 		const session = startDesktopWebApplication(
 			harness.targetWindow,
 			harness.root,
@@ -42,11 +42,12 @@ describe('startDesktopWebApplication', () => {
 			ports[2],
 			ports[0],
 			ports[1],
+			ports[3],
 		);
 		expect(harness.root.dataset['desktopContextIsolated']).toBe('true');
 		expect(harness.root.dataset['desktopSandboxed']).toBe('true');
 
-		harness.dispatchMessage(rendererMessage(), messagePorts(3));
+		harness.dispatchMessage(rendererMessage(), messagePorts(4));
 		expect(harness.startRenderer).toHaveBeenCalledOnce();
 		session.dispose();
 		expect(harness.disposeRenderer).toHaveBeenCalledOnce();
@@ -54,7 +55,7 @@ describe('startDesktopWebApplication', () => {
 
 	it('fails closed without starting Preview for an untrusted or partial bundle', () => {
 		const harness = createHarness();
-		const ports = messagePorts(2);
+		const ports = messagePorts(3);
 		const closeSpies = ports.map((port) => vi.spyOn(port, 'close'));
 		startDesktopWebApplication(
 			harness.targetWindow,

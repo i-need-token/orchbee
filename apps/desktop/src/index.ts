@@ -8,7 +8,7 @@ export {
 export type {
 	DesktopApplicationDependencies,
 	DesktopApplicationOptions,
-	DesktopGatewayRuntimeConfiguration,
+	DesktopBrowserAccessRuntimeConfiguration,
 	DesktopRuntimeConfiguration,
 	DesktopRuntimeConfigurationInput,
 	DesktopRuntimeEnvironment,

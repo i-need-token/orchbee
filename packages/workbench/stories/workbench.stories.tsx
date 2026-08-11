@@ -32,11 +32,13 @@ const unavailableSearchProvider: WorkbenchSearchProvider = {
 };
 
 const createProjectWorkspaceRuntime = (titles: readonly [string, ...string[]]) => {
+	let presentationSequence = 0;
 	const runtime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/workspace/orchbee',
 		standaloneTerminalTitle: titles[0],
 		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
 			terminalPresentationId('storybook:standalone:initial'),
+			() => terminalPresentationId(`storybook:dynamic:${(presentationSequence += 1)}`),
 		),
 	});
 	for (const title of titles.slice(1)) {

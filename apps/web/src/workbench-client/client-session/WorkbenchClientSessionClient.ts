@@ -13,6 +13,8 @@ import {
 	type WorkbenchDocumentProposalResult,
 } from '@orchbee/workbench-client-protocol';
 
+import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
+
 export type WorkbenchClientSessionPublication = Exclude<
 	WorkbenchClientSessionEvent,
 	{ readonly type: 'shared-document-proposal-completed' }
@@ -47,7 +49,9 @@ export class WorkbenchClientSessionClient {
 		transport: WorkbenchClientSessionTransport,
 		bootstrap: WorkbenchClientSessionBootstrap,
 		createRequestId: () => WorkbenchClientSessionRequestId = () =>
-			WorkbenchClientSessionRequestIdSchema.parse(`workbench:proposal:${crypto.randomUUID()}`),
+			WorkbenchClientSessionRequestIdSchema.parse(
+				`workbench:proposal:${createBrowserRandomIdentifier()}`,
+			),
 	) {
 		this.#transport = transport;
 		this.bootstrap = WorkbenchClientSessionBootstrapSchema.parse(bootstrap);

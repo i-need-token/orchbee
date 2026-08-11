@@ -2,6 +2,8 @@ export { enUSApplicationRoutingMessages } from './application-routing';
 export type { ApplicationRoutingMessageId } from './application-routing';
 export { enUSDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 export type { DesktopApplicationLifetimeMessageId } from './desktop-application-lifetime';
+export { enUSDesktopBrowserAccessMessages } from './desktop-browser-access';
+export type { DesktopBrowserAccessMessageId } from './desktop-browser-access';
 export { enUSProjectedTerminalMessages } from './projected-terminal';
 export type { ProjectedTerminalMessageId } from './projected-terminal';
 export { enUSMessages } from './messages';
