@@ -144,6 +144,13 @@ repairs input nor repeats focus reporting; leaving it releases published key and
 before one focus-out, while entering through a non-textarea descendant publishes the matching
 focus-in. The application decides when to call `focus()`; opening the package surface does not claim
 initial product focus.
+Desktop and pen pointer activation focuses the hidden textarea on pointer down. Touch pointer
+handling completes before a non-passive canvas `touchend` prevents native compatibility mouse and
+caret handling, then focuses the textarea; a writable textarea opens the mobile virtual keyboard.
+Touch activation alone publishes no PTY input and preserves Host selection. The resulting
+`beforeinput` and composition events use the same shared pre-input transition and exactly-once
+deduplication as other browser input, while a read-only attachment remains focusable without
+admitting mobile text.
 If the projected client disappears before this cleanup completes, Terminal Host releases only that
 attachment's accepted key and application-mouse ownership before revoking its capability; another
 attachment is unaffected.
@@ -238,7 +245,11 @@ Row-window input is strictly decoded by default. An application adapter may set 
 
 ## History, search, selection, and links
 
-Bottom-following use retains only the current packed grid. Entering history pauses live projection and commits one bounded row window with limited overscan. Stale, evicted, or invalid windows recover to a fresh bottom snapshot.
+Bottom-following use retains only the current packed grid. Entering history pauses live projection
+and commits one bounded row window whose first row is the visible logical top, with limited forward
+overscan. `RowsApplied` lets the Host pin that top; while the anchor remains valid, navigation and
+reflow refreshes use the committed origin and treat the returned row-window start as authoritative.
+Stale, evicted, or invalid windows recover to a fresh bottom snapshot.
 
 Retained history exposes a client-owned in-canvas scrollbar overlay. Its rightmost 16 CSS pixels form the interaction area; the shared Canvas 2D and WebGPU projection draws only an 8 CSS-pixel thumb inset by 4 CSS pixels, with a 20 CSS-pixel minimum height. History navigation and scrollbar interaction make it immediately visible, and inactivity removes its opacity after 1,500 milliseconds. Track presses jump proportionally, and captured scrollbar drags coalesce into bounded absolute row-window requests. The initiating primary pointer owns the drag until it ends; concurrent and secondary pointer events and wheel input are consumed without replacing its capture or anchor, and its synthesized release click is consumed once. Scrollbar ownership takes precedence over application mouse reporting, selection, and links, and is repaired on buttonless movement, cancellation, capture loss, focus or visibility loss, reset, and disposal. Navigation during a drag keeps the thumb fully visible, and the fade delay begins only after ownership ends or is repaired. The canvas remains `aria-hidden` and exposes no DOM scrollbar role; the existing keyboard and API history navigation remain the accessibility path.
 

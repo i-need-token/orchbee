@@ -225,7 +225,11 @@ function renderRowWindow(
 	startRow: bigint,
 	totalRows: bigint,
 	text: readonly string[],
-	options: { readonly hyperlink?: string; readonly hyperlinkRowIndex?: number } = {},
+	options: {
+		readonly generation?: bigint;
+		readonly hyperlink?: string;
+		readonly hyperlinkRowIndex?: number;
+	} = {},
 ): Uint8Array {
 	const defaultStyle: TerminalFrame['styles'][number] = {
 		background: { kind: TerminalColorKind.default },
@@ -260,7 +264,7 @@ function renderRowWindow(
 		currentDirectory: '/tmp',
 		defaultColors: { backgroundRgb: 0, cursorRgb: null, foregroundRgb: 0xff_ff_ff },
 		extensions: [],
-		generation: 1n,
+		generation: options.generation ?? 1n,
 		hostEpoch,
 		interaction,
 		kind: TerminalFrameKind.snapshot,
@@ -302,7 +306,7 @@ function renderRowWindow(
 		columns: 2,
 		detail: TerminalRowWindowDetail.render,
 		frame: decodedFrame,
-		generation: 1n,
+		generation: options.generation ?? 1n,
 		hostEpoch,
 		revision,
 		sequence,
@@ -753,6 +757,7 @@ function pointerEvent(
 	buttons: number,
 	clientX: number,
 	clientY: number,
+	overrides: Partial<PointerEvent> = {},
 ): PointerEvent {
 	return {
 		altKey: false,
@@ -766,6 +771,7 @@ function pointerEvent(
 		preventDefault: () => undefined,
 		shiftKey: false,
 		type,
+		...overrides,
 	} as unknown as PointerEvent;
 }
 
@@ -907,13 +913,20 @@ describe('ProjectedTerminal', () => {
 		if (historyRequest?.kind !== 'read-rows') {
 			throw new Error('runtime presentation fixture did not request history rows');
 		}
+		if (historyRequest.payload.origin.kind !== 'absolute') {
+			throw new Error('runtime presentation fixture did not request an absolute history row');
+		}
+		const historyStart = BigInt(historyRequest.payload.origin.row);
 		terminal.applyRows(
 			renderRowWindow(
 				BigInt(historyRequest.payload.requestSequence),
 				1n,
-				0n,
+				historyStart,
 				12n,
-				Array.from({ length: 12 }, (_, index) => (index === 9 ? 'needle' : `row-${index}`)),
+				Array.from({ length: historyRequest.payload.rowCount }, (_, index) => {
+					const row = historyStart + BigInt(index);
+					return row === 9n ? 'needle' : `row-${row}`;
+				}),
 			),
 		);
 		browser.flushFrames();
@@ -2659,9 +2672,9 @@ describe('ProjectedTerminal', () => {
 			expect.objectContaining({
 				kind: 'read-rows',
 				payload: expect.objectContaining({
-					origin: { kind: 'absolute', row: '0' },
+					origin: { kind: 'absolute', row: '9' },
 					purpose: 'viewport',
-					rowCount: 12,
+					rowCount: 3,
 				}),
 			}),
 		]);
@@ -2672,11 +2685,11 @@ describe('ProjectedTerminal', () => {
 				renderRowWindow(
 					BigInt(read.payload.requestSequence),
 					1n,
-					0n,
+					9n,
 					12n,
-					Array.from({ length: 12 }, (_, index) => {
-						if (index === 9) return 'history-a';
-						if (index === 10) return 'history-b';
+					Array.from({ length: 3 }, (_, index) => {
+						if (index === 0) return 'history-a';
+						if (index === 1) return 'history-b';
 						return `overscan-${index}`;
 					}),
 				),
@@ -2712,6 +2725,83 @@ describe('ProjectedTerminal', () => {
 		terminal.applyFrame(terminalFrame('snapshot', 2n, 2n, ['new-a', 'new-b'], null, [0, 1], 10n));
 		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.followingBottom);
 		expect(terminal.metadata?.title).toBe('test');
+		terminal.dispose();
+	});
+
+	it('uses the Host committed pin as the visible history anchor after reflow', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 18n));
+		const accessibilityRoot = (browser.root as unknown as FakeElement).children[2];
+
+		terminal.scrollLines(-3);
+		const initialRead = commands.at(-1);
+		if (initialRead?.kind !== 'read-rows' || initialRead.payload.origin.kind !== 'absolute') {
+			throw new Error('initial history request was not absolute');
+		}
+		const initialStart = BigInt(initialRead.payload.origin.row);
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(initialRead.payload.requestSequence),
+					1n,
+					initialStart,
+					20n,
+					Array.from({ length: initialRead.payload.rowCount }, (_, index) => `before-${index}`),
+				),
+			),
+		).toBe('committed');
+
+		terminal.notifyHistoryChanged({
+			anchorStatus: 'valid',
+			attachmentId,
+			generation: canonicalText('2'),
+			revision: canonicalText('2'),
+			sequence: canonicalText('1'),
+			totalRows: canonicalText('18'),
+		});
+		const reflowRead = commands.at(-1);
+		if (reflowRead?.kind !== 'read-rows') throw new Error('reflow history request was not sent');
+		expect(reflowRead.payload.origin).toEqual({ delta: 0, kind: 'committed' });
+		const reflowStart = 12n;
+		const reflowRowCount = Math.min(reflowRead.payload.rowCount, Number(18n - reflowStart));
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(reflowRead.payload.requestSequence),
+					2n,
+					reflowStart,
+					18n,
+					Array.from({ length: reflowRowCount }, (_, index) => `after-${index}`),
+					{ generation: 2n },
+				),
+			),
+		).toBe('committed');
+		expect(accessibilityRoot?.children[0]?.attributes.get('data-terminal-absolute-row')).toBe('12');
+
+		terminal.scrollLines(-1);
+		expect(commands.at(-1)).toEqual(
+			expect.objectContaining({
+				kind: 'read-rows',
+				payload: expect.objectContaining({ origin: { delta: -1, kind: 'committed' } }),
+			}),
+		);
 		terminal.dispose();
 	});
 
@@ -2825,7 +2915,7 @@ describe('ProjectedTerminal', () => {
 		const firstRead = commands.find((command) => command.kind === 'read-rows');
 		if (firstRead?.kind !== 'read-rows') throw new Error('scrollbar request was not sent');
 		expect(firstRead.payload).toMatchObject({
-			origin: { kind: 'absolute', row: '33' },
+			origin: { kind: 'absolute', row: '49' },
 			purpose: 'viewport',
 			rowCount: 34,
 		});
@@ -2852,7 +2942,7 @@ describe('ProjectedTerminal', () => {
 				renderRowWindow(
 					BigInt(firstRead.payload.requestSequence),
 					1n,
-					33n,
+					49n,
 					100n,
 					Array.from({ length: 34 }, (_, index) => `row-${index}`),
 				),
@@ -2861,9 +2951,9 @@ describe('ProjectedTerminal', () => {
 		const reads = commands.filter((command) => command.kind === 'read-rows');
 		expect(reads).toHaveLength(2);
 		expect(reads.at(-1)?.payload).toMatchObject({
-			origin: { kind: 'absolute', row: '57' },
+			origin: { kind: 'absolute', row: '73' },
 			purpose: 'viewport',
-			rowCount: 34,
+			rowCount: 27,
 		});
 		terminal.dispose();
 	});
@@ -2955,7 +3045,7 @@ describe('ProjectedTerminal', () => {
 				renderRowWindow(
 					BigInt(firstRead.payload.requestSequence),
 					1n,
-					33n,
+					49n,
 					100n,
 					Array.from({ length: 34 }, (_, index) => `row-${index}`),
 				),
@@ -2964,9 +3054,9 @@ describe('ProjectedTerminal', () => {
 		expect(
 			commands.filter((command) => command.kind === 'read-rows').at(-1)?.payload,
 		).toMatchObject({
-			origin: { kind: 'absolute', row: '57' },
+			origin: { kind: 'absolute', row: '73' },
 			purpose: 'viewport',
-			rowCount: 34,
+			rowCount: 27,
 		});
 		dispatchOwned('pointerup', { buttons: 0, pointerId: 41 });
 		expect(canvas.capturedPointers.has(41)).toBe(false);
@@ -3790,7 +3880,7 @@ describe('ProjectedTerminal', () => {
 		terminal.scrollLines(-1);
 		const overscanned = commands.at(-1);
 		if (overscanned?.kind !== 'read-rows') throw new Error('history request was not sent');
-		expect(overscanned.payload.rowCount).toBe(12);
+		expect(overscanned.payload.rowCount).toBe(3);
 
 		terminal.notifyBrokerFailure({
 			code: 'limit-exceeded',
@@ -6529,6 +6619,87 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('activates mobile input on touch end without consuming selection', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			copyOnSelect: false,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		commands.length = 0;
+		const canvas = terminal.canvas as unknown as FakeElement;
+		const input = terminal.textarea as unknown as FakeElement;
+
+		canvas.dispatch(
+			'pointerdown',
+			pointerEvent('pointerdown', 0, 1, 2, 2, {
+				detail: 1,
+				pointerId: 27,
+				pointerType: 'touch',
+			}),
+		);
+		expect(commands.some((command) => command.kind === 'focus-input')).toBe(false);
+		terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+		canvas.dispatch(
+			'pointerup',
+			pointerEvent('pointerup', 0, 0, 12, 2, {
+				detail: 1,
+				pointerId: 27,
+				pointerType: 'touch',
+			}),
+		);
+		browser.flushFrames();
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 1, row: canonicalText('0') },
+			preview: 'ab',
+			rectangle: false,
+			start: { column: 0, row: canonicalText('0') },
+			state: 'active',
+		});
+		commands.length = 0;
+
+		const firstPreventDefault = vi.fn<() => void>();
+		const secondPreventDefault = vi.fn<() => void>();
+		canvas.dispatch('touchend', {
+			preventDefault: firstPreventDefault,
+			type: 'touchend',
+		} as unknown as TouchEvent);
+		canvas.dispatch('touchend', {
+			preventDefault: secondPreventDefault,
+			type: 'touchend',
+		} as unknown as TouchEvent);
+
+		expect(firstPreventDefault).toHaveBeenCalledOnce();
+		expect(secondPreventDefault).toHaveBeenCalledOnce();
+		expect(commands.filter((command) => command.kind === 'focus-input')).toHaveLength(1);
+		expect(commands.some((command) => command.kind === 'selection-command')).toBe(false);
+
+		dispatchBeforeInput(input, 'mobile');
+		expect(
+			commands.flatMap((command) => {
+				if (command.kind === 'selection-command') return [command.payload.command];
+				if (command.kind === 'text-input') return [command.payload.text];
+				return [];
+			}),
+		).toEqual(['clear', 'mobile']);
+		terminal.dispose();
+	});
+
 	it('ends an active selection when pointer capture is lost', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -6879,14 +7050,14 @@ describe('ProjectedTerminal', () => {
 		vi.advanceTimersByTime(16);
 		const read = commands.at(-1);
 		if (read?.kind !== 'read-rows') throw new Error('edge drag did not request history rows');
-		expect(read.payload.origin).toEqual({ kind: 'absolute', row: '0' });
+		expect(read.payload.origin).toEqual({ kind: 'absolute', row: '9' });
 		terminal.applyRows(
 			renderRowWindow(
 				BigInt(read.payload.requestSequence),
 				1n,
-				0n,
+				9n,
 				12n,
-				Array.from({ length: 12 }, (_, index) => `row-${index}`),
+				Array.from({ length: 3 }, (_, index) => `row-${index + 9}`),
 			),
 		);
 		browser.flushFrames();

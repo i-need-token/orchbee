@@ -401,12 +401,13 @@ interface BufferRowFlight {
 }
 
 interface ViewportRowFlight {
+	readonly expectedStartRow: bigint | null;
 	readonly kind: 'viewport';
 	readonly maximumBytes: number;
+	readonly origin: ReadRows['origin'];
 	readonly overscanned: boolean;
 	readonly requestSequence: CanonicalUint64Text;
 	readonly visibleRowCount: number;
-	readonly visibleStartRow: bigint;
 }
 
 type RowFlight = BufferRowFlight | ViewportRowFlight;
@@ -1056,11 +1057,15 @@ export class ProjectedTerminal {
 			this.#recoverHistory();
 			return 'rejected';
 		}
-		const visibleEnd = flight.visibleStartRow + BigInt(flight.visibleRowCount);
-		const cacheEnd = window.startRow + BigInt(window.frame.rows);
-		if (window.startRow > flight.visibleStartRow || cacheEnd < visibleEnd) {
+		const visibleStartRow = window.startRow;
+		const visibleEnd = visibleStartRow + BigInt(flight.visibleRowCount);
+		if (
+			(flight.expectedStartRow !== null && visibleStartRow !== flight.expectedStartRow) ||
+			window.frame.rows < flight.visibleRowCount ||
+			visibleEnd > window.totalRows
+		) {
 			this.#errorEmitter.fire({
-				error: new Error('Projected history window does not cover the requested viewport'),
+				error: new Error('Projected history window does not begin at the requested viewport'),
 				operation: 'history',
 			});
 			this.#recoverHistory();
@@ -1081,17 +1086,16 @@ export class ProjectedTerminal {
 			this.#recoverHistory();
 			return 'rejected';
 		}
-		const rowOffset = Number(flight.visibleStartRow - window.startRow);
-		const viewport = new PackedTerminalViewport(staged, rowOffset, flight.visibleRowCount);
+		const viewport = new PackedTerminalViewport(staged, 0, flight.visibleRowCount);
 		this.#historyStore?.dispose();
 		this.#historyStore = viewport;
 		this.#invalidateLinkCache();
 		this.#historyGeneration = window.generation;
 		this.#historyRevision = window.revision;
-		this.#historyStartRow = flight.visibleStartRow;
+		this.#historyStartRow = visibleStartRow;
 		this.#historyTotalRows = window.totalRows;
 		this.#historyRowsBefore = Number(
-			window.totalRows - (flight.visibleStartRow + BigInt(flight.visibleRowCount)),
+			window.totalRows - (visibleStartRow + BigInt(flight.visibleRowCount)),
 		);
 		this.#historyPhase = ProjectedHistoryPhase.viewingHistory;
 		this.#syncPreeditPresentation();
@@ -1259,13 +1263,7 @@ export class ProjectedTerminal {
 				}
 				this.#dispatchPendingHistoryIntent();
 			} else if (failure.code === 'limit-exceeded' && flight.overscanned) {
-				this.#requestHistoryRows(
-					{
-						kind: 'absolute',
-						row: CanonicalUint64TextSchema.parse(flight.visibleStartRow.toString()),
-					},
-					0,
-				);
+				this.#requestHistoryRows(flight.origin, 0);
 				recoveredOverscan = true;
 			} else {
 				this.#recoverHistory();
@@ -1824,6 +1822,13 @@ export class ProjectedTerminal {
 		}
 		const visibleRowCount = metadata.rows;
 		const visibleStartRow = this.#resolveHistoryVisibleStart(origin, visibleRowCount);
+		const requestOrigin: ReadRows['origin'] =
+			origin.kind === 'committed'
+				? origin
+				: {
+						kind: 'absolute',
+						row: CanonicalUint64TextSchema.parse(visibleStartRow.toString()),
+					};
 		const maximumCacheRows = Math.max(
 			1,
 			Math.min(
@@ -1834,20 +1839,9 @@ export class ProjectedTerminal {
 		const cacheRowCount = Math.min(
 			maximumCacheRows,
 			visibleRowCount + overscanRows * 2,
-			Number(
-				this.#historyTotalRows > BigInt(maximumCacheRows)
-					? BigInt(maximumCacheRows)
-					: this.#historyTotalRows,
-			),
+			Number(this.#historyTotalRows - visibleStartRow),
 		);
 		if (cacheRowCount < visibleRowCount) return;
-		const maximumCacheStart =
-			this.#historyTotalRows > BigInt(cacheRowCount)
-				? this.#historyTotalRows - BigInt(cacheRowCount)
-				: 0n;
-		const preferredCacheStart =
-			visibleStartRow > BigInt(overscanRows) ? visibleStartRow - BigInt(overscanRows) : 0n;
-		const cacheStartRow = minBigInt(preferredCacheStart, maximumCacheStart);
 		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
 			this.#send({
 				kind: 'set-history-demand',
@@ -1860,12 +1854,13 @@ export class ProjectedTerminal {
 		this.#syncPreeditPresentation();
 		const requestSequence = this.#nextRowRequestSequence();
 		this.#rowFlight = {
+			expectedStartRow: origin.kind === 'committed' ? null : visibleStartRow,
 			kind: 'viewport',
 			maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+			origin: requestOrigin,
 			overscanned: cacheRowCount > visibleRowCount,
 			requestSequence,
 			visibleRowCount,
-			visibleStartRow,
 		};
 		this.#send({
 			kind: 'read-rows',
@@ -1874,10 +1869,7 @@ export class ProjectedTerminal {
 				detail: 'render',
 				generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
 				maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
-				origin: {
-					kind: 'absolute',
-					row: CanonicalUint64TextSchema.parse(cacheStartRow.toString()),
-				},
+				origin: requestOrigin,
 				purpose: 'viewport',
 				requestSequence,
 				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
@@ -2654,6 +2646,7 @@ export class ProjectedTerminal {
 		this.#listen(canvas, 'pointercancel', this.#handlePointerCancel);
 		this.#listen(canvas, 'lostpointercapture', this.#handleLostPointerCapture);
 		this.#listen(canvas, 'pointerleave', this.#handlePointerLeave);
+		this.#listen(canvas, 'touchend', this.#handleTouchEnd, { passive: false });
 		this.#listen(canvas, 'click', this.#handleClick);
 		this.#listen(canvas, 'wheel', this.#handleWheel, { passive: false });
 		const document = canvas.ownerDocument;
@@ -3726,7 +3719,7 @@ export class ProjectedTerminal {
 			this.#ownHistoryScrollbarEvent(event);
 			return;
 		}
-		this.focus();
+		if (event.pointerType !== 'touch') this.focus();
 		if (!this.#inputOperationIsCurrent(inputOperationEpoch)) {
 			event.preventDefault();
 			return;
@@ -3798,6 +3791,12 @@ export class ProjectedTerminal {
 			...gesture,
 		});
 		event.preventDefault();
+	};
+
+	readonly #handleTouchEnd = (event: TouchEvent): void => {
+		event.preventDefault();
+		if (!this.#inputAdmissionIsOpen()) return;
+		this.focus();
 	};
 
 	readonly #handlePointerUp = (event: PointerEvent): void => {
