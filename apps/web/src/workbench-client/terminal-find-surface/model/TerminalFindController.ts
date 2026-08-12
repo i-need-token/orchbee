@@ -68,7 +68,7 @@ export class TerminalFindController {
 		return () => this.#listeners.delete(listener);
 	};
 
-	open(): void {
+	open(selectionPreview?: string): void {
 		if (this.#disposed) return;
 		const wasOpen = this.#snapshot.isOpen;
 		this.#update({
@@ -76,7 +76,16 @@ export class TerminalFindController {
 			focusRequest: this.#snapshot.focusRequest + 1,
 			isOpen: true,
 		});
-		if (!wasOpen && this.#snapshot.query) this.#search();
+		if (wasOpen) return;
+		if (selectionPreview) {
+			this.#historyCursor = null;
+			this.#historyDraft = selectionPreview;
+			if (selectionPreview !== this.#snapshot.query) {
+				this.#applyQuery(selectionPreview);
+				return;
+			}
+		}
+		if (this.#snapshot.query) this.#search();
 	}
 
 	close(): void {

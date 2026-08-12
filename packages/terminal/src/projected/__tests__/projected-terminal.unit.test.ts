@@ -229,6 +229,8 @@ function renderRowWindow(
 		readonly generation?: bigint;
 		readonly hyperlink?: string;
 		readonly hyperlinkRowIndex?: number;
+		readonly wrapContinuations?: readonly boolean[];
+		readonly wraps?: readonly boolean[];
 	} = {},
 ): Uint8Array {
 	const defaultStyle: TerminalFrame['styles'][number] = {
@@ -289,8 +291,8 @@ function renderRowWindow(
 			],
 			index,
 			promptClass: RowPromptClass.none,
-			wrap: false,
-			wrapContinuation: false,
+			wrap: options.wraps?.[index] ?? false,
+			wrapContinuation: options.wrapContinuations?.[index] ?? false,
 		})),
 		rows: text.length,
 		scrollbackRows: startRow,
@@ -317,7 +319,15 @@ function renderRowWindow(
 	return encoded.value;
 }
 
-function searchWorkerWithMatch(row: number): ProjectedSearchWorkerLike {
+function searchWorkerWithMatch(
+	row: number,
+	onStart?: (
+		message: Extract<
+			Parameters<ProjectedSearchWorkerLike['postMessage']>[0],
+			{ readonly kind: 'start' }
+		>,
+	) => void,
+): ProjectedSearchWorkerLike {
 	type SearchWorkerRequest = Parameters<ProjectedSearchWorkerLike['postMessage']>[0];
 	const messageListeners: Array<(event: { readonly data: unknown }) => void> = [];
 	let start: Extract<SearchWorkerRequest, { kind: 'start' }> | undefined;
@@ -328,15 +338,21 @@ function searchWorkerWithMatch(row: number): ProjectedSearchWorkerLike {
 		postMessage: (message: SearchWorkerRequest) => {
 			if (message.kind === 'start') {
 				start = message;
+				onStart?.(message);
 				return;
 			}
 			if (!message.final || start === undefined) return;
 			const response = {
+				activeMatch: {
+					end: { column: 1, row },
+					start: { column: 0, row },
+					text: 'needle',
+				},
 				generation: start.generation,
 				kind: 'result',
 				matches: [
 					{
-						end: { column: 6, row },
+						end: { column: 1, row },
 						start: { column: 0, row },
 						text: 'needle',
 					},
@@ -3394,6 +3410,7 @@ describe('ProjectedTerminal', () => {
 		vi.stubGlobal('window', browser.document.defaultView);
 		vi.stubGlobal('navigator', {});
 		const commands: ProjectedTerminalCommand[] = [];
+		let searchNavigation: unknown;
 		const setHistoryScrollbar = vi.spyOn(WebGPURenderer.prototype, 'setHistoryScrollbar');
 		const terminal = new ProjectedTerminal({
 			attachmentId,
@@ -3405,7 +3422,10 @@ describe('ProjectedTerminal', () => {
 					commands.push(command);
 				},
 			},
-			searchWorkerFactory: () => searchWorkerWithMatch(1),
+			searchWorkerFactory: () =>
+				searchWorkerWithMatch(1, (message) => {
+					searchNavigation = message.navigation;
+				}),
 			terminalId,
 		});
 		await terminal.open(browser.root);
@@ -3440,10 +3460,35 @@ describe('ProjectedTerminal', () => {
 				};
 			});
 
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 1, row: canonicalText('1') },
+			preview: 'needle',
+			rectangle: false,
+			start: { column: 0, row: canonicalText('1') },
+			state: 'active',
+		});
 		terminal.updateSearch('needle');
 		await vi.advanceTimersByTimeAsync(200);
 
 		expect(readBufferRows).toHaveBeenCalledOnce();
+		expect(searchNavigation).toEqual({
+			preserveStart: true,
+			reverse: true,
+			start: { column: 0, row: 1 },
+		});
+		expect(
+			commands.find(
+				(command) =>
+					command.kind === 'selection-command' && command.payload.command === 'set-range',
+			)?.payload,
+		).toMatchObject({
+			command: 'set-range',
+			end: { column: 1, row: '1' },
+			generation: '1',
+			revision: '1',
+			start: { column: 0, row: '1' },
+		});
 		expect(
 			commands.find(
 				(command) => command.kind === 'read-rows' && command.payload.purpose === 'viewport',
@@ -7506,6 +7551,224 @@ describe('ProjectedTerminal', () => {
 
 		expect(errors).toHaveBeenCalledOnce();
 		expect(exited).not.toHaveBeenCalled();
+		terminal.dispose();
+	});
+
+	it('discovers links across the complete bounded logical line', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const logicalText = ['https://', 'exa', 'mple', '.com', '/pa', 'th', '?x', 'tail'];
+		const wraps = [true, true, true, true, true, true, false, false];
+		const wrapContinuations = [false, true, true, true, true, true, true, false];
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['?x', 'tail'], null, [0, 1], 6n));
+		terminal.scrollLines(-3);
+		const historyRead = commands.at(-1);
+		if (historyRead?.kind !== 'read-rows' || historyRead.payload.origin.kind !== 'absolute') {
+			throw new Error('history setup did not request absolute Host rows');
+		}
+		const historyStartRow = Number(historyRead.payload.origin.row);
+		expect(historyStartRow).toBe(3);
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(historyRead.payload.requestSequence),
+					1n,
+					BigInt(historyStartRow),
+					8n,
+					logicalText.slice(historyStartRow),
+					{
+						wrapContinuations: wrapContinuations.slice(historyStartRow),
+						wraps: wraps.slice(historyStartRow),
+					},
+				),
+			),
+		).toBe('committed');
+		commands.length = 0;
+		const canvas = terminal.canvas as unknown as FakeElement;
+
+		canvas.dispatch('pointermove', {
+			buttons: 0,
+			clientX: 2,
+			clientY: 2,
+			ctrlKey: true,
+			metaKey: false,
+			shiftKey: false,
+			type: 'pointermove',
+		} as unknown as PointerEvent);
+		await vi.waitFor(() =>
+			expect(commands.filter((command) => command.kind === 'read-rows')).toHaveLength(1),
+		);
+		const firstRead = commands.at(-1);
+		if (firstRead?.kind !== 'read-rows' || firstRead.payload.origin.kind !== 'absolute') {
+			throw new Error('link lookup did not request absolute Host rows');
+		}
+		expect(firstRead.payload).toMatchObject({
+			origin: { kind: 'absolute', row: '2' },
+			rowCount: 3,
+		});
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(firstRead.payload.requestSequence),
+					1n,
+					2n,
+					8n,
+					logicalText.slice(2, 5),
+					{
+						wrapContinuations: wrapContinuations.slice(2, 5),
+						wraps: wraps.slice(2, 5),
+					},
+				),
+			),
+		).toBe('committed');
+
+		await vi.waitFor(() =>
+			expect(commands.filter((command) => command.kind === 'read-rows')).toHaveLength(2),
+		);
+		const secondRead = commands.at(-1);
+		if (secondRead?.kind !== 'read-rows' || secondRead.payload.origin.kind !== 'absolute') {
+			throw new Error('link lookup did not continue toward the logical-line start');
+		}
+		expect(secondRead.payload).toMatchObject({
+			origin: { kind: 'absolute', row: '0' },
+			rowCount: 2,
+		});
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(secondRead.payload.requestSequence),
+					1n,
+					0n,
+					8n,
+					logicalText.slice(0, 2),
+					{
+						wrapContinuations: wrapContinuations.slice(0, 2),
+						wraps: wraps.slice(0, 2),
+					},
+				),
+			),
+		).toBe('committed');
+
+		await vi.waitFor(() =>
+			expect(commands.filter((command) => command.kind === 'read-rows')).toHaveLength(3),
+		);
+		const thirdRead = commands.at(-1);
+		if (thirdRead?.kind !== 'read-rows' || thirdRead.payload.origin.kind !== 'absolute') {
+			throw new Error('link lookup did not continue toward the logical-line end');
+		}
+		expect(thirdRead.payload).toMatchObject({
+			origin: { kind: 'absolute', row: '5' },
+			rowCount: 3,
+		});
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(thirdRead.payload.requestSequence),
+					1n,
+					5n,
+					8n,
+					logicalText.slice(5),
+					{
+						wrapContinuations: wrapContinuations.slice(5),
+						wraps: wraps.slice(5),
+					},
+				),
+			),
+		).toBe('committed');
+		await vi.waitFor(() => expect(canvas.style['cursor']).toBe('pointer'));
+		terminal.dispose();
+	});
+
+	it.each([
+		{
+			changeGeometry: (browser: FakeBrowser) => browser.dispatchWindow('resize'),
+			name: 'window resize',
+		},
+		{
+			changeGeometry: (browser: FakeBrowser) => {
+				browser.setDevicePixelRatio(1.5);
+				browser.mediaQueries.at(-1)?.dispatchChange();
+			},
+			name: 'device-pixel-ratio change',
+		},
+	])('invalidates hovered links before activation after $name', async ({ changeGeometry }) => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		const linkRequests = vi.fn<Parameters<ProjectedTerminal['onLinkOpenRequest']>[0]>();
+		terminal.onLinkOpenRequest(linkRequests);
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['linked', '']));
+		const canvas = terminal.canvas as unknown as FakeElement;
+
+		canvas.dispatch('pointermove', {
+			buttons: 0,
+			clientX: 2,
+			clientY: 2,
+			ctrlKey: true,
+			metaKey: false,
+			shiftKey: false,
+			type: 'pointermove',
+		} as unknown as PointerEvent);
+		await vi.waitFor(() =>
+			expect(commands.some((command) => command.kind === 'read-rows')).toBe(true),
+		);
+		const read = commands.at(-1);
+		if (read?.kind !== 'read-rows') throw new Error('link lookup did not request Host rows');
+		expect(
+			terminal.applyRows(
+				renderRowWindow(BigInt(read.payload.requestSequence), 1n, 0n, 2n, ['linked', ''], {
+					hyperlink: 'https://example.com/stale-geometry',
+				}),
+			),
+		).toBe('committed');
+		await vi.waitFor(() => expect(canvas.style['cursor']).toBe('pointer'));
+
+		changeGeometry(browser);
+
+		expect(canvas.style['cursor']).toBe('text');
+		const preventDefault = vi.fn<() => void>();
+		canvas.dispatch('click', {
+			clientX: 2,
+			clientY: 2,
+			ctrlKey: true,
+			metaKey: false,
+			preventDefault,
+			shiftKey: false,
+			type: 'click',
+		} as unknown as MouseEvent);
+		expect(linkRequests).not.toHaveBeenCalled();
+		expect(preventDefault).not.toHaveBeenCalled();
 		terminal.dispose();
 	});
 

@@ -41,6 +41,7 @@ function controllerWithError(
 	});
 	controller.setQuery('query');
 	controller.applySearchEvent({
+		activeMatch: null,
 		activeIndex: -1,
 		errorKind,
 		generation: 1n,

@@ -6,8 +6,10 @@ import {
 	TERMINAL_SEARCH_RESULT_LIMIT,
 	resolveTerminalSearchResultLimit,
 	validateTerminalSearchQuery,
+	type TerminalDirectionalSearchOptions,
 	type TerminalSearchMatch,
 	type TerminalSearchOptions,
+	type TerminalSearchPosition,
 } from './terminal-search';
 import type {
 	ProjectedSearchWorkerFactory,
@@ -21,6 +23,7 @@ const SEARCH_PAGE_BYTE_TARGET = Math.floor(PROTOCOL_LIMITS.maxRowWindowBytes * 0
 const SEARCH_PAGE_ENTRY_TARGET = Math.floor(PROTOCOL_LIMITS.maxFrameCells * 0.95);
 
 export interface ProjectedTerminalSearchEvent {
+	readonly activeMatch: TerminalSearchMatch | null;
 	readonly activeIndex: number;
 	readonly errorKind: 'invalid-query' | 'unavailable' | null;
 	readonly generation: bigint;
@@ -35,19 +38,38 @@ export interface ProjectedTerminalSearchEvent {
 export interface ProjectedSearchControllerOptions {
 	readonly createWorker: ProjectedSearchWorkerFactory;
 	readonly onChange: (event: ProjectedTerminalSearchEvent) => void;
-	readonly onReveal: (match: TerminalSearchMatch) => void;
+	readonly onReveal: (
+		match: TerminalSearchMatch,
+		source: { readonly generation: bigint; readonly revision: bigint },
+	) => void;
 	readonly reader: TerminalBufferRowReader;
 }
+
+interface WorkerProgressWaiter {
+	readonly nextRow: bigint;
+	readonly resolve: (progressed: boolean) => void;
+	readonly searchId: number;
+}
+
+type SearchPageResult = Awaited<ReturnType<TerminalBufferRowReader['readBufferRows']>>;
+type SettledSearchPage =
+	| { readonly kind: 'cancelled' }
+	| { readonly error: unknown; readonly kind: 'failed' }
+	| { readonly kind: 'completed'; readonly value: SearchPageResult };
 
 export class ProjectedSearchController {
 	readonly #options: ProjectedSearchControllerOptions;
 	#abortController: AbortController | undefined;
+	#activeMatch: TerminalSearchMatch | null = null;
 	#activeIndex = -1;
 	#debounce: ReturnType<typeof setTimeout> | undefined;
 	#disposed = false;
 	#errorKind: ProjectedTerminalSearchEvent['errorKind'] = null;
 	#generation = 1n;
+	#inFlightNavigationStep = 0;
 	#matches: readonly TerminalSearchMatch[] = [];
+	#navigationAnchor: TerminalSearchPosition | undefined;
+	#pendingNavigationOffset = 0;
 	#query = '';
 	#regexError: string | null = null;
 	#revision = 0n;
@@ -56,6 +78,7 @@ export class ProjectedSearchController {
 	#state: ProjectedTerminalSearchEvent['state'] = 'idle';
 	#watchdog: ReturnType<typeof setTimeout> | undefined;
 	#worker: ProjectedSearchWorkerLike | undefined;
+	#workerProgress: WorkerProgressWaiter | undefined;
 
 	constructor(options: ProjectedSearchControllerOptions) {
 		this.#options = options;
@@ -65,12 +88,20 @@ export class ProjectedSearchController {
 		return this.#event();
 	}
 
-	update(query: string, options: TerminalSearchOptions = {}): void {
+	update(
+		query: string,
+		options: TerminalSearchOptions = {},
+		anchor: TerminalSearchPosition | undefined = this.#navigationAnchor,
+	): void {
 		if (this.#disposed) return;
 		this.#query = query;
 		this.#searchOptions = { ...options };
+		this.#navigationAnchor = anchor === undefined ? undefined : { ...anchor };
 		this.#cancelScan();
+		this.#inFlightNavigationStep = 0;
 		this.#matches = [];
+		this.#pendingNavigationOffset = 0;
+		this.#activeMatch = null;
 		this.#activeIndex = -1;
 		if (!query) {
 			this.#emit('idle', null);
@@ -88,40 +119,57 @@ export class ProjectedSearchController {
 		this.#emit('searching', null);
 		this.#debounce = setTimeout(() => {
 			this.#debounce = undefined;
-			void this.#run();
+			void this.#run(this.#initialNavigation());
 		}, TERMINAL_SEARCH_DEBOUNCE_MS);
 	}
 
 	invalidate(): void {
-		if (this.#query) this.update(this.#query, this.#searchOptions);
+		if (this.#disposed || !this.#query) return;
+		const pendingNavigation = this.#pendingNavigationOffset + this.#inFlightNavigationStep;
+		this.update(this.#query, this.#searchOptions);
+		this.#pendingNavigationOffset = pendingNavigation;
 	}
 
-	next(reverse = false): TerminalSearchMatch | null {
-		if (this.#matches.length === 0) return null;
-		this.#activeIndex = reverse
-			? (this.#activeIndex - 1 + this.#matches.length) % this.#matches.length
-			: (this.#activeIndex + 1) % this.#matches.length;
-		const match = this.#matches[this.#activeIndex] ?? null;
-		if (match !== null) this.#options.onReveal(match);
-		this.#emit('complete', null);
-		return match;
+	next(reverse = false): boolean {
+		if (
+			this.#disposed ||
+			!this.#query ||
+			(this.#state !== 'complete' && this.#state !== 'searching') ||
+			(this.#state === 'complete' && this.#activeMatch === null)
+		) {
+			return false;
+		}
+		this.#pendingNavigationOffset += reverse ? -1 : 1;
+		this.#drainNavigation();
+		return true;
+	}
+
+	setNavigationAnchor(anchor: TerminalSearchPosition | undefined): void {
+		if (this.#disposed) return;
+		this.#navigationAnchor = anchor === undefined ? undefined : { ...anchor };
 	}
 
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#cancelScan();
+		this.#inFlightNavigationStep = 0;
 		this.#matches = [];
+		this.#pendingNavigationOffset = 0;
+		this.#activeMatch = null;
 	}
 
-	async #run(): Promise<void> {
+	async #run(navigation: TerminalDirectionalSearchOptions, preserveResults = false): Promise<void> {
 		if (this.#disposed || !this.#query) return;
 		const snapshot = this.#options.reader.getBufferRowsSnapshot();
 		const searchId = ++this.#searchId;
 		this.#generation = snapshot.generation;
 		this.#revision = snapshot.revision;
-		this.#matches = [];
-		this.#activeIndex = -1;
+		if (!preserveResults) {
+			this.#matches = [];
+			this.#activeMatch = null;
+			this.#activeIndex = -1;
+		}
 		this.#emit('searching', null);
 		const abortController = new AbortController();
 		this.#abortController = abortController;
@@ -140,16 +188,11 @@ export class ProjectedSearchController {
 		worker.addEventListener('error', (event) => {
 			this.#completeError(searchId, event.message || 'Terminal search Worker failed.');
 		});
-		this.#watchdog = setTimeout(() => {
-			if (this.#searchId !== searchId) return;
-			this.#abortController?.abort();
-			this.#abortController = undefined;
-			this.#cancelWorker();
-			this.#emit('timeout', null);
-		}, SEARCH_WATCHDOG_MILLISECONDS);
+		this.#refreshWatchdog(searchId);
 		worker.postMessage({
 			generation: snapshot.generation.toString(),
 			kind: 'start',
+			navigation,
 			options: this.#searchOptions,
 			query: this.#query,
 			revision: snapshot.revision.toString(),
@@ -170,22 +213,23 @@ export class ProjectedSearchController {
 				});
 				return;
 			}
+			let pendingRead: Promise<SettledSearchPage> = settleSearchPage(
+				this.#readSearchPage(snapshot, startRow, rowCount, abortController.signal),
+				abortController.signal,
+			);
 			while (startRow < snapshot.totalRows && this.#searchId === searchId) {
-				const result = await this.#options.reader.readBufferRows(
-					{
-						detail: TerminalBufferRowDetail.text,
-						generation: snapshot.generation,
-						maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
-						purpose: 'search',
-						revision: snapshot.revision,
-						rowCount: Math.min(rowCount, Number(snapshot.totalRows - startRow)),
-						startRow,
-					},
-					abortController.signal,
-				);
+				const read = await pendingRead;
+				if (read.kind === 'cancelled') return;
+				if (read.kind === 'failed') throw read.error;
+				const result = read.value;
 				if (this.#searchId !== searchId || abortController.signal.aborted) return;
+				this.#refreshWatchdog(searchId);
 				if (result.kind === 'too-large' && rowCount > 1) {
 					rowCount = Math.max(1, Math.floor(rowCount / 2));
+					pendingRead = settleSearchPage(
+						this.#readSearchPage(snapshot, startRow, rowCount, abortController.signal),
+						abortController.signal,
+					);
 					continue;
 				}
 				if (result.kind !== 'rows') {
@@ -210,20 +254,31 @@ export class ProjectedSearchController {
 						),
 					);
 				}
+				if (result.rows.length === 0) {
+					this.#completeError(searchId, 'Terminal search source returned an empty page.');
+					return;
+				}
 				const nextRow = result.startRow + BigInt(result.rows.length);
+				const final = nextRow >= snapshot.totalRows;
+				const progress = final ? undefined : this.#waitForWorkerProgress(searchId, nextRow);
 				worker.postMessage({
-					final: nextRow >= snapshot.totalRows,
+					final,
 					generation: snapshot.generation.toString(),
 					kind: 'page',
 					revision: snapshot.revision.toString(),
 					rows: result.rows,
 					searchId,
 				});
-				if (result.rows.length === 0) {
-					this.#completeError(searchId, 'Terminal search source returned an empty page.');
-					return;
-				}
+				if (final) return;
+				if (progress === undefined) return;
 				startRow = nextRow;
+				pendingRead = admitPrefetch(
+					progress,
+					settleSearchPage(
+						this.#readSearchPage(snapshot, startRow, rowCount, abortController.signal),
+						abortController.signal,
+					),
+				);
 			}
 		} catch (error) {
 			this.#completeError(
@@ -246,39 +301,54 @@ export class ProjectedSearchController {
 			this.#completeError(searchId, 'Terminal search result revision is stale.');
 			return;
 		}
+		if (response.kind === 'progress') {
+			this.#receiveWorkerProgress(searchId, response.nextRow);
+			return;
+		}
+		if (this.#workerProgress !== undefined) {
+			this.#completeError(searchId, 'Terminal search Worker completed before page admission.');
+			return;
+		}
 		this.#matches = response.matches;
-		this.#activeIndex = response.matches.length === 0 ? -1 : 0;
+		this.#activeMatch = response.activeMatch;
+		this.#activeIndex = findMatchIndex(response.matches, response.activeMatch);
+		if (response.activeMatch !== null) {
+			this.#navigationAnchor = { ...response.activeMatch.start };
+		}
+		this.#inFlightNavigationStep = 0;
+		this.#abortController = undefined;
 		this.#cancelWorker();
-		const first = response.matches[0];
-		if (first !== undefined) this.#options.onReveal(first);
+		if (response.activeMatch !== null) {
+			this.#options.onReveal(response.activeMatch, {
+				generation: this.#generation,
+				revision: this.#revision,
+			});
+		}
 		this.#emit('complete', null);
+		this.#drainNavigation();
 	}
 
 	#completeError(searchId: number, message: string): void {
 		if (this.#searchId !== searchId) return;
 		this.#matches = [];
+		this.#activeMatch = null;
 		this.#activeIndex = -1;
-		this.#abortController?.abort();
-		this.#abortController = undefined;
-		this.#cancelWorker();
+		this.#inFlightNavigationStep = 0;
+		this.#pendingNavigationOffset = 0;
+		this.#retireScan(searchId);
 		this.#emit('error', message);
 	}
 
 	#event(): ProjectedTerminalSearchEvent {
 		return {
+			activeMatch: this.#activeMatch,
 			activeIndex: this.#activeIndex,
 			errorKind: this.#errorKind,
 			generation: this.#generation,
 			matches: this.#matches,
 			query: this.#query,
 			regexError: this.#regexError,
-			resultLimitReached:
-				this.#matches.length > 0 &&
-				this.#matches.length >=
-					Math.min(
-						TERMINAL_SEARCH_RESULT_LIMIT,
-						resolveTerminalSearchResultLimit(this.#searchOptions.maxResults),
-					),
+			resultLimitReached: this.#resultLimitReached(),
 			revision: this.#revision,
 			state: this.#state,
 		};
@@ -295,11 +365,140 @@ export class ProjectedSearchController {
 		this.#options.onChange(this.#event());
 	}
 
+	#activate(match: TerminalSearchMatch): void {
+		this.#activeMatch = match;
+		this.#activeIndex = findMatchIndex(this.#matches, match);
+		this.#navigationAnchor = { ...match.start };
+		this.#options.onReveal(match, {
+			generation: this.#generation,
+			revision: this.#revision,
+		});
+		this.#emit('complete', null);
+	}
+
+	#drainNavigation(): void {
+		while (
+			this.#state === 'complete' &&
+			this.#activeMatch !== null &&
+			this.#pendingNavigationOffset !== 0
+		) {
+			const step = this.#pendingNavigationOffset < 0 ? -1 : 1;
+			this.#pendingNavigationOffset -= step;
+			const navigation = this.#navigationFromAnchor(step < 0, false);
+			if (this.#activeIndex >= 0 && !this.#resultLimitReached()) {
+				const match = findDirectionalMatch(this.#matches, navigation);
+				if (match === null) {
+					this.#pendingNavigationOffset = 0;
+					return;
+				}
+				this.#activate(match);
+				continue;
+			}
+			this.#inFlightNavigationStep = step;
+			void this.#run(navigation, true);
+			return;
+		}
+	}
+
+	#initialNavigation(): TerminalDirectionalSearchOptions {
+		return this.#navigationFromAnchor(true, true);
+	}
+
+	#navigationFromAnchor(
+		reverse: boolean,
+		preserveStart: boolean,
+	): TerminalDirectionalSearchOptions {
+		return this.#navigationAnchor === undefined
+			? { preserveStart, reverse }
+			: { preserveStart, reverse, start: { ...this.#navigationAnchor } };
+	}
+
+	#resultLimitReached(): boolean {
+		return (
+			this.#matches.length > 0 &&
+			this.#matches.length >=
+				Math.min(
+					TERMINAL_SEARCH_RESULT_LIMIT,
+					resolveTerminalSearchResultLimit(this.#searchOptions.maxResults),
+				)
+		);
+	}
+
+	#readSearchPage(
+		snapshot: ReturnType<TerminalBufferRowReader['getBufferRowsSnapshot']>,
+		startRow: bigint,
+		rowCount: number,
+		signal: AbortSignal,
+	): ReturnType<TerminalBufferRowReader['readBufferRows']> {
+		return this.#options.reader.readBufferRows(
+			{
+				detail: TerminalBufferRowDetail.text,
+				generation: snapshot.generation,
+				maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+				purpose: 'search',
+				revision: snapshot.revision,
+				rowCount: Math.min(rowCount, Number(snapshot.totalRows - startRow)),
+				startRow,
+			},
+			signal,
+		);
+	}
+
+	#waitForWorkerProgress(searchId: number, nextRow: bigint): Promise<boolean> {
+		return new Promise((resolve) => {
+			this.#workerProgress = { nextRow, resolve, searchId };
+		});
+	}
+
+	#receiveWorkerProgress(searchId: number, encodedNextRow: string): void {
+		const waiter = this.#workerProgress;
+		let nextRow: bigint;
+		try {
+			nextRow = BigInt(encodedNextRow);
+		} catch {
+			this.#completeError(searchId, 'Terminal search Worker returned invalid progress.');
+			return;
+		}
+		if (nextRow < 0n || nextRow.toString() !== encodedNextRow) {
+			this.#completeError(searchId, 'Terminal search Worker returned invalid progress.');
+			return;
+		}
+		if (waiter === undefined || waiter.searchId !== searchId || waiter.nextRow !== nextRow) {
+			this.#completeError(searchId, 'Terminal search Worker returned out-of-order progress.');
+			return;
+		}
+		this.#workerProgress = undefined;
+		this.#refreshWatchdog(searchId);
+		waiter.resolve(true);
+	}
+
+	#refreshWatchdog(searchId: number): void {
+		if (this.#searchId !== searchId) return;
+		if (this.#watchdog !== undefined) clearTimeout(this.#watchdog);
+		this.#watchdog = setTimeout(() => {
+			if (this.#searchId !== searchId) return;
+			this.#inFlightNavigationStep = 0;
+			this.#pendingNavigationOffset = 0;
+			this.#retireScan(searchId);
+			this.#emit('timeout', null);
+		}, SEARCH_WATCHDOG_MILLISECONDS);
+	}
+
+	#retireScan(searchId: number): void {
+		if (this.#searchId !== searchId) return;
+		this.#abortController?.abort();
+		this.#abortController = undefined;
+		this.#releaseWorkerProgress(false);
+		this.#cancelWorker();
+		this.#searchId += 1;
+	}
+
 	#cancelScan(): void {
 		if (this.#debounce !== undefined) clearTimeout(this.#debounce);
 		this.#debounce = undefined;
 		this.#abortController?.abort();
 		this.#abortController = undefined;
+		this.#releaseWorkerProgress(false);
 		this.#cancelWorker();
 		this.#searchId += 1;
 	}
@@ -310,6 +509,81 @@ export class ProjectedSearchController {
 		this.#worker?.terminate();
 		this.#worker = undefined;
 	}
+
+	#releaseWorkerProgress(progressed: boolean): void {
+		const waiter = this.#workerProgress;
+		this.#workerProgress = undefined;
+		waiter?.resolve(progressed);
+	}
+}
+
+function settleSearchPage(
+	promise: Promise<SearchPageResult>,
+	signal: AbortSignal,
+): Promise<SettledSearchPage> {
+	return new Promise((resolve) => {
+		let finished = false;
+		const finish = (result: SettledSearchPage): void => {
+			if (finished) return;
+			finished = true;
+			signal.removeEventListener('abort', cancel);
+			resolve(result);
+		};
+		const cancel = (): void => finish({ kind: 'cancelled' });
+		if (signal.aborted) cancel();
+		else signal.addEventListener('abort', cancel, { once: true });
+		void promise.then(
+			(value) => finish({ kind: 'completed', value }),
+			(error: unknown) => finish({ error, kind: 'failed' }),
+		);
+	});
+}
+
+async function admitPrefetch(
+	progress: Promise<boolean>,
+	read: Promise<SettledSearchPage>,
+): Promise<SettledSearchPage> {
+	return (await progress) ? await read : { kind: 'cancelled' };
+}
+
+function findDirectionalMatch(
+	matches: readonly TerminalSearchMatch[],
+	navigation: TerminalDirectionalSearchOptions,
+): TerminalSearchMatch | null {
+	if (matches.length === 0) return null;
+	const start = navigation.start;
+	if (start === undefined)
+		return navigation.reverse ? (matches.at(-1) ?? null) : (matches[0] ?? null);
+	if (navigation.reverse) {
+		for (let index = matches.length - 1; index >= 0; index--) {
+			const match = matches[index];
+			if (match === undefined) continue;
+			const comparison = comparePosition(match.start, start);
+			if (comparison < 0 || (navigation.preserveStart && comparison === 0)) return match;
+		}
+		return matches.at(-1) ?? null;
+	}
+	for (const match of matches) {
+		const comparison = comparePosition(match.start, start);
+		if (comparison > 0 || (navigation.preserveStart && comparison === 0)) return match;
+	}
+	return matches[0] ?? null;
+}
+
+function findMatchIndex(
+	matches: readonly TerminalSearchMatch[],
+	activeMatch: TerminalSearchMatch | null,
+): number {
+	if (activeMatch === null) return -1;
+	return matches.findIndex(
+		(match) =>
+			comparePosition(match.start, activeMatch.start) === 0 &&
+			comparePosition(match.end, activeMatch.end) === 0,
+	);
+}
+
+function comparePosition(left: TerminalSearchPosition, right: TerminalSearchPosition): number {
+	return left.row === right.row ? left.column - right.column : left.row - right.row;
 }
 
 export function createProjectedSearchWorker(): ProjectedSearchWorkerLike {

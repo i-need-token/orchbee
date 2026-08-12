@@ -21,6 +21,9 @@ Mounting a projected renderer never moves DOM focus. Workbench retains the activ
 pointer activation, an explicit terminal focus request, and find-surface close are the only adapter
 paths that move focus into the hidden terminal input. The projected root contains both that input and
 its find surface, so moving between them does not publish a terminal focus transition.
+Opening that find surface seeds an empty or retained query from the bounded preview of an active
+Host selection when one is available; search-owned active ranges remain authoritative Host
+selections rather than a second application selection model.
 
 Suspicious paste text opens one localized review dialog owned by the shared projected-terminal
 surface. It presents a bounded, control-visible preview of the retained original text and identifies

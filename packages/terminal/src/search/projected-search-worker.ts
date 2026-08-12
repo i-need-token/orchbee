@@ -28,7 +28,11 @@ function handleProjectedSearchWorkerMessage(
 ): void {
 	if (message.kind === 'start') {
 		active = {
-			accumulator: new ProjectedSearchAccumulator(message.query, message.options),
+			accumulator: new ProjectedSearchAccumulator(
+				message.query,
+				message.options,
+				message.navigation,
+			),
 			generation: message.generation,
 			revision: message.revision,
 			searchId: message.searchId,
@@ -77,12 +81,22 @@ function handleProjectedSearchWorkerMessage(
 		search.nextRow += 1n;
 	}
 	try {
-		const matches = search.accumulator.push(message.rows, message.final);
-		if (matches === null) return;
+		const result = search.accumulator.push(message.rows, message.final);
+		if (result === null) {
+			postMessage({
+				generation: search.generation,
+				kind: 'progress',
+				nextRow: search.nextRow.toString(),
+				revision: search.revision,
+				searchId: search.searchId,
+			});
+			return;
+		}
 		postMessage({
+			activeMatch: result.activeMatch,
 			generation: search.generation,
 			kind: 'result',
-			matches,
+			matches: result.matches,
 			revision: search.revision,
 			searchId: search.searchId,
 		});

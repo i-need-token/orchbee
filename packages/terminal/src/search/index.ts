@@ -7,6 +7,8 @@ export {
 	validateTerminalSearchQuery,
 	type TerminalSearchMatch,
 	type TerminalSearchOptions,
+	type TerminalSearchPosition,
+	type TerminalDirectionalSearchOptions,
 	type TerminalSearchResultChangeEvent,
 } from './terminal-search';
 export {

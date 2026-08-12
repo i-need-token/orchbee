@@ -1,6 +1,6 @@
 import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
 import type { TerminalSearchOptions } from '@orchbee/terminal';
-import { AttachmentIdSchema } from '@orchbee/terminal-protocol';
+import { AttachmentIdSchema, CanonicalUint64TextSchema } from '@orchbee/terminal-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TerminalFindController } from '../../terminal-find-surface';
@@ -61,9 +61,52 @@ describe('registerProjectedTerminalActions', () => {
 		for (const registration of registrations) registration.dispose();
 		runtime.dispose();
 	});
+
+	it('seeds find from the bounded active selection preview', async () => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('terminal.projected');
+		const updateSearch = vi.fn<(query: string, options: TerminalSearchOptions) => void>();
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<() => void>(),
+			updateSearch,
+		});
+		const terminal = terminalTarget({
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			end: { column: 7, row: CanonicalUint64TextSchema.parse('4') },
+			preview: 'selected',
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('4') },
+			state: 'active',
+		});
+		const registrations = registerProjectedTerminalActions({
+			findController: controller,
+			scope,
+			terminal,
+			typedRuntime: createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime),
+		});
+
+		await runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.findOpen, undefined, {
+			scope,
+			source: 'keyboard',
+		}).completion;
+
+		expect(controller.getSnapshot().query).toBe('selected');
+		expect(updateSearch).toHaveBeenCalledWith('selected', {
+			caseSensitive: false,
+			regex: false,
+			wholeWord: false,
+		});
+		for (const registration of registrations) registration.dispose();
+		runtime.dispose();
+	});
 });
 
-function terminalTarget(): ProjectedTerminalActionTarget {
+function terminalTarget(
+	selection: ProjectedTerminalActionTarget['selection'] = {
+		attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+		state: 'none',
+	},
+): ProjectedTerminalActionTarget {
 	return {
 		canControlTerminal: true,
 		copySelectionAsync: vi
@@ -76,6 +119,6 @@ function terminalTarget(): ProjectedTerminalActionTarget {
 			.mockResolvedValue({ kind: 'completed' }),
 		reset: vi.fn<ProjectedTerminalActionTarget['reset']>(),
 		selectAll: vi.fn<ProjectedTerminalActionTarget['selectAll']>(),
-		selection: { attachmentId: AttachmentIdSchema.parse('11'.repeat(16)), state: 'none' },
+		selection,
 	};
 }

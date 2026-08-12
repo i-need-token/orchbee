@@ -7,6 +7,7 @@ import {
 	MouseButton,
 	PROTOCOL_LIMITS,
 	SelectionPointSchema,
+	TERMINAL_ROW_WINDOW_HEADER_BYTES,
 	TerminalFrameKind,
 	TerminalKeyCode,
 	viewTerminalRowWindow,
@@ -55,6 +56,8 @@ import {
 	bufferRowsFromDecodedWindow,
 	validateBufferRowsRequest,
 	type BufferRowsResult,
+	type TerminalBufferRow,
+	type TerminalBufferRows,
 	type TerminalBufferRowsRequest,
 	type TerminalBufferRowsSnapshot,
 } from '../buffer-rows';
@@ -141,6 +144,7 @@ const BRACKETED_PASTE_END = '\u001b[201~';
 const MAX_PTY_PIXEL_DIMENSION = 0xffff;
 const MAX_HISTORY_CACHE_BYTES = 8 * 1024 * 1024;
 const HISTORY_OVERSCAN_ROWS = 16;
+const LINK_LOOKUP_INITIAL_PAGE_ROWS = 16;
 const SELECTION_AUTOSCROLL_INTERVAL_MS = 16;
 const SELECTION_CLICK_REPEAT_INTERVAL_MS = 500;
 const RESIZE_REENTRY_MS = 50;
@@ -469,7 +473,10 @@ interface PendingSelectionPointer {
 interface PendingLinkPoint {
 	readonly column: number;
 	readonly control: boolean;
+	readonly generation: bigint;
+	readonly linkEpoch: bigint;
 	readonly meta: boolean;
+	readonly revision: bigint;
 	readonly row: bigint;
 }
 
@@ -495,6 +502,25 @@ interface ProjectedLinkCache {
 	readonly startRow: bigint;
 }
 
+interface ProjectedLinkLogicalLine {
+	readonly completeAfter: boolean;
+	readonly completeBefore: boolean;
+	readonly rows: readonly TerminalBufferRow[];
+}
+
+interface ProjectedLinkLookup {
+	readonly generation: bigint;
+	readonly revision: bigint;
+	readonly rows: readonly TerminalBufferRow[];
+}
+
+interface ProjectedLinkWindow {
+	direction: 'backward' | 'forward' | undefined;
+	pageRows: number;
+	remainingBytes: number;
+	readonly rows: TerminalBufferRow[];
+}
+
 type ScheduledFrame =
 	| { readonly kind: 'animation-frame'; readonly value: number }
 	| { readonly kind: 'timeout'; readonly value: ReturnType<typeof setTimeout> };
@@ -513,6 +539,48 @@ type PresentationFontPreparation =
 	| { readonly kind: 'ready' }
 	| { readonly error: unknown; readonly kind: 'failed' }
 	| { readonly kind: 'cancelled'; readonly reason: 'disposed' | 'superseded' };
+
+function logicalLineInWindow(
+	rows: readonly TerminalBufferRow[],
+	targetRow: bigint,
+): ProjectedLinkLogicalLine | undefined {
+	const targetIndex = rows.findIndex((row) => row.index === targetRow);
+	if (targetIndex < 0) return undefined;
+	let startIndex = targetIndex;
+	while (startIndex > 0 && rows[startIndex]?.wrapContinuation === true) {
+		const previous = rows[startIndex - 1];
+		const current = rows[startIndex];
+		if (
+			previous === undefined ||
+			current === undefined ||
+			previous.index + 1n !== current.index ||
+			!previous.wrap
+		) {
+			return undefined;
+		}
+		startIndex -= 1;
+	}
+	let endIndex = targetIndex;
+	while (endIndex + 1 < rows.length && rows[endIndex]?.wrap === true) {
+		const current = rows[endIndex];
+		const next = rows[endIndex + 1];
+		if (
+			current === undefined ||
+			next === undefined ||
+			current.index + 1n !== next.index ||
+			!next.wrapContinuation
+		) {
+			return undefined;
+		}
+		endIndex += 1;
+	}
+	const logicalRows = rows.slice(startIndex, endIndex + 1);
+	return {
+		completeAfter: logicalRows.at(-1)?.wrap === false,
+		completeBefore: logicalRows[0]?.wrapContinuation === false,
+		rows: logicalRows,
+	};
+}
 
 export class ProjectedTerminal {
 	readonly #accessibilityModel = new AccessibleTextModel();
@@ -607,6 +675,7 @@ export class ProjectedTerminal {
 	#hoveredLinkPoint: PendingLinkPoint | undefined;
 	#linkAbortController: AbortController | undefined;
 	#linkCache: ProjectedLinkCache | undefined;
+	#linkEpoch = 0n;
 	#linkLookupActive = false;
 	#pendingLinkPoint: PendingLinkPoint | undefined;
 	#pendingExit: TerminalExited | undefined;
@@ -654,6 +723,7 @@ export class ProjectedTerminal {
 	#selectionPointer: PendingSelectionPointer | undefined;
 	#suppressNextSelectionCopy = false;
 	#searchController: ProjectedSearchController | undefined;
+	#searchOwnedSelection: TerminalSearchMatch | null = null;
 	#sideEffectSequence = 1n;
 	#surfaceMouseModifiers: SurfaceMouseModifiers = {
 		alt: false,
@@ -1263,6 +1333,10 @@ export class ProjectedTerminal {
 		const completedGesture = this.#selectionGestureActionInFlight;
 		const suppressCopy = this.#suppressNextSelectionCopy;
 		this.#selection = selection;
+		if (!selectionMatchesSearch(selection, this.#searchOwnedSelection)) {
+			this.#searchOwnedSelection = null;
+		}
+		this.#searchController?.setNavigationAnchor(searchAnchorFromSelection(selection));
 		this.#selectionGestureActionInFlight = undefined;
 		this.#selectionGestureInFlight = false;
 		this.#suppressNextSelectionCopy = false;
@@ -1470,15 +1544,15 @@ export class ProjectedTerminal {
 
 	updateSearch(query: string, options: TerminalSearchOptions = {}): void {
 		if (this.#phase === ProjectedTerminalPhase.disposed) return;
-		this.#getSearchController().update(query, options);
+		this.#getSearchController().update(query, options, searchAnchorFromSelection(this.#selection));
 	}
 
 	findNext(): boolean {
-		return (this.#searchController?.next(false) ?? null) !== null;
+		return this.#searchController?.next(false) ?? false;
 	}
 
 	findPrevious(): boolean {
-		return (this.#searchController?.next(true) ?? null) !== null;
+		return this.#searchController?.next(true) ?? false;
 	}
 
 	clearSearch(): void {
@@ -1486,6 +1560,7 @@ export class ProjectedTerminal {
 			this.#renderer?.setSearchMatches([]);
 			return;
 		}
+		this.#clearOwnedSearchSelection();
 		this.#searchController.update('');
 	}
 
@@ -2104,19 +2179,45 @@ export class ProjectedTerminal {
 		this.#searchController ??= new ProjectedSearchController({
 			createWorker: this.#options.searchWorkerFactory ?? createProjectedSearchWorker,
 			onChange: (event) => {
-				const active = event.activeIndex < 0 ? null : (event.matches[event.activeIndex] ?? null);
-				this.#renderer?.setSearchMatches(event.matches, active);
+				if (event.state !== 'searching' && event.activeMatch === null) {
+					this.#clearOwnedSearchSelection();
+				}
+				this.#renderer?.setSearchMatches(event.matches, event.activeMatch);
 				this.#searchEmitter.fire(event);
 			},
-			onReveal: (match) => this.#revealSearchMatch(match),
+			onReveal: (match, source) => this.#activateSearchMatch(match, source),
 			reader: this,
 		});
 		return this.#searchController;
 	}
 
-	#revealSearchMatch(match: TerminalSearchMatch): void {
-		if (!Number.isSafeInteger(match.start.row) || match.start.row < 0) return;
+	#activateSearchMatch(
+		match: TerminalSearchMatch,
+		source: { readonly generation: bigint; readonly revision: bigint },
+	): void {
+		if (
+			source.generation !== this.#historyGeneration ||
+			source.revision !== this.#historyRevision ||
+			!Number.isSafeInteger(match.start.row) ||
+			match.start.row < 0 ||
+			!Number.isSafeInteger(match.end.row) ||
+			match.end.row < 0
+		) {
+			return;
+		}
+		const selected = this.setSelectionRange(
+			{ column: match.start.column, row: BigInt(match.start.row) },
+			{ column: match.end.column, row: BigInt(match.end.row) },
+		);
+		if (!selected) return;
+		this.#searchOwnedSelection = match;
 		this.#revealSearchRow(BigInt(match.start.row));
+	}
+
+	#clearOwnedSearchSelection(): void {
+		if (this.#searchOwnedSelection === null) return;
+		this.#searchOwnedSelection = null;
+		this.clearSelection();
 	}
 
 	#revealSearchRow(row: bigint): void {
@@ -2161,7 +2262,19 @@ export class ProjectedTerminal {
 		flight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
 	}
 
+	#linkPointIsCurrent(point: PendingLinkPoint): boolean {
+		return (
+			point.generation === this.#historyGeneration &&
+			point.revision === this.#historyRevision &&
+			point.linkEpoch === this.#linkEpoch
+		);
+	}
+
 	#queueLinkLookup(point: PendingLinkPoint): void {
+		if (!this.#linkPointIsCurrent(point)) {
+			this.#clearHoveredLink();
+			return;
+		}
 		const cache = this.#linkCache;
 		if (
 			cache !== undefined &&
@@ -2189,25 +2302,28 @@ export class ProjectedTerminal {
 			) {
 				const requestedPoint = this.#pendingLinkPoint;
 				this.#pendingLinkPoint = undefined;
+				if (!this.#linkPointIsCurrent(requestedPoint)) {
+					this.#clearHoveredLink();
+					continue;
+				}
 				const snapshot = this.getBufferRowsSnapshot();
+				if (
+					requestedPoint.generation !== snapshot.generation ||
+					requestedPoint.revision !== snapshot.revision
+				) {
+					this.#clearHoveredLink();
+					continue;
+				}
 				if (requestedPoint.row >= snapshot.totalRows) {
 					this.#presentHoveredLink(undefined, requestedPoint);
 					continue;
 				}
-				const startRow = requestedPoint.row > 0n ? requestedPoint.row - 1n : 0n;
-				const rowCount = Math.min(3, Number(snapshot.totalRows - startRow));
 				const abortController = new AbortController();
 				this.#linkAbortController = abortController;
-				const result = await this.readBufferRows(
-					{
-						detail: 'render',
-						generation: snapshot.generation,
-						maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
-						revision: snapshot.revision,
-						rowCount,
-						startRow,
-					},
-					abortController.signal,
+				const lookup = await this.#readCompleteLinkLogicalLine(
+					snapshot,
+					requestedPoint.row,
+					abortController,
 				);
 				if (this.#linkAbortController === abortController) {
 					this.#linkAbortController = undefined;
@@ -2215,20 +2331,36 @@ export class ProjectedTerminal {
 				if (abortController.signal.aborted) continue;
 				const currentPoint = this.#pendingLinkPoint ?? requestedPoint;
 				this.#pendingLinkPoint = undefined;
-				if (result.kind !== 'rows') {
+				if (!this.#linkPointIsCurrent(currentPoint)) {
+					this.#clearHoveredLink();
+					continue;
+				}
+				if (lookup === undefined) {
 					this.#presentHoveredLink(undefined, currentPoint);
 					continue;
 				}
-				const endRow = result.startRow + BigInt(result.rows.length - 1);
-				const links = detectTerminalRowLinks(result.rows, this.metadata?.currentDirectory ?? '');
+				if (
+					currentPoint.generation !== lookup.generation ||
+					currentPoint.revision !== lookup.revision
+				) {
+					this.#pendingLinkPoint = currentPoint;
+					continue;
+				}
+				const logicalStartRow = lookup.rows[0]?.index;
+				const endRow = lookup.rows.at(-1)?.index;
+				if (logicalStartRow === undefined || endRow === undefined) {
+					this.#presentHoveredLink(undefined, currentPoint);
+					continue;
+				}
+				const links = detectTerminalRowLinks(lookup.rows, this.metadata?.currentDirectory ?? '');
 				this.#linkCache = {
 					endRow,
-					generation: result.generation,
+					generation: lookup.generation,
 					links,
-					revision: result.revision,
-					startRow: result.startRow,
+					revision: lookup.revision,
+					startRow: logicalStartRow,
 				};
-				if (currentPoint.row < result.startRow || currentPoint.row > endRow) {
+				if (currentPoint.row < logicalStartRow || currentPoint.row > endRow) {
 					this.#pendingLinkPoint = currentPoint;
 					continue;
 				}
@@ -2245,6 +2377,132 @@ export class ProjectedTerminal {
 				void this.#drainLinkLookups();
 			}
 		}
+	}
+
+	async #readCompleteLinkLogicalLine(
+		snapshot: TerminalBufferRowsSnapshot,
+		targetRow: bigint,
+		abortController: AbortController,
+	): Promise<ProjectedLinkLookup | undefined> {
+		const startRow = targetRow > 0n ? targetRow - 1n : 0n;
+		const rowCount = Math.min(3, Number(snapshot.totalRows - startRow));
+		const result = await this.readBufferRows(
+			{
+				detail: 'render',
+				generation: snapshot.generation,
+				maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+				revision: snapshot.revision,
+				rowCount,
+				startRow,
+			},
+			abortController.signal,
+		);
+		if (result.kind !== 'rows') return undefined;
+		const rows = await this.#completeLinkLogicalLine(result, targetRow, abortController);
+		return rows === undefined
+			? undefined
+			: { generation: result.generation, revision: result.revision, rows };
+	}
+
+	async #completeLinkLogicalLine(
+		initial: TerminalBufferRows,
+		targetRow: bigint,
+		abortController: AbortController,
+	): Promise<readonly TerminalBufferRow[] | undefined> {
+		const window: ProjectedLinkWindow = {
+			direction: undefined,
+			pageRows: LINK_LOOKUP_INITIAL_PAGE_ROWS,
+			remainingBytes: PROTOCOL_LIMITS.maxRowWindowBytes - initial.byteLength,
+			rows: [...initial.rows],
+		};
+		const columns = Math.max(1, this.metadata?.columns ?? 1);
+		const rowLimit = Math.max(
+			1,
+			Math.min(
+				PROTOCOL_LIMITS.maxRowWindowRows,
+				Math.floor(PROTOCOL_LIMITS.maxFrameCells / columns),
+			),
+		);
+		return this.#extendLinkLogicalLine(window, initial, targetRow, rowLimit, abortController);
+	}
+
+	async #extendLinkLogicalLine(
+		window: ProjectedLinkWindow,
+		initial: TerminalBufferRows,
+		targetRow: bigint,
+		rowLimit: number,
+		abortController: AbortController,
+	): Promise<readonly TerminalBufferRow[] | undefined> {
+		const logicalLine = logicalLineInWindow(window.rows, targetRow);
+		if (logicalLine === undefined) return undefined;
+		if (logicalLine.completeBefore && logicalLine.completeAfter) return logicalLine.rows;
+		if (
+			window.rows.length >= rowLimit ||
+			window.remainingBytes < TERMINAL_ROW_WINDOW_HEADER_BYTES
+		) {
+			return undefined;
+		}
+		const direction = logicalLine.completeBefore ? 'forward' : 'backward';
+		const pageRows =
+			window.direction === direction ? window.pageRows : LINK_LOOKUP_INITIAL_PAGE_ROWS;
+		const availableRows = Math.min(pageRows, rowLimit - window.rows.length);
+		const boundaryRow =
+			direction === 'backward' ? window.rows[0]?.index : window.rows.at(-1)?.index;
+		if (boundaryRow === undefined) return undefined;
+		const remainingRows =
+			direction === 'backward' ? boundaryRow : initial.totalRows - (boundaryRow + 1n);
+		const requestedRows = Number(
+			remainingRows < BigInt(availableRows) ? remainingRows : BigInt(availableRows),
+		);
+		if (requestedRows <= 0) return undefined;
+		const page = await this.#readLinkPage({
+			abortController,
+			direction,
+			generation: initial.generation,
+			maximumBytes: window.remainingBytes,
+			revision: initial.revision,
+			row: direction === 'backward' ? boundaryRow : boundaryRow + 1n,
+			rowCount: requestedRows,
+		});
+		if (page === undefined) return undefined;
+		window.remainingBytes -= page.byteLength;
+		if (direction === 'backward') window.rows.unshift(...page.rows);
+		else window.rows.push(...page.rows);
+		window.direction = direction;
+		window.pageRows = Math.min(pageRows * 2, rowLimit - window.rows.length);
+		return this.#extendLinkLogicalLine(window, initial, targetRow, rowLimit, abortController);
+	}
+
+	async #readLinkPage(options: {
+		readonly abortController: AbortController;
+		readonly direction: 'backward' | 'forward';
+		readonly generation: bigint;
+		readonly maximumBytes: number;
+		readonly revision: bigint;
+		readonly row: bigint;
+		readonly rowCount: number;
+	}): Promise<TerminalBufferRows | undefined> {
+		if (options.rowCount <= 0 || options.abortController.signal.aborted) return undefined;
+		const startRow =
+			options.direction === 'backward' ? options.row - BigInt(options.rowCount) : options.row;
+		const result = await this.readBufferRows(
+			{
+				detail: 'render',
+				generation: options.generation,
+				maximumBytes: options.maximumBytes,
+				revision: options.revision,
+				rowCount: options.rowCount,
+				startRow,
+			},
+			options.abortController.signal,
+		);
+		if (result.kind === 'too-large' && options.rowCount > 1) {
+			return this.#readLinkPage({
+				...options,
+				rowCount: Math.max(1, Math.floor(options.rowCount / 2)),
+			});
+		}
+		return result.kind === 'rows' ? result : undefined;
 	}
 
 	#surfaceApplicationMouseOwned(): boolean {
@@ -2269,6 +2527,7 @@ export class ProjectedTerminal {
 			this.#surfaceSelectionOwned() &&
 			link !== undefined &&
 			point !== undefined &&
+			this.#linkPointIsCurrent(point) &&
 			(this.#surfaceMouseModifiers.control || this.#surfaceMouseModifiers.meta) &&
 			isPermittedExternalTerminalTarget(link)
 		);
@@ -2344,6 +2603,7 @@ export class ProjectedTerminal {
 	}
 
 	#invalidateLinkCache(): void {
+		this.#linkEpoch += 1n;
 		this.#linkCache = undefined;
 		this.#clearHoveredLink();
 	}
@@ -4144,7 +4404,10 @@ export class ProjectedTerminal {
 		this.#queueLinkLookup({
 			column: point.column,
 			control: event.ctrlKey,
+			generation: this.#historyGeneration,
+			linkEpoch: this.#linkEpoch,
 			meta: event.metaKey,
+			revision: this.#historyRevision,
 			row: BigInt(point.row),
 		});
 	};
@@ -4292,9 +4555,15 @@ export class ProjectedTerminal {
 		if (!event.ctrlKey && !event.metaKey) return;
 		const point = this.#selectionPoint(event);
 		const link = this.#hoveredLink;
+		const hoveredPoint = this.#hoveredLinkPoint;
+		if (hoveredPoint !== undefined && !this.#linkPointIsCurrent(hoveredPoint)) {
+			this.#clearHoveredLink();
+			return;
+		}
 		if (
 			point === null ||
 			link === undefined ||
+			hoveredPoint === undefined ||
 			!terminalLinkContains(link, point.column, Number(BigInt(point.row))) ||
 			!isPermittedExternalTerminalTarget(link) ||
 			link.target?.kind !== 'url'
@@ -4527,6 +4796,7 @@ export class ProjectedTerminal {
 	}
 
 	#handleSurfaceResize(): void {
+		this.#invalidateLinkCache();
 		this.#renderer?.syncSurfacePadding();
 		this.#updateInputPosition();
 		this.#sendResizeIfChanged();
@@ -4542,6 +4812,7 @@ export class ProjectedTerminal {
 	}
 
 	readonly #handleWindowResize = (): void => {
+		this.#invalidateLinkCache();
 		this.#syncDevicePixelRatio();
 		this.#renderer?.syncSurfacePadding();
 		this.#updateInputPosition();
@@ -4558,6 +4829,7 @@ export class ProjectedTerminal {
 		if (view === null || view === undefined || renderer === undefined) return;
 		const ratio = view.devicePixelRatio ?? 1;
 		if (!renderer.setDevicePixelRatio(ratio)) return;
+		this.#invalidateLinkCache();
 		this.#devicePixelRatio = Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
 		this.#watchDevicePixelRatio(view);
 		this.#updateInputPosition();
@@ -5205,6 +5477,28 @@ function consumeWheelSteps(
 	if (!Number.isFinite(total)) return { remainder: 0, steps: 0 };
 	const steps = Math.trunc(total / step);
 	return { remainder: total - steps * step, steps };
+}
+
+function searchAnchorFromSelection(
+	selection: SelectionChanged,
+): { readonly column: number; readonly row: number } | undefined {
+	if (selection.state !== 'active') return undefined;
+	const row = BigInt(selection.start.row);
+	if (row > BigInt(Number.MAX_SAFE_INTEGER)) return undefined;
+	return { column: selection.start.column, row: Number(row) };
+}
+
+function selectionMatchesSearch(
+	selection: SelectionChanged,
+	match: TerminalSearchMatch | null,
+): boolean {
+	if (selection.state !== 'active' || match === null || selection.rectangle) return false;
+	return (
+		selection.start.column === match.start.column &&
+		BigInt(selection.start.row) === BigInt(match.start.row) &&
+		selection.end.column === match.end.column &&
+		BigInt(selection.end.row) === BigInt(match.end.row)
+	);
 }
 
 function sanitizePaste(text: string): { readonly replaced: number; readonly sanitized: string } {

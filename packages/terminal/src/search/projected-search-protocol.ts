@@ -1,10 +1,15 @@
 import type { TerminalBufferRow } from '../buffer-rows';
-import type { TerminalSearchMatch, TerminalSearchOptions } from './terminal-search';
+import type {
+	TerminalDirectionalSearchOptions,
+	TerminalSearchMatch,
+	TerminalSearchOptions,
+} from './terminal-search';
 
 export type ProjectedSearchWorkerRequest =
 	| {
 			readonly generation: string;
 			readonly kind: 'start';
+			readonly navigation: TerminalDirectionalSearchOptions;
 			readonly options: TerminalSearchOptions;
 			readonly query: string;
 			readonly revision: string;
@@ -21,9 +26,17 @@ export type ProjectedSearchWorkerRequest =
 
 export type ProjectedSearchWorkerResponse =
 	| {
+			readonly activeMatch: TerminalSearchMatch | null;
 			readonly generation: string;
 			readonly kind: 'result';
 			readonly matches: readonly TerminalSearchMatch[];
+			readonly revision: string;
+			readonly searchId: number;
+	  }
+	| {
+			readonly generation: string;
+			readonly kind: 'progress';
+			readonly nextRow: string;
 			readonly revision: string;
 			readonly searchId: number;
 	  }

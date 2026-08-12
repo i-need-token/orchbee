@@ -61,25 +61,27 @@ function createController(
 	});
 	controller.open();
 	controller.setQuery(query);
+	const matches =
+		state === 'complete'
+			? [
+					{
+						end: { column: 9, row: 42 },
+						start: { column: 5, row: 42 },
+						text: query,
+					},
+					{
+						end: { column: 16, row: 71 },
+						start: { column: 12, row: 71 },
+						text: query,
+					},
+				]
+			: [];
 	controller.applySearchEvent({
+		activeMatch: matches[1] ?? null,
 		activeIndex: state === 'complete' ? 1 : -1,
 		errorKind: state === 'error' ? 'invalid-query' : null,
 		generation: 1n,
-		matches:
-			state === 'complete'
-				? [
-						{
-							end: { column: 9, row: 42 },
-							start: { column: 5, row: 42 },
-							text: query,
-						},
-						{
-							end: { column: 16, row: 71 },
-							start: { column: 12, row: 71 },
-							text: query,
-						},
-					]
-				: [],
+		matches,
 		query,
 		regexError: state === 'error' ? 'invalid' : null,
 		resultLimitReached: false,

@@ -74,7 +74,11 @@ export function registerProjectedTerminalActions({
 				getAvailability: () => ({ kind: 'enabled' }),
 				handler: {
 					execute: (context) => {
-						findController.open();
+						findController.open(
+							terminal.selection.state === 'active'
+								? (terminal.selection.preview ?? undefined)
+								: undefined,
+						);
 						context.markCommitted();
 						return { kind: 'completed' };
 					},

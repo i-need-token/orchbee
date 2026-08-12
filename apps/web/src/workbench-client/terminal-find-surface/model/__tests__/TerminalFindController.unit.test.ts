@@ -68,6 +68,27 @@ describe('TerminalFindController', () => {
 		});
 	});
 
+	it('seeds a newly opened find surface from the bounded Host selection preview', () => {
+		const updateSearch = vi.fn<TerminalSearchDriver['updateSearch']>();
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<TerminalSearchDriver['clearSearch']>(),
+			updateSearch,
+		});
+
+		controller.open('selected text');
+
+		expect(controller.getSnapshot()).toMatchObject({
+			isOpen: true,
+			query: 'selected text',
+			searchState: 'searching',
+		});
+		expect(updateSearch).toHaveBeenCalledWith('selected text', {
+			caseSensitive: false,
+			regex: false,
+			wholeWord: false,
+		});
+	});
+
 	it('reports history and selection eviction without retaining content', () => {
 		const controller = new TerminalFindController({
 			clearSearch: vi.fn<TerminalSearchDriver['clearSearch']>(),
@@ -119,6 +140,14 @@ function searchEvent(
 	activeIndex: number,
 ): ProjectedTerminalSearchEvent {
 	return {
+		activeMatch:
+			activeIndex < 0
+				? null
+				: {
+						end: { column: activeIndex + 1, row: activeIndex },
+						start: { column: activeIndex, row: activeIndex },
+						text: query,
+					},
 		activeIndex,
 		errorKind: null,
 		generation: 1n,

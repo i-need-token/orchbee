@@ -52,7 +52,10 @@ describe('ProjectedSearchController', () => {
 			revision: '7',
 		});
 		expect(worker.messages[1]).toMatchObject({ final: true, kind: 'page' });
-		expect(reveal).toHaveBeenCalledWith(expect.objectContaining({ start: { column: 0, row: 1 } }));
+		expect(reveal).toHaveBeenCalledWith(expect.objectContaining({ start: { column: 0, row: 1 } }), {
+			generation: 2n,
+			revision: 7n,
+		});
 		expect(changes).toHaveBeenLastCalledWith(
 			expect.objectContaining({ activeIndex: 0, state: 'complete' }),
 		);
@@ -186,6 +189,212 @@ describe('ProjectedSearchController', () => {
 		expect(worker.terminated).toBe(true);
 		expect(changes).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'timeout' }));
 	});
+
+	it('retains navigation requested during both debounce and an active scan', async () => {
+		vi.useFakeTimers();
+		const debounceWorker = createFakeWorker(true, 0, [0, 1]);
+		const scanWorker = createFakeWorker(false);
+		const createWorker = vi
+			.fn<ProjectedSearchControllerOptions['createWorker']>()
+			.mockReturnValueOnce(debounceWorker.value)
+			.mockReturnValueOnce(scanWorker.value);
+		const reveal = vi.fn<ProjectedSearchControllerOptions['onReveal']>();
+		const controller = new ProjectedSearchController({
+			createWorker,
+			onChange: () => {},
+			onReveal: reveal,
+			reader: createReader([bufferRow(0n, 'needle'), bufferRow(1n, 'needle')]),
+		});
+
+		controller.update('needle');
+		expect(controller.next(false)).toBe(true);
+		await vi.advanceTimersByTimeAsync(200);
+		expect(reveal).toHaveBeenLastCalledWith(
+			expect.objectContaining({ start: { column: 0, row: 1 } }),
+			expect.anything(),
+		);
+
+		controller.update('needle');
+		await vi.advanceTimersByTimeAsync(200);
+		expect(controller.next(false)).toBe(true);
+		scanWorker.respond(0, [0, 1]);
+		expect(reveal).toHaveBeenLastCalledWith(
+			expect.objectContaining({ start: { column: 0, row: 1 } }),
+			expect.anything(),
+		);
+	});
+
+	it('replays accepted navigation after a same-query revision invalidation', async () => {
+		vi.useFakeTimers();
+		const staleWorker = createFakeWorker(false);
+		const replacementWorker = createFakeWorker(true, 0, [0, 1]);
+		const createWorker = vi
+			.fn<ProjectedSearchControllerOptions['createWorker']>()
+			.mockReturnValueOnce(staleWorker.value)
+			.mockReturnValueOnce(replacementWorker.value);
+		const reveal = vi.fn<ProjectedSearchControllerOptions['onReveal']>();
+		const controller = new ProjectedSearchController({
+			createWorker,
+			onChange: () => {},
+			onReveal: reveal,
+			reader: createReader([bufferRow(0n, 'needle'), bufferRow(1n, 'needle')]),
+		});
+
+		controller.update('needle');
+		await vi.advanceTimersByTimeAsync(200);
+		expect(controller.next(false)).toBe(true);
+		controller.invalidate();
+		await vi.advanceTimersByTimeAsync(200);
+
+		expect(staleWorker.terminated).toBe(true);
+		expect(reveal).toHaveBeenLastCalledWith(
+			expect.objectContaining({ start: { column: 0, row: 1 } }),
+			expect.anything(),
+		);
+	});
+
+	it('keeps timeout terminal after aborting a stalled row read', async () => {
+		vi.useFakeTimers();
+		const worker = createFakeWorker(false);
+		const changes = vi.fn<ProjectedSearchControllerOptions['onChange']>();
+		const readBufferRows = vi.fn<TerminalBufferRowReader['readBufferRows']>(
+			async (_request, signal) =>
+				await new Promise<BufferRowsResult>((_resolve, reject) => {
+					signal.addEventListener('abort', () => reject(new Error('aborted row read')), {
+						once: true,
+					});
+				}),
+		);
+		const controller = new ProjectedSearchController({
+			createWorker: () => worker.value,
+			onChange: changes,
+			onReveal: () => {},
+			reader: {
+				getBufferRowsSnapshot: () => ({ generation: 2n, revision: 7n, totalRows: 1n }),
+				readBufferRows,
+			},
+		});
+
+		controller.update('needle');
+		await vi.advanceTimersByTimeAsync(200);
+		await vi.advanceTimersByTimeAsync(10_000);
+
+		expect(changes).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'timeout' }));
+	});
+
+	it('refreshes the inactivity watchdog when a row page makes progress', async () => {
+		vi.useFakeTimers();
+		const worker = createFakeWorker(false);
+		const changes = vi.fn<ProjectedSearchControllerOptions['onChange']>();
+		const readBufferRows = vi.fn<TerminalBufferRowReader['readBufferRows']>(
+			async () =>
+				await new Promise<BufferRowsResult>((resolve) => {
+					setTimeout(() => resolve(rowsResult([bufferRow(0n, 'needle')])), 6_000);
+				}),
+		);
+		const controller = new ProjectedSearchController({
+			createWorker: () => worker.value,
+			onChange: changes,
+			onReveal: () => {},
+			reader: {
+				getBufferRowsSnapshot: () => ({ generation: 2n, revision: 7n, totalRows: 1n }),
+				readBufferRows,
+			},
+		});
+
+		controller.update('needle');
+		await vi.advanceTimersByTimeAsync(200);
+		await vi.advanceTimersByTimeAsync(10_001);
+		expect(changes).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'searching' }));
+		await vi.advanceTimersByTimeAsync(5_999);
+		expect(changes).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'timeout' }));
+	});
+
+	it('prefetches at most one page while the Worker admits the bounded source', async () => {
+		vi.useFakeTimers();
+		const worker = createFakeWorker(false);
+		const rows = Array.from({ length: 10_000 }, (_, index) =>
+			identityBufferRow(BigInt(index), 'x'.repeat(113)),
+		);
+		const readBufferRows = vi.fn<TerminalBufferRowReader['readBufferRows']>(async (request) => {
+			const start = Number(request.startRow);
+			const page = rows.slice(start, start + request.rowCount);
+			return {
+				byteLength: page.length * 128,
+				detail: 'text',
+				generation: 2n,
+				kind: 'rows',
+				revision: 7n,
+				rows: page,
+				startRow: request.startRow,
+				totalRows: BigInt(rows.length),
+			};
+		});
+		const controller = new ProjectedSearchController({
+			createWorker: () => worker.value,
+			onChange: () => {},
+			onReveal: () => {},
+			reader: {
+				getBufferRowsSnapshot: () => ({
+					generation: 2n,
+					revision: 7n,
+					totalRows: BigInt(rows.length),
+				}),
+				readBufferRows,
+			},
+		});
+
+		controller.update('missing');
+		await vi.advanceTimersByTimeAsync(200);
+
+		expect(readBufferRows).toHaveBeenCalledTimes(2);
+		expect(worker.messages.filter((message) => message.kind === 'page')).toHaveLength(1);
+	});
+
+	it('rescans the full navigation domain instead of wrapping at the decoration cap', async () => {
+		vi.useFakeTimers();
+		const firstWorker = createFakeWorker(true, 0, [0]);
+		const nextWorker = createFakeWorker(true, 2, [0]);
+		const createWorker = vi
+			.fn<ProjectedSearchControllerOptions['createWorker']>()
+			.mockReturnValueOnce(firstWorker.value)
+			.mockReturnValueOnce(nextWorker.value);
+		const changes = vi.fn<ProjectedSearchControllerOptions['onChange']>();
+		const reveal = vi.fn<ProjectedSearchControllerOptions['onReveal']>();
+		const controller = new ProjectedSearchController({
+			createWorker,
+			onChange: changes,
+			onReveal: reveal,
+			reader: createReader([
+				bufferRow(0n, 'needle'),
+				bufferRow(1n, 'needle'),
+				bufferRow(2n, 'needle'),
+			]),
+		});
+
+		controller.update('needle', { maxResults: 1 }, { column: 0, row: 0 });
+		await vi.advanceTimersByTimeAsync(200);
+		expect(controller.next(false)).not.toBeNull();
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(createWorker).toHaveBeenCalledTimes(2);
+		expect(nextWorker.messages[0]).toMatchObject({
+			kind: 'start',
+			navigation: {
+				preserveStart: false,
+				reverse: false,
+				start: { column: 0, row: 0 },
+			},
+		});
+		expect(changes).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				activeIndex: -1,
+				activeMatch: expect.objectContaining({ start: { column: 0, row: 2 } }),
+				matches: [expect.objectContaining({ start: { column: 0, row: 0 } })],
+				state: 'complete',
+			}),
+		);
+	});
 });
 
 function createReader(
@@ -246,8 +455,13 @@ function identityBufferRow(index: bigint, text: string): TerminalBufferRow {
 	};
 }
 
-function createFakeWorker(respond: boolean): {
+function createFakeWorker(
+	respond: boolean,
+	activeRow = 1,
+	decorationRows: readonly number[] = [activeRow],
+): {
 	readonly messages: ProjectedSearchWorkerRequest[];
+	readonly respond: (activeRow?: number, decorationRows?: readonly number[]) => void;
 	readonly terminated: boolean;
 	readonly value: ProjectedSearchWorkerLike;
 } {
@@ -255,6 +469,45 @@ function createFakeWorker(respond: boolean): {
 	const messageListeners: Array<(event: MessageEvent<ProjectedSearchWorkerResponse>) => void> = [];
 	let terminated = false;
 	let start: Extract<ProjectedSearchWorkerRequest, { kind: 'start' }> | undefined;
+	const emitResult = (
+		resultActiveRow = activeRow,
+		resultDecorationRows: readonly number[] = decorationRows,
+	): void => {
+		if (start === undefined) return;
+		const activeMatch = {
+			end: { column: 5, row: resultActiveRow },
+			start: { column: 0, row: resultActiveRow },
+			text: 'needle',
+		};
+		const response: ProjectedSearchWorkerResponse = {
+			activeMatch,
+			generation: start.generation,
+			kind: 'result',
+			matches: resultDecorationRows.map((row) => ({
+				...activeMatch,
+				end: { ...activeMatch.end, row },
+				start: { ...activeMatch.start, row },
+			})),
+			revision: start.revision,
+			searchId: start.searchId,
+		};
+		for (const listener of messageListeners) {
+			listener({ data: response } as MessageEvent<ProjectedSearchWorkerResponse>);
+		}
+	};
+	const emitProgress = (page: Extract<ProjectedSearchWorkerRequest, { kind: 'page' }>): void => {
+		if (start === undefined) return;
+		const response: ProjectedSearchWorkerResponse = {
+			generation: start.generation,
+			kind: 'progress',
+			nextRow: ((page.rows.at(-1)?.index ?? -1n) + 1n).toString(),
+			revision: start.revision,
+			searchId: start.searchId,
+		};
+		for (const listener of messageListeners) {
+			listener({ data: response } as MessageEvent<ProjectedSearchWorkerResponse>);
+		}
+	};
 	const value = {
 		addEventListener: (
 			type: 'error' | 'message',
@@ -271,22 +524,9 @@ function createFakeWorker(respond: boolean): {
 		postMessage: (message: ProjectedSearchWorkerRequest) => {
 			messages.push(message);
 			if (message.kind === 'start') start = message;
-			if (!respond || message.kind !== 'page' || !message.final || start === undefined) return;
-			const match = {
-				end: { column: 5, row: 1 },
-				start: { column: 0, row: 1 },
-				text: 'needle',
-			};
-			const response: ProjectedSearchWorkerResponse = {
-				generation: start.generation,
-				kind: 'result',
-				matches: [match],
-				revision: start.revision,
-				searchId: start.searchId,
-			};
-			for (const listener of messageListeners) {
-				listener({ data: response } as MessageEvent<ProjectedSearchWorkerResponse>);
-			}
+			if (!respond || message.kind !== 'page' || start === undefined) return;
+			if (message.final) emitResult();
+			else emitProgress(message);
 		},
 		terminate: () => {
 			terminated = true;
@@ -294,6 +534,7 @@ function createFakeWorker(respond: boolean): {
 	} as ProjectedSearchWorkerLike;
 	return {
 		messages,
+		respond: emitResult,
 		get terminated() {
 			return terminated;
 		},

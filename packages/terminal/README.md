@@ -9,7 +9,7 @@ This package owns one projected terminal surface:
 - atomic packed-frame commit and snapshot recovery;
 - WebGPU rendering with a Canvas 2D fallback;
 - bounded history-window presentation;
-- client-side search and nearby-row link discovery;
+- client-side search and bounded logical-line link discovery;
 - Host-owned selection interaction and copy correlation;
 - keyboard, committed text, IME, mouse, focus, paste, resize, clear, and reset intents; and
 - visible-viewport accessibility.
@@ -254,7 +254,7 @@ fresh snapshot replaces the last readable history window.
 
 Retained history exposes a client-owned in-canvas scrollbar overlay. Its rightmost 16 CSS pixels form the interaction area; the shared Canvas 2D and WebGPU projection draws only an 8 CSS-pixel thumb inset by 4 CSS pixels, with a 20 CSS-pixel minimum height. History navigation and scrollbar interaction make it immediately visible, and inactivity removes its opacity after 1,500 milliseconds. Track presses jump proportionally, and captured scrollbar drags coalesce into bounded absolute row-window requests. The initiating primary pointer owns the drag until it ends; concurrent and secondary pointer events and wheel input are consumed without replacing its capture or anchor, and its synthesized release click is consumed once. Scrollbar ownership takes precedence over application mouse reporting, selection, and links, and is repaired on buttonless movement, cancellation, capture loss, focus or visibility loss, reset, and disposal. Navigation during a drag keeps the thumb fully visible, and the fade delay begins only after ownership ends or is repaired. The canvas remains `aria-hidden` and exposes no DOM scrollbar role; the existing keyboard and API history navigation remain the accessibility path.
 
-Search is client-side. The first non-empty query lazily creates a Worker and streams bounded text-detail pages through a source-neutral row reader. Query text and matches never enter Terminal Host or an Electron broker.
+Search is client-side. The first non-empty query lazily creates a Worker and streams bounded text-detail pages through a source-neutral row reader. One Worker page and one prefetched row request bound the pipeline; page credits refresh an inactivity watchdog, and the 16 MiB UTF-8 source limit publishes either one complete immutable result or no matches. Navigation requested during debounce or scanning remains queued across same-query revision invalidation. Decorations and result counts remain capped, while directional navigation independently scans the admitted retained search domain from the latest Host selection anchor and wraps without treating that decoration cap as the final match. The active match is reported separately, selected through a revision-pinned Host `set-range` command, and revealed even when it falls outside the decoration collection. Query text and matches never enter Terminal Host or an Electron broker.
 
 ```ts
 terminal.scrollLines(-1);
@@ -273,12 +273,15 @@ const result = await terminal.copySelectionAsync();
 if (result.kind === 'failed') reportCopyFailure(result.code);
 ```
 
-Link discovery reads only bounded generation/revision-pinned nearby rows. OSC 8 targets and OSC 133
-cell/row semantics arrive from Host-owned Ghostty state; this package never reparses their escape
-sequences. Explicit links take precedence over detected URL and path text. A modifier-assisted
-click revalidates the exact hovered cell before `ProjectedTerminal` emits one approved URL request;
-the application decides whether and how to open it. Filesystem and unknown targets are not opened
-by this package.
+Link discovery expands bounded generation/revision-pinned row reads until it has one complete
+soft-wrapped logical line. The admitted line is capped by the protocol row, cell, and byte limits;
+an over-limit line produces no partial detection. OSC 8 targets and OSC 133 cell/row semantics
+arrive from Host-owned Ghostty state; this package never reparses their escape sequences. Explicit
+links take precedence over detected URL and path text. Content revisions, viewport transitions,
+surface resize, device-pixel-ratio changes, and presentation geometry changes retire the hover
+cache. A modifier-assisted click revalidates the hovered generation, revision, hover epoch, and
+clicked cell before `ProjectedTerminal` emits one approved URL request; the application decides
+whether and how to open it. Filesystem and unknown targets are not opened by this package.
 
 Plain-text drops follow the same sanitization, review, ordering, and Host input path as paste. File drops are intentionally left to an application-owned capability that can resolve paths without exposing filesystem authority to the projected client.
 

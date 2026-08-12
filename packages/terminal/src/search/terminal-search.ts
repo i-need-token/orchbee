@@ -18,8 +18,19 @@ export interface TerminalSearchOptions {
 
 export interface TerminalSearchMatch {
 	readonly text: string;
-	readonly start: { readonly column: number; readonly row: number };
-	readonly end: { readonly column: number; readonly row: number };
+	readonly start: TerminalSearchPosition;
+	readonly end: TerminalSearchPosition;
+}
+
+export interface TerminalSearchPosition {
+	readonly column: number;
+	readonly row: number;
+}
+
+export interface TerminalDirectionalSearchOptions {
+	readonly preserveStart?: boolean;
+	readonly reverse?: boolean;
+	readonly start?: TerminalSearchPosition;
 }
 
 export interface TerminalSearchResultChangeEvent {
@@ -89,7 +100,7 @@ interface BufferSearchSegment {
 	readonly start: number;
 }
 
-function visitTerminalBufferMatches(
+export function visitTerminalBufferMatches(
 	rows: readonly TerminalBufferRow[],
 	query: string,
 	options: TerminalSearchOptions,

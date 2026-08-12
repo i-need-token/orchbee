@@ -5,16 +5,19 @@
 `ProjectedTerminal` follows the VS Code integrated-terminal find model while searching bounded,
 Host-provided text pages rather than a local VT buffer.
 
-| Behavior             | Orchbee contract                                                                                                                                                    |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Incremental input    | `updateSearch()` runs on a 200 ms trailing-edge debounce. A newer query cancels the pending query and its row reads.                                                |
-| Immediate navigation | `findNext()` and `findPrevious()` navigate the current result set immediately, reveal the match, and wrap.                                                          |
-| Search modes         | Literal, case-sensitive, whole-word, and JavaScript regular-expression modes are available. Invalid expressions produce an explicit result error.                   |
-| Match enumeration    | Matches do not overlap and advance by the complete match. Soft-wrapped rows remain one logical line; hard line breaks are crossed only when `spanLines` is enabled. |
-| Result status        | `onSearchResults` reports query, bounded matches, active index, revision/generation, regex validation, lifecycle state, and whether the result cap was reached.     |
-| Highlight bound      | Decorations and result counts collect at most 20,000 matches by default. `maxResults` may lower but never raise that bound.                                         |
-| Revision changes     | A changed Host revision cancels stale work and restarts the latest non-empty query after the same debounce.                                                         |
-| Empty input          | An empty query cancels row reads, terminates the active scan, clears decorations, and returns to the idle state.                                                    |
+| Behavior          | Orchbee contract                                                                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Incremental input | `updateSearch()` runs on a 200 ms trailing-edge debounce. A newer query cancels the pending query, its accepted navigation offset, and its row reads.                                       |
+| Navigation intent | Navigation requested during debounce or scanning is accepted as a signed offset and applied when the immutable result is available; same-query revision invalidation preserves that offset. |
+| Navigation        | `findNext()` and `findPrevious()` navigate from the Host selection anchor and wrap across the admitted retained search domain, independently of the bounded decoration collection.          |
+| Search modes      | Literal, case-sensitive, whole-word, and JavaScript regular-expression modes are available. Invalid expressions produce an explicit result error.                                           |
+| Match enumeration | Matches do not overlap and advance by the complete match. Soft-wrapped rows remain one logical line; hard line breaks are crossed only when `spanLines` is enabled.                         |
+| Result status     | `onSearchResults` reports query, bounded matches, the independent active match, its bounded-collection index when present, revision/generation, validation, lifecycle state, and cap.       |
+| Highlight bound   | Decorations and result counts collect at most 20,000 matches by default. `maxResults` may lower but never raise that bound.                                                                 |
+| Source bound      | A scan admits at most 16 MiB of UTF-8 row text. Exceeding that bound fails the whole immutable scan without publishing partial matches.                                                     |
+| Watchdog          | Ten seconds without a completed row read or Worker page credit retires the scan as `timeout`; later abort or Worker outcomes cannot replace that terminal state.                            |
+| Revision changes  | A changed Host revision cancels stale work and restarts the latest non-empty query after the same debounce.                                                                                 |
+| Empty input       | An empty query cancels row reads, terminates the active scan, clears decorations, and returns to the idle state.                                                                            |
 
 The application find surface owns shortcut focus, seeding from selection, mode controls,
 result-count presentation, query history, and localized accessible labels. `@orchbee/terminal`
@@ -24,7 +27,12 @@ owns bounded matching, navigation, decoration state, result events, cancellation
 
 The first non-empty query lazily creates one disposable Worker. A source-neutral reader streams
 revision- and generation-pinned text-detail row windows with one bounded row request in flight.
-The Worker scans completed logical lines while the next page is being requested.
+The Worker scans completed logical lines while the client prefetches at most one next page. A
+generation/revision-pinned page credit admits that prefetch and refreshes the inactivity watchdog,
+so fast row reads cannot queue an unbounded source ahead of the Worker's 16 MiB all-or-nothing
+decision. The Worker retains only the bounded decoration collection plus one directional active
+match. The client selects that active range through Terminal Host and reveals its absolute row; an
+active match beyond the decoration cap has an `activeIndex` of `-1` without becoming unreachable.
 
 Query text and matches remain in the renderer client. They never enter Electron Main or Terminal
 Host. Search therefore cannot inspect rows evicted from Host history, and it never reconstructs
