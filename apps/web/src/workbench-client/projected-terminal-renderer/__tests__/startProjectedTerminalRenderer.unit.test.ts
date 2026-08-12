@@ -269,6 +269,15 @@ describe('startProjectedTerminalRenderer', () => {
 			await vi.waitFor(() => expect(writeClipboardText).toHaveBeenCalledWith('copied from Host'));
 			expect(notifySelectionCopied).toHaveBeenCalledWith(16, '10');
 			expect(notifyBrokerFailure).not.toHaveBeenCalled();
+			emitTransportMessage({ kind: 'invalid-event' });
+			expect(dataset['projectedTerminalState']).toBe('failed');
+			expect(status).toMatchObject({
+				hidden: false,
+				textContent: '终端连接失败。',
+			});
+			emitTransportMessage({ frame: new Uint8Array([4, 5, 6]).buffer, kind: 'frame' });
+			expect(dataset['projectedTerminalState']).toBe('open');
+			expect(status).toMatchObject({ hidden: true, textContent: null });
 			emitSelectionCopyResult({
 				requestSequence: CanonicalUint64TextSchema.parse('11'),
 				result: { code: 'clipboard-denied', kind: 'failed', retryable: false },
@@ -353,7 +362,7 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(notifyExited).toHaveBeenCalledWith(bootstrap.terminalOutcome.event);
 			expect(dataset['projectedTerminalAttachmentId']).toBe(bootstrap.attachmentId);
 			expect(dataset['projectedTerminalState']).toBe('exited');
-			expect(dataset['projectedTerminalCommittedFrames']).toBe('1');
+			expect(dataset['projectedTerminalCommittedFrames']).toBe('2');
 			expect(dataset['projectedTerminalFinalFramePresented']).toBe('true');
 			expect(dataset['projectedTerminalRenderedGeneration']).toBe('1');
 			expect(dataset['projectedTerminalRenderedRevision']).toBe('1');
@@ -380,10 +389,11 @@ describe('startProjectedTerminalRenderer', () => {
 				throw new Error('transport unavailable listener is missing');
 			}
 			emitTransportUnavailable();
+			expect(dataset['projectedTerminalState']).toBe('exited');
 			expect(status).toMatchObject({
 				dataset: { projectedTerminalStatus: 'true' },
 				hidden: false,
-				textContent: '终端连接失败。',
+				textContent: '已复制 16 字节。',
 			});
 			session.dispose();
 			session.dispose();

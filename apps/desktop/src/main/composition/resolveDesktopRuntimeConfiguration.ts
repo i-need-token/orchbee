@@ -12,9 +12,12 @@ import {
 import { createDefaultTerminalProfile } from '../host';
 
 export interface DesktopRuntimeEnvironment {
+	readonly FORCE_COLOR?: string;
 	readonly LANG?: string;
 	readonly LC_ALL?: string;
 	readonly LC_CTYPE?: string;
+	readonly NODE_DISABLE_COLORS?: string;
+	readonly NO_COLOR?: string;
 	readonly ORCHBEE_DESKTOP_ENDPOINT_ID?: string;
 	readonly ORCHBEE_DESKTOP_GATEWAY?: string;
 	readonly ORCHBEE_DESKTOP_RECOVERY_DIRECTORY?: string;
@@ -186,6 +189,10 @@ export function resolveDesktopRuntimeConfiguration(
 			environment: [
 				{ name: 'COLORTERM', value: 'truecolor' },
 				{ name: 'TERM', value: 'xterm-256color' },
+				{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+				{ name: 'NO_COLOR', value: null },
+				{ name: 'FORCE_COLOR', value: null },
+				{ name: 'NODE_DISABLE_COLORS', value: null },
 				...terminalLocaleEnvironment,
 			],
 			executable,

@@ -1,14 +1,3 @@
-.status {
-	border: none;
-	clip-path: inset(50%);
-	height: var(--ob-ref-border-width-default);
-	overflow: hidden;
-	padding: 0;
-	position: absolute;
-	white-space: nowrap;
-	width: var(--ob-ref-border-width-default);
-}
-
 .terminalSurface {
 	box-sizing: border-box;
 	height: 100%;

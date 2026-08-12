@@ -147,7 +147,9 @@ export async function startProjectedTerminalRenderer(
 	let lastRenderedRevision: bigint | undefined;
 	let renderedFrames = 0;
 	let presentationRequestEpoch = 0;
+	let statusKind: 'connection-failure' | 'copy' | 'runtime-failure' | undefined;
 	let terminalOpened = false;
+	let terminalOutcomeKind: 'exited' | 'failed' | undefined;
 	let pendingPresentationConfiguration: TerminalPresentationConfiguration | undefined;
 	let resolveTransportUnavailable: (() => void) | undefined;
 	const transportUnavailable = new Promise<void>((resolve) => {
@@ -163,8 +165,21 @@ export async function startProjectedTerminalRenderer(
 		}
 	};
 
+	const clearStatus = (): void => {
+		status.textContent = null;
+		status.hidden = true;
+		statusKind = undefined;
+	};
+	const reportProjectionReady = (): void => {
+		if (!terminalOpened || terminalOutcomeKind !== undefined) return;
+		rootElement.dataset['projectedTerminalState'] = 'open';
+		if (statusKind === 'connection-failure') clearStatus();
+	};
 	const reportFailure = (): void => {
+		if (disposed || terminalOutcomeKind !== undefined) return;
 		rootElement.dataset['projectedTerminalState'] = 'failed';
+		statusKind = 'connection-failure';
+		status.setAttribute('role', 'alert');
 		status.textContent = intl.formatMessage(projectedTerminalMessages.connectionFailure);
 		status.hidden = false;
 	};
@@ -270,12 +285,16 @@ export async function startProjectedTerminalRenderer(
 			{ readonly kind: 'failed' }
 		>['event'],
 	): void => {
+		if (terminalOutcomeKind === 'exited') return;
+		terminalOutcomeKind = 'failed';
 		rootElement.dataset['projectedTerminalState'] = 'failed';
 		rootElement.dataset['projectedTerminalFailureKind'] = event.failure.kind;
 		rootElement.dataset['projectedTerminalFailureStage'] = event.failure.stage;
 		rootElement.dataset['projectedTerminalFinalRevision'] = event.finalRevision;
 		finalRevision = BigInt(event.finalRevision);
 		const message = intl.formatMessage(projectedTerminalMessages.runtimeFailure);
+		statusKind = 'runtime-failure';
+		status.setAttribute('role', 'alert');
 		status.textContent = message;
 		status.hidden = false;
 		terminal.notifyBrokerFailure({
@@ -316,9 +335,12 @@ export async function startProjectedTerminalRenderer(
 			);
 			pendingSubscriptions.push(
 				terminal.onExit((event) => {
+					if (terminalOutcomeKind === 'failed') return;
+					terminalOutcomeKind = 'exited';
 					rootElement.dataset['projectedTerminalState'] = 'exited';
 					rootElement.dataset['projectedTerminalFinalRevision'] = event.finalRevision;
 					finalRevision = BigInt(event.finalRevision);
+					if (statusKind === 'connection-failure') clearStatus();
 					updateFinalPresentation();
 				}),
 			);
@@ -403,6 +425,7 @@ export async function startProjectedTerminalRenderer(
 			);
 			pendingSubscriptions.push(
 				terminal.onSelectionCopyResult((event) => {
+					statusKind = 'copy';
 					rootElement.dataset['projectedTerminalCopySource'] = event.source;
 					rootElement.dataset['projectedTerminalCopyState'] = event.result.kind;
 					if (event.result.kind === 'completed') {
@@ -477,6 +500,7 @@ export async function startProjectedTerminalRenderer(
 				if (result === 'committed' || result === 'duplicate') {
 					committedFrames += 1;
 					rootElement.dataset['projectedTerminalCommittedFrames'] = String(committedFrames);
+					reportProjectionReady();
 				}
 				return;
 			}
@@ -543,7 +567,7 @@ export async function startProjectedTerminalRenderer(
 		findRoot.dataset['projectedTerminalFindSurface'] = 'true';
 		await terminal.open(rootElement);
 		terminalOpened = true;
-		rootElement.dataset['projectedTerminalState'] = 'open';
+		reportProjectionReady();
 		rootElement.dataset['projectedTerminalPresentationCommittedEpoch'] = '0';
 		rootElement.dataset['projectedTerminalPresentationDrawnEpoch'] = '0';
 		rootElement.dataset['projectedTerminalPresentationFontFamily'] =

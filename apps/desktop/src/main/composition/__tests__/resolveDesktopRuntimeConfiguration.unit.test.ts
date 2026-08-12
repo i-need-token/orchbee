@@ -161,6 +161,10 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.terminalLaunch.environment).toEqual([
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
+			{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+			{ name: 'NO_COLOR', value: null },
+			{ name: 'FORCE_COLOR', value: null },
+			{ name: 'NODE_DISABLE_COLORS', value: null },
 			{ name: 'LC_ALL', value: null },
 			{ name: 'LC_CTYPE', value: 'en_US.UTF-8' },
 		]);
@@ -179,6 +183,10 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.terminalLaunch.environment).toEqual([
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
+			{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+			{ name: 'NO_COLOR', value: null },
+			{ name: 'FORCE_COLOR', value: null },
+			{ name: 'NODE_DISABLE_COLORS', value: null },
 			{ name: 'LANG', value: 'en_US.UTF-8' },
 			{ name: 'LC_CTYPE', value: 'en_US.UTF-8' },
 		]);
@@ -201,6 +209,10 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.terminalLaunch.environment).toEqual([
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
+			{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+			{ name: 'NO_COLOR', value: null },
+			{ name: 'FORCE_COLOR', value: null },
+			{ name: 'NODE_DISABLE_COLORS', value: null },
 		]);
 	});
 
@@ -216,6 +228,29 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.runtimeDirectory).toBe(
 			path.join('C:\\Users\\orchbee\\AppData\\Roaming\\Orchbee', 'terminal-host'),
 		);
+	});
+
+	it('sets terminal identity and removes inherited parent color policy', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: 'C:\\repo\\apps\\desktop',
+			environment: {
+				FORCE_COLOR: '0',
+				NODE_DISABLE_COLORS: '1',
+				NO_COLOR: '1',
+			},
+			homeDirectory: 'C:\\Users\\orchbee',
+			platform: 'win32',
+			userDataPath: 'C:\\Users\\orchbee\\AppData\\Roaming\\Orchbee',
+		});
+
+		expect(configuration.terminalLaunch.environment).toEqual([
+			{ name: 'COLORTERM', value: 'truecolor' },
+			{ name: 'TERM', value: 'xterm-256color' },
+			{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+			{ name: 'NO_COLOR', value: null },
+			{ name: 'FORCE_COLOR', value: null },
+			{ name: 'NODE_DISABLE_COLORS', value: null },
+		]);
 	});
 
 	it('scopes the singleton endpoint to the product profile and validates the startup default', () => {

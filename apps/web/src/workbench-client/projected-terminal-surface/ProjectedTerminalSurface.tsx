@@ -29,7 +29,7 @@ export function ProjectedTerminalSurface({
 					</div>
 				) : null}
 				{view.failureMessage === null ? null : (
-					<div className={styles['status']} role='alert'>
+					<div data-projected-terminal-status='true' role='alert'>
 						{view.failureMessage}
 					</div>
 				)}
