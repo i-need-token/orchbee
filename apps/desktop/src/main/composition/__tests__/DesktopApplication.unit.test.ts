@@ -63,6 +63,18 @@ class TestMainPort extends EventEmitter {
 }
 
 describe('DesktopApplication', () => {
+	it('uses the launch profile background for the pre-document window surface', async () => {
+		const harness = createHarness();
+		const runtime = createRuntime();
+		const application = createApplication(harness.dependencies, 'linux', runtime);
+
+		await application.start();
+
+		expect(harness.windowOptions?.backgroundColor).toBe(
+			`#${runtime.terminalLaunch.terminalProfile.defaultBackgroundRgb.toString(16).padStart(6, '0')}`,
+		);
+	});
+
 	it('registers the Host exit listener before terminal runtime reconciliation', async () => {
 		const harness = createHarness();
 		const initialization =

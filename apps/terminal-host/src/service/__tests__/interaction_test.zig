@@ -19,6 +19,7 @@ const terminal_runtime = engine_boundary.runtime;
 const commitReaderBatch = terminal_runtime.testing.commitReaderBatchFn;
 const createWithOptionsUsingSpawner = terminal_runtime.testing.createWithOptionsUsingSpawnerFn;
 const recordReaderFailure = terminal_runtime.testing.recordReaderFailureFn;
+const ReaderBatchOutcome = terminal_runtime.testing.ReaderBatchOutcomeType;
 const RuntimeTestingHooks = terminal_runtime.testing.RuntimeTestingHooksType;
 const SchedulerTestingHooks = subject.testing.SchedulerTestingHooksType;
 
@@ -469,6 +470,27 @@ fn fillOutgoingLeaving(
     }
 }
 
+fn expectBellRecord(
+    record: []const u8,
+    attachment_id: core_module.AttachmentId,
+    sequence: u64,
+) !void {
+    const envelope = try protocol.validateTransportEnvelope(record);
+    try std.testing.expectEqual(protocol.MessageKind.terminal_bell, envelope.kind);
+    const Wire = struct {
+        attachmentId: []const u8,
+        sequence: []const u8,
+    };
+    const parsed = try control_wire.decode(Wire, std.testing.allocator, envelope.payload);
+    defer parsed.deinit();
+    var attachment_buffer: [32]u8 = undefined;
+    try std.testing.expectEqualStrings(
+        control_encode.identifierText(attachment_id, &attachment_buffer),
+        parsed.value.attachmentId,
+    );
+    try std.testing.expectEqual(sequence, try std.fmt.parseInt(u64, parsed.value.sequence, 10));
+}
+
 test "readable interaction capability distinguishes authorization from runtime ownership" {
     var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
     defer aggregate.deinitChecked(false) catch unreachable;
@@ -543,6 +565,92 @@ test "empty interaction scheduler completes without producing a batch" {
         try scheduler.schedule(std.testing.allocator, &aggregate, 1, &outgoing),
     );
     try std.testing.expectEqual(@as(usize, 0), outgoing.records().len);
+}
+
+test "bell delivery is per attachment, ordered, and baselined at admission" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const first_attachment_id = testId(core_module.AttachmentId, 0x81);
+    const second_attachment_id = testId(core_module.AttachmentId, 0x82);
+    const binding = try createReadableRuntime(&aggregate, connection_id, first_attachment_id);
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(binding.runtime, "\x07\x07"),
+    );
+    _ = try aggregate.attach(
+        connection_id,
+        second_attachment_id,
+        binding.terminal_id,
+        .{ .input = false, .read = true, .resize = false },
+        false,
+    );
+
+    var scheduler: subject.Scheduler = .{};
+    var first = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer first.deinit();
+    _ = try scheduler.schedule(std.testing.allocator, &aggregate, connection_id, &first);
+    try std.testing.expectEqual(@as(usize, 1), first.records().len);
+    try expectBellRecord(first.records()[0], first_attachment_id, 1);
+
+    var second = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer second.deinit();
+    _ = try scheduler.schedule(std.testing.allocator, &aggregate, connection_id, &second);
+    try std.testing.expectEqual(@as(usize, 1), second.records().len);
+    try expectBellRecord(second.records()[0], first_attachment_id, 2);
+
+    var drained = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer drained.deinit();
+    _ = try scheduler.schedule(std.testing.allocator, &aggregate, connection_id, &drained);
+    try std.testing.expectEqual(@as(usize, 0), drained.records().len);
+
+    _ = try aggregate.detach(connection_id, first_attachment_id);
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(binding.runtime, "\x07"),
+    );
+    var after_detach = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer after_detach.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &aggregate,
+        connection_id,
+        &after_detach,
+    );
+    try std.testing.expectEqual(@as(usize, 1), after_detach.records().len);
+    try expectBellRecord(after_detach.records()[0], second_attachment_id, 3);
+}
+
+test "a full outgoing batch retries the same bell sequence" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const attachment_id = testId(core_module.AttachmentId, 0x83);
+    const binding = try createReadableRuntime(&aggregate, connection_id, attachment_id);
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(binding.runtime, "\x07"),
+    );
+
+    var scheduler: subject.Scheduler = .{};
+    var full = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer full.deinit();
+    try fillOutgoingLeaving(&full, aggregate.core().epoch, 64);
+    try std.testing.expectEqual(
+        host_outgoing.ScheduleOutcome.batch_full,
+        try scheduler.schedule(std.testing.allocator, &aggregate, connection_id, &full),
+    );
+    try std.testing.expectEqual(@as(usize, 2), full.records().len);
+
+    var retry = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer retry.deinit();
+    _ = try scheduler.schedule(std.testing.allocator, &aggregate, connection_id, &retry);
+    try std.testing.expectEqual(@as(usize, 1), retry.records().len);
+    try expectBellRecord(retry.records()[0], attachment_id, 1);
 }
 
 test "readable capability binds identity and provisional export rollback restores sequence" {

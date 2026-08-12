@@ -18,7 +18,7 @@ pub const terminal_row_window_format_patch: u8 = 1;
 pub const transport_envelope_header_bytes = 64;
 pub const current_protocol_major: u16 = 0;
 pub const current_protocol_minor: u16 = 0;
-pub const current_protocol_patch: u16 = 2;
+pub const current_protocol_patch: u16 = 4;
 
 pub const Limits = struct {
     pub const cell_pixel_dimension = 4096;
@@ -99,6 +99,7 @@ pub const MessageKind = struct {
     pub const history_demand_accepted: u16 = 52;
     pub const history_changed: u16 = 53;
     pub const history_observed: u16 = 54;
+    pub const terminal_bell: u16 = 55;
     pub const selection_gesture: u16 = 60;
     pub const selection_command: u16 = 61;
     pub const selection_changed: u16 = 62;
@@ -112,6 +113,9 @@ pub const MessageKind = struct {
     pub const terminal_defaults_accepted: u16 = 71;
     pub const update_terminal_configuration: u16 = 72;
     pub const terminal_configuration_accepted: u16 = 73;
+    pub const clear_terminal: u16 = 74;
+    pub const reset_terminal: u16 = 75;
+    pub const terminal_control_accepted: u16 = 76;
 };
 
 pub const ProtocolError = error{
@@ -138,6 +142,7 @@ pub const PayloadEncoding = enum(u8) {
 /// field; it makes Host request coverage exhaustive when the registry grows.
 pub const RequestOperation = enum {
     attach_terminal,
+    clear_terminal,
     create_terminal,
     detach_terminal,
     dispose_terminal,
@@ -150,6 +155,7 @@ pub const RequestOperation = enum {
     ping,
     read_rows,
     resize_terminal,
+    reset_terminal,
     rows_applied,
     selection_command,
     selection_export,
@@ -293,6 +299,22 @@ pub fn messageContract(kind: u16) ?MessageContract {
             M.resize_accepted,
         ),
         M.resize_accepted => responseOnly("ResizeAccepted", .control_json),
+        M.clear_terminal => requestOnly(
+            "ClearTerminal",
+            .clear_terminal,
+            .control_json,
+            M.terminal_control_accepted,
+        ),
+        M.reset_terminal => requestOnly(
+            "ResetTerminal",
+            .reset_terminal,
+            .control_json,
+            M.terminal_control_accepted,
+        ),
+        M.terminal_control_accepted => responseOnly(
+            "TerminalControlAccepted",
+            .control_json,
+        ),
         M.key_input => requestOnly("KeyInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.text_input => requestOnly("TextInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.mouse_input => requestOnly("MouseInput", .semantic_input, .raw_bytes, M.input_accepted),
@@ -349,6 +371,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
             M.history_observed,
             .control_json,
         ),
+        M.terminal_bell => eventOnly("TerminalBell", .control_json),
         M.selection_gesture => requestOnly(
             "SelectionGesture",
             .selection_gesture,

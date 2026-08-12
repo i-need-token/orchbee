@@ -6,5 +6,6 @@ describe('ProjectedTerminalPlatformEffects', () => {
 	it('defines Browser-owned clipboard and external-link effects', () => {
 		expectTypeOf<ProjectedTerminalPlatformEffects>().toHaveProperty('openExternal');
 		expectTypeOf<ProjectedTerminalPlatformEffects>().toHaveProperty('writeClipboardText');
+		expectTypeOf<ProjectedTerminalPlatformEffects>().toHaveProperty('ringBell');
 	});
 });

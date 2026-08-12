@@ -57,6 +57,7 @@ function findController(): TerminalFindController {
 
 function terminalTarget(): ProjectedTerminalActionTarget {
 	return {
+		canControlTerminal: true,
 		copySelectionAsync: vi
 			.fn<ProjectedTerminalActionTarget['copySelectionAsync']>()
 			.mockResolvedValue({ byteLength: 8, kind: 'completed' }),
@@ -65,6 +66,7 @@ function terminalTarget(): ProjectedTerminalActionTarget {
 		openLinkAsync: vi
 			.fn<ProjectedTerminalActionTarget['openLinkAsync']>()
 			.mockResolvedValue({ kind: 'completed' }),
+		reset: vi.fn<ProjectedTerminalActionTarget['reset']>(),
 		selectAll: vi.fn<ProjectedTerminalActionTarget['selectAll']>(),
 		selection: {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),

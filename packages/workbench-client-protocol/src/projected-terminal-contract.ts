@@ -1,6 +1,7 @@
 import {
 	AttachmentIdSchema,
 	CanonicalUint64TextSchema,
+	ClearTerminalSchema,
 	CreationIdSchema,
 	FocusInputSchema,
 	FrameAppliedSchema,
@@ -13,6 +14,7 @@ import {
 	PasteInputSchema,
 	PROTOCOL_LIMITS,
 	ReadRowsSchema,
+	ResetTerminalSchema,
 	ResizeTerminalSchema,
 	RowsAppliedSchema,
 	SelectionChangedSchema,
@@ -21,6 +23,7 @@ import {
 	SetHistoryDemandSchema,
 	SetProjectionDemandSchema,
 	TerminalExitedSchema,
+	TerminalBellSchema,
 	TerminalFailedSchema,
 	TerminalIdSchema,
 	TextInputSchema,
@@ -79,6 +82,7 @@ export const ProjectedAttachmentBootstrapSchema = z
 	});
 
 export const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('clear-terminal'), payload: ClearTerminalSchema }),
 	z.strictObject({ kind: z.literal('focus-input'), payload: FocusInputSchema }),
 	z.strictObject({ kind: z.literal('frame-applied'), payload: FrameAppliedSchema }),
 	z.strictObject({ kind: z.literal('key-input'), payload: KeyInputSchema }),
@@ -87,6 +91,7 @@ export const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('paste-input'), payload: PasteInputSchema }),
 	z.strictObject({ kind: z.literal('read-rows'), payload: ReadRowsSchema }),
 	z.strictObject({ kind: z.literal('resize-terminal'), payload: ResizeTerminalSchema }),
+	z.strictObject({ kind: z.literal('reset-terminal'), payload: ResetTerminalSchema }),
 	z.strictObject({ kind: z.literal('rows-applied'), payload: RowsAppliedSchema }),
 	z.strictObject({ kind: z.literal('history-observed'), payload: HistoryObservedSchema }),
 	z.strictObject({ kind: z.literal('selection-command'), payload: SelectionCommandSchema }),
@@ -115,7 +120,17 @@ const ProjectedTerminalFailureSchema = z.strictObject({
 	code: z.string().min(1).max(128),
 	message: z.string().min(1).max(1024),
 	operation: z
-		.enum(['connection', 'copy', 'history', 'input', 'link', 'protocol', 'resize', 'selection'])
+		.enum([
+			'connection',
+			'control',
+			'copy',
+			'history',
+			'input',
+			'link',
+			'protocol',
+			'resize',
+			'selection',
+		])
 		.optional(),
 	requestSequence: CanonicalUint64TextSchema.optional(),
 	retryable: z.boolean(),
@@ -127,6 +142,7 @@ const ProjectedTerminalBinarySchema = z.union([
 ]);
 
 export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ event: TerminalBellSchema, kind: z.literal('bell') }),
 	z.strictObject({ frame: ProjectedTerminalBinarySchema, kind: z.literal('frame') }),
 	z.strictObject({ event: HistoryChangedSchema, kind: z.literal('history-changed') }),
 	z.strictObject({

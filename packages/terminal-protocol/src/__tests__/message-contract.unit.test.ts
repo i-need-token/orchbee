@@ -44,5 +44,20 @@ describe('message contract registry', () => {
 		expect(messagePayloadEncoding(MessageKind.selectionChanged, 'event')).toBe(
 			PayloadEncoding.controlJson,
 		);
+		expect(MessageKind.terminalBell).toBe(55);
+		expect(messagePayloadEncoding(MessageKind.terminalBell, 'event')).toBe(
+			PayloadEncoding.controlJson,
+		);
+		expect(messagePayloadEncoding(MessageKind.terminalBell, 'request')).toBeNull();
+		expect(messagePayloadEncoding(MessageKind.terminalBell, 'response')).toBeNull();
+		expect(MESSAGE_CONTRACTS[MessageKind.clearTerminal].request?.successKind).toBe(
+			MessageKind.terminalControlAccepted,
+		);
+		expect(MESSAGE_CONTRACTS[MessageKind.resetTerminal].request?.successKind).toBe(
+			MessageKind.terminalControlAccepted,
+		);
+		expect(messagePayloadEncoding(MessageKind.terminalControlAccepted, 'response')).toBe(
+			PayloadEncoding.controlJson,
+		);
 	});
 });

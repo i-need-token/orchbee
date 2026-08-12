@@ -1,5 +1,6 @@
 import {
 	AttachTerminalSchema,
+	ClearTerminalSchema,
 	CreateTerminalSchema,
 	DetachTerminalSchema,
 	EmptyControlSchema,
@@ -10,6 +11,7 @@ import {
 	ListTerminalsSchema,
 	NeedSnapshotSchema,
 	ReadRowsSchema,
+	ResetTerminalSchema,
 	ResizeTerminalSchema,
 	RowsAppliedSchema,
 	SelectionCommandSchema,
@@ -62,6 +64,10 @@ export function encodeControlRequest(
 			return encodeControlJson(value, DetachTerminalSchema);
 		case MessageKind.resizeTerminal:
 			return encodeControlJson(value, ResizeTerminalSchema);
+		case MessageKind.clearTerminal:
+			return encodeControlJson(value, ClearTerminalSchema);
+		case MessageKind.resetTerminal:
+			return encodeControlJson(value, ResetTerminalSchema);
 		case MessageKind.frameApplied:
 			return encodeControlJson(value, FrameAppliedSchema);
 		case MessageKind.needSnapshot:

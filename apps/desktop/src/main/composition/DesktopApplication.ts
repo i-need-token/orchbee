@@ -137,6 +137,10 @@ const MAX_PENDING_TERMINAL_EXIT_RETRIES = 64;
 const TERMINAL_EXIT_RETRY_DELAY_MILLISECONDS = 25;
 const TERMINAL_EXIT_ASSOCIATION_RETRY_LIMIT = 3;
 
+function terminalRgbCss(value: number): string {
+	return `#${value.toString(16).padStart(6, '0')}`;
+}
+
 export interface DesktopApplicationOptions {
 	readonly platform: NodeJS.Platform;
 	readonly preloadPath: string;
@@ -546,7 +550,9 @@ export class DesktopApplication {
 		}
 		this.#documentFailure = undefined;
 		const window = this.#dependencies.createWindow({
-			backgroundColor: '#1e1e1e',
+			backgroundColor: terminalRgbCss(
+				this.#options.runtime.terminalLaunch.terminalProfile.defaultBackgroundRgb,
+			),
 			height: 720,
 			show: false,
 			webPreferences: {

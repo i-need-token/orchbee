@@ -7,6 +7,7 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.action.findOpen': '在终端中查找',
 	'terminal.projected.action.findPrevious': '查找上一个匹配项',
 	'terminal.projected.action.openLink': '打开终端链接',
+	'terminal.projected.action.reset': '重置终端',
 	'terminal.projected.action.selectAll': '选择所有保留的终端输出',
 	'terminal.projected.action.unavailable': '此终端操作当前不可用。',
 	'terminal.projected.accessibility.deleted': '已删除：{text}',

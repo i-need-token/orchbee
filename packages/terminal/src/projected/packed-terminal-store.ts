@@ -786,7 +786,7 @@ export class PackedTerminalViewport {
 	}
 }
 
-export function projectedCellDisplayWidth(width: number): number {
+export function projectedCellDisplayWidth(width: number): 0 | 1 | 2 {
 	if (width === TerminalCellWidthCode.wide) return 2;
 	if (width === TerminalCellWidthCode.narrow) return 1;
 	return 0;

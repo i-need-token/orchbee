@@ -1,5 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { balanceSurfacePadding } from '../surface-size';
+import { balanceSurfacePadding, calculateSurfaceGrid } from '../surface-size';
+
+describe('calculateSurfaceGrid', () => {
+	it('keeps the mature two-column minimum when a positive content area is narrower', () => {
+		expect(
+			calculateSurfaceGrid(
+				{ width: 9, height: 20 },
+				{ width: 8, height: 16 },
+				{ top: 0, bottom: 0, left: 0, right: 0 },
+			),
+		).toEqual({ columns: 2, rows: 1 });
+	});
+
+	it('returns no grid when explicit padding consumes either content dimension', () => {
+		expect(
+			calculateSurfaceGrid(
+				{ width: 16, height: 16 },
+				{ width: 8, height: 16 },
+				{ top: 8, bottom: 8, left: 0, right: 0 },
+			),
+		).toBeUndefined();
+		expect(
+			calculateSurfaceGrid(
+				{ width: 16, height: 16 },
+				{ width: 8, height: 16 },
+				{ top: 0, bottom: 0, left: 8, right: 8 },
+			),
+		).toBeUndefined();
+	});
+});
 
 describe('balanceSurfacePadding', () => {
 	it('distributes whitespace equally after explicit padding', () => {

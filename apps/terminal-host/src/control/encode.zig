@@ -378,6 +378,20 @@ pub fn historyChanged(allocator: std.mem.Allocator, event: anytype) ![]u8 {
     );
 }
 
+pub fn terminalBell(
+    allocator: std.mem.Allocator,
+    attachment_id: anytype,
+    sequence: u64,
+) ![]u8 {
+    std.debug.assert(sequence > 0);
+    var attachment_buffer: [32]u8 = undefined;
+    return std.fmt.allocPrint(
+        allocator,
+        "{{\"attachmentId\":\"{s}\",\"sequence\":\"{d}\"}}",
+        .{ identifierText(attachment_id, &attachment_buffer), sequence },
+    );
+}
+
 pub fn selectionChanged(
     allocator: std.mem.Allocator,
     attachment_id: anytype,
@@ -483,6 +497,21 @@ pub fn writeResizeAccepted(writer: *std.Io.Writer, resized: anytype) !void {
             resized.geometry.columns,
             resized.revision,
             resized.geometry.rows,
+        },
+    );
+}
+
+pub fn writeTerminalControlAccepted(writer: *std.Io.Writer, update: anytype) !void {
+    var attachment_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    try writer.print(
+        "{{\"attachmentId\":\"{s}\",\"generation\":\"{d}\",\"operation\":\"{s}\",\"revision\":\"{d}\",\"terminalId\":\"{s}\"}}",
+        .{
+            identifierText(update.attachment_id, &attachment_buffer),
+            update.generation,
+            @tagName(update.operation),
+            update.revision,
+            identifierText(update.terminal_id, &terminal_buffer),
         },
     );
 }

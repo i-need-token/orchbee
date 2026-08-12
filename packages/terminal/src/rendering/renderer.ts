@@ -31,6 +31,11 @@ import {
 	type GlyphSize,
 } from '../glyph-constraints';
 import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from '../ghostty-sprites';
+import {
+	projectHistoryScrollbar,
+	type HistoryScrollbarInput,
+	type HistoryScrollbarProjection,
+} from '../history-scrollbar';
 import { searchMatchContainsCell, type TerminalSearchMatch } from '../search';
 import { additionalSurfaceMargins, balanceGridPadding } from '../surface-size';
 import { buildTextShapingPlan, type TextShapingPlan } from '../buildTextShapingPlan';
@@ -49,6 +54,7 @@ import type {
 	SelectionCoordinates,
 	SurfacePadding,
 } from '../types';
+import { resolvePackedCursorPresentation } from './resolvePackedCursorPresentation';
 
 export type RendererHealthEvent =
 	| { readonly state: 'ready'; readonly backend: 'webgpu' }
@@ -66,6 +72,7 @@ export type RendererFrameReason =
 	| 'font'
 	| 'blink'
 	| 'search'
+	| 'surface'
 	| 'scrollbar';
 
 export interface RendererFrameTelemetry {
@@ -111,6 +118,7 @@ export interface PackedRendererMetadata {
 		readonly row: number;
 		readonly shape: 'bar' | 'block' | 'underline';
 		readonly visible: boolean;
+		readonly wideTail: boolean;
 	};
 	readonly defaultColors: {
 		readonly backgroundRgb: number;
@@ -170,6 +178,11 @@ export interface PreeditSelection {
 	readonly start: number;
 	readonly end: number;
 }
+
+export type RendererHistoryScrollbar = Omit<
+	HistoryScrollbarInput,
+	'viewportHeight' | 'viewportWidth'
+>;
 
 interface PreeditLayout {
 	readonly cells: readonly PreeditCell[];
@@ -282,6 +295,40 @@ function packedOptionalColorRgb(value: number, defaultRgb: number): number | nul
 
 function rgbChannels(value: number): [number, number, number] {
 	return [(value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
+}
+
+export interface PackedPresentationColors {
+	readonly background: readonly [number, number, number];
+	readonly cursor: readonly [number, number, number];
+	readonly cursorAccent: readonly [number, number, number];
+	readonly foreground: readonly [number, number, number];
+	readonly searchActiveBackground: readonly [number, number, number];
+	readonly searchActiveForeground: readonly [number, number, number];
+	readonly searchBackground: readonly [number, number, number];
+	readonly searchForeground: readonly [number, number, number];
+	readonly selectionBackground: readonly [number, number, number];
+	readonly selectionForeground: readonly [number, number, number];
+}
+
+/** Resolve Host-owned terminal colors together with application-owned overlay colors. */
+export function resolvePackedPresentationColors(
+	defaultColors: PackedRendererMetadata['defaultColors'],
+	theme: Required<ITheme>,
+	cursorAccentOverride?: string,
+): PackedPresentationColors {
+	const background = rgbChannels(defaultColors.backgroundRgb);
+	return {
+		background,
+		cursor: rgbChannels(defaultColors.cursorRgb ?? defaultColors.foregroundRgb),
+		cursorAccent: cursorAccentOverride === undefined ? background : hexToRGB(cursorAccentOverride),
+		foreground: rgbChannels(defaultColors.foregroundRgb),
+		searchActiveBackground: hexToRGB(theme.searchActiveMatchBackground),
+		searchActiveForeground: hexToRGB(theme.searchActiveMatchForeground),
+		searchBackground: hexToRGB(theme.searchMatchBackground),
+		searchForeground: hexToRGB(theme.searchMatchForeground),
+		selectionBackground: hexToRGB(theme.selectionBackground),
+		selectionForeground: hexToRGB(theme.selectionForeground),
+	};
 }
 
 function packedCellWidth(value: number): number {
@@ -465,15 +512,18 @@ export class WebGPURenderer {
 	private preeditSelection: PreeditSelection = { start: 0, end: 0 };
 	private preeditDirty = false;
 	private fontDirty = false;
+	private surfaceDirty = false;
 
 	// Theme
 	private theme: Required<ITheme>;
+	private readonly cursorAccentOverride: string | undefined;
 
 	// DPI
 	private devicePixelRatio: number;
 	private renderedColumns = 0;
 	private renderedRows = 0;
 	private allowTransparency: boolean;
+	private packedDefaultBackgroundRgb: number | null = null;
 
 	// Selection
 	private currentSelectionCoords: SelectionCoordinates | null = null;
@@ -488,6 +538,8 @@ export class WebGPURenderer {
 	private activeSearchMatch: TerminalSearchMatch | null = null;
 	private searchDirty = false;
 	private currentAbsoluteTop = 0;
+	private historyScrollbar: RendererHistoryScrollbar | null = null;
+	private scrollbarDirty = false;
 
 	// Link hover
 	private hoveredLinkRange: { startX: number; startY: number; endX: number; endY: number } | null =
@@ -528,6 +580,7 @@ export class WebGPURenderer {
 		this.paddingBalance = options.paddingBalance ?? false;
 		this.cursorBlink = options.cursorBlink ?? false;
 		this.theme = { ...DEFAULT_THEME, ...options.theme };
+		this.cursorAccentOverride = options.theme?.cursorAccent;
 		this.devicePixelRatio = options.devicePixelRatio ?? window.devicePixelRatio ?? 1;
 		this.allowTransparency = options.allowTransparency ?? false;
 
@@ -1225,8 +1278,11 @@ export class WebGPURenderer {
 			this.ctx2d.setTransform(this.devicePixelRatio, 0, 0, this.devicePixelRatio, 0, 0);
 			this.ctx2d.textBaseline = 'alphabetic';
 			this.ctx2d.textAlign = 'left';
-			this.ctx2d.fillStyle = this.theme.background;
-			if (!this.allowTransparency) this.ctx2d.fillRect(0, 0, cssWidth, cssHeight);
+			if (!this.allowTransparency && this.packedDefaultBackgroundRgb !== null) {
+				const [red, green, blue] = rgbChannels(this.packedDefaultBackgroundRgb);
+				this.ctx2d.fillStyle = `rgb(${red}, ${green}, ${blue})`;
+				this.ctx2d.fillRect(0, 0, cssWidth, cssHeight);
+			}
 		}
 		this.syncSurfacePadding();
 	}
@@ -1280,6 +1336,7 @@ export class WebGPURenderer {
 		const backend = this.getBackend();
 		const metadata = buffer.metadata;
 		if (backend === 'uninitialized' || !metadata) return;
+		this.packedDefaultBackgroundRgb = metadata.defaultColors.backgroundRgb;
 		const timestamp = rendererNow();
 		this.currentSelectionCoords = this.projectedSelectionCoords;
 		this.currentVisibleRows = metadata.rows;
@@ -1295,15 +1352,20 @@ export class WebGPURenderer {
 		if (this.fontDirty) reasons.add('font');
 		if (this.textBlinkDirty) reasons.add('blink');
 		if (this.searchDirty) reasons.add('search');
+		if (this.surfaceDirty) reasons.add('surface');
+		if (this.scrollbarDirty) reasons.add('scrollbar');
 		if (reasons.size === 0) reasons.add('dirty');
 
+		const redrawAll = forceAll || this.surfaceDirty || this.scrollbarDirty;
 		this.resetFrameCounters();
 		if (this.useWebGPU) this.renderPackedWebGPU(buffer, metadata);
-		else this.renderPackedCanvas2D(buffer, metadata, forceAll);
+		else this.renderPackedCanvas2D(buffer, metadata, redrawAll);
 		this.fontDirty = false;
 		this.cursorAppearanceDirty = false;
 		this.searchDirty = false;
-		this.completeFrameTelemetry(backend, timestamp, reasons, forceAll, 0);
+		this.surfaceDirty = false;
+		this.scrollbarDirty = false;
+		this.completeFrameTelemetry(backend, timestamp, reasons, redrawAll, 0);
 	}
 
 	private resetFrameCounters(): void {
@@ -1407,13 +1469,18 @@ export class WebGPURenderer {
 	): PackedRowTextShaping & { readonly codepoints: Uint32Array } {
 		const texts = Array.from({ length: columns }, (_, column) => row.grapheme(column));
 		const codepoints = Uint32Array.from(texts, (text) => text.codePointAt(0) ?? 0);
+		const cursorPresentation = resolvePackedCursorPresentation(cursor, row.widths);
 		const eligible = (column: number): boolean => {
 			const text = texts[column] ?? '';
 			const flags = row.styleFlags[column] ?? 0;
 			const hidden =
 				(flags & TerminalStyleFlag.invisible) !== 0 ||
 				((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible);
-			const cursorBoundary = cursorEnabled && cursor.row === rowIndex && cursor.column === column;
+			const cursorBoundary =
+				cursorEnabled &&
+				cursor.row === rowIndex &&
+				column >= cursorPresentation.column &&
+				column < cursorPresentation.column + cursorPresentation.width;
 			const preeditBoundary =
 				preeditLayout !== null &&
 				preeditLayout.row === rowIndex &&
@@ -1487,6 +1554,10 @@ export class WebGPURenderer {
 		const renderedCursorStyle: RenderedCursorStyle = this.focused ? cursor.shape : 'block_hollow';
 		const cursorEnabled =
 			cursor.visible && (!this.focused || this.cursorVisible) && preeditLayout === null;
+		const cursorPresentation = resolvePackedCursorPresentation(
+			cursor,
+			buffer.rows[cursor.row]?.widths,
+		);
 		const shapings: Array<(PackedRowTextShaping & { readonly codepoints: Uint32Array }) | null> =
 			Array.from({ length: rows }, () => null);
 
@@ -1531,12 +1602,15 @@ export class WebGPURenderer {
 		const bgData: number[] = [];
 		const textData: number[] = [];
 		const overlayData: number[] = [];
-		const defaultBackground = rgbChannels(metadata.defaultColors.backgroundRgb);
-		const defaultForeground = rgbChannels(metadata.defaultColors.foregroundRgb);
-		const cursorColor = rgbChannels(
-			metadata.defaultColors.cursorRgb ?? metadata.defaultColors.foregroundRgb,
+		const presentation = resolvePackedPresentationColors(
+			metadata.defaultColors,
+			this.theme,
+			this.cursorAccentOverride,
 		);
-		const cursorAccent = defaultBackground;
+		const defaultBackground = presentation.background;
+		const defaultForeground = presentation.foreground;
+		const cursorColor = presentation.cursor;
+		const cursorAccent = presentation.cursorAccent;
 		const atlasWidth = this.atlasCanvas.width;
 		const atlasHeight = this.atlasCanvas.height;
 
@@ -1556,7 +1630,7 @@ export class WebGPURenderer {
 				const isBlockCursor =
 					cursorEnabled &&
 					renderedCursorStyle === 'block' &&
-					cursor.column === x &&
+					cursorPresentation.column === x &&
 					cursor.row === y;
 				const isFullBlockCursor =
 					isBlockCursor && this.detailedMetrics.cursorHeight === this.detailedMetrics.cellHeight;
@@ -1578,21 +1652,21 @@ export class WebGPURenderer {
 				const selected = this.isCoordinateInSelection(x, y);
 				const search = this.getSearchHighlight(x, y);
 				if (selected) {
-					background = hexToRGB(this.theme.selectionBackground);
-					foreground = hexToRGB(this.theme.selectionForeground);
+					background = [...presentation.selectionBackground];
+					foreground = [...presentation.selectionForeground];
 				} else if (search !== null) {
-					background = hexToRGB(
-						search === 'active'
-							? this.theme.searchActiveMatchBackground
-							: this.theme.searchMatchBackground,
-					);
-					foreground = hexToRGB(
-						search === 'active'
-							? this.theme.searchActiveMatchForeground
-							: this.theme.searchMatchForeground,
-					);
+					background = [
+						...(search === 'active'
+							? presentation.searchActiveBackground
+							: presentation.searchBackground),
+					];
+					foreground = [
+						...(search === 'active'
+							? presentation.searchActiveForeground
+							: presentation.searchForeground),
+					];
 				}
-				if (isFullBlockCursor) background = cursorColor;
+				if (isFullBlockCursor) background = [...cursorColor];
 				if (
 					background[0] !== defaultBackground[0] ||
 					background[1] !== defaultBackground[1] ||
@@ -1604,7 +1678,12 @@ export class WebGPURenderer {
 					pushRect(bgData, cellX, cellY, cellWidth, this.metrics.height, background);
 				}
 				if (isBlockCursor && !isFullBlockCursor) {
-					const geometry = cursorBlockGeometry(x, y, this.detailedMetrics);
+					const geometry = cursorBlockGeometry(
+						x,
+						y,
+						this.detailedMetrics,
+						cursorPresentation.width,
+					);
 					pushRect(bgData, geometry.x, geometry.y, geometry.width, geometry.height, cursorColor);
 				}
 				if (
@@ -1617,7 +1696,7 @@ export class WebGPURenderer {
 				if ((flags & TerminalStyleFlag.invisible) !== 0) continue;
 				if ((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible) continue;
 
-				if (isBlockCursor) foreground = cursorAccent;
+				if (isBlockCursor) foreground = [...cursorAccent];
 				const alpha = (flags & TerminalStyleFlag.faint) !== 0 ? 0.5 : 1;
 				const span = shaping.plan[x];
 				let text = shaping.texts[x] ?? '';
@@ -1727,18 +1806,36 @@ export class WebGPURenderer {
 		if (cursorEnabled && renderedCursorStyle !== 'block') {
 			const geometries =
 				renderedCursorStyle === 'block_hollow'
-					? cursorOutlineGeometry(cursor.column, cursor.row, this.detailedMetrics)
+					? cursorOutlineGeometry(
+							cursorPresentation.column,
+							cursor.row,
+							this.detailedMetrics,
+							cursorPresentation.width,
+						)
 					: [
 							cursorStrokeGeometry(
 								renderedCursorStyle,
-								cursor.column,
+								cursorPresentation.column,
 								cursor.row,
 								this.detailedMetrics,
+								cursorPresentation.width,
 							),
 						];
 			for (const geometry of geometries) {
 				pushRect(overlayData, geometry.x, geometry.y, geometry.width, geometry.height, cursorColor);
 			}
+		}
+		const scrollbar = this.getHistoryScrollbarProjection(metadata);
+		if (scrollbar !== null && scrollbar.thumb.opacity > 0) {
+			pushRect(
+				overlayData,
+				scrollbar.thumb.x,
+				scrollbar.thumb.y,
+				scrollbar.thumb.width,
+				scrollbar.thumb.height,
+				[128, 128, 128],
+				scrollbar.thumb.opacity,
+			);
 		}
 
 		this.submitWebGPUFrame(bgData, textData, overlayData, columns, rows, defaultBackground);
@@ -1970,9 +2067,23 @@ export class WebGPURenderer {
 			rowsToRender.add(cursor.row);
 			rowsToRender.add(this.lastCursorPosition.y);
 		}
+		const scrollbar = this.getHistoryScrollbarProjection(metadata);
+		if (scrollbar !== null && scrollbar.thumb.opacity > 0) {
+			const firstScrollbarRow = Math.max(0, Math.floor(scrollbar.thumb.y / this.metrics.height));
+			const scrollbarRowEnd = Math.min(
+				rows,
+				Math.ceil((scrollbar.thumb.y + scrollbar.thumb.height) / this.metrics.height),
+			);
+			for (let row = firstScrollbarRow; row < scrollbarRowEnd; row++) rowsToRender.add(row);
+		}
 
-		const defaultBackground = rgbChannels(metadata.defaultColors.backgroundRgb);
-		const defaultForeground = rgbChannels(metadata.defaultColors.foregroundRgb);
+		const presentation = resolvePackedPresentationColors(
+			metadata.defaultColors,
+			this.theme,
+			this.cursorAccentOverride,
+		);
+		const defaultBackground = presentation.background;
+		const defaultForeground = presentation.foreground;
 		for (const y of rowsToRender) {
 			const row = buffer.rows[y];
 			if (!row || y < 0 || y >= rows) continue;
@@ -2015,13 +2126,13 @@ export class WebGPURenderer {
 				const selected = this.isCoordinateInSelection(x, y);
 				const search = this.getSearchHighlight(x, y);
 				if (selected) {
-					background = hexToRGB(this.theme.selectionBackground);
+					background = [...presentation.selectionBackground];
 				} else if (search !== null) {
-					background = hexToRGB(
-						search === 'active'
-							? this.theme.searchActiveMatchBackground
-							: this.theme.searchMatchBackground,
-					);
+					background = [
+						...(search === 'active'
+							? presentation.searchActiveBackground
+							: presentation.searchBackground),
+					];
 				}
 				if (
 					background[0] !== defaultBackground[0] ||
@@ -2053,28 +2164,48 @@ export class WebGPURenderer {
 				const span = shaping.plan[x];
 				let text = shaping.texts[x] ?? '';
 				if (span) text = span.start === x ? span.text : '';
-				if (text.length > 0) {
-					this.frameGlyphInstances++;
-					if (span) this.frameShapingRuns++;
-				}
 				const selected = this.isCoordinateInSelection(x, y);
 				const search = this.getSearchHighlight(x, y);
 				let foreground: ReturnType<typeof hexToRGB> | undefined;
 				if (selected) {
-					foreground = hexToRGB(this.theme.selectionForeground);
+					foreground = [...presentation.selectionForeground];
 				} else if (search === 'active') {
-					foreground = hexToRGB(this.theme.searchActiveMatchForeground);
+					foreground = [...presentation.searchActiveForeground];
 				} else if (search === 'match') {
-					foreground = hexToRGB(this.theme.searchMatchForeground);
+					foreground = [...presentation.searchForeground];
 				}
-				this.drawPackedCellText2D(ctx, row, shaping, x, y, width, text, metadata, foreground);
+				const paintedText = this.drawPackedCellText2D(
+					ctx,
+					row,
+					shaping,
+					x,
+					y,
+					width,
+					text,
+					metadata,
+					foreground,
+				);
+				if (paintedText) {
+					this.frameGlyphInstances++;
+					if (span) this.frameShapingRuns++;
+				}
 			}
 		}
 
 		if (preeditLayout) {
 			this.renderPackedPreedit2D(ctx, preeditLayout, defaultForeground, defaultBackground);
 		} else if (cursorEnabled) {
-			this.renderPackedCursor2D(ctx, buffer, metadata, renderedCursorStyle);
+			this.renderPackedCursor2D(ctx, buffer, metadata, renderedCursorStyle, presentation);
+		}
+		if (scrollbar !== null && scrollbar.thumb.opacity > 0) {
+			ctx.fillStyle = `rgba(128, 128, 128, ${scrollbar.thumb.opacity})`;
+			ctx.fillRect(
+				scrollbar.thumb.x,
+				scrollbar.thumb.y,
+				scrollbar.thumb.width,
+				scrollbar.thumb.height,
+			);
+			this.frameOverlayInstances++;
 		}
 		this.lastCursorPosition = { x: cursor.column, y: cursor.row };
 		this.preeditDirty = false;
@@ -2093,10 +2224,10 @@ export class WebGPURenderer {
 		metadata: PackedRendererMetadata,
 		colorOverride?: readonly [number, number, number],
 		drawDecorations = true,
-	): void {
+	): boolean {
 		const flags = row.styleFlags[column] ?? 0;
-		if ((flags & TerminalStyleFlag.invisible) !== 0) return;
-		if ((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible) return;
+		if ((flags & TerminalStyleFlag.invisible) !== 0) return false;
+		if ((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible) return false;
 		const cellX = column * this.metrics.width;
 		const cellY = rowIndex * this.metrics.height;
 		const cellWidth = width * this.metrics.width;
@@ -2189,6 +2320,7 @@ export class WebGPURenderer {
 			}
 		}
 		if ((flags & TerminalStyleFlag.faint) !== 0) ctx.globalAlpha = 1;
+		return text.length > 0;
 	}
 
 	private renderPackedCursor2D(
@@ -2196,16 +2328,16 @@ export class WebGPURenderer {
 		buffer: PackedRendererSource,
 		metadata: PackedRendererMetadata,
 		style: RenderedCursorStyle,
+		presentation: PackedPresentationColors,
 	): void {
-		const { column, row } = metadata.cursor;
-		const cursorColor = rgbChannels(
-			metadata.defaultColors.cursorRgb ?? metadata.defaultColors.foregroundRgb,
-		);
+		const { row } = metadata.cursor;
+		const packedRow = buffer.rows[row];
+		const { column, width } = resolvePackedCursorPresentation(metadata.cursor, packedRow?.widths);
+		const cursorColor = presentation.cursor;
 		ctx.fillStyle = `rgb(${cursorColor[0]}, ${cursorColor[1]}, ${cursorColor[2]})`;
 		if (style === 'block') {
-			const geometry = cursorBlockGeometry(column, row, this.detailedMetrics);
+			const geometry = cursorBlockGeometry(column, row, this.detailedMetrics, width);
 			ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
-			const packedRow = buffer.rows[row];
 			if (packedRow) {
 				const shaping = this.buildPackedRowTextShaping(
 					packedRow,
@@ -2215,8 +2347,7 @@ export class WebGPURenderer {
 					true,
 					null,
 				);
-				const width = packedCellWidth(packedRow.widths[column] ?? TerminalCellWidthCode.spacerTail);
-				if (width > 0) {
+				if (packedCellWidth(packedRow.widths[column] ?? TerminalCellWidthCode.spacerTail) > 0) {
 					ctx.save();
 					ctx.beginPath();
 					ctx.rect(geometry.x, geometry.y, geometry.width, geometry.height);
@@ -2230,7 +2361,7 @@ export class WebGPURenderer {
 						width,
 						shaping.texts[column] ?? '',
 						metadata,
-						rgbChannels(metadata.defaultColors.backgroundRgb),
+						presentation.cursorAccent,
 						false,
 					);
 					ctx.restore();
@@ -2240,8 +2371,8 @@ export class WebGPURenderer {
 		}
 		const geometries =
 			style === 'block_hollow'
-				? cursorOutlineGeometry(column, row, this.detailedMetrics)
-				: [cursorStrokeGeometry(style, column, row, this.detailedMetrics)];
+				? cursorOutlineGeometry(column, row, this.detailedMetrics, width)
+				: [cursorStrokeGeometry(style, column, row, this.detailedMetrics, width)];
 		for (const geometry of geometries) {
 			ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
 		}
@@ -2531,7 +2662,9 @@ export class WebGPURenderer {
 	}
 
 	setAllowTransparency(enabled: boolean): void {
+		if (enabled === this.allowTransparency) return;
 		this.allowTransparency = enabled;
+		this.surfaceDirty = true;
 		this.requestRenderCallback?.();
 	}
 
@@ -2566,6 +2699,20 @@ export class WebGPURenderer {
 		this.currentAbsoluteTop = nextTop;
 		this.projectedSelectionCoords = selection;
 		this.searchDirty = true;
+		this.requestRenderCallback?.();
+	}
+
+	setHistoryScrollbar(scrollbar: RendererHistoryScrollbar | null): void {
+		if (
+			this.historyScrollbar?.opacity === scrollbar?.opacity &&
+			this.historyScrollbar?.totalRows === scrollbar?.totalRows &&
+			this.historyScrollbar?.visibleRows === scrollbar?.visibleRows &&
+			this.historyScrollbar?.visibleStartRow === scrollbar?.visibleStartRow
+		) {
+			return;
+		}
+		this.historyScrollbar = scrollbar === null ? null : { ...scrollbar };
+		this.scrollbarDirty = true;
 		this.requestRenderCallback?.();
 	}
 
@@ -2605,6 +2752,18 @@ export class WebGPURenderer {
 		this.requestRenderCallback?.();
 	}
 
+	private getHistoryScrollbarProjection(
+		metadata: PackedRendererMetadata,
+	): HistoryScrollbarProjection | null {
+		const scrollbar = this.historyScrollbar;
+		if (scrollbar === null) return null;
+		return projectHistoryScrollbar({
+			...scrollbar,
+			viewportHeight: metadata.rows * this.metrics.height,
+			viewportWidth: metadata.columns * this.metrics.width,
+		});
+	}
+
 	get charWidth(): number {
 		return this.metrics.width;
 	}
@@ -2616,8 +2775,9 @@ export class WebGPURenderer {
 	clear(): void {
 		if (this.ctx2d) {
 			this.ctx2d.clearRect(0, 0, this.canvas.width, this.canvas.height);
-			this.ctx2d.fillStyle = this.theme.background;
-			if (!this.allowTransparency) {
+			if (!this.allowTransparency && this.packedDefaultBackgroundRgb !== null) {
+				const [red, green, blue] = rgbChannels(this.packedDefaultBackgroundRgb);
+				this.ctx2d.fillStyle = `rgb(${red}, ${green}, ${blue})`;
 				this.ctx2d.fillRect(0, 0, this.canvas.width, this.canvas.height);
 			}
 		}
@@ -2687,9 +2847,10 @@ function cursorStrokeGeometry(
 	column: number,
 	row: number,
 	metrics: DetailedFontMetrics,
+	width = 1,
 ): RectangleGeometry {
 	const thickness = metrics.cursorThickness;
-	const box = cursorBlockGeometry(column, row, metrics);
+	const box = cursorBlockGeometry(column, row, metrics, width);
 	if (style === 'bar') {
 		return {
 			x: box.x - thickness,
@@ -2713,11 +2874,12 @@ function cursorBlockGeometry(
 	column: number,
 	row: number,
 	metrics: DetailedFontMetrics,
+	width = 1,
 ): RectangleGeometry {
 	return {
 		x: column * metrics.cellWidth,
 		y: row * metrics.cellHeight + (metrics.cellHeight - metrics.cursorHeight) / 2,
-		width: metrics.cellWidth,
+		width: metrics.cellWidth * width,
 		height: metrics.cursorHeight,
 	};
 }
@@ -2726,9 +2888,10 @@ function cursorOutlineGeometry(
 	column: number,
 	row: number,
 	metrics: DetailedFontMetrics,
+	width = 1,
 ): readonly RectangleGeometry[] {
 	const thickness = metrics.cursorThickness;
-	const box = cursorBlockGeometry(column, row, metrics);
+	const box = cursorBlockGeometry(column, row, metrics, width);
 	return [
 		{ x: box.x, y: box.y, width: box.width, height: thickness },
 		{

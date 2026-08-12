@@ -44,6 +44,14 @@ pub const TerminalResize = struct {
     terminal_id: core_module.TerminalId,
 };
 
+pub const TerminalControl = struct {
+    attachment_id: core_module.AttachmentId,
+    generation: u64,
+    operation: terminal_runtime.TerminalControlOperation,
+    revision: u64,
+    terminal_id: core_module.TerminalId,
+};
+
 pub const CreateOutcome = union(enum) {
     created: TerminalIdentity,
     replayed: TerminalIdentity,
@@ -169,6 +177,11 @@ pub const ResizeError = core_module.CoreError || error{
     TerminalRuntimeMissing,
     TerminalRuntimeUnavailable,
     UnsafeRuntimeAfterResizeFailure,
+};
+
+pub const TerminalControlError = core_module.CoreError || error{
+    RuntimeStateDiverged,
+    TerminalRuntimeMissing,
 };
 
 /// THDD-001 retained-cleanup observability status. While a fatal-teardown pass
@@ -401,6 +414,18 @@ pub const HostRuntimeAggregate = struct {
         return session.runtime();
     }
 
+    pub fn synchronizeRuntimeObservation(
+        self: *HostRuntimeAggregate,
+        terminal_id: core_module.TerminalId,
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) core_module.CoreError!terminal_runtime.Geometry {
+        return host_runtime_maintenance.synchronizeRuntimeObservation(
+            &self.core_state,
+            terminal_id,
+            runtime,
+        );
+    }
+
     pub fn nextProjectionAt(
         self: *HostRuntimeAggregate,
         terminal_id: core_module.TerminalId,
@@ -618,12 +643,13 @@ pub const HostRuntimeAggregate = struct {
             error.TerminalResizeFailed, error.TerminalRuntimeUnavailable => error.TerminalRuntimeUnavailable,
         };
         defer runtime_preparation.deinit();
-        const transition = try self.core_state.attach(
+        const transition = try self.core_state.attachAtBellSequence(
             connection_id,
             attachment_id,
             terminal_id,
             capabilities,
             request_resize_lease,
+            runtime_preparation.bellSequence(),
         );
         std.debug.assert(transition == .applied);
         runtime_preparation.commit();
@@ -743,7 +769,8 @@ pub const HostRuntimeAggregate = struct {
         {
             return error.RuntimeStateDiverged;
         }
-        if (runtime.geometry().revision < terminal.observedRevision()) return error.RuntimeStateDiverged;
+        _ = self.synchronizeRuntimeObservation(terminal_id, runtime) catch
+            return error.RuntimeStateDiverged;
         const runtime_update = runtime.updateConfiguration(configuration) catch |err| {
             return switch (err) {
                 error.InvalidConfiguration => error.InvalidConfiguration,
@@ -761,10 +788,11 @@ pub const HostRuntimeAggregate = struct {
             terminal_id,
             configuration,
         ) catch unreachable;
-        _ = self.core_state.synchronizeRevision(
+        const runtime_geometry = self.synchronizeRuntimeObservation(
             terminal_id,
-            runtime_update.revision,
+            runtime,
         ) catch unreachable;
+        std.debug.assert(runtime_geometry.revision == runtime_update.revision);
         const updated_terminal = self.core_state.findTerminal(terminal_id).?;
         return .{
             .configuration = updated_terminal.effectiveConfiguration(),
@@ -791,15 +819,14 @@ pub const HostRuntimeAggregate = struct {
         if (!attachment.resize_lease) return error.ResizeLeaseDenied;
         const terminal_id = attachment.terminal_id;
         const runtime = self.runtimeFor(terminal_id) orelse return error.TerminalRuntimeMissing;
+        _ = self.synchronizeRuntimeObservation(terminal_id, runtime) catch
+            return error.RuntimeStateDiverged;
         _ = try self.core_state.resize(
             connection_id,
             attachment_id,
             geometry.columns,
             geometry.rows,
         );
-        if (runtime.geometry().revision < self.core_state.findTerminal(terminal_id).?.observedRevision()) {
-            return error.RuntimeStateDiverged;
-        }
         const revision = runtime.resizeGeometry(
             geometry.columns,
             geometry.rows,
@@ -821,18 +848,49 @@ pub const HostRuntimeAggregate = struct {
             ) catch {};
             return error.UnsafeRuntimeAfterResizeFailure;
         };
-        self.core_state.synchronizeGeometry(
+        const runtime_geometry = self.synchronizeRuntimeObservation(
             terminal_id,
-            geometry.columns,
-            geometry.rows,
-            geometry.cell_pixel_width,
-            geometry.cell_pixel_height,
-            revision,
+            runtime,
         ) catch unreachable;
+        std.debug.assert(runtime_geometry.columns == geometry.columns);
+        std.debug.assert(runtime_geometry.rows == geometry.rows);
+        std.debug.assert(runtime_geometry.cell_pixel_width == geometry.cell_pixel_width);
+        std.debug.assert(runtime_geometry.cell_pixel_height == geometry.cell_pixel_height);
+        std.debug.assert(runtime_geometry.revision == revision);
         return .{
             .attachment_id = attachment_id,
             .geometry = geometry,
             .revision = revision,
+            .terminal_id = terminal_id,
+        };
+    }
+
+    pub fn applyTerminalControl(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+        operation: terminal_runtime.TerminalControlOperation,
+    ) TerminalControlError!TerminalControl {
+        const attachment = try self.core_state.authorizeInput(connection_id, attachment_id);
+        const terminal_id = attachment.terminal_id;
+        const runtime = self.runtimeFor(terminal_id) orelse return error.TerminalRuntimeMissing;
+        _ = self.synchronizeRuntimeObservation(terminal_id, runtime) catch
+            return error.RuntimeStateDiverged;
+        const update = runtime.applyTerminalControl(operation) catch |err| return switch (err) {
+            error.RevisionOverflow => error.RevisionOverflow,
+            error.TerminalExited,
+            error.TerminalResizeFailed,
+            error.TerminalRuntimeUnavailable,
+            => error.InvalidPhase,
+        };
+        const observation = self.synchronizeRuntimeObservation(terminal_id, runtime) catch unreachable;
+        std.debug.assert(observation.generation == update.generation);
+        std.debug.assert(observation.revision == update.revision);
+        return .{
+            .attachment_id = attachment_id,
+            .generation = update.generation,
+            .operation = operation,
+            .revision = update.revision,
             .terminal_id = terminal_id,
         };
     }

@@ -102,6 +102,18 @@ describe('ProjectedTerminalBroker', () => {
 		const clonedFrame = structuredClone(posted.frame);
 		expect(clonedFrame.byteLength).toBe(payload.byteLength);
 		expect(broker.metrics).toMatchObject({ frameBytesForwarded: 3, framesForwarded: 1 });
+		hostListener?.(
+			eventEnvelope(
+				MessageKind.terminalBell,
+				PayloadEncoding.controlJson,
+				textEncoder.encode(JSON.stringify({ attachmentId: bootstrap.attachmentId, sequence: '4' })),
+				bootstrap.hostEpoch,
+			),
+		);
+		expect(postMessage.mock.calls[1]?.[0]).toEqual({
+			event: { attachmentId: bootstrap.attachmentId, sequence: '4' },
+			kind: 'bell',
+		});
 
 		controlListener?.(
 			eventEnvelope(
@@ -138,8 +150,8 @@ describe('ProjectedTerminalBroker', () => {
 		);
 		controlListener?.(validExitEnvelope);
 		controlListener?.(validExitEnvelope);
-		expect(postMessage).toHaveBeenCalledTimes(2);
-		expect(postMessage.mock.calls[1]?.[0]).toEqual({
+		expect(postMessage).toHaveBeenCalledTimes(3);
+		expect(postMessage.mock.calls[2]?.[0]).toEqual({
 			event: exit,
 			kind: 'terminal-exited',
 		});
@@ -189,6 +201,80 @@ describe('ProjectedTerminalBroker', () => {
 			kind: 'failure',
 		});
 		expect(broker.metrics.commandsRejected).toBe(1);
+	});
+
+	it('forwards clear and reset as typed Host controls and rejects a mismatched acknowledgement', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+		};
+		let resetCount = 0;
+		const requestControl = vi.fn<(kind: number) => Promise<unknown>>(async (kind) => {
+			const operation = kind === MessageKind.clearTerminal ? 'clear' : 'reset';
+			if (kind === MessageKind.resetTerminal) resetCount += 1;
+			return {
+				attachmentId: bootstrap.attachmentId,
+				generation: String(resetCount + 1),
+				operation: resetCount > 1 ? 'clear' : operation,
+				revision: String(resetCount + 1),
+				terminalId: bootstrap.terminalId,
+			};
+		});
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap);
+		broker.start();
+
+		for (const kind of ['clear-terminal', 'reset-terminal'] as const) {
+			emitter.emit('message', {
+				data: { kind, payload: { attachmentId: bootstrap.attachmentId } },
+			});
+		}
+		await vi.waitFor(() => expect(requestControl).toHaveBeenCalledTimes(2));
+		expect(requestControl).toHaveBeenNthCalledWith(
+			1,
+			MessageKind.clearTerminal,
+			{ attachmentId: bootstrap.attachmentId },
+			expect.anything(),
+		);
+		expect(requestControl).toHaveBeenNthCalledWith(
+			2,
+			MessageKind.resetTerminal,
+			{ attachmentId: bootstrap.attachmentId },
+			expect.anything(),
+		);
+		expect(postMessage).not.toHaveBeenCalled();
+
+		emitter.emit('message', {
+			data: { kind: 'reset-terminal', payload: { attachmentId: bootstrap.attachmentId } },
+		});
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({
+				failure: expect.objectContaining({
+					code: 'invalid-terminal-control-response',
+					operation: 'control',
+					retryable: false,
+				}),
+				kind: 'failure',
+			}),
+		);
 	});
 
 	it('routes one bounded row response without interpreting its cells in Main', async () => {

@@ -1,10 +1,13 @@
 --------------------- MODULE TerminalHistoryInteraction ---------------------
 EXTENDS Naturals, TLC
 
-\* Refines runtime-model claims TH-002, TH-006, TH-010, TH-011, and TH-012.
+\* Refines runtime-model claims TH-002, TH-006, TH-010, TH-011, TH-012, and TH-016.
 \* Row requests, history observation, selection, export handoff, search, and
 \* detach each preserve one authoritative interaction owner and one bounded
-\* acknowledgement-scoped flight.
+\* acknowledgement-scoped flight. ResizeScreenOrScrollbackEviction abstracts
+\* every generation-changing interaction invalidation, including application
+\* clear and reset, so stale row, anchor, selection, export, and search work can
+\* never promote after that mutation.
 
 CONSTANTS Attachments, MaxRevision, MaxGeneration, MaxSequence, MaxExportChunks
 

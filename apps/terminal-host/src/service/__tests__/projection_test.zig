@@ -523,9 +523,13 @@ test "a full dispatch batch preserves its committed projection prefix" {
         .allocation = first_allocation,
         .base_revision = null,
         .bytes = first_allocation[host_outgoing.owned_payload_prefix_bytes..],
+        .cell_pixel_height = 16,
+        .cell_pixel_width = 8,
+        .columns = 80,
         .generation = 1,
         .kind = .snapshot,
         .revision = 0,
+        .rows = 24,
         .sequence = 1,
     };
     @memset(first_encoded.bytes, 0);
@@ -540,9 +544,13 @@ test "a full dispatch batch preserves its committed projection prefix" {
         .allocation = second_allocation,
         .base_revision = null,
         .bytes = second_allocation[host_outgoing.owned_payload_prefix_bytes..],
+        .cell_pixel_height = 16,
+        .cell_pixel_width = 8,
+        .columns = 80,
         .generation = 1,
         .kind = .snapshot,
         .revision = 0,
+        .rows = 24,
         .sequence = 1,
     };
     @memset(second_encoded.bytes, 0);
@@ -655,6 +663,60 @@ test "same-terminal projection scheduling alternates after synchronous resize" {
         &second_frame.attachment_id,
     );
     try std.testing.expectEqual(@as(usize, 2), subject.testing.clockSampleCountFn(&scheduler));
+}
+
+test "projection synchronizes terminal-driven geometry before publishing its snapshot" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const fixture = try createRuntime(&aggregate, connection_id);
+    const attachment_id = testId(core_module.AttachmentId, 0x58, 0);
+    try activateAttachments(
+        &aggregate,
+        connection_id,
+        fixture.terminal_id,
+        &.{attachment_id},
+    );
+
+    try std.testing.expectEqual(.committed, commitReaderBatch(
+        fixture.runtime,
+        "\x1b[?40h\x1b[?3h",
+    ));
+    const runtime_geometry = fixture.runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 132), runtime_geometry.columns);
+    try std.testing.expectEqual(
+        @as(u16, 80),
+        aggregate.core().findTerminal(fixture.terminal_id).?.observedGeometry().columns,
+    );
+
+    var scheduler: subject.Scheduler = .{};
+    subject.testing.setClockSampleFn(&scheduler, std.time.ns_per_hour, 0);
+    var outgoing = Outgoing.init(std.testing.allocator);
+    defer outgoing.deinit();
+    try std.testing.expectEqual(
+        host_outgoing.ScheduleOutcome.complete,
+        try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            protocol.Limits.frame_bytes,
+            &outgoing,
+        ),
+    );
+    const frame = try onlyProjectionFrame(&outgoing);
+    try std.testing.expectEqual(protocol.FrameKind.snapshot, frame.kind);
+    try std.testing.expectEqual(runtime_geometry.columns, frame.columns);
+    try std.testing.expectEqual(runtime_geometry.rows, frame.rows);
+    try std.testing.expectEqual(runtime_geometry.revision, frame.revision);
+    const observed = aggregate.core().findTerminal(fixture.terminal_id).?;
+    try std.testing.expectEqual(runtime_geometry.columns, observed.observedGeometry().columns);
+    try std.testing.expectEqual(runtime_geometry.rows, observed.observedGeometry().rows);
+    try std.testing.expectEqual(
+        runtime_geometry.revision,
+        observed.observedGeometryRevision(),
+    );
 }
 
 test "128 continuously eligible same-terminal attachments emit in 128 polls" {

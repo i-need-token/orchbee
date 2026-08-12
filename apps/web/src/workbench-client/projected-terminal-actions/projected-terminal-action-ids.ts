@@ -7,6 +7,7 @@ export const PROJECTED_TERMINAL_ACTION_IDS = {
 	findOpen: 'terminal.search.open',
 	findPrevious: 'terminal.search.previous',
 	openLink: 'terminal.link.open',
+	reset: 'terminal.reset',
 	selectAll: 'terminal.selection.select-all',
 } as const;
 
@@ -19,6 +20,7 @@ export interface ProjectedTerminalActionCatalog {
 	readonly 'terminal.search.next': ActionSignature<void>;
 	readonly 'terminal.search.open': ActionSignature<void>;
 	readonly 'terminal.search.previous': ActionSignature<void>;
+	readonly 'terminal.reset': ActionSignature<void>;
 	readonly 'terminal.selection.copy': ActionSignature<void>;
 	readonly 'terminal.selection.select-all': ActionSignature<void>;
 }

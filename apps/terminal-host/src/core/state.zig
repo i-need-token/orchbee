@@ -66,6 +66,11 @@ pub const ProjectionBlockCommit = attachment_projection.BlockCommit;
 pub const Capabilities = broker_session.Capabilities;
 pub const Attachment = broker_session.Attachment;
 
+pub const BellDeliveryToken = struct {
+    attachment_id: AttachmentId,
+    sequence: u64,
+};
+
 pub const CoreError = error{
     AttachmentConflict,
     ConnectionConflict,
@@ -454,6 +459,25 @@ pub const HostCore = struct {
         capabilities: Capabilities,
         request_resize_lease: bool,
     ) (CoreError || std.mem.Allocator.Error)!TransitionOutcome {
+        return self.attachAtBellSequence(
+            connection_id,
+            attachment_id,
+            terminal_id,
+            capabilities,
+            request_resize_lease,
+            0,
+        );
+    }
+
+    pub fn attachAtBellSequence(
+        self: *HostCore,
+        connection_id: ConnectionId,
+        attachment_id: AttachmentId,
+        terminal_id: TerminalId,
+        capabilities: Capabilities,
+        request_resize_lease: bool,
+        bell_sequence: u64,
+    ) (CoreError || std.mem.Allocator.Error)!TransitionOutcome {
         switch (try self.validateAttachmentAdmission(
             connection_id,
             attachment_id,
@@ -471,8 +495,36 @@ pub const HostCore = struct {
             terminal_id,
             capabilities,
             request_resize_lease,
+            bell_sequence,
         );
         return .applied;
+    }
+
+    pub fn prepareBellDelivery(
+        self: *HostCore,
+        connection_id: ConnectionId,
+        attachment_id: AttachmentId,
+        observed_sequence: u64,
+    ) CoreError!?BellDeliveryToken {
+        const attachment = try self.resolveMutableAttachment(
+            connection_id,
+            attachment_id,
+            .read,
+        );
+        std.debug.assert(attachment.bell_cursor <= observed_sequence);
+        if (attachment.bell_cursor == observed_sequence) return null;
+        return .{
+            .attachment_id = attachment_id,
+            .sequence = attachment.bell_cursor + 1,
+        };
+    }
+
+    pub fn commitBellDelivery(self: *HostCore, token: BellDeliveryToken) void {
+        const attachment = self.rawAttachment(token.attachment_id) orelse unreachable;
+        std.debug.assert(attachment.capabilities.read);
+        std.debug.assert(attachment.bell_cursor < std.math.maxInt(u64));
+        std.debug.assert(attachment.bell_cursor + 1 == token.sequence);
+        attachment.bell_cursor = token.sequence;
     }
 
     pub fn validateAttachmentAdmission(
@@ -607,14 +659,20 @@ pub const HostCore = struct {
         revision: u64,
     ) CoreError!void {
         const terminal = try self.requireTerminal(terminal_id);
-        if (!terminal.acceptsRuntimeWork()) return error.InvalidPhase;
-        if (revision < terminal.observedRevision()) return error.InvalidPhase;
         const observed_geometry = terminal.observedGeometry();
         const geometry_changed = observed_geometry.columns != columns or
             observed_geometry.rows != rows or
             observed_geometry.cell_pixel_width != cell_pixel_width or
             observed_geometry.cell_pixel_height != cell_pixel_height;
         const revision_changed = terminal.observedRevision() != revision;
+        switch (terminal.phase()) {
+            .running, .finishing, .containing_failure => {},
+            .exited, .failed => {
+                if (!geometry_changed and !revision_changed) return;
+                return error.InvalidPhase;
+            },
+        }
+        if (revision < terminal.observedRevision()) return error.InvalidPhase;
         if (geometry_changed and !revision_changed) return error.InvalidPhase;
         if (!geometry_changed and !revision_changed) return;
         terminal.engine_observation.geometry = .{

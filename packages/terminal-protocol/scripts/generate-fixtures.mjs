@@ -35,7 +35,9 @@ import {
 	SelectionExportStartedSchema,
 	SetTerminalDefaultsSchema,
 	TerminalAcknowledgedSchema,
+	TerminalBellSchema,
 	TerminalConfigurationAcceptedSchema,
+	TerminalControlAcceptedSchema,
 	TerminalDefaultsAcceptedSchema,
 	TerminalExitedSchema,
 	TerminalFailedSchema,
@@ -538,6 +540,11 @@ function createControlConformanceFixture() {
 			},
 			'AttachTerminal',
 		),
+		clear_terminal: controlRequestText(
+			MessageKind.clearTerminal,
+			{ attachmentId },
+			'ClearTerminal',
+		),
 		create_terminal: controlRequestText(
 			MessageKind.createTerminal,
 			{ creationId, launch },
@@ -628,6 +635,11 @@ function createControlConformanceFixture() {
 				rows: 30,
 			},
 			'ResizeTerminal',
+		),
+		reset_terminal: controlRequestText(
+			MessageKind.resetTerminal,
+			{ attachmentId },
+			'ResetTerminal',
 		),
 		rows_applied: controlRequestText(
 			MessageKind.rowsApplied,
@@ -891,6 +903,7 @@ function createControlConformanceFixture() {
 			{ terminalId },
 			'TerminalAcknowledged',
 		),
+		terminal_bell: controlText(TerminalBellSchema, { attachmentId, sequence: '6' }, 'TerminalBell'),
 		terminal_configuration_accepted: controlText(
 			TerminalConfigurationAcceptedSchema,
 			{
@@ -902,6 +915,17 @@ function createControlConformanceFixture() {
 				terminalId,
 			},
 			'TerminalConfigurationAccepted',
+		),
+		terminal_control_accepted: controlTexts(
+			TerminalControlAcceptedSchema,
+			['clear', 'reset'].map((operation, index) => ({
+				attachmentId,
+				generation: String(4 + index),
+				operation,
+				revision: String(43 + index),
+				terminalId,
+			})),
+			'TerminalControlAccepted',
 		),
 		terminal_defaults_accepted: controlText(
 			TerminalDefaultsAcceptedSchema,

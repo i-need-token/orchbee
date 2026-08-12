@@ -11,3 +11,4 @@ export {
 	type InputAnchorRequest,
 } from './calculateInputAnchor';
 export { OrderedInputDispatcher } from './OrderedInputDispatcher';
+export { ghosttyCodepointWidth } from './ghosttyCodepointWidth';

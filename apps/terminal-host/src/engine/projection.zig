@@ -55,9 +55,13 @@ pub const EncodedFrame = struct {
     allocation: []u8,
     base_revision: ?u64,
     bytes: []u8,
+    cell_pixel_height: u16,
+    cell_pixel_width: u16,
+    columns: u16,
     generation: u64,
     kind: FrameKind,
     revision: u64,
+    rows: u16,
     sequence: u64,
 };
 
@@ -546,9 +550,13 @@ pub const Projection = struct {
             .allocation = allocation,
             .base_revision = base_revision,
             .bytes = allocation[output_prefix_bytes..],
+            .cell_pixel_height = self.captured_cell_pixel_height,
+            .cell_pixel_width = self.captured_cell_pixel_width,
+            .columns = state.cols,
             .generation = self.captured_generation,
             .kind = kind,
             .revision = self.captured_revision,
+            .rows = state.rows,
             .sequence = request.sequence,
         };
     }

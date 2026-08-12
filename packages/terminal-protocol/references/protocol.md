@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                        |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                  |
-| Reference scope | Exact protocol `0.0.2`; OBTF, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures                                |
+| Reference scope | Exact protocol `0.0.4`; OBTF, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures                                |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence            |
 
 ## Modeling record
@@ -14,7 +14,7 @@
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem      | A native Host and TypeScript clients need one bounded, versioned, inspectable wire contract and allocation-conscious binary codecs without sharing business state.                                                                                                                                                                                                                                                                                                                        |
 | Inputs       | Raw, gateway, and external records are untrusted until their exported strict decoder or schema accepts them. The same-user capability-scoped local Host data plane may use the projection-buffer structural view: fixed metadata and section bounds are checked once, while Host-produced per-cell columns are trusted by contract and are not rescanned. A local client may also inspect only a frame header to recognize an already committed immutable duplicate. Absence is explicit. |
-| Data         | Protocol versions and identities; transport envelopes; control records; terminal frames; row windows; input, projection, history, selection, configuration, and runtime-failure wire vocabulary.                                                                                                                                                                                                                                                                                          |
+| Data         | Protocol versions and identities; transport envelopes; control records; terminal frames; row windows; input, projection, history, bell, selection, configuration, and runtime-failure wire vocabulary.                                                                                                                                                                                                                                                                                    |
 | Outputs      | Successfully decoded or encoded values, typed `ProtocolFailure`, bounded binary payloads, and strict control values.                                                                                                                                                                                                                                                                                                                                                                      |
 | Invariants   | Accepted records use the exact current version, canonical identifiers and integers, registered message roles and encodings, valid discriminants, and declared hard bounds. Once one encoded frame is handed off for `(HostEpoch, AttachmentId, sequence)`, every byte and all header metadata for that scoped sequence are immutable and the sequence is never reused.                                                                                                                    |
 | Decisions    | Exact-version handshake, message requiredness and encoding, binary layouts, safety limits, strict control shapes, and mutually exclusive outcome representation.                                                                                                                                                                                                                                                                                                                          |
@@ -39,7 +39,7 @@ identity and are rejected where an identity is required.
 | `AttachmentId`  | One physical-connection-owned attachment carrying negotiated capabilities                                                        |
 | `CorrelationId` | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.2`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.4`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame, OBPB projection-buffer, and OBRW row-window formats each have an independent current
@@ -114,28 +114,29 @@ without state mutation.
 
 Named response kinds are authoritative: `HelloAccepted`, `ProtocolRejected`,
 `AttachmentCapabilities`, `InputAccepted`, `ResizeAccepted`, `ProjectionDemandAccepted`,
-`TerminalDefaultsAccepted`, and `TerminalConfigurationAccepted` answer their corresponding request
-kinds. Other successful operations respond with their request kind.
+`TerminalDefaultsAccepted`, `TerminalConfigurationAccepted`, and `TerminalControlAccepted` answer
+their corresponding request kinds. Other successful operations respond with their request kind.
 `TypedFailure` may answer any request and preserves its correlation.
 
-| Operation                     | Successful payload                                                                                                                                                                                                                                                |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ListTerminals`               | Generation-scoped page of effective terminal summaries                                                                                                                                                                                                            |
-| `CreateTerminal`              | `TerminalIdentity`                                                                                                                                                                                                                                                |
-| `SetTerminalDefaults`         | Effective default configuration and default revision                                                                                                                                                                                                              |
-| `UpdateTerminalConfiguration` | Terminal identity, effective configuration and revision, content revision/generation, and evicted-row count                                                                                                                                                       |
-| `TerminateTerminal`           | Target `TerminalId`                                                                                                                                                                                                                                               |
-| `ForceTerminateTerminal`      | Target `TerminalId`                                                                                                                                                                                                                                               |
-| `DisposeTerminal`             | Target `TerminalId`                                                                                                                                                                                                                                               |
-| `AttachTerminal`              | Attachment and terminal identities, granted input/read/resize capabilities, and resize-lease fact                                                                                                                                                                 |
-| `DetachTerminal`              | Target `AttachmentId`                                                                                                                                                                                                                                             |
-| raw or semantic input         | Attachment identity and encoded terminal-byte count committed to ordered ingress                                                                                                                                                                                  |
-| `ResizeTerminal`              | Attachment identity, accepted canonical cell/pixel geometry, and resulting revision                                                                                                                                                                               |
-| projection demand             | Attachment identity plus accepted `active` or `paused` demand                                                                                                                                                                                                     |
-| frame/recovery                | OBTF format `0.0.1` snapshot/delta event, exact `FrameApplied`, typed `NeedSnapshot`, or typed `ProjectionBlocked`                                                                                                                                                |
-| history/read rows             | Accepted history demand, bounded render/text `RowsSnapshot`, exact `RowsApplied`, `HistoryChanged`, and `HistoryObserved`                                                                                                                                         |
-| selection/export              | Current selection state plus bounded started/chunk/acknowledgment/finished or cancellation flow                                                                                                                                                                   |
-| terminal start / outcome      | Start carries terminal identity. Normal exit carries final revision and an exit-code, signal, or unknown result. Runtime failure carries final revision, typed failure, and process observation. Inventory uses mutually exclusive phase-specific summary fields. |
+| Operation                         | Successful payload                                                                                                                                                                                                                                                |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ListTerminals`                   | Generation-scoped page of effective terminal summaries                                                                                                                                                                                                            |
+| `CreateTerminal`                  | `TerminalIdentity`                                                                                                                                                                                                                                                |
+| `SetTerminalDefaults`             | Effective default configuration and default revision                                                                                                                                                                                                              |
+| `UpdateTerminalConfiguration`     | Terminal identity, effective configuration and revision, content revision/generation, and evicted-row count                                                                                                                                                       |
+| `TerminateTerminal`               | Target `TerminalId`                                                                                                                                                                                                                                               |
+| `ForceTerminateTerminal`          | Target `TerminalId`                                                                                                                                                                                                                                               |
+| `DisposeTerminal`                 | Target `TerminalId`                                                                                                                                                                                                                                               |
+| `AttachTerminal`                  | Attachment and terminal identities, granted input/read/resize capabilities, and resize-lease fact                                                                                                                                                                 |
+| `DetachTerminal`                  | Target `AttachmentId`                                                                                                                                                                                                                                             |
+| raw or semantic input             | Attachment identity and encoded terminal-byte count committed to ordered ingress                                                                                                                                                                                  |
+| `ResizeTerminal`                  | Attachment identity, accepted canonical cell/pixel geometry, and resulting revision                                                                                                                                                                               |
+| `ClearTerminal` / `ResetTerminal` | Attachment and terminal identities, exact operation, and resulting revision/generation                                                                                                                                                                            |
+| projection demand                 | Attachment identity plus accepted `active` or `paused` demand                                                                                                                                                                                                     |
+| frame/recovery                    | OBTF format `0.0.1` snapshot/delta event, exact `FrameApplied`, typed `NeedSnapshot`, or typed `ProjectionBlocked`                                                                                                                                                |
+| history/read rows                 | Accepted history demand, bounded render/text `RowsSnapshot`, exact `RowsApplied`, `HistoryChanged`, and `HistoryObserved`                                                                                                                                         |
+| selection/export                  | Current selection state plus bounded started/chunk/acknowledgment/finished or cancellation flow                                                                                                                                                                   |
+| terminal start / outcome          | Start carries terminal identity. Normal exit carries final revision and an exit-code, signal, or unknown result. Runtime failure carries final revision, typed failure, and process observation. Inventory uses mutually exclusive phase-specific summary fields. |
 
 `RuntimeFailure.stage` is the discriminant for a primary terminal failure; `kind` is its required
 coarser category, not an independent field. Its legal pairs are
@@ -173,6 +174,12 @@ Every attachment requests at least one of input, read, or resize authority. A re
 only when resize authority is also requested and granted. Empty capability bindings and a resize
 lease without resize authority are malformed at the protocol boundary.
 
+`ClearTerminal` and `ResetTerminal` each carry only the input-capable `AttachmentId`; they are
+semantic Host requests, not terminal input payloads. Clear erases and homes the active Ghostty
+screen without resetting modes. Reset performs Ghostty's full reset and returns to the primary
+screen. `TerminalControlAccepted` returns the attachment, resolved terminal, exact operation, and
+resulting generation/revision. A lost response is an unknown result and does not authorize replay.
+
 `WriteInput` is a raw-byte payload containing exactly 16 non-zero `AttachmentId` bytes followed by
 one to the negotiated `inputBytes` terminal bytes. The hard terminal-byte maximum is 1 MiB, so the
 largest raw payload is 1 MiB plus 16 bytes. The attachment resolves the terminal and input
@@ -203,23 +210,30 @@ bytes to the ordered ingress budget.
 
 ## Message registry
 
-| Range   | Group                   | Kinds                                                                                                                                                                                                                                                                                                        |
-| ------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `1-5`   | Connection              | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                               |
-| `10-19` | Inventory and lifecycle | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                           |
-| `20-22` | Attachment              | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`                                                                                                                                                                                                                                        |
-| `30-38` | Input and size          | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                              |
-| `41-54` | Projection and history  | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54` |
-| `60-68` | Selection and export    | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                |
-| `70-73` | Terminal configuration  | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`                                                                                                                                                                                |
+| Range   | Group                              | Kinds                                                                                                                                                                                                                                                                                                                           |
+| ------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1-5`   | Connection                         | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                  |
+| `10-19` | Inventory and lifecycle            | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                              |
+| `20-22` | Attachment                         | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`                                                                                                                                                                                                                                                           |
+| `30-38` | Input and size                     | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                                                 |
+| `41-55` | Projection and effects             | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55` |
+| `60-68` | Selection and export               | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                   |
+| `70-76` | Terminal configuration and control | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`                                                                                                                             |
 
 Unlisted numbers are unassigned, including `16`, `17`, and `23`. Title and current-directory
 changes travel in terminal frames; resize-lease authority is returned by attachment admission and
 is not a separately implemented event.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.2.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.4.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
+
+`TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical
+terminal bell `sequence`. The Host baselines a new read-capable attachment at the terminal's current
+sequence, so earlier bells are never replayed on attach or reconnect. Each later sequence is emitted
+once per live read-capable attachment when its exact outgoing record is committed. The event has no
+client acknowledgement and carries semantic intent only; sound, visual flash, notification, and
+accessibility policy remain application effects rather than wire behavior.
 
 Requests and responses use the response flag and `CorrelationId`; the named pairs in
 [runtime binding](#runtime-binding) use their registered response kind and other
@@ -333,6 +347,13 @@ For every pair of adjacent rows present in one frame, the prior row's wrap flag 
 row's wrap-continuation flag. A spacer-head is valid only in the final column of a wrapped row; if
 the following row is present, it begins with the corresponding wide cell. These relationships are
 validated before a frame is exposed or committed.
+
+The exported `ghostty-surface-v0.0.1.bin` and `ghostty-alternate-surface-v0.0.1.bin` conformance
+snapshots are generated in sequence by Terminal Host from one pinned native Ghostty VT and the real
+OBTF encoder. They are byte-compared on the producer side and consumed by the TypeScript decoder,
+packed store, and renderers. The pair covers grapheme/width preservation plus one atomic
+primary-to-alternate metadata and row transition across the language boundary; it does not give
+this package VT or rendering authority.
 
 ## Current projection buffer
 
@@ -543,11 +564,11 @@ The handshake may select smaller transport payload bounds. It never raises these
 `One UTF-8 string` bounds each serialized string and, for text row windows, each logical cell's
 byte span: the bytes from a mapping start to the next mapping start, and the final span to row
 text end, must fit in 16,384 bytes. Aggregate row text is not capped by this per-cell bound.
-| Cells / frame extensions              |        262144 / 64 |
-| Total extension bytes                 |              1 MiB |
-| Grid columns / rows                   |        4096 / 4096 |
-| Cell-pixel width / height             |        4096 / 4096 |
-| Total terminal pixel width / height   |      65535 / 65535 |
+| Cells / frame extensions | 262144 / 64 |
+| Total extension bytes | 1 MiB |
+| Grid columns / rows | 4096 / 4096 |
+| Cell-pixel width / height | 4096 / 4096 |
+| Total terminal pixel width / height | 65535 / 65535 |
 
 Counts and lengths are checked before dependent allocation. Integer overflow, inconsistent lengths,
 truncation, invalid UTF-8, bad table references, duplicate or out-of-grid rows, and unknown required flags are

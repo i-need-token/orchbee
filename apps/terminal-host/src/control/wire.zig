@@ -253,6 +253,8 @@ pub const Attach = struct {
 
 pub const Detach = struct { attachmentId: []const u8 };
 
+pub const TerminalControl = struct { attachmentId: []const u8 };
+
 pub const Resize = struct {
     attachmentId: []const u8,
     cellPixelHeight: u16,

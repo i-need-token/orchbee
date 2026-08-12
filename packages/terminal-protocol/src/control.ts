@@ -310,6 +310,14 @@ export const ResizeTerminalSchema = z
 	})
 	.superRefine(validatePixelGeometry);
 
+const terminalControlTargetShape = {
+	attachmentId: AttachmentIdSchema,
+} as const;
+
+export const ClearTerminalSchema = z.strictObject(terminalControlTargetShape);
+export const ResetTerminalSchema = z.strictObject(terminalControlTargetShape);
+export const TerminalControlOperationSchema = z.enum(['clear', 'reset']);
+
 export const FrameAppliedSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	generation: positiveCanonicalUint64TextSchema,
@@ -406,6 +414,11 @@ export const HistoryObservedSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	generation: positiveCanonicalUint64TextSchema,
 	revision: CanonicalUint64TextSchema,
+	sequence: positiveCanonicalUint64TextSchema,
+});
+
+export const TerminalBellSchema = z.strictObject({
+	attachmentId: AttachmentIdSchema,
 	sequence: positiveCanonicalUint64TextSchema,
 });
 
@@ -726,6 +739,14 @@ export const ResizeAcceptedSchema = z.strictObject({
 	rows: gridDimensionSchema,
 });
 
+export const TerminalControlAcceptedSchema = z.strictObject({
+	attachmentId: AttachmentIdSchema,
+	generation: positiveCanonicalUint64TextSchema,
+	operation: TerminalControlOperationSchema,
+	revision: CanonicalUint64TextSchema,
+	terminalId: TerminalIdSchema,
+});
+
 export const TerminalStartedSchema = z.strictObject({
 	creationId: CreationIdSchema,
 	hostEpoch: HostEpochSchema,
@@ -838,6 +859,7 @@ export type AttachmentAcknowledged = z.infer<typeof AttachmentAcknowledgedSchema
 export type AttachmentCapabilities = z.infer<typeof AttachmentCapabilitiesSchema>;
 export type AttachTerminal = z.infer<typeof AttachTerminalSchema>;
 export type CanonicalUint64Text = z.infer<typeof CanonicalUint64TextSchema>;
+export type ClearTerminal = z.infer<typeof ClearTerminalSchema>;
 export type CreateTerminal = z.infer<typeof CreateTerminalSchema>;
 export type DetachTerminal = z.infer<typeof DetachTerminalSchema>;
 export type ExitResult = z.infer<typeof ExitResultSchema>;
@@ -853,12 +875,14 @@ export type ProjectionDemandAccepted = z.infer<typeof ProjectionDemandAcceptedSc
 export type ReadRows = z.infer<typeof ReadRowsSchema>;
 export type ResizeTerminal = z.infer<typeof ResizeTerminalSchema>;
 export type ResizeAccepted = z.infer<typeof ResizeAcceptedSchema>;
+export type ResetTerminal = z.infer<typeof ResetTerminalSchema>;
 export type SetProjectionDemand = z.infer<typeof SetProjectionDemandSchema>;
 export type SetTerminalDefaults = z.infer<typeof SetTerminalDefaultsSchema>;
 export type HistoryChanged = z.infer<typeof HistoryChangedSchema>;
 export type HistoryDemand = z.infer<typeof HistoryDemandSchema>;
 export type HistoryDemandAccepted = z.infer<typeof HistoryDemandAcceptedSchema>;
 export type HistoryObserved = z.infer<typeof HistoryObservedSchema>;
+export type TerminalBell = z.infer<typeof TerminalBellSchema>;
 export type RowWindowOrigin = z.infer<typeof RowWindowOriginSchema>;
 export type RowWindowPurpose = z.infer<typeof RowWindowPurposeSchema>;
 export type RowsApplied = z.infer<typeof RowsAppliedSchema>;
@@ -880,6 +904,8 @@ export type TerminalIdentity = z.infer<typeof TerminalIdentitySchema>;
 export type TerminalLaunch = z.infer<typeof TerminalLaunchSchema>;
 export type TerminalConfiguration = z.infer<typeof TerminalConfigurationSchema>;
 export type TerminalConfigurationAccepted = z.infer<typeof TerminalConfigurationAcceptedSchema>;
+export type TerminalControlAccepted = z.infer<typeof TerminalControlAcceptedSchema>;
+export type TerminalControlOperation = z.infer<typeof TerminalControlOperationSchema>;
 export type TerminalDefaultsAccepted = z.infer<typeof TerminalDefaultsAcceptedSchema>;
 export type TerminalProfile = z.infer<typeof TerminalProfileSchema>;
 export type TerminalList = z.infer<typeof TerminalListSchema>;

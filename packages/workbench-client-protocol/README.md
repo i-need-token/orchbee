@@ -6,6 +6,10 @@ Strict, runtime-neutral data contracts for one Orchbee Workbench page client.
 
 The package owns validated messages for a shared Workbench client session, terminal projection control, and the projected attachment stream opened for one visible terminal viewport. Electron, ordinary Browser pages, and future mobile clients may carry these messages through different transports without changing their Workbench-client meaning.
 
+The projected attachment stream carries semantic bell events without choosing a sound, visual
+flash, or notification policy. Each event retains the Host attachment identity and terminal-owned
+sequence so the projected terminal can suppress stale or duplicate delivery.
+
 It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, Gateway, authentication, PTY, or VT implementation. Workbench and TerminalPresentation semantics remain with `@orchbee/workbench`; Terminal Host wire semantics remain with `@orchbee/terminal-protocol`.
 
 Applications parse every untrusted IPC or network value with these schemas at the first trusted boundary. A transport owner remains responsible for framing, authentication, binary transfer, backpressure, and connection retirement.

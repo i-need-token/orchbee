@@ -29,7 +29,9 @@ import {
 	SelectionExportFinishedSchema,
 	SelectionExportStartedSchema,
 	TerminalExitedSchema,
+	TerminalBellSchema,
 	TerminalFailedSchema,
+	TerminalControlAcceptedSchema,
 	type DecodedProtocolEnvelope,
 	type MessageKindValue,
 	type SelectionExportChunk,
@@ -311,6 +313,21 @@ export class ProjectedTerminalBroker {
 	readonly #handleHostEnvelope = (envelope: DecodedProtocolEnvelope): void => {
 		if (this.#disposed) return;
 		switch (envelope.kind) {
+			case MessageKind.terminalBell: {
+				const event = decodeControlJson(envelope.payload, TerminalBellSchema);
+				if (!event.ok || event.value.attachmentId !== this.#bootstrap.attachmentId) {
+					this.#postFailure({
+						code: 'invalid-bell-event',
+						message: event.ok
+							? 'Terminal Host bell event is outside the scoped attachment.'
+							: event.detail,
+						retryable: false,
+					});
+					return;
+				}
+				this.#postMessage({ event: event.value, kind: 'bell' });
+				return;
+			}
 			case MessageKind.historyChanged: {
 				const event = decodeControlJson(envelope.payload, HistoryChangedSchema);
 				if (!event.ok || event.value.attachmentId !== this.#bootstrap.attachmentId) {
@@ -443,6 +460,8 @@ export class ProjectedTerminalBroker {
 
 	async #dispatch(command: ProjectedTerminalCommand): Promise<void> {
 		switch (command.kind) {
+			case 'clear-terminal':
+				return this.#requestTerminalControl(MessageKind.clearTerminal, command.payload, 'clear');
 			case 'focus-input':
 				return this.#requestInput(MessageKind.focusInput, command.payload);
 			case 'frame-applied':
@@ -492,6 +511,8 @@ export class ProjectedTerminalBroker {
 					ResizeAcceptedSchema,
 				);
 				return;
+			case 'reset-terminal':
+				return this.#requestTerminalControl(MessageKind.resetTerminal, command.payload, 'reset');
 			case 'rows-applied':
 				await this.#host.requestControl(
 					MessageKind.rowsApplied,
@@ -839,6 +860,24 @@ export class ProjectedTerminalBroker {
 		await this.#host.requestInput(kind, value);
 	}
 
+	async #requestTerminalControl(
+		kind: typeof MessageKind.clearTerminal | typeof MessageKind.resetTerminal,
+		value: unknown,
+		operation: 'clear' | 'reset',
+	): Promise<void> {
+		const accepted = await this.#host.requestControl(kind, value, TerminalControlAcceptedSchema);
+		if (
+			accepted.attachmentId !== this.#bootstrap.attachmentId ||
+			accepted.terminalId !== this.#bootstrap.terminalId ||
+			accepted.operation !== operation
+		) {
+			throw new BrokerOperationError(
+				'invalid-terminal-control-response',
+				'Terminal Host acknowledged a different terminal control operation.',
+			);
+		}
+	}
+
 	#postFailure(failure: ProjectedTerminalFailure): void {
 		this.#postMessage({ failure, kind: 'failure' });
 	}
@@ -848,6 +887,9 @@ function failureContext(
 	command: ProjectedTerminalCommand,
 ): Pick<ProjectedTerminalFailure, 'operation' | 'requestSequence'> {
 	switch (command.kind) {
+		case 'clear-terminal':
+		case 'reset-terminal':
+			return { operation: 'control' };
 		case 'selection-copy':
 			return { operation: 'copy', requestSequence: command.payload.requestSequence };
 		case 'link-open':

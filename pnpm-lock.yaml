@@ -578,6 +578,9 @@ importers:
       '@orchbee/terminal-protocol':
         specifier: workspace:^
         version: link:../terminal-protocol
+      get-east-asian-width:
+        specifier: 1.6.0
+        version: 1.6.0
     devDependencies:
       '@rslib/core':
         specifier: 'catalog:'

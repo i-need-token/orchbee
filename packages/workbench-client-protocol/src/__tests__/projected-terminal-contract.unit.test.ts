@@ -21,6 +21,21 @@ const bootstrap = {
 };
 
 describe('projected terminal contract', () => {
+	it('carries a typed attachment-scoped bell event', () => {
+		const event = {
+			event: { attachmentId, sequence: '9' },
+			kind: 'bell',
+		};
+
+		expect(ProjectedTerminalEventSchema.parse(event)).toEqual(event);
+		expect(
+			ProjectedTerminalEventSchema.safeParse({
+				...event,
+				event: { attachmentId, sequence: '0' },
+			}).success,
+		).toBe(false);
+	});
+
 	it('represents a terminal outcome as one identity-bound union', () => {
 		const exited = {
 			event: {
@@ -97,6 +112,15 @@ describe('projected terminal contract', () => {
 	});
 
 	it('keeps commands scoped to their attachment identity', () => {
+		for (const kind of ['clear-terminal', 'reset-terminal'] as const) {
+			expect(
+				ProjectedTerminalCommandSchema.safeParse({
+					kind,
+					payload: { attachmentId },
+				}).success,
+			).toBe(true);
+			expect(ProjectedTerminalCommandSchema.safeParse({ kind, payload: {} }).success).toBe(false);
+		}
 		expect(
 			ProjectedTerminalCommandSchema.safeParse({
 				kind: 'selection-copy',

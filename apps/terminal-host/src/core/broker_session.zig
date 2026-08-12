@@ -28,6 +28,7 @@ pub const Capabilities = packed struct {
 
 pub const Attachment = struct {
     attachment_id: AttachmentId,
+    bell_cursor: u64,
     capabilities: Capabilities,
     projection: attachment_projection.State = .{},
     resize_lease: bool,
@@ -172,6 +173,7 @@ pub const Session = struct {
         terminal_id: TerminalId,
         capabilities: Capabilities,
         resize_lease: bool,
+        bell_sequence: u64,
     ) std.mem.Allocator.Error!void {
         std.debug.assert(!self.attachments.contains(attachment_id));
         std.debug.assert(!resize_lease or capabilities.resize);
@@ -205,6 +207,7 @@ pub const Session = struct {
 
         try self.attachments.putNoClobber(attachment_id, .{
             .attachment_id = attachment_id,
+            .bell_cursor = bell_sequence,
             .capabilities = capabilities,
             .resize_lease = resize_lease,
             .terminal_attachment_index = terminal_list.items.len - 1,

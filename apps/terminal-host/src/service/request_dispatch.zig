@@ -75,6 +75,8 @@ pub const Dispatcher = struct {
             .write_input,
             .semantic_input,
             .resize_terminal,
+            .clear_terminal,
+            .reset_terminal,
             .frame_applied,
             .need_snapshot,
             .set_projection_demand,

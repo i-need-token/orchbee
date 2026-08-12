@@ -53,6 +53,18 @@ describe('Gateway attachment binary codec', () => {
 		});
 	});
 
+	it('round-trips an attachment-scoped bell through the Browser transport', () => {
+		const bell = ProjectedTerminalEventSchema.parse({
+			event: { attachmentId, sequence: '17' },
+			kind: 'bell',
+		});
+
+		expect(decodeGatewayAttachmentServerFrame(encodeGatewayAttachmentServerFrame(bell))).toEqual({
+			ok: true,
+			value: bell,
+		});
+	});
+
 	it('fits the maximum selection payload within the bounded attachment queue', () => {
 		const event = ProjectedTerminalEventSchema.parse({
 			content: new ArrayBuffer(PROTOCOL_LIMITS.maxSelectionExportBytes),

@@ -202,6 +202,7 @@ pub const Maintenance = struct {
         terminal_id: core_module.TerminalId,
         runtime: *terminal_runtime.TerminalRuntime,
     ) !void {
+        _ = synchronizeRuntimeObservation(core, terminal_id, runtime) catch unreachable;
         runtime.shutdown() catch |err| {
             _ = core.failureContainmentBlocked(
                 terminal_id,
@@ -211,10 +212,12 @@ pub const Maintenance = struct {
             return err;
         };
         const completion = runtime.completion();
-        _ = core.synchronizeRevision(
+        const geometry = synchronizeRuntimeObservation(
+            core,
             terminal_id,
-            completion.final_revision,
+            runtime,
         ) catch unreachable;
+        std.debug.assert(geometry.revision == completion.final_revision);
         const observation: core_module.ProcessObservation = if (completion.child_exited)
             .{ .observed = exitResult(completion.exit_result.?) }
         else
@@ -277,7 +280,9 @@ pub const Maintenance = struct {
         terminal_id: core_module.TerminalId,
         runtime: *terminal_runtime.TerminalRuntime,
     ) void {
-        const terminal = core.findTerminal(terminal_id) orelse return;
+        if (core.findTerminal(terminal_id) == null) return;
+        _ = synchronizeRuntimeObservation(core, terminal_id, runtime) catch unreachable;
+        const terminal = core.findTerminal(terminal_id).?;
         if (terminal.lifecycle.needsContainmentWork()) {
             self.containRuntimeFailure(core, terminal_id, runtime) catch {};
         } else switch (terminal.phase()) {
@@ -307,10 +312,10 @@ pub const Maintenance = struct {
             else => {
                 const completion = runtime.completion();
                 if (runtimeFailureFromObservation(completion)) |failure| {
-                    _ = core.synchronizeRevision(
-                        terminal_id,
-                        completion.final_revision,
-                    ) catch unreachable;
+                    std.debug.assert(
+                        completion.final_revision ==
+                            core.findTerminal(terminal_id).?.observedRevision(),
+                    );
                     _ = core.runtimeFailed(terminal_id, failure) catch unreachable;
                     self.containRuntimeFailure(core, terminal_id, runtime) catch {};
                 } else {
@@ -320,6 +325,23 @@ pub const Maintenance = struct {
         }
     }
 };
+
+pub fn synchronizeRuntimeObservation(
+    core: *core_module.HostCore,
+    terminal_id: core_module.TerminalId,
+    runtime: *terminal_runtime.TerminalRuntime,
+) core_module.CoreError!terminal_runtime.Geometry {
+    const geometry = runtime.geometry();
+    try core.synchronizeGeometry(
+        terminal_id,
+        geometry.columns,
+        geometry.rows,
+        geometry.cell_pixel_width,
+        geometry.cell_pixel_height,
+        geometry.revision,
+    );
+    return geometry;
+}
 
 pub fn cleanupFailure(
     err: terminal_runtime.ShutdownError,

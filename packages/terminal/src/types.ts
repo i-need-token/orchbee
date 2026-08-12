@@ -1,6 +1,13 @@
 import type { TerminalOpenTarget } from './terminal-contracts';
 
-/** Product-configurable colors for a projected terminal surface. */
+/**
+ * Product presentation colors for a projected terminal surface.
+ *
+ * Host projection metadata owns terminal foreground, background, cursor, and palette colors. The
+ * packed renderer consumes the cursor-accent and selection/search fields as application overlays;
+ * the remaining terminal-color fields stay in this compatibility shape but never replace Host
+ * state.
+ */
 export interface ITheme {
 	foreground?: string;
 	background?: string;

@@ -49,6 +49,20 @@ pub fn dispatch(
             outgoing,
         ),
         .resize_terminal => try handler.handleResize(connection_id, envelope, correlation_id, outgoing),
+        .clear_terminal => try handler.handleTerminalControl(
+            connection_id,
+            .clear,
+            envelope,
+            correlation_id,
+            outgoing,
+        ),
+        .reset_terminal => try handler.handleTerminalControl(
+            connection_id,
+            .reset,
+            envelope,
+            correlation_id,
+            outgoing,
+        ),
         .frame_applied => try handler.handleFrameApplied(connection_id, envelope, correlation_id, outgoing),
         .need_snapshot => try handler.handleNeedSnapshot(connection_id, envelope, correlation_id, outgoing),
         .set_projection_demand => try handler.handleProjectionDemand(
@@ -299,6 +313,47 @@ const Handler = struct {
         };
         var output = response.writer();
         control_encode.writeResizeAccepted(&output, resized) catch unreachable;
+        _ = response.commitControl(self.request_contract.success_kind, &output);
+    }
+
+    fn handleTerminalControl(
+        self: *Handler,
+        connection_id: core_module.ConnectionId,
+        operation: @import("terminal-host-engine").runtime.TerminalControlOperation,
+        envelope: protocol.EnvelopeSummary,
+        correlation_id: WireIdentifier,
+        outgoing: *Outgoing,
+    ) !void {
+        if (!try self.context.requireControl(envelope, correlation_id, outgoing)) return;
+        var decoded = control_decode.decodeTerminalControl(
+            self.context.allocator,
+            envelope.payload,
+        ) catch |err| return self.context.rejectControlDecode(
+            outgoing,
+            correlation_id,
+            err,
+            if (operation == .clear)
+                "ClearTerminal payload is invalid"
+            else
+                "ResetTerminal payload is invalid",
+        );
+        defer decoded.deinit();
+        var response = try prepareControlResponse(outgoing, correlation_id, self.context.core().epoch);
+        defer response.deinit();
+        const update = self.context.runtime_aggregate.applyTerminalControl(
+            connection_id,
+            decoded.value,
+            operation,
+        ) catch |err| {
+            response.commitFailure(switch (err) {
+                error.RuntimeStateDiverged => host_failure.runtime_state_diverged,
+                error.TerminalRuntimeMissing => unreachable,
+                else => coreError(@errorCast(err)),
+            });
+            return;
+        };
+        var output = response.writer();
+        control_encode.writeTerminalControlAccepted(&output, update) catch unreachable;
         _ = response.commitControl(self.request_contract.success_kind, &output);
     }
 };

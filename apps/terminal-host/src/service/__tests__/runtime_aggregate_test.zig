@@ -10,6 +10,7 @@ const subject = service_boundary.testing.runtime_aggregate;
 const terminal_launch = engine_boundary.launch;
 const terminal_runtime = engine_boundary.runtime;
 
+const commitReaderBatch = terminal_runtime.testing.commitReaderBatchFn;
 const fenceResizeFailure = terminal_runtime.testing.fenceResizeFailure;
 const recordReaderFailure = terminal_runtime.testing.recordReaderFailureFn;
 const recordUnsafeResizeFailure = subject.testing.recordUnsafeResizeFailureFn;
@@ -911,6 +912,200 @@ test "runtime completion synchronization emits one typed exit notice" {
     try publishPendingOutcome(&aggregate, terminal_id);
     _ = try aggregate.core().disposeTerminal(connection_id, terminal_id);
     _ = aggregate.disconnect(connection_id);
+}
+
+test "maintenance synchronizes terminal-driven geometry without projection demand" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x84),
+    );
+    const validated = try validatedLongRunningLaunch();
+    var preparation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x85),
+        validated,
+        .{},
+    );
+    defer preparation.deinit();
+    const created = try aggregate.commitPreparedTerminal(&preparation);
+    const terminal_id = switch (created) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    const runtime = aggregate.runtimeFor(terminal_id).?;
+    try std.testing.expectEqual(
+        @as(u16, 80),
+        aggregate.core().findTerminal(terminal_id).?.observedGeometry().columns,
+    );
+
+    try std.testing.expectEqual(
+        terminal_runtime.testing.ReaderBatchOutcomeType.committed,
+        commitReaderBatch(runtime, "\x1b[?40h\x1b[?3h"),
+    );
+    const runtime_geometry = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 132), runtime_geometry.columns);
+    try std.testing.expectEqual(
+        @as(u16, 80),
+        aggregate.core().findTerminal(terminal_id).?.observedGeometry().columns,
+    );
+
+    aggregate.synchronizeRuntimes();
+
+    const observed = aggregate.core().findTerminal(terminal_id).?;
+    try std.testing.expectEqual(runtime_geometry.columns, observed.observedGeometry().columns);
+    try std.testing.expectEqual(runtime_geometry.rows, observed.observedGeometry().rows);
+    try std.testing.expectEqual(
+        runtime_geometry.cell_pixel_width,
+        observed.observedGeometry().cell_pixel_width,
+    );
+    try std.testing.expectEqual(
+        runtime_geometry.cell_pixel_height,
+        observed.observedGeometry().cell_pixel_height,
+    );
+    try std.testing.expectEqual(runtime_geometry.revision, observed.observedRevision());
+}
+
+test "application terminal controls require input capability and synchronize one exact Core observation" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0xb0),
+    );
+    const validated = try validatedLongRunningLaunch();
+    var preparation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0xb1),
+        validated,
+        .{},
+    );
+    defer preparation.deinit();
+    const created = try aggregate.commitPreparedTerminal(&preparation);
+    const terminal_id = switch (created) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    const input_attachment_id = testId(core_module.AttachmentId, 0xb2);
+    const read_attachment_id = testId(core_module.AttachmentId, 0xb3);
+    _ = try aggregate.attach(
+        connection_id,
+        input_attachment_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = false },
+        false,
+    );
+    _ = try aggregate.attach(
+        connection_id,
+        read_attachment_id,
+        terminal_id,
+        .{ .input = false, .read = true, .resize = false },
+        false,
+    );
+    const runtime = aggregate.runtimeFor(terminal_id).?;
+    const before = runtime.geometry();
+
+    try std.testing.expectError(
+        error.MissingResource,
+        aggregate.applyTerminalControl(connection_id, read_attachment_id, .clear),
+    );
+    try std.testing.expectEqualDeep(before, runtime.geometry());
+    try std.testing.expectEqual(
+        before.revision,
+        aggregate.core().findTerminal(terminal_id).?.observedRevision(),
+    );
+
+    const cleared = try aggregate.applyTerminalControl(
+        connection_id,
+        input_attachment_id,
+        .clear,
+    );
+    const after_clear = runtime.geometry();
+    try std.testing.expect(cleared.attachment_id.eql(input_attachment_id));
+    try std.testing.expect(cleared.terminal_id.eql(terminal_id));
+    try std.testing.expectEqual(terminal_runtime.TerminalControlOperation.clear, cleared.operation);
+    try std.testing.expectEqual(before.generation + 1, cleared.generation);
+    try std.testing.expectEqual(before.revision + 1, cleared.revision);
+    try std.testing.expectEqual(cleared.generation, after_clear.generation);
+    try std.testing.expectEqual(cleared.revision, after_clear.revision);
+    try std.testing.expectEqual(
+        cleared.revision,
+        aggregate.core().findTerminal(terminal_id).?.observedRevision(),
+    );
+
+    const reset = try aggregate.applyTerminalControl(
+        connection_id,
+        input_attachment_id,
+        .reset,
+    );
+    const after_reset = runtime.geometry();
+    try std.testing.expectEqual(terminal_runtime.TerminalControlOperation.reset, reset.operation);
+    try std.testing.expectEqual(cleared.generation + 1, reset.generation);
+    try std.testing.expectEqual(cleared.revision + 1, reset.revision);
+    try std.testing.expectEqual(reset.generation, after_reset.generation);
+    try std.testing.expectEqual(reset.revision, after_reset.revision);
+    try std.testing.expectEqual(
+        reset.revision,
+        aggregate.core().findTerminal(terminal_id).?.observedRevision(),
+    );
+    try std.testing.expectEqual(@as(usize, 2), aggregate.core().attachmentCountForTerminal(terminal_id));
+}
+
+test "configuration update preserves an unsynchronized terminal-driven geometry" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x87),
+    );
+    const validated = try validatedLongRunningLaunch();
+    var preparation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x88),
+        validated,
+        .{},
+    );
+    defer preparation.deinit();
+    const created = try aggregate.commitPreparedTerminal(&preparation);
+    const terminal_id = switch (created) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    const runtime = aggregate.runtimeFor(terminal_id).?;
+    try std.testing.expectEqual(
+        terminal_runtime.testing.ReaderBatchOutcomeType.committed,
+        commitReaderBatch(runtime, "\x1b[?40h\x1b[?3h"),
+    );
+    const terminal_driven = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 132), terminal_driven.columns);
+    try std.testing.expectEqual(
+        @as(u16, 80),
+        aggregate.core().findTerminal(terminal_id).?.observedGeometry().columns,
+    );
+
+    const update = try aggregate.updateTerminalConfiguration(
+        connection_id,
+        terminal_id,
+        .{ .scrollback_bytes = 4_096 },
+    );
+
+    const final = runtime.geometry();
+    const observed = aggregate.core().findTerminal(terminal_id).?;
+    try std.testing.expectEqual(@as(u16, 132), final.columns);
+    try std.testing.expectEqual(final.columns, observed.observedGeometry().columns);
+    try std.testing.expectEqual(final.rows, observed.observedGeometry().rows);
+    try std.testing.expectEqual(final.cell_pixel_width, observed.observedGeometry().cell_pixel_width);
+    try std.testing.expectEqual(
+        final.cell_pixel_height,
+        observed.observedGeometry().cell_pixel_height,
+    );
+    try std.testing.expectEqual(terminal_driven.revision, final.revision);
+    try std.testing.expectEqual(final.revision, update.revision);
+    try std.testing.expectEqual(final.revision, observed.observedRevision());
 }
 
 // THCR-041 regression: a Windows child that terminates with exit status 259

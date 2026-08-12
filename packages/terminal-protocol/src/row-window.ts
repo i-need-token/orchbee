@@ -774,8 +774,7 @@ function decodeTextWindow(
 		}
 		if (
 			mappingCount > 0 &&
-			encodedText.byteLength - (byteOffsets[mappingCount - 1] ?? 0) >
-				PROTOCOL_LIMITS.maxStringBytes
+			encodedText.byteLength - (byteOffsets[mappingCount - 1] ?? 0) > PROTOCOL_LIMITS.maxStringBytes
 		) {
 			return protocolFailure(
 				ProtocolErrorCode.limitExceeded,

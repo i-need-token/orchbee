@@ -10,17 +10,23 @@ export interface SurfaceGridSize {
 	readonly rows: number;
 }
 
+const MINIMUM_COLUMNS = 2;
+const MINIMUM_ROWS = 1;
+
 /** Calculate the terminal grid that remains after explicit padding. */
 export function calculateSurfaceGrid(
 	screen: SurfaceSize,
 	cell: SurfaceSize,
 	explicit: SurfacePadding,
-): SurfaceGridSize {
-	const availableWidth = Math.max(0, screen.width - explicit.left - explicit.right);
-	const availableHeight = Math.max(0, screen.height - explicit.top - explicit.bottom);
+): SurfaceGridSize | undefined {
+	const availableWidth = screen.width - explicit.left - explicit.right;
+	const availableHeight = screen.height - explicit.top - explicit.bottom;
+	if (availableWidth <= 0 || availableHeight <= 0 || cell.width <= 0 || cell.height <= 0) {
+		return undefined;
+	}
 	return {
-		columns: Math.max(1, Math.floor(availableWidth / Math.max(1, cell.width))),
-		rows: Math.max(1, Math.floor(availableHeight / Math.max(1, cell.height))),
+		columns: Math.max(MINIMUM_COLUMNS, Math.floor(availableWidth / cell.width)),
+		rows: Math.max(MINIMUM_ROWS, Math.floor(availableHeight / cell.height)),
 	};
 }
 
@@ -32,6 +38,7 @@ export function balanceSurfacePadding(
 	mode: Exclude<PaddingBalance, false>,
 ): SurfacePadding {
 	const grid = calculateSurfaceGrid(screen, cell, explicit);
+	if (grid === undefined) return { ...explicit };
 	return balanceGridPadding(screen, cell, explicit, grid, mode);
 }
 

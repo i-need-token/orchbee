@@ -13,6 +13,7 @@ const applyScrollbackBytes = subject.testing.applyScrollbackBytesFn;
 const cancelInput = subject.testing.cancelInputFn;
 const clearTestingHooks = subject.testing.clearTestingHooks;
 const closeClientInput = subject.testing.closeClientInputFn;
+const commitReaderBatch = subject.testing.commitReaderBatchFn;
 const CompletionClassification = subject.testing.CompletionClassificationType;
 const completionClassificationLoad = subject.testing.completionClassificationLoadFn;
 const createWithOptionsUsingSpawner = subject.testing.createWithOptionsUsingSpawnerFn;
@@ -1131,6 +1132,103 @@ const ResizeProbe = struct {
     }
 };
 
+const ResizeObservation = struct {
+    previous: Geometry,
+    next: Geometry,
+};
+
+const TerminalDrivenResizeProbe = struct {
+    calls: [4]ResizeObservation = undefined,
+    count: usize = 0,
+    fail: bool = false,
+    mutex: std.Thread.Mutex = .{},
+
+    fn fromContext(context: *anyopaque) *TerminalDrivenResizeProbe {
+        return @ptrCast(@alignCast(context));
+    }
+
+    fn resize(
+        context: *anyopaque,
+        previous: Geometry,
+        next: Geometry,
+    ) anyerror!void {
+        const self = fromContext(context);
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        std.debug.assert(self.count < self.calls.len);
+        self.calls[self.count] = .{ .previous = previous, .next = next };
+        self.count += 1;
+        if (self.fail) return error.InjectedTerminalDrivenResizeFailure;
+    }
+
+    fn hooks(self: *TerminalDrivenResizeProbe) RuntimeTestingHooks {
+        return .{
+            .context = self,
+            .resize_pty = resize,
+        };
+    }
+
+    fn observedCalls(self: *TerminalDrivenResizeProbe) []const ResizeObservation {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.calls[0..self.count];
+    }
+};
+
+const TerminalResizeSerializationProbe = struct {
+    calls: [4]ResizeObservation = undefined,
+    count: usize = 0,
+    effect_returns: usize = 0,
+    first_effect_returned: TestGate = .{},
+    mutex: std.Thread.Mutex = .{},
+    reader_commit_waiting: TestSignal = .{},
+
+    fn fromContext(context: *anyopaque) *TerminalResizeSerializationProbe {
+        return @ptrCast(@alignCast(context));
+    }
+
+    fn resize(
+        context: *anyopaque,
+        previous: Geometry,
+        next: Geometry,
+    ) anyerror!void {
+        const self = fromContext(context);
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        std.debug.assert(self.count < self.calls.len);
+        self.calls[self.count] = .{ .previous = previous, .next = next };
+        self.count += 1;
+    }
+
+    fn effectReturned(context: *anyopaque) void {
+        const self = fromContext(context);
+        self.mutex.lock();
+        self.effect_returns += 1;
+        const effect_return = self.effect_returns;
+        self.mutex.unlock();
+        if (effect_return == 1) self.first_effect_returned.pause();
+    }
+
+    fn readerCommitWaiting(context: *anyopaque) void {
+        fromContext(context).reader_commit_waiting.notify();
+    }
+
+    fn hooks(self: *TerminalResizeSerializationProbe) RuntimeTestingHooks {
+        return .{
+            .context = self,
+            .reader_commit_waiting = readerCommitWaiting,
+            .resize_effect_returned = effectReturned,
+            .resize_pty = resize,
+        };
+    }
+
+    fn observedCalls(self: *TerminalResizeSerializationProbe) []const ResizeObservation {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.calls[0..self.count];
+    }
+};
+
 const ResizeCall = struct {
     const Result = union(enum) {
         failed: anyerror,
@@ -1157,6 +1255,30 @@ const ResizeCall = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         return self.result.?;
+    }
+};
+
+const ReaderBatchCall = struct {
+    done: TestSignal = .{},
+    mutex: std.Thread.Mutex = .{},
+    outcome: ?ReaderBatchOutcome = null,
+    runtime: *TerminalRuntime,
+
+    fn run(self: *ReaderBatchCall) void {
+        const outcome = commitReaderBatch(
+            self.runtime,
+            "\x1b[?40h\x1b[?3h",
+        );
+        self.mutex.lock();
+        self.outcome = outcome;
+        self.mutex.unlock();
+        self.done.notify();
+    }
+
+    fn observedOutcome(self: *ReaderBatchCall) ?ReaderBatchOutcome {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.outcome;
     }
 };
 
@@ -1339,6 +1461,18 @@ test "runtime parses PTY output before exposing canonical terminal state" {
     try std.testing.expect(std.mem.indexOf(u8, plain, "host:orchbee") != null);
 }
 
+test "Ghostty BEL effects advance one terminal bell sequence per control byte" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+
+    try std.testing.expectEqual(@as(u64, 0), runtime.bellSequence());
+    parseTerminalInput(runtime, "\x07\x07");
+    try std.testing.expectEqual(@as(u64, 2), runtime.bellSequence());
+    parseTerminalInput(runtime, "text\x07");
+    try std.testing.expectEqual(@as(u64, 3), runtime.bellSequence());
+    try runtime.forceTerminate();
+}
+
 // THCR-041 regression: a Windows child that terminates with exit status 259
 // (STILL_ACTIVE's numeric value) must classify as a normal engine completion
 // carrying exit_code 259 with the child exited, PTY drained, and writer fully
@@ -1483,6 +1617,429 @@ test "runtime resets projection resources after encode failure" {
     });
     defer std.testing.allocator.free(frame.allocation);
     try std.testing.expect(frame.bytes.len > 0);
+}
+
+test "reader alternate-screen batch publishes one coherent projection generation" {
+    const runtime = try createIdleRuntimeWithGeometry(8, 6, .{});
+    defer runtime.destroy();
+
+    const primary_bytes = "\x1b]2;Orchbee primary\x1b\\" ++
+        "\x1b]7;file:///workspace/primary\x1b\\" ++
+        "\x1b[4 q\x1b[?25l\x1b[?1h\x1b=" ++
+        "\x1b[?2004h\x1b[?1004h\x1b[?1002h\x1b[?1006h" ++
+        "\x1b[>4;2m\x1b[=31;1u\x1b[HPRI";
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        primary_bytes,
+    ));
+    const primary_geometry = runtime.geometry();
+    const attachment_id = AttachmentId.fromBytes([_]u8{0x62} ** 16);
+    const host_epoch = HostEpoch.fromBytes([_]u8{0x71} ** 16);
+    const primary = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = attachment_id,
+            .base_generation = null,
+            .base_revision = null,
+            .force_snapshot = true,
+            .host_epoch = host_epoch,
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 1,
+        },
+    ));
+    defer std.testing.allocator.free(primary.allocation);
+    const primary_summary = try protocol.validateTerminalFrame(
+        std.testing.allocator,
+        primary.bytes,
+    );
+    try std.testing.expectEqual(protocol.FrameKind.snapshot, primary_summary.kind);
+    try std.testing.expectEqual(protocol.ActiveScreen.primary, primary_summary.active_screen);
+    try std.testing.expectEqualStrings("Orchbee primary", primary_summary.title.?);
+    try std.testing.expectEqualStrings(
+        "file:///workspace/primary",
+        primary_summary.current_directory.?,
+    );
+    try std.testing.expectEqual(protocol.CursorShape.underline, primary_summary.cursor_shape);
+    try std.testing.expectEqual(@as(u8, 0), primary.bytes[97] & 0x03);
+    const primary_interaction = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) |
+        (1 << 6) | (1 << 9) | (1 << 12) | (1 << 13) | (1 << 14) |
+        (1 << 15) | (1 << 16) | (1 << 17);
+    try std.testing.expectEqual(
+        @as(u32, primary_interaction),
+        try readFrameInt(u32, primary.bytes, 100),
+    );
+
+    const alternate_bytes = "\x1b[?1049h" ++
+        "\x1b]2;Orchbee alternate\x1b\\" ++
+        "\x1b]7;file:///workspace/alternate\x1b\\" ++
+        "\x1b[5 q\x1b[?25h\x1b[?1l\x1b>" ++
+        "\x1b[?2004l\x1b[?1004l\x1b[?1002l\x1b[?1006l" ++
+        "\x1b[>4;0m\x1b[?1003h\x1b[?1016h\x1b[=3;1u\x1b[HALT";
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        alternate_bytes,
+    ));
+    const alternate_geometry = runtime.geometry();
+    try std.testing.expectEqual(primary_geometry.generation + 1, alternate_geometry.generation);
+    try std.testing.expectEqual(primary_geometry.revision + 1, alternate_geometry.revision);
+
+    const alternate = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = attachment_id,
+            .base_generation = primary_summary.generation,
+            .base_revision = primary_summary.revision,
+            .force_snapshot = false,
+            .host_epoch = host_epoch,
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 2,
+        },
+    ));
+    defer std.testing.allocator.free(alternate.allocation);
+    const alternate_summary = try protocol.validateTerminalFrame(
+        std.testing.allocator,
+        alternate.bytes,
+    );
+    try std.testing.expectEqual(protocol.FrameKind.snapshot, alternate_summary.kind);
+    try std.testing.expectEqual(protocol.ActiveScreen.alternate, alternate_summary.active_screen);
+    try std.testing.expectEqualStrings("Orchbee alternate", alternate_summary.title.?);
+    try std.testing.expectEqualStrings(
+        "file:///workspace/alternate",
+        alternate_summary.current_directory.?,
+    );
+    try std.testing.expectEqual(protocol.CursorShape.bar, alternate_summary.cursor_shape);
+    try std.testing.expectEqual(@as(u8, 0x03), alternate.bytes[97] & 0x03);
+    const alternate_interaction = (1 << 7) | (1 << 11) | (1 << 13) | (1 << 14);
+    try std.testing.expectEqual(
+        @as(u32, alternate_interaction),
+        try readFrameInt(u32, alternate.bytes, 100),
+    );
+    try std.testing.expectEqual(alternate_geometry.generation, alternate_summary.generation);
+    try std.testing.expectEqual(alternate_geometry.revision, alternate_summary.revision);
+}
+
+test "application clear erases and homes the active screen without resetting metadata or modes" {
+    const runtime = try createIdleRuntimeWithGeometry(8, 6, .{});
+    defer runtime.destroy();
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b[?1049h\x1b]2;Clear metadata\x1b\\" ++
+            "\x1b]7;file:///workspace/clear\x1b\\" ++
+            "\x1b[?2004h\x1b[?1004h\x1b[?1002h\x1b[?1006h\x1b[3;4HCLEAR",
+    ));
+    const before = runtime.geometry();
+    const attachment_id = AttachmentId.fromBytes([_]u8{0x63} ** 16);
+    const host_epoch = HostEpoch.fromBytes([_]u8{0x72} ** 16);
+    const baseline = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = attachment_id,
+            .base_generation = null,
+            .base_revision = null,
+            .force_snapshot = true,
+            .host_epoch = host_epoch,
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 1,
+        },
+    ));
+    defer std.testing.allocator.free(baseline.allocation);
+    const baseline_summary = try protocol.validateTerminalFrame(
+        std.testing.allocator,
+        baseline.bytes,
+    );
+    const baseline_interaction = try readFrameInt(u32, baseline.bytes, 100);
+
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
+    const update = try runtime.applyTerminalControl(.clear);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
+    const after = runtime.geometry();
+    try std.testing.expectEqual(before.generation + 1, update.generation);
+    try std.testing.expectEqual(before.revision + 1, update.revision);
+    try std.testing.expectEqual(update.generation, after.generation);
+    try std.testing.expectEqual(update.revision, after.revision);
+    try std.testing.expectEqual(before.columns, after.columns);
+    try std.testing.expectEqual(before.rows, after.rows);
+    try std.testing.expectEqual(before.cell_pixel_width, after.cell_pixel_width);
+    try std.testing.expectEqual(before.cell_pixel_height, after.cell_pixel_height);
+
+    const plain = try runtime.plainString(std.testing.allocator);
+    defer std.testing.allocator.free(plain);
+    try std.testing.expectEqual(@as(usize, 0), std.mem.trim(u8, plain, " \r\n\t").len);
+
+    const frame = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = attachment_id,
+            .base_generation = before.generation,
+            .base_revision = before.revision,
+            .force_snapshot = false,
+            .host_epoch = host_epoch,
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 2,
+        },
+    ));
+    defer std.testing.allocator.free(frame.allocation);
+    const summary = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
+    try std.testing.expectEqual(protocol.FrameKind.snapshot, summary.kind);
+    try std.testing.expectEqual(protocol.ActiveScreen.alternate, summary.active_screen);
+    try std.testing.expectEqualStrings("Clear metadata", summary.title.?);
+    try std.testing.expectEqualStrings("file:///workspace/clear", summary.current_directory.?);
+    try std.testing.expectEqual(@as(u16, 0), summary.cursor_column);
+    try std.testing.expectEqual(@as(u16, 0), summary.cursor_row);
+    try std.testing.expectEqual(baseline_summary.active_screen, summary.active_screen);
+    try std.testing.expectEqual(baseline_interaction, try readFrameInt(u32, frame.bytes, 100));
+}
+
+test "application reset returns alternate state to a fresh primary terminal" {
+    const runtime = try createIdleRuntimeWithGeometry(8, 6, .{});
+    defer runtime.destroy();
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "PRIMARY\x1b[?1049h\x1b]2;Reset metadata\x1b\\" ++
+            "\x1b]7;file:///workspace/reset\x1b\\" ++
+            "\x1b[5 q\x1b[?25l\x1b[?1h\x1b=\x1b[?2004h" ++
+            "\x1b[?1004h\x1b[?1003h\x1b[?1016h\x1b[4;5HRESET",
+    ));
+    const before = runtime.geometry();
+
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
+    const update = try runtime.applyTerminalControl(.reset);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
+    const after = runtime.geometry();
+    try std.testing.expectEqual(before.generation + 1, update.generation);
+    try std.testing.expectEqual(before.revision + 1, update.revision);
+    try std.testing.expectEqualDeep(before.columns, after.columns);
+    try std.testing.expectEqualDeep(before.rows, after.rows);
+    try std.testing.expectEqualDeep(before.cell_pixel_width, after.cell_pixel_width);
+    try std.testing.expectEqualDeep(before.cell_pixel_height, after.cell_pixel_height);
+    try std.testing.expect(!runtime.focusInputWouldEmit());
+
+    const plain = try runtime.plainString(std.testing.allocator);
+    defer std.testing.allocator.free(plain);
+    try std.testing.expectEqual(@as(usize, 0), std.mem.trim(u8, plain, " \r\n\t").len);
+
+    const frame = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = AttachmentId.fromBytes([_]u8{0x64} ** 16),
+            .base_generation = before.generation,
+            .base_revision = before.revision,
+            .force_snapshot = false,
+            .host_epoch = HostEpoch.fromBytes([_]u8{0x73} ** 16),
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 1,
+        },
+    ));
+    defer std.testing.allocator.free(frame.allocation);
+    const summary = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
+    try std.testing.expectEqual(protocol.FrameKind.snapshot, summary.kind);
+    try std.testing.expectEqual(protocol.ActiveScreen.primary, summary.active_screen);
+    try std.testing.expectEqual(@as(?[]const u8, null), summary.title);
+    try std.testing.expectEqual(@as(?[]const u8, null), summary.current_directory);
+    try std.testing.expectEqual(protocol.CursorShape.block, summary.cursor_shape);
+    try std.testing.expectEqual(@as(u16, 0), summary.cursor_column);
+    try std.testing.expectEqual(@as(u16, 0), summary.cursor_row);
+    try std.testing.expectEqual(@as(u32, 0), try readFrameInt(u32, frame.bytes, 100));
+}
+
+test "application terminal controls reject counter exhaustion before mutation" {
+    const runtime = try createIdleRuntimeWithGeometry(8, 6, .{});
+    defer runtime.destroy();
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "unchanged"),
+    );
+
+    runtime.terminal_mutex.lock();
+    runtime.generation = std.math.maxInt(u64);
+    runtime.terminal_mutex.unlock();
+    var before = try canonicalSnapshot(runtime);
+    defer before.deinit();
+    try std.testing.expectError(error.RevisionOverflow, runtime.applyTerminalControl(.clear));
+    var after = try canonicalSnapshot(runtime);
+    defer after.deinit();
+    try expectCanonicalSnapshotEqual(before, after);
+
+    runtime.terminal_mutex.lock();
+    runtime.generation = 1;
+    runtime.revision.store(std.math.maxInt(u64), .monotonic);
+    runtime.terminal_mutex.unlock();
+    var revision_before = try canonicalSnapshot(runtime);
+    defer revision_before.deinit();
+    try std.testing.expectError(error.RevisionOverflow, runtime.applyTerminalControl(.reset));
+    var revision_after = try canonicalSnapshot(runtime);
+    defer revision_after.deinit();
+    try expectCanonicalSnapshotEqual(revision_before, revision_after);
+}
+
+test "reader applies terminal-driven 80 and 132 column modes to the PTY before commit" {
+    var resize_probe: TerminalDrivenResizeProbe = .{};
+    const runtime = try createRuntimeWithHooks(resize_probe.hooks());
+    defer runtime.destroy();
+
+    const initial = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 80), initial.columns);
+    try std.testing.expectEqual(@as(u16, 24), initial.rows);
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b[?40h\x1b[?3h",
+    ));
+    const expanded = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 132), expanded.columns);
+    try std.testing.expectEqual(initial.rows, expanded.rows);
+    try std.testing.expectEqual(initial.cell_pixel_width, expanded.cell_pixel_width);
+    try std.testing.expectEqual(initial.cell_pixel_height, expanded.cell_pixel_height);
+    try std.testing.expectEqual(initial.generation + 1, expanded.generation);
+    try std.testing.expectEqual(initial.revision + 1, expanded.revision);
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b[?3l",
+    ));
+    const restored = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 80), restored.columns);
+    try std.testing.expectEqual(expanded.rows, restored.rows);
+    try std.testing.expectEqual(expanded.cell_pixel_width, restored.cell_pixel_width);
+    try std.testing.expectEqual(expanded.cell_pixel_height, restored.cell_pixel_height);
+    try std.testing.expectEqual(expanded.generation + 1, restored.generation);
+    try std.testing.expectEqual(expanded.revision + 1, restored.revision);
+
+    const calls = resize_probe.observedCalls();
+    try std.testing.expectEqual(@as(usize, 2), calls.len);
+    try std.testing.expectEqual(initial.columns, calls[0].previous.columns);
+    try std.testing.expectEqual(expanded.columns, calls[0].next.columns);
+    try std.testing.expectEqual(expanded.columns, calls[1].previous.columns);
+    try std.testing.expectEqual(restored.columns, calls[1].next.columns);
+    try std.testing.expectEqual(initial.rows, calls[0].next.rows);
+    try std.testing.expectEqual(initial.cell_pixel_width, calls[0].next.cell_pixel_width);
+    try std.testing.expectEqual(initial.cell_pixel_height, calls[0].next.cell_pixel_height);
+
+    try runtime.forceTerminate();
+}
+
+test "reader ignores 132 column mode while the enabling private mode is disabled" {
+    var resize_probe: TerminalDrivenResizeProbe = .{};
+    const runtime = try createRuntimeWithHooks(resize_probe.hooks());
+    defer runtime.destroy();
+
+    const initial = runtime.geometry();
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?3h"),
+    );
+
+    const after = runtime.geometry();
+    try std.testing.expectEqual(initial.columns, after.columns);
+    try std.testing.expectEqual(initial.rows, after.rows);
+    try std.testing.expectEqual(initial.generation, after.generation);
+    try std.testing.expectEqual(initial.revision + 1, after.revision);
+    try std.testing.expectEqual(@as(usize, 0), resize_probe.observedCalls().len);
+
+    try runtime.forceTerminate();
+}
+
+test "reader preserves parser order for multiple terminal-driven resizes in one commit" {
+    var resize_probe: TerminalDrivenResizeProbe = .{};
+    const runtime = try createRuntimeWithHooks(resize_probe.hooks());
+    defer runtime.destroy();
+
+    const initial = runtime.geometry();
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?40h\x1b[?3h\x1b[?3l"),
+    );
+
+    const final = runtime.geometry();
+    try std.testing.expectEqual(initial.columns, final.columns);
+    try std.testing.expectEqual(initial.rows, final.rows);
+    try std.testing.expectEqual(initial.generation + 1, final.generation);
+    try std.testing.expectEqual(initial.revision + 1, final.revision);
+    const calls = resize_probe.observedCalls();
+    try std.testing.expectEqual(@as(usize, 2), calls.len);
+    try std.testing.expectEqual(@as(u16, 80), calls[0].previous.columns);
+    try std.testing.expectEqual(@as(u16, 132), calls[0].next.columns);
+    try std.testing.expectEqual(@as(u16, 132), calls[1].previous.columns);
+    try std.testing.expectEqual(@as(u16, 80), calls[1].next.columns);
+
+    try runtime.forceTerminate();
+}
+
+test "terminal-driven PTY resize failure fences before Ghostty mutation" {
+    var resize_probe: TerminalDrivenResizeProbe = .{ .fail = true };
+    const runtime = try createRuntimeWithHooks(resize_probe.hooks());
+    defer runtime.destroy();
+    var before = try canonicalSnapshot(runtime);
+    defer before.deinit();
+    const initial = runtime.geometry();
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.runtime_failed,
+        commitReaderBatch(runtime, "\x1b[?40h\x1b[?3hdiscarded-after-failure"),
+    );
+
+    const after_geometry = runtime.geometry();
+    try std.testing.expectEqualDeep(initial, after_geometry);
+    try std.testing.expect(runtime.isResizeFenced());
+    try std.testing.expect(subject.testing.failureFenced(runtime));
+    try std.testing.expectEqual(subject.RuntimeFailureKind.resize, runtime.primaryFailure().?);
+    const calls = resize_probe.observedCalls();
+    try std.testing.expectEqual(@as(usize, 1), calls.len);
+    try std.testing.expectEqual(@as(u16, 80), calls[0].previous.columns);
+    try std.testing.expectEqual(@as(u16, 132), calls[0].next.columns);
+    var after = try canonicalSnapshot(runtime);
+    defer after.deinit();
+    try expectCanonicalSnapshotEqual(before, after);
+}
+
+test "attachment resize waits for a terminal-driven reader transaction" {
+    var resize_probe: TerminalResizeSerializationProbe = .{};
+    const runtime = try createRuntimeWithHooks(resize_probe.hooks());
+    defer runtime.destroy();
+
+    var reader_call: ReaderBatchCall = .{ .runtime = runtime };
+    const reader_thread = try std.Thread.spawn(.{}, ReaderBatchCall.run, .{&reader_call});
+    defer reader_thread.join();
+    defer resize_probe.first_effect_returned.release();
+    resize_probe.first_effect_returned.wait();
+
+    var resize_call: ResizeCall = .{ .runtime = runtime };
+    const resize_thread = try std.Thread.spawn(.{}, ResizeCall.run, .{&resize_call});
+    defer resize_thread.join();
+    defer resize_probe.first_effect_returned.release();
+    resize_probe.reader_commit_waiting.wait();
+    try std.testing.expectEqual(@as(usize, 1), resize_probe.observedCalls().len);
+
+    resize_probe.first_effect_returned.release();
+    reader_call.done.wait();
+    resize_call.done.wait();
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, reader_call.observedOutcome().?);
+    switch (resize_call.observedResult()) {
+        .resized => |revision| try std.testing.expectEqual(@as(u64, 2), revision),
+        .failed => |err| return err,
+    }
+    const calls = resize_probe.observedCalls();
+    try std.testing.expectEqual(@as(usize, 2), calls.len);
+    try std.testing.expectEqual(@as(u16, 80), calls[0].previous.columns);
+    try std.testing.expectEqual(@as(u16, 132), calls[0].next.columns);
+    try std.testing.expectEqual(@as(u16, 132), calls[1].previous.columns);
+    try std.testing.expectEqual(@as(u16, 100), calls[1].next.columns);
+    const final = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 100), final.columns);
+    try std.testing.expectEqual(@as(u16, 30), final.rows);
+
+    try runtime.forceTerminate();
 }
 
 test "runtime projection preserves resize and hyperlink transitions" {
@@ -1634,6 +2191,179 @@ test "terminal generated replies are excluded from client input accounting" {
         .pending, .failed => return error.ExpectedNormalCompletion,
     }
     try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
+}
+
+fn expectRealPtyQueryReplies(
+    columns: u16,
+    rows: u16,
+    color_scheme: subject.ColorScheme,
+    query_shell: []const u8,
+    expected_shell: []const u8,
+    expected_length: usize,
+) !void {
+    const script = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "stty -echo -icanon min 0 time 20; " ++
+            "printf '{s}'; " ++
+            "response=$(dd bs=1 count={d} 2>/dev/null); " ++
+            "expected=$(printf '{s}'); " ++
+            "[ \"$response\" = \"$expected\" ]",
+        .{ query_shell, expected_length, expected_shell },
+    );
+    defer std.testing.allocator.free(script);
+    const arguments = [_][]const u8{ "-c", script };
+    const palette = [_]u32{0} ** 256;
+    const runtime = try TerminalRuntime.createWithOptions(std.testing.allocator, .{
+        .arguments = &arguments,
+        .columns = columns,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = "/bin/sh",
+        .rows = rows,
+    }, .{
+        .cell_pixel_height = 16,
+        .cell_pixel_width = 8,
+        .profile = .{
+            .color_scheme = color_scheme,
+            .default_background_rgb = if (color_scheme == .dark) 0x11_11_11 else 0xf5_f5_f5,
+            .default_cursor_rgb = null,
+            .default_foreground_rgb = if (color_scheme == .dark) 0xff_ff_ff else 0,
+            .device_primary_conformance_level = 62,
+            .device_primary_features = &.{22},
+            .device_secondary_type = 1,
+            .device_secondary_firmware_version = 0,
+            .device_secondary_rom_cartridge = 0,
+            .device_tertiary_unit_id = 0,
+            .enquiry_response = "orchbee-ready",
+            .palette = &palette,
+            .version_response = "orchbee-test 2.4.0",
+        },
+    });
+    defer runtime.destroy();
+
+    _ = try runtime.waitForCompletion();
+    try runtime.shutdown();
+    const completion = runtime.completion();
+    try std.testing.expectEqual(pty_process.ExitResult{ .exit_code = 0 }, completion.exit_result.?);
+    switch (completion.classification) {
+        .normal => {},
+        .pending, .failed => return error.ExpectedNormalCompletion,
+    }
+    try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
+}
+
+test "real PTY preserves the legacy terminal query and reply corpus" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const query_shell = "\\033[5n\\033[6n" ++
+        "\\033[?996n\\033[>q\\005" ++
+        "\\033[c\\033[>c\\033[=c" ++
+        "\\033P$qm\\033\\\\" ++
+        "\\033[1;31m\\033P$qm\\033\\\\" ++
+        "\\033[5 q\\033P$q q\\033\\\\" ++
+        "\\033[3;20r\\033P$qr\\033\\\\" ++
+        "\\033P$qs\\033\\\\" ++
+        "\\033[?69h\\033[5;70s\\033P$qs\\033\\\\" ++
+        "\\033P$q\"q\\033\\\\";
+    const expected = "\x1b[0n\x1b[1;1R" ++
+        "\x1b[?997;1n" ++
+        "\x1bP>|orchbee-test 2.4.0\x1b\\" ++
+        "orchbee-ready" ++
+        "\x1b[?62;22c\x1b[>1;0;0c\x1bP!|00000000\x1b\\" ++
+        "\x1bP1$r0m\x1b\\" ++
+        "\x1bP1$r0;1;31m\x1b\\" ++
+        "\x1bP1$r5 q\x1b\\" ++
+        "\x1bP1$r3;20r\x1b\\" ++
+        "\x1bP0$r\x1b\\" ++
+        "\x1bP1$r5;70s\x1b\\" ++
+        "\x1bP0$r\x1b\\";
+    const expected_shell = "\\033[0n\\033[1;1R" ++
+        "\\033[?997;1n" ++
+        "\\033P>|orchbee-test 2.4.0\\033\\\\" ++
+        "orchbee-ready" ++
+        "\\033[?62;22c\\033[>1;0;0c\\033P!|00000000\\033\\\\" ++
+        "\\033P1$r0m\\033\\\\" ++
+        "\\033P1$r0;1;31m\\033\\\\" ++
+        "\\033P1$r5 q\\033\\\\" ++
+        "\\033P1$r3;20r\\033\\\\" ++
+        "\\033P0$r\\033\\\\" ++
+        "\\033P1$r5;70s\\033\\\\" ++
+        "\\033P0$r\\033\\\\";
+    try expectRealPtyQueryReplies(
+        80,
+        24,
+        .dark,
+        query_shell,
+        expected_shell,
+        expected.len,
+    );
+
+    const size_expected = "\x1b[4;32;80t\x1b[6;16;8t\x1b[8;2;10t";
+    try expectRealPtyQueryReplies(
+        10,
+        2,
+        .dark,
+        "\\033[14t\\033[16t\\033[18t",
+        "\\033[4;32;80t\\033[6;16;8t\\033[8;2;10t",
+        size_expected.len,
+    );
+
+    const light_expected = "\x1b[?997;2n";
+    try expectRealPtyQueryReplies(
+        80,
+        24,
+        .light,
+        "\\033[?996n",
+        "\\033[?997;2n",
+        light_expected.len,
+    );
+}
+
+test "pinned Ghostty OSC color updates and queries share one color state" {
+    const Reply = struct {
+        var bytes: [256]u8 = undefined;
+        var length: usize = 0;
+
+        fn reset() void {
+            length = 0;
+        }
+
+        fn writePty(
+            _: *ghostty_vt.TerminalStream.Handler,
+            data: [:0]const u8,
+        ) void {
+            if (data.len > bytes.len - length) @panic("color reply exceeds test buffer");
+            @memcpy(bytes[length..][0..data.len], data);
+            length += data.len;
+        }
+    };
+    Reply.reset();
+
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 80,
+        .rows = 24,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.handler.effects.write_pty = Reply.writePty;
+
+    stream.nextSlice(
+        "\x1b]10;rgb:d8/de/e9\x1b\\" ++
+            "\x1b]11;rgb:10/14/18\x1b\\" ++
+            "\x1b]12;rgb:f5/a9/7f\x1b\\" ++
+            "\x1b]4;1;rgb:aa/bb/cc\x1b\\",
+    );
+    try std.testing.expectEqual(@as(usize, 0), Reply.length);
+
+    stream.nextSlice("\x1b]10;?;?;?\x1b\\\x1b]4;1;?\x1b\\");
+    try std.testing.expectEqualStrings(
+        "\x1b]10;rgb:d8d8/dede/e9e9\x1b\\" ++
+            "\x1b]11;rgb:1010/1414/1818\x1b\\" ++
+            "\x1b]12;rgb:f5f5/a9a9/7f7f\x1b\\" ++
+            "\x1b]4;1;rgb:aaaa/bbbb/cccc\x1b\\",
+        Reply.bytes[0..Reply.length],
+    );
 }
 
 test "root child exit rejects new client input without stopping terminal replies" {

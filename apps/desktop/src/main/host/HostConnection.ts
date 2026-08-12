@@ -23,6 +23,7 @@ import {
 	ProjectionBlockedSchema,
 	SelectionChangedSchema,
 	SelectionExportFinishedSchema,
+	TerminalBellSchema,
 	TypedFailureSchema,
 	type ClientId,
 	type AttachmentId,
@@ -412,6 +413,8 @@ export class HostConnection {
 			}
 			case MessageKind.historyChanged:
 				return decodeControlAttachmentId(envelope, HistoryChangedSchema);
+			case MessageKind.terminalBell:
+				return decodeControlAttachmentId(envelope, TerminalBellSchema);
 			case MessageKind.projectionBlocked:
 				return decodeControlAttachmentId(envelope, ProjectionBlockedSchema);
 			case MessageKind.selectionChanged:

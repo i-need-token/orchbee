@@ -1,11 +1,13 @@
 ---------------------- MODULE TerminalHostRequestOutcome ---------------------
 EXTENDS Naturals, TLC
 
-\* Refines runtime-model claims TH-005, TH-007, and TH-010. Prepare, Commit,
+\* Refines runtime-model claims TH-005, TH-007, TH-010, and TH-016. Prepare, Commit,
 \* HandoffAppliedReply, Disconnect, and ReplayIdempotent distinguish rejected,
 \* applied, replayed, and unknown outcomes without duplicating an effect. The
 \* prepared state includes the encoded reply and its reserved egress capacity;
-\* Commit therefore introduces no later domain allocation.
+\* Commit therefore introduces no later domain allocation. Application clear
+\* and reset refine the non_replayable kind: an unknown committed result remains
+\* stable and can never enter ReplayIdempotent.
 
 CONSTANTS Requests
 

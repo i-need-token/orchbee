@@ -14,6 +14,7 @@ const terminal_input_encoding = @import("input_encoding.zig");
 const terminal_launch = @import("launch.zig");
 const terminal_profile = @import("profile.zig");
 const terminal_projection = @import("projection.zig");
+const terminal_stream = @import("terminal_stream.zig");
 
 pub const pending_input_capacity_bytes = protocol.Limits.pending_input_bytes;
 const max_pending_client_input_entries = 4096;
@@ -202,6 +203,7 @@ const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     projection_capture_starting: ?*const fn (*anyopaque) void = null,
     read_pty: ?*const fn (*anyopaque, []u8) anyerror!usize = null,
     read_commit_checkpoint: ?*const fn (*anyopaque, ReadCommitCheckpoint) void = null,
+    reader_commit_waiting: ?*const fn (*anyopaque) void = null,
     reader_batch_finished: ?*const fn (*anyopaque, ReaderBatchOutcome) void = null,
     reader_stopped: ?*const fn (*anyopaque) void = null,
     resize_effect_returned: ?*const fn (*anyopaque) void = null,
@@ -366,6 +368,16 @@ pub const ConfigurationUpdate = struct {
     revision: u64,
 };
 
+pub const TerminalControlOperation = enum {
+    clear,
+    reset,
+};
+
+pub const TerminalControlUpdate = struct {
+    generation: u64,
+    revision: u64,
+};
+
 pub const RuntimeFailureKind = enum(u8) {
     process_observation = 1,
     pty_read = 2,
@@ -499,9 +511,15 @@ const PreparedAttachmentState = enum {
 /// attachment state become observable as one Host transition.
 pub const PreparedAttachment = struct {
     attachment_id: AttachmentId,
+    bell_sequence: u64,
     history_reserved: bool,
     runtime: *TerminalRuntime,
     state: PreparedAttachmentState = .pending,
+
+    pub fn bellSequence(self: *const PreparedAttachment) u64 {
+        std.debug.assert(self.state == .pending);
+        return self.bell_sequence;
+    }
 
     pub fn commit(self: *PreparedAttachment) void {
         std.debug.assert(self.state == .pending);
@@ -532,6 +550,10 @@ pub const ReadCommitGuard = struct {
 
 pub const TerminalRuntime = struct {
     allocator: std.mem.Allocator,
+    // terminal_mutex protects the canonical count and its deferred overflow
+    // marker because Ghostty invokes bell synchronously while parsing output.
+    bell_sequence: u64 = 0,
+    bell_sequence_overflow_pending: bool = false,
     cell_pixel_height: u16,
     cell_pixel_width: u16,
     child_exited: std.atomic.Value(bool) = .init(false),
@@ -599,7 +621,11 @@ pub const TerminalRuntime = struct {
     // and its canonical commit or platform compensation. Normal completion
     // cannot publish while this effect is in flight.
     resize_effect_in_flight: bool = false,
-    stream: ghostty_vt.TerminalStream,
+    // A terminal-driven resize temporarily releases terminal_mutex for its
+    // platform effect while the reader still owns the enclosing batch commit.
+    // Shutdown and unrelated failure fencing wait for that exact transaction.
+    reader_commit_in_progress: bool = false,
+    stream: terminal_stream.Stream,
     scrollback_bytes: usize,
     startup_condition: std.Thread.Condition = .{},
     startup_mutex: std.Thread.Mutex = .{},
@@ -607,7 +633,10 @@ pub const TerminalRuntime = struct {
     terminal: ghostty_vt.Terminal,
     // terminal_mutex protects terminal parsing, history, generation, scrollback,
     // and cell geometry as one state transition.
+    terminal_condition: std.Thread.Condition = .{},
+    terminal_driven_resize_target: ?terminal_geometry.Geometry = null,
     terminal_mutex: std.Thread.Mutex = .{},
+    terminal_resize_failure_pending: bool = false,
     testing_hooks: RuntimeTestingHooks = .{},
     threads_joined: bool = false,
     wait_thread: ?std.Thread = null,
@@ -681,13 +710,16 @@ pub const TerminalRuntime = struct {
             self.testing_hooks = spawner.terminalRuntimeTestingHooks();
         }
         errdefer self.cleanupFailedThreadStartup();
-        self.stream = .init(self.terminal.vtHandler());
-        self.stream.handler.effects.write_pty = writePtyEffect;
-        self.stream.handler.effects.color_scheme = colorSchemeEffect;
-        self.stream.handler.effects.device_attributes = deviceAttributesEffect;
-        self.stream.handler.effects.enquiry = enquiryEffect;
-        self.stream.handler.effects.size = sizeEffect;
-        self.stream.handler.effects.xtversion = versionEffect;
+        self.stream = .init(.init(&self.terminal));
+        const effects = &self.stream.handler.terminal_handler.effects;
+        effects.bell = bellEffect;
+        effects.write_pty = writePtyEffect;
+        effects.color_scheme = colorSchemeEffect;
+        effects.device_attributes = deviceAttributesEffect;
+        effects.enquiry = enquiryEffect;
+        effects.size = sizeEffect;
+        effects.xtversion = versionEffect;
+        self.stream.handler.column_mode = columnModeEffect;
 
         self.wait_thread = try spawner.spawn(waitThread, self);
         self.reader_thread = try spawner.spawn(readerThread, self);
@@ -853,6 +885,9 @@ pub const TerminalRuntime = struct {
         // that already won terminal_mutex finishes before this returns; every
         // later batch observes output_abort_requested and is discarded.
         self.terminal_mutex.lock();
+        while (self.reader_commit_in_progress) {
+            self.terminal_condition.wait(&self.terminal_mutex);
+        }
         self.input_mutex.lock();
         self.writer_stop = true;
         self.input_condition.broadcast();
@@ -1030,6 +1065,9 @@ pub const TerminalRuntime = struct {
             }
         }
         self.terminal_mutex.lock();
+        while (self.reader_commit_in_progress) {
+            self.terminal_condition.wait(&self.terminal_mutex);
+        }
         const won = self.closeFailureFenceLocked(failure);
         self.terminal_mutex.unlock();
         return won;
@@ -1053,7 +1091,19 @@ pub const TerminalRuntime = struct {
         };
     }
 
-    fn ensureRuntimeWorkAvailableLocked(self: *const TerminalRuntime) !void {
+    fn waitForReaderCommitLocked(self: *TerminalRuntime) void {
+        while (self.reader_commit_in_progress) {
+            if (comptime target_builtin.is_test) {
+                if (self.testing_hooks.reader_commit_waiting) |notify| {
+                    notify(self.testing_hooks.context.?);
+                }
+            }
+            self.terminal_condition.wait(&self.terminal_mutex);
+        }
+    }
+
+    fn ensureRuntimeWorkAvailableLocked(self: *TerminalRuntime) !void {
+        self.waitForReaderCommitLocked();
         if (self.isResizeFenced()) return error.TerminalResizeFailed;
         if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
         switch (self.completion_classification.load()) {
@@ -1062,7 +1112,8 @@ pub const TerminalRuntime = struct {
         }
     }
 
-    fn ensureReadableStateAvailableLocked(self: *const TerminalRuntime) !void {
+    fn ensureReadableStateAvailableLocked(self: *TerminalRuntime) !void {
+        self.waitForReaderCommitLocked();
         if (self.isResizeFenced()) return error.TerminalResizeFailed;
         switch (self.completion_classification.load()) {
             .failed => |failure| {
@@ -1081,6 +1132,13 @@ pub const TerminalRuntime = struct {
         defer self.terminal_mutex.unlock();
         self.ensureReadableStateAvailableLocked() catch return false;
         return true;
+    }
+
+    pub fn bellSequence(self: *TerminalRuntime) u64 {
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        self.waitForReaderCommitLocked();
+        return self.bell_sequence;
     }
 
     pub fn acquireReadCommitGuard(
@@ -1277,6 +1335,7 @@ pub const TerminalRuntime = struct {
     pub fn focusInputWouldEmit(self: *TerminalRuntime) bool {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
+        self.waitForReaderCommitLocked();
         return terminal_input_encoding.reportsFocus(&self.terminal);
     }
 
@@ -1369,6 +1428,47 @@ pub const TerminalRuntime = struct {
         return self.output_batches_since_sync.swap(0, .acq_rel);
     }
 
+    pub fn applyTerminalControl(
+        self: *TerminalRuntime,
+        operation: TerminalControlOperation,
+    ) !TerminalControlUpdate {
+        self.terminal_mutex.lock();
+        self.ensureRuntimeWorkAvailableLocked() catch |err| {
+            self.terminal_mutex.unlock();
+            return err;
+        };
+        if (self.child_exited.load(.acquire)) {
+            self.terminal_mutex.unlock();
+            return error.TerminalExited;
+        }
+        const current_revision = self.revision.load(.monotonic);
+        if (self.generation == std.math.maxInt(u64) or
+            current_revision == std.math.maxInt(u64))
+        {
+            self.terminal_mutex.unlock();
+            return error.RevisionOverflow;
+        }
+
+        switch (operation) {
+            .clear => {
+                self.terminal.eraseDisplay(.complete, false);
+                self.terminal.setCursorPos(1, 1);
+            },
+            .reset => self.terminal.fullReset(),
+        }
+        self.generation += 1;
+        const revision = current_revision + 1;
+        self.revision.store(revision, .release);
+        self.history.screenChanged(&self.terminal);
+        const update: TerminalControlUpdate = .{
+            .generation = self.generation,
+            .revision = revision,
+        };
+        self.terminal_mutex.unlock();
+        self.markNormalCompletionReady();
+        return update;
+    }
+
     pub fn resize(self: *TerminalRuntime, columns: u16, rows: u16) !void {
         self.terminal_mutex.lock();
         const cell_pixel_width = self.cell_pixel_width;
@@ -1437,8 +1537,7 @@ pub const TerminalRuntime = struct {
             }
             self.terminal_mutex.lock();
             const failure_fenced = self.failure_fenced;
-            std.debug.assert(self.resize_effect_in_flight);
-            self.resize_effect_in_flight = false;
+            self.finishResizeEffectLocked();
             self.terminal_mutex.unlock();
             if (failure_fenced) return error.TerminalRuntimeUnavailable;
             self.markNormalCompletionReady();
@@ -1455,9 +1554,10 @@ pub const TerminalRuntime = struct {
             if (compensation.rollback_failed) return error.ResizeRollbackFailed;
             return error.TerminalRuntimeUnavailable;
         }
-        // HostRuntimeAggregate is the sole geometry writer. PTY output and
-        // configuration may advance while the platform effect is in flight,
-        // but no second geometry effect may overtake this commit.
+        // Attachment and parsed terminal requests share this one geometry
+        // effect gate. PTY output and configuration may advance while this
+        // attachment effect is in flight, but no second geometry effect may
+        // overtake its commit.
         std.debug.assert(self.terminal.cols == old_columns);
         std.debug.assert(self.terminal.rows == old_rows);
         std.debug.assert(self.cell_pixel_width == previous_geometry.cell_pixel_width);
@@ -1495,8 +1595,7 @@ pub const TerminalRuntime = struct {
                     break :rollback false;
                 };
                 self.terminal_mutex.lock();
-                std.debug.assert(self.resize_effect_in_flight);
-                self.resize_effect_in_flight = false;
+                self.finishResizeEffectLocked();
                 self.terminal_mutex.unlock();
                 if (won) self.finishFailureFence();
                 if (rollback_failed) return error.ResizeRollbackFailed;
@@ -1508,8 +1607,7 @@ pub const TerminalRuntime = struct {
         self.generation = next_generation;
         self.revision.store(revision, .release);
         self.history.generationChanged(&self.terminal, revision, self.generation);
-        std.debug.assert(self.resize_effect_in_flight);
-        self.resize_effect_in_flight = false;
+        self.finishResizeEffectLocked();
         self.terminal_mutex.unlock();
         self.markNormalCompletionReady();
         return revision;
@@ -1519,7 +1617,7 @@ pub const TerminalRuntime = struct {
         self.terminal_mutex.lock();
         self.resize_fenced.store(true, .release);
         const won = self.closeFailureFenceLocked(.resize);
-        self.resize_effect_in_flight = false;
+        if (self.resize_effect_in_flight) self.finishResizeEffectLocked();
         self.terminal_mutex.unlock();
         if (won) self.finishFailureFence();
     }
@@ -1545,8 +1643,7 @@ pub const TerminalRuntime = struct {
             self.resize_fenced.store(true, .release);
             won = self.closeFailureFenceLocked(.resize);
         }
-        std.debug.assert(self.resize_effect_in_flight);
-        self.resize_effect_in_flight = false;
+        self.finishResizeEffectLocked();
         const failure_fenced = self.failure_fenced;
         self.terminal_mutex.unlock();
         if (won) self.finishFailureFence();
@@ -1555,6 +1652,12 @@ pub const TerminalRuntime = struct {
             .failure_fenced = failure_fenced,
             .rollback_failed = rollback_failed,
         };
+    }
+
+    fn finishResizeEffectLocked(self: *TerminalRuntime) void {
+        std.debug.assert(self.resize_effect_in_flight);
+        self.resize_effect_in_flight = false;
+        self.terminal_condition.broadcast();
     }
 
     fn notifyResizeEffectReturned(self: *TerminalRuntime) void {
@@ -1617,6 +1720,7 @@ pub const TerminalRuntime = struct {
     pub fn configuration(self: *TerminalRuntime) terminal_configuration.Configuration {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
+        self.waitForReaderCommitLocked();
         return .{ .scrollback_bytes = self.scrollback_bytes };
     }
 
@@ -1698,6 +1802,7 @@ pub const TerminalRuntime = struct {
     pub fn geometry(self: *TerminalRuntime) Geometry {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
+        self.waitForReaderCommitLocked();
         return .{
             .cell_pixel_height = self.cell_pixel_height,
             .cell_pixel_width = self.cell_pixel_width,
@@ -1827,6 +1932,7 @@ pub const TerminalRuntime = struct {
         if (requires_readable_state) try self.history.reserveAttachment(attachment_id);
         return .{
             .attachment_id = attachment_id,
+            .bell_sequence = self.bell_sequence,
             .history_reserved = requires_readable_state,
             .runtime = self,
         };
@@ -1835,6 +1941,7 @@ pub const TerminalRuntime = struct {
     pub fn detachHistory(self: *TerminalRuntime, attachment_id: identifiers.AttachmentId) void {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
+        self.waitForReaderCommitLocked();
         self.history.detach(&self.terminal, attachment_id);
     }
 
@@ -1930,6 +2037,7 @@ pub const TerminalRuntime = struct {
     ) !void {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
+        self.waitForReaderCommitLocked();
         try self.history.rollbackHistoryEvent(attachment_id, event);
     }
 
@@ -1963,6 +2071,7 @@ pub const TerminalRuntime = struct {
     ) !void {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
+        self.waitForReaderCommitLocked();
         try self.history.rollbackSelectionEvent(attachment_id, event);
     }
 
@@ -1992,6 +2101,7 @@ pub const TerminalRuntime = struct {
     ) void {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
+        self.waitForReaderCommitLocked();
         self.history.commitPreparedSelectionExportCancellation(prepared);
     }
 
@@ -2082,6 +2192,7 @@ pub const TerminalRuntime = struct {
     ) void {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
+        self.waitForReaderCommitLocked();
         self.history.rollbackExportStart(
             result.started.attachment_id,
             result.started.export_sequence,
@@ -2109,6 +2220,7 @@ pub const TerminalRuntime = struct {
     ) !void {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
+        self.waitForReaderCommitLocked();
         try self.history.rollbackExportChunk(token);
     }
 
@@ -2420,6 +2532,15 @@ pub const TerminalRuntime = struct {
         };
     }
 
+    fn bellEffect(handler: *ghostty_vt.TerminalStream.Handler) void {
+        const self = runtimeFromHandler(handler);
+        if (self.bell_sequence == std.math.maxInt(u64)) {
+            self.bell_sequence_overflow_pending = true;
+            return;
+        }
+        self.bell_sequence += 1;
+    }
+
     fn colorSchemeEffect(
         handler: *ghostty_vt.TerminalStream.Handler,
     ) ?ghostty_vt.device_status.ColorScheme {
@@ -2432,6 +2553,60 @@ pub const TerminalRuntime = struct {
 
     fn enquiryEffect(handler: *ghostty_vt.TerminalStream.Handler) []const u8 {
         return runtimeFromHandler(handler).profile.enquiry_response;
+    }
+
+    fn columnModeEffect(handler: *terminal_stream.Handler, enabled: bool) bool {
+        const self = runtimeFromHostHandler(handler);
+        std.debug.assert(self.reader_commit_in_progress);
+        const terminal = handler.terminal_handler.terminal;
+        const target_columns: u16 = if (enabled) 132 else 80;
+        const previous_geometry: terminal_geometry.Geometry = .{
+            .cell_pixel_height = self.cell_pixel_height,
+            .cell_pixel_width = self.cell_pixel_width,
+            .columns = terminal.cols,
+            .rows = terminal.rows,
+        };
+        const next_geometry: terminal_geometry.Geometry = .{
+            .cell_pixel_height = self.cell_pixel_height,
+            .cell_pixel_width = self.cell_pixel_width,
+            .columns = target_columns,
+            .rows = terminal.rows,
+        };
+        const geometry_changes = previous_geometry.columns != next_geometry.columns;
+
+        if (geometry_changes) {
+            std.debug.assert(!self.resize_effect_in_flight);
+            self.resize_effect_in_flight = true;
+            self.terminal_mutex.unlock();
+            const resize_result = self.resizePtyEffect(previous_geometry, next_geometry);
+            self.notifyResizeEffectReturned();
+            self.terminal_mutex.lock();
+            resize_result catch {
+                self.resize_fenced.store(true, .release);
+                self.terminal_resize_failure_pending = true;
+                self.finishResizeEffectLocked();
+                return false;
+            };
+        }
+
+        terminal.deccolm(
+            terminal.screens.active.alloc,
+            if (enabled) .@"132_cols" else .@"80_cols",
+        ) catch {
+            self.resize_fenced.store(true, .release);
+            if (geometry_changes) {
+                self.terminal_mutex.unlock();
+                self.restorePtyGeometry(next_geometry, previous_geometry) catch {};
+                self.terminal_mutex.lock();
+                self.finishResizeEffectLocked();
+            }
+            self.terminal_resize_failure_pending = true;
+            return false;
+        };
+
+        self.terminal_driven_resize_target = next_geometry;
+        if (geometry_changes) self.finishResizeEffectLocked();
+        return true;
     }
 
     fn sizeEffect(
@@ -2481,6 +2656,9 @@ pub const TerminalRuntime = struct {
         bytes: []const u8,
     ) ReaderBatchOutcome {
         self.terminal_mutex.lock();
+        while (self.resize_effect_in_flight) {
+            self.terminal_condition.wait(&self.terminal_mutex);
+        }
         if (self.failure_fenced) {
             self.terminal_mutex.unlock();
             self.notifyReaderBatchFinished(.failure_fenced);
@@ -2503,8 +2681,16 @@ pub const TerminalRuntime = struct {
             return .runtime_failed;
         }
 
+        std.debug.assert(!self.reader_commit_in_progress);
+        self.reader_commit_in_progress = true;
         std.debug.assert(!self.reply_failure_pending);
+        std.debug.assert(!self.bell_sequence_overflow_pending);
+        std.debug.assert(!self.terminal_resize_failure_pending);
+        std.debug.assert(self.terminal_driven_resize_target == null);
+        self.stream.handler.beginBatch();
         const previous_screen = self.terminal.screens.active_key;
+        const previous_columns = self.terminal.cols;
+        const previous_rows = self.terminal.rows;
         // Ghostty's 1049 path can reset the active screen without changing
         // its key (for example, enabling it twice). Isolate the terminal clear
         // marker for this batch so same-key replacement still invalidates
@@ -2514,13 +2700,40 @@ pub const TerminalRuntime = struct {
         self.stream.nextSlice(bytes);
         const screen_reset = self.terminal.flags.dirty.clear;
         self.terminal.flags.dirty.clear = previous_clear or screen_reset;
+        const geometry_changed = previous_columns != self.terminal.cols or
+            previous_rows != self.terminal.rows;
+        const terminal_resize_target = self.terminal_driven_resize_target;
+        self.terminal_driven_resize_target = null;
+        const terminal_geometry_unsynchronized = geometry_changed and
+            (terminal_resize_target == null or
+                terminal_resize_target.?.columns != self.terminal.cols or
+                terminal_resize_target.?.rows != self.terminal.rows or
+                terminal_resize_target.?.cell_pixel_width != self.cell_pixel_width or
+                terminal_resize_target.?.cell_pixel_height != self.cell_pixel_height);
+        const terminal_resize_failed = self.terminal_resize_failure_pending or
+            terminal_geometry_unsynchronized;
+        self.terminal_resize_failure_pending = false;
+        if (terminal_resize_failed) {
+            std.debug.assert(!self.resize_effect_in_flight);
+            self.resize_fenced.store(true, .release);
+            self.reply_failure_pending = false;
+            self.bell_sequence_overflow_pending = false;
+            const won = self.closeFailureFenceLocked(.resize);
+            self.finishReaderCommitLocked();
+            self.terminal_mutex.unlock();
+            self.notifyReaderBatchFinished(.runtime_failed);
+            if (won) self.finishFailureFence();
+            return .runtime_failed;
+        }
         const screen_changed = previous_screen != self.terminal.screens.active_key or
             screen_reset;
-        if (screen_changed) self.generation += 1;
+        if (screen_changed or geometry_changed) self.generation += 1;
         const revision = current_revision + 1;
         self.revision.store(revision, .release);
         if (screen_changed) {
             self.history.screenChanged(&self.terminal);
+        } else if (geometry_changed) {
+            self.history.generationChanged(&self.terminal, revision, self.generation);
         } else {
             self.history.noteMutation(&self.terminal, revision, self.generation);
         }
@@ -2528,17 +2741,30 @@ pub const TerminalRuntime = struct {
 
         const reply_failed = self.reply_failure_pending;
         self.reply_failure_pending = false;
-        const reply_failure_won = reply_failed and
-            self.closeFailureFenceLocked(.terminal_reply);
+        const bell_sequence_overflowed = self.bell_sequence_overflow_pending;
+        self.bell_sequence_overflow_pending = false;
+        const failure_won = if (reply_failed)
+            self.closeFailureFenceLocked(.terminal_reply)
+        else if (bell_sequence_overflowed)
+            self.closeFailureFenceLocked(.worker_integrity)
+        else
+            false;
+        self.finishReaderCommitLocked();
         self.terminal_mutex.unlock();
 
-        const outcome: ReaderBatchOutcome = if (reply_failed)
+        const outcome: ReaderBatchOutcome = if (reply_failed or bell_sequence_overflowed)
             .runtime_failed
         else
             .committed;
         self.notifyReaderBatchFinished(outcome);
-        if (reply_failure_won) self.finishFailureFence();
+        if (failure_won) self.finishFailureFence();
         return outcome;
+    }
+
+    fn finishReaderCommitLocked(self: *TerminalRuntime) void {
+        std.debug.assert(self.reader_commit_in_progress);
+        self.reader_commit_in_progress = false;
+        self.terminal_condition.broadcast();
     }
 
     fn publishPtyDrained(self: *TerminalRuntime) bool {
@@ -2822,7 +3048,12 @@ fn applyScrollbackBytes(terminal: *ghostty_vt.Terminal, scrollback_bytes: usize)
 }
 
 fn runtimeFromHandler(handler: *ghostty_vt.TerminalStream.Handler) *TerminalRuntime {
-    const stream: *ghostty_vt.TerminalStream = @fieldParentPtr("handler", handler);
+    const host_handler: *terminal_stream.Handler = @fieldParentPtr("terminal_handler", handler);
+    return runtimeFromHostHandler(host_handler);
+}
+
+fn runtimeFromHostHandler(handler: *terminal_stream.Handler) *TerminalRuntime {
+    const stream: *terminal_stream.Stream = @fieldParentPtr("handler", handler);
     return @alignCast(@fieldParentPtr("stream", stream));
 }
 

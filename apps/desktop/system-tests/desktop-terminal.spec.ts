@@ -133,6 +133,64 @@ test.afterEach(async () => {
 	runtimeDirectory = undefined;
 });
 
+test('terminal-parity/SU-10-scrollbar', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+
+	const input = page.getByRole('textbox');
+	await input.pressSequentially(
+		`i=1; while [ "$i" -le 180 ]; do printf 'su10-history-%03d\\n' "$i"; i=$((i+1)); done; printf 'su10-tail-marker\\n'`,
+		{ delay: 1 },
+	);
+	await input.press('Enter');
+	const accessibility = root.locator('[role="log"]');
+	await expect(accessibility).toContainText('su10-tail-marker');
+	const accessibleRows = accessibility.locator(':scope > div');
+	const canvas = root.locator('canvas');
+	await expect(canvas).toHaveAttribute('aria-hidden', 'true');
+	expect(await canvas.getAttribute('role')).toBeNull();
+	await page.clock.install();
+
+	const bounds = await canvas.boundingBox();
+	if (bounds === null) throw new Error('Terminal canvas has no bounding box.');
+	const firstVisibleRow = async (): Promise<bigint> =>
+		BigInt((await accessibleRows.first().getAttribute('data-terminal-absolute-row')) ?? '0');
+	const bottomStart = await firstVisibleRow();
+	const scrollbarX = bounds.x + bounds.width - 4;
+	const upperTrackY = bounds.y + bounds.height * 0.25;
+	const lowerTrackY = bounds.y + bounds.height * 0.75;
+
+	await page.mouse.click(scrollbarX, upperTrackY);
+	await expect.poll(firstVisibleRow).toBeLessThan(bottomStart);
+	const upperStart = await firstVisibleRow();
+	await page.mouse.move(scrollbarX, upperTrackY);
+	await page.mouse.down();
+	await page.mouse.move(scrollbarX, lowerTrackY, { steps: 4 });
+	await expect.poll(firstVisibleRow).toBeGreaterThan(upperStart);
+	await page.mouse.up();
+
+	await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1);
+	await input.focus();
+	await input.press('ArrowRight');
+	await expect(accessibility).toContainText('su10-tail-marker');
+	await expect.poll(firstVisibleRow).toBe(bottomStart);
+	await page.clock.runFor(1_517);
+	const faded = await captureTerminalScrollbarStrip(page, canvas);
+
+	await canvas.hover();
+	await page.mouse.wheel(0, 1);
+	await page.clock.runFor(17);
+	const visible = await captureTerminalScrollbarStrip(page, canvas);
+	expect(visible.equals(faded)).toBe(false);
+	await page.clock.runFor(1_482);
+	expect((await captureTerminalScrollbarStrip(page, canvas)).equals(visible)).toBe(true);
+	await page.clock.runFor(18);
+	expect((await captureTerminalScrollbarStrip(page, canvas)).equals(faded)).toBe(true);
+});
+
 test('routes a real sandboxed Host terminal through Main and Preload to the renderer', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
@@ -1671,4 +1729,17 @@ async function terminalCellCenter(
 		x: bounds.x + (location.column + columnOffset + 0.5) * (bounds.width / columns),
 		y: bounds.y + (location.row + 0.5) * (bounds.height / visibleRows),
 	};
+}
+
+async function captureTerminalScrollbarStrip(page: Page, canvas: Locator): Promise<Buffer> {
+	const bounds = await canvas.boundingBox();
+	if (bounds === null) throw new Error('Terminal canvas has no bounding box.');
+	return page.screenshot({
+		clip: {
+			height: bounds.height,
+			width: Math.min(16, bounds.width),
+			x: bounds.x + Math.max(0, bounds.width - 16),
+			y: bounds.y,
+		},
+	});
 }

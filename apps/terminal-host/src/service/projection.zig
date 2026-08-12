@@ -128,8 +128,10 @@ pub const Scheduler = struct {
             used_terminal_ids[used_terminal_count] = attachment.terminal_id;
             used_terminal_count += 1;
             scheduled += 1;
-            const geometry = runtime.geometry();
-            _ = core.synchronizeRevision(terminal.terminal_id, geometry.revision) catch unreachable;
+            const geometry = aggregate.synchronizeRuntimeObservation(
+                terminal.terminal_id,
+                runtime,
+            ) catch unreachable;
             const force_snapshot = ready.forceSnapshot() or ready_base == null or
                 ready_base.?.generation != geometry.generation or
                 terminal.observedGeometryRevision() > ready_base.?.revision;
@@ -160,10 +162,9 @@ pub const Scheduler = struct {
                         .capture_allocation_failed => .capture_allocation_failed,
                         .projection_too_large => .projection_too_large,
                     };
-                    const latest_geometry = runtime.geometry();
-                    _ = core.synchronizeRevision(
+                    _ = aggregate.synchronizeRuntimeObservation(
                         attachment.terminal_id,
-                        latest_geometry.revision,
+                        runtime,
                     ) catch unreachable;
                     const append_outcome = try appendProjectionBlocked(
                         allocator,
@@ -201,7 +202,14 @@ pub const Scheduler = struct {
             defer if (encoded.allocation.len != 0) {
                 outgoing.ownedPayloadAllocator().free(encoded.allocation);
             };
-            _ = core.synchronizeRevision(attachment.terminal_id, encoded.revision) catch unreachable;
+            core.synchronizeGeometry(
+                attachment.terminal_id,
+                encoded.columns,
+                encoded.rows,
+                encoded.cell_pixel_width,
+                encoded.cell_pixel_height,
+                encoded.revision,
+            ) catch unreachable;
             const message_kind = switch (encoded.kind) {
                 .snapshot => MessageKind.snapshot_frame,
                 .delta => MessageKind.delta_frame,

@@ -426,6 +426,21 @@ pub fn decodeDetachTerminal(
     };
 }
 
+pub fn decodeTerminalControl(
+    allocator: std.mem.Allocator,
+    payload: []const u8,
+) DecodeError!Decoded(control_wire.TerminalControl, identifiers.AttachmentId) {
+    const parsed = try control_wire.decode(control_wire.TerminalControl, allocator, payload);
+    errdefer parsed.deinit();
+    return .{
+        .parsed = parsed,
+        .value = try identifiers.parseLowerHex(
+            identifiers.AttachmentId,
+            parsed.value.attachmentId,
+        ),
+    };
+}
+
 pub fn decodeResizeTerminal(
     allocator: std.mem.Allocator,
     payload: []const u8,

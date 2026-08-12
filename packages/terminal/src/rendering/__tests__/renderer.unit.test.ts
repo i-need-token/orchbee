@@ -8,14 +8,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { FontWeight } from '../../types';
 import {
+	DEFAULT_THEME,
 	type PackedRendererMetadata,
 	type PackedRendererRow,
 	type PackedRendererSource,
 	type RendererFrameTelemetry,
+	resolvePackedPresentationColors,
 	WebGPURenderer,
 } from '../renderer';
 
 type AtlasDrawImage = (image: CanvasImageSource, dx: number, dy: number) => void;
+
+type TestPackedCursor = PackedRendererMetadata['cursor'] & { readonly wideTail: boolean };
 
 afterEach(() => {
 	vi.useRealTimers();
@@ -82,7 +86,7 @@ interface TestPackedSource extends PackedRendererSource {
 function createPackedSource(
 	lines: readonly string[],
 	options: {
-		readonly cursor?: Partial<PackedRendererMetadata['cursor']>;
+		readonly cursor?: Partial<TestPackedCursor>;
 		readonly full?: boolean;
 	} = {},
 ): TestPackedSource {
@@ -121,8 +125,9 @@ function createPackedSource(
 				row: 0,
 				shape: 'block',
 				visible: false,
+				wideTail: false,
 				...options.cursor,
-			},
+			} satisfies TestPackedCursor,
 			defaultColors: {
 				backgroundRgb: 0x10_14_18,
 				cursorRgb: null,
@@ -145,6 +150,7 @@ function createPackedGraphemeSource(
 		readonly underline?: number;
 		readonly width: 1 | 2;
 	}[],
+	options: { readonly cursor?: Partial<TestPackedCursor> } = {},
 ): TestPackedSource {
 	const columns = cells.reduce((total, cell) => total + cell.width, 0);
 	const graphemes = Array.from({ length: columns }, () => '');
@@ -165,19 +171,22 @@ function createPackedGraphemeSource(
 		full = false;
 		dirtyRows.clear();
 	});
+	const cursor = {
+		blinking: false,
+		column: 0,
+		row: 0,
+		shape: 'block',
+		visible: false,
+		wideTail: false,
+		...options.cursor,
+	} satisfies TestPackedCursor;
 	return {
 		dirtyRows,
 		markRendered: markRenderedMock,
 		markRenderedMock,
 		metadata: {
 			columns,
-			cursor: {
-				blinking: false,
-				column: 0,
-				row: 0,
-				shape: 'block',
-				visible: false,
-			},
+			cursor,
 			defaultColors: {
 				backgroundRgb: 0x10_14_18,
 				cursorRgb: null,
@@ -207,6 +216,37 @@ function createPackedGraphemeSource(
 }
 
 describe('projected terminal renderer', () => {
+	it('resolves Host terminal colors and application overlay colors without a second palette', () => {
+		const theme = {
+			...DEFAULT_THEME,
+			background: '#abcdef',
+			cursor: '#fedcba',
+			foreground: '#123456',
+			selectionBackground: '#112233',
+			selectionForeground: '#ddeeff',
+		};
+		const colors = resolvePackedPresentationColors(
+			{ backgroundRgb: 0x10_14_18, cursorRgb: 0xf5_a9_7f, foregroundRgb: 0xd8_de_e9 },
+			theme,
+		);
+
+		expect(colors).toMatchObject({
+			background: [16, 20, 24],
+			cursor: [245, 169, 127],
+			cursorAccent: [16, 20, 24],
+			foreground: [216, 222, 233],
+			selectionBackground: [17, 34, 51],
+			selectionForeground: [221, 238, 255],
+		});
+		expect(
+			resolvePackedPresentationColors(
+				{ backgroundRgb: 0, cursorRgb: null, foregroundRgb: 0xff_ff_ff },
+				theme,
+				'#010203',
+			).cursorAccent,
+		).toEqual([1, 2, 3]);
+	});
+
 	it('uses projected style flags for independently configurable font weights', () => {
 		vi.stubGlobal('window', { devicePixelRatio: 2 });
 		vi.stubGlobal('document', { createElement: () => createCanvas() });
@@ -271,6 +311,35 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('keeps the pre-frame Canvas transparent and reuses the latest Host background on resize', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const paints: Array<{ readonly color: string; readonly rectangle: readonly number[] }> = [];
+		const fillRect: CanvasRenderingContext2D['fillRect'] = function (
+			this: CanvasRenderingContext2D,
+			x,
+			y,
+			width,
+			height,
+		) {
+			paints.push({ color: String(this.fillStyle), rectangle: [x, y, width, height] });
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, undefined, fillRect),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, undefined, fillRect));
+		await renderer.initGPU();
+
+		renderer.resize(1, 1);
+		expect(paints).toEqual([]);
+
+		renderer.renderPacked(createPackedSource(['A']));
+		paints.length = 0;
+		renderer.resize(1, 1);
+		expect(paints).toEqual([{ color: 'rgb(16, 20, 24)', rectangle: [0, 0, 8, 17] }]);
+		renderer.dispose();
+	});
+
 	it('reports the observable Canvas fallback and packed frame telemetry', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('navigator', {});
@@ -300,6 +369,65 @@ describe('projected terminal renderer', () => {
 				rowsRendered: 1,
 			}),
 		);
+		renderer.dispose();
+	});
+
+	it('draws only the projected scrollbar thumb in Canvas with exact geometry and opacity', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const rectangles: Array<{
+			readonly color: string;
+			readonly geometry: readonly number[];
+		}> = [];
+		const clearRect = vi.fn<CanvasRenderingContext2D['clearRect']>();
+		const fillRect: CanvasRenderingContext2D['fillRect'] = function (
+			this: CanvasRenderingContext2D,
+			x,
+			y,
+			width,
+			height,
+		) {
+			if (String(this.fillStyle).startsWith('rgba(128, 128, 128')) {
+				rectangles.push({ color: String(this.fillStyle), geometry: [x, y, width, height] });
+			}
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, undefined, fillRect, undefined, clearRect),
+		});
+		const renderer = new WebGPURenderer(
+			createCanvas(undefined, {}, undefined, fillRect, undefined, clearRect),
+		);
+		await renderer.initGPU();
+		const source = createPackedSource(['..........', '..........', '..........', '..........']);
+		renderer.setHistoryScrollbar({
+			opacity: 1,
+			totalRows: 20n,
+			visibleRows: 4,
+			visibleStartRow: 8n,
+		});
+
+		renderer.renderPacked(source);
+
+		expect(rectangles).toEqual([{ color: 'rgba(128, 128, 128, 0.5)', geometry: [68, 24, 8, 20] }]);
+		expect(renderer.getLastFrameTelemetry()?.reasons).toContain('scrollbar');
+		clearRect.mockClear();
+		rectangles.length = 0;
+		renderer.renderPacked(source);
+		expect(clearRect.mock.calls).toEqual([
+			[0, 17, 80, 17],
+			[0, 34, 80, 17],
+		]);
+		expect(rectangles).toEqual([{ color: 'rgba(128, 128, 128, 0.5)', geometry: [68, 24, 8, 20] }]);
+
+		rectangles.length = 0;
+		renderer.setHistoryScrollbar({
+			opacity: 0.5,
+			totalRows: 20n,
+			visibleRows: 4,
+			visibleStartRow: 16n,
+		});
+		renderer.renderPacked(source);
+		expect(rectangles).toEqual([{ color: 'rgba(128, 128, 128, 0.15)', geometry: [68, 44, 8, 20] }]);
 		renderer.dispose();
 	});
 
@@ -441,6 +569,231 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('renders a Canvas block cursor across the wide grapheme when the Host cursor is on its tail', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const rectangles: Array<{
+			readonly color: string;
+			readonly width: number;
+			readonly x: number;
+		}> = [];
+		const fillRect: CanvasRenderingContext2D['fillRect'] = function (
+			this: CanvasRenderingContext2D,
+			x,
+			_y,
+			width,
+		) {
+			rectangles.push({ color: String(this.fillStyle), width, x });
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, undefined, fillRect),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, undefined, fillRect));
+		await renderer.initGPU();
+		renderer.setFocused(true);
+		rectangles.length = 0;
+		const source = createPackedGraphemeSource([{ text: '中', width: 2 }], {
+			cursor: { column: 1, visible: true, wideTail: true },
+		});
+
+		renderer.renderPacked(source);
+
+		expect(rectangles).toContainEqual({ color: 'rgb(216, 222, 233)', width: 16, x: 0 });
+		renderer.dispose();
+	});
+
+	it('renders focused bar and underline cursors and an unfocused outline at one physical pixel', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 2 });
+		vi.stubGlobal('navigator', {});
+		const rectangles: Array<{
+			readonly color: string;
+			readonly geometry: readonly number[];
+		}> = [];
+		const fillRect: CanvasRenderingContext2D['fillRect'] = function (
+			this: CanvasRenderingContext2D,
+			x,
+			y,
+			width,
+			height,
+		) {
+			rectangles.push({ color: String(this.fillStyle), geometry: [x, y, width, height] });
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, undefined, fillRect),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, undefined, fillRect), {
+			devicePixelRatio: 2,
+		});
+		await renderer.initGPU();
+		renderer.setFocused(true);
+
+		renderer.renderPacked(
+			createPackedSource(['AA'], {
+				cursor: { column: 1, shape: 'bar', visible: true },
+			}),
+		);
+		expect(rectangles).toContainEqual({
+			color: 'rgb(216, 222, 233)',
+			geometry: [7.5, 0, 0.5, 17],
+		});
+
+		rectangles.length = 0;
+		renderer.renderPacked(
+			createPackedSource(['AA'], {
+				cursor: { column: 1, shape: 'underline', visible: true },
+			}),
+		);
+		expect(rectangles).toContainEqual({
+			color: 'rgb(216, 222, 233)',
+			geometry: [8, 14, 8, 0.5],
+		});
+
+		rectangles.length = 0;
+		renderer.setFocused(false);
+		renderer.renderPacked(
+			createPackedSource(['AA'], {
+				cursor: { column: 1, shape: 'underline', visible: true },
+			}),
+		);
+		const cursorRectangles = rectangles.filter((entry) => entry.color === 'rgb(216, 222, 233)');
+		expect(cursorRectangles.map(({ geometry }) => geometry)).toEqual(
+			expect.arrayContaining([
+				[8, 0, 8, 0.5],
+				[8, 16.5, 8, 0.5],
+				[8, 0, 0.5, 17],
+				[15.5, 0, 0.5, 17],
+			]),
+		);
+		renderer.dispose();
+	});
+
+	it('repaints block-cursor text with the configured application accent', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const textColors: string[] = [];
+		const fillText: CanvasRenderingContext2D['fillText'] = function (
+			this: CanvasRenderingContext2D,
+		) {
+			textColors.push(String(this.fillStyle));
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, fillText),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText), {
+			theme: { cursorAccent: '#010203' },
+		});
+		await renderer.initGPU();
+		renderer.setFocused(true);
+
+		renderer.renderPacked(
+			createPackedSource(['A'], {
+				cursor: { column: 0, shape: 'block', visible: true },
+			}),
+		);
+
+		expect(textColors).toContain('rgb(1, 2, 3)');
+		renderer.dispose();
+	});
+
+	it('shifts a wide preedit left at the right edge without changing its cells', () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		const renderer = new WebGPURenderer(createCanvas());
+		const getPreeditLayout = Reflect.get(renderer, 'getPreeditLayout') as (
+			cursor: { x: number; y: number },
+			columns: number,
+		) => {
+			readonly cells: readonly { readonly text: string; readonly width: number }[];
+			readonly end: number;
+			readonly start: number;
+		} | null;
+		renderer.setPreedit([{ text: '가', width: 2 }]);
+
+		expect(getPreeditLayout.call(renderer, { x: 9, y: 0 }, 10)).toMatchObject({
+			cells: [{ text: '가', width: 2 }],
+			end: 10,
+			start: 8,
+		});
+		renderer.dispose();
+	});
+
+	it('clips linear and rectangular selection overlays to visible packed cells', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const selected: Array<readonly number[]> = [];
+		const fillRect: CanvasRenderingContext2D['fillRect'] = function (
+			this: CanvasRenderingContext2D,
+			x,
+			y,
+			width,
+			height,
+		) {
+			if (this.fillStyle === 'rgb(212, 212, 212)') selected.push([x, y, width, height]);
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, undefined, fillRect),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, undefined, fillRect));
+		await renderer.initGPU();
+		const source = createPackedSource(['AAAA', 'BBBB', 'CCCC']);
+		renderer.setProjectedViewportState(0, {
+			startCol: 2,
+			startRow: -1,
+			endCol: 1,
+			endRow: 1,
+			rectangle: false,
+		});
+
+		renderer.renderPacked(source, true);
+		expect(selected).toEqual([
+			[0, 0, 8, 17],
+			[8, 0, 8, 17],
+			[16, 0, 8, 17],
+			[24, 0, 8, 17],
+			[0, 17, 8, 17],
+			[8, 17, 8, 17],
+		]);
+
+		selected.length = 0;
+		renderer.setProjectedViewportState(0, {
+			startCol: 1,
+			startRow: 0,
+			endCol: 2,
+			endRow: 2,
+			rectangle: true,
+		});
+		source.dirtyRows.add(0);
+		source.dirtyRows.add(1);
+		source.dirtyRows.add(2);
+		renderer.renderPacked(source, true);
+		expect(selected).toEqual([
+			[8, 0, 8, 17],
+			[16, 0, 8, 17],
+			[8, 17, 8, 17],
+			[16, 17, 8, 17],
+			[8, 34, 8, 17],
+			[16, 34, 8, 17],
+		]);
+		renderer.dispose();
+	});
+
+	it('underlines every visible cell of a multi-row packed link range', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const stroke = vi.fn<() => void>();
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, undefined, undefined, stroke),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, undefined, undefined, stroke));
+		await renderer.initGPU();
+		renderer.setHoveredLinkRange({ startX: 1, startY: 0, endX: 1, endY: 1 });
+
+		renderer.renderPacked(createPackedSource(['AAAAA', 'BBBBB']), true);
+
+		expect(stroke).toHaveBeenCalledTimes(6);
+		renderer.dispose();
+	});
+
 	it('applies packed Ghostty text style and decoration flags together', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('navigator', {});
@@ -517,6 +870,85 @@ describe('projected terminal renderer', () => {
 		expect(telemetry).toHaveBeenCalledWith(
 			expect.objectContaining({ backend: 'webgpu', cellsVisited: 1, rowsRendered: 1 }),
 		);
+		renderer.dispose();
+	});
+
+	it('uses the same thumb-only scrollbar projection for WebGPU', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: vi.fn<(configuration: GPUCanvasConfiguration) => void>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		await renderer.initGPU();
+		rendering.writeBuffer.mockClear();
+		renderer.setHistoryScrollbar({
+			opacity: 1,
+			totalRows: 20n,
+			visibleRows: 4,
+			visibleStartRow: 8n,
+		});
+
+		renderer.renderPacked(
+			createPackedSource(['..........', '..........', '..........', '..........']),
+		);
+
+		const uploadedRectangles = rendering.writeBuffer.mock.calls.flatMap((call) => {
+			const value = call[2];
+			return value instanceof Float32Array && value.length === 8 ? [Array.from(value)] : [];
+		});
+		expect(uploadedRectangles).toHaveLength(1);
+		expect(uploadedRectangles[0]?.slice(0, 4)).toEqual([68, 24, 8, 20]);
+		for (const channel of uploadedRectangles[0]?.slice(4, 7) ?? []) {
+			expect(channel).toBeCloseTo(128 / 255, 6);
+		}
+		expect(uploadedRectangles[0]?.[7]).toBe(0.5);
+		renderer.dispose();
+	});
+
+	it('submits WebGPU cursor geometry for the complete wide grapheme from a tail cursor', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: vi.fn<(configuration: GPUCanvasConfiguration) => void>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		await renderer.initGPU();
+		renderer.setFocused(true);
+		rendering.writeBuffer.mockClear();
+		const source = createPackedGraphemeSource([{ text: '中', width: 2 }], {
+			cursor: { column: 1, visible: true, wideTail: true },
+		});
+
+		renderer.renderPacked(source);
+
+		const uploadedRectangles = rendering.writeBuffer.mock.calls.flatMap((call) => {
+			const value = call[2];
+			return value instanceof Float32Array && value.length === 8 ? [Array.from(value)] : [];
+		});
+		expect(uploadedRectangles.some((value) => value[0] === 0 && value[2] === 16)).toBe(true);
 		renderer.dispose();
 	});
 

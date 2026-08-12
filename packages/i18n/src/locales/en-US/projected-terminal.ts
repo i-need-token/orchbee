@@ -5,6 +5,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.action.findOpen': 'Find in terminal',
 	'terminal.projected.action.findPrevious': 'Find previous match',
 	'terminal.projected.action.openLink': 'Open terminal link',
+	'terminal.projected.action.reset': 'Reset terminal',
 	'terminal.projected.action.selectAll': 'Select all retained terminal output',
 	'terminal.projected.action.unavailable': 'This terminal action is unavailable.',
 	'terminal.projected.accessibility.deleted': 'Deleted: {text}',

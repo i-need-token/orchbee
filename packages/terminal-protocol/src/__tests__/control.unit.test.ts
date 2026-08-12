@@ -6,6 +6,7 @@ import {
 	AttachTerminalSchema,
 	canonicalEnvironmentName,
 	CanonicalUint64TextSchema,
+	ClearTerminalSchema,
 	DEFAULT_TERMINAL_CONFIGURATION,
 	decodeControlJson,
 	EmptyControlSchema,
@@ -21,6 +22,7 @@ import {
 	ProcessObservationSchema,
 	ReadRowsSchema,
 	ResizeTerminalSchema,
+	ResetTerminalSchema,
 	RowsAppliedSchema,
 	RuntimeCleanupFailureSchema,
 	RuntimeFailureSchema,
@@ -30,6 +32,8 @@ import {
 	SetTerminalDefaultsSchema,
 	SetProjectionDemandSchema,
 	TerminalConfigurationSchema,
+	TerminalControlAcceptedSchema,
+	TerminalBellSchema,
 	TerminalFailedSchema,
 	UpdateTerminalConfigurationSchema,
 	TerminalLaunchSchema,
@@ -77,9 +81,43 @@ const nestedObjectSchema = z.object({
 	a: z.object({ x: z.number() }),
 	b: z.object({ x: z.number() }),
 });
-const currentProtocolVersion = { major: 0, minor: 0, patch: 2 } as const;
+const currentProtocolVersion = { major: 0, minor: 0, patch: 4 } as const;
 
 describe('control schemas', () => {
+	it('scopes clear and reset to one attachment and acknowledges the exact operation', () => {
+		const attachmentId = '11'.repeat(16);
+		const terminalId = '22'.repeat(16);
+		expect(ClearTerminalSchema.parse({ attachmentId })).toEqual({ attachmentId });
+		expect(ResetTerminalSchema.parse({ attachmentId })).toEqual({ attachmentId });
+		expect(
+			TerminalControlAcceptedSchema.parse({
+				attachmentId,
+				generation: '3',
+				operation: 'reset',
+				revision: '4',
+				terminalId,
+			}),
+		).toEqual({ attachmentId, generation: '3', operation: 'reset', revision: '4', terminalId });
+		expect(ClearTerminalSchema.safeParse({ attachmentId, operation: 'clear' }).success).toBe(false);
+		expect(
+			TerminalControlAcceptedSchema.safeParse({
+				attachmentId,
+				generation: '0',
+				operation: 'clear',
+				revision: '4',
+				terminalId,
+			}).success,
+		).toBe(false);
+	});
+	it('scopes every bell to one attachment and one positive terminal sequence', () => {
+		const bell = { attachmentId: '11'.repeat(16), sequence: '7' };
+
+		expect(TerminalBellSchema.parse(bell)).toEqual(bell);
+		expect(TerminalBellSchema.safeParse({ ...bell, sequence: '0' }).success).toBe(false);
+		expect(TerminalBellSchema.safeParse({ ...bell, sequence: '01' }).success).toBe(false);
+		expect(TerminalBellSchema.safeParse({ sequence: '7' }).success).toBe(false);
+	});
+
 	it('represents an explicit terminal-cell selection range without pointer gesture semantics', () => {
 		const command = {
 			attachmentId: '11'.repeat(16),
@@ -501,8 +539,8 @@ describe('control schemas', () => {
 			'"frameBytes":1024,"frameBytes":1024',
 		);
 		const duplicateNested = validHello.replace(
-			'"major":0,"minor":0,"patch":2',
-			'"major":0,"minor":0,"minor":0,"patch":2',
+			'"major":0,"minor":0,"patch":4',
+			'"major":0,"minor":0,"minor":0,"patch":4',
 		);
 		expect(decodeControlJson(new TextEncoder().encode(duplicateRoot), HelloSchema)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidJson, ok: false }),

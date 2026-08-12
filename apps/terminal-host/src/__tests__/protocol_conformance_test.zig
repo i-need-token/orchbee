@@ -149,6 +149,7 @@ fn buildTextRowWindow(
 
 const ControlCommandsFixture = struct {
     attach_terminal: []const u8,
+    clear_terminal: []const u8,
     create_terminal: []const u8,
     detach_terminal: []const u8,
     empty: []const u8,
@@ -161,6 +162,7 @@ const ControlCommandsFixture = struct {
     projection_demand: []const []const u8,
     read_rows: []const []const u8,
     resize_terminal: []const u8,
+    reset_terminal: []const u8,
     rows_applied: []const u8,
     selection_command: []const []const u8,
     selection_export: []const []const u8,
@@ -193,7 +195,9 @@ const ControlOutputsFixture = struct {
     selection_export_finished: []const []const u8,
     selection_export_started: []const []const u8,
     terminal_acknowledged: []const u8,
+    terminal_bell: []const u8,
     terminal_configuration_accepted: []const u8,
+    terminal_control_accepted: []const []const u8,
     terminal_defaults_accepted: []const u8,
     terminal_exited: []const []const u8,
     terminal_failed: []const []const u8,
@@ -415,6 +419,7 @@ const TestTerminal = struct {
 };
 
 const TestProjectionDemand = enum { active, paused };
+const TestTerminalControlOperation = enum { clear, reset };
 const TestSnapshotReason = enum {
     base_mismatch,
     decoder_rejected,
@@ -858,6 +863,14 @@ test "every TypeScript control command fixture crosses the native typed decoder"
         defer decoded.deinit();
     }
     {
+        var decoded = try control_decode.decodeTerminalControl(allocator, commands.clear_terminal);
+        defer decoded.deinit();
+    }
+    {
+        var decoded = try control_decode.decodeTerminalControl(allocator, commands.reset_terminal);
+        defer decoded.deinit();
+    }
+    {
         var decoded = try control_decode.decodeFrameApplied(allocator, commands.frame_applied);
         defer decoded.deinit();
     }
@@ -1089,6 +1102,23 @@ test "native control replies and events conform to TypeScript schemas" {
             .revision = 43,
         }),
     );
+    const control_operations = [_]TestTerminalControlOperation{
+        .clear,
+        .reset,
+    };
+    try std.testing.expectEqual(control_operations.len, outputs.terminal_control_accepted.len);
+    for (control_operations, outputs.terminal_control_accepted, 0..) |operation, expected, index| {
+        var writer: std.Io.Writer.Allocating = .init(allocator);
+        defer writer.deinit();
+        try control_encode.writeTerminalControlAccepted(&writer.writer, .{
+            .attachment_id = attachment_id,
+            .generation = 4 + index,
+            .operation = operation,
+            .revision = 43 + index,
+            .terminal_id = terminal_id,
+        });
+        try expectOwnedJson(allocator, expected, try writer.toOwnedSlice());
+    }
 
     const projection_demands = [_]TestProjectionDemand{ .active, .paused };
     try std.testing.expectEqual(projection_demands.len, outputs.projection_demand_accepted.len);
@@ -1200,6 +1230,11 @@ test "native control replies and events conform to TypeScript schemas" {
             },
         ));
     }
+    try expectOwnedJson(
+        allocator,
+        outputs.terminal_bell,
+        try control_encode.terminalBell(allocator, attachment_id, 6),
+    );
     const selection_snapshots = [_]TestSelectionSnapshot{
         .none,
         .evicted,

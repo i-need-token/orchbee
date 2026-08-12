@@ -78,6 +78,7 @@ describe('TerminalFindController', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			generation: CanonicalUint64TextSchema.parse('2'),
 			revision: CanonicalUint64TextSchema.parse('4'),
+			sequence: CanonicalUint64TextSchema.parse('1'),
 			totalRows: CanonicalUint64TextSchema.parse('100'),
 		});
 		expect(controller.getSnapshot()).toMatchObject({

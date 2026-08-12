@@ -10,6 +10,7 @@ import {
 	viewTerminalRowWindow,
 	type AttachmentId,
 	type CanonicalUint64Text,
+	type ClearTerminal,
 	type CreationId,
 	type FocusInput,
 	type FrameApplied,
@@ -22,6 +23,7 @@ import {
 	type PasteInput,
 	type ProjectionDemand,
 	type ReadRows,
+	type ResetTerminal,
 	type ResizeTerminal,
 	type RowsApplied,
 	type SelectionChanged,
@@ -29,12 +31,14 @@ import {
 	type SelectionGesture,
 	type SetHistoryDemand,
 	type SetProjectionDemand,
+	type TerminalBell,
 	type TerminalExited,
 	type TerminalId,
 	type TerminalKeyCodeValue,
 	type TerminalModifiers,
 	type TextInput,
 } from '@orchbee/terminal-protocol';
+import { eastAsianWidth } from 'get-east-asian-width';
 
 import { EventEmitter, type IEvent } from '../EventEmitter';
 import {
@@ -54,9 +58,20 @@ import {
 import {
 	buildPreeditState,
 	calculateInputAnchor,
+	ghosttyCodepointWidth,
 	OrderedInputDispatcher,
 	shouldSuppressComposingControlInput,
+	type PreeditState,
 } from '../input';
+import {
+	beginHistoryScrollbarDrag,
+	HISTORY_SCROLLBAR_FADE_DELAY_MS,
+	historyScrollbarContainsPoint,
+	projectHistoryScrollbar,
+	resolveHistoryScrollbarDrag,
+	type HistoryScrollbarDrag,
+	type HistoryScrollbarProjection,
+} from '../history-scrollbar';
 import {
 	type RendererFrameTelemetry,
 	type RendererHealthEvent,
@@ -99,6 +114,7 @@ const MAX_PTY_PIXEL_DIMENSION = 0xffff;
 const MAX_HISTORY_CACHE_BYTES = 8 * 1024 * 1024;
 const HISTORY_OVERSCAN_ROWS = 16;
 const SELECTION_AUTOSCROLL_INTERVAL_MS = 16;
+const RESIZE_REENTRY_MS = 50;
 
 function cssPixels(value: string): number {
 	const parsed = Number.parseFloat(value);
@@ -118,6 +134,7 @@ function readSurfacePadding(root: HTMLElement): SurfacePadding {
 }
 
 export type ProjectedTerminalCommand =
+	| { readonly kind: 'clear-terminal'; readonly payload: ClearTerminal }
 	| { readonly kind: 'focus-input'; readonly payload: FocusInput }
 	| { readonly kind: 'frame-applied'; readonly payload: FrameApplied }
 	| { readonly kind: 'key-input'; readonly payload: KeyInput }
@@ -126,6 +143,7 @@ export type ProjectedTerminalCommand =
 	| { readonly kind: 'paste-input'; readonly payload: PasteInput }
 	| { readonly kind: 'read-rows'; readonly payload: ReadRows }
 	| { readonly kind: 'resize-terminal'; readonly payload: ResizeTerminal }
+	| { readonly kind: 'reset-terminal'; readonly payload: ResetTerminal }
 	| { readonly kind: 'rows-applied'; readonly payload: RowsApplied }
 	| { readonly kind: 'history-observed'; readonly payload: HistoryObserved }
 	| { readonly kind: 'selection-command'; readonly payload: SelectionCommand }
@@ -208,6 +226,7 @@ export interface ProjectedTerminalOptions {
 export interface ProjectedTerminalErrorEvent {
 	readonly error: unknown;
 	readonly operation:
+		| 'bell'
 		| 'command'
 		| 'font'
 		| 'frame'
@@ -223,6 +242,7 @@ export interface ProjectedBrokerFailure {
 	readonly message: string;
 	readonly operation?:
 		| 'connection'
+		| 'control'
 		| 'copy'
 		| 'history'
 		| 'input'
@@ -245,6 +265,7 @@ export type ProjectedTerminalSideEffectResult =
 	| { readonly kind: 'cancelled' };
 
 export interface ProjectedTerminalFrameTelemetry extends RendererFrameTelemetry {
+	readonly generation: CanonicalUint64Text;
 	readonly revision: CanonicalUint64Text;
 }
 
@@ -335,6 +356,16 @@ interface PendingLinkPoint {
 	readonly row: bigint;
 }
 
+interface HistoryScrollbarGesture {
+	readonly drag: HistoryScrollbarDrag;
+	readonly pointerId: number;
+}
+
+interface HistoryScrollbarClickSuppression {
+	readonly clientX: number;
+	readonly clientY: number;
+}
+
 interface ProjectedLinkCache {
 	readonly endRow: bigint;
 	readonly generation: bigint;
@@ -352,6 +383,7 @@ export class ProjectedTerminal {
 	readonly #accessibilityModelRows: AccessibleRow[] = [];
 	readonly #accessibilityRows: Element[] = [];
 	readonly #attachmentId: AttachmentId;
+	readonly #bellEmitter = new EventEmitter<TerminalBell>();
 	readonly #creationId: CreationId;
 	readonly #copyCompletions = new Map<
 		CanonicalUint64Text,
@@ -398,10 +430,16 @@ export class ProjectedTerminal {
 	#demandSent: ProjectionDemand | undefined;
 	#devicePixelRatio = 1;
 	#devicePixelRatioQuery: MediaQueryList | undefined;
+	#documentHidden = false;
 	#frameHandle: ScheduledFrame | undefined;
 	#historyGeneration = 1n;
 	#historyPhase: ProjectedHistoryPhase = ProjectedHistoryPhase.followingBottom;
 	#historyRevision = 0n;
+	#historyScrollbarClickSuppression: HistoryScrollbarClickSuppression | undefined;
+	#historyScrollbarClickSuppressionTimer: ReturnType<typeof setTimeout> | undefined;
+	#historyScrollbarFadeTimer: ReturnType<typeof setTimeout> | undefined;
+	#historyScrollbarGesture: HistoryScrollbarGesture | undefined;
+	#historyScrollbarOpacity = 0;
 	#historyStartRow = 0n;
 	#historyStore: PackedTerminalViewport | undefined;
 	#historyTotalRows = 0n;
@@ -411,6 +449,7 @@ export class ProjectedTerminal {
 	#lastBeforeInput: SentInput | undefined;
 	#lastComposition: SentInput | undefined;
 	#lastGeometry: ResizeGeometry | undefined;
+	#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
 	#lastKeyInput: SentInput | undefined;
 	#lastMouseInput: MouseInput | undefined;
 	#lastPaste: (SentInput & { readonly source: 'beforeinput' | 'clipboard' }) | undefined;
@@ -423,12 +462,18 @@ export class ProjectedTerminal {
 	#pendingLinkPoint: PendingLinkPoint | undefined;
 	#pendingExit: TerminalExited | undefined;
 	#latestExitFinalRevision: bigint | undefined;
+	#latestBellSequence = 0n;
 	#pendingHistoryDelta = 0;
+	#pendingHistoryStartRow: bigint | undefined;
 	#pendingHistoryTargetRow: bigint | undefined;
 	#pendingSelectionGesture: PendingSelectionGesture | undefined;
 	#phase: ProjectedTerminalPhase = ProjectedTerminalPhase.constructed;
+	#presentationPaused = false;
+	#presentationSuspended = false;
 	#preeditCaretPixelOffset = 0;
 	#preeditCellWidth = 0;
+	#preeditPresented = false;
+	#preeditState: PreeditState | undefined;
 	#renderer: WebGPURenderer | undefined;
 	#resizeObserver: ResizeObserver | undefined;
 	#root: HTMLElement | undefined;
@@ -445,6 +490,7 @@ export class ProjectedTerminal {
 	#selectionAutoscrollInterval: ReturnType<typeof setInterval> | undefined;
 	#selectionPointer: PendingSelectionPointer | undefined;
 	#copySelectionAfterNextSelectionChange = false;
+	#suppressNextSelectionCopy = false;
 	#searchController: ProjectedSearchController | undefined;
 	#sideEffectSequence = 1n;
 	#synchronizingAccessibilitySelection = false;
@@ -457,7 +503,10 @@ export class ProjectedTerminal {
 		this.#store = new PackedTerminalStore(options.hostEpoch, options.attachmentId);
 		this.#terminalId = options.terminalId;
 		this.#selection = { attachmentId: options.attachmentId, state: 'none' };
-		if (options.autoActivate === false) this.#demand = 'paused';
+		if (options.autoActivate === false) {
+			this.#demand = 'paused';
+			this.#presentationPaused = true;
+		}
 	}
 
 	get phase(): ProjectedTerminalPhase {
@@ -484,7 +533,12 @@ export class ProjectedTerminal {
 		return this.#input;
 	}
 
+	get canControlTerminal(): boolean {
+		return !this.#isDisposed() && this.#options.inputEnabled !== false;
+	}
+
 	readonly onError: IEvent<ProjectedTerminalErrorEvent> = this.#errorEmitter.event;
+	readonly onBell: IEvent<TerminalBell> = this.#bellEmitter.event;
 	readonly onExit: IEvent<TerminalExited> = this.#exitEmitter.event;
 	readonly onFrameTelemetry: IEvent<ProjectedTerminalFrameTelemetry> =
 		this.#frameTelemetryEmitter.event;
@@ -509,6 +563,7 @@ export class ProjectedTerminal {
 		try {
 			const document = root.ownerDocument;
 			const view = document.defaultView;
+			this.#documentHidden = document.visibilityState === 'hidden';
 			this.#devicePixelRatio =
 				this.#options.renderer?.devicePixelRatio ?? view?.devicePixelRatio ?? 1;
 			const fontFamily = this.#options.renderer?.fontFamily ?? DEFAULT_RENDERER_FONT_FAMILY;
@@ -534,7 +589,7 @@ export class ProjectedTerminal {
 			input.style.height = '1px';
 			input.style.padding = '0';
 			input.style.border = '0';
-			input.style.margin = '-1px';
+			input.style.margin = '0px';
 			input.style.opacity = '0';
 			input.style.clipPath = 'inset(50%)';
 			input.style.overflow = 'hidden';
@@ -592,11 +647,12 @@ export class ProjectedTerminal {
 			});
 			renderer.setHealthChangeCallback((event) => this.#healthEmitter.fire(event));
 			renderer.setFrameTelemetryCallback((event) => {
-				const revision = this.#visibleStore().metadata?.revision;
-				if (revision === undefined) return;
+				const metadata = this.#visibleStore().metadata;
+				if (metadata === null) return;
 				this.#frameTelemetryEmitter.fire({
 					...event,
-					revision: CanonicalUint64TextSchema.parse(revision.toString()),
+					generation: CanonicalUint64TextSchema.parse(metadata.generation.toString()),
+					revision: CanonicalUint64TextSchema.parse(metadata.revision.toString()),
 				});
 			});
 			renderer.setRenderRequestCallback(() => this.#scheduleRender());
@@ -607,8 +663,9 @@ export class ProjectedTerminal {
 			this.#installDevicePixelRatioListeners(view);
 			this.#installResizeObserver(root);
 			this.#phase = ProjectedTerminalPhase.open;
-			this.#sendDemandIfNeeded();
+			this.#syncRendererSuspension();
 			this.#sendResizeIfChanged();
+			this.#sendDemandIfNeeded();
 		} catch (error) {
 			this.#errorEmitter.fire({ error, operation: 'open' });
 			this.dispose();
@@ -644,6 +701,7 @@ export class ProjectedTerminal {
 		if (result.kind === 'committed') {
 			const metadata = this.#store.metadata;
 			if (metadata) {
+				this.#reconcileCommittedGeometry(metadata);
 				this.#historyGeneration = metadata.generation;
 				this.#historyRevision = metadata.revision;
 				this.#historyTotalRows = metadata.scrollbackRows + BigInt(metadata.rows);
@@ -660,6 +718,7 @@ export class ProjectedTerminal {
 					this.#metadataEmitter.fire(metadata);
 					this.#updateAccessibility(metadata);
 				}
+				this.#syncPreeditPresentation();
 			}
 			if (this.#historyPhase === ProjectedHistoryPhase.followingBottom && !this.#scheduleRender()) {
 				this.#errorEmitter.fire({
@@ -675,10 +734,13 @@ export class ProjectedTerminal {
 	}
 
 	setProjectionDemand(demand: ProjectionDemand): void {
-		if (this.#phase === ProjectedTerminalPhase.disposed || demand === this.#demand) return;
+		if (this.#phase === ProjectedTerminalPhase.disposed) return;
+		const presentationPaused = demand === 'paused';
+		const demandChanged = demand !== this.#demand;
 		this.#demand = demand;
-		this.#sendDemandIfNeeded();
-		this.#renderer?.setSuspended(demand === 'paused');
+		this.#presentationPaused = presentationPaused;
+		if (demandChanged) this.#sendDemandIfNeeded();
+		this.#syncRendererSuspension();
 	}
 
 	getBufferRowsSnapshot(): TerminalBufferRowsSnapshot {
@@ -843,6 +905,7 @@ export class ProjectedTerminal {
 			window.totalRows - (flight.visibleStartRow + BigInt(flight.visibleRowCount)),
 		);
 		this.#historyPhase = ProjectedHistoryPhase.viewingHistory;
+		this.#syncPreeditPresentation();
 		this.#send({
 			kind: 'rows-applied',
 			payload: {
@@ -872,9 +935,11 @@ export class ProjectedTerminal {
 			return;
 		}
 		const rows = Math.trunc(amount);
+		this.#showHistoryScrollbar();
 		this.#invalidateLinkCache();
 		if (this.#rowFlight !== undefined) {
 			this.#cancelBufferFlightForViewportIntent();
+			this.#pendingHistoryStartRow = undefined;
 			this.#pendingHistoryTargetRow = undefined;
 			this.#pendingHistoryDelta = clamp(
 				this.#pendingHistoryDelta + rows,
@@ -908,6 +973,7 @@ export class ProjectedTerminal {
 
 	scrollToBottom(): void {
 		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) return;
+		this.#showHistoryScrollbar();
 		this.#recoverHistory();
 	}
 
@@ -949,10 +1015,12 @@ export class ProjectedTerminal {
 		if (selection.attachmentId !== this.#attachmentId) return;
 		const completedGesture = this.#selectionGestureActionInFlight;
 		const copyAfterSelectionCommand = this.#copySelectionAfterNextSelectionChange;
+		const suppressCopy = this.#suppressNextSelectionCopy;
 		this.#selection = selection;
 		this.#selectionGestureActionInFlight = undefined;
 		this.#selectionGestureInFlight = false;
 		this.#copySelectionAfterNextSelectionChange = false;
+		this.#suppressNextSelectionCopy = false;
 		this.#selectionEmitter.fire(selection);
 		this.#updateAccessibilityDescription();
 		this.#syncAccessibilitySelection();
@@ -961,6 +1029,7 @@ export class ProjectedTerminal {
 		if (
 			selection.state === 'active' &&
 			this.#options.copyOnSelect !== false &&
+			!suppressCopy &&
 			(completedGesture === 'end' || copyAfterSelectionCommand)
 		) {
 			this.copySelection();
@@ -981,6 +1050,7 @@ export class ProjectedTerminal {
 	}
 
 	notifyBrokerFailure(failure: ProjectedBrokerFailure): void {
+		if (failure.operation === 'resize') this.#lastGeometry = undefined;
 		let recoveredOverscan = false;
 		const flight =
 			failure.operation === undefined || failure.operation === 'history'
@@ -1026,6 +1096,7 @@ export class ProjectedTerminal {
 			this.#selectionGestureActionInFlight = undefined;
 			this.#selectionGestureInFlight = false;
 			this.#copySelectionAfterNextSelectionChange = false;
+			this.#suppressNextSelectionCopy = false;
 			this.#scheduleSelectionGesture();
 		}
 		if (!recoveredOverscan) {
@@ -1035,6 +1106,39 @@ export class ProjectedTerminal {
 
 	clearSelection(): void {
 		this.#sendSelectionCommand('clear');
+	}
+
+	clear(): void {
+		if (!this.canControlTerminal) return;
+		this.#send({
+			kind: 'clear-terminal',
+			payload: { attachmentId: this.#attachmentId },
+		});
+	}
+
+	reset(): void {
+		this.#clearHistoryScrollbarClickSuppression();
+		this.#finishHistoryScrollbarGesture(true);
+		if (!this.canControlTerminal) return;
+		this.#cancelComposition();
+		this.#cancelSelectionGestureForReset();
+		const releaseCommands = [
+			...this.#takePressedKeyReleaseCommands(),
+			...this.#takePressedMouseReleaseCommands(),
+		];
+		this.#pressedModifierCodes.clear();
+		this.clearSelection();
+		this.clearSearch();
+		this.#invalidateLinkCache();
+		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) this.scrollToBottom();
+		this.#inputDispatcher.dispatchSync(() => {
+			for (const command of releaseCommands) this.#send(command);
+			if (!this.canControlTerminal) return;
+			this.#send({
+				kind: 'reset-terminal',
+				payload: { attachmentId: this.#attachmentId },
+			});
+		});
 	}
 
 	selectAll(): void {
@@ -1153,6 +1257,21 @@ export class ProjectedTerminal {
 		return { kind: 'sent', review };
 	}
 
+	notifyBell(event: TerminalBell): void {
+		if (this.#phase === ProjectedTerminalPhase.disposed) return;
+		if (event.attachmentId !== this.#attachmentId) {
+			this.#errorEmitter.fire({
+				error: new Error('Terminal bell identity does not match the projected terminal'),
+				operation: 'bell',
+			});
+			return;
+		}
+		const sequence = BigInt(event.sequence);
+		if (sequence <= this.#latestBellSequence) return;
+		this.#latestBellSequence = sequence;
+		this.#bellEmitter.fire(event);
+	}
+
 	notifyExited(event: TerminalExited): void {
 		if (
 			event.identity.creationId !== this.#creationId ||
@@ -1200,21 +1319,12 @@ export class ProjectedTerminal {
 				rowFlight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
 			}
 		}
-		if (this.#frameHandle?.kind === 'animation-frame') {
-			this.#root?.ownerDocument.defaultView?.cancelAnimationFrame(this.#frameHandle.value);
-		} else if (this.#frameHandle?.kind === 'timeout') {
-			globalThis.clearTimeout(this.#frameHandle.value);
-		}
-		this.#frameHandle = undefined;
-		if (this.#selectionGestureHandle?.kind === 'animation-frame') {
-			this.#root?.ownerDocument.defaultView?.cancelAnimationFrame(
-				this.#selectionGestureHandle.value,
-			);
-		} else if (this.#selectionGestureHandle?.kind === 'timeout') {
-			globalThis.clearTimeout(this.#selectionGestureHandle.value);
-		}
-		this.#selectionGestureHandle = undefined;
+		this.#cancelScheduledFrame();
+		this.#cancelScheduledSelectionGesture();
+		this.#clearHistoryScrollbarClickSuppression();
+		this.#cancelHistoryScrollbarFade();
 		this.#pendingHistoryDelta = 0;
+		this.#pendingHistoryStartRow = undefined;
 		this.#pendingHistoryTargetRow = undefined;
 		this.#stopSelectionAutoscroll();
 		this.#searchController?.dispose();
@@ -1265,6 +1375,7 @@ export class ProjectedTerminal {
 
 	#scheduleRender(): boolean {
 		if (this.#phase === ProjectedTerminalPhase.disposed || !this.#renderer) return false;
+		if (this.#presentationSuspended) return true;
 		this.#syncProjectedViewportState();
 		this.#updateInputPosition();
 		if (this.#frameHandle !== undefined) return true;
@@ -1285,6 +1396,27 @@ export class ProjectedTerminal {
 		return true;
 	}
 
+	#cancelScheduledFrame(): void {
+		if (this.#frameHandle?.kind === 'animation-frame') {
+			this.#root?.ownerDocument.defaultView?.cancelAnimationFrame(this.#frameHandle.value);
+		} else if (this.#frameHandle?.kind === 'timeout') {
+			globalThis.clearTimeout(this.#frameHandle.value);
+		}
+		this.#frameHandle = undefined;
+	}
+
+	#syncRendererSuspension(): void {
+		const suspended = this.#documentHidden || this.#presentationPaused;
+		if (suspended === this.#presentationSuspended) return;
+		this.#presentationSuspended = suspended;
+		this.#renderer?.setSuspended(suspended);
+		if (suspended) {
+			this.#cancelScheduledFrame();
+			return;
+		}
+		this.#scheduleRender();
+	}
+
 	#visibleStore(): PackedTerminalStore | PackedTerminalViewport {
 		return this.#historyPhase === ProjectedHistoryPhase.followingBottom ||
 			this.#historyStore === undefined
@@ -1296,10 +1428,7 @@ export class ProjectedTerminal {
 		const renderer = this.#renderer;
 		const metadata = this.metadata;
 		if (!renderer || !metadata) return;
-		const absoluteTop =
-			this.#historyPhase === ProjectedHistoryPhase.followingBottom
-				? this.#historyTotalRows - BigInt(metadata.rows)
-				: this.#historyStartRow;
+		const absoluteTop = this.#historyVisibleStart(metadata);
 		const selection = this.#selection;
 		renderer.setProjectedViewportState(
 			Number(absoluteTop),
@@ -1312,6 +1441,92 @@ export class ProjectedTerminal {
 						startRow: Number(BigInt(selection.start.row) - absoluteTop),
 					}
 				: null,
+		);
+		renderer.setHistoryScrollbar({
+			opacity: this.#historyScrollbarOpacity,
+			totalRows: this.#historyTotalRows,
+			visibleRows: metadata.rows,
+			visibleStartRow: absoluteTop,
+		});
+	}
+
+	#historyVisibleStart(metadata: ProjectedTerminalMetadata): bigint {
+		const visibleRows = BigInt(metadata.rows);
+		const maximumStart =
+			this.#historyTotalRows > visibleRows ? this.#historyTotalRows - visibleRows : 0n;
+		if (
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom ||
+			this.#historyStore === undefined
+		) {
+			return maximumStart;
+		}
+		return this.#historyStartRow < 0n ? 0n : minBigInt(this.#historyStartRow, maximumStart);
+	}
+
+	#historyScrollbarProjection(): HistoryScrollbarProjection | null {
+		const canvas = this.#canvas;
+		const metadata = this.metadata;
+		if (!canvas || !metadata) return null;
+		const rectangle = canvas.getBoundingClientRect();
+		return projectHistoryScrollbar({
+			opacity: this.#historyScrollbarOpacity,
+			totalRows: this.#historyTotalRows,
+			viewportHeight: rectangle.height,
+			viewportWidth: rectangle.width,
+			visibleRows: metadata.rows,
+			visibleStartRow: this.#historyVisibleStart(metadata),
+		});
+	}
+
+	#showHistoryScrollbar(): void {
+		if (this.#phase === ProjectedTerminalPhase.disposed) return;
+		const metadata = this.metadata ?? this.#store.metadata;
+		if (metadata === null || this.#historyTotalRows <= BigInt(metadata.rows)) return;
+		this.#cancelHistoryScrollbarFade();
+		this.#historyScrollbarOpacity = 1;
+		this.#scheduleRender();
+		if (this.#historyScrollbarGesture !== undefined) return;
+		this.#historyScrollbarFadeTimer = globalThis.setTimeout(() => {
+			this.#historyScrollbarFadeTimer = undefined;
+			if (this.#phase === ProjectedTerminalPhase.disposed) return;
+			this.#historyScrollbarOpacity = 0;
+			this.#scheduleRender();
+		}, HISTORY_SCROLLBAR_FADE_DELAY_MS);
+	}
+
+	#cancelHistoryScrollbarFade(): void {
+		if (this.#historyScrollbarFadeTimer === undefined) return;
+		globalThis.clearTimeout(this.#historyScrollbarFadeTimer);
+		this.#historyScrollbarFadeTimer = undefined;
+	}
+
+	#armHistoryScrollbarClickSuppression(event: PointerEvent): void {
+		this.#clearHistoryScrollbarClickSuppression();
+		this.#historyScrollbarClickSuppression = {
+			clientX: event.clientX,
+			clientY: event.clientY,
+		};
+		this.#historyScrollbarClickSuppressionTimer = globalThis.setTimeout(() => {
+			this.#historyScrollbarClickSuppression = undefined;
+			this.#historyScrollbarClickSuppressionTimer = undefined;
+		}, 0);
+	}
+
+	#clearHistoryScrollbarClickSuppression(): void {
+		this.#historyScrollbarClickSuppression = undefined;
+		if (this.#historyScrollbarClickSuppressionTimer === undefined) return;
+		globalThis.clearTimeout(this.#historyScrollbarClickSuppressionTimer);
+		this.#historyScrollbarClickSuppressionTimer = undefined;
+	}
+
+	#consumeHistoryScrollbarClickSuppression(event: MouseEvent): boolean {
+		const suppression = this.#historyScrollbarClickSuppression;
+		this.#clearHistoryScrollbarClickSuppression();
+		return (
+			suppression !== undefined &&
+			event.button === 0 &&
+			event.clientX === suppression.clientX &&
+			event.clientY === suppression.clientY
 		);
 	}
 
@@ -1360,6 +1575,7 @@ export class ProjectedTerminal {
 			this.#sendDemandIfNeeded();
 		}
 		this.#historyPhase = ProjectedHistoryPhase.requestingHistory;
+		this.#syncPreeditPresentation();
 		const requestSequence = this.#nextRowRequestSequence();
 		this.#rowFlight = {
 			kind: 'viewport',
@@ -1385,6 +1601,45 @@ export class ProjectedTerminal {
 				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
 				rowCount: cacheRowCount,
 			},
+		});
+	}
+
+	#requestHistoryStartRow(requestedStartRow: bigint): void {
+		const metadata = this.metadata ?? this.#store.metadata;
+		if (metadata === null || this.#phase === ProjectedTerminalPhase.disposed) return;
+		const visibleRows = BigInt(metadata.rows);
+		const maximumStart =
+			this.#historyTotalRows > visibleRows ? this.#historyTotalRows - visibleRows : 0n;
+		const startRow = requestedStartRow < 0n ? 0n : minBigInt(requestedStartRow, maximumStart);
+		this.#pendingHistoryDelta = 0;
+		this.#pendingHistoryTargetRow = undefined;
+		if (this.#rowFlight !== undefined) {
+			this.#cancelBufferFlightForViewportIntent();
+			this.#pendingHistoryStartRow = startRow;
+			return;
+		}
+		if (this.#historyPhase === ProjectedHistoryPhase.recovering) {
+			this.#pendingHistoryStartRow = startRow;
+			return;
+		}
+		this.#pendingHistoryStartRow = undefined;
+		if (startRow === maximumStart) {
+			this.#recoverHistory();
+			return;
+		}
+		if (
+			this.#historyPhase === ProjectedHistoryPhase.viewingHistory &&
+			startRow === this.#historyStartRow
+		) {
+			return;
+		}
+		const rowsBefore = this.#historyTotalRows - (startRow + visibleRows);
+		this.#historyRowsBefore = Number(
+			rowsBefore > BigInt(Number.MAX_SAFE_INTEGER) ? BigInt(Number.MAX_SAFE_INTEGER) : rowsBefore,
+		);
+		this.#requestHistoryRows({
+			kind: 'absolute',
+			row: CanonicalUint64TextSchema.parse(startRow.toString()),
 		});
 	}
 
@@ -1416,6 +1671,12 @@ export class ProjectedTerminal {
 
 	#dispatchPendingHistoryIntent(): void {
 		if (this.#rowFlight !== undefined || this.#phase === ProjectedTerminalPhase.disposed) return;
+		const startRow = this.#pendingHistoryStartRow;
+		this.#pendingHistoryStartRow = undefined;
+		if (startRow !== undefined) {
+			this.#requestHistoryStartRow(startRow);
+			return;
+		}
 		const targetRow = this.#pendingHistoryTargetRow;
 		this.#pendingHistoryTargetRow = undefined;
 		if (targetRow !== undefined) {
@@ -1443,9 +1704,11 @@ export class ProjectedTerminal {
 			}
 		}
 		this.#pendingHistoryDelta = 0;
+		this.#pendingHistoryStartRow = undefined;
 		this.#pendingHistoryTargetRow = undefined;
 		this.#searchController?.invalidate();
 		this.#historyPhase = ProjectedHistoryPhase.recovering;
+		this.#syncPreeditPresentation();
 		this.#send({
 			kind: 'set-history-demand',
 			payload: { attachmentId: this.#attachmentId, demand: 'following-bottom' },
@@ -1460,6 +1723,7 @@ export class ProjectedTerminal {
 		this.#historyRowsBefore = 0;
 		this.#historyStartRow = 0n;
 		this.#historyPhase = ProjectedHistoryPhase.followingBottom;
+		this.#syncPreeditPresentation();
 		const metadata = this.#store.metadata;
 		if (metadata) {
 			this.#metadataEmitter.fire(metadata);
@@ -1467,6 +1731,7 @@ export class ProjectedTerminal {
 		}
 		this.#continueSelectionAutoscrollGesture();
 		this.#scheduleRender();
+		this.#dispatchPendingHistoryIntent();
 	}
 
 	#getSearchController(): ProjectedSearchController {
@@ -1501,8 +1766,10 @@ export class ProjectedTerminal {
 			this.#scheduleRender();
 			return;
 		}
+		this.#showHistoryScrollbar();
 		if (this.#rowFlight !== undefined) {
 			this.#cancelBufferFlightForViewportIntent();
+			this.#pendingHistoryStartRow = undefined;
 			this.#pendingHistoryTargetRow = row;
 			this.#pendingHistoryDelta = 0;
 			return;
@@ -1865,10 +2132,16 @@ export class ProjectedTerminal {
 	#send(command: ProjectedTerminalCommand): void {
 		try {
 			const pending = this.#options.port.send(command);
-			void pending?.catch((error) => this.#errorEmitter.fire({ error, operation: 'command' }));
+			void pending?.catch((error) => this.#reportCommandFailure(command, error));
 		} catch (error) {
-			this.#errorEmitter.fire({ error, operation: 'command' });
+			this.#reportCommandFailure(command, error);
 		}
+	}
+
+	#reportCommandFailure(command: ProjectedTerminalCommand, error: unknown): void {
+		const operation = command.kind === 'resize-terminal' ? 'resize' : 'command';
+		if (operation === 'resize') this.#lastGeometry = undefined;
+		this.#errorEmitter.fire({ error, operation });
 	}
 
 	#sendInput(command: ProjectedTerminalCommand, allowAfterDispose = false): void {
@@ -2101,11 +2374,7 @@ export class ProjectedTerminal {
 
 	readonly #handleCompositionEnd = (event: CompositionEvent): void => {
 		const wasComposing = this.#composing;
-		this.#composing = false;
-		this.#renderer?.setPreedit([]);
-		this.#preeditCellWidth = 0;
-		this.#preeditCaretPixelOffset = 0;
-		this.#updateInputPosition();
+		this.#cancelComposition();
 		const data = event.data ?? '';
 		if (
 			data &&
@@ -2115,8 +2384,17 @@ export class ProjectedTerminal {
 			this.#sendText(data);
 			this.#lastComposition = { text: data, time: projectedNow() };
 		}
-		this.#clearInput();
 	};
+
+	#cancelComposition(): void {
+		this.#composing = false;
+		this.#preeditState = undefined;
+		this.#syncPreeditPresentation();
+		this.#preeditCellWidth = 0;
+		this.#preeditCaretPixelOffset = 0;
+		this.#updateInputPosition();
+		this.#clearInput();
+	}
 
 	#updatePreedit(data: string): void {
 		const input = this.#input;
@@ -2124,15 +2402,39 @@ export class ProjectedTerminal {
 			start: input?.selectionStart ?? data.length,
 			end: input?.selectionEnd ?? data.length,
 		};
-		const state = buildPreeditState(data, selection, unicodeCellWidth);
+		const state = buildPreeditState(data, selection, (codepoint) =>
+			ghosttyCodepointWidth(codepoint, eastAsianWidth),
+		);
+		this.#preeditState = state;
 		this.#preeditCellWidth = state.width;
 		const caretOffset = Math.max(0, Math.min(data.length, input?.selectionEnd ?? data.length));
 		this.#preeditCaretPixelOffset = data
 			? (this.#renderer?.measureTextWidth(data.slice(0, caretOffset)) ??
 				state.selection.end * (this.#renderer?.getMetrics().width ?? 0))
 			: 0;
-		this.#renderer?.setPreedit(state.cells, state.selection);
+		this.#syncPreeditPresentation(true);
+	}
+
+	#syncPreeditPresentation(force = false): void {
+		const state = this.#preeditState;
+		const shouldPresent = state !== undefined && this.#canPresentLiveCursor();
+		if (shouldPresent && state !== undefined) {
+			if (force || !this.#preeditPresented) {
+				this.#renderer?.setPreedit(state.cells, state.selection);
+			}
+			this.#preeditPresented = true;
+		} else if (this.#preeditPresented) {
+			this.#renderer?.setPreedit([]);
+			this.#preeditPresented = false;
+		}
 		this.#updateInputPosition();
+	}
+
+	#canPresentLiveCursor(): boolean {
+		return (
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom &&
+			this.#store.metadata?.cursor.visible === true
+		);
 	}
 
 	#updateInputPosition(): void {
@@ -2140,8 +2442,16 @@ export class ProjectedTerminal {
 		const root = this.#root;
 		const canvas = this.#canvas;
 		const renderer = this.#renderer;
-		const metadata = this.#store.metadata ?? this.metadata;
-		if (!input || !root || !canvas || !renderer || metadata === null) return;
+		if (!input || !root || !canvas || !renderer) return;
+		const metadata = this.#canPresentLiveCursor() ? this.#store.metadata : null;
+		if (metadata === null) {
+			input.style.left = '0px';
+			input.style.top = '0px';
+			input.style.width = '1px';
+			input.style.height = '1px';
+			input.style.lineHeight = '1px';
+			return;
+		}
 		const rootBounds = root.getBoundingClientRect();
 		const canvasBounds = canvas.getBoundingClientRect();
 		const metrics = renderer.getMetrics();
@@ -2251,10 +2561,14 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleVisibilityChange = (): void => {
-		if (this.#root?.ownerDocument.visibilityState === 'hidden') this.#handleWindowBlur();
+		this.#documentHidden = this.#root?.ownerDocument.visibilityState === 'hidden';
+		this.#syncRendererSuspension();
+		if (this.#documentHidden) this.#handleWindowBlur();
 	};
 
 	#repairInputState(allowAfterDispose = false): void {
+		this.#clearHistoryScrollbarClickSuppression();
+		this.#finishHistoryScrollbarGesture(true, !allowAfterDispose);
 		this.#finishSelectionGesture(true);
 		if (this.#options.inputEnabled === false) return;
 		this.#releasePressedKeys(allowAfterDispose);
@@ -2273,40 +2587,107 @@ export class ProjectedTerminal {
 	}
 
 	#releasePressedKeys(allowAfterDispose = false): void {
-		for (const facts of this.#pressedKeys.values()) {
-			this.#sendKey(facts, KeyAction.release, allowAfterDispose);
+		for (const command of this.#takePressedKeyReleaseCommands()) {
+			this.#sendInput(command, allowAfterDispose);
 		}
+	}
+
+	#takePressedKeyReleaseCommands(): ProjectedTerminalCommand[] {
+		const commands = [...this.#pressedKeys.values()].map(
+			(facts): ProjectedTerminalCommand => ({
+				kind: 'key-input',
+				payload: { action: KeyAction.release, attachmentId: this.#attachmentId, ...facts },
+			}),
+		);
 		this.#pressedKeys.clear();
+		return commands;
 	}
 
 	#releasePressedMouseButtons(allowAfterDispose = false): void {
+		for (const command of this.#takePressedMouseReleaseCommands()) {
+			this.#sendInput(command, allowAfterDispose);
+		}
+	}
+
+	#takePressedMouseReleaseCommands(): ProjectedTerminalCommand[] {
 		const last = this.#lastMouseInput;
 		if (last === undefined) {
 			this.#pressedMouseButtons.clear();
-			return;
+			return [];
 		}
+		const commands: ProjectedTerminalCommand[] = [];
 		let pressedButtons = last.pressedButtons;
 		for (const button of this.#pressedMouseButtons) {
 			pressedButtons &= ~(1 << (button - 1));
-			this.#sendInput(
-				{
-					kind: 'mouse-input',
-					payload: {
-						...last,
-						action: MouseAction.release,
-						button,
-						pressedButtons,
-					},
+			commands.push({
+				kind: 'mouse-input',
+				payload: {
+					...last,
+					action: MouseAction.release,
+					button,
+					pressedButtons,
 				},
-				allowAfterDispose,
-			);
+			});
 		}
 		this.#pressedMouseButtons.clear();
 		this.#lastMouseInput = { ...last, pressedButtons };
+		return commands;
+	}
+
+	#startHistoryScrollbarGesture(event: PointerEvent): boolean {
+		if (event.button !== 0) return false;
+		const canvas = this.#canvas;
+		const projection = this.#historyScrollbarProjection();
+		if (!canvas || projection === null) return false;
+		const rectangle = canvas.getBoundingClientRect();
+		const pointerX = event.clientX - rectangle.left;
+		const pointerY = event.clientY - rectangle.top;
+		if (!historyScrollbarContainsPoint(projection, pointerX, pointerY)) return false;
+
+		this.#finishSelectionGesture(true);
+		this.#clearHoveredLink();
+		const start = beginHistoryScrollbarDrag(projection, pointerY);
+		this.#historyScrollbarGesture = { drag: start.drag, pointerId: event.pointerId };
+		this.#showHistoryScrollbar();
+		try {
+			canvas.setPointerCapture(event.pointerId);
+		} catch {
+			// Focus and visibility repair still end the drag when capture is unavailable.
+		}
+		this.#requestHistoryStartRow(start.targetStartRow);
+		this.#ownHistoryScrollbarEvent(event);
+		return true;
+	}
+
+	#finishHistoryScrollbarGesture(releaseCapture: boolean, scheduleFade = true): boolean {
+		const gesture = this.#historyScrollbarGesture;
+		if (gesture === undefined) return false;
+		this.#historyScrollbarGesture = undefined;
+		if (scheduleFade) this.#showHistoryScrollbar();
+		else this.#cancelHistoryScrollbarFade();
+		if (!releaseCapture) return true;
+		try {
+			this.#canvas?.releasePointerCapture(gesture.pointerId);
+		} catch {
+			// Browsers may release capture before the terminal repairs the drag.
+		}
+		return true;
+	}
+
+	#ownHistoryScrollbarEvent(event: Event): void {
+		event.preventDefault();
+		event.stopImmediatePropagation();
 	}
 
 	readonly #handlePointerDown = (event: PointerEvent): void => {
+		this.#clearHistoryScrollbarClickSuppression();
+		if (this.#historyScrollbarGesture !== undefined) {
+			this.#clearHoveredLink();
+			this.#ownHistoryScrollbarEvent(event);
+			return;
+		}
 		this.focus();
+		if (this.#startHistoryScrollbarGesture(event)) return;
 		if (this.#mouseOwned('press', event.buttons, event.shiftKey)) {
 			this.#sendMouse(event, MouseAction.press, domMouseButton(event.button));
 			event.preventDefault();
@@ -2359,6 +2740,16 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handlePointerUp = (event: PointerEvent): void => {
+		const scrollbarGesture = this.#historyScrollbarGesture;
+		if (scrollbarGesture !== undefined) {
+			this.#clearHoveredLink();
+			if (scrollbarGesture.pointerId === event.pointerId && event.button === 0) {
+				this.#armHistoryScrollbarClickSuppression(event);
+				this.#finishHistoryScrollbarGesture(true);
+			}
+			this.#ownHistoryScrollbarEvent(event);
+			return;
+		}
 		if (
 			this.#selectionGestureActive &&
 			event.button === 0 &&
@@ -2383,6 +2774,29 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handlePointerMove = (event: PointerEvent): void => {
+		const scrollbarGesture = this.#historyScrollbarGesture;
+		if (scrollbarGesture !== undefined) {
+			this.#clearHoveredLink();
+			if (scrollbarGesture.pointerId === event.pointerId) {
+				if ((event.buttons & 1) === 0) {
+					this.#finishHistoryScrollbarGesture(true);
+				} else {
+					const projection = this.#historyScrollbarProjection();
+					const rectangle = this.#canvas?.getBoundingClientRect();
+					if (projection !== null && rectangle !== undefined) {
+						this.#requestHistoryStartRow(
+							resolveHistoryScrollbarDrag(
+								projection,
+								scrollbarGesture.drag,
+								event.clientY - rectangle.top,
+							),
+						);
+					}
+				}
+			}
+			this.#ownHistoryScrollbarEvent(event);
+			return;
+		}
 		if (
 			this.#selectionGestureActive &&
 			(event.buttons & 1) !== 0 &&
@@ -2427,15 +2841,36 @@ export class ProjectedTerminal {
 		});
 	};
 
-	readonly #handlePointerLeave = (): void => this.#clearHoveredLink();
+	readonly #handlePointerLeave = (event: PointerEvent): void => {
+		this.#clearHoveredLink();
+		if (this.#historyScrollbarGesture !== undefined) this.#ownHistoryScrollbarEvent(event);
+	};
 
 	readonly #handlePointerCancel = (event: PointerEvent): void => {
+		const scrollbarGesture = this.#historyScrollbarGesture;
+		if (scrollbarGesture !== undefined) {
+			this.#clearHoveredLink();
+			if (scrollbarGesture.pointerId === event.pointerId) {
+				this.#finishHistoryScrollbarGesture(true);
+			}
+			this.#ownHistoryScrollbarEvent(event);
+			return;
+		}
 		if (this.#selectionGesturePointerId !== event.pointerId) return;
 		this.#finishSelectionGesture(true);
 		event.preventDefault();
 	};
 
 	readonly #handleLostPointerCapture = (event: PointerEvent): void => {
+		const scrollbarGesture = this.#historyScrollbarGesture;
+		if (scrollbarGesture !== undefined) {
+			this.#clearHoveredLink();
+			if (scrollbarGesture.pointerId === event.pointerId) {
+				this.#finishHistoryScrollbarGesture(false);
+			}
+			this.#ownHistoryScrollbarEvent(event);
+			return;
+		}
 		if (this.#selectionGesturePointerId !== event.pointerId) return;
 		this.#finishSelectionGesture(false);
 	};
@@ -2458,7 +2893,42 @@ export class ProjectedTerminal {
 		}
 	}
 
+	#cancelSelectionGestureForReset(): void {
+		const canvas = this.#canvas;
+		const pointerId = this.#selectionGesturePointerId;
+		this.#selectionGestureActive = false;
+		this.#selectionGestureLast = undefined;
+		this.#selectionGesturePointerId = undefined;
+		this.#pendingSelectionGesture = undefined;
+		this.#copySelectionAfterNextSelectionChange = false;
+		this.#suppressNextSelectionCopy = true;
+		this.#cancelScheduledSelectionGesture();
+		this.#stopSelectionAutoscroll();
+		if (pointerId === undefined) return;
+		try {
+			canvas?.releasePointerCapture(pointerId);
+		} catch {
+			// Browsers may release capture while reset is cancelling the gesture.
+		}
+	}
+
+	#cancelScheduledSelectionGesture(): void {
+		if (this.#selectionGestureHandle?.kind === 'animation-frame') {
+			this.#root?.ownerDocument.defaultView?.cancelAnimationFrame(
+				this.#selectionGestureHandle.value,
+			);
+		} else if (this.#selectionGestureHandle?.kind === 'timeout') {
+			globalThis.clearTimeout(this.#selectionGestureHandle.value);
+		}
+		this.#selectionGestureHandle = undefined;
+	}
+
 	readonly #handleClick = (event: MouseEvent): void => {
+		if (this.#consumeHistoryScrollbarClickSuppression(event)) {
+			this.#clearHoveredLink();
+			this.#ownHistoryScrollbarEvent(event);
+			return;
+		}
 		if (!event.ctrlKey && !event.metaKey) return;
 		const point = this.#selectionPoint(event);
 		const link = this.#hoveredLink;
@@ -2476,6 +2946,12 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleWheel = (event: WheelEvent): void => {
+		if (this.#historyScrollbarGesture !== undefined) {
+			this.#clearHoveredLink();
+			this.#ownHistoryScrollbarEvent(event);
+			return;
+		}
+		this.#clearHistoryScrollbarClickSuppression();
 		if (event.deltaY === 0) return;
 		if (this.#mouseOwned('press', event.buttons, event.shiftKey)) {
 			this.#sendMouse(
@@ -2632,6 +3108,7 @@ export class ProjectedTerminal {
 			{ height: metrics.height, width: metrics.width },
 			readSurfacePadding(root),
 		);
+		if (grid === undefined) return;
 		const cellPixelHeight = clamp(
 			Math.round(metrics.height * this.#devicePixelRatio),
 			1,
@@ -2665,12 +3142,30 @@ export class ProjectedTerminal {
 			columns,
 			rows,
 		};
-		if (sameGeometry(geometry, this.#lastGeometry)) return;
+		const committedMetadata = this.#store.metadata;
+		if (committedMetadata !== null && sameGeometry(geometry, committedMetadata)) {
+			this.#lastGeometry = undefined;
+			return;
+		}
+		const now = projectedNow();
+		if (
+			sameGeometry(geometry, this.#lastGeometry) &&
+			now - this.#lastGeometryAttemptedAt < RESIZE_REENTRY_MS
+		) {
+			return;
+		}
 		this.#lastGeometry = geometry;
+		this.#lastGeometryAttemptedAt = now;
 		this.#send({
 			kind: 'resize-terminal',
 			payload: { attachmentId: this.#attachmentId, ...geometry },
 		});
+	}
+
+	#reconcileCommittedGeometry(metadata: ProjectedTerminalMetadata): void {
+		if (this.#lastGeometry !== undefined && !sameGeometry(this.#lastGeometry, metadata)) {
+			this.#lastGeometry = undefined;
+		}
 	}
 
 	#updateAccessibility(metadata: ProjectedTerminalMetadata): void {
@@ -3131,26 +3626,6 @@ function sanitizePaste(text: string): { readonly replaced: number; readonly sani
 		sanitized += unsafe ? ' ' : character;
 	}
 	return { replaced, sanitized };
-}
-
-function unicodeCellWidth(codepoint: number): number {
-	if (codepoint === 0 || codepoint === 0x200d) return 0;
-	const character = String.fromCodePoint(codepoint);
-	if (/\p{Mark}/u.test(character)) return 0;
-	return codepoint >= 0x1100 &&
-		(codepoint <= 0x115f ||
-			codepoint === 0x2329 ||
-			codepoint === 0x232a ||
-			(codepoint >= 0x2e80 && codepoint <= 0xa4cf) ||
-			(codepoint >= 0xac00 && codepoint <= 0xd7a3) ||
-			(codepoint >= 0xf900 && codepoint <= 0xfaff) ||
-			(codepoint >= 0xfe10 && codepoint <= 0xfe19) ||
-			(codepoint >= 0xfe30 && codepoint <= 0xfe6f) ||
-			(codepoint >= 0xff00 && codepoint <= 0xff60) ||
-			(codepoint >= 0xffe0 && codepoint <= 0xffe6) ||
-			(codepoint >= 0x1f300 && codepoint <= 0x1faff))
-		? 2
-		: 1;
 }
 
 function sameGeometry(left: ResizeGeometry, right: ResizeGeometry | undefined): boolean {

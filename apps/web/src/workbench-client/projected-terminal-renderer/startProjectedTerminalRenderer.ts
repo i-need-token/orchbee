@@ -29,6 +29,7 @@ type ProjectedTerminalDriver = Pick<
 	ProjectedTerminal,
 	| 'applyFrame'
 	| 'applyRows'
+	| 'canControlTerminal'
 	| 'clearSearch'
 	| 'copySelectionAsync'
 	| 'dispose'
@@ -37,12 +38,14 @@ type ProjectedTerminalDriver = Pick<
 	| 'focus'
 	| 'getBufferRowsSnapshot'
 	| 'notifyExited'
+	| 'notifyBell'
 	| 'notifyBrokerFailure'
 	| 'notifyHistoryChanged'
 	| 'notifyLinkOpened'
 	| 'notifySelectionChanged'
 	| 'notifySelectionCopied'
 	| 'onError'
+	| 'onBell'
 	| 'onExit'
 	| 'onFrameTelemetry'
 	| 'onHistoryChange'
@@ -54,6 +57,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'onSelectionCopied'
 	| 'openLinkAsync'
 	| 'open'
+	| 'reset'
 	| 'selectAll'
 	| 'selection'
 	| 'updateSearch'
@@ -160,11 +164,6 @@ export async function startProjectedTerminalRenderer(
 			send: (command) => transport.send(command),
 		},
 		projectionBufferTrust: transport.projectionBufferTrust,
-		renderer: {
-			fontFamily: '"Menlo", monospace',
-			fontSize: 15,
-			paddingBalance: true,
-		},
 		terminalId: bootstrap.terminalId,
 	});
 	const reportRuntimeFailure = (
@@ -199,6 +198,7 @@ export async function startProjectedTerminalRenderer(
 		platformEffects,
 	);
 	const subscriptions = [
+		terminal.onBell((event) => platformEffects.ringBell?.(event)),
 		terminal.onError((event) => {
 			if (
 				event.operation === 'frame' ||
@@ -219,6 +219,7 @@ export async function startProjectedTerminalRenderer(
 			lastRenderedRevision = BigInt(event.revision);
 			rootElement.dataset['projectedTerminalRenderedFrames'] = String(renderedFrames);
 			rootElement.dataset['projectedTerminalRenderedAtMilliseconds'] = String(performance.now());
+			rootElement.dataset['projectedTerminalRenderedGeneration'] = event.generation;
 			rootElement.dataset['projectedTerminalRenderedRevision'] = event.revision;
 			rootElement.dataset['projectedTerminalRenderer'] = event.backend;
 			updateFinalPresentation();
@@ -281,6 +282,9 @@ export async function startProjectedTerminalRenderer(
 			return;
 		}
 		switch (event.data.kind) {
+			case 'bell':
+				terminal.notifyBell(event.data.event);
+				return;
 			case 'failure':
 				terminal.notifyBrokerFailure(event.data.failure);
 				if (

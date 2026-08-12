@@ -141,6 +141,10 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'Previous match',
 		id: 'terminal.projected.find.previous',
 	},
+	resetAction: {
+		defaultMessage: 'Reset terminal',
+		id: 'terminal.projected.action.reset',
+	},
 	screen: {
 		defaultMessage: 'Terminal screen',
 		id: 'terminal.projected.screen',

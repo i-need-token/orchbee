@@ -317,6 +317,7 @@ pub const Scheduler = struct {
             prepared: terminal_runtime.PreparedSelectionExportCancellation,
             runtime: *terminal_runtime.TerminalRuntime,
         };
+        const PendingBell = core_module.BellDeliveryToken;
         const PendingMutation = union(enum) {
             history: struct {
                 attachment_id: core_module.AttachmentId,
@@ -335,6 +336,8 @@ pub const Scheduler = struct {
         };
         var pending_cancellations: [max_scheduled_attachments_per_poll]PendingCancellation = undefined;
         var pending_cancellation_count: usize = 0;
+        var pending_bells: [max_scheduled_attachments_per_poll]PendingBell = undefined;
+        var pending_bell_count: usize = 0;
         var pending_mutations: [max_scheduled_attachments_per_poll * 3]PendingMutation = undefined;
         var pending_mutation_count: usize = 0;
         errdefer {
@@ -367,6 +370,35 @@ pub const Scheduler = struct {
             const terminal = core.findTerminal(attachment.terminal_id) orelse continue;
             if (!terminal.hasReadableRuntimeState() or !runtime.readableStateAvailable()) continue;
             scheduled += 1;
+            if (try core.prepareBellDelivery(
+                connection_id,
+                attachment.attachment_id,
+                runtime.bellSequence(),
+            )) |bell| {
+                const payload = try control_encode.terminalBell(
+                    allocator,
+                    bell.attachment_id,
+                    bell.sequence,
+                );
+                defer allocator.free(payload);
+                switch (try outgoing.append(
+                    MessageKind.terminal_bell,
+                    .control_json,
+                    payload,
+                    .{ .event = core.epoch },
+                )) {
+                    .appended => {
+                        std.debug.assert(pending_bell_count < pending_bells.len);
+                        pending_bells[pending_bell_count] = bell;
+                        pending_bell_count += 1;
+                    },
+                    .full => {
+                        scanned -= 1;
+                        outcome = .batch_full;
+                        break :scan;
+                    },
+                }
+            }
             const history_event = runtime.takeHistoryEvent(attachment.attachment_id) catch |err| switch (err) {
                 error.TerminalResizeFailed, error.TerminalRuntimeUnavailable => {
                     continue :scan;
@@ -518,6 +550,9 @@ pub const Scheduler = struct {
         // with respect to every allocator failure in this scheduler.
         for (pending_cancellations[0..pending_cancellation_count]) |pending| {
             pending.runtime.commitPreparedSelectionExportCancellation(pending.prepared);
+        }
+        for (pending_bells[0..pending_bell_count]) |pending| {
+            core.commitBellDelivery(pending);
         }
         self.scan_index = (start + scanned) % count;
         return outcome;

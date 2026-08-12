@@ -19,11 +19,13 @@ import {
 } from './projected-terminal-action-ids';
 
 export interface ProjectedTerminalActionTarget {
+	readonly canControlTerminal: boolean;
 	readonly selection: SelectionChanged;
 	copySelectionAsync(): Promise<ProjectedTerminalSideEffectResult>;
 	findNext(): boolean;
 	findPrevious(): boolean;
 	openLinkAsync(target: string): Promise<ProjectedTerminalSideEffectResult>;
+	reset(): void;
 	selectAll(): void;
 }
 
@@ -80,6 +82,31 @@ export function registerProjectedTerminalActions({
 				id: PROJECTED_TERMINAL_ACTION_IDS.findOpen,
 				input: noActionInput,
 				title: projectedTerminalMessages.findOpenAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: {
+					concurrency: 'reject-duplicate',
+					concurrencyKey: () => 'terminal-reset',
+					mode: 'foreground',
+				},
+				getAvailability: () =>
+					terminal.canControlTerminal
+						? { kind: 'enabled' }
+						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				handler: {
+					execute: (context) => {
+						terminal.reset();
+						context.markCommitted();
+						return { kind: 'completed' };
+					},
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.reset,
+				input: noActionInput,
+				title: projectedTerminalMessages.resetAction,
 			}),
 		),
 		typedRuntime.register(

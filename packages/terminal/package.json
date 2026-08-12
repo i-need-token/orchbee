@@ -40,7 +40,8 @@
 		"test:exports": "node ../../scripts/check-package-exports.mjs . && node scripts/check-public-api.mjs"
 	},
 	"dependencies": {
-		"@orchbee/terminal-protocol": "workspace:^"
+		"@orchbee/terminal-protocol": "workspace:^",
+		"get-east-asian-width": "1.6.0"
 	},
 	"devDependencies": {
 		"@rslib/core": "catalog:",

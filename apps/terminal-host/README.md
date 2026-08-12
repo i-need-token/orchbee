@@ -22,7 +22,7 @@ Terminal Host owns:
 - PTY and process-tree creation, observation, termination, containment, and cleanup;
 - the single canonical Ghostty state used by input encoding, projection, history, and selection;
 - effective terminal configuration, ordered bounded input, revisions, and generations;
-- broker-scoped attachments, demand, delivery flights, history anchors, selections, and exports;
+- broker-scoped attachments, demand, delivery flights, bell cursors, history anchors, selections, and exports;
 - a private local IPC endpoint protected by operating-system user identity; and
 - typed native adaptation of the shared terminal protocol.
 
@@ -43,6 +43,16 @@ The accepted contract requires these externally visible properties:
 - Large projection and history records cross engine-to-egress ownership once: producers write into reserved response storage or transfer an owned envelope-ready allocation instead of copying a complete payload into a second buffer.
 - Input whose reply is lost after admission has an unknown outcome and must not be automatically replayed.
 - No client receives raw PTY output. Clients receive bounded protocol projections, history rows, selection state, exports, and lifecycle events derived from canonical terminal state.
+- Terminal control queries, including DECRQSS, read that same canonical Ghostty state and enqueue their replies through the Host-owned bounded terminal-reply path; attachments never emulate a second VT reply surface.
+- Attachment resize and terminal-driven 80/132-column requests share one native geometry commit
+  owner. The Host correlates OS PTY size, Ghostty dimensions, cell pixels, revision, generation, Core
+  observation, and the projected snapshot before clients observe the change.
+- Application clear and reset requests execute directly against the Host-owned Ghostty state for
+  an input-capable attachment. Clear erases and homes the active screen without changing its modes;
+  reset returns to a fresh primary-screen state. Neither operation writes escape bytes to the child
+  or asks a projected client to emulate VT behavior.
+- Each Ghostty bell advances one terminal-owned sequence. A read-capable attachment receives only
+  later bells, once per committed event record; reconnect does not replay earlier bell intent.
 - A successful grid reflow preserves a tracked selection and committed history anchor when Ghostty's pins remain valid, while cancelling stale row flights and already encoded export bytes. Screen replacement and retained-row eviction remain explicit selection eviction boundaries.
 
 The complete state model, retry classes, commit boundaries, invariants, and evidence matrix live in the [runtime contract](docs/runtime-model.md).
@@ -95,12 +105,22 @@ pnpm --filter @orchbee/terminal-host format:check
 pnpm --filter @orchbee/terminal-host build
 pnpm --filter @orchbee/terminal-host test
 pnpm --filter @orchbee/terminal-host test:protocol
+pnpm --filter @orchbee/terminal-host test:surface-fixtures
 pnpm --filter @orchbee/terminal-host test:tla
 pnpm --filter @orchbee/terminal-host test:cross
 pnpm verify
 ```
 
-`test` runs the current platform's native tests and cross-language protocol conformance. `test:protocol` runs protocol conformance alone. `test:cross` compiles the complete test graph for Linux, FreeBSD, macOS, and Windows; cross-compilation is not runtime evidence for those platforms. Repository CI supplies native Linux, macOS, and Windows behavior evidence.
+`test` runs the current platform's native tests, cross-language protocol conformance, and the
+pinned-Ghostty surface-fixture comparison. `test:protocol` runs protocol conformance alone;
+`test:surface-fixtures` regenerates the Host-owned primary/alternate OBTF corpus in a temporary
+directory and rejects byte drift. The paired snapshots come from one Ghostty terminal and
+Projection so metadata and rows can be checked across a real alternate-screen transition. After an
+intentional reviewed corpus or encoder change, run
+`pnpm --filter @orchbee/terminal-host surface-fixtures:generate` and review the binary consumer
+assertions in `@orchbee/terminal`. `test:cross` compiles the complete test graph for Linux, FreeBSD,
+macOS, and Windows; cross-compilation is not runtime evidence for those platforms. Repository CI
+supplies native Linux, macOS, and Windows behavior evidence.
 
 The narrower POSIX endpoint-security evidence can be run without the complete Host suite:
 

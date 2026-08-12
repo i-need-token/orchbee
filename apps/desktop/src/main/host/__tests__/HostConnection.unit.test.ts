@@ -168,15 +168,30 @@ describe('HostConnection', () => {
 		});
 		if (!selection.ok) throw new Error(selection.detail);
 		stream.push(selection.value);
+		const bell = encodeProtocolEnvelope({
+			correlationId: null,
+			event: true,
+			hostEpoch,
+			kind: MessageKind.terminalBell,
+			optionalMessage: false,
+			payload: new TextEncoder().encode(
+				JSON.stringify({ attachmentId: '22'.repeat(16), sequence: '1' }),
+			),
+			payloadEncoding: PayloadEncoding.controlJson,
+			protocol: currentProtocol,
+			response: false,
+		});
+		if (!bell.ok) throw new Error(bell.detail);
+		stream.push(bell.value);
 
 		expect(accepted.hostEpoch).toBe(hostEpoch);
 		expect(connection.hostEpoch).toBe(hostEpoch);
 		expect(connection.protocolVersion).toEqual(currentProtocol);
 		expect(listener).toHaveBeenCalledOnce();
-		expect(attachmentListener).toHaveBeenCalledTimes(2);
+		expect(attachmentListener).toHaveBeenCalledTimes(3);
 		expect(foreignAttachmentListener).not.toHaveBeenCalled();
 		expect(connection.metrics.recordsSent).toBe(1);
-		expect(connection.metrics.recordsReceived).toBe(4);
+		expect(connection.metrics.recordsReceived).toBe(5);
 		expect(connection.metrics.terminalFramesReceived).toBe(1);
 		expect(connection.metrics).toMatchObject({
 			outboundAdmittedBytes: 0,

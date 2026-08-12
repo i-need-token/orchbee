@@ -51,15 +51,23 @@ describe('startProjectedTerminalRenderer', () => {
 		const applyFrame = vi.fn<ProjectedTerminal['applyFrame']>(() => 'committed');
 		const applyRows = vi.fn<ProjectedTerminal['applyRows']>(() => 'committed');
 		const notifyLinkOpened = vi.fn<ProjectedTerminal['notifyLinkOpened']>();
+		let emitBell: Parameters<ProjectedTerminal['onBell']>[0] = () => undefined;
+		const notifyBell = vi.fn<ProjectedTerminal['notifyBell']>((event) => emitBell(event));
 		const notifyExited = vi.fn<ProjectedTerminal['notifyExited']>();
 		const notifyBrokerFailure = vi.fn<ProjectedTerminal['notifyBrokerFailure']>();
 		const notifySelectionCopied = vi.fn<ProjectedTerminal['notifySelectionCopied']>();
 		const writeClipboardText = vi.fn<
 			NonNullable<ProjectedTerminalPlatformEffects['writeClipboardText']>
 		>(async () => ({ kind: 'completed' as const }));
+		const ringBell = vi.fn<NonNullable<ProjectedTerminalPlatformEffects['ringBell']>>();
 		let emitExit: Parameters<ProjectedTerminal['onExit']>[0] = () => undefined;
 		let emitFrameTelemetry: Parameters<ProjectedTerminal['onFrameTelemetry']>[0] = () => undefined;
+		let emitLinkOpenRequest: Parameters<ProjectedTerminal['onLinkOpenRequest']>[0] = () =>
+			undefined;
 		let emitMetadata: Parameters<ProjectedTerminal['onMetadataChange']>[0] | undefined;
+		const openExternal = vi
+			.fn<NonNullable<ProjectedTerminalPlatformEffects['openExternal']>>()
+			.mockResolvedValue({ kind: 'completed' });
 		let options: ProjectedTerminalOptions | undefined;
 		const dependencies: ProjectedTerminalRendererDependencies = {
 			createTerminal: vi.fn<ProjectedTerminalRendererDependencies['createTerminal']>(
@@ -68,6 +76,7 @@ describe('startProjectedTerminalRenderer', () => {
 					return {
 						applyFrame,
 						applyRows,
+						canControlTerminal: true,
 						clearSearch: vi.fn<ProjectedTerminal['clearSearch']>(),
 						copySelectionAsync: vi
 							.fn<ProjectedTerminal['copySelectionAsync']>()
@@ -82,6 +91,7 @@ describe('startProjectedTerminalRenderer', () => {
 							totalRows: 0n,
 						})),
 						notifyExited,
+						notifyBell,
 						notifyBrokerFailure,
 						notifyHistoryChanged: vi.fn<ProjectedTerminal['notifyHistoryChanged']>(),
 						notifyLinkOpened,
@@ -90,6 +100,10 @@ describe('startProjectedTerminalRenderer', () => {
 						onError: vi.fn<ProjectedTerminal['onError']>(() => ({
 							dispose: vi.fn<() => void>(),
 						})),
+						onBell: vi.fn<ProjectedTerminal['onBell']>((listener) => {
+							emitBell = listener;
+							return { dispose: vi.fn<() => void>() };
+						}),
 						onExit: vi.fn<ProjectedTerminal['onExit']>((listener) => {
 							emitExit = listener;
 							return { dispose: vi.fn<() => void>() };
@@ -101,9 +115,10 @@ describe('startProjectedTerminalRenderer', () => {
 						onHistoryChange: vi.fn<ProjectedTerminal['onHistoryChange']>(() => ({
 							dispose: vi.fn<() => void>(),
 						})),
-						onLinkOpenRequest: vi.fn<ProjectedTerminal['onLinkOpenRequest']>(() => ({
-							dispose: vi.fn<() => void>(),
-						})),
+						onLinkOpenRequest: vi.fn<ProjectedTerminal['onLinkOpenRequest']>((listener) => {
+							emitLinkOpenRequest = listener;
+							return { dispose: vi.fn<() => void>() };
+						}),
 						onMetadataChange: vi.fn<ProjectedTerminal['onMetadataChange']>((listener) => {
 							emitMetadata = listener;
 							return { dispose: vi.fn<() => void>() };
@@ -124,6 +139,7 @@ describe('startProjectedTerminalRenderer', () => {
 							.fn<ProjectedTerminal['openLinkAsync']>()
 							.mockResolvedValue({ kind: 'completed' }),
 						open: vi.fn<ProjectedTerminal['open']>().mockResolvedValue(undefined),
+						reset: vi.fn<ProjectedTerminal['reset']>(),
 						selectAll: vi.fn<ProjectedTerminal['selectAll']>(),
 						selection: { attachmentId: bootstrap.attachmentId, state: 'none' },
 						updateSearch: vi.fn<ProjectedTerminal['updateSearch']>(),
@@ -184,12 +200,16 @@ describe('startProjectedTerminalRenderer', () => {
 				bootstrap,
 				transport,
 				dependencies,
-				{ writeClipboardText },
+				{ openExternal, ringBell, writeClipboardText },
 			);
 			expect(dependencies.createTerminal).toHaveBeenCalledWith(
 				expect.objectContaining({ projectionBufferTrust: 'local-host' }),
 			);
 			emitTransportMessage({ frame: new Uint8Array([1, 2, 3]).buffer, kind: 'frame' });
+			emitTransportMessage({
+				event: { attachmentId: bootstrap.attachmentId, sequence: '5' },
+				kind: 'bell',
+			});
 			emitTransportMessage({ kind: 'link-opened', requestSequence: '9' });
 			emitTransportMessage({
 				content: new TextEncoder().encode('copied from Host').buffer,
@@ -197,6 +217,20 @@ describe('startProjectedTerminalRenderer', () => {
 				requestSequence: '10',
 			});
 			expect(applyFrame).toHaveBeenCalledOnce();
+			expect(notifyBell).toHaveBeenCalledWith({
+				attachmentId: bootstrap.attachmentId,
+				sequence: '5',
+			});
+			expect(ringBell).toHaveBeenCalledWith({
+				attachmentId: bootstrap.attachmentId,
+				sequence: '5',
+			});
+			emitLinkOpenRequest({
+				target: { kind: 'url', url: 'https://example.com/from-osc-8' },
+			});
+			await vi.waitFor(() =>
+				expect(openExternal).toHaveBeenCalledWith('https://example.com/from-osc-8'),
+			);
 			expect(notifyLinkOpened).toHaveBeenCalledWith('9');
 			await vi.waitFor(() => expect(writeClipboardText).toHaveBeenCalledWith('copied from Host'));
 			expect(notifySelectionCopied).toHaveBeenCalledWith(16, '10');
@@ -214,6 +248,7 @@ describe('startProjectedTerminalRenderer', () => {
 				durationMs: 1,
 				forceAll: false,
 				frameId: 1,
+				generation: CanonicalUint64TextSchema.parse('1'),
 				glyphInstances: 0,
 				gpuDrawCalls: 1,
 				overlayInstances: 0,
@@ -259,11 +294,7 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(options?.labels.row?.(2n, '中文')).toBe('终端第 2 行：中文');
 			expect(options?.labels.screenCursor?.(3n, 4)).toBe('终端屏幕，光标位于第 3 行、第 4 列');
 			expect(options?.labels.selectedText?.('内容')).toBe('已选择文本：内容');
-			expect(options?.renderer).toEqual({
-				fontFamily: '"Menlo", monospace',
-				fontSize: 15,
-				paddingBalance: true,
-			});
+			expect(options?.renderer).toBeUndefined();
 			expect(root.style.backgroundColor).toBe('#123456');
 			expect(options?.inputEnabled).toBe(false);
 			expect(notifyExited).toHaveBeenCalledWith(bootstrap.terminalOutcome.event);
@@ -271,6 +302,7 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(dataset['projectedTerminalState']).toBe('exited');
 			expect(dataset['projectedTerminalCommittedFrames']).toBe('1');
 			expect(dataset['projectedTerminalFinalFramePresented']).toBe('true');
+			expect(dataset['projectedTerminalRenderedGeneration']).toBe('1');
 			expect(dataset['projectedTerminalRenderedRevision']).toBe('1');
 			if (emitTransportUnavailable === undefined) {
 				throw new Error('transport unavailable listener is missing');

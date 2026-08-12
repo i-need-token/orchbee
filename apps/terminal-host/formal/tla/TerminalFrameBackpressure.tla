@@ -1,13 +1,16 @@
 ---------------------- MODULE TerminalFrameBackpressure ----------------------
 EXTENDS FiniteSets, Naturals, TLC
 
-\* Refines runtime-model claims TH-006, TH-010, TH-011, and TH-012.
+\* Refines runtime-model claims TH-006, TH-010, TH-011, TH-012, and TH-016.
 \* Mutate, ResizeOrScreenSwitch, SetDemand, Capture, PrepareFrame,
 \* AcquireReadCommit, Emit, PublishFailure, ConfirmContainment, FrameApplied,
 \* NeedSnapshot, and Finalize model the canonical-state and delivery-flight
 \* transitions named by the package contract. Source-scoped input admission and
 \* reply priority are owned by TerminalInputBackpressure so independent queue
-\* state does not multiply the two-attachment frame state.
+\* state does not multiply the two-attachment frame state. ResizeOrScreenSwitch
+\* abstracts every generation-changing canonical mutation, including application
+\* clear and reset: acknowledged bases are generation-scoped and every attachment
+\* is forced to recover through a full snapshot.
 
 CONSTANTS Attachments, MaxRevision, MaxGeneration, MaxSequence
 
@@ -215,6 +218,12 @@ ReadyToEncode(attachment) ==
   /\ capturedGeneration <= generation
   /\ ~provisional[attachment]
 
+CapturedCanEncode(attachment) ==
+  \/ forceSnapshot[attachment]
+  \/ acknowledgedRevision[attachment] = None
+  \/ acknowledgedGeneration[attachment] # capturedGeneration
+  \/ acknowledgedRevision[attachment] < capturedRevision
+
 EncodeFailure(attachment) ==
   /\ attachment \in Attachments
   /\ ReadyToEncode(attachment)
@@ -234,6 +243,7 @@ EncodeFailure(attachment) ==
 PrepareFrame(attachment) ==
   /\ attachment \in Attachments
   /\ ReadyToEncode(attachment)
+  /\ CapturedCanEncode(attachment)
   /\ Readable
   /\ provisional' = [provisional EXCEPT ![attachment] = TRUE]
   /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
@@ -354,11 +364,15 @@ FrameApplied(attachment) ==
   /\ lastAppliedSequence' =
        [lastAppliedSequence EXCEPT ![attachment] = frameSequence[attachment]]
   /\ inFlight' = [inFlight EXCEPT ![attachment] = FALSE]
+  /\ captured' = IF frameRevision[attachment] < revision
+                       \/ frameGeneration[attachment] # generation
+       THEN FALSE
+       ELSE captured
   /\ pendingDirty' = IF frameRevision[attachment] < revision
                          \/ frameGeneration[attachment] # generation
        THEN [pendingDirty EXCEPT ![attachment] = TRUE]
        ELSE pendingDirty
-  /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
+  /\ UNCHANGED <<revision, generation, finalized, capturedRevision,
                   capturedGeneration, demand, blocked, blockedRevision, frameBase,
                   frameRevision, frameGeneration, frameSequence,
                   nextSequence, lastAbandonedSequence, forceSnapshot,

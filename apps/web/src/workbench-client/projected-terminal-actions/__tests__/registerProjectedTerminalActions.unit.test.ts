@@ -48,8 +48,15 @@ describe('registerProjectedTerminalActions', () => {
 				source: 'keyboard',
 			}).completion,
 		).resolves.toEqual({ kind: 'completed' });
+		await expect(
+			runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.reset, undefined, {
+				scope,
+				source: 'menu',
+			}).completion,
+		).resolves.toEqual({ kind: 'completed' });
 
 		expect(terminal.findNext).toHaveBeenCalledOnce();
+		expect(terminal.reset).toHaveBeenCalledOnce();
 		expect(terminal.selectAll).toHaveBeenCalledOnce();
 		for (const registration of registrations) registration.dispose();
 		runtime.dispose();
@@ -58,6 +65,7 @@ describe('registerProjectedTerminalActions', () => {
 
 function terminalTarget(): ProjectedTerminalActionTarget {
 	return {
+		canControlTerminal: true,
 		copySelectionAsync: vi
 			.fn<ProjectedTerminalActionTarget['copySelectionAsync']>()
 			.mockResolvedValue({ kind: 'completed' }),
@@ -66,6 +74,7 @@ function terminalTarget(): ProjectedTerminalActionTarget {
 		openLinkAsync: vi
 			.fn<ProjectedTerminalActionTarget['openLinkAsync']>()
 			.mockResolvedValue({ kind: 'completed' }),
+		reset: vi.fn<ProjectedTerminalActionTarget['reset']>(),
 		selectAll: vi.fn<ProjectedTerminalActionTarget['selectAll']>(),
 		selection: { attachmentId: AttachmentIdSchema.parse('11'.repeat(16)), state: 'none' },
 	};

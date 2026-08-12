@@ -1586,6 +1586,81 @@ test "runtime revision synchronization rejects regression" {
     try std.testing.expectError(error.InvalidPhase, core.synchronizeRevision(terminal_id, 7));
 }
 
+test "finishing terminal accepts a newer terminal-driven geometry observation" {
+    var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
+    defer core.deinit();
+    const connection: ConnectionId = 2;
+    const terminal_id = testId(TerminalId, 4);
+    _ = try core.connect(connection, testId(ClientId, 2));
+    _ = try core.createTerminal(
+        connection,
+        testId(CreationId, 3),
+        terminal_id,
+        [_]u8{5} ** 32,
+        80,
+        24,
+    );
+    _ = try core.childExited(terminal_id, .{ .exit_code = 0 });
+    try std.testing.expectEqual(
+        TerminalPhase.finishing,
+        core.findTerminal(terminal_id).?.phase(),
+    );
+
+    try core.synchronizeGeometry(terminal_id, 132, 24, 9, 18, 1);
+
+    const terminal = core.findTerminal(terminal_id).?;
+    try std.testing.expectEqual(@as(u16, 132), terminal.observedGeometry().columns);
+    try std.testing.expectEqual(@as(u16, 24), terminal.observedGeometry().rows);
+    try std.testing.expectEqual(@as(u16, 9), terminal.observedGeometry().cell_pixel_width);
+    try std.testing.expectEqual(@as(u16, 18), terminal.observedGeometry().cell_pixel_height);
+    try std.testing.expectEqual(@as(u64, 1), terminal.observedRevision());
+}
+
+test "settled terminal geometry accepts only its exact immutable observation" {
+    const SettledCase = enum { exited, failed };
+    const cases = [_]SettledCase{ .exited, .failed };
+
+    for (cases, 0..) |case, index| {
+        var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
+        defer core.deinit();
+        const connection: ConnectionId = 2;
+        const terminal_id = testId(TerminalId, @intCast(4 + index));
+        _ = try core.connect(connection, testId(ClientId, 2));
+        _ = try core.createTerminal(
+            connection,
+            testId(CreationId, 3),
+            terminal_id,
+            [_]u8{5} ** 32,
+            80,
+            24,
+        );
+        try core.synchronizeGeometry(terminal_id, 132, 24, 9, 18, 1);
+        switch (case) {
+            .exited => {
+                _ = try core.childExited(terminal_id, .{ .exit_code = 0 });
+                _ = try core.ptyDrained(terminal_id);
+            },
+            .failed => {
+                _ = try core.runtimeFailed(terminal_id, .read_output);
+                _ = try core.failureContained(
+                    terminal_id,
+                    .{ .observed = .{ .exit_code = 1 } },
+                );
+            },
+        }
+
+        try core.synchronizeGeometry(terminal_id, 132, 24, 9, 18, 1);
+        try std.testing.expectError(
+            error.InvalidPhase,
+            core.synchronizeGeometry(terminal_id, 80, 24, 9, 18, 1),
+        );
+        try std.testing.expectError(
+            error.InvalidPhase,
+            core.synchronizeGeometry(terminal_id, 132, 24, 9, 18, 2),
+        );
+    }
+}
+
 test "failed terminal revision accepts only an exact read coherence check" {
     var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
     defer core.deinit();
