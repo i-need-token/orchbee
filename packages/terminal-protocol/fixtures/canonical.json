@@ -294,6 +294,7 @@
 	},
 	"pasteInput": {
 		"attachmentId": "22222222222222222222222222222222",
+		"bracketed": true,
 		"text": "line 1\nline 2"
 	},
 	"textInput": {

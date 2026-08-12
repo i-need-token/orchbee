@@ -1,0 +1,35 @@
+.review {
+	display: grid;
+	gap: var(--ob-ref-space-3);
+	min-width: 0;
+}
+
+.warnings {
+	display: grid;
+	gap: var(--ob-ref-space-1);
+	margin: 0;
+	padding-inline-start: var(--ob-ref-space-5);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.preview {
+	box-sizing: border-box;
+	max-block-size: var(--ob-ref-container-xs);
+	margin: 0;
+	overflow: auto;
+	padding: var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: var(--ob-sys-color-surface-canvas);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-code-sm);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.truncated {
+	margin: 0;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-body-sm);
+}

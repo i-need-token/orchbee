@@ -918,6 +918,10 @@ test "input failure metadata is consistent across raw and semantic ingress" {
         InputFailure{ .code = "invalid-field", .retryable = false },
         inputFailure(.invalid_input),
     );
+    try std.testing.expectEqualDeep(
+        InputFailure{ .code = "input-mode-changed", .retryable = false },
+        inputFailure(.paste_mode_changed),
+    );
 }
 
 test "protocol identifier failures retain their public error code" {
@@ -1022,10 +1026,10 @@ test "I/O successful responses use supplied request contracts and publish input 
     @memcpy(focus_payload[0..16], &attachment_id.bytes);
     focus_payload[16] = 1;
 
-    var paste_payload = [_]u8{0} ** 21;
+    var paste_payload = [_]u8{0} ** 25;
     @memcpy(paste_payload[0..16], &attachment_id.bytes);
-    std.mem.writeInt(u32, paste_payload[16..20], 1, .little);
-    paste_payload[20] = 'p';
+    std.mem.writeInt(u32, paste_payload[20..24], 1, .little);
+    paste_payload[24] = 'p';
 
     const input_cases = [_]struct {
         kind: u16,
@@ -1576,7 +1580,7 @@ test "handshake binds client and negotiates input bytes" {
     defer service.deinit();
     var connection: ConnectionState = .awaiting_hello;
     const payload =
-        \\{"clientId":"22222222222222222222222222222222","frameBytes":1024,"inputBytes":2048,"protocol":{"major":0,"minor":0,"patch":4},"rowWindowBytes":4096,"supportedOptionalFeatures":[]}
+        \\{"clientId":"22222222222222222222222222222222","frameBytes":1024,"inputBytes":2048,"protocol":{"major":0,"minor":0,"patch":5},"rowWindowBytes":4096,"supportedOptionalFeatures":[]}
     ;
     const record = try protocol.encodeTransportEnvelope(
         std.testing.allocator,

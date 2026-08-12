@@ -439,6 +439,7 @@ describe('HostConnection', () => {
 		const submitFromSecondCaller = () =>
 			byteControlled.connection.requestInput(MessageKind.pasteInput, {
 				attachmentId,
+				bracketed: false,
 				text: maximumText,
 			});
 		const byteRequests = [

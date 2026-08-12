@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { GHOSTTY_SPRITE_RANGES } from '../ghostty-sprite-raster.generated';
 import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from '../ghostty-sprites';
 
 function createContext() {
@@ -19,18 +20,56 @@ function createContext() {
 }
 
 describe('Ghostty sprites', () => {
-	it('recognizes only the implemented sprite subset', () => {
+	it('recognizes every pinned Ghostty sprite-face range', () => {
 		expect(isGhosttySprite(0x2500)).toBe(true);
+		expect(isGhosttySprite(0x2504)).toBe(true);
 		expect(isGhosttySprite(0x2551)).toBe(true);
 		expect(isGhosttySprite(0x2581)).toBe(true);
 		expect(isGhosttySprite(0x25e5)).toBe(true);
+		expect(isGhosttySprite(0x25f8)).toBe(true);
+		expect(isGhosttySprite(0x2801)).toBe(true);
 		expect(isGhosttySprite(0xe0b3)).toBe(true);
-		expect(isGhosttySprite(0x2504)).toBe(false);
+		expect(isGhosttySprite(0xe0d4)).toBe(true);
+		expect(isGhosttySprite(0xf5d0)).toBe(true);
+		expect(isGhosttySprite(0xf60d)).toBe(true);
+		expect(isGhosttySprite(0x1cc21)).toBe(true);
+		expect(isGhosttySprite(0x1cd00)).toBe(true);
+		expect(isGhosttySprite(0x1ce51)).toBe(true);
+		expect(isGhosttySprite(0x1fb00)).toBe(true);
 		expect(isGhosttySprite(0x256d)).toBe(true);
 		expect(isGhosttySprite(0x256e)).toBe(true);
 		expect(isGhosttySprite(0x256f)).toBe(true);
 		expect(isGhosttySprite(0x2570)).toBe(true);
+		expect(isGhosttySprite(0x2600)).toBe(false);
 		expect(isGhosttySprite(0x41)).toBe(false);
+	});
+
+	it('draws a sprite outside the former bounded subset', () => {
+		const context = createContext();
+
+		expect(drawGhosttySprite(context, 0x2801, 0, 0, 9, 17, 1)).toBe(true);
+		expect(context.fillRect).toHaveBeenCalled();
+	});
+
+	it('routes every codepoint declared by the pinned Ghostty sprite face', () => {
+		const context = createContext();
+		let count = 0;
+
+		for (const [start, end] of GHOSTTY_SPRITE_RANGES) {
+			for (let codepoint = start; codepoint <= end; codepoint++) {
+				expect(isGhosttySprite(codepoint)).toBe(true);
+				expect(drawGhosttySprite(context, codepoint, 0, 0, 9, 17, 1)).toBe(true);
+				count++;
+			}
+		}
+
+		expect(count).toBe(1_085);
+		expect(context.fillRect).toHaveBeenCalled();
+		expect(
+			context.fillRect.mock.calls.some(
+				([x, y, width, height]) => x < 0 || y < 0 || x + width > 9 || y + height > 17,
+			),
+		).toBe(true);
 	});
 
 	it("draws a light corner with Ghostty's integer-centered boxes", () => {

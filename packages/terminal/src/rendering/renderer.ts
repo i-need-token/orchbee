@@ -28,9 +28,15 @@ import {
 	cellConstraintWidthFromReader,
 	constrainGlyph,
 	glyphConstraintForCodepoint,
+	isSymbolCodepoint,
 	type GlyphSize,
 } from '../glyph-constraints';
-import { drawGhosttySprite, isGhosttySprite, physicalSpriteGeometry } from '../ghostty-sprites';
+import {
+	drawGhosttySprite,
+	ghosttySpriteRasterPadding,
+	isGhosttySprite,
+	physicalSpriteGeometry,
+} from '../ghostty-sprites';
 import {
 	projectHistoryScrollbar,
 	type HistoryScrollbarInput,
@@ -242,6 +248,7 @@ interface RectangleGeometry {
 }
 
 const COLOR_GLYPH_CANDIDATE = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u{FE0F}\u{20E3}]/u;
+const MAX_CACHED_SHAPING_RASTER_PIXELS = 8 * 1024 * 1024;
 const ZERO_PADDING: SurfacePadding = { top: 0, bottom: 0, left: 0, right: 0 };
 
 // ============================================================================
@@ -549,6 +556,8 @@ export class WebGPURenderer {
 	private atlasTexture: GPUTexture | null = null;
 	private atlasSampler: GPUSampler | null = null;
 	private glyphMap: Map<string, GlyphAtlasEntry> = new Map();
+	private shapingGlyphKeys = new Set<string>();
+	private shapingRasterPixels = 0;
 	private atlasX = 0;
 	private atlasY = 0;
 	private atlasRowHeight = 0;
@@ -585,6 +594,7 @@ export class WebGPURenderer {
 		const atlasCtx = this.atlasCanvas.getContext('2d');
 		if (!atlasCtx) throw new Error('Failed to create atlas canvas context');
 		this.atlasCtx = atlasCtx;
+		this.atlasCtx.direction = 'ltr';
 		this.atlasCtx.imageSmoothingEnabled = false;
 		this.atlasCtx.clearRect(0, 0, 2048, 2048);
 
@@ -719,6 +729,9 @@ export class WebGPURenderer {
 	private initFallback2D(): void {
 		const ctx = this.canvas.getContext('2d', { alpha: true });
 		if (!ctx) throw new Error('Failed to get 2D rendering context');
+		ctx.direction = 'ltr';
+		ctx.textAlign = 'left';
+		ctx.textBaseline = 'alphabetic';
 		this.ctx2d = ctx;
 		this.useWebGPU = false;
 	}
@@ -731,6 +744,7 @@ export class WebGPURenderer {
 		const canvas = document.createElement('canvas');
 		const ctx = canvas.getContext('2d');
 		if (!ctx) throw new Error('Failed to create font measurement context');
+		ctx.direction = 'ltr';
 		ctx.font = canvasFont(
 			'normal',
 			configuration.fontWeight,
@@ -989,27 +1003,32 @@ export class WebGPURenderer {
 		this.atlasCtx.textBaseline = 'alphabetic';
 		this.atlasCtx.textAlign = 'left';
 		const inkPadding = Math.max(1, Math.ceil(rasterScale));
-		const raster = isGhosttySprite(codepoint)
-			? {
-					kind: 'sprite' as const,
-					geometry: physicalSpriteGeometry(this.detailedMetrics, rasterScale, width),
-				}
-			: {
-					kind: 'font' as const,
-					layout: this.glyphRasterLayout(
-						this.atlasCtx.measureText(text),
-						rasterScale,
-						codepoint,
-						constraintWidth,
-					),
-				};
+		const spriteGeometry = isGhosttySprite(codepoint)
+			? physicalSpriteGeometry(this.detailedMetrics, rasterScale, width)
+			: null;
+		const raster =
+			spriteGeometry === null
+				? {
+						kind: 'font' as const,
+						layout: this.glyphRasterLayout(
+							this.atlasCtx.measureText(text),
+							rasterScale,
+							codepoint,
+							constraintWidth,
+						),
+					}
+				: {
+						kind: 'sprite' as const,
+						geometry: spriteGeometry,
+						padding: ghosttySpriteRasterPadding(spriteGeometry.width, spriteGeometry.height),
+					};
 		const w =
 			raster.kind === 'sprite'
-				? raster.geometry.width + inkPadding * 2
+				? raster.geometry.width + raster.padding.x * 2 + inkPadding * 2
 				: Math.max(1, Math.ceil(raster.layout.target.width * rasterScale) + inkPadding * 2);
 		const h =
 			raster.kind === 'sprite'
-				? raster.geometry.height + inkPadding * 2
+				? raster.geometry.height + raster.padding.y * 2 + inkPadding * 2
 				: Math.max(1, Math.ceil(raster.layout.target.height * rasterScale) + inkPadding * 2);
 
 		// Check if we need a new row
@@ -1036,8 +1055,8 @@ export class WebGPURenderer {
 			drawGhosttySprite(
 				this.atlasCtx,
 				codepoint,
-				this.atlasX + inkPadding,
-				this.atlasY + inkPadding,
+				this.atlasX + inkPadding + raster.padding.x,
+				this.atlasY + inkPadding + raster.padding.y,
 				raster.geometry.width,
 				raster.geometry.height,
 				raster.geometry.boxThickness,
@@ -1051,11 +1070,11 @@ export class WebGPURenderer {
 
 		const offsetX =
 			raster.kind === 'sprite'
-				? -inkPadding / rasterScale
+				? -(inkPadding + raster.padding.x) / rasterScale
 				: raster.layout.target.x - inkPadding / rasterScale;
 		const offsetY =
 			raster.kind === 'sprite'
-				? -inkPadding / rasterScale
+				? -(inkPadding + raster.padding.y) / rasterScale
 				: raster.layout.targetTop - inkPadding / rasterScale;
 		const entry: GlyphAtlasEntry = {
 			x: this.atlasX,
@@ -1070,6 +1089,10 @@ export class WebGPURenderer {
 				raster.kind === 'sprite' ? false : this.isColorGlyph(text, this.atlasX, this.atlasY, w, h),
 		};
 		this.glyphMap.set(key, entry);
+		if (codepoint === 0) {
+			this.shapingGlyphKeys.add(key);
+			this.shapingRasterPixels += w * h;
+		}
 		this.frameAtlasGlyphsCreated++;
 
 		this.atlasX += w + padding;
@@ -1094,17 +1117,20 @@ export class WebGPURenderer {
 			Number.isFinite(measuredDescent) &&
 			measuredAscent + measuredDescent > 0;
 		const left = Number.isFinite(measured.actualBoundingBoxLeft)
-			? Math.max(0, measured.actualBoundingBoxLeft)
+			? measured.actualBoundingBoxLeft
 			: 0;
 		const measuredRight = measured.actualBoundingBoxRight;
-		const right =
-			Number.isFinite(measuredRight) && measuredRight > 0
-				? measuredRight
-				: Math.max(this.metrics.width * rasterScale, measured.width);
+		const right = Number.isFinite(measuredRight)
+			? measuredRight
+			: Math.max(this.metrics.width * rasterScale, measured.width);
 		const ascent = hasVerticalBounds ? measuredAscent : baseline;
 		const descent = hasVerticalBounds ? measuredDescent : Math.max(0, cellHeight - baseline);
+		const inkWidth = left + right;
 		const original: GlyphSize = {
-			width: (left + right) / rasterScale,
+			width:
+				(Number.isFinite(inkWidth) && inkWidth > 0
+					? inkWidth
+					: Math.max(this.metrics.width * rasterScale, measured.width)) / rasterScale,
 			height: (ascent + descent) / rasterScale,
 			x: -left / rasterScale,
 			y: this.detailedMetrics.cellBaseline - descent / rasterScale,
@@ -1239,6 +1265,8 @@ export class WebGPURenderer {
 
 	private resetAtlas(): void {
 		this.glyphMap.clear();
+		this.shapingGlyphKeys.clear();
+		this.shapingRasterPixels = 0;
 		this.atlasX = 0;
 		this.atlasY = 0;
 		this.atlasRowHeight = 0;
@@ -1472,8 +1500,26 @@ export class WebGPURenderer {
 		const texts = Array.from({ length: columns }, (_, column) => row.grapheme(column));
 		const codepoints = Uint32Array.from(texts, (text) => text.codePointAt(0) ?? 0);
 		const cursorPresentation = resolvePackedCursorPresentation(cursor, row.widths);
+		let shapingEnd = 0;
+		for (let column = 0; column < columns; column++) {
+			const text = texts[column] ?? '';
+			const width = packedCellWidth(row.widths[column] ?? TerminalCellWidthCode.spacerTail);
+			const meaningful =
+				text.length > 0 ||
+				(row.styleFlags[column] ?? 0) !== 0 ||
+				(row.foregroundColors[column] ?? TerminalColorEncoding.default) !==
+					TerminalColorEncoding.default ||
+				(row.backgroundColors[column] ?? TerminalColorEncoding.default) !==
+					TerminalColorEncoding.default ||
+				(row.underlineKinds[column] ?? TerminalUnderlineKindCode.none) !==
+					TerminalUnderlineKindCode.none ||
+				(row.underlineColors[column] ?? TerminalColorEncoding.none) !== TerminalColorEncoding.none;
+			if (meaningful) shapingEnd = Math.max(shapingEnd, column + Math.max(1, width));
+		}
+		shapingEnd = Math.min(columns, shapingEnd);
 		const eligible = (column: number): boolean => {
 			const text = texts[column] ?? '';
+			const codepoint = text.codePointAt(0) ?? 0;
 			const flags = row.styleFlags[column] ?? 0;
 			const hidden =
 				(flags & TerminalStyleFlag.invisible) !== 0 ||
@@ -1489,32 +1535,46 @@ export class WebGPURenderer {
 				column >= preeditLayout.start &&
 				column < preeditLayout.end;
 			return (
-				packedCellWidth(row.widths[column] ?? TerminalCellWidthCode.spacerTail) === 1 &&
+				column < shapingEnd &&
 				!hidden &&
 				!cursorBoundary &&
 				!preeditBoundary &&
-				text.length === 1
+				!isGhosttySprite(codepoint) &&
+				!(codepoint > 0x7f && isSymbolCodepoint(codepoint))
 			);
 		};
+		const textColorKey = (column: number): number | string => {
+			if (this.isCoordinateInSelection(column, rowIndex)) return 'selection';
+			const search = this.getSearchHighlight(column, rowIndex);
+			if (search !== null) return `search:${search}`;
+			const flags = row.styleFlags[column] ?? 0;
+			return (flags & TerminalStyleFlag.inverse) !== 0
+				? (row.backgroundColors[column] ?? TerminalColorEncoding.default)
+				: (row.foregroundColors[column] ?? TerminalColorEncoding.default);
+		};
+		// WebGPU must not classify a mixed monochrome/emoji atlas entry as wholly colored.
+		const colorGlyphKey = (column: number): boolean =>
+			COLOR_GLYPH_CANDIDATE.test(texts[column] ?? '');
 		const sameStyle = (left: number, right: number): boolean =>
 			row.styleFlags[left] === row.styleFlags[right] &&
-			row.foregroundColors[left] === row.foregroundColors[right] &&
-			row.backgroundColors[left] === row.backgroundColors[right] &&
+			textColorKey(left) === textColorKey(right) &&
 			row.underlineKinds[left] === row.underlineKinds[right] &&
-			row.underlineColors[left] === row.underlineColors[right];
+			row.underlineColors[left] === row.underlineColors[right] &&
+			colorGlyphKey(left) === colorGlyphKey(right);
 		return {
 			codepoints,
 			texts,
-			plan: this.presentationConfiguration.fontLigatures
-				? buildTextShapingPlan({
-						length: columns,
-						eligible,
-						sameStyle,
-						text: (column) => texts[column] ?? '',
-						width: (column) =>
-							packedCellWidth(row.widths[column] ?? TerminalCellWidthCode.spacerTail),
-					})
-				: Array.from({ length: columns }, () => null),
+			plan: buildTextShapingPlan(
+				{
+					length: columns,
+					eligible,
+					sameStyle,
+					text: (column) => texts[column] ?? '',
+					width: (column) =>
+						packedCellWidth(row.widths[column] ?? TerminalCellWidthCode.spacerTail),
+				},
+				{ allowOptionalLigatures: this.presentationConfiguration.fontLigatures },
+			),
 		};
 	}
 
@@ -1530,6 +1590,31 @@ export class WebGPURenderer {
 			(index) => shaping.codepoints[index] ?? 0,
 			(index) => packedCellWidth(row.widths[index] ?? TerminalCellWidthCode.spacerTail),
 		);
+	}
+
+	private shouldResetShapingCache(
+		buffer: PackedRendererSource,
+		shapings: readonly ((PackedRowTextShaping & { readonly codepoints: Uint32Array }) | null)[],
+		columns: number,
+	): boolean {
+		if (this.shapingRasterPixels < MAX_CACHED_SHAPING_RASTER_PIXELS) return false;
+		for (const [rowIndex, row] of buffer.rows.entries()) {
+			const shaping = shapings[rowIndex];
+			if (shaping === null || shaping === undefined) continue;
+			for (let column = 0; column < columns; column++) {
+				const span = shaping.plan[column];
+				if (span === null || span === undefined || span.start !== column) continue;
+				const key = this.getGlyphKey(
+					span.text,
+					row.styleFlags[column] ?? 0,
+					span.columns,
+					0,
+					this.packedConstraintWidth(row, shaping, column, columns),
+				);
+				if (!this.shapingGlyphKeys.has(key)) return true;
+			}
+		}
+		return false;
 	}
 
 	private hasPackedBlinkingCells(buffer: PackedRendererSource): boolean {
@@ -1575,6 +1660,13 @@ export class WebGPURenderer {
 				preeditLayout,
 			);
 			shapings[y] = shaping;
+		}
+		if (this.shouldResetShapingCache(buffer, shapings, columns)) this.resetAtlas();
+
+		for (let y = 0; y < rows; y++) {
+			const row = buffer.rows[y];
+			const shaping = shapings[y];
+			if (!row || !shaping) continue;
 			for (let x = 0; x < columns; x++) {
 				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
 				const flags = row.styleFlags[x] ?? 0;
@@ -1592,7 +1684,7 @@ export class WebGPURenderer {
 					text,
 					flags,
 					span?.columns ?? width,
-					shaping.codepoints[x] ?? 0,
+					span ? 0 : (shaping.codepoints[x] ?? 0),
 					this.packedConstraintWidth(row, shaping, x, columns),
 				);
 			}
@@ -1709,7 +1801,7 @@ export class WebGPURenderer {
 						text,
 						flags,
 						span?.columns ?? width,
-						shaping.codepoints[x] ?? 0,
+						span ? 0 : (shaping.codepoints[x] ?? 0),
 						this.packedConstraintWidth(row, shaping, x, columns),
 					);
 					if (glyph) {
@@ -2262,12 +2354,13 @@ export class WebGPURenderer {
 		ctx.fillStyle = `rgb(${foreground[0]}, ${foreground[1]}, ${foreground[2]})`;
 		if ((flags & TerminalStyleFlag.faint) !== 0) ctx.globalAlpha = 0.5;
 		if (text.length > 0) {
+			const span = shaping.plan[column];
 			this.drawConstrainedText2D(
 				ctx,
 				text,
 				cellX,
 				cellY,
-				shaping.codepoints[column] ?? 0,
+				span ? 0 : (shaping.codepoints[column] ?? 0),
 				this.packedConstraintWidth(row, shaping, column, metadata.columns),
 				width,
 			);

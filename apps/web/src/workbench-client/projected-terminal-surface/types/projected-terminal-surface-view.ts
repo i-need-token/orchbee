@@ -1,9 +1,13 @@
 import type { RefObject } from 'react';
+import type { ProjectedPasteReview } from '@orchbee/terminal';
 
 export interface ProjectedTerminalSurfaceView {
 	readonly failureMessage: string | null;
+	readonly pasteReview: ProjectedPasteReview | null;
 	readonly projectionState: 'failed' | 'inactive' | 'requested';
 	readonly root: RefObject<HTMLDivElement | null>;
 	readonly stopped: boolean;
+	approvePaste(): void;
+	cancelPaste(): void;
 	startNewSession(): void;
 }

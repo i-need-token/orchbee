@@ -19,12 +19,14 @@ import { containsUnpairedSurrogate } from './containsUnpairedSurrogate';
 export const WRITE_INPUT_ATTACHMENT_BYTES = IDENTIFIER_BYTE_LENGTH;
 export const KEY_INPUT_HEADER_BYTES = 32;
 export const TEXT_INPUT_HEADER_BYTES = 20;
+export const PASTE_INPUT_HEADER_BYTES = 24;
 export const MOUSE_INPUT_BYTES = 32;
 export const FOCUS_INPUT_BYTES = 20;
 
 const MAX_UNICODE_CODEPOINT = 0x10_ffff;
 const MAX_FLOAT32 = 3.4028234663852886e38;
 const KEY_FLAGS_MASK = 0b1;
+const PASTE_FLAGS_MASK = 0b1;
 const MODIFIER_FLAGS_MASK = 0x03ff;
 const MOUSE_BUTTON_FLAGS_MASK = 0x07ff;
 const textEncoder = new TextEncoder();
@@ -371,7 +373,10 @@ const attachmentTextShape = {
 
 export const TextInputSchema = z.strictObject(attachmentTextShape);
 
-export const PasteInputSchema = z.strictObject(attachmentTextShape);
+export const PasteInputSchema = z.strictObject({
+	...attachmentTextShape,
+	bracketed: z.boolean(),
+});
 
 export const MouseInputSchema = z
 	.strictObject({
@@ -744,11 +749,52 @@ export function decodeTextInput(payload: Uint8Array): ProtocolResult<TextInput> 
 }
 
 export function encodePasteInput(value: unknown): ProtocolResult<Uint8Array> {
-	return encodeTextPayload(value, PasteInputSchema, 'PasteInput');
+	const parsed = PasteInputSchema.safeParse(value);
+	if (!parsed.success) return validationFailure('PasteInput', parsed.error.issues);
+	const textBytes = textEncoder.encode(parsed.data.text);
+	const writer = new BinaryWriter(PASTE_INPUT_HEADER_BYTES + textBytes.byteLength);
+	writer.writeBytes(identifierBytes(parsed.data.attachmentId));
+	writer.writeUint8(parsed.data.bracketed ? 1 : 0);
+	writer.writeUint8(0);
+	writer.writeUint16(0);
+	writer.writeUint32(textBytes.byteLength);
+	writer.writeBytes(textBytes);
+	return protocolSuccess(writer.bytes());
 }
 
 export function decodePasteInput(payload: Uint8Array): ProtocolResult<PasteInput> {
-	return decodeTextPayload(payload, 'PasteInput', PasteInputSchema);
+	if (payload.byteLength < PASTE_INPUT_HEADER_BYTES) {
+		return protocolFailure(ProtocolErrorCode.truncated, 'PasteInput header is truncated');
+	}
+	if (payload.byteLength > PASTE_INPUT_HEADER_BYTES + PROTOCOL_LIMITS.maxInputBytes) {
+		return protocolFailure(ProtocolErrorCode.limitExceeded, 'PasteInput payload exceeds its limit');
+	}
+	const reader = new BinaryReader(payload);
+	const attachmentId = decodeAttachmentId(reader.readBytes(IDENTIFIER_BYTE_LENGTH));
+	if (!attachmentId.ok) return attachmentId;
+	const flags = reader.readUint8();
+	const reservedByte = reader.readUint8();
+	const reservedWord = reader.readUint16();
+	const textLength = reader.readUint32();
+	if (reader.failure) return reader.failure;
+	if ((flags & ~PASTE_FLAGS_MASK) !== 0 || reservedByte !== 0 || reservedWord !== 0) {
+		return protocolFailure(ProtocolErrorCode.unknownRequiredFlag, 'PasteInput has unknown flags');
+	}
+	if (textLength !== payload.byteLength - PASTE_INPUT_HEADER_BYTES) {
+		return protocolFailure(
+			ProtocolErrorCode.lengthMismatch,
+			'PasteInput length does not match payload',
+		);
+	}
+	const text = decodeUtf8(reader.readBytes(textLength), 'PasteInput text');
+	if (!text.ok) return text;
+	const parsed = PasteInputSchema.safeParse({
+		attachmentId: attachmentId.value,
+		bracketed: (flags & 1) !== 0,
+		text: text.value,
+	});
+	if (!parsed.success) return validationFailure('PasteInput', parsed.error.issues);
+	return protocolSuccess(parsed.data);
 }
 
 export function encodeMouseInput(value: unknown): ProtocolResult<Uint8Array> {

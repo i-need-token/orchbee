@@ -14,6 +14,7 @@
 	"dependencies": {
 		"@orchbee/actions": "workspace:^",
 		"@orchbee/desktop-client-protocol": "workspace:^",
+		"@orchbee/foundation": "workspace:^",
 		"@orchbee/gateway-protocol": "workspace:^",
 		"@orchbee/i18n": "workspace:^",
 		"@orchbee/tab-strip": "workspace:^",

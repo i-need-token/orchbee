@@ -59,6 +59,7 @@ describe('startProjectedTerminalRenderer', () => {
 		const notifyBrokerFailure = vi.fn<ProjectedTerminal['notifyBrokerFailure']>();
 		const notifySelectionCopied = vi.fn<ProjectedTerminal['notifySelectionCopied']>();
 		const disposeTerminal = vi.fn<ProjectedTerminal['dispose']>();
+		const focusTerminal = vi.fn<ProjectedTerminal['focus']>();
 		const openTerminal = vi.fn<ProjectedTerminal['open']>().mockResolvedValue(undefined);
 		const updatePresentationConfiguration = vi
 			.fn<ProjectedTerminal['updatePresentationConfiguration']>()
@@ -94,7 +95,7 @@ describe('startProjectedTerminalRenderer', () => {
 						dispose: disposeTerminal,
 						findNext: vi.fn<ProjectedTerminal['findNext']>(() => false),
 						findPrevious: vi.fn<ProjectedTerminal['findPrevious']>(() => false),
-						focus: vi.fn<ProjectedTerminal['focus']>(),
+						focus: focusTerminal,
 						getBufferRowsSnapshot: vi.fn<ProjectedTerminal['getBufferRowsSnapshot']>(() => ({
 							generation: 1n,
 							revision: 0n,
@@ -323,6 +324,7 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(options?.labels.selectedText?.('内容')).toBe('已选择文本：内容');
 			expect(options?.renderer).toEqual(initialPresentationConfiguration);
 			expect(openTerminal).toHaveBeenCalledOnce();
+			expect(focusTerminal).not.toHaveBeenCalled();
 			expect(root.style.backgroundColor).toBe('#123456');
 			expect(options?.inputEnabled).toBe(false);
 			expect(notifyExited).toHaveBeenCalledWith(bootstrap.terminalOutcome.event);

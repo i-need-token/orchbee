@@ -1470,6 +1470,7 @@ test "canonical TypeScript semantic-input fixtures conform in Zig" {
         .paste => |value| value,
         else => return error.TestUnexpectedResult,
     };
+    try std.testing.expect(paste.bracketed);
     try std.testing.expectEqualStrings("line 1\nline 2", paste.text);
 
     const decoded_mouse = try protocol.validateSemanticInput(
@@ -1694,7 +1695,13 @@ test "native text decoder checks declared length before rejecting empty text" {
         error.LengthMismatch,
         protocol.validateCommittedTextInput(zero_length_text),
     );
-    try std.testing.expectError(error.LengthMismatch, protocol.validatePasteInput(zero_length_text));
+    const zero_length_paste = try allocator.dupe(u8, paste_input_fixture);
+    defer allocator.free(zero_length_paste);
+    std.mem.writeInt(u32, zero_length_paste[20..24], 0, .little);
+    try std.testing.expectError(
+        error.LengthMismatch,
+        protocol.validatePasteInput(zero_length_paste),
+    );
 
     // A header-only payload with a truly empty declared text is an invalid
     // field, matching the TypeScript min-length rejection of empty text.

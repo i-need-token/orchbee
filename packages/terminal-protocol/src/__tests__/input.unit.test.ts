@@ -195,14 +195,18 @@ describe('semantic terminal input payloads', () => {
 	it('keeps committed text separate from approved paste intent', () => {
 		const committed = { attachmentId, text: '中文' };
 		const text = encodeTextInput(committed);
-		const paste = encodePasteInput({ attachmentId, text: 'line 1\nline 2' });
+		const pasteValue = { attachmentId, bracketed: true, text: 'line 1\nline 2' };
+		const paste = encodePasteInput(pasteValue);
 		if (!text.ok) throw new Error(text.detail);
 		if (!paste.ok) throw new Error(paste.detail);
 		expect(decodeTextInput(text.value)).toEqual({ ok: true, value: committed });
-		expect(decodePasteInput(paste.value)).toEqual({
-			ok: true,
-			value: { attachmentId, text: 'line 1\nline 2' },
-		});
+		expect(paste.value.subarray(16, 20)).toEqual(new Uint8Array([1, 0, 0, 0]));
+		expect(decodePasteInput(paste.value)).toEqual({ ok: true, value: pasteValue });
+		const unknownFlag = paste.value.slice();
+		unknownFlag[16] = 2;
+		expect(decodePasteInput(unknownFlag)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
+		);
 		expect(encodeTextInput({ attachmentId, text: '\ud800' })).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
@@ -222,15 +226,16 @@ describe('semantic terminal input payloads', () => {
 
 	it('round-trips an exact leading U+FEFF through text and paste payloads', () => {
 		const value = { attachmentId, text: '\ufeff' };
+		const pasteValue = { ...value, bracketed: false };
 		const text = encodeTextInput(value);
-		const paste = encodePasteInput(value);
+		const paste = encodePasteInput(pasteValue);
 		if (!text.ok) throw new Error(text.detail);
 		if (!paste.ok) throw new Error(paste.detail);
 
 		expect(text.value.subarray(-3)).toEqual(new Uint8Array([0xef, 0xbb, 0xbf]));
 		expect(paste.value.subarray(-3)).toEqual(new Uint8Array([0xef, 0xbb, 0xbf]));
 		expect(decodeTextInput(text.value)).toEqual({ ok: true, value });
-		expect(decodePasteInput(paste.value)).toEqual({ ok: true, value });
+		expect(decodePasteInput(paste.value)).toEqual({ ok: true, value: pasteValue });
 	});
 
 	it('round-trips finite terminal-space mouse coordinates and pressed-button state', () => {
@@ -392,7 +397,14 @@ describe('semantic-input rejection parity with the native mirror', () => {
 		expect(decodeTextInput(zeroLength)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.lengthMismatch, ok: false }),
 		);
-		expect(decodePasteInput(zeroLength)).toEqual(
+		const encodedPaste = encodePasteInput({ attachmentId, bracketed: false, text: 'abc' });
+		if (!encodedPaste.ok) throw new Error(encodedPaste.detail);
+		const zeroLengthPaste = encodedPaste.value.slice();
+		zeroLengthPaste[20] = 0;
+		zeroLengthPaste[21] = 0;
+		zeroLengthPaste[22] = 0;
+		zeroLengthPaste[23] = 0;
+		expect(decodePasteInput(zeroLengthPaste)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.lengthMismatch, ok: false }),
 		);
 	});

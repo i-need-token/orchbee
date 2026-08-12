@@ -17,6 +17,17 @@ to Terminal Host. Runtime presentation diagnostics additionally expose request, 
 drawn epochs on the same surface. They distinguish independently ordered font preparation from the
 single local commit and completed current repaint without creating another attachment lifecycle.
 
+Mounting a projected renderer never moves DOM focus. Workbench retains the active product control;
+pointer activation, an explicit terminal focus request, and find-surface close are the only adapter
+paths that move focus into the hidden terminal input. The projected root contains both that input and
+its find surface, so moving between them does not publish a terminal focus transition.
+
+Suspicious paste text opens one localized review dialog owned by the shared projected-terminal
+surface. It presents a bounded, control-visible preview of the retained original text and identifies
+multiline input, controls that will be replaced, and an embedded bracketed-paste terminator. Cancel
+publishes nothing; approval sends the sanitized text together with the mode that was reviewed, while
+Terminal Host rejects a mode change before encoding or queue admission.
+
 The packaged `orchbee:` origin and Electron User-Agent token select Desktop mode. The User-Agent is adapter discovery for loopback development, never authentication; Desktop authority still arrives only through the validated sandboxed bootstrap. The explicit `?orchbee-runtime=gateway` marker selects an authenticated process-lifetime Gateway client on loopback or an explicitly enabled trusted LAN. An ordinary HTTP(S) browser origin selects Browser Preview. Gateway port, version, and lifetime capability must appear exactly once in the fragment. Invalid, duplicate, or incomplete values fail closed without falling back.
 
 ## Navigation

@@ -3409,6 +3409,30 @@ test "semantic input limits apply to encoded terminal bytes" {
     try runtime.forceTerminate();
 }
 
+test "paste encoding requires the reviewed bracketed mode under the terminal lock" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+
+    try std.testing.expectError(
+        error.PasteModeChanged,
+        runtime.preparePasteInput("payload", true, std.math.maxInt(usize)),
+    );
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+
+    parseTerminalInput(runtime, "\x1b[?2004h");
+    try std.testing.expectError(
+        error.PasteModeChanged,
+        runtime.preparePasteInput("payload", false, std.math.maxInt(usize)),
+    );
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+
+    var prepared = try runtime.preparePasteInput("payload", true, std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(u8, "\x1b[200~payload\x1b[201~", prepared.bytes.?);
+    prepared.deinit();
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try runtime.forceTerminate();
+}
+
 test "finite mouse coordinates remain bounded across tracking modes and formats" {
     const runtime = try createIdleRuntime(.{
         .cell_pixel_height = 16,

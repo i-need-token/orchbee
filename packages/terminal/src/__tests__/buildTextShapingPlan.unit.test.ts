@@ -6,19 +6,37 @@ import {
 } from '../buildTextShapingPlan';
 
 describe('buildTextShapingPlan', () => {
-	it('selects the longest programming ligature at each column', () => {
+	it('keeps programming ligatures inside one complete style run', () => {
 		const plan = buildTextShapingPlan(cells('<==> !=='));
 
-		expect(plan[0]).toEqual({ start: 0, end: 4, columns: 4, text: '<==>' });
-		expect(plan[3]).toBe(plan[0]);
-		expect(plan[5]).toEqual({ start: 5, end: 8, columns: 3, text: '!==' });
+		expect(plan[0]).toEqual({ start: 0, end: 8, columns: 8, text: '<==> !==' });
+		expect(plan[7]).toBe(plan[0]);
 	});
 
 	it("covers Ghostty's Inconsolata and Monaspace ligature cases", () => {
 		const plan = buildTextShapingPlan(cells('>= ==='));
 
-		expect(plan[0]).toEqual({ start: 0, end: 2, columns: 2, text: '>=' });
-		expect(plan[3]).toEqual({ start: 3, end: 6, columns: 3, text: '===' });
+		expect(plan[0]).toEqual({ start: 0, end: 6, columns: 6, text: '>= ===' });
+		expect(plan[5]).toBe(plan[0]);
+	});
+
+	it('builds one browser-shaping run across complex graphemes and empty cells', () => {
+		const input: TextShapingCell[] = [
+			{ text: 'ক', width: 1, styleKey: 'regular', eligible: true },
+			{ text: '', width: 1, styleKey: 'regular', eligible: true },
+			{ text: '্ষ', width: 1, styleKey: 'regular', eligible: true },
+		];
+
+		const plan = buildTextShapingPlan(input, { allowOptionalLigatures: false });
+
+		expect(plan[0]).toEqual({ start: 0, end: 3, columns: 3, text: 'ক ্ষ' });
+		expect(plan[2]).toBe(plan[0]);
+	});
+
+	it('leaves optional ASCII ligatures unshaped when the presentation disables them', () => {
+		const plan = buildTextShapingPlan(cells('!=='), { allowOptionalLigatures: false });
+
+		expect(plan).toEqual([null, null, null]);
 	});
 
 	it('breaks a run at style, selection, cursor, or preedit boundaries', () => {
@@ -32,38 +50,44 @@ describe('buildTextShapingPlan', () => {
 		input[6] = { ...preedit, eligible: false };
 		const plan = buildTextShapingPlan(input);
 
-		expect(plan.every((span) => span === null)).toBe(true);
+		expect(plan[0]).toBeNull();
+		expect(plan[1]).toBeNull();
+		expect((plan[2] as TextShapingSpan | null)?.text).toBe(' -');
+		expect(plan[4]).toBeNull();
+		expect(plan[6]).toBeNull();
 	});
 
-	it('does not join standard text ligatures that Ghostty deliberately splits', () => {
+	it('breaks standard text ligatures that Ghostty deliberately splits', () => {
 		const plan = buildTextShapingPlan(cells('fi fl st www'));
 
-		expect(plan.slice(0, 8).every((span) => span === null)).toBe(true);
-		expect((plan[9] as TextShapingSpan | null)?.text).toBe('www');
+		expect(plan[0]).toBeNull();
+		expect((plan[1] as TextShapingSpan | null)?.text).toBe('i f');
+		expect((plan[4] as TextShapingSpan | null)?.text).toBe('l s');
+		expect((plan[7] as TextShapingSpan | null)?.text).toBe('t www');
 	});
 
-	it('keeps adjacent ligatures in independent bounded spans', () => {
+	it('keeps adjacent programming ligatures in one style run', () => {
 		const plan = buildTextShapingPlan(cells('!===>'));
 
-		expect(plan[0]).toEqual({ start: 0, end: 3, columns: 3, text: '!==' });
-		expect(plan[2]).toBe(plan[0]);
-		expect(plan[3]).toEqual({ start: 3, end: 5, columns: 2, text: '=>' });
-		expect(plan[4]).toBe(plan[3]);
+		expect(plan[0]).toEqual({ start: 0, end: 5, columns: 5, text: '!===>' });
+		expect(plan.every((candidate) => candidate === plan[0])).toBe(true);
 	});
 
-	it('does not segment a long repeated-character row into ligatures', () => {
+	it('shapes a complete repeated-character run without guessing font ligatures', () => {
 		const repeated = buildTextShapingPlan(cells('************'));
 		const standalone = buildTextShapingPlan(cells(' *** '));
 
-		expect(repeated.every((span) => span === null)).toBe(true);
-		expect((standalone[1] as TextShapingSpan | null)?.text).toBe('***');
+		expect((repeated[0] as TextShapingSpan | null)?.text).toBe('************');
+		expect((standalone[0] as TextShapingSpan | null)?.text).toBe(' *** ');
 	});
 
-	it('does not shape incomplete candidates at the end of a row', () => {
-		expect(buildTextShapingPlan(cells('code ='))).toEqual([null, null, null, null, null, null]);
+	it('does not require a hardcoded ligature candidate at the end of a row', () => {
+		const plan = buildTextShapingPlan(cells('code ='));
+		expect(plan[0]).toEqual({ start: 0, end: 6, columns: 6, text: 'code =' });
+		expect(plan[5]).toBe(plan[0]);
 	});
 
-	it('breaks shaping at wide and continuation cells', () => {
+	it('retains a wide head and continuation inside its shaping run', () => {
 		const input = cells('=>=>');
 		const wide = input[1];
 		const continuation = input[2];
@@ -71,7 +95,9 @@ describe('buildTextShapingPlan', () => {
 		input[1] = { ...wide, width: 2 };
 		input[2] = { ...continuation, width: 0 };
 
-		expect(buildTextShapingPlan(input).every((span) => span === null)).toBe(true);
+		const plan = buildTextShapingPlan(input);
+		expect(plan[0]).toEqual({ start: 0, end: 4, columns: 4, text: '=>>' });
+		expect(plan[3]).toBe(plan[0]);
 	});
 
 	it('uses one shared span object for every cell in a shaped run', () => {
@@ -87,6 +113,6 @@ function cells(text: string): TextShapingCell[] {
 		text: character,
 		width: 1,
 		styleKey: 'regular',
-		eligible: character !== ' ',
+		eligible: true,
 	}));
 }

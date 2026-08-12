@@ -12,7 +12,7 @@ test "Hello optional feature names use a bounded UTF-8 byte length" {
         .clientId = "11111111111111111111111111111111",
         .frameBytes = 1024,
         .inputBytes = 1024,
-        .protocol = .{ .major = 0, .minor = 0, .patch = 4 },
+        .protocol = .{ .major = 0, .minor = 0, .patch = 5 },
         .rowWindowBytes = 1024,
         .supportedOptionalFeatures = &ascii,
     };

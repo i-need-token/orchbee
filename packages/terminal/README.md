@@ -63,6 +63,15 @@ cleanup, so reset, blur, visibility loss, and disposal do not wait for a paste r
 settle. Queued commands and late review resolutions or rejections from an invalidated generation are
 observed but inert. A newly opened generation progresses independently after repair.
 
+Paste inspection retains the original text before replacing unsafe C0/C1 controls with spaces, and
+detects an embedded bracketed-paste terminator in that original text. Multiline text without
+bracketed protection, replaced controls, and embedded terminators require the application-owned
+localized review surface; approval sends only the sanitized text. The review snapshots projected
+bracketed-paste mode and carries that expectation with the semantic input. Terminal Host compares it
+with authoritative Ghostty mode while holding the terminal lock and encodes only on an exact match;
+a mismatch rejects the paste without queue admission or automatic replay so a new paste can be
+inspected against current state.
+
 The adapter tracks admitted desired ownership separately from ownership already published to the
 Host. Physical key presses and pointer buttons are persistent ownership; synthetic
 `beforeinput` Enter/Backspace/Delete commands and wheel button 4/5 reports are stateless and never
@@ -75,6 +84,15 @@ focus-out retains known Host ownership for a later repair attempt. A returned pr
 reject diagnostically, but synchronous return records local transport acceptance and makes no claim
 about remote delivery.
 
+Browser key normalization maps legacy `OSLeft`/`OSRight` codes to Ghostty's
+`MetaLeft`/`MetaRight`, recognizes complete W3C key strings instead of measuring UTF-16 code units,
+and records consumed modifiers only when the event carries printable text and only as a subset of
+the active modifiers. A key release uses held ownership only to identify the physical key; its text,
+modifier, and consumed-modifier fields come from the current `keyup` after removing the released
+right-side modifier from browser-owned tracking. A `keyup` that reenters a synchronous input
+publication is deferred until the owning press outcome is known, or is subsumed by a concurrent
+lifecycle repair, so it cannot leave a published press without its release.
+
 Cleanup releases only published ownership: a queued release cannot hide a Host-visible press, while
 a queued or failed press cannot produce an orphan release. Blur and visibility loss release
 published keys and mouse buttons once in press order, then publish focus-out only when this session
@@ -84,6 +102,12 @@ failure is reported and retained as known ownership, but teardown cannot retry a
 listeners are removed. Reset itself requires no focus-out and retains focus. If reset invalidates a
 queued or failed focus-in, its replacement generation attempts focus reconciliation before later
 key or mouse publication; a synchronous reconciliation failure remains retryable by the next input.
+A projected terminal treats its hidden textarea, accessibility descendants, and application-owned
+controls mounted under the same root as one focus boundary. Movement within that boundary neither
+repairs input nor repeats focus reporting; leaving it releases published key and mouse ownership
+before one focus-out, while entering through a non-textarea descendant publishes the matching
+focus-in. The application decides when to call `focus()`; opening the package surface does not claim
+initial product focus.
 A blur, visibility loss, or disposal that reenters while reset is staging or sending cleanup is
 coalesced into the same transaction; the transaction drains key release, mouse release, and any
 newly required focus-out before it reopens admission or disposes. The Host reset follows that
@@ -228,7 +252,7 @@ const rows = await terminal.readBufferRows(
 
 WebGPU is preferred when available; Canvas 2D is the observable fallback. Both paths consume the same packed projection, font configuration, application-owned selection/search overlays, preedit state, and cursor metadata. Host frame metadata is the only terminal default-color authority: projected cells already contain resolved RGB values, the Host cursor color falls back to the Host foreground, and an explicit client cursor accent affects only text inside a block cursor. Canvas remains transparent before the first frame, then reuses the latest Host background for complete fills and resize. Packed graphemes preserve CJK, combining, and emoji cell widths; explicit foreground/background and underline colors, inverse, bold, faint, italic, invisible, blink, underline variants, strikethrough, and overline use the projected Ghostty styles. Renderer health reports initialization, fallback, device loss, recovery, and recovery failure.
 
-Ghostty remains the reference for selected font metrics, shaping boundaries, procedural sprites, cursor geometry, and terminal-panel rendering behavior. That reference does not make this package a Ghostty VT owner. Maintenance provenance is recorded in [`docs/ghostty-surface-test-provenance.md`](docs/ghostty-surface-test-provenance.md).
+Ghostty remains the reference for selected font metrics, shaping boundaries, complete Unicode sprite-face routing, cursor geometry, and terminal-panel rendering behavior. Deterministic generated data supplies every pinned sprite from Ghostty's four padded odd/even metric reference rasters, while selected sprites scale procedurally between those reference geometries. That reference does not make this package a Ghostty VT owner. Maintenance provenance is recorded in [`docs/ghostty-surface-test-provenance.md`](docs/ghostty-surface-test-provenance.md).
 
 Search behavior follows the bounded contract in [`docs/vscode-search-alignment.md`](docs/vscode-search-alignment.md). The application owns the find surface, query history, shortcuts, and localized labels.
 
@@ -282,4 +306,4 @@ pnpm verify
 [`formal/README.md`](formal/README.md). They are change-triggered correctness evidence and are not
 part of the ordinary package test command.
 
-`pnpm audit:ghostty-panel` compares the maintained renderer/font provenance with the pinned Ghostty source when `../ghostty` or `GHOSTTY_SOURCE` is available. Run `pnpm generate:ghostty-panel-data` only when the pinned Nerd Font constraint table changes.
+`pnpm audit:ghostty-panel` compares the maintained renderer/font provenance and generated data with the pinned Ghostty source when `../ghostty` or `GHOSTTY_SOURCE` is available. Run `pnpm generate:ghostty-panel-data` only when the pinned Nerd Font constraints, sprite ranges, or sprite reference rasters change.

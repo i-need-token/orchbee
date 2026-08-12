@@ -1367,16 +1367,21 @@ pub const TerminalRuntime = struct {
         return self.prepareEncodedInputLocked(encoded);
     }
 
-    pub fn enqueuePasteInput(self: *TerminalRuntime, text: []const u8) !usize {
-        return self.enqueuePasteInputWithLimit(text, std.math.maxInt(usize));
+    pub fn enqueuePasteInput(
+        self: *TerminalRuntime,
+        text: []const u8,
+        bracketed: bool,
+    ) !usize {
+        return self.enqueuePasteInputWithLimit(text, bracketed, std.math.maxInt(usize));
     }
 
     pub fn enqueuePasteInputWithLimit(
         self: *TerminalRuntime,
         text: []const u8,
+        bracketed: bool,
         max_output_bytes: usize,
     ) !usize {
-        var prepared = try self.preparePasteInput(text, max_output_bytes);
+        var prepared = try self.preparePasteInput(text, bracketed, max_output_bytes);
         defer prepared.deinit();
         return prepared.commit();
     }
@@ -1384,6 +1389,7 @@ pub const TerminalRuntime = struct {
     pub fn preparePasteInput(
         self: *TerminalRuntime,
         text: []const u8,
+        bracketed: bool,
         max_output_bytes: usize,
     ) !PreparedInput {
         if (text.len == 0) return error.EmptyInput;
@@ -1391,6 +1397,9 @@ pub const TerminalRuntime = struct {
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
         try self.ensureRuntimeWorkAvailableLocked();
+        if (self.terminal.modes.get(.bracketed_paste) != bracketed) {
+            return error.PasteModeChanged;
+        }
         const encoded = try terminal_input_encoding.encodePaste(
             self.allocator,
             &self.terminal,
@@ -1409,7 +1418,7 @@ pub const TerminalRuntime = struct {
             .focus => |value| self.prepareFocusInput(value.focused, maximum_bytes),
             .key => |value| self.prepareKeyInput(value, maximum_bytes),
             .mouse => |value| self.prepareMouseInput(value, maximum_bytes),
-            .paste => |value| self.preparePasteInput(value.text, maximum_bytes),
+            .paste => |value| self.preparePasteInput(value.text, value.bracketed, maximum_bytes),
             .text => |value| self.prepareTextInput(value.text, maximum_bytes),
         };
     }

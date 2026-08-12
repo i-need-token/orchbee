@@ -6,6 +6,7 @@ import {
 } from '@orchbee/i18n';
 import {
 	ProjectedTerminal,
+	type ProjectedPasteReview,
 	type ProjectedTerminalOptions,
 	type TerminalPresentationConfiguration,
 	type TerminalPresentationConfigurationUpdateResult,
@@ -103,6 +104,7 @@ export async function startProjectedTerminalRenderer(
 	dependencies: ProjectedTerminalRendererDependencies = defaultDependencies,
 	platformEffects: ProjectedTerminalPlatformEffects = {},
 	presentationConfigurationSource: TerminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+	reviewPaste?: (review: ProjectedPasteReview, signal: AbortSignal) => boolean | Promise<boolean>,
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
@@ -202,6 +204,7 @@ export async function startProjectedTerminalRenderer(
 			},
 			projectionBufferTrust: transport.projectionBufferTrust,
 			renderer: initialPresentationConfiguration,
+			...(reviewPaste === undefined ? {} : { reviewPaste }),
 			terminalId: bootstrap.terminalId,
 		});
 	} catch (error) {
@@ -571,7 +574,6 @@ export async function startProjectedTerminalRenderer(
 			terminalRoot: rootElement,
 			terminalScope: actions.terminalScope,
 		});
-		terminal.focus();
 	} catch (error) {
 		reportFailure();
 		runCleanup([

@@ -391,7 +391,7 @@ function createUtf8BomConformanceFixture() {
 		'UTF-8 BOM text input',
 	);
 	const paste = encodeOrThrow(
-		encodeInputRequest(MessageKind.pasteInput, textValue),
+		encodeInputRequest(MessageKind.pasteInput, { ...textValue, bracketed: false }),
 		'UTF-8 BOM paste input',
 	);
 

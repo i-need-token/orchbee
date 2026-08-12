@@ -128,6 +128,7 @@ pub const FocusInput = struct {
 };
 
 pub const PasteInput = struct {
+    bracketed: bool,
     text: []const u8,
 };
 

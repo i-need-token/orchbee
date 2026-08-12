@@ -191,10 +191,27 @@ pub fn validateCommittedTextInput(bytes: []const u8) ProtocolError!DecodedSemant
 }
 
 pub fn validatePasteInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
-    const summary = try validateTextInput(bytes);
+    if (bytes.len < 24) return error.Truncated;
+    if (bytes.len > 24 + max_input_bytes) return error.LimitExceeded;
+    var reader = Reader.init(bytes, 0);
+    const attachment_id = try copyIdentifier(try reader.readBytes(16));
+    const flags = try reader.readInt(u8);
+    const reserved_byte = try reader.readInt(u8);
+    const reserved_word = try reader.readInt(u16);
+    const text_length = try reader.readInt(u32);
+    if (flags & ~@as(u8, 1) != 0 or reserved_byte != 0 or reserved_word != 0) {
+        return error.UnknownRequiredFlag;
+    }
+    if (text_length != bytes.len - 24) return error.LengthMismatch;
+    if (text_length == 0) return error.InvalidField;
+    const text = try reader.readBytes(text_length);
+    if (!std.unicode.utf8ValidateSlice(text)) return error.InvalidUtf8;
     return .{
-        .attachment_id = summary.attachment_id,
-        .input = .{ .paste = .{ .text = summary.text } },
+        .attachment_id = attachment_id,
+        .input = .{ .paste = .{
+            .bracketed = flags & 1 != 0,
+            .text = text,
+        } },
     };
 }
 

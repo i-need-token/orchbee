@@ -22,89 +22,21 @@ export interface TextShapingReader {
 	width(index: number): number;
 }
 
-const PROGRAMMING_LIGATURES = [
-	'<==>',
-	'<-->',
-	'<!--',
-	'||||>',
-	'====',
-	'!==',
-	'===',
-	'==>',
-	'<==',
-	'<=>',
-	'<->',
-	'<--',
-	'<~~',
-	'<<=',
-	'<<<',
-	'-->',
-	'->>',
-	'-<<',
-	'...',
-	'..<',
-	'..=',
-	'/**',
-	'///',
-	':::',
-	'>==',
-	'>>=',
-	'>>>',
-	'<|>',
-	'<||',
-	'||>',
-	'|||',
-	'~~>',
-	'~>>',
-	'~~~',
-	'###',
-	'***',
-	'+++',
-	'---',
-	'www',
-	'!=',
-	'==',
-	'=>',
-	'<=',
-	'>=',
-	'<>',
-	'->',
-	'<-',
-	'<~',
-	'~>',
-	'-<',
-	'>-',
-	'..',
-	'//',
-	'/*',
-	'*/',
-	'/=',
-	'/>',
-	'</',
-	'::',
-	':=',
-	'!!',
-	'??',
-	'?.',
-	'?:',
-	'&&',
-	'||',
-	'|=',
-	'|>',
-	'<|',
-	'++',
-	'--',
-	'**',
-	'##',
-	'#{',
-	'#[',
-	'#(',
-	'#!',
-] as const;
+export interface TextShapingOptions {
+	/** Keep browser shaping for complex scripts when optional Latin ligatures are disabled. */
+	readonly allowOptionalLigatures?: boolean;
+}
 
-/** Build bounded multi-cell runs that Canvas can shape without caching arbitrary terminal lines. */
+/**
+ * Build Ghostty-style, row-bounded shaping runs for the browser text shaper.
+ *
+ * A run includes empty cells as spaces, retains wide-cell columns, and ends at font-style,
+ * selection, cursor, preedit, sprite, or other caller-provided boundaries. Browser font fallback
+ * remains the font resolver; this planner only owns terminal-cell run boundaries.
+ */
 export function buildTextShapingPlan(
 	source: readonly TextShapingCell[] | TextShapingReader,
+	options: TextShapingOptions = {},
 ): TextShapingPlan {
 	const reader = isTextShapingReader(source)
 		? source
@@ -116,21 +48,38 @@ export function buildTextShapingPlan(
 				text: (index: number) => source[index]?.text ?? '',
 				width: (index: number) => source[index]?.width ?? 0,
 			};
-	return buildTextShapingPlanFromReader(reader);
+	return buildTextShapingPlanFromReader(reader, options.allowOptionalLigatures !== false);
 }
 
-/** Build the same shaping plan without requiring one JavaScript object per terminal cell. */
-function buildTextShapingPlanFromReader(reader: TextShapingReader): TextShapingPlan {
+function buildTextShapingPlanFromReader(
+	reader: TextShapingReader,
+	allowOptionalLigatures: boolean,
+): TextShapingPlan {
 	const plan: (TextShapingSpan | null)[] = Array.from({ length: reader.length }, () => null);
 	let column = 0;
 	while (column < reader.length) {
-		const span = findSpan(reader, column);
-		if (!span) {
+		if (!isRunCell(reader, column)) {
 			column++;
 			continue;
 		}
-		for (let index = span.start; index < span.end; index++) plan[index] = span;
-		column = span.end;
+
+		const start = column;
+		let end = start + 1;
+		while (
+			end < reader.length &&
+			isRunCell(reader, end) &&
+			reader.sameStyle(start, end) &&
+			!isRejectedLigatureBoundary(reader.text(end - 1), reader.text(end))
+		) {
+			end++;
+		}
+
+		const range = allowOptionalLigatures ? { start, end } : complexShapingRange(reader, start, end);
+		const span = range === null ? null : createSpan(reader, range.start, range.end);
+		if (span !== null) {
+			for (let index = span.start; index < span.end; index++) plan[index] = span;
+		}
+		column = end;
 	}
 	return plan;
 }
@@ -141,66 +90,53 @@ function isTextShapingReader(
 	return 'eligible' in source;
 }
 
-function findSpan(reader: TextShapingReader, start: number): TextShapingSpan | null {
-	if (!reader.eligible(start) || reader.width(start) !== 1) return null;
-
-	for (const candidate of PROGRAMMING_LIGATURES) {
-		if (!matches(reader, start, candidate)) continue;
-		if (extendsRepeatedCharacterRun(reader, start, candidate)) continue;
-		return {
-			start,
-			end: start + candidate.length,
-			columns: candidate.length,
-			text: candidate,
-		};
-	}
-	return null;
+function isRunCell(reader: TextShapingReader, index: number): boolean {
+	if (!reader.eligible(index)) return false;
+	const width = reader.width(index);
+	return width >= 0 && width <= 2;
 }
 
-function extendsRepeatedCharacterRun(
+function complexShapingRange(
 	reader: TextShapingReader,
 	start: number,
-	candidate: string,
-): boolean {
-	const character = candidate[0];
-	if (!character) return false;
-	for (let index = 1; index < candidate.length; index++) {
-		if (candidate[index] !== character) return false;
+	end: number,
+): { readonly start: number; readonly end: number } | null {
+	let complexStart = -1;
+	let complexEnd = -1;
+	for (let index = start; index < end; index++) {
+		if (!containsNonAscii(reader.text(index))) continue;
+		if (complexStart < 0) complexStart = index;
+		complexEnd = index + 1;
 	}
-	return (
-		matchesRepeatedCharacter(reader, start - 1, character, start) ||
-		matchesRepeatedCharacter(reader, start + candidate.length, character, start)
-	);
+	if (complexStart < 0) return null;
+	while (complexEnd < end && reader.width(complexEnd) === 0) complexEnd++;
+	return { start: complexStart, end: complexEnd };
 }
 
-function matchesRepeatedCharacter(
-	reader: TextShapingReader,
-	index: number,
-	character: string,
-	styleIndex: number,
-): boolean {
-	return (
-		index >= 0 &&
-		index < reader.length &&
-		reader.eligible(index) &&
-		reader.width(index) === 1 &&
-		reader.sameStyle(styleIndex, index) &&
-		reader.text(index) === character
-	);
+function containsNonAscii(text: string): boolean {
+	for (const character of text) {
+		if ((character.codePointAt(0) ?? 0) > 0x7f) return true;
+	}
+	return false;
 }
 
-function matches(reader: TextShapingReader, start: number, candidate: string): boolean {
-	if (start + candidate.length > reader.length) return false;
-	for (let offset = 0; offset < candidate.length; offset++) {
-		const index = start + offset;
-		if (
-			!reader.eligible(index) ||
-			reader.width(index) !== 1 ||
-			!reader.sameStyle(start, index) ||
-			reader.text(index) !== candidate[offset]
-		) {
-			return false;
-		}
+function isRejectedLigatureBoundary(left: string, right: string): boolean {
+	return (left === 'f' && (right === 'i' || right === 'l')) || (left === 's' && right === 't');
+}
+
+function createSpan(reader: TextShapingReader, start: number, end: number): TextShapingSpan | null {
+	if (end - start < 2) return null;
+	let columns = 0;
+	let text = '';
+	let hasText = false;
+	for (let index = start; index < end; index++) {
+		const width = reader.width(index);
+		columns += width;
+		if (width === 0) continue;
+		const cellText = reader.text(index);
+		if (cellText.length > 0) hasText = true;
+		text += cellText || ' ';
 	}
-	return true;
+	if (columns <= 0 || !hasText) return null;
+	return { start, end, columns, text };
 }

@@ -4,6 +4,7 @@ import type { WorkbenchTerminalSurfaceProps } from '@orchbee/workbench';
 import type { ReactNode } from 'react';
 
 import styles from './ProjectedTerminalSurface.module.css';
+import { ProjectedTerminalPasteReviewDialog } from './components/projected-terminal-paste-review-dialog/ProjectedTerminalPasteReviewDialog';
 import { useProjectedTerminalSurface } from './hooks/useProjectedTerminalSurface';
 
 export function ProjectedTerminalSurface({
@@ -12,25 +13,34 @@ export function ProjectedTerminalSurface({
 	const view = useProjectedTerminalSurface(presentation);
 	const intl = useOrchbeeIntl();
 	return (
-		<div
-			className={styles['terminalSurface']}
-			data-terminal-presentation-id={presentation.presentationId}
-			data-terminal-projection-state={view.projectionState}
-			ref={view.root}
-		>
-			{view.stopped ? (
-				<div className={styles['stopped']} data-slot='projected-terminal-stopped'>
-					<p>{intl.formatMessage(projectedTerminalMessages.sessionStopped)}</p>
-					<Button data-slot='projected-terminal-start-new-session' onClick={view.startNewSession}>
-						{intl.formatMessage(projectedTerminalMessages.startNewSession)}
-					</Button>
-				</div>
-			) : null}
-			{view.failureMessage === null ? null : (
-				<div className={styles['status']} role='alert'>
-					{view.failureMessage}
-				</div>
+		<>
+			<div
+				className={styles['terminalSurface']}
+				data-terminal-presentation-id={presentation.presentationId}
+				data-terminal-projection-state={view.projectionState}
+				ref={view.root}
+			>
+				{view.stopped ? (
+					<div className={styles['stopped']} data-slot='projected-terminal-stopped'>
+						<p>{intl.formatMessage(projectedTerminalMessages.sessionStopped)}</p>
+						<Button data-slot='projected-terminal-start-new-session' onClick={view.startNewSession}>
+							{intl.formatMessage(projectedTerminalMessages.startNewSession)}
+						</Button>
+					</div>
+				) : null}
+				{view.failureMessage === null ? null : (
+					<div className={styles['status']} role='alert'>
+						{view.failureMessage}
+					</div>
+				)}
+			</div>
+			{view.pasteReview === null ? null : (
+				<ProjectedTerminalPasteReviewDialog
+					onApprove={view.approvePaste}
+					onCancel={view.cancelPaste}
+					review={view.pasteReview}
+				/>
 			)}
-		</div>
+		</>
 	);
 }

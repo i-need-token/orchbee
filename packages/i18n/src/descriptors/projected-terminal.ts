@@ -137,6 +137,43 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'Open terminal link',
 		id: 'terminal.projected.action.openLink',
 	},
+	pasteReviewCancel: {
+		defaultMessage: 'Cancel',
+		id: 'terminal.projected.pasteReview.cancel',
+	},
+	pasteReviewConfirm: {
+		defaultMessage: 'Paste',
+		id: 'terminal.projected.pasteReview.confirm',
+	},
+	pasteReviewControls: {
+		defaultMessage:
+			'{count, plural, one {# control character will} other {# control characters will}} be replaced with spaces.',
+		id: 'terminal.projected.pasteReview.controls',
+	},
+	pasteReviewDescription: {
+		defaultMessage: 'Review this text before sending it to the terminal.',
+		id: 'terminal.projected.pasteReview.description',
+	},
+	pasteReviewMultiline: {
+		defaultMessage: 'This paste contains multiple lines and may run multiple commands.',
+		id: 'terminal.projected.pasteReview.multiline',
+	},
+	pasteReviewOriginal: {
+		defaultMessage: 'Original paste text',
+		id: 'terminal.projected.pasteReview.original',
+	},
+	pasteReviewTerminator: {
+		defaultMessage: 'This paste contains a bracketed-paste terminator.',
+		id: 'terminal.projected.pasteReview.terminator',
+	},
+	pasteReviewTitle: {
+		defaultMessage: 'Review terminal paste',
+		id: 'terminal.projected.pasteReview.title',
+	},
+	pasteReviewTruncated: {
+		defaultMessage: 'Preview truncated.',
+		id: 'terminal.projected.pasteReview.truncated',
+	},
 	previousMatch: {
 		defaultMessage: 'Previous match',
 		id: 'terminal.projected.find.previous',

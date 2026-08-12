@@ -358,6 +358,11 @@ is exhausted the writer yields to a waiting client entry and the burst restarts 
 slice; replies continue to make progress whenever no client entry is waiting. `InputAccepted`
 remains queue-admission-only and never promises delivery order relative to terminal replies.
 
+Paste preparation carries the bracketed-paste mode observed by the reviewing projected client. The
+engine holds the canonical terminal mutex while comparing that expectation with Ghostty mode and
+encoding the paste. A mismatch is an `input-mode-changed` rejection and reserves no FIFO position;
+it is non-retryable because automatic replay would bypass a fresh inspection decision.
+
 The client-byte and client-entry limits cannot consume the bounded terminal-reply byte and entry
 budgets. Exhausting a client budget is ordinary retryable backpressure and never becomes a terminal
 failure. Exhausting the independent reply budget means the child generated replies faster than the

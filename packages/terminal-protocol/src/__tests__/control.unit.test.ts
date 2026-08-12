@@ -81,7 +81,7 @@ const nestedObjectSchema = z.object({
 	a: z.object({ x: z.number() }),
 	b: z.object({ x: z.number() }),
 });
-const currentProtocolVersion = { major: 0, minor: 0, patch: 4 } as const;
+const currentProtocolVersion = { major: 0, minor: 0, patch: 5 } as const;
 
 describe('control schemas', () => {
 	it('scopes clear and reset to one attachment and acknowledges the exact operation', () => {
@@ -539,8 +539,8 @@ describe('control schemas', () => {
 			'"frameBytes":1024,"frameBytes":1024',
 		);
 		const duplicateNested = validHello.replace(
-			'"major":0,"minor":0,"patch":4',
-			'"major":0,"minor":0,"minor":0,"patch":4',
+			'"major":0,"minor":0,"patch":5',
+			'"major":0,"minor":0,"minor":0,"patch":5',
 		);
 		expect(decodeControlJson(new TextEncoder().encode(duplicateRoot), HelloSchema)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidJson, ok: false }),

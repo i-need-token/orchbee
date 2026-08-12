@@ -41,6 +41,18 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.input': 'Terminal input',
 	'terminal.projected.link.blocked': 'This terminal link is blocked by the desktop link policy.',
 	'terminal.projected.link.failed': 'The terminal link could not be opened.',
+	'terminal.projected.pasteReview.cancel': 'Cancel',
+	'terminal.projected.pasteReview.confirm': 'Paste',
+	'terminal.projected.pasteReview.controls':
+		'{count, plural, one {# control character will} other {# control characters will}} be replaced with spaces.',
+	'terminal.projected.pasteReview.description':
+		'Review this text before sending it to the terminal.',
+	'terminal.projected.pasteReview.multiline':
+		'This paste contains multiple lines and may run multiple commands.',
+	'terminal.projected.pasteReview.original': 'Original paste text',
+	'terminal.projected.pasteReview.terminator': 'This paste contains a bracketed-paste terminator.',
+	'terminal.projected.pasteReview.title': 'Review terminal paste',
+	'terminal.projected.pasteReview.truncated': 'Preview truncated.',
 	'terminal.projected.screen': 'Terminal screen',
 	'terminal.projected.selection.evicted':
 		'The terminal selection was evicted from retained history.',

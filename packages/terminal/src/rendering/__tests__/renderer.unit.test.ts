@@ -284,6 +284,122 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('preserves signed bearings and descenders in browser glyph raster bounds', () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		const renderer = new WebGPURenderer(createCanvas());
+		const glyphRasterLayout = Reflect.get(renderer, 'glyphRasterLayout') as (
+			measured: TextMetrics,
+			rasterScale: number,
+			codepoint: number,
+			constraintWidth: 1 | 2,
+		) => {
+			readonly left: number;
+			readonly target: { readonly x: number; readonly y: number };
+			readonly targetTop: number;
+		};
+
+		const layout = glyphRasterLayout.call(
+			renderer,
+			{
+				actualBoundingBoxAscent: 9,
+				actualBoundingBoxDescent: 2,
+				actualBoundingBoxLeft: -2,
+				actualBoundingBoxRight: 6,
+				width: 8,
+			} as TextMetrics,
+			1,
+			0x41,
+			1,
+		);
+
+		expect(layout.left).toBe(-2);
+		expect(layout.target.x).toBeCloseTo(2.1, 8);
+
+		const rightBearing = glyphRasterLayout.call(
+			renderer,
+			{
+				actualBoundingBoxAscent: 9,
+				actualBoundingBoxDescent: 2,
+				actualBoundingBoxLeft: 6,
+				actualBoundingBoxRight: -2,
+				width: 8,
+			} as TextMetrics,
+			1,
+			0x41,
+			1,
+		);
+		expect(rightBearing.target.x).toBeCloseTo(-5.9, 8);
+
+		const descender = glyphRasterLayout.call(
+			renderer,
+			{
+				actualBoundingBoxAscent: 9,
+				actualBoundingBoxDescent: 6,
+				actualBoundingBoxLeft: 0,
+				actualBoundingBoxRight: 8,
+				width: 8,
+			} as TextMetrics,
+			1,
+			0x67,
+			1,
+		);
+		expect(descender.target.y).toBe(-2);
+		expect(descender.targetTop).toBe(4);
+		renderer.dispose();
+	});
+
+	it('shapes complex projected graphemes as one forced-LTR browser run', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const textPaints: Array<{ readonly direction: CanvasDirection; readonly text: string }> = [];
+		const fillText: CanvasRenderingContext2D['fillText'] = function (
+			this: CanvasRenderingContext2D,
+			text,
+		) {
+			textPaints.push({ direction: this.direction, text });
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, fillText),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText), {
+			fontLigatures: false,
+		});
+		await renderer.initGPU();
+
+		renderer.renderPacked(
+			createPackedGraphemeSource([
+				{ text: 'ক', width: 1 },
+				{ text: '্ষ', width: 1 },
+			]),
+		);
+
+		expect(textPaints).toEqual([{ direction: 'ltr', text: 'ক্ষ' }]);
+		renderer.dispose();
+	});
+
+	it('keeps constrained symbols outside multi-cell browser shaping runs', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const fillText = vi.fn<CanvasRenderingContext2D['fillText']>();
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, fillText),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText));
+		await renderer.initGPU();
+
+		renderer.renderPacked(
+			createPackedGraphemeSource([
+				{ text: 'A', width: 1 },
+				{ text: '\uea61', width: 1 },
+				{ text: 'B', width: 1 },
+			]),
+		);
+
+		expect(fillText.mock.calls.map(([text]) => text)).toEqual(['A', '\uea61', 'B']);
+		renderer.dispose();
+	});
+
 	it('remeasures and fully repaints Canvas geometry at a fractional device-pixel ratio', async () => {
 		vi.stubGlobal('window', {
 			devicePixelRatio: 2,
@@ -334,9 +450,10 @@ describe('projected terminal renderer', () => {
 				backend: 'canvas2d',
 				cellsVisited: 20,
 				forceAll: true,
-				glyphInstances: 20,
+				glyphInstances: 2,
 				reasons: ['surface'],
 				rowsRendered: 2,
+				shapingRuns: 2,
 			}),
 		);
 
@@ -720,10 +837,11 @@ describe('projected terminal renderer', () => {
 
 		renderer.renderPacked(source);
 
-		expect(fillText.mock.calls.map(([text]) => text)).toEqual(['中', 'e\u0301', '👩‍💻']);
+		expect(fillText.mock.calls.map(([text]) => text)).toEqual(['中e\u0301', '👩‍💻']);
 		expect(renderer.getLastFrameTelemetry()).toMatchObject({
 			cellsVisited: 3,
-			glyphInstances: 3,
+			glyphInstances: 2,
+			shapingRuns: 1,
 		});
 		renderer.dispose();
 	});
@@ -1032,6 +1150,37 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('turns over a saturated shaping-run cache only when a new run is needed', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: () => {},
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		await renderer.initGPU();
+		renderer.renderPacked(createPackedSource(['AB']));
+		Reflect.set(renderer, 'shapingRasterPixels', Number.MAX_SAFE_INTEGER);
+		const resetAtlas = vi.spyOn(renderer as unknown as { resetAtlas(): void }, 'resetAtlas');
+
+		renderer.renderPacked(createPackedSource(['AB']));
+		expect(resetAtlas).not.toHaveBeenCalled();
+
+		renderer.renderPacked(createPackedSource(['CD']));
+		expect(resetAtlas).toHaveBeenCalledOnce();
+		renderer.dispose();
+	});
+
 	it('reconfigures WebGPU and recreates its atlas for a clean device-pixel transition', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 2 });
 		vi.stubGlobal('document', { createElement: () => createCanvas() });
@@ -1079,8 +1228,8 @@ describe('projected terminal renderer', () => {
 		renderer.renderPacked(source);
 		expect(telemetry).toHaveBeenCalledWith(
 			expect.objectContaining({
-				atlasGlyphCount: 4,
-				atlasGlyphsCreated: 4,
+				atlasGlyphCount: 2,
+				atlasGlyphsCreated: 2,
 				backend: 'webgpu',
 				cellsVisited: 4,
 				forceAll: true,
@@ -1104,7 +1253,7 @@ describe('projected terminal renderer', () => {
 		renderer.renderPacked(source);
 		expect(telemetry).toHaveBeenCalledWith(
 			expect.objectContaining({
-				atlasGlyphCount: 4,
+				atlasGlyphCount: 2,
 				atlasGlyphsCreated: 0,
 				backend: 'webgpu',
 				forceAll: false,

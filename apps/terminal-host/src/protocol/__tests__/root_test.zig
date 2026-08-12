@@ -203,11 +203,17 @@ test "semantic input preserves U+FEFF and rejects a BOM-prefixed key" {
     };
     try std.testing.expectEqualSlices(u8, "\xef\xbb\xbf", text.text);
 
-    const decoded_paste = try subject.validatePasteInput(&text_payload);
+    var paste_payload = [_]u8{0} ** 27;
+    @memset(paste_payload[0..16], 0x22);
+    paste_payload[16] = 1;
+    std.mem.writeInt(u32, paste_payload[20..24], 3, .little);
+    @memcpy(paste_payload[24..27], "\xef\xbb\xbf");
+    const decoded_paste = try subject.validatePasteInput(&paste_payload);
     const paste = switch (decoded_paste.input) {
         .paste => |value| value,
         else => return error.TestUnexpectedResult,
     };
+    try std.testing.expect(paste.bracketed);
     try std.testing.expectEqualSlices(u8, "\xef\xbb\xbf", paste.text);
 
     var key_payload = [_]u8{0} ** 37;

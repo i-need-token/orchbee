@@ -269,6 +269,7 @@ export {
 	MouseAction,
 	MouseButton,
 	MouseInputSchema,
+	PASTE_INPUT_HEADER_BYTES,
 	PasteInputSchema,
 	TerminalKeyCode,
 	TerminalModifiersSchema,

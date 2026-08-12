@@ -568,6 +568,7 @@ function createFakeBrowser(): FakeBrowser {
 	};
 
 	const defaultView = {
+		Node: Object,
 		addEventListener: (type: string, listener: EventListener) => {
 			const entries = windowListeners.get(type) ?? new Set<EventListener>();
 			entries.add(listener);
@@ -725,6 +726,7 @@ function keyboardEvent(
 	code: string,
 	key: string,
 	keyCode: number,
+	overrides: Partial<KeyboardEvent> = {},
 ): KeyboardEvent {
 	return {
 		altKey: false,
@@ -740,6 +742,7 @@ function keyboardEvent(
 		shiftKey: false,
 		stopPropagation: () => undefined,
 		type,
+		...overrides,
 	} as unknown as KeyboardEvent;
 }
 
@@ -1631,6 +1634,194 @@ describe('ProjectedTerminal', () => {
 				(command) => command.kind === 'key-input' && command.payload.action === KeyAction.press,
 			),
 		).toHaveLength(1);
+		terminal.dispose();
+	});
+
+	it('normalizes legacy OS modifier codes to Ghostty Meta keys', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		for (const code of ['OSLeft', 'OSRight']) {
+			input.dispatch('keydown', keyboardEvent('keydown', code, 'Meta', 91, { metaKey: true }));
+			input.dispatch('keyup', keyboardEvent('keyup', code, 'Meta', 91));
+		}
+
+		const keys = commands.flatMap((command) =>
+			command.kind === 'key-input' ? [command.payload] : [],
+		);
+		expect(keys).toHaveLength(4);
+		expect(keys.map(({ action, key }) => [action, key])).toEqual([
+			[KeyAction.press, 'MetaLeft'],
+			[KeyAction.release, 'MetaLeft'],
+			[KeyAction.press, 'MetaRight'],
+			[KeyAction.release, 'MetaRight'],
+		]);
+		expect(keys[2]?.modifiers).toMatchObject({ meta: true, metaRight: true });
+		expect(keys[3]?.modifiers).toMatchObject({ meta: false, metaRight: false });
+		terminal.dispose();
+	});
+
+	it('preserves W3C key strings and consumes AltGraph only for printable text', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		for (const [code, key] of [
+			['LegacySupplementary', '𨧂'],
+			['LegacyCombining', 'ḍ̇'],
+		] as const) {
+			input.dispatch('keydown', keyboardEvent('keydown', code, key, 0));
+			input.dispatch('keyup', keyboardEvent('keyup', code, key, 0));
+		}
+		const altGraphState = (modifier: string): boolean => modifier === 'AltGraph';
+		input.dispatch(
+			'keydown',
+			keyboardEvent('keydown', 'AltRight', 'AltGraph', 18, {
+				altKey: true,
+				ctrlKey: true,
+				getModifierState: altGraphState,
+			}),
+		);
+		input.dispatch(
+			'keydown',
+			keyboardEvent('keydown', 'KeyQ', '@', 81, {
+				altKey: true,
+				ctrlKey: true,
+				getModifierState: altGraphState,
+			}),
+		);
+
+		const presses = commands.flatMap((command) =>
+			command.kind === 'key-input' && command.payload.action === KeyAction.press
+				? [command.payload]
+				: [],
+		);
+		expect(presses.slice(0, 2).map(({ key, text }) => [key, text])).toEqual([
+			['Unidentified', '𨧂'],
+			['Unidentified', 'ḍ̇'],
+		]);
+		const altGraph = presses.find(({ key }) => key === 'AltRight');
+		expect(altGraph?.consumedModifiers).toMatchObject({ alt: false, control: false });
+		const printable = presses.find(({ key }) => key === 'KeyQ');
+		expect(printable?.consumedModifiers).toMatchObject({
+			alt: true,
+			altRight: true,
+			control: true,
+		});
+		terminal.dispose();
+	});
+
+	it('publishes keyup with its current text and modifier state', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'A', 65, { shiftKey: true }));
+		input.dispatch('keyup', keyboardEvent('keyup', 'KeyA', 'a', 65));
+
+		const release = commands.find(
+			(command) => command.kind === 'key-input' && command.payload.action === KeyAction.release,
+		);
+		expect(release?.kind).toBe('key-input');
+		if (release?.kind !== 'key-input') throw new Error('missing key release');
+		expect(release.payload.text).toBe('a');
+		expect(release.payload.modifiers).toMatchObject({ shift: false, shiftRight: false });
+		expect(release.payload.consumedModifiers).toMatchObject({
+			shift: false,
+			shiftRight: false,
+		});
+		terminal.dispose();
+	});
+
+	it('defers a keyup reentered during its keydown publication', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let input: FakeElement | undefined;
+		let reentered = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (
+						input === undefined ||
+						reentered ||
+						command.kind !== 'key-input' ||
+						command.payload.action !== KeyAction.press
+					) {
+						return;
+					}
+					reentered = true;
+					input.dispatch('keyup', keyboardEvent('keyup', 'KeyA', 'a', 65));
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+
+		expect(
+			commands.flatMap((command) =>
+				command.kind === 'key-input' && command.payload.key === 'KeyA'
+					? [command.payload.action]
+					: [],
+			),
+		).toEqual([KeyAction.press, KeyAction.release]);
 		terminal.dispose();
 	});
 
@@ -3497,12 +3688,67 @@ describe('ProjectedTerminal', () => {
 		);
 		expect(commands.at(-1)).toEqual({
 			kind: 'paste-input',
-			payload: { attachmentId, text: 'safe' },
+			payload: { attachmentId, bracketed: false, text: 'safe' },
 		});
 		await expect(terminal.paste('one\ntwo')).resolves.toEqual(
 			expect.objectContaining({ kind: 'blocked' }),
 		);
 		expect(reviewPaste).toHaveBeenCalledOnce();
+		terminal.dispose();
+	});
+
+	it('reviews the original bracketed-paste terminator and publishes the reviewed mode', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const reviews: unknown[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			reviewPaste: (review) => {
+				reviews.push(review);
+				return true;
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				bracketedPaste: true,
+			}),
+		);
+
+		const originalText = 'prefix\u001b[201~suffix';
+		await expect(terminal.paste(originalText)).resolves.toEqual(
+			expect.objectContaining({ kind: 'sent' }),
+		);
+		expect(reviews).toEqual([
+			expect.objectContaining({
+				bracketed: true,
+				embeddedBracketTerminator: true,
+				originalText,
+				replacedControlCharacters: 1,
+				text: 'prefix [201~suffix',
+			}),
+		]);
+		expect(commands.at(-1)).toEqual({
+			kind: 'paste-input',
+			payload: {
+				attachmentId,
+				bracketed: true,
+				text: 'prefix [201~suffix',
+			},
+		});
 		terminal.dispose();
 	});
 
@@ -3553,7 +3799,7 @@ describe('ProjectedTerminal', () => {
 		await vi.waitFor(() =>
 			expect(commands.at(-1)).toEqual({
 				kind: 'paste-input',
-				payload: { attachmentId, text: 'dropped text' },
+				payload: { attachmentId, bracketed: false, text: 'dropped text' },
 			}),
 		);
 		expect(preventDropDefault).toHaveBeenCalledOnce();
@@ -3991,6 +4237,74 @@ describe('ProjectedTerminal', () => {
 			'key-input:release:KeyB',
 			'focus-input:false',
 		]);
+		terminal.dispose();
+	});
+
+	it('repairs focus only after focus leaves the complete terminal surface', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		const internal = browser.document.createElement('button');
+		browser.root.appendChild(internal);
+		const outside = browser.document.createElement('button');
+		input.dispatch('focus', { relatedTarget: outside, type: 'focus' } as unknown as FocusEvent);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+
+		input.dispatch('blur', {
+			relatedTarget: internal,
+			type: 'blur',
+		} as unknown as FocusEvent);
+		expect(
+			commands
+				.filter((command) => command.kind === 'key-input' || command.kind === 'focus-input')
+				.map((command) =>
+					command.kind === 'key-input'
+						? `key:${command.payload.action}`
+						: `focus:${command.payload.focused}`,
+				),
+		).toEqual(['focus:true', 'key:press']);
+
+		(browser.root as unknown as FakeElement).dispatch('focusout', {
+			relatedTarget: outside,
+			target: internal,
+			type: 'focusout',
+		} as unknown as FocusEvent);
+		expect(
+			commands
+				.filter((command) => command.kind === 'key-input' || command.kind === 'focus-input')
+				.map((command) =>
+					command.kind === 'key-input'
+						? `key:${command.payload.action}`
+						: `focus:${command.payload.focused}`,
+				),
+		).toEqual(['focus:true', 'key:press', 'key:release', 'focus:false']);
+
+		(browser.root as unknown as FakeElement).dispatch('focusin', {
+			relatedTarget: outside,
+			target: internal,
+			type: 'focusin',
+		} as unknown as FocusEvent);
+		expect(
+			commands
+				.filter((command) => command.kind === 'focus-input')
+				.map((command) => command.payload.focused),
+		).toEqual([true, false, true]);
 		terminal.dispose();
 	});
 

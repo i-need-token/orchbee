@@ -405,9 +405,6 @@ describe('Ghostty surface parity', () => {
 		const painted = fillText.mock.calls.map(([text]) => text);
 		for (const grapheme of [
 			'A',
-			'中',
-			'e\u0301',
-			'👩🏽‍💻',
 			'x',
 			'界',
 			'H',
@@ -432,8 +429,13 @@ describe('Ghostty surface parity', () => {
 		]) {
 			expect(painted.filter((text) => text === grapheme)).toHaveLength(1);
 		}
+		expect(painted.filter((text) => text === '中e\u0301')).toHaveLength(1);
+		expect(painted.filter((text) => text === '👩🏽‍💻')).toHaveLength(1);
 		expect(painted).not.toContain('V');
-		expect(renderer.getLastFrameTelemetry()).toMatchObject({ glyphInstances: 25 });
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({
+			glyphInstances: 24,
+			shapingRuns: 2,
+		});
 		renderer.dispose();
 	});
 
@@ -744,7 +746,10 @@ describe('Ghostty surface parity', () => {
 		vi.advanceTimersByTime(530);
 		renderer.renderPacked(store);
 		expect(recording.texts.some(({ text }) => text === 'K' || text === 'V')).toBe(false);
-		expect(renderer.getLastFrameTelemetry()).toMatchObject({ glyphInstances: 24 });
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({
+			glyphInstances: 23,
+			shapingRuns: 2,
+		});
 
 		recording.rectangles.length = 0;
 		renderer.setFocused(true);
@@ -799,7 +804,7 @@ describe('Ghostty surface parity', () => {
 		renderer.renderPacked(store);
 
 		const uploads = floatUploads(rendering.writeBuffer);
-		const textUpload = uploads.find(({ length }) => length === 25 * 13);
+		const textUpload = uploads.find(({ length }) => length === 24 * 13);
 		const backgroundUpload = uploads.find(({ length }) => length === 3 * 8);
 		const overlayUpload = uploads.find(({ length }) => length === 15 * 8);
 		if (textUpload === undefined || backgroundUpload === undefined || overlayUpload === undefined) {
@@ -807,18 +812,18 @@ describe('Ghostty surface parity', () => {
 		}
 		const textInstance = (index: number): Float32Array =>
 			textUpload.subarray(index * 13, (index + 1) * 13);
-		const foreground = textInstance(7);
+		const foreground = textInstance(6);
 		expect(foreground[8]).toBeCloseTo(1 / 255);
 		expect(foreground[9]).toBeCloseTo(2 / 255);
 		expect(foreground[10]).toBeCloseTo(3 / 255);
 		expect(foreground[11]).toBe(1);
-		const inverse = textInstance(9);
+		const inverse = textInstance(8);
 		expect(inverse[8]).toBeCloseTo(16 / 255);
 		expect(inverse[9]).toBeCloseTo(20 / 255);
 		expect(inverse[10]).toBeCloseTo(24 / 255);
 		expect(inverse[11]).toBe(1);
-		expect(textInstance(10)[11]).toBe(0.5);
-		expect(textInstance(19)[11]).toBe(0.5);
+		expect(textInstance(9)[11]).toBe(0.5);
+		expect(textInstance(18)[11]).toBe(0.5);
 		expect(atlasTexts.some(({ text }) => text === 'V')).toBe(false);
 		expect(atlasTexts.find(({ text }) => text === 'D')?.font).toContain('bold');
 		expect(atlasTexts.find(({ text }) => text === 'E')?.font).toMatch(/^italic /);
@@ -847,15 +852,19 @@ describe('Ghostty surface parity', () => {
 		expect(coloredFaintUnderline?.[7]).toBe(0.5);
 		expect(renderer.getLastFrameTelemetry()).toMatchObject({
 			backgroundInstances: 3,
-			glyphInstances: 25,
+			glyphInstances: 24,
 			overlayInstances: 15,
+			shapingRuns: 2,
 		});
 
 		rendering.writeBuffer.mockClear();
 		vi.advanceTimersByTime(530);
 		renderer.renderPacked(store);
-		expect(floatUploads(rendering.writeBuffer).some(({ length }) => length === 24 * 13)).toBe(true);
-		expect(renderer.getLastFrameTelemetry()).toMatchObject({ glyphInstances: 24 });
+		expect(floatUploads(rendering.writeBuffer).some(({ length }) => length === 23 * 13)).toBe(true);
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({
+			glyphInstances: 23,
+			shapingRuns: 2,
+		});
 
 		rendering.writeBuffer.mockClear();
 		renderer.setFocused(true);

@@ -1,0 +1,39 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "projected-terminal.paste-review-dialog",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Projected Terminal Paste Review Dialog",
+	"description": "Reviews suspicious terminal paste text before one attachment can publish its sanitized semantic input.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": ["review-terminal-paste", "confirm-terminal-paste"],
+	"implementation": [
+		"apps/web/src/workbench-client/projected-terminal-surface/components/projected-terminal-paste-review-dialog/ProjectedTerminalPasteReviewDialog.tsx",
+		"apps/web/src/workbench-client/projected-terminal-surface/hooks/useProjectedTerminalSurface.ts"
+	],
+	"stories": [
+		{
+			"exportName": "SuspiciousPaste",
+			"file": "apps/web/stories/projected-terminal-paste-review-dialog.stories.tsx",
+			"id": "applications-web-projected-terminal-paste-review-dialog--suspicious-paste",
+			"states": [
+				"Inspect the localized warnings and control-visible original preview for replaced controls and an embedded bracketed-paste terminator.",
+				"Cancel with Escape or the visible action, then approve with Paste; each path settles the pending attachment decision once."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"One projected terminal attachment must review multiline or control-bearing paste text before semantic input publication."
+	],
+	"avoidWhen": [
+		"The inspected paste is safe without review, or another product workflow owns a non-terminal confirmation."
+	],
+	"invariants": [
+		"The preview is bounded, displays unsafe control code points visibly, and derives from the retained original text rather than sanitized output.",
+		"Cancel, lifecycle abort, and approval settle the pending attachment decision at most once and never bypass FIFO input ordering.",
+		"Approval publishes only sanitized text with the reviewed bracketed-paste mode; the Host rejects a changed authoritative mode before admission."
+	],
+	"references": ["apps/web/README.md"]
+}

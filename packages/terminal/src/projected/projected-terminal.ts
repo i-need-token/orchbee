@@ -124,6 +124,11 @@ import {
 const terminalKeyCodes: ReadonlyMap<string, TerminalKeyCodeValue> = new Map(
 	TerminalKeyCode.map((code) => [code, code]),
 );
+const LEGACY_KEY_CODE_ALIASES: ReadonlyMap<string, TerminalKeyCodeValue> = new Map([
+	['OSLeft', 'MetaLeft'],
+	['OSRight', 'MetaRight'],
+]);
+const W3C_KEY_STRING_PATTERN = /^\P{Cc}\p{M}*$/u;
 const textEncoder = new TextEncoder();
 const INPUT_DEDUPLICATION_MS = 100;
 const BRACKETED_PASTE_END = '\u001b[201~';
@@ -226,8 +231,10 @@ export interface ProjectedPasteReview {
 	readonly bracketed: boolean;
 	readonly embeddedBracketTerminator: boolean;
 	readonly multiline: boolean;
+	readonly originalText: string;
 	readonly replacedControlCharacters: number;
 	readonly source: ProjectedPasteSource;
+	/** Sanitized text that will be sent after approval. */
 	readonly text: string;
 }
 
@@ -252,7 +259,10 @@ export interface ProjectedTerminalOptions {
 	/** Trust boundary for OBPB 0.0.1 render buffers. Omitted means strict external validation. */
 	readonly projectionBufferTrust?: 'external' | 'local-host';
 	readonly renderer?: RendererOptions;
-	readonly reviewPaste?: (review: ProjectedPasteReview) => boolean | Promise<boolean>;
+	readonly reviewPaste?: (
+		review: ProjectedPasteReview,
+		signal: AbortSignal,
+	) => boolean | Promise<boolean>;
 	readonly searchWorkerFactory?: ProjectedSearchWorkerFactory;
 	readonly terminalId: TerminalId;
 }
@@ -481,6 +491,7 @@ export class ProjectedTerminal {
 		(result: ProjectedTerminalSideEffectResult) => void
 	>();
 	readonly #options: ProjectedTerminalOptions;
+	readonly #deferredKeyReleases = new Map<TerminalKeyCodeValue, KeyFacts>();
 	readonly #pressedKeys = new Map<string, KeyFacts>();
 	readonly #pressedModifierCodes = new Set<string>();
 	readonly #pressedMouseButtons = new Set<Exclude<MouseInput['button'], null>>();
@@ -1394,7 +1405,7 @@ export class ProjectedTerminal {
 			review.embeddedBracketTerminator ||
 			(review.multiline && !protectedByBracketedPaste);
 		if (requiresReview) {
-			const approved = await this.#options.reviewPaste?.(review);
+			const approved = await this.#options.reviewPaste?.(review, signal);
 			if (approved !== true) return { kind: 'blocked', review };
 		}
 		if (signal.aborted || !this.#canAdmitInput()) {
@@ -1403,7 +1414,11 @@ export class ProjectedTerminal {
 		this.#publishCurrentInputCommand(
 			{
 				kind: 'paste-input',
-				payload: { attachmentId: this.#attachmentId, text: sanitized },
+				payload: {
+					attachmentId: this.#attachmentId,
+					bracketed: review.bracketed,
+					text: sanitized,
+				},
 			},
 			ProjectedInputPublicationIntent.stateless,
 		);
@@ -1418,8 +1433,9 @@ export class ProjectedTerminal {
 		}
 		const review: ProjectedPasteReview = {
 			bracketed: this.#store.metadata?.interaction.bracketedPaste ?? false,
-			embeddedBracketTerminator: sanitized.includes(BRACKETED_PASTE_END),
+			embeddedBracketTerminator: text.includes(BRACKETED_PASTE_END),
 			multiline: sanitized.includes('\n'),
+			originalText: text,
 			replacedControlCharacters: replaced,
 			source,
 			text: sanitized,
@@ -2362,7 +2378,11 @@ export class ProjectedTerminal {
 		if (!this.#canAdmitInput()) return;
 		this.#inputDispatcher.dispatchSync(() => {
 			if (!this.#canAdmitInput()) return;
-			if (!this.#publishCurrentInputCommand(command, intent)) onRejected?.();
+			try {
+				if (!this.#publishCurrentInputCommand(command, intent)) onRejected?.();
+			} finally {
+				this.#drainDeferredKeyReleases();
+			}
 		});
 	}
 
@@ -2491,6 +2511,8 @@ export class ProjectedTerminal {
 		}
 		this.#listen(input, 'focus', this.#handleFocus);
 		this.#listen(input, 'blur', this.#handleBlur);
+		this.#listen(root, 'focusin', this.#handleSurfaceFocusIn);
+		this.#listen(root, 'focusout', this.#handleSurfaceFocusOut);
 		this.#listen(canvas, 'pointerdown', this.#handlePointerDown);
 		this.#listen(canvas, 'pointerup', this.#handlePointerUp);
 		this.#listen(canvas, 'pointermove', this.#handlePointerMove);
@@ -2522,6 +2544,7 @@ export class ProjectedTerminal {
 	readonly #handleKeyDown = (event: KeyboardEvent): void => {
 		if (!this.#canAdmitInput()) return;
 		const inputOperationEpoch = this.#inputRepairEpoch;
+		const trackedCode = normalizedKeyboardCode(event.code);
 		this.#trackModifier(event.code, true);
 		this.#refreshHoveredLinkModifiers(event);
 		if (!event.isComposing && event.keyCode !== 229) {
@@ -2555,9 +2578,9 @@ export class ProjectedTerminal {
 			event.stopPropagation();
 			return;
 		}
-		const previousFacts = this.#pressedKeys.get(event.code);
+		const previousFacts = this.#pressedKeys.get(trackedCode);
 		const previousInputState = this.#inputState;
-		this.#pressedKeys.set(event.code, facts);
+		this.#pressedKeys.set(trackedCode, facts);
 		if (facts.text) {
 			this.#inputState = recordTerminalKeyInput(this.#inputState, {
 				text: facts.text,
@@ -2571,9 +2594,9 @@ export class ProjectedTerminal {
 			ProjectedInputPublicationIntent.held,
 			() => {
 				if (!this.#inputOperationIsCurrent(inputOperationEpoch)) return;
-				if (this.#pressedKeys.get(event.code) === facts) {
-					if (previousFacts === undefined) this.#pressedKeys.delete(event.code);
-					else this.#pressedKeys.set(event.code, previousFacts);
+				if (this.#pressedKeys.get(trackedCode) === facts) {
+					if (previousFacts === undefined) this.#pressedKeys.delete(trackedCode);
+					else this.#pressedKeys.set(trackedCode, previousFacts);
 				}
 				if (this.#inputState === stagedInputState) this.#inputState = previousInputState;
 			},
@@ -2583,20 +2606,49 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleKeyUp = (event: KeyboardEvent): void => {
-		if (!this.#canAdmitInput()) return;
-		const eventFacts = this.#keyFacts(event);
-		const facts =
-			this.#pressedKeys.get(event.code) ??
-			(eventFacts === null ? undefined : this.#publishedKeys.get(eventFacts.key));
-		this.#pressedKeys.delete(event.code);
+		if (!this.#inputAdmissionIsOpen() || this.#options.inputEnabled === false) return;
+		const trackedCode = normalizedKeyboardCode(event.code);
+		const pressedFacts = this.#pressedKeys.get(trackedCode);
+		const eventKey = terminalKeyCode(trackedCode, keyboardKeyText(event.key));
+		const ownedFacts =
+			pressedFacts ?? (eventKey === null ? undefined : this.#publishedKeys.get(eventKey));
+		this.#pressedKeys.delete(trackedCode);
 		this.#trackModifier(event.code, false);
 		this.#refreshHoveredLinkModifiers(event);
-		if (facts) {
-			this.#sendKey(facts, KeyAction.release, ProjectedInputPublicationIntent.held);
+		if (ownedFacts) {
+			const eventFacts = this.#keyFacts(event);
+			const facts: KeyFacts =
+				eventFacts === null
+					? {
+							...ownedFacts,
+							consumedModifiers: emptyModifiers(),
+							modifiers: this.#modifiers(event),
+							text: '',
+						}
+					: { ...eventFacts, key: ownedFacts.key };
+			this.#publishOrDeferKeyRelease(facts);
 			event.preventDefault();
 			event.stopPropagation();
 		}
 	};
+
+	#publishOrDeferKeyRelease(facts: KeyFacts): void {
+		if (this.#inputPublicationActive) {
+			this.#deferredKeyReleases.set(facts.key, facts);
+			return;
+		}
+		this.#sendKey(facts, KeyAction.release, ProjectedInputPublicationIntent.held);
+	}
+
+	#drainDeferredKeyReleases(): void {
+		if (this.#inputPublicationActive || this.#deferredKeyReleases.size === 0) return;
+		const releases = [...this.#deferredKeyReleases.values()];
+		this.#deferredKeyReleases.clear();
+		for (const facts of releases) {
+			if (!this.#inputAdmissionIsOpen() || this.#options.inputEnabled === false) return;
+			this.#sendKey(facts, KeyAction.release, ProjectedInputPublicationIntent.held);
+		}
+	}
 
 	#sendKey(
 		facts: KeyFacts,
@@ -2615,20 +2667,22 @@ export class ProjectedTerminal {
 	}
 
 	#keyFacts(event: KeyboardEvent): KeyFacts | null {
-		let code: TerminalKeyCodeValue | null = terminalKeyCodes.get(event.code) ?? null;
-		if (code === null && event.key.length === 1) code = 'Unidentified';
+		const trackedCode = normalizedKeyboardCode(event.code);
+		const text = keyboardKeyText(event.key);
+		const code = terminalKeyCode(trackedCode, text);
 		if (!code) return null;
-		const text = event.key.length === 1 ? event.key : '';
-		const unshiftedCodepoint = unshiftedCharacter(event.code)?.codePointAt(0) ?? 0;
+		const unshiftedCodepoint = unshiftedCharacter(trackedCode)?.codePointAt(0) ?? 0;
 		const modifiers = this.#modifiers(event);
 		const consumedModifiers = emptyModifiers();
 		if (event.shiftKey && text && unshiftedCodepoint !== text.codePointAt(0)) {
 			consumedModifiers.shift = true;
 			consumedModifiers.shiftRight = modifiers.shiftRight;
 		}
-		if (event.getModifierState?.('AltGraph')) {
-			consumedModifiers.alt = true;
-			consumedModifiers.control = true;
+		if (text && event.getModifierState?.('AltGraph')) {
+			consumedModifiers.alt = modifiers.alt;
+			consumedModifiers.altRight = modifiers.altRight;
+			consumedModifiers.control = modifiers.control;
+			consumedModifiers.controlRight = modifiers.controlRight;
 		}
 		return {
 			composing: false,
@@ -2656,6 +2710,7 @@ export class ProjectedTerminal {
 	}
 
 	#trackModifier(code: string, pressed: boolean): void {
+		code = normalizedKeyboardCode(code);
 		if (!['AltRight', 'ControlRight', 'MetaRight', 'ShiftRight'].includes(code)) return;
 		if (pressed) this.#pressedModifierCodes.add(code);
 		else this.#pressedModifierCodes.delete(code);
@@ -3033,9 +3088,35 @@ export class ProjectedTerminal {
 		);
 	};
 
-	readonly #handleBlur = (): void => {
+	#focusTargetIsWithinSurface(target: EventTarget | null): boolean {
+		const root = this.#root;
+		const NodeConstructor = root?.ownerDocument.defaultView?.Node;
+		return (
+			root !== undefined &&
+			NodeConstructor !== undefined &&
+			target instanceof NodeConstructor &&
+			root.contains(target)
+		);
+	}
+
+	readonly #handleBlur = (event: FocusEvent): void => {
+		if (this.#focusTargetIsWithinSurface(event.relatedTarget)) return;
 		this.#renderer?.setFocused(false);
 		this.#repairInputState();
+	};
+
+	readonly #handleSurfaceFocusIn = (event: FocusEvent): void => {
+		if (event.target === this.#input || this.#focusTargetIsWithinSurface(event.relatedTarget)) {
+			return;
+		}
+		this.#handleFocus();
+	};
+
+	readonly #handleSurfaceFocusOut = (event: FocusEvent): void => {
+		if (event.target === this.#input || this.#focusTargetIsWithinSurface(event.relatedTarget)) {
+			return;
+		}
+		this.#handleBlur(event);
 	};
 
 	readonly #handleWindowBlur = (): void => {
@@ -3140,6 +3221,7 @@ export class ProjectedTerminal {
 			transaction.transientRepaired = true;
 			transaction.transientDisposed ||= dispose;
 		}
+		this.#deferredKeyReleases.clear();
 		this.#pressedKeys.clear();
 		this.#pressedMouseButtons.clear();
 		this.#pressedModifierCodes.clear();
@@ -3259,6 +3341,7 @@ export class ProjectedTerminal {
 			...this.#publishedKeyReleaseCommands(),
 			...this.#publishedMouseReleaseCommands(),
 		];
+		this.#deferredKeyReleases.clear();
 		this.#pressedKeys.clear();
 		this.#pressedMouseButtons.clear();
 		this.#inputFocused = false;
@@ -4363,6 +4446,26 @@ function emptyModifiers(): TerminalModifiers & {
 		shift: false,
 		shiftRight: false,
 	};
+}
+
+function normalizedKeyboardCode(code: string): string {
+	return LEGACY_KEY_CODE_ALIASES.get(code) ?? code;
+}
+
+function keyboardKeyText(key: string): string {
+	const firstCodepoint = key.codePointAt(0);
+	if (
+		firstCodepoint === undefined ||
+		(firstCodepoint >= 0xd800 && firstCodepoint <= 0xdfff) ||
+		!W3C_KEY_STRING_PATTERN.test(key)
+	) {
+		return '';
+	}
+	return key;
+}
+
+function terminalKeyCode(code: string, text: string): TerminalKeyCodeValue | null {
+	return terminalKeyCodes.get(code) ?? (text ? 'Unidentified' : null);
 }
 
 function unshiftedCharacter(code: string): string | undefined {

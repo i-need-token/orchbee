@@ -7,6 +7,7 @@ import {
 	HostEpochSchema,
 	TerminalIdSchema,
 } from '@orchbee/terminal-protocol';
+import type { ProjectedPasteReview } from '@orchbee/terminal';
 import { terminalPresentationId, type WorkbenchTerminalPresentation } from '@orchbee/workbench';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -53,10 +54,21 @@ function TestHarness({
 	readonly presentation: WorkbenchTerminalPresentation;
 }): ReactNode {
 	const view = useProjectedTerminalSurface(presentation);
-	return createElement('div', {
-		'data-projection-state': view.projectionState,
-		ref: view.root,
-	});
+	return createElement(
+		'div',
+		{
+			'data-paste-review-text': view.pasteReview?.originalText,
+			'data-projection-state': view.projectionState,
+			ref: view.root,
+		},
+		view.pasteReview === null
+			? null
+			: createElement(
+					'button',
+					{ 'data-approve-paste': true, onClick: view.approvePaste },
+					'Approve paste',
+				),
+	);
 }
 
 describe('useProjectedTerminalSurface', () => {
@@ -212,6 +224,122 @@ describe('useProjectedTerminalSurface', () => {
 
 		await act(async () => root.unmount());
 		expect(secondRelease).toHaveBeenCalledOnce();
+		container.remove();
+	});
+
+	it('turns a renderer paste review into an explicit surface decision', async () => {
+		renderer.start.mockReset();
+		renderer.start.mockResolvedValue({
+			dispose: vi.fn<() => void>(),
+			transportUnavailable: new Promise<void>(() => undefined),
+			updatePresentationConfiguration: vi
+				.fn<ProjectedTerminalRendererSession['updatePresentationConfiguration']>()
+				.mockResolvedValue({
+					configuration: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current(),
+					kind: 'completed',
+				}),
+		});
+		const transport: ProjectedTerminalTransport = {
+			close: vi.fn<() => void>(),
+			projectionBufferTrust: 'external',
+			send: vi.fn<ProjectedTerminalTransport['send']>(),
+			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
+		};
+		const release = vi.fn<() => void>();
+		const open = vi.fn<TerminalProjectionClient['open']>(() => ({
+			release,
+			result: Promise.resolve({
+				bootstrap: {
+					attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+					canInput: true,
+					canResize: true,
+					creationId: CreationIdSchema.parse('22'.repeat(16)),
+					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+					terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+					terminalOutcome: null,
+				},
+				transport,
+			}),
+		}));
+		const presentation: WorkbenchTerminalPresentation = {
+			currentCwd: '/workspace',
+			launchCwd: '/workspace',
+			lifecycle: { kind: 'running' },
+			presentationId: terminalPresentationId('presentation-review'),
+			title: 'Terminal Review',
+		};
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const root = createRoot(container);
+
+		await act(async () => {
+			root.render(
+				createElement(
+					ProjectedTerminalSurfaceCapabilityContext.Provider,
+					{
+						value: {
+							documentElement: document.documentElement,
+							platformEffects: {},
+							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+							preferredLocales: ['en-US'],
+							projectionClient: { open },
+							shortcutPlatform: 'apple',
+							startStoppedTerminalSession: () => undefined,
+						},
+					},
+					createElement(
+						OrchbeeI18nProvider,
+						{ locale: 'en-US' },
+						createElement(TestHarness, { presentation }),
+					),
+				),
+			);
+			await Promise.resolve();
+		});
+		await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
+		const reviewPaste = renderer.start.mock.calls[0]?.[9];
+		expect(reviewPaste).toBeTypeOf('function');
+		const review: ProjectedPasteReview = {
+			bracketed: false,
+			embeddedBracketTerminator: false,
+			multiline: true,
+			originalText: 'one\ntwo',
+			replacedControlCharacters: 0,
+			source: 'clipboard',
+			text: 'one\ntwo',
+		};
+		let decision: Promise<boolean> | undefined;
+		const reviewController = new AbortController();
+		await act(async () => {
+			decision = Promise.resolve(reviewPaste?.(review, reviewController.signal) ?? false);
+			await Promise.resolve();
+		});
+		expect(container.firstElementChild?.getAttribute('data-paste-review-text')).toBe('one\ntwo');
+		await act(async () => {
+			(container.querySelector('[data-approve-paste]') as HTMLButtonElement).click();
+			await Promise.resolve();
+		});
+		await expect(decision).resolves.toBe(true);
+		expect(container.firstElementChild?.getAttribute('data-paste-review-text')).toBeNull();
+
+		const cancelledController = new AbortController();
+		let cancelledDecision: Promise<boolean> | undefined;
+		await act(async () => {
+			cancelledDecision = Promise.resolve(
+				reviewPaste?.(review, cancelledController.signal) ?? false,
+			);
+			await Promise.resolve();
+		});
+		expect(container.firstElementChild?.getAttribute('data-paste-review-text')).toBe('one\ntwo');
+		await act(async () => {
+			cancelledController.abort();
+			await Promise.resolve();
+		});
+		await expect(cancelledDecision).resolves.toBe(false);
+		expect(container.firstElementChild?.getAttribute('data-paste-review-text')).toBeNull();
+
+		await act(async () => root.unmount());
+		expect(release).toHaveBeenCalledOnce();
 		container.remove();
 	});
 });

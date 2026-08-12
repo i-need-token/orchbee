@@ -36,8 +36,8 @@
 		"experience:show": "node scripts/experience-catalog.mjs show",
 		"generate:design-token-inventory": "node scripts/generate-design-token-inventory.mjs",
 		"generate:tailwind-token-compat": "node scripts/generate-tailwind-token-compat.mjs",
-		"audit:ghostty-panel": "node scripts/check-ghostty-panel-manifest.mjs && node scripts/generate-ghostty-nerd-font-constraints.mjs --check",
-		"generate:ghostty-panel-data": "node scripts/generate-ghostty-nerd-font-constraints.mjs"
+		"audit:ghostty-panel": "node scripts/check-ghostty-panel-manifest.mjs && node scripts/generate-ghostty-nerd-font-constraints.mjs --check && node scripts/generate-ghostty-sprite-raster.mjs --check",
+		"generate:ghostty-panel-data": "node scripts/generate-ghostty-nerd-font-constraints.mjs && node scripts/generate-ghostty-sprite-raster.mjs"
 	},
 	"devDependencies": {
 		"knip": "catalog:",

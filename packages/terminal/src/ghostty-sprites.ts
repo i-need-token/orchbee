@@ -1,4 +1,9 @@
 import type { DetailedFontMetrics } from './font-metrics';
+import {
+	GHOSTTY_SPRITE_RANGES,
+	GHOSTTY_SPRITE_RASTERS,
+	type GeneratedGhosttySpriteRaster,
+} from './ghostty-sprite-raster.generated';
 
 type LineStyle = 'none' | 'light' | 'heavy' | 'double';
 
@@ -13,6 +18,17 @@ interface SpriteGeometry {
 	readonly width: number;
 	readonly height: number;
 	readonly boxThickness: number;
+}
+
+interface SpriteRasterPadding {
+	readonly x: number;
+	readonly y: number;
+}
+
+interface DecodedSpriteRaster {
+	readonly glyphs: Array<Uint8Array | undefined>;
+	readonly offsets: DataView;
+	readonly runs: Uint8Array;
 }
 
 const BOX_LINES = new Map<number, BoxLines>([
@@ -36,16 +52,13 @@ const CORNER_TRIANGLE_START = 0x25e2;
 const CORNER_TRIANGLE_END = 0x25e5;
 const BLOCK_ELEMENT_START = 0x2580;
 const BLOCK_ELEMENT_END = 0x259f;
+const decodedSpriteRasters: Array<DecodedSpriteRaster | undefined> = Array.from({
+	length: GHOSTTY_SPRITE_RASTERS.length,
+});
 
-/** Return whether the built-in Ghostty sprite subset owns this codepoint. */
+/** Return whether the pinned Ghostty sprite face owns this codepoint. */
 export function isGhosttySprite(codepoint: number): boolean {
-	return (
-		BOX_LINES.has(codepoint) ||
-		POWERLINE_CODEPOINTS.has(codepoint) ||
-		isBetween(codepoint, ROUNDED_CORNER_START, ROUNDED_CORNER_END) ||
-		isBetween(codepoint, BLOCK_ELEMENT_START, BLOCK_ELEMENT_END) ||
-		isBetween(codepoint, CORNER_TRIANGLE_START, CORNER_TRIANGLE_END)
-	);
+	return ghosttySpriteIndex(codepoint) !== null;
 }
 
 /** Draw a supported Ghostty sprite using the renderer's cell metrics. */
@@ -63,6 +76,12 @@ export function drawGhosttySprite(
 		height: Math.max(1, Math.round(height)),
 		boxThickness: Math.max(1, Math.round(boxThickness)),
 	} satisfies SpriteGeometry;
+	const spriteIndex = ghosttySpriteIndex(codepoint);
+	if (spriteIndex === null) return false;
+	if (isReferenceSpriteGeometry(geometry)) {
+		drawGeneratedSprite(context, spriteIndex, x, y, geometry);
+		return true;
+	}
 	const lines = BOX_LINES.get(codepoint);
 	if (lines) {
 		drawBoxLines(context, x, y, geometry, lines);
@@ -84,7 +103,163 @@ export function drawGhosttySprite(
 		drawCornerTriangle(context, codepoint, x, y, geometry);
 		return true;
 	}
-	return false;
+	drawGeneratedSprite(context, spriteIndex, x, y, geometry);
+	return true;
+}
+
+function isReferenceSpriteGeometry(geometry: SpriteGeometry): boolean {
+	return GHOSTTY_SPRITE_RASTERS.some(
+		(raster) =>
+			raster.width === geometry.width &&
+			raster.height === geometry.height &&
+			raster.boxThickness === geometry.boxThickness,
+	);
+}
+
+function ghosttySpriteIndex(codepoint: number): number | null {
+	if (!Number.isInteger(codepoint) || codepoint < 0) return null;
+	let offset = 0;
+	for (const [start, end] of GHOSTTY_SPRITE_RANGES) {
+		if (codepoint < start) return null;
+		if (codepoint <= end) return offset + codepoint - start;
+		offset += end - start + 1;
+	}
+	return null;
+}
+
+function drawGeneratedSprite(
+	context: CanvasRenderingContext2D,
+	spriteIndex: number,
+	x: number,
+	y: number,
+	geometry: SpriteGeometry,
+): void {
+	const rasterIndex = selectSpriteRaster(geometry);
+	const source = GHOSTTY_SPRITE_RASTERS[rasterIndex];
+	if (source === undefined) return;
+	const decoded = decodeSpriteRaster(rasterIndex, source);
+	const glyph = decodeSpriteGlyph(spriteIndex, source, decoded);
+	const targetPadding = ghosttySpriteRasterPadding(geometry.width, geometry.height);
+	const targetWidth = geometry.width + targetPadding.x * 2;
+	const targetHeight = geometry.height + targetPadding.y * 2;
+	const sourceAlpha = Number.isFinite(context.globalAlpha) ? context.globalAlpha : 1;
+	context.save();
+	for (let targetY = 0; targetY < targetHeight; targetY++) {
+		const sourceY = Math.min(
+			spriteRasterHeight(source) - 1,
+			Math.floor(((targetY + 0.5) * spriteRasterHeight(source)) / targetHeight),
+		);
+		let targetX = 0;
+		while (targetX < targetWidth) {
+			const alpha = sampledAlpha(glyph, source, targetWidth, sourceY, targetX);
+			if (alpha === 0) {
+				targetX++;
+				continue;
+			}
+			let runEnd = targetX + 1;
+			while (
+				runEnd < targetWidth &&
+				sampledAlpha(glyph, source, targetWidth, sourceY, runEnd) === alpha
+			) {
+				runEnd++;
+			}
+			context.globalAlpha = sourceAlpha * (alpha / 255);
+			context.fillRect(
+				x - targetPadding.x + targetX,
+				y - targetPadding.y + targetY,
+				runEnd - targetX,
+				1,
+			);
+			targetX = runEnd;
+		}
+	}
+	context.restore();
+}
+
+function sampledAlpha(
+	glyph: Uint8Array,
+	source: GeneratedGhosttySpriteRaster,
+	targetWidth: number,
+	sourceY: number,
+	targetX: number,
+): number {
+	const sourceX = Math.min(
+		spriteRasterWidth(source) - 1,
+		Math.floor(((targetX + 0.5) * spriteRasterWidth(source)) / targetWidth),
+	);
+	return glyph[sourceY * spriteRasterWidth(source) + sourceX] ?? 0;
+}
+
+function decodeSpriteGlyph(
+	spriteIndex: number,
+	raster: GeneratedGhosttySpriteRaster,
+	decoded: DecodedSpriteRaster,
+): Uint8Array {
+	const cached = decoded.glyphs[spriteIndex];
+	if (cached !== undefined) return cached;
+	const rasterWidth = spriteRasterWidth(raster);
+	const glyph = new Uint8Array(rasterWidth * spriteRasterHeight(raster));
+	const runStart = decoded.offsets.getUint32(spriteIndex * 4, true);
+	const runEnd = decoded.offsets.getUint32((spriteIndex + 1) * 4, true);
+	for (let run = runStart; run < runEnd; run++) {
+		const offset = run * 4;
+		const x = decoded.runs[offset] ?? 0;
+		const y = decoded.runs[offset + 1] ?? 0;
+		const width = decoded.runs[offset + 2] ?? 0;
+		const alpha = decoded.runs[offset + 3] ?? 0;
+		glyph.fill(alpha, y * rasterWidth + x, y * rasterWidth + x + width);
+	}
+	decoded.glyphs[spriteIndex] = glyph;
+	return glyph;
+}
+
+function spriteRasterWidth(raster: GeneratedGhosttySpriteRaster): number {
+	return raster.width + raster.paddingX * 2;
+}
+
+function spriteRasterHeight(raster: GeneratedGhosttySpriteRaster): number {
+	return raster.height + raster.paddingY * 2;
+}
+
+function selectSpriteRaster(geometry: SpriteGeometry): number {
+	let selected = 0;
+	let selectedScore = Number.POSITIVE_INFINITY;
+	for (const [index, raster] of GHOSTTY_SPRITE_RASTERS.entries()) {
+		const ratios = [
+			geometry.width / raster.width,
+			geometry.height / raster.height,
+			geometry.boxThickness / raster.boxThickness,
+		];
+		const mean = ratios.reduce((total, ratio) => total + ratio, 0) / ratios.length;
+		const score =
+			ratios.reduce((total, ratio) => total + Math.abs(ratio - mean), 0) / mean +
+			Math.abs(mean - 1) / 1_000;
+		if (score >= selectedScore) continue;
+		selected = index;
+		selectedScore = score;
+	}
+	return selected;
+}
+
+function decodeSpriteRaster(
+	index: number,
+	raster: GeneratedGhosttySpriteRaster,
+): DecodedSpriteRaster {
+	const cached = decodedSpriteRasters[index];
+	if (cached !== undefined) return cached;
+	const offsetBytes = decodeBase64(raster.offsets);
+	const decoded = {
+		glyphs: [],
+		offsets: new DataView(offsetBytes.buffer, offsetBytes.byteOffset, offsetBytes.byteLength),
+		runs: decodeBase64(raster.runs),
+	};
+	decodedSpriteRasters[index] = decoded;
+	return decoded;
+}
+
+function decodeBase64(chunks: readonly string[]): Uint8Array {
+	const binary = atob(chunks.join(''));
+	return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
 function drawRoundedCorner(
@@ -168,6 +343,14 @@ export function physicalSpriteGeometry(
 		width: Math.max(1, Math.round(metrics.cellWidth * cellWidth * devicePixelRatio)),
 		height: Math.max(1, Math.round(metrics.cellHeight * devicePixelRatio)),
 		boxThickness: Math.max(1, Math.round(metrics.boxThickness * devicePixelRatio)),
+	};
+}
+
+/** Return the physical padding carried by Ghostty's sprite canvas around one cell. */
+export function ghosttySpriteRasterPadding(width: number, height: number): SpriteRasterPadding {
+	return {
+		x: Math.floor(Math.max(1, Math.round(width)) / 4),
+		y: Math.floor(Math.max(1, Math.round(height)) / 4),
 	};
 }
 
