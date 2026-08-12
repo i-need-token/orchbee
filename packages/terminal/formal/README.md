@@ -1,0 +1,156 @@
+# Terminal correctness evidence
+
+This directory owns bounded formal evidence for concurrency, independently ordered work, and
+client input repair in `@orchbee/terminal`. The models abstract only client-owned
+projected-terminal state; Terminal Host and its PTY/Ghostty authority are outside this directory.
+
+## Runtime presentation configuration
+
+`tla/TerminalPresentationConfiguration.tla` models two independently completing presentation
+configuration requests. Font preparation and commit eligibility are separate state: supersession
+or disposal revokes eligibility without pretending that already-started asynchronous work stopped.
+That stale work may later resolve or fail, but its operation then reaches a cancelled terminal
+outcome and cannot publish. Only the latest eligible ready request can publish every presentation
+field in one commit.
+
+| SU-14 claim                                    | Model property                                    | TypeScript refinement                                                                                                                       |
+| ---------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| A stale request never commits                  | `NoStaleCommit`                                   | `ProjectedTerminal.updatePresentationConfiguration` checks its request epoch after font preparation and before renderer preparation/commit. |
+| Configuration publication is complete          | `NoPartialPublication`                            | `WebGPURenderer.commitPresentationConfiguration` swaps one complete prepared value.                                                         |
+| Revoked work cannot publish                    | `CancelledCannotPublish`, `EligibilityConsistent` | Superseded and disposed font work may settle later, but epoch and disposal checks return typed cancellation before renderer mutation.       |
+| Cancellation preserves the prior configuration | `CancellationPreservesPublication`                | A stale completion and disposal leave the committed configuration and all published fields unchanged.                                       |
+| Supersession preserves the prior configuration | `SupersessionPreservesPublication`                | Starting the newer request revokes old commit eligibility without changing the active presentation.                                         |
+| Preparation failure preserves the prior config | `FailurePreservesPublication`                     | Font preparation failure returns a typed failure before renderer mutation.                                                                  |
+| No mutation occurs before commit               | `PublicationChangesOnlyOnCommit`                  | Validation, font preparation, cancellation, and renderer preparation leave committed and published presentation state unchanged.            |
+| The newest completing request commits          | `LatestReadyEventuallyResolves`                   | With a fair commit scheduler, a ready request commits unless a newer request or disposal cancels eligibility.                               |
+
+The TLC configuration checks two ordered requests and all eight published field identities. Field
+values are abstracted to the request epoch because the deterministic validation and renderer tests
+own concrete values and measurements. The model keeps stale font work in flight until an
+independent completion or failure transition records its cancelled outcome. TLC uses weak fairness
+only for an eligible commit; font completion, request arrival, and disposal remain independently
+ordered and are not assumed fair.
+
+## Input repair
+
+`tla/TerminalInputRepair.tla` models native composition lifetime, local text/preedit publication
+eligibility, settlement, transient input presentation, event-specific single-record deduplication,
+repair consequences, and disposal. A settlement guard is separate from ordinary correlations, so
+repair clears correlations without forgetting native work that may still emit an end or a
+composition-origin `beforeinput`. A new composition can supersede cancelled work before its old end;
+independent key, focus, and idle `beforeinput` progress does not wait for that end. The runtime uses
+the available browser facts (`isComposing`, `insertCompositionText`, and
+`insertFromComposition`) to gate delayed composition-origin input. Browser events carry no native
+composition identifier, so a new `compositionstart` establishes ownership of the next end.
+
+| IN-02 claim                                            | Model property                                                                                                                                          | TypeScript refinement                                                                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| One composition publishes text at most once            | `AtMostOneCompositionPublication`                                                                                                                       | Both composition orders publish state before `ProjectedTerminal` calls its synchronous port.                                     |
+| Publication has explicit eligible or idle authority    | `CompositionPublicationRequiresEligibleAuthority`, `EveryPublicationHasAnExplicitOrigin`                                                                | History snapshots check each counter increase against its prior phase and named publication action.                              |
+| Ineligible updates cannot publish preedit              | `IneligibleUpdateCannotPublishPreedit`                                                                                                                  | `terminalCompositionUpdateIsEligible` gates every renderer preedit update.                                                       |
+| Repair retains settlement while clearing correlations  | `RepairRetainsSettlementGuard`, `RepairClearsTransientInput`                                                                                            | Repair clears textarea/preedit and ordinary records but retains or creates the separate settlement guard.                        |
+| A deduplication record is consumed by its paired event | `DedupCorrelationIsSingleUse`                                                                                                                           | Explicit key-beforeinput, composition-beforeinput, beforeinput-end, paste, and mouse transitions consume records.                |
+| Stateless input never becomes held ownership           | `StatelessPublicationDoesNotChangeHeldOwnership`                                                                                                        | Synthetic editing keys and wheel button reports bypass persistent key and pointer-button ledgers.                                |
+| Host ownership commits only after accepted sync send   | `HostOwnershipChangesOnlyAtPublication`, `FailedSendPreservesPublishedOwnership`                                                                        | Host-published ledgers change only after synchronous `port.send` return; a throw reports failure without committing that change. |
+| Every Host input publication waits for focus alignment | `InputPublicationRequiresFocusConvergence`, `TextPublicationRequiresFocusConvergence`, `CurrentStagedContinuationHasAuthority`                          | Key, mouse, stateless, composition, and text publication share the focus-reconciling command path.                               |
+| Failed presses cannot create orphan releases           | `FailedPressRollsBackLocalOwnership`, `OrdinaryReleaseRequiresPublishedOwnership`                                                                       | Failed physical key and pointer presses roll back local staging and correlation; an unheld release is inert at publication.      |
+| Repair releases keys, then mouse, then optional focus  | `CleanupReleaseRequiresPublishedOwnership`, `RepairConsequenceOrder`, `FocusOutRequiresPriorOwnership`, `FocusOutIsConditional`                         | Cleanup snapshots Host-published ownership and attempts each ordered consequence once per transaction.                           |
+| Lifecycle repair bypasses a stalled review             | `LifecycleInvalidationDetachesQueuedGeneration`, `CancelledReviewDoesNotBlockCurrentGeneration`, `RepairEventuallyClosesAdmission`                      | Lifecycle invalidates the dispatcher generation before cleanup and never waits for paste review settlement.                      |
+| Review rejection cannot stall the current generation   | `CancelledReviewResolutionIsInert`, `CancelledReviewDoesNotBlockCurrentGeneration`                                                                      | Current DOM rejection is reported; invalidated resolution or rejection cannot publish paste or queued input.                     |
+| Reset reconciles retained local focus                  | `ResetNeverPublishesFocusOut`, `RepairReopenReconcilesFocus`                                                                                            | Reset retains DOM focus and begins a fresh focus-in transaction when an invalidated generation never published it.               |
+| An unfocused disposal completes without focus-out      | `UnfocusedDisposeRequiresNoFocusOut`, `DisposalEventuallyCompletes`                                                                                     | Disposal after completed blur is accepted without an intervening refocus/resume and does not duplicate focus-out.                |
+| Repair/disposal rejects synchronous input reentry      | `InputEventsRequireOpenAdmission`, `RepairAndDisposeCloseAdmissionFirst`                                                                                | `ProjectedTerminal` closes its admission gate before clearing state and reopens it only after the cleanup callback unwinds.      |
+| A post-send continuation cannot outlive its authority  | `CurrentStagedContinuationHasAuthority`, `RepairInvalidatesCurrentContinuation`, `CurrentContinuationRequiresAuthority`, `StaleContinuationOnlyCancels` | The adapter checks both repair epoch and staged composition state before clearing textarea or preedit after synchronous send.    |
+| A pending focus-out survives intermediate stages       | `PendingFocusOutIsNotErased`, `PendingFocusOutEventuallySettles`                                                                                        | Composition settlement cannot interrupt release ordering or erase a required focus-out attempt.                                  |
+| Disposed input accepts no later event                  | `DisposedAcceptsNothing`                                                                                                                                | Disposal closes admission before one ordered cleanup attempt, then removes listeners and terminal-owned DOM.                     |
+
+`compositionPublicationCount` deliberately has the checked domain `0..2`; the at-most-one result is
+therefore a transition invariant rather than a consequence of `TypeOK`. The prior-phase,
+prior-settlement, prior-publication, prior-focus, prior-admission, and prior-staged-continuation
+snapshots make publication, settlement-retention, focus-ownership, admission, and stale-continuation
+invariants observe the transition that just occurred. They replace error flags whose assignments
+could have made a property algebraically unreachable. The model keeps one abstract pre-send
+continuation separate from its current authority. Starting repair changes a current continuation to
+stale; later resolution can only discard it. A newly staged continuation after admission reopens is
+independent.
+
+Explicit repair stages model transient clearing, key release, mouse release, conditional focus-out,
+and admission reopening. `localKeyPressed`, `localMousePressed`, and `localFocused` represent
+admitted desired ownership; `keyPressed`, `mousePressed`, and `focused` represent ownership already
+published to the Host. `reviewStalled` and `queuedOwnershipInput` belong to the current dispatcher
+generation. Lifecycle invalidation clears both, preserves a separately modelled cancelled review
+only as inert work, and starts cleanup from Host-published ownership. Thus a queued release cannot
+hide a required release, a queued press cannot cause an orphan release, and cleanup progress does
+not depend on review resolution or fairness. Stateless sends model synthetic editing keys and
+wheel reports without changing held ownership. Successful synchronous send completion alone
+updates Host-published ownership. Failed physical presses roll back local staging and their
+correlation; failed releases and focus-out retain prior Host ownership. Repair still advances after
+a failed cleanup send because the runtime reports and attempts each consequence at most once per
+cleanup transaction; the model does not claim delivery or ownership clearance after that failure.
+
+`focused` and `needsFocusOut` distinguish focused and already-unfocused repairs. A disposal may
+start from the completed focus-repair stage without first reopening input, matching synchronous
+disposal requested from a focus-out callback. A separate pending-disposal path closes admission
+immediately during an earlier release callback, adds any required focus-out to the already-owned
+cleanup, and completes disposal only after that cleanup. A focus repair that arrives while reset
+owns the transaction changes the reset consequence to conditional focus-out; reset alone retains
+focus. Reopening a reset repair starts focus reconciliation in the fresh generation when DOM focus
+was retained but the invalidated generation did not publish it. Weak fairness applies only to
+already-started synchronous send completion and repair consequence stages, establishing admission
+closure, ordered cleanup-attempt progress, pending focus-out settlement, and disposal completion;
+it does not assume a send succeeds, browser settlement arrives, cancelled review resolves, or a
+stale continuation runs. The correlation set abstracts one replaceable record per source kind.
+Concrete text identity and the strict 99/100-millisecond boundary are owned by the pure TypeScript
+tests. They strictly parse and replay the record/check fields of the pinned mature trace, which is
+versioned in
+[`../docs/input-repair-conformance-v0.0.1.json`](../docs/input-repair-conformance-v0.0.1.json).
+The headed `terminal-parity/IN-02-composition` witness drives real `ProjectedTerminal` DOM and
+Canvas adapters with synthetic `CompositionEvent`/`InputEvent` instances. It proves the
+application-layer browser adapter and completed Canvas frames, not a native operating-system IME
+candidate UI.
+
+Run the bounded model from the repository root:
+
+```sh
+pnpm --filter @orchbee/terminal test:tla
+```
+
+The runner executes the presentation model once and the input model through nine fixed semantic
+scenarios: composition, key, mouse, focus, review-key, review-mouse, review-focus,
+review-composition, and lifecycle. `review-composition` combines a stalled review, queued focus-in,
+reset invalidation, a deliberately failed first fresh-generation focus reconciliation, a blocked
+composition publication attempt, a successful reconciliation retry, and a later composition
+publication. `InputPublicationReady` guards only Host-directed publication; composition start,
+update, cancelled-end settlement, and stale-continuation discard remain local dispatcher actions
+and do not require Host focus convergence.
+
+It generates each scenario configuration transiently beside the owning model, pins `tla2tools
+1.7.4` by SHA-1, uses one worker, a fixed fingerprint polynomial, and action coverage, and gives
+every TLC process a unique operating-system temporary metadata directory. Both the generated
+configuration and metadata directory are removed in `finally`. TLC stdout remains visible while
+the runner captures and aggregates it. For the input-repair model, the runner parses stable named
+coverage entries and fails when any required action or invariant-antecedent marker is absent or both
+reported counts are zero. The required set covers staged/current/stale continuation, eligible and
+settled repair, coalesced focus repair during reset, unfocused and completed-focus disposal,
+pending-disposal request/completion, focus-out, eligible composition publication, stalled review,
+each queued and published ownership transition, stateless publication, synchronous failure,
+failed-press rollback, release ownership guards, fresh-generation focus reconciliation, current
+review rejection, the reset/review focus-failure mismatch, blocked and post-convergence composition
+publication, local composition progress and cancelled settlement during mismatch, lifecycle cleanup
+with and without Host-published ownership, late cancelled-review settlement, current-generation
+bypass, and the corresponding invariant antecedents. A startup self-check rejects synthetic
+missing and `0:0` coverage before TLC runs;
+source line numbers are not parsed. The presentation model is executed unchanged and has no
+input-repair coverage requirement. The runner downloads the jar into the ignored package-local
+`.tools` directory when necessary. Set
+`TERMINAL_TLA2TOOLS_JAR` to an already provisioned jar with the same digest.
+
+The 2026-08-12 bounded run completed with every queue empty. The presentation model generated 95
+states with 76 distinct states at depth 8. Input scenarios generated/distinct states as follows:
+composition 35,856/6,706; key 2,232/581; mouse 1,420/421; focus 421/150; review-key
+15,545/2,349; review-mouse 18,776/2,667; review-focus 2,968/613; review-composition
+36,274/7,854; and lifecycle 8,214/1,953. The aggregate input exploration was 121,706 generated
+and 23,294 distinct states, with maximum depth 28. Required coverage was nonzero for the reset
+focus-failure state, local composition progress and cancelled settlement while focus was
+unconverged, the blocked Host publication attempt, and the later post-convergence composition
+publication.

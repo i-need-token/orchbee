@@ -25,6 +25,74 @@ input, selection, search, hover, and history-viewport state, then asks the Host 
 full reset. Neither method injects terminal escape bytes or reuses projection `store-reset`
 recovery.
 
+Input repair keeps native composition lifetime separate from local commit eligibility. An active
+composition may be eligible, or it may be cancelled while the browser still owes a terminal
+`compositionend`. Reset, textarea blur, window blur, hidden-document transition, and disposal
+clear the textarea and renderer preedit immediately, revoke commit eligibility, and clear key,
+composition, `beforeinput`, paste, and mouse correlation records. Late composition updates and
+either late `beforeinput`/`compositionend` order cannot republish preedit or text; the late end only
+settles the cancelled native work. A new `compositionstart` supersedes cancelled work even when its
+old `compositionend` never arrives. Refocus, a non-composing key, or standalone non-composition
+`beforeinput` also restores local progress without waiting for that end. In an uncancelled
+composition, both browser orders (`beforeinput` then `compositionend`, or the reverse) commit the
+text at most once, and the state transition is complete before the synchronous command-port send.
+
+Normal deduplication records are single-use. The first `beforeinput` check consumes the preceding
+key record even when it does not match; matching composition, `beforeinput`, and opposite-source
+paste checks consume their record. Their window is strictly less than 100 milliseconds. A
+cancelled or end-first composition uses a separate settlement guard that repair does not clear.
+Only a composition-origin `beforeinput`, identified by `isComposing`, `insertCompositionText`, or
+`insertFromComposition`, consumes that guard; later independent `insertText` with the same text is
+not suppressed. Composition-origin special input types are settled before paste, line-break, or
+deletion handling, so cancelled native work cannot enter those branches. A new `compositionstart`
+establishes ownership of the next composition events and replaces any older unsettled native work
+because browser events provide no composition identifier.
+
+A final mouse release and every repair clear the retained mouse sample. Repair closes a local input
+admission gate and starts one cleanup transaction before clearing ownership or calling any helper
+that can synchronously send a command. Input handlers also retain the repair epoch across history
+recovery, selection clearing, and focus reporting; a repair that closes and later reopens admission
+invalidates the older continuation before it can publish a key press, preedit, text, mouse input, or
+stale correlation. A composition text commit additionally retains the exact staged input-state
+identity, so returning from its synchronous send cannot clear textarea or preedit state installed by
+a reentrant repair and newer composition.
+
+Ordinary admitted input remains FIFO within one dispatcher generation, including while paste review
+is pending. Lifecycle repair closes admission and invalidates that generation before snapshotting
+cleanup, so reset, blur, visibility loss, and disposal do not wait for a paste review that may never
+settle. Queued commands and late review resolutions or rejections from an invalidated generation are
+observed but inert. A newly opened generation progresses independently after repair.
+
+The adapter tracks admitted desired ownership separately from ownership already published to the
+Host. Physical key presses and pointer buttons are persistent ownership; synthetic
+`beforeinput` Enter/Backspace/Delete commands and wheel button 4/5 reports are stateless and never
+enter a held ledger. The adapter stages local desired state before any synchronous boundary, calls
+the command port under one publication gate, and commits Host-published ownership only after
+`port.send` returns synchronously. A lifecycle callback during that call is coalesced until the
+outcome is known. A synchronous throw is the existing browser-adapter pre-acceptance failure
+boundary: a failed press rolls back its local ownership and correlation, while a failed release or
+focus-out retains known Host ownership for a later repair attempt. A returned promise may still
+reject diagnostically, but synchronous return records local transport acceptance and makes no claim
+about remote delivery.
+
+Cleanup releases only published ownership: a queued release cannot hide a Host-visible press, while
+a queued or failed press cannot produce an orphan release. Blur and visibility loss release
+published keys and mouse buttons once in press order, then publish focus-out only when this session
+published focus-in. Disposal closes admission permanently and follows the same order, omitting
+focus-out when already unfocused. Each disposal cleanup command is attempted once; a synchronous
+failure is reported and retained as known ownership, but teardown cannot retry after its DOM and
+listeners are removed. Reset itself requires no focus-out and retains focus. If reset invalidates a
+queued or failed focus-in, its replacement generation attempts focus reconciliation before later
+key or mouse publication; a synchronous reconciliation failure remains retryable by the next input.
+A blur, visibility loss, or disposal that reenters while reset is staging or sending cleanup is
+coalesced into the same transaction; the transaction drains key release, mouse release, and any
+newly required focus-out before it reopens admission or disposes. The Host reset follows that
+cleanup in the replacement dispatcher generation. Current-generation DOM paste-review rejection is
+reported through the existing command error channel and does not stall later input; rejection from
+an invalidated generation remains inert. The versioned mature correlation trace and its pinned
+source revision are maintained as strictly parsed, data-driven replay input in
+[`docs/input-repair-conformance-v0.0.1.json`](docs/input-repair-conformance-v0.0.1.json).
+
 `ProjectedTerminal` represents exactly one attachment. Project, Workspace, Tab, Panel, and visibility policy remain above this package; a hidden terminal does not require a live renderer surface, and projection/history demand can be paused independently of the Host runtime.
 
 Host bell effects arrive through `ProjectedTerminal.onBell` as attachment-scoped monotonic events.
@@ -69,6 +137,25 @@ hostConnection.onTerminalExited((event) => terminal.notifyExited(event));
 ```
 
 Opening waits for the configured face (including representative Latin, CJK, and emoji glyphs), then installs frame, renderer, input, resize, and accessibility handling before activating projection demand. The source-neutral default face is browser-generic `monospace`; an application may provide a provisioned product face, but the shared Desktop/Browser composition does not silently substitute a system-only font. Surface sizing subtracts computed padding from the available grid, retains the mature two-column minimum, and proposes no PTY geometry when padding consumes either content dimension. Padding balance remains opt-in. A measured resize is sent before active projection demand and is deduplicated only while it agrees with the latest Host-committed geometry or remains inside the short observer re-entry window. A Host geometry change, broker rejection, transport failure, or later unchanged observation makes the proposal eligible for retry. The hidden IME control uses the same font and follows the projected cursor so the native candidate window stays aligned. Device-pixel-ratio changes rebuild renderer geometry and terminal pixel dimensions instead of leaving a stale atlas. A frame commits into a bounded row-partitioned structure-of-arrays store and is acknowledged only after draw scheduling. `FrameApplied` acknowledges the client commit, not completed painting. Exact duplicates are re-acknowledged; invalid identity, sequence, generation, dimension, or delta-base input requests a complete snapshot without mutating the committed grid.
+
+An open attachment accepts one complete `TerminalPresentationConfiguration` transaction containing
+`fontFamily`, `fontSize`, `fontWeight`, `fontWeightBold`, `fontLigatures`,
+`fontMetricModifiers`, `paddingBalance`, and `allowTransparency`. There are no runtime partial
+setters. `updatePresentationConfiguration` validates and isolates the whole candidate, awaits its
+regular and bold font descriptions, and then prepares renderer measurements before publishing any
+field. Requests are latest-wins: superseded or disposed preparation returns a typed cancellation,
+and validation, font, or renderer preparation failure leaves the previous configuration visible.
+
+One successful local commit replaces all eight fields, remeasures once, resets the glyph atlas
+once, invalidates the whole surface, and schedules one current repaint. The same commit realigns
+the hidden textarea and active IME preedit anchor, invalidates geometry-dependent link hover,
+repairs local geometry gestures without introducing a copy effect, and computes at most one new
+resize proposal with the current device-pixel ratio. Packed rows, Host selection, search,
+history, accessibility rows and DOM selection, attachment identity, subscriptions, and backend
+remain in place; the attachment and packed store are not reopened or reset. Host resize completion
+continues asynchronously through the existing resize path. A post-commit render or resize failure
+therefore retains the committed presentation and follows the existing typed recovery. A hidden or
+paused surface retains the new configuration and draws it once when presentation resumes.
 
 Host-driven frame geometry, including terminal-originated 80/132-column transitions, updates the
 packed store and renderer directly. Applying that snapshot never emits a reverse `ResizeTerminal`;
@@ -145,6 +232,21 @@ Ghostty remains the reference for selected font metrics, shaping boundaries, pro
 
 Search behavior follows the bounded contract in [`docs/vscode-search-alignment.md`](docs/vscode-search-alignment.md). The application owns the find surface, query history, shortcuts, and localized labels.
 
+### Device-pixel-ratio evidence
+
+The stable headed `terminal-parity/SU-08-dpr` trace commits and draws a frame through a real
+`ProjectedTerminal` and Chromium Canvas 2D surface before changing device scale from `1` to `1.5`.
+It checks unchanged logical and CSS geometry, current-DPR Canvas backing dimensions, raster-atlas
+invalidation and current-frame rerasterization, matching resize cell and derived terminal pixel
+dimensions, the hidden input anchor, resolution-query re-arming, and inert post-disposal changes.
+The trace uses Chromium DevTools device metrics plus a one-pixel viewport-width change so the real
+browser `resize` listener observes the new ratio. This is a controlled synthetic browser transition,
+not evidence of native monitor transfer, operating-system scaling UI, or another browser engine.
+
+| SU-08 claim                                                                             | Renderer evidence                                                                                                                                                     | Projected integration                                                                                                                                                           | Headed system trace         | Limits                                                                                                                       |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| DPR changes rebuild surface geometry, raster state, and PTY pixel dimensions coherently | `remeasures and fully repaints Canvas geometry at a fractional device-pixel ratio`; `reconfigures WebGPU and recreates its atlas for a clean device-pixel transition` | `repaints a committed frame and updates PTY and input geometry for fractional DPR changes`; `suspends hidden rendering and resumes with one draw of the newest committed frame` | `terminal-parity/SU-08-dpr` | Selected `1` to `1.5` Canvas browser trace; deterministic Canvas and WebGPU backend tests; no native monitor-transfer claim. |
+
 ## Development
 
 Run from the repository root:
@@ -153,8 +255,13 @@ Run from the repository root:
 pnpm --filter @orchbee/terminal typecheck
 pnpm --filter @orchbee/terminal build
 pnpm --filter @orchbee/terminal test
+pnpm --filter @orchbee/terminal test:tla
 pnpm --filter @orchbee/terminal test:exports
 pnpm verify
 ```
+
+`test:tla` checks the package-owned runtime-presentation and input-repair models documented in
+[`formal/README.md`](formal/README.md). They are change-triggered correctness evidence and are not
+part of the ordinary package test command.
 
 `pnpm audit:ghostty-panel` compares the maintained renderer/font provenance with the pinned Ghostty source when `../ghostty` or `GHOSTTY_SOURCE` is available. Run `pnpm generate:ghostty-panel-data` only when the pinned Nerd Font constraint table changes.

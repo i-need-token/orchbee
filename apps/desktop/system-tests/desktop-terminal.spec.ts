@@ -133,6 +133,263 @@ test.afterEach(async () => {
 	runtimeDirectory = undefined;
 });
 
+test('terminal-parity/SU-14-runtime-presentation', async () => {
+	test.setTimeout(45_000);
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage({ viewport: { height: 600, width: 1_000 } });
+		await page.goto(
+			new URL('terminal-presentation-fixture.html', currentDevelopmentRendererUrl).href,
+		);
+		const root = page.locator('#terminal-presentation-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).toHaveAttribute('data-witness-forced-canvas', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-create-count', '1');
+		await expect(root).toHaveAttribute('data-witness-open-count', '1');
+		await expect(root).toHaveAttribute('data-witness-search-state', 'complete');
+		await expect(root).toHaveAttribute('data-witness-search-match-count', '1');
+		await expect(root).toHaveAttribute('data-witness-search-active-index', '0');
+		await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
+		const attachmentId = await root.getAttribute('data-projected-terminal-attachment-id');
+		const initial = await runtimePresentationWitness(root);
+		expect(initial.backend).toBe('canvas2d');
+		expect(initial.canvasAlpha).toBe(255);
+		expect(initial.inputValue).toBe('候选');
+		expect(Number.parseFloat(initial.inputWidth)).toBeGreaterThan(1);
+		expect(initial.presentationCommittedEpoch).toBe('0');
+		expect(initial.presentationDrawnEpoch).toBe('0');
+
+		await page.locator('#prepare-runtime-presentation').dispatchEvent('click');
+		await expect(root).toHaveAttribute('data-projected-terminal-presentation-state', 'preparing');
+		await expect(root).toHaveAttribute('data-witness-font-preparation-count', '2');
+		await page.evaluate(
+			() =>
+				new Promise<void>((resolve) => {
+					requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+				}),
+		);
+		const preparing = await runtimePresentationWitness(root);
+		expect(preparing.renderedFrames).toBe(initial.renderedFrames);
+		expect(preparing.presentationCommittedEpoch).toBe('0');
+		expect(preparing.presentationDrawnEpoch).toBe('0');
+		expect(preparing.canvasAlpha).toBe(initial.canvasAlpha);
+		expect(preparing.canvasHeight).toBe(initial.canvasHeight);
+		expect(preparing.canvasWidth).toBe(initial.canvasWidth);
+		expect(preparing.inputFontFamily).toBe(initial.inputFontFamily);
+		expect(preparing.inputLeft).toBe(initial.inputLeft);
+		expect(preparing.inputTop).toBe(initial.inputTop);
+
+		await page.locator('#release-runtime-font').dispatchEvent('click');
+		await expect(root).toHaveAttribute('data-projected-terminal-presentation-state', 'completed');
+		await expect(root).toHaveAttribute('data-projected-terminal-presentation-committed-epoch', '1');
+		await expect(root).toHaveAttribute('data-projected-terminal-presentation-drawn-epoch', '1');
+		const committed = await runtimePresentationWitness(root);
+		expect(committed.renderedFrames).toBe(initial.renderedFrames + 1);
+		expect(committed.canvasAlpha).toBe(0);
+		expect(committed.canvasHeight).not.toBe(initial.canvasHeight);
+		expect(committed.canvasWidth).not.toBe(initial.canvasWidth);
+		expect(committed.canvasMargin).not.toBe('0px 0px 0px 0px');
+		expect(committed.inputFontFamily).toBe('serif');
+		expect(committed.inputFontSize).toBe('22px');
+		expect(committed.inputFontWeight).toBe('500');
+		expect(committed.inputLigatures).toBe('none');
+		expect(committed.inputLeft).not.toBe(initial.inputLeft);
+		expect(committed.inputTop).not.toBe(initial.inputTop);
+		expect(committed.inputValue).toBe('候选');
+		expect(await root.getAttribute('data-projected-terminal-attachment-id')).toBe(attachmentId);
+		await expect(root).toHaveAttribute('data-witness-create-count', '1');
+		await expect(root).toHaveAttribute('data-witness-open-count', '1');
+		await expect(root).toHaveAttribute('data-witness-search-state', 'complete');
+		await expect(root).toHaveAttribute('data-witness-search-match-count', '1');
+		await expect(root).toHaveAttribute('data-witness-search-active-index', '0');
+		await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
+		await expect(root).toHaveAttribute('data-witness-selection-copy-count', '0');
+		const baselineResizeCount = Number(
+			await root.getAttribute('data-witness-baseline-resize-count'),
+		);
+		expect(Number(await root.getAttribute('data-witness-resize-count'))).toBe(
+			baselineResizeCount + 1,
+		);
+	} finally {
+		await browser.close();
+	}
+});
+
+test('terminal-parity/SU-08-dpr', async () => {
+	test.setTimeout(45_000);
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch({ headless: false });
+	try {
+		const page = await browser.newPage({ viewport: { height: 500, width: 900 } });
+		await page.goto(new URL('terminal-dpr-fixture.html', currentDevelopmentRendererUrl).href);
+		const root = page.locator('#terminal-dpr-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).toHaveAttribute('data-witness-forced-canvas', 'true');
+		await expect(root).toHaveAttribute(
+			'data-witness-control',
+			'cdp-device-metrics-with-browser-resize',
+		);
+		await expect(root).toHaveAttribute(
+			'data-witness-limitation',
+			'synthetic-chromium-dpr-transition-not-native-monitor-transfer',
+		);
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		const initial = await dprWitness(root);
+		expect(initial.devicePixelRatio).toBe(1);
+		expect(initial.columns).toBe(24);
+		expect(initial.rows).toBe(4);
+		expect(initial.canvasWidth).toBe(initial.canvasCssWidth);
+		expect(initial.canvasHeight).toBe(initial.canvasCssHeight);
+		expect(initial.atlasClearCount).toBe(1);
+		expect(initial.renderCount).toBe(1);
+		expect(initial.resizeCount).toBeGreaterThan(0);
+		expect(initial.resizeColumns).toBeGreaterThan(0);
+		expect(initial.resizeRows).toBeGreaterThan(0);
+		expect(initial.resizeTerminalPixelWidth).toBe(
+			initial.resizeCellPixelWidth * initial.resizeColumns,
+		);
+		expect(initial.resizeTerminalPixelHeight).toBe(
+			initial.resizeCellPixelHeight * initial.resizeRows,
+		);
+		expect(initial.matchMediaCallCount).toBe(1);
+		expect(initial.matchMediaActiveCount).toBe(1);
+		expect(initial.windowResizeActiveCount).toBe(1);
+
+		const cdp = await page.context().newCDPSession(page);
+		await cdp.send('Emulation.setDeviceMetricsOverride', {
+			deviceScaleFactor: 1.5,
+			height: 500,
+			mobile: false,
+			width: 901,
+		});
+		await expect(root).toHaveAttribute('data-witness-dpr-transition', 'complete');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		const transitioned = await dprWitness(root);
+		expect(transitioned.devicePixelRatio).toBe(1.5);
+		expect(transitioned.columns).toBe(initial.columns);
+		expect(transitioned.rows).toBe(initial.rows);
+		expect(transitioned.canvasCssWidth).toBe(initial.canvasCssWidth);
+		expect(transitioned.canvasCssHeight).toBe(initial.canvasCssHeight);
+		expect(transitioned.canvasWidth).toBe(initial.canvasCssWidth * 1.5);
+		expect(transitioned.canvasHeight).toBe(initial.canvasCssHeight * 1.5);
+		expect(transitioned.canvasAlpha).toBe(255);
+		expect(transitioned.inputGeometry).toBe(initial.inputGeometry);
+		expect(transitioned.inputAnchorCoherent).toBe(true);
+		expect(transitioned.atlasClearCount).toBe(initial.atlasClearCount + 1);
+		expect(transitioned.atlasClearDelta).toBe(1);
+		expect(transitioned.canvasFillTextDelta).toBeGreaterThan(0);
+		expect(transitioned.renderCount).toBe(initial.renderCount + 1);
+		expect(transitioned.renderDelta).toBe(1);
+		expect(transitioned.lastForceAll).toBe(true);
+		expect(transitioned.lastReasons).toContain('surface');
+		expect(transitioned.lastRowsRendered).toBe(4);
+		expect(transitioned.lastCellsVisited).toBe(96);
+		expect(transitioned.lastGeneration).toBe('1');
+		expect(transitioned.lastRevision).toBe('1');
+		expect(transitioned.resizeCount).toBe(initial.resizeCount + 1);
+		expect(transitioned.resizeDelta).toBe(1);
+		expect(transitioned.resizeColumns).toBe(initial.resizeColumns);
+		expect(transitioned.resizeRows).toBe(initial.resizeRows);
+		expect(transitioned.resizeCellPixelWidth).toBe(
+			Math.round((initial.canvasCssWidth / initial.columns) * 1.5),
+		);
+		expect(transitioned.resizeCellPixelHeight).toBe(
+			Math.round((initial.canvasCssHeight / initial.rows) * 1.5),
+		);
+		expect(transitioned.resizeTerminalPixelWidth).toBe(
+			transitioned.resizeCellPixelWidth * transitioned.resizeColumns,
+		);
+		expect(transitioned.resizeTerminalPixelHeight).toBe(
+			transitioned.resizeCellPixelHeight * transitioned.resizeRows,
+		);
+		expect(transitioned.matchMediaCallCount).toBe(2);
+		expect(transitioned.matchMediaActiveCount).toBe(1);
+		expect(transitioned.matchMediaRemoveCount).toBe(1);
+		expect(transitioned.matchMediaLastQuery).toBe('(resolution: 1.5dppx)');
+		expect(transitioned.windowResizeInvocationCount).toBeGreaterThanOrEqual(1);
+
+		await page.locator('#dispose-dpr-witness').click();
+		await expect(root).toHaveAttribute('data-witness-dispose-complete', 'true');
+		await expect(root).toHaveAttribute('data-witness-dispose-child-count', '0');
+		const disposed = await dprWitness(root);
+		expect(disposed.matchMediaActiveCount).toBe(0);
+		expect(disposed.windowResizeActiveCount).toBe(0);
+
+		await cdp.send('Emulation.setDeviceMetricsOverride', {
+			deviceScaleFactor: 2,
+			height: 500,
+			mobile: false,
+			width: 902,
+		});
+		await page.waitForFunction(() => window.devicePixelRatio === 2 && window.innerWidth === 902);
+		await page.evaluate(
+			() =>
+				new Promise<void>((resolve) => {
+					requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+				}),
+		);
+		const afterDispose = await dprWitness(root);
+		expect(afterDispose.terminalMutationCount).toBe(disposed.terminalMutationCount);
+		expect(afterDispose.renderCount).toBe(disposed.renderCount);
+		expect(afterDispose.resizeCount).toBe(disposed.resizeCount);
+		expect(afterDispose.matchMediaCallCount).toBe(disposed.matchMediaCallCount);
+		expect(afterDispose.matchMediaInvocationCount).toBe(disposed.matchMediaInvocationCount);
+		expect(afterDispose.matchMediaActiveCount).toBe(0);
+		expect(afterDispose.windowResizeActiveCount).toBe(0);
+	} finally {
+		await browser.close();
+	}
+});
+
+test('terminal-parity/IN-02-composition', async () => {
+	test.setTimeout(45_000);
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage({ viewport: { height: 500, width: 900 } });
+		await page.goto(
+			new URL('terminal-input-repair-fixture.html', currentDevelopmentRendererUrl).href,
+		);
+		const root = page.locator('#terminal-input-repair-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-forced-canvas', 'true');
+		await expect(root).toHaveAttribute('data-witness-renderer', 'canvas2d');
+		await expect(root).toHaveAttribute(
+			'data-witness-synthetic-event-scope',
+			'application-layer-only',
+		);
+		await expect(root).toHaveAttribute('data-witness-create-count', '1');
+		await expect(root).toHaveAttribute('data-witness-open-count', '1');
+		await expect(root).toHaveAttribute('data-witness-active-preedit-observed', 'true');
+		await expect(root).toHaveAttribute('data-witness-repair-draw-delta', '1');
+		await expect(root).toHaveAttribute('data-witness-late-update-draw-delta', '0');
+		await expect(root).toHaveAttribute('data-witness-late-end-text-count', '0');
+		await expect(root).toHaveAttribute('data-witness-repeated-repair-guard-text-count', '0');
+		await expect(root).toHaveAttribute('data-witness-new-composition-text-count', '1');
+		await expect(root).toHaveAttribute('data-witness-restart-before-old-end-text-count', '1');
+		await expect(root).toHaveAttribute('data-witness-duplicate-end-text-count', '1');
+		await expect(root).toHaveAttribute('data-witness-textarea-cleared', 'true');
+		await expect(root).toHaveAttribute('data-witness-same-attachment', 'true');
+		await expect(root).toHaveAttribute('data-witness-dom-child-count-after-dispose', '0');
+		const attachment = await root.getAttribute('data-witness-attachment-id');
+		expect(attachment).toMatch(/^[0-9a-f]{32}$/u);
+	} finally {
+		await browser.close();
+	}
+});
+
 test('terminal-parity/SU-10-scrollbar', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
@@ -1324,6 +1581,17 @@ async function startWebRendererDevelopmentServer(): Promise<{
 	const loaded = await loadConfig({ command: 'dev', cwd: webRoot });
 	const config = mergeRsbuildConfig(loaded.content, {
 		server: { host: '127.0.0.1', port, strictPort: true },
+		source: {
+			entry: {
+				index: './src/composition/entry.ts',
+				'terminal-dpr-fixture':
+					'./src/workbench-client/projected-terminal-renderer/__tests__/dpr.system-fixture.ts',
+				'terminal-input-repair-fixture':
+					'./src/workbench-client/projected-terminal-renderer/__tests__/input-repair.system-fixture.ts',
+				'terminal-presentation-fixture':
+					'./src/workbench-client/projected-terminal-renderer/__tests__/runtime-presentation.system-fixture.ts',
+			},
+		},
 	});
 	const rsbuild = await createRsbuild({
 		callerName: 'orchbee-desktop-system-test',
@@ -1497,6 +1765,150 @@ function waitForElectronExit(application: ElectronApplication): Promise<void> {
 
 function projectedTerminal(page: Page): Locator {
 	return page.locator('[data-terminal-presentation-id][data-projected-terminal-state]').first();
+}
+
+async function dprWitness(root: Locator): Promise<{
+	readonly atlasClearCount: number;
+	readonly atlasClearDelta: number;
+	readonly canvasAlpha: number;
+	readonly canvasCssHeight: number;
+	readonly canvasCssWidth: number;
+	readonly canvasFillTextDelta: number;
+	readonly canvasHeight: number;
+	readonly canvasWidth: number;
+	readonly columns: number;
+	readonly devicePixelRatio: number;
+	readonly inputAnchorCoherent: boolean;
+	readonly inputGeometry: string;
+	readonly lastCellsVisited: number;
+	readonly lastForceAll: boolean;
+	readonly lastGeneration: string;
+	readonly lastReasons: string;
+	readonly lastRevision: string;
+	readonly lastRowsRendered: number;
+	readonly matchMediaActiveCount: number;
+	readonly matchMediaCallCount: number;
+	readonly matchMediaInvocationCount: number;
+	readonly matchMediaLastQuery: string;
+	readonly matchMediaRemoveCount: number;
+	readonly renderCount: number;
+	readonly renderDelta: number;
+	readonly resizeCellPixelHeight: number;
+	readonly resizeCellPixelWidth: number;
+	readonly resizeColumns: number;
+	readonly resizeCount: number;
+	readonly resizeDelta: number;
+	readonly resizeRows: number;
+	readonly resizeTerminalPixelHeight: number;
+	readonly resizeTerminalPixelWidth: number;
+	readonly rows: number;
+	readonly terminalMutationCount: number;
+	readonly windowResizeActiveCount: number;
+	readonly windowResizeInvocationCount: number;
+}> {
+	return root.evaluate((element) => {
+		if (!(element instanceof HTMLElement)) throw new Error('DPR witness root is invalid.');
+		const data = element.dataset;
+		const current = data['witnessCurrentDpr'] === undefined ? 'Initial' : 'Current';
+		const number = (key: string): number => Number(data[key] ?? '0');
+		return {
+			atlasClearCount: number('witnessAtlasClearCount'),
+			atlasClearDelta: number('witnessAtlasClearDelta'),
+			canvasAlpha: number('witnessCurrentCanvasAlpha'),
+			canvasCssHeight: number(`witness${current}CanvasCssHeight`),
+			canvasCssWidth: number(`witness${current}CanvasCssWidth`),
+			canvasFillTextDelta: number('witnessCanvasFillTextDelta'),
+			canvasHeight: number(`witness${current}CanvasHeight`),
+			canvasWidth: number(`witness${current}CanvasWidth`),
+			columns: number(`witness${current}Columns`),
+			devicePixelRatio: number(`witness${current}Dpr`),
+			inputAnchorCoherent: data['witnessInputAnchorCoherent'] === 'true',
+			inputGeometry: data[`witness${current}InputGeometry`] ?? '',
+			lastCellsVisited: number('witnessLastCellsVisited'),
+			lastForceAll: data['witnessLastForceAll'] === 'true',
+			lastGeneration: data['witnessLastGeneration'] ?? '',
+			lastReasons: data['witnessLastReasons'] ?? '',
+			lastRevision: data['witnessLastRevision'] ?? '',
+			lastRowsRendered: number('witnessLastRowsRendered'),
+			matchMediaActiveCount: number('witnessMatchMediaActiveCount'),
+			matchMediaCallCount: number('witnessMatchMediaCallCount'),
+			matchMediaInvocationCount: number('witnessMatchMediaInvocationCount'),
+			matchMediaLastQuery: data['witnessMatchMediaLastQuery'] ?? '',
+			matchMediaRemoveCount: number('witnessMatchMediaRemoveCount'),
+			renderCount: number('witnessRenderCount'),
+			renderDelta: number('witnessRenderDelta'),
+			resizeCellPixelHeight: number('witnessResizeCellPixelHeight'),
+			resizeCellPixelWidth: number('witnessResizeCellPixelWidth'),
+			resizeColumns: number('witnessResizeColumns'),
+			resizeCount: number('witnessResizeCount'),
+			resizeDelta: number('witnessResizeDelta'),
+			resizeRows: number('witnessResizeRows'),
+			resizeTerminalPixelHeight: number('witnessResizeTerminalPixelHeight'),
+			resizeTerminalPixelWidth: number('witnessResizeTerminalPixelWidth'),
+			rows: number(`witness${current}Rows`),
+			terminalMutationCount: number('witnessTerminalMutationCount'),
+			windowResizeActiveCount: number('witnessWindowResizeActiveCount'),
+			windowResizeInvocationCount: number('witnessWindowResizeInvocationCount'),
+		};
+	});
+}
+
+async function runtimePresentationWitness(root: Locator): Promise<{
+	readonly backend: string | null;
+	readonly canvasAlpha: number;
+	readonly canvasHeight: string;
+	readonly canvasMargin: string;
+	readonly canvasWidth: string;
+	readonly inputFontFamily: string;
+	readonly inputFontSize: string;
+	readonly inputFontWeight: string;
+	readonly inputLeft: string;
+	readonly inputLigatures: string;
+	readonly inputTop: string;
+	readonly inputValue: string;
+	readonly inputWidth: string;
+	readonly presentationCommittedEpoch: string | undefined;
+	readonly presentationDrawnEpoch: string | undefined;
+	readonly renderedFrames: number;
+}> {
+	return root.evaluate((element) => {
+		const canvas = element.querySelector('canvas');
+		const input = element.querySelector('textarea');
+		if (!(canvas instanceof HTMLCanvasElement) || !(input instanceof HTMLTextAreaElement)) {
+			throw new Error('Runtime presentation witness surface is incomplete.');
+		}
+		const context = canvas.getContext('2d');
+		if (context === null) throw new Error('Runtime presentation witness requires Canvas 2D.');
+		const sample = context.getImageData(
+			Math.max(0, canvas.width - 2),
+			Math.max(0, canvas.height - 2),
+			1,
+			1,
+		).data;
+		return {
+			backend: element.getAttribute('data-projected-terminal-renderer'),
+			canvasAlpha: sample[3] ?? -1,
+			canvasHeight: canvas.style.height,
+			canvasMargin: [
+				canvas.style.marginTop,
+				canvas.style.marginRight,
+				canvas.style.marginBottom,
+				canvas.style.marginLeft,
+			].join(' '),
+			canvasWidth: canvas.style.width,
+			inputFontFamily: input.style.fontFamily,
+			inputFontSize: input.style.fontSize,
+			inputFontWeight: input.style.fontWeight,
+			inputLeft: input.style.left,
+			inputLigatures: input.style.fontVariantLigatures,
+			inputTop: input.style.top,
+			inputValue: input.value,
+			inputWidth: input.style.width,
+			presentationCommittedEpoch: element.dataset['projectedTerminalPresentationCommittedEpoch'],
+			presentationDrawnEpoch: element.dataset['projectedTerminalPresentationDrawnEpoch'],
+			renderedFrames: Number(element.dataset['projectedTerminalRenderedFrames'] ?? '0'),
+		};
+	});
 }
 
 function projectedTerminals(page: Page): Locator {

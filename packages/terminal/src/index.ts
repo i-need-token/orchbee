@@ -43,6 +43,16 @@ export type {
 	TerminalSearchOptions,
 } from './search';
 
+export {
+	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+	normalizeTerminalPresentationConfiguration,
+} from './presentation-configuration';
+export type {
+	TerminalPresentationConfiguration,
+	TerminalPresentationConfigurationUpdateResult,
+	TerminalPresentationConfigurationValidationResult,
+} from './presentation-configuration';
+
 export type { RendererFrameReason, RendererFrameTelemetry, RendererHealthEvent } from './rendering';
 export type {
 	FontMetricModifier,

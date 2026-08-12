@@ -56,12 +56,27 @@ import {
 	type TerminalBufferRowsSnapshot,
 } from '../buffer-rows';
 import {
+	beginTerminalComposition,
 	buildPreeditState,
 	calculateInputAnchor,
+	createTerminalInputState,
+	disposeTerminalInputState,
+	finishTerminalComposition,
 	ghosttyCodepointWidth,
+	observeTerminalBeforeInput,
+	observeTerminalPaste,
 	OrderedInputDispatcher,
+	recordTerminalKeyInput,
+	recordTerminalMouseSample,
+	recordTerminalPaste,
+	repairTerminalInputState,
+	supersedeCancelledTerminalComposition,
+	TerminalBeforeInputOrigin,
 	shouldSuppressComposingControlInput,
+	TerminalCompositionPhase,
+	terminalCompositionUpdateIsEligible,
 	type PreeditState,
+	type TerminalInputState,
 } from '../input';
 import {
 	beginHistoryScrollbarDrag,
@@ -75,8 +90,15 @@ import {
 import {
 	type RendererFrameTelemetry,
 	type RendererHealthEvent,
+	type PreparedTerminalPresentationConfiguration,
 	WebGPURenderer,
 } from '../rendering';
+import {
+	normalizeTerminalPresentationConfiguration,
+	presentationConfigurationFromRendererOptions,
+	type TerminalPresentationConfiguration,
+	type TerminalPresentationConfigurationUpdateResult,
+} from '../presentation-configuration';
 import {
 	createProjectedSearchWorker,
 	ProjectedSearchController,
@@ -91,11 +113,6 @@ import {
 	isPermittedExternalTerminalTarget,
 	terminalLinkContains,
 } from '../terminal-row-links';
-import {
-	DEFAULT_RENDERER_FONT_FAMILY,
-	DEFAULT_RENDERER_FONT_SIZE,
-	DEFAULT_RENDERER_FONT_WEIGHT,
-} from '../types';
 import type { ILink, RendererOptions, SurfacePadding } from '../types';
 import {
 	PackedTerminalStore,
@@ -119,6 +136,23 @@ const RESIZE_REENTRY_MS = 50;
 function cssPixels(value: string): number {
 	const parsed = Number.parseFloat(value);
 	return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+}
+
+function isTextInsertionInputType(inputType: string): boolean {
+	return (
+		inputType === 'insertText' ||
+		inputType === 'insertReplacementText' ||
+		inputType === 'insertCompositionText' ||
+		inputType === 'insertFromComposition'
+	);
+}
+
+function isCompositionBeforeInput(event: InputEvent): boolean {
+	return (
+		event.isComposing ||
+		event.inputType === 'insertCompositionText' ||
+		event.inputType === 'insertFromComposition'
+	);
 }
 
 function readSurfacePadding(root: HTMLElement): SurfacePadding {
@@ -294,6 +328,38 @@ export const ProjectedTerminalPhase = {
 export type ProjectedTerminalPhase =
 	(typeof ProjectedTerminalPhase)[keyof typeof ProjectedTerminalPhase];
 
+const ProjectedInputAdmission = {
+	accepting: 'accepting',
+	disposed: 'disposed',
+	repairing: 'repairing',
+} as const;
+
+type ProjectedInputAdmission =
+	(typeof ProjectedInputAdmission)[keyof typeof ProjectedInputAdmission];
+
+const ProjectedInputPublicationIntent = {
+	held: 'held',
+	stateless: 'stateless',
+} as const;
+
+type ProjectedInputPublicationIntent =
+	(typeof ProjectedInputPublicationIntent)[keyof typeof ProjectedInputPublicationIntent];
+
+interface ProjectedInputRepairTransaction {
+	afterCleanup: (() => void) | undefined;
+	readonly attemptedKeys: Set<TerminalKeyCodeValue>;
+	readonly attemptedMouseButtons: Set<Exclude<MouseInput['button'], null>>;
+	readonly commands: ProjectedTerminalCommand[];
+	deferredDispose: boolean;
+	deferredFocusLoss: boolean;
+	dispatchRequested: boolean;
+	focusOutCommand: ProjectedTerminalCommand | undefined;
+	focusOutSent: boolean;
+	nextCommandIndex: number;
+	transientDisposed: boolean;
+	transientRepaired: boolean;
+}
+
 interface KeyFacts {
 	readonly composing: boolean;
 	readonly consumedModifiers: TerminalModifiers;
@@ -301,11 +367,6 @@ interface KeyFacts {
 	readonly modifiers: TerminalModifiers;
 	readonly text: string;
 	readonly unshiftedCodepoint: number;
-}
-
-interface SentInput {
-	readonly text: string;
-	readonly time: number;
 }
 
 interface ResizeGeometry {
@@ -378,6 +439,21 @@ type ScheduledFrame =
 	| { readonly kind: 'animation-frame'; readonly value: number }
 	| { readonly kind: 'timeout'; readonly value: ReturnType<typeof setTimeout> };
 
+interface PresentationPreparation {
+	readonly controller: AbortController;
+	readonly epoch: number;
+}
+
+interface PreparedPaste {
+	readonly review: ProjectedPasteReview;
+	readonly sanitized: string;
+}
+
+type PresentationFontPreparation =
+	| { readonly kind: 'ready' }
+	| { readonly error: unknown; readonly kind: 'failed' }
+	| { readonly kind: 'cancelled'; readonly reason: 'disposed' | 'superseded' };
+
 export class ProjectedTerminal {
 	readonly #accessibilityModel = new AccessibleTextModel();
 	readonly #accessibilityModelRows: AccessibleRow[] = [];
@@ -408,6 +484,8 @@ export class ProjectedTerminal {
 	readonly #pressedKeys = new Map<string, KeyFacts>();
 	readonly #pressedModifierCodes = new Set<string>();
 	readonly #pressedMouseButtons = new Set<Exclude<MouseInput['button'], null>>();
+	readonly #publishedKeys = new Map<TerminalKeyCodeValue, KeyFacts>();
+	readonly #publishedMouseButtons = new Set<Exclude<MouseInput['button'], null>>();
 	readonly #store: PackedTerminalStore;
 	readonly #selectionEmitter = new EventEmitter<SelectionChanged>();
 	readonly #selectionCopiedEmitter = new EventEmitter<{
@@ -425,7 +503,6 @@ export class ProjectedTerminal {
 	#accessibilityRoot: HTMLDivElement | undefined;
 	#accessibilityVisibleStart = 0n;
 	#canvas: HTMLCanvasElement | undefined;
-	#composing = false;
 	#demand: ProjectionDemand = 'active';
 	#demandSent: ProjectionDemand | undefined;
 	#devicePixelRatio = 1;
@@ -445,14 +522,16 @@ export class ProjectedTerminal {
 	#historyTotalRows = 0n;
 	#historyRowsBefore = 0;
 	#input: HTMLTextAreaElement | undefined;
+	#inputAdmission: ProjectedInputAdmission = ProjectedInputAdmission.accepting;
 	#inputFocused = false;
-	#lastBeforeInput: SentInput | undefined;
-	#lastComposition: SentInput | undefined;
+	#inputPublicationActive = false;
+	#inputRefocusAfterRepair = false;
+	#inputRepairDraining = false;
+	#inputRepairEpoch = 0;
+	#inputRepairTransaction: ProjectedInputRepairTransaction | undefined;
+	#inputState: TerminalInputState<MouseInput> = createTerminalInputState();
 	#lastGeometry: ResizeGeometry | undefined;
 	#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
-	#lastKeyInput: SentInput | undefined;
-	#lastMouseInput: MouseInput | undefined;
-	#lastPaste: (SentInput & { readonly source: 'beforeinput' | 'clipboard' }) | undefined;
 	#listenerDisposers: Array<() => void> = [];
 	#hoveredLink: ILink | undefined;
 	#hoveredLinkPoint: PendingLinkPoint | undefined;
@@ -468,12 +547,21 @@ export class ProjectedTerminal {
 	#pendingHistoryTargetRow: bigint | undefined;
 	#pendingSelectionGesture: PendingSelectionGesture | undefined;
 	#phase: ProjectedTerminalPhase = ProjectedTerminalPhase.constructed;
+	#disposeAfterRepair = false;
+	#disposalStarted = false;
+	#presentationConfiguration: TerminalPresentationConfiguration;
 	#presentationPaused = false;
+	#presentationPreparation: PresentationPreparation | undefined;
+	#presentationRequestEpoch = 0;
+	#publishedInputFocused = false;
+	#publishedMouseSample: MouseInput | undefined;
 	#presentationSuspended = false;
 	#preeditCaretPixelOffset = 0;
+	#preeditCaretUtf16Offset = 0;
 	#preeditCellWidth = 0;
 	#preeditPresented = false;
 	#preeditState: PreeditState | undefined;
+	#preeditText = '';
 	#renderer: WebGPURenderer | undefined;
 	#resizeObserver: ResizeObserver | undefined;
 	#root: HTMLElement | undefined;
@@ -503,6 +591,9 @@ export class ProjectedTerminal {
 		this.#store = new PackedTerminalStore(options.hostEpoch, options.attachmentId);
 		this.#terminalId = options.terminalId;
 		this.#selection = { attachmentId: options.attachmentId, state: 'none' };
+		this.#presentationConfiguration = presentationConfigurationFromRendererOptions(
+			options.renderer,
+		);
 		if (options.autoActivate === false) {
 			this.#demand = 'paused';
 			this.#presentationPaused = true;
@@ -566,10 +657,12 @@ export class ProjectedTerminal {
 			this.#documentHidden = document.visibilityState === 'hidden';
 			this.#devicePixelRatio =
 				this.#options.renderer?.devicePixelRatio ?? view?.devicePixelRatio ?? 1;
-			const fontFamily = this.#options.renderer?.fontFamily ?? DEFAULT_RENDERER_FONT_FAMILY;
-			const fontSize = this.#options.renderer?.fontSize ?? DEFAULT_RENDERER_FONT_SIZE;
-			const fontWeight = this.#options.renderer?.fontWeight ?? DEFAULT_RENDERER_FONT_WEIGHT;
-			await this.#loadConfiguredFont(document, fontFamily, fontSize, fontWeight);
+			const presentationConfiguration = this.#presentationConfiguration;
+			try {
+				await this.#loadConfiguredFonts(document, presentationConfiguration);
+			} catch (error) {
+				if (!this.#isDisposed()) this.#errorEmitter.fire({ error, operation: 'font' });
+			}
 			if (this.#isDisposed()) return;
 			const canvas = document.createElement('canvas');
 			canvas.setAttribute('aria-hidden', 'true');
@@ -598,9 +691,7 @@ export class ProjectedTerminal {
 			input.style.color = 'transparent';
 			input.style.background = 'transparent';
 			input.style.caretColor = 'transparent';
-			input.style.fontFamily = fontFamily;
-			input.style.fontSize = `${fontSize}px`;
-			input.style.fontWeight = String(fontWeight);
+			this.#applyInputPresentation(input, presentationConfiguration);
 			root.appendChild(input);
 			this.#input = input;
 
@@ -643,6 +734,7 @@ export class ProjectedTerminal {
 
 			const renderer = new WebGPURenderer(canvas, {
 				...this.#options.renderer,
+				...presentationConfiguration,
 				devicePixelRatio: this.#devicePixelRatio,
 			});
 			renderer.setHealthChangeCallback((event) => this.#healthEmitter.fire(event));
@@ -671,6 +763,65 @@ export class ProjectedTerminal {
 			this.dispose();
 			throw error;
 		}
+	}
+
+	/** Replace every client-owned presentation field without reopening this attachment. */
+	async updatePresentationConfiguration(
+		candidate: unknown,
+	): Promise<TerminalPresentationConfigurationUpdateResult> {
+		const normalized = normalizeTerminalPresentationConfiguration(candidate);
+		if (normalized.kind === 'invalid') {
+			return {
+				code: 'invalid-configuration',
+				field: normalized.field,
+				kind: 'failed',
+			};
+		}
+		if (this.#isDisposed()) return { kind: 'cancelled', reason: 'disposed' };
+		if (this.#phase !== ProjectedTerminalPhase.open) {
+			return { code: 'terminal-not-open', kind: 'failed' };
+		}
+		const root = this.#root;
+		const renderer = this.#renderer;
+		const input = this.#input;
+		if (!root || !renderer || !input) return { code: 'terminal-not-open', kind: 'failed' };
+
+		this.#cancelPresentationPreparation('superseded');
+		const epoch = ++this.#presentationRequestEpoch;
+		const controller = new AbortController();
+		this.#presentationPreparation = { controller, epoch };
+		const fontPreparation = this.#loadConfiguredFonts(
+			root.ownerDocument,
+			normalized.configuration,
+		).then(
+			(): PresentationFontPreparation => ({ kind: 'ready' }),
+			(error: unknown): PresentationFontPreparation => ({ error, kind: 'failed' }),
+		);
+		const outcome = await Promise.race([
+			fontPreparation,
+			this.#waitForPresentationCancellation(controller),
+		]);
+		if (this.#presentationPreparation?.epoch === epoch) {
+			this.#presentationPreparation = undefined;
+		}
+		if (outcome.kind === 'cancelled') return outcome;
+		if (this.#isDisposed()) return { kind: 'cancelled', reason: 'disposed' };
+		if (epoch !== this.#presentationRequestEpoch) {
+			return { kind: 'cancelled', reason: 'superseded' };
+		}
+		if (outcome.kind === 'failed') {
+			this.#errorEmitter.fire({ error: outcome.error, operation: 'font' });
+			return { code: 'font-preparation-failed', kind: 'failed' };
+		}
+
+		let prepared: PreparedTerminalPresentationConfiguration;
+		try {
+			prepared = renderer.preparePresentationConfiguration(normalized.configuration);
+		} catch {
+			return { code: 'renderer-preparation-failed', kind: 'failed' };
+		}
+		this.#commitPresentationConfiguration(renderer, input, prepared);
+		return { configuration: prepared.configuration, kind: 'completed' };
 	}
 
 	applyFrame(frame: ArrayBuffer | Uint8Array): ProjectedFrameResult {
@@ -1117,23 +1268,23 @@ export class ProjectedTerminal {
 	}
 
 	reset(): void {
+		if (!this.#beginInputRepair()) return;
+		this.#stageActiveInputRepair(false, false);
 		this.#clearHistoryScrollbarClickSuppression();
 		this.#finishHistoryScrollbarGesture(true);
-		if (!this.canControlTerminal) return;
-		this.#cancelComposition();
+		if (!this.canControlTerminal) {
+			this.#dispatchInputRepair();
+			return;
+		}
 		this.#cancelSelectionGestureForReset();
-		const releaseCommands = [
-			...this.#takePressedKeyReleaseCommands(),
-			...this.#takePressedMouseReleaseCommands(),
-		];
-		this.#pressedModifierCodes.clear();
 		this.clearSelection();
 		this.clearSearch();
 		this.#invalidateLinkCache();
 		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) this.scrollToBottom();
-		this.#inputDispatcher.dispatchSync(() => {
-			for (const command of releaseCommands) this.#send(command);
-			if (!this.canControlTerminal) return;
+		this.#dispatchInputRepair(() => {
+			if (this.#inputAdmission !== ProjectedInputAdmission.repairing || !this.canControlTerminal) {
+				return;
+			}
 			this.#send({
 				kind: 'reset-terminal',
 				payload: { attachmentId: this.#attachmentId },
@@ -1217,24 +1368,23 @@ export class ProjectedTerminal {
 	}
 
 	async paste(text: string, source: ProjectedPasteSource = 'api'): Promise<ProjectedPasteResult> {
-		return await this.#inputDispatcher.dispatch(() => this.#performPaste(text, source));
+		const admitted = this.#canAdmitInput();
+		return await this.#inputDispatcher.dispatch(
+			(signal) => this.#performPaste(text, source, admitted, signal),
+			() => this.#cancelledPasteResult(text, source),
+		);
 	}
 
-	async #performPaste(text: string, source: ProjectedPasteSource): Promise<ProjectedPasteResult> {
-		if (!text) return { kind: 'empty' };
-		const { sanitized, replaced } = sanitizePaste(text);
-		if (!sanitized || textEncoder.encode(sanitized).byteLength > PROTOCOL_LIMITS.maxInputBytes) {
-			return { kind: 'empty' };
-		}
-		const review: ProjectedPasteReview = {
-			bracketed: this.#store.metadata?.interaction.bracketedPaste ?? false,
-			embeddedBracketTerminator: sanitized.includes(BRACKETED_PASTE_END),
-			multiline: sanitized.includes('\n'),
-			replacedControlCharacters: replaced,
-			source,
-			text: sanitized,
-		};
-		if (this.#isDisposed() || this.#options.inputEnabled === false) {
+	async #performPaste(
+		text: string,
+		source: ProjectedPasteSource,
+		admitted: boolean,
+		signal: AbortSignal,
+	): Promise<ProjectedPasteResult> {
+		const prepared = this.#preparePaste(text, source);
+		if (prepared === undefined) return { kind: 'empty' };
+		const { review, sanitized } = prepared;
+		if (!admitted || signal.aborted || !this.#canAdmitInput()) {
 			return { kind: 'blocked', review };
 		}
 		const protectedByBracketedPaste =
@@ -1247,14 +1397,41 @@ export class ProjectedTerminal {
 			const approved = await this.#options.reviewPaste?.(review);
 			if (approved !== true) return { kind: 'blocked', review };
 		}
-		if (this.#isDisposed()) {
+		if (signal.aborted || !this.#canAdmitInput()) {
 			return { kind: 'blocked', review };
 		}
-		this.#send({
-			kind: 'paste-input',
-			payload: { attachmentId: this.#attachmentId, text: sanitized },
-		});
+		this.#publishCurrentInputCommand(
+			{
+				kind: 'paste-input',
+				payload: { attachmentId: this.#attachmentId, text: sanitized },
+			},
+			ProjectedInputPublicationIntent.stateless,
+		);
 		return { kind: 'sent', review };
+	}
+
+	#preparePaste(text: string, source: ProjectedPasteSource): PreparedPaste | undefined {
+		if (!text) return undefined;
+		const { sanitized, replaced } = sanitizePaste(text);
+		if (!sanitized || textEncoder.encode(sanitized).byteLength > PROTOCOL_LIMITS.maxInputBytes) {
+			return undefined;
+		}
+		const review: ProjectedPasteReview = {
+			bracketed: this.#store.metadata?.interaction.bracketedPaste ?? false,
+			embeddedBracketTerminator: sanitized.includes(BRACKETED_PASTE_END),
+			multiline: sanitized.includes('\n'),
+			replacedControlCharacters: replaced,
+			source,
+			text: sanitized,
+		};
+		return { review, sanitized };
+	}
+
+	#cancelledPasteResult(text: string, source: ProjectedPasteSource): ProjectedPasteResult {
+		const prepared = this.#preparePaste(text, source);
+		return prepared === undefined
+			? { kind: 'empty' }
+			: { kind: 'blocked', review: prepared.review };
 	}
 
 	notifyBell(event: TerminalBell): void {
@@ -1297,7 +1474,38 @@ export class ProjectedTerminal {
 	}
 
 	dispose(): void {
-		if (this.#phase === ProjectedTerminalPhase.disposed) return;
+		if (
+			this.#phase === ProjectedTerminalPhase.disposed ||
+			this.#inputAdmission === ProjectedInputAdmission.disposed
+		) {
+			return;
+		}
+		if (this.#inputRepairTransaction !== undefined) {
+			this.#inputAdmission = ProjectedInputAdmission.disposed;
+			this.#inputRepairEpoch++;
+			this.#inputDispatcher.invalidate();
+			this.#disposeAfterRepair = true;
+			this.#stageActiveInputRepair(true, true);
+			return;
+		}
+		this.#inputAdmission = ProjectedInputAdmission.disposed;
+		this.#inputRepairEpoch++;
+		this.#inputDispatcher.invalidate();
+		if (this.#inputPublicationActive) {
+			this.#inputRepairTransaction = this.#createInputRepairTransaction();
+			this.#disposeAfterRepair = true;
+			this.#stageActiveInputRepair(true, true);
+			this.#dispatchInputRepair();
+			return;
+		}
+		this.#performDispose();
+	}
+
+	#performDispose(inputCleanupAttempted = false): void {
+		if (this.#disposalStarted) return;
+		this.#disposalStarted = true;
+		this.#cancelPresentationPreparation('disposed');
+		const inputCleanup = inputCleanupAttempted ? [] : this.#prepareFocusLossInputRepair(true);
 		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) {
 			this.#send({
 				kind: 'set-history-demand',
@@ -1308,9 +1516,9 @@ export class ProjectedTerminal {
 			this.#demand = 'paused';
 			this.#sendDemandIfNeeded();
 		}
-		this.#repairInputState(true);
 		this.#phase = ProjectedTerminalPhase.disposed;
 		this.#historyPhase = ProjectedHistoryPhase.disposed;
+		this.#dispatchDisposedInputCleanup(inputCleanup);
 		const rowFlight = this.#rowFlight;
 		this.#rowFlight = undefined;
 		if (rowFlight?.kind === 'buffer') {
@@ -2129,12 +2337,14 @@ export class ProjectedTerminal {
 		return this.#phase === ProjectedTerminalPhase.disposed;
 	}
 
-	#send(command: ProjectedTerminalCommand): void {
+	#send(command: ProjectedTerminalCommand): boolean {
 		try {
 			const pending = this.#options.port.send(command);
 			void pending?.catch((error) => this.#reportCommandFailure(command, error));
+			return true;
 		} catch (error) {
 			this.#reportCommandFailure(command, error);
+			return false;
 		}
 	}
 
@@ -2144,13 +2354,114 @@ export class ProjectedTerminal {
 		this.#errorEmitter.fire({ error, operation });
 	}
 
-	#sendInput(command: ProjectedTerminalCommand, allowAfterDispose = false): void {
+	#sendInput(
+		command: ProjectedTerminalCommand,
+		intent: ProjectedInputPublicationIntent,
+		onRejected?: () => void,
+	): void {
+		if (!this.#canAdmitInput()) return;
 		this.#inputDispatcher.dispatchSync(() => {
-			if ((!allowAfterDispose && this.#isDisposed()) || this.#options.inputEnabled === false) {
-				return;
-			}
-			this.#send(command);
+			if (!this.#canAdmitInput()) return;
+			if (!this.#publishCurrentInputCommand(command, intent)) onRejected?.();
 		});
+	}
+
+	#publishCurrentInputCommand(
+		command: ProjectedTerminalCommand,
+		intent: ProjectedInputPublicationIntent,
+	): boolean {
+		if (!this.#canAdmitInput()) return false;
+		if (
+			command.kind !== 'focus-input' &&
+			this.#inputFocused &&
+			!this.#publishedInputFocused &&
+			!this.#publishInputCommand(
+				{
+					kind: 'focus-input',
+					payload: { attachmentId: this.#attachmentId, focused: true },
+				},
+				ProjectedInputPublicationIntent.held,
+			)
+		) {
+			return false;
+		}
+		if (!this.#canAdmitInput()) return false;
+		return this.#publishInputCommand(command, intent);
+	}
+
+	#publishInputCommand(
+		command: ProjectedTerminalCommand,
+		intent: ProjectedInputPublicationIntent,
+	): boolean {
+		if (this.#inputPublicationActive) return false;
+		if (
+			intent === ProjectedInputPublicationIntent.held &&
+			!this.#heldInputCommandIsPublishable(command)
+		) {
+			return true;
+		}
+		this.#inputPublicationActive = true;
+		let accepted = false;
+		try {
+			accepted = this.#send(command);
+			if (accepted && intent === ProjectedInputPublicationIntent.held) {
+				this.#commitPublishedInputOwnership(command);
+			}
+			return accepted;
+		} finally {
+			this.#inputPublicationActive = false;
+			this.#resumeDeferredInputRepair();
+		}
+	}
+
+	#heldInputCommandIsPublishable(command: ProjectedTerminalCommand): boolean {
+		switch (command.kind) {
+			case 'focus-input': {
+				return command.payload.focused || this.#publishedInputFocused;
+			}
+			case 'key-input': {
+				return (
+					command.payload.action === KeyAction.press || this.#publishedKeys.has(command.payload.key)
+				);
+			}
+			case 'mouse-input': {
+				return (
+					command.payload.action !== MouseAction.release ||
+					(command.payload.button !== null &&
+						this.#publishedMouseButtons.has(command.payload.button))
+				);
+			}
+			default: {
+				return true;
+			}
+		}
+	}
+
+	#commitPublishedInputOwnership(command: ProjectedTerminalCommand): void {
+		switch (command.kind) {
+			case 'focus-input': {
+				this.#publishedInputFocused = command.payload.focused;
+				break;
+			}
+			case 'key-input': {
+				const { action, ...facts } = command.payload;
+				if (action === KeyAction.release) this.#publishedKeys.delete(facts.key);
+				else this.#publishedKeys.set(facts.key, facts);
+				break;
+			}
+			case 'mouse-input': {
+				const { action, button } = command.payload;
+				if (action === MouseAction.press && button !== null) {
+					this.#publishedMouseButtons.add(button);
+				} else if (action === MouseAction.release && button !== null) {
+					this.#publishedMouseButtons.delete(button);
+				}
+				this.#publishedMouseSample =
+					this.#publishedMouseButtons.size === 0 ? undefined : command.payload;
+				break;
+			}
+			default:
+		}
 	}
 
 	#sendDemandIfNeeded(): void {
@@ -2209,9 +2520,20 @@ export class ProjectedTerminal {
 	}
 
 	readonly #handleKeyDown = (event: KeyboardEvent): void => {
+		if (!this.#canAdmitInput()) return;
+		const inputOperationEpoch = this.#inputRepairEpoch;
 		this.#trackModifier(event.code, true);
 		this.#refreshHoveredLinkModifiers(event);
-		if (this.#composing || event.isComposing || event.keyCode === 229) return;
+		if (!event.isComposing && event.keyCode !== 229) {
+			this.#inputState = supersedeCancelledTerminalComposition(this.#inputState);
+		}
+		if (
+			this.#inputState.compositionPhase !== TerminalCompositionPhase.idle ||
+			event.isComposing ||
+			event.keyCode === 229
+		) {
+			return;
+		}
 		if (
 			event.shiftKey &&
 			!event.altKey &&
@@ -2228,32 +2550,67 @@ export class ProjectedTerminal {
 		const facts = this.#keyFacts(event);
 		if (!facts) return;
 		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) this.scrollToBottom();
+		if (!this.#inputOperationIsCurrent(inputOperationEpoch)) {
+			event.preventDefault();
+			event.stopPropagation();
+			return;
+		}
+		const previousFacts = this.#pressedKeys.get(event.code);
+		const previousInputState = this.#inputState;
 		this.#pressedKeys.set(event.code, facts);
-		this.#sendKey(facts, event.repeat ? KeyAction.repeat : KeyAction.press);
-		if (facts.text) this.#lastKeyInput = { text: facts.text, time: projectedNow() };
+		if (facts.text) {
+			this.#inputState = recordTerminalKeyInput(this.#inputState, {
+				text: facts.text,
+				time: projectedNow(),
+			});
+		}
+		const stagedInputState = this.#inputState;
+		this.#sendKey(
+			facts,
+			event.repeat ? KeyAction.repeat : KeyAction.press,
+			ProjectedInputPublicationIntent.held,
+			() => {
+				if (!this.#inputOperationIsCurrent(inputOperationEpoch)) return;
+				if (this.#pressedKeys.get(event.code) === facts) {
+					if (previousFacts === undefined) this.#pressedKeys.delete(event.code);
+					else this.#pressedKeys.set(event.code, previousFacts);
+				}
+				if (this.#inputState === stagedInputState) this.#inputState = previousInputState;
+			},
+		);
 		event.preventDefault();
 		event.stopPropagation();
 	};
 
 	readonly #handleKeyUp = (event: KeyboardEvent): void => {
-		const facts = this.#pressedKeys.get(event.code) ?? this.#keyFacts(event);
-		if (facts) {
-			this.#sendKey(facts, KeyAction.release);
-			event.preventDefault();
-			event.stopPropagation();
-		}
+		if (!this.#canAdmitInput()) return;
+		const eventFacts = this.#keyFacts(event);
+		const facts =
+			this.#pressedKeys.get(event.code) ??
+			(eventFacts === null ? undefined : this.#publishedKeys.get(eventFacts.key));
 		this.#pressedKeys.delete(event.code);
 		this.#trackModifier(event.code, false);
 		this.#refreshHoveredLinkModifiers(event);
+		if (facts) {
+			this.#sendKey(facts, KeyAction.release, ProjectedInputPublicationIntent.held);
+			event.preventDefault();
+			event.stopPropagation();
+		}
 	};
 
-	#sendKey(facts: KeyFacts, action: KeyInput['action'], allowAfterDispose = false): void {
+	#sendKey(
+		facts: KeyFacts,
+		action: KeyInput['action'],
+		intent: ProjectedInputPublicationIntent,
+		onRejected?: () => void,
+	): void {
 		this.#sendInput(
 			{
 				kind: 'key-input',
 				payload: { action, attachmentId: this.#attachmentId, ...facts },
 			},
-			allowAfterDispose,
+			intent,
+			onRejected,
 		);
 	}
 
@@ -2315,14 +2672,62 @@ export class ProjectedTerminal {
 	}
 
 	readonly #handleBeforeInput = (event: InputEvent): void => {
-		if (this.#composing || event.isComposing) return;
+		if (!this.#canAdmitInput()) return;
 		const data = event.data ?? '';
+		const origin = isCompositionBeforeInput(event)
+			? TerminalBeforeInputOrigin.composition
+			: TerminalBeforeInputOrigin.independent;
+		if (
+			origin === TerminalBeforeInputOrigin.composition &&
+			this.#inputState.compositionPhase !== TerminalCompositionPhase.eligible &&
+			(this.#inputState.compositionPhase === TerminalCompositionPhase.cancelledAwaitingEnd ||
+				this.#inputState.compositionSettlement !== undefined)
+		) {
+			this.#inputState = observeTerminalBeforeInput(
+				this.#inputState,
+				data,
+				projectedNow(),
+				INPUT_DEDUPLICATION_MS,
+				origin,
+			).state;
+			event.preventDefault();
+			event.stopPropagation();
+			this.#clearInput();
+			return;
+		}
+		if (origin === TerminalBeforeInputOrigin.independent) {
+			this.#inputState = supersedeCancelledTerminalComposition(this.#inputState);
+		}
+		if (
+			event.isComposing &&
+			this.#inputState.compositionPhase === TerminalCompositionPhase.eligible
+		) {
+			return;
+		}
+		if (
+			this.#inputState.compositionPhase === TerminalCompositionPhase.eligible &&
+			!isTextInsertionInputType(event.inputType)
+		) {
+			return;
+		}
 		if (event.inputType === 'insertFromPaste' && data) {
 			event.preventDefault();
 			event.stopPropagation();
-			if (!this.#isDuplicatePaste(data, 'beforeinput')) {
-				void this.paste(data, 'beforeinput');
-				this.#lastPaste = { source: 'beforeinput', text: data, time: projectedNow() };
+			const decision = observeTerminalPaste(
+				this.#inputState,
+				data,
+				'beforeinput',
+				projectedNow(),
+				INPUT_DEDUPLICATION_MS,
+			);
+			this.#inputState = decision.state;
+			if (!decision.duplicate) {
+				this.#observeDomPaste(this.paste(data, 'beforeinput'));
+				this.#inputState = recordTerminalPaste(this.#inputState, {
+					source: 'beforeinput',
+					text: data,
+					time: projectedNow(),
+				});
 			}
 			return;
 		}
@@ -2344,51 +2749,87 @@ export class ProjectedTerminal {
 			event.stopPropagation();
 			return;
 		}
-		if (event.inputType !== 'insertText' && event.inputType !== 'insertReplacementText') return;
+		if (!isTextInsertionInputType(event.inputType)) return;
 		const text = data;
-		if (
-			!text ||
-			this.#isRecent(this.#lastKeyInput, text) ||
-			this.#isRecent(this.#lastComposition, text)
-		) {
+		if (!text) {
 			event.preventDefault();
 			return;
 		}
-		this.#sendText(text);
-		this.#lastBeforeInput = { text, time: projectedNow() };
+		const now = projectedNow();
+		const compositionCommit =
+			this.#inputState.compositionPhase === TerminalCompositionPhase.eligible;
+		const decision = observeTerminalBeforeInput(
+			this.#inputState,
+			text,
+			now,
+			INPUT_DEDUPLICATION_MS,
+			origin,
+		);
+		this.#inputState = decision.state;
+		const publicationEpoch = this.#inputRepairEpoch;
+		const publicationState = decision.state;
+		if (!decision.publishText) {
+			event.preventDefault();
+			event.stopPropagation();
+			this.#clearInput();
+			return;
+		}
+		const sent = this.#sendText(text);
 		event.preventDefault();
 		event.stopPropagation();
-		this.#clearInput();
+		if (!this.#inputOperationIsCurrent(publicationEpoch) || this.#inputState !== publicationState) {
+			return;
+		}
+		if (sent && compositionCommit) this.#clearCompositionPresentation();
+		else this.#clearInput();
 	};
 
 	readonly #handleCompositionStart = (event: CompositionEvent): void => {
+		if (!this.#canAdmitInput() && !this.#canStageRefocusedComposition()) return;
+		const inputOperationEpoch = this.#inputRepairEpoch;
+		const nextState = beginTerminalComposition(this.#inputState);
+		if (nextState === this.#inputState) return;
+		this.#inputState = nextState;
 		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) this.scrollToBottom();
+		if (!this.#compositionOperationIsCurrent(inputOperationEpoch)) return;
 		if (this.#selection.state !== 'none') this.clearSelection();
-		this.#composing = true;
+		if (!this.#compositionOperationIsCurrent(inputOperationEpoch)) return;
 		this.#updatePreedit(event.data ?? '');
 	};
 
 	readonly #handleCompositionUpdate = (event: CompositionEvent): void => {
+		if (!this.#canAdmitInput() && !this.#canStageRefocusedComposition()) return;
+		if (!terminalCompositionUpdateIsEligible(this.#inputState)) {
+			if (this.#inputState.compositionPhase === TerminalCompositionPhase.cancelledAwaitingEnd) {
+				this.#clearInput();
+			}
+			return;
+		}
 		this.#updatePreedit(event.data ?? '');
 	};
 
 	readonly #handleCompositionEnd = (event: CompositionEvent): void => {
-		const wasComposing = this.#composing;
-		this.#cancelComposition();
+		if (!this.#canAdmitInput()) return;
+		const wasComposing = terminalCompositionUpdateIsEligible(this.#inputState);
 		const data = event.data ?? '';
-		if (
-			data &&
-			!shouldSuppressComposingControlInput(data, wasComposing) &&
-			!this.#isRecent(this.#lastBeforeInput, data)
-		) {
+		const decision = finishTerminalComposition(
+			this.#inputState,
+			data,
+			projectedNow(),
+			INPUT_DEDUPLICATION_MS,
+		);
+		if (decision.state === this.#inputState) return;
+		this.#inputState = decision.state;
+		this.#clearCompositionPresentation();
+		if (decision.publishText && !shouldSuppressComposingControlInput(data, wasComposing)) {
 			this.#sendText(data);
-			this.#lastComposition = { text: data, time: projectedNow() };
 		}
 	};
 
-	#cancelComposition(): void {
-		this.#composing = false;
+	#clearCompositionPresentation(): void {
 		this.#preeditState = undefined;
+		this.#preeditText = '';
+		this.#preeditCaretUtf16Offset = 0;
 		this.#syncPreeditPresentation();
 		this.#preeditCellWidth = 0;
 		this.#preeditCaretPixelOffset = 0;
@@ -2406,12 +2847,27 @@ export class ProjectedTerminal {
 			ghosttyCodepointWidth(codepoint, eastAsianWidth),
 		);
 		this.#preeditState = state;
+		this.#preeditText = data;
 		this.#preeditCellWidth = state.width;
 		const caretOffset = Math.max(0, Math.min(data.length, input?.selectionEnd ?? data.length));
+		this.#preeditCaretUtf16Offset = caretOffset;
 		this.#preeditCaretPixelOffset = data
 			? (this.#renderer?.measureTextWidth(data.slice(0, caretOffset)) ??
 				state.selection.end * (this.#renderer?.getMetrics().width ?? 0))
 			: 0;
+		this.#syncPreeditPresentation(true);
+	}
+
+	#refreshPreeditGeometry(): void {
+		const state = this.#preeditState;
+		if (state === undefined) {
+			this.#preeditCaretPixelOffset = 0;
+			this.#updateInputPosition();
+			return;
+		}
+		this.#preeditCaretPixelOffset =
+			this.#renderer?.measureTextWidth(this.#preeditText.slice(0, this.#preeditCaretUtf16Offset)) ??
+			state.selection.end * (this.#renderer?.getMetrics().width ?? 0);
 		this.#syncPreeditPresentation(true);
 	}
 
@@ -2476,12 +2932,16 @@ export class ProjectedTerminal {
 		input.style.lineHeight = `${anchor.height}px`;
 	}
 
-	#sendText(text: string): void {
-		if (textEncoder.encode(text).byteLength > PROTOCOL_LIMITS.maxInputBytes) return;
-		this.#sendInput({
-			kind: 'text-input',
-			payload: { attachmentId: this.#attachmentId, text },
-		});
+	#sendText(text: string): boolean {
+		if (textEncoder.encode(text).byteLength > PROTOCOL_LIMITS.maxInputBytes) return false;
+		this.#sendInput(
+			{
+				kind: 'text-input',
+				payload: { attachmentId: this.#attachmentId, text },
+			},
+			ProjectedInputPublicationIntent.stateless,
+		);
+		return true;
 	}
 
 	#sendSyntheticKey(key: TerminalKeyCodeValue): void {
@@ -2495,19 +2955,35 @@ export class ProjectedTerminal {
 				unshiftedCodepoint: 0,
 			},
 			KeyAction.press,
+			ProjectedInputPublicationIntent.stateless,
 		);
 	}
 
 	readonly #handlePaste = (event: ClipboardEvent): void => {
+		if (!this.#canAdmitInput()) return;
 		event.preventDefault();
 		event.stopPropagation();
 		const text = event.clipboardData?.getData('text/plain') ?? '';
-		if (!text || this.#isDuplicatePaste(text, 'clipboard')) return;
-		void this.paste(text, 'clipboard');
-		this.#lastPaste = { source: 'clipboard', text, time: projectedNow() };
+		if (!text) return;
+		const decision = observeTerminalPaste(
+			this.#inputState,
+			text,
+			'clipboard',
+			projectedNow(),
+			INPUT_DEDUPLICATION_MS,
+		);
+		this.#inputState = decision.state;
+		if (decision.duplicate) return;
+		this.#observeDomPaste(this.paste(text, 'clipboard'));
+		this.#inputState = recordTerminalPaste(this.#inputState, {
+			source: 'clipboard',
+			text,
+			time: projectedNow(),
+		});
 	};
 
 	readonly #handleDragOver = (event: DragEvent): void => {
+		if (!this.#canAdmitInput()) return;
 		const transfer = event.dataTransfer;
 		if (transfer === null || !this.#supportsPlainTextDrop(transfer)) return;
 		event.preventDefault();
@@ -2515,39 +2991,46 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleDrop = (event: DragEvent): void => {
+		if (!this.#canAdmitInput()) return;
 		const transfer = event.dataTransfer;
 		if (transfer === null || !this.#supportsPlainTextDrop(transfer)) return;
 		event.preventDefault();
 		event.stopPropagation();
-		void this.paste(transfer.getData('text/plain'), 'drop');
+		this.#observeDomPaste(this.paste(transfer.getData('text/plain'), 'drop'));
 	};
+
+	#observeDomPaste(result: Promise<ProjectedPasteResult>): void {
+		void result.catch((error) => this.#errorEmitter.fire({ error, operation: 'command' }));
+	}
 
 	#supportsPlainTextDrop(transfer: DataTransfer): boolean {
 		return transfer.files.length === 0 && [...transfer.types].includes('text/plain');
 	}
 
-	#isDuplicatePaste(text: string, source: 'beforeinput' | 'clipboard'): boolean {
-		const previous = this.#lastPaste;
-		return previous !== undefined && previous.source !== source && this.#isRecent(previous, text);
-	}
-
-	#isRecent(previous: SentInput | undefined, text: string): boolean {
-		return (
-			previous !== undefined &&
-			previous.text === text &&
-			projectedNow() - previous.time < INPUT_DEDUPLICATION_MS
-		);
-	}
-
 	readonly #handleFocus = (): void => {
+		if (this.#inputAdmission === ProjectedInputAdmission.disposed || this.#isDisposed()) {
+			return;
+		}
+		this.#inputState = supersedeCancelledTerminalComposition(this.#inputState);
 		this.#renderer?.setFocused(true);
 		this.#updateInputPosition();
+		if (
+			this.#inputAdmission === ProjectedInputAdmission.repairing &&
+			this.#options.inputEnabled !== false
+		) {
+			this.#inputFocused = true;
+			this.#inputRefocusAfterRepair = true;
+			return;
+		}
 		if (this.#options.inputEnabled === false || this.#inputFocused) return;
 		this.#inputFocused = true;
-		this.#sendInput({
-			kind: 'focus-input',
-			payload: { attachmentId: this.#attachmentId, focused: true },
-		});
+		this.#sendInput(
+			{
+				kind: 'focus-input',
+				payload: { attachmentId: this.#attachmentId, focused: true },
+			},
+			ProjectedInputPublicationIntent.held,
+		);
 	};
 
 	readonly #handleBlur = (): void => {
@@ -2566,58 +3049,301 @@ export class ProjectedTerminal {
 		if (this.#documentHidden) this.#handleWindowBlur();
 	};
 
-	#repairInputState(allowAfterDispose = false): void {
-		this.#clearHistoryScrollbarClickSuppression();
-		this.#finishHistoryScrollbarGesture(true, !allowAfterDispose);
-		this.#finishSelectionGesture(true);
-		if (this.#options.inputEnabled === false) return;
-		this.#releasePressedKeys(allowAfterDispose);
-		this.#releasePressedMouseButtons(allowAfterDispose);
-		if (this.#inputFocused) {
-			this.#sendInput(
-				{
-					kind: 'focus-input',
-					payload: { attachmentId: this.#attachmentId, focused: false },
-				},
-				allowAfterDispose,
-			);
+	#repairInputState(): void {
+		if (!this.#beginInputRepair()) {
+			if (this.#inputRepairTransaction !== undefined) {
+				this.#stageActiveInputRepair(false, true);
+			}
+			return;
 		}
+		this.#stageActiveInputRepair(false, true);
+		this.#dispatchInputRepair();
+	}
+
+	#beginInputRepair(): boolean {
+		if (this.#inputAdmission !== ProjectedInputAdmission.accepting) return false;
+		this.#inputAdmission = ProjectedInputAdmission.repairing;
+		this.#inputRepairEpoch++;
+		this.#inputDispatcher.invalidate();
+		this.#inputRepairTransaction = this.#createInputRepairTransaction();
+		return true;
+	}
+
+	#createInputRepairTransaction(): ProjectedInputRepairTransaction {
+		return {
+			afterCleanup: undefined,
+			attemptedKeys: new Set(),
+			attemptedMouseButtons: new Set(),
+			commands: [],
+			deferredDispose: false,
+			deferredFocusLoss: false,
+			dispatchRequested: false,
+			focusOutCommand: undefined,
+			focusOutSent: false,
+			nextCommandIndex: 0,
+			transientDisposed: false,
+			transientRepaired: false,
+		};
+	}
+
+	#canAdmitInput(): boolean {
+		return (
+			this.#inputAdmissionIsOpen() &&
+			!this.#inputPublicationActive &&
+			this.#options.inputEnabled !== false
+		);
+	}
+
+	#inputAdmissionIsOpen(): boolean {
+		return this.#inputAdmission === ProjectedInputAdmission.accepting && !this.#isDisposed();
+	}
+
+	#inputOperationIsCurrent(epoch: number): boolean {
+		return epoch === this.#inputRepairEpoch && this.#inputAdmissionIsOpen();
+	}
+
+	#canStageRefocusedComposition(): boolean {
+		return (
+			this.#inputAdmission === ProjectedInputAdmission.repairing &&
+			this.#inputRefocusAfterRepair &&
+			!this.#disposeAfterRepair &&
+			!this.#disposalStarted
+		);
+	}
+
+	#compositionOperationIsCurrent(epoch: number): boolean {
+		return (
+			epoch === this.#inputRepairEpoch &&
+			(this.#inputAdmissionIsOpen() || this.#canStageRefocusedComposition())
+		);
+	}
+
+	#stageActiveInputRepair(dispose: boolean, focusLoss: boolean): void {
+		const transaction = this.#inputRepairTransaction;
+		if (transaction === undefined) return;
+		this.#repairLocalInputState(transaction, dispose, focusLoss);
+		if (this.#inputPublicationActive) {
+			transaction.deferredDispose ||= dispose;
+			transaction.deferredFocusLoss ||= focusLoss;
+			return;
+		}
+		this.#stagePublishedInputRepair(transaction, focusLoss);
+	}
+
+	#repairLocalInputState(
+		transaction: ProjectedInputRepairTransaction,
+		dispose: boolean,
+		focusLoss: boolean,
+	): void {
+		if (!transaction.transientRepaired || (dispose && !transaction.transientDisposed)) {
+			this.#repairTransientInputState(dispose);
+			transaction.transientRepaired = true;
+			transaction.transientDisposed ||= dispose;
+		}
+		this.#pressedKeys.clear();
+		this.#pressedMouseButtons.clear();
+		this.#pressedModifierCodes.clear();
+		if (!focusLoss) return;
+		this.#inputFocused = false;
+		this.#inputRefocusAfterRepair = false;
+		this.#clearHistoryScrollbarClickSuppression();
+		this.#finishHistoryScrollbarGesture(true, !dispose);
+		this.#finishSelectionGesture(true);
+	}
+
+	#stagePublishedInputRepair(
+		transaction: ProjectedInputRepairTransaction,
+		focusLoss: boolean,
+	): void {
+		this.#queuePublishedReleaseCommands(transaction);
+		if (
+			focusLoss &&
+			this.#publishedInputFocused &&
+			this.#options.inputEnabled !== false &&
+			!transaction.focusOutSent
+		) {
+			transaction.focusOutCommand = {
+				kind: 'focus-input',
+				payload: { attachmentId: this.#attachmentId, focused: false },
+			};
+		}
+	}
+
+	#dispatchInputRepair(afterCleanup?: () => void): void {
+		const transaction = this.#inputRepairTransaction;
+		if (transaction === undefined) return;
+		if (afterCleanup !== undefined) {
+			const prior = transaction.afterCleanup;
+			transaction.afterCleanup =
+				prior === undefined
+					? afterCleanup
+					: () => {
+							prior();
+							afterCleanup();
+						};
+		}
+		transaction.dispatchRequested = true;
+		this.#resumeDeferredInputRepair();
+	}
+
+	#resumeDeferredInputRepair(): void {
+		if (this.#inputPublicationActive) return;
+		const transaction = this.#inputRepairTransaction;
+		if (transaction === undefined) return;
+		if (transaction.deferredDispose || transaction.deferredFocusLoss) {
+			const focusLoss = transaction.deferredFocusLoss;
+			transaction.deferredDispose = false;
+			transaction.deferredFocusLoss = false;
+			this.#stagePublishedInputRepair(transaction, focusLoss);
+		}
+		if (!transaction.dispatchRequested || this.#inputRepairDraining) return;
+		transaction.dispatchRequested = false;
+		this.#inputDispatcher.dispatchSync(() => {
+			if (this.#inputRepairTransaction !== transaction) return;
+			this.#inputRepairDraining = true;
+			try {
+				this.#drainInputRepairTransaction(transaction);
+				const afterCleanup = transaction.afterCleanup;
+				transaction.afterCleanup = undefined;
+				afterCleanup?.();
+				this.#drainInputRepairTransaction(transaction);
+			} finally {
+				this.#inputRepairDraining = false;
+				this.#inputRepairTransaction = undefined;
+				if (this.#disposeAfterRepair) {
+					this.#disposeAfterRepair = false;
+					this.#performDispose(true);
+				} else if (this.#inputAdmission === ProjectedInputAdmission.repairing) {
+					this.#inputAdmission = ProjectedInputAdmission.accepting;
+					this.#inputRefocusAfterRepair = false;
+					if (this.#inputFocused && !this.#publishedInputFocused) {
+						this.#sendInput(
+							{
+								kind: 'focus-input',
+								payload: { attachmentId: this.#attachmentId, focused: true },
+							},
+							ProjectedInputPublicationIntent.held,
+						);
+					}
+				}
+			}
+		});
+	}
+
+	#drainInputRepairTransaction(transaction: ProjectedInputRepairTransaction): void {
+		while (transaction.nextCommandIndex < transaction.commands.length) {
+			const command = transaction.commands[transaction.nextCommandIndex];
+			transaction.nextCommandIndex++;
+			if (command !== undefined) {
+				this.#publishInputCommand(command, ProjectedInputPublicationIntent.held);
+			}
+		}
+		const focusOutCommand = transaction.focusOutCommand;
+		if (focusOutCommand === undefined || transaction.focusOutSent) return;
+		transaction.focusOutSent = true;
+		this.#publishInputCommand(focusOutCommand, ProjectedInputPublicationIntent.held);
+	}
+
+	#dispatchDisposedInputCleanup(commands: readonly ProjectedTerminalCommand[]): void {
+		if (commands.length === 0) return;
+		this.#inputDispatcher.dispatchSync(() => {
+			for (const command of commands) {
+				this.#publishInputCommand(command, ProjectedInputPublicationIntent.held);
+			}
+		});
+	}
+
+	#prepareFocusLossInputRepair(dispose: boolean): ProjectedTerminalCommand[] {
+		this.#repairTransientInputState(dispose);
+		const commands = [
+			...this.#publishedKeyReleaseCommands(),
+			...this.#publishedMouseReleaseCommands(),
+		];
+		this.#pressedKeys.clear();
+		this.#pressedMouseButtons.clear();
 		this.#inputFocused = false;
 		this.#pressedModifierCodes.clear();
-	}
-
-	#releasePressedKeys(allowAfterDispose = false): void {
-		for (const command of this.#takePressedKeyReleaseCommands()) {
-			this.#sendInput(command, allowAfterDispose);
+		this.#clearHistoryScrollbarClickSuppression();
+		this.#finishHistoryScrollbarGesture(true, !dispose);
+		this.#finishSelectionGesture(true);
+		if (this.#options.inputEnabled === false) return [];
+		if (this.#publishedInputFocused) {
+			commands.push({
+				kind: 'focus-input',
+				payload: { attachmentId: this.#attachmentId, focused: false },
+			});
 		}
+		return commands;
 	}
 
-	#takePressedKeyReleaseCommands(): ProjectedTerminalCommand[] {
-		const commands = [...this.#pressedKeys.values()].map(
+	#repairTransientInputState(dispose = false): void {
+		const repair = dispose
+			? disposeTerminalInputState(this.#inputState)
+			: repairTerminalInputState(this.#inputState);
+		this.#inputState = repair.state;
+		this.#clearCompositionPresentation();
+	}
+
+	#queuePublishedReleaseCommands(transaction: ProjectedInputRepairTransaction): void {
+		const pendingCommands = transaction.commands.slice(transaction.nextCommandIndex);
+		const pendingKeys = new Set<TerminalKeyCodeValue>();
+		const pendingMouseButtons = new Set<Exclude<MouseInput['button'], null>>();
+		for (const command of pendingCommands) {
+			if (command.kind === 'key-input' && command.payload.action === KeyAction.release) {
+				pendingKeys.add(command.payload.key);
+			} else if (
+				command.kind === 'mouse-input' &&
+				command.payload.action === MouseAction.release &&
+				command.payload.button !== null
+			) {
+				pendingMouseButtons.add(command.payload.button);
+			}
+		}
+		const commands = [
+			...this.#publishedKeyReleaseCommands().filter(
+				(command) =>
+					command.kind === 'key-input' &&
+					!pendingKeys.has(command.payload.key) &&
+					!transaction.attemptedKeys.has(command.payload.key),
+			),
+			...this.#publishedMouseReleaseCommands().filter(
+				(command) =>
+					command.kind === 'mouse-input' &&
+					command.payload.button !== null &&
+					!pendingMouseButtons.has(command.payload.button) &&
+					!transaction.attemptedMouseButtons.has(command.payload.button),
+			),
+		];
+		for (const command of commands) {
+			if (command.kind === 'key-input') {
+				transaction.attemptedKeys.add(command.payload.key);
+			} else if (command.kind === 'mouse-input' && command.payload.button !== null) {
+				transaction.attemptedMouseButtons.add(command.payload.button);
+			}
+		}
+		transaction.commands.splice(transaction.nextCommandIndex, 0, ...commands);
+		this.#pressedKeys.clear();
+		this.#pressedMouseButtons.clear();
+	}
+
+	#publishedKeyReleaseCommands(): ProjectedTerminalCommand[] {
+		return [...this.#publishedKeys.values()].map(
 			(facts): ProjectedTerminalCommand => ({
 				kind: 'key-input',
 				payload: { action: KeyAction.release, attachmentId: this.#attachmentId, ...facts },
 			}),
 		);
-		this.#pressedKeys.clear();
-		return commands;
 	}
 
-	#releasePressedMouseButtons(allowAfterDispose = false): void {
-		for (const command of this.#takePressedMouseReleaseCommands()) {
-			this.#sendInput(command, allowAfterDispose);
-		}
-	}
-
-	#takePressedMouseReleaseCommands(): ProjectedTerminalCommand[] {
-		const last = this.#lastMouseInput;
-		if (last === undefined) {
-			this.#pressedMouseButtons.clear();
-			return [];
-		}
+	#publishedMouseReleaseCommands(): ProjectedTerminalCommand[] {
+		const last = this.#publishedMouseSample;
+		if (last === undefined) return [];
 		const commands: ProjectedTerminalCommand[] = [];
-		let pressedButtons = last.pressedButtons;
-		for (const button of this.#pressedMouseButtons) {
+		let pressedButtons = 0;
+		for (const button of this.#publishedMouseButtons) {
+			pressedButtons |= 1 << (button - 1);
+		}
+		for (const button of this.#publishedMouseButtons) {
 			pressedButtons &= ~(1 << (button - 1));
 			commands.push({
 				kind: 'mouse-input',
@@ -2629,8 +3355,6 @@ export class ProjectedTerminal {
 				},
 			});
 		}
-		this.#pressedMouseButtons.clear();
-		this.#lastMouseInput = { ...last, pressedButtons };
 		return commands;
 	}
 
@@ -2680,6 +3404,8 @@ export class ProjectedTerminal {
 	}
 
 	readonly #handlePointerDown = (event: PointerEvent): void => {
+		if (!this.#inputAdmissionIsOpen()) return;
+		const inputOperationEpoch = this.#inputRepairEpoch;
 		this.#clearHistoryScrollbarClickSuppression();
 		if (this.#historyScrollbarGesture !== undefined) {
 			this.#clearHoveredLink();
@@ -2687,9 +3413,18 @@ export class ProjectedTerminal {
 			return;
 		}
 		this.focus();
+		if (!this.#inputOperationIsCurrent(inputOperationEpoch)) {
+			event.preventDefault();
+			return;
+		}
 		if (this.#startHistoryScrollbarGesture(event)) return;
 		if (this.#mouseOwned('press', event.buttons, event.shiftKey)) {
-			this.#sendMouse(event, MouseAction.press, domMouseButton(event.button));
+			this.#sendMouse(
+				event,
+				MouseAction.press,
+				domMouseButton(event.button),
+				ProjectedInputPublicationIntent.held,
+			);
 			event.preventDefault();
 			return;
 		}
@@ -2740,6 +3475,7 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handlePointerUp = (event: PointerEvent): void => {
+		if (!this.#inputAdmissionIsOpen()) return;
 		const scrollbarGesture = this.#historyScrollbarGesture;
 		if (scrollbarGesture !== undefined) {
 			this.#clearHoveredLink();
@@ -2769,11 +3505,17 @@ export class ProjectedTerminal {
 			return;
 		}
 		if (!this.#mouseOwned('release', event.buttons, event.shiftKey)) return;
-		this.#sendMouse(event, MouseAction.release, domMouseButton(event.button));
+		this.#sendMouse(
+			event,
+			MouseAction.release,
+			domMouseButton(event.button),
+			ProjectedInputPublicationIntent.held,
+		);
 		event.preventDefault();
 	};
 
 	readonly #handlePointerMove = (event: PointerEvent): void => {
+		if (!this.#inputAdmissionIsOpen()) return;
 		const scrollbarGesture = this.#historyScrollbarGesture;
 		if (scrollbarGesture !== undefined) {
 			this.#clearHoveredLink();
@@ -2824,7 +3566,7 @@ export class ProjectedTerminal {
 		}
 		if (this.#mouseOwned('motion', event.buttons, event.shiftKey)) {
 			this.#clearHoveredLink();
-			this.#sendMouse(event, MouseAction.motion, null);
+			this.#sendMouse(event, MouseAction.motion, null, ProjectedInputPublicationIntent.held);
 			event.preventDefault();
 			return;
 		}
@@ -2847,6 +3589,7 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handlePointerCancel = (event: PointerEvent): void => {
+		if (!this.#inputAdmissionIsOpen()) return;
 		const scrollbarGesture = this.#historyScrollbarGesture;
 		if (scrollbarGesture !== undefined) {
 			this.#clearHoveredLink();
@@ -2862,6 +3605,7 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleLostPointerCapture = (event: PointerEvent): void => {
+		if (!this.#inputAdmissionIsOpen()) return;
 		const scrollbarGesture = this.#historyScrollbarGesture;
 		if (scrollbarGesture !== undefined) {
 			this.#clearHoveredLink();
@@ -2924,6 +3668,7 @@ export class ProjectedTerminal {
 	}
 
 	readonly #handleClick = (event: MouseEvent): void => {
+		if (!this.#inputAdmissionIsOpen()) return;
 		if (this.#consumeHistoryScrollbarClickSuppression(event)) {
 			this.#clearHoveredLink();
 			this.#ownHistoryScrollbarEvent(event);
@@ -2946,6 +3691,7 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleWheel = (event: WheelEvent): void => {
+		if (!this.#inputAdmissionIsOpen()) return;
 		if (this.#historyScrollbarGesture !== undefined) {
 			this.#clearHoveredLink();
 			this.#ownHistoryScrollbarEvent(event);
@@ -2958,6 +3704,7 @@ export class ProjectedTerminal {
 				event,
 				MouseAction.press,
 				event.deltaY < 0 ? MouseButton.four : MouseButton.five,
+				ProjectedInputPublicationIntent.stateless,
 			);
 		} else {
 			const rowHeight = Math.max(1, this.#renderer?.charHeight ?? 1);
@@ -2983,7 +3730,13 @@ export class ProjectedTerminal {
 		);
 	}
 
-	#sendMouse(event: MouseEvent, action: MouseInput['action'], button: MouseInput['button']): void {
+	#sendMouse(
+		event: MouseEvent,
+		action: MouseInput['action'],
+		button: MouseInput['button'],
+		intent: ProjectedInputPublicationIntent,
+	): void {
+		if (!this.#canAdmitInput()) return;
 		const metadata = this.#store.metadata;
 		const canvas = this.#canvas;
 		const renderer = this.#renderer;
@@ -3013,6 +3766,10 @@ export class ProjectedTerminal {
 			x,
 			y,
 		};
+		const inputOperationEpoch = this.#inputRepairEpoch;
+		const previousInputState = this.#inputState;
+		const activeButtonWasPressed =
+			activeButton !== null && this.#pressedMouseButtons.has(activeButton);
 		if (
 			action === MouseAction.press &&
 			activeButton !== null &&
@@ -3022,11 +3779,28 @@ export class ProjectedTerminal {
 		} else if (action === MouseAction.release && activeButton !== null) {
 			this.#pressedMouseButtons.delete(activeButton);
 		}
-		this.#lastMouseInput = payload;
-		this.#sendInput({
-			kind: 'mouse-input',
-			payload,
-		});
+		this.#inputState = recordTerminalMouseSample(
+			this.#inputState,
+			this.#pressedMouseButtons.size === 0 ? undefined : payload,
+		);
+		const stagedInputState = this.#inputState;
+		this.#sendInput(
+			{
+				kind: 'mouse-input',
+				payload,
+			},
+			intent,
+			action === MouseAction.press && activeButton !== null
+				? () => {
+						if (!this.#inputOperationIsCurrent(inputOperationEpoch)) return;
+						if (activeButtonWasPressed) this.#pressedMouseButtons.add(activeButton);
+						else this.#pressedMouseButtons.delete(activeButton);
+						if (this.#inputState === stagedInputState) {
+							this.#inputState = previousInputState;
+						}
+					}
+				: undefined,
+		);
 	}
 
 	#installResizeObserver(root: HTMLElement): void {
@@ -3082,19 +3856,82 @@ export class ProjectedTerminal {
 		this.#devicePixelRatioQuery = query;
 	}
 
-	async #loadConfiguredFont(
+	#applyInputPresentation(
+		input: HTMLTextAreaElement,
+		configuration: TerminalPresentationConfiguration,
+	): void {
+		input.style.fontFamily = configuration.fontFamily;
+		input.style.fontSize = `${configuration.fontSize}px`;
+		input.style.fontWeight = String(configuration.fontWeight);
+		input.style.fontVariantLigatures = configuration.fontLigatures ? 'normal' : 'none';
+	}
+
+	#cancelPresentationPreparation(reason: 'disposed' | 'superseded'): void {
+		this.#presentationPreparation?.controller.abort(reason);
+		this.#presentationPreparation = undefined;
+	}
+
+	#commitPresentationConfiguration(
+		renderer: WebGPURenderer,
+		input: HTMLTextAreaElement,
+		prepared: PreparedTerminalPresentationConfiguration,
+	): void {
+		this.#cancelScheduledFrame();
+		this.#presentationConfiguration = prepared.configuration;
+		let rendererError: unknown;
+		try {
+			renderer.commitPresentationConfiguration(prepared);
+		} catch (error) {
+			rendererError = error;
+		}
+		this.#applyInputPresentation(input, prepared.configuration);
+		this.#refreshPreeditGeometry();
+		this.#invalidateLinkCache();
+		this.#finishHistoryScrollbarGesture(true);
+		if (
+			this.#selectionGestureActive ||
+			this.#pendingSelectionGesture !== undefined ||
+			this.#selectionGestureHandle !== undefined ||
+			this.#selectionPointer !== undefined
+		) {
+			this.#cancelSelectionGestureForReset();
+		}
+		this.#updateInputPosition();
+		this.#sendResizeIfChanged();
+		this.#scheduleRender();
+		if (rendererError !== undefined) {
+			this.#errorEmitter.fire({ error: rendererError, operation: 'render' });
+		}
+	}
+
+	async #loadConfiguredFonts(
 		document: Document,
-		fontFamily: string,
-		fontSize: number,
-		fontWeight: number | 'bold' | 'normal',
+		configuration: TerminalPresentationConfiguration,
 	): Promise<void> {
 		const fonts = document.fonts;
 		if (!fonts || typeof fonts.load !== 'function') return;
-		try {
-			await fonts.load(`${fontWeight} ${fontSize}px ${fontFamily}`, 'MW你🚀');
-		} catch (error) {
-			if (!this.#isDisposed()) this.#errorEmitter.fire({ error, operation: 'font' });
-		}
+		const descriptions = new Set([
+			`${configuration.fontWeight} ${configuration.fontSize}px ${configuration.fontFamily}`,
+			`${configuration.fontWeightBold} ${configuration.fontSize}px ${configuration.fontFamily}`,
+		]);
+		await Promise.all([...descriptions].map((description) => fonts.load(description, 'MW你🚀')));
+	}
+
+	#waitForPresentationCancellation(
+		controller: AbortController,
+	): Promise<PresentationFontPreparation> {
+		return new Promise((resolve) => {
+			controller.signal.addEventListener(
+				'abort',
+				() => {
+					resolve({
+						kind: 'cancelled',
+						reason: controller.signal.reason === 'disposed' ? 'disposed' : 'superseded',
+					});
+				},
+				{ once: true },
+			);
+		});
 	}
 
 	#sendResizeIfChanged(): void {

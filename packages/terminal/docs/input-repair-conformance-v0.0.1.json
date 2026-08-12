@@ -1,0 +1,35 @@
+{
+	"format": "orchbee-terminal-input-repair-conformance",
+	"version": "0.0.1",
+	"source": {
+		"commit": "be7b4d0d531be6bab4c6cb4fb164addb997c951d",
+		"path": "packages/terminal/src/input/InputHandler.ts",
+		"deduplicationWindowMilliseconds": 100
+	},
+	"traces": [
+		{
+			"name": "key-beforeinput-single-use",
+			"record": "key:a@0",
+			"checks": ["beforeinput:a@99", "beforeinput:a@99"],
+			"duplicates": [true, false]
+		},
+		{
+			"name": "composition-beforeinput-single-use",
+			"record": "composition:x@0",
+			"checks": ["beforeinput:x@99", "beforeinput:x@99"],
+			"duplicates": [true, false]
+		},
+		{
+			"name": "beforeinput-composition-single-use",
+			"record": "beforeinput:x@0",
+			"checks": ["compositionend:x@99", "compositionend:x@99"],
+			"duplicates": [true, false]
+		},
+		{
+			"name": "cross-source-paste-single-use",
+			"record": "clipboard:paste@0",
+			"checks": ["beforeinput:paste@99", "beforeinput:paste@99"],
+			"duplicates": [true, false]
+		}
+	]
+}

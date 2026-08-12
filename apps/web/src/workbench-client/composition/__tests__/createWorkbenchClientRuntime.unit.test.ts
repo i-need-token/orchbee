@@ -12,6 +12,10 @@ import {
 	WorkbenchClientSessionClient,
 	type WorkbenchClientSessionTransport,
 } from '../../client-session';
+import {
+	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+	type TerminalPresentationConfigurationSource,
+} from '../../projected-terminal-renderer';
 import type { TerminalProjectionClient } from '../../terminal-projection';
 import { createWorkbenchClientRuntime } from '../createWorkbenchClientRuntime';
 
@@ -74,6 +78,10 @@ describe('createWorkbenchClientRuntime', () => {
 			open: openProjection,
 		};
 		const documentElement = { dir: '', lang: '' };
+		const presentationConfigurationSource: TerminalPresentationConfigurationSource = {
+			current: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current,
+			subscribe: () => () => undefined,
+		};
 
 		const runtime = createWorkbenchClientRuntime({
 			clientSession: session,
@@ -81,12 +89,16 @@ describe('createWorkbenchClientRuntime', () => {
 			preferredLocales: ['zh-CN'],
 			projectionClient,
 			shortcutPlatform: 'apple',
+			terminalPresentationConfigurationSource: presentationConfigurationSource,
 		});
 
 		expect(await runtime.ready).toEqual({ kind: 'ready' });
 		expect(runtime.locale).toBe('zh-CN');
 		expect(documentElement).toEqual({ dir: 'ltr', lang: 'zh-CN' });
 		expect(openProjection).not.toHaveBeenCalled();
+		expect(runtime.terminalSurfaceCapability.presentationConfigurationSource).toBe(
+			presentationConfigurationSource,
+		);
 
 		runtime.dispose();
 		expect(unsubscribeSessionTransport).toHaveBeenCalledOnce();

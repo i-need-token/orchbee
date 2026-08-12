@@ -50,10 +50,21 @@ export function parseFontMetricModifier(input: FontMetricModifier): ParsedFontMe
 	const percent = input.match(PERCENT_MODIFIER);
 	if (percent) {
 		const delta = Number(percent[1]);
-		return { kind: 'percent', factor: Math.max(0, 1 + delta / 100) };
+		if (!Number.isFinite(delta)) {
+			throw new TypeError('Font metric percentages must be finite');
+		}
+		const factor = Math.max(0, 1 + delta / 100);
+		if (!Number.isFinite(factor)) {
+			throw new TypeError('Font metric percentage factors must be finite');
+		}
+		return { kind: 'percent', factor };
 	}
 	if (ABSOLUTE_MODIFIER.test(input)) {
-		return { kind: 'absolute', delta: Number.parseInt(input, 10) };
+		const delta = Number.parseInt(input, 10);
+		if (!Number.isSafeInteger(delta)) {
+			throw new TypeError('Font metric deltas must be safe integers');
+		}
+		return { kind: 'absolute', delta };
 	}
 	throw new TypeError(`Invalid font metric modifier: ${input}`);
 }
@@ -64,10 +75,14 @@ export function applyFontMetricModifier(
 	modifier: FontMetricModifier,
 	options: { readonly integer?: boolean; readonly minimum?: number } = {},
 ): number {
+	if (!Number.isFinite(value)) throw new TypeError('Font metrics must be finite');
 	const parsed = parseFontMetricModifier(modifier);
 	const adjusted = parsed.kind === 'percent' ? value * parsed.factor : value + parsed.delta;
+	if (!Number.isFinite(adjusted)) throw new TypeError('Adjusted font metrics must be finite');
 	const rounded = options.integer === true ? Math.round(adjusted) : adjusted;
-	return Math.max(options.minimum ?? 0, rounded);
+	const result = Math.max(options.minimum ?? 0, rounded);
+	if (!Number.isFinite(result)) throw new TypeError('Accepted font metrics must be finite');
+	return result;
 }
 
 /** Apply all renderer-owned metric modifiers using Ghostty's field semantics. */

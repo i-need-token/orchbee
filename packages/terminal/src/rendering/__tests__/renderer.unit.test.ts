@@ -6,7 +6,7 @@ import {
 } from '@orchbee/terminal-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { FontWeight } from '../../types';
+import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '../../presentation-configuration';
 import {
 	DEFAULT_THEME,
 	type PackedRendererMetadata,
@@ -271,16 +271,20 @@ describe('projected terminal renderer', () => {
 		ensureGlyph.call(renderer, 'C', TerminalStyleFlag.bold, 1);
 		expect(atlasContext.font).toBe('575 26px JetBrains Mono');
 
-		const regularWeight: FontWeight = 250;
-		const boldWeight: FontWeight = 600;
-		renderer.setFontWeight(regularWeight);
-		renderer.setFontWeightBold(boldWeight);
+		const prepared = renderer.preparePresentationConfiguration({
+			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+			fontFamily: 'JetBrains Mono',
+			fontSize: 13,
+			fontWeight: 250,
+			fontWeightBold: 600,
+		});
+		renderer.commitPresentationConfiguration(prepared);
 		ensureGlyph.call(renderer, 'D', TerminalStyleFlag.bold | TerminalStyleFlag.italic, 1);
 		expect(atlasContext.font).toBe('italic 600 26px JetBrains Mono');
 		renderer.dispose();
 	});
 
-	it('measures projected surface geometry and rebuilds for device-pixel changes', async () => {
+	it('remeasures and fully repaints Canvas geometry at a fractional device-pixel ratio', async () => {
 		vi.stubGlobal('window', {
 			devicePixelRatio: 2,
 			getComputedStyle: () => ({
@@ -301,13 +305,53 @@ describe('projected terminal renderer', () => {
 			devicePixelRatio: 2,
 			paddingBalance: 'equal',
 		});
+		const telemetry = vi.fn<(frame: RendererFrameTelemetry) => void>();
+		const requestRender = vi.fn<() => void>();
+		renderer.setFrameTelemetryCallback(telemetry);
+		renderer.setRenderRequestCallback(requestRender);
 		await renderer.initGPU();
-		renderer.resize(10, 2);
+		const source = createPackedSource(['ABCDEFGHIJ', 'KLMNOPQRST']);
+		renderer.renderPacked(source);
+		const measureFont = vi.spyOn(renderer as unknown as { measureFont(): unknown }, 'measureFont');
+		const resetAtlas = vi.spyOn(renderer as unknown as { resetAtlas(): void }, 'resetAtlas');
+		const resize = vi.spyOn(renderer, 'resize');
+		requestRender.mockClear();
+		telemetry.mockClear();
 
 		expect(renderer.getMetrics()).toEqual({ width: 8, height: 17, baseline: 13 });
 		expect([canvas.width, canvas.height]).toEqual([160, 68]);
 		expect(renderer.setDevicePixelRatio(1.5)).toBe(true);
+		expect(measureFont).toHaveBeenCalledOnce();
+		expect(resetAtlas).toHaveBeenCalledOnce();
+		expect(resize).toHaveBeenCalledOnce();
+		expect(requestRender).toHaveBeenCalledOnce();
+		expect(canvas.style).toMatchObject({ height: '34px', width: '80px' });
 		expect([canvas.width, canvas.height]).toEqual([120, 51]);
+		renderer.renderPacked(source);
+		expect(telemetry).toHaveBeenCalledWith(
+			expect.objectContaining({
+				atlasGlyphCount: 0,
+				backend: 'canvas2d',
+				cellsVisited: 20,
+				forceAll: true,
+				glyphInstances: 20,
+				reasons: ['surface'],
+				rowsRendered: 2,
+			}),
+		);
+
+		telemetry.mockClear();
+		renderer.renderPacked(source);
+		expect(telemetry).toHaveBeenCalledWith(
+			expect.objectContaining({
+				backend: 'canvas2d',
+				cellsVisited: 0,
+				forceAll: false,
+				glyphInstances: 0,
+				reasons: ['dirty'],
+				rowsRendered: 0,
+			}),
+		);
 		renderer.dispose();
 	});
 
@@ -369,6 +413,121 @@ describe('projected terminal renderer', () => {
 				rowsRendered: 1,
 			}),
 		);
+		renderer.dispose();
+	});
+
+	it('prepares and publishes one complete Canvas presentation with one full repaint', async () => {
+		vi.stubGlobal('window', {
+			devicePixelRatio: 2,
+			getComputedStyle: () => ({
+				paddingBottom: '1px',
+				paddingLeft: '1px',
+				paddingRight: '1px',
+				paddingTop: '1px',
+			}),
+		});
+		vi.stubGlobal('navigator', {});
+		const fillRect = vi.fn<CanvasRenderingContext2D['fillRect']>();
+		const clearRect = vi.fn<CanvasRenderingContext2D['clearRect']>();
+		const canvas = createCanvas(undefined, {}, undefined, fillRect, undefined, clearRect);
+		Object.assign(canvas, {
+			parentElement: { clientHeight: 52, clientWidth: 37 },
+		});
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, undefined, fillRect, undefined, clearRect),
+		});
+		const renderer = new WebGPURenderer(canvas);
+		const telemetry = vi.fn<(frame: RendererFrameTelemetry) => void>();
+		const requestRender = vi.fn<() => void>();
+		renderer.setFrameTelemetryCallback(telemetry);
+		renderer.setRenderRequestCallback(requestRender);
+		await renderer.initGPU();
+		renderer.resize(2, 1);
+		const source = createPackedSource(['AB'], { cursor: { visible: true } });
+		renderer.setProjectedViewportState(0, {
+			endCol: 1,
+			endRow: 0,
+			rectangle: false,
+			startCol: 0,
+			startRow: 0,
+		});
+		renderer.setSearchMatches(
+			[{ end: { column: 2, row: 0 }, start: { column: 0, row: 0 }, text: 'AB' }],
+			{ end: { column: 2, row: 0 }, start: { column: 0, row: 0 }, text: 'AB' },
+		);
+		renderer.setFocused(true);
+		renderer.renderPacked(source);
+		const measureFont = vi.spyOn(renderer as unknown as { measureFont(): unknown }, 'measureFont');
+		const resetAtlas = vi.spyOn(renderer as unknown as { resetAtlas(): void }, 'resetAtlas');
+		requestRender.mockClear();
+		telemetry.mockClear();
+		clearRect.mockClear();
+
+		const prepared = renderer.preparePresentationConfiguration({
+			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+			allowTransparency: true,
+			fontFamily: 'Runtime Canvas Mono',
+			fontLigatures: false,
+			fontMetricModifiers: { cellHeight: 3, cellWidth: 2 },
+			fontSize: 18,
+			fontWeight: 450,
+			fontWeightBold: 700,
+			paddingBalance: 'equal',
+		});
+		expect(requestRender).not.toHaveBeenCalled();
+		expect(renderer.getMetrics()).toEqual({ baseline: 13, height: 17, width: 8 });
+		renderer.commitPresentationConfiguration(prepared);
+
+		expect(measureFont).toHaveBeenCalledOnce();
+		expect(resetAtlas).toHaveBeenCalledOnce();
+		expect(requestRender).toHaveBeenCalledOnce();
+		expect(renderer.getMetrics()).toEqual({ baseline: 14, height: 20, width: 10 });
+		expect(canvas.style).toMatchObject({ height: '20px', width: '20px' });
+		expect(canvas.width).toBe(40);
+		expect(canvas.height).toBe(40);
+		expect(Reflect.get(renderer, 'projectedSelectionCoords')).toEqual({
+			endCol: 1,
+			endRow: 0,
+			rectangle: false,
+			startCol: 0,
+			startRow: 0,
+		});
+		expect(Reflect.get(renderer, 'searchMatches')).toHaveLength(1);
+		renderer.renderPacked(source);
+		expect(telemetry).toHaveBeenCalledWith(
+			expect.objectContaining({
+				backend: 'canvas2d',
+				forceAll: true,
+				reasons: expect.arrayContaining(['font', 'surface']),
+			}),
+		);
+		expect(fillRect).toHaveBeenCalled();
+		renderer.dispose();
+	});
+
+	it('leaves Canvas presentation untouched when measurement preparation fails', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		let failMeasurement = false;
+		vi.stubGlobal('document', {
+			createElement: () =>
+				failMeasurement
+					? ({ getContext: () => null } as unknown as HTMLCanvasElement)
+					: createCanvas(),
+		});
+		const renderer = new WebGPURenderer(createCanvas());
+		await renderer.initGPU();
+		const initialMetrics = renderer.getMetrics();
+		failMeasurement = true;
+
+		expect(() =>
+			renderer.preparePresentationConfiguration({
+				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				fontFamily: 'Unavailable Runtime Mono',
+				fontSize: 22,
+			}),
+		).toThrow('Failed to create font measurement context');
+		expect(renderer.getMetrics()).toEqual(initialMetrics);
 		renderer.dispose();
 	});
 
@@ -873,6 +1032,171 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('reconfigures WebGPU and recreates its atlas for a clean device-pixel transition', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 2 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const configure = vi.fn<(configuration: GPUCanvasConfiguration) => void>();
+		const context = {
+			configure,
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const canvas = createWebGPUCanvas(context);
+		const renderer = new WebGPURenderer(canvas, { devicePixelRatio: 2 });
+		const telemetry = vi.fn<(frame: RendererFrameTelemetry) => void>();
+		const requestRender = vi.fn<() => void>();
+		renderer.setFrameTelemetryCallback(telemetry);
+		renderer.setRenderRequestCallback(requestRender);
+		await renderer.initGPU();
+		const source = createPackedSource(['AB', 'CD']);
+		renderer.renderPacked(source);
+		const measureFont = vi.spyOn(renderer as unknown as { measureFont(): unknown }, 'measureFont');
+		const resetAtlas = vi.spyOn(renderer as unknown as { resetAtlas(): void }, 'resetAtlas');
+		const resize = vi.spyOn(renderer, 'resize');
+		configure.mockClear();
+		requestRender.mockClear();
+		telemetry.mockClear();
+
+		expect([canvas.width, canvas.height]).toEqual([32, 68]);
+		expect(renderer.setDevicePixelRatio(1.5)).toBe(true);
+		expect(measureFont).toHaveBeenCalledOnce();
+		expect(resetAtlas).toHaveBeenCalledOnce();
+		expect(resize).toHaveBeenCalledOnce();
+		expect(requestRender).toHaveBeenCalledOnce();
+		expect(configure).toHaveBeenCalledOnce();
+		expect(canvas.style).toMatchObject({ height: '34px', width: '16px' });
+		expect([canvas.width, canvas.height]).toEqual([24, 51]);
+
+		renderer.renderPacked(source);
+		expect(telemetry).toHaveBeenCalledWith(
+			expect.objectContaining({
+				atlasGlyphCount: 4,
+				atlasGlyphsCreated: 4,
+				backend: 'webgpu',
+				cellsVisited: 4,
+				forceAll: true,
+				reasons: ['surface'],
+				rowsRendered: 2,
+			}),
+		);
+
+		measureFont.mockClear();
+		resetAtlas.mockClear();
+		resize.mockClear();
+		configure.mockClear();
+		requestRender.mockClear();
+		telemetry.mockClear();
+		expect(renderer.setDevicePixelRatio(1.5)).toBe(false);
+		expect(measureFont).not.toHaveBeenCalled();
+		expect(resetAtlas).not.toHaveBeenCalled();
+		expect(resize).not.toHaveBeenCalled();
+		expect(configure).not.toHaveBeenCalled();
+		expect(requestRender).not.toHaveBeenCalled();
+		renderer.renderPacked(source);
+		expect(telemetry).toHaveBeenCalledWith(
+			expect.objectContaining({
+				atlasGlyphCount: 4,
+				atlasGlyphsCreated: 0,
+				backend: 'webgpu',
+				forceAll: false,
+				reasons: ['dirty'],
+			}),
+		);
+		renderer.dispose();
+	});
+
+	it('publishes the same complete runtime presentation through WebGPU', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 2 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const configure = vi.fn<(configuration: GPUCanvasConfiguration) => void>();
+		const context = {
+			configure,
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const canvas = createWebGPUCanvas(context);
+		const renderer = new WebGPURenderer(canvas);
+		const telemetry = vi.fn<(frame: RendererFrameTelemetry) => void>();
+		const requestRender = vi.fn<() => void>();
+		renderer.setFrameTelemetryCallback(telemetry);
+		renderer.setRenderRequestCallback(requestRender);
+		await renderer.initGPU();
+		renderer.resize(2, 1);
+		const source = createPackedSource(['AB'], { cursor: { visible: true } });
+		renderer.setProjectedViewportState(0, {
+			endCol: 1,
+			endRow: 0,
+			rectangle: false,
+			startCol: 0,
+			startRow: 0,
+		});
+		renderer.renderPacked(source);
+		const measureFont = vi.spyOn(renderer as unknown as { measureFont(): unknown }, 'measureFont');
+		const resetAtlas = vi.spyOn(renderer as unknown as { resetAtlas(): void }, 'resetAtlas');
+		requestRender.mockClear();
+		telemetry.mockClear();
+		configure.mockClear();
+
+		const prepared = renderer.preparePresentationConfiguration({
+			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+			allowTransparency: true,
+			fontFamily: 'Runtime WebGPU Mono',
+			fontLigatures: false,
+			fontMetricModifiers: { cellHeight: 3, cellWidth: 2 },
+			fontSize: 18,
+			fontWeight: 450,
+			fontWeightBold: 700,
+			paddingBalance: false,
+		});
+		renderer.commitPresentationConfiguration(prepared);
+
+		expect(measureFont).toHaveBeenCalledOnce();
+		expect(resetAtlas).toHaveBeenCalledOnce();
+		expect(requestRender).toHaveBeenCalledOnce();
+		expect(configure).toHaveBeenCalledOnce();
+		expect(canvas.style).toMatchObject({ height: '20px', width: '20px' });
+		expect(canvas.width).toBe(40);
+		expect(canvas.height).toBe(40);
+		expect(Reflect.get(renderer, 'projectedSelectionCoords')).toEqual({
+			endCol: 1,
+			endRow: 0,
+			rectangle: false,
+			startCol: 0,
+			startRow: 0,
+		});
+		renderer.renderPacked(source);
+		expect(telemetry).toHaveBeenCalledWith(
+			expect.objectContaining({
+				backend: 'webgpu',
+				forceAll: true,
+				reasons: expect.arrayContaining(['font', 'surface']),
+			}),
+		);
+		expect(telemetry.mock.calls[0]?.[0].overlayInstances).toBeGreaterThan(0);
+		expect(rendering.beginRenderPass.mock.calls.at(-1)?.[0].colorAttachments[0]).toMatchObject({
+			clearValue: { a: 0, b: 0, g: 0, r: 0 },
+		});
+		renderer.dispose();
+	});
+
 	it('uses the same thumb-only scrollbar projection for WebGPU', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('document', { createElement: () => createCanvas() });
@@ -1029,6 +1353,9 @@ function createControllableDevice(): {
 }
 
 function createSubmittingDevice(): {
+	readonly beginRenderPass: ReturnType<
+		typeof vi.fn<(descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder>
+	>;
 	readonly device: GPUDevice;
 	readonly submit: ReturnType<typeof vi.fn<GPUQueue['submit']>>;
 	readonly writeBuffer: ReturnType<typeof vi.fn<GPUQueue['writeBuffer']>>;
@@ -1042,6 +1369,9 @@ function createSubmittingDevice(): {
 		setPipeline: () => {},
 		setVertexBuffer: () => {},
 	};
+	const beginRenderPass = vi.fn<(descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder>(
+		() => renderPass as unknown as GPURenderPassEncoder,
+	);
 	const queue = {
 		copyExternalImageToTexture: () => {},
 		submit,
@@ -1052,7 +1382,7 @@ function createSubmittingDevice(): {
 		createBindGroup: () => ({}),
 		createBuffer: () => ({ destroy: () => {} }),
 		createCommandEncoder: () => ({
-			beginRenderPass: () => renderPass,
+			beginRenderPass,
 			finish: () => ({}),
 		}),
 		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
@@ -1066,5 +1396,5 @@ function createSubmittingDevice(): {
 		pushErrorScope: () => {},
 		queue,
 	} as unknown as GPUDevice;
-	return { device, submit, writeBuffer };
+	return { beginRenderPass, device, submit, writeBuffer };
 }

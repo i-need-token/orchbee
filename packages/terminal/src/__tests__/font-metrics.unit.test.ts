@@ -110,6 +110,13 @@ describe('font metric modifiers', () => {
 		expect(applyFontMetricModifier(100, 100, { integer: true })).toBe(200);
 	});
 
+	it('rejects non-finite parsed and applied metric results', () => {
+		expect(() => parseFontMetricModifier(`${'9'.repeat(400)}%`)).toThrow(TypeError);
+		expect(() => parseFontMetricModifier('9'.repeat(400))).toThrow(TypeError);
+		expect(() => applyFontMetricModifier(Number.MAX_VALUE, '100%')).toThrow(TypeError);
+		expect(() => applyFontMetricModifier(Number.POSITIVE_INFINITY, 0)).toThrow(TypeError);
+	});
+
 	it('keeps fallback size adjustments stable across font sizes and metric fallbacks', () => {
 		const primary = faceMetrics({
 			pixelsPerEm: 16,

@@ -47,6 +47,7 @@ export function useProjectedTerminalSurface(
 					attachment.transport,
 					undefined,
 					capability.platformEffects,
+					capability.presentationConfigurationSource,
 				);
 				if (cancelled) rendererSession.dispose();
 				else {

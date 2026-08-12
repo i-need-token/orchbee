@@ -19,6 +19,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AccessibleTextModel, buildAccessibleRow } from '../accessibility';
 import type { TerminalBufferRenderCell, TerminalBufferRow } from '../buffer-rows';
+import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '../presentation-configuration';
 import { PackedTerminalStore, projectedCellDisplayWidth } from '../projected';
 import { type PackedRendererSource, WebGPURenderer } from '../rendering';
 import { findTerminalBufferMatches } from '../search';
@@ -392,7 +393,12 @@ describe('Ghostty surface parity', () => {
 		vi.stubGlobal('document', { createElement: () => createCanvas(fillText) });
 		const renderer = new WebGPURenderer(createCanvas(fillText));
 		await renderer.initGPU();
-		renderer.setFontLigatures(false);
+		renderer.commitPresentationConfiguration(
+			renderer.preparePresentationConfiguration({
+				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				fontLigatures: false,
+			}),
+		);
 
 		renderer.renderPacked(store);
 
@@ -642,7 +648,12 @@ describe('Ghostty surface parity', () => {
 		const recording = createStyleRecordingCanvas();
 		const renderer = new WebGPURenderer(recording.canvas);
 		await renderer.initGPU();
-		renderer.setFontLigatures(false);
+		renderer.commitPresentationConfiguration(
+			renderer.preparePresentationConfiguration({
+				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				fontLigatures: false,
+			}),
+		);
 		const store = await loadSurfaceStore();
 
 		renderer.renderPacked(store);
@@ -703,7 +714,13 @@ describe('Ghostty surface parity', () => {
 		});
 
 		recording.rectangles.length = 0;
-		renderer.setAllowTransparency(true);
+		renderer.commitPresentationConfiguration(
+			renderer.preparePresentationConfiguration({
+				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				allowTransparency: true,
+				fontLigatures: false,
+			}),
+		);
 		renderer.renderPacked(store);
 		expect(recording.rectangles).toContainEqual({
 			alpha: 1,
@@ -770,7 +787,12 @@ describe('Ghostty surface parity', () => {
 		} as unknown as GPUCanvasContext;
 		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
 		await expect(renderer.initGPU()).resolves.toBe(true);
-		renderer.setFontLigatures(false);
+		renderer.commitPresentationConfiguration(
+			renderer.preparePresentationConfiguration({
+				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				fontLigatures: false,
+			}),
+		);
 		const store = await loadSurfaceStore();
 		rendering.writeBuffer.mockClear();
 

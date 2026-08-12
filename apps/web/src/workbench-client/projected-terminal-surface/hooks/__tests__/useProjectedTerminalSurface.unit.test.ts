@@ -16,7 +16,11 @@ import type {
 	ProjectedTerminalTransport,
 	TerminalProjectionClient,
 } from '../../../terminal-projection';
-import type { startProjectedTerminalRenderer } from '../../../projected-terminal-renderer';
+import {
+	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+	type ProjectedTerminalRendererSession,
+	type startProjectedTerminalRenderer,
+} from '../../../projected-terminal-renderer';
 import { ProjectedTerminalSurfaceCapabilityContext } from '../../contexts/projected-terminal-surface-capability';
 import { useProjectedTerminalSurface } from '../useProjectedTerminalSurface';
 
@@ -24,7 +28,8 @@ const renderer = vi.hoisted(() => ({
 	start: vi.fn<typeof startProjectedTerminalRenderer>(),
 }));
 
-vi.mock('../../../projected-terminal-renderer', () => ({
+vi.mock('../../../projected-terminal-renderer', async (importOriginal) => ({
+	...(await importOriginal()),
 	startProjectedTerminalRenderer: renderer.start,
 }));
 
@@ -89,6 +94,7 @@ describe('useProjectedTerminalSurface', () => {
 								documentElement: document.documentElement,
 								preferredLocales: ['en-US'],
 								platformEffects: {},
+								presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 								projectionClient: { open },
 								shortcutPlatform: 'apple',
 								startStoppedTerminalSession: () => undefined,
@@ -121,6 +127,12 @@ describe('useProjectedTerminalSurface', () => {
 		renderer.start.mockResolvedValueOnce({
 			dispose: sessionDispose,
 			transportUnavailable,
+			updatePresentationConfiguration: vi
+				.fn<ProjectedTerminalRendererSession['updatePresentationConfiguration']>()
+				.mockResolvedValue({
+					configuration: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current(),
+					kind: 'completed',
+				}),
 		});
 		const firstRelease = vi.fn<() => void>();
 		const secondRelease = vi.fn<() => void>();
@@ -171,6 +183,7 @@ describe('useProjectedTerminalSurface', () => {
 						value: {
 							documentElement: document.documentElement,
 							platformEffects: {},
+							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 							preferredLocales: ['en-US'],
 							projectionClient: { open },
 							shortcutPlatform: 'apple',

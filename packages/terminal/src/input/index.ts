@@ -12,3 +12,29 @@ export {
 } from './calculateInputAnchor';
 export { OrderedInputDispatcher } from './OrderedInputDispatcher';
 export { ghosttyCodepointWidth } from './ghosttyCodepointWidth';
+export {
+	beginTerminalComposition,
+	createTerminalInputState,
+	disposeTerminalInputState,
+	finishTerminalComposition,
+	observeTerminalBeforeInput,
+	observeTerminalPaste,
+	recordTerminalBeforeInput,
+	recordTerminalComposition,
+	recordTerminalKeyInput,
+	recordTerminalMouseSample,
+	recordTerminalPaste,
+	repairTerminalInputState,
+	supersedeCancelledTerminalComposition,
+	TerminalBeforeInputOrigin,
+	TerminalCompositionPhase,
+	terminalCompositionUpdateIsEligible,
+	type TerminalCompositionEndDecision,
+	type TerminalBeforeInputDecision,
+	type TerminalCompositionSettlement,
+	type TerminalInputCorrelation,
+	type TerminalInputDecision,
+	type TerminalInputRepair,
+	type TerminalInputState,
+	type TerminalPasteCorrelation,
+} from './terminal-input-state';

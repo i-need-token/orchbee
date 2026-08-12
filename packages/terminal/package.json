@@ -37,6 +37,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
+		"test:tla": "node scripts/run-tla.mjs",
 		"test:exports": "node ../../scripts/check-package-exports.mjs . && node scripts/check-public-api.mjs"
 	},
 	"dependencies": {

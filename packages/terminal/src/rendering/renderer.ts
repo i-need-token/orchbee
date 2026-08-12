@@ -40,16 +40,14 @@ import { searchMatchContainsCell, type TerminalSearchMatch } from '../search';
 import { additionalSurfaceMargins, balanceGridPadding } from '../surface-size';
 import { buildTextShapingPlan, type TextShapingPlan } from '../buildTextShapingPlan';
 import {
-	DEFAULT_RENDERER_FONT_FAMILY,
-	DEFAULT_RENDERER_FONT_SIZE,
-	DEFAULT_RENDERER_FONT_WEIGHT,
-} from '../types';
+	normalizeTerminalPresentationConfiguration,
+	presentationConfigurationFromRendererOptions,
+	type TerminalPresentationConfiguration,
+} from '../presentation-configuration';
 import type {
 	FontMetrics,
-	FontMetricModifiers,
 	FontWeight,
 	ITheme,
-	PaddingBalance,
 	RendererOptions,
 	SelectionCoordinates,
 	SurfacePadding,
@@ -134,6 +132,13 @@ export interface PackedRendererSource {
 	readonly needsFullRedraw: boolean;
 	readonly rows: readonly PackedRendererRow[];
 	markRendered(): void;
+}
+
+/** Font measurements prepared before one complete presentation configuration commit. */
+export interface PreparedTerminalPresentationConfiguration {
+	readonly configuration: TerminalPresentationConfiguration;
+	readonly detailedMetrics: DetailedFontMetrics;
+	readonly metrics: FontMetrics;
 }
 
 // ============================================================================
@@ -468,16 +473,10 @@ export class WebGPURenderer {
 	private ctx2d: CanvasRenderingContext2D | null = null;
 	private useWebGPU = false;
 
-	// Font
-	private fontSize: number;
-	private fontFamily: string;
-	private fontWeight: FontWeight;
-	private fontWeightBold: FontWeight;
-	private fontLigatures: boolean;
-	private fontMetricModifiers: FontMetricModifiers;
+	// Font and surface presentation
+	private presentationConfiguration: TerminalPresentationConfiguration;
 	private metrics: FontMetrics;
 	private detailedMetrics: DetailedFontMetrics;
-	private paddingBalance: PaddingBalance;
 
 	// Cursor
 	private cursorBlink: boolean;
@@ -522,7 +521,6 @@ export class WebGPURenderer {
 	private devicePixelRatio: number;
 	private renderedColumns = 0;
 	private renderedRows = 0;
-	private allowTransparency: boolean;
 	private packedDefaultBackgroundRgb: number | null = null;
 
 	// Selection
@@ -571,18 +569,11 @@ export class WebGPURenderer {
 	constructor(canvas: HTMLCanvasElement, options: RendererOptions = {}) {
 		this.canvas = canvas;
 		this.format = 'bgra8unorm';
-		this.fontSize = options.fontSize ?? DEFAULT_RENDERER_FONT_SIZE;
-		this.fontFamily = options.fontFamily ?? DEFAULT_RENDERER_FONT_FAMILY;
-		this.fontWeight = options.fontWeight ?? DEFAULT_RENDERER_FONT_WEIGHT;
-		this.fontWeightBold = options.fontWeightBold ?? 'bold';
-		this.fontLigatures = options.fontLigatures ?? true;
-		this.fontMetricModifiers = { ...options.fontMetricModifiers };
-		this.paddingBalance = options.paddingBalance ?? false;
+		this.presentationConfiguration = presentationConfigurationFromRendererOptions(options);
 		this.cursorBlink = options.cursorBlink ?? false;
 		this.theme = { ...DEFAULT_THEME, ...options.theme };
 		this.cursorAccentOverride = options.theme?.cursorAccent;
 		this.devicePixelRatio = options.devicePixelRatio ?? window.devicePixelRatio ?? 1;
-		this.allowTransparency = options.allowTransparency ?? false;
 
 		this.detailedMetrics = this.measureFont();
 		this.metrics = publicFontMetrics(this.detailedMetrics);
@@ -736,22 +727,27 @@ export class WebGPURenderer {
 	// Font Metrics
 	// ==========================================================================
 
-	private measureFont(): DetailedFontMetrics {
+	private measureFont(configuration = this.presentationConfiguration): DetailedFontMetrics {
 		const canvas = document.createElement('canvas');
 		const ctx = canvas.getContext('2d');
 		if (!ctx) throw new Error('Failed to create font measurement context');
-		ctx.font = canvasFont('normal', this.fontWeight, this.fontSize, this.fontFamily);
+		ctx.font = canvasFont(
+			'normal',
+			configuration.fontWeight,
+			configuration.fontSize,
+			configuration.fontFamily,
+		);
 
 		const widthMetrics = ctx.measureText('M');
 		const width = Math.max(1, Math.round(widthMetrics.width));
 		const ascent =
 			widthMetrics.fontBoundingBoxAscent ||
 			widthMetrics.actualBoundingBoxAscent ||
-			this.fontSize * 0.8;
+			configuration.fontSize * 0.8;
 		const descent =
 			widthMetrics.fontBoundingBoxDescent ||
 			widthMetrics.actualBoundingBoxDescent ||
-			this.fontSize * 0.2;
+			configuration.fontSize * 0.2;
 		const faceHeight = Math.max(1, ascent + descent);
 		const height = Math.max(1, Math.round(faceHeight));
 		const baselineFromBottom = Math.round(descent - (height - faceHeight) / 2);
@@ -779,11 +775,11 @@ export class WebGPURenderer {
 				faceHeight,
 				faceY: baselineFromBottom - descent,
 			},
-			this.fontMetricModifiers,
+			configuration.fontMetricModifiers,
 		);
 	}
 
-	remeasureFont(): void {
+	private remeasureFont(): void {
 		this.detailedMetrics = this.measureFont();
 		this.metrics = publicFontMetrics(this.detailedMetrics);
 	}
@@ -981,12 +977,14 @@ export class WebGPURenderer {
 
 		const fontStyle = (flags & TerminalStyleFlag.italic) !== 0 ? 'italic' : 'normal';
 		const fontWeight =
-			(flags & TerminalStyleFlag.bold) !== 0 ? this.fontWeightBold : this.fontWeight;
+			(flags & TerminalStyleFlag.bold) !== 0
+				? this.presentationConfiguration.fontWeightBold
+				: this.presentationConfiguration.fontWeight;
 		this.atlasCtx.font = canvasFont(
 			fontStyle,
 			fontWeight,
-			this.fontSize * rasterScale,
-			this.fontFamily,
+			this.presentationConfiguration.fontSize * rasterScale,
+			this.presentationConfiguration.fontFamily,
 		);
 		this.atlasCtx.textBaseline = 'alphabetic';
 		this.atlasCtx.textAlign = 'left';
@@ -1278,7 +1276,10 @@ export class WebGPURenderer {
 			this.ctx2d.setTransform(this.devicePixelRatio, 0, 0, this.devicePixelRatio, 0, 0);
 			this.ctx2d.textBaseline = 'alphabetic';
 			this.ctx2d.textAlign = 'left';
-			if (!this.allowTransparency && this.packedDefaultBackgroundRgb !== null) {
+			if (
+				!this.presentationConfiguration.allowTransparency &&
+				this.packedDefaultBackgroundRgb !== null
+			) {
 				const [red, green, blue] = rgbChannels(this.packedDefaultBackgroundRgb);
 				this.ctx2d.fillStyle = `rgb(${red}, ${green}, ${blue})`;
 				this.ctx2d.fillRect(0, 0, cssWidth, cssHeight);
@@ -1291,7 +1292,7 @@ export class WebGPURenderer {
 	syncSurfacePadding(): void {
 		const parent = this.canvas.parentElement;
 		if (!parent) return;
-		if (this.paddingBalance === false) {
+		if (this.presentationConfiguration.paddingBalance === false) {
 			setCanvasMargins(this.canvas, ZERO_PADDING);
 			return;
 		}
@@ -1308,7 +1309,7 @@ export class WebGPURenderer {
 			{ width: this.metrics.width, height: this.metrics.height },
 			explicit,
 			{ columns: this.renderedColumns, rows: this.renderedRows },
-			this.paddingBalance,
+			this.presentationConfiguration.paddingBalance,
 		);
 		setCanvasMargins(this.canvas, additionalSurfaceMargins(balanced, explicit));
 	}
@@ -1323,6 +1324,7 @@ export class WebGPURenderer {
 		if (this.renderedColumns > 0 && this.renderedRows > 0) {
 			this.resize(this.renderedColumns, this.renderedRows);
 		}
+		this.surfaceDirty = true;
 		this.requestRenderCallback?.();
 		return true;
 	}
@@ -1503,7 +1505,7 @@ export class WebGPURenderer {
 		return {
 			codepoints,
 			texts,
-			plan: this.fontLigatures
+			plan: this.presentationConfiguration.fontLigatures
 				? buildTextShapingPlan({
 						length: columns,
 						eligible,
@@ -1966,10 +1968,10 @@ export class WebGPURenderer {
 				{
 					view: this.context.getCurrentTexture().createView(),
 					clearValue: {
-						r: this.allowTransparency ? 0 : clearColor[0] / 255,
-						g: this.allowTransparency ? 0 : clearColor[1] / 255,
-						b: this.allowTransparency ? 0 : clearColor[2] / 255,
-						a: this.allowTransparency ? 0 : 1,
+						r: this.presentationConfiguration.allowTransparency ? 0 : clearColor[0] / 255,
+						g: this.presentationConfiguration.allowTransparency ? 0 : clearColor[1] / 255,
+						b: this.presentationConfiguration.allowTransparency ? 0 : clearColor[2] / 255,
+						a: this.presentationConfiguration.allowTransparency ? 0 : 1,
 					},
 					loadOp: 'clear',
 					storeOp: 'store',
@@ -2099,7 +2101,7 @@ export class WebGPURenderer {
 			const lineY = y * this.metrics.height;
 			const lineWidth = columns * this.metrics.width;
 			ctx.clearRect(0, lineY, lineWidth, this.metrics.height);
-			if (!this.allowTransparency) {
+			if (!this.presentationConfiguration.allowTransparency) {
 				ctx.fillStyle = `rgb(${defaultBackground[0]}, ${defaultBackground[1]}, ${defaultBackground[2]})`;
 				ctx.fillRect(0, lineY, lineWidth, this.metrics.height);
 			}
@@ -2233,8 +2235,15 @@ export class WebGPURenderer {
 		const cellWidth = width * this.metrics.width;
 		const fontStyle = (flags & TerminalStyleFlag.italic) !== 0 ? 'italic' : 'normal';
 		const fontWeight =
-			(flags & TerminalStyleFlag.bold) !== 0 ? this.fontWeightBold : this.fontWeight;
-		ctx.font = canvasFont(fontStyle, fontWeight, this.fontSize, this.fontFamily);
+			(flags & TerminalStyleFlag.bold) !== 0
+				? this.presentationConfiguration.fontWeightBold
+				: this.presentationConfiguration.fontWeight;
+		ctx.font = canvasFont(
+			fontStyle,
+			fontWeight,
+			this.presentationConfiguration.fontSize,
+			this.presentationConfiguration.fontFamily,
+		);
 		let foreground = rgbChannels(
 			packedColorRgb(
 				row.foregroundColors[column] ?? TerminalColorEncoding.default,
@@ -2389,7 +2398,12 @@ export class WebGPURenderer {
 		const width = layout.width * this.metrics.width;
 		ctx.fillStyle = `rgb(${background[0]}, ${background[1]}, ${background[2]})`;
 		ctx.fillRect(startX, cellY, width, this.metrics.height);
-		ctx.font = canvasFont('normal', this.fontWeight, this.fontSize, this.fontFamily);
+		ctx.font = canvasFont(
+			'normal',
+			this.presentationConfiguration.fontWeight,
+			this.presentationConfiguration.fontSize,
+			this.presentationConfiguration.fontFamily,
+		);
 		ctx.fillStyle = `rgb(${foreground[0]}, ${foreground[1]}, ${foreground[2]})`;
 		let column = layout.start;
 		for (const cell of layout.cells) {
@@ -2571,59 +2585,37 @@ export class WebGPURenderer {
 		this.requestRenderCallback?.();
 	}
 
-	setFontSize(size: number): void {
-		this.fontSize = size;
-		this.remeasureFont();
+	/** Prepare every fallible measurement without mutating the rendered presentation. */
+	preparePresentationConfiguration(
+		configuration: TerminalPresentationConfiguration,
+	): PreparedTerminalPresentationConfiguration {
+		const normalized = normalizeTerminalPresentationConfiguration(configuration);
+		if (normalized.kind === 'invalid') {
+			throw new TypeError(`Invalid terminal presentation configuration field: ${normalized.field}`);
+		}
+		const nextConfiguration = normalized.configuration;
+		const nextDetailedMetrics = this.measureFont(nextConfiguration);
+		const nextMetrics = publicFontMetrics(nextDetailedMetrics);
+		return {
+			configuration: nextConfiguration,
+			detailedMetrics: nextDetailedMetrics,
+			metrics: nextMetrics,
+		};
+	}
+
+	/** Publish one already prepared complete configuration in one synchronous renderer commit. */
+	commitPresentationConfiguration(prepared: PreparedTerminalPresentationConfiguration): void {
+		this.presentationConfiguration = prepared.configuration;
+		this.detailedMetrics = prepared.detailedMetrics;
+		this.metrics = prepared.metrics;
 		this.resetAtlas();
+		if (this.renderedColumns > 0 && this.renderedRows > 0) {
+			this.resize(this.renderedColumns, this.renderedRows);
+		} else {
+			this.syncSurfacePadding();
+		}
 		this.fontDirty = true;
-		this.requestRenderCallback?.();
-	}
-
-	setFontFamily(family: string): void {
-		this.fontFamily = family;
-		this.remeasureFont();
-		this.resetAtlas();
-		this.fontDirty = true;
-		this.requestRenderCallback?.();
-	}
-
-	setFontWeight(weight: FontWeight): void {
-		if (weight === this.fontWeight) return;
-		this.fontWeight = weight;
-		this.remeasureFont();
-		this.resetAtlas();
-		this.fontDirty = true;
-		this.requestRenderCallback?.();
-	}
-
-	setFontWeightBold(weight: FontWeight): void {
-		if (weight === this.fontWeightBold) return;
-		this.fontWeightBold = weight;
-		this.resetAtlas();
-		this.fontDirty = true;
-		this.requestRenderCallback?.();
-	}
-
-	setFontLigatures(enabled: boolean): void {
-		if (enabled === this.fontLigatures) return;
-		this.fontLigatures = enabled;
-		this.fontDirty = true;
-		this.requestRenderCallback?.();
-	}
-
-	setFontMetricModifiers(modifiers: FontMetricModifiers): void {
-		this.fontMetricModifiers = { ...modifiers };
-		this.remeasureFont();
-		this.resetAtlas();
-		this.resize(this.renderedColumns, this.renderedRows);
-		this.fontDirty = true;
-		this.requestRenderCallback?.();
-	}
-
-	setPaddingBalance(mode: PaddingBalance): void {
-		if (mode === this.paddingBalance) return;
-		this.paddingBalance = mode;
-		this.syncSurfacePadding();
+		this.surfaceDirty = true;
 		this.requestRenderCallback?.();
 	}
 
@@ -2661,20 +2653,18 @@ export class WebGPURenderer {
 		this.requestRenderCallback?.();
 	}
 
-	setAllowTransparency(enabled: boolean): void {
-		if (enabled === this.allowTransparency) return;
-		this.allowTransparency = enabled;
-		this.surfaceDirty = true;
-		this.requestRenderCallback?.();
-	}
-
 	getMetrics(): FontMetrics {
 		return { ...this.metrics };
 	}
 
 	/** Measure regular preedit text using the same CSS font as the hidden input. */
 	measureTextWidth(text: string): number {
-		this.atlasCtx.font = canvasFont('normal', this.fontWeight, this.fontSize, this.fontFamily);
+		this.atlasCtx.font = canvasFont(
+			'normal',
+			this.presentationConfiguration.fontWeight,
+			this.presentationConfiguration.fontSize,
+			this.presentationConfiguration.fontFamily,
+		);
 		return this.atlasCtx.measureText(text).width;
 	}
 
@@ -2775,7 +2765,10 @@ export class WebGPURenderer {
 	clear(): void {
 		if (this.ctx2d) {
 			this.ctx2d.clearRect(0, 0, this.canvas.width, this.canvas.height);
-			if (!this.allowTransparency && this.packedDefaultBackgroundRgb !== null) {
+			if (
+				!this.presentationConfiguration.allowTransparency &&
+				this.packedDefaultBackgroundRgb !== null
+			) {
 				const [red, green, blue] = rgbChannels(this.packedDefaultBackgroundRgb);
 				this.ctx2d.fillStyle = `rgb(${red}, ${green}, ${blue})`;
 				this.ctx2d.fillRect(0, 0, this.canvas.width, this.canvas.height);

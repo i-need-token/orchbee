@@ -11,6 +11,7 @@ import type {
 	ProjectedTerminalMetadata,
 	ProjectedTerminalOptions,
 } from '@orchbee/terminal';
+import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '@orchbee/terminal';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ProjectedTerminalTransport } from '../../terminal-projection';
@@ -19,6 +20,7 @@ import {
 	startProjectedTerminalRenderer,
 	type ProjectedTerminalRendererDependencies,
 } from '../startProjectedTerminalRenderer';
+import type { TerminalPresentationConfigurationSource } from '../terminal-presentation-configuration-source';
 
 describe('startProjectedTerminalRenderer', () => {
 	it('localizes the projected surface and commits frame events from only its scoped port', async () => {
@@ -56,6 +58,14 @@ describe('startProjectedTerminalRenderer', () => {
 		const notifyExited = vi.fn<ProjectedTerminal['notifyExited']>();
 		const notifyBrokerFailure = vi.fn<ProjectedTerminal['notifyBrokerFailure']>();
 		const notifySelectionCopied = vi.fn<ProjectedTerminal['notifySelectionCopied']>();
+		const disposeTerminal = vi.fn<ProjectedTerminal['dispose']>();
+		const openTerminal = vi.fn<ProjectedTerminal['open']>().mockResolvedValue(undefined);
+		const updatePresentationConfiguration = vi
+			.fn<ProjectedTerminal['updatePresentationConfiguration']>()
+			.mockResolvedValue({
+				configuration: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				kind: 'completed',
+			});
 		const writeClipboardText = vi.fn<
 			NonNullable<ProjectedTerminalPlatformEffects['writeClipboardText']>
 		>(async () => ({ kind: 'completed' as const }));
@@ -81,7 +91,7 @@ describe('startProjectedTerminalRenderer', () => {
 						copySelectionAsync: vi
 							.fn<ProjectedTerminal['copySelectionAsync']>()
 							.mockResolvedValue({ kind: 'completed' }),
-						dispose: vi.fn<ProjectedTerminal['dispose']>(),
+						dispose: disposeTerminal,
 						findNext: vi.fn<ProjectedTerminal['findNext']>(() => false),
 						findPrevious: vi.fn<ProjectedTerminal['findPrevious']>(() => false),
 						focus: vi.fn<ProjectedTerminal['focus']>(),
@@ -138,10 +148,11 @@ describe('startProjectedTerminalRenderer', () => {
 						openLinkAsync: vi
 							.fn<ProjectedTerminal['openLinkAsync']>()
 							.mockResolvedValue({ kind: 'completed' }),
-						open: vi.fn<ProjectedTerminal['open']>().mockResolvedValue(undefined),
+						open: openTerminal,
 						reset: vi.fn<ProjectedTerminal['reset']>(),
 						selectAll: vi.fn<ProjectedTerminal['selectAll']>(),
 						selection: { attachmentId: bootstrap.attachmentId, state: 'none' },
+						updatePresentationConfiguration,
 						updateSearch: vi.fn<ProjectedTerminal['updateSearch']>(),
 					};
 				},
@@ -186,6 +197,21 @@ describe('startProjectedTerminalRenderer', () => {
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 		};
 		const originalHTMLElement = globalThis.HTMLElement;
+		let emitPresentationConfiguration: Parameters<
+			TerminalPresentationConfigurationSource['subscribe']
+		>[0] = () => undefined;
+		const unsubscribePresentationConfiguration = vi.fn<() => void>();
+		const initialPresentationConfiguration = {
+			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+			fontFamily: 'Injected Initial Mono',
+		};
+		const presentationConfigurationSource: TerminalPresentationConfigurationSource = {
+			current: () => initialPresentationConfiguration,
+			subscribe: (listener) => {
+				emitPresentationConfiguration = listener;
+				return unsubscribePresentationConfiguration;
+			},
+		};
 		Object.defineProperty(globalThis, 'HTMLElement', {
 			configurable: true,
 			value: class {},
@@ -201,6 +227,7 @@ describe('startProjectedTerminalRenderer', () => {
 				transport,
 				dependencies,
 				{ openExternal, ringBell, writeClipboardText },
+				presentationConfigurationSource,
 			);
 			expect(dependencies.createTerminal).toHaveBeenCalledWith(
 				expect.objectContaining({ projectionBufferTrust: 'local-host' }),
@@ -294,7 +321,8 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(options?.labels.row?.(2n, '中文')).toBe('终端第 2 行：中文');
 			expect(options?.labels.screenCursor?.(3n, 4)).toBe('终端屏幕，光标位于第 3 行、第 4 列');
 			expect(options?.labels.selectedText?.('内容')).toBe('已选择文本：内容');
-			expect(options?.renderer).toBeUndefined();
+			expect(options?.renderer).toEqual(initialPresentationConfiguration);
+			expect(openTerminal).toHaveBeenCalledOnce();
 			expect(root.style.backgroundColor).toBe('#123456');
 			expect(options?.inputEnabled).toBe(false);
 			expect(notifyExited).toHaveBeenCalledWith(bootstrap.terminalOutcome.event);
@@ -304,6 +332,25 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(dataset['projectedTerminalFinalFramePresented']).toBe('true');
 			expect(dataset['projectedTerminalRenderedGeneration']).toBe('1');
 			expect(dataset['projectedTerminalRenderedRevision']).toBe('1');
+			const runtimeConfiguration = {
+				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				allowTransparency: true,
+				fontFamily: 'Injected Runtime Mono',
+			};
+			emitPresentationConfiguration(runtimeConfiguration);
+			await vi.waitFor(() =>
+				expect(updatePresentationConfiguration).toHaveBeenCalledWith(runtimeConfiguration),
+			);
+			await vi.waitFor(() => {
+				expect(dataset['projectedTerminalPresentationState']).toBe('completed');
+				expect(dataset['projectedTerminalPresentationCommittedEpoch']).toBe('1');
+			});
+			emitFrameTelemetry({ ...telemetry, frameId: 2, timestamp: 2 });
+			expect(dataset['projectedTerminalPresentationDrawnEpoch']).toBe('1');
+			expect(dataset['projectedTerminalRenderedFrames']).toBe('2');
+			expect(dependencies.createTerminal).toHaveBeenCalledOnce();
+			expect(openTerminal).toHaveBeenCalledOnce();
+			expect(options?.renderer).toEqual(initialPresentationConfiguration);
 			if (emitTransportUnavailable === undefined) {
 				throw new Error('transport unavailable listener is missing');
 			}
@@ -314,6 +361,207 @@ describe('startProjectedTerminalRenderer', () => {
 				textContent: '终端连接失败。',
 			});
 			session.dispose();
+			session.dispose();
+			expect(unsubscribePresentationConfiguration).toHaveBeenCalledOnce();
+			expect(disposeTerminal).toHaveBeenCalledOnce();
+
+			const createAdditionalRoot = () => {
+				const additionalStatus = {
+					dataset: {},
+					hidden: false,
+					remove: vi.fn<ChildNode['remove']>(),
+					setAttribute: vi.fn<Element['setAttribute']>(),
+					textContent: null,
+				};
+				const additionalFindRoot = {
+					contains: vi.fn<HTMLElement['contains']>(() => false),
+					dataset: {},
+					remove: vi.fn<ChildNode['remove']>(),
+				};
+				const additionalRoot = {
+					appendChild: vi.fn<Node['appendChild']>(),
+					contains: vi.fn<HTMLElement['contains']>(() => true),
+					dataset: {} as DOMStringMap,
+					ownerDocument: {
+						createElement: vi
+							.fn<(tagName: string) => typeof additionalStatus | typeof additionalFindRoot>()
+							.mockReturnValueOnce(additionalStatus)
+							.mockReturnValueOnce(additionalFindRoot),
+					},
+					style: {},
+				} as unknown as HTMLElement;
+				Object.setPrototypeOf(additionalRoot, globalThis.HTMLElement.prototype);
+				return { additionalFindRoot, additionalRoot, additionalStatus };
+			};
+			const createAdditionalTransport = () => {
+				const close = vi.fn<() => void>();
+				const additionalTransport: ProjectedTerminalTransport = {
+					close,
+					projectionBufferTrust: 'local-host',
+					send: vi.fn<ProjectedTerminalTransport['send']>(),
+					subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => vi.fn<() => void>()),
+				};
+				return { additionalTransport, close };
+			};
+			const liveBootstrap = {
+				attachmentId: bootstrap.attachmentId,
+				canInput: bootstrap.canInput,
+				canResize: bootstrap.canResize,
+				creationId: bootstrap.creationId,
+				hostEpoch: bootstrap.hostEpoch,
+				terminalOutcome: null,
+				terminalId: bootstrap.terminalId,
+			};
+
+			vi.mocked(dependencies.createTerminal).mockClear();
+			disposeTerminal.mockClear();
+			openTerminal.mockClear();
+			const liveElements = createAdditionalRoot();
+			const liveTransport = createAdditionalTransport();
+			let emitLivePresentationConfiguration: Parameters<
+				TerminalPresentationConfigurationSource['subscribe']
+			>[0] = () => undefined;
+			const unsubscribeLiveSource = vi.fn<() => void>();
+			const liveSource: TerminalPresentationConfigurationSource = {
+				current: () => initialPresentationConfiguration,
+				subscribe: (listener) => {
+					emitLivePresentationConfiguration = listener;
+					return unsubscribeLiveSource;
+				},
+			};
+			const liveSession = await startProjectedTerminalRenderer(
+				liveElements.additionalRoot,
+				documentElement,
+				['en-US'],
+				'apple',
+				liveBootstrap,
+				liveTransport.additionalTransport,
+				dependencies,
+				{},
+				liveSource,
+			);
+			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('open');
+			updatePresentationConfiguration.mockRejectedValueOnce(new Error('injected update rejection'));
+			emitLivePresentationConfiguration({
+				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				fontFamily: 'Rejected Runtime Mono',
+			});
+			await vi.waitFor(() => {
+				expect(liveElements.additionalRoot.dataset['projectedTerminalPresentationState']).toBe(
+					'failed',
+				);
+				expect(liveElements.additionalRoot.dataset['projectedTerminalPresentationFailure']).toBe(
+					'update-rejected',
+				);
+			});
+			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('open');
+			expect(liveElements.additionalStatus.hidden).toBe(true);
+			expect(liveTransport.close).not.toHaveBeenCalled();
+
+			updatePresentationConfiguration.mockResolvedValueOnce({
+				code: 'renderer-preparation-failed',
+				kind: 'failed',
+			});
+			emitLivePresentationConfiguration({
+				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				fontFamily: 'Renderer Failed Runtime Mono',
+			});
+			await vi.waitFor(() => {
+				expect(liveElements.additionalRoot.dataset['projectedTerminalPresentationFailure']).toBe(
+					'renderer-preparation-failed',
+				);
+			});
+			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('open');
+			expect(liveElements.additionalStatus).toMatchObject({ hidden: true, textContent: null });
+			expect(liveTransport.close).not.toHaveBeenCalled();
+			liveSession.dispose();
+			expect(unsubscribeLiveSource).toHaveBeenCalledOnce();
+			expect(liveTransport.close).toHaveBeenCalledOnce();
+
+			vi.mocked(dependencies.createTerminal).mockClear();
+			disposeTerminal.mockClear();
+			const currentFailureElements = createAdditionalRoot();
+			const currentFailureTransport = createAdditionalTransport();
+			await expect(
+				startProjectedTerminalRenderer(
+					currentFailureElements.additionalRoot,
+					documentElement,
+					['en-US'],
+					'apple',
+					liveBootstrap,
+					currentFailureTransport.additionalTransport,
+					dependencies,
+					{},
+					{
+						current: () => {
+							throw new Error('configuration current failed');
+						},
+						subscribe: () => vi.fn<() => void>(),
+					},
+				),
+			).rejects.toThrow('configuration current failed');
+			expect(currentFailureElements.additionalRoot.appendChild).not.toHaveBeenCalled();
+			expect(dependencies.createTerminal).not.toHaveBeenCalled();
+			expect(disposeTerminal).not.toHaveBeenCalled();
+			expect(currentFailureTransport.close).toHaveBeenCalledOnce();
+
+			vi.mocked(dependencies.createTerminal).mockClear();
+			disposeTerminal.mockClear();
+			const subscribeFailureElements = createAdditionalRoot();
+			const subscribeFailureTransport = createAdditionalTransport();
+			await expect(
+				startProjectedTerminalRenderer(
+					subscribeFailureElements.additionalRoot,
+					documentElement,
+					['en-US'],
+					'apple',
+					liveBootstrap,
+					subscribeFailureTransport.additionalTransport,
+					dependencies,
+					{},
+					{
+						current: () => initialPresentationConfiguration,
+						subscribe: () => {
+							throw new Error('configuration subscribe failed');
+						},
+					},
+				),
+			).rejects.toThrow('configuration subscribe failed');
+			expect(subscribeFailureElements.additionalStatus.remove).toHaveBeenCalledOnce();
+			expect(dependencies.createTerminal).toHaveBeenCalledOnce();
+			expect(disposeTerminal).toHaveBeenCalledOnce();
+			expect(subscribeFailureTransport.close).toHaveBeenCalledOnce();
+
+			vi.mocked(dependencies.createTerminal).mockClear();
+			disposeTerminal.mockClear();
+			const laterSetupFailureElements = createAdditionalRoot();
+			const laterSetupFailureTransport = createAdditionalTransport();
+			laterSetupFailureTransport.additionalTransport.subscribe = vi
+				.fn<ProjectedTerminalTransport['subscribe']>()
+				.mockImplementation(() => {
+					throw new Error('transport subscribe failed');
+				});
+			const unsubscribeLaterSource = vi.fn<() => void>();
+			await expect(
+				startProjectedTerminalRenderer(
+					laterSetupFailureElements.additionalRoot,
+					documentElement,
+					['en-US'],
+					'apple',
+					liveBootstrap,
+					laterSetupFailureTransport.additionalTransport,
+					dependencies,
+					{},
+					{
+						current: () => initialPresentationConfiguration,
+						subscribe: () => unsubscribeLaterSource,
+					},
+				),
+			).rejects.toThrow('transport subscribe failed');
+			expect(unsubscribeLaterSource).toHaveBeenCalledOnce();
+			expect(laterSetupFailureElements.additionalStatus.remove).toHaveBeenCalledOnce();
+			expect(disposeTerminal).toHaveBeenCalledOnce();
+			expect(laterSetupFailureTransport.close).toHaveBeenCalledOnce();
 		} finally {
 			Object.defineProperty(globalThis, 'HTMLElement', {
 				configurable: true,

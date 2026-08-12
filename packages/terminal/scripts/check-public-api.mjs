@@ -3,10 +3,12 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const expectedRuntimeExports = [
+	'DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION',
 	'ProjectedHistoryPhase',
 	'ProjectedTerminal',
 	'ProjectedTerminalPhase',
 	'TerminalBufferRowDetail',
+	'normalizeTerminalPresentationConfiguration',
 ];
 
 const packageRoot = resolve(import.meta.dirname, '..');
@@ -25,4 +27,4 @@ for (const [format, api] of [
 	}
 }
 
-process.stdout.write('@orchbee/terminal: projected-only public API verified\n');
+process.stdout.write('@orchbee/terminal: public API verified\n');

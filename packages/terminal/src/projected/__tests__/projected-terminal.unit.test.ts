@@ -6,6 +6,7 @@ import {
 	CursorShape,
 	encodeTerminalRowWindow,
 	encodeTerminalFrame,
+	KeyAction,
 	MouseAction,
 	MouseButton,
 	parseAttachmentId,
@@ -25,6 +26,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { TerminalBufferRow } from '../../buffer-rows';
+import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '../../presentation-configuration';
 import { WebGPURenderer } from '../../rendering';
 import type { ProjectedSearchWorkerLike } from '../../search';
 import {
@@ -80,6 +82,7 @@ interface FakeBrowser {
 
 interface FakeMediaQueryList {
 	readonly media: string;
+	readonly listenerCount: number;
 	dispatchChange(): void;
 }
 
@@ -124,6 +127,7 @@ const otherAttachmentId = identifier(parseAttachmentId('666666666666666666666666
 
 afterEach(() => {
 	vi.useRealTimers();
+	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
 });
 
@@ -582,6 +586,9 @@ function createFakeBrowser(): FakeBrowser {
 		matchMedia: (media: string) => {
 			const listeners = new Set<EventListener>();
 			const query: FakeMediaQueryList = {
+				get listenerCount() {
+					return listeners.size;
+				},
 				media,
 				dispatchChange: () => {
 					for (const listener of listeners) listener({ type: 'change' } as Event);
@@ -687,6 +694,91 @@ function exitEvent(finalRevision: string): TerminalExited {
 	};
 }
 
+function dispatchComposition(
+	input: FakeElement,
+	type: 'compositionend' | 'compositionstart' | 'compositionupdate',
+	data: string,
+): void {
+	input.dispatch(type, { data, type } as unknown as CompositionEvent);
+}
+
+function dispatchBeforeInput(
+	input: FakeElement,
+	data: string,
+	isComposing = false,
+	inputType = 'insertText',
+): void {
+	input.dispatch('beforeinput', {
+		data,
+		inputType,
+		isComposing,
+		preventDefault: () => undefined,
+		stopPropagation: () => undefined,
+		type: 'beforeinput',
+	} as unknown as InputEvent);
+}
+
+function keyboardEvent(
+	type: 'keydown' | 'keyup',
+	code: string,
+	key: string,
+	keyCode: number,
+): KeyboardEvent {
+	return {
+		altKey: false,
+		code,
+		ctrlKey: false,
+		getModifierState: () => false,
+		isComposing: false,
+		key,
+		keyCode,
+		metaKey: false,
+		preventDefault: () => undefined,
+		repeat: false,
+		shiftKey: false,
+		stopPropagation: () => undefined,
+		type,
+	} as unknown as KeyboardEvent;
+}
+
+function pointerEvent(
+	type: 'pointerdown' | 'pointerup',
+	button: number,
+	buttons: number,
+	clientX: number,
+	clientY: number,
+): PointerEvent {
+	return {
+		altKey: false,
+		button,
+		buttons,
+		clientX,
+		clientY,
+		ctrlKey: false,
+		metaKey: false,
+		pointerId: 1,
+		preventDefault: () => undefined,
+		shiftKey: false,
+		type,
+	} as unknown as PointerEvent;
+}
+
+function wheelEvent(deltaX: number, deltaY: number): WheelEvent {
+	return {
+		altKey: false,
+		buttons: 0,
+		clientX: 2,
+		clientY: 2,
+		ctrlKey: false,
+		deltaX,
+		deltaY,
+		metaKey: false,
+		preventDefault: () => undefined,
+		shiftKey: false,
+		type: 'wheel',
+	} as unknown as WheelEvent;
+}
+
 describe('ProjectedTerminal', () => {
 	it('emits each scoped bell sequence once and accepts a baselined sequence gap', () => {
 		const terminal = new ProjectedTerminal({
@@ -717,11 +809,11 @@ describe('ProjectedTerminal', () => {
 
 	it('waits for the configured font and keeps the IME textarea font in sync', async () => {
 		const browser = createFakeBrowser();
-		let finishFontLoad: (() => void) | undefined;
+		const finishFontLoads: Array<() => void> = [];
 		const fontLoad = vi.fn<() => Promise<FontFace[]>>(
 			() =>
 				new Promise<FontFace[]>((resolve) => {
-					finishFontLoad = () => resolve([]);
+					finishFontLoads.push(() => resolve([]));
 				}),
 		);
 		Object.defineProperty(browser.document, 'fonts', {
@@ -747,10 +839,11 @@ describe('ProjectedTerminal', () => {
 		});
 
 		const opening = terminal.open(browser.root);
-		await vi.waitFor(() => expect(fontLoad).toHaveBeenCalledOnce());
+		await vi.waitFor(() => expect(fontLoad).toHaveBeenCalledTimes(2));
 		expect(fontLoad).toHaveBeenCalledWith('500 17px "Menlo", monospace', 'MW你🚀');
+		expect(fontLoad).toHaveBeenCalledWith('bold 17px "Menlo", monospace', 'MW你🚀');
 		expect(commands).toEqual([]);
-		finishFontLoad?.();
+		for (const finishFontLoad of finishFontLoads) finishFontLoad();
 		await opening;
 
 		expect(terminal.textarea?.style.fontFamily).toBe('"Menlo", monospace');
@@ -761,6 +854,369 @@ describe('ProjectedTerminal', () => {
 		expect(terminal.textarea?.style.clipPath).toBe('inset(50%)');
 		expect(terminal.textarea?.style.margin).toBe('0px');
 		expect((browser.root as unknown as FakeElement).children[2]?.style['userSelect']).toBe('text');
+		terminal.dispose();
+	});
+
+	it('publishes one font-ready runtime presentation transaction on the existing attachment', async () => {
+		const browser = createFakeBrowser();
+		const fontLoad = vi.fn<(font: string, text?: string) => Promise<FontFace[]>>(async () => []);
+		Object.defineProperty(browser.document, 'fonts', {
+			configurable: true,
+			value: { load: fontLoad },
+		});
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const prepare = vi.spyOn(WebGPURenderer.prototype, 'preparePresentationConfiguration');
+		const commit = vi.spyOn(WebGPURenderer.prototype, 'commitPresentationConfiguration');
+		const setHoveredLinkRange = vi.spyOn(WebGPURenderer.prototype, 'setHoveredLinkRange');
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			canResize: true,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			renderer: { devicePixelRatio: 2 },
+			searchWorkerFactory: () => searchWorkerWithMatch(9),
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
+		browser.flushFrames();
+		commands.length = 0;
+		terminal.scrollLines(-1);
+		const historyRequest = commands.find((command) => command.kind === 'read-rows');
+		if (historyRequest?.kind !== 'read-rows') {
+			throw new Error('runtime presentation fixture did not request history rows');
+		}
+		terminal.applyRows(
+			renderRowWindow(
+				BigInt(historyRequest.payload.requestSequence),
+				1n,
+				0n,
+				12n,
+				Array.from({ length: 12 }, (_, index) => (index === 9 ? 'needle' : `row-${index}`)),
+			),
+		);
+		browser.flushFrames();
+		const rows: TerminalBufferRow[] = Array.from({ length: 12 }, (_, index) => ({
+			cells: null,
+			identityAscii: true,
+			index: BigInt(index),
+			mappings: [],
+			promptClass: RowPromptClass.none,
+			text: index === 9 ? 'needle' : `row-${index}`,
+			wrap: false,
+			wrapContinuation: false,
+		}));
+		const readBufferRows = vi
+			.spyOn(terminal, 'readBufferRows')
+			.mockImplementation(async (request) => ({
+				byteLength: rows.length,
+				detail: request.detail,
+				generation: request.generation,
+				kind: 'rows',
+				revision: request.revision,
+				rows: rows.slice(Number(request.startRow), Number(request.startRow) + request.rowCount),
+				startRow: request.startRow,
+				totalRows: 12n,
+			}));
+		const searchEvents = vi.fn<Parameters<ProjectedTerminal['onSearchResults']>[0]>();
+		terminal.onSearchResults(searchEvents);
+		terminal.updateSearch('needle');
+		await vi.waitFor(() =>
+			expect(searchEvents.mock.calls.at(-1)?.[0]).toMatchObject({
+				activeIndex: 0,
+				matches: [{ start: { row: 9 } }],
+				query: 'needle',
+				state: 'complete',
+			}),
+		);
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 0, row: canonicalText('11') },
+			preview: 'ab',
+			rectangle: false,
+			start: { column: 0, row: canonicalText('10') },
+			state: 'active',
+		});
+		browser.selectAccessibilityText(0, 0, 0, 1);
+		const accessibilitySelection = browser.document.getSelection();
+		const canvasElement = terminal.canvas as unknown as FakeElement;
+		canvasElement.dispatch('pointerdown', {
+			altKey: false,
+			button: 0,
+			buttons: 1,
+			clientX: 2,
+			clientY: 2,
+			ctrlKey: false,
+			detail: 1,
+			metaKey: false,
+			pointerId: 71,
+			preventDefault: () => undefined,
+			shiftKey: false,
+			type: 'pointerdown',
+		} as unknown as PointerEvent);
+		expect(canvasElement.capturedPointers.has(71)).toBe(true);
+		const originalCanvas = terminal.canvas;
+		const originalTextarea = terminal.textarea;
+		const accessibilityRoot = (browser.root as unknown as FakeElement).children[2];
+		commands.length = 0;
+		setHoveredLinkRange.mockClear();
+		fontLoad.mockReset();
+		const fontResolvers: Array<() => void> = [];
+		fontLoad.mockImplementation(
+			() =>
+				new Promise<FontFace[]>((resolve) => {
+					fontResolvers.push(() => resolve([]));
+				}),
+		);
+		const configuration = {
+			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+			allowTransparency: true,
+			fontFamily: 'Orchbee Runtime Mono',
+			fontLigatures: false,
+			fontMetricModifiers: { cellHeight: 2, cellWidth: 2 },
+			fontSize: 18,
+			fontWeight: 450,
+			fontWeightBold: 700,
+			paddingBalance: 'equal',
+		} as const;
+
+		const update = terminal.updatePresentationConfiguration(configuration);
+		await vi.waitFor(() => expect(fontLoad).toHaveBeenCalledTimes(2));
+		expect(prepare).not.toHaveBeenCalled();
+		expect(commit).not.toHaveBeenCalled();
+		expect(terminal.textarea?.style.fontFamily).toBe('monospace');
+		for (const resolveFont of fontResolvers) resolveFont();
+
+		await expect(update).resolves.toEqual({ configuration, kind: 'completed' });
+		expect(prepare).toHaveBeenCalledOnce();
+		expect(commit).toHaveBeenCalledOnce();
+		expect(terminal.canvas).toBe(originalCanvas);
+		expect(terminal.textarea).toBe(originalTextarea);
+		expect((browser.root as unknown as FakeElement).children[2]).toBe(accessibilityRoot);
+		expect(terminal.metadata).toMatchObject({ generation: 1n, revision: 1n });
+		expect(terminal.selection).toMatchObject({ state: 'active' });
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.viewingHistory);
+		expect(searchEvents.mock.calls.at(-1)?.[0]).toMatchObject({
+			activeIndex: 0,
+			matches: [{ start: { row: 9 } }],
+			query: 'needle',
+			state: 'complete',
+		});
+		expect(browser.document.getSelection()).toBe(accessibilitySelection);
+		expect(canvasElement.capturedPointers.has(71)).toBe(false);
+		expect(setHoveredLinkRange).toHaveBeenCalledWith(null);
+		expect(terminal.textarea?.style).toMatchObject({
+			fontFamily: 'Orchbee Runtime Mono',
+			fontSize: '18px',
+			fontVariantLigatures: 'none',
+			fontWeight: '450',
+		});
+		expect(commands.filter((command) => command.kind === 'resize-terminal')).toEqual([
+			expect.objectContaining({
+				payload: expect.objectContaining({ cellPixelHeight: 36, cellPixelWidth: 20 }),
+			}),
+		]);
+		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(0);
+		expect(browser.frames.size).toBe(1);
+		terminal.dispose();
+		readBufferRows.mockRestore();
+	});
+
+	it('makes font preparation latest-request-wins and rolls back failure and disposal', async () => {
+		const browser = createFakeBrowser();
+		const fontLoad = vi.fn<(font: string, text?: string) => Promise<FontFace[]>>(async () => []);
+		Object.defineProperty(browser.document, 'fonts', {
+			configurable: true,
+			value: { load: fontLoad },
+		});
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		fontLoad.mockReset();
+		const prepareInvalid = vi.spyOn(WebGPURenderer.prototype, 'preparePresentationConfiguration');
+		const commitInvalid = vi.spyOn(WebGPURenderer.prototype, 'commitPresentationConfiguration');
+		prepareInvalid.mockClear();
+		commitInvalid.mockClear();
+		const originalFontFamily = terminal.textarea?.style.fontFamily;
+		const originalCanvasWidth = terminal.canvas?.width;
+		const originalCanvasHeight = terminal.canvas?.height;
+		const throwingCandidate = new Proxy(
+			{},
+			{
+				ownKeys: () => {
+					throw new Error('configuration ownKeys failed');
+				},
+			},
+		);
+		await expect(terminal.updatePresentationConfiguration(throwingCandidate)).resolves.toEqual({
+			code: 'invalid-configuration',
+			field: 'configuration',
+			kind: 'failed',
+		});
+		await expect(
+			terminal.updatePresentationConfiguration({
+				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				fontMetricModifiers: { cellWidth: `${'9'.repeat(400)}%` },
+			}),
+		).resolves.toEqual({
+			code: 'invalid-configuration',
+			field: 'fontMetricModifiers',
+			kind: 'failed',
+		});
+		expect(fontLoad).not.toHaveBeenCalled();
+		expect(prepareInvalid).not.toHaveBeenCalled();
+		expect(commitInvalid).not.toHaveBeenCalled();
+		expect(terminal.textarea?.style.fontFamily).toBe(originalFontFamily);
+		expect(terminal.canvas?.width).toBe(originalCanvasWidth);
+		expect(terminal.canvas?.height).toBe(originalCanvasHeight);
+		prepareInvalid.mockRestore();
+		commitInvalid.mockRestore();
+		const pendingFonts: Array<{
+			reject(error: unknown): void;
+			resolve(value: FontFace[]): void;
+		}> = [];
+		fontLoad.mockImplementation(
+			() =>
+				new Promise<FontFace[]>((resolve, reject) => {
+					pendingFonts.push({ reject, resolve });
+				}),
+		);
+		const firstConfiguration = {
+			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+			fontFamily: 'First Runtime Mono',
+		} as const;
+		const secondConfiguration = {
+			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+			fontFamily: 'Second Runtime Mono',
+		} as const;
+
+		const first = terminal.updatePresentationConfiguration(firstConfiguration);
+		await vi.waitFor(() => expect(pendingFonts).toHaveLength(2));
+		const second = terminal.updatePresentationConfiguration(secondConfiguration);
+		await expect(first).resolves.toEqual({ kind: 'cancelled', reason: 'superseded' });
+		await vi.waitFor(() => expect(pendingFonts).toHaveLength(4));
+		pendingFonts[2]?.resolve([]);
+		pendingFonts[3]?.resolve([]);
+		await expect(second).resolves.toMatchObject({ kind: 'completed' });
+		expect(terminal.textarea?.style.fontFamily).toBe('Second Runtime Mono');
+
+		const failed = terminal.updatePresentationConfiguration({
+			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+			fontFamily: 'Failed Runtime Mono',
+		});
+		await vi.waitFor(() => expect(pendingFonts).toHaveLength(6));
+		pendingFonts[4]?.reject(new Error('font unavailable'));
+		pendingFonts[5]?.resolve([]);
+		await expect(failed).resolves.toEqual({ code: 'font-preparation-failed', kind: 'failed' });
+		expect(terminal.textarea?.style.fontFamily).toBe('Second Runtime Mono');
+
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		const errorSubscription = terminal.onError(errors);
+		const rendererPreparation = vi
+			.spyOn(WebGPURenderer.prototype, 'preparePresentationConfiguration')
+			.mockImplementationOnce(() => {
+				throw new Error('renderer measurement failed');
+			});
+		const rendererFailed = terminal.updatePresentationConfiguration({
+			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+			fontFamily: 'Renderer Failed Runtime Mono',
+		});
+		await vi.waitFor(() => expect(pendingFonts).toHaveLength(8));
+		pendingFonts[6]?.resolve([]);
+		pendingFonts[7]?.resolve([]);
+		await expect(rendererFailed).resolves.toEqual({
+			code: 'renderer-preparation-failed',
+			kind: 'failed',
+		});
+		expect(terminal.textarea?.style.fontFamily).toBe('Second Runtime Mono');
+		expect(errors).not.toHaveBeenCalled();
+		errorSubscription.dispose();
+		rendererPreparation.mockRestore();
+
+		const disposed = terminal.updatePresentationConfiguration({
+			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+			fontFamily: 'Disposed Runtime Mono',
+		});
+		await vi.waitFor(() => expect(pendingFonts).toHaveLength(10));
+		terminal.dispose();
+		await expect(disposed).resolves.toEqual({ kind: 'cancelled', reason: 'disposed' });
+	});
+
+	it('retains a committed presentation through post-commit render and resize recovery', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let failResize = false;
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			canResize: true,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					return failResize && command.kind === 'resize-terminal'
+						? Promise.reject(new Error('resize transport failed'))
+						: undefined;
+				},
+			},
+			terminalId,
+		});
+		terminal.onError(errors);
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		browser.flushFrames();
+		commands.length = 0;
+		failResize = true;
+		const originalCommit = WebGPURenderer.prototype.commitPresentationConfiguration;
+		vi.spyOn(WebGPURenderer.prototype, 'commitPresentationConfiguration').mockImplementation(
+			function (this: WebGPURenderer, prepared): void {
+				originalCommit.call(this, prepared);
+				throw new Error('renderer post-commit failed');
+			},
+		);
+		const configuration = {
+			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+			fontFamily: 'Committed Recovery Mono',
+			fontMetricModifiers: { cellHeight: 3, cellWidth: 3 },
+			fontSize: 18,
+		} as const;
+
+		await expect(terminal.updatePresentationConfiguration(configuration)).resolves.toEqual({
+			configuration,
+			kind: 'completed',
+		});
+		expect(terminal.textarea?.style.fontFamily).toBe('Committed Recovery Mono');
+		expect(terminal.textarea?.style.fontSize).toBe('18px');
+		expect(commands.filter((command) => command.kind === 'resize-terminal')).toHaveLength(1);
+		await vi.waitFor(() => {
+			expect(errors.mock.calls.map(([event]) => event.operation)).toEqual(
+				expect.arrayContaining(['render', 'resize']),
+			);
+		});
+		expect(browser.frames.size).toBe(1);
 		terminal.dispose();
 	});
 
@@ -801,6 +1257,751 @@ describe('ProjectedTerminal', () => {
 		expect(input.style['width']).toBe('16px');
 		expect(input.style['height']).toBe('16px');
 		expect(input.style['lineHeight']).toBe('16px');
+		browser.flushFrames();
+		await expect(
+			terminal.updatePresentationConfiguration({
+				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				fontFamily: 'Runtime IME Mono',
+				fontMetricModifiers: { cellHeight: 4, cellWidth: 4 },
+				fontSize: 19,
+			}),
+		).resolves.toMatchObject({ kind: 'completed' });
+		expect(input.style).toMatchObject({
+			fontFamily: 'Runtime IME Mono',
+			fontSize: '19px',
+			height: '20px',
+			left: '10px',
+			lineHeight: '20px',
+			top: '20px',
+			width: '24px',
+		});
+		expect(browser.frames.size).toBe(1);
+		terminal.dispose();
+	});
+
+	it('revokes composition publication when reset repairs active input', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const setPreedit = vi.spyOn(WebGPURenderer.prototype, 'setPreedit');
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		const input = terminal.textarea as unknown as FakeElement & {
+			selectionEnd: number;
+			selectionStart: number;
+		};
+		input.value = '候';
+		input.selectionStart = 1;
+		input.selectionEnd = 1;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		dispatchComposition(input, 'compositionstart', '候');
+
+		terminal.reset();
+		expect(input.value).toBe('');
+		expect(setPreedit).toHaveBeenLastCalledWith([]);
+		expect(
+			commands
+				.filter((command) => command.kind === 'focus-input')
+				.map((command) => command.payload.focused),
+		).toEqual([true]);
+		const repairedPreeditCallCount = setPreedit.mock.calls.length;
+		dispatchComposition(input, 'compositionupdate', '候选');
+		expect(setPreedit).toHaveBeenCalledTimes(repairedPreeditCallCount);
+		dispatchComposition(input, 'compositionend', '候选');
+		dispatchBeforeInput(input, '候选', false, 'insertFromComposition');
+		expect(commands.filter((command) => command.kind === 'text-input')).toHaveLength(0);
+
+		dispatchComposition(input, 'compositionstart', '前');
+		terminal.reset();
+		dispatchBeforeInput(input, '前', true);
+		dispatchComposition(input, 'compositionend', '前');
+		expect(commands.filter((command) => command.kind === 'text-input')).toHaveLength(0);
+
+		dispatchComposition(input, 'compositionstart', '新');
+		dispatchComposition(input, 'compositionend', '新');
+		dispatchComposition(input, 'compositionend', '新');
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['新']);
+		terminal.dispose();
+	});
+
+	it('commits composition exactly once in both beforeinput and compositionend orders', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const setPreedit = vi.spyOn(WebGPURenderer.prototype, 'setPreedit');
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		const input = terminal.textarea as unknown as FakeElement;
+
+		dispatchComposition(input, 'compositionstart', '先');
+		dispatchBeforeInput(input, '先');
+		expect(setPreedit).toHaveBeenLastCalledWith([]);
+		const committedPreeditCallCount = setPreedit.mock.calls.length;
+		dispatchComposition(input, 'compositionupdate', '过期先');
+		expect(setPreedit).toHaveBeenCalledTimes(committedPreeditCallCount);
+		dispatchComposition(input, 'compositionend', '先');
+		dispatchComposition(input, 'compositionend', '先');
+
+		dispatchComposition(input, 'compositionstart', '后');
+		dispatchComposition(input, 'compositionend', '后');
+		dispatchBeforeInput(input, '后', false, 'insertFromComposition');
+		dispatchComposition(input, 'compositionend', '后');
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['先', '后']);
+		expect(input.value).toBe('');
+		terminal.dispose();
+	});
+
+	it('preserves composition settlement across repeated repair without suppressing independent input', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		dispatchComposition(input, 'compositionstart', '正常');
+		dispatchComposition(input, 'compositionend', '正常');
+		terminal.reset();
+		dispatchBeforeInput(input, '正常', false, 'insertFromComposition');
+
+		dispatchComposition(input, 'compositionstart', '取消');
+		terminal.reset();
+		dispatchComposition(input, 'compositionend', '取消');
+		terminal.reset();
+		dispatchBeforeInput(input, '取消', false, 'insertFromComposition');
+
+		dispatchBeforeInput(input, '取消', false, 'insertText');
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['正常', '取消']);
+		terminal.dispose();
+	});
+
+	it('supersedes cancelled native composition and keeps independent input progressing', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		dispatchComposition(input, 'compositionstart', '旧');
+		terminal.reset();
+		dispatchComposition(input, 'compositionstart', '新');
+		dispatchComposition(input, 'compositionupdate', '新的');
+		dispatchComposition(input, 'compositionend', '新的');
+
+		dispatchComposition(input, 'compositionstart', '遗留');
+		terminal.reset();
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		dispatchBeforeInput(input, 'mobile', false, 'insertText');
+		dispatchBeforeInput(input, '遗留', false, 'insertFromComposition');
+		dispatchBeforeInput(input, '遗留', false, 'insertText');
+		dispatchComposition(input, 'compositionstart', '键盘遗留');
+		terminal.reset();
+		input.dispatch('keydown', {
+			altKey: false,
+			code: 'KeyB',
+			ctrlKey: false,
+			getModifierState: () => false,
+			isComposing: false,
+			key: 'b',
+			keyCode: 66,
+			metaKey: false,
+			preventDefault: () => undefined,
+			repeat: false,
+			shiftKey: false,
+			stopPropagation: () => undefined,
+			type: 'keydown',
+		} as unknown as KeyboardEvent);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['新的', 'mobile', '遗留']);
+		expect(
+			commands.some(
+				(command) =>
+					command.kind === 'key-input' &&
+					command.payload.action === KeyAction.press &&
+					command.payload.key === 'KeyB',
+			),
+		).toBe(true);
+		terminal.dispose();
+	});
+
+	it.each(['beforeinput-first', 'compositionend-first'])(
+		'publishes composition atomically before reentrant %s settlement',
+		async (order) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			let input: FakeElement | undefined;
+			let reentered = false;
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+						if (command.kind !== 'text-input' || input === undefined || reentered) return;
+						reentered = true;
+						if (order === 'beforeinput-first') {
+							dispatchComposition(input, 'compositionend', '原子');
+						} else {
+							dispatchBeforeInput(input, '原子', false, 'insertFromComposition');
+						}
+					},
+				},
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			input = terminal.textarea as unknown as FakeElement;
+			dispatchComposition(input, 'compositionstart', '原子');
+			if (order === 'beforeinput-first') dispatchBeforeInput(input, '原子');
+			else dispatchComposition(input, 'compositionend', '原子');
+
+			expect(
+				commands
+					.filter((command) => command.kind === 'text-input')
+					.map((command) => command.payload.text),
+			).toEqual(['原子']);
+			terminal.dispose();
+		},
+	);
+
+	it.each([
+		['insertLineBreak', ''],
+		['insertParagraph', ''],
+		['deleteContentBackward', ''],
+		['deleteContentForward', ''],
+		['insertFromPaste', 'blocked paste'],
+	])(
+		'rejects cancelled composition-origin %s before its special input branch',
+		async (inputType, data) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+					},
+				},
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			const input = terminal.textarea as unknown as FakeElement;
+			dispatchComposition(input, 'compositionstart', '取消');
+			terminal.reset();
+			input.dispatch('beforeinput', {
+				data,
+				inputType,
+				isComposing: true,
+				preventDefault: () => undefined,
+				stopPropagation: () => undefined,
+				type: 'beforeinput',
+			} as unknown as InputEvent);
+			await Promise.resolve();
+
+			expect(
+				commands.filter(
+					(command) => command.kind === 'key-input' || command.kind === 'paste-input',
+				),
+			).toEqual([]);
+			terminal.dispose();
+		},
+	);
+
+	it('records key correlation before a synchronous press send can reenter beforeinput', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let input: FakeElement | undefined;
+		let reentered = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (
+						input === undefined ||
+						reentered ||
+						command.kind !== 'key-input' ||
+						command.payload.action !== KeyAction.press
+					) {
+						return;
+					}
+					reentered = true;
+					dispatchBeforeInput(input, 'a');
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+
+		expect(commands.filter((command) => command.kind === 'text-input')).toEqual([]);
+		expect(
+			commands.filter(
+				(command) => command.kind === 'key-input' && command.payload.action === KeyAction.press,
+			),
+		).toHaveLength(1);
+		terminal.dispose();
+	});
+
+	it('abandons an off-bottom keydown after history recovery reenters focus repair', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let input: FakeElement | undefined;
+		let reentered = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (
+						input === undefined ||
+						reentered ||
+						command.kind !== 'set-history-demand' ||
+						command.payload.demand !== 'following-bottom'
+					) {
+						return;
+					}
+					reentered = true;
+					input.dispatch('blur', { type: 'blur' } as FocusEvent);
+					input.dispatch('focus', { type: 'focus' } as FocusEvent);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
+		input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		terminal.scrollLines(-1);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		dispatchBeforeInput(input, 'a');
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'focus-input')
+				.map((command) => command.payload.focused),
+		).toEqual([true, false, true]);
+		expect(commands.filter((command) => command.kind === 'key-input')).toEqual([]);
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['a']);
+		terminal.dispose();
+	});
+
+	it('does not restore composition preedit after history recovery reenters blur repair', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const setPreedit = vi.spyOn(WebGPURenderer.prototype, 'setPreedit');
+		let input: FakeElement | undefined;
+		let reentered = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (
+						input === undefined ||
+						reentered ||
+						command.kind !== 'set-history-demand' ||
+						command.payload.demand !== 'following-bottom'
+					) {
+						return;
+					}
+					reentered = true;
+					input.dispatch('blur', { type: 'blur' } as FocusEvent);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
+		input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		terminal.scrollLines(-1);
+		dispatchComposition(input, 'compositionstart', 'stale');
+		terminal.applyFrame(terminalFrame('snapshot', 2n, 2n, ['c', 'd'], null, [0, 1], 10n));
+		expect(setPreedit).not.toHaveBeenCalled();
+		dispatchComposition(input, 'compositionupdate', 'staler');
+		dispatchComposition(input, 'compositionend', 'staler');
+
+		expect(setPreedit).not.toHaveBeenCalled();
+		expect(input.value).toBe('');
+		expect(commands.filter((command) => command.kind === 'text-input')).toEqual([]);
+		terminal.dispose();
+	});
+
+	it('does not restore composition preedit after selection clearing reenters reset', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const setPreedit = vi.spyOn(WebGPURenderer.prototype, 'setPreedit');
+		let terminal: ProjectedTerminal | undefined;
+		let reentered = false;
+		terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (
+						reentered ||
+						command.kind !== 'selection-command' ||
+						command.payload.command !== 'clear'
+					) {
+						return;
+					}
+					reentered = true;
+					terminal?.reset();
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 1, row: CanonicalUint64TextSchema.parse('0') },
+			preview: 'ab',
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('0') },
+			state: 'active',
+		});
+		const input = terminal.textarea as unknown as FakeElement;
+		dispatchComposition(input, 'compositionstart', 'stale');
+		expect(setPreedit).not.toHaveBeenCalled();
+		dispatchComposition(input, 'compositionupdate', 'staler');
+		dispatchComposition(input, 'compositionend', 'staler');
+
+		expect(setPreedit).not.toHaveBeenCalled();
+		expect(input.value).toBe('');
+		expect(commands.filter((command) => command.kind === 'text-input')).toEqual([]);
+		terminal.dispose();
+	});
+
+	it('removes key ownership before a synchronous keyup send can reenter repair', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let input: FakeElement | undefined;
+		let reentered = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (
+						input === undefined ||
+						reentered ||
+						command.kind !== 'key-input' ||
+						command.payload.action !== KeyAction.release
+					) {
+						return;
+					}
+					reentered = true;
+					input.dispatch('blur', { type: 'blur' } as FocusEvent);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		input.dispatch('keyup', keyboardEvent('keyup', 'KeyA', 'a', 65));
+
+		expect(
+			commands.filter(
+				(command) => command.kind === 'key-input' && command.payload.action === KeyAction.release,
+			),
+		).toHaveLength(1);
+		expect(
+			commands
+				.filter((command) => command.kind === 'focus-input')
+				.map((command) => command.payload.focused),
+		).toEqual([true, false]);
+		terminal.dispose();
+	});
+
+	it.each(['textarea blur', 'window blur', 'visibility hidden', 'dispose'])(
+		'repairs active composition on %s before accepting any late native events',
+		async (repair) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			const setPreedit = vi.spyOn(WebGPURenderer.prototype, 'setPreedit');
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+					},
+				},
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+			const input = terminal.textarea as unknown as FakeElement & {
+				selectionEnd: number;
+				selectionStart: number;
+			};
+			input.dispatch('focus', { type: 'focus' } as FocusEvent);
+			input.value = '候';
+			input.selectionStart = 1;
+			input.selectionEnd = 1;
+			dispatchComposition(input, 'compositionstart', '候');
+			dispatchComposition(input, 'compositionupdate', '候选');
+
+			switch (repair) {
+				case 'textarea blur':
+					input.dispatch('blur', { type: 'blur' } as FocusEvent);
+					break;
+				case 'window blur':
+					browser.dispatchWindow('blur');
+					break;
+				case 'visibility hidden':
+					browser.setVisibilityState('hidden');
+					browser.dispatchDocument('visibilitychange');
+					break;
+				case 'dispose':
+					terminal.dispose();
+					break;
+			}
+
+			expect(input.value).toBe('');
+			expect(setPreedit).toHaveBeenLastCalledWith([]);
+			expect(
+				commands
+					.filter((command) => command.kind === 'focus-input')
+					.map((command) => command.payload.focused),
+			).toEqual([true, false]);
+			const repairedPreeditCallCount = setPreedit.mock.calls.length;
+			dispatchComposition(input, 'compositionupdate', '过期');
+			dispatchComposition(input, 'compositionend', '过期');
+			dispatchBeforeInput(input, '过期', false, 'insertFromComposition');
+			expect(setPreedit).toHaveBeenCalledTimes(repairedPreeditCallCount);
+			expect(commands.filter((command) => command.kind === 'text-input')).toHaveLength(0);
+
+			expect((browser.root as unknown as FakeElement).children).toHaveLength(
+				repair === 'dispose' ? 0 : 4,
+			);
+			dispatchComposition(input, 'compositionstart', '恢复');
+			dispatchComposition(input, 'compositionend', '恢复');
+			expect(
+				commands
+					.filter((command) => command.kind === 'text-input')
+					.map((command) => command.payload.text),
+			).toEqual(repair === 'dispose' ? [] : ['恢复']);
+			terminal.dispose();
+		},
+	);
+
+	it('consumes a key correlation on the first matching beforeinput event', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', {
+			altKey: false,
+			code: 'KeyA',
+			ctrlKey: false,
+			getModifierState: () => false,
+			isComposing: false,
+			key: 'a',
+			keyCode: 65,
+			metaKey: false,
+			preventDefault: () => undefined,
+			repeat: false,
+			shiftKey: false,
+			stopPropagation: () => undefined,
+			type: 'keydown',
+		} as unknown as KeyboardEvent);
+		const beforeInput = (): void =>
+			input.dispatch('beforeinput', {
+				data: 'a',
+				inputType: 'insertText',
+				isComposing: false,
+				preventDefault: () => undefined,
+				stopPropagation: () => undefined,
+				type: 'beforeinput',
+			} as unknown as InputEvent);
+
+		beforeInput();
+		beforeInput();
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['a']);
+		terminal.dispose();
+	});
+
+	it('retains a runtime presentation update while hidden and draws it once on resume', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		browser.flushFrames();
+		browser.setVisibilityState('hidden');
+		browser.dispatchDocument('visibilitychange');
+
+		await expect(
+			terminal.updatePresentationConfiguration({
+				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				fontFamily: 'Hidden Runtime Mono',
+				fontMetricModifiers: { cellHeight: 3 },
+			}),
+		).resolves.toMatchObject({ kind: 'completed' });
+		expect(terminal.textarea?.style.fontFamily).toBe('Hidden Runtime Mono');
+		expect(browser.frames.size).toBe(0);
+
+		browser.setVisibilityState('visible');
+		browser.dispatchDocument('visibilitychange');
+		expect(browser.frames.size).toBe(1);
+		browser.flushFrames();
+		expect(browser.frames.size).toBe(0);
 		terminal.dispose();
 	});
 
@@ -2470,6 +3671,254 @@ describe('ProjectedTerminal', () => {
 		expect(commands.some((command) => command.kind === 'paste-input')).toBe(false);
 	});
 
+	it('immediately releases Host-published key, mouse, and focus ownership when disposal invalidates a review', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		let finishReview: ((approved: boolean) => void) | undefined;
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			reviewPaste: async () =>
+				await new Promise<boolean>((resolve) => {
+					finishReview = resolve;
+				}),
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				mouseAny: true,
+			}),
+		);
+		const input = terminal.textarea as unknown as FakeElement;
+		const canvas = terminal.canvas as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2));
+		const paste = terminal.paste('one\ntwo');
+		await vi.waitFor(() => expect(finishReview).toBeTypeOf('function'));
+		input.dispatch('keyup', keyboardEvent('keyup', 'KeyA', 'a', 65));
+		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 2, 2));
+
+		terminal.dispose();
+		const cleanup = commands
+			.filter(
+				(command) =>
+					(command.kind === 'key-input' && command.payload.action === KeyAction.release) ||
+					(command.kind === 'mouse-input' && command.payload.action === MouseAction.release) ||
+					(command.kind === 'focus-input' && !command.payload.focused),
+			)
+			.map((command) => {
+				if (command.kind === 'key-input') return `key:${command.payload.key}`;
+				if (command.kind === 'mouse-input') return `mouse:${command.payload.button}`;
+				return 'focus:false';
+			});
+		expect(cleanup).toEqual(['key:KeyA', `mouse:${MouseButton.left}`, 'focus:false']);
+
+		finishReview?.(true);
+		await expect(paste).resolves.toEqual(expect.objectContaining({ kind: 'blocked' }));
+		await Promise.resolve();
+		expect(
+			commands.filter(
+				(command) =>
+					command.kind === 'paste-input' ||
+					command.kind === 'key-input' ||
+					command.kind === 'mouse-input',
+			),
+		).toEqual([
+			expect.objectContaining({
+				kind: 'key-input',
+				payload: expect.objectContaining({ action: KeyAction.press }),
+			}),
+			expect.objectContaining({
+				kind: 'mouse-input',
+				payload: expect.objectContaining({ action: MouseAction.press }),
+			}),
+			expect.objectContaining({
+				kind: 'key-input',
+				payload: expect.objectContaining({ action: KeyAction.release }),
+			}),
+			expect.objectContaining({
+				kind: 'mouse-input',
+				payload: expect.objectContaining({ action: MouseAction.release }),
+			}),
+		]);
+	});
+
+	it('does not release queued key, mouse, or focus ownership that the Host never observed', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		let finishReview: ((approved: boolean) => void) | undefined;
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			reviewPaste: async () =>
+				await new Promise<boolean>((resolve) => {
+					finishReview = resolve;
+				}),
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				mouseAny: true,
+			}),
+		);
+		const input = terminal.textarea as unknown as FakeElement;
+		const canvas = terminal.canvas as unknown as FakeElement;
+		const paste = terminal.paste('one\ntwo');
+		await vi.waitFor(() => expect(finishReview).toBeTypeOf('function'));
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2));
+
+		terminal.dispose();
+		expect(
+			commands.filter(
+				(command) =>
+					command.kind === 'key-input' ||
+					command.kind === 'mouse-input' ||
+					command.kind === 'focus-input',
+			),
+		).toEqual([]);
+		finishReview?.(true);
+		await expect(paste).resolves.toEqual(expect.objectContaining({ kind: 'blocked' }));
+		await Promise.resolve();
+		expect(
+			commands.filter(
+				(command) =>
+					command.kind === 'paste-input' ||
+					command.kind === 'key-input' ||
+					command.kind === 'mouse-input' ||
+					command.kind === 'focus-input',
+			),
+		).toEqual([]);
+	});
+
+	it('cancels a rejected paste review without an unhandled continuation or stale output', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		let rejectReview: ((error: Error) => void) | undefined;
+		const commands: ProjectedTerminalCommand[] = [];
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			reviewPaste: async () =>
+				await new Promise<boolean>((_resolve, reject) => {
+					rejectReview = reject;
+				}),
+			terminalId,
+		});
+		terminal.onError(errors);
+		await terminal.open(browser.root);
+		const paste = terminal.paste('one\ntwo');
+		await vi.waitFor(() => expect(rejectReview).toBeTypeOf('function'));
+
+		terminal.dispose();
+		await expect(paste).resolves.toEqual(expect.objectContaining({ kind: 'blocked' }));
+		rejectReview?.(new Error('late paste review rejection'));
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(errors).not.toHaveBeenCalled();
+		expect(commands.some((command) => command.kind === 'paste-input')).toBe(false);
+	});
+
+	it.each(['textarea-blur', 'visibility-hidden'])(
+		'lets %s repair bypass a paste review that never settles',
+		async (trigger) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+					},
+				},
+				reviewPaste: async () => await new Promise<boolean>(() => undefined),
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			const input = terminal.textarea as unknown as FakeElement;
+			input.dispatch('focus', { type: 'focus' } as FocusEvent);
+			input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+			const paste = terminal.paste('one\ntwo');
+			await Promise.resolve();
+
+			if (trigger === 'visibility-hidden') {
+				browser.setVisibilityState('hidden');
+				browser.dispatchDocument('visibilitychange');
+			} else {
+				input.dispatch('blur', { type: 'blur' } as FocusEvent);
+			}
+			await expect(paste).resolves.toEqual(expect.objectContaining({ kind: 'blocked' }));
+			expect(
+				commands
+					.filter(
+						(command) =>
+							(command.kind === 'key-input' && command.payload.action === KeyAction.release) ||
+							(command.kind === 'focus-input' && !command.payload.focused),
+					)
+					.map((command) =>
+						command.kind === 'key-input' ? `key:${command.payload.key}` : 'focus:false',
+					),
+			).toEqual(['key:KeyA', 'focus:false']);
+			if (trigger === 'visibility-hidden') {
+				browser.setVisibilityState('visible');
+				browser.dispatchDocument('visibilitychange');
+			}
+			input.dispatch('focus', { type: 'focus' } as FocusEvent);
+			input.dispatch('keydown', keyboardEvent('keydown', 'KeyB', 'b', 66));
+			expect(
+				commands.some(
+					(command) =>
+						command.kind === 'key-input' &&
+						command.payload.action === KeyAction.press &&
+						command.payload.key === 'KeyB',
+				),
+			).toBe(true);
+			terminal.dispose();
+		},
+	);
+
 	it('releases pressed keys before reporting focus loss', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -2507,6 +3956,21 @@ describe('ProjectedTerminal', () => {
 			stopPropagation: () => {},
 			type: 'keydown',
 		} as unknown as KeyboardEvent);
+		input.dispatch('keydown', {
+			altKey: false,
+			code: 'KeyB',
+			ctrlKey: false,
+			getModifierState: () => false,
+			isComposing: false,
+			key: 'b',
+			keyCode: 66,
+			metaKey: false,
+			preventDefault: () => {},
+			repeat: false,
+			shiftKey: false,
+			stopPropagation: () => {},
+			type: 'keydown',
+		} as unknown as KeyboardEvent);
 		input.dispatch('blur', { type: 'blur' } as FocusEvent);
 
 		expect(
@@ -2514,10 +3978,17 @@ describe('ProjectedTerminal', () => {
 				.filter((command) => command.kind === 'key-input' || command.kind === 'focus-input')
 				.map((command) =>
 					command.kind === 'key-input'
-						? `${command.kind}:${command.payload.action}`
+						? `${command.kind}:${command.payload.action}:${command.payload.key}`
 						: `${command.kind}:${command.payload.focused}`,
 				),
-		).toEqual(['focus-input:true', 'key-input:press', 'key-input:release', 'focus-input:false']);
+		).toEqual([
+			'focus-input:true',
+			'key-input:press:KeyA',
+			'key-input:press:KeyB',
+			'key-input:release:KeyA',
+			'key-input:release:KeyB',
+			'focus-input:false',
+		]);
 		terminal.dispose();
 	});
 
@@ -2572,6 +4043,113 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('closes key-release repair against synchronous port reentry', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let input: FakeElement | undefined;
+		let reentered = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (
+						input === undefined ||
+						reentered ||
+						command.kind !== 'key-input' ||
+						command.payload.action !== KeyAction.release
+					) {
+						return;
+					}
+					reentered = true;
+					input.dispatch('keydown', keyboardEvent('keydown', 'KeyC', 'c', 67));
+					input.dispatch('blur', { type: 'blur' } as FocusEvent);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyB', 'b', 66));
+		input.dispatch('blur', { type: 'blur' } as FocusEvent);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'key-input' || command.kind === 'focus-input')
+				.map((command) =>
+					command.kind === 'key-input'
+						? `${command.payload.action}:${command.payload.key}`
+						: `focus:${command.payload.focused}`,
+				),
+		).toEqual([
+			'focus:true',
+			`${KeyAction.press}:KeyA`,
+			`${KeyAction.press}:KeyB`,
+			`${KeyAction.release}:KeyA`,
+			`${KeyAction.release}:KeyB`,
+			'focus:false',
+		]);
+		terminal.dispose();
+	});
+
+	it('closes focus-out repair against synchronous port reentry', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let input: FakeElement | undefined;
+		let reentered = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (
+						input === undefined ||
+						reentered ||
+						command.kind !== 'focus-input' ||
+						command.payload.focused
+					) {
+						return;
+					}
+					reentered = true;
+					input.dispatch('focus', { type: 'focus' } as FocusEvent);
+					input.dispatch('keydown', keyboardEvent('keydown', 'KeyC', 'c', 67));
+					input.dispatch('blur', { type: 'blur' } as FocusEvent);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('blur', { type: 'blur' } as FocusEvent);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'key-input' || command.kind === 'focus-input')
+				.map((command) => command.kind),
+		).toEqual(['focus-input', 'focus-input']);
+		expect(
+			commands
+				.filter((command) => command.kind === 'focus-input')
+				.map((command) => command.payload.focused),
+		).toEqual([true, false]);
+		terminal.dispose();
+	});
+
 	it('releases application-owned mouse buttons on focus loss', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -2594,7 +4172,7 @@ describe('ProjectedTerminal', () => {
 		terminal.applyFrame(
 			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
 				...interaction,
-				mouseButton: true,
+				mouseAny: true,
 			}),
 		);
 		(terminal.canvas as unknown as FakeElement).dispatch('pointerdown', {
@@ -2609,23 +4187,296 @@ describe('ProjectedTerminal', () => {
 			shiftKey: false,
 			type: 'pointerdown',
 		} as unknown as PointerEvent);
+		(terminal.canvas as unknown as FakeElement).dispatch('pointerdown', {
+			altKey: false,
+			button: 2,
+			buttons: 3,
+			clientX: 3,
+			clientY: 3,
+			ctrlKey: false,
+			metaKey: false,
+			preventDefault: () => {},
+			shiftKey: false,
+			type: 'pointerdown',
+		} as unknown as PointerEvent);
+		(terminal.canvas as unknown as FakeElement).dispatch('pointermove', {
+			altKey: false,
+			button: 0,
+			buttons: 0,
+			clientX: 4,
+			clientY: 4,
+			ctrlKey: false,
+			metaKey: false,
+			preventDefault: () => {},
+			shiftKey: false,
+			type: 'pointermove',
+		} as unknown as PointerEvent);
 		(terminal.textarea as unknown as FakeElement).dispatch('blur', {
 			type: 'blur',
 		} as FocusEvent);
 
 		const mouse = commands.filter((command) => command.kind === 'mouse-input');
-		expect(mouse.map((command) => command.payload.action)).toEqual([
-			MouseAction.press,
-			MouseAction.release,
+		expect(mouse.map((command) => `${command.payload.action}:${command.payload.button}`)).toEqual([
+			`${MouseAction.press}:${MouseButton.left}`,
+			`${MouseAction.press}:${MouseButton.right}`,
+			`${MouseAction.motion}:null`,
+			`${MouseAction.release}:${MouseButton.left}`,
+			`${MouseAction.release}:${MouseButton.right}`,
 		]);
+		expect(
+			mouse
+				.filter((command) => command.payload.action === MouseAction.release)
+				.map((command) => command.payload.pressedButtons),
+		).toEqual([2, 0]);
 		expect(mouse.at(-1)?.payload).toMatchObject({
-			button: MouseButton.left,
+			button: MouseButton.right,
 			pressedButtons: 0,
 		});
 		terminal.dispose();
 	});
 
-	it('orders reset after accepted input and repairs pressed keys before the control request', async () => {
+	it('abandons pointer input when focus reporting reenters focus repair', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let input: FakeElement | undefined;
+		let reentered = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (
+						input === undefined ||
+						reentered ||
+						command.kind !== 'focus-input' ||
+						!command.payload.focused
+					) {
+						return;
+					}
+					reentered = true;
+					input.dispatch('blur', { type: 'blur' } as FocusEvent);
+					input.dispatch('focus', { type: 'focus' } as FocusEvent);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				mouseAny: true,
+			}),
+		);
+		input = terminal.textarea as unknown as FakeElement;
+		const canvas = terminal.canvas as unknown as FakeElement;
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2));
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'focus-input')
+				.map((command) => command.payload.focused),
+		).toEqual([true, false, true]);
+		expect(commands.filter((command) => command.kind === 'mouse-input')).toEqual([]);
+		terminal.dispose();
+	});
+
+	it('closes mouse-release repair against synchronous port reentry', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let input: FakeElement | undefined;
+		let canvas: FakeElement | undefined;
+		let reentered = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (
+						input === undefined ||
+						canvas === undefined ||
+						reentered ||
+						command.kind !== 'mouse-input' ||
+						command.payload.action !== MouseAction.release
+					) {
+						return;
+					}
+					reentered = true;
+					canvas.dispatch('pointerdown', pointerEvent('pointerdown', 1, 4, 5, 5));
+					input.dispatch('blur', { type: 'blur' } as FocusEvent);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				mouseAny: true,
+			}),
+		);
+		input = terminal.textarea as unknown as FakeElement;
+		canvas = terminal.canvas as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2));
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 2, 3, 3, 3));
+		input.dispatch('blur', { type: 'blur' } as FocusEvent);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'mouse-input')
+				.map((command) => `${command.payload.action}:${command.payload.button}`),
+		).toEqual([
+			`${MouseAction.press}:${MouseButton.left}`,
+			`${MouseAction.press}:${MouseButton.right}`,
+			`${MouseAction.release}:${MouseButton.left}`,
+			`${MouseAction.release}:${MouseButton.right}`,
+		]);
+		expect(
+			commands
+				.filter((command) => command.kind === 'focus-input')
+				.map((command) => command.payload.focused),
+		).toEqual([true, false]);
+		terminal.dispose();
+	});
+
+	it('gates disposal before synchronous cleanup sends can admit new input', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let input: FakeElement | undefined;
+		let reentered = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (
+						input === undefined ||
+						reentered ||
+						command.kind !== 'key-input' ||
+						command.payload.action !== KeyAction.release
+					) {
+						return;
+					}
+					reentered = true;
+					input.dispatch('keydown', keyboardEvent('keydown', 'KeyC', 'c', 67));
+					input.dispatch('focus', { type: 'focus' } as FocusEvent);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		terminal.dispose();
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'key-input' || command.kind === 'focus-input')
+				.map((command) =>
+					command.kind === 'key-input'
+						? `${command.payload.action}:${command.payload.key}`
+						: `focus:${command.payload.focused}`,
+				),
+		).toEqual([
+			'focus:true',
+			`${KeyAction.press}:KeyA`,
+			`${KeyAction.release}:KeyA`,
+			'focus:false',
+		]);
+		expect(terminal.phase).toBe('disposed');
+	});
+
+	it('disposes after completed blur without publishing a second focus-out', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('blur', { type: 'blur' } as FocusEvent);
+		terminal.dispose();
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'focus-input')
+				.map((command) => command.payload.focused),
+		).toEqual([true, false]);
+		expect(terminal.phase).toBe('disposed');
+	});
+
+	it('defers reentrant disposal until the active focus-out repair is complete', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let terminal: ProjectedTerminal | undefined;
+		let reentered = false;
+		terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (reentered || command.kind !== 'focus-input' || command.payload.focused) {
+						return;
+					}
+					reentered = true;
+					terminal?.dispose();
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('blur', { type: 'blur' } as FocusEvent);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'focus-input')
+				.map((command) => command.payload.focused),
+		).toEqual([true, false]);
+		expect(terminal.phase).toBe('disposed');
+		expect((browser.root as unknown as FakeElement).children).toHaveLength(0);
+	});
+
+	it('cancels an unresolved review so reset repairs immediately and reopens cleanly', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -2669,27 +4520,976 @@ describe('ProjectedTerminal', () => {
 		const paste = terminal.paste('one\ntwo');
 		await vi.waitFor(() => expect(finishReview).toBeTypeOf('function'));
 		terminal.reset();
-		expect(commands.some((command) => command.kind === 'reset-terminal')).toBe(false);
-
+		expect(commands.some((command) => command.kind === 'reset-terminal')).toBe(true);
+		await expect(paste).resolves.toEqual(expect.objectContaining({ kind: 'blocked' }));
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyB', 'b', 66));
+		expect(
+			commands.some(
+				(command) =>
+					command.kind === 'key-input' &&
+					command.payload.action === KeyAction.press &&
+					command.payload.key === 'KeyB',
+			),
+		).toBe(true);
+		const commandCountBeforeLateReview = commands.length;
 		finishReview?.(true);
-		await expect(paste).resolves.toEqual(expect.objectContaining({ kind: 'sent' }));
-		await vi.waitFor(() =>
-			expect(commands.some((command) => command.kind === 'reset-terminal')).toBe(true),
-		);
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(commands).toHaveLength(commandCountBeforeLateReview);
+		expect(commands.some((command) => command.kind === 'paste-input')).toBe(false);
+		expect(
+			commands.flatMap((command) =>
+				command.kind === 'key-input' && command.payload.key === 'KeyA'
+					? [command.payload.action]
+					: [],
+			),
+		).toEqual([KeyAction.press, KeyAction.release]);
+		expect(
+			commands.findIndex(
+				(command) =>
+					command.kind === 'key-input' &&
+					command.payload.key === 'KeyA' &&
+					command.payload.action === KeyAction.release,
+			),
+		).toBeLessThan(commands.findIndex((command) => command.kind === 'reset-terminal'));
+		terminal.dispose();
+	});
+
+	it.each(['blur', 'dispose'])(
+		'coalesces selection-clear reentrant %s into the active reset cleanup',
+		async (repair) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			let input: FakeElement | undefined;
+			let terminal: ProjectedTerminal | undefined;
+			let reentered = false;
+			terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+						if (
+							input === undefined ||
+							reentered ||
+							command.kind !== 'selection-command' ||
+							command.payload.command !== 'clear'
+						) {
+							return;
+						}
+						reentered = true;
+						if (repair === 'dispose') terminal?.dispose();
+						else input.dispatch('blur', { type: 'blur' } as FocusEvent);
+					},
+				},
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			terminal.applyFrame(
+				terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+					...interaction,
+					mouseAny: true,
+				}),
+			);
+			input = terminal.textarea as unknown as FakeElement;
+			const canvas = terminal.canvas as unknown as FakeElement;
+			input.dispatch('focus', { type: 'focus' } as FocusEvent);
+			input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+			canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2));
+
+			terminal.reset();
+
+			expect(
+				commands
+					.filter(
+						(command) =>
+							(command.kind === 'key-input' && command.payload.action === KeyAction.release) ||
+							(command.kind === 'mouse-input' && command.payload.action === MouseAction.release) ||
+							(command.kind === 'focus-input' && !command.payload.focused),
+					)
+					.map((command) => {
+						if (command.kind === 'key-input') return `key:${command.payload.key}`;
+						if (command.kind === 'mouse-input') return `mouse:${command.payload.button}`;
+						return 'focus:false';
+					}),
+			).toEqual(['key:KeyA', `mouse:${MouseButton.left}`, 'focus:false']);
+			expect(commands.some((command) => command.kind === 'reset-terminal')).toBe(repair === 'blur');
+			expect(terminal.phase).toBe(repair === 'dispose' ? 'disposed' : 'open');
+			expect((browser.root as unknown as FakeElement).children.length === 0).toBe(
+				repair === 'dispose',
+			);
+			const focusOutIndex = commands.findIndex(
+				(command) => command.kind === 'focus-input' && !command.payload.focused,
+			);
+			const resetIndex = commands.findIndex((command) => command.kind === 'reset-terminal');
+			expect(focusOutIndex).toBeGreaterThanOrEqual(0);
+			expect(focusOutIndex < resetIndex).toBe(repair === 'blur');
+			if (repair === 'blur') {
+				input.dispatch('focus', { type: 'focus' } as FocusEvent);
+				input.dispatch('keydown', keyboardEvent('keydown', 'KeyB', 'b', 66));
+			}
+			expect(
+				commands.some(
+					(command) =>
+						command.kind === 'key-input' &&
+						command.payload.action === KeyAction.press &&
+						command.payload.key === 'KeyB',
+				),
+			).toBe(repair === 'blur');
+			terminal.dispose();
+		},
+	);
+
+	it('cancels pending paste review while reset and blur repair both make progress', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let finishReview: ((approved: boolean) => void) | undefined;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			reviewPaste: async () =>
+				await new Promise<boolean>((resolve) => {
+					finishReview = resolve;
+				}),
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		const paste = terminal.paste('one\ntwo');
+		await vi.waitFor(() => expect(finishReview).toBeTypeOf('function'));
+
+		terminal.reset();
+		input.dispatch('blur', { type: 'blur' } as FocusEvent);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyB', 'b', 66));
+		expect(
+			commands.some((command) => command.kind === 'key-input' && command.payload.key === 'KeyB'),
+		).toBe(true);
+		await expect(paste).resolves.toEqual(expect.objectContaining({ kind: 'blocked' }));
 		expect(
 			commands
 				.filter(
 					(command) =>
-						command.kind === 'key-input' ||
 						command.kind === 'paste-input' ||
+						(command.kind === 'key-input' && command.payload.action === KeyAction.release) ||
+						(command.kind === 'focus-input' && !command.payload.focused) ||
 						command.kind === 'reset-terminal',
 				)
-				.map((command) =>
-					command.kind === 'key-input' ? `${command.kind}:${command.payload.action}` : command.kind,
-				),
-		).toEqual(['key-input:press', 'paste-input', 'key-input:release', 'reset-terminal']);
+				.map((command) => {
+					if (command.kind === 'key-input') return `key:${command.payload.key}`;
+					if (command.kind === 'focus-input') return 'focus:false';
+					return command.kind;
+				}),
+		).toEqual(['key:KeyA', 'reset-terminal', 'focus:false']);
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyC', 'c', 67));
+		expect(
+			commands.some(
+				(command) =>
+					command.kind === 'key-input' &&
+					command.payload.action === KeyAction.press &&
+					command.payload.key === 'KeyC',
+			),
+		).toBe(true);
+		const commandCountBeforeLateReview = commands.length;
+		finishReview?.(true);
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(commands).toHaveLength(commandCountBeforeLateReview);
 		terminal.dispose();
 	});
+
+	it.each([
+		{ inputType: 'insertLineBreak', key: 'Enter', repair: 'reset' },
+		{ inputType: 'insertLineBreak', key: 'Enter', repair: 'blur' },
+		{ inputType: 'insertLineBreak', key: 'Enter', repair: 'dispose' },
+		{ inputType: 'deleteContentBackward', key: 'Backspace', repair: 'reset' },
+		{ inputType: 'deleteContentBackward', key: 'Backspace', repair: 'blur' },
+		{ inputType: 'deleteContentBackward', key: 'Backspace', repair: 'dispose' },
+		{ inputType: 'deleteContentForward', key: 'Delete', repair: 'reset' },
+		{ inputType: 'deleteContentForward', key: 'Delete', repair: 'blur' },
+		{ inputType: 'deleteContentForward', key: 'Delete', repair: 'dispose' },
+	])(
+		'keeps stateless synthetic $key input out of held ownership during $repair',
+		async ({ inputType, key, repair }) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+					},
+				},
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			const input = terminal.textarea as unknown as FakeElement;
+			dispatchBeforeInput(input, '', false, inputType);
+
+			if (repair === 'reset') terminal.reset();
+			else if (repair === 'blur') input.dispatch('blur', { type: 'blur' } as FocusEvent);
+			else terminal.dispose();
+
+			expect(
+				commands.flatMap((command) =>
+					command.kind === 'key-input' && command.payload.key === key
+						? [command.payload.action]
+						: [],
+				),
+			).toEqual([KeyAction.press]);
+			if (repair !== 'dispose') terminal.dispose();
+		},
+	);
+
+	it('rolls back a throwing physical key press before draining reentrant reset', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const accepted: ProjectedTerminalCommand[] = [];
+		const errors: ProjectedTerminalErrorEvent[] = [];
+		const pressError = new Error('key press failed before acceptance');
+		let terminal: ProjectedTerminal | undefined;
+		let failed = false;
+		terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					if (
+						!failed &&
+						command.kind === 'key-input' &&
+						command.payload.action === KeyAction.press &&
+						command.payload.key === 'KeyA'
+					) {
+						failed = true;
+						terminal?.reset();
+						throw pressError;
+					}
+					accepted.push(command);
+				},
+			},
+			terminalId,
+		});
+		terminal.onError((event) => errors.push(event));
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		input.dispatch('keyup', keyboardEvent('keyup', 'KeyA', 'a', 65));
+
+		expect(errors).toEqual([{ error: pressError, operation: 'command' }]);
+		expect(
+			accepted.filter((command) => command.kind === 'key-input' && command.payload.key === 'KeyA'),
+		).toEqual([]);
+		expect(accepted.some((command) => command.kind === 'reset-terminal')).toBe(true);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyB', 'b', 66));
+		terminal.reset();
+		expect(
+			accepted.flatMap((command) =>
+				command.kind === 'key-input' && command.payload.key === 'KeyB'
+					? [command.payload.action]
+					: [],
+			),
+		).toEqual([KeyAction.press, KeyAction.release]);
+		terminal.dispose();
+	});
+
+	it('rolls back a throwing physical key press without admitting an orphan release', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const accepted: ProjectedTerminalCommand[] = [];
+		const errors: ProjectedTerminalErrorEvent[] = [];
+		const pressError = new Error('key press failed before acceptance');
+		let failed = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					if (
+						!failed &&
+						command.kind === 'key-input' &&
+						command.payload.action === KeyAction.press &&
+						command.payload.key === 'KeyA'
+					) {
+						failed = true;
+						throw pressError;
+					}
+					accepted.push(command);
+				},
+			},
+			terminalId,
+		});
+		terminal.onError((event) => errors.push(event));
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		dispatchBeforeInput(input, 'a');
+		input.dispatch('keyup', keyboardEvent('keyup', 'KeyA', 'a', 65));
+
+		expect(errors).toEqual([{ error: pressError, operation: 'command' }]);
+		expect(
+			accepted.filter((command) => command.kind === 'key-input' && command.payload.key === 'KeyA'),
+		).toEqual([]);
+		expect(
+			accepted.filter((command) => command.kind === 'text-input').map((command) => command.payload),
+		).toEqual([{ attachmentId, text: 'a' }]);
+		terminal.dispose();
+	});
+
+	it('keeps a Host-observed key held when repeat throws and repair reenters', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const accepted: ProjectedTerminalCommand[] = [];
+		const errors: ProjectedTerminalErrorEvent[] = [];
+		const repeatError = new Error('key repeat failed before acceptance');
+		let input: FakeElement | undefined;
+		let failed = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					if (
+						!failed &&
+						command.kind === 'key-input' &&
+						command.payload.action === KeyAction.repeat
+					) {
+						failed = true;
+						input?.dispatch('blur', { type: 'blur' } as FocusEvent);
+						throw repeatError;
+					}
+					accepted.push(command);
+				},
+			},
+			terminalId,
+		});
+		terminal.onError((event) => errors.push(event));
+		await terminal.open(browser.root);
+		input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		input.dispatch('keydown', {
+			...keyboardEvent('keydown', 'KeyA', 'a', 65),
+			repeat: true,
+		} as KeyboardEvent);
+
+		expect(errors).toEqual([{ error: repeatError, operation: 'command' }]);
+		expect(
+			accepted.flatMap((command) =>
+				command.kind === 'key-input' && command.payload.key === 'KeyA'
+					? [command.payload.action]
+					: [],
+			),
+		).toEqual([KeyAction.press, KeyAction.release]);
+		terminal.dispose();
+	});
+
+	it('retries a throwing physical key release after reentrant blur owns cleanup', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const accepted: ProjectedTerminalCommand[] = [];
+		const errors: ProjectedTerminalErrorEvent[] = [];
+		const releaseError = new Error('key release failed before acceptance');
+		let input: FakeElement | undefined;
+		let failed = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					if (
+						!failed &&
+						command.kind === 'key-input' &&
+						command.payload.action === KeyAction.release
+					) {
+						failed = true;
+						input?.dispatch('blur', { type: 'blur' } as FocusEvent);
+						throw releaseError;
+					}
+					accepted.push(command);
+				},
+			},
+			terminalId,
+		});
+		terminal.onError((event) => errors.push(event));
+		await terminal.open(browser.root);
+		input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		input.dispatch('keyup', keyboardEvent('keyup', 'KeyA', 'a', 65));
+
+		expect(errors).toEqual([{ error: releaseError, operation: 'command' }]);
+		expect(
+			accepted.flatMap((command) =>
+				command.kind === 'key-input' && command.payload.key === 'KeyA'
+					? [command.payload.action]
+					: [],
+			),
+		).toEqual([KeyAction.press, KeyAction.release]);
+		terminal.dispose();
+	});
+
+	it.each(['press', 'release'])(
+		'keeps physical mouse ownership exact when %s throws with reentrant blur',
+		async (failedAction) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const accepted: ProjectedTerminalCommand[] = [];
+			const errors: ProjectedTerminalErrorEvent[] = [];
+			const mouseError = new Error(`mouse ${failedAction} failed before acceptance`);
+			let input: FakeElement | undefined;
+			let failed = false;
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						if (
+							!failed &&
+							command.kind === 'mouse-input' &&
+							command.payload.action === failedAction
+						) {
+							failed = true;
+							input?.dispatch('blur', { type: 'blur' } as FocusEvent);
+							throw mouseError;
+						}
+						accepted.push(command);
+					},
+				},
+				terminalId,
+			});
+			terminal.onError((event) => errors.push(event));
+			await terminal.open(browser.root);
+			terminal.applyFrame(
+				terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+					...interaction,
+					mouseAny: true,
+				}),
+			);
+			input = terminal.textarea as unknown as FakeElement;
+			const canvas = terminal.canvas as unknown as FakeElement;
+			canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2));
+			if (failedAction === 'release') {
+				canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 2, 2));
+			}
+
+			expect(errors).toEqual([{ error: mouseError, operation: 'command' }]);
+			expect(
+				accepted
+					.filter((command) => command.kind === 'mouse-input')
+					.map((command) => command.payload.action),
+			).toEqual(failedAction === 'press' ? [] : [MouseAction.press, MouseAction.release]);
+			terminal.dispose();
+		},
+	);
+
+	it('rolls back a throwing physical mouse press without admitting an orphan release', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const accepted: ProjectedTerminalCommand[] = [];
+		const errors: ProjectedTerminalErrorEvent[] = [];
+		const mouseError = new Error('mouse press failed before acceptance');
+		let failed = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					if (
+						!failed &&
+						command.kind === 'mouse-input' &&
+						command.payload.action === MouseAction.press
+					) {
+						failed = true;
+						throw mouseError;
+					}
+					accepted.push(command);
+				},
+			},
+			terminalId,
+		});
+		terminal.onError((event) => errors.push(event));
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				mouseAny: true,
+			}),
+		);
+		const canvas = terminal.canvas as unknown as FakeElement;
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2));
+		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 2, 2));
+
+		expect(errors).toEqual([{ error: mouseError, operation: 'command' }]);
+		expect(accepted.filter((command) => command.kind === 'mouse-input')).toEqual([]);
+		terminal.dispose();
+	});
+
+	it('rolls back a throwing focus-in before reentrant reset and reconciles before key input', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const accepted: ProjectedTerminalCommand[] = [];
+		const errors: ProjectedTerminalErrorEvent[] = [];
+		const focusError = new Error('focus-in failed before acceptance');
+		let terminal: ProjectedTerminal | undefined;
+		let failed = false;
+		terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					if (!failed && command.kind === 'focus-input' && command.payload.focused) {
+						failed = true;
+						terminal?.reset();
+						throw focusError;
+					}
+					accepted.push(command);
+				},
+			},
+			terminalId,
+		});
+		terminal.onError((event) => errors.push(event));
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+
+		expect(errors).toEqual([{ error: focusError, operation: 'command' }]);
+		expect(
+			accepted
+				.filter((command) => command.kind === 'focus-input')
+				.map((command) => command.payload.focused),
+		).toEqual([true]);
+		const focusIndex = accepted.findIndex((command) => command.kind === 'focus-input');
+		const keyIndex = accepted.findIndex(
+			(command) => command.kind === 'key-input' && command.payload.key === 'KeyA',
+		);
+		expect(focusIndex).toBeLessThan(keyIndex);
+		terminal.dispose();
+	});
+
+	it('retains Host focus after a throwing focus-out until a later repair retries it', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const accepted: ProjectedTerminalCommand[] = [];
+		const errors: ProjectedTerminalErrorEvent[] = [];
+		const focusError = new Error('focus-out failed before acceptance');
+		let terminal: ProjectedTerminal | undefined;
+		let failed = false;
+		terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					if (!failed && command.kind === 'focus-input' && !command.payload.focused) {
+						failed = true;
+						terminal?.reset();
+						throw focusError;
+					}
+					accepted.push(command);
+				},
+			},
+			terminalId,
+		});
+		terminal.onError((event) => errors.push(event));
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('blur', { type: 'blur' } as FocusEvent);
+		browser.dispatchWindow('blur');
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+
+		expect(errors).toEqual([{ error: focusError, operation: 'command' }]);
+		expect(
+			accepted
+				.filter((command) => command.kind === 'focus-input')
+				.map((command) => command.payload.focused),
+		).toEqual([true, false, true]);
+		terminal.dispose();
+	});
+
+	it('reports one failed disposal cleanup attempt without recursive retry', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const accepted: ProjectedTerminalCommand[] = [];
+		const errors: ProjectedTerminalErrorEvent[] = [];
+		const releaseError = new Error('disposal release failed before acceptance');
+		let releaseAttempts = 0;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					if (command.kind === 'key-input' && command.payload.action === KeyAction.release) {
+						releaseAttempts++;
+						throw releaseError;
+					}
+					accepted.push(command);
+				},
+			},
+			terminalId,
+		});
+		terminal.onError((event) => errors.push(event));
+		await terminal.open(browser.root);
+		(terminal.textarea as unknown as FakeElement).dispatch(
+			'keydown',
+			keyboardEvent('keydown', 'KeyA', 'a', 65),
+		);
+		terminal.dispose();
+
+		expect(releaseAttempts).toBe(1);
+		expect(errors).toEqual([{ error: releaseError, operation: 'command' }]);
+		expect(
+			accepted.flatMap((command) => (command.kind === 'key-input' ? [command.payload.action] : [])),
+		).toEqual([KeyAction.press]);
+		expect(terminal.phase).toBe('disposed');
+		expect((browser.root as unknown as FakeElement).children).toHaveLength(0);
+	});
+
+	it('does not recursively retry a throwing cleanup release that reenters blur', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const accepted: ProjectedTerminalCommand[] = [];
+		const errors: ProjectedTerminalErrorEvent[] = [];
+		const releaseError = new Error('cleanup release failed before acceptance');
+		let input: FakeElement | undefined;
+		let releaseAttempts = 0;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					if (command.kind === 'key-input' && command.payload.action === KeyAction.release) {
+						releaseAttempts++;
+						input?.dispatch('blur', { type: 'blur' } as FocusEvent);
+						throw releaseError;
+					}
+					accepted.push(command);
+				},
+			},
+			terminalId,
+		});
+		terminal.onError((event) => errors.push(event));
+		await terminal.open(browser.root);
+		input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		terminal.reset();
+
+		expect(releaseAttempts).toBe(1);
+		expect(errors).toEqual([{ error: releaseError, operation: 'command' }]);
+		expect(accepted.some((command) => command.kind === 'reset-terminal')).toBe(true);
+		terminal.dispose();
+	});
+
+	it.each([
+		{ button: MouseButton.four, deltaX: 0, deltaY: -24, direction: 'up', repair: 'reset' },
+		{ button: MouseButton.five, deltaX: 0, deltaY: 24, direction: 'down', repair: 'blur' },
+		{
+			button: MouseButton.four,
+			deltaX: -12,
+			deltaY: -24,
+			direction: 'up with horizontal delta',
+			repair: 'dispose',
+		},
+		{
+			button: MouseButton.five,
+			deltaX: 12,
+			deltaY: 24,
+			direction: 'down with horizontal delta',
+			repair: 'reset',
+		},
+	])(
+		'keeps stateless wheel $direction report out of held ownership during $repair',
+		async ({ button, deltaX, deltaY, repair }) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+					},
+				},
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			terminal.applyFrame(
+				terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+					...interaction,
+					mouseAny: true,
+				}),
+			);
+			const input = terminal.textarea as unknown as FakeElement;
+			const canvas = terminal.canvas as unknown as FakeElement;
+			canvas.dispatch('wheel', wheelEvent(deltaX, deltaY));
+
+			if (repair === 'reset') terminal.reset();
+			else if (repair === 'blur') input.dispatch('blur', { type: 'blur' } as FocusEvent);
+			else terminal.dispose();
+
+			expect(
+				commands
+					.filter((command) => command.kind === 'mouse-input')
+					.map((command) => `${command.payload.action}:${command.payload.button}`),
+			).toEqual([`${MouseAction.press}:${button}`]);
+			if (repair !== 'dispose') terminal.dispose();
+		},
+	);
+
+	it.each(['never settles', 'rejects after invalidation'])(
+		'reconciles queued focus after a paste review that %s',
+		async (reviewCase) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			let rejectReview: ((error: Error) => void) | undefined;
+			let reviewStarted = false;
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+					},
+				},
+				reviewPaste: async () => {
+					reviewStarted = true;
+					return await new Promise<boolean>((_resolve, reject) => {
+						rejectReview = reject;
+					});
+				},
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			const input = terminal.textarea as unknown as FakeElement;
+			const paste = terminal.paste('one\ntwo');
+			await vi.waitFor(() => expect(reviewStarted).toBe(true));
+			input.dispatch('focus', { type: 'focus' } as FocusEvent);
+			terminal.reset();
+			await expect(paste).resolves.toEqual(expect.objectContaining({ kind: 'blocked' }));
+			expect(
+				commands
+					.filter((command) => command.kind === 'focus-input')
+					.map((command) => command.payload),
+			).toEqual([{ attachmentId, focused: true }]);
+			input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+
+			const inputCommands = commands.filter(
+				(command) => command.kind === 'focus-input' || command.kind === 'key-input',
+			);
+			expect(inputCommands.map((command) => command.kind)).toEqual(['focus-input', 'key-input']);
+			expect(inputCommands[0]).toEqual({
+				kind: 'focus-input',
+				payload: { attachmentId, focused: true },
+			});
+			if (reviewCase === 'rejects after invalidation') {
+				rejectReview?.(new Error('late review failure'));
+				await Promise.resolve();
+				await Promise.resolve();
+			}
+			expect(commands.some((command) => command.kind === 'paste-input')).toBe(false);
+			terminal.dispose();
+		},
+	);
+
+	it.each([
+		{ order: 'beforeinput-first', repair: 'reset', throws: false },
+		{ order: 'beforeinput-first', repair: 'blur', throws: true },
+		{ order: 'compositionend-first', repair: 'reset', throws: false },
+		{ order: 'compositionend-first', repair: 'blur', throws: true },
+	])(
+		'preserves a new composition after $order old commit reenters $repair (throws=$throws)',
+		async ({ order, repair, throws }) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const setPreedit = vi.spyOn(WebGPURenderer.prototype, 'setPreedit');
+			const accepted: ProjectedTerminalCommand[] = [];
+			const errors: ProjectedTerminalErrorEvent[] = [];
+			let input: FakeElement | undefined;
+			let reentered = false;
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						if (command.kind === 'text-input' && !reentered && input !== undefined) {
+							reentered = true;
+							if (repair === 'reset') terminal.reset();
+							else input.dispatch('blur', { type: 'blur' } as FocusEvent);
+							input.dispatch('focus', { type: 'focus' } as FocusEvent);
+							input.value = '新输入';
+							dispatchComposition(input, 'compositionstart', '新');
+							dispatchComposition(input, 'compositionupdate', '新输入');
+							if (throws) throw new Error('old text send failed');
+						}
+						accepted.push(command);
+					},
+				},
+				terminalId,
+			});
+			terminal.onError((event) => errors.push(event));
+			await terminal.open(browser.root);
+			terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+			input = terminal.textarea as unknown as FakeElement;
+			input.value = '旧输入';
+			dispatchComposition(input, 'compositionstart', '旧');
+			dispatchComposition(input, 'compositionupdate', '旧输入');
+			if (order === 'beforeinput-first') dispatchBeforeInput(input, '旧输入');
+			else dispatchComposition(input, 'compositionend', '旧输入');
+
+			expect(input.value).toBe('新输入');
+			expect(setPreedit).toHaveBeenLastCalledWith(
+				expect.arrayContaining([expect.objectContaining({ text: '新' })]),
+				expect.any(Object),
+			);
+			expect(errors).toHaveLength(throws ? 1 : 0);
+			expect(accepted.filter((command) => command.kind === 'text-input')).toHaveLength(
+				throws ? 0 : 1,
+			);
+			terminal.dispose();
+		},
+	);
+
+	it.each(['beforeinput', 'clipboard', 'drop'])(
+		'reports a current %s paste review rejection and keeps later input usable',
+		async (source) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			const errors: ProjectedTerminalErrorEvent[] = [];
+			const reviewError = new Error(`${source} review failed`);
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+					},
+				},
+				reviewPaste: async () => {
+					throw reviewError;
+				},
+				terminalId,
+			});
+			terminal.onError((event) => errors.push(event));
+			await terminal.open(browser.root);
+			const input = terminal.textarea as unknown as FakeElement;
+			if (source === 'beforeinput') {
+				dispatchBeforeInput(input, 'one\ntwo', false, 'insertFromPaste');
+			} else if (source === 'clipboard') {
+				input.dispatch('paste', {
+					clipboardData: { getData: () => 'one\ntwo' },
+					preventDefault: () => undefined,
+					stopPropagation: () => undefined,
+					type: 'paste',
+				} as unknown as ClipboardEvent);
+			} else {
+				(browser.root as unknown as FakeElement).dispatch('drop', {
+					dataTransfer: {
+						files: [],
+						getData: () => 'one\ntwo',
+						types: ['text/plain'],
+					},
+					preventDefault: () => undefined,
+					stopPropagation: () => undefined,
+					type: 'drop',
+				} as unknown as DragEvent);
+			}
+
+			await vi.waitFor(() =>
+				expect(errors).toEqual([{ error: reviewError, operation: 'command' }]),
+			);
+			input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+			expect(
+				commands.some(
+					(command) =>
+						command.kind === 'key-input' &&
+						command.payload.action === KeyAction.press &&
+						command.payload.key === 'KeyA',
+				),
+			).toBe(true);
+			terminal.dispose();
+		},
+	);
 
 	it('exposes clear and reset only while the attachment owns input capability', () => {
 		const commands: ProjectedTerminalCommand[] = [];
@@ -3589,13 +6389,19 @@ describe('ProjectedTerminal', () => {
 		await terminal.open(browser.root);
 		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
 		expect(browser.frames.size).toBe(1);
+		browser.flushFrames();
+		expect(telemetry).toHaveBeenCalledOnce();
+		telemetry.mockClear();
 
 		browser.setVisibilityState('hidden');
 		browser.dispatchDocument('visibilitychange');
 		expect(setSuspended).toHaveBeenLastCalledWith(true);
 		expect(browser.frames.size).toBe(0);
 		terminal.applyFrame(terminalFrame('delta', 2n, 2n, ['c', 'd'], 1n));
+		browser.setDevicePixelRatio(1.5);
+		browser.mediaQueries.at(-1)?.dispatchChange();
 		expect(browser.frames.size).toBe(0);
+		expect(telemetry).not.toHaveBeenCalled();
 
 		browser.setVisibilityState('visible');
 		browser.dispatchDocument('visibilitychange');
@@ -3603,7 +6409,17 @@ describe('ProjectedTerminal', () => {
 		expect(browser.frames.size).toBe(1);
 		browser.flushFrames();
 		expect(telemetry).toHaveBeenCalledOnce();
-		expect(telemetry).toHaveBeenCalledWith(expect.objectContaining({ revision: '2' }));
+		expect(telemetry).toHaveBeenCalledWith(
+			expect.objectContaining({
+				cellsVisited: 4,
+				forceAll: true,
+				reasons: expect.arrayContaining(['surface']),
+				revision: '2',
+				rowsRendered: 2,
+			}),
+		);
+		browser.flushFrames();
+		expect(telemetry).toHaveBeenCalledOnce();
 		terminal.dispose();
 	});
 
@@ -3745,12 +6561,13 @@ describe('ProjectedTerminal', () => {
 		expect(disconnect).toHaveBeenCalledOnce();
 	});
 
-	it('updates renderer and PTY pixel geometry when the device pixel ratio changes', async () => {
+	it('repaints a committed frame and updates PTY and input geometry for fractional DPR changes', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
 		vi.stubGlobal('navigator', {});
 		const commands: ProjectedTerminalCommand[] = [];
+		const setDevicePixelRatio = vi.spyOn(WebGPURenderer.prototype, 'setDevicePixelRatio');
 		const terminal = new ProjectedTerminal({
 			attachmentId,
 			canResize: true,
@@ -3764,17 +6581,43 @@ describe('ProjectedTerminal', () => {
 			},
 			terminalId,
 		});
+		const telemetry = vi.fn<(event: ProjectedTerminalFrameTelemetry) => void>();
+		terminal.onFrameTelemetry(telemetry);
 
 		await terminal.open(browser.root);
-		const initialResize = commands
-			.slice()
-			.reverse()
-			.find((command) => command.kind === 'resize-terminal');
+		expect(terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']))).toBe('committed');
+		browser.flushFrames();
+		telemetry.mockClear();
+		const initialResize = commands.reduceRight<
+			Extract<ProjectedTerminalCommand, { readonly kind: 'resize-terminal' }> | undefined
+		>(
+			(found, command) => found ?? (command.kind === 'resize-terminal' ? command : undefined),
+			undefined,
+		);
 		if (initialResize?.kind !== 'resize-terminal') throw new Error('initial resize is missing');
-		expect(browser.mediaQueries.at(-1)?.media).toBe('(resolution: 1dppx)');
+		const initialQuery = browser.mediaQueries.at(-1);
+		expect(initialQuery?.media).toBe('(resolution: 1dppx)');
+		expect(initialQuery?.listenerCount).toBe(1);
+		const input = terminal.textarea as unknown as FakeElement | undefined;
+		if (input === undefined) throw new Error('terminal input is missing');
+		const initialInputGeometry = {
+			height: input.style['height'],
+			left: input.style['left'],
+			lineHeight: input.style['lineHeight'],
+			top: input.style['top'],
+			width: input.style['width'],
+		};
+		const initialCanvas = terminal.canvas;
+		if (initialCanvas === undefined) throw new Error('terminal canvas is missing');
+		const initialCanvasGeometry = {
+			height: initialCanvas.height,
+			styleHeight: initialCanvas.style.height,
+			styleWidth: initialCanvas.style.width,
+			width: initialCanvas.width,
+		};
 
-		browser.setDevicePixelRatio(2);
-		browser.mediaQueries.at(-1)?.dispatchChange();
+		browser.setDevicePixelRatio(1.5);
+		initialQuery?.dispatchChange();
 
 		const resizeCommands = commands.filter((command) => command.kind === 'resize-terminal');
 		expect(resizeCommands).toHaveLength(2);
@@ -3782,14 +6625,53 @@ describe('ProjectedTerminal', () => {
 		if (changedResize?.kind !== 'resize-terminal') throw new Error('DPR resize is missing');
 		expect(changedResize.payload).toEqual({
 			...initialResize.payload,
-			cellPixelHeight: initialResize.payload.cellPixelHeight * 2,
-			cellPixelWidth: initialResize.payload.cellPixelWidth * 2,
+			cellPixelHeight: Math.round((initialResize.payload.cellPixelHeight * 3) / 2),
+			cellPixelWidth: Math.round((initialResize.payload.cellPixelWidth * 3) / 2),
 		});
-		expect(browser.mediaQueries.at(-1)?.media).toBe('(resolution: 2dppx)');
+		expect(changedResize.payload.cellPixelHeight * changedResize.payload.rows).toBe(
+			Math.round((initialResize.payload.cellPixelHeight * 3) / 2) * initialResize.payload.rows,
+		);
+		expect(changedResize.payload.cellPixelWidth * changedResize.payload.columns).toBe(
+			Math.round((initialResize.payload.cellPixelWidth * 3) / 2) * initialResize.payload.columns,
+		);
+		expect(terminal.metadata).toMatchObject({ columns: 2, rows: 2 });
+		expect(terminal.canvas).toBe(initialCanvas);
+		expect(initialCanvas.style.height).toBe(initialCanvasGeometry.styleHeight);
+		expect(initialCanvas.style.width).toBe(initialCanvasGeometry.styleWidth);
+		expect(initialCanvas.height).toBe(Math.round(initialCanvasGeometry.height * 1.5));
+		expect(initialCanvas.width).toBe(Math.round(initialCanvasGeometry.width * 1.5));
+		expect({
+			height: input.style['height'],
+			left: input.style['left'],
+			lineHeight: input.style['lineHeight'],
+			top: input.style['top'],
+			width: input.style['width'],
+		}).toEqual(initialInputGeometry);
+		expect(initialQuery?.listenerCount).toBe(0);
+		const fractionalQuery = browser.mediaQueries.at(-1);
+		expect(fractionalQuery?.media).toBe('(resolution: 1.5dppx)');
+		expect(fractionalQuery?.listenerCount).toBe(1);
+		expect(browser.frames.size).toBe(1);
+		browser.flushFrames();
+		expect(telemetry).toHaveBeenCalledOnce();
+		expect(telemetry).toHaveBeenCalledWith(
+			expect.objectContaining({
+				backend: 'canvas2d',
+				cellsVisited: 4,
+				forceAll: true,
+				reasons: ['surface'],
+				revision: '1',
+				rowsRendered: 2,
+			}),
+		);
 		terminal.dispose();
+		expect(fractionalQuery?.listenerCount).toBe(0);
 
+		setDevicePixelRatio.mockClear();
 		browser.setDevicePixelRatio(3);
+		fractionalQuery?.dispatchChange();
 		browser.dispatchWindow('resize');
+		expect(setDevicePixelRatio).not.toHaveBeenCalled();
 		expect(commands.filter((command) => command.kind === 'resize-terminal')).toHaveLength(2);
 	});
 });
