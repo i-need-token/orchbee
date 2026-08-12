@@ -98,7 +98,7 @@ normalizes pixel, line, and page deltas against the projected cell and grid dime
 sub-cell motion independently per axis, and reports vertical button 4/5 steps before horizontal
 button 7/6 steps. Shift bypasses application mouse ownership. On the primary screen, normalized
 vertical steps navigate bounded retained history; on the alternate screen, writable input maps them
-to stateless semantic Arrow Up/Down presses. A read-only alternate screen consumes vertical wheel
+to matched semantic Arrow Up/Down taps. A read-only alternate screen consumes vertical wheel
 input without emitting Host input, while local horizontal-only wheel input remains browser-owned.
 
 The canvas pointer uses the same ownership policy rather than independent link-only styling. A
@@ -117,6 +117,9 @@ modifier, and consumed-modifier fields come from the current `keyup` after remov
 right-side modifier from browser-owned tracking. A `keyup` that reenters a synchronous input
 publication is deferred until the owning press outcome is known, or is subsumed by a concurrent
 lifecycle repair, so it cannot leave a published press without its release.
+Synthetic Enter, Backspace, Delete, and alternate-screen arrow input use the same held publication
+path as matched press/release taps. They retain no steady-state client ownership, while a transport
+loss between the pair remains visible to the Host attachment ledger for detach repair.
 
 Shift-only Page Up and Page Down, including their keypad codes, remain local retained-history
 navigation and never become Host key input. Every admitted user-input path shares one ordered
@@ -141,6 +144,10 @@ repairs input nor repeats focus reporting; leaving it releases published key and
 before one focus-out, while entering through a non-textarea descendant publishes the matching
 focus-in. The application decides when to call `focus()`; opening the package surface does not claim
 initial product focus.
+If the projected client disappears before this cleanup completes, Terminal Host releases only that
+attachment's accepted key and application-mouse ownership before revoking its capability; another
+attachment is unaffected.
+
 A blur, visibility loss, or disposal that reenters while reset is staging or sending cleanup is
 coalesced into the same transaction; the transaction drains key release, mouse release, and any
 newly required focus-out before it reopens admission or disposes. The Host reset follows that

@@ -173,6 +173,109 @@ const InputSource = enum {
     terminal,
 };
 
+const OwnedKeyInput = struct {
+    composing: bool,
+    consumed_modifiers: terminal_input.Modifiers,
+    key: ghostty_vt.input.Key,
+    modifiers: terminal_input.Modifiers,
+    text: []u8,
+    unshifted_codepoint: u21,
+
+    fn deinit(self: *OwnedKeyInput, allocator: std.mem.Allocator) void {
+        allocator.free(self.text);
+        self.* = undefined;
+    }
+
+    fn release(self: OwnedKeyInput) terminal_input.KeyInput {
+        return .{
+            .action = .release,
+            .composing = self.composing,
+            .consumed_modifiers = self.consumed_modifiers,
+            .key = self.key.w3c(),
+            .modifiers = self.modifiers,
+            .text = self.text,
+            .unshifted_codepoint = self.unshifted_codepoint,
+        };
+    }
+};
+
+const mouse_button_count = @typeInfo(terminal_input.MouseButton).@"enum".fields.len;
+
+const AttachmentInputOwnership = struct {
+    detaching: bool = false,
+    keys: std.ArrayList(OwnedKeyInput) = .empty,
+    mouse_order: [mouse_button_count]terminal_input.MouseButton = undefined,
+    mouse_order_len: usize = 0,
+    mouse_sample: ?terminal_input.MouseInput = null,
+    pending_key_slots: usize = 0,
+
+    fn deinit(self: *AttachmentInputOwnership, allocator: std.mem.Allocator) void {
+        for (self.keys.items) |*key| key.deinit(allocator);
+        self.keys.deinit(allocator);
+        self.* = undefined;
+    }
+
+    fn keyIndex(self: *const AttachmentInputOwnership, key: ghostty_vt.input.Key) ?usize {
+        for (self.keys.items, 0..) |owned, index| {
+            if (owned.key == key) return index;
+        }
+        return null;
+    }
+
+    fn mouseIndex(
+        self: *const AttachmentInputOwnership,
+        button: terminal_input.MouseButton,
+    ) ?usize {
+        for (self.mouse_order[0..self.mouse_order_len], 0..) |owned, index| {
+            if (owned == button) return index;
+        }
+        return null;
+    }
+
+    fn mouseButtons(self: *const AttachmentInputOwnership) terminal_input.MouseButtons {
+        var buttons: terminal_input.MouseButtons = .{};
+        for (self.mouse_order[0..self.mouse_order_len]) |button| {
+            setMouseButton(&buttons, button, true);
+        }
+        return buttons;
+    }
+
+    fn repairBytes(self: *const AttachmentInputOwnership) usize {
+        return self.keys.items.len * max_key_encoded_bytes +
+            self.mouse_order_len * max_mouse_encoded_bytes;
+    }
+
+    fn repairEntries(self: *const AttachmentInputOwnership) usize {
+        return @intFromBool(self.keys.items.len != 0 or self.mouse_order_len != 0);
+    }
+};
+
+const AttachmentInputMutation = union(enum) {
+    detach,
+    key_release: ghostty_vt.input.Key,
+    key_retain: OwnedKeyInput,
+    mouse: terminal_input.MouseInput,
+
+    fn deinit(self: *AttachmentInputMutation, allocator: std.mem.Allocator) void {
+        switch (self.*) {
+            .key_retain => |*key| key.deinit(allocator),
+            .detach, .key_release, .mouse => {},
+        }
+        self.* = undefined;
+    }
+};
+
+const PreparedInputOwnership = struct {
+    attachment_id: AttachmentId,
+    key_slot_reserved: bool = false,
+    mutation: AttachmentInputMutation,
+
+    fn deinit(self: *PreparedInputOwnership, allocator: std.mem.Allocator) void {
+        self.mutation.deinit(allocator);
+        self.* = undefined;
+    }
+};
+
 const ReaderBatchOutcome = enum {
     committed,
     failure_fenced,
@@ -463,6 +566,7 @@ const PreparedInputState = enum {
 /// queue position and admits no terminal bytes.
 pub const PreparedInput = struct {
     bytes: ?[]u8,
+    ownership: ?PreparedInputOwnership = null,
     reservation: ?InputReservation,
     runtime: *TerminalRuntime,
     state: PreparedInputState = .pending,
@@ -476,16 +580,25 @@ pub const PreparedInput = struct {
         std.debug.assert(self.state == .pending);
         const byte_count = self.byteCount();
         const bytes = self.bytes;
+        var ownership = self.ownership;
         const reservation = self.reservation;
         self.bytes = null;
+        self.ownership = null;
         self.reservation = null;
         self.state = .consumed;
         if (bytes) |owned| {
-            try self.runtime.publishInput(reservation.?, owned);
+            self.runtime.publishPreparedInput(reservation.?, owned, &ownership) catch |err| {
+                if (ownership) |*pending| self.runtime.cancelPreparedInputOwnership(pending);
+                return err;
+            };
         } else {
             std.debug.assert(reservation == null);
-            try self.runtime.validatePreparedInputCommit();
+            self.runtime.validatePreparedInputCommit(&ownership) catch |err| {
+                if (ownership) |*pending| self.runtime.cancelPreparedInputOwnership(pending);
+                return err;
+            };
         }
+        std.debug.assert(ownership == null);
         return byte_count;
     }
 
@@ -495,6 +608,9 @@ pub const PreparedInput = struct {
                 self.runtime.cancelInput(reservation.identifier);
             }
             if (self.bytes) |bytes| self.runtime.allocator.free(bytes);
+            if (self.ownership) |*ownership| {
+                self.runtime.cancelPreparedInputOwnership(ownership);
+            }
         }
         self.* = undefined;
     }
@@ -513,6 +629,7 @@ pub const PreparedAttachment = struct {
     attachment_id: AttachmentId,
     bell_sequence: u64,
     history_reserved: bool,
+    input_state_reserved: bool,
     runtime: *TerminalRuntime,
     state: PreparedAttachmentState = .pending,
 
@@ -525,6 +642,14 @@ pub const PreparedAttachment = struct {
         std.debug.assert(self.state == .pending);
         if (self.history_reserved) {
             self.runtime.history.commitReservedAttachment(self.attachment_id);
+        }
+        if (self.input_state_reserved) {
+            self.runtime.input_mutex.lock();
+            self.runtime.attachment_input_ownership.putAssumeCapacityNoClobber(
+                self.attachment_id,
+                .{},
+            );
+            self.runtime.input_mutex.unlock();
         }
         self.runtime.terminal_mutex.unlock();
         self.state = .consumed;
@@ -574,9 +699,15 @@ pub const TerminalRuntime = struct {
     first_containment_mutex: std.Thread.Mutex = .{},
     generation: u64 = 1,
     history: terminal_history.Manager,
-    // input_mutex and input_condition protect queue order, charged bytes,
-    // reservation identifiers, the writer stop transition, and completion
-    // notifications that must not be missed between a predicate check and wait.
+    attachment_input_ownership: std.AutoArrayHashMap(
+        AttachmentId,
+        AttachmentInputOwnership,
+    ),
+    attachment_input_repair_charge: InputCharge = .{},
+    // input_mutex and input_condition protect attachment input ownership,
+    // queue order, charged bytes, reservation identifiers, the writer stop
+    // transition, and completion notifications that must not be missed between
+    // a predicate check and wait.
     client_input_charge: InputCharge = .{},
     input_condition: std.Thread.Condition = .{},
     input_entries: std.ArrayList(InputEntry) = .empty,
@@ -694,6 +825,7 @@ pub const TerminalRuntime = struct {
 
         self.* = .{
             .allocator = allocator,
+            .attachment_input_ownership = .init(allocator),
             .cell_pixel_height = resolved_options.cell_pixel_height,
             .cell_pixel_width = resolved_options.cell_pixel_width,
             .process = undefined,
@@ -741,6 +873,7 @@ pub const TerminalRuntime = struct {
         if (self.writer_thread) |thread| thread.join();
         self.stream.deinit();
         self.history.deinit(&self.terminal);
+        self.deinitAttachmentInputOwnership();
         self.terminal.deinit(self.allocator);
         for (self.input_entries.items) |entry| {
             if (entry.bytes) |bytes| self.allocator.free(bytes);
@@ -967,6 +1100,7 @@ pub const TerminalRuntime = struct {
         self.history.deinit(&self.terminal);
         self.terminal.deinit(self.allocator);
         self.input_mutex.lock();
+        self.deinitAttachmentInputOwnership();
         for (self.input_entries.items) |entry| if (entry.bytes) |bytes| self.allocator.free(bytes);
         self.input_entries.deinit(self.allocator);
         self.input_mutex.unlock();
@@ -1421,6 +1555,89 @@ pub const TerminalRuntime = struct {
             .paste => |value| self.preparePasteInput(value.text, value.bracketed, maximum_bytes),
             .text => |value| self.prepareTextInput(value.text, maximum_bytes),
         };
+    }
+
+    pub fn prepareAttachmentSemanticInput(
+        self: *TerminalRuntime,
+        attachment_id: AttachmentId,
+        input: terminal_input.SemanticInput,
+        maximum_bytes: usize,
+    ) !PreparedInput {
+        var prepared = try self.prepareSemanticInput(input, maximum_bytes);
+        errdefer prepared.deinit();
+        prepared.ownership = try self.prepareAttachmentInputMutation(attachment_id, input);
+        return prepared;
+    }
+
+    pub fn prepareAttachmentInputRepair(
+        self: *TerminalRuntime,
+        attachment_id: AttachmentId,
+    ) !PreparedInput {
+        if (self.child_exited.load(.acquire)) return error.TerminalExited;
+        var encoded: std.ArrayList(u8) = .empty;
+        defer encoded.deinit(self.allocator);
+        self.terminal_mutex.lock();
+        defer self.terminal_mutex.unlock();
+        try self.ensureRuntimeWorkAvailableLocked();
+        if (self.child_exited.load(.acquire)) return error.TerminalExited;
+
+        self.input_mutex.lock();
+        defer self.input_mutex.unlock();
+        const ownership = self.attachment_input_ownership.getPtr(attachment_id) orelse
+            return error.MissingAttachment;
+        if (ownership.detaching) return error.MissingAttachment;
+        ownership.detaching = true;
+        errdefer ownership.detaching = false;
+
+        var key_buffer: [max_key_encoded_bytes]u8 = undefined;
+        for (ownership.keys.items) |key| {
+            const release = try terminal_input_encoding.encodeKey(
+                &key_buffer,
+                &self.terminal,
+                key.key,
+                key.release(),
+            );
+            try appendAttachmentRepairBytes(&encoded, self.allocator, release);
+        }
+
+        var pressed_buttons = ownership.mouseButtons();
+        if (ownership.mouse_sample) |sample| {
+            var mouse_buffer: [max_mouse_encoded_bytes]u8 = undefined;
+            for (ownership.mouse_order[0..ownership.mouse_order_len]) |button| {
+                setMouseButton(&pressed_buttons, button, false);
+                var release = sample;
+                release.action = .{ .release = button };
+                release.pressed_buttons = pressed_buttons;
+                const bytes = try terminal_input_encoding.encodeMouse(
+                    &mouse_buffer,
+                    &self.terminal,
+                    self.cell_pixel_width,
+                    self.cell_pixel_height,
+                    release,
+                );
+                try appendAttachmentRepairBytes(&encoded, self.allocator, bytes);
+            }
+        }
+
+        const bytes = if (encoded.items.len == 0)
+            null
+        else
+            try encoded.toOwnedSlice(self.allocator);
+        errdefer if (bytes) |owned| self.allocator.free(owned);
+        const reservation = if (bytes) |owned|
+            try self.reserveAttachmentRepairInputLocked(attachment_id, owned.len)
+        else
+            null;
+        var prepared: PreparedInput = .{
+            .bytes = bytes,
+            .reservation = reservation,
+            .runtime = self,
+        };
+        prepared.ownership = .{
+            .attachment_id = attachment_id,
+            .mutation = .detach,
+        };
+        return prepared;
     }
 
     pub fn pendingInputBytes(self: *TerminalRuntime) usize {
@@ -1930,20 +2147,43 @@ pub const TerminalRuntime = struct {
         attachment_id: identifiers.AttachmentId,
         requires_runtime_work: bool,
         requires_readable_state: bool,
+        requires_input_state: bool,
     ) !PreparedAttachment {
+        std.debug.assert(!requires_input_state or requires_runtime_work);
         self.terminal_mutex.lock();
         errdefer self.terminal_mutex.unlock();
-        if (requires_runtime_work) {
+        if (requires_input_state) {
             try self.ensureRuntimeWorkAvailableLocked();
         } else if (requires_readable_state) {
             try self.ensureReadableStateAvailableLocked();
+        }
+        if (requires_runtime_work) {
+            self.input_mutex.lock();
+            self.attachment_input_ownership.ensureUnusedCapacity(1) catch |err| {
+                self.input_mutex.unlock();
+                return err;
+            };
+            self.input_mutex.unlock();
         }
         if (requires_readable_state) try self.history.reserveAttachment(attachment_id);
         return .{
             .attachment_id = attachment_id,
             .bell_sequence = self.bell_sequence,
             .history_reserved = requires_readable_state,
+            .input_state_reserved = requires_input_state,
             .runtime = self,
+        };
+    }
+
+    pub fn detachInput(self: *TerminalRuntime, attachment_id: identifiers.AttachmentId) void {
+        if (!self.hasAttachmentInputOwnership(attachment_id)) return;
+        var repair = self.prepareAttachmentInputRepair(attachment_id) catch |err| {
+            self.failAttachmentInputRepair(attachment_id, err, "preparation failed");
+            return;
+        };
+        defer repair.deinit();
+        _ = repair.commit() catch |err| {
+            self.failAttachmentInputRepair(attachment_id, err, "commit was rejected");
         };
     }
 
@@ -2260,6 +2500,179 @@ pub const TerminalRuntime = struct {
         return self.history.cancelExport(attachment_id, export_sequence);
     }
 
+    fn prepareAttachmentInputMutation(
+        self: *TerminalRuntime,
+        attachment_id: AttachmentId,
+        input: terminal_input.SemanticInput,
+    ) !?PreparedInputOwnership {
+        var mutation: AttachmentInputMutation = switch (input) {
+            .key => |value| key: {
+                const key = try terminal_input_encoding.parseKey(value.key);
+                if (value.action == .release) break :key .{ .key_release = key };
+                const text = try self.allocator.dupe(u8, value.text);
+                errdefer self.allocator.free(text);
+                break :key .{ .key_retain = .{
+                    .composing = value.composing,
+                    .consumed_modifiers = value.consumed_modifiers,
+                    .key = key,
+                    .modifiers = value.modifiers,
+                    .text = text,
+                    .unshifted_codepoint = value.unshifted_codepoint,
+                } };
+            },
+            .mouse => |value| .{ .mouse = value },
+            .focus, .paste, .text => return null,
+        };
+        errdefer mutation.deinit(self.allocator);
+        self.input_mutex.lock();
+        defer self.input_mutex.unlock();
+        const ownership = self.attachment_input_ownership.getPtr(attachment_id) orelse
+            return error.MissingAttachment;
+        if (ownership.detaching) return error.MissingAttachment;
+        var key_slot_reserved = false;
+        switch (mutation) {
+            .key_retain => {
+                try ownership.keys.ensureUnusedCapacity(
+                    self.allocator,
+                    ownership.pending_key_slots + 1,
+                );
+                ownership.pending_key_slots += 1;
+                key_slot_reserved = true;
+            },
+            .detach, .key_release, .mouse => {},
+        }
+        return .{
+            .attachment_id = attachment_id,
+            .key_slot_reserved = key_slot_reserved,
+            .mutation = mutation,
+        };
+    }
+
+    fn commitAttachmentInputMutationLocked(
+        self: *TerminalRuntime,
+        pending: PreparedInputOwnership,
+    ) void {
+        const mutation = pending.mutation;
+        const ownership = self.attachment_input_ownership.getPtr(pending.attachment_id) orelse
+            unreachable;
+        if (pending.key_slot_reserved) {
+            std.debug.assert(ownership.pending_key_slots > 0);
+            ownership.pending_key_slots -= 1;
+        }
+        const previous_repair_bytes = ownership.repairBytes();
+        const previous_repair_entries = ownership.repairEntries();
+        switch (mutation) {
+            .detach => {
+                self.updateAttachmentRepairChargeLocked(
+                    previous_repair_bytes,
+                    previous_repair_entries,
+                    0,
+                    0,
+                );
+                var removed = self.attachment_input_ownership.fetchSwapRemove(
+                    pending.attachment_id,
+                ).?;
+                removed.value.deinit(self.allocator);
+            },
+            .key_release => |key| {
+                if (ownership.keyIndex(key)) |index| {
+                    var removed = ownership.keys.orderedRemove(index);
+                    removed.deinit(self.allocator);
+                }
+            },
+            .key_retain => |key| {
+                if (ownership.keyIndex(key.key)) |index| {
+                    ownership.keys.items[index].deinit(self.allocator);
+                    ownership.keys.items[index] = key;
+                } else {
+                    ownership.keys.appendAssumeCapacity(key);
+                }
+            },
+            .mouse => |mouse| commitMouseOwnership(ownership, mouse),
+        }
+        switch (mutation) {
+            .detach => {},
+            .key_release, .key_retain, .mouse => self.updateAttachmentRepairChargeLocked(
+                previous_repair_bytes,
+                previous_repair_entries,
+                ownership.repairBytes(),
+                ownership.repairEntries(),
+            ),
+        }
+    }
+
+    fn cancelPreparedInputOwnership(
+        self: *TerminalRuntime,
+        pending: *PreparedInputOwnership,
+    ) void {
+        self.input_mutex.lock();
+        if (self.attachment_input_ownership.getPtr(pending.attachment_id)) |ownership| {
+            if (pending.key_slot_reserved) {
+                std.debug.assert(ownership.pending_key_slots > 0);
+                ownership.pending_key_slots -= 1;
+            }
+            switch (pending.mutation) {
+                .detach => ownership.detaching = false,
+                .key_release, .key_retain, .mouse => {},
+            }
+        }
+        self.input_mutex.unlock();
+        pending.deinit(self.allocator);
+    }
+
+    fn hasAttachmentInputOwnership(
+        self: *TerminalRuntime,
+        attachment_id: AttachmentId,
+    ) bool {
+        self.input_mutex.lock();
+        defer self.input_mutex.unlock();
+        return self.attachment_input_ownership.contains(attachment_id);
+    }
+
+    fn discardAttachmentInputOwnership(
+        self: *TerminalRuntime,
+        attachment_id: AttachmentId,
+    ) void {
+        self.input_mutex.lock();
+        defer self.input_mutex.unlock();
+        if (self.attachment_input_ownership.fetchSwapRemove(attachment_id)) |removed_value| {
+            var removed = removed_value.value;
+            self.updateAttachmentRepairChargeLocked(
+                removed.repairBytes(),
+                removed.repairEntries(),
+                0,
+                0,
+            );
+            removed.deinit(self.allocator);
+        }
+    }
+
+    fn failAttachmentInputRepair(
+        self: *TerminalRuntime,
+        attachment_id: AttachmentId,
+        err: anyerror,
+        phase: []const u8,
+    ) void {
+        const runtime_already_closed = err == error.TerminalExited or
+            err == error.TerminalRuntimeUnavailable or err == error.MissingAttachment;
+        if (!runtime_already_closed) {
+            std.log.warn("attachment input repair {s}: {s}; fencing the terminal runtime", .{
+                phase,
+                @errorName(err),
+            });
+        }
+        self.discardAttachmentInputOwnership(attachment_id);
+        if (!runtime_already_closed) self.recordWorkerIntegrityFailure();
+    }
+
+    fn deinitAttachmentInputOwnership(self: *TerminalRuntime) void {
+        for (self.attachment_input_ownership.values()) |*ownership| {
+            ownership.deinit(self.allocator);
+        }
+        self.attachment_input_ownership.deinit();
+        self.attachment_input_repair_charge = .{};
+    }
+
     fn prepareEncodedInputLocked(
         self: *TerminalRuntime,
         bytes: []const u8,
@@ -2327,8 +2740,9 @@ pub const TerminalRuntime = struct {
         const capacity_entries = inputCapacityEntries(source);
         if (byte_count > capacity_bytes) return error.InputBackpressure;
         const charge = self.inputCharge(source);
-        while (byte_count > capacity_bytes -| charge.bytes or
-            charge.entries >= capacity_entries)
+        while (byte_count > capacity_bytes -| charge.bytes -|
+            self.inputRepairCharge(source).bytes or
+            charge.entries + self.inputRepairCharge(source).entries >= capacity_entries)
         {
             if (!wait) return error.InputBackpressure;
             self.input_condition.wait(&self.input_mutex);
@@ -2350,7 +2764,39 @@ pub const TerminalRuntime = struct {
         return .{ .identifier = identifier, .reserved_bytes = byte_count };
     }
 
-    fn validatePreparedInputCommit(self: *TerminalRuntime) !void {
+    fn reserveAttachmentRepairInputLocked(
+        self: *TerminalRuntime,
+        attachment_id: AttachmentId,
+        byte_count: usize,
+    ) !InputReservation {
+        if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
+        if (self.writer_stop or self.client_input_closed) return error.TerminalExited;
+        const ownership = self.attachment_input_ownership.getPtr(attachment_id) orelse
+            return error.MissingAttachment;
+        std.debug.assert(ownership.detaching);
+        if (byte_count > ownership.repairBytes()) return error.InputLimitExceeded;
+        if (self.input_next_identifier == std.math.maxInt(u64)) {
+            return error.InputSequenceExhausted;
+        }
+        try self.input_entries.ensureUnusedCapacity(self.allocator, 1);
+        const identifier = self.input_next_identifier;
+        self.input_entries.appendAssumeCapacity(.{
+            .identifier = identifier,
+            .reserved_bytes = byte_count,
+            .source = .client,
+        });
+        self.input_next_identifier = identifier + 1;
+        self.client_input_charge.bytes += byte_count;
+        self.client_input_charge.entries += 1;
+        std.debug.assert(self.client_input_charge.bytes <= pending_input_capacity_bytes);
+        std.debug.assert(self.client_input_charge.entries <= max_pending_client_input_entries);
+        return .{ .identifier = identifier, .reserved_bytes = byte_count };
+    }
+
+    fn validatePreparedInputCommit(
+        self: *TerminalRuntime,
+        ownership: *?PreparedInputOwnership,
+    ) !void {
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
         if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
@@ -2358,9 +2804,21 @@ pub const TerminalRuntime = struct {
         // admission gate so every PreparedInput.commit has one phase boundary.
         if (self.writer_stop or self.client_input_closed or
             self.child_exited.load(.acquire)) return error.TerminalExited;
+        try self.validatePreparedInputOwnershipLocked(ownership.*);
+        self.commitPreparedInputOwnershipLocked(ownership);
     }
 
     fn publishInput(self: *TerminalRuntime, reservation: InputReservation, bytes: []u8) !void {
+        var ownership: ?PreparedInputOwnership = null;
+        return self.publishPreparedInput(reservation, bytes, &ownership);
+    }
+
+    fn publishPreparedInput(
+        self: *TerminalRuntime,
+        reservation: InputReservation,
+        bytes: []u8,
+        ownership: *?PreparedInputOwnership,
+    ) !void {
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
         for (self.input_entries.items, 0..) |*entry, index| {
@@ -2385,22 +2843,84 @@ pub const TerminalRuntime = struct {
                 if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
                 return error.TerminalExited;
             }
+            self.validatePreparedInputOwnershipLocked(ownership.*) catch |err| {
+                self.releaseInputCharge(entry.*);
+                _ = self.input_entries.orderedRemove(index);
+                self.allocator.free(bytes);
+                self.input_condition.broadcast();
+                return err;
+            };
             self.inputCharge(entry.source).bytes -= reservation.reserved_bytes - bytes.len;
             if (bytes.len == 0) {
                 self.inputCharge(entry.source).entries -= 1;
                 _ = self.input_entries.orderedRemove(index);
                 self.allocator.free(bytes);
+                self.commitPreparedInputOwnershipLocked(ownership);
                 self.input_condition.broadcast();
                 return;
             }
             entry.reserved_bytes = bytes.len;
             entry.bytes = bytes;
+            self.commitPreparedInputOwnershipLocked(ownership);
             self.input_condition.broadcast();
             return;
         }
         self.allocator.free(bytes);
         if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
         return error.TerminalExited;
+    }
+
+    fn validatePreparedInputOwnershipLocked(
+        self: *TerminalRuntime,
+        ownership: ?PreparedInputOwnership,
+    ) !void {
+        const pending = ownership orelse return;
+        const current = self.attachment_input_ownership.getPtr(pending.attachment_id) orelse
+            return error.MissingAttachment;
+        switch (pending.mutation) {
+            .detach => if (!current.detaching) return error.MissingAttachment,
+            .key_release, .key_retain, .mouse => if (current.detaching) {
+                return error.MissingAttachment;
+            },
+        }
+        const additional_repair_bytes: usize = switch (pending.mutation) {
+            .key_retain => |key| if (current.keyIndex(key.key) == null)
+                max_key_encoded_bytes
+            else
+                0,
+            .mouse => |mouse| switch (mouse.action) {
+                .press => |button| if (mouse.pressed_buttons.contains(button) and
+                    current.mouseIndex(button) == null)
+                    max_mouse_encoded_bytes
+                else
+                    0,
+                .release, .motion => 0,
+            },
+            .detach, .key_release => 0,
+        };
+        const additional_repair_entries = @intFromBool(
+            additional_repair_bytes != 0 and current.repairEntries() == 0,
+        );
+        if (additional_repair_bytes > pending_input_capacity_bytes -|
+            self.client_input_charge.bytes -| self.attachment_input_repair_charge.bytes)
+        {
+            return error.InputBackpressure;
+        }
+        if (additional_repair_entries > max_pending_client_input_entries -|
+            self.client_input_charge.entries -| self.attachment_input_repair_charge.entries)
+        {
+            return error.InputBackpressure;
+        }
+    }
+
+    fn commitPreparedInputOwnershipLocked(
+        self: *TerminalRuntime,
+        ownership: *?PreparedInputOwnership,
+    ) void {
+        const pending = ownership.* orelse return;
+        std.debug.assert(self.attachment_input_ownership.contains(pending.attachment_id));
+        self.commitAttachmentInputMutationLocked(pending);
+        ownership.* = null;
     }
 
     fn cancelInput(self: *TerminalRuntime, identifier: u64) void {
@@ -2433,6 +2953,32 @@ pub const TerminalRuntime = struct {
             .client => &self.client_input_charge,
             .terminal => &self.terminal_reply_charge,
         };
+    }
+
+    fn inputRepairCharge(self: *TerminalRuntime, source: InputSource) InputCharge {
+        return switch (source) {
+            .client => self.attachment_input_repair_charge,
+            .terminal => .{},
+        };
+    }
+
+    fn updateAttachmentRepairChargeLocked(
+        self: *TerminalRuntime,
+        previous_bytes: usize,
+        previous_entries: usize,
+        next_bytes: usize,
+        next_entries: usize,
+    ) void {
+        std.debug.assert(self.attachment_input_repair_charge.bytes >= previous_bytes);
+        std.debug.assert(self.attachment_input_repair_charge.entries >= previous_entries);
+        self.attachment_input_repair_charge.bytes =
+            self.attachment_input_repair_charge.bytes - previous_bytes + next_bytes;
+        self.attachment_input_repair_charge.entries =
+            self.attachment_input_repair_charge.entries - previous_entries + next_entries;
+        std.debug.assert(self.client_input_charge.bytes <= pending_input_capacity_bytes -|
+            self.attachment_input_repair_charge.bytes);
+        std.debug.assert(self.client_input_charge.entries <= max_pending_client_input_entries -|
+            self.attachment_input_repair_charge.entries);
     }
 
     fn releaseInputCharge(self: *TerminalRuntime, entry: InputEntry) void {
@@ -3039,6 +3585,64 @@ pub const TerminalRuntime = struct {
     }
 };
 
+fn appendAttachmentRepairBytes(
+    encoded: *std.ArrayList(u8),
+    allocator: std.mem.Allocator,
+    bytes: []const u8,
+) !void {
+    if (bytes.len > pending_input_capacity_bytes -| encoded.items.len) {
+        return error.InputLimitExceeded;
+    }
+    try encoded.appendSlice(allocator, bytes);
+}
+
+fn commitMouseOwnership(
+    ownership: *AttachmentInputOwnership,
+    input: terminal_input.MouseInput,
+) void {
+    switch (input.action) {
+        .press => |button| {
+            if (!input.pressed_buttons.contains(button)) return;
+            if (ownership.mouseIndex(button) == null) {
+                std.debug.assert(ownership.mouse_order_len < ownership.mouse_order.len);
+                ownership.mouse_order[ownership.mouse_order_len] = button;
+                ownership.mouse_order_len += 1;
+            }
+        },
+        .release => |button| {
+            if (ownership.mouseIndex(button)) |index| {
+                var current = index;
+                while (current + 1 < ownership.mouse_order_len) : (current += 1) {
+                    ownership.mouse_order[current] = ownership.mouse_order[current + 1];
+                }
+                ownership.mouse_order_len -= 1;
+            }
+        },
+        .motion => {},
+    }
+    ownership.mouse_sample = if (ownership.mouse_order_len == 0) null else input;
+}
+
+fn setMouseButton(
+    buttons: *terminal_input.MouseButtons,
+    button: terminal_input.MouseButton,
+    pressed: bool,
+) void {
+    switch (button) {
+        .left => buttons.left = pressed,
+        .right => buttons.right = pressed,
+        .middle => buttons.middle = pressed,
+        .four => buttons.four = pressed,
+        .five => buttons.five = pressed,
+        .six => buttons.six = pressed,
+        .seven => buttons.seven = pressed,
+        .eight => buttons.eight = pressed,
+        .nine => buttons.nine = pressed,
+        .ten => buttons.ten = pressed,
+        .eleven => buttons.eleven = pressed,
+    }
+}
+
 fn applyScrollbackBytes(terminal: *ghostty_vt.Terminal, scrollback_bytes: usize) u64 {
     const primary = terminal.screens.get(.primary).?;
     const previous_total_rows = primary.pages.total_rows;
@@ -3135,6 +3739,13 @@ pub const testing = if (@import("builtin").is_test) struct {
         runtime: *const TerminalRuntime,
     ) FirstContainmentAttempt {
         return runtime.first_containment_attempt.load(.acquire);
+    }
+
+    pub fn hasAttachmentInputOwnership(
+        runtime: *TerminalRuntime,
+        attachment_id: AttachmentId,
+    ) bool {
+        return runtime.hasAttachmentInputOwnership(attachment_id);
     }
 
     pub fn failureFenced(runtime: *TerminalRuntime) bool {

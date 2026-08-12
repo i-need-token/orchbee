@@ -638,6 +638,7 @@ pub const HostRuntimeAggregate = struct {
             attachment_id,
             capabilities.input or capabilities.resize,
             capabilities.read,
+            capabilities.input,
         ) catch |err| return switch (err) {
             error.OutOfMemory => error.HistoryAttachmentFailed,
             error.TerminalResizeFailed, error.TerminalRuntimeUnavailable => error.TerminalRuntimeUnavailable,
@@ -722,8 +723,11 @@ pub const HostRuntimeAggregate = struct {
         const runtime = self.runtimeFor(terminal_id) orelse
             return InputPreparation.initRuntimeMissing();
 
-        const runtime_input = runtime.prepareSemanticInput(input, maximum_bytes) catch |err|
-            return InputPreparation.initRuntimeRejected(err);
+        const runtime_input = runtime.prepareAttachmentSemanticInput(
+            attachment_id,
+            input,
+            maximum_bytes,
+        ) catch |err| return InputPreparation.initRuntimeRejected(err);
         return InputPreparation.initPrepared(attachment_id, runtime_input);
     }
 
@@ -740,8 +744,10 @@ pub const HostRuntimeAggregate = struct {
             attachment_id,
             .none,
         )).terminal_id;
-        // resolveAttachment proved the only fallible Core precondition. Commit
-        // broker authority first, then release infallible runtime-derived state.
+        // resolveAttachment proved the only fallible Core precondition. Repair
+        // attachment-owned input while its capability is still authoritative,
+        // then remove broker authority and the remaining derived state.
+        if (self.runtimeFor(terminal_id)) |runtime| runtime.detachInput(attachment_id);
         const transition = self.core_state.detach(connection_id, attachment_id) catch unreachable;
         if (self.runtimeFor(terminal_id)) |runtime| runtime.detachHistory(attachment_id);
         self.releaseProjectionIfIdle(terminal_id);
@@ -908,6 +914,9 @@ pub const HostRuntimeAggregate = struct {
             const attachment_ids = self.core_state.attachmentsForConnection(connection_id);
             const attachment_id = attachment_ids[attachment_ids.len - 1];
             const terminal_id = self.core_state.findAttachment(attachment_id).?.terminal_id;
+            if (self.runtimeFor(terminal_id)) |runtime| {
+                runtime.detachInput(attachment_id);
+            }
             _ = self.core_state.detach(connection_id, attachment_id) catch unreachable;
             if (self.runtimeFor(terminal_id)) |runtime| {
                 runtime.detachHistory(attachment_id);

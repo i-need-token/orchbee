@@ -1813,7 +1813,9 @@ describe('ProjectedTerminal', () => {
 				if (command.kind === 'selection-command' && command.payload.command === 'clear') {
 					return ['selection-clear'];
 				}
-				if (command.kind === 'key-input') return [`key:${command.payload.key}`];
+				if (command.kind === 'key-input' && command.payload.action !== KeyAction.release) {
+					return [`key:${command.payload.key}`];
+				}
 				if (command.kind === 'text-input') return ['text'];
 				if (command.kind === 'paste-input') return ['paste'];
 				if (command.kind === 'mouse-input') return ['mouse'];
@@ -5378,7 +5380,7 @@ describe('ProjectedTerminal', () => {
 		{ inputType: 'deleteContentForward', key: 'Delete', repair: 'blur' },
 		{ inputType: 'deleteContentForward', key: 'Delete', repair: 'dispose' },
 	])(
-		'keeps stateless synthetic $key input out of held ownership during $repair',
+		'publishes a matched synthetic $key tap without retaining ownership during $repair',
 		async ({ inputType, key, repair }) => {
 			const browser = createFakeBrowser();
 			vi.stubGlobal('document', browser.document);
@@ -5411,7 +5413,7 @@ describe('ProjectedTerminal', () => {
 						? [command.payload.action]
 						: [],
 				),
-			).toEqual([KeyAction.press]);
+			).toEqual([KeyAction.press, KeyAction.release]);
 			if (repair !== 'dispose') terminal.dispose();
 		},
 	);
@@ -6012,7 +6014,11 @@ describe('ProjectedTerminal', () => {
 		canvas.dispatch('wheel', wheelEvent(0, 1, { deltaMode: 1, shiftKey: true }));
 
 		expect(
-			commands.flatMap((command) => (command.kind === 'key-input' ? [command.payload.key] : [])),
+			commands.flatMap((command) =>
+				command.kind === 'key-input' && command.payload.action === KeyAction.press
+					? [command.payload.key]
+					: [],
+			),
 		).toEqual(['ArrowUp', 'ArrowDown']);
 		expect(commands.some((command) => command.kind === 'mouse-input')).toBe(false);
 		expect(commands.some((command) => command.kind === 'read-rows')).toBe(false);

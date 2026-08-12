@@ -2871,7 +2871,7 @@ test "prepared export cancellation commits after an uncontained fatal failure" {
     }
 
     const attachment_id = AttachmentId.fromBytes([_]u8{0x91} ** 16);
-    var attachment = try runtime.prepareAttachment(attachment_id, false, true);
+    var attachment = try runtime.prepareAttachment(attachment_id, false, true, false);
     defer attachment.deinit();
     attachment.commit();
     {
@@ -3431,6 +3431,262 @@ test "paste encoding requires the reviewed bracketed mode under the terminal loc
     prepared.deinit();
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
     try runtime.forceTerminate();
+}
+
+test "attachment detach repairs only its accepted key and mouse ownership" {
+    const runtime = try createIdleRuntime(.{
+        .cell_pixel_height = 16,
+        .cell_pixel_width = 8,
+    });
+    defer runtime.destroy();
+    const first_attachment = AttachmentId.fromBytes([_]u8{0x31} ** 16);
+    const second_attachment = AttachmentId.fromBytes([_]u8{0x32} ** 16);
+    for ([_]AttachmentId{ first_attachment, second_attachment }) |attachment_id| {
+        var attachment = try runtime.prepareAttachment(attachment_id, true, false, true);
+        attachment.commit();
+    }
+    parseTerminalInput(runtime, "\x1b[=3;1u\x1b[?1002h\x1b[?1006h");
+
+    const first_key: subject.KeyInput = .{
+        .action = .press,
+        .composing = false,
+        .consumed_modifiers = .{},
+        .key = "KeyA",
+        .modifiers = .{ .control = true },
+        .text = "a",
+        .unshifted_codepoint = 'a',
+    };
+    const second_key: subject.KeyInput = .{
+        .action = .press,
+        .composing = false,
+        .consumed_modifiers = .{},
+        .key = "KeyB",
+        .modifiers = .{ .shift = true },
+        .text = "B",
+        .unshifted_codepoint = 'b',
+    };
+    const first_mouse: subject.MouseInput = .{
+        .action = .{ .press = .left },
+        .modifiers = .{ .control = true },
+        .pressed_buttons = .{ .left = true },
+        .x = 24,
+        .y = 32,
+    };
+    const second_mouse: subject.MouseInput = .{
+        .action = .{ .press = .right },
+        .modifiers = .{ .shift = true },
+        .pressed_buttons = .{ .right = true },
+        .x = 40,
+        .y = 48,
+    };
+    for ([_]struct { AttachmentId, protocol.SemanticInput }{
+        .{ first_attachment, .{ .key = first_key } },
+        .{ first_attachment, .{ .mouse = first_mouse } },
+        .{ second_attachment, .{ .key = second_key } },
+        .{ second_attachment, .{ .mouse = second_mouse } },
+        // Wheel presses are stateless and must not become detach ownership.
+        .{ first_attachment, .{ .mouse = .{
+            .action = .{ .press = .four },
+            .modifiers = .{},
+            .pressed_buttons = .{},
+            .x = 24,
+            .y = 32,
+        } } },
+    }) |entry| {
+        var prepared = try runtime.prepareAttachmentSemanticInput(
+            entry[0],
+            entry[1],
+            std.math.maxInt(usize),
+        );
+        _ = try prepared.commit();
+    }
+
+    var expected_first: std.ArrayList(u8) = .empty;
+    defer expected_first.deinit(std.testing.allocator);
+    var first_key_release = try runtime.prepareKeyInput(.{
+        .action = .release,
+        .composing = first_key.composing,
+        .consumed_modifiers = first_key.consumed_modifiers,
+        .key = first_key.key,
+        .modifiers = first_key.modifiers,
+        .text = first_key.text,
+        .unshifted_codepoint = first_key.unshifted_codepoint,
+    }, std.math.maxInt(usize));
+    try expected_first.appendSlice(std.testing.allocator, first_key_release.bytes.?);
+    first_key_release.deinit();
+    var first_mouse_release = try runtime.prepareMouseInput(.{
+        .action = .{ .release = .left },
+        .modifiers = first_mouse.modifiers,
+        .pressed_buttons = .{},
+        .x = first_mouse.x,
+        .y = first_mouse.y,
+    }, std.math.maxInt(usize));
+    try expected_first.appendSlice(std.testing.allocator, first_mouse_release.bytes.?);
+    first_mouse_release.deinit();
+
+    var first_repair = try runtime.prepareAttachmentInputRepair(first_attachment);
+    defer first_repair.deinit();
+    try std.testing.expectEqualSlices(u8, expected_first.items, first_repair.bytes.?);
+    _ = try first_repair.commit();
+    try std.testing.expect(!subject.testing.hasAttachmentInputOwnership(
+        runtime,
+        first_attachment,
+    ));
+    try std.testing.expect(subject.testing.hasAttachmentInputOwnership(
+        runtime,
+        second_attachment,
+    ));
+
+    var expected_second: std.ArrayList(u8) = .empty;
+    defer expected_second.deinit(std.testing.allocator);
+    var second_key_release = try runtime.prepareKeyInput(.{
+        .action = .release,
+        .composing = second_key.composing,
+        .consumed_modifiers = second_key.consumed_modifiers,
+        .key = second_key.key,
+        .modifiers = second_key.modifiers,
+        .text = second_key.text,
+        .unshifted_codepoint = second_key.unshifted_codepoint,
+    }, std.math.maxInt(usize));
+    try expected_second.appendSlice(std.testing.allocator, second_key_release.bytes.?);
+    second_key_release.deinit();
+    var second_mouse_release = try runtime.prepareMouseInput(.{
+        .action = .{ .release = .right },
+        .modifiers = second_mouse.modifiers,
+        .pressed_buttons = .{},
+        .x = second_mouse.x,
+        .y = second_mouse.y,
+    }, std.math.maxInt(usize));
+    try expected_second.appendSlice(std.testing.allocator, second_mouse_release.bytes.?);
+    second_mouse_release.deinit();
+
+    var second_repair = try runtime.prepareAttachmentInputRepair(second_attachment);
+    defer second_repair.deinit();
+    try std.testing.expectEqualSlices(u8, expected_second.items, second_repair.bytes.?);
+    _ = try second_repair.commit();
+    try runtime.forceTerminate();
+}
+
+test "prepared attachment input cannot commit after its owner detaches" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+    const attachment_id = AttachmentId.fromBytes([_]u8{0x33} ** 16);
+    var attachment = try runtime.prepareAttachment(attachment_id, true, false, true);
+    attachment.commit();
+
+    var prepared = try runtime.prepareAttachmentSemanticInput(
+        attachment_id,
+        .{ .key = .{
+            .action = .press,
+            .composing = false,
+            .consumed_modifiers = .{},
+            .key = "KeyA",
+            .modifiers = .{},
+            .text = "a",
+            .unshifted_codepoint = 'a',
+        } },
+        std.math.maxInt(usize),
+    );
+    defer prepared.deinit();
+
+    runtime.detachInput(attachment_id);
+    try std.testing.expectError(error.MissingAttachment, prepared.commit());
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    try runtime.forceTerminate();
+}
+
+test "attachment detach repair uses its precharged input capacity" {
+    var probe: WriterProbe = .{ .pause_at = .copied };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer {
+        probe.copied.release();
+        runtime.destroy();
+    }
+    const attachment_id = AttachmentId.fromBytes([_]u8{0x34} ** 16);
+    var attachment = try runtime.prepareAttachment(attachment_id, true, false, true);
+    attachment.commit();
+    parseTerminalInput(runtime, "\x1b[=3;1u");
+
+    var press = try runtime.prepareAttachmentSemanticInput(
+        attachment_id,
+        .{ .key = .{
+            .action = .press,
+            .composing = false,
+            .consumed_modifiers = .{},
+            .key = "KeyA",
+            .modifiers = .{},
+            .text = "a",
+            .unshifted_codepoint = 'a',
+        } },
+        std.math.maxInt(usize),
+    );
+    _ = try press.commit();
+    probe.copied.wait();
+
+    const queued_before_fill = runtime.pendingInputBytes();
+    const fill_size = subject.testing.pending_input_limit -
+        subject.max_key_encoded_bytes - queued_before_fill;
+    const fill = try std.testing.allocator.alloc(u8, fill_size);
+    defer std.testing.allocator.free(fill);
+    @memset(fill, 'x');
+    var prepared_fill = try runtime.prepareRawInput(fill);
+    _ = try prepared_fill.commit();
+    try std.testing.expectError(error.InputBackpressure, runtime.prepareRawInput("x"));
+
+    var repair = try runtime.prepareAttachmentInputRepair(attachment_id);
+    defer repair.deinit();
+    try std.testing.expect(repair.bytes.?.len > 0);
+    _ = try repair.commit();
+    try std.testing.expect(!subject.testing.hasAttachmentInputOwnership(
+        runtime,
+        attachment_id,
+    ));
+    probe.copied.release();
+    try runtime.forceTerminate();
+}
+
+test "attachment detach repair allocation failure fences the live runtime" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+    const attachment_id = AttachmentId.fromBytes([_]u8{0x35} ** 16);
+    var attachment = try runtime.prepareAttachment(attachment_id, true, false, true);
+    attachment.commit();
+
+    // The disabled mouse mode admits no bytes but still owns the accepted
+    // held semantic state. Enabling tracking afterward makes detach encoding
+    // allocate without leaving an ordinary client entry for the writer.
+    var press = try runtime.prepareAttachmentSemanticInput(
+        attachment_id,
+        .{ .mouse = .{
+            .action = .{ .press = .left },
+            .modifiers = .{},
+            .pressed_buttons = .{ .left = true },
+            .x = 1,
+            .y = 1,
+        } },
+        std.math.maxInt(usize),
+    );
+    try std.testing.expectEqual(@as(usize, 0), try press.commit());
+    parseTerminalInput(runtime, "\x1b[?1000h\x1b[?1006h");
+
+    var failing = std.testing.FailingAllocator.init(
+        std.testing.allocator,
+        .{ .fail_index = 0 },
+    );
+    const runtime_allocator = runtime.allocator;
+    runtime.allocator = failing.allocator();
+    runtime.detachInput(attachment_id);
+    runtime.allocator = runtime_allocator;
+
+    try std.testing.expect(subject.testing.failureFenced(runtime));
+    try std.testing.expectEqual(
+        subject.RuntimeFailureKind.worker_integrity,
+        runtime.primaryFailure().?,
+    );
+    try std.testing.expect(!subject.testing.hasAttachmentInputOwnership(
+        runtime,
+        attachment_id,
+    ));
 }
 
 test "finite mouse coordinates remain bounded across tracking modes and formats" {

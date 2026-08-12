@@ -62,6 +62,10 @@ test "runtime input errors close over the Host admission vocabulary" {
         input_admission.fromRuntimeError(error.TerminalResizeFailed),
     );
     try std.testing.expectEqual(
+        input_admission.Rejection.terminal_exited,
+        input_admission.fromRuntimeError(error.MissingAttachment),
+    );
+    try std.testing.expectEqual(
         input_admission.Rejection.encoding_failed,
         input_admission.fromRuntimeError(error.WriteFailed),
     );

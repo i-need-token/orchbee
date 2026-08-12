@@ -28,7 +28,7 @@ pub fn fromRuntimeError(err: anyerror) Rejection {
         error.InputBackpressure => .backpressure,
         error.OutOfMemory => .resource_exhausted,
         error.InputSequenceExhausted => .sequence_exhausted,
-        error.TerminalExited => .terminal_exited,
+        error.MissingAttachment, error.TerminalExited => .terminal_exited,
         error.TerminalResizeFailed, error.TerminalRuntimeUnavailable => .terminal_runtime_unavailable,
         error.InputLimitExceeded => .input_limit_exceeded,
         error.PasteModeChanged => .paste_mode_changed,

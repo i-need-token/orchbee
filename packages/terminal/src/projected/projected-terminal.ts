@@ -2800,6 +2800,7 @@ export class ProjectedTerminal {
 		action: KeyInput['action'],
 		intent: ProjectedInputPublicationIntent,
 		onRejected?: () => void,
+		preserveSurfaceState = false,
 	): void {
 		this.#sendInput(
 			{
@@ -2808,6 +2809,7 @@ export class ProjectedTerminal {
 			},
 			intent,
 			onRejected,
+			preserveSurfaceState,
 		);
 	}
 
@@ -3162,18 +3164,16 @@ export class ProjectedTerminal {
 	}
 
 	#sendSyntheticKey(key: TerminalKeyCodeValue): void {
-		this.#sendKey(
-			{
-				composing: false,
-				consumedModifiers: emptyModifiers(),
-				key,
-				modifiers: emptyModifiers(),
-				text: '',
-				unshiftedCodepoint: 0,
-			},
-			KeyAction.press,
-			ProjectedInputPublicationIntent.stateless,
-		);
+		const facts: KeyFacts = {
+			composing: false,
+			consumedModifiers: emptyModifiers(),
+			key,
+			modifiers: emptyModifiers(),
+			text: '',
+			unshiftedCodepoint: 0,
+		};
+		this.#sendKey(facts, KeyAction.press, ProjectedInputPublicationIntent.held);
+		this.#sendKey(facts, KeyAction.release, ProjectedInputPublicationIntent.held, undefined, true);
 	}
 
 	readonly #handlePaste = (event: ClipboardEvent): void => {
