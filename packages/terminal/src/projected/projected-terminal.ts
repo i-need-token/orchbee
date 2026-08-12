@@ -1,4 +1,5 @@
 import {
+	ActiveScreen,
 	KeyAction,
 	CanonicalUint64TextSchema,
 	decodeTerminalRowWindow,
@@ -563,9 +564,13 @@ export class ProjectedTerminal {
 	#pendingExit: TerminalExited | undefined;
 	#latestExitFinalRevision: bigint | undefined;
 	#latestBellSequence = 0n;
+	#pendingAlternateWheelRows = 0;
+	#pendingApplicationWheelX = 0;
+	#pendingApplicationWheelY = 0;
 	#pendingHistoryDelta = 0;
 	#pendingHistoryStartRow: bigint | undefined;
 	#pendingHistoryTargetRow: bigint | undefined;
+	#pendingHistoryWheelRows = 0;
 	#pendingSelectionGesture: PendingSelectionGesture | undefined;
 	#phase: ProjectedTerminalPhase = ProjectedTerminalPhase.constructed;
 	#disposeAfterRepair = false;
@@ -4071,21 +4076,79 @@ export class ProjectedTerminal {
 			return;
 		}
 		this.#clearHistoryScrollbarClickSuppression();
-		if (event.deltaY === 0) return;
+		const deltaX = Number.isFinite(event.deltaX) ? event.deltaX : 0;
+		const deltaY = Number.isFinite(event.deltaY) ? event.deltaY : 0;
+		if (deltaX === 0 && deltaY === 0) return;
 		if (this.#applicationMousePressOwned(event.shiftKey)) {
+			if (this.#reportApplicationWheel(event, deltaX, deltaY)) event.preventDefault();
+			return;
+		}
+		if (deltaY === 0) return;
+		const rows = this.#consumeLocalWheelRows(event.deltaMode, deltaY);
+		if (rows === null) return;
+		event.preventDefault();
+		if (rows === 0) return;
+		if (this.#store.metadata?.activeScreen === ActiveScreen.alternate) {
+			if (this.#options.inputEnabled === false) return;
+			const key = rows < 0 ? 'ArrowUp' : 'ArrowDown';
+			for (let index = 0; index < Math.abs(rows); index++) this.#sendSyntheticKey(key);
+			return;
+		}
+		this.scrollLines(rows);
+	};
+
+	#reportApplicationWheel(event: WheelEvent, deltaX: number, deltaY: number): boolean {
+		const metadata = this.#store.metadata;
+		const renderer = this.#renderer;
+		if (!metadata || !renderer) return false;
+		const horizontal = consumeWheelSteps(
+			this.#pendingApplicationWheelX,
+			wheelDeltaPixels(deltaX, event.deltaMode, renderer.charWidth, metadata.columns),
+			renderer.charWidth,
+		);
+		const vertical = consumeWheelSteps(
+			this.#pendingApplicationWheelY,
+			wheelDeltaPixels(deltaY, event.deltaMode, renderer.charHeight, metadata.rows),
+			renderer.charHeight,
+		);
+		this.#pendingApplicationWheelX = horizontal.remainder;
+		this.#pendingApplicationWheelY = vertical.remainder;
+		const verticalButton = vertical.steps < 0 ? MouseButton.four : MouseButton.five;
+		for (let index = 0; index < Math.abs(vertical.steps); index++) {
 			this.#sendMouse(
 				event,
 				MouseAction.press,
-				event.deltaY < 0 ? MouseButton.four : MouseButton.five,
+				verticalButton,
 				ProjectedInputPublicationIntent.stateless,
 			);
-		} else {
-			const rowHeight = Math.max(1, this.#renderer?.charHeight ?? 1);
-			const rows = Math.max(1, Math.round(Math.abs(event.deltaY) / rowHeight));
-			this.scrollLines(event.deltaY < 0 ? -rows : rows);
 		}
-		event.preventDefault();
-	};
+		const horizontalButton = horizontal.steps < 0 ? MouseButton.seven : MouseButton.six;
+		for (let index = 0; index < Math.abs(horizontal.steps); index++) {
+			this.#sendMouse(
+				event,
+				MouseAction.press,
+				horizontalButton,
+				ProjectedInputPublicationIntent.stateless,
+			);
+		}
+		return true;
+	}
+
+	#consumeLocalWheelRows(deltaMode: number, deltaY: number): number | null {
+		const metadata = this.#store.metadata;
+		const renderer = this.#renderer;
+		if (!metadata || !renderer) return null;
+		const alternate = metadata.activeScreen === ActiveScreen.alternate;
+		const pending = alternate ? this.#pendingAlternateWheelRows : this.#pendingHistoryWheelRows;
+		const result = consumeWheelSteps(
+			pending,
+			wheelDeltaPixels(deltaY, deltaMode, renderer.charHeight, metadata.rows),
+			renderer.charHeight,
+		);
+		if (alternate) this.#pendingAlternateWheelRows = result.remainder;
+		else this.#pendingHistoryWheelRows = result.remainder;
+		return result.steps;
+	}
 
 	#applicationMouseTrackingOwnsSurface(): boolean {
 		if (this.#options.inputEnabled === false) return false;
@@ -4882,6 +4945,33 @@ function firstPressedMouseButton(buttons: number): MouseInput['button'] {
 		if ((buttons & (1 << (button - 1))) !== 0) return button;
 	}
 	return null;
+}
+
+function wheelDeltaPixels(
+	delta: number,
+	deltaMode: number,
+	cellPixels: number,
+	pageCells: number,
+): number {
+	if (!Number.isFinite(delta)) return 0;
+	const cell = Number.isFinite(cellPixels) ? Math.max(1, cellPixels) : 1;
+	let multiplier = 1;
+	if (deltaMode === 1) multiplier = cell;
+	else if (deltaMode === 2) multiplier = cell * Math.max(1, pageCells);
+	const pixels = delta * multiplier;
+	return Number.isFinite(pixels) ? pixels : 0;
+}
+
+function consumeWheelSteps(
+	pending: number,
+	deltaPixels: number,
+	stepPixels: number,
+): { readonly remainder: number; readonly steps: number } {
+	const step = Number.isFinite(stepPixels) ? Math.max(1, stepPixels) : 1;
+	const total = pending + deltaPixels;
+	if (!Number.isFinite(total)) return { remainder: 0, steps: 0 };
+	const steps = Math.trunc(total / step);
+	return { remainder: total - steps * step, steps };
 }
 
 function sanitizePaste(text: string): { readonly replaced: number; readonly sanitized: string } {

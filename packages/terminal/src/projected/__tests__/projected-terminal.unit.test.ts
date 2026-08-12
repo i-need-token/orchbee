@@ -144,9 +144,10 @@ function terminalFrame(
 	cursor: { readonly column: number; readonly row: number } = { column: 0, row: 0 },
 	generation = 1n,
 	columns = 2,
+	activeScreen: TerminalFrame['activeScreen'] = ActiveScreen.primary,
 ): Uint8Array {
 	const frame: TerminalFrame = {
-		activeScreen: ActiveScreen.primary,
+		activeScreen,
 		attachmentId,
 		baseRevision,
 		cellPixelHeight: 18,
@@ -768,19 +769,25 @@ function pointerEvent(
 	} as unknown as PointerEvent;
 }
 
-function wheelEvent(deltaX: number, deltaY: number): WheelEvent {
+function wheelEvent(
+	deltaX: number,
+	deltaY: number,
+	overrides: Partial<WheelEvent> = {},
+): WheelEvent {
 	return {
 		altKey: false,
 		buttons: 0,
 		clientX: 2,
 		clientY: 2,
 		ctrlKey: false,
+		deltaMode: 0,
 		deltaX,
 		deltaY,
 		metaKey: false,
 		preventDefault: () => undefined,
 		shiftKey: false,
 		type: 'wheel',
+		...overrides,
 	} as unknown as WheelEvent;
 }
 
@@ -5887,18 +5894,155 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('normalizes local history wheel delta modes and accumulates fractional pixels', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
+		const scrollLines = vi.spyOn(terminal, 'scrollLines').mockImplementation(() => undefined);
+		const canvas = terminal.canvas as unknown as FakeElement;
+
+		canvas.dispatch('wheel', wheelEvent(0, 8));
+		canvas.dispatch('wheel', wheelEvent(0, 8));
+		canvas.dispatch('wheel', wheelEvent(0, -2, { deltaMode: 1 }));
+		canvas.dispatch('wheel', wheelEvent(0, 1, { deltaMode: 2 }));
+
+		expect(scrollLines.mock.calls.map(([rows]) => rows)).toEqual([1, -2, 2]);
+		terminal.dispose();
+	});
+
+	it('normalizes application wheel delta modes across both stateless axes', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				mouseAny: true,
+			}),
+		);
+		const canvas = terminal.canvas as unknown as FakeElement;
+
+		canvas.dispatch('wheel', wheelEvent(-4, -8));
+		canvas.dispatch('wheel', wheelEvent(-4, -8));
+		canvas.dispatch('wheel', wheelEvent(1, 1, { deltaMode: 1 }));
+		canvas.dispatch('wheel', wheelEvent(-1, 1, { deltaMode: 2 }));
+
+		expect(
+			commands.flatMap((command) =>
+				command.kind === 'mouse-input' ? [command.payload.button] : [],
+			),
+		).toEqual([
+			MouseButton.four,
+			MouseButton.seven,
+			MouseButton.five,
+			MouseButton.six,
+			MouseButton.five,
+			MouseButton.five,
+			MouseButton.seven,
+			MouseButton.seven,
+		]);
+		terminal.dispose();
+	});
+
+	it('uses semantic arrow fallback for alternate-screen wheel input', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				1n,
+				1n,
+				['a', 'b'],
+				null,
+				[0, 1],
+				0n,
+				{ ...interaction, mouseAny: true },
+				{ column: 0, row: 0 },
+				1n,
+				2,
+				ActiveScreen.alternate,
+			),
+		);
+		const canvas = terminal.canvas as unknown as FakeElement;
+
+		canvas.dispatch('wheel', wheelEvent(0, -8, { shiftKey: true }));
+		canvas.dispatch('wheel', wheelEvent(0, -8, { shiftKey: true }));
+		canvas.dispatch('wheel', wheelEvent(0, 1, { deltaMode: 1, shiftKey: true }));
+
+		expect(
+			commands.flatMap((command) => (command.kind === 'key-input' ? [command.payload.key] : [])),
+		).toEqual(['ArrowUp', 'ArrowDown']);
+		expect(commands.some((command) => command.kind === 'mouse-input')).toBe(false);
+		expect(commands.some((command) => command.kind === 'read-rows')).toBe(false);
+		terminal.dispose();
+	});
+
 	it.each([
-		{ button: MouseButton.four, deltaX: 0, deltaY: -24, direction: 'up', repair: 'reset' },
-		{ button: MouseButton.five, deltaX: 0, deltaY: 24, direction: 'down', repair: 'blur' },
 		{
-			button: MouseButton.four,
+			buttons: [MouseButton.four],
+			deltaX: 0,
+			deltaY: -24,
+			direction: 'up',
+			repair: 'reset',
+		},
+		{
+			buttons: [MouseButton.five],
+			deltaX: 0,
+			deltaY: 24,
+			direction: 'down',
+			repair: 'blur',
+		},
+		{
+			buttons: [MouseButton.four, MouseButton.seven],
 			deltaX: -12,
 			deltaY: -24,
 			direction: 'up with horizontal delta',
 			repair: 'dispose',
 		},
 		{
-			button: MouseButton.five,
+			buttons: [MouseButton.five, MouseButton.six],
 			deltaX: 12,
 			deltaY: 24,
 			direction: 'down with horizontal delta',
@@ -5906,7 +6050,7 @@ describe('ProjectedTerminal', () => {
 		},
 	])(
 		'keeps stateless wheel $direction report out of held ownership during $repair',
-		async ({ button, deltaX, deltaY, repair }) => {
+		async ({ buttons, deltaX, deltaY, repair }) => {
 			const browser = createFakeBrowser();
 			vi.stubGlobal('document', browser.document);
 			vi.stubGlobal('window', browser.document.defaultView);
@@ -5943,7 +6087,7 @@ describe('ProjectedTerminal', () => {
 				commands
 					.filter((command) => command.kind === 'mouse-input')
 					.map((command) => `${command.payload.action}:${command.payload.button}`),
-			).toEqual([`${MouseAction.press}:${button}`]);
+			).toEqual(buttons.map((button) => `${MouseAction.press}:${button}`));
 			if (repair !== 'dispose') terminal.dispose();
 		},
 	);

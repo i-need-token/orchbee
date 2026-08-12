@@ -74,9 +74,9 @@ inspected against current state.
 
 The adapter tracks admitted desired ownership separately from ownership already published to the
 Host. Physical key presses and pointer buttons are persistent ownership; synthetic
-`beforeinput` Enter/Backspace/Delete commands and wheel button 4/5 reports are stateless and never
-enter a held ledger. The adapter stages local desired state before any synchronous boundary, calls
-the command port under one publication gate, and commits Host-published ownership only after
+`beforeinput` Enter/Backspace/Delete commands and wheel button 4/5/6/7 reports are stateless and
+never enter a held ledger. The adapter stages local desired state before any synchronous boundary,
+calls the command port under one publication gate, and commits Host-published ownership only after
 `port.send` returns synchronously. A lifecycle callback during that call is coalesced until the
 outcome is known. A synchronous throw is the existing browser-adapter pre-acceptance failure
 boundary: a failed press rolls back its local ownership and correlation, while a failed release or
@@ -93,7 +93,13 @@ lost capture queues one semantic release for every admitted or Host-published ap
 before clearing capture, so later lifecycle repair cannot duplicate the release. While any mouse
 tracking mode is projected, local link lookup and activation require Shift; activation rechecks that
 gate at click time, and a completed application-owned primary press cannot activate a stale link.
-Wheel ownership remains a stateless decision for each wheel event.
+Wheel ownership remains a stateless decision for each wheel event. Application-owned wheel input
+normalizes pixel, line, and page deltas against the projected cell and grid dimensions, accumulates
+sub-cell motion independently per axis, and reports vertical button 4/5 steps before horizontal
+button 7/6 steps. Shift bypasses application mouse ownership. On the primary screen, normalized
+vertical steps navigate bounded retained history; on the alternate screen, writable input maps them
+to stateless semantic Arrow Up/Down presses. A read-only alternate screen consumes vertical wheel
+input without emitting Host input, while local horizontal-only wheel input remains browser-owned.
 
 The canvas pointer uses the same ownership policy rather than independent link-only styling. A
 fixed application-owned gesture and unmodified projected mouse tracking use the default pointer;
