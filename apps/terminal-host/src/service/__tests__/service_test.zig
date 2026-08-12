@@ -1580,7 +1580,7 @@ test "handshake binds client and negotiates input bytes" {
     defer service.deinit();
     var connection: ConnectionState = .awaiting_hello;
     const payload =
-        \\{"clientId":"22222222222222222222222222222222","frameBytes":1024,"inputBytes":2048,"protocol":{"major":0,"minor":0,"patch":5},"rowWindowBytes":4096,"supportedOptionalFeatures":[]}
+        \\{"clientId":"22222222222222222222222222222222","frameBytes":1024,"inputBytes":2048,"protocol":{"major":0,"minor":0,"patch":7},"rowWindowBytes":4096,"supportedOptionalFeatures":[]}
     ;
     const record = try protocol.encodeTransportEnvelope(
         std.testing.allocator,

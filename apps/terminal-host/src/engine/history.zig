@@ -90,19 +90,39 @@ pub const SelectionPoint = struct {
     row: u64,
 };
 
-pub const SelectionGestureAction = enum {
-    start,
-    update,
-    end,
+pub const SelectionGestureGeometry = struct {
+    cell_width: u16,
+    columns: u16,
+    padding_left: u16,
+    screen_height: u16,
+};
+
+pub const SelectionGesturePosition = struct {
+    x: i32,
+    y: i32,
+};
+
+pub const SelectionGestureEvent = union(enum) {
+    start: struct {
+        click_count: u2,
+        point: SelectionPoint,
+        position: SelectionGesturePosition,
+        select_output: bool,
+    },
+    update: struct {
+        geometry: SelectionGestureGeometry,
+        point: SelectionPoint,
+        position: SelectionGesturePosition,
+        rectangle: bool,
+    },
+    end: SelectionPoint,
+    cancel,
 };
 
 pub const SelectionGesture = struct {
-    action: SelectionGestureAction,
     attachment_id: AttachmentId,
-    click_count: u2,
+    event: SelectionGestureEvent,
     generation: u64,
-    point: SelectionPoint,
-    rectangle: bool,
     revision: u64,
 };
 
@@ -239,9 +259,8 @@ const AttachmentState = struct {
     committed_ack: ?AppliedRowsIdentity = null,
     demand: HistoryDemand = .following_bottom,
     export_state: ?ExportState = null,
-    gesture_anchor: ?TrackedAnchor = null,
-    gesture_click_count: u2 = 1,
-    gesture_dragged: bool = false,
+    gesture: ghostty_vt.SelectionGesture = .init,
+    gesture_active: bool = false,
     history_dirty: bool = false,
     history_in_flight: ?HistoryEvent = null,
     // The next positive attachment-local history-event sequence. It advances
@@ -543,7 +562,7 @@ pub const Manager = struct {
     ) void {
         for (self.states.items) |*state| {
             self.releaseAnchor(terminal, &state.pending);
-            self.releaseGesture(terminal, state);
+            self.resetGesture(terminal, state);
             state.history_in_flight = null;
 
             if (state.committed) |*anchor| {
@@ -579,7 +598,7 @@ pub const Manager = struct {
         for (self.states.items) |*state| {
             self.releaseAnchor(terminal, &state.committed);
             self.releaseAnchor(terminal, &state.pending);
-            self.releaseGesture(terminal, state);
+            self.resetGesture(terminal, state);
             const selection_was_active = state.selection != null;
             self.releaseSelection(terminal, state);
             if (selection_was_active) state.selection_event = .evicted;
@@ -842,49 +861,71 @@ pub const Manager = struct {
     ) (HistoryError || std.mem.Allocator.Error)!SelectionSnapshot {
         try requireCurrent(request.revision, request.generation, current_revision, current_generation);
         const state = self.find(request.attachment_id) orelse return error.MissingAttachment;
-        if (request.click_count == 0) return error.InvalidRequest;
-        const point_pin = try pointPin(terminal.screens.active, request.point);
-        switch (request.action) {
-            .start => {
-                const initial = switch (request.click_count) {
-                    1 => null,
-                    2 => terminal.screens.active.selectWord(point_pin, &default_word_boundaries),
-                    3 => terminal.screens.active.selectLine(.{ .pin = point_pin }),
+        switch (request.event) {
+            .start => |start| {
+                if (start.click_count == 0) return error.InvalidRequest;
+                const point_pin = try pointPin(terminal.screens.active, start.point);
+                const behavior: ghostty_vt.SelectionGesture.Behavior = switch (start.click_count) {
+                    1 => .cell,
+                    2 => .word,
+                    3 => if (start.select_output) .output else .line,
                     else => unreachable,
                 };
-                const tracked = try terminal.screens.active.pages.trackPin(point_pin);
-                errdefer terminal.screens.active.pages.untrackPin(tracked);
-                try self.replaceSelection(terminal, state, initial);
-                self.releaseGesture(terminal, state);
-                state.gesture_anchor = .{
-                    .generation = current_generation,
-                    .pin = tracked,
-                    .request_sequence = 0,
-                    .revision = current_revision,
-                    .screen_generation = terminal.screens.generation(terminal.screens.active_key),
-                    .screen_key = terminal.screens.active_key,
+                const behaviors: [3]ghostty_vt.SelectionGesture.Behavior = .{
+                    behavior,
+                    behavior,
+                    behavior,
                 };
-                state.gesture_click_count = request.click_count;
-                state.gesture_dragged = false;
+                var gesture: ghostty_vt.SelectionGesture = .init;
+                errdefer gesture.deinit(terminal);
+                const initial = try gesture.press(terminal, .{
+                    .behaviors = &behaviors,
+                    .max_distance = 0,
+                    .pin = point_pin,
+                    .repeat_interval = 0,
+                    .time = null,
+                    .word_boundary_codepoints = &default_word_boundaries,
+                    .xpos = @floatFromInt(start.position.x),
+                    .ypos = @floatFromInt(start.position.y),
+                });
+                try self.replaceSelection(terminal, state, initial);
+                self.resetGesture(terminal, state);
+                state.gesture = gesture;
+                state.gesture_active = true;
             },
-            .update, .end => {
-                const anchor = state.gesture_anchor orelse return error.InvalidRequest;
-                if (!anchorValid(terminal, anchor)) {
-                    self.releaseGesture(terminal, state);
+            .update => |update| {
+                if (!state.gesture_active) return error.InvalidRequest;
+                if (!gestureAnchorValid(terminal, &state.gesture)) {
+                    self.resetGesture(terminal, state);
                     return error.AnchorEvicted;
                 }
-                if (!point_pin.eql(anchor.pin.*)) state.gesture_dragged = true;
-                const selection = selectionForGesture(
-                    terminal.screens.active,
-                    anchor.pin.*,
-                    point_pin,
-                    state.gesture_click_count,
-                    state.gesture_dragged,
-                    request.rectangle,
-                );
+                const point_pin = try pointPin(terminal.screens.active, update.point);
+                const selection = state.gesture.drag(terminal, .{
+                    .geometry = .{
+                        .cell_width = update.geometry.cell_width,
+                        .columns = update.geometry.columns,
+                        .padding_left = update.geometry.padding_left,
+                        .screen_height = update.geometry.screen_height,
+                    },
+                    .pin = point_pin,
+                    .rectangle = update.rectangle,
+                    .word_boundary_codepoints = &default_word_boundaries,
+                    .xpos = @floatFromInt(update.position.x),
+                    .ypos = @floatFromInt(update.position.y),
+                });
                 try self.replaceSelection(terminal, state, selection);
-                if (request.action == .end) self.releaseGesture(terminal, state);
             },
+            .end => |point| {
+                if (!state.gesture_active) return error.InvalidRequest;
+                if (!gestureAnchorValid(terminal, &state.gesture)) {
+                    self.resetGesture(terminal, state);
+                    return error.AnchorEvicted;
+                }
+                const point_pin = try pointPin(terminal.screens.active, point);
+                state.gesture.release(terminal, .{ .pin = point_pin });
+                state.gesture_active = false;
+            },
+            .cancel => self.resetGesture(terminal, state),
         }
         return self.selectionSnapshot(terminal, state);
     }
@@ -913,7 +954,7 @@ pub const Manager = struct {
             .select_output => |point| screen.selectOutput(try pointPin(screen, point)),
         };
         try self.replaceSelection(terminal, state, selection);
-        self.releaseGesture(terminal, state);
+        self.resetGesture(terminal, state);
         return self.selectionSnapshot(terminal, state);
     }
 
@@ -1208,7 +1249,7 @@ pub const Manager = struct {
     ) void {
         self.releaseAnchor(terminal, &state.committed);
         self.releaseAnchor(terminal, &state.pending);
-        self.releaseGesture(terminal, state);
+        self.resetGesture(terminal, state);
         self.releaseSelection(terminal, state);
         self.releaseExport(state);
     }
@@ -1226,14 +1267,14 @@ pub const Manager = struct {
         screen.pages.untrackPin(value.pin);
     }
 
-    fn releaseGesture(
+    fn resetGesture(
         self: *Manager,
         terminal: *ghostty_vt.Terminal,
         state: *AttachmentState,
     ) void {
-        self.releaseAnchor(terminal, &state.gesture_anchor);
-        state.gesture_click_count = 1;
-        state.gesture_dragged = false;
+        _ = self;
+        state.gesture.reset(terminal);
+        state.gesture_active = false;
     }
 
     fn releaseSelection(
@@ -1354,40 +1395,17 @@ fn anchorValidScreen(screen: *ghostty_vt.Screen, anchor: TrackedAnchor) bool {
     return !anchor.pin.garbage and screen.pages.pointFromPin(.screen, anchor.pin.*) != null;
 }
 
+fn gestureAnchorValid(
+    terminal: *ghostty_vt.Terminal,
+    gesture: *const ghostty_vt.SelectionGesture,
+) bool {
+    const pin = gesture.validatedLeftClickPin(&terminal.screens) orelse return false;
+    return !pin.garbage and terminal.screens.active.pages.pointFromPin(.screen, pin.*) != null;
+}
+
 fn selectionScreenValid(terminal: *ghostty_vt.Terminal, state: *const AttachmentState) bool {
     return terminal.screens.generation(state.selection_screen_key) == state.selection_screen_generation and
         terminal.screens.get(state.selection_screen_key) != null;
-}
-
-fn selectionForGesture(
-    screen: *ghostty_vt.Screen,
-    anchor: ghostty_vt.Pin,
-    current: ghostty_vt.Pin,
-    click_count: u2,
-    dragged: bool,
-    rectangle: bool,
-) ?ghostty_vt.Selection {
-    if (rectangle or click_count == 1) {
-        if (!dragged) return null;
-        return .init(anchor, current, rectangle);
-    }
-    if (click_count == 2) {
-        const first = screen.selectWord(anchor, &default_word_boundaries) orelse return null;
-        const last = screen.selectWord(current, &default_word_boundaries) orelse return first;
-        return if (current.before(anchor))
-            .init(last.start(), first.end(), false)
-        else
-            .init(first.start(), last.end(), false);
-    }
-    if (click_count == 3) {
-        const first = screen.selectLine(.{ .pin = anchor }) orelse return null;
-        const last = screen.selectLine(.{ .pin = current }) orelse return first;
-        return if (current.before(anchor))
-            .init(last.start(), first.end(), false)
-        else
-            .init(first.start(), last.end(), false);
-    }
-    return null;
 }
 
 fn sameHistoryEvent(left: HistoryEvent, right: HistoryEvent) bool {

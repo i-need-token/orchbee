@@ -9,7 +9,7 @@ It does not open sockets or named pipes, spawn processes, parse VT, route Electr
 | Area                 | Public contract                                                                                                                                                         |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Identity             | Strict non-zero 128-bit `HostEpoch`, `CreationId`, `TerminalId`, `ClientId`, and `AttachmentId` values                                                                  |
-| Compatibility        | Exact current protocol `0.0.5` validation; a different version is rejected rather than adapted                                                                          |
+| Compatibility        | Exact current protocol `0.0.7` validation; a different version is rejected rather than adapted                                                                          |
 | Message registry     | One current-version mapping from every kind to its legal role, payload encoding, and successful response kind                                                           |
 | Control              | Message-kind-selected request encoding plus strict handshake, configuration, inventory, lifecycle, attachment, projection/history, bell, selection, and failure schemas |
 | Transport            | A bounded 64-byte envelope that rejects producer-side role or encoding mismatches for JSON, input, terminal frames, and row windows                                     |
@@ -58,24 +58,24 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 The package explicitly exports:
 
 - `@orchbee/terminal-protocol/fixtures/canonical.json`
-- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.5.json`
+- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.7.json`
 - `@orchbee/terminal-protocol/fixtures/malformed-frame-v0.0.1.json`
 - `@orchbee/terminal-protocol/fixtures/malformed-row-window-v0.0.1.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-frame-v0.0.1.bin`
-- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.5.json`
+- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.7.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-projection-buffer-v0.0.1.bin`
 - `@orchbee/terminal-protocol/fixtures/terminal-row-window-v0.0.1.bin`
-- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.5.bin`
-- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.5.bin`
-- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.5.bin`
-- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.5.bin`
-- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.5.bin`
-- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.5.bin`
-- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.5.bin`
+- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.7.bin`
+- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.7.bin`
+- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.7.bin`
+- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.7.bin`
+- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.7.bin`
+- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.7.bin`
+- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.7.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.1.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.1.bin`
 
-`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.5.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, and the current OBTF, OBPB, and OBRW format-`0.0.1` fixtures, plus the frame and row-window malformed corpora. Unit tests reject stale generated files, and `apps/terminal-host` resolves only these declared package exports before running the Zig validator against the same bytes. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
+`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.7.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, and the current OBTF, OBPB, and OBRW format-`0.0.1` fixtures, plus the frame and row-window malformed corpora. Unit tests reject stale generated files, and `apps/terminal-host` resolves only these declared package exports before running the Zig validator against the same bytes. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
 
 `ghostty-surface-v0.0.1.bin` and `ghostty-alternate-surface-v0.0.1.bin` are the exceptions to
 TypeScript fixture generation: Terminal Host produces both from one pinned native Ghostty VT and

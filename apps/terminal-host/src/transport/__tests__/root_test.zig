@@ -462,7 +462,7 @@ test "dispatch resource failure closes only the accepted connection" {
 
 test "failed response handoff destroys the broker but preserves retained terminals" {
     const hello_payload =
-        \\{"clientId":"22222222222222222222222222222222","frameBytes":1024,"inputBytes":1024,"protocol":{"major":0,"minor":0,"patch":5},"rowWindowBytes":1024,"supportedOptionalFeatures":[]}
+        \\{"clientId":"22222222222222222222222222222222","frameBytes":1024,"inputBytes":1024,"protocol":{"major":0,"minor":0,"patch":7},"rowWindowBytes":1024,"supportedOptionalFeatures":[]}
     ;
     const hello = try protocol.encodeTransportEnvelope(
         std.testing.allocator,
@@ -667,7 +667,7 @@ test "partial handshakes cannot gate broker-independent cleanup maintenance" {
 
 fn expectHandshakeAccepted(client: *TestClient) !void {
     const hello_payload =
-        \\{"clientId":"22222222222222222222222222222222","frameBytes":1024,"inputBytes":1024,"protocol":{"major":0,"minor":0,"patch":5},"rowWindowBytes":1024,"supportedOptionalFeatures":[]}
+        \\{"clientId":"22222222222222222222222222222222","frameBytes":1024,"inputBytes":1024,"protocol":{"major":0,"minor":0,"patch":7},"rowWindowBytes":1024,"supportedOptionalFeatures":[]}
     ;
     const hello = try protocol.encodeTransportEnvelope(
         std.testing.allocator,

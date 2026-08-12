@@ -687,13 +687,26 @@ function createControlConformanceFixture() {
 		),
 		selection_gesture: controlRequestTexts(
 			MessageKind.selectionGesture,
-			['start', 'update', 'end'].map((action, index) => ({
-				action,
-				...attachment,
-				clickCount: index + 1,
-				point,
-				rectangle: index === 1,
-			})),
+			[
+				{
+					action: 'start',
+					...attachment,
+					clickCount: 2,
+					point,
+					position: { x: 36, y: 20 },
+					selectOutput: false,
+				},
+				{
+					action: 'update',
+					...attachment,
+					geometry: { cellWidth: 8, columns: 120, paddingLeft: 0, screenHeight: 640 },
+					point,
+					position: { x: 44, y: -1 },
+					rectangle: true,
+				},
+				{ action: 'end', ...attachment, point },
+				{ action: 'cancel', ...attachment },
+			],
 			'SelectionGesture',
 		),
 		set_terminal_defaults: controlRequestText(

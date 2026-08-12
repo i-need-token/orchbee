@@ -9,7 +9,7 @@ const max_row_window_bytes = subject.testing.row_window_byte_limit;
 const max_pending_export_cancellations = subject.max_pending_export_cancellations;
 const Detail = subject.Detail;
 const ExportCancellation = subject.ExportCancellation;
-const SelectionGestureAction = subject.SelectionGestureAction;
+const SelectionGesture = subject.SelectionGesture;
 const SelectionSnapshot = subject.SelectionSnapshot;
 const AttachmentId = subject.AttachmentId;
 const HostEpoch = subject.HostEpoch;
@@ -102,6 +102,69 @@ fn attachmentId(byte: u8) AttachmentId {
 
 fn hostEpoch(byte: u8) HostEpoch {
     return HostEpoch.fromBytes([_]u8{byte} ** 16);
+}
+
+fn gestureStart(
+    attachment: AttachmentId,
+    click_count: u2,
+    column: u16,
+    row: u64,
+    select_output: bool,
+) SelectionGesture {
+    return .{
+        .attachment_id = attachment,
+        .event = .{ .start = .{
+            .click_count = click_count,
+            .point = .{ .column = column, .row = row },
+            .position = .{ .x = @as(i32, column) * 10 + 1, .y = 1 },
+            .select_output = select_output,
+        } },
+        .generation = 1,
+        .revision = 1,
+    };
+}
+
+fn gestureUpdate(
+    attachment: AttachmentId,
+    column: u16,
+    row: u64,
+    surface_x: i32,
+    rectangle: bool,
+) SelectionGesture {
+    return .{
+        .attachment_id = attachment,
+        .event = .{ .update = .{
+            .geometry = .{
+                .cell_width = 10,
+                .columns = 20,
+                .padding_left = 0,
+                .screen_height = 20,
+            },
+            .point = .{ .column = column, .row = row },
+            .position = .{ .x = surface_x, .y = 1 },
+            .rectangle = rectangle,
+        } },
+        .generation = 1,
+        .revision = 1,
+    };
+}
+
+fn gestureEnd(attachment: AttachmentId, column: u16, row: u64) SelectionGesture {
+    return .{
+        .attachment_id = attachment,
+        .event = .{ .end = .{ .column = column, .row = row } },
+        .generation = 1,
+        .revision = 1,
+    };
+}
+
+fn gestureCancel(attachment: AttachmentId) SelectionGesture {
+    return .{
+        .attachment_id = attachment,
+        .event = .cancel,
+        .generation = 1,
+        .revision = 1,
+    };
 }
 
 fn readSingleRow(
@@ -621,18 +684,11 @@ test "invalid gesture start leaves tracked state unchanged" {
 
     try std.testing.expectError(
         error.InvalidRequest,
-        manager.applyGesture(&terminal, 1, 1, .{
-            .action = .start,
-            .attachment_id = attachment,
-            .click_count = 0,
-            .generation = 1,
-            .point = .{ .column = 0, .row = 0 },
-            .rectangle = false,
-            .revision = 1,
-        }),
+        manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 0, 0, 0, false)),
     );
     const state = findState(&manager, attachment).?;
-    try std.testing.expect(state.gesture_anchor == null);
+    try std.testing.expect(state.gesture.left_click_pin == null);
+    try std.testing.expect(!state.gesture_active);
     try std.testing.expect(state.selection == null);
     try std.testing.expectEqual(initial_pins, terminal.screens.active.pages.countTrackedPins());
 }
@@ -649,26 +705,15 @@ test "single click release clears selection without creating a one-cell range" {
     const attachment = attachmentId(3);
     try manager.attach(attachment);
 
-    const pressed = try manager.applyGesture(&terminal, 1, 1, .{
-        .action = .start,
-        .attachment_id = attachment,
-        .click_count = 1,
-        .generation = 1,
-        .point = .{ .column = 2, .row = 0 },
-        .rectangle = false,
-        .revision = 1,
-    });
+    const pressed = try manager.applyGesture(
+        &terminal,
+        1,
+        1,
+        gestureStart(attachment, 1, 2, 0, false),
+    );
     try std.testing.expectEqual(SelectionSnapshot.none, std.meta.activeTag(pressed));
 
-    const released = try manager.applyGesture(&terminal, 1, 1, .{
-        .action = .end,
-        .attachment_id = attachment,
-        .click_count = 1,
-        .generation = 1,
-        .point = .{ .column = 2, .row = 0 },
-        .rectangle = false,
-        .revision = 1,
-    });
+    const released = try manager.applyGesture(&terminal, 1, 1, gestureEnd(attachment, 2, 0));
     try std.testing.expectEqual(SelectionSnapshot.none, std.meta.activeTag(released));
 }
 
@@ -684,60 +729,180 @@ test "cell drag and repeated clicks retain terminal selection semantics" {
     const attachment = attachmentId(4);
     try manager.attach(attachment);
 
-    _ = try manager.applyGesture(&terminal, 1, 1, .{
-        .action = .start,
-        .attachment_id = attachment,
-        .click_count = 1,
-        .generation = 1,
-        .point = .{ .column = 0, .row = 0 },
-        .rectangle = false,
-        .revision = 1,
-    });
-    const dragged = try manager.applyGesture(&terminal, 1, 1, .{
-        .action = .update,
-        .attachment_id = attachment,
-        .click_count = 1,
-        .generation = 1,
-        .point = .{ .column = 2, .row = 0 },
-        .rectangle = false,
-        .revision = 1,
-    });
+    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 1, 0, 0, false));
+    const dragged = try manager.applyGesture(
+        &terminal,
+        1,
+        1,
+        gestureUpdate(attachment, 2, 0, 29, false),
+    );
     try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(dragged));
     try std.testing.expectEqual(@as(u16, 0), dragged.active.start.column);
     try std.testing.expectEqual(@as(u16, 2), dragged.active.end.column);
-    _ = try manager.applyGesture(&terminal, 1, 1, .{
-        .action = .end,
-        .attachment_id = attachment,
-        .click_count = 1,
-        .generation = 1,
-        .point = .{ .column = 2, .row = 0 },
-        .rectangle = false,
-        .revision = 1,
-    });
+    _ = try manager.applyGesture(&terminal, 1, 1, gestureEnd(attachment, 2, 0));
 
-    const word = try manager.applyGesture(&terminal, 1, 1, .{
-        .action = .start,
-        .attachment_id = attachment,
-        .click_count = 2,
-        .generation = 1,
-        .point = .{ .column = 7, .row = 0 },
-        .rectangle = false,
-        .revision = 1,
-    });
+    const word = try manager.applyGesture(
+        &terminal,
+        1,
+        1,
+        gestureStart(attachment, 2, 7, 0, false),
+    );
     try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(word));
     try std.testing.expectEqual(@as(u16, 6), word.active.start.column);
     try std.testing.expectEqual(@as(u16, 9), word.active.end.column);
 
-    const line = try manager.applyGesture(&terminal, 1, 1, .{
-        .action = .start,
-        .attachment_id = attachment,
-        .click_count = 3,
-        .generation = 1,
-        .point = .{ .column = 1, .row = 0 },
-        .rectangle = false,
-        .revision = 1,
-    });
+    const line = try manager.applyGesture(
+        &terminal,
+        1,
+        1,
+        gestureStart(attachment, 3, 1, 0, false),
+    );
     try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(line));
+}
+
+test "gesture cancellation preserves selection and is idempotent" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 12,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("alpha beta");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(4);
+    try manager.attach(attachment);
+
+    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 1, 0, 0, false));
+    const selected = try manager.applyGesture(
+        &terminal,
+        1,
+        1,
+        gestureUpdate(attachment, 2, 0, 29, false),
+    );
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(selected));
+
+    const cancelled = try manager.applyGesture(&terminal, 1, 1, gestureCancel(attachment));
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(cancelled));
+    try std.testing.expectEqual(selected.active.start.column, cancelled.active.start.column);
+    try std.testing.expectEqual(selected.active.end.column, cancelled.active.end.column);
+    const state = findState(&manager, attachment).?;
+    try std.testing.expect(state.gesture.left_click_pin == null);
+    try std.testing.expect(!state.gesture_active);
+    const tracked_pins = terminal.screens.active.pages.countTrackedPins();
+
+    const repeated = try manager.applyGesture(&terminal, 1, 1, gestureCancel(attachment));
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(repeated));
+    try std.testing.expectEqual(tracked_pins, terminal.screens.active.pages.countTrackedPins());
+}
+
+test "cell drag applies the within-cell endpoint threshold and rectangle mode" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("abcdef");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(4);
+    try manager.attach(attachment);
+
+    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 1, 2, 0, false));
+    const below_threshold = try manager.applyGesture(
+        &terminal,
+        1,
+        1,
+        gestureUpdate(attachment, 2, 0, 25, false),
+    );
+    try std.testing.expectEqual(SelectionSnapshot.none, std.meta.activeTag(below_threshold));
+
+    const at_threshold = try manager.applyGesture(
+        &terminal,
+        1,
+        1,
+        gestureUpdate(attachment, 2, 0, 26, false),
+    );
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(at_threshold));
+    try std.testing.expectEqual(@as(u16, 2), at_threshold.active.start.column);
+    try std.testing.expectEqual(@as(u16, 2), at_threshold.active.end.column);
+    _ = try manager.applyGesture(&terminal, 1, 1, gestureEnd(attachment, 2, 0));
+
+    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 1, 1, 0, false));
+    const rectangle = try manager.applyGesture(
+        &terminal,
+        1,
+        1,
+        gestureUpdate(attachment, 3, 0, 39, true),
+    );
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(rectangle));
+    try std.testing.expect(rectangle.active.rectangle);
+    try std.testing.expectEqual(@as(u16, 1), rectangle.active.start.column);
+    try std.testing.expectEqual(@as(u16, 3), rectangle.active.end.column);
+}
+
+test "double click drag through empty cells uses the nearest word endpoints" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 20,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("alpha beta");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(4);
+    try manager.attach(attachment);
+
+    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 2, 1, 0, false));
+    const dragged = try manager.applyGesture(
+        &terminal,
+        1,
+        1,
+        gestureUpdate(attachment, 15, 0, 159, false),
+    );
+
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(dragged));
+    try std.testing.expectEqual(@as(u16, 0), dragged.active.start.column);
+    try std.testing.expectEqual(@as(u16, 9), dragged.active.end.column);
+}
+
+test "modifier triple click drag expands across semantic output blocks" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 10,
+        .rows = 8,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    terminal.screens.active.cursorSetSemanticContent(.output);
+    try terminal.screens.active.testWriteString("one\n");
+    terminal.screens.active.cursorSetSemanticContent(.{ .prompt = .initial });
+    try terminal.screens.active.testWriteString("$ ");
+    terminal.screens.active.cursorSetSemanticContent(.{ .input = .clear_explicit });
+    try terminal.screens.active.testWriteString("run\n");
+    terminal.screens.active.cursorSetSemanticContent(.output);
+    try terminal.screens.active.testWriteString("two\nthree");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(4);
+    try manager.attach(attachment);
+
+    const first = try manager.applyGesture(
+        &terminal,
+        1,
+        1,
+        gestureStart(attachment, 3, 1, 0, true),
+    );
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(first));
+    try std.testing.expectEqual(@as(u64, 0), first.active.start.row);
+    try std.testing.expectEqual(@as(u64, 0), first.active.end.row);
+
+    const expanded = try manager.applyGesture(
+        &terminal,
+        1,
+        1,
+        gestureUpdate(attachment, 1, 3, 19, false),
+    );
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(expanded));
+    try std.testing.expectEqual(@as(u64, 0), expanded.active.start.row);
+    try std.testing.expectEqual(@as(u64, 3), expanded.active.end.row);
 }
 
 test "explicit range command preserves endpoints and rectangle semantics" {
@@ -769,7 +934,7 @@ test "explicit range command preserves endpoints and rectangle semantics" {
     try std.testing.expect(selected.active.rectangle);
 }
 
-test "every gesture phase rejects an invalid click count" {
+test "gesture update and end require an active press" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
@@ -779,30 +944,17 @@ test "every gesture phase rejects an invalid click count" {
     defer manager.deinit(&terminal);
     const attachment = attachmentId(2);
     try manager.attach(attachment);
-    _ = try manager.applyGesture(&terminal, 1, 1, .{
-        .action = .start,
-        .attachment_id = attachment,
-        .click_count = 1,
-        .generation = 1,
-        .point = .{ .column = 0, .row = 0 },
-        .rectangle = false,
-        .revision = 1,
-    });
-
-    inline for (.{ SelectionGestureAction.update, SelectionGestureAction.end }) |action| {
+    for ([_]SelectionGesture{
+        gestureUpdate(attachment, 1, 0, 19, false),
+        gestureEnd(attachment, 1, 0),
+    }) |request| {
         try std.testing.expectError(
             error.InvalidRequest,
-            manager.applyGesture(&terminal, 1, 1, .{
-                .action = action,
-                .attachment_id = attachment,
-                .click_count = 0,
-                .generation = 1,
-                .point = .{ .column = 1, .row = 0 },
-                .rectangle = false,
-                .revision = 1,
-            }),
+            manager.applyGesture(&terminal, 1, 1, request),
         );
-        try std.testing.expect(findState(&manager, attachment).?.gesture_anchor != null);
+        const state = findState(&manager, attachment).?;
+        try std.testing.expect(state.gesture.left_click_pin == null);
+        try std.testing.expect(!state.gesture_active);
     }
 }
 
@@ -950,16 +1102,8 @@ test "invalid selection command preserves an active gesture" {
     defer manager.deinit(&terminal);
     const attachment = attachmentId(2);
     try manager.attach(attachment);
-    _ = try manager.applyGesture(&terminal, 1, 1, .{
-        .action = .start,
-        .attachment_id = attachment,
-        .click_count = 1,
-        .generation = 1,
-        .point = .{ .column = 0, .row = 0 },
-        .rectangle = false,
-        .revision = 1,
-    });
-    const gesture_anchor = findState(&manager, attachment).?.gesture_anchor.?.pin;
+    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 1, 0, 0, false));
+    const gesture_anchor = findState(&manager, attachment).?.gesture.left_click_pin.?;
     const tracked_pins = terminal.screens.active.pages.countTrackedPins();
 
     try std.testing.expectError(
@@ -972,7 +1116,8 @@ test "invalid selection command preserves an active gesture" {
         }),
     );
     const state = findState(&manager, attachment).?;
-    try std.testing.expectEqual(gesture_anchor, state.gesture_anchor.?.pin);
+    try std.testing.expectEqual(gesture_anchor, state.gesture.left_click_pin.?);
+    try std.testing.expect(state.gesture_active);
     try std.testing.expect(state.selection == null);
     try std.testing.expectEqual(tracked_pins, terminal.screens.active.pages.countTrackedPins());
 }
@@ -1025,20 +1170,13 @@ test "screen changes invalidate anchors gesture selection and export" {
         .row_count = 1,
     });
     defer std.testing.allocator.free(second_rows.bytes);
-    _ = try manager.applyGesture(&terminal, 1, 1, .{
-        .action = .start,
-        .attachment_id = attachment,
-        .click_count = 2,
-        .generation = 1,
-        .point = .{ .column = 0, .row = 0 },
-        .rectangle = false,
-        .revision = 1,
-    });
+    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 2, 0, 0, false));
     const started = try manager.startExport(&terminal, attachment, 7, .plain);
     const active_state = findState(&manager, attachment).?;
     try std.testing.expect(active_state.committed != null);
     try std.testing.expect(active_state.pending != null);
-    try std.testing.expect(active_state.gesture_anchor != null);
+    try std.testing.expect(active_state.gesture.left_click_pin != null);
+    try std.testing.expect(active_state.gesture_active);
     try std.testing.expect(active_state.selection != null);
     try std.testing.expect(active_state.export_state != null);
 
@@ -1047,7 +1185,8 @@ test "screen changes invalidate anchors gesture selection and export" {
     const invalidated = findState(&manager, attachment).?;
     try std.testing.expect(invalidated.committed == null);
     try std.testing.expect(invalidated.pending == null);
-    try std.testing.expect(invalidated.gesture_anchor == null);
+    try std.testing.expect(invalidated.gesture.left_click_pin == null);
+    try std.testing.expect(!invalidated.gesture_active);
     try std.testing.expect(invalidated.selection == null);
     try std.testing.expect(invalidated.export_state == null);
     try std.testing.expect(invalidated.history_dirty);

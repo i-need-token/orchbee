@@ -431,15 +431,48 @@ export const SelectionPointSchema = z.strictObject({
 	row: CanonicalUint64TextSchema,
 });
 
-export const SelectionGestureSchema = z.strictObject({
-	action: z.enum(['end', 'start', 'update']),
+const selectionGestureShape = {
 	attachmentId: AttachmentIdSchema,
-	clickCount: z.number().int().min(1).max(3),
 	generation: positiveCanonicalUint64TextSchema,
-	point: SelectionPointSchema,
-	rectangle: z.boolean(),
 	revision: CanonicalUint64TextSchema,
+} as const;
+
+const selectionGesturePositionSchema = z.strictObject({
+	x: z.number().int().min(-0xffff).max(0xffff),
+	y: z.number().int().min(-0xffff).max(0xffff),
 });
+
+const selectionGestureGeometrySchema = z.strictObject({
+	cellWidth: cellPixelDimensionSchema,
+	columns: gridDimensionSchema,
+	paddingLeft: uint16Schema,
+	screenHeight: boundedSizeSchema(0xffff),
+});
+
+export const SelectionGestureSchema = z.discriminatedUnion('action', [
+	z.strictObject({
+		...selectionGestureShape,
+		action: z.literal('start'),
+		clickCount: z.number().int().min(1).max(3),
+		point: SelectionPointSchema,
+		position: selectionGesturePositionSchema,
+		selectOutput: z.boolean(),
+	}),
+	z.strictObject({
+		...selectionGestureShape,
+		action: z.literal('update'),
+		geometry: selectionGestureGeometrySchema,
+		point: SelectionPointSchema,
+		position: selectionGesturePositionSchema,
+		rectangle: z.boolean(),
+	}),
+	z.strictObject({
+		...selectionGestureShape,
+		action: z.literal('end'),
+		point: SelectionPointSchema,
+	}),
+	z.strictObject({ ...selectionGestureShape, action: z.literal('cancel') }),
+]);
 
 const selectionCommandShape = {
 	attachmentId: AttachmentIdSchema,

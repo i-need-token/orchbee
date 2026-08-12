@@ -6,6 +6,7 @@ import {
 	MouseAction,
 	MouseButton,
 	PROTOCOL_LIMITS,
+	SelectionPointSchema,
 	TerminalFrameKind,
 	TerminalKeyCode,
 	viewTerminalRowWindow,
@@ -30,6 +31,7 @@ import {
 	type SelectionChanged,
 	type SelectionCommand,
 	type SelectionGesture,
+	type SelectionPoint,
 	type SetHistoryDemand,
 	type SetProjectionDemand,
 	type TerminalBell,
@@ -140,6 +142,7 @@ const MAX_PTY_PIXEL_DIMENSION = 0xffff;
 const MAX_HISTORY_CACHE_BYTES = 8 * 1024 * 1024;
 const HISTORY_OVERSCAN_ROWS = 16;
 const SELECTION_AUTOSCROLL_INTERVAL_MS = 16;
+const SELECTION_CLICK_REPEAT_INTERVAL_MS = 500;
 const RESIZE_REENTRY_MS = 50;
 
 function cssPixels(value: string): number {
@@ -307,6 +310,17 @@ export interface ProjectedTerminalLinkOpenRequest {
 	readonly target: Extract<NonNullable<ILink['target']>, { readonly kind: 'url' }>;
 }
 
+export interface ProjectedTerminalSelectionPoint {
+	readonly column: number;
+	readonly row: bigint;
+}
+
+export interface ProjectedTerminalSelectionRange {
+	readonly end: ProjectedTerminalSelectionPoint;
+	readonly rectangle: boolean;
+	readonly start: ProjectedTerminalSelectionPoint;
+}
+
 export type ProjectedTerminalSideEffectResult =
 	| { readonly byteLength?: number; readonly kind: 'completed' }
 	| { readonly code: string; readonly kind: 'failed'; readonly retryable: boolean }
@@ -412,11 +426,27 @@ interface ViewportRowFlight {
 
 type RowFlight = BufferRowFlight | ViewportRowFlight;
 
-interface PendingSelectionGesture {
-	readonly action: SelectionGesture['action'];
+type SelectionGestureIdentity = 'attachmentId' | 'generation' | 'revision';
+type PendingSelectionGesture =
+	| Omit<Extract<SelectionGesture, { readonly action: 'start' }>, SelectionGestureIdentity>
+	| Omit<Extract<SelectionGesture, { readonly action: 'update' }>, SelectionGestureIdentity>
+	| Omit<Extract<SelectionGesture, { readonly action: 'end' }>, SelectionGestureIdentity>
+	| Omit<Extract<SelectionGesture, { readonly action: 'cancel' }>, SelectionGestureIdentity>;
+
+interface SelectionGestureLocation {
+	readonly geometry: Extract<SelectionGesture, { readonly action: 'update' }>['geometry'];
+	readonly point: SelectionPoint;
+	readonly position: Extract<SelectionGesture, { readonly action: 'start' }>['position'];
+	readonly surfaceX: number;
+	readonly surfaceY: number;
+}
+
+interface SelectionClickSequence {
 	readonly clickCount: number;
-	readonly point: SelectionGesture['point'];
-	readonly rectangle: boolean;
+	readonly generation: bigint;
+	readonly surfaceX: number;
+	readonly surfaceY: number;
+	readonly timeStamp: number;
 }
 
 interface PendingSelectionPointer {
@@ -599,12 +629,12 @@ export class ProjectedTerminal {
 	#selectionGestureActionInFlight: SelectionGesture['action'] | undefined;
 	#selectionGestureInFlight = false;
 	#selectionGestureActive = false;
-	#selectionGestureLast: Omit<PendingSelectionGesture, 'action'> | undefined;
+	#selectionGestureLast: SelectionPoint | undefined;
 	#selectionGesturePointerId: number | undefined;
+	#selectionClickSequence: SelectionClickSequence | undefined;
 	#selectionAutoscrollDirection: 'down' | 'up' | undefined;
 	#selectionAutoscrollInterval: ReturnType<typeof setInterval> | undefined;
 	#selectionPointer: PendingSelectionPointer | undefined;
-	#copySelectionAfterNextSelectionChange = false;
 	#suppressNextSelectionCopy = false;
 	#searchController: ProjectedSearchController | undefined;
 	#sideEffectSequence = 1n;
@@ -1200,19 +1230,17 @@ export class ProjectedTerminal {
 		if (event.anchorStatus === 'valid') {
 			this.#requestHistoryRows({ delta: 0, kind: 'committed' });
 		} else {
-			this.#requestHistoryRows({ kind: 'tail', rowsBefore: this.#historyRowsBefore });
+			this.#recoverHistory();
 		}
 	}
 
 	notifySelectionChanged(selection: SelectionChanged): void {
 		if (selection.attachmentId !== this.#attachmentId) return;
 		const completedGesture = this.#selectionGestureActionInFlight;
-		const copyAfterSelectionCommand = this.#copySelectionAfterNextSelectionChange;
 		const suppressCopy = this.#suppressNextSelectionCopy;
 		this.#selection = selection;
 		this.#selectionGestureActionInFlight = undefined;
 		this.#selectionGestureInFlight = false;
-		this.#copySelectionAfterNextSelectionChange = false;
 		this.#suppressNextSelectionCopy = false;
 		this.#selectionEmitter.fire(selection);
 		this.#updateAccessibilityDescription();
@@ -1222,8 +1250,9 @@ export class ProjectedTerminal {
 		if (
 			selection.state === 'active' &&
 			this.#options.copyOnSelect !== false &&
+			this.#phase !== ProjectedTerminalPhase.disposed &&
 			!suppressCopy &&
-			(completedGesture === 'end' || copyAfterSelectionCommand)
+			completedGesture === 'end'
 		) {
 			this.copySelection();
 		}
@@ -1282,7 +1311,7 @@ export class ProjectedTerminal {
 		if (failure.operation === undefined || failure.operation === 'selection') {
 			this.#selectionGestureActionInFlight = undefined;
 			this.#selectionGestureInFlight = false;
-			this.#copySelectionAfterNextSelectionChange = false;
+			this.#selectionClickSequence = undefined;
 			this.#suppressNextSelectionCopy = false;
 			this.#scheduleSelectionGesture();
 		}
@@ -1330,6 +1359,52 @@ export class ProjectedTerminal {
 
 	selectAll(): void {
 		this.#sendSelectionCommand('select-all');
+	}
+
+	getSelectionRange(): ProjectedTerminalSelectionRange | null {
+		const selection = this.#selection;
+		if (selection.state !== 'active') return null;
+		return {
+			end: { column: selection.end.column, row: BigInt(selection.end.row) },
+			rectangle: selection.rectangle,
+			start: { column: selection.start.column, row: BigInt(selection.start.row) },
+		};
+	}
+
+	setSelectionRange(
+		start: ProjectedTerminalSelectionPoint,
+		end: ProjectedTerminalSelectionPoint,
+		rectangle = false,
+	): boolean {
+		if (typeof rectangle !== 'boolean') return false;
+		const encodedStart = this.#selectionPointForCurrentBuffer(start);
+		const encodedEnd = this.#selectionPointForCurrentBuffer(end);
+		if (encodedStart === null || encodedEnd === null) return false;
+		return this.#sendSelectionRange(encodedStart, encodedEnd, rectangle);
+	}
+
+	selectOutputAt(point: ProjectedTerminalSelectionPoint): boolean {
+		const encodedPoint = this.#selectionPointForCurrentBuffer(point);
+		if (encodedPoint === null) return false;
+		this.#selectionClickSequence = undefined;
+		return this.#send({
+			kind: 'selection-command',
+			payload: {
+				attachmentId: this.#attachmentId,
+				command: 'select-output',
+				generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
+				point: encodedPoint,
+				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
+			},
+		});
+	}
+
+	adjustSelectionEndpoint(point: ProjectedTerminalSelectionPoint): boolean {
+		const selection = this.#selection;
+		if (selection.state !== 'active') return false;
+		const encodedEnd = this.#selectionPointForCurrentBuffer(point);
+		if (encodedEnd === null) return false;
+		return this.#sendSelectionRange(selection.start, encodedEnd, selection.rectangle);
 	}
 
 	copySelection(): CanonicalUint64Text {
@@ -2257,6 +2332,7 @@ export class ProjectedTerminal {
 	}
 
 	#sendSelectionCommand(command: 'clear' | 'select-all'): void {
+		this.#selectionClickSequence = undefined;
 		this.#send({
 			kind: 'selection-command',
 			payload: {
@@ -2268,29 +2344,44 @@ export class ProjectedTerminal {
 		});
 	}
 
-	#sendSelectionOutput(point: SelectionGesture['point']): void {
-		this.#copySelectionAfterNextSelectionChange = this.#options.copyOnSelect !== false;
-		this.#send({
-			kind: 'selection-command',
-			payload: {
-				attachmentId: this.#attachmentId,
-				command: 'select-output',
-				generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
-				point,
-				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
-			},
+	#selectionPointForCurrentBuffer(point: unknown): SelectionPoint | null {
+		if (
+			this.#phase === ProjectedTerminalPhase.disposed ||
+			this.#historyGeneration === 0n ||
+			typeof point !== 'object' ||
+			point === null ||
+			!('column' in point) ||
+			!('row' in point) ||
+			typeof point.row !== 'bigint'
+		) {
+			return null;
+		}
+		const parsed = SelectionPointSchema.safeParse({
+			column: point.column,
+			row: point.row.toString(),
 		});
+		const metadata = this.metadata;
+		if (
+			!parsed.success ||
+			metadata === null ||
+			parsed.data.column >= metadata.columns ||
+			BigInt(parsed.data.row) >= this.#historyTotalRows
+		) {
+			return null;
+		}
+		return parsed.data;
 	}
 
-	#sendSelectionRange(start: SelectionGesture['point'], end: SelectionGesture['point']): void {
-		this.#send({
+	#sendSelectionRange(start: SelectionPoint, end: SelectionPoint, rectangle = false): boolean {
+		this.#selectionClickSequence = undefined;
+		return this.#send({
 			kind: 'selection-command',
 			payload: {
 				attachmentId: this.#attachmentId,
 				command: 'set-range',
 				end,
 				generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
-				rectangle: false,
+				rectangle,
 				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
 				start,
 			},
@@ -2349,34 +2440,76 @@ export class ProjectedTerminal {
 		});
 	}
 
-	#selectionPoint(event: MouseEvent): SelectionGesture['point'] | null {
+	#selectionPoint(event: MouseEvent): SelectionPoint | null {
 		return this.#selectionPointFromClient(event.clientX, event.clientY);
 	}
 
-	#selectionPointFromClient(clientX: number, clientY: number): SelectionGesture['point'] | null {
+	#selectionPointFromClient(clientX: number, clientY: number): SelectionPoint | null {
+		return this.#selectionGestureLocationFromClient(clientX, clientY)?.point ?? null;
+	}
+
+	#selectionGestureLocation(event: MouseEvent): SelectionGestureLocation | null {
+		return this.#selectionGestureLocationFromClient(event.clientX, event.clientY);
+	}
+
+	#selectionGestureLocationFromClient(
+		clientX: number,
+		clientY: number,
+	): SelectionGestureLocation | null {
 		const canvas = this.#canvas;
 		const renderer = this.#renderer;
 		const metadata = this.metadata;
 		if (!canvas || !renderer || !metadata) return null;
 		const bounds = canvas.getBoundingClientRect();
-		const column = clamp(
-			Math.floor((clientX - bounds.left) / renderer.charWidth),
-			0,
-			metadata.columns - 1,
-		);
-		const viewportRow = clamp(
-			Math.floor((clientY - bounds.top) / renderer.charHeight),
-			0,
-			metadata.rows - 1,
-		);
+		const surfaceX = clientX - bounds.left;
+		const surfaceY = clientY - bounds.top;
+		const column = clamp(Math.floor(surfaceX / renderer.charWidth), 0, metadata.columns - 1);
+		const viewportRow = clamp(Math.floor(surfaceY / renderer.charHeight), 0, metadata.rows - 1);
 		const startRow =
 			this.#historyPhase === ProjectedHistoryPhase.followingBottom
 				? this.#historyTotalRows - BigInt(metadata.rows)
 				: this.#historyStartRow;
 		return {
-			column,
-			row: CanonicalUint64TextSchema.parse((startRow + BigInt(viewportRow)).toString()),
+			geometry: {
+				cellWidth: clamp(Math.round(renderer.charWidth), 1, PROTOCOL_LIMITS.maxCellPixelDimension),
+				columns: metadata.columns,
+				paddingLeft: 0,
+				screenHeight: clamp(Math.round(bounds.height), 1, MAX_PTY_PIXEL_DIMENSION),
+			},
+			point: {
+				column,
+				row: CanonicalUint64TextSchema.parse((startRow + BigInt(viewportRow)).toString()),
+			},
+			position: {
+				x: clamp(Math.trunc(surfaceX), -MAX_PTY_PIXEL_DIMENSION, MAX_PTY_PIXEL_DIMENSION),
+				y: clamp(Math.trunc(surfaceY), -MAX_PTY_PIXEL_DIMENSION, MAX_PTY_PIXEL_DIMENSION),
+			},
+			surfaceX,
+			surfaceY,
 		};
+	}
+
+	#nextSelectionClickCount(event: PointerEvent, location: SelectionGestureLocation): number {
+		const eventTime = event.timeStamp;
+		const timeStamp = Number.isFinite(eventTime) && eventTime >= 0 ? eventTime : projectedNow();
+		const previous = this.#selectionClickSequence;
+		const repeatDistance = this.#renderer?.charWidth ?? location.geometry.cellWidth;
+		const repeats =
+			previous !== undefined &&
+			previous.generation === this.#historyGeneration &&
+			timeStamp >= previous.timeStamp &&
+			timeStamp - previous.timeStamp <= SELECTION_CLICK_REPEAT_INTERVAL_MS &&
+			Math.hypot(location.surfaceX - previous.surfaceX, location.surfaceY - previous.surfaceY) <=
+				repeatDistance;
+		const clickCount = repeats ? Math.min(previous.clickCount + 1, 3) : 1;
+		this.#selectionClickSequence = {
+			clickCount,
+			generation: this.#historyGeneration,
+			surfaceX: repeats ? previous.surfaceX : location.surfaceX,
+			surfaceY: repeats ? previous.surfaceY : location.surfaceY,
+			timeStamp,
+		};
+		return clickCount;
 	}
 
 	#updateSelectionAutoscroll(pointer: PendingSelectionPointer): void {
@@ -2424,15 +2557,16 @@ export class ProjectedTerminal {
 	#continueSelectionAutoscrollGesture(): void {
 		const pointer = this.#selectionPointer;
 		if (!this.#selectionGestureActive || pointer === undefined) return;
-		const point = this.#selectionPointFromClient(pointer.clientX, pointer.clientY);
-		if (point === null) return;
-		const gesture = {
-			clickCount: this.#selectionGestureLast?.clickCount ?? 1,
-			point,
+		const location = this.#selectionGestureLocationFromClient(pointer.clientX, pointer.clientY);
+		if (location === null) return;
+		this.#selectionGestureLast = location.point;
+		this.#queueSelectionGesture({
+			action: 'update',
+			geometry: location.geometry,
+			point: location.point,
+			position: location.position,
 			rectangle: pointer.rectangle,
-		};
-		this.#selectionGestureLast = gesture;
-		this.#queueSelectionGesture({ action: 'update', ...gesture });
+		});
 	}
 
 	#stopSelectionAutoscroll(): void {
@@ -2650,10 +2784,14 @@ export class ProjectedTerminal {
 		this.#listen(canvas, 'click', this.#handleClick);
 		this.#listen(canvas, 'wheel', this.#handleWheel, { passive: false });
 		const document = canvas.ownerDocument;
+		document.addEventListener('pointermove', this.#handleDocumentPointerMove);
+		document.addEventListener('pointerup', this.#handleDocumentPointerUp);
 		document.addEventListener('visibilitychange', this.#handleVisibilityChange);
-		this.#listenerDisposers.push(() =>
-			document.removeEventListener('visibilitychange', this.#handleVisibilityChange),
-		);
+		this.#listenerDisposers.push(() => {
+			document.removeEventListener('pointermove', this.#handleDocumentPointerMove);
+			document.removeEventListener('pointerup', this.#handleDocumentPointerUp);
+			document.removeEventListener('visibilitychange', this.#handleVisibilityChange);
+		});
 		const view = document.defaultView;
 		view?.addEventListener('blur', this.#handleWindowBlur);
 		this.#listenerDisposers.push(() => view?.removeEventListener('blur', this.#handleWindowBlur));
@@ -3391,7 +3529,7 @@ export class ProjectedTerminal {
 		this.#inputRefocusAfterRepair = false;
 		this.#clearHistoryScrollbarClickSuppression();
 		this.#finishHistoryScrollbarGesture(true, !dispose);
-		this.#finishSelectionGesture(true);
+		this.#cancelSelectionGesture(true);
 	}
 
 	#stagePublishedInputRepair(
@@ -3514,7 +3652,7 @@ export class ProjectedTerminal {
 		this.#clearApplicationMouseClickSuppression();
 		this.#clearHistoryScrollbarClickSuppression();
 		this.#finishHistoryScrollbarGesture(true, !dispose);
-		this.#finishSelectionGesture(true);
+		this.#cancelSelectionGesture(true);
 		if (this.#options.inputEnabled === false) return [];
 		if (this.#publishedInputFocused) {
 			commands.push({
@@ -3673,7 +3811,7 @@ export class ProjectedTerminal {
 		const pointerY = event.clientY - rectangle.top;
 		if (!historyScrollbarContainsPoint(projection, pointerX, pointerY)) return false;
 
-		this.#finishSelectionGesture(true);
+		this.#cancelSelectionGesture(true);
 		this.#clearHoveredLink();
 		const start = beginHistoryScrollbarDrag(projection, pointerY);
 		this.#historyScrollbarGesture = { drag: start.drag, pointerId: event.pointerId };
@@ -3715,6 +3853,7 @@ export class ProjectedTerminal {
 		this.#clearApplicationMouseClickSuppression();
 		this.#clearHistoryScrollbarClickSuppression();
 		if (this.#historyScrollbarGesture !== undefined) {
+			this.#selectionClickSequence = undefined;
 			this.#clearHoveredLink();
 			this.#ownHistoryScrollbarEvent(event);
 			return;
@@ -3724,8 +3863,12 @@ export class ProjectedTerminal {
 			event.preventDefault();
 			return;
 		}
-		if (this.#startHistoryScrollbarGesture(event)) return;
+		if (this.#startHistoryScrollbarGesture(event)) {
+			this.#selectionClickSequence = undefined;
+			return;
+		}
 		if (this.#applicationMousePressOwned(event.shiftKey)) {
+			this.#selectionClickSequence = undefined;
 			this.#clearHoveredLink();
 			const button = domMouseButton(event.button);
 			if (button === null || !this.#canAdmitInput() || !this.#startApplicationMouseGesture(event)) {
@@ -3749,7 +3892,8 @@ export class ProjectedTerminal {
 		if (event.button !== 0) return;
 		this.#stopSelectionAutoscroll();
 		const hoveredLink = this.#hoveredLink;
-		const hoveredPoint = this.#selectionPoint(event);
+		const location = this.#selectionGestureLocation(event);
+		const hoveredPoint = location?.point ?? null;
 		if (
 			hoveredLink !== undefined &&
 			hoveredPoint !== null &&
@@ -3757,23 +3901,21 @@ export class ProjectedTerminal {
 			terminalLinkContains(hoveredLink, hoveredPoint.column, Number(BigInt(hoveredPoint.row))) &&
 			isPermittedExternalTerminalTarget(hoveredLink)
 		) {
+			this.#selectionClickSequence = undefined;
 			event.preventDefault();
 			return;
 		}
-		const point = this.#selectionPoint(event);
-		if (point === null) return;
+		if (location === null) return;
+		const clickCount = this.#nextSelectionClickCount(event, location);
 		const gesture = {
-			clickCount: clamp(event.detail, 1, 3),
-			point,
-			rectangle: event.altKey,
+			action: 'start' as const,
+			clickCount,
+			point: location.point,
+			position: location.position,
+			selectOutput: event.ctrlKey || event.metaKey,
 		};
-		if ((event.ctrlKey || event.metaKey) && gesture.clickCount === 3) {
-			this.#sendSelectionOutput(point);
-			event.preventDefault();
-			return;
-		}
 		this.#selectionGestureActive = true;
-		this.#selectionGestureLast = gesture;
+		this.#selectionGestureLast = location.point;
 		this.#selectionGesturePointerId = event.pointerId;
 		this.#selectionPointer = {
 			clientX: event.clientX,
@@ -3786,10 +3928,7 @@ export class ProjectedTerminal {
 		} catch {
 			// Window-focus and visibility repair still ends a gesture when capture is unavailable.
 		}
-		this.#startSelectionGesture({
-			action: 'start',
-			...gesture,
-		});
+		this.#startSelectionGesture(gesture);
 		event.preventDefault();
 	};
 
@@ -3820,13 +3959,9 @@ export class ProjectedTerminal {
 		) {
 			const point = this.#selectionPoint(event);
 			if (point !== null && this.#selectionGestureLast !== undefined) {
-				this.#selectionGestureLast = {
-					...this.#selectionGestureLast,
-					point,
-					rectangle: event.altKey,
-				};
+				this.#selectionGestureLast = point;
 			}
-			this.#finishSelectionGesture(true);
+			this.#completeSelectionGesture(true);
 			event.preventDefault();
 			return;
 		}
@@ -3878,6 +4013,17 @@ export class ProjectedTerminal {
 		}
 		if (
 			this.#selectionGestureActive &&
+			(event.buttons & 1) === 0 &&
+			(this.#selectionGesturePointerId === undefined ||
+				this.#selectionGesturePointerId === event.pointerId)
+		) {
+			this.#clearHoveredLink();
+			this.#cancelSelectionGesture(true);
+			event.preventDefault();
+			return;
+		}
+		if (
+			this.#selectionGestureActive &&
 			(event.buttons & 1) !== 0 &&
 			(this.#selectionGesturePointerId === undefined ||
 				this.#selectionGesturePointerId === event.pointerId)
@@ -3888,15 +4034,16 @@ export class ProjectedTerminal {
 				clientY: event.clientY,
 				rectangle: event.altKey,
 			});
-			const point = this.#selectionPoint(event);
-			if (point !== null) {
-				const gesture = {
-					clickCount: this.#selectionGestureLast?.clickCount ?? 1,
-					point,
+			const location = this.#selectionGestureLocation(event);
+			if (location !== null) {
+				this.#selectionGestureLast = location.point;
+				this.#queueSelectionGesture({
+					action: 'update',
+					geometry: location.geometry,
+					point: location.point,
+					position: location.position,
 					rectangle: event.altKey,
-				};
-				this.#selectionGestureLast = gesture;
-				this.#queueSelectionGesture({ action: 'update', ...gesture });
+				});
 			}
 			event.preventDefault();
 			return;
@@ -3945,6 +4092,16 @@ export class ProjectedTerminal {
 		if (this.#historyScrollbarGesture !== undefined) this.#ownHistoryScrollbarEvent(event);
 	};
 
+	readonly #handleDocumentPointerMove = (event: PointerEvent): void => {
+		if (!this.#selectionGestureActive || event.target === this.#canvas) return;
+		this.#handlePointerMove(event);
+	};
+
+	readonly #handleDocumentPointerUp = (event: PointerEvent): void => {
+		if (!this.#selectionGestureActive || event.target === this.#canvas) return;
+		this.#handlePointerUp(event);
+	};
+
 	readonly #handlePointerCancel = (event: PointerEvent): void => {
 		if (!this.#inputAdmissionIsOpen()) return;
 		const scrollbarGesture = this.#historyScrollbarGesture;
@@ -3962,7 +4119,7 @@ export class ProjectedTerminal {
 			return;
 		}
 		if (this.#selectionGesturePointerId !== event.pointerId) return;
-		this.#finishSelectionGesture(true);
+		this.#cancelSelectionGesture(true);
 		event.preventDefault();
 	};
 
@@ -3982,10 +4139,10 @@ export class ProjectedTerminal {
 			return;
 		}
 		if (this.#selectionGesturePointerId !== event.pointerId) return;
-		this.#finishSelectionGesture(false);
+		this.#cancelSelectionGesture(false);
 	};
 
-	#finishSelectionGesture(releaseCapture: boolean): void {
+	#completeSelectionGesture(releaseCapture: boolean): void {
 		if (!this.#selectionGestureActive) return;
 		const canvas = this.#canvas;
 		const pointerId = this.#selectionGesturePointerId;
@@ -3995,12 +4152,31 @@ export class ProjectedTerminal {
 		this.#selectionGesturePointerId = undefined;
 		this.#stopSelectionAutoscroll();
 		this.#updateSurfaceMouseCursor();
-		if (gesture !== undefined) this.#queueSelectionGesture({ action: 'end', ...gesture });
+		if (gesture !== undefined) this.#queueSelectionGesture({ action: 'end', point: gesture });
 		if (!releaseCapture || pointerId === undefined) return;
 		try {
 			canvas?.releasePointerCapture(pointerId);
 		} catch {
 			// Browsers may release capture before pointerup is dispatched.
+		}
+	}
+
+	#cancelSelectionGesture(releaseCapture: boolean): void {
+		if (!this.#selectionGestureActive) return;
+		const canvas = this.#canvas;
+		const pointerId = this.#selectionGesturePointerId;
+		this.#selectionGestureActive = false;
+		this.#selectionGestureLast = undefined;
+		this.#selectionGesturePointerId = undefined;
+		this.#selectionClickSequence = undefined;
+		this.#stopSelectionAutoscroll();
+		this.#updateSurfaceMouseCursor();
+		this.#queueSelectionGesture({ action: 'cancel' });
+		if (!releaseCapture || pointerId === undefined) return;
+		try {
+			canvas?.releasePointerCapture(pointerId);
+		} catch {
+			// Browsers may release capture before cancellation repairs the gesture.
 		}
 	}
 
@@ -4010,8 +4186,8 @@ export class ProjectedTerminal {
 		this.#selectionGestureActive = false;
 		this.#selectionGestureLast = undefined;
 		this.#selectionGesturePointerId = undefined;
+		this.#selectionClickSequence = undefined;
 		this.#pendingSelectionGesture = undefined;
-		this.#copySelectionAfterNextSelectionChange = false;
 		this.#suppressNextSelectionCopy = true;
 		this.#cancelScheduledSelectionGesture();
 		this.#stopSelectionAutoscroll();
@@ -4366,13 +4542,8 @@ export class ProjectedTerminal {
 		this.#refreshPreeditGeometry();
 		this.#invalidateLinkCache();
 		this.#finishHistoryScrollbarGesture(true);
-		if (
-			this.#selectionGestureActive ||
-			this.#pendingSelectionGesture !== undefined ||
-			this.#selectionGestureHandle !== undefined ||
-			this.#selectionPointer !== undefined
-		) {
-			this.#cancelSelectionGestureForReset();
+		if (this.#selectionGestureActive || this.#selectionPointer !== undefined) {
+			this.#cancelSelectionGesture(true);
 		}
 		this.#updateInputPosition();
 		this.#sendResizeIfChanged();
@@ -4695,7 +4866,7 @@ export class ProjectedTerminal {
 	#accessibilitySelectionPoint(position: {
 		readonly column: number;
 		readonly row: number;
-	}): SelectionGesture['point'] | null {
+	}): SelectionPoint | null {
 		const rowElement = this.#accessibilityRows[position.row];
 		const absoluteRow = rowElement?.getAttribute('data-terminal-absolute-row');
 		if (absoluteRow === undefined || absoluteRow === null) return null;

@@ -40,11 +40,8 @@ pub const ReadRowsRequest = struct {
 };
 
 pub const SelectionGestureRequest = struct {
-    action: terminal_history.SelectionGestureAction,
-    click_count: u2,
+    event: terminal_history.SelectionGestureEvent,
     generation: u64,
-    point: terminal_history.SelectionPoint,
-    rectangle: bool,
     revision: u64,
 };
 
@@ -192,12 +189,9 @@ pub const ReadableAttachment = struct {
         request: SelectionGestureRequest,
     ) !terminal_runtime.SelectionSnapshot {
         return self.state.runtime.applySelectionGesture(.{
-            .action = request.action,
             .attachment_id = self.state.attachment_id,
-            .click_count = request.click_count,
+            .event = request.event,
             .generation = request.generation,
-            .point = request.point,
-            .rectangle = request.rectangle,
             .revision = request.revision,
         });
     }

@@ -334,14 +334,29 @@ pub const SelectionPoint = struct {
     row: []const u8,
 };
 
+pub const SelectionGestureGeometry = struct {
+    cellWidth: u16,
+    columns: u16,
+    paddingLeft: u16,
+    screenHeight: u16,
+};
+
+pub const SelectionGesturePosition = struct {
+    x: i32,
+    y: i32,
+};
+
 pub const SelectionGesture = struct {
     action: []const u8,
     attachmentId: []const u8,
-    clickCount: u2,
+    clickCount: Present(u2) = .missing,
     generation: []const u8,
-    point: SelectionPoint,
-    rectangle: bool,
+    geometry: Present(SelectionGestureGeometry) = .missing,
+    point: Present(SelectionPoint) = .missing,
+    position: Present(SelectionGesturePosition) = .missing,
+    rectangle: Present(bool) = .missing,
     revision: []const u8,
+    selectOutput: Present(bool) = .missing,
 };
 
 pub const SelectionCommand = struct {

@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                        |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                  |
-| Reference scope | Exact protocol `0.0.5`; OBTF, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures                                |
+| Reference scope | Exact protocol `0.0.7`; OBTF, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures                                |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence            |
 
 ## Modeling record
@@ -39,7 +39,7 @@ identity and are rejected where an identity is required.
 | `AttachmentId`  | One physical-connection-owned attachment carrying negotiated capabilities                                                        |
 | `CorrelationId` | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.5`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.7`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame, OBPB projection-buffer, and OBRW row-window formats each have an independent current
@@ -231,7 +231,7 @@ changes travel in terminal frames; resize-lease authority is returned by attachm
 is not a separately implemented event.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.5.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.7.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical
@@ -525,9 +525,16 @@ the projection-buffer structural view and does not perform a second per-cell sem
 ## Host-owned selection and export
 
 Selection gestures and commands always carry the attachment's current revision and
-generation. Endpoints are absolute row/column pairs; active state includes only endpoints,
-rectangle mode, and an optional 4 KiB preview. `none` and `evicted` are distinct so a client cannot
-silently copy replacement content after scrollback loss or a screen change.
+generation. Gesture `start` carries the browser-classified click count, integer surface position,
+and whether a third click selects semantic output; `update` carries the current surface position,
+rectangle intent, and bounded cell geometry; `end` carries only its terminal point; and `cancel`
+carries no point or action-specific fields. The Host uses those facts with pinned Ghostty selection
+behavior to own word, line, output-block, rectangle, and within-cell endpoint semantics. `cancel`
+idempotently releases the pinned gesture while preserving the latest selection, whereas only `end`
+represents an ordinary pointer release. Endpoints are absolute row/column pairs; active state
+includes only endpoints, rectangle mode, and an optional 4 KiB preview. `none` and `evicted` are
+distinct so a client cannot silently copy replacement content after scrollback loss or a screen
+change.
 
 `SelectionCommand.set-range` carries explicit inclusive `start` and `end` cell endpoints plus
 rectangle mode. It is the non-pointer path for assistive technology and other programmatic

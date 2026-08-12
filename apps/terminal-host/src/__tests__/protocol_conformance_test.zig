@@ -905,7 +905,7 @@ test "every TypeScript control command fixture crosses the native typed decoder"
         );
         defer decoded.deinit();
     }
-    try std.testing.expectEqual(@as(usize, 3), commands.selection_gesture.len);
+    try std.testing.expectEqual(@as(usize, 4), commands.selection_gesture.len);
     for (commands.selection_gesture) |payload| {
         var decoded = try control_decode.decodeSelectionGesture(allocator, payload);
         defer decoded.deinit();

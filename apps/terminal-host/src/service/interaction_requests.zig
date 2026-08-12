@@ -265,11 +265,8 @@ const Handler = struct {
         var response = try prepareControlResponse(outgoing, correlation_id, self.context.core().epoch);
         defer response.deinit();
         const snapshot = interaction.applySelectionGesture(.{
-            .action = request.action,
-            .click_count = request.click_count,
+            .event = request.event,
             .generation = request.generation,
-            .point = request.point,
-            .rectangle = request.rectangle,
             .revision = request.revision,
         }) catch |err| {
             response.commitFailure(interactionFailure(err, "SelectionGesture failed"));

@@ -9,7 +9,7 @@ Four independent business-contract versions are in scope:
 
 | Contract                 | Current version | Owns                                                                         |
 | ------------------------ | --------------- | ---------------------------------------------------------------------------- |
-| Wire protocol            | `0.0.5`         | Handshake, transport envelope, control messages, input, and message registry |
+| Wire protocol            | `0.0.7`         | Handshake, transport envelope, control messages, input, and message registry |
 | `OBTF` terminal frame    | `0.0.1`         | Packed terminal-frame bytes                                                  |
 | `OBPB` projection buffer | `0.0.1`         | Packed Host-to-render projection bytes                                       |
 | `OBRW` row window        | `0.0.1`         | Packed render/text history-window bytes                                      |
@@ -21,7 +21,7 @@ and do not advance with these four contracts automatically.
 ## Before the first public release
 
 All business-contract versions use major version `0`. The repository retains only the exact current
-development contract, currently `0.0.5`; it does not promise compatibility with an earlier `0.x`
+development contract, currently `0.0.7`; it does not promise compatibility with an earlier `0.x`
 shape or retain changelog entries for pre-release iteration. A pre-release contract update changes
 the TypeScript and Zig constants, encoders, decoders, fixtures, exports, tests, and current protocol
 reference together.
@@ -43,7 +43,7 @@ never be silently overwritten under the same version.
 ## Fixture naming
 
 Every compatibility fixture carries the complete semantic version of the contract that owns its
-bytes or schema. Wire fixtures therefore use names such as `transport-envelope-v0.0.5.bin`, while
+bytes or schema. Wire fixtures therefore use names such as `transport-envelope-v0.0.7.bin`, while
 format fixtures use names such as `terminal-frame-v0.0.1.bin`. Wildcards and major-only suffixes are
 not used. `canonical.json` is unversioned because it is generator input for the current fixtures,
 not a compatibility artifact.

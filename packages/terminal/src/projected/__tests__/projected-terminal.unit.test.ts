@@ -68,7 +68,7 @@ interface FakeBrowser {
 	readonly mediaQueries: FakeMediaQueryList[];
 	readonly root: HTMLElement;
 	documentListenerCount(type: string): number;
-	dispatchDocument(type: string): void;
+	dispatchDocument(type: string, event?: Event): void;
 	dispatchWindow(type: string): void;
 	flushFrames(): void;
 	setDevicePixelRatio(value: number): void;
@@ -655,8 +655,8 @@ function createFakeBrowser(): FakeBrowser {
 	return {
 		document,
 		documentListenerCount: (type) => documentListeners.get(type)?.size ?? 0,
-		dispatchDocument: (type) => {
-			for (const listener of documentListeners.get(type) ?? []) listener({ type } as Event);
+		dispatchDocument: (type, event = { type } as Event) => {
+			for (const listener of documentListeners.get(type) ?? []) listener(event);
 		},
 		dispatchWindow: (type) => {
 			for (const listener of windowListeners.get(type) ?? []) listener({ type } as Event);
@@ -2804,6 +2804,94 @@ describe('ProjectedTerminal', () => {
 		);
 		terminal.dispose();
 	});
+
+	it.each(['evicted', 'none'] as const)(
+		'resumes bottom projection when the Host history anchor becomes %s',
+		async (anchorStatus) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+					},
+				},
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			terminal.applyFrame(
+				terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 10n),
+			);
+			terminal.scrollLines(-1);
+			const historyRead = commands.at(-1);
+			if (historyRead?.kind !== 'read-rows' || historyRead.payload.origin.kind !== 'absolute') {
+				throw new Error('history request was not absolute');
+			}
+			expect(
+				terminal.applyRows(
+					renderRowWindow(
+						BigInt(historyRead.payload.requestSequence),
+						1n,
+						BigInt(historyRead.payload.origin.row),
+						12n,
+						['history-a', 'history-b', 'overscan'],
+					),
+				),
+			).toBe('committed');
+			commands.length = 0;
+
+			terminal.notifyHistoryChanged({
+				anchorStatus,
+				attachmentId,
+				generation: canonicalText('2'),
+				revision: canonicalText('2'),
+				sequence: canonicalText('1'),
+				totalRows: canonicalText('2'),
+			});
+
+			expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.recovering);
+			expect(commands).toEqual([
+				{
+					kind: 'history-observed',
+					payload: { attachmentId, generation: '2', revision: '2', sequence: '1' },
+				},
+				{
+					kind: 'set-history-demand',
+					payload: { attachmentId, demand: 'following-bottom' },
+				},
+				{
+					kind: 'set-projection-demand',
+					payload: { attachmentId, demand: 'active' },
+				},
+			]);
+			expect(
+				terminal.applyFrame(
+					terminalFrame(
+						'snapshot',
+						2n,
+						2n,
+						['fresh-a', 'fresh-b'],
+						null,
+						[0, 1],
+						0n,
+						interaction,
+						{ column: 0, row: 0 },
+						2n,
+					),
+				),
+			).toBe('committed');
+			expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.followingBottom);
+			expect(terminal.metadata).toMatchObject({ generation: 2n, revision: 2n });
+			terminal.dispose();
+		},
+	);
 
 	it('routes fixed scrollbar ownership through bounded absolute requests and latest-intent coalescing', async () => {
 		const browser = createFakeBrowser();
@@ -6471,6 +6559,94 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('preserves absolute endpoints across programmatic selection workflows', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 7n, ['a', 'b'], null, [0, 1], 10n));
+		commands.length = 0;
+
+		expect(terminal.setSelectionRange({ column: 1, row: 11n }, { column: 0, row: 10n }, true)).toBe(
+			true,
+		);
+		expect(terminal.selectOutputAt({ column: 1, row: 10n })).toBe(true);
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 0, row: canonicalText('10') },
+			preview: 'ab',
+			rectangle: true,
+			start: { column: 1, row: canonicalText('11') },
+			state: 'active',
+		});
+		expect(terminal.getSelectionRange()).toEqual({
+			end: { column: 0, row: 10n },
+			rectangle: true,
+			start: { column: 1, row: 11n },
+		});
+		expect(terminal.adjustSelectionEndpoint({ column: 1, row: 10n })).toBe(true);
+
+		expect(commands.filter((command) => command.kind === 'selection-command')).toEqual([
+			{
+				kind: 'selection-command',
+				payload: {
+					attachmentId,
+					command: 'set-range',
+					end: { column: 0, row: '10' },
+					generation: '1',
+					rectangle: true,
+					revision: '7',
+					start: { column: 1, row: '11' },
+				},
+			},
+			{
+				kind: 'selection-command',
+				payload: {
+					attachmentId,
+					command: 'select-output',
+					generation: '1',
+					point: { column: 1, row: '10' },
+					revision: '7',
+				},
+			},
+			{
+				kind: 'selection-command',
+				payload: {
+					attachmentId,
+					command: 'set-range',
+					end: { column: 1, row: '10' },
+					generation: '1',
+					rectangle: true,
+					revision: '7',
+					start: { column: 1, row: '11' },
+				},
+			},
+		]);
+
+		terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+		expect(terminal.getSelectionRange()).toBeNull();
+		expect(terminal.adjustSelectionEndpoint({ column: 0, row: 10n })).toBe(false);
+		expect(terminal.setSelectionRange({ column: 2, row: 10n }, { column: 0, row: 10n })).toBe(
+			false,
+		);
+		expect(commands.filter((command) => command.kind === 'selection-command')).toHaveLength(3);
+		terminal.dispose();
+	});
+
 	it('keeps initial read-only input immutable while preserving local history paging', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -6700,7 +6876,14 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('ends an active selection when pointer capture is lost', async () => {
+	it.each([
+		'buttonless-move',
+		'input-blur',
+		'lost-capture',
+		'pointer-cancel',
+		'visibility-hidden',
+		'window-blur',
+	] as const)('cancels an in-flight selection update without copying after %s', async (repair) => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -6721,6 +6904,14 @@ describe('ProjectedTerminal', () => {
 		await terminal.open(browser.root);
 		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
 		const canvas = terminal.canvas as unknown as FakeElement;
+		const activeSelection = {
+			attachmentId,
+			end: { column: 1, row: CanonicalUint64TextSchema.parse('0') },
+			preview: 'ab',
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('0') },
+			state: 'active' as const,
+		};
 
 		canvas.dispatch('pointerdown', {
 			altKey: false,
@@ -6750,20 +6941,168 @@ describe('ProjectedTerminal', () => {
 			type: 'pointermove',
 		} as unknown as PointerEvent);
 		browser.flushFrames();
-		terminal.notifySelectionChanged({ attachmentId, state: 'none' });
-		canvas.capturedPointers.delete(9);
-		canvas.dispatch('lostpointercapture', {
-			pointerId: 9,
-			type: 'lostpointercapture',
-		} as unknown as PointerEvent);
+		if (repair === 'buttonless-move') {
+			canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 0, 12, 2, { pointerId: 9 }));
+		} else if (repair === 'input-blur') {
+			(terminal.textarea as unknown as FakeElement).dispatch('blur', {
+				relatedTarget: null,
+				type: 'blur',
+			} as FocusEvent);
+		} else if (repair === 'lost-capture') {
+			canvas.capturedPointers.delete(9);
+			canvas.dispatch('lostpointercapture', {
+				pointerId: 9,
+				type: 'lostpointercapture',
+			} as unknown as PointerEvent);
+		} else if (repair === 'pointer-cancel') {
+			canvas.dispatch(
+				'pointercancel',
+				pointerEvent('pointercancel', 0, 0, 12, 2, { pointerId: 9 }),
+			);
+		} else if (repair === 'visibility-hidden') {
+			browser.setVisibilityState('hidden');
+			browser.dispatchDocument('visibilitychange');
+		} else {
+			browser.dispatchWindow('blur');
+		}
+		terminal.notifySelectionChanged(activeSelection);
 		browser.flushFrames();
+		terminal.notifySelectionChanged(activeSelection);
 
 		const gestures = commands.filter((command) => command.kind === 'selection-gesture');
-		expect(gestures.map((command) => command.payload.action)).toEqual(['start', 'update', 'end']);
+		expect(gestures.map((command) => command.payload.action)).toEqual([
+			'start',
+			'update',
+			'cancel',
+		]);
+		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(0);
 		terminal.dispose();
 	});
 
-	it('uses modifier-assisted triple click to select one semantic output block', async () => {
+	it('completes one copy after an outside release when pointer capture is unavailable', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		const canvas = terminal.canvas as unknown as FakeElement;
+		canvas.setPointerCapture = () => {
+			throw new Error('pointer capture unavailable');
+		};
+		const activeSelection = {
+			attachmentId,
+			end: { column: 1, row: CanonicalUint64TextSchema.parse('1') },
+			preview: 'ab',
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('0') },
+			state: 'active' as const,
+		};
+
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId: 10 }));
+		terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+		browser.dispatchDocument(
+			'pointermove',
+			pointerEvent('pointermove', 0, 1, 12, 361, {
+				pointerId: 10,
+				target: browser.root,
+			}),
+		);
+		browser.flushFrames();
+		terminal.notifySelectionChanged(activeSelection);
+		const outsideRelease = pointerEvent('pointerup', 0, 0, 12, 361, {
+			pointerId: 10,
+			target: browser.root,
+		});
+		browser.dispatchDocument('pointerup', outsideRelease);
+		browser.dispatchDocument('pointerup', outsideRelease);
+		canvas.dispatch(
+			'lostpointercapture',
+			pointerEvent('lostpointercapture', 0, 0, 12, 361, {
+				pointerId: 10,
+			}),
+		);
+		browser.flushFrames();
+		terminal.notifySelectionChanged(activeSelection);
+
+		const gestures = commands.filter((command) => command.kind === 'selection-gesture');
+		expect(gestures.map((command) => command.payload.action)).toEqual(['start', 'update', 'end']);
+		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(1);
+		terminal.dispose();
+	});
+
+	it('derives repeated clicks from time and distance instead of event detail', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
+		const canvas = terminal.canvas as unknown as FakeElement;
+		const finishPress = (clientX: number, timeStamp: number): void => {
+			terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+			canvas.dispatch(
+				'pointerup',
+				pointerEvent('pointerup', 0, 0, clientX, 2, { timeStamp: timeStamp + 10 }),
+			);
+			browser.flushFrames();
+			terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+		};
+		const press = (clientX: number, timeStamp: number, detail: number, metaKey = false): void => {
+			canvas.dispatch(
+				'pointerdown',
+				pointerEvent('pointerdown', 0, 1, clientX, 2, { detail, metaKey, timeStamp }),
+			);
+		};
+
+		press(2, 1_000, 3);
+		finishPress(2, 1_000);
+		press(3, 1_200, 1);
+		finishPress(3, 1_200);
+		press(4, 1_400, 1, true);
+		finishPress(4, 1_400);
+		press(20, 1_500, 3);
+		finishPress(20, 1_500);
+		press(20, 2_100, 2);
+
+		const starts = commands.flatMap((command) =>
+			command.kind === 'selection-gesture' && command.payload.action === 'start'
+				? [command.payload]
+				: [],
+		);
+		expect(starts.map((payload) => payload.clickCount)).toEqual([1, 2, 3, 1, 1]);
+		expect(starts[2]).toMatchObject({ selectOutput: true });
+		expect(commands.some((command) => command.kind === 'selection-command')).toBe(false);
+		terminal.dispose();
+	});
+
+	it('keeps modifier-assisted semantic output selection in the pointer gesture', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -6785,40 +7124,54 @@ describe('ProjectedTerminal', () => {
 		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
 		const canvas = terminal.canvas as unknown as FakeElement;
 
-		canvas.dispatch('pointerdown', {
-			altKey: false,
-			button: 0,
-			buttons: 1,
-			clientX: 2,
-			clientY: 2,
-			ctrlKey: false,
-			detail: 3,
-			metaKey: true,
-			pointerId: 17,
-			preventDefault: () => {},
-			shiftKey: false,
-			type: 'pointerdown',
-		} as unknown as PointerEvent);
-
-		expect(commands.at(-1)).toEqual({
-			kind: 'selection-command',
-			payload: {
-				attachmentId,
-				command: 'select-output',
-				generation: '1',
-				point: { column: 0, row: '10' },
-				revision: '1',
-			},
-		});
-		expect(canvas.capturedPointers.has(17)).toBe(false);
-		terminal.notifySelectionChanged({
+		const activeSelection = {
 			attachmentId,
 			end: { column: 1, row: CanonicalUint64TextSchema.parse('11') },
 			preview: 'semantic output',
 			rectangle: false,
 			start: { column: 0, row: CanonicalUint64TextSchema.parse('10') },
-			state: 'active',
+			state: 'active' as const,
+		};
+		for (const [index, timeStamp] of [1_000, 1_150].entries()) {
+			canvas.dispatch(
+				'pointerdown',
+				pointerEvent('pointerdown', 0, 1, 2, 2, {
+					detail: index + 1,
+					pointerId: 17,
+					timeStamp,
+				}),
+			);
+			terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+			canvas.dispatch(
+				'pointerup',
+				pointerEvent('pointerup', 0, 0, 2, 2, { pointerId: 17, timeStamp: timeStamp + 10 }),
+			);
+			browser.flushFrames();
+			terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+		}
+		canvas.dispatch(
+			'pointerdown',
+			pointerEvent('pointerdown', 0, 1, 2, 2, {
+				detail: 1,
+				metaKey: true,
+				pointerId: 17,
+				timeStamp: 1_300,
+			}),
+		);
+
+		expect(commands.at(-1)).toMatchObject({
+			kind: 'selection-gesture',
+			payload: { action: 'start', clickCount: 3, selectOutput: true },
 		});
+		expect(canvas.capturedPointers.has(17)).toBe(true);
+		terminal.notifySelectionChanged(activeSelection);
+		canvas.dispatch(
+			'pointerup',
+			pointerEvent('pointerup', 0, 0, 2, 2, { pointerId: 17, timeStamp: 1_310 }),
+		);
+		browser.flushFrames();
+		terminal.notifySelectionChanged(activeSelection);
+		expect(canvas.capturedPointers.has(17)).toBe(false);
 		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(1);
 		terminal.dispose();
 	});

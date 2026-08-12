@@ -136,12 +136,9 @@ pub const HistoryObserved = struct {
 };
 
 pub const SelectionGesture = struct {
-    action: terminal_history.SelectionGestureAction,
     attachment_id: identifiers.AttachmentId,
-    click_count: u2,
+    event: terminal_history.SelectionGestureEvent,
     generation: u64,
-    point: terminal_history.SelectionPoint,
-    rectangle: bool,
     revision: u64,
 };
 
@@ -619,19 +616,15 @@ pub fn decodeSelectionGesture(
 ) DecodeError!Decoded(control_wire.SelectionGesture, SelectionGesture) {
     const parsed = try control_wire.decode(control_wire.SelectionGesture, allocator, payload);
     errdefer parsed.deinit();
-    if (parsed.value.clickCount == 0) return error.InvalidField;
     return .{
         .parsed = parsed,
         .value = .{
-            .action = try parseSelectionGestureAction(parsed.value.action),
             .attachment_id = try identifiers.parseLowerHex(
                 identifiers.AttachmentId,
                 parsed.value.attachmentId,
             ),
-            .click_count = parsed.value.clickCount,
+            .event = try parseSelectionGestureEvent(parsed.value),
             .generation = try parsePositiveCanonicalU64(parsed.value.generation),
-            .point = try parseSelectionPoint(parsed.value.point),
-            .rectangle = parsed.value.rectangle,
             .revision = try parseCanonicalU64(parsed.value.revision),
         },
     };
@@ -818,13 +811,90 @@ fn parseHistoryDemand(value: []const u8) error{InvalidField}!terminal_history.Hi
     return error.InvalidField;
 }
 
-fn parseSelectionGestureAction(
-    value: []const u8,
-) error{InvalidField}!terminal_history.SelectionGestureAction {
-    if (std.mem.eql(u8, value, "end")) return .end;
-    if (std.mem.eql(u8, value, "start")) return .start;
-    if (std.mem.eql(u8, value, "update")) return .update;
+fn parseSelectionGestureEvent(
+    value: control_wire.SelectionGesture,
+) error{InvalidField}!terminal_history.SelectionGestureEvent {
+    const point = switch (value.point) {
+        .value => |candidate| candidate,
+        .missing, .null_value => null,
+    };
+    const position = switch (value.position) {
+        .value => |candidate| candidate,
+        .missing, .null_value => null,
+    };
+    if (position) |candidate| {
+        if (candidate.x < -0xffff or candidate.x > 0xffff or
+            candidate.y < -0xffff or candidate.y > 0xffff)
+        {
+            return error.InvalidField;
+        }
+    }
+    if (std.mem.eql(u8, value.action, "start") and value.geometry == .missing and
+        value.rectangle == .missing)
+    {
+        const click_count = switch (value.clickCount) {
+            .value => |count| count,
+            .missing, .null_value => return error.InvalidField,
+        };
+        if (click_count == 0) return error.InvalidField;
+        return .{ .start = .{
+            .click_count = click_count,
+            .point = try parseSelectionPoint(point orelse return error.InvalidField),
+            .position = selectionGesturePosition(position orelse return error.InvalidField),
+            .select_output = switch (value.selectOutput) {
+                .value => |select_output| select_output,
+                .missing, .null_value => return error.InvalidField,
+            },
+        } };
+    }
+    if (std.mem.eql(u8, value.action, "update") and value.clickCount == .missing and
+        value.selectOutput == .missing)
+    {
+        const geometry = switch (value.geometry) {
+            .value => |candidate| candidate,
+            .missing, .null_value => return error.InvalidField,
+        };
+        if (geometry.columns == 0 or geometry.columns > protocol.Limits.frame_columns or
+            geometry.cellWidth == 0 or
+            geometry.cellWidth > protocol.Limits.cell_pixel_dimension or
+            geometry.screenHeight == 0)
+        {
+            return error.InvalidField;
+        }
+        return .{ .update = .{
+            .geometry = .{
+                .cell_width = geometry.cellWidth,
+                .columns = geometry.columns,
+                .padding_left = geometry.paddingLeft,
+                .screen_height = geometry.screenHeight,
+            },
+            .point = try parseSelectionPoint(point orelse return error.InvalidField),
+            .position = selectionGesturePosition(position orelse return error.InvalidField),
+            .rectangle = switch (value.rectangle) {
+                .value => |rectangle| rectangle,
+                .missing, .null_value => return error.InvalidField,
+            },
+        } };
+    }
+    if (std.mem.eql(u8, value.action, "end") and value.clickCount == .missing and
+        value.geometry == .missing and value.position == .missing and
+        value.rectangle == .missing and value.selectOutput == .missing)
+    {
+        return .{ .end = try parseSelectionPoint(point orelse return error.InvalidField) };
+    }
+    if (std.mem.eql(u8, value.action, "cancel") and value.clickCount == .missing and
+        value.geometry == .missing and value.point == .missing and value.position == .missing and
+        value.rectangle == .missing and value.selectOutput == .missing)
+    {
+        return .cancel;
+    }
     return error.InvalidField;
+}
+
+fn selectionGesturePosition(
+    value: control_wire.SelectionGesturePosition,
+) terminal_history.SelectionGesturePosition {
+    return .{ .x = value.x, .y = value.y };
 }
 
 fn parseSelectionPoint(

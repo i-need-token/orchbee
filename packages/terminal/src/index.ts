@@ -20,6 +20,8 @@ export type {
 	ProjectedTerminalMetadata,
 	ProjectedTerminalOptions,
 	ProjectedTerminalPhaseValue,
+	ProjectedTerminalSelectionPoint,
+	ProjectedTerminalSelectionRange,
 	ProjectedTerminalSideEffectResult,
 } from './projected';
 

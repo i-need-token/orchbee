@@ -29,6 +29,7 @@ import {
 	SelectionChangedSchema,
 	SelectionCommandSchema,
 	SelectionExportSchema,
+	SelectionGestureSchema,
 	SetTerminalDefaultsSchema,
 	SetProjectionDemandSchema,
 	TerminalConfigurationSchema,
@@ -81,7 +82,7 @@ const nestedObjectSchema = z.object({
 	a: z.object({ x: z.number() }),
 	b: z.object({ x: z.number() }),
 });
-const currentProtocolVersion = { major: 0, minor: 0, patch: 5 } as const;
+const currentProtocolVersion = { major: 0, minor: 0, patch: 7 } as const;
 
 describe('control schemas', () => {
 	it('scopes clear and reset to one attachment and acknowledges the exact operation', () => {
@@ -133,6 +134,49 @@ describe('control schemas', () => {
 		expect(SelectionCommandSchema.safeParse({ ...command, point: command.start }).success).toBe(
 			false,
 		);
+	});
+
+	it('requires action-specific selection gesture evidence', () => {
+		const identity = {
+			attachmentId: '11'.repeat(16),
+			generation: '3',
+			revision: '9',
+		};
+		const point = { column: 2, row: '10' };
+		const start = {
+			...identity,
+			action: 'start',
+			clickCount: 3,
+			point,
+			position: { x: 21, y: 4 },
+			selectOutput: true,
+		};
+		const update = {
+			...identity,
+			action: 'update',
+			geometry: { cellWidth: 9, columns: 80, paddingLeft: 0, screenHeight: 360 },
+			point,
+			position: { x: 27, y: -1 },
+			rectangle: true,
+		};
+
+		expect(SelectionGestureSchema.safeParse(start).success).toBe(true);
+		expect(SelectionGestureSchema.safeParse(update).success).toBe(true);
+		expect(SelectionGestureSchema.safeParse({ ...identity, action: 'end', point }).success).toBe(
+			true,
+		);
+		expect(SelectionGestureSchema.safeParse({ ...identity, action: 'cancel' }).success).toBe(true);
+		expect(SelectionGestureSchema.safeParse({ ...identity, action: 'end' }).success).toBe(false);
+		expect(SelectionGestureSchema.safeParse({ ...identity, action: 'cancel', point }).success).toBe(
+			false,
+		);
+		expect(SelectionGestureSchema.safeParse({ ...start, geometry: update.geometry }).success).toBe(
+			false,
+		);
+		expect(SelectionGestureSchema.safeParse({ ...update, clickCount: 2 }).success).toBe(false);
+		expect(
+			SelectionGestureSchema.safeParse({ ...update, position: { x: 65_536, y: 0 } }).success,
+		).toBe(false);
 	});
 
 	it('requires every attachment to carry meaningful authority', () => {
@@ -539,8 +583,8 @@ describe('control schemas', () => {
 			'"frameBytes":1024,"frameBytes":1024',
 		);
 		const duplicateNested = validHello.replace(
-			'"major":0,"minor":0,"patch":5',
-			'"major":0,"minor":0,"minor":0,"patch":5',
+			'"major":0,"minor":0,"patch":7',
+			'"major":0,"minor":0,"minor":0,"patch":7',
 		);
 		expect(decodeControlJson(new TextEncoder().encode(duplicateRoot), HelloSchema)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidJson, ok: false }),

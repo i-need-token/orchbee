@@ -578,6 +578,16 @@ pins survive reflow; the Host republishes the selection's reflowed endpoints. Sc
 retained-row eviction, or a garbage tracked pin instead releases the selection and reports
 `evicted`, so reflow and content loss are not conflated.
 
+Each attachment also owns one pinned Ghostty selection gesture. A start replaces the prior gesture
+only after its click behavior and selection can be installed, an update applies Ghostty's
+within-cell, rectangle, word-between, line, or semantic-output drag rule from bounded surface
+geometry, and an ordinary end releases pointer activity while retaining only the click-sequence
+anchor. Cancellation is point-free and idempotently resets the gesture and releases its tracked pin
+while preserving the latest selection snapshot; it never substitutes for an ordinary end. Selection
+commands, detach, generation or screen invalidation, and state teardown perform the same reset.
+Invalid action-specific gesture fields are rejected by the protocol adapter before the runtime
+mutation boundary.
+
 ## Command and outcome contract
 
 The Host boundary validates each envelope before dispatch. Control-payload parsing and every

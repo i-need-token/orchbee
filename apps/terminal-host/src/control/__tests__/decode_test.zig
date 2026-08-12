@@ -12,7 +12,7 @@ test "Hello optional feature names use a bounded UTF-8 byte length" {
         .clientId = "11111111111111111111111111111111",
         .frameBytes = 1024,
         .inputBytes = 1024,
-        .protocol = .{ .major = 0, .minor = 0, .patch = 5 },
+        .protocol = .{ .major = 0, .minor = 0, .patch = 7 },
         .rowWindowBytes = 1024,
         .supportedOptionalFeatures = &ascii,
     };
@@ -132,7 +132,7 @@ test "typed decoder closes native validation gaps from the TypeScript schema" {
     );
 
     const zero_clicks = std.fmt.comptimePrint(
-        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":0,\"generation\":\"1\",\"point\":{{\"column\":0,\"row\":\"0\"}},\"rectangle\":false,\"revision\":\"1\"}}",
+        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":0,\"generation\":\"1\",\"point\":{{\"column\":0,\"row\":\"0\"}},\"position\":{{\"x\":1,\"y\":1}},\"revision\":\"1\",\"selectOutput\":false}}",
         .{attachment_id},
     );
     try std.testing.expectError(
@@ -141,12 +141,30 @@ test "typed decoder closes native validation gaps from the TypeScript schema" {
     );
 
     const wide_point = std.fmt.comptimePrint(
-        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":1,\"generation\":\"1\",\"point\":{{\"column\":4096,\"row\":\"0\"}},\"rectangle\":false,\"revision\":\"1\"}}",
+        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":1,\"generation\":\"1\",\"point\":{{\"column\":4096,\"row\":\"0\"}},\"position\":{{\"x\":1,\"y\":1}},\"revision\":\"1\",\"selectOutput\":false}}",
         .{attachment_id},
     );
     try std.testing.expectError(
         error.InvalidField,
         subject.decodeSelectionGesture(std.testing.allocator, wide_point),
+    );
+
+    const start_with_update_fields = std.fmt.comptimePrint(
+        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":1,\"generation\":\"1\",\"geometry\":{{\"cellWidth\":8,\"columns\":80,\"paddingLeft\":0,\"screenHeight\":320}},\"point\":{{\"column\":0,\"row\":\"0\"}},\"position\":{{\"x\":1,\"y\":1}},\"revision\":\"1\",\"selectOutput\":false}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeSelectionGesture(std.testing.allocator, start_with_update_fields),
+    );
+
+    const cancel_with_point = std.fmt.comptimePrint(
+        "{{\"action\":\"cancel\",\"attachmentId\":\"{s}\",\"generation\":\"1\",\"point\":{{\"column\":0,\"row\":\"0\"}},\"revision\":\"1\"}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeSelectionGesture(std.testing.allocator, cancel_with_point),
     );
 
     const empty_capabilities = std.fmt.comptimePrint(
