@@ -220,6 +220,73 @@ test('terminal-parity/SU-14-runtime-presentation', async () => {
 	}
 });
 
+test('terminal-parity/SU-15-visibility', async () => {
+	test.setTimeout(45_000);
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch({ headless: false });
+	try {
+		const page = await browser.newPage({ viewport: { height: 500, width: 900 } });
+		await page.goto(
+			new URL('terminal-visibility-fixture.html', currentDevelopmentRendererUrl).href,
+		);
+		const root = page.locator('#terminal-visibility-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-forced-canvas', 'true');
+		await expect(root).toHaveAttribute('data-witness-renderer', 'canvas2d');
+		await expect(root).toHaveAttribute(
+			'data-witness-control',
+			'synthetic-application-layer-document-visibility',
+		);
+		await expect(root).toHaveAttribute(
+			'data-witness-limitation',
+			'does-not-exercise-os-tab-background-throttling',
+		);
+		await expect(root).toHaveAttribute('data-witness-initial-render-count', '1');
+		await expect(root).toHaveAttribute('data-witness-initial-acknowledgement-count', '1');
+		await expect(root).toHaveAttribute('data-witness-initial-generation', '1');
+		await expect(root).toHaveAttribute('data-witness-initial-revision', '1');
+		await expect(root).toHaveAttribute('data-witness-joint-pause-complete', 'true');
+		await expect(root).toHaveAttribute('data-witness-joint-pause-committed-count', '3');
+		await expect(root).toHaveAttribute('data-witness-joint-pause-acknowledgement-count', '4');
+		await expect(root).toHaveAttribute('data-witness-joint-pause-render-delta', '0');
+		await expect(root).toHaveAttribute('data-witness-joint-pause-generation', '2');
+		await expect(root).toHaveAttribute('data-witness-joint-pause-revision', '4');
+		expect(
+			Number(await root.getAttribute('data-witness-joint-pause-animation-window-ms')),
+		).toBeGreaterThan(530);
+
+		await page.locator('#clear-visibility-pause-cause').click();
+		await expect(root).toHaveAttribute('data-witness-clear-one-complete', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-clear-one-render-delta', '0');
+		expect(
+			Number(await root.getAttribute('data-witness-clear-one-animation-window-ms')),
+		).toBeGreaterThan(530);
+
+		await page.locator('#clear-demand-pause-cause').click();
+		await expect(root).toHaveAttribute('data-witness-complete', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-resume-complete', 'true');
+		await expect(root).toHaveAttribute('data-witness-resume-render-delta', '1');
+		await expect(root).toHaveAttribute('data-witness-resume-generation', '2');
+		await expect(root).toHaveAttribute('data-witness-resume-revision', '4');
+		await expect(root).toHaveAttribute('data-witness-second-render-delta', '0');
+		await expect(root).toHaveAttribute('data-witness-dispose-child-count', '0');
+		await expect(root).toHaveAttribute('data-witness-dispose-command-delta', '0');
+		await expect(root).toHaveAttribute('data-witness-dispose-render-delta', '0');
+		await expect(root).toHaveAttribute('data-witness-post-dispose-apply-result', 'disposed');
+		expect(
+			Number(await root.getAttribute('data-witness-dispose-animation-window-ms')),
+		).toBeGreaterThan(530);
+	} finally {
+		await browser.close();
+	}
+});
+
 test('terminal-parity/SU-08-dpr', async () => {
 	test.setTimeout(45_000);
 	const currentDevelopmentRendererUrl = developmentRendererUrl;
@@ -1590,6 +1657,8 @@ async function startWebRendererDevelopmentServer(): Promise<{
 					'./src/workbench-client/projected-terminal-renderer/__tests__/input-repair.system-fixture.ts',
 				'terminal-presentation-fixture':
 					'./src/workbench-client/projected-terminal-renderer/__tests__/runtime-presentation.system-fixture.ts',
+				'terminal-visibility-fixture':
+					'./src/workbench-client/projected-terminal-renderer/__tests__/visibility.system-fixture.ts',
 			},
 		},
 	});

@@ -232,6 +232,24 @@ Ghostty remains the reference for selected font metrics, shaping boundaries, pro
 
 Search behavior follows the bounded contract in [`docs/vscode-search-alignment.md`](docs/vscode-search-alignment.md). The application owns the find surface, query history, shortcuts, and localized labels.
 
+### Visibility and projection-demand evidence
+
+The stable headed `terminal-parity/SU-15-visibility` trace draws an initial frame through a real
+`ProjectedTerminal` and Chromium Canvas 2D surface, then combines document visibility with explicit
+projection demand. While both causes are paused, it proves a queued draw and blinking animation stay
+suspended as multiple revisions commit and emit `FrameApplied`; clearing visibility alone remains
+suspended, and clearing demand schedules exactly one draw of the newest generation and revision.
+The trace also verifies a second draw is not queued and post-disposal visibility, demand, frame, and
+animation activity is inert.
+
+The headed fixture overrides `document.visibilityState` only inside its test document and dispatches
+the real application-layer `visibilitychange` event. It does not exercise operating-system tab
+backgrounding or browser throttling policy, and it makes no WebGPU or cross-browser claim.
+
+| SU-15 claim                                                                                                                                       | Renderer evidence                                      | Projected integration                                                                                | Headed system trace                | Limits                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Visibility and explicit demand retain independent pause causes; commits and acknowledgements continue while draws coalesce until the final resume | `suspends packed blinking-cell animation while hidden` | `coordinates document visibility and projection demand before drawing the newest acknowledged frame` | `terminal-parity/SU-15-visibility` | Headed Chromium Canvas 2D with synthetic application-layer document visibility; no OS background-throttling, WebGPU, or other-browser claim. |
+
 ### Device-pixel-ratio evidence
 
 The stable headed `terminal-parity/SU-08-dpr` trace commits and draws a frame through a real

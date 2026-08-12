@@ -67,6 +67,7 @@ interface FakeBrowser {
 	readonly frames: Map<number, FrameRequestCallback>;
 	readonly mediaQueries: FakeMediaQueryList[];
 	readonly root: HTMLElement;
+	documentListenerCount(type: string): number;
 	dispatchDocument(type: string): void;
 	dispatchWindow(type: string): void;
 	flushFrames(): void;
@@ -647,6 +648,7 @@ function createFakeBrowser(): FakeBrowser {
 	const root = createElement('div') as unknown as HTMLElement;
 	return {
 		document,
+		documentListenerCount: (type) => documentListeners.get(type)?.size ?? 0,
 		dispatchDocument: (type) => {
 			for (const listener of documentListeners.get(type) ?? []) listener({ type } as Event);
 		},
@@ -6421,6 +6423,120 @@ describe('ProjectedTerminal', () => {
 		browser.flushFrames();
 		expect(telemetry).toHaveBeenCalledOnce();
 		terminal.dispose();
+	});
+
+	it('coordinates document visibility and projection demand before drawing the newest acknowledged frame', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const setSuspended = vi.spyOn(WebGPURenderer.prototype, 'setSuspended');
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		const telemetry = vi.fn<(event: ProjectedTerminalFrameTelemetry) => void>();
+		terminal.onFrameTelemetry(telemetry);
+		await terminal.open(browser.root);
+
+		expect(browser.documentListenerCount('visibilitychange')).toBe(1);
+		expect(terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']))).toBe('committed');
+		expect(browser.frames.size).toBe(1);
+		browser.flushFrames();
+		expect(telemetry).toHaveBeenLastCalledWith(
+			expect.objectContaining({ generation: '1', revision: '1' }),
+		);
+		telemetry.mockClear();
+
+		browser.setVisibilityState('hidden');
+		browser.dispatchDocument('visibilitychange');
+		expect(setSuspended).toHaveBeenLastCalledWith(true);
+		expect(browser.frames.size).toBe(0);
+		expect(terminal.applyFrame(terminalFrame('delta', 2n, 2n, ['c', 'd'], 1n))).toBe('committed');
+		expect(terminal.metadata).toEqual(expect.objectContaining({ generation: 1n, revision: 2n }));
+		expect(browser.frames.size).toBe(0);
+
+		const suspensionCallsBeforePause = setSuspended.mock.calls.length;
+		terminal.setProjectionDemand('paused');
+		expect(setSuspended).toHaveBeenCalledTimes(suspensionCallsBeforePause);
+		expect(browser.frames.size).toBe(0);
+		expect(terminal.applyFrame(terminalFrame('delta', 3n, 3n, ['e', 'f'], 2n))).toBe('committed');
+		expect(
+			terminal.applyFrame(
+				terminalFrame(
+					'snapshot',
+					4n,
+					4n,
+					['g', 'h'],
+					null,
+					[0, 1],
+					0n,
+					interaction,
+					{ column: 0, row: 0 },
+					2n,
+				),
+			),
+		).toBe('committed');
+		expect(terminal.metadata).toEqual(expect.objectContaining({ generation: 2n, revision: 4n }));
+		expect(browser.frames.size).toBe(0);
+		expect(telemetry).not.toHaveBeenCalled();
+		expect(commands.filter((command) => command.kind === 'frame-applied')).toEqual([
+			{
+				kind: 'frame-applied',
+				payload: { attachmentId, generation: '1', revision: '1', sequence: '1' },
+			},
+			{
+				kind: 'frame-applied',
+				payload: { attachmentId, generation: '1', revision: '2', sequence: '2' },
+			},
+			{
+				kind: 'frame-applied',
+				payload: { attachmentId, generation: '1', revision: '3', sequence: '3' },
+			},
+			{
+				kind: 'frame-applied',
+				payload: { attachmentId, generation: '2', revision: '4', sequence: '4' },
+			},
+		]);
+
+		browser.setVisibilityState('visible');
+		browser.dispatchDocument('visibilitychange');
+		expect(setSuspended).toHaveBeenCalledTimes(suspensionCallsBeforePause);
+		expect(browser.frames.size).toBe(0);
+		browser.flushFrames();
+		expect(telemetry).not.toHaveBeenCalled();
+
+		terminal.setProjectionDemand('active');
+		expect(setSuspended).toHaveBeenLastCalledWith(false);
+		expect(browser.frames.size).toBe(1);
+		browser.flushFrames();
+		expect(telemetry).toHaveBeenCalledOnce();
+		expect(telemetry).toHaveBeenLastCalledWith(
+			expect.objectContaining({ generation: '2', revision: '4' }),
+		);
+		browser.flushFrames();
+		expect(telemetry).toHaveBeenCalledOnce();
+
+		terminal.dispose();
+		expect(browser.documentListenerCount('visibilitychange')).toBe(0);
+		const suspensionCallsAfterDispose = setSuspended.mock.calls.length;
+		const commandCountAfterDispose = commands.length;
+		browser.setVisibilityState('hidden');
+		browser.dispatchDocument('visibilitychange');
+		terminal.setProjectionDemand('active');
+		expect(terminal.applyFrame(terminalFrame('snapshot', 5n, 5n, ['i', 'j']))).toBe('disposed');
+		expect(setSuspended).toHaveBeenCalledTimes(suspensionCallsAfterDispose);
+		expect(commands).toHaveLength(commandCountAfterDispose);
+		expect(browser.frames.size).toBe(0);
 	});
 
 	it('applies Host-driven frame geometry without emitting a reverse resize', async () => {
