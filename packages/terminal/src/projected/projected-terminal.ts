@@ -859,7 +859,7 @@ export class ProjectedTerminal {
 			const accessibilityRoot = document.createElement('div');
 			accessibilityRoot.setAttribute('aria-label', this.#options.labels.screen);
 			accessibilityRoot.setAttribute('aria-live', 'off');
-			accessibilityRoot.setAttribute('role', 'log');
+			accessibilityRoot.setAttribute('role', 'list');
 			accessibilityRoot.style.position = 'absolute';
 			accessibilityRoot.style.width = '1px';
 			accessibilityRoot.style.height = '1px';
@@ -921,8 +921,10 @@ export class ProjectedTerminal {
 			this.#sendResizeIfChanged();
 			this.#sendDemandIfNeeded();
 		} catch (error) {
-			this.#errorEmitter.fire({ error, operation: 'open' });
-			this.dispose();
+			if (!this.#isDisposed()) {
+				this.#rollbackOpen();
+				this.#errorEmitter.fire({ error, operation: 'open' });
+			}
 			throw error;
 		}
 	}
@@ -1707,6 +1709,21 @@ export class ProjectedTerminal {
 		this.#performDispose();
 	}
 
+	#rollbackOpen(): void {
+		const inputCleanup = this.#prepareFocusLossInputRepair(false);
+		this.#dispatchDisposedInputCleanup(inputCleanup);
+		this.#cancelScheduledFrame();
+		this.#releaseSurfaceBindings();
+		this.#releaseSurfaceDom();
+		this.#documentHidden = false;
+		this.#devicePixelRatio = 1;
+		this.#lastGeometry = undefined;
+		this.#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
+		this.#presentationSuspended = false;
+		this.#demandSent = undefined;
+		this.#phase = ProjectedTerminalPhase.constructed;
+	}
+
 	#performDispose(inputCleanupAttempted = false): void {
 		if (this.#disposalStarted) return;
 		this.#disposalStarted = true;
@@ -1750,6 +1767,25 @@ export class ProjectedTerminal {
 		this.#copyCompletions.clear();
 		this.#copyRequests.clear();
 		this.#linkCompletions.clear();
+		this.#releaseSurfaceBindings();
+		this.#store.dispose();
+		this.#historyStore?.dispose();
+		this.#historyStore = undefined;
+		this.#releaseSurfaceDom();
+		this.#errorEmitter.dispose();
+		this.#exitEmitter.dispose();
+		this.#frameTelemetryEmitter.dispose();
+		this.#healthEmitter.dispose();
+		this.#historyEmitter.dispose();
+		this.#linkOpenEmitter.dispose();
+		this.#metadataEmitter.dispose();
+		this.#selectionEmitter.dispose();
+		this.#selectionCopyResultEmitter.dispose();
+		this.#selectionCopiedEmitter.dispose();
+		this.#searchEmitter.dispose();
+	}
+
+	#releaseSurfaceBindings(): void {
 		this.#resizeObserver?.disconnect();
 		this.#resizeObserver = undefined;
 		this.#devicePixelRatioQuery?.removeEventListener('change', this.#handleDevicePixelRatioChange);
@@ -1757,9 +1793,9 @@ export class ProjectedTerminal {
 		for (const dispose of this.#listenerDisposers.splice(0)) dispose();
 		this.#renderer?.dispose();
 		this.#renderer = undefined;
-		this.#store.dispose();
-		this.#historyStore?.dispose();
-		this.#historyStore = undefined;
+	}
+
+	#releaseSurfaceDom(): void {
 		this.#canvas?.remove();
 		this.#input?.remove();
 		this.#accessibilityRoot?.remove();
@@ -1777,17 +1813,6 @@ export class ProjectedTerminal {
 		this.#accessibilityAnnouncement = undefined;
 		this.#accessibilityRoot = undefined;
 		this.#root = undefined;
-		this.#errorEmitter.dispose();
-		this.#exitEmitter.dispose();
-		this.#frameTelemetryEmitter.dispose();
-		this.#healthEmitter.dispose();
-		this.#historyEmitter.dispose();
-		this.#linkOpenEmitter.dispose();
-		this.#metadataEmitter.dispose();
-		this.#selectionEmitter.dispose();
-		this.#selectionCopyResultEmitter.dispose();
-		this.#selectionCopiedEmitter.dispose();
-		this.#searchEmitter.dispose();
 	}
 
 	#scheduleRender(): boolean {
@@ -5053,7 +5078,6 @@ export class ProjectedTerminal {
 				: this.#options.labels.screen,
 		);
 		this.#updateAccessibilityDescription(metadata, visibleStart, visibleEnd);
-		root.setAttribute('aria-rowcount', this.#historyTotalRows.toString());
 		root.setAttribute(
 			'data-terminal-visible-row-start',
 			(this.#historyPhase === ProjectedHistoryPhase.followingBottom
@@ -5098,11 +5122,11 @@ export class ProjectedTerminal {
 	}
 
 	#updateAccessibilityAnnouncement(metadata: ProjectedTerminalMetadata): void {
+		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) return;
 		const rows = this.#accessibilityModelRows.map((row) => row.text);
 		const cursor = metadata.cursor;
 		const previousCursor = this.#accessibilityPreviousCursor;
 		const deletion =
-			this.#historyPhase === ProjectedHistoryPhase.followingBottom &&
 			previousCursor?.row === cursor.row
 				? detectAccessibilityDeletion(
 						this.#accessibilityPreviousModelRows[cursor.row] ?? buildAccessibleRow([], 0),
@@ -5117,12 +5141,7 @@ export class ProjectedTerminal {
 				? this.#options.labels.deleted(deletion)
 				: changedRows;
 		const liveRegion = this.#accessibilityAnnouncement;
-		if (
-			this.#historyPhase === ProjectedHistoryPhase.followingBottom &&
-			announcement &&
-			liveRegion !== undefined &&
-			liveRegion.textContent !== announcement
-		) {
+		if (announcement && liveRegion !== undefined && liveRegion.textContent !== announcement) {
 			liveRegion.textContent = announcement;
 		}
 		this.#accessibilityPreviousRows = rows;

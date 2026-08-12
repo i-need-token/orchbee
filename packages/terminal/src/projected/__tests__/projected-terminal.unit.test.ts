@@ -891,6 +891,53 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('rolls a failed open back for same-instance retry without taking root ownership', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const root = browser.root as unknown as FakeElement;
+		const existingChild = browser.document.createElement('div');
+		browser.root.appendChild(existingChild);
+		const openError = new Error('renderer initialization failed');
+		const initGPU = vi.spyOn(WebGPURenderer.prototype, 'initGPU').mockRejectedValueOnce(openError);
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		terminal.onError(errors);
+
+		await expect(terminal.open(browser.root)).rejects.toBe(openError);
+		expect(terminal.phase).toBe('constructed');
+		expect(terminal.canvas).toBeUndefined();
+		expect(terminal.textarea).toBeUndefined();
+		expect(root.children).toEqual([existingChild]);
+		expect(browser.documentListenerCount('selectionchange')).toBe(0);
+		expect(browser.documentListenerCount('pointermove')).toBe(0);
+		expect(root.listeners.get('focusin')?.size ?? 0).toBe(0);
+		expect(errors).toHaveBeenCalledWith({ error: openError, operation: 'open' });
+
+		await terminal.open(browser.root);
+		expect(terminal.phase).toBe('open');
+		expect(root.children).toHaveLength(5);
+		await expect(terminal.open(browser.root)).rejects.toThrow(
+			'ProjectedTerminal cannot open from phase open',
+		);
+		expect(root.children).toHaveLength(5);
+		expect(initGPU).toHaveBeenCalledTimes(2);
+
+		terminal.dispose();
+		expect(root.children).toEqual([existingChild]);
+		expect(browser.documentListenerCount('selectionchange')).toBe(0);
+		expect(browser.documentListenerCount('pointermove')).toBe(0);
+		expect(root.listeners.get('focusin')?.size ?? 0).toBe(0);
+	});
+
 	it('publishes one font-ready runtime presentation transaction on the existing attachment', async () => {
 		const browser = createFakeBrowser();
 		const fontLoad = vi.fn<(font: string, text?: string) => Promise<FontFace[]>>(async () => []);
@@ -2744,6 +2791,51 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('preserves the live accessibility baseline while retained history is visible', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['base-a', 'base-b'], null, [0, 1], 10n));
+		const announcement = (browser.root as unknown as FakeElement).children[3];
+		expect(announcement?.textContent).toBe('base-a\nbase-b');
+
+		terminal.scrollLines(-1);
+		const read = commands.at(-1);
+		if (read?.kind !== 'read-rows') throw new Error('history request was not sent');
+		expect(
+			terminal.applyRows(
+				renderRowWindow(BigInt(read.payload.requestSequence), 1n, 9n, 12n, [
+					'history-a',
+					'history-b',
+					'overscan',
+				]),
+			),
+		).toBe('committed');
+
+		terminal.scrollToBottom();
+		terminal.applyFrame(
+			terminalFrame('snapshot', 2n, 2n, ['base-a', 'fresh-b'], null, [0, 1], 10n),
+		);
+
+		expect(announcement?.textContent).toBe('fresh-b');
+		terminal.dispose();
+	});
+
 	it('uses the Host committed pin as the visible history anchor after reflow', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -3929,6 +4021,39 @@ describe('ProjectedTerminal', () => {
 			(range?.endContainer as unknown as { readonly parentElement?: FakeElement })?.parentElement,
 		).toBe(accessibilityRoot?.children[1]);
 		expect(range?.endOffset).toBe(1);
+		terminal.dispose();
+	});
+
+	it('exposes accessible rows through a valid navigable list', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => {} },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a b', ''], null, [0, 1], 10n));
+
+		const accessibilityRoot = (browser.root as unknown as FakeElement).children[2];
+		expect(accessibilityRoot?.attributes.get('role')).toBe('list');
+		expect(accessibilityRoot?.attributes.has('aria-rowcount')).toBe(false);
+		expect(
+			accessibilityRoot?.children.map((row) => ({
+				position: row.attributes.get('aria-posinset'),
+				role: row.attributes.get('role'),
+				size: row.attributes.get('aria-setsize'),
+				text: row.textContent,
+			})),
+		).toEqual([
+			{ position: '11', role: 'listitem', size: '12', text: 'a b' },
+			{ position: '12', role: 'listitem', size: '12', text: ' ' },
+		]);
 		terminal.dispose();
 	});
 
