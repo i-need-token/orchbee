@@ -21,10 +21,7 @@ describe('createProjectedTerminalActionComposition', () => {
 
 		await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
 		expect(terminal.copySelectionAsync).toHaveBeenCalledOnce();
-		expect(controller.getSnapshot().notice).toEqual({
-			byteLength: 8,
-			kind: 'copy-completed',
-		});
+		expect(controller.getSnapshot().notice).toBeNull();
 		composition.dispose();
 	});
 

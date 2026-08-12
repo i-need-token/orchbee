@@ -64,6 +64,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'onRendererHealth'
 	| 'onSearchResults'
 	| 'onSelectionChange'
+	| 'onSelectionCopyResult'
 	| 'onSelectionCopied'
 	| 'openLinkAsync'
 	| 'open'
@@ -398,6 +399,24 @@ export async function startProjectedTerminalRenderer(
 						delete rootElement.dataset['projectedTerminalSelectionStart'];
 						delete rootElement.dataset['projectedTerminalSelectionEnd'];
 					}
+				}),
+			);
+			pendingSubscriptions.push(
+				terminal.onSelectionCopyResult((event) => {
+					rootElement.dataset['projectedTerminalCopySource'] = event.source;
+					rootElement.dataset['projectedTerminalCopyState'] = event.result.kind;
+					if (event.result.kind === 'completed') {
+						delete rootElement.dataset['projectedTerminalCopyFailure'];
+						status.setAttribute('role', 'status');
+						status.textContent = intl.formatMessage(projectedTerminalMessages.copyCompleted, {
+							byteLength: event.result.byteLength ?? 0,
+						});
+					} else {
+						rootElement.dataset['projectedTerminalCopyFailure'] = event.result.code;
+						status.setAttribute('role', 'alert');
+						status.textContent = intl.formatMessage(projectedTerminalMessages.copyFailed);
+					}
+					status.hidden = false;
 				}),
 			);
 			pendingSubscriptions.push(

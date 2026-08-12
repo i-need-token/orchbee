@@ -7655,12 +7655,19 @@ describe('ProjectedTerminal', () => {
 			},
 			terminalId,
 		});
+		const copyResults = vi.fn<Parameters<ProjectedTerminal['onSelectionCopyResult']>[0]>();
+		terminal.onSelectionCopyResult(copyResults);
 
 		const copy = terminal.copySelectionAsync();
 		const copyCommand = commands.at(-1);
 		if (copyCommand?.kind !== 'selection-copy') throw new Error('copy command missing');
 		terminal.notifySelectionCopied(8, copyCommand.payload.requestSequence);
 		await expect(copy).resolves.toEqual({ byteLength: 8, kind: 'completed' });
+		expect(copyResults).toHaveBeenCalledWith({
+			requestSequence: copyCommand.payload.requestSequence,
+			result: { byteLength: 8, kind: 'completed' },
+			source: 'manual',
+		});
 
 		const link = terminal.openLinkAsync('https://orchbee.dev');
 		const linkCommand = commands.at(-1);
@@ -7677,6 +7684,102 @@ describe('ProjectedTerminal', () => {
 			kind: 'failed',
 			retryable: false,
 		});
+		terminal.dispose();
+	});
+
+	it('updates copy-on-select and reports one result for automatic and manual failures', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		const copyResults = vi.fn<Parameters<ProjectedTerminal['onSelectionCopyResult']>[0]>();
+		terminal.onSelectionCopyResult(copyResults);
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		const canvas = terminal.canvas as unknown as FakeElement;
+		const activeSelection = {
+			attachmentId,
+			end: { column: 1, row: canonicalText('0') },
+			preview: 'ab',
+			rectangle: false,
+			start: { column: 0, row: canonicalText('0') },
+			state: 'active' as const,
+		};
+		const completeGesture = (pointerId: number): void => {
+			canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId }));
+			terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+			canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 12, 2, { pointerId }));
+			browser.flushFrames();
+			terminal.notifySelectionChanged(activeSelection);
+		};
+
+		expect(terminal.copyOnSelect).toBe(true);
+		terminal.setCopyOnSelect(false);
+		expect(terminal.copyOnSelect).toBe(false);
+		completeGesture(81);
+		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(0);
+
+		terminal.setCopyOnSelect(true);
+		expect(terminal.copyOnSelect).toBe(true);
+		completeGesture(82);
+		const automaticCopy = commands.at(-1);
+		if (automaticCopy?.kind !== 'selection-copy') throw new Error('automatic copy command missing');
+		terminal.notifyBrokerFailure({
+			code: 'automatic-copy-failed',
+			message: 'automatic copy failed',
+			operation: 'copy',
+			requestSequence: automaticCopy.payload.requestSequence,
+			retryable: false,
+		});
+		terminal.notifyBrokerFailure({
+			code: 'automatic-copy-failed',
+			message: 'duplicate automatic copy failure',
+			operation: 'copy',
+			requestSequence: automaticCopy.payload.requestSequence,
+			retryable: false,
+		});
+
+		const manualResult = terminal.copySelectionAsync();
+		const manualCopy = commands.at(-1);
+		if (manualCopy?.kind !== 'selection-copy') throw new Error('manual copy command missing');
+		terminal.notifyBrokerFailure({
+			code: 'manual-copy-failed',
+			message: 'manual copy failed',
+			operation: 'copy',
+			requestSequence: manualCopy.payload.requestSequence,
+			retryable: true,
+		});
+
+		await expect(manualResult).resolves.toEqual({
+			code: 'manual-copy-failed',
+			kind: 'failed',
+			retryable: true,
+		});
+		expect(copyResults.mock.calls.map(([event]) => event)).toEqual([
+			{
+				requestSequence: automaticCopy.payload.requestSequence,
+				result: { code: 'automatic-copy-failed', kind: 'failed', retryable: false },
+				source: 'automatic',
+			},
+			{
+				requestSequence: manualCopy.payload.requestSequence,
+				result: { code: 'manual-copy-failed', kind: 'failed', retryable: true },
+				source: 'manual',
+			},
+		]);
 		terminal.dispose();
 	});
 

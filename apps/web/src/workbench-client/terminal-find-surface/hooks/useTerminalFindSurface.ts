@@ -71,12 +71,6 @@ export function useTerminalFindSurface({
 	};
 	const formatNotice = (notice: TerminalFindNotice): string => {
 		switch (notice.kind) {
-			case 'copy-completed':
-				return intl.formatMessage(projectedTerminalMessages.copyCompleted, {
-					byteLength: notice.byteLength,
-				});
-			case 'copy-failed':
-				return intl.formatMessage(projectedTerminalMessages.copyFailed);
 			case 'history-evicted':
 				return intl.formatMessage(projectedTerminalMessages.historyEvicted);
 			case 'history-unavailable':

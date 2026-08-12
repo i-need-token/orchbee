@@ -4,8 +4,6 @@ import type { HistoryChanged, SelectionChanged } from '@orchbee/terminal-protoco
 const MAX_QUERY_HISTORY = 20;
 
 export type TerminalFindNotice =
-	| { readonly byteLength: number; readonly kind: 'copy-completed' }
-	| { readonly kind: 'copy-failed' }
 	| { readonly kind: 'history-evicted' }
 	| { readonly kind: 'history-unavailable' }
 	| { readonly kind: 'link-blocked' }

@@ -76,6 +76,8 @@ describe('startProjectedTerminalRenderer', () => {
 		let emitLinkOpenRequest: Parameters<ProjectedTerminal['onLinkOpenRequest']>[0] = () =>
 			undefined;
 		let emitMetadata: Parameters<ProjectedTerminal['onMetadataChange']>[0] | undefined;
+		let emitSelectionCopyResult: Parameters<ProjectedTerminal['onSelectionCopyResult']>[0] = () =>
+			undefined;
 		const openExternal = vi
 			.fn<NonNullable<ProjectedTerminalPlatformEffects['openExternal']>>()
 			.mockResolvedValue({ kind: 'completed' });
@@ -143,6 +145,10 @@ describe('startProjectedTerminalRenderer', () => {
 						onSelectionChange: vi.fn<ProjectedTerminal['onSelectionChange']>(() => ({
 							dispose: vi.fn<() => void>(),
 						})),
+						onSelectionCopyResult: vi.fn<ProjectedTerminal['onSelectionCopyResult']>((listener) => {
+							emitSelectionCopyResult = listener;
+							return { dispose: vi.fn<() => void>() };
+						}),
 						onSelectionCopied: vi.fn<ProjectedTerminal['onSelectionCopied']>(() => ({
 							dispose: vi.fn<() => void>(),
 						})),
@@ -263,6 +269,23 @@ describe('startProjectedTerminalRenderer', () => {
 			await vi.waitFor(() => expect(writeClipboardText).toHaveBeenCalledWith('copied from Host'));
 			expect(notifySelectionCopied).toHaveBeenCalledWith(16, '10');
 			expect(notifyBrokerFailure).not.toHaveBeenCalled();
+			emitSelectionCopyResult({
+				requestSequence: CanonicalUint64TextSchema.parse('11'),
+				result: { code: 'clipboard-denied', kind: 'failed', retryable: false },
+				source: 'automatic',
+			});
+			expect(status).toMatchObject({ hidden: false, textContent: '无法复制终端所选内容。' });
+			expect(dataset['projectedTerminalCopySource']).toBe('automatic');
+			expect(dataset['projectedTerminalCopyState']).toBe('failed');
+			emitSelectionCopyResult({
+				requestSequence: CanonicalUint64TextSchema.parse('12'),
+				result: { byteLength: 16, kind: 'completed' },
+				source: 'manual',
+			});
+			expect(status).toMatchObject({ hidden: false, textContent: '已复制 16 字节。' });
+			expect(status.setAttribute).toHaveBeenLastCalledWith('role', 'status');
+			expect(dataset['projectedTerminalCopySource']).toBe('manual');
+			expect(dataset['projectedTerminalCopyState']).toBe('completed');
 			const telemetry: ProjectedTerminalFrameTelemetry = {
 				atlasGlyphCount: 0,
 				atlasGlyphsCreated: 0,

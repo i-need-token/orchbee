@@ -156,14 +156,9 @@ export function registerProjectedTerminalActions({
 						const result = await terminal.copySelectionAsync();
 						if (result.kind === 'completed') {
 							context.markCommitted();
-							findController.setNotice({
-								byteLength: result.byteLength ?? 0,
-								kind: 'copy-completed',
-							});
 							return { kind: 'completed' };
 						}
 						if (result.kind === 'cancelled') return { kind: 'cancelled' };
-						findController.setNotice({ kind: 'copy-failed' });
 						return { failure: { code: result.code }, kind: 'failed' };
 					},
 				},

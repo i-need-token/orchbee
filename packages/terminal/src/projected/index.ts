@@ -30,6 +30,8 @@ export {
 	type ProjectedTerminalLinkOpenRequest,
 	type ProjectedTerminalOptions,
 	type ProjectedTerminalPhase as ProjectedTerminalPhaseValue,
+	type ProjectedTerminalSelectionCopyEvent,
+	type ProjectedTerminalSelectionCopyResult,
 	type ProjectedTerminalSelectionPoint,
 	type ProjectedTerminalSelectionRange,
 	type ProjectedTerminalSideEffectResult,

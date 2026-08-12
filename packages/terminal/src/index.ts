@@ -20,6 +20,8 @@ export type {
 	ProjectedTerminalMetadata,
 	ProjectedTerminalOptions,
 	ProjectedTerminalPhaseValue,
+	ProjectedTerminalSelectionCopyEvent,
+	ProjectedTerminalSelectionCopyResult,
 	ProjectedTerminalSelectionPoint,
 	ProjectedTerminalSelectionRange,
 	ProjectedTerminalSideEffectResult,

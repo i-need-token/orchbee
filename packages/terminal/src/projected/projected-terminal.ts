@@ -326,6 +326,17 @@ export type ProjectedTerminalSideEffectResult =
 	| { readonly code: string; readonly kind: 'failed'; readonly retryable: boolean }
 	| { readonly kind: 'cancelled' };
 
+export type ProjectedTerminalSelectionCopyResult = Exclude<
+	ProjectedTerminalSideEffectResult,
+	{ readonly kind: 'cancelled' }
+>;
+
+export interface ProjectedTerminalSelectionCopyEvent {
+	readonly requestSequence: CanonicalUint64Text;
+	readonly result: ProjectedTerminalSelectionCopyResult;
+	readonly source: 'automatic' | 'manual';
+}
+
 export interface ProjectedTerminalFrameTelemetry extends RendererFrameTelemetry {
 	readonly generation: CanonicalUint64Text;
 	readonly revision: CanonicalUint64Text;
@@ -514,6 +525,10 @@ export class ProjectedTerminal {
 		CanonicalUint64Text,
 		(result: ProjectedTerminalSideEffectResult) => void
 	>();
+	readonly #copyRequests = new Map<
+		CanonicalUint64Text,
+		ProjectedTerminalSelectionCopyEvent['source']
+	>();
 	readonly #errorEmitter = new EventEmitter<ProjectedTerminalErrorEvent>();
 	readonly #exitEmitter = new EventEmitter<TerminalExited>();
 	readonly #frameTelemetryEmitter = new EventEmitter<ProjectedTerminalFrameTelemetry>();
@@ -538,6 +553,7 @@ export class ProjectedTerminal {
 	readonly #publishedMouseButtons = new Set<Exclude<MouseInput['button'], null>>();
 	readonly #store: PackedTerminalStore;
 	readonly #selectionEmitter = new EventEmitter<SelectionChanged>();
+	readonly #selectionCopyResultEmitter = new EventEmitter<ProjectedTerminalSelectionCopyEvent>();
 	readonly #selectionCopiedEmitter = new EventEmitter<{
 		readonly byteLength: number;
 		readonly requestSequence: CanonicalUint64Text;
@@ -556,6 +572,7 @@ export class ProjectedTerminal {
 	#applicationMouseClickSuppressionTimer: ReturnType<typeof setTimeout> | undefined;
 	#applicationMouseGesture: ApplicationMouseGesture | undefined;
 	#canvas: HTMLCanvasElement | undefined;
+	#copyOnSelect: boolean;
 	#demand: ProjectionDemand = 'active';
 	#demandSent: ProjectionDemand | undefined;
 	#devicePixelRatio = 1;
@@ -657,6 +674,7 @@ export class ProjectedTerminal {
 		this.#store = new PackedTerminalStore(options.hostEpoch, options.attachmentId);
 		this.#terminalId = options.terminalId;
 		this.#selection = { attachmentId: options.attachmentId, state: 'none' };
+		this.#copyOnSelect = options.copyOnSelect ?? true;
 		this.#presentationConfiguration = presentationConfigurationFromRendererOptions(
 			options.renderer,
 		);
@@ -694,6 +712,10 @@ export class ProjectedTerminal {
 		return !this.#isDisposed() && this.#options.inputEnabled !== false;
 	}
 
+	get copyOnSelect(): boolean {
+		return this.#copyOnSelect;
+	}
+
 	readonly onError: IEvent<ProjectedTerminalErrorEvent> = this.#errorEmitter.event;
 	readonly onBell: IEvent<TerminalBell> = this.#bellEmitter.event;
 	readonly onExit: IEvent<TerminalExited> = this.#exitEmitter.event;
@@ -705,6 +727,8 @@ export class ProjectedTerminal {
 	readonly onLinkOpenRequest: IEvent<ProjectedTerminalLinkOpenRequest> =
 		this.#linkOpenEmitter.event;
 	readonly onSelectionChange: IEvent<SelectionChanged> = this.#selectionEmitter.event;
+	readonly onSelectionCopyResult: IEvent<ProjectedTerminalSelectionCopyEvent> =
+		this.#selectionCopyResultEmitter.event;
 	readonly onSelectionCopied: IEvent<{
 		readonly byteLength: number;
 		readonly requestSequence: CanonicalUint64Text;
@@ -1249,19 +1273,17 @@ export class ProjectedTerminal {
 		this.#scheduleRender();
 		if (
 			selection.state === 'active' &&
-			this.#options.copyOnSelect !== false &&
+			this.#copyOnSelect &&
 			this.#phase !== ProjectedTerminalPhase.disposed &&
 			!suppressCopy &&
 			completedGesture === 'end'
 		) {
-			this.copySelection();
+			this.#requestSelectionCopy('automatic');
 		}
 	}
 
 	notifySelectionCopied(byteLength: number, requestSequence: CanonicalUint64Text): void {
-		const complete = this.#copyCompletions.get(requestSequence);
-		this.#copyCompletions.delete(requestSequence);
-		complete?.({ byteLength, kind: 'completed' });
+		this.#completeSelectionCopy(requestSequence, { byteLength, kind: 'completed' });
 		this.#selectionCopiedEmitter.fire({ byteLength, requestSequence });
 	}
 
@@ -1299,9 +1321,11 @@ export class ProjectedTerminal {
 			}
 		}
 		if (failure.requestSequence !== undefined && failure.operation === 'copy') {
-			const complete = this.#copyCompletions.get(failure.requestSequence);
-			this.#copyCompletions.delete(failure.requestSequence);
-			complete?.({ code: failure.code, kind: 'failed', retryable: failure.retryable });
+			this.#completeSelectionCopy(failure.requestSequence, {
+				code: failure.code,
+				kind: 'failed',
+				retryable: failure.retryable,
+			});
 		}
 		if (failure.requestSequence !== undefined && failure.operation === 'link') {
 			const complete = this.#linkCompletions.get(failure.requestSequence);
@@ -1361,6 +1385,10 @@ export class ProjectedTerminal {
 		this.#sendSelectionCommand('select-all');
 	}
 
+	setCopyOnSelect(enabled: boolean): void {
+		if (typeof enabled === 'boolean') this.#copyOnSelect = enabled;
+	}
+
 	getSelectionRange(): ProjectedTerminalSelectionRange | null {
 		const selection = this.#selection;
 		if (selection.state !== 'active') return null;
@@ -1408,25 +1436,12 @@ export class ProjectedTerminal {
 	}
 
 	copySelection(): CanonicalUint64Text {
-		const requestSequence = this.#nextSideEffectSequence();
-		this.#send({
-			kind: 'selection-copy',
-			payload: { attachmentId: this.#attachmentId, requestSequence },
-		});
-		return requestSequence;
+		return this.#requestSelectionCopy('manual');
 	}
 
 	copySelectionAsync(): Promise<ProjectedTerminalSideEffectResult> {
-		if (this.#copyCompletions.size > 0) {
-			return Promise.resolve({ code: 'copy-in-progress', kind: 'failed', retryable: true });
-		}
-		const requestSequence = this.#nextSideEffectSequence();
 		return new Promise((resolve) => {
-			this.#copyCompletions.set(requestSequence, resolve);
-			this.#send({
-				kind: 'selection-copy',
-				payload: { attachmentId: this.#attachmentId, requestSequence },
-			});
+			this.#requestSelectionCopy('manual', resolve);
 		});
 	}
 
@@ -1658,6 +1673,7 @@ export class ProjectedTerminal {
 		for (const complete of this.#copyCompletions.values()) complete({ kind: 'cancelled' });
 		for (const complete of this.#linkCompletions.values()) complete({ kind: 'cancelled' });
 		this.#copyCompletions.clear();
+		this.#copyRequests.clear();
 		this.#linkCompletions.clear();
 		this.#resizeObserver?.disconnect();
 		this.#resizeObserver = undefined;
@@ -1694,6 +1710,7 @@ export class ProjectedTerminal {
 		this.#linkOpenEmitter.dispose();
 		this.#metadataEmitter.dispose();
 		this.#selectionEmitter.dispose();
+		this.#selectionCopyResultEmitter.dispose();
 		this.#selectionCopiedEmitter.dispose();
 		this.#searchEmitter.dispose();
 	}
@@ -2595,13 +2612,59 @@ export class ProjectedTerminal {
 		return this.#phase === ProjectedTerminalPhase.disposed;
 	}
 
-	#send(command: ProjectedTerminalCommand): boolean {
+	#requestSelectionCopy(
+		source: ProjectedTerminalSelectionCopyEvent['source'],
+		complete?: (result: ProjectedTerminalSideEffectResult) => void,
+	): CanonicalUint64Text {
+		const requestSequence = this.#nextSideEffectSequence();
+		if (this.#copyRequests.size > 0) {
+			const result = { code: 'copy-in-progress', kind: 'failed', retryable: true } as const;
+			complete?.(result);
+			this.#selectionCopyResultEmitter.fire({ requestSequence, result, source });
+			return requestSequence;
+		}
+		this.#copyRequests.set(requestSequence, source);
+		if (complete !== undefined) this.#copyCompletions.set(requestSequence, complete);
+		this.#send(
+			{
+				kind: 'selection-copy',
+				payload: { attachmentId: this.#attachmentId, requestSequence },
+			},
+			() => {
+				this.#completeSelectionCopy(requestSequence, {
+					code: 'copy-send-failed',
+					kind: 'failed',
+					retryable: true,
+				});
+			},
+		);
+		return requestSequence;
+	}
+
+	#completeSelectionCopy(
+		requestSequence: CanonicalUint64Text,
+		result: ProjectedTerminalSelectionCopyResult,
+	): void {
+		const source = this.#copyRequests.get(requestSequence);
+		if (source === undefined) return;
+		this.#copyRequests.delete(requestSequence);
+		const complete = this.#copyCompletions.get(requestSequence);
+		this.#copyCompletions.delete(requestSequence);
+		complete?.(result);
+		this.#selectionCopyResultEmitter.fire({ requestSequence, result, source });
+	}
+
+	#send(command: ProjectedTerminalCommand, onFailure?: (error: unknown) => void): boolean {
 		try {
 			const pending = this.#options.port.send(command);
-			void pending?.catch((error) => this.#reportCommandFailure(command, error));
+			void pending?.catch((error) => {
+				this.#reportCommandFailure(command, error);
+				onFailure?.(error);
+			});
 			return true;
 		} catch (error) {
 			this.#reportCommandFailure(command, error);
+			onFailure?.(error);
 			return false;
 		}
 	}
