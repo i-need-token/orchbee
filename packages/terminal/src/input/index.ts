@@ -13,6 +13,11 @@ export {
 export { OrderedInputDispatcher } from './OrderedInputDispatcher';
 export { ghosttyCodepointWidth } from './ghosttyCodepointWidth';
 export {
+	classifySurfaceMousePlatform,
+	resolveSurfaceMouseCursor,
+	type SurfaceMouseModifiers,
+} from './surface-mouse';
+export {
 	beginTerminalComposition,
 	createTerminalInputState,
 	disposeTerminalInputState,

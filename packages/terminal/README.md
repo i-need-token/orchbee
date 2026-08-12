@@ -84,6 +84,25 @@ focus-out retains known Host ownership for a later repair attempt. A returned pr
 reject diagnostically, but synchronous return records local transport acceptance and makes no claim
 about remote delivery.
 
+Each physical pointer button snapshots its owner when pressed: current Host-projected mouse
+tracking owns the button unless Shift is held, and otherwise terminal selection or link interaction
+retains it. Later modifier and projected-mode changes cannot transfer an application-owned press.
+Application-owned presses capture their pointer, derive drag state only from the application-owned
+button ledger, and release outside the canvas normally. A buttonless move, pointer cancellation, or
+lost capture queues one semantic release for every admitted or Host-published application button
+before clearing capture, so later lifecycle repair cannot duplicate the release. While any mouse
+tracking mode is projected, local link lookup and activation require Shift; activation rechecks that
+gate at click time, and a completed application-owned primary press cannot activate a stale link.
+Wheel ownership remains a stateless decision for each wheel event.
+
+The canvas pointer uses the same ownership policy rather than independent link-only styling. A
+fixed application-owned gesture and unmodified projected mouse tracking use the default pointer;
+terminal selection uses the text pointer; rectangular selection uses a crosshair with Option on
+Apple browser platforms or Alt plus Control/Meta elsewhere; and an enabled, permitted link uses the
+pointer cursor only while terminal interaction owns the pointer. Projected mode commits, modifier
+changes, gesture transitions, and link presentation all re-evaluate this policy, so clearing a link
+restores the derived base pointer instead of an empty CSS override.
+
 Browser key normalization maps legacy `OSLeft`/`OSRight` codes to Ghostty's
 `MetaLeft`/`MetaRight`, recognizes complete W3C key strings instead of measuring UTF-16 code units,
 and records consumed modifiers only when the event carries printable text and only as a subset of
@@ -92,6 +111,14 @@ modifier, and consumed-modifier fields come from the current `keyup` after remov
 right-side modifier from browser-owned tracking. A `keyup` that reenters a synchronous input
 publication is deferred until the owning press outcome is known, or is subsumed by a concurrent
 lifecycle repair, so it cannot leave a published press without its release.
+
+Shift-only Page Up and Page Down, including their keypad codes, remain local retained-history
+navigation and never become Host key input. Every admitted user-input path shares one ordered
+surface transition: it first requests the live bottom when history is visible, then clears an active
+Host selection, and only then publishes the semantic key, text, approved paste, or application-mouse
+input. Composition activation performs the same transition before presenting preedit. Focus reports,
+lifecycle and pointer-gesture repair, rejected or aborted paste review, and local history navigation
+preserve the current history and selection surface.
 
 Cleanup releases only published ownership: a queued release cannot hide a Host-visible press, while
 a queued or failed press cannot produce an orphan release. Blur and visibility loss release
@@ -210,7 +237,7 @@ terminal.updateSearch('failed', { caseSensitive: false, wholeWord: true });
 terminal.findNext();
 ```
 
-Selection endpoints and exported content remain authoritative in Terminal Host. Pointer drags use gesture messages; a plain click does not synthesize a one-cell selection. Dragging beyond the viewport advances retained history through bounded row-window requests and continues the same Host gesture at the newly exposed row. A modifier-assisted triple click requests Ghostty's semantic command-output selection. Completed pointer and semantic-output selections request copy by default; set `copyOnSelect: false` to opt out. Assistive-technology DOM ranges use one explicit cell-range command, with UTF-16 offsets mapped across combining, wide, and surrogate-pair graphemes. Host selection is mirrored back into the visible-viewport accessibility tree when both endpoints are visible. Read-only attachments retain local focus, scrolling, and selection behavior without emitting PTY input. The application performs the clipboard side effect and reports only its outcome.
+Selection endpoints and exported content remain authoritative in Terminal Host. Pointer drags use gesture messages; a plain click does not synthesize a one-cell selection. Dragging beyond the viewport advances retained history through bounded row-window requests and continues the same Host gesture at the newly exposed row. A modifier-assisted triple click requests Ghostty's semantic command-output selection. Completed pointer and semantic-output selections request copy by default; set `copyOnSelect: false` to opt out. Assistive-technology DOM ranges use one explicit cell-range command, with UTF-16 offsets mapped across combining, wide, and surrogate-pair graphemes. Host selection is mirrored back into the visible-viewport accessibility tree when both endpoints are visible. An attachment constructed with `inputEnabled: false` keeps its hidden textarea focusable but natively read-only. Shift-only page navigation, wheel history, and local selection remain available without Host input capability; defensive `beforeinput`, composition, and paste listeners own rejected browser editing and clear any residual textarea or preedit state without emitting PTY input. Input capability is fixed for the projected-terminal instance; live capability mutation is not supported. The application performs the clipboard side effect and reports only its outcome.
 
 ```ts
 terminal.selectAll();

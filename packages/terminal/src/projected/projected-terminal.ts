@@ -59,6 +59,7 @@ import {
 	beginTerminalComposition,
 	buildPreeditState,
 	calculateInputAnchor,
+	classifySurfaceMousePlatform,
 	createTerminalInputState,
 	disposeTerminalInputState,
 	finishTerminalComposition,
@@ -70,12 +71,14 @@ import {
 	recordTerminalMouseSample,
 	recordTerminalPaste,
 	repairTerminalInputState,
+	resolveSurfaceMouseCursor,
 	supersedeCancelledTerminalComposition,
 	TerminalBeforeInputOrigin,
 	shouldSuppressComposingControlInput,
 	TerminalCompositionPhase,
 	terminalCompositionUpdateIsEligible,
 	type PreeditState,
+	type SurfaceMouseModifiers,
 	type TerminalInputState,
 } from '../input';
 import {
@@ -432,7 +435,11 @@ interface HistoryScrollbarGesture {
 	readonly pointerId: number;
 }
 
-interface HistoryScrollbarClickSuppression {
+interface ApplicationMouseGesture {
+	readonly pointerId: number;
+}
+
+interface PointerClickSuppression {
 	readonly clientX: number;
 	readonly clientY: number;
 }
@@ -513,6 +520,9 @@ export class ProjectedTerminal {
 	#accessibilityPreviousRows: readonly string[] = [];
 	#accessibilityRoot: HTMLDivElement | undefined;
 	#accessibilityVisibleStart = 0n;
+	#applicationMouseClickSuppression: PointerClickSuppression | undefined;
+	#applicationMouseClickSuppressionTimer: ReturnType<typeof setTimeout> | undefined;
+	#applicationMouseGesture: ApplicationMouseGesture | undefined;
 	#canvas: HTMLCanvasElement | undefined;
 	#demand: ProjectionDemand = 'active';
 	#demandSent: ProjectionDemand | undefined;
@@ -523,7 +533,7 @@ export class ProjectedTerminal {
 	#historyGeneration = 1n;
 	#historyPhase: ProjectedHistoryPhase = ProjectedHistoryPhase.followingBottom;
 	#historyRevision = 0n;
-	#historyScrollbarClickSuppression: HistoryScrollbarClickSuppression | undefined;
+	#historyScrollbarClickSuppression: PointerClickSuppression | undefined;
 	#historyScrollbarClickSuppressionTimer: ReturnType<typeof setTimeout> | undefined;
 	#historyScrollbarFadeTimer: ReturnType<typeof setTimeout> | undefined;
 	#historyScrollbarGesture: HistoryScrollbarGesture | undefined;
@@ -592,6 +602,15 @@ export class ProjectedTerminal {
 	#suppressNextSelectionCopy = false;
 	#searchController: ProjectedSearchController | undefined;
 	#sideEffectSequence = 1n;
+	#surfaceMouseModifiers: SurfaceMouseModifiers = {
+		alt: false,
+		control: false,
+		meta: false,
+		shift: false,
+	};
+	readonly #surfaceMousePlatform = classifySurfaceMousePlatform(
+		globalThis.navigator?.platform ?? '',
+	);
 	#synchronizingAccessibilitySelection = false;
 
 	constructor(options: ProjectedTerminalOptions) {
@@ -688,6 +707,7 @@ export class ProjectedTerminal {
 			input.setAttribute('autocomplete', 'off');
 			input.setAttribute('autocorrect', 'off');
 			input.setAttribute('spellcheck', 'false');
+			if (this.#options.inputEnabled === false) input.setAttribute('readonly', '');
 			input.style.position = 'absolute';
 			input.style.width = '1px';
 			input.style.height = '1px';
@@ -766,6 +786,7 @@ export class ProjectedTerminal {
 			this.#installDevicePixelRatioListeners(view);
 			this.#installResizeObserver(root);
 			this.#phase = ProjectedTerminalPhase.open;
+			this.#updateSurfaceMouseCursor();
 			this.#syncRendererSuspension();
 			this.#sendResizeIfChanged();
 			this.#sendDemandIfNeeded();
@@ -881,6 +902,7 @@ export class ProjectedTerminal {
 					this.#updateAccessibility(metadata);
 				}
 				this.#syncPreeditPresentation();
+				this.#updateSurfaceMouseCursor();
 			}
 			if (this.#historyPhase === ProjectedHistoryPhase.followingBottom && !this.#scheduleRender()) {
 				this.#errorEmitter.fire({
@@ -1411,7 +1433,7 @@ export class ProjectedTerminal {
 		if (signal.aborted || !this.#canAdmitInput()) {
 			return { kind: 'blocked', review };
 		}
-		this.#publishCurrentInputCommand(
+		const sent = this.#publishCurrentInputCommand(
 			{
 				kind: 'paste-input',
 				payload: {
@@ -1422,7 +1444,7 @@ export class ProjectedTerminal {
 			},
 			ProjectedInputPublicationIntent.stateless,
 		);
-		return { kind: 'sent', review };
+		return sent ? { kind: 'sent', review } : { kind: 'blocked', review };
 	}
 
 	#preparePaste(text: string, source: ProjectedPasteSource): PreparedPaste | undefined {
@@ -1545,6 +1567,7 @@ export class ProjectedTerminal {
 		}
 		this.#cancelScheduledFrame();
 		this.#cancelScheduledSelectionGesture();
+		this.#clearApplicationMouseClickSuppression();
 		this.#clearHistoryScrollbarClickSuppression();
 		this.#cancelHistoryScrollbarFade();
 		this.#pendingHistoryDelta = 0;
@@ -1722,6 +1745,36 @@ export class ProjectedTerminal {
 		if (this.#historyScrollbarFadeTimer === undefined) return;
 		globalThis.clearTimeout(this.#historyScrollbarFadeTimer);
 		this.#historyScrollbarFadeTimer = undefined;
+	}
+
+	#armApplicationMouseClickSuppression(event: PointerEvent): void {
+		this.#clearApplicationMouseClickSuppression();
+		this.#applicationMouseClickSuppression = {
+			clientX: event.clientX,
+			clientY: event.clientY,
+		};
+		this.#applicationMouseClickSuppressionTimer = globalThis.setTimeout(() => {
+			this.#applicationMouseClickSuppression = undefined;
+			this.#applicationMouseClickSuppressionTimer = undefined;
+		}, 0);
+	}
+
+	#clearApplicationMouseClickSuppression(): void {
+		this.#applicationMouseClickSuppression = undefined;
+		if (this.#applicationMouseClickSuppressionTimer === undefined) return;
+		globalThis.clearTimeout(this.#applicationMouseClickSuppressionTimer);
+		this.#applicationMouseClickSuppressionTimer = undefined;
+	}
+
+	#consumeApplicationMouseClickSuppression(event: MouseEvent): boolean {
+		const suppression = this.#applicationMouseClickSuppression;
+		this.#clearApplicationMouseClickSuppression();
+		return (
+			suppression !== undefined &&
+			event.button === 0 &&
+			event.clientX === suppression.clientX &&
+			event.clientY === suppression.clientY
+		);
 	}
 
 	#armHistoryScrollbarClickSuppression(event: PointerEvent): void {
@@ -2105,13 +2158,71 @@ export class ProjectedTerminal {
 		}
 	}
 
+	#surfaceApplicationMouseOwned(): boolean {
+		if (this.#applicationMouseGesture !== undefined) return true;
+		return (
+			!this.#selectionGestureActive &&
+			!this.#surfaceMouseModifiers.shift &&
+			this.#applicationMouseTrackingOwnsSurface()
+		);
+	}
+
+	#surfaceSelectionOwned(): boolean {
+		if (this.#selectionGestureActive) return true;
+		if (this.#applicationMouseGesture !== undefined) return false;
+		return this.#surfaceMouseModifiers.shift || !this.#applicationMouseTrackingOwnsSurface();
+	}
+
+	#hoveredLinkIsActive(): boolean {
+		const link = this.#hoveredLink;
+		const point = this.#hoveredLinkPoint;
+		return (
+			this.#surfaceSelectionOwned() &&
+			link !== undefined &&
+			point !== undefined &&
+			(this.#surfaceMouseModifiers.control || this.#surfaceMouseModifiers.meta) &&
+			isPermittedExternalTerminalTarget(link)
+		);
+	}
+
+	#setSurfaceMouseModifiers(
+		event: Pick<MouseEvent, 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>,
+	): void {
+		this.#surfaceMouseModifiers = {
+			alt: event.altKey,
+			control: event.ctrlKey,
+			meta: event.metaKey,
+			shift: event.shiftKey,
+		};
+		this.#updateSurfaceMouseCursor();
+	}
+
+	#resetSurfaceMouseModifiers(): void {
+		this.#surfaceMouseModifiers = {
+			alt: false,
+			control: false,
+			meta: false,
+			shift: false,
+		};
+		this.#updateSurfaceMouseCursor();
+	}
+
+	#updateSurfaceMouseCursor(): void {
+		const canvas = this.#canvas;
+		if (canvas === undefined) return;
+		canvas.style.cursor = resolveSurfaceMouseCursor({
+			applicationMouseOwned: this.#surfaceApplicationMouseOwned(),
+			linkActive: this.#hoveredLinkIsActive(),
+			modifiers: this.#surfaceMouseModifiers,
+			platform: this.#surfaceMousePlatform,
+			selectionOwned: this.#surfaceSelectionOwned(),
+		});
+	}
+
 	#presentHoveredLink(link: ILink | undefined, point: PendingLinkPoint): void {
 		this.#hoveredLink = link;
 		this.#hoveredLinkPoint = point;
-		const enabled =
-			link !== undefined &&
-			(point.control || point.meta) &&
-			isPermittedExternalTerminalTarget(link);
+		const enabled = this.#hoveredLinkIsActive();
 		const metadata = this.metadata;
 		const renderer = this.#renderer;
 		if (metadata !== null && renderer !== undefined) {
@@ -2130,7 +2241,7 @@ export class ProjectedTerminal {
 					: null,
 			);
 		}
-		if (this.#canvas !== undefined) this.#canvas.style.cursor = enabled ? 'pointer' : '';
+		this.#updateSurfaceMouseCursor();
 	}
 
 	#clearHoveredLink(): void {
@@ -2140,7 +2251,7 @@ export class ProjectedTerminal {
 		this.#hoveredLink = undefined;
 		this.#hoveredLinkPoint = undefined;
 		this.#renderer?.setHoveredLinkRange(null);
-		if (this.#canvas !== undefined) this.#canvas.style.cursor = '';
+		this.#updateSurfaceMouseCursor();
 	}
 
 	#invalidateLinkCache(): void {
@@ -2374,12 +2485,15 @@ export class ProjectedTerminal {
 		command: ProjectedTerminalCommand,
 		intent: ProjectedInputPublicationIntent,
 		onRejected?: () => void,
+		preserveSurfaceState = false,
 	): void {
 		if (!this.#canAdmitInput()) return;
 		this.#inputDispatcher.dispatchSync(() => {
 			if (!this.#canAdmitInput()) return;
 			try {
-				if (!this.#publishCurrentInputCommand(command, intent)) onRejected?.();
+				if (!this.#publishCurrentInputCommand(command, intent, preserveSurfaceState)) {
+					onRejected?.();
+				}
 			} finally {
 				this.#drainDeferredKeyReleases();
 			}
@@ -2389,8 +2503,16 @@ export class ProjectedTerminal {
 	#publishCurrentInputCommand(
 		command: ProjectedTerminalCommand,
 		intent: ProjectedInputPublicationIntent,
+		preserveSurfaceState = false,
 	): boolean {
 		if (!this.#canAdmitInput()) return false;
+		const inputOperationEpoch = this.#inputRepairEpoch;
+		if (
+			!preserveSurfaceState &&
+			!this.#transitionSurfaceBeforeInput(() => this.#inputOperationIsCurrent(inputOperationEpoch))
+		) {
+			return false;
+		}
 		if (
 			command.kind !== 'focus-input' &&
 			this.#inputFocused &&
@@ -2405,8 +2527,16 @@ export class ProjectedTerminal {
 		) {
 			return false;
 		}
-		if (!this.#canAdmitInput()) return false;
+		if (!this.#inputOperationIsCurrent(inputOperationEpoch)) return false;
 		return this.#publishInputCommand(command, intent);
+	}
+
+	#transitionSurfaceBeforeInput(isCurrent: () => boolean): boolean {
+		if (!isCurrent()) return false;
+		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) this.scrollToBottom();
+		if (!isCurrent()) return false;
+		if (this.#selection.state !== 'none') this.clearSelection();
+		return isCurrent();
 	}
 
 	#publishInputCommand(
@@ -2498,14 +2628,14 @@ export class ProjectedTerminal {
 		canvas: HTMLCanvasElement,
 		input: HTMLTextAreaElement,
 	): void {
+		this.#listen(input, 'keydown', this.#handleKeyDown);
+		this.#listen(input, 'keyup', this.#handleKeyUp);
+		this.#listen(input, 'beforeinput', this.#handleBeforeInput);
+		this.#listen(input, 'compositionstart', this.#handleCompositionStart);
+		this.#listen(input, 'compositionupdate', this.#handleCompositionUpdate);
+		this.#listen(input, 'compositionend', this.#handleCompositionEnd);
+		this.#listen(input, 'paste', this.#handlePaste);
 		if (this.#options.inputEnabled !== false) {
-			this.#listen(input, 'keydown', this.#handleKeyDown);
-			this.#listen(input, 'keyup', this.#handleKeyUp);
-			this.#listen(input, 'beforeinput', this.#handleBeforeInput);
-			this.#listen(input, 'compositionstart', this.#handleCompositionStart);
-			this.#listen(input, 'compositionupdate', this.#handleCompositionUpdate);
-			this.#listen(input, 'compositionend', this.#handleCompositionEnd);
-			this.#listen(input, 'paste', this.#handlePaste);
 			this.#listen(root, 'dragover', this.#handleDragOver);
 			this.#listen(root, 'drop', this.#handleDrop);
 		}
@@ -2542,11 +2672,18 @@ export class ProjectedTerminal {
 	}
 
 	readonly #handleKeyDown = (event: KeyboardEvent): void => {
-		if (!this.#canAdmitInput()) return;
-		const inputOperationEpoch = this.#inputRepairEpoch;
+		if (!this.#inputAdmissionIsOpen()) return;
+		if (this.#options.inputEnabled !== false && !this.#canAdmitInput()) return;
 		const trackedCode = normalizedKeyboardCode(event.code);
 		this.#trackModifier(event.code, true);
 		this.#refreshHoveredLinkModifiers(event);
+		if (this.#options.inputEnabled === false) {
+			if (!event.isComposing && event.keyCode !== 229) {
+				this.#handleLocalHistoryKey(event, trackedCode);
+			}
+			return;
+		}
+		const inputOperationEpoch = this.#inputRepairEpoch;
 		if (!event.isComposing && event.keyCode !== 229) {
 			this.#inputState = supersedeCancelledTerminalComposition(this.#inputState);
 		}
@@ -2557,22 +2694,10 @@ export class ProjectedTerminal {
 		) {
 			return;
 		}
-		if (
-			event.shiftKey &&
-			!event.altKey &&
-			!event.ctrlKey &&
-			!event.metaKey &&
-			(event.code === 'PageUp' || event.code === 'PageDown')
-		) {
-			this.scrollPages(event.code === 'PageUp' ? -1 : 1);
-			event.preventDefault();
-			event.stopPropagation();
-			return;
-		}
+		if (this.#handleLocalHistoryKey(event, trackedCode)) return;
 		if ((event.ctrlKey || event.metaKey) && event.code === 'KeyV') return;
 		const facts = this.#keyFacts(event);
 		if (!facts) return;
-		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) this.scrollToBottom();
 		if (!this.#inputOperationIsCurrent(inputOperationEpoch)) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -2606,7 +2731,7 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleKeyUp = (event: KeyboardEvent): void => {
-		if (!this.#inputAdmissionIsOpen() || this.#options.inputEnabled === false) return;
+		if (!this.#inputAdmissionIsOpen()) return;
 		const trackedCode = normalizedKeyboardCode(event.code);
 		const pressedFacts = this.#pressedKeys.get(trackedCode);
 		const eventKey = terminalKeyCode(trackedCode, keyboardKeyText(event.key));
@@ -2615,6 +2740,7 @@ export class ProjectedTerminal {
 		this.#pressedKeys.delete(trackedCode);
 		this.#trackModifier(event.code, false);
 		this.#refreshHoveredLinkModifiers(event);
+		if (this.#options.inputEnabled === false) return;
 		if (ownedFacts) {
 			const eventFacts = this.#keyFacts(event);
 			const facts: KeyFacts =
@@ -2631,6 +2757,20 @@ export class ProjectedTerminal {
 			event.stopPropagation();
 		}
 	};
+
+	#handleLocalHistoryKey(event: KeyboardEvent, code: string): boolean {
+		if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return false;
+		if (code === 'PageUp' || code === 'NumpadPageUp') {
+			this.scrollPages(-1);
+		} else if (code === 'PageDown' || code === 'NumpadPageDown') {
+			this.scrollPages(1);
+		} else {
+			return false;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		return true;
+	}
 
 	#publishOrDeferKeyRelease(facts: KeyFacts): void {
 		if (this.#inputPublicationActive) {
@@ -2717,6 +2857,7 @@ export class ProjectedTerminal {
 	}
 
 	#refreshHoveredLinkModifiers(event: KeyboardEvent): void {
+		this.#setSurfaceMouseModifiers(event);
 		const point = this.#hoveredLinkPoint;
 		if (point === undefined) return;
 		this.#presentHoveredLink(this.#hoveredLink, {
@@ -2727,6 +2868,7 @@ export class ProjectedTerminal {
 	}
 
 	readonly #handleBeforeInput = (event: InputEvent): void => {
+		if (this.#repairReadOnlyInputEvent(event)) return;
 		if (!this.#canAdmitInput()) return;
 		const data = event.data ?? '';
 		const origin = isCompositionBeforeInput(event)
@@ -2840,19 +2982,24 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleCompositionStart = (event: CompositionEvent): void => {
+		if (this.#repairReadOnlyInputEvent(event)) return;
 		if (!this.#canAdmitInput() && !this.#canStageRefocusedComposition()) return;
 		const inputOperationEpoch = this.#inputRepairEpoch;
 		const nextState = beginTerminalComposition(this.#inputState);
 		if (nextState === this.#inputState) return;
 		this.#inputState = nextState;
-		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) this.scrollToBottom();
-		if (!this.#compositionOperationIsCurrent(inputOperationEpoch)) return;
-		if (this.#selection.state !== 'none') this.clearSelection();
-		if (!this.#compositionOperationIsCurrent(inputOperationEpoch)) return;
+		if (
+			!this.#transitionSurfaceBeforeInput(() =>
+				this.#compositionOperationIsCurrent(inputOperationEpoch),
+			)
+		) {
+			return;
+		}
 		this.#updatePreedit(event.data ?? '');
 	};
 
 	readonly #handleCompositionUpdate = (event: CompositionEvent): void => {
+		if (this.#repairReadOnlyInputEvent(event)) return;
 		if (!this.#canAdmitInput() && !this.#canStageRefocusedComposition()) return;
 		if (!terminalCompositionUpdateIsEligible(this.#inputState)) {
 			if (this.#inputState.compositionPhase === TerminalCompositionPhase.cancelledAwaitingEnd) {
@@ -2864,6 +3011,7 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleCompositionEnd = (event: CompositionEvent): void => {
+		if (this.#repairReadOnlyInputEvent(event)) return;
 		if (!this.#canAdmitInput()) return;
 		const wasComposing = terminalCompositionUpdateIsEligible(this.#inputState);
 		const data = event.data ?? '';
@@ -2880,6 +3028,15 @@ export class ProjectedTerminal {
 			this.#sendText(data);
 		}
 	};
+
+	#repairReadOnlyInputEvent(event: Event): boolean {
+		if (this.#options.inputEnabled !== false) return false;
+		event.preventDefault();
+		event.stopPropagation();
+		this.#inputState = repairTerminalInputState(this.#inputState).state;
+		this.#clearCompositionPresentation();
+		return true;
+	}
 
 	#clearCompositionPresentation(): void {
 		this.#preeditState = undefined;
@@ -3015,6 +3172,7 @@ export class ProjectedTerminal {
 	}
 
 	readonly #handlePaste = (event: ClipboardEvent): void => {
+		if (this.#repairReadOnlyInputEvent(event)) return;
 		if (!this.#canAdmitInput()) return;
 		event.preventDefault();
 		event.stopPropagation();
@@ -3085,6 +3243,8 @@ export class ProjectedTerminal {
 				payload: { attachmentId: this.#attachmentId, focused: true },
 			},
 			ProjectedInputPublicationIntent.held,
+			undefined,
+			true,
 		);
 	};
 
@@ -3223,8 +3383,11 @@ export class ProjectedTerminal {
 		}
 		this.#deferredKeyReleases.clear();
 		this.#pressedKeys.clear();
+		this.#finishApplicationMouseGesture(true);
 		this.#pressedMouseButtons.clear();
 		this.#pressedModifierCodes.clear();
+		this.#resetSurfaceMouseModifiers();
+		this.#clearApplicationMouseClickSuppression();
 		if (!focusLoss) return;
 		this.#inputFocused = false;
 		this.#inputRefocusAfterRepair = false;
@@ -3305,6 +3468,8 @@ export class ProjectedTerminal {
 								payload: { attachmentId: this.#attachmentId, focused: true },
 							},
 							ProjectedInputPublicationIntent.held,
+							undefined,
+							true,
 						);
 					}
 				}
@@ -3343,9 +3508,12 @@ export class ProjectedTerminal {
 		];
 		this.#deferredKeyReleases.clear();
 		this.#pressedKeys.clear();
+		this.#finishApplicationMouseGesture(true);
 		this.#pressedMouseButtons.clear();
 		this.#inputFocused = false;
 		this.#pressedModifierCodes.clear();
+		this.#resetSurfaceMouseModifiers();
+		this.#clearApplicationMouseClickSuppression();
 		this.#clearHistoryScrollbarClickSuppression();
 		this.#finishHistoryScrollbarGesture(true, !dispose);
 		this.#finishSelectionGesture(true);
@@ -3422,10 +3590,7 @@ export class ProjectedTerminal {
 		const last = this.#publishedMouseSample;
 		if (last === undefined) return [];
 		const commands: ProjectedTerminalCommand[] = [];
-		let pressedButtons = 0;
-		for (const button of this.#publishedMouseButtons) {
-			pressedButtons |= 1 << (button - 1);
-		}
+		let pressedButtons = mouseButtonSetMask(this.#publishedMouseButtons);
 		for (const button of this.#publishedMouseButtons) {
 			pressedButtons &= ~(1 << (button - 1));
 			commands.push({
@@ -3439,6 +3604,65 @@ export class ProjectedTerminal {
 			});
 		}
 		return commands;
+	}
+
+	#startApplicationMouseGesture(event: PointerEvent): boolean {
+		const gesture = this.#applicationMouseGesture;
+		if (gesture !== undefined) return gesture.pointerId === event.pointerId;
+		const canvas = this.#canvas;
+		if (canvas === undefined) return false;
+		this.#applicationMouseGesture = { pointerId: event.pointerId };
+		this.#updateSurfaceMouseCursor();
+		try {
+			canvas.setPointerCapture(event.pointerId);
+		} catch {
+			// Focus and visibility repair still release Host-published mouse ownership.
+		}
+		return true;
+	}
+
+	#finishApplicationMouseGesture(releaseCapture: boolean): void {
+		const gesture = this.#applicationMouseGesture;
+		if (gesture === undefined) return;
+		this.#applicationMouseGesture = undefined;
+		this.#updateSurfaceMouseCursor();
+		if (!releaseCapture) return;
+		try {
+			this.#canvas?.releasePointerCapture(gesture.pointerId);
+		} catch {
+			// Browsers may release capture before the terminal repairs the gesture.
+		}
+	}
+
+	#applicationMouseGestureMatches(event: PointerEvent): boolean {
+		const gesture = this.#applicationMouseGesture;
+		return gesture !== undefined && gesture.pointerId === event.pointerId;
+	}
+
+	#repairApplicationMouseGesture(event: PointerEvent, releaseCapture: boolean): boolean {
+		if (!this.#applicationMouseGestureMatches(event)) return false;
+		const buttons = new Set([...this.#pressedMouseButtons, ...this.#publishedMouseButtons]);
+		let pressedButtons = mouseButtonSetMask(buttons);
+		const commands: ProjectedTerminalCommand[] = [];
+		for (const button of buttons) {
+			pressedButtons &= ~(1 << (button - 1));
+			const payload =
+				this.#mousePayload(event, MouseAction.release, button, pressedButtons) ??
+				mouseReleasePayload(
+					this.#inputState.mouse ?? this.#publishedMouseSample,
+					button,
+					pressedButtons,
+				);
+			if (payload !== null) commands.push({ kind: 'mouse-input', payload });
+		}
+		this.#pressedMouseButtons.clear();
+		this.#inputState = recordTerminalMouseSample(this.#inputState, undefined);
+		this.#finishApplicationMouseGesture(releaseCapture);
+		this.#clearApplicationMouseClickSuppression();
+		for (const command of commands) {
+			this.#sendInput(command, ProjectedInputPublicationIntent.held, undefined, true);
+		}
+		return true;
 	}
 
 	#startHistoryScrollbarGesture(event: PointerEvent): boolean {
@@ -3488,7 +3712,9 @@ export class ProjectedTerminal {
 
 	readonly #handlePointerDown = (event: PointerEvent): void => {
 		if (!this.#inputAdmissionIsOpen()) return;
+		this.#setSurfaceMouseModifiers(event);
 		const inputOperationEpoch = this.#inputRepairEpoch;
+		this.#clearApplicationMouseClickSuppression();
 		this.#clearHistoryScrollbarClickSuppression();
 		if (this.#historyScrollbarGesture !== undefined) {
 			this.#clearHoveredLink();
@@ -3501,12 +3727,23 @@ export class ProjectedTerminal {
 			return;
 		}
 		if (this.#startHistoryScrollbarGesture(event)) return;
-		if (this.#mouseOwned('press', event.buttons, event.shiftKey)) {
+		if (this.#applicationMousePressOwned(event.shiftKey)) {
+			this.#clearHoveredLink();
+			const button = domMouseButton(event.button);
+			if (button === null || !this.#canAdmitInput() || !this.#startApplicationMouseGesture(event)) {
+				event.preventDefault();
+				return;
+			}
 			this.#sendMouse(
 				event,
 				MouseAction.press,
-				domMouseButton(event.button),
+				button,
 				ProjectedInputPublicationIntent.held,
+				() => {
+					if (this.#pressedMouseButtons.size === 0 && this.#publishedMouseButtons.size === 0) {
+						this.#finishApplicationMouseGesture(true);
+					}
+				},
 			);
 			event.preventDefault();
 			return;
@@ -3545,6 +3782,7 @@ export class ProjectedTerminal {
 			clientY: event.clientY,
 			rectangle: event.altKey,
 		};
+		this.#updateSurfaceMouseCursor();
 		try {
 			this.#canvas?.setPointerCapture(event.pointerId);
 		} catch {
@@ -3559,6 +3797,7 @@ export class ProjectedTerminal {
 
 	readonly #handlePointerUp = (event: PointerEvent): void => {
 		if (!this.#inputAdmissionIsOpen()) return;
+		this.#setSurfaceMouseModifiers(event);
 		const scrollbarGesture = this.#historyScrollbarGesture;
 		if (scrollbarGesture !== undefined) {
 			this.#clearHoveredLink();
@@ -3587,18 +3826,29 @@ export class ProjectedTerminal {
 			event.preventDefault();
 			return;
 		}
-		if (!this.#mouseOwned('release', event.buttons, event.shiftKey)) return;
-		this.#sendMouse(
-			event,
-			MouseAction.release,
-			domMouseButton(event.button),
-			ProjectedInputPublicationIntent.held,
-		);
+		const button = domMouseButton(event.button);
+		if (
+			button === null ||
+			!this.#applicationMouseGestureMatches(event) ||
+			!this.#pressedMouseButtons.has(button)
+		) {
+			return;
+		}
+		const inputOperationEpoch = this.#inputRepairEpoch;
+		if (button === MouseButton.left) this.#armApplicationMouseClickSuppression(event);
+		this.#sendMouse(event, MouseAction.release, button, ProjectedInputPublicationIntent.held);
+		if (
+			this.#inputOperationIsCurrent(inputOperationEpoch) &&
+			this.#pressedMouseButtons.size === 0
+		) {
+			this.#finishApplicationMouseGesture(true);
+		}
 		event.preventDefault();
 	};
 
 	readonly #handlePointerMove = (event: PointerEvent): void => {
 		if (!this.#inputAdmissionIsOpen()) return;
+		this.#setSurfaceMouseModifiers(event);
 		const scrollbarGesture = this.#historyScrollbarGesture;
 		if (scrollbarGesture !== undefined) {
 			this.#clearHoveredLink();
@@ -3647,10 +3897,29 @@ export class ProjectedTerminal {
 			event.preventDefault();
 			return;
 		}
-		if (this.#mouseOwned('motion', event.buttons, event.shiftKey)) {
+		if (event.buttons === 0 && this.#repairApplicationMouseGesture(event, true)) {
+			this.#clearHoveredLink();
+			event.preventDefault();
+			return;
+		}
+		if (this.#applicationMouseGestureMatches(event) && this.#pressedMouseButtons.size !== 0) {
 			this.#clearHoveredLink();
 			this.#sendMouse(event, MouseAction.motion, null, ProjectedInputPublicationIntent.held);
 			event.preventDefault();
+			return;
+		}
+		if (event.buttons === 0 && this.#applicationMouseHoverOwned(event.shiftKey)) {
+			this.#clearHoveredLink();
+			this.#sendMouse(event, MouseAction.motion, null, ProjectedInputPublicationIntent.held);
+			event.preventDefault();
+			return;
+		}
+		if (this.#applicationMouseTrackingOwnsSurface() && !event.shiftKey) {
+			this.#clearHoveredLink();
+			return;
+		}
+		if (event.buttons !== 0) {
+			this.#clearHoveredLink();
 			return;
 		}
 		const point = this.#selectionPoint(event);
@@ -3667,6 +3936,7 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handlePointerLeave = (event: PointerEvent): void => {
+		this.#setSurfaceMouseModifiers(event);
 		this.#clearHoveredLink();
 		if (this.#historyScrollbarGesture !== undefined) this.#ownHistoryScrollbarEvent(event);
 	};
@@ -3680,6 +3950,11 @@ export class ProjectedTerminal {
 				this.#finishHistoryScrollbarGesture(true);
 			}
 			this.#ownHistoryScrollbarEvent(event);
+			return;
+		}
+		if (this.#repairApplicationMouseGesture(event, true)) {
+			this.#clearHoveredLink();
+			event.preventDefault();
 			return;
 		}
 		if (this.#selectionGesturePointerId !== event.pointerId) return;
@@ -3698,6 +3973,10 @@ export class ProjectedTerminal {
 			this.#ownHistoryScrollbarEvent(event);
 			return;
 		}
+		if (this.#repairApplicationMouseGesture(event, false)) {
+			this.#clearHoveredLink();
+			return;
+		}
 		if (this.#selectionGesturePointerId !== event.pointerId) return;
 		this.#finishSelectionGesture(false);
 	};
@@ -3711,6 +3990,7 @@ export class ProjectedTerminal {
 		this.#selectionGestureLast = undefined;
 		this.#selectionGesturePointerId = undefined;
 		this.#stopSelectionAutoscroll();
+		this.#updateSurfaceMouseCursor();
 		if (gesture !== undefined) this.#queueSelectionGesture({ action: 'end', ...gesture });
 		if (!releaseCapture || pointerId === undefined) return;
 		try {
@@ -3731,6 +4011,7 @@ export class ProjectedTerminal {
 		this.#suppressNextSelectionCopy = true;
 		this.#cancelScheduledSelectionGesture();
 		this.#stopSelectionAutoscroll();
+		this.#updateSurfaceMouseCursor();
 		if (pointerId === undefined) return;
 		try {
 			canvas?.releasePointerCapture(pointerId);
@@ -3752,9 +4033,17 @@ export class ProjectedTerminal {
 
 	readonly #handleClick = (event: MouseEvent): void => {
 		if (!this.#inputAdmissionIsOpen()) return;
+		this.#setSurfaceMouseModifiers(event);
 		if (this.#consumeHistoryScrollbarClickSuppression(event)) {
 			this.#clearHoveredLink();
 			this.#ownHistoryScrollbarEvent(event);
+			return;
+		}
+		if (
+			this.#consumeApplicationMouseClickSuppression(event) ||
+			(this.#applicationMouseTrackingOwnsSurface() && !event.shiftKey)
+		) {
+			this.#clearHoveredLink();
 			return;
 		}
 		if (!event.ctrlKey && !event.metaKey) return;
@@ -3775,6 +4064,7 @@ export class ProjectedTerminal {
 
 	readonly #handleWheel = (event: WheelEvent): void => {
 		if (!this.#inputAdmissionIsOpen()) return;
+		this.#setSurfaceMouseModifiers(event);
 		if (this.#historyScrollbarGesture !== undefined) {
 			this.#clearHoveredLink();
 			this.#ownHistoryScrollbarEvent(event);
@@ -3782,7 +4072,7 @@ export class ProjectedTerminal {
 		}
 		this.#clearHistoryScrollbarClickSuppression();
 		if (event.deltaY === 0) return;
-		if (this.#mouseOwned('press', event.buttons, event.shiftKey)) {
+		if (this.#applicationMousePressOwned(event.shiftKey)) {
 			this.#sendMouse(
 				event,
 				MouseAction.press,
@@ -3797,14 +4087,10 @@ export class ProjectedTerminal {
 		event.preventDefault();
 	};
 
-	#mouseOwned(action: MouseInput['action'], buttons = 0, shift = false): boolean {
-		if (this.#options.inputEnabled === false || shift) return false;
+	#applicationMouseTrackingOwnsSurface(): boolean {
+		if (this.#options.inputEnabled === false) return false;
 		const interaction = this.#store.metadata?.interaction;
 		if (!interaction) return false;
-		if (action === MouseAction.release) return true;
-		if (action === MouseAction.motion) {
-			return interaction.mouseAny || (buttons !== 0 && interaction.mouseButton);
-		}
 		return (
 			interaction.mouseAny ||
 			interaction.mouseButton ||
@@ -3813,22 +4099,36 @@ export class ProjectedTerminal {
 		);
 	}
 
-	#sendMouse(
+	#applicationMousePressOwned(shift: boolean): boolean {
+		return !shift && this.#applicationMouseTrackingOwnsSurface();
+	}
+
+	#applicationMouseHoverOwned(shift: boolean): boolean {
+		return (
+			!shift &&
+			this.#options.inputEnabled !== false &&
+			this.#store.metadata?.interaction.mouseAny === true
+		);
+	}
+
+	#mousePayload(
 		event: MouseEvent,
 		action: MouseInput['action'],
 		button: MouseInput['button'],
-		intent: ProjectedInputPublicationIntent,
-	): void {
-		if (!this.#canAdmitInput()) return;
+		pressedButtons: number,
+	): MouseInput | null {
 		const metadata = this.#store.metadata;
 		const canvas = this.#canvas;
 		const renderer = this.#renderer;
-		if (!metadata || !canvas || !renderer) return;
-		const pressedButtons = domPressedButtons(event.buttons);
-		const activeButton =
-			action === MouseAction.motion && button === null
-				? firstPressedMouseButton(pressedButtons)
-				: button;
+		if (
+			!metadata ||
+			!canvas ||
+			!renderer ||
+			!Number.isFinite(event.clientX) ||
+			!Number.isFinite(event.clientY)
+		) {
+			return null;
+		}
 		const rectangle = canvas.getBoundingClientRect();
 		const x = clamp(
 			((event.clientX - rectangle.left) / renderer.charWidth) * metadata.cellPixelWidth,
@@ -3840,32 +4140,64 @@ export class ProjectedTerminal {
 			0,
 			metadata.rows * metadata.cellPixelHeight,
 		);
-		const payload: MouseInput = {
+		return {
 			action,
 			attachmentId: this.#attachmentId,
-			button: activeButton,
+			button,
 			modifiers: this.#modifiers(event),
 			pressedButtons,
 			x,
 			y,
 		};
+	}
+
+	#sendMouse(
+		event: MouseEvent,
+		action: MouseInput['action'],
+		button: MouseInput['button'],
+		intent: ProjectedInputPublicationIntent,
+		onRejected?: () => void,
+	): void {
+		if (!this.#canAdmitInput()) return;
+		const activeButton =
+			action === MouseAction.motion && button === null
+				? firstPressedMouseButton(mouseButtonSetMask(this.#pressedMouseButtons))
+				: button;
 		const inputOperationEpoch = this.#inputRepairEpoch;
 		const previousInputState = this.#inputState;
 		const activeButtonWasPressed =
 			activeButton !== null && this.#pressedMouseButtons.has(activeButton);
 		if (
+			intent === ProjectedInputPublicationIntent.held &&
 			action === MouseAction.press &&
-			activeButton !== null &&
-			(pressedButtons & (1 << (activeButton - 1))) !== 0
+			activeButton !== null
 		) {
 			this.#pressedMouseButtons.add(activeButton);
-		} else if (action === MouseAction.release && activeButton !== null) {
+		} else if (
+			intent === ProjectedInputPublicationIntent.held &&
+			action === MouseAction.release &&
+			activeButton !== null
+		) {
 			this.#pressedMouseButtons.delete(activeButton);
 		}
-		this.#inputState = recordTerminalMouseSample(
-			this.#inputState,
-			this.#pressedMouseButtons.size === 0 ? undefined : payload,
+		const payload = this.#mousePayload(
+			event,
+			action,
+			activeButton,
+			mouseButtonSetMask(this.#pressedMouseButtons),
 		);
+		if (payload === null) {
+			if (activeButtonWasPressed) this.#pressedMouseButtons.add(activeButton);
+			else if (activeButton !== null) this.#pressedMouseButtons.delete(activeButton);
+			onRejected?.();
+			return;
+		}
+		if (intent === ProjectedInputPublicationIntent.held) {
+			this.#inputState = recordTerminalMouseSample(
+				this.#inputState,
+				this.#pressedMouseButtons.size === 0 ? undefined : payload,
+			);
+		}
 		const stagedInputState = this.#inputState;
 		this.#sendInput(
 			{
@@ -3881,6 +4213,7 @@ export class ProjectedTerminal {
 						if (this.#inputState === stagedInputState) {
 							this.#inputState = previousInputState;
 						}
+						onRejected?.();
 					}
 				: undefined,
 		);
@@ -4516,20 +4849,20 @@ const DOM_MOUSE_BUTTONS: readonly MouseInput['button'][] = [
 	MouseButton.eleven,
 ];
 
-function domPressedButtons(buttons: number): number {
-	let normalized = 0;
-	if ((buttons & 1) !== 0) normalized |= 1 << (MouseButton.left - 1);
-	if ((buttons & 2) !== 0) normalized |= 1 << (MouseButton.right - 1);
-	if ((buttons & 4) !== 0) normalized |= 1 << (MouseButton.middle - 1);
-	if ((buttons & 8) !== 0) normalized |= 1 << (MouseButton.four - 1);
-	if ((buttons & 16) !== 0) normalized |= 1 << (MouseButton.five - 1);
-	if ((buttons & 32) !== 0) normalized |= 1 << (MouseButton.six - 1);
-	if ((buttons & 64) !== 0) normalized |= 1 << (MouseButton.seven - 1);
-	if ((buttons & 128) !== 0) normalized |= 1 << (MouseButton.eight - 1);
-	if ((buttons & 256) !== 0) normalized |= 1 << (MouseButton.nine - 1);
-	if ((buttons & 512) !== 0) normalized |= 1 << (MouseButton.ten - 1);
-	if ((buttons & 1_024) !== 0) normalized |= 1 << (MouseButton.eleven - 1);
-	return normalized;
+function mouseButtonSetMask(buttons: Iterable<Exclude<MouseInput['button'], null>>): number {
+	let mask = 0;
+	for (const button of buttons) mask |= 1 << (button - 1);
+	return mask;
+}
+
+function mouseReleasePayload(
+	sample: MouseInput | undefined,
+	button: Exclude<MouseInput['button'], null>,
+	pressedButtons: number,
+): MouseInput | null {
+	return sample === undefined
+		? null
+		: { ...sample, action: MouseAction.release, button, pressedButtons };
 }
 
 function firstPressedMouseButton(buttons: number): MouseInput['button'] {
