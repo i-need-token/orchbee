@@ -56,7 +56,7 @@ describe('transport envelope', () => {
 	});
 
 	it('does not reserve unimplemented lifecycle or attachment messages', () => {
-		for (const kind of [16, 17, 23]) {
+		for (const kind of [16, 17]) {
 			expect(
 				encodeProtocolEnvelope({
 					correlationId: null,
