@@ -13,7 +13,7 @@ UI. Those exclusions are architectural boundaries: Ghostty VT authority lives on
 
 | Baseline       | Value                                      |
 | -------------- | ------------------------------------------ |
-| Verified       | 2026-08-12                                 |
+| Verified       | 2026-08-13                                 |
 | Ghostty commit | `91f66da24527fa02d92b5fd0b41cd020f553a64c` |
 
 `pnpm audit:ghostty-panel` reports the authoritative declaration and disposition counts for the
@@ -46,6 +46,51 @@ Declaration counts are provenance metrics, not user-visible feature percentages.
 
 Each declaration below has exactly one disposition. `<unnamed@line>` identifies an unnamed
 upstream test at the pinned commit.
+
+## Provisioned product fonts
+
+`@orchbee/terminal` keeps `monospace` as its source-neutral default. The shared Web application
+registers these unmodified Ghostty font files and accompanying license texts before it constructs
+any projected surface:
+
+| Ghostty dependency            | Product face                         | Application assets                                                                            |
+| ----------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| JetBrains Mono 2.304 variable | `Orchbee JetBrains Mono`             | `JetBrainsMono-Variable.ttf`, `JetBrainsMono-VariableItalic.ttf`, and `JetBrainsMono-OFL.txt` |
+| Nerd Fonts Symbols Only 3.4.0 | `Orchbee Symbols Nerd Font` fallback | `SymbolsNerdFont-Regular.ttf` and `SymbolsNerdFont-LICENSE.txt`                               |
+
+The files live under
+`apps/web/src/workbench-client/projected-terminal-renderer/fonts/`. `FontFaceSet` preparation
+includes U+F120 so initial Canvas and WebGPU draws cannot race the symbol fallback. Browser system
+fonts remain responsible for unsupported CJK and emoji only after the provisioned stack. The
+existing `pnpm audit:ghostty-panel` command verifies the Ghostty dependency versions and SHA-256 of
+every font and license asset.
+
+The shared Web product fixes its initial browser size at 13 CSS pixels to match Ghostty's default
+13-point setting on the calibrated macOS scale. Every Canvas font context requests
+`geometricPrecision`; Chromium's default `auto` legibility hinting otherwise thickens the
+small-size raster even though the selected JetBrains Mono outline and weight are the same.
+Ghostty's pinned CoreText path enables antialiasing and subpixel positioning but leaves font
+smoothing disabled when `font-thicken = false`.
+
+A native macOS 2x calibration against ZeroGH at the pinned Ghostty commit separates outline choice
+from target-size rasterization. A true 10x render of regular `A` at 130 CSS pixels in Chromium and
+130 points in ZeroGH produced the same 130-by-190-pixel ink bounds and 9,462.10 versus 9,469.57
+pixels of alpha coverage. At the real size-13 setting, regular `1.jpg` measured 479.88 pixels under
+Chromium `auto`, 369.71 after `geometricPrecision`, and 369.76 in ZeroGH. The product keeps the
+size-13 raster as the release criterion; the 10x render is diagnostic evidence that the face,
+outline, and weight agree.
+
+The renderer samples the selected browser face at 1,000 CSS pixels, scales those unrounded ratios
+back to the configured size, and rounds its baseline at the current physical device-pixel ratio.
+The `rounds sampled font metrics at the physical pixel scale like Ghostty` regression covers the
+one-physical-pixel baseline error that results from rounding at CSS scale before high-DPI raster
+scaling. Cell width and height remain stable CSS geometry across a DPR transition.
+
+The browser run planner keeps multi-cell Host graphemes outside natural-advance shaping runs. Each
+wide grapheme is anchored to its projected head cell, its spacer tail remains non-painting, and a
+following narrow complex run starts normally. The `anchors wide fallback graphemes to their Host
+cells and resumes shaping after tails` regression covers both cumulative fallback drift and the
+lost post-emoji combining run.
 
 ## Host-derived projection corpus
 

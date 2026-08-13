@@ -180,6 +180,9 @@ export const DEFAULT_THEME: Required<ITheme> = {
 	brightWhite: '#ffffff',
 };
 
+const FONT_METRIC_SAMPLE_SIZE = 1_000;
+const PRINTABLE_ASCII = Array.from({ length: 95 }, (_, index) => String.fromCodePoint(index + 32));
+
 export interface PreeditCell {
 	readonly text: string;
 	readonly width: number;
@@ -290,6 +293,12 @@ function canvasFont(
 ): string {
 	const stylePrefix = style === 'italic' ? 'italic ' : '';
 	return `${stylePrefix}${weight} ${size}px ${family}`;
+}
+
+function configureGhosttyTextRasterization(context: CanvasRenderingContext2D): void {
+	// Chromium's default legibility hinting thickens small glyphs. Geometric precision matches
+	// Ghostty's unthickened CoreText coverage while retaining the selected variable-font outline.
+	Reflect.set(context, 'textRendering', 'geometricPrecision');
 }
 
 function snapToDevicePixel(value: number, devicePixelRatio: number): number {
@@ -595,6 +604,7 @@ export class WebGPURenderer {
 		const atlasCtx = this.atlasCanvas.getContext('2d');
 		if (!atlasCtx) throw new Error('Failed to create atlas canvas context');
 		this.atlasCtx = atlasCtx;
+		configureGhosttyTextRasterization(this.atlasCtx);
 		this.atlasCtx.direction = 'ltr';
 		this.atlasCtx.imageSmoothingEnabled = false;
 		this.atlasCtx.clearRect(0, 0, 2048, 2048);
@@ -733,6 +743,7 @@ export class WebGPURenderer {
 		const ctx = this.canvas.getContext('2d', { alpha: true });
 		if (!ctx) throw new Error('Failed to get 2D rendering context');
 		ctx.direction = 'ltr';
+		configureGhosttyTextRasterization(ctx);
 		ctx.textAlign = 'left';
 		ctx.textBaseline = 'alphabetic';
 		this.ctx2d = ctx;
@@ -747,6 +758,7 @@ export class WebGPURenderer {
 		const canvas = document.createElement('canvas');
 		const ctx = canvas.getContext('2d');
 		if (!ctx) throw new Error('Failed to create font measurement context');
+		configureGhosttyTextRasterization(ctx);
 		ctx.direction = 'ltr';
 		ctx.font = canvasFont(
 			'normal',
@@ -755,23 +767,54 @@ export class WebGPURenderer {
 			configuration.fontFamily,
 		);
 
-		const widthMetrics = ctx.measureText('M');
-		const width = Math.max(1, Math.round(widthMetrics.width));
-		const ascent =
-			widthMetrics.fontBoundingBoxAscent ||
-			widthMetrics.actualBoundingBoxAscent ||
+		const nominalMetrics = ctx.measureText('M');
+		ctx.font = canvasFont(
+			'normal',
+			configuration.fontWeight,
+			FONT_METRIC_SAMPLE_SIZE,
+			configuration.fontFamily,
+		);
+		const sampledMetrics = ctx.measureText('M');
+		const sampledScale = configuration.fontSize / FONT_METRIC_SAMPLE_SIZE;
+		const sampledWidth = sampledMetrics.width * sampledScale;
+		const nominalAscent =
+			nominalMetrics.fontBoundingBoxAscent ||
+			nominalMetrics.actualBoundingBoxAscent ||
 			configuration.fontSize * 0.8;
-		const descent =
-			widthMetrics.fontBoundingBoxDescent ||
-			widthMetrics.actualBoundingBoxDescent ||
+		const nominalDescent =
+			nominalMetrics.fontBoundingBoxDescent ||
+			nominalMetrics.actualBoundingBoxDescent ||
 			configuration.fontSize * 0.2;
+		const sampledAscent = sampledMetrics.fontBoundingBoxAscent * sampledScale;
+		const sampledDescent = sampledMetrics.fontBoundingBoxDescent * sampledScale;
+		const sampledFaceHeight = sampledAscent + sampledDescent;
+		const nominalFaceHeight = nominalAscent + nominalDescent;
+		const sampledMetricsCoherent =
+			positiveFiniteMetric(sampledWidth) &&
+			positiveFiniteMetric(sampledAscent) &&
+			positiveFiniteMetric(sampledDescent) &&
+			Math.abs(sampledWidth - nominalMetrics.width) <= 1 &&
+			Math.abs(sampledFaceHeight - nominalFaceHeight) <= 1;
+		const faceWidth = sampledMetricsCoherent
+			? Math.max(...PRINTABLE_ASCII.map((character) => ctx.measureText(character).width)) *
+				sampledScale
+			: nominalMetrics.width;
+		const width = Math.max(1, Math.round(faceWidth));
+		const ascent = sampledMetricsCoherent ? sampledAscent : nominalAscent;
+		const descent = sampledMetricsCoherent ? sampledDescent : nominalDescent;
 		const faceHeight = Math.max(1, ascent + descent);
 		const height = Math.max(1, Math.round(faceHeight));
-		const baselineFromBottom = Math.round(descent - (height - faceHeight) / 2);
+		const baselineFromBottom =
+			Math.round((descent - (height - faceHeight) / 2) * this.devicePixelRatio) /
+			this.devicePixelRatio;
 		const baseline = Math.min(height, Math.max(0, height - baselineFromBottom));
 
 		const underlineThickness = 1;
-		const capHeight = 0.75 * ascent;
+		const sampledCapHeight = ctx.measureText('H').actualBoundingBoxAscent * sampledScale;
+		const capHeight =
+			sampledMetricsCoherent && positiveFiniteMetric(sampledCapHeight)
+				? sampledCapHeight
+				: 0.75 * ascent;
 		return applyFontMetricModifiers(
 			{
 				cellWidth: width,
@@ -788,7 +831,7 @@ export class WebGPURenderer {
 				cursorHeight: height,
 				iconHeight: faceHeight,
 				iconHeightSingle: (2 * capHeight + faceHeight) / 3,
-				faceWidth: Math.max(1, widthMetrics.width),
+				faceWidth: Math.max(1, faceWidth),
 				faceHeight,
 				faceY: baselineFromBottom - descent,
 			},
@@ -1188,6 +1231,7 @@ export class WebGPURenderer {
 		canvas.height = height;
 		const context = canvas.getContext('2d');
 		if (!context) return false;
+		configureGhosttyTextRasterization(context);
 		context.imageSmoothingEnabled = false;
 		context.drawImage(this.atlasCanvas, 0, 0);
 		context.font = previousContext.font;
@@ -1526,6 +1570,7 @@ export class WebGPURenderer {
 			const text = texts[column] ?? '';
 			const codepoint = text.codePointAt(0) ?? 0;
 			const flags = row.styleFlags[column] ?? 0;
+			const cellWidth = packedCellWidth(row.widths[column] ?? TerminalCellWidthCode.spacerTail);
 			const hidden =
 				(flags & TerminalStyleFlag.invisible) !== 0 ||
 				((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible);
@@ -1541,6 +1586,9 @@ export class WebGPURenderer {
 				column < preeditLayout.end;
 			return (
 				column < shapingEnd &&
+				// Browser shapers expose only natural advances inside a run. Keep wide Host
+				// graphemes on their allocated cell heads so fallback faces cannot drift.
+				cellWidth === 1 &&
 				!hidden &&
 				!cursorBoundary &&
 				!preeditBoundary &&
@@ -2913,6 +2961,10 @@ function rendererNow(): number {
 	return typeof performance !== 'undefined' && typeof performance.now === 'function'
 		? performance.now()
 		: Date.now();
+}
+
+function positiveFiniteMetric(value: number): boolean {
+	return Number.isFinite(value) && value > 0;
 }
 
 function isCellInRange(

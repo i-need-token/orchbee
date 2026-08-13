@@ -150,6 +150,7 @@ const SELECTION_AUTOSCROLL_INTERVAL_MS = 16;
 const SELECTION_CLICK_REPEAT_INTERVAL_MS = 500;
 const MAX_PENDING_SELECTION_GESTURES = 64;
 const RESIZE_REENTRY_MS = 50;
+const TERMINAL_FONT_LOAD_SAMPLE = 'MW你🚀\uF120';
 
 function cssPixels(value: string): number {
 	const parsed = Number.parseFloat(value);
@@ -5053,9 +5054,13 @@ export class ProjectedTerminal {
 		if (!fonts || typeof fonts.load !== 'function') return;
 		const descriptions = new Set([
 			`${configuration.fontWeight} ${configuration.fontSize}px ${configuration.fontFamily}`,
+			`italic ${configuration.fontWeight} ${configuration.fontSize}px ${configuration.fontFamily}`,
 			`${configuration.fontWeightBold} ${configuration.fontSize}px ${configuration.fontFamily}`,
+			`italic ${configuration.fontWeightBold} ${configuration.fontSize}px ${configuration.fontFamily}`,
 		]);
-		await Promise.all([...descriptions].map((description) => fonts.load(description, 'MW你🚀')));
+		await Promise.all(
+			[...descriptions].map((description) => fonts.load(description, TERMINAL_FONT_LOAD_SAMPLE)),
+		);
 	}
 
 	#waitForPresentationCancellation(

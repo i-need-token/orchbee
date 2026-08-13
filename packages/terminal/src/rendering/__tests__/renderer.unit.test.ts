@@ -41,6 +41,7 @@ function createCanvas(
 		font: '10px sans-serif',
 		globalAlpha: 1,
 		imageSmoothingEnabled: true,
+		textRendering: 'auto',
 		measureText: () =>
 			({
 				width: 7.8,
@@ -303,6 +304,59 @@ describe('projected terminal renderer', () => {
 		renderer.commitPresentationConfiguration(prepared);
 		ensureGlyph.call(renderer, 'D', TerminalStyleFlag.bold | TerminalStyleFlag.italic, 1);
 		expect(atlasContext.font).toBe('italic 600 26px JetBrains Mono');
+		renderer.dispose();
+	});
+
+	it('uses geometric-precision rasterization for Ghostty-equivalent unthickened glyphs', () => {
+		vi.stubGlobal('window', { devicePixelRatio: 2 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		const fallbackCanvas = createCanvas();
+		const fallbackContext = fallbackCanvas.getContext('2d');
+		if (fallbackContext === null) throw new Error('Canvas fallback context is unavailable.');
+		const renderer = new WebGPURenderer(fallbackCanvas, { devicePixelRatio: 2 });
+		const atlasContext = Reflect.get(renderer, 'atlasCtx') as CanvasRenderingContext2D;
+
+		expect(Reflect.get(atlasContext, 'textRendering')).toBe('geometricPrecision');
+		Reflect.apply(Reflect.get(renderer, 'initFallback2D'), renderer, []);
+		expect(Reflect.get(fallbackContext, 'textRendering')).toBe('geometricPrecision');
+		renderer.dispose();
+	});
+
+	it('rounds sampled font metrics at the physical pixel scale like Ghostty', () => {
+		vi.stubGlobal('window', { devicePixelRatio: 2 });
+		const measurementCanvas = createCanvas();
+		const measurementContext = measurementCanvas.getContext('2d');
+		if (measurementContext === null) throw new Error('Canvas measurement context is unavailable.');
+		measurementContext.measureText = () => {
+			const fontSize = Number.parseFloat(measurementContext.font.match(/([\d.]+)px/u)?.[1] ?? '0');
+			const sampled = fontSize >= 1_000;
+			return {
+				actualBoundingBoxAscent: 0.73 * fontSize,
+				actualBoundingBoxDescent: 0,
+				fontBoundingBoxAscent: sampled ? 1.02 * fontSize : Math.round(1.02 * fontSize),
+				fontBoundingBoxDescent: sampled ? 0.3 * fontSize : Math.round(0.3 * fontSize),
+				width: 0.6 * fontSize,
+			} as TextMetrics;
+		};
+		vi.stubGlobal('document', { createElement: () => measurementCanvas });
+
+		const renderer = new WebGPURenderer(createCanvas(), {
+			devicePixelRatio: 2,
+			fontFamily: 'JetBrains Mono',
+			fontSize: 15,
+		});
+
+		expect(renderer.getMetrics()).toEqual({ baseline: 15.5, height: 20, width: 9 });
+		const detailedMetrics = Reflect.get(renderer, 'detailedMetrics') as {
+			readonly cellBaseline: number;
+			readonly faceHeight: number;
+			readonly faceWidth: number;
+		};
+		expect(detailedMetrics).toMatchObject({
+			cellBaseline: 4.5,
+			faceWidth: 9,
+		});
+		expect(detailedMetrics.faceHeight).toBeCloseTo(19.8, 8);
 		renderer.dispose();
 	});
 
@@ -859,10 +913,39 @@ describe('projected terminal renderer', () => {
 
 		renderer.renderPacked(source);
 
-		expect(fillText.mock.calls.map(([text]) => text)).toEqual(['中e\u0301', '👩‍💻']);
+		expect(fillText.mock.calls.map(([text]) => text)).toEqual(['中', 'e\u0301', '👩‍💻']);
 		expect(renderer.getLastFrameTelemetry()).toMatchObject({
 			cellsVisited: 3,
-			glyphInstances: 2,
+			glyphInstances: 3,
+			shapingRuns: 0,
+		});
+		renderer.dispose();
+	});
+
+	it('anchors wide fallback graphemes to their Host cells and resumes shaping after tails', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const fillText = vi.fn<CanvasRenderingContext2D['fillText']>();
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, fillText),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText));
+		await renderer.initGPU();
+
+		renderer.renderPacked(
+			createPackedGraphemeSource([
+				{ text: '你', width: 2 },
+				{ text: '好', width: 2 },
+				{ text: '😀', width: 2 },
+				{ text: 'e\u0301', width: 1 },
+				{ text: 'A\u030a', width: 1 },
+			]),
+		);
+
+		expect(fillText.mock.calls.map(([text]) => text)).toEqual(['你', '好', '😀', 'e\u0301A\u030a']);
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({
+			cellsVisited: 5,
+			glyphInstances: 4,
 			shapingRuns: 1,
 		});
 		renderer.dispose();

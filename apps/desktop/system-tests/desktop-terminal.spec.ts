@@ -569,6 +569,85 @@ test('terminal-parity/HS-04-multi-click-selection', async () => {
 		.toContain('hs04-triple entire row marker');
 });
 
+test('terminal-parity/SU-02-product-font-fallback', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const input = page.getByRole('textbox');
+	await expect
+		.poll(() => input.evaluate((element) => element.style.fontFamily))
+		.toContain('Orchbee JetBrains Mono');
+
+	const fontEvidence = await page.evaluate(async () => {
+		const symbolText = String.fromCodePoint(0xf120, 0xf121, 0xf07c, 0xf15b);
+		const [primaryFaces, italicFaces, symbolFaces] = await Promise.all([
+			document.fonts.load('400 32px "Orchbee JetBrains Mono"', 'MW'),
+			document.fonts.load('italic 400 32px "Orchbee JetBrains Mono"', 'MW'),
+			document.fonts.load('400 32px "Orchbee Symbols Nerd Font"', symbolText),
+		]);
+		const raster = (text: string): { readonly hash: number; readonly ink: number } => {
+			const canvas = document.createElement('canvas');
+			canvas.height = 64;
+			canvas.width = 256;
+			const context = canvas.getContext('2d', { willReadFrequently: true });
+			if (context === null) throw new Error('Canvas 2D is unavailable.');
+			context.fillStyle = '#fff';
+			context.font = '400 32px "Orchbee Symbols Nerd Font"';
+			context.textBaseline = 'top';
+			context.fillText(text, 0, 0);
+			const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+			let hash = 2_166_136_261;
+			let ink = 0;
+			for (const [index, channel] of pixels.entries()) {
+				hash = Math.imul(hash ^ channel, 16_777_619);
+				if (index % 4 === 3 && channel > 0) ink += 1;
+			}
+			return { hash: hash >>> 0, ink };
+		};
+		return {
+			italicFaces: italicFaces.map((face) => ({ family: face.family, status: face.status })),
+			licenseCount: document.head.querySelectorAll('link[data-orchbee-terminal-font-license]')
+				.length,
+			missingRaster: raster(String.fromCodePoint(0x10ffff)),
+			primaryFaces: primaryFaces.map((face) => ({ family: face.family, status: face.status })),
+			symbolFaces: symbolFaces.map((face) => ({ family: face.family, status: face.status })),
+			symbolRaster: raster(symbolText),
+		};
+	});
+	expect(fontEvidence.primaryFaces).toEqual([
+		expect.objectContaining({
+			family: expect.stringContaining('Orchbee JetBrains Mono'),
+			status: 'loaded',
+		}),
+	]);
+	expect(fontEvidence.italicFaces).toEqual([
+		expect.objectContaining({
+			family: expect.stringContaining('Orchbee JetBrains Mono'),
+			status: 'loaded',
+		}),
+	]);
+	expect(fontEvidence.symbolFaces).toEqual([
+		expect.objectContaining({
+			family: expect.stringContaining('Orchbee Symbols Nerd Font'),
+			status: 'loaded',
+		}),
+	]);
+	expect(fontEvidence.licenseCount).toBe(2);
+	expect(fontEvidence.symbolRaster.ink).toBeGreaterThan(0);
+	expect(fontEvidence.symbolRaster.hash).not.toBe(fontEvidence.missingRaster.hash);
+
+	await input.pressSequentially(
+		`printf '\\033[2J\\033[Hnerd: \\357\\204\\240 \\357\\204\\241 \\357\\201\\274 \\357\\205\\233\\n'`,
+		{ delay: 1 },
+	);
+	await input.press('Enter');
+	await expect(root.locator('[role="list"]')).toContainText(
+		`nerd: ${String.fromCodePoint(0xf120)} ${String.fromCodePoint(0xf121)} ${String.fromCodePoint(0xf07c)} ${String.fromCodePoint(0xf15b)}`,
+	);
+});
+
 test('routes a real sandboxed Host terminal through Main and Preload to the renderer', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');

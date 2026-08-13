@@ -5,11 +5,13 @@ import '@orchbee/workbench/styles.css';
 import { decodeGatewayBrowserFragment } from '@orchbee/gateway-protocol';
 import { startDesktopWebApplication } from '../desktop-client';
 import { startGatewayWebApplication } from '../gateway-client';
+import { registerTerminalProductFonts } from '../workbench-client';
 import { resolveShortcutPlatform } from './resolveShortcutPlatform';
 import { startWebApplication } from './startWebApplication';
 import { resolveWebRuntimeMode } from './resolveWebRuntimeMode';
 
 const rootElement = document.querySelector('#root');
+registerTerminalProductFonts(document);
 const shortcutPlatform = resolveShortcutPlatform(navigator.platform);
 const runtimeMode = resolveWebRuntimeMode({
 	protocol: window.location.protocol,

@@ -874,9 +874,11 @@ describe('ProjectedTerminal', () => {
 		});
 
 		const opening = terminal.open(browser.root);
-		await vi.waitFor(() => expect(fontLoad).toHaveBeenCalledTimes(2));
-		expect(fontLoad).toHaveBeenCalledWith('500 17px "Menlo", monospace', 'MW你🚀');
-		expect(fontLoad).toHaveBeenCalledWith('bold 17px "Menlo", monospace', 'MW你🚀');
+		await vi.waitFor(() => expect(fontLoad).toHaveBeenCalledTimes(4));
+		expect(fontLoad).toHaveBeenCalledWith('500 17px "Menlo", monospace', 'MW你🚀\uF120');
+		expect(fontLoad).toHaveBeenCalledWith('italic 500 17px "Menlo", monospace', 'MW你🚀\uF120');
+		expect(fontLoad).toHaveBeenCalledWith('bold 17px "Menlo", monospace', 'MW你🚀\uF120');
+		expect(fontLoad).toHaveBeenCalledWith('italic bold 17px "Menlo", monospace', 'MW你🚀\uF120');
 		expect(commands).toEqual([]);
 		for (const finishFontLoad of finishFontLoads) finishFontLoad();
 		await opening;
@@ -1079,7 +1081,7 @@ describe('ProjectedTerminal', () => {
 		} as const;
 
 		const update = terminal.updatePresentationConfiguration(configuration);
-		await vi.waitFor(() => expect(fontLoad).toHaveBeenCalledTimes(2));
+		await vi.waitFor(() => expect(fontLoad).toHaveBeenCalledTimes(4));
 		expect(prepare).not.toHaveBeenCalled();
 		expect(commit).not.toHaveBeenCalled();
 		expect(terminal.textarea?.style.fontFamily).toBe('monospace');
@@ -1198,12 +1200,11 @@ describe('ProjectedTerminal', () => {
 		} as const;
 
 		const first = terminal.updatePresentationConfiguration(firstConfiguration);
-		await vi.waitFor(() => expect(pendingFonts).toHaveLength(2));
+		await vi.waitFor(() => expect(pendingFonts).toHaveLength(4));
 		const second = terminal.updatePresentationConfiguration(secondConfiguration);
 		await expect(first).resolves.toEqual({ kind: 'cancelled', reason: 'superseded' });
-		await vi.waitFor(() => expect(pendingFonts).toHaveLength(4));
-		pendingFonts[2]?.resolve([]);
-		pendingFonts[3]?.resolve([]);
+		await vi.waitFor(() => expect(pendingFonts).toHaveLength(8));
+		for (const pending of pendingFonts.slice(4, 8)) pending.resolve([]);
 		await expect(second).resolves.toMatchObject({ kind: 'completed' });
 		expect(terminal.textarea?.style.fontFamily).toBe('Second Runtime Mono');
 
@@ -1211,9 +1212,9 @@ describe('ProjectedTerminal', () => {
 			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
 			fontFamily: 'Failed Runtime Mono',
 		});
-		await vi.waitFor(() => expect(pendingFonts).toHaveLength(6));
-		pendingFonts[4]?.reject(new Error('font unavailable'));
-		pendingFonts[5]?.resolve([]);
+		await vi.waitFor(() => expect(pendingFonts).toHaveLength(12));
+		pendingFonts[8]?.reject(new Error('font unavailable'));
+		for (const pending of pendingFonts.slice(9, 12)) pending.resolve([]);
 		await expect(failed).resolves.toEqual({ code: 'font-preparation-failed', kind: 'failed' });
 		expect(terminal.textarea?.style.fontFamily).toBe('Second Runtime Mono');
 
@@ -1228,9 +1229,8 @@ describe('ProjectedTerminal', () => {
 			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
 			fontFamily: 'Renderer Failed Runtime Mono',
 		});
-		await vi.waitFor(() => expect(pendingFonts).toHaveLength(8));
-		pendingFonts[6]?.resolve([]);
-		pendingFonts[7]?.resolve([]);
+		await vi.waitFor(() => expect(pendingFonts).toHaveLength(16));
+		for (const pending of pendingFonts.slice(12, 16)) pending.resolve([]);
 		await expect(rendererFailed).resolves.toEqual({
 			code: 'renderer-preparation-failed',
 			kind: 'failed',
@@ -1244,7 +1244,7 @@ describe('ProjectedTerminal', () => {
 			...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
 			fontFamily: 'Disposed Runtime Mono',
 		});
-		await vi.waitFor(() => expect(pendingFonts).toHaveLength(10));
+		await vi.waitFor(() => expect(pendingFonts).toHaveLength(20));
 		terminal.dispose();
 		await expect(disposed).resolves.toEqual({ kind: 'cancelled', reason: 'disposed' });
 	});

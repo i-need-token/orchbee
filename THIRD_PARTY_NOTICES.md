@@ -26,6 +26,24 @@ imply endorsement by their creators.
 > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 > OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## JetBrains Mono
+
+- Copyright notice: Copyright 2020 The JetBrains Mono Project Authors
+- Source: <https://github.com/JetBrains/JetBrainsMono>
+- Version: 2.304
+- License: SIL Open Font License 1.1
+- Use in Orchbee: unmodified variable terminal text faces provisioned for Browser and Desktop
+- License text: [`JetBrainsMono-OFL.txt`](apps/web/src/workbench-client/projected-terminal-renderer/fonts/JetBrainsMono-OFL.txt)
+
+## Nerd Fonts Symbols Only
+
+- Copyright notice: Copyright (c) 2014 Ryan L McIntyre
+- Source: <https://github.com/ryanoasis/nerd-fonts>
+- Version: 3.4.0
+- License: MIT
+- Use in Orchbee: unmodified fallback terminal-symbol face provisioned for Browser and Desktop
+- License text: [`SymbolsNerdFont-LICENSE.txt`](apps/web/src/workbench-client/projected-terminal-renderer/fonts/SymbolsNerdFont-LICENSE.txt)
+
 ## Codicons
 
 - Creator: Microsoft Corporation and contributors
