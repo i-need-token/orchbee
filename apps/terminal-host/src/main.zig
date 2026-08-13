@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const terminal_host = @import("terminal-host");
 
 const host_service = terminal_host.host_service;
@@ -12,19 +13,30 @@ pub fn main() !void {
     if (arguments.len == 0) return error.InvalidArguments;
 
     switch (try launcher_arguments.parse(arguments[1..])) {
-        .posix_connect => |options| try local_ipc.runPosixClientProxy(
+        .posix_connect => |options| try runPosixClientProxy(allocator, options),
+        .posix_prepare_runtime => |options| try local_ipc.preparePosixRuntimeDirectory(
+            options.runtime_directory,
+        ),
+        .version => try writeVersion(),
+        .serve => |options| try serve(allocator, options),
+    }
+}
+
+fn runPosixClientProxy(
+    allocator: std.mem.Allocator,
+    options: launcher_arguments.EndpointOptions,
+) !void {
+    if (builtin.os.tag == .windows) {
+        return error.UnsupportedPlatform;
+    } else {
+        try local_ipc.runPosixClientProxy(
             allocator,
             options.runtime_directory,
             options.endpoint_id,
             .{ .handle = 3 },
             std.fs.File.stdin(),
             std.fs.File.stdout(),
-        ),
-        .posix_prepare_runtime => |options| try local_ipc.preparePosixRuntimeDirectory(
-            options.runtime_directory,
-        ),
-        .version => try writeVersion(),
-        .serve => |options| try serve(allocator, options),
+        );
     }
 }
 
