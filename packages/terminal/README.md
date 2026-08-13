@@ -244,6 +244,11 @@ Document visibility and explicit presentation demand jointly suspend renderer an
 draw work. Hidden commits still advance and acknowledge the packed store; becoming visible schedules
 one draw of the newest committed state rather than replaying stale destinations.
 
+`freeze()` is the application recovery handoff: it retires input, transport-facing listeners,
+animation, resize, search, and in-flight side effects while retaining the last painted canvas and
+accessible row list. Frozen instances reject further frame and command work. A later `dispose()`
+releases the retained renderer resources and DOM after the application has painted a replacement.
+
 The renderer consumes packed rows directly. It never reconstructs a local VT state or a per-cell
 object graph. After a draw completes, frame telemetry records the exact committed Host generation
 and revision read from the visible packed store. Multiple commits may coalesce behind one animation

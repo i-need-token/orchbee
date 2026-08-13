@@ -6733,6 +6733,52 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('freezes the last frame until the recovery owner replaces it', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			canResize: true,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['last readable frame', '']));
+		browser.flushFrames();
+		const root = browser.root as unknown as FakeElement;
+		const canvas = root.children[0];
+		const accessibilityRoot = root.children[2];
+		const commandCount = commands.length;
+
+		terminal.freeze();
+
+		expect(terminal.phase).toBe('frozen');
+		expect(terminal.canControlTerminal).toBe(false);
+		expect(root.contains(canvas)).toBe(true);
+		expect(root.contains(accessibilityRoot)).toBe(true);
+		expect(root.children).toEqual([canvas, accessibilityRoot]);
+		terminal.applyFrame(terminalFrame('delta', 2n, 2n, ['replacement', ''], 1n));
+		terminal.clear();
+		terminal.reset();
+		terminal.selectAll();
+		browser.dispatchWindow('resize');
+		expect(commands).toHaveLength(commandCount);
+
+		terminal.dispose();
+		expect(terminal.phase).toBe('disposed');
+		expect(root.children).toHaveLength(0);
+	});
+
 	it('sends an accessibility DOM range as one explicit cell-range command', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);

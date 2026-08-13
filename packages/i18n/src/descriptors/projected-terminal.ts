@@ -33,6 +33,14 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'The terminal connection failed.',
 		id: 'terminal.projected.connectionFailure',
 	},
+	connectionRecovering: {
+		defaultMessage: 'Restoring the terminal connection…',
+		id: 'terminal.projected.connectionRecovering',
+	},
+	connectionRecoveryFailed: {
+		defaultMessage: 'The terminal connection could not be restored.',
+		id: 'terminal.projected.connectionRecoveryFailed',
+	},
 	runtimeFailure: {
 		defaultMessage: 'The terminal session stopped after a runtime failure.',
 		id: 'terminal.projected.runtimeFailure',
@@ -181,6 +189,10 @@ export const projectedTerminalMessages = defineMessages({
 	resetAction: {
 		defaultMessage: 'Reset terminal',
 		id: 'terminal.projected.action.reset',
+	},
+	retryConnection: {
+		defaultMessage: 'Retry',
+		id: 'terminal.projected.connectionRetry',
 	},
 	screen: {
 		defaultMessage: 'Terminal screen',

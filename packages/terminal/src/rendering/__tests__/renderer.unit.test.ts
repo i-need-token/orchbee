@@ -215,6 +215,28 @@ function createPackedGraphemeSource(
 	};
 }
 
+describe('WebGPURenderer recovery retirement', () => {
+	it('keeps the last canvas readable while rejecting later draw mutations', async () => {
+		vi.stubGlobal('navigator', {});
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		const fillRect = vi.fn<CanvasRenderingContext2D['fillRect']>();
+		const canvas = createCanvas(undefined, {}, undefined, fillRect);
+		const renderer = new WebGPURenderer(canvas);
+		await renderer.initGPU();
+		const first = createPackedSource(['last frame']);
+		renderer.renderPacked(first);
+		const drawCount = fillRect.mock.calls.length;
+
+		renderer.freeze();
+		renderer.renderPacked(createPackedSource(['replacement']));
+
+		expect(fillRect).toHaveBeenCalledTimes(drawCount);
+		expect(renderer.setDevicePixelRatio(2)).toBe(false);
+		renderer.dispose();
+	});
+});
+
 describe('projected terminal renderer', () => {
 	it('resolves Host terminal colors and application overlay colors without a second palette', () => {
 		const theme = {

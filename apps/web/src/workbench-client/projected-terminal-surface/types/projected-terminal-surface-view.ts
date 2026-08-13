@@ -4,10 +4,12 @@ import type { ProjectedPasteReview } from '@orchbee/terminal';
 export interface ProjectedTerminalSurfaceView {
 	readonly failureMessage: string | null;
 	readonly pasteReview: ProjectedPasteReview | null;
-	readonly projectionState: 'failed' | 'inactive' | 'requested';
+	readonly projectionState: 'failed' | 'inactive' | 'recovering' | 'requested';
+	readonly recoveryAvailable: boolean;
 	readonly root: RefObject<HTMLDivElement | null>;
 	readonly stopped: boolean;
 	approvePaste(): void;
 	cancelPaste(): void;
+	retryProjection(): void;
 	startNewSession(): void;
 }

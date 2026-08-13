@@ -513,6 +513,7 @@ export class WebGPURenderer {
 	private frameGpuDrawCalls = 0;
 	private recoveryInFlight = false;
 	private disposed = false;
+	private frozen = false;
 	private lastCursorPosition: { x: number; y: number } = { x: 0, y: 0 };
 	private preeditCells: readonly PreeditCell[] = [];
 	private preeditSelection: PreeditSelection = { start: 0, end: 0 };
@@ -603,6 +604,7 @@ export class WebGPURenderer {
 
 	/** Initialize WebGPU. Call after construction. */
 	async initGPU(): Promise<boolean> {
+		if (this.frozen || this.disposed) return false;
 		return await this.initializeGPU(true);
 	}
 
@@ -618,9 +620,9 @@ export class WebGPURenderer {
 
 			this.format = navigator.gpu.getPreferredCanvasFormat();
 			const device = await adapter.requestDevice();
-			if (this.disposed) {
+			if (this.disposed || this.frozen) {
 				device.destroy();
-				throw new Error('Renderer was disposed during WebGPU initialization');
+				throw new Error('Renderer was retired during WebGPU initialization');
 			}
 			this.device = device;
 			void device.lost.then((info) => this.handleDeviceLost(device, info));
@@ -674,7 +676,8 @@ export class WebGPURenderer {
 	}
 
 	private handleDeviceLost(device: GPUDevice, info: GPUDeviceLostInfo): void {
-		if (this.disposed || info.reason === 'destroyed' || device !== this.device) return;
+		if (this.disposed || this.frozen || info.reason === 'destroyed' || device !== this.device)
+			return;
 		this.useWebGPU = false;
 		this.emitHealth({
 			state: 'lost',
@@ -685,14 +688,14 @@ export class WebGPURenderer {
 	}
 
 	private async recoverWebGPU(): Promise<void> {
-		if (this.disposed || this.recoveryInFlight) return;
+		if (this.disposed || this.frozen || this.recoveryInFlight) return;
 		this.recoveryInFlight = true;
 		this.emitHealth({ state: 'recovering', backend: 'webgpu', attempt: 1 });
 		this.releaseGPUResources();
 		try {
 			await this.initializeGPU(false);
 		} catch (error) {
-			if (!this.disposed) {
+			if (!this.disposed && !this.frozen) {
 				this.releaseGPUResources();
 				this.device = null;
 				this.emitHealth({
@@ -1344,6 +1347,7 @@ export class WebGPURenderer {
 
 	/** Rebuild physical-pixel resources after browser zoom or monitor changes. */
 	setDevicePixelRatio(value: number): boolean {
+		if (this.frozen || this.disposed) return false;
 		const ratio = Number.isFinite(value) && value > 0 ? value : 1;
 		if (ratio === this.devicePixelRatio) return false;
 		this.devicePixelRatio = ratio;
@@ -1363,6 +1367,7 @@ export class WebGPURenderer {
 
 	/** Draw a Host projection directly from its row-partitioned structure-of-arrays store. */
 	renderPacked(buffer: PackedRendererSource, forceAll = false): void {
+		if (this.frozen || this.disposed) return;
 		const backend = this.getBackend();
 		const metadata = buffer.metadata;
 		if (backend === 'uninitialized' || !metadata) return;
@@ -2682,6 +2687,7 @@ export class WebGPURenderer {
 	preparePresentationConfiguration(
 		configuration: TerminalPresentationConfiguration,
 	): PreparedTerminalPresentationConfiguration {
+		if (this.frozen || this.disposed) throw new Error('Renderer is retired');
 		const normalized = normalizeTerminalPresentationConfiguration(configuration);
 		if (normalized.kind === 'invalid') {
 			throw new TypeError(`Invalid terminal presentation configuration field: ${normalized.field}`);
@@ -2698,6 +2704,7 @@ export class WebGPURenderer {
 
 	/** Publish one already prepared complete configuration in one synchronous renderer commit. */
 	commitPresentationConfiguration(prepared: PreparedTerminalPresentationConfiguration): void {
+		if (this.frozen || this.disposed) return;
 		this.presentationConfiguration = prepared.configuration;
 		this.detailedMetrics = prepared.detailedMetrics;
 		this.metrics = prepared.metrics;
@@ -2871,6 +2878,18 @@ export class WebGPURenderer {
 
 	private emitHealth(event: RendererHealthEvent): void {
 		this.healthChangeCallback?.(event);
+	}
+
+	/** Stop live rendering behavior without clearing or releasing the presented canvas. */
+	freeze(): void {
+		if (this.disposed || this.frozen) return;
+		this.frozen = true;
+		this.suspended = true;
+		this.stopCursorBlink();
+		this.stopTextBlink();
+		this.requestRenderCallback = undefined;
+		this.healthChangeCallback = undefined;
+		this.telemetryCallback = undefined;
 	}
 
 	dispose(): void {

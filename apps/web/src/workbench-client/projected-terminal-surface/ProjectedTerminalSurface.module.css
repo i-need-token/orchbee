@@ -12,6 +12,10 @@
 
 .terminalSurface > [data-projected-terminal-status='true'] {
 	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ob-ref-space-2);
 	inline-size: 100%;
 	padding: var(--ob-ref-space-2);
 	position: absolute;
@@ -21,6 +25,10 @@
 	pointer-events: none;
 	background: var(--ob-sys-color-surface-raised);
 	color: var(--ob-sys-color-text-primary);
+}
+
+.terminalSurface > [data-projected-terminal-status='true'] > button {
+	pointer-events: auto;
 }
 
 .stopped {

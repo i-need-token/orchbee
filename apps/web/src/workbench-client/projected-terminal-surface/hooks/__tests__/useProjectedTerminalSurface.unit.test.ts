@@ -11,7 +11,7 @@ import type { ProjectedPasteReview, ProjectedTerminalMetadata } from '@orchbee/t
 import { terminalPresentationId, type WorkbenchTerminalPresentation } from '@orchbee/workbench';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type {
 	ProjectedTerminalTransport,
@@ -26,6 +26,7 @@ import {
 	ProjectedTerminalSurfaceCapabilityContext,
 	type ProjectedTerminalSurfaceCapability,
 } from '../../contexts/projected-terminal-surface-capability';
+import { ProjectedTerminalRecoveryController } from '../../model/ProjectedTerminalRecoveryController';
 import { useProjectedTerminalSurface } from '../useProjectedTerminalSurface';
 
 const renderer = vi.hoisted(() => ({
@@ -51,6 +52,11 @@ afterAll(() => {
 	});
 });
 
+afterEach(() => {
+	vi.useRealTimers();
+	renderer.start.mockReset();
+});
+
 function TestHarness({
 	presentation,
 }: {
@@ -63,6 +69,7 @@ function TestHarness({
 			'data-failure-message': view.failureMessage,
 			'data-paste-review-text': view.pasteReview?.originalText,
 			'data-projection-state': view.projectionState,
+			'data-recovery-available': view.recoveryAvailable,
 			ref: view.root,
 		},
 		view.stopped
@@ -79,6 +86,13 @@ function TestHarness({
 					{ 'data-approve-paste': true, onClick: view.approvePaste },
 					'Approve paste',
 				),
+		view.recoveryAvailable
+			? createElement(
+					'button',
+					{ 'data-retry-projection': true, onClick: view.retryProjection },
+					'Retry projection',
+				)
+			: null,
 	);
 }
 
@@ -200,15 +214,117 @@ describe('useProjectedTerminalSurface', () => {
 		},
 	);
 
-	it('reopens a fresh projection after an attachment transport becomes unavailable', async () => {
+	it('disposes a candidate renderer that unmounts before its first presented frame', async () => {
+		const sessionDispose = vi.fn<() => void>();
+		renderer.start.mockResolvedValueOnce({
+			dispose: sessionDispose,
+			freeze: vi.fn<() => void>(),
+			presentationReady: new Promise<void>(() => undefined),
+			transportUnavailable: new Promise<void>(() => undefined),
+			updatePresentationConfiguration: vi
+				.fn<ProjectedTerminalRendererSession['updatePresentationConfiguration']>()
+				.mockResolvedValue({
+					configuration: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current(),
+					kind: 'completed',
+				}),
+		});
+		const release = vi.fn<() => void>();
+		const transport: ProjectedTerminalTransport = {
+			close: vi.fn<() => void>(),
+			projectionBufferTrust: 'external',
+			send: vi.fn<ProjectedTerminalTransport['send']>(),
+			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
+		};
+		const presentation: WorkbenchTerminalPresentation = {
+			currentCwd: '/workspace',
+			launchCwd: '/workspace',
+			lifecycle: { kind: 'running' },
+			naturalTitle: null,
+			presentationId: terminalPresentationId('presentation-candidate'),
+			title: 'Terminal Candidate',
+		};
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const root = createRoot(container);
+
+		await act(async () => {
+			root.render(
+				createElement(
+					ProjectedTerminalSurfaceCapabilityContext.Provider,
+					{
+						value: {
+							documentElement: document.documentElement,
+							observeTerminalMetadata: () => undefined,
+							platformEffects: {},
+							preferredLocales: ['en-US'],
+							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+							projectionClient: {
+								open: () => ({
+									release,
+									result: Promise.resolve({
+										bootstrap: {
+											attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+											canInput: true,
+											canResize: true,
+											creationId: CreationIdSchema.parse('22'.repeat(16)),
+											hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+											terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+											terminalOutcome: null,
+										},
+										transport,
+									}),
+								}),
+							},
+							shortcutPlatform: 'apple',
+							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
+						},
+					},
+					createElement(
+						OrchbeeI18nProvider,
+						{ locale: 'en-US' },
+						createElement(TestHarness, { presentation }),
+					),
+				),
+			);
+		});
+		await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
+
+		await act(async () => root.unmount());
+		expect(sessionDispose).toHaveBeenCalledOnce();
+		expect(release).toHaveBeenCalledOnce();
+		container.remove();
+	});
+
+	it('releases a projection opened synchronously during recovery disposal', () => {
+		const release = vi.fn<() => void>();
+		let controller: ProjectedTerminalRecoveryController | undefined;
+		controller = new ProjectedTerminalRecoveryController({
+			onStateChange: () => undefined,
+			open: () => {
+				controller?.dispose();
+				return { release, result: new Promise(() => undefined) };
+			},
+			startRenderer: () => {
+				throw new Error('Disposed recovery must not start a renderer.');
+			},
+		});
+		controller.start();
+		expect(release).toHaveBeenCalledOnce();
+	});
+
+	it('keeps the last frame mounted and retries an unavailable transport with bounded backoff', async () => {
+		vi.useFakeTimers();
 		let resolveTransportUnavailable: (() => void) | undefined;
 		const transportUnavailable = new Promise<void>((resolve) => {
 			resolveTransportUnavailable = resolve;
 		});
 		const sessionDispose = vi.fn<() => void>();
+		const sessionFreeze = vi.fn<() => void>();
 		renderer.start.mockReset();
 		renderer.start.mockResolvedValueOnce({
 			dispose: sessionDispose,
+			freeze: sessionFreeze,
+			presentationReady: Promise.resolve(),
 			transportUnavailable,
 			updatePresentationConfiguration: vi
 				.fn<ProjectedTerminalRendererSession['updatePresentationConfiguration']>()
@@ -219,6 +335,7 @@ describe('useProjectedTerminalSurface', () => {
 		});
 		const firstRelease = vi.fn<() => void>();
 		const secondRelease = vi.fn<() => void>();
+		const thirdRelease = vi.fn<() => void>();
 		const observeTerminalMetadata =
 			vi.fn<ProjectedTerminalSurfaceCapability['observeTerminalMetadata']>();
 		const transport: ProjectedTerminalTransport = {
@@ -247,7 +364,10 @@ describe('useProjectedTerminalSurface', () => {
 					}),
 				};
 			}
-			return { release: secondRelease, result: new Promise(() => undefined) };
+			if (openSequence === 2) {
+				return { release: secondRelease, result: Promise.reject(new Error('still unavailable')) };
+			}
+			return { release: thirdRelease, result: new Promise(() => undefined) };
 		});
 		const presentation: WorkbenchTerminalPresentation = {
 			currentCwd: '/workspace',
@@ -288,6 +408,7 @@ describe('useProjectedTerminalSurface', () => {
 		});
 		expect(open).toHaveBeenCalledOnce();
 		expect(renderer.start).toHaveBeenCalledOnce();
+		const mountedFrame = container.firstElementChild?.appendChild(document.createElement('canvas'));
 		const observeProjectedMetadata = renderer.start.mock.calls[0]?.[10];
 		expect(observeProjectedMetadata).toBeTypeOf('function');
 		observeProjectedMetadata?.({
@@ -303,12 +424,106 @@ describe('useProjectedTerminalSurface', () => {
 			resolveTransportUnavailable?.();
 			await Promise.resolve();
 		});
-		expect(open).toHaveBeenCalledTimes(2);
+		expect(container.firstElementChild?.contains(mountedFrame ?? null)).toBe(true);
+		expect(open).toHaveBeenCalledOnce();
 		expect(firstRelease).toHaveBeenCalledOnce();
-		expect(sessionDispose).toHaveBeenCalledOnce();
+		expect(sessionFreeze).toHaveBeenCalledOnce();
+		expect(sessionDispose).not.toHaveBeenCalled();
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(250);
+		});
+		expect(open).toHaveBeenCalledTimes(2);
+		expect(container.firstElementChild?.contains(mountedFrame ?? null)).toBe(true);
+		expect(firstRelease).toHaveBeenCalledOnce();
+		expect(sessionDispose).not.toHaveBeenCalled();
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(500);
+		});
+		expect(open).toHaveBeenCalledTimes(3);
+		expect(container.firstElementChild?.contains(mountedFrame ?? null)).toBe(true);
 
 		await act(async () => root.unmount());
+		expect(firstRelease).toHaveBeenCalledOnce();
 		expect(secondRelease).toHaveBeenCalledOnce();
+		expect(thirdRelease).toHaveBeenCalledOnce();
+		expect(sessionDispose).toHaveBeenCalledOnce();
+		container.remove();
+	});
+
+	it('stops after the retry budget and exposes an immediate manual recovery', async () => {
+		vi.useFakeTimers();
+		renderer.start.mockReset();
+		const release = vi.fn<() => void>();
+		const open = vi.fn<TerminalProjectionClient['open']>(() => ({
+			release,
+			result: Promise.reject(new Error('projection unavailable')),
+		}));
+		const presentation: WorkbenchTerminalPresentation = {
+			currentCwd: '/workspace',
+			launchCwd: '/workspace',
+			lifecycle: { kind: 'running' },
+			naturalTitle: null,
+			presentationId: terminalPresentationId('presentation-recovery-budget'),
+			title: 'Terminal Recovery',
+		};
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const root = createRoot(container);
+
+		await act(async () => {
+			root.render(
+				createElement(
+					ProjectedTerminalSurfaceCapabilityContext.Provider,
+					{
+						value: {
+							documentElement: document.documentElement,
+							observeTerminalMetadata: () => undefined,
+							platformEffects: {},
+							preferredLocales: ['en-US'],
+							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+							projectionClient: { open },
+							shortcutPlatform: 'apple',
+							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
+						},
+					},
+					createElement(
+						OrchbeeI18nProvider,
+						{ locale: 'en-US' },
+						createElement(TestHarness, { presentation }),
+					),
+				),
+			);
+		});
+		await act(async () => {
+			await vi.waitFor(() => expect(vi.getTimerCount()).toBe(1));
+			await vi.advanceTimersByTimeAsync(250);
+		});
+		await act(async () => {
+			await vi.waitFor(() => expect(open).toHaveBeenCalledTimes(2));
+			await vi.waitFor(() => expect(vi.getTimerCount()).toBe(1));
+			await vi.advanceTimersByTimeAsync(500);
+		});
+		await act(async () => {
+			await vi.waitFor(() => expect(open).toHaveBeenCalledTimes(3));
+			await vi.waitFor(() => expect(vi.getTimerCount()).toBe(1));
+			await vi.advanceTimersByTimeAsync(1_000);
+		});
+
+		expect(open).toHaveBeenCalledTimes(4);
+		expect(container.firstElementChild?.getAttribute('data-recovery-available')).toBe('true');
+		expect(container.firstElementChild?.getAttribute('data-failure-message')).toBe(
+			'The terminal connection could not be restored.',
+		);
+		await act(async () => {
+			(container.querySelector('[data-retry-projection]') as HTMLButtonElement).click();
+			await Promise.resolve();
+		});
+		expect(open).toHaveBeenCalledTimes(5);
+
+		await act(async () => root.unmount());
+		expect(release).toHaveBeenCalledTimes(5);
 		container.remove();
 	});
 
@@ -316,6 +531,8 @@ describe('useProjectedTerminalSurface', () => {
 		renderer.start.mockReset();
 		renderer.start.mockResolvedValue({
 			dispose: vi.fn<() => void>(),
+			freeze: vi.fn<() => void>(),
+			presentationReady: Promise.resolve(),
 			transportUnavailable: new Promise<void>(() => undefined),
 			updatePresentationConfiguration: vi
 				.fn<ProjectedTerminalRendererSession['updatePresentationConfiguration']>()

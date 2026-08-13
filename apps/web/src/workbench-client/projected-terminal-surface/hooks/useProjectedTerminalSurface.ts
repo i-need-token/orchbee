@@ -4,11 +4,12 @@ import type { ProjectedPasteReview } from '@orchbee/terminal';
 import type { WorkbenchTerminalPresentation } from '@orchbee/workbench';
 import * as React from 'react';
 
-import {
-	startProjectedTerminalRenderer,
-	type ProjectedTerminalRendererSession,
-} from '../../projected-terminal-renderer';
+import { startProjectedTerminalRenderer } from '../../projected-terminal-renderer';
 import { ProjectedTerminalSurfaceCapabilityContext } from '../contexts/projected-terminal-surface-capability';
+import {
+	ProjectedTerminalRecoveryController,
+	type ProjectedTerminalRecoveryState,
+} from '../model/ProjectedTerminalRecoveryController';
 import type { ProjectedTerminalSurfaceView } from '../types/projected-terminal-surface-view';
 
 interface PendingPasteDecision {
@@ -17,19 +18,28 @@ interface PendingPasteDecision {
 	readonly signal: AbortSignal;
 }
 
+interface PresentationRecoveryState {
+	readonly presentationId: string;
+	readonly state: ProjectedTerminalRecoveryState;
+}
+
 export function useProjectedTerminalSurface(
 	presentation: WorkbenchTerminalPresentation,
 ): ProjectedTerminalSurfaceView {
 	const capability = React.useContext(ProjectedTerminalSurfaceCapabilityContext);
 	const intl = useOrchbeeIntl();
 	const root = React.useRef<HTMLDivElement>(null);
-	const [failed, setFailed] = React.useState(false);
+	const recoveryController = React.useRef<{
+		readonly controller: ProjectedTerminalRecoveryController;
+		readonly presentationId: string;
+	} | null>(null);
+	const [presentationRecovery, setPresentationRecovery] =
+		React.useState<PresentationRecoveryState | null>(null);
 	const [startFailurePresentationId, setStartFailurePresentationId] = React.useState<string | null>(
 		null,
 	);
 	const [pasteReview, setPasteReview] = React.useState<ProjectedPasteReview | null>(null);
 	const pendingPasteDecision = React.useRef<PendingPasteDecision | null>(null);
-	const [projectionGeneration, setProjectionGeneration] = React.useState(0);
 	const projectable =
 		presentation.lifecycle.kind === 'running' ||
 		presentation.lifecycle.kind === 'exited' ||
@@ -78,17 +88,19 @@ export function useProjectedTerminalSurface(
 
 	React.useEffect(() => {
 		if (!projectable) return;
-		const projection = capability.projectionClient.open(presentation.presentationId);
 		let cancelled = false;
-		let session: ProjectedTerminalRendererSession | undefined;
-		setFailed(false);
-		void projection.result
-			.then(async (attachment) => {
-				if (cancelled) {
-					attachment.transport.close();
-					return;
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: (state) => {
+				if (!cancelled) {
+					setPresentationRecovery({
+						presentationId: presentation.presentationId,
+						state,
+					});
 				}
-				const rendererSession = await startProjectedTerminalRenderer(
+			},
+			open: () => capability.projectionClient.open(presentation.presentationId),
+			startRenderer: (attachment) =>
+				startProjectedTerminalRenderer(
 					root.current,
 					capability.documentElement,
 					capability.preferredLocales,
@@ -100,39 +112,33 @@ export function useProjectedTerminalSurface(
 					capability.presentationConfigurationSource,
 					reviewPaste,
 					(metadata) => capability.observeTerminalMetadata(presentation.presentationId, metadata),
-				);
-				if (cancelled) rendererSession.dispose();
-				else {
-					session = rendererSession;
-					void rendererSession.transportUnavailable.then(() => {
-						if (!cancelled) setProjectionGeneration((generation) => generation + 1);
-					});
-				}
-			})
-			.catch(() => {
-				if (!cancelled) setFailed(true);
-			});
+				),
+		});
+		recoveryController.current = { controller, presentationId: presentation.presentationId };
+		controller.start();
 		return () => {
 			cancelled = true;
 			settlePasteReview(false);
-			session?.dispose();
-			projection.release();
+			if (recoveryController.current?.controller === controller) {
+				recoveryController.current = null;
+			}
+			controller.dispose();
 		};
-	}, [
-		capability,
-		presentation.presentationId,
-		projectable,
-		projectionGeneration,
-		reviewPaste,
-		settlePasteReview,
-	]);
+	}, [capability, presentation.presentationId, projectable, reviewPaste, settlePasteReview]);
 
 	let projectionState: ProjectedTerminalSurfaceView['projectionState'] = 'inactive';
+	const currentRecovery =
+		presentationRecovery?.presentationId === presentation.presentationId
+			? presentationRecovery.state
+			: undefined;
 	if (projectable) projectionState = 'requested';
-	if (failed) projectionState = 'failed';
+	if (currentRecovery?.kind === 'recovering') projectionState = 'recovering';
+	if (currentRecovery?.kind === 'failed') projectionState = 'failed';
 	let failureMessage: string | null = null;
-	if (failed) {
-		failureMessage = intl.formatMessage(projectedTerminalMessages.connectionFailure);
+	if (currentRecovery?.kind === 'recovering') {
+		failureMessage = intl.formatMessage(projectedTerminalMessages.connectionRecovering);
+	} else if (currentRecovery?.kind === 'failed') {
+		failureMessage = intl.formatMessage(projectedTerminalMessages.connectionRecoveryFailed);
 	} else if (startFailurePresentationId === presentation.presentationId) {
 		failureMessage = intl.formatMessage(projectedTerminalMessages.sessionStartFailed);
 	}
@@ -142,6 +148,12 @@ export function useProjectedTerminalSurface(
 		failureMessage,
 		pasteReview,
 		projectionState,
+		recoveryAvailable: currentRecovery?.kind === 'failed',
+		retryProjection: () => {
+			if (recoveryController.current?.presentationId === presentation.presentationId) {
+				recoveryController.current.controller.retry();
+			}
+		},
 		root,
 		stopped: presentation.lifecycle.kind === 'stopped',
 		startNewSession,

@@ -28,6 +28,8 @@ describe('ProjectedTerminalSurface', () => {
 			failureMessage: 'The terminal connection failed.',
 			pasteReview: null,
 			projectionState: 'failed',
+			recoveryAvailable: false,
+			retryProjection: () => undefined,
 			root: { current: null },
 			stopped: false,
 			startNewSession: () => undefined,

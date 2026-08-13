@@ -47,6 +47,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'findNext'
 	| 'findPrevious'
 	| 'focus'
+	| 'freeze'
 	| 'getBufferRowsSnapshot'
 	| 'notifyExited'
 	| 'notifyBell'
@@ -85,7 +86,10 @@ export interface ProjectedTerminalRendererDependencies {
 
 export interface ProjectedTerminalRendererSession {
 	dispose(): void;
+	readonly presentationReady: Promise<void>;
 	readonly transportUnavailable: Promise<void>;
+	/** Retire transport and interaction while retaining the already painted frame DOM. */
+	freeze(): void;
 	updatePresentationConfiguration(
 		configuration: TerminalPresentationConfiguration,
 	): Promise<TerminalPresentationConfigurationUpdateResult>;
@@ -146,6 +150,7 @@ export async function startProjectedTerminalRenderer(
 	let committedFrames = 0;
 	let committedPresentationEpoch = 0;
 	let disposed = false;
+	let frozen = false;
 	let finalRevision: bigint | undefined;
 	let lastRenderedRevision: bigint | undefined;
 	let renderedFrames = 0;
@@ -155,6 +160,10 @@ export async function startProjectedTerminalRenderer(
 	let terminalOutcomeKind: 'exited' | 'failed' | undefined;
 	let pendingPresentationConfiguration: TerminalPresentationConfiguration | undefined;
 	let resolveTransportUnavailable: (() => void) | undefined;
+	let resolvePresentationReady: (() => void) | undefined;
+	const presentationReady = new Promise<void>((resolve) => {
+		resolvePresentationReady = resolve;
+	});
 	const transportUnavailable = new Promise<void>((resolve) => {
 		resolveTransportUnavailable = resolve;
 	});
@@ -233,7 +242,7 @@ export async function startProjectedTerminalRenderer(
 	const updatePresentationConfiguration = async (
 		configuration: TerminalPresentationConfiguration,
 	): Promise<TerminalPresentationConfigurationUpdateResult> => {
-		if (disposed) return { kind: 'cancelled', reason: 'disposed' };
+		if (disposed || frozen) return { kind: 'cancelled', reason: 'disposed' };
 		const epoch = ++presentationRequestEpoch;
 		rootElement.dataset['projectedTerminalPresentationRequestEpoch'] = String(epoch);
 		rootElement.dataset['projectedTerminalPresentationState'] = 'preparing';
@@ -241,13 +250,13 @@ export async function startProjectedTerminalRenderer(
 		try {
 			result = await terminal.updatePresentationConfiguration(configuration);
 		} catch (error) {
-			if (!disposed && epoch === presentationRequestEpoch) {
+			if (!disposed && !frozen && epoch === presentationRequestEpoch) {
 				rootElement.dataset['projectedTerminalPresentationState'] = 'failed';
 				rootElement.dataset['projectedTerminalPresentationFailure'] = 'update-rejected';
 			}
 			throw error;
 		}
-		if (disposed || epoch !== presentationRequestEpoch) return result;
+		if (disposed || frozen || epoch !== presentationRequestEpoch) return result;
 		rootElement.dataset['projectedTerminalPresentationState'] = result.kind;
 		if (result.kind === 'completed') {
 			committedPresentationEpoch = epoch;
@@ -362,6 +371,8 @@ export async function startProjectedTerminalRenderer(
 					);
 					rootElement.dataset['projectedTerminalRenderer'] = event.backend;
 					updateFinalPresentation();
+					resolvePresentationReady?.();
+					resolvePresentationReady = undefined;
 				}),
 			);
 			pendingSubscriptions.push(
@@ -653,6 +664,10 @@ export async function startProjectedTerminalRenderer(
 		dispose: () => {
 			if (disposed) return;
 			disposed = true;
+			if (frozen) {
+				runCleanup([() => terminal.dispose(), () => status.remove(), () => findRoot?.remove()]);
+				return;
+			}
 			runCleanup([
 				unsubscribePresentationConfiguration,
 				() => disposeShortcuts?.(),
@@ -667,6 +682,24 @@ export async function startProjectedTerminalRenderer(
 				() => findRoot?.remove(),
 			]);
 		},
+		freeze: () => {
+			if (disposed || frozen) return;
+			frozen = true;
+			runCleanup([
+				unsubscribePresentationConfiguration,
+				() => disposeShortcuts?.(),
+				() => findSurface?.dispose(),
+				unsubscribeTransport,
+				...subscriptions.map((subscription) => () => subscription.dispose()),
+				() => actions.dispose(),
+				() => findController.dispose(),
+				() => terminal.freeze(),
+				() => transport.close(),
+				() => status.remove(),
+				() => findRoot?.remove(),
+			]);
+		},
+		presentationReady,
 		transportUnavailable,
 		updatePresentationConfiguration,
 	};

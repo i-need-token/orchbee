@@ -30,7 +30,16 @@ export function ProjectedTerminalSurface({
 				) : null}
 				{view.failureMessage === null ? null : (
 					<div data-projected-terminal-status='true' role='alert'>
-						{view.failureMessage}
+						<span>{view.failureMessage}</span>
+						{view.recoveryAvailable ? (
+							<Button
+								data-slot='projected-terminal-retry-connection'
+								onClick={view.retryProjection}
+								variant='outline'
+							>
+								{intl.formatMessage(projectedTerminalMessages.retryConnection)}
+							</Button>
+						) : null}
 					</div>
 				)}
 			</div>

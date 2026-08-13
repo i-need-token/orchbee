@@ -59,6 +59,7 @@ describe('startProjectedTerminalRenderer', () => {
 		const notifyBrokerFailure = vi.fn<ProjectedTerminal['notifyBrokerFailure']>();
 		const notifySelectionCopied = vi.fn<ProjectedTerminal['notifySelectionCopied']>();
 		const disposeTerminal = vi.fn<ProjectedTerminal['dispose']>();
+		const freezeTerminal = vi.fn<ProjectedTerminal['freeze']>();
 		const focusTerminal = vi.fn<ProjectedTerminal['focus']>();
 		const openTerminal = vi.fn<ProjectedTerminal['open']>().mockResolvedValue(undefined);
 		const setResizeOwnership = vi.fn<ProjectedTerminal['setResizeOwnership']>();
@@ -99,6 +100,7 @@ describe('startProjectedTerminalRenderer', () => {
 						findNext: vi.fn<ProjectedTerminal['findNext']>(() => false),
 						findPrevious: vi.fn<ProjectedTerminal['findPrevious']>(() => false),
 						focus: focusTerminal,
+						freeze: freezeTerminal,
 						getBufferRowsSnapshot: vi.fn<ProjectedTerminal['getBufferRowsSnapshot']>(() => ({
 							generation: 1n,
 							revision: 0n,
@@ -326,6 +328,7 @@ describe('startProjectedTerminalRenderer', () => {
 				viewportY: 0,
 			};
 			emitFrameTelemetry(telemetry);
+			await expect(session.presentationReady).resolves.toBeUndefined();
 			if (emitMetadata === undefined) throw new Error('metadata listener is missing');
 			emitMetadata({
 				cellPixelHeight: 18,
@@ -408,6 +411,10 @@ describe('startProjectedTerminalRenderer', () => {
 				hidden: false,
 				textContent: '已复制 16 字节。',
 			});
+			session.freeze();
+			session.freeze();
+			expect(freezeTerminal).toHaveBeenCalledOnce();
+			expect(disposeTerminal).not.toHaveBeenCalled();
 			session.dispose();
 			session.dispose();
 			expect(unsubscribePresentationConfiguration).toHaveBeenCalledOnce();

@@ -14,6 +14,12 @@ Start New Session control returns the Workbench transition result through the sh
 an accepted result replaces the presentation through the normal durable workflow, while a rejected
 or thrown start remains on the stopped presentation and displays localized failure feedback.
 
+An unexpected attachment loss freezes the last completed canvas and accessible rows while releasing
+its transport and interaction ownership. The shared surface retries a fresh attachment after 250,
+500, and 1,000 milliseconds, and replaces the frozen projection only after the candidate paints its
+first frame. Exhausting that budget leaves the honest last frame visible and exposes one localized
+manual Retry action; each attempt owns and releases exactly one projection request.
+
 The shared adapter exposes the last completed draw checkpoint as
 `data-projected-terminal-rendered-generation` and
 `data-projected-terminal-rendered-revision`. Both values come from one renderer telemetry event and

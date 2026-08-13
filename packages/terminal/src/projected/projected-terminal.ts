@@ -364,6 +364,7 @@ export type ProjectedHistoryPhase =
 export const ProjectedTerminalPhase = {
 	constructed: 'constructed',
 	disposed: 'disposed',
+	frozen: 'frozen',
 	open: 'open',
 	opening: 'opening',
 } as const;
@@ -994,7 +995,7 @@ export class ProjectedTerminal {
 	}
 
 	applyFrame(frame: ArrayBuffer | Uint8Array): ProjectedFrameResult {
-		if (this.#phase === ProjectedTerminalPhase.disposed) return 'disposed';
+		if (this.#isDisposed()) return 'disposed';
 		const previousGeneration = this.#historyGeneration;
 		const previousRevision = this.#historyRevision;
 		const bytes = frame instanceof Uint8Array ? frame : new Uint8Array(frame);
@@ -1722,12 +1723,12 @@ export class ProjectedTerminal {
 	}
 
 	dispose(): void {
-		if (
-			this.#phase === ProjectedTerminalPhase.disposed ||
-			this.#inputAdmission === ProjectedInputAdmission.disposed
-		) {
+		if (this.#phase === ProjectedTerminalPhase.disposed) return;
+		if (this.#phase === ProjectedTerminalPhase.frozen) {
+			this.#performDispose(true, false);
 			return;
 		}
+		if (this.#inputAdmission === ProjectedInputAdmission.disposed) return;
 		if (this.#inputRepairTransaction !== undefined) {
 			this.#inputAdmission = ProjectedInputAdmission.disposed;
 			this.#inputRepairEpoch++;
@@ -1749,6 +1750,54 @@ export class ProjectedTerminal {
 		this.#performDispose();
 	}
 
+	/**
+	 * Release live attachment behavior while leaving the last painted canvas and accessible rows
+	 * mounted for an application-owned recovery handoff.
+	 */
+	freeze(): void {
+		if (
+			this.#phase === ProjectedTerminalPhase.disposed ||
+			this.#phase === ProjectedTerminalPhase.frozen ||
+			this.#inputAdmission === ProjectedInputAdmission.disposed
+		) {
+			return;
+		}
+		this.#inputAdmission = ProjectedInputAdmission.disposed;
+		this.#inputRepairEpoch++;
+		this.#inputDispatcher.invalidate();
+		this.#cancelPresentationPreparation('disposed');
+		this.#prepareFocusLossInputRepair(true);
+		this.#phase = ProjectedTerminalPhase.frozen;
+		this.#historyPhase = ProjectedHistoryPhase.disposed;
+		this.#cancelScheduledFrame();
+		this.#cancelScheduledSelectionGesture();
+		this.#clearApplicationMouseClickSuppression();
+		this.#clearHistoryScrollbarClickSuppression();
+		this.#cancelHistoryScrollbarFade();
+		this.#stopSelectionAutoscroll();
+		this.#searchController?.dispose();
+		this.#searchController = undefined;
+		this.#clearHoveredLink();
+		for (const complete of this.#copyCompletions.values()) complete({ kind: 'cancelled' });
+		for (const complete of this.#linkCompletions.values()) complete({ kind: 'cancelled' });
+		this.#copyCompletions.clear();
+		this.#copyRequests.clear();
+		this.#linkCompletions.clear();
+		const rowFlight = this.#rowFlight;
+		this.#rowFlight = undefined;
+		if (rowFlight?.kind === 'buffer') {
+			rowFlight.removeAbortListener();
+			if (!rowFlight.aborted) {
+				rowFlight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
+			}
+		}
+		this.#freezeSurfaceBindings();
+		this.#input?.remove();
+		this.#input = undefined;
+		this.#accessibilityAnnouncement?.remove();
+		this.#accessibilityAnnouncement = undefined;
+	}
+
 	#rollbackOpen(): void {
 		const inputCleanup = this.#prepareFocusLossInputRepair(false);
 		this.#dispatchDisposedInputCleanup(inputCleanup);
@@ -1764,24 +1813,24 @@ export class ProjectedTerminal {
 		this.#phase = ProjectedTerminalPhase.constructed;
 	}
 
-	#performDispose(inputCleanupAttempted = false): void {
+	#performDispose(inputCleanupAttempted = false, publishLifecycle = true): void {
 		if (this.#disposalStarted) return;
 		this.#disposalStarted = true;
 		this.#cancelPresentationPreparation('disposed');
 		const inputCleanup = inputCleanupAttempted ? [] : this.#prepareFocusLossInputRepair(true);
-		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) {
+		if (publishLifecycle && this.#historyPhase !== ProjectedHistoryPhase.followingBottom) {
 			this.#send({
 				kind: 'set-history-demand',
 				payload: { attachmentId: this.#attachmentId, demand: 'following-bottom' },
 			});
 		}
-		if (this.#demandSent === 'active') {
+		if (publishLifecycle && this.#demandSent === 'active') {
 			this.#demand = 'paused';
 			this.#sendDemandIfNeeded();
 		}
 		this.#phase = ProjectedTerminalPhase.disposed;
 		this.#historyPhase = ProjectedHistoryPhase.disposed;
-		this.#dispatchDisposedInputCleanup(inputCleanup);
+		if (publishLifecycle) this.#dispatchDisposedInputCleanup(inputCleanup);
 		const rowFlight = this.#rowFlight;
 		this.#rowFlight = undefined;
 		if (rowFlight?.kind === 'buffer') {
@@ -1826,13 +1875,22 @@ export class ProjectedTerminal {
 	}
 
 	#releaseSurfaceBindings(): void {
+		this.#releaseSurfaceListeners();
+		this.#renderer?.dispose();
+		this.#renderer = undefined;
+	}
+
+	#freezeSurfaceBindings(): void {
+		this.#releaseSurfaceListeners();
+		this.#renderer?.freeze();
+	}
+
+	#releaseSurfaceListeners(): void {
 		this.#resizeObserver?.disconnect();
 		this.#resizeObserver = undefined;
 		this.#devicePixelRatioQuery?.removeEventListener('change', this.#handleDevicePixelRatioChange);
 		this.#devicePixelRatioQuery = undefined;
 		for (const dispose of this.#listenerDisposers.splice(0)) dispose();
-		this.#renderer?.dispose();
-		this.#renderer = undefined;
 	}
 
 	#releaseSurfaceDom(): void {
@@ -1856,14 +1914,14 @@ export class ProjectedTerminal {
 	}
 
 	#scheduleRender(): boolean {
-		if (this.#phase === ProjectedTerminalPhase.disposed || !this.#renderer) return false;
+		if (this.#isDisposed() || !this.#renderer) return false;
 		if (this.#presentationSuspended) return true;
 		this.#syncProjectedViewportState();
 		this.#updateInputPosition();
 		if (this.#frameHandle !== undefined) return true;
 		const callback = (): void => {
 			this.#frameHandle = undefined;
-			if (this.#phase === ProjectedTerminalPhase.disposed) return;
+			if (this.#isDisposed()) return;
 			try {
 				this.#renderer?.renderPacked(this.#visibleStore());
 			} catch (error) {
@@ -2934,7 +2992,10 @@ export class ProjectedTerminal {
 	}
 
 	#isDisposed(): boolean {
-		return this.#phase === ProjectedTerminalPhase.disposed;
+		return (
+			this.#phase === ProjectedTerminalPhase.disposed ||
+			this.#phase === ProjectedTerminalPhase.frozen
+		);
 	}
 
 	#requestSelectionCopy(
@@ -2980,6 +3041,7 @@ export class ProjectedTerminal {
 	}
 
 	#send(command: ProjectedTerminalCommand, onFailure?: (error: unknown) => void): boolean {
+		if (this.#phase === ProjectedTerminalPhase.frozen) return false;
 		try {
 			const pending = this.#options.port.send(command);
 			void pending?.catch((error) => {
