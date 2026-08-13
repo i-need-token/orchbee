@@ -121,6 +121,7 @@
 				"src/index.ts!",
 				"src/composition/entry.ts!",
 				"src/**/*.unit.test.{ts,tsx}!",
+				"src/**/*.system-fixture.ts!",
 				"stories/**/*.stories.tsx!",
 				"rsbuild.config.ts!",
 				"vitest.config.ts!"
