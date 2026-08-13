@@ -448,6 +448,8 @@ interface ViewportRowFlight {
 
 type RowFlight = BufferRowFlight | ViewportRowFlight;
 
+type PendingHistoryTransition = 'awaiting-change' | 'recover' | 'refresh';
+
 type SelectionGestureIdentity = 'attachmentId' | 'generation' | 'revision';
 type PendingSelectionGesture =
 	| Omit<Extract<SelectionGesture, { readonly action: 'start' }>, SelectionGestureIdentity>
@@ -694,6 +696,7 @@ export class ProjectedTerminal {
 	#pendingApplicationWheelX = 0;
 	#pendingApplicationWheelY = 0;
 	#pendingHistoryDelta = 0;
+	#pendingHistoryTransition: PendingHistoryTransition | undefined;
 	#pendingHistoryStartRow: bigint | undefined;
 	#pendingHistoryTargetRow: bigint | undefined;
 	#pendingHistoryWheelRows = 0;
@@ -1170,6 +1173,20 @@ export class ProjectedTerminal {
 			return 'rejected';
 		}
 		const window = decoded.value;
+		if (
+			window.generation !== this.#historyGeneration ||
+			window.revision !== this.#historyRevision
+		) {
+			if (flight.kind === 'buffer') {
+				if (!flight.aborted) {
+					flight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'stale' });
+				}
+			} else {
+				this.#pendingHistoryTransition ??= 'awaiting-change';
+			}
+			this.#dispatchPendingHistoryIntent();
+			return 'ignored';
+		}
 		if (flight.kind === 'buffer') {
 			if (!flight.aborted) {
 				if (
@@ -1268,6 +1285,14 @@ export class ProjectedTerminal {
 		const rows = Math.trunc(amount);
 		this.#showHistoryScrollbar();
 		this.#invalidateLinkCache();
+		if (this.#pendingHistoryTransition !== undefined) {
+			this.#pendingHistoryDelta = clamp(
+				this.#pendingHistoryDelta + rows,
+				-PROTOCOL_LIMITS.maxRowWindowRows,
+				PROTOCOL_LIMITS.maxRowWindowRows,
+			);
+			return;
+		}
 		if (this.#rowFlight !== undefined) {
 			this.#cancelBufferFlightForViewportIntent();
 			this.#pendingHistoryStartRow = undefined;
@@ -1330,16 +1355,13 @@ export class ProjectedTerminal {
 		if (changed) this.#invalidateLinkCache();
 		if (
 			this.#historyPhase === ProjectedHistoryPhase.followingBottom ||
-			this.#historyPhase === ProjectedHistoryPhase.disposed ||
-			this.#rowFlight !== undefined
+			this.#historyPhase === ProjectedHistoryPhase.disposed
 		) {
 			return;
 		}
-		if (event.anchorStatus === 'valid') {
-			this.#requestHistoryRows({ delta: 0, kind: 'committed' });
-		} else {
-			this.#recoverHistory();
-		}
+		if (this.#rowFlight !== undefined && !changed) return;
+		this.#pendingHistoryTransition = event.anchorStatus === 'valid' ? 'refresh' : 'recover';
+		this.#dispatchPendingHistoryIntent();
 	}
 
 	notifySelectionChanged(selection: SelectionChanged): void {
@@ -1383,10 +1405,17 @@ export class ProjectedTerminal {
 
 	notifyBrokerFailure(failure: ProjectedBrokerFailure): void {
 		if (failure.operation === 'resize') this.#lastGeometry = undefined;
-		let recoveredOverscan = false;
+		let handledHistoryFailure = false;
+		const repairedStaleSelectionGesture =
+			failure.operation === 'selection' &&
+			this.#selectionGestureActionInFlight !== undefined &&
+			(failure.code === 'stale-generation' || failure.code === 'stale-revision');
+		const activeFlight = this.#rowFlight;
 		const flight =
-			failure.operation === undefined || failure.operation === 'history'
-				? this.#rowFlight
+			(failure.operation === undefined || failure.operation === 'history') &&
+			failure.requestSequence !== undefined &&
+			activeFlight?.requestSequence === failure.requestSequence
+				? activeFlight
 				: undefined;
 		if (flight !== undefined) {
 			this.#rowFlight = undefined;
@@ -1401,9 +1430,19 @@ export class ProjectedTerminal {
 					flight.resolve({ ...this.getBufferRowsSnapshot(), kind });
 				}
 				this.#dispatchPendingHistoryIntent();
+				handledHistoryFailure = true;
+			} else if (
+				this.#pendingHistoryTransition === 'recover' ||
+				this.#pendingHistoryTransition === 'refresh'
+			) {
+				this.#dispatchPendingHistoryIntent();
+				handledHistoryFailure = true;
+			} else if (failure.code === 'stale-generation' || failure.code === 'stale-revision') {
+				this.#pendingHistoryTransition = 'awaiting-change';
+				handledHistoryFailure = true;
 			} else if (failure.code === 'limit-exceeded' && flight.overscanned) {
 				this.#requestHistoryRows(flight.origin, 0);
-				recoveredOverscan = true;
+				handledHistoryFailure = true;
 			} else {
 				this.#recoverHistory();
 			}
@@ -1427,7 +1466,7 @@ export class ProjectedTerminal {
 			this.#suppressNextSelectionCopy = false;
 			this.#scheduleSelectionGesture();
 		}
-		if (!recoveredOverscan) {
+		if (!handledHistoryFailure && !repairedStaleSelectionGesture) {
 			this.#errorEmitter.fire({ ...failure, error: new Error(failure.message) });
 		}
 	}
@@ -1791,6 +1830,7 @@ export class ProjectedTerminal {
 		this.#linkCompletions.clear();
 		const rowFlight = this.#rowFlight;
 		this.#rowFlight = undefined;
+		this.#pendingHistoryTransition = undefined;
 		if (rowFlight?.kind === 'buffer') {
 			rowFlight.removeAbortListener();
 			if (!rowFlight.aborted) {
@@ -1839,6 +1879,7 @@ export class ProjectedTerminal {
 		if (publishLifecycle) this.#dispatchDisposedInputCleanup(inputCleanup);
 		const rowFlight = this.#rowFlight;
 		this.#rowFlight = undefined;
+		this.#pendingHistoryTransition = undefined;
 		if (rowFlight?.kind === 'buffer') {
 			rowFlight.removeAbortListener();
 			if (!rowFlight.aborted) {
@@ -2112,6 +2153,7 @@ export class ProjectedTerminal {
 			metadata === null ||
 			metadata === undefined ||
 			this.#rowFlight !== undefined ||
+			this.#pendingHistoryTransition !== undefined ||
 			this.#phase === ProjectedTerminalPhase.disposed
 		) {
 			return;
@@ -2183,7 +2225,7 @@ export class ProjectedTerminal {
 		const startRow = requestedStartRow < 0n ? 0n : minBigInt(requestedStartRow, maximumStart);
 		this.#pendingHistoryDelta = 0;
 		this.#pendingHistoryTargetRow = undefined;
-		if (this.#rowFlight !== undefined) {
+		if (this.#rowFlight !== undefined || this.#pendingHistoryTransition !== undefined) {
 			this.#cancelBufferFlightForViewportIntent();
 			this.#pendingHistoryStartRow = startRow;
 			return;
@@ -2241,6 +2283,17 @@ export class ProjectedTerminal {
 
 	#dispatchPendingHistoryIntent(): void {
 		if (this.#rowFlight !== undefined || this.#phase === ProjectedTerminalPhase.disposed) return;
+		const transition = this.#pendingHistoryTransition;
+		if (transition === 'awaiting-change') return;
+		this.#pendingHistoryTransition = undefined;
+		if (transition === 'recover') {
+			this.#recoverHistory();
+			return;
+		}
+		if (transition === 'refresh') {
+			this.#requestHistoryRows({ delta: 0, kind: 'committed' });
+			return;
+		}
 		const startRow = this.#pendingHistoryStartRow;
 		this.#pendingHistoryStartRow = undefined;
 		if (startRow !== undefined) {
@@ -2274,6 +2327,7 @@ export class ProjectedTerminal {
 			}
 		}
 		this.#pendingHistoryDelta = 0;
+		this.#pendingHistoryTransition = undefined;
 		this.#pendingHistoryStartRow = undefined;
 		this.#pendingHistoryTargetRow = undefined;
 		this.#searchController?.invalidate();
@@ -2363,7 +2417,7 @@ export class ProjectedTerminal {
 			return;
 		}
 		this.#showHistoryScrollbar();
-		if (this.#rowFlight !== undefined) {
+		if (this.#rowFlight !== undefined || this.#pendingHistoryTransition !== undefined) {
 			this.#cancelBufferFlightForViewportIntent();
 			this.#pendingHistoryStartRow = undefined;
 			this.#pendingHistoryTargetRow = row;

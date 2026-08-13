@@ -2914,6 +2914,171 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('refreshes a reflowed history viewport after its superseded row request fails', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		terminal.onError(errors);
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 18n));
+
+		terminal.scrollLines(-3);
+		const initialRead = commands.at(-1);
+		if (initialRead?.kind !== 'read-rows' || initialRead.payload.origin.kind !== 'absolute') {
+			throw new Error('initial history request was not absolute');
+		}
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(initialRead.payload.requestSequence),
+					1n,
+					BigInt(initialRead.payload.origin.row),
+					20n,
+					Array.from({ length: initialRead.payload.rowCount }, (_, index) => `before-${index}`),
+				),
+			),
+		).toBe('committed');
+
+		terminal.scrollLines(-1);
+		const supersededRead = commands.at(-1);
+		if (supersededRead?.kind !== 'read-rows') {
+			throw new Error('superseded history request was not sent');
+		}
+		expect(supersededRead.payload).toMatchObject({
+			generation: '1',
+			origin: { delta: -1, kind: 'committed' },
+			revision: '1',
+		});
+
+		terminal.notifyHistoryChanged({
+			anchorStatus: 'valid',
+			attachmentId,
+			generation: canonicalText('2'),
+			revision: canonicalText('2'),
+			sequence: canonicalText('1'),
+			totalRows: canonicalText('20'),
+		});
+		terminal.notifyBrokerFailure({
+			code: 'stale-revision',
+			message: 'ReadRows failed because the resize advanced the revision',
+			operation: 'history',
+			requestSequence: supersededRead.payload.requestSequence,
+			retryable: true,
+		});
+
+		const refreshRead = commands.at(-1);
+		if (refreshRead?.kind !== 'read-rows') {
+			throw new Error('reflow refresh request was not sent');
+		}
+		expect(refreshRead.payload).toMatchObject({
+			generation: '2',
+			origin: { delta: 0, kind: 'committed' },
+			revision: '2',
+		});
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.requestingHistory);
+		expect(errors).not.toHaveBeenCalled();
+		expect(
+			commands.some(
+				(command) =>
+					command.kind === 'set-history-demand' && command.payload.demand === 'following-bottom',
+			),
+		).toBe(false);
+		terminal.dispose();
+	});
+
+	it('waits for the reflow event when a stale history failure arrives first', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		terminal.onError(errors);
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 18n));
+
+		terminal.scrollLines(-3);
+		const initialRead = commands.at(-1);
+		if (initialRead?.kind !== 'read-rows' || initialRead.payload.origin.kind !== 'absolute') {
+			throw new Error('initial history request was not absolute');
+		}
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(initialRead.payload.requestSequence),
+					1n,
+					BigInt(initialRead.payload.origin.row),
+					20n,
+					Array.from({ length: initialRead.payload.rowCount }, (_, index) => `before-${index}`),
+				),
+			),
+		).toBe('committed');
+
+		terminal.scrollLines(-1);
+		const read = commands.at(-1);
+		if (read?.kind !== 'read-rows') throw new Error('superseded history request was not sent');
+		const readCount = commands.filter((command) => command.kind === 'read-rows').length;
+		terminal.notifyBrokerFailure({
+			code: 'stale-revision',
+			message: 'ReadRows failed because the resize advanced the revision',
+			operation: 'history',
+			requestSequence: read.payload.requestSequence,
+			retryable: true,
+		});
+
+		expect(commands.filter((command) => command.kind === 'read-rows')).toHaveLength(readCount);
+		expect(errors).not.toHaveBeenCalled();
+		terminal.notifyHistoryChanged({
+			anchorStatus: 'valid',
+			attachmentId,
+			generation: canonicalText('2'),
+			revision: canonicalText('2'),
+			sequence: canonicalText('1'),
+			totalRows: canonicalText('20'),
+		});
+
+		expect(commands.at(-1)).toEqual(
+			expect.objectContaining({
+				kind: 'read-rows',
+				payload: expect.objectContaining({
+					generation: '2',
+					origin: { delta: 0, kind: 'committed' },
+					revision: '2',
+				}),
+			}),
+		);
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.requestingHistory);
+		expect(errors).not.toHaveBeenCalled();
+		terminal.dispose();
+	});
+
 	it.each(['evicted', 'none'] as const)(
 		'resumes bottom projection when the Host history anchor becomes %s',
 		async (anchorStatus) => {
@@ -3985,6 +4150,60 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('settles a stale buffer read without surfacing a history failure', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		terminal.onError(errors);
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 42n, ['a', 'b'], null, [0, 1], 10n));
+
+		const rows = terminal.readBufferRows(
+			{
+				detail: 'text',
+				generation: 1n,
+				maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+				revision: 42n,
+				rowCount: 1,
+				startRow: 0n,
+			},
+			new AbortController().signal,
+		);
+		const read = commands.at(-1);
+		if (read?.kind !== 'read-rows') throw new Error('buffer rows request was not sent');
+		terminal.notifyBrokerFailure({
+			code: 'stale-revision',
+			message: 'ReadRows failed because the revision advanced',
+			operation: 'history',
+			requestSequence: read.payload.requestSequence,
+			retryable: true,
+		});
+
+		await expect(rows).resolves.toEqual({
+			generation: 1n,
+			kind: 'stale',
+			revision: 42n,
+			totalRows: 12n,
+		});
+		expect(errors).not.toHaveBeenCalled();
+		terminal.dispose();
+	});
+
 	it('mirrors a Host selection into the accessible DOM at absolute scrollback rows', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -4145,6 +4364,7 @@ describe('ProjectedTerminal', () => {
 			code: 'limit-exceeded',
 			message: 'overscan exceeds the negotiated row-window limit',
 			operation: 'history',
+			requestSequence: overscanned.payload.requestSequence,
 			retryable: true,
 		});
 
@@ -7051,6 +7271,61 @@ describe('ProjectedTerminal', () => {
 			payload: expect.objectContaining({ action: 'end', attachmentId }),
 		});
 		expect(canvas.capturedPointers.has(7)).toBe(false);
+		terminal.dispose();
+	});
+
+	it('repairs a reflow-stale selection gesture without surfacing a feature failure', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		terminal.onError(errors);
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		const canvas = terminal.canvas as unknown as FakeElement;
+
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId: 71 }));
+		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 12, 2, { pointerId: 71 }));
+		expect(
+			commands
+				.filter((command) => command.kind === 'selection-gesture')
+				.map((command) => command.payload.action),
+		).toEqual(['start']);
+
+		terminal.notifyHistoryChanged({
+			anchorStatus: 'none',
+			attachmentId,
+			generation: canonicalText('2'),
+			revision: canonicalText('2'),
+			sequence: canonicalText('1'),
+			totalRows: canonicalText('2'),
+		});
+		terminal.notifyBrokerFailure({
+			code: 'stale-revision',
+			message: 'SelectionGesture failed because the resize advanced the revision',
+			operation: 'selection',
+			retryable: true,
+		});
+		browser.flushFrames();
+
+		const gestures = commands.filter((command) => command.kind === 'selection-gesture');
+		expect(gestures.map((command) => command.payload.action)).toEqual(['start', 'end']);
+		expect(gestures.at(-1)?.payload).toMatchObject({ generation: '2', revision: '2' });
+		expect(errors).not.toHaveBeenCalled();
 		terminal.dispose();
 	});
 

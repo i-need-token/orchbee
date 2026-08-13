@@ -252,8 +252,9 @@ releases the retained renderer resources and DOM after the application has paint
 `notifyBrokerFailure` preserves the broker's typed code, semantic operation, retryability, optional
 Host correlation ID, and optional client request sequence on `onError`. It also applies the owned
 consequence: resize rejection re-admits unchanged geometry, history rejection completes or repairs
-the exact row request, selection rejection releases gesture scheduling, and correlated copy or link
-failure completes only that side effect. The package never turns retryability into automatic replay.
+the exact row request, selection rejection releases gesture scheduling, a reflow-stale gesture
+rejection is absorbed after that repair, and correlated copy or link failure completes only that
+side effect. The package never turns retryability into automatic replay.
 
 The renderer consumes packed rows directly. It never reconstructs a local VT state or a per-cell
 object graph. After a draw completes, frame telemetry records the exact committed Host generation
@@ -268,6 +269,11 @@ Bottom-following use retains only the current packed grid. Entering history paus
 and commits one bounded row window whose first row is the visible logical top, with limited forward
 overscan. `RowsApplied` lets the Host pin that top; while the anchor remains valid, navigation and
 reflow refreshes use the committed origin and treat the returned row-window start as authoritative.
+When a newer reflow event supersedes an in-flight viewport read, its completion only settles that
+old flight; the readable window remains visible and one event-driven refresh uses the newest
+generation, revision, and committed pin without surfacing the obsolete failure.
+Superseded background row reads likewise settle their bounded stale result without presenting a
+user-visible history failure.
 Clear, screen replacement, eviction, or any other invalid anchor resumes bottom projection while a
 fresh snapshot replaces the last readable history window.
 

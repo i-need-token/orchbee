@@ -937,6 +937,7 @@ function failureContext(
 		case 'link-open':
 			return { operation: 'link', requestSequence: command.payload.requestSequence };
 		case 'read-rows':
+			return { operation: 'history', requestSequence: command.payload.requestSequence };
 		case 'rows-applied':
 		case 'history-observed':
 		case 'set-history-demand':

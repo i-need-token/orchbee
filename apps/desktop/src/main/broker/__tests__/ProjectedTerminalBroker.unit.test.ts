@@ -452,6 +452,77 @@ describe('ProjectedTerminalBroker', () => {
 		});
 	});
 
+	it('preserves the renderer row-request sequence on a typed Host failure', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+		};
+		const correlationId = CorrelationIdSchema.parse('55'.repeat(16));
+		const requestControlEnvelope = vi
+			.fn<HostConnection['requestControlEnvelope']>()
+			.mockRejectedValue(
+				new HostRequestError(
+					{
+						code: 'stale-revision',
+						message: 'ReadRows used a stale revision.',
+						retryable: true,
+					},
+					correlationId,
+				),
+			);
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControlEnvelope,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap);
+		broker.start();
+		emitter.emit('message', {
+			data: {
+				kind: 'read-rows',
+				payload: {
+					attachmentId: bootstrap.attachmentId,
+					detail: 'render',
+					generation: '1',
+					maximumBytes: 1024,
+					origin: { delta: 0, kind: 'committed' },
+					purpose: 'viewport',
+					requestSequence: '7',
+					revision: '1',
+					rowCount: 1,
+				},
+			},
+		});
+
+		await vi.waitFor(() => {
+			expect(postMessage).toHaveBeenCalledWith({
+				failure: {
+					code: 'stale-revision',
+					correlationId,
+					message: 'ReadRows used a stale revision.',
+					operation: 'history',
+					requestSequence: '7',
+					retryable: true,
+				},
+				kind: 'failure',
+			});
+		});
+	});
+
 	it('streams a bounded Host selection directly into Main clipboard exactly once', async () => {
 		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
 		const bootstrap = {

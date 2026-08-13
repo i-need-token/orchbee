@@ -157,9 +157,10 @@ Each successful request receives a fresh AttachmentId, capability bootstrap, and
 
 A correlated Host `TypedFailure` remains a typed `HostRequestError`; `HostConnection` retains the
 response correlation ID, and `ProjectedTerminalBroker` adds the exact renderer-command operation
-without replacing the Host code, message, or retryability. Client-owned copy and link effects use
-their request sequence instead. Electron and Gateway forward the same bounded failure contract, and
-neither broker retries user effects from that diagnostic identity.
+without replacing the Host code, message, or retryability. A failed row read also retains its
+renderer request sequence so only that history flight can settle. Client-owned copy and link effects
+use their request sequence instead. Electron and Gateway forward the same bounded failure contract,
+and neither broker retries user effects from that diagnostic identity.
 
 Electron attachments commit selection export through Main's clipboard and open allowlisted links through Electron. Gateway attachments receive bounded selection bytes, commit them through the Browser Clipboard API, and open `http`, `https`, or `mailto` targets through a local Browser gesture. The Browser never receives a generic Electron effect port. Attachment transport backpressure retires only that attachment; the visible surface requests a fresh projection and full snapshot.
 
