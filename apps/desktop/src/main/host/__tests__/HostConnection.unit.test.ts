@@ -295,7 +295,11 @@ describe('HostConnection', () => {
 
 		await expect(
 			connection.requestControl(MessageKind.ping, {}, EmptyControlSchema),
-		).rejects.toMatchObject({ code: 'input-backpressure', retryable: true });
+		).rejects.toMatchObject({
+			code: 'input-backpressure',
+			correlationId: expect.stringMatching(/^[0-9a-f]{32}$/),
+			retryable: true,
+		});
 		expect(connection.metrics).toMatchObject({
 			outboundAdmittedBytes: 0,
 			outboundAdmittedRecords: 0,

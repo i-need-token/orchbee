@@ -46,6 +46,27 @@ describe('projected terminal contract', () => {
 		expect(bootstrap.canResize).toBe(false);
 	});
 
+	it('preserves a typed feature failure correlation through the page boundary', () => {
+		const event = {
+			failure: {
+				code: 'resize-backpressure',
+				correlationId: '55'.repeat(16),
+				message: 'The Host resize queue is full.',
+				operation: 'resize',
+				retryable: true,
+			},
+			kind: 'failure',
+		};
+
+		expect(ProjectedTerminalEventSchema.parse(event)).toEqual(event);
+		expect(
+			ProjectedTerminalEventSchema.safeParse({
+				...event,
+				failure: { ...event.failure, correlationId: 'not-a-correlation' },
+			}).success,
+		).toBe(false);
+	});
+
 	it('represents a terminal outcome as one identity-bound union', () => {
 		const exited = {
 			event: {

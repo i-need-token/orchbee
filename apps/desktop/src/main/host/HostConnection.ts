@@ -444,7 +444,9 @@ export class HostConnection {
 		if (pending === undefined) throw new Error('Host response correlation is unknown or expired.');
 		if (envelope.kind === MessageKind.typedFailure) {
 			const failure = decodeControlJson(envelope.payload, TypedFailureSchema);
-			pending.reject(failure.ok ? new HostRequestError(failure.value) : new Error(failure.detail));
+			pending.reject(
+				failure.ok ? new HostRequestError(failure.value, correlationId) : new Error(failure.detail),
+			);
 			return;
 		}
 		if (envelope.kind !== pending.expectedKind) {

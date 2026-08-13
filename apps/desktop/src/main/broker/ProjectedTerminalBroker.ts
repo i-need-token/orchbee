@@ -274,6 +274,7 @@ export class ProjectedTerminalBroker {
 			this.#postFailure({
 				code: 'renderer-capability-rejected',
 				message: 'Renderer command is invalid or outside its attachment capability.',
+				...(parsed.success ? failureContext(parsed.data) : { operation: 'protocol' as const }),
 				retryable: false,
 			});
 			return;
@@ -283,6 +284,7 @@ export class ProjectedTerminalBroker {
 			this.#postFailure({
 				code: 'renderer-backpressure',
 				message: 'Renderer command exceeded the bounded Main request window.',
+				...failureContext(parsed.data),
 				retryable: true,
 			});
 			return;
@@ -297,6 +299,9 @@ export class ProjectedTerminalBroker {
 					error instanceof HostRequestError || error instanceof BrokerOperationError
 						? {
 								code: error.code,
+								...(error instanceof HostRequestError && error.correlationId !== undefined
+									? { correlationId: error.correlationId }
+									: {}),
 								message: error.message,
 								retryable: error.retryable,
 								...context,
@@ -329,6 +334,7 @@ export class ProjectedTerminalBroker {
 						message: event.ok
 							? 'Terminal Host resize-lease event is outside the scoped attachment.'
 							: event.detail,
+						operation: 'resize',
 						retryable: false,
 					});
 					return;
@@ -350,6 +356,7 @@ export class ProjectedTerminalBroker {
 						message: event.ok
 							? 'Terminal Host bell event is outside the scoped attachment.'
 							: event.detail,
+						operation: 'protocol',
 						retryable: false,
 					});
 					return;
@@ -365,6 +372,7 @@ export class ProjectedTerminalBroker {
 						message: event.ok
 							? 'Terminal Host history event is outside the scoped attachment.'
 							: event.detail,
+						operation: 'history',
 						retryable: false,
 					});
 					return;
@@ -380,6 +388,7 @@ export class ProjectedTerminalBroker {
 						message: event.ok
 							? 'Terminal Host selection event is outside the scoped attachment.'
 							: event.detail,
+						operation: 'selection',
 						retryable: false,
 					});
 					return;
@@ -403,6 +412,7 @@ export class ProjectedTerminalBroker {
 					this.#postFailure({
 						code: 'invalid-host-frame',
 						message: 'Terminal Host frame used the wrong payload encoding.',
+						operation: 'protocol',
 						retryable: false,
 					});
 					return;
@@ -418,6 +428,7 @@ export class ProjectedTerminalBroker {
 					this.#postFailure({
 						code: 'invalid-terminal-exit',
 						message: event.detail,
+						operation: 'protocol',
 						retryable: false,
 					});
 					return;
@@ -447,6 +458,7 @@ export class ProjectedTerminalBroker {
 					this.#postFailure({
 						code: 'invalid-terminal-failure',
 						message: event.detail,
+						operation: 'protocol',
 						retryable: false,
 					});
 					return;
@@ -478,6 +490,7 @@ export class ProjectedTerminalBroker {
 					message: blocked.ok
 						? `Terminal projection is blocked: ${blocked.value.reason}.`
 						: blocked.detail,
+					operation: 'protocol',
 					retryable: false,
 				});
 				return;

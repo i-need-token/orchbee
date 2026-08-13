@@ -65,6 +65,26 @@ describe('Gateway attachment binary codec', () => {
 		});
 	});
 
+	it('preserves a correlated typed feature failure through the Browser transport', () => {
+		const failure = ProjectedTerminalEventSchema.parse({
+			failure: {
+				code: 'resize-backpressure',
+				correlationId: '55'.repeat(16),
+				message: 'The Host resize queue is full.',
+				operation: 'resize',
+				retryable: true,
+			},
+			kind: 'failure',
+		});
+
+		expect(decodeGatewayAttachmentServerFrame(encodeGatewayAttachmentServerFrame(failure))).toEqual(
+			{
+				ok: true,
+				value: failure,
+			},
+		);
+	});
+
 	it('fits the maximum selection payload within the bounded attachment queue', () => {
 		const event = ProjectedTerminalEventSchema.parse({
 			content: new ArrayBuffer(PROTOCOL_LIMITS.maxSelectionExportBytes),

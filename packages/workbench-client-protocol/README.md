@@ -14,6 +14,11 @@ The same stream carries a complete attachment-scoped resize-lease ownership chan
 validates both attachment and terminal identities before dynamically enabling or disabling Host
 resize requests; the immutable attachment bootstrap is not rewritten when ownership changes.
 
+Feature failures retain their semantic operation and retryability across both Electron and Gateway
+transports. A Host response additionally retains its exact correlation ID, while client-owned copy
+and link effects retain their request sequence. These values identify consequences and diagnostics;
+they never authorize automatic replay of input or another user effect.
+
 It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, Gateway, authentication, PTY, or VT implementation. Workbench and TerminalPresentation semantics remain with `@orchbee/workbench`; Terminal Host wire semantics remain with `@orchbee/terminal-protocol`.
 
 Applications parse every untrusted IPC or network value with these schemas at the first trusted boundary. A transport owner remains responsible for framing, authentication, binary transfer, backpressure, and connection retirement.

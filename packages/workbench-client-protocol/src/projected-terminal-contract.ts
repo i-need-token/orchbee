@@ -2,6 +2,7 @@ import {
 	AttachmentIdSchema,
 	CanonicalUint64TextSchema,
 	ClearTerminalSchema,
+	CorrelationIdSchema,
 	CreationIdSchema,
 	FocusInputSchema,
 	FrameAppliedSchema,
@@ -119,6 +120,7 @@ export const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
 
 const ProjectedTerminalFailureSchema = z.strictObject({
 	code: z.string().min(1).max(128),
+	correlationId: CorrelationIdSchema.optional(),
 	message: z.string().min(1).max(1024),
 	operation: z
 		.enum([

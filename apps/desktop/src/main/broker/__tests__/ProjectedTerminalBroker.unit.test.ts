@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import {
 	AttachmentIdSchema,
 	CanonicalUint64TextSchema,
+	CorrelationIdSchema,
 	CreationIdSchema,
 	CURRENT_PROTOCOL_VERSION,
 	encodeSelectionExportChunk,
@@ -15,7 +16,7 @@ import {
 import type { MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { HostConnection } from '../../host';
+import { HostRequestError, type HostConnection } from '../../host';
 import { ProjectedTerminalBroker } from '../ProjectedTerminalBroker';
 
 const textEncoder = new TextEncoder();
@@ -286,7 +287,19 @@ describe('ProjectedTerminalBroker', () => {
 		let resetCount = 0;
 		const requestControl = vi.fn<(kind: number) => Promise<unknown>>(async (kind) => {
 			const operation = kind === MessageKind.clearTerminal ? 'clear' : 'reset';
-			if (kind === MessageKind.resetTerminal) resetCount += 1;
+			if (kind === MessageKind.resetTerminal) {
+				resetCount += 1;
+				if (resetCount === 3) {
+					throw new HostRequestError(
+						{
+							code: 'terminal-control-backpressure',
+							message: 'The Host control queue is full.',
+							retryable: true,
+						},
+						CorrelationIdSchema.parse('55'.repeat(16)),
+					);
+				}
+			}
 			return {
 				attachmentId: bootstrap.attachmentId,
 				generation: String(resetCount + 1),
@@ -342,6 +355,22 @@ describe('ProjectedTerminalBroker', () => {
 					operation: 'control',
 					retryable: false,
 				}),
+				kind: 'failure',
+			}),
+		);
+
+		emitter.emit('message', {
+			data: { kind: 'reset-terminal', payload: { attachmentId: bootstrap.attachmentId } },
+		});
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({
+				failure: {
+					code: 'terminal-control-backpressure',
+					correlationId: CorrelationIdSchema.parse('55'.repeat(16)),
+					message: 'The Host control queue is full.',
+					operation: 'control',
+					retryable: true,
+				},
 				kind: 'failure',
 			}),
 		);

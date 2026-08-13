@@ -32,6 +32,7 @@ import type { ProjectedSearchWorkerLike } from '../../search';
 import {
 	ProjectedHistoryPhase,
 	ProjectedTerminal,
+	type ProjectedBrokerFailure,
 	type ProjectedTerminalCommand,
 	type ProjectedTerminalErrorEvent,
 	type ProjectedTerminalFrameTelemetry,
@@ -8407,12 +8408,17 @@ describe('ProjectedTerminal', () => {
 		browser.dispatchWindow('resize');
 		expect(commands.filter((command) => command.kind === 'resize-terminal')).toHaveLength(2);
 
-		terminal.notifyBrokerFailure({
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		terminal.onError(errors);
+		const failure = {
 			code: 'resize-rejected',
+			correlationId: '55'.repeat(16) as ProjectedBrokerFailure['correlationId'],
 			message: 'resize rejected',
-			operation: 'resize',
+			operation: 'resize' as const,
 			retryable: true,
-		});
+		};
+		terminal.notifyBrokerFailure(failure);
+		expect(errors).toHaveBeenCalledWith({ ...failure, error: expect.any(Error) });
 		browser.dispatchWindow('resize');
 		expect(commands.filter((command) => command.kind === 'resize-terminal')).toHaveLength(3);
 		terminal.dispose();

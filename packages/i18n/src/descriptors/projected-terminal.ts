@@ -41,6 +41,10 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'The terminal connection could not be restored.',
 		id: 'terminal.projected.connectionRecoveryFailed',
 	},
+	controlFailure: {
+		defaultMessage: 'The terminal control action could not be confirmed.',
+		id: 'terminal.projected.failure.control',
+	},
 	runtimeFailure: {
 		defaultMessage: 'The terminal session stopped after a runtime failure.',
 		id: 'terminal.projected.runtimeFailure',
@@ -121,6 +125,10 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'Retained terminal history is unavailable for this connection.',
 		id: 'terminal.projected.history.unavailable',
 	},
+	inputFailure: {
+		defaultMessage: 'The terminal input request could not be confirmed.',
+		id: 'terminal.projected.failure.input',
+	},
 	input: {
 		defaultMessage: 'Terminal input',
 		id: 'terminal.projected.input',
@@ -186,6 +194,14 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'Previous match',
 		id: 'terminal.projected.find.previous',
 	},
+	requestFailure: {
+		defaultMessage: 'The terminal action could not be completed.',
+		id: 'terminal.projected.failure.request',
+	},
+	resizeFailure: {
+		defaultMessage: 'The terminal size could not be synchronized.',
+		id: 'terminal.projected.failure.resize',
+	},
 	resetAction: {
 		defaultMessage: 'Reset terminal',
 		id: 'terminal.projected.action.reset',
@@ -202,6 +218,10 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'Select all retained terminal output',
 		id: 'terminal.projected.action.selectAll',
 	},
+	selectionFailure: {
+		defaultMessage: 'The terminal selection could not be updated.',
+		id: 'terminal.projected.failure.selection',
+	},
 	selectionEvicted: {
 		defaultMessage: 'The terminal selection was evicted from retained history.',
 		id: 'terminal.projected.selection.evicted',
@@ -217,6 +237,10 @@ export const projectedTerminalMessages = defineMessages({
 	startNewSession: {
 		defaultMessage: 'Start New Session',
 		id: 'terminal.projected.session.startNew',
+	},
+	retryableFailure: {
+		defaultMessage: '{consequence} Try the action again.',
+		id: 'terminal.projected.failure.retryable',
 	},
 	useRegex: {
 		defaultMessage: 'Use regular expression',

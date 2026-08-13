@@ -20,6 +20,12 @@ its transport and interaction ownership. The shared surface retries a fresh atta
 first frame. Exhausting that budget leaves the honest last frame visible and exposes one localized
 manual Retry action; each attempt owns and releases exactly one projection request.
 
+An attachment feature failure remains distinct from transport loss and terminal outcome. The shared
+surface retains its operation, code, retryability, Host correlation ID or client request sequence as
+bounded diagnostics, applies the matching Terminal consequence, and announces a localized
+operation-specific result. Retryable failures tell the person to repeat the action; the application
+does not automatically replay terminal input, control, clipboard, or navigation effects.
+
 The shared adapter exposes the last completed draw checkpoint as
 `data-projected-terminal-rendered-generation` and
 `data-projected-terminal-rendered-revision`. Both values come from one renderer telemetry event and

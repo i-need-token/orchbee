@@ -7,6 +7,7 @@ import {
 } from '@orchbee/terminal-protocol';
 import type {
 	ProjectedTerminal,
+	ProjectedTerminalErrorEvent,
 	ProjectedTerminalFrameTelemetry,
 	ProjectedTerminalMetadata,
 	ProjectedTerminalOptions,
@@ -56,7 +57,10 @@ describe('startProjectedTerminalRenderer', () => {
 		let emitBell: Parameters<ProjectedTerminal['onBell']>[0] = () => undefined;
 		const notifyBell = vi.fn<ProjectedTerminal['notifyBell']>((event) => emitBell(event));
 		const notifyExited = vi.fn<ProjectedTerminal['notifyExited']>();
-		const notifyBrokerFailure = vi.fn<ProjectedTerminal['notifyBrokerFailure']>();
+		let emitError: Parameters<ProjectedTerminal['onError']>[0] = () => undefined;
+		const notifyBrokerFailure = vi.fn<ProjectedTerminal['notifyBrokerFailure']>((failure) =>
+			emitError({ ...failure, error: new Error(failure.message) }),
+		);
 		const notifySelectionCopied = vi.fn<ProjectedTerminal['notifySelectionCopied']>();
 		const disposeTerminal = vi.fn<ProjectedTerminal['dispose']>();
 		const freezeTerminal = vi.fn<ProjectedTerminal['freeze']>();
@@ -113,9 +117,10 @@ describe('startProjectedTerminalRenderer', () => {
 						notifyLinkOpened,
 						notifySelectionChanged: vi.fn<ProjectedTerminal['notifySelectionChanged']>(),
 						notifySelectionCopied,
-						onError: vi.fn<ProjectedTerminal['onError']>(() => ({
-							dispose: vi.fn<() => void>(),
-						})),
+						onError: vi.fn<ProjectedTerminal['onError']>((listener) => {
+							emitError = listener as (event: ProjectedTerminalErrorEvent) => void;
+							return { dispose: vi.fn<() => void>() };
+						}),
 						onBell: vi.fn<ProjectedTerminal['onBell']>((listener) => {
 							emitBell = listener;
 							return { dispose: vi.fn<() => void>() };
@@ -545,6 +550,27 @@ describe('startProjectedTerminalRenderer', () => {
 			});
 			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('open');
 			expect(liveElements.additionalStatus).toMatchObject({ hidden: true, textContent: null });
+			expect(liveTransport.close).not.toHaveBeenCalled();
+			const resizeFailure = {
+				code: 'resize-backpressure',
+				correlationId: '55'.repeat(16),
+				message: 'The Host resize queue is full.',
+				operation: 'resize' as const,
+				retryable: true,
+			};
+			liveTransport.emitMessage({ failure: resizeFailure, kind: 'failure' });
+			expect(notifyBrokerFailure).toHaveBeenLastCalledWith(resizeFailure);
+			expect(liveElements.additionalRoot.dataset).toMatchObject({
+				projectedTerminalFailureCode: 'resize-backpressure',
+				projectedTerminalFailureCorrelationId: '55'.repeat(16),
+				projectedTerminalFailureOperation: 'resize',
+				projectedTerminalFailureRetryable: 'true',
+				projectedTerminalState: 'open',
+			});
+			expect(liveElements.additionalStatus).toMatchObject({
+				hidden: false,
+				textContent: 'The terminal size could not be synchronized. Try the action again.',
+			});
 			expect(liveTransport.close).not.toHaveBeenCalled();
 			liveSession.dispose();
 			expect(unsubscribeLiveSource).toHaveBeenCalledOnce();

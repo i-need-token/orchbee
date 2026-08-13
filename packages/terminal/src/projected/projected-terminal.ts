@@ -13,6 +13,7 @@ import {
 	viewTerminalRowWindow,
 	type AttachmentId,
 	type CanonicalUint64Text,
+	type CorrelationId,
 	type ClearTerminal,
 	type CreationId,
 	type FocusInput,
@@ -278,22 +279,25 @@ export interface ProjectedTerminalOptions {
 	readonly terminalId: TerminalId;
 }
 
-export interface ProjectedTerminalErrorEvent {
-	readonly error: unknown;
-	readonly operation:
-		| 'bell'
-		| 'command'
-		| 'font'
-		| 'frame'
-		| 'history'
-		| 'open'
-		| 'render'
-		| 'resize'
-		| 'selection';
-}
+export type ProjectedTerminalErrorEvent =
+	| {
+			readonly error: unknown;
+			readonly operation:
+				| 'bell'
+				| 'command'
+				| 'font'
+				| 'frame'
+				| 'history'
+				| 'open'
+				| 'render'
+				| 'resize'
+				| 'selection';
+	  }
+	| (ProjectedBrokerFailure & { readonly error: Error });
 
 export interface ProjectedBrokerFailure {
 	readonly code: string;
+	readonly correlationId?: CorrelationId | undefined;
 	readonly message: string;
 	readonly operation?:
 		| 'connection'
@@ -1422,7 +1426,7 @@ export class ProjectedTerminal {
 			this.#scheduleSelectionGesture();
 		}
 		if (!recoveredOverscan) {
-			this.#errorEmitter.fire({ error: new Error(failure.message), operation: 'command' });
+			this.#errorEmitter.fire({ ...failure, error: new Error(failure.message) });
 		}
 	}
 

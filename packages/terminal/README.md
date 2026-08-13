@@ -249,6 +249,12 @@ animation, resize, search, and in-flight side effects while retaining the last p
 accessible row list. Frozen instances reject further frame and command work. A later `dispose()`
 releases the retained renderer resources and DOM after the application has painted a replacement.
 
+`notifyBrokerFailure` preserves the broker's typed code, semantic operation, retryability, optional
+Host correlation ID, and optional client request sequence on `onError`. It also applies the owned
+consequence: resize rejection re-admits unchanged geometry, history rejection completes or repairs
+the exact row request, selection rejection releases gesture scheduling, and correlated copy or link
+failure completes only that side effect. The package never turns retryability into automatic replay.
+
 The renderer consumes packed rows directly. It never reconstructs a local VT state or a per-cell
 object graph. After a draw completes, frame telemetry records the exact committed Host generation
 and revision read from the visible packed store. Multiple commits may coalesce behind one animation

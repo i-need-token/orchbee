@@ -15,6 +15,7 @@ import {
 import {
 	type ProjectedAttachmentBootstrap,
 	ProjectedTerminalEventSchema,
+	type ProjectedTerminalFailure,
 } from '@orchbee/workbench-client-protocol';
 
 import {
@@ -155,7 +156,7 @@ export async function startProjectedTerminalRenderer(
 	let lastRenderedRevision: bigint | undefined;
 	let renderedFrames = 0;
 	let presentationRequestEpoch = 0;
-	let statusKind: 'connection-failure' | 'copy' | 'runtime-failure' | undefined;
+	let statusKind: 'connection-failure' | 'copy' | 'feature-failure' | 'runtime-failure' | undefined;
 	let terminalOpened = false;
 	let terminalOutcomeKind: 'exited' | 'failed' | undefined;
 	let pendingPresentationConfiguration: TerminalPresentationConfiguration | undefined;
@@ -193,6 +194,51 @@ export async function startProjectedTerminalRenderer(
 		statusKind = 'connection-failure';
 		status.setAttribute('role', 'alert');
 		status.textContent = intl.formatMessage(projectedTerminalMessages.connectionFailure);
+		status.hidden = false;
+	};
+	const reportFeatureFailure = (failure: ProjectedTerminalFailure): void => {
+		rootElement.dataset['projectedTerminalFailureCode'] = failure.code;
+		rootElement.dataset['projectedTerminalFailureRetryable'] = String(failure.retryable);
+		if (failure.correlationId === undefined) {
+			delete rootElement.dataset['projectedTerminalFailureCorrelationId'];
+		} else {
+			rootElement.dataset['projectedTerminalFailureCorrelationId'] = failure.correlationId;
+		}
+		if (failure.operation === undefined) {
+			delete rootElement.dataset['projectedTerminalFailureOperation'];
+		} else {
+			rootElement.dataset['projectedTerminalFailureOperation'] = failure.operation;
+		}
+		if (failure.requestSequence === undefined) {
+			delete rootElement.dataset['projectedTerminalFailureRequestSequence'];
+		} else {
+			rootElement.dataset['projectedTerminalFailureRequestSequence'] = failure.requestSequence;
+		}
+		if (
+			terminalOutcomeKind !== undefined &&
+			(failure.operation === undefined ||
+				failure.operation === 'connection' ||
+				failure.operation === 'protocol')
+		) {
+			return;
+		}
+		const consequence = intl.formatMessage(projectedTerminalFailureMessage(failure));
+		const message = failure.retryable
+			? intl.formatMessage(projectedTerminalMessages.retryableFailure, { consequence })
+			: consequence;
+		if (
+			!failure.retryable &&
+			(failure.operation === undefined ||
+				failure.operation === 'connection' ||
+				failure.operation === 'protocol')
+		) {
+			rootElement.dataset['projectedTerminalState'] = 'failed';
+			statusKind = 'connection-failure';
+		} else {
+			statusKind = 'feature-failure';
+		}
+		status.setAttribute('role', 'alert');
+		status.textContent = message;
 		status.hidden = false;
 	};
 	let terminal: ProjectedTerminalDriver;
@@ -336,6 +382,10 @@ export async function startProjectedTerminalRenderer(
 			pendingSubscriptions.push(terminal.onBell((event) => platformEffects.ringBell?.(event)));
 			pendingSubscriptions.push(
 				terminal.onError((event) => {
+					if ('code' in event) {
+						reportFeatureFailure(event);
+						return;
+					}
 					if (
 						event.operation === 'frame' ||
 						event.operation === 'open' ||
@@ -500,14 +550,6 @@ export async function startProjectedTerminalRenderer(
 						event.data.failure.code === 'unsupported-version')
 				) {
 					findController.setNotice({ kind: 'history-unavailable' });
-				}
-				if (
-					!event.data.failure.retryable &&
-					(event.data.failure.operation === undefined ||
-						event.data.failure.operation === 'connection' ||
-						event.data.failure.operation === 'protocol')
-				) {
-					reportFailure();
 				}
 				return;
 			case 'frame': {
@@ -717,6 +759,32 @@ function runCleanup(cleanups: readonly (() => void)[]): void {
 
 function terminalRgbColor(value: number): string {
 	return `#${value.toString(16).padStart(6, '0')}`;
+}
+
+function projectedTerminalFailureMessage(failure: ProjectedTerminalFailure) {
+	switch (failure.operation) {
+		case 'connection':
+		case 'protocol':
+			return projectedTerminalMessages.connectionFailure;
+		case 'control':
+			return projectedTerminalMessages.controlFailure;
+		case 'copy':
+			return projectedTerminalMessages.copyFailed;
+		case 'history':
+			return projectedTerminalMessages.historyUnavailable;
+		case 'input':
+			return projectedTerminalMessages.inputFailure;
+		case 'link':
+			return failure.code === 'link-policy-blocked'
+				? projectedTerminalMessages.linkBlocked
+				: projectedTerminalMessages.linkFailed;
+		case 'resize':
+			return projectedTerminalMessages.resizeFailure;
+		case 'selection':
+			return projectedTerminalMessages.selectionFailure;
+		case undefined:
+			return projectedTerminalMessages.requestFailure;
+	}
 }
 
 async function applyClientSelectionCopy(
