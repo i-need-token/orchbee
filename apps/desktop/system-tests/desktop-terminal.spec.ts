@@ -535,6 +535,40 @@ test('terminal-parity/LC-06-live-title', async () => {
 	await expect(selectedTab).toContainText('lc06-osc2-title');
 });
 
+test('terminal-parity/HS-04-multi-click-selection', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const input = page.getByRole('textbox');
+	await input.pressSequentially(
+		`printf '\\033[2J\\033[Hhs04-double doubleword suffix\\nhs04-triple entire row marker\\n'`,
+		{ delay: 1 },
+	);
+	await input.press('Enter');
+	const accessibility = root.locator('[role="list"]');
+	await expect(accessibility).toContainText('hs04-triple entire row marker');
+	const rows = accessibility.locator(':scope > div');
+	const canvas = root.locator('canvas');
+	const word = await terminalCellCenter(root, canvas, rows, 'hs04-double doubleword suffix', 15);
+
+	await page.mouse.click(word.x, word.y);
+	await page.mouse.click(word.x, word.y);
+	await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
+	await expect
+		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+		.toBe('doubleword');
+
+	const line = await terminalCellCenter(root, canvas, rows, 'hs04-triple entire row marker', 5);
+	await page.mouse.click(line.x, line.y);
+	await page.mouse.click(line.x, line.y);
+	await page.mouse.click(line.x, line.y);
+	await expect
+		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+		.toContain('hs04-triple entire row marker');
+});
+
 test('routes a real sandboxed Host terminal through Main and Preload to the renderer', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');

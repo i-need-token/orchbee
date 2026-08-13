@@ -148,6 +148,7 @@ const HISTORY_OVERSCAN_ROWS = 16;
 const LINK_LOOKUP_INITIAL_PAGE_ROWS = 16;
 const SELECTION_AUTOSCROLL_INTERVAL_MS = 16;
 const SELECTION_CLICK_REPEAT_INTERVAL_MS = 500;
+const MAX_PENDING_SELECTION_GESTURES = 64;
 const RESIZE_REENTRY_MS = 50;
 
 function cssPixels(value: string): number {
@@ -695,7 +696,7 @@ export class ProjectedTerminal {
 	#pendingHistoryStartRow: bigint | undefined;
 	#pendingHistoryTargetRow: bigint | undefined;
 	#pendingHistoryWheelRows = 0;
-	#pendingSelectionGesture: PendingSelectionGesture | undefined;
+	#pendingSelectionGestures: PendingSelectionGesture[] = [];
 	#ownsResizeLease: boolean;
 	#phase: ProjectedTerminalPhase = ProjectedTerminalPhase.constructed;
 	#disposeAfterRepair = false;
@@ -2793,12 +2794,44 @@ export class ProjectedTerminal {
 	}
 
 	#queueSelectionGesture(gesture: PendingSelectionGesture): void {
-		this.#pendingSelectionGesture = gesture;
+		const lastIndex = this.#pendingSelectionGestures.length - 1;
+		const last = this.#pendingSelectionGestures[lastIndex];
+		if (
+			last !== undefined &&
+			last.action === 'update' &&
+			(gesture.action === 'update' || gesture.action === 'end' || gesture.action === 'cancel')
+		) {
+			this.#pendingSelectionGestures[lastIndex] = gesture;
+		} else {
+			const reservedEndpoint = gesture.action === 'start' ? 1 : 0;
+			if (
+				this.#pendingSelectionGestures.length >=
+				MAX_PENDING_SELECTION_GESTURES - reservedEndpoint
+			) {
+				return;
+			}
+			this.#pendingSelectionGestures.push(gesture);
+		}
 		this.#scheduleSelectionGesture();
 	}
 
+	#canStartSelectionGesture(): boolean {
+		if (
+			!this.#selectionGestureInFlight &&
+			this.#selectionGestureHandle === undefined &&
+			this.#pendingSelectionGestures.length === 0
+		) {
+			return true;
+		}
+		return this.#pendingSelectionGestures.length < MAX_PENDING_SELECTION_GESTURES - 1;
+	}
+
 	#startSelectionGesture(gesture: PendingSelectionGesture): void {
-		if (this.#selectionGestureInFlight) {
+		if (
+			this.#selectionGestureInFlight ||
+			this.#selectionGestureHandle !== undefined ||
+			this.#pendingSelectionGestures.length > 0
+		) {
 			this.#queueSelectionGesture(gesture);
 			return;
 		}
@@ -2810,7 +2843,7 @@ export class ProjectedTerminal {
 		if (
 			this.#selectionGestureHandle !== undefined ||
 			this.#selectionGestureInFlight ||
-			this.#pendingSelectionGesture === undefined ||
+			this.#pendingSelectionGestures.length === 0 ||
 			this.#phase === ProjectedTerminalPhase.disposed
 		) {
 			return;
@@ -2818,9 +2851,8 @@ export class ProjectedTerminal {
 		const callback = (): void => {
 			this.#selectionGestureHandle = undefined;
 			if (this.#selectionGestureInFlight) return;
-			const gesture = this.#pendingSelectionGesture;
+			const gesture = this.#pendingSelectionGestures.shift();
 			if (gesture === undefined || this.#phase === ProjectedTerminalPhase.disposed) return;
-			this.#pendingSelectionGesture = undefined;
 			this.#selectionGestureInFlight = true;
 			this.#sendSelectionGesture(gesture);
 		};
@@ -2951,7 +2983,7 @@ export class ProjectedTerminal {
 		if (
 			this.#rowFlight !== undefined ||
 			this.#selectionGestureInFlight ||
-			this.#pendingSelectionGesture !== undefined
+			this.#pendingSelectionGestures.length > 0
 		) {
 			return;
 		}
@@ -4361,6 +4393,11 @@ export class ProjectedTerminal {
 			position: location.position,
 			selectOutput: event.ctrlKey || event.metaKey,
 		};
+		if (!this.#canStartSelectionGesture()) {
+			this.#selectionClickSequence = undefined;
+			event.preventDefault();
+			return;
+		}
 		this.#selectionGestureActive = true;
 		this.#selectionGestureLast = location.point;
 		this.#selectionGesturePointerId = event.pointerId;
@@ -4637,7 +4674,7 @@ export class ProjectedTerminal {
 		this.#selectionGestureLast = undefined;
 		this.#selectionGesturePointerId = undefined;
 		this.#selectionClickSequence = undefined;
-		this.#pendingSelectionGesture = undefined;
+		this.#pendingSelectionGestures.length = 0;
 		this.#suppressNextSelectionCopy = true;
 		this.#cancelScheduledSelectionGesture();
 		this.#stopSelectionAutoscroll();

@@ -7361,6 +7361,60 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('preserves rapid multi-click boundaries while gesture replies are in flight', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['alpha beta', ''], null, [0, 1], 10n));
+		const canvas = terminal.canvas as unknown as FakeElement;
+
+		for (const timeStamp of [1_000, 1_150, 1_300]) {
+			canvas.dispatch(
+				'pointerdown',
+				pointerEvent('pointerdown', 0, 1, 20, 2, { pointerId: 17, timeStamp }),
+			);
+			canvas.dispatch(
+				'pointerup',
+				pointerEvent('pointerup', 0, 0, 20, 2, { pointerId: 17, timeStamp: timeStamp + 10 }),
+			);
+		}
+		for (let index = 0; index < 6; index++) {
+			terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+			browser.flushFrames();
+		}
+
+		const gestures = commands.flatMap((command) =>
+			command.kind === 'selection-gesture' ? [command.payload] : [],
+		);
+		expect(gestures.map((gesture) => gesture.action)).toEqual([
+			'start',
+			'end',
+			'start',
+			'end',
+			'start',
+			'end',
+		]);
+		expect(
+			gestures.flatMap((gesture) => (gesture.action === 'start' ? [gesture.clickCount] : [])),
+		).toEqual([1, 2, 3]);
+		terminal.dispose();
+	});
+
 	it('keeps modifier-assisted semantic output selection in the pointer gesture', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
