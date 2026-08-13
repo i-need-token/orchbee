@@ -515,6 +515,26 @@ test('terminal-parity/SU-10-scrollbar', async () => {
 	expect((await captureTerminalScrollbarStrip(page, canvas)).equals(faded)).toBe(true);
 });
 
+test('terminal-parity/LC-06-live-title', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const input = page.getByRole('textbox');
+	const selectedTab = page.locator(
+		'[data-slot="workbench-tab-bar"] [role="tab"][aria-selected="true"]',
+	);
+
+	await input.pressSequentially(`printf '\\033]0;lc06-osc0-title\\007'; sleep 5`, { delay: 1 });
+	await input.press('Enter');
+	await expect(selectedTab).toContainText('lc06-osc0-title');
+	await input.press('Control+C');
+	await input.pressSequentially(`printf '\\033]2;lc06-osc2-title\\007'; sleep 5`, { delay: 1 });
+	await input.press('Enter');
+	await expect(selectedTab).toContainText('lc06-osc2-title');
+});
+
 test('routes a real sandboxed Host terminal through Main and Preload to the renderer', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
