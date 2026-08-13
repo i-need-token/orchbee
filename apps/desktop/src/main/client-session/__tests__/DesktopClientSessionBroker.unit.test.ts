@@ -32,6 +32,7 @@ describe('DesktopClientSessionBroker', () => {
 		expect(broker.bootstrap).toMatchObject({
 			documentState: { kind: 'missing' },
 			sequence: '0',
+			terminalHostName: 'orchbee-host',
 			type: 'orchbee.workbench.client-session-bootstrap',
 		});
 		expect(port.start).toHaveBeenCalledOnce();
@@ -112,6 +113,7 @@ describe('DesktopClientSessionBroker', () => {
 			initializationDocument: document('0', 'Initial'),
 			reconcileDocument: async () => undefined,
 			store,
+			terminalHostName: 'orchbee-host',
 			validateDocument: () => false,
 		});
 		await expect(coordinator.start()).resolves.toEqual({ kind: 'ready' });
@@ -200,6 +202,7 @@ async function startedCoordinator(
 		initializationDocument: document('0', 'Initial'),
 		reconcileDocument: async () => undefined,
 		store,
+		terminalHostName: 'orchbee-host',
 		validateDocument: () => true,
 	});
 	const result = await coordinator.start();

@@ -86,6 +86,7 @@ describe('composeDesktopTerminalLifecycleAdapter', () => {
 			homeDirectory: '/users/orchbee',
 			platform: 'linux',
 			posixRuntimeBaseDirectory: '/run/user/501',
+			terminalHostName: 'orchbee-host',
 			userDataPath: '/users/orchbee/.config/orchbee',
 		}).terminalLaunch;
 		const adapter = composeDesktopTerminalLifecycleAdapter({

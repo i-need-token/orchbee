@@ -18,6 +18,7 @@ export interface TerminalPresentation {
 	readonly currentCwd: string | null;
 	readonly launchCwd: string | null;
 	readonly lifecycle: TerminalPresentationLifecycle;
+	readonly naturalTitle: string | null;
 	readonly presentationId: TerminalPresentationId;
 	readonly title: string;
 }
@@ -172,6 +173,13 @@ export type PanelWorkspaceEvent =
 			readonly presentationId: TerminalPresentationId;
 			readonly tabId: string;
 			readonly type: 'terminal-current-cwd-changed';
+	  }
+	| {
+			readonly currentCwd?: string | null | undefined;
+			readonly naturalTitle: string | null;
+			readonly presentationId: TerminalPresentationId;
+			readonly tabId: string;
+			readonly type: 'terminal-metadata-changed';
 	  }
 	| {
 			readonly operationId: TerminalPresentationOperationId;
@@ -365,6 +373,7 @@ function createTerminal(
 				presentation.kind === 'managed'
 					? { kind: 'provisioning', operationId: presentation.operationId }
 					: { kind: 'preview' },
+			naturalTitle: null,
 			presentationId: presentation.presentationId,
 			title,
 		},
@@ -534,18 +543,23 @@ function restartedTerminal(
 		...terminal,
 		currentCwd: terminal.launchCwd,
 		lifecycle: { kind: 'provisioning', operationId: presentation.operationId },
+		naturalTitle: null,
 		presentationId: presentation.presentationId,
 	};
 }
 
-function mapTerminalCurrentCwd(
+function mapTerminalMetadata(
 	node: PanelLayoutNode,
 	presentationId: TerminalPresentationId,
-	currentCwd: string | null,
+	naturalTitle: string | null,
+	currentCwd?: string | null,
 ): TreeUpdate {
-	return mapTerminal(node, presentationId, (terminal) =>
-		terminal.currentCwd === currentCwd ? terminal : { ...terminal, currentCwd },
-	);
+	return mapTerminal(node, presentationId, (terminal) => {
+		const nextCurrentCwd = currentCwd === undefined ? terminal.currentCwd : currentCwd;
+		return terminal.currentCwd === nextCurrentCwd && terminal.naturalTitle === naturalTitle
+			? terminal
+			: { ...terminal, currentCwd: nextCurrentCwd, naturalTitle };
+	});
 }
 
 function findTerminalInNode(
@@ -1067,6 +1081,10 @@ export function getDisplayedTerminal(panel: PanelLeaf): TerminalPresentation {
 	);
 }
 
+export function getTerminalDisplayTitle(terminal: TerminalPresentation): string {
+	return terminal.naturalTitle ?? terminal.title;
+}
+
 export function findTerminal(
 	root: PanelLayoutNode,
 	presentationId: TerminalPresentationId,
@@ -1299,8 +1317,27 @@ export function transitionPanelWorkspace(
 		});
 	}
 
+	if (event.type === 'terminal-metadata-changed') {
+		const result = mapTerminalMetadata(
+			tab.root,
+			event.presentationId,
+			event.naturalTitle,
+			event.currentCwd,
+		);
+		if (!result.changed) {
+			return findTerminalInNode(tab.root, event.presentationId) === null
+				? rejected(state, 'terminal-not-found')
+				: unchanged(state);
+		}
+		return applied(replaceTab(state, tabIndex, { ...tab, root: result.node }));
+	}
+
 	if (event.type === 'terminal-current-cwd-changed') {
-		const result = mapTerminalCurrentCwd(tab.root, event.presentationId, event.currentCwd);
+		const result = mapTerminal(tab.root, event.presentationId, (terminal) =>
+			terminal.currentCwd === event.currentCwd
+				? terminal
+				: { ...terminal, currentCwd: event.currentCwd },
+		);
 		if (!result.changed) {
 			return findTerminalInNode(tab.root, event.presentationId) === null
 				? rejected(state, 'terminal-not-found')
@@ -1996,6 +2033,7 @@ function clonePanelLayoutNode(
 				currentCwd: terminal.launchCwd,
 				launchCwd: terminal.launchCwd,
 				lifecycle: { kind: 'preview' },
+				naturalTitle: null,
 				presentationId: clonePresentationIdentity(identities, terminal.presentationId),
 				title: terminal.title,
 			})),
@@ -2005,6 +2043,7 @@ function clonePanelLayoutNode(
 				currentCwd: node.primaryPresentation.launchCwd,
 				launchCwd: node.primaryPresentation.launchCwd,
 				lifecycle: { kind: 'preview' },
+				naturalTitle: null,
 				presentationId: clonePresentationIdentity(
 					identities,
 					node.primaryPresentation.presentationId,

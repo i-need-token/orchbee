@@ -326,6 +326,7 @@ function bootstrap(
 		initialPresentationId: 'presentation-initial',
 		initializationDocument,
 		sequence: '0',
+		terminalHostName: 'orchbee-host',
 		terminalEvents,
 		type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 	});
@@ -417,6 +418,7 @@ function documentWithPresentations(
 					groups: [],
 					tabs: presentations.map((presentation, index) => ({
 						group: null,
+						customTitle: null,
 						id: `tab-${index + 1}`,
 						pinned: false,
 						title: presentation.title,

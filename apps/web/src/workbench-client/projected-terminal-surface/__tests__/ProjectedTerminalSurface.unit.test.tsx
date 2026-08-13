@@ -15,6 +15,7 @@ const presentation: WorkbenchTerminalPresentation = {
 	currentCwd: '/workspace',
 	launchCwd: '/workspace',
 	lifecycle: { kind: 'running' },
+	naturalTitle: null,
 	presentationId: terminalPresentationId('presentation-failed'),
 	title: 'Terminal',
 };

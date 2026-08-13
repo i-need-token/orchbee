@@ -120,6 +120,34 @@ changing its launch CWD. Panel split and child-terminal creation inherit current
 duplication starts fresh shells from recorded launch CWD. Changing a Project or Workspace primary
 Directory never changes an existing terminal CWD.
 
+### Projected terminal metadata and Tab titles
+
+The application forwards one complete committed terminal metadata observation with the trusted
+hostname of the machine that owns the terminal. Workbench normalizes the natural OSC 0/2 title by
+trimming outer whitespace and then removing NUL characters. `null` clears the natural title. The
+durable fallback title and optional durable custom Tab title remain separate: display resolution is
+custom title, then the focused terminal's latest natural title, then fallback. Setting a custom
+title trims it; blank or already-displayed input is unchanged. A later natural title remains hidden
+beneath the custom title, and clearing the custom title reveals that latest natural title
+immediately.
+
+An OSC 7 current-directory value is accepted only as
+`file://<host>/<percent-encoded-absolute-path>` when `<host>` matches the trusted terminal-machine
+hostname under ASCII case-insensitive comparison. Empty hosts, `localhost`, other hosts, non-file
+schemes, malformed percent escapes, and non-UTF-8 decoded bytes are ignored. Accepted paths are
+percent-decoded before replacing `currentCwd`; an ignored value preserves the prior current CWD,
+while a reported `null` clears it. Metadata never changes `launchCwd`.
+
+This policy is a narrow behavioral parity projection from Warp revision
+`086dade63ff7327426d6276d57f85b3f2f313af0`. Title state, override, reset, and persistence were
+reviewed in `app/src/terminal/model/terminal_model.rs`, `app/src/pane_group/mod.rs`, and
+`app/src/workspace/view.rs`; OSC title and CWD normalization were reviewed in
+`app/src/terminal/model/ansi/mod.rs`. Deterministic scenarios cover natural-title normalization,
+custom override, hidden natural updates, reset, persistence, local hostname matching, URI decoding,
+and rejection classes. Warp's in-band-command title suppression and SSH-block CWD suppression are
+outside the parity scope because Orchbee's projected metadata currently exposes no equivalent
+trusted command or SSH fact; this policy does not guess either state.
+
 ## Decisions and transitions
 
 | Intent                       | Guard                                                        | Result                                                                | Terminal-context command                                              |
@@ -292,6 +320,7 @@ Action availability.
 | Directory refresh preserves identity, order, and references                                                | Transition and runtime tests                           | N/A                                         | Host observations are trusted                         |
 | Active location always resolves                                                                            | Transition and deletion tests                          | Stateful property tests                     | In-memory state only                                  |
 | CWD follows the accepted precedence                                                                        | Decision-table unit tests                              | N/A                                         | Local path projection only                            |
+| Projected title and CWD follow the declared Warp scope                                                     | Normalization and runtime projection scenarios         | Web bridge and bootstrap adapter tests      | No in-band-command or SSH-state parity                |
 | Workspace copies reset runtime state and preserve layout projection                                        | Context-runtime and integration tests                  | Component scenario                          | No process or output parity claim                     |
 | Project disclosure does not switch terminal context                                                        | Reducer and component tests                            | Keyboard and pointer interaction            | Controlled browser environment                        |
 | Project reorder preserves identity, active location, and disclosure                                        | Transition boundaries and permutation tests            | Deterministic pointer timeline tests        | Primary mouse and pen pointers                        |

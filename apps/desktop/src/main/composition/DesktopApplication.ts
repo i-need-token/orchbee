@@ -480,6 +480,7 @@ export class DesktopApplication {
 						return true;
 					}),
 				store: this.#workbenchDocumentStore,
+				terminalHostName: this.#options.runtime.terminalHostName,
 				validateDocument: (document) => terminalIntentReconciler.validateDocument(document),
 			});
 			this.#terminalIntentReconciler = terminalIntentReconciler;

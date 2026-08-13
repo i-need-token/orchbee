@@ -49,6 +49,7 @@ describe('Desktop renderer bootstrap contract', () => {
 				initialPresentationId,
 				initializationDocument,
 				sequence: '0',
+				terminalHostName: 'orchbee-host',
 				terminalEvents: [],
 				type: 'orchbee.workbench.client-session-bootstrap',
 			},

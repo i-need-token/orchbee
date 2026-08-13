@@ -21,11 +21,13 @@ import {
 	type WorkbenchSharedPresentation,
 	type WorkbenchSharedPresentationIntent,
 } from '../document';
+import type { WorkbenchTabTitlePolicy } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 
 interface WorkbenchDocumentRuntimeContextSnapshot {
 	readonly nextTabSequence: number;
 	readonly panelWorkspace: PanelWorkspaceState;
 	readonly tabCollection: TabModelSnapshot;
+	readonly tabTitlePolicies: readonly WorkbenchTabTitlePolicy[];
 	readonly terminalContextId: string;
 }
 
@@ -38,6 +40,7 @@ interface HydratedWorkbenchDocumentTerminalContext {
 	readonly nextTabSequence: number;
 	readonly panelWorkspace: PanelWorkspaceState;
 	readonly tabCollection: TabModelInit;
+	readonly tabTitlePolicies: readonly WorkbenchTabTitlePolicy[];
 	readonly terminalContextId: string;
 }
 
@@ -59,7 +62,10 @@ export function projectWorkbenchSharedDocument(
 			.map((terminalContext) => ({
 				nextTabSequence: terminalContext.nextTabSequence,
 				panelWorkspace: projectSharedPanelWorkspace(terminalContext.panelWorkspace),
-				tabCollection: projectSharedTabCollection(terminalContext.tabCollection),
+				tabCollection: projectSharedTabCollection(
+					terminalContext.tabCollection,
+					terminalContext.tabTitlePolicies,
+				),
 				terminalContextId: terminalContext.terminalContextId,
 			}))
 			.sort((left, right) => compareIdentifiers(left.terminalContextId, right.terminalContextId)),
@@ -123,8 +129,16 @@ export function hydrateWorkbenchDocuments(
 					mostRecentGroupId: contextView.tabCollection.mostRecentGroupId,
 					selectedTabIds: contextView.tabCollection.selectedTabIds,
 					selectionAnchorId: contextView.tabCollection.selectionAnchorId,
-					tabs: terminalContext.tabCollection.tabs,
+					tabs: terminalContext.tabCollection.tabs.map((tab) => ({
+						...tab,
+						title: tab.customTitle ?? tab.title,
+					})),
 				},
+				tabTitlePolicies: terminalContext.tabCollection.tabs.map((tab) => ({
+					customTitle: tab.customTitle,
+					fallbackTitle: tab.title,
+					tabId: tab.id,
+				})),
 				terminalContextId: terminalContext.terminalContextId,
 			};
 		}),
@@ -145,7 +159,11 @@ function workbenchClientViewParseResult(value: unknown) {
 	}
 }
 
-function projectSharedTabCollection(snapshot: TabModelSnapshot) {
+function projectSharedTabCollection(
+	snapshot: TabModelSnapshot,
+	tabTitlePolicies: readonly WorkbenchTabTitlePolicy[],
+) {
+	const policies = new Map(tabTitlePolicies.map((policy) => [policy.tabId, policy]));
 	return {
 		groups: snapshot.groups.map((group) => ({
 			color: group.color,
@@ -153,10 +171,11 @@ function projectSharedTabCollection(snapshot: TabModelSnapshot) {
 			title: group.title,
 		})),
 		tabs: snapshot.tabs.map((tab) => ({
+			customTitle: requireDefined(policies.get(tab.id)).customTitle,
 			group: tab.group,
 			id: tab.id,
 			pinned: tab.pinned,
-			title: tab.title,
+			title: requireDefined(policies.get(tab.id)).fallbackTitle,
 		})),
 	};
 }
@@ -390,6 +409,7 @@ function hydratePresentation(presentation: WorkbenchSharedPresentation): Termina
 		currentCwd: null,
 		launchCwd: presentation.launchCwd,
 		lifecycle: lifecycleForIntent(presentation.intent),
+		naturalTitle: null,
 		presentationId: presentation.presentationId,
 		title: presentation.title,
 	};

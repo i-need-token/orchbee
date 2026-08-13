@@ -2,6 +2,7 @@ export { Workbench } from './Workbench';
 export type { WorkbenchProps } from './Workbench';
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
+export { resolveTerminalMetadataObservation } from './model/resolveTerminalMetadataObservation';
 export type {
 	WorkbenchProjectWorkspaceRuntimeOptions,
 	WorkbenchRuntimeTerminalCreateInput,
@@ -13,6 +14,11 @@ export type {
 	WorkbenchTerminalSessionStopSnapshot,
 	WorkbenchTerminalPresentationEventResult,
 } from './model/WorkbenchProjectWorkspaceRuntime';
+export type {
+	RawTerminalMetadataObservation,
+	WorkbenchTerminalCurrentDirectoryObservation,
+	WorkbenchTerminalMetadataObservation,
+} from './model/resolveTerminalMetadataObservation';
 export type {
 	WorkbenchTerminalPresentationCommand,
 	WorkbenchTerminalPresentationComposition,

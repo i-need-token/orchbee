@@ -25,6 +25,14 @@ Opening that find surface seeds an empty or retained query from the bounded prev
 Host selection when one is available; search-owned active ranges remain authoritative Host
 selections rather than a second application selection model.
 
+After a projected frame commits, the renderer forwards its complete nullable title and
+current-directory metadata with the exact `TerminalPresentationId`. The shared client runtime
+normalizes that observation with the trusted terminal-machine hostname from the client-session
+bootstrap and applies it to the matching Workbench presentation. Natural titles and accepted
+current CWD remain transient; durable fallback/custom Tab-title policy and shared-document
+projection remain Workbench-owned. Electron and Gateway Browser clients therefore use the same
+metadata policy, and the page never derives terminal trust from its own URL hostname.
+
 Suspicious paste text opens one localized review dialog owned by the shared projected-terminal
 surface. It presents a bounded, control-visible preview of the retained original text and identifies
 multiline input, controls that will be replaced, and an embedded bracketed-paste terminator. Cancel

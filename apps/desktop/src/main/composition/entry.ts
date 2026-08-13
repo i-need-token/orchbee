@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { hostname } from 'node:os';
 
 import { app, net, protocol } from 'electron';
 
@@ -62,6 +63,7 @@ if (!singleInstanceLockOwned) {
 				...(app.isPackaged ? { packagedResourcesPath: process.resourcesPath } : {}),
 				platform: process.platform,
 				posixRuntimeBaseDirectory,
+				terminalHostName: hostname(),
 				userDataPath: app.getPath('userData'),
 			});
 			desktopApplication = new DesktopApplication({

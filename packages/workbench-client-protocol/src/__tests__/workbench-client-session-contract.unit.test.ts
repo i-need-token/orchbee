@@ -52,12 +52,14 @@ describe('Workbench client session contract', () => {
 			initialPresentationId: 'presentation-initial',
 			initializationDocument: document,
 			sequence: '999999999999999999999999',
+			terminalHostName: 'orchbee-host',
 			terminalEvents,
 			type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 		});
 
 		expect(bootstrap.terminalEvents).toHaveLength(300);
 		expect(bootstrap.documentState).toMatchObject({ kind: 'available' });
+		expect(bootstrap.terminalHostName).toBe('orchbee-host');
 	});
 
 	it('accepts only complete strict shared-document proposals and correlated results', () => {
@@ -101,6 +103,7 @@ describe('Workbench client session contract', () => {
 				initialPresentationId: 'presentation-initial',
 				initializationDocument: document,
 				sequence: '0',
+				terminalHostName: 'orchbee-host',
 				terminalEvents: [],
 				type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 			}),

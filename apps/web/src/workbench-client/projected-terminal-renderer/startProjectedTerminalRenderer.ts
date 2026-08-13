@@ -7,6 +7,7 @@ import {
 import {
 	ProjectedTerminal,
 	type ProjectedPasteReview,
+	type ProjectedTerminalMetadata,
 	type ProjectedTerminalOptions,
 	type TerminalPresentationConfiguration,
 	type TerminalPresentationConfigurationUpdateResult,
@@ -106,6 +107,7 @@ export async function startProjectedTerminalRenderer(
 	platformEffects: ProjectedTerminalPlatformEffects = {},
 	presentationConfigurationSource: TerminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 	reviewPaste?: (review: ProjectedPasteReview, signal: AbortSignal) => boolean | Promise<boolean>,
+	observeMetadata?: (metadata: ProjectedTerminalMetadata) => void,
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
@@ -376,6 +378,7 @@ export async function startProjectedTerminalRenderer(
 			);
 			pendingSubscriptions.push(
 				terminal.onMetadataChange((metadata) => {
+					observeMetadata?.(metadata);
 					rootElement.style.backgroundColor = terminalRgbColor(
 						metadata.defaultColors.backgroundRgb,
 					);

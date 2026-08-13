@@ -49,7 +49,7 @@ function previewPresentation(sequence: number): TerminalPresentationCreation {
 function managedPresentation(
 	presentationId: string,
 	operationId: string,
-): TerminalPresentationCreation {
+): Extract<TerminalPresentationCreation, { readonly kind: 'managed' }> {
 	return {
 		kind: 'managed',
 		operationId: terminalPresentationOperationId(operationId),
@@ -912,6 +912,63 @@ describe('panel workspace state', () => {
 				type: 'terminal-provision-completed',
 			}),
 		).toMatchObject({ outcome: 'rejected', rejection: 'stale-operation' });
+	});
+
+	it('clears transient terminal metadata when a stopped session starts fresh', () => {
+		const initialization = initializePanelWorkspace([
+			{
+				cwd: '/launch',
+				id: 'tab-a',
+				presentation: managedPresentation('presentation-1', 'provision-1'),
+				title: 'Terminal 1',
+			},
+		]);
+		let state = transitionPanelWorkspaceCore(initialization.state, {
+			operationId: terminalPresentationOperationId('provision-1'),
+			presentationId: terminalPresentationId('presentation-1'),
+			tabId: 'tab-a',
+			type: 'terminal-provision-completed',
+		}).state;
+		state = transitionPanelWorkspaceCore(state, {
+			currentCwd: '/observed',
+			naturalTitle: 'old process',
+			presentationId: terminalPresentationId('presentation-1'),
+			tabId: 'tab-a',
+			type: 'terminal-metadata-changed',
+		}).state;
+		state = transitionPanelWorkspaceCore(state, {
+			operations: [
+				{
+					operationId: terminalPresentationOperationId('stop-1'),
+					presentationId: terminalPresentationId('presentation-1'),
+				},
+			],
+			type: 'terminal-sessions-stop-requested',
+		}).state;
+		state = transitionPanelWorkspaceCore(state, {
+			operationId: terminalPresentationOperationId('stop-1'),
+			presentationId: terminalPresentationId('presentation-1'),
+			tabId: 'tab-a',
+			type: 'terminal-stop-completed',
+		}).state;
+
+		const restarted = transitionPanelWorkspaceCore(state, {
+			presentation: managedPresentation('presentation-2', 'provision-2'),
+			presentationId: terminalPresentationId('presentation-1'),
+			tabId: 'tab-a',
+			type: 'terminal-stopped-session-started',
+		});
+
+		expect(
+			getDisplayedTerminal(
+				requireDefined(findPanel(requireDefined(restarted.state.tabs[0]).root, 'panel-1')),
+			),
+		).toMatchObject({
+			currentCwd: '/launch',
+			naturalTitle: null,
+			presentationId: 'presentation-2',
+			title: 'Terminal 1',
+		});
 	});
 
 	it('keeps a partially closed Panel until failed terminals retry and complete', () => {

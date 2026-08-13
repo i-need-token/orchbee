@@ -24,6 +24,7 @@ import {
 function inputWithTabs(panelCounts: readonly number[] = [1]): WorkbenchSharedDocumentInput {
 	const terminalContextId = 'terminal-context-1';
 	const tabs = panelCounts.map((_, index) => ({
+		customTitle: null,
 		group: null,
 		id: `${terminalContextId}-tab-${index + 1}`,
 		pinned: false,
@@ -128,8 +129,15 @@ describe('Workbench shared document and Client View', () => {
 	it('round-trips only shared product structure and terminal lifecycle intent', () => {
 		const document = createWorkbenchSharedDocument(inputWithTabs([1, 3]));
 		const serialized = JSON.stringify(document);
+		const serializedWithoutCustomTitles = JSON.stringify(document, (key, value) =>
+			key === 'customTitle' ? undefined : value,
+		);
 
 		expect(parsedDocumentJson(document)).toEqual(document);
+		expect(
+			parseWorkbenchSharedDocument(JSON.parse(serializedWithoutCustomTitles)).terminalContexts[0]
+				?.tabCollection.tabs[0]?.customTitle,
+		).toBeNull();
 		expect(serialized).not.toContain('activeTabId');
 		expect(serialized).not.toContain('activeLocation');
 		expect(serialized).not.toContain('focusedPanelId');

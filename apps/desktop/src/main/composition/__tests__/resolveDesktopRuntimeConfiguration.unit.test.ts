@@ -2,7 +2,16 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { resolveDesktopRuntimeConfiguration } from '../resolveDesktopRuntimeConfiguration';
+import {
+	resolveDesktopRuntimeConfiguration as resolveRuntimeConfiguration,
+	type DesktopRuntimeConfigurationInput,
+} from '../resolveDesktopRuntimeConfiguration';
+
+function resolveDesktopRuntimeConfiguration(
+	input: Omit<DesktopRuntimeConfigurationInput, 'terminalHostName'>,
+) {
+	return resolveRuntimeConfiguration({ ...input, terminalHostName: 'orchbee-host' });
+}
 
 describe('resolveDesktopRuntimeConfiguration', () => {
 	it('resolves the explicit Host, binding store, and launch profile', () => {
@@ -39,6 +48,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			executable: '/bin/zsh',
 		});
 		expect(first.terminalConfiguration).toEqual({ scrollbackBytes: 10_000_000 });
+		expect(first.terminalHostName).toBe('orchbee-host');
 		expect(first.terminalLaunch.terminalProfile.palette).toHaveLength(256);
 	});
 

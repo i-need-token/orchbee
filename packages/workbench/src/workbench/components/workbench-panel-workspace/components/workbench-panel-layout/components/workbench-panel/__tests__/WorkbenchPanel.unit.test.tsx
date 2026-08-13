@@ -15,6 +15,7 @@ const primaryPresentation = {
 	currentCwd: null,
 	launchCwd: null,
 	lifecycle: { kind: 'preview' },
+	naturalTitle: null,
 	presentationId: terminalPresentationId('terminal-1'),
 	title: 'Terminal 1',
 } as const;
@@ -22,6 +23,7 @@ const childTerminal = {
 	currentCwd: null,
 	launchCwd: null,
 	lifecycle: { kind: 'preview' },
+	naturalTitle: null,
 	presentationId: terminalPresentationId('terminal-2'),
 	title: 'Terminal 2',
 } as const;
@@ -34,6 +36,7 @@ const otherPanel = {
 		currentCwd: null,
 		launchCwd: null,
 		lifecycle: { kind: 'preview' },
+		naturalTitle: null,
 		presentationId: terminalPresentationId('terminal-3'),
 		title: 'Terminal 3',
 	},
@@ -165,6 +168,19 @@ describe('WorkbenchPanel', () => {
 		expect(markup).not.toContain('data-icon="more-vertical"');
 		expect(markup).not.toContain('data-icon="arrow-left"');
 		expect(markup).not.toContain('data-icon="search"');
+	});
+
+	it('projects the focused terminal natural title into the panel header', () => {
+		const panel = createPanel(null);
+		const markup = renderPanel(
+			{
+				...panel,
+				primaryPresentation: { ...panel.primaryPresentation, naturalTitle: 'vim' },
+			},
+			2,
+		);
+
+		expect(markup).toContain('data-slot="workbench-panel-header-title">vim</div>');
 	});
 
 	it('masks only a non-focused panel when the workspace is split', () => {

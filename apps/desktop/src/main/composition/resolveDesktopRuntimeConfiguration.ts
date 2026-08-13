@@ -47,6 +47,7 @@ export interface DesktopRuntimeConfigurationInput {
 	readonly packagedResourcesPath?: string | undefined;
 	readonly platform: NodeJS.Platform;
 	readonly posixRuntimeBaseDirectory?: string | undefined;
+	readonly terminalHostName: string;
 	readonly userDataPath: string;
 }
 
@@ -59,6 +60,7 @@ export interface DesktopRuntimeConfiguration {
 	readonly terminalExitPublicationLedgerPath: string;
 	readonly terminalExitSpillPath: string;
 	readonly terminalConfiguration: TerminalConfiguration;
+	readonly terminalHostName: string;
 	readonly terminalLaunch: TerminalLaunch;
 	readonly workbenchDocumentStorePath: string;
 }
@@ -66,6 +68,9 @@ export interface DesktopRuntimeConfiguration {
 export function resolveDesktopRuntimeConfiguration(
 	input: DesktopRuntimeConfigurationInput,
 ): DesktopRuntimeConfiguration {
+	if (input.terminalHostName.length === 0 || input.terminalHostName.length > 253) {
+		throw new Error('A trusted terminal hostname is required.');
+	}
 	const binaryName =
 		input.platform === 'win32' ? 'orchbee-terminal-host.exe' : 'orchbee-terminal-host';
 	const configuredBinary = input.environment.ORCHBEE_TERMINAL_HOST_BINARY;
@@ -179,6 +184,7 @@ export function resolveDesktopRuntimeConfiguration(
 		),
 		terminalExitSpillPath: path.join(recoveryDirectory, 'terminal-exits-v1.json'),
 		terminalConfiguration,
+		terminalHostName: input.terminalHostName,
 		terminalLaunch: TerminalLaunchSchema.parse({
 			arguments: [],
 			cellPixelHeight: 16,

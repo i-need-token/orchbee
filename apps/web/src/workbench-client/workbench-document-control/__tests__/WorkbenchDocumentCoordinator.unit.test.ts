@@ -252,6 +252,7 @@ function bootstrapWith(
 		initialPresentationId: 'presentation-initial',
 		initializationDocument,
 		sequence: '0',
+		terminalHostName: 'orchbee-host',
 		terminalEvents,
 		type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 	});

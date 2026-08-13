@@ -41,6 +41,7 @@ export const WorkbenchClientSessionBootstrapSchema = z.strictObject({
 	initialPresentationId: TerminalPresentationIdSchema,
 	initializationDocument: WorkbenchSharedDocumentSchema,
 	sequence: WorkbenchClientSessionSequenceSchema,
+	terminalHostName: z.string().min(1).max(253),
 	terminalEvents: z.array(TerminalPresentationEventSchema),
 	type: z.literal(WORKBENCH_CLIENT_SESSION_BOOTSTRAP),
 });

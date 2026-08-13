@@ -86,6 +86,7 @@ export function useProjectedTerminalSurface(
 					capability.platformEffects,
 					capability.presentationConfigurationSource,
 					reviewPaste,
+					(metadata) => capability.observeTerminalMetadata(presentation.presentationId, metadata),
 				);
 				if (cancelled) rendererSession.dispose();
 				else {

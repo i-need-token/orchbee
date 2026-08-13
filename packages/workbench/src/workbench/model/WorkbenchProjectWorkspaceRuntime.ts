@@ -24,6 +24,7 @@ import {
 	type TerminalContextCommand,
 } from '../../project-workspace';
 import { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
+import type { WorkbenchTabTitlePolicy } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import {
 	clonePanelWorkspaceState,
 	collectPanelLeaves,
@@ -41,6 +42,7 @@ import {
 	projectWorkbenchClientView,
 	projectWorkbenchSharedDocument,
 } from './workbench-document-runtime';
+import type { WorkbenchTerminalMetadataObservation } from './resolveTerminalMetadataObservation';
 
 type Listener = () => void;
 
@@ -140,6 +142,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 					panelWorkspaceStore: new PanelWorkspaceStore(tabModel, {
 						composition: this.terminalPresentation,
 						initialState: terminalContext.panelWorkspace,
+						initialTabTitlePolicies: terminalContext.tabTitlePolicies,
 					}),
 					tabModel,
 				});
@@ -201,6 +204,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 						currentPresentations,
 						incomingPresentations,
 					),
+					initialTabTitlePolicies: terminalContext.tabTitlePolicies,
 				}),
 				tabModel,
 			});
@@ -545,6 +549,39 @@ export class WorkbenchProjectWorkspaceRuntime {
 			: { kind: transition.outcome };
 	}
 
+	public applyTerminalMetadataObservation(
+		presentationId: TerminalPresentationId,
+		observation: WorkbenchTerminalMetadataObservation,
+	): WorkbenchTerminalPresentationEventResult {
+		const matches: Array<{ readonly store: PanelWorkspaceStore; readonly tabId: string }> = [];
+		for (const context of this.contexts.values()) {
+			for (const tab of context.panelWorkspaceStore.getSnapshot().tabs) {
+				if (findTerminal(tab.root, presentationId) !== null) {
+					matches.push({ store: context.panelWorkspaceStore, tabId: tab.tabId });
+				}
+			}
+		}
+		const match = matches.length === 1 ? matches[0] : undefined;
+		if (match === undefined) {
+			return {
+				kind: 'rejected',
+				reason: matches.length === 0 ? 'terminal-not-found' : 'terminal-presentation-conflict',
+			};
+		}
+		const transition = match.store.transition({
+			...(observation.currentDirectory.kind === 'reported'
+				? { currentCwd: observation.currentDirectory.currentCwd }
+				: {}),
+			naturalTitle: observation.naturalTitle,
+			presentationId,
+			tabId: match.tabId,
+			type: 'terminal-metadata-changed',
+		});
+		return transition.outcome === 'rejected'
+			? { kind: 'rejected', reason: transition.rejection ?? 'terminal-event-rejected' }
+			: { kind: transition.outcome };
+	}
+
 	public transition(
 		event: ProjectWorkspaceEvent,
 		beforeCommit?: (() => void) | undefined,
@@ -700,11 +737,24 @@ export class WorkbenchProjectWorkspaceRuntime {
 			targetTerminalContextId,
 			this.terminalPresentation.createPresentationId,
 		);
+		const sourceTabTitlePolicies = new Map(
+			source.panelWorkspaceStore.getTabTitlePolicies().map((policy) => [policy.tabId, policy]),
+		);
+		const initialTabTitlePolicies: WorkbenchTabTitlePolicy[] = sourceSnapshot.tabs.map((tab) => {
+			const policy = sourceTabTitlePolicies.get(tab.id);
+			if (policy === undefined) throw new Error(`Tab ${tab.id} has no clone title policy.`);
+			return {
+				customTitle: policy.customTitle,
+				fallbackTitle: policy.fallbackTitle,
+				tabId: requireMappedId(tabIdMap, tab.id, 'Tab'),
+			};
+		});
 		return {
 			nextTabSequence: sourceSnapshot.tabs.length + 1,
 			panelWorkspaceStore: new PanelWorkspaceStore(tabModel, {
 				composition: this.terminalPresentation,
 				initialState: panelWorkspaceState,
+				initialTabTitlePolicies,
 			}),
 			tabModel,
 		};
@@ -798,6 +848,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 				nextTabSequence: context.nextTabSequence,
 				panelWorkspace: context.panelWorkspaceStore.getSnapshot(),
 				tabCollection: context.tabModel.getSnapshot(),
+				tabTitlePolicies: context.panelWorkspaceStore.getTabTitlePolicies(),
 				terminalContextId,
 			})),
 		};

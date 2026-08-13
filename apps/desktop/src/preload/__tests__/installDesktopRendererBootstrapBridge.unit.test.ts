@@ -105,6 +105,7 @@ function rendererBootstrap(): unknown {
 			initialPresentationId: 'presentation-initial',
 			initializationDocument: document,
 			sequence: '0',
+			terminalHostName: 'orchbee-host',
 			terminalEvents: [],
 			type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 		},

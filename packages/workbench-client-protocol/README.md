@@ -14,6 +14,13 @@ It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, netw
 
 Applications parse every untrusted IPC or network value with these schemas at the first trusted boundary. A transport owner remains responsible for framing, authentication, binary transfer, backpressure, and connection retirement.
 
+Each client-session bootstrap carries `terminalHostName`, supplied by the application runtime that
+owns the projected terminal machine. The shared Web client uses that trusted value to validate OSC
+7 current-directory metadata; it never substitutes the Browser URL hostname, Gateway peer name, or
+renderer input. Projected frames carry the complete nullable natural title and current-directory
+observation. The protocol transports those values without selecting Tab-title precedence,
+persistence, or URI trust policy; `@orchbee/workbench` owns those decisions.
+
 Projected frame and row-window events accept either an exact `ArrayBuffer` or a bounded `Uint8Array` view so in-process adapters can preserve a validated payload view. Before structured-cloning a view into a less-trusted capability, the transport owner must copy its visible bytes into an exact-size `ArrayBuffer`; structured clone carries the complete backing buffer, including bytes outside the view. Receivers still honor the declared byte offset and length, while transport trust and terminal-protocol validation remain separate responsibilities.
 
 Selection export remains attachment-scoped. A Desktop-effect attachment receives `selection-copied` after Main commits the clipboard effect; a client-effect attachment receives `selection-copy-content` with bounded UTF-8 bytes and commits those bytes through its own platform clipboard before reporting local completion. Neither event grants a generic clipboard capability.

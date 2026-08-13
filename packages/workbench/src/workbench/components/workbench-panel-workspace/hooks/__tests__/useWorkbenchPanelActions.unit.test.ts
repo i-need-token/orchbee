@@ -25,6 +25,7 @@ const activeTab: TabPanelWorkspace = {
 			currentCwd: null,
 			launchCwd: null,
 			lifecycle: { kind: 'running' },
+			naturalTitle: null,
 			presentationId: terminalPresentationId('terminal-1'),
 			title: 'Terminal 1',
 		},

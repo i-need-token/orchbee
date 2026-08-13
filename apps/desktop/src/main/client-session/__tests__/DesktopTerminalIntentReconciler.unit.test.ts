@@ -285,7 +285,7 @@ function document(
 				},
 				tabCollection: {
 					groups: [],
-					tabs: [{ group: null, id: 'tab-1', pinned: false, title: 'Terminal' }],
+					tabs: [{ customTitle: null, group: null, id: 'tab-1', pinned: false, title: 'Terminal' }],
 				},
 				terminalContextId: 'terminal-context-1',
 			},

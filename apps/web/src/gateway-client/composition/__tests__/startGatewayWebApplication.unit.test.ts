@@ -53,6 +53,7 @@ const bootstrap = WorkbenchClientSessionBootstrapSchema.parse({
 	initialPresentationId: 'presentation-initial',
 	initializationDocument: documentState,
 	sequence: '0',
+	terminalHostName: 'orchbee-host',
 	terminalEvents: [],
 	type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 });

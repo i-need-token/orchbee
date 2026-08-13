@@ -33,8 +33,18 @@ describe('DesktopClientSessionCoordinator', () => {
 
 		expect(store.load).toHaveBeenCalledOnce();
 		expect(reconciled).toEqual(['7']);
-		expect(first.bootstrap).toMatchObject({ document: current, kind: 'available', sequence: '0' });
-		expect(second.bootstrap).toMatchObject({ document: current, kind: 'available', sequence: '0' });
+		expect(first.bootstrap).toMatchObject({
+			document: current,
+			kind: 'available',
+			sequence: '0',
+			terminalHostName: 'orchbee-host',
+		});
+		expect(second.bootstrap).toMatchObject({
+			document: current,
+			kind: 'available',
+			sequence: '0',
+			terminalHostName: 'orchbee-host',
+		});
 		expect(first.clientSessionId).not.toBe(second.clientSessionId);
 	});
 
@@ -322,6 +332,7 @@ function coordinatorWith(
 		initializationDocument: document('0', 'Initial'),
 		reconcileDocument: overrides.reconcileDocument ?? (async () => undefined),
 		store,
+		terminalHostName: 'orchbee-host',
 		validateDocument: () => true,
 	});
 }
@@ -408,7 +419,7 @@ function document(revision: string, title: string): WorkbenchSharedDocument {
 				},
 				tabCollection: {
 					groups: [],
-					tabs: [{ group: null, id: 'tab-1', pinned: false, title }],
+					tabs: [{ customTitle: null, group: null, id: 'tab-1', pinned: false, title }],
 				},
 				terminalContextId: 'terminal-context-1',
 			},

@@ -1,4 +1,5 @@
 import type { TerminalPresentationId } from '@orchbee/workbench';
+import type { ProjectedTerminalMetadata } from '@orchbee/terminal';
 import { createContext } from 'react';
 
 import type { ProjectedTerminalShortcutPlatform } from '../../projected-terminal-actions';
@@ -13,6 +14,10 @@ export interface ProjectedTerminalSurfaceCapability {
 	readonly projectionClient: Pick<TerminalProjectionClient, 'open'>;
 	readonly shortcutPlatform: ProjectedTerminalShortcutPlatform;
 	readonly presentationConfigurationSource: TerminalPresentationConfigurationSource;
+	observeTerminalMetadata(
+		presentationId: TerminalPresentationId,
+		metadata: Pick<ProjectedTerminalMetadata, 'currentDirectory' | 'title'>,
+	): void;
 	startStoppedTerminalSession(presentationId: TerminalPresentationId): void;
 }
 

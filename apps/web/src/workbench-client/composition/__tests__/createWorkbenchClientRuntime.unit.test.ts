@@ -2,6 +2,7 @@ import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 } from '@orchbee/workbench/document';
+import { terminalPresentationId } from '@orchbee/workbench';
 import {
 	WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 	WorkbenchClientSessionBootstrapSchema,
@@ -19,6 +20,8 @@ import {
 import type { TerminalProjectionClient } from '../../terminal-projection';
 import { createWorkbenchClientRuntime } from '../createWorkbenchClientRuntime';
 
+const initialPresentationId = terminalPresentationId('presentation-initial');
+
 const document = createWorkbenchSharedDocument({
 	projectWorkspace: {
 		nextProjectSequence: 1,
@@ -30,16 +33,42 @@ const document = createWorkbenchSharedDocument({
 	revision: workbenchSharedDocumentRevision('0'),
 	terminalContexts: [
 		{
-			nextTabSequence: 1,
+			nextTabSequence: 2,
 			panelWorkspace: {
-				nextPanelSequence: 1,
+				nextPanelSequence: 2,
 				nextPanelSlotSequence: 1,
 				nextSplitSequence: 1,
-				nextTerminalSequence: 1,
+				nextTerminalSequence: 2,
 				pendingRemovals: [],
-				tabs: [],
+				tabs: [
+					{
+						root: {
+							childPresentations: [],
+							id: 'panel-1',
+							kind: 'panel',
+							primaryPresentation: {
+								intent: { kind: 'retain' },
+								launchCwd: '/workspace',
+								presentationId: initialPresentationId,
+								title: 'Terminal 1',
+							},
+						},
+						tabId: 'terminal-context-1-tab-1',
+					},
+				],
 			},
-			tabCollection: { groups: [], tabs: [] },
+			tabCollection: {
+				groups: [],
+				tabs: [
+					{
+						customTitle: null,
+						group: null,
+						id: 'terminal-context-1-tab-1',
+						pinned: false,
+						title: 'Terminal 1',
+					},
+				],
+			},
 			terminalContextId: 'terminal-context-1',
 		},
 	],
@@ -62,9 +91,10 @@ describe('createWorkbenchClientRuntime', () => {
 				clientSessionId: 'client-1',
 				defaultCwd: '/workspace',
 				documentState: { document, kind: 'available' },
-				initialPresentationId: 'presentation-initial',
+				initialPresentationId,
 				initializationDocument: document,
 				sequence: '0',
+				terminalHostName: 'orchbee-host',
 				terminalEvents: [],
 				type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 			}),
@@ -99,6 +129,21 @@ describe('createWorkbenchClientRuntime', () => {
 		expect(runtime.terminalSurfaceCapability.presentationConfigurationSource).toBe(
 			presentationConfigurationSource,
 		);
+		expect(runtime.terminalSurfaceCapability.observeTerminalMetadata).toBeTypeOf('function');
+		runtime.terminalSurfaceCapability.observeTerminalMetadata(initialPresentationId, {
+			currentDirectory: 'file://ORCHBEE-HOST/workspace/My%20Project',
+			title: 'vim\0',
+		});
+		const terminalContext = runtime.projectWorkspaceRuntime.getActiveTerminalContext();
+		expect(terminalContext.tabModel.getSnapshot().tabs[0]?.title).toBe('vim');
+		expect(terminalContext.panelWorkspaceStore.getSnapshot().tabs[0]?.root).toMatchObject({
+			primaryPresentation: {
+				currentCwd: '/workspace/My Project',
+				launchCwd: '/workspace',
+				naturalTitle: 'vim',
+				title: 'Terminal 1',
+			},
+		});
 
 		runtime.dispose();
 		expect(unsubscribeSessionTransport).toHaveBeenCalledOnce();

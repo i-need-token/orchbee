@@ -3,9 +3,10 @@ import * as React from 'react';
 
 import { WorkbenchActionContextMenuContent } from '../../../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import type { WorkbenchActionMenuEntry } from '../../../../../../../../types/workbench-action-menu';
-import type {
-	TerminalPresentation,
-	PanelSplitDirection,
+import {
+	getTerminalDisplayTitle,
+	type TerminalPresentation,
+	type PanelSplitDirection,
 } from '../../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../types/panel-workspace-view';
 import type { WorkbenchTerminalSurface } from '../../../../../../../../types/workbench-terminal-surface';
@@ -76,7 +77,7 @@ export function WorkbenchTerminalViewport({
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger
-				aria-label={terminal.title}
+				aria-label={getTerminalDisplayTitle(terminal)}
 				className={styles['viewport']}
 				data-panel-id={panelId}
 				data-slot='workbench-terminal-viewport'

@@ -28,6 +28,7 @@ export {
 	Workbench,
 	WorkbenchProjectWorkspaceRuntime,
 	createWorkbenchPreviewTerminalPresentationComposition,
+	resolveTerminalMetadataObservation,
 } from './workbench';
 export {
 	TerminalPresentationFailureSchema,
@@ -79,6 +80,9 @@ export type {
 	WorkbenchWorkspaceCreateInput,
 	WorkbenchWorkspaceInput,
 	WorkbenchWorkspaceUpdateInput,
+	RawTerminalMetadataObservation,
+	WorkbenchTerminalCurrentDirectoryObservation,
+	WorkbenchTerminalMetadataObservation,
 } from './workbench';
 export type {
 	TerminalPresentationCloseOperation,

@@ -94,6 +94,12 @@ const tabGroupSchema = z.strictObject({
 });
 
 const tabSchema = z.strictObject({
+	customTitle: z
+		.string()
+		.min(1)
+		.refine((value) => value === value.trim(), 'A custom Tab title must be trimmed.')
+		.nullable()
+		.default(null),
 	group: nullableIdentifierSchema,
 	id: identifierSchema,
 	pinned: z.boolean(),

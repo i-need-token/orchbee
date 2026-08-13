@@ -153,6 +153,7 @@ describe('DesktopApplication', () => {
 				clientSession: expect.objectContaining({
 					defaultCwd: '/users/orchbee',
 					documentState: { kind: 'missing' },
+					terminalHostName: 'orchbee-host',
 					type: 'orchbee.workbench.client-session-bootstrap',
 				}),
 				type: 'orchbee.desktop.renderer-bootstrap',
@@ -1849,6 +1850,7 @@ function createRuntime(
 		homeDirectory: '/users/orchbee',
 		platform: 'linux',
 		posixRuntimeBaseDirectory: '/run/user/501',
+		terminalHostName: 'orchbee-host',
 		userDataPath: '/users/orchbee/.config/orchbee',
 	});
 }

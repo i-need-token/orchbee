@@ -53,6 +53,7 @@ export class DesktopClientSessionBroker implements DesktopClientSessionPublisher
 			initialPresentationId: this.#handle.bootstrap.initialPresentationId,
 			initializationDocument: this.#handle.bootstrap.initializationDocument,
 			sequence: this.#handle.bootstrap.sequence,
+			terminalHostName: this.#handle.bootstrap.terminalHostName,
 			terminalEvents: this.#handle.bootstrap.terminalEvents,
 			type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 		});

@@ -10,6 +10,7 @@ import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
+	resolveTerminalMetadataObservation,
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchTerminalPresentationComposition,
 	type WorkbenchShortcutPlatform,
@@ -95,6 +96,12 @@ export function createWorkbenchClientRuntime({
 		presentationConfigurationSource: terminalPresentationConfigurationSource,
 		projectionClient,
 		shortcutPlatform,
+		observeTerminalMetadata: (presentationId, metadata) => {
+			projectWorkspaceRuntime.applyTerminalMetadataObservation(
+				presentationId,
+				resolveTerminalMetadataObservation(metadata, bootstrap.terminalHostName),
+			);
+		},
 		startStoppedTerminalSession: (presentationId) => {
 			projectWorkspaceRuntime.startStoppedTerminalSession(presentationId);
 		},

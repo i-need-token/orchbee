@@ -47,6 +47,12 @@ and a completed application stop to `stopped`. Hydration reconstructs pending li
 dispatches no process command. Explicit reconciliation later replays provision, close, and stop and
 uses restore-only for `retain`.
 
+Each shared Tab stores a durable fallback `title` and nullable durable `customTitle`. The fallback
+is the stable launch/product label; a custom title is the explicit user override. Host-derived
+natural terminal titles and current CWD are transient runtime observations and never enter the
+shared document. Hydration therefore restores a custom title but waits for a new projection before
+showing a natural title or current CWD.
+
 ## Client View
 
 ```text
@@ -82,10 +88,10 @@ document and selects it only in the initiating Client View. Deleting a shared Ta
 client to reconcile independently.
 
 `WorkbenchProjectWorkspaceRuntime#applySharedDocument(...)` applies a different shared structure,
-reconciles the current Client View, emits no terminal command, and retains current CWD and rich
-lifecycle observations for presentations whose complete durable record is unchanged. The runtime
-returns `unchanged` when only the supplied revision differs because revision ownership belongs to
-the application coordinator.
+reconciles the current Client View, emits no terminal command, and retains natural title, current
+CWD, and rich lifecycle observations for presentations whose complete durable record is unchanged.
+The runtime returns `unchanged` when only the supplied revision differs because revision ownership
+belongs to the application coordinator.
 
 Client View is in-memory for this foundation. Closing a page destroys it; a new page receives the
 deterministic default. It is not written to browser key-value storage because its reference sets
@@ -118,26 +124,28 @@ and contract.
 ## Compatibility and application integration
 
 `WorkbenchSharedDocument` version `1` is a new contract, not a reader for the unshipped Workbench
-topology schema. There is no alias, migration, compatibility decoder, or field reinterpretation.
-Applications use a distinct storage path and ignore any development-era topology file without
-deleting it.
+topology schema. Within version `1`, an omitted Tab `customTitle` is canonicalized to `null` so
+documents written before that optional override was introduced remain readable. There is no old
+topology alias, migration, or field reinterpretation. Applications use a distinct storage path and
+ignore any development-era topology file without deleting it.
 
 Only shared changes advance the application-owned revision and enter its durability barrier.
 `subscribeDocument(...)` and `subscribeClientView(...)` compare their owned projections and notify
-independently, so a client-only change cannot schedule a shared commit. The current Desktop adapter remains a single-client
-writer in this foundation; multi-client arbitration and broadcasts belong to the Desktop session
-coordinator.
+independently, so a client-only change cannot schedule a shared commit. The current Desktop adapter
+remains a single-client writer in this foundation; multi-client arbitration and broadcasts belong
+to the Desktop session coordinator.
 
 ## Correctness evidence
 
-| Claim                                                      | Evidence                                                                 | Limits                                          |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------- |
-| Strict shared documents preserve every relationship        | Valid/malformed examples, JSON round trips, and generated hierarchies    | Generated bounds: eight Tabs, four Panels each  |
-| Client Views are isolated and reconciliation is idempotent | Two-view examples, stale-reference regression, and fixed-seed properties | In-memory view contract only                    |
-| Hydration preserves durable terminal intent                | Provision/retain/close/stop/stopped runtime round trips                  | Host binding existence remains application work |
-| Applying a shared document emits no terminal effect        | Runtime trace with structural removal and retained running observation   | One renderer runtime                            |
-| View-only changes never require a shared write             | Projection-specific observers and Desktop coordinator fingerprint tests  | Multi-client ordering belongs to the next slice |
-| Preview state cannot claim shared durability               | Deterministic rejection test                                             | Preview remains an in-memory composition        |
+| Claim                                                        | Evidence                                                                 | Limits                                          |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------ | ----------------------------------------------- |
+| Strict shared documents preserve every relationship          | Valid/malformed examples, JSON round trips, and generated hierarchies    | Generated bounds: eight Tabs, four Panels each  |
+| Client Views are isolated and reconciliation is idempotent   | Two-view examples, stale-reference regression, and fixed-seed properties | In-memory view contract only                    |
+| Hydration preserves durable terminal intent                  | Provision/retain/close/stop/stopped runtime round trips                  | Host binding existence remains application work |
+| Custom title survives while natural metadata stays transient | Title override/reset and shared-document hydration scenarios             | Rename presentation is adapter-owned            |
+| Applying a shared document emits no terminal effect          | Runtime trace with structural removal and retained running observation   | One renderer runtime                            |
+| View-only changes never require a shared write               | Projection-specific observers and Desktop coordinator fingerprint tests  | Multi-client ordering belongs to the next slice |
+| Preview state cannot claim shared durability                 | Deterministic rejection test                                             | Preview remains an in-memory composition        |
 
 TLA+ is not selected for the pure document/view projection because it contains no asynchronous
 completion, cancellation, or independently ordered event. The Desktop commit/lifecycle workflow

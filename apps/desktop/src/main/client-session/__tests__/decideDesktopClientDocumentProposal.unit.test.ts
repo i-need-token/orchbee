@@ -193,7 +193,7 @@ function document(
 				},
 				tabCollection: {
 					groups: [],
-					tabs: [{ group: null, id: 'tab-1', pinned: false, title }],
+					tabs: [{ customTitle: null, group: null, id: 'tab-1', pinned: false, title }],
 				},
 				terminalContextId: 'terminal-context-1',
 			},

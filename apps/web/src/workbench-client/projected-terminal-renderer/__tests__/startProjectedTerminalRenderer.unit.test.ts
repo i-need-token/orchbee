@@ -219,6 +219,7 @@ describe('startProjectedTerminalRenderer', () => {
 				return unsubscribePresentationConfiguration;
 			},
 		};
+		const observeMetadata = vi.fn<(metadata: ProjectedTerminalMetadata) => void>();
 		Object.defineProperty(globalThis, 'HTMLElement', {
 			configurable: true,
 			value: class {},
@@ -235,6 +236,8 @@ describe('startProjectedTerminalRenderer', () => {
 				dependencies,
 				{ openExternal, ringBell, writeClipboardText },
 				presentationConfigurationSource,
+				undefined,
+				observeMetadata,
 			);
 			expect(dependencies.createTerminal).toHaveBeenCalledWith(
 				expect.objectContaining({ projectionBufferTrust: 'local-host' }),
@@ -333,6 +336,14 @@ describe('startProjectedTerminalRenderer', () => {
 				},
 				rows: 24,
 			} as ProjectedTerminalMetadata);
+			expect(observeMetadata).toHaveBeenCalledWith(
+				expect.objectContaining({
+					cellPixelHeight: 18,
+					cellPixelWidth: 9,
+					columns: 80,
+					rows: 24,
+				}),
+			);
 			emitExit({
 				exit: { code: 0, kind: 'exit-code' },
 				finalRevision: CanonicalUint64TextSchema.parse('1'),

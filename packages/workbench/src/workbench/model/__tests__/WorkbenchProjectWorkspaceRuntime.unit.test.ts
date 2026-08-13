@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { WorkbenchDirectory } from '../../../project-workspace';
+import { workbenchSharedDocumentRevision } from '../../document';
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
@@ -198,6 +199,70 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 				title: 'Terminal 1',
 			},
 		});
+	});
+
+	it('keeps Warp-style natural and custom titles separate from launch metadata', () => {
+		const runtime = createManagedRuntime();
+		const context = runtime.getActiveTerminalContext();
+		const tab = context.panelWorkspaceStore.getSnapshot().tabs[0];
+		const tabId = context.tabModel.getSnapshot().activeTabId;
+		if (tab === undefined || tabId === null || tab.root.kind !== 'panel') {
+			throw new Error('Expected one active terminal Tab.');
+		}
+		const presentationId = tab.root.primaryPresentation.presentationId;
+
+		expect(
+			runtime.applyTerminalMetadataObservation(presentationId, {
+				currentDirectory: { currentCwd: '/workspace/current', kind: 'reported' },
+				naturalTitle: 'vim',
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('vim');
+		expect(tab.root.primaryPresentation.launchCwd).toBe('/system');
+
+		expect(context.panelWorkspaceStore.setTabCustomTitle(tabId, '  Custom title  ')).toEqual({
+			kind: 'applied',
+		});
+		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('Custom title');
+		runtime.applyTerminalMetadataObservation(presentationId, {
+			currentDirectory: { kind: 'ignored' },
+			naturalTitle: 'ssh',
+		});
+		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('Custom title');
+		expect(context.panelWorkspaceStore.setTabCustomTitle(tabId, null)).toEqual({
+			kind: 'applied',
+		});
+		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('ssh');
+		expect(context.panelWorkspaceStore.setTabCustomTitle(tabId, '   ')).toEqual({
+			kind: 'unchanged',
+		});
+
+		context.tabModel.updateTab(tabId, { title: 'Persisted custom' });
+		const document = runtime.getSharedDocument(workbenchSharedDocumentRevision('7'));
+		expect(document.terminalContexts[0]?.tabCollection.tabs[0]).toMatchObject({
+			customTitle: 'Persisted custom',
+			title: 'Terminal 1',
+		});
+		expect(document.terminalContexts[0]?.panelWorkspace.tabs[0]?.root).toMatchObject({
+			primaryPresentation: { title: 'Terminal 1' },
+		});
+		const restored = new WorkbenchProjectWorkspaceRuntime({
+			initialDocument: document,
+			standaloneCwd: '/fallback',
+			standaloneTerminalTitle: 'Unused',
+			terminalPresentation: createTestTerminalPresentationComposition('restored-title'),
+		});
+		const restoredContext = restored.getActiveTerminalContext();
+		expect(restoredContext.tabModel.getSnapshot().tabs[0]?.title).toBe('Persisted custom');
+		restored.applyTerminalMetadataObservation(presentationId, {
+			currentDirectory: { kind: 'ignored' },
+			naturalTitle: 'restored shell',
+		});
+		expect(restoredContext.tabModel.getSnapshot().tabs[0]?.title).toBe('Persisted custom');
+		expect(restoredContext.panelWorkspaceStore.setTabCustomTitle(tabId, null)).toEqual({
+			kind: 'applied',
+		});
+		expect(restoredContext.tabModel.getSnapshot().tabs[0]?.title).toBe('restored shell');
 	});
 
 	it('preserves independent terminal contexts when switching locations', () => {
@@ -407,7 +472,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			group: null,
 			id: 'terminal-context-3-tab-1',
 			pinned: false,
-			title: 'Terminal 1',
+			title: 'Terminal 2',
 		});
 		expect(copiedTab?.root).not.toBe(sourceSplitTab?.root);
 		expect(copiedTab?.root).toMatchObject({

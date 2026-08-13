@@ -59,6 +59,7 @@ type DesktopClientSessionBootstrap =
 			readonly initializationDocument: WorkbenchSharedDocument;
 			readonly kind: 'available';
 			readonly sequence: string;
+			readonly terminalHostName: string;
 			readonly terminalEvents: readonly TerminalPresentationEvent[];
 	  }
 	| {
@@ -67,6 +68,7 @@ type DesktopClientSessionBootstrap =
 			readonly initializationDocument: WorkbenchSharedDocument;
 			readonly kind: 'missing';
 			readonly sequence: string;
+			readonly terminalHostName: string;
 			readonly terminalEvents: readonly TerminalPresentationEvent[];
 	  };
 
@@ -97,6 +99,7 @@ export interface DesktopClientSessionCoordinatorDependencies {
 		publish: (event: TerminalPresentationEvent) => void,
 	) => Promise<void>;
 	readonly store: WorkbenchDocumentStore;
+	readonly terminalHostName: string;
 	readonly validateDocument: (document: WorkbenchSharedDocument) => boolean;
 }
 
@@ -222,6 +225,7 @@ export class DesktopClientSessionCoordinator {
 						initializationDocument: this.#dependencies.initializationDocument,
 						kind: 'missing',
 						sequence: this.#sequence.toString(),
+						terminalHostName: this.#dependencies.terminalHostName,
 						terminalEvents,
 					}
 				: {
@@ -231,6 +235,7 @@ export class DesktopClientSessionCoordinator {
 						initializationDocument: this.#dependencies.initializationDocument,
 						kind: 'available',
 						sequence: this.#sequence.toString(),
+						terminalHostName: this.#dependencies.terminalHostName,
 						terminalEvents,
 					};
 		return {

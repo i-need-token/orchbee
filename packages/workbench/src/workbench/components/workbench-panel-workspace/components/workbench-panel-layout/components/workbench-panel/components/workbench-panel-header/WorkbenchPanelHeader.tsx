@@ -16,6 +16,7 @@ import { WorkbenchActionDropdownMenuContent } from '../../../../../../../workben
 import type { WorkbenchActionMenuEntry } from '../../../../../../../../types/workbench-action-menu';
 import {
 	getDisplayedTerminal,
+	getTerminalDisplayTitle,
 	type PanelLeaf,
 } from '../../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../types/panel-workspace-view';
@@ -83,7 +84,7 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 				)}
 			</div>
 			<div className={styles['title']} data-slot='workbench-panel-header-title'>
-				{displayedTerminal.title}
+				{getTerminalDisplayTitle(displayedTerminal)}
 			</div>
 			<div className={styles['actions']} data-slot='workbench-panel-header-actions'>
 				{view.panelCount > 1 && (

@@ -7,7 +7,7 @@ import {
 	HostEpochSchema,
 	TerminalIdSchema,
 } from '@orchbee/terminal-protocol';
-import type { ProjectedPasteReview } from '@orchbee/terminal';
+import type { ProjectedPasteReview, ProjectedTerminalMetadata } from '@orchbee/terminal';
 import { terminalPresentationId, type WorkbenchTerminalPresentation } from '@orchbee/workbench';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -22,7 +22,10 @@ import {
 	type ProjectedTerminalRendererSession,
 	type startProjectedTerminalRenderer,
 } from '../../../projected-terminal-renderer';
-import { ProjectedTerminalSurfaceCapabilityContext } from '../../contexts/projected-terminal-surface-capability';
+import {
+	ProjectedTerminalSurfaceCapabilityContext,
+	type ProjectedTerminalSurfaceCapability,
+} from '../../contexts/projected-terminal-surface-capability';
 import { useProjectedTerminalSurface } from '../useProjectedTerminalSurface';
 
 const renderer = vi.hoisted(() => ({
@@ -90,6 +93,7 @@ describe('useProjectedTerminalSurface', () => {
 				currentCwd: '/workspace',
 				launchCwd: '/workspace',
 				lifecycle,
+				naturalTitle: null,
 				presentationId: terminalPresentationId('presentation-1'),
 				title: 'Terminal 1',
 			};
@@ -105,6 +109,7 @@ describe('useProjectedTerminalSurface', () => {
 							value: {
 								documentElement: document.documentElement,
 								preferredLocales: ['en-US'],
+								observeTerminalMetadata: () => undefined,
 								platformEffects: {},
 								presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 								projectionClient: { open },
@@ -148,6 +153,8 @@ describe('useProjectedTerminalSurface', () => {
 		});
 		const firstRelease = vi.fn<() => void>();
 		const secondRelease = vi.fn<() => void>();
+		const observeTerminalMetadata =
+			vi.fn<ProjectedTerminalSurfaceCapability['observeTerminalMetadata']>();
 		const transport: ProjectedTerminalTransport = {
 			close: vi.fn<() => void>(),
 			projectionBufferTrust: 'external',
@@ -180,6 +187,7 @@ describe('useProjectedTerminalSurface', () => {
 			currentCwd: '/workspace',
 			launchCwd: '/workspace',
 			lifecycle: { kind: 'running' },
+			naturalTitle: null,
 			presentationId: terminalPresentationId('presentation-1'),
 			title: 'Terminal 1',
 		};
@@ -195,6 +203,7 @@ describe('useProjectedTerminalSurface', () => {
 						value: {
 							documentElement: document.documentElement,
 							platformEffects: {},
+							observeTerminalMetadata,
 							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 							preferredLocales: ['en-US'],
 							projectionClient: { open },
@@ -213,6 +222,16 @@ describe('useProjectedTerminalSurface', () => {
 		});
 		expect(open).toHaveBeenCalledOnce();
 		expect(renderer.start).toHaveBeenCalledOnce();
+		const observeProjectedMetadata = renderer.start.mock.calls[0]?.[10];
+		expect(observeProjectedMetadata).toBeTypeOf('function');
+		observeProjectedMetadata?.({
+			currentDirectory: 'file://orchbee-host/workspace',
+			title: 'vim',
+		} as ProjectedTerminalMetadata);
+		expect(observeTerminalMetadata).toHaveBeenCalledWith(presentation.presentationId, {
+			currentDirectory: 'file://orchbee-host/workspace',
+			title: 'vim',
+		});
 
 		await act(async () => {
 			resolveTransportUnavailable?.();
@@ -265,6 +284,7 @@ describe('useProjectedTerminalSurface', () => {
 			currentCwd: '/workspace',
 			launchCwd: '/workspace',
 			lifecycle: { kind: 'running' },
+			naturalTitle: null,
 			presentationId: terminalPresentationId('presentation-review'),
 			title: 'Terminal Review',
 		};
@@ -280,6 +300,7 @@ describe('useProjectedTerminalSurface', () => {
 						value: {
 							documentElement: document.documentElement,
 							platformEffects: {},
+							observeTerminalMetadata: () => undefined,
 							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 							preferredLocales: ['en-US'],
 							projectionClient: { open },

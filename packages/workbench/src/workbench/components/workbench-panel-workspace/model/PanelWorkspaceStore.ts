@@ -12,6 +12,9 @@ import type {
 import {
 	initializePanelWorkspace,
 	collectPanelLeaves,
+	findPanel,
+	getDisplayedTerminal,
+	getTerminalDisplayTitle,
 	transitionPanelWorkspace,
 	type PanelWorkspaceEvent,
 	type PanelWorkspaceState,
@@ -31,13 +34,26 @@ interface PanelWorkspaceStoreOptions {
 		| undefined;
 	readonly initialPresentationId?: TerminalPresentationId | undefined;
 	readonly initialState?: PanelWorkspaceState | undefined;
+	readonly initialTabTitlePolicies?: readonly WorkbenchTabTitlePolicy[] | undefined;
 }
+
+export interface WorkbenchTabTitlePolicy {
+	readonly customTitle: string | null;
+	readonly fallbackTitle: string;
+	readonly tabId: string;
+}
+
+export type WorkbenchTabTitleUpdateResult =
+	| { readonly kind: 'applied' | 'unchanged' }
+	| { readonly kind: 'rejected'; readonly reason: 'tab-not-found' };
 
 export class PanelWorkspaceStore {
 	private readonly listeners = new Set<Listener>();
 	private readonly pendingTabCwds = new Map<string, string | null>();
 	private readonly pendingTabPresentations = new Map<string, TerminalPresentationCreation>();
+	private readonly tabTitlePolicies = new Map<string, WorkbenchTabTitlePolicy>();
 	private readonly composition: WorkbenchTerminalPresentationComposition;
+	private synchronizingTabTitles = false;
 	private terminalCreationSealed = false;
 	private readonly tabModel: TabModel;
 	private unsubscribeTabModel: (() => void) | null = null;
@@ -46,8 +62,10 @@ export class PanelWorkspaceStore {
 	public constructor(tabModel: TabModel, options: PanelWorkspaceStoreOptions) {
 		this.tabModel = tabModel;
 		this.composition = options.composition;
+		this.initializeTabTitlePolicies(tabModel.getSnapshot(), options.initialTabTitlePolicies);
 		if (options.initialState !== undefined) {
 			this.state = options.initialState;
+			this.syncTabTitles();
 			return;
 		}
 		const snapshot = tabModel.getSnapshot();
@@ -66,7 +84,7 @@ export class PanelWorkspaceStore {
 						? (options.initialPresentationId ?? options.composition.initialPresentationId)
 						: undefined),
 			),
-			title: tab.title,
+			title: this.requireTabTitlePolicy(tab.id).fallbackTitle,
 		}));
 		const initialization = initializePanelWorkspace(initialTabs);
 		this.state = initialization.state;
@@ -75,6 +93,40 @@ export class PanelWorkspaceStore {
 
 	public readonly getSnapshot = (): PanelWorkspaceState => this.state;
 	public readonly getActiveTabId = (): string | null => this.tabModel.getSnapshot().activeTabId;
+	public getTabTitlePolicies(): readonly WorkbenchTabTitlePolicy[] {
+		const snapshot = this.tabModel.getSnapshot();
+		this.captureExternalTabTitleChanges(snapshot);
+		this.ensureTabTitlePolicies(snapshot);
+		return snapshot.tabs.map((tab) => {
+			const policy = this.requireTabTitlePolicy(tab.id);
+			return {
+				customTitle: policy.customTitle,
+				fallbackTitle: policy.fallbackTitle,
+				tabId: policy.tabId,
+			};
+		});
+	}
+
+	public setTabCustomTitle(
+		tabId: string,
+		customTitle: string | null,
+	): WorkbenchTabTitleUpdateResult {
+		const policy = this.tabTitlePolicies.get(tabId);
+		if (policy === undefined) return { kind: 'rejected', reason: 'tab-not-found' };
+		if (customTitle === null) {
+			if (policy.customTitle === null) return { kind: 'unchanged' };
+			this.tabTitlePolicies.set(tabId, { ...policy, customTitle: null });
+		} else {
+			const normalized = customTitle.trim();
+			if (normalized.length === 0 || this.resolveTabTitle(tabId) === normalized) {
+				return { kind: 'unchanged' };
+			}
+			this.tabTitlePolicies.set(tabId, { ...policy, customTitle: normalized });
+		}
+		this.syncTabTitle(tabId);
+		this.emit();
+		return { kind: 'applied' };
+	}
 
 	public readonly subscribe = (listener: Listener): (() => void) => {
 		if (this.unsubscribeTabModel === null) {
@@ -95,6 +147,7 @@ export class PanelWorkspaceStore {
 		const result = transitionPanelWorkspace(this.state, event);
 		if (result.state !== this.state) {
 			this.state = result.state;
+			this.syncTabTitles();
 			this.emit();
 		}
 		this.dispatchCommands(result.commands);
@@ -297,10 +350,19 @@ export class PanelWorkspaceStore {
 	}
 
 	public readonly reconcileTabs = (): void => {
+		if (this.synchronizingTabTitles) return;
+		const snapshot = this.tabModel.getSnapshot();
+		this.captureExternalTabTitleChanges(snapshot);
+		this.ensureTabTitlePolicies(snapshot);
 		const result = this.transition({
-			tabs: this.toTabInputs(this.tabModel.getSnapshot()),
+			tabs: this.toTabInputs(snapshot),
 			type: 'tabs-reconciled',
 		});
+		const retainedTabIds = new Set(snapshot.tabs.map((tab) => tab.id));
+		for (const tabId of this.tabTitlePolicies.keys()) {
+			if (!retainedTabIds.has(tabId)) this.tabTitlePolicies.delete(tabId);
+		}
+		this.syncTabTitles();
 		if (result.state === this.state && result.outcome === 'unchanged') {
 			this.emit();
 		}
@@ -314,6 +376,85 @@ export class PanelWorkspaceStore {
 		for (const listener of this.listeners) {
 			listener();
 		}
+	}
+
+	private captureExternalTabTitleChanges(snapshot: TabModelSnapshot): void {
+		for (const tab of snapshot.tabs) {
+			const policy = this.tabTitlePolicies.get(tab.id);
+			if (policy === undefined) continue;
+			const projectedTitle = this.resolveTabTitle(tab.id);
+			if (tab.title === projectedTitle) continue;
+			const normalized = tab.title.trim();
+			if (normalized.length === 0 || normalized === projectedTitle) continue;
+			this.tabTitlePolicies.set(tab.id, { ...policy, customTitle: normalized });
+		}
+	}
+
+	private ensureTabTitlePolicies(snapshot: TabModelSnapshot): void {
+		for (const tab of snapshot.tabs) {
+			if (this.tabTitlePolicies.has(tab.id)) continue;
+			this.tabTitlePolicies.set(tab.id, {
+				customTitle: null,
+				fallbackTitle: tab.title,
+				tabId: tab.id,
+			});
+		}
+	}
+
+	private initializeTabTitlePolicies(
+		snapshot: TabModelSnapshot,
+		initialPolicies: readonly WorkbenchTabTitlePolicy[] | undefined,
+	): void {
+		if (initialPolicies === undefined) {
+			this.ensureTabTitlePolicies(snapshot);
+			return;
+		}
+		const tabIds = new Set(snapshot.tabs.map((tab) => tab.id));
+		const policyTabIds = new Set(initialPolicies.map((policy) => policy.tabId));
+		if (
+			initialPolicies.length !== tabIds.size ||
+			policyTabIds.size !== initialPolicies.length ||
+			initialPolicies.some((policy) => !tabIds.has(policy.tabId))
+		) {
+			throw new Error('Initial Tab title policies must exactly match the Tab collection.');
+		}
+		for (const policy of initialPolicies) {
+			this.tabTitlePolicies.set(policy.tabId, { ...policy });
+		}
+	}
+
+	private requireTabTitlePolicy(tabId: string): WorkbenchTabTitlePolicy {
+		const policy = this.tabTitlePolicies.get(tabId);
+		if (policy === undefined) throw new Error(`Tab ${tabId} has no title policy.`);
+		return policy;
+	}
+
+	private resolveTabTitle(tabId: string): string {
+		const policy = this.requireTabTitlePolicy(tabId);
+		if (policy.customTitle !== null) return policy.customTitle;
+		const tab = this.state?.tabs.find((candidate) => candidate.tabId === tabId);
+		if (tab === undefined) return policy.fallbackTitle;
+		const panel = findPanel(tab.root, tab.focusedPanelId);
+		return panel === null
+			? policy.fallbackTitle
+			: getTerminalDisplayTitle(getDisplayedTerminal(panel));
+	}
+
+	private syncTabTitle(tabId: string): void {
+		const tab = this.tabModel.getSnapshot().tabs.find((candidate) => candidate.id === tabId);
+		if (tab === undefined) return;
+		const title = this.resolveTabTitle(tabId);
+		if (tab.title === title) return;
+		this.synchronizingTabTitles = true;
+		try {
+			this.tabModel.updateTab(tabId, { title });
+		} finally {
+			this.synchronizingTabTitles = false;
+		}
+	}
+
+	private syncTabTitles(): void {
+		for (const tabId of this.tabTitlePolicies.keys()) this.syncTabTitle(tabId);
 	}
 
 	private createPresentation(
@@ -369,7 +510,7 @@ export class PanelWorkspaceStore {
 				cwd: this.pendingTabCwds.get(tab.id) ?? initialCwd ?? null,
 				id: tab.id,
 				...(presentation === undefined ? {} : { presentation }),
-				title: tab.title,
+				title: this.requireTabTitlePolicy(tab.id).fallbackTitle,
 			};
 		});
 	}
