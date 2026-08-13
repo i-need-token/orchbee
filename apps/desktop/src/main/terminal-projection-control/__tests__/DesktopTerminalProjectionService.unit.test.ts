@@ -77,6 +77,7 @@ function createHarness(readOnly = false) {
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
 	const cleanupCallbacks: Array<((error: unknown) => void) | undefined> = [];
+	const resizeLeaseCallbacks: Array<((ownsResize: boolean) => void) | undefined> = [];
 	let nextAttachment = 1;
 	const createMessageChannel = vi.fn<
 		DesktopTerminalProjectionServiceDependencies['createMessageChannel']
@@ -98,6 +99,7 @@ function createHarness(readOnly = false) {
 				start: vi.fn<() => void>(),
 			};
 			cleanupCallbacks.push(lifecycle?.onCleanupRequested);
+			resizeLeaseCallbacks.push(lifecycle?.onResizeLeaseChanged);
 			brokers.push(broker);
 			return broker;
 		},
@@ -115,6 +117,7 @@ function createHarness(readOnly = false) {
 		createBroker,
 		createMessageChannel,
 		requestControl,
+		resizeLeaseCallbacks,
 		service,
 		setTarget: (nextTarget: typeof target) => {
 			target = nextTarget;
@@ -233,7 +236,7 @@ describe('DesktopTerminalProjectionService', () => {
 		expect(harness.requestControl).toHaveBeenCalledTimes(3);
 	});
 
-	it('grants one resize owner and keeps later clients as input-capable observers', async () => {
+	it('promotes the existing observer after its resize owner detaches', async () => {
 		const harness = createHarness();
 		const presentation = terminalPresentationId('presentation-shared');
 
@@ -255,16 +258,50 @@ describe('DesktopTerminalProjectionService', () => {
 			2,
 			MessageKind.attachTerminal,
 			expect.objectContaining({
-				capabilities: { input: true, read: true, resize: false },
+				capabilities: { input: true, read: true, resize: true },
 				requestResizeLease: false,
 			}),
 			expect.anything(),
 		);
 
 		await first.dispose();
-		const nextOwner = await harness.service.open(presentation);
+		harness.resizeLeaseCallbacks[1]?.(true);
+		const nextObserver = await harness.service.open(presentation);
 		expect(second.bootstrap.canResize).toBe(false);
-		expect(nextOwner.bootstrap.canResize).toBe(true);
+		expect(nextObserver.bootstrap.canResize).toBe(false);
+		expect(harness.requestControl).toHaveBeenLastCalledWith(
+			MessageKind.attachTerminal,
+			expect.objectContaining({ requestResizeLease: false }),
+			expect.anything(),
+		);
+	});
+
+	it('orders a release before a racing open so the replacement requests ownership', async () => {
+		const harness = createHarness();
+		const presentation = terminalPresentationId('presentation-release-open-race');
+		const owner = await harness.service.open(presentation);
+		const detach = createDeferred<void>();
+		const defaultImplementation = harness.requestControl.getMockImplementation();
+		harness.requestControl.mockImplementation(async (...arguments_) => {
+			if (arguments_[0] === MessageKind.detachTerminal) await detach.promise;
+			if (defaultImplementation === undefined) throw new Error('Missing Host response.');
+			return defaultImplementation(...arguments_);
+		});
+
+		const releasing = owner.dispose();
+		await vi.waitFor(() => expect(harness.requestControl).toHaveBeenCalledTimes(2));
+		const opening = harness.service.open(presentation);
+		await Promise.resolve();
+		expect(harness.requestControl).toHaveBeenCalledTimes(2);
+		detach.resolve();
+
+		await releasing;
+		expect((await opening).bootstrap.canResize).toBe(true);
+		expect(harness.requestControl).toHaveBeenLastCalledWith(
+			MessageKind.attachTerminal,
+			expect.objectContaining({ requestResizeLease: true }),
+			expect.anything(),
+		);
 	});
 
 	it('serializes concurrent opens so they cannot both request the resize lease', async () => {
@@ -411,6 +448,26 @@ describe('DesktopTerminalProjectionService', () => {
 
 		await expect(harness.service.retirePresentation(presentation)).resolves.toBeUndefined();
 		expect(harness.brokers[0]?.dispose).toHaveBeenCalledTimes(2);
+		expect(harness.service.getMetrics()).toEqual([]);
+	});
+
+	it('continues serialized retirement after one lease detach fails', async () => {
+		const harness = createHarness();
+		const presentation = terminalPresentationId('presentation-multi-lease-cleanup');
+		await harness.service.open(presentation);
+		await harness.service.open(presentation);
+		harness.brokers[0]?.dispose.mockRejectedValueOnce(new Error('detach unavailable'));
+
+		await expect(harness.service.retirePresentation(presentation)).rejects.toThrow(
+			'detach unavailable',
+		);
+		expect(harness.brokers[0]?.dispose).toHaveBeenCalledOnce();
+		expect(harness.brokers[1]?.dispose).toHaveBeenCalledOnce();
+		expect(harness.service.getMetrics()).toHaveLength(1);
+
+		await expect(harness.service.retirePresentation(presentation)).resolves.toBeUndefined();
+		expect(harness.brokers[0]?.dispose).toHaveBeenCalledTimes(2);
+		expect(harness.brokers[1]?.dispose).toHaveBeenCalledOnce();
 		expect(harness.service.getMetrics()).toEqual([]);
 	});
 

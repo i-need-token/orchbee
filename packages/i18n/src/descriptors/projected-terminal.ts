@@ -198,6 +198,10 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'Terminal session stopped',
 		id: 'terminal.projected.session.stopped',
 	},
+	sessionStartFailed: {
+		defaultMessage: 'The terminal session could not be started.',
+		id: 'terminal.projected.session.startFailed',
+	},
 	startNewSession: {
 		defaultMessage: 'Start New Session',
 		id: 'terminal.projected.session.startNew',

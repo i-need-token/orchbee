@@ -61,6 +61,7 @@ describe('startProjectedTerminalRenderer', () => {
 		const disposeTerminal = vi.fn<ProjectedTerminal['dispose']>();
 		const focusTerminal = vi.fn<ProjectedTerminal['focus']>();
 		const openTerminal = vi.fn<ProjectedTerminal['open']>().mockResolvedValue(undefined);
+		const setResizeOwnership = vi.fn<ProjectedTerminal['setResizeOwnership']>();
 		const updatePresentationConfiguration = vi
 			.fn<ProjectedTerminal['updatePresentationConfiguration']>()
 			.mockResolvedValue({
@@ -159,6 +160,7 @@ describe('startProjectedTerminalRenderer', () => {
 						reset: vi.fn<ProjectedTerminal['reset']>(),
 						selectAll: vi.fn<ProjectedTerminal['selectAll']>(),
 						selection: { attachmentId: bootstrap.attachmentId, state: 'none' },
+						setResizeOwnership,
 						updatePresentationConfiguration,
 						updateSearch: vi.fn<ProjectedTerminal['updateSearch']>(),
 					};
@@ -441,13 +443,21 @@ describe('startProjectedTerminalRenderer', () => {
 			};
 			const createAdditionalTransport = () => {
 				const close = vi.fn<() => void>();
+				let emitMessage: (value: unknown) => void = () => undefined;
 				const additionalTransport: ProjectedTerminalTransport = {
 					close,
 					projectionBufferTrust: 'local-host',
 					send: vi.fn<ProjectedTerminalTransport['send']>(),
-					subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => vi.fn<() => void>()),
+					subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>((listener) => {
+						emitMessage = listener;
+						return vi.fn<() => void>();
+					}),
 				};
-				return { additionalTransport, close };
+				return {
+					additionalTransport,
+					close,
+					emitMessage: (value: unknown) => emitMessage(value),
+				};
 			};
 			const liveBootstrap = {
 				attachmentId: bootstrap.attachmentId,
@@ -487,6 +497,15 @@ describe('startProjectedTerminalRenderer', () => {
 				liveSource,
 			);
 			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('open');
+			liveTransport.emitMessage({
+				event: {
+					attachmentId: liveBootstrap.attachmentId,
+					resizeLease: true,
+					terminalId: liveBootstrap.terminalId,
+				},
+				kind: 'resize-lease-changed',
+			});
+			expect(setResizeOwnership).toHaveBeenCalledWith(true);
 			updatePresentationConfiguration.mockRejectedValueOnce(new Error('injected update rejection'));
 			emitLivePresentationConfiguration({
 				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,

@@ -47,6 +47,10 @@ The accepted contract requires these externally visible properties:
 - Attachment resize and terminal-driven 80/132-column requests share one native geometry commit
   owner. The Host correlates OS PTY size, Ghostty dimensions, cell pixels, revision, generation, Core
   observation, and the projected snapshot before clients observe the change.
+- A running terminal has at most one attachment resize lease. Detaching its owner atomically
+  promotes the earliest admitted remaining resize-capable attachment and publishes that scoped
+  ownership change before the detach acknowledgement; an observer never has to reopen to become
+  owner.
 - Application clear and reset requests execute directly against the Host-owned Ghostty state for
   an input-capable attachment. Clear erases and homes the active screen without changing its modes;
   reset returns to a fresh primary-screen state. Neither operation writes escape bytes to the child

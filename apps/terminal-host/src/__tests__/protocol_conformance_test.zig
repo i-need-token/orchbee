@@ -189,6 +189,7 @@ const ControlOutputsFixture = struct {
     projection_demand_accepted: []const []const u8,
     protocol_rejected: []const u8,
     resize_accepted: []const u8,
+    resize_lease_changed: []const u8,
     rows_applied: []const u8,
     selection_changed: []const []const u8,
     selection_export_chunk_applied: []const u8,
@@ -1072,6 +1073,15 @@ test "native control replies and events conform to TypeScript schemas" {
             .attachment_id = attachment_id,
             .capabilities = .{ .input = true, .read = true, .resize = false },
             .resize_lease = false,
+            .terminal_id = terminal_id,
+        }),
+    );
+    try expectOwnedJson(
+        allocator,
+        outputs.resize_lease_changed,
+        try control_encode.resizeLeaseChanged(allocator, .{
+            .attachment_id = attachment_id,
+            .resize_lease = true,
             .terminal_id = terminal_id,
         }),
     );

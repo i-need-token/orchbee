@@ -1,6 +1,7 @@
 export const MessageKind = {
 	attachTerminal: 20,
 	attachmentCapabilities: 22,
+	resizeLeaseChanged: 23,
 	clearTerminal: 74,
 	createTerminal: 11,
 	deltaFrame: 42,
@@ -185,6 +186,12 @@ export const MESSAGE_CONTRACTS = {
 		name: 'AttachmentCapabilities',
 		request: null,
 		responseEncoding: control,
+	},
+	[MessageKind.resizeLeaseChanged]: {
+		eventEncoding: control,
+		name: 'ResizeLeaseChanged',
+		request: null,
+		responseEncoding: null,
 	},
 	[MessageKind.writeInput]: {
 		eventEncoding: null,

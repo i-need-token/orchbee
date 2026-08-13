@@ -1642,14 +1642,12 @@ test "attachment transitions preserve idempotency and broker ownership" {
         aggregate.detach(other_connection_id, attachment_id),
     );
     try std.testing.expect(aggregate.core().findAttachment(attachment_id) != null);
-    try std.testing.expectEqual(
-        core_module.TransitionOutcome.applied,
-        try aggregate.detach(owner_connection_id, attachment_id),
-    );
-    try std.testing.expectEqual(
-        core_module.TransitionOutcome.idempotent,
-        try aggregate.detach(owner_connection_id, attachment_id),
-    );
+    const detached = try aggregate.detach(owner_connection_id, attachment_id);
+    try std.testing.expectEqual(core_module.TransitionOutcome.applied, detached.outcome);
+    try std.testing.expect(detached.resize_lease_change == null);
+    const replayed_detach = try aggregate.detach(owner_connection_id, attachment_id);
+    try std.testing.expectEqual(core_module.TransitionOutcome.idempotent, replayed_detach.outcome);
+    try std.testing.expect(replayed_detach.resize_lease_change == null);
 
     _ = aggregate.disconnect(owner_connection_id);
     _ = aggregate.disconnect(other_connection_id);

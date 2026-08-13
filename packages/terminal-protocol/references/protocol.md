@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                        |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                  |
-| Reference scope | Exact protocol `0.0.7`; OBTF, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures                                |
+| Reference scope | Exact protocol `0.0.8`; OBTF, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures                                |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence            |
 
 ## Modeling record
@@ -39,7 +39,7 @@ identity and are rejected where an identity is required.
 | `AttachmentId`  | One physical-connection-owned attachment carrying negotiated capabilities                                                        |
 | `CorrelationId` | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.7`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.8`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame, OBPB projection-buffer, and OBRW row-window formats each have an independent current
@@ -174,6 +174,12 @@ Every attachment requests at least one of input, read, or resize authority. A re
 only when resize authority is also requested and granted. Empty capability bindings and a resize
 lease without resize authority are malformed at the protocol boundary.
 
+`ResizeLeaseChanged` is an event-only complete ownership fact containing the exact attachment and
+terminal identities plus `resizeLease`; it is never a toggle. When detaching a resize owner promotes
+an existing observer, the Host commits that observer's event before the successful detach response.
+Consumers validate both identities against their attachment scope before changing who may issue
+`ResizeTerminal`; presentation measurement itself remains client-local and does not require a lease.
+
 `ClearTerminal` and `ResetTerminal` each carry only the input-capable `AttachmentId`; they are
 semantic Host requests, not terminal input payloads. Clear erases and homes the active Ghostty
 screen without resetting modes. Reset performs Ghostty's full reset and returns to the primary
@@ -220,18 +226,18 @@ bytes to the ordered ingress budget.
 | ------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `1-5`   | Connection                         | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                  |
 | `10-19` | Inventory and lifecycle            | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                              |
-| `20-22` | Attachment                         | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`                                                                                                                                                                                                                                                           |
+| `20-23` | Attachment                         | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`                                                                                                                                                                                                                                  |
 | `30-38` | Input and size                     | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                                                 |
 | `41-55` | Projection and effects             | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55` |
 | `60-68` | Selection and export               | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                   |
 | `70-76` | Terminal configuration and control | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`                                                                                                                             |
 
-Unlisted numbers are unassigned, including `16`, `17`, and `23`. Title and current-directory
-changes travel in terminal frames; resize-lease authority is returned by attachment admission and
-is not a separately implemented event.
+Unlisted numbers are unassigned, including `16` and `17`. Title and current-directory changes
+travel in terminal frames. Initial resize-lease authority is returned by attachment admission;
+later ownership changes use the attachment-scoped event.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.7.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.8.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical

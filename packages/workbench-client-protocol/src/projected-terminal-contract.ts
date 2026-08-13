@@ -15,6 +15,7 @@ import {
 	PROTOCOL_LIMITS,
 	ReadRowsSchema,
 	ResetTerminalSchema,
+	ResizeLeaseChangedSchema,
 	ResizeTerminalSchema,
 	RowsAppliedSchema,
 	SelectionChangedSchema,
@@ -145,6 +146,7 @@ export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ event: TerminalBellSchema, kind: z.literal('bell') }),
 	z.strictObject({ frame: ProjectedTerminalBinarySchema, kind: z.literal('frame') }),
 	z.strictObject({ event: HistoryChangedSchema, kind: z.literal('history-changed') }),
+	z.strictObject({ event: ResizeLeaseChangedSchema, kind: z.literal('resize-lease-changed') }),
 	z.strictObject({
 		content: z
 			.instanceof(ArrayBuffer)

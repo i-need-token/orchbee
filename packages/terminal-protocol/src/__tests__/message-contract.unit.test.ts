@@ -38,6 +38,11 @@ describe('message contract registry', () => {
 			PayloadEncoding.rawBytes,
 		);
 		expect(messagePayloadEncoding(MessageKind.terminalStarted, 'request')).toBeNull();
+		expect(MessageKind.resizeLeaseChanged).toBe(23);
+		expect(messagePayloadEncoding(MessageKind.resizeLeaseChanged, 'event')).toBe(
+			PayloadEncoding.controlJson,
+		);
+		expect(messagePayloadEncoding(MessageKind.resizeLeaseChanged, 'request')).toBeNull();
 		expect(messagePayloadEncoding(MessageKind.selectionChanged, 'response')).toBe(
 			PayloadEncoding.controlJson,
 		);

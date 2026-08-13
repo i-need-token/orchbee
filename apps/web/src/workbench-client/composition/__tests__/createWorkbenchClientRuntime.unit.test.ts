@@ -144,6 +144,16 @@ describe('createWorkbenchClientRuntime', () => {
 				title: 'Terminal 1',
 			},
 		});
+		const startRejected = {
+			kind: 'rejected' as const,
+			reason: 'terminal-creation-sealed',
+		};
+		vi.spyOn(runtime.projectWorkspaceRuntime, 'startStoppedTerminalSession').mockReturnValue(
+			startRejected,
+		);
+		expect(
+			runtime.terminalSurfaceCapability.startStoppedTerminalSession(initialPresentationId),
+		).toEqual(startRejected);
 
 		runtime.dispose();
 		expect(unsubscribeSessionTransport).toHaveBeenCalledOnce();

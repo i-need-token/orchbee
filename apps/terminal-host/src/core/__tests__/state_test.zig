@@ -129,8 +129,10 @@ fn expectCoreInvariants(core: *HostCore) !void {
     }
 
     for (core.attachmentValues()) |attachment| {
+        try std.testing.expect(attachment.admission_sequence > 0);
         try std.testing.expectEqual(@as(usize, 1), core.connectionCount());
         try std.testing.expect(core.findTerminal(attachment.terminal_id) != null);
+        try std.testing.expect(!attachment.requested_resize_lease or attachment.capabilities.resize);
         try std.testing.expect(!attachment.resize_lease or attachment.capabilities.resize);
         const terminal_ids = subject.testing.attachmentIdsForTerminal(
             core,
@@ -172,6 +174,9 @@ fn expectCoreInvariants(core: *HostCore) !void {
 
         var resize_lease_count: usize = 0;
         for (core.attachmentValues()) |candidate| {
+            if (!candidate.attachment_id.eql(attachment.attachment_id)) {
+                try std.testing.expect(candidate.admission_sequence != attachment.admission_sequence);
+            }
             if (candidate.resize_lease and
                 candidate.terminal_id.eql(attachment.terminal_id))
             {
@@ -894,6 +899,76 @@ test "invalid resize lease replay cannot bypass capability validation" {
         core.attach(connection, attachment_id, terminal_id, capabilities, true),
     );
     try std.testing.expect(!core.findAttachment(attachment_id).?.resize_lease);
+    try expectCoreInvariants(&core);
+}
+
+test "detaching the resize owner promotes the earliest capable observer" {
+    var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
+    defer core.deinit();
+    const connection: ConnectionId = 2;
+    const terminal_id = testId(TerminalId, 3);
+    const owner_id = testId(AttachmentId, 4);
+    const first_observer_id = testId(AttachmentId, 5);
+    const second_observer_id = testId(AttachmentId, 6);
+    _ = try core.connect(connection, testId(ClientId, 7));
+    _ = try core.createTerminal(
+        connection,
+        testId(CreationId, 8),
+        terminal_id,
+        [_]u8{9} ** 32,
+        80,
+        24,
+    );
+    _ = try core.attach(
+        connection,
+        owner_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        true,
+    );
+    _ = try core.attach(
+        connection,
+        first_observer_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        false,
+    );
+    _ = try core.attach(
+        connection,
+        second_observer_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        false,
+    );
+
+    const detached = try core.detach(connection, owner_id);
+
+    try std.testing.expectEqual(subject.TransitionOutcome.applied, detached.outcome);
+    try std.testing.expect(detached.resize_lease_change.?.attachment_id.eql(first_observer_id));
+    try std.testing.expect(detached.resize_lease_change.?.terminal_id.eql(terminal_id));
+    try std.testing.expect(detached.resize_lease_change.?.resize_lease);
+    try std.testing.expect(core.findAttachment(first_observer_id).?.resize_lease);
+    try std.testing.expect(!core.findAttachment(second_observer_id).?.resize_lease);
+    try std.testing.expectEqual(
+        subject.TransitionOutcome.idempotent,
+        try core.attach(
+            connection,
+            first_observer_id,
+            terminal_id,
+            .{ .input = true, .read = true, .resize = true },
+            false,
+        ),
+    );
+    try std.testing.expectError(
+        error.AttachmentConflict,
+        core.attach(
+            connection,
+            first_observer_id,
+            terminal_id,
+            .{ .input = true, .read = true, .resize = true },
+            true,
+        ),
+    );
     try expectCoreInvariants(&core);
 }
 

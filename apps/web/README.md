@@ -8,6 +8,12 @@ Browser composition entry for the Orchbee Workbench.
 
 The Browser Preview uses its in-memory composition. Desktop supplies `MessagePort` adapters for the shared client-session and projection ports, then layers its Electron-only application-lifetime and Browser-access dialogs beside the common application. Its capability-scoped local projection transport declares `local-host`, allowing OBPB format-`0.0.1` render buffers to become direct typed views after structural validation. The Gateway adapter uses one authenticated control WebSocket per page and one binary WebSocket per visible terminal attachment and declares `external`, preserving the full per-cell protocol scan. Both adapters compose the same `createWorkbenchClientRuntime`; neither implements another Workbench renderer. The shared projected-terminal surface provides the compact terminal inset, fits complete cells after every container resize, and mirrors the Host-projected default background across the complete Panel viewport so the canvas never exposes a mismatched application surface. A connection notice visibly overlays that surface without consuming terminal-grid space or moving the final row outside the viewport. A committed or duplicate frame clears only a transient connection failure; a published terminal exit or runtime failure outranks later transport loss and retains its final-frame presentation state. Generic Workbench client payloads come from `@orchbee/workbench-client-protocol`; only Gateway authentication/framing comes from `@orchbee/gateway-protocol`, and only Electron bootstrap, application-lifetime, and Browser-access commands come from `@orchbee/desktop-client-protocol`.
 
+A natural exit keeps its final frame readable while the projected attachment rejects further PTY
+input, resize, clear, and reset control. Stopped presentations remain a separate Workbench state. Its
+Start New Session control returns the Workbench transition result through the shared composition;
+an accepted result replaces the presentation through the normal durable workflow, while a rejected
+or thrown start remains on the stopped presentation and displays localized failure feedback.
+
 The shared adapter exposes the last completed draw checkpoint as
 `data-projected-terminal-rendered-generation` and
 `data-projected-terminal-rendered-revision`. Both values come from one renderer telemetry event and

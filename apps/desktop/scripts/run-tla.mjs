@@ -99,6 +99,7 @@ for (const modelName of [
 	'DesktopRendererDocumentLifecycle',
 	'DesktopTerminalBindingClose',
 	'DesktopTerminalLifecycleAdapter',
+	'DesktopTerminalResizeLease',
 	'DesktopWorkbenchDocumentStore',
 	'DesktopWorkbenchWriteAhead',
 	'TerminalRecoveryBinding',

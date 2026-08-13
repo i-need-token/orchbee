@@ -659,6 +659,7 @@ export class ProjectedTerminal {
 	#historyStore: PackedTerminalViewport | undefined;
 	#historyTotalRows = 0n;
 	#historyRowsBefore = 0;
+	#inputEnabled: boolean;
 	#input: HTMLTextAreaElement | undefined;
 	#inputAdmission: ProjectedInputAdmission = ProjectedInputAdmission.accepting;
 	#inputFocused = false;
@@ -680,6 +681,7 @@ export class ProjectedTerminal {
 	#pendingLinkPoint: PendingLinkPoint | undefined;
 	#pendingExit: TerminalExited | undefined;
 	#latestExitFinalRevision: bigint | undefined;
+	#terminalExited = false;
 	#latestBellSequence = 0n;
 	#pendingAlternateWheelRows = 0;
 	#pendingApplicationWheelX = 0;
@@ -689,6 +691,7 @@ export class ProjectedTerminal {
 	#pendingHistoryTargetRow: bigint | undefined;
 	#pendingHistoryWheelRows = 0;
 	#pendingSelectionGesture: PendingSelectionGesture | undefined;
+	#ownsResizeLease: boolean;
 	#phase: ProjectedTerminalPhase = ProjectedTerminalPhase.constructed;
 	#disposeAfterRepair = false;
 	#disposalStarted = false;
@@ -743,8 +746,10 @@ export class ProjectedTerminal {
 		this.#creationId = options.creationId;
 		this.#store = new PackedTerminalStore(options.hostEpoch, options.attachmentId);
 		this.#terminalId = options.terminalId;
+		this.#inputEnabled = options.inputEnabled !== false;
 		this.#selection = { attachmentId: options.attachmentId, state: 'none' };
 		this.#copyOnSelect = options.copyOnSelect ?? true;
+		this.#ownsResizeLease = options.canResize === true;
 		this.#presentationConfiguration = presentationConfigurationFromRendererOptions(
 			options.renderer,
 		);
@@ -779,7 +784,7 @@ export class ProjectedTerminal {
 	}
 
 	get canControlTerminal(): boolean {
-		return !this.#isDisposed() && this.#options.inputEnabled !== false;
+		return !this.#isDisposed() && this.#inputEnabled;
 	}
 
 	get copyOnSelect(): boolean {
@@ -837,7 +842,7 @@ export class ProjectedTerminal {
 			input.setAttribute('autocomplete', 'off');
 			input.setAttribute('autocorrect', 'off');
 			input.setAttribute('spellcheck', 'false');
-			if (this.#options.inputEnabled === false) input.setAttribute('readonly', '');
+			if (!this.#inputEnabled) input.setAttribute('readonly', '');
 			input.style.position = 'absolute';
 			input.style.width = '1px';
 			input.style.height = '1px';
@@ -1465,6 +1470,16 @@ export class ProjectedTerminal {
 		if (typeof enabled === 'boolean') this.#copyOnSelect = enabled;
 	}
 
+	setResizeOwnership(ownsResizeLease: boolean): void {
+		if (typeof ownsResizeLease !== 'boolean' || this.#ownsResizeLease === ownsResizeLease) return;
+		this.#ownsResizeLease = ownsResizeLease;
+		this.#lastGeometry = undefined;
+		this.#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
+		if (ownsResizeLease && this.#phase === ProjectedTerminalPhase.open) {
+			this.#handleSurfaceResize();
+		}
+	}
+
 	getSelectionRange(): ProjectedTerminalSelectionRange | null {
 		const selection = this.#selection;
 		if (selection.state !== 'active') return null;
@@ -1670,6 +1685,7 @@ export class ProjectedTerminal {
 			return;
 		}
 		const finalRevision = BigInt(event.finalRevision);
+		this.#sealExitedControl();
 		if (
 			this.#latestExitFinalRevision !== undefined &&
 			finalRevision <= this.#latestExitFinalRevision
@@ -1679,6 +1695,30 @@ export class ProjectedTerminal {
 		this.#latestExitFinalRevision = finalRevision;
 		this.#pendingExit = event;
 		this.#finalizeExitIfCaughtUp();
+	}
+
+	#sealExitedControl(): void {
+		if (this.#terminalExited) return;
+		this.#terminalExited = true;
+		this.#inputEnabled = false;
+		this.#ownsResizeLease = false;
+		this.#lastGeometry = undefined;
+		this.#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
+		this.#input?.setAttribute('readonly', '');
+		this.#inputDispatcher.invalidate();
+		this.#inputRepairEpoch++;
+		this.#repairTransientInputState();
+		this.#deferredKeyReleases.clear();
+		this.#pressedKeys.clear();
+		this.#publishedKeys.clear();
+		this.#pressedMouseButtons.clear();
+		this.#publishedMouseButtons.clear();
+		this.#publishedMouseSample = undefined;
+		this.#publishedInputFocused = false;
+		this.#finishApplicationMouseGesture(true);
+		this.#pressedModifierCodes.clear();
+		this.#resetSurfaceMouseModifiers();
+		this.#clearApplicationMouseClickSuppression();
 	}
 
 	dispose(): void {
@@ -3022,7 +3062,7 @@ export class ProjectedTerminal {
 		command: ProjectedTerminalCommand,
 		intent: ProjectedInputPublicationIntent,
 	): boolean {
-		if (this.#inputPublicationActive) return false;
+		if (!this.#inputEnabled || this.#inputPublicationActive) return false;
 		if (
 			intent === ProjectedInputPublicationIntent.held &&
 			!this.#heldInputCommandIsPublishable(command)
@@ -3033,7 +3073,7 @@ export class ProjectedTerminal {
 		let accepted = false;
 		try {
 			accepted = this.#send(command);
-			if (accepted && intent === ProjectedInputPublicationIntent.held) {
+			if (accepted && this.#inputEnabled && intent === ProjectedInputPublicationIntent.held) {
 				this.#commitPublishedInputOwnership(command);
 			}
 			return accepted;
@@ -3114,7 +3154,7 @@ export class ProjectedTerminal {
 		this.#listen(input, 'compositionupdate', this.#handleCompositionUpdate);
 		this.#listen(input, 'compositionend', this.#handleCompositionEnd);
 		this.#listen(input, 'paste', this.#handlePaste);
-		if (this.#options.inputEnabled !== false) {
+		if (this.#inputEnabled) {
 			this.#listen(root, 'dragover', this.#handleDragOver);
 			this.#listen(root, 'drop', this.#handleDrop);
 		}
@@ -3157,11 +3197,11 @@ export class ProjectedTerminal {
 
 	readonly #handleKeyDown = (event: KeyboardEvent): void => {
 		if (!this.#inputAdmissionIsOpen()) return;
-		if (this.#options.inputEnabled !== false && !this.#canAdmitInput()) return;
+		if (this.#inputEnabled && !this.#canAdmitInput()) return;
 		const trackedCode = normalizedKeyboardCode(event.code);
 		this.#trackModifier(event.code, true);
 		this.#refreshHoveredLinkModifiers(event);
-		if (this.#options.inputEnabled === false) {
+		if (!this.#inputEnabled) {
 			if (!event.isComposing && event.keyCode !== 229) {
 				this.#handleLocalHistoryKey(event, trackedCode);
 			}
@@ -3224,7 +3264,7 @@ export class ProjectedTerminal {
 		this.#pressedKeys.delete(trackedCode);
 		this.#trackModifier(event.code, false);
 		this.#refreshHoveredLinkModifiers(event);
-		if (this.#options.inputEnabled === false) return;
+		if (!this.#inputEnabled) return;
 		if (ownedFacts) {
 			const eventFacts = this.#keyFacts(event);
 			const facts: KeyFacts =
@@ -3269,7 +3309,7 @@ export class ProjectedTerminal {
 		const releases = [...this.#deferredKeyReleases.values()];
 		this.#deferredKeyReleases.clear();
 		for (const facts of releases) {
-			if (!this.#inputAdmissionIsOpen() || this.#options.inputEnabled === false) return;
+			if (!this.#inputAdmissionIsOpen() || !this.#inputEnabled) return;
 			this.#sendKey(facts, KeyAction.release, ProjectedInputPublicationIntent.held);
 		}
 	}
@@ -3516,7 +3556,7 @@ export class ProjectedTerminal {
 	};
 
 	#repairReadOnlyInputEvent(event: Event): boolean {
-		if (this.#options.inputEnabled !== false) return false;
+		if (this.#inputEnabled) return false;
 		event.preventDefault();
 		event.stopPropagation();
 		this.#inputState = repairTerminalInputState(this.#inputState).state;
@@ -3711,15 +3751,12 @@ export class ProjectedTerminal {
 		this.#inputState = supersedeCancelledTerminalComposition(this.#inputState);
 		this.#renderer?.setFocused(true);
 		this.#updateInputPosition();
-		if (
-			this.#inputAdmission === ProjectedInputAdmission.repairing &&
-			this.#options.inputEnabled !== false
-		) {
+		if (this.#inputAdmission === ProjectedInputAdmission.repairing && this.#inputEnabled) {
 			this.#inputFocused = true;
 			this.#inputRefocusAfterRepair = true;
 			return;
 		}
-		if (this.#options.inputEnabled === false || this.#inputFocused) return;
+		if (!this.#inputEnabled || this.#inputFocused) return;
 		this.#inputFocused = true;
 		this.#sendInput(
 			{
@@ -3812,11 +3849,7 @@ export class ProjectedTerminal {
 	}
 
 	#canAdmitInput(): boolean {
-		return (
-			this.#inputAdmissionIsOpen() &&
-			!this.#inputPublicationActive &&
-			this.#options.inputEnabled !== false
-		);
+		return this.#inputAdmissionIsOpen() && !this.#inputPublicationActive && this.#inputEnabled;
 	}
 
 	#inputAdmissionIsOpen(): boolean {
@@ -3888,7 +3921,7 @@ export class ProjectedTerminal {
 		if (
 			focusLoss &&
 			this.#publishedInputFocused &&
-			this.#options.inputEnabled !== false &&
+			this.#inputEnabled &&
 			!transaction.focusOutSent
 		) {
 			transaction.focusOutCommand = {
@@ -4001,7 +4034,7 @@ export class ProjectedTerminal {
 		this.#clearHistoryScrollbarClickSuppression();
 		this.#finishHistoryScrollbarGesture(true, !dispose);
 		this.#cancelSelectionGesture(true);
-		if (this.#options.inputEnabled === false) return [];
+		if (!this.#inputEnabled) return [];
 		if (this.#publishedInputFocused) {
 			commands.push({
 				kind: 'focus-input',
@@ -4621,7 +4654,7 @@ export class ProjectedTerminal {
 		event.preventDefault();
 		if (rows === 0) return;
 		if (this.#store.metadata?.activeScreen === ActiveScreen.alternate) {
-			if (this.#options.inputEnabled === false) return;
+			if (!this.#inputEnabled) return;
 			const key = rows < 0 ? 'ArrowUp' : 'ArrowDown';
 			for (let index = 0; index < Math.abs(rows); index++) this.#sendSyntheticKey(key);
 			return;
@@ -4683,7 +4716,7 @@ export class ProjectedTerminal {
 	}
 
 	#applicationMouseTrackingOwnsSurface(): boolean {
-		if (this.#options.inputEnabled === false) return false;
+		if (!this.#inputEnabled) return false;
 		const interaction = this.#store.metadata?.interaction;
 		if (!interaction) return false;
 		return (
@@ -4699,11 +4732,7 @@ export class ProjectedTerminal {
 	}
 
 	#applicationMouseHoverOwned(shift: boolean): boolean {
-		return (
-			!shift &&
-			this.#options.inputEnabled !== false &&
-			this.#store.metadata?.interaction.mouseAny === true
-		);
+		return !shift && this.#inputEnabled && this.#store.metadata?.interaction.mouseAny === true;
 	}
 
 	#mousePayload(
@@ -4815,7 +4844,7 @@ export class ProjectedTerminal {
 	}
 
 	#installResizeObserver(root: HTMLElement): void {
-		if (this.#options.canResize !== true || typeof ResizeObserver === 'undefined') return;
+		if (typeof ResizeObserver === 'undefined') return;
 		this.#resizeObserver = new ResizeObserver(() => this.#handleSurfaceResize());
 		this.#resizeObserver.observe(root);
 	}
@@ -4944,7 +4973,13 @@ export class ProjectedTerminal {
 	}
 
 	#sendResizeIfChanged(): void {
-		if (this.#phase !== ProjectedTerminalPhase.open || this.#options.canResize !== true) return;
+		if (
+			this.#phase !== ProjectedTerminalPhase.open ||
+			this.#terminalExited ||
+			!this.#ownsResizeLease
+		) {
+			return;
+		}
 		const root = this.#root;
 		const renderer = this.#renderer;
 		if (!root || !renderer || root.clientWidth <= 0 || root.clientHeight <= 0) return;

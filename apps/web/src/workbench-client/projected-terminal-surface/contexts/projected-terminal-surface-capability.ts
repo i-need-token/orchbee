@@ -1,4 +1,7 @@
-import type { TerminalPresentationId } from '@orchbee/workbench';
+import type {
+	TerminalPresentationId,
+	WorkbenchTerminalPresentationEventResult,
+} from '@orchbee/workbench';
 import type { ProjectedTerminalMetadata } from '@orchbee/terminal';
 import { createContext } from 'react';
 
@@ -18,7 +21,9 @@ export interface ProjectedTerminalSurfaceCapability {
 		presentationId: TerminalPresentationId,
 		metadata: Pick<ProjectedTerminalMetadata, 'currentDirectory' | 'title'>,
 	): void;
-	startStoppedTerminalSession(presentationId: TerminalPresentationId): void;
+	startStoppedTerminalSession(
+		presentationId: TerminalPresentationId,
+	): WorkbenchTerminalPresentationEventResult;
 }
 
 export const ProjectedTerminalSurfaceCapabilityContext =

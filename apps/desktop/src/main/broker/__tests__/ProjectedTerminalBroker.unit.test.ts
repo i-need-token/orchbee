@@ -42,6 +42,76 @@ function eventEnvelope(
 }
 
 describe('ProjectedTerminalBroker', () => {
+	it('publishes an attachment-scoped resize-lease promotion to its renderer and lifecycle owner', () => {
+		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(
+				(_attachmentId, listener) => {
+					hostListener = listener;
+					return vi.fn<() => void>();
+				},
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: false,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+		};
+		const onResizeLeaseChanged = vi.fn<(ownsResize: boolean) => void>();
+		const broker = new ProjectedTerminalBroker(
+			host,
+			port,
+			bootstrap,
+			{
+				openExternal: vi.fn<(target: string) => Promise<void>>().mockResolvedValue(undefined),
+				writeClipboardText: vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined),
+			},
+			'desktop',
+			{
+				onCleanupRequested: vi.fn<(error: unknown) => void>(),
+				onResizeLeaseChanged,
+			},
+		);
+		broker.start();
+
+		hostListener?.(
+			eventEnvelope(
+				MessageKind.resizeLeaseChanged,
+				PayloadEncoding.controlJson,
+				textEncoder.encode(
+					JSON.stringify({
+						attachmentId: bootstrap.attachmentId,
+						resizeLease: true,
+						terminalId: bootstrap.terminalId,
+					}),
+				),
+				bootstrap.hostEpoch,
+			),
+		);
+
+		expect(onResizeLeaseChanged).toHaveBeenCalledWith(true);
+		expect(postMessage).toHaveBeenCalledWith({
+			event: {
+				attachmentId: bootstrap.attachmentId,
+				resizeLease: true,
+				terminalId: bootstrap.terminalId,
+			},
+			kind: 'resize-lease-changed',
+		});
+	});
+
 	it('copies exact frame bytes once and never interprets terminal cells in Main', () => {
 		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
 		let controlListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;

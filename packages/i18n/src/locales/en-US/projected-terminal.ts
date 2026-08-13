@@ -57,6 +57,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.selection.evicted':
 		'The terminal selection was evicted from retained history.',
 	'terminal.projected.session.startNew': 'Start New Session',
+	'terminal.projected.session.startFailed': 'The terminal session could not be started.',
 	'terminal.projected.session.stopped': 'Terminal session stopped',
 } as const;
 

@@ -24,6 +24,9 @@ export function useProjectedTerminalSurface(
 	const intl = useOrchbeeIntl();
 	const root = React.useRef<HTMLDivElement>(null);
 	const [failed, setFailed] = React.useState(false);
+	const [startFailurePresentationId, setStartFailurePresentationId] = React.useState<string | null>(
+		null,
+	);
 	const [pasteReview, setPasteReview] = React.useState<ProjectedPasteReview | null>(null);
 	const pendingPasteDecision = React.useRef<PendingPasteDecision | null>(null);
 	const [projectionGeneration, setProjectionGeneration] = React.useState(0);
@@ -59,6 +62,16 @@ export function useProjectedTerminalSurface(
 			});
 		},
 	);
+	const startNewSession = useMemoizedFn((): void => {
+		try {
+			const result = capability?.startStoppedTerminalSession(presentation.presentationId);
+			setStartFailurePresentationId(
+				result?.kind === 'rejected' ? presentation.presentationId : null,
+			);
+		} catch {
+			setStartFailurePresentationId(presentation.presentationId);
+		}
+	});
 	if (capability === null) {
 		throw new Error('ProjectedTerminalSurface requires its client capability.');
 	}
@@ -117,14 +130,20 @@ export function useProjectedTerminalSurface(
 	let projectionState: ProjectedTerminalSurfaceView['projectionState'] = 'inactive';
 	if (projectable) projectionState = 'requested';
 	if (failed) projectionState = 'failed';
+	let failureMessage: string | null = null;
+	if (failed) {
+		failureMessage = intl.formatMessage(projectedTerminalMessages.connectionFailure);
+	} else if (startFailurePresentationId === presentation.presentationId) {
+		failureMessage = intl.formatMessage(projectedTerminalMessages.sessionStartFailed);
+	}
 	return {
 		approvePaste: () => settlePasteReview(true),
 		cancelPaste: () => settlePasteReview(false),
-		failureMessage: failed ? intl.formatMessage(projectedTerminalMessages.connectionFailure) : null,
+		failureMessage,
 		pasteReview,
 		projectionState,
 		root,
 		stopped: presentation.lifecycle.kind === 'stopped',
-		startNewSession: () => capability.startStoppedTerminalSession(presentation.presentationId),
+		startNewSession,
 	};
 }

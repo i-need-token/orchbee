@@ -60,10 +60,18 @@ function TestHarness({
 	return createElement(
 		'div',
 		{
+			'data-failure-message': view.failureMessage,
 			'data-paste-review-text': view.pasteReview?.originalText,
 			'data-projection-state': view.projectionState,
 			ref: view.root,
 		},
+		view.stopped
+			? createElement(
+					'button',
+					{ 'data-start-new-session': true, onClick: view.startNewSession },
+					'Start new session',
+				)
+			: null,
 		view.pasteReview === null
 			? null
 			: createElement(
@@ -75,6 +83,64 @@ function TestHarness({
 }
 
 describe('useProjectedTerminalSurface', () => {
+	it('presents a rejected Start New Session result instead of dropping it', async () => {
+		const startStoppedTerminalSession = vi
+			.fn<ProjectedTerminalSurfaceCapability['startStoppedTerminalSession']>()
+			.mockReturnValue({ kind: 'rejected', reason: 'terminal-creation-sealed' });
+		const presentation: WorkbenchTerminalPresentation = {
+			currentCwd: '/workspace',
+			launchCwd: '/workspace',
+			lifecycle: { kind: 'stopped' },
+			naturalTitle: null,
+			presentationId: terminalPresentationId('presentation-stopped'),
+			title: 'Terminal Stopped',
+		};
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const root = createRoot(container);
+
+		await act(async () => {
+			root.render(
+				createElement(
+					ProjectedTerminalSurfaceCapabilityContext.Provider,
+					{
+						value: {
+							documentElement: document.documentElement,
+							observeTerminalMetadata: () => undefined,
+							platformEffects: {},
+							preferredLocales: ['en-US'],
+							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+							projectionClient: {
+								open: () => {
+									throw new Error('A stopped presentation must not open a projection.');
+								},
+							},
+							shortcutPlatform: 'apple',
+							startStoppedTerminalSession,
+						},
+					},
+					createElement(
+						OrchbeeI18nProvider,
+						{ locale: 'en-US' },
+						createElement(TestHarness, { presentation }),
+					),
+				),
+			);
+		});
+		expect(container.firstElementChild?.getAttribute('data-failure-message')).toBeNull();
+
+		await act(async () => {
+			(container.querySelector('[data-start-new-session]') as HTMLButtonElement).click();
+		});
+
+		expect(startStoppedTerminalSession).toHaveBeenCalledWith(presentation.presentationId);
+		expect(container.firstElementChild?.getAttribute('data-failure-message')).toBe(
+			'The terminal session could not be started.',
+		);
+		await act(async () => root.unmount());
+		container.remove();
+	});
+
 	it.each([
 		{ kind: 'running' },
 		{
@@ -114,7 +180,7 @@ describe('useProjectedTerminalSurface', () => {
 								presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 								projectionClient: { open },
 								shortcutPlatform: 'apple',
-								startStoppedTerminalSession: () => undefined,
+								startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
 							},
 						},
 						createElement(
@@ -208,7 +274,7 @@ describe('useProjectedTerminalSurface', () => {
 							preferredLocales: ['en-US'],
 							projectionClient: { open },
 							shortcutPlatform: 'apple',
-							startStoppedTerminalSession: () => undefined,
+							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
 						},
 					},
 					createElement(
@@ -305,7 +371,7 @@ describe('useProjectedTerminalSurface', () => {
 							preferredLocales: ['en-US'],
 							projectionClient: { open },
 							shortcutPlatform: 'apple',
-							startStoppedTerminalSession: () => undefined,
+							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
 						},
 					},
 					createElement(

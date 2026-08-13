@@ -39,7 +39,7 @@ const hostEpoch = parseHostEpoch('11111111111111111111111111111111');
 if (!hostEpoch.ok) throw new Error(hostEpoch.detail);
 
 const frameFixtureUrl = new URL('../../fixtures/terminal-frame-v0.0.1.bin', import.meta.url);
-const envelopeFixtureUrl = new URL('../../fixtures/transport-envelope-v0.0.7.bin', import.meta.url);
+const envelopeFixtureUrl = new URL('../../fixtures/transport-envelope-v0.0.8.bin', import.meta.url);
 const malformedFixtureUrl = new URL('../../fixtures/malformed-frame-v0.0.1.json', import.meta.url);
 const rowWindowFixtureUrl = new URL(
 	'../../fixtures/terminal-row-window-v0.0.1.bin',

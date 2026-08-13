@@ -6691,6 +6691,48 @@ describe('ProjectedTerminal', () => {
 		readOnly.dispose();
 	});
 
+	it('makes a natural exit read-only while preserving local output interaction', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			canResize: true,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['done', '']));
+		terminal.notifyExited(exitEvent('1'));
+
+		expect(terminal.canControlTerminal).toBe(false);
+		expect(terminal.textarea?.getAttribute('readonly')).toBe('');
+		const commandCount = commands.length;
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		terminal.clear();
+		terminal.reset();
+		(browser.root as unknown as FakeElement).clientWidth += 80;
+		browser.dispatchWindow('resize');
+		expect(commands).toHaveLength(commandCount);
+
+		terminal.selectAll();
+		expect(commands.at(-1)).toEqual({
+			kind: 'selection-command',
+			payload: { attachmentId, command: 'select-all', generation: '1', revision: '1' },
+		});
+		terminal.dispose();
+	});
+
 	it('sends an accessibility DOM range as one explicit cell-range command', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -8633,6 +8675,56 @@ describe('ProjectedTerminal', () => {
 		});
 		terminal.dispose();
 		expect(disconnect).toHaveBeenCalledOnce();
+	});
+
+	it('measures an observer surface and proposes its current geometry only after lease promotion', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		let notifyResize: (() => void) | undefined;
+		const observe = vi.fn<(target: Element) => void>();
+		class FakeResizeObserver {
+			constructor(callback: ResizeObserverCallback) {
+				notifyResize = () => callback([], this as unknown as ResizeObserver);
+			}
+
+			disconnect(): void {}
+
+			observe(target: Element): void {
+				observe(target);
+			}
+
+			unobserve(): void {}
+		}
+		vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+		const syncSurfacePadding = vi.spyOn(WebGPURenderer.prototype, 'syncSurfacePadding');
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+
+		await terminal.open(browser.root);
+		expect(observe).toHaveBeenCalledWith(browser.root);
+		expect(commands.filter((command) => command.kind === 'resize-terminal')).toEqual([]);
+
+		syncSurfacePadding.mockClear();
+		notifyResize?.();
+		expect(syncSurfacePadding).toHaveBeenCalledOnce();
+		expect(commands.filter((command) => command.kind === 'resize-terminal')).toEqual([]);
+
+		terminal.setResizeOwnership(true);
+		expect(commands.filter((command) => command.kind === 'resize-terminal')).toHaveLength(1);
+		terminal.dispose();
 	});
 
 	it('repaints a committed frame and updates PTY and input geometry for fractional DPR changes', async () => {

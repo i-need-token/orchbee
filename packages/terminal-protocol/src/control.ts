@@ -758,6 +758,12 @@ export const AttachmentCapabilitiesSchema = z
 		}
 	});
 
+export const ResizeLeaseChangedSchema = z.strictObject({
+	attachmentId: AttachmentIdSchema,
+	resizeLease: z.boolean(),
+	terminalId: TerminalIdSchema,
+});
+
 export const InputAcceptedSchema = z.strictObject({
 	acceptedBytes: z.number().int().min(0).max(PROTOCOL_LIMITS.maxInputAcceptedBytes),
 	attachmentId: AttachmentIdSchema,
@@ -908,6 +914,7 @@ export type ProjectionDemandAccepted = z.infer<typeof ProjectionDemandAcceptedSc
 export type ReadRows = z.infer<typeof ReadRowsSchema>;
 export type ResizeTerminal = z.infer<typeof ResizeTerminalSchema>;
 export type ResizeAccepted = z.infer<typeof ResizeAcceptedSchema>;
+export type ResizeLeaseChanged = z.infer<typeof ResizeLeaseChangedSchema>;
 export type ResetTerminal = z.infer<typeof ResetTerminalSchema>;
 export type SetProjectionDemand = z.infer<typeof SetProjectionDemandSchema>;
 export type SetTerminalDefaults = z.infer<typeof SetTerminalDefaultsSchema>;

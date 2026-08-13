@@ -23,6 +23,7 @@ import {
 	ProjectionDemandAcceptedSchema,
 	PROTOCOL_LIMITS,
 	ResizeAcceptedSchema,
+	ResizeLeaseChangedSchema,
 	RowsAppliedSchema,
 	SelectionChangedSchema,
 	SelectionExportChunkAppliedSchema,
@@ -71,6 +72,7 @@ export type ProjectedTerminalBrokerEffectTarget = 'client' | 'desktop';
 
 export interface ProjectedTerminalBrokerLifecycle {
 	readonly onCleanupRequested: (error: unknown) => void;
+	readonly onResizeLeaseChanged?: (ownsResize: boolean) => void;
 }
 
 const defaultDependencies: ProjectedTerminalBrokerDependencies = {
@@ -117,6 +119,7 @@ export class ProjectedTerminalBroker {
 	readonly #effectTarget: ProjectedTerminalBrokerEffectTarget;
 	readonly #host: HostConnection;
 	readonly #onCleanupRequested: ((error: unknown) => void) | undefined;
+	readonly #onResizeLeaseChanged: ((ownsResize: boolean) => void) | undefined;
 	readonly #port: MessagePortMain;
 	#activeSelectionCopy: ActiveSelectionCopy | undefined;
 	#clipboardCommits = 0;
@@ -149,6 +152,7 @@ export class ProjectedTerminalBroker {
 	) {
 		this.#host = host;
 		this.#onCleanupRequested = lifecycle?.onCleanupRequested;
+		this.#onResizeLeaseChanged = lifecycle?.onResizeLeaseChanged;
 		this.#port = port;
 		this.#bootstrap = bootstrap;
 		this.#dependencies = dependencies;
@@ -313,6 +317,31 @@ export class ProjectedTerminalBroker {
 	readonly #handleHostEnvelope = (envelope: DecodedProtocolEnvelope): void => {
 		if (this.#disposed) return;
 		switch (envelope.kind) {
+			case MessageKind.resizeLeaseChanged: {
+				const event = decodeControlJson(envelope.payload, ResizeLeaseChangedSchema);
+				if (
+					!event.ok ||
+					event.value.attachmentId !== this.#bootstrap.attachmentId ||
+					event.value.terminalId !== this.#bootstrap.terminalId
+				) {
+					this.#postFailure({
+						code: 'invalid-resize-lease-event',
+						message: event.ok
+							? 'Terminal Host resize-lease event is outside the scoped attachment.'
+							: event.detail,
+						retryable: false,
+					});
+					return;
+				}
+				try {
+					this.#onResizeLeaseChanged?.(event.value.resizeLease);
+				} catch (error: unknown) {
+					this.#requestCleanup(error);
+					return;
+				}
+				this.#postMessage({ event: event.value, kind: 'resize-lease-changed' });
+				return;
+			}
 			case MessageKind.terminalBell: {
 				const event = decodeControlJson(envelope.payload, TerminalBellSchema);
 				if (!event.ok || event.value.attachmentId !== this.#bootstrap.attachmentId) {

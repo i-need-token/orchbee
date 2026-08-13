@@ -21,6 +21,7 @@ import {
 	PayloadEncoding,
 	PROTOCOL_LIMITS,
 	ProjectionBlockedSchema,
+	ResizeLeaseChangedSchema,
 	SelectionChangedSchema,
 	SelectionExportFinishedSchema,
 	TerminalBellSchema,
@@ -417,6 +418,8 @@ export class HostConnection {
 				return decodeControlAttachmentId(envelope, TerminalBellSchema);
 			case MessageKind.projectionBlocked:
 				return decodeControlAttachmentId(envelope, ProjectionBlockedSchema);
+			case MessageKind.resizeLeaseChanged:
+				return decodeControlAttachmentId(envelope, ResizeLeaseChangedSchema);
 			case MessageKind.selectionChanged:
 				return decodeControlAttachmentId(envelope, SelectionChangedSchema);
 			case MessageKind.selectionExportFinished:

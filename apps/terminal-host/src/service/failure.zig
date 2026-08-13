@@ -66,6 +66,7 @@ pub fn protocolCode(err: protocol.ProtocolError) []const u8 {
 pub fn fromCore(err: CoreFailure) Details {
     return switch (err) {
         error.AttachmentConflict => .{ .code = "attachment-conflict", .message = "AttachmentId conflicts with retained state", .retryable = false },
+        error.AttachmentSequenceOverflow => .{ .code = "resource-exhausted", .message = "attachment admission sequence space is exhausted", .retryable = false },
         error.ConnectionConflict => .{ .code = "broker-active", .message = "another broker session is already active", .retryable = true },
         error.CreationConflict => .{ .code = "creation-conflict", .message = "CreationId has a different launch", .retryable = false },
         error.FailureContainmentIncomplete => .{ .code = "cleanup-incomplete", .message = "terminal runtime cleanup is incomplete", .retryable = true },

@@ -735,7 +735,7 @@ pub const HostRuntimeAggregate = struct {
         self: *HostRuntimeAggregate,
         connection_id: core_module.ConnectionId,
         attachment_id: core_module.AttachmentId,
-    ) core_module.CoreError!core_module.TransitionOutcome {
+    ) core_module.CoreError!core_module.AttachmentDetach {
         if (self.core_state.findAttachment(attachment_id) == null) {
             return self.core_state.detach(connection_id, attachment_id);
         }
@@ -748,10 +748,10 @@ pub const HostRuntimeAggregate = struct {
         // attachment-owned input while its capability is still authoritative,
         // then remove broker authority and the remaining derived state.
         if (self.runtimeFor(terminal_id)) |runtime| runtime.detachInput(attachment_id);
-        const transition = self.core_state.detach(connection_id, attachment_id) catch unreachable;
+        const detached = self.core_state.detach(connection_id, attachment_id) catch unreachable;
         if (self.runtimeFor(terminal_id)) |runtime| runtime.detachHistory(attachment_id);
         self.releaseProjectionIfIdle(terminal_id);
-        return transition;
+        return detached;
     }
 
     pub fn updateTerminalConfiguration(

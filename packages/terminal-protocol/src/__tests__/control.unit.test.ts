@@ -21,6 +21,7 @@ import {
 	prepareLaunchEnvironment,
 	ProcessObservationSchema,
 	ReadRowsSchema,
+	ResizeLeaseChangedSchema,
 	ResizeTerminalSchema,
 	ResetTerminalSchema,
 	RowsAppliedSchema,
@@ -212,6 +213,17 @@ describe('control schemas', () => {
 				terminalId: attachment.terminalId,
 			}).success,
 		).toBe(false);
+		expect(
+			ResizeLeaseChangedSchema.parse({
+				attachmentId: attachment.attachmentId,
+				resizeLease: true,
+				terminalId: attachment.terminalId,
+			}),
+		).toEqual({
+			attachmentId: attachment.attachmentId,
+			resizeLease: true,
+			terminalId: attachment.terminalId,
+		});
 	});
 
 	it('preserves absent and explicitly empty environment values', () => {

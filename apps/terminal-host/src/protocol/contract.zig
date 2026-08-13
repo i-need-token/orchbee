@@ -18,7 +18,7 @@ pub const terminal_row_window_format_patch: u8 = 1;
 pub const transport_envelope_header_bytes = 64;
 pub const current_protocol_major: u16 = 0;
 pub const current_protocol_minor: u16 = 0;
-pub const current_protocol_patch: u16 = 7;
+pub const current_protocol_patch: u16 = 8;
 
 pub const Limits = struct {
     pub const cell_pixel_dimension = 4096;
@@ -76,6 +76,7 @@ pub const MessageKind = struct {
     pub const attach_terminal: u16 = 20;
     pub const detach_terminal: u16 = 21;
     pub const attachment_capabilities: u16 = 22;
+    pub const resize_lease_changed: u16 = 23;
     pub const write_input: u16 = 30;
     pub const input_accepted: u16 = 31;
     pub const resize_terminal: u16 = 32;
@@ -290,6 +291,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
             .control_json,
         ),
         M.attachment_capabilities => responseOnly("AttachmentCapabilities", .control_json),
+        M.resize_lease_changed => eventOnly("ResizeLeaseChanged", .control_json),
         M.write_input => requestOnly("WriteInput", .write_input, .raw_bytes, M.input_accepted),
         M.input_accepted => responseOnly("InputAccepted", .control_json),
         M.resize_terminal => requestOnly(

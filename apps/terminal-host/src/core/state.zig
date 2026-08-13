@@ -52,6 +52,17 @@ pub const TerminalRegistry = terminal_registry.Registry;
 
 pub const AttachmentAdmission = broker_session.Admission;
 
+pub const ResizeLeaseChange = struct {
+    attachment_id: AttachmentId,
+    resize_lease: bool,
+    terminal_id: TerminalId,
+};
+
+pub const AttachmentDetach = struct {
+    outcome: TransitionOutcome,
+    resize_lease_change: ?ResizeLeaseChange,
+};
+
 pub const ProjectionDemand = attachment_projection.Demand;
 pub const ProjectionBlock = attachment_projection.Block;
 pub const ProjectionFrameKind = attachment_projection.FrameKind;
@@ -73,6 +84,7 @@ pub const BellDeliveryToken = struct {
 
 pub const CoreError = error{
     AttachmentConflict,
+    AttachmentSequenceOverflow,
     ConnectionConflict,
     CreationConflict,
     FailureContainmentIncomplete,
@@ -562,11 +574,27 @@ pub const HostCore = struct {
         self: *HostCore,
         connection_id: ConnectionId,
         attachment_id: AttachmentId,
-    ) CoreError!TransitionOutcome {
+    ) CoreError!AttachmentDetach {
         if (!self.connected(connection_id)) return error.MissingConnection;
         const broker = if (self.broker) |*active| active else unreachable;
-        _ = broker.remove(attachment_id) orelse return .idempotent;
-        return .applied;
+        const attachment = broker.remove(attachment_id) orelse return .{
+            .outcome = .idempotent,
+            .resize_lease_change = null,
+        };
+        const terminal = self.findTerminal(attachment.terminal_id);
+        const promoted_attachment_id = if (attachment.resize_lease and
+            terminal != null and terminal.?.acceptsRuntimeWork())
+            broker.promoteResizeLease(attachment.terminal_id)
+        else
+            null;
+        return .{
+            .outcome = .applied,
+            .resize_lease_change = if (promoted_attachment_id) |promoted| .{
+                .attachment_id = promoted,
+                .resize_lease = true,
+                .terminal_id = attachment.terminal_id,
+            } else null,
+        };
     }
 
     pub fn authorizeInput(

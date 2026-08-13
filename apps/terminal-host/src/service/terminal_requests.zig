@@ -521,10 +521,21 @@ const Handler = struct {
             self.context.core().epoch,
         );
         defer response.deinit();
-        _ = self.context.runtime_aggregate.detach(connection_id, attachment_id) catch |err| {
+        var lease_event = try host_response.prepare(
+            outgoing,
+            protocol.Limits.control_json_bytes,
+            host_response.eventDelivery(self.context.core().epoch),
+        );
+        defer lease_event.deinit();
+        const detached = self.context.runtime_aggregate.detach(connection_id, attachment_id) catch |err| {
             response.commitFailure(host_failure.fromCore(err));
             return;
         };
+        if (detached.resize_lease_change) |change| {
+            var event_output = lease_event.writer();
+            control_encode.writeResizeLeaseChanged(&event_output, change) catch unreachable;
+            _ = lease_event.commitControl(MessageKind.resize_lease_changed, &event_output);
+        }
         var output = response.writer();
         control_encode.writeAttachmentAcknowledged(&output, attachment_id) catch unreachable;
         _ = response.commitControl(MessageKind.detach_terminal, &output);

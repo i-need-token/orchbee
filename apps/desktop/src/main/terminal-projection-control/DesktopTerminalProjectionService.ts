@@ -78,7 +78,8 @@ class DesktopTerminalProjectionError extends Error {
 interface ActiveLease {
 	readonly dispose: () => Promise<void>;
 	readonly metrics: ProjectedTerminalBrokerMetrics;
-	readonly ownsResize: boolean;
+	readonly performDispose: () => Promise<void>;
+	ownsResize: boolean;
 }
 
 export class DesktopTerminalProjectionService {
@@ -87,7 +88,7 @@ export class DesktopTerminalProjectionService {
 	readonly #detachTasks = new Map<AttachmentId, Promise<void>>();
 	readonly #provisionalAttachments = new Map<AttachmentId, TerminalPresentationId>();
 	#disposePromise: Promise<void> | undefined;
-	readonly #openTails = new Map<TerminalPresentationId, Promise<void>>();
+	readonly #operationTails = new Map<TerminalPresentationId, Promise<void>>();
 	readonly #pendingDetaches = new Map<TerminalPresentationId, Set<AttachmentId>>();
 	readonly #retiredPresentations = new Set<TerminalPresentationId>();
 	readonly #retirementGenerations = new Map<TerminalPresentationId, number>();
@@ -106,19 +107,28 @@ export class DesktopTerminalProjectionService {
 		if (this.#retiredPresentations.has(presentationId)) {
 			throw projectionError('terminal-projection-retired', false);
 		}
-		const previous = this.#openTails.get(presentationId) ?? Promise.resolve();
-		const operation = previous.then(async () => this.#openSerialized(presentationId, options));
-		const tail = operation.then(
+		return this.#enqueueOperation(presentationId, async () =>
+			this.#openSerialized(presentationId, options),
+		);
+	}
+
+	#enqueueOperation<Result>(
+		presentationId: TerminalPresentationId,
+		operation: () => Promise<Result>,
+	): Promise<Result> {
+		const previous = this.#operationTails.get(presentationId) ?? Promise.resolve();
+		const result = previous.then(operation);
+		const tail = result.then(
 			() => undefined,
 			() => undefined,
 		);
-		this.#openTails.set(presentationId, tail);
+		this.#operationTails.set(presentationId, tail);
 		void tail.then(() => {
-			if (this.#openTails.get(presentationId) === tail) {
-				this.#openTails.delete(presentationId);
+			if (this.#operationTails.get(presentationId) === tail) {
+				this.#operationTails.delete(presentationId);
 			}
 		});
-		return operation;
+		return result;
 	}
 
 	async #openSerialized(
@@ -148,7 +158,7 @@ export class DesktopTerminalProjectionService {
 				MessageKind.attachTerminal,
 				AttachTerminalSchema.parse({
 					attachmentId,
-					capabilities: { input: !target.readOnly, read: true, resize: requestResizeLease },
+					capabilities: { input: !target.readOnly, read: true, resize: !target.readOnly },
 					requestResizeLease,
 					terminalId: target.identity.terminalId,
 				}),
@@ -166,6 +176,7 @@ export class DesktopTerminalProjectionService {
 			!capabilitiesMatch(
 				attachmentId,
 				target.identity,
+				!target.readOnly,
 				!target.readOnly,
 				requestResizeLease,
 				capabilities,
@@ -213,7 +224,15 @@ export class DesktopTerminalProjectionService {
 				channel.port2,
 				bootstrap,
 				options.brokerEffectTarget,
-				{ onCleanupRequested: requestCleanup },
+				{
+					onCleanupRequested: requestCleanup,
+					onResizeLeaseChanged: (ownsResize) => {
+						if (activeLease === undefined) {
+							throw projectionError('terminal-projection-capability-rejected', false);
+						}
+						activeLease.ownsResize = ownsResize;
+					},
+				},
 			);
 			broker = createdBroker;
 			let disposalCompleted = false;
@@ -227,41 +246,43 @@ export class DesktopTerminalProjectionService {
 					this.#activeLeases.delete(presentationId);
 				}
 			};
-			activeLease = {
-				dispose: () => {
-					if (disposalCompleted) return Promise.resolve();
-					if (disposalPromise !== undefined) return disposalPromise;
-					const operation = Promise.resolve()
-						.then(() => createdBroker.dispose())
-						.then(() => {
-							disposalCompleted = true;
-							removeActiveLease();
-						});
-					disposalPromise = operation.catch((error: unknown) => {
-						disposalPromise = undefined;
-						throw error;
+			const performDispose = (): Promise<void> => {
+				if (disposalCompleted) return Promise.resolve();
+				if (disposalPromise !== undefined) return disposalPromise;
+				const operation = Promise.resolve()
+					.then(() => createdBroker.dispose())
+					.then(() => {
+						disposalCompleted = true;
+						removeActiveLease();
 					});
-					return disposalPromise;
-				},
+				disposalPromise = operation.catch((error: unknown) => {
+					disposalPromise = undefined;
+					throw error;
+				});
+				return disposalPromise;
+			};
+			activeLease = {
+				dispose: () => this.#enqueueOperation(presentationId, performDispose),
 				get metrics() {
 					return createdBroker.metrics;
 				},
 				ownsResize: bootstrap.canResize,
+				performDispose,
 			};
 			const leases = this.#activeLeases.get(presentationId) ?? new Set<ActiveLease>();
 			leases.add(activeLease);
 			this.#activeLeases.set(presentationId, leases);
 			if (cleanupRequested) {
-				await activeLease.dispose();
+				await activeLease.performDispose();
 				throw projectionError('terminal-projection-cleanup-failed', true);
 			}
 			if (this.#isGenerationStale(presentationId, retirementGeneration)) {
-				await activeLease.dispose();
+				await activeLease.performDispose();
 				throw projectionError('terminal-projection-retired', false);
 			}
 			broker.start();
 			if (cleanupRequested) {
-				await activeLease.dispose();
+				await activeLease.performDispose();
 				throw projectionError('terminal-projection-cleanup-failed', true);
 			}
 			this.#provisionalAttachments.delete(attachmentId);
@@ -277,7 +298,7 @@ export class DesktopTerminalProjectionService {
 			let finalError = error;
 			try {
 				if (activeLease !== undefined) {
-					await activeLease.dispose();
+					await activeLease.performDispose();
 				} else if (broker !== undefined) {
 					await broker.dispose();
 				} else {
@@ -366,7 +387,9 @@ export class DesktopTerminalProjectionService {
 		}
 		const existing = this.#retirementTasks.get(presentationId);
 		if (existing !== undefined) return existing;
-		const operation = this.#retireSerialized(presentationId);
+		const operation = this.#enqueueOperation(presentationId, async () =>
+			this.#retireSerialized(presentationId),
+		);
 		this.#retirementTasks.set(presentationId, operation);
 		void operation.then(
 			() => this.#clearRetirementTask(presentationId, operation),
@@ -376,12 +399,11 @@ export class DesktopTerminalProjectionService {
 	}
 
 	async #retireSerialized(presentationId: TerminalPresentationId): Promise<void> {
-		await this.#openTails.get(presentationId);
 		let failed = false;
 		let firstFailure: unknown;
 		const leases = [...(this.#activeLeases.get(presentationId) ?? [])];
 		try {
-			await Promise.all(leases.map(async (lease) => lease.dispose()));
+			await this.#disposeLeases(leases);
 		} catch (error: unknown) {
 			failed = true;
 			firstFailure = error;
@@ -392,6 +414,22 @@ export class DesktopTerminalProjectionService {
 			if (!failed) {
 				failed = true;
 				firstFailure = error;
+			}
+		}
+		if (failed) throw firstFailure;
+	}
+
+	async #disposeLeases(leases: readonly ActiveLease[]): Promise<void> {
+		let failed = false;
+		let firstFailure: unknown;
+		for (const lease of leases) {
+			try {
+				await lease.performDispose();
+			} catch (error: unknown) {
+				if (!failed) {
+					failed = true;
+					firstFailure = error;
+				}
 			}
 		}
 		if (failed) throw firstFailure;
@@ -415,12 +453,16 @@ export class DesktopTerminalProjectionService {
 	}
 
 	async #disposeAll(): Promise<void> {
-		await Promise.all(this.#openTails.values());
+		await Promise.all(this.#operationTails.values());
 		let failed = false;
 		let firstFailure: unknown;
-		const leases = [...this.#activeLeases.values()].flatMap((active) => [...active]);
 		try {
-			await Promise.all(leases.map(async (lease) => lease.dispose()));
+			await Promise.all(
+				[...this.#activeLeases].map(([presentationId, active]) => {
+					const leases = [...active];
+					return this.#enqueueOperation(presentationId, () => this.#disposeLeases(leases));
+				}),
+			);
 		} catch (error: unknown) {
 			failed = true;
 			firstFailure = error;
@@ -466,6 +508,7 @@ function capabilitiesMatch(
 	attachmentId: ReturnType<typeof AttachmentIdSchema.parse>,
 	identity: TerminalIdentity,
 	canInput: boolean,
+	canResize: boolean,
 	requestedResizeLease: boolean,
 	capabilities: ReturnType<typeof AttachmentCapabilitiesSchema.parse>,
 ): boolean {
@@ -474,7 +517,7 @@ function capabilitiesMatch(
 		capabilities.terminalId === identity.terminalId &&
 		capabilities.capabilities.read &&
 		capabilities.capabilities.input === canInput &&
-		capabilities.capabilities.resize === requestedResizeLease &&
+		capabilities.capabilities.resize === canResize &&
 		capabilities.resizeLease === requestedResizeLease
 	);
 }

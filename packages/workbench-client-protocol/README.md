@@ -10,6 +10,10 @@ The projected attachment stream carries semantic bell events without choosing a 
 flash, or notification policy. Each event retains the Host attachment identity and terminal-owned
 sequence so the projected terminal can suppress stale or duplicate delivery.
 
+The same stream carries a complete attachment-scoped resize-lease ownership change. A renderer
+validates both attachment and terminal identities before dynamically enabling or disabling Host
+resize requests; the immutable attachment bootstrap is not rewritten when ownership changes.
+
 It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, Gateway, authentication, PTY, or VT implementation. Workbench and TerminalPresentation semantics remain with `@orchbee/workbench`; Terminal Host wire semantics remain with `@orchbee/terminal-protocol`.
 
 Applications parse every untrusted IPC or network value with these schemas at the first trusted boundary. A transport owner remains responsible for framing, authentication, binary transfer, backpressure, and connection retirement.

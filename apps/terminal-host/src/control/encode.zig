@@ -198,6 +198,26 @@ pub fn writeAttachmentCapabilities(writer: *std.Io.Writer, attachment: anytype) 
     );
 }
 
+pub fn resizeLeaseChanged(allocator: std.mem.Allocator, change: anytype) ![]u8 {
+    var writer: std.Io.Writer.Allocating = .init(allocator);
+    defer writer.deinit();
+    try writeResizeLeaseChanged(&writer.writer, change);
+    return writer.toOwnedSlice();
+}
+
+pub fn writeResizeLeaseChanged(writer: *std.Io.Writer, change: anytype) !void {
+    var attachment_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    try writer.print(
+        "{{\"attachmentId\":\"{s}\",\"resizeLease\":{},\"terminalId\":\"{s}\"}}",
+        .{
+            identifierText(change.attachment_id, &attachment_buffer),
+            change.resize_lease,
+            identifierText(change.terminal_id, &terminal_buffer),
+        },
+    );
+}
+
 pub fn attachmentAcknowledged(allocator: std.mem.Allocator, attachment_id: anytype) ![]u8 {
     var writer: std.Io.Writer.Allocating = .init(allocator);
     defer writer.deinit();

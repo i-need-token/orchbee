@@ -36,6 +36,16 @@ describe('projected terminal contract', () => {
 		).toBe(false);
 	});
 
+	it('carries a live resize-lease change without mutating the attachment bootstrap', () => {
+		const event = {
+			event: { attachmentId, resizeLease: true, terminalId: identity.terminalId },
+			kind: 'resize-lease-changed',
+		};
+
+		expect(ProjectedTerminalEventSchema.parse(event)).toEqual(event);
+		expect(bootstrap.canResize).toBe(false);
+	});
+
 	it('represents a terminal outcome as one identity-bound union', () => {
 		const exited = {
 			event: {

@@ -52,5 +52,6 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.screen': '终端屏幕',
 	'terminal.projected.selection.evicted': '终端所选内容已从保留历史中逐出。',
 	'terminal.projected.session.startNew': '启动新会话',
+	'terminal.projected.session.startFailed': '无法启动终端会话。',
 	'terminal.projected.session.stopped': '终端会话已停止',
 } as const satisfies Readonly<Record<ProjectedTerminalMessageId, string>>;

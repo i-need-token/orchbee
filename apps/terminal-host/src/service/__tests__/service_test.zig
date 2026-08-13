@@ -2221,6 +2221,65 @@ test "detach retry is idempotent within one broker session" {
     try std.testing.expect(service.runtime_aggregate.core().findAttachment(attachment_id) == null);
 }
 
+test "detaching a resize owner publishes its observer promotion before acknowledgement" {
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var owner: ConnectionState = .awaiting_hello;
+    defer service.disconnect(&owner);
+    try testHandshake(&service, &owner, "22222222222222222222222222222222");
+    const owner_active = try activeConnection(&owner);
+
+    const creation_id = core_module.CreationId.fromBytes([_]u8{0x41} ** 16);
+    const terminal_id = core_module.TerminalId.fromBytes([_]u8{0x42} ** 16);
+    const resize_owner_id = core_module.AttachmentId.fromBytes([_]u8{0x43} ** 16);
+    const observer_id = core_module.AttachmentId.fromBytes([_]u8{0x44} ** 16);
+    _ = try service.runtime_aggregate.core().createTerminal(
+        owner_active.connection_id,
+        creation_id,
+        terminal_id,
+        [_]u8{0x45} ** 32,
+        80,
+        24,
+    );
+    _ = try service.runtime_aggregate.core().attach(
+        owner_active.connection_id,
+        resize_owner_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        true,
+    );
+    _ = try service.runtime_aggregate.core().attach(
+        owner_active.connection_id,
+        observer_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        false,
+    );
+
+    var detached = try testRequest(
+        &service,
+        &owner,
+        MessageKind.detach_terminal,
+        .control_json,
+        "{\"attachmentId\":\"43434343434343434343434343434343\"}",
+        [_]u8{0x46} ** 16,
+    );
+    defer detached.deinit();
+
+    try std.testing.expectEqual(@as(usize, 2), detached.records().len);
+    const promotion = try protocol.validateTransportEnvelope(detached.records()[0]);
+    try std.testing.expectEqual(MessageKind.resize_lease_changed, promotion.kind);
+    try std.testing.expect(promotion.event);
+    try std.testing.expectEqualStrings(
+        "{\"attachmentId\":\"44444444444444444444444444444444\",\"resizeLease\":true,\"terminalId\":\"42424242424242424242424242424242\"}",
+        promotion.payload,
+    );
+    const acknowledgement = try protocol.validateTransportEnvelope(detached.records()[1]);
+    try std.testing.expectEqual(MessageKind.detach_terminal, acknowledgement.kind);
+    try std.testing.expect(acknowledgement.response);
+    try std.testing.expect(service.runtime_aggregate.core().findAttachment(observer_id).?.resize_lease);
+}
+
 test "current protocol rejects a cursor made stale by disposal and freshly pages exact inventory" {
     const inventory_count = 130;
     const fresh_page_size = 17;

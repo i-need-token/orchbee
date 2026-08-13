@@ -102,9 +102,8 @@ export function createWorkbenchClientRuntime({
 				resolveTerminalMetadataObservation(metadata, bootstrap.terminalHostName),
 			);
 		},
-		startStoppedTerminalSession: (presentationId) => {
-			projectWorkspaceRuntime.startStoppedTerminalSession(presentationId);
-		},
+		startStoppedTerminalSession: (presentationId) =>
+			projectWorkspaceRuntime.startStoppedTerminalSession(presentationId),
 	};
 	const dispose = (): void => {
 		if (disposed) return;

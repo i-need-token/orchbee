@@ -72,6 +72,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'reset'
 	| 'selectAll'
 	| 'selection'
+	| 'setResizeOwnership'
 	| 'updatePresentationConfiguration'
 	| 'updateSearch'
 >;
@@ -515,6 +516,16 @@ export async function startProjectedTerminalRenderer(
 				return;
 			case 'rows':
 				terminal.applyRows(event.data.rows);
+				return;
+			case 'resize-lease-changed':
+				if (
+					event.data.event.attachmentId !== bootstrap.attachmentId ||
+					event.data.event.terminalId !== bootstrap.terminalId
+				) {
+					reportFailure();
+					return;
+				}
+				terminal.setResizeOwnership(event.data.event.resizeLease);
 				return;
 			case 'selection-changed':
 				terminal.notifySelectionChanged(event.data.event);

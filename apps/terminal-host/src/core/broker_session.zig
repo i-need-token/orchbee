@@ -16,6 +16,7 @@ pub const Admission = enum {
 
 pub const Error = error{
     AttachmentConflict,
+    AttachmentSequenceOverflow,
     InvalidCapabilities,
     ResizeLeaseDenied,
 };
@@ -27,10 +28,12 @@ pub const Capabilities = packed struct {
 };
 
 pub const Attachment = struct {
+    admission_sequence: u64,
     attachment_id: AttachmentId,
     bell_cursor: u64,
     capabilities: Capabilities,
     projection: attachment_projection.State = .{},
+    requested_resize_lease: bool,
     resize_lease: bool,
     terminal_attachment_index: usize,
     terminal_id: TerminalId,
@@ -69,6 +72,7 @@ pub const Session = struct {
     active_read_demand_by_terminal: std.AutoHashMap(TerminalId, usize),
     client_id: ClientId,
     connection_id: ConnectionId,
+    next_attachment_sequence: u64 = 1,
     /// Test-only teardown-cost sensor: total attachment-list entries examined
     /// by active-projection-demand queries since the last reset. The O(1)
     /// aggregate examines none; the pre-fix walk examined the whole remaining
@@ -159,7 +163,7 @@ pub const Session = struct {
         if (self.attachments.get(attachment_id)) |existing| {
             const equivalent = existing.terminal_id.eql(terminal_id) and
                 existing.capabilities == capabilities and
-                existing.resize_lease == request_resize_lease;
+                existing.requested_resize_lease == request_resize_lease;
             return if (equivalent) .replay else error.AttachmentConflict;
         }
         return .create;
@@ -174,10 +178,13 @@ pub const Session = struct {
         capabilities: Capabilities,
         resize_lease: bool,
         bell_sequence: u64,
-    ) std.mem.Allocator.Error!void {
+    ) (Error || std.mem.Allocator.Error)!void {
         std.debug.assert(!self.attachments.contains(attachment_id));
         std.debug.assert(!resize_lease or capabilities.resize);
         std.debug.assert(!resize_lease or !self.hasResizeLease(terminal_id));
+        if (self.next_attachment_sequence == std.math.maxInt(u64)) {
+            return error.AttachmentSequenceOverflow;
+        }
 
         var terminal_list_created = false;
         if (!self.attachments_by_terminal.contains(terminal_id)) {
@@ -206,13 +213,33 @@ pub const Session = struct {
         };
 
         try self.attachments.putNoClobber(attachment_id, .{
+            .admission_sequence = self.next_attachment_sequence,
             .attachment_id = attachment_id,
             .bell_cursor = bell_sequence,
             .capabilities = capabilities,
+            .requested_resize_lease = resize_lease,
             .resize_lease = resize_lease,
             .terminal_attachment_index = terminal_list.items.len - 1,
             .terminal_id = terminal_id,
         });
+        self.next_attachment_sequence += 1;
+    }
+
+    pub fn promoteResizeLease(self: *Session, terminal_id: TerminalId) ?AttachmentId {
+        const attachment_ids = self.idsForTerminal(terminal_id) orelse return null;
+        var successor: ?AttachmentId = null;
+        var successor_sequence: u64 = std.math.maxInt(u64);
+        for (attachment_ids) |attachment_id| {
+            const attachment = self.attachments.get(attachment_id).?;
+            if (!attachment.capabilities.resize or attachment.resize_lease) continue;
+            if (attachment.admission_sequence < successor_sequence) {
+                successor = attachment_id;
+                successor_sequence = attachment.admission_sequence;
+            }
+        }
+        const attachment_id = successor orelse return null;
+        self.attachments.getPtr(attachment_id).?.resize_lease = true;
+        return attachment_id;
     }
 
     pub fn remove(self: *Session, attachment_id: AttachmentId) ?Attachment {
