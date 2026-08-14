@@ -1,0 +1,220 @@
+const std = @import("std");
+
+const host_service = @import("terminal-host-service").service;
+const protocol = @import("terminal-protocol");
+
+const endpoint_id_bytes = 32;
+pub const poll_interval_ms = 20;
+pub const record_read_timeout_ns = 5 * std.time.ns_per_s;
+
+pub const Deadline = struct {
+    timer: *std.time.Timer,
+    timeout_ns: u64,
+
+    pub fn init(timer: *std.time.Timer, timeout_ns: i128) !Deadline {
+        if (timeout_ns < 0) return error.ConnectionClosed;
+        return .{
+            .timer = timer,
+            .timeout_ns = std.math.cast(u64, timeout_ns) orelse return error.ConnectionClosed,
+        };
+    }
+
+    pub fn expired(self: *Deadline) bool {
+        return self.timer.read() >= self.timeout_ns;
+    }
+
+    pub fn remainingNs(self: *Deadline) u64 {
+        const elapsed = self.timer.read();
+        return self.timeout_ns -| elapsed;
+    }
+};
+
+pub fn validEndpointId(endpoint_id: []const u8) bool {
+    if (endpoint_id.len != endpoint_id_bytes) return false;
+    for (endpoint_id) |byte| switch (byte) {
+        '0'...'9', 'a'...'f' => {},
+        else => return false,
+    };
+    return true;
+}
+
+pub fn serveConnection(transport: anytype, service: *host_service.HostService) !void {
+    return serveConnectionWithHandshakeTimeout(
+        transport,
+        service,
+        record_read_timeout_ns,
+    );
+}
+
+pub fn serveConnectionWithHandshakeTimeout(
+    transport: anytype,
+    service: *host_service.HostService,
+    handshake_timeout_ns: i128,
+) !void {
+    var connection: host_service.ConnectionState = .awaiting_hello;
+    defer service.disconnect(&connection);
+    var handshake_timer = std.time.Timer.start() catch return error.ConnectionClosed;
+    var handshake_deadline = Deadline.init(&handshake_timer, handshake_timeout_ns) catch return error.ConnectionClosed;
+
+    while (true) {
+        if (connection.shouldClose()) return;
+        if (connection.isAwaitingHello()) {
+            if (handshake_deadline.expired()) return error.ConnectionClosed;
+            if (!try transport.waitReadable()) {
+                service.maintain();
+                continue;
+            }
+            const record = try readRecordBeforeMaintaining(
+                service.allocator,
+                transport,
+                &handshake_deadline,
+                service,
+            );
+            defer service.allocator.free(record);
+            var outgoing = service.handle(&connection, record) catch |err| switch (err) {
+                error.InvalidTransportRecord => return error.ConnectionClosed,
+                else => return err,
+            };
+            defer outgoing.deinit();
+            try writeOutgoing(transport, outgoing.records());
+            if (connection.shouldClose()) return;
+            continue;
+        }
+
+        var events = try service.pollEvents(&connection);
+        defer events.deinit();
+        try writeOutgoing(transport, events.records());
+
+        if (!try transport.waitReadable()) continue;
+        const record = try readRecordMaintaining(service.allocator, transport, service);
+        defer service.allocator.free(record);
+        var outgoing = service.handle(&connection, record) catch |err| switch (err) {
+            error.InvalidTransportRecord => return error.ConnectionClosed,
+            else => return err,
+        };
+        defer outgoing.deinit();
+        try writeOutgoing(transport, outgoing.records());
+        if (connection.shouldClose()) return;
+    }
+}
+
+pub fn serveAcceptedConnection(transport: anytype, service: *host_service.HostService) void {
+    serveConnection(transport, service) catch |err| switch (err) {
+        error.ConnectionClosed => {},
+        else => std.log.warn("closing terminal Host connection after dispatch failure: {s}", .{@errorName(err)}),
+    };
+}
+
+pub fn serveUntilIdleLoop(
+    server: anytype,
+    service: anytype,
+    comptime recoverable_failure: fn (anyerror) bool,
+) !void {
+    var completed_accept = false;
+    while (true) {
+        if (!completed_accept) {
+            server.serveOne(service) catch |err| {
+                if (!recoverable_failure(err)) return err;
+            };
+            completed_accept = true;
+            continue;
+        }
+        service.maintain();
+        if (service.canStopWhenIdle()) return;
+        const served = server.serveOneBefore(service, poll_interval_ms) catch |err| {
+            if (!recoverable_failure(err)) return err;
+            continue;
+        };
+        _ = served;
+    }
+}
+
+pub fn writeOutgoing(transport: anytype, records: []const []const u8) !void {
+    var timer = std.time.Timer.start() catch return error.ConnectionClosed;
+    var deadline = try Deadline.init(&timer, record_read_timeout_ns);
+    for (records) |record| {
+        if (@hasDecl(@TypeOf(transport.*), "writeAllBefore")) {
+            try transport.writeAllBefore(record, &deadline);
+        } else {
+            try transport.writeAll(record);
+        }
+    }
+}
+
+pub fn readRecord(allocator: std.mem.Allocator, transport: anytype) ![]u8 {
+    return readRecordWithTimeout(allocator, transport, record_read_timeout_ns);
+}
+
+fn readRecordMaintaining(
+    allocator: std.mem.Allocator,
+    transport: anytype,
+    service: *host_service.HostService,
+) ![]u8 {
+    var timer = std.time.Timer.start() catch return error.ConnectionClosed;
+    var deadline = try Deadline.init(&timer, record_read_timeout_ns);
+    return readRecordBeforeMaintaining(allocator, transport, &deadline, service);
+}
+
+pub fn readRecordWithTimeout(
+    allocator: std.mem.Allocator,
+    transport: anytype,
+    timeout_ns: i128,
+) ![]u8 {
+    var timer = std.time.Timer.start() catch return error.ConnectionClosed;
+    var deadline = try Deadline.init(&timer, timeout_ns);
+    return readRecordBefore(allocator, transport, &deadline);
+}
+
+fn readRecordBefore(
+    allocator: std.mem.Allocator,
+    transport: anytype,
+    deadline: *Deadline,
+) ![]u8 {
+    return readRecordBeforeWithMaintenance(allocator, transport, deadline, null);
+}
+
+fn readRecordBeforeMaintaining(
+    allocator: std.mem.Allocator,
+    transport: anytype,
+    deadline: *Deadline,
+    service: *host_service.HostService,
+) ![]u8 {
+    return readRecordBeforeWithMaintenance(allocator, transport, deadline, service);
+}
+
+fn readRecordBeforeWithMaintenance(
+    allocator: std.mem.Allocator,
+    transport: anytype,
+    deadline: *Deadline,
+    service: ?*host_service.HostService,
+) ![]u8 {
+    var header: [protocol.transport_envelope_header_bytes]u8 = undefined;
+    try readExactlyBeforeWithMaintenance(transport, &header, deadline, service);
+    const total_length = protocol.transportRecordLength(&header) catch return error.ConnectionClosed;
+    const record = try allocator.alloc(u8, total_length);
+    errdefer allocator.free(record);
+    @memcpy(record[0..header.len], &header);
+    try readExactlyBeforeWithMaintenance(transport, record[header.len..], deadline, service);
+    return record;
+}
+
+fn readExactlyBefore(transport: anytype, bytes: []u8, deadline: *Deadline) !void {
+    return readExactlyBeforeWithMaintenance(transport, bytes, deadline, null);
+}
+
+fn readExactlyBeforeWithMaintenance(
+    transport: anytype,
+    bytes: []u8,
+    deadline: *Deadline,
+    service: ?*host_service.HostService,
+) !void {
+    var offset: usize = 0;
+    while (offset < bytes.len) {
+        if (service) |active_service| active_service.maintain();
+        if (deadline.expired()) return error.ConnectionClosed;
+        if (!try transport.waitReadable()) continue;
+        const length = transport.read(bytes[offset..]) catch return error.ConnectionClosed;
+        if (length == 0) return error.ConnectionClosed;
+        offset += length;
+    }
+}

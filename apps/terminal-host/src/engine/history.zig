@@ -4,17 +4,14 @@ const ghostty_vt = @import("ghostty-vt");
 const identifiers = @import("terminal-host-model").identifiers;
 const protocol = @import("terminal-protocol");
 const row_encoding = @import("row_encoding.zig");
+const terminal_selection = @import("selection.zig");
+const selection_export = @import("selection_export.zig");
 
 const max_row_window_bytes = row_encoding.max_bytes;
 pub const max_row_window_rows = protocol.Limits.row_window_rows;
-const max_selection_export_bytes = protocol.Limits.selection_export_bytes;
-const max_selection_export_chunk_bytes = protocol.Limits.selection_export_chunk_bytes;
 const row_window_header_bytes = row_encoding.header_bytes;
-const selection_chunk_header_bytes = 32;
 const max_row_window_entries = row_encoding.max_entries;
-// One queued cancellation may precede a newer export; invalidating that newer
-// export produces the only second entry before the queue must be drained.
-pub const max_pending_export_cancellations = 2;
+pub const max_pending_export_cancellations = selection_export.max_pending_cancellations;
 
 pub const AttachmentId = identifiers.AttachmentId;
 pub const HostEpoch = identifiers.HostEpoch;
@@ -85,139 +82,32 @@ pub const HistoryEvent = struct {
     total_rows: u64,
 };
 
-pub const SelectionPoint = struct {
-    column: u16,
-    row: u64,
-};
+pub const SelectionPoint = terminal_selection.Point;
+pub const SelectionGestureGeometry = terminal_selection.GestureGeometry;
+pub const SelectionGesturePosition = terminal_selection.GesturePosition;
+pub const SelectionGestureEvent = terminal_selection.GestureEvent;
+pub const SelectionGesture = terminal_selection.Gesture(AttachmentId);
+pub const SelectionCommand = terminal_selection.Command;
+pub const SelectionCommandRequest = terminal_selection.CommandRequest(AttachmentId);
+pub const SelectionSnapshot = terminal_selection.Snapshot;
 
-pub const SelectionGestureGeometry = struct {
-    cell_width: u16,
-    columns: u16,
-    padding_left: u16,
-    screen_height: u16,
-};
+pub const ExportFormat = selection_export.Format;
+pub const ExportStarted = selection_export.Started;
+pub const ExportStartTransaction = selection_export.StartTransaction;
+pub const ExportFinished = selection_export.Finished;
+pub const ExportCancellation = selection_export.Cancellation;
+pub const PreparedExportCancellation = selection_export.PreparedCancellation;
+pub const ExportChunkToken = selection_export.ChunkToken;
+pub const EncodedExportChunk = selection_export.EncodedChunk;
+pub const ExportInvalidationSnapshot = selection_export.InvalidationSnapshot;
 
-pub const SelectionGesturePosition = struct {
-    x: i32,
-    y: i32,
-};
-
-pub const SelectionGestureEvent = union(enum) {
-    start: struct {
-        click_count: u2,
-        point: SelectionPoint,
-        position: SelectionGesturePosition,
-        select_output: bool,
-    },
-    update: struct {
-        geometry: SelectionGestureGeometry,
-        point: SelectionPoint,
-        position: SelectionGesturePosition,
-        rectangle: bool,
-    },
-    end: SelectionPoint,
-    cancel,
-};
-
-pub const SelectionGesture = struct {
-    attachment_id: AttachmentId,
-    event: SelectionGestureEvent,
-    generation: u64,
-    revision: u64,
-};
-
-pub const SelectionCommand = union(enum) {
-    clear,
-    select_all,
-    set_range: struct {
-        end: SelectionPoint,
-        rectangle: bool,
-        start: SelectionPoint,
-    },
-    select_output: SelectionPoint,
-};
-
-pub const SelectionCommandRequest = struct {
-    attachment_id: AttachmentId,
-    command: SelectionCommand,
-    generation: u64,
-    revision: u64,
-};
-
-pub const SelectionSnapshot = union(enum) {
-    active: struct {
-        end: SelectionPoint,
-        rectangle: bool,
-        start: SelectionPoint,
-    },
-    evicted,
-    none,
-};
-
-pub const ExportFormat = enum {
-    html,
-    plain,
-    vt,
-};
-
-pub const ExportStarted = struct {
-    attachment_id: AttachmentId,
-    byte_length: usize,
-    export_sequence: u64,
-    format: ExportFormat,
-};
-
-pub const ExportStartTransaction = struct {
-    previous_completed_export_sequence: ?u64,
-    previous_last_export_sequence: u64,
-    started: ExportStarted,
-};
-
-pub const ExportFinished = struct {
-    attachment_id: AttachmentId,
-    byte_length: usize,
-    export_sequence: u64,
-};
-
-pub const ExportCancellation = struct {
-    attachment_id: AttachmentId,
-    byte_length: usize,
-    export_sequence: u64,
-};
-
-pub const PreparedExportCancellation = struct {
-    cancellation: ExportCancellation,
-};
-
-pub const ExportChunkToken = struct {
-    attachment_id: AttachmentId,
-    chunk_sequence: u32,
-    export_sequence: u64,
-};
-
-pub const EncodedExportChunk = struct {
-    bytes: []u8,
-    token: ExportChunkToken,
-};
-
-pub const ExportInvalidationSnapshot = struct {
-    count: usize,
-    entries: [max_pending_export_cancellations]ExportCancellation,
-};
-
-pub const HistoryError = error{
-    AnchorEvicted,
+pub const HistoryError = terminal_selection.Error || error{
     AttachmentConflict,
     ExportConflict,
     ExportTooLarge,
     InvalidAcknowledgement,
-    InvalidPoint,
-    InvalidRequest,
     MissingAttachment,
-    MissingSelection,
     ProjectionTooLarge,
-    StaleGeneration,
-    StaleRevision,
 };
 
 const TrackedAnchor = struct {
@@ -240,27 +130,12 @@ const AppliedRowsIdentity = struct {
     sequence: u64,
 };
 
-const ExportState = struct {
-    attachment_id: AttachmentId,
-    bytes_length: usize,
-    bytes_offset: usize,
-    chunk_in_flight: bool = false,
-    chunk_length: usize = 0,
-    chunk_sequence: u32 = 0,
-    export_sequence: u64,
-    format: ExportFormat,
-    next_offset: usize = 0,
-    storage: []u8,
-};
-
 const AttachmentState = struct {
     attachment_id: AttachmentId,
     committed: ?TrackedAnchor = null,
     committed_ack: ?AppliedRowsIdentity = null,
     demand: HistoryDemand = .following_bottom,
-    export_state: ?ExportState = null,
-    gesture: ghostty_vt.SelectionGesture = .init,
-    gesture_active: bool = false,
+    export_ledger: selection_export.State = .{},
     history_dirty: bool = false,
     history_in_flight: ?HistoryEvent = null,
     // The next positive attachment-local history-event sequence. It advances
@@ -269,18 +144,9 @@ const AttachmentState = struct {
     // event (or than this watermark when no event is in flight) refers to an
     // already observed or abandoned event and is an idempotent no-op.
     history_next_sequence: u64 = 1,
-    last_completed_export_sequence: ?u64 = null,
-    last_export_sequence: u64 = 0,
-    invalidated_exports: [max_pending_export_cancellations]ExportCancellation = undefined,
-    invalidated_export_count: usize = 0,
     last_row_request_sequence: u64 = 0,
     pending: ?TrackedAnchor = null,
-    pending_export_cancellations: [max_pending_export_cancellations]ExportCancellation = undefined,
-    pending_export_cancellation_count: usize = 0,
-    selection: ?ghostty_vt.Selection = null,
-    selection_event: ?SelectionSnapshot = null,
-    selection_screen_generation: usize = 0,
-    selection_screen_key: ghostty_vt.ScreenSet.Key = .primary,
+    selection_state: terminal_selection.State = .{},
 };
 
 pub const Manager = struct {
@@ -540,12 +406,9 @@ pub const Manager = struct {
         if (self.viewing_count == 0 and self.selection_count == 0) return;
         for (self.states.items) |*state| {
             if (state.demand == .viewing_history) state.history_dirty = true;
-            if (state.selection) |selection| {
-                if (selection.start().garbage or selection.end().garbage) {
-                    self.releaseSelection(terminal, state);
-                    state.selection_event = .evicted;
-                    self.invalidateExport(state);
-                }
+            if (state.selection_state.noteMutation(terminal)) {
+                self.selection_count -= 1;
+                self.invalidateExport(state);
             }
             if (state.committed) |*anchor| {
                 anchor.revision = revision;
@@ -562,7 +425,6 @@ pub const Manager = struct {
     ) void {
         for (self.states.items) |*state| {
             self.releaseAnchor(terminal, &state.pending);
-            self.resetGesture(terminal, state);
             state.history_in_flight = null;
 
             if (state.committed) |*anchor| {
@@ -574,17 +436,9 @@ pub const Manager = struct {
                 }
             }
 
-            if (state.selection != null) {
-                const snapshot = self.selectionSnapshot(terminal, state) catch .evicted;
-                switch (snapshot) {
-                    .active => state.selection_event = snapshot,
-                    .evicted, .none => {
-                        self.releaseSelection(terminal, state);
-                        state.selection_event = .evicted;
-                        self.invalidateExport(state);
-                    },
-                }
-            }
+            const selection_was_active = state.selection_state.active();
+            state.selection_state.generationChanged(terminal);
+            self.updateSelectionCount(selection_was_active, state.selection_state.active());
             self.invalidateExport(state);
 
             if (state.demand == .viewing_history) state.history_dirty = true;
@@ -598,10 +452,9 @@ pub const Manager = struct {
         for (self.states.items) |*state| {
             self.releaseAnchor(terminal, &state.committed);
             self.releaseAnchor(terminal, &state.pending);
-            self.resetGesture(terminal, state);
-            const selection_was_active = state.selection != null;
-            self.releaseSelection(terminal, state);
-            if (selection_was_active) state.selection_event = .evicted;
+            const selection_was_active = state.selection_state.active();
+            state.selection_state.screenChanged(terminal);
+            self.updateSelectionCount(selection_was_active, state.selection_state.active());
             self.invalidateExport(state);
             if (state.demand == .viewing_history) {
                 state.history_in_flight = null;
@@ -692,9 +545,7 @@ pub const Manager = struct {
         attachment_id: AttachmentId,
     ) HistoryError!?SelectionSnapshot {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        const event = state.selection_event;
-        state.selection_event = null;
-        return event;
+        return state.selection_state.takeEvent();
     }
 
     pub fn rollbackSelectionEvent(
@@ -705,7 +556,7 @@ pub const Manager = struct {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
         // A newer runtime event supersedes the unsent snapshot. Otherwise put
         // the exact event back so the next scheduler pass can retry it.
-        if (state.selection_event == null) state.selection_event = event;
+        state.selection_state.rollbackEvent(event);
     }
 
     pub fn takeSelectionExportCancellation(
@@ -713,17 +564,7 @@ pub const Manager = struct {
         attachment_id: AttachmentId,
     ) HistoryError!?ExportCancellation {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        if (state.pending_export_cancellation_count == 0) return null;
-        const cancellation = state.pending_export_cancellations[0];
-        if (state.pending_export_cancellation_count > 1) {
-            std.mem.copyForwards(
-                ExportCancellation,
-                state.pending_export_cancellations[0 .. state.pending_export_cancellation_count - 1],
-                state.pending_export_cancellations[1..state.pending_export_cancellation_count],
-            );
-        }
-        state.pending_export_cancellation_count -= 1;
-        return cancellation;
+        return state.export_ledger.takeCancellation();
     }
 
     /// Prepare the exact FIFO head without consuming it. Callers commit this
@@ -734,8 +575,7 @@ pub const Manager = struct {
         attachment_id: AttachmentId,
     ) HistoryError!?PreparedExportCancellation {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        if (state.pending_export_cancellation_count == 0) return null;
-        return .{ .cancellation = state.pending_export_cancellations[0] };
+        return state.export_ledger.prepareCancellation();
     }
 
     pub fn commitPreparedSelectionExportCancellation(
@@ -744,19 +584,7 @@ pub const Manager = struct {
     ) void {
         const expected = prepared.cancellation;
         const state = self.find(expected.attachment_id) orelse unreachable;
-        std.debug.assert(state.pending_export_cancellation_count > 0);
-        std.debug.assert(self.sameCancellation(
-            state.pending_export_cancellations[0],
-            expected,
-        ));
-        if (state.pending_export_cancellation_count > 1) {
-            std.mem.copyForwards(
-                ExportCancellation,
-                state.pending_export_cancellations[0 .. state.pending_export_cancellation_count - 1],
-                state.pending_export_cancellations[1..state.pending_export_cancellation_count],
-            );
-        }
-        state.pending_export_cancellation_count -= 1;
+        state.export_ledger.commitPreparedCancellation(prepared);
     }
 
     pub fn snapshotInvalidatedExportHistory(
@@ -764,13 +592,7 @@ pub const Manager = struct {
         attachment_id: AttachmentId,
     ) HistoryError!ExportInvalidationSnapshot {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        var snapshot = std.mem.zeroes(ExportInvalidationSnapshot);
-        snapshot.count = state.invalidated_export_count;
-        @memcpy(
-            snapshot.entries[0..snapshot.count],
-            state.invalidated_exports[0..snapshot.count],
-        );
-        return snapshot;
+        return state.export_ledger.snapshotInvalidations();
     }
 
     pub fn restoreInvalidatedExportHistory(
@@ -779,12 +601,7 @@ pub const Manager = struct {
         snapshot: ExportInvalidationSnapshot,
     ) void {
         const state = self.find(attachment_id) orelse return;
-        std.debug.assert(snapshot.count <= max_pending_export_cancellations);
-        @memcpy(
-            state.invalidated_exports[0..snapshot.count],
-            snapshot.entries[0..snapshot.count],
-        );
-        state.invalidated_export_count = snapshot.count;
+        state.export_ledger.restoreInvalidations(snapshot);
     }
 
     pub fn restoreSelectionExportCancellations(
@@ -793,16 +610,7 @@ pub const Manager = struct {
         cancellations: []const ExportCancellation,
     ) HistoryError!void {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        if (state.pending_export_cancellation_count != 0 or
-            cancellations.len > max_pending_export_cancellations)
-        {
-            return error.InvalidRequest;
-        }
-        @memcpy(
-            state.pending_export_cancellations[0..cancellations.len],
-            cancellations,
-        );
-        state.pending_export_cancellation_count = cancellations.len;
+        try state.export_ledger.restoreCancellations(cancellations);
     }
 
     pub fn rollbackExportStart(
@@ -815,41 +623,15 @@ pub const Manager = struct {
         invalidation_snapshot: ExportInvalidationSnapshot,
     ) void {
         const state = self.find(attachment_id) orelse return;
-        std.debug.assert(cancellations.len <= max_pending_export_cancellations);
-        if (previous_last_export_sequence >= export_sequence or
-            state.last_export_sequence != export_sequence)
-        {
-            std.debug.assert(false);
-            return;
-        }
-        if (state.export_state) |export_state| {
-            if (export_state.export_sequence != export_sequence or
-                state.pending_export_cancellation_count != 0)
-            {
-                std.debug.assert(false);
-                return;
-            }
-            self.releaseExport(state);
-        } else if (state.pending_export_cancellation_count == 1 and
-            self.sameExport(state.pending_export_cancellations[0], attachment_id, export_sequence))
-        {
-            // The reader may have invalidated the unannounced replacement while
-            // HostService was building its response. That cancellation is not part
-            // of the pre-start FIFO and must not escape the failed handoff.
-            state.pending_export_cancellation_count = 0;
-        } else {
-            std.debug.assert(false);
-            return;
-        }
-        std.debug.assert(state.pending_export_cancellation_count == 0);
-        @memcpy(
-            state.pending_export_cancellations[0..cancellations.len],
+        state.export_ledger.rollbackStart(
+            self.allocator,
+            attachment_id,
+            export_sequence,
+            previous_completed_export_sequence,
+            previous_last_export_sequence,
             cancellations,
+            invalidation_snapshot,
         );
-        state.pending_export_cancellation_count = cancellations.len;
-        state.last_completed_export_sequence = previous_completed_export_sequence;
-        state.last_export_sequence = previous_last_export_sequence;
-        self.restoreInvalidatedExportHistory(attachment_id, invalidation_snapshot);
     }
 
     pub fn applyGesture(
@@ -859,75 +641,22 @@ pub const Manager = struct {
         current_generation: u64,
         request: SelectionGesture,
     ) (HistoryError || std.mem.Allocator.Error)!SelectionSnapshot {
-        try requireCurrent(request.revision, request.generation, current_revision, current_generation);
+        try terminal_selection.validateCurrent(
+            request.revision,
+            request.generation,
+            current_revision,
+            current_generation,
+        );
         const state = self.find(request.attachment_id) orelse return error.MissingAttachment;
-        switch (request.event) {
-            .start => |start| {
-                if (start.click_count == 0) return error.InvalidRequest;
-                const point_pin = try pointPin(terminal.screens.active, start.point);
-                const behavior: ghostty_vt.SelectionGesture.Behavior = switch (start.click_count) {
-                    1 => .cell,
-                    2 => .word,
-                    3 => if (start.select_output) .output else .line,
-                    else => unreachable,
-                };
-                const behaviors: [3]ghostty_vt.SelectionGesture.Behavior = .{
-                    behavior,
-                    behavior,
-                    behavior,
-                };
-                var gesture: ghostty_vt.SelectionGesture = .init;
-                errdefer gesture.deinit(terminal);
-                const initial = try gesture.press(terminal, .{
-                    .behaviors = &behaviors,
-                    .max_distance = 0,
-                    .pin = point_pin,
-                    .repeat_interval = 0,
-                    .time = null,
-                    .word_boundary_codepoints = &default_word_boundaries,
-                    .xpos = @floatFromInt(start.position.x),
-                    .ypos = @floatFromInt(start.position.y),
-                });
-                try self.replaceSelection(terminal, state, initial);
-                self.resetGesture(terminal, state);
-                state.gesture = gesture;
-                state.gesture_active = true;
-            },
-            .update => |update| {
-                if (!state.gesture_active) return error.InvalidRequest;
-                if (!gestureAnchorValid(terminal, &state.gesture)) {
-                    self.resetGesture(terminal, state);
-                    return error.AnchorEvicted;
-                }
-                const point_pin = try pointPin(terminal.screens.active, update.point);
-                const selection = state.gesture.drag(terminal, .{
-                    .geometry = .{
-                        .cell_width = update.geometry.cell_width,
-                        .columns = update.geometry.columns,
-                        .padding_left = update.geometry.padding_left,
-                        .screen_height = update.geometry.screen_height,
-                    },
-                    .pin = point_pin,
-                    .rectangle = update.rectangle,
-                    .word_boundary_codepoints = &default_word_boundaries,
-                    .xpos = @floatFromInt(update.position.x),
-                    .ypos = @floatFromInt(update.position.y),
-                });
-                try self.replaceSelection(terminal, state, selection);
-            },
-            .end => |point| {
-                if (!state.gesture_active) return error.InvalidRequest;
-                if (!gestureAnchorValid(terminal, &state.gesture)) {
-                    self.resetGesture(terminal, state);
-                    return error.AnchorEvicted;
-                }
-                const point_pin = try pointPin(terminal.screens.active, point);
-                state.gesture.release(terminal, .{ .pin = point_pin });
-                state.gesture_active = false;
-            },
-            .cancel => self.resetGesture(terminal, state),
-        }
-        return self.selectionSnapshot(terminal, state);
+        const selection_was_active = state.selection_state.active();
+        const snapshot = try state.selection_state.applyGesture(
+            terminal,
+            current_revision,
+            current_generation,
+            request,
+        );
+        self.updateSelectionCount(selection_was_active, state.selection_state.active());
+        return snapshot;
     }
 
     pub fn applySelectionCommand(
@@ -937,25 +666,22 @@ pub const Manager = struct {
         current_generation: u64,
         request: SelectionCommandRequest,
     ) (HistoryError || std.mem.Allocator.Error)!SelectionSnapshot {
-        try requireCurrent(request.revision, request.generation, current_revision, current_generation);
+        try terminal_selection.validateCurrent(
+            request.revision,
+            request.generation,
+            current_revision,
+            current_generation,
+        );
         const state = self.find(request.attachment_id) orelse return error.MissingAttachment;
-        const screen = terminal.screens.active;
-        const selection: ?ghostty_vt.Selection = switch (request.command) {
-            .clear => null,
-            .select_all => if (screen.pages.getBottomRight(.screen)) |end|
-                .init(screen.pages.getTopLeft(.screen), end, false)
-            else
-                null,
-            .set_range => |range| .init(
-                try pointPin(screen, range.start),
-                try pointPin(screen, range.end),
-                range.rectangle,
-            ),
-            .select_output => |point| screen.selectOutput(try pointPin(screen, point)),
-        };
-        try self.replaceSelection(terminal, state, selection);
-        self.resetGesture(terminal, state);
-        return self.selectionSnapshot(terminal, state);
+        const selection_was_active = state.selection_state.active();
+        const snapshot = try state.selection_state.applyCommand(
+            terminal,
+            current_revision,
+            current_generation,
+            request,
+        );
+        self.updateSelectionCount(selection_was_active, state.selection_state.active());
+        return snapshot;
     }
 
     pub fn startExport(
@@ -967,63 +693,16 @@ pub const Manager = struct {
     ) (HistoryError || std.mem.Allocator.Error)!ExportStarted {
         if (export_sequence == 0) return error.InvalidRequest;
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        if (export_sequence <= state.last_export_sequence) return error.InvalidRequest;
-        // A full queue means two invalidated exports are still awaiting delivery;
-        // do not admit another export that could create an unbounded backlog.
-        if (state.pending_export_cancellation_count == max_pending_export_cancellations) {
-            return error.ExportConflict;
-        }
-        if (state.export_state != null) return error.ExportConflict;
-        const selection = state.selection orelse return error.MissingSelection;
-        if (selection.start().garbage or selection.end().garbage or
-            !selectionScreenValid(terminal, state))
-        {
-            self.releaseSelection(terminal, state);
-            return error.AnchorEvicted;
-        }
-
-        const storage = try self.allocator.alloc(u8, max_selection_export_bytes + 1);
-        errdefer self.allocator.free(storage);
-        var fixed: std.heap.FixedBufferAllocator = .init(storage);
-        var writer: std.Io.Writer.Allocating = .init(fixed.allocator());
-        defer writer.deinit();
-        var formatter: ghostty_vt.formatter.ScreenFormatter = .init(
-            terminal.screens.active,
-            .{
-                .emit = switch (format) {
-                    .html => .html,
-                    .plain => .plain,
-                    .vt => .vt,
-                },
-                .palette = &terminal.colors.palette.current,
-                .trim = true,
-                .unwrap = true,
-            },
+        try state.export_ledger.validateStart(export_sequence);
+        const selection = try self.exportSelection(terminal, state);
+        return state.export_ledger.start(
+            self.allocator,
+            terminal,
+            selection,
+            attachment_id,
+            export_sequence,
+            format,
         );
-        formatter.content = .{ .selection = selection };
-        formatter.format(&writer.writer) catch return error.ExportTooLarge;
-        const formatted = writer.toOwnedSliceSentinel(0) catch return error.ExportTooLarge;
-        if (formatted.len > max_selection_export_bytes) return error.ExportTooLarge;
-        const bytes_offset = @intFromPtr(formatted.ptr) - @intFromPtr(storage.ptr);
-        state.export_state = .{
-            .attachment_id = attachment_id,
-            .bytes_length = formatted.len,
-            .bytes_offset = bytes_offset,
-            .export_sequence = export_sequence,
-            .format = format,
-            .storage = storage,
-        };
-        // Starting a newer export must not clear the completion watermark of
-        // the last completed export; a replay of that export's final chunk
-        // acknowledgement stays an idempotent no-op while the newer export is
-        // in flight.
-        state.last_export_sequence = export_sequence;
-        return .{
-            .attachment_id = attachment_id,
-            .byte_length = formatted.len,
-            .export_sequence = export_sequence,
-            .format = format,
-        };
     }
 
     pub fn startExportTransaction(
@@ -1034,18 +713,16 @@ pub const Manager = struct {
         format: ExportFormat,
     ) (HistoryError || std.mem.Allocator.Error)!ExportStartTransaction {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        const previous_completed_export_sequence = state.last_completed_export_sequence;
-        const previous_last_export_sequence = state.last_export_sequence;
-        return .{
-            .previous_completed_export_sequence = previous_completed_export_sequence,
-            .previous_last_export_sequence = previous_last_export_sequence,
-            .started = try self.startExport(
-                terminal,
-                attachment_id,
-                export_sequence,
-                format,
-            ),
-        };
+        try state.export_ledger.validateStart(export_sequence);
+        const selection = try self.exportSelection(terminal, state);
+        return state.export_ledger.startTransaction(
+            self.allocator,
+            terminal,
+            selection,
+            attachment_id,
+            export_sequence,
+            format,
+        );
     }
 
     pub fn encodeNextExportChunk(
@@ -1054,40 +731,7 @@ pub const Manager = struct {
         attachment_id: AttachmentId,
     ) (HistoryError || std.mem.Allocator.Error)!?EncodedExportChunk {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        const export_state = if (state.export_state) |*value| value else return null;
-        const empty_first_chunk = export_state.bytes_length == 0 and export_state.chunk_sequence == 0;
-        if (export_state.chunk_in_flight or
-            (export_state.next_offset >= export_state.bytes_length and !empty_first_chunk))
-        {
-            return null;
-        }
-        const chunk_length = @min(
-            max_selection_export_chunk_bytes,
-            export_state.bytes_length - export_state.next_offset,
-        );
-        const final = export_state.next_offset + chunk_length == export_state.bytes_length;
-        const bytes = try output_allocator.alloc(u8, selection_chunk_header_bytes + chunk_length);
-        errdefer output_allocator.free(bytes);
-        @memcpy(bytes[0..16], &attachment_id.bytes);
-        std.mem.writeInt(u64, bytes[16..24], export_state.export_sequence, .little);
-        std.mem.writeInt(u32, bytes[24..28], export_state.chunk_sequence, .little);
-        bytes[28] = if (final) 1 else 0;
-        @memset(bytes[29..32], 0);
-        const source_start = export_state.bytes_offset + export_state.next_offset;
-        @memcpy(
-            bytes[selection_chunk_header_bytes..],
-            export_state.storage[source_start..][0..chunk_length],
-        );
-        export_state.chunk_in_flight = true;
-        export_state.chunk_length = chunk_length;
-        return .{
-            .bytes = bytes,
-            .token = .{
-                .attachment_id = attachment_id,
-                .chunk_sequence = export_state.chunk_sequence,
-                .export_sequence = export_state.export_sequence,
-            },
-        };
+        return state.export_ledger.encodeNextChunk(output_allocator, attachment_id);
     }
 
     pub fn rollbackExportChunk(
@@ -1095,17 +739,7 @@ pub const Manager = struct {
         expected: ExportChunkToken,
     ) HistoryError!void {
         const state = self.find(expected.attachment_id) orelse return error.MissingAttachment;
-        // Runtime output may invalidate the export after the scheduler encoded
-        // this chunk. Cancellation state then already supersedes the chunk.
-        const export_state = if (state.export_state) |*value| value else return;
-        if (!export_state.chunk_in_flight or
-            export_state.export_sequence != expected.export_sequence or
-            export_state.chunk_sequence != expected.chunk_sequence)
-        {
-            return error.InvalidAcknowledgement;
-        }
-        export_state.chunk_in_flight = false;
-        export_state.chunk_length = 0;
+        try state.export_ledger.rollbackChunk(expected);
     }
 
     pub fn exportChunkApplied(
@@ -1115,43 +749,12 @@ pub const Manager = struct {
         chunk_sequence: u32,
     ) HistoryError!?ExportFinished {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        if (export_sequence == 0) return error.InvalidAcknowledgement;
-        for (state.invalidated_exports[0..state.invalidated_export_count]) |cancellation| {
-            if (self.sameExport(cancellation, attachment_id, export_sequence)) return null;
-        }
-        // A replay of the last completed export's acknowledgement is an
-        // idempotent no-op even while a newer export is in flight; it never
-        // advances or clears the newer export's offset, chunk, or in-flight
-        // state.
-        if (state.last_completed_export_sequence) |completed| {
-            if (completed == export_sequence) return null;
-        }
-        const export_state = if (state.export_state) |*value| value else return error.InvalidAcknowledgement;
-        if (export_sequence != export_state.export_sequence) return error.InvalidAcknowledgement;
-        if (chunk_sequence < export_state.chunk_sequence) return null;
-        if (!export_state.chunk_in_flight or chunk_sequence != export_state.chunk_sequence) {
-            return error.InvalidAcknowledgement;
-        }
-        const next_offset = export_state.next_offset + export_state.chunk_length;
-        const finished_export = next_offset >= export_state.bytes_length;
-        const next_chunk_sequence = if (finished_export)
-            export_state.chunk_sequence
-        else
-            std.math.add(u32, export_state.chunk_sequence, 1) catch
-                return error.InvalidAcknowledgement;
-        export_state.next_offset = next_offset;
-        export_state.chunk_length = 0;
-        export_state.chunk_in_flight = false;
-        export_state.chunk_sequence = next_chunk_sequence;
-        if (!finished_export) return null;
-        const finished: ExportFinished = .{
-            .attachment_id = attachment_id,
-            .byte_length = export_state.bytes_length,
-            .export_sequence = export_sequence,
-        };
-        state.last_completed_export_sequence = export_sequence;
-        self.releaseExport(state);
-        return finished;
+        return state.export_ledger.chunkApplied(
+            self.allocator,
+            attachment_id,
+            export_sequence,
+            chunk_sequence,
+        );
     }
 
     pub fn cancelExport(
@@ -1160,15 +763,7 @@ pub const Manager = struct {
         export_sequence: u64,
     ) HistoryError!ExportFinished {
         const state = self.find(attachment_id) orelse return error.MissingAttachment;
-        const export_state = state.export_state orelse return error.InvalidAcknowledgement;
-        if (export_state.export_sequence != export_sequence) return error.InvalidAcknowledgement;
-        const finished: ExportFinished = .{
-            .attachment_id = attachment_id,
-            .byte_length = export_state.bytes_length,
-            .export_sequence = export_sequence,
-        };
-        self.releaseExport(state);
-        return finished;
+        return state.export_ledger.cancel(self.allocator, attachment_id, export_sequence);
     }
 
     fn resolveStart(
@@ -1200,46 +795,17 @@ pub const Manager = struct {
         };
     }
 
-    fn selectionSnapshot(
+    fn exportSelection(
         self: *Manager,
         terminal: *ghostty_vt.Terminal,
         state: *AttachmentState,
-    ) HistoryError!SelectionSnapshot {
-        _ = self;
-        const selection = state.selection orelse return .none;
-        if (!selectionScreenValid(terminal, state) or selection.start().garbage or
-            selection.end().garbage)
-        {
-            return .evicted;
-        }
-        const screen = terminal.screens.get(state.selection_screen_key) orelse return .evicted;
-        const start = screen.pages.pointFromPin(.screen, selection.start()) orelse return .evicted;
-        const end = screen.pages.pointFromPin(.screen, selection.end()) orelse return .evicted;
-        return .{ .active = .{
-            .end = .{ .column = end.screen.x, .row = end.screen.y },
-            .rectangle = selection.rectangle,
-            .start = .{ .column = start.screen.x, .row = start.screen.y },
-        } };
-    }
-
-    fn replaceSelection(
-        self: *Manager,
-        terminal: *ghostty_vt.Terminal,
-        state: *AttachmentState,
-        selection: ?ghostty_vt.Selection,
-    ) std.mem.Allocator.Error!void {
-        if (selection) |untracked| {
-            const tracked = try untracked.track(terminal.screens.active);
-            self.releaseSelection(terminal, state);
-            state.selection_event = null;
-            state.selection = tracked;
-            self.selection_count += 1;
-            state.selection_screen_key = terminal.screens.active_key;
-            state.selection_screen_generation = terminal.screens.generation(terminal.screens.active_key);
-        } else {
-            self.releaseSelection(terminal, state);
-            state.selection_event = null;
-        }
+    ) HistoryError!ghostty_vt.Selection {
+        const selection_was_active = state.selection_state.active();
+        defer self.updateSelectionCount(
+            selection_was_active,
+            state.selection_state.active(),
+        );
+        return state.selection_state.exportSelection(terminal);
     }
 
     fn clearState(
@@ -1249,9 +815,10 @@ pub const Manager = struct {
     ) void {
         self.releaseAnchor(terminal, &state.committed);
         self.releaseAnchor(terminal, &state.pending);
-        self.resetGesture(terminal, state);
-        self.releaseSelection(terminal, state);
-        self.releaseExport(state);
+        const selection_was_active = state.selection_state.active();
+        state.selection_state.clear(terminal);
+        self.updateSelectionCount(selection_was_active, false);
+        state.export_ledger.deinit(self.allocator);
     }
 
     fn releaseAnchor(
@@ -1267,87 +834,17 @@ pub const Manager = struct {
         screen.pages.untrackPin(value.pin);
     }
 
-    fn resetGesture(
-        self: *Manager,
-        terminal: *ghostty_vt.Terminal,
-        state: *AttachmentState,
-    ) void {
-        _ = self;
-        state.gesture.reset(terminal);
-        state.gesture_active = false;
-    }
-
-    fn releaseSelection(
-        self: *Manager,
-        terminal: *ghostty_vt.Terminal,
-        state: *AttachmentState,
-    ) void {
-        const selection = state.selection orelse return;
-        state.selection = null;
-        self.selection_count -= 1;
-        if (!selectionScreenValid(terminal, state)) return;
-        const screen = terminal.screens.get(state.selection_screen_key) orelse return;
-        selection.deinit(screen);
+    fn updateSelectionCount(self: *Manager, was_active: bool, is_active: bool) void {
+        if (was_active == is_active) return;
+        if (is_active) {
+            self.selection_count += 1;
+        } else {
+            self.selection_count -= 1;
+        }
     }
 
     fn invalidateExport(self: *Manager, state: *AttachmentState) void {
-        const export_state = state.export_state orelse return;
-        const cancellation: ExportCancellation = .{
-            .attachment_id = export_state.attachment_id,
-            .byte_length = export_state.bytes_length,
-            .export_sequence = export_state.export_sequence,
-        };
-        std.debug.assert(
-            state.pending_export_cancellation_count < max_pending_export_cancellations,
-        );
-        self.rememberInvalidatedExport(state, cancellation);
-        state.pending_export_cancellations[state.pending_export_cancellation_count] = cancellation;
-        state.pending_export_cancellation_count += 1;
-        self.releaseExport(state);
-    }
-
-    fn rememberInvalidatedExport(
-        self: *Manager,
-        state: *AttachmentState,
-        cancellation: ExportCancellation,
-    ) void {
-        _ = self;
-        if (state.invalidated_export_count < max_pending_export_cancellations) {
-            state.invalidated_exports[state.invalidated_export_count] = cancellation;
-            state.invalidated_export_count += 1;
-            return;
-        }
-        for (1..max_pending_export_cancellations) |index| {
-            state.invalidated_exports[index - 1] = state.invalidated_exports[index];
-        }
-        state.invalidated_exports[max_pending_export_cancellations - 1] = cancellation;
-    }
-
-    fn sameExport(
-        self: *Manager,
-        cancellation: ExportCancellation,
-        attachment_id: AttachmentId,
-        export_sequence: u64,
-    ) bool {
-        _ = self;
-        return cancellation.export_sequence == export_sequence and
-            cancellation.attachment_id.eql(attachment_id);
-    }
-
-    fn sameCancellation(
-        self: *Manager,
-        left: ExportCancellation,
-        right: ExportCancellation,
-    ) bool {
-        _ = self;
-        return left.byte_length == right.byte_length and
-            left.export_sequence == right.export_sequence and
-            left.attachment_id.eql(right.attachment_id);
-    }
-
-    fn releaseExport(self: *Manager, state: *AttachmentState) void {
-        if (state.export_state) |export_state| self.allocator.free(export_state.storage);
-        state.export_state = null;
+        state.export_ledger.invalidate(self.allocator);
     }
 
     fn find(self: *Manager, attachment_id: AttachmentId) ?*AttachmentState {
@@ -1363,28 +860,6 @@ pub const Manager = struct {
     }
 };
 
-const default_word_boundaries = [_]u21{
-    0, ' ', '\t', '\'', '"', '│', '`', '|', ':', ';', ',', '(', ')', '[', ']', '{', '}', '<', '>', '$',
-};
-
-fn requireCurrent(
-    revision: u64,
-    generation: u64,
-    current_revision: u64,
-    current_generation: u64,
-) HistoryError!void {
-    if (revision != current_revision) return error.StaleRevision;
-    if (generation != current_generation) return error.StaleGeneration;
-}
-
-fn pointPin(screen: *ghostty_vt.Screen, point: SelectionPoint) HistoryError!ghostty_vt.Pin {
-    if (point.row > std.math.maxInt(u32)) return error.InvalidPoint;
-    return screen.pages.pin(.{ .screen = .{
-        .x = point.column,
-        .y = @intCast(point.row),
-    } }) orelse error.InvalidPoint;
-}
-
 fn anchorValid(terminal: *ghostty_vt.Terminal, anchor: TrackedAnchor) bool {
     if (terminal.screens.generation(anchor.screen_key) != anchor.screen_generation) return false;
     const screen = terminal.screens.get(anchor.screen_key) orelse return false;
@@ -1393,19 +868,6 @@ fn anchorValid(terminal: *ghostty_vt.Terminal, anchor: TrackedAnchor) bool {
 
 fn anchorValidScreen(screen: *ghostty_vt.Screen, anchor: TrackedAnchor) bool {
     return !anchor.pin.garbage and screen.pages.pointFromPin(.screen, anchor.pin.*) != null;
-}
-
-fn gestureAnchorValid(
-    terminal: *ghostty_vt.Terminal,
-    gesture: *const ghostty_vt.SelectionGesture,
-) bool {
-    const pin = gesture.validatedLeftClickPin(&terminal.screens) orelse return false;
-    return !pin.garbage and terminal.screens.active.pages.pointFromPin(.screen, pin.*) != null;
-}
-
-fn selectionScreenValid(terminal: *ghostty_vt.Terminal, state: *const AttachmentState) bool {
-    return terminal.screens.generation(state.selection_screen_key) == state.selection_screen_generation and
-        terminal.screens.get(state.selection_screen_key) != null;
 }
 
 fn sameHistoryEvent(left: HistoryEvent, right: HistoryEvent) bool {

@@ -99,9 +99,7 @@ fn parseTerminalInput(runtime: *terminal_runtime.TerminalRuntime, bytes: []const
 }
 
 fn inputEntryCount(runtime: *terminal_runtime.TerminalRuntime) usize {
-    runtime.input_mutex.lock();
-    defer runtime.input_mutex.unlock();
-    return runtime.input_entries.items.len;
+    return terminal_runtime.testing.inputQueueSnapshot(runtime).entry_count;
 }
 
 fn testClientId() core_module.ClientId {
@@ -4427,17 +4425,7 @@ fn expectContractSuccess(
 }
 
 fn publishedClientInputCount(runtime: *terminal_runtime.TerminalRuntime) usize {
-    runtime.input_mutex.lock();
-    defer runtime.input_mutex.unlock();
-    var count: usize = 0;
-    for (runtime.input_entries.items) |entry| {
-        if (entry.source == terminal_runtime.testing.InputSourceType.client and
-            entry.bytes != null)
-        {
-            count += 1;
-        }
-    }
-    return count;
+    return terminal_runtime.testing.inputQueueSnapshot(runtime).published_client_entries;
 }
 
 fn onlyTerminalFrame(outgoing: *const Outgoing) !protocol.FrameSummary {

@@ -7,7 +7,7 @@ const pty_process = @import("terminal-host-platform").process;
 const terminal_configuration = model.configuration;
 const terminal_geometry = model.geometry;
 const terminal_profile = @import("profile.zig");
-const terminal_runtime = @import("runtime.zig");
+const runtime_options = @import("runtime_options.zig");
 
 pub const Digest = [32]u8;
 
@@ -78,7 +78,7 @@ pub const RuntimePreparation = struct {
     configuration: terminal_configuration.Configuration,
     environment: []pty_process.EnvironmentDelta,
     process_launch: pty_process.Launch,
-    runtime_options: terminal_runtime.Options,
+    runtime_options: runtime_options.Options,
 
     pub fn deinit(self: *RuntimePreparation, allocator: std.mem.Allocator) void {
         allocator.free(self.environment);

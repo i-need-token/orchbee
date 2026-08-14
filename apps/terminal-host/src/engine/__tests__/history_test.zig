@@ -687,10 +687,30 @@ test "invalid gesture start leaves tracked state unchanged" {
         manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 0, 0, 0, false)),
     );
     const state = findState(&manager, attachment).?;
-    try std.testing.expect(state.gesture.left_click_pin == null);
-    try std.testing.expect(!state.gesture_active);
-    try std.testing.expect(state.selection == null);
+    try std.testing.expect(state.selection_state.gesture.left_click_pin == null);
+    try std.testing.expect(!state.selection_state.gesture_active);
+    try std.testing.expect(state.selection_state.selection == null);
     try std.testing.expectEqual(initial_pins, terminal.screens.active.pages.countTrackedPins());
+}
+
+test "selection validation precedes attachment lookup" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+
+    try std.testing.expectError(
+        error.StaleRevision,
+        manager.applySelectionCommand(&terminal, 2, 2, .{
+            .attachment_id = attachmentId(92),
+            .command = .clear,
+            .generation = 1,
+            .revision = 1,
+        }),
+    );
 }
 
 test "single click release clears selection without creating a one-cell range" {
@@ -786,8 +806,8 @@ test "gesture cancellation preserves selection and is idempotent" {
     try std.testing.expectEqual(selected.active.start.column, cancelled.active.start.column);
     try std.testing.expectEqual(selected.active.end.column, cancelled.active.end.column);
     const state = findState(&manager, attachment).?;
-    try std.testing.expect(state.gesture.left_click_pin == null);
-    try std.testing.expect(!state.gesture_active);
+    try std.testing.expect(state.selection_state.gesture.left_click_pin == null);
+    try std.testing.expect(!state.selection_state.gesture_active);
     const tracked_pins = terminal.screens.active.pages.countTrackedPins();
 
     const repeated = try manager.applyGesture(&terminal, 1, 1, gestureCancel(attachment));
@@ -953,8 +973,8 @@ test "gesture update and end require an active press" {
             manager.applyGesture(&terminal, 1, 1, request),
         );
         const state = findState(&manager, attachment).?;
-        try std.testing.expect(state.gesture.left_click_pin == null);
-        try std.testing.expect(!state.gesture_active);
+        try std.testing.expect(state.selection_state.gesture.left_click_pin == null);
+        try std.testing.expect(!state.selection_state.gesture_active);
     }
 }
 
@@ -1103,7 +1123,7 @@ test "invalid selection command preserves an active gesture" {
     const attachment = attachmentId(2);
     try manager.attach(attachment);
     _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 1, 0, 0, false));
-    const gesture_anchor = findState(&manager, attachment).?.gesture.left_click_pin.?;
+    const gesture_anchor = findState(&manager, attachment).?.selection_state.gesture.left_click_pin.?;
     const tracked_pins = terminal.screens.active.pages.countTrackedPins();
 
     try std.testing.expectError(
@@ -1116,9 +1136,9 @@ test "invalid selection command preserves an active gesture" {
         }),
     );
     const state = findState(&manager, attachment).?;
-    try std.testing.expectEqual(gesture_anchor, state.gesture.left_click_pin.?);
-    try std.testing.expect(state.gesture_active);
-    try std.testing.expect(state.selection == null);
+    try std.testing.expectEqual(gesture_anchor, state.selection_state.gesture.left_click_pin.?);
+    try std.testing.expect(state.selection_state.gesture_active);
+    try std.testing.expect(state.selection_state.selection == null);
     try std.testing.expectEqual(tracked_pins, terminal.screens.active.pages.countTrackedPins());
 }
 
@@ -1175,20 +1195,20 @@ test "screen changes invalidate anchors gesture selection and export" {
     const active_state = findState(&manager, attachment).?;
     try std.testing.expect(active_state.committed != null);
     try std.testing.expect(active_state.pending != null);
-    try std.testing.expect(active_state.gesture.left_click_pin != null);
-    try std.testing.expect(active_state.gesture_active);
-    try std.testing.expect(active_state.selection != null);
-    try std.testing.expect(active_state.export_state != null);
+    try std.testing.expect(active_state.selection_state.gesture.left_click_pin != null);
+    try std.testing.expect(active_state.selection_state.gesture_active);
+    try std.testing.expect(active_state.selection_state.selection != null);
+    try std.testing.expect(active_state.export_ledger.active != null);
 
     manager.screenChanged(&terminal);
 
     const invalidated = findState(&manager, attachment).?;
     try std.testing.expect(invalidated.committed == null);
     try std.testing.expect(invalidated.pending == null);
-    try std.testing.expect(invalidated.gesture.left_click_pin == null);
-    try std.testing.expect(!invalidated.gesture_active);
-    try std.testing.expect(invalidated.selection == null);
-    try std.testing.expect(invalidated.export_state == null);
+    try std.testing.expect(invalidated.selection_state.gesture.left_click_pin == null);
+    try std.testing.expect(!invalidated.selection_state.gesture_active);
+    try std.testing.expect(invalidated.selection_state.selection == null);
+    try std.testing.expect(invalidated.export_ledger.active == null);
     try std.testing.expect(invalidated.history_dirty);
     try std.testing.expect(invalidated.history_in_flight == null);
     try std.testing.expectEqual(initial_pins, terminal.screens.active.pages.countTrackedPins());
@@ -1260,8 +1280,8 @@ test "reflow generation preserves a valid tracked selection and cancels stale ex
     manager.generationChanged(&terminal, 2, 2);
 
     const state = findState(&manager, attachment).?;
-    try std.testing.expect(state.selection != null);
-    try std.testing.expect(state.export_state == null);
+    try std.testing.expect(state.selection_state.selection != null);
+    try std.testing.expect(state.export_ledger.active == null);
     try std.testing.expectEqual(
         SelectionSnapshot.active,
         std.meta.activeTag((try manager.takeSelectionEvent(attachment)).?),
@@ -1288,12 +1308,12 @@ test "selection eviction cancels an in-flight export" {
     });
     const started = try manager.startExport(&terminal, attachment, 9, .plain);
     const state = findState(&manager, attachment).?;
-    if (state.selection) |*selection| selection.startPtr().garbage = true;
+    if (state.selection_state.selection) |*selection| selection.startPtr().garbage = true;
 
     manager.noteMutation(&terminal, 2, 1);
 
-    try std.testing.expect(state.selection == null);
-    try std.testing.expect(state.export_state == null);
+    try std.testing.expect(state.selection_state.selection == null);
+    try std.testing.expect(state.export_ledger.active == null);
     try std.testing.expectEqual(
         SelectionSnapshot.evicted,
         std.meta.activeTag((try manager.takeSelectionEvent(attachment)).?),
@@ -1355,7 +1375,7 @@ test "repeated selection eviction preserves every queued export cancellation" {
     });
     const first_started = try manager.startExport(&terminal, attachment, 9, .plain);
     const state = findState(&manager, attachment).?;
-    if (state.selection) |*selection| selection.startPtr().garbage = true;
+    if (state.selection_state.selection) |*selection| selection.startPtr().garbage = true;
     manager.noteMutation(&terminal, 2, 1);
 
     _ = try manager.applySelectionCommand(&terminal, 2, 1, .{
@@ -1365,7 +1385,7 @@ test "repeated selection eviction preserves every queued export cancellation" {
         .revision = 2,
     });
     const second_started = try manager.startExport(&terminal, attachment, 10, .plain);
-    if (state.selection) |*selection| selection.startPtr().garbage = true;
+    if (state.selection_state.selection) |*selection| selection.startPtr().garbage = true;
     manager.noteMutation(&terminal, 3, 1);
 
     const first_cancellation = (try manager.takeSelectionExportCancellation(attachment)).?;
@@ -1460,7 +1480,7 @@ test "a final export chunk does not require another chunk sequence" {
     });
     _ = try manager.startExport(&terminal, attachment, 1, .plain);
     const state = findState(&manager, attachment).?;
-    state.export_state.?.chunk_sequence = std.math.maxInt(u32);
+    state.export_ledger.active.?.chunk_sequence = std.math.maxInt(u32);
     const chunk = (try manager.encodeNextExportChunk(std.testing.allocator, attachment)).?;
     defer std.testing.allocator.free(chunk.bytes);
     try std.testing.expectEqual(std.math.maxInt(u32), chunk.token.chunk_sequence);
@@ -1470,7 +1490,7 @@ test "a final export chunk does not require another chunk sequence" {
         std.math.maxInt(u32),
     )).?;
     try std.testing.expectEqual(@as(u64, 1), finished.export_sequence);
-    try std.testing.expect(state.export_state == null);
+    try std.testing.expect(state.export_ledger.active == null);
 }
 
 test "failed replacement rollback restores full invalidation history and cancellation FIFO" {
@@ -1493,7 +1513,7 @@ test "failed replacement rollback restores full invalidation history and cancell
     });
     const first_started = try manager.startExport(&terminal, attachment, 1, .plain);
     const state = findState(&manager, attachment).?;
-    if (state.selection) |*selection| selection.startPtr().garbage = true;
+    if (state.selection_state.selection) |*selection| selection.startPtr().garbage = true;
     manager.noteMutation(&terminal, 2, 1);
 
     _ = try manager.applySelectionCommand(&terminal, 2, 1, .{
@@ -1503,7 +1523,7 @@ test "failed replacement rollback restores full invalidation history and cancell
         .revision = 2,
     });
     const second_started = try manager.startExport(&terminal, attachment, 2, .plain);
-    if (state.selection) |*selection| selection.startPtr().garbage = true;
+    if (state.selection_state.selection) |*selection| selection.startPtr().garbage = true;
     manager.noteMutation(&terminal, 3, 1);
 
     _ = try manager.applySelectionCommand(&terminal, 3, 1, .{
@@ -1513,7 +1533,10 @@ test "failed replacement rollback restores full invalidation history and cancell
         .revision = 3,
     });
 
-    try std.testing.expectEqual(@as(usize, max_pending_export_cancellations), state.invalidated_export_count);
+    try std.testing.expectEqual(
+        @as(usize, max_pending_export_cancellations),
+        state.export_ledger.invalidated_count,
+    );
     const invalidation_history = try manager.snapshotInvalidatedExportHistory(attachment);
     try std.testing.expectEqual(@as(usize, max_pending_export_cancellations), invalidation_history.count);
     try std.testing.expectEqual(@as(u64, 1), invalidation_history.entries[0].export_sequence);
@@ -1536,11 +1559,14 @@ test "failed replacement rollback restores full invalidation history and cancell
         .plain,
     );
     const replacement = replacement_transaction.started;
-    if (state.selection) |*selection| selection.startPtr().garbage = true;
+    if (state.selection_state.selection) |*selection| selection.startPtr().garbage = true;
     manager.noteMutation(&terminal, 4, 1);
-    try std.testing.expectEqual(@as(u64, 3), state.invalidated_exports[1].export_sequence);
-    try std.testing.expectEqual(@as(usize, 1), state.pending_export_cancellation_count);
-    try std.testing.expectEqual(@as(u64, 3), state.pending_export_cancellations[0].export_sequence);
+    try std.testing.expectEqual(@as(u64, 3), state.export_ledger.invalidated[1].export_sequence);
+    try std.testing.expectEqual(@as(usize, 1), state.export_ledger.pending_cancellation_count);
+    try std.testing.expectEqual(
+        @as(u64, 3),
+        state.export_ledger.pending_cancellations[0].export_sequence,
+    );
 
     manager.rollbackExportStart(
         attachment,
@@ -1551,10 +1577,13 @@ test "failed replacement rollback restores full invalidation history and cancell
         invalidation_history,
     );
 
-    try std.testing.expect(state.export_state == null);
-    try std.testing.expectEqual(@as(usize, max_pending_export_cancellations), state.invalidated_export_count);
-    try std.testing.expectEqual(@as(u64, 1), state.invalidated_exports[0].export_sequence);
-    try std.testing.expectEqual(@as(u64, 2), state.invalidated_exports[1].export_sequence);
+    try std.testing.expect(state.export_ledger.active == null);
+    try std.testing.expectEqual(
+        @as(usize, max_pending_export_cancellations),
+        state.export_ledger.invalidated_count,
+    );
+    try std.testing.expectEqual(@as(u64, 1), state.export_ledger.invalidated[0].export_sequence);
+    try std.testing.expectEqual(@as(u64, 2), state.export_ledger.invalidated[1].export_sequence);
     const restored_first = (try manager.takeSelectionExportCancellation(attachment)).?;
     try std.testing.expectEqual(first_started.export_sequence, restored_first.export_sequence);
     try std.testing.expectEqual(first_started.byte_length, restored_first.byte_length);
@@ -1791,18 +1820,24 @@ test "THCR-029 replaying a completed export acknowledgement leaves a newer expor
     const second_chunk = (try manager.encodeNextExportChunk(std.testing.allocator, attachment)).?;
     defer std.testing.allocator.free(second_chunk.bytes);
     const state = findState(&manager, attachment).?;
-    const export_before = state.export_state.?;
+    const export_before = state.export_ledger.active.?;
 
     // Replaying export 7's final chunk acknowledgement is an idempotent no-op
     // while export 8 is in flight.
     try std.testing.expect((try manager.exportChunkApplied(attachment, 7, 0)) == null);
     try std.testing.expectEqual(
         export_before.export_sequence,
-        state.export_state.?.export_sequence,
+        state.export_ledger.active.?.export_sequence,
     );
-    try std.testing.expectEqual(export_before.next_offset, state.export_state.?.next_offset);
-    try std.testing.expectEqual(export_before.chunk_sequence, state.export_state.?.chunk_sequence);
-    try std.testing.expectEqual(export_before.chunk_in_flight, state.export_state.?.chunk_in_flight);
+    try std.testing.expectEqual(export_before.next_offset, state.export_ledger.active.?.next_offset);
+    try std.testing.expectEqual(
+        export_before.chunk_sequence,
+        state.export_ledger.active.?.chunk_sequence,
+    );
+    try std.testing.expectEqual(
+        export_before.chunk_in_flight,
+        state.export_ledger.active.?.chunk_in_flight,
+    );
 
     _ = (try manager.exportChunkApplied(attachment, 8, 0)).?;
 }

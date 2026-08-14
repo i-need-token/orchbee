@@ -10,27 +10,33 @@ const terminal_configuration = model.configuration;
 const terminal_geometry = model.geometry;
 const terminal_history = @import("history.zig");
 const terminal_input = @import("terminal-input");
+const terminal_input_ownership = @import("input_ownership.zig");
+const terminal_input_queue = @import("input_queue.zig");
 const terminal_input_encoding = @import("input_encoding.zig");
-const terminal_launch = @import("launch.zig");
 const terminal_profile = @import("profile.zig");
 const terminal_projection = @import("projection.zig");
+const terminal_runtime_completion = @import("runtime_completion.zig");
+const terminal_runtime_containment = @import("runtime_containment.zig");
+const terminal_runtime_launch = @import("runtime_launch.zig");
+const terminal_runtime_options = @import("runtime_options.zig");
+const terminal_runtime_startup = @import("runtime_startup.zig");
 const terminal_stream = @import("terminal_stream.zig");
 
-pub const pending_input_capacity_bytes = protocol.Limits.pending_input_bytes;
-const max_pending_client_input_entries = 4096;
+pub const pending_input_capacity_bytes = terminal_input_queue.client_capacity_bytes;
+const max_pending_client_input_entries = terminal_input_queue.client_capacity_entries;
 const max_pty_read_batch_bytes = protocol.Limits.pty_read_batch_bytes;
 // Terminal-generated protocol replies must not compete with client input for
 // admission. A bounded child can still exhaust its own reply budget, but a
 // legal full client queue cannot manufacture a terminal-integrity failure.
-const pending_terminal_reply_capacity_bytes = max_pty_read_batch_bytes;
-const max_pending_terminal_reply_entries = 4096;
-const max_pty_write_slice_bytes = 64 * 1024;
+const pending_terminal_reply_capacity_bytes = terminal_input_queue.terminal_reply_capacity_bytes;
+const max_pending_terminal_reply_entries = terminal_input_queue.terminal_reply_capacity_entries;
+const max_pty_write_slice_bytes = terminal_input_queue.writer_slice_bytes;
 // Terminal-generated replies keep priority within a bounded reply burst: the
 // writer yields to a waiting accepted client entry once this many reply slices
 // have been written in the current burst. Sustained reply work therefore
 // cannot starve accepted client input indefinitely; each slice is at most
 // max_pty_write_slice_bytes, so a burst is at most 4 MiB of reply work.
-const max_terminal_reply_burst_slices = 64;
+const max_terminal_reply_burst_slices = terminal_input_queue.terminal_reply_burst_slices;
 const max_process_containment_observations = 8;
 const process_containment_observation_delay_ns = 10 * std.time.ns_per_ms;
 const required_consecutive_containment_observations = 2;
@@ -42,239 +48,15 @@ pub const max_focus_encoded_bytes = terminal_input_encoding.max_focus_bytes;
 pub const ColorScheme = terminal_profile.ColorScheme;
 pub const TerminalProfile = terminal_profile.Profile;
 
-pub const Options = struct {
-    cell_pixel_height: u16 = 1,
-    cell_pixel_width: u16 = 1,
-    profile: ?TerminalProfile = null,
-    scrollback_bytes: usize = terminal_configuration.default_scrollback_bytes,
-};
+pub const Options = terminal_runtime_options.Options;
 
 pub const ProcessLaunch = pty_process.Launch;
 
-// A null runtime profile resolves to the Ghostty default at creation time
-// (terminalColors(null) and OwnedProfile.init(null)). The canonical launch
-// inspector requires a non-optional profile, so this valid stand-in is used
-// only to satisfy that inspection when no explicit profile was supplied; its
-// fields are never applied to the runtime.
-const validation_default_profile: terminal_profile.Profile = .{
-    .color_scheme = .dark,
-    .default_background_rgb = 0,
-    .default_cursor_rgb = null,
-    .default_foreground_rgb = 0xffffff,
-    .device_primary_conformance_level = 62,
-    .device_primary_features = &.{22},
-    .device_secondary_type = 1,
-    .device_secondary_firmware_version = 0,
-    .device_secondary_rom_cartridge = 0,
-    .device_tertiary_unit_id = 0,
-    .enquiry_response = "",
-    .palette = &[_]u32{0} ** 256,
-    .version_response = "Orchbee",
-};
-
-/// Raw runtime starts carry cell-pixel authority twice (the PTY launch and the
-/// runtime options). One canonical boundary resolves them before any Ghostty
-/// allocation or thread/process effect: a launch-supplied zero pixel dimension
-/// inherits the options value, and any explicitly supplied launch value must
-/// agree with the options value.
-fn resolveCellPixelDimension(launch_pixel: u16, options_pixel: u16) ?u16 {
-    if (launch_pixel == 0) return options_pixel;
-    if (launch_pixel != options_pixel) return null;
-    return launch_pixel;
-}
-
-const CheckedPreparation = struct {
-    process_launch: pty_process.Launch,
-    runtime_options: Options,
-};
-
-/// Every runtime start passes one canonical checked preparation boundary before
-/// allocation or spawn. The boundary reuses terminal_launch.inspect so raw and
-/// IPC creation share the same grid + pixel geometry, scrollback, profile,
-/// process-string, count, environment-name, and duplicate-name rules, including
-/// the target-operating-system environment identity.
-fn prepareCheckedLaunch(
-    allocator: std.mem.Allocator,
-    launch: pty_process.Launch,
-    options: Options,
-) (error{ InvalidLaunch, InvalidTerminalProfile } || std.mem.Allocator.Error)!CheckedPreparation {
-    if (options.profile) |profile| if (!terminal_profile.valid(profile)) {
-        return error.InvalidTerminalProfile;
-    };
-    const pixel_width = resolveCellPixelDimension(launch.cell_pixel_width, options.cell_pixel_width) orelse
-        return error.InvalidLaunch;
-    const pixel_height = resolveCellPixelDimension(launch.cell_pixel_height, options.cell_pixel_height) orelse
-        return error.InvalidLaunch;
-    const geometry: terminal_geometry.Geometry = .{
-        .cell_pixel_height = pixel_height,
-        .cell_pixel_width = pixel_width,
-        .columns = launch.columns,
-        .rows = launch.rows,
-    };
-    const configuration: terminal_configuration.Configuration = .{
-        .scrollback_bytes = options.scrollback_bytes,
-    };
-
-    const environment = try allocator.alloc(terminal_launch.EnvironmentEntry, launch.environment.len);
-    defer allocator.free(environment);
-    for (environment, launch.environment) |*target, source| {
-        target.* = .{ .name = source.name, .value = source.value };
-    }
-
-    const launch_to_inspect: terminal_launch.Launch = .{
-        .arguments = launch.arguments,
-        .configuration = configuration,
-        .current_directory = launch.current_directory,
-        .environment = environment,
-        .executable = launch.executable,
-        .geometry = geometry,
-        .profile = options.profile orelse validation_default_profile,
-    };
-    _ = try terminal_launch.inspect(allocator, launch_to_inspect);
-
-    return .{
-        .process_launch = .{
-            .arguments = launch.arguments,
-            .cell_pixel_height = pixel_height,
-            .cell_pixel_width = pixel_width,
-            .columns = geometry.columns,
-            .current_directory = launch.current_directory,
-            .environment = launch.environment,
-            .executable = launch.executable,
-            .rows = geometry.rows,
-            .stdin_fd = launch.stdin_fd,
-        },
-        .runtime_options = .{
-            .cell_pixel_height = pixel_height,
-            .cell_pixel_width = pixel_width,
-            .profile = options.profile,
-            .scrollback_bytes = options.scrollback_bytes,
-        },
-    };
-}
-
 const OwnedProfile = terminal_profile.Owned;
 
-const InputEntry = struct {
-    bytes: ?[]u8 = null,
-    identifier: u64,
-    offset: usize = 0,
-    reserved_bytes: usize,
-    source: InputSource,
-};
-
-const InputReservation = struct {
-    identifier: u64,
-    reserved_bytes: usize,
-};
-
-const InputSource = enum {
-    client,
-    terminal,
-};
-
-const OwnedKeyInput = struct {
-    composing: bool,
-    consumed_modifiers: terminal_input.Modifiers,
-    key: ghostty_vt.input.Key,
-    modifiers: terminal_input.Modifiers,
-    text: []u8,
-    unshifted_codepoint: u21,
-
-    fn deinit(self: *OwnedKeyInput, allocator: std.mem.Allocator) void {
-        allocator.free(self.text);
-        self.* = undefined;
-    }
-
-    fn release(self: OwnedKeyInput) terminal_input.KeyInput {
-        return .{
-            .action = .release,
-            .composing = self.composing,
-            .consumed_modifiers = self.consumed_modifiers,
-            .key = self.key.w3c(),
-            .modifiers = self.modifiers,
-            .text = self.text,
-            .unshifted_codepoint = self.unshifted_codepoint,
-        };
-    }
-};
-
-const mouse_button_count = @typeInfo(terminal_input.MouseButton).@"enum".fields.len;
-
-const AttachmentInputOwnership = struct {
-    detaching: bool = false,
-    keys: std.ArrayList(OwnedKeyInput) = .empty,
-    mouse_order: [mouse_button_count]terminal_input.MouseButton = undefined,
-    mouse_order_len: usize = 0,
-    mouse_sample: ?terminal_input.MouseInput = null,
-    pending_key_slots: usize = 0,
-
-    fn deinit(self: *AttachmentInputOwnership, allocator: std.mem.Allocator) void {
-        for (self.keys.items) |*key| key.deinit(allocator);
-        self.keys.deinit(allocator);
-        self.* = undefined;
-    }
-
-    fn keyIndex(self: *const AttachmentInputOwnership, key: ghostty_vt.input.Key) ?usize {
-        for (self.keys.items, 0..) |owned, index| {
-            if (owned.key == key) return index;
-        }
-        return null;
-    }
-
-    fn mouseIndex(
-        self: *const AttachmentInputOwnership,
-        button: terminal_input.MouseButton,
-    ) ?usize {
-        for (self.mouse_order[0..self.mouse_order_len], 0..) |owned, index| {
-            if (owned == button) return index;
-        }
-        return null;
-    }
-
-    fn mouseButtons(self: *const AttachmentInputOwnership) terminal_input.MouseButtons {
-        var buttons: terminal_input.MouseButtons = .{};
-        for (self.mouse_order[0..self.mouse_order_len]) |button| {
-            setMouseButton(&buttons, button, true);
-        }
-        return buttons;
-    }
-
-    fn repairBytes(self: *const AttachmentInputOwnership) usize {
-        return self.keys.items.len * max_key_encoded_bytes +
-            self.mouse_order_len * max_mouse_encoded_bytes;
-    }
-
-    fn repairEntries(self: *const AttachmentInputOwnership) usize {
-        return @intFromBool(self.keys.items.len != 0 or self.mouse_order_len != 0);
-    }
-};
-
-const AttachmentInputMutation = union(enum) {
-    detach,
-    key_release: ghostty_vt.input.Key,
-    key_retain: OwnedKeyInput,
-    mouse: terminal_input.MouseInput,
-
-    fn deinit(self: *AttachmentInputMutation, allocator: std.mem.Allocator) void {
-        switch (self.*) {
-            .key_retain => |*key| key.deinit(allocator),
-            .detach, .key_release, .mouse => {},
-        }
-        self.* = undefined;
-    }
-};
-
-const PreparedInputOwnership = struct {
-    attachment_id: AttachmentId,
-    key_slot_reserved: bool = false,
-    mutation: AttachmentInputMutation,
-
-    fn deinit(self: *PreparedInputOwnership, allocator: std.mem.Allocator) void {
-        self.mutation.deinit(allocator);
-        self.* = undefined;
-    }
-};
+const InputReservation = terminal_input_queue.Reservation;
+const InputSource = terminal_input_queue.Source;
+const PreparedInputOwnership = terminal_input_ownership.PreparedMutation;
 
 const ReaderBatchOutcome = enum {
     committed,
@@ -288,13 +70,7 @@ const ReadCommitCheckpoint = enum {
     locked,
 };
 
-const FirstContainmentAttempt = enum(u8) {
-    none,
-    engine_pending,
-    host_pending,
-    host_running,
-    done,
-};
+const FirstContainmentAttempt = terminal_runtime_containment.FirstAttempt;
 
 const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     abort_read: ?*const fn (*anyopaque) anyerror!void = null,
@@ -320,12 +96,7 @@ const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     writer_slice_started: ?*const fn (*anyopaque) void = null,
 } else struct {};
 
-const WriterSlice = struct {
-    identifier: u64,
-    length: usize,
-    offset: usize,
-    source: InputSource,
-};
+const WriterSlice = terminal_input_queue.WriterSlice;
 
 const WriterSliceStart = enum {
     started,
@@ -333,53 +104,7 @@ const WriterSliceStart = enum {
     ownership_lost,
 };
 
-const InputCharge = struct {
-    bytes: usize = 0,
-    entries: usize = 0,
-};
-
-fn inputCapacityBytes(source: InputSource) usize {
-    return switch (source) {
-        .client => pending_input_capacity_bytes,
-        .terminal => pending_terminal_reply_capacity_bytes,
-    };
-}
-
-fn inputCapacityEntries(source: InputSource) usize {
-    return switch (source) {
-        .client => max_pending_client_input_entries,
-        .terminal => max_pending_terminal_reply_entries,
-    };
-}
-
-/// Terminal protocol replies are selected before client bytes at each bounded
-/// write slice within a full reply burst. Relative order remains FIFO within
-/// each source. A pending reply reservation blocks another client slice until
-/// its allocation is either published or cancelled.
-fn nextWritableInputEntry(entries: []const InputEntry) ?usize {
-    return selectWritableInputEntry(entries, max_terminal_reply_burst_slices);
-}
-
-/// Budget-aware writer selection. Terminal-generated replies retain priority
-/// while the reply burst has budget; once the burst is exhausted the writer
-/// yields to a waiting accepted client entry so sustained reply work cannot
-/// starve client input indefinitely. Replies still make progress when no client
-/// entry is waiting, and a pending reply reservation (bytes == null) blocks the
-/// next slice until its allocation is published or cancelled.
-fn selectWritableInputEntry(
-    entries: []const InputEntry,
-    terminal_reply_burst_remaining: usize,
-) ?usize {
-    for (entries, 0..) |entry, index| {
-        if (entry.source != .terminal) continue;
-        if (entry.bytes == null) return null;
-        if (terminal_reply_burst_remaining == 0 and
-            entries[0].bytes != null and entries[0].source == .client) return 0;
-        return index;
-    }
-    if (entries.len == 0 or entries[0].bytes == null) return null;
-    return 0;
-}
+const InputCharge = terminal_input_queue.Charge;
 
 pub const KeyInput = terminal_input.KeyInput;
 pub const MouseInput = terminal_input.MouseInput;
@@ -450,12 +175,6 @@ const SystemThreadSpawner = struct {
     }
 };
 
-const RuntimeStartupState = enum {
-    pending,
-    ready,
-    aborted,
-};
-
 pub const Geometry = struct {
     cell_pixel_height: u16,
     cell_pixel_width: u16,
@@ -481,71 +200,16 @@ pub const TerminalControlUpdate = struct {
     revision: u64,
 };
 
-pub const RuntimeFailureKind = enum(u8) {
-    process_observation = 1,
-    pty_read = 2,
-    pty_write = 3,
-    resize = 4,
-    terminal_reply = 5,
-    worker_integrity = 6,
-};
+pub const RuntimeFailureKind = terminal_runtime_completion.FailureKind;
 
 pub const HostFailureFenceResult = union(enum) {
     host_won,
     engine_won: RuntimeFailureKind,
 };
 
-pub const CompletionState = union(enum) {
-    pending,
-    normal,
-    failed: RuntimeFailureKind,
-};
-
-const normal_completion_classification = std.math.maxInt(u8);
-
-const CompletionClassification = struct {
-    code: std.atomic.Value(u8) = .init(0),
-
-    fn load(self: *const CompletionClassification) CompletionState {
-        const code = self.code.load(.acquire);
-        if (code == 0) return .pending;
-        if (code == normal_completion_classification) return .normal;
-        return .{ .failed = @enumFromInt(code) };
-    }
-
-    fn markFailure(
-        self: *CompletionClassification,
-        failure: RuntimeFailureKind,
-    ) void {
-        var observed = self.code.load(.acquire);
-        while (observed == 0) {
-            observed = self.code.cmpxchgWeak(
-                observed,
-                @intFromEnum(failure),
-                .acq_rel,
-                .acquire,
-            ) orelse return;
-        }
-    }
-
-    fn markNormal(self: *CompletionClassification) bool {
-        return self.code.cmpxchgStrong(
-            0,
-            normal_completion_classification,
-            .acq_rel,
-            .acquire,
-        ) == null;
-    }
-};
-
-pub const Completion = struct {
-    child_exited: bool,
-    classification: CompletionState = .pending,
-    exit_result: ?pty_process.ExitResult,
-    final_revision: u64,
-    pty_drained: bool,
-    writer_stopped: bool = false,
-};
+pub const CompletionState = terminal_runtime_completion.State;
+const CompletionClassification = terminal_runtime_completion.Classification;
+pub const Completion = terminal_runtime_completion.Snapshot;
 
 /// Semantic owner-cleanup failures. Platform errors are classified at this
 /// boundary so HostCore never has to infer which shutdown phase failed.
@@ -645,10 +309,7 @@ pub const PreparedAttachment = struct {
         }
         if (self.input_state_reserved) {
             self.runtime.input_mutex.lock();
-            self.runtime.attachment_input_ownership.putAssumeCapacityNoClobber(
-                self.attachment_id,
-                .{},
-            );
+            self.runtime.input_ownership.commitAttachment(self.attachment_id);
             self.runtime.input_mutex.unlock();
         }
         self.runtime.terminal_mutex.unlock();
@@ -693,31 +354,17 @@ pub const TerminalRuntime = struct {
     // A successful engine fence winner owns the first bounded containment
     // attempt. A Host-originated fence reserves that attempt for Host cleanup;
     // later Host retries wait for an engine_pending owner to publish done.
-    first_containment_attempt: std.atomic.Value(FirstContainmentAttempt) =
-        .init(.none),
-    first_containment_condition: std.Thread.Condition = .{},
-    first_containment_mutex: std.Thread.Mutex = .{},
+    first_containment_attempt: terminal_runtime_containment.FirstAttemptGate = .{},
     generation: u64 = 1,
     history: terminal_history.Manager,
-    attachment_input_ownership: std.AutoArrayHashMap(
-        AttachmentId,
-        AttachmentInputOwnership,
-    ),
-    attachment_input_repair_charge: InputCharge = .{},
+    input_ownership: terminal_input_ownership.Ledger,
     // input_mutex and input_condition protect attachment input ownership,
     // queue order, charged bytes, reservation identifiers, the writer stop
     // transition, and completion notifications that must not be missed between
     // a predicate check and wait.
-    client_input_charge: InputCharge = .{},
     input_condition: std.Thread.Condition = .{},
-    input_entries: std.ArrayList(InputEntry) = .empty,
+    input_queue: terminal_input_queue.Queue,
     input_mutex: std.Thread.Mutex = .{},
-    input_next_identifier: u64 = 1,
-    terminal_reply_charge: InputCharge = .{},
-    // Reply-burst budget remaining before the writer yields to a waiting
-    // accepted client entry. Only the writer thread mutates it, under
-    // input_mutex.
-    terminal_reply_burst_remaining: usize = max_terminal_reply_burst_slices,
     // Distinguishes an owner-requested read interruption from a normal PTY EOF.
     // Only the reader may publish pty_drained, and only after a non-aborted EOF.
     output_abort_requested: std.atomic.Value(bool) = .init(false),
@@ -758,9 +405,7 @@ pub const TerminalRuntime = struct {
     reader_commit_in_progress: bool = false,
     stream: terminal_stream.Stream,
     scrollback_bytes: usize,
-    startup_condition: std.Thread.Condition = .{},
-    startup_mutex: std.Thread.Mutex = .{},
-    startup_state: RuntimeStartupState = .pending,
+    startup: terminal_runtime_startup.Gate = .{},
     terminal: ghostty_vt.Terminal,
     // terminal_mutex protects terminal parsing, history, generation, scrollback,
     // and cell geometry as one state transition.
@@ -798,7 +443,7 @@ pub const TerminalRuntime = struct {
         options: Options,
         spawner: anytype,
     ) !*TerminalRuntime {
-        const checked = try prepareCheckedLaunch(allocator, launch, options);
+        const checked = try terminal_runtime_launch.prepare(allocator, launch, options);
         const resolved_launch = checked.process_launch;
         const resolved_options = checked.runtime_options;
 
@@ -825,8 +470,9 @@ pub const TerminalRuntime = struct {
 
         self.* = .{
             .allocator = allocator,
-            .attachment_input_ownership = .init(allocator),
             .cell_pixel_height = resolved_options.cell_pixel_height,
+            .input_queue = .init(allocator),
+            .input_ownership = .init(allocator),
             .cell_pixel_width = resolved_options.cell_pixel_width,
             .process = undefined,
             .profile = resources.profile,
@@ -858,7 +504,7 @@ pub const TerminalRuntime = struct {
         self.writer_thread = try spawner.spawn(writerThread, self);
         self.process = try pty_process.Process.spawn(allocator, resolved_launch);
         self.process.registerReaderThread(self.reader_thread.?.getHandle());
-        self.finishStartup(.ready);
+        self.startup.ready();
         return self;
     }
 
@@ -867,38 +513,17 @@ pub const TerminalRuntime = struct {
         // thread start or process spawn therefore has no child owned by this
         // partially-constructed runtime; wake and join only the workers that
         // were successfully created.
-        self.finishStartup(.aborted);
+        self.startup.abort();
         if (self.wait_thread) |thread| thread.join();
         if (self.reader_thread) |thread| thread.join();
         if (self.writer_thread) |thread| thread.join();
         self.stream.deinit();
         self.history.deinit(&self.terminal);
-        self.deinitAttachmentInputOwnership();
+        self.input_ownership.deinit();
         self.terminal.deinit(self.allocator);
-        for (self.input_entries.items) |entry| {
-            if (entry.bytes) |bytes| self.allocator.free(bytes);
-        }
-        self.input_entries.deinit(self.allocator);
+        self.input_queue.deinit();
         self.profile.deinit(self.allocator);
         self.projection.deinit();
-    }
-
-    fn finishStartup(self: *TerminalRuntime, state: RuntimeStartupState) void {
-        std.debug.assert(state != .pending);
-        self.startup_mutex.lock();
-        std.debug.assert(self.startup_state == .pending);
-        self.startup_state = state;
-        self.startup_condition.broadcast();
-        self.startup_mutex.unlock();
-    }
-
-    fn awaitStartup(self: *TerminalRuntime) bool {
-        self.startup_mutex.lock();
-        defer self.startup_mutex.unlock();
-        while (self.startup_state == .pending) {
-            self.startup_condition.wait(&self.startup_mutex);
-        }
-        return self.startup_state == .ready;
     }
 
     fn processTreeAlreadyContained(self: *TerminalRuntime) !bool {
@@ -964,14 +589,11 @@ pub const TerminalRuntime = struct {
         self: *TerminalRuntime,
         expected: FirstContainmentAttempt,
     ) void {
-        self.first_containment_mutex.lock();
-        std.debug.assert(self.first_containment_attempt.load(.acquire) == expected);
-        self.first_containment_attempt.store(.done, .release);
-        self.first_containment_condition.broadcast();
-        self.first_containment_mutex.unlock();
+        self.first_containment_attempt.complete(expected);
     }
 
-    fn notifyHostContainmentWaiting(self: *TerminalRuntime) void {
+    fn notifyHostContainmentWaiting(context: *anyopaque) void {
+        const self: *TerminalRuntime = @ptrCast(@alignCast(context));
         if (comptime target_builtin.is_test) {
             if (self.testing_hooks.host_containment_waiting) |notify| {
                 notify(self.testing_hooks.context.?);
@@ -984,32 +606,10 @@ pub const TerminalRuntime = struct {
     /// input_mutex; a completed engine attempt turns every Host call into a
     /// retry rather than allowing Host to overtake it.
     fn awaitFirstContainmentAttempt(self: *TerminalRuntime) bool {
-        while (true) {
-            self.first_containment_mutex.lock();
-            switch (self.first_containment_attempt.load(.acquire)) {
-                .none, .done => {
-                    self.first_containment_mutex.unlock();
-                    return false;
-                },
-                .host_pending => {
-                    self.first_containment_attempt.store(.host_running, .release);
-                    self.first_containment_mutex.unlock();
-                    return true;
-                },
-                .engine_pending, .host_running => {
-                    self.first_containment_mutex.unlock();
-                    self.notifyHostContainmentWaiting();
-                    self.first_containment_mutex.lock();
-                    while (switch (self.first_containment_attempt.load(.acquire)) {
-                        .engine_pending, .host_running => true,
-                        .none, .host_pending, .done => false,
-                    }) {
-                        self.first_containment_condition.wait(&self.first_containment_mutex);
-                    }
-                    self.first_containment_mutex.unlock();
-                },
-            }
-        }
+        return self.first_containment_attempt.awaitHost(
+            self,
+            notifyHostContainmentWaiting,
+        );
     }
 
     fn stopIoForShutdown(self: *TerminalRuntime) void {
@@ -1100,9 +700,8 @@ pub const TerminalRuntime = struct {
         self.history.deinit(&self.terminal);
         self.terminal.deinit(self.allocator);
         self.input_mutex.lock();
-        self.deinitAttachmentInputOwnership();
-        for (self.input_entries.items) |entry| if (entry.bytes) |bytes| self.allocator.free(bytes);
-        self.input_entries.deinit(self.allocator);
+        self.input_ownership.deinit();
+        self.input_queue.deinit();
         self.input_mutex.unlock();
         self.profile.deinit(self.allocator);
         self.projection.deinit();
@@ -1180,11 +779,11 @@ pub const TerminalRuntime = struct {
         if (failure) |classification| {
             self.completion_classification.markFailure(classification);
         }
-        std.debug.assert(self.first_containment_attempt.load(.acquire) == .none);
-        self.first_containment_attempt.store(
-            if (failure == null) .host_pending else .engine_pending,
-            .release,
-        );
+        if (failure == null) {
+            self.first_containment_attempt.reserveHost();
+        } else {
+            self.first_containment_attempt.reserveEngine();
+        }
         self.input_condition.broadcast();
         return true;
     }
@@ -1574,8 +1173,6 @@ pub const TerminalRuntime = struct {
         attachment_id: AttachmentId,
     ) !PreparedInput {
         if (self.child_exited.load(.acquire)) return error.TerminalExited;
-        var encoded: std.ArrayList(u8) = .empty;
-        defer encoded.deinit(self.allocator);
         self.terminal_mutex.lock();
         defer self.terminal_mutex.unlock();
         try self.ensureRuntimeWorkAvailableLocked();
@@ -1583,67 +1180,33 @@ pub const TerminalRuntime = struct {
 
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
-        const ownership = self.attachment_input_ownership.getPtr(attachment_id) orelse
-            return error.MissingAttachment;
-        if (ownership.detaching) return error.MissingAttachment;
-        ownership.detaching = true;
-        errdefer ownership.detaching = false;
-
-        var key_buffer: [max_key_encoded_bytes]u8 = undefined;
-        for (ownership.keys.items) |key| {
-            const release = try terminal_input_encoding.encodeKey(
-                &key_buffer,
-                &self.terminal,
-                key.key,
-                key.release(),
-            );
-            try appendAttachmentRepairBytes(&encoded, self.allocator, release);
+        var repair = try self.input_ownership.prepareRepair(
+            self.allocator,
+            attachment_id,
+            &self.terminal,
+            self.cell_pixel_width,
+            self.cell_pixel_height,
+        );
+        errdefer {
+            if (repair.bytes) |bytes| self.allocator.free(bytes);
+            self.input_ownership.cancelPrepared(&repair.ownership);
         }
-
-        var pressed_buttons = ownership.mouseButtons();
-        if (ownership.mouse_sample) |sample| {
-            var mouse_buffer: [max_mouse_encoded_bytes]u8 = undefined;
-            for (ownership.mouse_order[0..ownership.mouse_order_len]) |button| {
-                setMouseButton(&pressed_buttons, button, false);
-                var release = sample;
-                release.action = .{ .release = button };
-                release.pressed_buttons = pressed_buttons;
-                const bytes = try terminal_input_encoding.encodeMouse(
-                    &mouse_buffer,
-                    &self.terminal,
-                    self.cell_pixel_width,
-                    self.cell_pixel_height,
-                    release,
-                );
-                try appendAttachmentRepairBytes(&encoded, self.allocator, bytes);
-            }
-        }
-
-        const bytes = if (encoded.items.len == 0)
-            null
-        else
-            try encoded.toOwnedSlice(self.allocator);
-        errdefer if (bytes) |owned| self.allocator.free(owned);
-        const reservation = if (bytes) |owned|
+        const reservation = if (repair.bytes) |owned|
             try self.reserveAttachmentRepairInputLocked(attachment_id, owned.len)
         else
             null;
-        var prepared: PreparedInput = .{
-            .bytes = bytes,
+        return .{
+            .bytes = repair.bytes,
+            .ownership = repair.ownership,
             .reservation = reservation,
             .runtime = self,
         };
-        prepared.ownership = .{
-            .attachment_id = attachment_id,
-            .mutation = .detach,
-        };
-        return prepared;
     }
 
     pub fn pendingInputBytes(self: *TerminalRuntime) usize {
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
-        return self.client_input_charge.bytes + self.terminal_reply_charge.bytes;
+        return self.input_queue.pendingBytes();
     }
 
     pub fn takeWrittenBytes(self: *TerminalRuntime) usize {
@@ -2159,7 +1722,7 @@ pub const TerminalRuntime = struct {
         }
         if (requires_runtime_work) {
             self.input_mutex.lock();
-            self.attachment_input_ownership.ensureUnusedCapacity(1) catch |err| {
+            self.input_ownership.ensureAttachmentCapacity() catch |err| {
                 self.input_mutex.unlock();
                 return err;
             };
@@ -2505,100 +2068,15 @@ pub const TerminalRuntime = struct {
         attachment_id: AttachmentId,
         input: terminal_input.SemanticInput,
     ) !?PreparedInputOwnership {
-        var mutation: AttachmentInputMutation = switch (input) {
-            .key => |value| key: {
-                const key = try terminal_input_encoding.parseKey(value.key);
-                if (value.action == .release) break :key .{ .key_release = key };
-                const text = try self.allocator.dupe(u8, value.text);
-                errdefer self.allocator.free(text);
-                break :key .{ .key_retain = .{
-                    .composing = value.composing,
-                    .consumed_modifiers = value.consumed_modifiers,
-                    .key = key,
-                    .modifiers = value.modifiers,
-                    .text = text,
-                    .unshifted_codepoint = value.unshifted_codepoint,
-                } };
-            },
-            .mouse => |value| .{ .mouse = value },
-            .focus, .paste, .text => return null,
-        };
+        var mutation = try terminal_input_ownership.mutationForInput(
+            self.allocator,
+            input,
+        ) orelse return null;
         errdefer mutation.deinit(self.allocator);
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
-        const ownership = self.attachment_input_ownership.getPtr(attachment_id) orelse
-            return error.MissingAttachment;
-        if (ownership.detaching) return error.MissingAttachment;
-        var key_slot_reserved = false;
-        switch (mutation) {
-            .key_retain => {
-                try ownership.keys.ensureUnusedCapacity(
-                    self.allocator,
-                    ownership.pending_key_slots + 1,
-                );
-                ownership.pending_key_slots += 1;
-                key_slot_reserved = true;
-            },
-            .detach, .key_release, .mouse => {},
-        }
-        return .{
-            .attachment_id = attachment_id,
-            .key_slot_reserved = key_slot_reserved,
-            .mutation = mutation,
-        };
-    }
-
-    fn commitAttachmentInputMutationLocked(
-        self: *TerminalRuntime,
-        pending: PreparedInputOwnership,
-    ) void {
-        const mutation = pending.mutation;
-        const ownership = self.attachment_input_ownership.getPtr(pending.attachment_id) orelse
-            unreachable;
-        if (pending.key_slot_reserved) {
-            std.debug.assert(ownership.pending_key_slots > 0);
-            ownership.pending_key_slots -= 1;
-        }
-        const previous_repair_bytes = ownership.repairBytes();
-        const previous_repair_entries = ownership.repairEntries();
-        switch (mutation) {
-            .detach => {
-                self.updateAttachmentRepairChargeLocked(
-                    previous_repair_bytes,
-                    previous_repair_entries,
-                    0,
-                    0,
-                );
-                var removed = self.attachment_input_ownership.fetchSwapRemove(
-                    pending.attachment_id,
-                ).?;
-                removed.value.deinit(self.allocator);
-            },
-            .key_release => |key| {
-                if (ownership.keyIndex(key)) |index| {
-                    var removed = ownership.keys.orderedRemove(index);
-                    removed.deinit(self.allocator);
-                }
-            },
-            .key_retain => |key| {
-                if (ownership.keyIndex(key.key)) |index| {
-                    ownership.keys.items[index].deinit(self.allocator);
-                    ownership.keys.items[index] = key;
-                } else {
-                    ownership.keys.appendAssumeCapacity(key);
-                }
-            },
-            .mouse => |mouse| commitMouseOwnership(ownership, mouse),
-        }
-        switch (mutation) {
-            .detach => {},
-            .key_release, .key_retain, .mouse => self.updateAttachmentRepairChargeLocked(
-                previous_repair_bytes,
-                previous_repair_entries,
-                ownership.repairBytes(),
-                ownership.repairEntries(),
-            ),
-        }
+        const prepared = try self.input_ownership.reserveMutation(attachment_id, &mutation);
+        return prepared;
     }
 
     fn cancelPreparedInputOwnership(
@@ -2606,18 +2084,8 @@ pub const TerminalRuntime = struct {
         pending: *PreparedInputOwnership,
     ) void {
         self.input_mutex.lock();
-        if (self.attachment_input_ownership.getPtr(pending.attachment_id)) |ownership| {
-            if (pending.key_slot_reserved) {
-                std.debug.assert(ownership.pending_key_slots > 0);
-                ownership.pending_key_slots -= 1;
-            }
-            switch (pending.mutation) {
-                .detach => ownership.detaching = false,
-                .key_release, .key_retain, .mouse => {},
-            }
-        }
+        self.input_ownership.cancelPrepared(pending);
         self.input_mutex.unlock();
-        pending.deinit(self.allocator);
     }
 
     fn hasAttachmentInputOwnership(
@@ -2626,7 +2094,7 @@ pub const TerminalRuntime = struct {
     ) bool {
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
-        return self.attachment_input_ownership.contains(attachment_id);
+        return self.input_ownership.contains(attachment_id);
     }
 
     fn discardAttachmentInputOwnership(
@@ -2635,16 +2103,7 @@ pub const TerminalRuntime = struct {
     ) void {
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
-        if (self.attachment_input_ownership.fetchSwapRemove(attachment_id)) |removed_value| {
-            var removed = removed_value.value;
-            self.updateAttachmentRepairChargeLocked(
-                removed.repairBytes(),
-                removed.repairEntries(),
-                0,
-                0,
-            );
-            removed.deinit(self.allocator);
-        }
+        self.input_ownership.discard(attachment_id);
     }
 
     fn failAttachmentInputRepair(
@@ -2663,14 +2122,6 @@ pub const TerminalRuntime = struct {
         }
         self.discardAttachmentInputOwnership(attachment_id);
         if (!runtime_already_closed) self.recordWorkerIntegrityFailure();
-    }
-
-    fn deinitAttachmentInputOwnership(self: *TerminalRuntime) void {
-        for (self.attachment_input_ownership.values()) |*ownership| {
-            ownership.deinit(self.allocator);
-        }
-        self.attachment_input_ownership.deinit();
-        self.attachment_input_repair_charge = .{};
     }
 
     fn prepareEncodedInputLocked(
@@ -2736,32 +2187,22 @@ pub const TerminalRuntime = struct {
         if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
         if (self.writer_stop) return error.TerminalExited;
         if (source == .client and self.client_input_closed) return error.TerminalExited;
-        const capacity_bytes = inputCapacityBytes(source);
-        const capacity_entries = inputCapacityEntries(source);
-        if (byte_count > capacity_bytes) return error.InputBackpressure;
-        const charge = self.inputCharge(source);
-        while (byte_count > capacity_bytes -| charge.bytes -|
-            self.inputRepairCharge(source).bytes or
-            charge.entries + self.inputRepairCharge(source).entries >= capacity_entries)
-        {
+        while (!self.input_queue.hasCapacity(
+            byte_count,
+            source,
+            self.inputRepairCharge(source),
+        )) {
             if (!wait) return error.InputBackpressure;
             self.input_condition.wait(&self.input_mutex);
             if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
             if (self.writer_stop) return error.TerminalExited;
             if (source == .client and self.client_input_closed) return error.TerminalExited;
         }
-        const identifier = self.input_next_identifier;
-        if (identifier == std.math.maxInt(u64)) return error.InputSequenceExhausted;
-        try self.input_entries.ensureUnusedCapacity(self.allocator, 1);
-        self.input_entries.appendAssumeCapacity(.{
-            .identifier = identifier,
-            .reserved_bytes = byte_count,
-            .source = source,
-        });
-        self.input_next_identifier = identifier + 1;
-        charge.bytes += byte_count;
-        charge.entries += 1;
-        return .{ .identifier = identifier, .reserved_bytes = byte_count };
+        return self.input_queue.reserve(
+            byte_count,
+            source,
+            self.inputRepairCharge(source),
+        );
     }
 
     fn reserveAttachmentRepairInputLocked(
@@ -2771,26 +2212,8 @@ pub const TerminalRuntime = struct {
     ) !InputReservation {
         if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
         if (self.writer_stop or self.client_input_closed) return error.TerminalExited;
-        const ownership = self.attachment_input_ownership.getPtr(attachment_id) orelse
-            return error.MissingAttachment;
-        std.debug.assert(ownership.detaching);
-        if (byte_count > ownership.repairBytes()) return error.InputLimitExceeded;
-        if (self.input_next_identifier == std.math.maxInt(u64)) {
-            return error.InputSequenceExhausted;
-        }
-        try self.input_entries.ensureUnusedCapacity(self.allocator, 1);
-        const identifier = self.input_next_identifier;
-        self.input_entries.appendAssumeCapacity(.{
-            .identifier = identifier,
-            .reserved_bytes = byte_count,
-            .source = .client,
-        });
-        self.input_next_identifier = identifier + 1;
-        self.client_input_charge.bytes += byte_count;
-        self.client_input_charge.entries += 1;
-        std.debug.assert(self.client_input_charge.bytes <= pending_input_capacity_bytes);
-        std.debug.assert(self.client_input_charge.entries <= max_pending_client_input_entries);
-        return .{ .identifier = identifier, .reserved_bytes = byte_count };
+        try self.input_ownership.validateRepairReservation(attachment_id, byte_count);
+        return self.input_queue.reservePrechargedClient(byte_count);
     }
 
     fn validatePreparedInputCommit(
@@ -2821,179 +2244,72 @@ pub const TerminalRuntime = struct {
     ) !void {
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
-        for (self.input_entries.items, 0..) |*entry, index| {
-            if (entry.identifier != reservation.identifier) continue;
-            std.debug.assert(entry.bytes == null);
-            std.debug.assert(bytes.len <= reservation.reserved_bytes);
-            // Root exit closes client admission under this same mutex. A client
-            // reservation prepared while running must still be rejected at this
-            // final publication boundary, even while a PTY-holding descendant
-            // keeps writer_stop false. child_exited is the running-to-finishing
-            // fact itself; including it closes the window before closeClientInput
-            // publishes. Terminal-generated replies remain publishable until the
-            // writer actually stops.
-            if (self.failure_fenced or self.writer_stop or
-                (entry.source == .client and
-                    (self.client_input_closed or self.child_exited.load(.acquire))))
-            {
-                self.releaseInputCharge(entry.*);
-                _ = self.input_entries.orderedRemove(index);
-                self.allocator.free(bytes);
-                self.input_condition.broadcast();
-                if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
-                return error.TerminalExited;
-            }
-            self.validatePreparedInputOwnershipLocked(ownership.*) catch |err| {
-                self.releaseInputCharge(entry.*);
-                _ = self.input_entries.orderedRemove(index);
-                self.allocator.free(bytes);
-                self.input_condition.broadcast();
-                return err;
-            };
-            self.inputCharge(entry.source).bytes -= reservation.reserved_bytes - bytes.len;
-            if (bytes.len == 0) {
-                self.inputCharge(entry.source).entries -= 1;
-                _ = self.input_entries.orderedRemove(index);
-                self.allocator.free(bytes);
-                self.commitPreparedInputOwnershipLocked(ownership);
-                self.input_condition.broadcast();
-                return;
-            }
-            entry.reserved_bytes = bytes.len;
-            entry.bytes = bytes;
-            self.commitPreparedInputOwnershipLocked(ownership);
+        const source = self.input_queue.reservationSource(reservation.identifier) orelse {
+            self.allocator.free(bytes);
+            if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
+            return error.TerminalExited;
+        };
+        // Root exit closes client admission under this same mutex. A client
+        // reservation prepared while running must still be rejected at this
+        // final publication boundary, even while a PTY-holding descendant
+        // keeps writer_stop false. child_exited is the running-to-finishing
+        // fact itself; including it closes the window before closeClientInput
+        // publishes. Terminal-generated replies remain publishable until the
+        // writer actually stops.
+        if (self.failure_fenced or self.writer_stop or
+            (source == .client and
+                (self.client_input_closed or self.child_exited.load(.acquire))))
+        {
+            std.debug.assert(self.input_queue.cancel(reservation.identifier));
+            self.allocator.free(bytes);
             self.input_condition.broadcast();
-            return;
+            if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
+            return error.TerminalExited;
         }
-        self.allocator.free(bytes);
-        if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
-        return error.TerminalExited;
+        self.validatePreparedInputOwnershipLocked(ownership.*) catch |err| {
+            std.debug.assert(self.input_queue.cancel(reservation.identifier));
+            self.allocator.free(bytes);
+            self.input_condition.broadcast();
+            return err;
+        };
+        std.debug.assert(self.input_queue.publish(reservation, bytes));
+        self.commitPreparedInputOwnershipLocked(ownership);
+        self.input_condition.broadcast();
     }
 
     fn validatePreparedInputOwnershipLocked(
         self: *TerminalRuntime,
         ownership: ?PreparedInputOwnership,
     ) !void {
-        const pending = ownership orelse return;
-        const current = self.attachment_input_ownership.getPtr(pending.attachment_id) orelse
-            return error.MissingAttachment;
-        switch (pending.mutation) {
-            .detach => if (!current.detaching) return error.MissingAttachment,
-            .key_release, .key_retain, .mouse => if (current.detaching) {
-                return error.MissingAttachment;
-            },
-        }
-        const additional_repair_bytes: usize = switch (pending.mutation) {
-            .key_retain => |key| if (current.keyIndex(key.key) == null)
-                max_key_encoded_bytes
-            else
-                0,
-            .mouse => |mouse| switch (mouse.action) {
-                .press => |button| if (mouse.pressed_buttons.contains(button) and
-                    current.mouseIndex(button) == null)
-                    max_mouse_encoded_bytes
-                else
-                    0,
-                .release, .motion => 0,
-            },
-            .detach, .key_release => 0,
-        };
-        const additional_repair_entries = @intFromBool(
-            additional_repair_bytes != 0 and current.repairEntries() == 0,
+        return self.input_ownership.validatePrepared(
+            ownership,
+            self.input_queue.charge(.client),
         );
-        if (additional_repair_bytes > pending_input_capacity_bytes -|
-            self.client_input_charge.bytes -| self.attachment_input_repair_charge.bytes)
-        {
-            return error.InputBackpressure;
-        }
-        if (additional_repair_entries > max_pending_client_input_entries -|
-            self.client_input_charge.entries -| self.attachment_input_repair_charge.entries)
-        {
-            return error.InputBackpressure;
-        }
     }
 
     fn commitPreparedInputOwnershipLocked(
         self: *TerminalRuntime,
         ownership: *?PreparedInputOwnership,
     ) void {
-        const pending = ownership.* orelse return;
-        std.debug.assert(self.attachment_input_ownership.contains(pending.attachment_id));
-        self.commitAttachmentInputMutationLocked(pending);
-        ownership.* = null;
+        self.input_ownership.commitPrepared(ownership);
     }
 
     fn cancelInput(self: *TerminalRuntime, identifier: u64) void {
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
-        for (self.input_entries.items, 0..) |entry, index| {
-            if (entry.identifier != identifier) continue;
-            self.releaseInputCharge(entry);
-            if (entry.bytes) |bytes| self.allocator.free(bytes);
-            _ = self.input_entries.orderedRemove(index);
-            self.input_condition.broadcast();
-            return;
-        }
+        if (self.input_queue.cancel(identifier)) self.input_condition.broadcast();
     }
 
     fn clearInputQueueLocked(self: *TerminalRuntime) void {
-        for (self.input_entries.items) |entry| {
-            if (entry.bytes) |bytes| {
-                self.allocator.free(bytes);
-            }
-        }
-        self.input_entries.clearRetainingCapacity();
-        self.client_input_charge = .{};
-        self.terminal_reply_charge = .{};
+        self.input_queue.clear();
         self.input_condition.broadcast();
-    }
-
-    fn inputCharge(self: *TerminalRuntime, source: InputSource) *InputCharge {
-        return switch (source) {
-            .client => &self.client_input_charge,
-            .terminal => &self.terminal_reply_charge,
-        };
     }
 
     fn inputRepairCharge(self: *TerminalRuntime, source: InputSource) InputCharge {
         return switch (source) {
-            .client => self.attachment_input_repair_charge,
+            .client => self.input_ownership.repairCharge(),
             .terminal => .{},
         };
-    }
-
-    fn updateAttachmentRepairChargeLocked(
-        self: *TerminalRuntime,
-        previous_bytes: usize,
-        previous_entries: usize,
-        next_bytes: usize,
-        next_entries: usize,
-    ) void {
-        std.debug.assert(self.attachment_input_repair_charge.bytes >= previous_bytes);
-        std.debug.assert(self.attachment_input_repair_charge.entries >= previous_entries);
-        self.attachment_input_repair_charge.bytes =
-            self.attachment_input_repair_charge.bytes - previous_bytes + next_bytes;
-        self.attachment_input_repair_charge.entries =
-            self.attachment_input_repair_charge.entries - previous_entries + next_entries;
-        std.debug.assert(self.client_input_charge.bytes <= pending_input_capacity_bytes -|
-            self.attachment_input_repair_charge.bytes);
-        std.debug.assert(self.client_input_charge.entries <= max_pending_client_input_entries -|
-            self.attachment_input_repair_charge.entries);
-    }
-
-    fn releaseInputCharge(self: *TerminalRuntime, entry: InputEntry) void {
-        const charge = self.inputCharge(entry.source);
-        std.debug.assert(charge.bytes >= entry.reserved_bytes);
-        std.debug.assert(charge.entries > 0);
-        charge.bytes -= entry.reserved_bytes;
-        charge.entries -= 1;
-    }
-
-    fn inputEntryIndex(self: *const TerminalRuntime, identifier: u64) ?usize {
-        for (self.input_entries.items, 0..) |entry, index| {
-            if (entry.identifier == identifier) return index;
-        }
-        return null;
     }
 
     fn readPty(self: *TerminalRuntime, buffer: []u8) !usize {
@@ -3336,7 +2652,7 @@ pub const TerminalRuntime = struct {
 
     fn readerThread(self: *TerminalRuntime) void {
         defer self.notifyReaderStopped();
-        if (!self.awaitStartup()) return;
+        if (!self.startup.await()) return;
         var buffer: [max_pty_read_batch_bytes]u8 = undefined;
         while (true) {
             if (!self.readerMayRead()) return;
@@ -3363,7 +2679,7 @@ pub const TerminalRuntime = struct {
     }
 
     fn waitThread(self: *TerminalRuntime) void {
-        if (!self.awaitStartup()) return;
+        if (!self.startup.await()) return;
         self.exit_result = self.process.wait() catch {
             self.recordProcessObservationFailure();
             return;
@@ -3446,19 +2762,7 @@ pub const TerminalRuntime = struct {
             self.clearInputQueueLocked();
             return .stopped;
         }
-        const current_index = self.inputEntryIndex(slice.identifier) orelse
-            return .ownership_lost;
-        const current = self.input_entries.items[current_index];
-        const current_bytes = current.bytes orelse return .ownership_lost;
-        if (current.identifier != slice.identifier or
-            current.offset != slice.offset or
-            current.source != slice.source or
-            current.offset > current_bytes.len or
-            slice.length == 0 or
-            slice.length > current_bytes.len - current.offset)
-        {
-            return .ownership_lost;
-        }
+        if (!self.input_queue.ownsWriterSlice(slice)) return .ownership_lost;
         // This successful recheck is the write-start linearization point. A
         // later fence may stop the next slice, but this exact bounded platform
         // call is allowed to complete and is accounted once.
@@ -3472,31 +2776,14 @@ pub const TerminalRuntime = struct {
     ) bool {
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
-        const current_index = self.inputEntryIndex(slice.identifier) orelse return false;
-        const current = &self.input_entries.items[current_index];
-        if (current.offset != slice.offset or current.source != slice.source or
-            current.bytes == null or written == 0 or written > slice.length)
-        {
-            return false;
-        }
-        current.offset += written;
-        if (current.offset == current.bytes.?.len) {
-            self.releaseInputCharge(current.*);
-            self.allocator.free(current.bytes.?);
-            _ = self.input_entries.orderedRemove(current_index);
-            self.input_condition.broadcast();
-        }
-        // A terminal slice consumes the reply burst; a client slice ends and
-        // restarts it. The bound guarantees a waiting accepted client entry is
-        // selected within a bounded number of terminal-reply slices.
-        if (slice.source == .terminal) {
-            if (self.terminal_reply_burst_remaining > 0) {
-                self.terminal_reply_burst_remaining -= 1;
-            }
-        } else {
-            self.terminal_reply_burst_remaining = max_terminal_reply_burst_slices;
-        }
-        return true;
+        return switch (self.input_queue.accountWriterSlice(slice, written)) {
+            .advanced => true,
+            .completed => completed: {
+                self.input_condition.broadcast();
+                break :completed true;
+            },
+            .ownership_lost => false,
+        };
     }
 
     fn stopWriterAfterOwnershipLoss(self: *TerminalRuntime) void {
@@ -3514,15 +2801,12 @@ pub const TerminalRuntime = struct {
             self.input_condition.broadcast();
             self.input_mutex.unlock();
         }
-        if (!self.awaitStartup()) return;
+        if (!self.startup.await()) return;
         var batch: [max_pty_write_slice_bytes]u8 = undefined;
         while (true) {
             self.input_mutex.lock();
             while (!self.writer_stop and !self.failure_fenced and
-                selectWritableInputEntry(
-                    self.input_entries.items,
-                    self.terminal_reply_burst_remaining,
-                ) == null)
+                !self.input_queue.hasWritableEntry())
             {
                 self.input_condition.wait(&self.input_mutex);
             }
@@ -3531,29 +2815,7 @@ pub const TerminalRuntime = struct {
                 self.input_mutex.unlock();
                 return;
             }
-            const entry_index = selectWritableInputEntry(
-                self.input_entries.items,
-                self.terminal_reply_burst_remaining,
-            ) orelse unreachable;
-            const entry = &self.input_entries.items[entry_index];
-            const bytes = entry.bytes.?;
-            if (bytes.len == 0) {
-                self.releaseInputCharge(entry.*);
-                self.allocator.free(bytes);
-                _ = self.input_entries.orderedRemove(entry_index);
-                self.input_condition.broadcast();
-                self.input_mutex.unlock();
-                continue;
-            }
-            const available = bytes[entry.offset..];
-            const length = @min(batch.len, available.len);
-            const slice: WriterSlice = .{
-                .identifier = entry.identifier,
-                .length = length,
-                .offset = entry.offset,
-                .source = entry.source,
-            };
-            @memcpy(batch[0..length], available[0..length]);
+            const slice = self.input_queue.copyNextWriterSlice(&batch);
             self.input_mutex.unlock();
 
             self.notifyWriterSliceCopied();
@@ -3566,11 +2828,11 @@ pub const TerminalRuntime = struct {
                 },
             }
             self.notifyWriterSliceStarted();
-            const written = self.writePtySlice(batch[0..length]) catch {
+            const written = self.writePtySlice(batch[0..slice.length]) catch {
                 self.recordWriterFailure();
                 return;
             };
-            if (written == 0 or written > length) {
+            if (written == 0 or written > slice.length) {
                 self.recordWriterFailure();
                 return;
             }
@@ -3584,64 +2846,6 @@ pub const TerminalRuntime = struct {
         }
     }
 };
-
-fn appendAttachmentRepairBytes(
-    encoded: *std.ArrayList(u8),
-    allocator: std.mem.Allocator,
-    bytes: []const u8,
-) !void {
-    if (bytes.len > pending_input_capacity_bytes -| encoded.items.len) {
-        return error.InputLimitExceeded;
-    }
-    try encoded.appendSlice(allocator, bytes);
-}
-
-fn commitMouseOwnership(
-    ownership: *AttachmentInputOwnership,
-    input: terminal_input.MouseInput,
-) void {
-    switch (input.action) {
-        .press => |button| {
-            if (!input.pressed_buttons.contains(button)) return;
-            if (ownership.mouseIndex(button) == null) {
-                std.debug.assert(ownership.mouse_order_len < ownership.mouse_order.len);
-                ownership.mouse_order[ownership.mouse_order_len] = button;
-                ownership.mouse_order_len += 1;
-            }
-        },
-        .release => |button| {
-            if (ownership.mouseIndex(button)) |index| {
-                var current = index;
-                while (current + 1 < ownership.mouse_order_len) : (current += 1) {
-                    ownership.mouse_order[current] = ownership.mouse_order[current + 1];
-                }
-                ownership.mouse_order_len -= 1;
-            }
-        },
-        .motion => {},
-    }
-    ownership.mouse_sample = if (ownership.mouse_order_len == 0) null else input;
-}
-
-fn setMouseButton(
-    buttons: *terminal_input.MouseButtons,
-    button: terminal_input.MouseButton,
-    pressed: bool,
-) void {
-    switch (button) {
-        .left => buttons.left = pressed,
-        .right => buttons.right = pressed,
-        .middle => buttons.middle = pressed,
-        .four => buttons.four = pressed,
-        .five => buttons.five = pressed,
-        .six => buttons.six = pressed,
-        .seven => buttons.seven = pressed,
-        .eight => buttons.eight = pressed,
-        .nine => buttons.nine = pressed,
-        .ten => buttons.ten = pressed,
-        .eleven => buttons.eleven = pressed,
-    }
-}
 
 fn applyScrollbackBytes(terminal: *ghostty_vt.Terminal, scrollback_bytes: usize) u64 {
     const primary = terminal.screens.get(.primary).?;
@@ -3695,32 +2899,34 @@ fn resizePtyWithRollback(
 }
 
 pub const testing = if (@import("builtin").is_test) struct {
+    pub const InputQueueSnapshot = struct {
+        client_charge: InputCharge,
+        entry_count: usize,
+        published_client_entries: usize,
+        terminal_reply_charge: InputCharge,
+    };
+
     pub const applyScrollbackBytesFn = applyScrollbackBytes;
     pub const cancelInputFn = TerminalRuntime.cancelInput;
     pub const closeClientInputFn = TerminalRuntime.closeClientInput;
     pub const closeFailureFenceFn = TerminalRuntime.closeFailureFence;
     pub const commitReaderBatchFn = TerminalRuntime.commitReaderBatch;
-    pub const CompletionClassificationType = CompletionClassification;
     pub const completionClassificationLoadFn = CompletionClassification.load;
     pub const createWithOptionsUsingSpawnerFn = TerminalRuntime.createWithOptionsUsingSpawner;
     pub const deinitOwnedProfileFn = OwnedProfile.deinit;
     pub const InputReservationType = InputReservation;
-    pub const InputEntryType = InputEntry;
     pub const InputSourceType = InputSource;
     pub const FirstContainmentAttemptType = FirstContainmentAttempt;
     pub const initOwnedProfileFn = OwnedProfile.init;
     pub const modifiersFn = terminal_input_encoding.testing.modifiersFn;
     pub const mouseEncodeEventFn = terminal_input_encoding.testing.mouseEncodeEventFn;
     pub const mouseHasPressedButtonFn = terminal_input_encoding.testing.mouseHasPressedButtonFn;
-    pub const nextWritableInputEntryFn = nextWritableInputEntry;
     pub const pending_input_entry_limit = max_pending_client_input_entries;
     pub const pending_input_limit = pending_input_capacity_bytes;
     pub const pending_terminal_reply_entry_limit = max_pending_terminal_reply_entries;
     pub const pending_terminal_reply_limit = pending_terminal_reply_capacity_bytes;
     pub const writer_slice_limit = max_pty_write_slice_bytes;
     pub const publishInputFn = TerminalRuntime.publishInput;
-    pub const markCompletionFailureFn = CompletionClassification.markFailure;
-    pub const markCompletionNormalFn = CompletionClassification.markNormal;
     pub const markNormalCompletionReadyFn = TerminalRuntime.markNormalCompletionReady;
     pub const recordWorkerIntegrityFailureFn = TerminalRuntime.recordWorkerIntegrityFailure;
     pub const recordReaderFailureFn = TerminalRuntime.recordReaderFailure;
@@ -3738,7 +2944,7 @@ pub const testing = if (@import("builtin").is_test) struct {
     pub fn firstContainmentAttempt(
         runtime: *const TerminalRuntime,
     ) FirstContainmentAttempt {
-        return runtime.first_containment_attempt.load(.acquire);
+        return runtime.first_containment_attempt.load();
     }
 
     pub fn hasAttachmentInputOwnership(
@@ -3746,6 +2952,17 @@ pub const testing = if (@import("builtin").is_test) struct {
         attachment_id: AttachmentId,
     ) bool {
         return runtime.hasAttachmentInputOwnership(attachment_id);
+    }
+
+    pub fn inputQueueSnapshot(runtime: *TerminalRuntime) InputQueueSnapshot {
+        runtime.input_mutex.lock();
+        defer runtime.input_mutex.unlock();
+        return .{
+            .client_charge = runtime.input_queue.charge(.client),
+            .entry_count = runtime.input_queue.entryCount(),
+            .published_client_entries = runtime.input_queue.publishedCount(.client),
+            .terminal_reply_charge = runtime.input_queue.charge(.terminal),
+        };
     }
 
     pub fn failureFenced(runtime: *TerminalRuntime) bool {

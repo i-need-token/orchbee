@@ -36,6 +36,24 @@ Dependencies point only from a lower row to an explicitly listed earlier semanti
 module never imports another directory by relative path, reaches through another module's root to an
 implementation file, or exposes mutable internals so a caller can bypass the owning operation.
 
+## Internal review seams
+
+The directory boundaries above remain the build-graph authority. Within them, the following
+stateful or platform-dependent seams are durable review units rather than incidental file splits:
+
+| Boundary       | Internal owner                                                                                       | Coordinator or facade responsibility                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Engine         | `input_queue.zig`, `input_ownership.zig`, `selection.zig`, and `selection_export.zig`                | `runtime.zig` orders cross-owner commits under the canonical terminal and input locks              |
+| Engine runtime | `runtime_launch.zig`, `runtime_startup.zig`, `runtime_completion.zig`, and `runtime_containment.zig` | `runtime.zig` owns worker lifetime and invokes each one-purpose state owner                        |
+| Control        | `decode_*` and `encode_*` host, terminal, projection, and interaction adapters                       | `decode.zig` and `encode.zig` preserve one explicit public protocol surface                        |
+| Platform       | `process_posix.zig` and `process_windows.zig`, with shared process type and common modules           | `process.zig` selects the target implementation without reimplementing process behavior            |
+| Service        | `runtime_maintenance.zig`                                                                            | `runtime_aggregate.zig` coordinates Core/runtime transitions and delegates retained cleanup policy |
+| Transport      | `connection.zig`, `local_server_posix.zig`, and `local_server_windows.zig`                           | `root.zig` selects the local-server implementation and exposes the stable transport boundary       |
+
+A coordinator may retain a larger file when its code is the actual serialized commit protocol.
+Do not move such code into a helper that would need mutable owner fields, lock-order knowledge, or
+callbacks into the coordinator merely to reduce line count.
+
 ## Entry points and tests
 
 - `root.zig` files are explicit namespace manifests or the implementation entry when the boundary

@@ -1,4 +1,5 @@
 const std = @import("std");
+const target_builtin = @import("builtin");
 
 const core_module = @import("terminal-host-core").state;
 const pty_process = @import("terminal-host-platform").process;
@@ -11,6 +12,23 @@ const cleanup_retry_delay_ns: i128 = std.time.ns_per_s;
 /// terminals actually inspected, so a registry larger than this budget never
 /// turns one nominally bounded pass into a full-registry scan.
 const cleanup_retry_inspection_budget = 16;
+
+/// THDD-001 retained-cleanup observability after a failed fatal-teardown pass.
+pub const RetainedCleanupStatus = struct {
+    active: bool = false,
+    attempts: usize = 0,
+    exhausted: bool = false,
+};
+
+/// Outcome of the bounded retained-cleanup window. A retained failure keeps
+/// process-tree ownership explicit rather than silently abandoning it.
+pub const RetainedCleanupResult = enum {
+    complete,
+    retained_failed,
+};
+
+const retained_cleanup_max_attempts = 32;
+const retained_cleanup_backoff_ns = std.time.ns_per_s;
 
 pub const TerminalExitNotice = struct {
     creation_id: core_module.CreationId,
@@ -104,7 +122,105 @@ pub const Maintenance = struct {
     cleanup_clock: CleanupClock = .{},
     cleanup_retry_scan_index: usize = 0,
     outcome_scan_index: usize = 0,
+    retained_cleanup: RetainedCleanupStatus = .{},
     runtime_sync_index: usize = 0,
+
+    /// Whether any retained process tree still lacks confirmed containment.
+    pub fn retainedCleanupPending(
+        self: *const Maintenance,
+        core: *const core_module.HostCore,
+    ) bool {
+        _ = self;
+        for (core.terminalValues()) |session| {
+            const runtime = session.runtime() orelse continue;
+            if (!runtime.containmentConfirmed()) return true;
+        }
+        return false;
+    }
+
+    pub fn retainedCleanupStatus(self: *const Maintenance) RetainedCleanupStatus {
+        return self.retained_cleanup;
+    }
+
+    /// Drives one scheduled cleanup retry pass and records bounded progress.
+    pub fn runRetainedCleanupPass(
+        self: *Maintenance,
+        core: *core_module.HostCore,
+    ) bool {
+        self.synchronizeRuntimes(core);
+        self.retained_cleanup.attempts += 1;
+        return !self.retainedCleanupPending(core);
+    }
+
+    /// Runs the bounded THDD-001 retry window. Production sleeps between
+    /// passes; deterministic tests advance their injected logical clock.
+    pub fn runRetainedCleanupWindow(
+        self: *Maintenance,
+        core: *core_module.HostCore,
+    ) RetainedCleanupResult {
+        var attempts: usize = 0;
+        while (attempts < retained_cleanup_max_attempts) : (attempts += 1) {
+            if (self.runRetainedCleanupPass(core)) {
+                std.log.info("terminal Host completed retained cleanup after {d} pass(es)", .{attempts + 1});
+                return .complete;
+            }
+            if (comptime !target_builtin.is_test) {
+                std.Thread.sleep(retained_cleanup_backoff_ns);
+            }
+        }
+        self.markRetainedCleanupExhausted(core);
+        return .retained_failed;
+    }
+
+    /// Converts every still-unconfirmed runtime into scheduled retained
+    /// containment work while keeping the aggregate and Core ownership alive.
+    pub fn retainUnconfirmedCleanup(
+        self: *Maintenance,
+        core: *core_module.HostCore,
+    ) void {
+        var retained = false;
+        for (core.terminalValues()) |session| {
+            const terminal_id = session.terminal_id;
+            const runtime = session.runtime() orelse continue;
+            if (runtime.containmentConfirmed()) continue;
+            retained = true;
+            const primary_failure: core_module.RuntimeFailure = switch (runtime.completion().classification) {
+                .failed => |kind| runtimeFailureFromEngineKind(kind),
+                .pending, .normal => .observe_process,
+            };
+            _ = core.runtimeFailed(terminal_id, primary_failure) catch continue;
+            _ = core.failureContainmentBlocked(
+                terminal_id,
+                .contain_process,
+                self.nextCleanupRetryAt(),
+            ) catch continue;
+        }
+        if (retained) self.retained_cleanup = .{ .active = true };
+    }
+
+    /// Exhausting the bounded window leaves a stable never-due retry marker;
+    /// ownership remains retained and the terminal is observably failed.
+    pub fn markRetainedCleanupExhausted(
+        self: *Maintenance,
+        core: *core_module.HostCore,
+    ) void {
+        for (core.terminalValues()) |session| {
+            const terminal_id = session.terminal_id;
+            const runtime = session.runtime() orelse continue;
+            if (runtime.containmentConfirmed()) continue;
+            const containment = session.failureContainment() orelse continue;
+            const cleanup_failure: core_module.RuntimeCleanupFailure = switch (containment) {
+                .blocked => |blocked| blocked.cleanup_failure,
+                .stopping => .contain_process,
+            };
+            _ = core.failureContainmentBlocked(
+                terminal_id,
+                cleanup_failure,
+                std.math.maxInt(i128),
+            ) catch continue;
+        }
+        self.retained_cleanup.exhausted = true;
+    }
 
     pub fn synchronizeRuntimes(
         self: *Maintenance,
@@ -368,6 +484,12 @@ pub fn runtimeFailureFromObservation(
         .pending, .normal => return null,
         .failed => |failure| failure,
     };
+    return runtimeFailureFromEngineKind(failure);
+}
+
+pub fn runtimeFailureFromEngineKind(
+    failure: terminal_runtime.RuntimeFailureKind,
+) core_module.RuntimeFailure {
     return switch (failure) {
         .resize => .apply_resize,
         .process_observation => .observe_process,

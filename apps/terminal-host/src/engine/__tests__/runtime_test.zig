@@ -14,21 +14,17 @@ const cancelInput = subject.testing.cancelInputFn;
 const clearTestingHooks = subject.testing.clearTestingHooks;
 const closeClientInput = subject.testing.closeClientInputFn;
 const commitReaderBatch = subject.testing.commitReaderBatchFn;
-const CompletionClassification = subject.testing.CompletionClassificationType;
 const completionClassificationLoad = subject.testing.completionClassificationLoadFn;
 const createWithOptionsUsingSpawner = subject.testing.createWithOptionsUsingSpawnerFn;
 const deinitOwnedProfile = subject.testing.deinitOwnedProfileFn;
-const InputEntry = subject.testing.InputEntryType;
 const FirstContainmentAttempt = subject.testing.FirstContainmentAttemptType;
 const InputReservation = subject.testing.InputReservationType;
 const InputSource = subject.testing.InputSourceType;
 const initOwnedProfile = subject.testing.initOwnedProfileFn;
+const inputQueueSnapshot = subject.testing.inputQueueSnapshot;
 const modifiers = subject.testing.modifiersFn;
 const mouseEncodeEvent = subject.testing.mouseEncodeEventFn;
 const mouseHasPressedButton = subject.testing.mouseHasPressedButtonFn;
-const nextWritableInputEntry = subject.testing.nextWritableInputEntryFn;
-const markCompletionFailure = subject.testing.markCompletionFailureFn;
-const markCompletionNormal = subject.testing.markCompletionNormalFn;
 const markNormalCompletionReady = subject.testing.markNormalCompletionReadyFn;
 const ProjectionEncodeRequest = subject.ProjectionEncodeRequest;
 const AttachmentId = subject.AttachmentId;
@@ -109,38 +105,6 @@ const TestSignal = struct {
         self.mutex.unlock();
     }
 };
-
-test "runtime completion classification is terminal and preserves the first outcome" {
-    var classification: CompletionClassification = .{};
-    switch (completionClassificationLoad(&classification)) {
-        .pending => {},
-        .normal, .failed => return error.ExpectedPendingCompletion,
-    }
-
-    try std.testing.expect(markCompletionNormal(&classification));
-    switch (completionClassificationLoad(&classification)) {
-        .normal => {},
-        .pending, .failed => return error.ExpectedNormalCompletion,
-    }
-
-    markCompletionFailure(&classification, .pty_read);
-    switch (completionClassificationLoad(&classification)) {
-        .normal => {},
-        .pending, .failed => return error.ExpectedTerminalNormalCompletion,
-    }
-    try std.testing.expect(!markCompletionNormal(&classification));
-
-    var failed_classification: CompletionClassification = .{};
-    markCompletionFailure(&failed_classification, .pty_read);
-    markCompletionFailure(&failed_classification, .pty_write);
-    switch (completionClassificationLoad(&failed_classification)) {
-        .failed => |failure| try std.testing.expectEqual(
-            subject.RuntimeFailureKind.pty_read,
-            failure,
-        ),
-        .pending, .normal => return error.ExpectedFirstFailure,
-    }
-}
 
 test "platform resize errors restore committed geometry or report an unsafe rollback" {
     const FakePty = struct {
@@ -827,13 +791,12 @@ fn expectProjectionLinkTargets(runtime: *TerminalRuntime, expected: []const []co
 }
 
 fn expectInputQueuesCleared(runtime: *TerminalRuntime) !void {
-    runtime.input_mutex.lock();
-    defer runtime.input_mutex.unlock();
-    try std.testing.expectEqual(@as(usize, 0), runtime.input_entries.items.len);
-    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.bytes);
-    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.entries);
-    try std.testing.expectEqual(@as(usize, 0), runtime.terminal_reply_charge.bytes);
-    try std.testing.expectEqual(@as(usize, 0), runtime.terminal_reply_charge.entries);
+    const snapshot = inputQueueSnapshot(runtime);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.entry_count);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.client_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.client_charge.entries);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.terminal_reply_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.terminal_reply_charge.entries);
 }
 
 const ContainmentProbe = struct {
@@ -2428,43 +2391,6 @@ test "runtime queue applies bounded backpressure before allocation" {
     try runtime.terminate();
 }
 
-test "terminal replies preempt client slices without reordering either source" {
-    var first_client = [_]u8{'a'};
-    var reply = [_]u8{'r'};
-    var second_client = [_]u8{'b'};
-    var entries = [_]InputEntry{
-        .{
-            .bytes = first_client[0..],
-            .identifier = 1,
-            .reserved_bytes = first_client.len,
-            .source = .client,
-        },
-        .{
-            .bytes = reply[0..],
-            .identifier = 2,
-            .reserved_bytes = reply.len,
-            .source = .terminal,
-        },
-        .{
-            .bytes = second_client[0..],
-            .identifier = 3,
-            .reserved_bytes = second_client.len,
-            .source = .client,
-        },
-    };
-
-    try std.testing.expectEqual(@as(?usize, 1), nextWritableInputEntry(&entries));
-
-    entries[1].bytes = null;
-    try std.testing.expectEqual(@as(?usize, null), nextWritableInputEntry(&entries));
-
-    entries[1].source = .client;
-    try std.testing.expectEqual(@as(?usize, 0), nextWritableInputEntry(&entries));
-
-    entries[0].bytes = null;
-    try std.testing.expectEqual(@as(?usize, null), nextWritableInputEntry(&entries));
-}
-
 /// Drives the writer one slice at a time, parking after every slice copy so
 /// every write is observed deterministically. A terminal reply is replenished
 /// after every reply slice, so the reply stream never runs dry while the
@@ -2614,18 +2540,20 @@ test "post-exit client closure rejects a prepared client commit and releases its
     var prepared = try runtime.prepareTextInput("prepared", std.math.maxInt(usize));
     defer prepared.deinit();
     try std.testing.expectEqual(@as(usize, 8), runtime.pendingInputBytes());
-    try std.testing.expectEqual(@as(usize, 1), runtime.client_input_charge.entries);
+    try std.testing.expectEqual(
+        @as(usize, 1),
+        inputQueueSnapshot(runtime).client_charge.entries,
+    );
 
     // Root exit closes client admission while writer_stop is still false; the
     // previously reserved publication must fail at its one commit boundary.
     closeClientInput(runtime);
     try std.testing.expectError(error.TerminalExited, prepared.commit());
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
-    runtime.input_mutex.lock();
-    defer runtime.input_mutex.unlock();
-    try std.testing.expectEqual(@as(usize, 0), runtime.input_entries.items.len);
-    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.bytes);
-    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.entries);
+    const snapshot = inputQueueSnapshot(runtime);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.entry_count);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.client_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.client_charge.entries);
     try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
 }
 
@@ -2644,11 +2572,10 @@ test "client input publication linearizes against post-exit client closure" {
         try publishInput(runtime, first, try std.testing.allocator.dupe(u8, "a"));
         probe.copied.wait();
         closeClientInput(runtime);
-        runtime.input_mutex.lock();
-        try std.testing.expectEqual(@as(usize, 1), runtime.input_entries.items.len);
-        try std.testing.expectEqual(@as(usize, 1), runtime.client_input_charge.bytes);
-        try std.testing.expectEqual(@as(usize, 1), runtime.client_input_charge.entries);
-        runtime.input_mutex.unlock();
+        const snapshot = inputQueueSnapshot(runtime);
+        try std.testing.expectEqual(@as(usize, 1), snapshot.entry_count);
+        try std.testing.expectEqual(@as(usize, 1), snapshot.client_charge.bytes);
+        try std.testing.expectEqual(@as(usize, 1), snapshot.client_charge.entries);
     }
 
     // Order 2: closure acquires input_mutex before publication. The reservation
@@ -2662,11 +2589,10 @@ test "client input publication linearizes against post-exit client closure" {
             error.TerminalExited,
             publishInput(runtime, second, try std.testing.allocator.dupe(u8, "b")),
         );
-        runtime.input_mutex.lock();
-        try std.testing.expectEqual(@as(usize, 0), runtime.input_entries.items.len);
-        try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.bytes);
-        try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.entries);
-        runtime.input_mutex.unlock();
+        const snapshot = inputQueueSnapshot(runtime);
+        try std.testing.expectEqual(@as(usize, 0), snapshot.entry_count);
+        try std.testing.expectEqual(@as(usize, 0), snapshot.client_charge.bytes);
+        try std.testing.expectEqual(@as(usize, 0), snapshot.client_charge.entries);
     }
 }
 
@@ -2685,21 +2611,19 @@ test "client admission closure rejects client commits while terminal replies sti
     closeClientInput(runtime);
     try publishInput(runtime, reply, try std.testing.allocator.dupe(u8, "r"));
     probe.copied.wait();
-    runtime.input_mutex.lock();
-    try std.testing.expectEqual(@as(usize, 1), runtime.input_entries.items.len);
-    try std.testing.expectEqual(@as(usize, 1), runtime.terminal_reply_charge.bytes);
-    try std.testing.expectEqual(@as(usize, 1), runtime.terminal_reply_charge.entries);
-    runtime.input_mutex.unlock();
+    const reply_snapshot = inputQueueSnapshot(runtime);
+    try std.testing.expectEqual(@as(usize, 1), reply_snapshot.entry_count);
+    try std.testing.expectEqual(@as(usize, 1), reply_snapshot.terminal_reply_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 1), reply_snapshot.terminal_reply_charge.entries);
 
     // A zero-byte prepared semantic input shares the same one-phase commit gate.
     var noop = try runtime.prepareFocusInput(false, std.math.maxInt(usize));
     defer noop.deinit();
     try std.testing.expectEqual(@as(usize, 0), noop.byteCount());
     try std.testing.expectError(error.TerminalExited, noop.commit());
-    runtime.input_mutex.lock();
-    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.bytes);
-    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.entries);
-    runtime.input_mutex.unlock();
+    const client_snapshot = inputQueueSnapshot(runtime);
+    try std.testing.expectEqual(@as(usize, 0), client_snapshot.client_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), client_snapshot.client_charge.entries);
 }
 
 test "post-exit descendant keeping the PTY open cannot receive a later committed client input" {
@@ -2736,11 +2660,10 @@ test "post-exit descendant keeping the PTY open cannot receive a later committed
     // never reach the descendant's PTY.
     try std.testing.expectError(error.TerminalExited, prepared.commit());
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
-    runtime.input_mutex.lock();
-    try std.testing.expectEqual(@as(usize, 0), runtime.input_entries.items.len);
-    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.bytes);
-    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.entries);
-    runtime.input_mutex.unlock();
+    const snapshot = inputQueueSnapshot(runtime);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.entry_count);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.client_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), snapshot.client_charge.entries);
     try std.testing.expectEqual(@as(usize, 0), runtime.takeWrittenBytes());
 }
 
@@ -3127,15 +3050,18 @@ test "output cleanup failure retry closes in-flight reader and writer lanes perm
         try std.testing.expectEqual(@as(usize, 0), before_cleanup.write_calls);
         try std.testing.expectEqual(@as(u64, 0), before.output_batches);
         try std.testing.expectEqual(@as(usize, 0), before.written_bytes);
-        runtime.input_mutex.lock();
-        {
-            defer runtime.input_mutex.unlock();
-            try std.testing.expectEqual(@as(usize, 2), runtime.input_entries.items.len);
-            try std.testing.expectEqual(client_bytes.len, runtime.client_input_charge.bytes);
-            try std.testing.expectEqual(@as(usize, 1), runtime.client_input_charge.entries);
-            try std.testing.expectEqual(reply_bytes.len, runtime.terminal_reply_charge.bytes);
-            try std.testing.expectEqual(@as(usize, 1), runtime.terminal_reply_charge.entries);
-        }
+        const queue_snapshot = inputQueueSnapshot(runtime);
+        try std.testing.expectEqual(@as(usize, 2), queue_snapshot.entry_count);
+        try std.testing.expectEqual(client_bytes.len, queue_snapshot.client_charge.bytes);
+        try std.testing.expectEqual(@as(usize, 1), queue_snapshot.client_charge.entries);
+        try std.testing.expectEqual(
+            reply_bytes.len,
+            queue_snapshot.terminal_reply_charge.bytes,
+        );
+        try std.testing.expectEqual(
+            @as(usize, 1),
+            queue_snapshot.terminal_reply_charge.entries,
+        );
 
         try std.testing.expectError(error.OutputReleaseFailed, releaseOutputForShutdown(runtime));
         const failed_cleanup = probe.counts();
@@ -3343,11 +3269,10 @@ test "zero-byte semantic encodings do not retain queue metadata" {
     for (0..max_pending_input_entries + 1) |_| {
         try std.testing.expectEqual(@as(usize, 0), try runtime.enqueueFocusInput(true));
     }
-    runtime.input_mutex.lock();
-    try std.testing.expectEqual(@as(usize, 0), runtime.input_entries.items.len);
-    try std.testing.expectEqual(@as(usize, 0), runtime.client_input_charge.bytes);
-    try std.testing.expectEqual(@as(usize, 0), runtime.terminal_reply_charge.bytes);
-    runtime.input_mutex.unlock();
+    const empty_snapshot = inputQueueSnapshot(runtime);
+    try std.testing.expectEqual(@as(usize, 0), empty_snapshot.entry_count);
+    try std.testing.expectEqual(@as(usize, 0), empty_snapshot.client_charge.bytes);
+    try std.testing.expectEqual(@as(usize, 0), empty_snapshot.terminal_reply_charge.bytes);
 
     var entry_reservations: [max_pending_input_entries]InputReservation = undefined;
     for (&entry_reservations) |*reservation| {
