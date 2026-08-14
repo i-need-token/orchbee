@@ -22,17 +22,11 @@ pub fn dispatch(
     context: *Context,
     operation: protocol.RequestOperation,
     connection_id: core_module.ConnectionId,
-    terminal_defaults: *terminal_configuration.Configuration,
-    terminal_defaults_revision: *u64,
     envelope: protocol.EnvelopeSummary,
     correlation_id: WireIdentifier,
     outgoing: *Outgoing,
 ) !void {
-    var handler: Handler = .{
-        .context = context,
-        .terminal_defaults = terminal_defaults,
-        .terminal_defaults_revision = terminal_defaults_revision,
-    };
+    var handler: Handler = .{ .context = context };
     switch (operation) {
         .ping => try handler.handlePing(envelope, correlation_id, outgoing),
         .list_terminals => try handler.handleList(envelope, correlation_id, outgoing),
@@ -55,8 +49,6 @@ pub fn dispatch(
 
 const Handler = struct {
     context: *Context,
-    terminal_defaults: *terminal_configuration.Configuration,
-    terminal_defaults_revision: *u64,
 
     fn handlePing(
         self: *Handler,
@@ -165,7 +157,6 @@ const Handler = struct {
             connection_id,
             decoded.value.creation_id,
             decoded.value.launch,
-            self.terminal_defaults.*,
         ) catch |err| {
             switch (err) {
                 error.LaunchPreparationOutOfMemory => try self.context.addFailure(
@@ -250,22 +241,26 @@ const Handler = struct {
             );
         defer decoded.deinit();
         const configuration = decoded.value;
-        if (configuration.scrollback_bytes != self.terminal_defaults.scrollback_bytes) {
-            if (self.terminal_defaults_revision.* == std.math.maxInt(u64)) {
-                try self.context.addFailure(
+        const update = self.context.core().prepareTerminalDefaultsUpdate(configuration) catch |err| {
+            switch (err) {
+                error.RevisionOverflow => try self.context.addFailure(
                     outgoing,
                     correlation_id,
                     "resource-exhausted",
                     "terminal default revision space is exhausted",
                     false,
-                );
-                return;
+                ),
+                error.InvalidConfiguration => try self.context.addFailure(
+                    outgoing,
+                    correlation_id,
+                    "invalid-field",
+                    "terminal configuration is invalid",
+                    false,
+                ),
+                else => unreachable,
             }
-        }
-        const next_revision = if (configuration.scrollback_bytes == self.terminal_defaults.scrollback_bytes)
-            self.terminal_defaults_revision.*
-        else
-            self.terminal_defaults_revision.* + 1;
+            return;
+        };
         var response = try host_response.prepareControl(
             outgoing,
             correlation_id,
@@ -275,11 +270,10 @@ const Handler = struct {
         var output = response.writer();
         control_encode.writeTerminalDefaultsAccepted(
             &output,
-            configuration.scrollback_bytes,
-            next_revision,
+            update.configuration.scrollback_bytes,
+            update.revision,
         ) catch unreachable;
-        self.terminal_defaults.* = configuration;
-        self.terminal_defaults_revision.* = next_revision;
+        self.context.core().commitTerminalDefaultsUpdate(update);
         _ = response.commitControl(MessageKind.terminal_defaults_accepted, &output);
     }
 

@@ -10,7 +10,6 @@ const host_terminal_requests = @import("terminal_requests.zig");
 const model = @import("terminal-host-model");
 const identifiers = model.identifiers;
 const protocol = @import("terminal-protocol");
-const terminal_configuration = model.configuration;
 
 const Outgoing = host_outgoing.Outgoing;
 const WireIdentifier = identifiers.IdentifierBytes;
@@ -24,21 +23,17 @@ pub const Limits = struct {
 /// owner. It has no connection-lifecycle or asynchronous egress authority.
 pub const Dispatcher = struct {
     context: host_request_context.Context,
-    terminal_defaults: *terminal_configuration.Configuration,
-    terminal_defaults_revision: *u64,
     trace_interactions: bool,
 
     pub fn init(
         allocator: std.mem.Allocator,
         runtime_aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
-        terminal_defaults: *terminal_configuration.Configuration,
-        terminal_defaults_revision: *u64,
         trace_interactions: bool,
     ) Dispatcher {
         return .{ .context = .{
             .allocator = allocator,
             .runtime_aggregate = runtime_aggregate,
-        }, .terminal_defaults = terminal_defaults, .terminal_defaults_revision = terminal_defaults_revision, .trace_interactions = trace_interactions };
+        }, .trace_interactions = trace_interactions };
     }
 
     pub fn dispatch(
@@ -66,8 +61,6 @@ pub const Dispatcher = struct {
                 &self.context,
                 request_contract.operation,
                 connection_id,
-                self.terminal_defaults,
-                self.terminal_defaults_revision,
                 envelope,
                 correlation_id,
                 outgoing,

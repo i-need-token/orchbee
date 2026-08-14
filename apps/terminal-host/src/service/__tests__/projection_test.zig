@@ -331,7 +331,6 @@ fn createRuntimeAt(
         connection_id,
         testId(core_module.CreationId, 0x42, index),
         validated,
-        .{},
     );
     defer preparation.deinit();
     const created = try aggregate.commitPreparedTerminal(&preparation);
@@ -357,7 +356,7 @@ fn createHookedRuntime(
         connection_id,
         testId(core_module.ClientId, 0x41, 0),
     );
-    var preparation = try validated.prepareRuntime(std.testing.allocator, .{});
+    var preparation = try terminal_launch.prepareRuntime(validated, std.testing.allocator, .{});
     defer preparation.deinit(std.testing.allocator);
     try aggregate.core().reserveTerminal();
     var spawner: HookedThreadSpawner = .{ .hooks = hooks };

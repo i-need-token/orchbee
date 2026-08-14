@@ -1,11 +1,9 @@
 const std = @import("std");
 
-const identifiers = @import("terminal-host-model").identifiers;
+const model = @import("terminal-host-model");
+const identifiers = model.identifiers;
 
-pub const Demand = enum {
-    active,
-    paused,
-};
+pub const Demand = model.attachment.ProjectionDemand;
 
 pub const Block = enum {
     capture_allocation_failed,

@@ -2,9 +2,10 @@ const std = @import("std");
 
 const control_wire = @import("wire.zig");
 const decode_common = @import("decode_common.zig");
-const identifiers = @import("terminal-host-model").identifiers;
+const model = @import("terminal-host-model");
+const identifiers = model.identifiers;
 const protocol = @import("terminal-protocol");
-const terminal_history = @import("terminal-host-engine").history;
+const terminal_history = model.interaction;
 pub const ReadRows = struct {
     attachment_id: identifiers.AttachmentId,
     detail: terminal_history.Detail,

@@ -1,14 +1,23 @@
 const std = @import("std");
 const control_boundary = @import("terminal-host-control");
-const core_boundary = @import("terminal-host-core");
-const engine_boundary = @import("terminal-host-engine");
+const model = @import("terminal-host-model");
 const protocol = @import("terminal-protocol");
 
 const encode = control_boundary.encode;
-const subject = control_boundary.wire;
+const subject = control_boundary.testing.wire;
 const control_decode = control_boundary.decode;
-const core_module = core_boundary.state;
-const terminal_history = engine_boundary.history;
+const core_module = struct {
+    pub const AttachmentId = model.identifiers.AttachmentId;
+    pub const CreationId = model.identifiers.CreationId;
+    pub const ExitResult = model.lifecycle.ExitResult;
+    pub const FailureContainment = model.lifecycle.FailureContainment;
+    pub const HostEpoch = model.identifiers.HostEpoch;
+    pub const ProcessObservation = model.lifecycle.ProcessObservation;
+    pub const RuntimeFailure = model.lifecycle.RuntimeFailure;
+    pub const TerminalId = model.identifiers.TerminalId;
+    pub const TerminalPhase = model.lifecycle.Phase;
+};
+const terminal_history = model.interaction;
 
 test "control decoder classifies UTF-8 JSON grammar and typed shape failures" {
     const plain_empty = try subject.decode(subject.Empty, std.testing.allocator, "{}");

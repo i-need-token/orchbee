@@ -2,6 +2,7 @@ const std = @import("std");
 const target_builtin = @import("builtin");
 const attachment_projection = @import("attachment_projection.zig");
 const broker_session = @import("broker_session.zig");
+const host_settings = @import("host_settings.zig");
 const model = @import("terminal-host-model");
 const identifiers = model.identifiers;
 const terminal_configuration = model.configuration;
@@ -49,6 +50,7 @@ pub const EngineObservation = terminal_session.EngineObservation;
 pub const TerminalLifecycle = terminal_lifecycle.Lifecycle;
 pub const TerminalSession = terminal_session.Session;
 pub const TerminalRegistry = terminal_registry.Registry;
+pub const PreparedTerminalDefaultsUpdate = host_settings.PreparedDefaultsUpdate;
 
 pub const AttachmentAdmission = broker_session.Admission;
 
@@ -105,6 +107,11 @@ pub const CoreError = error{
 
 const BrokerSession = broker_session.Session;
 
+const HostCoreTestingState = if (target_builtin.is_test) struct {
+    /// Preserves the broker-owned scan count across disconnect teardown.
+    last_active_read_demand_scans: usize = 0,
+} else struct {};
+
 pub const RequiredCapability = enum {
     none,
     input,
@@ -116,17 +123,23 @@ pub const HostCore = struct {
     allocator: std.mem.Allocator,
     broker: ?BrokerSession = null,
     epoch: HostEpoch,
+    host_settings: host_settings.State,
     terminal_registry: TerminalRegistry,
-    /// Test-only: the active-projection-demand scan count captured from the
-    /// broker session when it disconnects. The session owns the live counter,
-    /// which is destroyed with the session; this field preserves it so a
-    /// disconnect teardown can assert its demand-query work afterwards.
-    last_active_read_demand_scans: usize = 0,
+    testing_state: HostCoreTestingState = .{},
 
     pub fn init(allocator: std.mem.Allocator, epoch: HostEpoch) HostCore {
+        return initWithDefaults(allocator, epoch, .{});
+    }
+
+    pub fn initWithDefaults(
+        allocator: std.mem.Allocator,
+        epoch: HostEpoch,
+        defaults: terminal_configuration.Configuration,
+    ) HostCore {
         return .{
             .allocator = allocator,
             .epoch = epoch,
+            .host_settings = .init(defaults),
             .terminal_registry = .init(allocator),
         };
     }
@@ -144,6 +157,28 @@ pub const HostCore = struct {
         if (self.broker) |*broker| broker.deinit();
         self.terminal_registry.deinit();
         self.* = undefined;
+    }
+
+    pub fn terminalDefaults(self: *const HostCore) terminal_configuration.Configuration {
+        return self.host_settings.defaults;
+    }
+
+    pub fn terminalDefaultsRevision(self: *const HostCore) u64 {
+        return self.host_settings.revision;
+    }
+
+    pub fn prepareTerminalDefaultsUpdate(
+        self: *const HostCore,
+        configuration: terminal_configuration.Configuration,
+    ) CoreError!PreparedTerminalDefaultsUpdate {
+        return self.host_settings.prepareDefaultsUpdate(configuration);
+    }
+
+    pub fn commitTerminalDefaultsUpdate(
+        self: *HostCore,
+        prepared: PreparedTerminalDefaultsUpdate,
+    ) void {
+        self.host_settings.commitDefaultsUpdate(prepared);
     }
 
     pub fn connect(
@@ -165,7 +200,8 @@ pub const HostCore = struct {
         const broker = if (self.broker) |*active| active else return .idempotent;
         if (!broker.owns(connection_id)) return .idempotent;
         if (target_builtin.is_test) {
-            self.last_active_read_demand_scans = broker_session.testing.activeReadDemandScans(broker);
+            self.testing_state.last_active_read_demand_scans =
+                broker_session.testing.activeReadDemandScans(broker);
         }
         broker.deinit();
         self.broker = null;
@@ -278,34 +314,6 @@ pub const HostCore = struct {
             .lifecycle = .{ .running = .{} },
             .terminal_id = terminal_id,
         });
-    }
-
-    /// Test-only constructor for the deterministic lifecycle model. Production
-    /// creation must go through HostRuntimeAggregate so a process engine and
-    /// both registry indexes are committed atomically.
-    pub fn createTerminal(
-        self: *HostCore,
-        connection_id: ConnectionId,
-        creation_id: CreationId,
-        terminal_id: TerminalId,
-        launch_digest: LaunchDigest,
-        columns: u16,
-        rows: u16,
-    ) (CoreError || std.mem.Allocator.Error)!TransitionOutcome {
-        std.debug.assert(target_builtin.is_test);
-        if (try self.resolveCreation(connection_id, creation_id, launch_digest)) |_| {
-            return .idempotent;
-        }
-        try self.reserveTerminal();
-        try self.commitTerminal(
-            connection_id,
-            creation_id,
-            terminal_id,
-            launch_digest,
-            columns,
-            rows,
-        );
-        return .applied;
     }
 
     pub fn updateTerminalConfiguration(
@@ -993,6 +1001,33 @@ fn projectionTransition(value: attachment_projection.Transition) TransitionOutco
 }
 
 pub const testing = if (@import("builtin").is_test) struct {
+    /// Creates a model-only terminal without a native engine. Product creation
+    /// goes through HostRuntimeAggregate so the engine and indexes commit
+    /// atomically.
+    pub fn createTerminal(
+        core: *HostCore,
+        connection_id: ConnectionId,
+        creation_id: CreationId,
+        terminal_id: TerminalId,
+        launch_digest: LaunchDigest,
+        columns: u16,
+        rows: u16,
+    ) (CoreError || std.mem.Allocator.Error)!TransitionOutcome {
+        if (try core.resolveCreation(connection_id, creation_id, launch_digest)) |_| {
+            return .idempotent;
+        }
+        try core.reserveTerminal();
+        try core.commitTerminal(
+            connection_id,
+            creation_id,
+            terminal_id,
+            launch_digest,
+            columns,
+            rows,
+        );
+        return .applied;
+    }
+
     pub fn creationCount(core: *const HostCore) usize {
         return terminal_registry.testing.creationCount(&core.terminal_registry);
     }
@@ -1054,14 +1089,18 @@ pub const testing = if (@import("builtin").is_test) struct {
     }
 
     pub fn activeReadDemandScans(core: *const HostCore) usize {
-        const broker = if (core.broker) |*active| active else return core.last_active_read_demand_scans;
+        const broker = if (core.broker) |*active| active else return core.testing_state.last_active_read_demand_scans;
         return broker_session.testing.activeReadDemandScans(broker);
     }
 
     pub fn resetActiveReadDemandScans(core: *HostCore) void {
-        core.last_active_read_demand_scans = 0;
+        core.testing_state.last_active_read_demand_scans = 0;
         const broker = if (core.broker) |*active| active else return;
         broker_session.testing.resetActiveReadDemandScans(broker);
+    }
+
+    pub fn setTerminalDefaultsRevision(core: *HostCore, revision: u64) void {
+        core.host_settings.revision = revision;
     }
 
     pub fn indexedAttachmentCount(core: *const HostCore) usize {

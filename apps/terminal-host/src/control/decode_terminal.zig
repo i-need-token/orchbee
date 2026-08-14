@@ -2,14 +2,13 @@ const std = @import("std");
 
 const control_wire = @import("wire.zig");
 const decode_common = @import("decode_common.zig");
-const core_module = @import("terminal-host-core").state;
-const engine = @import("terminal-host-engine");
 const model = @import("terminal-host-model");
+const attachment_model = model.attachment;
 const identifiers = model.identifiers;
 const terminal_configuration = model.configuration;
 const terminal_geometry = model.geometry;
-const terminal_launch = engine.launch;
-const terminal_profile = engine.profile;
+const terminal_launch = model.launch;
+const terminal_profile = model.profile;
 pub const CreateTerminal = struct {
     creation_id: identifiers.CreationId,
     launch: terminal_launch.Validated,
@@ -22,7 +21,7 @@ pub const UpdateTerminalConfiguration = struct {
 
 pub const AttachTerminal = struct {
     attachment_id: identifiers.AttachmentId,
-    capabilities: core_module.Capabilities,
+    capabilities: attachment_model.Capabilities,
     request_resize_lease: bool,
     terminal_id: identifiers.TerminalId,
 };
@@ -167,7 +166,7 @@ pub fn decodeAttachTerminal(
 ) decode_common.Error!decode_common.Decoded(control_wire.Attach, AttachTerminal) {
     const parsed = try control_wire.decode(control_wire.Attach, allocator, payload);
     errdefer parsed.deinit();
-    const capabilities: core_module.Capabilities = .{
+    const capabilities: attachment_model.Capabilities = .{
         .input = parsed.value.capabilities.input,
         .read = parsed.value.capabilities.read,
         .resize = parsed.value.capabilities.resize,

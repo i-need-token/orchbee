@@ -2,7 +2,8 @@ const std = @import("std");
 const target_builtin = @import("builtin");
 
 const attachment_projection = @import("attachment_projection.zig");
-const identifiers = @import("terminal-host-model").identifiers;
+const model = @import("terminal-host-model");
+const identifiers = model.identifiers;
 
 pub const AttachmentId = identifiers.AttachmentId;
 pub const ClientId = identifiers.ClientId;
@@ -21,11 +22,7 @@ pub const Error = error{
     ResizeLeaseDenied,
 };
 
-pub const Capabilities = packed struct {
-    input: bool,
-    read: bool,
-    resize: bool,
-};
+pub const Capabilities = model.attachment.Capabilities;
 
 pub const Attachment = struct {
     admission_sequence: u64,
@@ -59,6 +56,13 @@ pub const Attachment = struct {
     }
 };
 
+const SessionTestingState = if (target_builtin.is_test) struct {
+    /// Counts attachment-list entries examined by demand queries. The O(1)
+    /// aggregate examines none; the previous walk examined N(N-1)/2 entries
+    /// during an N-attachment disconnect.
+    active_read_demand_scans: usize = 0,
+} else struct {};
+
 /// Owns the active physical broker identity, every broker-scoped attachment,
 /// and the rebuildable terminal-to-attachment index. No retained terminal
 /// stores a second copy of attachment authority or projection demand.
@@ -73,12 +77,7 @@ pub const Session = struct {
     client_id: ClientId,
     connection_id: ConnectionId,
     next_attachment_sequence: u64 = 1,
-    /// Test-only teardown-cost sensor: total attachment-list entries examined
-    /// by active-projection-demand queries since the last reset. The O(1)
-    /// aggregate examines none; the pre-fix walk examined the whole remaining
-    /// per-terminal list per query, making an N-attachment disconnect visit
-    /// N(N-1)/2 entries. Only meaningful in test builds.
-    active_read_demand_scans: usize = 0,
+    testing_state: SessionTestingState = .{},
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -316,7 +315,7 @@ pub const Session = struct {
             // Test-only teardown-cost sensor. The O(1) aggregate consults no
             // attachment-list entries, so every query records zero scan work;
             // the pre-fix walk examined the whole remaining list per query.
-            self.active_read_demand_scans += 0;
+            self.testing_state.active_read_demand_scans += 0;
         }
         return demand_count > 0;
     }
@@ -332,11 +331,11 @@ pub const Session = struct {
 
 pub const testing = if (@import("builtin").is_test) struct {
     pub fn activeReadDemandScans(session: *const Session) usize {
-        return session.active_read_demand_scans;
+        return session.testing_state.active_read_demand_scans;
     }
 
     pub fn resetActiveReadDemandScans(session: *Session) void {
-        session.active_read_demand_scans = 0;
+        session.testing_state.active_read_demand_scans = 0;
     }
 
     pub fn indexedAttachmentCount(session: *const Session) usize {

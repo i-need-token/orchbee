@@ -92,6 +92,7 @@ const RuntimeTestingHooks = if (target_builtin.is_test) struct {
         terminal_geometry.Geometry,
     ) anyerror!void = null,
     write_pty: ?*const fn (*anyopaque, []const u8) anyerror!usize = null,
+    writer_waiting_for_input: ?*const fn (*anyopaque) void = null,
     writer_slice_copied: ?*const fn (*anyopaque) void = null,
     writer_slice_started: ?*const fn (*anyopaque) void = null,
 } else struct {};
@@ -2744,6 +2745,14 @@ pub const TerminalRuntime = struct {
         }
     }
 
+    fn notifyWriterWaitingForInput(self: *TerminalRuntime) void {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.writer_waiting_for_input) |notify| {
+                notify(self.testing_hooks.context.?);
+            }
+        }
+    }
+
     fn notifyWriterSliceStarted(self: *TerminalRuntime) void {
         if (comptime target_builtin.is_test) {
             if (self.testing_hooks.writer_slice_started) |notify| {
@@ -2808,6 +2817,7 @@ pub const TerminalRuntime = struct {
             while (!self.writer_stop and !self.failure_fenced and
                 !self.input_queue.hasWritableEntry())
             {
+                self.notifyWriterWaitingForInput();
                 self.input_condition.wait(&self.input_mutex);
             }
             if (self.writer_stop or self.failure_fenced) {

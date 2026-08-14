@@ -1,7 +1,8 @@
 const std = @import("std");
 
 const ghostty_vt = @import("ghostty-vt");
-const identifiers = @import("terminal-host-model").identifiers;
+const model = @import("terminal-host-model");
+const identifiers = model.identifiers;
 const protocol = @import("terminal-protocol");
 
 const max_export_bytes = protocol.Limits.selection_export_bytes;
@@ -14,11 +15,7 @@ pub const max_pending_cancellations = 2;
 
 pub const AttachmentId = identifiers.AttachmentId;
 
-pub const Format = enum {
-    html,
-    plain,
-    vt,
-};
+pub const Format = model.interaction.ExportFormat;
 
 pub const Started = struct {
     attachment_id: AttachmentId,

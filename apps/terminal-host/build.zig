@@ -148,8 +148,6 @@ pub fn build(builder: *std.Build) void {
     core_module.addImport("terminal-host-engine", engine_module);
     core_module.addImport("terminal-host-model", model_module);
     control_module.addImport("terminal-protocol", protocol_module);
-    control_module.addImport("terminal-host-core", core_module);
-    control_module.addImport("terminal-host-engine", engine_module);
     control_module.addImport("terminal-host-model", model_module);
     service_module.addImport("terminal-input", terminal_input_module);
     service_module.addImport("terminal-protocol", protocol_module);
@@ -232,8 +230,7 @@ pub fn build(builder: *std.Build) void {
     });
     control_test_module.addImport("terminal-protocol", protocol_module);
     control_test_module.addImport("terminal-host-control", control_module);
-    control_test_module.addImport("terminal-host-core", core_module);
-    control_test_module.addImport("terminal-host-engine", engine_module);
+    control_test_module.addImport("terminal-host-model", model_module);
     const service_test_module = builder.createModule(.{
         .root_source_file = builder.path("src/service/__tests__/service_boundary_test.zig"),
         .target = target,

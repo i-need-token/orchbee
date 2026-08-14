@@ -2,7 +2,7 @@ const std = @import("std");
 const control_boundary = @import("terminal-host-control");
 
 const subject = control_boundary.decode;
-const wire = control_boundary.wire;
+const wire = control_boundary.testing.wire;
 
 const attachment_id = "11111111111111111111111111111111";
 

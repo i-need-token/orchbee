@@ -192,21 +192,35 @@ pub const TerminalControlError = core_module.CoreError || error{
 pub const RetainedCleanupStatus = host_runtime_maintenance.RetainedCleanupStatus;
 pub const RetainedCleanupResult = host_runtime_maintenance.RetainedCleanupResult;
 
+const HostRuntimeAggregateTestingState = if (target_builtin.is_test) struct {
+    /// Counts projection-release decisions so disconnect teardown can prove
+    /// that each affected terminal is considered at most once.
+    projection_release_decisions: usize = 0,
+} else struct {};
+
 // HostRuntimeAggregate is the single owner of the deterministic Core record
 // and the native runtime bound to each retained TerminalId.
 pub const HostRuntimeAggregate = struct {
     allocator: std.mem.Allocator,
     core_state: core_module.HostCore,
     maintenance: host_runtime_maintenance.Maintenance = .{},
-    /// Test-only teardown-cost sensor: total projection-release decisions
-    /// (demand idle) recorded since the last reset. A bounded disconnect
-    /// releases projection resources at most once per affected terminal.
-    projection_release_decisions: usize = 0,
+    testing_state: HostRuntimeAggregateTestingState = .{},
 
     pub fn init(allocator: std.mem.Allocator) HostRuntimeAggregate {
+        return initWithDefaults(allocator, .{});
+    }
+
+    pub fn initWithDefaults(
+        allocator: std.mem.Allocator,
+        defaults: terminal_configuration.Configuration,
+    ) HostRuntimeAggregate {
         return .{
             .allocator = allocator,
-            .core_state = .init(allocator, identifiers.HostEpoch.random()),
+            .core_state = .initWithDefaults(
+                allocator,
+                identifiers.HostEpoch.random(),
+                defaults,
+            ),
         };
     }
 
@@ -357,7 +371,6 @@ pub const HostRuntimeAggregate = struct {
         connection_id: core_module.ConnectionId,
         creation_id: core_module.CreationId,
         validated_launch: terminal_launch.Validated,
-        default_configuration: terminal_configuration.Configuration,
     ) CreatePrepareError!CreatePreparation {
         if (try self.core_state.resolveCreation(
             connection_id,
@@ -371,9 +384,10 @@ pub const HostRuntimeAggregate = struct {
             } };
         }
 
-        var prepared_launch = validated_launch.prepareRuntime(
+        var prepared_launch = terminal_launch.prepareRuntime(
+            validated_launch,
             self.allocator,
-            default_configuration,
+            self.core_state.terminalDefaults(),
         ) catch return error.LaunchPreparationOutOfMemory;
         errdefer prepared_launch.deinit(self.allocator);
 
@@ -931,7 +945,7 @@ pub const HostRuntimeAggregate = struct {
         terminal_id: core_module.TerminalId,
     ) void {
         if (self.core_state.hasActiveProjectionDemand(terminal_id)) return;
-        if (target_builtin.is_test) self.projection_release_decisions += 1;
+        if (target_builtin.is_test) self.testing_state.projection_release_decisions += 1;
         if (self.runtimeFor(terminal_id)) |runtime| runtime.releaseProjectionResources();
     }
 };
@@ -1060,11 +1074,11 @@ pub const testing = if (target_builtin.is_test) struct {
         aggregate.maintenance.markRetainedCleanupExhausted(&aggregate.core_state);
     }
     pub fn projectionReleaseDecisions(aggregate: *const HostRuntimeAggregate) usize {
-        return aggregate.projection_release_decisions;
+        return aggregate.testing_state.projection_release_decisions;
     }
 
     pub fn resetProjectionReleaseDecisions(aggregate: *HostRuntimeAggregate) void {
-        aggregate.projection_release_decisions = 0;
+        aggregate.testing_state.projection_release_decisions = 0;
     }
     pub fn retainedCleanupPending(aggregate: *const HostRuntimeAggregate) bool {
         return aggregate.retainedCleanupPending();

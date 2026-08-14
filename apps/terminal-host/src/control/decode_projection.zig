@@ -2,8 +2,9 @@ const std = @import("std");
 
 const control_wire = @import("wire.zig");
 const decode_common = @import("decode_common.zig");
-const core_module = @import("terminal-host-core").state;
-const identifiers = @import("terminal-host-model").identifiers;
+const model = @import("terminal-host-model");
+const attachment_model = model.attachment;
+const identifiers = model.identifiers;
 pub const FrameApplied = struct {
     attachment_id: identifiers.AttachmentId,
     generation: u64,
@@ -29,7 +30,7 @@ pub const NeedSnapshot = struct {
 
 pub const ProjectionDemand = struct {
     attachment_id: identifiers.AttachmentId,
-    demand: core_module.ProjectionDemand,
+    demand: attachment_model.ProjectionDemand,
 };
 pub fn decodeFrameApplied(
     allocator: std.mem.Allocator,
@@ -102,7 +103,7 @@ fn parseSnapshotReason(value: []const u8) error{InvalidField}!SnapshotReason {
     return error.InvalidField;
 }
 
-fn parseProjectionDemand(value: []const u8) error{InvalidField}!core_module.ProjectionDemand {
+fn parseProjectionDemand(value: []const u8) error{InvalidField}!attachment_model.ProjectionDemand {
     if (std.mem.eql(u8, value, "active")) return .active;
     if (std.mem.eql(u8, value, "paused")) return .paused;
     return error.InvalidField;

@@ -1,7 +1,9 @@
 const std = @import("std");
 
 const ghostty_vt = @import("ghostty-vt");
-const identifiers = @import("terminal-host-model").identifiers;
+const model = @import("terminal-host-model");
+const identifiers = model.identifiers;
+const terminal_interaction = model.interaction;
 const protocol = @import("terminal-protocol");
 const row_encoding = @import("row_encoding.zig");
 const terminal_selection = @import("selection.zig");
@@ -18,18 +20,8 @@ pub const HostEpoch = identifiers.HostEpoch;
 
 pub const Detail = protocol.RowWindowDetail;
 
-pub const Purpose = enum {
-    buffer,
-    search,
-    viewport,
-};
-
-pub const Origin = union(enum) {
-    absolute: u64,
-    committed: i32,
-    oldest: u32,
-    tail: u32,
-};
+pub const Purpose = terminal_interaction.Purpose;
+pub const Origin = terminal_interaction.Origin;
 
 pub const ReadRequest = struct {
     attachment_id: AttachmentId,
@@ -62,10 +54,7 @@ const RowEncodingTarget = union(enum) {
     },
 };
 
-pub const HistoryDemand = enum {
-    following_bottom,
-    viewing_history,
-};
+pub const HistoryDemand = terminal_interaction.HistoryDemand;
 
 pub const AnchorStatus = enum {
     evicted,

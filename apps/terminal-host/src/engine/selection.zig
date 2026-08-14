@@ -1,40 +1,12 @@
 const std = @import("std");
 
 const ghostty_vt = @import("ghostty-vt");
+const terminal_interaction = @import("terminal-host-model").interaction;
 
-pub const Point = struct {
-    column: u16,
-    row: u64,
-};
-
-pub const GestureGeometry = struct {
-    cell_width: u16,
-    columns: u16,
-    padding_left: u16,
-    screen_height: u16,
-};
-
-pub const GesturePosition = struct {
-    x: i32,
-    y: i32,
-};
-
-pub const GestureEvent = union(enum) {
-    start: struct {
-        click_count: u2,
-        point: Point,
-        position: GesturePosition,
-        select_output: bool,
-    },
-    update: struct {
-        geometry: GestureGeometry,
-        point: Point,
-        position: GesturePosition,
-        rectangle: bool,
-    },
-    end: Point,
-    cancel,
-};
+pub const Point = terminal_interaction.Point;
+pub const GestureGeometry = terminal_interaction.GestureGeometry;
+pub const GesturePosition = terminal_interaction.GesturePosition;
+pub const GestureEvent = terminal_interaction.GestureEvent;
 
 pub fn Gesture(comptime AttachmentId: type) type {
     return struct {
@@ -45,16 +17,7 @@ pub fn Gesture(comptime AttachmentId: type) type {
     };
 }
 
-pub const Command = union(enum) {
-    clear,
-    select_all,
-    set_range: struct {
-        end: Point,
-        rectangle: bool,
-        start: Point,
-    },
-    select_output: Point,
-};
+pub const Command = terminal_interaction.Command;
 
 pub fn CommandRequest(comptime AttachmentId: type) type {
     return struct {
