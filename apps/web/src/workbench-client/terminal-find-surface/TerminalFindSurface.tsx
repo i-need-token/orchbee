@@ -21,6 +21,7 @@ export function TerminalFindSurface(props: TerminalFindSurfaceProps): React.Reac
 			aria-label={view.findLabel}
 			className={styles['root']}
 			data-search-state={view.snapshot.searchState}
+			onKeyDown={view.onSurfaceKeyDown}
 			role='search'
 		>
 			<div className={styles['controls']}>

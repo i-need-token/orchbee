@@ -27,6 +27,7 @@ interface TerminalFindSurfaceView {
 	readonly onNext: () => void;
 	readonly onPrevious: () => void;
 	readonly onRegexChange: (pressed: boolean) => void;
+	readonly onSurfaceKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
 	readonly onWholeWordChange: (pressed: boolean) => void;
 	readonly placeholder: string;
 	readonly previousLabel: string;
@@ -126,12 +127,6 @@ export function useTerminalFindSurface({
 			controller.setQuery(event.currentTarget.value),
 		onInputKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
 			if (event.nativeEvent.isComposing) return;
-			if (event.key === 'Escape') {
-				event.preventDefault();
-				event.stopPropagation();
-				controller.close();
-				return;
-			}
 			if (event.key === 'Enter') {
 				event.preventDefault();
 				event.stopPropagation();
@@ -150,6 +145,12 @@ export function useTerminalFindSurface({
 		onNext: invokeNext,
 		onPrevious: invokePrevious,
 		onRegexChange: (pressed: boolean) => controller.setRegex(pressed),
+		onSurfaceKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
+			if (event.nativeEvent.isComposing || event.key !== 'Escape') return;
+			event.preventDefault();
+			event.stopPropagation();
+			controller.close();
+		},
 		onWholeWordChange: (pressed: boolean) => controller.setWholeWord(pressed),
 		placeholder: intl.formatMessage(projectedTerminalMessages.findPlaceholder),
 		previousLabel: intl.formatMessage(projectedTerminalMessages.previousMatch),
