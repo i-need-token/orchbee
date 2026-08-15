@@ -31,6 +31,8 @@ test "model-only terminal construction stays behind the Core testing seam" {
     try std.testing.expect(!@hasDecl(HostCore, "createTerminal"));
     try std.testing.expect(@hasDecl(subject.testing, "createTerminal"));
     try std.testing.expect(!@hasField(HostCore, "last_active_read_demand_scans"));
+    try std.testing.expect(!@hasField(subject.TerminalSession, "engine"));
+    try std.testing.expect(!@hasDecl(subject.TerminalSession, "runtime"));
 }
 test "primary runtime failure stage determines its only legal kind" {
     const FailureCase = struct {
@@ -430,7 +432,7 @@ test "populated attachment growth rolls back every allocation failure" {
         );
     }
 }
-test "large inventory disposal swap-removes both indexes and advances one generation per terminal" {
+test "large inventory keeps session addresses stable while swap-removing both indexes" {
     const inventory_count = 192;
     var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
     defer core.deinit();
@@ -439,6 +441,7 @@ test "large inventory disposal swap-removes both indexes and advances one genera
 
     var creation_ids: [inventory_count]CreationId = undefined;
     var terminal_ids: [inventory_count]TerminalId = undefined;
+    var first_session_address: usize = 0;
     for (&creation_ids, &terminal_ids, 0..) |*creation_id, *terminal_id, index| {
         const identity_byte: u8 = @intCast(index + 1);
         creation_id.* = testId(CreationId, identity_byte);
@@ -455,13 +458,21 @@ test "large inventory disposal swap-removes both indexes and advances one genera
                 24,
             ),
         );
+        if (index == 0) {
+            first_session_address = @intFromPtr(core.findTerminal(terminal_id.*).?);
+        }
         _ = try core.childExited(terminal_id.*, .{ .exit_code = @intCast(index) });
         _ = try core.ptyDrained(terminal_id.*);
     }
+    try std.testing.expectEqual(
+        first_session_address,
+        @intFromPtr(core.findTerminal(terminal_ids[0]).?),
+    );
     try expectCoreInvariants(&core);
 
     const former_final_creation = creation_ids[inventory_count - 1];
     const former_final_terminal = terminal_ids[inventory_count - 1];
+    const former_final_session_address = @intFromPtr(core.findTerminal(former_final_terminal).?);
     for (creation_ids, terminal_ids, 0..) |creation_id, terminal_id, removed_index| {
         const generation_before = core.inventoryGeneration();
         try publishPendingOutcome(&core, terminal_id);
@@ -488,6 +499,10 @@ test "large inventory disposal swap-removes both indexes and advances one genera
             try std.testing.expectEqual(
                 former_final_terminal.bytes,
                 core.terminalValues()[0].terminal_id.bytes,
+            );
+            try std.testing.expectEqual(
+                former_final_session_address,
+                @intFromPtr(core.findTerminal(former_final_terminal).?),
             );
             try std.testing.expectEqual(
                 former_final_creation.bytes,

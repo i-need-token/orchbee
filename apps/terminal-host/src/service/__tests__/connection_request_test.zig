@@ -21,6 +21,7 @@ const terminal_history = harness.terminal_history;
 const terminal_runtime = harness.terminal_runtime;
 const host_input_admission = harness.host_input_admission;
 const host_outgoing = harness.host_outgoing;
+const host_response = service_boundary.testing.response;
 const WireIdentifier = harness.WireIdentifier;
 const ConnectionState = harness.ConnectionState;
 const HostService = harness.HostService;
@@ -61,7 +62,7 @@ const NoopTerminationFencer = harness.NoopTerminationFencer;
 const NoopTerminationContainment = harness.NoopTerminationContainment;
 const TerminationRequestOutcome = harness.TerminationRequestOutcome;
 const driveIdentityReleasedTerminationBarrier = harness.driveIdentityReleasedTerminationBarrier;
-const syntheticIoRequestContract = harness.syntheticIoRequestContract;
+const registeredRequestContract = harness.registeredRequestContract;
 const testRequestWithContract = harness.testRequestWithContract;
 const expectContractSuccess = harness.expectContractSuccess;
 const publishedClientInputCount = harness.publishedClientInputCount;
@@ -103,7 +104,11 @@ test "handshake binds client and negotiates input bytes" {
     defer outgoing.deinit();
     try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
     const response = try protocol.validateTransportEnvelope(outgoing.records()[0]);
-    try std.testing.expectEqual(MessageKind.hello_accepted, response.kind);
+    const expected = try host_response.resolveSuccessResponse(
+        try registeredRequestContract(MessageKind.hello),
+    );
+    try std.testing.expectEqual(expected.kind, response.kind);
+    try std.testing.expectEqual(@intFromEnum(expected.encoding), response.payload_encoding);
     try std.testing.expect(
         std.mem.indexOf(u8, response.payload, "\"hostVersion\":\"0.1.0\"") != null,
     );
@@ -148,32 +153,52 @@ test "handshake rejects a different exact protocol without compatibility negotia
     try std.testing.expect(connection.shouldClose());
 }
 test "handshake rejects an unsupported envelope version before parsing its payload" {
-    var service = HostService.init(std.testing.allocator);
-    defer service.deinit();
-    var connection: ConnectionState = .awaiting_hello;
-    const record = try protocol.encodeTransportEnvelope(
-        std.testing.allocator,
-        MessageKind.hello,
-        .control_json,
-        "{\"futureHelloShape\":true}",
-        null,
-        null,
-        false,
-        false,
-    );
-    defer std.testing.allocator.free(record);
     const unsupported_patch = protocol.current_protocol_patch + 1;
-    std.mem.writeInt(u16, record[56..58], unsupported_patch, .little);
+    const cases = [_]struct {
+        protocol_patch: u16,
+        response_kind: u16,
+        failure_detail: []const u8,
+    }{
+        .{
+            .protocol_patch = protocol.current_protocol_patch,
+            .response_kind = MessageKind.typed_failure,
+            .failure_detail = "\"code\":\"handshake-required\"",
+        },
+        .{
+            .protocol_patch = unsupported_patch,
+            .response_kind = MessageKind.protocol_rejected,
+            .failure_detail = "\"reason\":\"version-mismatch\"",
+        },
+    };
 
-    var outgoing = try service.handle(&connection, record);
-    defer outgoing.deinit();
-    try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
-    const response = try protocol.validateTransportEnvelope(outgoing.records()[0]);
-    try std.testing.expectEqual(MessageKind.protocol_rejected, response.kind);
-    try std.testing.expect(
-        std.mem.indexOf(u8, response.payload, "\"reason\":\"version-mismatch\"") != null,
-    );
-    try std.testing.expect(connection.shouldClose());
+    for (cases) |case| {
+        var service = HostService.init(std.testing.allocator);
+        defer service.deinit();
+        var connection: ConnectionState = .awaiting_hello;
+        const record = try protocol.encodeTransportEnvelope(
+            std.testing.allocator,
+            MessageKind.hello,
+            .control_json,
+            "{\"futureHelloShape\":true}",
+            null,
+            null,
+            false,
+            false,
+        );
+        defer std.testing.allocator.free(record);
+        record[22] = @intFromEnum(protocol.PayloadEncoding.raw_bytes);
+        std.mem.writeInt(u16, record[56..58], case.protocol_patch, .little);
+
+        var outgoing = try service.handle(&connection, record);
+        defer outgoing.deinit();
+        try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
+        const response = try protocol.validateTransportEnvelope(outgoing.records()[0]);
+        try std.testing.expectEqual(case.response_kind, response.kind);
+        try std.testing.expect(
+            std.mem.indexOf(u8, response.payload, case.failure_detail) != null,
+        );
+        try std.testing.expect(connection.shouldClose());
+    }
 }
 test "pre-handshake role failures do not publish the HostEpoch" {
     var service = HostService.init(std.testing.allocator);
@@ -199,6 +224,74 @@ test "pre-handshake role failures do not publish the HostEpoch" {
     try std.testing.expectEqual(MessageKind.typed_failure, response.kind);
     try std.testing.expect(response.host_epoch == null);
     try std.testing.expect(connection.shouldClose());
+}
+test "terminal acknowledgement honors a schema-compatible success reassociation" {
+    const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "ping -n 31 127.0.0.1 >nul" };
+    const arguments: []const []const u8 = if (target_builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    const create_payload = try testCreatePayload(
+        "24242424242424242424242424242424",
+        executable,
+        arguments,
+    );
+    defer std.testing.allocator.free(create_payload);
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "23232323232323232323232323232323");
+    var created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        create_payload,
+        [_]u8{0x24} ** 16,
+    );
+    defer created.deinit();
+    const terminal_id = serviceCore(&service).terminalKeys()[0];
+    const terminate_payload = try testTerminalTargetPayload(terminal_id);
+    defer std.testing.allocator.free(terminate_payload);
+    var reassociated = try registeredRequestContract(MessageKind.terminate_terminal);
+    reassociated.success_kind = MessageKind.force_terminate_terminal;
+    const correlation_id = [_]u8{0x25} ** 16;
+
+    var outgoing = try testRequestWithContract(
+        &service,
+        &connection,
+        reassociated,
+        MessageKind.terminate_terminal,
+        terminate_payload,
+        correlation_id,
+    );
+    defer outgoing.deinit();
+    const envelope = try expectContractSuccess(&outgoing, reassociated, correlation_id);
+    const TerminalAcknowledged = struct {
+        terminalId: []const u8,
+    };
+    const acknowledgement = try control_wire.decode(
+        TerminalAcknowledged,
+        std.testing.allocator,
+        envelope.payload,
+    );
+    defer acknowledgement.deinit();
+    var terminal_buffer: [32]u8 = undefined;
+    try std.testing.expectEqualStrings(
+        identifierText(terminal_id, &terminal_buffer),
+        acknowledgement.value.terminalId,
+    );
 }
 test "active control decode failures retain distinct public codes" {
     const invalid_utf8 = [_]u8{0xff};

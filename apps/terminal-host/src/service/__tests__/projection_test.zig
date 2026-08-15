@@ -367,7 +367,8 @@ fn createHookedRuntime(
         &spawner,
     );
     const terminal_id = testId(core_module.TerminalId, 0x43, index);
-    aggregate.core().commitRunningTerminal(
+    try host_runtime_aggregate.testing.adoptRunningTerminalFn(
+        aggregate,
         connection_id,
         testId(core_module.CreationId, 0x42, index),
         terminal_id,

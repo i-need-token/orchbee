@@ -3,7 +3,6 @@ const std = @import("std");
 const control_decode = @import("terminal-host-control").decode;
 const core_module = @import("terminal-host-core").state;
 const host_failure = @import("failure.zig");
-const host_interaction = @import("interaction.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_response = @import("response.zig");
 const host_runtime_aggregate = @import("runtime_aggregate.zig");
@@ -65,8 +64,8 @@ pub const Context = struct {
     allocator: std.mem.Allocator,
     runtime_aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
 
-    pub fn core(self: *Context) *core_module.HostCore {
-        return self.runtime_aggregate.core();
+    pub fn hostEpoch(self: *const Context) core_module.HostEpoch {
+        return self.runtime_aggregate.hostEpoch();
     }
 
     pub fn requireReadableInteraction(
@@ -75,9 +74,8 @@ pub const Context = struct {
         attachment_id: core_module.AttachmentId,
         correlation_id: WireIdentifier,
         outgoing: *Outgoing,
-    ) !?host_interaction.ReadableAttachment {
-        const controller = host_interaction.Controller.init(self.runtime_aggregate);
-        return controller.readableAttachment(connection_id, attachment_id) catch |err| {
+    ) !?host_runtime_aggregate.ReadableAttachment {
+        return self.runtime_aggregate.readableAttachment(connection_id, attachment_id) catch |err| {
             switch (err) {
                 error.ReadableAttachmentUnavailable => try self.addFailure(
                     outgoing,
@@ -224,7 +222,7 @@ pub const Context = struct {
             self.allocator,
             outgoing,
             .{ .code = code, .message = message, .retryable = retryable },
-            host_response.responseDelivery(correlation_id, self.core().epoch),
+            host_response.responseDelivery(correlation_id, self.hostEpoch()),
         );
     }
 };

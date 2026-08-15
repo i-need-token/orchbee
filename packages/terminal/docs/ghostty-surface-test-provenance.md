@@ -90,7 +90,10 @@ The browser run planner keeps multi-cell Host graphemes outside natural-advance 
 wide grapheme is anchored to its projected head cell, its spacer tail remains non-painting, and a
 following narrow complex run starts normally. The `anchors wide fallback graphemes to their Host
 cells and resumes shaping after tails` regression covers both cumulative fallback drift and the
-lost post-emoji combining run.
+lost post-emoji combining run. Narrow-cell runs add the fractional face-to-grid advance difference
+as Canvas letter spacing at the active raster scale; the `fits shaped text advances to the cell grid
+across selection boundaries` regression covers stable glyph positions when an overlay splits a
+previously continuous row run.
 
 ## Host-derived projection corpus
 

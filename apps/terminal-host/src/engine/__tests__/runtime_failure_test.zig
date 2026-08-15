@@ -66,6 +66,7 @@ const RepeatingGate = harness.RepeatingGate;
 const BurstProbe = harness.BurstProbe;
 const DescendantProbe = harness.DescendantProbe;
 const ReaderProbe = harness.ReaderProbe;
+const PtyDrainRaceProbe = harness.PtyDrainRaceProbe;
 const CanonicalSnapshot = harness.CanonicalSnapshot;
 const canonicalSnapshot = harness.canonicalSnapshot;
 const expectCanonicalSnapshotEqual = harness.expectCanonicalSnapshotEqual;
@@ -104,7 +105,10 @@ test "prepared export cancellation commits after an uncontained fatal failure" {
     }
 
     const attachment_id = AttachmentId.fromBytes([_]u8{0x91} ** 16);
-    var attachment = try runtime.prepareAttachment(attachment_id, false, true, false);
+    var attachment = try runtime.prepareAttachment(
+        attachment_id,
+        .{ .input = false, .read = true, .resize = false },
+    );
     defer attachment.deinit();
     attachment.commit();
     {
@@ -437,6 +441,30 @@ test "output cleanup failure retry closes in-flight reader and writer lanes perm
         );
         try std.testing.expect(!subject.testing.failureFenced(runtime));
         try std.testing.expect(runtime.primaryFailure() == null);
+    }
+}
+test "output abort that wins before drain publication cannot become natural drain" {
+    var probe: PtyDrainRaceProbe = .{};
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer {
+        probe.before_publication.release();
+        probe.reader_stopped.wait();
+        clearTestingHooks(runtime);
+        runtime.destroy();
+    }
+
+    // The reader has observed EOF and passed its outer abort checks, but has
+    // not crossed the drain-publication boundary yet.
+    probe.before_publication.wait();
+    try releaseOutputForShutdown(runtime);
+    probe.before_publication.release();
+    probe.reader_stopped.wait();
+
+    const completion = runtime.completion();
+    try std.testing.expect(!completion.pty_drained);
+    switch (completion.classification) {
+        .pending => {},
+        .normal, .failed => return error.ExpectedPendingCompletion,
     }
 }
 test "post-resize-effect barrier keeps normal completion pending through commit or compensation" {

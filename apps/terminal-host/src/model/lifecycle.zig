@@ -153,6 +153,76 @@ pub const FailureContainment = union(enum) {
     },
 };
 
+pub const RetainedCleanupBlock = struct {
+    failure: RuntimeCleanupFailure,
+    retry_at_ns: i128,
+};
+
+/// Cleanup ownership retained after a terminal outcome has already settled.
+/// This state is independent of the immutable normal/failed outcome: cleanup
+/// retries may advance it, but can never rewrite the lifecycle result.
+pub const RetainedCleanup = union(enum) {
+    inactive,
+    blocked: RetainedCleanupBlock,
+    complete,
+    exhausted: RuntimeCleanupFailure,
+
+    pub fn pending(self: RetainedCleanup) bool {
+        return switch (self) {
+            .blocked, .exhausted => true,
+            .inactive, .complete => false,
+        };
+    }
+
+    pub fn failure(self: RetainedCleanup) ?RuntimeCleanupFailure {
+        return switch (self) {
+            .blocked => |blocked| blocked.failure,
+            .exhausted => |cleanup_failure| cleanup_failure,
+            .inactive, .complete => null,
+        };
+    }
+
+    pub fn retryAt(self: RetainedCleanup) ?i128 {
+        return switch (self) {
+            .blocked => |blocked| blocked.retry_at_ns,
+            .inactive, .complete, .exhausted => null,
+        };
+    }
+
+    pub fn block(
+        self: *RetainedCleanup,
+        failure_value: RuntimeCleanupFailure,
+        retry_at_ns: i128,
+    ) Error!TransitionOutcome {
+        switch (self.*) {
+            .inactive, .blocked => self.* = .{ .blocked = .{
+                .failure = failure_value,
+                .retry_at_ns = retry_at_ns,
+            } },
+            .complete, .exhausted => return error.InvalidPhase,
+        }
+        return .applied;
+    }
+
+    pub fn completeCleanup(self: *RetainedCleanup) Error!TransitionOutcome {
+        switch (self.*) {
+            .blocked => self.* = .complete,
+            .complete => return .idempotent,
+            .inactive, .exhausted => return error.InvalidPhase,
+        }
+        return .applied;
+    }
+
+    pub fn exhaust(self: *RetainedCleanup) Error!TransitionOutcome {
+        switch (self.*) {
+            .blocked => |blocked| self.* = .{ .exhausted = blocked.failure },
+            .exhausted => return .idempotent,
+            .inactive, .complete => return error.InvalidPhase,
+        }
+        return .applied;
+    }
+};
+
 pub const OutcomePublication = enum {
     pending,
     published,

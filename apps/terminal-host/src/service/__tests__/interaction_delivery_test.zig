@@ -12,6 +12,7 @@ const core_module = harness.core_module;
 const control_encode = harness.control_encode;
 const control_wire = harness.control_wire;
 const host_outgoing = harness.host_outgoing;
+const host_response = service_boundary.testing.response;
 const host_runtime_aggregate = harness.host_runtime_aggregate;
 const subject = harness.subject;
 const service_subject = harness.service_subject;
@@ -54,6 +55,49 @@ const dispatchSelectionExportChunkApplied = harness.dispatchSelectionExportChunk
 const exportChunkInBatch = harness.exportChunkInBatch;
 const expectSameKindAcknowledgementSuccess = harness.expectSameKindAcknowledgementSuccess;
 const expectExportChunkAcknowledgementFinished = harness.expectExportChunkAcknowledgementFinished;
+
+test "interaction rejects an incompatible success codec before request parsing" {
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    var dispatcher = service_subject.testing.RequestDispatcherType.init(
+        std.testing.allocator,
+        &aggregate,
+        false,
+    );
+    var outgoing = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer outgoing.deinit();
+    var request = protocol.messageContract(protocol.MessageKind.read_rows).?.request.?;
+    request.success_kind = protocol.MessageKind.ping;
+    const correlation_id = [_]u8{0x19} ** 16;
+    const record = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        protocol.MessageKind.read_rows,
+        request.payload_encoding,
+        "{}",
+        correlation_id,
+        aggregate.core().epoch.bytes,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(record);
+    const envelope = try protocol.validateTransportEnvelope(record);
+
+    try std.testing.expectError(
+        error.IncompatibleSuccessResponseEncoding,
+        dispatcher.dispatch(
+            request,
+            1,
+            .{
+                .input_bytes = protocol.Limits.input_bytes,
+                .row_window_bytes = protocol.Limits.row_window_bytes,
+            },
+            envelope,
+            correlation_id,
+            &outgoing,
+        ),
+    );
+    try std.testing.expectEqual(@as(usize, 0), outgoing.records().len);
+}
 
 test "readable interaction capability distinguishes authorization from runtime ownership" {
     var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
@@ -314,7 +358,11 @@ test "read rows service boundary maps oversized render geometry to limit exceede
     defer adjacent.deinit();
     try std.testing.expectEqual(@as(usize, 1), adjacent.records().len);
     const rows_envelope = try protocol.validateTransportEnvelope(adjacent.records()[0]);
-    try std.testing.expectEqual(protocol.MessageKind.rows_snapshot, rows_envelope.kind);
+    const expected = try host_response.resolveSuccessResponse(
+        protocol.messageContract(protocol.MessageKind.read_rows).?.request.?,
+    );
+    try std.testing.expectEqual(expected.kind, rows_envelope.kind);
+    try std.testing.expectEqual(@intFromEnum(expected.encoding), rows_envelope.payload_encoding);
     const summary = try protocol.validateTerminalRowWindow(
         std.testing.allocator,
         rows_envelope.payload,
@@ -381,7 +429,11 @@ test "read rows service boundary uses bounded scratch for an exact empty text ro
 
     try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
     const envelope = try protocol.validateTransportEnvelope(outgoing.records()[0]);
-    try std.testing.expectEqual(protocol.MessageKind.rows_snapshot, envelope.kind);
+    const expected = try host_response.resolveSuccessResponse(
+        protocol.messageContract(protocol.MessageKind.read_rows).?.request.?,
+    );
+    try std.testing.expectEqual(expected.kind, envelope.kind);
+    try std.testing.expectEqual(@intFromEnum(expected.encoding), envelope.payload_encoding);
     try std.testing.expectEqual(@as(usize, 124), envelope.payload.len);
     const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, envelope.payload);
     try std.testing.expectEqual(protocol.RowWindowDetail.text, summary.detail);

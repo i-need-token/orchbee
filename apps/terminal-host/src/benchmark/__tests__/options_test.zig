@@ -3,7 +3,9 @@ const subject = @import("terminal-host-benchmark").testing.BenchmarkOptionsModul
 
 const Config = subject.Config;
 const Mode = subject.Mode;
-const parse = subject.parse;
+fn parse(arguments: []const []const u8) !subject.Command {
+    return subject.parse(std.testing.allocator, arguments);
+}
 
 fn parseBenchmark(arguments: []const []const u8) !Config {
     return switch (try parse(arguments)) {
@@ -126,6 +128,10 @@ test "benchmark arguments recognize only the exact internal emit command" {
         .benchmark => return error.ExpectedEmitCommand,
     }
     try std.testing.expectError(error.InvalidArguments, parse(&.{ "--emit", "0" }));
+    try std.testing.expectError(
+        error.InvalidArguments,
+        parse(&.{ "--emit", "1", "--emit", "2" }),
+    );
     try std.testing.expectError(error.InvalidArguments, parse(&.{"--emit"}));
     try std.testing.expectError(error.InvalidArguments, parse(&.{ "--emit", "1", "extra" }));
     try std.testing.expectError(error.InvalidArguments, parse(&.{ "--emit", "invalid" }));

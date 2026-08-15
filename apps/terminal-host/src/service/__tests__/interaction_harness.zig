@@ -266,7 +266,8 @@ pub fn createHookedReadableRuntime(
         preparation.runtime_options,
         &spawner,
     );
-    aggregate.core().commitRunningTerminal(
+    try host_runtime_aggregate.testing.adoptRunningTerminalFn(
+        aggregate,
         connection_id,
         creation_id,
         terminal_id,

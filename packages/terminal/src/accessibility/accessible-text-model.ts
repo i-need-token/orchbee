@@ -186,17 +186,22 @@ export class AccessibleTextModel {
 		readonly end: AccessibleTextPosition;
 		readonly start: AccessibleTextPosition;
 	}): AccessibleOffsetRange {
-		const start = this.positionToOffset(range.start);
-		const endRowIndex = clamp(range.end.row, 0, Math.max(0, this.#rows.length - 1));
+		const forward =
+			range.start.row < range.end.row ||
+			(range.start.row === range.end.row && range.start.column <= range.end.column);
+		const startPosition = forward ? range.start : range.end;
+		const endPosition = forward ? range.end : range.start;
+		const start = this.positionToOffset(startPosition);
+		const endRowIndex = clamp(endPosition.row, 0, Math.max(0, this.#rows.length - 1));
 		const endRow = this.#rows[endRowIndex];
 		const endSegment = endRow?.segments.find(
 			(segment) =>
-				range.end.column >= segment.column && range.end.column < segment.column + segment.width,
+				endPosition.column >= segment.column && endPosition.column < segment.column + segment.width,
 		);
 		const end = endSegment
 			? (this.#rowStarts[endRowIndex] ?? 0) + endSegment.end
-			: this.positionToOffset({ column: range.end.column + 1, row: range.end.row });
-		return start <= end ? { end, start } : { end: start, start: end };
+			: this.positionToOffset({ column: endPosition.column + 1, row: endPosition.row });
+		return { end: Math.max(start, end), start: Math.min(start, end) };
 	}
 
 	offsetsToInclusiveTerminalRange(range: AccessibleOffsetRange): {

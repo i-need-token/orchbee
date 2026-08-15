@@ -54,7 +54,6 @@ pub fn expectCoreInvariants(core: *HostCore) !void {
 
     for (core.terminalKeys(), core.terminalValues()) |terminal_id, terminal| {
         try std.testing.expect(terminal_id.eql(terminal.terminal_id));
-        try std.testing.expect(terminal.runtime() == null);
         const retained_terminal_id = subject.testing.creationTerminal(
             core,
             terminal.creation_id,

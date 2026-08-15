@@ -18,6 +18,7 @@ pub const terminal_history = engine_boundary.history;
 pub const terminal_runtime = engine_boundary.runtime;
 pub const host_input_admission = service_boundary.testing.input_admission;
 pub const host_outgoing = service_boundary.testing.outgoing;
+pub const host_response = service_boundary.testing.response;
 
 pub const WireIdentifier = [16]u8;
 
@@ -522,26 +523,10 @@ pub fn driveIdentityReleasedTerminationBarrier(
     try std.testing.expect(replay_outcome.failure == null);
 }
 
-pub fn syntheticIoRequestContract(
-    request_kind: u16,
-    success_kind: u16,
-) !protocol.RequestMessageContract {
+pub fn registeredRequestContract(request_kind: u16) !protocol.RequestMessageContract {
     const registered = protocol.messageContract(request_kind) orelse
         return error.ExpectedRegisteredRequest;
-    const request = registered.request orelse return error.ExpectedRegisteredRequest;
-    const success = protocol.messageContract(success_kind) orelse
-        return error.ExpectedRegisteredResponse;
-    try std.testing.expect(success.response_encoding != null);
-    try std.testing.expectEqual(
-        protocol.PayloadEncoding.control_json,
-        success.response_encoding.?,
-    );
-    try std.testing.expect(request.success_kind != success_kind);
-    return .{
-        .operation = request.operation,
-        .payload_encoding = request.payload_encoding,
-        .success_kind = success_kind,
-    };
+    return registered.request orelse error.ExpectedRegisteredRequest;
 }
 
 pub fn testRequestWithContract(
@@ -594,10 +579,15 @@ pub fn expectContractSuccess(
 ) !protocol.EnvelopeSummary {
     try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
     const envelope = try protocol.validateTransportEnvelope(outgoing.records()[0]);
+    const success = try host_response.resolveSuccessResponse(request_contract);
     try std.testing.expect(envelope.response);
     try std.testing.expect(!envelope.event);
     try std.testing.expectEqualSlices(u8, &correlation_id, &envelope.correlation_id.?);
-    try std.testing.expectEqual(request_contract.success_kind, envelope.kind);
+    try std.testing.expectEqual(success.kind, envelope.kind);
+    try std.testing.expectEqual(
+        @intFromEnum(success.encoding),
+        envelope.payload_encoding,
+    );
     return envelope;
 }
 
@@ -629,8 +619,11 @@ pub fn testHandshakeWithInputBytes(
     client_id: []const u8,
     input_bytes: usize,
 ) !void {
+    const hello = try host_response.resolveSuccessResponse(
+        try registeredRequestContract(MessageKind.hello),
+    );
     try std.testing.expectEqual(
-        MessageKind.hello_accepted,
+        hello.kind,
         try testHandshakeResponseKindWithInputBytes(
             service,
             connection,

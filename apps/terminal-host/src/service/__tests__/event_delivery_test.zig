@@ -282,7 +282,7 @@ test "full outgoing batch leaves a failed outcome pending for the next handoff" 
     }
     var blocked_handoff: OutcomePublicationHandoff = .{};
     try synchronizeRuntimeLifecycle(&service, &full, &blocked_handoff);
-    commitOutcomePublicationHandoff(&blocked_handoff, serviceCore(&service));
+    commitOutcomePublicationHandoff(&blocked_handoff, serviceAggregate(&service));
     try std.testing.expect(serviceCore(&service).findTerminal(terminal_id).?.pendingOutcome() != null);
     try std.testing.expectError(
         error.OutcomePublicationPending,
@@ -556,6 +556,55 @@ test "dispose transport behavior is independent of the fair-scan cursor" {
     try disposeSkippedTargetThroughTransport(0);
     try disposeSkippedTargetThroughTransport(64);
 }
+test "one event lifecycle poll consumes one bounded runtime and cleanup scan" {
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try serviceCore(&service).connect(
+        connection_id,
+        testId(core_module.ClientId, 0x34, 0),
+    );
+    const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "exit 0" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "exit /B 0" };
+    const arguments = if (target_builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    const target = try createSkippedNativeTarget(
+        &service,
+        connection_id,
+        executable,
+        arguments,
+    );
+    _ = try findRuntime(&service, target.terminal_id).?.waitForCompletion();
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.running,
+        serviceCore(&service).findTerminal(target.terminal_id).?.phase(),
+    );
+
+    var outgoing = Outgoing.init(std.testing.allocator);
+    defer outgoing.deinit();
+    var handoff: OutcomePublicationHandoff = .{};
+    try synchronizeRuntimeLifecycle(&service, &outgoing, &handoff);
+
+    // One 64-terminal runtime slice leaves index 64 for the next poll. The
+    // cleanup selector independently inspects exactly its 16-terminal budget.
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.running,
+        serviceCore(&service).findTerminal(target.terminal_id).?.phase(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), outgoing.records().len);
+    try std.testing.expectEqual(
+        @as(usize, 16),
+        aggregate_module.testing.cleanupRetryScanIndexFn(serviceAggregate(&service)),
+    );
+}
 test "settled outcome handoff publishes once and rejects revision advancement" {
     var service = HostService.init(std.testing.allocator);
     defer service.deinit();
@@ -587,8 +636,8 @@ test "settled outcome handoff publishes once and rejects revision advancement" {
         error.InvalidPhase,
         serviceCore(&service).synchronizeRevision(terminal_id, 2),
     );
-    commitOutcomePublicationHandoff(&handoff, serviceCore(&service));
-    commitOutcomePublicationHandoff(&handoff, serviceCore(&service));
+    commitOutcomePublicationHandoff(&handoff, serviceAggregate(&service));
+    commitOutcomePublicationHandoff(&handoff, serviceAggregate(&service));
     const terminal = serviceCore(&service).findTerminal(terminal_id).?;
     try std.testing.expectEqual(@as(u64, 1), terminal.settledFinalRevision().?);
     try std.testing.expect(terminal.pendingOutcome() == null);

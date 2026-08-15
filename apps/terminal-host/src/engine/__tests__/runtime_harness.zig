@@ -232,6 +232,27 @@ pub fn createIdleRuntime(options: subject.Options) !*TerminalRuntime {
     return createIdleRuntimeWithGeometry(80, 24, options);
 }
 
+pub fn createImmediateExitRuntime() !*TerminalRuntime {
+    const builtin = @import("builtin");
+    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "exit 0" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "exit /B 0" };
+    const arguments = if (builtin.os.tag == .windows) &windows_arguments else &posix_arguments;
+    return TerminalRuntime.create(std.testing.allocator, .{
+        .arguments = arguments,
+        .columns = 80,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = executable,
+        .rows = 24,
+    });
+}
+
 pub fn createIdleRuntimeWithGeometry(
     columns: u16,
     rows: u16,
@@ -506,6 +527,40 @@ pub const ReaderProbe = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         return self.read_calls;
+    }
+};
+
+pub const PtyDrainRaceProbe = struct {
+    before_publication: TestGate = .{},
+    reader_stopped: TestSignal = .{},
+
+    pub fn fromContext(context: *anyopaque) *PtyDrainRaceProbe {
+        return @ptrCast(@alignCast(context));
+    }
+
+    pub fn read(_: *anyopaque, _: []u8) anyerror!usize {
+        return 0;
+    }
+
+    pub fn noOp(_: *anyopaque) anyerror!void {}
+
+    pub fn publicationStarting(context: *anyopaque) void {
+        fromContext(context).before_publication.pause();
+    }
+
+    pub fn readerStopped(context: *anyopaque) void {
+        fromContext(context).reader_stopped.notify();
+    }
+
+    pub fn hooks(self: *PtyDrainRaceProbe) RuntimeTestingHooks {
+        return .{
+            .abort_read = noOp,
+            .context = self,
+            .finish_pty_after_child_exit = noOp,
+            .pty_drain_publication_starting = publicationStarting,
+            .read_pty = read,
+            .reader_stopped = readerStopped,
+        };
     }
 };
 

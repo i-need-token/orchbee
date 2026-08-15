@@ -37,6 +37,12 @@ describe('AccessibleTextModel', () => {
 		expect(model.positionToOffset({ row: 1, column: 0 })).toBe(5);
 		expect(model.offsetToPosition(3, 'backward')).toEqual({ row: 0, column: 3 });
 		expect(model.offsetToPosition(3, 'forward')).toEqual({ row: 0, column: 5 });
+		expect(
+			model.inclusiveTerminalRangeToOffsets({
+				start: { row: 1, column: 1 },
+				end: { row: 0, column: 1 },
+			}),
+		).toEqual({ start: 1, end: 7 });
 	});
 
 	it('converts an exclusive DOM range without splitting a wide grapheme', () => {

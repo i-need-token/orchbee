@@ -23,7 +23,7 @@ pub fn main() !void {
     const arguments = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, arguments);
     if (arguments.len == 0) return error.InvalidArguments;
-    switch (try benchmark_options.parse(arguments[1..])) {
+    switch (try benchmark_options.parse(allocator, arguments[1..])) {
         .emit => |byte_count| try emitGeneratedFixture(byte_count),
         .benchmark => |config| try runBenchmark(allocator, config),
     }

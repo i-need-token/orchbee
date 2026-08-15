@@ -61,7 +61,7 @@ const NoopTerminationFencer = harness.NoopTerminationFencer;
 const NoopTerminationContainment = harness.NoopTerminationContainment;
 const TerminationRequestOutcome = harness.TerminationRequestOutcome;
 const driveIdentityReleasedTerminationBarrier = harness.driveIdentityReleasedTerminationBarrier;
-const syntheticIoRequestContract = harness.syntheticIoRequestContract;
+const registeredRequestContract = harness.registeredRequestContract;
 const testRequestWithContract = harness.testRequestWithContract;
 const expectContractSuccess = harness.expectContractSuccess;
 const publishedClientInputCount = harness.publishedClientInputCount;
@@ -222,11 +222,28 @@ test "I/O successful responses use supplied request contracts and publish input 
         .{ .kind = MessageKind.paste_input, .must_publish = true, .payload = &paste_payload },
     };
     var input_acceptances: usize = 0;
+
+    var incompatible_contract = try registeredRequestContract(MessageKind.write_input);
+    incompatible_contract.success_kind = MessageKind.rows_snapshot;
+    const publications_before_incompatible = publishedClientInputCount(runtime);
+    try std.testing.expectError(
+        error.IncompatibleSuccessResponseEncoding,
+        testRequestWithContract(
+            &service,
+            &connection,
+            incompatible_contract,
+            MessageKind.write_input,
+            &raw_payload,
+            [_]u8{0x50} ** 16,
+        ),
+    );
+    try std.testing.expectEqual(
+        publications_before_incompatible,
+        publishedClientInputCount(runtime),
+    );
+
     for (input_cases, 0..) |input_case, index| {
-        const request_contract = try syntheticIoRequestContract(
-            input_case.kind,
-            MessageKind.ping,
-        );
+        const request_contract = try registeredRequestContract(input_case.kind);
         const publications_before = publishedClientInputCount(runtime);
         const correlation_id = testIdentifier(0x4b, index);
         var outgoing = try testRequestWithContract(
@@ -275,10 +292,7 @@ test "I/O successful responses use supplied request contracts and publish input 
     }
     try std.testing.expectEqual(input_cases.len, input_acceptances);
 
-    const resize_contract = try syntheticIoRequestContract(
-        MessageKind.resize_terminal,
-        MessageKind.ping,
-    );
+    const resize_contract = try registeredRequestContract(MessageKind.resize_terminal);
     var resized = try testRequestWithContract(
         &service,
         &connection,
@@ -290,10 +304,7 @@ test "I/O successful responses use supplied request contracts and publish input 
     defer resized.deinit();
     _ = try expectContractSuccess(&resized, resize_contract, [_]u8{0x51} ** 16);
 
-    const demand_contract = try syntheticIoRequestContract(
-        MessageKind.set_projection_demand,
-        MessageKind.ping,
-    );
+    const demand_contract = try registeredRequestContract(MessageKind.set_projection_demand);
     var demanded = try testRequestWithContract(
         &service,
         &connection,
@@ -315,10 +326,7 @@ test "I/O successful responses use supplied request contracts and publish input 
         "{{\"attachmentId\":\"4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a\",\"reason\":\"base-mismatch\",\"sequence\":\"{d}\"}}",
         .{first_frame.sequence},
     );
-    const need_snapshot_contract = try syntheticIoRequestContract(
-        MessageKind.need_snapshot,
-        MessageKind.ping,
-    );
+    const need_snapshot_contract = try registeredRequestContract(MessageKind.need_snapshot);
     var snapshot_requested = try testRequestWithContract(
         &service,
         &connection,
@@ -344,10 +352,7 @@ test "I/O successful responses use supplied request contracts and publish input 
         "{{\"attachmentId\":\"4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a\",\"generation\":\"{d}\",\"revision\":\"{d}\",\"sequence\":\"{d}\"}}",
         .{ second_frame.generation, second_frame.revision, second_frame.sequence },
     );
-    const frame_applied_contract = try syntheticIoRequestContract(
-        MessageKind.frame_applied,
-        MessageKind.ping,
-    );
+    const frame_applied_contract = try registeredRequestContract(MessageKind.frame_applied);
     var frame_applied = try testRequestWithContract(
         &service,
         &connection,

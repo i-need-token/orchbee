@@ -3,6 +3,7 @@ const std = @import("std");
 const control_wire = @import("wire.zig");
 const decode_common = @import("decode_common.zig");
 const model = @import("terminal-host-model");
+const protocol = @import("terminal-protocol");
 const attachment_model = model.attachment;
 const identifiers = model.identifiers;
 const terminal_configuration = model.configuration;
@@ -42,15 +43,10 @@ pub fn decodeCreateTerminal(
     );
     const profile = profileFromWire(parsed.value.launch.terminalProfile) orelse
         return error.InvalidField;
-    // The translated slice borrows wire strings, so make it part of the same
-    // arena and lifetime as the parsed command.
-    const environment = parsed.arena.allocator().alloc(
-        terminal_launch.EnvironmentEntry,
-        parsed.value.launch.environment.len,
-    ) catch return error.CommandInspectionOutOfMemory;
-    for (environment, parsed.value.launch.environment) |*target, source| {
-        target.* = .{ .name = source.name, .value = source.value };
-    }
+    const environment = try translateEnvironment(
+        parsed.arena.allocator(),
+        parsed.value.launch.environment,
+    );
     const wire_launch = parsed.value.launch;
     const launch: terminal_launch.Launch = .{
         .arguments = wire_launch.arguments,
@@ -84,6 +80,29 @@ pub fn decodeCreateTerminal(
         },
     };
 }
+
+fn translateEnvironment(
+    allocator: std.mem.Allocator,
+    source_environment: []const control_wire.Environment,
+) decode_common.Error![]terminal_launch.EnvironmentEntry {
+    if (source_environment.len > protocol.Limits.launch_environment_entries) {
+        return error.InvalidField;
+    }
+    // The translated slice borrows wire strings, so its caller allocates it in
+    // the parsed command's arena and keeps both lifetimes aligned.
+    const environment = allocator.alloc(
+        terminal_launch.EnvironmentEntry,
+        source_environment.len,
+    ) catch return error.CommandInspectionOutOfMemory;
+    for (environment, source_environment) |*target, source| {
+        target.* = .{ .name = source.name, .value = source.value };
+    }
+    return environment;
+}
+
+pub const testing = struct {
+    pub const translateEnvironmentForTest = translateEnvironment;
+};
 
 fn profileFromWire(profile: control_wire.TerminalProfile) ?terminal_profile.Profile {
     const color_scheme: terminal_profile.ColorScheme = if (std.mem.eql(u8, profile.colorScheme, "dark"))

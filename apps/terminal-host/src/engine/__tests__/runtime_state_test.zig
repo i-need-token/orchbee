@@ -58,6 +58,7 @@ const createRuntimeWithHooks = harness.createRuntimeWithHooks;
 const createRuntimeWithHooksAndCommand = harness.createRuntimeWithHooksAndCommand;
 const waitForWriterStop = harness.waitForWriterStop;
 const createIdleRuntime = harness.createIdleRuntime;
+const createImmediateExitRuntime = harness.createImmediateExitRuntime;
 const createIdleRuntimeWithGeometry = harness.createIdleRuntimeWithGeometry;
 const parseTerminalInput = harness.parseTerminalInput;
 const WriterPause = harness.WriterPause;
@@ -94,6 +95,19 @@ const driveReplyBurstUntilClient = harness.driveReplyBurstUntilClient;
 const parseDescendantPid = harness.parseDescendantPid;
 const procCommEquals = harness.procCommEquals;
 const processAlive = harness.processAlive;
+
+fn expectAttachmentPreparationUnavailable(
+    runtime: *TerminalRuntime,
+    attachment_id: AttachmentId,
+    capabilities: subject.Capabilities,
+) !void {
+    var preparation = runtime.prepareAttachment(attachment_id, capabilities) catch |err| {
+        try std.testing.expectEqual(error.TerminalRuntimeUnavailable, err);
+        return;
+    };
+    defer preparation.deinit();
+    return error.ExpectedAttachmentPreparationFailure;
+}
 
 test "platform resize errors restore committed geometry or report an unsafe rollback" {
     const FakePty = struct {
@@ -490,6 +504,75 @@ test "normal completion freezes revision generation geometry and configuration" 
     try std.testing.expectEqualDeep(settled_configuration, runtime.configuration());
     try std.testing.expectEqual(settled.final_revision, runtime.completion().final_revision);
     try runtime.shutdown();
+}
+test "attachment preparation applies the live gate to every resize capability" {
+    const runtime = try createImmediateExitRuntime();
+    defer runtime.destroy();
+    _ = try runtime.waitForCompletion();
+
+    const read_attachment = AttachmentId.fromBytes([_]u8{0x21} ** 16);
+    {
+        var preparation = try runtime.prepareAttachment(
+            read_attachment,
+            .{ .input = false, .read = true, .resize = false },
+        );
+        defer preparation.deinit();
+    }
+    try expectAttachmentPreparationUnavailable(
+        runtime,
+        AttachmentId.fromBytes([_]u8{0x22} ** 16),
+        .{ .input = false, .read = false, .resize = true },
+    );
+    try expectAttachmentPreparationUnavailable(
+        runtime,
+        AttachmentId.fromBytes([_]u8{0x23} ** 16),
+        .{ .input = false, .read = true, .resize = true },
+    );
+}
+test "resize-only attachment preparation reserves no input ownership capacity" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+    runtime.input_mutex.lock();
+    const capacity_before = runtime.input_ownership.attachments.capacity();
+    runtime.input_mutex.unlock();
+
+    var preparation = try runtime.prepareAttachment(
+        AttachmentId.fromBytes([_]u8{0x24} ** 16),
+        .{ .input = false, .read = false, .resize = true },
+    );
+    defer preparation.deinit();
+
+    runtime.input_mutex.lock();
+    const capacity_after = runtime.input_ownership.attachments.capacity();
+    runtime.input_mutex.unlock();
+    try std.testing.expectEqual(capacity_before, capacity_after);
+}
+test "attachment preparation derives reservations from canonical capabilities" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+    const cases = [_]subject.Capabilities{
+        .{ .input = true, .read = false, .resize = false },
+        .{ .input = false, .read = true, .resize = false },
+        .{ .input = false, .read = false, .resize = true },
+        .{ .input = true, .read = true, .resize = false },
+        .{ .input = true, .read = false, .resize = true },
+        .{ .input = false, .read = true, .resize = true },
+        .{ .input = true, .read = true, .resize = true },
+    };
+
+    for (cases, 0..) |capabilities, index| {
+        var bytes = [_]u8{0x30} ** 16;
+        bytes[bytes.len - 1] = @intCast(index);
+        const attachment_id = AttachmentId.fromBytes(bytes);
+        var preparation = try runtime.prepareAttachment(attachment_id, capabilities);
+        try std.testing.expectEqual(capabilities.read, preparation.history_reserved);
+        try std.testing.expectEqual(capabilities.input, preparation.input_state_reserved);
+        preparation.commit();
+        try std.testing.expectEqual(
+            capabilities.input,
+            subject.testing.hasAttachmentInputOwnership(runtime, attachment_id),
+        );
+    }
 }
 test "runtime resets projection resources after encode failure" {
     const builtin = @import("builtin");

@@ -153,7 +153,7 @@ pub const Workflow = struct {
         }
         const correlation_id = envelope.correlation_id.?;
         if (envelope.host_epoch == null or
-            !core_module.HostEpoch.fromBytes(envelope.host_epoch.?).eql(runtime_aggregate.core().epoch))
+            !core_module.HostEpoch.fromBytes(envelope.host_epoch.?).eql(runtime_aggregate.hostEpoch()))
         {
             try addFailure(
                 allocator,
@@ -223,7 +223,6 @@ pub const Workflow = struct {
         outgoing: *Outgoing,
     ) !void {
         if (envelope.kind != MessageKind.hello or
-            envelope.payload_encoding != @intFromEnum(protocol.PayloadEncoding.control_json) or
             envelope.host_epoch != null)
         {
             try addHandshakeFailure(
@@ -259,6 +258,22 @@ pub const Workflow = struct {
             connection.* = .closing;
             return;
         }
+        const hello_request = protocol.messageContract(MessageKind.hello).?.request.?;
+        if (envelope.payload_encoding != @intFromEnum(hello_request.payload_encoding)) {
+            try addHandshakeFailure(
+                allocator,
+                runtime_aggregate,
+                outgoing,
+                envelope.correlation_id,
+                "handshake-required",
+                "first request must be Hello without HostEpoch",
+                false,
+            );
+            connection.* = .closing;
+            return;
+        }
+        const success_response = try host_response.resolveSuccessResponse(hello_request);
+        const success = try host_response.requireControlJsonSuccess(success_response);
         var decoded = control_decode.decodeHello(allocator, envelope.payload) catch |err| {
             const failure = host_request_context.classifyControlDecodeError(err) catch
                 return error.OutOfMemory;
@@ -305,7 +320,7 @@ pub const Workflow = struct {
         var response = try host_response.prepare(
             outgoing,
             protocol.Limits.control_json_bytes,
-            host_response.handshakeResponseDelivery(envelope.correlation_id, runtime_aggregate.core().epoch),
+            host_response.handshakeResponseDelivery(envelope.correlation_id, runtime_aggregate.hostEpoch()),
         );
         defer response.deinit();
         const connection_id = self.prepareConnectionId() catch {
@@ -321,7 +336,7 @@ pub const Workflow = struct {
             connection.* = .closing;
             return;
         };
-        _ = runtime_aggregate.core().connect(connection_id, hello.client_id) catch |err| {
+        _ = runtime_aggregate.connect(connection_id, hello.client_id) catch |err| {
             const failure = host_failure.fromCore(err);
             try addHandshakeFailure(
                 allocator,
@@ -344,10 +359,10 @@ pub const Workflow = struct {
         control_encode.writeHelloAccepted(
             &output,
             limits,
-            runtime_aggregate.core().epoch,
+            runtime_aggregate.hostEpoch(),
             build_options.host_version,
         ) catch unreachable;
-        _ = response.commitControl(MessageKind.hello_accepted, &output);
+        _ = response.commitControlSuccess(success, &output);
     }
 
     fn prepareConnectionId(
@@ -386,7 +401,7 @@ fn addFailure(
         code,
         message,
         retryable,
-        host_response.responseDelivery(correlation_id, runtime_aggregate.core().epoch),
+        host_response.responseDelivery(correlation_id, runtime_aggregate.hostEpoch()),
     );
 }
 

@@ -69,3 +69,55 @@ test "requireDisposable distinguishes stopping from blocked cleanup containment"
         else => return error.ExpectedCleanupBlockedAdmission,
     }
 }
+
+test "retained cleanup advances independently through blocked complete state" {
+    var cleanup: lifecycle_model.RetainedCleanup = .inactive;
+
+    try std.testing.expectEqual(
+        lifecycle_model.TransitionOutcome.applied,
+        try cleanup.block(.contain_process, 123),
+    );
+    try std.testing.expect(cleanup.pending());
+    try std.testing.expectEqual(
+        lifecycle_model.RuntimeCleanupFailure.contain_process,
+        cleanup.failure().?,
+    );
+    try std.testing.expectEqual(@as(i128, 123), cleanup.retryAt().?);
+
+    try std.testing.expectEqual(
+        lifecycle_model.TransitionOutcome.applied,
+        try cleanup.completeCleanup(),
+    );
+    try std.testing.expect(!cleanup.pending());
+    try std.testing.expect(cleanup.failure() == null);
+    try std.testing.expect(cleanup.retryAt() == null);
+    try std.testing.expectEqual(
+        lifecycle_model.TransitionOutcome.idempotent,
+        try cleanup.completeCleanup(),
+    );
+    try std.testing.expectError(
+        error.InvalidPhase,
+        cleanup.block(.release_output, 456),
+    );
+}
+
+test "retained cleanup exhaustion preserves exact failure without a retry deadline" {
+    var cleanup: lifecycle_model.RetainedCleanup = .inactive;
+    _ = try cleanup.block(.release_process_identity, 321);
+
+    try std.testing.expectEqual(
+        lifecycle_model.TransitionOutcome.applied,
+        try cleanup.exhaust(),
+    );
+    try std.testing.expect(cleanup.pending());
+    try std.testing.expectEqual(
+        lifecycle_model.RuntimeCleanupFailure.release_process_identity,
+        cleanup.failure().?,
+    );
+    try std.testing.expect(cleanup.retryAt() == null);
+    try std.testing.expectEqual(
+        lifecycle_model.TransitionOutcome.idempotent,
+        try cleanup.exhaust(),
+    );
+    try std.testing.expectError(error.InvalidPhase, cleanup.completeCleanup());
+}

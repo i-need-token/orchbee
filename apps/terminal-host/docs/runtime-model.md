@@ -83,10 +83,11 @@ fact.
 | Owner                        | Authoritative facts                                                                                                                                                                                                           |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `HostState`                  | Host epoch and process defaults                                                                                                                                                                                               |
-| `TerminalRegistry`           | Terminal membership, creation-identity binding index, and inventory generation                                                                                                                                                |
+| `TerminalRegistry`           | Terminal membership, creation-identity binding index, inventory generation, and the stable reference to each retained session                                                                                                 |
+| `RetainedTerminal`           | The allocation and one-to-one binding of exactly one `TerminalSession` to exactly one `TerminalEngine`                                                                                                                        |
 | Local IPC connection         | `awaiting_hello`/`active`/`closing`, negotiated protocol limits, transport lifetime, and the physical connection                                                                                                              |
 | `BrokerSession`              | The active connection identifier, diagnostic `ClientId`, and attachment membership                                                                                                                                            |
-| `TerminalSession`            | Terminal identity, lifecycle, committed effective configuration and its revision, one engine, and the rebuildable last-synchronized engine observation                                                                        |
+| `TerminalSession`            | Terminal identity, lifecycle, committed effective configuration and its revision, and the rebuildable last-synchronized engine observation                                                                                    |
 | `TerminalEngine`             | PTY/process resources, Ghostty canonical state, content revision, generation, geometry, bell sequence, physical configuration application, input queue, attachment-scoped held-input cleanup ledgers, and failure observation |
 | `AttachmentSession`          | Terminal binding, capabilities, demand, delivery flights, bell delivery cursor, history anchor, selection, and export progress                                                                                                |
 | Local IPC                    | Endpoint security, accept/read/write/timeout behavior, and record framing                                                                                                                                                     |
@@ -95,9 +96,13 @@ fact.
 | Desktop                      | Product binding, recovery decisions, escalation timing, platform effects, presentation, and updates                                                                                                                           |
 
 In particular, terminal state and terminal runtime must not live in independent authoritative maps.
-An attachment is owned by its broker session and refers to one terminal; a terminal must not keep a
-second authoritative attachment registry. Terminal-scoped caches derived from active attachment
-demand are disposable accelerators, not a second source of attachment truth.
+The Host runtime coordinator allocates one `RetainedTerminal` whose adjacent fields are the complete
+semantic session and its engine. `TerminalRegistry` indexes a stable reference to that embedded
+session; it does not copy the session or maintain a parallel engine lookup. Runtime access resolves
+the retained record through that reference, so registry membership and runtime ownership cannot
+drift independently. An attachment is owned by its broker session and refers to one terminal; a
+terminal must not keep a second authoritative attachment registry. Terminal-scoped caches derived
+from active attachment demand are disposable accelerators, not a second source of attachment truth.
 
 The engine's held-input cleanup ledger is not an attachment registry: it contains no capability or
 terminal binding and cannot authorize an operation. Core input-capable attachment admission creates
@@ -140,16 +145,21 @@ const ConnectionState = union(enum) {
 };
 
 const TerminalRegistry = struct {
-    by_id: Map(TerminalId, TerminalSession),
+    // Each value is a stable reference to RetainedTerminal.session.
+    by_id: Map(TerminalId, *TerminalSession),
     creation_index: Map(CreationId, CreationBinding),
     inventory_generation: InventoryGeneration,
+};
+
+const RetainedTerminal = struct {
+    session: TerminalSession,
+    engine: TerminalEngine,
 };
 
 const TerminalSession = struct {
     id: TerminalId,
     lifecycle: TerminalLifecycle,
     configuration: CommittedTerminalConfiguration,
-    engine: TerminalEngine,
     observed_engine: EngineObservation, // derived, rebuildable
 };
 
@@ -172,10 +182,12 @@ Identifiers for hosts, brokers, terminals, creations, attachments, requests, rev
 delivery sequences are distinct types. Conversion at a wire boundary is explicit. Zero or a
 missing value is not silently reinterpreted as another state.
 
-The production `TerminalEngine` has no empty variant: registry admission commits a complete native
-engine with both identity indexes, and disposal or Host shutdown explicitly transfers that engine
-out before destroying it. Deterministic Core tests may use a test-build-only model engine; that
-variant is not part of a production build or a wire-visible state.
+The production `RetainedTerminal` has no empty engine variant. Creation allocates the retained
+record before spawning, initializes its native engine, and then commits the embedded session with
+both identity indexes in one allocation-free step. Disposal or Host shutdown removes the stable
+session reference before destroying the complete retained record. Deterministic Core tests allocate
+pure standalone sessions through a test-build-only storage harness; they do not add a model engine
+variant to `TerminalSession`, production code, or wire-visible state.
 
 ### Terminal lifecycle
 
@@ -294,7 +306,10 @@ wait worker has classified the completion path and the PTY writer is fully quies
 write therefore still has an opportunity to become the terminal's typed failure before normal exit
 can be committed. Process-observation or reap failure has the same precedence. Normal and failed
 classifications are terminal alternatives; later disposal diagnostics cannot rewrite a retained
-normal outcome.
+normal outcome. Owner-requested output abort and natural PTY drain race through one publication
+boundary: the reader rechecks the abort request while holding the terminal mutex immediately before
+publishing drain. An abort that linearizes first suppresses drain publication; a natural drain that
+linearizes first remains a valid normal-completion fact.
 
 Settlement is the terminal-owned mutation barrier. Once `settled.exited` or `settled.failed` is
 committed, canonical content, generation, geometry, effective configuration, configuration
@@ -304,7 +319,7 @@ outcome publication may continue only as reads of that frozen terminal state; br
 attachment and delivery state may still advance independently. The pending outcome becomes
 published exactly once and is never recreated by a later read or acknowledgement. Explicit
 disposal is retryably rejected until the exact settled outcome handoff commits publication; that
-rejection preserves the complete terminal session, engine, outcome token, and attachments.
+rejection preserves the complete retained-terminal record, outcome token, and attachments.
 
 On POSIX, an owned descendant may remain in the process containment domain after closing every PTY
 handle. Root-child completion plus normal PTY drain is still the terminal's normal outcome in that
@@ -427,11 +442,14 @@ containment window, or live members never produce two consecutive empty observat
 eight-attempt limit — the single failed pass must NOT abandon the tree. THDD-001 makes the ownership
 explicit:
 
-- **Retained cleanup ownership**: the failed terminal transitions to `containing_failure.blocked`
-  with the typed `contain_process` cleanup failure and a bounded retry deadline derived from the same
-  Host-lifetime monotonic cleanup clock used by the broker-independent scheduler. The aggregate, the
-  runtime, and the POSIX session identity are fully retained; containment was not confirmed, so the
-  session leader identity is never released (the session-identity fence from THCR-006 holds).
+- **Retained cleanup ownership**: an unsettled failed terminal continues to use
+  `containing_failure.blocked`. A terminal whose normal or failed outcome is already settled instead
+  retains that immutable outcome and records the typed cleanup failure in an independent
+  terminal-owned `retained_cleanup.blocked` state. Both forms carry a bounded retry deadline derived
+  from the same Host-lifetime monotonic cleanup clock used by the broker-independent scheduler. The
+  aggregate, runtime, and POSIX session identity remain fully retained; containment was not
+  confirmed, so the session leader identity is never released (the session-identity fence from
+  THCR-006 holds).
 - **Bounded backoff cadence**: the Host enters a retained-cleanup window that reuses the existing
   bounded cleanup-retry scheduler. Each pass retries only cleanups whose `retry_at_ns` deadline is
   due, so retries fire on the same one-second bounded backoff cadence rather than spinning. The
@@ -445,9 +463,9 @@ explicit:
   being retried rather than silently dropped.
 - **Permanent-failure policy**: after the bounded budget is exhausted with a tree still unconfirmed,
   the Host does not silently orphan or release it. The blocked cleanup becomes a stable explicit
-  retained failed state (never-due retry), the observable status records `exhausted`, the failure is
-  surfaced loudly, and teardown exits with the shutdown failure instead of pretending a clean
-  release.
+  exhausted state, the observable status records `exhausted`, the failure is surfaced loudly, and
+  teardown exits with the shutdown failure instead of pretending a clean release. Exhaustion is a
+  cleanup result only; it never rewrites an already-settled normal or failed terminal outcome.
 
 ### Attachment delivery
 
@@ -772,21 +790,32 @@ supposed to carry it.
 
 ### Terminal session
 
-| Current state            | Input                                                  | Next state                         | Required effect                                                                                      |
-| ------------------------ | ------------------------------------------------------ | ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| absent                   | valid create                                           | `running`                          | Prepare capacity, spawn exactly one runtime, then atomically admit both indexes and reply            |
-| `running`                | child exits or output closes normally                  | `finishing(first)`                 | Retain exactly the first completion fact and reject new client input                                 |
-| `finishing`              | complementary completion fact after writer quiescence  | `settled.exited`                   | Commit one immutable normal outcome                                                                  |
-| `running` or `finishing` | unrecoverable runtime failure                          | `containing_failure.stopping`      | Fence I/O, record failure, and initiate force containment once; do not publish a settled outcome yet |
-| `containing_failure`     | process tree and runtime resources confirmed contained | `settled.failed`                   | Retain the typed failure and observed or explicitly unavailable process result                       |
-| `containing_failure`     | owner cleanup phase fails                              | `containing_failure.blocked`       | Retain the exact cleanup failure and schedule a broker-independent retry                             |
-| `running` or `finishing` | graceful or force request                              | same lifecycle with updated intent | Perform each intent at most once; never dispose implicitly                                           |
-| `settled`                | input, resize, configuration, or revision advancement  | unchanged                          | Reject the mutation; the captured final revision and terminal-owned visible state remain immutable   |
-| `settled`                | dispose while outcome publication is pending           | unchanged                          | Reject retryably before runtime shutdown or any removal side effect                                  |
-| `settled`                | dispose after outcome publication                      | absent                             | Release engine and indexes atomically after resource cleanup                                         |
-| any retained state       | broker disconnect                                      | unchanged                          | Remove attachment capabilities only                                                                  |
+| Current state              | Input                                                  | Next state                                  | Required effect                                                                                                                                        |
+| -------------------------- | ------------------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| absent                     | valid create                                           | `running`                                   | Prepare capacity, allocate one retained record, spawn exactly one runtime, then atomically admit its embedded session and both indexes before replying |
+| `running`                  | child exits or output closes normally                  | `finishing(first)`                          | Retain exactly the first completion fact and reject new client input                                                                                   |
+| `finishing`                | complementary completion fact after writer quiescence  | `settled.exited`                            | Commit one immutable normal outcome                                                                                                                    |
+| `running` or `finishing`   | unrecoverable runtime failure                          | `containing_failure.stopping`               | Fence I/O, record failure, and initiate force containment once; do not publish a settled outcome yet                                                   |
+| `containing_failure`       | process tree and runtime resources confirmed contained | `settled.failed`                            | Retain the typed failure and observed or explicitly unavailable process result                                                                         |
+| `containing_failure`       | owner cleanup phase fails                              | `containing_failure.blocked`                | Retain the exact cleanup failure and schedule a broker-independent retry                                                                               |
+| `settled`                  | fatal teardown cannot confirm retained cleanup         | same outcome + `retained_cleanup.blocked`   | Retain the cleanup independently and schedule a broker-independent retry; never rewrite the outcome                                                    |
+| settled + retained cleanup | cleanup retry succeeds                                 | same outcome + `retained_cleanup.complete`  | Confirm cleanup while preserving the settled outcome and final revision                                                                                |
+| settled + retained cleanup | bounded retry budget is exhausted                      | same outcome + `retained_cleanup.exhausted` | Keep ownership and the exact cleanup failure; reject disposal and never report clean release                                                           |
+| `running` or `finishing`   | graceful or force request                              | same lifecycle with updated intent          | Perform each intent at most once; never dispose implicitly                                                                                             |
+| `settled`                  | input, resize, configuration, or revision advancement  | unchanged                                   | Reject the mutation; the captured final revision and terminal-owned visible state remain immutable                                                     |
+| `settled`                  | dispose while outcome publication is pending           | unchanged                                   | Reject retryably before runtime shutdown or any removal side effect                                                                                    |
+| `settled`                  | dispose after outcome publication                      | absent                                      | Complete resource cleanup, remove the session reference and indexes, then destroy the retained record                                                  |
+| any retained state         | broker disconnect                                      | unchanged                                   | Remove attachment capabilities only                                                                                                                    |
 
 ### Attachment session
+
+Attachment admission passes one canonical `Capabilities` value through Core
+and Engine preparation. The Engine derives live-runtime admission from
+`input || resize`, retained-readable admission from `read`, input-ledger
+capacity from `input` only, and history state from `read` only. Resize has no
+attachment-local Engine allocation. This final Engine check runs while holding
+the terminal mutex, so a completion or failure that races after Core validation
+cannot admit stale input or resize authority.
 
 | Current state  | Input                                                                           | Next state                    | Required effect                                                                                                    |
 | -------------- | ------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -806,7 +835,7 @@ Stable claim identifiers are used by tests, models, and review findings.
 
 | Claim    | Invariant                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TH-001` | Each retained `TerminalId` names exactly one `TerminalSession` and exactly one engine; no engine exists outside a creation transaction or retained session.                                                                                                                                                                                                                                                                                                |
+| `TH-001` | Each retained `TerminalId` names one registry membership whose stable session reference belongs to exactly one `RetainedTerminal`; that record contains exactly one `TerminalSession` and exactly one engine. No engine exists outside a creation transaction or retained record.                                                                                                                                                                          |
 | `TH-002` | Each mutable semantic fact has one authoritative owner; derived state cannot outlive or contradict that owner.                                                                                                                                                                                                                                                                                                                                             |
 | `TH-003` | At most one broker session exists per endpoint, and every attachment operation is authorized by that physical session plus its `AttachmentId`. A running terminal has at most one current resize lease; owner detach promotes the earliest admitted eligible observer without changing its immutable attach-replay identity. Accepted held input belongs to exactly that attachment; detach repairs and removes only its ledger before revoking authority. |
 | `TH-004` | Broker loss repairs and destroys only broker-scoped attachment state and capabilities; it never cross-releases another attachment or disposes a healthy retained terminal. An unrecoverable repair integrity failure uses the explicit runtime-failure containment path.                                                                                                                                                                                   |

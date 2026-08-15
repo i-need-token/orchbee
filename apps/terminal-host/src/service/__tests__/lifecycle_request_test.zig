@@ -108,7 +108,9 @@ test "current protocol force-terminates every retained POSIX session member" {
     var connection: ConnectionState = .awaiting_hello;
     defer {
         for (serviceCore(&service).terminalValues()) |session| {
-            if (session.runtime()) |engine| engine.forceTerminate() catch {};
+            if (service.runtime_aggregate.runtimeFor(session.terminal_id)) |engine| {
+                engine.forceTerminate() catch {};
+            }
         }
         service.disconnect(&connection);
         service.deinit();

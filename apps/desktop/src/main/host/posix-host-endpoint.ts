@@ -28,7 +28,7 @@ export function preparePosixHostRuntimeDirectory(
 ): Promise<void> {
 	const child = dependencies.spawn(
 		binaryPath,
-		['posix-prepare-runtime', '--runtime-directory', runtimeDirectory],
+		['prepare-runtime', '--runtime-directory', runtimeDirectory],
 		{ stdio: 'ignore' },
 	);
 	return waitForSuccessfulExit(child, 'POSIX Terminal Host runtime-directory preparation failed.');
@@ -42,7 +42,7 @@ export function connectAuthenticatedPosixHost(
 ): Promise<HostConnection> {
 	const child = dependencies.spawn(
 		binaryPath,
-		['posix-connect', '--runtime-directory', runtimeDirectory, '--endpoint-id', endpointId],
+		['connect', '--runtime-directory', runtimeDirectory, '--endpoint-id', endpointId],
 		{ stdio: ['pipe', 'pipe', 'ignore', 'pipe'] },
 	);
 	const input = child.stdin;

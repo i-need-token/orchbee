@@ -16,12 +16,15 @@ pub const Error = error{
 };
 
 /// Owns terminal membership, the creation-identity binding index, and the
-/// inventory generation as one consistency boundary. Attachment indexes are
-/// intentionally not part of this owner: they belong to the active broker.
+/// inventory generation as one consistency boundary. Session allocations stay
+/// with the caller: an admitted pointer must remain stable until removal, and
+/// the returned pointer becomes reclaimable only after both indexes commit its
+/// removal. Attachment indexes are intentionally not part of this owner: they
+/// belong to the active broker.
 pub const Registry = struct {
     creations: std.AutoArrayHashMap(CreationId, TerminalId),
     inventory_generation: u64 = 1,
-    terminals: std.AutoArrayHashMap(TerminalId, Session),
+    terminals: std.AutoArrayHashMap(TerminalId, *Session),
 
     pub fn init(allocator: std.mem.Allocator) Registry {
         return .{
@@ -48,15 +51,15 @@ pub const Registry = struct {
         return self.terminals.keys();
     }
 
-    pub fn values(self: *const Registry) []const Session {
+    pub fn values(self: *const Registry) []const *const Session {
         return self.terminals.values();
     }
 
     pub fn find(self: *Registry, terminal_id: TerminalId) ?*Session {
-        return self.terminals.getPtr(terminal_id);
+        return self.terminals.get(terminal_id);
     }
 
-    pub fn get(self: *const Registry, terminal_id: TerminalId) ?Session {
+    pub fn get(self: *const Registry, terminal_id: TerminalId) ?*const Session {
         return self.terminals.get(terminal_id);
     }
 
@@ -96,9 +99,10 @@ pub const Registry = struct {
     }
 
     /// Commits both registry indexes and their generation without allocation.
-    /// The caller must have completed `reserveAdmission` and validated that the
-    /// single-threaded Host owner has not changed the admission facts.
-    pub fn commitAssumeCapacity(self: *Registry, session: Session) void {
+    /// The caller must have completed `reserveAdmission`, validated that the
+    /// single-threaded Host owner has not changed the admission facts, and
+    /// supplied storage whose address remains stable through removal.
+    pub fn commitAssumeCapacity(self: *Registry, session: *Session) void {
         std.debug.assert(!self.creations.contains(session.creation_id));
         std.debug.assert(!self.terminals.contains(session.terminal_id));
         std.debug.assert(self.inventory_generation != std.math.maxInt(u64));
@@ -122,7 +126,7 @@ pub const Registry = struct {
         self: *Registry,
         terminal_id: TerminalId,
         update_inventory_generation: bool,
-    ) Session {
+    ) *Session {
         const terminal = self.terminals.get(terminal_id).?;
         const creation_terminal_id = self.creations.get(terminal.creation_id).?;
         std.debug.assert(creation_terminal_id.eql(terminal_id));

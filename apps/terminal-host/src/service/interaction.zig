@@ -7,7 +7,6 @@ const host_outgoing = @import("outgoing.zig");
 const host_runtime_aggregate = @import("runtime_aggregate.zig");
 const protocol = @import("terminal-protocol");
 const engine = @import("terminal-host-engine");
-const terminal_history = engine.history;
 const terminal_runtime = engine.runtime;
 
 const max_schedule_scan_per_poll = 64;
@@ -22,51 +21,14 @@ const SchedulerTestingHooks = if (target_builtin.is_test) struct {
 
 pub const ScheduleOutcome = host_outgoing.ScheduleOutcome;
 
-pub const AccessError = error{
-    ReadableAttachmentUnavailable,
-    TerminalRuntimeMissing,
-};
-
-pub const ReadRowsRequest = struct {
-    detail: terminal_history.Detail,
-    generation: u64,
-    host_epoch: core_module.HostEpoch,
-    maximum_bytes: usize,
-    origin: terminal_history.Origin,
-    purpose: terminal_history.Purpose,
-    request_sequence: u64,
-    revision: u64,
-    row_count: u16,
-};
-
-pub const SelectionGestureRequest = struct {
-    event: terminal_history.SelectionGestureEvent,
-    generation: u64,
-    revision: u64,
-};
-
-pub const SelectionCommandRequest = struct {
-    command: terminal_history.SelectionCommand,
-    generation: u64,
-    revision: u64,
-};
+pub const AccessError = host_runtime_aggregate.ReadableAttachmentError;
+pub const ReadRowsRequest = host_runtime_aggregate.ReadRowsRequest;
+pub const SelectionGestureRequest = host_runtime_aggregate.SelectionGestureRequest;
+pub const SelectionCommandRequest = host_runtime_aggregate.SelectionCommandRequest;
 
 pub const SelectionExportStatus = enum {
     cancelled,
     completed,
-};
-
-const ReadableAttachmentState = struct {
-    attachment_id: core_module.AttachmentId,
-    runtime: *terminal_runtime.TerminalRuntime,
-};
-
-const SelectionExportHandoffState = union(enum) {
-    provisional: struct {
-        result: terminal_runtime.SelectionExportStartResult,
-        runtime: *terminal_runtime.TerminalRuntime,
-    },
-    committed,
 };
 
 pub const Controller = struct {
@@ -83,198 +45,12 @@ pub const Controller = struct {
         connection_id: core_module.ConnectionId,
         attachment_id: core_module.AttachmentId,
     ) AccessError!ReadableAttachment {
-        const attachment = self.aggregate.core().resolveAttachment(
-            connection_id,
-            attachment_id,
-            .read,
-        ) catch return error.ReadableAttachmentUnavailable;
-        const terminal = self.aggregate.core().findTerminal(attachment.terminal_id) orelse
-            return error.ReadableAttachmentUnavailable;
-        const runtime = self.aggregate.runtimeFor(attachment.terminal_id) orelse
-            return error.TerminalRuntimeMissing;
-        if (!terminal.hasReadableRuntimeState() or !runtime.readableStateAvailable()) {
-            return error.ReadableAttachmentUnavailable;
-        }
-        return .{
-            .state = .{
-                .attachment_id = attachment_id,
-                .runtime = runtime,
-            },
-        };
+        return self.aggregate.readableAttachment(connection_id, attachment_id);
     }
 };
 
-/// A request-scoped capability produced only after the physical connection
-/// and read permission resolve to a retained runtime. HostService does not
-/// retain it across another dispatch or attachment transition.
-pub const ReadableAttachment = struct {
-    state: ReadableAttachmentState,
-
-    pub fn readRows(
-        self: ReadableAttachment,
-        allocator: std.mem.Allocator,
-        request: ReadRowsRequest,
-    ) !terminal_runtime.HistoryRows {
-        return self.state.runtime.readHistoryRows(allocator, .{
-            .attachment_id = self.state.attachment_id,
-            .detail = request.detail,
-            .generation = request.generation,
-            .host_epoch = request.host_epoch,
-            .maximum_bytes = request.maximum_bytes,
-            .origin = request.origin,
-            .purpose = request.purpose,
-            .request_sequence = request.request_sequence,
-            .revision = request.revision,
-            .row_count = request.row_count,
-        });
-    }
-
-    pub fn readRowsInto(
-        self: ReadableAttachment,
-        scratch_allocator: std.mem.Allocator,
-        destination: []u8,
-        request: ReadRowsRequest,
-    ) !terminal_runtime.HistoryRows {
-        return self.state.runtime.readHistoryRowsInto(scratch_allocator, destination, .{
-            .attachment_id = self.state.attachment_id,
-            .detail = request.detail,
-            .generation = request.generation,
-            .host_epoch = request.host_epoch,
-            .maximum_bytes = request.maximum_bytes,
-            .origin = request.origin,
-            .purpose = request.purpose,
-            .request_sequence = request.request_sequence,
-            .revision = request.revision,
-            .row_count = request.row_count,
-        });
-    }
-
-    pub fn rowsApplied(
-        self: ReadableAttachment,
-        request_sequence: u64,
-        revision: u64,
-        generation: u64,
-    ) !void {
-        try self.state.runtime.historyRowsApplied(
-            self.state.attachment_id,
-            request_sequence,
-            revision,
-            generation,
-        );
-    }
-
-    pub fn setHistoryDemand(
-        self: ReadableAttachment,
-        demand: terminal_runtime.HistoryDemand,
-    ) !void {
-        try self.state.runtime.setHistoryDemand(self.state.attachment_id, demand);
-    }
-
-    pub fn historyObserved(
-        self: ReadableAttachment,
-        sequence: u64,
-        revision: u64,
-        generation: u64,
-    ) !void {
-        try self.state.runtime.historyObserved(
-            self.state.attachment_id,
-            sequence,
-            revision,
-            generation,
-        );
-    }
-
-    pub fn applySelectionGesture(
-        self: ReadableAttachment,
-        request: SelectionGestureRequest,
-    ) !terminal_runtime.SelectionSnapshot {
-        return self.state.runtime.applySelectionGesture(.{
-            .attachment_id = self.state.attachment_id,
-            .event = request.event,
-            .generation = request.generation,
-            .revision = request.revision,
-        });
-    }
-
-    pub fn applySelectionCommand(
-        self: ReadableAttachment,
-        request: SelectionCommandRequest,
-    ) !terminal_runtime.SelectionSnapshot {
-        return self.state.runtime.applySelectionCommand(.{
-            .attachment_id = self.state.attachment_id,
-            .command = request.command,
-            .generation = request.generation,
-            .revision = request.revision,
-        });
-    }
-
-    pub fn startSelectionExport(
-        self: ReadableAttachment,
-        export_sequence: u64,
-        format: terminal_runtime.SelectionExportFormat,
-    ) !SelectionExportHandoff {
-        return .{
-            .state = .{ .provisional = .{
-                .result = try self.state.runtime.startSelectionExport(
-                    self.state.attachment_id,
-                    export_sequence,
-                    format,
-                ),
-                .runtime = self.state.runtime,
-            } },
-        };
-    }
-
-    pub fn selectionExportChunkApplied(
-        self: ReadableAttachment,
-        export_sequence: u64,
-        chunk_sequence: u32,
-    ) !?terminal_runtime.SelectionExportFinished {
-        return self.state.runtime.selectionExportChunkApplied(
-            self.state.attachment_id,
-            export_sequence,
-            chunk_sequence,
-        );
-    }
-
-    pub fn cancelSelectionExport(
-        self: ReadableAttachment,
-        export_sequence: u64,
-    ) !terminal_runtime.SelectionExportFinished {
-        return self.state.runtime.cancelSelectionExport(
-            self.state.attachment_id,
-            export_sequence,
-        );
-    }
-};
-
-pub const SelectionExportHandoff = struct {
-    state: SelectionExportHandoffState,
-
-    pub fn result(self: *const SelectionExportHandoff) terminal_runtime.SelectionExportStartResult {
-        return switch (self.state) {
-            .provisional => |provisional| provisional.result,
-            .committed => unreachable,
-        };
-    }
-
-    pub fn commit(self: *SelectionExportHandoff) void {
-        switch (self.state) {
-            .provisional => self.state = .committed,
-            .committed => unreachable,
-        }
-    }
-
-    pub fn deinit(self: *SelectionExportHandoff) void {
-        switch (self.state) {
-            .provisional => |provisional| provisional.runtime.rollbackSelectionExportStart(
-                provisional.result,
-            ),
-            .committed => {},
-        }
-        self.* = undefined;
-    }
-};
+pub const ReadableAttachment = host_runtime_aggregate.ReadableAttachment;
+pub const SelectionExportHandoff = host_runtime_aggregate.SelectionExportHandoff;
 
 pub const Scheduler = struct {
     scan_index: usize = 0,

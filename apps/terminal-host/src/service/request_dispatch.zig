@@ -5,6 +5,7 @@ const host_interaction_requests = @import("interaction_requests.zig");
 const host_io_requests = @import("io_requests.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_request_context = @import("request_context.zig");
+const host_response = @import("response.zig");
 const host_runtime_aggregate = @import("runtime_aggregate.zig");
 const host_terminal_requests = @import("terminal_requests.zig");
 const model = @import("terminal-host-model");
@@ -45,6 +46,7 @@ pub const Dispatcher = struct {
         correlation_id: WireIdentifier,
         outgoing: *Outgoing,
     ) !void {
+        const success = try host_response.resolveSuccessResponse(request_contract);
         switch (request_contract.operation) {
             .hello => unreachable,
             .ping,
@@ -60,6 +62,7 @@ pub const Dispatcher = struct {
             => try host_terminal_requests.dispatch(
                 &self.context,
                 request_contract.operation,
+                success,
                 connection_id,
                 envelope,
                 correlation_id,
@@ -75,7 +78,8 @@ pub const Dispatcher = struct {
             .set_projection_demand,
             => try host_io_requests.dispatch(
                 &self.context,
-                request_contract,
+                request_contract.operation,
+                success,
                 connection_id,
                 limits.input_bytes,
                 envelope,
@@ -94,6 +98,7 @@ pub const Dispatcher = struct {
             => try host_interaction_requests.dispatch(
                 &self.context,
                 request_contract.operation,
+                success,
                 connection_id,
                 limits.row_window_bytes,
                 self.trace_interactions,

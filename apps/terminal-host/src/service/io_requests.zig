@@ -22,18 +22,20 @@ const semanticInputFailureMessage = host_failure.semanticInputMessage;
 
 pub fn dispatch(
     context: *Context,
-    request_contract: protocol.RequestMessageContract,
+    operation: protocol.RequestOperation,
+    success_response: host_response.SuccessResponse,
     connection_id: core_module.ConnectionId,
     negotiated_input_bytes: usize,
     envelope: protocol.EnvelopeSummary,
     correlation_id: WireIdentifier,
     outgoing: *Outgoing,
 ) !void {
+    const success = try host_response.requireControlJsonSuccess(success_response);
     var handler: Handler = .{
         .context = context,
-        .request_contract = request_contract,
+        .success = success,
     };
-    switch (request_contract.operation) {
+    switch (operation) {
         .write_input => try handler.handleInput(
             connection_id,
             negotiated_input_bytes,
@@ -77,7 +79,7 @@ pub fn dispatch(
 
 const Handler = struct {
     context: *Context,
-    request_contract: protocol.RequestMessageContract,
+    success: host_response.ControlJsonSuccess,
 
     fn handleInput(
         self: *Handler,
@@ -112,7 +114,7 @@ const Handler = struct {
             outgoing,
             "input could not enter the bounded write queue",
         ) orelse return;
-        var response = try prepareControlResponse(outgoing, correlation_id, self.context.core().epoch);
+        var response = try prepareControlResponse(outgoing, correlation_id, self.context.hostEpoch());
         defer response.deinit();
         var output = response.writer();
         control_encode.writeInputAccepted(&output, accepted) catch unreachable;
@@ -120,7 +122,7 @@ const Handler = struct {
             .accepted => |committed| {
                 std.debug.assert(committed.attachment_id.eql(accepted.attachment_id));
                 std.debug.assert(committed.byte_count == accepted.byte_count);
-                _ = response.commitControl(self.request_contract.success_kind, &output);
+                _ = response.commitControlSuccess(self.success, &output);
             },
             .runtime_rejected => |err| {
                 const failure = inputFailure(err);
@@ -170,7 +172,7 @@ const Handler = struct {
             outgoing,
             "semantic input could not enter the bounded write queue",
         ) orelse return;
-        var response = try prepareControlResponse(outgoing, correlation_id, self.context.core().epoch);
+        var response = try prepareControlResponse(outgoing, correlation_id, self.context.hostEpoch());
         defer response.deinit();
         var output = response.writer();
         control_encode.writeInputAccepted(&output, accepted) catch unreachable;
@@ -178,7 +180,7 @@ const Handler = struct {
             .accepted => |committed| {
                 std.debug.assert(committed.attachment_id.eql(accepted.attachment_id));
                 std.debug.assert(committed.byte_count == accepted.byte_count);
-                _ = response.commitControl(self.request_contract.success_kind, &output);
+                _ = response.commitControlSuccess(self.success, &output);
             },
             .runtime_rejected => |err| {
                 const failure = inputFailure(err);
@@ -204,9 +206,9 @@ const Handler = struct {
             return self.context.rejectControlDecode(outgoing, correlation_id, err, "FrameApplied payload is invalid");
         defer decoded.deinit();
         const request = decoded.value;
-        var response = try prepareControlResponse(outgoing, correlation_id, self.context.core().epoch);
+        var response = try prepareControlResponse(outgoing, correlation_id, self.context.hostEpoch());
         defer response.deinit();
-        _ = self.context.core().frameApplied(
+        _ = self.context.runtime_aggregate.frameApplied(
             connection_id,
             request.attachment_id,
             request.sequence,
@@ -218,7 +220,7 @@ const Handler = struct {
         };
         var output = response.writer();
         control_encode.writeFrameApplied(&output, request) catch unreachable;
-        _ = response.commitControl(self.request_contract.success_kind, &output);
+        _ = response.commitControlSuccess(self.success, &output);
     }
 
     fn handleNeedSnapshot(
@@ -233,9 +235,9 @@ const Handler = struct {
             return self.context.rejectControlDecode(outgoing, correlation_id, err, "NeedSnapshot payload is invalid");
         defer decoded.deinit();
         const request = decoded.value;
-        var response = try prepareControlResponse(outgoing, correlation_id, self.context.core().epoch);
+        var response = try prepareControlResponse(outgoing, correlation_id, self.context.hostEpoch());
         defer response.deinit();
-        _ = self.context.core().needSnapshot(
+        _ = self.context.runtime_aggregate.needSnapshot(
             connection_id,
             request.attachment_id,
             request.sequence,
@@ -245,7 +247,7 @@ const Handler = struct {
         };
         var output = response.writer();
         control_encode.writeNeedSnapshot(&output, request) catch unreachable;
-        _ = response.commitControl(self.request_contract.success_kind, &output);
+        _ = response.commitControlSuccess(self.success, &output);
     }
 
     fn handleProjectionDemand(
@@ -260,7 +262,7 @@ const Handler = struct {
             return self.context.rejectControlDecode(outgoing, correlation_id, err, "SetProjectionDemand payload is invalid");
         defer decoded.deinit();
         const request = decoded.value;
-        var response = try prepareControlResponse(outgoing, correlation_id, self.context.core().epoch);
+        var response = try prepareControlResponse(outgoing, correlation_id, self.context.hostEpoch());
         defer response.deinit();
         _ = self.context.runtime_aggregate.setProjectionDemand(
             connection_id,
@@ -276,7 +278,7 @@ const Handler = struct {
             request.attachment_id,
             request.demand,
         ) catch unreachable;
-        _ = response.commitControl(self.request_contract.success_kind, &output);
+        _ = response.commitControlSuccess(self.success, &output);
     }
 
     fn handleResize(
@@ -291,7 +293,7 @@ const Handler = struct {
             return self.context.rejectControlDecode(outgoing, correlation_id, err, "ResizeTerminal payload is invalid");
         defer decoded.deinit();
         const request = decoded.value;
-        var response = try prepareControlResponse(outgoing, correlation_id, self.context.core().epoch);
+        var response = try prepareControlResponse(outgoing, correlation_id, self.context.hostEpoch());
         defer response.deinit();
         const resized = self.context.runtime_aggregate.resizeTerminal(
             connection_id,
@@ -313,7 +315,7 @@ const Handler = struct {
         };
         var output = response.writer();
         control_encode.writeResizeAccepted(&output, resized) catch unreachable;
-        _ = response.commitControl(self.request_contract.success_kind, &output);
+        _ = response.commitControlSuccess(self.success, &output);
     }
 
     fn handleTerminalControl(
@@ -338,7 +340,7 @@ const Handler = struct {
                 "ResetTerminal payload is invalid",
         );
         defer decoded.deinit();
-        var response = try prepareControlResponse(outgoing, correlation_id, self.context.core().epoch);
+        var response = try prepareControlResponse(outgoing, correlation_id, self.context.hostEpoch());
         defer response.deinit();
         const update = self.context.runtime_aggregate.applyTerminalControl(
             connection_id,
@@ -354,6 +356,6 @@ const Handler = struct {
         };
         var output = response.writer();
         control_encode.writeTerminalControlAccepted(&output, update) catch unreachable;
-        _ = response.commitControl(self.request_contract.success_kind, &output);
+        _ = response.commitControlSuccess(self.success, &output);
     }
 };

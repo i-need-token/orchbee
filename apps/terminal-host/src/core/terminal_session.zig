@@ -1,11 +1,8 @@
-const target_builtin = @import("builtin");
-
 const model = @import("terminal-host-model");
 const identifiers = model.identifiers;
 const terminal_configuration = model.configuration;
 const terminal_geometry = model.geometry;
 const terminal_lifecycle = model.lifecycle;
-const terminal_runtime = @import("terminal-host-engine").runtime;
 
 pub const CreationId = identifiers.CreationId;
 pub const TerminalId = identifiers.TerminalId;
@@ -36,36 +33,6 @@ pub const PendingOutcome = union(enum) {
     },
 };
 
-const ModelTerminalEngine = union(enum) {
-    model,
-    native: *terminal_runtime.TerminalRuntime,
-
-    pub fn runtimePointer(self: @This()) ?*terminal_runtime.TerminalRuntime {
-        return switch (self) {
-            .model => null,
-            .native => |runtime| runtime,
-        };
-    }
-};
-
-const RuntimeTerminalEngine = union(enum) {
-    native: *terminal_runtime.TerminalRuntime,
-
-    pub fn runtimePointer(self: @This()) ?*terminal_runtime.TerminalRuntime {
-        return switch (self) {
-            .native => |runtime| runtime,
-        };
-    }
-};
-
-/// A retained production terminal always owns one native engine. The model
-/// variant exists only in test builds so deterministic session and registry
-/// tests do not need to spawn a process.
-pub const Engine = if (target_builtin.is_test)
-    ModelTerminalEngine
-else
-    RuntimeTerminalEngine;
-
 /// Protocol-visible configuration committed by the session. A native engine
 /// applies the value before this state is committed; its physical scrollback
 /// setting is implementation state, not a second semantic owner.
@@ -89,18 +56,14 @@ pub const EngineObservation = struct {
 pub const Session = struct {
     configuration_state: ConfigurationState = .{},
     creation_id: CreationId,
-    engine: Engine,
     engine_observation: EngineObservation,
     launch_digest: LaunchDigest,
     lifecycle: terminal_lifecycle.Lifecycle,
+    retained_cleanup: terminal_lifecycle.RetainedCleanup = .inactive,
     terminal_id: TerminalId,
 
     pub fn phase(self: Session) terminal_lifecycle.Phase {
         return self.lifecycle.phase();
-    }
-
-    pub fn runtime(self: Session) ?*terminal_runtime.TerminalRuntime {
-        return self.engine.runtimePointer();
     }
 
     pub fn effectiveConfiguration(self: Session) terminal_configuration.Configuration {
@@ -149,6 +112,22 @@ pub const Session = struct {
 
     pub fn failureContainment(self: Session) ?terminal_lifecycle.FailureContainment {
         return self.lifecycle.failureContainment();
+    }
+
+    pub fn retainedCleanup(self: Session) terminal_lifecycle.RetainedCleanup {
+        return self.retained_cleanup;
+    }
+
+    pub fn retainedCleanupPending(self: Session) bool {
+        return self.retained_cleanup.pending();
+    }
+
+    pub fn retainedCleanupFailure(self: Session) ?terminal_lifecycle.RuntimeCleanupFailure {
+        return self.retained_cleanup.failure();
+    }
+
+    pub fn retainedCleanupRetryAt(self: Session) ?i128 {
+        return self.retained_cleanup.retryAt();
     }
 
     pub fn failedProcess(self: Session) ?terminal_lifecycle.ProcessObservation {

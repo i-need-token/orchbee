@@ -774,7 +774,10 @@ test "attachment detach repairs only its accepted key and mouse ownership" {
     const first_attachment = AttachmentId.fromBytes([_]u8{0x31} ** 16);
     const second_attachment = AttachmentId.fromBytes([_]u8{0x32} ** 16);
     for ([_]AttachmentId{ first_attachment, second_attachment }) |attachment_id| {
-        var attachment = try runtime.prepareAttachment(attachment_id, true, false, true);
+        var attachment = try runtime.prepareAttachment(
+            attachment_id,
+            .{ .input = true, .read = false, .resize = false },
+        );
         attachment.commit();
     }
     parseTerminalInput(runtime, "\x1b[=3;1u\x1b[?1002h\x1b[?1006h");
@@ -902,7 +905,10 @@ test "prepared attachment input cannot commit after its owner detaches" {
     const runtime = try createIdleRuntime(.{});
     defer runtime.destroy();
     const attachment_id = AttachmentId.fromBytes([_]u8{0x33} ** 16);
-    var attachment = try runtime.prepareAttachment(attachment_id, true, false, true);
+    var attachment = try runtime.prepareAttachment(
+        attachment_id,
+        .{ .input = true, .read = false, .resize = false },
+    );
     attachment.commit();
 
     var prepared = try runtime.prepareAttachmentSemanticInput(
@@ -933,7 +939,10 @@ test "attachment detach repair uses its precharged input capacity" {
         runtime.destroy();
     }
     const attachment_id = AttachmentId.fromBytes([_]u8{0x34} ** 16);
-    var attachment = try runtime.prepareAttachment(attachment_id, true, false, true);
+    var attachment = try runtime.prepareAttachment(
+        attachment_id,
+        .{ .input = true, .read = false, .resize = false },
+    );
     attachment.commit();
     parseTerminalInput(runtime, "\x1b[=3;1u");
 
@@ -978,7 +987,10 @@ test "attachment detach repair allocation failure fences the live runtime" {
     const runtime = try createIdleRuntime(.{});
     defer runtime.destroy();
     const attachment_id = AttachmentId.fromBytes([_]u8{0x35} ** 16);
-    var attachment = try runtime.prepareAttachment(attachment_id, true, false, true);
+    var attachment = try runtime.prepareAttachment(
+        attachment_id,
+        .{ .input = true, .read = false, .resize = false },
+    );
     attachment.commit();
 
     // The disabled mouse mode admits no bytes but still owns the accepted

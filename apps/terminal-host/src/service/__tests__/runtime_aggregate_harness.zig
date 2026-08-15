@@ -319,6 +319,26 @@ pub fn longRunningProcessLaunch() !pty_process.Launch {
     };
 }
 
+/// POSIX launch whose root exits normally after starting a descendant that
+/// closes every PTY descriptor but remains in the retained session.
+const normal_exit_with_retained_descendant_arguments = [_][]const u8{
+    "-c",
+    "trap '' HUP; sleep 30 </dev/null >/dev/null 2>&1 & exit 0",
+};
+
+pub fn normalExitWithRetainedDescendantProcessLaunch() pty_process.Launch {
+    return .{
+        .arguments = &normal_exit_with_retained_descendant_arguments,
+        .cell_pixel_height = 16,
+        .cell_pixel_width = 8,
+        .columns = 80,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = "/bin/sh",
+        .rows = 24,
+    };
+}
+
 pub fn commitHookedRuntime(
     aggregate: *subject.HostRuntimeAggregate,
     connection_id: core_module.ConnectionId,
@@ -326,6 +346,22 @@ pub fn commitHookedRuntime(
     probe: *RetainedCleanupProbe,
 ) !*terminal_runtime.TerminalRuntime {
     const process_launch = try longRunningProcessLaunch();
+    return commitHookedRuntimeWithLaunch(
+        aggregate,
+        connection_id,
+        terminal_id,
+        probe,
+        process_launch,
+    );
+}
+
+pub fn commitHookedRuntimeWithLaunch(
+    aggregate: *subject.HostRuntimeAggregate,
+    connection_id: core_module.ConnectionId,
+    terminal_id: core_module.TerminalId,
+    probe: *RetainedCleanupProbe,
+    process_launch: pty_process.Launch,
+) !*terminal_runtime.TerminalRuntime {
     var spawner: HookedThreadSpawner = .{ .hooks = probe.hooks() };
     const runtime = try terminal_runtime.testing.createWithOptionsUsingSpawnerFn(
         std.testing.allocator,
@@ -335,7 +371,8 @@ pub fn commitHookedRuntime(
     );
     probe.runtime = runtime;
     try aggregate.core().reserveTerminal();
-    aggregate.core().commitRunningTerminal(
+    try subject.testing.adoptRunningTerminalFn(
+        aggregate,
         connection_id,
         testId(core_module.CreationId, 0x42),
         terminal_id,

@@ -349,8 +349,10 @@ changing the selected variable-font outline or configured weight.
 Browser shaping runs contain only single-column Host cells. Wide CJK, emoji, and other fallback
 graphemes rasterize once from their authoritative cell head instead of inheriting the fallback
 face's natural run advance, while continuation cells cannot absorb a following combining cluster.
-This preserves complex narrow-cell shaping and programming ligatures without cumulative wide-glyph
-drift.
+Within each narrow-cell run, Canvas letter spacing fills the difference between the face's
+fractional natural advance and the rounded terminal-cell width. This preserves complex shaping and
+programming ligatures without cumulative grid drift, including when selection or style boundaries
+split one row into independently colored runs.
 
 Ghostty remains the reference for selected font metrics, shaping boundaries, complete Unicode sprite-face routing, cursor geometry, and terminal-panel rendering behavior. Deterministic generated data supplies every pinned sprite from Ghostty's four padded odd/even metric reference rasters, while selected sprites scale procedurally between those reference geometries. That reference does not make this package a Ghostty VT owner. Maintenance provenance is recorded in [`docs/ghostty-surface-test-provenance.md`](docs/ghostty-surface-test-provenance.md).
 

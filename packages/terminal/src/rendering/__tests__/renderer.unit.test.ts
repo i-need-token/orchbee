@@ -41,6 +41,7 @@ function createCanvas(
 		font: '10px sans-serif',
 		globalAlpha: 1,
 		imageSmoothingEnabled: true,
+		letterSpacing: '0px',
 		textRendering: 'auto',
 		measureText: () =>
 			({
@@ -451,6 +452,58 @@ describe('projected terminal renderer', () => {
 		);
 
 		expect(textPaints).toEqual([{ direction: 'ltr', text: 'ক্ষ' }]);
+		renderer.dispose();
+	});
+
+	it('fits shaped text advances to the cell grid across selection boundaries', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 2 });
+		vi.stubGlobal('navigator', {});
+		const textPaints: Array<{ readonly letterSpacing: number; readonly text: string }> = [];
+		const fillText: CanvasRenderingContext2D['fillText'] = function (
+			this: CanvasRenderingContext2D,
+			text,
+		) {
+			textPaints.push({ letterSpacing: Number.parseFloat(this.letterSpacing), text });
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, fillText),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText), {
+			devicePixelRatio: 2,
+		});
+		const ensureGlyph = Reflect.get(renderer, 'ensureGlyph') as (
+			text: string,
+			flags: number,
+			width: number,
+			codepoint: number,
+			constraintWidth: 1 | 2,
+		) => unknown;
+
+		ensureGlyph.call(renderer, 'AB', 0, 2, 0, 1);
+		expect(textPaints).toHaveLength(1);
+		expect(textPaints[0]?.text).toBe('AB');
+		expect(textPaints[0]?.letterSpacing).toBeCloseTo(0.4, 8);
+
+		await renderer.initGPU();
+		textPaints.length = 0;
+		const source = createPackedSource(['A   B']);
+		renderer.renderPacked(source);
+		expect(textPaints).toHaveLength(1);
+		expect(textPaints[0]?.text).toBe('A   B');
+		expect(textPaints[0]?.letterSpacing).toBeCloseTo(0.2, 8);
+
+		textPaints.length = 0;
+		renderer.setProjectedViewportState(0, {
+			endCol: 4,
+			endRow: 0,
+			rectangle: false,
+			startCol: 4,
+			startRow: 0,
+		});
+		renderer.renderPacked(source, true);
+		expect(textPaints.map(({ text }) => text)).toEqual(['A   ', 'B']);
+		expect(textPaints[0]?.letterSpacing).toBeCloseTo(0.2, 8);
+		expect(textPaints[1]?.letterSpacing).toBe(0);
 		renderer.dispose();
 	});
 
@@ -1138,6 +1191,28 @@ describe('projected terminal renderer', () => {
 
 		selected.length = 0;
 		renderer.setProjectedViewportState(0, {
+			startCol: 2,
+			startRow: 2,
+			endCol: 1,
+			endRow: 0,
+			rectangle: false,
+		});
+		renderer.renderPacked(source, true);
+		expect(selected).toEqual([
+			[8, 0, 8, 17],
+			[16, 0, 8, 17],
+			[24, 0, 8, 17],
+			[0, 17, 8, 17],
+			[8, 17, 8, 17],
+			[16, 17, 8, 17],
+			[24, 17, 8, 17],
+			[0, 34, 8, 17],
+			[8, 34, 8, 17],
+			[16, 34, 8, 17],
+		]);
+
+		selected.length = 0;
+		renderer.setProjectedViewportState(0, {
 			startCol: 1,
 			startRow: 0,
 			endCol: 2,
@@ -1147,6 +1222,24 @@ describe('projected terminal renderer', () => {
 		source.dirtyRows.add(0);
 		source.dirtyRows.add(1);
 		source.dirtyRows.add(2);
+		renderer.renderPacked(source, true);
+		expect(selected).toEqual([
+			[8, 0, 8, 17],
+			[16, 0, 8, 17],
+			[8, 17, 8, 17],
+			[16, 17, 8, 17],
+			[8, 34, 8, 17],
+			[16, 34, 8, 17],
+		]);
+
+		selected.length = 0;
+		renderer.setProjectedViewportState(0, {
+			startCol: 2,
+			startRow: 0,
+			endCol: 1,
+			endRow: 2,
+			rectangle: true,
+		});
 		renderer.renderPacked(source, true);
 		expect(selected).toEqual([
 			[8, 0, 8, 17],

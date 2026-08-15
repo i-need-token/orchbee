@@ -4,6 +4,8 @@ const target_builtin = @import("builtin");
 const core_module = @import("terminal-host-core").state;
 const terminal_engine = @import("terminal-host-engine");
 const host_input_admission = @import("input_admission.zig");
+const host_interaction_access = @import("interaction_access.zig");
+const host_retained_terminal = @import("retained_terminal.zig");
 const host_runtime_maintenance = @import("runtime_maintenance.zig");
 const model = @import("terminal-host-model");
 const identifiers = model.identifiers;
@@ -12,6 +14,7 @@ const terminal_geometry = model.geometry;
 const terminal_input = @import("terminal-input");
 const terminal_launch = terminal_engine.launch;
 const terminal_runtime = terminal_engine.runtime;
+const RetainedTerminal = host_retained_terminal.RetainedTerminal;
 
 pub const TerminalIdentity = struct {
     creation_id: core_module.CreationId,
@@ -51,6 +54,26 @@ pub const TerminalControl = struct {
     revision: u64,
     terminal_id: core_module.TerminalId,
 };
+
+/// A request-scoped, read-only view of the terminal inventory. The aggregate
+/// retains every mutable Core owner; callers may serialize this view but cannot
+/// use it to perform a Core transition.
+pub const TerminalInventory = struct {
+    generation: u64,
+    host_epoch: core_module.HostEpoch,
+    terminals: []const *const core_module.TerminalSession,
+};
+
+pub const ReadableAttachmentError = error{
+    ReadableAttachmentUnavailable,
+    TerminalRuntimeMissing,
+};
+
+pub const ReadRowsRequest = host_interaction_access.ReadRowsRequest;
+pub const SelectionGestureRequest = host_interaction_access.SelectionGestureRequest;
+pub const SelectionCommandRequest = host_interaction_access.SelectionCommandRequest;
+pub const ReadableAttachment = host_interaction_access.ReadableAttachment;
+pub const SelectionExportHandoff = host_interaction_access.SelectionExportHandoff;
 
 pub const CreateOutcome = union(enum) {
     created: TerminalIdentity,
@@ -140,7 +163,6 @@ pub const CreateCommitError = error{
 };
 
 pub const AttachError = core_module.CoreError || std.mem.Allocator.Error || error{
-    HistoryAttachmentFailed,
     TerminalRuntimeMissing,
     TerminalRuntimeUnavailable,
 };
@@ -198,8 +220,8 @@ const HostRuntimeAggregateTestingState = if (target_builtin.is_test) struct {
     projection_release_decisions: usize = 0,
 } else struct {};
 
-// HostRuntimeAggregate is the single owner of the deterministic Core record
-// and the native runtime bound to each retained TerminalId.
+// HostRuntimeAggregate is the single owner of each co-located RetainedTerminal
+// and coordinates its pure Core session with its native runtime.
 pub const HostRuntimeAggregate = struct {
     allocator: std.mem.Allocator,
     core_state: core_module.HostCore,
@@ -232,7 +254,7 @@ pub const HostRuntimeAggregate = struct {
             // Runtime destruction escalates to force termination when this
             // graceful request fails or the PTY has not drained.
             for (self.core_state.terminalValues()) |session| {
-                const engine = session.runtime() orelse continue;
+                const engine = self.runtimeFor(session.terminal_id) orelse continue;
                 const completion = engine.completion();
                 if (!completion.child_exited or !completion.pty_drained) {
                     engine.terminate() catch {};
@@ -242,11 +264,11 @@ pub const HostRuntimeAggregate = struct {
         shutdownAndReleaseTerminalEngines(self) catch |err| {
             // THDD-001: a failed fatal-teardown pass must never abandon an
             // unconfirmed process tree after one failed pass. Retain the
-            // cleanup ownership by recording the exact blocked containment with
-            // a bounded retry deadline, so the bounded cleanup-retry scheduler
-            // retries it and the release owner stays alive until containment is
-            // confirmed. The complete aggregate is retained for that window.
-            self.maintenance.retainUnconfirmedCleanup(&self.core_state);
+            // cleanup ownership with a bounded retry deadline. A settled
+            // terminal records that work independently so its outcome remains
+            // immutable; an unsettled failure keeps using lifecycle
+            // containment. The complete aggregate is retained for that window.
+            self.maintenance.retainUnconfirmedCleanup(self);
             return err;
         };
         self.core_state.deinit();
@@ -257,7 +279,7 @@ pub const HostRuntimeAggregate = struct {
     /// confirmed contained (THDD-001). While true, teardown must not release
     /// the cleanup ownership and the release owner must keep retrying.
     pub fn retainedCleanupPending(self: *const HostRuntimeAggregate) bool {
-        return self.maintenance.retainedCleanupPending(&self.core_state);
+        return self.maintenance.retainedCleanupPending(self);
     }
 
     /// THDD-001 observability status for the retained-cleanup state.
@@ -269,18 +291,18 @@ pub const HostRuntimeAggregate = struct {
     /// scheduler (so only retries whose bounded backoff deadline is due fire)
     /// and returns whether every retained tree is now containment-confirmed.
     pub fn runRetainedCleanupPass(self: *HostRuntimeAggregate) bool {
-        return self.maintenance.runRetainedCleanupPass(&self.core_state);
+        return self.maintenance.runRetainedCleanupPass(self);
     }
 
     /// THDD-001 bounded retained-cleanup window. Reuses the existing bounded
     /// cleanup-retry scheduler and its monotonic backoff cadence; each pass
     /// retries only due cleanups. On the bounded budget being exhausted with a
     /// tree still unconfirmed, the permanent-failure policy leaves an explicit
-    /// retained failed state (observable via retainedCleanupStatus) and never
+    /// exhausted cleanup state (observable via retainedCleanupStatus) and never
     /// silently releases the tree. The caller surfaces the retained-failed
     /// outcome as the loud shutdown signal.
     pub fn runRetainedCleanupWindow(self: *HostRuntimeAggregate) RetainedCleanupResult {
-        return self.maintenance.runRetainedCleanupWindow(&self.core_state);
+        return self.maintenance.runRetainedCleanupWindow(self);
     }
 
     /// Completes teardown once every retained runtime is containment-confirmed.
@@ -300,19 +322,118 @@ pub const HostRuntimeAggregate = struct {
         self: *HostRuntimeAggregate,
         index: usize,
     ) ?*terminal_runtime.TerminalRuntime {
-        return self.core_state.terminalValues()[index].runtime();
+        return self.runtimeFor(self.core_state.terminalValues()[index].terminal_id);
     }
 
-    fn takeLastOwnedRuntime(
-        self: *HostRuntimeAggregate,
-    ) ?*terminal_runtime.TerminalRuntime {
+    fn destroyLastOwnedTerminal(self: *HostRuntimeAggregate) void {
         const index = self.core_state.terminalCount() - 1;
         const terminal_id = self.core_state.terminalKeys()[index];
-        return self.core_state.takeTerminalForHostShutdown(terminal_id).runtimePointer();
+        const testing_model = if (comptime target_builtin.is_test)
+            core_module.testing.isModelTerminal(&self.core_state, terminal_id)
+        else
+            false;
+        const session = self.core_state.takeTerminalForHostShutdown(terminal_id);
+        if (comptime target_builtin.is_test) {
+            if (testing_model) {
+                core_module.testing.destroyModelTerminal(&self.core_state, session);
+                return;
+            }
+        }
+        const retained = RetainedTerminal.fromMutableSession(session);
+        retained.runtime.destroyAfterShutdown();
+        self.allocator.destroy(retained);
     }
 
     pub fn core(self: *HostRuntimeAggregate) *core_module.HostCore {
         return &self.core_state;
+    }
+
+    pub fn coreRead(self: *const HostRuntimeAggregate) *const core_module.HostCore {
+        return &self.core_state;
+    }
+
+    pub fn hostEpoch(self: *const HostRuntimeAggregate) core_module.HostEpoch {
+        return self.core_state.epoch;
+    }
+
+    pub fn inventoryGeneration(self: *const HostRuntimeAggregate) u64 {
+        return self.core_state.inventoryGeneration();
+    }
+
+    pub fn terminalCount(self: *const HostRuntimeAggregate) usize {
+        return self.core_state.terminalCount();
+    }
+
+    pub fn terminalInventory(
+        self: *HostRuntimeAggregate,
+        offset: usize,
+        maximum_terminals: usize,
+    ) error{InvalidInventoryOffset}!TerminalInventory {
+        if (offset > self.core_state.terminalCount()) return error.InvalidInventoryOffset;
+        self.synchronizeTerminalRange(offset, maximum_terminals);
+        return .{
+            .generation = self.core_state.inventoryGeneration(),
+            .host_epoch = self.core_state.epoch,
+            .terminals = self.core_state.terminalValues(),
+        };
+    }
+
+    pub fn connect(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        client_id: core_module.ClientId,
+    ) core_module.CoreError!core_module.TransitionOutcome {
+        return self.core_state.connect(connection_id, client_id);
+    }
+
+    pub fn prepareTerminalDefaultsUpdate(
+        self: *HostRuntimeAggregate,
+        configuration: terminal_configuration.Configuration,
+    ) core_module.CoreError!core_module.PreparedTerminalDefaultsUpdate {
+        return self.core_state.prepareTerminalDefaultsUpdate(configuration);
+    }
+
+    pub fn commitTerminalDefaultsUpdate(
+        self: *HostRuntimeAggregate,
+        update: core_module.PreparedTerminalDefaultsUpdate,
+    ) void {
+        self.core_state.commitTerminalDefaultsUpdate(update);
+    }
+
+    pub fn frameApplied(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+        sequence: u64,
+        revision: u64,
+        generation: u64,
+    ) core_module.CoreError!core_module.TransitionOutcome {
+        return self.core_state.frameApplied(
+            connection_id,
+            attachment_id,
+            sequence,
+            revision,
+            generation,
+        );
+    }
+
+    pub fn needSnapshot(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+        sequence: u64,
+    ) core_module.CoreError!core_module.TransitionOutcome {
+        return self.core_state.needSnapshot(connection_id, attachment_id, sequence);
+    }
+
+    pub fn commitOutcomePublications(
+        self: *HostRuntimeAggregate,
+        tokens: []const core_module.OutcomePublicationToken,
+    ) void {
+        for (tokens) |token| {
+            const transition = self.core_state.markOutcomePublished(token);
+            std.debug.assert(transition == .applied);
+        }
     }
 
     pub fn isEmpty(self: *const HostRuntimeAggregate) bool {
@@ -323,17 +444,40 @@ pub const HostRuntimeAggregate = struct {
     pub fn runtimeCount(self: *const HostRuntimeAggregate) usize {
         var count: usize = 0;
         for (self.core_state.terminalValues()) |session| {
-            if (session.runtime() != null) count += 1;
+            if (self.runtimeFor(session.terminal_id) != null) count += 1;
         }
         return count;
     }
 
     pub fn runtimeFor(
-        self: *HostRuntimeAggregate,
+        self: *const HostRuntimeAggregate,
         terminal_id: core_module.TerminalId,
     ) ?*terminal_runtime.TerminalRuntime {
         const session = self.core_state.findTerminal(terminal_id) orelse return null;
-        return session.runtime();
+        if (comptime target_builtin.is_test) {
+            if (core_module.testing.isModelTerminal(&self.core_state, terminal_id)) return null;
+        }
+        return RetainedTerminal.fromSession(session).runtime;
+    }
+
+    pub fn readableAttachment(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+    ) ReadableAttachmentError!ReadableAttachment {
+        const attachment = self.core_state.resolveAttachment(
+            connection_id,
+            attachment_id,
+            .read,
+        ) catch return error.ReadableAttachmentUnavailable;
+        const terminal = self.core_state.findTerminal(attachment.terminal_id) orelse
+            return error.ReadableAttachmentUnavailable;
+        const runtime = self.runtimeFor(attachment.terminal_id) orelse
+            return error.TerminalRuntimeMissing;
+        if (!terminal.hasReadableRuntimeState() or !runtime.readableStateAvailable()) {
+            return error.ReadableAttachmentUnavailable;
+        }
+        return ReadableAttachment.init(attachment_id, runtime);
     }
 
     pub fn synchronizeRuntimeObservation(
@@ -416,6 +560,9 @@ pub const HostRuntimeAggregate = struct {
             .replayed => |identity| return .{ .replayed = identity },
             .consumed => unreachable,
             .pending => |*pending| {
+                const retained = self.allocator.create(RetainedTerminal) catch
+                    return error.RuntimeAllocationOutOfMemory;
+                errdefer self.allocator.destroy(retained);
                 const runtime = terminal_runtime.TerminalRuntime.createWithOptions(
                     self.allocator,
                     pending.runtime_preparation.process_launch,
@@ -425,6 +572,10 @@ pub const HostRuntimeAggregate = struct {
                         error.RuntimeAllocationOutOfMemory
                     else
                         error.RuntimeSpawnFailed;
+                };
+                retained.* = .{
+                    .runtime = runtime,
+                    .session = undefined,
                 };
                 // All domain capacity and the complete engine exist before
                 // this infallible commit. The caller has already encoded and
@@ -439,7 +590,7 @@ pub const HostRuntimeAggregate = struct {
                     pending.runtime_preparation.process_launch.cell_pixel_width,
                     pending.runtime_preparation.process_launch.cell_pixel_height,
                     pending.runtime_preparation.configuration,
-                    runtime,
+                    &retained.session,
                 );
                 const identity: TerminalIdentity = .{
                     .creation_id = pending.creation_id,
@@ -450,6 +601,41 @@ pub const HostRuntimeAggregate = struct {
                 return .{ .created = identity };
             },
         }
+    }
+
+    fn adoptRunningTerminalForTesting(
+        self: *HostRuntimeAggregate,
+        connection_id: core_module.ConnectionId,
+        creation_id: core_module.CreationId,
+        terminal_id: core_module.TerminalId,
+        launch_digest: terminal_launch.Digest,
+        columns: u16,
+        rows: u16,
+        cell_pixel_width: u16,
+        cell_pixel_height: u16,
+        configuration: terminal_configuration.Configuration,
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) std.mem.Allocator.Error!void {
+        if (comptime !target_builtin.is_test) {
+            @compileError("custom runtime adoption is available only to service tests");
+        }
+        const retained = try self.allocator.create(RetainedTerminal);
+        retained.* = .{
+            .runtime = runtime,
+            .session = undefined,
+        };
+        self.core_state.commitRunningTerminal(
+            connection_id,
+            creation_id,
+            terminal_id,
+            launch_digest,
+            columns,
+            rows,
+            cell_pixel_width,
+            cell_pixel_height,
+            configuration,
+            &retained.session,
+        );
     }
 
     pub fn requestTermination(
@@ -556,13 +742,8 @@ pub const HostRuntimeAggregate = struct {
         }
 
         const runtime = self.runtimeFor(terminal_id) orelse return error.TerminalRuntimeMissing;
-        var runtime_preparation = runtime.prepareAttachment(
-            attachment_id,
-            capabilities.input or capabilities.resize,
-            capabilities.read,
-            capabilities.input,
-        ) catch |err| return switch (err) {
-            error.OutOfMemory => error.HistoryAttachmentFailed,
+        var runtime_preparation = runtime.prepareAttachment(attachment_id, capabilities) catch |err| return switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
             error.TerminalResizeFailed, error.TerminalRuntimeUnavailable => error.TerminalRuntimeUnavailable,
         };
         defer runtime_preparation.deinit();
@@ -864,7 +1045,7 @@ pub const HostRuntimeAggregate = struct {
     }
 
     pub fn synchronizeRuntimes(self: *HostRuntimeAggregate) void {
-        self.maintenance.synchronizeRuntimes(&self.core_state);
+        self.maintenance.synchronizeRuntimes(self);
     }
 
     /// Synchronizes exactly the bounded inventory slice that is about to be
@@ -876,7 +1057,7 @@ pub const HostRuntimeAggregate = struct {
         maximum_terminals: usize,
     ) void {
         self.maintenance.synchronizeTerminalRange(
-            &self.core_state,
+            self,
             offset,
             maximum_terminals,
         );
@@ -899,7 +1080,7 @@ pub const HostRuntimeAggregate = struct {
         self: *HostRuntimeAggregate,
         terminal_id: core_module.TerminalId,
     ) void {
-        self.maintenance.synchronizeTerminal(&self.core_state, terminal_id);
+        self.maintenance.synchronizeTerminal(self, terminal_id);
     }
 
     pub fn disposeTerminal(
@@ -929,14 +1110,17 @@ pub const HostRuntimeAggregate = struct {
         }
         const runtime = self.runtimeFor(terminal_id) orelse return error.TerminalRuntimeMissing;
 
-        // Dispose is the final owner handoff. Join the engine while its
-        // TerminalSession still retains it; a failed shutdown leaves the
-        // complete session intact so the operation can be retried safely.
+        // Dispose is the final owner handoff. Join the engine while the
+        // RetainedTerminal still binds it to this session; a failed shutdown
+        // leaves the complete retained record intact for a safe retry.
         runtime.shutdown() catch |err| {
             return .{ .cleanup_blocked = host_runtime_maintenance.cleanupFailure(err) };
         };
-        self.core_state.commitTerminalRemoval(terminal_id);
+        const session = self.core_state.commitTerminalRemoval(terminal_id);
+        const retained = RetainedTerminal.fromMutableSession(session);
+        std.debug.assert(retained.runtime == runtime);
         runtime.destroyAfterShutdown();
+        self.allocator.destroy(retained);
         return .{ .transition = .applied };
     }
 
@@ -1010,9 +1194,7 @@ fn shutdownAndReleaseTerminalEngines(owner: anytype) !void {
         };
     }
     if (first_error) |err| return err;
-    while (owner.ownedTerminalCount() > 0) {
-        if (owner.takeLastOwnedRuntime()) |engine| engine.destroyAfterShutdown();
-    }
+    while (owner.ownedTerminalCount() > 0) owner.destroyLastOwnedTerminal();
 }
 
 fn recordUnsafeResizeFailureForTesting(
@@ -1035,7 +1217,7 @@ fn takeDueCleanupRetryForTesting(
 }
 
 fn retainUnconfirmedCleanupForTesting(aggregate: *HostRuntimeAggregate) void {
-    aggregate.maintenance.retainUnconfirmedCleanup(&aggregate.core_state);
+    aggregate.maintenance.retainUnconfirmedCleanup(aggregate);
 }
 
 fn cleanupRetryScanIndexForTesting(aggregate: *const HostRuntimeAggregate) usize {
@@ -1071,7 +1253,7 @@ pub const testing = if (target_builtin.is_test) struct {
         try aggregate.finishRetainedCleanup();
     }
     pub fn markRetainedCleanupExhausted(aggregate: *HostRuntimeAggregate) void {
-        aggregate.maintenance.markRetainedCleanupExhausted(&aggregate.core_state);
+        aggregate.maintenance.markRetainedCleanupExhausted(aggregate);
     }
     pub fn projectionReleaseDecisions(aggregate: *const HostRuntimeAggregate) usize {
         return aggregate.testing_state.projection_release_decisions;
@@ -1098,6 +1280,7 @@ pub const testing = if (target_builtin.is_test) struct {
         aggregate.maintenance.cleanup_clock.context = context;
     }
     pub const recordUnsafeResizeFailureFn = recordUnsafeResizeFailureForTesting;
+    pub const adoptRunningTerminalFn = HostRuntimeAggregate.adoptRunningTerminalForTesting;
     pub const requestTerminationUsingFn = requestTerminationUsingForTesting;
     pub const runtimeFailureFromObservationFn =
         host_runtime_maintenance.runtimeFailureFromObservation;

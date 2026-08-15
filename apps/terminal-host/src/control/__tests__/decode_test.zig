@@ -1,10 +1,37 @@
 const std = @import("std");
 const control_boundary = @import("terminal-host-control");
+const protocol = @import("terminal-protocol");
 
 const subject = control_boundary.decode;
 const wire = control_boundary.testing.wire;
 
 const attachment_id = "11111111111111111111111111111111";
+
+test "CreateTerminal preflights environment count before translation allocation" {
+    const limit = protocol.Limits.launch_environment_entries;
+    const entry: wire.Environment = .{ .name = "ORCHBEE", .value = null };
+    const exact = [_]wire.Environment{entry} ** limit;
+    const translated = try control_boundary.testing.decode_terminal.translateEnvironmentForTest(
+        std.testing.allocator,
+        &exact,
+    );
+    defer std.testing.allocator.free(translated);
+    try std.testing.expectEqual(limit, translated.len);
+
+    const excessive = [_]wire.Environment{entry} ** (limit + 1);
+    var failing = std.testing.FailingAllocator.init(
+        std.testing.allocator,
+        .{ .fail_index = 0 },
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        control_boundary.testing.decode_terminal.translateEnvironmentForTest(
+            failing.allocator(),
+            &excessive,
+        ),
+    );
+    try std.testing.expect(!failing.has_induced_failure);
+}
 
 test "Hello optional feature names use a bounded UTF-8 byte length" {
     const ascii = [_][]const u8{"a"};

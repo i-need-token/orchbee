@@ -13,6 +13,47 @@ pub const FailureDetails = struct {
     retryable: bool,
 };
 
+pub const SuccessResponse = struct {
+    kind: u16,
+    encoding: protocol.PayloadEncoding,
+};
+
+pub const ControlJsonSuccess = struct {
+    kind: u16,
+};
+
+pub const RowWindowSuccess = struct {
+    kind: u16,
+};
+
+pub fn resolveSuccessResponse(
+    request: protocol.RequestMessageContract,
+) error{InvalidSuccessResponseContract}!SuccessResponse {
+    const contract = protocol.messageContract(request.success_kind) orelse
+        return error.InvalidSuccessResponseContract;
+    const encoding = contract.response_encoding orelse
+        return error.InvalidSuccessResponseContract;
+    return .{ .kind = request.success_kind, .encoding = encoding };
+}
+
+pub fn requireControlJsonSuccess(
+    success: SuccessResponse,
+) error{IncompatibleSuccessResponseEncoding}!ControlJsonSuccess {
+    if (success.encoding != .control_json) {
+        return error.IncompatibleSuccessResponseEncoding;
+    }
+    return .{ .kind = success.kind };
+}
+
+pub fn requireRowWindowSuccess(
+    success: SuccessResponse,
+) error{IncompatibleSuccessResponseEncoding}!RowWindowSuccess {
+    if (success.encoding != .row_window) {
+        return error.IncompatibleSuccessResponseEncoding;
+    }
+    return .{ .kind = success.kind };
+}
+
 /// Owns the reserved response record until a caller either commits exactly one
 /// encoded payload or abandons the response. Domain effects may therefore run
 /// only after bounded outgoing capacity has been reserved.
@@ -42,6 +83,22 @@ pub const PreparedResponse = struct {
             .control_json,
             writer_value.buffered().len,
         );
+    }
+
+    pub fn commitControlSuccess(
+        self: *PreparedResponse,
+        success: ControlJsonSuccess,
+        writer_value: *const std.Io.Writer,
+    ) host_outgoing.AppendToken {
+        return self.commitControl(success.kind, writer_value);
+    }
+
+    pub fn commitRowWindowSuccess(
+        self: *PreparedResponse,
+        success: RowWindowSuccess,
+        payload_length: usize,
+    ) host_outgoing.AppendToken {
+        return self.record.commitWritten(success.kind, .row_window, payload_length);
     }
 
     pub fn commitPayload(
@@ -94,6 +151,15 @@ pub fn appendRequired(
     delivery: host_outgoing.Delivery,
 ) !host_outgoing.AppendToken {
     return requireAppended(try outgoing.append(kind, encoding, payload, delivery));
+}
+
+pub fn appendControlSuccess(
+    outgoing: *host_outgoing.Outgoing,
+    success: ControlJsonSuccess,
+    payload: []const u8,
+    delivery: host_outgoing.Delivery,
+) !host_outgoing.AppendToken {
+    return appendRequired(outgoing, success.kind, .control_json, payload, delivery);
 }
 
 pub fn appendFailure(

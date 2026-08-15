@@ -80,6 +80,7 @@ const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     finish_pty_after_child_exit: ?*const fn (*anyopaque) anyerror!void = null,
     host_containment_waiting: ?*const fn (*anyopaque) void = null,
     projection_capture_starting: ?*const fn (*anyopaque) void = null,
+    pty_drain_publication_starting: ?*const fn (*anyopaque) void = null,
     read_pty: ?*const fn (*anyopaque, []u8) anyerror!usize = null,
     read_commit_checkpoint: ?*const fn (*anyopaque, ReadCommitCheckpoint) void = null,
     reader_commit_waiting: ?*const fn (*anyopaque) void = null,
@@ -114,6 +115,7 @@ const DeviceAttributes = terminal_profile.DeviceAttributes;
 
 pub const ProjectionCounters = terminal_projection.Counters;
 pub const ProjectionEncodeRequest = terminal_projection.EncodeRequest;
+pub const Capabilities = model.attachment.Capabilities;
 pub const AttachmentId = identifiers.AttachmentId;
 pub const HostEpoch = identifiers.HostEpoch;
 pub const ProjectionFrame = terminal_projection.EncodedFrame;
@@ -286,8 +288,8 @@ const PreparedAttachmentState = enum {
     consumed,
 };
 
-/// Holds the terminal-state lock and any history capacity needed for a new
-/// attachment until Core has completed all of its fallible admission work.
+/// Holds the terminal-state lock and exactly the input/history capacity needed
+/// for a new attachment until Core completes all fallible admission work.
 /// Committing this value is allocation-free, so Core and runtime-derived
 /// attachment state become observable as one Host transition.
 pub const PreparedAttachment = struct {
@@ -1709,19 +1711,17 @@ pub const TerminalRuntime = struct {
     pub fn prepareAttachment(
         self: *TerminalRuntime,
         attachment_id: identifiers.AttachmentId,
-        requires_runtime_work: bool,
-        requires_readable_state: bool,
-        requires_input_state: bool,
+        capabilities: Capabilities,
     ) !PreparedAttachment {
-        std.debug.assert(!requires_input_state or requires_runtime_work);
+        std.debug.assert(capabilities.input or capabilities.read or capabilities.resize);
         self.terminal_mutex.lock();
         errdefer self.terminal_mutex.unlock();
-        if (requires_input_state) {
+        if (capabilities.input or capabilities.resize) {
             try self.ensureRuntimeWorkAvailableLocked();
-        } else if (requires_readable_state) {
+        } else if (capabilities.read) {
             try self.ensureReadableStateAvailableLocked();
         }
-        if (requires_runtime_work) {
+        if (capabilities.input) {
             self.input_mutex.lock();
             self.input_ownership.ensureAttachmentCapacity() catch |err| {
                 self.input_mutex.unlock();
@@ -1729,12 +1729,12 @@ pub const TerminalRuntime = struct {
             };
             self.input_mutex.unlock();
         }
-        if (requires_readable_state) try self.history.reserveAttachment(attachment_id);
+        if (capabilities.read) try self.history.reserveAttachment(attachment_id);
         return .{
             .attachment_id = attachment_id,
             .bell_sequence = self.bell_sequence,
-            .history_reserved = requires_readable_state,
-            .input_state_reserved = requires_input_state,
+            .history_reserved = capabilities.read,
+            .input_state_reserved = capabilities.input,
             .runtime = self,
         };
     }
@@ -2523,6 +2523,14 @@ pub const TerminalRuntime = struct {
         }
     }
 
+    fn notifyPtyDrainPublicationStarting(self: *TerminalRuntime) void {
+        if (comptime target_builtin.is_test) {
+            if (self.testing_hooks.pty_drain_publication_starting) |notify| {
+                notify(self.testing_hooks.context.?);
+            }
+        }
+    }
+
     fn commitReaderBatch(
         self: *TerminalRuntime,
         bytes: []const u8,
@@ -2644,7 +2652,12 @@ pub const TerminalRuntime = struct {
         defer self.terminal_mutex.unlock();
         self.input_mutex.lock();
         defer self.input_mutex.unlock();
-        if (self.failure_fenced) return false;
+        // This is the natural-drain linearization point. Shutdown publishes
+        // the abort request before waiting for terminal_mutex, so an abort
+        // that wins first cannot later be represented as normal PTY drain.
+        if (self.failure_fenced or self.output_abort_requested.load(.acquire)) {
+            return false;
+        }
         self.pty_drained.store(true, .release);
         self.writer_stop = true;
         self.input_condition.broadcast();
@@ -2669,6 +2682,7 @@ pub const TerminalRuntime = struct {
             if (self.commitReaderBatch(buffer[0..length]) != .committed) return;
         }
         if (self.output_abort_requested.load(.acquire)) return;
+        self.notifyPtyDrainPublicationStarting();
         _ = self.publishPtyDrained();
     }
 

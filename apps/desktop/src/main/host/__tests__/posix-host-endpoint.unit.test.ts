@@ -91,13 +91,19 @@ describe('POSIX Host endpoint helper', () => {
 			transport = value;
 			return expected;
 		});
+		const dependencies = createDependencies(helper, createConnection);
 		const pending = connectAuthenticatedPosixHost(
 			'/opt/orchbee/orchbee-terminal-host',
 			'/private/runtime',
 			'cd'.repeat(16),
-			createDependencies(helper, createConnection),
+			dependencies,
 		);
 
+		expect(dependencies.spawn).toHaveBeenCalledWith(
+			'/opt/orchbee/orchbee-terminal-host',
+			['connect', '--runtime-directory', '/private/runtime', '--endpoint-id', 'cd'.repeat(16)],
+			{ stdio: ['pipe', 'pipe', 'ignore', 'pipe'] },
+		);
 		expect(createConnection).not.toHaveBeenCalled();
 		helper.status.write(Uint8Array.of(1));
 		await expect(pending).resolves.toBe(expected);
@@ -129,10 +135,19 @@ describe('POSIX Host endpoint helper', () => {
 
 	it('requires successful native runtime-directory preparation', async () => {
 		const successful = createControlledHelper();
+		const successfulDependencies = createDependencies(
+			successful,
+			vi.fn<(transport: Duplex) => HostConnection>(),
+		);
 		const successfulPreparation = preparePosixHostRuntimeDirectory(
 			'/opt/orchbee/orchbee-terminal-host',
 			'/private/runtime',
-			createDependencies(successful, vi.fn<(transport: Duplex) => HostConnection>()),
+			successfulDependencies,
+		);
+		expect(successfulDependencies.spawn).toHaveBeenCalledWith(
+			'/opt/orchbee/orchbee-terminal-host',
+			['prepare-runtime', '--runtime-directory', '/private/runtime'],
+			{ stdio: 'ignore' },
 		);
 		successful.child.emit('exit', 0, null);
 		await expect(successfulPreparation).resolves.toBeUndefined();

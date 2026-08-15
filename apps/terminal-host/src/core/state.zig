@@ -8,7 +8,6 @@ const identifiers = model.identifiers;
 const terminal_configuration = model.configuration;
 const terminal_lifecycle = model.lifecycle;
 const terminal_registry = @import("terminal_registry.zig");
-const terminal_runtime = @import("terminal-host-engine").runtime;
 const terminal_session = @import("terminal_session.zig");
 
 pub const AttachmentId = identifiers.AttachmentId;
@@ -39,12 +38,12 @@ pub const RuntimeFailureKind = terminal_lifecycle.RuntimeFailureKind;
 pub const RuntimeFailureStage = terminal_lifecycle.RuntimeFailureStage;
 pub const RuntimeFailure = terminal_lifecycle.RuntimeFailure;
 pub const RuntimeCleanupFailure = terminal_lifecycle.RuntimeCleanupFailure;
+pub const RetainedCleanup = terminal_lifecycle.RetainedCleanup;
 pub const ProcessObservation = terminal_lifecycle.ProcessObservation;
 pub const FailureContainment = terminal_lifecycle.FailureContainment;
 pub const OutcomeKind = terminal_lifecycle.OutcomeKind;
 pub const OutcomePublicationToken = terminal_session.OutcomePublicationToken;
 pub const PendingOutcome = terminal_session.PendingOutcome;
-pub const TerminalEngine = terminal_session.Engine;
 pub const TerminalConfigurationState = terminal_session.ConfigurationState;
 pub const EngineObservation = terminal_session.EngineObservation;
 pub const TerminalLifecycle = terminal_lifecycle.Lifecycle;
@@ -107,9 +106,15 @@ pub const CoreError = error{
 
 const BrokerSession = broker_session.Session;
 
+const TestingTerminalStorage = if (target_builtin.is_test) struct {
+    next: ?*@This() = null,
+    session: TerminalSession = undefined,
+} else struct {};
+
 const HostCoreTestingState = if (target_builtin.is_test) struct {
     /// Preserves the broker-owned scan count across disconnect teardown.
     last_active_read_demand_scans: usize = 0,
+    terminal_storage: ?*TestingTerminalStorage = null,
 } else struct {};
 
 pub const RequiredCapability = enum {
@@ -147,15 +152,21 @@ pub const HostCore = struct {
     pub fn deinit(self: *HostCore) void {
         if (target_builtin.is_test) {
             for (self.terminal_registry.values()) |terminal| {
-                std.debug.assert(terminal.runtime() == null);
+                std.debug.assert(self.ownsTestingTerminalStorage(terminal));
             }
         } else {
-            // HostRuntimeAggregate must transfer and destroy every engine
-            // before releasing the semantic registry.
+            // HostRuntimeAggregate must transfer and destroy every retained
+            // terminal before releasing the semantic registry.
             std.debug.assert(self.terminal_registry.count() == 0);
         }
         if (self.broker) |*broker| broker.deinit();
         self.terminal_registry.deinit();
+        if (target_builtin.is_test) {
+            while (self.testing_state.terminal_storage) |storage| {
+                self.testing_state.terminal_storage = storage.next;
+                self.allocator.destroy(storage);
+            }
+        }
         self.* = undefined;
     }
 
@@ -230,60 +241,11 @@ pub const HostCore = struct {
         try self.terminal_registry.reserveAdmission();
     }
 
-    fn commitTerminal(
-        self: *HostCore,
-        connection_id: ConnectionId,
-        creation_id: CreationId,
-        terminal_id: TerminalId,
-        launch_digest: LaunchDigest,
-        columns: u16,
-        rows: u16,
-    ) CoreError!void {
-        return self.commitTerminalWithConfiguration(
-            connection_id,
-            creation_id,
-            terminal_id,
-            launch_digest,
-            columns,
-            rows,
-            .{},
-        );
-    }
-
-    fn commitTerminalWithConfiguration(
-        self: *HostCore,
-        connection_id: ConnectionId,
-        creation_id: CreationId,
-        terminal_id: TerminalId,
-        launch_digest: LaunchDigest,
-        columns: u16,
-        rows: u16,
-        configuration: terminal_configuration.Configuration,
-    ) CoreError!void {
-        std.debug.assert(target_builtin.is_test);
-        if (!terminal_configuration.valid(configuration)) return error.InvalidConfiguration;
-        if (!self.connected(connection_id)) return error.MissingConnection;
-        try self.terminal_registry.validateAdmission(creation_id, terminal_id);
-        self.terminal_registry.commitAssumeCapacity(.{
-            .configuration_state = .{ .effective = configuration },
-            .creation_id = creation_id,
-            .engine = .model,
-            .engine_observation = .{ .geometry = .{
-                .cell_pixel_height = 1,
-                .cell_pixel_width = 1,
-                .columns = columns,
-                .rows = rows,
-            } },
-            .launch_digest = launch_digest,
-            .lifecycle = .{ .running = .{} },
-            .terminal_id = terminal_id,
-        });
-    }
-
     // The aggregate calls this only after reserving both registry capacities
-    // and constructing the complete native engine. Host commands are
-    // linearized on one thread, so the validated admission facts cannot
-    // change between prepare and this infallible commit.
+    // and constructing the complete retained-terminal allocation. `session`
+    // is its embedded stable field. Host commands are linearized on one thread,
+    // so the validated admission facts cannot change between prepare and this
+    // infallible commit.
     pub fn commitRunningTerminal(
         self: *HostCore,
         connection_id: ConnectionId,
@@ -295,15 +257,14 @@ pub const HostCore = struct {
         cell_pixel_width: u16,
         cell_pixel_height: u16,
         configuration: terminal_configuration.Configuration,
-        engine: *terminal_runtime.TerminalRuntime,
+        session: *TerminalSession,
     ) void {
         std.debug.assert(terminal_configuration.valid(configuration));
         std.debug.assert(self.connected(connection_id));
         self.terminal_registry.validateAdmission(creation_id, terminal_id) catch unreachable;
-        self.terminal_registry.commitAssumeCapacity(.{
+        session.* = .{
             .configuration_state = .{ .effective = configuration },
             .creation_id = creation_id,
-            .engine = .{ .native = engine },
             .engine_observation = .{ .geometry = .{
                 .cell_pixel_height = cell_pixel_height,
                 .cell_pixel_width = cell_pixel_width,
@@ -313,7 +274,8 @@ pub const HostCore = struct {
             .launch_digest = launch_digest,
             .lifecycle = .{ .running = .{} },
             .terminal_id = terminal_id,
-        });
+        };
+        self.terminal_registry.commitAssumeCapacity(session);
     }
 
     pub fn updateTerminalConfiguration(
@@ -420,6 +382,9 @@ pub const HostCore = struct {
         connection_id: ConnectionId,
         terminal_id: TerminalId,
     ) CoreError!TransitionOutcome {
+        if (comptime !target_builtin.is_test) {
+            @compileError("HostCore.disposeTerminal is available only to deterministic Core tests");
+        }
         const admission = try self.validateTerminalDisposal(connection_id, terminal_id);
         switch (admission) {
             .idempotent => return .idempotent,
@@ -430,29 +395,26 @@ pub const HostCore = struct {
             .containment_stopping, .cleanup_blocked => return error.FailureContainmentIncomplete,
             .dispose => {},
         }
-        const terminal = self.terminal_registry.get(terminal_id).?;
-        // This convenience path exists for deterministic Core model tests.
-        // Production sessions always carry a native engine and are removed by
-        // HostRuntimeAggregate after it has completed the ownership handoff.
-        if (terminal.runtime() != null) return error.InvalidPhase;
-        self.commitTerminalRemoval(terminal_id);
+        const terminal = self.commitTerminalRemoval(terminal_id);
+        self.destroyTestingTerminalStorage(terminal);
         return .applied;
     }
 
-    pub fn commitTerminalRemoval(self: *HostCore, terminal_id: TerminalId) void {
+    pub fn commitTerminalRemoval(self: *HostCore, terminal_id: TerminalId) *TerminalSession {
         const terminal = self.terminal_registry.get(terminal_id).?;
         std.debug.assert(terminal.phase() == .exited or terminal.phase() == .failed);
         std.debug.assert(terminal.pendingOutcome() == null);
+        std.debug.assert(!terminal.retainedCleanupPending());
         self.removeTerminalAttachments(terminal_id);
-        _ = self.terminal_registry.removeAssumePresent(terminal_id, true);
+        return self.terminal_registry.removeAssumePresent(terminal_id, true);
     }
 
     pub fn takeTerminalForHostShutdown(
         self: *HostCore,
         terminal_id: TerminalId,
-    ) TerminalEngine {
+    ) *TerminalSession {
         self.removeTerminalAttachments(terminal_id);
-        return self.terminal_registry.removeAssumePresent(terminal_id, false).engine;
+        return self.terminal_registry.removeAssumePresent(terminal_id, false);
     }
 
     pub fn validateTerminalDisposal(
@@ -462,6 +424,9 @@ pub const HostCore = struct {
     ) CoreError!TerminalDisposalAdmission {
         if (!self.connected(connection_id)) return error.MissingConnection;
         const terminal = self.terminal_registry.get(terminal_id) orelse return .idempotent;
+        if (terminal.retainedCleanupFailure()) |failure| {
+            return .{ .cleanup_blocked = failure };
+        }
         switch (try terminal.lifecycle.requireDisposable()) {
             .dispose => {},
             .containment_stopping => return .containment_stopping,
@@ -665,6 +630,33 @@ pub const HostCore = struct {
             observation,
             terminal.observedRevision(),
         );
+    }
+
+    pub fn retainedCleanupBlocked(
+        self: *HostCore,
+        terminal_id: TerminalId,
+        cleanup_failure: RuntimeCleanupFailure,
+        retry_at_ns: i128,
+    ) CoreError!TransitionOutcome {
+        const terminal = try self.requireTerminal(terminal_id);
+        if (terminal.settledFinalRevision() == null) return error.InvalidPhase;
+        return terminal.retained_cleanup.block(cleanup_failure, retry_at_ns);
+    }
+
+    pub fn retainedCleanupCompleted(
+        self: *HostCore,
+        terminal_id: TerminalId,
+    ) CoreError!TransitionOutcome {
+        const terminal = try self.requireTerminal(terminal_id);
+        return terminal.retained_cleanup.completeCleanup();
+    }
+
+    pub fn retainedCleanupExhausted(
+        self: *HostCore,
+        terminal_id: TerminalId,
+    ) CoreError!TransitionOutcome {
+        const terminal = try self.requireTerminal(terminal_id);
+        return terminal.retained_cleanup.exhaust();
     }
 
     pub fn synchronizeRevision(self: *HostCore, terminal_id: TerminalId, revision: u64) CoreError!TransitionOutcome {
@@ -896,8 +888,8 @@ pub const HostCore = struct {
         return broker.values();
     }
 
-    pub fn findTerminal(self: *HostCore, terminal_id: TerminalId) ?*const TerminalSession {
-        return self.terminal_registry.find(terminal_id);
+    pub fn findTerminal(self: *const HostCore, terminal_id: TerminalId) ?*const TerminalSession {
+        return self.terminal_registry.get(terminal_id);
     }
 
     pub fn resolveAttachment(
@@ -947,7 +939,7 @@ pub const HostCore = struct {
         return self.terminal_registry.keys();
     }
 
-    pub fn terminalValues(self: *const HostCore) []const TerminalSession {
+    pub fn terminalValues(self: *const HostCore) []const *const TerminalSession {
         return self.terminal_registry.values();
     }
 
@@ -991,6 +983,35 @@ pub const HostCore = struct {
         const broker = if (self.broker) |*active| active else return;
         broker.removeTerminalAttachments(terminal_id);
     }
+
+    fn ownsTestingTerminalStorage(
+        self: *const HostCore,
+        session: *const TerminalSession,
+    ) bool {
+        if (comptime !target_builtin.is_test) return false;
+        var storage = self.testing_state.terminal_storage;
+        while (storage) |candidate| : (storage = candidate.next) {
+            if (&candidate.session == session) return true;
+        }
+        return false;
+    }
+
+    fn destroyTestingTerminalStorage(
+        self: *HostCore,
+        session: *TerminalSession,
+    ) void {
+        if (comptime !target_builtin.is_test) unreachable;
+        var link = &self.testing_state.terminal_storage;
+        while (link.*) |storage| {
+            if (&storage.session == session) {
+                link.* = storage.next;
+                self.allocator.destroy(storage);
+                return;
+            }
+            link = &storage.next;
+        }
+        unreachable;
+    }
 };
 
 fn projectionTransition(value: attachment_projection.Transition) TransitionOutcome {
@@ -1017,15 +1038,34 @@ pub const testing = if (@import("builtin").is_test) struct {
             return .idempotent;
         }
         try core.reserveTerminal();
-        try core.commitTerminal(
+        try core.terminal_registry.validateAdmission(creation_id, terminal_id);
+        const storage = try core.allocator.create(TestingTerminalStorage);
+        errdefer core.allocator.destroy(storage);
+        storage.* = .{};
+        core.commitRunningTerminal(
             connection_id,
             creation_id,
             terminal_id,
             launch_digest,
             columns,
             rows,
+            1,
+            1,
+            .{},
+            &storage.session,
         );
+        storage.next = core.testing_state.terminal_storage;
+        core.testing_state.terminal_storage = storage;
         return .applied;
+    }
+
+    pub fn isModelTerminal(core: *const HostCore, terminal_id: TerminalId) bool {
+        const terminal = core.terminal_registry.get(terminal_id) orelse return false;
+        return core.ownsTestingTerminalStorage(terminal);
+    }
+
+    pub fn destroyModelTerminal(core: *HostCore, session: *TerminalSession) void {
+        core.destroyTestingTerminalStorage(session);
     }
 
     pub fn creationCount(core: *const HostCore) usize {

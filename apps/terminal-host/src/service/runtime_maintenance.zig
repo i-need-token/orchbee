@@ -128,11 +128,12 @@ pub const Maintenance = struct {
     /// Whether any retained process tree still lacks confirmed containment.
     pub fn retainedCleanupPending(
         self: *const Maintenance,
-        core: *const core_module.HostCore,
+        owner: anytype,
     ) bool {
         _ = self;
+        const core = owner.coreRead();
         for (core.terminalValues()) |session| {
-            const runtime = session.runtime() orelse continue;
+            const runtime = owner.runtimeFor(session.terminal_id) orelse continue;
             if (!runtime.containmentConfirmed()) return true;
         }
         return false;
@@ -145,22 +146,22 @@ pub const Maintenance = struct {
     /// Drives one scheduled cleanup retry pass and records bounded progress.
     pub fn runRetainedCleanupPass(
         self: *Maintenance,
-        core: *core_module.HostCore,
+        owner: anytype,
     ) bool {
-        self.synchronizeRuntimes(core);
+        self.synchronizeRuntimes(owner);
         self.retained_cleanup.attempts += 1;
-        return !self.retainedCleanupPending(core);
+        return !self.retainedCleanupPending(owner);
     }
 
     /// Runs the bounded THDD-001 retry window. Production sleeps between
     /// passes; deterministic tests advance their injected logical clock.
     pub fn runRetainedCleanupWindow(
         self: *Maintenance,
-        core: *core_module.HostCore,
+        owner: anytype,
     ) RetainedCleanupResult {
         var attempts: usize = 0;
         while (attempts < retained_cleanup_max_attempts) : (attempts += 1) {
-            if (self.runRetainedCleanupPass(core)) {
+            if (self.runRetainedCleanupPass(owner)) {
                 std.log.info("terminal Host completed retained cleanup after {d} pass(es)", .{attempts + 1});
                 return .complete;
             }
@@ -168,7 +169,7 @@ pub const Maintenance = struct {
                 std.Thread.sleep(retained_cleanup_backoff_ns);
             }
         }
-        self.markRetainedCleanupExhausted(core);
+        self.markRetainedCleanupExhausted(owner);
         return .retained_failed;
     }
 
@@ -176,38 +177,72 @@ pub const Maintenance = struct {
     /// containment work while keeping the aggregate and Core ownership alive.
     pub fn retainUnconfirmedCleanup(
         self: *Maintenance,
-        core: *core_module.HostCore,
+        owner: anytype,
     ) void {
+        const core = owner.core();
         var retained = false;
         for (core.terminalValues()) |session| {
             const terminal_id = session.terminal_id;
-            const runtime = session.runtime() orelse continue;
+            const runtime = owner.runtimeFor(terminal_id) orelse continue;
             if (runtime.containmentConfirmed()) continue;
             retained = true;
-            const primary_failure: core_module.RuntimeFailure = switch (runtime.completion().classification) {
+
+            // A normal outcome may already be settled while POSIX descendants
+            // remain in the retained process domain. Copy an immutable normal
+            // completion before choosing the cleanup owner, then keep cleanup
+            // independent when the lifecycle has settled.
+            const completion = runtime.completion();
+            if (core.findTerminal(terminal_id).?.settledFinalRevision() == null) {
+                switch (completion.classification) {
+                    .normal => {
+                        _ = synchronizeRuntimeObservation(
+                            core,
+                            terminal_id,
+                            runtime,
+                        ) catch unreachable;
+                        _ = synchronizeRuntimeCompletion(core, terminal_id, completion);
+                    },
+                    .pending, .failed => {},
+                }
+            }
+            if (core.findTerminal(terminal_id).?.settledFinalRevision() != null) {
+                _ = core.retainedCleanupBlocked(
+                    terminal_id,
+                    .contain_process,
+                    self.nextCleanupRetryAt(),
+                ) catch unreachable;
+                continue;
+            }
+
+            const primary_failure: core_module.RuntimeFailure = switch (completion.classification) {
                 .failed => |kind| runtimeFailureFromEngineKind(kind),
                 .pending, .normal => .observe_process,
             };
-            _ = core.runtimeFailed(terminal_id, primary_failure) catch continue;
+            _ = core.runtimeFailed(terminal_id, primary_failure) catch unreachable;
             _ = core.failureContainmentBlocked(
                 terminal_id,
                 .contain_process,
                 self.nextCleanupRetryAt(),
-            ) catch continue;
+            ) catch unreachable;
         }
         if (retained) self.retained_cleanup = .{ .active = true };
     }
 
-    /// Exhausting the bounded window leaves a stable never-due retry marker;
-    /// ownership remains retained and the terminal is observably failed.
+    /// Exhausting the bounded window leaves a stable explicit cleanup state;
+    /// ownership remains retained without rewriting a settled outcome.
     pub fn markRetainedCleanupExhausted(
         self: *Maintenance,
-        core: *core_module.HostCore,
+        owner: anytype,
     ) void {
+        const core = owner.core();
         for (core.terminalValues()) |session| {
             const terminal_id = session.terminal_id;
-            const runtime = session.runtime() orelse continue;
+            const runtime = owner.runtimeFor(terminal_id) orelse continue;
             if (runtime.containmentConfirmed()) continue;
+            if (session.retainedCleanupPending()) {
+                _ = core.retainedCleanupExhausted(terminal_id) catch unreachable;
+                continue;
+            }
             const containment = session.failureContainment() orelse continue;
             const cleanup_failure: core_module.RuntimeCleanupFailure = switch (containment) {
                 .blocked => |blocked| blocked.cleanup_failure,
@@ -217,15 +252,16 @@ pub const Maintenance = struct {
                 terminal_id,
                 cleanup_failure,
                 std.math.maxInt(i128),
-            ) catch continue;
+            ) catch unreachable;
         }
         self.retained_cleanup.exhausted = true;
     }
 
     pub fn synchronizeRuntimes(
         self: *Maintenance,
-        core: *core_module.HostCore,
+        owner: anytype,
     ) void {
+        const core = owner.core();
         const count = core.terminalCount();
         if (count == 0) return;
         const start = self.runtime_sync_index % count;
@@ -233,27 +269,28 @@ pub const Maintenance = struct {
         for (0..limit) |offset| {
             const index = (start + offset) % count;
             const terminal_id = core.terminalKeys()[index];
-            const runtime = core.terminalValues()[index].runtime() orelse continue;
+            const runtime = owner.runtimeFor(terminal_id) orelse continue;
             self.synchronizeRuntime(core, terminal_id, runtime);
         }
         self.runtime_sync_index = (start + limit) % count;
-        self.retryOneBlockedCleanup(core, self.cleanup_clock.now());
+        self.retryOneBlockedCleanup(owner, self.cleanup_clock.now());
     }
 
     /// Synchronizes exactly the bounded inventory slice that is about to be
     /// serialized, independently of the fair background scan cursor.
     pub fn synchronizeTerminalRange(
         self: *Maintenance,
-        core: *core_module.HostCore,
+        owner: anytype,
         offset: usize,
         maximum_terminals: usize,
     ) void {
+        const core = owner.core();
         const count = core.terminalCount();
         std.debug.assert(offset <= count);
         const end = offset + @min(maximum_terminals, count - offset);
         for (offset..end) |index| {
             const terminal_id = core.terminalKeys()[index];
-            const runtime = core.terminalValues()[index].runtime() orelse continue;
+            const runtime = owner.runtimeFor(terminal_id) orelse continue;
             self.synchronizeRuntime(core, terminal_id, runtime);
         }
     }
@@ -267,11 +304,12 @@ pub const Maintenance = struct {
     /// phase decision.
     pub fn synchronizeTerminal(
         self: *Maintenance,
-        core: *core_module.HostCore,
+        owner: anytype,
         terminal_id: core_module.TerminalId,
     ) void {
-        const terminal = core.findTerminal(terminal_id) orelse return;
-        const runtime = terminal.runtime() orelse return;
+        const core = owner.core();
+        if (core.findTerminal(terminal_id) == null) return;
+        const runtime = owner.runtimeFor(terminal_id) orelse return;
         self.synchronizeRuntime(core, terminal_id, runtime);
     }
 
@@ -355,7 +393,10 @@ pub const Maintenance = struct {
             const index = (start + inspected) % count;
             const terminal_id = core.terminalKeys()[index];
             const terminal = core.terminalValues()[index];
-            const retry_at_ns = terminal.lifecycle.cleanupRetryAt() orelse continue;
+            const retained_retry_at_ns = terminal.retainedCleanupRetryAt();
+            const lifecycle_retry_at_ns = terminal.lifecycle.cleanupRetryAt();
+            std.debug.assert(retained_retry_at_ns == null or lifecycle_retry_at_ns == null);
+            const retry_at_ns = retained_retry_at_ns orelse lifecycle_retry_at_ns orelse continue;
             if (retry_at_ns > now_ns) continue;
             self.cleanup_retry_scan_index = (index + 1) % count;
             return terminal_id;
@@ -381,13 +422,35 @@ pub const Maintenance = struct {
 
     fn retryOneBlockedCleanup(
         self: *Maintenance,
-        core: *core_module.HostCore,
+        owner: anytype,
         now_ns: i128,
     ) void {
+        const core = owner.core();
         const terminal_id = self.takeDueCleanupRetry(core, now_ns) orelse return;
         const terminal = core.findTerminal(terminal_id) orelse return;
-        const runtime = terminal.runtime() orelse return;
-        self.containRuntimeFailure(core, terminal_id, runtime) catch {};
+        const runtime = owner.runtimeFor(terminal_id) orelse return;
+        if (terminal.retainedCleanupRetryAt() != null) {
+            self.retryRetainedCleanup(core, terminal_id, runtime) catch {};
+        } else {
+            self.containRuntimeFailure(core, terminal_id, runtime) catch {};
+        }
+    }
+
+    fn retryRetainedCleanup(
+        self: *Maintenance,
+        core: *core_module.HostCore,
+        terminal_id: core_module.TerminalId,
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) !void {
+        runtime.shutdown() catch |err| {
+            _ = core.retainedCleanupBlocked(
+                terminal_id,
+                cleanupFailure(err),
+                self.nextCleanupRetryAt(),
+            ) catch unreachable;
+            return err;
+        };
+        _ = core.retainedCleanupCompleted(terminal_id) catch unreachable;
     }
 
     fn synchronizeRuntime(
@@ -396,7 +459,17 @@ pub const Maintenance = struct {
         terminal_id: core_module.TerminalId,
         runtime: *terminal_runtime.TerminalRuntime,
     ) void {
-        if (core.findTerminal(terminal_id) == null) return;
+        const retained_terminal = core.findTerminal(terminal_id) orelse return;
+        switch (retained_terminal.retainedCleanup()) {
+            .inactive => {},
+            .blocked => {
+                if (runtime.containmentConfirmed()) {
+                    _ = core.retainedCleanupCompleted(terminal_id) catch unreachable;
+                }
+                return;
+            },
+            .complete, .exhausted => return,
+        }
         _ = synchronizeRuntimeObservation(core, terminal_id, runtime) catch unreachable;
         const terminal = core.findTerminal(terminal_id).?;
         if (terminal.lifecycle.needsContainmentWork()) {

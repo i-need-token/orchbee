@@ -56,11 +56,9 @@ pub const OutcomePublicationHandoff = struct {
 
     pub fn commit(
         self: *OutcomePublicationHandoff,
-        core: *core_module.HostCore,
+        runtime_aggregate: *host_runtime_aggregate.HostRuntimeAggregate,
     ) void {
-        for (self.tokens[0..self.count]) |token| {
-            _ = core.markOutcomePublished(token);
-        }
+        runtime_aggregate.commitOutcomePublications(self.tokens[0..self.count]);
         self.count = 0;
     }
 };
@@ -85,7 +83,7 @@ pub const Workflow = struct {
             connection,
             &outcome_handoff,
         );
-        outcome_handoff.commit(runtime_aggregate.core());
+        outcome_handoff.commit(runtime_aggregate);
         return outgoing;
     }
 
@@ -120,7 +118,6 @@ pub const Workflow = struct {
         outcome_handoff: *OutcomePublicationHandoff,
     ) !void {
         runtime_aggregate.synchronizeRuntimes();
-        runtime_aggregate.synchronizeRuntimes();
         try self.appendPendingOutcomes(
             allocator,
             runtime_aggregate,
@@ -146,12 +143,12 @@ pub const Workflow = struct {
             const payload = switch (outcome) {
                 .exited => |notice| try control_encode.terminalExited(
                     allocator,
-                    runtime_aggregate.core().epoch,
+                    runtime_aggregate.hostEpoch(),
                     notice,
                 ),
                 .failed => |notice| try control_encode.terminalFailed(
                     allocator,
-                    runtime_aggregate.core().epoch,
+                    runtime_aggregate.hostEpoch(),
                     notice,
                 ),
             };
@@ -163,7 +160,7 @@ pub const Workflow = struct {
                 },
                 .control_json,
                 payload,
-                host_response.eventDelivery(runtime_aggregate.core().epoch),
+                host_response.eventDelivery(runtime_aggregate.hostEpoch()),
             )) {
                 .appended => outcome_handoff.add(token),
                 .full => break,

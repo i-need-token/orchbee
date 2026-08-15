@@ -21,12 +21,14 @@ const WireIdentifier = identifiers.IdentifierBytes;
 pub fn dispatch(
     context: *Context,
     operation: protocol.RequestOperation,
+    success_response: host_response.SuccessResponse,
     connection_id: core_module.ConnectionId,
     envelope: protocol.EnvelopeSummary,
     correlation_id: WireIdentifier,
     outgoing: *Outgoing,
 ) !void {
-    var handler: Handler = .{ .context = context };
+    const success = try host_response.requireControlJsonSuccess(success_response);
+    var handler: Handler = .{ .context = context, .success = success };
     switch (operation) {
         .ping => try handler.handlePing(envelope, correlation_id, outgoing),
         .list_terminals => try handler.handleList(envelope, correlation_id, outgoing),
@@ -49,6 +51,7 @@ pub fn dispatch(
 
 const Handler = struct {
     context: *Context,
+    success: host_response.ControlJsonSuccess,
 
     fn handlePing(
         self: *Handler,
@@ -57,12 +60,11 @@ const Handler = struct {
         outgoing: *Outgoing,
     ) !void {
         if (!try self.context.requireEmptyControl(envelope, correlation_id, outgoing)) return;
-        _ = try host_response.appendRequired(
+        _ = try host_response.appendControlSuccess(
             outgoing,
-            MessageKind.ping,
-            .control_json,
+            self.success,
             control_encode.empty_control,
-            host_response.responseDelivery(correlation_id, self.context.core().epoch),
+            host_response.responseDelivery(correlation_id, self.context.hostEpoch()),
         );
     }
 
@@ -84,7 +86,7 @@ const Handler = struct {
         const request = decoded.value;
         const offset = if (request.cursor) |cursor| cursor.offset else 0;
         if (request.cursor) |cursor| {
-            if (cursor.generation != self.context.core().inventoryGeneration()) {
+            if (cursor.generation != self.context.runtime_aggregate.inventoryGeneration()) {
                 try self.context.addFailure(
                     outgoing,
                     correlation_id,
@@ -95,7 +97,7 @@ const Handler = struct {
                 return;
             }
         }
-        if (offset > self.context.core().terminalCount()) {
+        if (offset > self.context.runtime_aggregate.terminalCount()) {
             try self.context.addFailure(
                 outgoing,
                 correlation_id,
@@ -105,12 +107,15 @@ const Handler = struct {
             );
             return;
         }
-        self.context.runtime_aggregate.synchronizeTerminalRange(offset, request.maximum_terminals);
+        const inventory = self.context.runtime_aggregate.terminalInventory(
+            offset,
+            request.maximum_terminals,
+        ) catch unreachable;
         const payload = control_encode.terminalList(
             self.context.allocator,
-            self.context.core().epoch,
-            self.context.core().inventoryGeneration(),
-            self.context.core().terminalValues(),
+            inventory.host_epoch,
+            inventory.generation,
+            inventory.terminals,
             offset,
             request.maximum_terminals,
         ) catch |err| switch (err) {
@@ -127,12 +132,11 @@ const Handler = struct {
             else => return err,
         };
         defer self.context.allocator.free(payload);
-        _ = try host_response.appendRequired(
+        _ = try host_response.appendControlSuccess(
             outgoing,
-            MessageKind.list_terminals,
-            .control_json,
+            self.success,
             payload,
-            host_response.responseDelivery(correlation_id, self.context.core().epoch),
+            host_response.responseDelivery(correlation_id, self.context.hostEpoch()),
         );
     }
 
@@ -179,16 +183,15 @@ const Handler = struct {
         const payload = try control_encode.terminalIdentity(
             self.context.allocator,
             identity.creation_id,
-            self.context.core().epoch,
+            self.context.hostEpoch(),
             identity.terminal_id,
         );
         defer self.context.allocator.free(payload);
-        const response_token = try host_response.appendRequired(
+        const response_token = try host_response.appendControlSuccess(
             outgoing,
-            MessageKind.create_terminal,
-            .control_json,
+            self.success,
             payload,
-            host_response.responseDelivery(correlation_id, self.context.core().epoch),
+            host_response.responseDelivery(correlation_id, self.context.hostEpoch()),
         );
         if (!preparation.requiresEffect()) return;
         const started_token = host_response.appendRequired(
@@ -196,7 +199,7 @@ const Handler = struct {
             MessageKind.terminal_started,
             .control_json,
             payload,
-            host_response.eventDelivery(self.context.core().epoch),
+            host_response.eventDelivery(self.context.hostEpoch()),
         ) catch |err| {
             outgoing.rollback(response_token) catch unreachable;
             return err;
@@ -241,7 +244,7 @@ const Handler = struct {
             );
         defer decoded.deinit();
         const configuration = decoded.value;
-        const update = self.context.core().prepareTerminalDefaultsUpdate(configuration) catch |err| {
+        const update = self.context.runtime_aggregate.prepareTerminalDefaultsUpdate(configuration) catch |err| {
             switch (err) {
                 error.RevisionOverflow => try self.context.addFailure(
                     outgoing,
@@ -264,7 +267,7 @@ const Handler = struct {
         var response = try host_response.prepareControl(
             outgoing,
             correlation_id,
-            self.context.core().epoch,
+            self.context.hostEpoch(),
         );
         defer response.deinit();
         var output = response.writer();
@@ -273,8 +276,8 @@ const Handler = struct {
             update.configuration.scrollback_bytes,
             update.revision,
         ) catch unreachable;
-        self.context.core().commitTerminalDefaultsUpdate(update);
-        _ = response.commitControl(MessageKind.terminal_defaults_accepted, &output);
+        self.context.runtime_aggregate.commitTerminalDefaultsUpdate(update);
+        _ = response.commitControlSuccess(self.success, &output);
     }
 
     fn handleUpdateTerminalConfiguration(
@@ -299,7 +302,7 @@ const Handler = struct {
         var response = try host_response.prepareControl(
             outgoing,
             correlation_id,
-            self.context.core().epoch,
+            self.context.hostEpoch(),
         );
         defer response.deinit();
         const update = self.context.runtime_aggregate.updateTerminalConfiguration(
@@ -320,7 +323,7 @@ const Handler = struct {
         };
         var output = response.writer();
         control_encode.writeTerminalConfigurationAccepted(&output, update) catch unreachable;
-        _ = response.commitControl(MessageKind.terminal_configuration_accepted, &output);
+        _ = response.commitControlSuccess(self.success, &output);
     }
 
     fn handleTerminate(
@@ -343,7 +346,7 @@ const Handler = struct {
         var response = try host_response.prepareControl(
             outgoing,
             correlation_id,
-            self.context.core().epoch,
+            self.context.hostEpoch(),
         );
         defer response.deinit();
         _ = self.context.runtime_aggregate.requestTermination(
@@ -360,7 +363,7 @@ const Handler = struct {
         };
         var output = response.writer();
         control_encode.writeTerminalAcknowledged(&output, terminal_id) catch unreachable;
-        _ = response.commitControl(MessageKind.terminate_terminal, &output);
+        _ = response.commitControlSuccess(self.success, &output);
     }
 
     fn handleForceTerminate(
@@ -383,7 +386,7 @@ const Handler = struct {
         var response = try host_response.prepareControl(
             outgoing,
             correlation_id,
-            self.context.core().epoch,
+            self.context.hostEpoch(),
         );
         defer response.deinit();
         _ = self.context.runtime_aggregate.requestTermination(
@@ -400,7 +403,7 @@ const Handler = struct {
         };
         var output = response.writer();
         control_encode.writeTerminalAcknowledged(&output, terminal_id) catch unreachable;
-        _ = response.commitControl(MessageKind.force_terminate_terminal, &output);
+        _ = response.commitControlSuccess(self.success, &output);
     }
 
     fn handleDispose(
@@ -423,7 +426,7 @@ const Handler = struct {
         var response = try host_response.prepareControl(
             outgoing,
             correlation_id,
-            self.context.core().epoch,
+            self.context.hostEpoch(),
         );
         defer response.deinit();
         const disposal = self.context.runtime_aggregate.disposeTerminal(
@@ -445,7 +448,7 @@ const Handler = struct {
         }
         var output = response.writer();
         control_encode.writeTerminalAcknowledged(&output, terminal_id) catch unreachable;
-        _ = response.commitControl(MessageKind.dispose_terminal, &output);
+        _ = response.commitControlSuccess(self.success, &output);
     }
 
     fn handleAttach(
@@ -468,7 +471,7 @@ const Handler = struct {
         var response = try host_response.prepareControl(
             outgoing,
             correlation_id,
-            self.context.core().epoch,
+            self.context.hostEpoch(),
         );
         defer response.deinit();
         const attached = self.context.runtime_aggregate.attach(
@@ -481,7 +484,6 @@ const Handler = struct {
             response.commitFailure(switch (err) {
                 error.TerminalRuntimeMissing => unreachable,
                 error.TerminalRuntimeUnavailable => host_failure.fromCore(error.InvalidPhase),
-                error.HistoryAttachmentFailed => .{ .code = "resource-exhausted", .message = "history attachment state could not be allocated", .retryable = true },
                 else => host_failure.fromCore(@errorCast(err)),
             });
             return;
@@ -489,7 +491,7 @@ const Handler = struct {
         const attachment = attached.binding;
         var output = response.writer();
         control_encode.writeAttachmentCapabilities(&output, attachment) catch unreachable;
-        _ = response.commitControl(MessageKind.attachment_capabilities, &output);
+        _ = response.commitControlSuccess(self.success, &output);
     }
 
     fn handleDetach(
@@ -512,13 +514,13 @@ const Handler = struct {
         var response = try host_response.prepareControl(
             outgoing,
             correlation_id,
-            self.context.core().epoch,
+            self.context.hostEpoch(),
         );
         defer response.deinit();
         var lease_event = try host_response.prepare(
             outgoing,
             protocol.Limits.control_json_bytes,
-            host_response.eventDelivery(self.context.core().epoch),
+            host_response.eventDelivery(self.context.hostEpoch()),
         );
         defer lease_event.deinit();
         const detached = self.context.runtime_aggregate.detach(connection_id, attachment_id) catch |err| {
@@ -532,6 +534,6 @@ const Handler = struct {
         }
         var output = response.writer();
         control_encode.writeAttachmentAcknowledged(&output, attachment_id) catch unreachable;
-        _ = response.commitControl(MessageKind.detach_terminal, &output);
+        _ = response.commitControlSuccess(self.success, &output);
     }
 };

@@ -145,7 +145,6 @@ pub fn build(builder: *std.Build) void {
         "terminal-host-surface-fixture",
         surface_fixture_module,
     );
-    core_module.addImport("terminal-host-engine", engine_module);
     core_module.addImport("terminal-host-model", model_module);
     control_module.addImport("terminal-protocol", protocol_module);
     control_module.addImport("terminal-host-model", model_module);

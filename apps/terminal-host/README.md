@@ -18,7 +18,7 @@ The runtime contract is accepted, but acceptance does not claim that every curre
 
 Terminal Host owns:
 
-- one retained terminal session and one native engine per `TerminalId`;
+- one retained terminal record that binds one semantic session to one native engine per `TerminalId`;
 - PTY and process-tree creation, observation, termination, containment, and cleanup;
 - the single canonical Ghostty state used by input encoding, projection, history, and selection;
 - effective terminal configuration, ordered bounded input, revisions, and generations;
@@ -84,7 +84,18 @@ orchbee-terminal-host serve \
 
 Desktop derives the runtime directory and endpoint identifier from its product user-data scope; the Host treats both as infrastructure values and does not infer product topology from them.
 
-On POSIX, Desktop also uses the binary's private `posix-prepare-runtime` and `posix-connect` operations. The former prepares and validates the runtime-directory descriptor. The latter validates the directory and endpoint, connects, checks kernel peer credentials, reports authentication on file descriptor 3, and only then proxies bounded stdio to the socket. These operations are an internal Desktop/Host composition ABI, not a protocol compatibility layer or a general client interface.
+Desktop may use the binary's private, platform-neutral endpoint-helper ABI:
+
+```text
+orchbee-terminal-host prepare-runtime \
+  --runtime-directory <absolute-path>
+
+orchbee-terminal-host connect \
+  --runtime-directory <absolute-path> \
+  --endpoint-id <32-lowercase-hex>
+```
+
+`src/cli/local_endpoint.zig` selects the target-specific implementation, so callers do not choose a platform operation. On POSIX, `prepare-runtime` prepares and validates the runtime-directory descriptor; `connect` validates the directory and endpoint, checks kernel peer credentials, reports authentication on file descriptor 3, and only then proxies bounded stdio to the socket. The Windows helper implementation deliberately returns `UnsupportedPlatform` until it can provide an equivalent authenticated proxy; this change does not migrate Desktop's existing named-pipe path. These operations are an internal Desktop/Host composition ABI, not a protocol compatibility layer or a general client interface.
 
 `--scrollback-bytes` sets the startup default for newly created terminals. The current default is 10,000,000 decimal bytes; accepted values range from `0` through `1,000,000,000`. A broker may replace the process default for later terminals or supply an explicit configuration when creating one. Zero disables retained scrollback.
 
@@ -168,7 +179,7 @@ facade used by that executable. Each domain test graph imports its owning named 
 facade does not re-export internals for tests. The build graph is the visibility authority: no other
 workspace imports these Zig source files.
 
-Source modules should follow the semantic owners in the runtime contract: local IPC transports records, the native protocol adapter translates records, the Host registry owns terminal membership, each terminal session owns one engine and lifecycle, and each broker session owns its attachments. A file split is useful only when it makes one of those ownership boundaries clearer.
+Source modules should follow the semantic owners in the runtime contract: local IPC transports records, the native protocol adapter translates records, the Host registry owns terminal membership, each retained terminal record binds one semantic session to one engine, each session owns its lifecycle, and each broker session owns its attachments. A file split is useful only when it makes one of those ownership boundaries clearer.
 
 The package-local [module boundary contract](docs/module-boundaries.md) maps those owners to source
 directories, named Zig modules, allowed imports, and test placement.

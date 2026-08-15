@@ -358,6 +358,33 @@ function packedCellWidth(value: number): number {
 	return 0;
 }
 
+function normalizeSelectionCoordinates(
+	selection: SelectionCoordinates | null,
+): SelectionCoordinates | null {
+	if (selection === null) return null;
+	const { startCol, startRow, endCol, endRow } = selection;
+	if (selection.rectangle) {
+		const normalized = {
+			startCol: Math.min(startCol, endCol),
+			startRow: Math.min(startRow, endRow),
+			endCol: Math.max(startCol, endCol),
+			endRow: Math.max(startRow, endRow),
+			rectangle: true,
+		} satisfies SelectionCoordinates;
+		return normalized.startCol === startCol && normalized.startRow === startRow
+			? selection
+			: normalized;
+	}
+	if (startRow < endRow || (startRow === endRow && startCol <= endCol)) return selection;
+	return {
+		startCol: endCol,
+		startRow: endRow,
+		endCol: startCol,
+		endRow: startRow,
+		rectangle: false,
+	};
+}
+
 // ============================================================================
 // WebGPU Shaders
 // ============================================================================
@@ -1017,6 +1044,20 @@ export class WebGPURenderer {
 		return JSON.stringify([text, width, codepoint, constraintWidth, `${bold}${italic}`]);
 	}
 
+	private configureTextRunAdvance(
+		context: CanvasRenderingContext2D,
+		shaped: boolean,
+		rasterScale: number,
+	): void {
+		// Terminal cells use the rounded grid width, while Canvas shapes with the face's
+		// fractional natural advance. Fill that per-cell difference inside a shaped run so
+		// splitting the run at a selection or style boundary cannot move later glyphs.
+		const letterSpacing = shaped
+			? (this.detailedMetrics.cellWidth - this.detailedMetrics.faceWidth) * rasterScale
+			: 0;
+		context.letterSpacing = `${letterSpacing}px`;
+	}
+
 	private ensureGlyph(
 		text: string,
 		flags: number,
@@ -1046,6 +1087,7 @@ export class WebGPURenderer {
 			this.presentationConfiguration.fontSize * rasterScale,
 			this.presentationConfiguration.fontFamily,
 		);
+		this.configureTextRunAdvance(this.atlasCtx, codepoint === 0, rasterScale);
 		this.atlasCtx.textBaseline = 'alphabetic';
 		this.atlasCtx.textAlign = 'left';
 		const inkPadding = Math.max(1, Math.ceil(rasterScale));
@@ -1238,6 +1280,7 @@ export class WebGPURenderer {
 		context.textAlign = previousContext.textAlign;
 		context.textBaseline = previousContext.textBaseline;
 		context.direction = previousContext.direction;
+		context.letterSpacing = previousContext.letterSpacing;
 		this.atlasCanvas = canvas;
 		this.atlasCtx = context;
 		this.atlasTexture?.destroy();
@@ -2581,6 +2624,7 @@ export class WebGPURenderer {
 		constraintWidth: 1 | 2,
 		cellWidth: number,
 	): void {
+		this.configureTextRunAdvance(ctx, codepoint === 0, 1);
 		if (
 			drawGhosttySprite(
 				ctx,
@@ -2813,6 +2857,7 @@ export class WebGPURenderer {
 			this.presentationConfiguration.fontSize,
 			this.presentationConfiguration.fontFamily,
 		);
+		this.configureTextRunAdvance(this.atlasCtx, false, 1);
 		return this.atlasCtx.measureText(text).width;
 	}
 
@@ -2828,14 +2873,15 @@ export class WebGPURenderer {
 
 	setProjectedViewportState(absoluteTop: number, selection: SelectionCoordinates | null): void {
 		const nextTop = Math.max(0, Math.floor(absoluteTop));
+		const nextSelection = normalizeSelectionCoordinates(selection);
 		if (
 			this.currentAbsoluteTop === nextTop &&
-			JSON.stringify(this.projectedSelectionCoords) === JSON.stringify(selection)
+			JSON.stringify(this.projectedSelectionCoords) === JSON.stringify(nextSelection)
 		) {
 			return;
 		}
 		this.currentAbsoluteTop = nextTop;
-		this.projectedSelectionCoords = selection;
+		this.projectedSelectionCoords = nextSelection;
 		this.searchDirty = true;
 		this.requestRenderCallback?.();
 	}

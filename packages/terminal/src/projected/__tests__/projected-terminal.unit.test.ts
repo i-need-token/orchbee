@@ -4204,7 +4204,7 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('mirrors a Host selection into the accessible DOM at absolute scrollback rows', async () => {
+	it('mirrors forward and reverse Host selections into the accessible DOM', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -4241,6 +4241,27 @@ describe('ProjectedTerminal', () => {
 			(range?.endContainer as unknown as { readonly parentElement?: FakeElement })?.parentElement,
 		).toBe(accessibilityRoot?.children[1]);
 		expect(range?.endOffset).toBe(1);
+
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 0, row: CanonicalUint64TextSchema.parse('10') },
+			preview: null,
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('11') },
+			state: 'active',
+		});
+
+		const reverseRange = selection?.getRangeAt(0);
+		expect(
+			(reverseRange?.startContainer as unknown as { readonly parentElement?: FakeElement })
+				?.parentElement,
+		).toBe(accessibilityRoot?.children[0]);
+		expect(reverseRange?.startOffset).toBe(0);
+		expect(
+			(reverseRange?.endContainer as unknown as { readonly parentElement?: FakeElement })
+				?.parentElement,
+		).toBe(accessibilityRoot?.children[1]);
+		expect(reverseRange?.endOffset).toBe(1);
 		terminal.dispose();
 	});
 
