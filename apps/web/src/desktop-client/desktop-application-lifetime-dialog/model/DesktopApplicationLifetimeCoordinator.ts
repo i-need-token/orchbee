@@ -3,10 +3,12 @@ import type {
 	WorkbenchTerminalSessionStopSnapshot,
 } from '@orchbee/workbench';
 import type { WorkbenchSharedDocumentRevision } from '@orchbee/workbench/document';
+import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 
 import type {
 	DesktopApplicationExitChoice,
 	DesktopApplicationExitFailure,
+	DesktopApplicationExitMode,
 	DesktopApplicationExitProgress,
 	DesktopApplicationExitRequestId,
 	DesktopApplicationLifetimeMainEvent,
@@ -24,8 +26,10 @@ interface LifetimePort {
 type LifetimeRuntime = Pick<
 	WorkbenchProjectWorkspaceRuntime,
 	| 'getTerminalSessionStopSnapshot'
+	| 'getRestartableTerminalPresentationIds'
 	| 'requestAllTerminalSessionsStop'
 	| 'retryFailedTerminalSessionStops'
+	| 'stageStoppedTerminalSessionsForRestart'
 	| 'subscribeDocument'
 >;
 
@@ -58,11 +62,13 @@ export class DesktopApplicationLifetimeCoordinator {
 	#pendingMode:
 		| {
 				readonly bestEffort: boolean;
-				readonly mode: 'preserve' | 'stop';
+				readonly mode: DesktopApplicationExitMode;
 				readonly requestId: DesktopApplicationExitRequestId;
 		  }
 		| undefined;
 	#preparingStop = false;
+	#activeMode: DesktopApplicationExitMode | undefined;
+	#restartPresentationIds: readonly TerminalPresentationId[] = [];
 	readonly #runtime: LifetimeRuntime;
 	#state: DesktopApplicationLifetimeState = { kind: 'idle' };
 	#stopDurableRevision: WorkbenchSharedDocumentRevision | null = null;
@@ -88,6 +94,7 @@ export class DesktopApplicationLifetimeCoordinator {
 
 	choose(choice: DesktopApplicationExitChoice): void {
 		if (this.#state.kind !== 'awaiting-choice' || this.#disposed) return;
+		if (choice === 'development-host-restart') return;
 		const { requestId } = this.#state;
 		if (choice === 'cancel') {
 			this.#post({ choice, requestId, type: 'desktop-application-exit-choice' });
@@ -125,7 +132,9 @@ export class DesktopApplicationLifetimeCoordinator {
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#activeMode = undefined;
 		this.#pendingMode = undefined;
+		this.#restartPresentationIds = [];
 		this.#unsubscribeLifetime();
 		this.#unsubscribeDocument();
 		this.#listeners.clear();
@@ -136,9 +145,17 @@ export class DesktopApplicationLifetimeCoordinator {
 		if (event.type === 'desktop-application-exit-requested') {
 			if (this.#state.kind !== 'idle') return;
 			this.#stopDurableRevision = null;
+			this.#activeMode = undefined;
 			this.#pendingMode = undefined;
+			this.#restartPresentationIds = [];
 			const stopSnapshot = this.#runtime.getTerminalSessionStopSnapshot();
 			const sessionCount = stopSnapshot.presentationCount - stopSnapshot.stoppedCount;
+			if (event.reason === 'development-host-restart') {
+				this.#restartPresentationIds =
+					event.restartPresentationIds ?? this.#runtime.getRestartableTerminalPresentationIds();
+				this.#requestMode(event.requestId, 'development-host-restart', false);
+				return;
+			}
 			if (event.reason === 'update-restart' || sessionCount === 0) {
 				this.#requestMode(event.requestId, 'preserve', event.reason === 'update-restart');
 				return;
@@ -163,6 +180,7 @@ export class DesktopApplicationLifetimeCoordinator {
 				return;
 			}
 			this.#pendingMode = undefined;
+			this.#activeMode = event.mode;
 			if (event.mode === 'preserve') {
 				void this.#preparePreserve(event.requestId, pending.bestEffort);
 			} else {
@@ -184,7 +202,7 @@ export class DesktopApplicationLifetimeCoordinator {
 
 	#requestMode(
 		requestId: DesktopApplicationExitRequestId,
-		mode: 'preserve' | 'stop',
+		mode: DesktopApplicationExitMode,
 		bestEffort: boolean,
 	): void {
 		if (
@@ -196,7 +214,16 @@ export class DesktopApplicationLifetimeCoordinator {
 		}
 		this.#pendingMode = { bestEffort, mode, requestId };
 		this.#setWorking(requestId, 'flushing-workbench-document', 0, 0, 0);
-		this.#post({ choice: mode, requestId, type: 'desktop-application-exit-choice' });
+		this.#post(
+			mode === 'development-host-restart'
+				? {
+						choice: mode,
+						requestId,
+						restartPresentationIds: this.#restartPresentationIds,
+						type: 'desktop-application-exit-choice',
+					}
+				: { choice: mode, requestId, type: 'desktop-application-exit-choice' },
+		);
 	}
 
 	async #preparePreserve(
@@ -285,8 +312,57 @@ export class DesktopApplicationLifetimeCoordinator {
 		snapshot: WorkbenchTerminalSessionStopSnapshot,
 	): Promise<void> {
 		const finalFlush = await this.#document.flush();
+		if (!this.#isActive(requestId)) {
+			this.#preparingStop = false;
+			return;
+		}
+		if (this.#activeMode === 'development-host-restart') {
+			if (finalFlush.kind === 'unavailable') {
+				this.#preparingStop = false;
+				this.#failRenderer(requestId, [
+					{ code: 'workbench-document-write-unavailable', count: 1, retryable: false },
+				]);
+				return;
+			}
+			const staged = this.#runtime.stageStoppedTerminalSessionsForRestart(
+				this.#restartPresentationIds,
+			);
+			if (
+				staged.kind === 'rejected' ||
+				staged.presentationCount !== this.#restartPresentationIds.length
+			) {
+				this.#preparingStop = false;
+				this.#failRenderer(requestId, [
+					{ code: 'terminal-restart-staging-failed', count: 1, retryable: false },
+				]);
+				return;
+			}
+			const stagedFlush = await this.#document.flush();
+			this.#preparingStop = false;
+			if (!this.#isActive(requestId)) return;
+			if (stagedFlush.kind === 'unavailable') {
+				this.#failRenderer(requestId, [
+					{ code: 'workbench-document-write-unavailable', count: 1, retryable: false },
+				]);
+				return;
+			}
+			this.#setWorking(
+				requestId,
+				'draining-unreferenced',
+				snapshot.presentationCount,
+				snapshot.stoppedCount,
+				0,
+			);
+			this.#post({
+				documentRevision: stagedFlush.revision,
+				mode: 'development-host-restart',
+				presentationCount: this.#restartPresentationIds.length,
+				requestId,
+				type: 'desktop-application-exit-renderer-prepared',
+			});
+			return;
+		}
 		this.#preparingStop = false;
-		if (!this.#isActive(requestId)) return;
 		const revision =
 			finalFlush.kind === 'flushed' ? finalFlush.revision : this.#stopDurableRevision;
 		if (revision === null) {

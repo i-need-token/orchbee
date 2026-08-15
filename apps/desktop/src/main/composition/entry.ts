@@ -4,6 +4,11 @@ import { hostname } from 'node:os';
 import { app, net, protocol } from 'electron';
 
 import {
+	DESKTOP_DEVELOPMENT_RESTART_PLAN_ENVIRONMENT_KEY,
+	DesktopDevelopmentRestartPlanStore,
+	DesktopDevelopmentRestartRequestSchema,
+} from '../../development';
+import {
 	DESKTOP_RENDERER_URL,
 	installDesktopRendererScheme,
 	registerDesktopRendererScheme,
@@ -12,6 +17,7 @@ import { DesktopApplication } from './DesktopApplication';
 import { resolveDesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 
 let desktopApplication: DesktopApplication | undefined;
+let developmentRestartPlanStore: DesktopDevelopmentRestartPlanStore | undefined;
 let bypassQuitGate = false;
 registerDesktopRendererScheme(protocol);
 const singleInstanceLockOwned = app.requestSingleInstanceLock();
@@ -66,7 +72,19 @@ if (!singleInstanceLockOwned) {
 				terminalHostName: hostname(),
 				userDataPath: app.getPath('userData'),
 			});
+			if (!app.isPackaged) {
+				const restartPlanPath = process.env[DESKTOP_DEVELOPMENT_RESTART_PLAN_ENVIRONMENT_KEY];
+				if (restartPlanPath !== undefined) {
+					developmentRestartPlanStore = new DesktopDevelopmentRestartPlanStore(restartPlanPath);
+				}
+			}
 			desktopApplication = new DesktopApplication({
+				...(developmentRestartPlanStore === undefined
+					? {}
+					: {
+							prepareDevelopmentHostRestart: (documentRevision) =>
+								developmentRestartPlanStore?.markReady(documentRevision) ?? Promise.resolve(false),
+						}),
 				platform: process.platform,
 				preloadPath: path.join(__dirname, '..', 'preload', 'preload.cjs'),
 				rendererUrl,
@@ -82,6 +100,31 @@ if (!singleInstanceLockOwned) {
 			bypassQuitGate = true;
 			app.quit();
 		});
+}
+
+if (!app.isPackaged) {
+	process.on('message', (message: unknown) => {
+		const parsed = DesktopDevelopmentRestartRequestSchema.safeParse(message);
+		if (!parsed.success || desktopApplication === undefined) return;
+		if (parsed.data.reason === 'terminal-host' && developmentRestartPlanStore === undefined) {
+			return;
+		}
+		console.info(
+			`Orchbee Desktop received development restart request ${parsed.data.generation} (${parsed.data.reason}).`,
+		);
+		void desktopApplication
+			.requestExitAndQuit(
+				parsed.data.reason === 'terminal-host' ? 'development-host-restart' : 'update-restart',
+			)
+			.then(() => {
+				if (desktopApplication?.quitPrepared !== true) {
+					console.warn('Orchbee Desktop development restart did not reach a ready exit.');
+				}
+			})
+			.catch((error: unknown) => {
+				console.error('Orchbee Desktop development restart failed.', error);
+			});
+	});
 }
 
 app.on('before-quit', (event) => {

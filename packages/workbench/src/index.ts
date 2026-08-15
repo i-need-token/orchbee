@@ -53,6 +53,7 @@ export type {
 	WorkbenchStandaloneTerminalPresentation,
 	WorkbenchTerminalSessionStopFailure,
 	WorkbenchTerminalSessionStopRequestResult,
+	WorkbenchTerminalSessionRestartStageResult,
 	WorkbenchTerminalSessionStopSnapshot,
 	WorkbenchTerminalPresentationEventResult,
 	WorkbenchActionCatalog,

@@ -2,6 +2,7 @@ import {
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
+	type WorkbenchSharedPresentationIntent,
 } from '@orchbee/workbench/document';
 import {
 	terminalPresentationId,
@@ -87,6 +88,34 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(secondPublications).toEqual(firstPublications);
 		expect(firstPublications.map((publication) => publication.sequence)).toEqual(['1', '2']);
 		expect(trace).toEqual(['reconcile:0']);
+	});
+
+	it('commits development restart staging without provisioning against the retiring Host', async () => {
+		const current = document('3', 'Terminal', { intent: { kind: 'stopped' } });
+		const candidate = document('4', 'Terminal', {
+			intent: {
+				kind: 'provision',
+				operationId: terminalPresentationOperationId('restart-operation'),
+			},
+			nextTerminalSequence: 2,
+			presentationId: 'presentation-2',
+		});
+		const store = storeWith({ document: current, kind: 'available' });
+		store.commit.mockResolvedValue({ kind: 'committed', revision: candidate.revision });
+		const reconcileDocument = vi.fn<() => Promise<void>>(async () => undefined);
+		const coordinator = coordinatorWith(store, { reconcileDocument });
+		await coordinator.start();
+		reconcileDocument.mockClear();
+		const client = register(coordinator, publisher());
+		expect(coordinator.beginQuiescing(client.clientSessionId, 'development-host-restart')).toBe(
+			true,
+		);
+
+		await expect(
+			client.propose('request-restart-staging', current.revision, candidate),
+		).resolves.toEqual({ document: candidate, kind: 'committed' });
+		expect(store.commit).toHaveBeenCalledWith(current.revision, candidate);
+		expect(reconcileDocument).not.toHaveBeenCalled();
 	});
 
 	it('does not replay a terminal event live after it was included in bootstrap', async () => {
@@ -378,7 +407,15 @@ function storeWith(
 	};
 }
 
-function document(revision: string, title: string): WorkbenchSharedDocument {
+function document(
+	revision: string,
+	title: string,
+	options: {
+		readonly intent?: WorkbenchSharedPresentationIntent;
+		readonly nextTerminalSequence?: number;
+		readonly presentationId?: string;
+	} = {},
+): WorkbenchSharedDocument {
 	return createWorkbenchSharedDocument({
 		projectWorkspace: {
 			nextProjectSequence: 1,
@@ -395,7 +432,7 @@ function document(revision: string, title: string): WorkbenchSharedDocument {
 					nextPanelSequence: 2,
 					nextPanelSlotSequence: 1,
 					nextSplitSequence: 1,
-					nextTerminalSequence: 2,
+					nextTerminalSequence: options.nextTerminalSequence ?? 2,
 					pendingRemovals: [],
 					tabs: [
 						{
@@ -404,12 +441,14 @@ function document(revision: string, title: string): WorkbenchSharedDocument {
 								id: 'panel-1',
 								kind: 'panel',
 								primaryPresentation: {
-									intent: {
+									intent: options.intent ?? {
 										kind: 'provision',
 										operationId: terminalPresentationOperationId('operation-1'),
 									},
 									launchCwd: '/workspace',
-									presentationId: terminalPresentationId('presentation-1'),
+									presentationId: terminalPresentationId(
+										options.presentationId ?? 'presentation-1',
+									),
 									title,
 								},
 							},

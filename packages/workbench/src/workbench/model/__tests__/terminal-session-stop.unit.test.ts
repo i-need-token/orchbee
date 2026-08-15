@@ -196,6 +196,52 @@ describe('durable terminal-session stop', () => {
 		]);
 	});
 
+	it('stages a stopped running session as a fresh durable provision for application restart', () => {
+		const fixture = createManagedFixture();
+		const provision = terminalCommands(fixture.commands)[0];
+		if (provision?.type !== 'terminal-provision-requested') throw new Error('Missing provision.');
+		fixture.runtime.applyTerminalPresentationEvent({
+			operationId: provision.operationId,
+			presentationId: provision.presentationId,
+			type: 'terminal-provision-completed',
+		});
+		const restartPresentationIds = fixture.runtime.getRestartableTerminalPresentationIds();
+		const sequenceBeforeRestart = fixture.runtime.getSharedDocument(
+			workbenchSharedDocumentRevision('4'),
+		).terminalContexts[0]?.panelWorkspace.nextTerminalSequence;
+
+		fixture.runtime.requestAllTerminalSessionsStop();
+		const stop = terminalCommands(fixture.commands).at(-1);
+		if (stop?.type !== 'terminal-close-requested') throw new Error('Missing stop command.');
+		fixture.runtime.applyTerminalPresentationEvent({
+			operationId: stop.operationId,
+			presentationId: stop.presentationId,
+			type: 'terminal-close-completed',
+		});
+
+		expect(fixture.runtime.startStoppedTerminalSession(stop.presentationId)).toEqual({
+			kind: 'rejected',
+			reason: 'terminal-creation-sealed',
+		});
+		expect(fixture.runtime.stageStoppedTerminalSessionsForRestart(restartPresentationIds)).toEqual({
+			kind: 'staged',
+			presentationCount: 1,
+		});
+		expect(terminalCommands(fixture.commands).at(-1)).toBe(stop);
+		expect(presentationIds(fixture.runtime)).not.toEqual([stop.presentationId]);
+		expect(
+			fixture.runtime.getSharedDocument(workbenchSharedDocumentRevision('5')).terminalContexts[0]
+				?.panelWorkspace.tabs[0]?.root,
+		).toMatchObject({
+			kind: 'panel',
+			primaryPresentation: { intent: { kind: 'provision' } },
+		});
+		expect(
+			fixture.runtime.getSharedDocument(workbenchSharedDocumentRevision('5')).terminalContexts[0]
+				?.panelWorkspace.nextTerminalSequence,
+		).toBe(sequenceBeforeRestart);
+	});
+
 	it('keeps failed stop authority, retries with a fresh operation, and seals creation', () => {
 		const fixture = createManagedFixture();
 		const provision = terminalCommands(fixture.commands)[0];

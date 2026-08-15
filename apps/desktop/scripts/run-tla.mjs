@@ -95,6 +95,7 @@ await provisionJar();
 for (const modelName of [
 	'DesktopApplicationLifetime',
 	'DesktopBrowserAccessLifecycle',
+	'DesktopDevelopmentRuntime',
 	'DesktopMultiClientSession',
 	'DesktopRendererDocumentLifecycle',
 	'DesktopTerminalBindingClose',

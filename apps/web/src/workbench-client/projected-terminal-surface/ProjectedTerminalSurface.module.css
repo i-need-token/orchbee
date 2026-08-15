@@ -4,13 +4,25 @@
 	min-height: 0;
 	min-width: 0;
 	overflow: hidden;
-	padding: var(--ob-ref-space-2);
 	position: relative;
 	width: 100%;
 	background: var(--ob-sys-color-surface-canvas);
 }
 
 .terminalSurface > [data-projected-terminal-status='true'] {
+	position: absolute;
+}
+
+.terminalSurface > [data-projected-terminal-status='true'][role='status'] {
+	block-size: var(--ob-ref-border-width-default);
+	clip-path: inset(50%);
+	inline-size: var(--ob-ref-border-width-default);
+	overflow: hidden;
+	padding: 0;
+	white-space: nowrap;
+}
+
+.terminalSurface > [data-projected-terminal-status='true'][role='alert']:not([hidden]) {
 	box-sizing: border-box;
 	display: flex;
 	align-items: center;
@@ -18,7 +30,6 @@
 	gap: var(--ob-ref-space-2);
 	inline-size: 100%;
 	padding: var(--ob-ref-space-2);
-	position: absolute;
 	z-index: var(--ob-ref-layer-raised);
 	inset-block-start: 0;
 	inset-inline-start: 0;
@@ -27,8 +38,12 @@
 	color: var(--ob-sys-color-text-primary);
 }
 
-.terminalSurface > [data-projected-terminal-status='true'] > button {
+.terminalSurface > [data-projected-terminal-status='true'][role='alert'] > button {
 	pointer-events: auto;
+}
+
+.terminalSurface > [data-projected-terminal-status='true'][hidden] {
+	display: none;
 }
 
 .stopped {

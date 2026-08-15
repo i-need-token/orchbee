@@ -22,6 +22,7 @@ export {
 export type {
 	DesktopApplicationExitChoice,
 	DesktopApplicationExitFailure,
+	DesktopApplicationExitMode,
 	DesktopApplicationExitProgress,
 	DesktopApplicationExitReason,
 	DesktopApplicationExitRequestId,

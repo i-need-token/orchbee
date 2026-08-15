@@ -10,7 +10,7 @@ Main starts without creating a fixed terminal, opening an attachment, or startin
 
 - client-session control delivers one atomic document/terminal-observation bootstrap, accepts complete exact-next shared-document proposals, and publishes one ordered canonical event stream;
 - projection control opens and releases scoped Host attachments only for displayed terminal viewports;
-- application-lifetime control carries only exit reason, user choice, quiescing acknowledgement, shared-document revision, aggregate progress, and typed failures for the current renderer page;
+- application-lifetime control carries only exit reason, user choice, quiescing acknowledgement, shared-document revision, aggregate progress, typed failures, and the Workbench presentation identities needed to resume an in-progress development Host restart;
 - Browser-access control carries only explicit start, mode-switch, open, copy, stop, sanitized Origin state, and bounded failures. It never carries the capability-bearing URL.
 
 The client-session and projection payloads are platform-neutral contracts from `@orchbee/workbench-client-protocol`. `@orchbee/desktop-client-protocol` owns the atomic Electron renderer bootstrap, Electron application-lifetime contract, and narrow Browser-access command contract. Desktop Main and the Web renderer each adapt the generic contracts to their end of a `MessagePort`; neither transport detail enters the shared Workbench client runtime.
@@ -40,7 +40,7 @@ Electron Main owns the renderer-document generation and its client-session, proj
 | No         | No            | No-op                                |
 | No         | Yes           | No-op                                |
 
-A renderer document start retires the previous page controls and records the pending generation. `did-finish-load` publishes one fresh atomic bootstrap only for the latest generation; retirement failure keeps that generation closed. Same-document Browser Router updates and subframe navigation preserve the current generation and every live control. Renderer-process loss and window close remain explicit retirement paths, while Host terminals and the canonical shared document survive page retirement. This model does not add projection retries, control-port timeouts, or a new IPC contract.
+A renderer document start retires the previous page controls and records the pending generation. `did-finish-load` publishes one fresh atomic bootstrap only for the latest generation; retirement failure keeps that generation closed. Main permits top-level navigation only within the configured renderer origin so development reload and packaged Browser Router document requests can complete; cross-origin navigation and new windows remain denied. Same-document Browser Router updates and subframe navigation preserve the current generation and every live control. Renderer-process loss and window close remain explicit retirement paths, while Host terminals and the canonical shared document survive page retirement. This model does not add projection retries, control-port timeouts, or a new IPC contract.
 
 `startsDesktopRendererDocument` owns the pure decision. `DesktopApplication` owns generation transitions and Electron effects. Unit tests cover all four decision rows and full navigation/reload sequencing; `DesktopRendererDocumentLifecycle` checks ignored-navigation preservation, current-generation control ownership, retirement before replacement, and bounded pending-generation progress through generation `2`. Electron 42.8.0 supplies the navigation classification and event order; operating-system termination before Electron emits an event remains outside this claim.
 
@@ -131,6 +131,8 @@ A normal macOS window close releases only the renderer page. Command+Q, a menu q
 
 Before preserve or stop preparation, Main acknowledges that the application-wide coordinator has entered quiescing. This acknowledgement orders the lifetime and client-session ports: other pages cannot race a new shared change into the preparation window. A replacement renderer may resume only the same quiescing mode after the former exit owner disconnects.
 
+Development Host restart enters its own non-interactive quiescing mode. Before any stop effect, the renderer captures only currently restartable presentations and Main retains that exact target set across renderer-document replacement. A replacement renderer resumes from the Main-owned targets even when the shared document already records them as stopping or stopped. The workflow follows the same durable stop and Host-drain barriers, replaces each captured stopped presentation with a fresh provision identity without dispatching that provision to the retiring Host, and flushes the staged document. Main writes the generation-bound ready plan only after the exact staged revision is loaded and the old Host owns no binding or unknown terminal. Ordinary update restart remains the preserve path and never uses this destructive development mode.
+
 Stop seals terminal creation for the exit-owner page, projects every visible and hidden Workbench presentation to durable `stop`, compare-and-swaps the complete shared document, and only then releases close commands. Successful close results change presentations to `stopped` while retaining Project, Workspace, Tab, Panel, split, title, and launch CWD. Hydration never starts a stopped presentation. Its visible Start New Session action replaces the stopped PresentationId with a fresh identity and provisions only that selected presentation.
 
 After referenced presentations stop, Main loads the exact committed shared-document revision and closes every binding that it owns but the document does not reference. It then requires the binding registry to be empty and scans Host inventory. Unknown Host terminals are reported as unresolved; they are never silently killed. A partial failure keeps Desktop in an irreversible recovery dialog with Retry when supported and an explicit Quit Anyway warning. Quit Anyway may leave processes running; the durable `stop` intent remains replay authority for the next start. OS shutdown, logout, and forced termination are not claimed by this workflow.
@@ -143,6 +145,11 @@ Before the renderer document paints, Electron fills the native window with the d
 from the same launch profile sent to Terminal Host. That value is only a startup bridge: committed
 Host frame metadata owns the live terminal background in both Electron and Browser clients, so
 Desktop Main never maintains a second runtime terminal palette.
+
+Desktop hides the native title bar while retaining the operating system's window controls. The
+Desktop renderer marks only the sidebar's top chrome and unoccupied horizontal Tab-track background
+as native window-drag regions; Tabs, groups, the sidebar toggle, and the new-Tab control remain
+interactive non-drag regions.
 
 Desktop reads the terminal machine's hostname once at the trusted Main composition boundary,
 validates it as runtime configuration, and includes it in every Electron or Gateway client-session
@@ -182,20 +189,52 @@ Focused traces cover:
 - fixed-header frame routing to only the matching AttachmentId, with exact-size structured-clone payload isolation;
 - sandboxed end-to-end input, output, history, search, selection, copy, links, exit, renderer reload, and Electron Main restart;
 - one Electron renderer and two ordinary Browser pages sharing canonical Workbench and terminal state while retaining fresh page sessions, Client Views, and attachment identities, including Browser copy, link, disconnect, rejection, and reconnect behavior;
-- user-quit preserve/cancel/stop, hidden-terminal stop, failed-CAS suppression, partial-stop retry, unreferenced-binding drain, unknown-Host-orphan refusal, update-restart preserve, and fresh identity after explicitly starting a stopped session.
+- user-quit preserve/cancel/stop, hidden-terminal stop, failed-CAS suppression, partial-stop retry, unreferenced-binding drain, unknown-Host-orphan refusal, update-restart preserve, development Host stop/stage/ready ordering, and fresh identity after explicitly starting a stopped session.
 
-Existing TLA+ models continue to check terminal recovery, binding close, lifecycle-adapter serialization, projection demand, and Workbench removal safety within their declared finite bounds. The Desktop resize-lease model checks one serialized open/release operation, one owner, earliest-observer promotion, owner-only canonical geometry mutation, and eventual operation completion. The Desktop renderer-document model checks ignored same-document and subframe navigation, generation-scoped control replacement, and bounded load progress. The Desktop shared-document-store model additionally checks exact-next CAS, conflict preservation, serialization, unavailable storage, generation disposal, and progress through revision `2`. The Desktop multi-client model checks two sessions, missing/available bootstrap, equivalent and divergent races, effect publication ordering, attachment/session ownership, disconnect, quiescing handoff, unavailable storage, and bounded publication progress. The Desktop write-ahead model checks matching durable intent before provision, restore, close, or stop dispatch; failed-commit preservation; restore without replacement creation; renderer disposal and reload replay; and live-generation progress for one abstract presentation. The Desktop application-lifetime model checks prompt and update paths, stop-before-close ordering, unreferenced binding drain, cancellation before effects, clean-stop exit, and the explicit forced exit escape. Workbench's terminal-stop model checks layout retention, stopped-without-binding, retry identity, and fresh PresentationId generation. The repository imposes no new throughput acceptance gate for this integration slice; the optional benchmark remains a diagnostic tool.
+Existing TLA+ models continue to check terminal recovery, binding close, lifecycle-adapter serialization, projection demand, and Workbench removal safety within their declared finite bounds. The Desktop resize-lease model checks one serialized open/release operation, one owner, earliest-observer promotion, owner-only canonical geometry mutation, and eventual operation completion. The Desktop renderer-document model checks ignored same-document and subframe navigation, generation-scoped control replacement, and bounded load progress. The Desktop shared-document-store model additionally checks exact-next CAS, conflict preservation, serialization, unavailable storage, generation disposal, and progress through revision `2`. The Desktop multi-client model checks two sessions, missing/available bootstrap, equivalent and divergent races, effect publication ordering, attachment/session ownership, disconnect, quiescing handoff, unavailable storage, and bounded publication progress. The Desktop write-ahead model checks matching durable intent before provision, restore, close, or stop dispatch; failed-commit preservation; restore without replacement creation; renderer disposal and reload replay; and live-generation progress for one abstract presentation. The Desktop application-lifetime model checks prompt, preserve, stop, update, and development Host restart paths; stop-before-close ordering; durable restart staging and plan readiness; unreferenced binding drain; cancellation before effects; clean exit; and the explicit forced exit escape. `DesktopDevelopmentRuntime` separately checks failed-build preservation, coalesced process generations, ready-plan ordering, and close without relaunch. Workbench's terminal-stop model checks layout retention, stopped-without-binding, retry identity, and fresh PresentationId generation. The repository imposes no new throughput acceptance gate for this integration slice; the optional benchmark remains a diagnostic tool.
 
 ## Development
 
-Build the selected development Host, then start the canonical Web development server and Desktop together:
+`pnpm desktop` owns one development runtime containing the Web development server, Electron, and a
+supervised Terminal Host. The runtime follows this update policy:
+
+| Successful change                                    | Development action                                                                                                           | Preserved state                                                       |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Web renderer or source-built frontend package        | Reload the renderer document through the Web development server                                                              | Canonical Workbench document, Desktop bindings, Host terminals        |
+| Electron Main, preload, or a source-built dependency | Flush the renderer document, restart Electron, and reconnect to the same Host                                                | Canonical Workbench document and Host terminals                       |
+| Terminal Host Zig source                             | Stage every running presentation as a fresh durable provision, stop the old sessions, replace the Host, and restart Electron | Project, Workspace, Tab, Panel, split, title, and launch CWD topology |
+
+A failed Electron or Host compilation leaves the last running processes untouched. Host replacement
+starts only after the new binary is complete and the old renderer has durably staged fresh terminal
+provisions; an unavailable staging path aborts replacement. The restarted presentations receive
+fresh Workbench presentation, Desktop binding, Host, creation, terminal, and attachment identities.
+Their processes, shell state, transient metadata, selection, and scrollback are intentionally lost.
+This policy is development-only: packaged update restart continues to preserve retained Host
+terminals.
+
+The Desktop development runtime owns one serialized update workflow. A newer successful build that
+arrives during replacement is coalesced and applied afterward; every changed Host binary is admitted
+even when consecutive observations see the same source digest. Captured binaries are bounded to the
+active, rollback, and pending generations, and closing the Rsbuild server prevents all relaunch.
+`DesktopDevelopmentRuntime` checks two bounded Host and Electron generations, failed
+builds, coalesced successful builds, durable restart preparation, process replacement, and fair
+convergence. Deterministic runtime tests own command order, adapter failures, aborted preparation,
+update coalescing, workspace cleanup, and captured-binary immutability. Forced operating-system
+termination, compiler correctness, and PTY migration across a Host process remain outside these
+claims.
+
+The development runtime removes inherited `PAGER` and `GIT_PAGER` overrides only from the supervised
+Terminal Host environment. Interactive shells therefore select their configured or default pager,
+while Electron, build processes, packaged launches, and the invoking developer environment remain
+unchanged.
+
+Start the canonical Web development server and Desktop together:
 
 ```sh
-pnpm --filter @orchbee/terminal-host build
 pnpm desktop
 ```
 
-`pnpm desktop` builds the Browser-access Server, Gateway, and static Web resources, then runs the Web development server and Electron together. Electron defaults to `http://127.0.0.1:3000/`; an explicit loopback Web server can be selected with `ORCHBEE_DESKTOP_RENDERER_URL`. Open **Settings → Browser access** to start loopback access or explicitly enable trusted-LAN preview. Desktop never prints or returns the capability-bearing URL to renderer state; its Main process performs the Copy Link and Open Browser effects. Set `ORCHBEE_DESKTOP_GATEWAY=0` to remove Browser-access resources from a development launch.
+`pnpm desktop` builds the Browser-access Server, Gateway, and static Web resources, then runs the Web development server and the Desktop-owned native/Electron development lifecycle. Electron defaults to `http://127.0.0.1:3000/`; an explicit loopback Web server can be selected with `ORCHBEE_DESKTOP_RENDERER_URL`. Open **Settings → Browser access** to start loopback access or explicitly enable trusted-LAN preview. Desktop never prints or returns the capability-bearing URL to renderer state; its Main process performs the Copy Link and Open Browser effects. Set `ORCHBEE_DESKTOP_GATEWAY=0` to remove Browser-access resources from a development launch.
 
 Build an unsigned current-platform application bundle with:
 
@@ -206,6 +245,8 @@ pnpm desktop:package
 The command builds the Terminal Host, Web renderer, Browser Server, Gateway, and Electron Main/preload bundles before packaging. The Web build is both a read-only `orchbee://app` resource and the on-demand Browser renderer root; the native Host, Server, and Gateway entries remain available outside `app.asar`. The output is generated beneath `apps/desktop/out/` and is not a signed installer or release artifact.
 
 `ORCHBEE_TERMINAL_HOST_BINARY` selects an absolute development/test Host binary. `ORCHBEE_TERMINAL_SCROLLBACK_BYTES` selects the temporary development startup/default scrollback budget in decimal bytes from `0` through `1000000000`; the built-in default is `10000000`. `ORCHBEE_GATEWAY_ENTRY_PATH`, `ORCHBEE_SERVER_ENTRY_PATH`, and `ORCHBEE_WEB_RENDERER_ROOT` select explicit development Browser-access resources when the default sibling builds are not used. `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`, `ORCHBEE_DESKTOP_ENDPOINT_ID`, and `ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` isolate controlled development and system-test state. They are not a versioned Host installation or discovery mechanism. The default POSIX runtime uses the short stable product-scoped child of the trusted per-user runtime location described above; an explicit runtime directory is still prepared and validated by the native endpoint-security boundary.
+
+`pnpm desktop` internally sets `ORCHBEE_TERMINAL_HOST_SUPERVISED=1` so Main retries only the Host process owned by the development runtime, and supplies an owner-only `ORCHBEE_DESKTOP_DEVELOPMENT_RESTART_PLAN` path for the generation readiness handshake. These two variables are private development composition controls, not supported product configuration or a production update mechanism.
 
 Run package checks from the repository root:
 

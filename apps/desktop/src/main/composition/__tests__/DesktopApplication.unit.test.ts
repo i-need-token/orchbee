@@ -46,7 +46,11 @@ import {
 	composeDesktopTerminalRuntime,
 	type DesktopTerminalRuntime,
 } from '../composeDesktopTerminalRuntime';
-import { DesktopApplication, type DesktopApplicationDependencies } from '../DesktopApplication';
+import {
+	DesktopApplication,
+	type DesktopApplicationDependencies,
+	type DesktopApplicationOptions,
+} from '../DesktopApplication';
 import { resolveDesktopRuntimeConfiguration } from '../resolveDesktopRuntimeConfiguration';
 
 const identity = {
@@ -73,6 +77,18 @@ describe('DesktopApplication', () => {
 		expect(harness.windowOptions?.backgroundColor).toBe(
 			`#${runtime.terminalLaunch.terminalProfile.defaultBackgroundRgb.toString(16).padStart(6, '0')}`,
 		);
+	});
+
+	it('extends the renderer through a hidden title bar while retaining native window controls', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+
+		await application.start();
+
+		expect(harness.windowOptions).toMatchObject({
+			titleBarOverlay: true,
+			titleBarStyle: 'hidden',
+		});
 	});
 
 	it('registers the Host exit listener before terminal runtime reconciliation', async () => {
@@ -174,6 +190,29 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
 		expect(harness.host.close).toHaveBeenCalledOnce();
+	});
+
+	it('allows renderer reload navigation only within the configured renderer origin', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		const allowedPreventDefault = vi.fn<() => void>();
+		const blockedPreventDefault = vi.fn<() => void>();
+
+		harness.webContents.emit(
+			'will-navigate',
+			{ preventDefault: allowedPreventDefault },
+			'http://127.0.0.1:3000/terminal/tabs/terminal-context-1-tab-1',
+		);
+		harness.webContents.emit(
+			'will-navigate',
+			{ preventDefault: blockedPreventDefault },
+			'http://127.0.0.1:3001/',
+		);
+
+		expect(allowedPreventDefault).not.toHaveBeenCalled();
+		expect(blockedPreventDefault).toHaveBeenCalledOnce();
+		await application.shutdown();
 	});
 
 	it('loads a packaged Browser Router path from the custom application origin', async () => {
@@ -1165,6 +1204,54 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
+	it('publishes the exact staged revision through the development restart plan callback', async () => {
+		const harness = createHarness();
+		const prepareDevelopmentHostRestart = vi.fn<
+			NonNullable<DesktopApplicationOptions['prepareDevelopmentHostRestart']>
+		>(async () => true);
+		const application = new DesktopApplication(
+			{
+				platform: 'linux',
+				preloadPath: '/repo/apps/desktop/dist/preload/preload.cjs',
+				prepareDevelopmentHostRestart,
+				rendererUrl: 'http://127.0.0.1:3000/',
+				runtime: createRuntime(),
+				singleInstanceLockOwned: true,
+				traceCopyPath: false,
+			},
+			harness.dependencies,
+		);
+		await application.start();
+
+		expect(
+			await harness.lifetimeDependencies[0]?.prepareDevelopmentHostRestart?.(
+				workbenchSharedDocumentRevision('8'),
+			),
+		).toBe(true);
+		expect(prepareDevelopmentHostRestart).toHaveBeenCalledWith(
+			workbenchSharedDocumentRevision('8'),
+		);
+		const restartPresentationIds = [terminalPresentationId('presentation-development-restart')];
+		expect(
+			harness.lifetimeDependencies[0]?.prepareMode?.(
+				'development-host-restart',
+				restartPresentationIds,
+			),
+		).toBe(true);
+		expect(harness.lifetimeDependencies[0]?.getDevelopmentHostRestartPresentationIds?.()).toEqual(
+			restartPresentationIds,
+		);
+		expect(
+			harness.lifetimeDependencies[0]?.prepareMode?.('development-host-restart', [
+				terminalPresentationId('different-presentation'),
+			]),
+		).toBe(false);
+		expect(harness.lifetimeDependencies[0]?.getDevelopmentHostRestartPresentationIds?.()).toEqual(
+			restartPresentationIds,
+		);
+		await application.shutdown();
+	});
+
 	it('quits only after the scoped lifetime broker authorizes the workflow', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
@@ -1179,6 +1266,61 @@ describe('DesktopApplication', () => {
 
 		expect(application.quitPrepared).toBe(true);
 		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
+		expect(harness.quitApplication).toHaveBeenCalledOnce();
+	});
+
+	it('reloads a stale renderer lifetime channel before preparing a development Host restart', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		const restartPresentationIds = [terminalPresentationId('presentation-before-reload')];
+		harness.lifetimeBrokers[0]?.requestExit.mockImplementation(async () => {
+			expect(
+				harness.lifetimeDependencies[0]?.prepareMode?.(
+					'development-host-restart',
+					restartPresentationIds,
+				),
+			).toBe(true);
+			return { kind: 'unavailable' };
+		});
+		vi.mocked(harness.dependencies.createApplicationLifetimeBroker).mockImplementationOnce(
+			(_port, brokerDependencies) => {
+				harness.lifetimeDependencies.push(brokerDependencies);
+				const broker = {
+					dispose: vi.fn<() => void>(),
+					requestExit: vi
+						.fn<
+							ReturnType<
+								DesktopApplicationDependencies['createApplicationLifetimeBroker']
+							>['requestExit']
+						>()
+						.mockResolvedValue({
+							forced: false,
+							kind: 'ready',
+							mode: 'development-host-restart',
+						}),
+					start: vi.fn<() => void>(),
+				};
+				harness.lifetimeBrokers.push(broker);
+				return broker;
+			},
+		);
+		vi.mocked(harness.browserWindow.reload).mockImplementation(() => {
+			emitRendererDocumentLoad(harness.webContents);
+		});
+
+		await application.requestExitAndQuit('development-host-restart');
+
+		expect(harness.browserWindow.reload).toHaveBeenCalledOnce();
+		expect(harness.lifetimeBrokers).toHaveLength(2);
+		expect(harness.lifetimeBrokers[1]?.requestExit).toHaveBeenCalledWith(
+			expect.stringMatching(/^desktop:exit:/u),
+			'development-host-restart',
+		);
+		expect(harness.lifetimeDependencies[1]?.getDevelopmentHostRestartPresentationIds?.()).toEqual(
+			restartPresentationIds,
+		);
+		expect(application.quitPrepared).toBe(true);
 		expect(harness.quitApplication).toHaveBeenCalledOnce();
 	});
 

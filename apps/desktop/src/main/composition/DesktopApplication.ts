@@ -27,6 +27,7 @@ import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
+	type TerminalPresentationId,
 	type TerminalPresentationEvent,
 } from '@orchbee/workbench/terminal-presentation';
 import type {
@@ -134,6 +135,8 @@ interface GatewayClientResourceOwner {
 type TerminalExitPublicationResult = 'already-committed' | 'committed' | 'pending';
 
 const MAX_PENDING_TERMINAL_EXIT_RETRIES = 64;
+const RENDERER_LIFETIME_RECOVERY_POLL_MILLISECONDS = 25;
+const RENDERER_LIFETIME_RECOVERY_TIMEOUT_MILLISECONDS = 5_000;
 const TERMINAL_EXIT_RETRY_DELAY_MILLISECONDS = 25;
 const TERMINAL_EXIT_ASSOCIATION_RETRY_LIMIT = 3;
 
@@ -142,6 +145,9 @@ function terminalRgbCss(value: number): string {
 }
 
 export interface DesktopApplicationOptions {
+	readonly prepareDevelopmentHostRestart?:
+		| ((documentRevision: WorkbenchSharedDocumentRevision) => Promise<boolean>)
+		| undefined;
 	readonly platform: NodeJS.Platform;
 	readonly preloadPath: string;
 	readonly rendererUrl: string;
@@ -218,6 +224,7 @@ const defaultDependencies: DesktopApplicationDependencies = {
 		new DevelopmentHostRuntime({
 			binaryPath: configuration.binaryPath,
 			endpointId: configuration.endpointId,
+			launchIfUnavailable: configuration.terminalHostLaunchMode === 'connect-or-launch',
 			runtimeDirectory: configuration.runtimeDirectory,
 			terminalDefaults: configuration.terminalConfiguration,
 		}).connect(),
@@ -276,6 +283,7 @@ function unavailableBrowserAccess(): never {
 
 export class DesktopApplication {
 	#applicationLifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
+	#applicationLifetimeRecovery: Promise<boolean> | undefined;
 	#browserAccessBroker: DesktopBrowserAccessBrokerHandle | undefined;
 	#browserAccessRuntime: DesktopBrowserAccessRuntimeHandle | undefined;
 	#clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
@@ -286,6 +294,7 @@ export class DesktopApplication {
 	#documentFailure: Error | undefined;
 	#documentGeneration = 0;
 	#documentTransition = Promise.resolve();
+	#developmentHostRestartPresentationIds: readonly TerminalPresentationId[] | undefined;
 	#exitRequest: Promise<DesktopApplicationLifetimeExitResult> | undefined;
 	readonly #pendingGatewayClientCleanups = new Set<GatewayClientResourceOwner>();
 	#pendingRendererBootstrapCleanup: (() => Promise<void>) | undefined;
@@ -370,11 +379,23 @@ export class DesktopApplication {
 	}
 
 	async requestExitAndQuit(reason: DesktopApplicationExitReason): Promise<void> {
+		if (reason === 'development-host-restart' && this.#exitRequest === undefined) {
+			this.#developmentHostRestartPresentationIds = undefined;
+		}
 		if (this.#applicationLifetimeBroker === undefined && !this.#shuttingDown) {
 			if (!this.hasWindow) await this.openWindow();
 			await this.#documentTransition;
 		}
-		const result = await this.requestExit(reason);
+		const requestedBroker = this.#applicationLifetimeBroker;
+		let result = await this.requestExit(reason);
+		if (
+			result.kind === 'unavailable' &&
+			reason === 'development-host-restart' &&
+			!this.#shuttingDown &&
+			(await this.#recoverApplicationLifetimeBroker(requestedBroker))
+		) {
+			result = await this.requestExit(reason);
+		}
 		if (result.kind !== 'ready' || this.#quitPrepared) return;
 		this.#quitPrepared = true;
 		await this.shutdown();
@@ -549,6 +570,10 @@ export class DesktopApplication {
 		if (this.#connection === undefined || this.#terminalRuntime === undefined) {
 			throw new Error('Desktop application must start before opening a window.');
 		}
+		const rendererUrl = new URL(this.#options.rendererUrl);
+		if (!isPermittedDesktopRendererUrl(rendererUrl)) {
+			throw new Error('Desktop renderer URL must use loopback HTTP or the packaged origin.');
+		}
 		this.#documentFailure = undefined;
 		const window = this.#dependencies.createWindow({
 			backgroundColor: terminalRgbCss(
@@ -556,6 +581,8 @@ export class DesktopApplication {
 			),
 			height: 720,
 			show: false,
+			titleBarOverlay: true,
+			titleBarStyle: 'hidden',
 			webPreferences: {
 				allowRunningInsecureContent: false,
 				contextIsolation: true,
@@ -570,7 +597,9 @@ export class DesktopApplication {
 		this.#window = window;
 		let loadingGeneration = 0;
 		window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-		window.webContents.on('will-navigate', (event) => event.preventDefault());
+		window.webContents.on('will-navigate', (event, navigationUrl) => {
+			if (!isSameDesktopRendererOrigin(navigationUrl, rendererUrl)) event.preventDefault();
+		});
 		window.webContents.on('did-start-navigation', (navigation) => {
 			if (!startsDesktopRendererDocument(navigation)) return;
 			loadingGeneration = this.#beginRendererDocument();
@@ -602,10 +631,6 @@ export class DesktopApplication {
 			if (this.#window === window) this.#window = undefined;
 		});
 
-		const rendererUrl = new URL(this.#options.rendererUrl);
-		if (!isPermittedDesktopRendererUrl(rendererUrl)) {
-			throw new Error('Desktop renderer URL must use loopback HTTP or the packaged origin.');
-		}
 		await window.loadURL(rendererUrl.href);
 		await this.#documentTransition;
 		if (this.#documentFailure !== undefined) throw this.#documentFailure;
@@ -774,6 +799,49 @@ export class DesktopApplication {
 		return generation;
 	}
 
+	async #recoverApplicationLifetimeBroker(
+		retiredBroker: DesktopApplicationLifetimeBrokerHandle | undefined,
+	): Promise<boolean> {
+		if (this.#applicationLifetimeRecovery !== undefined) {
+			return this.#applicationLifetimeRecovery;
+		}
+		const operation = this.#recoverApplicationLifetimeBrokerInternal(retiredBroker);
+		this.#applicationLifetimeRecovery = operation;
+		try {
+			return await operation;
+		} finally {
+			if (this.#applicationLifetimeRecovery === operation) {
+				this.#applicationLifetimeRecovery = undefined;
+			}
+		}
+	}
+
+	async #recoverApplicationLifetimeBrokerInternal(
+		retiredBroker: DesktopApplicationLifetimeBrokerHandle | undefined,
+	): Promise<boolean> {
+		await this.#documentTransition;
+		if (this.#shuttingDown) return false;
+		const currentBroker = this.#applicationLifetimeBroker;
+		if (currentBroker !== undefined && currentBroker !== retiredBroker) return true;
+		if (!this.hasWindow) {
+			await this.openWindow();
+			return this.#applicationLifetimeBroker !== undefined;
+		}
+		const window = this.#window;
+		if (window === undefined || window.isDestroyed()) return false;
+		window.reload();
+		const deadline = Date.now() + RENDERER_LIFETIME_RECOVERY_TIMEOUT_MILLISECONDS;
+		do {
+			await this.#documentTransition;
+			const recoveredBroker = this.#applicationLifetimeBroker;
+			if (recoveredBroker !== undefined && recoveredBroker !== retiredBroker) return true;
+			await new Promise((resolve) =>
+				setTimeout(resolve, RENDERER_LIFETIME_RECOVERY_POLL_MILLISECONDS),
+			);
+		} while (Date.now() < deadline && !this.#shuttingDown);
+		return false;
+	}
+
 	#queueRendererDocument(window: BrowserWindow, generation: number): void {
 		this.#documentTransition = this.#documentTransition.then(async () => {
 			try {
@@ -866,11 +934,31 @@ export class DesktopApplication {
 			);
 			lifetimeBroker = this.#dependencies.createApplicationLifetimeBroker(lifetimeChannel.port2, {
 				drainForStop: this.#drainForApplicationStop,
-				prepareMode: (mode) =>
-					clientSessionCoordinator.beginQuiescing(
+				getDevelopmentHostRestartPresentationIds: () => this.#developmentHostRestartPresentationIds,
+				prepareDevelopmentHostRestart: this.#options.prepareDevelopmentHostRestart,
+				prepareMode: (mode, restartPresentationIds) => {
+					if (mode === 'development-host-restart') {
+						if (
+							restartPresentationIds === undefined ||
+							new Set(restartPresentationIds).size !== restartPresentationIds.length ||
+							(this.#developmentHostRestartPresentationIds !== undefined &&
+								!sameTerminalPresentationIds(
+									this.#developmentHostRestartPresentationIds,
+									restartPresentationIds,
+								))
+						) {
+							return false;
+						}
+					}
+					const prepared = clientSessionCoordinator.beginQuiescing(
 						clientSessionBroker?.bootstrap.clientSessionId ?? '',
 						mode,
-					),
+					);
+					if (prepared && mode === 'development-host-restart') {
+						this.#developmentHostRestartPresentationIds = [...(restartPresentationIds ?? [])];
+					}
+					return prepared;
+				},
 			});
 			browserAccessBroker = this.#dependencies.createBrowserAccessBroker(
 				browserAccessChannel.port2,
@@ -1543,6 +1631,21 @@ function isPermittedDesktopRendererUrl(url: URL): boolean {
 	);
 }
 
+function isSameDesktopRendererOrigin(value: string, rendererUrl: URL): boolean {
+	let navigationUrl: URL;
+	try {
+		navigationUrl = new URL(value);
+	} catch {
+		return false;
+	}
+	return (
+		isPermittedDesktopRendererUrl(navigationUrl) &&
+		navigationUrl.protocol === rendererUrl.protocol &&
+		navigationUrl.hostname === rendererUrl.hostname &&
+		navigationUrl.port === rendererUrl.port
+	);
+}
+
 function collectDocumentPresentationIds(
 	document: WorkbenchSharedDocument,
 ): ReadonlySet<ReturnType<typeof TerminalPresentationIdSchema.parse>> {
@@ -1561,6 +1664,13 @@ function collectDocumentPresentationIds(
 		for (const tab of context.panelWorkspace.tabs) visit(tab.root);
 	}
 	return presentationIds;
+}
+
+function sameTerminalPresentationIds(
+	left: readonly TerminalPresentationId[],
+	right: readonly TerminalPresentationId[],
+): boolean {
+	return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function typedExitFailure(

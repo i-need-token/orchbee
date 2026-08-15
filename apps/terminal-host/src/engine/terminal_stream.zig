@@ -4,6 +4,100 @@ const ghostty_vt = @import("ghostty-vt");
 
 const log = std.log.scoped(.terminal_host_stream);
 
+/// Ghostty requires an allocator for OSC color operations and for a few OSC
+/// payloads that may exceed its fixed parser buffer. Keep those child-driven
+/// allocations bounded per terminal while admitting the allocation-backed
+/// color-command parsing that Ghostty requires.
+pub const osc_allocation_limit_bytes = ghostty_vt.osc.Parser.MAX_BUF * 32;
+
+pub const ParserAllocator = struct {
+    parent: std.mem.Allocator,
+    active_bytes: usize = 0,
+
+    pub fn init(parent: std.mem.Allocator) ParserAllocator {
+        return .{ .parent = parent };
+    }
+
+    pub fn deinit(self: *ParserAllocator) void {
+        std.debug.assert(self.active_bytes == 0);
+        self.* = undefined;
+    }
+
+    pub fn allocator(self: *ParserAllocator) std.mem.Allocator {
+        return .{
+            .ptr = self,
+            .vtable = &.{
+                .alloc = alloc,
+                .resize = resize,
+                .remap = remap,
+                .free = free,
+            },
+        };
+    }
+
+    fn alloc(
+        context: *anyopaque,
+        length: usize,
+        alignment: std.mem.Alignment,
+        return_address: usize,
+    ) ?[*]u8 {
+        const self: *ParserAllocator = @ptrCast(@alignCast(context));
+        if (length > osc_allocation_limit_bytes -| self.active_bytes) return null;
+        const result = self.parent.rawAlloc(length, alignment, return_address) orelse return null;
+        self.active_bytes += length;
+        return result;
+    }
+
+    fn resize(
+        context: *anyopaque,
+        memory: []u8,
+        alignment: std.mem.Alignment,
+        new_length: usize,
+        return_address: usize,
+    ) bool {
+        const self: *ParserAllocator = @ptrCast(@alignCast(context));
+        std.debug.assert(self.active_bytes >= memory.len);
+        if (new_length > memory.len and
+            new_length - memory.len > osc_allocation_limit_bytes -| self.active_bytes) return false;
+        if (!self.parent.rawResize(memory, alignment, new_length, return_address)) return false;
+        self.active_bytes = self.active_bytes - memory.len + new_length;
+        return true;
+    }
+
+    fn remap(
+        context: *anyopaque,
+        memory: []u8,
+        alignment: std.mem.Alignment,
+        new_length: usize,
+        return_address: usize,
+    ) ?[*]u8 {
+        const self: *ParserAllocator = @ptrCast(@alignCast(context));
+        std.debug.assert(self.active_bytes >= memory.len);
+        if (new_length > memory.len and
+            new_length - memory.len > osc_allocation_limit_bytes -| self.active_bytes) return null;
+        const result = self.parent.rawRemap(
+            memory,
+            alignment,
+            new_length,
+            return_address,
+        ) orelse return null;
+        self.active_bytes = self.active_bytes - memory.len + new_length;
+        return result;
+    }
+
+    fn free(
+        context: *anyopaque,
+        memory: []u8,
+        alignment: std.mem.Alignment,
+        return_address: usize,
+    ) void {
+        const self: *ParserAllocator = @ptrCast(@alignCast(context));
+        std.debug.assert(self.active_bytes >= memory.len);
+        self.parent.rawFree(memory, alignment, return_address);
+        self.active_bytes -= memory.len;
+    }
+};
+
 /// Host-owned adapter around Ghostty's terminal-state stream.
 ///
 /// The pinned `ghostty_vt.TerminalStream` deliberately ignores DCS actions.

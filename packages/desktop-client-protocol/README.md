@@ -4,7 +4,9 @@ Strict, runtime-neutral data contracts for the Electron-specific capability boun
 
 ## Scope
 
-The package owns one atomic Desktop renderer bootstrap, the fixed ordering and security attestation for its three independent capability ports, and Electron application-lifetime control. The bootstrap embeds the transport-neutral Workbench client-session bootstrap owned by `@orchbee/workbench-client-protocol`.
+The package owns one atomic Desktop renderer bootstrap, the fixed ordering and security attestation for its four independent capability ports, and Electron application-lifetime control. The bootstrap embeds the transport-neutral Workbench client-session bootstrap owned by `@orchbee/workbench-client-protocol`.
+
+Application lifetime distinguishes user quit, update restart, and development-only Terminal Host restart. User quit may cancel, preserve, or stop. Update restart automatically preserves. Development Host restart is an explicit non-interactive mode that durably stops current sessions and stages fresh provisions before Main reports readiness; it is not an updater alias. Commands carry only a request identity, mode, aggregate counts, the exact shared-document revision, progress, bounded typed failures, and the Workbench presentation identities needed to resume an in-progress development Host restart after renderer replacement. They never expose Host, binding, terminal, or filesystem authority.
 
 It contains no Electron imports, UI, broker, coordinator, transport lifecycle, network Gateway, authentication, terminal projection, PTY, or VT behavior. Shared Workbench page-client contracts remain with `@orchbee/workbench-client-protocol`; Workbench semantics remain with `@orchbee/workbench`.
 

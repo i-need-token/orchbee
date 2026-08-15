@@ -183,6 +183,9 @@ importers:
       '@rsbuild/core':
         specifier: 'catalog:'
         version: 2.1.6
+      '@rsbuild/plugin-source-build':
+        specifier: 'catalog:'
+        version: 1.0.6(@rsbuild/core@2.1.6)
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.1

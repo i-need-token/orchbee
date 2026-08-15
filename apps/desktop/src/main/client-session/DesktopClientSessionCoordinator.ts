@@ -250,7 +250,10 @@ export class DesktopClientSessionCoordinator {
 		};
 	}
 
-	beginQuiescing(clientSessionId: string, mode: 'preserve' | 'stop'): boolean {
+	beginQuiescing(
+		clientSessionId: string,
+		mode: 'development-host-restart' | 'preserve' | 'stop',
+	): boolean {
 		if (!this.#sessions.has(clientSessionId)) return false;
 		if (this.#phase.kind === 'quiescing') {
 			if (this.#sessions.has(this.#phase.exitOwner) || this.#phase.mode !== mode) return false;
@@ -394,7 +397,9 @@ export class DesktopClientSessionCoordinator {
 			sequence: this.#nextSequence(),
 			type: 'shared-document-published',
 		});
-		await this.#dependencies.reconcileDocument(document, this.publishTerminalEvent);
+		if (decision.effect === 'reconcile') {
+			await this.#dependencies.reconcileDocument(document, this.publishTerminalEvent);
+		}
 		return { document, kind: 'committed' };
 	}
 

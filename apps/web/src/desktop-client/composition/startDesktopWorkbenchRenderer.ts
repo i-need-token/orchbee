@@ -120,6 +120,7 @@ export function startDesktopWorkbenchRenderer(
 				locale: workbenchClientRuntime.locale,
 				router: nextRouting.router,
 				terminalSurfaceCapability: workbenchClientRuntime.terminalSurfaceCapability,
+				windowControls: shortcutPlatform === 'apple' ? 'leading' : 'trailing',
 			}),
 		);
 		return { kind: 'ready' };

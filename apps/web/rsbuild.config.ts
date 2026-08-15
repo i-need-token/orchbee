@@ -4,6 +4,7 @@ import { pluginSourceBuild } from '@rsbuild/plugin-source-build';
 import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';
 
 export default defineConfig(({ command }) => ({
+	...(command === 'dev' ? { dev: { hmr: false, liveReload: true } } : {}),
 	plugins: [
 		pluginReact(),
 		...(command === 'dev'

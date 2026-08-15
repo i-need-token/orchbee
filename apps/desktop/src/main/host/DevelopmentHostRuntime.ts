@@ -22,6 +22,7 @@ export interface DevelopmentHostRuntimeOptions {
 	readonly binaryPath: string;
 	readonly connectionAttempts?: number;
 	readonly endpointId: string;
+	readonly launchIfUnavailable?: boolean;
 	readonly platform?: NodeJS.Platform;
 	readonly retryDelayMilliseconds?: number;
 	readonly runtimeDirectory: string;
@@ -76,6 +77,7 @@ export class DevelopmentHostRuntime {
 	readonly #binaryPath: string;
 	readonly #dependencies: DevelopmentHostRuntimeDependencies;
 	readonly #endpointId: string;
+	readonly #launchIfUnavailable: boolean;
 	readonly #platform: NodeJS.Platform;
 	readonly #retryDelayMilliseconds: number;
 	readonly #runtimeDirectory: string;
@@ -98,6 +100,7 @@ export class DevelopmentHostRuntime {
 		this.#binaryPath = options.binaryPath;
 		this.#dependencies = dependencies;
 		this.#endpointId = options.endpointId;
+		this.#launchIfUnavailable = options.launchIfUnavailable ?? true;
 		this.#platform = options.platform ?? process.platform;
 		this.#retryDelayMilliseconds =
 			options.retryDelayMilliseconds ?? DEFAULT_RETRY_DELAY_MILLISECONDS;
@@ -123,7 +126,10 @@ export class DevelopmentHostRuntime {
 		);
 		try {
 			return await this.#connectOnce();
-		} catch {
+		} catch (error: unknown) {
+			if (!this.#launchIfUnavailable) {
+				return this.#connectWithRetries(error);
+			}
 			await this.#dependencies.launch(this.#binaryPath, [
 				'serve',
 				'--runtime-directory',
@@ -134,8 +140,14 @@ export class DevelopmentHostRuntime {
 				String(this.#terminalDefaults.scrollbackBytes),
 			]);
 		}
+		return this.#connectWithRetries();
+	}
 
-		let lastError = new Error('Development Terminal Host did not publish its endpoint.');
+	async #connectWithRetries(initialError?: unknown): Promise<HostConnection> {
+		let lastError =
+			initialError instanceof Error
+				? initialError
+				: new Error('Development Terminal Host did not publish its endpoint.');
 		for (let attempt = 0; attempt < this.#attempts; attempt += 1) {
 			try {
 				return await this.#connectOnce();

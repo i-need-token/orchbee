@@ -1,52 +1,84 @@
-import { spawn, type ChildProcess } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { defineConfig, type RsbuildPlugin } from '@rsbuild/core';
+import { pluginSourceBuild } from '@rsbuild/plugin-source-build';
+
+import {
+	createNodeDesktopDevelopmentRuntimeDependencies,
+	DesktopDevelopmentRuntime,
+	type DesktopDevelopmentRuntimeLogger,
+} from './src/development';
 
 const electronExecutable: unknown = createRequire(import.meta.url)('electron');
 if (typeof electronExecutable !== 'string') {
 	throw new Error('Electron development executable path is unavailable.');
 }
 
-export default defineConfig(() => {
-	let desktopProcess: ChildProcess | undefined;
+const desktopRoot = path.dirname(fileURLToPath(import.meta.url));
+
+export default defineConfig(({ command }) => {
+	let developmentRuntime: DesktopDevelopmentRuntime | undefined;
 	const rendererUrl = process.env['ORCHBEE_DESKTOP_RENDERER_URL'] ?? 'http://127.0.0.1:3000/';
 	const gatewayEntryPath =
 		process.env['ORCHBEE_GATEWAY_ENTRY_PATH'] ??
-		path.resolve('..', 'gateway', 'dist', 'main', 'gateway.cjs');
+		path.resolve(desktopRoot, '..', 'gateway', 'dist', 'main', 'gateway.cjs');
 	const serverEntryPath =
 		process.env['ORCHBEE_SERVER_ENTRY_PATH'] ??
-		path.resolve('..', 'server', 'dist', 'main', 'server.cjs');
+		path.resolve(desktopRoot, '..', 'server', 'dist', 'main', 'server.cjs');
 	const webRendererRoot =
-		process.env['ORCHBEE_WEB_RENDERER_ROOT'] ?? path.resolve('..', 'web', 'dist');
-	const launchDesktopPlugin: RsbuildPlugin = {
-		name: 'orchbee-desktop-development-launcher',
+		process.env['ORCHBEE_WEB_RENDERER_ROOT'] ?? path.resolve(desktopRoot, '..', 'web', 'dist');
+	const developmentRuntimePlugin: RsbuildPlugin = {
+		name: 'orchbee-desktop-development-runtime',
 		apply: 'serve',
 		setup(api) {
-			api.onAfterStartDevServer(() => {
-				if (desktopProcess !== undefined) return;
-				desktopProcess = spawn(electronExecutable, [path.resolve('dist/main/main.cjs')], {
-					env: {
-						...process.env,
-						ORCHBEE_DESKTOP_GATEWAY: process.env['ORCHBEE_DESKTOP_GATEWAY'] ?? '1',
-						ORCHBEE_DESKTOP_RENDERER_URL: rendererUrl,
-						ORCHBEE_GATEWAY_ENTRY_PATH: gatewayEntryPath,
-						ORCHBEE_SERVER_ENTRY_PATH: serverEntryPath,
-						ORCHBEE_WEB_RENDERER_ROOT: webRendererRoot,
+			const logger: DesktopDevelopmentRuntimeLogger = {
+				error: (message) => api.logger.error(message),
+				info: (message) => api.logger.info(message),
+				warn: (message) => api.logger.warn(message),
+			};
+			api.onAfterStartDevServer(async () => {
+				if (developmentRuntime !== undefined) return;
+				const runtime = new DesktopDevelopmentRuntime(
+					{
+						desktopEntryPath: path.join(desktopRoot, 'dist', 'main', 'main.cjs'),
+						electronExecutable,
+						environment: process.env,
+						gatewayEntryPath,
+						rendererUrl,
+						serverEntryPath,
+						terminalHostRoot: path.resolve(desktopRoot, '..', 'terminal-host'),
+						webRendererRoot,
 					},
-					stdio: 'inherit',
-				});
+					createNodeDesktopDevelopmentRuntimeDependencies(logger),
+					logger,
+				);
+				developmentRuntime = runtime;
+				try {
+					await runtime.start();
+				} catch (error: unknown) {
+					if (developmentRuntime === runtime) developmentRuntime = undefined;
+					throw error;
+				}
 			});
-			api.onCloseDevServer(() => {
-				desktopProcess?.kill();
-				desktopProcess = undefined;
+			api.onAfterDevCompile(({ isFirstCompile, stats }) => {
+				if (isFirstCompile || stats.hasErrors()) return;
+				developmentRuntime?.requestDesktopRestart();
+			});
+			api.onCloseDevServer(async () => {
+				const runtime = developmentRuntime;
+				developmentRuntime = undefined;
+				await runtime?.stop();
 			});
 		},
 	};
 
 	return {
-		plugins: [launchDesktopPlugin],
+		plugins:
+			command === 'dev'
+				? [pluginSourceBuild({ sourceField: '@orchbee/source' }), developmentRuntimePlugin]
+				: [],
 		environments: {
 			main: {
 				dev: { hmr: false, liveReload: false, writeToDisk: true },

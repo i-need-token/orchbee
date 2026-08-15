@@ -1,8 +1,10 @@
 import type {
+	WorkbenchTerminalSessionRestartStageResult,
 	WorkbenchTerminalSessionStopRequestResult,
 	WorkbenchTerminalSessionStopSnapshot,
 } from '@orchbee/workbench';
 import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
+import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -24,8 +26,14 @@ function createHarness(sessionCount = 2) {
 		stoppingCount: sessionCount,
 	};
 	const commands: DesktopApplicationLifetimeRendererCommand[] = [];
+	const restartPresentationIds = Array.from({ length: sessionCount }, (_, index) =>
+		terminalPresentationId(`presentation-${index + 1}`),
+	);
 	const runtime = {
 		getTerminalSessionStopSnapshot: () => snapshot,
+		getRestartableTerminalPresentationIds: vi.fn<() => typeof restartPresentationIds>(
+			() => restartPresentationIds,
+		),
 		requestAllTerminalSessionsStop: vi.fn<() => WorkbenchTerminalSessionStopRequestResult>(() => ({
 			commandCount: sessionCount,
 			kind: sessionCount === 0 ? ('unchanged' as const) : ('started' as const),
@@ -36,6 +44,9 @@ function createHarness(sessionCount = 2) {
 			kind: 'started' as const,
 			snapshot,
 		})),
+		stageStoppedTerminalSessionsForRestart: vi.fn<() => WorkbenchTerminalSessionRestartStageResult>(
+			() => ({ kind: 'staged', presentationCount: restartPresentationIds.length }),
+		),
 		subscribeDocument: (listener: () => void) => {
 			documentListener = listener;
 			return () => {
@@ -66,7 +77,7 @@ function createHarness(sessionCount = 2) {
 		commands,
 		acknowledgeMode(
 			requestId: ReturnType<typeof DesktopApplicationExitRequestIdSchema.parse>,
-			mode: 'preserve' | 'stop',
+			mode: 'development-host-restart' | 'preserve' | 'stop',
 		) {
 			lifetimeListener?.({
 				mode,
@@ -177,6 +188,84 @@ describe('DesktopApplicationLifetimeCoordinator', () => {
 			),
 		);
 		expect(harness.coordinator.getSnapshot().kind).not.toBe('awaiting-choice');
+	});
+
+	it('stops, durably stages fresh provisions, and prepares a development Host restart', async () => {
+		const harness = createHarness(2);
+		const requestId = DesktopApplicationExitRequestIdSchema.parse('exit-development-host');
+		harness.emitLifetime({
+			reason: 'development-host-restart',
+			requestId,
+			type: 'desktop-application-exit-requested',
+		});
+		expect(harness.coordinator.getSnapshot().kind).toBe('working');
+		expect(harness.commands).toContainEqual({
+			choice: 'development-host-restart',
+			restartPresentationIds: ['presentation-1', 'presentation-2'],
+			requestId,
+			type: 'desktop-application-exit-choice',
+		});
+		expect(harness.runtime.getRestartableTerminalPresentationIds).toHaveBeenCalledOnce();
+
+		harness.acknowledgeMode(requestId, 'development-host-restart');
+		await vi.waitFor(() => expect(harness.document.flush).toHaveBeenCalledOnce());
+		harness.setComplete();
+		harness.emitDocument();
+
+		await vi.waitFor(() =>
+			expect(harness.commands).toContainEqual({
+				documentRevision: '6',
+				mode: 'development-host-restart',
+				presentationCount: 2,
+				requestId,
+				type: 'desktop-application-exit-renderer-prepared',
+			}),
+		);
+		expect(harness.runtime.requestAllTerminalSessionsStop).toHaveBeenCalledOnce();
+		expect(harness.runtime.stageStoppedTerminalSessionsForRestart).toHaveBeenCalledWith([
+			'presentation-1',
+			'presentation-2',
+		]);
+		expect(harness.document.flush).toHaveBeenCalledTimes(3);
+	});
+
+	it('reuses the Main-owned restart targets after the renderer reloads with stopped sessions', async () => {
+		const harness = createHarness(2);
+		harness.runtime.getRestartableTerminalPresentationIds.mockReturnValue([]);
+		const requestId = DesktopApplicationExitRequestIdSchema.parse('exit-development-reloaded');
+		harness.setComplete();
+		harness.emitLifetime({
+			reason: 'development-host-restart',
+			restartPresentationIds: [
+				terminalPresentationId('presentation-1'),
+				terminalPresentationId('presentation-2'),
+			],
+			requestId,
+			type: 'desktop-application-exit-requested',
+		});
+
+		expect(harness.runtime.getRestartableTerminalPresentationIds).not.toHaveBeenCalled();
+		expect(harness.commands).toContainEqual({
+			choice: 'development-host-restart',
+			restartPresentationIds: ['presentation-1', 'presentation-2'],
+			requestId,
+			type: 'desktop-application-exit-choice',
+		});
+		harness.acknowledgeMode(requestId, 'development-host-restart');
+
+		await vi.waitFor(() =>
+			expect(harness.runtime.stageStoppedTerminalSessionsForRestart).toHaveBeenCalledWith([
+				'presentation-1',
+				'presentation-2',
+			]),
+		);
+		expect(harness.commands).toContainEqual({
+			documentRevision: '6',
+			mode: 'development-host-restart',
+			presentationCount: 2,
+			requestId,
+			type: 'desktop-application-exit-renderer-prepared',
+		});
 	});
 
 	it('quits without prompting when every retained presentation is already stopped', async () => {

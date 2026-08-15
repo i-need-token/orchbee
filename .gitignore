@@ -27,4 +27,5 @@ zig-out/
 /packages/terminal-protocol/formal/tla/states/
 /packages/tab-strip/formal/tla/states/
 /packages/workbench/formal/tla/states/
+/states/
 /packages/tab-strip/test-results/

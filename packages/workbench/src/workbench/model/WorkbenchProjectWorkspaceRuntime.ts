@@ -104,6 +104,10 @@ export interface WorkbenchTerminalSessionStopSnapshot {
 	readonly stoppingCount: number;
 }
 
+export type WorkbenchTerminalSessionRestartStageResult =
+	| { readonly kind: 'staged'; readonly presentationCount: number }
+	| { readonly kind: 'rejected'; readonly reason: string };
+
 export type WorkbenchTerminalSessionStopRequestResult =
 	| {
 			readonly commandCount: number;
@@ -357,6 +361,12 @@ export class WorkbenchProjectWorkspaceRuntime {
 		};
 	}
 
+	public getRestartableTerminalPresentationIds(): readonly TerminalPresentationId[] {
+		return [...this.contexts.values()].flatMap((context) =>
+			context.panelWorkspaceStore.getRestartableTerminalPresentationIds(),
+		);
+	}
+
 	public requestAllTerminalSessionsStop(): WorkbenchTerminalSessionStopRequestResult {
 		if (this.terminalPresentation.kind !== 'managed') {
 			return { kind: 'rejected', reason: 'managed-terminal-runtime-required' };
@@ -405,6 +415,87 @@ export class WorkbenchProjectWorkspaceRuntime {
 			kind: commandCount === 0 ? 'unchanged' : 'started',
 			snapshot: this.getTerminalSessionStopSnapshot(),
 		};
+	}
+
+	public stageStoppedTerminalSessionsForRestart(
+		presentationIds: readonly TerminalPresentationId[],
+	): WorkbenchTerminalSessionRestartStageResult {
+		const composition = this.terminalPresentation;
+		if (composition.kind !== 'managed') {
+			return { kind: 'rejected', reason: 'managed-terminal-runtime-required' };
+		}
+		if (!this.terminalCreationSealed) {
+			return { kind: 'rejected', reason: 'terminal-stop-not-started' };
+		}
+		if (!this.getTerminalSessionStopSnapshot().complete) {
+			return { kind: 'rejected', reason: 'terminal-stop-incomplete' };
+		}
+		const requestedIds = new Set(presentationIds);
+		if (requestedIds.size !== presentationIds.length) {
+			return { kind: 'rejected', reason: 'terminal-presentation-conflict' };
+		}
+		const targets: Array<{
+			readonly context: MutableWorkbenchTerminalContext;
+			readonly presentationId: TerminalPresentationId;
+		}> = [];
+		for (const presentationId of presentationIds) {
+			const matches = [...this.contexts.values()].filter((context) =>
+				context.panelWorkspaceStore
+					.getSnapshot()
+					.tabs.some((tab) => findTerminal(tab.root, presentationId) !== null),
+			);
+			const context = matches.length === 1 ? matches[0] : undefined;
+			if (context === undefined) {
+				return { kind: 'rejected', reason: 'terminal-session-not-stopped' };
+			}
+			const terminal = context.panelWorkspaceStore
+				.getSnapshot()
+				.tabs.flatMap((tab) => collectPanelLeaves(tab.root))
+				.flatMap((panel) => [panel.primaryPresentation, ...panel.childPresentations])
+				.find((candidate) => candidate.presentationId === presentationId);
+			if (terminal?.lifecycle.kind !== 'stopped') {
+				return { kind: 'rejected', reason: 'terminal-session-not-stopped' };
+			}
+			targets.push({ context, presentationId });
+		}
+		const currentIds = new Set(
+			[...this.contexts.values()].flatMap((context) =>
+				context.panelWorkspaceStore
+					.getSnapshot()
+					.tabs.flatMap((tab) => collectPanelLeaves(tab.root))
+					.flatMap((panel) => [
+						panel.primaryPresentation.presentationId,
+						...panel.childPresentations.map((terminal) => terminal.presentationId),
+					]),
+			),
+		);
+		const replacements = targets.map((target) => ({
+			context: target.context,
+			oldPresentationId: target.presentationId,
+			presentation: {
+				kind: 'managed' as const,
+				operationId: composition.createOperationId(),
+				presentationId: composition.createPresentationId(),
+			},
+		}));
+		const replacementIds = replacements.map((item) => item.presentation.presentationId);
+		if (
+			new Set(replacementIds).size !== replacementIds.length ||
+			replacementIds.some((presentationId) => currentIds.has(presentationId))
+		) {
+			return { kind: 'rejected', reason: 'terminal-presentation-conflict' };
+		}
+		for (const replacement of replacements) {
+			const transition =
+				replacement.context.panelWorkspaceStore.stageStoppedTerminalSessionForRestart(
+					replacement.oldPresentationId,
+					replacement.presentation,
+				);
+			if (transition.outcome === 'rejected') {
+				throw new Error('A validated terminal restart transition was rejected.');
+			}
+		}
+		return { kind: 'staged', presentationCount: replacements.length };
 	}
 
 	public startStoppedTerminalSession(

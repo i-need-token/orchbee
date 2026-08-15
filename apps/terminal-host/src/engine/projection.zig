@@ -569,6 +569,7 @@ fn duplicateOptional(allocator: std.mem.Allocator, value: ?[:0]const u8) !?[]u8 
 }
 
 pub const testing = if (@import("builtin").is_test) struct {
+    pub const capturedStyleFn = capturedStyle;
     pub const frame_byte_limit = max_frame_bytes;
     pub const link_cache_byte_limit = max_link_cache_bytes;
     pub const link_entry_limit = max_frame_strings;

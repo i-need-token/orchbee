@@ -189,6 +189,28 @@ test "real PTY preserves the legacy terminal query and reply corpus" {
         "\\033[?997;2n",
         light_expected.len,
     );
+
+    const color_query_shell = "\\033]10;rgb:d8/de/e9\\033\\\\" ++
+        "\\033]11;rgb:10/14/18\\033\\\\" ++
+        "\\033]12;rgb:f5/a9/7f\\033\\\\" ++
+        "\\033]4;1;rgb:aa/bb/cc\\033\\\\" ++
+        "\\033]10;?;?;?\\033\\\\" ++
+        "\\033]4;1;?\\033\\\\";
+    const color_expected = "\x1b]10;rgb:d8d8/dede/e9e9\x1b\\" ++
+        "\x1b]11;rgb:1010/1414/1818\x1b\\" ++
+        "\x1b]12;rgb:f5f5/a9a9/7f7f\x1b\\" ++
+        "\x1b]4;1;rgb:aaaa/bbbb/cccc\x1b\\";
+    try expectRealPtyQueryReplies(
+        80,
+        24,
+        .dark,
+        color_query_shell,
+        "\\033]10;rgb:d8d8/dede/e9e9\\033\\\\" ++
+            "\\033]11;rgb:1010/1414/1818\\033\\\\" ++
+            "\\033]12;rgb:f5f5/a9a9/7f7f\\033\\\\" ++
+            "\\033]4;1;rgb:aaaa/bbbb/cccc\\033\\\\",
+        color_expected.len,
+    );
 }
 test "pinned Ghostty OSC color updates and queries share one color state" {
     const Reply = struct {

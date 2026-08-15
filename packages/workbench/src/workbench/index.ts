@@ -11,6 +11,7 @@ export type {
 	WorkbenchStandaloneTerminalPresentation,
 	WorkbenchTerminalSessionStopFailure,
 	WorkbenchTerminalSessionStopRequestResult,
+	WorkbenchTerminalSessionRestartStageResult,
 	WorkbenchTerminalSessionStopSnapshot,
 	WorkbenchTerminalPresentationEventResult,
 } from './model/WorkbenchProjectWorkspaceRuntime';

@@ -648,6 +648,41 @@ test('terminal-parity/SU-02-product-font-fallback', async () => {
 	);
 });
 
+test('projects native window drag regions without consuming horizontal Tab controls', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const desktopWorkbench = page.locator('[data-slot="desktop-workbench"]');
+	await expect(desktopWorkbench).toHaveAttribute(
+		'data-window-controls',
+		process.platform === 'darwin' ? 'leading' : 'trailing',
+	);
+
+	const appRegion = (locator: Locator): Promise<string> =>
+		locator.evaluate((element) => {
+			const style = getComputedStyle(element);
+			return style.getPropertyValue('app-region') || style.getPropertyValue('-webkit-app-region');
+		});
+	const leftChrome = page.locator('[data-slot="workbench-window-drag-region"]');
+	const tabTrack = page.locator(
+		'[data-slot="workbench-tab-bar"][data-orientation="horizontal"] [data-horizontal-track]',
+	);
+	const selectedTab = tabTrack.locator('[role="tab"][aria-selected="true"]');
+	const newTabButton = tabTrack.locator(':scope > button').last();
+
+	await expect.poll(() => appRegion(leftChrome)).toBe('drag');
+	await expect.poll(() => appRegion(tabTrack)).toBe('drag');
+	await expect.poll(() => appRegion(selectedTab)).toBe('no-drag');
+	await expect.poll(() => appRegion(newTabButton)).toBe('no-drag');
+
+	const tabs = workbenchTabs(page);
+	const initialTabCount = await tabs.count();
+	await newTabButton.click();
+	await expect(tabs).toHaveCount(initialTabCount + 1);
+	await tabs.first().click();
+	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+});
+
 test('routes a real sandboxed Host terminal through Main and Preload to the renderer', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
@@ -771,6 +806,28 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	await expect
 		.poll(async () => Number(await root.getAttribute('data-projected-terminal-copied-bytes')))
 		.toBeGreaterThan(0);
+	const copyStatus = root.locator('[data-projected-terminal-status="true"][role="status"]');
+	await expect(copyStatus).toBeAttached();
+	await expect
+		.poll(() =>
+			copyStatus.evaluate((element) => {
+				const style = getComputedStyle(element);
+				return {
+					blockSize: style.blockSize,
+					clipPath: style.clipPath,
+					inlineSize: style.inlineSize,
+					overflow: style.overflow,
+					position: style.position,
+				};
+			}),
+		)
+		.toEqual({
+			blockSize: '1px',
+			clipPath: 'inset(50%)',
+			inlineSize: '1px',
+			overflow: 'hidden',
+			position: 'absolute',
+		});
 	await expect
 		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
 		.toContain('interaction');
@@ -2165,10 +2222,10 @@ async function expectTerminalSurfaceAppearance(locator: Locator): Promise<void> 
 		)
 		.toEqual({
 			backgroundColor: 'rgb(252, 252, 252)',
-			paddingBottom: '8px',
-			paddingLeft: '8px',
-			paddingRight: '8px',
-			paddingTop: '8px',
+			paddingBottom: '0px',
+			paddingLeft: '0px',
+			paddingRight: '0px',
+			paddingTop: '0px',
 			statusPosition: 'absolute',
 		});
 }

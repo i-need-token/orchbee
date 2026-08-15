@@ -144,14 +144,21 @@ export class PanelWorkspaceStore {
 	};
 
 	public transition(event: PanelWorkspaceEvent): PanelWorkspaceTransition {
+		return this.applyTransition(event, true);
+	}
+
+	private applyTransition(
+		event: PanelWorkspaceEvent,
+		dispatchCommands: boolean,
+	): PanelWorkspaceTransition {
 		const result = transitionPanelWorkspace(this.state, event);
 		if (result.state !== this.state) {
 			this.state = result.state;
 			this.syncTabTitles();
 			this.emit();
 		}
-		this.dispatchCommands(result.commands);
-		return result;
+		if (dispatchCommands) this.dispatchCommands(result.commands);
+		return dispatchCommands ? result : { ...result, commands: [] };
 	}
 
 	public createTerminalPresentation(): TerminalPresentationCreation {
@@ -170,7 +177,15 @@ export class PanelWorkspaceStore {
 		if (composition.kind !== 'managed') {
 			return rejectedTransition(this.state, 'invalid-close-operations');
 		}
-		const operations = this.collectTerminals()
+		const operations = this.getRestartableTerminalPresentationIds().map((presentationId) => ({
+			operationId: composition.createOperationId(),
+			presentationId,
+		}));
+		return this.transition({ operations, type: 'terminal-sessions-stop-requested' });
+	}
+
+	public getRestartableTerminalPresentationIds(): readonly TerminalPresentationId[] {
+		return this.collectTerminals()
 			.filter(
 				(terminal) =>
 					terminal.lifecycle.kind !== 'closing' &&
@@ -179,11 +194,7 @@ export class PanelWorkspaceStore {
 					terminal.lifecycle.kind !== 'stopping' &&
 					terminal.lifecycle.kind !== 'stopped',
 			)
-			.map((terminal) => ({
-				operationId: composition.createOperationId(),
-				presentationId: terminal.presentationId,
-			}));
-		return this.transition({ operations, type: 'terminal-sessions-stop-requested' });
+			.map((terminal) => terminal.presentationId);
 	}
 
 	public retryFailedTerminalSessionStops(): PanelWorkspaceTransition {
@@ -244,6 +255,24 @@ export class PanelWorkspaceStore {
 		presentation: Extract<TerminalPresentationCreation, { readonly kind: 'managed' }>,
 	): PanelWorkspaceTransition {
 		this.assertTerminalCreationAvailable();
+		return this.replaceStoppedTerminalSession(presentationId, presentation, true);
+	}
+
+	public stageStoppedTerminalSessionForRestart(
+		presentationId: TerminalPresentationId,
+		presentation: Extract<TerminalPresentationCreation, { readonly kind: 'managed' }>,
+	): PanelWorkspaceTransition {
+		if (!this.terminalCreationSealed) {
+			return rejectedTransition(this.state, 'terminal-session-not-stopped');
+		}
+		return this.replaceStoppedTerminalSession(presentationId, presentation, false);
+	}
+
+	private replaceStoppedTerminalSession(
+		presentationId: TerminalPresentationId,
+		presentation: Extract<TerminalPresentationCreation, { readonly kind: 'managed' }>,
+		dispatchCommands: boolean,
+	): PanelWorkspaceTransition {
 		const composition = this.composition;
 		if (composition.kind !== 'managed') {
 			return rejectedTransition(this.state, 'terminal-session-not-stopped');
@@ -256,12 +285,15 @@ export class PanelWorkspaceStore {
 			),
 		);
 		if (tab === undefined) return rejectedTransition(this.state, 'terminal-not-found');
-		return this.transition({
-			presentation,
-			presentationId,
-			tabId: tab.tabId,
-			type: 'terminal-stopped-session-started',
-		});
+		return this.applyTransition(
+			{
+				presentation,
+				presentationId,
+				tabId: tab.tabId,
+				type: 'terminal-stopped-session-started',
+			},
+			dispatchCommands,
+		);
 	}
 
 	public createTerminalCloseRequest(

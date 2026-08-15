@@ -8,6 +8,7 @@ const max_frame_bytes = subject.testing.frame_byte_limit;
 const max_link_cache_bytes = subject.testing.link_cache_byte_limit;
 const max_link_entries = subject.testing.link_entry_limit;
 const max_link_value_bytes = subject.testing.link_value_byte_limit;
+const capturedStyle = subject.testing.capturedStyleFn;
 const LinkTable = subject.testing.LinkTableType;
 const linkTableDeinit = subject.testing.linkTableDeinitFn;
 const linkTableInit = subject.testing.linkTableInitFn;
@@ -53,6 +54,22 @@ test "projection captures Ghostty state into a valid OBTF 0.0.1 snapshot" {
     try std.testing.expectEqual(@as(u64, 1), summary.revision);
     try std.testing.expectEqual(@as(u16, 4), summary.columns);
     try std.testing.expectEqual(@as(u16, 2), summary.rows);
+}
+
+test "projection ignores absent style data on background-only cells" {
+    var cells: std.MultiArrayList(ghostty_vt.RenderState.Cell) = .{};
+    defer cells.deinit(std.testing.allocator);
+    try cells.append(std.testing.allocator, .{
+        .raw = .{
+            .content_tag = .bg_color_rgb,
+            .content = .{ .color_rgb = .{ .r = 1, .g = 2, .b = 3 } },
+        },
+        .grapheme = undefined,
+        .style = .{ .fg_color = .{ .palette = 7 } },
+    });
+
+    const captured = capturedStyle(cells.slice(), 0);
+    try std.testing.expect(captured.default());
 }
 
 test "projection completes Ghostty render updates before exposing captured styles" {

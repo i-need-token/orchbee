@@ -145,11 +145,7 @@ pub fn styleRecord(
 
 pub fn capturedStyle(cells: anytype, column: usize) ghostty_vt.Style {
     const cell = cells.items(.raw)[column];
-    if (cell.hasStyling() or cell.content_tag == .bg_color_palette or
-        cell.content_tag == .bg_color_rgb)
-    {
-        return cells.items(.style)[column];
-    }
+    if (cell.hasStyling()) return cells.items(.style)[column];
     return .{};
 }
 

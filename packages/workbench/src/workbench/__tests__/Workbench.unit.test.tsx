@@ -105,6 +105,7 @@ describe('Workbench', () => {
 
 		expect(markup).toContain('data-slot="workbench-left-panel"');
 		expect(markup).toContain('data-slot="workbench-right-panel"');
+		expect(markup).toContain('data-slot="workbench-window-drag-region"');
 		expect(markup).toContain('aria-label="Hide Sidebar"');
 		expect(markup).toContain('data-slot="workbench-sidebar-toggle-position"');
 		expect(markup).toContain('aria-label="Workbench navigation"');

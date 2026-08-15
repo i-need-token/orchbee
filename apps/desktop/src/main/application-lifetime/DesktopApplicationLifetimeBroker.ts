@@ -1,10 +1,12 @@
 import type { WorkbenchSharedDocumentRevision } from '@orchbee/workbench/document';
+import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import type { MessageEvent, MessagePortMain } from 'electron';
 
 import {
 	DesktopApplicationLifetimeRendererCommandSchema,
 	DesktopApplicationLifetimeMainEventSchema,
 	type DesktopApplicationExitFailure,
+	type DesktopApplicationExitMode,
 	type DesktopApplicationExitReason,
 	type DesktopApplicationExitRequestId,
 	type DesktopApplicationLifetimeMainEvent,
@@ -18,7 +20,7 @@ export type DesktopApplicationLifetimeExitResult =
 	| {
 			readonly forced: boolean;
 			readonly kind: 'ready';
-			readonly mode: 'preserve' | 'stop';
+			readonly mode: DesktopApplicationExitMode;
 	  }
 	| { readonly kind: 'cancelled' }
 	| { readonly kind: 'unavailable' };
@@ -27,7 +29,18 @@ export interface DesktopApplicationLifetimeBrokerDependencies {
 	readonly drainForStop: (
 		documentRevision: WorkbenchSharedDocumentRevision,
 	) => Promise<DesktopApplicationLifetimeDrainResult>;
-	readonly prepareMode?: ((mode: 'preserve' | 'stop') => boolean) | undefined;
+	readonly prepareDevelopmentHostRestart?:
+		| ((documentRevision: WorkbenchSharedDocumentRevision) => Promise<boolean>)
+		| undefined;
+	readonly getDevelopmentHostRestartPresentationIds?:
+		| (() => readonly TerminalPresentationId[] | undefined)
+		| undefined;
+	readonly prepareMode?:
+		| ((
+				mode: DesktopApplicationExitMode,
+				restartPresentationIds?: readonly TerminalPresentationId[],
+		  ) => boolean)
+		| undefined;
 }
 
 interface ActiveExitRequest {
@@ -37,7 +50,7 @@ interface ActiveExitRequest {
 	readonly reason: DesktopApplicationExitReason;
 	readonly requestId: DesktopApplicationExitRequestId;
 	resolve(result: DesktopApplicationLifetimeExitResult): void;
-	mode: 'preserve' | 'stop' | null;
+	mode: DesktopApplicationExitMode | null;
 	stopRevision: WorkbenchSharedDocumentRevision | null;
 }
 
@@ -81,7 +94,20 @@ export class DesktopApplicationLifetimeBroker {
 			mode: null,
 			stopRevision: null,
 		};
-		this.#post({ reason, requestId, type: 'desktop-application-exit-requested' });
+		const restartPresentationIds =
+			reason === 'development-host-restart'
+				? this.#dependencies.getDevelopmentHostRestartPresentationIds?.()
+				: undefined;
+		this.#post(
+			reason === 'development-host-restart'
+				? {
+						reason,
+						requestId,
+						...(restartPresentationIds === undefined ? {} : { restartPresentationIds }),
+						type: 'desktop-application-exit-requested',
+					}
+				: { reason, requestId, type: 'desktop-application-exit-requested' },
+		);
 		return promise;
 	}
 
@@ -109,7 +135,17 @@ export class DesktopApplicationLifetimeBroker {
 		switch (command.type) {
 			case 'desktop-application-exit-choice': {
 				if (command.choice === 'cancel' || request.mode !== null) return;
-				if (this.#dependencies.prepareMode?.(command.choice) === false) {
+				if (
+					(command.choice === 'development-host-restart') !==
+					(request.reason === 'development-host-restart')
+				) {
+					return;
+				}
+				const modePrepared =
+					command.choice === 'development-host-restart'
+						? this.#dependencies.prepareMode?.(command.choice, command.restartPresentationIds)
+						: this.#dependencies.prepareMode?.(command.choice);
+				if (modePrepared === false) {
 					this.#post({
 						requestId: request.requestId,
 						result: {
@@ -170,7 +206,11 @@ export class DesktopApplicationLifetimeBroker {
 				return;
 			case 'desktop-application-exit-quit-anyway-requested':
 				if (!request.failed || request.drainPending) return;
-				this.#finish({ forced: true, kind: 'ready', mode: 'stop' });
+				this.#finish({
+					forced: true,
+					kind: 'ready',
+					mode: request.mode === 'development-host-restart' ? 'development-host-restart' : 'stop',
+				});
 		}
 	};
 
@@ -189,6 +229,27 @@ export class DesktopApplicationLifetimeBroker {
 			};
 		}
 		if (this.#activeRequest !== request || this.#disposed) return;
+		if (result.kind === 'completed' && request.mode === 'development-host-restart') {
+			let prepared = false;
+			try {
+				prepared = (await this.#dependencies.prepareDevelopmentHostRestart?.(revision)) === true;
+			} catch {
+				prepared = false;
+			}
+			if (!prepared) {
+				result = {
+					failures: [
+						{
+							code: 'development-restart-plan-unavailable',
+							count: 1,
+							retryable: true,
+						},
+					],
+					kind: 'failed',
+				};
+			}
+		}
+		if (this.#activeRequest !== request || this.#disposed) return;
 		request.drainPending = false;
 		this.#post({
 			requestId: request.requestId,
@@ -197,7 +258,11 @@ export class DesktopApplicationLifetimeBroker {
 			type: 'desktop-application-exit-main-completed',
 		});
 		if (result.kind === 'completed') {
-			this.#finish({ forced: false, kind: 'ready', mode: 'stop' });
+			this.#finish({
+				forced: false,
+				kind: 'ready',
+				mode: request.mode === 'development-host-restart' ? 'development-host-restart' : 'stop',
+			});
 			return;
 		}
 		request.failed = true;

@@ -227,6 +227,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 			]);
 		});
 		const proposalCountAfterStartup = sessionCommands.length;
+		expect(root.querySelector('[data-slot="desktop-workbench"]')).not.toBeNull();
 
 		const secondTab = [...root.querySelectorAll<HTMLElement>('[role="tab"]')].find((tab) =>
 			tab.getAttribute('aria-label')?.includes('Terminal 2'),

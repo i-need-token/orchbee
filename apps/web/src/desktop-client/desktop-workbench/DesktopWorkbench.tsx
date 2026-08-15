@@ -12,10 +12,12 @@ import {
 	DesktopBrowserAccessDialog,
 	type DesktopBrowserAccessController,
 } from '../desktop-browser-access-dialog';
+import styles from './DesktopWorkbench.module.css';
 
 export interface DesktopWorkbenchProps extends Omit<WorkbenchClientApplicationProps, 'children'> {
 	readonly applicationLifetimeCoordinator: DesktopApplicationLifetimeDialogController;
 	readonly browserAccessController: DesktopBrowserAccessController;
+	readonly windowControls: 'leading' | 'trailing';
 }
 
 export function DesktopWorkbench({
@@ -24,15 +26,22 @@ export function DesktopWorkbench({
 	locale,
 	router,
 	terminalSurfaceCapability,
+	windowControls,
 }: DesktopWorkbenchProps): ReactNode {
 	return (
-		<WorkbenchClientApplication
-			locale={locale}
-			router={router}
-			terminalSurfaceCapability={terminalSurfaceCapability}
+		<div
+			className={styles['root']}
+			data-slot='desktop-workbench'
+			data-window-controls={windowControls}
 		>
-			<DesktopApplicationLifetimeDialog controller={applicationLifetimeCoordinator} />
-			<DesktopBrowserAccessDialog controller={browserAccessController} />
-		</WorkbenchClientApplication>
+			<WorkbenchClientApplication
+				locale={locale}
+				router={router}
+				terminalSurfaceCapability={terminalSurfaceCapability}
+			>
+				<DesktopApplicationLifetimeDialog controller={applicationLifetimeCoordinator} />
+				<DesktopBrowserAccessDialog controller={browserAccessController} />
+			</WorkbenchClientApplication>
+		</div>
 	);
 }

@@ -111,4 +111,35 @@ describe('DevelopmentHostRuntime', () => {
 		expect(dependencies.prepareDirectory).toHaveBeenCalledTimes(2);
 		expect(dependencies.launch).not.toHaveBeenCalled();
 	});
+
+	it('retries a supervised Host without launching a competing process', async () => {
+		const connection = {} as HostConnection;
+		const dependencies: DevelopmentHostRuntimeDependencies = {
+			connect: vi
+				.fn<DevelopmentHostRuntimeDependencies['connect']>()
+				.mockRejectedValueOnce(new Error('supervisor is starting'))
+				.mockResolvedValueOnce(connection),
+			launch: vi.fn<DevelopmentHostRuntimeDependencies['launch']>().mockResolvedValue(undefined),
+			prepareDirectory: vi
+				.fn<DevelopmentHostRuntimeDependencies['prepareDirectory']>()
+				.mockResolvedValue(undefined),
+			wait: vi.fn<DevelopmentHostRuntimeDependencies['wait']>().mockResolvedValue(undefined),
+		};
+		const runtime = new DevelopmentHostRuntime(
+			{
+				binaryPath: path.resolve('/opt/orchbee/orchbee-terminal-host'),
+				connectionAttempts: 1,
+				endpointId: 'ab'.repeat(16),
+				launchIfUnavailable: false,
+				platform: 'darwin',
+				runtimeDirectory: path.resolve('/private/runtime'),
+				terminalDefaults: { scrollbackBytes: 10_000_000 },
+			},
+			dependencies,
+		);
+
+		await expect(runtime.connect()).resolves.toBe(connection);
+		expect(dependencies.connect).toHaveBeenCalledTimes(2);
+		expect(dependencies.launch).not.toHaveBeenCalled();
+	});
 });

@@ -25,6 +25,7 @@ export interface DesktopRuntimeEnvironment {
 	readonly ORCHBEE_GATEWAY_ENTRY_PATH?: string;
 	readonly ORCHBEE_SERVER_ENTRY_PATH?: string;
 	readonly ORCHBEE_TERMINAL_HOST_BINARY?: string;
+	readonly ORCHBEE_TERMINAL_HOST_SUPERVISED?: string;
 	readonly ORCHBEE_TERMINAL_SCROLLBACK_BYTES?: string;
 	readonly ORCHBEE_WEB_RENDERER_ROOT?: string;
 	readonly SHELL?: string;
@@ -61,6 +62,7 @@ export interface DesktopRuntimeConfiguration {
 	readonly terminalExitSpillPath: string;
 	readonly terminalConfiguration: TerminalConfiguration;
 	readonly terminalHostName: string;
+	readonly terminalHostLaunchMode: 'connect-only' | 'connect-or-launch';
 	readonly terminalLaunch: TerminalLaunch;
 	readonly workbenchDocumentStorePath: string;
 }
@@ -171,6 +173,14 @@ export function resolveDesktopRuntimeConfiguration(
 		input.environment,
 		input.platform,
 	);
+	const supervisedHostFlag = input.environment.ORCHBEE_TERMINAL_HOST_SUPERVISED;
+	if (
+		supervisedHostFlag !== undefined &&
+		supervisedHostFlag !== '0' &&
+		supervisedHostFlag !== '1'
+	) {
+		throw new Error('ORCHBEE_TERMINAL_HOST_SUPERVISED must be 0 or 1.');
+	}
 
 	return {
 		binaryPath,
@@ -185,6 +195,7 @@ export function resolveDesktopRuntimeConfiguration(
 		terminalExitSpillPath: path.join(recoveryDirectory, 'terminal-exits-v1.json'),
 		terminalConfiguration,
 		terminalHostName: input.terminalHostName,
+		terminalHostLaunchMode: supervisedHostFlag === '1' ? 'connect-only' : 'connect-or-launch',
 		terminalLaunch: TerminalLaunchSchema.parse({
 			arguments: [],
 			cellPixelHeight: 16,

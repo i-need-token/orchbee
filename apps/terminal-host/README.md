@@ -113,6 +113,15 @@ orchbee-terminal-host connect \
 
 ## Development
 
+The repository-level `pnpm desktop` development runtime runs `zig build --watch -fincremental
+-Doptimize=ReleaseSafe` for this package and observes the completed Host binary and source inputs by
+content digest. A failed build or a same-source binary rebuild leaves the last runnable Host process
+and binary generation untouched. Zig code is not patched into a live Host process: after a
+successful changed source build, Desktop durably stops and restages its current terminal
+presentations, retires the old Host, and starts the captured binary as a new process. PTY process
+state, VT history, and Host identities therefore do not cross a Zig source update. Packaged Host
+lifecycle and protocol behavior are unchanged.
+
 Run from the repository root:
 
 ```sh

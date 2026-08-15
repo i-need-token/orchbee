@@ -407,6 +407,7 @@ pub const TerminalRuntime = struct {
     // Shutdown and unrelated failure fencing wait for that exact transaction.
     reader_commit_in_progress: bool = false,
     stream: terminal_stream.Stream,
+    stream_allocator: terminal_stream.ParserAllocator,
     scrollback_bytes: usize,
     startup: terminal_runtime_startup.Gate = .{},
     terminal: ghostty_vt.Terminal,
@@ -482,6 +483,7 @@ pub const TerminalRuntime = struct {
             .projection = .init(allocator),
             .history = .init(allocator),
             .stream = undefined,
+            .stream_allocator = .init(allocator),
             .scrollback_bytes = resolved_options.scrollback_bytes,
             .terminal = resources.terminal,
         };
@@ -491,7 +493,10 @@ pub const TerminalRuntime = struct {
             self.testing_hooks = spawner.terminalRuntimeTestingHooks();
         }
         errdefer self.cleanupFailedThreadStartup();
-        self.stream = .init(.init(&self.terminal));
+        self.stream = .initAlloc(
+            self.stream_allocator.allocator(),
+            .init(&self.terminal),
+        );
         const effects = &self.stream.handler.terminal_handler.effects;
         effects.bell = bellEffect;
         effects.write_pty = writePtyEffect;
@@ -521,6 +526,7 @@ pub const TerminalRuntime = struct {
         if (self.reader_thread) |thread| thread.join();
         if (self.writer_thread) |thread| thread.join();
         self.stream.deinit();
+        self.stream_allocator.deinit();
         self.history.deinit(&self.terminal);
         self.input_ownership.deinit();
         self.terminal.deinit(self.allocator);
@@ -699,6 +705,7 @@ pub const TerminalRuntime = struct {
         std.debug.assert(self.threads_joined);
         std.debug.assert(self.containment_confirmed.load(.acquire));
         self.stream.deinit();
+        self.stream_allocator.deinit();
         self.process.deinit();
         self.history.deinit(&self.terminal);
         self.terminal.deinit(self.allocator);

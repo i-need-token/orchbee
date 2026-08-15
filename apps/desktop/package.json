@@ -32,6 +32,7 @@
 	"devDependencies": {
 		"@playwright/test": "1.61.1",
 		"@rsbuild/core": "catalog:",
+		"@rsbuild/plugin-source-build": "catalog:",
 		"@types/node": "catalog:",
 		"fast-check": "4.9.0",
 		"vitest": "catalog:"

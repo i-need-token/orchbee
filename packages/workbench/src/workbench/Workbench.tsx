@@ -170,6 +170,11 @@ export function Workbench({
 										toggleProjectExpansion={view.toggleProjectExpansion}
 										updateWorkspace={view.updateWorkspace}
 									/>
+									<div
+										aria-hidden='true'
+										className={styles['windowDragRegion']}
+										data-slot='workbench-window-drag-region'
+									/>
 								</div>
 							</ResizablePanel>
 							<ResizableHandle className={styles['resizeHandle']} />

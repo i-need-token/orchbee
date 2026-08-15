@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 
 import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
+import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import type { MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -24,7 +25,9 @@ describe('DesktopApplicationLifetimeBroker', () => {
 	it('coalesces duplicate requests and prepares preserve without draining', async () => {
 		const port = new TestMainPort();
 		const drainForStop = vi.fn<DesktopApplicationLifetimeBrokerDependencies['drainForStop']>();
-		const prepareMode = vi.fn<(mode: 'preserve' | 'stop') => boolean>().mockReturnValue(true);
+		const prepareMode = vi
+			.fn<NonNullable<DesktopApplicationLifetimeBrokerDependencies['prepareMode']>>()
+			.mockReturnValue(true);
 		const broker = new DesktopApplicationLifetimeBroker(port as unknown as MessagePortMain, {
 			drainForStop,
 			prepareMode,
@@ -143,5 +146,80 @@ describe('DesktopApplicationLifetimeBroker', () => {
 			message({ requestId: forceId, type: 'desktop-application-exit-quit-anyway-requested' }),
 		);
 		await expect(forced).resolves.toEqual({ forced: true, kind: 'ready', mode: 'stop' });
+	});
+
+	it('writes the ready plan only after a development Host drain and retries plan failure', async () => {
+		const port = new TestMainPort();
+		const restartPresentationIds = [
+			terminalPresentationId('presentation-1'),
+			terminalPresentationId('presentation-2'),
+		] as const;
+		const drainForStop = vi
+			.fn<DesktopApplicationLifetimeBrokerDependencies['drainForStop']>()
+			.mockResolvedValue({ closedUnreferencedCount: 2, kind: 'completed' });
+		const prepareDevelopmentHostRestart = vi
+			.fn<
+				NonNullable<DesktopApplicationLifetimeBrokerDependencies['prepareDevelopmentHostRestart']>
+			>()
+			.mockResolvedValueOnce(false)
+			.mockResolvedValueOnce(true);
+		const prepareMode = vi
+			.fn<NonNullable<DesktopApplicationLifetimeBrokerDependencies['prepareMode']>>()
+			.mockReturnValue(true);
+		const broker = new DesktopApplicationLifetimeBroker(port as unknown as MessagePortMain, {
+			drainForStop,
+			getDevelopmentHostRestartPresentationIds: () => restartPresentationIds,
+			prepareDevelopmentHostRestart,
+			prepareMode,
+		});
+		broker.start();
+		const requestId = DesktopApplicationExitRequestIdSchema.parse('exit-development-host');
+		const result = broker.requestExit(requestId, 'development-host-restart');
+		expect(port.postMessage).toHaveBeenLastCalledWith({
+			reason: 'development-host-restart',
+			restartPresentationIds,
+			requestId,
+			type: 'desktop-application-exit-requested',
+		});
+		port.emit(
+			'message',
+			message({
+				choice: 'development-host-restart',
+				restartPresentationIds,
+				requestId,
+				type: 'desktop-application-exit-choice',
+			}),
+		);
+		expect(prepareMode).toHaveBeenCalledWith('development-host-restart', restartPresentationIds);
+		port.emit(
+			'message',
+			message({
+				documentRevision: '9',
+				mode: 'development-host-restart',
+				presentationCount: 2,
+				requestId,
+				type: 'desktop-application-exit-renderer-prepared',
+			}),
+		);
+
+		await vi.waitFor(() => expect(prepareDevelopmentHostRestart).toHaveBeenCalledOnce());
+		expect(prepareDevelopmentHostRestart).toHaveBeenCalledWith(
+			workbenchSharedDocumentRevision('9'),
+		);
+		expect(port.postMessage).toHaveBeenLastCalledWith(
+			expect.objectContaining({ result: expect.objectContaining({ kind: 'failed' }) }),
+		);
+		port.emit(
+			'message',
+			message({ requestId, type: 'desktop-application-exit-main-retry-requested' }),
+		);
+
+		await expect(result).resolves.toEqual({
+			forced: false,
+			kind: 'ready',
+			mode: 'development-host-restart',
+		});
+		expect(drainForStop).toHaveBeenCalledTimes(2);
+		expect(prepareDevelopmentHostRestart).toHaveBeenCalledTimes(2);
 	});
 });

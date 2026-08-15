@@ -22,7 +22,7 @@ describe('desktop client document proposal decision', () => {
 				{ clientSessionId: 'client-a', document: initial, expectedRevision: null },
 				{ kind: 'accepting' },
 			),
-		).toEqual({ kind: 'commit' });
+		).toEqual({ effect: 'reconcile', kind: 'commit' });
 		expect(
 			decideDesktopClientDocumentProposal(
 				null,
@@ -46,7 +46,7 @@ describe('desktop client document proposal decision', () => {
 				},
 				{ kind: 'accepting' },
 			),
-		).toEqual({ kind: 'commit' });
+		).toEqual({ effect: 'reconcile', kind: 'commit' });
 	});
 
 	it('converges an equivalent loser and returns canonical state to a divergent loser', () => {
@@ -93,7 +93,7 @@ describe('desktop client document proposal decision', () => {
 				},
 				phase,
 			),
-		).toEqual({ kind: 'commit' });
+		).toEqual({ effect: 'reconcile', kind: 'commit' });
 		expect(
 			decideDesktopClientDocumentProposal(
 				current,
@@ -129,6 +129,102 @@ describe('desktop client document proposal decision', () => {
 		).toEqual({ kind: 'rejected', reason: 'application-quiescing' });
 	});
 
+	it('admits only exact stopped-to-fresh-provision staging for a development Host restart', () => {
+		const current = document('4', 'Terminal A', { kind: 'stopped' });
+		const restartIntent: WorkbenchSharedPresentationIntent = {
+			kind: 'provision',
+			operationId: terminalPresentationOperationId('restart-operation'),
+		};
+		const restarted = document('5', 'Terminal A', restartIntent, {
+			nextTerminalSequence: 2,
+			presentationId: 'presentation-2',
+		});
+		const phase = {
+			exitOwner: 'client-a',
+			kind: 'quiescing',
+			mode: 'development-host-restart',
+		} as const;
+
+		expect(
+			decideDesktopClientDocumentProposal(
+				current,
+				{
+					clientSessionId: 'client-a',
+					document: restarted,
+					expectedRevision: current.revision,
+				},
+				phase,
+			),
+		).toEqual({ effect: 'defer', kind: 'commit' });
+		expect(
+			decideDesktopClientDocumentProposal(
+				current,
+				{
+					clientSessionId: 'client-a',
+					document: restarted,
+					expectedRevision: current.revision,
+				},
+				{ ...phase, mode: 'stop' },
+			),
+		).toEqual({ kind: 'rejected', reason: 'exit-transition' });
+		for (const invalid of [
+			document(
+				'5',
+				'Terminal A',
+				{
+					kind: 'provision',
+					operationId: terminalPresentationOperationId('restart-operation'),
+				},
+				{ nextTerminalSequence: 3, presentationId: 'presentation-2' },
+			),
+			document('5', 'Renamed', restartIntent, {
+				nextTerminalSequence: 2,
+				presentationId: 'presentation-2',
+			}),
+			document(
+				'5',
+				'Terminal A',
+				{
+					kind: 'provision',
+					operationId: terminalPresentationOperationId('restart-operation'),
+				},
+				{ nextTerminalSequence: 2, presentationId: 'presentation-1' },
+			),
+		]) {
+			expect(
+				decideDesktopClientDocumentProposal(
+					current,
+					{
+						clientSessionId: 'client-a',
+						document: invalid,
+						expectedRevision: current.revision,
+					},
+					phase,
+				),
+			).toEqual({ kind: 'rejected', reason: 'exit-transition' });
+		}
+		const staleCandidate = document(
+			'4',
+			'Terminal A',
+			{
+				kind: 'provision',
+				operationId: terminalPresentationOperationId('stale-restart-operation'),
+			},
+			{ nextTerminalSequence: 2, presentationId: 'presentation-2' },
+		);
+		expect(
+			decideDesktopClientDocumentProposal(
+				current,
+				{
+					clientSessionId: 'client-a',
+					document: staleCandidate,
+					expectedRevision: workbenchSharedDocumentRevision('3'),
+				},
+				phase,
+			),
+		).toEqual({ document: current, kind: 'stale' });
+	});
+
 	it('classifies generated stale proposals solely by canonical content equivalence', () => {
 		fc.assert(
 			fc.property(fc.bigInt({ max: 10_000n, min: 1n }), fc.boolean(), (revision, equivalent) => {
@@ -155,6 +251,7 @@ function document(
 		kind: 'provision',
 		operationId: terminalPresentationOperationId('provision-operation'),
 	},
+	options: { readonly nextTerminalSequence?: number; readonly presentationId?: string } = {},
 ): WorkbenchSharedDocument {
 	return createWorkbenchSharedDocument({
 		projectWorkspace: {
@@ -172,7 +269,7 @@ function document(
 					nextPanelSequence: 2,
 					nextPanelSlotSequence: 1,
 					nextSplitSequence: 1,
-					nextTerminalSequence: 2,
+					nextTerminalSequence: options.nextTerminalSequence ?? 2,
 					pendingRemovals: [],
 					tabs: [
 						{
@@ -183,7 +280,9 @@ function document(
 								primaryPresentation: {
 									intent,
 									launchCwd: '/workspace',
-									presentationId: terminalPresentationId('presentation-1'),
+									presentationId: terminalPresentationId(
+										options.presentationId ?? 'presentation-1',
+									),
 									title,
 								},
 							},

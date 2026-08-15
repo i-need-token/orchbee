@@ -110,6 +110,30 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		);
 		expect(configuration.runtimeDirectory).toMatch(/^\/run\/user\/501\/ob-[0-9a-f]{12}$/u);
 		expect(configuration.runtimeDirectory).not.toMatch(/^\/(?:private\/)?tmp(?:\/|$)/u);
+		expect(configuration.terminalHostLaunchMode).toBe('connect-or-launch');
+	});
+
+	it('uses connect-only mode for an explicitly supervised development Host', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			environment: { ORCHBEE_TERMINAL_HOST_SUPERVISED: '1' },
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(configuration.terminalHostLaunchMode).toBe('connect-only');
+		expect(() =>
+			resolveDesktopRuntimeConfiguration({
+				applicationPath: path.resolve('/repo/apps/desktop'),
+				environment: { ORCHBEE_TERMINAL_HOST_SUPERVISED: 'yes' },
+				homeDirectory: path.resolve('/users/orchbee'),
+				platform: 'darwin',
+				posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
+				userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+			}),
+		).toThrow('ORCHBEE_TERMINAL_HOST_SUPERVISED must be 0 or 1.');
 	});
 
 	it('keeps the macOS product rendezvous stable beneath its trusted per-user base', () => {

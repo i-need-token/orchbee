@@ -4,6 +4,21 @@ const ghostty_vt = @import("ghostty-vt");
 const engine_boundary = @import("terminal-host-engine");
 const terminal_stream = engine_boundary.testing.terminal_stream;
 
+test "Host OSC parser allocator enforces and releases its byte budget" {
+    var state = terminal_stream.ParserAllocator.init(std.testing.allocator);
+    defer state.deinit();
+    const allocator = state.allocator();
+
+    {
+        const full = try allocator.alloc(u8, terminal_stream.osc_allocation_limit_bytes);
+        defer allocator.free(full);
+        try std.testing.expectError(error.OutOfMemory, allocator.alloc(u8, 1));
+    }
+
+    const recovered = try allocator.alloc(u8, terminal_stream.osc_allocation_limit_bytes);
+    allocator.free(recovered);
+}
+
 const ReplyCapture = struct {
     stream: terminal_stream.Stream,
     bytes: [512]u8 = undefined,

@@ -1,4 +1,5 @@
 import { WorkbenchSharedDocumentRevisionSchema } from '@orchbee/workbench/document';
+import { TerminalPresentationIdSchema } from '@orchbee/workbench/terminal-presentation';
 import { z } from 'zod';
 
 export const DesktopApplicationExitRequestIdSchema = z
@@ -8,17 +9,19 @@ export const DesktopApplicationExitRequestIdSchema = z
 	.regex(/^[A-Za-z0-9:._-]+$/u)
 	.brand<'DesktopApplicationExitRequestId'>();
 
-const exitReasonSchema = z.enum(['update-restart', 'user-quit']);
-const exitModeSchema = z.enum(['preserve', 'stop']);
-const exitChoiceSchema = z.enum(['cancel', 'preserve', 'stop']);
+const exitReasonSchema = z.enum(['development-host-restart', 'update-restart', 'user-quit']);
+const exitModeSchema = z.enum(['development-host-restart', 'preserve', 'stop']);
+const exitChoiceSchema = z.enum(['cancel', 'development-host-restart', 'preserve', 'stop']);
 
 const DesktopApplicationExitFailureSchema = z
 	.strictObject({
 		code: z.enum([
+			'development-restart-plan-unavailable',
 			'host-inventory-unavailable',
 			'host-orphan-detected',
 			'shared-document-control-unavailable',
 			'workbench-document-write-unavailable',
+			'terminal-restart-staging-failed',
 			'terminal-stop-failed',
 			'unreferenced-binding-close-failed',
 		]),
@@ -43,12 +46,22 @@ const exitProgressSchema = z
 	})
 	.readonly();
 
-export const DesktopApplicationLifetimeRendererCommandSchema = z.discriminatedUnion('type', [
+const exitChoiceCommandSchema = z.union([
 	z.strictObject({
-		choice: exitChoiceSchema,
+		choice: z.literal('development-host-restart'),
+		restartPresentationIds: z.array(TerminalPresentationIdSchema).readonly(),
 		requestId: DesktopApplicationExitRequestIdSchema,
 		type: z.literal('desktop-application-exit-choice'),
 	}),
+	z.strictObject({
+		choice: z.enum(['cancel', 'preserve', 'stop']),
+		requestId: DesktopApplicationExitRequestIdSchema,
+		type: z.literal('desktop-application-exit-choice'),
+	}),
+]);
+
+export const DesktopApplicationLifetimeRendererCommandSchema = z.union([
+	exitChoiceCommandSchema,
 	z.strictObject({
 		failures: z.array(DesktopApplicationExitFailureSchema),
 		progress: exitProgressSchema,
@@ -87,12 +100,22 @@ const mainExitResultSchema = z.discriminatedUnion('kind', [
 	}),
 ]);
 
-export const DesktopApplicationLifetimeMainEventSchema = z.discriminatedUnion('type', [
+const exitRequestedEventSchema = z.union([
 	z.strictObject({
-		reason: exitReasonSchema,
+		reason: z.literal('development-host-restart'),
+		restartPresentationIds: z.array(TerminalPresentationIdSchema).readonly().optional(),
 		requestId: DesktopApplicationExitRequestIdSchema,
 		type: z.literal('desktop-application-exit-requested'),
 	}),
+	z.strictObject({
+		reason: z.enum(['update-restart', 'user-quit']),
+		requestId: DesktopApplicationExitRequestIdSchema,
+		type: z.literal('desktop-application-exit-requested'),
+	}),
+]);
+
+export const DesktopApplicationLifetimeMainEventSchema = z.union([
+	exitRequestedEventSchema,
 	z.strictObject({
 		mode: exitModeSchema,
 		requestId: DesktopApplicationExitRequestIdSchema,
@@ -107,6 +130,7 @@ export const DesktopApplicationLifetimeMainEventSchema = z.discriminatedUnion('t
 
 export type DesktopApplicationExitChoice = z.infer<typeof exitChoiceSchema>;
 export type DesktopApplicationExitFailure = z.infer<typeof DesktopApplicationExitFailureSchema>;
+export type DesktopApplicationExitMode = z.infer<typeof exitModeSchema>;
 export type DesktopApplicationExitProgress = z.infer<typeof exitProgressSchema>;
 export type DesktopApplicationExitReason = z.infer<typeof exitReasonSchema>;
 export type DesktopApplicationExitRequestId = z.infer<typeof DesktopApplicationExitRequestIdSchema>;
