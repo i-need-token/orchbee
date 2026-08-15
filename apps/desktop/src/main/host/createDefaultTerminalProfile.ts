@@ -21,7 +21,7 @@ export function createDefaultTerminalProfile(): TerminalProfile {
 	return TerminalProfileSchema.parse({
 		colorScheme: 'light',
 		defaultBackgroundRgb: 0xfc_fc_fc,
-		defaultCursorRgb: null,
+		defaultCursorRgb: 0x57_be_f8,
 		defaultForegroundRgb: 0x14_14_14,
 		deviceAttributes: {
 			primaryConformanceLevel: 62,

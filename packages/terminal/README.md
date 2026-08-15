@@ -122,12 +122,14 @@ path as matched press/release taps. They retain no steady-state client ownership
 loss between the pair remains visible to the Host attachment ledger for detach repair.
 
 Shift-only Page Up and Page Down, including their keypad codes, remain local retained-history
-navigation and never become Host key input. Every admitted user-input path shares one ordered
+navigation and never become Host key input. Every admitted input-producing path shares one ordered
 surface transition: it first requests the live bottom when history is visible, then clears an active
-Host selection, and only then publishes the semantic key, text, approved paste, or application-mouse
-input. Composition activation performs the same transition before presenting preedit. Focus reports,
-lifecycle and pointer-gesture repair, rejected or aborted paste review, and local history navigation
-preserve the current history and selection surface.
+Host selection, and only then publishes the semantic key press or repeat, text, approved paste, or
+application-mouse input. Composition activation performs the same transition before presenting
+preedit. A physical or synthetic key release closes existing Host input ownership without starting
+that transition, so a selection established between its press and release remains visible. Focus
+reports, lifecycle and pointer-gesture repair, rejected or aborted paste review, and local history
+navigation preserve the current history and selection surface.
 
 Cleanup releases only published ownership: a queued release cannot hide a Host-visible press, while
 a queued or failed press cannot produce an orphan release. Blur and visibility loss release
@@ -351,8 +353,9 @@ graphemes rasterize once from their authoritative cell head instead of inheritin
 face's natural run advance, while continuation cells cannot absorb a following combining cluster.
 Within each narrow-cell run, Canvas letter spacing fills the difference between the face's
 fractional natural advance and the rounded terminal-cell width. This preserves complex shaping and
-programming ligatures without cumulative grid drift, including when selection or style boundaries
-split one row into independently colored runs.
+programming ligatures without cumulative grid drift when terminal style boundaries split a row.
+Selection and search overlays reuse the original shaped run, clip it at cell boundaries, and recolor
+only the covered portions, so applying an overlay cannot move or reshape the underlying glyphs.
 
 Ghostty remains the reference for selected font metrics, shaping boundaries, complete Unicode sprite-face routing, cursor geometry, and terminal-panel rendering behavior. Deterministic generated data supplies every pinned sprite from Ghostty's four padded odd/even metric reference rasters, while selected sprites scale procedurally between those reference geometries. That reference does not make this package a Ghostty VT owner. Maintenance provenance is recorded in [`docs/ghostty-surface-test-provenance.md`](docs/ghostty-surface-test-provenance.md).
 

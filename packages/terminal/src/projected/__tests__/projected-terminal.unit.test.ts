@@ -1907,6 +1907,56 @@ describe('ProjectedTerminal', () => {
 		},
 	);
 
+	it('keeps a newly established selection while releasing an already published modifier', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch('keydown', keyboardEvent('keydown', 'MetaLeft', 'Meta', 91, { metaKey: true }));
+		terminal.selectAll();
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 1, row: canonicalText('1') },
+			preview: 'a\nb',
+			rectangle: false,
+			start: { column: 0, row: canonicalText('0') },
+			state: 'active',
+		});
+		commands.length = 0;
+
+		input.dispatch('keyup', keyboardEvent('keyup', 'MetaLeft', 'Meta', 91));
+
+		expect(commands).toEqual([
+			expect.objectContaining({
+				kind: 'key-input',
+				payload: expect.objectContaining({ action: KeyAction.release, key: 'MetaLeft' }),
+			}),
+		]);
+		expect(terminal.getSelectionRange()).toEqual({
+			end: { column: 1, row: 1n },
+			rectangle: false,
+			start: { column: 0, row: 0n },
+		});
+		terminal.dispose();
+	});
+
 	it('preserves W3C key strings and consumes AltGraph only for printable text', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);

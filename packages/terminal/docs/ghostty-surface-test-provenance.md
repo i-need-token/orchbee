@@ -91,9 +91,10 @@ wide grapheme is anchored to its projected head cell, its spacer tail remains no
 following narrow complex run starts normally. The `anchors wide fallback graphemes to their Host
 cells and resumes shaping after tails` regression covers both cumulative fallback drift and the
 lost post-emoji combining run. Narrow-cell runs add the fractional face-to-grid advance difference
-as Canvas letter spacing at the active raster scale; the `fits shaped text advances to the cell grid
-across selection boundaries` regression covers stable glyph positions when an overlay splits a
-previously continuous row run.
+as Canvas letter spacing at the active raster scale. Selection and search overlays preserve that
+run and recolor clipped cell-aligned portions instead of reshaping independently; the
+`keeps grid-fitted shaping intact across selection boundaries` and `keeps a shaped run at the same
+horizontal origin when selection recolors it` regressions cover the Canvas and WebGPU paths.
 
 ## Host-derived projection corpus
 

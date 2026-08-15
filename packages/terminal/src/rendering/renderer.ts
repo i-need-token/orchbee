@@ -236,6 +236,12 @@ interface GlyphRasterLayout {
 	readonly targetTop: number;
 }
 
+interface PackedTextPaintSegment {
+	readonly startColumn: number;
+	readonly endColumn: number;
+	readonly foreground: readonly [number, number, number];
+}
+
 interface PackedRowTextShaping {
 	readonly texts: readonly string[];
 	readonly plan: TextShapingPlan;
@@ -504,6 +510,42 @@ function pushRect(
 	alpha = 1,
 ): void {
 	target.push(x, y, width, height, color[0] / 255, color[1] / 255, color[2] / 255, alpha);
+}
+
+function pushGlyph(
+	target: number[],
+	glyph: GlyphAtlasEntry,
+	x: number,
+	y: number,
+	atlasWidth: number,
+	atlasHeight: number,
+	color: readonly [number, number, number],
+	alpha: number,
+	clipStart = x,
+	clipEnd = x + glyph.renderWidth,
+): boolean {
+	const clippedStart = Math.max(x, clipStart);
+	const clippedEnd = Math.min(x + glyph.renderWidth, clipEnd);
+	if (clippedEnd <= clippedStart) return false;
+
+	const sourceStart = (clippedStart - x) / glyph.renderWidth;
+	const sourceWidth = (clippedEnd - clippedStart) / glyph.renderWidth;
+	target.push(
+		clippedStart,
+		y,
+		clippedEnd - clippedStart,
+		glyph.renderHeight,
+		(glyph.x + sourceStart * glyph.w) / atlasWidth,
+		glyph.y / atlasHeight,
+		(sourceWidth * glyph.w) / atlasWidth,
+		glyph.h / atlasHeight,
+		color[0] / 255,
+		color[1] / 255,
+		color[2] / 255,
+		alpha,
+		glyph.colored ? 1 : 0,
+	);
+	return true;
 }
 
 export class WebGPURenderer {
@@ -1640,9 +1682,8 @@ export class WebGPURenderer {
 			);
 		};
 		const textColorKey = (column: number): number | string => {
-			if (this.isCoordinateInSelection(column, rowIndex)) return 'selection';
-			const search = this.getSearchHighlight(column, rowIndex);
-			if (search !== null) return `search:${search}`;
+			// Selection and search recolor clipped portions of this same shaping run later. Keeping
+			// them out of the shaping key prevents an overlay from changing glyph geometry.
 			const flags = row.styleFlags[column] ?? 0;
 			return (flags & TerminalStyleFlag.inverse) !== 0
 				? (row.backgroundColors[column] ?? TerminalColorEncoding.default)
@@ -1672,6 +1713,62 @@ export class WebGPURenderer {
 				{ allowOptionalLigatures: this.presentationConfiguration.fontLigatures },
 			),
 		};
+	}
+
+	private packedTextPaintSegments(
+		startColumn: number,
+		endColumn: number,
+		row: number,
+		baseForeground: readonly [number, number, number],
+		presentation: PackedPresentationColors,
+	): readonly PackedTextPaintSegment[] {
+		const segments: PackedTextPaintSegment[] = [];
+		for (let column = startColumn; column < endColumn; column++) {
+			const foreground = this.packedTextForeground(column, row, baseForeground, presentation);
+			const previous = segments.at(-1);
+			if (
+				previous &&
+				previous.foreground[0] === foreground[0] &&
+				previous.foreground[1] === foreground[1] &&
+				previous.foreground[2] === foreground[2]
+			) {
+				segments[segments.length - 1] = { ...previous, endColumn: column + 1 };
+				continue;
+			}
+			segments.push({ startColumn: column, endColumn: column + 1, foreground });
+		}
+		return segments;
+	}
+
+	private packedTextForeground(
+		column: number,
+		row: number,
+		baseForeground: readonly [number, number, number],
+		presentation: PackedPresentationColors,
+	): readonly [number, number, number] {
+		if (this.isCoordinateInSelection(column, row)) return presentation.selectionForeground;
+		const search = this.getSearchHighlight(column, row);
+		if (search === 'active') return presentation.searchActiveForeground;
+		if (search === 'match') return presentation.searchForeground;
+		return baseForeground;
+	}
+
+	private packedCellForeground(
+		row: PackedRendererRow,
+		column: number,
+		metadata: PackedRendererMetadata,
+	): [number, number, number] {
+		const flags = row.styleFlags[column] ?? 0;
+		return rgbChannels(
+			packedColorRgb(
+				(flags & TerminalStyleFlag.inverse) !== 0
+					? (row.backgroundColors[column] ?? TerminalColorEncoding.default)
+					: (row.foregroundColors[column] ?? TerminalColorEncoding.default),
+				(flags & TerminalStyleFlag.inverse) !== 0
+					? metadata.defaultColors.backgroundRgb
+					: metadata.defaultColors.foregroundRgb,
+			),
+		);
 	}
 
 	private packedConstraintWidth(
@@ -1839,6 +1936,7 @@ export class WebGPURenderer {
 				if ((flags & TerminalStyleFlag.inverse) !== 0) {
 					[foreground, background] = [background, foreground];
 				}
+				const baseForeground = foreground;
 				const selected = this.isCoordinateInSelection(x, y);
 				const search = this.getSearchHighlight(x, y);
 				if (selected) {
@@ -1901,21 +1999,45 @@ export class WebGPURenderer {
 						this.packedConstraintWidth(row, shaping, x, columns),
 					);
 					if (glyph) {
-						textData.push(
-							cellX + glyph.offsetX,
-							cellY + glyph.offsetY,
-							glyph.renderWidth,
-							glyph.renderHeight,
-							glyph.x / atlasWidth,
-							glyph.y / atlasHeight,
-							glyph.w / atlasWidth,
-							glyph.h / atlasHeight,
-							foreground[0] / 255,
-							foreground[1] / 255,
-							foreground[2] / 255,
-							alpha,
-							glyph.colored ? 1 : 0,
-						);
+						const glyphX = cellX + glyph.offsetX;
+						const glyphY = cellY + glyph.offsetY;
+						if (span) {
+							for (const segment of this.packedTextPaintSegments(
+								span.start,
+								span.end,
+								y,
+								baseForeground,
+								presentation,
+							)) {
+								pushGlyph(
+									textData,
+									glyph,
+									glyphX,
+									glyphY,
+									atlasWidth,
+									atlasHeight,
+									segment.foreground,
+									alpha,
+									segment.startColumn === span.start
+										? glyphX
+										: segment.startColumn * this.metrics.width,
+									segment.endColumn === span.end
+										? glyphX + glyph.renderWidth
+										: segment.endColumn * this.metrics.width,
+								);
+							}
+						} else {
+							pushGlyph(
+								textData,
+								glyph,
+								glyphX,
+								glyphY,
+								atlasWidth,
+								atlasHeight,
+								foreground,
+								alpha,
+							);
+						}
 					}
 				}
 
@@ -2354,15 +2476,44 @@ export class WebGPURenderer {
 				const span = shaping.plan[x];
 				let text = shaping.texts[x] ?? '';
 				if (span) text = span.start === x ? span.text : '';
-				const selected = this.isCoordinateInSelection(x, y);
-				const search = this.getSearchHighlight(x, y);
-				let foreground: ReturnType<typeof hexToRGB> | undefined;
-				if (selected) {
-					foreground = [...presentation.selectionForeground];
-				} else if (search === 'active') {
-					foreground = [...presentation.searchActiveForeground];
-				} else if (search === 'match') {
-					foreground = [...presentation.searchForeground];
+				const baseForeground = this.packedCellForeground(row, x, metadata);
+				const foreground = this.packedTextForeground(x, y, baseForeground, presentation);
+				if (span && span.start === x && text.length > 0) {
+					let paintedSegments = 0;
+					for (const segment of this.packedTextPaintSegments(
+						span.start,
+						span.end,
+						y,
+						baseForeground,
+						presentation,
+					)) {
+						const clipStart =
+							segment.startColumn === span.start ? 0 : segment.startColumn * this.metrics.width;
+						const clipEnd =
+							segment.endColumn === span.end ? lineWidth : segment.endColumn * this.metrics.width;
+						ctx.save();
+						ctx.beginPath();
+						ctx.rect(clipStart, lineY, clipEnd - clipStart, this.metrics.height);
+						ctx.clip();
+						const painted = this.drawPackedCellText2D(
+							ctx,
+							row,
+							shaping,
+							x,
+							y,
+							span.columns,
+							text,
+							metadata,
+							segment.foreground,
+							false,
+						);
+						ctx.restore();
+						if (painted) paintedSegments++;
+					}
+					this.frameGlyphInstances += paintedSegments;
+					if (paintedSegments > 0) this.frameShapingRuns++;
+					this.drawPackedCellText2D(ctx, row, shaping, x, y, width, '', metadata, foreground);
+					continue;
 				}
 				const paintedText = this.drawPackedCellText2D(
 					ctx,
@@ -2377,7 +2528,6 @@ export class WebGPURenderer {
 				);
 				if (paintedText) {
 					this.frameGlyphInstances++;
-					if (span) this.frameShapingRuns++;
 				}
 			}
 		}
@@ -2432,20 +2582,7 @@ export class WebGPURenderer {
 			this.presentationConfiguration.fontSize,
 			this.presentationConfiguration.fontFamily,
 		);
-		let foreground = rgbChannels(
-			packedColorRgb(
-				row.foregroundColors[column] ?? TerminalColorEncoding.default,
-				metadata.defaultColors.foregroundRgb,
-			),
-		);
-		if ((flags & TerminalStyleFlag.inverse) !== 0) {
-			foreground = rgbChannels(
-				packedColorRgb(
-					row.backgroundColors[column] ?? TerminalColorEncoding.default,
-					metadata.defaultColors.backgroundRgb,
-				),
-			);
-		}
+		let foreground = this.packedCellForeground(row, column, metadata);
 		foreground = colorOverride ? [...colorOverride] : foreground;
 		ctx.fillStyle = `rgb(${foreground[0]}, ${foreground[1]}, ${foreground[2]})`;
 		if ((flags & TerminalStyleFlag.faint) !== 0) ctx.globalAlpha = 0.5;

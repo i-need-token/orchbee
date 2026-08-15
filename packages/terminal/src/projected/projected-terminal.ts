@@ -3472,7 +3472,6 @@ export class ProjectedTerminal {
 		action: KeyInput['action'],
 		intent: ProjectedInputPublicationIntent,
 		onRejected?: () => void,
-		preserveSurfaceState = false,
 	): void {
 		this.#sendInput(
 			{
@@ -3481,7 +3480,7 @@ export class ProjectedTerminal {
 			},
 			intent,
 			onRejected,
-			preserveSurfaceState,
+			action === KeyAction.release,
 		);
 	}
 
@@ -3845,7 +3844,7 @@ export class ProjectedTerminal {
 			unshiftedCodepoint: 0,
 		};
 		this.#sendKey(facts, KeyAction.press, ProjectedInputPublicationIntent.held);
-		this.#sendKey(facts, KeyAction.release, ProjectedInputPublicationIntent.held, undefined, true);
+		this.#sendKey(facts, KeyAction.release, ProjectedInputPublicationIntent.held);
 	}
 
 	readonly #handlePaste = (event: ClipboardEvent): void => {

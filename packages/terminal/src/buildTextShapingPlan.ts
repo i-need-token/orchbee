@@ -30,9 +30,9 @@ export interface TextShapingOptions {
 /**
  * Build Ghostty-style, row-bounded shaping runs for the browser text shaper.
  *
- * A run includes empty cells as spaces, retains wide-cell columns, and ends at font-style,
- * selection, cursor, preedit, sprite, or other caller-provided boundaries. Browser font fallback
- * remains the font resolver; this planner only owns terminal-cell run boundaries.
+ * A run includes empty cells as spaces, retains wide-cell columns, and ends at font-style, cursor,
+ * preedit, sprite, or other caller-provided boundaries. Browser font fallback remains the font
+ * resolver; this planner only owns terminal-cell run boundaries.
  */
 export function buildTextShapingPlan(
 	source: readonly TextShapingCell[] | TextShapingReader,

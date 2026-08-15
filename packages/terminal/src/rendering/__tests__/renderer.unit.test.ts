@@ -28,7 +28,7 @@ afterEach(() => {
 
 function createCanvas(
 	getImageData?: CanvasRenderingContext2D['getImageData'],
-	textMetrics: Partial<TextMetrics> = {},
+	textMetrics: Partial<TextMetrics> | ((text: string) => Partial<TextMetrics>) = {},
 	fillText: CanvasRenderingContext2D['fillText'] = () => {},
 	fillRect: CanvasRenderingContext2D['fillRect'] = () => {},
 	stroke: CanvasRenderingContext2D['stroke'] = () => {},
@@ -43,14 +43,14 @@ function createCanvas(
 		imageSmoothingEnabled: true,
 		letterSpacing: '0px',
 		textRendering: 'auto',
-		measureText: () =>
+		measureText: (text: string) =>
 			({
 				width: 7.8,
 				actualBoundingBoxAscent: 9.5,
 				actualBoundingBoxDescent: 0,
 				fontBoundingBoxAscent: 13,
 				fontBoundingBoxDescent: 4,
-				...textMetrics,
+				...(typeof textMetrics === 'function' ? textMetrics(text) : textMetrics),
 			}) as TextMetrics,
 		setTransform: () => {},
 		save: () => {},
@@ -455,7 +455,7 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
-	it('fits shaped text advances to the cell grid across selection boundaries', async () => {
+	it('keeps grid-fitted shaping intact across selection boundaries', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 2 });
 		vi.stubGlobal('navigator', {});
 		const textPaints: Array<{ readonly letterSpacing: number; readonly text: string }> = [];
@@ -501,9 +501,9 @@ describe('projected terminal renderer', () => {
 			startRow: 0,
 		});
 		renderer.renderPacked(source, true);
-		expect(textPaints.map(({ text }) => text)).toEqual(['A   ', 'B']);
+		expect(textPaints.map(({ text }) => text)).toEqual(['A   B', 'A   B']);
 		expect(textPaints[0]?.letterSpacing).toBeCloseTo(0.2, 8);
-		expect(textPaints[1]?.letterSpacing).toBe(0);
+		expect(textPaints[1]?.letterSpacing).toBeCloseTo(0.2, 8);
 		renderer.dispose();
 	});
 
@@ -1345,6 +1345,69 @@ describe('projected terminal renderer', () => {
 		expect(telemetry).toHaveBeenCalledWith(
 			expect.objectContaining({ backend: 'webgpu', cellsVisited: 1, rowsRendered: 1 }),
 		);
+		renderer.dispose();
+	});
+
+	it('keeps a shaped run at the same horizontal origin when selection recolors it', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 2 });
+		vi.stubGlobal('document', {
+			createElement: () =>
+				createCanvas(undefined, (text) => {
+					const width = text.length * 15.6;
+					let left = 0;
+					if (text === 'Added OS') left = 1.5;
+					else if (text === 'Ad') left = 0.5;
+					return {
+						actualBoundingBoxLeft: left,
+						actualBoundingBoxRight: Math.max(1, width - left),
+						width,
+					};
+				}),
+		});
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: vi.fn<(configuration: GPUCanvasConfiguration) => void>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context), { devicePixelRatio: 2 });
+		await renderer.initGPU();
+		const source = createPackedSource(['Added OS']);
+
+		rendering.writeBuffer.mockClear();
+		renderer.renderPacked(source);
+		const unselectedText = rendering.writeBuffer.mock.calls.flatMap((call) => {
+			const value = call[2];
+			return value instanceof Float32Array && value.length === 13 ? [Array.from(value)] : [];
+		})[0];
+		expect(unselectedText).toBeDefined();
+
+		rendering.writeBuffer.mockClear();
+		renderer.setProjectedViewportState(0, {
+			endCol: 1,
+			endRow: 0,
+			rectangle: false,
+			startCol: 0,
+			startRow: 0,
+		});
+		renderer.renderPacked(source, true);
+		const selectedText = rendering.writeBuffer.mock.calls.flatMap((call) => {
+			const value = call[2];
+			return value instanceof Float32Array && value.length === 26 ? [Array.from(value)] : [];
+		})[0];
+		expect(selectedText).toBeDefined();
+		expect(selectedText?.[0]).toBe(unselectedText?.[0]);
+		expect(selectedText?.[4]).toBe(unselectedText?.[4]);
+		expect(selectedText?.[8]).toBeCloseTo(30 / 255, 6);
+		expect(selectedText?.[21]).toBeCloseTo(216 / 255, 6);
 		renderer.dispose();
 	});
 
