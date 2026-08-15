@@ -1,0 +1,320 @@
+const std = @import("std");
+const target_builtin = @import("builtin");
+const ghostty_vt = @import("ghostty-vt");
+const terminal_geometry = @import("terminal-host-model").geometry;
+const terminal_stream = @import("../terminal_stream.zig");
+const contracts = @import("contracts.zig");
+const state = @import("state.zig");
+const failure_ops = @import("failure.zig");
+const input_admission_ops = @import("input_admission.zig");
+const input_commit_ops = @import("input_commit.zig");
+const process_io_ops = @import("process_io.zig");
+const resize_ops = @import("resize.zig");
+
+pub fn writePtyEffect(handler: *ghostty_vt.TerminalStream.Handler, bytes: [:0]const u8) void {
+    const self = runtimeFromHandler(handler);
+    const reservation = input_admission_ops.reserveInput(self, bytes.len, false, .terminal) catch {
+        self.reply_failure_pending = true;
+        return;
+    };
+    const copy = self.allocator.dupe(u8, bytes) catch {
+        input_commit_ops.cancelInput(self, reservation.identifier);
+        self.reply_failure_pending = true;
+        return;
+    };
+    input_commit_ops.publishInput(self, reservation, copy) catch {
+        self.reply_failure_pending = true;
+    };
+}
+
+pub fn bellEffect(handler: *ghostty_vt.TerminalStream.Handler) void {
+    const self = runtimeFromHandler(handler);
+    if (self.bell_sequence == std.math.maxInt(u64)) {
+        self.bell_sequence_overflow_pending = true;
+        return;
+    }
+    self.bell_sequence += 1;
+}
+
+pub fn colorSchemeEffect(
+    handler: *ghostty_vt.TerminalStream.Handler,
+) ?ghostty_vt.device_status.ColorScheme {
+    return runtimeFromHandler(handler).profile.reportedColorScheme();
+}
+
+pub fn deviceAttributesEffect(handler: *ghostty_vt.TerminalStream.Handler) contracts.DeviceAttributes {
+    return runtimeFromHandler(handler).profile.deviceAttributes();
+}
+
+pub fn enquiryEffect(handler: *ghostty_vt.TerminalStream.Handler) []const u8 {
+    return runtimeFromHandler(handler).profile.enquiry_response;
+}
+
+pub fn columnModeEffect(handler: *terminal_stream.Handler, enabled: bool) bool {
+    const self = runtimeFromHostHandler(handler);
+    std.debug.assert(self.reader_commit_in_progress);
+    const terminal = handler.terminal_handler.terminal;
+    const target_columns: u16 = if (enabled) 132 else 80;
+    const previous_geometry: terminal_geometry.Geometry = .{
+        .cell_pixel_height = self.cell_pixel_height,
+        .cell_pixel_width = self.cell_pixel_width,
+        .columns = terminal.cols,
+        .rows = terminal.rows,
+    };
+    const next_geometry: terminal_geometry.Geometry = .{
+        .cell_pixel_height = self.cell_pixel_height,
+        .cell_pixel_width = self.cell_pixel_width,
+        .columns = target_columns,
+        .rows = terminal.rows,
+    };
+    const geometry_changes = previous_geometry.columns != next_geometry.columns;
+
+    if (geometry_changes) {
+        std.debug.assert(!self.resize_effect_in_flight);
+        self.resize_effect_in_flight = true;
+        self.terminal_mutex.unlock();
+        const resize_result = resize_ops.resizePtyEffect(self, previous_geometry, next_geometry);
+        resize_ops.notifyResizeEffectReturned(self);
+        self.terminal_mutex.lock();
+        resize_result catch {
+            self.resize_fenced.store(true, .release);
+            self.terminal_resize_failure_pending = true;
+            resize_ops.finishResizeEffectLocked(self);
+            return false;
+        };
+    }
+
+    terminal.deccolm(
+        terminal.screens.active.alloc,
+        if (enabled) .@"132_cols" else .@"80_cols",
+    ) catch {
+        self.resize_fenced.store(true, .release);
+        if (geometry_changes) {
+            self.terminal_mutex.unlock();
+            resize_ops.restorePtyGeometry(self, next_geometry, previous_geometry) catch {};
+            self.terminal_mutex.lock();
+            resize_ops.finishResizeEffectLocked(self);
+        }
+        self.terminal_resize_failure_pending = true;
+        return false;
+    };
+
+    self.terminal_driven_resize_target = next_geometry;
+    if (geometry_changes) resize_ops.finishResizeEffectLocked(self);
+    return true;
+}
+
+pub fn sizeEffect(
+    handler: *ghostty_vt.TerminalStream.Handler,
+) ?ghostty_vt.size_report.Size {
+    const self = runtimeFromHandler(handler);
+    return .{
+        .cell_height = self.cell_pixel_height,
+        .cell_width = self.cell_pixel_width,
+        .columns = self.terminal.cols,
+        .rows = self.terminal.rows,
+    };
+}
+
+pub fn versionEffect(handler: *ghostty_vt.TerminalStream.Handler) []const u8 {
+    return runtimeFromHandler(handler).profile.version_response;
+}
+
+pub fn readerMayRead(self: *state.State) bool {
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    return !self.failure_fenced and
+        !self.output_abort_requested.load(.acquire);
+}
+
+pub fn notifyReaderBatchFinished(
+    self: *state.State,
+    outcome: contracts.ReaderBatchOutcome,
+) void {
+    if (comptime target_builtin.is_test) {
+        if (self.testing_hooks.reader_batch_finished) |notify| {
+            notify(self.testing_hooks.context.?, outcome);
+        }
+    }
+}
+
+pub fn notifyReaderStopped(self: *state.State) void {
+    if (comptime target_builtin.is_test) {
+        if (self.testing_hooks.reader_stopped) |notify| {
+            notify(self.testing_hooks.context.?);
+        }
+    }
+}
+
+pub fn notifyPtyDrainPublicationStarting(self: *state.State) void {
+    if (comptime target_builtin.is_test) {
+        if (self.testing_hooks.pty_drain_publication_starting) |notify| {
+            notify(self.testing_hooks.context.?);
+        }
+    }
+}
+
+pub fn commitReaderBatch(
+    self: *state.State,
+    bytes: []const u8,
+) contracts.ReaderBatchOutcome {
+    self.terminal_mutex.lock();
+    while (self.resize_effect_in_flight) {
+        self.terminal_condition.wait(&self.terminal_mutex);
+    }
+    if (self.failure_fenced) {
+        self.terminal_mutex.unlock();
+        notifyReaderBatchFinished(self, .failure_fenced);
+        return .failure_fenced;
+    }
+    if (self.output_abort_requested.load(.acquire)) {
+        self.terminal_mutex.unlock();
+        notifyReaderBatchFinished(self, .output_aborted);
+        return .output_aborted;
+    }
+
+    const current_revision = self.revision.load(.monotonic);
+    if (current_revision == std.math.maxInt(u64) or
+        self.generation == std.math.maxInt(u64))
+    {
+        const won = failure_ops.closeFailureFenceLocked(self, .worker_integrity);
+        self.terminal_mutex.unlock();
+        notifyReaderBatchFinished(self, .runtime_failed);
+        if (won) failure_ops.finishFailureFence(self);
+        return .runtime_failed;
+    }
+
+    std.debug.assert(!self.reader_commit_in_progress);
+    self.reader_commit_in_progress = true;
+    std.debug.assert(!self.reply_failure_pending);
+    std.debug.assert(!self.bell_sequence_overflow_pending);
+    std.debug.assert(!self.terminal_resize_failure_pending);
+    std.debug.assert(self.terminal_driven_resize_target == null);
+    self.stream.handler.beginBatch();
+    const previous_screen = self.terminal.screens.active_key;
+    const previous_columns = self.terminal.cols;
+    const previous_rows = self.terminal.rows;
+    // Ghostty's 1049 path can reset the active screen without changing
+    // its key (for example, enabling it twice). Isolate the terminal clear
+    // marker for this batch so same-key replacement still invalidates
+    // history while preserving a clear already pending for the renderer.
+    const previous_clear = self.terminal.flags.dirty.clear;
+    self.terminal.flags.dirty.clear = false;
+    self.stream.nextSlice(bytes);
+    const screen_reset = self.terminal.flags.dirty.clear;
+    self.terminal.flags.dirty.clear = previous_clear or screen_reset;
+    const geometry_changed = previous_columns != self.terminal.cols or
+        previous_rows != self.terminal.rows;
+    const terminal_resize_target = self.terminal_driven_resize_target;
+    self.terminal_driven_resize_target = null;
+    const terminal_geometry_unsynchronized = geometry_changed and
+        (terminal_resize_target == null or
+            terminal_resize_target.?.columns != self.terminal.cols or
+            terminal_resize_target.?.rows != self.terminal.rows or
+            terminal_resize_target.?.cell_pixel_width != self.cell_pixel_width or
+            terminal_resize_target.?.cell_pixel_height != self.cell_pixel_height);
+    const terminal_resize_failed = self.terminal_resize_failure_pending or
+        terminal_geometry_unsynchronized;
+    self.terminal_resize_failure_pending = false;
+    if (terminal_resize_failed) {
+        std.debug.assert(!self.resize_effect_in_flight);
+        self.resize_fenced.store(true, .release);
+        self.reply_failure_pending = false;
+        self.bell_sequence_overflow_pending = false;
+        const won = failure_ops.closeFailureFenceLocked(self, .resize);
+        finishReaderCommitLocked(self);
+        self.terminal_mutex.unlock();
+        notifyReaderBatchFinished(self, .runtime_failed);
+        if (won) failure_ops.finishFailureFence(self);
+        return .runtime_failed;
+    }
+    const screen_changed = previous_screen != self.terminal.screens.active_key or
+        screen_reset;
+    if (screen_changed or geometry_changed) self.generation += 1;
+    const revision = current_revision + 1;
+    self.revision.store(revision, .release);
+    if (screen_changed) {
+        self.history.screenChanged(&self.terminal);
+    } else if (geometry_changed) {
+        self.history.generationChanged(&self.terminal, revision, self.generation);
+    } else {
+        self.history.noteMutation(&self.terminal, revision, self.generation);
+    }
+    _ = self.output_batches_since_sync.fetchAdd(1, .release);
+
+    const reply_failed = self.reply_failure_pending;
+    self.reply_failure_pending = false;
+    const bell_sequence_overflowed = self.bell_sequence_overflow_pending;
+    self.bell_sequence_overflow_pending = false;
+    const failure_won = if (reply_failed)
+        failure_ops.closeFailureFenceLocked(self, .terminal_reply)
+    else if (bell_sequence_overflowed)
+        failure_ops.closeFailureFenceLocked(self, .worker_integrity)
+    else
+        false;
+    finishReaderCommitLocked(self);
+    self.terminal_mutex.unlock();
+
+    const outcome: contracts.ReaderBatchOutcome = if (reply_failed or bell_sequence_overflowed)
+        .runtime_failed
+    else
+        .committed;
+    notifyReaderBatchFinished(self, outcome);
+    if (failure_won) failure_ops.finishFailureFence(self);
+    return outcome;
+}
+
+pub fn finishReaderCommitLocked(self: *state.State) void {
+    std.debug.assert(self.reader_commit_in_progress);
+    self.reader_commit_in_progress = false;
+    self.terminal_condition.broadcast();
+}
+
+pub fn publishPtyDrained(self: *state.State) bool {
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    self.input_mutex.lock();
+    defer self.input_mutex.unlock();
+    // This is the natural-drain linearization point. Shutdown publishes
+    // the abort request before waiting for terminal_mutex, so an abort
+    // that wins first cannot later be represented as normal PTY drain.
+    if (self.failure_fenced or self.output_abort_requested.load(.acquire)) {
+        return false;
+    }
+    self.pty_drained.store(true, .release);
+    self.writer_stop = true;
+    self.input_condition.broadcast();
+    return true;
+}
+
+pub fn readerThread(self: *state.State) void {
+    defer notifyReaderStopped(self);
+    if (!self.startup.await()) return;
+    var buffer: [contracts.max_pty_read_batch_bytes]u8 = undefined;
+    while (true) {
+        if (!readerMayRead(self)) return;
+        const length = process_io_ops.readPty(self, &buffer) catch {
+            if (self.output_abort_requested.load(.acquire)) return;
+            failure_ops.recordReaderFailure(self);
+            return;
+        };
+        if (length == 0) {
+            if (self.output_abort_requested.load(.acquire)) return;
+            break;
+        }
+        if (commitReaderBatch(self, buffer[0..length]) != .committed) return;
+    }
+    if (self.output_abort_requested.load(.acquire)) return;
+    notifyPtyDrainPublicationStarting(self);
+    _ = publishPtyDrained(self);
+}
+
+pub fn runtimeFromHandler(handler: *ghostty_vt.TerminalStream.Handler) *state.State {
+    const host_handler: *terminal_stream.Handler = @fieldParentPtr("terminal_handler", handler);
+    return runtimeFromHostHandler(host_handler);
+}
+
+pub fn runtimeFromHostHandler(handler: *terminal_stream.Handler) *state.State {
+    const stream: *terminal_stream.Stream = @fieldParentPtr("handler", handler);
+    return @alignCast(@fieldParentPtr("stream", stream));
+}

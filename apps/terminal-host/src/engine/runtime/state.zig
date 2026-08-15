@@ -1,0 +1,102 @@
+const std = @import("std");
+const ghostty_vt = @import("ghostty-vt");
+const identifiers = @import("terminal-host-model").identifiers;
+const pty_process = @import("terminal-host-platform").process;
+const terminal_geometry = @import("terminal-host-model").geometry;
+const terminal_history = @import("../history/root.zig");
+const terminal_input_ownership = @import("../input_ownership.zig");
+const terminal_input_queue = @import("../input_queue.zig");
+const terminal_projection = @import("../projection/root.zig");
+const terminal_runtime_containment = @import("../runtime_containment.zig");
+const terminal_runtime_startup = @import("../runtime_startup.zig");
+const terminal_stream = @import("../terminal_stream.zig");
+const contracts = @import("contracts.zig");
+
+pub const State = struct {
+    allocator: std.mem.Allocator,
+    // terminal_mutex protects the canonical count and its deferred overflow
+    // marker because Ghostty invokes bell synchronously while parsing output.
+    bell_sequence: u64 = 0,
+    bell_sequence_overflow_pending: bool = false,
+    cell_pixel_height: u16,
+    cell_pixel_width: u16,
+    child_exited: std.atomic.Value(bool) = .init(false),
+    client_input_closed: bool = false,
+    containment_confirmed: std.atomic.Value(bool) = .init(false),
+    containment_mutex: std.Thread.Mutex = .{},
+    exit_result: ?pty_process.ExitResult = null,
+    // terminal_mutex and input_mutex jointly protect this irreversible gate.
+    // Parser/state readers observe it while holding terminal_mutex; queue and
+    // writer-start readers observe it while holding input_mutex.
+    failure_fenced: bool = false,
+    // A successful engine fence winner owns the first bounded containment
+    // attempt. A Host-originated fence reserves that attempt for Host cleanup;
+    // later Host retries wait for an engine_pending owner to publish done.
+    first_containment_attempt: terminal_runtime_containment.FirstAttemptGate = .{},
+    generation: u64 = 1,
+    history: terminal_history.Manager,
+    input_ownership: terminal_input_ownership.Ledger,
+    // input_mutex and input_condition protect attachment input ownership,
+    // queue order, charged bytes, reservation identifiers, the writer stop
+    // transition, and completion notifications that must not be missed between
+    // a predicate check and wait.
+    input_condition: std.Thread.Condition = .{},
+    input_queue: terminal_input_queue.Queue,
+    input_mutex: std.Thread.Mutex = .{},
+    // Distinguishes an owner-requested read interruption from a normal PTY EOF.
+    // Only the reader may publish pty_drained, and only after a non-aborted EOF.
+    output_abort_requested: std.atomic.Value(bool) = .init(false),
+    // One terminal atomic classification makes normal completion and fatal
+    // failure mutually exclusive. Zero is pending, RuntimeFailureKind values
+    // are failures, and normal_completion_classification is normal completion.
+    // Once normal is published, later disposal diagnostics cannot rewrite the
+    // retained terminal outcome.
+    completion_classification: contracts.CompletionClassification = .{},
+    reader_thread: ?std.Thread = null,
+    release_process_identity: bool = false,
+    revision: std.atomic.Value(u64) = .init(0),
+    output_batches_since_sync: std.atomic.Value(u64) = .init(0),
+    process: pty_process.Process,
+    profile: contracts.OwnedProfile,
+    // projection_mutex gives one encoder ownership of projection capture state.
+    // The Host owner alone updates the projection cadence timestamp; engine
+    // workers never read it.
+    next_projection_at_ns: i128 = 0,
+    projection: terminal_projection.Projection,
+    projection_mutex: std.Thread.Mutex = .{},
+    pty_drained: std.atomic.Value(bool) = .init(false),
+    // Ghostty may discover a reply-admission failure synchronously while a
+    // reader batch is being parsed. terminal_mutex protects this deferred
+    // marker until the complete batch has committed coherently.
+    reply_failure_pending: bool = false,
+    // A failed Ghostty resize may leave its internal screen state undefined.
+    // Once set, no new terminal work is admitted and the owner must tear down
+    // the runtime instead of attempting to continue with mixed geometry.
+    resize_fenced: std.atomic.Value(bool) = .init(false),
+    // terminal_mutex owns the interval between a successful resize preflight
+    // and its canonical commit or platform compensation. Normal completion
+    // cannot publish while this effect is in flight.
+    resize_effect_in_flight: bool = false,
+    // A terminal-driven resize temporarily releases terminal_mutex for its
+    // platform effect while the reader still owns the enclosing batch commit.
+    // Shutdown and unrelated failure fencing wait for that exact transaction.
+    reader_commit_in_progress: bool = false,
+    stream: terminal_stream.Stream,
+    stream_allocator: terminal_stream.ParserAllocator,
+    scrollback_bytes: usize,
+    startup: terminal_runtime_startup.Gate = .{},
+    terminal: ghostty_vt.Terminal,
+    // terminal_mutex protects terminal parsing, history, generation, scrollback,
+    // and cell geometry as one state transition.
+    terminal_condition: std.Thread.Condition = .{},
+    terminal_driven_resize_target: ?terminal_geometry.Geometry = null,
+    terminal_mutex: std.Thread.Mutex = .{},
+    terminal_resize_failure_pending: bool = false,
+    testing_hooks: contracts.RuntimeTestingHooks = .{},
+    threads_joined: bool = false,
+    wait_thread: ?std.Thread = null,
+    writer_stop: bool = false,
+    writer_stopped: std.atomic.Value(bool) = .init(false),
+    writer_thread: ?std.Thread = null,
+    written_since_sync: std.atomic.Value(usize) = .init(0),
+};

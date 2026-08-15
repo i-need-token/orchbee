@@ -7,7 +7,7 @@ const host_interaction = @import("interaction.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_projection = @import("projection.zig");
 const host_response = @import("response.zig");
-const host_runtime_aggregate = @import("runtime_aggregate.zig");
+const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
 const protocol = @import("terminal-protocol");
 
 const MessageKind = protocol.MessageKind;

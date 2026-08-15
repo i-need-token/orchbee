@@ -1,0 +1,465 @@
+const std = @import("std");
+const terminal_input = @import("terminal-input");
+const terminal_input_ownership = @import("../input_ownership.zig");
+const terminal_input_encoding = @import("../input_encoding.zig");
+const contracts = @import("contracts.zig");
+const state = @import("state.zig");
+const prepared_input = @import("prepared_input.zig");
+const failure_ops = @import("failure.zig");
+const input_commit_ops = @import("input_commit.zig");
+
+pub fn enqueueInput(self: *state.State, bytes: []const u8) !void {
+    _ = try enqueueRawInput(self, bytes);
+}
+
+pub fn enqueueRawInput(self: *state.State, bytes: []const u8) !usize {
+    var prepared = try prepareRawInput(self, bytes);
+    defer prepared.deinit();
+    return prepared.commit();
+}
+
+pub fn prepareRawInput(self: *state.State, bytes: []const u8) !prepared_input.Internal {
+    if (bytes.len == 0) return error.EmptyInput;
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
+    if (self.child_exited.load(.acquire)) return error.TerminalExited;
+    const reservation = try reserveInput(self, bytes.len, false, .client);
+    errdefer input_commit_ops.cancelInput(self, reservation.identifier);
+    const copy = self.allocator.dupe(u8, bytes) catch |err| {
+        return err;
+    };
+    return .{
+        .bytes = copy,
+        .reservation = reservation,
+        .runtime = self,
+    };
+}
+
+pub fn enqueueKeyInput(self: *state.State, input: contracts.KeyInput) !usize {
+    return enqueueKeyInputWithLimit(self, input, std.math.maxInt(usize));
+}
+
+pub fn keyInputWouldEmit(self: *state.State, input: contracts.KeyInput) !bool {
+    const key = try terminal_input_encoding.parseKey(input.key);
+    var buffer: [contracts.max_key_encoded_bytes]u8 = undefined;
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
+    const encoded = try terminal_input_encoding.encodeKey(
+        &buffer,
+        &self.terminal,
+        key,
+        input,
+    );
+    return encoded.len != 0;
+}
+
+pub fn enqueueKeyInputWithLimit(
+    self: *state.State,
+    input: contracts.KeyInput,
+    max_output_bytes: usize,
+) !usize {
+    var prepared = try prepareKeyInput(self, input, max_output_bytes);
+    defer prepared.deinit();
+    return prepared.commit();
+}
+
+pub fn prepareKeyInput(
+    self: *state.State,
+    input: contracts.KeyInput,
+    max_output_bytes: usize,
+) !prepared_input.Internal {
+    if (self.child_exited.load(.acquire)) return error.TerminalExited;
+    const key = try terminal_input_encoding.parseKey(input.key);
+    var buffer: [contracts.max_key_encoded_bytes]u8 = undefined;
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
+    const encoded = try terminal_input_encoding.encodeKey(
+        &buffer,
+        &self.terminal,
+        key,
+        input,
+    );
+    if (encoded.len > max_output_bytes) return error.InputLimitExceeded;
+    return prepareEncodedInputLocked(self, encoded);
+}
+
+pub fn enqueueTextInput(self: *state.State, text: []const u8) !usize {
+    return enqueueTextInputWithLimit(self, text, std.math.maxInt(usize));
+}
+
+pub fn enqueueTextInputWithLimit(
+    self: *state.State,
+    text: []const u8,
+    max_output_bytes: usize,
+) !usize {
+    var prepared = try prepareTextInput(self, text, max_output_bytes);
+    defer prepared.deinit();
+    return prepared.commit();
+}
+
+pub fn prepareTextInput(
+    self: *state.State,
+    text: []const u8,
+    max_output_bytes: usize,
+) !prepared_input.Internal {
+    if (text.len == 0) return error.EmptyInput;
+    if (text.len > max_output_bytes) return error.InputLimitExceeded;
+    if (self.child_exited.load(.acquire)) return error.TerminalExited;
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
+    return prepareEncodedInputLocked(self, text);
+}
+
+pub fn enqueueMouseInput(self: *state.State, input: contracts.MouseInput) !usize {
+    return enqueueMouseInputWithLimit(self, input, std.math.maxInt(usize));
+}
+
+pub fn mouseInputWouldEmit(self: *state.State, input: contracts.MouseInput) !bool {
+    var buffer: [contracts.max_mouse_encoded_bytes]u8 = undefined;
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
+    const encoded = try terminal_input_encoding.encodeMouse(
+        &buffer,
+        &self.terminal,
+        self.cell_pixel_width,
+        self.cell_pixel_height,
+        input,
+    );
+    return encoded.len != 0;
+}
+
+pub fn enqueueMouseInputWithLimit(
+    self: *state.State,
+    input: contracts.MouseInput,
+    max_output_bytes: usize,
+) !usize {
+    var prepared = try prepareMouseInput(self, input, max_output_bytes);
+    defer prepared.deinit();
+    return prepared.commit();
+}
+
+pub fn prepareMouseInput(
+    self: *state.State,
+    input: contracts.MouseInput,
+    max_output_bytes: usize,
+) !prepared_input.Internal {
+    if (self.child_exited.load(.acquire)) return error.TerminalExited;
+    var buffer: [contracts.max_mouse_encoded_bytes]u8 = undefined;
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
+    const encoded = try terminal_input_encoding.encodeMouse(
+        &buffer,
+        &self.terminal,
+        self.cell_pixel_width,
+        self.cell_pixel_height,
+        input,
+    );
+    if (encoded.len > max_output_bytes) return error.InputLimitExceeded;
+    return prepareEncodedInputLocked(self, encoded);
+}
+
+pub fn enqueueFocusInput(self: *state.State, focused: bool) !usize {
+    return enqueueFocusInputWithLimit(self, focused, std.math.maxInt(usize));
+}
+
+pub fn focusInputWouldEmit(self: *state.State) bool {
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    failure_ops.waitForReaderCommitLocked(self);
+    return terminal_input_encoding.reportsFocus(&self.terminal);
+}
+
+pub fn enqueueFocusInputWithLimit(
+    self: *state.State,
+    focused: bool,
+    max_output_bytes: usize,
+) !usize {
+    var prepared = try prepareFocusInput(self, focused, max_output_bytes);
+    defer prepared.deinit();
+    return prepared.commit();
+}
+
+pub fn prepareFocusInput(
+    self: *state.State,
+    focused: bool,
+    max_output_bytes: usize,
+) !prepared_input.Internal {
+    if (self.child_exited.load(.acquire)) return error.TerminalExited;
+    var buffer: [contracts.max_focus_encoded_bytes]u8 = undefined;
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
+    if (!terminal_input_encoding.reportsFocus(&self.terminal)) {
+        return prepareEncodedInputLocked(self, "");
+    }
+    const encoded = try terminal_input_encoding.encodeFocus(&buffer, focused);
+    if (encoded.len > max_output_bytes) return error.InputLimitExceeded;
+    return prepareEncodedInputLocked(self, encoded);
+}
+
+pub fn enqueuePasteInput(
+    self: *state.State,
+    text: []const u8,
+    bracketed: bool,
+) !usize {
+    return enqueuePasteInputWithLimit(self, text, bracketed, std.math.maxInt(usize));
+}
+
+pub fn enqueuePasteInputWithLimit(
+    self: *state.State,
+    text: []const u8,
+    bracketed: bool,
+    max_output_bytes: usize,
+) !usize {
+    var prepared = try preparePasteInput(self, text, bracketed, max_output_bytes);
+    defer prepared.deinit();
+    return prepared.commit();
+}
+
+pub fn preparePasteInput(
+    self: *state.State,
+    text: []const u8,
+    bracketed: bool,
+    max_output_bytes: usize,
+) !prepared_input.Internal {
+    if (text.len == 0) return error.EmptyInput;
+    if (self.child_exited.load(.acquire)) return error.TerminalExited;
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
+    if (self.terminal.modes.get(.bracketed_paste) != bracketed) {
+        return error.PasteModeChanged;
+    }
+    const encoded = try terminal_input_encoding.encodePaste(
+        self.allocator,
+        &self.terminal,
+        text,
+        max_output_bytes,
+    );
+    return prepareOwnedInputLocked(self, encoded);
+}
+
+pub fn prepareSemanticInput(
+    self: *state.State,
+    input: terminal_input.SemanticInput,
+    maximum_bytes: usize,
+) !prepared_input.Internal {
+    return switch (input) {
+        .focus => |value| prepareFocusInput(self, value.focused, maximum_bytes),
+        .key => |value| prepareKeyInput(self, value, maximum_bytes),
+        .mouse => |value| prepareMouseInput(self, value, maximum_bytes),
+        .paste => |value| preparePasteInput(self, value.text, value.bracketed, maximum_bytes),
+        .text => |value| prepareTextInput(self, value.text, maximum_bytes),
+    };
+}
+
+pub fn prepareAttachmentSemanticInput(
+    self: *state.State,
+    attachment_id: contracts.AttachmentId,
+    input: terminal_input.SemanticInput,
+    maximum_bytes: usize,
+) !prepared_input.Internal {
+    var prepared = try prepareSemanticInput(self, input, maximum_bytes);
+    errdefer prepared.deinit();
+    prepared.ownership = try prepareAttachmentInputMutation(self, attachment_id, input);
+    return prepared;
+}
+
+pub fn prepareAttachmentInputRepair(
+    self: *state.State,
+    attachment_id: contracts.AttachmentId,
+) !prepared_input.Internal {
+    if (self.child_exited.load(.acquire)) return error.TerminalExited;
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
+    if (self.child_exited.load(.acquire)) return error.TerminalExited;
+
+    self.input_mutex.lock();
+    defer self.input_mutex.unlock();
+    var repair = try self.input_ownership.prepareRepair(
+        self.allocator,
+        attachment_id,
+        &self.terminal,
+        self.cell_pixel_width,
+        self.cell_pixel_height,
+    );
+    errdefer {
+        if (repair.bytes) |bytes| self.allocator.free(bytes);
+        self.input_ownership.cancelPrepared(&repair.ownership);
+    }
+    const reservation = if (repair.bytes) |owned|
+        try reserveAttachmentRepairInputLocked(self, attachment_id, owned.len)
+    else
+        null;
+    return .{
+        .bytes = repair.bytes,
+        .ownership = repair.ownership,
+        .reservation = reservation,
+        .runtime = self,
+    };
+}
+
+pub fn pendingInputBytes(self: *state.State) usize {
+    self.input_mutex.lock();
+    defer self.input_mutex.unlock();
+    return self.input_queue.pendingBytes();
+}
+
+pub fn takeWrittenBytes(self: *state.State) usize {
+    return self.written_since_sync.swap(0, .acq_rel);
+}
+
+pub fn takeOutputBatches(self: *state.State) u64 {
+    return self.output_batches_since_sync.swap(0, .acq_rel);
+}
+
+pub fn prepareAttachmentInputMutation(
+    self: *state.State,
+    attachment_id: contracts.AttachmentId,
+    input: terminal_input.SemanticInput,
+) !?contracts.PreparedInputOwnership {
+    var mutation = try terminal_input_ownership.mutationForInput(
+        self.allocator,
+        input,
+    ) orelse return null;
+    errdefer mutation.deinit(self.allocator);
+    self.input_mutex.lock();
+    defer self.input_mutex.unlock();
+    const prepared = try self.input_ownership.reserveMutation(attachment_id, &mutation);
+    return prepared;
+}
+
+pub fn hasAttachmentInputOwnership(
+    self: *state.State,
+    attachment_id: contracts.AttachmentId,
+) bool {
+    self.input_mutex.lock();
+    defer self.input_mutex.unlock();
+    return self.input_ownership.contains(attachment_id);
+}
+
+pub fn discardAttachmentInputOwnership(
+    self: *state.State,
+    attachment_id: contracts.AttachmentId,
+) void {
+    self.input_mutex.lock();
+    defer self.input_mutex.unlock();
+    self.input_ownership.discard(attachment_id);
+}
+
+pub fn failAttachmentInputRepair(
+    self: *state.State,
+    attachment_id: contracts.AttachmentId,
+    err: anyerror,
+    phase: []const u8,
+) void {
+    const runtime_already_closed = err == error.TerminalExited or
+        err == error.TerminalRuntimeUnavailable or err == error.MissingAttachment;
+    if (!runtime_already_closed) {
+        std.log.warn("attachment input repair {s}: {s}; fencing the terminal runtime", .{
+            phase,
+            @errorName(err),
+        });
+    }
+    discardAttachmentInputOwnership(self, attachment_id);
+    if (!runtime_already_closed) failure_ops.recordWorkerIntegrityFailure(self);
+}
+
+pub fn prepareEncodedInputLocked(
+    self: *state.State,
+    bytes: []const u8,
+) !prepared_input.Internal {
+    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
+    if (self.child_exited.load(.acquire)) return error.TerminalExited;
+    if (bytes.len == 0) return .{
+        .bytes = null,
+        .reservation = null,
+        .runtime = self,
+    };
+    const reservation = try reserveInput(self, bytes.len, false, .client);
+    errdefer input_commit_ops.cancelInput(self, reservation.identifier);
+    const copy = try self.allocator.dupe(u8, bytes);
+    return .{
+        .bytes = copy,
+        .reservation = reservation,
+        .runtime = self,
+    };
+}
+
+pub fn prepareOwnedInputLocked(
+    self: *state.State,
+    bytes: []u8,
+) !prepared_input.Internal {
+    failure_ops.ensureRuntimeWorkAvailableLocked(self) catch |err| {
+        self.allocator.free(bytes);
+        return err;
+    };
+    if (self.child_exited.load(.acquire)) {
+        self.allocator.free(bytes);
+        return error.TerminalExited;
+    }
+    if (bytes.len == 0) {
+        self.allocator.free(bytes);
+        return .{
+            .bytes = null,
+            .reservation = null,
+            .runtime = self,
+        };
+    }
+    const reservation = reserveInput(self, bytes.len, false, .client) catch |err| {
+        self.allocator.free(bytes);
+        return err;
+    };
+    return .{
+        .bytes = bytes,
+        .reservation = reservation,
+        .runtime = self,
+    };
+}
+
+pub fn reserveInput(
+    self: *state.State,
+    byte_count: usize,
+    wait: bool,
+    source: contracts.InputSource,
+) !contracts.InputReservation {
+    self.input_mutex.lock();
+    defer self.input_mutex.unlock();
+    if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
+    if (self.writer_stop) return error.TerminalExited;
+    if (source == .client and self.client_input_closed) return error.TerminalExited;
+    while (!self.input_queue.hasCapacity(
+        byte_count,
+        source,
+        input_commit_ops.inputRepairCharge(self, source),
+    )) {
+        if (!wait) return error.InputBackpressure;
+        self.input_condition.wait(&self.input_mutex);
+        if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
+        if (self.writer_stop) return error.TerminalExited;
+        if (source == .client and self.client_input_closed) return error.TerminalExited;
+    }
+    return self.input_queue.reserve(
+        byte_count,
+        source,
+        input_commit_ops.inputRepairCharge(self, source),
+    );
+}
+
+pub fn reserveAttachmentRepairInputLocked(
+    self: *state.State,
+    attachment_id: contracts.AttachmentId,
+    byte_count: usize,
+) !contracts.InputReservation {
+    if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
+    if (self.writer_stop or self.client_input_closed) return error.TerminalExited;
+    try self.input_ownership.validateRepairReservation(attachment_id, byte_count);
+    return self.input_queue.reservePrechargedClient(byte_count);
+}

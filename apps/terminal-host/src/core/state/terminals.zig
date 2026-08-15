@@ -1,0 +1,380 @@
+const std = @import("std");
+const target_builtin = @import("builtin");
+const model = @import("terminal-host-model");
+const terminal_configuration = model.configuration;
+const contracts = @import("contracts.zig");
+const storage = @import("storage.zig");
+
+const ConnectionId = contracts.ConnectionId;
+const CoreError = contracts.CoreError;
+const CreationId = contracts.CreationId;
+const ExitResult = contracts.ExitResult;
+const LaunchDigest = contracts.LaunchDigest;
+const OutcomePublicationToken = contracts.OutcomePublicationToken;
+const ProcessObservation = contracts.ProcessObservation;
+const RuntimeCleanupFailure = contracts.RuntimeCleanupFailure;
+const RuntimeFailure = contracts.RuntimeFailure;
+const TerminalDisposalAdmission = contracts.TerminalDisposalAdmission;
+const TerminalId = contracts.TerminalId;
+const TerminalSession = contracts.TerminalSession;
+const TerminationAdmission = contracts.TerminationAdmission;
+const TerminationRequest = contracts.TerminationRequest;
+const TransitionOutcome = contracts.TransitionOutcome;
+
+pub fn resolveCreation(
+    self: anytype,
+    connection_id: ConnectionId,
+    creation_id: CreationId,
+    launch_digest: LaunchDigest,
+) CoreError!?TerminalId {
+    if (!storage.connected(self, connection_id)) return error.MissingConnection;
+    return self.terminal_registry.resolveCreation(creation_id, launch_digest);
+}
+
+pub fn reserveTerminal(self: anytype) (CoreError || std.mem.Allocator.Error)!void {
+    try self.terminal_registry.reserveAdmission();
+}
+
+// The aggregate calls this only after reserving both registry capacities
+// and constructing the complete retained-terminal allocation. `session`
+// is its embedded stable field. Host commands are linearized on one thread,
+// so the validated admission facts cannot change between prepare and this
+// infallible commit.
+
+pub fn commitRunningTerminal(
+    self: anytype,
+    connection_id: ConnectionId,
+    creation_id: CreationId,
+    terminal_id: TerminalId,
+    launch_digest: LaunchDigest,
+    columns: u16,
+    rows: u16,
+    cell_pixel_width: u16,
+    cell_pixel_height: u16,
+    configuration: terminal_configuration.Configuration,
+    session: *TerminalSession,
+) void {
+    std.debug.assert(terminal_configuration.valid(configuration));
+    std.debug.assert(storage.connected(self, connection_id));
+    self.terminal_registry.validateAdmission(creation_id, terminal_id) catch unreachable;
+    session.* = .{
+        .configuration_state = .{ .effective = configuration },
+        .creation_id = creation_id,
+        .engine_observation = .{ .geometry = .{
+            .cell_pixel_height = cell_pixel_height,
+            .cell_pixel_width = cell_pixel_width,
+            .columns = columns,
+            .rows = rows,
+        } },
+        .launch_digest = launch_digest,
+        .lifecycle = .{ .running = .{} },
+        .terminal_id = terminal_id,
+    };
+    self.terminal_registry.commitAssumeCapacity(session);
+}
+
+pub fn updateTerminalConfiguration(
+    self: anytype,
+    connection_id: ConnectionId,
+    terminal_id: TerminalId,
+    configuration: terminal_configuration.Configuration,
+) CoreError!TransitionOutcome {
+    if (!terminal_configuration.valid(configuration)) return error.InvalidConfiguration;
+    if (!storage.connected(self, connection_id)) return error.MissingConnection;
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    if (!terminal.acceptsConfigurationUpdate()) return error.InvalidPhase;
+    if (terminal.effectiveConfiguration().scrollback_bytes == configuration.scrollback_bytes) {
+        return .idempotent;
+    }
+    if (terminal.configurationRevision() == std.math.maxInt(u64)) {
+        return error.RevisionOverflow;
+    }
+    terminal.configuration_state.effective = configuration;
+    terminal.configuration_state.revision += 1;
+    return .applied;
+}
+
+pub fn requestTerminate(
+    self: anytype,
+    connection_id: ConnectionId,
+    terminal_id: TerminalId,
+) CoreError!TransitionOutcome {
+    switch (try self.prepareTermination(connection_id, terminal_id, .graceful)) {
+        .replay => return .idempotent,
+        .dispatch => {
+            self.commitPreparedTermination(terminal_id, .graceful);
+            return .applied;
+        },
+        .containment_retry => unreachable,
+    }
+}
+
+pub fn requestForceTerminate(
+    self: anytype,
+    connection_id: ConnectionId,
+    terminal_id: TerminalId,
+) CoreError!TransitionOutcome {
+    switch (try self.prepareTermination(connection_id, terminal_id, .force)) {
+        .replay => return .idempotent,
+        .dispatch => {
+            self.commitPreparedTermination(terminal_id, .force);
+            return .applied;
+        },
+        .containment_retry => {
+            const terminal = self.terminal_registry.find(terminal_id) orelse unreachable;
+            terminal.lifecycle.commitContainmentRetry();
+            return .applied;
+        },
+    }
+}
+
+pub fn prepareTermination(
+    self: anytype,
+    connection_id: ConnectionId,
+    terminal_id: TerminalId,
+    request: TerminationRequest,
+) CoreError!TerminationAdmission {
+    if (!storage.connected(self, connection_id)) return error.MissingConnection;
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    std.debug.assert(request != .none);
+    return terminal.lifecycle.prepareTermination(request);
+}
+
+pub fn commitPreparedTermination(
+    self: anytype,
+    terminal_id: TerminalId,
+    request: TerminationRequest,
+) void {
+    std.debug.assert(request != .none);
+    const terminal = self.terminal_registry.find(terminal_id) orelse unreachable;
+    terminal.lifecycle.commitPreparedTermination(request);
+}
+
+pub fn commitTerminationDispatchFailure(
+    self: anytype,
+    terminal_id: TerminalId,
+) void {
+    const transition = self.runtimeFailed(terminal_id, .dispatch_termination) catch unreachable;
+    std.debug.assert(transition == .applied);
+}
+
+pub fn childExited(
+    self: anytype,
+    terminal_id: TerminalId,
+    result: ExitResult,
+) CoreError!TransitionOutcome {
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    return terminal.lifecycle.childExit(result, terminal.observedRevision());
+}
+
+pub fn ptyDrained(self: anytype, terminal_id: TerminalId) CoreError!TransitionOutcome {
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    return terminal.lifecycle.ptyDrain(terminal.observedRevision());
+}
+
+pub fn disposeTerminal(
+    self: anytype,
+    connection_id: ConnectionId,
+    terminal_id: TerminalId,
+) CoreError!TransitionOutcome {
+    if (comptime !target_builtin.is_test) {
+        @compileError("HostCore.disposeTerminal is available only to deterministic Core tests");
+    }
+    const admission = try self.validateTerminalDisposal(connection_id, terminal_id);
+    switch (admission) {
+        .idempotent => return .idempotent,
+        // The Core convenience path has no cleanup-phase payload, so both
+        // containment barriers reject as incomplete containment here;
+        // HostRuntimeAggregate carries the typed blocked phase to the
+        // service boundary instead.
+        .containment_stopping, .cleanup_blocked => return error.FailureContainmentIncomplete,
+        .dispose => {},
+    }
+    const terminal = self.commitTerminalRemoval(terminal_id);
+    storage.destroyTestingTerminalStorage(self, terminal);
+    return .applied;
+}
+
+pub fn commitTerminalRemoval(self: anytype, terminal_id: TerminalId) *TerminalSession {
+    const terminal = self.terminal_registry.get(terminal_id).?;
+    std.debug.assert(terminal.phase() == .exited or terminal.phase() == .failed);
+    std.debug.assert(terminal.pendingOutcome() == null);
+    std.debug.assert(!terminal.retainedCleanupPending());
+    storage.removeTerminalAttachments(self, terminal_id);
+    return self.terminal_registry.removeAssumePresent(terminal_id, true);
+}
+
+pub fn takeTerminalForHostShutdown(
+    self: anytype,
+    terminal_id: TerminalId,
+) *TerminalSession {
+    storage.removeTerminalAttachments(self, terminal_id);
+    return self.terminal_registry.removeAssumePresent(terminal_id, false);
+}
+
+pub fn validateTerminalDisposal(
+    self: anytype,
+    connection_id: ConnectionId,
+    terminal_id: TerminalId,
+) CoreError!TerminalDisposalAdmission {
+    if (!storage.connected(self, connection_id)) return error.MissingConnection;
+    const terminal = self.terminal_registry.get(terminal_id) orelse return .idempotent;
+    if (terminal.retainedCleanupFailure()) |failure| {
+        return .{ .cleanup_blocked = failure };
+    }
+    switch (try terminal.lifecycle.requireDisposable()) {
+        .dispose => {},
+        .containment_stopping => return .containment_stopping,
+        .cleanup_blocked => |failure| return .{ .cleanup_blocked = failure },
+    }
+    try self.terminal_registry.requireGenerationAdvance();
+    return .dispose;
+}
+
+pub fn runtimeFailed(
+    self: anytype,
+    terminal_id: TerminalId,
+    failure: RuntimeFailure,
+) CoreError!TransitionOutcome {
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    return terminal.lifecycle.runtimeFailed(failure);
+}
+
+pub fn failureContainmentBlocked(
+    self: anytype,
+    terminal_id: TerminalId,
+    cleanup_failure: RuntimeCleanupFailure,
+    retry_at_ns: i128,
+) CoreError!TransitionOutcome {
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    return terminal.lifecycle.containmentBlocked(cleanup_failure, retry_at_ns);
+}
+
+pub fn failureContained(
+    self: anytype,
+    terminal_id: TerminalId,
+    observation: ProcessObservation,
+) CoreError!TransitionOutcome {
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    return terminal.lifecycle.containmentCompleted(
+        observation,
+        terminal.observedRevision(),
+    );
+}
+
+pub fn retainedCleanupBlocked(
+    self: anytype,
+    terminal_id: TerminalId,
+    cleanup_failure: RuntimeCleanupFailure,
+    retry_at_ns: i128,
+) CoreError!TransitionOutcome {
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    if (terminal.settledFinalRevision() == null) return error.InvalidPhase;
+    return terminal.retained_cleanup.block(cleanup_failure, retry_at_ns);
+}
+
+pub fn retainedCleanupCompleted(
+    self: anytype,
+    terminal_id: TerminalId,
+) CoreError!TransitionOutcome {
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    return terminal.retained_cleanup.completeCleanup();
+}
+
+pub fn retainedCleanupExhausted(
+    self: anytype,
+    terminal_id: TerminalId,
+) CoreError!TransitionOutcome {
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    return terminal.retained_cleanup.exhaust();
+}
+
+pub fn synchronizeRevision(self: anytype, terminal_id: TerminalId, revision: u64) CoreError!TransitionOutcome {
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    switch (terminal.phase()) {
+        .running, .finishing, .containing_failure => {},
+        .exited, .failed => {
+            // Settled engines may still serve retained read-only state,
+            // but their final revision is immutable. Accepting the exact
+            // value is a coherence check, never a new mutation.
+            if (revision == terminal.observedRevision()) return .idempotent;
+            return error.InvalidPhase;
+        },
+    }
+    if (revision < terminal.observedRevision()) return error.InvalidPhase;
+    if (revision == terminal.observedRevision()) return .idempotent;
+    terminal.engine_observation.revision = revision;
+    return .applied;
+}
+
+pub fn synchronizeGeometry(
+    self: anytype,
+    terminal_id: TerminalId,
+    columns: u16,
+    rows: u16,
+    cell_pixel_width: u16,
+    cell_pixel_height: u16,
+    revision: u64,
+) CoreError!void {
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    const observed_geometry = terminal.observedGeometry();
+    const geometry_changed = observed_geometry.columns != columns or
+        observed_geometry.rows != rows or
+        observed_geometry.cell_pixel_width != cell_pixel_width or
+        observed_geometry.cell_pixel_height != cell_pixel_height;
+    const revision_changed = terminal.observedRevision() != revision;
+    switch (terminal.phase()) {
+        .running, .finishing, .containing_failure => {},
+        .exited, .failed => {
+            if (!geometry_changed and !revision_changed) return;
+            return error.InvalidPhase;
+        },
+    }
+    if (revision < terminal.observedRevision()) return error.InvalidPhase;
+    if (geometry_changed and !revision_changed) return error.InvalidPhase;
+    if (!geometry_changed and !revision_changed) return;
+    terminal.engine_observation.geometry = .{
+        .cell_pixel_height = cell_pixel_height,
+        .cell_pixel_width = cell_pixel_width,
+        .columns = columns,
+        .rows = rows,
+    };
+    terminal.engine_observation.revision = revision;
+    if (geometry_changed) {
+        terminal.engine_observation.geometry_changed_at_revision = revision;
+    }
+}
+
+pub fn markOutcomePublished(
+    self: anytype,
+    token: OutcomePublicationToken,
+) TransitionOutcome {
+    const terminal = self.terminal_registry.find(token.terminal_id) orelse return .idempotent;
+    const final_revision = terminal.settledFinalRevision() orelse return .idempotent;
+    if (final_revision != token.final_revision or
+        terminal.observedRevision() != final_revision)
+    {
+        return .idempotent;
+    }
+    return terminal.lifecycle.markOutcomePublished(token.kind);
+}
+
+pub fn findTerminal(self: anytype, terminal_id: TerminalId) ?*const TerminalSession {
+    return self.terminal_registry.get(terminal_id);
+}
+
+pub fn terminalCount(self: anytype) usize {
+    return self.terminal_registry.count();
+}
+
+pub fn terminalKeys(self: anytype) []const TerminalId {
+    return self.terminal_registry.keys();
+}
+
+pub fn terminalValues(self: anytype) []const *const TerminalSession {
+    return self.terminal_registry.values();
+}
+
+pub fn inventoryGeneration(self: anytype) u64 {
+    return self.terminal_registry.generation();
+}

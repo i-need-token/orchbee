@@ -32,6 +32,7 @@ const AttachmentId = harness.AttachmentId;
 const HostEpoch = harness.HostEpoch;
 const reserveInput = harness.reserveInput;
 const TerminalRuntime = harness.TerminalRuntime;
+const runtimeState = harness.runtimeState;
 const max_pending_input_bytes = harness.max_pending_input_bytes;
 const max_pending_input_entries = harness.max_pending_input_entries;
 const max_pending_terminal_reply_bytes = harness.max_pending_terminal_reply_bytes;
@@ -466,16 +467,16 @@ test "Linux session descendant with a forged newline comm stays contained until 
     // The descendant is a live, uncontained session member: containment must
     // not be confirmed and the leader identity must remain retained.
     try std.testing.expect(processAlive(descendant_pid));
-    try std.testing.expect(!runtime.containment_confirmed.load(.acquire));
-    try std.testing.expect(!try runtime.process.processTreeContained());
-    try std.testing.expect(!runtime.process.identityReleased());
+    try std.testing.expect(!runtimeState(runtime).containment_confirmed.load(.acquire));
+    try std.testing.expect(!try runtimeState(runtime).process.processTreeContained());
+    try std.testing.expect(!runtimeState(runtime).process.identityReleased());
 
     // Shutdown force-terminates the session, confirms containment, and only
     // then releases the retained leader identity.
     try runtime.shutdown();
-    try std.testing.expect(runtime.containment_confirmed.load(.acquire));
-    try std.testing.expect(runtime.process.identityReleased());
-    try std.testing.expect(try runtime.process.processTreeContained());
+    try std.testing.expect(runtimeState(runtime).containment_confirmed.load(.acquire));
+    try std.testing.expect(runtimeState(runtime).process.identityReleased());
+    try std.testing.expect(try runtimeState(runtime).process.processTreeContained());
 
     // processTreeContained is the owned semantic check: a merely stopped
     // descendant remains live and would keep the result false. Host tests do

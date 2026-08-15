@@ -146,6 +146,10 @@ assertions in `@orchbee/terminal`. `test:cross` compiles the complete test graph
 macOS, and Windows; cross-compilation is not runtime evidence for those platforms. Repository CI
 supplies native Linux, macOS, and Windows behavior evidence.
 
+`format:check` also enforces the package boundary rule that every hand-written production Zig file
+under `src/` stays at or below 500 physical lines. Scenario catalogs under `__tests__/` and
+`*_test.zig` files are exempt.
+
 The narrower POSIX endpoint-security evidence can be run without the complete Host suite:
 
 ```sh

@@ -8,7 +8,7 @@ const host_event_delivery = @import("event_delivery.zig");
 const host_failure = @import("failure.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_request_dispatch = @import("request_dispatch.zig");
-const host_runtime_aggregate = @import("runtime_aggregate.zig");
+const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
 const terminal_configuration = @import("terminal-host-model").configuration;
 
 pub const host_version = build_options.host_version;

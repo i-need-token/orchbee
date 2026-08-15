@@ -16,6 +16,7 @@ pub const pty_process = platform_boundary.process;
 pub const terminal_configuration = model_boundary.configuration;
 pub const terminal_history = engine_boundary.history;
 pub const terminal_runtime = engine_boundary.runtime;
+pub const runtimeState = terminal_runtime.testing.stateForTesting;
 pub const host_input_admission = service_boundary.testing.input_admission;
 pub const host_outgoing = service_boundary.testing.outgoing;
 pub const host_response = service_boundary.testing.response;
@@ -105,9 +106,9 @@ pub fn expectInputAcceptedBytes(
 }
 
 pub fn parseTerminalInput(runtime: *terminal_runtime.TerminalRuntime, bytes: []const u8) void {
-    runtime.terminal_mutex.lock();
-    defer runtime.terminal_mutex.unlock();
-    runtime.stream.nextSlice(bytes);
+    runtimeState(runtime).terminal_mutex.lock();
+    defer runtimeState(runtime).terminal_mutex.unlock();
+    runtimeState(runtime).stream.nextSlice(bytes);
 }
 
 pub fn inputEntryCount(runtime: *terminal_runtime.TerminalRuntime) usize {
@@ -482,20 +483,20 @@ pub fn driveIdentityReleasedTerminationBarrier(
     // Complete the wait-worker path: empty-session confirmation and reap.
     // The test drives the ORIGINAL owned session to exit; this is the signal
     // the retained identity is allowed to receive.
-    try runtime.process.forceTerminate();
+    try runtimeState(runtime).process.forceTerminate();
     _ = try runtime.waitForCompletion();
-    try std.testing.expect(runtime.process.identityReleased());
+    try std.testing.expect(runtimeState(runtime).process.identityReleased());
 
     // The numeric SID is free and may be rebound to a foreign session. Resume
     // dispatch: the real terminate/forceTerminate must not consult it.
-    const signals_before = runtime.process.signalsIssued();
+    const signals_before = runtimeState(runtime).process.signalsIssued();
     gate.release();
     request_thread.?.join();
     request_thread = null;
 
     try std.testing.expect(outcome.failure == null);
     try std.testing.expectEqual(core_module.TransitionOutcome.applied, outcome.result.?);
-    try std.testing.expectEqual(signals_before, runtime.process.signalsIssued());
+    try std.testing.expectEqual(signals_before, runtimeState(runtime).process.signalsIssued());
 
     // The terminal settles with its eventual normal exit.
     service.runtime_aggregate.synchronizeTerminal(terminal_id);

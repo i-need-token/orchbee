@@ -10,7 +10,7 @@ const host_outgoing = @import("outgoing.zig");
 const host_request_context = @import("request_context.zig");
 const host_request_dispatch = @import("request_dispatch.zig");
 const host_response = @import("response.zig");
-const host_runtime_aggregate = @import("runtime_aggregate.zig");
+const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
 const identifiers = @import("terminal-host-model").identifiers;
 const protocol = @import("terminal-protocol");
 

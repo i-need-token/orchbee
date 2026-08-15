@@ -262,8 +262,8 @@ const HookedThreadSpawner = struct {
 
     pub fn spawn(
         _: *HookedThreadSpawner,
-        comptime thread_function: fn (*terminal_runtime.TerminalRuntime) void,
-        runtime: *terminal_runtime.TerminalRuntime,
+        comptime thread_function: anytype,
+        runtime: anytype,
     ) !std.Thread {
         return std.Thread.spawn(.{}, thread_function, .{runtime});
     }

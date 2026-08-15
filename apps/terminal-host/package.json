@@ -7,8 +7,9 @@
 	"scripts": {
 		"benchmark": "zig build benchmark -Doptimize=ReleaseFast",
 		"build": "zig build -Doptimize=ReleaseSafe",
+		"check:zig-file-size": "node scripts/check-zig-file-size.mjs",
 		"format": "zig fmt build.zig build.zig.zon src",
-		"format:check": "zig fmt --check build.zig build.zig.zon src",
+		"format:check": "zig fmt --check build.zig build.zig.zon src && node scripts/check-zig-file-size.mjs",
 		"surface-fixtures:generate": "node scripts/run-surface-fixture-conformance.mjs --write",
 		"test": "zig build test && node scripts/run-protocol-conformance.mjs && node scripts/run-surface-fixture-conformance.mjs",
 		"test:protocol": "node scripts/run-protocol-conformance.mjs",

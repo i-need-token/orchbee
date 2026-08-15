@@ -1,120 +1,24 @@
 const std = @import("std");
 const target_builtin = @import("builtin");
-
 const core_module = @import("terminal-host-core").state;
-const pty_process = @import("terminal-host-platform").process;
 const terminal_runtime = @import("terminal-host-engine").runtime;
+const contracts = @import("contracts.zig");
+const runtime_observation = @import("observation.zig");
 
-const max_runtime_sync_per_poll = 64;
+const CleanupClock = contracts.CleanupClock;
+const PendingOutcomeBatch = contracts.PendingOutcomeBatch;
+const RetainedCleanupResult = contracts.RetainedCleanupResult;
+const RetainedCleanupStatus = contracts.RetainedCleanupStatus;
+const max_runtime_sync_per_poll = contracts.max_runtime_sync_per_poll;
+
 const cleanup_retry_delay_ns: i128 = std.time.ns_per_s;
 /// Bounded number of cleanup-eligibility inspections allowed per
 /// synchronization pass. The cleanup-retry cursor advances by the number of
 /// terminals actually inspected, so a registry larger than this budget never
 /// turns one nominally bounded pass into a full-registry scan.
 const cleanup_retry_inspection_budget = 16;
-
-/// THDD-001 retained-cleanup observability after a failed fatal-teardown pass.
-pub const RetainedCleanupStatus = struct {
-    active: bool = false,
-    attempts: usize = 0,
-    exhausted: bool = false,
-};
-
-/// Outcome of the bounded retained-cleanup window. A retained failure keeps
-/// process-tree ownership explicit rather than silently abandoning it.
-pub const RetainedCleanupResult = enum {
-    complete,
-    retained_failed,
-};
-
 const retained_cleanup_max_attempts = 32;
 const retained_cleanup_backoff_ns = std.time.ns_per_s;
-
-pub const TerminalExitNotice = struct {
-    creation_id: core_module.CreationId,
-    final_revision: u64,
-    result: core_module.ExitResult,
-    terminal_id: core_module.TerminalId,
-
-    pub fn fromTerminal(terminal: core_module.TerminalSession) TerminalExitNotice {
-        std.debug.assert(terminal.phase() == .exited);
-        return .{
-            .creation_id = terminal.creation_id,
-            .final_revision = terminal.settledFinalRevision().?,
-            .result = terminal.exitResult().?,
-            .terminal_id = terminal.terminal_id,
-        };
-    }
-};
-
-pub const TerminalFailureNotice = struct {
-    creation_id: core_module.CreationId,
-    failure: core_module.RuntimeFailure,
-    final_revision: u64,
-    process: core_module.ProcessObservation,
-    terminal_id: core_module.TerminalId,
-};
-
-pub const TerminalOutcomeNotice = union(enum) {
-    exited: TerminalExitNotice,
-    failed: TerminalFailureNotice,
-
-    pub fn token(self: TerminalOutcomeNotice) core_module.OutcomePublicationToken {
-        return switch (self) {
-            .exited => |notice| .{
-                .final_revision = notice.final_revision,
-                .kind = .exited,
-                .terminal_id = notice.terminal_id,
-            },
-            .failed => |notice| .{
-                .final_revision = notice.final_revision,
-                .kind = .failed,
-                .terminal_id = notice.terminal_id,
-            },
-        };
-    }
-};
-
-pub const PendingOutcomeBatch = struct {
-    outcome_notice_count: usize = 0,
-    outcome_notices: [max_runtime_sync_per_poll]TerminalOutcomeNotice = undefined,
-
-    pub fn outcomes(self: *const PendingOutcomeBatch) []const TerminalOutcomeNotice {
-        return self.outcome_notices[0..self.outcome_notice_count];
-    }
-};
-
-/// Host-lifetime monotonic clock for cleanup-retry scheduling. Both the
-/// one-second retry deadline and the due-eligibility check read this clock, so
-/// an adjustable wall clock (CLOCK_REALTIME / system calendar time) can neither
-/// postpone nor accelerate cleanup retries. Production samples elapsed
-/// monotonic time since the clock's first scheduling use and clamps readings so
-/// they never go backward; tests inject a logical clock.
-pub const CleanupClock = struct {
-    epoch: ?std.time.Instant = null,
-    previous: ?std.time.Instant = null,
-    context: ?*anyopaque = null,
-    read_ns: *const fn (clock: *CleanupClock) i128 = readMonotonicNs,
-
-    pub fn now(self: *CleanupClock) i128 {
-        return self.read_ns(self);
-    }
-
-    fn readMonotonicNs(self: *CleanupClock) i128 {
-        const current = std.time.Instant.now() catch unreachable;
-        if (self.epoch) |epoch| {
-            var reading = current;
-            if (reading.order(self.previous.?) == .lt) {
-                reading = self.previous.?;
-            }
-            self.previous = reading;
-            return @as(i128, reading.since(epoch));
-        }
-        self.epoch = current;
-        self.previous = current;
-        return 0;
-    }
-};
 
 /// Owns fair runtime-observation scans, cleanup retry scheduling, and the
 /// conversion of immutable engine observations into Host lifecycle facts.
@@ -195,12 +99,12 @@ pub const Maintenance = struct {
             if (core.findTerminal(terminal_id).?.settledFinalRevision() == null) {
                 switch (completion.classification) {
                     .normal => {
-                        _ = synchronizeRuntimeObservation(
+                        _ = runtime_observation.synchronizeRuntimeObservation(
                             core,
                             terminal_id,
                             runtime,
                         ) catch unreachable;
-                        _ = synchronizeRuntimeCompletion(core, terminal_id, completion);
+                        _ = runtime_observation.synchronizeRuntimeCompletion(core, terminal_id, completion);
                     },
                     .pending, .failed => {},
                 }
@@ -215,7 +119,7 @@ pub const Maintenance = struct {
             }
 
             const primary_failure: core_module.RuntimeFailure = switch (completion.classification) {
-                .failed => |kind| runtimeFailureFromEngineKind(kind),
+                .failed => |kind| runtime_observation.runtimeFailureFromEngineKind(kind),
                 .pending, .normal => .observe_process,
             };
             _ = core.runtimeFailed(terminal_id, primary_failure) catch unreachable;
@@ -332,7 +236,7 @@ pub const Maintenance = struct {
             const terminal = core.terminalValues()[index];
             if (terminal.pendingOutcome()) |pending| {
                 batch.outcome_notices[batch.outcome_notice_count] =
-                    terminalOutcomeNotice(pending);
+                    runtime_observation.terminalOutcomeNotice(pending);
                 batch.outcome_notice_count += 1;
             }
         }
@@ -356,24 +260,24 @@ pub const Maintenance = struct {
         terminal_id: core_module.TerminalId,
         runtime: *terminal_runtime.TerminalRuntime,
     ) !void {
-        _ = synchronizeRuntimeObservation(core, terminal_id, runtime) catch unreachable;
+        _ = runtime_observation.synchronizeRuntimeObservation(core, terminal_id, runtime) catch unreachable;
         runtime.shutdown() catch |err| {
             _ = core.failureContainmentBlocked(
                 terminal_id,
-                cleanupFailure(err),
+                runtime_observation.cleanupFailure(err),
                 self.nextCleanupRetryAt(),
             ) catch unreachable;
             return err;
         };
         const completion = runtime.completion();
-        const geometry = synchronizeRuntimeObservation(
+        const geometry = runtime_observation.synchronizeRuntimeObservation(
             core,
             terminal_id,
             runtime,
         ) catch unreachable;
         std.debug.assert(geometry.revision == completion.final_revision);
         const observation: core_module.ProcessObservation = if (completion.child_exited)
-            .{ .observed = exitResult(completion.exit_result.?) }
+            .{ .observed = runtime_observation.exitResult(completion.exit_result.?) }
         else
             .{ .unavailable = .observe_process };
         _ = core.failureContained(terminal_id, observation) catch unreachable;
@@ -445,7 +349,7 @@ pub const Maintenance = struct {
         runtime.shutdown() catch |err| {
             _ = core.retainedCleanupBlocked(
                 terminal_id,
-                cleanupFailure(err),
+                runtime_observation.cleanupFailure(err),
                 self.nextCleanupRetryAt(),
             ) catch unreachable;
             return err;
@@ -470,7 +374,7 @@ pub const Maintenance = struct {
             },
             .complete, .exhausted => return,
         }
-        _ = synchronizeRuntimeObservation(core, terminal_id, runtime) catch unreachable;
+        _ = runtime_observation.synchronizeRuntimeObservation(core, terminal_id, runtime) catch unreachable;
         const terminal = core.findTerminal(terminal_id).?;
         if (terminal.lifecycle.needsContainmentWork()) {
             self.containRuntimeFailure(core, terminal_id, runtime) catch {};
@@ -500,7 +404,7 @@ pub const Maintenance = struct {
             },
             else => {
                 const completion = runtime.completion();
-                if (runtimeFailureFromObservation(completion)) |failure| {
+                if (runtime_observation.runtimeFailureFromObservation(completion)) |failure| {
                     std.debug.assert(
                         completion.final_revision ==
                             core.findTerminal(terminal_id).?.observedRevision(),
@@ -508,118 +412,9 @@ pub const Maintenance = struct {
                     _ = core.runtimeFailed(terminal_id, failure) catch unreachable;
                     self.containRuntimeFailure(core, terminal_id, runtime) catch {};
                 } else {
-                    _ = synchronizeRuntimeCompletion(core, terminal_id, completion);
+                    _ = runtime_observation.synchronizeRuntimeCompletion(core, terminal_id, completion);
                 }
             },
         }
     }
 };
-
-pub fn synchronizeRuntimeObservation(
-    core: *core_module.HostCore,
-    terminal_id: core_module.TerminalId,
-    runtime: *terminal_runtime.TerminalRuntime,
-) core_module.CoreError!terminal_runtime.Geometry {
-    const geometry = runtime.geometry();
-    try core.synchronizeGeometry(
-        terminal_id,
-        geometry.columns,
-        geometry.rows,
-        geometry.cell_pixel_width,
-        geometry.cell_pixel_height,
-        geometry.revision,
-    );
-    return geometry;
-}
-
-pub fn cleanupFailure(
-    err: terminal_runtime.ShutdownError,
-) core_module.RuntimeCleanupFailure {
-    return switch (err) {
-        error.ProcessContainmentFailed => .contain_process,
-        error.OutputReleaseFailed => .release_output,
-        error.ProcessIdentityReleaseFailed => .release_process_identity,
-    };
-}
-
-fn exitResult(result: pty_process.ExitResult) core_module.ExitResult {
-    return switch (result) {
-        .exit_code => |code| .{ .exit_code = code },
-        .signal => |signal| .{ .signal = signal },
-        .unknown => |unknown| .{ .unknown = unknown },
-    };
-}
-
-pub fn runtimeFailureFromObservation(
-    completion: terminal_runtime.Completion,
-) ?core_module.RuntimeFailure {
-    const failure = switch (completion.classification) {
-        .pending, .normal => return null,
-        .failed => |failure| failure,
-    };
-    return runtimeFailureFromEngineKind(failure);
-}
-
-pub fn runtimeFailureFromEngineKind(
-    failure: terminal_runtime.RuntimeFailureKind,
-) core_module.RuntimeFailure {
-    return switch (failure) {
-        .resize => .apply_resize,
-        .process_observation => .observe_process,
-        .pty_read => .read_output,
-        .pty_write => .write_input,
-        .terminal_reply => .admit_terminal_reply,
-        .worker_integrity => .synchronize_worker,
-    };
-}
-
-fn terminalOutcomeNotice(pending: core_module.PendingOutcome) TerminalOutcomeNotice {
-    return switch (pending) {
-        .exited => |outcome| .{ .exited = .{
-            .creation_id = outcome.creation_id,
-            .final_revision = outcome.final_revision,
-            .result = outcome.result,
-            .terminal_id = outcome.terminal_id,
-        } },
-        .failed => |outcome| .{ .failed = .{
-            .creation_id = outcome.creation_id,
-            .failure = outcome.failure,
-            .final_revision = outcome.final_revision,
-            .process = outcome.process,
-            .terminal_id = outcome.terminal_id,
-        } },
-    };
-}
-
-pub fn synchronizeRuntimeCompletion(
-    core: *core_module.HostCore,
-    terminal_id: core_module.TerminalId,
-    completion: terminal_runtime.Completion,
-) ?TerminalExitNotice {
-    const normal_completion_ready = switch (completion.classification) {
-        .pending => false,
-        .normal => true,
-        .failed => return null,
-    };
-    const terminal = core.findTerminal(terminal_id) orelse return null;
-    if (terminal.settledFinalRevision()) |final_revision| {
-        std.debug.assert(final_revision == completion.final_revision);
-        std.debug.assert(final_revision == terminal.observedRevision());
-        return null;
-    }
-    _ = core.synchronizeRevision(terminal_id, completion.final_revision) catch unreachable;
-    if (completion.pty_drained and !terminal.ptyDrained()) {
-        if (!terminal.childExited() or normal_completion_ready) {
-            _ = core.ptyDrained(terminal_id) catch unreachable;
-        }
-    }
-    const after_drain = core.findTerminal(terminal_id).?;
-    if (completion.child_exited and !after_drain.childExited()) {
-        if (!after_drain.ptyDrained() or normal_completion_ready) {
-            _ = core.childExited(terminal_id, exitResult(completion.exit_result.?)) catch unreachable;
-        }
-    }
-    const updated_terminal = core.findTerminal(terminal_id).?;
-    if (updated_terminal.phase() != .exited) return null;
-    return TerminalExitNotice.fromTerminal(updated_terminal.*);
-}

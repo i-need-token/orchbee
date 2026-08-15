@@ -15,6 +15,7 @@ pub const subject = service_boundary.testing.interaction;
 pub const service_subject = service_boundary.service;
 pub const terminal_launch = engine_boundary.launch;
 pub const terminal_runtime = engine_boundary.runtime;
+pub const runtimeState = terminal_runtime.testing.stateForTesting;
 
 pub const commitReaderBatch = terminal_runtime.testing.commitReaderBatchFn;
 pub const createModel = core_module.testing.createTerminal;
@@ -236,8 +237,8 @@ pub const HookedThreadSpawner = struct {
 
     pub fn spawn(
         _: *HookedThreadSpawner,
-        comptime thread_function: fn (*terminal_runtime.TerminalRuntime) void,
-        runtime: *terminal_runtime.TerminalRuntime,
+        comptime thread_function: anytype,
+        runtime: anytype,
     ) !std.Thread {
         return std.Thread.spawn(.{}, thread_function, .{runtime});
     }
@@ -370,9 +371,9 @@ pub fn pendingCancellation(
     runtime: *terminal_runtime.TerminalRuntime,
     attachment_id: core_module.AttachmentId,
 ) !?terminal_runtime.SelectionExportCancellation {
-    runtime.terminal_mutex.lock();
-    defer runtime.terminal_mutex.unlock();
-    const prepared = try runtime.history.prepareSelectionExportCancellation(attachment_id);
+    runtimeState(runtime).terminal_mutex.lock();
+    defer runtimeState(runtime).terminal_mutex.unlock();
+    const prepared = try runtimeState(runtime).history.prepareSelectionExportCancellation(attachment_id);
     return if (prepared) |token| token.cancellation else null;
 }
 
@@ -400,14 +401,14 @@ pub fn expectCancellationRecord(
 }
 
 pub fn retainRows(runtime: *terminal_runtime.TerminalRuntime, row_count: usize) !void {
-    runtime.terminal_mutex.lock();
-    defer runtime.terminal_mutex.unlock();
-    while (runtime.terminal.screens.active.pages.total_rows < row_count) {
-        try runtime.terminal.printString("\n");
+    runtimeState(runtime).terminal_mutex.lock();
+    defer runtimeState(runtime).terminal_mutex.unlock();
+    while (runtimeState(runtime).terminal.screens.active.pages.total_rows < row_count) {
+        try runtimeState(runtime).terminal.printString("\n");
     }
     try std.testing.expectEqual(
         row_count,
-        runtime.terminal.screens.active.pages.total_rows,
+        runtimeState(runtime).terminal.screens.active.pages.total_rows,
     );
 }
 

@@ -8,5 +8,5 @@ pub const testing = if (builtin.is_test) struct {
     pub const outgoing = @import("outgoing.zig");
     pub const projection = @import("projection.zig");
     pub const response = @import("response.zig");
-    pub const runtime_aggregate = @import("runtime_aggregate.zig");
+    pub const runtime_aggregate = @import("runtime_aggregate/root.zig");
 } else struct {};

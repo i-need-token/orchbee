@@ -32,13 +32,14 @@ pub const AttachmentId = subject.AttachmentId;
 pub const HostEpoch = subject.HostEpoch;
 pub const reserveInput = subject.testing.reserveInputFn;
 pub const TerminalRuntime = subject.TerminalRuntime;
+pub const runtimeState = subject.testing.stateForTesting;
 pub const max_pending_input_bytes = subject.testing.pending_input_limit;
 pub const max_pending_input_entries = subject.testing.pending_input_entry_limit;
 pub const max_pending_terminal_reply_bytes = subject.testing.pending_terminal_reply_limit;
 pub const max_writer_slice_bytes = subject.testing.writer_slice_limit;
 // The terminal-reply burst bound the writer enforces before yielding to a
 // waiting accepted client entry. It mirrors max_terminal_reply_burst_slices in
-// runtime.zig and is the contract value documented in runtime-model.md.
+// runtime/writer.zig and is the contract value documented in runtime-model.md.
 pub const terminal_reply_burst_bound: usize = 64;
 pub const publishInput = subject.testing.publishInputFn;
 pub const recordReaderFailure = subject.testing.recordReaderFailureFn;
@@ -134,8 +135,8 @@ pub const FailingThreadSpawner = struct {
 
     pub fn spawn(
         self: *FailingThreadSpawner,
-        comptime thread_function: fn (*TerminalRuntime) void,
-        runtime: *TerminalRuntime,
+        comptime thread_function: anytype,
+        runtime: anytype,
     ) !std.Thread {
         const attempt = self.attempts;
         self.attempts += 1;
@@ -149,8 +150,8 @@ pub const CountingThreadSpawner = struct {
 
     pub fn spawn(
         self: *CountingThreadSpawner,
-        comptime thread_function: fn (*TerminalRuntime) void,
-        runtime: *TerminalRuntime,
+        comptime thread_function: anytype,
+        runtime: anytype,
     ) !std.Thread {
         self.attempts += 1;
         return std.Thread.spawn(.{}, thread_function, .{runtime});
@@ -166,8 +167,8 @@ pub const HookedThreadSpawner = struct {
 
     pub fn spawn(
         _: *HookedThreadSpawner,
-        comptime thread_function: fn (*TerminalRuntime) void,
-        runtime: *TerminalRuntime,
+        comptime thread_function: anytype,
+        runtime: anytype,
     ) !std.Thread {
         return std.Thread.spawn(.{}, thread_function, .{runtime});
     }
@@ -221,11 +222,11 @@ pub fn createRuntimeWithHooksAndCommand(
 }
 
 pub fn waitForWriterStop(runtime: *TerminalRuntime) void {
-    runtime.input_mutex.lock();
-    while (!runtime.writer_stopped.load(.acquire)) {
-        runtime.input_condition.wait(&runtime.input_mutex);
+    runtimeState(runtime).input_mutex.lock();
+    while (!runtimeState(runtime).writer_stopped.load(.acquire)) {
+        runtimeState(runtime).input_condition.wait(&runtimeState(runtime).input_mutex);
     }
-    runtime.input_mutex.unlock();
+    runtimeState(runtime).input_mutex.unlock();
 }
 
 pub fn createIdleRuntime(options: subject.Options) !*TerminalRuntime {
@@ -279,9 +280,9 @@ pub fn createIdleRuntimeWithGeometry(
 }
 
 pub fn parseTerminalInput(runtime: *TerminalRuntime, bytes: []const u8) void {
-    runtime.terminal_mutex.lock();
-    defer runtime.terminal_mutex.unlock();
-    runtime.stream.nextSlice(bytes);
+    runtimeState(runtime).terminal_mutex.lock();
+    defer runtimeState(runtime).terminal_mutex.unlock();
+    runtimeState(runtime).stream.nextSlice(bytes);
 }
 
 pub const WriterPause = enum {
@@ -579,16 +580,16 @@ pub const CanonicalSnapshot = struct {
 };
 
 pub fn canonicalSnapshot(runtime: *TerminalRuntime) !CanonicalSnapshot {
-    runtime.terminal_mutex.lock();
-    defer runtime.terminal_mutex.unlock();
-    const screen = runtime.terminal.screens.get(runtime.terminal.screens.active_key).?;
+    runtimeState(runtime).terminal_mutex.lock();
+    defer runtimeState(runtime).terminal_mutex.unlock();
+    const screen = runtimeState(runtime).terminal.screens.get(runtimeState(runtime).terminal.screens.active_key).?;
     return .{
-        .generation = runtime.generation,
-        .output_batches = runtime.output_batches_since_sync.load(.acquire),
-        .revision = runtime.revision.load(.monotonic),
-        .text = try runtime.terminal.plainString(std.testing.allocator),
+        .generation = runtimeState(runtime).generation,
+        .output_batches = runtimeState(runtime).output_batches_since_sync.load(.acquire),
+        .revision = runtimeState(runtime).revision.load(.monotonic),
+        .text = try runtimeState(runtime).terminal.plainString(std.testing.allocator),
         .total_rows = screen.pages.total_rows,
-        .written_bytes = runtime.written_since_sync.load(.acquire),
+        .written_bytes = runtimeState(runtime).written_since_sync.load(.acquire),
     };
 }
 
@@ -674,26 +675,26 @@ pub fn observeFrameHyperlinks(
 }
 
 pub fn writeProjectionOutput(runtime: *TerminalRuntime, bytes: []const u8) !u64 {
-    runtime.terminal_mutex.lock();
-    defer runtime.terminal_mutex.unlock();
-    runtime.stream.nextSlice(bytes);
-    const revision = std.math.add(u64, runtime.revision.load(.monotonic), 1) catch
+    runtimeState(runtime).terminal_mutex.lock();
+    defer runtimeState(runtime).terminal_mutex.unlock();
+    runtimeState(runtime).stream.nextSlice(bytes);
+    const revision = std.math.add(u64, runtimeState(runtime).revision.load(.monotonic), 1) catch
         return error.TestUnexpectedRevisionOverflow;
-    runtime.revision.store(revision, .release);
+    runtimeState(runtime).revision.store(revision, .release);
     return revision;
 }
 
 pub fn expectProjectionRowRevisions(runtime: *TerminalRuntime, expected: []const u64) !void {
-    runtime.projection_mutex.lock();
-    defer runtime.projection_mutex.unlock();
-    try std.testing.expectEqualSlices(u64, expected, runtime.projection.row_revisions.items);
+    runtimeState(runtime).projection_mutex.lock();
+    defer runtimeState(runtime).projection_mutex.unlock();
+    try std.testing.expectEqualSlices(u64, expected, runtimeState(runtime).projection.row_revisions.items);
 }
 
 pub fn expectProjectionLinkTargets(runtime: *TerminalRuntime, expected: []const []const u8) !void {
-    runtime.projection_mutex.lock();
-    defer runtime.projection_mutex.unlock();
-    try std.testing.expectEqual(expected.len, runtime.projection.link_table.values.items.len);
-    for (expected, runtime.projection.link_table.values.items) |expected_target, actual_target| {
+    runtimeState(runtime).projection_mutex.lock();
+    defer runtimeState(runtime).projection_mutex.unlock();
+    try std.testing.expectEqual(expected.len, runtimeState(runtime).projection.link_table.values.items.len);
+    for (expected, runtimeState(runtime).projection.link_table.values.items) |expected_target, actual_target| {
         try std.testing.expectEqualStrings(expected_target, actual_target);
     }
 }

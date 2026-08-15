@@ -17,7 +17,7 @@ pub const recordReaderFailure = terminal_runtime.testing.recordReaderFailureFn;
 pub const recordUnsafeResizeFailure = subject.testing.recordUnsafeResizeFailureFn;
 
 // Must match `cleanup_retry_inspection_budget` in
-// src/service/runtime_maintenance.zig. The cursor-advance assertions below
+// src/service/runtime_maintenance/. The cursor-advance assertions below
 // validate the bounded per-pass scan; a drift in either constant fails them.
 pub const cleanup_retry_inspection_budget = 16;
 
@@ -286,8 +286,8 @@ pub const HookedThreadSpawner = struct {
 
     pub fn spawn(
         _: *HookedThreadSpawner,
-        comptime thread_function: fn (*terminal_runtime.TerminalRuntime) void,
-        runtime: *terminal_runtime.TerminalRuntime,
+        comptime thread_function: anytype,
+        runtime: anytype,
     ) !std.Thread {
         return std.Thread.spawn(.{}, thread_function, .{runtime});
     }

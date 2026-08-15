@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const terminal_runtime = @import("terminal-host-engine").runtime;
+const runtimeState = terminal_runtime.testing.stateForTesting;
 
 const semantic_wait_timeout_ns: u64 = 10 * std.time.ns_per_s;
 
@@ -60,10 +61,10 @@ pub fn childExit(
     runtime: *terminal_runtime.TerminalRuntime,
 ) !terminal_runtime.Completion {
     var deadline = try Deadline.init(semantic_wait_timeout_ns);
-    runtime.input_mutex.lock();
-    defer runtime.input_mutex.unlock();
-    while (!runtime.child_exited.load(.acquire)) {
-        try deadline.wait(&runtime.input_condition, &runtime.input_mutex);
+    runtimeState(runtime).input_mutex.lock();
+    defer runtimeState(runtime).input_mutex.unlock();
+    while (!runtimeState(runtime).child_exited.load(.acquire)) {
+        try deadline.wait(&runtimeState(runtime).input_condition, &runtimeState(runtime).input_mutex);
     }
     return runtime.completion();
 }
@@ -76,10 +77,10 @@ pub fn writerQueueObservation(
     // started yet or has reached its condition wait. Broadcasting while the
     // mutex is held then requires a later queue observation before the hook can
     // advance the signal generation.
-    runtime.input_mutex.lock();
+    runtimeState(runtime).input_mutex.lock();
     const generation = signal.snapshot();
-    runtime.input_condition.broadcast();
-    runtime.input_mutex.unlock();
+    runtimeState(runtime).input_condition.broadcast();
+    runtimeState(runtime).input_mutex.unlock();
     try signal.waitAfter(generation);
 }
 

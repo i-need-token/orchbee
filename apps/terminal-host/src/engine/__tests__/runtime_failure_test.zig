@@ -32,6 +32,7 @@ const AttachmentId = harness.AttachmentId;
 const HostEpoch = harness.HostEpoch;
 const reserveInput = harness.reserveInput;
 const TerminalRuntime = harness.TerminalRuntime;
+const runtimeState = harness.runtimeState;
 const max_pending_input_bytes = harness.max_pending_input_bytes;
 const max_pending_input_entries = harness.max_pending_input_entries;
 const max_pending_terminal_reply_bytes = harness.max_pending_terminal_reply_bytes;
@@ -112,9 +113,9 @@ test "prepared export cancellation commits after an uncontained fatal failure" {
     defer attachment.deinit();
     attachment.commit();
     {
-        runtime.terminal_mutex.lock();
-        defer runtime.terminal_mutex.unlock();
-        try runtime.terminal.printString("prepared cancellation");
+        runtimeState(runtime).terminal_mutex.lock();
+        defer runtimeState(runtime).terminal_mutex.unlock();
+        try runtimeState(runtime).terminal.printString("prepared cancellation");
     }
 
     const geometry = runtime.geometry();
@@ -144,18 +145,18 @@ test "prepared export cancellation commits after an uncontained fatal failure" {
         runtime.plainString(std.testing.allocator),
     );
     {
-        runtime.terminal_mutex.lock();
-        defer runtime.terminal_mutex.unlock();
-        const retained = (try runtime.history.prepareSelectionExportCancellation(attachment_id)).?;
+        runtimeState(runtime).terminal_mutex.lock();
+        defer runtimeState(runtime).terminal_mutex.unlock();
+        const retained = (try runtimeState(runtime).history.prepareSelectionExportCancellation(attachment_id)).?;
         try std.testing.expectEqualDeep(prepared, retained);
     }
 
     runtime.commitPreparedSelectionExportCancellation(prepared);
     {
-        runtime.terminal_mutex.lock();
-        defer runtime.terminal_mutex.unlock();
+        runtimeState(runtime).terminal_mutex.lock();
+        defer runtimeState(runtime).terminal_mutex.unlock();
         try std.testing.expect(
-            (try runtime.history.prepareSelectionExportCancellation(attachment_id)) == null,
+            (try runtimeState(runtime).history.prepareSelectionExportCancellation(attachment_id)) == null,
         );
     }
 }
@@ -478,10 +479,10 @@ test "post-resize-effect barrier keeps normal completion pending through commit 
             runtime.destroy();
         }
 
-        runtime.input_mutex.lock();
-        runtime.writer_stop = true;
-        runtime.input_condition.broadcast();
-        runtime.input_mutex.unlock();
+        runtimeState(runtime).input_mutex.lock();
+        runtimeState(runtime).writer_stop = true;
+        runtimeState(runtime).input_condition.broadcast();
+        runtimeState(runtime).input_mutex.unlock();
         waitForWriterStop(runtime);
         const before = runtime.geometry();
         const before_configuration = runtime.configuration();
@@ -497,17 +498,17 @@ test "post-resize-effect barrier keeps normal completion pending through commit 
         try std.testing.expectEqual(@as(usize, 1), at_barrier.post_effects);
         try std.testing.expect(subject.testing.resizeEffectInFlight(runtime));
         try std.testing.expectEqualDeep(before, runtime.geometry());
-        switch (completionClassificationLoad(&runtime.completion_classification)) {
+        switch (completionClassificationLoad(&runtimeState(runtime).completion_classification)) {
             .pending => {},
             .normal, .failed => return error.ExpectedPendingCompletionAtPostEffectBarrier,
         }
 
-        runtime.exit_result = .{ .exit_code = 0 };
-        runtime.child_exited.store(true, .release);
-        runtime.pty_drained.store(true, .release);
+        runtimeState(runtime).exit_result = .{ .exit_code = 0 };
+        runtimeState(runtime).child_exited.store(true, .release);
+        runtimeState(runtime).pty_drained.store(true, .release);
         markNormalCompletionReady(runtime);
         try std.testing.expect(subject.testing.resizeEffectInFlight(runtime));
-        switch (completionClassificationLoad(&runtime.completion_classification)) {
+        switch (completionClassificationLoad(&runtimeState(runtime).completion_classification)) {
             .pending => {},
             .normal, .failed => return error.NormalCompletionOvertookPostResizeEffectBarrier,
         }
@@ -626,10 +627,10 @@ test "stopped writer rejects reservations even when queue capacity remains" {
     });
     defer runtime.destroy();
 
-    runtime.input_mutex.lock();
-    runtime.writer_stop = true;
-    runtime.input_condition.broadcast();
-    runtime.input_mutex.unlock();
+    runtimeState(runtime).input_mutex.lock();
+    runtimeState(runtime).writer_stop = true;
+    runtimeState(runtime).input_condition.broadcast();
+    runtimeState(runtime).input_mutex.unlock();
 
     try std.testing.expectError(
         error.TerminalExited,
@@ -659,9 +660,9 @@ test "resize counter exhaustion leaves process and terminal geometry unchanged" 
     });
     defer runtime.destroy();
 
-    runtime.terminal_mutex.lock();
-    runtime.generation = std.math.maxInt(u64);
-    runtime.terminal_mutex.unlock();
+    runtimeState(runtime).terminal_mutex.lock();
+    runtimeState(runtime).generation = std.math.maxInt(u64);
+    runtimeState(runtime).terminal_mutex.unlock();
     const generation_exhausted = runtime.geometry();
     try std.testing.expectError(
         error.RevisionOverflow,
@@ -669,10 +670,10 @@ test "resize counter exhaustion leaves process and terminal geometry unchanged" 
     );
     try std.testing.expectEqualDeep(generation_exhausted, runtime.geometry());
 
-    runtime.terminal_mutex.lock();
-    runtime.generation = 1;
-    runtime.revision.store(std.math.maxInt(u64), .monotonic);
-    runtime.terminal_mutex.unlock();
+    runtimeState(runtime).terminal_mutex.lock();
+    runtimeState(runtime).generation = 1;
+    runtimeState(runtime).revision.store(std.math.maxInt(u64), .monotonic);
+    runtimeState(runtime).terminal_mutex.unlock();
     const revision_exhausted = runtime.geometry();
     try std.testing.expectError(
         error.RevisionOverflow,

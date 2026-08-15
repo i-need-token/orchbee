@@ -2,6 +2,7 @@ const std = @import("std");
 
 const core_module = @import("terminal-host-core").state;
 const terminal_runtime = @import("terminal-host-engine").runtime;
+const runtimeState = terminal_runtime.testing.stateForTesting;
 const service_boundary = @import("terminal-host-service");
 const host_outgoing = service_boundary.testing.outgoing;
 const host_service = service_boundary.service;
@@ -35,8 +36,8 @@ fn normalCompletion(
     runtime: *terminal_runtime.TerminalRuntime,
     deadline: *Deadline,
 ) !terminal_runtime.Completion {
-    runtime.input_mutex.lock();
-    defer runtime.input_mutex.unlock();
+    runtimeState(runtime).input_mutex.lock();
+    defer runtimeState(runtime).input_mutex.unlock();
     while (true) {
         const completion = runtime.completion();
         switch (completion.classification) {
@@ -44,8 +45,8 @@ fn normalCompletion(
             .failed => return error.RuntimeFailedBeforeExpectedExit,
             .pending => {},
         }
-        if (runtime.failure_fenced) return error.RuntimeUnavailableBeforeExpectedExit;
-        try deadline.wait(&runtime.input_condition, &runtime.input_mutex);
+        if (runtimeState(runtime).failure_fenced) return error.RuntimeUnavailableBeforeExpectedExit;
+        try deadline.wait(&runtimeState(runtime).input_condition, &runtimeState(runtime).input_mutex);
     }
 }
 
@@ -62,27 +63,27 @@ pub fn runtimeText(
         allocator.free(output);
         if (found) return;
 
-        runtime.terminal_mutex.lock();
-        if (runtime.revision.load(.acquire) != observed_revision) {
-            runtime.terminal_mutex.unlock();
+        runtimeState(runtime).terminal_mutex.lock();
+        if (runtimeState(runtime).revision.load(.acquire) != observed_revision) {
+            runtimeState(runtime).terminal_mutex.unlock();
             continue;
         }
         switch (runtime.completion().classification) {
             .normal => {
-                runtime.terminal_mutex.unlock();
+                runtimeState(runtime).terminal_mutex.unlock();
                 return error.ExpectedRuntimeTextMissing;
             },
             .failed => {
-                runtime.terminal_mutex.unlock();
+                runtimeState(runtime).terminal_mutex.unlock();
                 return error.RuntimeFailedBeforeExpectedText;
             },
             .pending => {},
         }
-        deadline.wait(&runtime.terminal_condition, &runtime.terminal_mutex) catch |err| {
-            runtime.terminal_mutex.unlock();
+        deadline.wait(&runtimeState(runtime).terminal_condition, &runtimeState(runtime).terminal_mutex) catch |err| {
+            runtimeState(runtime).terminal_mutex.unlock();
             return err;
         };
-        runtime.terminal_mutex.unlock();
+        runtimeState(runtime).terminal_mutex.unlock();
     }
 }
 

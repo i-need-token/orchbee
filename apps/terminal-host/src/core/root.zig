@@ -1,1 +1,1 @@
-pub const state = @import("state.zig");
+pub const state = @import("state/root.zig");

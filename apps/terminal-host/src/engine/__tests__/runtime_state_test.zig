@@ -32,6 +32,7 @@ const AttachmentId = harness.AttachmentId;
 const HostEpoch = harness.HostEpoch;
 const reserveInput = harness.reserveInput;
 const TerminalRuntime = harness.TerminalRuntime;
+const runtimeState = harness.runtimeState;
 const max_pending_input_bytes = harness.max_pending_input_bytes;
 const max_pending_input_entries = harness.max_pending_input_entries;
 const max_pending_terminal_reply_bytes = harness.max_pending_terminal_reply_bytes;
@@ -370,7 +371,7 @@ test "unrecoverable worker failures contain the process tree without a connected
 
         case.inject(runtime);
 
-        try std.testing.expect(runtime.containment_confirmed.load(.acquire));
+        try std.testing.expect(runtimeState(runtime).containment_confirmed.load(.acquire));
         try std.testing.expectEqual(case.expected_kind, runtime.primaryFailure().?);
         try std.testing.expectError(case.expected_error, runtime.waitForCompletion());
         try runtime.shutdown();
@@ -532,9 +533,9 @@ test "attachment preparation applies the live gate to every resize capability" {
 test "resize-only attachment preparation reserves no input ownership capacity" {
     const runtime = try createIdleRuntime(.{});
     defer runtime.destroy();
-    runtime.input_mutex.lock();
-    const capacity_before = runtime.input_ownership.attachments.capacity();
-    runtime.input_mutex.unlock();
+    runtimeState(runtime).input_mutex.lock();
+    const capacity_before = runtimeState(runtime).input_ownership.attachments.capacity();
+    runtimeState(runtime).input_mutex.unlock();
 
     var preparation = try runtime.prepareAttachment(
         AttachmentId.fromBytes([_]u8{0x24} ** 16),
@@ -542,9 +543,9 @@ test "resize-only attachment preparation reserves no input ownership capacity" {
     );
     defer preparation.deinit();
 
-    runtime.input_mutex.lock();
-    const capacity_after = runtime.input_ownership.attachments.capacity();
-    runtime.input_mutex.unlock();
+    runtimeState(runtime).input_mutex.lock();
+    const capacity_after = runtimeState(runtime).input_ownership.attachments.capacity();
+    runtimeState(runtime).input_mutex.unlock();
     try std.testing.expectEqual(capacity_before, capacity_after);
 }
 test "attachment preparation derives reservations from canonical capabilities" {
@@ -881,9 +882,9 @@ test "application terminal controls reject counter exhaustion before mutation" {
         commitReaderBatch(runtime, "unchanged"),
     );
 
-    runtime.terminal_mutex.lock();
-    runtime.generation = std.math.maxInt(u64);
-    runtime.terminal_mutex.unlock();
+    runtimeState(runtime).terminal_mutex.lock();
+    runtimeState(runtime).generation = std.math.maxInt(u64);
+    runtimeState(runtime).terminal_mutex.unlock();
     var before = try canonicalSnapshot(runtime);
     defer before.deinit();
     try std.testing.expectError(error.RevisionOverflow, runtime.applyTerminalControl(.clear));
@@ -891,10 +892,10 @@ test "application terminal controls reject counter exhaustion before mutation" {
     defer after.deinit();
     try expectCanonicalSnapshotEqual(before, after);
 
-    runtime.terminal_mutex.lock();
-    runtime.generation = 1;
-    runtime.revision.store(std.math.maxInt(u64), .monotonic);
-    runtime.terminal_mutex.unlock();
+    runtimeState(runtime).terminal_mutex.lock();
+    runtimeState(runtime).generation = 1;
+    runtimeState(runtime).revision.store(std.math.maxInt(u64), .monotonic);
+    runtimeState(runtime).terminal_mutex.unlock();
     var revision_before = try canonicalSnapshot(runtime);
     defer revision_before.deinit();
     try std.testing.expectError(error.RevisionOverflow, runtime.applyTerminalControl(.reset));

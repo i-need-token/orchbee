@@ -2,7 +2,7 @@ const std = @import("std");
 
 const ghostty_vt = @import("ghostty-vt");
 const protocol = @import("terminal-protocol");
-const projection = @import("projection.zig");
+const projection = @import("projection/root.zig");
 
 pub const columns: u16 = 8;
 pub const rows: u16 = 6;

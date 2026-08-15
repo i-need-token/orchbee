@@ -32,6 +32,7 @@ const AttachmentId = harness.AttachmentId;
 const HostEpoch = harness.HostEpoch;
 const reserveInput = harness.reserveInput;
 const TerminalRuntime = harness.TerminalRuntime;
+const runtimeState = harness.runtimeState;
 const max_pending_input_bytes = harness.max_pending_input_bytes;
 const max_pending_input_entries = harness.max_pending_input_entries;
 const max_pending_terminal_reply_bytes = harness.max_pending_terminal_reply_bytes;
@@ -286,9 +287,9 @@ test "root child exit rejects new client input without stopping terminal replies
     );
     const reply = try reserveInput(runtime, 1, false, .terminal);
     try publishInput(runtime, reply, try std.testing.allocator.dupe(u8, "x"));
-    runtime.input_mutex.lock();
-    try std.testing.expect(!runtime.writer_stop);
-    runtime.input_mutex.unlock();
+    runtimeState(runtime).input_mutex.lock();
+    try std.testing.expect(!runtimeState(runtime).writer_stop);
+    runtimeState(runtime).input_mutex.unlock();
     try runtime.forceTerminate();
 }
 test "runtime queue applies bounded backpressure before allocation" {
@@ -544,12 +545,12 @@ test "post-exit descendant keeping the PTY open cannot receive a later committed
     // Root exit closes client admission; the PTY-holding descendant keeps the
     // writer running, so writer_stop stays false.
     try runtime.terminate();
-    runtime.input_mutex.lock();
-    while (!runtime.child_exited.load(.acquire)) {
-        runtime.input_condition.wait(&runtime.input_mutex);
+    runtimeState(runtime).input_mutex.lock();
+    while (!runtimeState(runtime).child_exited.load(.acquire)) {
+        runtimeState(runtime).input_condition.wait(&runtimeState(runtime).input_mutex);
     }
-    const writer_still_open = !runtime.writer_stop;
-    runtime.input_mutex.unlock();
+    const writer_still_open = !runtimeState(runtime).writer_stop;
+    runtimeState(runtime).input_mutex.unlock();
     try std.testing.expect(writer_still_open);
 
     // A preparation committed only after child exit is rejected and its bytes
@@ -1036,10 +1037,10 @@ test "attachment detach repair allocation failure fences the live runtime" {
         std.testing.allocator,
         .{ .fail_index = 0 },
     );
-    const runtime_allocator = runtime.allocator;
-    runtime.allocator = failing.allocator();
+    const runtime_allocator = runtimeState(runtime).allocator;
+    runtimeState(runtime).allocator = failing.allocator();
     runtime.detachInput(attachment_id);
-    runtime.allocator = runtime_allocator;
+    runtimeState(runtime).allocator = runtime_allocator;
 
     try std.testing.expect(subject.testing.failureFenced(runtime));
     try std.testing.expectEqual(
@@ -1245,10 +1246,10 @@ test "maximum key text uses the negotiated encoded-byte limit" {
         std.testing.allocator,
         .{ .fail_index = 0 },
     );
-    const runtime_allocator = runtime.allocator;
-    runtime.allocator = failing.allocator();
+    const runtime_allocator = runtimeState(runtime).allocator;
+    runtimeState(runtime).allocator = failing.allocator();
     const allocation_result = runtime.prepareKeyInput(a_input, 12_294);
-    runtime.allocator = runtime_allocator;
+    runtimeState(runtime).allocator = runtime_allocator;
     try std.testing.expectError(error.OutOfMemory, allocation_result);
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
     try runtime.forceTerminate();

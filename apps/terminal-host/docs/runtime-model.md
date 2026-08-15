@@ -95,6 +95,24 @@ fact.
 | `@orchbee/terminal-protocol` | Wire schemas, codecs, message kinds, format versions, and protocol safety limits                                                                                                                                              |
 | Desktop                      | Product binding, recovery decisions, escalation timing, platform effects, presentation, and updates                                                                                                                           |
 
+`TerminalEngine` remains one semantic owner, but it is not one implementation file. Its runtime
+source is a directory of review units: one private state record, one narrow public handle, and
+transaction modules for creation, lifecycle, containment, failure fencing, input admission and
+writing, output parsing, terminal control, resize, projection, attachment, and history or
+selection interaction. Each transaction module is the only implementation writer for the facts it
+owns; a cross-transaction operation names its lock order and invokes the other owner through a
+typed operation. Moving the owner into a directory does not create another terminal engine,
+another Ghostty state, or another process owner.
+
+The same rule applies to the Host-side owners. `state/` keeps one concrete
+`HostCore` while connection, terminal-lifecycle, attachment, and projection
+transactions live in separate owner-local files. `runtime_aggregate/` keeps one concrete
+`HostRuntimeAggregate` while retained ownership, creation, attachment and input, configuration,
+projection, termination, and maintenance orchestration are separate review units.
+`runtime_maintenance/` separates scheduling from immutable runtime-observation conversion.
+Their roots preserve the existing namespaces; none of these directories introduces another
+registry, broker, retained-terminal map, or cleanup owner.
+
 In particular, terminal state and terminal runtime must not live in independent authoritative maps.
 The Host runtime coordinator allocates one `RetainedTerminal` whose adjacent fields are the complete
 semantic session and its engine. `TerminalRegistry` indexes a stable reference to that embedded
@@ -938,6 +956,9 @@ Review follows semantic boundaries rather than file order. For each transition, 
 6. resource cleanup for every failure edge; and
 7. evidence for every affected claim ID.
 
-A smaller file is useful only when it gives one of these responsibilities a clearer owner. Moving
-code without removing duplicated authority, illegal state combinations, or cross-owner commits is
-not a boundary improvement.
+File size is a mandatory review signal even when one semantic owner must remain intact. When an
+owner no longer fits in one independently reviewable file, promote it to a directory and partition
+its state declaration, public facade, and transaction implementations into named review units.
+Keep one authoritative owner and make cross-unit commits explicit; merely moving code while
+duplicating authority, permitting illegal state combinations, or hiding cross-owner commits is not
+a boundary improvement.
