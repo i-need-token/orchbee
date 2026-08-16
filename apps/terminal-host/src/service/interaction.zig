@@ -21,7 +21,7 @@ const SchedulerTestingHooks = if (target_builtin.is_test) struct {
 
 pub const ScheduleOutcome = host_outgoing.ScheduleOutcome;
 
-pub const AccessError = host_runtime_aggregate.ReadableAttachmentError;
+pub const AccessError = host_runtime_aggregate.InteractionAccessError;
 pub const ReadRowsRequest = host_runtime_aggregate.ReadRowsRequest;
 pub const SelectionGestureRequest = host_runtime_aggregate.SelectionGestureRequest;
 pub const SelectionCommandRequest = host_runtime_aggregate.SelectionCommandRequest;
@@ -40,16 +40,25 @@ pub const Controller = struct {
         return .{ .aggregate = aggregate };
     }
 
-    pub fn readableAttachment(
+    pub fn historyAccess(
         self: Controller,
         connection_id: core_module.ConnectionId,
         attachment_id: core_module.AttachmentId,
-    ) AccessError!ReadableAttachment {
-        return self.aggregate.readableAttachment(connection_id, attachment_id);
+    ) AccessError!HistoryAccess {
+        return self.aggregate.historyAccess(connection_id, attachment_id);
+    }
+
+    pub fn selectionAccess(
+        self: Controller,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+    ) AccessError!SelectionAccess {
+        return self.aggregate.selectionAccess(connection_id, attachment_id);
     }
 };
 
-pub const ReadableAttachment = host_runtime_aggregate.ReadableAttachment;
+pub const HistoryAccess = host_runtime_aggregate.HistoryAccess;
+pub const SelectionAccess = host_runtime_aggregate.SelectionAccess;
 pub const SelectionExportHandoff = host_runtime_aggregate.SelectionExportHandoff;
 
 pub const Scheduler = struct {

@@ -68,16 +68,38 @@ pub const Context = struct {
         return self.runtime_aggregate.hostEpoch();
     }
 
-    pub fn requireReadableInteraction(
+    pub fn requireHistoryAccess(
         self: *Context,
         connection_id: core_module.ConnectionId,
         attachment_id: core_module.AttachmentId,
         correlation_id: WireIdentifier,
         outgoing: *Outgoing,
-    ) !?host_runtime_aggregate.ReadableAttachment {
-        return self.runtime_aggregate.readableAttachment(connection_id, attachment_id) catch |err| {
+    ) !?host_runtime_aggregate.HistoryAccess {
+        return self.runtime_aggregate.historyAccess(connection_id, attachment_id) catch |err| {
             switch (err) {
-                error.ReadableAttachmentUnavailable => try self.addFailure(
+                error.InteractionAccessUnavailable => try self.addFailure(
+                    outgoing,
+                    correlation_id,
+                    "missing-resource",
+                    "attachment has no readable history capability",
+                    false,
+                ),
+                error.TerminalRuntimeMissing => unreachable,
+            }
+            return null;
+        };
+    }
+
+    pub fn requireSelectionAccess(
+        self: *Context,
+        connection_id: core_module.ConnectionId,
+        attachment_id: core_module.AttachmentId,
+        correlation_id: WireIdentifier,
+        outgoing: *Outgoing,
+    ) !?host_runtime_aggregate.SelectionAccess {
+        return self.runtime_aggregate.selectionAccess(connection_id, attachment_id) catch |err| {
+            switch (err) {
+                error.InteractionAccessUnavailable => try self.addFailure(
                     outgoing,
                     correlation_id,
                     "missing-resource",

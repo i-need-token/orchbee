@@ -9,10 +9,14 @@ const host_runtime_maintenance = @import("../runtime_maintenance/root.zig");
 const attachments = @import("attachments.zig");
 const configuration = @import("configuration.zig");
 const creation = @import("creation.zig");
+const geometry = @import("geometry.zig");
+const input_admission = @import("input_admission.zig");
+const interaction_access = @import("interaction_access.zig");
 const inventory = @import("inventory.zig");
 const maintenance_api = @import("maintenance_api.zig");
 const ownership = @import("ownership.zig");
 const projection = @import("projection.zig");
+const terminal_control = @import("terminal_control.zig");
 const termination = @import("termination.zig");
 
 pub const HostRuntimeAggregateTestingState = if (target_builtin.is_test) struct {
@@ -72,8 +76,12 @@ pub const HostRuntimeAggregate = struct {
     pub const prepareTerminalDefaultsUpdate = configuration.prepareTerminalDefaultsUpdate;
     pub const commitTerminalDefaultsUpdate = configuration.commitTerminalDefaultsUpdate;
     pub const updateTerminalConfiguration = configuration.updateTerminalConfiguration;
-    pub const resizeTerminal = configuration.resizeTerminal;
-    pub const applyTerminalControl = configuration.applyTerminalControl;
+
+    // geometry boundary.
+    pub const resizeTerminal = geometry.resizeTerminal;
+
+    // terminal-control boundary.
+    pub const applyTerminalControl = terminal_control.applyTerminalControl;
 
     // projection boundary.
     pub const frameApplied = projection.frameApplied;
@@ -97,13 +105,18 @@ pub const HostRuntimeAggregate = struct {
     pub const requestTermination = termination.requestTermination;
     pub const disposeTerminal = termination.disposeTerminal;
 
-    // attachments boundary.
-    pub const readableAttachment = attachments.readableAttachment;
+    // attachment-lifecycle boundary.
     pub const attach = attachments.attach;
-    pub const acceptRawInput = attachments.acceptRawInput;
-    pub const prepareRawInput = attachments.prepareRawInput;
-    pub const acceptSemanticInput = attachments.acceptSemanticInput;
-    pub const prepareSemanticInput = attachments.prepareSemanticInput;
     pub const detach = attachments.detach;
     pub const disconnect = attachments.disconnect;
+
+    // input-admission boundary.
+    pub const acceptRawInput = input_admission.acceptRawInput;
+    pub const prepareRawInput = input_admission.prepareRawInput;
+    pub const acceptSemanticInput = input_admission.acceptSemanticInput;
+    pub const prepareSemanticInput = input_admission.prepareSemanticInput;
+
+    // interaction-access boundary.
+    pub const historyAccess = interaction_access.historyAccess;
+    pub const selectionAccess = interaction_access.selectionAccess;
 };

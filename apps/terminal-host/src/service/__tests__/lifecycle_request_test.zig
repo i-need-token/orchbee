@@ -66,6 +66,7 @@ const testRequestWithContract = harness.testRequestWithContract;
 const expectContractSuccess = harness.expectContractSuccess;
 const publishedClientInputCount = harness.publishedClientInputCount;
 const onlyTerminalFrame = harness.onlyTerminalFrame;
+const pollEventsChecked = harness.pollEventsChecked;
 const testHandshake = harness.testHandshake;
 const testHandshakeWithInputBytes = harness.testHandshakeWithInputBytes;
 const testHandshakeResponseKind = harness.testHandshakeResponseKind;
@@ -682,7 +683,7 @@ test "post-exit configuration is rejected without revising or republishing outco
     try std.testing.expectEqualDeep(settled_configuration, retained.effectiveConfiguration());
     try std.testing.expectEqual(settled_configuration_revision, retained.configurationRevision());
 
-    var later_events = try service.pollEvents(&connection);
+    var later_events = try pollEventsChecked(&service, &connection);
     defer later_events.deinit();
     for (later_events.records()) |event_record| {
         const event = try protocol.validateTransportEnvelope(event_record);

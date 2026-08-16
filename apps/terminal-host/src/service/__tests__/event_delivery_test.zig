@@ -66,6 +66,7 @@ const testRequestWithContract = harness.testRequestWithContract;
 const expectContractSuccess = harness.expectContractSuccess;
 const publishedClientInputCount = harness.publishedClientInputCount;
 const onlyTerminalFrame = harness.onlyTerminalFrame;
+const pollEventsChecked = harness.pollEventsChecked;
 const testHandshake = harness.testHandshake;
 const testHandshakeWithInputBytes = harness.testHandshakeWithInputBytes;
 const testHandshakeResponseKind = harness.testHandshakeResponseKind;
@@ -222,7 +223,7 @@ test "failed terminal outcome is emitted once with typed process evidence" {
     const active = try activeConnection(&connection);
     const terminal_id = try retainFailedTerminal(&service, active.connection_id, 0x31);
 
-    var outgoing = try service.pollEvents(&connection);
+    var outgoing = try pollEventsChecked(&service, &connection);
     defer outgoing.deinit();
     try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
     const envelope = try protocol.validateTransportEnvelope(outgoing.records()[0]);
@@ -252,7 +253,7 @@ test "failed terminal outcome is emitted once with typed process evidence" {
     try std.testing.expectEqualStrings("exit-code", parsed.value.process.result.kind);
     try std.testing.expect(serviceCore(&service).findTerminal(terminal_id).?.pendingOutcome() == null);
 
-    var duplicate = try service.pollEvents(&connection);
+    var duplicate = try pollEventsChecked(&service, &connection);
     defer duplicate.deinit();
     try std.testing.expectEqual(@as(usize, 0), duplicate.records().len);
 }
@@ -290,7 +291,7 @@ test "full outgoing batch leaves a failed outcome pending for the next handoff" 
     );
     try std.testing.expect(serviceCore(&service).findTerminal(terminal_id) != null);
 
-    var retry = try service.pollEvents(&connection);
+    var retry = try pollEventsChecked(&service, &connection);
     defer retry.deinit();
     try std.testing.expectEqual(@as(usize, 1), retry.records().len);
     const event = try protocol.validateTransportEnvelope(retry.records()[0]);
@@ -393,7 +394,7 @@ test "DisposeTerminal retains a native exit until its poll handoff commits" {
     try std.testing.expectEqual(@as(usize, 1), serviceAggregate(&service).runtimeCount());
     try std.testing.expect(serviceCore(&service).findTerminal(terminal_id).?.pendingOutcome() != null);
 
-    var events = try service.pollEvents(&connection);
+    var events = try pollEventsChecked(&service, &connection);
     defer events.deinit();
     try std.testing.expectEqual(@as(usize, 1), events.records().len);
     const exit_event = try protocol.validateTransportEnvelope(events.records()[0]);
@@ -409,7 +410,7 @@ test "DisposeTerminal retains a native exit until its poll handoff commits" {
     try std.testing.expect(serviceCore(&service).findTerminal(terminal_id).?.pendingOutcome() == null);
     try std.testing.expect(findRuntime(&service, terminal_id) == retained_runtime);
 
-    var duplicate_events = try service.pollEvents(&connection);
+    var duplicate_events = try pollEventsChecked(&service, &connection);
     defer duplicate_events.deinit();
     try std.testing.expectEqual(@as(usize, 0), duplicate_events.records().len);
 
@@ -518,7 +519,7 @@ test "DisposeTerminal settles a skipped exact target through HostService" {
     // settled outcome event is handed off and its publication commits.
     var exit_event_handed_off = false;
     for (0..4) |_| {
-        var events = try service.pollEvents(&connection);
+        var events = try pollEventsChecked(&service, &connection);
         defer events.deinit();
         for (events.records()) |record| {
             const envelope = try protocol.validateTransportEnvelope(record);

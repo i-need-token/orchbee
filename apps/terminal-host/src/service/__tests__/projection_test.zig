@@ -1,4 +1,5 @@
 const std = @import("std");
+const deterministic_schedule = @import("deterministic_schedule.zig");
 const target_builtin = @import("builtin");
 const core_boundary = @import("terminal-host-core");
 const engine_boundary = @import("terminal-host-engine");
@@ -26,52 +27,8 @@ const projection_interval_ns: u64 = 16 * std.time.ns_per_ms;
 const features = [_]u16{22};
 const palette = [_]u32{0} ** 256;
 
-const TestGate = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
-    reached: bool = false,
-    released: bool = false,
-
-    fn pause(self: *TestGate) void {
-        self.mutex.lock();
-        self.reached = true;
-        self.condition.broadcast();
-        while (!self.released) self.condition.wait(&self.mutex);
-        self.mutex.unlock();
-    }
-
-    fn wait(self: *TestGate) void {
-        self.mutex.lock();
-        while (!self.reached) self.condition.wait(&self.mutex);
-        self.mutex.unlock();
-    }
-
-    fn release(self: *TestGate) void {
-        self.mutex.lock();
-        self.released = true;
-        self.condition.broadcast();
-        self.mutex.unlock();
-    }
-};
-
-const TestSignal = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
-    reached: bool = false,
-
-    fn notify(self: *TestSignal) void {
-        self.mutex.lock();
-        self.reached = true;
-        self.condition.broadcast();
-        self.mutex.unlock();
-    }
-
-    fn wait(self: *TestSignal) void {
-        self.mutex.lock();
-        while (!self.reached) self.condition.wait(&self.mutex);
-        self.mutex.unlock();
-    }
-};
+const TestGate = deterministic_schedule.Gate;
+const TestSignal = deterministic_schedule.Signal;
 
 const FailOnceAfterCaptureAllocator = struct {
     backing: std.mem.Allocator,

@@ -7,6 +7,7 @@ pub const model_boundary = @import("terminal-host-model");
 pub const platform_boundary = @import("terminal-host-platform");
 pub const protocol = @import("terminal-protocol");
 pub const semantic_wait = @import("semantic_wait.zig");
+pub const deterministic_schedule = @import("deterministic_schedule.zig");
 pub const service_boundary = @import("terminal-host-service");
 pub const subject = service_boundary.service;
 pub const control_decode = control_boundary.decode;
@@ -18,6 +19,9 @@ pub const terminal_history = engine_boundary.history;
 pub const terminal_runtime = engine_boundary.runtime;
 pub const runtimeState = terminal_runtime.testing.stateForTesting;
 pub const host_input_admission = service_boundary.testing.input_admission;
+pub const host_composition_observation = @import("composition_observation.zig");
+pub const host_composition_reference = @import("composition_reference.zig");
+pub const host_composition_trace = @import("composition_trace.zig");
 pub const host_outgoing = service_boundary.testing.outgoing;
 pub const host_response = service_boundary.testing.response;
 
@@ -56,6 +60,27 @@ pub fn findRuntime(
     terminal_id: core_module.TerminalId,
 ) ?*terminal_runtime.TerminalRuntime {
     return serviceAggregate(service).runtimeFor(terminal_id);
+}
+
+pub fn expectCompositionInvariants(
+    service: *HostService,
+    connection: ?*const ConnectionState,
+) !void {
+    try host_composition_observation.checkInvariants(
+        std.testing.allocator,
+        service,
+        connection,
+    );
+}
+
+pub fn pollEventsChecked(
+    service: *HostService,
+    connection: *const ConnectionState,
+) !Outgoing {
+    var outgoing = try service.pollEvents(connection);
+    errdefer outgoing.deinit();
+    try expectCompositionInvariants(service, connection);
+    return outgoing;
 }
 
 pub fn activeConnection(connection: *const ConnectionState) !*const ConnectionState.Active {
@@ -287,7 +312,7 @@ pub fn disposeSkippedTargetThroughTransport(cursor: usize) !void {
     // settled outcome event is handed off and its publication commits.
     var exit_event_handed_off = false;
     for (0..4) |_| {
-        var events = try service.pollEvents(&connection);
+        var events = try pollEventsChecked(&service, &connection);
         defer events.deinit();
         for (events.records()) |record| {
             const envelope = try protocol.validateTransportEnvelope(record);
@@ -321,46 +346,8 @@ pub fn disposeSkippedTargetThroughTransport(cursor: usize) !void {
 // immediately, keep retained terminals, finish old-session cleanup in a
 // bounded teardown, and leave a replacement broker fully serviceable.
 
-pub const TerminationBarrierGate = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
-    reached: bool = false,
-    released: bool = false,
-
-    pub fn pause(self: *TerminationBarrierGate) void {
-        self.mutex.lock();
-        self.reached = true;
-        self.condition.broadcast();
-        while (!self.released) self.condition.wait(&self.mutex);
-        self.mutex.unlock();
-    }
-
-    pub fn release(self: *TerminationBarrierGate) void {
-        self.mutex.lock();
-        self.released = true;
-        self.condition.broadcast();
-        self.mutex.unlock();
-    }
-};
-
-pub const TerminationBarrierSignal = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
-    reached: bool = false,
-
-    pub fn notify(self: *TerminationBarrierSignal) void {
-        self.mutex.lock();
-        self.reached = true;
-        self.condition.broadcast();
-        self.mutex.unlock();
-    }
-
-    pub fn wait(self: *TerminationBarrierSignal) void {
-        self.mutex.lock();
-        while (!self.reached) self.condition.wait(&self.mutex);
-        self.mutex.unlock();
-    }
-};
+pub const TerminationBarrierGate = deterministic_schedule.Gate;
+pub const TerminationBarrierSignal = deterministic_schedule.Signal;
 
 pub const aggregate_module = service_boundary.testing.runtime_aggregate;
 
@@ -570,6 +557,7 @@ pub fn testRequestWithContract(
         correlation_id,
         &outgoing,
     );
+    try expectCompositionInvariants(service, connection);
     return outgoing;
 }
 
@@ -674,6 +662,7 @@ pub fn testHandshakeResponseKindWithInputBytes(
     var outgoing = try service.handle(connection, record);
     defer outgoing.deinit();
     try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
+    try expectCompositionInvariants(service, connection);
     return (try protocol.validateTransportEnvelope(outgoing.records()[0])).kind;
 }
 
@@ -865,5 +854,8 @@ pub fn testRequest(
         false,
     );
     defer std.testing.allocator.free(record);
-    return service.handle(connection, record);
+    var outgoing = try service.handle(connection, record);
+    errdefer outgoing.deinit();
+    try expectCompositionInvariants(service, connection);
+    return outgoing;
 }

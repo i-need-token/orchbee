@@ -509,6 +509,13 @@ int ob_windows_local_test_client_read(
     return *read_bytes == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
 }
 
+int ob_windows_local_test_client_peek(void *client, uint32_t *available) {
+    if (!PeekNamedPipe((HANDLE)client, NULL, 0, NULL, available, NULL)) {
+        return ob_connection_status(GetLastError());
+    }
+    return OB_WINDOWS_IPC_OK;
+}
+
 int ob_windows_local_test_client_write(
     void *client,
     const uint8_t *buffer,

@@ -2,9 +2,10 @@ const std = @import("std");
 
 const core_module = @import("terminal-host-core").state;
 const terminal_engine = @import("terminal-host-engine");
+const host_history_access = @import("../history_access.zig");
 const host_input_admission = @import("../input_admission.zig");
-const host_interaction_access = @import("../interaction_access.zig");
 const host_runtime_maintenance = @import("../runtime_maintenance/root.zig");
+const host_selection_access = @import("../selection_access.zig");
 const model = @import("terminal-host-model");
 const identifiers = model.identifiers;
 const terminal_configuration = model.configuration;
@@ -61,16 +62,17 @@ pub const TerminalInventory = struct {
     terminals: []const *const core_module.TerminalSession,
 };
 
-pub const ReadableAttachmentError = error{
-    ReadableAttachmentUnavailable,
+pub const InteractionAccessError = error{
+    InteractionAccessUnavailable,
     TerminalRuntimeMissing,
 };
 
-pub const ReadRowsRequest = host_interaction_access.ReadRowsRequest;
-pub const SelectionGestureRequest = host_interaction_access.SelectionGestureRequest;
-pub const SelectionCommandRequest = host_interaction_access.SelectionCommandRequest;
-pub const ReadableAttachment = host_interaction_access.ReadableAttachment;
-pub const SelectionExportHandoff = host_interaction_access.SelectionExportHandoff;
+pub const ReadRowsRequest = host_history_access.ReadRowsRequest;
+pub const HistoryAccess = host_history_access.HistoryAccess;
+pub const SelectionGestureRequest = host_selection_access.SelectionGestureRequest;
+pub const SelectionCommandRequest = host_selection_access.SelectionCommandRequest;
+pub const SelectionAccess = host_selection_access.SelectionAccess;
+pub const SelectionExportHandoff = host_selection_access.SelectionExportHandoff;
 
 pub const CreateOutcome = union(enum) {
     created: TerminalIdentity,

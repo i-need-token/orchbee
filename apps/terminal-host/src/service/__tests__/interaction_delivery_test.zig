@@ -137,15 +137,15 @@ test "readable interaction capability distinguishes authorization from runtime o
     const controller = subject.Controller.init(&aggregate);
     try std.testing.expectError(
         error.TerminalRuntimeMissing,
-        controller.readableAttachment(connection_id, readable_attachment_id),
+        controller.historyAccess(connection_id, readable_attachment_id),
     );
     try std.testing.expectError(
-        error.ReadableAttachmentUnavailable,
-        controller.readableAttachment(connection_id, input_attachment_id),
+        error.InteractionAccessUnavailable,
+        controller.historyAccess(connection_id, input_attachment_id),
     );
     try std.testing.expectError(
-        error.ReadableAttachmentUnavailable,
-        controller.readableAttachment(connection_id + 1, readable_attachment_id),
+        error.InteractionAccessUnavailable,
+        controller.historyAccess(connection_id + 1, readable_attachment_id),
     );
 
     _ = try aggregate.core().detach(connection_id, readable_attachment_id);
@@ -258,7 +258,7 @@ test "a full outgoing batch retries the same bell sequence" {
     try std.testing.expectEqual(@as(usize, 1), retry.records().len);
     try expectBellRecord(retry.records()[0], attachment_id, 1);
 }
-test "readable capability binds identity and provisional export rollback restores sequence" {
+test "selection capability binds identity and provisional export rollback restores sequence" {
     if (target_builtin.os.tag == .windows) return error.SkipZigTest;
 
     var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
@@ -266,7 +266,7 @@ test "readable capability binds identity and provisional export rollback restore
     const connection_id: core_module.ConnectionId = 1;
     const attachment_id = testId(core_module.AttachmentId, 0x32);
     const binding = try createReadableRuntime(&aggregate, connection_id, attachment_id);
-    const interaction = try subject.Controller.init(&aggregate).readableAttachment(
+    const interaction = try subject.Controller.init(&aggregate).selectionAccess(
         connection_id,
         attachment_id,
     );

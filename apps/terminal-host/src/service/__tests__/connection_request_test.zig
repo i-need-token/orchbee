@@ -1,6 +1,7 @@
 const harness = @import("service_harness.zig");
 const serviceAggregate = harness.serviceAggregate;
 const serviceCore = harness.serviceCore;
+const expectCompositionInvariants = harness.expectCompositionInvariants;
 const std = harness.std;
 const target_builtin = harness.target_builtin;
 const control_boundary = harness.control_boundary;
@@ -561,6 +562,7 @@ test "reply reservation failure cannot commit terminal defaults" {
         @as(u64, 1),
         serviceCore(&service).terminalDefaultsRevision(),
     );
+    try expectCompositionInvariants(&service, &connection);
 }
 test "idle stop requires both the final disconnect and an empty terminal registry" {
     var service = HostService.init(std.testing.allocator);

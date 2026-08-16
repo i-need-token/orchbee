@@ -66,6 +66,7 @@ const testRequestWithContract = harness.testRequestWithContract;
 const expectContractSuccess = harness.expectContractSuccess;
 const publishedClientInputCount = harness.publishedClientInputCount;
 const onlyTerminalFrame = harness.onlyTerminalFrame;
+const pollEventsChecked = harness.pollEventsChecked;
 const testHandshake = harness.testHandshake;
 const testHandshakeWithInputBytes = harness.testHandshakeWithInputBytes;
 const testHandshakeResponseKind = harness.testHandshakeResponseKind;
@@ -179,7 +180,7 @@ test "retained exited terminals still project and export selection" {
         MessageKind.projection_demand_accepted,
         (try protocol.validateTransportEnvelope(demanded.records()[0])).kind,
     );
-    var projection_events = try service.pollEvents(&connection);
+    var projection_events = try pollEventsChecked(&service, &connection);
     defer projection_events.deinit();
     var projected = false;
     for (projection_events.records()) |record| {
@@ -230,7 +231,7 @@ test "retained exited terminals still project and export selection" {
     }
     try std.testing.expect(started);
     try std.testing.expect(!chunked);
-    var export_events = try service.pollEvents(&connection);
+    var export_events = try pollEventsChecked(&service, &connection);
     defer export_events.deinit();
     for (export_events.records()) |record| {
         const envelope = try protocol.validateTransportEnvelope(record);
@@ -568,7 +569,7 @@ test "current protocol activates a lazy live projection and accepts semantic tex
     defer demanded.deinit();
     try std.testing.expectEqual(@as(usize, 1), demanded.records().len);
     try std.testing.expectEqual(MessageKind.projection_demand_accepted, (try protocol.validateTransportEnvelope(demanded.records()[0])).kind);
-    var demand_events = try service.pollEvents(&connection);
+    var demand_events = try pollEventsChecked(&service, &connection);
     defer demand_events.deinit();
     try std.testing.expectEqual(@as(usize, 1), demand_events.records().len);
     const frame_envelope = try protocol.validateTransportEnvelope(demand_events.records()[0]);
@@ -625,7 +626,7 @@ test "current protocol activates a lazy live projection and accepts semantic tex
     );
     defer resumed.deinit();
     try std.testing.expectEqual(@as(usize, 1), resumed.records().len);
-    var resume_events = try service.pollEvents(&connection);
+    var resume_events = try pollEventsChecked(&service, &connection);
     defer resume_events.deinit();
     try std.testing.expectEqual(@as(usize, 1), resume_events.records().len);
     const resumed_envelope = try protocol.validateTransportEnvelope(resume_events.records()[0]);
@@ -776,7 +777,7 @@ test "scheduler emits one uncorrelated cancellation for an invalidated export" {
     );
     defer std.testing.allocator.free(expected_payload);
 
-    var events = try service.pollEvents(&connection);
+    var events = try pollEventsChecked(&service, &connection);
     defer events.deinit();
     var finished_count: usize = 0;
     var chunk_count: usize = 0;
@@ -795,7 +796,7 @@ test "scheduler emits one uncorrelated cancellation for an invalidated export" {
     try std.testing.expectEqual(@as(usize, 1), finished_count);
     try std.testing.expectEqual(@as(usize, 0), chunk_count);
 
-    var later_events = try service.pollEvents(&connection);
+    var later_events = try pollEventsChecked(&service, &connection);
     defer later_events.deinit();
     for (later_events.records()) |record| {
         const envelope = try protocol.validateTransportEnvelope(record);
@@ -964,7 +965,7 @@ test "selection export request emits pending cancellation before a newer export 
     try std.testing.expect(cancellation_position.? < started_position.?);
     try std.testing.expectEqual(@as(usize, 0), chunk_count);
 
-    var export_events = try service.pollEvents(&connection);
+    var export_events = try pollEventsChecked(&service, &connection);
     defer export_events.deinit();
     for (export_events.records()) |record| {
         const envelope = try protocol.validateTransportEnvelope(record);

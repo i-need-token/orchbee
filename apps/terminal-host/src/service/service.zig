@@ -167,6 +167,10 @@ fn setNextProjectionForTesting(service: *HostService) void {
     service.event_delivery.setNextProjectionForTesting();
 }
 
+fn shuttingDownForTesting(service: *const HostService) bool {
+    return service.lifecycle == .shutting_down;
+}
+
 pub const testing = if (target_builtin.is_test) struct {
     pub const beginShutdownFn = HostService.beginShutdown;
     pub const InputFailureType = InputFailure;
@@ -179,5 +183,6 @@ pub const testing = if (target_builtin.is_test) struct {
     pub const protocolErrorCodeFn = host_failure.protocolCode;
     pub const scheduleEgressFn = scheduleEgressForTesting;
     pub const setNextProjectionFn = setNextProjectionForTesting;
+    pub const shuttingDownFn = shuttingDownForTesting;
     pub const synchronizeRuntimeLifecycleFn = synchronizeRuntimeLifecycleForTesting;
 } else struct {};

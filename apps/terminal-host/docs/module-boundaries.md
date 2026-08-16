@@ -41,18 +41,18 @@ implementation file, or exposes mutable internals so a caller can bypass the own
 The directory boundaries above remain the build-graph authority. Within them, the following
 stateful or platform-dependent seams are durable review units rather than incidental file splits:
 
-| Boundary       | Internal owner                                                                                                | Coordinator or facade responsibility                                                                                      |
-| -------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Model          | `lifecycle/`, plus attachment, interaction, launch, and profile value modules                                 | `root.zig` exposes immutable cross-layer values without importing a stateful runtime boundary                             |
-| Engine         | `input_queue.zig`, `input_ownership.zig`, `history/`, `projection/`, and selection owners                     | `runtime/` orders cross-owner commits under the canonical terminal and input locks                                        |
-| Engine runtime | `runtime/` state, handle adapters, lifecycle, I/O, terminal mutation, projection, interaction, and test seams | `runtime/root.zig` preserves one public namespace while transaction files own independently reviewable runtime operations |
-| Core           | `state/` connection, terminal, attachment, and projection transactions, plus their dedicated state owners     | `state/root.zig` preserves the Core namespace; `host_core.zig` retains the single concrete Core owner                     |
-| Control        | `decode_*` and `encode_*` host, terminal, projection, and interaction adapters                                | `decode.zig` and `encode.zig` preserve one explicit public protocol surface                                               |
-| Platform       | `process_posix.zig` and `process_windows.zig`, with shared process type and common modules                    | `process.zig` selects the target implementation without reimplementing process behavior                                   |
-| Service access | `runtime_aggregate/`, `runtime_maintenance/`, retained-terminal, input-admission, and interaction access      | `runtime_aggregate/host_aggregate.zig` retains the single owner; its root preserves the existing service namespace        |
-| Service egress | `interaction.zig`, `projection.zig`, and `outgoing.zig`                                                       | `event_delivery.zig` owns fair scheduling and complete-batch handoff                                                      |
-| Service        | `terminal_requests/`, `connection_workflow.zig`, and the remaining request workflows                          | `service.zig` owns lifecycle and composition; workflows use the aggregate instead of mutable Core internals               |
-| Transport      | `connection.zig`, `local_server_posix.zig`, and `local_server_windows.zig`                                    | `root.zig` selects the local-server implementation and exposes the stable transport boundary                              |
+| Boundary       | Internal owner                                                                                                              | Coordinator or facade responsibility                                                                                      |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Model          | `lifecycle/`, plus attachment, interaction, launch, and profile value modules                                               | `root.zig` exposes immutable cross-layer values without importing a stateful runtime boundary                             |
+| Engine         | `input_queue.zig`, `input_ownership.zig`, `history/`, `projection/`, and selection owners                                   | `runtime/` orders cross-owner commits under the canonical terminal and input locks                                        |
+| Engine runtime | `runtime/` state, handle adapters, lifecycle, I/O, terminal mutation, projection, interaction, and test seams               | `runtime/root.zig` preserves one public namespace while transaction files own independently reviewable runtime operations |
+| Core           | `state/` connection, terminal, attachment, and projection transactions, plus their dedicated state owners                   | `state/root.zig` preserves the Core namespace; `host_core.zig` retains the single concrete Core owner                     |
+| Control        | `decode_*` and `encode_*` host, terminal, projection, and interaction adapters                                              | `decode.zig` and `encode.zig` preserve one explicit public protocol surface                                               |
+| Platform       | `process_posix.zig` and `process_windows.zig`, with shared process type and common modules                                  | `process.zig` selects the target implementation without reimplementing process behavior                                   |
+| Service access | `runtime_aggregate/`, `runtime_maintenance/`, retained-terminal, input-admission, history, and selection access             | `runtime_aggregate/host_aggregate.zig` retains the single owner; its root preserves the existing service namespace        |
+| Service egress | `interaction.zig`, `projection.zig`, and `outgoing.zig`                                                                     | `event_delivery.zig` owns fair scheduling and complete-batch handoff                                                      |
+| Service        | `terminal_requests/`, capability-named request workflows, `connection_workflow.zig`, and the test-only composition observer | `service.zig` owns lifecycle and composition; workflows use the aggregate instead of mutable Core internals               |
+| Transport      | `connection.zig`, `local_server_posix.zig`, and `local_server_windows.zig`                                                  | `root.zig` selects the local-server implementation and exposes the stable transport boundary                              |
 
 A semantic owner that outgrows one independently reviewable file becomes a directory. Its root is
 a narrow namespace or mechanical facade; state declarations and branching transaction logic live
@@ -79,13 +79,29 @@ the public root, depend on a reverse module edge, or call an untyped callback in
   named module. Large suites are partitioned by semantic owner and share only domain harnesses from
   that test directory; they do not expose production internals merely to arrange fixtures.
   Cross-boundary conformance tests remain under `src/__tests__/` and use only named imports.
+- `src/__tests__/host_black_box_test.zig` is an external executable-boundary refinement. Its
+  adjacent transport helper acts only as a native client; the built Host remains a separate child
+  process and the test observes it exclusively through the launcher ABI and Local IPC protocol.
 - Production roots do not publish codec implementation namespaces for white-box tests. When a
   boundary needs such a seam, its root exposes it only under a `builtin.is_test`-guarded `testing`
   namespace.
+- `src/service/__tests__/composition_observation.zig` is a test-only copied projection assembled from
+  owner-provided Core and Engine observations. It retains no domain state and supplies the shared
+  cross-owner invariant oracle used after stable request and poll boundaries. The adjacent
+  `composition_trace.zig` vocabulary and `composition_reference*.zig` executable reducer retain only
+  test evidence and action-determined abstract facts; they cannot authorize or commit product work.
+  They live with the generated-state-machine drivers, replay codecs, and shrinkers under
+  `src/service/__tests__/` and consume only narrow owner-provided testing seams rather than becoming
+  another Service coordinator or entering the production namespace.
+  Commit-seam evidence and deterministic scheduling also remain test-only: the stable matrix maps
+  each fallible commit boundary to named evidence, while scripted schedules constrain test event
+  order without creating a production coordinator or another source of domain state.
 - The build graph is executable visibility authority. Adding an allowed edge requires updating this
   reference and `build.zig` in the same accepted structural change.
 - Native C and header files live with their owning adapter: process containment under
   `src/platform/`, and POSIX endpoint security or Windows local IPC under `src/transport/`.
+  Windows-only black-box client calls may reuse the existing test support functions in that
+  transport C unit without exposing them through a Zig product module.
 
 ## Review gate
 

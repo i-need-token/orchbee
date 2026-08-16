@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const terminal_input_encoding = @import("../input_encoding.zig");
+const terminal_configuration = @import("terminal-host-model").configuration;
+const terminal_geometry = @import("terminal-host-model").geometry;
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const handle = @import("handle.zig");
@@ -19,8 +21,48 @@ pub const testing = if (builtin.is_test) struct {
     pub const InputQueueSnapshot = struct {
         client_charge: contracts.InputCharge,
         entry_count: usize,
+        input_attachment_count: usize,
         published_client_entries: usize,
+        repair_charge: contracts.InputCharge,
         terminal_reply_charge: contracts.InputCharge,
+    };
+
+    pub const RuntimeObservation = struct {
+        client_input_closed: bool,
+        completion: contracts.Completion,
+        configuration: terminal_configuration.Configuration,
+        containment_confirmed: bool,
+        failure_fenced: bool,
+        generation: u64,
+        geometry: terminal_geometry.Geometry,
+        history_attachment_count: usize,
+        history_selection_count: usize,
+        history_viewing_count: usize,
+        input: InputQueueSnapshot,
+        projection_captured_generation: u64,
+        projection_captured_revision: u64,
+        projection_resident: bool,
+        resize_fenced: bool,
+        threads_joined: bool,
+        writer_stop: bool,
+    };
+
+    pub const InvariantError = error{
+        ClientInputChargeOverflow,
+        DuplicateHistoryAttachment,
+        FailedCompletionWithoutFence,
+        FailureFenceWithoutWriterStop,
+        HistoryFlightAttachmentMismatch,
+        HistoryFlightSequenceInvalid,
+        HistorySelectionCountMismatch,
+        HistoryViewingCountMismatch,
+        InputQueueEntryCountMismatch,
+        InvalidRuntimeConfiguration,
+        InvalidRuntimeGeometry,
+        NormalCompletionIncomplete,
+        RepairChargeEntryOverflow,
+        RepairChargeOverflow,
+        TerminalReplyChargeOverflow,
     };
 
     pub const applyScrollbackBytesFn = terminal_control_ops.applyScrollbackBytes;
@@ -151,9 +193,131 @@ pub const testing = if (builtin.is_test) struct {
         return .{
             .client_charge = runtime_state.input_queue.charge(.client),
             .entry_count = runtime_state.input_queue.entryCount(),
+            .input_attachment_count = runtime_state.input_ownership.attachments.count(),
             .published_client_entries = runtime_state.input_queue.publishedCount(.client),
+            .repair_charge = runtime_state.input_ownership.repairCharge(),
             .terminal_reply_charge = runtime_state.input_queue.charge(.terminal),
         };
+    }
+
+    /// Captures all composition-relevant runtime facts while following the
+    /// runtime's canonical projection -> terminal -> input lock order. The
+    /// value is an observation only; no semantic owner is duplicated.
+    pub fn observe(runtime: *handle.TerminalRuntime) RuntimeObservation {
+        const runtime_state = handle.stateFrom(runtime);
+        runtime_state.projection_mutex.lock();
+        defer runtime_state.projection_mutex.unlock();
+        runtime_state.terminal_mutex.lock();
+        defer runtime_state.terminal_mutex.unlock();
+        failure_ops.waitForReaderCommitLocked(runtime_state);
+        runtime_state.input_mutex.lock();
+        defer runtime_state.input_mutex.unlock();
+
+        return observeLocked(runtime_state);
+    }
+
+    pub fn checkInvariants(runtime: *handle.TerminalRuntime) InvariantError!void {
+        const runtime_state = handle.stateFrom(runtime);
+        runtime_state.projection_mutex.lock();
+        defer runtime_state.projection_mutex.unlock();
+        runtime_state.terminal_mutex.lock();
+        defer runtime_state.terminal_mutex.unlock();
+        failure_ops.waitForReaderCommitLocked(runtime_state);
+        runtime_state.input_mutex.lock();
+        defer runtime_state.input_mutex.unlock();
+
+        const observation = observeLocked(runtime_state);
+        if (!terminal_configuration.valid(observation.configuration)) {
+            return error.InvalidRuntimeConfiguration;
+        }
+        if (!terminal_geometry.isValid(observation.geometry)) {
+            return error.InvalidRuntimeGeometry;
+        }
+        if (observation.input.client_charge.bytes > contracts.pending_input_capacity_bytes) {
+            return error.ClientInputChargeOverflow;
+        }
+        if (observation.input.client_charge.entries > contracts.max_pending_client_input_entries or
+            observation.input.terminal_reply_charge.entries >
+                contracts.max_pending_terminal_reply_entries)
+        {
+            return error.InputQueueEntryCountMismatch;
+        }
+        if (observation.input.terminal_reply_charge.bytes >
+            contracts.pending_terminal_reply_capacity_bytes)
+        {
+            return error.TerminalReplyChargeOverflow;
+        }
+        if (observation.input.client_charge.entries +
+            observation.input.terminal_reply_charge.entries != observation.input.entry_count)
+        {
+            return error.InputQueueEntryCountMismatch;
+        }
+        if (observation.input.repair_charge.bytes >
+            contracts.pending_input_capacity_bytes -| observation.input.client_charge.bytes)
+        {
+            return error.RepairChargeOverflow;
+        }
+        if (observation.input.repair_charge.entries >
+            contracts.max_pending_client_input_entries -| observation.input.client_charge.entries)
+        {
+            return error.RepairChargeEntryOverflow;
+        }
+        if (observation.failure_fenced and !observation.writer_stop) {
+            return error.FailureFenceWithoutWriterStop;
+        }
+        switch (observation.completion.classification) {
+            .pending => {},
+            .normal => if (!observation.completion.child_exited or
+                !observation.completion.pty_drained or
+                !observation.completion.writer_stopped or
+                observation.completion.exit_result == null)
+            {
+                return error.NormalCompletionIncomplete;
+            },
+            .failed => if (!observation.failure_fenced) {
+                return error.FailedCompletionWithoutFence;
+            },
+        }
+
+        var viewing_count: usize = 0;
+        var selection_count: usize = 0;
+        for (runtime_state.history.states.items, 0..) |history_state, index| {
+            viewing_count += @intFromBool(history_state.demand == .viewing_history);
+            selection_count += @intFromBool(history_state.selection_state.active());
+            for (runtime_state.history.states.items[index + 1 ..]) |candidate| {
+                if (candidate.attachment_id.eql(history_state.attachment_id)) {
+                    return error.DuplicateHistoryAttachment;
+                }
+            }
+            if (history_state.history_in_flight) |flight| {
+                if (!flight.attachment_id.eql(history_state.attachment_id)) {
+                    return error.HistoryFlightAttachmentMismatch;
+                }
+                if (flight.sequence == 0 or flight.sequence >= history_state.history_next_sequence) {
+                    return error.HistoryFlightSequenceInvalid;
+                }
+            }
+        }
+        if (viewing_count != observation.history_viewing_count) {
+            return error.HistoryViewingCountMismatch;
+        }
+        if (selection_count != observation.history_selection_count) {
+            return error.HistorySelectionCountMismatch;
+        }
+    }
+
+    pub fn hasHistoryAttachment(
+        runtime: *handle.TerminalRuntime,
+        attachment_id: contracts.AttachmentId,
+    ) bool {
+        const runtime_state = handle.stateFrom(runtime);
+        runtime_state.terminal_mutex.lock();
+        defer runtime_state.terminal_mutex.unlock();
+        failure_ops.waitForReaderCommitLocked(runtime_state);
+        for (runtime_state.history.states.items) |history_state| {
+            if (history_state.attachment_id.eql(attachment_id)) return true;
+        }
+        return false;
     }
 
     pub fn failureFenced(runtime: *handle.TerminalRuntime) bool {
@@ -182,5 +346,41 @@ pub const testing = if (builtin.is_test) struct {
 
     pub fn fenceResizeFailure(runtime: *handle.TerminalRuntime) void {
         resize_ops.fenceResizeFailure(handle.stateFrom(runtime));
+    }
+
+    fn observeLocked(runtime_state: *state.State) RuntimeObservation {
+        const client_charge = runtime_state.input_queue.charge(.client);
+        const terminal_reply_charge = runtime_state.input_queue.charge(.terminal);
+        return .{
+            .client_input_closed = runtime_state.client_input_closed,
+            .completion = completion_ops.completion(runtime_state),
+            .configuration = .{ .scrollback_bytes = runtime_state.scrollback_bytes },
+            .containment_confirmed = runtime_state.containment_confirmed.load(.acquire),
+            .failure_fenced = runtime_state.failure_fenced,
+            .generation = runtime_state.generation,
+            .geometry = .{
+                .cell_pixel_height = runtime_state.cell_pixel_height,
+                .cell_pixel_width = runtime_state.cell_pixel_width,
+                .columns = runtime_state.terminal.cols,
+                .rows = runtime_state.terminal.rows,
+            },
+            .history_attachment_count = runtime_state.history.states.items.len,
+            .history_selection_count = runtime_state.history.selection_count,
+            .history_viewing_count = runtime_state.history.viewing_count,
+            .input = .{
+                .client_charge = client_charge,
+                .entry_count = runtime_state.input_queue.entryCount(),
+                .input_attachment_count = runtime_state.input_ownership.attachments.count(),
+                .published_client_entries = runtime_state.input_queue.publishedCount(.client),
+                .repair_charge = runtime_state.input_ownership.repairCharge(),
+                .terminal_reply_charge = terminal_reply_charge,
+            },
+            .projection_captured_generation = runtime_state.projection.captured_generation,
+            .projection_captured_revision = runtime_state.projection.captured_revision,
+            .projection_resident = runtime_state.projection.isResident(),
+            .resize_fenced = runtime_state.resize_fenced.load(.acquire),
+            .threads_joined = runtime_state.threads_joined,
+            .writer_stop = runtime_state.writer_stop,
+        };
     }
 } else struct {};

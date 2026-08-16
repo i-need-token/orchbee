@@ -107,8 +107,9 @@ another Ghostty state, or another process owner.
 The same rule applies to the Host-side owners. `state/` keeps one concrete
 `HostCore` while connection, terminal-lifecycle, attachment, and projection
 transactions live in separate owner-local files. `runtime_aggregate/` keeps one concrete
-`HostRuntimeAggregate` while retained ownership, creation, attachment and input, configuration,
-projection, termination, and maintenance orchestration are separate review units.
+`HostRuntimeAggregate` while retained ownership, creation, attachment lifecycle, input admission,
+configuration, geometry, terminal control, interaction access, projection, termination, and
+maintenance orchestration are separate review units.
 `runtime_maintenance/` separates scheduling from immutable runtime-observation conversion.
 Their roots preserve the existing namespaces; none of these directories introduces another
 registry, broker, retained-terminal map, or cleanup owner.
@@ -140,6 +141,27 @@ The fair background synchronizer may process a bounded subset of retained termin
 `ListTerminals` request therefore synchronizes the exact bounded page it will serialize after cursor
 validation and before encoding it; one response never mixes an already observed page prefix with an
 unsynchronized suffix merely because the global registry is larger than one poll budget.
+
+### Composition observation and invariant oracle
+
+The test-only composition observation is a copied projection of owner-provided facts, not another
+semantic owner. Core and Engine expose narrow testing observations from their own state, while the
+Service assembles them with connection and retained-runtime membership. Engine facts are copied
+under the canonical projection, terminal, then input lock order; the observation owns no mutable
+domain state and cannot authorize or commit an operation.
+
+The composition oracle first runs the Core and Engine owner-local invariant oracles, then checks
+cross-owner relationships. Retained runtime membership is one-to-one with Core terminal membership;
+the active connection agrees with the Core broker; committed configuration agrees exactly; Core's
+observed revision never leads the Engine, geometry agrees whenever the revisions are equal, and a
+settled terminal has an exact revision match. Attachment capability membership agrees with the
+Engine input and history ledgers, and projection cursors never lead the Engine generation or
+revision. Explicit model-only fixtures may omit a native runtime, but cannot own or imitate runtime
+facts.
+
+Service tests invoke this oracle after shared successful request and poll boundaries. Stateful,
+generated, replayed, and fault-injected traces must also invoke it after every stable action or
+injected failure.
 
 ## Core data model
 
@@ -794,6 +816,32 @@ Outgoing records are built as a transaction over connection-scoped delivery stat
 No caller may commit a frame, row flight, export chunk, or event and then discard the batch that was
 supposed to carry it.
 
+### Semantic trace vocabulary
+
+Executable traces, reference reducers, shrink output, replay inputs, and formal counterexamples use
+these exact stable action names:
+
+- `Connect`, `Disconnect`, `Create`, `Attach`, `Detach`, and `Dispose` change composition
+  membership or authority;
+- `SetProjectionDemand`, `AcceptInput`, `Resize`, `UpdateConfiguration`,
+  `ApplyTerminalControl`, and `RequestTermination` exercise terminal-scoped commands;
+- `ObserveChildExit`, `ObservePtyDrain`, `ObserveRuntimeFailure`,
+  `ConfirmFailureContainment`, and `PublishOutcome` linearize asynchronous lifecycle facts;
+- `Poll` advances scheduled observation and delivery, `BeginShutdown` changes Service lifetime, and
+  `Reconcile` is the required observation boundary after an outcome-unknown operation.
+
+Every recorded step carries exactly one of `applied`, `replayed`, `rejected`, or `unknown`.
+`rejected` leaves the reference state unchanged. `unknown` makes exact refinement intentionally
+unavailable until a recorded `Reconcile` replaces uncertainty with a coherent composition
+observation. The executable reference state contains only action-determined abstract facts; owner
+queues, runtime resources, locks, and monotonic implementation counters remain outside it and are
+checked by their owner-local oracles.
+
+One externally atomic call may linearize several named actions. The reducer applies that complete
+ordered action batch before comparing its single stable post-call observation. For example, a
+successful `Poll` may also contain `PublishOutcome`; comparing between those inseparable commits
+would invent a product state that never existed.
+
 ## State transitions
 
 ### Broker session
@@ -902,9 +950,10 @@ coverage alone is insufficient.
 | [Input-backpressure TLA+ model](../formal/tla/TerminalInputBackpressure.tla)   | `TH-003`, `TH-004`, `TH-007`, `TH-012`, two-attachment held-input ownership, precharged detach repair without cross-release, independent client/reply admission budgets, client FIFO ownership, post-exit client closure, writer shutdown cleanup, terminal-reply priority within a bounded reply burst, and bounded client progress; checked bounds live in its adjacent `.cfg`           |
 | [Process-identity TLA+ model](../formal/tla/TerminalHostProcessIdentity.tla)   | `TH-008`, `TH-009`, `TH-013`, completion sampling, containment confirmation, reap, SID rebinding, and request dispatch; every emitted process signal targets the retained launch identity and a rebound session never receives a signal; checked bounds live in its adjacent `.cfg`                                                                                                        |
 | [History-interaction TLA+ model](../formal/tla/TerminalHistoryInteraction.tla) | `TH-002`, `TH-006`, `TH-010`, `TH-011`, `TH-012`, `TH-016`, row flights and anchors, generation-changing clear/reset invalidation, history observation, selection eviction, acknowledged export chunks, stale search pages, and detach cleanup                                                                                                                                             |
+| Composition invariant oracle                                                   | `TH-001` through `TH-013` and `TH-016` across owner boundaries: retained-runtime membership, broker identity, lifecycle and containment, configuration, geometry and revision agreement, capability-ledger agreement, and bounded projection observations after every stable Service step                                                                                                  |
 | Stateful property tests                                                        | `TH-001` through `TH-016` as applicable to each owner: registry/index coherence, lifecycle and terminal-control command sequences, attachment capability sequences, projection sequences, history/export sequences, and invariant checks after every action                                                                                                                                |
 | Deterministic fault-injection tests                                            | Allocation, encoding, spawn, queue admission, resize, PTY I/O, process observation, reply handoff, partial batch, and multi-runtime shutdown failures at every commit seam                                                                                                                                                                                                                 |
-| Native integration tests                                                       | POSIX session/process behavior, Windows Job/ConPTY behavior, endpoint ownership, peer identity, descriptor/handle cleanup, and worker joining                                                                                                                                                                                                                                              |
+| Native integration tests                                                       | POSIX session/process behavior, Windows Job/ConPTY behavior, endpoint ownership, peer identity, descriptor/handle cleanup, worker joining, and a real executable/Local IPC/PTY trace on every natively claimed platform                                                                                                                                                                    |
 | Cross-language protocol conformance                                            | Every kind's role, encoding, and successful response; every native command, reply, event, identifier type, and declared union or error variant; every transport and binary format; both sides of every negotiated or hard bound; and each declared malformed-record rejection class                                                                                                        |
 | Focused performance evidence                                                   | Bounded memory, no-demand behavior, fairness, large input backpressure, projection cadence, and history/export bounds without weakening semantic invariants                                                                                                                                                                                                                                |
 
@@ -918,6 +967,37 @@ failure outcome must update this model and its evidence in the same change.
 The following entries are the required executable refinements, not a claim that an unexecuted test
 currently passes. A handoff may report conformance only after the package verification commands run
 these entries successfully.
+
+`src/service/__tests__/composition_observation_test.zig` exercises native-runtime and explicit
+model-only composition, while the shared checked request and poll harness applies the same oracle
+throughout Service integration suites. The Core test harness delegates to the same owner-local
+oracle used by composition checks, so the two evidence layers cannot silently define different Core
+invariants.
+
+`src/service/__tests__/composition_refinement_test.zig` executes the stable semantic vocabulary
+against a native runtime, including applied, replayed, rejected, and outcome-unknown/reconcile
+paths. The adjacent `composition_reference*.zig` files keep state shape, transition reduction,
+observation comparison, and orchestration as separate review units inside the test directory.
+
+`src/service/__tests__/composition_state_machine_test.zig` generates deterministic multi-owner
+HostService command sequences, replays every candidate from a fresh Service, and checks refinement
+after each stable action or atomic action batch. A failure is delta-debugged by range deletion and
+command simplification, then emitted as an exact value for
+`ORCHBEE_TERMINAL_HOST_PROPERTY_REPLAY`; an individual generated stream can also be reproduced with
+`ORCHBEE_TERMINAL_HOST_PROPERTY_SEED`.
+
+`src/__tests__/host_black_box_test.zig` closes the remaining in-process assumption. The build passes
+it the actual `orchbee-terminal-host` artifact; the runner creates a private endpoint, launches the
+Host as a child process, and uses only real Local IPC records. Its exact observation sequence is:
+process start, endpoint connection and Hello acceptance, terminal creation/start and attachment,
+physical disconnect, reconnect in the same Host epoch, idempotent creation replay and reattachment
+with the same identities, PTY input acceptance, a successful child exit whose final revision proves
+PTY output was drained into canonical state, explicit disposal, and idle Host-process exit. A
+watchdog bounds Host shutdown, while record and endpoint deadlines bound every external wait.
+
+The ordinary package `test` target runs this trace. Repository CI therefore supplies native
+execution evidence on Linux, macOS, and Windows; `test:cross` compiles the same runner for FreeBSD
+but does not promote that compile result to PTY, IPC, or ABI runtime evidence.
 
 | Claims             | Required native evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -943,6 +1023,47 @@ history, selection, and export provisional mutation; batch prefix/full behavior;
 handoff; Local IPC partial write; process observation and containment; and multi-runtime shutdown.
 A new fallible seam must be added to this set and receive a
 named failure test before the implementation may rely on `catch unreachable` after that seam.
+
+### Commit-seam fault matrix
+
+Each stable seam has one required failure disposition and one scheduling class. `rollback` restores
+the pre-transition observation, `reject_without_commit` reserves or validates before mutation,
+`preserve_for_retry` retains an owned value for a later handoff, `publish_prefix` exposes only the
+fully committed prefix, and `contain_and_retain` fences unsafe work while retaining lifecycle
+ownership. Allocation-index schedules fail a chosen allocation, deterministic-interleaving
+schedules admit an explicit named event order, native-boundary schedules use a failing platform or
+transport adapter, and single-owner schedules exercise an ordered local transaction.
+
+| ID       | Stable seam                      | Required failure disposition | Scheduling class           |
+| -------- | -------------------------------- | ---------------------------- | -------------------------- |
+| `CS-001` | `CreationPreparation`            | rollback                     | allocation index           |
+| `CS-002` | `CreationSpawn`                  | contain and retain           | native boundary            |
+| `CS-003` | `CreationAdmission`              | rollback                     | allocation index           |
+| `CS-004` | `ControlReplyReservation`        | reject without commit        | allocation index           |
+| `CS-005` | `RawInputReservation`            | reject without commit        | single owner               |
+| `CS-006` | `SemanticInputReservation`       | rollback                     | allocation index           |
+| `CS-007` | `InputPublication`               | rollback                     | deterministic interleaving |
+| `CS-008` | `AttachmentRuntimePreparation`   | rollback                     | single owner               |
+| `CS-009` | `AttachmentCoreCommit`           | rollback                     | allocation index           |
+| `CS-010` | `DetachRepairMaterialization`    | contain and retain           | allocation index           |
+| `CS-011` | `DetachRepairPublication`        | preserve for retry           | deterministic interleaving |
+| `CS-012` | `TerminalControlMutation`        | reject without commit        | single owner               |
+| `CS-013` | `ResizeEffect`                   | contain and retain           | native boundary            |
+| `CS-014` | `ResizeRollback`                 | contain and retain           | deterministic interleaving |
+| `CS-015` | `ProjectionCaptureEncoding`      | preserve for retry           | allocation index           |
+| `CS-016` | `ProjectionPayloadAdoption`      | rollback                     | allocation index           |
+| `CS-017` | `ProjectionReadCommit`           | preserve for retry           | deterministic interleaving |
+| `CS-018` | `InteractionProvisionalMutation` | rollback                     | allocation index           |
+| `CS-019` | `BatchPrefixFull`                | publish prefix               | single owner               |
+| `CS-020` | `LifecycleOutcomeHandoff`        | preserve for retry           | single owner               |
+| `CS-021` | `LocalIpcPartialWrite`           | preserve for retry           | native boundary            |
+| `CS-022` | `ProcessObservationContainment`  | contain and retain           | native boundary            |
+| `CS-023` | `MultiRuntimeShutdown`           | contain and retain           | deterministic interleaving |
+
+`src/service/__tests__/commit_seam_matrix_test.zig` is the executable catalog. It requires a
+one-to-one enum/table entry for every row above and locates the exact named test that supplies its
+failure evidence. The shared scripted scheduler advances only through a declared event sequence;
+concurrency evidence must use gates or that scheduler and never timing sleeps as ordering proof.
 
 ## Review rule
 

@@ -66,6 +66,7 @@ const testRequestWithContract = harness.testRequestWithContract;
 const expectContractSuccess = harness.expectContractSuccess;
 const publishedClientInputCount = harness.publishedClientInputCount;
 const onlyTerminalFrame = harness.onlyTerminalFrame;
+const pollEventsChecked = harness.pollEventsChecked;
 const testHandshake = harness.testHandshake;
 const testHandshakeWithInputBytes = harness.testHandshakeWithInputBytes;
 const testHandshakeResponseKind = harness.testHandshakeResponseKind;
@@ -317,7 +318,7 @@ test "I/O successful responses use supplied request contracts and publish input 
     _ = try expectContractSuccess(&demanded, demand_contract, [_]u8{0x52} ** 16);
 
     try std.testing.expect(serviceAggregate(&service).setNextProjectionAt(terminal_id, 0));
-    var first_frame_batch = try service.pollEvents(&connection);
+    var first_frame_batch = try pollEventsChecked(&service, &connection);
     defer first_frame_batch.deinit();
     const first_frame = try onlyTerminalFrame(&first_frame_batch);
     var need_snapshot_buffer: [160]u8 = undefined;
@@ -343,7 +344,7 @@ test "I/O successful responses use supplied request contracts and publish input 
     );
 
     try std.testing.expect(serviceAggregate(&service).setNextProjectionAt(terminal_id, 0));
-    var second_frame_batch = try service.pollEvents(&connection);
+    var second_frame_batch = try pollEventsChecked(&service, &connection);
     defer second_frame_batch.deinit();
     const second_frame = try onlyTerminalFrame(&second_frame_batch);
     var frame_applied_buffer: [256]u8 = undefined;

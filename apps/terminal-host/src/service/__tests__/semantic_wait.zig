@@ -4,6 +4,7 @@ const core_module = @import("terminal-host-core").state;
 const terminal_runtime = @import("terminal-host-engine").runtime;
 const runtimeState = terminal_runtime.testing.stateForTesting;
 const service_boundary = @import("terminal-host-service");
+const composition_observation = @import("composition_observation.zig");
 const host_outgoing = service_boundary.testing.outgoing;
 const host_service = service_boundary.service;
 
@@ -102,6 +103,7 @@ pub fn terminalExits(
 
     var events = try service.pollEvents(connection);
     errdefer events.deinit();
+    try composition_observation.checkInvariants(std.testing.allocator, service, connection);
     for (terminal_ids) |terminal_id| {
         const terminal = service.runtime_aggregate.core().findTerminal(terminal_id) orelse
             return error.ExpectedRetainedTerminal;

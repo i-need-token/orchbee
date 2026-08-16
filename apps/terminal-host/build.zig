@@ -122,6 +122,11 @@ pub fn build(builder: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    const black_box_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/__tests__/host_black_box_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 
     const ghostty = builder.dependency("ghostty", .{
         .target = target,
@@ -164,6 +169,7 @@ pub fn build(builder: *std.Build) void {
     terminal_host_module.addImport("terminal-host-service", service_module);
     terminal_host_module.addImport("terminal-host-transport", transport_module);
     executable_module.addImport("terminal-host", terminal_host_module);
+    black_box_test_module.addImport("terminal-protocol", protocol_module);
     const benchmark_module = builder.createModule(.{
         .root_source_file = builder.path("src/benchmark/main.zig"),
         .target = target,
@@ -304,6 +310,12 @@ pub fn build(builder: *std.Build) void {
                 .file = builder.path("src/platform/process_job_windows.c"),
                 .flags = &.{"-std=c17"},
             });
+            black_box_test_module.addIncludePath(builder.path("src/transport"));
+            black_box_test_module.addCSourceFile(.{
+                .file = builder.path("src/transport/local_ipc_windows.c"),
+                .flags = &.{"-std=c17"},
+            });
+            black_box_test_module.linkSystemLibrary("advapi32", .{});
         },
         else => {},
     }
@@ -314,6 +326,19 @@ pub fn build(builder: *std.Build) void {
     });
     executable.linkLibC();
     builder.installArtifact(executable);
+
+    const black_box_test = builder.addExecutable(.{
+        .name = "terminal-host-black-box-test",
+        .root_module = black_box_test_module,
+    });
+    black_box_test.linkLibC();
+    const run_black_box_test = builder.addRunArtifact(black_box_test);
+    run_black_box_test.addArtifactArg(executable);
+    const black_box_test_step = builder.step(
+        "test-black-box",
+        "Run the real-process local IPC and PTY trace",
+    );
+    black_box_test_step.dependOn(&run_black_box_test.step);
 
     const benchmark_executable = builder.addExecutable(.{
         .name = "terminal-host-benchmark",
@@ -346,7 +371,9 @@ pub fn build(builder: *std.Build) void {
         "test-compile",
         "Compile terminal Host executables and tests without running them",
     );
+    test_step.dependOn(&run_black_box_test.step);
     test_compile_step.dependOn(&executable.step);
+    test_compile_step.dependOn(&black_box_test.step);
     test_compile_step.dependOn(&benchmark_executable.step);
     const focused_cli_tests = builder.addTest(.{
         .name = "terminal-host-cli-tests",

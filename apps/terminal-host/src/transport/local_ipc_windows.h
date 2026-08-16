@@ -58,6 +58,7 @@ int ob_windows_local_test_client_read(
     uint32_t capacity,
     uint32_t *read_bytes
 );
+int ob_windows_local_test_client_peek(void *client, uint32_t *available);
 int ob_windows_local_test_client_write(
     void *client,
     const uint8_t *buffer,

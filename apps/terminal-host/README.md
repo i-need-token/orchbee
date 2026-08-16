@@ -128,6 +128,7 @@ Run from the repository root:
 pnpm --filter @orchbee/terminal-host format:check
 pnpm --filter @orchbee/terminal-host build
 pnpm --filter @orchbee/terminal-host test
+pnpm --filter @orchbee/terminal-host test:black-box
 pnpm --filter @orchbee/terminal-host test:protocol
 pnpm --filter @orchbee/terminal-host test:surface-fixtures
 pnpm --filter @orchbee/terminal-host test:tla
@@ -135,16 +136,23 @@ pnpm --filter @orchbee/terminal-host test:cross
 pnpm verify
 ```
 
-`test` runs the current platform's native tests, cross-language protocol conformance, and the
-pinned-Ghostty surface-fixture comparison. `test:protocol` runs protocol conformance alone;
+`test` runs the current platform's native tests, the real-process Local IPC/PTY black-box trace,
+cross-language protocol conformance, and the pinned-Ghostty surface-fixture comparison.
+`test:black-box` runs only that external trace: it starts the built Host, creates and attaches a
+real terminal through Local IPC, disconnects, reconnects and replays the creation identity,
+reattaches the same attachment identity, drives the child through PTY input, observes drained PTY
+output in the final revision and a successful exit event, disposes the retained terminal, and
+requires the Host process to stop cleanly. `test:protocol` runs protocol conformance alone;
 `test:surface-fixtures` regenerates the Host-owned primary/alternate OBTF corpus in a temporary
 directory and rejects byte drift. The paired snapshots come from one Ghostty terminal and
 Projection so metadata and rows can be checked across a real alternate-screen transition. After an
 intentional reviewed corpus or encoder change, run
 `pnpm --filter @orchbee/terminal-host surface-fixtures:generate` and review the binary consumer
-assertions in `@orchbee/terminal`. `test:cross` compiles the complete test graph for Linux, FreeBSD,
-macOS, and Windows; cross-compilation is not runtime evidence for those platforms. Repository CI
-supplies native Linux, macOS, and Windows behavior evidence.
+assertions in `@orchbee/terminal`. `test:cross` compiles the complete test graph, including the
+black-box runner, for Linux, FreeBSD, macOS, and Windows; cross-compilation is not runtime evidence
+for those platforms. Repository CI runs the package `test` command, and therefore the external Host
+trace, natively on Linux, macOS, and Windows. FreeBSD remains compile-only evidence and is not
+reported as native PTY or IPC conformance.
 
 `format:check` also enforces the package boundary rule that every hand-written production Zig file
 under `src/` stays at or below 500 physical lines. Scenario catalogs under `__tests__/` and

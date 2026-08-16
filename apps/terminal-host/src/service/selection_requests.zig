@@ -28,85 +28,54 @@ pub fn dispatch(
     operation: protocol.RequestOperation,
     success_response: host_response.SuccessResponse,
     connection_id: core_module.ConnectionId,
-    negotiated_row_window_bytes: usize,
     trace_interactions: bool,
     envelope: protocol.EnvelopeSummary,
     correlation_id: WireIdentifier,
     outgoing: *Outgoing,
 ) !void {
+    const success = try host_response.requireControlJsonSuccess(success_response);
     var handler: Handler = .{ .context = context, .trace_interactions = trace_interactions };
     var selection_export_handoff: ?host_interaction.SelectionExportHandoff = null;
     defer if (selection_export_handoff) |*handoff| handoff.deinit();
 
     switch (operation) {
-        .read_rows => {
-            const success = try host_response.requireRowWindowSuccess(success_response);
-            try handler.handleReadRows(
-                success,
-                connection_id,
-                negotiated_row_window_bytes,
-                envelope,
-                correlation_id,
-                outgoing,
-            );
-        },
-        else => {
-            const success = try host_response.requireControlJsonSuccess(success_response);
-            switch (operation) {
-                .rows_applied => try handler.handleRowsApplied(success, connection_id, envelope, correlation_id, outgoing),
-                .set_history_demand => try handler.handleHistoryDemand(
-                    success,
-                    connection_id,
-                    envelope,
-                    correlation_id,
-                    outgoing,
-                ),
-                .history_observed => try handler.handleHistoryObserved(
-                    success,
-                    connection_id,
-                    envelope,
-                    correlation_id,
-                    outgoing,
-                ),
-                .selection_gesture => try handler.handleSelectionGesture(
-                    success,
-                    connection_id,
-                    envelope,
-                    correlation_id,
-                    outgoing,
-                ),
-                .selection_command => try handler.handleSelectionCommand(
-                    success,
-                    connection_id,
-                    envelope,
-                    correlation_id,
-                    outgoing,
-                ),
-                .selection_export => try handler.handleSelectionExport(
-                    success,
-                    connection_id,
-                    envelope,
-                    correlation_id,
-                    outgoing,
-                    &selection_export_handoff,
-                ),
-                .selection_export_chunk_applied => try handler.handleSelectionExportChunkApplied(
-                    success,
-                    connection_id,
-                    envelope,
-                    correlation_id,
-                    outgoing,
-                ),
-                .selection_export_cancel => try handler.handleSelectionExportCancel(
-                    success,
-                    connection_id,
-                    envelope,
-                    correlation_id,
-                    outgoing,
-                ),
-                else => unreachable,
-            }
-        },
+        .selection_gesture => try handler.handleSelectionGesture(
+            success,
+            connection_id,
+            envelope,
+            correlation_id,
+            outgoing,
+        ),
+        .selection_command => try handler.handleSelectionCommand(
+            success,
+            connection_id,
+            envelope,
+            correlation_id,
+            outgoing,
+        ),
+        .selection_export => try handler.handleSelectionExport(
+            success,
+            connection_id,
+            envelope,
+            correlation_id,
+            outgoing,
+            &selection_export_handoff,
+        ),
+        .selection_export_chunk_applied => try handler.handleSelectionExportChunkApplied(
+            success,
+            connection_id,
+            envelope,
+            correlation_id,
+            outgoing,
+        ),
+        .selection_export_cancel => try handler.handleSelectionExportCancel(
+            success,
+            connection_id,
+            envelope,
+            correlation_id,
+            outgoing,
+        ),
+        else => unreachable,
     }
     if (selection_export_handoff) |*handoff| handoff.commit();
 }
@@ -114,151 +83,6 @@ pub fn dispatch(
 const Handler = struct {
     context: *Context,
     trace_interactions: bool,
-
-    fn handleReadRows(
-        self: *Handler,
-        success: host_response.RowWindowSuccess,
-        connection_id: core_module.ConnectionId,
-        negotiated_bytes: usize,
-        envelope: protocol.EnvelopeSummary,
-        correlation_id: WireIdentifier,
-        outgoing: *Outgoing,
-    ) !void {
-        if (!try self.context.requireControl(envelope, correlation_id, outgoing)) return;
-        var decoded = control_decode.decodeReadRows(self.context.allocator, envelope.payload) catch |err|
-            return self.context.rejectControlDecode(outgoing, correlation_id, err, "ReadRows payload is invalid");
-        defer decoded.deinit();
-        const request = decoded.value;
-        const interaction = try self.context.requireReadableInteraction(
-            connection_id,
-            request.attachment_id,
-            correlation_id,
-            outgoing,
-        ) orelse return;
-        if (request.maximum_bytes > negotiated_bytes) {
-            try self.context.addFailure(outgoing, correlation_id, "limit-exceeded", "ReadRows exceeds negotiated rowWindowBytes", false);
-            return;
-        }
-        var response = try prepareResponse(
-            outgoing,
-            @max(request.maximum_bytes, protocol.Limits.control_json_bytes),
-            responseDelivery(correlation_id, self.context.hostEpoch()),
-        );
-        defer response.deinit();
-        const rows = interaction.readRowsInto(
-            self.context.allocator,
-            response.payloadBuffer(),
-            .{
-                .detail = request.detail,
-                .generation = request.generation,
-                .host_epoch = self.context.hostEpoch(),
-                .maximum_bytes = request.maximum_bytes,
-                .origin = request.origin,
-                .purpose = request.purpose,
-                .request_sequence = request.request_sequence,
-                .revision = request.revision,
-                .row_count = request.row_count,
-            },
-        ) catch |err| {
-            response.commitFailure(interactionFailure(err, "ReadRows failed"));
-            return;
-        };
-        _ = response.commitRowWindowSuccess(success, rows.bytes.len);
-    }
-
-    fn handleRowsApplied(
-        self: *Handler,
-        success: host_response.ControlJsonSuccess,
-        connection_id: core_module.ConnectionId,
-        envelope: protocol.EnvelopeSummary,
-        correlation_id: WireIdentifier,
-        outgoing: *Outgoing,
-    ) !void {
-        if (!try self.context.requireControl(envelope, correlation_id, outgoing)) return;
-        var decoded = control_decode.decodeRowsApplied(self.context.allocator, envelope.payload) catch |err|
-            return self.context.rejectControlDecode(outgoing, correlation_id, err, "RowsApplied payload is invalid");
-        defer decoded.deinit();
-        const request = decoded.value;
-        const interaction = try self.context.requireReadableInteraction(
-            connection_id,
-            request.attachment_id,
-            correlation_id,
-            outgoing,
-        ) orelse return;
-        var response = try prepareControlResponse(outgoing, correlation_id, self.context.hostEpoch());
-        defer response.deinit();
-        interaction.rowsApplied(
-            request.request_sequence,
-            request.revision,
-            request.generation,
-        ) catch |err| {
-            response.commitFailure(interactionFailure(err, "RowsApplied failed"));
-            return;
-        };
-        var output = response.writer();
-        control_encode.writeRowsApplied(&output, request) catch unreachable;
-        _ = response.commitControlSuccess(success, &output);
-    }
-
-    fn handleHistoryDemand(
-        self: *Handler,
-        success: host_response.ControlJsonSuccess,
-        connection_id: core_module.ConnectionId,
-        envelope: protocol.EnvelopeSummary,
-        correlation_id: WireIdentifier,
-        outgoing: *Outgoing,
-    ) !void {
-        if (!try self.context.requireControl(envelope, correlation_id, outgoing)) return;
-        var decoded = control_decode.decodeHistoryDemand(self.context.allocator, envelope.payload) catch |err|
-            return self.context.rejectControlDecode(outgoing, correlation_id, err, "SetHistoryDemand payload is invalid");
-        defer decoded.deinit();
-        const request = decoded.value;
-        const interaction = try self.context.requireReadableInteraction(
-            connection_id,
-            request.attachment_id,
-            correlation_id,
-            outgoing,
-        ) orelse return;
-        var response = try prepareControlResponse(outgoing, correlation_id, self.context.hostEpoch());
-        defer response.deinit();
-        interaction.setHistoryDemand(request.demand) catch |err| {
-            response.commitFailure(interactionFailure(err, "SetHistoryDemand failed"));
-            return;
-        };
-        var output = response.writer();
-        control_encode.writeHistoryDemandAccepted(&output, request) catch unreachable;
-        _ = response.commitControlSuccess(success, &output);
-    }
-
-    fn handleHistoryObserved(
-        self: *Handler,
-        success: host_response.ControlJsonSuccess,
-        connection_id: core_module.ConnectionId,
-        envelope: protocol.EnvelopeSummary,
-        correlation_id: WireIdentifier,
-        outgoing: *Outgoing,
-    ) !void {
-        if (!try self.context.requireControl(envelope, correlation_id, outgoing)) return;
-        var decoded = control_decode.decodeHistoryObserved(self.context.allocator, envelope.payload) catch |err|
-            return self.context.rejectControlDecode(outgoing, correlation_id, err, "HistoryObserved payload is invalid");
-        defer decoded.deinit();
-        const request = decoded.value;
-        const interaction = try self.context.requireReadableInteraction(
-            connection_id,
-            request.attachment_id,
-            correlation_id,
-            outgoing,
-        ) orelse return;
-        var response = try prepareControlResponse(outgoing, correlation_id, self.context.hostEpoch());
-        defer response.deinit();
-        interaction.historyObserved(request.sequence, request.revision, request.generation) catch |err| {
-            response.commitFailure(interactionFailure(err, "HistoryObserved failed"));
-            return;
-        };
-        var output = response.writer();
-        control_encode.writeHistoryObserved(&output, request) catch unreachable;
-        _ = response.commitControlSuccess(success, &output);
-    }
 
     fn handleSelectionGesture(
         self: *Handler,
@@ -273,7 +97,7 @@ const Handler = struct {
             return self.context.rejectControlDecode(outgoing, correlation_id, err, "SelectionGesture payload is invalid");
         defer decoded.deinit();
         const request = decoded.value;
-        const interaction = try self.context.requireReadableInteraction(
+        const interaction = try self.context.requireSelectionAccess(
             connection_id,
             request.attachment_id,
             correlation_id,
@@ -311,7 +135,7 @@ const Handler = struct {
             return self.context.rejectControlDecode(outgoing, correlation_id, err, "SelectionCommand payload is invalid");
         defer decoded.deinit();
         const request = decoded.value;
-        const interaction = try self.context.requireReadableInteraction(
+        const interaction = try self.context.requireSelectionAccess(
             connection_id,
             request.attachment_id,
             correlation_id,
@@ -350,7 +174,7 @@ const Handler = struct {
             return self.context.rejectControlDecode(outgoing, correlation_id, err, "SelectionExport payload is invalid");
         defer decoded.deinit();
         const request = decoded.value;
-        const interaction = try self.context.requireReadableInteraction(
+        const interaction = try self.context.requireSelectionAccess(
             connection_id,
             request.attachment_id,
             correlation_id,
@@ -414,7 +238,7 @@ const Handler = struct {
             return self.context.rejectControlDecode(outgoing, correlation_id, err, "SelectionExportChunkApplied payload is invalid");
         defer decoded.deinit();
         const request = decoded.value;
-        const interaction = try self.context.requireReadableInteraction(
+        const interaction = try self.context.requireSelectionAccess(
             connection_id,
             request.attachment_id,
             correlation_id,
@@ -465,7 +289,7 @@ const Handler = struct {
             return self.context.rejectControlDecode(outgoing, correlation_id, err, "SelectionExportCancel payload is invalid");
         defer decoded.deinit();
         const request = decoded.value;
-        const interaction = try self.context.requireReadableInteraction(
+        const interaction = try self.context.requireSelectionAccess(
             connection_id,
             request.attachment_id,
             correlation_id,
