@@ -207,10 +207,7 @@ pub const State = struct {
         const screen = terminal.screens.active;
         const selection: ?ghostty_vt.Selection = switch (request.command) {
             .clear => null,
-            .select_all => if (screen.pages.getBottomRight(.screen)) |end|
-                .init(screen.pages.getTopLeft(.screen), end, false)
-            else
-                null,
+            .select_all => screen.selectAll(),
             .set_range => |range| .init(
                 try pointPin(screen, range.start),
                 try pointPin(screen, range.end),

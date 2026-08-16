@@ -11,12 +11,16 @@ const projection = @import("projection.zig");
 const storage = @import("storage.zig");
 const terminals = @import("terminals.zig");
 
+const AttachmentId = contracts.AttachmentId;
 const BrokerSession = broker_session.Session;
+const ClientId = contracts.ClientId;
+const ConnectionId = contracts.ConnectionId;
 const HostEpoch = contracts.HostEpoch;
 const PreparedTerminalDefaultsUpdate = contracts.PreparedTerminalDefaultsUpdate;
 const TerminalRegistry = contracts.TerminalRegistry;
 const TerminalSession = contracts.TerminalSession;
 const CoreError = contracts.CoreError;
+const TransitionOutcome = contracts.TransitionOutcome;
 
 pub const TestingTerminalStorage = if (target_builtin.is_test) struct {
     next: ?*@This() = null,
@@ -98,11 +102,49 @@ pub const HostCore = struct {
     }
 
     // Connections boundary.
-    pub const connect = connections.connect;
-    pub const disconnect = connections.disconnect;
-    pub const attachmentsForConnection = connections.attachmentsForConnection;
-    pub const connectionCount = connections.connectionCount;
-    pub const connectionClientId = connections.connectionClientId;
+    fn connectionReadAccess(self: *const HostCore) connections.ReadAccess {
+        return .{ .broker = &self.broker };
+    }
+
+    fn connectionWriteAccess(self: *HostCore) connections.WriteAccess {
+        return .{
+            .allocator = self.allocator,
+            .broker = &self.broker,
+            .testing = if (target_builtin.is_test) .{
+                .last_active_read_demand_scans = &self.testing_state.last_active_read_demand_scans,
+            } else .{},
+        };
+    }
+
+    pub fn connect(
+        self: *HostCore,
+        connection_id: ConnectionId,
+        client_id: ClientId,
+    ) CoreError!TransitionOutcome {
+        return connections.connect(self.connectionWriteAccess(), connection_id, client_id);
+    }
+
+    pub fn disconnect(self: *HostCore, connection_id: ConnectionId) TransitionOutcome {
+        return connections.disconnect(self.connectionWriteAccess(), connection_id);
+    }
+
+    pub fn attachmentsForConnection(
+        self: *const HostCore,
+        connection_id: ConnectionId,
+    ) []const AttachmentId {
+        return connections.attachmentsForConnection(self.connectionReadAccess(), connection_id);
+    }
+
+    pub fn connectionCount(self: *const HostCore) usize {
+        return connections.connectionCount(self.connectionReadAccess());
+    }
+
+    pub fn connectionClientId(
+        self: *const HostCore,
+        connection_id: ConnectionId,
+    ) ?ClientId {
+        return connections.connectionClientId(self.connectionReadAccess(), connection_id);
+    }
 
     // Terminals boundary.
     pub const resolveCreation = terminals.resolveCreation;

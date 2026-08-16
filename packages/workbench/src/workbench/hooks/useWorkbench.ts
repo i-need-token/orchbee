@@ -8,6 +8,7 @@ import type {
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import type {
 	TabStripCloseCallback,
+	TabStripCloseConfirmation,
 	TabStripNewTabRequest,
 	TabStripOrientation,
 } from '@orchbee/tab-strip';
@@ -77,6 +78,7 @@ interface WorkbenchView {
 	readonly newTerminal: (() => void) | undefined;
 	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs: TabStripCloseCallback;
+	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
 	readonly newTerminalLabel: string;
 	readonly newTerminalShortcutId: string;
 	readonly newTerminalShortcutLabel: string;
@@ -85,6 +87,7 @@ interface WorkbenchView {
 		meta: ResizableLayoutChangedMeta,
 	) => void;
 	readonly onLeftPanelResize: (size: ResizablePanelSize) => void;
+	readonly onShortcutKeyDownCapture: React.KeyboardEventHandler<HTMLDivElement>;
 	readonly sidebarShortcutId: string;
 	readonly sidebarShortcutLabel: string;
 	readonly sidebarToggleLabel: string;
@@ -306,6 +309,27 @@ export function useWorkbench({
 		context.markCommitted();
 		return { kind: 'completed' };
 	});
+	const getCloseTabsConfirmation = useMemoizedFn<
+		void,
+		Parameters<TabStripCloseConfirmation>,
+		ReturnType<TabStripCloseConfirmation>
+	>((request) => {
+		const count = projectWorkspaceRuntime.getActiveTerminalTabsCloseConfirmationCount(
+			request.tabIds,
+		);
+		return count === 0
+			? null
+			: {
+					cancelLabel: workbenchMessages.panelCancel,
+					confirmLabel: workbenchMessages.panelCloseAnyway,
+					description: {
+						...workbenchMessages.tabCloseRunningDescription,
+						values: { count },
+					},
+					risk: 'destructive',
+					title: workbenchMessages.panelCloseRunningTitle,
+				};
+	});
 	const actions = useWorkbenchActions({
 		isSidebarVisible,
 		navigation,
@@ -374,7 +398,7 @@ export function useWorkbench({
 		};
 	}, [actionRuntime, actions.scope, intl]);
 
-	useWorkbenchShortcuts(shortcutPlatform, actions.invokeShortcut);
+	const onShortcutKeyDownCapture = useWorkbenchShortcuts(shortcutPlatform, actions.invokeShortcut);
 
 	return {
 		activateStandalone: () => {
@@ -421,6 +445,7 @@ export function useWorkbench({
 		newTerminalShortcutId: WORKBENCH_SHORTCUTS.newTerminal.id,
 		newTerminalShortcutLabel: formatWorkbenchShortcut('newTerminal', shortcutPlatform),
 		onCloseTabs: closeTabs,
+		getCloseTabsConfirmation,
 		onLayoutChanged: (_layout, meta) => {
 			if (meta.isUserInteraction) {
 				writeWorkbenchLeftPanelWidth(storage, leftPanelWidth.current);
@@ -429,6 +454,7 @@ export function useWorkbench({
 		onLeftPanelResize: (size) => {
 			leftPanelWidth.current = size.inPixels;
 		},
+		onShortcutKeyDownCapture,
 		sidebarShortcutId: WORKBENCH_SHORTCUTS.toggleSidebar.id,
 		sidebarShortcutLabel: formatWorkbenchShortcut('toggleSidebar', shortcutPlatform),
 		sidebarToggleLabel: intl.formatMessage(

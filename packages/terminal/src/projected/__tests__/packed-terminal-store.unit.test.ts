@@ -10,6 +10,8 @@ import {
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
+	TerminalCloseActivityCode,
+	TerminalFrameExtensionKind,
 	TerminalFrameKind,
 	UnderlineKind,
 	viewTerminalProjectionBuffer,
@@ -200,6 +202,53 @@ describe('PackedTerminalStore', () => {
 		expect(store.rows.map((row) => row.grapheme(0))).toEqual(['a', 'b']);
 		expect(store.rows[0]?.widths).toBeInstanceOf(Uint8Array);
 		expect(store.needsFullRedraw).toBe(true);
+	});
+
+	it.each([
+		{
+			expected: 'unknown' as const,
+			extensions: [],
+			label: 'missing',
+		},
+		{
+			expected: 'idle' as const,
+			extensions: [
+				{
+					data: new Uint8Array([TerminalCloseActivityCode.idle]),
+					kind: TerminalFrameExtensionKind.closeActivity,
+					required: false,
+				},
+			],
+			label: 'idle',
+		},
+		{
+			expected: 'active' as const,
+			extensions: [
+				{
+					data: new Uint8Array([TerminalCloseActivityCode.active]),
+					kind: TerminalFrameExtensionKind.closeActivity,
+					required: false,
+				},
+			],
+			label: 'active',
+		},
+		{
+			expected: 'unknown' as const,
+			extensions: [
+				{
+					data: new Uint8Array([TerminalCloseActivityCode.idle, 0]),
+					kind: TerminalFrameExtensionKind.closeActivity,
+					required: false,
+				},
+			],
+			label: 'malformed',
+		},
+	])('maps a $label close-activity extension to $expected', ({ expected, extensions }) => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+		const snapshot = { ...frame('snapshot', 1n, 1n, ['a', 'b']), extensions };
+
+		expect(store.apply(bytes(snapshot)).kind).toBe('committed');
+		expect(store.metadata?.closeActivity).toBe(expected);
 	});
 
 	it('replaces only declared row backings while preserving row-view identity', () => {

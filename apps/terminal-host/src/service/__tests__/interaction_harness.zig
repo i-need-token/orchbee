@@ -344,7 +344,11 @@ pub fn queueSelectionExportCancellation(
     const geometry = runtime.geometry();
     _ = try runtime.applySelectionCommand(.{
         .attachment_id = attachment_id,
-        .command = .select_all,
+        .command = .{ .set_range = .{
+            .end = .{ .column = 0, .row = 0 },
+            .rectangle = false,
+            .start = .{ .column = 0, .row = 0 },
+        } },
         .generation = geometry.generation,
         .revision = geometry.revision,
     });

@@ -83,6 +83,9 @@ export type TerminalPresentationLifecycle =
 			readonly removalId: TerminalPresentationRemovalId;
 	  };
 
+/** Transient evidence used only to decide whether closing a live terminal needs confirmation. */
+export type TerminalPresentationCloseActivity = 'active' | 'idle' | 'unknown';
+
 export type TerminalPresentationCreation =
 	| {
 			readonly kind: 'preview';

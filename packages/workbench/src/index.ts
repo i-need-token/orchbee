@@ -87,6 +87,7 @@ export type {
 } from './workbench';
 export type {
 	TerminalPresentationCloseOperation,
+	TerminalPresentationCloseActivity,
 	TerminalPresentationCloseRequest,
 	TerminalPresentationCommand,
 	TerminalPresentationCreation,

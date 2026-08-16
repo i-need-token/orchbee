@@ -34,6 +34,24 @@ test "model-only terminal construction stays behind the Core testing seam" {
     try std.testing.expect(!@hasField(subject.TerminalSession, "engine"));
     try std.testing.expect(!@hasDecl(subject.TerminalSession, "runtime"));
 }
+test "HostCore connection operations use concrete owner receivers" {
+    inline for (.{ HostCore.connect, HostCore.disconnect }) |operation| {
+        const function_info = @typeInfo(@TypeOf(operation)).@"fn";
+        const receiver = function_info.params[0].type orelse
+            return error.ExpectedConcreteReceiver;
+        try std.testing.expect(receiver == *HostCore);
+    }
+    inline for (.{
+        HostCore.attachmentsForConnection,
+        HostCore.connectionCount,
+        HostCore.connectionClientId,
+    }) |operation| {
+        const function_info = @typeInfo(@TypeOf(operation)).@"fn";
+        const receiver = function_info.params[0].type orelse
+            return error.ExpectedConcreteReceiver;
+        try std.testing.expect(receiver == *const HostCore);
+    }
+}
 test "primary runtime failure stage determines its only legal kind" {
     const FailureCase = struct {
         failure: subject.RuntimeFailure,

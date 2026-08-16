@@ -45,6 +45,7 @@ function VerticalWorkbenchTabBar({
 		<WorkbenchTabBar
 			actionRuntime={actionRuntime}
 			createCrossWindowDragRuntime={undefined}
+			getCloseTabsConfirmation={() => null}
 			onNewTerminal={undefined}
 			onOrientationChange={() => undefined}
 			onVerticalCollapsedChange={setVerticalCollapsed}

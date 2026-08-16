@@ -648,7 +648,7 @@ test('terminal-parity/SU-02-product-font-fallback', async () => {
 	);
 });
 
-test('projects native window drag regions without consuming horizontal Tab controls', async () => {
+test('projects native window drag regions without consuming title bar controls or shortcuts', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
 	const page = await application.firstWindow();
@@ -664,6 +664,8 @@ test('projects native window drag regions without consuming horizontal Tab contr
 			return style.getPropertyValue('app-region') || style.getPropertyValue('-webkit-app-region');
 		});
 	const leftChrome = page.locator('[data-slot="workbench-window-drag-region"]');
+	const sidebarTogglePosition = page.locator('[data-slot="workbench-sidebar-toggle-position"]');
+	const sidebarToggle = page.locator('[data-slot="workbench-sidebar-toggle"]');
 	const tabTrack = page.locator(
 		'[data-slot="workbench-tab-bar"][data-orientation="horizontal"] [data-horizontal-track]',
 	);
@@ -672,8 +674,21 @@ test('projects native window drag regions without consuming horizontal Tab contr
 
 	await expect.poll(() => appRegion(leftChrome)).toBe('drag');
 	await expect.poll(() => appRegion(tabTrack)).toBe('drag');
+	await expect.poll(() => appRegion(sidebarTogglePosition)).toBe('no-drag');
+	await expect.poll(() => appRegion(sidebarToggle)).toBe('no-drag');
 	await expect.poll(() => appRegion(selectedTab)).toBe('no-drag');
 	await expect.poll(() => appRegion(newTabButton)).toBe('no-drag');
+
+	const terminalInput = page.getByRole('textbox');
+	const leftPanel = page.locator('[data-slot="workbench-left-panel"]');
+	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+	await expect(leftPanel).toBeVisible();
+	await terminalInput.focus();
+	await page.keyboard.press(`${primaryModifier}+KeyB`);
+	await expect(leftPanel).not.toBeAttached();
+	await expect(terminalInput).toBeFocused();
+	await sidebarToggle.click();
+	await expect(leftPanel).toBeVisible();
 
 	const tabs = workbenchTabs(page);
 	const initialTabCount = await tabs.count();

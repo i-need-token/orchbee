@@ -119,6 +119,16 @@ export const TerminalRowFlag = {
 	wrapContinuation: 1 << 1,
 } as const;
 
+export const TerminalFrameExtensionKind = {
+	closeActivity: 1,
+} as const;
+
+export const TerminalCloseActivityCode = {
+	active: 2,
+	idle: 1,
+	unknown: 0,
+} as const;
+
 export const TerminalStyleFlag = {
 	blink: 1 << 3,
 	bold: 1,

@@ -8,7 +8,8 @@ DestructiveModes == {"user-stop", "development-host-restart"}
 Phases == {"idle", "awaiting-choice", "flushing", "persisting-stop",
   "stopping", "staging-restart", "preparing-plan", "failed", "ready",
   "quitting"}
-Actions == {"init", "request-user", "request-update", "request-development",
+Actions == {"init", "request-user-protected", "request-user-unprotected",
+  "request-update", "request-development",
   "choose-preserve", "choose-stop", "cancel", "flush", "flush-failed",
   "persist-stop", "persist-failed", "dispatch-close", "close-completed",
   "close-failed", "retry", "orphan-detected", "finish-stop",
@@ -63,7 +64,9 @@ Init ==
   /\ previousBindings = bindings
   /\ previousEffectsStarted = effectsStarted
 
-RequestUserQuit ==
+\* These two actions model the zero/nonzero result of the Workbench-owned
+\* close-confirmation count sampled for one user-quit request.
+RequestProtectedUserQuit ==
   /\ phase = "idle"
   /\ mode' = "user-preserve"
   /\ phase' = "awaiting-choice"
@@ -71,7 +74,17 @@ RequestUserQuit ==
   /\ UNCHANGED <<topologyDurable, restartProvisionDurable, restartPlanReady,
        bindings, closeIssued, hostOrphan, effectsStarted, forcedQuit, quit,
        writable, planWritable>>
-  /\ Record("request-user")
+  /\ Record("request-user-protected")
+
+RequestUnprotectedUserQuit ==
+  /\ phase = "idle"
+  /\ mode' = "user-preserve"
+  /\ phase' = "flushing"
+  /\ prompted' = FALSE
+  /\ UNCHANGED <<topologyDurable, restartProvisionDurable, restartPlanReady,
+       bindings, closeIssued, hostOrphan, effectsStarted, forcedQuit, quit,
+       writable, planWritable>>
+  /\ Record("request-user-unprotected")
 
 RequestUpdateRestart ==
   /\ phase = "idle"
@@ -294,7 +307,8 @@ QuitAnyway ==
   /\ Record("quit-anyway")
 
 Next ==
-  \/ RequestUserQuit
+  \/ RequestProtectedUserQuit
+  \/ RequestUnprotectedUserQuit
   \/ RequestUpdateRestart
   \/ RequestDevelopmentHostRestart
   \/ ChoosePreserve
@@ -339,6 +353,18 @@ TypeOK ==
 UpdateNeverPrompts == mode = "update-restart" => ~prompted
 
 DevelopmentRestartNeverPrompts == mode = "development-host-restart" => ~prompted
+
+ProtectedUserQuitPrompts ==
+  lastAction = "request-user-protected" =>
+    /\ mode = "user-preserve"
+    /\ phase = "awaiting-choice"
+    /\ prompted
+
+UnprotectedUserQuitPreservesWithoutPrompt ==
+  lastAction = "request-user-unprotected" =>
+    /\ mode = "user-preserve"
+    /\ phase = "flushing"
+    /\ ~prompted
 
 CloseRequiresDurableStop ==
   lastAction = "dispatch-close" => mode \in DestructiveModes /\ topologyDurable

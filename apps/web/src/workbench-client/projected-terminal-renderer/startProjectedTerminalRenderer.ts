@@ -222,6 +222,7 @@ export async function startProjectedTerminalRenderer(
 		) {
 			return;
 		}
+		if (failure.operation === 'history' || failure.operation === 'resize') return;
 		const consequence = intl.formatMessage(projectedTerminalFailureMessage(failure));
 		const message = failure.retryable
 			? intl.formatMessage(projectedTerminalMessages.retryableFailure, { consequence })

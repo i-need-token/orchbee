@@ -8,6 +8,7 @@ const EnvironmentDelta = subject.EnvironmentDelta;
 const ExitResult = subject.ExitResult;
 const PosixProcess = subject.testing.PosixProcessType;
 const Process = subject.Process;
+const foregroundCommandActive = subject.testing.foregroundCommandActiveFn;
 const posixExecutableCandidates = subject.testing.posixExecutableCandidatesFn;
 const windowsCommandLine = subject.testing.windowsCommandLineFn;
 
@@ -109,6 +110,11 @@ test "PTY process preserves exact arguments, environment, and exit" {
     try std.testing.expect(try process.processTreeContained());
     try process.releaseProcessIdentity();
     if (builtin.os.tag != .windows) try std.testing.expect(process.exit_reaped);
+}
+
+test "POSIX foreground process group identifies an active command" {
+    try std.testing.expect(!foregroundCommandActive(41, 41));
+    try std.testing.expect(foregroundCommandActive(41, 42));
 }
 
 // THCR-041 regression: after WaitForSingleObject returns WAIT_OBJECT_0 the

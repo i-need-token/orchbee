@@ -32,6 +32,48 @@ test "selection state owns and releases its Ghostty pins" {
     try std.testing.expectEqual(initial_pins, terminal.screens.active.pages.countTrackedPins());
 }
 
+test "select all uses Ghostty content bounds instead of viewport bounds" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 12,
+        .rows = 5,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("  alpha  ");
+
+    var state: selection.State = .{};
+    defer state.clear(&terminal);
+    const snapshot = try state.applyCommand(&terminal, 1, 1, .{
+        .command = selection.Command.select_all,
+        .generation = 1,
+        .revision = 1,
+    });
+
+    try std.testing.expectEqual(selection.Snapshot.active, std.meta.activeTag(snapshot));
+    try std.testing.expectEqual(@as(u16, 2), snapshot.active.start.column);
+    try std.testing.expectEqual(@as(u64, 0), snapshot.active.start.row);
+    try std.testing.expectEqual(@as(u16, 6), snapshot.active.end.column);
+    try std.testing.expectEqual(@as(u64, 0), snapshot.active.end.row);
+}
+
+test "select all leaves an empty terminal unselected" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 5,
+    });
+    defer terminal.deinit(std.testing.allocator);
+
+    var state: selection.State = .{};
+    defer state.clear(&terminal);
+    const snapshot = try state.applyCommand(&terminal, 1, 1, .{
+        .command = selection.Command.select_all,
+        .generation = 1,
+        .revision = 1,
+    });
+
+    try std.testing.expectEqual(selection.Snapshot.none, std.meta.activeTag(snapshot));
+    try std.testing.expect(!state.active());
+}
+
 test "selection state rejects stale identity before mutation" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
         .cols = 8,

@@ -28,6 +28,7 @@ import type { WorkbenchTabTitlePolicy } from '../components/workbench-panel-work
 import {
 	clonePanelWorkspaceState,
 	collectPanelLeaves,
+	countTerminalsRequiringCloseConfirmation,
 	findTerminal,
 	type PanelLayoutNode,
 	type PanelWorkspaceState,
@@ -361,6 +362,16 @@ export class WorkbenchProjectWorkspaceRuntime {
 		};
 	}
 
+	public getTerminalSessionCloseConfirmationCount(): number {
+		let count = 0;
+		for (const context of this.contexts.values()) {
+			for (const tab of context.panelWorkspaceStore.getSnapshot().tabs) {
+				count += countTerminalsRequiringCloseConfirmation(tab.root);
+			}
+		}
+		return count;
+	}
+
 	public getRestartableTerminalPresentationIds(): readonly TerminalPresentationId[] {
 		return [...this.contexts.values()].flatMap((context) =>
 			context.panelWorkspaceStore.getRestartableTerminalPresentationIds(),
@@ -589,6 +600,19 @@ export class WorkbenchProjectWorkspaceRuntime {
 			: { kind: transition.outcome };
 	}
 
+	public getActiveTerminalTabsCloseConfirmationCount(tabIds: readonly string[]): number {
+		const requestedTabIds = new Set(tabIds);
+		return this.getActiveMutableContext()
+			.panelWorkspaceStore.getSnapshot()
+			.tabs.reduce(
+				(count, tab) =>
+					requestedTabIds.has(tab.tabId)
+						? count + countTerminalsRequiringCloseConfirmation(tab.root)
+						: count,
+				0,
+			);
+	}
+
 	public applyTerminalPresentationEvent(
 		event: TerminalPresentationEvent,
 	): WorkbenchTerminalPresentationEventResult {
@@ -663,6 +687,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 			...(observation.currentDirectory.kind === 'reported'
 				? { currentCwd: observation.currentDirectory.currentCwd }
 				: {}),
+			closeActivity: observation.closeActivity,
 			naturalTitle: observation.naturalTitle,
 			presentationId,
 			tabId: match.tabId,

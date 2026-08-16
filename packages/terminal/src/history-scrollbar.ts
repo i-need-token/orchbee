@@ -2,8 +2,9 @@ export const HISTORY_SCROLLBAR_FADE_DELAY_MS = 1_500;
 
 const HISTORY_SCROLLBAR_HIT_WIDTH = 16;
 const HISTORY_SCROLLBAR_MINIMUM_THUMB_HEIGHT = 20;
+const HISTORY_SCROLLBAR_THUMB_RIGHT_INSET = 2;
 const HISTORY_SCROLLBAR_THUMB_WIDTH = 8;
-const HISTORY_SCROLLBAR_TRACK_PADDING = 4;
+const HISTORY_SCROLLBAR_VERTICAL_TRACK_PADDING = 4;
 const RATIO_SCALE = 1_000_000n;
 
 export interface HistoryScrollbarInput {
@@ -61,14 +62,14 @@ export function projectHistoryScrollbar(
 		height === null ||
 		finiteVisibleRows === null ||
 		width === 0 ||
-		height <= HISTORY_SCROLLBAR_TRACK_PADDING * 2 ||
+		height <= HISTORY_SCROLLBAR_VERTICAL_TRACK_PADDING * 2 ||
 		visibleRows === 0 ||
 		input.totalRows <= BigInt(visibleRows)
 	) {
 		return null;
 	}
 
-	const trackHeight = height - HISTORY_SCROLLBAR_TRACK_PADDING * 2;
+	const trackHeight = height - HISTORY_SCROLLBAR_VERTICAL_TRACK_PADDING * 2;
 	const maximumStartRow = input.totalRows - BigInt(visibleRows);
 	const visibleStartRow = clampBigInt(input.visibleStartRow, 0n, maximumStartRow);
 	const proportionalHeight =
@@ -93,13 +94,13 @@ export function projectHistoryScrollbar(
 			height: thumbHeight,
 			opacity: (visibleStartRow < maximumStartRow ? 0.5 : 0.3) * opacity,
 			width: Math.min(HISTORY_SCROLLBAR_THUMB_WIDTH, width),
-			x: Math.max(0, width - HISTORY_SCROLLBAR_THUMB_WIDTH - HISTORY_SCROLLBAR_TRACK_PADDING),
-			y: HISTORY_SCROLLBAR_TRACK_PADDING + travel * startRatio,
+			x: Math.max(0, width - HISTORY_SCROLLBAR_THUMB_WIDTH - HISTORY_SCROLLBAR_THUMB_RIGHT_INSET),
+			y: HISTORY_SCROLLBAR_VERTICAL_TRACK_PADDING + travel * startRatio,
 		},
 		track: {
 			height: trackHeight,
 			travel,
-			y: HISTORY_SCROLLBAR_TRACK_PADDING,
+			y: HISTORY_SCROLLBAR_VERTICAL_TRACK_PADDING,
 		},
 		visibleStartRow,
 	};

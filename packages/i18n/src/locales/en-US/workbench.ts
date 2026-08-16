@@ -133,6 +133,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.actions.newToRight': 'New tab to the right',
 	'workbench.tabs.actions.openVertical': 'Open vertical tabs',
 	'workbench.tabs.actions.close': 'Close',
+	'workbench.tabs.closeRunning.description':
+		'{count, plural, one {This terminal is still running. Closing the selected tab will end its running process.} other {# terminals are still running. Closing the selected tabs will end their running processes.}}',
 	'workbench.tabs.actions.closeGroup': 'Close group',
 	'workbench.tabs.actions.closeOthers': 'Close other tabs',
 	'workbench.tabs.actions.closeBelow': 'Close tabs below',

@@ -79,9 +79,22 @@ describe('DesktopApplication', () => {
 		);
 	});
 
-	it('extends the renderer through a hidden title bar while retaining native window controls', async () => {
+	it('centers macOS traffic lights without reserving a blocking title-bar overlay', async () => {
 		const harness = createHarness();
-		const application = createApplication(harness.dependencies);
+		const application = createApplication(harness.dependencies, 'darwin');
+
+		await application.start();
+
+		expect(harness.windowOptions).toMatchObject({
+			titleBarStyle: 'hidden',
+			trafficLightPosition: { x: 8, y: 12 },
+		});
+		expect(harness.windowOptions?.titleBarOverlay).toBeUndefined();
+	});
+
+	it('retains the title-bar overlay for Windows and Linux window controls', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies, 'linux');
 
 		await application.start();
 
@@ -89,6 +102,7 @@ describe('DesktopApplication', () => {
 			titleBarOverlay: true,
 			titleBarStyle: 'hidden',
 		});
+		expect(harness.windowOptions?.trafficLightPosition).toBeUndefined();
 	});
 
 	it('registers the Host exit listener before terminal runtime reconciliation', async () => {

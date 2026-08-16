@@ -6,22 +6,31 @@ describe('terminal metadata policy', () => {
 	it('matches Warp OSC 7 hostname and percent-decoding rules', () => {
 		expect(
 			resolveTerminalMetadataObservation(
-				{ currentDirectory: 'file://Orchbee-Host/workspace/My%20Project', title: 'vim\0' },
+				{
+					closeActivity: 'active',
+					currentDirectory: 'file://Orchbee-Host/workspace/My%20Project',
+					title: 'vim\0',
+				},
 				'orchbee-host',
 			),
 		).toEqual({
+			closeActivity: 'active',
 			currentDirectory: { currentCwd: '/workspace/My Project', kind: 'reported' },
 			naturalTitle: 'vim',
 		});
 		expect(
-			resolveTerminalMetadataObservation({ currentDirectory: null, title: null }, 'orchbee-host'),
+			resolveTerminalMetadataObservation(
+				{ closeActivity: 'idle', currentDirectory: null, title: null },
+				'orchbee-host',
+			),
 		).toEqual({
+			closeActivity: 'idle',
 			currentDirectory: { currentCwd: null, kind: 'reported' },
 			naturalTitle: null,
 		});
 		expect(
 			resolveTerminalMetadataObservation(
-				{ currentDirectory: null, title: ' \0 natural  ' },
+				{ closeActivity: 'unknown', currentDirectory: null, title: ' \0 natural  ' },
 				'orchbee-host',
 			),
 		).toMatchObject({ naturalTitle: ' natural' });
@@ -37,10 +46,11 @@ describe('terminal metadata policy', () => {
 	])('ignores an untrusted or malformed OSC 7 value: %s', (currentDirectory) => {
 		expect(
 			resolveTerminalMetadataObservation(
-				{ currentDirectory, title: '  natural title\0  ' },
+				{ closeActivity: 'unknown', currentDirectory, title: '  natural title\0  ' },
 				'orchbee-host',
 			),
 		).toEqual({
+			closeActivity: 'unknown',
 			currentDirectory: { kind: 'ignored' },
 			naturalTitle: 'natural title',
 		});

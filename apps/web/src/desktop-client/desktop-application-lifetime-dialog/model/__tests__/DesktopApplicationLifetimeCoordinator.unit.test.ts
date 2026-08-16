@@ -15,9 +15,10 @@ import {
 import type { WorkbenchDocumentCoordinator } from '../../../../workbench-client';
 import { DesktopApplicationLifetimeCoordinator } from '../DesktopApplicationLifetimeCoordinator';
 
-function createHarness(sessionCount = 2) {
+function createHarness(sessionCount = 2, initialCloseConfirmationCount = sessionCount) {
 	let lifetimeListener: ((event: DesktopApplicationLifetimeMainEvent) => void) | undefined;
 	let documentListener: (() => void) | undefined;
+	let closeConfirmationCount = initialCloseConfirmationCount;
 	let snapshot: WorkbenchTerminalSessionStopSnapshot = {
 		complete: false,
 		failures: [],
@@ -30,6 +31,7 @@ function createHarness(sessionCount = 2) {
 		terminalPresentationId(`presentation-${index + 1}`),
 	);
 	const runtime = {
+		getTerminalSessionCloseConfirmationCount: vi.fn<() => number>(() => closeConfirmationCount),
 		getTerminalSessionStopSnapshot: () => snapshot,
 		getRestartableTerminalPresentationIds: vi.fn<() => typeof restartPresentationIds>(
 			() => restartPresentationIds,
@@ -94,6 +96,7 @@ function createHarness(sessionCount = 2) {
 		},
 		runtime,
 		setComplete() {
+			closeConfirmationCount = 0;
 			snapshot = { ...snapshot, complete: true, stoppedCount: sessionCount, stoppingCount: 0 };
 		},
 		document,
@@ -289,6 +292,37 @@ describe('DesktopApplicationLifetimeCoordinator', () => {
 			),
 		);
 		expect(harness.coordinator.getSnapshot().kind).not.toBe('awaiting-choice');
+	});
+
+	it('preserves without prompting when retained terminals are running but idle', async () => {
+		const harness = createHarness(2, 0);
+		const requestId = DesktopApplicationExitRequestIdSchema.parse('exit-idle');
+		harness.emitLifetime({
+			reason: 'user-quit',
+			requestId,
+			type: 'desktop-application-exit-requested',
+		});
+
+		expect(harness.coordinator.getSnapshot().kind).toBe('working');
+		expect(harness.commands).toContainEqual({
+			choice: 'preserve',
+			requestId,
+			type: 'desktop-application-exit-choice',
+		});
+		expect(harness.runtime.getTerminalSessionCloseConfirmationCount).toHaveBeenCalledOnce();
+		expect(harness.runtime.requestAllTerminalSessionsStop).not.toHaveBeenCalled();
+
+		harness.acknowledgeMode(requestId, 'preserve');
+		await vi.waitFor(() =>
+			expect(harness.commands).toContainEqual(
+				expect.objectContaining({
+					mode: 'preserve',
+					presentationCount: 2,
+					requestId,
+					type: 'desktop-application-exit-renderer-prepared',
+				}),
+			),
+		);
 	});
 
 	it('cancels only while the initial user decision is pending', () => {

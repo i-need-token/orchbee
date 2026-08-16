@@ -65,7 +65,11 @@ test "batch full commits the interaction prefix and retries the current attachme
     const geometry = binding.runtime.geometry();
     _ = try binding.runtime.applySelectionCommand(.{
         .attachment_id = attachment_id,
-        .command = .select_all,
+        .command = .{ .set_range = .{
+            .end = .{ .column = 0, .row = 0 },
+            .rectangle = false,
+            .start = .{ .column = 0, .row = 0 },
+        } },
         .generation = geometry.generation,
         .revision = geometry.revision,
     });
@@ -134,7 +138,11 @@ test "allocator failure rolls back every earlier interaction mutation" {
     try binding.runtime.rollbackHistoryEvent(attachment_id, sampled_history);
     _ = try binding.runtime.applySelectionCommand(.{
         .attachment_id = attachment_id,
-        .command = .select_all,
+        .command = .{ .set_range = .{
+            .end = .{ .column = 0, .row = 0 },
+            .rectangle = false,
+            .start = .{ .column = 0, .row = 0 },
+        } },
         .generation = geometry.generation,
         .revision = geometry.revision,
     });
@@ -194,7 +202,11 @@ test "full cancellation record remains queued until a later batch commits it" {
     const geometry = binding.runtime.geometry();
     _ = try binding.runtime.applySelectionCommand(.{
         .attachment_id = attachment_id,
-        .command = .select_all,
+        .command = .{ .set_range = .{
+            .end = .{ .column = 0, .row = 0 },
+            .rectangle = false,
+            .start = .{ .column = 0, .row = 0 },
+        } },
         .generation = geometry.generation,
         .revision = geometry.revision,
     });

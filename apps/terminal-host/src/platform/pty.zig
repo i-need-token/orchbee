@@ -3,6 +3,8 @@ const builtin = @import("builtin");
 
 const windows_api = @import("windows_api.zig");
 
+extern "c" fn tcgetpgrp(handle: c_int) c_int;
+
 pub const Size = extern struct {
     rows: u16,
     columns: u16,
@@ -118,6 +120,12 @@ const PosixPty = if (builtin.os.tag == .windows) void else struct {
 
     pub fn write(self: *const PosixPty, bytes: []const u8) !usize {
         return posix.write(self.master, bytes);
+    }
+
+    pub fn foregroundProcessGroup(self: *const PosixPty) !posix.pid_t {
+        const process_group = tcgetpgrp(self.master);
+        if (process_group < 0) return error.ProcessObservationFailed;
+        return @intCast(process_group);
     }
 
     pub fn registerReaderThread(_: *PosixPty, _: std.Thread.Handle) void {}

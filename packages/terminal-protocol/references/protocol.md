@@ -336,6 +336,16 @@ Variable sections follow in this exact order:
    required; an unknown required extension is rejected. Unknown optional extensions remain bounded
    and are returned as opaque data.
 
+The current optional extension registry is:
+
+| Kind | Bytes | Meaning                                                                                                                                                      |
+| ---: | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|  `1` |   `1` | Live close activity: `0=unknown`, `1=idle`, `2=active`. Terminal Host emits only `idle` or `active` and omits the extension when its observation is unknown. |
+
+Close activity is an advisory sample, not lifecycle or containment authority. A consumer maps an
+absent, duplicated, malformed, or unrecognized close-activity payload to `unknown` and applies its
+own close-confirmation policy.
+
 A snapshot has no base and contains every visible row in canonical order. A delta names the exact
 acknowledged base and replaces complete, unique dirty rows in increasing row order; it never carries
 partial cells. Dimension, active-screen, or generation changes require a snapshot. The TypeScript

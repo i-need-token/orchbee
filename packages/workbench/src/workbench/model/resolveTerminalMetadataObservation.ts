@@ -1,13 +1,17 @@
+import type { TerminalPresentationCloseActivity } from '../../terminal-presentation';
+
 export type WorkbenchTerminalCurrentDirectoryObservation =
 	| { readonly currentCwd: string | null; readonly kind: 'reported' }
 	| { readonly kind: 'ignored' };
 
 export interface WorkbenchTerminalMetadataObservation {
+	readonly closeActivity: TerminalPresentationCloseActivity;
 	readonly currentDirectory: WorkbenchTerminalCurrentDirectoryObservation;
 	readonly naturalTitle: string | null;
 }
 
 export interface RawTerminalMetadataObservation {
+	readonly closeActivity: TerminalPresentationCloseActivity;
 	readonly currentDirectory: string | null;
 	readonly title: string | null;
 }
@@ -17,6 +21,7 @@ export function resolveTerminalMetadataObservation(
 	terminalHostName: string,
 ): WorkbenchTerminalMetadataObservation {
 	return {
+		closeActivity: metadata.closeActivity,
 		currentDirectory:
 			metadata.currentDirectory === null
 				? { currentCwd: null, kind: 'reported' }

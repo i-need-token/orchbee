@@ -10,6 +10,7 @@ export {
 } from './terminal-presentation-contracts';
 export type {
 	TerminalPresentationCloseOperation,
+	TerminalPresentationCloseActivity,
 	TerminalPresentationCloseRequest,
 	TerminalPresentationCommand,
 	TerminalPresentationCreation,

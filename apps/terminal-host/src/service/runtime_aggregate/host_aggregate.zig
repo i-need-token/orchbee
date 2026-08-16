@@ -1,6 +1,7 @@
 const std = @import("std");
 const target_builtin = @import("builtin");
 const core_module = @import("terminal-host-core").state;
+const terminal_runtime = @import("terminal-host-engine").runtime;
 const model = @import("terminal-host-model");
 const identifiers = model.identifiers;
 const terminal_configuration = model.configuration;
@@ -20,6 +21,8 @@ const terminal_control = @import("terminal_control.zig");
 const termination = @import("termination.zig");
 
 pub const HostRuntimeAggregateTestingState = if (target_builtin.is_test) struct {
+    after_resize_commit: ?*const fn (?*anyopaque, *terminal_runtime.TerminalRuntime) void = null,
+    after_resize_commit_context: ?*anyopaque = null,
     /// Counts projection-release decisions so disconnect teardown can prove
     /// that each affected terminal is considered at most once.
     projection_release_decisions: usize = 0,

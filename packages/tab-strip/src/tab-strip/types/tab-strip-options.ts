@@ -1,4 +1,5 @@
 import type {
+	ActionConfirmation,
 	ActionExecution,
 	ActionExecutionContext,
 	ActionInvocationSource,
@@ -53,6 +54,10 @@ export type TabStripCloseCallback = (
 	request: TabStripCloseRequest,
 ) => ActionResult<void> | Promise<ActionResult<void>>;
 
+export type TabStripCloseConfirmation = (
+	request: TabStripCloseRequest,
+) => ActionConfirmation | null;
+
 export type TabStripSelectCallback = (
 	context: ActionExecutionContext,
 	input: TabSelectionInput,
@@ -102,6 +107,7 @@ export interface TabStripOptions {
 	ariaLabel?: string;
 	onNewTab?: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	onCloseTabs?: TabStripCloseCallback | undefined;
+	getCloseTabsConfirmation?: TabStripCloseConfirmation | undefined;
 	onSelectTab?: TabStripSelectCallback | undefined;
 	onNewTabButtonPressed?: () => void;
 }

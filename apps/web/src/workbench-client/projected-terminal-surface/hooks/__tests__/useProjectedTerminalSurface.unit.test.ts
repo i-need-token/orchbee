@@ -102,6 +102,7 @@ describe('useProjectedTerminalSurface', () => {
 			.fn<ProjectedTerminalSurfaceCapability['startStoppedTerminalSession']>()
 			.mockReturnValue({ kind: 'rejected', reason: 'terminal-creation-sealed' });
 		const presentation: WorkbenchTerminalPresentation = {
+			closeActivity: 'unknown',
 			currentCwd: '/workspace',
 			launchCwd: '/workspace',
 			lifecycle: { kind: 'stopped' },
@@ -170,6 +171,7 @@ describe('useProjectedTerminalSurface', () => {
 				result: new Promise(() => undefined),
 			}));
 			const presentation: WorkbenchTerminalPresentation = {
+				closeActivity: 'unknown',
 				currentCwd: '/workspace',
 				launchCwd: '/workspace',
 				lifecycle,
@@ -236,6 +238,7 @@ describe('useProjectedTerminalSurface', () => {
 			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
 		};
 		const presentation: WorkbenchTerminalPresentation = {
+			closeActivity: 'unknown',
 			currentCwd: '/workspace',
 			launchCwd: '/workspace',
 			lifecycle: { kind: 'running' },
@@ -370,6 +373,7 @@ describe('useProjectedTerminalSurface', () => {
 			return { release: thirdRelease, result: new Promise(() => undefined) };
 		});
 		const presentation: WorkbenchTerminalPresentation = {
+			closeActivity: 'unknown',
 			currentCwd: '/workspace',
 			launchCwd: '/workspace',
 			lifecycle: { kind: 'running' },
@@ -461,6 +465,7 @@ describe('useProjectedTerminalSurface', () => {
 			result: Promise.reject(new Error('projection unavailable')),
 		}));
 		const presentation: WorkbenchTerminalPresentation = {
+			closeActivity: 'unknown',
 			currentCwd: '/workspace',
 			launchCwd: '/workspace',
 			lifecycle: { kind: 'running' },
@@ -564,6 +569,7 @@ describe('useProjectedTerminalSurface', () => {
 			}),
 		}));
 		const presentation: WorkbenchTerminalPresentation = {
+			closeActivity: 'unknown',
 			currentCwd: '/workspace',
 			launchCwd: '/workspace',
 			lifecycle: { kind: 'running' },

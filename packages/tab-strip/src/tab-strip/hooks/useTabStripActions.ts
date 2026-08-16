@@ -39,6 +39,7 @@ import type { TabStripComboButtonController } from '../model/tab-strip-combo-but
 import type { TabStripMessages } from '../types/tab-strip-messages';
 import type {
 	TabStripCloseCallback,
+	TabStripCloseConfirmation,
 	TabStripNewTabRequest,
 	TabStripSelectCallback,
 } from '../types/tab-strip-options';
@@ -54,6 +55,7 @@ interface UseTabStripActionsOptions {
 	readonly onMoveTabsToNewWindow: ((tabIds: readonly string[]) => void) | undefined;
 	readonly onNewTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs: TabStripCloseCallback | undefined;
+	readonly getCloseTabsConfirmation: TabStripCloseConfirmation | undefined;
 	readonly onSelectTab: TabStripSelectCallback | undefined;
 	readonly parentActionScope: ActionScope | undefined;
 	readonly requestCloseTabs: (tabIds: readonly string[], source?: TabCloseSource) => void;
@@ -73,6 +75,7 @@ export function useTabStripActions({
 	onMoveTabsToNewWindow,
 	onNewTab,
 	onCloseTabs,
+	getCloseTabsConfirmation,
 	onSelectTab,
 	parentActionScope,
 	requestCloseTabs,
@@ -198,6 +201,7 @@ export function useTabStripActions({
 				scope,
 				defineAction({
 					category,
+					confirmation: (input) => getCloseTabsConfirmation?.(input) ?? null,
 					execution: parallelByTabs,
 					getAvailability: (_context, input) => tabAvailability(input.tabIds),
 					handler: {
@@ -700,6 +704,7 @@ export function useTabStripActions({
 		comboButtonController,
 		messages.newTabTitle,
 		model,
+		getCloseTabsConfirmation,
 		onMoveGroupToNewWindow,
 		onMoveTabsToNewWindow,
 		onNewTab,

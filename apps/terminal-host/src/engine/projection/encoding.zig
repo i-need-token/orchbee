@@ -47,6 +47,7 @@ pub fn encodeOwned(
         request.base_generation.? != self.captured_generation;
     const kind: FrameKind = if (snapshot) .snapshot else .delta;
     const base_revision: ?u64 = if (snapshot) null else request.base_revision;
+    const close_activity_extension_count: u16 = if (request.close_activity == .unknown) 0 else 1;
     if (!snapshot and base_revision.? >= self.captured_revision) return error.ProjectionTooLarge;
 
     var strings = StringTable.init(self.allocator);
@@ -132,7 +133,7 @@ pub fn encodeOwned(
     try writer.appendInt(u32, @intCast(strings.values.items.len));
     try writer.appendInt(u16, @intCast(styles.values.items.len));
     try writer.appendInt(u16, @intCast(included_rows));
-    try writer.appendInt(u16, 0);
+    try writer.appendInt(u16, close_activity_extension_count);
     try writer.appendInt(u16, 0);
     try writer.appendInt(u16, self.captured_cell_pixel_width);
     try writer.appendInt(u16, self.captured_cell_pixel_height);
@@ -193,6 +194,13 @@ pub fn encodeOwned(
                 (if (raw.protected) @as(u8, 0x10) else 0));
             try writer.appendInt(u8, 0);
         }
+    }
+
+    if (request.close_activity != .unknown) {
+        try writer.appendInt(u16, protocol.terminal_frame_extension_close_activity);
+        try writer.appendInt(u16, 0);
+        try writer.appendInt(u32, 1);
+        try writer.appendInt(u8, @intFromEnum(request.close_activity));
     }
 
     const frame_length = writer.bytes.items.len - frame_offset;

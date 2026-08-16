@@ -12,6 +12,7 @@ import type { WorkbenchPanelWorkspaceView } from '../../../../../types/panel-wor
 import { WorkbenchPanel } from '../WorkbenchPanel';
 
 const primaryPresentation = {
+	closeActivity: 'unknown',
 	currentCwd: null,
 	launchCwd: null,
 	lifecycle: { kind: 'preview' },
@@ -20,6 +21,7 @@ const primaryPresentation = {
 	title: 'Terminal 1',
 } as const;
 const childTerminal = {
+	closeActivity: 'unknown',
 	currentCwd: null,
 	launchCwd: null,
 	lifecycle: { kind: 'preview' },
@@ -33,6 +35,7 @@ const otherPanel = {
 	id: 'panel-2',
 	kind: 'panel',
 	primaryPresentation: {
+		closeActivity: 'unknown',
 		currentCwd: null,
 		launchCwd: null,
 		lifecycle: { kind: 'preview' },

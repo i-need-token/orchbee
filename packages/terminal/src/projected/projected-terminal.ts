@@ -74,6 +74,7 @@ import {
 	observeTerminalBeforeInput,
 	observeTerminalPaste,
 	OrderedInputDispatcher,
+	projectPreeditLayout,
 	recordTerminalKeyInput,
 	recordTerminalMouseSample,
 	recordTerminalPaste,
@@ -172,6 +173,16 @@ function isCompositionBeforeInput(event: InputEvent): boolean {
 		event.inputType === 'insertCompositionText' ||
 		event.inputType === 'insertFromComposition'
 	);
+}
+
+function clipboardContainsImage(clipboardData: DataTransfer | null): boolean {
+	const items = clipboardData?.items;
+	if (items === undefined) return false;
+	for (let index = 0; index < items.length; index++) {
+		const item = items[index];
+		if (item?.kind === 'file' && item.type.toLowerCase().startsWith('image/')) return true;
+	}
+	return false;
 }
 
 function readSurfacePadding(root: HTMLElement): SurfacePadding {
@@ -664,6 +675,8 @@ export class ProjectedTerminal {
 	#historyScrollbarFadeTimer: ReturnType<typeof setTimeout> | undefined;
 	#historyScrollbarGesture: HistoryScrollbarGesture | undefined;
 	#historyScrollbarOpacity = 0;
+	#historyScrollbar: HTMLDivElement | undefined;
+	#historyScrollbarThumb: HTMLDivElement | undefined;
 	#historyStartRow = 0n;
 	#historyStore: PackedTerminalViewport | undefined;
 	#historyTotalRows = 0n;
@@ -774,7 +787,8 @@ export class ProjectedTerminal {
 	}
 
 	get metadata(): ProjectedTerminalMetadata | null {
-		return this.#visibleStore().metadata;
+		const metadata = this.#visibleStore().metadata;
+		return metadata === null ? null : this.#metadataWithLiveCloseActivity(metadata);
 	}
 
 	get historyPhase(): ProjectedHistoryPhase {
@@ -903,6 +917,30 @@ export class ProjectedTerminal {
 			accessibilityAnnouncement.style.whiteSpace = 'nowrap';
 			root.appendChild(accessibilityAnnouncement);
 			this.#accessibilityAnnouncement = accessibilityAnnouncement;
+
+			const historyScrollbar = document.createElement('div');
+			historyScrollbar.dataset['projectedTerminalHistoryScrollbar'] = 'true';
+			historyScrollbar.setAttribute('aria-hidden', 'true');
+			historyScrollbar.hidden = true;
+			historyScrollbar.style.position = 'absolute';
+			historyScrollbar.style.top = '0';
+			historyScrollbar.style.right = '0';
+			historyScrollbar.style.width = '16px';
+			historyScrollbar.style.height = '100%';
+			historyScrollbar.style.touchAction = 'none';
+			historyScrollbar.style.zIndex = '1';
+			const historyScrollbarThumb = document.createElement('div');
+			historyScrollbarThumb.dataset['projectedTerminalHistoryScrollbarThumb'] = 'true';
+			historyScrollbarThumb.style.position = 'absolute';
+			historyScrollbarThumb.style.right = '2px';
+			historyScrollbarThumb.style.width = '8px';
+			historyScrollbarThumb.style.background = 'rgb(128, 128, 128)';
+			historyScrollbarThumb.style.pointerEvents = 'none';
+			historyScrollbarThumb.style.opacity = '0';
+			historyScrollbar.appendChild(historyScrollbarThumb);
+			root.appendChild(historyScrollbar);
+			this.#historyScrollbar = historyScrollbar;
+			this.#historyScrollbarThumb = historyScrollbarThumb;
 			document.addEventListener('selectionchange', this.#handleAccessibilitySelectionChange);
 			this.#listenerDisposers.push(() =>
 				document.removeEventListener('selectionchange', this.#handleAccessibilitySelectionChange),
@@ -925,7 +963,7 @@ export class ProjectedTerminal {
 			});
 			renderer.setRenderRequestCallback(() => this.#scheduleRender());
 			this.#renderer = renderer;
-			this.#installInputListeners(root, canvas, input);
+			this.#installInputListeners(root, canvas, input, historyScrollbar);
 			await renderer.initGPU();
 			if (this.#isDisposed()) return;
 			this.#installDevicePixelRatioListeners(view);
@@ -1045,7 +1083,7 @@ export class ProjectedTerminal {
 				) {
 					this.#finishHistoryRecovery();
 				} else if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
-					this.#metadataEmitter.fire(metadata);
+					this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(metadata));
 					this.#updateAccessibility(metadata);
 				}
 				this.#syncPreeditPresentation();
@@ -1265,7 +1303,7 @@ export class ProjectedTerminal {
 		});
 		const metadata = viewport.metadata;
 		if (metadata) {
-			this.#metadataEmitter.fire(metadata);
+			this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(metadata));
 			this.#updateAccessibility(metadata);
 		}
 		this.#continueSelectionAutoscrollGesture();
@@ -1838,6 +1876,7 @@ export class ProjectedTerminal {
 			}
 		}
 		this.#freezeSurfaceBindings();
+		this.#releaseHistoryScrollbarDom();
 		this.#input?.remove();
 		this.#input = undefined;
 		this.#accessibilityAnnouncement?.remove();
@@ -1942,6 +1981,7 @@ export class ProjectedTerminal {
 
 	#releaseSurfaceDom(): void {
 		this.#canvas?.remove();
+		this.#releaseHistoryScrollbarDom();
 		this.#input?.remove();
 		this.#accessibilityRoot?.remove();
 		this.#accessibilityAnnouncement?.remove();
@@ -1958,6 +1998,12 @@ export class ProjectedTerminal {
 		this.#accessibilityAnnouncement = undefined;
 		this.#accessibilityRoot = undefined;
 		this.#root = undefined;
+	}
+
+	#releaseHistoryScrollbarDom(): void {
+		this.#historyScrollbar?.remove();
+		this.#historyScrollbar = undefined;
+		this.#historyScrollbarThumb = undefined;
 	}
 
 	#scheduleRender(): boolean {
@@ -2011,6 +2057,12 @@ export class ProjectedTerminal {
 			: this.#historyStore;
 	}
 
+	#metadataWithLiveCloseActivity(metadata: ProjectedTerminalMetadata): ProjectedTerminalMetadata {
+		const closeActivity = this.#store.metadata?.closeActivity;
+		if (closeActivity === undefined || closeActivity === metadata.closeActivity) return metadata;
+		return { ...metadata, closeActivity };
+	}
+
 	#syncProjectedViewportState(): void {
 		const renderer = this.#renderer;
 		const metadata = this.metadata;
@@ -2029,12 +2081,7 @@ export class ProjectedTerminal {
 					}
 				: null,
 		);
-		renderer.setHistoryScrollbar({
-			opacity: this.#historyScrollbarOpacity,
-			totalRows: this.#historyTotalRows,
-			visibleRows: metadata.rows,
-			visibleStartRow: absoluteTop,
-		});
+		this.#syncHistoryScrollbarPresentation();
 	}
 
 	#historyVisibleStart(metadata: ProjectedTerminalMetadata): bigint {
@@ -2051,10 +2098,10 @@ export class ProjectedTerminal {
 	}
 
 	#historyScrollbarProjection(): HistoryScrollbarProjection | null {
-		const canvas = this.#canvas;
+		const root = this.#root;
 		const metadata = this.metadata;
-		if (!canvas || !metadata) return null;
-		const rectangle = canvas.getBoundingClientRect();
+		if (!root || !metadata) return null;
+		const rectangle = root.getBoundingClientRect();
 		return projectHistoryScrollbar({
 			opacity: this.#historyScrollbarOpacity,
 			totalRows: this.#historyTotalRows,
@@ -2063,6 +2110,24 @@ export class ProjectedTerminal {
 			visibleRows: metadata.rows,
 			visibleStartRow: this.#historyVisibleStart(metadata),
 		});
+	}
+
+	#syncHistoryScrollbarPresentation(): void {
+		const scrollbar = this.#historyScrollbar;
+		const thumb = this.#historyScrollbarThumb;
+		if (scrollbar === undefined || thumb === undefined) return;
+		const projection = this.#historyScrollbarProjection();
+		if (projection === null) {
+			scrollbar.hidden = true;
+			thumb.style.opacity = '0';
+			return;
+		}
+		scrollbar.hidden = false;
+		scrollbar.style.width = `${projection.hitArea.width}px`;
+		thumb.style.height = `${projection.thumb.height}px`;
+		thumb.style.opacity = String(projection.thumb.opacity);
+		thumb.style.top = `${projection.thumb.y}px`;
+		thumb.style.width = `${projection.thumb.width}px`;
 	}
 
 	#showHistoryScrollbar(): void {
@@ -2350,7 +2415,7 @@ export class ProjectedTerminal {
 		this.#syncPreeditPresentation();
 		const metadata = this.#store.metadata;
 		if (metadata) {
-			this.#metadataEmitter.fire(metadata);
+			this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(metadata));
 			this.#updateAccessibility(metadata);
 		}
 		this.#continueSelectionAutoscrollGesture();
@@ -3299,6 +3364,7 @@ export class ProjectedTerminal {
 		root: HTMLElement,
 		canvas: HTMLCanvasElement,
 		input: HTMLTextAreaElement,
+		historyScrollbar: HTMLDivElement,
 	): void {
 		this.#listen(input, 'keydown', this.#handleKeyDown);
 		this.#listen(input, 'keyup', this.#handleKeyUp);
@@ -3324,6 +3390,15 @@ export class ProjectedTerminal {
 		this.#listen(canvas, 'touchend', this.#handleTouchEnd, { passive: false });
 		this.#listen(canvas, 'click', this.#handleClick);
 		this.#listen(canvas, 'wheel', this.#handleWheel, { passive: false });
+		this.#listen(historyScrollbar, 'pointerdown', this.#handlePointerDown);
+		this.#listen(historyScrollbar, 'pointerup', this.#handlePointerUp);
+		this.#listen(historyScrollbar, 'pointermove', this.#handlePointerMove);
+		this.#listen(historyScrollbar, 'pointercancel', this.#handlePointerCancel);
+		this.#listen(historyScrollbar, 'lostpointercapture', this.#handleLostPointerCapture);
+		this.#listen(historyScrollbar, 'pointerleave', this.#handlePointerLeave);
+		this.#listen(historyScrollbar, 'touchend', this.#handleTouchEnd, { passive: false });
+		this.#listen(historyScrollbar, 'click', this.#handleClick);
+		this.#listen(historyScrollbar, 'wheel', this.#handleWheel, { passive: false });
 		const document = canvas.ownerDocument;
 		document.addEventListener('pointermove', this.#handleDocumentPointerMove);
 		document.addEventListener('pointerup', this.#handleDocumentPointerUp);
@@ -3373,6 +3448,7 @@ export class ProjectedTerminal {
 		}
 		if (this.#handleLocalHistoryKey(event, trackedCode)) return;
 		if ((event.ctrlKey || event.metaKey) && event.code === 'KeyV') return;
+		if (this.#surfaceMousePlatform === 'macos' && event.metaKey) return;
 		const facts = this.#keyFacts(event);
 		if (!facts) return;
 		if (!this.#inputOperationIsCurrent(inputOperationEpoch)) {
@@ -3801,14 +3877,24 @@ export class ProjectedTerminal {
 		const rootBounds = root.getBoundingClientRect();
 		const canvasBounds = canvas.getBoundingClientRect();
 		const metrics = renderer.getMetrics();
+		const preeditLayout =
+			this.#preeditState === undefined
+				? null
+				: projectPreeditLayout(
+						this.#preeditState.cells,
+						this.#preeditState.selection,
+						{ column: metadata.cursor.column, row: metadata.cursor.row },
+						metadata.columns,
+						metadata.rows,
+					);
 		const anchor = calculateInputAnchor({
 			canvasLeft: canvasBounds.left,
 			canvasTop: canvasBounds.top,
 			cellHeight: metrics.height,
 			cellWidth: metrics.width,
 			columns: metadata.columns,
-			cursorColumn: metadata.cursor.column,
-			cursorRow: metadata.cursor.row,
+			cursorColumn: preeditLayout?.caret.column ?? metadata.cursor.column,
+			cursorRow: preeditLayout?.caret.row ?? metadata.cursor.row,
 			elementLeft: rootBounds.left,
 			elementTop: rootBounds.top,
 			preeditCaretPixelOffset: this.#preeditCaretPixelOffset,
@@ -3834,14 +3920,19 @@ export class ProjectedTerminal {
 		return true;
 	}
 
-	#sendSyntheticKey(key: TerminalKeyCodeValue): void {
+	#sendSyntheticKey(
+		key: TerminalKeyCodeValue,
+		modifiers: TerminalModifiers = emptyModifiers(),
+		text = '',
+		unshiftedCodepoint = 0,
+	): void {
 		const facts: KeyFacts = {
 			composing: false,
 			consumedModifiers: emptyModifiers(),
 			key,
-			modifiers: emptyModifiers(),
-			text: '',
-			unshiftedCodepoint: 0,
+			modifiers,
+			text,
+			unshiftedCodepoint,
 		};
 		this.#sendKey(facts, KeyAction.press, ProjectedInputPublicationIntent.held);
 		this.#sendKey(facts, KeyAction.release, ProjectedInputPublicationIntent.held);
@@ -3852,8 +3943,14 @@ export class ProjectedTerminal {
 		if (!this.#canAdmitInput()) return;
 		event.preventDefault();
 		event.stopPropagation();
-		const text = event.clipboardData?.getData('text/plain') ?? '';
-		if (!text) return;
+		const clipboardData = event.clipboardData;
+		const text = clipboardData?.getData('text/plain') ?? '';
+		if (!text) {
+			if (clipboardContainsImage(clipboardData)) {
+				this.#sendSyntheticKey('KeyV', { ...emptyModifiers(), control: true }, 'v', 0x76);
+			}
+			return;
+		}
 		const decision = observeTerminalPaste(
 			this.#inputState,
 			text,
@@ -4336,10 +4433,11 @@ export class ProjectedTerminal {
 
 	#startHistoryScrollbarGesture(event: PointerEvent): boolean {
 		if (event.button !== 0) return false;
-		const canvas = this.#canvas;
+		const scrollbar = this.#historyScrollbar;
+		const root = this.#root;
 		const projection = this.#historyScrollbarProjection();
-		if (!canvas || projection === null) return false;
-		const rectangle = canvas.getBoundingClientRect();
+		if (!scrollbar || !root || projection === null) return false;
+		const rectangle = root.getBoundingClientRect();
 		const pointerX = event.clientX - rectangle.left;
 		const pointerY = event.clientY - rectangle.top;
 		if (!historyScrollbarContainsPoint(projection, pointerX, pointerY)) return false;
@@ -4350,7 +4448,7 @@ export class ProjectedTerminal {
 		this.#historyScrollbarGesture = { drag: start.drag, pointerId: event.pointerId };
 		this.#showHistoryScrollbar();
 		try {
-			canvas.setPointerCapture(event.pointerId);
+			scrollbar.setPointerCapture(event.pointerId);
 		} catch {
 			// Focus and visibility repair still end the drag when capture is unavailable.
 		}
@@ -4367,7 +4465,7 @@ export class ProjectedTerminal {
 		else this.#cancelHistoryScrollbarFade();
 		if (!releaseCapture) return true;
 		try {
-			this.#canvas?.releasePointerCapture(gesture.pointerId);
+			this.#historyScrollbar?.releasePointerCapture(gesture.pointerId);
 		} catch {
 			// Browsers may release capture before the terminal repairs the drag.
 		}
@@ -4534,7 +4632,7 @@ export class ProjectedTerminal {
 					this.#finishHistoryScrollbarGesture(true);
 				} else {
 					const projection = this.#historyScrollbarProjection();
-					const rectangle = this.#canvas?.getBoundingClientRect();
+					const rectangle = this.#root?.getBoundingClientRect();
 					if (projection !== null && rectangle !== undefined) {
 						this.#requestHistoryStartRow(
 							resolveHistoryScrollbarDrag(
@@ -5009,6 +5107,7 @@ export class ProjectedTerminal {
 	#handleSurfaceResize(): void {
 		this.#invalidateLinkCache();
 		this.#renderer?.syncSurfacePadding();
+		this.#syncHistoryScrollbarPresentation();
 		this.#updateInputPosition();
 		this.#sendResizeIfChanged();
 	}
@@ -5026,6 +5125,7 @@ export class ProjectedTerminal {
 		this.#invalidateLinkCache();
 		this.#syncDevicePixelRatio();
 		this.#renderer?.syncSurfacePadding();
+		this.#syncHistoryScrollbarPresentation();
 		this.#updateInputPosition();
 		this.#sendResizeIfChanged();
 	};
@@ -5356,17 +5456,17 @@ export class ProjectedTerminal {
 		}
 		const selection = this.#root?.ownerDocument.getSelection();
 		if (selection === undefined || selection === null || selection.rangeCount !== 1) {
-			this.#clearAccessibilitySelectionFromDom();
-			return;
-		}
-		if (selection.isCollapsed) {
-			this.#clearAccessibilitySelectionFromDom();
+			this.#relinquishAccessibilitySelectionOwnership();
 			return;
 		}
 		const range = selection.getRangeAt(0);
 		const startOffset = this.#accessibilitySelectionOffset(range.startContainer, range.startOffset);
 		const endOffset = this.#accessibilitySelectionOffset(range.endContainer, range.endOffset);
-		if (startOffset === null || endOffset === null || startOffset === endOffset) {
+		if (startOffset === null || endOffset === null) {
+			this.#relinquishAccessibilitySelectionOwnership();
+			return;
+		}
+		if (selection.isCollapsed || startOffset === endOffset) {
 			this.#clearAccessibilitySelectionFromDom();
 			return;
 		}
@@ -5395,9 +5495,13 @@ export class ProjectedTerminal {
 
 	#clearAccessibilitySelectionFromDom(): void {
 		if (!this.#accessibilityOwnsDomSelection) return;
+		this.#relinquishAccessibilitySelectionOwnership();
+		this.#sendSelectionCommand('clear');
+	}
+
+	#relinquishAccessibilitySelectionOwnership(): void {
 		this.#accessibilityAppliedOffsets = undefined;
 		this.#accessibilityOwnsDomSelection = false;
-		this.#sendSelectionCommand('clear');
 	}
 
 	#accessibilitySelectionOffset(node: Node, offset: number): number | null {
@@ -5511,8 +5615,7 @@ export class ProjectedTerminal {
 			selection?.anchorNode !== undefined &&
 			root?.contains(selection.anchorNode);
 		if (!this.#accessibilityOwnsDomSelection && !ownsCurrentSelection) return;
-		this.#accessibilityAppliedOffsets = undefined;
-		this.#accessibilityOwnsDomSelection = false;
+		this.#relinquishAccessibilitySelectionOwnership();
 		this.#synchronizingAccessibilitySelection = true;
 		try {
 			selection?.removeAllRanges();

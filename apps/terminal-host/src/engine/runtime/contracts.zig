@@ -115,6 +115,7 @@ pub const DeviceAttributes = terminal_profile.DeviceAttributes;
 
 pub const ProjectionCounters = terminal_projection.Counters;
 pub const ProjectionEncodeRequest = terminal_projection.EncodeRequest;
+pub const TerminalCloseActivity = terminal_projection.TerminalCloseActivity;
 pub const Capabilities = model.attachment.Capabilities;
 pub const AttachmentId = identifiers.AttachmentId;
 pub const HostEpoch = identifiers.HostEpoch;

@@ -19,7 +19,7 @@ export interface ProjectedTerminalSurfaceCapability {
 	readonly presentationConfigurationSource: TerminalPresentationConfigurationSource;
 	observeTerminalMetadata(
 		presentationId: TerminalPresentationId,
-		metadata: Pick<ProjectedTerminalMetadata, 'currentDirectory' | 'title'>,
+		metadata: Pick<ProjectedTerminalMetadata, 'closeActivity' | 'currentDirectory' | 'title'>,
 	): void;
 	startStoppedTerminalSession(
 		presentationId: TerminalPresentationId,

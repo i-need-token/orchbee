@@ -6,6 +6,11 @@
 
 #include "local_ipc_windows.h"
 
+_Static_assert(
+    sizeof(DWORD) == sizeof(uint32_t),
+    "Windows transfer counts must fit the terminal Host C boundary"
+);
+
 #ifndef PIPE_REJECT_REMOTE_CLIENTS
 #define PIPE_REJECT_REMOTE_CLIENTS 0x00000008
 #endif
@@ -394,9 +399,11 @@ int ob_windows_local_server_accept_before(
 }
 
 int ob_windows_local_server_peek(ObWindowsLocalServer *server, uint32_t *available) {
-    if (!PeekNamedPipe(server->pipe, NULL, 0, NULL, available, NULL)) {
+    DWORD available_bytes = 0;
+    if (!PeekNamedPipe(server->pipe, NULL, 0, NULL, &available_bytes, NULL)) {
         return ob_connection_status(GetLastError());
     }
+    *available = (uint32_t)available_bytes;
     return OB_WINDOWS_IPC_OK;
 }
 
@@ -410,16 +417,18 @@ int ob_windows_local_server_read(
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (overlapped.hEvent == NULL) return OB_WINDOWS_IPC_SYSTEM_ERROR;
     const BOOL started = ReadFile(server->pipe, buffer, capacity, NULL, &overlapped);
+    DWORD transferred = 0;
     const int status = ob_overlapped_transfer_result(
         server->pipe,
         &overlapped,
         started,
         INFINITE,
-        read_bytes
+        &transferred
     );
     CloseHandle(overlapped.hEvent);
     if (status != OB_WINDOWS_IPC_OK) return status;
-    return *read_bytes == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
+    *read_bytes = (uint32_t)transferred;
+    return transferred == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
 }
 
 int ob_windows_local_server_write(
@@ -432,16 +441,18 @@ int ob_windows_local_server_write(
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (overlapped.hEvent == NULL) return OB_WINDOWS_IPC_SYSTEM_ERROR;
     const BOOL started = WriteFile(server->pipe, buffer, length, NULL, &overlapped);
+    DWORD transferred = 0;
     const int status = ob_overlapped_transfer_result(
         server->pipe,
         &overlapped,
         started,
         INFINITE,
-        written_bytes
+        &transferred
     );
     CloseHandle(overlapped.hEvent);
     if (status != OB_WINDOWS_IPC_OK) return status;
-    return *written_bytes == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
+    *written_bytes = (uint32_t)transferred;
+    return transferred == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
 }
 
 int ob_windows_local_server_write_before(
@@ -455,16 +466,18 @@ int ob_windows_local_server_write_before(
     overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (overlapped.hEvent == NULL) return OB_WINDOWS_IPC_SYSTEM_ERROR;
     const BOOL started = WriteFile(server->pipe, buffer, length, NULL, &overlapped);
+    DWORD transferred = 0;
     const int status = ob_overlapped_transfer_result(
         server->pipe,
         &overlapped,
         started,
         timeout_ms,
-        written_bytes
+        &transferred
     );
     CloseHandle(overlapped.hEvent);
     if (status != OB_WINDOWS_IPC_OK) return status;
-    return *written_bytes == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
+    *written_bytes = (uint32_t)transferred;
+    return transferred == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
 }
 
 void ob_windows_local_server_disconnect(ObWindowsLocalServer *server) {
@@ -503,16 +516,20 @@ int ob_windows_local_test_client_read(
     uint32_t capacity,
     uint32_t *read_bytes
 ) {
-    if (!ReadFile((HANDLE)client, buffer, capacity, read_bytes, NULL)) {
+    DWORD transferred = 0;
+    if (!ReadFile((HANDLE)client, buffer, capacity, &transferred, NULL)) {
         return ob_connection_status(GetLastError());
     }
-    return *read_bytes == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
+    *read_bytes = (uint32_t)transferred;
+    return transferred == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
 }
 
 int ob_windows_local_test_client_peek(void *client, uint32_t *available) {
-    if (!PeekNamedPipe((HANDLE)client, NULL, 0, NULL, available, NULL)) {
+    DWORD available_bytes = 0;
+    if (!PeekNamedPipe((HANDLE)client, NULL, 0, NULL, &available_bytes, NULL)) {
         return ob_connection_status(GetLastError());
     }
+    *available = (uint32_t)available_bytes;
     return OB_WINDOWS_IPC_OK;
 }
 
@@ -522,10 +539,12 @@ int ob_windows_local_test_client_write(
     uint32_t length,
     uint32_t *written_bytes
 ) {
-    if (!WriteFile((HANDLE)client, buffer, length, written_bytes, NULL)) {
+    DWORD transferred = 0;
+    if (!WriteFile((HANDLE)client, buffer, length, &transferred, NULL)) {
         return ob_connection_status(GetLastError());
     }
-    return *written_bytes == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
+    *written_bytes = (uint32_t)transferred;
+    return transferred == 0 ? OB_WINDOWS_IPC_CONNECTION_CLOSED : OB_WINDOWS_IPC_OK;
 }
 
 void ob_windows_local_test_client_close(void *client) {

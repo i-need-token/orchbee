@@ -1,8 +1,11 @@
 export {
 	buildPreeditState,
+	projectPreeditLayout,
 	shouldSuppressComposingControlInput,
 	type CompositionSelection,
 	type PreeditCellData,
+	type PreeditLayout,
+	type PreeditLayoutRow,
 	type PreeditState,
 } from './preedit';
 export {

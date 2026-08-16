@@ -17,6 +17,7 @@ pub const Process = switch (builtin.os.tag) {
 };
 
 pub const testing = if (builtin.is_test) struct {
+    pub const foregroundCommandActiveFn = posix_process.foregroundCommandActive;
     pub const posixExecutableCandidatesFn = posix_process.executableCandidatesForTesting;
     pub const PosixProcessType = posix_process.Process;
     pub const SessionIdentityStateType = posix_process.SessionIdentityState;

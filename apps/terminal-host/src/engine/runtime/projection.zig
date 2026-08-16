@@ -72,6 +72,17 @@ pub fn projectionResident(self: *state.State) bool {
     return self.projection.isResident();
 }
 
+pub fn resolveCloseActivity(
+    platform_command_active: ?bool,
+    semantic_prompt_seen: bool,
+    cursor_at_prompt: bool,
+) contracts.TerminalCloseActivity {
+    if (platform_command_active == true) return .active;
+    if (semantic_prompt_seen) return if (cursor_at_prompt) .idle else .active;
+    if (platform_command_active == false) return .idle;
+    return .unknown;
+}
+
 pub fn releaseProjectionResources(self: *state.State) void {
     self.projection_mutex.lock();
     defer self.projection_mutex.unlock();
@@ -102,6 +113,8 @@ pub fn encodeProjectionFrameOwned(
     self.projection_mutex.lock();
     defer self.projection_mutex.unlock();
 
+    const platform_command_active = self.process.hasActiveCommand() catch null;
+
     if (comptime target_builtin.is_test) {
         if (self.testing_hooks.projection_capture_starting) |notify| {
             notify(self.testing_hooks.context.?);
@@ -114,6 +127,12 @@ pub fn encodeProjectionFrameOwned(
     };
     const revision = self.revision.load(.monotonic);
     const generation = self.generation;
+    const semantic_prompt_seen = self.terminal.screens.active.semantic_prompt.seen;
+    const close_activity = resolveCloseActivity(
+        platform_command_active,
+        semantic_prompt_seen,
+        semantic_prompt_seen and self.terminal.cursorIsAtPrompt(),
+    );
     if (self.projection.needsCapture(revision, generation)) {
         self.projection.beginCapture(
             &self.terminal,
@@ -134,10 +153,12 @@ pub fn encodeProjectionFrameOwned(
     } else {
         self.terminal_mutex.unlock();
     }
+    var projection_request = request;
+    projection_request.close_activity = close_activity;
     const frame = self.projection.encodeOwned(
         output_allocator,
         output_prefix_bytes,
-        request,
+        projection_request,
     ) catch |err| {
         // Encoding is the final fallible step of a capture. If the frame
         // cannot be materialized (including aggregate-size or OOM

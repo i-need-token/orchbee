@@ -1,11 +1,25 @@
-const std = @import("std");
+const target_builtin = @import("builtin");
 const core_module = @import("terminal-host-core").state;
+const terminal_runtime = @import("terminal-host-engine").runtime;
 const terminal_geometry = @import("terminal-host-model").geometry;
 const host_runtime_maintenance = @import("../runtime_maintenance/root.zig");
 const contracts = @import("contracts.zig");
 
 const ResizeError = contracts.ResizeError;
 const TerminalResize = contracts.TerminalResize;
+
+pub fn resizeObservationIsCompatible(
+    requested: terminal_geometry.Geometry,
+    committed_revision: u64,
+    observed: terminal_runtime.Geometry,
+) bool {
+    if (observed.revision < committed_revision) return false;
+    if (observed.revision > committed_revision) return true;
+    return observed.columns == requested.columns and
+        observed.rows == requested.rows and
+        observed.cell_pixel_width == requested.cell_pixel_width and
+        observed.cell_pixel_height == requested.cell_pixel_height;
+}
 
 pub fn resizeTerminal(
     self: anytype,
@@ -51,15 +65,23 @@ pub fn resizeTerminal(
         ) catch {};
         return error.UnsafeRuntimeAfterResizeFailure;
     };
-    const runtime_geometry = self.synchronizeRuntimeObservation(
+    if (comptime target_builtin.is_test) {
+        if (self.testing_state.after_resize_commit) |hook| {
+            hook(self.testing_state.after_resize_commit_context, runtime);
+        }
+    }
+    const runtime_geometry = runtime.geometry();
+    if (!resizeObservationIsCompatible(geometry, revision, runtime_geometry)) {
+        return error.RuntimeStateDiverged;
+    }
+    self.core_state.synchronizeGeometry(
         terminal_id,
-        runtime,
-    ) catch unreachable;
-    std.debug.assert(runtime_geometry.columns == geometry.columns);
-    std.debug.assert(runtime_geometry.rows == geometry.rows);
-    std.debug.assert(runtime_geometry.cell_pixel_width == geometry.cell_pixel_width);
-    std.debug.assert(runtime_geometry.cell_pixel_height == geometry.cell_pixel_height);
-    std.debug.assert(runtime_geometry.revision == revision);
+        runtime_geometry.columns,
+        runtime_geometry.rows,
+        runtime_geometry.cell_pixel_width,
+        runtime_geometry.cell_pixel_height,
+        runtime_geometry.revision,
+    ) catch return error.RuntimeStateDiverged;
     return .{
         .attachment_id = attachment_id,
         .geometry = geometry,

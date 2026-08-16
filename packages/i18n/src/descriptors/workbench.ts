@@ -83,6 +83,11 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.closeRunning.title'],
 		description: 'Title for the running-terminal close confirmation.',
 	},
+	tabCloseRunningDescription: {
+		id: 'workbench.tabs.closeRunning.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.closeRunning.description'],
+		description: 'Warning shown before closing tabs that contain running terminals.',
+	},
 	panelMaximize: {
 		id: 'workbench.panels.actions.maximize',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.maximize'],

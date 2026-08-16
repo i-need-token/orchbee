@@ -6,6 +6,13 @@ const contract = @import("src/protocol/contract.zig");
 
 const required_zig_version = "0.15.2";
 const default_host_version = "0.1.0";
+const authored_c_flags: []const []const u8 = &.{
+    "-std=c17",
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic",
+    "-Werror=incompatible-pointer-types",
+};
 // Cross-language contract: search for `terminal-host-version-wire-limit`
 // before changing this value, then update every occurrence together.
 const max_host_version_bytes = 64;
@@ -263,11 +270,11 @@ pub fn build(builder: *std.Build) void {
             transport_module.addIncludePath(builder.path("src/transport"));
             transport_module.addCSourceFile(.{
                 .file = builder.path("src/transport/posix_endpoint_security.c"),
-                .flags = &.{"-std=c17"},
+                .flags = authored_c_flags,
             });
             platform_module.addCSourceFile(.{
                 .file = builder.path("src/platform/process_session.c"),
-                .flags = &.{"-std=c17"},
+                .flags = authored_c_flags,
             });
             const pty_c = builder.addTranslateC(.{
                 .root_source_file = ghostty.path("src/pty.c"),
@@ -292,7 +299,7 @@ pub fn build(builder: *std.Build) void {
                 transport_test_module.addIncludePath(builder.path("src/transport/__tests__"));
                 transport_test_module.addCSourceFile(.{
                     .file = builder.path("src/transport/__tests__/posix_endpoint_security_test.c"),
-                    .flags = &.{"-std=c17"},
+                    .flags = authored_c_flags,
                 });
             }
             const pty_module = pty_c.createModule();
@@ -303,17 +310,17 @@ pub fn build(builder: *std.Build) void {
             transport_test_module.addIncludePath(builder.path("src/transport"));
             transport_module.addCSourceFile(.{
                 .file = builder.path("src/transport/local_ipc_windows.c"),
-                .flags = &.{"-std=c17"},
+                .flags = authored_c_flags,
             });
             transport_module.linkSystemLibrary("advapi32", .{});
             platform_module.addCSourceFile(.{
                 .file = builder.path("src/platform/process_job_windows.c"),
-                .flags = &.{"-std=c17"},
+                .flags = authored_c_flags,
             });
             black_box_test_module.addIncludePath(builder.path("src/transport"));
             black_box_test_module.addCSourceFile(.{
                 .file = builder.path("src/transport/local_ipc_windows.c"),
-                .flags = &.{"-std=c17"},
+                .flags = authored_c_flags,
             });
             black_box_test_module.linkSystemLibrary("advapi32", .{});
         },

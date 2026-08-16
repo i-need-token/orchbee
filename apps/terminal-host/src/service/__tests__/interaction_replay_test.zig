@@ -368,7 +368,11 @@ test "THCR-029 export late duplicate request returns the same-kind success respo
     const geometry = binding.runtime.geometry();
     _ = try binding.runtime.applySelectionCommand(.{
         .attachment_id = attachment_id,
-        .command = .select_all,
+        .command = .{ .set_range = .{
+            .end = .{ .column = 0, .row = 0 },
+            .rectangle = false,
+            .start = .{ .column = 0, .row = 0 },
+        } },
         .generation = geometry.generation,
         .revision = geometry.revision,
     });

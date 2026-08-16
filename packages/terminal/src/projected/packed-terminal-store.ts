@@ -4,6 +4,8 @@ import {
 	FrameAppliedSchema,
 	inspectTerminalFrameHeader,
 	TerminalCellWidthCode,
+	TerminalCloseActivityCode,
+	TerminalFrameExtensionKind,
 	TerminalFrameKind,
 	type ActiveScreenValue,
 	type AttachmentId,
@@ -32,6 +34,8 @@ export type ProjectedStorePhase = (typeof ProjectedStorePhase)[keyof typeof Proj
 
 export type ProjectedFrameAcknowledgement = FrameApplied;
 
+export type ProjectedTerminalCloseActivity = 'active' | 'idle' | 'unknown';
+
 export type ProjectedFrameApplyResult =
 	| {
 			readonly acknowledgement: ProjectedFrameAcknowledgement;
@@ -53,6 +57,7 @@ export interface ProjectedTerminalMetadata {
 	readonly cellPixelHeight: number;
 	readonly cellPixelWidth: number;
 	readonly columns: number;
+	readonly closeActivity: ProjectedTerminalCloseActivity;
 	readonly currentDirectory: string | null;
 	readonly cursor: {
 		readonly blinking: boolean;
@@ -429,6 +434,7 @@ function metadataFromFrame(frame: DecodedTerminalFrame): ProjectedTerminalMetada
 		cellPixelHeight: frame.cellPixelHeight,
 		cellPixelWidth: frame.cellPixelWidth,
 		columns: frame.columns,
+		closeActivity: closeActivityFromExtensions(frame.extensions),
 		currentDirectory: frame.currentDirectory,
 		cursor: frame.cursor,
 		defaultColors: frame.defaultColors,
@@ -449,6 +455,7 @@ function metadataFromProjectionBuffer(
 		cellPixelHeight: frame.cellPixelHeight,
 		cellPixelWidth: frame.cellPixelWidth,
 		columns: frame.columns,
+		closeActivity: 'unknown',
 		currentDirectory: frame.currentDirectory,
 		cursor: frame.cursor,
 		defaultColors: frame.defaultColors,
@@ -459,6 +466,23 @@ function metadataFromProjectionBuffer(
 		scrollbackRows: frame.scrollbackRows,
 		title: frame.title,
 	};
+}
+
+function closeActivityFromExtensions(
+	extensions: DecodedTerminalFrame['extensions'],
+): ProjectedTerminalCloseActivity {
+	const matches = extensions.filter(
+		(extension) => extension.kind === TerminalFrameExtensionKind.closeActivity,
+	);
+	if (matches.length !== 1 || matches[0]?.data.byteLength !== 1) return 'unknown';
+	switch (matches[0].data[0]) {
+		case TerminalCloseActivityCode.active:
+			return 'active';
+		case TerminalCloseActivityCode.idle:
+			return 'idle';
+		default:
+			return 'unknown';
+	}
 }
 
 function acknowledgement(

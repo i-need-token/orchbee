@@ -568,8 +568,28 @@ describe('startProjectedTerminalRenderer', () => {
 				projectedTerminalState: 'open',
 			});
 			expect(liveElements.additionalStatus).toMatchObject({
+				hidden: true,
+				textContent: null,
+			});
+			const historyFailure = {
+				code: 'history-unavailable',
+				message: 'History is unavailable.',
+				operation: 'history' as const,
+				retryable: false,
+			};
+			liveTransport.emitMessage({ failure: historyFailure, kind: 'failure' });
+			expect(notifyBrokerFailure).toHaveBeenLastCalledWith(historyFailure);
+			expect(liveElements.additionalStatus).toMatchObject({ hidden: true, textContent: null });
+			const directActionFailure = {
+				code: 'control-rejected',
+				message: 'Control failed.',
+				operation: 'control' as const,
+				retryable: false,
+			};
+			liveTransport.emitMessage({ failure: directActionFailure, kind: 'failure' });
+			expect(liveElements.additionalStatus).toMatchObject({
 				hidden: false,
-				textContent: 'The terminal size could not be synchronized. Try the action again.',
+				textContent: 'The terminal control action could not be confirmed.',
 			});
 			expect(liveTransport.close).not.toHaveBeenCalled();
 			liveSession.dispose();

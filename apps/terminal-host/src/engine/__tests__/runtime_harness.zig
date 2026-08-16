@@ -33,6 +33,7 @@ pub const HostEpoch = subject.HostEpoch;
 pub const reserveInput = subject.testing.reserveInputFn;
 pub const TerminalRuntime = subject.TerminalRuntime;
 pub const runtimeState = subject.testing.stateForTesting;
+pub const resolveCloseActivity = subject.testing.resolveCloseActivityFn;
 pub const max_pending_input_bytes = subject.testing.pending_input_limit;
 pub const max_pending_input_entries = subject.testing.pending_input_entry_limit;
 pub const max_pending_terminal_reply_bytes = subject.testing.pending_terminal_reply_limit;

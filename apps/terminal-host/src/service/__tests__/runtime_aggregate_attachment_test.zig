@@ -9,6 +9,7 @@ const pty_process = harness.pty_process;
 const subject = harness.subject;
 const terminal_launch = harness.terminal_launch;
 const terminal_runtime = harness.terminal_runtime;
+const terminal_geometry = @import("terminal-host-model").geometry;
 const commitReaderBatch = harness.commitReaderBatch;
 const createModel = harness.createModel;
 const fenceResizeFailure = harness.fenceResizeFailure;
@@ -33,6 +34,107 @@ const longRunningProcessLaunch = harness.longRunningProcessLaunch;
 const commitHookedRuntime = harness.commitHookedRuntime;
 const LogicalCleanupClock = harness.LogicalCleanupClock;
 const readLogicalCleanupNs = harness.readLogicalCleanupNs;
+
+const ResizeCommitProbe = struct {
+    calls: usize = 0,
+    revision: ?u64 = null,
+
+    fn advanceRuntime(
+        context: ?*anyopaque,
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) void {
+        const self: *ResizeCommitProbe = @ptrCast(@alignCast(context.?));
+        const update = runtime.applyTerminalControl(.clear) catch unreachable;
+        self.calls += 1;
+        self.revision = update.revision;
+    }
+};
+
+test "resize observation accepts the exact commit or a newer canonical runtime state" {
+    const geometry: terminal_geometry.Geometry = .{
+        .cell_pixel_height = 16,
+        .cell_pixel_width = 8,
+        .columns = 80,
+        .rows = 24,
+    };
+    const exact: terminal_runtime.Geometry = .{
+        .cell_pixel_height = geometry.cell_pixel_height,
+        .cell_pixel_width = geometry.cell_pixel_width,
+        .columns = geometry.columns,
+        .generation = 7,
+        .revision = 11,
+        .rows = geometry.rows,
+    };
+    try std.testing.expect(subject.testing.resizeObservationIsCompatibleFn(geometry, 11, exact));
+
+    var mismatched = exact;
+    mismatched.columns += 1;
+    try std.testing.expect(!subject.testing.resizeObservationIsCompatibleFn(geometry, 11, mismatched));
+    mismatched.revision = 12;
+    try std.testing.expect(subject.testing.resizeObservationIsCompatibleFn(geometry, 11, mismatched));
+    mismatched.revision = 10;
+    try std.testing.expect(!subject.testing.resizeObservationIsCompatibleFn(geometry, 11, mismatched));
+}
+
+test "resize synchronization adopts a runtime revision that advances after commit" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const attachment_id = testId(core_module.AttachmentId, 0x73);
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x70),
+    );
+    const validated = try validatedLongRunningLaunch();
+    var preparation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x71),
+        validated,
+    );
+    defer preparation.deinit();
+    const created = try aggregate.commitPreparedTerminal(&preparation);
+    const terminal_id = switch (created) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    _ = try aggregate.attach(
+        connection_id,
+        attachment_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        true,
+    );
+
+    var probe: ResizeCommitProbe = .{};
+    subject.testing.setAfterResizeCommitHook(
+        &aggregate,
+        ResizeCommitProbe.advanceRuntime,
+        &probe,
+    );
+    defer subject.testing.setAfterResizeCommitHook(&aggregate, null, null);
+    const resized = try aggregate.resizeTerminal(connection_id, attachment_id, .{
+        .cell_pixel_height = 18,
+        .cell_pixel_width = 9,
+        .columns = 100,
+        .rows = 30,
+    });
+
+    try std.testing.expectEqual(@as(usize, 1), probe.calls);
+    try std.testing.expectEqual(resized.revision + 1, probe.revision.?);
+    const runtime_geometry = aggregate.runtimeFor(terminal_id).?.geometry();
+    const observed = aggregate.core().findTerminal(terminal_id).?;
+    try std.testing.expectEqual(runtime_geometry.revision, observed.observedRevision());
+    try std.testing.expectEqualDeep(
+        terminal_geometry.Geometry{
+            .cell_pixel_height = runtime_geometry.cell_pixel_height,
+            .cell_pixel_width = runtime_geometry.cell_pixel_width,
+            .columns = runtime_geometry.columns,
+            .rows = runtime_geometry.rows,
+        },
+        observed.observedGeometry(),
+    );
+    try std.testing.expect(runtime_geometry.revision > resized.revision);
+}
 
 test "configuration and resize preflight preserve Core without a runtime" {
     var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);

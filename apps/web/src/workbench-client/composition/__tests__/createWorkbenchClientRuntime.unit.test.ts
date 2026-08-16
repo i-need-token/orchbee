@@ -131,6 +131,7 @@ describe('createWorkbenchClientRuntime', () => {
 		);
 		expect(runtime.terminalSurfaceCapability.observeTerminalMetadata).toBeTypeOf('function');
 		runtime.terminalSurfaceCapability.observeTerminalMetadata(initialPresentationId, {
+			closeActivity: 'idle',
 			currentDirectory: 'file://ORCHBEE-HOST/workspace/My%20Project',
 			title: 'vim\0',
 		});
@@ -138,6 +139,7 @@ describe('createWorkbenchClientRuntime', () => {
 		expect(terminalContext.tabModel.getSnapshot().tabs[0]?.title).toBe('vim');
 		expect(terminalContext.panelWorkspaceStore.getSnapshot().tabs[0]?.root).toMatchObject({
 			primaryPresentation: {
+				closeActivity: 'idle',
 				currentCwd: '/workspace/My Project',
 				launchCwd: '/workspace',
 				naturalTitle: 'vim',

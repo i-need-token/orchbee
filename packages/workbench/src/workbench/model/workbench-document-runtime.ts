@@ -406,6 +406,7 @@ function hydratePanelNode(
 
 function hydratePresentation(presentation: WorkbenchSharedPresentation): TerminalPresentation {
 	return {
+		closeActivity: 'unknown',
 		currentCwd: null,
 		launchCwd: presentation.launchCwd,
 		lifecycle: lifecycleForIntent(presentation.intent),

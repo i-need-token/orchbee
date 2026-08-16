@@ -122,7 +122,7 @@ export function Workbench({
 	}
 
 	return (
-		<div className={styles['root']}>
+		<div className={styles['root']} onKeyDownCapture={view.onShortcutKeyDownCapture}>
 			<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
 				{sidebarToggle}
 			</div>
@@ -194,6 +194,7 @@ export function Workbench({
 								onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
 								orientation={view.tabStripOrientation}
 								onCloseTabs={view.onCloseTabs}
+								getCloseTabsConfirmation={view.getCloseTabsConfirmation}
 								onSelectTab={navigation?.selectTab}
 								parentActionScope={view.actionScope}
 								reserveSidebarToggleSpace={!view.isSidebarVisible}

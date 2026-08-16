@@ -22,9 +22,11 @@ manual Retry action; each attempt owns and releases exactly one projection reque
 
 An attachment feature failure remains distinct from transport loss and terminal outcome. The shared
 surface retains its operation, code, retryability, Host correlation ID or client request sequence as
-bounded diagnostics, applies the matching Terminal consequence, and announces a localized
-operation-specific result. Retryable failures tell the person to repeat the action; the application
-does not automatically replay terminal input, control, clipboard, or navigation effects.
+bounded diagnostics and applies the matching Terminal consequence. Background history and resize
+failures never create a global terminal-content notice: history feedback belongs to the find
+surface, while resize remains in its bounded retry and diagnostic path. Connection, runtime, and
+direct user-action failures retain localized visible feedback. The application does not
+automatically replay terminal input, control, clipboard, or navigation effects.
 
 The shared adapter exposes the last completed draw checkpoint as
 `data-projected-terminal-rendered-generation` and
@@ -43,8 +45,9 @@ Opening that find surface seeds an empty or retained query from the bounded prev
 Host selection when one is available; search-owned active ranges remain authoritative Host
 selections rather than a second application selection model.
 
-After a projected frame commits, the renderer forwards its complete nullable title and
-current-directory metadata with the exact `TerminalPresentationId`. The shared client runtime
+After a projected frame commits, the renderer forwards its complete nullable title,
+current-directory metadata, and transient `idle`/`active`/`unknown` close activity with the exact
+`TerminalPresentationId`. The shared client runtime
 normalizes that observation with the trusted terminal-machine hostname from the client-session
 bootstrap and applies it to the matching Workbench presentation. Natural titles and accepted
 current CWD remain transient; durable fallback/custom Tab-title policy and shared-document

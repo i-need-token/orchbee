@@ -88,6 +88,11 @@ title, current-directory, active-screen, cursor, interaction-mode, generation, a
 The protocol package owns only the stable OBTF bytes and exports; Host and renderer records own the
 semantic assertions.
 
+Live OBTF snapshots and deltas may carry optional extension kind `1`, whose one-byte payload reports
+close activity as `idle=1` or `active=2`. The producer omits the extension when the observation is
+unknown. The extension is transient projection metadata only; lifecycle and close policy remain
+consumer-owned.
+
 ## Ownership
 
 This package defines how a value is represented and validated on the wire. It deliberately does not define which lifecycle transition is legal, when an effect occurs, how delivery is committed, or how a product recovers. Those authorities live with their state owners:

@@ -26,6 +26,7 @@ interface LifetimePort {
 type LifetimeRuntime = Pick<
 	WorkbenchProjectWorkspaceRuntime,
 	| 'getTerminalSessionStopSnapshot'
+	| 'getTerminalSessionCloseConfirmationCount'
 	| 'getRestartableTerminalPresentationIds'
 	| 'requestAllTerminalSessionsStop'
 	| 'retryFailedTerminalSessionStops'
@@ -148,8 +149,7 @@ export class DesktopApplicationLifetimeCoordinator {
 			this.#activeMode = undefined;
 			this.#pendingMode = undefined;
 			this.#restartPresentationIds = [];
-			const stopSnapshot = this.#runtime.getTerminalSessionStopSnapshot();
-			const sessionCount = stopSnapshot.presentationCount - stopSnapshot.stoppedCount;
+			const sessionCount = this.#runtime.getTerminalSessionCloseConfirmationCount();
 			if (event.reason === 'development-host-restart') {
 				this.#restartPresentationIds =
 					event.restartPresentationIds ?? this.#runtime.getRestartableTerminalPresentationIds();

@@ -5,6 +5,13 @@ pub const terminal_frame_magic = "OBTF";
 pub const terminal_frame_format_major: u8 = 0;
 pub const terminal_frame_format_minor: u8 = 0;
 pub const terminal_frame_format_patch: u8 = 1;
+pub const terminal_frame_extension_close_activity: u16 = 1;
+
+pub const TerminalCloseActivity = enum(u8) {
+    unknown = 0,
+    idle = 1,
+    active = 2,
+};
 pub const terminal_projection_buffer_header_bytes = 320;
 pub const terminal_projection_buffer_magic = "OBPB";
 pub const terminal_projection_buffer_format_major: u8 = 0;

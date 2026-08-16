@@ -33,6 +33,7 @@ const HostEpoch = harness.HostEpoch;
 const reserveInput = harness.reserveInput;
 const TerminalRuntime = harness.TerminalRuntime;
 const runtimeState = harness.runtimeState;
+const resolveCloseActivity = harness.resolveCloseActivity;
 const max_pending_input_bytes = harness.max_pending_input_bytes;
 const max_pending_input_entries = harness.max_pending_input_entries;
 const max_pending_terminal_reply_bytes = harness.max_pending_terminal_reply_bytes;
@@ -63,6 +64,17 @@ const createImmediateExitRuntime = harness.createImmediateExitRuntime;
 const createIdleRuntimeWithGeometry = harness.createIdleRuntimeWithGeometry;
 const parseTerminalInput = harness.parseTerminalInput;
 const WriterPause = harness.WriterPause;
+
+test "close activity combines process-domain and semantic prompt evidence conservatively" {
+    try std.testing.expectEqual(.active, resolveCloseActivity(true, false, false));
+    try std.testing.expectEqual(.active, resolveCloseActivity(true, true, true));
+    try std.testing.expectEqual(.active, resolveCloseActivity(false, true, false));
+    try std.testing.expectEqual(.idle, resolveCloseActivity(false, true, true));
+    try std.testing.expectEqual(.idle, resolveCloseActivity(false, false, false));
+    try std.testing.expectEqual(.unknown, resolveCloseActivity(null, false, false));
+    try std.testing.expectEqual(.active, resolveCloseActivity(null, true, false));
+    try std.testing.expectEqual(.idle, resolveCloseActivity(null, true, true));
+}
 const WriterProbe = harness.WriterProbe;
 const RepeatingGate = harness.RepeatingGate;
 const BurstProbe = harness.BurstProbe;

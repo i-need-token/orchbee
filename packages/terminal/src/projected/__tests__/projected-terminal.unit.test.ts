@@ -17,6 +17,8 @@ import {
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
+	TerminalCloseActivityCode,
+	TerminalFrameExtensionKind,
 	TerminalFrameKind,
 	TerminalRowWindowDetail,
 	UnderlineKind,
@@ -48,6 +50,7 @@ interface FakeElement {
 	clientHeight: number;
 	clientWidth: number;
 	height: number;
+	hidden: boolean;
 	parentElement: FakeElement | null;
 	style: Record<string, string>;
 	textContent: string | null;
@@ -146,6 +149,7 @@ function terminalFrame(
 	generation = 1n,
 	columns = 2,
 	activeScreen: TerminalFrame['activeScreen'] = ActiveScreen.primary,
+	closeActivity: 'active' | 'idle' | 'unknown' = 'unknown',
 ): Uint8Array {
 	const frame: TerminalFrame = {
 		activeScreen,
@@ -164,7 +168,16 @@ function terminalFrame(
 		},
 		currentDirectory: '/tmp',
 		defaultColors: { backgroundRgb: 0, cursorRgb: null, foregroundRgb: 0xff_ff_ff },
-		extensions: [],
+		extensions:
+			closeActivity === 'unknown'
+				? []
+				: [
+						{
+							data: new Uint8Array([TerminalCloseActivityCode[closeActivity]]),
+							kind: TerminalFrameExtensionKind.closeActivity,
+							required: false,
+						},
+					],
 		generation,
 		hostEpoch,
 		interaction: frameInteraction,
@@ -513,6 +526,7 @@ function createFakeBrowser(): FakeBrowser {
 					: ({ nodeType: 3, parentElement: element } as unknown as Node);
 			},
 			height: 0,
+			hidden: false,
 			dataset: {},
 			listeners,
 			ownerDocument: undefined,
@@ -709,6 +723,22 @@ function createFakeBrowser(): FakeBrowser {
 			}
 		},
 	};
+}
+
+function historyScrollbarElements(browser: FakeBrowser): {
+	readonly scrollbar: FakeElement;
+	readonly thumb: FakeElement;
+} {
+	const scrollbar = (browser.root as unknown as FakeElement).children.find(
+		(element) => element.dataset['projectedTerminalHistoryScrollbar'] === 'true',
+	);
+	const thumb = scrollbar?.children.find(
+		(element) => element.dataset['projectedTerminalHistoryScrollbarThumb'] === 'true',
+	);
+	if (scrollbar === undefined || thumb === undefined) {
+		throw new Error('projected history scrollbar is unavailable');
+	}
+	return { scrollbar, thumb };
 }
 
 function exitEvent(finalRevision: string): TerminalExited {
@@ -927,11 +957,11 @@ describe('ProjectedTerminal', () => {
 
 		await terminal.open(browser.root);
 		expect(terminal.phase).toBe('open');
-		expect(root.children).toHaveLength(5);
+		expect(root.children).toHaveLength(6);
 		await expect(terminal.open(browser.root)).rejects.toThrow(
 			'ProjectedTerminal cannot open from phase open',
 		);
-		expect(root.children).toHaveLength(5);
+		expect(root.children).toHaveLength(6);
 		expect(initGPU).toHaveBeenCalledTimes(2);
 
 		terminal.dispose();
@@ -1368,6 +1398,57 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('moves the native IME anchor with a wrapped preedit caret', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				1n,
+				1n,
+				['a', 'b'],
+				null,
+				[0, 1],
+				0n,
+				interaction,
+				{ column: 3, row: 0 },
+				1n,
+				4,
+			),
+		);
+		const input = terminal.textarea as unknown as FakeElement & {
+			selectionEnd: number;
+			selectionStart: number;
+		};
+		input.selectionStart = 1;
+		input.selectionEnd = 1;
+
+		input.dispatch('compositionstart', {
+			data: '你',
+			type: 'compositionstart',
+		} as unknown as CompositionEvent);
+
+		expect(input.style).toMatchObject({
+			height: '16px',
+			left: '12px',
+			lineHeight: '16px',
+			top: '16px',
+			width: '16px',
+		});
+		terminal.dispose();
+	});
+
 	it('revokes composition publication when reset repairs active input', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -1718,6 +1799,89 @@ describe('ProjectedTerminal', () => {
 				(command) => command.kind === 'key-input' && command.payload.action === KeyAction.press,
 			),
 		).toHaveLength(1);
+		terminal.dispose();
+	});
+
+	it('leaves unclaimed Apple Command chords to native application handling', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', { platform: 'MacIntel' });
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		const preventDefault = vi.fn<() => void>();
+		const stopPropagation = vi.fn<() => void>();
+
+		input.dispatch(
+			'keydown',
+			keyboardEvent('keydown', 'KeyQ', 'q', 81, {
+				metaKey: true,
+				preventDefault,
+				stopPropagation,
+			}),
+		);
+		input.dispatch('keyup', keyboardEvent('keyup', 'KeyQ', 'q', 81, { metaKey: true }));
+
+		expect(commands.filter((command) => command.kind === 'key-input')).toEqual([]);
+		expect(preventDefault).not.toHaveBeenCalled();
+		expect(stopPropagation).not.toHaveBeenCalled();
+		terminal.dispose();
+	});
+
+	it('retains Meta-modified terminal input on non-Apple platforms', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', { platform: 'Linux x86_64' });
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		const preventDefault = vi.fn<() => void>();
+
+		input.dispatch(
+			'keydown',
+			keyboardEvent('keydown', 'KeyQ', 'q', 81, { metaKey: true, preventDefault }),
+		);
+
+		expect(
+			commands.filter(
+				(command) => command.kind === 'key-input' && command.payload.action === KeyAction.press,
+			),
+		).toEqual([
+			expect.objectContaining({
+				kind: 'key-input',
+				payload: expect.objectContaining({
+					key: 'KeyQ',
+					modifiers: expect.objectContaining({ meta: true }),
+				}),
+			}),
+		]);
+		expect(preventDefault).toHaveBeenCalledOnce();
 		terminal.dispose();
 	});
 
@@ -2371,7 +2535,7 @@ describe('ProjectedTerminal', () => {
 			expect(commands.filter((command) => command.kind === 'text-input')).toHaveLength(0);
 
 			expect((browser.root as unknown as FakeElement).children).toHaveLength(
-				repair === 'dispose' ? 0 : 4,
+				repair === 'dispose' ? 0 : 5,
 			);
 			dispatchComposition(input, 'compositionstart', '恢复');
 			dispatchComposition(input, 'compositionend', '恢复');
@@ -2762,8 +2926,26 @@ describe('ProjectedTerminal', () => {
 			},
 			terminalId,
 		});
+		const metadataChanges: Array<'active' | 'idle' | 'unknown'> = [];
+		terminal.onMetadataChange((metadata) => metadataChanges.push(metadata.closeActivity));
 		await terminal.open(browser.root);
-		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 10n));
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				1n,
+				1n,
+				['live-a', 'live-b'],
+				null,
+				[0, 1],
+				10n,
+				interaction,
+				{ column: 0, row: 0 },
+				1n,
+				2,
+				ActiveScreen.primary,
+				'active',
+			),
+		);
 		const accessibilityRoot = (browser.root as unknown as FakeElement).children[2];
 		const accessibilityAnnouncement = (browser.root as unknown as FakeElement).children[3];
 		expect(accessibilityRoot?.attributes.get('aria-live')).toBe('off');
@@ -2810,6 +2992,8 @@ describe('ProjectedTerminal', () => {
 			),
 		).toBe('committed');
 		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.viewingHistory);
+		expect(terminal.metadata?.closeActivity).toBe('active');
+		expect(metadataChanges.at(-1)).toBe('active');
 		expect(accessibilityAnnouncement?.attributes.get('aria-live')).toBe('off');
 		expect(accessibilityRoot?.children[0]?.attributes.get('data-terminal-absolute-row')).toBe('9');
 		expect(commands.at(-1)).toEqual({
@@ -3245,6 +3429,7 @@ describe('ProjectedTerminal', () => {
 		browser.flushFrames();
 		commands.length = 0;
 		const canvas = terminal.canvas as unknown as FakeElement;
+		const { scrollbar } = historyScrollbarElements(browser);
 		canvas.dispatch('pointermove', {
 			buttons: 0,
 			clientX: 2,
@@ -3301,7 +3486,7 @@ describe('ProjectedTerminal', () => {
 		const preventDefault = vi.fn<() => void>();
 		const stopImmediatePropagation = vi.fn<() => void>();
 
-		canvas.dispatch('pointerdown', {
+		scrollbar.dispatch('pointerdown', {
 			altKey: false,
 			button: 0,
 			buttons: 1,
@@ -3320,7 +3505,7 @@ describe('ProjectedTerminal', () => {
 		expect(preventDefault).toHaveBeenCalledOnce();
 		expect(stopImmediatePropagation).toHaveBeenCalledOnce();
 		expect(canvas.capturedPointers.has(40)).toBe(false);
-		expect(canvas.capturedPointers.has(41)).toBe(true);
+		expect(scrollbar.capturedPointers.has(41)).toBe(true);
 		expect(canvas.style['cursor']).toBe('default');
 		expect(commands.some((command) => command.kind === 'mouse-input')).toBe(false);
 		expect(commands.some((command) => command.kind === 'selection-gesture')).toBe(false);
@@ -3333,7 +3518,7 @@ describe('ProjectedTerminal', () => {
 		});
 
 		for (const clientY of [100, 260]) {
-			canvas.dispatch('pointermove', {
+			scrollbar.dispatch('pointermove', {
 				altKey: false,
 				buttons: 1,
 				clientX: 715,
@@ -3399,14 +3584,14 @@ describe('ProjectedTerminal', () => {
 		);
 		browser.flushFrames();
 		commands.length = 0;
-		const canvas = terminal.canvas as unknown as FakeElement;
+		const { scrollbar } = historyScrollbarElements(browser);
 		const dispatchOwned = (
 			type: 'pointercancel' | 'pointerdown' | 'pointermove' | 'pointerup',
 			values: Record<string, unknown>,
 		): void => {
 			const preventDefault = vi.fn<() => void>();
 			const stopImmediatePropagation = vi.fn<() => void>();
-			canvas.dispatch(type, {
+			scrollbar.dispatch(type, {
 				altKey: false,
 				button: 0,
 				buttons: 1,
@@ -3426,7 +3611,7 @@ describe('ProjectedTerminal', () => {
 		};
 
 		dispatchOwned('pointerdown', { pointerId: 41 });
-		expect(canvas.capturedPointers.has(41)).toBe(true);
+		expect(scrollbar.capturedPointers.has(41)).toBe(true);
 		const firstRead = commands.find((command) => command.kind === 'read-rows');
 		if (firstRead?.kind !== 'read-rows') throw new Error('scrollbar request was not sent');
 
@@ -3443,9 +3628,9 @@ describe('ProjectedTerminal', () => {
 		dispatchOwned('pointerdown', { button: 2, buttons: 3, pointerId: 41 });
 		dispatchOwned('pointerup', { button: 2, buttons: 1, pointerId: 41 });
 
-		expect(canvas.capturedPointers.has(41)).toBe(true);
-		expect(canvas.capturedPointers.has(42)).toBe(false);
-		expect(canvas.capturedPointers.has(43)).toBe(false);
+		expect(scrollbar.capturedPointers.has(41)).toBe(true);
+		expect(scrollbar.capturedPointers.has(42)).toBe(false);
+		expect(scrollbar.capturedPointers.has(43)).toBe(false);
 		expect(commands.filter((command) => command.kind === 'read-rows')).toHaveLength(1);
 		expect(commands.some((command) => command.kind === 'mouse-input')).toBe(false);
 		expect(commands.some((command) => command.kind === 'selection-gesture')).toBe(false);
@@ -3471,7 +3656,7 @@ describe('ProjectedTerminal', () => {
 			rowCount: 27,
 		});
 		dispatchOwned('pointerup', { buttons: 0, pointerId: 41 });
-		expect(canvas.capturedPointers.has(41)).toBe(false);
+		expect(scrollbar.capturedPointers.has(41)).toBe(false);
 		terminal.dispose();
 	});
 
@@ -3542,8 +3727,9 @@ describe('ProjectedTerminal', () => {
 		).toBe('committed');
 		await vi.waitFor(() => expect(canvas.style['cursor']).toBe('pointer'));
 		commands.length = 0;
+		const { scrollbar } = historyScrollbarElements(browser);
 
-		canvas.dispatch('pointerdown', {
+		scrollbar.dispatch('pointerdown', {
 			altKey: false,
 			button: 0,
 			buttons: 1,
@@ -3560,7 +3746,7 @@ describe('ProjectedTerminal', () => {
 		} as unknown as PointerEvent);
 		const wheelPreventDefault = vi.fn<() => void>();
 		const wheelStopImmediatePropagation = vi.fn<() => void>();
-		canvas.dispatch('wheel', {
+		scrollbar.dispatch('wheel', {
 			buttons: 0,
 			deltaY: 18,
 			preventDefault: wheelPreventDefault,
@@ -3573,7 +3759,7 @@ describe('ProjectedTerminal', () => {
 		expect(commands.filter((command) => command.kind === 'read-rows')).toHaveLength(1);
 		expect(commands.some((command) => command.kind === 'mouse-input')).toBe(false);
 
-		canvas.dispatch('pointerup', {
+		scrollbar.dispatch('pointerup', {
 			altKey: false,
 			button: 0,
 			buttons: 0,
@@ -3605,7 +3791,7 @@ describe('ProjectedTerminal', () => {
 			stopImmediatePropagation: clickStopImmediatePropagation,
 			type: 'click',
 		} as unknown as MouseEvent;
-		canvas.dispatch('click', click);
+		scrollbar.dispatch('click', click);
 		expect(clickPreventDefault).toHaveBeenCalledOnce();
 		expect(clickStopImmediatePropagation).toHaveBeenCalledOnce();
 		expect(bubbledClick).not.toHaveBeenCalled();
@@ -3643,7 +3829,6 @@ describe('ProjectedTerminal', () => {
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
 		vi.stubGlobal('navigator', {});
-		const setHistoryScrollbar = vi.spyOn(WebGPURenderer.prototype, 'setHistoryScrollbar');
 		const terminal = new ProjectedTerminal({
 			attachmentId,
 			creationId,
@@ -3655,18 +3840,26 @@ describe('ProjectedTerminal', () => {
 		await terminal.open(browser.root);
 		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 98n));
 		browser.flushFrames();
-		setHistoryScrollbar.mockClear();
+		const { scrollbar, thumb } = historyScrollbarElements(browser);
+		const canvas = terminal.canvas as unknown as FakeElement;
+		expect(scrollbar.hidden).toBe(false);
+		expect(scrollbar.style['right']).toBe('0');
+		expect(scrollbar.style['width']).toBe('16px');
+		expect(thumb.style['right']).toBe('2px');
+		expect(thumb.style['width']).toBe('8px');
+		expect(Number.parseFloat(canvas.style['width'] ?? '0')).toBeLessThan(
+			(browser.root as unknown as FakeElement).clientWidth - 2,
+		);
 
 		terminal.scrollLines(-1);
-		expect(setHistoryScrollbar.mock.calls.at(-1)?.[0]?.opacity).toBe(1);
+		const visibleOpacity = thumb.style['opacity'];
+		expect(Number(visibleOpacity)).toBeGreaterThan(0);
 		vi.advanceTimersByTime(1_499);
-		expect(setHistoryScrollbar.mock.calls.some(([state]) => state?.opacity === 0)).toBe(false);
+		expect(thumb.style['opacity']).toBe(visibleOpacity);
 		vi.advanceTimersByTime(1);
-		expect(setHistoryScrollbar.mock.calls.at(-1)?.[0]?.opacity).toBe(0);
+		expect(thumb.style['opacity']).toBe('0');
 
-		setHistoryScrollbar.mockClear();
-		const canvas = terminal.canvas as unknown as FakeElement;
-		canvas.dispatch('pointerdown', {
+		scrollbar.dispatch('pointerdown', {
 			altKey: false,
 			button: 0,
 			buttons: 1,
@@ -3681,12 +3874,11 @@ describe('ProjectedTerminal', () => {
 			stopImmediatePropagation: () => {},
 			type: 'pointerdown',
 		} as unknown as PointerEvent);
-		expect(setHistoryScrollbar.mock.calls.at(-1)?.[0]?.opacity).toBe(1);
-		setHistoryScrollbar.mockClear();
+		expect(Number(thumb.style['opacity'])).toBeGreaterThan(0);
 		vi.advanceTimersByTime(2_000);
-		expect(setHistoryScrollbar.mock.calls.some(([state]) => state?.opacity === 0)).toBe(false);
+		expect(Number(thumb.style['opacity'])).toBeGreaterThan(0);
 
-		canvas.dispatch('pointerup', {
+		scrollbar.dispatch('pointerup', {
 			altKey: false,
 			button: 0,
 			buttons: 0,
@@ -3700,15 +3892,14 @@ describe('ProjectedTerminal', () => {
 			stopImmediatePropagation: () => {},
 			type: 'pointerup',
 		} as unknown as PointerEvent);
-		expect(canvas.capturedPointers.has(42)).toBe(false);
+		expect(scrollbar.capturedPointers.has(42)).toBe(false);
 		vi.advanceTimersByTime(1_499);
-		expect(setHistoryScrollbar.mock.calls.some(([state]) => state?.opacity === 0)).toBe(false);
+		expect(Number(thumb.style['opacity'])).toBeGreaterThan(0);
 		vi.advanceTimersByTime(1);
-		expect(setHistoryScrollbar.mock.calls.at(-1)?.[0]?.opacity).toBe(0);
+		expect(thumb.style['opacity']).toBe('0');
 		expect(canvas.attributes.get('aria-hidden')).toBe('true');
 		expect(canvas.getAttribute('role')).toBeNull();
 		terminal.dispose();
-		setHistoryScrollbar.mockRestore();
 	});
 
 	it('shows and fades the scrollbar when search reveals an offscreen history row', async () => {
@@ -3719,7 +3910,6 @@ describe('ProjectedTerminal', () => {
 		vi.stubGlobal('navigator', {});
 		const commands: ProjectedTerminalCommand[] = [];
 		let searchNavigation: unknown;
-		const setHistoryScrollbar = vi.spyOn(WebGPURenderer.prototype, 'setHistoryScrollbar');
 		const terminal = new ProjectedTerminal({
 			attachmentId,
 			creationId,
@@ -3740,7 +3930,7 @@ describe('ProjectedTerminal', () => {
 		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 98n));
 		browser.flushFrames();
 		commands.length = 0;
-		setHistoryScrollbar.mockClear();
+		const { thumb } = historyScrollbarElements(browser);
 		const rows: TerminalBufferRow[] = Array.from({ length: 100 }, (_, index) => ({
 			cells: null,
 			identityAscii: true,
@@ -3805,15 +3995,14 @@ describe('ProjectedTerminal', () => {
 			origin: { kind: 'absolute', row: '0' },
 			purpose: 'viewport',
 		});
-		expect(setHistoryScrollbar.mock.calls.at(-1)?.[0]?.opacity).toBe(1);
-		setHistoryScrollbar.mockClear();
+		const visibleOpacity = thumb.style['opacity'];
+		expect(Number(visibleOpacity)).toBeGreaterThan(0);
 		vi.advanceTimersByTime(1_499);
-		expect(setHistoryScrollbar.mock.calls.some(([state]) => state?.opacity === 0)).toBe(false);
+		expect(thumb.style['opacity']).toBe(visibleOpacity);
 		vi.advanceTimersByTime(1);
-		expect(setHistoryScrollbar.mock.calls.at(-1)?.[0]?.opacity).toBe(0);
+		expect(thumb.style['opacity']).toBe('0');
 		terminal.dispose();
 		readBufferRows.mockRestore();
-		setHistoryScrollbar.mockRestore();
 	});
 
 	it('defers search and navigation fade until an active scrollbar drag ends', async () => {
@@ -3822,7 +4011,6 @@ describe('ProjectedTerminal', () => {
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
 		vi.stubGlobal('navigator', {});
-		const setHistoryScrollbar = vi.spyOn(WebGPURenderer.prototype, 'setHistoryScrollbar');
 		const terminal = new ProjectedTerminal({
 			attachmentId,
 			creationId,
@@ -3861,8 +4049,8 @@ describe('ProjectedTerminal', () => {
 					totalRows: 100n,
 				};
 			});
-		const canvas = terminal.canvas as unknown as FakeElement;
-		canvas.dispatch('pointerdown', {
+		const { scrollbar, thumb } = historyScrollbarElements(browser);
+		scrollbar.dispatch('pointerdown', {
 			altKey: false,
 			button: 0,
 			buttons: 1,
@@ -3877,22 +4065,19 @@ describe('ProjectedTerminal', () => {
 			stopImmediatePropagation: () => {},
 			type: 'pointerdown',
 		} as unknown as PointerEvent);
-		setHistoryScrollbar.mockClear();
 
 		terminal.updateSearch('needle');
 		await vi.advanceTimersByTimeAsync(200);
-		expect(setHistoryScrollbar.mock.calls.at(-1)?.[0]?.opacity).toBe(1);
-		setHistoryScrollbar.mockClear();
+		expect(Number(thumb.style['opacity'])).toBeGreaterThan(0);
 		vi.advanceTimersByTime(2_000);
-		expect(setHistoryScrollbar.mock.calls.some(([state]) => state?.opacity === 0)).toBe(false);
+		expect(Number(thumb.style['opacity'])).toBeGreaterThan(0);
 
 		terminal.scrollLines(-1);
-		expect(setHistoryScrollbar.mock.calls.at(-1)?.[0]?.opacity).toBe(1);
-		setHistoryScrollbar.mockClear();
+		expect(Number(thumb.style['opacity'])).toBeGreaterThan(0);
 		vi.advanceTimersByTime(2_000);
-		expect(setHistoryScrollbar.mock.calls.some(([state]) => state?.opacity === 0)).toBe(false);
+		expect(Number(thumb.style['opacity'])).toBeGreaterThan(0);
 
-		canvas.dispatch('pointerup', {
+		scrollbar.dispatch('pointerup', {
 			altKey: false,
 			button: 0,
 			buttons: 0,
@@ -3907,12 +4092,11 @@ describe('ProjectedTerminal', () => {
 			type: 'pointerup',
 		} as unknown as PointerEvent);
 		vi.advanceTimersByTime(1_499);
-		expect(setHistoryScrollbar.mock.calls.some(([state]) => state?.opacity === 0)).toBe(false);
+		expect(Number(thumb.style['opacity'])).toBeGreaterThan(0);
 		vi.advanceTimersByTime(1);
-		expect(setHistoryScrollbar.mock.calls.at(-1)?.[0]?.opacity).toBe(0);
+		expect(thumb.style['opacity']).toBe('0');
 		terminal.dispose();
 		readBufferRows.mockRestore();
-		setHistoryScrollbar.mockRestore();
 	});
 
 	it.each([
@@ -3946,8 +4130,8 @@ describe('ProjectedTerminal', () => {
 		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 98n));
 		browser.flushFrames();
 		commands.length = 0;
-		const canvas = terminal.canvas as unknown as FakeElement;
-		canvas.dispatch('pointerdown', {
+		const { scrollbar } = historyScrollbarElements(browser);
+		scrollbar.dispatch('pointerdown', {
 			altKey: false,
 			button: 0,
 			buttons: 1,
@@ -3962,11 +4146,11 @@ describe('ProjectedTerminal', () => {
 			stopImmediatePropagation: () => {},
 			type: 'pointerdown',
 		} as unknown as PointerEvent);
-		expect(canvas.capturedPointers.has(43)).toBe(true);
+		expect(scrollbar.capturedPointers.has(43)).toBe(true);
 
 		switch (repair) {
 			case 'buttonless pointer movement':
-				canvas.dispatch('pointermove', {
+				scrollbar.dispatch('pointermove', {
 					altKey: false,
 					buttons: 0,
 					clientX: 715,
@@ -3981,7 +4165,7 @@ describe('ProjectedTerminal', () => {
 				} as unknown as PointerEvent);
 				break;
 			case 'pointer cancellation':
-				canvas.dispatch('pointercancel', {
+				scrollbar.dispatch('pointercancel', {
 					pointerId: 43,
 					preventDefault: () => {},
 					stopImmediatePropagation: () => {},
@@ -3989,8 +4173,8 @@ describe('ProjectedTerminal', () => {
 				} as unknown as PointerEvent);
 				break;
 			case 'lost pointer capture':
-				canvas.capturedPointers.delete(43);
-				canvas.dispatch('lostpointercapture', {
+				scrollbar.capturedPointers.delete(43);
+				scrollbar.dispatch('lostpointercapture', {
 					pointerId: 43,
 					preventDefault: () => {},
 					stopImmediatePropagation: () => {},
@@ -4017,10 +4201,10 @@ describe('ProjectedTerminal', () => {
 				break;
 		}
 
-		expect(canvas.capturedPointers.has(43)).toBe(false);
+		expect(scrollbar.capturedPointers.has(43)).toBe(false);
 		if (repair === 'disposal') return;
 		const preventDefault = vi.fn<() => void>();
-		canvas.dispatch('pointerup', {
+		scrollbar.dispatch('pointerup', {
 			altKey: false,
 			button: 0,
 			buttons: 0,
@@ -4061,8 +4245,8 @@ describe('ProjectedTerminal', () => {
 		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 98n));
 		browser.flushFrames();
 		commands.length = 0;
-		const canvas = terminal.canvas as unknown as FakeElement;
-		canvas.dispatch('pointerdown', {
+		const { scrollbar } = historyScrollbarElements(browser);
+		scrollbar.dispatch('pointerdown', {
 			altKey: false,
 			button: 0,
 			buttons: 1,
@@ -4077,14 +4261,14 @@ describe('ProjectedTerminal', () => {
 			stopImmediatePropagation: () => {},
 			type: 'pointerdown',
 		} as unknown as PointerEvent);
-		expect(canvas.capturedPointers.has(44)).toBe(true);
+		expect(scrollbar.capturedPointers.has(44)).toBe(true);
 
 		terminal.reset();
 
-		expect(canvas.capturedPointers.has(44)).toBe(false);
+		expect(scrollbar.capturedPointers.has(44)).toBe(false);
 		expect(commands.some((command) => command.kind === 'reset-terminal')).toBe(false);
 		const preventDefault = vi.fn<() => void>();
-		canvas.dispatch('pointerup', {
+		scrollbar.dispatch('pointerup', {
 			altKey: false,
 			button: 0,
 			buttons: 0,
@@ -4315,6 +4499,71 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('keeps Host selection when the document selection leaves the terminal surface', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['left', 'selection']));
+		const hostSelection = {
+			attachmentId,
+			end: { column: 8, row: CanonicalUint64TextSchema.parse('1') },
+			preview: null,
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('0') },
+			state: 'active' as const,
+		};
+		terminal.notifySelectionChanged(hostSelection);
+
+		const sibling = browser.document.createElement('div') as unknown as FakeElement;
+		sibling.textContent = 'sibling';
+		const siblingText = sibling.firstChild;
+		if (siblingText === null) throw new Error('sibling text node is unavailable');
+		const siblingRange = browser.document.createRange();
+		siblingRange.setStart(siblingText, 0);
+		siblingRange.setEnd(siblingText, 1);
+		const documentSelection = browser.document.getSelection();
+		if (documentSelection === null) throw new Error('document selection is unavailable');
+		commands.length = 0;
+		documentSelection.removeAllRanges();
+		documentSelection.addRange(siblingRange);
+		browser.dispatchDocument('selectionchange');
+
+		expect(
+			commands.filter(
+				(command) => command.kind === 'selection-command' && command.payload.command === 'clear',
+			),
+		).toHaveLength(0);
+		expect(terminal.selection).toEqual(hostSelection);
+
+		terminal.notifySelectionChanged(hostSelection);
+		commands.length = 0;
+		documentSelection.removeAllRanges();
+		browser.dispatchDocument('selectionchange');
+
+		expect(
+			commands.filter(
+				(command) => command.kind === 'selection-command' && command.payload.command === 'clear',
+			),
+		).toHaveLength(0);
+		expect(terminal.selection).toEqual(hostSelection);
+		terminal.dispose();
+	});
+
 	it('exposes accessible rows through a valid navigable list', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -4486,6 +4735,100 @@ describe('ProjectedTerminal', () => {
 			expect.objectContaining({ kind: 'blocked' }),
 		);
 		expect(reviewPaste).toHaveBeenCalledOnce();
+		terminal.dispose();
+	});
+
+	it('signals an image-only clipboard paste to the foreground TUI exactly once', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		const preventDefault = vi.fn<() => void>();
+		const stopPropagation = vi.fn<() => void>();
+
+		input.dispatch('paste', {
+			clipboardData: {
+				getData: () => '',
+				items: [{ kind: 'file', type: 'image/png' }],
+			},
+			preventDefault,
+			stopPropagation,
+			type: 'paste',
+		} as unknown as ClipboardEvent);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'key-input')
+				.map((command) => ({
+					action: command.payload.action,
+					control: command.payload.modifiers.control,
+					key: command.payload.key,
+					text: command.payload.text,
+					unshiftedCodepoint: command.payload.unshiftedCodepoint,
+				})),
+		).toEqual([
+			{ action: KeyAction.press, control: true, key: 'KeyV', text: 'v', unshiftedCodepoint: 118 },
+			{ action: KeyAction.release, control: true, key: 'KeyV', text: 'v', unshiftedCodepoint: 118 },
+		]);
+		expect(preventDefault).toHaveBeenCalledOnce();
+		expect(stopPropagation).toHaveBeenCalledOnce();
+		expect(commands.some((command) => command.kind === 'paste-input')).toBe(false);
+		terminal.dispose();
+	});
+
+	it('keeps text paste authoritative when the clipboard also contains an image', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch('paste', {
+			clipboardData: {
+				getData: (type: string) => (type === 'text/plain' ? 'caption' : ''),
+				items: [
+					{ kind: 'string', type: 'text/plain' },
+					{ kind: 'file', type: 'image/png' },
+				],
+			},
+			preventDefault: () => undefined,
+			stopPropagation: () => undefined,
+			type: 'paste',
+		} as unknown as ClipboardEvent);
+
+		await vi.waitFor(() =>
+			expect(commands.some((command) => command.kind === 'paste-input')).toBe(true),
+		);
+		expect(commands.filter((command) => command.kind === 'key-input')).toEqual([]);
 		terminal.dispose();
 	});
 

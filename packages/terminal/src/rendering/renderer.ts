@@ -6,13 +6,12 @@
  *
  * Features:
  * - Glyph atlas texture for efficient text rendering
- * - Instanced rendering for backgrounds, text, cursor, selection, scrollbar
+ * - Instanced rendering for backgrounds, text, cursor, and selection
  * - Dirty line optimization for 60 FPS
  * - DPI scaling
  * - All text styles (bold, italic, underline, strikethrough, etc.)
  * - Multiple cursor styles (block, underline, bar) with blinking
  * - Selection overlay rendering
- * - Scrollbar with fade animation
  * - Link underline rendering (OSC8 + regex URLs)
  */
 
@@ -38,10 +37,11 @@ import {
 	physicalSpriteGeometry,
 } from '../ghostty-sprites';
 import {
-	projectHistoryScrollbar,
-	type HistoryScrollbarInput,
-	type HistoryScrollbarProjection,
-} from '../history-scrollbar';
+	projectPreeditLayout,
+	type PreeditCellData,
+	type PreeditLayout,
+	type PreeditLayoutRow,
+} from '../input';
 import { searchMatchContainsCell, type TerminalSearchMatch } from '../search';
 import { additionalSurfaceMargins, balanceGridPadding } from '../surface-size';
 import { buildTextShapingPlan, type TextShapingPlan } from '../buildTextShapingPlan';
@@ -76,8 +76,7 @@ export type RendererFrameReason =
 	| 'font'
 	| 'blink'
 	| 'search'
-	| 'surface'
-	| 'scrollbar';
+	| 'surface';
 
 export interface RendererFrameTelemetry {
 	readonly frameId: number;
@@ -183,29 +182,11 @@ export const DEFAULT_THEME: Required<ITheme> = {
 const FONT_METRIC_SAMPLE_SIZE = 1_000;
 const PRINTABLE_ASCII = Array.from({ length: 95 }, (_, index) => String.fromCodePoint(index + 32));
 
-export interface PreeditCell {
-	readonly text: string;
-	readonly width: number;
-}
+export type PreeditCell = PreeditCellData;
 
 export interface PreeditSelection {
 	readonly start: number;
 	readonly end: number;
-}
-
-export type RendererHistoryScrollbar = Omit<
-	HistoryScrollbarInput,
-	'viewportHeight' | 'viewportWidth'
->;
-
-interface PreeditLayout {
-	readonly cells: readonly PreeditCell[];
-	readonly start: number;
-	readonly end: number;
-	readonly row: number;
-	readonly width: number;
-	readonly selectionStart: number;
-	readonly selectionEnd: number;
 }
 
 interface AtlasDirtyBounds {
@@ -622,8 +603,6 @@ export class WebGPURenderer {
 	private activeSearchMatch: TerminalSearchMatch | null = null;
 	private searchDirty = false;
 	private currentAbsoluteTop = 0;
-	private historyScrollbar: RendererHistoryScrollbar | null = null;
-	private scrollbarDirty = false;
 
 	// Link hover
 	private hoveredLinkRange: { startX: number; startY: number; endX: number; endY: number } | null =
@@ -1517,10 +1496,9 @@ export class WebGPURenderer {
 		if (this.textBlinkDirty) reasons.add('blink');
 		if (this.searchDirty) reasons.add('search');
 		if (this.surfaceDirty) reasons.add('surface');
-		if (this.scrollbarDirty) reasons.add('scrollbar');
 		if (reasons.size === 0) reasons.add('dirty');
 
-		const redrawAll = forceAll || this.surfaceDirty || this.scrollbarDirty;
+		const redrawAll = forceAll || this.surfaceDirty;
 		this.resetFrameCounters();
 		if (this.useWebGPU) this.renderPackedWebGPU(buffer, metadata);
 		else this.renderPackedCanvas2D(buffer, metadata, redrawAll);
@@ -1528,7 +1506,6 @@ export class WebGPURenderer {
 		this.cursorAppearanceDirty = false;
 		this.searchDirty = false;
 		this.surfaceDirty = false;
-		this.scrollbarDirty = false;
 		this.completeFrameTelemetry(backend, timestamp, reasons, redrawAll, 0);
 	}
 
@@ -1585,38 +1562,15 @@ export class WebGPURenderer {
 	private getPreeditLayout(
 		cursor: { x: number; y: number },
 		columns: number,
+		rows: number,
 	): PreeditLayout | null {
-		if (this.preeditCells.length === 0 || columns <= 0) return null;
-
-		let cells = this.preeditCells;
-		let width = cells.reduce((total, cell) => total + cell.width, 0);
-		let offset = 0;
-		let removedWidth = 0;
-		while (width > columns && offset < cells.length) {
-			const removed = cells[offset]?.width ?? 0;
-			width -= removed;
-			removedWidth += removed;
-			offset++;
-		}
-		cells = cells.slice(offset);
-		if (cells.length === 0 || width <= 0) return null;
-
-		const start = Math.max(0, Math.min(cursor.x, columns - width));
-		const selectionStart = clampNumber(this.preeditSelection.start - removedWidth, 0, width);
-		const selectionEnd = clampNumber(
-			this.preeditSelection.end - removedWidth,
-			selectionStart,
-			width,
+		return projectPreeditLayout(
+			this.preeditCells,
+			this.preeditSelection,
+			{ column: cursor.x, row: cursor.y },
+			columns,
+			rows,
 		);
-		return {
-			cells,
-			start,
-			end: start + width,
-			row: cursor.y,
-			width,
-			selectionStart,
-			selectionEnd,
-		};
 	}
 
 	// ==========================================================================
@@ -1634,6 +1588,7 @@ export class WebGPURenderer {
 		const texts = Array.from({ length: columns }, (_, column) => row.grapheme(column));
 		const codepoints = Uint32Array.from(texts, (text) => text.codePointAt(0) ?? 0);
 		const cursorPresentation = resolvePackedCursorPresentation(cursor, row.widths);
+		const preeditRow = preeditLayoutRow(preeditLayout, rowIndex);
 		let shapingEnd = 0;
 		for (let column = 0; column < columns; column++) {
 			const text = texts[column] ?? '';
@@ -1641,8 +1596,6 @@ export class WebGPURenderer {
 			const meaningful =
 				text.length > 0 ||
 				(row.styleFlags[column] ?? 0) !== 0 ||
-				(row.foregroundColors[column] ?? TerminalColorEncoding.default) !==
-					TerminalColorEncoding.default ||
 				(row.backgroundColors[column] ?? TerminalColorEncoding.default) !==
 					TerminalColorEncoding.default ||
 				(row.underlineKinds[column] ?? TerminalUnderlineKindCode.none) !==
@@ -1665,10 +1618,7 @@ export class WebGPURenderer {
 				column >= cursorPresentation.column &&
 				column < cursorPresentation.column + cursorPresentation.width;
 			const preeditBoundary =
-				preeditLayout !== null &&
-				preeditLayout.row === rowIndex &&
-				column >= preeditLayout.start &&
-				column < preeditLayout.end;
+				preeditRow !== undefined && column >= preeditRow.start && column < preeditRow.end;
 			return (
 				column < shapingEnd &&
 				// Browser shapers expose only natural advances inside a run. Keep wide Host
@@ -1681,20 +1631,11 @@ export class WebGPURenderer {
 				!(codepoint > 0x7f && isSymbolCodepoint(codepoint))
 			);
 		};
-		const textColorKey = (column: number): number | string => {
-			// Selection and search recolor clipped portions of this same shaping run later. Keeping
-			// them out of the shaping key prevents an overlay from changing glyph geometry.
-			const flags = row.styleFlags[column] ?? 0;
-			return (flags & TerminalStyleFlag.inverse) !== 0
-				? (row.backgroundColors[column] ?? TerminalColorEncoding.default)
-				: (row.foregroundColors[column] ?? TerminalColorEncoding.default);
-		};
 		// WebGPU must not classify a mixed monochrome/emoji atlas entry as wholly colored.
 		const colorGlyphKey = (column: number): boolean =>
 			COLOR_GLYPH_CANDIDATE.test(texts[column] ?? '');
 		const sameStyle = (left: number, right: number): boolean =>
 			row.styleFlags[left] === row.styleFlags[right] &&
-			textColorKey(left) === textColorKey(right) &&
 			row.underlineKinds[left] === row.underlineKinds[right] &&
 			row.underlineColors[left] === row.underlineColors[right] &&
 			colorGlyphKey(left) === colorGlyphKey(right);
@@ -1718,13 +1659,19 @@ export class WebGPURenderer {
 	private packedTextPaintSegments(
 		startColumn: number,
 		endColumn: number,
-		row: number,
-		baseForeground: readonly [number, number, number],
+		row: PackedRendererRow,
+		metadata: PackedRendererMetadata,
+		viewportRow: number,
 		presentation: PackedPresentationColors,
 	): readonly PackedTextPaintSegment[] {
 		const segments: PackedTextPaintSegment[] = [];
 		for (let column = startColumn; column < endColumn; column++) {
-			const foreground = this.packedTextForeground(column, row, baseForeground, presentation);
+			const foreground = this.packedTextForeground(
+				column,
+				viewportRow,
+				this.packedCellForeground(row, column, metadata),
+				presentation,
+			);
 			const previous = segments.at(-1);
 			if (
 				previous &&
@@ -1830,7 +1777,7 @@ export class WebGPURenderer {
 			this.canvas.height !== rows * this.metrics.height * this.devicePixelRatio;
 		if (needsResize) this.resize(columns, rows);
 
-		const preeditLayout = this.getPreeditLayout({ x: cursor.column, y: cursor.row }, columns);
+		const preeditLayout = this.getPreeditLayout({ x: cursor.column, y: cursor.row }, columns, rows);
 		const renderedCursorStyle: RenderedCursorStyle = this.focused ? cursor.shape : 'block_hollow';
 		const cursorEnabled =
 			cursor.visible && (!this.focused || this.cursorVisible) && preeditLayout === null;
@@ -1883,7 +1830,9 @@ export class WebGPURenderer {
 			}
 		}
 		if (preeditLayout) {
-			for (const cell of preeditLayout.cells) this.ensureGlyph(cell.text, 0, cell.width);
+			for (const preeditRow of preeditLayout.rows) {
+				for (const cell of preeditRow.cells) this.ensureGlyph(cell.text, 0, cell.width);
+			}
 		}
 
 		const bgData: number[] = [];
@@ -1905,6 +1854,7 @@ export class WebGPURenderer {
 			const row = buffer.rows[y];
 			const shaping = shapings[y];
 			if (!row || !shaping) continue;
+			const preeditRow = preeditLayoutRow(preeditLayout, y);
 			this.frameRowsRendered++;
 			for (let x = 0; x < columns; x++) {
 				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
@@ -1936,7 +1886,6 @@ export class WebGPURenderer {
 				if ((flags & TerminalStyleFlag.inverse) !== 0) {
 					[foreground, background] = [background, foreground];
 				}
-				const baseForeground = foreground;
 				const selected = this.isCoordinateInSelection(x, y);
 				const search = this.getSearchHighlight(x, y);
 				if (selected) {
@@ -1974,13 +1923,7 @@ export class WebGPURenderer {
 					);
 					pushRect(bgData, geometry.x, geometry.y, geometry.width, geometry.height, cursorColor);
 				}
-				if (
-					preeditLayout &&
-					y === preeditLayout.row &&
-					x >= preeditLayout.start &&
-					x < preeditLayout.end
-				)
-					continue;
+				if (preeditRow && x >= preeditRow.start && x < preeditRow.end) continue;
 				if ((flags & TerminalStyleFlag.invisible) !== 0) continue;
 				if ((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible) continue;
 
@@ -2005,8 +1948,9 @@ export class WebGPURenderer {
 							for (const segment of this.packedTextPaintSegments(
 								span.start,
 								span.end,
+								row,
+								metadata,
 								y,
-								baseForeground,
 								presentation,
 							)) {
 								pushGlyph(
@@ -2074,46 +2018,48 @@ export class WebGPURenderer {
 		}
 
 		if (preeditLayout) {
-			const cellY = preeditLayout.row * this.metrics.height;
-			const startX = preeditLayout.start * this.metrics.width;
-			pushRect(
-				bgData,
-				startX,
-				cellY,
-				preeditLayout.width * this.metrics.width,
-				this.metrics.height,
-				defaultBackground,
-			);
-			let column = preeditLayout.start;
-			for (const cell of preeditLayout.cells) {
-				const glyph = this.ensureGlyph(cell.text, 0, cell.width);
-				if (glyph) {
-					textData.push(
-						column * this.metrics.width + glyph.offsetX,
-						cellY + glyph.offsetY,
-						glyph.renderWidth,
-						glyph.renderHeight,
-						glyph.x / atlasWidth,
-						glyph.y / atlasHeight,
-						glyph.w / atlasWidth,
-						glyph.h / atlasHeight,
-						defaultForeground[0] / 255,
-						defaultForeground[1] / 255,
-						defaultForeground[2] / 255,
-						1,
-						glyph.colored ? 1 : 0,
-					);
+			for (const preeditRow of preeditLayout.rows) {
+				const cellY = preeditRow.row * this.metrics.height;
+				const startX = preeditRow.start * this.metrics.width;
+				pushRect(
+					bgData,
+					startX,
+					cellY,
+					preeditRow.width * this.metrics.width,
+					this.metrics.height,
+					defaultBackground,
+				);
+				let column = preeditRow.start;
+				for (const cell of preeditRow.cells) {
+					const glyph = this.ensureGlyph(cell.text, 0, cell.width);
+					if (glyph) {
+						textData.push(
+							column * this.metrics.width + glyph.offsetX,
+							cellY + glyph.offsetY,
+							glyph.renderWidth,
+							glyph.renderHeight,
+							glyph.x / atlasWidth,
+							glyph.y / atlasHeight,
+							glyph.w / atlasWidth,
+							glyph.h / atlasHeight,
+							defaultForeground[0] / 255,
+							defaultForeground[1] / 255,
+							defaultForeground[2] / 255,
+							1,
+							glyph.colored ? 1 : 0,
+						);
+					}
+					column += cell.width;
 				}
-				column += cell.width;
+				pushRect(
+					overlayData,
+					startX,
+					cellY + this.detailedMetrics.underlinePosition,
+					preeditRow.width * this.metrics.width,
+					this.detailedMetrics.underlineThickness,
+					defaultForeground,
+				);
 			}
-			pushRect(
-				overlayData,
-				startX,
-				cellY + this.detailedMetrics.underlinePosition,
-				preeditLayout.width * this.metrics.width,
-				this.detailedMetrics.underlineThickness,
-				defaultForeground,
-			);
 		}
 		if (cursorEnabled && renderedCursorStyle !== 'block') {
 			const geometries =
@@ -2137,19 +2083,6 @@ export class WebGPURenderer {
 				pushRect(overlayData, geometry.x, geometry.y, geometry.width, geometry.height, cursorColor);
 			}
 		}
-		const scrollbar = this.getHistoryScrollbarProjection(metadata);
-		if (scrollbar !== null && scrollbar.thumb.opacity > 0) {
-			pushRect(
-				overlayData,
-				scrollbar.thumb.x,
-				scrollbar.thumb.y,
-				scrollbar.thumb.width,
-				scrollbar.thumb.height,
-				[128, 128, 128],
-				scrollbar.thumb.opacity,
-			);
-		}
-
 		this.submitWebGPUFrame(bgData, textData, overlayData, columns, rows, defaultBackground);
 		this.lastCursorPosition = { x: cursor.column, y: cursor.row };
 		this.preeditDirty = false;
@@ -2363,7 +2296,7 @@ export class WebGPURenderer {
 			this.resize(columns, rows);
 			forceAll = true;
 		}
-		const preeditLayout = this.getPreeditLayout({ x: cursor.column, y: cursor.row }, columns);
+		const preeditLayout = this.getPreeditLayout({ x: cursor.column, y: cursor.row }, columns, rows);
 		const renderedCursorStyle: RenderedCursorStyle = this.focused ? cursor.shape : 'block_hollow';
 		const cursorEnabled =
 			cursor.visible && (!this.focused || this.cursorVisible) && preeditLayout === null;
@@ -2379,16 +2312,6 @@ export class WebGPURenderer {
 			rowsToRender.add(cursor.row);
 			rowsToRender.add(this.lastCursorPosition.y);
 		}
-		const scrollbar = this.getHistoryScrollbarProjection(metadata);
-		if (scrollbar !== null && scrollbar.thumb.opacity > 0) {
-			const firstScrollbarRow = Math.max(0, Math.floor(scrollbar.thumb.y / this.metrics.height));
-			const scrollbarRowEnd = Math.min(
-				rows,
-				Math.ceil((scrollbar.thumb.y + scrollbar.thumb.height) / this.metrics.height),
-			);
-			for (let row = firstScrollbarRow; row < scrollbarRowEnd; row++) rowsToRender.add(row);
-		}
-
 		const presentation = resolvePackedPresentationColors(
 			metadata.defaultColors,
 			this.theme,
@@ -2399,6 +2322,7 @@ export class WebGPURenderer {
 		for (const y of rowsToRender) {
 			const row = buffer.rows[y];
 			if (!row || y < 0 || y >= rows) continue;
+			const preeditRow = preeditLayoutRow(preeditLayout, y);
 			const shaping = this.buildPackedRowTextShaping(
 				row,
 				columns,
@@ -2466,13 +2390,7 @@ export class WebGPURenderer {
 			for (let x = 0; x < columns; x++) {
 				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
 				if (width === 0) continue;
-				if (
-					preeditLayout &&
-					y === preeditLayout.row &&
-					x >= preeditLayout.start &&
-					x < preeditLayout.end
-				)
-					continue;
+				if (preeditRow && x >= preeditRow.start && x < preeditRow.end) continue;
 				const span = shaping.plan[x];
 				let text = shaping.texts[x] ?? '';
 				if (span) text = span.start === x ? span.text : '';
@@ -2483,8 +2401,9 @@ export class WebGPURenderer {
 					for (const segment of this.packedTextPaintSegments(
 						span.start,
 						span.end,
+						row,
+						metadata,
 						y,
-						baseForeground,
 						presentation,
 					)) {
 						const clipStart =
@@ -2536,16 +2455,6 @@ export class WebGPURenderer {
 			this.renderPackedPreedit2D(ctx, preeditLayout, defaultForeground, defaultBackground);
 		} else if (cursorEnabled) {
 			this.renderPackedCursor2D(ctx, buffer, metadata, renderedCursorStyle, presentation);
-		}
-		if (scrollbar !== null && scrollbar.thumb.opacity > 0) {
-			ctx.fillStyle = `rgba(128, 128, 128, ${scrollbar.thumb.opacity})`;
-			ctx.fillRect(
-				scrollbar.thumb.x,
-				scrollbar.thumb.y,
-				scrollbar.thumb.width,
-				scrollbar.thumb.height,
-			);
-			this.frameOverlayInstances++;
 		}
 		this.lastCursorPosition = { x: cursor.column, y: cursor.row };
 		this.preeditDirty = false;
@@ -2719,37 +2628,39 @@ export class WebGPURenderer {
 		foreground: readonly [number, number, number],
 		background: readonly [number, number, number],
 	): void {
-		const cellY = layout.row * this.metrics.height;
-		const startX = layout.start * this.metrics.width;
-		const width = layout.width * this.metrics.width;
-		ctx.fillStyle = `rgb(${background[0]}, ${background[1]}, ${background[2]})`;
-		ctx.fillRect(startX, cellY, width, this.metrics.height);
 		ctx.font = canvasFont(
 			'normal',
 			this.presentationConfiguration.fontWeight,
 			this.presentationConfiguration.fontSize,
 			this.presentationConfiguration.fontFamily,
 		);
-		ctx.fillStyle = `rgb(${foreground[0]}, ${foreground[1]}, ${foreground[2]})`;
-		let column = layout.start;
-		for (const cell of layout.cells) {
-			this.drawConstrainedText2D(
-				ctx,
-				cell.text,
-				column * this.metrics.width,
-				cellY,
-				cell.text.codePointAt(0) ?? 0,
-				cell.width >= 2 ? 2 : 1,
-				cell.width,
+		for (const preeditRow of layout.rows) {
+			const cellY = preeditRow.row * this.metrics.height;
+			const startX = preeditRow.start * this.metrics.width;
+			const width = preeditRow.width * this.metrics.width;
+			ctx.fillStyle = `rgb(${background[0]}, ${background[1]}, ${background[2]})`;
+			ctx.fillRect(startX, cellY, width, this.metrics.height);
+			ctx.fillStyle = `rgb(${foreground[0]}, ${foreground[1]}, ${foreground[2]})`;
+			let column = preeditRow.start;
+			for (const cell of preeditRow.cells) {
+				this.drawConstrainedText2D(
+					ctx,
+					cell.text,
+					column * this.metrics.width,
+					cellY,
+					cell.text.codePointAt(0) ?? 0,
+					cell.width >= 2 ? 2 : 1,
+					cell.width,
+				);
+				column += cell.width;
+			}
+			ctx.fillRect(
+				startX,
+				cellY + this.detailedMetrics.underlinePosition,
+				width,
+				this.detailedMetrics.underlineThickness,
 			);
-			column += cell.width;
 		}
-		ctx.fillRect(
-			startX,
-			cellY + this.detailedMetrics.underlinePosition,
-			width,
-			this.detailedMetrics.underlineThickness,
-		);
 	}
 
 	private drawConstrainedText2D(
@@ -3023,20 +2934,6 @@ export class WebGPURenderer {
 		this.requestRenderCallback?.();
 	}
 
-	setHistoryScrollbar(scrollbar: RendererHistoryScrollbar | null): void {
-		if (
-			this.historyScrollbar?.opacity === scrollbar?.opacity &&
-			this.historyScrollbar?.totalRows === scrollbar?.totalRows &&
-			this.historyScrollbar?.visibleRows === scrollbar?.visibleRows &&
-			this.historyScrollbar?.visibleStartRow === scrollbar?.visibleStartRow
-		) {
-			return;
-		}
-		this.historyScrollbar = scrollbar === null ? null : { ...scrollbar };
-		this.scrollbarDirty = true;
-		this.requestRenderCallback?.();
-	}
-
 	setSearchMatches(
 		matches: readonly TerminalSearchMatch[],
 		active: TerminalSearchMatch | null = null,
@@ -3071,18 +2968,6 @@ export class WebGPURenderer {
 		this.hoveredLinkRange = range;
 		this.searchDirty = true;
 		this.requestRenderCallback?.();
-	}
-
-	private getHistoryScrollbarProjection(
-		metadata: PackedRendererMetadata,
-	): HistoryScrollbarProjection | null {
-		const scrollbar = this.historyScrollbar;
-		if (scrollbar === null) return null;
-		return projectHistoryScrollbar({
-			...scrollbar,
-			viewportHeight: metadata.rows * this.metrics.height,
-			viewportWidth: metadata.columns * this.metrics.width,
-		});
 	}
 
 	get charWidth(): number {
@@ -3252,4 +3137,8 @@ function cursorOutlineGeometry(
 
 function clampNumber(value: number, minimum: number, maximum: number): number {
 	return Math.max(minimum, Math.min(maximum, value));
+}
+
+function preeditLayoutRow(layout: PreeditLayout | null, row: number): PreeditLayoutRow | undefined {
+	return layout?.rows.find((candidate) => candidate.row === row);
 }

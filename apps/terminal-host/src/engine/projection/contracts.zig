@@ -16,6 +16,7 @@ pub const Counters = struct {
 };
 
 pub const FrameKind = protocol.FrameKind;
+pub const TerminalCloseActivity = protocol.TerminalCloseActivity;
 
 pub const EncodeRequest = struct {
     attachment_id: AttachmentId,
@@ -25,6 +26,7 @@ pub const EncodeRequest = struct {
     host_epoch: HostEpoch,
     maximum_bytes: usize,
     sequence: u64,
+    close_activity: TerminalCloseActivity = .unknown,
 };
 
 pub const EncodedFrame = struct {

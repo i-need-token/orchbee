@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -13,8 +13,12 @@ interface WorkbenchShortcutsHarnessProps {
 }
 
 function WorkbenchShortcutsHarness({ invokeIfEnabled }: WorkbenchShortcutsHarnessProps) {
-	useWorkbenchShortcuts('apple', invokeIfEnabled);
-	return null;
+	const onKeyDownCapture = useWorkbenchShortcuts('apple', invokeIfEnabled);
+	return createElement(
+		'div',
+		{ onKeyDownCapture },
+		createElement('textarea', { 'aria-label': 'Terminal input' }),
+	);
 }
 
 afterEach(() => cleanup());
@@ -25,52 +29,64 @@ describe('useWorkbenchShortcuts', () => {
 			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean
 		>(() => true);
 
-		expect(
-			renderToStaticMarkup(
-				createElement(WorkbenchShortcutsHarness, {
-					invokeIfEnabled,
-				}),
-			),
-		).toBe('');
-		expect(invokeIfEnabled).not.toHaveBeenCalled();
-	});
-
-	it('prevents the browser shortcut only after an enabled Action accepts it', () => {
-		const invokeIfEnabled = vi.fn<
-			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean
-		>(() => true);
-		const rendered = render(
+		renderToStaticMarkup(
 			createElement(WorkbenchShortcutsHarness, {
 				invokeIfEnabled,
 			}),
 		);
+		expect(invokeIfEnabled).not.toHaveBeenCalled();
+	});
+
+	it('captures an accepted global shortcut before focused terminal input', () => {
+		const invokeIfEnabled = vi.fn<
+			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean
+		>(() => true);
+		render(
+			createElement(WorkbenchShortcutsHarness, {
+				invokeIfEnabled,
+			}),
+		);
+		const input = screen.getByRole('textbox', { name: 'Terminal input' });
+		const terminalKeyDown = vi.fn<(event: Event) => void>();
+		input.addEventListener('keydown', terminalKeyDown);
 		const accepted = new KeyboardEvent('keydown', {
 			cancelable: true,
-			code: 'KeyN',
+			code: 'KeyB',
 			metaKey: true,
 		});
 
-		window.dispatchEvent(accepted);
+		input.dispatchEvent(accepted);
 
 		expect(invokeIfEnabled).toHaveBeenCalledWith(
-			expect.objectContaining({ id: 'workbench.terminal.create' }),
+			expect.objectContaining({ id: 'workbench.sidebar.toggle' }),
 			'keyboard',
 		);
 		expect(accepted.defaultPrevented).toBe(true);
+		expect(terminalKeyDown).not.toHaveBeenCalled();
+	});
 
-		rendered.rerender(
+	it('leaves terminal input untouched when the Action is unavailable', () => {
+		const invokeIfEnabled = vi.fn<
+			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean
+		>(() => false);
+		render(
 			createElement(WorkbenchShortcutsHarness, {
-				invokeIfEnabled: () => false,
+				invokeIfEnabled,
 			}),
 		);
+		const input = screen.getByRole('textbox', { name: 'Terminal input' });
+		const terminalKeyDown = vi.fn<(event: Event) => void>();
+		input.addEventListener('keydown', terminalKeyDown);
+
 		const unavailable = new KeyboardEvent('keydown', {
 			cancelable: true,
-			code: 'KeyK',
+			code: 'KeyB',
 			metaKey: true,
 		});
 
-		window.dispatchEvent(unavailable);
+		input.dispatchEvent(unavailable);
 
 		expect(unavailable.defaultPrevented).toBe(false);
+		expect(terminalKeyDown).toHaveBeenCalledOnce();
 	});
 });

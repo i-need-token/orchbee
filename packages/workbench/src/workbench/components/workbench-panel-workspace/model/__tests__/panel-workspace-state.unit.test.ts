@@ -930,6 +930,7 @@ describe('panel workspace state', () => {
 			type: 'terminal-provision-completed',
 		}).state;
 		state = transitionPanelWorkspaceCore(state, {
+			closeActivity: 'active',
 			currentCwd: '/observed',
 			naturalTitle: 'old process',
 			presentationId: terminalPresentationId('presentation-1'),
@@ -964,6 +965,7 @@ describe('panel workspace state', () => {
 				requireDefined(findPanel(requireDefined(restarted.state.tabs[0]).root, 'panel-1')),
 			),
 		).toMatchObject({
+			closeActivity: 'unknown',
 			currentCwd: '/launch',
 			naturalTitle: null,
 			presentationId: 'presentation-2',

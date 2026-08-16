@@ -4,6 +4,7 @@ import {
 	type TabModel,
 	type TabStripCrossWindowDragRuntimeFactory,
 	type TabStripCloseCallback,
+	type TabStripCloseConfirmation,
 	type TabStripMessages,
 	type TabStripNewTabRequest,
 	type TabStripOrientation,
@@ -19,6 +20,7 @@ interface WorkbenchTabBarProps {
 	readonly createCrossWindowDragRuntime: TabStripCrossWindowDragRuntimeFactory | undefined;
 	readonly onNewTerminal: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
+	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
 	readonly onOrientationChange: (orientation: TabStripOrientation) => void;
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
 	readonly onVerticalCollapsedChange: (collapsed: boolean) => void;
@@ -34,6 +36,7 @@ export function WorkbenchTabBar({
 	createCrossWindowDragRuntime,
 	onNewTerminal,
 	onCloseTabs,
+	getCloseTabsConfirmation,
 	onOrientationChange,
 	onSelectTab,
 	onVerticalCollapsedChange,
@@ -66,6 +69,7 @@ export function WorkbenchTabBar({
 				model={tabModel}
 				onNewTab={onNewTerminal}
 				onCloseTabs={onCloseTabs}
+				getCloseTabsConfirmation={getCloseTabsConfirmation}
 				onOrientationChange={onOrientationChange}
 				onSelectTab={onSelectTab}
 				orientation={orientation}

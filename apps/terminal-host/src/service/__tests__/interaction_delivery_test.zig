@@ -272,7 +272,11 @@ test "selection capability binds identity and provisional export rollback restor
     );
     const geometry = binding.runtime.geometry();
     _ = try interaction.applySelectionCommand(.{
-        .command = .select_all,
+        .command = .{ .set_range = .{
+            .end = .{ .column = 0, .row = 0 },
+            .rectangle = false,
+            .start = .{ .column = 0, .row = 0 },
+        } },
         .generation = geometry.generation,
         .revision = geometry.revision,
     });

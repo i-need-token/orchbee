@@ -98,6 +98,13 @@ fn sessionForceTerminate(session_id: std.posix.pid_t, signaler: anytype) !void {
     };
 }
 
+pub fn foregroundCommandActive(
+    shell_process_group: c_int,
+    foreground_process_group: c_int,
+) bool {
+    return foreground_process_group != shell_process_group;
+}
+
 pub const Process = if (builtin.os.tag == .windows) void else struct {
     const posix = std.posix;
     const default_path = "/usr/local/bin:/bin/:/usr/bin";
@@ -243,6 +250,10 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     pub fn processTreeContained(self: *Process) !bool {
         return try self.identity.contained(self.child_id, NativeSessionQuery{});
+    }
+
+    pub fn hasActiveCommand(self: *const Process) !bool {
+        return foregroundCommandActive(self.child_id, try self.pty.foregroundProcessGroup());
     }
 
     pub fn wait(self: *Process) !ExitResult {

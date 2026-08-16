@@ -315,6 +315,17 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         return active_processes == 0;
     }
 
+    pub fn hasActiveCommand(self: *const Process) !bool {
+        var active_processes: windows.DWORD = 0;
+        if (windows_api.ob_windows_terminal_job_active_processes(
+            self.job_handle,
+            &active_processes,
+        ) == 0) {
+            return error.ProcessObservationFailed;
+        }
+        return active_processes > 1;
+    }
+
     pub fn wait(self: *Process) !ExitResult {
         if (windows.kernel32.WaitForSingleObject(self.process_handle, windows.INFINITE) !=
             windows.WAIT_OBJECT_0)

@@ -507,6 +507,129 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('keeps animated foreground boundaries out of shaping geometry while preserving paint', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const textPaints: Array<{ readonly color: string; readonly text: string }> = [];
+		const fillText: CanvasRenderingContext2D['fillText'] = function (
+			this: CanvasRenderingContext2D,
+			text,
+		) {
+			textPaints.push({ color: String(this.fillStyle), text });
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, fillText),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, fillText));
+		await renderer.initGPU();
+		const source = createPackedSource(['Added OS']);
+		const row = source.rows[0];
+		if (row === undefined) throw new Error('Missing animated-color row');
+		row.foregroundColors.fill(0x00_00_ff);
+		row.foregroundColors.fill(0xff_00_00, 0, 3);
+
+		renderer.renderPacked(source);
+
+		expect(textPaints).toEqual([
+			{ color: 'rgb(255, 0, 0)', text: 'Added OS' },
+			{ color: 'rgb(0, 0, 255)', text: 'Added OS' },
+		]);
+		renderer.dispose();
+	});
+
+	it('keeps foreground-only blank cells outside shaping geometry', () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		const renderer = new WebGPURenderer(createCanvas());
+		const source = createPackedGraphemeSource([
+			{ text: 'A', width: 1 },
+			{ text: '', width: 1 },
+			{ text: '', width: 1 },
+		]);
+		const row = source.rows[0];
+		if (row === undefined) throw new Error('Missing foreground-only blank row');
+		const metadata = source.metadata;
+		if (metadata === null) throw new Error('Missing foreground-only blank metadata');
+		row.foregroundColors[2] = 0xff_00_00;
+		const buildShaping = Reflect.get(renderer, 'buildPackedRowTextShaping') as (
+			row: PackedRendererRow,
+			columns: number,
+			rowIndex: number,
+			cursor: TestPackedCursor,
+			cursorEnabled: boolean,
+			preeditLayout: null,
+		) => { readonly plan: readonly ({ readonly columns: number } | null)[] };
+
+		const shaping = buildShaping.call(
+			renderer,
+			row,
+			metadata.columns,
+			0,
+			metadata.cursor,
+			false,
+			null,
+		);
+
+		expect(shaping.plan[0]).toBeNull();
+		renderer.dispose();
+	});
+
+	it('reuses one WebGPU shaping raster as an animated foreground boundary moves', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, (text) => ({ width: text.length * 7.8 })),
+		});
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: vi.fn<(configuration: GPUCanvasConfiguration) => void>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		await renderer.initGPU();
+		const source = createPackedSource(['Added OS']);
+		const row = source.rows[0];
+		if (row === undefined) throw new Error('Missing animated-color row');
+		row.foregroundColors.fill(0x00_00_ff);
+		row.foregroundColors.fill(0xff_00_00, 0, 3);
+
+		rendering.writeBuffer.mockClear();
+		renderer.renderPacked(source);
+		const firstKeys = [...(Reflect.get(renderer, 'glyphMap') as Map<string, unknown>).keys()];
+		const firstText = rendering.writeBuffer.mock.calls.flatMap((call) => {
+			const value = call[2];
+			return value instanceof Float32Array && value.length === 26 ? [Array.from(value)] : [];
+		})[0];
+		expect(firstText).toBeDefined();
+		expect(firstText?.slice(8, 11)).toEqual([1, 0, 0]);
+		expect(firstText?.slice(21, 24)).toEqual([0, 0, 1]);
+		expect(renderer.getLastFrameTelemetry()?.atlasGlyphsCreated).toBe(1);
+
+		row.foregroundColors.fill(0x00_00_ff);
+		row.foregroundColors.fill(0xff_00_00, 0, 5);
+		source.dirtyRows.add(0);
+		rendering.writeBuffer.mockClear();
+		renderer.renderPacked(source, true);
+		const secondKeys = [...(Reflect.get(renderer, 'glyphMap') as Map<string, unknown>).keys()];
+		const secondText = rendering.writeBuffer.mock.calls.flatMap((call) => {
+			const value = call[2];
+			return value instanceof Float32Array && value.length === 26 ? [Array.from(value)] : [];
+		})[0];
+		expect(secondText?.slice(8, 11)).toEqual([1, 0, 0]);
+		expect(secondText?.slice(21, 24)).toEqual([0, 0, 1]);
+		expect(secondKeys).toEqual(firstKeys);
+		expect(renderer.getLastFrameTelemetry()?.atlasGlyphsCreated).toBe(0);
+		renderer.dispose();
+	});
+
 	it('keeps constrained symbols outside multi-cell browser shaping runs', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('navigator', {});
@@ -774,65 +897,6 @@ describe('projected terminal renderer', () => {
 			}),
 		).toThrow('Failed to create font measurement context');
 		expect(renderer.getMetrics()).toEqual(initialMetrics);
-		renderer.dispose();
-	});
-
-	it('draws only the projected scrollbar thumb in Canvas with exact geometry and opacity', async () => {
-		vi.stubGlobal('window', { devicePixelRatio: 1 });
-		vi.stubGlobal('navigator', {});
-		const rectangles: Array<{
-			readonly color: string;
-			readonly geometry: readonly number[];
-		}> = [];
-		const clearRect = vi.fn<CanvasRenderingContext2D['clearRect']>();
-		const fillRect: CanvasRenderingContext2D['fillRect'] = function (
-			this: CanvasRenderingContext2D,
-			x,
-			y,
-			width,
-			height,
-		) {
-			if (String(this.fillStyle).startsWith('rgba(128, 128, 128')) {
-				rectangles.push({ color: String(this.fillStyle), geometry: [x, y, width, height] });
-			}
-		};
-		vi.stubGlobal('document', {
-			createElement: () => createCanvas(undefined, {}, undefined, fillRect, undefined, clearRect),
-		});
-		const renderer = new WebGPURenderer(
-			createCanvas(undefined, {}, undefined, fillRect, undefined, clearRect),
-		);
-		await renderer.initGPU();
-		const source = createPackedSource(['..........', '..........', '..........', '..........']);
-		renderer.setHistoryScrollbar({
-			opacity: 1,
-			totalRows: 20n,
-			visibleRows: 4,
-			visibleStartRow: 8n,
-		});
-
-		renderer.renderPacked(source);
-
-		expect(rectangles).toEqual([{ color: 'rgba(128, 128, 128, 0.5)', geometry: [68, 24, 8, 20] }]);
-		expect(renderer.getLastFrameTelemetry()?.reasons).toContain('scrollbar');
-		clearRect.mockClear();
-		rectangles.length = 0;
-		renderer.renderPacked(source);
-		expect(clearRect.mock.calls).toEqual([
-			[0, 17, 80, 17],
-			[0, 34, 80, 17],
-		]);
-		expect(rectangles).toEqual([{ color: 'rgba(128, 128, 128, 0.5)', geometry: [68, 24, 8, 20] }]);
-
-		rectangles.length = 0;
-		renderer.setHistoryScrollbar({
-			opacity: 0.5,
-			totalRows: 20n,
-			visibleRows: 4,
-			visibleStartRow: 16n,
-		});
-		renderer.renderPacked(source);
-		expect(rectangles).toEqual([{ color: 'rgba(128, 128, 128, 0.15)', geometry: [68, 44, 8, 20] }]);
 		renderer.dispose();
 	});
 
@@ -1130,24 +1194,28 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
-	it('shifts a wide preedit left at the right edge without changing its cells', () => {
+	it('wraps a wide preedit at the right edge without changing its cells', () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('document', { createElement: () => createCanvas() });
 		const renderer = new WebGPURenderer(createCanvas());
 		const getPreeditLayout = Reflect.get(renderer, 'getPreeditLayout') as (
 			cursor: { x: number; y: number },
 			columns: number,
+			rows: number,
 		) => {
-			readonly cells: readonly { readonly text: string; readonly width: number }[];
-			readonly end: number;
-			readonly start: number;
+			readonly caret: { readonly column: number; readonly row: number };
+			readonly rows: readonly {
+				readonly cells: readonly { readonly text: string; readonly width: number }[];
+				readonly end: number;
+				readonly row: number;
+				readonly start: number;
+			}[];
 		} | null;
 		renderer.setPreedit([{ text: '가', width: 2 }]);
 
-		expect(getPreeditLayout.call(renderer, { x: 9, y: 0 }, 10)).toMatchObject({
-			cells: [{ text: '가', width: 2 }],
-			end: 10,
-			start: 8,
+		expect(getPreeditLayout.call(renderer, { x: 9, y: 0 }, 10, 2)).toMatchObject({
+			caret: { column: 2, row: 1 },
+			rows: [{ cells: [{ text: '가', width: 2 }], end: 2, row: 1, start: 0 }],
 		});
 		renderer.dispose();
 	});
@@ -1604,50 +1672,6 @@ describe('projected terminal renderer', () => {
 		expect(rendering.beginRenderPass.mock.calls.at(-1)?.[0].colorAttachments[0]).toMatchObject({
 			clearValue: { a: 0, b: 0, g: 0, r: 0 },
 		});
-		renderer.dispose();
-	});
-
-	it('uses the same thumb-only scrollbar projection for WebGPU', async () => {
-		vi.stubGlobal('window', { devicePixelRatio: 1 });
-		vi.stubGlobal('document', { createElement: () => createCanvas() });
-		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
-		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
-		const rendering = createSubmittingDevice();
-		vi.stubGlobal('navigator', {
-			gpu: {
-				requestAdapter: async () =>
-					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
-				getPreferredCanvasFormat: () => 'bgra8unorm',
-			},
-		});
-		const context = {
-			configure: vi.fn<(configuration: GPUCanvasConfiguration) => void>(),
-			getCurrentTexture: () => ({ createView: () => ({}) }),
-		} as unknown as GPUCanvasContext;
-		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
-		await renderer.initGPU();
-		rendering.writeBuffer.mockClear();
-		renderer.setHistoryScrollbar({
-			opacity: 1,
-			totalRows: 20n,
-			visibleRows: 4,
-			visibleStartRow: 8n,
-		});
-
-		renderer.renderPacked(
-			createPackedSource(['..........', '..........', '..........', '..........']),
-		);
-
-		const uploadedRectangles = rendering.writeBuffer.mock.calls.flatMap((call) => {
-			const value = call[2];
-			return value instanceof Float32Array && value.length === 8 ? [Array.from(value)] : [];
-		});
-		expect(uploadedRectangles).toHaveLength(1);
-		expect(uploadedRectangles[0]?.slice(0, 4)).toEqual([68, 24, 8, 20]);
-		for (const channel of uploadedRectangles[0]?.slice(4, 7) ?? []) {
-			expect(channel).toBeCloseTo(128 / 255, 6);
-		}
-		expect(uploadedRectangles[0]?.[7]).toBe(0.5);
 		renderer.dispose();
 	});
 

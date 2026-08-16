@@ -8,7 +8,7 @@
 
 .sidebarToggle {
 	position: absolute;
-	inset-block-start: var(--ob-ref-space-1);
+	inset-block-start: var(--ob-ref-space-1-5);
 	inset-inline-start: var(--ob-ref-space-2);
 	z-index: var(--ob-ref-layer-raised);
 }

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildPreeditState, shouldSuppressComposingControlInput } from '../preedit';
+import {
+	buildPreeditState,
+	projectPreeditLayout,
+	shouldSuppressComposingControlInput,
+} from '../preedit';
 
 describe('buildPreeditState', () => {
 	it('maps a UTF-16 selection to wide terminal cell offsets', () => {
@@ -35,6 +39,81 @@ describe('buildPreeditState', () => {
 			{ text: '👩‍💻', width: 2 },
 		]);
 		expect(state.width).toBe(3);
+	});
+});
+
+describe('projectPreeditLayout', () => {
+	it('wraps narrow and wide cells row-major without splitting a wide cell', () => {
+		expect(
+			projectPreeditLayout(
+				[
+					{ text: 'A', width: 1 },
+					{ text: '你', width: 2 },
+					{ text: 'B', width: 1 },
+					{ text: 'C', width: 1 },
+				],
+				{ start: 1, end: 4 },
+				{ column: 3, row: 0 },
+				5,
+				3,
+			),
+		).toEqual({
+			caret: { column: 3, row: 1 },
+			clipped: false,
+			rows: [
+				{
+					cells: [{ text: 'A', width: 1 }],
+					end: 4,
+					row: 0,
+					selectionEnd: 1,
+					selectionStart: 1,
+					start: 3,
+					width: 1,
+				},
+				{
+					cells: [
+						{ text: '你', width: 2 },
+						{ text: 'B', width: 1 },
+						{ text: 'C', width: 1 },
+					],
+					end: 4,
+					row: 1,
+					selectionEnd: 3,
+					selectionStart: 0,
+					start: 0,
+					width: 4,
+				},
+			],
+		});
+	});
+
+	it('clips after the final visible row and anchors the caret at the visible boundary', () => {
+		expect(
+			projectPreeditLayout(
+				[
+					{ text: 'A', width: 1 },
+					{ text: 'B', width: 1 },
+				],
+				{ start: 2, end: 2 },
+				{ column: 4, row: 1 },
+				5,
+				2,
+			),
+		).toEqual({
+			caret: { column: 4, row: 1 },
+			clipped: true,
+			rows: [
+				{
+					cells: [{ text: 'A', width: 1 }],
+					end: 5,
+					row: 1,
+					selectionEnd: 1,
+					selectionStart: 1,
+					start: 4,
+					width: 1,
+				},
+			],
+		});
 	});
 });
 

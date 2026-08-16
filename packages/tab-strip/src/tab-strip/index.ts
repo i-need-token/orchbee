@@ -3,6 +3,7 @@ export type {
 	TabStripCrossWindowDragRuntime,
 	TabStripCrossWindowDragRuntimeFactory,
 	TabStripCloseCallback,
+	TabStripCloseConfirmation,
 	TabStripCloseRequest,
 	TabStripMessages,
 	TabStripNewTabRequest,

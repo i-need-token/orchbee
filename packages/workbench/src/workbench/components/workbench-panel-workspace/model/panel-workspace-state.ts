@@ -1,6 +1,7 @@
 import type {
-	TerminalPresentationCloseRequest,
+	TerminalPresentationCloseActivity,
 	TerminalPresentationCloseOperation,
+	TerminalPresentationCloseRequest,
 	TerminalPresentationCommand,
 	TerminalPresentationCreation,
 	TerminalPresentationFailure,
@@ -15,6 +16,7 @@ export type PanelSplitDirection = 'above' | 'below' | 'left' | 'right';
 type PanelSplitOrientation = 'horizontal' | 'vertical';
 
 export interface TerminalPresentation {
+	readonly closeActivity: TerminalPresentationCloseActivity;
 	readonly currentCwd: string | null;
 	readonly launchCwd: string | null;
 	readonly lifecycle: TerminalPresentationLifecycle;
@@ -175,6 +177,7 @@ export type PanelWorkspaceEvent =
 			readonly type: 'terminal-current-cwd-changed';
 	  }
 	| {
+			readonly closeActivity: TerminalPresentationCloseActivity;
 			readonly currentCwd?: string | null | undefined;
 			readonly naturalTitle: string | null;
 			readonly presentationId: TerminalPresentationId;
@@ -367,6 +370,7 @@ function createTerminal(
 					}
 				: null,
 		terminal: {
+			closeActivity: 'unknown',
 			currentCwd: cwd,
 			launchCwd: cwd,
 			lifecycle:
@@ -541,6 +545,7 @@ function restartedTerminal(
 ): TerminalPresentation {
 	return {
 		...terminal,
+		closeActivity: 'unknown',
 		currentCwd: terminal.launchCwd,
 		lifecycle: { kind: 'provisioning', operationId: presentation.operationId },
 		naturalTitle: null,
@@ -552,13 +557,16 @@ function mapTerminalMetadata(
 	node: PanelLayoutNode,
 	presentationId: TerminalPresentationId,
 	naturalTitle: string | null,
+	closeActivity: TerminalPresentationCloseActivity,
 	currentCwd?: string | null,
 ): TreeUpdate {
 	return mapTerminal(node, presentationId, (terminal) => {
 		const nextCurrentCwd = currentCwd === undefined ? terminal.currentCwd : currentCwd;
-		return terminal.currentCwd === nextCurrentCwd && terminal.naturalTitle === naturalTitle
+		return terminal.closeActivity === closeActivity &&
+			terminal.currentCwd === nextCurrentCwd &&
+			terminal.naturalTitle === naturalTitle
 			? terminal
-			: { ...terminal, currentCwd: nextCurrentCwd, naturalTitle };
+			: { ...terminal, closeActivity, currentCwd: nextCurrentCwd, naturalTitle };
 	});
 }
 
@@ -1029,6 +1037,27 @@ export function collectPanelLeaves(root: PanelLayoutNode): readonly PanelLeaf[] 
 	return panels;
 }
 
+export function terminalRequiresCloseConfirmation(terminal: TerminalPresentation): boolean {
+	if (terminal.lifecycle.kind === 'running') return terminal.closeActivity !== 'idle';
+	return (
+		terminal.lifecycle.kind === 'preview' ||
+		terminal.lifecycle.kind === 'provisioning' ||
+		terminal.lifecycle.kind === 'restoring' ||
+		terminal.lifecycle.kind === 'reconciling'
+	);
+}
+
+export function countTerminalsRequiringCloseConfirmation(root: PanelLayoutNode): number {
+	return collectPanelLeaves(root).reduce(
+		(count, panel) =>
+			count +
+			[panel.primaryPresentation, ...panel.childPresentations].filter(
+				terminalRequiresCloseConfirmation,
+			).length,
+		0,
+	);
+}
+
 export function clonePanelWorkspaceState(
 	state: PanelWorkspaceState,
 	tabIdMap: ReadonlyMap<string, string>,
@@ -1322,6 +1351,7 @@ export function transitionPanelWorkspace(
 			tab.root,
 			event.presentationId,
 			event.naturalTitle,
+			event.closeActivity,
 			event.currentCwd,
 		);
 		if (!result.changed) {
@@ -2030,6 +2060,7 @@ function clonePanelLayoutNode(
 					? null
 					: clonePresentationIdentity(identities, node.activeChildPresentationId),
 			childPresentations: node.childPresentations.map((terminal) => ({
+				closeActivity: 'unknown',
 				currentCwd: terminal.launchCwd,
 				launchCwd: terminal.launchCwd,
 				lifecycle: { kind: 'preview' },
@@ -2040,6 +2071,7 @@ function clonePanelLayoutNode(
 			id: cloneIdentity(identities.panelIds, identities.prefix, 'panel', node.id),
 			kind: node.kind,
 			primaryPresentation: {
+				closeActivity: 'unknown',
 				currentCwd: node.primaryPresentation.launchCwd,
 				launchCwd: node.primaryPresentation.launchCwd,
 				lifecycle: { kind: 'preview' },

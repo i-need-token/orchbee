@@ -22,6 +22,7 @@ const activeTab: TabPanelWorkspace = {
 		id: 'panel-1',
 		kind: 'panel',
 		primaryPresentation: {
+			closeActivity: 'unknown',
 			currentCwd: null,
 			launchCwd: null,
 			lifecycle: { kind: 'running' },
@@ -48,20 +49,24 @@ const appliedTransition: PanelWorkspaceTransition = {
 };
 
 interface HarnessProps {
+	readonly activeTab?: TabPanelWorkspace;
 	readonly captureScope: (scope: ActionScope) => void;
 	readonly createChildTerminal: (panelId: string) => PanelWorkspaceTransition | null;
+	readonly panelCount?: number;
 	readonly parentScope: ActionScope;
 	readonly runtime: ActionRuntime;
 }
 
 function Harness({
+	activeTab: activeTabOverride = activeTab,
 	captureScope,
 	createChildTerminal,
+	panelCount = 1,
 	parentScope,
 	runtime,
 }: HarnessProps): ReactNode {
 	const actions = useWorkbenchPanelActions({
-		activeTab,
+		activeTab: activeTabOverride,
 		operations: {
 			activateChildTerminal: () => appliedTransition,
 			closeDisplayedTerminal: () => appliedTransition,
@@ -72,7 +77,7 @@ function Harness({
 			splitPanel: () => ({ panelId: 'panel-2', transition: appliedTransition }),
 			togglePanelMaximization: () => appliedTransition,
 		},
-		panelCount: 1,
+		panelCount,
 		parentScope,
 		runtime,
 	});
@@ -83,6 +88,64 @@ function Harness({
 afterEach(() => cleanup());
 
 describe('useWorkbenchPanelActions', () => {
+	it.each([
+		{ closeActivity: 'idle' as const, confirmationCount: 0 },
+		{ closeActivity: 'active' as const, confirmationCount: 1 },
+		{ closeActivity: 'unknown' as const, confirmationCount: 1 },
+	])(
+		'requests $confirmationCount confirmations when a running terminal is $closeActivity',
+		async ({ closeActivity, confirmationCount }) => {
+			const confirm = vi.fn<() => boolean>(() => true);
+			const runtime = new ActionRuntime({ confirm });
+			const parentScope = runtime.createScope('workbench');
+			const closeDisplayedTerminal = vi.fn<() => PanelWorkspaceTransition>(() => appliedTransition);
+			let scope: ActionScope | undefined;
+			if (activeTab.root.kind !== 'panel') throw new Error('Expected a panel fixture');
+			const candidateTab: TabPanelWorkspace = {
+				...activeTab,
+				root: {
+					...activeTab.root,
+					primaryPresentation: {
+						...activeTab.root.primaryPresentation,
+						closeActivity,
+					},
+				},
+			};
+			function CloseHarness(): ReactNode {
+				const actions = useWorkbenchPanelActions({
+					activeTab: candidateTab,
+					operations: {
+						activateChildTerminal: () => appliedTransition,
+						closeDisplayedTerminal,
+						createChildTerminal: () => appliedTransition,
+						focusPanel: () => appliedTransition,
+						movePanel: () => appliedTransition,
+						showPrimaryTerminal: () => appliedTransition,
+						splitPanel: () => ({ panelId: 'panel-2', transition: appliedTransition }),
+						togglePanelMaximization: () => appliedTransition,
+					},
+					panelCount: 2,
+					parentScope,
+					runtime,
+				});
+				scope = actions.scope;
+				return null;
+			}
+			render(createElement(CloseHarness));
+			if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+
+			const execution = runtime.execute(
+				PANEL_ACTION_IDS.close,
+				{ childPresentationId: null, panelId: 'panel-1', tabId: 'tab-1' },
+				{ scope, source: 'button' },
+			);
+
+			await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
+			expect(confirm).toHaveBeenCalledTimes(confirmationCount);
+			expect(closeDisplayedTerminal).toHaveBeenCalledOnce();
+		},
+	);
+
 	it('registers panel semantics, calls the domain writer, and disposes with its owner', async () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');

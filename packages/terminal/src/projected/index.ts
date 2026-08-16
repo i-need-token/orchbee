@@ -11,6 +11,7 @@ export type {
 	ProjectedSnapshotReplaceResult,
 	ProjectedStorePhase as ProjectedStorePhaseValue,
 	ProjectedTerminalMetadata,
+	ProjectedTerminalCloseActivity,
 } from './packed-terminal-store';
 export {
 	ProjectedTerminal,

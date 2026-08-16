@@ -21,7 +21,7 @@ describe('projected history scrollbar', () => {
 		expect(scrollbar).toEqual({
 			hitArea: { height: 100, width: 16, x: 84, y: 0 },
 			maximumStartRow: 80n,
-			thumb: { height: 20, opacity: 0.5, width: 8, x: 88, y: 40 },
+			thumb: { height: 20, opacity: 0.5, width: 8, x: 90, y: 40 },
 			track: { height: 92, travel: 72, y: 4 },
 			visibleStartRow: 40n,
 		});

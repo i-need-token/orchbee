@@ -183,6 +183,92 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(commands.some((command) => command.type === 'tab-close-ready')).toBe(false);
 	});
 
+	it('counts close protection across every panel and child terminal in a Tab', () => {
+		const runtime = createManagedRuntime();
+		const context = runtime.getActiveTerminalContext();
+		const tab = context.panelWorkspaceStore.getSnapshot().tabs[0];
+		if (tab === undefined || tab.root.kind !== 'panel') {
+			throw new Error('Expected one initial terminal panel.');
+		}
+		const tabId = tab.tabId;
+		const initialPanelId = tab.root.id;
+		const initialPresentationId = tab.root.primaryPresentation.presentationId;
+		expect(
+			runtime.applyTerminalPresentationEvent({
+				operationId: terminalPresentationOperationId('managed:operation:1'),
+				presentationId: initialPresentationId,
+				type: 'terminal-provision-completed',
+			}),
+		).toEqual({ kind: 'applied' });
+
+		const splitPresentation = context.panelWorkspaceStore.createTerminalPresentation();
+		const childPresentation = context.panelWorkspaceStore.createTerminalPresentation();
+		if (splitPresentation.kind !== 'managed' || childPresentation.kind !== 'managed') {
+			throw new Error('Expected managed terminal presentations.');
+		}
+		expect(
+			context.panelWorkspaceStore.transition({
+				direction: 'right',
+				newTerminalTitle: 'Terminal 2',
+				panelId: initialPanelId,
+				presentation: splitPresentation,
+				tabId,
+				type: 'panel-split',
+			}).outcome,
+		).toBe('applied');
+		expect(
+			context.panelWorkspaceStore.transition({
+				newTerminalTitle: 'Terminal 3',
+				panelId: initialPanelId,
+				presentation: childPresentation,
+				tabId,
+				type: 'child-terminal-created',
+			}).outcome,
+		).toBe('applied');
+
+		for (const presentation of [splitPresentation, childPresentation]) {
+			expect(
+				runtime.applyTerminalPresentationEvent({
+					operationId: presentation.operationId,
+					presentationId: presentation.presentationId,
+					type: 'terminal-provision-completed',
+				}),
+			).toEqual({ kind: 'applied' });
+		}
+		for (const [presentationId, closeActivity] of [
+			[initialPresentationId, 'idle'],
+			[splitPresentation.presentationId, 'active'],
+			[childPresentation.presentationId, 'active'],
+		] as const) {
+			expect(
+				runtime.applyTerminalMetadataObservation(presentationId, {
+					closeActivity,
+					currentDirectory: { kind: 'ignored' },
+					naturalTitle: null,
+				}),
+			).toEqual({ kind: 'applied' });
+		}
+
+		expect(runtime.getActiveTerminalTabsCloseConfirmationCount([tabId])).toBe(2);
+		expect(runtime.getActiveTerminalTabsCloseConfirmationCount([tabId, tabId])).toBe(2);
+		expect(runtime.getActiveTerminalTabsCloseConfirmationCount(['missing-tab'])).toBe(0);
+		expect(runtime.getTerminalSessionCloseConfirmationCount()).toBe(2);
+
+		for (const presentationId of [
+			splitPresentation.presentationId,
+			childPresentation.presentationId,
+		]) {
+			expect(
+				runtime.applyTerminalMetadataObservation(presentationId, {
+					closeActivity: 'idle',
+					currentDirectory: { kind: 'ignored' },
+					naturalTitle: null,
+				}),
+			).toEqual({ kind: 'applied' });
+		}
+		expect(runtime.getTerminalSessionCloseConfirmationCount()).toBe(0);
+	});
+
 	it('starts with one standalone Tab, Panel, and launch CWD', () => {
 		const runtime = createRuntime();
 		const context = runtime.getActiveTerminalContext();
@@ -213,6 +299,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 
 		expect(
 			runtime.applyTerminalMetadataObservation(presentationId, {
+				closeActivity: 'active',
 				currentDirectory: { currentCwd: '/workspace/current', kind: 'reported' },
 				naturalTitle: 'vim',
 			}),
@@ -225,6 +312,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		});
 		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('Custom title');
 		runtime.applyTerminalMetadataObservation(presentationId, {
+			closeActivity: 'idle',
 			currentDirectory: { kind: 'ignored' },
 			naturalTitle: 'ssh',
 		});
@@ -255,6 +343,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		const restoredContext = restored.getActiveTerminalContext();
 		expect(restoredContext.tabModel.getSnapshot().tabs[0]?.title).toBe('Persisted custom');
 		restored.applyTerminalMetadataObservation(presentationId, {
+			closeActivity: 'idle',
 			currentDirectory: { kind: 'ignored' },
 			naturalTitle: 'restored shell',
 		});

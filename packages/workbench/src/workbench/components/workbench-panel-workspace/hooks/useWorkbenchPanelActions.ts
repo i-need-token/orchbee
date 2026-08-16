@@ -26,6 +26,7 @@ import {
 } from '../actions/panel-action-contracts';
 import {
 	findPanel,
+	terminalRequiresCloseConfirmation,
 	type PanelWorkspaceTransition,
 	type TabPanelWorkspace,
 } from '../model/panel-workspace-state';
@@ -114,14 +115,7 @@ export function useWorkbenchPanelActions({
 					: panel.childPresentations.filter(
 							(terminal) => terminal.presentationId === input.childPresentationId,
 						);
-			return affectedTerminals.filter(
-				(terminal) =>
-					terminal.lifecycle.kind === 'preview' ||
-					terminal.lifecycle.kind === 'provisioning' ||
-					terminal.lifecycle.kind === 'restoring' ||
-					terminal.lifecycle.kind === 'reconciling' ||
-					terminal.lifecycle.kind === 'running',
-			).length;
+			return affectedTerminals.filter(terminalRequiresCloseConfirmation).length;
 		};
 		const targetAvailability = (panelId: string) =>
 			findTarget(panelId) === null
