@@ -5,6 +5,7 @@ export {
 	applicationRoutingMessages,
 	desktopApplicationLifetimeMessages,
 	desktopBrowserAccessMessages,
+	desktopSecureKeyboardEntryMessages,
 	desktopWindowMessages,
 	keyboardShortcutMessages,
 	projectedTerminalMessages,

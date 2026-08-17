@@ -375,6 +375,7 @@ function createUtf8BomConformanceFixture() {
 			consumedModifiers: modifiers,
 			key: 'F1',
 			modifiers,
+			optionAsAlt: false,
 			text: '',
 			unshiftedCodepoint: 0,
 		}),

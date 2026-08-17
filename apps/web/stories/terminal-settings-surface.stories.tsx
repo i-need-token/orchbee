@@ -6,6 +6,7 @@ import {
 	TerminalSettingsController,
 } from '../src/terminal-settings';
 import { KeyboardShortcutSettingsController } from '../src/keyboard-shortcuts';
+import { MacosTerminalInputSettingsController } from '../src/macos-terminal-input-settings';
 import {
 	TerminalFeedbackSettingsController,
 	UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY,
@@ -14,6 +15,7 @@ import { TerminalSettingsSurface } from '../src/terminal-settings-surface';
 
 const englishController = createStoryController();
 const englishKeyboardController = createKeyboardStoryController('apple');
+const englishMacosInputController = createMacosInputStoryController();
 const englishFeedbackController = createFeedbackStoryController();
 const chineseController = createStoryController({
 	...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
@@ -42,6 +44,7 @@ export const EnglishLight: Story = {
 		controller: englishController,
 		keyboardShortcutController: englishKeyboardController,
 		keyboardShortcutPlatform: 'apple',
+		macosTerminalInputSettingsController: englishMacosInputController,
 		onRequestClose: () => englishController.close(),
 		terminalFeedbackSettingsController: englishFeedbackController,
 	},
@@ -111,5 +114,12 @@ function createFeedbackStoryController(): TerminalFeedbackSettingsController {
 	return new TerminalFeedbackSettingsController({
 		notificationCapability: UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY,
 		storage: { getItem: () => null, setItem: () => undefined },
+	});
+}
+
+function createMacosInputStoryController(): MacosTerminalInputSettingsController {
+	return new MacosTerminalInputSettingsController({
+		getItem: () => null,
+		setItem: () => undefined,
 	});
 }

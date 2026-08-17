@@ -107,6 +107,7 @@ describe('semantic terminal input payloads', () => {
 			consumedModifiers: { ...noModifiers, shift: true },
 			key: 'KeyA',
 			modifiers: { ...noModifiers, shift: true, shiftRight: true },
+			optionAsAlt: true,
 			text: 'A',
 			unshiftedCodepoint: 'a'.codePointAt(0) ?? 0,
 		};
@@ -123,6 +124,7 @@ describe('semantic terminal input payloads', () => {
 			consumedModifiers: noModifiers,
 			key: 'KeyA',
 			modifiers: noModifiers,
+			optionAsAlt: false,
 			text: 'a',
 			unshiftedCodepoint: 'a'.codePointAt(0) ?? 0,
 		};
@@ -146,6 +148,11 @@ describe('semantic terminal input payloads', () => {
 		expect(decodeKeyInput(nonCanonical)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
+		const unknownFlag = encoded.value.slice();
+		unknownFlag[17] = 1 << 2;
+		expect(decodeKeyInput(unknownFlag)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
+		);
 	});
 
 	it('classifies malformed key UTF-8 independently from an unknown key', () => {
@@ -156,6 +163,7 @@ describe('semantic terminal input payloads', () => {
 			consumedModifiers: noModifiers,
 			key: 'KeyA',
 			modifiers: noModifiers,
+			optionAsAlt: false,
 			text: '',
 			unshiftedCodepoint: 'a'.codePointAt(0) ?? 0,
 		});
@@ -175,6 +183,7 @@ describe('semantic terminal input payloads', () => {
 			consumedModifiers: noModifiers,
 			key: 'F1',
 			modifiers: noModifiers,
+			optionAsAlt: false,
 			text: '',
 			unshiftedCodepoint: 0,
 		});
@@ -218,6 +227,7 @@ describe('semantic terminal input payloads', () => {
 				consumedModifiers: noModifiers,
 				key: 'KeyA',
 				modifiers: noModifiers,
+				optionAsAlt: false,
 				text: '\ud800',
 				unshiftedCodepoint: 0,
 			}),

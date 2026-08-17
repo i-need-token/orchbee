@@ -29,7 +29,11 @@ export type GhosttyConfigurationMigrationTarget =
 	| { readonly setting: 'custom-background'; readonly value: `#${string}` }
 	| { readonly setting: 'custom-foreground'; readonly value: `#${string}` }
 	| { readonly setting: 'font-family'; readonly value: string }
-	| { readonly setting: 'font-size'; readonly value: number };
+	| { readonly setting: 'font-size'; readonly value: number }
+	| {
+			readonly setting: 'macos-option-as-alt';
+			readonly value: 'both' | 'left' | 'off' | 'right';
+	  };
 
 interface GhosttyConfigurationAnalysisFindingBase {
 	readonly line: number;
@@ -143,6 +147,7 @@ export function analyzeGhosttyConfiguration(source: string): GhosttyConfiguratio
 	classifyScalarAssignments(assignments, findings, 'background-opacity', (assignment) =>
 		classifyBackgroundOpacity(assignment, opacityCells),
 	);
+	classifyScalarAssignments(assignments, findings, 'macos-option-as-alt', classifyMacosOptionAsAlt);
 	classifyFontFamilies(assignments, findings);
 
 	for (const assignment of assignments) {
@@ -302,6 +307,24 @@ function classifyBackgroundOpacity(
 		setting: 'background-opacity',
 		value: roundedPercentage,
 	});
+}
+
+function classifyMacosOptionAsAlt(assignment: Assignment): CandidateFinding {
+	if (assignment.value.length === 0) return resetCandidate(assignment);
+	switch (assignment.value) {
+		case 'false':
+			return supportedCandidate(assignment, { setting: 'macos-option-as-alt', value: 'off' });
+		case 'true':
+			return supportedCandidate(assignment, { setting: 'macos-option-as-alt', value: 'both' });
+		case 'left':
+		case 'right':
+			return supportedCandidate(assignment, {
+				setting: 'macos-option-as-alt',
+				value: assignment.value,
+			});
+		default:
+			return invalidCandidate(assignment);
+	}
 }
 
 function classifyFontFamilies(

@@ -10,6 +10,7 @@ import {
 	type ProjectedPasteResult,
 	type ProjectedTerminalMetadata,
 	type ProjectedTerminalOptions,
+	type TerminalInputConfiguration,
 	type TerminalPresentationConfiguration,
 	type TerminalPresentationConfigurationUpdateResult,
 } from '@orchbee/terminal';
@@ -21,6 +22,10 @@ import {
 import type { TerminalClipboardWriteRequest } from '@orchbee/terminal-protocol';
 
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
+import {
+	DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
+	type TerminalInputConfigurationSource,
+} from '../../terminal-input-configuration';
 import {
 	TerminalFindController,
 	mountTerminalFindSurface,
@@ -81,6 +86,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'reset'
 	| 'selectAll'
 	| 'selection'
+	| 'setOptionAsAltMode'
 	| 'setResizeOwnership'
 	| 'updatePresentationConfiguration'
 	| 'updateSearch'
@@ -128,6 +134,7 @@ export async function startProjectedTerminalRenderer(
 		signal: AbortSignal,
 	) => boolean | Promise<boolean>,
 	completionReminderObserver?: TerminalCompletionReminderObserver,
+	inputConfigurationSource: TerminalInputConfigurationSource = DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
@@ -137,8 +144,10 @@ export async function startProjectedTerminalRenderer(
 	documentElement.lang = locale;
 	documentElement.dir = getOrchbeeTextDirection(locale);
 	let initialPresentationConfiguration: TerminalPresentationConfiguration;
+	let initialInputConfiguration: TerminalInputConfiguration;
 	try {
 		initialPresentationConfiguration = presentationConfigurationSource.current();
+		initialInputConfiguration = inputConfigurationSource.current();
 	} catch (error) {
 		runCleanup([() => transport.close()]);
 		throw error;
@@ -387,6 +396,7 @@ export async function startProjectedTerminalRenderer(
 			canResize: bootstrap.canResize,
 			creationId: bootstrap.creationId,
 			hostEpoch: bootstrap.hostEpoch,
+			inputConfiguration: initialInputConfiguration,
 			inputEnabled: bootstrap.canInput !== false,
 			labels: {
 				deleted: (text) =>
@@ -461,7 +471,8 @@ export async function startProjectedTerminalRenderer(
 	): void => {
 		void updatePresentationConfiguration(configuration).catch(() => undefined);
 	};
-	let unsubscribePresentationConfiguration: () => void;
+	let unsubscribeInputConfiguration = (): void => undefined;
+	let unsubscribePresentationConfiguration = (): void => undefined;
 	try {
 		const unsubscribe = presentationConfigurationSource.subscribe((configuration) => {
 			if (!terminalOpened) {
@@ -474,8 +485,17 @@ export async function startProjectedTerminalRenderer(
 			throw new TypeError('The terminal presentation configuration source did not unsubscribe.');
 		}
 		unsubscribePresentationConfiguration = unsubscribe;
+		const unsubscribeInput = inputConfigurationSource.subscribe((configuration) => {
+			terminal.setOptionAsAltMode(configuration.optionAsAlt);
+		});
+		if (typeof unsubscribeInput !== 'function') {
+			throw new TypeError('The terminal input configuration source did not unsubscribe.');
+		}
+		unsubscribeInputConfiguration = unsubscribeInput;
 	} catch (error) {
 		runCleanup([
+			unsubscribeInputConfiguration,
+			unsubscribePresentationConfiguration,
 			() => terminal.dispose(),
 			() => progress.remove(),
 			() => status.remove(),
@@ -483,6 +503,10 @@ export async function startProjectedTerminalRenderer(
 		]);
 		throw error;
 	}
+	const unsubscribeConfigurationSources = (): void => {
+		unsubscribeInputConfiguration();
+		unsubscribePresentationConfiguration();
+	};
 	const reportRuntimeFailure = (
 		event: Extract<
 			NonNullable<ProjectedAttachmentBootstrap['terminalOutcome']>,
@@ -733,7 +757,7 @@ export async function startProjectedTerminalRenderer(
 			};
 		} catch (error) {
 			runCleanup([
-				unsubscribePresentationConfiguration,
+				unsubscribeConfigurationSources,
 				...pendingSubscriptions.map((subscription) => () => subscription.dispose()),
 				() => pendingActions?.dispose(),
 				() => pendingFindController?.dispose(),
@@ -832,7 +856,7 @@ export async function startProjectedTerminalRenderer(
 		unsubscribeTransport = unsubscribe;
 	} catch (error) {
 		runCleanup([
-			unsubscribePresentationConfiguration,
+			unsubscribeConfigurationSources,
 			...subscriptions.map((subscription) => () => subscription.dispose()),
 			() => actions.dispose(),
 			() => findController.dispose(),
@@ -904,7 +928,7 @@ export async function startProjectedTerminalRenderer(
 	} catch (error) {
 		reportFailure();
 		runCleanup([
-			unsubscribePresentationConfiguration,
+			unsubscribeConfigurationSources,
 			() => disposeShortcuts?.(),
 			() => findSurface?.dispose(),
 			() => findRoot?.remove(),
@@ -938,7 +962,7 @@ export async function startProjectedTerminalRenderer(
 				return;
 			}
 			runCleanup([
-				unsubscribePresentationConfiguration,
+				unsubscribeConfigurationSources,
 				() => disposeShortcuts?.(),
 				() => findSurface?.dispose(),
 				unsubscribeTransport,
@@ -960,7 +984,7 @@ export async function startProjectedTerminalRenderer(
 			clearVisualBell();
 			clearCompletionStatusTimer();
 			runCleanup([
-				unsubscribePresentationConfiguration,
+				unsubscribeConfigurationSources,
 				() => disposeShortcuts?.(),
 				() => findSurface?.dispose(),
 				unsubscribeTransport,

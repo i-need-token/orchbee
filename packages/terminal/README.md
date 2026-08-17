@@ -44,6 +44,12 @@ old `compositionend` never arrives. Refocus, a non-composing key, or standalone 
 composition, both browser orders (`beforeinput` then `compositionend`, or the reverse) commit the
 text at most once, and the state transition is complete before the synchronous command-port send.
 
+On macOS, the projected terminal also consumes a source-neutral Option-as-Alt mode: `off`, `left`,
+`right`, or `both`. It tracks the physical Option side from `AltLeft` and `AltRight`, resolves one
+boolean semantic intent per admitted key event, and updates that mode live without recreating the
+terminal. It never prepends Escape to committed text. Terminal Host consumes the event intent and
+continues to own the actual Ghostty keyboard encoding for the current terminal modes.
+
 Live preedit is a reversible presentation that begins at the projected Host cursor and wraps in
 row-major order across the visible grid. Narrow and wide cells remain atomic, overflow beyond the
 last visible row is clipped without scrolling or mutating Host state, and the hidden native input

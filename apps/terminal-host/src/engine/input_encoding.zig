@@ -23,7 +23,8 @@ pub fn encodeKey(
     key: ghostty_vt.input.Key,
     input: terminal_input.KeyInput,
 ) ![]const u8 {
-    const options = ghostty_vt.input.KeyEncodeOptions.fromTerminal(terminal);
+    var options = ghostty_vt.input.KeyEncodeOptions.fromTerminal(terminal);
+    options.macos_option_as_alt = if (input.option_as_alt) .true else .false;
     var writer: std.Io.Writer = .fixed(buffer);
     try ghostty_vt.input.encodeKey(&writer, .{
         .action = keyAction(input.action),

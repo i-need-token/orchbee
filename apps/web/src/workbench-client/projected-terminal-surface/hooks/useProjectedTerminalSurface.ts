@@ -235,6 +235,7 @@ export function useProjectedTerminalSurface(
 					capability.shortcutBindingSource,
 					reviewClipboardWrite,
 					capability.terminalCompletionReminderObserver,
+					capability.inputConfigurationSource,
 				),
 		});
 		recoveryController.current = { controller, presentationId: presentation.presentationId };

@@ -96,6 +96,7 @@ pub const KeyInput = struct {
     consumed_modifiers: Modifiers,
     key: []const u8,
     modifiers: Modifiers,
+    option_as_alt: bool = false,
     text: []const u8,
     unshifted_codepoint: u21,
 };

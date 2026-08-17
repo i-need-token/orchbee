@@ -19,6 +19,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ProjectedTerminalTransport } from '../../terminal-projection';
 import type { ProjectedTerminalPlatformEffects } from '../../projected-terminal-platform-effects';
 import type { TerminalCompletionReminderObserver } from '../../../terminal-feedback-settings';
+import type { TerminalInputConfigurationSource } from '../../../terminal-input-configuration';
 import {
 	startProjectedTerminalRenderer,
 	type ProjectedTerminalRendererDependencies,
@@ -99,6 +100,7 @@ describe('startProjectedTerminalRenderer', () => {
 		const openTerminal = vi.fn<ProjectedTerminal['open']>().mockResolvedValue(undefined);
 		const pasteTerminal = vi.fn<ProjectedTerminal['paste']>().mockResolvedValue({ kind: 'empty' });
 		const setResizeOwnership = vi.fn<ProjectedTerminal['setResizeOwnership']>();
+		const setOptionAsAltMode = vi.fn<ProjectedTerminal['setOptionAsAltMode']>();
 		const updatePresentationConfiguration = vi
 			.fn<ProjectedTerminal['updatePresentationConfiguration']>()
 			.mockResolvedValue({
@@ -217,6 +219,7 @@ describe('startProjectedTerminalRenderer', () => {
 						selectAll: vi.fn<ProjectedTerminal['selectAll']>(),
 						selection: { attachmentId: bootstrap.attachmentId, state: 'none' },
 						setResizeOwnership,
+						setOptionAsAltMode,
 						updatePresentationConfiguration,
 						updateSearch: vi.fn<ProjectedTerminal['updateSearch']>(),
 					};
@@ -277,6 +280,16 @@ describe('startProjectedTerminalRenderer', () => {
 				return unsubscribePresentationConfiguration;
 			},
 		};
+		let emitInputConfiguration: Parameters<TerminalInputConfigurationSource['subscribe']>[0] = () =>
+			undefined;
+		const unsubscribeInputConfiguration = vi.fn<() => void>();
+		const inputConfigurationSource: TerminalInputConfigurationSource = {
+			current: () => ({ optionAsAlt: 'right' }),
+			subscribe: (listener) => {
+				emitInputConfiguration = listener;
+				return unsubscribeInputConfiguration;
+			},
+		};
 		const observeMetadata = vi.fn<(metadata: ProjectedTerminalMetadata) => void>();
 		const observeCompletion = vi.fn<TerminalCompletionReminderObserver['observeCompletion']>(
 			() => ({
@@ -305,6 +318,7 @@ describe('startProjectedTerminalRenderer', () => {
 				undefined,
 				reviewClipboardWrite,
 				{ observeCompletion },
+				inputConfigurationSource,
 			);
 			expect(dependencies.createTerminal).toHaveBeenCalledWith(
 				expect.objectContaining({ projectionBufferTrust: 'local-host' }),
@@ -575,6 +589,9 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(options?.labels.screenCursor?.(3n, 4)).toBe('终端屏幕，光标位于第 3 行、第 4 列');
 			expect(options?.labels.selectedText?.('内容')).toBe('已选择文本：内容');
 			expect(options?.renderer).toEqual(initialPresentationConfiguration);
+			expect(options?.inputConfiguration).toEqual({ optionAsAlt: 'right' });
+			emitInputConfiguration({ optionAsAlt: 'both' });
+			expect(setOptionAsAltMode).toHaveBeenCalledWith('both');
 			expect(openTerminal).toHaveBeenCalledOnce();
 			expect(focusTerminal).not.toHaveBeenCalled();
 			expect(root.style.backgroundColor).toBe('#123456');
@@ -635,6 +652,7 @@ describe('startProjectedTerminalRenderer', () => {
 			session.dispose();
 			session.dispose();
 			expect(unsubscribePresentationConfiguration).toHaveBeenCalledOnce();
+			expect(unsubscribeInputConfiguration).toHaveBeenCalledOnce();
 			expect(disposeTerminal).toHaveBeenCalledOnce();
 
 			const createAdditionalRoot = () => {

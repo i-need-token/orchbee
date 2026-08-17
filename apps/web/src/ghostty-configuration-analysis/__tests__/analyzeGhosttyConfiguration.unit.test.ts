@@ -105,6 +105,49 @@ describe('analyzeGhosttyConfiguration', () => {
 		});
 	});
 
+	it('maps every explicit Ghostty macOS Option-as-Alt value without loss', () => {
+		const analysis = analyzeGhosttyConfiguration(
+			[
+				'macos-option-as-alt = false',
+				'macos-option-as-alt = maybe',
+				'macos-option-as-alt = true',
+				'macos-option-as-alt = left',
+				'macos-option-as-alt = right',
+			].join('\n'),
+		);
+
+		expect(analysis).toMatchObject({
+			counts: { ignored: 3, invalid: 1, manual: 0, supported: 1 },
+			findings: [
+				{ disposition: 'ignored', line: 1, reason: 'superseded' },
+				{ disposition: 'invalid', line: 2, reason: 'invalid-value' },
+				{ disposition: 'ignored', line: 3, reason: 'superseded' },
+				{ disposition: 'ignored', line: 4, reason: 'superseded' },
+				{
+					disposition: 'supported',
+					line: 5,
+					target: { setting: 'macos-option-as-alt', value: 'right' },
+				},
+			],
+		});
+
+		for (const [sourceValue, targetValue] of [
+			['false', 'off'],
+			['true', 'both'],
+			['left', 'left'],
+			['right', 'right'],
+		] as const) {
+			expect(analyzeGhosttyConfiguration(`macos-option-as-alt = ${sourceValue}`)).toMatchObject({
+				findings: [
+					{
+						disposition: 'supported',
+						target: { setting: 'macos-option-as-alt', value: targetValue },
+					},
+				],
+			});
+		}
+	});
+
 	it('models font resets and refuses to collapse an active fallback list', () => {
 		const fallback = analyzeGhosttyConfiguration('font-family = First\nfont-family = Second');
 		const reset = analyzeGhosttyConfiguration(

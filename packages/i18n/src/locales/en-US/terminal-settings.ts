@@ -13,6 +13,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.browserAccess.unavailable': 'Browser access is unavailable in this app.',
 	'terminal.settings.categories.browserAccess': 'Browser access',
 	'terminal.settings.categories.ghosttyMigration': 'Ghostty migration',
+	'terminal.settings.categories.macosInput': 'macOS input',
 	'terminal.settings.categories.remoteDevelopment': 'Remote development',
 	'terminal.settings.categories.shellIntegration': 'Shell integration',
 	'terminal.settings.categories.terminal': 'Terminal',
@@ -39,6 +40,17 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.colors.foreground.invalid': 'Enter a color in #RRGGBB format.',
 	'terminal.settings.colors.foreground.label': 'Foreground color',
 	'terminal.settings.description': 'Customize the application and terminal appearance.',
+	'terminal.settings.macosInput.description':
+		'Choose how macOS keyboard input is sent to terminal programs on this Mac.',
+	'terminal.settings.macosInput.optionAsAlt.both': 'Both Option keys',
+	'terminal.settings.macosInput.optionAsAlt.description':
+		'For the selected side, Option sends terminal Alt combinations instead of macOS special characters. Existing terminals update immediately.',
+	'terminal.settings.macosInput.optionAsAlt.label': 'Use Option as Alt',
+	'terminal.settings.macosInput.optionAsAlt.left': 'Left Option only',
+	'terminal.settings.macosInput.optionAsAlt.off': 'Off — type macOS special characters',
+	'terminal.settings.macosInput.optionAsAlt.right': 'Right Option only',
+	'terminal.settings.macosInput.sections.optionKey': 'Option key',
+	'terminal.settings.macosInput.title': 'macOS input',
 	'terminal.settings.ghosttyMigration.actions.analyze': 'Analyze configuration',
 	'terminal.settings.ghosttyMigration.actions.clear': 'Clear',
 	'terminal.settings.ghosttyMigration.description':

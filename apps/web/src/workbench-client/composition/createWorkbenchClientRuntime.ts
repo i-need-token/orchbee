@@ -29,6 +29,10 @@ import type { TerminalProjectionClient } from '../terminal-projection';
 import { WorkbenchDocumentCoordinator } from '../workbench-document-control';
 import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
+import {
+	DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
+	type TerminalInputConfigurationSource,
+} from '../../terminal-input-configuration';
 
 export interface WorkbenchClientRuntime {
 	readonly actionRuntime: ActionRuntime;
@@ -51,6 +55,7 @@ export interface CreateWorkbenchClientRuntimeOptions {
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalPlatformEffects?: ProjectedTerminalPlatformEffects;
 	readonly terminalFileDropCapability?: TerminalFileDropCapability;
+	readonly terminalInputConfigurationSource?: TerminalInputConfigurationSource;
 	readonly terminalCompletionReminderObserver?: TerminalCompletionReminderObserver;
 	readonly terminalPresentationConfigurationSource?: TerminalPresentationConfigurationSource;
 }
@@ -64,6 +69,7 @@ export function createWorkbenchClientRuntime({
 	shortcutPlatform,
 	terminalPlatformEffects = {},
 	terminalFileDropCapability,
+	terminalInputConfigurationSource = DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 	terminalCompletionReminderObserver,
 	terminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 }: CreateWorkbenchClientRuntimeOptions): WorkbenchClientRuntime {
@@ -106,6 +112,7 @@ export function createWorkbenchClientRuntime({
 		...(terminalCompletionReminderObserver === undefined
 			? {}
 			: { terminalCompletionReminderObserver }),
+		inputConfigurationSource: terminalInputConfigurationSource,
 		presentationConfigurationSource: terminalPresentationConfigurationSource,
 		projectionClient,
 		...(shortcutBindingSource === undefined ? {} : { shortcutBindingSource }),

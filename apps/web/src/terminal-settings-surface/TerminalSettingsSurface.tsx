@@ -5,6 +5,7 @@ import * as React from 'react';
 import { EmptyResults } from './components/empty-results/EmptyResults';
 import { GhosttyMigrationSettings } from './components/ghostty-migration-settings/GhosttyMigrationSettings';
 import { KeyboardShortcutSettings } from './components/keyboard-shortcut-settings/KeyboardShortcutSettings';
+import { MacosTerminalInputSettings } from './components/macos-terminal-input-settings/MacosTerminalInputSettings';
 import { RemoteDevelopmentSettings } from './components/remote-development-settings/RemoteDevelopmentSettings';
 import { ShellIntegrationSettings } from './components/shell-integration-settings/ShellIntegrationSettings';
 import { TerminalSettingsSections } from './components/terminal-settings-sections/TerminalSettingsSections';
@@ -12,12 +13,14 @@ import { useTerminalSettingsSurface } from './hooks/useTerminalSettingsSurface';
 import type { TerminalSettingsController } from '../terminal-settings';
 import type { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
+import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
 import styles from './TerminalSettingsSurface.module.css';
 
 export interface TerminalSettingsSurfaceProps {
 	readonly controller: TerminalSettingsController;
 	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
 	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
+	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly onRequestClose: () => void;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
@@ -41,6 +44,16 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 			<GhosttyMigrationSettings />
 		) : (
 			<EmptyResults message={view.messages.noResults} />
+		);
+	} else if (
+		view.category === 'macos-input' &&
+		props.macosTerminalInputSettingsController !== undefined
+	) {
+		mainContent = (
+			<MacosTerminalInputSettings
+				controller={props.macosTerminalInputSettingsController}
+				query={view.query}
+			/>
 		);
 	} else if (view.category === 'browser-access') {
 		mainContent = view.browserAccessVisible ? (
@@ -85,6 +98,10 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		case 'keyboard-shortcuts':
 			contentTitle = view.messages.keyboardShortcutsTitle;
 			contentDescription = view.messages.keyboardShortcutsDescription;
+			break;
+		case 'macos-input':
+			contentTitle = view.messages.macosInputTitle;
+			contentDescription = view.messages.macosInputDescription;
 			break;
 		case 'ghostty-migration':
 			contentTitle = view.messages.ghosttyMigrationTitle;
@@ -153,6 +170,19 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 						<ProductIcon name='action' />
 						{view.messages.keyboardShortcutsCategory}
 					</button>
+					{view.showMacosInputCategory ? (
+						<button
+							aria-current={view.category === 'macos-input' ? 'page' : undefined}
+							className={styles['category']}
+							data-selected={view.category === 'macos-input'}
+							data-settings-category='macos-input'
+							type='button'
+							onClick={view.onMacosInputCategoryClick}
+						>
+							<ProductIcon name='action' />
+							{view.messages.macosInputCategory}
+						</button>
+					) : null}
 					<button
 						aria-current={view.category === 'remote-development' ? 'page' : undefined}
 						className={styles['category']}

@@ -57,6 +57,9 @@ The accepted contract requires these externally visible properties:
   an input-capable attachment. Clear erases and homes the active screen without changing its modes;
   reset returns to a fresh primary-screen state. Neither operation writes escape bytes to the child
   or asks a projected client to emulate VT behavior.
+- A semantic key event may mark one macOS Option chord as terminal Alt. The Host applies that intent
+  to Ghostty's authoritative encoder for the current terminal modes; it never treats the renderer's
+  layout-produced special character as an already encoded terminal byte sequence.
 - Each Ghostty bell advances one terminal-owned sequence. A read-capable attachment receives only
   later bells, once per committed event record; reconnect does not replay earlier bell intent.
 - OSC 52 can publish one bounded plain-text write intent to one read-capable attachment, but never

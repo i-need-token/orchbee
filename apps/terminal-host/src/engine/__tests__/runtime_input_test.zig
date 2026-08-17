@@ -1254,6 +1254,40 @@ test "maximum key text uses the negotiated encoded-byte limit" {
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
     try runtime.forceTerminate();
 }
+test "macOS Option-as-Alt intent uses authoritative terminal encoding modes" {
+    const builtin = @import("builtin");
+    if (builtin.os.tag != .macos) return error.SkipZigTest;
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+    parseTerminalInput(runtime, "\x1b[?1036h");
+
+    const base: subject.KeyInput = .{
+        .action = .press,
+        .composing = false,
+        .consumed_modifiers = .{},
+        .key = "KeyB",
+        .modifiers = .{ .alt = true },
+        .text = "∫",
+        .unshifted_codepoint = 'b',
+    };
+    var unicode = try runtime.prepareKeyInput(base, std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(u8, "∫", unicode.bytes.?);
+    unicode.deinit();
+
+    var terminal_alt = try runtime.prepareKeyInput(.{
+        .action = base.action,
+        .composing = base.composing,
+        .consumed_modifiers = base.consumed_modifiers,
+        .key = base.key,
+        .modifiers = base.modifiers,
+        .option_as_alt = true,
+        .text = base.text,
+        .unshifted_codepoint = base.unshifted_codepoint,
+    }, std.math.maxInt(usize));
+    try std.testing.expectEqualSlices(u8, "\x1bb", terminal_alt.bytes.?);
+    terminal_alt.deinit();
+    try runtime.forceTerminate();
+}
 test "every admitted mouse button has a normal SGR encoding" {
     const runtime = try createIdleRuntime(.{
         .cell_pixel_height = 16,

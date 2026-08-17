@@ -3,11 +3,14 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const expectedRuntimeExports = [
+	'DEFAULT_TERMINAL_INPUT_CONFIGURATION',
 	'DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION',
 	'ProjectedHistoryPhase',
 	'ProjectedTerminal',
 	'ProjectedTerminalPhase',
 	'TerminalBufferRowDetail',
+	'TerminalOptionAsAltMode',
+	'isTerminalOptionAsAltMode',
 	'normalizeTerminalPresentationConfiguration',
 ];
 

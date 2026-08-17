@@ -1,6 +1,7 @@
 export { applicationRoutingMessages } from './application-routing';
 export { desktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 export { desktopBrowserAccessMessages } from './desktop-browser-access';
+export { desktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 export { desktopWindowMessages } from './desktop-window';
 export { keyboardShortcutMessages } from './keyboard-shortcuts';
 export { projectedTerminalMessages } from './projected-terminal';

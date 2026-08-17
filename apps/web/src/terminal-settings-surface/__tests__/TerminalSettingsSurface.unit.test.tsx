@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
+import type { TerminalInputConfiguration } from '@orchbee/terminal';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { TerminalSettingsSurface } from '../TerminalSettingsSurface';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
+import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 import {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	TerminalSettingsController,
@@ -122,6 +124,62 @@ describe('TerminalSettingsSurface', () => {
 		container.remove();
 		controller.dispose();
 		keyboardShortcutController.dispose();
+	});
+
+	it('exposes a Desktop macOS-only Option-as-Alt preference and applies it live', async () => {
+		const container = document.createElement('div');
+		document.body.append(container);
+		const storage = memoryStorage();
+		const controller = new TerminalSettingsController({
+			storage,
+			themeTarget: document.documentElement,
+		});
+		const keyboardShortcutController = new KeyboardShortcutSettingsController({
+			platform: 'apple',
+			storage,
+		});
+		const macosTerminalInputSettingsController = new MacosTerminalInputSettingsController(storage);
+		const inputListener = vi.fn<(configuration: TerminalInputConfiguration) => void>();
+		macosTerminalInputSettingsController.subscribe(inputListener);
+		controller.open();
+		const root = createRoot(container);
+
+		await act(async () => {
+			root.render(
+				createElement(
+					OrchbeeI18nProvider,
+					{ locale: 'en-US' },
+					createElement(TerminalSettingsSurface, {
+						controller,
+						keyboardShortcutController,
+						keyboardShortcutPlatform: 'apple',
+						macosTerminalInputSettingsController,
+						onRequestClose: () => undefined,
+					}),
+				),
+			);
+		});
+
+		const macosInputCategory = requiredElement<HTMLButtonElement>(
+			container.querySelector("button[data-settings-category='macos-input']"),
+		);
+		await act(async () => macosInputCategory.click());
+		const optionAsAlt = requiredElement<HTMLSelectElement>(
+			container.querySelector("select[aria-label='Use Option as Alt']"),
+		);
+		expect(optionAsAlt.value).toBe('off');
+		await act(async () => {
+			optionAsAlt.value = 'right';
+			optionAsAlt.dispatchEvent(new Event('change', { bubbles: true }));
+		});
+		expect(macosTerminalInputSettingsController.current()).toEqual({ optionAsAlt: 'right' });
+		expect(inputListener).toHaveBeenCalledWith({ optionAsAlt: 'right' });
+
+		await act(async () => root.unmount());
+		container.remove();
+		controller.dispose();
+		keyboardShortcutController.dispose();
+		macosTerminalInputSettingsController.dispose();
 	});
 
 	it('validates draft values and opens the Desktop-only Browser access capability', async () => {
@@ -374,6 +432,7 @@ describe('TerminalSettingsSurface', () => {
 				source,
 				[
 					'font-family = JetBrains Mono',
+					'macos-option-as-alt = right',
 					'font-size = 13.5',
 					'background = #abc',
 					'theme = light:Day,dark:Night',
@@ -393,12 +452,13 @@ describe('TerminalSettingsSurface', () => {
 		const report = requiredElement<HTMLElement>(
 			container.querySelector("section[aria-labelledby='ghostty-migration-report-title']"),
 		);
-		expect(report.textContent).toContain('Can carry over2');
+		expect(report.textContent).toContain('Can carry over3');
 		expect(report.textContent).toContain('Review manually2');
 		expect(report.textContent).toContain('Not migrated1');
 		expect(report.textContent).toContain('Needs correction1');
 		expect(report.textContent).toContain('Terminal font familyJetBrains Mono');
 		expect(report.textContent).toContain('Background color#aabbcc');
+		expect(report.textContent).toContain('Use Option as AltRight Option only');
 		expect(controller.getSnapshot().preferences).toBe(initialPreferences);
 		expect(storage.setItem).not.toHaveBeenCalled();
 

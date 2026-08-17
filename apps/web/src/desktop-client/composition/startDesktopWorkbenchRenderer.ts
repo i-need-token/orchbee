@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
+import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 import { TerminalSettingsController } from '../../terminal-settings';
 import {
 	createBrowserTerminalNotificationCapability,
@@ -62,6 +63,8 @@ export function startDesktopWorkbenchRenderer(
 		platform: shortcutPlatform,
 		storage,
 	});
+	const macosTerminalInputSettingsController =
+		shortcutPlatform === 'apple' ? new MacosTerminalInputSettingsController(storage) : undefined;
 	const terminalSettingsController = new TerminalSettingsController({
 		storage,
 		themeTarget: documentElement,
@@ -82,6 +85,9 @@ export function startDesktopWorkbenchRenderer(
 		shortcutPlatform,
 		terminalPresentationConfigurationSource: terminalSettingsController,
 		terminalCompletionReminderObserver: terminalFeedbackSettingsController,
+		...(macosTerminalInputSettingsController === undefined
+			? {}
+			: { terminalInputConfigurationSource: macosTerminalInputSettingsController }),
 		...(terminalFileDropCapability === undefined ? {} : { terminalFileDropCapability }),
 	});
 	let applicationLifetimeCoordinator: DesktopApplicationLifetimeCoordinator | undefined;
@@ -105,6 +111,7 @@ export function startDesktopWorkbenchRenderer(
 		keyboardShortcutSettingsController.dispose();
 		terminalSettingsController.dispose();
 		terminalFeedbackSettingsController.dispose();
+		macosTerminalInputSettingsController?.dispose();
 		if (lifetimeClient === undefined) lifetimePort.close();
 		else lifetimeClient.dispose();
 	};
@@ -136,6 +143,7 @@ export function startDesktopWorkbenchRenderer(
 			actionRuntime: workbenchClientRuntime.actionRuntime,
 			keyboardShortcutSettingsController,
 			layoutStorage: storage,
+			macosTerminalInputSettingsController,
 			projectWorkspaceRuntime: workbenchClientRuntime.projectWorkspaceRuntime,
 			requestBrowserAccess: (returnFocus) => {
 				browserAccessReturnFocus = returnFocus;

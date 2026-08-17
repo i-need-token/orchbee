@@ -1,7 +1,12 @@
 import path from 'node:path';
 import { hostname } from 'node:os';
 
-import { createOrchbeeIntl, desktopWindowMessages, resolveOrchbeeLocale } from '@orchbee/i18n';
+import {
+	createOrchbeeIntl,
+	desktopSecureKeyboardEntryMessages,
+	desktopWindowMessages,
+	resolveOrchbeeLocale,
+} from '@orchbee/i18n';
 import { app, net, protocol } from 'electron';
 
 import {
@@ -14,12 +19,21 @@ import {
 	installDesktopRendererScheme,
 	registerDesktopRendererScheme,
 } from '../desktop-renderer-protocol';
-import { DesktopWindowActions, installDesktopWindowActionMenu } from '../window-actions';
+import { installDesktopApplicationMenu } from '../application-menu';
+import {
+	DesktopSecureKeyboardEntry,
+	DesktopSecureKeyboardEntryActions,
+} from '../secure-keyboard-entry';
+import { DesktopWindowActions } from '../window-actions';
 import { DesktopApplication } from './DesktopApplication';
 import { resolveDesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 
 let desktopApplication: DesktopApplication | undefined;
-let desktopWindowActionMenu: ReturnType<typeof installDesktopWindowActionMenu> | undefined;
+let desktopApplicationMenu: ReturnType<typeof installDesktopApplicationMenu> | undefined;
+let desktopSecureKeyboardEntry: DesktopSecureKeyboardEntry | undefined;
+let desktopSecureKeyboardEntryActions: DesktopSecureKeyboardEntryActions | undefined;
+let desktopSecureKeyboardEntryBlurListener: (() => void) | undefined;
+let desktopSecureKeyboardEntryFocusListener: (() => void) | undefined;
 let desktopWindowActions: DesktopWindowActions | undefined;
 let developmentRestartPlanStore: DesktopDevelopmentRestartPlanStore | undefined;
 let bypassQuitGate = false;
@@ -110,12 +124,40 @@ if (!singleInstanceLockOwned) {
 			await desktopApplication.start();
 			const intl = createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages()));
 			desktopWindowActions = new DesktopWindowActions(desktopApplication);
-			desktopWindowActionMenu = installDesktopWindowActionMenu(
-				desktopWindowActions,
+			desktopSecureKeyboardEntry = new DesktopSecureKeyboardEntry(
+				process.platform,
 				{
-					category: intl.formatMessage(desktopWindowMessages.category),
+					isEnabled: () => app.isSecureKeyboardEntryEnabled(),
+					setEnabled: (enabled) => app.setSecureKeyboardEntryEnabled(enabled),
+				},
+				process.platform === 'darwin' && app.isActive(),
+			);
+			desktopSecureKeyboardEntryActions = new DesktopSecureKeyboardEntryActions(
+				desktopSecureKeyboardEntry,
+			);
+			desktopSecureKeyboardEntryFocusListener = () => desktopSecureKeyboardEntry?.activate();
+			desktopSecureKeyboardEntryBlurListener = () => desktopSecureKeyboardEntry?.deactivate();
+			app.on('browser-window-focus', desktopSecureKeyboardEntryFocusListener);
+			app.on('browser-window-blur', desktopSecureKeyboardEntryBlurListener);
+			const windowActions = desktopWindowActions;
+			const secureKeyboardEntryActions = desktopSecureKeyboardEntryActions;
+			desktopApplicationMenu = installDesktopApplicationMenu(
+				{
+					getSecureKeyboardEntryAvailability: () =>
+						secureKeyboardEntryActions.getToggleAvailability(),
+					getToggleFullScreenAvailability: () => windowActions.getToggleFullScreenAvailability(),
+					getToggleMaximizedAvailability: () => windowActions.getToggleMaximizedAvailability(),
+					invokeToggleFullScreen: (source) => windowActions.invokeToggleFullScreen(source),
+					invokeToggleMaximized: (source) => windowActions.invokeToggleMaximized(source),
+					invokeToggleSecureKeyboardEntry: (source) =>
+						secureKeyboardEntryActions.invokeToggle(source),
+				},
+				{
+					secureKeyboardEntry: intl.formatMessage(desktopSecureKeyboardEntryMessages.toggle),
+					securityCategory: intl.formatMessage(desktopSecureKeyboardEntryMessages.category),
 					toggleFullScreen: intl.formatMessage(desktopWindowMessages.toggleFullScreen),
 					toggleMaximized: intl.formatMessage(desktopWindowMessages.toggleMaximized),
+					windowCategory: intl.formatMessage(desktopWindowMessages.category),
 				},
 				process.platform,
 			);
@@ -166,8 +208,20 @@ app.on('window-all-closed', () => {
 });
 
 app.once('will-quit', () => {
-	desktopWindowActionMenu?.dispose();
-	desktopWindowActionMenu = undefined;
+	if (desktopSecureKeyboardEntryFocusListener !== undefined) {
+		app.off('browser-window-focus', desktopSecureKeyboardEntryFocusListener);
+		desktopSecureKeyboardEntryFocusListener = undefined;
+	}
+	if (desktopSecureKeyboardEntryBlurListener !== undefined) {
+		app.off('browser-window-blur', desktopSecureKeyboardEntryBlurListener);
+		desktopSecureKeyboardEntryBlurListener = undefined;
+	}
+	desktopApplicationMenu?.dispose();
+	desktopApplicationMenu = undefined;
+	desktopSecureKeyboardEntryActions?.dispose();
+	desktopSecureKeyboardEntryActions = undefined;
 	desktopWindowActions?.dispose();
 	desktopWindowActions = undefined;
+	desktopSecureKeyboardEntry?.dispose();
+	desktopSecureKeyboardEntry = undefined;
 });

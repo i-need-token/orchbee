@@ -1,6 +1,7 @@
 export { zhCNApplicationRoutingMessages } from './application-routing';
 export { zhCNDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 export { zhCNDesktopBrowserAccessMessages } from './desktop-browser-access';
+export { zhCNDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 export { zhCNDesktopWindowMessages } from './desktop-window';
 export { zhCNKeyboardShortcutMessages } from './keyboard-shortcuts';
 export { zhCNProjectedTerminalMessages } from './projected-terminal';

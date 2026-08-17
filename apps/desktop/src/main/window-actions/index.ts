@@ -1,2 +1,1 @@
-export { DesktopWindowActions } from './DesktopWindowActions';
-export { installDesktopWindowActionMenu } from './installDesktopWindowActionMenu';
+export { DesktopWindowActions, type DesktopWindowActionSource } from './DesktopWindowActions';

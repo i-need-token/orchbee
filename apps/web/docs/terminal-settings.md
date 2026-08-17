@@ -2,11 +2,12 @@
 
 ## Ownership and scope
 
-`@orchbee/web` owns separate local terminal-appearance and terminal-feedback preference records,
-their Browser storage codecs, the Settings overlay, and the stable client-side sources observed by
-projected terminal attachments. The records are local to one Browser origin or Desktop renderer
-user-data partition. They are not part of the shared Workbench document and are never sent to a
-Host, Gateway, or remote terminal.
+`@orchbee/web` owns separate local terminal-appearance, terminal-feedback, and macOS terminal-input
+preference records, their Browser storage codecs, the Settings overlay, and the stable client-side
+sources observed by projected terminal attachments. The records are local to one Browser origin or
+Desktop renderer user-data partition. They are not part of the shared Workbench document and are
+never sent to a Gateway or remote terminal. Only the per-key semantic Option-as-Alt decision crosses
+the Host protocol; the stored preference does not.
 
 `@orchbee/terminal` owns the source-neutral renderer contract that consumes the derived complete
 presentation configuration. Host frame metadata remains authoritative for terminal palette,
@@ -64,6 +65,21 @@ custom pair:
 Changing among Host, Light, and Dark retains the Custom values. Custom color controls are editable
 only while Custom is selected. Application theme changes `data-theme` only and never publish a
 terminal presentation update. Terminal settings never change `data-theme`.
+
+## macOS Option-as-Alt preference
+
+The Desktop renderer on macOS additionally owns `orchbee:web:macos-terminal-input:v1`. The strict
+record contains only `optionAsAlt: 'off' | 'left' | 'right' | 'both'`; `off` is the product default.
+Browser, Gateway, Windows, and Linux compositions do not expose the category and retain the default.
+Invalid or unreadable records fail to `off`, while a failed write keeps the accepted session value
+and shows the existing persistence warning.
+
+The client tracks physical `AltLeft` and `AltRight` ownership and resolves the selected side for
+each admitted key event. It does not rewrite committed text or guess from the character produced by
+the macOS layout. A complete input-configuration source updates every mounted projected terminal
+immediately without replacing its attachment. `KeyInput.optionAsAlt` then carries only that event's
+semantic decision; Terminal Host remains responsible for Ghostty's mode-dependent legacy,
+modifyOtherKeys, and Kitty keyboard encoding.
 
 ## Read, commit, and recovery model
 
@@ -234,13 +250,14 @@ Every non-empty, non-comment line produces exactly one source-ordered finding:
 
 Only these final effective values can be Supported:
 
-| Ghostty key          | Orchbee target       | Supported source values                                                                                          |
-| -------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `font-family`        | Terminal font family | Exactly one active non-empty family of at most 256 characters without a CSS list delimiter                       |
-| `font-size`          | Terminal font size   | A decimal value that is an integer from 8 through 48                                                             |
-| `foreground`         | Custom foreground    | Three- or six-digit hexadecimal RGB, with or without `#`; requires Custom display theme                          |
-| `background`         | Custom background    | Three- or six-digit hexadecimal RGB, with or without `#`; requires Custom display theme                          |
-| `background-opacity` | Background opacity   | A value from 0.1 through 1 whose percentage is an integer, unless effective `background-opacity-cells` is `true` |
+| Ghostty key           | Orchbee target       | Supported source values                                                                                          |
+| --------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `font-family`         | Terminal font family | Exactly one active non-empty family of at most 256 characters without a CSS list delimiter                       |
+| `font-size`           | Terminal font size   | A decimal value that is an integer from 8 through 48                                                             |
+| `foreground`          | Custom foreground    | Three- or six-digit hexadecimal RGB, with or without `#`; requires Custom display theme                          |
+| `background`          | Custom background    | Three- or six-digit hexadecimal RGB, with or without `#`; requires Custom display theme                          |
+| `background-opacity`  | Background opacity   | A value from 0.1 through 1 whose percentage is an integer, unless effective `background-opacity-cells` is `true` |
+| `macos-option-as-alt` | Use Option as Alt    | `false`, `true`, `left`, or `right`, mapped to Off, Both, Left, or Right                                         |
 
 Later supported scalar assignments supersede earlier accepted assignments for the same key within
 the pasted text. `font-family` retains Ghostty's empty-value reset and repeatable fallback-list
@@ -263,6 +280,9 @@ not claims about Ghostty's byte limits.
   success, Reset repair, and healthy no-op behavior.
 - Source tests prove complete single publication, application-theme isolation, terminal-setting
   isolation, stable subscription, and disposal.
+- macOS input tests cover strict storage recovery, all four Option-side values, live source
+  publication, physical-side resolution, mounted-terminal updates, and Host encoding with the
+  semantic flag both disabled and enabled.
 - Renderer tests cover Host and override modes, explicit black/RGB/palette, inverse, underline,
   cursor, Canvas 2D and WebGPU alpha, and unchanged Host metadata.
 - Component tests cover both locales, search and empty results, invalid drafts, immediate updates,

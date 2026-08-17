@@ -15,6 +15,7 @@ import {
 } from '../keyboard-shortcuts';
 import type { TerminalSettingsController } from '../terminal-settings';
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
+import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
 import { TerminalSettingsSurface } from '../terminal-settings-surface';
 import { useWebApplication } from './hooks/useWebApplication';
 import styles from './WebApplication.module.css';
@@ -23,6 +24,7 @@ export interface WebApplicationProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly keyboardShortcutSettingsController: KeyboardShortcutSettingsController;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
+	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
@@ -36,6 +38,7 @@ export function WebApplication({
 	actionRuntime,
 	keyboardShortcutSettingsController,
 	layoutStorage,
+	macosTerminalInputSettingsController,
 	navigation,
 	projectWorkspaceRuntime,
 	requestBrowserAccess,
@@ -68,6 +71,7 @@ export function WebApplication({
 				controller={terminalSettingsController}
 				keyboardShortcutController={keyboardShortcutSettingsController}
 				keyboardShortcutPlatform={shortcutPlatform}
+				macosTerminalInputSettingsController={macosTerminalInputSettingsController}
 				onRequestClose={view.closeSettings}
 				requestBrowserAccess={requestBrowserAccess}
 				terminalFeedbackSettingsController={terminalFeedbackSettingsController}

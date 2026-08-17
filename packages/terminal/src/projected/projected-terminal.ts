@@ -100,6 +100,11 @@ import {
 	type HistoryScrollbarProjection,
 } from '../history-scrollbar';
 import {
+	DEFAULT_TERMINAL_INPUT_CONFIGURATION,
+	type TerminalInputConfiguration,
+	type TerminalOptionAsAltMode,
+} from '../input-configuration';
+import {
 	type RendererFrameTelemetry,
 	type RendererHealthEvent,
 	type PreparedTerminalPresentationConfiguration,
@@ -279,6 +284,7 @@ export interface ProjectedTerminalOptions {
 	readonly copyOnSelect?: boolean;
 	readonly creationId: CreationId;
 	readonly hostEpoch: HostEpoch;
+	readonly inputConfiguration?: TerminalInputConfiguration;
 	readonly inputEnabled?: boolean;
 	readonly labels: ProjectedTerminalLabels;
 	readonly port: ProjectedTerminalCommandPort;
@@ -429,6 +435,7 @@ interface KeyFacts {
 	readonly consumedModifiers: TerminalModifiers;
 	readonly key: TerminalKeyCodeValue;
 	readonly modifiers: TerminalModifiers;
+	readonly optionAsAlt: boolean;
 	readonly text: string;
 	readonly unshiftedCodepoint: number;
 }
@@ -686,6 +693,7 @@ export class ProjectedTerminal {
 	#historyTotalRows = 0n;
 	#historyRowsBefore = 0;
 	#inputEnabled: boolean;
+	#optionAsAltMode: TerminalOptionAsAltMode;
 	#input: HTMLTextAreaElement | undefined;
 	#inputAdmission: ProjectedInputAdmission = ProjectedInputAdmission.accepting;
 	#inputFocused = false;
@@ -775,6 +783,8 @@ export class ProjectedTerminal {
 		this.#store = new PackedTerminalStore(options.hostEpoch, options.attachmentId);
 		this.#terminalId = options.terminalId;
 		this.#inputEnabled = options.inputEnabled !== false;
+		this.#optionAsAltMode =
+			options.inputConfiguration?.optionAsAlt ?? DEFAULT_TERMINAL_INPUT_CONFIGURATION.optionAsAlt;
 		this.#selection = { attachmentId: options.attachmentId, state: 'none' };
 		this.#copyOnSelect = options.copyOnSelect ?? true;
 		this.#ownsResizeLease = options.canResize === true;
@@ -818,6 +828,11 @@ export class ProjectedTerminal {
 
 	get copyOnSelect(): boolean {
 		return this.#copyOnSelect;
+	}
+
+	setOptionAsAltMode(mode: TerminalOptionAsAltMode): void {
+		if (this.#isDisposed()) return;
+		this.#optionAsAltMode = mode;
 	}
 
 	readonly onError: IEvent<ProjectedTerminalErrorEvent> = this.#errorEmitter.event;
@@ -3609,9 +3624,26 @@ export class ProjectedTerminal {
 			consumedModifiers,
 			key: code,
 			modifiers,
+			optionAsAlt: this.#optionIsAlt(modifiers),
 			text,
 			unshiftedCodepoint,
 		};
+	}
+
+	#optionIsAlt(modifiers: TerminalModifiers): boolean {
+		if (this.#surfaceMousePlatform !== 'macos' || !modifiers.alt) return false;
+		const leftPressed = this.#pressedModifierCodes.has('AltLeft');
+		const rightPressed = this.#pressedModifierCodes.has('AltRight');
+		switch (this.#optionAsAltMode) {
+			case 'both':
+				return true;
+			case 'left':
+				return leftPressed || (!rightPressed && !modifiers.altRight);
+			case 'off':
+				return false;
+			case 'right':
+				return rightPressed || modifiers.altRight;
+		}
 	}
 
 	#modifiers(event: KeyboardEvent | MouseEvent): TerminalModifiers {
@@ -3631,7 +3663,7 @@ export class ProjectedTerminal {
 
 	#trackModifier(code: string, pressed: boolean): void {
 		code = normalizedKeyboardCode(code);
-		if (!['AltRight', 'ControlRight', 'MetaRight', 'ShiftRight'].includes(code)) return;
+		if (!['AltLeft', 'AltRight', 'ControlRight', 'MetaRight', 'ShiftRight'].includes(code)) return;
 		if (pressed) this.#pressedModifierCodes.add(code);
 		else this.#pressedModifierCodes.delete(code);
 	}
@@ -3957,6 +3989,7 @@ export class ProjectedTerminal {
 			consumedModifiers: emptyModifiers(),
 			key,
 			modifiers,
+			optionAsAlt: false,
 			text,
 			unshiftedCodepoint,
 		};

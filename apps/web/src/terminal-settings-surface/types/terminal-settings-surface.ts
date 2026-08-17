@@ -4,11 +4,13 @@ import type {
 	TerminalSettingsController,
 } from '../../terminal-settings';
 import type { TerminalFeedbackSettingsController } from '../../terminal-feedback-settings';
+import type { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 
 type TerminalSettingsCategory =
 	| 'browser-access'
 	| 'ghostty-migration'
 	| 'keyboard-shortcuts'
+	| 'macos-input'
 	| 'remote-development'
 	| 'shell-integration'
 	| 'terminal';
@@ -47,6 +49,9 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly keyboardShortcutsCategory: string;
 	readonly keyboardShortcutsDescription: string;
 	readonly keyboardShortcutsTitle: string;
+	readonly macosInputCategory: string;
+	readonly macosInputDescription: string;
+	readonly macosInputTitle: string;
 	readonly noResults: string;
 	readonly openBrowserAccess: string;
 	readonly persistenceInvalidWarning: string;
@@ -83,6 +88,7 @@ export interface TerminalSettingsSurfaceMessages {
 
 export interface UseTerminalSettingsSurfaceOptions {
 	readonly controller: TerminalSettingsController;
+	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly onRequestClose: () => void;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
@@ -128,6 +134,7 @@ export interface TerminalSettingsSurfaceView {
 	readonly onForegroundInputBlur: React.FocusEventHandler<HTMLInputElement>;
 	readonly onGhosttyMigrationCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onKeyboardShortcutsCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
+	readonly onMacosInputCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onOpenBrowserAccess: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onRemoteDevelopmentCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onRequestClose: React.MouseEventHandler<HTMLButtonElement>;
@@ -145,6 +152,7 @@ export interface TerminalSettingsSurfaceView {
 	readonly resetVisible: boolean;
 	readonly remoteDevelopmentVisible: boolean;
 	readonly showBrowserAccessCategory: boolean;
+	readonly showMacosInputCategory: boolean;
 	readonly showShellIntegrationCategory: boolean;
 	readonly terminalResultCount: number;
 }

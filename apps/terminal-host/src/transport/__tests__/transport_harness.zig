@@ -202,7 +202,7 @@ pub const WindowsTestClient = if (builtin.os.tag != .windows) void else struct {
 
 pub fn expectHandshakeAccepted(client: *TestClient) !void {
     const hello_payload =
-        \\{"clientId":"22222222222222222222222222222222","frameBytes":1024,"inputBytes":1024,"protocol":{"major":0,"minor":0,"patch":9},"rowWindowBytes":1024,"supportedOptionalFeatures":[]}
+        \\{"clientId":"22222222222222222222222222222222","frameBytes":1024,"inputBytes":1024,"protocol":{"major":0,"minor":0,"patch":10},"rowWindowBytes":1024,"supportedOptionalFeatures":[]}
     ;
     const hello = try protocol.encodeTransportEnvelope(
         std.testing.allocator,

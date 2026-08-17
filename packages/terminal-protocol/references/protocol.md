@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                        |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                  |
-| Reference scope | Exact protocol `0.0.9`; OBTF format `0.0.2`; OBKG, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures           |
+| Reference scope | Exact protocol `0.0.10`; OBTF format `0.0.2`; OBKG, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures          |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence            |
 
 ## Modeling record
@@ -39,7 +39,7 @@ identity and are rejected where an identity is required.
 | `AttachmentId`  | One physical-connection-owned attachment carrying negotiated capabilities                                                        |
 | `CorrelationId` | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.9`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.10`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame format is exactly `0.0.2`; OBKG graphics-extension, OBPB projection-buffer, and OBRW
@@ -202,7 +202,11 @@ neither side maintains a business-layer kind-to-format table.
 
 `KeyInput`, `TextInput`, `MouseInput`, `FocusInput`, and `PasteInput` are bounded packed payloads
 prefixed by the same attachment identity. They carry browser-normalized semantic intent, not DOM
-objects or preselected escape sequences. `PasteInput` uses a 24-byte header: the first 16 bytes are
+objects or preselected escape sequences. `KeyInput` byte `16` carries the key action, while byte
+`17` carries composing in bit `0` and the per-event Option-as-Alt intent in bit `1`. The client
+resolves any left/right macOS preference before publication; Terminal Host applies the intent to
+the authoritative Ghostty encoder modes instead of accepting a client-selected escape sequence.
+`PasteInput` uses a 24-byte header: the first 16 bytes are
 the attachment, byte `16` carries the reviewed bracketed-paste expectation in bit `0`, bytes
 `17-19` are reserved zero, and bytes `20-23` carry the little-endian text byte length. Unknown flag
 bits or nonzero reserved bytes are rejected. A mouse press or release always identifies its button.
@@ -237,7 +241,7 @@ travel in terminal frames. Initial resize-lease authority is returned by attachm
 later ownership changes use the attachment-scoped event.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.9.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.10.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical

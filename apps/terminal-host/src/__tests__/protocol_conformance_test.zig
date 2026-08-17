@@ -1478,6 +1478,7 @@ test "canonical TypeScript semantic-input fixtures conform in Zig" {
     try std.testing.expect(!key.consumed_modifiers.shift_right);
     try std.testing.expectEqualStrings("KeyA", key.key);
     try std.testing.expectEqualStrings("A", key.text);
+    try std.testing.expect(key.option_as_alt);
     try std.testing.expectEqual(@as(u21, 'a'), key.unshifted_codepoint);
 
     const decoded_text = try protocol.validateSemanticInput(
@@ -1615,6 +1616,11 @@ test "native semantic-input decoder rejects non-canonical intent with matching e
     defer allocator.free(invalid_action);
     invalid_action[16] = 3;
     try std.testing.expectError(error.InvalidField, protocol.validateKeyInput(invalid_action));
+
+    const unknown_key_flag = try allocator.dupe(u8, key_input_fixture);
+    defer allocator.free(unknown_key_flag);
+    unknown_key_flag[17] |= 1 << 2;
+    try std.testing.expectError(error.UnknownRequiredFlag, protocol.validateKeyInput(unknown_key_flag));
 
     const invalid_key_utf8 = try allocator.dupe(u8, key_input_fixture);
     defer allocator.free(invalid_key_utf8);

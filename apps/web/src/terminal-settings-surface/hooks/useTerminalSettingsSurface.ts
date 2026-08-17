@@ -14,6 +14,7 @@ import type {
 
 export function useTerminalSettingsSurface({
 	controller,
+	macosTerminalInputSettingsController,
 	onRequestClose,
 	requestBrowserAccess,
 	terminalFeedbackSettingsController,
@@ -25,6 +26,7 @@ export function useTerminalSettingsSurface({
 		| 'browser-access'
 		| 'ghostty-migration'
 		| 'keyboard-shortcuts'
+		| 'macos-input'
 		| 'remote-development'
 		| 'shell-integration'
 		| 'terminal'
@@ -107,6 +109,9 @@ export function useTerminalSettingsSurface({
 		keyboardShortcutsCategory: intl.formatMessage(keyboardShortcutMessages.category),
 		keyboardShortcutsDescription: intl.formatMessage(keyboardShortcutMessages.description),
 		keyboardShortcutsTitle: intl.formatMessage(keyboardShortcutMessages.title),
+		macosInputCategory: intl.formatMessage(terminalSettingsMessages.macosInputCategory),
+		macosInputDescription: intl.formatMessage(terminalSettingsMessages.macosInputDescription),
+		macosInputTitle: intl.formatMessage(terminalSettingsMessages.macosInputTitle),
 		noResults: intl.formatMessage(terminalSettingsMessages.noResults),
 		openBrowserAccess: intl.formatMessage(terminalSettingsMessages.openBrowserAccess),
 		persistenceInvalidWarning: intl.formatMessage(
@@ -376,6 +381,7 @@ export function useTerminalSettingsSurface({
 		onForegroundInputBlur: (): void => commitForeground(),
 		onGhosttyMigrationCategoryClick: (): void => setCategory('ghostty-migration'),
 		onKeyboardShortcutsCategoryClick: (): void => setCategory('keyboard-shortcuts'),
+		onMacosInputCategoryClick: (): void => setCategory('macos-input'),
 		onOpenBrowserAccess: (event): void => requestBrowserAccess?.(event.currentTarget),
 		onRemoteDevelopmentCategoryClick: (): void => setCategory('remote-development'),
 		onRequestClose: (): void => onRequestClose(),
@@ -409,6 +415,7 @@ export function useTerminalSettingsSurface({
 		resetVisible,
 		remoteDevelopmentVisible,
 		showBrowserAccessCategory: requestBrowserAccess !== undefined,
+		showMacosInputCategory: macosTerminalInputSettingsController !== undefined,
 		showShellIntegrationCategory: terminalFeedbackSettingsController !== undefined,
 		terminalResultCount,
 	};

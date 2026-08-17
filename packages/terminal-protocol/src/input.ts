@@ -25,7 +25,7 @@ export const FOCUS_INPUT_BYTES = 20;
 
 const MAX_UNICODE_CODEPOINT = 0x10_ffff;
 const MAX_FLOAT32 = 3.4028234663852886e38;
-const KEY_FLAGS_MASK = 0b1;
+const KEY_FLAGS_MASK = 0b11;
 const PASTE_FLAGS_MASK = 0b1;
 const MODIFIER_FLAGS_MASK = 0x03ff;
 const MOUSE_BUTTON_FLAGS_MASK = 0x07ff;
@@ -351,6 +351,7 @@ export const KeyInputSchema = z
 		consumedModifiers: TerminalModifiersSchema,
 		key: keyCodeSchema,
 		modifiers: TerminalModifiersSchema,
+		optionAsAlt: z.boolean(),
 		text: boundedKeyTextSchema,
 		unshiftedCodepoint: unicodeCodepointSchema,
 	})
@@ -632,7 +633,7 @@ export function encodeKeyInput(value: unknown): ProtocolResult<Uint8Array> {
 	const writer = new BinaryWriter(totalLength.value);
 	writer.writeBytes(identifierBytes(parsed.data.attachmentId));
 	writer.writeUint8(keyActionCode(parsed.data.action));
-	writer.writeUint8(parsed.data.composing ? 1 : 0);
+	writer.writeUint8((parsed.data.composing ? 1 : 0) | (parsed.data.optionAsAlt ? 1 << 1 : 0));
 	writer.writeUint16(encodeModifiers(parsed.data.modifiers));
 	writer.writeUint16(encodeModifiers(parsed.data.consumedModifiers));
 	writer.writeUint16(keyBytes.byteLength);
@@ -689,6 +690,7 @@ export function decodeKeyInput(payload: Uint8Array): ProtocolResult<KeyInput> {
 		consumedModifiers: consumedModifiers.value,
 		key: key.data,
 		modifiers: modifiers.value,
+		optionAsAlt: (flags & (1 << 1)) !== 0,
 		text: text.value,
 		unshiftedCodepoint,
 	});

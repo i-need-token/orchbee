@@ -1888,6 +1888,55 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('resolves live macOS Option-as-Alt policy from the pressed physical side', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', { platform: 'MacIntel' });
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			inputConfiguration: { optionAsAlt: 'left' },
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		const sendChord = (side: 'AltLeft' | 'AltRight'): void => {
+			input.dispatch('keydown', keyboardEvent('keydown', side, 'Alt', 18, { altKey: true }));
+			input.dispatch('keydown', keyboardEvent('keydown', 'KeyB', '∫', 66, { altKey: true }));
+			input.dispatch('keyup', keyboardEvent('keyup', 'KeyB', '∫', 66, { altKey: true }));
+			input.dispatch('keyup', keyboardEvent('keyup', side, 'Alt', 18));
+		};
+
+		sendChord('AltLeft');
+		sendChord('AltRight');
+		terminal.setOptionAsAltMode('right');
+		sendChord('AltRight');
+		terminal.setOptionAsAltMode('both');
+		sendChord('AltLeft');
+		terminal.setOptionAsAltMode('off');
+		sendChord('AltRight');
+
+		expect(
+			commands.flatMap((command) =>
+				command.kind === 'key-input' &&
+				command.payload.action === KeyAction.press &&
+				command.payload.key === 'KeyB'
+					? [command.payload.optionAsAlt]
+					: [],
+			),
+		).toEqual([true, false, true, true, false]);
+		terminal.dispose();
+	});
+
 	it('retains Meta-modified terminal input on non-Apple platforms', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);

@@ -5,102 +5,80 @@ import type { KeyboardEvent, Menu, MenuItem, MenuItemConstructorOptions } from '
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-	installDesktopWindowActionMenu,
-	type DesktopWindowActionMenuTarget,
-} from '../installDesktopWindowActionMenu';
+	installDesktopApplicationMenu,
+	type DesktopApplicationMenuTarget,
+} from '../installDesktopApplicationMenu';
 
-const DESKTOP_WINDOW_MENU_ITEM_IDS = {
+const ITEM_IDS = {
+	secureKeyboardEntry: 'desktop-secure-keyboard-entry',
 	toggleFullScreen: 'desktop-window-toggle-full-screen',
 	toggleMaximized: 'desktop-window-toggle-maximized',
 } as const;
 
-describe('installDesktopWindowActionMenu', () => {
-	it('preserves native menu items while replacing window roles with semantic actions', () => {
-		const originalViewSubmenu = fakeMenu([
-			fakeMenuItem({ role: 'reload' }),
-			fakeMenuItem({ role: 'togglefullscreen' }),
-		]);
-		const originalWindowSubmenu = fakeMenu([
-			fakeMenuItem({ role: 'minimize' }),
-			fakeMenuItem({ role: 'zoom' }),
-		]);
-		const viewRoot = fakeMenuItem({ role: 'viewMenu', submenu: originalViewSubmenu });
-		const windowRoot = fakeMenuItem({ role: 'windowMenu', submenu: originalWindowSubmenu });
-		const previousMenu = fakeMenu([viewRoot, windowRoot]);
+const labels = {
+	secureKeyboardEntry: 'Secure Keyboard Entry',
+	securityCategory: 'Input Security',
+	toggleFullScreen: 'Enter / Exit Full Screen',
+	toggleMaximized: 'Maximize / Restore Window',
+	windowCategory: 'Window',
+} as const;
+
+describe('installDesktopApplicationMenu', () => {
+	it('preserves native menu items and composes checked window and macOS security actions', () => {
+		const appRoot = fakeMenuItem({
+			role: 'appMenu',
+			submenu: fakeMenu([fakeMenuItem({ role: 'about' })]),
+		});
+		const viewRoot = fakeMenuItem({
+			role: 'viewMenu',
+			submenu: fakeMenu([
+				fakeMenuItem({ role: 'reload' }),
+				fakeMenuItem({ role: 'togglefullscreen' }),
+			]),
+		});
+		const windowRoot = fakeMenuItem({
+			role: 'windowMenu',
+			submenu: fakeMenu([fakeMenuItem({ role: 'minimize' }), fakeMenuItem({ role: 'zoom' })]),
+		});
+		const previousMenu = fakeMenu([appRoot, viewRoot, windowRoot]);
 		const actions = createActions();
 		const menuApi = createMenuApi(previousMenu);
 
-		const installation = installDesktopWindowActionMenu(
-			actions,
-			{
-				category: 'Window',
-				toggleFullScreen: 'Enter / Exit Full Screen',
-				toggleMaximized: 'Maximize / Restore Window',
-			},
-			'darwin',
-			menuApi,
-		);
-
+		const installation = installDesktopApplicationMenu(actions, labels, 'darwin', menuApi);
 		const installedMenu = menuApi.setApplicationMenu.mock.calls[0]?.[0];
-		const installedViewRoot = installedMenu?.items.find((item) =>
-			Boolean(item.submenu?.getMenuItemById(DESKTOP_WINDOW_MENU_ITEM_IDS.toggleFullScreen)),
-		);
-		const installedWindowRoot = installedMenu?.items.find((item) =>
-			Boolean(item.submenu?.getMenuItemById(DESKTOP_WINDOW_MENU_ITEM_IDS.toggleMaximized)),
-		);
-		expect(installedViewRoot?.submenu?.items.map((item) => item.role ?? item.id)).toEqual([
-			'reload',
-			DESKTOP_WINDOW_MENU_ITEM_IDS.toggleFullScreen,
+		const secureItem = installedMenu?.getMenuItemById(ITEM_IDS.secureKeyboardEntry);
+		const fullScreenItem = installedMenu?.getMenuItemById(ITEM_IDS.toggleFullScreen);
+		const maximizedItem = installedMenu?.getMenuItemById(ITEM_IDS.toggleMaximized);
+		expect(secureItem?.label).toBe('Secure Keyboard Entry');
+		expect(installedMenu?.items[0]?.submenu?.items.map((item) => item.role ?? item.id)).toEqual([
+			'about',
+			ITEM_IDS.secureKeyboardEntry,
 		]);
-		expect(installedWindowRoot?.submenu?.items.map((item) => item.role ?? item.id)).toEqual([
-			'minimize',
-			DESKTOP_WINDOW_MENU_ITEM_IDS.toggleMaximized,
-		]);
-		const fullScreenItem = installedMenu?.getMenuItemById(
-			DESKTOP_WINDOW_MENU_ITEM_IDS.toggleFullScreen,
-		);
-		const maximizedItem = installedMenu?.getMenuItemById(
-			DESKTOP_WINDOW_MENU_ITEM_IDS.toggleMaximized,
-		);
 		expect(fullScreenItem?.accelerator).toBe('Control+Command+F');
 		expect(maximizedItem?.accelerator).toBe('CommandOrControl+Shift+M');
+		secureItem?.click({ triggeredByAccelerator: false }, undefined, undefined);
 		fullScreenItem?.click({ triggeredByAccelerator: true }, undefined, undefined);
 		maximizedItem?.click({ triggeredByAccelerator: false }, undefined, undefined);
+		expect(actions.invokeToggleSecureKeyboardEntry).toHaveBeenCalledWith('menu');
 		expect(actions.invokeToggleFullScreen).toHaveBeenCalledWith('keyboard');
 		expect(actions.invokeToggleMaximized).toHaveBeenCalledWith('menu');
 
-		actions.getToggleFullScreenAvailability.mockReturnValue({
+		actions.getSecureKeyboardEntryAvailability.mockReturnValue({
 			checked: true,
 			kind: 'enabled',
 		});
-		actions.getToggleMaximizedAvailability.mockReturnValue({
-			kind: 'disabled',
-			reason: { id: 'full-screen' },
-		});
-		installedViewRoot?.submenu?.emit('menu-will-show', {});
-		expect(fullScreenItem).toMatchObject({ checked: true, enabled: true });
-		expect(maximizedItem).toMatchObject({ checked: false, enabled: false });
+		installedMenu?.items[0]?.submenu?.emit('menu-will-show', {});
+		expect(secureItem).toMatchObject({ checked: true, enabled: true, visible: true });
 
 		installation.dispose();
-		expect(viewRoot.submenu).toBe(originalViewSubmenu);
-		expect(windowRoot.submenu).toBe(originalWindowSubmenu);
 		expect(menuApi.setApplicationMenu).toHaveBeenLastCalledWith(previousMenu);
 	});
 
-	it('creates platform-native role menus when Electron has not installed one yet', () => {
+	it('omits Secure Keyboard Entry outside macOS', () => {
 		const actions = createActions();
 		const menuApi = createMenuApi(null);
 
-		installDesktopWindowActionMenu(
-			actions,
-			{
-				category: '窗口',
-				toggleFullScreen: '进入 / 退出全屏',
-				toggleMaximized: '最大化 / 还原窗口',
-			},
-			'linux',
-			menuApi,
-		);
+		installDesktopApplicationMenu(actions, labels, 'linux', menuApi);
 
 		const firstTemplate = menuApi.buildFromTemplate.mock.calls[0]?.[0];
 		expect(firstTemplate).toEqual([
@@ -110,25 +88,31 @@ describe('installDesktopWindowActionMenu', () => {
 			{ role: 'windowMenu' },
 		]);
 		const installedMenu = menuApi.setApplicationMenu.mock.calls[0]?.[0];
-		expect(
-			installedMenu?.getMenuItemById(DESKTOP_WINDOW_MENU_ITEM_IDS.toggleFullScreen)?.accelerator,
-		).toBe('F11');
+		expect(installedMenu?.getMenuItemById(ITEM_IDS.secureKeyboardEntry)).toBeNull();
+		expect(actions.getSecureKeyboardEntryAvailability).not.toHaveBeenCalled();
+		expect(installedMenu?.getMenuItemById(ITEM_IDS.toggleFullScreen)?.accelerator).toBe('F11');
 	});
 });
 
 function createActions() {
 	return {
+		getSecureKeyboardEntryAvailability: vi
+			.fn<DesktopApplicationMenuTarget['getSecureKeyboardEntryAvailability']>()
+			.mockReturnValue(enabledAvailability()),
 		getToggleFullScreenAvailability: vi
-			.fn<DesktopWindowActionMenuTarget['getToggleFullScreenAvailability']>()
+			.fn<DesktopApplicationMenuTarget['getToggleFullScreenAvailability']>()
 			.mockReturnValue(enabledAvailability()),
 		getToggleMaximizedAvailability: vi
-			.fn<DesktopWindowActionMenuTarget['getToggleMaximizedAvailability']>()
+			.fn<DesktopApplicationMenuTarget['getToggleMaximizedAvailability']>()
 			.mockReturnValue(enabledAvailability()),
 		invokeToggleFullScreen: vi
-			.fn<DesktopWindowActionMenuTarget['invokeToggleFullScreen']>()
+			.fn<DesktopApplicationMenuTarget['invokeToggleFullScreen']>()
 			.mockReturnValue(true),
 		invokeToggleMaximized: vi
-			.fn<DesktopWindowActionMenuTarget['invokeToggleMaximized']>()
+			.fn<DesktopApplicationMenuTarget['invokeToggleMaximized']>()
+			.mockReturnValue(true),
+		invokeToggleSecureKeyboardEntry: vi
+			.fn<DesktopApplicationMenuTarget['invokeToggleSecureKeyboardEntry']>()
 			.mockReturnValue(true),
 	};
 }
@@ -186,6 +170,7 @@ function fakeMenuItem(options: MenuItemConstructorOptions): MenuItem {
 		role: options.role,
 		submenu,
 		type: options.type ?? 'normal',
+		visible: options.visible ?? true,
 	} as unknown as MenuItem;
 	return item;
 }

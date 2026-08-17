@@ -14,6 +14,7 @@ import type { ProjectedTerminalPlatformEffects } from '../../projected-terminal-
 import type { TerminalProjectionClient } from '../../terminal-projection';
 import type { TerminalFileDropCapability } from '../../../terminal-file-drop';
 import type { TerminalCompletionReminderObserver } from '../../../terminal-feedback-settings';
+import type { TerminalInputConfigurationSource } from '../../../terminal-input-configuration';
 
 export interface ProjectedTerminalSurfaceCapability {
 	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'>;
@@ -25,6 +26,7 @@ export interface ProjectedTerminalSurfaceCapability {
 	readonly terminalFileDropCapability?: TerminalFileDropCapability | undefined;
 	readonly terminalCompletionReminderObserver?: TerminalCompletionReminderObserver | undefined;
 	readonly presentationConfigurationSource: TerminalPresentationConfigurationSource;
+	readonly inputConfigurationSource?: TerminalInputConfigurationSource | undefined;
 	observeTerminalMetadata(
 		presentationId: TerminalPresentationId,
 		metadata: Pick<ProjectedTerminalMetadata, 'closeActivity' | 'currentDirectory' | 'title'>,

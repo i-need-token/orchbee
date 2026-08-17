@@ -269,6 +269,7 @@
 			"shift": true,
 			"shiftRight": true
 		},
+		"optionAsAlt": true,
 		"text": "A",
 		"unshiftedCodepoint": 97
 	},

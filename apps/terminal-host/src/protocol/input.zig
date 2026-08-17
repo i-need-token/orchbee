@@ -126,7 +126,7 @@ pub fn validateKeyInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
     const unshifted_codepoint = try reader.readInt(u32);
     const text_length = try reader.readInt(u32);
     if (!modifiersHaveKnownBits(modifiers) or !modifiersHaveKnownBits(consumed_modifiers) or
-        flags & ~@as(u8, 1) != 0)
+        flags & ~@as(u8, 3) != 0)
     {
         return error.UnknownRequiredFlag;
     }
@@ -163,6 +163,7 @@ pub fn validateKeyInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
             .consumed_modifiers = Modifiers.fromValidatedBits(consumed_modifiers),
             .key = key,
             .modifiers = Modifiers.fromValidatedBits(modifiers),
+            .option_as_alt = flags & (1 << 1) != 0,
             .text = text,
             .unshifted_codepoint = @intCast(unshifted_codepoint),
         } },

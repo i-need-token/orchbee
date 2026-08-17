@@ -2,6 +2,7 @@ import type { OrchbeeMessageId } from '../en-US';
 import { zhCNApplicationRoutingMessages } from './application-routing';
 import { zhCNDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 import { zhCNDesktopBrowserAccessMessages } from './desktop-browser-access';
+import { zhCNDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 import { zhCNDesktopWindowMessages } from './desktop-window';
 import { zhCNKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { zhCNProjectedTerminalMessages } from './projected-terminal';
@@ -12,6 +13,7 @@ export const zhCNMessages = {
 	...zhCNApplicationRoutingMessages,
 	...zhCNDesktopApplicationLifetimeMessages,
 	...zhCNDesktopBrowserAccessMessages,
+	...zhCNDesktopSecureKeyboardEntryMessages,
 	...zhCNDesktopWindowMessages,
 	...zhCNKeyboardShortcutMessages,
 	...zhCNProjectedTerminalMessages,

@@ -72,3 +72,10 @@ export type {
 
 export type { IDisposable, IEvent } from './EventEmitter';
 export type { TerminalOpenTarget } from './terminal-contracts';
+
+export {
+	DEFAULT_TERMINAL_INPUT_CONFIGURATION,
+	isTerminalOptionAsAltMode,
+	TerminalOptionAsAltMode,
+} from './input-configuration';
+export type { TerminalInputConfiguration } from './input-configuration';

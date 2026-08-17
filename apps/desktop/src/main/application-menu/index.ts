@@ -1,0 +1,1 @@
+export { installDesktopApplicationMenu } from './installDesktopApplicationMenu';

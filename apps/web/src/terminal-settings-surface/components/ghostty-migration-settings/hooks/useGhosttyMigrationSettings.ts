@@ -102,6 +102,18 @@ export function useGhosttyMigrationSettings(): GhosttyMigrationSettingsView {
 					label: intl.formatMessage(terminalSettingsMessages.fontSizeLabel),
 					value: intl.formatNumber(target.value),
 				};
+			case 'macos-option-as-alt': {
+				const valueMessage = {
+					both: terminalSettingsMessages.macosOptionAsAltBoth,
+					left: terminalSettingsMessages.macosOptionAsAltLeft,
+					off: terminalSettingsMessages.macosOptionAsAltOff,
+					right: terminalSettingsMessages.macosOptionAsAltRight,
+				}[target.value];
+				return {
+					label: intl.formatMessage(terminalSettingsMessages.macosOptionAsAltLabel),
+					value: intl.formatMessage(valueMessage),
+				};
+			}
 		}
 	};
 	const findingView = (
