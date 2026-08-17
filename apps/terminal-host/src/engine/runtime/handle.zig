@@ -9,6 +9,7 @@ const creation_ops = @import("creation.zig");
 const lifecycle_ops = @import("lifecycle.zig");
 const completion_ops = @import("completion.zig");
 const failure_ops = @import("failure.zig");
+const feedback_ops = @import("feedback.zig");
 const projection_ops = @import("projection.zig");
 const input_handle = @import("input_handle.zig");
 const terminal_control_ops = @import("terminal_control.zig");
@@ -79,6 +80,26 @@ pub const TerminalRuntime = opaque {
 
     pub fn bellSequence(self: *TerminalRuntime) u64 {
         return projection_ops.bellSequence(stateFrom(self));
+    }
+
+    pub fn prepareClipboardWriteRequest(
+        self: *TerminalRuntime,
+    ) !?contracts.PreparedClipboardWriteRequest {
+        return feedback_ops.prepareClipboardWriteRequest(stateFrom(self));
+    }
+
+    pub fn rollbackClipboardWriteRequest(
+        self: *TerminalRuntime,
+        prepared: contracts.PreparedClipboardWriteRequest,
+    ) void {
+        return feedback_ops.rollbackClipboardWriteRequest(stateFrom(self), prepared);
+    }
+
+    pub fn commitClipboardWriteRequest(
+        self: *TerminalRuntime,
+        prepared: contracts.PreparedClipboardWriteRequest,
+    ) void {
+        return feedback_ops.commitClipboardWriteRequest(stateFrom(self), prepared);
     }
 
     pub fn acquireReadCommitGuard(

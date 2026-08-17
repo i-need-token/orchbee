@@ -1,3 +1,5 @@
+import type { ProjectedPasteResult } from '@orchbee/terminal';
+
 import type { ProjectedTerminalRendererSession } from '../../projected-terminal-renderer';
 import type { TerminalProjection, TerminalProjectionRequest } from '../../terminal-projection';
 
@@ -25,6 +27,10 @@ export interface ProjectedTerminalRecoveryControllerOptions {
 		projection: TerminalProjection,
 	) => Promise<ProjectedTerminalRendererSession>;
 }
+
+export type ProjectedTerminalRecoveryFileDropResult =
+	| ProjectedPasteResult
+	| { readonly kind: 'unavailable' };
 
 type RecoveryAttemptSource = 'automatic' | 'initial' | 'manual';
 
@@ -69,6 +75,11 @@ export class ProjectedTerminalRecoveryController {
 		}
 		this.#onStateChange({ attempt: 1, kind: 'recovering' });
 		this.#beginAttempt('manual');
+	}
+
+	async pasteFileDrop(text: string): Promise<ProjectedTerminalRecoveryFileDropResult> {
+		if (this.#disposed || this.#active === undefined) return { kind: 'unavailable' };
+		return await this.#active.session.pasteFileDrop(text);
 	}
 
 	dispose(): void {

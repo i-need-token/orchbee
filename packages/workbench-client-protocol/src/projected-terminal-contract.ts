@@ -26,6 +26,7 @@ import {
 	SetProjectionDemandSchema,
 	TerminalExitedSchema,
 	TerminalBellSchema,
+	TerminalClipboardWriteRequestSchema,
 	TerminalFailedSchema,
 	TerminalIdSchema,
 	TextInputSchema,
@@ -85,6 +86,10 @@ export const ProjectedAttachmentBootstrapSchema = z
 
 export const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('clear-terminal'), payload: ClearTerminalSchema }),
+	z.strictObject({
+		kind: z.literal('clipboard-write-decision'),
+		payload: TerminalClipboardWriteRequestSchema.extend({ approved: z.boolean() }),
+	}),
 	z.strictObject({ kind: z.literal('focus-input'), payload: FocusInputSchema }),
 	z.strictObject({ kind: z.literal('frame-applied'), payload: FrameAppliedSchema }),
 	z.strictObject({ kind: z.literal('key-input'), payload: KeyInputSchema }),
@@ -124,6 +129,7 @@ const ProjectedTerminalFailureSchema = z.strictObject({
 	message: z.string().min(1).max(1024),
 	operation: z
 		.enum([
+			'clipboard',
 			'connection',
 			'control',
 			'copy',
@@ -146,6 +152,10 @@ const ProjectedTerminalBinarySchema = z.union([
 
 export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ event: TerminalBellSchema, kind: z.literal('bell') }),
+	z.strictObject({
+		event: TerminalClipboardWriteRequestSchema,
+		kind: z.literal('clipboard-write-request'),
+	}),
 	z.strictObject({ frame: ProjectedTerminalBinarySchema, kind: z.literal('frame') }),
 	z.strictObject({ event: HistoryChangedSchema, kind: z.literal('history-changed') }),
 	z.strictObject({ event: ResizeLeaseChangedSchema, kind: z.literal('resize-lease-changed') }),

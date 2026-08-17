@@ -3,6 +3,7 @@ const ghostty_vt = @import("ghostty-vt");
 const render_encoding = @import("../render_encoding.zig");
 const contracts = @import("contracts.zig");
 const encoding = @import("encoding.zig");
+const graphics = @import("graphics.zig");
 const links = @import("links.zig");
 
 const max_string_bytes = render_encoding.max_string_bytes;
@@ -27,13 +28,18 @@ pub const Projection = struct {
     captured_scrollback_rows: u64 = 0,
     captured_title: ?[]u8 = null,
     counters: Counters = .{},
+    graphics: graphics.State,
     link_table: LinkTable,
     links: std.ArrayList(LinkRow) = .empty,
     render_state: ?ghostty_vt.RenderState = null,
     row_revisions: std.ArrayList(u64) = .empty,
 
     pub fn init(allocator: std.mem.Allocator) Projection {
-        return .{ .allocator = allocator, .link_table = .init(allocator) };
+        return .{
+            .allocator = allocator,
+            .graphics = .init(allocator),
+            .link_table = .init(allocator),
+        };
     }
 
     pub fn deinit(self: *Projection) void {
@@ -55,6 +61,7 @@ pub const Projection = struct {
         self.links = .empty;
         self.link_table.deinit();
         self.link_table = .init(self.allocator);
+        self.graphics.reset();
         if (self.captured_title) |value| self.allocator.free(value);
         if (self.captured_current_directory) |value| self.allocator.free(value);
         self.captured_title = null;
@@ -83,6 +90,12 @@ pub const Projection = struct {
         }
         const state = &self.render_state.?;
         try state.update(self.allocator, terminal);
+        try self.graphics.capture(
+            terminal,
+            revision,
+            cell_pixel_width,
+            cell_pixel_height,
+        );
 
         const dimensions_changed = self.row_revisions.items.len != state.rows;
         self.capture_full = dimensions_changed or generation != self.captured_generation or

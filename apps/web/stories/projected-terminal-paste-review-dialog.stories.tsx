@@ -38,3 +38,19 @@ export const SuspiciousPaste: Story = {
 		review,
 	},
 };
+
+export const LocalFileDrop: Story = {
+	args: {
+		onApprove: () => undefined,
+		onCancel: () => undefined,
+		review: {
+			bracketed: false,
+			embeddedBracketTerminator: false,
+			multiline: false,
+			originalText: "'/Users/person/My Project/input.txt' '/Users/person/quote'\\''s.txt'",
+			replacedControlCharacters: 0,
+			source: 'file-drop',
+			text: "'/Users/person/My Project/input.txt' '/Users/person/quote'\\''s.txt'",
+		},
+	},
+};

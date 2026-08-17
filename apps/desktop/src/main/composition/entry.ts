@@ -68,6 +68,17 @@ if (!singleInstanceLockOwned) {
 			}
 			const runtime = resolveDesktopRuntimeConfiguration({
 				applicationPath: app.getAppPath(),
+				...(app.isPackaged
+					? {}
+					: {
+							developmentShellIntegrationDirectory: path.resolve(
+								__dirname,
+								'..',
+								'..',
+								'resources',
+								'shell-integration',
+							),
+						}),
 				environment: process.env,
 				homeDirectory: app.getPath('home'),
 				...(app.isPackaged ? { packagedResourcesPath: process.resourcesPath } : {}),

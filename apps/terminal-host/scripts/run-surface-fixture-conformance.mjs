@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const hostRoot = fileURLToPath(new URL('../', import.meta.url));
-const fixtureNames = ['ghostty-surface-v0.0.1.bin', 'ghostty-alternate-surface-v0.0.1.bin'];
+const fixtureNames = ['ghostty-surface-v0.0.2.bin', 'ghostty-alternate-surface-v0.0.2.bin'];
 const write = process.argv.slice(2).includes('--write');
 const temporaryDirectory = await mkdtemp(join(tmpdir(), 'orchbee-ghostty-surface-'));
 const fixtures = fixtureNames.map((name) => ({

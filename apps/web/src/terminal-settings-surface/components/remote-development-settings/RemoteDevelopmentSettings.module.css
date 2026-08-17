@@ -1,0 +1,57 @@
+.root {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-4);
+}
+
+.card,
+.notice {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-3);
+	padding: var(--ob-ref-space-5);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-ui-xl);
+	background: var(--ob-sys-color-surface-raised);
+}
+
+.notice {
+	border-color: var(--ob-sys-color-status-info-border);
+	background: var(--ob-sys-color-status-info-surface);
+}
+
+.title,
+.noticeTitle {
+	margin: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-heading);
+	font: var(--ob-sys-typography-heading-sm);
+}
+
+.noticeTitle {
+	color: var(--ob-sys-color-status-info-text);
+}
+
+.description {
+	margin: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.label {
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-label-md);
+}
+
+.term {
+	align-self: flex-start;
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-sm);
+	background: var(--ob-sys-color-surface-subtle);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-code-md);
+}
+
+.command {
+	font: var(--ob-sys-typography-code-sm);
+	resize: vertical;
+}

@@ -36,6 +36,7 @@ const terminalHostBinary = path.join(
 	'bin',
 	terminalHostBinaryName,
 );
+const shellIntegrationResources = path.join(applicationRoot, 'resources', 'shell-integration');
 
 await Promise.all([
 	access(path.join(desktopBuild, 'main', 'main.cjs')),
@@ -44,6 +45,9 @@ await Promise.all([
 	access(gatewayBuild),
 	access(serverBuild),
 	access(terminalHostBinary),
+	access(path.join(shellIntegrationResources, 'orchbee.zsh')),
+	access(path.join(shellIntegrationResources, 'orchbee.bash')),
+	access(path.join(shellIntegrationResources, 'orchbee.fish')),
 ]);
 
 const stagingRoot = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-package-'));
@@ -71,7 +75,13 @@ try {
 		asar: true,
 		dir: stagingRoot,
 		electronVersion: electronPackage.version,
-		extraResource: [rendererBuild, stagedGateway, stagedServer, terminalHostBinary],
+		extraResource: [
+			rendererBuild,
+			stagedGateway,
+			stagedServer,
+			terminalHostBinary,
+			shellIntegrationResources,
+		],
 		name: 'Orchbee',
 		out: path.join(applicationRoot, 'out'),
 		overwrite: true,

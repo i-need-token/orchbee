@@ -2,11 +2,11 @@
 
 ## Ownership and scope
 
-`@orchbee/web` owns one local terminal-appearance preference record, its Browser storage codec,
-the Settings overlay, and the stable presentation-configuration source observed by projected
-terminal attachments. The record is local to one Browser origin or Desktop renderer user-data
-partition. It is not part of the shared Workbench document and is never sent to a Host, Gateway,
-or remote terminal.
+`@orchbee/web` owns separate local terminal-appearance and terminal-feedback preference records,
+their Browser storage codecs, the Settings overlay, and the stable client-side sources observed by
+projected terminal attachments. The records are local to one Browser origin or Desktop renderer
+user-data partition. They are not part of the shared Workbench document and are never sent to a
+Host, Gateway, or remote terminal.
 
 `@orchbee/terminal` owns the source-neutral renderer contract that consumes the derived complete
 presentation configuration. Host frame metadata remains authoritative for terminal palette,
@@ -16,6 +16,8 @@ explicit per-client rendering override for default-coded foreground and backgrou
 This feature may analyze pasted Ghostty configuration into an ephemeral migration report. It does
 not apply or persist that report, read Ghostty files, mutate a Host profile, expose a complete
 palette editor, make an Electron window transparent, or synchronize preferences across clients.
+It also projects a read-only remote-development diagnostic. That projection neither owns an SSH
+process nor infers whether the current terminal is remote.
 
 ## Version 1 preference record
 
@@ -139,6 +141,75 @@ navigation column, only real product categories, grouped rows in a centered scro
 column, and immediate application without a Save button. Cursor branding, copy, categories, and
 pixel geometry are not compatibility targets.
 
+## Remote-development diagnostic
+
+The Remote development category documents the Desktop launch baseline
+`TERM=xterm-256color` and exposes one constant POSIX-shell diagnostic command. The command reports a
+version marker, the observed `TERM`, `COLORTERM`, and `TERM_PROGRAM`, whether TERM matches the
+baseline, and exactly one terminfo outcome:
+
+| Outcome                        | Meaning                                                |
+| ------------------------------ | ------------------------------------------------------ |
+| `TERMINFO=term-unset`          | The remote shell has no TERM value.                    |
+| `TERMINFO=unsafe-term`         | TERM is not safe to print or pass to `infocmp`.        |
+| `TERMINFO=infocmp-unavailable` | The remote shell cannot find an `infocmp` executable.  |
+| `TERMINFO=available`           | `infocmp "$TERM"` succeeds.                            |
+| `TERMINFO=missing`             | `infocmp` exists but cannot resolve the observed TERM. |
+
+The command contains no user interpolation and runs its helper and temporary value inside one
+subshell. It only reads environment values, prints values of at most 128 characters that match a
+conservative display-safe character set, checks `command -v infocmp`, and evaluates
+`command infocmp`'s exit status. Unsafe or oversized values receive a stable marker instead of being
+echoed as potential terminal control input. It does not invoke SSH, access a network, install
+terminfo, create a directory, read a configuration file, write remote state, or leave a helper
+function in the user's interactive shell.
+Settings does not execute or paste the command; the read-only field uses normal text selection so
+the user remains responsible for choosing where and whether to run it.
+
+Orchbee does not wrap the system SSH client, add `SendEnv` rules, persist remote hosts or
+credentials, or maintain a remote cache. A standard requested SSH PTY carries TERM according to
+OpenSSH behavior. Extra environment values cross the connection only when the user's client and
+server configuration explicitly allow them. OSC 7 hostnames, process titles, and terminal output
+are not remote-identity authority and do not alter this policy.
+
+## Shell integration and completion reminders
+
+The Shell integration category presents exact manual `source` commands for the Orchbee-owned Zsh,
+Bash, and Fish resources shipped by Desktop. It never reads, creates, edits, or backs up a shell
+startup file and never executes a displayed command. Zsh uses `preexec` and `precmd`; Fish uses
+`fish_preexec` and `fish_postexec`; Bash requires version 4.4 or newer. The Bash 3.2 shipped by
+macOS is explicitly unsupported. Removing the user-added `source` line and starting a new shell is
+the complete rollback.
+
+Desktop supplies `ORCHBEE_SHELL_INTEGRATION_DIR` from its trusted application-resource path for
+new POSIX terminals. The scripts emit standard OSC 133 command boundaries and OSC 7 current
+directory state. Orchbee does not accept an ambient override for this path, auto-source a script,
+or transport command text. Terminal Host projects only the latest positive sequence, duration,
+completion timestamp, and normalized exit code.
+
+Completion reminders use the separate key `orchbee:web:terminal-feedback:v1`, whose strict JSON
+value contains `completionReminderMode` (`never`, `unfocused`, or `always`) and
+`completionReminderMinimumSeconds` (an integer from 1 through 3,600). The defaults are `never` and
+5 seconds. Invalid or unreadable storage falls back to the complete default with a recoverable
+warning; a failed write retains the current-session value and reports that it was not saved. Reset
+restores both defaults.
+
+Each client deduplicates by terminal identity and positive completion sequence, ignores facts more
+than 60 seconds old or over 5 seconds in the future, and limits system notifications for one
+terminal to one every 30 seconds. `unfocused` requires the document or that terminal root to lack
+focus. Browser notification permission can be requested only by the dedicated Settings button;
+terminal output, startup, storage restoration, and configuration analysis never request it. A
+qualifying event still presents a localized status inside the terminal when the system capability
+is unavailable. The notification contains duration and exit status only—never command text,
+arguments, directory, environment, output, or user identity.
+
+The current Workbench unmounts terminal Surfaces that belong entirely to inactive tabs. A mounted
+but unfocused terminal can remind immediately, and reattachment can consider a completion fact
+within the 60-second freshness window. This is not a claim of complete background monitoring:
+completion while a Surface remains unmounted beyond that window does not produce an immediate
+notification. A future all-tab monitor requires a separate lightweight Workbench/Host event
+subscription rather than hidden renderers.
+
 ## Ghostty migration report
 
 The Settings migration category analyzes user-pasted text without reading a file, invoking
@@ -154,22 +225,22 @@ resolve themes, merge files, run commands, or model CLI precedence and platform 
 
 Every non-empty, non-comment line produces exactly one source-ordered finding:
 
-| Finding | Meaning |
-| ------- | ------- |
-| Supported | The normalized value has one lossless current Orchbee setting target; it has not been applied. |
-| Manual | A nearby user outcome exists, but the Ghostty value or combined semantics cannot be represented safely. |
-| Ignored | The line is superseded, resets a source default, or is outside the migration whitelist; an unknown key may also be a typo. |
-| Invalid | The bounded analyzer cannot interpret the line or value. Other valid lines still receive findings. |
+| Finding   | Meaning                                                                                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Supported | The normalized value has one lossless current Orchbee setting target; it has not been applied.                             |
+| Manual    | A nearby user outcome exists, but the Ghostty value or combined semantics cannot be represented safely.                    |
+| Ignored   | The line is superseded, resets a source default, or is outside the migration whitelist; an unknown key may also be a typo. |
+| Invalid   | The bounded analyzer cannot interpret the line or value. Other valid lines still receive findings.                         |
 
 Only these final effective values can be Supported:
 
-| Ghostty key | Orchbee target | Supported source values |
-| ----------- | -------------- | ----------------------- |
-| `font-family` | Terminal font family | Exactly one active non-empty family of at most 256 characters without a CSS list delimiter |
-| `font-size` | Terminal font size | A decimal value that is an integer from 8 through 48 |
-| `foreground` | Custom foreground | Three- or six-digit hexadecimal RGB, with or without `#`; requires Custom display theme |
-| `background` | Custom background | Three- or six-digit hexadecimal RGB, with or without `#`; requires Custom display theme |
-| `background-opacity` | Background opacity | A value from 0.1 through 1 whose percentage is an integer, unless effective `background-opacity-cells` is `true` |
+| Ghostty key          | Orchbee target       | Supported source values                                                                                          |
+| -------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `font-family`        | Terminal font family | Exactly one active non-empty family of at most 256 characters without a CSS list delimiter                       |
+| `font-size`          | Terminal font size   | A decimal value that is an integer from 8 through 48                                                             |
+| `foreground`         | Custom foreground    | Three- or six-digit hexadecimal RGB, with or without `#`; requires Custom display theme                          |
+| `background`         | Custom background    | Three- or six-digit hexadecimal RGB, with or without `#`; requires Custom display theme                          |
+| `background-opacity` | Background opacity   | A value from 0.1 through 1 whose percentage is an integer, unless effective `background-opacity-cells` is `true` |
 
 Later supported scalar assignments supersede earlier accepted assignments for the same key within
 the pasted text. `font-family` retains Ghostty's empty-value reset and repeatable fallback-list
@@ -195,11 +266,20 @@ not claims about Ghostty's byte limits.
 - Renderer tests cover Host and override modes, explicit black/RGB/palette, inverse, underline,
   cursor, Canvas 2D and WebGPU alpha, and unchanged Host metadata.
 - Component tests cover both locales, search and empty results, invalid drafts, immediate updates,
-  Reset, migration analysis and disposal, inertness, idempotent open, focus restoration, and nested
-  Browser-access behavior.
+  Reset, read-only remote diagnostics, migration analysis and disposal, inertness, idempotent open,
+  focus restoration, and nested Browser-access behavior.
+- Terminal-feedback model tests cover default-off behavior, strict persistence recovery, duration
+  and focus policy, stale and future facts, sequence deduplication, notification rate limiting,
+  explicit permission requests, and disposal. Component tests cover both locales, all three manual
+  source commands, the Bash boundary, reminder controls, permission state, and Reset.
 - Migration analyzer tests cover accepted syntax, exact target boundaries, scalar supersession,
   font resets and fallback lists, opacity-cell interaction, malformed lines, resource limits, and
   one-finding-per-assignment ordering without depending on React or storage.
 - Browser, Gateway, and Desktop composition tests prove the shared source and Settings entry; a
   Desktop Electron witness proves an existing projected terminal stays attached while Settings is
-  opened and closed.
+  opened and closed. The current macOS system witness additionally starts a temporary loopback
+  `sshd` with isolated keys and configuration, then proves an ordinary SSH PTY receives
+  `TERM=xterm-256color`, resolves its terminfo entry, and does not receive `COLORTERM` or
+  `TERM_PROGRAM` without explicit forwarding. A separate macOS Electron witness sources the
+  shipped Zsh resource, observes one real semantic completion and localized reminder, and proves
+  the projected attachment identity is unchanged.

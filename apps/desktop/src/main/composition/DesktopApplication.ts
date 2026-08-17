@@ -612,7 +612,7 @@ export class DesktopApplication {
 
 	async openWindow(): Promise<void> {
 		if (this.hasWindow) {
-			this.#window?.focus();
+			this.focusWindow();
 			return;
 		}
 		if (this.#connection === undefined || this.#terminalRuntime === undefined) {

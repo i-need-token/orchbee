@@ -44,10 +44,13 @@ pub fn encodeOwned(
     const state = if (self.render_state) |*value| value else return error.CaptureAllocationFailed;
     const snapshot = request.force_snapshot or request.base_revision == null or
         request.base_generation == null or
-        request.base_generation.? != self.captured_generation;
+        request.base_generation.? != self.captured_generation or
+        self.graphics.requiresSnapshot(request.base_revision);
     const kind: FrameKind = if (snapshot) .snapshot else .delta;
     const base_revision: ?u64 = if (snapshot) null else request.base_revision;
-    const close_activity_extension_count: u16 = if (request.close_activity == .unknown) 0 else 1;
+    const extension_count: u16 = 2 +
+        @as(u16, @intFromBool(request.close_activity != .unknown)) +
+        @as(u16, @intFromBool(request.command_completion != null));
     if (!snapshot and base_revision.? >= self.captured_revision) return error.ProjectionTooLarge;
 
     var strings = StringTable.init(self.allocator);
@@ -133,7 +136,7 @@ pub fn encodeOwned(
     try writer.appendInt(u32, @intCast(strings.values.items.len));
     try writer.appendInt(u16, @intCast(styles.values.items.len));
     try writer.appendInt(u16, @intCast(included_rows));
-    try writer.appendInt(u16, close_activity_extension_count);
+    try writer.appendInt(u16, extension_count);
     try writer.appendInt(u16, 0);
     try writer.appendInt(u16, self.captured_cell_pixel_width);
     try writer.appendInt(u16, self.captured_cell_pixel_height);
@@ -201,6 +204,25 @@ pub fn encodeOwned(
         try writer.appendInt(u16, 0);
         try writer.appendInt(u32, 1);
         try writer.appendInt(u8, @intFromEnum(request.close_activity));
+    }
+    const graphics_length = try self.graphics.encodedLength(snapshot);
+    try writer.appendInt(u16, protocol.terminal_frame_extension_kitty_graphics);
+    try writer.appendInt(u16, 0);
+    try writer.appendInt(u32, @intCast(graphics_length));
+    try self.graphics.encode(&writer, snapshot);
+    try writer.appendInt(u16, protocol.terminal_frame_extension_progress);
+    try writer.appendInt(u16, 0);
+    try writer.appendInt(u32, 2);
+    try writer.appendInt(u8, @intFromEnum(request.progress.state));
+    try writer.appendInt(u8, request.progress.value orelse std.math.maxInt(u8));
+    if (request.command_completion) |completion| {
+        try writer.appendInt(u16, protocol.terminal_frame_extension_command_completion);
+        try writer.appendInt(u16, 0);
+        try writer.appendInt(u32, 25);
+        try writer.appendInt(u64, completion.sequence);
+        try writer.appendInt(u64, completion.duration_milliseconds);
+        try writer.appendInt(u64, completion.completed_at_milliseconds);
+        try writer.appendInt(u8, completion.exit_code);
     }
 
     const frame_length = writer.bytes.items.len - frame_offset;

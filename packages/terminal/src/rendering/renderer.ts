@@ -20,6 +20,8 @@ import {
 	TerminalColorEncoding,
 	TerminalStyleFlag,
 	TerminalUnderlineKindCode,
+	type TerminalGraphicsImage,
+	type TerminalGraphicsPlacement,
 } from '@orchbee/terminal-protocol';
 
 import { applyFontMetricModifiers, type DetailedFontMetrics } from '../font-metrics';
@@ -73,6 +75,7 @@ export type RendererFrameReason =
 	| 'viewport'
 	| 'cursor'
 	| 'preedit'
+	| 'graphics'
 	| 'font'
 	| 'blink'
 	| 'search'
@@ -114,6 +117,8 @@ export interface PackedRendererRow {
 }
 
 export interface PackedRendererMetadata {
+	readonly cellPixelHeight?: number;
+	readonly cellPixelWidth?: number;
 	readonly columns: number;
 	readonly cursor: {
 		readonly blinking: boolean;
@@ -131,8 +136,15 @@ export interface PackedRendererMetadata {
 	readonly rows: number;
 }
 
+export interface PackedRendererGraphics {
+	readonly images: ReadonlyMap<number, TerminalGraphicsImage>;
+	readonly placements: readonly TerminalGraphicsPlacement[];
+	readonly resourceRevision: bigint;
+}
+
 /** Packed projection source consumed without reconstructing per-cell objects. */
 export interface PackedRendererSource {
+	readonly graphics?: PackedRendererGraphics;
 	readonly metadata: PackedRendererMetadata | null;
 	readonly needsFullRedraw: boolean;
 	readonly rows: readonly PackedRendererRow[];
@@ -402,6 +414,31 @@ function normalizeSelectionCoordinates(
 	};
 }
 
+function writeGraphicsPixels(target: Uint8ClampedArray, image: TerminalGraphicsImage): void {
+	if (image.format === 'rgba') {
+		target.set(image.data);
+		return;
+	}
+	let channels = 1;
+	if (image.format === 'rgb') channels = 3;
+	else if (image.format === 'gray-alpha') channels = 2;
+	for (let source = 0, destination = 0; source < image.data.length; source += channels) {
+		const gray = image.data[source] ?? 0;
+		if (image.format === 'rgb') {
+			target[destination] = gray;
+			target[destination + 1] = image.data[source + 1] ?? 0;
+			target[destination + 2] = image.data[source + 2] ?? 0;
+			target[destination + 3] = 255;
+		} else {
+			target[destination] = gray;
+			target[destination + 1] = gray;
+			target[destination + 2] = gray;
+			target[destination + 3] = image.format === 'gray-alpha' ? (image.data[source + 1] ?? 0) : 255;
+		}
+		destination += 4;
+	}
+}
+
 // ============================================================================
 // WebGPU Shaders
 // ============================================================================
@@ -567,6 +604,12 @@ export class WebGPURenderer {
 
 	// Fallback Canvas 2D renderer
 	private ctx2d: CanvasRenderingContext2D | null = null;
+	private graphicsCanvas: HTMLCanvasElement | null = null;
+	private graphicsContext: CanvasRenderingContext2D | null = null;
+	private graphicsResourceCanvases = new Map<
+		number,
+		{ readonly canvas: HTMLCanvasElement; readonly generation: bigint }
+	>();
 	private useWebGPU = false;
 
 	// Font and surface presentation
@@ -1454,6 +1497,7 @@ export class WebGPURenderer {
 			}
 		}
 		this.syncSurfacePadding();
+		this.syncGraphicsOverlayGeometry();
 	}
 
 	private effectiveDefaultBackgroundRgb(): number | null {
@@ -1470,7 +1514,7 @@ export class WebGPURenderer {
 		const parent = this.canvas.parentElement;
 		if (!parent) return;
 		if (this.presentationConfiguration.paddingBalance === false) {
-			setCanvasMargins(this.canvas, ZERO_PADDING);
+			this.setSurfaceMargins(ZERO_PADDING);
 			return;
 		}
 		if (typeof window.getComputedStyle !== 'function') return;
@@ -1488,7 +1532,34 @@ export class WebGPURenderer {
 			{ columns: this.renderedColumns, rows: this.renderedRows },
 			this.presentationConfiguration.paddingBalance,
 		);
-		setCanvasMargins(this.canvas, additionalSurfaceMargins(balanced, explicit));
+		this.setSurfaceMargins(additionalSurfaceMargins(balanced, explicit));
+	}
+
+	private setSurfaceMargins(padding: SurfacePadding): void {
+		setCanvasMargins(this.canvas, padding);
+		if (this.graphicsCanvas) setCanvasMargins(this.graphicsCanvas, padding);
+	}
+
+	private syncGraphicsOverlayGeometry(): void {
+		const canvas = this.graphicsCanvas;
+		const context = this.graphicsContext;
+		if (!canvas || !context) return;
+		const cssWidth = this.renderedColumns * this.metrics.width;
+		const cssHeight = this.renderedRows * this.metrics.height;
+		canvas.style.width = `${cssWidth}px`;
+		canvas.style.height = `${cssHeight}px`;
+		canvas.style.marginTop = this.canvas.style.marginTop;
+		canvas.style.marginBottom = this.canvas.style.marginBottom;
+		canvas.style.marginLeft = this.canvas.style.marginLeft;
+		canvas.style.marginRight = this.canvas.style.marginRight;
+		const physicalWidth = Math.round(cssWidth * this.devicePixelRatio);
+		const physicalHeight = Math.round(cssHeight * this.devicePixelRatio);
+		if (canvas.width !== physicalWidth || canvas.height !== physicalHeight) {
+			canvas.width = physicalWidth;
+			canvas.height = physicalHeight;
+		}
+		context.setTransform(this.devicePixelRatio, 0, 0, this.devicePixelRatio, 0, 0);
+		context.imageSmoothingEnabled = true;
 	}
 
 	/** Rebuild physical-pixel resources after browser zoom or monitor changes. */
@@ -1523,6 +1594,7 @@ export class WebGPURenderer {
 		this.currentVisibleRows = metadata.rows;
 		const reasons = new Set<RendererFrameReason>();
 		if (forceAll || buffer.needsFullRedraw) reasons.add('full');
+		if ((buffer.graphics?.placements.length ?? 0) > 0) reasons.add('graphics');
 		if (
 			this.cursorAppearanceDirty ||
 			metadata.cursor.column !== this.lastCursorPosition.x ||
@@ -1540,11 +1612,99 @@ export class WebGPURenderer {
 		this.resetFrameCounters();
 		if (this.useWebGPU) this.renderPackedWebGPU(buffer, metadata);
 		else this.renderPackedCanvas2D(buffer, metadata, redrawAll);
+		this.renderPackedGraphics(buffer.graphics, metadata);
 		this.fontDirty = false;
 		this.cursorAppearanceDirty = false;
 		this.searchDirty = false;
 		this.surfaceDirty = false;
 		this.completeFrameTelemetry(backend, timestamp, reasons, redrawAll, 0);
+	}
+
+	private renderPackedGraphics(
+		graphics: PackedRendererGraphics | undefined,
+		metadata: PackedRendererMetadata,
+	): void {
+		if (!graphics || graphics.placements.length === 0) {
+			this.releaseGraphicsOverlay();
+			return;
+		}
+		const context = this.ensureGraphicsOverlay();
+		if (!context) return;
+		this.syncGraphicsOverlayGeometry();
+		const cssWidth = this.renderedColumns * this.metrics.width;
+		const cssHeight = this.renderedRows * this.metrics.height;
+		context.clearRect(0, 0, cssWidth, cssHeight);
+		const imageIds = new Set(graphics.images.keys());
+		for (const imageId of this.graphicsResourceCanvases.keys()) {
+			if (!imageIds.has(imageId)) this.graphicsResourceCanvases.delete(imageId);
+		}
+		const hostCellWidth = metadata.cellPixelWidth ?? this.metrics.width;
+		const hostCellHeight = metadata.cellPixelHeight ?? this.metrics.height;
+		const horizontalScale = this.metrics.width / hostCellWidth;
+		const verticalScale = this.metrics.height / hostCellHeight;
+		for (const placement of graphics.placements) {
+			const image = graphics.images.get(placement.imageId);
+			if (!image) continue;
+			const source = this.graphicsResourceCanvas(image);
+			if (!source) continue;
+			context.drawImage(
+				source,
+				placement.sourceX,
+				placement.sourceY,
+				placement.sourceWidth,
+				placement.sourceHeight,
+				placement.column * this.metrics.width + placement.offsetX * horizontalScale,
+				placement.row * this.metrics.height + placement.offsetY * verticalScale,
+				placement.destinationWidth * horizontalScale,
+				placement.destinationHeight * verticalScale,
+			);
+			this.frameOverlayInstances++;
+		}
+	}
+
+	private ensureGraphicsOverlay(): CanvasRenderingContext2D | null {
+		if (this.graphicsContext) return this.graphicsContext;
+		const parent = this.canvas.parentElement;
+		if (!parent) return null;
+		const ownerDocument = this.canvas.ownerDocument ?? document;
+		const canvas = ownerDocument.createElement('canvas');
+		canvas.setAttribute('aria-hidden', 'true');
+		canvas.setAttribute('data-terminal-graphics-overlay', 'true');
+		canvas.style.display = 'block';
+		canvas.style.insetBlockStart = '0';
+		canvas.style.insetInlineStart = '0';
+		canvas.style.pointerEvents = 'none';
+		canvas.style.position = 'absolute';
+		canvas.style.zIndex = '1';
+		const context = canvas.getContext('2d', { alpha: true });
+		if (!context) return null;
+		parent.appendChild(canvas);
+		this.graphicsCanvas = canvas;
+		this.graphicsContext = context;
+		return context;
+	}
+
+	private graphicsResourceCanvas(image: TerminalGraphicsImage): HTMLCanvasElement | null {
+		const cached = this.graphicsResourceCanvases.get(image.id);
+		if (cached?.generation === image.generation) return cached.canvas;
+		const ownerDocument = this.canvas.ownerDocument ?? document;
+		const canvas = ownerDocument.createElement('canvas');
+		canvas.width = image.width;
+		canvas.height = image.height;
+		const context = canvas.getContext('2d', { alpha: true });
+		if (!context) return null;
+		const pixels = context.createImageData(image.width, image.height);
+		writeGraphicsPixels(pixels.data, image);
+		context.putImageData(pixels, 0, 0);
+		this.graphicsResourceCanvases.set(image.id, { canvas, generation: image.generation });
+		return canvas;
+	}
+
+	private releaseGraphicsOverlay(): void {
+		this.graphicsCanvas?.remove();
+		this.graphicsCanvas = null;
+		this.graphicsContext = null;
+		this.graphicsResourceCanvases.clear();
 	}
 
 	private resetFrameCounters(): void {
@@ -3035,6 +3195,9 @@ export class WebGPURenderer {
 				this.ctx2d.fillRect(0, 0, this.canvas.width, this.canvas.height);
 			}
 		}
+		if (this.graphicsCanvas && this.graphicsContext) {
+			this.graphicsContext.clearRect(0, 0, this.graphicsCanvas.width, this.graphicsCanvas.height);
+		}
 	}
 
 	private emitHealth(event: RendererHealthEvent): void {
@@ -3062,6 +3225,7 @@ export class WebGPURenderer {
 		this.healthChangeCallback = undefined;
 		this.telemetryCallback = undefined;
 		this.releaseGPUResources();
+		this.releaseGraphicsOverlay();
 		this.device?.destroy();
 		this.device = null;
 		this.context = null;

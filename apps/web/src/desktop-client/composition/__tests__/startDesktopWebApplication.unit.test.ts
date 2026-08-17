@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import {
+	DESKTOP_FILE_PATH_BRIDGE_KEY,
 	DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 	DESKTOP_RENDERER_BOOTSTRAP_WINDOW_MESSAGE,
 } from '@orchbee/desktop-client-protocol';
@@ -19,6 +20,12 @@ import {
 describe('startDesktopWebApplication', () => {
 	it('starts the managed renderer once from one trusted atomic capability bundle', () => {
 		const harness = createHarness();
+		Object.assign(harness.targetWindow, {
+			[DESKTOP_FILE_PATH_BRIDGE_KEY]: {
+				getPathForFile: () => '/tmp/user-selected.txt',
+				platform: 'darwin',
+			},
+		});
 		const ports = messagePorts(4);
 		const session = startDesktopWebApplication(
 			harness.targetWindow,
@@ -46,6 +53,7 @@ describe('startDesktopWebApplication', () => {
 			ports[0],
 			ports[1],
 			ports[3],
+			expect.objectContaining({ prepare: expect.any(Function) }),
 		);
 		expect(harness.root.dataset['desktopContextIsolated']).toBe('true');
 		expect(harness.root.dataset['desktopSandboxed']).toBe('true');

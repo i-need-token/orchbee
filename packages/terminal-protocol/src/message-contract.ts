@@ -27,6 +27,7 @@ export const MessageKind = {
 	historyChanged: 53,
 	historyObserved: 54,
 	terminalBell: 55,
+	terminalClipboardWriteRequest: 56,
 	protocolRejected: 3,
 	readRows: 45,
 	resizeAccepted: 33,
@@ -355,6 +356,12 @@ export const MESSAGE_CONTRACTS = {
 	[MessageKind.terminalBell]: {
 		eventEncoding: control,
 		name: 'TerminalBell',
+		request: null,
+		responseEncoding: null,
+	},
+	[MessageKind.terminalClipboardWriteRequest]: {
+		eventEncoding: control,
+		name: 'TerminalClipboardWriteRequest',
 		request: null,
 		responseEncoding: null,
 	},

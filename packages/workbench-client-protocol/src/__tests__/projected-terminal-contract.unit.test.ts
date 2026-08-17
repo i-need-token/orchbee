@@ -164,6 +164,38 @@ describe('projected terminal contract', () => {
 				payload: { requestSequence: '1' },
 			}).success,
 		).toBe(false);
+
+		const clipboardDecision = {
+			kind: 'clipboard-write-decision',
+			payload: {
+				approved: true,
+				attachmentId,
+				sequence: '1',
+				text: 'reviewed terminal text',
+			},
+		};
+		expect(ProjectedTerminalCommandSchema.safeParse(clipboardDecision).success).toBe(true);
+		expect(
+			ProjectedTerminalCommandSchema.safeParse({
+				...clipboardDecision,
+				payload: { ...clipboardDecision.payload, approved: undefined },
+			}).success,
+		).toBe(false);
+		expect(
+			ProjectedTerminalCommandSchema.safeParse({
+				...clipboardDecision,
+				payload: { ...clipboardDecision.payload, sequence: '0' },
+			}).success,
+		).toBe(false);
+		expect(
+			ProjectedTerminalCommandSchema.safeParse({
+				...clipboardDecision,
+				payload: {
+					...clipboardDecision.payload,
+					text: 'x'.repeat(PROTOCOL_LIMITS.maxClipboardTextBytes + 1),
+				},
+			}).success,
+		).toBe(false);
 	});
 
 	it('carries explicit accessible selection ranges without reconstructing a pointer gesture', () => {

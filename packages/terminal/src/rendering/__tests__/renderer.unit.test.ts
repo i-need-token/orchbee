@@ -1,6 +1,7 @@
 import {
 	TerminalCellWidthCode,
 	TerminalColorEncoding,
+	TerminalGraphicsImageFormat,
 	TerminalStyleFlag,
 	TerminalUnderlineKindCode,
 } from '@orchbee/terminal-protocol';
@@ -37,6 +38,8 @@ function createCanvas(
 ): HTMLCanvasElement {
 	const context = {
 		clearRect,
+		createImageData: (width: number, height: number) =>
+			({ data: new Uint8ClampedArray(width * height * 4), height, width }) as ImageData,
 		drawImage,
 		font: '10px sans-serif',
 		globalAlpha: 1,
@@ -63,6 +66,7 @@ function createCanvas(
 		fillText,
 		beginPath: () => {},
 		moveTo: () => {},
+		putImageData: () => {},
 		lineTo: () => {},
 		stroke,
 		setLineDash: () => {},
@@ -76,6 +80,8 @@ function createCanvas(
 		height: 0,
 		style: {},
 		getContext: () => context,
+		remove: () => {},
+		setAttribute: () => {},
 	} as unknown as HTMLCanvasElement;
 }
 
@@ -242,6 +248,119 @@ describe('WebGPURenderer recovery retirement', () => {
 });
 
 describe('projected terminal renderer', () => {
+	it('renders decoded Kitty pixels on a clipped sibling overlay and removes it when empty', async () => {
+		vi.stubGlobal('navigator', {});
+		vi.stubGlobal('window', {
+			devicePixelRatio: 1,
+			getComputedStyle: () => ({
+				paddingBottom: '0px',
+				paddingLeft: '0px',
+				paddingRight: '0px',
+				paddingTop: '0px',
+			}),
+		});
+		const drawImageCalls: unknown[][] = [];
+		const drawImage: AtlasDrawImage = (...arguments_) => drawImageCalls.push(arguments_);
+		const putImageDataCalls: Array<readonly [ImageData, number, number]> = [];
+		const removed: HTMLCanvasElement[] = [];
+		const children: HTMLCanvasElement[] = [];
+		const ownerDocument = {
+			createElement: () => {
+				const created = createCanvas(
+					undefined,
+					{},
+					undefined,
+					undefined,
+					undefined,
+					undefined,
+					drawImage,
+				);
+				const context = created.getContext('2d');
+				if (context) {
+					Reflect.set(context, 'putImageData', (imageData: ImageData, x: number, y: number) => {
+						putImageDataCalls.push([imageData, x, y]);
+					});
+				}
+				Object.assign(created, {
+					ownerDocument,
+					remove: () => removed.push(created),
+				});
+				return created;
+			},
+		};
+		vi.stubGlobal('document', ownerDocument);
+		const parent = {
+			appendChild: (child: HTMLCanvasElement) => {
+				children.push(child);
+				return child;
+			},
+			clientHeight: 40,
+			clientWidth: 80,
+		};
+		const canvas = createCanvas();
+		Object.defineProperties(canvas, {
+			ownerDocument: { value: ownerDocument },
+			parentElement: { value: parent },
+		});
+		const renderer = new WebGPURenderer(canvas);
+		await renderer.initGPU();
+		const base = createPackedSource(['AB']);
+		const baseMetadata = base.metadata;
+		if (baseMetadata === null) throw new Error('Expected packed-source metadata.');
+		const source: PackedRendererSource = {
+			...base,
+			graphics: {
+				images: new Map([
+					[
+						7,
+						{
+							data: new Uint8Array([10, 20, 30]),
+							format: TerminalGraphicsImageFormat.rgb,
+							generation: 1n,
+							height: 1,
+							id: 7,
+							width: 1,
+						},
+					],
+				]),
+				placements: [
+					{
+						column: 1,
+						destinationHeight: 16,
+						destinationWidth: 16,
+						imageId: 7,
+						internalId: false,
+						offsetX: 2,
+						offsetY: 4,
+						placementId: 1,
+						row: 0,
+						sourceHeight: 1,
+						sourceWidth: 1,
+						sourceX: 0,
+						sourceY: 0,
+						z: 0,
+					},
+				],
+				resourceRevision: 1n,
+			},
+			metadata: { ...baseMetadata, cellPixelHeight: 16, cellPixelWidth: 8 },
+		};
+
+		renderer.renderPacked(source);
+
+		expect(children).toHaveLength(1);
+		expect(children[0]?.getAttribute?.('data-terminal-graphics-overlay')).not.toBeNull();
+		expect(putImageDataCalls).toEqual([
+			[expect.objectContaining({ data: new Uint8ClampedArray([10, 20, 30, 255]) }), 0, 0],
+		]);
+		const placementDraw = drawImageCalls.find((call) => call.length === 9);
+		expect(placementDraw?.slice(1)).toEqual([0, 0, 1, 1, 10, 4.25, 16, 17]);
+
+		renderer.renderPacked(base);
+		expect(removed).toEqual([children[0]]);
+		renderer.dispose();
+	});
+
 	it('resolves Host terminal colors and application overlay colors without a second palette', () => {
 		const hostDefaultColors = {
 			backgroundRgb: 0x10_14_18,

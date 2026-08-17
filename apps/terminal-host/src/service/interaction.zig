@@ -97,6 +97,10 @@ pub const Scheduler = struct {
             runtime: *terminal_runtime.TerminalRuntime,
         };
         const PendingBell = core_module.BellDeliveryToken;
+        const PendingClipboard = struct {
+            prepared: terminal_runtime.PreparedClipboardWriteRequest,
+            runtime: *terminal_runtime.TerminalRuntime,
+        };
         const PendingMutation = union(enum) {
             history: struct {
                 attachment_id: core_module.AttachmentId,
@@ -117,9 +121,17 @@ pub const Scheduler = struct {
         var pending_cancellation_count: usize = 0;
         var pending_bells: [max_scheduled_attachments_per_poll]PendingBell = undefined;
         var pending_bell_count: usize = 0;
+        var pending_clipboards: [max_scheduled_attachments_per_poll]PendingClipboard = undefined;
+        var pending_clipboard_count: usize = 0;
         var pending_mutations: [max_scheduled_attachments_per_poll * 3]PendingMutation = undefined;
         var pending_mutation_count: usize = 0;
         errdefer {
+            var clipboard_index = pending_clipboard_count;
+            while (clipboard_index > 0) {
+                clipboard_index -= 1;
+                const pending = pending_clipboards[clipboard_index];
+                pending.runtime.rollbackClipboardWriteRequest(pending.prepared);
+            }
             var index = pending_mutation_count;
             while (index > 0) {
                 index -= 1;
@@ -149,6 +161,43 @@ pub const Scheduler = struct {
             const terminal = core.findTerminal(attachment.terminal_id) orelse continue;
             if (!terminal.hasReadableRuntimeState() or !runtime.readableStateAvailable()) continue;
             scheduled += 1;
+            const prepared_clipboard = runtime.prepareClipboardWriteRequest() catch |err| switch (err) {
+                error.TerminalResizeFailed, error.TerminalRuntimeUnavailable => {
+                    continue :scan;
+                },
+                else => return err,
+            };
+            if (prepared_clipboard) |prepared| {
+                var request_committed = false;
+                defer if (!request_committed) runtime.rollbackClipboardWriteRequest(prepared);
+                const payload = try control_encode.terminalClipboardWriteRequest(
+                    allocator,
+                    attachment.attachment_id,
+                    prepared,
+                );
+                defer allocator.free(payload);
+                switch (try outgoing.append(
+                    MessageKind.terminal_clipboard_write_request,
+                    .control_json,
+                    payload,
+                    .{ .event = core.epoch },
+                )) {
+                    .appended => {
+                        request_committed = true;
+                        std.debug.assert(pending_clipboard_count < pending_clipboards.len);
+                        pending_clipboards[pending_clipboard_count] = .{
+                            .prepared = prepared,
+                            .runtime = runtime,
+                        };
+                        pending_clipboard_count += 1;
+                    },
+                    .full => {
+                        scanned -= 1;
+                        outcome = .batch_full;
+                        break :scan;
+                    },
+                }
+            }
             if (try core.prepareBellDelivery(
                 connection_id,
                 attachment.attachment_id,
@@ -329,6 +378,9 @@ pub const Scheduler = struct {
         // with respect to every allocator failure in this scheduler.
         for (pending_cancellations[0..pending_cancellation_count]) |pending| {
             pending.runtime.commitPreparedSelectionExportCancellation(pending.prepared);
+        }
+        for (pending_clipboards[0..pending_clipboard_count]) |pending| {
+            pending.runtime.commitClipboardWriteRequest(pending.prepared);
         }
         for (pending_bells[0..pending_bell_count]) |pending| {
             core.commitBellDelivery(pending);

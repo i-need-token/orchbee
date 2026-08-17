@@ -13,6 +13,8 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.browserAccess.unavailable': 'Browser access is unavailable in this app.',
 	'terminal.settings.categories.browserAccess': 'Browser access',
 	'terminal.settings.categories.ghosttyMigration': 'Ghostty migration',
+	'terminal.settings.categories.remoteDevelopment': 'Remote development',
+	'terminal.settings.categories.shellIntegration': 'Shell integration',
 	'terminal.settings.categories.terminal': 'Terminal',
 	'terminal.settings.colors.background.description':
 		'Choose the default color behind terminal text.',
@@ -109,6 +111,57 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.persistence.writeWarning':
 		'Your changes are applied for this session but could not be saved.',
 	'terminal.settings.reset.description': 'Restore the default application and terminal settings.',
+	'terminal.settings.remoteDevelopment.baseline.description':
+		'Orchbee starts local Desktop terminals with this widely available TERM. A standard SSH PTY can carry it to the remote shell.',
+	'terminal.settings.remoteDevelopment.baseline.title': 'Terminal baseline',
+	'terminal.settings.remoteDevelopment.description':
+		'Check the terminal identity visible to a remote shell without changing the remote host.',
+	'terminal.settings.remoteDevelopment.diagnostic.description':
+		'Run this command yourself after connecting with SSH. It only reads three environment values and checks whether infocmp recognizes TERM.',
+	'terminal.settings.remoteDevelopment.diagnostic.label': 'Read-only diagnostic command',
+	'terminal.settings.remoteDevelopment.diagnostic.resultDescription':
+		'TERM_MATCH compares TERM with the Orchbee baseline. Unsafe control-bearing values are not printed. TERMINFO distinguishes an unset or unsafe TERM, an unavailable infocmp program, an available entry, and a missing entry.',
+	'terminal.settings.remoteDevelopment.diagnostic.title': 'Diagnose the remote shell',
+	'terminal.settings.remoteDevelopment.noChanges.description':
+		'Orchbee does not wrap SSH, silently forward extra environment variables, install terminfo, write remote files, or keep a remote cache. Your OpenSSH configuration remains authoritative.',
+	'terminal.settings.remoteDevelopment.noChanges.title': 'No automatic remote changes',
+	'terminal.settings.remoteDevelopment.title': 'Remote development',
+	'terminal.settings.shellIntegration.bash.title': 'Bash',
+	'terminal.settings.shellIntegration.bash.version':
+		'Bash 4.4 or newer is required. The Bash 3.2 included with macOS is not supported.',
+	'terminal.settings.shellIntegration.description':
+		'Expose reliable command boundaries for completion reminders and terminal semantics.',
+	'terminal.settings.shellIntegration.fish.title': 'Fish',
+	'terminal.settings.shellIntegration.manualNotice':
+		'Orchbee never edits shell startup files. Add one source line yourself, and remove or comment out that line to disable the integration.',
+	'terminal.settings.shellIntegration.notification.description':
+		'System notification permission is requested only from this button. Terminal output never requests permission.',
+	'terminal.settings.shellIntegration.notification.request': 'Allow system notifications',
+	'terminal.settings.shellIntegration.notification.status.denied':
+		'Denied. Change notification access in your browser or operating-system settings.',
+	'terminal.settings.shellIntegration.notification.status.granted': 'System notifications allowed.',
+	'terminal.settings.shellIntegration.notification.status.prompt':
+		'Not requested. Orchbee will not ask until you use the button below.',
+	'terminal.settings.shellIntegration.notification.status.unsupported':
+		'System notifications are unavailable in this client.',
+	'terminal.settings.shellIntegration.notification.title': 'System notifications',
+	'terminal.settings.shellIntegration.reminder.always': 'Always',
+	'terminal.settings.shellIntegration.reminder.description':
+		'Remind only after a semantic command completion from an enabled integration. Command text is never included.',
+	'terminal.settings.shellIntegration.reminder.minimum.description':
+		'Commands shorter than this many seconds do not produce a reminder.',
+	'terminal.settings.shellIntegration.reminder.minimum.invalid':
+		'Enter a whole number from {minimum, number} to {maximum, number}.',
+	'terminal.settings.shellIntegration.reminder.minimum.label': 'Minimum command duration',
+	'terminal.settings.shellIntegration.reminder.mode.label': 'Completion reminders',
+	'terminal.settings.shellIntegration.reminder.never': 'Never',
+	'terminal.settings.shellIntegration.reminder.title': 'Command completion reminders',
+	'terminal.settings.shellIntegration.reminder.unfocused': 'When this terminal is unfocused',
+	'terminal.settings.shellIntegration.reset.description':
+		'Restore completion reminders to off and the minimum duration to five seconds.',
+	'terminal.settings.shellIntegration.setupCommand.label': 'Manual source command',
+	'terminal.settings.shellIntegration.title': 'Shell integration',
+	'terminal.settings.shellIntegration.zsh.title': 'Zsh',
 	'terminal.settings.sections.applicationAppearance': 'Application appearance',
 	'terminal.settings.sections.terminalColors': 'Terminal colors',
 	'terminal.settings.sections.terminalTypography': 'Terminal typography',

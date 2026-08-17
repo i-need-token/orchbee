@@ -11,6 +11,7 @@ import {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	TerminalSettingsController,
 } from '../../terminal-settings';
+import { REMOTE_DEVELOPMENT_DIAGNOSTIC_COMMAND } from '../constants/remote-development-diagnostic';
 
 type TerminalAppearanceStorage = ConstructorParameters<
 	typeof TerminalSettingsController
@@ -420,6 +421,71 @@ describe('TerminalSettingsSurface', () => {
 		keyboardShortcutController.dispose();
 	});
 
+	it('shows a searchable read-only remote diagnostic without starting or persisting an effect', async () => {
+		const container = document.createElement('div');
+		document.body.append(container);
+		const storage = memoryStorage();
+		const controller = new TerminalSettingsController({
+			storage,
+			themeTarget: document.documentElement,
+		});
+		const keyboardShortcutController = new KeyboardShortcutSettingsController({
+			platform: 'apple',
+			storage,
+		});
+		controller.open();
+		const root = createRoot(container);
+		await act(async () => {
+			root.render(
+				createElement(
+					OrchbeeI18nProvider,
+					{ locale: 'en-US' },
+					createElement(TerminalSettingsSurface, {
+						controller,
+						keyboardShortcutController,
+						keyboardShortcutPlatform: 'apple',
+						onRequestClose: () => undefined,
+					}),
+				),
+			);
+		});
+
+		const remoteCategory = requiredElement<HTMLButtonElement>(
+			container.querySelector("button[data-settings-category='remote-development']"),
+		);
+		await act(async () => remoteCategory.click());
+		const diagnostic = requiredElement<HTMLTextAreaElement>(
+			container.querySelector('#remote-development-diagnostic-command'),
+		);
+		expect(diagnostic.readOnly).toBe(true);
+		expect(diagnostic.value).toBe(REMOTE_DEVELOPMENT_DIAGNOSTIC_COMMAND);
+		expect(container.textContent).toContain('xterm-256color');
+		expect(container.textContent).toContain('No automatic remote changes');
+		expect(container.textContent).toContain('does not wrap SSH');
+		expect(storage.setItem).not.toHaveBeenCalled();
+
+		const search = requiredElement<HTMLInputElement>(
+			container.querySelector("input[aria-label='Search settings']"),
+		);
+		await act(async () => {
+			setInputValue(search, 'infocmp');
+			search.dispatchEvent(new Event('input', { bubbles: true }));
+		});
+		expect(container.querySelector('#remote-development-diagnostic-command')).not.toBeNull();
+		await act(async () => {
+			setInputValue(search, 'automatic installation action');
+			search.dispatchEvent(new Event('input', { bubbles: true }));
+		});
+		expect(container.textContent).toContain('No settings found.');
+		expect(container.querySelector('#remote-development-diagnostic-command')).toBeNull();
+		expect(storage.setItem).not.toHaveBeenCalled();
+
+		await act(async () => root.unmount());
+		container.remove();
+		controller.dispose();
+		keyboardShortcutController.dispose();
+	});
+
 	it('filters Chinese settings copy without falling back to English', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
@@ -485,6 +551,14 @@ describe('TerminalSettingsSurface', () => {
 		expect(container.textContent).toContain('从 Ghostty 迁移');
 		expect(container.textContent).toContain('这只是预检，Orchbee 不会更改或保存任何设置。');
 		expect(container.textContent).not.toContain('This is a dry run');
+
+		const remoteCategory = requiredElement<HTMLButtonElement>(
+			container.querySelector("button[data-settings-category='remote-development']"),
+		);
+		await act(async () => remoteCategory.click());
+		expect(container.textContent).toContain('诊断远端 shell');
+		expect(container.textContent).toContain('不会自动修改远端');
+		expect(container.textContent).not.toContain('No automatic remote changes');
 
 		await act(async () => root.unmount());
 		container.remove();

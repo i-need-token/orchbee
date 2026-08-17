@@ -10,6 +10,7 @@ This package owns one projected terminal surface:
 - WebGPU rendering with a Canvas 2D fallback;
 - bounded history-window presentation;
 - client-side search and bounded logical-line link discovery;
+- current bounded semantic command-completion metadata;
 - Host-owned selection interaction and copy correlation;
 - keyboard, committed text, IME, mouse, focus, paste, resize, clear, and reset intents; and
 - visible-viewport accessibility.
@@ -18,6 +19,12 @@ It never receives or parses PTY output, loads a VT engine, or exposes `write(pty
 
 The accepted [projected-terminal experience compatibility proposal](../../proposals/terminal/projected-terminal-experience-compatibility.md)
 defines the remaining cross-owner recovery contract; it is not current runtime authority.
+
+Packed metadata carries only the latest optional command-completion sequence, duration, completion
+timestamp, and normalized exit code decoded from the Host frame. This package neither interprets
+Shell output nor owns reminder policy, notification permission, focus rules, freshness,
+deduplication, rate limiting, or product copy. Projection-buffer inputs have no completion fact;
+snapshot and delta inputs preserve the strictly decoded optional value.
 
 `clear()` and `reset()` are semantic Host requests. `clear()` erases the active screen and homes its
 cursor while preserving terminal modes. `reset()` first repairs client-owned composition, pressed
@@ -284,6 +291,17 @@ Committed live-frame metadata maps the optional close-activity extension to `idl
 Historical row windows have no live process observation, so retained-history presentation keeps the
 latest live store's close activity while using the history window for visual metadata and rows.
 
+Committed live frames may also carry the bounded Kitty graphics extension. A graphics snapshot
+atomically replaces decoded in-memory image resources and placements; a placement-only update is
+accepted only against the exact committed image revision. Invalid bytes or a missing resource
+reference reject the whole terminal frame and request a new snapshot before text or graphics can
+be partially committed. The renderer presents supported `z >= 0` placements on a
+pointer-transparent overlay canvas, converts raw gray/gray-alpha/RGB/RGBA pixels once per image
+generation, and reuses that raster for crop, scale, and movement. Empty snapshots, deletion,
+reset, history presentation, and disposal clear both pixels and DOM resources. The package does
+not parse PNG, load paths or URLs, persist images, or implement virtual, negative-z, glyph, or
+animated graphics.
+
 Row-window input is strictly decoded by default. An application adapter may set `projectionBufferTrust: 'local-host'` only when it owns an immutable, same-user, capability-scoped Terminal Host transport. That path retains the OBPB format-`0.0.1` buffer and creates typed-array views without rescanning or repacking every cell. Gateway, network, plugin, and persisted input must retain the default `external` behavior.
 
 ## History, search, selection, and links
@@ -310,7 +328,24 @@ terminal.updateSearch('failed', { caseSensitive: false, wholeWord: true });
 terminal.findNext();
 ```
 
-Selection endpoints and exported content remain authoritative in Terminal Host. The browser derives a one-, two-, or three-click sequence from a 500-millisecond interval and a one-cell surface-distance limit instead of trusting DOM click counts, then sends bounded surface position and cell geometry for Ghostty's word, line, rectangle, and 60% within-cell endpoint rules. A plain click does not synthesize a one-cell selection. Dragging beyond the viewport advances retained history through bounded row-window requests and continues the same Host gesture at the newly exposed row; document-level move and release fallbacks retain that behavior when pointer capture is unavailable. A modifier-assisted triple click selects Ghostty's semantic command output and dragging expands across output blocks. Only an ordinary primary-pointer release completes the gesture and requests copy by default. Buttonless motion, pointer cancellation or capture loss, surface focus or document visibility loss, and presentation-geometry replacement cancel the pinned gesture without copying or clearing the latest Host selection. Serialized gesture replies make a normal release or cancellation produce exactly one copy consequence; construction-time `copyOnSelect: false` and runtime `setCopyOnSelect(false)` both opt out of normal-release copy. Every admitted automatic or manual copy publishes one source-tagged completion or failure through `onSelectionCopyResult` after the application-owned clipboard effect resolves. Programmatic range and semantic-output selection use absolute `bigint` rows. `adjustSelectionEndpoint` preserves the latest Host-published start endpoint and rectangle mode while replacing only the active end endpoint; it never reconstructs Ghostty text semantics in the client. Assistive-technology DOM ranges use the same explicit cell-range command, with UTF-16 offsets mapped across combining, wide, and surrogate-pair graphemes. Host selection is mirrored back into the visible-viewport accessibility tree when both endpoints are visible. When the document-global DOM range moves to another surface or disappears during sibling focus, this surface relinquishes only its accessibility mirror ownership; the attachment's Host selection and canvas overlay remain active. An attachment constructed with `inputEnabled: false` keeps its hidden textarea focusable but natively read-only. Shift-only page navigation, wheel history, and local selection remain available without Host input capability; defensive `beforeinput`, composition, and paste listeners own rejected browser editing and clear any residual textarea or preedit state without emitting PTY input. Construction-time input capability is otherwise immutable, but an identity-checked natural-exit outcome seals PTY input, clear, reset, and resize immediately and makes the existing textarea read-only. The retained final frame, history, search, selection, copy, and approved-link interaction remain available until disposal. The application performs the clipboard side effect and reports only its outcome.
+Selection endpoints and exported content remain authoritative in Terminal Host. The browser derives a one-, two-, or three-click sequence from a 500-millisecond interval and a one-cell surface-distance limit instead of trusting DOM click counts, then sends bounded surface position and cell geometry for Ghostty's word, line, rectangle, and 60% within-cell endpoint rules. A plain click does not synthesize a one-cell selection. Dragging beyond the viewport advances retained history through bounded row-window requests and continues the same Host gesture at the newly exposed row; document-level move and release fallbacks retain that behavior when pointer capture is unavailable. A modifier-assisted triple click selects Ghostty's semantic command output and dragging expands across output blocks. Only an ordinary primary-pointer release completes the gesture and requests copy by default. The serialized command queue retains the latest coalesced drag update ahead of that release even when the initial press reply is still in flight. Buttonless motion, pointer cancellation or capture loss, surface focus or document visibility loss, and presentation-geometry replacement cancel the pinned gesture without copying or clearing the latest Host selection. Serialized gesture replies make a normal release or cancellation produce exactly one copy consequence; construction-time `copyOnSelect: false` and runtime `setCopyOnSelect(false)` both opt out of normal-release copy. Every admitted automatic or manual copy publishes one source-tagged completion or failure through `onSelectionCopyResult` after the application-owned clipboard effect resolves. Programmatic range and semantic-output selection use absolute `bigint` rows. `adjustSelectionEndpoint` preserves the latest Host-published start endpoint and rectangle mode while replacing only the active end endpoint; it never reconstructs Ghostty text semantics in the client. Assistive-technology DOM ranges use the same explicit cell-range command, with UTF-16 offsets mapped across combining, wide, and surrogate-pair graphemes. Host selection is mirrored back into the visible-viewport accessibility tree when both endpoints are visible. When the document-global DOM range moves to another surface or disappears during sibling focus, this surface relinquishes only its accessibility mirror ownership; the attachment's Host selection and canvas overlay remain active. An attachment constructed with `inputEnabled: false` keeps its hidden textarea focusable but natively read-only. Shift-only page navigation, wheel history, and local selection remain available without Host input capability; defensive `beforeinput`, composition, and paste listeners own rejected browser editing and clear any residual textarea or preedit state without emitting PTY input. Construction-time input capability is otherwise immutable, but an identity-checked natural-exit outcome seals PTY input, clear, reset, and resize immediately and makes the existing textarea read-only. The retained final frame, history, search, selection, copy, and approved-link interaction remain available until disposal. The application performs the clipboard side effect and reports only its outcome.
+
+Terminal-originated clipboard writes use a separate event path. `ProjectedTerminal` accepts only a
+schema-validated request for its exact attachment, suppresses a duplicate or stale sequence, and
+publishes the bounded text to the application without performing an effect. Disposal removes the
+listener and prevents later delivery. The application must own the user decision and platform
+clipboard capability; selection copy does not implicitly approve an OSC 52 request.
+
+Frame metadata exposes one strictly decoded current progress sample. The packed store commits
+`remove`, `set`, `error`, `indeterminate`, or `pause` atomically with the frame and defaults an absent
+extension to `remove`. Bell remains a separately sequenced attachment event. Neither progress nor
+Bell changes terminal lifecycle, input availability, focus, or application notification policy.
+
+Frame metadata also exposes the latest strictly decoded semantic command completion, when present:
+terminal-local sequence, duration milliseconds, wall-clock completion milliseconds, and normalized
+exit code. The packed store never reconstructs or retains command text. It only commits the Host
+fact atomically; the application owns freshness, focus, deduplication, rate limiting, permission,
+and any notification effect.
 
 ```ts
 terminal.selectAll();

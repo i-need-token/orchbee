@@ -9,6 +9,7 @@ import {
 	startDesktopWorkbenchRenderer,
 	type DesktopWorkbenchRendererSession,
 } from './startDesktopWorkbenchRenderer';
+import { resolveDesktopTerminalFileDropCapability } from '../terminal-file-drop';
 
 export interface DesktopWebApplicationSession {
 	dispose(): void;
@@ -75,6 +76,7 @@ export function startDesktopWebApplication(
 			return;
 		}
 		try {
+			const terminalFileDropCapability = resolveDesktopTerminalFileDropCapability(targetWindow);
 			rendererSession = dependencies.startRenderer(
 				rootElement,
 				documentElement,
@@ -86,6 +88,7 @@ export function startDesktopWebApplication(
 				clientSessionPort,
 				projectionPort,
 				browserAccessPort,
+				terminalFileDropCapability,
 			);
 			if (rootElement instanceof HTMLElement) {
 				rootElement.dataset['desktopContextIsolated'] = 'true';

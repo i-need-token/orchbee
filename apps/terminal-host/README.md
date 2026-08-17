@@ -23,10 +23,12 @@ Terminal Host owns:
 - the single canonical Ghostty state used by input encoding, projection, history, and selection;
 - effective terminal configuration, ordered bounded input, revisions, and generations;
 - broker-scoped attachments, demand, delivery flights, bell cursors, history anchors, selections, and exports;
+- bounded OSC 52 plain-text write intent, current terminal progress, and latest semantic command
+  completion facts derived from Ghostty output;
 - a private local IPC endpoint protected by operating-system user identity; and
 - typed native adaptation of the shared terminal protocol.
 
-It does not own Project, Workspace, Workbench, Tab, Panel, agent, or product-session models. It also does not own Electron lifecycle, product recovery choices, rendering, clipboard behavior, search queries, external navigation, updates, network listeners, remote authentication, encryption, or sharing.
+It does not own Project, Workspace, Workbench, Tab, Panel, agent, or product-session models. It also does not own Electron lifecycle, product recovery choices, rendering, platform clipboard contents, user confirmation, clipboard effects, search queries, external navigation, updates, network listeners, remote authentication, encryption, or sharing.
 
 ## Runtime promises
 
@@ -57,6 +59,15 @@ The accepted contract requires these externally visible properties:
   or asks a projected client to emulate VT behavior.
 - Each Ghostty bell advances one terminal-owned sequence. A read-capable attachment receives only
   later bells, once per committed event record; reconnect does not replay earlier bell intent.
+- OSC 52 can publish one bounded plain-text write intent to one read-capable attachment, but never
+  reads the user's clipboard or performs a platform effect. Outgoing backpressure retries the same
+  intent, while successful handoff and reconnect cannot duplicate it.
+- Ghostty progress reports project only the terminal's current bounded local sample; they do not
+  assert process completion or request a system notification.
+- OSC 133 `C` and `D` actions transactionally retain only one terminal-local completion sequence,
+  monotonic duration, wall-clock completion timestamp, and normalized exit code. The Host never
+  retains or projects command text, arguments, directory, environment, or output for reminders;
+  freshness, focus, permission, rate limiting, and notification effects remain client policy.
 - A successful grid reflow preserves a tracked selection and committed history anchor when Ghostty's pins remain valid, while cancelling stale row flights and already encoded export bytes. Screen replacement and retained-row eviction remain explicit selection eviction boundaries.
 
 The complete state model, retry classes, commit boundaries, invariants, and evidence matrix live in the [runtime contract](docs/runtime-model.md).

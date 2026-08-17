@@ -2,6 +2,7 @@ const terminal_input = @import("terminal-input");
 const contract = @import("contract.zig");
 const envelope = @import("envelope.zig");
 const frame_codec = @import("frame.zig");
+const graphics_extension_codec = @import("graphics_extension.zig");
 const input_codec = @import("input.zig");
 const projection_buffer_codec = @import("projection_buffer.zig");
 const row_window_codec = @import("row_window.zig");
@@ -26,7 +27,18 @@ pub const terminal_frame_format_major = contract.terminal_frame_format_major;
 pub const terminal_frame_format_minor = contract.terminal_frame_format_minor;
 pub const terminal_frame_format_patch = contract.terminal_frame_format_patch;
 pub const terminal_frame_extension_close_activity = contract.terminal_frame_extension_close_activity;
+pub const terminal_frame_extension_kitty_graphics = contract.terminal_frame_extension_kitty_graphics;
+pub const terminal_frame_extension_progress = contract.terminal_frame_extension_progress;
+pub const terminal_frame_extension_command_completion = contract.terminal_frame_extension_command_completion;
+pub const terminal_graphics_header_bytes = contract.terminal_graphics_header_bytes;
+pub const terminal_graphics_magic = contract.terminal_graphics_magic;
+pub const terminal_graphics_format_major = contract.terminal_graphics_format_major;
+pub const terminal_graphics_format_minor = contract.terminal_graphics_format_minor;
+pub const terminal_graphics_format_patch = contract.terminal_graphics_format_patch;
 pub const TerminalCloseActivity = contract.TerminalCloseActivity;
+pub const TerminalProgress = contract.TerminalProgress;
+pub const TerminalProgressState = contract.TerminalProgressState;
+pub const TerminalCommandCompletion = contract.TerminalCommandCompletion;
 pub const terminal_projection_buffer_header_bytes = contract.terminal_projection_buffer_header_bytes;
 pub const terminal_projection_buffer_magic = contract.terminal_projection_buffer_magic;
 pub const terminal_projection_buffer_format_major = contract.terminal_projection_buffer_format_major;
@@ -54,6 +66,8 @@ pub const RowWindowDetail = row_window_codec.RowWindowDetail;
 pub const RowWindowSummary = row_window_codec.RowWindowSummary;
 
 pub const FrameSummary = frame_codec.FrameSummary;
+pub const TerminalGraphicsSummary = graphics_extension_codec.Summary;
+pub const TerminalGraphicsUpdateKind = graphics_extension_codec.UpdateKind;
 pub const ProjectionBufferSummary = projection_buffer_codec.ProjectionBufferSummary;
 
 pub const EnvelopeSummary = envelope.Summary;
@@ -80,6 +94,7 @@ const optionalIdentifier = wire.optionalIdentifier;
 pub const isKnownMessageKind = contract.isKnownMessageKind;
 
 pub const validateTerminalFrame = frame_codec.validateTerminalFrame;
+pub const validateTerminalGraphics = graphics_extension_codec.validate;
 pub const validateTerminalProjectionBuffer = projection_buffer_codec.validateTerminalProjectionBuffer;
 
 pub const validateTerminalRowWindow = row_window_codec.validateTerminalRowWindow;

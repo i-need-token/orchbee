@@ -197,6 +197,7 @@ const ControlOutputsFixture = struct {
     selection_export_started: []const []const u8,
     terminal_acknowledged: []const u8,
     terminal_bell: []const u8,
+    terminal_clipboard_write_request: []const u8,
     terminal_configuration_accepted: []const u8,
     terminal_control_accepted: []const []const u8,
     terminal_defaults_accepted: []const u8,
@@ -231,6 +232,7 @@ const ControlRawCaseFixture = struct {
 
 const ProtocolLimitsFixture = struct {
     cell_pixel_dimension: u64,
+    clipboard_text_bytes: u64,
     control_json_bytes: u64,
     environment_name_bytes: u64,
     extension_bytes: u64,
@@ -241,6 +243,12 @@ const ProtocolLimitsFixture = struct {
     frame_rows: u64,
     frame_strings: u64,
     frame_styles: u64,
+    terminal_graphics_destination_pixels: u64,
+    terminal_graphics_dimension: u64,
+    terminal_graphics_extension_bytes: u64,
+    terminal_graphics_images: u64,
+    terminal_graphics_placements: u64,
+    terminal_graphics_resource_bytes: u64,
     input_accepted_bytes: u64,
     input_bytes: u64,
     inventory_page_terminals: u64,
@@ -1245,6 +1253,15 @@ test "native control replies and events conform to TypeScript schemas" {
         outputs.terminal_bell,
         try control_encode.terminalBell(allocator, attachment_id, 6),
     );
+    try expectOwnedJson(
+        allocator,
+        outputs.terminal_clipboard_write_request,
+        try control_encode.terminalClipboardWriteRequest(
+            allocator,
+            attachment_id,
+            .{ .sequence = 7, .text = "copied from terminal" },
+        ),
+    );
     const selection_snapshots = [_]TestSelectionSnapshot{
         .none,
         .evicted,
@@ -1843,7 +1860,7 @@ test "native frame decoder rejects non-canonical wrap, spacer, style, and patch 
 
     const different_patch = try allocator.dupe(u8, frame_fixture);
     defer allocator.free(different_patch);
-    different_patch[144] = 2;
+    different_patch[144] = 3;
     try std.testing.expectError(
         error.UnsupportedVersion,
         protocol.validateTerminalFrame(allocator, different_patch),

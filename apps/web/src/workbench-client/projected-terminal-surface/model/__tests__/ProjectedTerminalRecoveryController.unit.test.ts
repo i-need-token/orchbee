@@ -8,6 +8,33 @@ import {
 } from '../ProjectedTerminalRecoveryController';
 
 describe('ProjectedTerminalRecoveryController', () => {
+	it('routes a file drop only through the current painted attachment', async () => {
+		const active = rendererSession();
+		const request = projectionRequest();
+		const states: ProjectedTerminalRecoveryState[] = [];
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: (state) => states.push(state),
+			open: () => request.request,
+			startRenderer: async () => active.session,
+		});
+
+		await expect(controller.pasteFileDrop("'/tmp/before.txt'")).resolves.toEqual({
+			kind: 'unavailable',
+		});
+		controller.start();
+		request.resolve();
+		await vi.waitFor(() => expect(states.at(-1)).toEqual({ kind: 'ready' }));
+		await expect(controller.pasteFileDrop("'/tmp/ready.txt'")).resolves.toMatchObject({
+			kind: 'sent',
+		});
+		expect(active.session.pasteFileDrop).toHaveBeenCalledExactlyOnceWith("'/tmp/ready.txt'");
+
+		controller.dispose();
+		await expect(controller.pasteFileDrop("'/tmp/after.txt'")).resolves.toEqual({
+			kind: 'unavailable',
+		});
+	});
+
 	it('retains the active frame across bounded recovery and replaces it only after a painted frame', async () => {
 		vi.useFakeTimers();
 		const states: ProjectedTerminalRecoveryState[] = [];
@@ -106,12 +133,25 @@ function rendererSession(overrides: Partial<ProjectedTerminalRendererSession> = 
 } {
 	const dispose = vi.fn<() => void>();
 	const freeze = vi.fn<() => void>();
+	const pasteFileDrop = vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(async () => ({
+		kind: 'sent',
+		review: {
+			bracketed: false,
+			embeddedBracketTerminator: false,
+			multiline: false,
+			originalText: "'/tmp/file.txt'",
+			replacedControlCharacters: 0,
+			source: 'file-drop',
+			text: "'/tmp/file.txt'",
+		},
+	}));
 	return {
 		dispose,
 		freeze,
 		session: {
 			dispose,
 			freeze,
+			pasteFileDrop,
 			presentationReady: Promise.resolve(),
 			transportUnavailable: new Promise<void>(() => undefined),
 			updatePresentationConfiguration:

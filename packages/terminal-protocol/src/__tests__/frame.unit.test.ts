@@ -11,9 +11,30 @@ import {
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
+	TerminalFrameExtensionKind,
 	TerminalFrameKind,
 	UnderlineKind,
 } from '../frame';
+import {
+	encodeTerminalGraphics,
+	TerminalGraphicsImageFormat,
+	TerminalGraphicsUpdateKind,
+} from '../terminal-graphics';
+
+function commandCompletionExtension(
+	sequence = 7n,
+	durationMilliseconds = 5_500n,
+	completedAtMilliseconds = 1_786_947_200_000n,
+	exitCode = 42,
+): Uint8Array {
+	const data = new Uint8Array(25);
+	const view = new DataView(data.buffer);
+	view.setBigUint64(0, sequence, true);
+	view.setBigUint64(8, durationMilliseconds, true);
+	view.setBigUint64(16, completedAtMilliseconds, true);
+	view.setUint8(24, exitCode);
+	return data;
+}
 
 describe('packed terminal frame', () => {
 	it('decodes complete rows into typed columns', () => {
@@ -38,7 +59,18 @@ describe('packed terminal frame', () => {
 				cursorRgb: null,
 				foregroundRgb: 0xffffff,
 			},
-			extensions: [],
+			extensions: [
+				{
+					data: new Uint8Array([1, 42]),
+					kind: TerminalFrameExtensionKind.progress,
+					required: false,
+				},
+				{
+					data: commandCompletionExtension(),
+					kind: TerminalFrameExtensionKind.commandCompletion,
+					required: false,
+				},
+			],
 			generation: 1n,
 			hostEpoch: '11111111111111111111111111111111',
 			interaction: {
@@ -109,6 +141,13 @@ describe('packed terminal frame', () => {
 		expect(decoded.value.cells.graphemeStringIndices).toBeInstanceOf(Uint32Array);
 		expect([...decoded.value.cells.widths]).toEqual([0]);
 		expect([...decoded.value.rowData.indices]).toEqual([0]);
+		expect(decoded.value.progress).toEqual({ state: 'set', value: 42 });
+		expect(decoded.value.commandCompletion).toEqual({
+			completedAtMilliseconds: 1_786_947_200_000n,
+			durationMilliseconds: 5_500n,
+			exitCode: 42,
+			sequence: 7n,
+		});
 		expect(decodeTerminalFrameRoute(encoded.value)).toEqual({
 			ok: true,
 			value: {
@@ -131,5 +170,111 @@ describe('packed terminal frame', () => {
 		expect(encodeTerminalFrame({ ...frame, title: '\ud800' })).toEqual(
 			expect.objectContaining({ code: 'invalid-field', ok: false }),
 		);
+		expect(
+			encodeTerminalFrame({
+				...frame,
+				extensions: [
+					{
+						data: new Uint8Array([1, 101]),
+						kind: TerminalFrameExtensionKind.progress,
+						required: false,
+					},
+				],
+			}),
+		).toEqual(expect.objectContaining({ code: 'invalid-field', ok: false }));
+		expect(
+			encodeTerminalFrame({
+				...frame,
+				extensions: [
+					{
+						data: new Uint8Array([0, 1]),
+						kind: TerminalFrameExtensionKind.progress,
+						required: false,
+					},
+				],
+			}),
+		).toEqual(expect.objectContaining({ code: 'invalid-field', ok: false }));
+
+		for (const extensions of [
+			[
+				{
+					data: new Uint8Array(24),
+					kind: TerminalFrameExtensionKind.commandCompletion,
+					required: false,
+				},
+			],
+			[
+				{
+					data: commandCompletionExtension(0n),
+					kind: TerminalFrameExtensionKind.commandCompletion,
+					required: false,
+				},
+			],
+			[
+				{
+					data: commandCompletionExtension(),
+					kind: TerminalFrameExtensionKind.commandCompletion,
+					required: false,
+				},
+				{
+					data: commandCompletionExtension(8n),
+					kind: TerminalFrameExtensionKind.commandCompletion,
+					required: false,
+				},
+			],
+		] as const) {
+			expect(encodeTerminalFrame({ ...frame, extensions })).toEqual(
+				expect.objectContaining({ code: 'invalid-field', ok: false }),
+			);
+		}
+
+		const graphics = encodeTerminalGraphics({
+			images: [
+				{
+					data: new Uint8Array([1, 2, 3]),
+					format: TerminalGraphicsImageFormat.rgb,
+					generation: 1n,
+					height: 1,
+					id: 1,
+					width: 1,
+				},
+			],
+			kind: TerminalGraphicsUpdateKind.snapshot,
+			placements: [],
+			resourceRevision: 1n,
+		});
+		if (!graphics.ok) throw new Error(graphics.detail);
+		const withGraphics = encodeTerminalFrame({
+			...frame,
+			extensions: [
+				{ data: graphics.value, kind: TerminalFrameExtensionKind.kittyGraphics, required: false },
+			],
+		});
+		if (!withGraphics.ok) throw new Error(withGraphics.detail);
+		const decodedGraphics = decodeTerminalFrame(withGraphics.value);
+		if (!decodedGraphics.ok) throw new Error(decodedGraphics.detail);
+		expect(decodedGraphics.value.graphics).toEqual(
+			expect.objectContaining({ images: [expect.objectContaining({ id: 1 })] }),
+		);
+
+		const placementsOnly = encodeTerminalGraphics({
+			images: [],
+			kind: TerminalGraphicsUpdateKind.placements,
+			placements: [],
+			resourceRevision: 1n,
+		});
+		if (!placementsOnly.ok) throw new Error(placementsOnly.detail);
+		expect(
+			encodeTerminalFrame({
+				...frame,
+				extensions: [
+					{
+						data: placementsOnly.value,
+						kind: TerminalFrameExtensionKind.kittyGraphics,
+						required: false,
+					},
+				],
+			}),
+		).toEqual(expect.objectContaining({ code: 'invalid-field', ok: false }));
 	});
 });

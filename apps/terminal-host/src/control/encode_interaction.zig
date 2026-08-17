@@ -87,6 +87,24 @@ pub fn terminalBell(
     );
 }
 
+pub fn terminalClipboardWriteRequest(
+    allocator: std.mem.Allocator,
+    attachment_id: anytype,
+    request: anytype,
+) ![]u8 {
+    std.debug.assert(request.sequence > 0);
+    var attachment_buffer: [32]u8 = undefined;
+    var writer: std.Io.Writer.Allocating = .init(allocator);
+    defer writer.deinit();
+    try writer.writer.print(
+        "{{\"attachmentId\":\"{s}\",\"sequence\":\"{d}\",\"text\":",
+        .{ common.identifierText(attachment_id, &attachment_buffer), request.sequence },
+    );
+    try std.json.Stringify.value(request.text, .{}, &writer.writer);
+    try writer.writer.writeAll("}");
+    return writer.toOwnedSlice();
+}
+
 pub fn selectionChanged(
     allocator: std.mem.Allocator,
     attachment_id: anytype,

@@ -25,6 +25,7 @@ import {
 	SelectionChangedSchema,
 	SelectionExportFinishedSchema,
 	TerminalBellSchema,
+	TerminalClipboardWriteRequestSchema,
 	TypedFailureSchema,
 	type ClientId,
 	type AttachmentId,
@@ -416,6 +417,8 @@ export class HostConnection {
 				return decodeControlAttachmentId(envelope, HistoryChangedSchema);
 			case MessageKind.terminalBell:
 				return decodeControlAttachmentId(envelope, TerminalBellSchema);
+			case MessageKind.terminalClipboardWriteRequest:
+				return decodeControlAttachmentId(envelope, TerminalClipboardWriteRequestSchema);
 			case MessageKind.projectionBlocked:
 				return decodeControlAttachmentId(envelope, ProjectionBlockedSchema);
 			case MessageKind.resizeLeaseChanged:

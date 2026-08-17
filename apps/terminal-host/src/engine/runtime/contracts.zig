@@ -86,6 +86,7 @@ pub const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     reader_commit_waiting: ?*const fn (*anyopaque) void = null,
     reader_batch_finished: ?*const fn (*anyopaque, ReaderBatchOutcome) void = null,
     reader_stopped: ?*const fn (*anyopaque) void = null,
+    monotonic_time_nanoseconds: ?*const fn (*anyopaque) u64 = null,
     resize_effect_returned: ?*const fn (*anyopaque) void = null,
     resize_pty: ?*const fn (
         *anyopaque,
@@ -96,6 +97,7 @@ pub const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     writer_waiting_for_input: ?*const fn (*anyopaque) void = null,
     writer_slice_copied: ?*const fn (*anyopaque) void = null,
     writer_slice_started: ?*const fn (*anyopaque) void = null,
+    wall_time_milliseconds: ?*const fn (*anyopaque) u64 = null,
 } else struct {};
 
 pub const WriterSlice = terminal_input_queue.WriterSlice;
@@ -112,6 +114,18 @@ pub const KeyInput = terminal_input.KeyInput;
 pub const MouseInput = terminal_input.MouseInput;
 
 pub const DeviceAttributes = terminal_profile.DeviceAttributes;
+pub const TerminalProgress = protocol.TerminalProgress;
+pub const TerminalCommandCompletion = protocol.TerminalCommandCompletion;
+
+pub const ClipboardWriteRequest = struct {
+    sequence: u64,
+    text: []u8,
+};
+
+pub const PreparedClipboardWriteRequest = struct {
+    sequence: u64,
+    text: []const u8,
+};
 
 pub const ProjectionCounters = terminal_projection.Counters;
 pub const ProjectionEncodeRequest = terminal_projection.EncodeRequest;

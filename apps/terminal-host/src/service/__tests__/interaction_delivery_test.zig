@@ -258,6 +258,91 @@ test "a full outgoing batch retries the same bell sequence" {
     try std.testing.expectEqual(@as(usize, 1), retry.records().len);
     try expectBellRecord(retry.records()[0], attachment_id, 1);
 }
+test "OSC 52 delivery retries transactionally and selects only one readable attachment" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const first_attachment_id = testId(core_module.AttachmentId, 0x84);
+    const second_attachment_id = testId(core_module.AttachmentId, 0x85);
+    const reconnect_attachment_id = testId(core_module.AttachmentId, 0x86);
+    const binding = try createReadableRuntime(&aggregate, connection_id, first_attachment_id);
+    _ = try aggregate.attach(
+        connection_id,
+        second_attachment_id,
+        binding.terminal_id,
+        .{ .input = false, .read = true, .resize = false },
+        false,
+    );
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(binding.runtime, "\x1b]52;c;b25jZQ==\x1b\\"),
+    );
+
+    var scheduler: subject.Scheduler = .{};
+    var full = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer full.deinit();
+    try fillOutgoingLeaving(&full, aggregate.core().epoch, 64);
+    try std.testing.expectEqual(
+        host_outgoing.ScheduleOutcome.batch_full,
+        try scheduler.schedule(std.testing.allocator, &aggregate, connection_id, &full),
+    );
+
+    var retry = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer retry.deinit();
+    _ = try scheduler.schedule(std.testing.allocator, &aggregate, connection_id, &retry);
+    try std.testing.expectEqual(@as(usize, 1), retry.records().len);
+    const envelope = try protocol.validateTransportEnvelope(retry.records()[0]);
+    try std.testing.expectEqual(
+        protocol.MessageKind.terminal_clipboard_write_request,
+        envelope.kind,
+    );
+    const Event = struct {
+        attachmentId: []const u8,
+        sequence: []const u8,
+        text: []const u8,
+    };
+    const event = try control_wire.decode(Event, std.testing.allocator, envelope.payload);
+    defer event.deinit();
+    var first_buffer: [32]u8 = undefined;
+    var second_buffer: [32]u8 = undefined;
+    const routed_to_first = std.mem.eql(
+        u8,
+        event.value.attachmentId,
+        control_encode.identifierText(first_attachment_id, &first_buffer),
+    );
+    const routed_to_second = std.mem.eql(
+        u8,
+        event.value.attachmentId,
+        control_encode.identifierText(second_attachment_id, &second_buffer),
+    );
+    try std.testing.expect(routed_to_first or routed_to_second);
+    try std.testing.expectEqualStrings("1", event.value.sequence);
+    try std.testing.expectEqualStrings("once", event.value.text);
+
+    var drained = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer drained.deinit();
+    _ = try scheduler.schedule(std.testing.allocator, &aggregate, connection_id, &drained);
+    try std.testing.expectEqual(@as(usize, 0), drained.records().len);
+
+    _ = try aggregate.attach(
+        connection_id,
+        reconnect_attachment_id,
+        binding.terminal_id,
+        .{ .input = false, .read = true, .resize = false },
+        false,
+    );
+    var after_reconnect = host_outgoing.Outgoing.init(std.testing.allocator);
+    defer after_reconnect.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &aggregate,
+        connection_id,
+        &after_reconnect,
+    );
+    try std.testing.expectEqual(@as(usize, 0), after_reconnect.records().len);
+}
 test "selection capability binds identity and provisional export rollback restores sequence" {
     if (target_builtin.os.tag == .windows) return error.SkipZigTest;
 

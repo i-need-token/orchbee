@@ -7,6 +7,11 @@ import { createWebApplicationRouting, type WebApplicationRouting } from '../../a
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { TerminalSettingsController } from '../../terminal-settings';
 import {
+	createBrowserTerminalNotificationCapability,
+	TerminalFeedbackSettingsController,
+	UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY,
+} from '../../terminal-feedback-settings';
+import {
 	createWorkbenchClientRuntime,
 	ProjectedTerminalSurface,
 	type WorkbenchClientRuntime,
@@ -22,6 +27,7 @@ import {
 } from '../desktop-browser-access-dialog';
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopTerminalProjectionClient } from '../terminal-projection-control';
+import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 
 export interface DesktopWorkbenchRendererSession {
 	dispose(): void;
@@ -41,6 +47,7 @@ export function startDesktopWorkbenchRenderer(
 	clientSessionPort: MessagePort,
 	projectionPort: MessagePort,
 	browserAccessPort: MessagePort,
+	terminalFileDropCapability?: TerminalFileDropCapability,
 ): DesktopWorkbenchRendererSession {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee Desktop application root element is missing.');
@@ -59,6 +66,13 @@ export function startDesktopWorkbenchRenderer(
 		storage,
 		themeTarget: documentElement,
 	});
+	const terminalFeedbackSettingsController = new TerminalFeedbackSettingsController({
+		notificationCapability:
+			applicationRoot.ownerDocument.defaultView === null
+				? UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY
+				: createBrowserTerminalNotificationCapability(applicationRoot.ownerDocument.defaultView),
+		storage,
+	});
 	const runtime = createWorkbenchClientRuntime({
 		clientSession,
 		documentElement,
@@ -67,6 +81,8 @@ export function startDesktopWorkbenchRenderer(
 		shortcutBindingSource: keyboardShortcutSettingsController,
 		shortcutPlatform,
 		terminalPresentationConfigurationSource: terminalSettingsController,
+		terminalCompletionReminderObserver: terminalFeedbackSettingsController,
+		...(terminalFileDropCapability === undefined ? {} : { terminalFileDropCapability }),
 	});
 	let applicationLifetimeCoordinator: DesktopApplicationLifetimeCoordinator | undefined;
 	let browserAccessReturnFocus: HTMLElement | null = null;
@@ -88,6 +104,7 @@ export function startDesktopWorkbenchRenderer(
 		runtime.dispose();
 		keyboardShortcutSettingsController.dispose();
 		terminalSettingsController.dispose();
+		terminalFeedbackSettingsController.dispose();
 		if (lifetimeClient === undefined) lifetimePort.close();
 		else lifetimeClient.dispose();
 	};
@@ -126,6 +143,7 @@ export function startDesktopWorkbenchRenderer(
 			},
 			shortcutPlatform,
 			terminalSettingsController,
+			terminalFeedbackSettingsController,
 			terminalSurface: ProjectedTerminalSurface,
 		});
 		routing = nextRouting;

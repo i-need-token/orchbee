@@ -7,6 +7,10 @@ import { createWebApplicationRouting, type WebApplicationRouting } from '../../a
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { TerminalSettingsController } from '../../terminal-settings';
 import {
+	createBrowserTerminalNotificationCapability,
+	TerminalFeedbackSettingsController,
+} from '../../terminal-feedback-settings';
+import {
 	createWorkbenchClientRuntime,
 	ProjectedTerminalSurface,
 	WorkbenchClientApplication,
@@ -72,6 +76,10 @@ export function startGatewayWebApplication(
 		storage,
 		themeTarget: documentElement,
 	});
+	const terminalFeedbackSettingsController = new TerminalFeedbackSettingsController({
+		notificationCapability: createBrowserTerminalNotificationCapability(targetWindow),
+		storage,
+	});
 	const dispose = (): void => {
 		if (disposed) return;
 		disposed = true;
@@ -83,6 +91,7 @@ export function startGatewayWebApplication(
 		runtime = undefined;
 		keyboardShortcutSettingsController.dispose();
 		terminalSettingsController.dispose();
+		terminalFeedbackSettingsController.dispose();
 		control?.close();
 		control = undefined;
 	};
@@ -133,6 +142,7 @@ export function startGatewayWebApplication(
 			shortcutBindingSource: keyboardShortcutSettingsController,
 			shortcutPlatform,
 			terminalPlatformEffects: platformEffects,
+			terminalCompletionReminderObserver: terminalFeedbackSettingsController,
 			terminalPresentationConfigurationSource: terminalSettingsController,
 		});
 		runtime = nextRuntime;
@@ -149,6 +159,7 @@ export function startGatewayWebApplication(
 			projectWorkspaceRuntime: nextRuntime.projectWorkspaceRuntime,
 			shortcutPlatform,
 			terminalSettingsController,
+			terminalFeedbackSettingsController,
 			terminalSurface: ProjectedTerminalSurface,
 		});
 		routing = nextRouting;

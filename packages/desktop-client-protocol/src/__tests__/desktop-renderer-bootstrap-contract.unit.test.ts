@@ -5,6 +5,7 @@ import {
 import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it } from 'vitest';
 
+import { DESKTOP_FILE_PATH_BRIDGE_KEY } from '../desktop-file-path-bridge-contract';
 import {
 	DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 	DESKTOP_RENDERER_BOOTSTRAP_WINDOW_MESSAGE,
@@ -14,6 +15,10 @@ import {
 } from '../desktop-renderer-bootstrap-contract';
 
 describe('Desktop renderer bootstrap contract', () => {
+	it('names the one context-isolated File-scoped path capability', () => {
+		expect(DESKTOP_FILE_PATH_BRIDGE_KEY).toBe('orchbeeDesktopFilePath');
+	});
+
 	it('parses one atomic client bootstrap with a fixed four-capability port order', () => {
 		const initialPresentationId = terminalPresentationId('presentation-initial');
 		const initializationDocument = createWorkbenchSharedDocument({

@@ -8,6 +8,7 @@ pub const runtime = @import("runtime/root.zig");
 pub const testing = if (builtin.is_test) struct {
     pub const input_ownership = @import("input_ownership.zig");
     pub const input_queue = @import("input_queue.zig");
+    pub const png_decoder = @import("png_decoder.zig");
     pub const projection = @import("projection/root.zig");
     pub const runtime_completion = @import("runtime_completion.zig");
     pub const runtime_containment = @import("runtime_containment.zig");

@@ -49,8 +49,8 @@ The Host does not own:
 - Project, Workspace, Workbench, Tab, Panel, agent, or product-session models;
 - concurrent independent brokers, same-user application isolation, or authorization policy;
 - TCP, HTTP, WebSocket, TLS, remote authentication, or sharing gateways;
-- product recovery choices, update timing, UI, rendering, clipboard, external navigation, or
-  localized product copy;
+- product recovery choices, update timing, UI, rendering, platform clipboard contents or effects,
+  external navigation, or localized product copy;
 - search queries or match ranking; clients search bounded text-detail rows;
 - durable PTY migration, Host-process crash recovery, or operating-system crash continuity; or
 - a reusable native library API for another workspace.
@@ -89,20 +89,20 @@ Every mutable fact has one authoritative owner. Derived indexes and scheduler qu
 only when they can be validated against, rebuilt from, or discarded without changing the owned
 fact.
 
-| Owner                        | Authoritative facts                                                                                                                                                                                                           |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HostState`                  | Host epoch and process defaults                                                                                                                                                                                               |
-| `TerminalRegistry`           | Terminal membership, creation-identity binding index, inventory generation, and the stable reference to each retained session                                                                                                 |
-| `RetainedTerminal`           | The allocation and one-to-one binding of exactly one `TerminalSession` to exactly one `TerminalEngine`                                                                                                                        |
-| Local IPC connection         | `awaiting_hello`/`active`/`closing`, negotiated protocol limits, transport lifetime, and the physical connection                                                                                                              |
-| `BrokerSession`              | The active connection identifier, diagnostic `ClientId`, and attachment membership                                                                                                                                            |
-| `TerminalSession`            | Terminal identity, lifecycle, committed effective configuration and its revision, and the rebuildable last-synchronized engine observation                                                                                    |
-| `TerminalEngine`             | PTY/process resources, Ghostty canonical state, content revision, generation, geometry, bell sequence, physical configuration application, input queue, attachment-scoped held-input cleanup ledgers, and failure observation |
-| `AttachmentSession`          | Terminal binding, capabilities, demand, delivery flights, bell delivery cursor, history anchor, selection, and export progress                                                                                                |
-| Local IPC                    | Endpoint security, accept/read/write/timeout behavior, and record framing                                                                                                                                                     |
-| Native protocol adapter      | Lossless conversion between transport records and typed Host commands, replies, and events                                                                                                                                    |
-| `@orchbee/terminal-protocol` | Wire schemas, codecs, message kinds, format versions, and protocol safety limits                                                                                                                                              |
-| Desktop                      | Product binding, recovery decisions, escalation timing, platform effects, presentation, and updates                                                                                                                           |
+| Owner                        | Authoritative facts                                                                                                                                                                                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HostState`                  | Host epoch and process defaults                                                                                                                                                                                                                                                             |
+| `TerminalRegistry`           | Terminal membership, creation-identity binding index, inventory generation, and the stable reference to each retained session                                                                                                                                                               |
+| `RetainedTerminal`           | The allocation and one-to-one binding of exactly one `TerminalSession` to exactly one `TerminalEngine`                                                                                                                                                                                      |
+| Local IPC connection         | `awaiting_hello`/`active`/`closing`, negotiated protocol limits, transport lifetime, and the physical connection                                                                                                                                                                            |
+| `BrokerSession`              | The active connection identifier, diagnostic `ClientId`, and attachment membership                                                                                                                                                                                                          |
+| `TerminalSession`            | Terminal identity, lifecycle, committed effective configuration and its revision, and the rebuildable last-synchronized engine observation                                                                                                                                                  |
+| `TerminalEngine`             | PTY/process resources, Ghostty canonical state, content revision, generation, geometry, bell sequence, current progress, one bounded pending clipboard-write intent, physical configuration application, input queue, attachment-scoped held-input cleanup ledgers, and failure observation |
+| `AttachmentSession`          | Terminal binding, capabilities, demand, delivery flights, bell delivery cursor, history anchor, selection, and export progress                                                                                                                                                              |
+| Local IPC                    | Endpoint security, accept/read/write/timeout behavior, and record framing                                                                                                                                                                                                                   |
+| Native protocol adapter      | Lossless conversion between transport records and typed Host commands, replies, and events                                                                                                                                                                                                  |
+| `@orchbee/terminal-protocol` | Wire schemas, codecs, message kinds, format versions, and protocol safety limits                                                                                                                                                                                                            |
+| Desktop                      | Product binding, recovery decisions, escalation timing, platform effects, presentation, and updates                                                                                                                                                                                         |
 
 `TerminalEngine` remains one semantic owner, but it is not one implementation file. Its runtime
 source is a directory of review units: one private state record, one narrow public handle, and
@@ -620,6 +620,33 @@ to decide whether a destructive-close confirmation is needed, but it cannot use 
 process control or infer containment. Historical OBPB row windows do not carry this live fact, so a
 client viewing history retains the latest committed live-frame observation.
 
+Kitty graphics stay inside the same terminal-state and projection transaction. Native Terminal
+Host configures the pinned Ghostty VT for direct in-memory image media only and limits each primary
+or alternate screen to 4 MiB of decoded image resources. Because Ghostty VT library builds leave
+PNG decoding to their embedder, Host installs its pinned Wuffs decoder once before terminal
+creation and rejects either a PNG container or declared RGBA dimensions above that same 4 MiB
+budget before decoding. A capture selects only viewport-visible,
+non-virtual placements at `z >= 0`; it copies the referenced, already decoded raw pixels while the
+terminal mutex is held and never exposes a file path, temporary-file handle, shared memory, PNG
+container, or compression stream. Visible images and placements are sorted before encoding so one
+canonical state has deterministic bytes.
+
+OBTF graphics extension kind `2` carries either a complete image-resource snapshot plus current
+placements or a placement-only replacement naming the exact previously committed image revision.
+A terminal snapshot always carries the complete form. A delta is placement-only only when its
+acknowledged base is at or after the capture revision that installed the visible image set;
+otherwise the whole terminal frame is promoted to a snapshot. Image retransmission,
+visibility-set change, delete, reset, screen change, and reconnect therefore cannot retain or
+resurrect stale client resources. Scroll-only placement movement may reuse confirmed pixels. The
+aggregate 8 MiB frame, 5 MiB graphics-extension, 4 MiB decoded-resource, 256-visible-image, and
+1024-visible-placement limits are independent checks.
+
+This is deliberately not complete Kitty parity. Unicode virtual placements, negative-z
+composition below text/background, glyph graphics, animations, file media, temporary-file media,
+and shared memory are not projected. Historical OBPB row windows carry no image resources;
+leaving the live bottom viewport clears the client overlay, and returning presents the newest live
+state rather than replaying a history image.
+
 The launch profile seeds Ghostty's default foreground, background, cursor color, and complete
 palette. OSC 4, 10, 11, and 12 changes mutate that canonical state: projection resolves palette
 cells to RGB and carries the current dynamic defaults, while queries produce terminal-reply bytes
@@ -637,6 +664,34 @@ one poll and advances the cursor only after the exact event record is appended t
 outgoing batch. Batch fullness or allocation failure leaves that sequence eligible for retry;
 detachment or broker loss destroys the cursor and drops undelivered bell intent. Bell delivery has
 no client acknowledgement and never mutates projection, history, or canonical screen content.
+
+Ghostty OSC 52 is admitted only for selection kind `c`, standard-base64 plain text, valid UTF-8,
+and at most 16 KiB after decoding. Clipboard reads (`?`), primary selection, invalid base64, invalid
+UTF-8, NUL, disallowed C0 controls, DEL, and oversized text produce no event and no terminal reply.
+The reader transaction stages the decoded allocation and publishes it only with the complete PTY
+read batch. Each terminal retains at most one pending request; later OSC 52 writes are dropped until
+that request is handed off or the runtime is destroyed. The interaction scheduler prepares it for
+one currently scanned read-capable attachment, rolls preparation back if encoding or outgoing-batch
+admission fails, and removes it only after the exact `TerminalClipboardWriteRequest` record is in
+the handed-off batch. Runtime-wide in-flight ownership prevents a second attachment in the same or
+a later poll from receiving the request. A new attachment or reconnect never receives an already
+handed-off request. The Host never reads a platform clipboard, performs the write, stores a trust
+decision, or receives the user's decision; those remain application effects.
+
+Ghostty progress reports update one terminal-owned current sample transactionally with their PTY
+read batch. The state is `remove`, `set`, `error`, `indeterminate`, or `pause`; a present percentage
+is bounded to `0..100`. Projection carries the sample in the optional OBTF progress extension, so
+a new attachment receives current active state, intermediate values may coalesce, and `remove`
+prevents an old task from reappearing. Progress never changes lifecycle, process ownership,
+scheduling priority, notification policy, or terminal content revision.
+
+Ghostty OSC 133 `C` and `D` semantic-prompt actions update one terminal-owned command interval
+transactionally with their PTY read batch. The Host retains only the latest completion sequence,
+duration, wall-clock completion time, and normalized exit code. It never retains or projects command
+text, arguments, environment, or output. A failed reader batch publishes neither a start nor a
+completion. The optional OBTF command-completion extension lets a newly attached client see the
+latest fact; the Host does not decide freshness, focus, notification permission, rate limiting, or
+whether a client should produce an effect.
 
 Every `HistoryChanged` event allocates a positive attachment-local monotonic event sequence
 transactionally with its handoff; the sequence is never reused or reset by a demand change, so a
@@ -827,6 +882,9 @@ Outgoing records are built as a transaction over connection-scoped delivery stat
   the batch handed to Local IPC.
 - An ephemeral bell cursor follows the same append-before-commit rule even though it has no client
   acknowledgement: one appended event advances one attachment cursor by exactly one sequence.
+- A pending clipboard-write intent has one runtime-wide preparation owner rather than one cursor per
+  attachment. Failed append rolls it back; one successful append consumes it, so multiple readable
+  attachments and reconnect cannot multiply a privileged application effect.
 - If the next record does not fit, the already prepared prefix is returned normally and the next
   item remains eligible for a later batch. A full batch is scheduler backpressure, not a connection
   error.
@@ -945,6 +1003,7 @@ Stable claim identifiers are used by tests, models, and review findings.
 | `TH-014` | All control JSON crosses one native protocol adapter, all binary data crosses its owning codec, and every registered role/encoding/success-kind/dispatch-operation association comes from the protocol registry; malformed, unknown, incompatible, mismatched, or unhandled records cannot reach domain transitions.                                                                                                                                                                                                                                                                                                                 |
 | `TH-015` | Each Ghostty bell advances one terminal-owned sequence exactly once. A read-capable attachment receives each later sequence at most once, advances only with exact outgoing-batch append, and never replays a sequence that predates its admission or survives its destruction.                                                                                                                                                                                                                                                                                                                                                      |
 | `TH-016` | An input-authorized application clear or reset mutates only the Host-owned Ghostty state, advances generation and revision exactly once, invalidates dependent projection and interaction state coherently across attachments, never enters PTY input/reply queues, and is never automatically replayed after an unknown result.                                                                                                                                                                                                                                                                                                     |
+| `TH-017` | OSC 52 can publish only one bounded plain-text write intent for selection kind `c`; it never reads platform clipboard data. Reader-batch rollback publishes nothing, outgoing-batch rollback preserves the same request for retry, one successful handoff consumes it across all attachments, and reconnect does not replay it. Terminal progress is a bounded current projection sample and never becomes lifecycle or notification authority.                                                                                                                                                                                      |
 
 ## Scenario decisions
 
@@ -1041,6 +1100,7 @@ but does not promote that compile result to PTY, IPC, or ABI runtime evidence.
 | `TH-014`           | Control decode/wire tests, protocol registry tests, and `src/__tests__/protocol_conformance_test.zig`; `src/service/__tests__/lifecycle_request_test.zig`: malformed, stale-epoch, unknown-optional, and role/encoding rejection before dispatch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `TH-015`           | `src/engine/__tests__/runtime_state_test.zig`: Ghostty BEL effect counting; `src/service/__tests__/interaction_delivery_test.zig`: per-attachment baseline, ordered delivery, batch-full retry, and destruction behavior; Desktop and Web projected-terminal tests: exact scoped forwarding and client deduplication                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `TH-016`           | `src/engine/__tests__/runtime_state_test.zig`: application clear/reset semantics and counter-exhaustion rejection; `src/service/__tests__/runtime_aggregate_lifecycle_test.zig`: input-capability authorization and exact Core observation synchronization; `src/__tests__/protocol_conformance_test.zig`: both control operations and exact accepted replies                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `TH-017`           | `src/engine/__tests__/runtime_state_test.zig`: OSC 52 read/selection/base64/UTF-8/control rejection, exact 16 KiB boundary, first-pending ownership, retry identity, and progress set/remove projection; `src/service/__tests__/interaction_delivery_test.zig`: outgoing-full rollback, one-recipient routing across two readable attachments, consumption, and reconnect non-replay; protocol, Desktop broker, projected-terminal, and Web renderer/dialog tests cover the bounded event and explicit application decision                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 The deterministic commit-seam set is: creation preparation/spawn/admission; control-reply
 reservation; raw and semantic queue reservation/publication; attachment input-ledger commit and

@@ -6,6 +6,7 @@ const terminal_stream = @import("../terminal_stream.zig");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const failure_ops = @import("failure.zig");
+const feedback_ops = @import("feedback.zig");
 const input_admission_ops = @import("input_admission.zig");
 const input_commit_ops = @import("input_commit.zig");
 const process_io_ops = @import("process_io.zig");
@@ -188,9 +189,11 @@ pub fn commitReaderBatch(
     self.reader_commit_in_progress = true;
     std.debug.assert(!self.reply_failure_pending);
     std.debug.assert(!self.bell_sequence_overflow_pending);
+    std.debug.assert(!self.feedback_sequence_overflow_pending);
     std.debug.assert(!self.terminal_resize_failure_pending);
     std.debug.assert(self.terminal_driven_resize_target == null);
     self.stream.handler.beginBatch();
+    feedback_ops.beginReaderBatch(self);
     const previous_screen = self.terminal.screens.active_key;
     const previous_columns = self.terminal.cols;
     const previous_rows = self.terminal.rows;
@@ -221,6 +224,8 @@ pub fn commitReaderBatch(
         self.resize_fenced.store(true, .release);
         self.reply_failure_pending = false;
         self.bell_sequence_overflow_pending = false;
+        self.feedback_sequence_overflow_pending = false;
+        feedback_ops.abortReaderBatch(self);
         const won = failure_ops.closeFailureFenceLocked(self, .resize);
         finishReaderCommitLocked(self);
         self.terminal_mutex.unlock();
@@ -244,18 +249,24 @@ pub fn commitReaderBatch(
 
     const reply_failed = self.reply_failure_pending;
     self.reply_failure_pending = false;
+    if (reply_failed) feedback_ops.abortReaderBatch(self) else feedback_ops.commitReaderBatch(self);
     const bell_sequence_overflowed = self.bell_sequence_overflow_pending;
     self.bell_sequence_overflow_pending = false;
+    const feedback_sequence_overflowed = self.feedback_sequence_overflow_pending;
+    self.feedback_sequence_overflow_pending = false;
     const failure_won = if (reply_failed)
         failure_ops.closeFailureFenceLocked(self, .terminal_reply)
     else if (bell_sequence_overflowed)
+        failure_ops.closeFailureFenceLocked(self, .worker_integrity)
+    else if (feedback_sequence_overflowed)
         failure_ops.closeFailureFenceLocked(self, .worker_integrity)
     else
         false;
     finishReaderCommitLocked(self);
     self.terminal_mutex.unlock();
 
-    const outcome: contracts.ReaderBatchOutcome = if (reply_failed or bell_sequence_overflowed)
+    const outcome: contracts.ReaderBatchOutcome = if (reply_failed or
+        bell_sequence_overflowed or feedback_sequence_overflowed)
         .runtime_failed
     else
         .committed;

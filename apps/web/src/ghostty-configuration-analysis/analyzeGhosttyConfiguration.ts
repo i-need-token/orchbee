@@ -2,7 +2,7 @@ const SOURCE_CHARACTER_LIMIT = 262_144;
 const SOURCE_LINE_LIMIT = 4096;
 const SOURCE_LINE_CHARACTER_LIMIT = 4096;
 
-export type GhosttyConfigurationDisposition = 'ignored' | 'invalid' | 'manual' | 'supported';
+type GhosttyConfigurationDisposition = 'ignored' | 'invalid' | 'manual' | 'supported';
 
 export type GhosttyConfigurationFindingReason =
 	| 'cell-opacity-not-supported'
@@ -36,13 +36,13 @@ interface GhosttyConfigurationAnalysisFindingBase {
 	readonly source: string;
 }
 
-export interface GhosttyConfigurationSupportedFinding extends GhosttyConfigurationAnalysisFindingBase {
+interface GhosttyConfigurationSupportedFinding extends GhosttyConfigurationAnalysisFindingBase {
 	readonly disposition: 'supported';
 	readonly reason: 'lossless-target';
 	readonly target: GhosttyConfigurationMigrationTarget;
 }
 
-export interface GhosttyConfigurationUnmappedFinding extends GhosttyConfigurationAnalysisFindingBase {
+interface GhosttyConfigurationUnmappedFinding extends GhosttyConfigurationAnalysisFindingBase {
 	readonly disposition: Exclude<GhosttyConfigurationDisposition, 'supported'>;
 	readonly reason: Exclude<GhosttyConfigurationFindingReason, 'lossless-target'>;
 }
@@ -51,20 +51,20 @@ export type GhosttyConfigurationAnalysisFinding =
 	| GhosttyConfigurationSupportedFinding
 	| GhosttyConfigurationUnmappedFinding;
 
-export interface GhosttyConfigurationAnalysisCounts {
+interface GhosttyConfigurationAnalysisCounts {
 	readonly ignored: number;
 	readonly invalid: number;
 	readonly manual: number;
 	readonly supported: number;
 }
 
-export interface GhosttyConfigurationAnalysisReport {
+interface GhosttyConfigurationAnalysisReport {
 	readonly counts: GhosttyConfigurationAnalysisCounts;
 	readonly findings: readonly GhosttyConfigurationAnalysisFinding[];
 	readonly kind: 'report';
 }
 
-export type GhosttyConfigurationAnalysisRejection =
+type GhosttyConfigurationAnalysisRejection =
 	| {
 			readonly kind: 'rejected';
 			readonly limit: number;

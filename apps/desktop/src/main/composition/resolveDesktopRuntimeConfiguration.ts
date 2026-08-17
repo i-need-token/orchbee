@@ -43,6 +43,7 @@ export type DesktopBrowserAccessRuntimeConfiguration =
 
 export interface DesktopRuntimeConfigurationInput {
 	readonly applicationPath: string;
+	readonly developmentShellIntegrationDirectory?: string | undefined;
 	readonly environment: DesktopRuntimeEnvironment;
 	readonly homeDirectory: string;
 	readonly packagedResourcesPath?: string | undefined;
@@ -137,6 +138,17 @@ export function resolveDesktopRuntimeConfiguration(
 		input.platform === 'win32'
 			? (input.environment.ComSpec ?? 'C:\\Windows\\System32\\cmd.exe')
 			: (input.environment.SHELL ?? '/bin/sh');
+	let shellIntegrationDirectory: string | null;
+	if (input.platform === 'win32') {
+		shellIntegrationDirectory = null;
+	} else if (input.packagedResourcesPath !== undefined) {
+		shellIntegrationDirectory = path.resolve(input.packagedResourcesPath, 'shell-integration');
+	} else {
+		shellIntegrationDirectory = path.resolve(
+			input.developmentShellIntegrationDirectory ??
+				path.join(input.applicationPath, 'resources', 'shell-integration'),
+		);
+	}
 	const recoveryDirectory = path.resolve(
 		input.environment.ORCHBEE_DESKTOP_RECOVERY_DIRECTORY ??
 			path.join(input.userDataPath, 'terminal-recovery'),
@@ -208,6 +220,9 @@ export function resolveDesktopRuntimeConfiguration(
 				{ name: 'COLORTERM', value: 'truecolor' },
 				{ name: 'TERM', value: 'xterm-256color' },
 				{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+				...(shellIntegrationDirectory === null
+					? []
+					: [{ name: 'ORCHBEE_SHELL_INTEGRATION_DIR', value: shellIntegrationDirectory }]),
 				{ name: 'NO_COLOR', value: null },
 				{ name: 'FORCE_COLOR', value: null },
 				{ name: 'NODE_DISABLE_COLORS', value: null },

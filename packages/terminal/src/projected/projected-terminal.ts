@@ -37,6 +37,7 @@ import {
 	type SetHistoryDemand,
 	type SetProjectionDemand,
 	type TerminalBell,
+	type TerminalClipboardWriteRequest,
 	type TerminalExited,
 	type TerminalId,
 	type TerminalKeyCodeValue,
@@ -263,7 +264,7 @@ export interface ProjectedPasteReview {
 	readonly text: string;
 }
 
-export type ProjectedPasteSource = 'api' | 'beforeinput' | 'clipboard' | 'drop';
+export type ProjectedPasteSource = 'api' | 'beforeinput' | 'clipboard' | 'drop' | 'file-drop';
 
 export type ProjectedPasteResult =
 	| { readonly kind: 'blocked'; readonly review: ProjectedPasteReview }
@@ -297,6 +298,7 @@ export type ProjectedTerminalErrorEvent =
 			readonly error: unknown;
 			readonly operation:
 				| 'bell'
+				| 'clipboard'
 				| 'command'
 				| 'font'
 				| 'frame'
@@ -313,6 +315,7 @@ export interface ProjectedBrokerFailure {
 	readonly correlationId?: CorrelationId | undefined;
 	readonly message: string;
 	readonly operation?:
+		| 'clipboard'
 		| 'connection'
 		| 'control'
 		| 'copy'
@@ -608,6 +611,7 @@ export class ProjectedTerminal {
 	readonly #accessibilityRows: Element[] = [];
 	readonly #attachmentId: AttachmentId;
 	readonly #bellEmitter = new EventEmitter<TerminalBell>();
+	readonly #clipboardWriteRequestEmitter = new EventEmitter<TerminalClipboardWriteRequest>();
 	readonly #creationId: CreationId;
 	readonly #copyCompletions = new Map<
 		CanonicalUint64Text,
@@ -705,6 +709,7 @@ export class ProjectedTerminal {
 	#latestExitFinalRevision: bigint | undefined;
 	#terminalExited = false;
 	#latestBellSequence = 0n;
+	#latestClipboardWriteSequence = 0n;
 	#pendingAlternateWheelRows = 0;
 	#pendingApplicationWheelX = 0;
 	#pendingApplicationWheelY = 0;
@@ -817,6 +822,8 @@ export class ProjectedTerminal {
 
 	readonly onError: IEvent<ProjectedTerminalErrorEvent> = this.#errorEmitter.event;
 	readonly onBell: IEvent<TerminalBell> = this.#bellEmitter.event;
+	readonly onClipboardWriteRequest: IEvent<TerminalClipboardWriteRequest> =
+		this.#clipboardWriteRequestEmitter.event;
 	readonly onExit: IEvent<TerminalExited> = this.#exitEmitter.event;
 	readonly onFrameTelemetry: IEvent<ProjectedTerminalFrameTelemetry> =
 		this.#frameTelemetryEmitter.event;
@@ -1692,6 +1699,7 @@ export class ProjectedTerminal {
 		const protectedByBracketedPaste =
 			review.bracketed && review.multiline && !review.embeddedBracketTerminator;
 		const requiresReview =
+			review.source === 'file-drop' ||
 			review.replacedControlCharacters > 0 ||
 			review.embeddedBracketTerminator ||
 			(review.multiline && !protectedByBracketedPaste);
@@ -1754,6 +1762,23 @@ export class ProjectedTerminal {
 		if (sequence <= this.#latestBellSequence) return;
 		this.#latestBellSequence = sequence;
 		this.#bellEmitter.fire(event);
+	}
+
+	notifyClipboardWriteRequest(event: TerminalClipboardWriteRequest): void {
+		if (this.#phase === ProjectedTerminalPhase.disposed) return;
+		if (event.attachmentId !== this.#attachmentId) {
+			this.#errorEmitter.fire({
+				error: new Error(
+					'Terminal clipboard request identity does not match the projected terminal',
+				),
+				operation: 'clipboard',
+			});
+			return;
+		}
+		const sequence = BigInt(event.sequence);
+		if (sequence <= this.#latestClipboardWriteSequence) return;
+		this.#latestClipboardWriteSequence = sequence;
+		this.#clipboardWriteRequestEmitter.fire(event);
 	}
 
 	notifyExited(event: TerminalExited): void {
@@ -1948,6 +1973,7 @@ export class ProjectedTerminal {
 		this.#historyStore = undefined;
 		this.#releaseSurfaceDom();
 		this.#errorEmitter.dispose();
+		this.#clipboardWriteRequestEmitter.dispose();
 		this.#exitEmitter.dispose();
 		this.#frameTelemetryEmitter.dispose();
 		this.#healthEmitter.dispose();
@@ -2919,7 +2945,7 @@ export class ProjectedTerminal {
 		if (
 			last !== undefined &&
 			last.action === 'update' &&
-			(gesture.action === 'update' || gesture.action === 'end' || gesture.action === 'cancel')
+			(gesture.action === 'update' || gesture.action === 'cancel')
 		) {
 			this.#pendingSelectionGestures[lastIndex] = gesture;
 		} else {

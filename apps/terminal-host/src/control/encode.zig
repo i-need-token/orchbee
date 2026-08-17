@@ -46,6 +46,7 @@ pub const writeHistoryObserved = interaction.writeHistoryObserved;
 pub const writeSelectionExportChunkApplied = interaction.writeSelectionExportChunkApplied;
 pub const historyChanged = interaction.historyChanged;
 pub const terminalBell = interaction.terminalBell;
+pub const terminalClipboardWriteRequest = interaction.terminalClipboardWriteRequest;
 pub const selectionChanged = interaction.selectionChanged;
 pub const writeSelectionChanged = interaction.writeSelectionChanged;
 pub const selectionExportStarted = interaction.selectionExportStarted;

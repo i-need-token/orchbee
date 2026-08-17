@@ -6,10 +6,15 @@ import {
 	TerminalSettingsController,
 } from '../src/terminal-settings';
 import { KeyboardShortcutSettingsController } from '../src/keyboard-shortcuts';
+import {
+	TerminalFeedbackSettingsController,
+	UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY,
+} from '../src/terminal-feedback-settings';
 import { TerminalSettingsSurface } from '../src/terminal-settings-surface';
 
 const englishController = createStoryController();
 const englishKeyboardController = createKeyboardStoryController('apple');
+const englishFeedbackController = createFeedbackStoryController();
 const chineseController = createStoryController({
 	...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	applicationTheme: 'dark',
@@ -20,6 +25,7 @@ const chineseController = createStoryController({
 	terminalDisplayTheme: 'custom',
 });
 const chineseKeyboardController = createKeyboardStoryController('standard');
+const chineseFeedbackController = createFeedbackStoryController();
 
 const meta = {
 	title: 'Terminal Settings Surface',
@@ -37,12 +43,13 @@ export const EnglishLight: Story = {
 		keyboardShortcutController: englishKeyboardController,
 		keyboardShortcutPlatform: 'apple',
 		onRequestClose: () => englishController.close(),
+		terminalFeedbackSettingsController: englishFeedbackController,
 	},
 	parameters: {
 		docs: {
 			description: {
 				story:
-					'Open Ghostty migration to inspect the paste-only dry-run notice, bounded source field, and four explicit report dispositions. The experience intentionally has no Apply or Import action.',
+					'Open Shell integration to inspect the manual-only Zsh, Bash, and Fish setup plus device-local completion reminders; Remote development remains read-only, and Ghostty migration remains a paste-only dry-run.',
 			},
 		},
 	},
@@ -64,6 +71,7 @@ export const ChineseDarkCustom: Story = {
 		keyboardShortcutPlatform: 'standard',
 		onRequestClose: () => chineseController.close(),
 		requestBrowserAccess: () => undefined,
+		terminalFeedbackSettingsController: chineseFeedbackController,
 	},
 	decorators: [
 		(Story) => (
@@ -95,6 +103,13 @@ function createKeyboardStoryController(
 ): KeyboardShortcutSettingsController {
 	return new KeyboardShortcutSettingsController({
 		platform,
+		storage: { getItem: () => null, setItem: () => undefined },
+	});
+}
+
+function createFeedbackStoryController(): TerminalFeedbackSettingsController {
+	return new TerminalFeedbackSettingsController({
+		notificationCapability: UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY,
 		storage: { getItem: () => null, setItem: () => undefined },
 	});
 }

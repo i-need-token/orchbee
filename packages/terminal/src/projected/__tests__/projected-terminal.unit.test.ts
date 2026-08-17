@@ -35,6 +35,7 @@ import {
 	ProjectedHistoryPhase,
 	ProjectedTerminal,
 	type ProjectedBrokerFailure,
+	type ProjectedPasteReview,
 	type ProjectedTerminalCommand,
 	type ProjectedTerminalErrorEvent,
 	type ProjectedTerminalFrameTelemetry,
@@ -870,6 +871,52 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 		terminal.notifyBell({ attachmentId, sequence: canonicalText('10') });
 		expect(bells).toHaveBeenCalledTimes(2);
+	});
+
+	it('emits each scoped terminal clipboard write once and stops after disposal', () => {
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		const requests = vi.fn<Parameters<ProjectedTerminal['onClipboardWriteRequest']>[0]>();
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		terminal.onClipboardWriteRequest(requests);
+		terminal.onError(errors);
+
+		terminal.notifyClipboardWriteRequest({
+			attachmentId,
+			sequence: canonicalText('2'),
+			text: 'one',
+		});
+		terminal.notifyClipboardWriteRequest({
+			attachmentId,
+			sequence: canonicalText('2'),
+			text: 'one',
+		});
+		terminal.notifyClipboardWriteRequest({
+			attachmentId,
+			sequence: canonicalText('3'),
+			text: 'two',
+		});
+		terminal.notifyClipboardWriteRequest({
+			attachmentId: otherAttachmentId,
+			sequence: canonicalText('4'),
+			text: 'wrong attachment',
+		});
+
+		expect(requests.mock.calls.map(([event]) => event.text)).toEqual(['one', 'two']);
+		expect(errors).toHaveBeenCalledWith(expect.objectContaining({ operation: 'clipboard' }));
+		terminal.dispose();
+		terminal.notifyClipboardWriteRequest({
+			attachmentId,
+			sequence: canonicalText('5'),
+			text: 'late',
+		});
+		expect(requests).toHaveBeenCalledTimes(2);
 	});
 
 	it('waits for the configured font and keeps the IME textarea font in sync', async () => {
@@ -4738,6 +4785,47 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('requires review for every prepared file drop and never appends Enter', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const reviewPaste = vi
+			.fn<(review: ProjectedPasteReview) => boolean>()
+			.mockReturnValueOnce(false)
+			.mockReturnValueOnce(true);
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			reviewPaste,
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const text = "'/tmp/safe.txt'";
+
+		await expect(terminal.paste(text, 'file-drop')).resolves.toMatchObject({ kind: 'blocked' });
+		expect(commands.some((command) => command.kind === 'paste-input')).toBe(false);
+		await expect(terminal.paste(text, 'file-drop')).resolves.toMatchObject({ kind: 'sent' });
+
+		expect(reviewPaste.mock.calls.map(([review]) => review.source)).toEqual([
+			'file-drop',
+			'file-drop',
+		]);
+		expect(commands.at(-1)).toEqual({
+			kind: 'paste-input',
+			payload: { attachmentId, bracketed: false, text },
+		});
+		terminal.dispose();
+	});
+
 	it('signals an image-only clipboard paste to the foreground TUI exactly once', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -7988,6 +8076,65 @@ describe('ProjectedTerminal', () => {
 
 		const gestures = commands.filter((command) => command.kind === 'selection-gesture');
 		expect(gestures.map((command) => command.payload.action)).toEqual(['start', 'update', 'end']);
+		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(1);
+		terminal.dispose();
+	});
+
+	it('publishes the latest drag update before a rapid release while the press reply is in flight', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['alpha beta', '']));
+		const canvas = terminal.canvas as unknown as FakeElement;
+		const activeSelection = {
+			attachmentId,
+			end: { column: 4, row: CanonicalUint64TextSchema.parse('0') },
+			preview: 'alpha',
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('0') },
+			state: 'active' as const,
+		};
+
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId: 81 }));
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 1, 46, 2, { pointerId: 81 }));
+		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 46, 2, { pointerId: 81 }));
+		expect(
+			commands
+				.filter((command) => command.kind === 'selection-gesture')
+				.map((command) => command.payload.action),
+		).toEqual(['start']);
+
+		terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+		browser.flushFrames();
+		expect(
+			commands
+				.filter((command) => command.kind === 'selection-gesture')
+				.map((command) => command.payload.action),
+		).toEqual(['start', 'update']);
+
+		terminal.notifySelectionChanged(activeSelection);
+		browser.flushFrames();
+		expect(
+			commands
+				.filter((command) => command.kind === 'selection-gesture')
+				.map((command) => command.payload.action),
+		).toEqual(['start', 'update', 'end']);
+		terminal.notifySelectionChanged(activeSelection);
 		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(1);
 		terminal.dispose();
 	});

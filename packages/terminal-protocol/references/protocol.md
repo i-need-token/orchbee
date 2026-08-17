@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                        |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                  |
-| Reference scope | Exact protocol `0.0.8`; OBTF, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures                                |
+| Reference scope | Exact protocol `0.0.9`; OBTF format `0.0.2`; OBKG, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures           |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence            |
 
 ## Modeling record
@@ -39,11 +39,11 @@ identity and are rejected where an identity is required.
 | `AttachmentId`  | One physical-connection-owned attachment carrying negotiated capabilities                                                        |
 | `CorrelationId` | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.8`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.9`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
-OBTF frame, OBPB projection-buffer, and OBRW row-window formats each have an independent current
-version of `0.0.1`, and their decoders also accept only that exact format. While these contracts have
+OBTF frame format is exactly `0.0.2`; OBKG graphics-extension, OBPB projection-buffer, and OBRW
+row-window formats are exactly `0.0.1`. Their decoders accept only those exact formats. While these contracts have
 major version `0`, the repository retains only the current unpublished contract and does not keep
 changelog entries for development revisions. The first public contract becomes `1.0.0`; every
 later externally observable contract change bumps the owning semantic version and records the
@@ -133,7 +133,7 @@ their corresponding request kinds. Other successful operations respond with thei
 | `ResizeTerminal`                  | Attachment identity, accepted canonical cell/pixel geometry, and resulting revision                                                                                                                                                                               |
 | `ClearTerminal` / `ResetTerminal` | Attachment and terminal identities, exact operation, and resulting revision/generation                                                                                                                                                                            |
 | projection demand                 | Attachment identity plus accepted `active` or `paused` demand                                                                                                                                                                                                     |
-| frame/recovery                    | OBTF format `0.0.1` snapshot/delta event, exact `FrameApplied`, typed `NeedSnapshot`, or typed `ProjectionBlocked`                                                                                                                                                |
+| frame/recovery                    | OBTF format `0.0.2` snapshot/delta event, exact `FrameApplied`, typed `NeedSnapshot`, or typed `ProjectionBlocked`                                                                                                                                                |
 | history/read rows                 | Accepted history demand, bounded render/text `RowsSnapshot`, exact `RowsApplied`, `HistoryChanged`, and `HistoryObserved`                                                                                                                                         |
 | selection/export                  | Current selection state plus bounded started/chunk/acknowledgment/finished or cancellation flow                                                                                                                                                                   |
 | terminal start / outcome          | Start carries terminal identity. Normal exit carries final revision and an exit-code, signal, or unknown result. Runtime failure carries final revision, typed failure, and process observation. Inventory uses mutually exclusive phase-specific summary fields. |
@@ -222,22 +222,22 @@ bytes to the ordered ingress budget.
 
 ## Message registry
 
-| Range   | Group                              | Kinds                                                                                                                                                                                                                                                                                                                           |
-| ------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `1-5`   | Connection                         | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                  |
-| `10-19` | Inventory and lifecycle            | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                              |
-| `20-23` | Attachment                         | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`                                                                                                                                                                                                                                  |
-| `30-38` | Input and size                     | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                                                 |
-| `41-55` | Projection and effects             | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55` |
-| `60-68` | Selection and export               | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                   |
-| `70-76` | Terminal configuration and control | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`                                                                                                                             |
+| Range   | Group                              | Kinds                                                                                                                                                                                                                                                                                                                                                               |
+| ------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1-5`   | Connection                         | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                                                      |
+| `10-19` | Inventory and lifecycle            | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                                                                  |
+| `20-23` | Attachment                         | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`                                                                                                                                                                                                                                                                      |
+| `30-38` | Input and size                     | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                                                                                     |
+| `41-56` | Projection and effects             | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56` |
+| `60-68` | Selection and export               | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                       |
+| `70-76` | Terminal configuration and control | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`                                                                                                                                                                 |
 
 Unlisted numbers are unassigned, including `16` and `17`. Title and current-directory changes
 travel in terminal frames. Initial resize-lease authority is returned by attachment admission;
 later ownership changes use the attachment-scoped event.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.8.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.9.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical
@@ -246,6 +246,16 @@ sequence, so earlier bells are never replayed on attach or reconnect. Each later
 once per live read-capable attachment when its exact outgoing record is committed. The event has no
 client acknowledgement and carries semantic intent only; sound, visual flash, notification, and
 accessibility policy remain application effects rather than wire behavior.
+
+`TerminalClipboardWriteRequest` is an event-only control record containing `attachmentId`, a
+positive terminal-owned canonical `sequence`, and at most 16 KiB of plain UTF-8 text. NUL,
+unpaired surrogates, a zero sequence, and oversized text are malformed. It represents one Host-
+admitted OSC 52 clipboard write assigned to one read-capable attachment; it does not represent a
+clipboard read or grant an effect. Terminal Host owns bounded pending state, one-recipient delivery,
+outgoing-batch rollback, and removal after handoff. The receiving application owns the explicit
+per-request user decision and platform clipboard effect. The record is not acknowledged or replayed
+to another attachment, and it carries no trust duration, selection-kind choice, rich format, or
+clipboard contents from the client.
 
 Requests and responses use the response flag and `CorrelationId`; the named pairs in
 [runtime binding](#runtime-binding) use their registered response kind and other
@@ -319,7 +329,7 @@ The frame begins with a fixed 160-byte header:
 | `134`  |     2 | Reserved zero                                                                                      |
 | `136`  |     4 | Cell-pixel width and height as two `u16` values                                                    |
 | `140`  |     4 | Total encoded cell count                                                                           |
-| `144`  |     1 | Format patch `1`                                                                                   |
+| `144`  |     1 | Format patch `2`                                                                                   |
 | `145`  |    15 | Reserved zero                                                                                      |
 
 Variable sections follow in this exact order:
@@ -338,13 +348,60 @@ Variable sections follow in this exact order:
 
 The current optional extension registry is:
 
-| Kind | Bytes | Meaning                                                                                                                                                      |
-| ---: | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-|  `1` |   `1` | Live close activity: `0=unknown`, `1=idle`, `2=active`. Terminal Host emits only `idle` or `active` and omits the extension when its observation is unknown. |
+| Kind |       Bytes | Meaning                                                                                                                                                      |
+| ---: | ----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|  `1` |         `1` | Live close activity: `0=unknown`, `1=idle`, `2=active`. Terminal Host emits only `idle` or `active` and omits the extension when its observation is unknown. |
+|  `2` | `32..5 MiB` | One strictly decoded OBKG `0.0.1` Kitty graphics resource snapshot or placement-only update.                                                                 |
+|  `3` |         `2` | Current terminal progress: state byte plus percentage `0..100` or null sentinel `255`.                                                                       |
+|  `4` |        `25` | Latest semantic command completion: positive sequence, duration milliseconds, positive wall-clock completion milliseconds, and normalized exit code.         |
 
 Close activity is an advisory sample, not lifecycle or containment authority. A consumer maps an
 absent, duplicated, malformed, or unrecognized close-activity payload to `unknown` and applies its
 own close-confirmation policy.
+
+Progress state byte `0` removes the indicator, `1` is active, `2` is error, `3` is indeterminate,
+and `4` is paused. `remove` and `indeterminate` require the null sentinel. `set`, `error`, and
+`pause` accept either the null sentinel or a percentage. Duplicate progress extensions, unknown
+states, percentages above `100`, and illegal state/value combinations reject the complete frame.
+An omitted progress extension resolves to `remove`. Progress is current presentation metadata, not
+lifecycle, process, notification, or completion authority.
+
+Command-completion kind `4` stores three little-endian `u64` values — positive terminal-local
+sequence, duration milliseconds, and positive Unix-epoch completion milliseconds — followed by one
+`u8` exit code. Duplicate records, zero sequence, zero completion time, or a non-25-byte payload
+reject the complete frame. The payload intentionally carries no command text, arguments, directory,
+environment, or output. It is a recent presentation fact; each client owns freshness, focus,
+permission, deduplication, rate limiting, and notification policy.
+
+OBKG begins with this fixed 32-byte header:
+
+| Offset | Bytes | Field                                                |
+| ------ | ----: | ---------------------------------------------------- |
+| `0`    |     4 | ASCII `OBKG`                                         |
+| `4`    |     3 | Format major, minor, and patch `0.0.1`               |
+| `7`    |     1 | Resource snapshot `1` or placement-only update `2`   |
+| `8`    |     4 | Total OBKG bytes                                     |
+| `12`   |     8 | Resource revision reused by placement-only updates   |
+| `20`   |     2 | Image-record count; zero for a placement-only update |
+| `22`   |     2 | Placement-record count                               |
+| `24`   |     4 | Aggregate decoded pixel bytes                        |
+| `28`   |     4 | Reserved zero                                        |
+
+Each snapshot image is a 32-byte record followed immediately by its raw pixel bytes: image ID
+`u32`, gray/gray-alpha/RGB/RGBA format `u8`, three reserved zero bytes, generation `u64`, width and
+height `u32`, byte length `u32`, and reserved zero `u32`. Pixel length must exactly equal dimensions
+times channels, image IDs are unique and nonzero, and all current placements must reference a
+snapshot image. Each 56-byte placement records image and placement IDs, signed grid column and row,
+pixel offsets, source crop, destination pixel size, signed `z`, and flags. Only the internal-ID flag
+bit is defined; accepted `z` is nonnegative. Snapshot crop rectangles are bounded by their image.
+
+The client retains at most 4 MiB across 256 visible decoded images and 1,024 visible placements.
+A placement-only update carries no image bytes and must name the exact retained resource revision;
+the consumer additionally validates every reference and crop against its retained image map before
+committing any text row. A terminal snapshot with kind-`2` extension data is invalid. Resource-set
+change, retransmission, deletion, reset, screen change, or an unconfirmed base promotes the Host's
+whole OBTF record to a snapshot. OBKG never carries paths, URLs, compressed containers, temporary
+files, shared memory, virtual placements, negative-z composition, glyph graphics, or animation.
 
 A snapshot has no base and contains every visible row in canonical order. A delta names the exact
 acknowledged base and replaces complete, unique dirty rows in increasing row order; it never carries
@@ -359,7 +416,7 @@ The fixed-header inspector validates only the bounded header and never admits ce
 row, or extension data. A capability-scoped local client may use that inspector before full decode
 only to acknowledge a sequence it has already committed. This is sound because the Host delivery
 owner makes the complete encoded record immutable when it hands off that scoped sequence. Every
-higher OBTF format-`0.0.1` sequence, and every frame arriving outside that trusted local delivery path,
+higher OBTF format-`0.0.2` sequence, and every frame arriving outside that trusted local delivery path,
 still requires the full decoder before any payload data is exposed or committed. OBPB format `0.0.1`
 projection buffers provide separately named strict-decode and local structural-view boundaries
 below. A repeated sequence with different header commit metadata is a protocol-state conflict and
@@ -370,7 +427,7 @@ row's wrap-continuation flag. A spacer-head is valid only in the final column of
 the following row is present, it begins with the corresponding wide cell. These relationships are
 validated before a frame is exposed or committed.
 
-The exported `ghostty-surface-v0.0.1.bin` and `ghostty-alternate-surface-v0.0.1.bin` conformance
+The exported `ghostty-surface-v0.0.2.bin` and `ghostty-alternate-surface-v0.0.2.bin` conformance
 snapshots are generated in sequence by Terminal Host from one pinned native Ghostty VT and the real
 OBTF encoder. They are byte-compared on the producer side and consumed by the TypeScript decoder,
 packed store, and renderers. The pair covers grapheme/width preservation plus one atomic
@@ -563,41 +620,46 @@ consume its sequence. The Host first returns `SelectionExportStarted`, then emit
 chunk contains the attachment identity, export sequence, monotonic `u32` chunk sequence, final bit,
 and at most 1 MiB of bytes. `SelectionExportChunkApplied` advances only the matching export, so a
 delayed acknowledgement from an earlier export cannot advance a later stream. Completion or explicit
-cancellation releases all export storage. Total formatted output is capped at 16 MiB. Clipboard
-write and other platform effects remain outside this protocol package and the Host.
+cancellation releases all export storage. Total formatted output is capped at 16 MiB. Selection-
+export clipboard writes and other platform effects remain outside this protocol package and the
+Host; the separately defined OSC 52 request carries intent only and still grants no platform effect.
 
 ## Hard bounds
 
 The handshake may select smaller transport payload bounds. It never raises these package hard limits.
 
-| Input or retained unit                |       Hard maximum |
-| ------------------------------------- | -----------------: |
-| Control JSON                          |             64 KiB |
-| Terminals in one inventory page       |                128 |
-| One raw, text, or paste input body    |              1 MiB |
-| One key text                          |              4 KiB |
-| `WriteInput` raw payload              |       1 MiB + 16 B |
-| Largest semantic input payload        |       1 MiB + 32 B |
-| Pending ordered input per terminal    |              4 MiB |
-| Scrollback configuration per terminal |    1,000,000,000 B |
-| PTY read batch                        |            256 KiB |
-| Packed frame                          |              8 MiB |
-| Transport record                      |       8 MiB + 64 B |
-| Row-window payload                    |              2 MiB |
-| Search query at a client boundary     |             16 KiB |
-| Selection preview                     |              4 KiB |
-| Selection export / one chunk          |     16 MiB / 1 MiB |
-| One UTF-8 string                      |             16 KiB |
-| Strings / styles / row records        | 4096 / 1024 / 4096 |
+| Input or retained unit                 |       Hard maximum |
+| -------------------------------------- | -----------------: |
+| Control JSON                           |             64 KiB |
+| One OSC 52 clipboard text              |             16 KiB |
+| Terminals in one inventory page        |                128 |
+| One raw, text, or paste input body     |              1 MiB |
+| One key text                           |              4 KiB |
+| `WriteInput` raw payload               |       1 MiB + 16 B |
+| Largest semantic input payload         |       1 MiB + 32 B |
+| Pending ordered input per terminal     |              4 MiB |
+| Scrollback configuration per terminal  |    1,000,000,000 B |
+| PTY read batch                         |            256 KiB |
+| Packed frame                           |              8 MiB |
+| All frame extensions / one OBKG record |              5 MiB |
+| Decoded Kitty resources                |              4 MiB |
+| Kitty images / placements              |         256 / 1024 |
+| Transport record                       |       8 MiB + 64 B |
+| Row-window payload                     |              2 MiB |
+| Search query at a client boundary      |             16 KiB |
+| Selection preview                      |              4 KiB |
+| Selection export / one chunk           |     16 MiB / 1 MiB |
+| One UTF-8 string                       |             16 KiB |
+| Strings / styles / row records         | 4096 / 1024 / 4096 |
+| Cells / frame extensions               |        262144 / 64 |
+| Total extension bytes                  |              5 MiB |
+| Grid columns / rows                    |        4096 / 4096 |
+| Cell-pixel width / height              |        4096 / 4096 |
+| Total terminal pixel width / height    |      65535 / 65535 |
 
 `One UTF-8 string` bounds each serialized string and, for text row windows, each logical cell's
 byte span: the bytes from a mapping start to the next mapping start, and the final span to row
 text end, must fit in 16,384 bytes. Aggregate row text is not capped by this per-cell bound.
-| Cells / frame extensions | 262144 / 64 |
-| Total extension bytes | 1 MiB |
-| Grid columns / rows | 4096 / 4096 |
-| Cell-pixel width / height | 4096 / 4096 |
-| Total terminal pixel width / height | 65535 / 65535 |
 
 Counts and lengths are checked before dependent allocation. Integer overflow, inconsistent lengths,
 truncation, invalid UTF-8, bad table references, duplicate or out-of-grid rows, and unknown required flags are

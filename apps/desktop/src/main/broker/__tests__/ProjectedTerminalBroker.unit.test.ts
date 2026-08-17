@@ -185,6 +185,28 @@ describe('ProjectedTerminalBroker', () => {
 			event: { attachmentId: bootstrap.attachmentId, sequence: '4' },
 			kind: 'bell',
 		});
+		hostListener?.(
+			eventEnvelope(
+				MessageKind.terminalClipboardWriteRequest,
+				PayloadEncoding.controlJson,
+				textEncoder.encode(
+					JSON.stringify({
+						attachmentId: bootstrap.attachmentId,
+						sequence: '5',
+						text: 'terminal text',
+					}),
+				),
+				bootstrap.hostEpoch,
+			),
+		);
+		expect(postMessage.mock.calls[2]?.[0]).toEqual({
+			event: {
+				attachmentId: bootstrap.attachmentId,
+				sequence: '5',
+				text: 'terminal text',
+			},
+			kind: 'clipboard-write-request',
+		});
 
 		controlListener?.(
 			eventEnvelope(
@@ -221,11 +243,261 @@ describe('ProjectedTerminalBroker', () => {
 		);
 		controlListener?.(validExitEnvelope);
 		controlListener?.(validExitEnvelope);
-		expect(postMessage).toHaveBeenCalledTimes(3);
-		expect(postMessage.mock.calls[2]?.[0]).toEqual({
+		expect(postMessage).toHaveBeenCalledTimes(4);
+		expect(postMessage.mock.calls[3]?.[0]).toEqual({
 			event: exit,
 			kind: 'terminal-exited',
 		});
+	});
+
+	it('commits only the exact pending clipboard request once after renderer approval', async () => {
+		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(
+				(_attachmentId, listener) => {
+					hostListener = listener;
+					return vi.fn<() => void>();
+				},
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+		};
+		const writeClipboardText = vi
+			.fn<(text: string) => Promise<void>>()
+			.mockResolvedValue(undefined);
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap, {
+			openExternal: vi.fn<(target: string) => Promise<void>>().mockResolvedValue(undefined),
+			writeClipboardText,
+		});
+		broker.start();
+		const emitClipboardRequest = (sequence: string, text: string): void => {
+			hostListener?.(
+				eventEnvelope(
+					MessageKind.terminalClipboardWriteRequest,
+					PayloadEncoding.controlJson,
+					textEncoder.encode(
+						JSON.stringify({ attachmentId: bootstrap.attachmentId, sequence, text }),
+					),
+					bootstrap.hostEpoch,
+				),
+			);
+		};
+		const sendDecision = (sequence: string, text: string, approved: boolean): void => {
+			emitter.emit('message', {
+				data: {
+					kind: 'clipboard-write-decision',
+					payload: { approved, attachmentId: bootstrap.attachmentId, sequence, text },
+				},
+			});
+		};
+
+		emitClipboardRequest('5', 'terminal text');
+		expect(postMessage).toHaveBeenCalledWith({
+			event: { attachmentId: bootstrap.attachmentId, sequence: '5', text: 'terminal text' },
+			kind: 'clipboard-write-request',
+		});
+		const forwardedCount = postMessage.mock.calls.length;
+		emitClipboardRequest('6', 'bounded while review is pending');
+		expect(postMessage).toHaveBeenCalledTimes(forwardedCount);
+
+		sendDecision('5', 'tampered text', true);
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({
+				failure: expect.objectContaining({ code: 'clipboard-decision-mismatch' }),
+				kind: 'failure',
+			}),
+		);
+		expect(writeClipboardText).not.toHaveBeenCalled();
+
+		sendDecision('5', 'terminal text', true);
+		await vi.waitFor(() =>
+			expect(writeClipboardText).toHaveBeenCalledExactlyOnceWith('terminal text'),
+		);
+		expect(broker.metrics.clipboardCommits).toBe(1);
+		sendDecision('5', 'terminal text', true);
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({
+				failure: expect.objectContaining({ code: 'clipboard-decision-mismatch' }),
+				kind: 'failure',
+			}),
+		);
+		expect(writeClipboardText).toHaveBeenCalledOnce();
+
+		emitClipboardRequest('6', 'declined terminal text');
+		sendDecision('6', 'declined terminal text', false);
+		await vi.waitFor(() => expect(broker.metrics.commandsAccepted).toBe(4));
+		expect(writeClipboardText).toHaveBeenCalledOnce();
+		expect(broker.metrics.clipboardCommits).toBe(1);
+	});
+
+	it('consumes an approved client-target clipboard decision without duplicating its local effect', async () => {
+		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(
+				(_attachmentId, listener) => {
+					hostListener = listener;
+					return vi.fn<() => void>();
+				},
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+		};
+		const writeClipboardText = vi
+			.fn<(text: string) => Promise<void>>()
+			.mockResolvedValue(undefined);
+		const broker = new ProjectedTerminalBroker(
+			host,
+			port,
+			bootstrap,
+			{
+				openExternal: vi.fn<(target: string) => Promise<void>>().mockResolvedValue(undefined),
+				writeClipboardText,
+			},
+			'client',
+		);
+		broker.start();
+		hostListener?.(
+			eventEnvelope(
+				MessageKind.terminalClipboardWriteRequest,
+				PayloadEncoding.controlJson,
+				textEncoder.encode(
+					JSON.stringify({
+						attachmentId: bootstrap.attachmentId,
+						sequence: '1',
+						text: 'client-owned text',
+					}),
+				),
+				bootstrap.hostEpoch,
+			),
+		);
+		emitter.emit('message', {
+			data: {
+				kind: 'clipboard-write-decision',
+				payload: {
+					approved: true,
+					attachmentId: bootstrap.attachmentId,
+					sequence: '1',
+					text: 'client-owned text',
+				},
+			},
+		});
+
+		await vi.waitFor(() => expect(broker.metrics.commandsAccepted).toBe(1));
+		expect(writeClipboardText).not.toHaveBeenCalled();
+		expect(broker.metrics.clipboardCommits).toBe(0);
+	});
+
+	it('releases an exact pending clipboard request when its decision hits broker backpressure', () => {
+		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
+		const requestInput = vi.fn<HostConnection['requestInput']>(
+			() => new Promise<never>(() => undefined),
+		);
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(
+				(_attachmentId, listener) => {
+					hostListener = listener;
+					return vi.fn<() => void>();
+				},
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestInput,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+		};
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap);
+		broker.start();
+		for (let index = 0; index < 64; index += 1) {
+			emitter.emit('message', {
+				data: {
+					kind: 'text-input',
+					payload: { attachmentId: bootstrap.attachmentId, text: String(index) },
+				},
+			});
+		}
+		expect(requestInput).toHaveBeenCalledTimes(64);
+		const emitClipboardRequest = (sequence: string): void => {
+			hostListener?.(
+				eventEnvelope(
+					MessageKind.terminalClipboardWriteRequest,
+					PayloadEncoding.controlJson,
+					textEncoder.encode(
+						JSON.stringify({
+							attachmentId: bootstrap.attachmentId,
+							sequence,
+							text: `request ${sequence}`,
+						}),
+					),
+					bootstrap.hostEpoch,
+				),
+			);
+		};
+		emitClipboardRequest('1');
+		emitter.emit('message', {
+			data: {
+				kind: 'clipboard-write-decision',
+				payload: {
+					approved: false,
+					attachmentId: bootstrap.attachmentId,
+					sequence: '1',
+					text: 'request 1',
+				},
+			},
+		});
+		expect(postMessage).toHaveBeenCalledWith({
+			failure: expect.objectContaining({ code: 'renderer-backpressure' }),
+			kind: 'failure',
+		});
+
+		emitClipboardRequest('2');
+		expect(postMessage).toHaveBeenCalledWith({
+			event: { attachmentId: bootstrap.attachmentId, sequence: '2', text: 'request 2' },
+			kind: 'clipboard-write-request',
+		});
+		expect(broker.metrics.commandsRejected).toBe(1);
 	});
 
 	it('rejects commands for another attachment before calling the Host', () => {

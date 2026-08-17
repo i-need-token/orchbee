@@ -8,7 +8,7 @@ interface TerminalHostBuildObservationOptions {
 	readonly readInputDigest: () => Promise<string>;
 }
 
-/** @internal Package-private observation step split from the process and filesystem watcher. */
+/** Package-private observation step split from the process and filesystem watcher. */
 export async function observeTerminalHostBuild(
 	options: TerminalHostBuildObservationOptions,
 ): Promise<string> {

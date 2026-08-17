@@ -1,6 +1,6 @@
 export const PROTOCOL_LIMITS = {
 	maxControlJsonBytes: 64 * 1024,
-	maxExtensionBytes: 1024 * 1024,
+	maxExtensionBytes: 5 * 1024 * 1024,
 	maxFrameBytes: 8 * 1024 * 1024,
 	maxFrameCells: 256 * 1024,
 	maxFrameColumns: 4096,
@@ -9,6 +9,7 @@ export const PROTOCOL_LIMITS = {
 	maxFrameStrings: 4096,
 	maxFrameStyles: 1024,
 	maxCellPixelDimension: 4096,
+	maxClipboardTextBytes: 16 * 1024,
 	maxInputBytes: 1024 * 1024,
 	maxInputAcceptedBytes: 1024 * 1024,
 	maxInventoryPageTerminals: 128,
@@ -28,6 +29,12 @@ export const PROTOCOL_LIMITS = {
 	maxSelectionPreviewBytes: 4 * 1024,
 	maxTerminalProfileFeatures: 64,
 	maxTerminalResponseBytes: 256,
+	maxTerminalGraphicsDestinationPixels: 65_535,
+	maxTerminalGraphicsDimension: 4096,
+	maxTerminalGraphicsExtensionBytes: 5 * 1024 * 1024,
+	maxTerminalGraphicsImages: 256,
+	maxTerminalGraphicsPlacements: 1024,
+	maxTerminalGraphicsResourceBytes: 4 * 1024 * 1024,
 	terminalProfilePaletteEntries: 256,
 	// Cross-language contract: search for `terminal-scrollback-configuration-contract` before
 	// changing this value, then update every occurrence in the same change.

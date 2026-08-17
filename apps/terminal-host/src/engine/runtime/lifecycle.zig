@@ -4,6 +4,7 @@ const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const containment_ops = @import("containment.zig");
 const process_io_ops = @import("process_io.zig");
+const feedback_ops = @import("feedback.zig");
 
 pub fn stopIoForShutdown(self: *state.State) void {
     self.output_abort_requested.store(true, .release);
@@ -90,6 +91,7 @@ pub fn destroyAfterShutdown(self: *state.State) void {
     std.debug.assert(self.containment_confirmed.load(.acquire));
     self.stream.deinit();
     self.stream_allocator.deinit();
+    feedback_ops.deinit(self);
     self.process.deinit();
     self.history.deinit(&self.terminal);
     self.terminal.deinit(self.allocator);

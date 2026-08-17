@@ -3,6 +3,7 @@ import {
 	CellWidth,
 	CursorShape,
 	decodeTerminalFrame,
+	encodeTerminalGraphics,
 	encodeTerminalFrame,
 	encodeTerminalProjectionBuffer,
 	parseAttachmentId,
@@ -13,9 +14,12 @@ import {
 	TerminalCloseActivityCode,
 	TerminalFrameExtensionKind,
 	TerminalFrameKind,
+	TerminalGraphicsImageFormat,
+	TerminalGraphicsUpdateKind,
 	UnderlineKind,
 	viewTerminalProjectionBuffer,
 	type TerminalFrame,
+	type TerminalGraphicsPlacement,
 } from '@orchbee/terminal-protocol';
 import { describe, expect, it } from 'vitest';
 
@@ -141,6 +145,67 @@ function decodedFrame(value: TerminalFrame) {
 	return decoded.value;
 }
 
+function commandCompletionExtension(): Uint8Array<ArrayBuffer> {
+	const data = new Uint8Array(25);
+	const view = new DataView(data.buffer);
+	view.setBigUint64(0, 3n, true);
+	view.setBigUint64(8, 8_000n, true);
+	view.setBigUint64(16, 1_786_947_200_000n, true);
+	view.setUint8(24, 7);
+	return data;
+}
+
+const graphicsPlacement: TerminalGraphicsPlacement = {
+	column: 0,
+	destinationHeight: 18,
+	destinationWidth: 9,
+	imageId: 7,
+	internalId: false,
+	offsetX: 0,
+	offsetY: 0,
+	placementId: 3,
+	row: 0,
+	sourceHeight: 1,
+	sourceWidth: 1,
+	sourceX: 0,
+	sourceY: 0,
+	z: 0,
+};
+
+function graphicsExtension(
+	kind: 'snapshot' | 'placements',
+	resourceRevision: bigint,
+	placements: readonly TerminalGraphicsPlacement[],
+	includeImage: boolean,
+) {
+	const encoded = encodeTerminalGraphics({
+		images: includeImage
+			? [
+					{
+						data: new Uint8Array([1, 2, 3]),
+						format: TerminalGraphicsImageFormat.rgb,
+						generation: 1n,
+						height: 1,
+						id: 7,
+						width: 1,
+					},
+				]
+			: [],
+		kind:
+			kind === 'snapshot'
+				? TerminalGraphicsUpdateKind.snapshot
+				: TerminalGraphicsUpdateKind.placements,
+		placements,
+		resourceRevision,
+	});
+	if (!encoded.ok) throw new Error(encoded.detail);
+	return {
+		data: new Uint8Array(encoded.value),
+		kind: TerminalFrameExtensionKind.kittyGraphics,
+		required: false,
+	} as const;
+}
+
 describe('PackedTerminalStore', () => {
 	it('retains an OBPB 0.0.1 snapshot as direct typed views without per-cell repacking', () => {
 		const encoded = encodeTerminalProjectionBuffer(frame('snapshot', 1n, 1n, ['蜂', 'b']));
@@ -204,6 +269,63 @@ describe('PackedTerminalStore', () => {
 		expect(store.needsFullRedraw).toBe(true);
 	});
 
+	it('atomically retains Kitty resources and applies placement-only deltas', () => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+		const snapshotBytes = bytes({
+			...frame('snapshot', 1n, 1n, ['a', 'b']),
+			extensions: [graphicsExtension('snapshot', 1n, [graphicsPlacement], true)],
+		});
+
+		expect(store.apply(snapshotBytes).kind).toBe('committed');
+		snapshotBytes.fill(0);
+		expect(store.graphics.resourceRevision).toBe(1n);
+		expect([...store.graphics.images]).toEqual([
+			[7, expect.objectContaining({ data: new Uint8Array([1, 2, 3]), id: 7 })],
+		]);
+		expect(store.graphics.placements).toEqual([graphicsPlacement]);
+		expect(store.byteLength).toBeGreaterThanOrEqual(3);
+
+		const secondPlacement = { ...graphicsPlacement, column: 1, placementId: 4 };
+		const images = store.graphics.images;
+		expect(
+			store.apply(
+				bytes({
+					...frame('delta', 2n, 2n, ['', ''], 1n, []),
+					extensions: [
+						graphicsExtension('placements', 1n, [graphicsPlacement, secondPlacement], false),
+					],
+				}),
+			).kind,
+		).toBe('committed');
+		expect(store.graphics.images).toBe(images);
+		expect(store.graphics.placements).toEqual([graphicsPlacement, secondPlacement]);
+
+		const rejected = store.apply(
+			bytes({
+				...frame('delta', 3n, 3n, ['x', ''], 2n, [0]),
+				extensions: [graphicsExtension('placements', 9n, [graphicsPlacement], false)],
+			}),
+		);
+		expect(rejected).toEqual({
+			kind: 'snapshot-required',
+			request: { attachmentId, reason: 'base-mismatch', sequence: '3' },
+		});
+		expect(store.rows[0]?.grapheme(0)).toBe('a');
+		expect(store.graphics.placements).toEqual([graphicsPlacement, secondPlacement]);
+
+		expect(
+			store.apply(
+				bytes({
+					...frame('snapshot', 4n, 4n, ['c', 'd']),
+					extensions: [graphicsExtension('snapshot', 4n, [], false)],
+				}),
+			).kind,
+		).toBe('committed');
+		expect(store.graphics.images.size).toBe(0);
+		expect(store.graphics.placements).toEqual([]);
+		expect(store.graphics.resourceRevision).toBe(4n);
+	});
+
 	it.each([
 		{
 			expected: 'unknown' as const,
@@ -249,6 +371,56 @@ describe('PackedTerminalStore', () => {
 
 		expect(store.apply(bytes(snapshot)).kind).toBe('committed');
 		expect(store.metadata?.closeActivity).toBe(expected);
+	});
+
+	it('maps the current terminal progress extension into projection metadata', () => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+		const active = {
+			...frame('snapshot', 1n, 1n, ['a', 'b']),
+			extensions: [
+				{
+					data: new Uint8Array([1, 64]),
+					kind: TerminalFrameExtensionKind.progress,
+					required: false,
+				},
+			],
+		};
+		expect(store.apply(bytes(active)).kind).toBe('committed');
+		expect(store.metadata?.progress).toEqual({ state: 'set', value: 64 });
+
+		const removed = {
+			...frame('delta', 2n, 2n, ['a', 'b'], 1n),
+			extensions: [
+				{
+					data: new Uint8Array([0, 0xff]),
+					kind: TerminalFrameExtensionKind.progress,
+					required: false,
+				},
+			],
+		};
+		expect(store.apply(bytes(removed)).kind).toBe('committed');
+		expect(store.metadata?.progress).toEqual({ state: 'remove', value: null });
+	});
+
+	it('maps the latest command completion extension into projection metadata', () => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+		const snapshot: TerminalFrame = {
+			...frame('snapshot', 1n, 1n, ['a', 'b']),
+			extensions: [
+				{
+					data: commandCompletionExtension(),
+					kind: TerminalFrameExtensionKind.commandCompletion,
+					required: false,
+				},
+			],
+		};
+		expect(store.apply(bytes(snapshot)).kind).toBe('committed');
+		expect(store.metadata?.commandCompletion).toEqual({
+			completedAtMilliseconds: 1_786_947_200_000n,
+			durationMilliseconds: 8_000n,
+			exitCode: 7,
+			sequence: 3n,
+		});
 	});
 
 	it('replaces only declared row backings while preserving row-view identity', () => {

@@ -163,6 +163,7 @@ const transport: ProjectedTerminalTransport = {
 	},
 	projectionBufferTrust: 'local-host',
 	send: (command) => {
+		if (command.kind === 'clipboard-write-decision') return;
 		observeCommand(command);
 	},
 	subscribe: (listener) => {

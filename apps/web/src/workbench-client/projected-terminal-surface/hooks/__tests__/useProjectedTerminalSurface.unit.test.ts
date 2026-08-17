@@ -3,6 +3,7 @@
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import {
 	AttachmentIdSchema,
+	CanonicalUint64TextSchema,
 	CreationIdSchema,
 	HostEpochSchema,
 	TerminalIdSchema,
@@ -66,10 +67,13 @@ function TestHarness({
 	return createElement(
 		'div',
 		{
+			'data-clipboard-write-text': view.clipboardWriteRequest?.text,
 			'data-failure-message': view.failureMessage,
 			'data-paste-review-text': view.pasteReview?.originalText,
 			'data-projection-state': view.projectionState,
 			'data-recovery-available': view.recoveryAvailable,
+			onDragOver: view.handleFileDragOver,
+			onDrop: view.handleFileDrop,
 			ref: view.root,
 		},
 		view.stopped
@@ -85,6 +89,13 @@ function TestHarness({
 					'button',
 					{ 'data-approve-paste': true, onClick: view.approvePaste },
 					'Approve paste',
+				),
+		view.clipboardWriteRequest === null
+			? null
+			: createElement(
+					'button',
+					{ 'data-approve-clipboard-write': true, onClick: view.approveClipboardWrite },
+					'Approve clipboard write',
 				),
 		view.recoveryAvailable
 			? createElement(
@@ -221,6 +232,7 @@ describe('useProjectedTerminalSurface', () => {
 		renderer.start.mockResolvedValueOnce({
 			dispose: sessionDispose,
 			freeze: vi.fn<() => void>(),
+			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
 			presentationReady: new Promise<void>(() => undefined),
 			transportUnavailable: new Promise<void>(() => undefined),
 			updatePresentationConfiguration: vi
@@ -327,6 +339,7 @@ describe('useProjectedTerminalSurface', () => {
 		renderer.start.mockResolvedValueOnce({
 			dispose: sessionDispose,
 			freeze: sessionFreeze,
+			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
 			presentationReady: Promise.resolve(),
 			transportUnavailable,
 			updatePresentationConfiguration: vi
@@ -532,11 +545,12 @@ describe('useProjectedTerminalSurface', () => {
 		container.remove();
 	});
 
-	it('turns a renderer paste review into an explicit surface decision', async () => {
+	it('serializes renderer paste and clipboard reviews into explicit surface decisions', async () => {
 		renderer.start.mockReset();
 		renderer.start.mockResolvedValue({
 			dispose: vi.fn<() => void>(),
 			freeze: vi.fn<() => void>(),
+			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
 			presentationReady: Promise.resolve(),
 			transportUnavailable: new Promise<void>(() => undefined),
 			updatePresentationConfiguration: vi
@@ -608,7 +622,9 @@ describe('useProjectedTerminalSurface', () => {
 		});
 		await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
 		const reviewPaste = renderer.start.mock.calls[0]?.[9];
+		const reviewClipboardWrite = renderer.start.mock.calls[0]?.[12];
 		expect(reviewPaste).toBeTypeOf('function');
+		expect(reviewClipboardWrite).toBeTypeOf('function');
 		const review: ProjectedPasteReview = {
 			bracketed: false,
 			embeddedBracketTerminator: false,
@@ -632,6 +648,31 @@ describe('useProjectedTerminalSurface', () => {
 		await expect(decision).resolves.toBe(true);
 		expect(container.firstElementChild?.getAttribute('data-paste-review-text')).toBeNull();
 
+		const clipboardController = new AbortController();
+		let clipboardDecision: Promise<boolean> | undefined;
+		await act(async () => {
+			clipboardDecision = Promise.resolve(
+				reviewClipboardWrite?.(
+					{
+						attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+						sequence: CanonicalUint64TextSchema.parse('1'),
+						text: 'exact clipboard text',
+					},
+					clipboardController.signal,
+				) ?? false,
+			);
+			await Promise.resolve();
+		});
+		expect(container.firstElementChild?.getAttribute('data-clipboard-write-text')).toBe(
+			'exact clipboard text',
+		);
+		await act(async () => {
+			(container.querySelector('[data-approve-clipboard-write]') as HTMLButtonElement).click();
+			await Promise.resolve();
+		});
+		await expect(clipboardDecision).resolves.toBe(true);
+		expect(container.firstElementChild?.getAttribute('data-clipboard-write-text')).toBeNull();
+
 		const cancelledController = new AbortController();
 		let cancelledDecision: Promise<boolean> | undefined;
 		await act(async () => {
@@ -641,6 +682,18 @@ describe('useProjectedTerminalSurface', () => {
 			await Promise.resolve();
 		});
 		expect(container.firstElementChild?.getAttribute('data-paste-review-text')).toBe('one\ntwo');
+		const rejectedClipboard = Promise.resolve(
+			reviewClipboardWrite?.(
+				{
+					attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+					sequence: CanonicalUint64TextSchema.parse('2'),
+					text: 'must not stack',
+				},
+				new AbortController().signal,
+			) ?? false,
+		);
+		await expect(rejectedClipboard).resolves.toBe(false);
+		expect(container.firstElementChild?.getAttribute('data-clipboard-write-text')).toBeNull();
 		await act(async () => {
 			cancelledController.abort();
 			await Promise.resolve();
@@ -648,8 +701,197 @@ describe('useProjectedTerminalSurface', () => {
 		await expect(cancelledDecision).resolves.toBe(false);
 		expect(container.firstElementChild?.getAttribute('data-paste-review-text')).toBeNull();
 
+		let unmountedClipboardDecision: Promise<boolean> | undefined;
+		await act(async () => {
+			unmountedClipboardDecision = Promise.resolve(
+				reviewClipboardWrite?.(
+					{
+						attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+						sequence: CanonicalUint64TextSchema.parse('3'),
+						text: 'cancel on unmount',
+					},
+					new AbortController().signal,
+				) ?? false,
+			);
+			await Promise.resolve();
+		});
+		expect(container.firstElementChild?.getAttribute('data-clipboard-write-text')).toBe(
+			'cancel on unmount',
+		);
 		await act(async () => root.unmount());
+		await expect(unmountedClipboardDecision).resolves.toBe(false);
+		expect(release).toHaveBeenCalledOnce();
+		container.remove();
+	});
+
+	it('owns Desktop file drops, publishes only prepared text, and reports bounded rejection', async () => {
+		const preparedText = "'/tmp/space name.txt'";
+		const pasteFileDrop = vi
+			.fn<ProjectedTerminalRendererSession['pasteFileDrop']>()
+			.mockResolvedValue({
+				kind: 'sent',
+				review: {
+					bracketed: false,
+					embeddedBracketTerminator: false,
+					multiline: false,
+					originalText: preparedText,
+					replacedControlCharacters: 0,
+					source: 'file-drop',
+					text: preparedText,
+				},
+			});
+		renderer.start.mockResolvedValue({
+			dispose: vi.fn<() => void>(),
+			freeze: vi.fn<() => void>(),
+			pasteFileDrop,
+			presentationReady: Promise.resolve(),
+			transportUnavailable: new Promise<void>(() => undefined),
+			updatePresentationConfiguration: vi
+				.fn<ProjectedTerminalRendererSession['updatePresentationConfiguration']>()
+				.mockResolvedValue({
+					configuration: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current(),
+					kind: 'completed',
+				}),
+		});
+		const transport: ProjectedTerminalTransport = {
+			close: vi.fn<() => void>(),
+			projectionBufferTrust: 'external',
+			send: vi.fn<ProjectedTerminalTransport['send']>(),
+			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
+		};
+		const release = vi.fn<() => void>();
+		const open = vi.fn<TerminalProjectionClient['open']>(() => ({
+			release,
+			result: Promise.resolve({
+				bootstrap: {
+					attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+					canInput: true,
+					canResize: true,
+					creationId: CreationIdSchema.parse('22'.repeat(16)),
+					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+					terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+					terminalOutcome: null,
+				},
+				transport,
+			}),
+		}));
+		const prepare = vi
+			.fn<
+				NonNullable<ProjectedTerminalSurfaceCapability['terminalFileDropCapability']>['prepare']
+			>()
+			.mockResolvedValueOnce({
+				containsNewline: false,
+				kind: 'ready',
+				paths: ['/tmp/space name.txt'],
+				text: preparedText,
+			})
+			.mockResolvedValueOnce({ kind: 'rejected', reason: 'too-many-files' });
+		const presentation: WorkbenchTerminalPresentation = {
+			closeActivity: 'unknown',
+			currentCwd: '/workspace',
+			launchCwd: '/workspace',
+			lifecycle: { kind: 'running' },
+			naturalTitle: null,
+			presentationId: terminalPresentationId('presentation-file-drop'),
+			title: 'Terminal File Drop',
+		};
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		await act(async () => {
+			root.render(
+				createElement(
+					ProjectedTerminalSurfaceCapabilityContext.Provider,
+					{
+						value: {
+							documentElement: document.documentElement,
+							observeTerminalMetadata: () => undefined,
+							platformEffects: {},
+							preferredLocales: ['en-US'],
+							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+							projectionClient: { open },
+							shortcutPlatform: 'apple',
+							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
+							terminalFileDropCapability: { prepare },
+						},
+					},
+					createElement(
+						OrchbeeI18nProvider,
+						{ locale: 'en-US' },
+						createElement(TestHarness, { presentation }),
+					),
+				),
+			);
+			await Promise.resolve();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
+		const surface = container.firstElementChild;
+		if (!(surface instanceof HTMLElement)) throw new Error('Terminal surface did not mount.');
+		const selectedFile = new File([], 'space name.txt');
+		const dragOver = terminalFileDragEvent('dragover', [selectedFile]);
+		surface.dispatchEvent(dragOver.event);
+		expect(dragOver.event.defaultPrevented).toBe(true);
+		expect(dragOver.dataTransfer.dropEffect).toBe('copy');
+
+		const drop = terminalFileDragEvent('drop', [selectedFile]);
+		await act(async () => {
+			surface.dispatchEvent(drop.event);
+			await Promise.resolve();
+		});
+		await vi.waitFor(() => expect(pasteFileDrop).toHaveBeenCalledExactlyOnceWith(preparedText));
+		expect(drop.event.defaultPrevented).toBe(true);
+		expect(prepare).toHaveBeenNthCalledWith(1, [selectedFile]);
+
+		const tooMany = Array.from({ length: 33 }, (_, index) => new File([], `file-${index}`));
+		await act(async () => {
+			surface.dispatchEvent(terminalFileDragEvent('drop', tooMany).event);
+			await Promise.resolve();
+		});
+		await vi.waitFor(() =>
+			expect(surface.getAttribute('data-failure-message')).toContain(
+				'33 files were dropped. Select no more than 32.',
+			),
+		);
+		expect(pasteFileDrop).toHaveBeenCalledOnce();
+
+		let releaseStalePreparation: (() => void) | undefined;
+		prepare.mockImplementationOnce(async () => {
+			await new Promise<void>((resolve) => {
+				releaseStalePreparation = resolve;
+			});
+			return {
+				containsNewline: false,
+				kind: 'ready',
+				paths: ['/tmp/stale.txt'],
+				text: "'/tmp/stale.txt'",
+			};
+		});
+		await act(async () => {
+			surface.dispatchEvent(terminalFileDragEvent('drop', [new File([], 'stale.txt')]).event);
+			await Promise.resolve();
+		});
+		await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(3));
+		await act(async () => root.unmount());
+		releaseStalePreparation?.();
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(pasteFileDrop).toHaveBeenCalledOnce();
 		expect(release).toHaveBeenCalledOnce();
 		container.remove();
 	});
 });
+
+function terminalFileDragEvent(
+	type: 'dragover' | 'drop',
+	files: readonly File[],
+): {
+	readonly dataTransfer: { dropEffect: string; readonly files: readonly File[] };
+	readonly event: Event;
+} {
+	const dataTransfer = { dropEffect: 'none', files };
+	const event = new Event(type, { bubbles: true, cancelable: true });
+	Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
+	return { dataTransfer, event };
+}

@@ -422,6 +422,25 @@ export const TerminalBellSchema = z.strictObject({
 	sequence: positiveCanonicalUint64TextSchema,
 });
 
+const terminalClipboardTextSchema = z
+	.string()
+	.max(PROTOCOL_LIMITS.maxClipboardTextBytes)
+	.refine(
+		(value) => utf8Encoder.encode(value).byteLength <= PROTOCOL_LIMITS.maxClipboardTextBytes,
+		`Clipboard text exceeds ${PROTOCOL_LIMITS.maxClipboardTextBytes} UTF-8 bytes`,
+	)
+	.refine(
+		(value) => !containsUnpairedSurrogate(value),
+		'Clipboard text contains an unpaired surrogate',
+	)
+	.refine((value) => !value.includes('\0'), 'Clipboard text cannot contain NUL');
+
+export const TerminalClipboardWriteRequestSchema = z.strictObject({
+	attachmentId: AttachmentIdSchema,
+	sequence: positiveCanonicalUint64TextSchema,
+	text: terminalClipboardTextSchema,
+});
+
 export const SelectionPointSchema = z.strictObject({
 	column: z
 		.number()
@@ -923,6 +942,7 @@ export type HistoryDemand = z.infer<typeof HistoryDemandSchema>;
 export type HistoryDemandAccepted = z.infer<typeof HistoryDemandAcceptedSchema>;
 export type HistoryObserved = z.infer<typeof HistoryObservedSchema>;
 export type TerminalBell = z.infer<typeof TerminalBellSchema>;
+export type TerminalClipboardWriteRequest = z.infer<typeof TerminalClipboardWriteRequestSchema>;
 export type RowWindowOrigin = z.infer<typeof RowWindowOriginSchema>;
 export type RowWindowPurpose = z.infer<typeof RowWindowPurposeSchema>;
 export type RowsApplied = z.infer<typeof RowsAppliedSchema>;

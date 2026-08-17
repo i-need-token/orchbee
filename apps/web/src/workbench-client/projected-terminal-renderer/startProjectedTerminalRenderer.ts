@@ -7,6 +7,7 @@ import {
 import {
 	ProjectedTerminal,
 	type ProjectedPasteReview,
+	type ProjectedPasteResult,
 	type ProjectedTerminalMetadata,
 	type ProjectedTerminalOptions,
 	type TerminalPresentationConfiguration,
@@ -17,7 +18,9 @@ import {
 	ProjectedTerminalEventSchema,
 	type ProjectedTerminalFailure,
 } from '@orchbee/workbench-client-protocol';
+import type { TerminalClipboardWriteRequest } from '@orchbee/terminal-protocol';
 
+import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
 import {
 	TerminalFindController,
 	mountTerminalFindSurface,
@@ -53,6 +56,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'getBufferRowsSnapshot'
 	| 'notifyExited'
 	| 'notifyBell'
+	| 'notifyClipboardWriteRequest'
 	| 'notifyBrokerFailure'
 	| 'notifyHistoryChanged'
 	| 'notifyLinkOpened'
@@ -60,6 +64,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'notifySelectionCopied'
 	| 'onError'
 	| 'onBell'
+	| 'onClipboardWriteRequest'
 	| 'onExit'
 	| 'onFrameTelemetry'
 	| 'onHistoryChange'
@@ -72,6 +77,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'onSelectionCopied'
 	| 'openLinkAsync'
 	| 'open'
+	| 'paste'
 	| 'reset'
 	| 'selectAll'
 	| 'selection'
@@ -88,6 +94,7 @@ export interface ProjectedTerminalRendererDependencies {
 
 export interface ProjectedTerminalRendererSession {
 	dispose(): void;
+	pasteFileDrop(text: string): Promise<ProjectedPasteResult>;
 	readonly presentationReady: Promise<void>;
 	readonly transportUnavailable: Promise<void>;
 	/** Retire transport and interaction while retaining the already painted frame DOM. */
@@ -116,6 +123,11 @@ export async function startProjectedTerminalRenderer(
 	reviewPaste?: (review: ProjectedPasteReview, signal: AbortSignal) => boolean | Promise<boolean>,
 	observeMetadata?: (metadata: ProjectedTerminalMetadata) => void,
 	shortcutBindingSource?: ProjectedTerminalShortcutBindingSource,
+	reviewClipboardWrite?: (
+		request: TerminalClipboardWriteRequest,
+		signal: AbortSignal,
+	) => boolean | Promise<boolean>,
+	completionReminderObserver?: TerminalCompletionReminderObserver,
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
@@ -145,6 +157,27 @@ export async function startProjectedTerminalRenderer(
 			throw error;
 		}
 	})();
+	const progress = (() => {
+		let element: HTMLElement | undefined;
+		try {
+			element = rootElement.ownerDocument.createElement('div');
+			element.dataset['projectedTerminalProgress'] = 'true';
+			element.hidden = true;
+			element.setAttribute(
+				'aria-label',
+				intl.formatMessage(projectedTerminalMessages.progressLabel),
+			);
+			element.setAttribute('role', 'progressbar');
+			const indicator = rootElement.ownerDocument.createElement('span');
+			indicator.setAttribute('aria-hidden', 'true');
+			element.appendChild(indicator);
+			rootElement.appendChild(element);
+			return element;
+		} catch (error) {
+			runCleanup([() => element?.remove(), () => status.remove(), () => transport.close()]);
+			throw error;
+		}
+	})();
 	rootElement.dataset['projectedTerminalState'] = 'opening';
 	rootElement.dataset['projectedTerminalAttachmentId'] = bootstrap.attachmentId;
 	rootElement.dataset['projectedTerminalCreationId'] = bootstrap.creationId;
@@ -156,12 +189,22 @@ export async function startProjectedTerminalRenderer(
 	let disposed = false;
 	let frozen = false;
 	let finalRevision: bigint | undefined;
+	let lastObservedCommandCompletionSequence: bigint | undefined;
 	let lastMetadata: ProjectedTerminalMetadata | undefined;
 	let lastRenderedRevision: bigint | undefined;
 	let renderedFrames = 0;
 	let presentationRequestEpoch = 0;
-	let statusKind: 'connection-failure' | 'copy' | 'feature-failure' | 'runtime-failure' | undefined;
+	let statusKind:
+		| 'command-completion'
+		| 'connection-failure'
+		| 'copy'
+		| 'feature-failure'
+		| 'runtime-failure'
+		| undefined;
 	let terminalOpened = false;
+	let bellTimer: ReturnType<typeof setTimeout> | undefined;
+	let completionStatusTimer: ReturnType<typeof setTimeout> | undefined;
+	let clipboardReviewController: AbortController | undefined;
 	let terminalOutcomeKind: 'exited' | 'failed' | undefined;
 	let pendingPresentationConfiguration: TerminalPresentationConfiguration | undefined;
 	let resolveTransportUnavailable: (() => void) | undefined;
@@ -198,6 +241,85 @@ export async function startProjectedTerminalRenderer(
 		status.textContent = null;
 		status.hidden = true;
 		statusKind = undefined;
+	};
+	const clearVisualBell = (): void => {
+		if (bellTimer !== undefined) clearTimeout(bellTimer);
+		bellTimer = undefined;
+		delete rootElement.dataset['projectedTerminalBellActive'];
+	};
+	const showVisualBell = (): void => {
+		rootElement.dataset['projectedTerminalBellActive'] = 'true';
+		if (bellTimer !== undefined) clearTimeout(bellTimer);
+		bellTimer = setTimeout(clearVisualBell, 140);
+	};
+	const clearCompletionStatusTimer = (): void => {
+		if (completionStatusTimer !== undefined) clearTimeout(completionStatusTimer);
+		completionStatusTimer = undefined;
+	};
+	const observeCommandCompletion = (metadata: ProjectedTerminalMetadata): void => {
+		const completion = metadata.commandCompletion;
+		if (
+			completion === null ||
+			completion === undefined ||
+			completionReminderObserver === undefined
+		) {
+			return;
+		}
+		if (completion.sequence === lastObservedCommandCompletionSequence) return;
+		lastObservedCommandCompletionSequence = completion.sequence;
+		rootElement.dataset['projectedTerminalCommandCompletionObservedSequence'] =
+			completion.sequence.toString();
+		const duration =
+			Math.min(Number(completion.durationMilliseconds), Number.MAX_SAFE_INTEGER) / 1000;
+		const message = intl.formatMessage(projectedTerminalMessages.commandCompletedBody, {
+			duration,
+			exitCode: completion.exitCode,
+		});
+		const ownerDocument = rootElement.ownerDocument;
+		const result = completionReminderObserver.observeCompletion({
+			completion,
+			focused: ownerDocument.hasFocus() && rootElement.contains(ownerDocument.activeElement),
+			notification: {
+				body: message,
+				tag: `orchbee-terminal:${bootstrap.hostEpoch}:${bootstrap.terminalId}`,
+				title: intl.formatMessage(projectedTerminalMessages.commandCompletedTitle),
+			},
+			terminalIdentity: `${bootstrap.hostEpoch}:${bootstrap.terminalId}`,
+		});
+		rootElement.dataset['projectedTerminalCommandReminderDecision'] =
+			result.kind === 'remind' ? `remind-${result.notification}` : `ignored-${result.reason}`;
+		if (result.kind !== 'remind') return;
+		clearCompletionStatusTimer();
+		statusKind = 'command-completion';
+		status.setAttribute('role', 'status');
+		status.textContent = message;
+		status.hidden = false;
+		rootElement.dataset['projectedTerminalCommandCompletionSequence'] =
+			completion.sequence.toString();
+		rootElement.dataset['projectedTerminalCommandNotification'] = result.notification;
+		completionStatusTimer = setTimeout(() => {
+			completionStatusTimer = undefined;
+			if (statusKind === 'command-completion') clearStatus();
+		}, 8_000);
+	};
+	const updateProgress = (metadata: ProjectedTerminalMetadata): void => {
+		const terminalProgress = metadata.progress;
+		progress.dataset['state'] = terminalProgress.state;
+		progress.hidden = terminalProgress.state === 'remove';
+		if (terminalProgress.value === null) {
+			progress.removeAttribute('aria-valuemax');
+			progress.removeAttribute('aria-valuemin');
+			progress.removeAttribute('aria-valuenow');
+			progress.style.removeProperty('--ob-comp-projected-terminal-progress-value');
+			return;
+		}
+		progress.setAttribute('aria-valuemax', '100');
+		progress.setAttribute('aria-valuemin', '0');
+		progress.setAttribute('aria-valuenow', String(terminalProgress.value));
+		progress.style.setProperty(
+			'--ob-comp-projected-terminal-progress-value',
+			`${terminalProgress.value}%`,
+		);
 	};
 	const reportProjectionReady = (): void => {
 		if (!terminalOpened || terminalOutcomeKind !== undefined) return;
@@ -299,7 +421,7 @@ export async function startProjectedTerminalRenderer(
 			terminalId: bootstrap.terminalId,
 		});
 	} catch (error) {
-		runCleanup([() => status.remove(), () => transport.close()]);
+		runCleanup([() => progress.remove(), () => status.remove(), () => transport.close()]);
 		throw error;
 	}
 	const updatePresentationConfiguration = async (
@@ -353,7 +475,12 @@ export async function startProjectedTerminalRenderer(
 		}
 		unsubscribePresentationConfiguration = unsubscribe;
 	} catch (error) {
-		runCleanup([() => terminal.dispose(), () => status.remove(), () => transport.close()]);
+		runCleanup([
+			() => terminal.dispose(),
+			() => progress.remove(),
+			() => status.remove(),
+			() => transport.close(),
+		]);
 		throw error;
 	}
 	const reportRuntimeFailure = (
@@ -398,7 +525,73 @@ export async function startProjectedTerminalRenderer(
 			);
 			const activeActions = pendingActions;
 			const activeFindController = pendingFindController;
-			pendingSubscriptions.push(terminal.onBell((event) => platformEffects.ringBell?.(event)));
+			pendingSubscriptions.push(
+				terminal.onBell((event) => {
+					showVisualBell();
+					platformEffects.ringBell?.(event);
+				}),
+			);
+			pendingSubscriptions.push(
+				terminal.onClipboardWriteRequest((event) => {
+					if (clipboardReviewController !== undefined) return;
+					const sendDecision = (approved: boolean): void => {
+						if (disposed || frozen) return;
+						try {
+							transport.send({
+								kind: 'clipboard-write-decision',
+								payload: { ...event, approved },
+							});
+						} catch {
+							reportFailure();
+						}
+					};
+					if (reviewClipboardWrite === undefined) {
+						sendDecision(false);
+						return;
+					}
+					const controller = new AbortController();
+					clipboardReviewController = controller;
+					void (async () => {
+						let approved = false;
+						try {
+							approved = await reviewClipboardWrite(event, controller.signal);
+						} catch {
+							approved = false;
+						}
+						if (controller.signal.aborted || disposed || frozen) return;
+						if (!approved) {
+							sendDecision(false);
+							return;
+						}
+						const writeClipboardText = platformEffects.writeClipboardText;
+						if (writeClipboardText === undefined) {
+							sendDecision(true);
+							return;
+						}
+						let result;
+						try {
+							result = await writeClipboardText(event.text);
+						} catch {
+							result = {
+								code: 'client-clipboard-failed',
+								kind: 'failed',
+								retryable: false,
+							} as const;
+						}
+						sendDecision(result.kind === 'completed');
+						if (result.kind === 'failed') {
+							terminal.notifyBrokerFailure({
+								code: result.code,
+								message: 'The terminal clipboard write did not complete.',
+								operation: 'clipboard',
+								retryable: result.retryable,
+							});
+						}
+					})().finally(() => {
+						if (clipboardReviewController === controller) clipboardReviewController = undefined;
+					});
+				}),
+			);
 			pendingSubscriptions.push(
 				terminal.onError((event) => {
 					if ('code' in event) {
@@ -468,6 +661,8 @@ export async function startProjectedTerminalRenderer(
 					rootElement.dataset['projectedTerminalCellPixelWidth'] = String(metadata.cellPixelWidth);
 					rootElement.dataset['projectedTerminalColumns'] = String(metadata.columns);
 					rootElement.dataset['projectedTerminalRows'] = String(metadata.rows);
+					updateProgress(metadata);
+					observeCommandCompletion(metadata);
 				}),
 			);
 			pendingSubscriptions.push(
@@ -543,6 +738,7 @@ export async function startProjectedTerminalRenderer(
 				() => pendingActions?.dispose(),
 				() => pendingFindController?.dispose(),
 				() => terminal.dispose(),
+				() => progress.remove(),
 				() => status.remove(),
 				() => transport.close(),
 			]);
@@ -558,6 +754,9 @@ export async function startProjectedTerminalRenderer(
 		switch (event.data.kind) {
 			case 'bell':
 				terminal.notifyBell(event.data.event);
+				return;
+			case 'clipboard-write-request':
+				terminal.notifyClipboardWriteRequest(event.data.event);
 				return;
 			case 'failure':
 				terminal.notifyBrokerFailure(event.data.failure);
@@ -638,6 +837,7 @@ export async function startProjectedTerminalRenderer(
 			() => actions.dispose(),
 			() => findController.dispose(),
 			() => terminal.dispose(),
+			() => progress.remove(),
 			() => status.remove(),
 			() => transport.close(),
 		]);
@@ -714,6 +914,7 @@ export async function startProjectedTerminalRenderer(
 			() => findController.dispose(),
 			() => terminal.dispose(),
 			() => transport.close(),
+			() => progress.remove(),
 			() => status.remove(),
 		]);
 		throw error;
@@ -723,8 +924,17 @@ export async function startProjectedTerminalRenderer(
 		dispose: () => {
 			if (disposed) return;
 			disposed = true;
+			clipboardReviewController?.abort();
+			clipboardReviewController = undefined;
+			clearVisualBell();
+			clearCompletionStatusTimer();
 			if (frozen) {
-				runCleanup([() => terminal.dispose(), () => status.remove(), () => findRoot?.remove()]);
+				runCleanup([
+					() => terminal.dispose(),
+					() => status.remove(),
+					() => progress.remove(),
+					() => findRoot?.remove(),
+				]);
 				return;
 			}
 			runCleanup([
@@ -738,12 +948,17 @@ export async function startProjectedTerminalRenderer(
 				() => terminal.dispose(),
 				() => transport.close(),
 				() => status.remove(),
+				() => progress.remove(),
 				() => findRoot?.remove(),
 			]);
 		},
 		freeze: () => {
 			if (disposed || frozen) return;
 			frozen = true;
+			clipboardReviewController?.abort();
+			clipboardReviewController = undefined;
+			clearVisualBell();
+			clearCompletionStatusTimer();
 			runCleanup([
 				unsubscribePresentationConfiguration,
 				() => disposeShortcuts?.(),
@@ -755,9 +970,11 @@ export async function startProjectedTerminalRenderer(
 				() => terminal.freeze(),
 				() => transport.close(),
 				() => status.remove(),
+				() => progress.remove(),
 				() => findRoot?.remove(),
 			]);
 		},
+		pasteFileDrop: async (text) => await terminal.paste(text, 'file-drop'),
 		presentationReady,
 		transportUnavailable,
 		updatePresentationConfiguration,
@@ -788,6 +1005,8 @@ function terminalBackgroundColor(color: string, opacity: number): string {
 
 function projectedTerminalFailureMessage(failure: ProjectedTerminalFailure) {
 	switch (failure.operation) {
+		case 'clipboard':
+			return projectedTerminalMessages.clipboardWriteFailed;
 		case 'connection':
 		case 'protocol':
 			return projectedTerminalMessages.connectionFailure;

@@ -2,11 +2,14 @@ const std = @import("std");
 const target_builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
 const pty_process = @import("terminal-host-platform").process;
+const protocol = @import("terminal-protocol");
 const terminal_profile = @import("../profile.zig");
 const terminal_runtime_launch = @import("../runtime_launch.zig");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const output_ops = @import("output.zig");
+const feedback_ops = @import("feedback.zig");
+const png_decoder = @import("../png_decoder.zig");
 const writer_ops = @import("writer.zig");
 const wait_thread_ops = @import("wait_thread.zig");
 
@@ -42,6 +45,7 @@ pub fn createWithOptionsUsingSpawner(
     options: contracts.Options,
     spawner: anytype,
 ) !*state.State {
+    png_decoder.install();
     const checked = try terminal_runtime_launch.prepare(allocator, launch, options);
     const resolved_launch = checked.process_launch;
     const resolved_options = checked.runtime_options;
@@ -57,6 +61,8 @@ pub fn createWithOptionsUsingSpawner(
         var terminal: ghostty_vt.Terminal = try .init(allocator, .{
             .cols = resolved_launch.columns,
             .colors = colors,
+            .kitty_image_loading_limits = .direct,
+            .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
             .max_scrollback = resolved_options.scrollback_bytes,
             .rows = resolved_launch.rows,
         });
@@ -70,6 +76,7 @@ pub fn createWithOptionsUsingSpawner(
     self.* = .{
         .allocator = allocator,
         .cell_pixel_height = resolved_options.cell_pixel_height,
+        .command_timer = std.time.Timer.start() catch null,
         .input_queue = .init(allocator),
         .input_ownership = .init(allocator),
         .cell_pixel_width = resolved_options.cell_pixel_width,
@@ -101,6 +108,9 @@ pub fn createWithOptionsUsingSpawner(
     effects.size = output_ops.sizeEffect;
     effects.xtversion = output_ops.versionEffect;
     self.stream.handler.column_mode = output_ops.columnModeEffect;
+    self.stream.handler.clipboard_contents = feedback_ops.clipboardContentsEffect;
+    self.stream.handler.progress_report = feedback_ops.progressReportEffect;
+    self.stream.handler.semantic_prompt = feedback_ops.semanticPromptEffect;
 
     self.wait_thread = try spawner.spawn(wait_thread_ops.waitThread, self);
     self.reader_thread = try spawner.spawn(output_ops.readerThread, self);
@@ -122,6 +132,7 @@ pub fn cleanupFailedThreadStartup(self: *state.State) void {
     if (self.writer_thread) |thread| thread.join();
     self.stream.deinit();
     self.stream_allocator.deinit();
+    feedback_ops.deinit(self);
     self.history.deinit(&self.terminal);
     self.input_ownership.deinit();
     self.terminal.deinit(self.allocator);

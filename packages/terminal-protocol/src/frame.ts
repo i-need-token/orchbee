@@ -14,13 +14,18 @@ import type { AttachmentId, HostEpoch } from './identifiers';
 import { PROTOCOL_LIMITS } from './limits';
 import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-result';
 import type { ProtocolResult } from './protocol-result';
+import {
+	decodeTerminalGraphics,
+	TerminalGraphicsUpdateKind,
+	type TerminalGraphics,
+} from './terminal-graphics';
 import { containsUnpairedSurrogate } from './containsUnpairedSurrogate';
 
 export const TERMINAL_FRAME_HEADER_BYTES = 160;
 export const TERMINAL_FRAME_MAGIC = new Uint8Array([0x4f, 0x42, 0x54, 0x46]);
 // Keep this synchronized with Zig. Released changes (>= 1.0.0) also update
 // docs/version-history.md in the same change.
-export const TERMINAL_FRAME_FORMAT = { major: 0, minor: 0, patch: 1 } as const;
+export const TERMINAL_FRAME_FORMAT = { major: 0, minor: 0, patch: 2 } as const;
 
 const MAX_UINT16 = 0xffff;
 const MAX_UINT32 = 0xffff_ffff;
@@ -120,13 +125,47 @@ export const TerminalRowFlag = {
 } as const;
 
 export const TerminalFrameExtensionKind = {
+	commandCompletion: 4,
 	closeActivity: 1,
+	kittyGraphics: 2,
+	progress: 3,
 } as const;
 
 export const TerminalCloseActivityCode = {
 	active: 2,
 	idle: 1,
 	unknown: 0,
+} as const;
+
+export const TerminalProgressState = {
+	error: 'error',
+	indeterminate: 'indeterminate',
+	pause: 'pause',
+	remove: 'remove',
+	set: 'set',
+} as const;
+
+export type TerminalProgressState =
+	(typeof TerminalProgressState)[keyof typeof TerminalProgressState];
+
+export interface TerminalProgress {
+	readonly state: TerminalProgressState;
+	readonly value: number | null;
+}
+
+export interface TerminalCommandCompletion {
+	readonly completedAtMilliseconds: bigint;
+	readonly durationMilliseconds: bigint;
+	readonly exitCode: number;
+	readonly sequence: bigint;
+}
+
+const TerminalProgressStateCode = {
+	error: 2,
+	indeterminate: 3,
+	pause: 4,
+	remove: 0,
+	set: 1,
 } as const;
 
 export const TerminalStyleFlag = {
@@ -375,7 +414,7 @@ export const TerminalFrameSchema = z
 				addIssue(
 					context,
 					['extensions', index, 'required'],
-					'Format 0.0.1 has no recognized required extensions',
+					'This frame format has no recognized required extensions',
 				);
 			}
 			extensionBytes += extension.data.byteLength;
@@ -386,6 +425,12 @@ export const TerminalFrameSchema = z
 				addIssue(context, ['extensions', index, 'data'], 'Frame extensions exceed their limit');
 			}
 		}
+		const graphics = graphicsFromExtensions(frame.extensions, frame.kind);
+		if (!graphics.ok) addIssue(context, ['extensions'], graphics.detail);
+		const progress = progressFromExtensions(frame.extensions);
+		if (!progress.ok) addIssue(context, ['extensions'], progress.detail);
+		const commandCompletion = commandCompletionFromExtensions(frame.extensions);
+		if (!commandCompletion.ok) addIssue(context, ['extensions'], commandCompletion.detail);
 	});
 
 export type TerminalCell = z.infer<typeof TerminalCellSchema>;
@@ -428,6 +473,7 @@ export interface DecodedTerminalFrame {
 	readonly cellPixelWidth: number;
 	readonly cells: DecodedTerminalCells;
 	readonly columns: number;
+	readonly commandCompletion: TerminalCommandCompletion | null;
 	readonly currentDirectory: string | null;
 	readonly cursor: {
 		readonly blinking: boolean;
@@ -444,10 +490,12 @@ export interface DecodedTerminalFrame {
 	};
 	readonly extensions: readonly TerminalFrameExtension[];
 	readonly generation: bigint;
+	readonly graphics: TerminalGraphics | null;
 	readonly hostEpoch: HostEpoch;
 	readonly ignoredOptionalFlags: number;
 	readonly interaction: TerminalInteraction;
 	readonly kind: TerminalFrameKind;
+	readonly progress: TerminalProgress;
 	readonly revision: bigint;
 	readonly rowData: DecodedTerminalRows;
 	readonly rows: number;
@@ -1356,7 +1404,7 @@ function readExtensions(
 		if ((flags & 0x8000) !== 0) {
 			return protocolFailure(
 				ProtocolErrorCode.unknownRequiredFlag,
-				`Frame extension ${kind} is required but unknown to format 0.0.1`,
+				`Frame extension ${kind} is required but unknown to format 0.0.2`,
 			);
 		}
 		totalBytes += length;
@@ -1374,6 +1422,128 @@ function readExtensions(
 		extensions.push({ data, kind, required: false });
 	}
 	return protocolSuccess(extensions);
+}
+
+function graphicsFromExtensions(
+	extensions: readonly TerminalFrameExtension[],
+	frameKind: TerminalFrameKind,
+): ProtocolResult<TerminalGraphics | null> {
+	const matches = extensions.filter(
+		(extension) => extension.kind === TerminalFrameExtensionKind.kittyGraphics,
+	);
+	if (matches.length === 0) return protocolSuccess(null);
+	if (matches.length !== 1) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Terminal frame contains duplicate graphics extensions',
+		);
+	}
+	const decoded = decodeTerminalGraphics(matches[0]?.data ?? new Uint8Array());
+	if (!decoded.ok) return decoded;
+	if (
+		frameKind === TerminalFrameKind.snapshot &&
+		decoded.value.kind !== TerminalGraphicsUpdateKind.snapshot
+	) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Terminal snapshot requires a graphics resource snapshot',
+		);
+	}
+	return decoded;
+}
+
+function progressFromExtensions(
+	extensions: readonly TerminalFrameExtension[],
+): ProtocolResult<TerminalProgress> {
+	const matches = extensions.filter(
+		(extension) => extension.kind === TerminalFrameExtensionKind.progress,
+	);
+	if (matches.length === 0)
+		return protocolSuccess({ state: TerminalProgressState.remove, value: null });
+	if (matches.length !== 1) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Terminal frame contains duplicate progress extensions',
+		);
+	}
+	const data = matches[0]?.data;
+	if (data === undefined || data.byteLength !== 2) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Terminal progress extension is invalid',
+		);
+	}
+	const state = (() => {
+		switch (data[0]) {
+			case TerminalProgressStateCode.remove:
+				return TerminalProgressState.remove;
+			case TerminalProgressStateCode.set:
+				return TerminalProgressState.set;
+			case TerminalProgressStateCode.error:
+				return TerminalProgressState.error;
+			case TerminalProgressStateCode.indeterminate:
+				return TerminalProgressState.indeterminate;
+			case TerminalProgressStateCode.pause:
+				return TerminalProgressState.pause;
+			default:
+				return null;
+		}
+	})();
+	if (state === null) {
+		return protocolFailure(ProtocolErrorCode.invalidField, 'Terminal progress state is invalid');
+	}
+	const rawValue = data[1] ?? 0xff;
+	const value = rawValue === 0xff ? null : rawValue;
+	if (value !== null && value > 100) {
+		return protocolFailure(ProtocolErrorCode.invalidField, 'Terminal progress exceeds 100 percent');
+	}
+	if (
+		(state === TerminalProgressState.remove || state === TerminalProgressState.indeterminate) &&
+		value !== null
+	) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Terminal progress state cannot carry a percentage',
+		);
+	}
+	return protocolSuccess({ state, value });
+}
+
+function commandCompletionFromExtensions(
+	extensions: readonly TerminalFrameExtension[],
+): ProtocolResult<TerminalCommandCompletion | null> {
+	const matches = extensions.filter(
+		(extension) => extension.kind === TerminalFrameExtensionKind.commandCompletion,
+	);
+	if (matches.length === 0) return protocolSuccess(null);
+	if (matches.length !== 1) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Terminal frame contains duplicate command completion extensions',
+		);
+	}
+	const data = matches[0]?.data;
+	if (data === undefined || data.byteLength !== 25) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Terminal command completion extension is invalid',
+		);
+	}
+	const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+	const sequence = view.getBigUint64(0, true);
+	const completedAtMilliseconds = view.getBigUint64(16, true);
+	if (sequence === 0n || completedAtMilliseconds === 0n) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Terminal command completion identity and wall time must be positive',
+		);
+	}
+	return protocolSuccess({
+		completedAtMilliseconds,
+		durationMilliseconds: view.getBigUint64(8, true),
+		exitCode: view.getUint8(24),
+		sequence,
+	});
 }
 
 function resolveString(
@@ -1404,6 +1574,12 @@ export function decodeTerminalFrame(bytes: Uint8Array): ProtocolResult<DecodedTe
 	if (!scan.ok) return scan;
 	const extensions = readExtensions(reader, header.value.extensionCount);
 	if (!extensions.ok) return extensions;
+	const graphics = graphicsFromExtensions(extensions.value, header.value.kind);
+	if (!graphics.ok) return graphics;
+	const progress = progressFromExtensions(extensions.value);
+	if (!progress.ok) return progress;
+	const commandCompletion = commandCompletionFromExtensions(extensions.value);
+	if (!commandCompletion.ok) return commandCompletion;
 	if (reader.failure) return reader.failure;
 	if (reader.offset !== bytes.byteLength) {
 		return protocolFailure(ProtocolErrorCode.lengthMismatch, 'Terminal frame has trailing bytes');
@@ -1427,6 +1603,7 @@ export function decodeTerminalFrame(bytes: Uint8Array): ProtocolResult<DecodedTe
 		cellPixelWidth: header.value.cellPixelWidth,
 		cells: cells.value,
 		columns: header.value.columns,
+		commandCompletion: commandCompletion.value,
 		currentDirectory: currentDirectory.value,
 		cursor: {
 			blinking: header.value.cursorBlinking,
@@ -1443,10 +1620,12 @@ export function decodeTerminalFrame(bytes: Uint8Array): ProtocolResult<DecodedTe
 		},
 		extensions: extensions.value,
 		generation: header.value.generation,
+		graphics: graphics.value,
 		hostEpoch: header.value.hostEpoch,
 		ignoredOptionalFlags: header.value.ignoredOptionalFlags,
 		interaction: header.value.interaction,
 		kind: header.value.kind,
+		progress: progress.value,
 		revision: header.value.revision,
 		rowData: scan.value.rows,
 		rows: header.value.rows,

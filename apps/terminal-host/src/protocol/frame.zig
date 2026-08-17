@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const contract = @import("contract.zig");
+const graphics_extension = @import("graphics_extension.zig");
 const wire = @import("wire.zig");
 
 const ProtocolError = contract.ProtocolError;
@@ -48,6 +49,7 @@ pub const FrameSummary = struct {
     cell_pixel_height: u16,
     cell_pixel_width: u16,
     columns: u16,
+    command_completion: ?contract.TerminalCommandCompletion,
     current_directory: ?[]const u8,
     cursor_column: u16,
     cursor_row: u16,
@@ -55,8 +57,10 @@ pub const FrameSummary = struct {
     cursor_wide_tail: bool,
     extension_count: u16,
     generation: u64,
+    graphics: ?graphics_extension.Summary,
     host_epoch: [16]u8,
     kind: FrameKind,
+    progress: contract.TerminalProgress,
     revision: u64,
     row_count: u16,
     rows: u16,
@@ -292,8 +296,11 @@ pub fn validateTerminalFrame(
     if (cell_count != declared_cell_count) return error.LengthMismatch;
 
     var extension_bytes: usize = 0;
+    var graphics: ?graphics_extension.Summary = null;
+    var progress: ?contract.TerminalProgress = null;
+    var command_completion: ?contract.TerminalCommandCompletion = null;
     for (0..extension_count) |_| {
-        _ = try reader.readInt(u16);
+        const extension_kind = try reader.readInt(u16);
         const extension_flags = try reader.readInt(u16);
         const length = try reader.readInt(u32);
         if (extension_flags & 0x8000 != 0) return error.UnknownRequiredFlag;
@@ -302,7 +309,42 @@ pub fn validateTerminalFrame(
         if (length > max_extension_bytes or extension_bytes > max_extension_bytes) {
             return error.LimitExceeded;
         }
-        _ = try reader.readBytes(length);
+        const extension = try reader.readBytes(length);
+        if (extension_kind == contract.terminal_frame_extension_kitty_graphics) {
+            if (graphics != null) return error.InvalidField;
+            graphics = try graphics_extension.validate(extension);
+            if (kind == .snapshot and graphics.?.kind != .snapshot) {
+                return error.InvalidField;
+            }
+        } else if (extension_kind == contract.terminal_frame_extension_progress) {
+            if (progress != null or extension.len != 2) return error.InvalidField;
+            const state = std.meta.intToEnum(
+                contract.TerminalProgressState,
+                extension[0],
+            ) catch return error.InvalidField;
+            const value: ?u8 = if (extension[1] == std.math.maxInt(u8))
+                null
+            else if (extension[1] <= 100)
+                extension[1]
+            else
+                return error.InvalidField;
+            if ((state == .remove or state == .indeterminate) and value != null) {
+                return error.InvalidField;
+            }
+            progress = .{ .state = state, .value = value };
+        } else if (extension_kind == contract.terminal_frame_extension_command_completion) {
+            if (command_completion != null or extension.len != 25) return error.InvalidField;
+            const completion: contract.TerminalCommandCompletion = .{
+                .sequence = std.mem.readInt(u64, extension[0..8], .little),
+                .duration_milliseconds = std.mem.readInt(u64, extension[8..16], .little),
+                .completed_at_milliseconds = std.mem.readInt(u64, extension[16..24], .little),
+                .exit_code = extension[24],
+            };
+            if (completion.sequence == 0 or completion.completed_at_milliseconds == 0) {
+                return error.InvalidField;
+            }
+            command_completion = completion;
+        }
     }
     if (reader.offset != bytes.len) return error.LengthMismatch;
 
@@ -314,6 +356,7 @@ pub fn validateTerminalFrame(
         .cell_pixel_height = cell_pixel_height,
         .cell_pixel_width = cell_pixel_width,
         .columns = columns,
+        .command_completion = command_completion,
         .current_directory = try stringAt(strings, current_directory_index),
         .cursor_column = cursor_column,
         .cursor_row = cursor_row,
@@ -321,8 +364,10 @@ pub fn validateTerminalFrame(
         .cursor_wide_tail = cursor_flags & 0x04 != 0,
         .extension_count = extension_count,
         .generation = generation,
+        .graphics = graphics,
         .host_epoch = host_epoch,
         .kind = kind,
+        .progress = progress orelse .{},
         .revision = revision,
         .row_count = row_count,
         .rows = rows,

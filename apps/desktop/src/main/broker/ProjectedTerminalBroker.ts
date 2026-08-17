@@ -31,12 +31,14 @@ import {
 	SelectionExportStartedSchema,
 	TerminalExitedSchema,
 	TerminalBellSchema,
+	TerminalClipboardWriteRequestSchema,
 	TerminalFailedSchema,
 	TerminalControlAcceptedSchema,
 	type DecodedProtocolEnvelope,
 	type MessageKindValue,
 	type SelectionExportChunk,
 	type SelectionExportCancel,
+	type TerminalClipboardWriteRequest,
 } from '@orchbee/terminal-protocol';
 import type { HostConnection } from '../host';
 import { HostRequestError } from '../host';
@@ -136,6 +138,7 @@ export class ProjectedTerminalBroker {
 	#lastSelectionExportStartMilliseconds: number | null = null;
 	#latestTerminalOutcomeRevision: bigint | undefined;
 	#nextExportSequence = 1n;
+	#pendingClipboardWriteRequest: TerminalClipboardWriteRequest | undefined;
 	#removeHostListener: (() => void) | undefined;
 	#rowWindowBytesForwarded = 0;
 	#rowWindowsForwarded = 0;
@@ -196,6 +199,7 @@ export class ProjectedTerminalBroker {
 		if (this.#disposePromise !== undefined) return this.#disposePromise;
 		const activeCopy = this.#activeSelectionCopy;
 		this.#activeSelectionCopy = undefined;
+		this.#pendingClipboardWriteRequest = undefined;
 		this.#disposed = true;
 		this.#removeHostListener?.();
 		this.#removeHostListener = undefined;
@@ -280,6 +284,12 @@ export class ProjectedTerminalBroker {
 			return;
 		}
 		if (this.#inFlightRequests >= MAX_IN_FLIGHT_RENDERER_REQUESTS) {
+			if (
+				parsed.data.kind === 'clipboard-write-decision' &&
+				this.#matchesPendingClipboardWriteRequest(parsed.data.payload)
+			) {
+				this.#pendingClipboardWriteRequest = undefined;
+			}
 			this.#commandsRejected += 1;
 			this.#postFailure({
 				code: 'renderer-backpressure',
@@ -362,6 +372,25 @@ export class ProjectedTerminalBroker {
 					return;
 				}
 				this.#postMessage({ event: event.value, kind: 'bell' });
+				return;
+			}
+			case MessageKind.terminalClipboardWriteRequest: {
+				const event = decodeControlJson(envelope.payload, TerminalClipboardWriteRequestSchema);
+				if (!event.ok || event.value.attachmentId !== this.#bootstrap.attachmentId) {
+					this.#postFailure({
+						code: 'invalid-clipboard-write-request',
+						message: event.ok
+							? 'Terminal Host clipboard request is outside the scoped attachment.'
+							: event.detail,
+						operation: 'protocol',
+						retryable: false,
+					});
+					return;
+				}
+				if (this.#pendingClipboardWriteRequest !== undefined) return;
+				if (this.#postMessage({ event: event.value, kind: 'clipboard-write-request' })) {
+					this.#pendingClipboardWriteRequest = event.value;
+				}
 				return;
 			}
 			case MessageKind.historyChanged: {
@@ -504,6 +533,20 @@ export class ProjectedTerminalBroker {
 		switch (command.kind) {
 			case 'clear-terminal':
 				return this.#requestTerminalControl(MessageKind.clearTerminal, command.payload, 'clear');
+			case 'clipboard-write-decision': {
+				if (!this.#matchesPendingClipboardWriteRequest(command.payload)) {
+					throw new BrokerOperationError(
+						'clipboard-decision-mismatch',
+						'Terminal clipboard decision does not match the pending Host request.',
+					);
+				}
+				this.#pendingClipboardWriteRequest = undefined;
+				if (command.payload.approved && this.#effectTarget === 'desktop') {
+					await this.#dependencies.writeClipboardText(command.payload.text);
+					this.#clipboardCommits += 1;
+				}
+				return;
+			}
 			case 'focus-input':
 				return this.#requestInput(MessageKind.focusInput, command.payload);
 			case 'frame-applied':
@@ -883,6 +926,16 @@ export class ProjectedTerminalBroker {
 		);
 	}
 
+	#matchesPendingClipboardWriteRequest(request: TerminalClipboardWriteRequest): boolean {
+		const pending = this.#pendingClipboardWriteRequest;
+		return (
+			pending !== undefined &&
+			pending.attachmentId === request.attachmentId &&
+			pending.sequence === request.sequence &&
+			pending.text === request.text
+		);
+	}
+
 	async #requestSelectionExportCancel(
 		state: ActiveSelectionCopy,
 		reason: SelectionExportCancel['reason'],
@@ -932,6 +985,8 @@ function failureContext(
 		case 'clear-terminal':
 		case 'reset-terminal':
 			return { operation: 'control' };
+		case 'clipboard-write-decision':
+			return { operation: 'clipboard', requestSequence: command.payload.sequence };
 		case 'selection-copy':
 			return { operation: 'copy', requestSequence: command.payload.requestSequence };
 		case 'link-open':

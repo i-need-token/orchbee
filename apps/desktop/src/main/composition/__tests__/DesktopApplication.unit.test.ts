@@ -144,6 +144,29 @@ describe('DesktopApplication', () => {
 		expect(harness.browserWindow.restore).toHaveBeenCalledOnce();
 		expect(harness.browserWindow.show).toHaveBeenCalledOnce();
 		expect(harness.browserWindow.focus).toHaveBeenCalledOnce();
+		const restoreOrder = vi.mocked(harness.browserWindow.restore).mock.invocationCallOrder[0];
+		const showOrder = vi.mocked(harness.browserWindow.show).mock.invocationCallOrder[0];
+		const focusOrder = vi.mocked(harness.browserWindow.focus).mock.invocationCallOrder[0];
+		expect(restoreOrder).toBeLessThan(showOrder ?? -1);
+		expect(showOrder).toBeLessThan(focusOrder ?? -1);
+		await application.shutdown();
+	});
+
+	it('restores a minimized existing window when openWindow handles application activation', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies, 'darwin');
+		await application.start();
+		vi.mocked(harness.browserWindow.isMinimized).mockReturnValue(true);
+		vi.mocked(harness.browserWindow.restore).mockClear();
+		vi.mocked(harness.browserWindow.show).mockClear();
+		vi.mocked(harness.browserWindow.focus).mockClear();
+
+		await application.openWindow();
+
+		expect(harness.createWindow).toHaveBeenCalledOnce();
+		expect(harness.browserWindow.restore).toHaveBeenCalledOnce();
+		expect(harness.browserWindow.show).toHaveBeenCalledOnce();
+		expect(harness.browserWindow.focus).toHaveBeenCalledOnce();
 		await application.shutdown();
 	});
 

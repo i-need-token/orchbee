@@ -1,7 +1,9 @@
 const std = @import("std");
 const ghostty_vt = @import("ghostty-vt");
 const protocol = @import("terminal-protocol");
-const subject = @import("terminal-host-engine").testing.projection;
+const engine_testing = @import("terminal-host-engine").testing;
+const png_decoder = engine_testing.png_decoder;
+const subject = engine_testing.projection;
 
 const FrameKind = subject.FrameKind;
 const max_frame_bytes = subject.testing.frame_byte_limit;
@@ -27,7 +29,7 @@ test "no-demand projection owns no render state or frame allocation" {
     try std.testing.expectEqual(@as(u64, 0), projection.counters.encodes);
 }
 
-test "projection captures Ghostty state into a valid OBTF 0.0.1 snapshot" {
+test "projection captures Ghostty state into a valid OBTF 0.0.2 snapshot" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
         .cols = 4,
         .rows = 2,
@@ -54,7 +56,12 @@ test "projection captures Ghostty state into a valid OBTF 0.0.1 snapshot" {
     try std.testing.expectEqual(@as(u64, 1), summary.revision);
     try std.testing.expectEqual(@as(u16, 4), summary.columns);
     try std.testing.expectEqual(@as(u16, 2), summary.rows);
-    try std.testing.expectEqual(@as(u16, 0), summary.extension_count);
+    try std.testing.expectEqual(@as(u16, 2), summary.extension_count);
+    try std.testing.expectEqual(protocol.TerminalProgressState.remove, summary.progress.state);
+    try std.testing.expectEqual(@as(?u8, null), summary.progress.value);
+    try std.testing.expectEqual(protocol.TerminalGraphicsUpdateKind.snapshot, summary.graphics.?.kind);
+    try std.testing.expectEqual(@as(u16, 0), summary.graphics.?.image_count);
+    try std.testing.expectEqual(@as(u16, 0), summary.graphics.?.placement_count);
 }
 
 test "projection emits a typed close-activity extension only for a known observation" {
@@ -81,12 +88,223 @@ test "projection emits a typed close-activity extension only for a known observa
     defer std.testing.allocator.free(frame.allocation);
 
     const summary = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
-    try std.testing.expectEqual(@as(u16, 1), summary.extension_count);
+    try std.testing.expectEqual(@as(u16, 3), summary.extension_count);
     try std.testing.expectEqualSlices(
         u8,
         &.{ 1, 0, 0, 0, 1, 0, 0, 0, 1 },
-        frame.bytes[frame.bytes.len - 9 ..],
+        frame.bytes[frame.bytes.len - 59 .. frame.bytes.len - 50],
     );
+}
+
+test "projection snapshots Kitty resources and emits placement-only deltas" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 20,
+        .kitty_image_loading_limits = .direct,
+        .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
+        .rows = 4,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice(
+        "\x1b_Ga=T,t=d,f=24,i=1,p=1,s=1,v=2,c=10,r=1;////////\x1b\\",
+    );
+
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    try projection.beginCapture(&terminal, 1, 1, 8, 16);
+    projection.endCapture();
+    const snapshot = try projection.encode(.{
+        .attachment_id = AttachmentId.fromBytes([_]u8{2} ** 16),
+        .base_generation = null,
+        .base_revision = null,
+        .force_snapshot = true,
+        .host_epoch = HostEpoch.fromBytes([_]u8{1} ** 16),
+        .maximum_bytes = max_frame_bytes,
+        .sequence = 1,
+    });
+    defer std.testing.allocator.free(snapshot.allocation);
+    const snapshot_summary = try protocol.validateTerminalFrame(
+        std.testing.allocator,
+        snapshot.bytes,
+    );
+    try std.testing.expectEqual(protocol.FrameKind.snapshot, snapshot_summary.kind);
+    try std.testing.expectEqual(protocol.TerminalGraphicsUpdateKind.snapshot, snapshot_summary.graphics.?.kind);
+    try std.testing.expectEqual(@as(u16, 1), snapshot_summary.graphics.?.image_count);
+    try std.testing.expectEqual(@as(u16, 1), snapshot_summary.graphics.?.placement_count);
+    try std.testing.expectEqual(@as(u64, 1), snapshot_summary.graphics.?.resource_revision);
+    try std.testing.expectEqual(@as(usize, 1), projection.graphics.images.items.len);
+    try std.testing.expectEqualSlices(
+        u8,
+        &.{ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff },
+        projection.graphics.images.items[0].data,
+    );
+    try std.testing.expectEqual(@as(u32, 80), projection.graphics.placements.items[0].destination_width);
+    try std.testing.expectEqual(@as(u32, 16), projection.graphics.placements.items[0].destination_height);
+
+    stream.nextSlice("\x1b_Ga=p,i=1,p=2,c=5,r=1;\x1b\\");
+    try projection.beginCapture(&terminal, 2, 1, 8, 16);
+    projection.endCapture();
+    const delta = try projection.encode(.{
+        .attachment_id = AttachmentId.fromBytes([_]u8{2} ** 16),
+        .base_generation = 1,
+        .base_revision = 1,
+        .force_snapshot = false,
+        .host_epoch = HostEpoch.fromBytes([_]u8{1} ** 16),
+        .maximum_bytes = max_frame_bytes,
+        .sequence = 2,
+    });
+    defer std.testing.allocator.free(delta.allocation);
+    const delta_summary = try protocol.validateTerminalFrame(std.testing.allocator, delta.bytes);
+    try std.testing.expectEqual(protocol.FrameKind.delta, delta_summary.kind);
+    try std.testing.expectEqual(protocol.TerminalGraphicsUpdateKind.placements, delta_summary.graphics.?.kind);
+    try std.testing.expectEqual(@as(u16, 0), delta_summary.graphics.?.image_count);
+    try std.testing.expectEqual(@as(u16, 2), delta_summary.graphics.?.placement_count);
+    try std.testing.expectEqual(@as(u64, 1), delta_summary.graphics.?.resource_revision);
+
+    stream.nextSlice("\x1b_Ga=t,t=d,f=24,i=1,s=1,v=2;AAAAAAAA\x1b\\");
+    try projection.beginCapture(&terminal, 3, 1, 8, 16);
+    projection.endCapture();
+    const replacement = try projection.encode(.{
+        .attachment_id = AttachmentId.fromBytes([_]u8{2} ** 16),
+        .base_generation = 1,
+        .base_revision = 2,
+        .force_snapshot = false,
+        .host_epoch = HostEpoch.fromBytes([_]u8{1} ** 16),
+        .maximum_bytes = max_frame_bytes,
+        .sequence = 3,
+    });
+    defer std.testing.allocator.free(replacement.allocation);
+    const replacement_summary = try protocol.validateTerminalFrame(
+        std.testing.allocator,
+        replacement.bytes,
+    );
+    try std.testing.expectEqual(protocol.FrameKind.snapshot, replacement_summary.kind);
+    try std.testing.expectEqual(@as(u64, 3), replacement_summary.graphics.?.resource_revision);
+    try std.testing.expectEqualSlices(
+        u8,
+        &.{ 0, 0, 0, 0, 0, 0 },
+        projection.graphics.images.items[0].data,
+    );
+
+    stream.nextSlice("\x1b_Ga=d,d=A;\x1b\\");
+    try projection.beginCapture(&terminal, 4, 1, 8, 16);
+    projection.endCapture();
+    const deleted = try projection.encode(.{
+        .attachment_id = AttachmentId.fromBytes([_]u8{2} ** 16),
+        .base_generation = 1,
+        .base_revision = 3,
+        .force_snapshot = false,
+        .host_epoch = HostEpoch.fromBytes([_]u8{1} ** 16),
+        .maximum_bytes = max_frame_bytes,
+        .sequence = 4,
+    });
+    defer std.testing.allocator.free(deleted.allocation);
+    const deleted_summary = try protocol.validateTerminalFrame(std.testing.allocator, deleted.bytes);
+    try std.testing.expectEqual(protocol.FrameKind.snapshot, deleted_summary.kind);
+    try std.testing.expectEqual(@as(u16, 0), deleted_summary.graphics.?.image_count);
+    try std.testing.expectEqual(@as(u16, 0), deleted_summary.graphics.?.placement_count);
+    try std.testing.expectEqual(@as(u64, 4), deleted_summary.graphics.?.resource_revision);
+}
+
+test "Host-installed decoder projects direct Kitty PNG transmissions" {
+    png_decoder.install();
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 4,
+        .kitty_image_loading_limits = .direct,
+        .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice(
+        "\x1b_Ga=T,t=d,f=100,i=1,p=1,c=1,r=1;" ++
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==" ++
+            "\x1b\\",
+    );
+
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    try projection.beginCapture(&terminal, 1, 1, 8, 16);
+    projection.endCapture();
+
+    try std.testing.expectEqual(@as(usize, 1), projection.graphics.images.items.len);
+    const image = projection.graphics.images.items[0];
+    try std.testing.expectEqual(subject.testing.ImageFormat.rgba, image.format);
+    try std.testing.expectEqual(@as(u32, 1), image.width);
+    try std.testing.expectEqual(@as(u32, 1), image.height);
+    try std.testing.expectEqualSlices(u8, &.{ 0xff, 0, 0, 0xff }, image.data);
+}
+
+test "Host-installed decoder rejects direct PNG dimensions beyond the resource budget" {
+    png_decoder.install();
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 4,
+        .kitty_image_loading_limits = .direct,
+        .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice(
+        "\x1b_Ga=T,t=d,f=100,i=1,p=1,q=2;" ++
+            "iVBORw0KGgoAAAANSUhEUgAABAEAAAQB" ++
+            "\x1b\\",
+    );
+
+    try std.testing.expectEqual(@as(usize, 0), terminal.screens.active.kitty_images.images.count());
+    try std.testing.expectEqual(@as(usize, 0), terminal.screens.active.kitty_images.placements.count());
+}
+
+test "projection never aliases equal Kitty generations across primary and alternate screens" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 4,
+        .kitty_image_loading_limits = .direct,
+        .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice("\x1b_Ga=T,t=d,f=24,i=1,p=1,s=1,v=1;/wAA\x1b\\");
+
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    try projection.beginCapture(&terminal, 1, 1, 8, 16);
+    projection.endCapture();
+    try std.testing.expectEqualSlices(u8, &.{ 0xff, 0, 0 }, projection.graphics.images.items[0].data);
+
+    stream.nextSlice("\x1b[?1049h\x1b_Ga=T,t=d,f=24,i=1,p=1,s=1,v=1;AP8A\x1b\\");
+    try projection.beginCapture(&terminal, 2, 2, 8, 16);
+    projection.endCapture();
+    try std.testing.expectEqual(@as(u64, 2), projection.graphics.resource_revision);
+    try std.testing.expectEqualSlices(u8, &.{ 0, 0xff, 0 }, projection.graphics.images.items[0].data);
+}
+
+test "direct-only Kitty loading never reads file or shared-memory media" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 4,
+        .kitty_image_loading_limits = .direct,
+        .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+
+    inline for (.{ 'f', 't', 's' }) |medium| {
+        var command_buffer: [128]u8 = undefined;
+        const command = try std.fmt.bufPrint(
+            &command_buffer,
+            "\x1b_Ga=t,t={c},f=24,s=1,v=1,q=2;L2V0Yy9wYXNzd2Q=\x1b\\",
+            .{medium},
+        );
+        stream.nextSlice(command);
+    }
+    try std.testing.expectEqual(@as(usize, 0), terminal.screens.active.kitty_images.images.count());
+    try std.testing.expectEqual(@as(usize, 0), terminal.screens.active.kitty_images.placements.count());
 }
 
 test "projection ignores absent style data on background-only cells" {

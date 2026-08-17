@@ -1,4 +1,4 @@
-/** @internal Development-only environment for the Host that launches interactive shells. */
+/** Development-only environment for the Host that launches interactive shells. */
 export function createInteractiveTerminalHostEnvironment(
 	environment: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {

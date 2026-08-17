@@ -22,6 +22,11 @@ import { createWebApplicationRouting } from '../application-routing';
 import { createBrowserRandomIdentifier } from '../browser-random-identifier';
 import { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
 import { TerminalSettingsController } from '../terminal-settings';
+import {
+	createBrowserTerminalNotificationCapability,
+	TerminalFeedbackSettingsController,
+	UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY,
+} from '../terminal-feedback-settings';
 
 interface WebApplicationSession {
 	dispose(): void;
@@ -48,6 +53,14 @@ export function startWebApplication(
 		storage: layoutStorage,
 		themeTarget: documentElement,
 	});
+	const targetWindow = rootElement.ownerDocument?.defaultView;
+	const terminalFeedbackSettingsController = new TerminalFeedbackSettingsController({
+		notificationCapability:
+			targetWindow === null || targetWindow === undefined
+				? UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY
+				: createBrowserTerminalNotificationCapability(targetWindow),
+		storage: layoutStorage,
+	});
 	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/workspace',
 		standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle, {
@@ -65,6 +78,7 @@ export function startWebApplication(
 		projectWorkspaceRuntime,
 		shortcutPlatform,
 		terminalSettingsController,
+		terminalFeedbackSettingsController,
 	});
 	let reactRoot: Root | undefined = createRoot(rootElement);
 
@@ -87,6 +101,7 @@ export function startWebApplication(
 			actionRuntime.dispose();
 			keyboardShortcutSettingsController.dispose();
 			terminalSettingsController.dispose();
+			terminalFeedbackSettingsController.dispose();
 		},
 	};
 }

@@ -37,3 +37,4 @@ export {
 	DesktopRendererBootstrapWindowMessageSchema,
 } from './desktop-renderer-bootstrap-contract';
 export type { DesktopRendererBootstrap } from './desktop-renderer-bootstrap-contract';
+export { DESKTOP_FILE_PATH_BRIDGE_KEY } from './desktop-file-path-bridge-contract';

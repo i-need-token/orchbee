@@ -2,6 +2,10 @@ import { keyboardShortcutMessages, terminalSettingsMessages, useOrchbeeIntl } fr
 import * as React from 'react';
 
 import { normalizeTerminalHexColor, useTerminalSettings } from '../../terminal-settings';
+import {
+	REMOTE_DEVELOPMENT_BASELINE_TERM,
+	REMOTE_DEVELOPMENT_DIAGNOSTIC_COMMAND,
+} from '../constants/remote-development-diagnostic';
 import type {
 	TerminalSettingsSurfaceMessages,
 	TerminalSettingsSurfaceView,
@@ -12,12 +16,18 @@ export function useTerminalSettingsSurface({
 	controller,
 	onRequestClose,
 	requestBrowserAccess,
+	terminalFeedbackSettingsController,
 }: UseTerminalSettingsSurfaceOptions): TerminalSettingsSurfaceView {
 	const intl = useOrchbeeIntl();
 	const snapshot = useTerminalSettings(controller);
 	const inputReference = React.useRef<HTMLInputElement>(null);
 	const [category, setCategory] = React.useState<
-		'browser-access' | 'ghostty-migration' | 'keyboard-shortcuts' | 'terminal'
+		| 'browser-access'
+		| 'ghostty-migration'
+		| 'keyboard-shortcuts'
+		| 'remote-development'
+		| 'shell-integration'
+		| 'terminal'
 	>('terminal');
 	const [query, setQuery] = React.useState('');
 	const [fontFamilyDraft, setFontFamilyDraft] = React.useState(snapshot.preferences.fontFamily);
@@ -106,7 +116,43 @@ export function useTerminalSettingsSurface({
 		persistenceWriteWarning: intl.formatMessage(terminalSettingsMessages.persistenceWriteWarning),
 		reset: intl.formatMessage(terminalSettingsMessages.reset),
 		resetDescription: intl.formatMessage(terminalSettingsMessages.resetDescription),
+		remoteDevelopmentBaselineDescription: intl.formatMessage(
+			terminalSettingsMessages.remoteDevelopmentBaselineDescription,
+		),
+		remoteDevelopmentBaselineTitle: intl.formatMessage(
+			terminalSettingsMessages.remoteDevelopmentBaselineTitle,
+		),
+		remoteDevelopmentCategory: intl.formatMessage(
+			terminalSettingsMessages.remoteDevelopmentCategory,
+		),
+		remoteDevelopmentDescription: intl.formatMessage(
+			terminalSettingsMessages.remoteDevelopmentDescription,
+		),
+		remoteDevelopmentDiagnosticDescription: intl.formatMessage(
+			terminalSettingsMessages.remoteDevelopmentDiagnosticDescription,
+		),
+		remoteDevelopmentDiagnosticLabel: intl.formatMessage(
+			terminalSettingsMessages.remoteDevelopmentDiagnosticLabel,
+		),
+		remoteDevelopmentDiagnosticTitle: intl.formatMessage(
+			terminalSettingsMessages.remoteDevelopmentDiagnosticTitle,
+		),
+		remoteDevelopmentNoChangesDescription: intl.formatMessage(
+			terminalSettingsMessages.remoteDevelopmentNoChangesDescription,
+		),
+		remoteDevelopmentNoChangesTitle: intl.formatMessage(
+			terminalSettingsMessages.remoteDevelopmentNoChangesTitle,
+		),
+		remoteDevelopmentResultDescription: intl.formatMessage(
+			terminalSettingsMessages.remoteDevelopmentResultDescription,
+		),
+		remoteDevelopmentTitle: intl.formatMessage(terminalSettingsMessages.remoteDevelopmentTitle),
 		searchPlaceholder: intl.formatMessage(terminalSettingsMessages.searchPlaceholder),
+		shellIntegrationCategory: intl.formatMessage(terminalSettingsMessages.shellIntegrationCategory),
+		shellIntegrationDescription: intl.formatMessage(
+			terminalSettingsMessages.shellIntegrationDescription,
+		),
+		shellIntegrationTitle: intl.formatMessage(terminalSettingsMessages.shellIntegrationTitle),
 		terminalCategory: intl.formatMessage(terminalSettingsMessages.terminalCategory),
 		terminalColorsSection: intl.formatMessage(terminalSettingsMessages.terminalColorsSection),
 		terminalDisplayThemeCustom: intl.formatMessage(
@@ -194,6 +240,21 @@ export function useTerminalSettingsSurface({
 		messages.ghosttyMigrationCategory,
 		messages.ghosttyMigrationTitle,
 		messages.ghosttyMigrationDescription,
+	]);
+	const remoteDevelopmentVisible = matchesQuery([
+		messages.remoteDevelopmentCategory,
+		messages.remoteDevelopmentTitle,
+		messages.remoteDevelopmentDescription,
+		messages.remoteDevelopmentBaselineTitle,
+		messages.remoteDevelopmentBaselineDescription,
+		messages.remoteDevelopmentDiagnosticTitle,
+		messages.remoteDevelopmentDiagnosticDescription,
+		messages.remoteDevelopmentDiagnosticLabel,
+		messages.remoteDevelopmentResultDescription,
+		messages.remoteDevelopmentNoChangesTitle,
+		messages.remoteDevelopmentNoChangesDescription,
+		REMOTE_DEVELOPMENT_BASELINE_TERM,
+		REMOTE_DEVELOPMENT_DIAGNOSTIC_COMMAND,
 	]);
 	const commitFontFamily = (): void => {
 		const result = controller.update({ fontFamily: fontFamilyDraft });
@@ -316,11 +377,13 @@ export function useTerminalSettingsSurface({
 		onGhosttyMigrationCategoryClick: (): void => setCategory('ghostty-migration'),
 		onKeyboardShortcutsCategoryClick: (): void => setCategory('keyboard-shortcuts'),
 		onOpenBrowserAccess: (event): void => requestBrowserAccess?.(event.currentTarget),
+		onRemoteDevelopmentCategoryClick: (): void => setCategory('remote-development'),
 		onRequestClose: (): void => onRequestClose(),
 		onReset: (): void => {
 			controller.reset();
 		},
 		onSearchChange: (event): void => setQuery(event.currentTarget.value),
+		onShellIntegrationCategoryClick: (): void => setCategory('shell-integration'),
 		onSurfaceKeyDown: (event): void => {
 			if (event.key !== 'Escape' || event.defaultPrevented) return;
 			event.preventDefault();
@@ -344,7 +407,9 @@ export function useTerminalSettingsSurface({
 		preferences: snapshot.preferences,
 		query,
 		resetVisible,
+		remoteDevelopmentVisible,
 		showBrowserAccessCategory: requestBrowserAccess !== undefined,
+		showShellIntegrationCategory: terminalFeedbackSettingsController !== undefined,
 		terminalResultCount,
 	};
 }

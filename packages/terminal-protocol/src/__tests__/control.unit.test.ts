@@ -36,6 +36,7 @@ import {
 	TerminalConfigurationSchema,
 	TerminalControlAcceptedSchema,
 	TerminalBellSchema,
+	TerminalClipboardWriteRequestSchema,
 	TerminalFailedSchema,
 	UpdateTerminalConfigurationSchema,
 	TerminalLaunchSchema,
@@ -118,6 +119,21 @@ describe('control schemas', () => {
 		expect(TerminalBellSchema.safeParse({ ...bell, sequence: '0' }).success).toBe(false);
 		expect(TerminalBellSchema.safeParse({ ...bell, sequence: '01' }).success).toBe(false);
 		expect(TerminalBellSchema.safeParse({ sequence: '7' }).success).toBe(false);
+	});
+
+	it('bounds attachment-scoped terminal clipboard writes to valid plain text', () => {
+		const request = { attachmentId: '11'.repeat(16), sequence: '8', text: 'copy me' };
+		expect(TerminalClipboardWriteRequestSchema.parse(request)).toEqual(request);
+		expect(
+			TerminalClipboardWriteRequestSchema.safeParse({ ...request, text: '\0hidden' }).success,
+		).toBe(false);
+		expect(
+			TerminalClipboardWriteRequestSchema.safeParse({ ...request, text: 'x'.repeat(16_385) })
+				.success,
+		).toBe(false);
+		expect(
+			TerminalClipboardWriteRequestSchema.safeParse({ ...request, sequence: '0' }).success,
+		).toBe(false);
 	});
 
 	it('represents an explicit terminal-cell selection range without pointer gesture semantics', () => {

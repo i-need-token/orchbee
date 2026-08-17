@@ -4,14 +4,22 @@ pub const terminal_frame_header_bytes = 160;
 pub const terminal_frame_magic = "OBTF";
 pub const terminal_frame_format_major: u8 = 0;
 pub const terminal_frame_format_minor: u8 = 0;
-pub const terminal_frame_format_patch: u8 = 1;
+pub const terminal_frame_format_patch: u8 = 2;
 pub const terminal_frame_extension_close_activity: u16 = 1;
+pub const terminal_frame_extension_kitty_graphics: u16 = 2;
+pub const terminal_frame_extension_progress: u16 = 3;
+pub const terminal_frame_extension_command_completion: u16 = 4;
+pub const terminal_graphics_header_bytes = 32;
+pub const terminal_graphics_magic = "OBKG";
+pub const terminal_graphics_format_major: u8 = 0;
+pub const terminal_graphics_format_minor: u8 = 0;
+pub const terminal_graphics_format_patch: u8 = 1;
 
-pub const TerminalCloseActivity = enum(u8) {
-    unknown = 0,
-    idle = 1,
-    active = 2,
-};
+const frame_extension = @import("frame_extension.zig");
+pub const TerminalCloseActivity = frame_extension.TerminalCloseActivity;
+pub const TerminalProgressState = frame_extension.TerminalProgressState;
+pub const TerminalProgress = frame_extension.TerminalProgress;
+pub const TerminalCommandCompletion = frame_extension.TerminalCommandCompletion;
 pub const terminal_projection_buffer_header_bytes = 320;
 pub const terminal_projection_buffer_magic = "OBPB";
 pub const terminal_projection_buffer_format_major: u8 = 0;
@@ -25,12 +33,13 @@ pub const terminal_row_window_format_patch: u8 = 1;
 pub const transport_envelope_header_bytes = 64;
 pub const current_protocol_major: u16 = 0;
 pub const current_protocol_minor: u16 = 0;
-pub const current_protocol_patch: u16 = 8;
+pub const current_protocol_patch: u16 = 9;
 
 pub const Limits = struct {
     pub const cell_pixel_dimension = 4096;
+    pub const clipboard_text_bytes: usize = 16 * 1024;
     pub const control_json_bytes: usize = 64 * 1024;
-    pub const extension_bytes: usize = 1024 * 1024;
+    pub const extension_bytes: usize = 5 * 1024 * 1024;
     pub const frame_bytes: usize = 8 * 1024 * 1024;
     pub const frame_cells = 256 * 1024;
     pub const frame_columns = 4096;
@@ -38,6 +47,12 @@ pub const Limits = struct {
     pub const frame_rows = 4096;
     pub const frame_strings = 4096;
     pub const frame_styles = 1024;
+    pub const terminal_graphics_destination_pixels = 65_535;
+    pub const terminal_graphics_dimension = 4096;
+    pub const terminal_graphics_extension_bytes: usize = 5 * 1024 * 1024;
+    pub const terminal_graphics_images = 256;
+    pub const terminal_graphics_placements = 1024;
+    pub const terminal_graphics_resource_bytes: usize = 4 * 1024 * 1024;
     pub const input_bytes: usize = 1024 * 1024;
     pub const input_accepted_bytes: usize = input_bytes;
     pub const inventory_page_terminals = 128;
@@ -108,6 +123,7 @@ pub const MessageKind = struct {
     pub const history_changed: u16 = 53;
     pub const history_observed: u16 = 54;
     pub const terminal_bell: u16 = 55;
+    pub const terminal_clipboard_write_request: u16 = 56;
     pub const selection_gesture: u16 = 60;
     pub const selection_command: u16 = 61;
     pub const selection_changed: u16 = 62;
@@ -381,6 +397,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
             .control_json,
         ),
         M.terminal_bell => eventOnly("TerminalBell", .control_json),
+        M.terminal_clipboard_write_request => eventOnly("TerminalClipboardWriteRequest", .control_json),
         M.selection_gesture => requestOnly(
             "SelectionGesture",
             .selection_gesture,

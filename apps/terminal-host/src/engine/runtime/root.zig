@@ -36,6 +36,7 @@ pub const SelectionExportInvalidationSnapshot = contracts.SelectionExportInvalid
 pub const SelectionExportStarted = contracts.SelectionExportStarted;
 pub const SelectionGesture = contracts.SelectionGesture;
 pub const SelectionSnapshot = contracts.SelectionSnapshot;
+pub const PreparedClipboardWriteRequest = contracts.PreparedClipboardWriteRequest;
 pub const SelectionExportStartResult = contracts.SelectionExportStartResult;
 pub const Geometry = contracts.Geometry;
 pub const ConfigurationUpdate = contracts.ConfigurationUpdate;

@@ -2,7 +2,7 @@ import type * as React from 'react';
 
 export type GhosttyMigrationDisposition = 'ignored' | 'invalid' | 'manual' | 'supported';
 
-export interface GhosttyMigrationSummaryView {
+interface GhosttyMigrationSummaryView {
 	readonly disposition: GhosttyMigrationDisposition;
 	readonly label: string;
 	readonly value: string;
@@ -31,7 +31,7 @@ export type GhosttyMigrationReportView =
 	  }
 	| { readonly kind: 'rejected'; readonly message: string };
 
-export interface GhosttyMigrationSettingsMessages {
+interface GhosttyMigrationSettingsMessages {
 	readonly analyze: string;
 	readonly clear: string;
 	readonly empty: string;

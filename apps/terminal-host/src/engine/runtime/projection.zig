@@ -128,6 +128,8 @@ pub fn encodeProjectionFrameOwned(
     const revision = self.revision.load(.monotonic);
     const generation = self.generation;
     const semantic_prompt_seen = self.terminal.screens.active.semantic_prompt.seen;
+    const progress = self.progress;
+    const command_completion = self.command_completion;
     const close_activity = resolveCloseActivity(
         platform_command_active,
         semantic_prompt_seen,
@@ -155,6 +157,8 @@ pub fn encodeProjectionFrameOwned(
     }
     var projection_request = request;
     projection_request.close_activity = close_activity;
+    projection_request.progress = progress;
+    projection_request.command_completion = command_completion;
     const frame = self.projection.encodeOwned(
         output_allocator,
         output_prefix_bytes,

@@ -9,6 +9,78 @@
 	background: var(--ob-sys-color-surface-canvas);
 }
 
+@keyframes projected-terminal-bell {
+	0% {
+		box-shadow: inset 0 0 0 var(--ob-ref-border-width-strong) var(--ob-sys-color-status-info);
+	}
+
+	100% {
+		box-shadow: inset 0 0 0 var(--ob-ref-border-width-default) transparent;
+	}
+}
+
+.terminalSurface[data-projected-terminal-bell-active='true'] {
+	animation: projected-terminal-bell var(--ob-sys-motion-duration-fast)
+		var(--ob-sys-motion-easing-exit);
+}
+
+.terminalSurface > [data-projected-terminal-progress='true'] {
+	position: absolute;
+	z-index: var(--ob-ref-layer-raised);
+	inset-block-end: 0;
+	inset-inline: 0;
+	block-size: var(--ob-ref-space-1);
+	overflow: hidden;
+	background: var(--ob-sys-color-status-info-surface);
+	pointer-events: none;
+}
+
+.terminalSurface > [data-projected-terminal-progress='true'] > span {
+	display: block;
+	block-size: 100%;
+	inline-size: var(--ob-comp-projected-terminal-progress-value);
+	background: var(--ob-sys-color-status-info);
+	transition: inline-size var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-exit);
+}
+
+.terminalSurface > [data-projected-terminal-progress='true'][data-state='error'] > span {
+	background: var(--ob-sys-color-status-danger);
+}
+
+.terminalSurface > [data-projected-terminal-progress='true'][data-state='pause'] > span {
+	background: var(--ob-sys-color-status-warning-text);
+}
+
+.terminalSurface > [data-projected-terminal-progress='true'][data-state='indeterminate'] > span {
+	animation: projected-terminal-progress-indeterminate calc(var(--ob-sys-motion-duration-slow) * 4)
+		var(--ob-sys-motion-easing-standard) infinite alternate;
+}
+
+@keyframes projected-terminal-progress-indeterminate {
+	from {
+		transform: translateX(-100%);
+	}
+
+	to {
+		transform: translateX(285%);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.terminalSurface[data-projected-terminal-bell-active='true'] {
+		animation: none;
+		box-shadow: inset 0 0 0 var(--ob-ref-border-width-strong) var(--ob-sys-color-status-info);
+	}
+
+	.terminalSurface > [data-projected-terminal-progress='true'] > span {
+		transition: none;
+	}
+
+	.terminalSurface > [data-projected-terminal-progress='true'][data-state='indeterminate'] > span {
+		animation: none;
+	}
+}
+
 .terminalSurface > [data-projected-terminal-status='true'] {
 	position: absolute;
 }

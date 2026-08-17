@@ -797,6 +797,7 @@
 	--ob-comp-workbench-panel-drag-source-height: 0px;
 	--ob-comp-workbench-panel-drag-scale: 1;
 	--ob-comp-workbench-panel-drag-opacity: 0.96;
+	--ob-comp-projected-terminal-progress-value: 0%;
 	--ob-comp-workbench-project-reorder-shift: calc(
 		var(--ob-ref-size-control-navigation) + var(--ob-ref-space-1)
 	);

@@ -13,6 +13,8 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.browserAccess.unavailable': '此应用中无法使用浏览器访问。',
 	'terminal.settings.categories.browserAccess': '浏览器访问',
 	'terminal.settings.categories.ghosttyMigration': 'Ghostty 迁移',
+	'terminal.settings.categories.remoteDevelopment': '远程开发',
+	'terminal.settings.categories.shellIntegration': 'Shell 集成',
 	'terminal.settings.categories.terminal': '终端',
 	'terminal.settings.colors.background.description': '选择终端文本后方的默认颜色。',
 	'terminal.settings.colors.background.invalid': '请输入 #RRGGBB 格式的颜色。',
@@ -100,6 +102,56 @@ export const zhCNTerminalSettingsMessages = {
 		'无法读取已保存的设置，当前正在使用默认设置；重置可尝试保存默认设置。',
 	'terminal.settings.persistence.writeWarning': '更改已应用于当前会话，但未能保存。',
 	'terminal.settings.reset.description': '恢复默认的应用和终端设置。',
+	'terminal.settings.remoteDevelopment.baseline.description':
+		'Orchbee 会用这个广泛可用的 TERM 启动本地桌面终端；标准 SSH PTY 可将它传给远端 shell。',
+	'terminal.settings.remoteDevelopment.baseline.title': '终端基线',
+	'terminal.settings.remoteDevelopment.description':
+		'在不修改远端主机的前提下，检查远端 shell 实际看到的终端标识。',
+	'terminal.settings.remoteDevelopment.diagnostic.description':
+		'通过 SSH 连接后，请自行运行此命令。它只读取三个环境值，并检查 infocmp 能否识别 TERM。',
+	'terminal.settings.remoteDevelopment.diagnostic.label': '只读诊断命令',
+	'terminal.settings.remoteDevelopment.diagnostic.resultDescription':
+		'TERM_MATCH 用来比较 TERM 与 Orchbee 基线；含不安全控制字符的值不会被直接打印。TERMINFO 会区分 TERM 未设置或不安全、没有 infocmp、条目可用和条目缺失。',
+	'terminal.settings.remoteDevelopment.diagnostic.title': '诊断远端 shell',
+	'terminal.settings.remoteDevelopment.noChanges.description':
+		'Orchbee 不会包装 SSH、静默转发额外环境变量、安装 terminfo、写入远端文件或保留远端缓存；你的 OpenSSH 配置仍然是最终依据。',
+	'terminal.settings.remoteDevelopment.noChanges.title': '不会自动修改远端',
+	'terminal.settings.remoteDevelopment.title': '远程开发',
+	'terminal.settings.shellIntegration.bash.title': 'Bash',
+	'terminal.settings.shellIntegration.bash.version':
+		'需要 Bash 4.4 或更高版本；macOS 自带的 Bash 3.2 不受支持。',
+	'terminal.settings.shellIntegration.description': '为命令完成提醒和终端语义提供可靠的命令边界。',
+	'terminal.settings.shellIntegration.fish.title': 'Fish',
+	'terminal.settings.shellIntegration.manualNotice':
+		'Orchbee 永远不会编辑 Shell 启动文件。请自行添加一行 source；删除或注释该行即可停用集成。',
+	'terminal.settings.shellIntegration.notification.description':
+		'只有点击这里的按钮才会请求系统通知权限；终端输出永远不会触发权限请求。',
+	'terminal.settings.shellIntegration.notification.request': '允许系统通知',
+	'terminal.settings.shellIntegration.notification.status.denied':
+		'权限已拒绝，请到浏览器或操作系统设置中修改通知权限。',
+	'terminal.settings.shellIntegration.notification.status.granted': '已允许系统通知。',
+	'terminal.settings.shellIntegration.notification.status.prompt':
+		'尚未请求；在你点击下面的按钮前，Orchbee 不会询问。',
+	'terminal.settings.shellIntegration.notification.status.unsupported':
+		'当前客户端不支持系统通知。',
+	'terminal.settings.shellIntegration.notification.title': '系统通知',
+	'terminal.settings.shellIntegration.reminder.always': '始终提醒',
+	'terminal.settings.shellIntegration.reminder.description':
+		'只对已启用集成发出的语义命令完成事件提醒，提醒中永远不包含命令文本。',
+	'terminal.settings.shellIntegration.reminder.minimum.description':
+		'运行时间短于此秒数的命令不会产生提醒。',
+	'terminal.settings.shellIntegration.reminder.minimum.invalid':
+		'请输入 {minimum, number} 到 {maximum, number} 之间的整数。',
+	'terminal.settings.shellIntegration.reminder.minimum.label': '最短命令时长',
+	'terminal.settings.shellIntegration.reminder.mode.label': '命令完成提醒',
+	'terminal.settings.shellIntegration.reminder.never': '从不提醒',
+	'terminal.settings.shellIntegration.reminder.title': '命令完成提醒',
+	'terminal.settings.shellIntegration.reminder.unfocused': '当前终端失去焦点时',
+	'terminal.settings.shellIntegration.reset.description':
+		'关闭命令完成提醒，并把最短时长恢复为五秒。',
+	'terminal.settings.shellIntegration.setupCommand.label': '手动 source 命令',
+	'terminal.settings.shellIntegration.title': 'Shell 集成',
+	'terminal.settings.shellIntegration.zsh.title': 'Zsh',
 	'terminal.settings.sections.applicationAppearance': '应用外观',
 	'terminal.settings.sections.terminalColors': '终端颜色',
 	'terminal.settings.sections.terminalTypography': '终端字体',

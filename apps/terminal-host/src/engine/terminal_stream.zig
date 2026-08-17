@@ -109,6 +109,9 @@ pub const Handler = struct {
     dcs_handler: ghostty_vt.dcs.Handler = .{},
     decrqss_active: bool = false,
     column_mode: ?*const fn (*Handler, bool) bool = null,
+    clipboard_contents: ?*const fn (*Handler, ghostty_vt.StreamAction.ClipboardContents) void = null,
+    progress_report: ?*const fn (*Handler, ghostty_vt.osc.Command.ProgressReport) void = null,
+    semantic_prompt: ?*const fn (*Handler, ghostty_vt.StreamAction.SemanticPrompt) void = null,
     discard_actions: bool = false,
 
     pub fn init(terminal: *ghostty_vt.Terminal) Handler {
@@ -139,6 +142,17 @@ pub const Handler = struct {
             .set_mode => if (self.handleColumnMode(value, true)) return,
             .reset_mode => if (self.handleColumnMode(value, false)) return,
             .restore_mode => if (self.restoreColumnMode(value)) return,
+            .clipboard_contents => {
+                if (self.clipboard_contents) |apply| apply(self, value);
+                return;
+            },
+            .progress_report => {
+                if (self.progress_report) |apply| apply(self, value);
+                return;
+            },
+            .semantic_prompt => {
+                if (self.semantic_prompt) |apply| apply(self, value);
+            },
             else => {},
         }
         self.terminal_handler.vt(action, value);

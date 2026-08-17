@@ -3,11 +3,14 @@ import type {
 	TerminalAppearancePreferences,
 	TerminalSettingsController,
 } from '../../terminal-settings';
+import type { TerminalFeedbackSettingsController } from '../../terminal-feedback-settings';
 
 type TerminalSettingsCategory =
 	| 'browser-access'
 	| 'ghostty-migration'
 	| 'keyboard-shortcuts'
+	| 'remote-development'
+	| 'shell-integration'
 	| 'terminal';
 
 export interface TerminalSettingsSurfaceMessages {
@@ -51,7 +54,21 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly persistenceWriteWarning: string;
 	readonly reset: string;
 	readonly resetDescription: string;
+	readonly remoteDevelopmentBaselineDescription: string;
+	readonly remoteDevelopmentBaselineTitle: string;
+	readonly remoteDevelopmentCategory: string;
+	readonly remoteDevelopmentDescription: string;
+	readonly remoteDevelopmentDiagnosticDescription: string;
+	readonly remoteDevelopmentDiagnosticLabel: string;
+	readonly remoteDevelopmentDiagnosticTitle: string;
+	readonly remoteDevelopmentNoChangesDescription: string;
+	readonly remoteDevelopmentNoChangesTitle: string;
+	readonly remoteDevelopmentResultDescription: string;
+	readonly remoteDevelopmentTitle: string;
 	readonly searchPlaceholder: string;
+	readonly shellIntegrationCategory: string;
+	readonly shellIntegrationDescription: string;
+	readonly shellIntegrationTitle: string;
 	readonly terminalCategory: string;
 	readonly terminalColorsSection: string;
 	readonly terminalDisplayThemeCustom: string;
@@ -68,6 +85,7 @@ export interface UseTerminalSettingsSurfaceOptions {
 	readonly controller: TerminalSettingsController;
 	readonly onRequestClose: () => void;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
+	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 }
 
 export interface TerminalSettingsSurfaceView {
@@ -111,9 +129,11 @@ export interface TerminalSettingsSurfaceView {
 	readonly onGhosttyMigrationCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onKeyboardShortcutsCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onOpenBrowserAccess: React.MouseEventHandler<HTMLButtonElement>;
+	readonly onRemoteDevelopmentCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onRequestClose: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onReset: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onSearchChange: React.ChangeEventHandler<HTMLInputElement>;
+	readonly onShellIntegrationCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onSurfaceKeyDown: React.KeyboardEventHandler<HTMLDivElement>;
 	readonly onTerminalCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onTerminalDisplayThemeChange: React.ChangeEventHandler<HTMLSelectElement>;
@@ -123,6 +143,8 @@ export interface TerminalSettingsSurfaceView {
 	readonly preferences: TerminalAppearancePreferences;
 	readonly query: string;
 	readonly resetVisible: boolean;
+	readonly remoteDevelopmentVisible: boolean;
 	readonly showBrowserAccessCategory: boolean;
+	readonly showShellIntegrationCategory: boolean;
 	readonly terminalResultCount: number;
 }

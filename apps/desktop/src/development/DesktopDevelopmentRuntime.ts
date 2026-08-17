@@ -41,7 +41,7 @@ export interface DesktopDevelopmentHostBuild {
 	readonly inputDigest: string;
 }
 
-/** @internal Development-tool contract consumed only by the Desktop build supervisor. */
+/** Development-tool contract consumed only by the Desktop build supervisor. */
 export interface DesktopDevelopmentHostCandidate extends DesktopDevelopmentHostBuild {
 	readonly generation: number;
 }

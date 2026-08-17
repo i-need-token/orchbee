@@ -4,13 +4,15 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns client-local application appearance, terminal display preferences, frequent keyboard-shortcut overrides, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns client-local application appearance, terminal display preferences, frequent keyboard-shortcut overrides, manual Shell-integration guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
 		"configure-application-appearance",
 		"configure-terminal-display",
 		"configure-keyboard-shortcuts",
+		"configure-shell-integration-reminders",
+		"diagnose-remote-terminal-environment",
 		"explain-ghostty-configuration-migration",
 		"open-desktop-browser-access"
 	],
@@ -18,8 +20,12 @@
 		"apps/web/src/terminal-settings-surface/TerminalSettingsSurface.tsx",
 		"apps/web/src/terminal-settings-surface/components/ghostty-migration-settings/GhosttyMigrationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/keyboard-shortcut-settings/KeyboardShortcutSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/remote-development-settings/RemoteDevelopmentSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/shell-integration-settings/ShellIntegrationSettings.tsx",
+		"apps/web/src/terminal-settings-surface/constants/remote-development-diagnostic.ts",
 		"apps/web/src/ghostty-configuration-analysis/analyzeGhosttyConfiguration.ts",
 		"apps/web/src/keyboard-shortcuts/model/keyboard-shortcut-settings-controller.ts",
+		"apps/web/src/terminal-feedback-settings/model/TerminalFeedbackSettingsController.ts",
 		"apps/web/src/terminal-settings/model/TerminalSettingsController.ts"
 	],
 	"stories": [
@@ -28,7 +34,9 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-light",
 			"states": [
-				"Inspect the light English surface with left navigation, searchable appearance, keyboard-shortcut, and Ghostty migration categories, immediate controls, and no Save action.",
+				"Inspect the light English surface with left navigation, searchable appearance, keyboard-shortcut, manual Shell integration, read-only Remote development, and Ghostty migration categories, immediate controls, and no Save action.",
+				"Open Shell integration to inspect exact manual Zsh, Bash, and Fish source commands, the Bash 4.4 boundary, completion-reminder policy, explicit notification-permission control, and reset.",
+				"Open Remote development to inspect the xterm-256color baseline, complete read-only diagnostic command, result explanation, and explicit absence of automatic remote changes.",
 				"Open Ghostty migration to inspect the paste-only dry-run notice, bounded source field, explicit analysis action, four result dispositions, and absence of an Apply or Import action."
 			]
 		},
@@ -37,7 +45,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-dark-custom",
 			"states": [
-				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, keyboard-shortcut and Ghostty-migration navigation, and the Desktop-only Browser access category."
+				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, and the Desktop-only Browser access category."
 			]
 		}
 	],
@@ -45,6 +53,8 @@
 	"useWhen": [
 		"A client changes local Orchbee appearance, terminal font, effective default terminal colors, or default-background opacity.",
 		"A client reviews or changes one of the frequent Workbench or focused-terminal shortcuts.",
+		"A user wants exact manual setup for the shipped Zsh, Bash, or Fish integration, or device-local long-command completion reminders.",
+		"A user needs to inspect the TERM and terminfo state visible after an ordinary SSH connection without allowing Orchbee to change the remote host.",
 		"A user moving from Ghostty needs a source-ordered dry-run that explains which common pasted settings have a lossless Orchbee target and which require review or will not migrate.",
 		"Desktop exposes its Browser-access capability through the common Settings information architecture."
 	],
@@ -58,6 +68,9 @@
 		"Application theme changes only the client data-theme; terminal display changes publish one complete presentation snapshot.",
 		"Shortcut edits publish one complete conflict-free effective table; Action availability is resolved before an event is consumed.",
 		"Recording, resetting, and restoring shortcut overrides never remount Workbench or replace a projected terminal attachment.",
+		"Shell integration is manual-only: the surface never reads or edits a startup file, executes a source command, or requests notification permission without the settings-page button.",
+		"Completion-reminder preferences stay device-local, default to off, and never include command text; qualifying events retain a localized terminal status when system notification is unavailable.",
+		"Remote development exposes one constant read-only command and explanation; opening, searching, and switching categories starts no process, writes no terminal input, persists no remote data, and performs no remote installation.",
 		"Ghostty migration analyzes pasted text only, emits one visible source-ordered finding per assignment, never applies or persists a value, and clears its source and report when its category unmounts.",
 		"Only default-coded terminal foreground and background use a display override; Host metadata, explicit colors, palette colors, cursor, VT, and OSC state remain authoritative.",
 		"The complete strict preference record is local to one browser origin and all product copy ships in English and Simplified Chinese."

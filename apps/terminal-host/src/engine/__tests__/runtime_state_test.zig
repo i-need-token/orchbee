@@ -65,6 +65,32 @@ const createIdleRuntimeWithGeometry = harness.createIdleRuntimeWithGeometry;
 const parseTerminalInput = harness.parseTerminalInput;
 const WriterPause = harness.WriterPause;
 
+const CommandClockProbe = struct {
+    monotonic_values: []const u64,
+    next_monotonic: usize = 0,
+    wall_milliseconds: u64,
+
+    fn hooks(self: *CommandClockProbe) RuntimeTestingHooks {
+        return .{
+            .context = self,
+            .monotonic_time_nanoseconds = monotonicTimeNanoseconds,
+            .wall_time_milliseconds = wallTimeMilliseconds,
+        };
+    }
+
+    fn monotonicTimeNanoseconds(context: *anyopaque) u64 {
+        const self: *CommandClockProbe = @ptrCast(@alignCast(context));
+        const value = self.monotonic_values[self.next_monotonic];
+        self.next_monotonic += 1;
+        return value;
+    }
+
+    fn wallTimeMilliseconds(context: *anyopaque) u64 {
+        const self: *CommandClockProbe = @ptrCast(@alignCast(context));
+        return self.wall_milliseconds;
+    }
+};
+
 test "close activity combines process-domain and semantic prompt evidence conservatively" {
     try std.testing.expectEqual(.active, resolveCloseActivity(true, false, false));
     try std.testing.expectEqual(.active, resolveCloseActivity(true, true, true));
@@ -446,6 +472,236 @@ test "Ghostty BEL effects advance one terminal bell sequence per control byte" {
     try std.testing.expectEqual(@as(u64, 2), runtime.bellSequence());
     parseTerminalInput(runtime, "text\x07");
     try std.testing.expectEqual(@as(u64, 3), runtime.bellSequence());
+    try runtime.forceTerminate();
+}
+test "OSC 52 admits one bounded clipboard write and never exposes clipboard reads" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b]52;c;aGVsbG8gZnJvbSB0ZXJtaW5hbA==\x1b\\",
+    ));
+    const prepared = (try runtime.prepareClipboardWriteRequest()).?;
+    try std.testing.expectEqual(@as(u64, 1), prepared.sequence);
+    try std.testing.expectEqualStrings("hello from terminal", prepared.text);
+    try std.testing.expect((try runtime.prepareClipboardWriteRequest()) == null);
+    runtime.rollbackClipboardWriteRequest(prepared);
+
+    const retried = (try runtime.prepareClipboardWriteRequest()).?;
+    try std.testing.expectEqual(prepared.sequence, retried.sequence);
+    try std.testing.expectEqualStrings(prepared.text, retried.text);
+    runtime.commitClipboardWriteRequest(retried);
+    try std.testing.expect((try runtime.prepareClipboardWriteRequest()) == null);
+
+    for ([_][]const u8{
+        "\x1b]52;c;?\x1b\\",
+        "\x1b]52;p;aGVsbG8=\x1b\\",
+        "\x1b]52;c;%%%\x1b\\",
+        "\x1b]52;c;/w==\x1b\\",
+        "\x1b]52;c;AA==\x1b\\",
+    }) |sequence| {
+        try std.testing.expectEqual(
+            ReaderBatchOutcome.committed,
+            commitReaderBatch(runtime, sequence),
+        );
+        try std.testing.expect((try runtime.prepareClipboardWriteRequest()) == null);
+    }
+    try runtime.forceTerminate();
+}
+test "OSC 52 keeps the first pending request instead of queuing dialogs" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b]52;c;Zmlyc3Q=\x1b\\",
+    ));
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b]52;c;c2Vjb25k\x1b\\",
+    ));
+    const prepared = (try runtime.prepareClipboardWriteRequest()).?;
+    try std.testing.expectEqualStrings("first", prepared.text);
+    runtime.commitClipboardWriteRequest(prepared);
+    try std.testing.expect((try runtime.prepareClipboardWriteRequest()) == null);
+    try runtime.forceTerminate();
+}
+test "OSC 52 accepts exactly the clipboard text limit and rejects one byte more" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+
+    const exact = try std.testing.allocator.alloc(u8, protocol.Limits.clipboard_text_bytes);
+    defer std.testing.allocator.free(exact);
+    @memset(exact, 'a');
+    const exact_encoded = try std.testing.allocator.alloc(
+        u8,
+        std.base64.standard.Encoder.calcSize(exact.len),
+    );
+    defer std.testing.allocator.free(exact_encoded);
+    _ = std.base64.standard.Encoder.encode(exact_encoded, exact);
+    const exact_sequence = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "\x1b]52;c;{s}\x1b\\",
+        .{exact_encoded},
+    );
+    defer std.testing.allocator.free(exact_sequence);
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, exact_sequence),
+    );
+    const prepared = (try runtime.prepareClipboardWriteRequest()).?;
+    try std.testing.expectEqual(protocol.Limits.clipboard_text_bytes, prepared.text.len);
+    try std.testing.expectEqualSlices(u8, exact, prepared.text);
+    runtime.commitClipboardWriteRequest(prepared);
+
+    const over = try std.testing.allocator.alloc(u8, protocol.Limits.clipboard_text_bytes + 1);
+    defer std.testing.allocator.free(over);
+    @memset(over, 'b');
+    const over_encoded = try std.testing.allocator.alloc(
+        u8,
+        std.base64.standard.Encoder.calcSize(over.len),
+    );
+    defer std.testing.allocator.free(over_encoded);
+    _ = std.base64.standard.Encoder.encode(over_encoded, over);
+    const over_sequence = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "\x1b]52;c;{s}\x1b\\",
+        .{over_encoded},
+    );
+    defer std.testing.allocator.free(over_sequence);
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, over_sequence),
+    );
+    try std.testing.expect((try runtime.prepareClipboardWriteRequest()) == null);
+    try runtime.forceTerminate();
+}
+test "OSC 9 progress projects current state and remove without replay state" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+    const attachment_id = AttachmentId.fromBytes([_]u8{0x35} ** 16);
+    const host_epoch = HostEpoch.fromBytes([_]u8{0x36} ** 16);
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b]9;4;1;42\x1b\\",
+    ));
+    const active = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = attachment_id,
+            .base_generation = null,
+            .base_revision = null,
+            .force_snapshot = true,
+            .host_epoch = host_epoch,
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 1,
+        },
+    ));
+    defer std.testing.allocator.free(active.allocation);
+    const active_summary = try protocol.validateTerminalFrame(std.testing.allocator, active.bytes);
+    try std.testing.expectEqual(protocol.TerminalProgressState.set, active_summary.progress.state);
+    try std.testing.expectEqual(@as(?u8, 42), active_summary.progress.value);
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b]9;4;0;\x1b\\",
+    ));
+    const removed = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = attachment_id,
+            .base_generation = null,
+            .base_revision = null,
+            .force_snapshot = true,
+            .host_epoch = host_epoch,
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 2,
+        },
+    ));
+    defer std.testing.allocator.free(removed.allocation);
+    const removed_summary = try protocol.validateTerminalFrame(std.testing.allocator, removed.bytes);
+    try std.testing.expectEqual(protocol.TerminalProgressState.remove, removed_summary.progress.state);
+    try std.testing.expectEqual(@as(?u8, null), removed_summary.progress.value);
+    try runtime.forceTerminate();
+}
+test "OSC 133 projects only bounded command completion facts with deterministic duration" {
+    const samples = [_]u64{ 1 * std.time.ns_per_s, 6 * std.time.ns_per_s + 500 * std.time.ns_per_ms };
+    var clock: CommandClockProbe = .{
+        .monotonic_values = &samples,
+        .wall_milliseconds = 1_786_947_200_000,
+    };
+    const runtime = try createRuntimeWithHooks(clock.hooks());
+    defer runtime.destroy();
+    const attachment_id = AttachmentId.fromBytes([_]u8{0x45} ** 16);
+    const host_epoch = HostEpoch.fromBytes([_]u8{0x46} ** 16);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b]133;D;99\x07"),
+    );
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b]133;C\x07"),
+    );
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "private output\x1b]133;D;42\x07"),
+    );
+
+    const frame = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = attachment_id,
+            .base_generation = null,
+            .base_revision = null,
+            .force_snapshot = true,
+            .host_epoch = host_epoch,
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = 1,
+        },
+    ));
+    defer std.testing.allocator.free(frame.allocation);
+    const summary = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
+    try std.testing.expectEqual(@as(u16, 4), summary.extension_count);
+    const completion = summary.command_completion.?;
+    try std.testing.expectEqual(@as(u64, 1), completion.sequence);
+    try std.testing.expectEqual(@as(u64, 5_500), completion.duration_milliseconds);
+    try std.testing.expectEqual(@as(u64, 1_786_947_200_000), completion.completed_at_milliseconds);
+    try std.testing.expectEqual(@as(u8, 42), completion.exit_code);
+    try std.testing.expect(std.mem.indexOf(u8, frame.bytes, "private output") == null);
+    try runtime.forceTerminate();
+}
+test "OSC 133 preserves parser order for multiple completions in one reader batch" {
+    const samples = [_]u64{
+        1 * std.time.ns_per_s,
+        2 * std.time.ns_per_s,
+        5 * std.time.ns_per_s,
+        9 * std.time.ns_per_s,
+    };
+    var clock: CommandClockProbe = .{
+        .monotonic_values = &samples,
+        .wall_milliseconds = 1_786_947_201_000,
+    };
+    const runtime = try createRuntimeWithHooks(clock.hooks());
+    defer runtime.destroy();
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(
+            runtime,
+            "\x1b]133;C\x07\x1b]133;D;0\x07\x1b]133;C\x07\x1b]133;D;999\x07",
+        ),
+    );
+    const state = runtimeState(runtime);
+    try std.testing.expectEqual(@as(u64, 2), state.command_sequence);
+    const completion = state.command_completion.?;
+    try std.testing.expectEqual(@as(u64, 2), completion.sequence);
+    try std.testing.expectEqual(@as(u64, 4_000), completion.duration_milliseconds);
+    try std.testing.expectEqual(@as(u8, 1), completion.exit_code);
     try runtime.forceTerminate();
 }
 test "Windows child exiting 259 completes normally with exit code 259 (THCR-041)" {

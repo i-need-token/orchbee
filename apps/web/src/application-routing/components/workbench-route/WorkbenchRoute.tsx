@@ -15,6 +15,7 @@ export function WorkbenchRoute(): ReactNode {
 			requestBrowserAccess={application.requestBrowserAccess}
 			shortcutPlatform={application.shortcutPlatform}
 			terminalSettingsController={application.terminalSettingsController}
+			terminalFeedbackSettingsController={application.terminalFeedbackSettingsController}
 			terminalSurface={application.terminalSurface}
 		/>
 	);

@@ -1,9 +1,9 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { tmpdir } from 'node:os';
+import { createConnection, type AddressInfo } from 'node:net';
+import { tmpdir, userInfo } from 'node:os';
 import path from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 
@@ -113,7 +113,10 @@ test.afterEach(async () => {
 	const runningApplication = electronApplication;
 	if (runningApplication !== undefined) {
 		try {
-			await quitDesktop(runningApplication, await runningApplication.firstWindow(), 'preserve');
+			await quitDesktopPreservingSessions(
+				runningApplication,
+				await runningApplication.firstWindow(),
+			);
 		} catch {
 			await forceCloseDesktop(runningApplication);
 		}
@@ -473,13 +476,19 @@ test('terminal-parity/SU-10-scrollbar', async () => {
 	const accessibility = root.locator('[role="list"]');
 	await expect(accessibility).toContainText('su10-tail-marker');
 	const accessibleRows = accessibility.locator(':scope > div');
-	const canvas = root.locator('canvas');
+	const canvas = root.locator('canvas').first();
 	await expect(canvas).toHaveAttribute('aria-hidden', 'true');
 	expect(await canvas.getAttribute('role')).toBeNull();
+	const scrollbar = root.locator('[data-projected-terminal-history-scrollbar="true"]');
+	const scrollbarThumb = root.locator('[data-projected-terminal-history-scrollbar-thumb="true"]');
+	await expect(scrollbar).toBeVisible();
 	await page.clock.install();
+	await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1_000);
 
-	const bounds = await canvas.boundingBox();
-	if (bounds === null) throw new Error('Terminal canvas has no bounding box.');
+	const bounds = await root.boundingBox();
+	if (bounds === null) throw new Error('Terminal surface has no bounding box.');
+	const visibleRowCount = Number(await root.getAttribute('data-projected-terminal-rows'));
+	expect(visibleRowCount).toBeGreaterThan(0);
 	const firstVisibleRow = async (): Promise<bigint> =>
 		BigInt((await accessibleRows.first().getAttribute('data-terminal-absolute-row')) ?? '0');
 	const bottomStart = await firstVisibleRow();
@@ -496,23 +505,31 @@ test('terminal-parity/SU-10-scrollbar', async () => {
 	await expect.poll(firstVisibleRow).toBeGreaterThan(upperStart);
 	await page.mouse.up();
 
-	await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1);
 	await input.focus();
 	await input.press('ArrowRight');
 	await expect(accessibility).toContainText('su10-tail-marker');
 	await expect.poll(firstVisibleRow).toBe(bottomStart);
 	await page.clock.runFor(1_517);
-	const faded = await captureTerminalScrollbarStrip(page, canvas);
+	await expect(scrollbarThumb).toHaveCSS('opacity', '0');
+	const faded = await captureTerminalScrollbarStrip(page, root);
 
 	await canvas.hover();
-	await page.mouse.wheel(0, 1);
+	await page.mouse.wheel(0, -bounds.height / visibleRowCount);
 	await page.clock.runFor(17);
-	const visible = await captureTerminalScrollbarStrip(page, canvas);
+	await expect(scrollbarThumb).toHaveCSS('opacity', '0.5');
+	await expect.poll(firstVisibleRow).toBeLessThan(bottomStart);
+	const scrollbarBounds = await scrollbar.boundingBox();
+	if (scrollbarBounds === null) throw new Error('Terminal scrollbar has no bounding box.');
+	expect(scrollbarBounds.width).toBe(16);
+	expect(scrollbarBounds.x + scrollbarBounds.width).toBeCloseTo(bounds.x + bounds.width, 5);
+	const visible = await captureTerminalScrollbarStrip(page, root);
 	expect(visible.equals(faded)).toBe(false);
 	await page.clock.runFor(1_482);
-	expect((await captureTerminalScrollbarStrip(page, canvas)).equals(visible)).toBe(true);
+	await expect(scrollbarThumb).toHaveCSS('opacity', '0.5');
+	expect((await captureTerminalScrollbarStrip(page, root)).equals(visible)).toBe(true);
 	await page.clock.runFor(18);
-	expect((await captureTerminalScrollbarStrip(page, canvas)).equals(faded)).toBe(true);
+	await expect(scrollbarThumb).toHaveCSS('opacity', '0');
+	expect((await captureTerminalScrollbarStrip(page, root)).equals(faded)).toBe(true);
 });
 
 test('terminal-parity/LC-06-live-title', async () => {
@@ -551,7 +568,7 @@ test('terminal-parity/HS-04-multi-click-selection', async () => {
 	await expect(accessibility).toContainText('hs04-triple entire row marker');
 	const rows = accessibility.locator(':scope > div');
 	const canvas = root.locator('canvas');
-	const word = await terminalCellCenter(root, canvas, rows, 'hs04-double doubleword suffix', 15);
+	const word = await terminalCellPoint(root, canvas, rows, 'hs04-double doubleword suffix', 15);
 
 	await page.mouse.click(word.x, word.y);
 	await page.mouse.click(word.x, word.y);
@@ -560,7 +577,7 @@ test('terminal-parity/HS-04-multi-click-selection', async () => {
 		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
 		.toBe('doubleword');
 
-	const line = await terminalCellCenter(root, canvas, rows, 'hs04-triple entire row marker', 5);
+	const line = await terminalCellPoint(root, canvas, rows, 'hs04-triple entire row marker', 5);
 	await page.mouse.click(line.x, line.y);
 	await page.mouse.click(line.x, line.y);
 	await page.mouse.click(line.x, line.y);
@@ -648,6 +665,173 @@ test('terminal-parity/SU-02-product-font-fallback', async () => {
 	);
 });
 
+test('terminal-parity/GX-01-direct-kitty-graphics', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const attachmentId = await root.getAttribute('data-projected-terminal-attachment-id');
+	const input = page.getByRole('textbox');
+	await input.pressSequentially(
+		`printf '\\033_Ga=T,t=d,f=24,i=71,p=1,s=1,v=1,c=2,r=1,q=2;/wAA\\033\\\\'`,
+		{ delay: 1 },
+	);
+	await input.press('Enter');
+	const overlay = root.locator('canvas[data-terminal-graphics-overlay="true"]');
+	await expect(overlay).toBeAttached();
+	await expect(overlay).toHaveAttribute('aria-hidden', 'true');
+	await expect(overlay).toHaveCSS('pointer-events', 'none');
+	const coloredPixels = async (): Promise<{ readonly green: number; readonly red: number }> =>
+		overlay.evaluate((canvas) => {
+			if (!(canvas instanceof HTMLCanvasElement))
+				throw new Error('Graphics overlay is not a canvas.');
+			const context = canvas.getContext('2d', { willReadFrequently: true });
+			if (context === null) throw new Error('Graphics overlay has no 2D context.');
+			const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+			let green = 0;
+			let red = 0;
+			for (let index = 0; index < pixels.length; index += 4) {
+				if ((pixels[index] ?? 0) > 200 && (pixels[index + 1] ?? 0) < 40) red += 1;
+				if ((pixels[index + 1] ?? 0) > 200 && (pixels[index] ?? 0) < 40) green += 1;
+			}
+			return { green, red };
+		});
+	await expect.poll(async () => (await coloredPixels()).red).toBeGreaterThan(0);
+
+	await input.pressSequentially(`printf '\\033_Ga=t,t=d,f=24,i=71,s=1,v=1,q=2;AP8A\\033\\\\'`, {
+		delay: 1,
+	});
+	await input.press('Enter');
+	await expect.poll(async () => (await coloredPixels()).green).toBeGreaterThan(0);
+	await input.pressSequentially(`printf '\\033_Ga=d,d=A,q=2;\\033\\\\'`, { delay: 1 });
+	await input.press('Enter');
+	await expect(overlay).not.toBeAttached();
+	expect(await root.getAttribute('data-projected-terminal-attachment-id')).toBe(attachmentId);
+});
+
+test('terminal-parity/FB-01-clipboard-bell-progress', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const attachmentId = await root.getAttribute('data-projected-terminal-attachment-id');
+	const input = page.getByRole('textbox');
+	const requestedText = 'fb01 exact terminal clipboard text';
+	const encodedText = Buffer.from(requestedText, 'utf8').toString('base64');
+	await application.evaluate(({ clipboard }) =>
+		clipboard.writeText('fb01 existing clipboard sentinel'),
+	);
+
+	const sendClipboardRequest = async (): Promise<void> => {
+		await input.focus();
+		await input.pressSequentially(`printf '\\033]52;c;${encodedText}\\033\\\\'`, {
+			delay: 1,
+		});
+		await input.press('Enter');
+	};
+	await sendClipboardRequest();
+	let review = page.locator('[data-slot="projected-terminal-clipboard-review"]');
+	await expect(review).toBeVisible();
+	await expect(review.locator('pre')).toHaveText(requestedText);
+	await expect
+		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+		.toBe('fb01 existing clipboard sentinel');
+	await review.locator('[data-slot="alert-dialog-cancel"]').click();
+	await expect(review).not.toBeAttached();
+	await expect
+		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+		.toBe('fb01 existing clipboard sentinel');
+
+	await sendClipboardRequest();
+	review = page.locator('[data-slot="projected-terminal-clipboard-review"]');
+	await expect(review).toBeVisible();
+	await review.locator('[data-slot="alert-dialog-action"]').click();
+	await expect(review).not.toBeAttached();
+	await expect
+		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+		.toBe(requestedText);
+
+	await input.focus();
+	await input.pressSequentially(`for i in 1 2 3 4 5; do printf '\\007'; sleep 0.1; done`, {
+		delay: 1,
+	});
+	await input.press('Enter');
+	await expect(root).toHaveAttribute('data-projected-terminal-bell-active', 'true');
+	await expect(root).not.toHaveAttribute('data-projected-terminal-bell-active', 'true');
+
+	await input.pressSequentially(`printf '\\033]9;4;1;42\\033\\\\'`, { delay: 1 });
+	await input.press('Enter');
+	const progress = root.locator('[data-projected-terminal-progress="true"]');
+	await expect(progress).toBeVisible();
+	await expect(progress).toHaveAttribute('data-state', 'set');
+	await expect(progress).toHaveAttribute('aria-valuenow', '42');
+	await input.pressSequentially(`printf '\\033]9;4;0;\\033\\\\'`, { delay: 1 });
+	await input.press('Enter');
+	await expect(progress).toBeHidden();
+	expect(await root.getAttribute('data-projected-terminal-attachment-id')).toBe(attachmentId);
+});
+
+test('terminal-parity/SI-01-manual-shell-integration-completion-reminder', async () => {
+	test.skip(process.platform !== 'darwin', 'The current real Zsh witness is verified on macOS.');
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const attachmentId = await root.getAttribute('data-projected-terminal-attachment-id');
+
+	const settingsSurface = await openDesktopSettingsCategory(page, 'shell-integration');
+	await expect(settingsSurface).toContainText(
+		/never edits shell startup files|永远不会编辑 Shell 启动文件/u,
+	);
+	const zshCommand = await settingsSurface
+		.locator('code')
+		.filter({ hasText: 'orchbee.zsh' })
+		.innerText();
+	const reminderMode = settingsSurface.locator('[data-slot="completion-reminder-mode"]');
+	await reminderMode.selectOption('always');
+	await expect(reminderMode).toHaveValue('always');
+	const minimumDuration = settingsSurface.locator('[data-slot="completion-reminder-minimum"]');
+	await minimumDuration.fill('1');
+	await minimumDuration.press('Enter');
+	await expect(minimumDuration).toHaveValue('1');
+	await settingsSurface.locator('aside > button').first().click();
+	await expect(settingsSurface).not.toBeVisible();
+	expect(await page.evaluate(() => localStorage.getItem('orchbee:web:terminal-feedback:v1'))).toBe(
+		'{"completionReminderMinimumSeconds":1,"completionReminderMode":"always"}',
+	);
+
+	const input = page.getByRole('textbox');
+	await input.pressSequentially('exec /bin/zsh -f', { delay: 1 });
+	await input.press('Enter');
+	await page.waitForTimeout(250);
+	await input.pressSequentially(zshCommand, { delay: 1 });
+	await input.press('Enter');
+	await page.waitForTimeout(250);
+	await input.pressSequentially('sleep 1.1', { delay: 1 });
+	await input.press('Enter');
+
+	await expect(root).toHaveAttribute(
+		'data-projected-terminal-command-completion-observed-sequence',
+		/\d+/u,
+	);
+	await expect(root).toHaveAttribute(
+		'data-projected-terminal-command-reminder-decision',
+		/^remind-(?:shown|unavailable)$/u,
+	);
+	await expect(root).toHaveAttribute('data-projected-terminal-command-completion-sequence', /\d+/u);
+	await expect(root).toHaveAttribute(
+		'data-projected-terminal-command-notification',
+		/^(?:shown|unavailable)$/u,
+	);
+	await expect(root.locator('[data-projected-terminal-status="true"]')).toContainText(
+		/completed|完成/u,
+	);
+	expect(await root.getAttribute('data-projected-terminal-attachment-id')).toBe(attachmentId);
+});
+
 test('projects native window drag regions without consuming title bar controls or shortcuts', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
@@ -724,6 +908,34 @@ test('owns native window actions and restores safe normal bounds across restart'
 	});
 	await terminalInput.press('Enter');
 	await expect(page.locator('[role="list"]')).toContainText('window-state-marker');
+	await expect(terminalRoot).toHaveAttribute('data-projected-terminal-close-activity', 'active');
+	await application.evaluate(({ BrowserWindow }) => {
+		BrowserWindow.getAllWindows()[0]?.minimize();
+	});
+	await expect
+		.poll(() =>
+			application.evaluate(({ BrowserWindow }) =>
+				Boolean(BrowserWindow.getAllWindows()[0]?.isMinimized()),
+			),
+		)
+		.toBe(true);
+	await application.evaluate(({ app }) => {
+		app.emit('activate');
+	});
+	await expect
+		.poll(() =>
+			application.evaluate(({ BrowserWindow }) => {
+				const window = BrowserWindow.getAllWindows()[0];
+				return {
+					minimized: Boolean(window?.isMinimized()),
+					visible: Boolean(window?.isVisible()),
+				};
+			}),
+		)
+		.toEqual({ minimized: false, visible: true });
+	expect(await terminalRoot.getAttribute('data-projected-terminal-attachment-id')).toBe(
+		attachmentId,
+	);
 
 	await invokeDesktopWindowMenuItem(application, 'desktop-window-toggle-maximized', false);
 	await expect
@@ -799,7 +1011,7 @@ test('owns native window actions and restores safe normal bounds across restart'
 		)
 		.toBe(true);
 
-	await quitDesktop(application, page, 'preserve').catch((error: unknown) => {
+	await quitDesktopWithChoice(application, page, 'preserve').catch((error: unknown) => {
 		const output = (applicationOutput.get(application) ?? []).join('');
 		electronApplication = undefined;
 		throw new Error(`Desktop window-state shutdown failed. ${output}`, { cause: error });
@@ -862,12 +1074,7 @@ test('applies a custom shortcut without recreating the mounted terminal', async 
 	const leftPanel = page.locator('[data-slot="workbench-left-panel"]');
 	await expect(leftPanel).toBeVisible();
 
-	await page.locator('[data-slot="workbench-sidebar-settings"]').click();
-	const settingsSurface = page.locator('[data-slot="terminal-settings-surface"]');
-	await expect(settingsSurface).toBeVisible();
-	const settingsCategories = settingsSurface.locator('nav button');
-	await expect(settingsCategories).toHaveCount(3);
-	await settingsCategories.nth(1).click();
+	const settingsSurface = await openDesktopSettingsCategory(page, 'keyboard-shortcuts');
 	const shortcutRow = settingsSurface.locator('[data-shortcut-id="workbench.sidebar.toggle"]');
 	const recorder = shortcutRow.locator('button[aria-pressed]');
 	await recorder.click();
@@ -884,6 +1091,109 @@ test('applies a custom shortcut without recreating the mounted terminal', async 
 	expect(await terminalRoot.getAttribute('data-projected-terminal-attachment-id')).toBe(
 		attachmentId,
 	);
+});
+
+test('reviews and safely quotes a real Desktop file drop without pressing Enter', async () => {
+	test.skip(process.platform === 'win32', 'The accepted first slice supports POSIX shells only.');
+	const application = electronApplication;
+	const directory = runtimeDirectory;
+	if (application === undefined || directory === undefined) {
+		throw new Error('Desktop file-drop fixture is unavailable.');
+	}
+	const page = await application.firstWindow();
+	const terminalRoot = projectedTerminal(page);
+	await expect(terminalRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const scriptPath = path.join(directory, "space quote's.sh");
+	await writeFile(scriptPath, "#!/bin/sh\nprintf 'desktop-file-drop-executed\\n'\n", 'utf8');
+	await chmod(scriptPath, 0o700);
+	const shellWord = `'${scriptPath.replaceAll("'", "'\\''")}'`;
+	await page.evaluate(() => {
+		const input = document.createElement('input');
+		input.dataset['desktopFileDropFixture'] = 'true';
+		input.type = 'file';
+		document.body.appendChild(input);
+	});
+	await page.locator('input[data-desktop-file-drop-fixture="true"]').setInputFiles(scriptPath);
+
+	await dispatchDesktopFileDrop(terminalRoot);
+	const review = page.locator('[data-slot="projected-terminal-paste-review"]');
+	await expect(review).toBeVisible();
+	await expect(review.locator('pre')).toHaveText(shellWord);
+	await expect(review).toContainText(/SSH.*(?:containers|容器).*(?:remote shells|远程 Shell)/u);
+	await review.locator('[data-slot="alert-dialog-cancel"]').click();
+	await expect(review).not.toBeVisible();
+	await expect(page.locator('[role="list"]')).not.toContainText('space quote');
+
+	await dispatchDesktopFileDrop(terminalRoot);
+	await expect(review).toBeVisible();
+	await review.locator('[data-slot="alert-dialog-action"]').click();
+	await expect(review).not.toBeVisible();
+	await expect(page.locator('[role="list"]')).toContainText('space quote');
+	await page.waitForTimeout(300);
+	await expect(page.locator('[role="list"]')).not.toContainText('desktop-file-drop-executed');
+
+	await page.getByRole('textbox').press('Enter');
+	await expect(page.locator('[role="list"]')).toContainText('desktop-file-drop-executed');
+});
+
+test('runs an ordinary SSH PTY with a diagnosable TERM and no implicit Orchbee environment forwarding', async () => {
+	test.skip(process.platform !== 'darwin', 'The current real SSH baseline is verified on macOS.');
+	test.setTimeout(45_000);
+	const application = electronApplication;
+	const directory = runtimeDirectory;
+	if (application === undefined || directory === undefined) {
+		throw new Error('Desktop remote-development fixture is unavailable.');
+	}
+	const page = await application.firstWindow();
+	const terminalRoot = projectedTerminal(page);
+	await expect(terminalRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const settingsSurface = await openDesktopSettingsCategory(page, 'remote-development');
+	const diagnostic = settingsSurface.locator('#remote-development-diagnostic-command');
+	await expect(diagnostic).toHaveJSProperty('readOnly', true);
+	await expect(diagnostic).toHaveValue(/ORCHBEE_REMOTE_DIAGNOSTIC_V1.*infocmp/su);
+	const diagnosticCommand = await diagnostic.inputValue();
+	await expect(settingsSurface).toContainText(/No automatic remote changes|不会自动修改远端/u);
+	await page.keyboard.press('Escape');
+	await expect(settingsSurface).not.toBeVisible();
+
+	const sshFixture = await startLoopbackSshFixture(directory);
+	try {
+		const sshCommand = [
+			'/usr/bin/ssh',
+			'-F',
+			'/dev/null',
+			'-tt',
+			'-o',
+			'BatchMode=yes',
+			'-o',
+			'IdentitiesOnly=yes',
+			'-o',
+			'LogLevel=ERROR',
+			'-o',
+			'StrictHostKeyChecking=no',
+			'-o',
+			'UserKnownHostsFile=/dev/null',
+			'-i',
+			sshFixture.clientKey,
+			'-p',
+			String(sshFixture.port),
+			`${sshFixture.username}@127.0.0.1`,
+			diagnosticCommand,
+		]
+			.map(quotePosixShellWord)
+			.join(' ');
+		const input = page.getByRole('textbox');
+		await input.pressSequentially(sshCommand, { delay: 1 });
+		await input.press('Enter');
+		const accessibility = page.locator('[role="list"]');
+		await expect(accessibility).toContainText('ORCHBEE_REMOTE_DIAGNOSTIC_V1');
+		await expect(accessibility).toContainText('TERM=xterm-256color');
+		await expect(accessibility).toContainText('COLORTERM=unset');
+		await expect(accessibility).toContainText('TERM_PROGRAM=unset');
+		await expect(accessibility).toContainText('TERMINFO=available');
+	} finally {
+		await stopChildProcess(sshFixture.server);
+	}
 });
 
 test('routes a real sandboxed Host terminal through Main and Preload to the renderer', async () => {
@@ -989,19 +1299,21 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	await expect(accessibilityAnnouncement).toHaveAttribute('aria-live', 'polite');
 	await expect(accessibility).toContainText('interaction-tail-marker');
 
-	const markerStart = await terminalCellCenter(
+	const markerStart = await terminalCellPoint(
 		root,
 		canvas,
 		accessibleRows,
 		'interaction-tail-marker',
 		0,
+		0.25,
 	);
-	const markerEnd = await terminalCellCenter(
+	const markerEnd = await terminalCellPoint(
 		root,
 		canvas,
 		accessibleRows,
 		'interaction-tail-marker',
 		10,
+		0.75,
 	);
 	await page.mouse.move(markerStart.x, markerStart.y);
 	await page.mouse.down();
@@ -1066,7 +1378,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 			},
 		});
 	});
-	const allowedLink = await terminalCellCenter(
+	const allowedLink = await terminalCellPoint(
 		root,
 		canvas,
 		accessibleRows,
@@ -1088,7 +1400,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 		)
 		.toEqual(['https://orchbee.dev/']);
 
-	const blockedLink = await terminalCellCenter(
+	const blockedLink = await terminalCellPoint(
 		root,
 		canvas,
 		accessibleRows,
@@ -1144,7 +1456,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	expect(traceText).toContain('"framesForwarded":');
 	const identityBeforeExitedRestart = await terminalDocumentIdentity(root);
 
-	await quitDesktop(application, page, 'preserve');
+	await quitDesktopAutomaticallyPreservingSessions(application);
 	electronApplication = undefined;
 	expect(hostProcess?.exitCode).toBeNull();
 
@@ -1162,7 +1474,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	expect(identityAfterExitedRestart.attachmentId).not.toBe(
 		identityBeforeExitedRestart.attachmentId,
 	);
-	await quitDesktop(exitedRestart, exitedPage, 'preserve');
+	await quitDesktopAutomaticallyPreservingSessions(exitedRestart);
 	electronApplication = undefined;
 });
 
@@ -1179,12 +1491,7 @@ test('opts into trusted LAN Browser access through the Desktop UI', async () => 
 	await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
 	const attachmentId = await desktopRoot.getAttribute('data-projected-terminal-attachment-id');
 
-	await desktopPage.locator('[data-slot="workbench-sidebar-settings"]').click();
-	const settingsSurface = desktopPage.locator('[data-slot="terminal-settings-surface"]');
-	await expect(settingsSurface).toBeVisible();
-	const settingsCategories = settingsSurface.locator('nav button');
-	await expect(settingsCategories).toHaveCount(3);
-	await settingsCategories.nth(2).click();
+	const settingsSurface = await openDesktopSettingsCategory(desktopPage, 'browser-access');
 	const openBrowserAccess = settingsSurface.locator('main button');
 	await expect(openBrowserAccess).toHaveCount(1);
 	await openBrowserAccess.click();
@@ -1276,8 +1583,9 @@ test('opens an authenticated Browser peer through the Desktop Browser-access UI'
 	const staticPage = await staticApplication.firstWindow();
 	const staticRoot = projectedTerminal(staticPage);
 	await expect(staticRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expect(staticRoot).toHaveAttribute('data-projected-terminal-close-activity', 'idle');
 	const staticIdentity = await terminalDocumentIdentity(staticRoot);
-	await quitDesktop(staticApplication, staticPage, 'preserve');
+	await quitDesktopAutomaticallyPreservingSessions(staticApplication);
 	electronApplication = undefined;
 
 	const currentEnvironment = desktopEnvironment;
@@ -1591,19 +1899,21 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 		await expect(secondLog).toContainText('browser-copy-marker');
 		const secondCanvas = secondBrowserPage.locator('canvas');
 		const secondRows = secondLog.locator(':scope > div');
-		const selectionStart = await terminalCellCenter(
+		const selectionStart = await terminalCellPoint(
 			secondRoot,
 			secondCanvas,
 			secondRows,
 			'browser-copy-marker',
 			0,
+			0.25,
 		);
-		const selectionEnd = await terminalCellCenter(
+		const selectionEnd = await terminalCellPoint(
 			secondRoot,
 			secondCanvas,
 			secondRows,
 			'browser-copy-marker',
 			18,
+			0.75,
 		);
 		await secondBrowserPage.mouse.move(selectionStart.x, selectionStart.y);
 		await secondBrowserPage.mouse.down();
@@ -1623,7 +1933,7 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 			.poll(() => secondBrowserPage.evaluate(() => navigator.clipboard.readText()))
 			.toContain('browser-copy-marker');
 
-		const link = await terminalCellCenter(secondRoot, secondCanvas, secondRows, linkTarget, 4);
+		const link = await terminalCellPoint(secondRoot, secondCanvas, secondRows, linkTarget, 4);
 		const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 		const popupPromise = secondBrowserPage.waitForEvent('popup');
 		await secondBrowserPage.keyboard.down(primaryModifier);
@@ -1736,7 +2046,7 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 		}
 		const splitRoot = projectedTerminalFor(browserPage, splitPresentationId);
 		const splitInput = splitRoot.getByRole('textbox');
-		await splitInput.pressSequentially("printf 'lwf-split-marker\\n'", { delay: 1 });
+		await splitInput.pressSequentially("printf 'lwf-split-marker\\n'; sleep 300", { delay: 1 });
 		await splitInput.press('Enter');
 		await expect(
 			projectedTerminalFor(desktopPage, splitPresentationId).locator('[role="list"]'),
@@ -1787,6 +2097,10 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 			creationId: splitIdentity.creationId,
 			terminalId: splitIdentity.terminalId,
 		});
+		await expect(projectedTerminalFor(browserPage, splitPresentationId)).toHaveAttribute(
+			'data-projected-terminal-close-activity',
+			'active',
+		);
 		expect(primaryIdentityAfterTabReturn.attachmentId).not.toBe(primaryIdentity.attachmentId);
 		expect(splitIdentityAfterTabReturn.attachmentId).not.toBe(splitIdentity.attachmentId);
 
@@ -1852,7 +2166,7 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 		expect(await readFile(bindingStorePath, 'utf8')).toContain(secondTabIdentity.terminalId);
 
 		await browserContext.close();
-		await quitDesktop(application, desktopPage, 'preserve');
+		await quitDesktopPreservingSessions(application, desktopPage);
 		electronApplication = undefined;
 		expect(await readFile(bindingStorePath, 'utf8')).toContain(secondTabIdentity.terminalId);
 		application = await launchDesktop();
@@ -1921,6 +2235,7 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 	await input.pressSequentially("printf 'recovery-main-marker\\n'");
 	await input.press('Enter');
 	await expect(firstPage.locator('[role="list"]')).toContainText('recovery-main-marker');
+	await expect(firstRoot).toHaveAttribute('data-projected-terminal-close-activity', 'idle');
 	const identityBeforeRestart = await terminalDocumentIdentity(firstRoot);
 	if (runtimeDirectory === undefined) throw new Error('Desktop runtime directory is unavailable.');
 	expect(
@@ -1936,7 +2251,7 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 		version: 3,
 	});
 
-	await quitDesktop(firstApplication, firstPage, 'preserve');
+	await quitDesktopAutomaticallyPreservingSessions(firstApplication);
 	electronApplication = undefined;
 	expect(hostProcess?.exitCode).toBeNull();
 
@@ -1966,8 +2281,9 @@ test('stops Host sessions while retaining topology and starts a fresh session ex
 	await input.pressSequentially("printf 'stop-policy-marker\\n'; sleep 300");
 	await input.press('Enter');
 	await expect(firstPage.locator('[role="list"]')).toContainText('stop-policy-marker');
+	await expect(firstRoot).toHaveAttribute('data-projected-terminal-close-activity', 'active');
 
-	await quitDesktop(firstApplication, firstPage, 'stop');
+	await quitDesktopWithChoice(firstApplication, firstPage, 'stop');
 	electronApplication = undefined;
 	await expect.poll(() => hostProcess?.exitCode).toBe(0);
 	if (runtimeDirectory === undefined || desktopEnvironment === undefined) {
@@ -1989,11 +2305,12 @@ test('stops Host sessions while retaining topology and starts a fresh session ex
 	await stoppedSurface.locator('[data-slot="projected-terminal-start-new-session"]').click();
 	const restartedRoot = projectedTerminal(restartedPage);
 	await expect(restartedRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expect(restartedRoot).toHaveAttribute('data-projected-terminal-close-activity', 'idle');
 	expect(await restartedRoot.getAttribute('data-terminal-presentation-id')).not.toBe(
 		stoppedPresentationId,
 	);
 
-	await quitDesktop(restartedApplication, restartedPage, 'preserve');
+	await quitDesktopAutomaticallyPreservingSessions(restartedApplication);
 	electronApplication = undefined;
 });
 
@@ -2057,12 +2374,7 @@ async function openLoopbackBrowserAccess(
 			},
 		});
 	});
-	await page.locator('[data-slot="workbench-sidebar-settings"]').click();
-	const settingsSurface = page.locator('[data-slot="terminal-settings-surface"]');
-	await expect(settingsSurface).toBeVisible();
-	const settingsCategories = settingsSurface.locator('nav button');
-	await expect(settingsCategories).toHaveCount(2);
-	await settingsCategories.nth(1).click();
+	const settingsSurface = await openDesktopSettingsCategory(page, 'browser-access');
 	const openBrowserAccess = settingsSurface.locator('main button');
 	await expect(openBrowserAccess).toHaveCount(1);
 	await openBrowserAccess.click();
@@ -2090,6 +2402,137 @@ async function openLoopbackBrowserAccess(
 	);
 	if (browserUrl === null) throw new Error('Desktop did not open a Browser access URL.');
 	return browserUrl;
+}
+
+async function openDesktopSettingsCategory(
+	page: Page,
+	category: 'browser-access' | 'keyboard-shortcuts' | 'remote-development' | 'shell-integration',
+): Promise<Locator> {
+	await page.locator('[data-slot="workbench-sidebar-settings"]').click();
+	const settingsSurface = page.locator('[data-slot="terminal-settings-surface"]');
+	await expect(settingsSurface).toBeVisible();
+	const categoryButton = settingsSurface.locator(
+		`nav button[data-settings-category="${category}"]`,
+	);
+	await expect(categoryButton).toBeVisible();
+	await categoryButton.click();
+	await expect(categoryButton).toHaveAttribute('aria-current', 'page');
+	return settingsSurface;
+}
+
+async function startLoopbackSshFixture(directory: string): Promise<{
+	readonly clientKey: string;
+	readonly port: number;
+	readonly server: ChildProcessWithoutNullStreams;
+	readonly username: string;
+}> {
+	const fixtureDirectory = path.join(directory, 'loopback-sshd');
+	await mkdir(fixtureDirectory, { mode: 0o700 });
+	const hostKey = path.join(fixtureDirectory, 'host-key');
+	const clientKey = path.join(fixtureDirectory, 'client-key');
+	await runProgram('/usr/bin/ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', hostKey]);
+	await runProgram('/usr/bin/ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', clientKey]);
+	const authorizedKeys = path.join(fixtureDirectory, 'authorized-keys');
+	await writeFile(authorizedKeys, await readFile(`${clientKey}.pub`, 'utf8'), { mode: 0o600 });
+	const port = await reserveLoopbackPort();
+	const username = userInfo().username;
+	const configuration = path.join(fixtureDirectory, 'sshd-config');
+	await writeFile(
+		configuration,
+		[
+			`Port ${port}`,
+			'ListenAddress 127.0.0.1',
+			`HostKey ${hostKey}`,
+			`PidFile ${path.join(fixtureDirectory, 'sshd.pid')}`,
+			`AuthorizedKeysFile ${authorizedKeys}`,
+			'PasswordAuthentication no',
+			'KbdInteractiveAuthentication no',
+			'UsePAM no',
+			'PermitRootLogin no',
+			'StrictModes no',
+			`AllowUsers ${username}`,
+			'LogLevel ERROR',
+			'Subsystem sftp internal-sftp',
+			'',
+		].join('\n'),
+		{ mode: 0o600 },
+	);
+	await runProgram('/usr/sbin/sshd', ['-t', '-f', configuration]);
+	const server = spawn('/usr/sbin/sshd', ['-D', '-e', '-f', configuration], {
+		stdio: ['pipe', 'pipe', 'pipe'],
+	});
+	let serverError = '';
+	server.stderr.setEncoding('utf8');
+	server.stderr.on('data', (chunk: string) => {
+		serverError += chunk;
+	});
+	try {
+		await expect
+			.poll(
+				async () => {
+					if (server.exitCode !== null) {
+						throw new Error(`Loopback sshd exited before readiness: ${serverError}`);
+					}
+					return canConnectToLoopbackPort(port);
+				},
+				{ timeout: 5_000 },
+			)
+			.toBe(true);
+	} catch (error) {
+		await stopChildProcess(server);
+		throw error;
+	}
+	return { clientKey, port, server, username };
+}
+
+async function canConnectToLoopbackPort(port: number): Promise<boolean> {
+	return new Promise((resolve) => {
+		const socket = createConnection({ host: '127.0.0.1', port });
+		socket.once('connect', () => {
+			socket.destroy();
+			resolve(true);
+		});
+		socket.once('error', () => resolve(false));
+	});
+}
+
+async function runProgram(executable: string, arguments_: readonly string[]): Promise<void> {
+	const child = spawn(executable, arguments_, { stdio: ['ignore', 'pipe', 'pipe'] });
+	let output = '';
+	child.stdout.setEncoding('utf8');
+	child.stderr.setEncoding('utf8');
+	child.stdout.on('data', (chunk: string) => {
+		output += chunk;
+	});
+	child.stderr.on('data', (chunk: string) => {
+		output += chunk;
+	});
+	const exitCode = await new Promise<number | null>((resolve, reject) => {
+		child.once('error', reject);
+		child.once('exit', resolve);
+	});
+	if (exitCode !== 0) {
+		throw new Error(`${executable} exited with ${String(exitCode)}: ${output}`);
+	}
+}
+
+async function stopChildProcess(process_: ChildProcessWithoutNullStreams): Promise<void> {
+	if (process_.exitCode !== null) return;
+	process_.kill('SIGTERM');
+	await Promise.race([
+		new Promise<void>((resolve) => process_.once('exit', () => resolve())),
+		wait(2_000).then(() => undefined),
+	]);
+	if (process_.exitCode !== null) return;
+	process_.kill('SIGKILL');
+	await Promise.race([
+		new Promise<void>((resolve) => process_.once('exit', () => resolve())),
+		wait(2_000).then(() => undefined),
+	]);
+}
+
+function quotePosixShellWord(value: string): string {
+	return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 async function startWebRendererServer(): Promise<{
@@ -2271,7 +2714,7 @@ async function startHost(
 	return process;
 }
 
-async function quitDesktop(
+async function quitDesktopWithChoice(
 	application: ElectronApplication,
 	page: Awaited<ReturnType<ElectronApplication['firstWindow']>>,
 	choice: 'preserve' | 'stop',
@@ -2282,32 +2725,98 @@ async function quitDesktop(
 	await expect(button).toBeVisible();
 	await expect(page.locator('[data-lifetime-choice="preserve"]')).toBeFocused();
 	await button.click();
+	await waitForDesktopExit(exited, page, choice);
+}
+
+async function quitDesktopAutomaticallyPreservingSessions(
+	application: ElectronApplication,
+): Promise<void> {
+	const exited = waitForElectronExit(application);
+	await application.evaluate(({ app }) => app.quit());
+	await waitForDesktopExit(exited, undefined, 'automatic preserve');
+}
+
+async function quitDesktopPreservingSessions(
+	application: ElectronApplication,
+	page: Awaited<ReturnType<ElectronApplication['firstWindow']>>,
+): Promise<void> {
+	const exited = waitForElectronExit(application);
+	await application.evaluate(({ app }) => app.quit());
+	const preserve = page.locator('[data-lifetime-choice="preserve"]');
+	const outcome = await Promise.race([
+		exited.then(() => 'exited' as const),
+		preserve
+			.waitFor({ state: 'visible' })
+			.then(() => 'choice' as const)
+			.catch(() => 'renderer-retired' as const),
+	]);
+	if (outcome === 'choice') {
+		await expect(preserve).toBeFocused();
+		await preserve.click();
+	}
+	await waitForDesktopExit(exited, page, 'preserve');
+}
+
+async function waitForDesktopExit(
+	exited: Promise<void>,
+	page: Page | undefined,
+	mode: string,
+): Promise<void> {
 	await Promise.race([
 		exited,
 		wait(10_000).then(async () => {
-			const visibleState = await page
-				.locator('body')
-				.innerText()
-				.catch(() => 'renderer-unavailable');
-			throw new Error(`Desktop did not exit after ${choice}: ${visibleState}`);
+			const visibleState =
+				page === undefined
+					? 'renderer state not requested'
+					: await page
+							.locator('body')
+							.innerText()
+							.catch(() => 'renderer-unavailable');
+			throw new Error(`Desktop did not exit after ${mode}: ${visibleState}`);
 		}),
 	]);
 }
 
 async function forceCloseDesktop(application: ElectronApplication): Promise<void> {
+	let runningProcess: ReturnType<ElectronApplication['process']>;
+	try {
+		runningProcess = application.process();
+	} catch {
+		return;
+	}
 	const exited = waitForElectronExit(application);
-	application.process().kill('SIGKILL');
+	runningProcess.kill('SIGKILL');
 	await Promise.race([exited, wait(2_000).then(() => undefined)]);
 }
 
 function waitForElectronExit(application: ElectronApplication): Promise<void> {
-	const process = application.process();
+	let process: ReturnType<ElectronApplication['process']>;
+	try {
+		process = application.process();
+	} catch {
+		return Promise.resolve();
+	}
 	if (process.exitCode !== null) return Promise.resolve();
 	return new Promise((resolve) => process.once('exit', () => resolve()));
 }
 
 function projectedTerminal(page: Page): Locator {
 	return page.locator('[data-terminal-presentation-id][data-projected-terminal-state]').first();
+}
+
+async function dispatchDesktopFileDrop(terminalRoot: Locator): Promise<void> {
+	await terminalRoot.evaluate((element) => {
+		const input = document.querySelector('input[data-desktop-file-drop-fixture="true"]');
+		const file = input instanceof HTMLInputElement ? input.files?.[0] : undefined;
+		if (file === undefined) throw new Error('Desktop file-drop fixture has no selected file.');
+		for (const type of ['dragover', 'drop'] as const) {
+			const transfer = new DataTransfer();
+			transfer.items.add(file);
+			element.dispatchEvent(
+				new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer }),
+			);
+		}
+	});
 }
 
 async function dprWitness(root: Locator): Promise<{
@@ -2658,12 +3167,13 @@ async function terminalDocumentIdentity(root: Locator): Promise<{
 	};
 }
 
-async function terminalCellCenter(
+async function terminalCellPoint(
 	root: Locator,
 	canvas: Locator,
 	rows: Locator,
 	text: string,
 	columnOffset: number,
+	horizontalFraction = 0.5,
 ): Promise<{ readonly x: number; readonly y: number }> {
 	const row = rows.filter({ hasText: text }).first();
 	const location = await row.evaluate(
@@ -2681,14 +3191,14 @@ async function terminalCellCenter(
 	const columns = Number(await root.getAttribute('data-projected-terminal-columns'));
 	const visibleRows = Number(await root.getAttribute('data-projected-terminal-rows'));
 	return {
-		x: bounds.x + (location.column + columnOffset + 0.5) * (bounds.width / columns),
+		x: bounds.x + (location.column + columnOffset + horizontalFraction) * (bounds.width / columns),
 		y: bounds.y + (location.row + 0.5) * (bounds.height / visibleRows),
 	};
 }
 
-async function captureTerminalScrollbarStrip(page: Page, canvas: Locator): Promise<Buffer> {
-	const bounds = await canvas.boundingBox();
-	if (bounds === null) throw new Error('Terminal canvas has no bounding box.');
+async function captureTerminalScrollbarStrip(page: Page, surface: Locator): Promise<Buffer> {
+	const bounds = await surface.boundingBox();
+	if (bounds === null) throw new Error('Terminal surface has no bounding box.');
 	return page.screenshot({
 		clip: {
 			height: bounds.height,

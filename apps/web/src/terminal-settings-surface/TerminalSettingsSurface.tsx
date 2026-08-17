@@ -5,10 +5,13 @@ import * as React from 'react';
 import { EmptyResults } from './components/empty-results/EmptyResults';
 import { GhosttyMigrationSettings } from './components/ghostty-migration-settings/GhosttyMigrationSettings';
 import { KeyboardShortcutSettings } from './components/keyboard-shortcut-settings/KeyboardShortcutSettings';
+import { RemoteDevelopmentSettings } from './components/remote-development-settings/RemoteDevelopmentSettings';
+import { ShellIntegrationSettings } from './components/shell-integration-settings/ShellIntegrationSettings';
 import { TerminalSettingsSections } from './components/terminal-settings-sections/TerminalSettingsSections';
 import { useTerminalSettingsSurface } from './hooks/useTerminalSettingsSurface';
 import type { TerminalSettingsController } from '../terminal-settings';
 import type { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
+import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import styles from './TerminalSettingsSurface.module.css';
 
 export interface TerminalSettingsSurfaceProps {
@@ -17,6 +20,7 @@ export interface TerminalSettingsSurfaceProps {
 	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
 	readonly onRequestClose: () => void;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
+	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 }
 
 export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): React.ReactNode {
@@ -50,6 +54,22 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		) : (
 			<EmptyResults message={view.messages.noResults} />
 		);
+	} else if (view.category === 'remote-development') {
+		mainContent = view.remoteDevelopmentVisible ? (
+			<RemoteDevelopmentSettings messages={view.messages} />
+		) : (
+			<EmptyResults message={view.messages.noResults} />
+		);
+	} else if (
+		view.category === 'shell-integration' &&
+		props.terminalFeedbackSettingsController !== undefined
+	) {
+		mainContent = (
+			<ShellIntegrationSettings
+				controller={props.terminalFeedbackSettingsController}
+				query={view.query}
+			/>
+		);
 	} else if (view.terminalResultCount === 0) {
 		mainContent = <EmptyResults message={view.messages.noResults} />;
 	} else {
@@ -73,6 +93,14 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		case 'browser-access':
 			contentTitle = view.messages.browserAccessTitle;
 			contentDescription = view.messages.browserAccessDescription;
+			break;
+		case 'remote-development':
+			contentTitle = view.messages.remoteDevelopmentTitle;
+			contentDescription = view.messages.remoteDevelopmentDescription;
+			break;
+		case 'shell-integration':
+			contentTitle = view.messages.shellIntegrationTitle;
+			contentDescription = view.messages.shellIntegrationDescription;
 			break;
 	}
 
@@ -107,6 +135,7 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 						aria-current={view.category === 'terminal' ? 'page' : undefined}
 						className={styles['category']}
 						data-selected={view.category === 'terminal'}
+						data-settings-category='terminal'
 						type='button'
 						onClick={view.onTerminalCategoryClick}
 					>
@@ -117,6 +146,7 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 						aria-current={view.category === 'keyboard-shortcuts' ? 'page' : undefined}
 						className={styles['category']}
 						data-selected={view.category === 'keyboard-shortcuts'}
+						data-settings-category='keyboard-shortcuts'
 						type='button'
 						onClick={view.onKeyboardShortcutsCategoryClick}
 					>
@@ -124,9 +154,34 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 						{view.messages.keyboardShortcutsCategory}
 					</button>
 					<button
+						aria-current={view.category === 'remote-development' ? 'page' : undefined}
+						className={styles['category']}
+						data-selected={view.category === 'remote-development'}
+						data-settings-category='remote-development'
+						type='button'
+						onClick={view.onRemoteDevelopmentCategoryClick}
+					>
+						<ProductIcon name='terminal' />
+						{view.messages.remoteDevelopmentCategory}
+					</button>
+					{view.showShellIntegrationCategory ? (
+						<button
+							aria-current={view.category === 'shell-integration' ? 'page' : undefined}
+							className={styles['category']}
+							data-selected={view.category === 'shell-integration'}
+							data-settings-category='shell-integration'
+							type='button'
+							onClick={view.onShellIntegrationCategoryClick}
+						>
+							<ProductIcon name='terminal' />
+							{view.messages.shellIntegrationCategory}
+						</button>
+					) : null}
+					<button
 						aria-current={view.category === 'ghostty-migration' ? 'page' : undefined}
 						className={styles['category']}
 						data-selected={view.category === 'ghostty-migration'}
+						data-settings-category='ghostty-migration'
 						type='button'
 						onClick={view.onGhosttyMigrationCategoryClick}
 					>
@@ -138,6 +193,7 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 							aria-current={view.category === 'browser-access' ? 'page' : undefined}
 							className={styles['category']}
 							data-selected={view.category === 'browser-access'}
+							data-settings-category='browser-access'
 							type='button'
 							onClick={view.onBrowserAccessCategoryClick}
 						>

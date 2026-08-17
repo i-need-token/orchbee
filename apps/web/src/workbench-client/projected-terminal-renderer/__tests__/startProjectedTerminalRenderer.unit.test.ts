@@ -18,6 +18,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ProjectedTerminalTransport } from '../../terminal-projection';
 import type { ProjectedTerminalPlatformEffects } from '../../projected-terminal-platform-effects';
+import type { TerminalCompletionReminderObserver } from '../../../terminal-feedback-settings';
 import {
 	startProjectedTerminalRenderer,
 	type ProjectedTerminalRendererDependencies,
@@ -39,15 +40,38 @@ describe('startProjectedTerminalRenderer', () => {
 			dataset: {},
 			remove: vi.fn<ChildNode['remove']>(),
 		};
+		const progressIndicator = {
+			setAttribute: vi.fn<Element['setAttribute']>(),
+		};
+		const progress = {
+			appendChild: vi.fn<Node['appendChild']>(),
+			dataset: {},
+			hidden: false,
+			remove: vi.fn<ChildNode['remove']>(),
+			removeAttribute: vi.fn<Element['removeAttribute']>(),
+			setAttribute: vi.fn<Element['setAttribute']>(),
+			style: {
+				removeProperty: vi.fn<CSSStyleDeclaration['removeProperty']>(),
+				setProperty: vi.fn<CSSStyleDeclaration['setProperty']>(),
+			},
+		};
 		const root = {
 			appendChild: vi.fn<Node['appendChild']>(),
 			contains: vi.fn<HTMLElement['contains']>(() => true),
 			dataset,
 			ownerDocument: {
+				activeElement: null,
 				createElement: vi
-					.fn<(tagName: string) => typeof status | typeof findRoot>()
+					.fn<
+						(
+							tagName: string,
+						) => typeof status | typeof progress | typeof progressIndicator | typeof findRoot
+					>()
 					.mockReturnValueOnce(status)
+					.mockReturnValueOnce(progress)
+					.mockReturnValueOnce(progressIndicator)
 					.mockReturnValueOnce(findRoot),
+				hasFocus: vi.fn<() => boolean>(() => false),
 			},
 			style: {},
 		} as unknown as HTMLElement;
@@ -57,6 +81,12 @@ describe('startProjectedTerminalRenderer', () => {
 		const notifyLinkOpened = vi.fn<ProjectedTerminal['notifyLinkOpened']>();
 		let emitBell: Parameters<ProjectedTerminal['onBell']>[0] = () => undefined;
 		const notifyBell = vi.fn<ProjectedTerminal['notifyBell']>((event) => emitBell(event));
+		let emitClipboardWriteRequest: Parameters<
+			ProjectedTerminal['onClipboardWriteRequest']
+		>[0] = () => undefined;
+		const notifyClipboardWriteRequest = vi.fn<ProjectedTerminal['notifyClipboardWriteRequest']>(
+			(event) => emitClipboardWriteRequest(event),
+		);
 		const notifyExited = vi.fn<ProjectedTerminal['notifyExited']>();
 		let emitError: Parameters<ProjectedTerminal['onError']>[0] = () => undefined;
 		const notifyBrokerFailure = vi.fn<ProjectedTerminal['notifyBrokerFailure']>((failure) =>
@@ -67,6 +97,7 @@ describe('startProjectedTerminalRenderer', () => {
 		const freezeTerminal = vi.fn<ProjectedTerminal['freeze']>();
 		const focusTerminal = vi.fn<ProjectedTerminal['focus']>();
 		const openTerminal = vi.fn<ProjectedTerminal['open']>().mockResolvedValue(undefined);
+		const pasteTerminal = vi.fn<ProjectedTerminal['paste']>().mockResolvedValue({ kind: 'empty' });
 		const setResizeOwnership = vi.fn<ProjectedTerminal['setResizeOwnership']>();
 		const updatePresentationConfiguration = vi
 			.fn<ProjectedTerminal['updatePresentationConfiguration']>()
@@ -78,6 +109,15 @@ describe('startProjectedTerminalRenderer', () => {
 			NonNullable<ProjectedTerminalPlatformEffects['writeClipboardText']>
 		>(async () => ({ kind: 'completed' as const }));
 		const ringBell = vi.fn<NonNullable<ProjectedTerminalPlatformEffects['ringBell']>>();
+		let resolveClipboardReview: ((approved: boolean) => void) | undefined;
+		const reviewClipboardWrite = vi.fn<
+			NonNullable<Parameters<typeof startProjectedTerminalRenderer>[12]>
+		>(
+			() =>
+				new Promise<boolean>((resolve) => {
+					resolveClipboardReview = resolve;
+				}),
+		);
 		let emitExit: Parameters<ProjectedTerminal['onExit']>[0] = () => undefined;
 		let emitFrameTelemetry: Parameters<ProjectedTerminal['onFrameTelemetry']>[0] = () => undefined;
 		let emitLinkOpenRequest: Parameters<ProjectedTerminal['onLinkOpenRequest']>[0] = () =>
@@ -113,6 +153,7 @@ describe('startProjectedTerminalRenderer', () => {
 						})),
 						notifyExited,
 						notifyBell,
+						notifyClipboardWriteRequest,
 						notifyBrokerFailure,
 						notifyHistoryChanged: vi.fn<ProjectedTerminal['notifyHistoryChanged']>(),
 						notifyLinkOpened,
@@ -126,6 +167,12 @@ describe('startProjectedTerminalRenderer', () => {
 							emitBell = listener;
 							return { dispose: vi.fn<() => void>() };
 						}),
+						onClipboardWriteRequest: vi.fn<ProjectedTerminal['onClipboardWriteRequest']>(
+							(listener) => {
+								emitClipboardWriteRequest = listener;
+								return { dispose: vi.fn<() => void>() };
+							},
+						),
 						onExit: vi.fn<ProjectedTerminal['onExit']>((listener) => {
 							emitExit = listener;
 							return { dispose: vi.fn<() => void>() };
@@ -165,6 +212,7 @@ describe('startProjectedTerminalRenderer', () => {
 							.fn<ProjectedTerminal['openLinkAsync']>()
 							.mockResolvedValue({ kind: 'completed' }),
 						open: openTerminal,
+						paste: pasteTerminal,
 						reset: vi.fn<ProjectedTerminal['reset']>(),
 						selectAll: vi.fn<ProjectedTerminal['selectAll']>(),
 						selection: { attachmentId: bootstrap.attachmentId, state: 'none' },
@@ -230,6 +278,12 @@ describe('startProjectedTerminalRenderer', () => {
 			},
 		};
 		const observeMetadata = vi.fn<(metadata: ProjectedTerminalMetadata) => void>();
+		const observeCompletion = vi.fn<TerminalCompletionReminderObserver['observeCompletion']>(
+			() => ({
+				kind: 'remind' as const,
+				notification: 'shown' as const,
+			}),
+		);
 		Object.defineProperty(globalThis, 'HTMLElement', {
 			configurable: true,
 			value: class {},
@@ -248,6 +302,9 @@ describe('startProjectedTerminalRenderer', () => {
 				presentationConfigurationSource,
 				undefined,
 				observeMetadata,
+				undefined,
+				reviewClipboardWrite,
+				{ observeCompletion },
 			);
 			expect(dependencies.createTerminal).toHaveBeenCalledWith(
 				expect.objectContaining({ projectionBufferTrust: 'local-host' }),
@@ -272,6 +329,38 @@ describe('startProjectedTerminalRenderer', () => {
 				attachmentId: bootstrap.attachmentId,
 				sequence: '5',
 			});
+			expect(dataset['projectedTerminalBellActive']).toBe('true');
+			emitTransportMessage({
+				event: {
+					attachmentId: bootstrap.attachmentId,
+					sequence: '6',
+					text: 'approved OSC 52 text',
+				},
+				kind: 'clipboard-write-request',
+			});
+			expect(notifyClipboardWriteRequest).toHaveBeenCalledWith({
+				attachmentId: bootstrap.attachmentId,
+				sequence: '6',
+				text: 'approved OSC 52 text',
+			});
+			expect(reviewClipboardWrite).toHaveBeenCalledWith(
+				expect.objectContaining({ text: 'approved OSC 52 text' }),
+				expect.any(AbortSignal),
+			);
+			expect(writeClipboardText).not.toHaveBeenCalledWith('approved OSC 52 text');
+			resolveClipboardReview?.(true);
+			await vi.waitFor(() =>
+				expect(writeClipboardText).toHaveBeenCalledWith('approved OSC 52 text'),
+			);
+			expect(transport.send).toHaveBeenCalledWith({
+				kind: 'clipboard-write-decision',
+				payload: {
+					approved: true,
+					attachmentId: bootstrap.attachmentId,
+					sequence: '6',
+					text: 'approved OSC 52 text',
+				},
+			});
 			emitLinkOpenRequest({
 				target: { kind: 'url', url: 'https://example.com/from-osc-8' },
 			});
@@ -282,6 +371,65 @@ describe('startProjectedTerminalRenderer', () => {
 			await vi.waitFor(() => expect(writeClipboardText).toHaveBeenCalledWith('copied from Host'));
 			expect(notifySelectionCopied).toHaveBeenCalledWith(16, '10');
 			expect(notifyBrokerFailure).not.toHaveBeenCalled();
+			await Promise.resolve();
+			writeClipboardText.mockResolvedValueOnce({
+				code: 'clipboard-denied',
+				kind: 'failed',
+				retryable: false,
+			});
+			emitTransportMessage({
+				event: {
+					attachmentId: bootstrap.attachmentId,
+					sequence: '7',
+					text: 'rejected OSC 52 text',
+				},
+				kind: 'clipboard-write-request',
+			});
+			resolveClipboardReview?.(true);
+			await vi.waitFor(() =>
+				expect(notifyBrokerFailure).toHaveBeenCalledWith({
+					code: 'clipboard-denied',
+					message: 'The terminal clipboard write did not complete.',
+					operation: 'clipboard',
+					retryable: false,
+				}),
+			);
+			expect(transport.send).toHaveBeenCalledWith({
+				kind: 'clipboard-write-decision',
+				payload: {
+					approved: false,
+					attachmentId: bootstrap.attachmentId,
+					sequence: '7',
+					text: 'rejected OSC 52 text',
+				},
+			});
+			expect(status).toMatchObject({
+				hidden: false,
+				textContent: '无法将终端文本写入剪贴板。',
+			});
+			await Promise.resolve();
+			const writeCountBeforeCancel = writeClipboardText.mock.calls.length;
+			emitTransportMessage({
+				event: {
+					attachmentId: bootstrap.attachmentId,
+					sequence: '8',
+					text: 'cancelled OSC 52 text',
+				},
+				kind: 'clipboard-write-request',
+			});
+			resolveClipboardReview?.(false);
+			await Promise.resolve();
+			await Promise.resolve();
+			expect(writeClipboardText).toHaveBeenCalledTimes(writeCountBeforeCancel);
+			expect(transport.send).toHaveBeenCalledWith({
+				kind: 'clipboard-write-decision',
+				payload: {
+					approved: false,
+					attachmentId: bootstrap.attachmentId,
+					sequence: '8',
+					text: 'cancelled OSC 52 text',
+				},
+			});
 			emitTransportMessage({ kind: 'invalid-event' });
 			expect(dataset['projectedTerminalState']).toBe('failed');
 			expect(status).toMatchObject({
@@ -336,7 +484,7 @@ describe('startProjectedTerminalRenderer', () => {
 			emitFrameTelemetry(telemetry);
 			await expect(session.presentationReady).resolves.toBeUndefined();
 			if (emitMetadata === undefined) throw new Error('metadata listener is missing');
-			emitMetadata({
+			const baseMetadata = {
 				cellPixelHeight: 18,
 				cellPixelWidth: 9,
 				columns: 80,
@@ -345,8 +493,10 @@ describe('startProjectedTerminalRenderer', () => {
 					cursorRgb: null,
 					foregroundRgb: 0xfe_dc_ba,
 				},
+				progress: { state: 'remove', value: null },
 				rows: 24,
-			} as ProjectedTerminalMetadata);
+			} as ProjectedTerminalMetadata;
+			emitMetadata({ ...baseMetadata, progress: { state: 'set', value: 42 } });
 			expect(observeMetadata).toHaveBeenCalledWith(
 				expect.objectContaining({
 					cellPixelHeight: 18,
@@ -355,6 +505,54 @@ describe('startProjectedTerminalRenderer', () => {
 					rows: 24,
 				}),
 			);
+			expect(progress.hidden).toBe(false);
+			expect(progress.dataset).toMatchObject({ state: 'set' });
+			expect(progress.setAttribute).toHaveBeenCalledWith('aria-valuenow', '42');
+			expect(progress.style.setProperty).toHaveBeenCalledWith(
+				'--ob-comp-projected-terminal-progress-value',
+				'42%',
+			);
+			emitMetadata({ ...baseMetadata, progress: { state: 'indeterminate', value: null } });
+			expect(progress.hidden).toBe(false);
+			expect(progress.dataset).toMatchObject({ state: 'indeterminate' });
+			emitMetadata({ ...baseMetadata, progress: { state: 'error', value: 73 } });
+			expect(progress.dataset).toMatchObject({ state: 'error' });
+			expect(progress.setAttribute).toHaveBeenCalledWith('aria-valuenow', '73');
+			emitMetadata({ ...baseMetadata, progress: { state: 'pause', value: null } });
+			expect(progress.dataset).toMatchObject({ state: 'pause' });
+			emitMetadata(baseMetadata);
+			expect(progress.hidden).toBe(true);
+			expect(progress.removeAttribute).toHaveBeenCalledWith('aria-valuenow');
+			emitMetadata({
+				...baseMetadata,
+				commandCompletion: {
+					completedAtMilliseconds: 1_786_947_200_000n,
+					durationMilliseconds: 8_000n,
+					exitCode: 3,
+					sequence: 9n,
+				},
+			});
+			expect(observeCompletion).toHaveBeenCalledWith(
+				expect.objectContaining({
+					focused: false,
+					terminalIdentity: `${bootstrap.hostEpoch}:${bootstrap.terminalId}`,
+				}),
+			);
+			expect(dataset['projectedTerminalCommandCompletionObservedSequence']).toBe('9');
+			expect(dataset['projectedTerminalCommandReminderDecision']).toBe('remind-shown');
+			emitMetadata({
+				...baseMetadata,
+				commandCompletion: {
+					completedAtMilliseconds: 1_786_947_200_000n,
+					durationMilliseconds: 8_000n,
+					exitCode: 3,
+					sequence: 9n,
+				},
+			});
+			expect(observeCompletion).toHaveBeenCalledOnce();
+			expect(status.textContent).toContain('命令已在 8 秒后完成');
+			expect(dataset['projectedTerminalCommandCompletionSequence']).toBe('9');
+			expect(dataset['projectedTerminalCommandNotification']).toBe('shown');
 			emitExit({
 				exit: { code: 0, kind: 'exit-code' },
 				finalRevision: CanonicalUint64TextSchema.parse('1'),
@@ -427,10 +625,11 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(status).toMatchObject({
 				dataset: { projectedTerminalStatus: 'true' },
 				hidden: false,
-				textContent: '已复制 16 字节。',
+				textContent: '命令已在 8 秒后完成，退出码为 3。',
 			});
 			session.freeze();
 			session.freeze();
+			expect(dataset['projectedTerminalBellActive']).toBeUndefined();
 			expect(freezeTerminal).toHaveBeenCalledOnce();
 			expect(disposeTerminal).not.toHaveBeenCalled();
 			session.dispose();
@@ -451,14 +650,39 @@ describe('startProjectedTerminalRenderer', () => {
 					dataset: {},
 					remove: vi.fn<ChildNode['remove']>(),
 				};
+				const additionalProgressIndicator = {
+					setAttribute: vi.fn<Element['setAttribute']>(),
+				};
+				const additionalProgress = {
+					appendChild: vi.fn<Node['appendChild']>(),
+					dataset: {},
+					hidden: false,
+					remove: vi.fn<ChildNode['remove']>(),
+					removeAttribute: vi.fn<Element['removeAttribute']>(),
+					setAttribute: vi.fn<Element['setAttribute']>(),
+					style: {
+						removeProperty: vi.fn<CSSStyleDeclaration['removeProperty']>(),
+						setProperty: vi.fn<CSSStyleDeclaration['setProperty']>(),
+					},
+				};
 				const additionalRoot = {
 					appendChild: vi.fn<Node['appendChild']>(),
 					contains: vi.fn<HTMLElement['contains']>(() => true),
 					dataset: {} as DOMStringMap,
 					ownerDocument: {
 						createElement: vi
-							.fn<(tagName: string) => typeof additionalStatus | typeof additionalFindRoot>()
+							.fn<
+								(
+									tagName: string,
+								) =>
+									| typeof additionalStatus
+									| typeof additionalProgress
+									| typeof additionalProgressIndicator
+									| typeof additionalFindRoot
+							>()
 							.mockReturnValueOnce(additionalStatus)
+							.mockReturnValueOnce(additionalProgress)
+							.mockReturnValueOnce(additionalProgressIndicator)
 							.mockReturnValueOnce(additionalFindRoot),
 					},
 					style: {},
@@ -510,6 +734,18 @@ describe('startProjectedTerminalRenderer', () => {
 					return unsubscribeLiveSource;
 				},
 			};
+			let resolveCancelledClipboardReview: ((approved: boolean) => void) | undefined;
+			const cancelledClipboardReview = vi.fn<
+				NonNullable<Parameters<typeof startProjectedTerminalRenderer>[12]>
+			>(
+				() =>
+					new Promise<boolean>((resolve) => {
+						resolveCancelledClipboardReview = resolve;
+					}),
+			);
+			const cancelledClipboardWrite = vi.fn<
+				NonNullable<ProjectedTerminalPlatformEffects['writeClipboardText']>
+			>(async () => ({ kind: 'completed' }));
 			const liveSession = await startProjectedTerminalRenderer(
 				liveElements.additionalRoot,
 				documentElement,
@@ -518,10 +754,23 @@ describe('startProjectedTerminalRenderer', () => {
 				liveBootstrap,
 				liveTransport.additionalTransport,
 				dependencies,
-				{},
+				{ writeClipboardText: cancelledClipboardWrite },
 				liveSource,
+				undefined,
+				undefined,
+				undefined,
+				cancelledClipboardReview,
 			);
 			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('open');
+			liveTransport.emitMessage({
+				event: {
+					attachmentId: liveBootstrap.attachmentId,
+					sequence: '1',
+					text: 'cancel on dispose',
+				},
+				kind: 'clipboard-write-request',
+			});
+			expect(cancelledClipboardReview).toHaveBeenCalledOnce();
 			liveTransport.emitMessage({
 				event: {
 					attachmentId: liveBootstrap.attachmentId,
@@ -606,6 +855,10 @@ describe('startProjectedTerminalRenderer', () => {
 			});
 			expect(liveTransport.close).not.toHaveBeenCalled();
 			liveSession.dispose();
+			resolveCancelledClipboardReview?.(true);
+			await Promise.resolve();
+			await Promise.resolve();
+			expect(cancelledClipboardWrite).not.toHaveBeenCalled();
 			expect(unsubscribeLiveSource).toHaveBeenCalledOnce();
 			expect(liveTransport.close).toHaveBeenCalledOnce();
 

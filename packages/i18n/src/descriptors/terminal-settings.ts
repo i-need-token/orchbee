@@ -138,6 +138,79 @@ export const terminalSettingsMessages = defineMessages({
 	),
 	reset: message('terminal.settings.actions.reset'),
 	resetDescription: message('terminal.settings.reset.description'),
+	remoteDevelopmentBaselineDescription: message(
+		'terminal.settings.remoteDevelopment.baseline.description',
+	),
+	remoteDevelopmentBaselineTitle: message('terminal.settings.remoteDevelopment.baseline.title'),
+	remoteDevelopmentCategory: message('terminal.settings.categories.remoteDevelopment'),
+	remoteDevelopmentDescription: message('terminal.settings.remoteDevelopment.description'),
+	remoteDevelopmentDiagnosticDescription: message(
+		'terminal.settings.remoteDevelopment.diagnostic.description',
+	),
+	remoteDevelopmentDiagnosticLabel: message('terminal.settings.remoteDevelopment.diagnostic.label'),
+	remoteDevelopmentDiagnosticTitle: message('terminal.settings.remoteDevelopment.diagnostic.title'),
+	remoteDevelopmentNoChangesDescription: message(
+		'terminal.settings.remoteDevelopment.noChanges.description',
+	),
+	remoteDevelopmentNoChangesTitle: message('terminal.settings.remoteDevelopment.noChanges.title'),
+	remoteDevelopmentResultDescription: message(
+		'terminal.settings.remoteDevelopment.diagnostic.resultDescription',
+	),
+	remoteDevelopmentTitle: message('terminal.settings.remoteDevelopment.title'),
+	shellIntegrationBashTitle: message('terminal.settings.shellIntegration.bash.title'),
+	shellIntegrationBashVersion: message('terminal.settings.shellIntegration.bash.version'),
+	shellIntegrationCategory: message('terminal.settings.categories.shellIntegration'),
+	shellIntegrationDescription: message('terminal.settings.shellIntegration.description'),
+	shellIntegrationFishTitle: message('terminal.settings.shellIntegration.fish.title'),
+	shellIntegrationManualNotice: message('terminal.settings.shellIntegration.manualNotice'),
+	shellIntegrationNotificationDescription: message(
+		'terminal.settings.shellIntegration.notification.description',
+	),
+	shellIntegrationNotificationRequest: message(
+		'terminal.settings.shellIntegration.notification.request',
+	),
+	shellIntegrationNotificationStatusDenied: message(
+		'terminal.settings.shellIntegration.notification.status.denied',
+	),
+	shellIntegrationNotificationStatusGranted: message(
+		'terminal.settings.shellIntegration.notification.status.granted',
+	),
+	shellIntegrationNotificationStatusPrompt: message(
+		'terminal.settings.shellIntegration.notification.status.prompt',
+	),
+	shellIntegrationNotificationStatusUnsupported: message(
+		'terminal.settings.shellIntegration.notification.status.unsupported',
+	),
+	shellIntegrationNotificationTitle: message(
+		'terminal.settings.shellIntegration.notification.title',
+	),
+	shellIntegrationReminderAlways: message('terminal.settings.shellIntegration.reminder.always'),
+	shellIntegrationReminderDescription: message(
+		'terminal.settings.shellIntegration.reminder.description',
+	),
+	shellIntegrationReminderMinimumDescription: message(
+		'terminal.settings.shellIntegration.reminder.minimum.description',
+	),
+	shellIntegrationReminderMinimumInvalid: message(
+		'terminal.settings.shellIntegration.reminder.minimum.invalid',
+	),
+	shellIntegrationReminderMinimumLabel: message(
+		'terminal.settings.shellIntegration.reminder.minimum.label',
+	),
+	shellIntegrationReminderModeLabel: message(
+		'terminal.settings.shellIntegration.reminder.mode.label',
+	),
+	shellIntegrationReminderNever: message('terminal.settings.shellIntegration.reminder.never'),
+	shellIntegrationReminderTitle: message('terminal.settings.shellIntegration.reminder.title'),
+	shellIntegrationReminderUnfocused: message(
+		'terminal.settings.shellIntegration.reminder.unfocused',
+	),
+	shellIntegrationResetDescription: message('terminal.settings.shellIntegration.reset.description'),
+	shellIntegrationSetupCommandLabel: message(
+		'terminal.settings.shellIntegration.setupCommand.label',
+	),
+	shellIntegrationTitle: message('terminal.settings.shellIntegration.title'),
+	shellIntegrationZshTitle: message('terminal.settings.shellIntegration.zsh.title'),
 	searchPlaceholder: message('terminal.settings.search.placeholder'),
 	terminalCategory: message('terminal.settings.categories.terminal'),
 	terminalColorsSection: message('terminal.settings.sections.terminalColors'),

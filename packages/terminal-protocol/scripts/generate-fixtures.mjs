@@ -37,6 +37,7 @@ import {
 	SetTerminalDefaultsSchema,
 	TerminalAcknowledgedSchema,
 	TerminalBellSchema,
+	TerminalClipboardWriteRequestSchema,
 	TerminalConfigurationAcceptedSchema,
 	TerminalControlAcceptedSchema,
 	TerminalDefaultsAcceptedSchema,
@@ -923,6 +924,11 @@ function createControlConformanceFixture() {
 			'TerminalAcknowledged',
 		),
 		terminal_bell: controlText(TerminalBellSchema, { attachmentId, sequence: '6' }, 'TerminalBell'),
+		terminal_clipboard_write_request: controlText(
+			TerminalClipboardWriteRequestSchema,
+			{ attachmentId, sequence: '7', text: 'copied from terminal' },
+			'TerminalClipboardWriteRequest',
+		),
 		terminal_configuration_accepted: controlText(
 			TerminalConfigurationAcceptedSchema,
 			{

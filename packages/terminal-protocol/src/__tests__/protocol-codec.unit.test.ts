@@ -38,9 +38,9 @@ import { CURRENT_PROTOCOL_VERSION } from '../version';
 const hostEpoch = parseHostEpoch('11111111111111111111111111111111');
 if (!hostEpoch.ok) throw new Error(hostEpoch.detail);
 
-const frameFixtureUrl = new URL('../../fixtures/terminal-frame-v0.0.1.bin', import.meta.url);
-const envelopeFixtureUrl = new URL('../../fixtures/transport-envelope-v0.0.8.bin', import.meta.url);
-const malformedFixtureUrl = new URL('../../fixtures/malformed-frame-v0.0.1.json', import.meta.url);
+const frameFixtureUrl = new URL('../../fixtures/terminal-frame-v0.0.2.bin', import.meta.url);
+const envelopeFixtureUrl = new URL('../../fixtures/transport-envelope-v0.0.9.bin', import.meta.url);
+const malformedFixtureUrl = new URL('../../fixtures/malformed-frame-v0.0.2.json', import.meta.url);
 const rowWindowFixtureUrl = new URL(
 	'../../fixtures/terminal-row-window-v0.0.1.bin',
 	import.meta.url,
@@ -313,7 +313,7 @@ describe('terminal frame codec', () => {
 
 	it('rejects a frame patch outside the exact current format', async () => {
 		const differentPatch = (await fixtureBytes(frameFixtureUrl)).slice();
-		differentPatch[144] = 2;
+		differentPatch[144] = 3;
 		expect(decodeTerminalFrame(differentPatch)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.unsupportedVersion, ok: false }),
 		);

@@ -182,6 +182,30 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 				'/Applications/Orchbee.app/Contents/Resources/orchbee-server.cjs',
 			),
 		});
+		expect(configuration.terminalLaunch.environment).toContainEqual({
+			name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
+			value: path.resolve('/Applications/Orchbee.app/Contents/Resources/shell-integration'),
+		});
+	});
+
+	it('accepts the bundle-resolved development shell integration directory', () => {
+		const developmentShellIntegrationDirectory = path.resolve(
+			'/repo/apps/desktop/resources/shell-integration',
+		);
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/unexpected/electron/application/path'),
+			developmentShellIntegrationDirectory,
+			environment: {},
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(configuration.terminalLaunch.environment).toContainEqual({
+			name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
+			value: developmentShellIntegrationDirectory,
+		});
 	});
 
 	it('repairs an unsupported Darwin UTF-8 locale before launching the shell', () => {
@@ -202,6 +226,10 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
 			{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+			{
+				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
+				value: path.resolve('/repo/apps/desktop/resources/shell-integration'),
+			},
 			{ name: 'NO_COLOR', value: null },
 			{ name: 'FORCE_COLOR', value: null },
 			{ name: 'NODE_DISABLE_COLORS', value: null },
@@ -224,6 +252,10 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
 			{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+			{
+				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
+				value: path.resolve('/repo/apps/desktop/resources/shell-integration'),
+			},
 			{ name: 'NO_COLOR', value: null },
 			{ name: 'FORCE_COLOR', value: null },
 			{ name: 'NODE_DISABLE_COLORS', value: null },
@@ -250,6 +282,10 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
 			{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+			{
+				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
+				value: path.resolve('/repo/apps/desktop/resources/shell-integration'),
+			},
 			{ name: 'NO_COLOR', value: null },
 			{ name: 'FORCE_COLOR', value: null },
 			{ name: 'NODE_DISABLE_COLORS', value: null },

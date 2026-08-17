@@ -1,5 +1,6 @@
 const contracts = @import("contracts.zig");
 const links = @import("links.zig");
+const graphics = @import("graphics.zig");
 const state = @import("state.zig");
 const render_encoding = @import("../render_encoding.zig");
 const protocol = @import("terminal-protocol");
@@ -21,6 +22,8 @@ pub const testing = if (@import("builtin").is_test) struct {
     pub const link_entry_limit = protocol.Limits.frame_strings;
     pub const link_value_byte_limit = render_encoding.max_string_bytes;
     pub const LinkTableType = links.LinkTable;
+    pub const GraphicsStateType = graphics.State;
+    pub const ImageFormat = graphics.ImageFormat;
     pub const linkTableDeinitFn = links.LinkTable.deinit;
     pub const linkTableInitFn = links.LinkTable.init;
     pub const linkTableInternFn = links.LinkTable.intern;

@@ -56,6 +56,7 @@ export {
 	SetTerminalDefaultsSchema,
 	TerminalAcknowledgedSchema,
 	TerminalBellSchema,
+	TerminalClipboardWriteRequestSchema,
 	TerminalExitedSchema,
 	TerminalFailedSchema,
 	TerminalIdentitySchema,
@@ -125,6 +126,7 @@ export type {
 	SetTerminalDefaults,
 	TerminalAcknowledged,
 	TerminalBell,
+	TerminalClipboardWriteRequest,
 	TerminalExited,
 	TerminalFailed,
 	TerminalIdentity,
@@ -195,6 +197,7 @@ export {
 	TerminalFrameKind,
 	TerminalFrameSchema,
 	TerminalInteractionSchema,
+	TerminalProgressState,
 	TerminalRowFlag,
 	TerminalRowPromptClassCode,
 	TerminalRowSchema,
@@ -222,6 +225,9 @@ export type {
 	TerminalFrameExtension,
 	TerminalFrameKind as TerminalFrameKindValue,
 	TerminalInteraction,
+	TerminalProgress,
+	TerminalProgressState as TerminalProgressStateValue,
+	TerminalCommandCompletion,
 	TerminalRow,
 	TerminalStyle,
 	UnderlineKind as UnderlineKindValue,
@@ -335,6 +341,22 @@ export type { TerminalPhase as TerminalPhaseValue } from './terminal-phase';
 export { PROTOCOL_LIMITS } from './limits';
 export { ProtocolErrorCode } from './protocol-result';
 export type { ProtocolFailure, ProtocolResult, ProtocolSuccess } from './protocol-result';
+export {
+	decodeTerminalGraphics,
+	encodeTerminalGraphics,
+	TERMINAL_GRAPHICS_FORMAT,
+	TERMINAL_GRAPHICS_HEADER_BYTES,
+	TERMINAL_GRAPHICS_MAGIC,
+	TerminalGraphicsImageFormat,
+	TerminalGraphicsUpdateKind,
+} from './terminal-graphics';
+export type {
+	TerminalGraphics,
+	TerminalGraphicsImage,
+	TerminalGraphicsImageFormat as TerminalGraphicsImageFormatValue,
+	TerminalGraphicsPlacement,
+	TerminalGraphicsUpdateKind as TerminalGraphicsUpdateKindValue,
+} from './terminal-graphics';
 export {
 	decodeTerminalProjectionBuffer,
 	encodeTerminalProjectionBuffer,

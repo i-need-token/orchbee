@@ -7,6 +7,7 @@ import {
 	TerminalCloseActivityCode,
 	TerminalFrameExtensionKind,
 	TerminalFrameKind,
+	TerminalGraphicsUpdateKind,
 	type ActiveScreenValue,
 	type AttachmentId,
 	type CursorShapeValue,
@@ -17,6 +18,11 @@ import {
 	type InspectedTerminalFrameHeader,
 	type NeedSnapshot,
 	type TerminalInteraction,
+	type TerminalGraphics,
+	type TerminalGraphicsImage,
+	type TerminalGraphicsPlacement,
+	type TerminalCommandCompletion,
+	type TerminalProgress,
 } from '@orchbee/terminal-protocol';
 
 const NO_STRING_OFFSET = 0xffff_ffff;
@@ -57,6 +63,7 @@ export interface ProjectedTerminalMetadata {
 	readonly cellPixelHeight: number;
 	readonly cellPixelWidth: number;
 	readonly columns: number;
+	readonly commandCompletion: TerminalCommandCompletion | null;
 	readonly closeActivity: ProjectedTerminalCloseActivity;
 	readonly currentDirectory: string | null;
 	readonly cursor: {
@@ -74,10 +81,70 @@ export interface ProjectedTerminalMetadata {
 	};
 	readonly generation: bigint;
 	readonly interaction: TerminalInteraction;
+	readonly progress: TerminalProgress;
 	readonly revision: bigint;
 	readonly rows: number;
 	readonly scrollbackRows: bigint;
 	readonly title: string | null;
+}
+
+/** Decoded Kitty resources and visible placements retained independently from text rows. */
+export interface ProjectedTerminalGraphics {
+	readonly images: ReadonlyMap<number, TerminalGraphicsImage>;
+	readonly placements: readonly TerminalGraphicsPlacement[];
+	readonly resourceRevision: bigint;
+}
+
+const EMPTY_TERMINAL_GRAPHICS: ProjectedTerminalGraphics = {
+	images: new Map(),
+	placements: [],
+	resourceRevision: 0n,
+};
+
+function graphicsFromSnapshot(graphics: TerminalGraphics | null): ProjectedTerminalGraphics {
+	if (graphics === null) return EMPTY_TERMINAL_GRAPHICS;
+	if (graphics.kind !== TerminalGraphicsUpdateKind.snapshot) {
+		throw new Error('Decoded terminal snapshot omitted its graphics resource snapshot');
+	}
+	return {
+		images: new Map(graphics.images.map((image) => [image.id, image])),
+		placements: graphics.placements,
+		resourceRevision: graphics.resourceRevision,
+	};
+}
+
+function graphicsFromDelta(
+	current: ProjectedTerminalGraphics,
+	graphics: TerminalGraphics | null,
+): ProjectedTerminalGraphics | null {
+	if (graphics === null) return current;
+	if (
+		graphics.kind !== TerminalGraphicsUpdateKind.placements ||
+		graphics.resourceRevision !== current.resourceRevision
+	) {
+		return null;
+	}
+	for (const placement of graphics.placements) {
+		const image = current.images.get(placement.imageId);
+		if (
+			image === undefined ||
+			placement.sourceX + placement.sourceWidth > image.width ||
+			placement.sourceY + placement.sourceHeight > image.height
+		) {
+			return null;
+		}
+	}
+	return {
+		images: current.images,
+		placements: graphics.placements,
+		resourceRevision: current.resourceRevision,
+	};
+}
+
+function graphicsByteLength(graphics: ProjectedTerminalGraphics): number {
+	let byteLength = 0;
+	for (const image of graphics.images.values()) byteLength += image.data.byteLength;
+	return byteLength;
 }
 
 interface PackedTerminalRowBacking {
@@ -434,12 +501,14 @@ function metadataFromFrame(frame: DecodedTerminalFrame): ProjectedTerminalMetada
 		cellPixelHeight: frame.cellPixelHeight,
 		cellPixelWidth: frame.cellPixelWidth,
 		columns: frame.columns,
+		commandCompletion: frame.commandCompletion,
 		closeActivity: closeActivityFromExtensions(frame.extensions),
 		currentDirectory: frame.currentDirectory,
 		cursor: frame.cursor,
 		defaultColors: frame.defaultColors,
 		generation: frame.generation,
 		interaction: frame.interaction,
+		progress: frame.progress,
 		revision: frame.revision,
 		rows: frame.rows,
 		scrollbackRows: frame.scrollbackRows,
@@ -455,12 +524,14 @@ function metadataFromProjectionBuffer(
 		cellPixelHeight: frame.cellPixelHeight,
 		cellPixelWidth: frame.cellPixelWidth,
 		columns: frame.columns,
+		commandCompletion: null,
 		closeActivity: 'unknown',
 		currentDirectory: frame.currentDirectory,
 		cursor: frame.cursor,
 		defaultColors: frame.defaultColors,
 		generation: frame.generation,
 		interaction: frame.interaction,
+		progress: { state: 'remove', value: null },
 		revision: frame.revision,
 		rows: frame.rows,
 		scrollbackRows: frame.scrollbackRows,
@@ -498,6 +569,7 @@ function acknowledgement(
 
 export class PackedTerminalStore {
 	#fullRedraw = false;
+	#graphics: ProjectedTerminalGraphics = EMPTY_TERMINAL_GRAPHICS;
 	#grid: PackedGrid | null = null;
 	#lastCommit: LastCommit | null = null;
 	#metadata: ProjectedTerminalMetadata | null = null;
@@ -518,6 +590,9 @@ export class PackedTerminalStore {
 		return this.#metadata;
 	}
 
+	get graphics(): ProjectedTerminalGraphics {
+		return this.#graphics;
+	}
 	get rows(): readonly PackedTerminalRowView[] {
 		return this.#grid?.rows ?? [];
 	}
@@ -528,7 +603,9 @@ export class PackedTerminalStore {
 
 	get byteLength(): number {
 		return (
-			this.#grid?.directByteLength ?? this.rows.reduce((total, row) => total + row.byteLength, 0)
+			(this.#grid?.directByteLength ??
+				this.rows.reduce((total, row) => total + row.byteLength, 0)) +
+			graphicsByteLength(this.#graphics)
 		);
 	}
 
@@ -572,11 +649,13 @@ export class PackedTerminalStore {
 				return this.#requireSnapshot('base-mismatch', frame.sequence);
 			}
 			const buildContext = createPackedFrameBuildContext(frame, false);
+			const stagedGraphics = graphicsFromSnapshot(frame.graphics);
 			const stagedRows = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => {
 				const backing = buildRowBacking(frame, rowOffset, buildContext, false);
 				return new PackedTerminalRowView(rowIndex, backing);
 			});
 			this.#grid = { rows: stagedRows };
+			this.#graphics = stagedGraphics;
 			this.#metadata = metadataFromFrame(frame);
 			this.#phase = ProjectedStorePhase.synchronized;
 			this.#fullRedraw = true;
@@ -599,17 +678,28 @@ export class PackedTerminalStore {
 		if (frame.baseRevision !== this.#metadata.revision) {
 			return this.#requireSnapshot('base-mismatch', frame.sequence);
 		}
+		const stagedGraphics = graphicsFromDelta(this.#graphics, frame.graphics);
+		if (stagedGraphics === null) {
+			return this.#requireSnapshot('base-mismatch', frame.sequence);
+		}
 
 		const buildContext = createPackedFrameBuildContext(frame, false);
 		const staged = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => ({
 			backing: buildRowBacking(frame, rowOffset, buildContext, false),
 			rowIndex,
 		}));
-		for (const replacement of staged) {
-			const row = this.#grid.rows[replacement.rowIndex];
-			if (!row) return this.#requireSnapshot('dimensions-mismatch', frame.sequence);
-			row.replace(replacement.backing);
+		const replacements = staged.map((replacement) => {
+			const row = this.#grid?.rows[replacement.rowIndex];
+			return row === undefined ? null : { backing: replacement.backing, row };
+		});
+		if (replacements.some((replacement) => replacement === null)) {
+			return this.#requireSnapshot('dimensions-mismatch', frame.sequence);
 		}
+		for (const replacement of replacements) {
+			if (replacement === null) return this.#requireSnapshot('dimensions-mismatch', frame.sequence);
+			replacement.row.replace(replacement.backing);
+		}
+		this.#graphics = stagedGraphics;
 		this.#metadata = metadataFromFrame(frame);
 		this.#recordCommit(frame);
 		return { acknowledgement: acknowledgement(frame), kind: 'committed' };
@@ -667,6 +757,7 @@ export class PackedTerminalStore {
 			});
 		});
 		this.#grid = { directByteLength: frame.bytes.byteLength, rows: stagedRows };
+		this.#graphics = EMPTY_TERMINAL_GRAPHICS;
 		this.#metadata = metadataFromProjectionBuffer(frame);
 		this.#phase = ProjectedStorePhase.synchronized;
 		this.#fullRedraw = true;
@@ -697,13 +788,17 @@ export class PackedTerminalStore {
 			return { kind: 'invalid' };
 		}
 		const buildContext = createPackedFrameBuildContext(frame, sourceBytes === null);
+		const stagedGraphics = graphicsFromSnapshot(frame.graphics);
 		const stagedRows = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => {
 			const backing = buildRowBacking(frame, rowOffset, buildContext, sourceBytes === null);
 			return new PackedTerminalRowView(rowIndex, backing);
 		});
-		const byteLength = stagedRows.reduce((total, row) => total + row.byteLength, 0);
+		const byteLength =
+			stagedRows.reduce((total, row) => total + row.byteLength, 0) +
+			graphicsByteLength(stagedGraphics);
 		if (byteLength > maximumBytes) return { kind: 'too-large' };
 		this.#grid = { rows: stagedRows };
+		this.#graphics = stagedGraphics;
 		this.#metadata = metadataFromFrame(frame);
 		this.#phase = ProjectedStorePhase.synchronized;
 		this.#fullRedraw = true;
@@ -718,6 +813,7 @@ export class PackedTerminalStore {
 
 	dispose(): void {
 		this.#grid = null;
+		this.#graphics = EMPTY_TERMINAL_GRAPHICS;
 		this.#metadata = null;
 		this.#lastCommit = null;
 		this.#fullRedraw = false;
@@ -787,6 +883,10 @@ export class PackedTerminalViewport {
 
 	get metadata(): ProjectedTerminalMetadata | null {
 		return this.#metadata;
+	}
+
+	get graphics(): ProjectedTerminalGraphics {
+		return EMPTY_TERMINAL_GRAPHICS;
 	}
 
 	get rows(): readonly PackedTerminalRowView[] {

@@ -142,6 +142,10 @@ pub fn build(builder: *std.Build) void {
         .@"emit-xcframework" = false,
         .@"lib-version-string" = "1.3.2",
     });
+    const wuffs = ghostty.builder.lazyDependency("wuffs", .{
+        .target = target,
+        .optimize = optimize,
+    }) orelse return;
 
     protocol_module.addImport("terminal-input", terminal_input_module);
     model_module.addImport("terminal-protocol", protocol_module);
@@ -150,6 +154,7 @@ pub fn build(builder: *std.Build) void {
     engine_module.addImport("terminal-protocol", protocol_module);
     engine_module.addImport("terminal-host-model", model_module);
     engine_module.addImport("terminal-host-platform", platform_module);
+    engine_module.addImport("wuffs", wuffs.module("wuffs"));
     surface_fixture_module.addImport("ghostty-vt", ghostty.module("ghostty-vt"));
     surface_fixture_module.addImport("terminal-protocol", protocol_module);
     surface_fixture_module.addImport("terminal-host-model", model_module);

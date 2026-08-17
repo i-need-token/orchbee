@@ -55,6 +55,11 @@ describe('message contract registry', () => {
 		);
 		expect(messagePayloadEncoding(MessageKind.terminalBell, 'request')).toBeNull();
 		expect(messagePayloadEncoding(MessageKind.terminalBell, 'response')).toBeNull();
+		expect(MessageKind.terminalClipboardWriteRequest).toBe(56);
+		expect(messagePayloadEncoding(MessageKind.terminalClipboardWriteRequest, 'event')).toBe(
+			PayloadEncoding.controlJson,
+		);
+		expect(messagePayloadEncoding(MessageKind.terminalClipboardWriteRequest, 'request')).toBeNull();
 		expect(MESSAGE_CONTRACTS[MessageKind.clearTerminal].request?.successKind).toBe(
 			MessageKind.terminalControlAccepted,
 		);

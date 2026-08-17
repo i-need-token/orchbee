@@ -1,0 +1,78 @@
+.root {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-4);
+}
+
+.card {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-3);
+	padding: var(--ob-ref-space-5);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-ui-xl);
+	background: var(--ob-sys-color-surface-raised);
+}
+
+.notice,
+.warning,
+.empty {
+	margin: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-info-border);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-status-info-surface);
+	color: var(--ob-sys-color-status-info-text);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.warning {
+	border-color: var(--ob-sys-color-status-warning-border);
+	background: var(--ob-sys-color-status-warning-surface);
+	color: var(--ob-sys-color-status-warning-text);
+}
+
+.empty {
+	border-color: var(--ob-sys-color-border-default);
+	background: var(--ob-sys-color-surface-subtle);
+	color: var(--ob-sys-color-text-secondary);
+}
+
+.title {
+	margin: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-heading);
+	font: var(--ob-sys-typography-heading-sm);
+}
+
+.description,
+.status {
+	margin: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-2);
+}
+
+.label {
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-label-md);
+}
+
+.command {
+	padding: var(--ob-ref-space-3);
+	overflow-wrap: anywhere;
+	border-radius: var(--ob-ref-radius-sm);
+	background: var(--ob-sys-color-surface-subtle);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-code-sm);
+	white-space: pre-wrap;
+}
+
+.error {
+	color: var(--ob-sys-color-status-danger-text);
+	font: var(--ob-sys-typography-body-sm);
+}

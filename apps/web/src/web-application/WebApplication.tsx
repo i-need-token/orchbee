@@ -14,6 +14,7 @@ import {
 	useKeyboardShortcutSettings,
 } from '../keyboard-shortcuts';
 import type { TerminalSettingsController } from '../terminal-settings';
+import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import { TerminalSettingsSurface } from '../terminal-settings-surface';
 import { useWebApplication } from './hooks/useWebApplication';
 import styles from './WebApplication.module.css';
@@ -27,6 +28,7 @@ export interface WebApplicationProps {
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalSettingsController: TerminalSettingsController;
+	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
 
@@ -39,6 +41,7 @@ export function WebApplication({
 	requestBrowserAccess,
 	shortcutPlatform,
 	terminalSettingsController,
+	terminalFeedbackSettingsController,
 	terminalSurface,
 }: WebApplicationProps): ReactNode {
 	const view = useWebApplication({ terminalSettingsController });
@@ -67,6 +70,7 @@ export function WebApplication({
 				keyboardShortcutPlatform={shortcutPlatform}
 				onRequestClose={view.closeSettings}
 				requestBrowserAccess={requestBrowserAccess}
+				terminalFeedbackSettingsController={terminalFeedbackSettingsController}
 			/>
 		</div>
 	);

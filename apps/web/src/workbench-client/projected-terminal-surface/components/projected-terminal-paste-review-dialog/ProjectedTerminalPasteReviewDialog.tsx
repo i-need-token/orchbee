@@ -28,6 +28,7 @@ export function ProjectedTerminalPasteReviewDialog({
 }: ProjectedTerminalPasteReviewDialogProps): ReactNode {
 	const intl = useOrchbeeIntl();
 	const preview = projectedTerminalPastePreview(review.originalText);
+	const fileDrop = review.source === 'file-drop';
 	return (
 		<AlertDialog
 			onOpenChange={(open) => {
@@ -38,16 +39,33 @@ export function ProjectedTerminalPasteReviewDialog({
 			<AlertDialogContent data-slot='projected-terminal-paste-review'>
 				<AlertDialogHeader>
 					<AlertDialogTitle>
-						{intl.formatMessage(projectedTerminalMessages.pasteReviewTitle)}
+						{intl.formatMessage(
+							fileDrop
+								? projectedTerminalMessages.fileDropReviewTitle
+								: projectedTerminalMessages.pasteReviewTitle,
+						)}
 					</AlertDialogTitle>
 					<AlertDialogDescription>
-						{intl.formatMessage(projectedTerminalMessages.pasteReviewDescription)}
+						{intl.formatMessage(
+							fileDrop
+								? projectedTerminalMessages.fileDropReviewDescription
+								: projectedTerminalMessages.pasteReviewDescription,
+						)}
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 				<div className={styles['review']}>
 					<ul className={styles['warnings']}>
+						{fileDrop ? (
+							<li>{intl.formatMessage(projectedTerminalMessages.fileDropReviewRemote)}</li>
+						) : null}
 						{review.multiline ? (
-							<li>{intl.formatMessage(projectedTerminalMessages.pasteReviewMultiline)}</li>
+							<li>
+								{intl.formatMessage(
+									fileDrop
+										? projectedTerminalMessages.fileDropReviewNewline
+										: projectedTerminalMessages.pasteReviewMultiline,
+								)}
+							</li>
 						) : null}
 						{review.replacedControlCharacters > 0 ? (
 							<li>
@@ -61,7 +79,11 @@ export function ProjectedTerminalPasteReviewDialog({
 						) : null}
 					</ul>
 					<pre
-						aria-label={intl.formatMessage(projectedTerminalMessages.pasteReviewOriginal)}
+						aria-label={intl.formatMessage(
+							fileDrop
+								? projectedTerminalMessages.fileDropReviewInput
+								: projectedTerminalMessages.pasteReviewOriginal,
+						)}
 						className={styles['preview']}
 					>
 						{preview.text}
@@ -77,7 +99,11 @@ export function ProjectedTerminalPasteReviewDialog({
 						{intl.formatMessage(projectedTerminalMessages.pasteReviewCancel)}
 					</AlertDialogCancel>
 					<AlertDialogAction onClick={onApprove}>
-						{intl.formatMessage(projectedTerminalMessages.pasteReviewConfirm)}
+						{intl.formatMessage(
+							fileDrop
+								? projectedTerminalMessages.fileDropReviewConfirm
+								: projectedTerminalMessages.pasteReviewConfirm,
+						)}
 					</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>

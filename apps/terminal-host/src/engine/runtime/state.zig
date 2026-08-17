@@ -18,6 +18,18 @@ pub const State = struct {
     // marker because Ghostty invokes bell synchronously while parsing output.
     bell_sequence: u64 = 0,
     bell_sequence_overflow_pending: bool = false,
+    clipboard_write_in_flight: bool = false,
+    clipboard_write_pending: ?contracts.ClipboardWriteRequest = null,
+    clipboard_write_sequence: u64 = 0,
+    clipboard_write_staged: ?[]u8 = null,
+    command_batch_active: bool = false,
+    command_completion: ?contracts.TerminalCommandCompletion = null,
+    command_completion_staged: ?contracts.TerminalCommandCompletion = null,
+    command_sequence: u64 = 0,
+    command_sequence_staged: u64 = 0,
+    command_started_at_ns: ?u64 = null,
+    command_started_at_ns_staged: ?u64 = null,
+    command_timer: ?std.time.Timer = null,
     cell_pixel_height: u16,
     cell_pixel_width: u16,
     child_exited: std.atomic.Value(bool) = .init(false),
@@ -33,6 +45,7 @@ pub const State = struct {
     // attempt. A Host-originated fence reserves that attempt for Host cleanup;
     // later Host retries wait for an engine_pending owner to publish done.
     first_containment_attempt: terminal_runtime_containment.FirstAttemptGate = .{},
+    feedback_sequence_overflow_pending: bool = false,
     generation: u64 = 1,
     history: terminal_history.Manager,
     input_ownership: terminal_input_ownership.Ledger,
@@ -58,6 +71,8 @@ pub const State = struct {
     output_batches_since_sync: std.atomic.Value(u64) = .init(0),
     process: pty_process.Process,
     profile: contracts.OwnedProfile,
+    progress: contracts.TerminalProgress = .{},
+    progress_staged: ?contracts.TerminalProgress = null,
     // projection_mutex gives one encoder ownership of projection capture state.
     // The Host owner alone updates the projection cadence timestamp; engine
     // workers never read it.

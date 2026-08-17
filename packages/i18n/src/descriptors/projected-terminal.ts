@@ -61,6 +61,35 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'The terminal selection could not be copied.',
 		id: 'terminal.projected.copy.failed',
 	},
+	clipboardReviewBytes: {
+		defaultMessage: '{byteLength, number} UTF-8 bytes',
+		id: 'terminal.projected.clipboard.review.bytes',
+	},
+	clipboardReviewCancel: {
+		defaultMessage: 'Keep current clipboard',
+		id: 'terminal.projected.clipboard.review.cancel',
+	},
+	clipboardReviewConfirm: {
+		defaultMessage: 'Copy to clipboard',
+		id: 'terminal.projected.clipboard.review.confirm',
+	},
+	clipboardReviewContent: {
+		defaultMessage: 'Requested clipboard text',
+		id: 'terminal.projected.clipboard.review.content',
+	},
+	clipboardReviewDescription: {
+		defaultMessage:
+			'A program running in this terminal wants to replace your clipboard. Review the exact text before allowing it.',
+		id: 'terminal.projected.clipboard.review.description',
+	},
+	clipboardReviewTitle: {
+		defaultMessage: 'Allow terminal clipboard write?',
+		id: 'terminal.projected.clipboard.review.title',
+	},
+	clipboardWriteFailed: {
+		defaultMessage: 'The terminal text could not be written to the clipboard.',
+		id: 'terminal.projected.clipboard.writeFailed',
+	},
 	findIdle: {
 		defaultMessage: 'Search retained terminal output.',
 		id: 'terminal.projected.find.idle',
@@ -132,6 +161,67 @@ export const projectedTerminalMessages = defineMessages({
 	input: {
 		defaultMessage: 'Terminal input',
 		id: 'terminal.projected.input',
+	},
+	progressLabel: {
+		defaultMessage: 'Terminal task progress',
+		id: 'terminal.projected.progress.label',
+	},
+	commandCompletedTitle: {
+		defaultMessage: 'Terminal command completed',
+		id: 'terminal.projected.commandCompleted.title',
+	},
+	commandCompletedBody: {
+		defaultMessage:
+			'Command completed in {duration, number} seconds with exit code {exitCode, number}.',
+		id: 'terminal.projected.commandCompleted.body',
+	},
+	fileDropFailureInvalid: {
+		defaultMessage: 'The dropped paths could not be prepared safely.',
+		id: 'terminal.projected.fileDrop.failure.invalid',
+	},
+	fileDropFailurePreviewTooLarge: {
+		defaultMessage:
+			'The generated terminal input exceeds the complete {maximum, number}-character preview limit.',
+		id: 'terminal.projected.fileDrop.failure.previewTooLarge',
+	},
+	fileDropFailureTerminalUnavailable: {
+		defaultMessage: 'The active terminal is not ready to receive dropped paths.',
+		id: 'terminal.projected.fileDrop.failure.terminalUnavailable',
+	},
+	fileDropFailureTooMany: {
+		defaultMessage:
+			'{count, plural, one {One file was} other {# files were}} dropped. Select no more than {maximum, number}.',
+		id: 'terminal.projected.fileDrop.failure.tooMany',
+	},
+	fileDropFailureUnsupported: {
+		defaultMessage: 'File drop is not supported for this Desktop shell.',
+		id: 'terminal.projected.fileDrop.failure.unsupported',
+	},
+	fileDropReviewConfirm: {
+		defaultMessage: 'Paste paths',
+		id: 'terminal.projected.fileDrop.review.confirm',
+	},
+	fileDropReviewDescription: {
+		defaultMessage: 'Review the exact shell input generated from the dropped local paths.',
+		id: 'terminal.projected.fileDrop.review.description',
+	},
+	fileDropReviewInput: {
+		defaultMessage: 'Generated terminal input',
+		id: 'terminal.projected.fileDrop.review.input',
+	},
+	fileDropReviewNewline: {
+		defaultMessage:
+			'At least one local path contains a line break. Verify the exact input carefully.',
+		id: 'terminal.projected.fileDrop.review.newline',
+	},
+	fileDropReviewRemote: {
+		defaultMessage:
+			'These are paths on this device. They may not exist in SSH, containers, or other remote shells.',
+		id: 'terminal.projected.fileDrop.review.remote',
+	},
+	fileDropReviewTitle: {
+		defaultMessage: 'Review dropped paths',
+		id: 'terminal.projected.fileDrop.review.title',
 	},
 	linkBlocked: {
 		defaultMessage: 'This terminal link is blocked by the desktop link policy.',

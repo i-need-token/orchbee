@@ -142,7 +142,7 @@ describe('HostConnection', () => {
 			payload: new Uint8Array(
 				await readFile(
 					new URL(
-						'../../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.1.bin',
+						'../../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.2.bin',
 						import.meta.url,
 					),
 				),
@@ -183,15 +183,34 @@ describe('HostConnection', () => {
 		});
 		if (!bell.ok) throw new Error(bell.detail);
 		stream.push(bell.value);
+		const clipboardWrite = encodeProtocolEnvelope({
+			correlationId: null,
+			event: true,
+			hostEpoch,
+			kind: MessageKind.terminalClipboardWriteRequest,
+			optionalMessage: false,
+			payload: new TextEncoder().encode(
+				JSON.stringify({
+					attachmentId: '22'.repeat(16),
+					sequence: '2',
+					text: 'terminal text',
+				}),
+			),
+			payloadEncoding: PayloadEncoding.controlJson,
+			protocol: currentProtocol,
+			response: false,
+		});
+		if (!clipboardWrite.ok) throw new Error(clipboardWrite.detail);
+		stream.push(clipboardWrite.value);
 
 		expect(accepted.hostEpoch).toBe(hostEpoch);
 		expect(connection.hostEpoch).toBe(hostEpoch);
 		expect(connection.protocolVersion).toEqual(currentProtocol);
 		expect(listener).toHaveBeenCalledOnce();
-		expect(attachmentListener).toHaveBeenCalledTimes(3);
+		expect(attachmentListener).toHaveBeenCalledTimes(4);
 		expect(foreignAttachmentListener).not.toHaveBeenCalled();
 		expect(connection.metrics.recordsSent).toBe(1);
-		expect(connection.metrics.recordsReceived).toBe(5);
+		expect(connection.metrics.recordsReceived).toBe(6);
 		expect(connection.metrics.terminalFramesReceived).toBe(1);
 		expect(connection.metrics).toMatchObject({
 			outboundAdmittedBytes: 0,
