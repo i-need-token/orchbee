@@ -1,5 +1,5 @@
 .root > [data-slot='terminal-settings-section'] + [data-slot='terminal-settings-section'] {
-	margin-block-start: var(--ob-ref-space-8);
+	margin-block-start: var(--ob-ref-space-6);
 }
 
 .wideControl,
@@ -19,6 +19,7 @@
 .deviceNotice {
 	color: var(--ob-sys-color-text-muted);
 	font: var(--ob-sys-typography-label-xs);
+	text-align: start;
 }
 
 .rangeControl {
@@ -31,7 +32,6 @@
 
 .range {
 	width: 100%;
-	accent-color: var(--ob-sys-color-icon-primary);
 }
 
 .rangeValue {

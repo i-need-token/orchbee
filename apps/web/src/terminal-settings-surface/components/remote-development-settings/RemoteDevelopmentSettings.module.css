@@ -1,18 +1,18 @@
 .root {
 	display: flex;
 	flex-direction: column;
-	gap: var(--ob-ref-space-4);
+	gap: var(--ob-ref-space-6);
 }
 
 .card,
 .notice {
 	display: flex;
 	flex-direction: column;
-	gap: var(--ob-ref-space-3);
-	padding: var(--ob-ref-space-5);
+	gap: var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-4);
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
-	border-radius: var(--ob-ref-radius-ui-xl);
-	background: var(--ob-sys-color-surface-raised);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-surface-subtle);
 }
 
 .notice {
@@ -24,7 +24,7 @@
 .noticeTitle {
 	margin: var(--ob-ref-space-0);
 	color: var(--ob-sys-color-text-heading);
-	font: var(--ob-sys-typography-heading-sm);
+	font: var(--ob-sys-typography-label-lg);
 }
 
 .noticeTitle {
@@ -44,14 +44,17 @@
 
 .term {
 	align-self: flex-start;
+	margin-block-start: var(--ob-ref-space-1);
 	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
-	border-radius: var(--ob-ref-radius-sm);
-	background: var(--ob-sys-color-surface-subtle);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: var(--ob-sys-color-surface-canvas);
 	color: var(--ob-sys-color-text-primary);
 	font: var(--ob-sys-typography-code-md);
 }
 
 .command {
+	margin-block-start: var(--ob-ref-space-1);
 	font: var(--ob-sys-typography-code-sm);
 	resize: vertical;
 }

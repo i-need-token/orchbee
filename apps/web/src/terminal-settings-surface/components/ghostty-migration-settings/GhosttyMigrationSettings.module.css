@@ -1,7 +1,7 @@
 .root {
 	display: flex;
 	flex-direction: column;
-	gap: var(--ob-ref-space-6);
+	gap: var(--ob-ref-space-4);
 }
 
 .notice,
@@ -9,7 +9,7 @@
 	margin: var(--ob-ref-space-0);
 	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
-	border-radius: var(--ob-ref-radius-ui-lg);
+	border-radius: var(--ob-ref-radius-ui-md);
 	background: var(--ob-sys-color-surface-subtle);
 	color: var(--ob-sys-color-text-secondary);
 }
@@ -24,6 +24,10 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-4);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-surface-subtle);
 }
 
 .label {
@@ -108,8 +112,8 @@
 	padding: var(--ob-ref-space-0);
 	overflow: hidden;
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
-	border-radius: var(--ob-ref-radius-xl);
-	background: var(--ob-sys-color-surface-raised);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-surface-subtle);
 	list-style: none;
 }
 

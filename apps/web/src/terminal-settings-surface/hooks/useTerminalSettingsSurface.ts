@@ -342,8 +342,9 @@ export function useTerminalSettingsSurface({
 			event.currentTarget.blur();
 		},
 		onBackgroundInputBlur: (): void => commitBackground(),
-		onBackgroundOpacityChange: (event): void => {
-			controller.update({ backgroundOpacityPercent: Number(event.currentTarget.value) });
+		onBackgroundOpacityChange: (value): void => {
+			const backgroundOpacityPercent = typeof value === 'number' ? value : value[0];
+			if (backgroundOpacityPercent !== undefined) controller.update({ backgroundOpacityPercent });
 		},
 		onBrowserAccessCategoryClick: (): void => setCategory('browser-access'),
 		onFontFamilyBlur: (): void => commitFontFamily(),

@@ -1,16 +1,16 @@
 .root {
-	margin-block-start: var(--ob-ref-space-8);
+	display: block;
 }
 
 .control {
-	inline-size: min(var(--ob-ref-container-2xs), 100%);
+	inline-size: 100%;
 }
 
 .warning {
 	margin-block-end: var(--ob-ref-space-4);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-warning-border);
-	border-radius: var(--ob-ref-radius-ui-lg);
-	background: var(--ob-sys-color-status-warning-surface);
 	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-warning-border);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: var(--ob-sys-color-status-warning-surface);
 	color: var(--ob-sys-color-status-warning-text);
 }

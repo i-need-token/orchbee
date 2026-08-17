@@ -1,17 +1,22 @@
 .root {
 	display: flex;
 	flex-direction: column;
-	gap: var(--ob-ref-space-4);
+	gap: var(--ob-ref-space-6);
+}
+
+.card,
+.setupGroup {
+	overflow: hidden;
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-surface-subtle);
 }
 
 .card {
 	display: flex;
 	flex-direction: column;
-	gap: var(--ob-ref-space-3);
-	padding: var(--ob-ref-space-5);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
-	border-radius: var(--ob-ref-radius-ui-xl);
-	background: var(--ob-sys-color-surface-raised);
+	gap: var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-4);
 }
 
 .notice,
@@ -20,7 +25,7 @@
 	margin: var(--ob-ref-space-0);
 	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-info-border);
-	border-radius: var(--ob-ref-radius-ui-lg);
+	border-radius: var(--ob-ref-radius-ui-md);
 	background: var(--ob-sys-color-status-info-surface);
 	color: var(--ob-sys-color-status-info-text);
 	font: var(--ob-sys-typography-body-sm);
@@ -41,7 +46,7 @@
 .title {
 	margin: var(--ob-ref-space-0);
 	color: var(--ob-sys-color-text-heading);
-	font: var(--ob-sys-typography-heading-sm);
+	font: var(--ob-sys-typography-label-lg);
 }
 
 .description,
@@ -52,14 +57,28 @@
 }
 
 .field {
-	display: flex;
-	flex-direction: column;
-	gap: var(--ob-ref-space-2);
+	display: grid;
+	grid-template-columns: minmax(var(--ob-ref-space-0), 1fr) var(--ob-ref-container-3xs);
+	align-items: center;
+	gap: var(--ob-ref-space-1) var(--ob-ref-space-6);
+	padding-block-start: var(--ob-ref-space-2);
 }
 
 .label {
+	grid-column: 1;
 	color: var(--ob-sys-color-text-primary);
 	font: var(--ob-sys-typography-label-md);
+}
+
+.field > :global([data-slot='native-select-wrapper']),
+.field > :global([data-slot='input']) {
+	grid-column: 2;
+	grid-row: 1 / span 2;
+	width: 100%;
+}
+
+.field > .description {
+	grid-column: 1;
 }
 
 .command {
@@ -73,6 +92,20 @@
 }
 
 .error {
+	grid-column: 2;
 	color: var(--ob-sys-color-status-danger-text);
 	font: var(--ob-sys-typography-body-sm);
+}
+
+@media (width <= 48rem) {
+	.field {
+		grid-template-columns: minmax(var(--ob-ref-space-0), 1fr);
+	}
+
+	.field > :global([data-slot='native-select-wrapper']),
+	.field > :global([data-slot='input']),
+	.error {
+		grid-column: 1;
+		grid-row: auto;
+	}
 }

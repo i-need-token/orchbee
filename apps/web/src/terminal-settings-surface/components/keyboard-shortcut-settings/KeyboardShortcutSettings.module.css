@@ -1,13 +1,13 @@
 .root {
 	display: flex;
 	flex-direction: column;
-	gap: var(--ob-ref-space-6);
+	gap: var(--ob-ref-space-4);
 }
 
 .warning {
 	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-warning-border);
-	border-radius: var(--ob-ref-radius-ui-lg);
+	border-radius: var(--ob-ref-radius-ui-md);
 	background: var(--ob-sys-color-status-warning-surface);
 	color: var(--ob-sys-color-status-warning-text);
 }
@@ -15,17 +15,17 @@
 .list {
 	overflow: hidden;
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
-	border-radius: var(--ob-ref-radius-ui-xl);
-	background: var(--ob-sys-color-surface-raised);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-surface-subtle);
 }
 
 .row {
 	display: grid;
 	grid-template-columns: minmax(var(--ob-ref-space-0), 1fr) auto;
 	align-items: center;
-	gap: var(--ob-ref-space-5);
-	min-height: calc(var(--ob-ref-space-16) + var(--ob-ref-space-4));
-	padding: var(--ob-ref-space-4);
+	gap: var(--ob-ref-space-4);
+	min-height: calc(var(--ob-ref-space-12) + var(--ob-ref-space-2));
+	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
 }
 
 .row + .row {
@@ -70,9 +70,9 @@
 }
 
 .source {
-	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-0-5) var(--ob-ref-space-2);
 	border-radius: var(--ob-ref-radius-ui-xl);
-	background: var(--ob-sys-color-surface-subtle);
+	background: var(--ob-sys-color-surface-canvas);
 	color: var(--ob-sys-color-text-muted);
 	font: var(--ob-sys-typography-label-xs);
 }
@@ -83,11 +83,11 @@
 }
 
 .recorder {
-	min-width: calc(var(--ob-ref-space-20) + var(--ob-ref-space-4));
+	min-width: calc(var(--ob-ref-space-16) + var(--ob-ref-space-4));
 	min-height: var(--ob-ref-size-control-sm);
-	padding: var(--ob-ref-space-1) var(--ob-ref-space-3);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
-	border-radius: var(--ob-ref-radius-ui-lg);
+	border-radius: var(--ob-ref-radius-ui-md);
 	outline: none;
 	background: var(--ob-sys-color-surface-canvas);
 	color: var(--ob-sys-color-text-primary);

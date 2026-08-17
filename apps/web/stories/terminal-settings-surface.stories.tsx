@@ -52,7 +52,7 @@ export const EnglishLight: Story = {
 		docs: {
 			description: {
 				story:
-					'Open Shell integration to inspect the manual-only Zsh, Bash, and Fish setup plus device-local completion reminders; Remote development remains read-only, and Ghostty migration remains a paste-only dry-run.',
+					'Inspect the compact Settings rail and shared low-chrome row rhythm, then open Shell integration for the grouped manual-only Zsh, Bash, and Fish setup plus device-local completion reminders; Remote development remains read-only, and Ghostty migration remains a paste-only dry-run.',
 			},
 		},
 	},

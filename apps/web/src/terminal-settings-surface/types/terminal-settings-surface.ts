@@ -120,7 +120,7 @@ export interface TerminalSettingsSurfaceView {
 	readonly onBackgroundDraftChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onBackgroundDraftKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
 	readonly onBackgroundInputBlur: React.FocusEventHandler<HTMLInputElement>;
-	readonly onBackgroundOpacityChange: React.ChangeEventHandler<HTMLInputElement>;
+	readonly onBackgroundOpacityChange: (value: number | readonly number[]) => void;
 	readonly onBrowserAccessCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onFontFamilyBlur: React.FocusEventHandler<HTMLInputElement>;
 	readonly onFontFamilyChange: React.ChangeEventHandler<HTMLInputElement>;

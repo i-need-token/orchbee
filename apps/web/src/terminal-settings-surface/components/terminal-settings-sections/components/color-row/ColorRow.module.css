@@ -11,7 +11,7 @@
 	height: var(--ob-ref-size-control-sm);
 	padding: var(--ob-ref-space-0-5);
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
-	border-radius: var(--ob-ref-radius-ui-md);
+	border-radius: var(--ob-ref-radius-ui-sm);
 	background: transparent;
 }
 

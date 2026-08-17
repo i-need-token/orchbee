@@ -5,12 +5,12 @@
 .title {
 	margin: var(--ob-ref-space-0) var(--ob-ref-space-0) var(--ob-ref-space-2);
 	color: var(--ob-sys-color-text-label);
-	font: var(--ob-sys-typography-label-md);
+	font: var(--ob-sys-typography-label-sm);
 }
 
 .card {
 	overflow: hidden;
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
-	border-radius: var(--ob-ref-radius-ui-xl);
-	background: var(--ob-sys-color-surface-raised);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-surface-subtle);
 }

@@ -1,17 +1,18 @@
 .card {
 	display: flex;
 	flex-direction: column;
-	gap: var(--ob-ref-space-3);
-	padding: var(--ob-ref-space-5);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
-	border-radius: var(--ob-ref-radius-ui-xl);
-	background: var(--ob-sys-color-surface-raised);
+	gap: var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-4);
+}
+
+.card + .card {
+	border-block-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 }
 
 .title {
 	margin: var(--ob-ref-space-0);
 	color: var(--ob-sys-color-text-heading);
-	font: var(--ob-sys-typography-heading-sm);
+	font: var(--ob-sys-typography-label-lg);
 }
 
 .description {
@@ -28,8 +29,9 @@
 .command {
 	padding: var(--ob-ref-space-3);
 	overflow-wrap: anywhere;
-	border-radius: var(--ob-ref-radius-sm);
-	background: var(--ob-sys-color-surface-subtle);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: var(--ob-sys-color-surface-canvas);
 	color: var(--ob-sys-color-text-primary);
 	font: var(--ob-sys-typography-code-sm);
 	white-space: pre-wrap;

@@ -25,15 +25,19 @@ export function ShellIntegrationSettings({
 				</p>
 			)}
 			{view.manualNotice === null ? null : <p className={styles['notice']}>{view.manualNotice}</p>}
-			{view.setupCards.map((card) => (
-				<ShellSetupCard
-					key={card.id}
-					command={card.command}
-					commandLabel={card.commandLabel}
-					description={card.description}
-					title={card.title}
-				/>
-			))}
+			{view.setupCards.length === 0 ? null : (
+				<div className={styles['setupGroup']}>
+					{view.setupCards.map((card) => (
+						<ShellSetupCard
+							key={card.id}
+							command={card.command}
+							commandLabel={card.commandLabel}
+							description={card.description}
+							title={card.title}
+						/>
+					))}
+				</div>
+			)}
 			{view.reminder === null ? null : (
 				<section className={styles['card']}>
 					<h2 className={styles['title']}>{view.reminder.title}</h2>

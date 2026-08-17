@@ -152,10 +152,15 @@ The existing Browser-access dialog remains above Settings; closing it returns fo
 entry, while Settings remains open. Browser and Gateway compositions do not receive this Desktop
 capability.
 
-The interaction structure follows the accepted Cursor reference: Back and search in a left
-navigation column, only real product categories, grouped rows in a centered scrolling content
-column, and immediate application without a Save button. Cursor branding, copy, categories, and
-pixel geometry are not compatibility targets.
+The interaction structure follows the accepted Cursor and Coze references without copying either
+brand: a compact Settings rail owns Back, search, icon-led real product categories, and the current
+selection; a centered scrolling content column owns one category title and a stable sequence of
+section labels, low-chrome grouped rows, descriptions, and right-aligned controls. Content-heavy
+diagnostics, migration input, and shell setup keep the same surface, border, radius, type, and
+spacing vocabulary instead of inventing category-specific cards. At narrow widths the rail becomes
+a horizontally scrollable top navigation and setting controls stack below their copy. Changes still
+apply immediately without a Save button. Reference branding, copy, categories, and pixel geometry
+are not compatibility targets.
 
 ## Remote-development diagnostic
 

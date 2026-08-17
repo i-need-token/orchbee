@@ -29,6 +29,57 @@ export interface TerminalSettingsSurfaceProps {
 export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): React.ReactNode {
 	const view = useTerminalSettingsSurface(props);
 	if (!view.open) return null;
+	const categoryItems = [
+		{
+			icon: 'terminal',
+			id: 'terminal',
+			label: view.messages.terminalCategory,
+			onClick: view.onTerminalCategoryClick,
+			visible: true,
+		},
+		{
+			icon: 'action',
+			id: 'keyboard-shortcuts',
+			label: view.messages.keyboardShortcutsCategory,
+			onClick: view.onKeyboardShortcutsCategoryClick,
+			visible: true,
+		},
+		{
+			icon: 'settings',
+			id: 'macos-input',
+			label: view.messages.macosInputCategory,
+			onClick: view.onMacosInputCategoryClick,
+			visible: view.showMacosInputCategory,
+		},
+		{
+			icon: 'git-branch',
+			id: 'remote-development',
+			label: view.messages.remoteDevelopmentCategory,
+			onClick: view.onRemoteDevelopmentCategoryClick,
+			visible: true,
+		},
+		{
+			icon: 'terminal',
+			id: 'shell-integration',
+			label: view.messages.shellIntegrationCategory,
+			onClick: view.onShellIntegrationCategoryClick,
+			visible: view.showShellIntegrationCategory,
+		},
+		{
+			icon: 'clipboard',
+			id: 'ghostty-migration',
+			label: view.messages.ghosttyMigrationCategory,
+			onClick: view.onGhosttyMigrationCategoryClick,
+			visible: true,
+		},
+		{
+			icon: 'screen-full',
+			id: 'browser-access',
+			label: view.messages.browserAccessCategory,
+			onClick: view.onBrowserAccessCategoryClick,
+			visible: view.showBrowserAccessCategory,
+		},
+	] as const;
 
 	let mainContent: React.ReactNode;
 	if (view.category === 'keyboard-shortcuts') {
@@ -57,13 +108,12 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		);
 	} else if (view.category === 'browser-access') {
 		mainContent = view.browserAccessVisible ? (
-			<section className={styles['browserAccessCard']}>
-				<div>
-					<h2 className={styles['cardTitle']}>{view.messages.browserAccessTitle}</h2>
-					<p className={styles['cardDescription']}>{view.messages.browserAccessDescription}</p>
-				</div>
-				<Button onClick={view.onOpenBrowserAccess}>{view.messages.openBrowserAccess}</Button>
-			</section>
+			<div className={styles['browserAccessAction']}>
+				<Button onClick={view.onOpenBrowserAccess}>
+					<ProductIcon name='screen-full' />
+					{view.messages.openBrowserAccess}
+				</Button>
+			</div>
 		) : (
 			<EmptyResults message={view.messages.noResults} />
 		);
@@ -92,7 +142,7 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 	let contentDescription: string;
 	switch (view.category) {
 		case 'terminal':
-			contentTitle = view.messages.title;
+			contentTitle = view.messages.terminalCategory;
 			contentDescription = view.messages.description;
 			break;
 		case 'keyboard-shortcuts':
@@ -132,10 +182,19 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		>
 			<div aria-hidden='true' className={styles['windowDragRegion']} />
 			<aside className={styles['sidebar']}>
-				<Button className={styles['back']} size='sm' variant='ghost' onClick={view.onRequestClose}>
-					<ProductIcon name='arrow-left' />
-					{view.messages.back}
-				</Button>
+				<div className={styles['sidebarHeader']}>
+					<Button
+						aria-label={view.messages.back}
+						className={styles['back']}
+						size='icon-sm'
+						title={view.messages.back}
+						variant='ghost'
+						onClick={view.onRequestClose}
+					>
+						<ProductIcon name='arrow-left' />
+					</Button>
+					<span className={styles['sidebarTitle']}>{view.messages.title}</span>
+				</div>
 				<div className={styles['search']}>
 					<ProductIcon name='search' />
 					<Input
@@ -148,93 +207,28 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 					/>
 				</div>
 				<nav aria-label={view.messages.title} className={styles['categories']}>
-					<button
-						aria-current={view.category === 'terminal' ? 'page' : undefined}
-						className={styles['category']}
-						data-selected={view.category === 'terminal'}
-						data-settings-category='terminal'
-						type='button'
-						onClick={view.onTerminalCategoryClick}
-					>
-						<ProductIcon name='terminal' />
-						{view.messages.terminalCategory}
-					</button>
-					<button
-						aria-current={view.category === 'keyboard-shortcuts' ? 'page' : undefined}
-						className={styles['category']}
-						data-selected={view.category === 'keyboard-shortcuts'}
-						data-settings-category='keyboard-shortcuts'
-						type='button'
-						onClick={view.onKeyboardShortcutsCategoryClick}
-					>
-						<ProductIcon name='action' />
-						{view.messages.keyboardShortcutsCategory}
-					</button>
-					{view.showMacosInputCategory ? (
-						<button
-							aria-current={view.category === 'macos-input' ? 'page' : undefined}
-							className={styles['category']}
-							data-selected={view.category === 'macos-input'}
-							data-settings-category='macos-input'
-							type='button'
-							onClick={view.onMacosInputCategoryClick}
-						>
-							<ProductIcon name='action' />
-							{view.messages.macosInputCategory}
-						</button>
-					) : null}
-					<button
-						aria-current={view.category === 'remote-development' ? 'page' : undefined}
-						className={styles['category']}
-						data-selected={view.category === 'remote-development'}
-						data-settings-category='remote-development'
-						type='button'
-						onClick={view.onRemoteDevelopmentCategoryClick}
-					>
-						<ProductIcon name='terminal' />
-						{view.messages.remoteDevelopmentCategory}
-					</button>
-					{view.showShellIntegrationCategory ? (
-						<button
-							aria-current={view.category === 'shell-integration' ? 'page' : undefined}
-							className={styles['category']}
-							data-selected={view.category === 'shell-integration'}
-							data-settings-category='shell-integration'
-							type='button'
-							onClick={view.onShellIntegrationCategoryClick}
-						>
-							<ProductIcon name='terminal' />
-							{view.messages.shellIntegrationCategory}
-						</button>
-					) : null}
-					<button
-						aria-current={view.category === 'ghostty-migration' ? 'page' : undefined}
-						className={styles['category']}
-						data-selected={view.category === 'ghostty-migration'}
-						data-settings-category='ghostty-migration'
-						type='button'
-						onClick={view.onGhosttyMigrationCategoryClick}
-					>
-						<ProductIcon name='clipboard' />
-						{view.messages.ghosttyMigrationCategory}
-					</button>
-					{view.showBrowserAccessCategory ? (
-						<button
-							aria-current={view.category === 'browser-access' ? 'page' : undefined}
-							className={styles['category']}
-							data-selected={view.category === 'browser-access'}
-							data-settings-category='browser-access'
-							type='button'
-							onClick={view.onBrowserAccessCategoryClick}
-						>
-							<ProductIcon name='screen-full' />
-							{view.messages.browserAccessCategory}
-						</button>
-					) : null}
+					{categoryItems.map((item) =>
+						item.visible ? (
+							<button
+								aria-current={view.category === item.id ? 'page' : undefined}
+								className={styles['category']}
+								data-selected={view.category === item.id}
+								data-settings-category={item.id}
+								key={item.id}
+								type='button'
+								onClick={item.onClick}
+							>
+								<span className={styles['categoryIcon']}>
+									<ProductIcon name={item.icon} />
+								</span>
+								<span className={styles['categoryLabel']}>{item.label}</span>
+							</button>
+						) : null,
+					)}
 				</nav>
 			</aside>
 
-			<main className={styles['content']}>
+			<main className={styles['content']} data-settings-content={view.category}>
 				<div className={styles['contentColumn']}>
 					<header className={styles['header']}>
 						<h1 className={styles['title']} id='terminal-settings-title'>

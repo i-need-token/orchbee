@@ -1,4 +1,4 @@
-import { Button, Input, NativeSelect, NativeSelectOption } from '@orchbee/ui/components';
+import { Button, Input, NativeSelect, NativeSelectOption, Slider } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { TerminalSettingsSurfaceView } from '../../types/terminal-settings-surface';
@@ -154,14 +154,13 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 					visible={view.opacityVisible}
 				>
 					<div className={styles['rangeControl']}>
-						<input
+						<Slider
 							aria-label={view.messages.backgroundOpacityLabel}
 							className={styles['range']}
 							max={100}
 							min={10}
-							type='range'
-							value={view.preferences.backgroundOpacityPercent}
-							onChange={view.onBackgroundOpacityChange}
+							value={[view.preferences.backgroundOpacityPercent]}
+							onValueChange={view.onBackgroundOpacityChange}
 						/>
 						<output className={styles['rangeValue']}>
 							{view.messages.backgroundOpacityPercentValue(

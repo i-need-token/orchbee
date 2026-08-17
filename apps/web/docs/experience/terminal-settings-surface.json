@@ -37,7 +37,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-light",
 			"states": [
-				"Inspect the light English Desktop surface with left navigation, searchable appearance, keyboard-shortcut, macOS Option-as-Alt, manual Shell integration, read-only Remote development, and Ghostty migration categories, immediate controls, and no Save action.",
+				"Inspect the light English Desktop surface with the compact icon-led Settings rail, focused search, stable section and row rhythm, right-aligned immediate controls, keyboard-shortcut, macOS Option-as-Alt, manual Shell integration, read-only Remote development, and Ghostty migration categories, and no Save action.",
 				"Open Shell integration to inspect exact manual Zsh, Bash, and Fish source commands, the Bash 4.4 boundary, completion-reminder policy, explicit notification-permission control, and reset.",
 				"Open Remote development to inspect the xterm-256color baseline, complete read-only diagnostic command, result explanation, and explicit absence of automatic remote changes.",
 				"Open Ghostty migration to inspect the paste-only dry-run notice, bounded source field, explicit analysis action, four result dispositions, and absence of an Apply or Import action."
@@ -48,7 +48,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-dark-custom",
 			"states": [
-				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, and the Desktop-only Browser access category."
+				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, compact selected navigation, low-chrome grouped rows, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, and the Desktop-only Browser access category."
 			]
 		}
 	],
