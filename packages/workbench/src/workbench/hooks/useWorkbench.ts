@@ -38,7 +38,11 @@ import {
 	type WorkbenchSearchEvent,
 	type WorkbenchSearchState,
 } from '../components/workbench-search-surface/model/workbench-search-state';
-import { formatWorkbenchShortcut, WORKBENCH_SHORTCUTS } from '../utils/workbench-shortcuts';
+import {
+	formatWorkbenchShortcut,
+	WORKBENCH_SHORTCUTS,
+	type WorkbenchShortcutBindings,
+} from '../utils/workbench-shortcuts';
 import { WORKBENCH_ACTION_IDS } from '../actions/workbench-action-ids';
 import type {
 	WorkbenchProjectWorkspaceRuntime,
@@ -185,6 +189,7 @@ interface UseWorkbenchOptions {
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	readonly shortcutBindings: WorkbenchShortcutBindings;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly storage: WorkbenchLayoutStorage | undefined;
 }
@@ -194,6 +199,7 @@ export function useWorkbench({
 	navigation,
 	onSettings,
 	projectWorkspaceRuntime,
+	shortcutBindings,
 	shortcutPlatform,
 	storage,
 }: UseWorkbenchOptions): WorkbenchView {
@@ -398,7 +404,11 @@ export function useWorkbench({
 		};
 	}, [actionRuntime, actions.scope, intl]);
 
-	const onShortcutKeyDownCapture = useWorkbenchShortcuts(shortcutPlatform, actions.invokeShortcut);
+	const onShortcutKeyDownCapture = useWorkbenchShortcuts(
+		shortcutPlatform,
+		shortcutBindings,
+		actions.invokeShortcut,
+	);
 
 	return {
 		activateStandalone: () => {
@@ -443,7 +453,11 @@ export function useWorkbench({
 			),
 		newTerminalLabel: intl.formatMessage(workbenchMessages.newTerminal),
 		newTerminalShortcutId: WORKBENCH_SHORTCUTS.newTerminal.id,
-		newTerminalShortcutLabel: formatWorkbenchShortcut('newTerminal', shortcutPlatform),
+		newTerminalShortcutLabel: formatWorkbenchShortcut(
+			'newTerminal',
+			shortcutPlatform,
+			shortcutBindings,
+		),
 		onCloseTabs: closeTabs,
 		getCloseTabsConfirmation,
 		onLayoutChanged: (_layout, meta) => {
@@ -456,7 +470,11 @@ export function useWorkbench({
 		},
 		onShortcutKeyDownCapture,
 		sidebarShortcutId: WORKBENCH_SHORTCUTS.toggleSidebar.id,
-		sidebarShortcutLabel: formatWorkbenchShortcut('toggleSidebar', shortcutPlatform),
+		sidebarShortcutLabel: formatWorkbenchShortcut(
+			'toggleSidebar',
+			shortcutPlatform,
+			shortcutBindings,
+		),
 		sidebarToggleLabel: intl.formatMessage(
 			isSidebarVisible ? workbenchMessages.hideSidebar : workbenchMessages.showSidebar,
 		),
@@ -554,7 +572,7 @@ export function useWorkbench({
 		searchState,
 		searchLabel: intl.formatMessage(workbenchMessages.search),
 		searchShortcutId: WORKBENCH_SHORTCUTS.search.id,
-		searchShortcutLabel: formatWorkbenchShortcut('search', shortcutPlatform),
+		searchShortcutLabel: formatWorkbenchShortcut('search', shortcutPlatform, shortcutBindings),
 		settings:
 			onSettings === undefined
 				? undefined
@@ -563,7 +581,7 @@ export function useWorkbench({
 					},
 		settingsLabel: intl.formatMessage(workbenchMessages.settings),
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
-		settingsShortcutLabel: formatWorkbenchShortcut('settings', shortcutPlatform),
+		settingsShortcutLabel: formatWorkbenchShortcut('settings', shortcutPlatform, shortcutBindings),
 		terminalContext: projectWorkspaceRuntime.getActiveTerminalContext(),
 		terminalLabel: intl.formatMessage(workbenchMessages.terminal),
 		tabStripOrientation,

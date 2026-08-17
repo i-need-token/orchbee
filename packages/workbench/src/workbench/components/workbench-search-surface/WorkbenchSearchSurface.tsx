@@ -5,6 +5,7 @@ import * as React from 'react';
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from '../../constants/search-providers';
 import type { WorkbenchShortcutPlatform } from '../../types/workbench-shortcut-platform';
 import type { WorkbenchSearchProvider } from '../../types/workbench-search-provider';
+import type { WorkbenchShortcutBindings } from '../../utils/workbench-shortcuts';
 import type { WorkbenchSearchEvent, WorkbenchSearchState } from './model/workbench-search-state';
 import { useWorkbenchSearchSurface } from './hooks/useWorkbenchSearchSurface';
 import styles from './WorkbenchSearchSurface.module.css';
@@ -13,6 +14,7 @@ interface WorkbenchSearchSurfaceProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly actionScope: ActionScope;
 	readonly providers?: readonly WorkbenchSearchProvider[] | undefined;
+	readonly shortcutBindings: WorkbenchShortcutBindings;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly state: Exclude<WorkbenchSearchState, { readonly kind: 'closed' }>;
 	readonly update: React.Dispatch<WorkbenchSearchEvent>;
@@ -22,6 +24,7 @@ export function WorkbenchSearchSurface({
 	actionRuntime,
 	actionScope,
 	providers = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
+	shortcutBindings,
 	shortcutPlatform,
 	state,
 	update,
@@ -31,6 +34,7 @@ export function WorkbenchSearchSurface({
 		providers,
 		runtime: actionRuntime,
 		scope: actionScope,
+		shortcutBindings,
 		state,
 		update,
 	});

@@ -37,6 +37,10 @@ import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platf
 import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
 import type { WorkbenchTerminalSurface } from './types/workbench-terminal-surface';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
+import {
+	defaultWorkbenchShortcutBindings,
+	type WorkbenchShortcutBindings,
+} from './utils/workbench-shortcuts';
 import styles from './Workbench.module.css';
 
 export interface WorkbenchProps {
@@ -47,6 +51,7 @@ export interface WorkbenchProps {
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
+	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
@@ -59,15 +64,19 @@ export function Workbench({
 	onSettings,
 	projectWorkspaceRuntime,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
+	shortcutBindings,
 	shortcutPlatform,
 	terminalSurface,
 }: WorkbenchProps): React.ReactNode {
 	const tabStripMessages = useWorkbenchTabStripMessages();
+	const effectiveShortcutBindings =
+		shortcutBindings ?? defaultWorkbenchShortcutBindings(shortcutPlatform);
 	const view = useWorkbench({
 		actionRuntime,
 		navigation,
 		onSettings,
 		projectWorkspaceRuntime,
+		shortcutBindings: effectiveShortcutBindings,
 		shortcutPlatform,
 		storage: layoutStorage,
 	});
@@ -219,6 +228,7 @@ export function Workbench({
 					actionRuntime={actionRuntime}
 					actionScope={view.actionScope}
 					providers={searchProviders}
+					shortcutBindings={effectiveShortcutBindings}
 					shortcutPlatform={shortcutPlatform}
 					state={view.searchState}
 					update={view.updateSearch}

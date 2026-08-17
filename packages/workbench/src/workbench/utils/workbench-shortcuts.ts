@@ -1,115 +1,168 @@
-import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
-import { WORKBENCH_ACTION_IDS } from '../actions/workbench-action-ids';
+import {
+	formatKeyboardShortcutChord,
+	matchesKeyboardShortcutChord,
+	type KeyboardShortcutChord,
+	type KeyboardShortcutEvent,
+} from '@orchbee/keyboard-shortcuts';
 
-interface WorkbenchShortcutEvent {
-	readonly altKey: boolean;
-	readonly code: string;
-	readonly ctrlKey: boolean;
-	readonly isComposing: boolean;
-	readonly metaKey: boolean;
-	readonly repeat: boolean;
-	readonly shiftKey: boolean;
+import { WORKBENCH_ACTION_IDS } from '../actions/workbench-action-ids';
+import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
+
+interface WorkbenchShortcutDefinition {
+	readonly defaults: Readonly<Record<WorkbenchShortcutPlatform, KeyboardShortcutChord>>;
+	readonly id:
+		| typeof WORKBENCH_ACTION_IDS.createTerminal
+		| typeof WORKBENCH_ACTION_IDS.openSearch
+		| typeof WORKBENCH_ACTION_IDS.openSettings
+		| typeof WORKBENCH_ACTION_IDS.toggleSidebar;
+	readonly input: { readonly filter: 'actions' | 'all' } | { readonly groupId: null } | undefined;
+	readonly shortcutId: string;
 }
+
+const chord = (
+	code: string,
+	modifiers: KeyboardShortcutChord['modifiers'],
+): KeyboardShortcutChord => Object.freeze({ code, modifiers: Object.freeze([...modifiers]) });
 
 export const WORKBENCH_SHORTCUTS = {
 	actionsSearch: {
-		code: 'KeyP',
+		defaults: {
+			apple: chord('KeyP', ['mod', 'shift']),
+			standard: chord('KeyP', ['mod', 'shift']),
+		},
 		id: WORKBENCH_ACTION_IDS.openSearch,
 		input: { filter: 'actions' },
-		keyLabel: 'P',
-		shiftKey: true,
+		shortcutId: 'workbench.search.actions.open',
 	},
 	newTerminal: {
-		code: 'KeyN',
+		defaults: {
+			apple: chord('KeyN', ['mod']),
+			standard: chord('KeyN', ['mod', 'shift']),
+		},
 		id: WORKBENCH_ACTION_IDS.createTerminal,
 		input: { groupId: null },
-		keyLabel: 'N',
-		shiftKey: false,
+		shortcutId: 'workbench.terminal.create',
 	},
 	search: {
-		code: 'KeyK',
+		defaults: {
+			apple: chord('KeyK', ['mod']),
+			standard: chord('KeyK', ['mod', 'shift']),
+		},
 		id: WORKBENCH_ACTION_IDS.openSearch,
 		input: { filter: 'all' },
-		keyLabel: 'K',
-		shiftKey: false,
+		shortcutId: 'workbench.search.all.open',
 	},
 	settings: {
-		code: 'Comma',
+		defaults: {
+			apple: chord('Comma', ['mod']),
+			standard: chord('Comma', ['mod']),
+		},
 		id: WORKBENCH_ACTION_IDS.openSettings,
 		input: undefined,
-		keyLabel: ',',
-		shiftKey: false,
+		shortcutId: 'workbench.settings.open',
 	},
 	toggleSidebar: {
-		code: 'KeyB',
+		defaults: {
+			apple: chord('KeyB', ['mod']),
+			standard: chord('KeyB', ['mod', 'shift']),
+		},
 		id: WORKBENCH_ACTION_IDS.toggleSidebar,
 		input: undefined,
-		keyLabel: 'B',
-		shiftKey: false,
+		shortcutId: 'workbench.sidebar.toggle',
 	},
-} as const;
+} as const satisfies Readonly<Record<string, WorkbenchShortcutDefinition>>;
 
 export type WorkbenchShortcutAction = keyof typeof WORKBENCH_SHORTCUTS;
-export type WorkbenchShortcutBinding =
-	(typeof WORKBENCH_SHORTCUTS)[keyof typeof WORKBENCH_SHORTCUTS];
+export type WorkbenchShortcutId =
+	(typeof WORKBENCH_SHORTCUTS)[WorkbenchShortcutAction]['shortcutId'];
+export type WorkbenchShortcutBindings = Readonly<
+	Record<WorkbenchShortcutId, KeyboardShortcutChord>
+>;
+
+export interface WorkbenchShortcutBinding {
+	readonly action: WorkbenchShortcutAction;
+	readonly chord: KeyboardShortcutChord;
+	readonly shortcutId: WorkbenchShortcutId;
+}
+
+const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
+	'actionsSearch',
+	'newTerminal',
+	'search',
+	'settings',
+	'toggleSidebar',
+] as const satisfies readonly WorkbenchShortcutAction[]);
+
+const DEFAULT_WORKBENCH_SHORTCUT_BINDINGS: Readonly<
+	Record<WorkbenchShortcutPlatform, WorkbenchShortcutBindings>
+> = Object.freeze({
+	apple: defaultBindingsFor('apple'),
+	standard: defaultBindingsFor('standard'),
+});
+
+export function defaultWorkbenchShortcutBindings(
+	platform: WorkbenchShortcutPlatform,
+): WorkbenchShortcutBindings {
+	return DEFAULT_WORKBENCH_SHORTCUT_BINDINGS[platform];
+}
 
 export function formatWorkbenchShortcut(
 	action: WorkbenchShortcutAction,
 	platform: WorkbenchShortcutPlatform,
+	bindings: WorkbenchShortcutBindings = defaultWorkbenchShortcutBindings(platform),
 ): string {
-	let shiftLabel = '';
-	if (WORKBENCH_SHORTCUTS[action].shiftKey) {
-		shiftLabel = platform === 'apple' ? '⇧' : ' Shift';
-	}
-	const keyLabel = WORKBENCH_SHORTCUTS[action].keyLabel;
-	if (platform === 'apple') return `⌘${shiftLabel}${keyLabel}`;
-	return action === 'settings' ? 'Ctrl+,' : `Ctrl${shiftLabel} ${keyLabel}`;
+	const shortcut = WORKBENCH_SHORTCUTS[action];
+	return formatKeyboardShortcutChord(bindings[shortcut.shortcutId], platform);
 }
 
 export function formatWorkbenchActionShortcut(
 	actionId: string,
 	platform: WorkbenchShortcutPlatform,
+	bindings: WorkbenchShortcutBindings = defaultWorkbenchShortcutBindings(platform),
 ): string | null {
 	switch (actionId) {
 		case WORKBENCH_ACTION_IDS.createTerminal:
-			return formatWorkbenchShortcut('newTerminal', platform);
+			return formatWorkbenchShortcut('newTerminal', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSearch:
-			return formatWorkbenchShortcut('search', platform);
+			return formatWorkbenchShortcut('search', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSettings:
-			return formatWorkbenchShortcut('settings', platform);
+			return formatWorkbenchShortcut('settings', platform, bindings);
 		case WORKBENCH_ACTION_IDS.toggleSidebar:
-			return formatWorkbenchShortcut('toggleSidebar', platform);
+			return formatWorkbenchShortcut('toggleSidebar', platform, bindings);
 		default:
 			return null;
 	}
 }
 
 export function resolveWorkbenchShortcut(
-	event: WorkbenchShortcutEvent,
+	event: KeyboardShortcutEvent,
 	platform: WorkbenchShortcutPlatform,
+	bindings: WorkbenchShortcutBindings = defaultWorkbenchShortcutBindings(platform),
 ): WorkbenchShortcutBinding | null {
-	for (const binding of Object.values(WORKBENCH_SHORTCUTS)) {
-		if (matchesBinding(event, platform, binding)) {
-			return binding;
+	for (const action of WORKBENCH_SHORTCUT_ACTIONS) {
+		const definition = WORKBENCH_SHORTCUTS[action];
+		const shortcutId: WorkbenchShortcutId = definition.shortcutId;
+		const currentChord = bindings[shortcutId];
+		if (matchesKeyboardShortcutChord(event, currentChord, platform)) {
+			return {
+				action,
+				chord: currentChord,
+				shortcutId,
+			};
 		}
 	}
 	return null;
 }
 
-function matchesBinding(
-	event: WorkbenchShortcutEvent,
-	platform: WorkbenchShortcutPlatform,
-	binding: Readonly<{ code: string; shiftKey: boolean }>,
-): boolean {
-	if (
-		event.code !== binding.code ||
-		event.altKey ||
-		event.shiftKey !== binding.shiftKey ||
-		event.isComposing ||
-		event.repeat
-	) {
-		return false;
-	}
-
-	return platform === 'apple' ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShortcutBindings {
+	return Object.freeze({
+		[WORKBENCH_SHORTCUTS.actionsSearch.shortcutId]:
+			WORKBENCH_SHORTCUTS.actionsSearch.defaults[platform],
+		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]:
+			WORKBENCH_SHORTCUTS.newTerminal.defaults[platform],
+		[WORKBENCH_SHORTCUTS.search.shortcutId]: WORKBENCH_SHORTCUTS.search.defaults[platform],
+		[WORKBENCH_SHORTCUTS.settings.shortcutId]: WORKBENCH_SHORTCUTS.settings.defaults[platform],
+		[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId]:
+			WORKBENCH_SHORTCUTS.toggleSidebar.defaults[platform],
+	});
 }

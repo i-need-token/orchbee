@@ -1,20 +1,22 @@
-export const ORCHBEE_TERMINAL_FONT_FAMILY =
-	'"Orchbee JetBrains Mono", "Orchbee Symbols Nerd Font", monospace';
+import {
+	ORCHBEE_TERMINAL_SYMBOL_FONT_FAMILY,
+	ORCHBEE_TERMINAL_TEXT_FONT_FAMILY,
+} from '../../terminal-presentation';
 
 const terminalFontFaces = [
 	{
 		descriptors: { style: 'normal', weight: '100 800' },
-		family: 'Orchbee JetBrains Mono',
+		family: ORCHBEE_TERMINAL_TEXT_FONT_FAMILY,
 		source: new URL('./fonts/JetBrainsMono-Variable.ttf', import.meta.url),
 	},
 	{
 		descriptors: { style: 'italic', weight: '100 800' },
-		family: 'Orchbee JetBrains Mono',
+		family: ORCHBEE_TERMINAL_TEXT_FONT_FAMILY,
 		source: new URL('./fonts/JetBrainsMono-VariableItalic.ttf', import.meta.url),
 	},
 	{
 		descriptors: { style: 'normal', weight: '400' },
-		family: 'Orchbee Symbols Nerd Font',
+		family: ORCHBEE_TERMINAL_SYMBOL_FONT_FAMILY,
 		source: new URL('./fonts/SymbolsNerdFont-Regular.ttf', import.meta.url),
 	},
 ] as const;

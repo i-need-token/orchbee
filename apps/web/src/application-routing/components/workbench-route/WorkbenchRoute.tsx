@@ -8,11 +8,13 @@ export function WorkbenchRoute(): ReactNode {
 	return (
 		<WebApplication
 			actionRuntime={application.actionRuntime}
+			keyboardShortcutSettingsController={application.keyboardShortcutSettingsController}
 			layoutStorage={application.layoutStorage}
 			navigation={coordinator.navigation}
-			onSettings={application.onSettings}
 			projectWorkspaceRuntime={application.projectWorkspaceRuntime}
+			requestBrowserAccess={application.requestBrowserAccess}
 			shortcutPlatform={application.shortcutPlatform}
+			terminalSettingsController={application.terminalSettingsController}
 			terminalSurface={application.terminalSurface}
 		/>
 	);

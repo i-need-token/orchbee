@@ -28,6 +28,7 @@ import {
 	createProjectedTerminalActionComposition,
 	PROJECTED_TERMINAL_ACTION_IDS,
 	installProjectedTerminalShortcuts,
+	type ProjectedTerminalShortcutBindingSource,
 	type ProjectedTerminalShortcutPlatform,
 } from '../projected-terminal-actions';
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
@@ -35,7 +36,7 @@ import type { ProjectedTerminalTransport } from '../terminal-projection';
 import {
 	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 	type TerminalPresentationConfigurationSource,
-} from './terminal-presentation-configuration-source';
+} from '../../terminal-presentation';
 
 type ProjectedTerminalDriver = Pick<
 	ProjectedTerminal,
@@ -114,6 +115,7 @@ export async function startProjectedTerminalRenderer(
 	presentationConfigurationSource: TerminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 	reviewPaste?: (review: ProjectedPasteReview, signal: AbortSignal) => boolean | Promise<boolean>,
 	observeMetadata?: (metadata: ProjectedTerminalMetadata) => void,
+	shortcutBindingSource?: ProjectedTerminalShortcutBindingSource,
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
@@ -150,9 +152,11 @@ export async function startProjectedTerminalRenderer(
 	rootElement.dataset['projectedTerminalId'] = bootstrap.terminalId;
 	let committedFrames = 0;
 	let committedPresentationEpoch = 0;
+	let committedPresentationConfiguration = initialPresentationConfiguration;
 	let disposed = false;
 	let frozen = false;
 	let finalRevision: bigint | undefined;
+	let lastMetadata: ProjectedTerminalMetadata | undefined;
 	let lastRenderedRevision: bigint | undefined;
 	let renderedFrames = 0;
 	let presentationRequestEpoch = 0;
@@ -177,7 +181,19 @@ export async function startProjectedTerminalRenderer(
 			rootElement.dataset['projectedTerminalFinalFramePresented'] = 'true';
 		}
 	};
-
+	const syncRootBackground = (): void => {
+		if (lastMetadata === undefined) return;
+		const background =
+			committedPresentationConfiguration.defaultColorOverride?.background ??
+			terminalRgbColor(lastMetadata.defaultColors.backgroundRgb);
+		rootElement.style.backgroundColor = terminalBackgroundColor(
+			background,
+			committedPresentationConfiguration.backgroundOpacity,
+		);
+		rootElement.dataset['projectedTerminalBackgroundOpacity'] = String(
+			committedPresentationConfiguration.backgroundOpacity,
+		);
+	};
 	const clearStatus = (): void => {
 		status.textContent = null;
 		status.hidden = true;
@@ -307,6 +323,8 @@ export async function startProjectedTerminalRenderer(
 		rootElement.dataset['projectedTerminalPresentationState'] = result.kind;
 		if (result.kind === 'completed') {
 			committedPresentationEpoch = epoch;
+			committedPresentationConfiguration = result.configuration;
+			syncRootBackground();
 			rootElement.dataset['projectedTerminalPresentationCommittedEpoch'] = String(epoch);
 			rootElement.dataset['projectedTerminalPresentationFontFamily'] =
 				result.configuration.fontFamily;
@@ -442,9 +460,8 @@ export async function startProjectedTerminalRenderer(
 			pendingSubscriptions.push(
 				terminal.onMetadataChange((metadata) => {
 					observeMetadata?.(metadata);
-					rootElement.style.backgroundColor = terminalRgbColor(
-						metadata.defaultColors.backgroundRgb,
-					);
+					lastMetadata = metadata;
+					syncRootBackground();
 					rootElement.dataset['projectedTerminalCellPixelHeight'] = String(
 						metadata.cellPixelHeight,
 					);
@@ -678,10 +695,9 @@ export async function startProjectedTerminalRenderer(
 			document: rootElement.ownerDocument,
 			findRoot,
 			findScope: actions.findScope,
-			invoke: (actionId, input, scope) => {
-				void actions.execute(actionId, input, scope, 'keyboard').completion;
-			},
+			invoke: (actionId, input, scope) => actions.invokeShortcut(actionId, input, scope),
 			platform: shortcutPlatform,
+			shortcutBindingSource,
 			terminalRoot: rootElement,
 			terminalScope: actions.terminalScope,
 		});
@@ -760,6 +776,14 @@ function runCleanup(cleanups: readonly (() => void)[]): void {
 
 function terminalRgbColor(value: number): string {
 	return `#${value.toString(16).padStart(6, '0')}`;
+}
+
+function terminalBackgroundColor(color: string, opacity: number): string {
+	if (opacity >= 1) return color;
+	const red = Number.parseInt(color.slice(1, 3), 16);
+	const green = Number.parseInt(color.slice(3, 5), 16);
+	const blue = Number.parseInt(color.slice(5, 7), 16);
+	return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
 }
 
 function projectedTerminalFailureMessage(failure: ProjectedTerminalFailure) {

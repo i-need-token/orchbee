@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "keyboard-shortcuts",
+	"runtime": ["universal"],
+	"stability": "experimental",
+	"responsibility": "Platform-aware normalization, capture, exact matching, canonical identity, and display of physical keyboard shortcut chords.",
+	"nonGoals": [
+		"Owning product Actions, default bindings, context conditions, conflict policy, persistence, or presentation.",
+		"Detecting the current operating system or registering browser, desktop, or global keyboard listeners.",
+		"Supporting multi-step chords, key tables, text-producing shortcuts, or user-authored condition expressions."
+	]
+}

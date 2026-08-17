@@ -7,6 +7,7 @@ import {
 	workbenchTabStripOrientationInput,
 } from '../../../../actions/workbench-action-ids';
 import { projectWorkbenchSearchCatalog } from '../project-workbench-search-catalog';
+import { defaultWorkbenchShortcutBindings } from '../../../../utils/workbench-shortcuts';
 
 describe('Workbench search catalog projection', () => {
 	it('projects ready, disabled, settings, and nested-input results from runtime discovery', () => {
@@ -48,6 +49,7 @@ describe('Workbench search catalog projection', () => {
 			platform: 'apple',
 			runtime,
 			scope,
+			shortcutBindings: defaultWorkbenchShortcutBindings('apple'),
 		});
 
 		expect(catalog.settingsResults).toMatchObject([

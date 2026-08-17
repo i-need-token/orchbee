@@ -10,7 +10,9 @@ Fields == {
   "fontLigatures",
   "fontMetricModifiers",
   "paddingBalance",
-  "allowTransparency"
+  "allowTransparency",
+  "backgroundOpacity",
+  "defaultColorOverride"
 }
 PreparationPhases == {"absent", "in-flight", "ready", "failed"}
 Outcomes == {"absent", "pending", "ready", "completed", "cancelled", "failed"}

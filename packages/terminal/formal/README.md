@@ -24,7 +24,7 @@ field in one commit.
 | No mutation occurs before commit               | `PublicationChangesOnlyOnCommit`                  | Validation, font preparation, cancellation, and renderer preparation leave committed and published presentation state unchanged.            |
 | The newest completing request commits          | `LatestReadyEventuallyResolves`                   | With a fair commit scheduler, a ready request commits unless a newer request or disposal cancels eligibility.                               |
 
-The TLC configuration checks two ordered requests and all eight published field identities. Field
+The TLC configuration checks two ordered requests and all ten published field identities. Field
 values are abstracted to the request epoch because the deterministic validation and renderer tests
 own concrete values and measurements. The model keeps stale font work in flight until an
 independent completion or failure transition records its cancelled outcome. TLC uses weak fairness

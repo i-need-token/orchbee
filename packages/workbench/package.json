@@ -53,6 +53,7 @@
 		"@orchbee/actions": "workspace:^",
 		"@orchbee/foundation": "workspace:^",
 		"@orchbee/i18n": "workspace:^",
+		"@orchbee/keyboard-shortcuts": "workspace:^",
 		"@orchbee/tab-strip": "workspace:^",
 		"@orchbee/ui": "workspace:^",
 		"zod": "catalog:"

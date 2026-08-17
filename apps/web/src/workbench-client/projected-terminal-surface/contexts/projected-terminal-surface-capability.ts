@@ -5,8 +5,11 @@ import type {
 import type { ProjectedTerminalMetadata } from '@orchbee/terminal';
 import { createContext } from 'react';
 
-import type { ProjectedTerminalShortcutPlatform } from '../../projected-terminal-actions';
-import type { TerminalPresentationConfigurationSource } from '../../projected-terminal-renderer';
+import type {
+	ProjectedTerminalShortcutBindingSource,
+	ProjectedTerminalShortcutPlatform,
+} from '../../projected-terminal-actions';
+import type { TerminalPresentationConfigurationSource } from '../../../terminal-presentation';
 import type { ProjectedTerminalPlatformEffects } from '../../projected-terminal-platform-effects';
 import type { TerminalProjectionClient } from '../../terminal-projection';
 
@@ -15,6 +18,7 @@ export interface ProjectedTerminalSurfaceCapability {
 	readonly preferredLocales: readonly string[];
 	readonly platformEffects: ProjectedTerminalPlatformEffects;
 	readonly projectionClient: Pick<TerminalProjectionClient, 'open'>;
+	readonly shortcutBindingSource?: ProjectedTerminalShortcutBindingSource | undefined;
 	readonly shortcutPlatform: ProjectedTerminalShortcutPlatform;
 	readonly presentationConfigurationSource: TerminalPresentationConfigurationSource;
 	observeTerminalMetadata(

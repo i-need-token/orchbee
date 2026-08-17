@@ -10,6 +10,8 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
+import { TerminalSettingsController } from '../../terminal-settings';
+import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { WebApplication } from '../WebApplication';
 
 describe('WebApplication', () => {
@@ -24,6 +26,14 @@ describe('WebApplication', () => {
 				() => terminalPresentationId(`web:test:dynamic:${(presentationSequence += 1)}`),
 			),
 		});
+		const terminalSettingsController = new TerminalSettingsController({
+			storage: { getItem: () => null, setItem: () => undefined },
+			themeTarget: { dataset: {} },
+		});
+		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
+			platform: 'apple',
+			storage: { getItem: () => null, setItem: () => undefined },
+		});
 		const markup = renderToStaticMarkup(
 			createElement(
 				OrchbeeI18nProvider,
@@ -33,12 +43,14 @@ describe('WebApplication', () => {
 					undefined,
 					createElement(WebApplication, {
 						actionRuntime,
+						keyboardShortcutSettingsController,
 						layoutStorage: {
 							getItem: () => '{"width":320}',
 							setItem: () => undefined,
 						},
 						projectWorkspaceRuntime,
 						shortcutPlatform: 'apple',
+						terminalSettingsController,
 					}),
 				),
 			),
@@ -56,5 +68,7 @@ describe('WebApplication', () => {
 		expect(markup).not.toContain('Local shell');
 		expect(markup).not.toContain('本地 Shell');
 		actionRuntime.dispose();
+		keyboardShortcutSettingsController.dispose();
+		terminalSettingsController.dispose();
 	});
 });

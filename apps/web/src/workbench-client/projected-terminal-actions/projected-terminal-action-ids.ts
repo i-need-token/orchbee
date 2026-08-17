@@ -1,14 +1,16 @@
 import type { ActionInputValidation, ActionSignature } from '@orchbee/actions';
 import type { TerminalOpenTarget } from '@orchbee/terminal';
 
+import { PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS } from '../../projected-terminal-keyboard-shortcuts';
+
 export const PROJECTED_TERMINAL_ACTION_IDS = {
-	copySelection: 'terminal.selection.copy',
+	copySelection: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.copySelection,
 	findNext: 'terminal.search.next',
-	findOpen: 'terminal.search.open',
+	findOpen: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.findOpen,
 	findPrevious: 'terminal.search.previous',
 	openLink: 'terminal.link.open',
 	reset: 'terminal.reset',
-	selectAll: 'terminal.selection.select-all',
+	selectAll: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.selectAll,
 } as const;
 
 export interface ProjectedTerminalLinkActionInput {

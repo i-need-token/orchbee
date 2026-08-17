@@ -3,7 +3,7 @@
 	"domain": "web",
 	"runtime": ["browser", "electron"],
 	"stability": "experimental",
-	"responsibility": "Sole Workbench product renderer for browser and Electron clients, including the Browser Router and URL-to-Client-View coordination, platform-neutral page-client runtime, Electron and local Gateway transport adapters, Desktop Browser-access settings presentation and unprivileged command client, and explicit Browser platform-effect adapters.",
+	"responsibility": "Sole Workbench product renderer for browser and Electron clients, including the Browser Router and URL-to-Client-View coordination, client-local application and terminal-display settings, platform-neutral page-client runtime, Electron and local Gateway transport adapters, Desktop Browser-access settings presentation and unprivileged command client, and explicit Browser platform-effect adapters.",
 	"nonGoals": [
 		"Owning reusable product interface behavior or reusable UI primitives.",
 		"Owning the supported-locale contract, product message descriptors, or translation catalogs.",

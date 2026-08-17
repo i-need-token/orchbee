@@ -11,6 +11,7 @@ import type {
 	ProjectedTerminalFrameTelemetry,
 	ProjectedTerminalMetadata,
 	ProjectedTerminalOptions,
+	TerminalPresentationConfiguration,
 } from '@orchbee/terminal';
 import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '@orchbee/terminal';
 import { describe, expect, it, vi } from 'vitest';
@@ -21,7 +22,7 @@ import {
 	startProjectedTerminalRenderer,
 	type ProjectedTerminalRendererDependencies,
 } from '../startProjectedTerminalRenderer';
-import type { TerminalPresentationConfigurationSource } from '../terminal-presentation-configuration-source';
+import type { TerminalPresentationConfigurationSource } from '../../../terminal-presentation';
 
 describe('startProjectedTerminalRenderer', () => {
 	it('localizes the projected surface and commits frame events from only its scoped port', async () => {
@@ -379,6 +380,7 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(openTerminal).toHaveBeenCalledOnce();
 			expect(focusTerminal).not.toHaveBeenCalled();
 			expect(root.style.backgroundColor).toBe('#123456');
+			expect(dataset['projectedTerminalBackgroundOpacity']).toBe('1');
 			expect(options?.inputEnabled).toBe(false);
 			expect(notifyExited).toHaveBeenCalledWith(bootstrap.terminalOutcome.event);
 			expect(dataset['projectedTerminalAttachmentId']).toBe(bootstrap.attachmentId);
@@ -387,11 +389,20 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(dataset['projectedTerminalFinalFramePresented']).toBe('true');
 			expect(dataset['projectedTerminalRenderedGeneration']).toBe('1');
 			expect(dataset['projectedTerminalRenderedRevision']).toBe('1');
-			const runtimeConfiguration = {
+			const runtimeConfiguration: TerminalPresentationConfiguration = {
 				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
 				allowTransparency: true,
+				backgroundOpacity: 0.6,
+				defaultColorOverride: {
+					background: '#1e1e1e',
+					foreground: '#d4d4d4',
+				},
 				fontFamily: 'Injected Runtime Mono',
 			};
+			updatePresentationConfiguration.mockResolvedValueOnce({
+				configuration: runtimeConfiguration,
+				kind: 'completed',
+			});
 			emitPresentationConfiguration(runtimeConfiguration);
 			await vi.waitFor(() =>
 				expect(updatePresentationConfiguration).toHaveBeenCalledWith(runtimeConfiguration),
@@ -400,6 +411,8 @@ describe('startProjectedTerminalRenderer', () => {
 				expect(dataset['projectedTerminalPresentationState']).toBe('completed');
 				expect(dataset['projectedTerminalPresentationCommittedEpoch']).toBe('1');
 			});
+			expect(root.style.backgroundColor).toBe('rgba(30, 30, 30, 0.6)');
+			expect(dataset['projectedTerminalBackgroundOpacity']).toBe('0.6');
 			emitFrameTelemetry({ ...telemetry, frameId: 2, timestamp: 2 });
 			expect(dataset['projectedTerminalPresentationDrawnEpoch']).toBe('1');
 			expect(dataset['projectedTerminalRenderedFrames']).toBe('2');

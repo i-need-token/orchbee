@@ -233,22 +233,26 @@ does not require reopening the attachment.
 
 An open attachment accepts one complete `TerminalPresentationConfiguration` transaction containing
 `fontFamily`, `fontSize`, `fontWeight`, `fontWeightBold`, `fontLigatures`,
-`fontMetricModifiers`, `paddingBalance`, and `allowTransparency`. There are no runtime partial
-setters. `updatePresentationConfiguration` validates and isolates the whole candidate, awaits its
-regular and bold font descriptions, and then prepares renderer measurements before publishing any
-field. Requests are latest-wins: superseded or disposed preparation returns a typed cancellation,
-and validation, font, or renderer preparation failure leaves the previous configuration visible.
+`fontMetricModifiers`, `paddingBalance`, `allowTransparency`, `backgroundOpacity`, and
+`defaultColorOverride`. The override is either `null` or a strict, normalized lowercase `#RRGGBB`
+foreground/background pair. `backgroundOpacity` is a source-neutral `0..1` configuration value;
+the composing client applies it to its own default-background root rather than to the terminal
+surface. There are no runtime partial setters. `updatePresentationConfiguration` validates and
+isolates the whole candidate, awaits its regular and bold font descriptions, and then prepares
+renderer measurements before publishing any field. Requests are latest-wins: superseded or
+disposed preparation returns a typed cancellation, and validation, font, or renderer preparation
+failure leaves the previous configuration visible.
 
-One successful local commit replaces all eight fields, remeasures once, resets the glyph atlas
-once, invalidates the whole surface, and schedules one current repaint. The same commit realigns
-the hidden textarea and active IME preedit anchor, invalidates geometry-dependent link hover,
-repairs local geometry gestures without introducing a copy effect, and computes at most one new
-resize proposal with the current device-pixel ratio. Packed rows, Host selection, search,
-history, accessibility rows and DOM selection, attachment identity, subscriptions, and backend
-remain in place; the attachment and packed store are not reopened or reset. Host resize completion
-continues asynchronously through the existing resize path. A post-commit render or resize failure
-therefore retains the committed presentation and follows the existing typed recovery. A hidden or
-paused surface retains the new configuration and draws it once when presentation resumes.
+One successful local commit replaces all ten fields, remeasures once, resets the glyph atlas once,
+invalidates the whole surface, and schedules one current repaint. The same commit realigns the
+hidden textarea and active IME preedit anchor, invalidates geometry-dependent link hover, repairs
+local geometry gestures without introducing a copy effect, and computes at most one new resize
+proposal with the current device-pixel ratio. Packed rows, Host selection, search, history,
+accessibility rows and DOM selection, attachment identity, subscriptions, and backend remain in
+place; the attachment and packed store are not reopened or reset. Host resize completion continues
+asynchronously through the existing resize path. A post-commit render or resize failure therefore
+retains the committed presentation and follows the existing typed recovery. A hidden or paused
+surface retains the new configuration and draws it once when presentation resumes.
 
 Host-driven frame geometry, including terminal-originated 80/132-column transitions, updates the
 packed store and renderer directly. Applying that snapshot never emits a reverse `ResizeTerminal`;
@@ -352,7 +356,21 @@ const rows = await terminal.readBufferRows(
 
 ## Renderer behavior
 
-WebGPU is preferred when available; Canvas 2D is the observable fallback. Both paths consume the same packed projection, font configuration, application-owned selection/search overlays, preedit state, and cursor metadata. Host frame metadata is the only terminal default-color authority: projected cells already contain resolved RGB values, the Host cursor color falls back to the Host foreground, and an explicit client cursor accent affects only text inside a block cursor. Canvas remains transparent before the first frame, then reuses the latest Host background for complete fills and resize. Packed graphemes preserve CJK, combining, and emoji cell widths; explicit foreground/background and underline colors, inverse, bold, faint, italic, invisible, blink, underline variants, strikethrough, and overline use the projected Ghostty styles. Renderer health reports initialization, fallback, device loss, recovery, and recovery failure.
+WebGPU is preferred when available; Canvas 2D is the observable fallback. Both paths consume the
+same packed projection, font configuration, application-owned selection/search overlays, preedit
+state, and cursor metadata. Host frame metadata remains authoritative and unmodified. A non-null
+client `defaultColorOverride` changes only cells whose packed foreground or background token is
+`TerminalColorEncoding.default`; explicit RGB (including black), Host-projected palette RGB, and
+`none` retain their Host-projected behavior. Inverse swaps already-resolved display roles, a
+default underline uses the effective foreground, and the cursor always uses the Host cursor color
+(falling back to Host foreground). An explicit client cursor accent affects only text inside a
+block cursor. `allowTransparency` alone controls transparent renderer clear; a composing client
+uses `backgroundOpacity` for its effective default-background root and never applies whole-surface
+CSS opacity. Canvas remains transparent before the first frame, then reuses the latest effective
+default background for opaque fills and resize. Packed graphemes preserve CJK, combining, and emoji
+cell widths; explicit foreground/background and underline colors, inverse, bold, faint, italic,
+invisible, blink, underline variants, strikethrough, and overline use the projected Ghostty styles.
+Renderer health reports initialization, fallback, device loss, recovery, and recovery failure.
 
 Font measurement samples the selected browser face at a large CSS size to recover its unrounded
 advance, ascent, descent, and cap-height ratios. Grid width and height retain stable CSS geometry,

@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -166,7 +166,7 @@ test('terminal-parity/SU-14-runtime-presentation', async () => {
 
 		await page.locator('#prepare-runtime-presentation').dispatchEvent('click');
 		await expect(root).toHaveAttribute('data-projected-terminal-presentation-state', 'preparing');
-		await expect(root).toHaveAttribute('data-witness-font-preparation-count', '2');
+		await expect(root).toHaveAttribute('data-witness-font-preparation-count', '4');
 		await page.evaluate(
 			() =>
 				new Promise<void>((resolve) => {
@@ -470,7 +470,7 @@ test('terminal-parity/SU-10-scrollbar', async () => {
 		{ delay: 1 },
 	);
 	await input.press('Enter');
-	const accessibility = root.locator('[role="log"]');
+	const accessibility = root.locator('[role="list"]');
 	await expect(accessibility).toContainText('su10-tail-marker');
 	const accessibleRows = accessibility.locator(':scope > div');
 	const canvas = root.locator('canvas');
@@ -684,7 +684,9 @@ test('projects native window drag regions without consuming title bar controls o
 	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 	await expect(leftPanel).toBeVisible();
 	await terminalInput.focus();
-	await page.keyboard.press(`${primaryModifier}+KeyB`);
+	await page.keyboard.press(
+		process.platform === 'darwin' ? `${primaryModifier}+KeyB` : `${primaryModifier}+Shift+KeyB`,
+	);
 	await expect(leftPanel).not.toBeAttached();
 	await expect(terminalInput).toBeFocused();
 	await sidebarToggle.click();
@@ -696,6 +698,192 @@ test('projects native window drag regions without consuming title bar controls o
 	await expect(tabs).toHaveCount(initialTabCount + 1);
 	await tabs.first().click();
 	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+});
+
+test('owns native window actions and restores safe normal bounds across restart', async () => {
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	const currentRuntimeDirectory = runtimeDirectory;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	if (currentRuntimeDirectory === undefined) {
+		throw new Error('Desktop runtime directory is unavailable.');
+	}
+	const page = await application.firstWindow();
+	const terminalRoot = projectedTerminal(page);
+	await expect(terminalRoot)
+		.toHaveAttribute('data-projected-terminal-state', 'open')
+		.catch((error: unknown) => {
+			const output = (applicationOutput.get(application) ?? []).join('');
+			electronApplication = undefined;
+			throw new Error(`Desktop window-action startup failed. ${output}`, { cause: error });
+		});
+	const attachmentId = await terminalRoot.getAttribute('data-projected-terminal-attachment-id');
+	const terminalInput = page.getByRole('textbox');
+	await terminalInput.pressSequentially("printf 'window-state-marker\\n'; sleep 300", {
+		delay: 1,
+	});
+	await terminalInput.press('Enter');
+	await expect(page.locator('[role="list"]')).toContainText('window-state-marker');
+
+	await invokeDesktopWindowMenuItem(application, 'desktop-window-toggle-maximized', false);
+	await expect
+		.poll(() =>
+			application.evaluate(({ BrowserWindow }) =>
+				Boolean(BrowserWindow.getAllWindows()[0]?.isMaximized()),
+			),
+		)
+		.toBe(true);
+	await invokeDesktopWindowMenuItem(application, 'desktop-window-toggle-maximized', true);
+	await expect
+		.poll(() =>
+			application.evaluate(({ BrowserWindow }) =>
+				Boolean(BrowserWindow.getAllWindows()[0]?.isMaximized()),
+			),
+		)
+		.toBe(false);
+
+	await invokeDesktopWindowMenuItem(application, 'desktop-window-toggle-full-screen', true);
+	await expect
+		.poll(() =>
+			application.evaluate(({ BrowserWindow }) =>
+				Boolean(BrowserWindow.getAllWindows()[0]?.isFullScreen()),
+			),
+		)
+		.toBe(true);
+	await invokeDesktopWindowMenuItem(application, 'desktop-window-toggle-maximized', true);
+	await expect
+		.poll(() =>
+			application.evaluate(({ BrowserWindow }) => ({
+				fullScreen: Boolean(BrowserWindow.getAllWindows()[0]?.isFullScreen()),
+				maximized: Boolean(BrowserWindow.getAllWindows()[0]?.isMaximized()),
+			})),
+		)
+		.toEqual({ fullScreen: true, maximized: false });
+	await invokeDesktopWindowMenuItem(application, 'desktop-window-toggle-full-screen', false);
+	await expect
+		.poll(() =>
+			application.evaluate(({ BrowserWindow }) =>
+				Boolean(BrowserWindow.getAllWindows()[0]?.isFullScreen()),
+			),
+		)
+		.toBe(false);
+	expect(await terminalRoot.getAttribute('data-projected-terminal-attachment-id')).toBe(
+		attachmentId,
+	);
+
+	const windowGeometry = await application.evaluate(({ BrowserWindow, screen }) => {
+		const workArea = screen.getPrimaryDisplay().workArea;
+		const bounds = {
+			height: Math.min(600, workArea.height),
+			width: Math.min(900, workArea.width),
+			x: workArea.x + 40,
+			y: workArea.y + 40,
+		};
+		BrowserWindow.getAllWindows()[0]?.setBounds(bounds);
+		return { primaryWorkArea: workArea, targetBounds: bounds };
+	});
+	const { primaryWorkArea, targetBounds } = windowGeometry;
+	await expect
+		.poll(() =>
+			application.evaluate(({ BrowserWindow }) =>
+				BrowserWindow.getAllWindows()[0]?.getNormalBounds(),
+			),
+		)
+		.toEqual(targetBounds);
+	await invokeDesktopWindowMenuItem(application, 'desktop-window-toggle-maximized', false);
+	await expect
+		.poll(() =>
+			application.evaluate(({ BrowserWindow }) =>
+				Boolean(BrowserWindow.getAllWindows()[0]?.isMaximized()),
+			),
+		)
+		.toBe(true);
+
+	await quitDesktop(application, page, 'preserve').catch((error: unknown) => {
+		const output = (applicationOutput.get(application) ?? []).join('');
+		electronApplication = undefined;
+		throw new Error(`Desktop window-state shutdown failed. ${output}`, { cause: error });
+	});
+	electronApplication = undefined;
+	const windowStatePath = path.join(
+		currentRuntimeDirectory,
+		'electron-user-data',
+		'window-state-v1.json',
+	);
+	expect(JSON.parse(await readFile(windowStatePath, 'utf8'))).toEqual({
+		bounds: targetBounds,
+		maximized: true,
+		version: 1,
+	});
+
+	const offscreenState = {
+		bounds: { height: 600, width: 900, x: 999_999, y: 999_999 },
+		maximized: true,
+		version: 1,
+	} as const;
+	await writeFile(windowStatePath, `${JSON.stringify(offscreenState)}\n`, 'utf8');
+	const expectedBounds = {
+		height: Math.min(offscreenState.bounds.height, primaryWorkArea.height),
+		width: Math.min(offscreenState.bounds.width, primaryWorkArea.width),
+		x:
+			primaryWorkArea.x +
+			primaryWorkArea.width -
+			Math.min(offscreenState.bounds.width, primaryWorkArea.width),
+		y:
+			primaryWorkArea.y +
+			primaryWorkArea.height -
+			Math.min(offscreenState.bounds.height, primaryWorkArea.height),
+	};
+
+	const restartedApplication = await launchDesktop();
+	electronApplication = restartedApplication;
+	const restartedPage = await restartedApplication.firstWindow();
+	await expect(projectedTerminal(restartedPage)).toHaveAttribute(
+		'data-projected-terminal-state',
+		'open',
+	);
+	await expect
+		.poll(() =>
+			restartedApplication.evaluate(({ BrowserWindow }) => ({
+				bounds: BrowserWindow.getAllWindows()[0]?.getNormalBounds(),
+				maximized: Boolean(BrowserWindow.getAllWindows()[0]?.isMaximized()),
+			})),
+		)
+		.toEqual({ bounds: expectedBounds, maximized: true });
+});
+
+test('applies a custom shortcut without recreating the mounted terminal', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const terminalRoot = projectedTerminal(page);
+	await expect(terminalRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const attachmentId = await terminalRoot.getAttribute('data-projected-terminal-attachment-id');
+	const leftPanel = page.locator('[data-slot="workbench-left-panel"]');
+	await expect(leftPanel).toBeVisible();
+
+	await page.locator('[data-slot="workbench-sidebar-settings"]').click();
+	const settingsSurface = page.locator('[data-slot="terminal-settings-surface"]');
+	await expect(settingsSurface).toBeVisible();
+	const settingsCategories = settingsSurface.locator('nav button');
+	await expect(settingsCategories).toHaveCount(3);
+	await settingsCategories.nth(1).click();
+	const shortcutRow = settingsSurface.locator('[data-shortcut-id="workbench.sidebar.toggle"]');
+	const recorder = shortcutRow.locator('button[aria-pressed]');
+	await recorder.click();
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Alt+KeyB' : 'Control+Alt+KeyB');
+	await expect(shortcutRow.locator('[data-source="custom"]')).toBeVisible();
+	await settingsSurface.locator('aside > button').first().click();
+	await expect(settingsSurface).not.toBeVisible();
+	expect(await terminalRoot.getAttribute('data-projected-terminal-attachment-id')).toBe(
+		attachmentId,
+	);
+
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Alt+KeyB' : 'Control+Alt+KeyB');
+	await expect(leftPanel).not.toBeAttached();
+	expect(await terminalRoot.getAttribute('data-projected-terminal-attachment-id')).toBe(
+		attachmentId,
+	);
 });
 
 test('routes a real sandboxed Host terminal through Main and Preload to the renderer', async () => {
@@ -747,7 +935,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 		{ delay: 1 },
 	);
 	await input.press('Enter');
-	const accessibility = page.locator('[role="log"]');
+	const accessibility = page.locator('[role="list"]');
 	await expect(accessibility).toContainText('中文-显示-OK');
 	await input.pressSequentially(
 		`i=1; while [ "$i" -le 160 ]; do printf 'history-%03d searchable-agent\\n' "$i"; i=$((i+1)); done; printf 'interaction-%s-marker allowed=https://orchbee.dev blocked=file:///tmp/orchbee-blocked\\n' tail`,
@@ -779,7 +967,9 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 
 	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 	await input.focus();
-	await page.keyboard.press(`${primaryModifier}+KeyF`);
+	await page.keyboard.press(
+		process.platform === 'darwin' ? `${primaryModifier}+KeyF` : `${primaryModifier}+Shift+KeyF`,
+	);
 	const findSurface = page.getByRole('search');
 	await expect(findSurface).toBeAttached();
 	const findInput = findSurface.getByRole('textbox');
@@ -931,7 +1121,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 		creationId: identityBeforeReload.creationId,
 		terminalId: identityBeforeReload.terminalId,
 	});
-	await expect(page.locator('[role="log"]')).toContainText('interaction-tail-marker');
+	await expect(page.locator('[role="list"]')).toContainText('interaction-tail-marker');
 
 	await input.focus();
 	await input.pressSequentially('stty size; exit', { delay: 1 });
@@ -985,14 +1175,36 @@ test('opts into trusted LAN Browser access through the Desktop UI', async () => 
 	await application.evaluate(({ BrowserWindow }) => {
 		BrowserWindow.getAllWindows()[0]?.setSize(1_280, 720);
 	});
-	await expect(projectedTerminal(desktopPage)).toHaveAttribute(
-		'data-projected-terminal-state',
-		'open',
-	);
+	const desktopRoot = projectedTerminal(desktopPage);
+	await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const attachmentId = await desktopRoot.getAttribute('data-projected-terminal-attachment-id');
 
 	await desktopPage.locator('[data-slot="workbench-sidebar-settings"]').click();
+	const settingsSurface = desktopPage.locator('[data-slot="terminal-settings-surface"]');
+	await expect(settingsSurface).toBeVisible();
+	const settingsCategories = settingsSurface.locator('nav button');
+	await expect(settingsCategories).toHaveCount(3);
+	await settingsCategories.nth(2).click();
+	const openBrowserAccess = settingsSurface.locator('main button');
+	await expect(openBrowserAccess).toHaveCount(1);
+	await openBrowserAccess.click();
 	const dialog = desktopPage.locator('[data-slot="desktop-browser-access-dialog"]');
 	await expect(dialog).toBeVisible();
+	const layers = await desktopPage.evaluate(() => {
+		const dialogElement = document.querySelector('[data-slot="desktop-browser-access-dialog"]');
+		const settingsElement = document.querySelector('[data-slot="terminal-settings-surface"]');
+		if (dialogElement === null || settingsElement === null) {
+			throw new Error('Settings and Browser access layers must both be mounted.');
+		}
+		return {
+			dialog: Number.parseInt(getComputedStyle(dialogElement).zIndex, 10),
+			settings: Number.parseInt(getComputedStyle(settingsElement).zIndex, 10),
+		};
+	});
+	expect(layers.dialog).toBeGreaterThan(layers.settings);
+	expect(await desktopRoot.getAttribute('data-projected-terminal-attachment-id')).toBe(
+		attachmentId,
+	);
 	await dialog.locator('[data-browser-access-action="start-local-network"]').click();
 	let origins: readonly string[] = [];
 	await expect
@@ -1038,6 +1250,14 @@ test('opts into trusted LAN Browser access through the Desktop UI', async () => 
 	}
 	await dialog.locator('[data-browser-access-action="stop"]').click();
 	await expect(dialog.locator('code')).toHaveCount(0);
+	await desktopPage.keyboard.press('Escape');
+	await expect(dialog).not.toBeVisible();
+	await expect(settingsSurface).toBeVisible();
+	await desktopPage.keyboard.press('Escape');
+	await expect(settingsSurface).not.toBeVisible();
+	expect(await desktopRoot.getAttribute('data-projected-terminal-attachment-id')).toBe(
+		attachmentId,
+	);
 });
 
 test('opens an authenticated Browser peer through the Desktop Browser-access UI', async () => {
@@ -1116,8 +1336,8 @@ test('opens an authenticated Browser peer through the Desktop Browser-access UI'
 		const browserInput = browserRoot.getByRole('textbox');
 		await browserInput.pressSequentially("printf 'ldw-development-marker\\n'", { delay: 1 });
 		await browserInput.press('Enter');
-		await expect(browserRoot.locator('[role="log"]')).toContainText('ldw-development-marker');
-		await expect(desktopRoot.locator('[role="log"]')).toContainText('ldw-development-marker');
+		await expect(browserRoot.locator('[role="list"]')).toContainText('ldw-development-marker');
+		await expect(desktopRoot.locator('[role="list"]')).toContainText('ldw-development-marker');
 
 		for (const page of [desktopPage, browserPage]) {
 			await expectVisibleLayout(page.locator('#root'));
@@ -1159,7 +1379,7 @@ test('opens an authenticated Browser peer through the Desktop Browser-access UI'
 			BrowserWindow.getAllWindows()[0]?.webContents.reload();
 		});
 		await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
-		await expect(desktopRoot.locator('[role="log"]')).toContainText('ldw-development-marker');
+		await expect(desktopRoot.locator('[role="list"]')).toContainText('ldw-development-marker');
 		await expect.poll(() => desktopClientSessionIds(desktopPage)).toHaveLength(1);
 		const identityAfterFirstReload = await terminalDocumentIdentity(desktopRoot);
 		expect(identityAfterFirstReload).toMatchObject({
@@ -1172,7 +1392,7 @@ test('opens an authenticated Browser peer through the Desktop Browser-access UI'
 			BrowserWindow.getAllWindows()[0]?.webContents.reload();
 		});
 		await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
-		await expect(desktopRoot.locator('[role="log"]')).toContainText('ldw-development-marker');
+		await expect(desktopRoot.locator('[role="list"]')).toContainText('ldw-development-marker');
 		await expect.poll(() => desktopClientSessionIds(desktopPage)).toHaveLength(2);
 		const clientSessionIds = await desktopClientSessionIds(desktopPage);
 		expect(new Set(clientSessionIds).size).toBe(2);
@@ -1301,13 +1521,13 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 		const firstInput = firstBrowserPage.getByRole('textbox');
 		await firstInput.pressSequentially("printf 'gateway-shared-terminal-marker\\n'");
 		await firstInput.press('Enter');
-		await expect(firstBrowserPage.locator('[role="log"]')).toContainText(
+		await expect(firstBrowserPage.locator('[role="list"]')).toContainText(
 			'gateway-shared-terminal-marker',
 		);
-		await expect(secondBrowserPage.locator('[role="log"]')).toContainText(
+		await expect(secondBrowserPage.locator('[role="list"]')).toContainText(
 			'gateway-shared-terminal-marker',
 		);
-		await expect(desktopPage.locator('[role="log"]')).toContainText(
+		await expect(desktopPage.locator('[role="list"]')).toContainText(
 			'gateway-shared-terminal-marker',
 		);
 
@@ -1336,7 +1556,7 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 		const secondInput = secondBrowserPage.getByRole('textbox');
 		await secondInput.pressSequentially("printf 'gateway-after-disconnect-marker\\n'");
 		await secondInput.press('Enter');
-		await expect(desktopPage.locator('[role="log"]')).toContainText(
+		await expect(desktopPage.locator('[role="list"]')).toContainText(
 			'gateway-after-disconnect-marker',
 		);
 
@@ -1356,7 +1576,7 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 			terminalId: desktopIdentity.terminalId,
 		});
 		expect(replacementIdentity.attachmentId).not.toBe(firstIdentity.attachmentId);
-		await expect(replacementPage.locator('[role="log"]')).toContainText(
+		await expect(replacementPage.locator('[role="list"]')).toContainText(
 			'gateway-after-disconnect-marker',
 		);
 		await expect.poll(() => gatewaySocketCount(replacementSockets, '/v1/control')).toBe(1);
@@ -1367,7 +1587,7 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 		const linkTarget = new URL('/gateway-link-target', currentRendererUrl).href;
 		await secondInput.pressSequentially(`printf 'browser-copy-marker ${linkTarget}\\n'`);
 		await secondInput.press('Enter');
-		const secondLog = secondBrowserPage.locator('[role="log"]');
+		const secondLog = secondBrowserPage.locator('[role="list"]');
 		await expect(secondLog).toContainText('browser-copy-marker');
 		const secondCanvas = secondBrowserPage.locator('canvas');
 		const secondRows = secondLog.locator(':scope > div');
@@ -1481,14 +1701,16 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 		const primaryInput = browserProjectRoot.getByRole('textbox');
 		await primaryInput.pressSequentially("pwd; printf 'lwf-primary-marker\\n'", { delay: 1 });
 		await primaryInput.press('Enter');
-		await expect(browserProjectRoot.locator('[role="log"]')).toContainText(currentRuntimeDirectory);
-		await expect(browserProjectRoot.locator('[role="log"]')).toContainText('lwf-primary-marker');
+		await expect(browserProjectRoot.locator('[role="list"]')).toContainText(
+			currentRuntimeDirectory,
+		);
+		await expect(browserProjectRoot.locator('[role="list"]')).toContainText('lwf-primary-marker');
 
 		await expandProject(desktopPage, projectName);
 		await workbenchWorkspace(desktopPage, 'Primary').click();
 		const desktopPrimaryRoot = projectedTerminalFor(desktopPage, primaryPresentationId);
 		await expect(desktopPrimaryRoot).toHaveAttribute('data-projected-terminal-state', 'open');
-		await expect(desktopPrimaryRoot.locator('[role="log"]')).toContainText('lwf-primary-marker');
+		await expect(desktopPrimaryRoot.locator('[role="list"]')).toContainText('lwf-primary-marker');
 		const primaryIdentity = await terminalDocumentIdentity(browserProjectRoot);
 		expect(await terminalDocumentIdentity(desktopPrimaryRoot)).toMatchObject({
 			creationId: primaryIdentity.creationId,
@@ -1517,7 +1739,7 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 		await splitInput.pressSequentially("printf 'lwf-split-marker\\n'", { delay: 1 });
 		await splitInput.press('Enter');
 		await expect(
-			projectedTerminalFor(desktopPage, splitPresentationId).locator('[role="log"]'),
+			projectedTerminalFor(desktopPage, splitPresentationId).locator('[role="list"]'),
 		).toContainText('lwf-split-marker');
 		const splitIdentity = await terminalDocumentIdentity(splitRoot);
 
@@ -1615,7 +1837,7 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 		const secondaryInput = secondaryWorkspaceRoot.getByRole('textbox');
 		await secondaryInput.pressSequentially("pwd; printf 'lwf-secondary-marker\\n'", { delay: 1 });
 		await secondaryInput.press('Enter');
-		await expect(secondaryWorkspaceRoot.locator('[role="log"]')).toContainText(
+		await expect(secondaryWorkspaceRoot.locator('[role="list"]')).toContainText(
 			currentRuntimeDirectory,
 		);
 		const secondaryIdentity = await terminalDocumentIdentity(secondaryWorkspaceRoot);
@@ -1698,7 +1920,7 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 	const input = firstPage.getByRole('textbox');
 	await input.pressSequentially("printf 'recovery-main-marker\\n'");
 	await input.press('Enter');
-	await expect(firstPage.locator('[role="log"]')).toContainText('recovery-main-marker');
+	await expect(firstPage.locator('[role="list"]')).toContainText('recovery-main-marker');
 	const identityBeforeRestart = await terminalDocumentIdentity(firstRoot);
 	if (runtimeDirectory === undefined) throw new Error('Desktop runtime directory is unavailable.');
 	expect(
@@ -1723,7 +1945,7 @@ test('restarts Electron Main while retaining the Host terminal identity and cont
 	const restartedPage = await restartedApplication.firstWindow();
 	const restartedRoot = projectedTerminal(restartedPage);
 	await expect(restartedRoot).toHaveAttribute('data-projected-terminal-state', 'open');
-	await expect(restartedPage.locator('[role="log"]')).toContainText('recovery-main-marker');
+	await expect(restartedPage.locator('[role="list"]')).toContainText('recovery-main-marker');
 	const identityAfterRestart = await terminalDocumentIdentity(restartedRoot);
 	expect(identityAfterRestart).toMatchObject({
 		creationId: identityBeforeRestart.creationId,
@@ -1743,7 +1965,7 @@ test('stops Host sessions while retaining topology and starts a fresh session ex
 	const input = firstPage.getByRole('textbox');
 	await input.pressSequentially("printf 'stop-policy-marker\\n'; sleep 300");
 	await input.press('Enter');
-	await expect(firstPage.locator('[role="log"]')).toContainText('stop-policy-marker');
+	await expect(firstPage.locator('[role="list"]')).toContainText('stop-policy-marker');
 
 	await quitDesktop(firstApplication, firstPage, 'stop');
 	electronApplication = undefined;
@@ -1789,10 +2011,42 @@ async function launchDesktop(): Promise<ElectronApplication> {
 	return application;
 }
 
+async function invokeDesktopWindowMenuItem(
+	application: ElectronApplication,
+	menuItemId: string,
+	triggeredByAccelerator: boolean,
+): Promise<void> {
+	await expect
+		.poll(() =>
+			application.evaluate(
+				({ Menu }, id) => Boolean(Menu.getApplicationMenu()?.getMenuItemById(id)),
+				menuItemId,
+			),
+		)
+		.toBe(true);
+	await application.evaluate(
+		({ BrowserWindow, Menu }, input) => {
+			const window = BrowserWindow.getAllWindows()[0];
+			const item = Menu.getApplicationMenu()?.getMenuItemById(input.menuItemId);
+			if (window === undefined || item === null || item === undefined) {
+				throw new Error(`Desktop menu item ${input.menuItemId} is unavailable.`);
+			}
+			item.click(
+				{ triggeredByAccelerator: input.triggeredByAccelerator },
+				window,
+				window.webContents,
+			);
+		},
+		{ menuItemId, triggeredByAccelerator },
+	);
+}
+
 async function openLoopbackBrowserAccess(
 	application: ElectronApplication,
 	page: Page,
 ): Promise<string> {
+	const terminalRoot = projectedTerminal(page);
+	const attachmentId = await terminalRoot.getAttribute('data-projected-terminal-attachment-id');
 	await application.evaluate(({ shell }) => {
 		const state = globalThis as typeof globalThis & { __orchbeeBrowserAccessUrl?: string };
 		delete state.__orchbeeBrowserAccessUrl;
@@ -1804,6 +2058,14 @@ async function openLoopbackBrowserAccess(
 		});
 	});
 	await page.locator('[data-slot="workbench-sidebar-settings"]').click();
+	const settingsSurface = page.locator('[data-slot="terminal-settings-surface"]');
+	await expect(settingsSurface).toBeVisible();
+	const settingsCategories = settingsSurface.locator('nav button');
+	await expect(settingsCategories).toHaveCount(2);
+	await settingsCategories.nth(1).click();
+	const openBrowserAccess = settingsSurface.locator('main button');
+	await expect(openBrowserAccess).toHaveCount(1);
+	await openBrowserAccess.click();
 	const dialog = page.locator('[data-slot="desktop-browser-access-dialog"]');
 	await expect(dialog).toBeVisible();
 	await dialog.locator('[data-browser-access-action="open-local"]').click();
@@ -1819,6 +2081,13 @@ async function openLoopbackBrowserAccess(
 		})
 		.not.toBeNull();
 	await page.keyboard.press('Escape');
+	await expect(dialog).not.toBeVisible();
+	await expect(settingsSurface).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(settingsSurface).not.toBeVisible();
+	expect(await terminalRoot.getAttribute('data-projected-terminal-attachment-id')).toBe(
+		attachmentId,
+	);
 	if (browserUrl === null) throw new Error('Desktop did not open a Browser access URL.');
 	return browserUrl;
 }

@@ -1,0 +1,225 @@
+import {
+	captureKeyboardShortcutChord,
+	formatKeyboardShortcutChord,
+	type KeyboardShortcutPlatform,
+} from '@orchbee/keyboard-shortcuts';
+import { keyboardShortcutMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import * as React from 'react';
+
+import {
+	KEYBOARD_SHORTCUT_CATALOG,
+	keyboardShortcutBindingSource,
+	keyboardShortcutDeclaration,
+	useKeyboardShortcutSettings,
+	type KeyboardShortcutAvailability,
+	type KeyboardShortcutDeclaration,
+	type KeyboardShortcutId,
+	type KeyboardShortcutScope,
+	type KeyboardShortcutSettingsController,
+} from '../../../../keyboard-shortcuts';
+
+interface KeyboardShortcutSettingsRowView {
+	readonly actionName: string;
+	readonly availability: string;
+	readonly chord: string;
+	readonly error: string | null;
+	readonly recording: boolean;
+	readonly resetLabel: string;
+	readonly scope: string;
+	readonly shortcutId: KeyboardShortcutId;
+	readonly source: string;
+	readonly sourceKind: 'custom' | 'default';
+	readonly onBlur: React.FocusEventHandler<HTMLButtonElement>;
+	readonly onChangeClick: React.MouseEventHandler<HTMLButtonElement>;
+	readonly onKeyDown: React.KeyboardEventHandler<HTMLButtonElement>;
+	readonly onReset: React.MouseEventHandler<HTMLButtonElement>;
+}
+
+interface KeyboardShortcutSettingsView {
+	readonly changeLabel: (action: string) => string;
+	readonly noResults: string;
+	readonly persistenceWarning: string | null;
+	readonly recordingInstruction: string;
+	readonly rows: readonly KeyboardShortcutSettingsRowView[];
+}
+
+interface UseKeyboardShortcutSettingsViewOptions {
+	readonly controller: KeyboardShortcutSettingsController;
+	readonly platform: KeyboardShortcutPlatform;
+	readonly query: string;
+}
+
+export function useKeyboardShortcutSettingsView({
+	controller,
+	platform,
+	query,
+}: UseKeyboardShortcutSettingsViewOptions): KeyboardShortcutSettingsView {
+	const intl = useOrchbeeIntl();
+	const actionNameFor = (declaration: KeyboardShortcutDeclaration): string => {
+		switch (declaration.name) {
+			case 'actions-search':
+				return intl.formatMessage(keyboardShortcutMessages.actionsSearch);
+			case 'new-terminal':
+				return intl.formatMessage(keyboardShortcutMessages.newTerminal);
+			case 'global-search':
+				return intl.formatMessage(keyboardShortcutMessages.globalSearch);
+			case 'settings':
+				return intl.formatMessage(keyboardShortcutMessages.settings);
+			case 'toggle-sidebar':
+				return intl.formatMessage(keyboardShortcutMessages.toggleSidebar);
+			case 'find':
+				return intl.formatMessage(keyboardShortcutMessages.find);
+			case 'copy-selection':
+				return intl.formatMessage(keyboardShortcutMessages.copySelection);
+			case 'select-all':
+				return intl.formatMessage(keyboardShortcutMessages.selectAll);
+		}
+	};
+	const scopeNameFor = (scope: KeyboardShortcutScope): string => {
+		switch (scope) {
+			case 'workbench':
+				return intl.formatMessage(keyboardShortcutMessages.scopeWorkbench);
+			case 'focused-terminal':
+				return intl.formatMessage(keyboardShortcutMessages.scopeFocusedTerminal);
+			case 'focused-terminal-or-find':
+				return intl.formatMessage(keyboardShortcutMessages.scopeFocusedTerminalOrFind);
+		}
+	};
+	const availabilityNameFor = (availability: KeyboardShortcutAvailability): string => {
+		switch (availability) {
+			case 'always-in-workbench':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityWorkbench);
+			case 'focused-terminal':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityFocusedTerminal);
+			case 'focused-terminal-with-selection':
+				return intl.formatMessage(
+					keyboardShortcutMessages.availabilityFocusedTerminalWithSelection,
+				);
+		}
+	};
+	const snapshot = useKeyboardShortcutSettings(controller);
+	const [recordingShortcutId, setRecordingShortcutId] = React.useState<KeyboardShortcutId | null>(
+		null,
+	);
+	const [errors, setErrors] = React.useState<Readonly<Partial<Record<KeyboardShortcutId, string>>>>(
+		{},
+	);
+	const sourceLabel = (source: 'custom' | 'default'): string =>
+		intl.formatMessage(
+			source === 'custom'
+				? keyboardShortcutMessages.sourceCustom
+				: keyboardShortcutMessages.sourceDefault,
+		);
+	const normalizedQuery = query.trim().toLocaleLowerCase(intl.locale);
+	const rows = KEYBOARD_SHORTCUT_CATALOG.map((declaration) => {
+		const actionName = actionNameFor(declaration);
+		const scope = scopeNameFor(declaration.scope);
+		const availability = availabilityNameFor(declaration.availability);
+		const chord = formatKeyboardShortcutChord(snapshot.bindings[declaration.shortcutId], platform);
+		const sourceKind = keyboardShortcutBindingSource(snapshot, declaration.shortcutId);
+		return {
+			actionName,
+			availability,
+			chord,
+			error: errors[declaration.shortcutId] ?? null,
+			recording: recordingShortcutId === declaration.shortcutId,
+			resetLabel: intl.formatMessage(keyboardShortcutMessages.reset),
+			scope,
+			shortcutId: declaration.shortcutId,
+			source: sourceLabel(sourceKind),
+			sourceKind,
+			onBlur: (): void => {
+				setRecordingShortcutId((current) => (current === declaration.shortcutId ? null : current));
+			},
+			onChangeClick: (): void => {
+				setErrors((current) => ({ ...current, [declaration.shortcutId]: undefined }));
+				setRecordingShortcutId(declaration.shortcutId);
+			},
+			onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>): void => {
+				if (recordingShortcutId !== declaration.shortcutId) return;
+				if (event.key === 'Tab') {
+					setRecordingShortcutId(null);
+					return;
+				}
+				event.preventDefault();
+				event.stopPropagation();
+				if (event.key === 'Escape') {
+					setRecordingShortcutId(null);
+					return;
+				}
+				const captured = captureKeyboardShortcutChord(event.nativeEvent, platform);
+				if (captured.kind === 'ignored') {
+					if (captured.reason === 'missing-modifier' || captured.reason === 'unsupported-code') {
+						setErrors((current) => ({
+							...current,
+							[declaration.shortcutId]: intl.formatMessage(keyboardShortcutMessages.invalid),
+						}));
+					}
+					return;
+				}
+				const result = controller.setShortcut(declaration.shortcutId, captured.chord);
+				if (result.kind === 'conflict') {
+					const conflictDeclaration = keyboardShortcutDeclaration(
+						result.conflict.conflictingShortcutId,
+					);
+					const conflictSource = keyboardShortcutBindingSource(
+						snapshot,
+						result.conflict.conflictingShortcutId,
+					);
+					setErrors((current) => ({
+						...current,
+						[declaration.shortcutId]: intl.formatMessage(keyboardShortcutMessages.conflict, {
+							action: actionNameFor(conflictDeclaration),
+							availability: availabilityNameFor(conflictDeclaration.availability),
+							scope: scopeNameFor(conflictDeclaration.scope),
+							shortcut: formatKeyboardShortcutChord(result.conflict.chord, platform),
+							source: sourceLabel(conflictSource),
+						}),
+					}));
+					return;
+				}
+				if (result.kind === 'invalid') {
+					setErrors((current) => ({
+						...current,
+						[declaration.shortcutId]: intl.formatMessage(keyboardShortcutMessages.invalid),
+					}));
+					return;
+				}
+				setErrors((current) => ({ ...current, [declaration.shortcutId]: undefined }));
+				setRecordingShortcutId(null);
+			},
+			onReset: (): void => {
+				controller.resetShortcut(declaration.shortcutId);
+				setErrors((current) => ({ ...current, [declaration.shortcutId]: undefined }));
+				setRecordingShortcutId(null);
+			},
+		};
+	}).filter((row) => {
+		if (normalizedQuery.length === 0) return true;
+		return [row.actionName, row.scope, row.chord]
+			.map((value) => value.toLocaleLowerCase(intl.locale))
+			.some((value) => value.includes(normalizedQuery));
+	});
+
+	let persistenceWarning: string | null = null;
+	switch (snapshot.persistenceIssue) {
+		case 'invalid-record':
+			persistenceWarning = intl.formatMessage(keyboardShortcutMessages.persistenceInvalidWarning);
+			break;
+		case 'read-failed':
+			persistenceWarning = intl.formatMessage(keyboardShortcutMessages.persistenceReadWarning);
+			break;
+		case 'write-failed':
+			persistenceWarning = intl.formatMessage(keyboardShortcutMessages.persistenceWriteWarning);
+			break;
+	}
+
+	return {
+		changeLabel: (action): string =>
+			intl.formatMessage(keyboardShortcutMessages.change, { action }),
+		noResults: intl.formatMessage(keyboardShortcutMessages.noResults),
+		persistenceWarning,
+		recordingInstruction: intl.formatMessage(keyboardShortcutMessages.recording),
+		rows,
+	};
+}

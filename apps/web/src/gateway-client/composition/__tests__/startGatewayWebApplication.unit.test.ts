@@ -123,9 +123,21 @@ describe('startGatewayWebApplication', () => {
 
 		expect(await session.ready).toEqual({ kind: 'ready' });
 		expect(createRuntime).toHaveBeenCalledWith(
-			expect.objectContaining({ terminalPlatformEffects: expect.any(Object) }),
+			expect.objectContaining({
+				terminalPlatformEffects: expect.any(Object),
+				terminalPresentationConfigurationSource: expect.any(Object),
+			}),
 		);
-		expect(createRouting).toHaveBeenCalledOnce();
+		const configurationSource =
+			createRuntime.mock.calls[0]?.[0].terminalPresentationConfigurationSource;
+		expect(configurationSource?.current()).toMatchObject({
+			backgroundOpacity: 1,
+			defaultColorOverride: null,
+			fontSize: 13,
+		});
+		expect(createRouting).toHaveBeenCalledWith(
+			expect.objectContaining({ terminalSettingsController: configurationSource }),
+		);
 		expect(render).toHaveBeenCalledOnce();
 		session.dispose();
 		expect(routingDispose).toHaveBeenCalledOnce();

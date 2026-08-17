@@ -8,6 +8,7 @@ import type { WorkbenchLayoutStorage } from '../../../workbench-layout-storage';
 import { terminalPresentationId } from '../../../terminal-presentation';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import { defaultWorkbenchShortcutBindings } from '../../utils/workbench-shortcuts';
 import { useWorkbench } from '../useWorkbench';
 
 function createTestTerminalPresentationComposition(scope: string) {
@@ -33,6 +34,7 @@ function WorkbenchHarness({ actionRuntime, isUserInteraction, storage }: Workben
 			standaloneTerminalTitle: 'Terminal 1',
 			terminalPresentation: createTestTerminalPresentationComposition('use-workbench'),
 		}),
+		shortcutBindings: defaultWorkbenchShortcutBindings('apple'),
 		shortcutPlatform: 'apple',
 		storage,
 	});

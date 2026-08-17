@@ -259,9 +259,39 @@ describe('startDesktopWorkbenchRenderer', () => {
 			settings?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 		});
 		await vi.waitFor(() => {
+			expect(root.querySelector('[data-slot="terminal-settings-surface"]')).not.toBeNull();
+		});
+		expect(document.querySelector('[data-slot="desktop-browser-access-dialog"]')).toBeNull();
+		const browserAccessCategory = [...root.querySelectorAll<HTMLButtonElement>('button')].find(
+			(button) => button.textContent?.trim() === 'Browser access',
+		);
+		expect(browserAccessCategory).toBeDefined();
+		await act(async () => browserAccessCategory?.click());
+		const openBrowserAccess = [...root.querySelectorAll<HTMLButtonElement>('button')].find(
+			(button) => button.textContent?.trim() === 'Open Browser access',
+		);
+		expect(openBrowserAccess).toBeDefined();
+		await act(async () => openBrowserAccess?.click());
+		await vi.waitFor(() => {
 			expect(document.querySelector('[data-slot="desktop-browser-access-dialog"]')).not.toBeNull();
 		});
 		expect(document.body.textContent).toContain('Full terminal control on trusted networks only');
+		await act(async () => {
+			document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }));
+		});
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-slot="desktop-browser-access-dialog"]')).toBeNull();
+		});
+		expect(root.querySelector('[data-slot="terminal-settings-surface"]')).not.toBeNull();
+		await vi.waitFor(() => expect(document.activeElement).toBe(openBrowserAccess));
+		await act(async () => {
+			root
+				.querySelector<HTMLElement>('[data-slot="terminal-settings-surface"]')
+				?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }));
+		});
+		await vi.waitFor(() => {
+			expect(root.querySelector('[data-slot="terminal-settings-surface"]')).toBeNull();
+		});
 
 		await act(async () => session?.dispose());
 		root.remove();

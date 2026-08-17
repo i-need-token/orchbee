@@ -1,9 +1,19 @@
 import { parseFontMetricModifier } from './font-metrics';
-import type { FontMetricModifiers, FontWeight, PaddingBalance, RendererOptions } from './types';
+import type {
+	FontMetricModifiers,
+	FontWeight,
+	PaddingBalance,
+	RendererOptions,
+	TerminalDefaultColorOverride,
+} from './types';
 
 /** Complete client-owned presentation state changed by one runtime transaction. */
 export interface TerminalPresentationConfiguration {
 	readonly allowTransparency: boolean;
+	/** Source-neutral root-background alpha; composition adapters apply it outside the renderer. */
+	readonly backgroundOpacity: number;
+	/** A client display override for default-coded colors; Host metadata remains unchanged. */
+	readonly defaultColorOverride: TerminalDefaultColorOverride | null;
 	readonly fontFamily: string;
 	readonly fontLigatures: boolean;
 	readonly fontMetricModifiers: FontMetricModifiers;
@@ -47,6 +57,8 @@ export type TerminalPresentationConfigurationUpdateResult =
 
 const CONFIGURATION_FIELDS = [
 	'allowTransparency',
+	'backgroundOpacity',
+	'defaultColorOverride',
 	'fontFamily',
 	'fontLigatures',
 	'fontMetricModifiers',
@@ -75,6 +87,8 @@ const METRIC_FIELDS = [
 export const DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION: TerminalPresentationConfiguration =
 	Object.freeze({
 		allowTransparency: false,
+		backgroundOpacity: 1,
+		defaultColorOverride: null,
 		fontFamily: 'monospace',
 		fontLigatures: true,
 		fontMetricModifiers: Object.freeze({}),
@@ -104,6 +118,12 @@ function normalizeTerminalPresentationConfigurationUnchecked(
 
 	const allowTransparency = Reflect.get(input, 'allowTransparency');
 	if (typeof allowTransparency !== 'boolean') return invalid('allowTransparency');
+	const backgroundOpacity = Reflect.get(input, 'backgroundOpacity');
+	if (!isBackgroundOpacity(backgroundOpacity)) return invalid('backgroundOpacity');
+	const defaultColorOverride = normalizeDefaultColorOverride(
+		Reflect.get(input, 'defaultColorOverride'),
+	);
+	if (defaultColorOverride === undefined) return invalid('defaultColorOverride');
 	const fontFamily = Reflect.get(input, 'fontFamily');
 	if (typeof fontFamily !== 'string' || fontFamily.trim().length === 0) {
 		return invalid('fontFamily');
@@ -126,6 +146,8 @@ function normalizeTerminalPresentationConfigurationUnchecked(
 	return {
 		configuration: Object.freeze({
 			allowTransparency,
+			backgroundOpacity,
+			defaultColorOverride,
 			fontFamily: fontFamily.trim(),
 			fontLigatures,
 			fontMetricModifiers: Object.freeze(fontMetricModifiers),
@@ -144,6 +166,8 @@ export function presentationConfigurationFromRendererOptions(
 	const defaults = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION;
 	const result = normalizeTerminalPresentationConfiguration({
 		allowTransparency: options?.allowTransparency ?? defaults.allowTransparency,
+		backgroundOpacity: options?.backgroundOpacity ?? defaults.backgroundOpacity,
+		defaultColorOverride: options?.defaultColorOverride ?? defaults.defaultColorOverride,
 		fontFamily: options?.fontFamily ?? defaults.fontFamily,
 		fontLigatures: options?.fontLigatures ?? defaults.fontLigatures,
 		fontMetricModifiers: options?.fontMetricModifiers ?? defaults.fontMetricModifiers,
@@ -156,6 +180,23 @@ export function presentationConfigurationFromRendererOptions(
 		throw new TypeError(`Invalid terminal presentation configuration field: ${result.field}`);
 	}
 	return result.configuration;
+}
+
+function normalizeDefaultColorOverride(
+	input: unknown,
+): TerminalDefaultColorOverride | null | undefined {
+	if (input === null) return null;
+	if (!isRecord(input) || !hasExactFields(input, ['background', 'foreground'])) return undefined;
+	const background = normalizeHexColor(Reflect.get(input, 'background'));
+	if (background === undefined) return undefined;
+	const foreground = normalizeHexColor(Reflect.get(input, 'foreground'));
+	if (foreground === undefined) return undefined;
+	return Object.freeze({ background, foreground });
+}
+
+function normalizeHexColor(input: unknown): `#${string}` | undefined {
+	if (typeof input !== 'string' || !/^#[\da-fA-F]{6}$/u.test(input)) return undefined;
+	return `#${input.slice(1).toLowerCase()}`;
 }
 
 function normalizeFontMetricModifiers(input: unknown): FontMetricModifiers | undefined {
@@ -210,6 +251,10 @@ function isPaddingBalance(input: unknown): input is PaddingBalance {
 
 function isPositiveFiniteNumber(input: unknown): input is number {
 	return typeof input === 'number' && Number.isFinite(input) && input > 0;
+}
+
+function isBackgroundOpacity(input: unknown): input is number {
+	return typeof input === 'number' && Number.isFinite(input) && input >= 0 && input <= 1;
 }
 
 function isRecord(input: unknown): input is object {

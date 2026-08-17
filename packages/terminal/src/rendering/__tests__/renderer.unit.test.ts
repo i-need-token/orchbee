@@ -89,6 +89,7 @@ function createPackedSource(
 	lines: readonly string[],
 	options: {
 		readonly cursor?: Partial<TestPackedCursor>;
+		readonly defaultColors?: Partial<PackedRendererMetadata['defaultColors']>;
 		readonly full?: boolean;
 	} = {},
 ): TestPackedSource {
@@ -134,6 +135,7 @@ function createPackedSource(
 				backgroundRgb: 0x10_14_18,
 				cursorRgb: null,
 				foregroundRgb: 0xd8_de_e9,
+				...options.defaultColors,
 			},
 			rows: lines.length,
 		},
@@ -241,6 +243,11 @@ describe('WebGPURenderer recovery retirement', () => {
 
 describe('projected terminal renderer', () => {
 	it('resolves Host terminal colors and application overlay colors without a second palette', () => {
+		const hostDefaultColors = {
+			backgroundRgb: 0x10_14_18,
+			cursorRgb: 0xf5_a9_7f,
+			foregroundRgb: 0xd8_de_e9,
+		};
 		const theme = {
 			...DEFAULT_THEME,
 			background: '#abcdef',
@@ -249,10 +256,7 @@ describe('projected terminal renderer', () => {
 			selectionBackground: '#112233',
 			selectionForeground: '#ddeeff',
 		};
-		const colors = resolvePackedPresentationColors(
-			{ backgroundRgb: 0x10_14_18, cursorRgb: 0xf5_a9_7f, foregroundRgb: 0xd8_de_e9 },
-			theme,
-		);
+		const colors = resolvePackedPresentationColors(hostDefaultColors, theme);
 
 		expect(colors).toMatchObject({
 			background: [16, 20, 24],
@@ -269,6 +273,21 @@ describe('projected terminal renderer', () => {
 				'#010203',
 			).cursorAccent,
 		).toEqual([1, 2, 3]);
+		const override = resolvePackedPresentationColors(hostDefaultColors, theme, undefined, {
+			background: '#102030',
+			foreground: '#aabbcc',
+		});
+		expect(override).toMatchObject({
+			background: [16, 32, 48],
+			cursor: [245, 169, 127],
+			cursorAccent: [16, 20, 24],
+			foreground: [170, 187, 204],
+		});
+		expect(hostDefaultColors).toEqual({
+			backgroundRgb: 0x10_14_18,
+			cursorRgb: 0xf5_a9_7f,
+			foregroundRgb: 0xd8_de_e9,
+		});
 	});
 
 	it('uses projected style flags for independently configurable font weights', () => {
@@ -750,6 +769,107 @@ describe('projected terminal renderer', () => {
 		paints.length = 0;
 		renderer.resize(1, 1);
 		expect(paints).toEqual([{ color: 'rgb(16, 20, 24)', rectangle: [0, 0, 8, 17] }]);
+		renderer.dispose();
+	});
+
+	it('applies a default-only display override through Canvas without mutating Host colors', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const fills: Array<{
+			readonly alpha: number;
+			readonly color: string;
+			readonly rectangle: readonly number[];
+		}> = [];
+		const textPaints: Array<{
+			readonly alpha: number;
+			readonly color: string;
+			readonly text: string;
+		}> = [];
+		const underlinePaints: Array<{ readonly alpha: number; readonly color: string }> = [];
+		const fillRect: CanvasRenderingContext2D['fillRect'] = function (
+			this: CanvasRenderingContext2D,
+			x,
+			y,
+			width,
+			height,
+		) {
+			fills.push({
+				alpha: this.globalAlpha,
+				color: String(this.fillStyle),
+				rectangle: [x, y, width, height],
+			});
+		};
+		const fillText: CanvasRenderingContext2D['fillText'] = function (
+			this: CanvasRenderingContext2D,
+			text,
+		) {
+			textPaints.push({ alpha: this.globalAlpha, color: String(this.fillStyle), text });
+		};
+		const stroke: CanvasRenderingContext2D['stroke'] = function (this: CanvasRenderingContext2D) {
+			underlinePaints.push({ alpha: this.globalAlpha, color: String(this.strokeStyle) });
+		};
+		const canvas = createCanvas(undefined, {}, fillText, fillRect, stroke);
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		const renderer = new WebGPURenderer(canvas, {
+			allowTransparency: true,
+			backgroundOpacity: 0,
+			defaultColorOverride: { background: '#102030', foreground: '#ddeeff' },
+		});
+		await renderer.initGPU();
+		renderer.setFocused(true);
+		const source = createPackedSource(['ABCDE'], {
+			cursor: { column: 4, visible: true },
+			defaultColors: {
+				backgroundRgb: 0x11_22_33,
+				cursorRgb: 0xaa_bb_cc,
+				foregroundRgb: 0x22_33_44,
+			},
+		});
+		const row = source.rows[0];
+		if (row === undefined || source.metadata === null) {
+			throw new Error('default-color fixture did not create one packed row and metadata');
+		}
+		row.foregroundColors[1] = 0;
+		row.backgroundColors[1] = 0x0a_0b_0c;
+		row.foregroundColors[2] = TerminalColorEncoding.none;
+		row.backgroundColors[2] = TerminalColorEncoding.none;
+		row.styleFlags[3] = TerminalStyleFlag.inverse;
+		row.underlineKinds[0] = TerminalUnderlineKindCode.single;
+		row.underlineColors[0] = TerminalColorEncoding.default;
+		const hostDefaultColors = { ...source.metadata.defaultColors };
+
+		renderer.renderPacked(source);
+
+		expect(textPaints).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ alpha: 1, color: 'rgb(221, 238, 255)' }),
+				expect.objectContaining({ alpha: 1, color: 'rgb(0, 0, 0)' }),
+				expect.objectContaining({ alpha: 1, color: 'rgb(34, 51, 68)' }),
+				expect.objectContaining({ alpha: 1, color: 'rgb(16, 32, 48)' }),
+			]),
+		);
+		expect(fills).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					alpha: 1,
+					color: 'rgb(10, 11, 12)',
+					rectangle: [8, 0, 8, 17],
+				}),
+				expect.objectContaining({
+					alpha: 1,
+					color: 'rgb(221, 238, 255)',
+					rectangle: [24, 0, 8, 17],
+				}),
+				expect.objectContaining({
+					alpha: 1,
+					color: 'rgb(170, 187, 204)',
+					rectangle: [32, 0, 8, 17],
+				}),
+			]),
+		);
+		expect(fills.some((paint) => paint.rectangle[0] === 16)).toBe(false);
+		expect(underlinePaints).toContainEqual({ alpha: 1, color: 'rgb(221, 238, 255)' });
+		expect(source.metadata.defaultColors).toEqual(hostDefaultColors);
 		renderer.dispose();
 	});
 
@@ -1413,6 +1533,111 @@ describe('projected terminal renderer', () => {
 		expect(telemetry).toHaveBeenCalledWith(
 			expect.objectContaining({ backend: 'webgpu', cellsVisited: 1, rowsRendered: 1 }),
 		);
+		renderer.dispose();
+	});
+
+	it('applies the default-only display override through WebGPU with opaque cell projections', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: vi.fn<(configuration: GPUCanvasConfiguration) => void>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context), {
+			backgroundOpacity: 0,
+			defaultColorOverride: { background: '#102030', foreground: '#ddeeff' },
+		});
+		await renderer.initGPU();
+		renderer.setFocused(true);
+		const source = createPackedSource(['ABCDE'], {
+			cursor: { column: 4, visible: true },
+			defaultColors: {
+				backgroundRgb: 0x11_22_33,
+				cursorRgb: 0xaa_bb_cc,
+				foregroundRgb: 0x22_33_44,
+			},
+		});
+		const row = source.rows[0];
+		if (row === undefined || source.metadata === null) {
+			throw new Error('default-color fixture did not create one packed row and metadata');
+		}
+		row.foregroundColors[1] = 0;
+		row.backgroundColors[1] = 0x0a_0b_0c;
+		row.foregroundColors[2] = TerminalColorEncoding.none;
+		row.backgroundColors[2] = TerminalColorEncoding.none;
+		row.styleFlags[3] = TerminalStyleFlag.inverse;
+		row.underlineKinds[0] = TerminalUnderlineKindCode.single;
+		row.underlineColors[0] = TerminalColorEncoding.default;
+		const hostDefaultColors = { ...source.metadata.defaultColors };
+
+		renderer.renderPacked(source);
+
+		expect(rendering.beginRenderPass.mock.calls.at(-1)?.[0].colorAttachments[0]).toMatchObject({
+			clearValue: {
+				a: 1,
+				b: 48 / 255,
+				g: 32 / 255,
+				r: 16 / 255,
+			},
+		});
+		const rectangles = rendering.writeBuffer.mock.calls.flatMap((call) => {
+			const value = call[2];
+			if (!(value instanceof Float32Array) || value.length === 0 || value.length % 8 !== 0) {
+				return [];
+			}
+			return Array.from({ length: value.length / 8 }, (_unused, index) =>
+				Array.from(value.subarray(index * 8, (index + 1) * 8)),
+			);
+		});
+		const textInstances = rendering.writeBuffer.mock.calls.flatMap((call) => {
+			const value = call[2];
+			if (!(value instanceof Float32Array) || value.length === 0 || value.length % 13 !== 0) {
+				return [];
+			}
+			return Array.from({ length: value.length / 13 }, (_unused, index) =>
+				Array.from(value.subarray(index * 13, (index + 1) * 13)),
+			);
+		});
+		const includesOpaqueRectangle = (
+			x: number,
+			color: readonly [number, number, number],
+		): boolean =>
+			rectangles.some(
+				(instance) =>
+					instance[0] === x &&
+					Math.abs((instance[4] ?? -1) - color[0] / 255) < 0.0001 &&
+					Math.abs((instance[5] ?? -1) - color[1] / 255) < 0.0001 &&
+					Math.abs((instance[6] ?? -1) - color[2] / 255) < 0.0001 &&
+					instance[7] === 1,
+			);
+		const includesOpaqueText = (color: readonly [number, number, number]): boolean =>
+			textInstances.some(
+				(instance) =>
+					Math.abs((instance[8] ?? -1) - color[0] / 255) < 0.0001 &&
+					Math.abs((instance[9] ?? -1) - color[1] / 255) < 0.0001 &&
+					Math.abs((instance[10] ?? -1) - color[2] / 255) < 0.0001 &&
+					instance[11] === 1,
+			);
+		expect(includesOpaqueRectangle(0, [221, 238, 255])).toBe(true);
+		expect(includesOpaqueRectangle(8, [10, 11, 12])).toBe(true);
+		expect(includesOpaqueRectangle(16, [17, 34, 51])).toBe(false);
+		expect(includesOpaqueRectangle(24, [221, 238, 255])).toBe(true);
+		expect(includesOpaqueRectangle(32, [170, 187, 204])).toBe(true);
+		expect(includesOpaqueText([221, 238, 255])).toBe(true);
+		expect(includesOpaqueText([0, 0, 0])).toBe(true);
+		expect(includesOpaqueText([34, 51, 68])).toBe(true);
+		expect(includesOpaqueText([16, 32, 48])).toBe(true);
+		expect(source.metadata.defaultColors).toEqual(hostDefaultColors);
 		renderer.dispose();
 	});
 

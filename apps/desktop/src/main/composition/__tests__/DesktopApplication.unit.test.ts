@@ -37,6 +37,7 @@ import {
 	DesktopTerminalIntentReconciler,
 } from '../../client-session';
 import type { WorkbenchDocumentStore } from '../../workbench-document';
+import type { DesktopWindowStateStore } from '../../window-state';
 import {
 	TerminalExitSpillStore,
 	type TerminalExitPublicationLedger,
@@ -103,6 +104,92 @@ describe('DesktopApplication', () => {
 			titleBarStyle: 'hidden',
 		});
 		expect(harness.windowOptions?.trafficLightPosition).toBeUndefined();
+	});
+
+	it('restores safe persisted bounds and maximized state before showing the window', async () => {
+		const harness = createHarness();
+		harness.windowStateStore.load.mockResolvedValueOnce({
+			kind: 'available',
+			state: {
+				bounds: { height: 640, width: 960, x: 240, y: 120 },
+				maximized: true,
+				version: 1,
+			},
+		});
+		const application = createApplication(harness.dependencies);
+
+		await application.start();
+
+		expect(harness.windowOptions).toMatchObject({
+			height: 640,
+			width: 960,
+			x: 240,
+			y: 120,
+		});
+		expect(harness.browserWindow.maximize).toHaveBeenCalledOnce();
+		await application.shutdown();
+	});
+
+	it('restores a minimized window before showing and focusing it', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		vi.mocked(harness.browserWindow.isMinimized).mockReturnValue(true);
+		vi.mocked(harness.browserWindow.restore).mockClear();
+		vi.mocked(harness.browserWindow.show).mockClear();
+		vi.mocked(harness.browserWindow.focus).mockClear();
+
+		application.focusWindow();
+
+		expect(harness.browserWindow.restore).toHaveBeenCalledOnce();
+		expect(harness.browserWindow.show).toHaveBeenCalledOnce();
+		expect(harness.browserWindow.focus).toHaveBeenCalledOnce();
+		await application.shutdown();
+	});
+
+	it('exposes safe maximized and full-screen transitions for semantic actions', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+
+		expect(application.getWindowState()).toBe('normal');
+		expect(application.toggleWindowMaximized()).toBe(true);
+		expect(harness.browserWindow.maximize).toHaveBeenCalledOnce();
+
+		vi.mocked(harness.browserWindow.isMaximized).mockReturnValue(true);
+		expect(application.getWindowState()).toBe('maximized');
+		expect(application.toggleWindowMaximized()).toBe(true);
+		expect(harness.browserWindow.unmaximize).toHaveBeenCalledOnce();
+
+		vi.mocked(harness.browserWindow.isFullScreen).mockReturnValue(true);
+		expect(application.getWindowState()).toBe('full-screen');
+		expect(application.toggleWindowMaximized()).toBe(false);
+		expect(harness.browserWindow.unmaximize).toHaveBeenCalledOnce();
+		expect(application.toggleWindowFullScreen()).toBe(true);
+		expect(harness.browserWindow.setFullScreen).toHaveBeenLastCalledWith(false);
+
+		vi.mocked(harness.browserWindow.isFullScreen).mockReturnValue(false);
+		expect(application.toggleWindowFullScreen()).toBe(true);
+		expect(harness.browserWindow.setFullScreen).toHaveBeenLastCalledWith(true);
+		await application.shutdown();
+	});
+
+	it('captures the final normal bounds and flushes them before shutdown completes', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies, 'linux');
+		await application.start();
+		harness.windowStateStore.save.mockClear();
+		harness.windowStateStore.flush.mockClear();
+
+		harness.browserWindow.emit('move');
+		await application.shutdown();
+
+		expect(harness.windowStateStore.save).toHaveBeenCalledWith({
+			bounds: { height: 720, width: 1_024, x: 100, y: 100 },
+			maximized: false,
+			version: 1,
+		});
+		expect(harness.windowStateStore.flush).toHaveBeenCalledOnce();
 	});
 
 	it('registers the Host exit listener before terminal runtime reconciliation', async () => {
@@ -1484,12 +1571,25 @@ function createHarness(
 	});
 	const browserWindow = Object.assign(new EventEmitter(), {
 		focus: vi.fn<BrowserWindow['focus']>(),
+		getNormalBounds: vi.fn<BrowserWindow['getNormalBounds']>(() => ({
+			height: 720,
+			width: 1_024,
+			x: 100,
+			y: 100,
+		})),
 		isDestroyed: vi.fn<BrowserWindow['isDestroyed']>(() => false),
+		isFullScreen: vi.fn<BrowserWindow['isFullScreen']>(() => false),
+		isMaximized: vi.fn<BrowserWindow['isMaximized']>(() => false),
+		isMinimized: vi.fn<BrowserWindow['isMinimized']>(() => false),
 		loadURL: vi.fn<BrowserWindow['loadURL']>(async () => {
 			emitRendererDocumentLoad(webContents);
 		}),
+		maximize: vi.fn<BrowserWindow['maximize']>(),
 		reload: vi.fn<BrowserWindow['reload']>(),
+		restore: vi.fn<BrowserWindow['restore']>(),
+		setFullScreen: vi.fn<BrowserWindow['setFullScreen']>(),
 		show: vi.fn<BrowserWindow['show']>(),
+		unmaximize: vi.fn<BrowserWindow['unmaximize']>(),
 		webContents,
 	}) as unknown as BrowserWindow;
 	let windowOptions: BrowserWindowConstructorOptions | undefined;
@@ -1659,6 +1759,11 @@ function createHarness(
 		windowOptions = options;
 		return browserWindow;
 	});
+	const windowStateStore = {
+		flush: vi.fn<DesktopWindowStateStore['flush']>().mockResolvedValue(undefined),
+		load: vi.fn<DesktopWindowStateStore['load']>().mockResolvedValue({ kind: 'missing' }),
+		save: vi.fn<DesktopWindowStateStore['save']>().mockResolvedValue(true),
+	} satisfies DesktopWindowStateStore;
 	type BrowserAccessRuntime = ReturnType<
 		DesktopApplicationDependencies['createBrowserAccessRuntime']
 	>;
@@ -1756,7 +1861,14 @@ function createHarness(
 			.fn<DesktopApplicationDependencies['createWorkbenchDocumentStore']>()
 			.mockReturnValue(workbenchDocumentStore),
 		createWindow,
+		createWindowStateStore: vi
+			.fn<DesktopApplicationDependencies['createWindowStateStore']>()
+			.mockReturnValue(windowStateStore),
 		getPreferredLocales: () => ['en-US'],
+		getWindowDisplayTopology: () => ({
+			primaryWorkArea: { height: 900, width: 1_440, x: 0, y: 0 },
+			workAreas: [{ height: 900, width: 1_440, x: 0, y: 0 }],
+		}),
 		randomIdentifier: () => (++identifierSequence).toString(16).padStart(32, '0'),
 		quitApplication: vi.fn<() => void>(),
 		writeTrace: vi.fn<DesktopApplicationDependencies['writeTrace']>(),
@@ -1793,6 +1905,7 @@ function createHarness(
 		publishedExitLedgerEvents,
 		webContents,
 		workbenchDocumentStore,
+		windowStateStore,
 		get windowOptions() {
 			return windowOptions;
 		},

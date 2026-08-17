@@ -25,7 +25,7 @@ describe('startWebApplication', () => {
 	});
 
 	it('selects the locale before rendering the application', () => {
-		const documentElement = { dir: '', lang: '' };
+		const documentElement = { dataset: {}, dir: '', lang: '' };
 		const rootElement = {} as Element;
 		const layoutStorage = {
 			getItem: () => null,
@@ -40,7 +40,7 @@ describe('startWebApplication', () => {
 			layoutStorage,
 		);
 
-		expect(documentElement).toEqual({ dir: 'ltr', lang: 'zh-CN' });
+		expect(documentElement).toEqual({ dataset: { theme: 'light' }, dir: 'ltr', lang: 'zh-CN' });
 		expect(createRoot).toHaveBeenCalledWith(rootElement);
 		expect(reactRootMocks.render).toHaveBeenCalledOnce();
 
@@ -49,7 +49,7 @@ describe('startWebApplication', () => {
 	});
 
 	it('rejects a missing application root before rendering', () => {
-		const documentElement = { dir: '', lang: '' };
+		const documentElement = { dataset: {}, dir: '', lang: '' };
 		const layoutStorage = {
 			getItem: () => null,
 			setItem: () => undefined,

@@ -16,17 +16,21 @@ Grammar may vary with a complete message, but the underlying product concept and
 
 ## Product terminology
 
-| Concept          | `en-US`          | `zh-CN`  | Use                                                                 | Avoid as synonyms                          |
-| ---------------- | ---------------- | -------- | ------------------------------------------------------------------- | ------------------------------------------ |
-| Orchbee          | Orchbee          | Orchbee  | Product name                                                        | Transliterated or translated product names |
-| Project          | Project          | 项目     | Product project represented in navigation                           | 工程                                       |
-| Settings         | Settings         | 设置     | Product configuration entry or surface                              | 偏好设置、配置                             |
-| Sidebar          | Sidebar          | 边栏     | Supporting navigation or tool surface at an edge                    | 侧边栏、侧栏                               |
-| Tab              | Tab              | 标签页   | Selectable item and its associated content surface                  | 选项卡、页签                               |
-| Tab group        | Tab group        | 标签页组 | Collection that owns one or more tabs                               | 标签组、分组                               |
-| Tab strip        | Tab strip        | 标签栏   | Container that presents and manages tabs                            | 标签页栏、选项卡栏                         |
-| Terminal         | Terminal         | 终端     | Terminal session or terminal surface                                | 控制台、命令行                             |
-| Terminal session | Terminal session | 终端会话 | One running shell/process lifetime owned by a Terminal presentation | 控制台会话、命令行会话                     |
+| Concept           | `en-US`           | `zh-CN`    | Use                                                                 | Avoid as synonyms                          |
+| ----------------- | ----------------- | ---------- | ------------------------------------------------------------------- | ------------------------------------------ |
+| Orchbee           | Orchbee           | Orchbee    | Product name                                                        | Transliterated or translated product names |
+| Browser access    | Browser access    | 浏览器访问 | Desktop surface for using a terminal from a browser                 | Web access、浏览器连接                     |
+| Host              | Host              | 主机       | Terminal display option that preserves Host-projected colors        | Server、设备                               |
+| Keyboard shortcut | Keyboard shortcut | 键盘快捷键 | Physical chord bound to one semantic product action                 | Hotkey、快捷方式                           |
+| Project           | Project           | 项目       | Product project represented in navigation                           | 工程                                       |
+| Settings          | Settings          | 设置       | Product configuration entry or surface                              | 偏好设置、配置                             |
+| Sidebar           | Sidebar           | 边栏       | Supporting navigation or tool surface at an edge                    | 侧边栏、侧栏                               |
+| Tab               | Tab               | 标签页     | Selectable item and its associated content surface                  | 选项卡、页签                               |
+| Tab group         | Tab group         | 标签页组   | Collection that owns one or more tabs                               | 标签组、分组                               |
+| Tab strip         | Tab strip         | 标签栏     | Container that presents and manages tabs                            | 标签页栏、选项卡栏                         |
+| Terminal          | Terminal          | 终端       | Terminal session or terminal surface                                | 控制台、命令行                             |
+| Terminal session  | Terminal session  | 终端会话   | One running shell/process lifetime owned by a Terminal presentation | 控制台会话、命令行会话                     |
+| Window            | Window            | 窗口       | Native Desktop application window                                   | 页面、视图                                 |
 
 Do not add general language merely to enlarge the table. Record only product terms whose stable translation prevents a real ambiguity.
 

@@ -43,6 +43,22 @@ describe('createProjectedTerminalActionComposition', () => {
 		expect(terminal.openLinkAsync).not.toHaveBeenCalled();
 		composition.dispose();
 	});
+
+	it('declines a shortcut while its Action is unavailable', () => {
+		const terminal = terminalTarget('none');
+		const controller = findController();
+		const composition = createProjectedTerminalActionComposition(terminal, controller);
+
+		expect(
+			composition.invokeShortcut(
+				PROJECTED_TERMINAL_ACTION_IDS.copySelection,
+				undefined,
+				composition.terminalScope,
+			),
+		).toBe(false);
+		expect(terminal.copySelectionAsync).not.toHaveBeenCalled();
+		composition.dispose();
+	});
 });
 
 function findController(): TerminalFindController {
@@ -52,7 +68,9 @@ function findController(): TerminalFindController {
 	});
 }
 
-function terminalTarget(): ProjectedTerminalActionTarget {
+function terminalTarget(
+	selectionState: ProjectedTerminalActionTarget['selection']['state'] = 'active',
+): ProjectedTerminalActionTarget {
 	return {
 		canControlTerminal: true,
 		copySelectionAsync: vi
@@ -71,7 +89,7 @@ function terminalTarget(): ProjectedTerminalActionTarget {
 			preview: null,
 			rectangle: false,
 			start: { column: 0, row: CanonicalUint64TextSchema.parse('1') },
-			state: 'active',
+			state: selectionState,
 		},
 	};
 }

@@ -1,0 +1,20 @@
+.root {
+	display: grid;
+	grid-template-columns: var(--ob-ref-size-control-sm) minmax(var(--ob-ref-space-0), 1fr);
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+}
+
+.picker {
+	box-sizing: border-box;
+	width: var(--ob-ref-size-control-sm);
+	height: var(--ob-ref-size-control-sm);
+	padding: var(--ob-ref-space-0-5);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: transparent;
+}
+
+.picker:disabled {
+	opacity: var(--ob-sys-opacity-muted);
+}

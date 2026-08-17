@@ -35,7 +35,7 @@ import {
 	startProjectedTerminalRenderer,
 	type ProjectedTerminalRendererDependencies,
 } from '../startProjectedTerminalRenderer';
-import type { TerminalPresentationConfigurationSource } from '../terminal-presentation-configuration-source';
+import type { TerminalPresentationConfigurationSource } from '../../../terminal-presentation';
 
 const attachmentId = AttachmentIdSchema.parse('22'.repeat(16));
 const creationId = CreationIdSchema.parse('33'.repeat(16));
@@ -51,6 +51,8 @@ const rowText = [
 
 const runtimeConfiguration: TerminalPresentationConfiguration = {
 	allowTransparency: true,
+	backgroundOpacity: 0.75,
+	defaultColorOverride: null,
 	fontFamily: 'serif',
 	fontLigatures: false,
 	fontMetricModifiers: { cellHeight: 5, cellWidth: 3 },

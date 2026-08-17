@@ -103,6 +103,7 @@ for (const modelName of [
 	'DesktopTerminalResizeLease',
 	'DesktopWorkbenchDocumentStore',
 	'DesktopWorkbenchWriteAhead',
+	'DesktopWindowStateLifecycle',
 	'TerminalRecoveryBinding',
 ]) {
 	await runTlc(modelName);

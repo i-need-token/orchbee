@@ -67,6 +67,7 @@ export type {
 	ITheme,
 	PaddingBalance,
 	RendererOptions,
+	TerminalDefaultColorOverride,
 } from './types';
 
 export type { IDisposable, IEvent } from './EventEmitter';

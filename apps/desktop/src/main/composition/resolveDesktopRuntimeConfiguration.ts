@@ -64,6 +64,7 @@ export interface DesktopRuntimeConfiguration {
 	readonly terminalHostName: string;
 	readonly terminalHostLaunchMode: 'connect-only' | 'connect-or-launch';
 	readonly terminalLaunch: TerminalLaunch;
+	readonly windowStateStorePath: string;
 	readonly workbenchDocumentStorePath: string;
 }
 
@@ -216,6 +217,7 @@ export function resolveDesktopRuntimeConfiguration(
 			rows: 24,
 			terminalProfile: createDefaultTerminalProfile(),
 		}),
+		windowStateStorePath: path.join(input.userDataPath, 'window-state-v1.json'),
 		workbenchDocumentStorePath: path.join(recoveryDirectory, 'workbench-shared-document-v1.json'),
 	};
 }

@@ -4,6 +4,8 @@ import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
+import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
+import { TerminalSettingsController } from '../../terminal-settings';
 import {
 	createWorkbenchClientRuntime,
 	ProjectedTerminalSurface,
@@ -30,7 +32,7 @@ export interface DesktopWorkbenchRendererSession {
 
 export function startDesktopWorkbenchRenderer(
 	rootElement: Element | null,
-	documentElement: Pick<HTMLElement, 'dir' | 'lang'>,
+	documentElement: Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>,
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	storage: Pick<Storage, 'getItem' | 'setItem'>,
@@ -49,14 +51,25 @@ export function startDesktopWorkbenchRenderer(
 	const browserAccessController = new DesktopBrowserAccessController(
 		new DesktopBrowserAccessClient(browserAccessPort),
 	);
+	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
+		platform: shortcutPlatform,
+		storage,
+	});
+	const terminalSettingsController = new TerminalSettingsController({
+		storage,
+		themeTarget: documentElement,
+	});
 	const runtime = createWorkbenchClientRuntime({
 		clientSession,
 		documentElement,
 		preferredLocales,
 		projectionClient,
+		shortcutBindingSource: keyboardShortcutSettingsController,
 		shortcutPlatform,
+		terminalPresentationConfigurationSource: terminalSettingsController,
 	});
 	let applicationLifetimeCoordinator: DesktopApplicationLifetimeCoordinator | undefined;
+	let browserAccessReturnFocus: HTMLElement | null = null;
 	let disposed = false;
 	let lifetimeClient: DesktopApplicationLifetimeClient | undefined;
 	let reactRoot: Root | undefined;
@@ -73,6 +86,8 @@ export function startDesktopWorkbenchRenderer(
 		routing?.dispose();
 		routing = undefined;
 		runtime.dispose();
+		keyboardShortcutSettingsController.dispose();
+		terminalSettingsController.dispose();
 		if (lifetimeClient === undefined) lifetimePort.close();
 		else lifetimeClient.dispose();
 	};
@@ -102,13 +117,15 @@ export function startDesktopWorkbenchRenderer(
 		);
 		const nextRouting = createWebApplicationRouting({
 			actionRuntime: workbenchClientRuntime.actionRuntime,
+			keyboardShortcutSettingsController,
 			layoutStorage: storage,
-			onSettings: () => {
-				browserAccessController.open();
-				return { kind: 'completed' };
-			},
 			projectWorkspaceRuntime: workbenchClientRuntime.projectWorkspaceRuntime,
+			requestBrowserAccess: (returnFocus) => {
+				browserAccessReturnFocus = returnFocus;
+				browserAccessController.open();
+			},
 			shortcutPlatform,
+			terminalSettingsController,
 			terminalSurface: ProjectedTerminalSurface,
 		});
 		routing = nextRouting;
@@ -116,6 +133,11 @@ export function startDesktopWorkbenchRenderer(
 		reactRoot.render(
 			createElement(DesktopWorkbench, {
 				applicationLifetimeCoordinator,
+				browserAccessFinalFocus: () => {
+					const returnFocus = browserAccessReturnFocus;
+					browserAccessReturnFocus = null;
+					return returnFocus?.isConnected === true ? returnFocus : null;
+				},
 				browserAccessController,
 				locale: workbenchClientRuntime.locale,
 				router: nextRouting.router,

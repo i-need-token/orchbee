@@ -25,6 +25,11 @@ export interface ProjectedTerminalActionComposition {
 		scope: ActionScope,
 		source: 'button' | 'keyboard' | 'pointer' | 'programmatic',
 	): ActionExecution;
+	invokeShortcut<Id extends keyof ProjectedTerminalActionCatalog & string>(
+		actionId: Id,
+		input: ActionInputFor<ProjectedTerminalActionCatalog, Id>,
+		scope: ActionScope,
+	): boolean;
 }
 
 /** Create the action scopes and registrations owned by one projected terminal mount. */
@@ -55,6 +60,16 @@ export function createProjectedTerminalActionComposition(
 		execute: (actionId, input, scope, source) =>
 			typedRuntime.execute(actionId, input, { scope, source }),
 		findScope,
+		invokeShortcut: (actionId, input, scope) => {
+			const invocation = { scope, source: 'keyboard' as const };
+			if (
+				typedRuntime.resolveAction(actionId, input, invocation)?.availability.kind !== 'enabled'
+			) {
+				return false;
+			}
+			typedRuntime.execute(actionId, input, invocation);
+			return true;
+		},
 		terminalScope,
 	};
 }

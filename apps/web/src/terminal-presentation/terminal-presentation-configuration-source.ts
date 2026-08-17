@@ -3,7 +3,7 @@ import {
 	type TerminalPresentationConfiguration,
 } from '@orchbee/terminal';
 
-import { ORCHBEE_TERMINAL_FONT_FAMILY } from './terminal-product-fonts';
+import { ORCHBEE_TERMINAL_FONT_FAMILY } from './terminal-product-font-family';
 
 /** Stable application-owned source observed by an existing projected-terminal attachment. */
 export interface TerminalPresentationConfigurationSource {

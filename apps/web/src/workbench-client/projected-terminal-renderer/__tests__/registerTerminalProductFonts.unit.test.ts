@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { registerTerminalProductFonts } from '../terminal-product-fonts';
+import { registerTerminalProductFonts } from '../registerTerminalProductFonts';
 
 class TestFontFace {
 	readonly descriptors: FontFaceDescriptors;

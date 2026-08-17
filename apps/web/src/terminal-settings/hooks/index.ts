@@ -1,0 +1,1 @@
+export { useTerminalSettings } from './useTerminalSettings';

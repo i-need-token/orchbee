@@ -5,7 +5,10 @@ export {
 	applicationRoutingMessages,
 	desktopApplicationLifetimeMessages,
 	desktopBrowserAccessMessages,
+	desktopWindowMessages,
+	keyboardShortcutMessages,
 	projectedTerminalMessages,
+	terminalSettingsMessages,
 	workbenchMessages,
 	workbenchTabMessages,
 } from './descriptors';

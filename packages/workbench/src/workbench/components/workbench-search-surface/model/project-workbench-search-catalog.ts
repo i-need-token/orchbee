@@ -9,7 +9,10 @@ import type { ProductIconName } from '@orchbee/ui/components';
 
 import { WORKBENCH_ACTION_IDS } from '../../../actions/workbench-action-ids';
 import type { WorkbenchShortcutPlatform } from '../../../types/workbench-shortcut-platform';
-import { formatWorkbenchActionShortcut } from '../../../utils/workbench-shortcuts';
+import {
+	formatWorkbenchActionShortcut,
+	type WorkbenchShortcutBindings,
+} from '../../../utils/workbench-shortcuts';
 import type {
 	WorkbenchSearchArgumentPicker,
 	WorkbenchSearchCatalog,
@@ -21,6 +24,7 @@ interface ProjectWorkbenchSearchCatalogOptions {
 	readonly platform: WorkbenchShortcutPlatform;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
+	readonly shortcutBindings: WorkbenchShortcutBindings;
 }
 
 export function projectWorkbenchSearchCatalog({
@@ -28,6 +32,7 @@ export function projectWorkbenchSearchCatalog({
 	platform,
 	runtime,
 	scope,
+	shortcutBindings,
 }: ProjectWorkbenchSearchCatalogOptions): WorkbenchSearchCatalog {
 	const discovery = runtime.discover(
 		{ scope, source: 'command-surface' },
@@ -40,7 +45,7 @@ export function projectWorkbenchSearchCatalog({
 	);
 	const needsContext = intl.formatMessage(workbenchMessages.searchActionsNeedContext);
 	const actionResults = discovery.map((result) =>
-		projectActionResult(result, intl, platform, needsContext),
+		projectActionResult(result, intl, platform, shortcutBindings, needsContext),
 	);
 	const settingsResults = actionResults
 		.filter((result) => result.actionId === WORKBENCH_ACTION_IDS.openSettings)
@@ -66,6 +71,7 @@ function projectActionResult(
 	result: ActionDiscoveryResult,
 	intl: IntlShape,
 	platform: WorkbenchShortcutPlatform,
+	shortcutBindings: WorkbenchShortcutBindings,
 	needsContext: string,
 ): WorkbenchSearchResult {
 	const picker =
@@ -107,9 +113,13 @@ function projectActionResult(
 		label: formatWorkbenchActionMessage(intl, result.descriptor.title),
 		providerId: 'actions',
 		recommended: isRecommendedAction(result.descriptor.id),
-		...(formatWorkbenchActionShortcut(result.descriptor.id, platform) === null
+		...(formatWorkbenchActionShortcut(result.descriptor.id, platform, shortcutBindings) === null
 			? {}
-			: { shortcut: formatWorkbenchActionShortcut(result.descriptor.id, platform) ?? undefined }),
+			: {
+					shortcut:
+						formatWorkbenchActionShortcut(result.descriptor.id, platform, shortcutBindings) ??
+						undefined,
+				}),
 		...(result.kind === 'requires-input' && picker === undefined
 			? { surfaceDisabledReason: needsContext }
 			: {}),

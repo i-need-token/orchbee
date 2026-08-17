@@ -1,0 +1,59 @@
+.root {
+	display: grid;
+	grid-template-columns: minmax(var(--ob-ref-space-0), 1fr) minmax(
+			var(--ob-ref-space-20),
+			calc(var(--ob-ref-space-20) * 2.75)
+		);
+	align-items: center;
+	gap: var(--ob-ref-space-6);
+	min-height: calc(var(--ob-ref-space-16) + var(--ob-ref-space-2));
+	padding: var(--ob-ref-space-4);
+}
+
+.root + .root {
+	border-block-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+}
+
+.copy {
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	flex-direction: column;
+	gap: var(--ob-ref-space-1);
+}
+
+.label {
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-label-md);
+}
+
+.description {
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.control {
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	align-items: center;
+	justify-content: flex-end;
+}
+
+@media (width > 64rem) {
+	.root {
+		grid-template-columns: minmax(var(--ob-ref-space-0), 1fr) minmax(
+				var(--ob-ref-space-20),
+				calc(var(--ob-ref-space-20) * 3.5)
+			);
+	}
+}
+
+@media (width <= 48rem) {
+	.root {
+		grid-template-columns: minmax(var(--ob-ref-space-0), 1fr);
+		gap: var(--ob-ref-space-3);
+	}
+
+	.control {
+		justify-content: stretch;
+	}
+}

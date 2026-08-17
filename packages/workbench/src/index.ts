@@ -27,7 +27,9 @@ export type {
 export {
 	Workbench,
 	WorkbenchProjectWorkspaceRuntime,
+	WORKBENCH_SHORTCUTS,
 	createWorkbenchPreviewTerminalPresentationComposition,
+	defaultWorkbenchShortcutBindings,
 	resolveTerminalMetadataObservation,
 } from './workbench';
 export {
@@ -62,6 +64,9 @@ export type {
 	WorkbenchNavigationPort,
 	WorkbenchNavigationTarget,
 	WorkbenchShortcutPlatform,
+	WorkbenchShortcutBinding,
+	WorkbenchShortcutBindings,
+	WorkbenchShortcutId,
 	WorkbenchSearchFilter,
 	WorkbenchSearchOpenInput,
 	WorkbenchSearchProvider,

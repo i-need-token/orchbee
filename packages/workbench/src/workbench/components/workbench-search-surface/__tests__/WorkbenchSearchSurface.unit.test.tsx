@@ -18,6 +18,7 @@ import type {
 	WorkbenchSearchProvider,
 	WorkbenchSearchProviderSection,
 } from '../../../types/workbench-search-provider';
+import { defaultWorkbenchShortcutBindings } from '../../../utils/workbench-shortcuts';
 import { WorkbenchSearchSurface } from '../WorkbenchSearchSurface';
 
 interface SearchHarnessProps {
@@ -44,6 +45,7 @@ function SearchHarness({
 			actionRuntime={runtime}
 			actionScope={scope}
 			providers={providers}
+			shortcutBindings={defaultWorkbenchShortcutBindings('apple')}
 			shortcutPlatform='apple'
 			state={state}
 			update={update}

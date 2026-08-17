@@ -25,7 +25,7 @@ const defaultDependencies: DesktopWebApplicationDependencies = {
 export function startDesktopWebApplication(
 	targetWindow: Window,
 	rootElement: Element | null,
-	documentElement: Pick<HTMLElement, 'dir' | 'lang'>,
+	documentElement: Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>,
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	storage: Pick<Storage, 'getItem' | 'setItem'>,

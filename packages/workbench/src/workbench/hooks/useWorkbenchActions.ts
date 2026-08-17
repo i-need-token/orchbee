@@ -33,7 +33,7 @@ import type {
 	WorkbenchNavigationPort,
 	WorkbenchTerminalCreateCallback,
 } from '../types/workbench-host-actions';
-import type { WorkbenchShortcutBinding } from '../utils/workbench-shortcuts';
+import { WORKBENCH_SHORTCUTS, type WorkbenchShortcutBinding } from '../utils/workbench-shortcuts';
 
 interface UseWorkbenchActionsOptions {
 	readonly isSidebarVisible: boolean;
@@ -271,37 +271,43 @@ export function useWorkbenchActions({
 	const invokeShortcut = useMemoizedFn(
 		(binding: WorkbenchShortcutBinding, source: ActionInvocationSource) => {
 			const invocation = { scope, source };
-			switch (binding.id) {
-				case WORKBENCH_ACTION_IDS.createTerminal: {
-					const input: WorkbenchTerminalCreateInput = binding.input;
+			switch (binding.action) {
+				case 'newTerminal': {
+					const definition = WORKBENCH_SHORTCUTS.newTerminal;
+					const input: WorkbenchTerminalCreateInput = definition.input;
 					if (
-						typedRuntime.resolveAction(binding.id, input, invocation)?.availability.kind !==
+						typedRuntime.resolveAction(definition.id, input, invocation)?.availability.kind !==
 						'enabled'
 					) {
 						return false;
 					}
-					typedRuntime.execute(binding.id, input, invocation);
+					typedRuntime.execute(definition.id, input, invocation);
 					return true;
 				}
-				case WORKBENCH_ACTION_IDS.openSearch:
+				case 'actionsSearch':
+				case 'search': {
+					const definition = WORKBENCH_SHORTCUTS[binding.action];
 					if (
-						typedRuntime.resolveAction(binding.id, binding.input, invocation)?.availability.kind !==
+						typedRuntime.resolveAction(definition.id, definition.input, invocation)?.availability
+							.kind !== 'enabled'
+					) {
+						return false;
+					}
+					typedRuntime.execute(definition.id, definition.input, invocation);
+					return true;
+				}
+				case 'settings':
+				case 'toggleSidebar': {
+					const definition = WORKBENCH_SHORTCUTS[binding.action];
+					if (
+						typedRuntime.resolveAction(definition.id, undefined, invocation)?.availability.kind !==
 						'enabled'
 					) {
 						return false;
 					}
-					typedRuntime.execute(binding.id, binding.input, invocation);
+					typedRuntime.execute(definition.id, undefined, invocation);
 					return true;
-				case WORKBENCH_ACTION_IDS.openSettings:
-				case WORKBENCH_ACTION_IDS.toggleSidebar:
-					if (
-						typedRuntime.resolveAction(binding.id, undefined, invocation)?.availability.kind !==
-						'enabled'
-					) {
-						return false;
-					}
-					typedRuntime.execute(binding.id, undefined, invocation);
-					return true;
+				}
 			}
 		},
 	);

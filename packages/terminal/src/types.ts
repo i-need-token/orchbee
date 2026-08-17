@@ -6,7 +6,8 @@ import type { TerminalOpenTarget } from './terminal-contracts';
  * Host projection metadata owns terminal foreground, background, cursor, and palette colors. The
  * packed renderer consumes the cursor-accent and selection/search fields as application overlays;
  * the remaining terminal-color fields stay in this compatibility shape but never replace Host
- * state.
+ * state. `TerminalPresentationConfiguration.defaultColorOverride` is a separate client-only
+ * projection for default-coded cells and never writes Host metadata.
  */
 export interface ITheme {
 	foreground?: string;
@@ -77,6 +78,12 @@ export const DEFAULT_RENDERER_FONT_WEIGHT = 'normal';
 /** Ghostty-compatible padding modes. */
 export type PaddingBalance = false | true | 'equal';
 
+/** Client-only display replacement for default-coded terminal foreground and background cells. */
+export interface TerminalDefaultColorOverride {
+	readonly background: `#${string}`;
+	readonly foreground: `#${string}`;
+}
+
 export interface SurfacePadding {
 	readonly top: number;
 	readonly bottom: number;
@@ -87,7 +94,9 @@ export interface SurfacePadding {
 /** Renderer configuration accepted by one projected terminal surface. */
 export interface RendererOptions {
 	readonly allowTransparency?: boolean;
+	readonly backgroundOpacity?: number;
 	readonly cursorBlink?: boolean;
+	readonly defaultColorOverride?: TerminalDefaultColorOverride | null;
 	readonly devicePixelRatio?: number;
 	readonly fontFamily?: string;
 	readonly fontLigatures?: boolean;

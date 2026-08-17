@@ -19,3 +19,9 @@
 	position: relative;
 	width: 100%;
 }
+
+.workbench {
+	height: 100%;
+	min-height: 0;
+	min-width: 0;
+}

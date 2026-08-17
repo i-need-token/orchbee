@@ -1,0 +1,35 @@
+import type { KeyboardShortcutMessageId } from '../en-US';
+
+export const zhCNKeyboardShortcutMessages = {
+	'keyboard.shortcuts.actions.actionsSearch': '搜索操作',
+	'keyboard.shortcuts.actions.change': '修改“{action}”的快捷键',
+	'keyboard.shortcuts.actions.copySelection': '复制终端选区',
+	'keyboard.shortcuts.actions.find': '在终端中查找',
+	'keyboard.shortcuts.actions.globalSearch': '搜索全部内容',
+	'keyboard.shortcuts.actions.newTerminal': '新建终端',
+	'keyboard.shortcuts.actions.reset': '恢复默认',
+	'keyboard.shortcuts.actions.selectAll': '全选终端文本',
+	'keyboard.shortcuts.actions.settings': '打开设置',
+	'keyboard.shortcuts.actions.toggleSidebar': '切换边栏',
+	'keyboard.shortcuts.availability.focusedTerminal': '终端获得焦点时可用',
+	'keyboard.shortcuts.availability.focusedTerminalWithSelection': '已聚焦的终端存在选区时可用',
+	'keyboard.shortcuts.availability.workbench': '工作台处于活动状态时可用',
+	'keyboard.shortcuts.category': '键盘快捷键',
+	'keyboard.shortcuts.conflict':
+		'{shortcut} 与“{action}”冲突（{scope}，{source}；{availability}）。',
+	'keyboard.shortcuts.description': '自定义此设备上常用的工作台和终端快捷键。',
+	'keyboard.shortcuts.invalid': '请按下由 Control、Command、Alt 或 Super 配合的受支持按键。',
+	'keyboard.shortcuts.noResults': '未找到键盘快捷键。',
+	'keyboard.shortcuts.persistence.invalidWarning':
+		'已保存的键盘快捷键无效，当前正在使用平台默认值。',
+	'keyboard.shortcuts.persistence.readWarning':
+		'无法读取已保存的键盘快捷键，当前正在使用平台默认值。',
+	'keyboard.shortcuts.persistence.writeWarning': '快捷键更改已应用于当前会话，但未能保存。',
+	'keyboard.shortcuts.recording': '请按下快捷键；按 Escape 或移开焦点可取消。',
+	'keyboard.shortcuts.scope.focusedTerminal': '已聚焦的终端',
+	'keyboard.shortcuts.scope.focusedTerminalOrFind': '已聚焦的终端或查找框',
+	'keyboard.shortcuts.scope.workbench': '工作台',
+	'keyboard.shortcuts.source.custom': '自定义',
+	'keyboard.shortcuts.source.default': '默认',
+	'keyboard.shortcuts.title': '键盘快捷键',
+} as const satisfies Readonly<Record<KeyboardShortcutMessageId, string>>;

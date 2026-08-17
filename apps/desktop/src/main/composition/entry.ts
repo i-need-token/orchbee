@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { hostname } from 'node:os';
 
+import { createOrchbeeIntl, desktopWindowMessages, resolveOrchbeeLocale } from '@orchbee/i18n';
 import { app, net, protocol } from 'electron';
 
 import {
@@ -13,10 +14,13 @@ import {
 	installDesktopRendererScheme,
 	registerDesktopRendererScheme,
 } from '../desktop-renderer-protocol';
+import { DesktopWindowActions, installDesktopWindowActionMenu } from '../window-actions';
 import { DesktopApplication } from './DesktopApplication';
 import { resolveDesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 
 let desktopApplication: DesktopApplication | undefined;
+let desktopWindowActionMenu: ReturnType<typeof installDesktopWindowActionMenu> | undefined;
+let desktopWindowActions: DesktopWindowActions | undefined;
 let developmentRestartPlanStore: DesktopDevelopmentRestartPlanStore | undefined;
 let bypassQuitGate = false;
 registerDesktopRendererScheme(protocol);
@@ -93,6 +97,17 @@ if (!singleInstanceLockOwned) {
 				traceCopyPath: process.env['ORCHBEE_DESKTOP_TRACE'] === '1',
 			});
 			await desktopApplication.start();
+			const intl = createOrchbeeIntl(resolveOrchbeeLocale(app.getPreferredSystemLanguages()));
+			desktopWindowActions = new DesktopWindowActions(desktopApplication);
+			desktopWindowActionMenu = installDesktopWindowActionMenu(
+				desktopWindowActions,
+				{
+					category: intl.formatMessage(desktopWindowMessages.category),
+					toggleFullScreen: intl.formatMessage(desktopWindowMessages.toggleFullScreen),
+					toggleMaximized: intl.formatMessage(desktopWindowMessages.toggleMaximized),
+				},
+				process.platform,
+			);
 			app.on('activate', () => void desktopApplication?.openWindow());
 		})
 		.catch((error: unknown) => {
@@ -137,4 +152,11 @@ app.on('before-quit', (event) => {
 
 app.on('window-all-closed', () => {
 	if (process.platform !== 'darwin') app.quit();
+});
+
+app.once('will-quit', () => {
+	desktopWindowActionMenu?.dispose();
+	desktopWindowActionMenu = undefined;
+	desktopWindowActions?.dispose();
+	desktopWindowActions = undefined;
 });

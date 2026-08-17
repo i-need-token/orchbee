@@ -112,6 +112,7 @@ export function useProjectedTerminalSurface(
 					capability.presentationConfigurationSource,
 					reviewPaste,
 					(metadata) => capability.observeTerminalMetadata(presentation.presentationId, metadata),
+					capability.shortcutBindingSource,
 				),
 		});
 		recoveryController.current = { controller, presentationId: presentation.presentationId };

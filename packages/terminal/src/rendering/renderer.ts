@@ -292,17 +292,33 @@ function snapToDevicePixel(value: number, devicePixelRatio: number): number {
 	return Math.round(value * devicePixelRatio) / devicePixelRatio;
 }
 
-function packedColorRgb(value: number, defaultRgb: number): number {
-	return (value & 0xff00_0000) === 0 ? value & TerminalColorEncoding.rgbMask : defaultRgb;
+function packedColorRgb(
+	value: number,
+	hostDefaultRgb: number,
+	effectiveDefaultRgb: number,
+): number {
+	// Only the tagged default encoding selects a client-effective default. Explicit RGB (including
+	// black) and `none` retain their Host-projected behavior.
+	if (value === TerminalColorEncoding.default) return effectiveDefaultRgb;
+	if (value <= TerminalColorEncoding.rgbMask) return value;
+	return hostDefaultRgb;
 }
 
-function packedOptionalColorRgb(value: number, defaultRgb: number): number | null {
+function packedOptionalColorRgb(
+	value: number,
+	hostDefaultRgb: number,
+	effectiveDefaultRgb: number,
+): number | null {
 	if (value === TerminalColorEncoding.none) return null;
-	return packedColorRgb(value, defaultRgb);
+	return packedColorRgb(value, hostDefaultRgb, effectiveDefaultRgb);
 }
 
 function rgbChannels(value: number): [number, number, number] {
 	return [(value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
+}
+
+function rgbValue(channels: readonly [number, number, number]): number {
+	return (channels[0] << 16) | (channels[1] << 8) | channels[2];
 }
 
 export interface PackedPresentationColors {
@@ -318,18 +334,32 @@ export interface PackedPresentationColors {
 	readonly selectionForeground: readonly [number, number, number];
 }
 
-/** Resolve Host-owned terminal colors together with application-owned overlay colors. */
+interface PackedCellPresentation {
+	readonly background: readonly [number, number, number];
+	readonly foreground: readonly [number, number, number];
+	readonly requiresBackgroundFill: boolean;
+}
+
+/** Resolve Host metadata with one client-only default-color display override and overlay colors. */
 export function resolvePackedPresentationColors(
 	defaultColors: PackedRendererMetadata['defaultColors'],
 	theme: Required<ITheme>,
 	cursorAccentOverride?: string,
+	defaultColorOverride: TerminalPresentationConfiguration['defaultColorOverride'] = null,
 ): PackedPresentationColors {
-	const background = rgbChannels(defaultColors.backgroundRgb);
+	const hostBackground = rgbChannels(defaultColors.backgroundRgb);
+	const background =
+		defaultColorOverride === null ? hostBackground : hexToRGB(defaultColorOverride.background);
+	const foreground =
+		defaultColorOverride === null
+			? rgbChannels(defaultColors.foregroundRgb)
+			: hexToRGB(defaultColorOverride.foreground);
 	return {
 		background,
 		cursor: rgbChannels(defaultColors.cursorRgb ?? defaultColors.foregroundRgb),
-		cursorAccent: cursorAccentOverride === undefined ? background : hexToRGB(cursorAccentOverride),
-		foreground: rgbChannels(defaultColors.foregroundRgb),
+		cursorAccent:
+			cursorAccentOverride === undefined ? hostBackground : hexToRGB(cursorAccentOverride),
+		foreground,
 		searchActiveBackground: hexToRGB(theme.searchActiveMatchBackground),
 		searchActiveForeground: hexToRGB(theme.searchActiveMatchForeground),
 		searchBackground: hexToRGB(theme.searchMatchBackground),
@@ -588,7 +618,8 @@ export class WebGPURenderer {
 	private devicePixelRatio: number;
 	private renderedColumns = 0;
 	private renderedRows = 0;
-	private packedDefaultBackgroundRgb: number | null = null;
+	/** Raw Host metadata retained for opaque resize and clear after a client display override. */
+	private packedHostDefaultBackgroundRgb: number | null = null;
 
 	// Selection
 	private currentSelectionCoords: SelectionCoordinates | null = null;
@@ -1415,16 +1446,23 @@ export class WebGPURenderer {
 			this.ctx2d.setTransform(this.devicePixelRatio, 0, 0, this.devicePixelRatio, 0, 0);
 			this.ctx2d.textBaseline = 'alphabetic';
 			this.ctx2d.textAlign = 'left';
-			if (
-				!this.presentationConfiguration.allowTransparency &&
-				this.packedDefaultBackgroundRgb !== null
-			) {
-				const [red, green, blue] = rgbChannels(this.packedDefaultBackgroundRgb);
+			const defaultBackgroundRgb = this.effectiveDefaultBackgroundRgb();
+			if (!this.presentationConfiguration.allowTransparency && defaultBackgroundRgb !== null) {
+				const [red, green, blue] = rgbChannels(defaultBackgroundRgb);
 				this.ctx2d.fillStyle = `rgb(${red}, ${green}, ${blue})`;
 				this.ctx2d.fillRect(0, 0, cssWidth, cssHeight);
 			}
 		}
 		this.syncSurfacePadding();
+	}
+
+	private effectiveDefaultBackgroundRgb(): number | null {
+		const hostBackgroundRgb = this.packedHostDefaultBackgroundRgb;
+		if (hostBackgroundRgb === null) return null;
+		const defaultColorOverride = this.presentationConfiguration.defaultColorOverride;
+		return defaultColorOverride === null
+			? hostBackgroundRgb
+			: rgbValue(hexToRGB(defaultColorOverride.background));
 	}
 
 	/** Recalculate CSS margins used to balance leftover surface pixels. */
@@ -1479,7 +1517,7 @@ export class WebGPURenderer {
 		const backend = this.getBackend();
 		const metadata = buffer.metadata;
 		if (backend === 'uninitialized' || !metadata) return;
-		this.packedDefaultBackgroundRgb = metadata.defaultColors.backgroundRgb;
+		this.packedHostDefaultBackgroundRgb = metadata.defaultColors.backgroundRgb;
 		const timestamp = rendererNow();
 		this.currentSelectionCoords = this.projectedSelectionCoords;
 		this.currentVisibleRows = metadata.rows;
@@ -1669,7 +1707,7 @@ export class WebGPURenderer {
 			const foreground = this.packedTextForeground(
 				column,
 				viewportRow,
-				this.packedCellForeground(row, column, metadata),
+				this.packedCellForeground(row, column, metadata, presentation),
 				presentation,
 			);
 			const previous = segments.at(-1);
@@ -1704,18 +1742,41 @@ export class WebGPURenderer {
 		row: PackedRendererRow,
 		column: number,
 		metadata: PackedRendererMetadata,
+		presentation: PackedPresentationColors,
 	): [number, number, number] {
+		return [...this.packedCellPresentation(row, column, metadata, presentation).foreground];
+	}
+
+	private packedCellPresentation(
+		row: PackedRendererRow,
+		column: number,
+		metadata: PackedRendererMetadata,
+		presentation: PackedPresentationColors,
+	): PackedCellPresentation {
 		const flags = row.styleFlags[column] ?? 0;
-		return rgbChannels(
-			packedColorRgb(
-				(flags & TerminalStyleFlag.inverse) !== 0
-					? (row.backgroundColors[column] ?? TerminalColorEncoding.default)
-					: (row.foregroundColors[column] ?? TerminalColorEncoding.default),
-				(flags & TerminalStyleFlag.inverse) !== 0
-					? metadata.defaultColors.backgroundRgb
-					: metadata.defaultColors.foregroundRgb,
-			),
+		const foregroundToken = row.foregroundColors[column] ?? TerminalColorEncoding.default;
+		const backgroundToken = row.backgroundColors[column] ?? TerminalColorEncoding.default;
+		let foregroundRgb = packedColorRgb(
+			foregroundToken,
+			metadata.defaultColors.foregroundRgb,
+			rgbValue(presentation.foreground),
 		);
+		let backgroundRgb = packedColorRgb(
+			backgroundToken,
+			metadata.defaultColors.backgroundRgb,
+			rgbValue(presentation.background),
+		);
+		const inverse = (flags & TerminalStyleFlag.inverse) !== 0;
+		const displayedBackgroundToken = inverse ? foregroundToken : backgroundToken;
+		if (inverse) [foregroundRgb, backgroundRgb] = [backgroundRgb, foregroundRgb];
+		return {
+			background: rgbChannels(backgroundRgb),
+			foreground: rgbChannels(foregroundRgb),
+			requiresBackgroundFill:
+				inverse ||
+				(displayedBackgroundToken !== TerminalColorEncoding.default &&
+					displayedBackgroundToken !== TerminalColorEncoding.none),
+		};
 	}
 
 	private packedConstraintWidth(
@@ -1842,6 +1903,7 @@ export class WebGPURenderer {
 			metadata.defaultColors,
 			this.theme,
 			this.cursorAccentOverride,
+			this.presentationConfiguration.defaultColorOverride,
 		);
 		const defaultBackground = presentation.background;
 		const defaultForeground = presentation.foreground;
@@ -1871,21 +1933,9 @@ export class WebGPURenderer {
 					cursor.row === y;
 				const isFullBlockCursor =
 					isBlockCursor && this.detailedMetrics.cursorHeight === this.detailedMetrics.cellHeight;
-				let foreground = rgbChannels(
-					packedColorRgb(
-						row.foregroundColors[x] ?? TerminalColorEncoding.default,
-						metadata.defaultColors.foregroundRgb,
-					),
-				);
-				let background = rgbChannels(
-					packedColorRgb(
-						row.backgroundColors[x] ?? TerminalColorEncoding.default,
-						metadata.defaultColors.backgroundRgb,
-					),
-				);
-				if ((flags & TerminalStyleFlag.inverse) !== 0) {
-					[foreground, background] = [background, foreground];
-				}
+				const cellPresentation = this.packedCellPresentation(row, x, metadata, presentation);
+				let foreground: [number, number, number] = [...cellPresentation.foreground];
+				let background: [number, number, number] = [...cellPresentation.background];
 				const selected = this.isCoordinateInSelection(x, y);
 				const search = this.getSearchHighlight(x, y);
 				if (selected) {
@@ -1905,9 +1955,7 @@ export class WebGPURenderer {
 				}
 				if (isFullBlockCursor) background = [...cursorColor];
 				if (
-					background[0] !== defaultBackground[0] ||
-					background[1] !== defaultBackground[1] ||
-					background[2] !== defaultBackground[2] ||
+					cellPresentation.requiresBackgroundFill ||
 					isFullBlockCursor ||
 					selected ||
 					search !== null
@@ -1989,6 +2037,7 @@ export class WebGPURenderer {
 				const underlineRgb = packedOptionalColorRgb(
 					row.underlineColors[x] ?? TerminalColorEncoding.none,
 					metadata.defaultColors.foregroundRgb,
+					rgbValue(presentation.foreground),
 				);
 				const decorationColor = foreground;
 				const underlineColor = underlineRgb === null ? decorationColor : rgbChannels(underlineRgb);
@@ -2316,6 +2365,7 @@ export class WebGPURenderer {
 			metadata.defaultColors,
 			this.theme,
 			this.cursorAccentOverride,
+			this.presentationConfiguration.defaultColorOverride,
 		);
 		const defaultBackground = presentation.background;
 		const defaultForeground = presentation.foreground;
@@ -2344,21 +2394,8 @@ export class WebGPURenderer {
 				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
 				if (width === 0) continue;
 				this.frameCellsVisited++;
-				const flags = row.styleFlags[x] ?? 0;
-				let background = rgbChannels(
-					packedColorRgb(
-						row.backgroundColors[x] ?? TerminalColorEncoding.default,
-						metadata.defaultColors.backgroundRgb,
-					),
-				);
-				if ((flags & TerminalStyleFlag.inverse) !== 0) {
-					background = rgbChannels(
-						packedColorRgb(
-							row.foregroundColors[x] ?? TerminalColorEncoding.default,
-							metadata.defaultColors.foregroundRgb,
-						),
-					);
-				}
+				const cellPresentation = this.packedCellPresentation(row, x, metadata, presentation);
+				let background: [number, number, number] = [...cellPresentation.background];
 				const selected = this.isCoordinateInSelection(x, y);
 				const search = this.getSearchHighlight(x, y);
 				if (selected) {
@@ -2370,13 +2407,7 @@ export class WebGPURenderer {
 							: presentation.searchBackground),
 					];
 				}
-				if (
-					background[0] !== defaultBackground[0] ||
-					background[1] !== defaultBackground[1] ||
-					background[2] !== defaultBackground[2] ||
-					selected ||
-					search !== null
-				) {
+				if (cellPresentation.requiresBackgroundFill || selected || search !== null) {
 					ctx.fillStyle = `rgb(${background[0]}, ${background[1]}, ${background[2]})`;
 					ctx.fillRect(
 						x * this.metrics.width,
@@ -2394,7 +2425,7 @@ export class WebGPURenderer {
 				const span = shaping.plan[x];
 				let text = shaping.texts[x] ?? '';
 				if (span) text = span.start === x ? span.text : '';
-				const baseForeground = this.packedCellForeground(row, x, metadata);
+				const baseForeground = this.packedCellForeground(row, x, metadata, presentation);
 				const foreground = this.packedTextForeground(x, y, baseForeground, presentation);
 				if (span && span.start === x && text.length > 0) {
 					let paintedSegments = 0;
@@ -2423,6 +2454,7 @@ export class WebGPURenderer {
 							span.columns,
 							text,
 							metadata,
+							presentation,
 							segment.foreground,
 							false,
 						);
@@ -2431,7 +2463,18 @@ export class WebGPURenderer {
 					}
 					this.frameGlyphInstances += paintedSegments;
 					if (paintedSegments > 0) this.frameShapingRuns++;
-					this.drawPackedCellText2D(ctx, row, shaping, x, y, width, '', metadata, foreground);
+					this.drawPackedCellText2D(
+						ctx,
+						row,
+						shaping,
+						x,
+						y,
+						width,
+						'',
+						metadata,
+						presentation,
+						foreground,
+					);
 					continue;
 				}
 				const paintedText = this.drawPackedCellText2D(
@@ -2443,6 +2486,7 @@ export class WebGPURenderer {
 					width,
 					text,
 					metadata,
+					presentation,
 					foreground,
 				);
 				if (paintedText) {
@@ -2471,6 +2515,7 @@ export class WebGPURenderer {
 		width: number,
 		text: string,
 		metadata: PackedRendererMetadata,
+		presentation: PackedPresentationColors,
 		colorOverride?: readonly [number, number, number],
 		drawDecorations = true,
 	): boolean {
@@ -2491,7 +2536,7 @@ export class WebGPURenderer {
 			this.presentationConfiguration.fontSize,
 			this.presentationConfiguration.fontFamily,
 		);
-		let foreground = this.packedCellForeground(row, column, metadata);
+		let foreground = this.packedCellForeground(row, column, metadata, presentation);
 		foreground = colorOverride ? [...colorOverride] : foreground;
 		ctx.fillStyle = `rgb(${foreground[0]}, ${foreground[1]}, ${foreground[2]})`;
 		if ((flags & TerminalStyleFlag.faint) !== 0) ctx.globalAlpha = 0.5;
@@ -2513,6 +2558,7 @@ export class WebGPURenderer {
 				const underlineRgb = packedOptionalColorRgb(
 					row.underlineColors[column] ?? TerminalColorEncoding.none,
 					metadata.defaultColors.foregroundRgb,
+					rgbValue(presentation.foreground),
 				);
 				const underlineColor = underlineRgb === null ? foreground : rgbChannels(underlineRgb);
 				ctx.strokeStyle = `rgb(${underlineColor[0]}, ${underlineColor[1]}, ${underlineColor[2]})`;
@@ -2605,6 +2651,7 @@ export class WebGPURenderer {
 						width,
 						shaping.texts[column] ?? '',
 						metadata,
+						presentation,
 						presentation.cursorAccent,
 						false,
 					);
@@ -2981,11 +3028,9 @@ export class WebGPURenderer {
 	clear(): void {
 		if (this.ctx2d) {
 			this.ctx2d.clearRect(0, 0, this.canvas.width, this.canvas.height);
-			if (
-				!this.presentationConfiguration.allowTransparency &&
-				this.packedDefaultBackgroundRgb !== null
-			) {
-				const [red, green, blue] = rgbChannels(this.packedDefaultBackgroundRgb);
+			const defaultBackgroundRgb = this.effectiveDefaultBackgroundRgb();
+			if (!this.presentationConfiguration.allowTransparency && defaultBackgroundRgb !== null) {
+				const [red, green, blue] = rgbChannels(defaultBackgroundRgb);
 				this.ctx2d.fillStyle = `rgb(${red}, ${green}, ${blue})`;
 				this.ctx2d.fillRect(0, 0, this.canvas.width, this.canvas.height);
 			}

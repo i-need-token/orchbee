@@ -19,6 +19,7 @@ import {
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 import type { WorkbenchClientSessionClient } from '../client-session';
 import type { ProjectedTerminalSurfaceCapability } from '../projected-terminal-surface';
+import type { ProjectedTerminalShortcutBindingSource } from '../projected-terminal-actions';
 import {
 	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 	type TerminalPresentationConfigurationSource,
@@ -44,6 +45,7 @@ export interface CreateWorkbenchClientRuntimeOptions {
 	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'>;
 	readonly preferredLocales: readonly string[];
 	readonly projectionClient: TerminalProjectionClient;
+	readonly shortcutBindingSource?: ProjectedTerminalShortcutBindingSource;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalPlatformEffects?: ProjectedTerminalPlatformEffects;
 	readonly terminalPresentationConfigurationSource?: TerminalPresentationConfigurationSource;
@@ -54,6 +56,7 @@ export function createWorkbenchClientRuntime({
 	documentElement,
 	preferredLocales,
 	projectionClient,
+	shortcutBindingSource,
 	shortcutPlatform,
 	terminalPlatformEffects = {},
 	terminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
@@ -95,6 +98,7 @@ export function createWorkbenchClientRuntime({
 		platformEffects: terminalPlatformEffects,
 		presentationConfigurationSource: terminalPresentationConfigurationSource,
 		projectionClient,
+		...(shortcutBindingSource === undefined ? {} : { shortcutBindingSource }),
 		shortcutPlatform,
 		observeTerminalMetadata: (presentationId, metadata) => {
 			projectWorkspaceRuntime.applyTerminalMetadataObservation(

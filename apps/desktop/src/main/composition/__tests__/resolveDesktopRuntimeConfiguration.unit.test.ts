@@ -42,6 +42,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first.workbenchDocumentStorePath).toBe(
 			path.resolve('/private/recovery/workbench-shared-document-v1.json'),
 		);
+		expect(first.windowStateStorePath).toBe(
+			path.resolve('/users/orchbee/library/orchbee/window-state-v1.json'),
+		);
 		expect(first.terminalLaunch).toMatchObject({
 			configuration: null,
 			currentDirectory: path.resolve('/users/orchbee'),
@@ -107,6 +110,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			path.resolve(
 				'/users/orchbee/.config/orchbee/terminal-recovery/workbench-shared-document-v1.json',
 			),
+		);
+		expect(configuration.windowStateStorePath).toBe(
+			path.resolve('/users/orchbee/.config/orchbee/window-state-v1.json'),
 		);
 		expect(configuration.runtimeDirectory).toMatch(/^\/run\/user\/501\/ob-[0-9a-f]{12}$/u);
 		expect(configuration.runtimeDirectory).not.toMatch(/^\/(?:private\/)?tmp(?:\/|$)/u);

@@ -20,6 +20,8 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import { createWebApplicationRouting } from '../application-routing';
 import { createBrowserRandomIdentifier } from '../browser-random-identifier';
+import { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
+import { TerminalSettingsController } from '../terminal-settings';
 
 interface WebApplicationSession {
 	dispose(): void;
@@ -27,7 +29,7 @@ interface WebApplicationSession {
 
 export function startWebApplication(
 	rootElement: Element | null,
-	documentElement: Pick<HTMLElement, 'dir' | 'lang'>,
+	documentElement: Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>,
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	layoutStorage: WorkbenchLayoutStorage,
@@ -38,6 +40,14 @@ export function startWebApplication(
 	documentElement.lang = locale;
 	documentElement.dir = getOrchbeeTextDirection(locale);
 	const actionRuntime = new ActionRuntime();
+	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
+		platform: shortcutPlatform,
+		storage: layoutStorage,
+	});
+	const terminalSettingsController = new TerminalSettingsController({
+		storage: layoutStorage,
+		themeTarget: documentElement,
+	});
 	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/workspace',
 		standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle, {
@@ -50,9 +60,11 @@ export function startWebApplication(
 	});
 	const routing = createWebApplicationRouting({
 		actionRuntime,
+		keyboardShortcutSettingsController,
 		layoutStorage,
 		projectWorkspaceRuntime,
 		shortcutPlatform,
+		terminalSettingsController,
 	});
 	let reactRoot: Root | undefined = createRoot(rootElement);
 
@@ -73,6 +85,8 @@ export function startWebApplication(
 			reactRoot = undefined;
 			routing.dispose();
 			actionRuntime.dispose();
+			keyboardShortcutSettingsController.dispose();
+			terminalSettingsController.dispose();
 		},
 	};
 }

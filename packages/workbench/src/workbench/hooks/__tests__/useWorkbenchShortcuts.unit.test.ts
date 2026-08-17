@@ -6,14 +6,21 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useWorkbenchShortcuts } from '../useWorkbenchShortcuts';
-import type { WorkbenchShortcutBinding } from '../../utils/workbench-shortcuts';
+import {
+	defaultWorkbenchShortcutBindings,
+	type WorkbenchShortcutBinding,
+} from '../../utils/workbench-shortcuts';
 
 interface WorkbenchShortcutsHarnessProps {
 	readonly invokeIfEnabled: (binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean;
 }
 
 function WorkbenchShortcutsHarness({ invokeIfEnabled }: WorkbenchShortcutsHarnessProps) {
-	const onKeyDownCapture = useWorkbenchShortcuts('apple', invokeIfEnabled);
+	const onKeyDownCapture = useWorkbenchShortcuts(
+		'apple',
+		defaultWorkbenchShortcutBindings('apple'),
+		invokeIfEnabled,
+	);
 	return createElement(
 		'div',
 		{ onKeyDownCapture },
@@ -58,7 +65,7 @@ describe('useWorkbenchShortcuts', () => {
 		input.dispatchEvent(accepted);
 
 		expect(invokeIfEnabled).toHaveBeenCalledWith(
-			expect.objectContaining({ id: 'workbench.sidebar.toggle' }),
+			expect.objectContaining({ shortcutId: 'workbench.sidebar.toggle' }),
 			'keyboard',
 		);
 		expect(accepted.defaultPrevented).toBe(true);

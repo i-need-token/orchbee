@@ -4,6 +4,8 @@ import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
+import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
+import { TerminalSettingsController } from '../../terminal-settings';
 import {
 	createWorkbenchClientRuntime,
 	ProjectedTerminalSurface,
@@ -46,7 +48,7 @@ const defaultDependencies: GatewayWebApplicationDependencies = {
 export function startGatewayWebApplication(
 	targetWindow: Window,
 	rootElement: Element | null,
-	documentElement: Pick<HTMLElement, 'dir' | 'lang'>,
+	documentElement: Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>,
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	storage: Pick<Storage, 'getItem' | 'setItem'>,
@@ -62,6 +64,14 @@ export function startGatewayWebApplication(
 	let reactRoot: Root | undefined;
 	let routing: WebApplicationRouting | undefined;
 	let runtime: WorkbenchClientRuntime | undefined;
+	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
+		platform: shortcutPlatform,
+		storage,
+	});
+	const terminalSettingsController = new TerminalSettingsController({
+		storage,
+		themeTarget: documentElement,
+	});
 	const dispose = (): void => {
 		if (disposed) return;
 		disposed = true;
@@ -71,6 +81,8 @@ export function startGatewayWebApplication(
 		routing = undefined;
 		runtime?.dispose();
 		runtime = undefined;
+		keyboardShortcutSettingsController.dispose();
+		terminalSettingsController.dispose();
 		control?.close();
 		control = undefined;
 	};
@@ -118,8 +130,10 @@ export function startGatewayWebApplication(
 			documentElement,
 			preferredLocales,
 			projectionClient,
+			shortcutBindingSource: keyboardShortcutSettingsController,
 			shortcutPlatform,
 			terminalPlatformEffects: platformEffects,
+			terminalPresentationConfigurationSource: terminalSettingsController,
 		});
 		runtime = nextRuntime;
 		const runtimeStart = await nextRuntime.ready;
@@ -130,9 +144,11 @@ export function startGatewayWebApplication(
 		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
 		const nextRouting = dependencies.createRouting({
 			actionRuntime: nextRuntime.actionRuntime,
+			keyboardShortcutSettingsController,
 			layoutStorage: storage,
 			projectWorkspaceRuntime: nextRuntime.projectWorkspaceRuntime,
 			shortcutPlatform,
+			terminalSettingsController,
 			terminalSurface: ProjectedTerminalSurface,
 		});
 		routing = nextRouting;

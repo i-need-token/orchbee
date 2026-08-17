@@ -12,6 +12,8 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { TerminalSettingsController } from '../../terminal-settings';
+import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { createWebApplicationRouting } from '../createWebApplicationRouting';
 
 const originalScrollTo = window.scrollTo;
@@ -70,11 +72,22 @@ function createRuntime(): WorkbenchProjectWorkspaceRuntime {
 
 function createRouting(path: string, runtime = createRuntime()) {
 	const actionRuntime = new ActionRuntime();
+	const storage = { getItem: () => null, setItem: () => undefined };
+	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
+		platform: 'standard',
+		storage,
+	});
+	const terminalSettingsController = new TerminalSettingsController({
+		storage,
+		themeTarget: document.documentElement,
+	});
 	const routing = createWebApplicationRouting(
 		{
 			actionRuntime,
+			keyboardShortcutSettingsController,
 			projectWorkspaceRuntime: runtime,
 			shortcutPlatform: 'standard',
+			terminalSettingsController,
 		},
 		createMemoryHistory({ initialEntries: [path] }),
 	);
@@ -82,6 +95,8 @@ function createRouting(path: string, runtime = createRuntime()) {
 		dispose: () => {
 			routing.dispose();
 			actionRuntime.dispose();
+			keyboardShortcutSettingsController.dispose();
+			terminalSettingsController.dispose();
 		},
 		routing,
 		runtime,

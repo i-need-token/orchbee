@@ -3,6 +3,7 @@ export type { WorkbenchProps } from './Workbench';
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
 export { resolveTerminalMetadataObservation } from './model/resolveTerminalMetadataObservation';
+export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
 export type {
 	WorkbenchProjectWorkspaceRuntimeOptions,
 	WorkbenchRuntimeTerminalCreateInput,
@@ -45,6 +46,11 @@ export type {
 	WorkbenchTerminalCreateCallback,
 } from './types/workbench-host-actions';
 export type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
+export type {
+	WorkbenchShortcutBinding,
+	WorkbenchShortcutBindings,
+	WorkbenchShortcutId,
+} from './utils/workbench-shortcuts';
 export type {
 	WorkbenchTerminalPresentation,
 	WorkbenchTerminalSurface,

@@ -21,10 +21,12 @@ import styles from './DesktopBrowserAccessDialog.module.css';
 
 interface DesktopBrowserAccessDialogProps {
 	readonly controller: DesktopBrowserAccessDialogController;
+	readonly finalFocus?: (() => HTMLElement | null) | undefined;
 }
 
 export function DesktopBrowserAccessDialog({
 	controller,
+	finalFocus,
 }: DesktopBrowserAccessDialogProps): ReactNode {
 	const intl = useOrchbeeIntl();
 	const state = useDesktopBrowserAccessDialog(controller);
@@ -73,6 +75,7 @@ export function DesktopBrowserAccessDialog({
 			<DialogContent
 				closeLabel={intl.formatMessage(desktopBrowserAccessMessages.close)}
 				data-slot='desktop-browser-access-dialog'
+				finalFocus={finalFocus}
 			>
 				<DialogHeader>
 					<DialogTitle>{intl.formatMessage(desktopBrowserAccessMessages.title)}</DialogTitle>

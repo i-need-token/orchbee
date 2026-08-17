@@ -1,8 +1,10 @@
+import { keyboardShortcutChordKey } from '@orchbee/keyboard-shortcuts';
 import { describe, expect, it } from 'vitest';
 
 import {
 	formatWorkbenchActionShortcut,
 	formatWorkbenchShortcut,
+	defaultWorkbenchShortcutBindings,
 	resolveWorkbenchShortcut,
 	WORKBENCH_SHORTCUTS,
 } from '../workbench-shortcuts';
@@ -42,16 +44,18 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⌘K');
 		expect(formatWorkbenchShortcut('settings', 'apple')).toBe('⌘,');
 		expect(formatWorkbenchShortcut('toggleSidebar', 'apple')).toBe('⌘B');
-		expect(formatWorkbenchShortcut('actionsSearch', 'standard')).toBe('Ctrl Shift P');
-		expect(formatWorkbenchShortcut('newTerminal', 'standard')).toBe('Ctrl N');
-		expect(formatWorkbenchShortcut('search', 'standard')).toBe('Ctrl K');
+		expect(formatWorkbenchShortcut('actionsSearch', 'standard')).toBe('Ctrl+Shift+P');
+		expect(formatWorkbenchShortcut('newTerminal', 'standard')).toBe('Ctrl+Shift+N');
+		expect(formatWorkbenchShortcut('search', 'standard')).toBe('Ctrl+Shift+K');
 		expect(formatWorkbenchShortcut('settings', 'standard')).toBe('Ctrl+,');
-		expect(formatWorkbenchShortcut('toggleSidebar', 'standard')).toBe('Ctrl B');
+		expect(formatWorkbenchShortcut('toggleSidebar', 'standard')).toBe('Ctrl+Shift+B');
 		expect(formatWorkbenchActionShortcut('workbench.search.open', 'apple')).toBe('⌘K');
 		expect(formatWorkbenchActionShortcut('unknown.action', 'apple')).toBe(null);
 		expect(
 			new Set(
-				Object.values(WORKBENCH_SHORTCUTS).map((binding) => `${binding.code}:${binding.shiftKey}`),
+				Object.values(WORKBENCH_SHORTCUTS).map((definition) =>
+					keyboardShortcutChordKey(definition.defaults.apple, 'apple'),
+				),
 			).size,
 		).toBe(Object.keys(WORKBENCH_SHORTCUTS).length);
 	});
@@ -63,13 +67,28 @@ describe('Workbench shortcuts', () => {
 		['settings', 'Comma'],
 		['toggleSidebar', 'KeyB'],
 	] as const)('resolves the exact platform primary modifier for %s', (action, code) => {
-		const shiftKey = WORKBENCH_SHORTCUTS[action].shiftKey;
+		const appleModifiers = WORKBENCH_SHORTCUTS[action].defaults.apple.modifiers;
+		const standardModifiers = WORKBENCH_SHORTCUTS[action].defaults.standard.modifiers;
 		expect(
-			resolveWorkbenchShortcut(shortcutEvent({ code, metaKey: true, shiftKey }), 'apple'),
-		).toBe(WORKBENCH_SHORTCUTS[action]);
+			resolveWorkbenchShortcut(
+				shortcutEvent({
+					code,
+					metaKey: true,
+					shiftKey: appleModifiers.includes('shift'),
+				}),
+				'apple',
+			),
+		).toMatchObject({ action, shortcutId: WORKBENCH_SHORTCUTS[action].shortcutId });
 		expect(
-			resolveWorkbenchShortcut(shortcutEvent({ code, ctrlKey: true, shiftKey }), 'standard'),
-		).toBe(WORKBENCH_SHORTCUTS[action]);
+			resolveWorkbenchShortcut(
+				shortcutEvent({
+					code,
+					ctrlKey: true,
+					shiftKey: standardModifiers.includes('shift'),
+				}),
+				'standard',
+			),
+		).toMatchObject({ action, shortcutId: WORKBENCH_SHORTCUTS[action].shortcutId });
 		expect(resolveWorkbenchShortcut(shortcutEvent({ code, ctrlKey: true }), 'apple')).toBe(null);
 		expect(resolveWorkbenchShortcut(shortcutEvent({ code, metaKey: true }), 'standard')).toBe(null);
 	});
@@ -87,15 +106,52 @@ describe('Workbench shortcuts', () => {
 		}
 	});
 
-	it('resolves the enumerable binding table directly to Action IDs', () => {
-		expect(resolveWorkbenchShortcut(shortcutEvent({ code: 'KeyN', metaKey: true }), 'apple')).toBe(
-			WORKBENCH_SHORTCUTS.newTerminal,
+	it('resolves the enumerable binding table to stable shortcut identities', () => {
+		expect(
+			resolveWorkbenchShortcut(shortcutEvent({ code: 'KeyN', metaKey: true }), 'apple'),
+		).toEqual(
+			expect.objectContaining({
+				action: 'newTerminal',
+				shortcutId: WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
+			}),
 		);
 		expect(
 			resolveWorkbenchShortcut(shortcutEvent({ code: 'Comma', ctrlKey: true }), 'standard'),
-		).toBe(WORKBENCH_SHORTCUTS.settings);
+		).toEqual(
+			expect.objectContaining({
+				action: 'settings',
+				shortcutId: WORKBENCH_SHORTCUTS.settings.shortcutId,
+			}),
+		);
 		expect(resolveWorkbenchShortcut(shortcutEvent({ code: 'KeyZ', metaKey: true }), 'apple')).toBe(
 			null,
 		);
+	});
+
+	it('formats and resolves a caller-provided binding table without changing semantic identities', () => {
+		const defaults = defaultWorkbenchShortcutBindings('standard');
+		const bindings = Object.freeze({
+			...defaults,
+			[WORKBENCH_SHORTCUTS.search.shortcutId]: Object.freeze({
+				code: 'KeyG',
+				modifiers: Object.freeze(['control', 'shift'] as const),
+			}),
+		});
+
+		expect(formatWorkbenchShortcut('search', 'standard', bindings)).toBe('Ctrl+Shift+G');
+		expect(
+			resolveWorkbenchShortcut(
+				shortcutEvent({ code: 'KeyG', ctrlKey: true, shiftKey: true }),
+				'standard',
+				bindings,
+			),
+		).toMatchObject({ action: 'search', shortcutId: 'workbench.search.all.open' });
+		expect(
+			resolveWorkbenchShortcut(
+				shortcutEvent({ code: 'KeyK', ctrlKey: true, shiftKey: true }),
+				'standard',
+				bindings,
+			),
+		).toBe(null);
 	});
 });

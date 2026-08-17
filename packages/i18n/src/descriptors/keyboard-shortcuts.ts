@@ -1,0 +1,55 @@
+import { defineMessages } from 'react-intl';
+
+import { enUSKeyboardShortcutMessages } from '../locales';
+
+export const keyboardShortcutMessages = defineMessages({
+	actionsSearch: message('keyboard.shortcuts.actions.actionsSearch'),
+	change: message(
+		'keyboard.shortcuts.actions.change',
+		'Accessible label for the shortcut recorder. action is a localized action name.',
+	),
+	copySelection: message('keyboard.shortcuts.actions.copySelection'),
+	find: message('keyboard.shortcuts.actions.find'),
+	globalSearch: message('keyboard.shortcuts.actions.globalSearch'),
+	newTerminal: message('keyboard.shortcuts.actions.newTerminal'),
+	reset: message('keyboard.shortcuts.actions.reset'),
+	selectAll: message('keyboard.shortcuts.actions.selectAll'),
+	settings: message('keyboard.shortcuts.actions.settings'),
+	toggleSidebar: message('keyboard.shortcuts.actions.toggleSidebar'),
+	availabilityFocusedTerminal: message('keyboard.shortcuts.availability.focusedTerminal'),
+	availabilityFocusedTerminalWithSelection: message(
+		'keyboard.shortcuts.availability.focusedTerminalWithSelection',
+	),
+	availabilityWorkbench: message('keyboard.shortcuts.availability.workbench'),
+	category: message('keyboard.shortcuts.category'),
+	conflict: message(
+		'keyboard.shortcuts.conflict',
+		'Inline conflict diagnostic. shortcut, action, scope, source, and availability are localized display strings.',
+	),
+	description: message('keyboard.shortcuts.description'),
+	invalid: message('keyboard.shortcuts.invalid'),
+	noResults: message('keyboard.shortcuts.noResults'),
+	persistenceInvalidWarning: message('keyboard.shortcuts.persistence.invalidWarning'),
+	persistenceReadWarning: message('keyboard.shortcuts.persistence.readWarning'),
+	persistenceWriteWarning: message('keyboard.shortcuts.persistence.writeWarning'),
+	recording: message('keyboard.shortcuts.recording'),
+	scopeFocusedTerminal: message('keyboard.shortcuts.scope.focusedTerminal'),
+	scopeFocusedTerminalOrFind: message('keyboard.shortcuts.scope.focusedTerminalOrFind'),
+	scopeWorkbench: message('keyboard.shortcuts.scope.workbench'),
+	sourceCustom: message('keyboard.shortcuts.source.custom'),
+	sourceDefault: message('keyboard.shortcuts.source.default'),
+	title: message('keyboard.shortcuts.title'),
+});
+
+function message(
+	id: keyof typeof enUSKeyboardShortcutMessages,
+	description?: string,
+): {
+	readonly defaultMessage: string;
+	readonly description?: string;
+	readonly id: string;
+} {
+	return description === undefined
+		? { defaultMessage: enUSKeyboardShortcutMessages[id], id }
+		: { defaultMessage: enUSKeyboardShortcutMessages[id], description, id };
+}

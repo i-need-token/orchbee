@@ -1,0 +1,70 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "web.terminal-settings-surface",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Terminal Settings Surface",
+	"description": "Owns client-local application appearance, terminal display preferences, frequent keyboard-shortcut overrides, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": [
+		"configure-application-appearance",
+		"configure-terminal-display",
+		"configure-keyboard-shortcuts",
+		"explain-ghostty-configuration-migration",
+		"open-desktop-browser-access"
+	],
+	"implementation": [
+		"apps/web/src/terminal-settings-surface/TerminalSettingsSurface.tsx",
+		"apps/web/src/terminal-settings-surface/components/ghostty-migration-settings/GhosttyMigrationSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/keyboard-shortcut-settings/KeyboardShortcutSettings.tsx",
+		"apps/web/src/ghostty-configuration-analysis/analyzeGhosttyConfiguration.ts",
+		"apps/web/src/keyboard-shortcuts/model/keyboard-shortcut-settings-controller.ts",
+		"apps/web/src/terminal-settings/model/TerminalSettingsController.ts"
+	],
+	"stories": [
+		{
+			"exportName": "EnglishLight",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--english-light",
+			"states": [
+				"Inspect the light English surface with left navigation, searchable appearance, keyboard-shortcut, and Ghostty migration categories, immediate controls, and no Save action.",
+				"Open Ghostty migration to inspect the paste-only dry-run notice, bounded source field, explicit analysis action, four result dispositions, and absence of an Apply or Import action."
+			]
+		},
+		{
+			"exportName": "ChineseDarkCustom",
+			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
+			"id": "applications-web-terminal-settings-surface--chinese-dark-custom",
+			"states": [
+				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, keyboard-shortcut and Ghostty-migration navigation, and the Desktop-only Browser access category."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"A client changes local Orchbee appearance, terminal font, effective default terminal colors, or default-background opacity.",
+		"A client reviews or changes one of the frequent Workbench or focused-terminal shortcuts.",
+		"A user moving from Ghostty needs a source-ordered dry-run that explains which common pasted settings have a lossless Orchbee target and which require review or will not migrate.",
+		"Desktop exposes its Browser-access capability through the common Settings information architecture."
+	],
+	"avoidWhen": [
+		"A shared document or Terminal Host setting must synchronize across clients.",
+		"Ghostty files, included configuration, or themes must be read, or analyzed values must be applied automatically.",
+		"A native window, operating-system transparency, shell profile, palette, VT, or OSC setting is being configured."
+	],
+	"invariants": [
+		"Opening Settings keeps the Workbench and projected terminal attachments mounted while the Workbench subtree is inert.",
+		"Application theme changes only the client data-theme; terminal display changes publish one complete presentation snapshot.",
+		"Shortcut edits publish one complete conflict-free effective table; Action availability is resolved before an event is consumed.",
+		"Recording, resetting, and restoring shortcut overrides never remount Workbench or replace a projected terminal attachment.",
+		"Ghostty migration analyzes pasted text only, emits one visible source-ordered finding per assignment, never applies or persists a value, and clears its source and report when its category unmounts.",
+		"Only default-coded terminal foreground and background use a display override; Host metadata, explicit colors, palette colors, cursor, VT, and OSC state remain authoritative.",
+		"The complete strict preference record is local to one browser origin and all product copy ships in English and Simplified Chinese."
+	],
+	"references": [
+		"apps/web/docs/keyboard-shortcuts.md",
+		"apps/web/docs/terminal-settings.md",
+		"apps/web/README.md"
+	]
+}

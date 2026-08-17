@@ -4,9 +4,15 @@ export { enUSDesktopApplicationLifetimeMessages } from './desktop-application-li
 export type { DesktopApplicationLifetimeMessageId } from './desktop-application-lifetime';
 export { enUSDesktopBrowserAccessMessages } from './desktop-browser-access';
 export type { DesktopBrowserAccessMessageId } from './desktop-browser-access';
+export { enUSDesktopWindowMessages } from './desktop-window';
+export type { DesktopWindowMessageId } from './desktop-window';
+export { enUSKeyboardShortcutMessages } from './keyboard-shortcuts';
+export type { KeyboardShortcutMessageId } from './keyboard-shortcuts';
 export { enUSProjectedTerminalMessages } from './projected-terminal';
 export type { ProjectedTerminalMessageId } from './projected-terminal';
 export { enUSMessages } from './messages';
 export type { OrchbeeMessageId } from './messages';
+export { enUSTerminalSettingsMessages } from './terminal-settings';
+export type { TerminalSettingsMessageId } from './terminal-settings';
 export { enUSWorkbenchMessages } from './workbench';
 export type { WorkbenchMessageId } from './workbench';

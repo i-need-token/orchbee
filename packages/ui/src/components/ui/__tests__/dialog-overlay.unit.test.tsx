@@ -17,6 +17,8 @@ describe('Dialog overlays', () => {
 
 		expect(dialogOverlay.props.className).toContain('bg-black/15');
 		expect(alertDialogOverlay.props.className).toContain('bg-black/15');
+		expect(dialogOverlay.props.className).toContain('z-(--ob-ref-layer-modal)');
+		expect(alertDialogOverlay.props.className).toContain('z-(--ob-ref-layer-modal)');
 		expect(dialogOverlay.props.className).not.toContain('backdrop-blur');
 		expect(alertDialogOverlay.props.className).not.toContain('backdrop-blur');
 	});

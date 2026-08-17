@@ -145,6 +145,9 @@ state machine.
 
 Canvas and WebGPU own equivalent presentation rules:
 
+- only `TerminalColorEncoding.default` resolves through the client-effective default foreground or
+  background; explicit RGB (including black), Host-projected palette RGB, and `none` retain their
+  Host-projected behavior;
 - inverse exchanges the resolved foreground and background before selection or search overrides;
 - invisible and the hidden blink phase suppress text and decorations while preserving the cell
   background;
@@ -162,11 +165,18 @@ owns the native-to-both-backends regression for these rules.
 
 ## Packed presentation colors
 
-Terminal colors have one runtime authority. The launch profile seeds Ghostty's default
-foreground, background, cursor color, and 256-color palette. OSC 4, 10, 11, and 12 mutate that same
-Ghostty state. Host projection resolves palette cell colors to RGB and publishes the current
-default foreground, background, and optional cursor color in every frame. The packed client never
-reconstructs a palette or replaces those terminal colors from `ITheme`.
+The launch profile seeds Ghostty's default foreground, background, cursor color, and 256-color
+palette. OSC 4, 10, 11, and 12 mutate that same Ghostty state. Host projection resolves palette
+cell colors to RGB and publishes the current default foreground, background, and optional cursor
+color in every frame. The packed client never reconstructs a palette or replaces those terminal
+colors from `ITheme`.
+
+An optional client `defaultColorOverride` is a narrower display projection, not a second terminal
+color authority: it affects only packed `TerminalColorEncoding.default` foreground/background
+tokens. It does not mutate or replace Host metadata, palette-projected RGB, VT state, OSC query
+replies, or the Host cursor color. The renderer resolves each original foreground/background role
+before applying inverse; default underline colors use the effective foreground, while an explicit
+underline color remains explicit.
 
 Application presentation remains a separate, narrower layer:
 
@@ -175,9 +185,12 @@ Application presentation remains a separate, narrower layer:
   Host background is the fallback accent;
 - a missing Host cursor color falls back to the Host foreground;
 - Canvas stays transparent before its first frame so the owning container supplies the loading
-  surface, then resize and clear reuse the latest Host background; and
-- the Workbench terminal root adopts each committed frame background, while Electron uses the
-  launch-profile background only as its pre-document window surface.
+  surface, then opaque resize and clear reuse the latest effective default background;
+- `allowTransparency` controls only renderer clear. `backgroundOpacity` remains a complete
+  source-neutral configuration value for the composing terminal root, whose alpha affects neither
+  glyphs nor explicit cell backgrounds; and
+- the Workbench terminal root adopts each committed effective default background, while Electron
+  uses the launch-profile background only as its pre-document window surface.
 
 The native corpus sets OSC 4, 10, 11, and 12 values and proves the resulting metadata, resolved
 palette cell, cursor paint, Canvas output, and WebGPU uploads. The Host runtime additionally sends

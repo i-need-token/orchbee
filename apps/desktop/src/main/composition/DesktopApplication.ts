@@ -43,6 +43,7 @@ import {
 	BrowserWindow,
 	app,
 	MessageChannelMain,
+	screen,
 	type BrowserWindowConstructorOptions,
 	type MessagePortMain,
 } from 'electron';
@@ -84,6 +85,13 @@ import {
 	type DesktopTerminalProjectionLease,
 } from '../terminal-projection-control';
 import type { DesktopTerminalExitRecordResult } from '../terminal-document-control';
+import {
+	DesktopWindowStateOwner,
+	FileDesktopWindowStateStore,
+	type DesktopWindowDisplayTopology,
+	type DesktopWindowStateAttachment,
+	type DesktopWindowStateStore,
+} from '../window-state';
 import { FileWorkbenchDocumentStore, type WorkbenchDocumentStore } from '../workbench-document';
 import {
 	composeDesktopTerminalRuntime,
@@ -214,6 +222,8 @@ export interface DesktopApplicationDependencies {
 	) => DesktopTerminalIntentReconciler;
 	readonly createWorkbenchDocumentStore: (filePath: string) => WorkbenchDocumentStore;
 	readonly createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
+	readonly createWindowStateStore: (filePath: string) => DesktopWindowStateStore;
+	readonly getWindowDisplayTopology: () => DesktopWindowDisplayTopology;
 	readonly getPreferredLocales: () => readonly string[];
 	readonly randomIdentifier: () => string;
 	readonly quitApplication: () => void;
@@ -262,7 +272,12 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	createTerminalExitPublicationLedger: (filePath) => new TerminalExitPublicationLedger(filePath),
 	createWorkbenchDocumentStore: (filePath) => new FileWorkbenchDocumentStore(filePath),
 	createWindow: (options) => new BrowserWindow(options),
+	createWindowStateStore: (filePath) => new FileDesktopWindowStateStore(filePath),
 	getPreferredLocales: () => app.getPreferredSystemLanguages(),
+	getWindowDisplayTopology: () => ({
+		primaryWorkArea: screen.getPrimaryDisplay().workArea,
+		workAreas: screen.getAllDisplays().map((display) => display.workArea),
+	}),
 	randomIdentifier: () => randomBytes(16).toString('hex'),
 	quitApplication: () => app.quit(),
 	writeTrace: (trace) => console.info(JSON.stringify(trace)),
@@ -327,6 +342,8 @@ export class DesktopApplication {
 	#terminalExitSpillReady = false;
 	#pendingRendererDocumentRetirement: (() => Promise<void>) | undefined;
 	#window: BrowserWindow | undefined;
+	#windowStateAttachment: DesktopWindowStateAttachment | undefined;
+	readonly #windowStateOwner: DesktopWindowStateOwner;
 	readonly #workbenchDocumentStore: WorkbenchDocumentStore;
 
 	constructor(
@@ -345,6 +362,10 @@ export class DesktopApplication {
 			dependencies.createTerminalExitPublicationLedger?.(
 				options.runtime.terminalExitPublicationLedgerPath,
 			) ?? new TerminalExitPublicationLedger(options.runtime.terminalExitPublicationLedgerPath);
+		this.#windowStateOwner = new DesktopWindowStateOwner(
+			dependencies.createWindowStateStore(options.runtime.windowStateStorePath),
+			options.platform,
+		);
 		this.#workbenchDocumentStore = dependencies.createWorkbenchDocumentStore(
 			options.runtime.workbenchDocumentStorePath,
 		);
@@ -359,7 +380,33 @@ export class DesktopApplication {
 	}
 
 	focusWindow(): void {
-		if (this.hasWindow) this.#window?.focus();
+		const window = this.#window;
+		if (window === undefined || window.isDestroyed()) return;
+		if (window.isMinimized()) window.restore();
+		window.show();
+		window.focus();
+	}
+
+	getWindowState(): 'full-screen' | 'maximized' | 'normal' | 'unavailable' {
+		const window = this.#window;
+		if (window === undefined || window.isDestroyed()) return 'unavailable';
+		if (window.isFullScreen()) return 'full-screen';
+		return window.isMaximized() ? 'maximized' : 'normal';
+	}
+
+	toggleWindowFullScreen(): boolean {
+		const window = this.#window;
+		if (window === undefined || window.isDestroyed()) return false;
+		window.setFullScreen(!window.isFullScreen());
+		return true;
+	}
+
+	toggleWindowMaximized(): boolean {
+		const window = this.#window;
+		if (window === undefined || window.isDestroyed() || window.isFullScreen()) return false;
+		if (window.isMaximized()) window.unmaximize();
+		else window.maximize();
+		return true;
 	}
 
 	requestExit(reason: DesktopApplicationExitReason): Promise<DesktopApplicationLifetimeExitResult> {
@@ -576,11 +623,14 @@ export class DesktopApplication {
 			throw new Error('Desktop renderer URL must use loopback HTTP or the packaged origin.');
 		}
 		this.#documentFailure = undefined;
+		const launchState = await this.#windowStateOwner.loadLaunchState(
+			this.#dependencies.getWindowDisplayTopology(),
+		);
 		const window = this.#dependencies.createWindow({
 			backgroundColor: terminalRgbCss(
 				this.#options.runtime.terminalLaunch.terminalProfile.defaultBackgroundRgb,
 			),
-			height: 720,
+			...launchState.bounds,
 			show: false,
 			...(this.#options.platform === 'darwin'
 				? { trafficLightPosition: MACOS_TRAFFIC_LIGHT_POSITION }
@@ -595,9 +645,11 @@ export class DesktopApplication {
 				spellcheck: false,
 				webSecurity: true,
 			},
-			width: 1024,
 		});
 		this.#window = window;
+		const windowStateAttachment = this.#windowStateOwner.attach(window);
+		this.#windowStateAttachment = windowStateAttachment;
+		if (launchState.maximized) window.maximize();
 		let loadingGeneration = 0;
 		window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 		window.webContents.on('will-navigate', (event, navigationUrl) => {
@@ -629,6 +681,10 @@ export class DesktopApplication {
 		});
 		window.once('ready-to-show', () => window.show());
 		window.once('closed', () => {
+			windowStateAttachment.dispose();
+			if (this.#windowStateAttachment === windowStateAttachment) {
+				this.#windowStateAttachment = undefined;
+			}
 			this.#writeCopyPathTrace('window-closed');
 			this.#beginRendererDocument();
 			if (this.#window === window) this.#window = undefined;
@@ -651,6 +707,10 @@ export class DesktopApplication {
 	}
 
 	async #shutdownInternal(): Promise<void> {
+		this.#windowStateAttachment?.capture();
+		await this.#windowStateOwner.flush().catch(() => {
+			this.#writeCopyPathTrace('window-state-flush-failed-during-shutdown');
+		});
 		this.#removeHostListener?.();
 		this.#removeHostListener = undefined;
 		let firstFailure: unknown;
