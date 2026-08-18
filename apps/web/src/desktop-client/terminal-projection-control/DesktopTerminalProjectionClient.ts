@@ -70,21 +70,20 @@ export class DesktopTerminalProjectionClient implements TerminalProjectionClient
 			resolve,
 			transport: null,
 		};
+		if (this.#disposed || this.#pending.has(requestId)) {
+			reject(unavailableError());
+			return { release: () => undefined, result };
+		}
 		this.#pending.set(requestId, pending);
-		if (this.#disposed) {
+		try {
+			this.#port.postMessage({
+				presentationId,
+				requestId,
+				type: 'terminal-projection-open-requested',
+			});
+		} catch {
 			this.#pending.delete(requestId);
 			reject(unavailableError());
-		} else {
-			try {
-				this.#port.postMessage({
-					presentationId,
-					requestId,
-					type: 'terminal-projection-open-requested',
-				});
-			} catch {
-				this.#pending.delete(requestId);
-				reject(unavailableError());
-			}
 		}
 		return {
 			release: () => this.#release(requestId, pending),
@@ -115,13 +114,23 @@ export class DesktopTerminalProjectionClient implements TerminalProjectionClient
 			return;
 		}
 		const pending = this.#pending.get(event.data.requestId);
-		if (
-			pending === undefined ||
-			pending.presentationId !== event.data.presentationId ||
-			pending.released
-		) {
+		if (pending === undefined || pending.presentationId !== event.data.presentationId) {
 			closePorts(message.ports);
 			this.dispose();
+			return;
+		}
+		if (event.data.type === 'terminal-projection-released') {
+			if (message.ports.length !== 0) {
+				closePorts(message.ports);
+				this.dispose();
+				return;
+			}
+			if (!pending.released) {
+				pending.released = true;
+				pending.transport?.close();
+				pending.reject(releasedError());
+			}
+			this.#pending.delete(event.data.requestId);
 			return;
 		}
 		if (event.data.type === 'terminal-projection-failed') {
@@ -131,7 +140,14 @@ export class DesktopTerminalProjectionClient implements TerminalProjectionClient
 				return;
 			}
 			this.#pending.delete(event.data.requestId);
-			pending.reject(new DesktopTerminalProjectionRequestError(event.data.failure));
+			if (!pending.released) {
+				pending.reject(new DesktopTerminalProjectionRequestError(event.data.failure));
+			}
+			return;
+		}
+		if (pending.released) {
+			closePorts(message.ports);
+			this.dispose();
 			return;
 		}
 		const rendererPort = message.ports[0];
@@ -152,9 +168,8 @@ export class DesktopTerminalProjectionClient implements TerminalProjectionClient
 	#release(requestId: TerminalProjectionRequestId, pending: PendingProjection): void {
 		if (pending.released) return;
 		pending.released = true;
-		this.#pending.delete(requestId);
 		pending.transport?.close();
-		if (pending.transport === null) pending.reject(releasedError());
+		pending.reject(releasedError());
 		if (this.#disposed) return;
 		try {
 			this.#port.postMessage({

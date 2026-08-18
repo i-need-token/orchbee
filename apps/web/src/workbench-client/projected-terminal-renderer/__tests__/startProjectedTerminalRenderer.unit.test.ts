@@ -89,6 +89,7 @@ describe('startProjectedTerminalRenderer', () => {
 			(event) => emitClipboardWriteRequest(event),
 		);
 		const notifyExited = vi.fn<ProjectedTerminal['notifyExited']>();
+		const notifyFailed = vi.fn<ProjectedTerminal['notifyFailed']>();
 		let emitError: Parameters<ProjectedTerminal['onError']>[0] = () => undefined;
 		const notifyBrokerFailure = vi.fn<ProjectedTerminal['notifyBrokerFailure']>((failure) =>
 			emitError({ ...failure, error: new Error(failure.message) }),
@@ -154,6 +155,7 @@ describe('startProjectedTerminalRenderer', () => {
 							totalRows: 0n,
 						})),
 						notifyExited,
+						notifyFailed,
 						notifyBell,
 						notifyClipboardWriteRequest,
 						notifyBrokerFailure,
@@ -497,6 +499,7 @@ describe('startProjectedTerminalRenderer', () => {
 			};
 			emitFrameTelemetry(telemetry);
 			await expect(session.presentationReady).resolves.toBeUndefined();
+			expect(session.isTransportAvailable()).toBe(true);
 			if (emitMetadata === undefined) throw new Error('metadata listener is missing');
 			const baseMetadata = {
 				cellPixelHeight: 18,
@@ -646,6 +649,7 @@ describe('startProjectedTerminalRenderer', () => {
 			});
 			session.freeze();
 			session.freeze();
+			expect(session.isTransportAvailable()).toBe(false);
 			expect(dataset['projectedTerminalBellActive']).toBeUndefined();
 			expect(freezeTerminal).toHaveBeenCalledOnce();
 			expect(disposeTerminal).not.toHaveBeenCalled();
@@ -711,12 +715,14 @@ describe('startProjectedTerminalRenderer', () => {
 			const createAdditionalTransport = () => {
 				const close = vi.fn<() => void>();
 				let emitMessage: (value: unknown) => void = () => undefined;
+				let emitUnavailable: () => void = () => undefined;
 				const additionalTransport: ProjectedTerminalTransport = {
 					close,
 					projectionBufferTrust: 'local-host',
 					send: vi.fn<ProjectedTerminalTransport['send']>(),
-					subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>((listener) => {
+					subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>((listener, unavailable) => {
 						emitMessage = listener;
+						emitUnavailable = unavailable;
 						return vi.fn<() => void>();
 					}),
 				};
@@ -724,6 +730,7 @@ describe('startProjectedTerminalRenderer', () => {
 					additionalTransport,
 					close,
 					emitMessage: (value: unknown) => emitMessage(value),
+					emitUnavailable: () => emitUnavailable(),
 				};
 			};
 			const liveBootstrap = {
@@ -779,6 +786,7 @@ describe('startProjectedTerminalRenderer', () => {
 				undefined,
 				cancelledClipboardReview,
 			);
+			expect(liveSession.isTransportAvailable()).toBe(true);
 			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('open');
 			liveTransport.emitMessage({
 				event: {
@@ -872,6 +880,34 @@ describe('startProjectedTerminalRenderer', () => {
 				textContent: 'The terminal control action could not be confirmed.',
 			});
 			expect(liveTransport.close).not.toHaveBeenCalled();
+			liveTransport.emitMessage({
+				failure: {
+					code: 'renderer-backpressure',
+					message: 'Renderer command exceeded the bounded Main request window.',
+					operation: 'protocol',
+					retryable: true,
+				},
+				kind: 'failure',
+			});
+			await expect(liveSession.transportUnavailable).resolves.toBeUndefined();
+			expect(liveSession.isTransportAvailable()).toBe(false);
+			const runtimeFailure = {
+				failure: { kind: 'pty-read' as const, stage: 'read-output' as const },
+				finalRevision: CanonicalUint64TextSchema.parse('1'),
+				identity: {
+					creationId: liveBootstrap.creationId,
+					hostEpoch: liveBootstrap.hostEpoch,
+					terminalId: liveBootstrap.terminalId,
+				},
+				process: { kind: 'observed' as const, result: { code: 1, kind: 'exit-code' as const } },
+			};
+			liveTransport.emitMessage({ event: runtimeFailure, kind: 'terminal-failed' });
+			expect(notifyFailed).toHaveBeenCalledWith(runtimeFailure);
+			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('failed');
+			expect(liveElements.additionalStatus).toMatchObject({
+				hidden: false,
+				textContent: 'The terminal session stopped after a runtime failure.',
+			});
 			liveSession.dispose();
 			resolveCancelledClipboardReview?.(true);
 			await Promise.resolve();
@@ -879,6 +915,64 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(cancelledClipboardWrite).not.toHaveBeenCalled();
 			expect(unsubscribeLiveSource).toHaveBeenCalledOnce();
 			expect(liveTransport.close).toHaveBeenCalledOnce();
+
+			const hostCloseElements = createAdditionalRoot();
+			const hostCloseTransport = createAdditionalTransport();
+			const hostCloseSession = await startProjectedTerminalRenderer(
+				hostCloseElements.additionalRoot,
+				documentElement,
+				['en-US'],
+				'apple',
+				liveBootstrap,
+				hostCloseTransport.additionalTransport,
+				dependencies,
+				{},
+				{
+					current: () => initialPresentationConfiguration,
+					subscribe: () => vi.fn<() => void>(),
+				},
+			);
+			hostCloseTransport.emitMessage({
+				failure: {
+					code: 'host-connection-unavailable',
+					message: 'The Terminal Host connection is unavailable.',
+					operation: 'protocol',
+					retryable: true,
+				},
+				kind: 'failure',
+			});
+			await expect(hostCloseSession.transportUnavailable).resolves.toBeUndefined();
+			expect(hostCloseSession.isTransportAvailable()).toBe(false);
+			hostCloseSession.dispose();
+
+			vi.mocked(dependencies.createTerminal).mockClear();
+			disposeTerminal.mockClear();
+			openTerminal.mockClear();
+			openTerminal.mockImplementationOnce(() => new Promise<void>(() => undefined));
+			const startupDisconnectElements = createAdditionalRoot();
+			const startupDisconnectTransport = createAdditionalTransport();
+			const startup = startProjectedTerminalRenderer(
+				startupDisconnectElements.additionalRoot,
+				documentElement,
+				['en-US'],
+				'apple',
+				liveBootstrap,
+				startupDisconnectTransport.additionalTransport,
+				dependencies,
+				{},
+				{
+					current: () => initialPresentationConfiguration,
+					subscribe: () => vi.fn<() => void>(),
+				},
+			);
+			await vi.waitFor(() => expect(openTerminal).toHaveBeenCalledOnce());
+			startupDisconnectTransport.emitUnavailable();
+			await expect(startup).rejects.toThrow(
+				'Projected terminal transport became unavailable during renderer startup.',
+			);
+			expect(disposeTerminal).toHaveBeenCalledOnce();
+			expect(startupDisconnectTransport.close).toHaveBeenCalledOnce();
+			openTerminal.mockResolvedValue(undefined);
 
 			vi.mocked(dependencies.createTerminal).mockClear();
 			disposeTerminal.mockClear();

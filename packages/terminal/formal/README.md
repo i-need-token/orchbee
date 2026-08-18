@@ -109,48 +109,57 @@ Canvas adapters with synthetic `CompositionEvent`/`InputEvent` instances. It pro
 application-layer browser adapter and completed Canvas frames, not a native operating-system IME
 candidate UI.
 
+## Native input settlement
+
+`tla/TerminalNativeInputSettlement.tla` owns the short native-text settlement window that is
+separate from composition settlement in `TerminalInputRepair.tla`. It explores two consecutively
+admitted requests and independently orders textarea-value changes, repeated queue attempts,
+fallback coalescing, input-event deferral, timer firing, composition start/end, repair/reopen, and
+disposal.
+
+| Native settlement claim                                  | Model property                                                                                          | TypeScript refinement                                                                                             |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| One admitted request has one terminal outcome            | `EveryAdmittedRequestSettlesOnce`, `PublicationIsExactlyOnce`                                           | `#queueNativeInputChange` owns one pending request and clears it before timer publication.                        |
+| Changed native text wins over the raw-key fallback       | `NativePublicationRequiresChangedValue`, `FallbackPublicationRequiresUnchangedValue`                    | The timer compares the settled textarea value with its captured baseline before choosing native text or fallback. |
+| A repeated keydown only enriches the current request     | `PendingIdentityIsCurrent`, `FallbackPublicationRequiresUnchangedValue`                                 | A pending request retains its baseline and timer while the first non-empty fallback is coalesced.                 |
+| An independent input event waits for the timer           | `DeferredInputDoesNotPublishEarly`                                                                      | `#consumeInputValue` returns while an independent text insertion has a native change pending.                     |
+| Composition, repair, and disposal revoke timer authority | `CompositionOwnsNoSettlementTimer`, `ClosedAdmissionHasNoTimer`, `InvalidationCancelsPendingSettlement` | Composition start/end, transient-state repair, and surface release call `#cancelNativeInputChange`.               |
+| An uncancelled timer eventually settles                  | `PendingTimerEventuallySettles`                                                                         | Weak fairness applies only to the already-armed current timer; environment events may cancel it first.            |
+
+The model represents time by event ordering and never assumes that a slow machine fires at exactly
+30 milliseconds. It abstracts concrete Unicode strings to textarea generations and does not model
+send failure or focus convergence, which remain owned by `TerminalInputRepair.tla` and TypeScript
+tests. The separate zero-delay `#nativeInputTextForNextKey` marker is also outside this model; unit
+tests cover input-before-keydown within the marker's browser-task window, so no formal claim is made
+for arbitrary delay between those two browser events.
+
 Run the bounded model from the repository root:
 
 ```sh
 pnpm --filter @orchbee/terminal test:tla
 ```
 
-The runner executes the presentation model once and the input model through nine fixed semantic
-scenarios: composition, key, mouse, focus, review-key, review-mouse, review-focus,
-review-composition, and lifecycle. `review-composition` combines a stalled review, queued focus-in,
-reset invalidation, a deliberately failed first fresh-generation focus reconciliation, a blocked
-composition publication attempt, a successful reconciliation retry, and a later composition
-publication. `InputPublicationReady` guards only Host-directed publication; composition start,
-update, cancelled-end settlement, and stale-continuation discard remain local dispatcher actions
-and do not require Host focus convergence.
+The shared repository runner executes the presentation and native-settlement models once and the
+input-repair model through nine fixed semantic scenarios: composition, key, mouse, focus,
+review-key, review-mouse, review-focus, review-composition, and lifecycle. `review-composition`
+combines a stalled review, queued focus-in, reset invalidation, a deliberately failed first
+fresh-generation focus reconciliation, a blocked composition publication attempt, a successful
+reconciliation retry, and a later composition publication. `InputPublicationReady` guards only
+Host-directed publication; composition start, update, cancelled-end settlement, and
+stale-continuation discard remain local dispatcher actions and do not require Host focus
+convergence.
 
-It generates each scenario configuration transiently beside the owning model, pins `tla2tools
-1.7.4` by SHA-1, uses one worker, a fixed fingerprint polynomial, and action coverage, and gives
-every TLC process a unique operating-system temporary metadata directory. Both the generated
-configuration and metadata directory are removed in `finally`. TLC stdout remains visible while
-the runner captures and aggregates it. For the input-repair model, the runner parses stable named
-coverage entries and fails when any required action or invariant-antecedent marker is absent or both
-reported counts are zero. The required set covers staged/current/stale continuation, eligible and
-settled repair, coalesced focus repair during reset, unfocused and completed-focus disposal,
-pending-disposal request/completion, focus-out, eligible composition publication, stalled review,
-each queued and published ownership transition, stateless publication, synchronous failure,
-failed-press rollback, release ownership guards, fresh-generation focus reconciliation, current
-review rejection, the reset/review focus-failure mismatch, blocked and post-convergence composition
-publication, local composition progress and cancelled settlement during mismatch, lifecycle cleanup
-with and without Host-published ownership, late cancelled-review settlement, current-generation
-bypass, and the corresponding invariant antecedents. A startup self-check rejects synthetic
-missing and `0:0` coverage before TLC runs;
-source line numbers are not parsed. The presentation model is executed unchanged and has no
-input-repair coverage requirement. The runner downloads the jar into the ignored package-local
-`.tools` directory when necessary. Set
-`TERMINAL_TLA2TOOLS_JAR` to an already provisioned jar with the same digest.
+[`../../../scripts/tla/models.json`](../../../scripts/tla/models.json) is the execution inventory.
+The runner pins `tla2tools 1.7.4` by SHA-256, uses one worker, fingerprint polynomial zero, explicit
+timeouts, action coverage, and a unique metadata directory beneath the ignored root `.tools` per run.
+Variant configurations and model copies are transient and removed in `finally`. Each completed check emits a `TLA_RESULT`
+record containing the model/config digest, duration, generated and distinct states, remaining
+queue, and depth. Stable named coverage entries must exist and have a nonzero count across the
+registered variants; source line numbers are not evidence. Set `ORCHBEE_TLA2TOOLS_JAR` to an
+already provisioned jar with the pinned digest or let the runner provision the ignored root copy.
 
-The 2026-08-12 bounded run completed with every queue empty. The presentation model generated 95
-states with 76 distinct states at depth 8. Input scenarios generated/distinct states as follows:
-composition 35,856/6,706; key 2,232/581; mouse 1,420/421; focus 421/150; review-key
-15,545/2,349; review-mouse 18,776/2,667; review-focus 2,968/613; review-composition
-36,274/7,854; and lifecycle 8,214/1,953. The aggregate input exploration was 121,706 generated
-and 23,294 distinct states, with maximum depth 28. Required coverage was nonzero for the reset
-focus-failure state, local composition progress and cancelled settlement while focus was
-unconverged, the blocked Host publication attempt, and the later post-convergence composition
-publication.
+The inventory deliberately records bounds and executable coverage rather than dated state counts.
+Current counts belong to the `TLA_RESULT` output for the exact model/config digest that produced
+them. Passing these bounded checks is evidence only for the declared abstractions and fairness
+assumptions; it is not proof of browser scheduling, native IME behavior, transport delivery, or an
+unbounded production system.

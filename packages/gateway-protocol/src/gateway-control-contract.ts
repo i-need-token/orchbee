@@ -11,7 +11,7 @@ import { z } from 'zod';
 
 import { GATEWAY_ATTACHMENT_MAX_FRAME_OVERHEAD_BYTES } from './gateway-attachment-wire-contract';
 
-export const GATEWAY_PROTOCOL_VERSION = '1.0';
+export const GATEWAY_PROTOCOL_VERSION = '1.1';
 export const GATEWAY_CONTROL_PATH = '/v1/control';
 export const GATEWAY_ATTACHMENT_PATH = '/v1/attachment';
 
@@ -111,9 +111,9 @@ export const GatewayControlClientMessageSchema = z.discriminatedUnion('type', [
 	}),
 ]);
 
-const projectionFailureEventSchema = TerminalProjectionControlEventSchema.refine(
-	(event) => event.type === 'terminal-projection-failed',
-	'The generic Gateway projection event must be a failure.',
+const projectionControlEventSchema = TerminalProjectionControlEventSchema.refine(
+	(event) => event.type !== 'terminal-projection-opened',
+	'The generic Gateway projection event must not transfer an opened attachment.',
 );
 const projectionOpenedEventSchema = TerminalProjectionControlEventSchema.refine(
 	(event) => event.type === 'terminal-projection-opened',
@@ -130,7 +130,7 @@ export const GatewayControlServerMessageSchema = z.discriminatedUnion('type', [
 		type: z.literal('workbench-client-session-event'),
 	}),
 	z.strictObject({
-		event: projectionFailureEventSchema,
+		event: projectionControlEventSchema,
 		type: z.literal('terminal-projection-control-event'),
 	}),
 	z.strictObject({

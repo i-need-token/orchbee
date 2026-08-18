@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Project Create Flow",
-	"description": "Creates a Project from the shared Folder acquisition menu while isolating the smallest platform-specific step.",
+	"description": "Creates a Project from the shared Folder acquisition menu through either manual path entry or one injected native existing-Folder capability.",
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
 	"intents": ["acquire-folder", "create-project", "enter-folder-path"],
@@ -21,6 +21,15 @@
 				"Open the Project section add menu, choose Select Folder, and inspect the browser path-entry dialog.",
 				"Inspect the disabled New Folder command without replacing the shared Folder acquisition menu."
 			]
+		},
+		{
+			"exportName": "NativeProjectFolderAcquisition",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--native-project-folder-acquisition",
+			"states": [
+				"Open the Project section add menu, choose Select Folder, and confirm that the injected native capability creates the Project without rendering the manual path dialog.",
+				"Inspect the resulting Project, first Folder, Primary Workspace, and terminal projection while New Folder remains disabled."
+			]
 		}
 	],
 	"uses": ["workbench.action-menu", "workbench.resource-dialog-form"],
@@ -35,6 +44,8 @@
 	"invariants": [
 		"The Project add trigger always opens the shared Folder acquisition menu before any platform-specific input.",
 		"Browser composition accepts a manually entered absolute path without claiming that the path was verified.",
+		"Desktop composition uses one injected existing-Folder capability, renders no parallel manual path dialog, and admits at most one selection.",
+		"Cancellation, bounded failure, unmount, and late completion after disposal cannot create a Project.",
 		"Successful creation atomically creates the Project, first Folder, Primary Workspace, and terminal projection."
 	],
 	"references": ["packages/workbench/docs/project-workspace.md"]

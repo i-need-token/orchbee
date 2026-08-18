@@ -23,9 +23,11 @@ interface ProjectDirectoryListProps {
 	readonly folderAlreadyAdded: boolean;
 	readonly folderPath: string;
 	readonly messages: WorkbenchProjectNavigationMessages;
+	readonly nativeSelectionPending?: boolean | undefined;
 	readonly onFolderPathKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
 	readonly onRemoveDirectory: (directoryId: string) => void;
 	readonly onSetPrimaryDirectory: (directoryId: string) => void;
+	readonly onSelectFolder?: (() => void) | undefined;
 	readonly project: WorkbenchProject;
 	readonly setFolderPath: (path: string) => void;
 	readonly showFolderInput: () => void;
@@ -39,9 +41,11 @@ export function ProjectDirectoryList({
 	folderAlreadyAdded,
 	folderPath,
 	messages,
+	nativeSelectionPending = false,
 	onFolderPathKeyDown,
 	onRemoveDirectory,
 	onSetPrimaryDirectory,
+	onSelectFolder,
 	project,
 	setFolderPath,
 	showFolderInput,
@@ -175,11 +179,12 @@ export function ProjectDirectoryList({
 					) : (
 						<Button
 							className={styles['addButton']}
+							disabled={nativeSelectionPending}
 							type='button'
 							variant='ghost'
-							onClick={showFolderInput}
+							onClick={onSelectFolder ?? showFolderInput}
 						>
-							<ProductIcon name='new-folder' />
+							<ProductIcon name={onSelectFolder === undefined ? 'new-folder' : 'folder-opened'} />
 							{messages.projectManageAddFolder}
 						</Button>
 					)}

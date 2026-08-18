@@ -20,6 +20,10 @@ import {
 	WorkbenchClientSessionEventSchema,
 	type WorkbenchClientSessionBootstrap,
 } from '@orchbee/workbench-client-protocol';
+import {
+	DesktopProjectFolderAcquisitionMainEventSchema,
+	DesktopProjectFolderAcquisitionRendererCommandSchema,
+} from '@orchbee/desktop-client-protocol';
 import { startDesktopWorkbenchRenderer } from '../startDesktopWorkbenchRenderer';
 
 const originalResizeObserver = globalThis.ResizeObserver;
@@ -140,6 +144,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
 		const browserAccessChannel = createTestChannel();
+		const projectFolderAcquisitionChannel = createTestChannel();
 		const initializationDocument = provisionDocument('0', ['Terminal 1']);
 		const commands: WorkbenchClientSessionCommand[] = [];
 		clientSessionChannel.port2.addEventListener('message', (event) => {
@@ -168,6 +173,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				clientSessionChannel.port1,
 				projectionChannel.port1,
 				browserAccessChannel.port1,
+				projectFolderAcquisitionChannel.port1,
 			);
 			await expect(session.ready).resolves.toEqual({ kind: 'unavailable', reason: 'read-failed' });
 		});
@@ -178,6 +184,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		expect((lifetimeChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((projectionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((browserAccessChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((projectFolderAcquisitionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
@@ -186,12 +193,25 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
 		const browserAccessChannel = createTestChannel();
+		const projectFolderAcquisitionChannel = createTestChannel();
 		const sharedDocument = provisionDocument('4', ['Terminal 1', 'Terminal 2']);
 		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
 		const projectionCommands: Array<{ presentationId?: string; type?: string }> = [];
 		projectionChannel.port2.addEventListener('message', (event) => {
 			projectionCommands.push(
 				(event as MessageEvent).data as { presentationId?: string; type?: string },
+			);
+		});
+		projectFolderAcquisitionChannel.port2.addEventListener('message', (event) => {
+			const command = DesktopProjectFolderAcquisitionRendererCommandSchema.parse(
+				(event as MessageEvent).data,
+			);
+			projectFolderAcquisitionChannel.port2.postMessage(
+				DesktopProjectFolderAcquisitionMainEventSchema.parse({
+					requestId: command.requestId,
+					result: { kind: 'selected', path: '/workspace/native-project' },
+					type: 'desktop-project-folder-acquisition-completed',
+				}),
 			);
 		});
 		const root = document.createElement('div');
@@ -214,6 +234,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				clientSessionChannel.port1,
 				projectionChannel.port1,
 				browserAccessChannel.port1,
+				projectFolderAcquisitionChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
@@ -293,6 +314,29 @@ describe('startDesktopWorkbenchRenderer', () => {
 			expect(root.querySelector('[data-slot="terminal-settings-surface"]')).toBeNull();
 		});
 
+		const createProject = root.querySelector<HTMLButtonElement>(
+			'[data-slot="workbench-sidebar-project-create"] button',
+		);
+		expect(createProject).not.toBeNull();
+		await act(async () => createProject?.click());
+		let selectFolder: HTMLDivElement | undefined;
+		await vi.waitFor(() => {
+			selectFolder = [...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')].find(
+				(item) => item.textContent?.trim() === 'Select Folder…',
+			);
+			expect(selectFolder).toBeDefined();
+		});
+		await act(async () => selectFolder?.click());
+		await vi.waitFor(() =>
+			expect(sessionCommands.at(-1)?.document.projectWorkspace.projects).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						directories: [expect.objectContaining({ path: '/workspace/native-project' })],
+					}),
+				]),
+			),
+		);
+
 		await act(async () => session?.dispose());
 		root.remove();
 	});
@@ -302,6 +346,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
 		const browserAccessChannel = createTestChannel();
+		const projectFolderAcquisitionChannel = createTestChannel();
 		const sharedDocument = retainedDocument('4');
 		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
 		const root = document.createElement('div');
@@ -326,6 +371,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				clientSessionChannel.port1,
 				projectionChannel.port1,
 				browserAccessChannel.port1,
+				projectFolderAcquisitionChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });

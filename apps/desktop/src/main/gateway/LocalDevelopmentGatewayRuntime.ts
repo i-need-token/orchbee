@@ -163,7 +163,7 @@ export class LocalDevelopmentGatewayRuntime {
 				const connection = GatewayBrowserConnectionSchema.parse({
 					capability: this.#capability,
 					port: event.port,
-					protocolVersion: '1.0',
+					protocolVersion: '1.1',
 				});
 				const browserUrls = this.#browserBaseUrls.map((baseUrl) => {
 					const browserUrl = new URL(baseUrl.href);

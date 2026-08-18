@@ -99,6 +99,56 @@ describe('registerProjectedTerminalActions', () => {
 		for (const registration of registrations) registration.dispose();
 		runtime.dispose();
 	});
+
+	it('does not rebind an open find query when a pending selection arrives later', async () => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('terminal.projected');
+		const updateSearch = vi.fn<(query: string, options: TerminalSearchOptions) => void>();
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<() => void>(),
+			updateSearch,
+		});
+		let selection: ProjectedTerminalActionTarget['selection'] = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			state: 'none',
+		};
+		const target = terminalTarget();
+		Object.defineProperty(target, 'selection', { get: () => selection });
+		const registrations = registerProjectedTerminalActions({
+			findController: controller,
+			scope,
+			terminal: target,
+			typedRuntime: createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime),
+		});
+
+		await runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.selectAll, undefined, {
+			scope,
+			source: 'keyboard',
+		}).completion;
+		await runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.findOpen, undefined, {
+			scope,
+			source: 'keyboard',
+		}).completion;
+		selection = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			end: { column: 7, row: CanonicalUint64TextSchema.parse('4') },
+			preview: 'arrived later',
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('4') },
+			state: 'active',
+		};
+
+		expect(controller.getSnapshot().query).toBe('');
+		expect(updateSearch).not.toHaveBeenCalled();
+		controller.close();
+		await runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.findOpen, undefined, {
+			scope,
+			source: 'keyboard',
+		}).completion;
+		expect(controller.getSnapshot().query).toBe('arrived later');
+		for (const registration of registrations) registration.dispose();
+		runtime.dispose();
+	});
 });
 
 function terminalTarget(

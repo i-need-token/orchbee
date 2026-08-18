@@ -51,6 +51,38 @@ jobs:
       - name: Verify generated state is committed
         run: git diff --exit-code
 
+  tla:
+    name: Change-triggered TLA+
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Select affected TLA+ models
+        id: select
+        env:
+          TLA_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/tla/select-changed-models.mjs "$TLA_BASE"
+
+      - name: Set up Java
+        if: steps.select.outputs.count != '0'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Check affected TLA+ models
+        if: steps.select.outputs.count != '0'
+        run: node scripts/tla/run-models.mjs --models "${{ steps.select.outputs.model_ids }}"
+
   terminal-host-native:
     name: Terminal Host native (${{ matrix.os }})
     strategy:

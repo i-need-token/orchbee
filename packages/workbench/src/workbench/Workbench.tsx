@@ -36,6 +36,7 @@ import type {
 import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
 import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
 import type { WorkbenchTerminalSurface } from './types/workbench-terminal-surface';
+import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 import {
 	defaultWorkbenchShortcutBindings,
@@ -50,6 +51,7 @@ export interface WorkbenchProps {
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
@@ -63,6 +65,7 @@ export function Workbench({
 	navigation,
 	onSettings,
 	projectWorkspaceRuntime,
+	projectFolderAcquisition,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutBindings,
 	shortcutPlatform,
@@ -162,6 +165,7 @@ export function Workbench({
 										onSettings={view.settings}
 										projectLabel={view.projectLabel}
 										projectNavigationMessages={view.projectNavigationMessages}
+										projectFolderAcquisition={projectFolderAcquisition}
 										projectWorkspaceState={view.projectWorkspaceState}
 										removeProject={view.removeProject}
 										removeProjectDirectory={view.removeProjectDirectory}

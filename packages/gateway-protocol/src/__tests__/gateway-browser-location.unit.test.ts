@@ -10,7 +10,7 @@ describe('Gateway Browser location', () => {
 		const connection = GatewayBrowserConnectionSchema.parse({
 			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.0',
+			protocolVersion: '1.1',
 		});
 		const fragment = encodeGatewayBrowserFragment(connection);
 
@@ -20,11 +20,11 @@ describe('Gateway Browser location', () => {
 
 	it('rejects duplicates, unknown fields, noncanonical ports, and protocol drift', () => {
 		const capability = 'a'.repeat(43);
-		const base = `orchbee-gateway-version=1.0&orchbee-gateway-port=42000&orchbee-gateway-capability=${capability}`;
+		const base = `orchbee-gateway-version=1.1&orchbee-gateway-port=42000&orchbee-gateway-capability=${capability}`;
 
 		expect(decodeGatewayBrowserFragment(`${base}&unexpected=true`)).toBeNull();
 		expect(decodeGatewayBrowserFragment(`${base}&orchbee-gateway-port=42001`)).toBeNull();
 		expect(decodeGatewayBrowserFragment(base.replace('42000', '042000'))).toBeNull();
-		expect(decodeGatewayBrowserFragment(base.replace('1.0', '2.0'))).toBeNull();
+		expect(decodeGatewayBrowserFragment(base.replace('1.1', '2.0'))).toBeNull();
 	});
 });

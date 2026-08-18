@@ -95,6 +95,7 @@ interface GatewayPageConnectionDependencies {
 
 interface PendingProjection {
 	readonly presentationId: TerminalPresentationId;
+	releaseRequested: boolean;
 	readonly requestId: TerminalProjectionRequestId;
 }
 
@@ -445,6 +446,7 @@ class GatewayPageConnection {
 			}
 			this.#pendingProjections.set(command.requestId, {
 				presentationId: command.presentationId,
+				releaseRequested: false,
 				requestId: command.requestId,
 			});
 			try {
@@ -458,7 +460,7 @@ class GatewayPageConnection {
 			this.#rejectProtocol();
 			return;
 		}
-		this.#pendingProjections.delete(command.requestId);
+		existing.releaseRequested = true;
 		try {
 			this.#projectionPort?.postMessage(command);
 		} catch {
@@ -517,10 +519,27 @@ class GatewayPageConnection {
 				this.#transition({ type: 'protocol-rejected' });
 				return;
 			}
+			if (!pending.releaseRequested) this.#pendingProjections.delete(event.requestId);
+			if (!this.#postControl({ event, type: 'terminal-projection-control-event' })) {
+				this.#transition({ type: 'protocol-rejected' });
+			}
+			return;
+		}
+		if (event.type === 'terminal-projection-released') {
+			if (message.ports.length !== 0 || !pending.releaseRequested) {
+				closePorts(message.ports);
+				this.#transition({ type: 'protocol-rejected' });
+				return;
+			}
 			this.#pendingProjections.delete(event.requestId);
 			if (!this.#postControl({ event, type: 'terminal-projection-control-event' })) {
 				this.#transition({ type: 'protocol-rejected' });
 			}
+			return;
+		}
+		if (pending.releaseRequested) {
+			closePorts(message.ports);
+			this.#transition({ type: 'protocol-rejected' });
 			return;
 		}
 		const attachmentPort = message.ports[0];
@@ -568,7 +587,8 @@ class GatewayPageConnection {
 
 	#releaseProjection(projection: PendingProjection): void {
 		if (this.#pendingProjections.get(projection.requestId) !== projection) return;
-		this.#pendingProjections.delete(projection.requestId);
+		if (projection.releaseRequested) return;
+		projection.releaseRequested = true;
 		if (this.#state.phase !== 'active') return;
 		try {
 			this.#projectionPort?.postMessage({

@@ -115,7 +115,13 @@ describe('TerminalProjectionControlBroker', () => {
 
 		testPort.emitMessage(releaseCommand());
 		await vi.waitFor(() => expect(first.dispose).toHaveBeenCalledOnce());
+		await vi.waitFor(() => expect(testPort.posted).toHaveLength(3));
 		expect(second.dispose).not.toHaveBeenCalled();
+		expect(testPort.posted[2]?.message).toEqual({
+			presentationId: 'presentation-1',
+			requestId: 'projection-1',
+			type: 'terminal-projection-released',
+		});
 	});
 
 	it('cancels an in-flight open without publishing a stale renderer port', async () => {
@@ -132,7 +138,13 @@ describe('TerminalProjectionControlBroker', () => {
 		deferred.resolve(lease);
 
 		await vi.waitFor(() => expect(lease.dispose).toHaveBeenCalledOnce());
-		expect(testPort.posted).toEqual([]);
+		expect(testPort.posted.map(({ message }) => message)).toEqual([
+			{
+				presentationId: 'presentation-1',
+				requestId: 'projection-1',
+				type: 'terminal-projection-released',
+			},
+		]);
 	});
 
 	it('retains a failed in-flight release cleanup for broker retirement retry', async () => {
@@ -160,9 +172,14 @@ describe('TerminalProjectionControlBroker', () => {
 
 		testPort.emitMessage(releaseCommand());
 		await vi.waitFor(() => expect(lease.dispose).toHaveBeenCalledTimes(2));
+		await vi.waitFor(() => expect(testPort.posted).toHaveLength(2));
 		await expect(broker.dispose()).resolves.toBeUndefined();
 		expect(lease.dispose).toHaveBeenCalledTimes(2);
-		expect(testPort.posted).toHaveLength(1);
+		expect(testPort.posted[1]?.message).toEqual({
+			presentationId: 'presentation-1',
+			requestId: 'projection-1',
+			type: 'terminal-projection-released',
+		});
 	});
 
 	it('retains an automatic port-close cleanup failure for later retirement retry', async () => {

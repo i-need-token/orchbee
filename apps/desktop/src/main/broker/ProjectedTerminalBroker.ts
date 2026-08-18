@@ -185,9 +185,11 @@ export class ProjectedTerminalBroker {
 			this.#bootstrap.attachmentId,
 			this.#handleHostEnvelope,
 		);
+		const removeClosedListener = this.#host.onClosed(this.#handleHostClosed);
 		const removeControlListener = this.#host.onEnvelope(this.#handleHostEnvelope);
 		this.#removeHostListener = () => {
 			removeFrameListener();
+			removeClosedListener();
 			removeControlListener();
 		};
 		this.#port.on('message', this.#handleRendererMessage);
@@ -223,6 +225,17 @@ export class ProjectedTerminalBroker {
 				true,
 			),
 		);
+	};
+
+	readonly #handleHostClosed = (reason: Error): void => {
+		if (this.#disposed || this.#cleanupRequested) return;
+		this.#postFailure({
+			code: 'host-connection-unavailable',
+			message: 'The Terminal Host connection is unavailable.',
+			operation: 'protocol',
+			retryable: true,
+		});
+		this.#requestCleanup(reason);
 	};
 
 	#requestCleanup(error: unknown): void {
@@ -270,7 +283,7 @@ export class ProjectedTerminalBroker {
 	}
 
 	readonly #handleRendererMessage = (event: MessageEvent): void => {
-		if (this.#disposed) return;
+		if (this.#disposed || this.#cleanupRequested) return;
 		const rawMessage: unknown = event.data;
 		const parsed = ProjectedTerminalCommandSchema.safeParse(rawMessage);
 		if (!parsed.success || parsed.data.payload.attachmentId !== this.#bootstrap.attachmentId) {
@@ -297,6 +310,13 @@ export class ProjectedTerminalBroker {
 				...failureContext(parsed.data),
 				retryable: true,
 			});
+			this.#requestCleanup(
+				new BrokerOperationError(
+					'renderer-backpressure',
+					'Renderer command exceeded the bounded Main request window.',
+					true,
+				),
+			);
 			return;
 		}
 
@@ -323,6 +343,9 @@ export class ProjectedTerminalBroker {
 								...context,
 							},
 				);
+				if (error instanceof HostRequestError && error.code === 'host-transport-backpressure') {
+					this.#requestCleanup(error);
+				}
 			})
 			.finally(() => {
 				this.#inFlightRequests -= 1;
@@ -330,7 +353,7 @@ export class ProjectedTerminalBroker {
 	};
 
 	readonly #handleHostEnvelope = (envelope: DecodedProtocolEnvelope): void => {
-		if (this.#disposed) return;
+		if (this.#disposed || this.#cleanupRequested) return;
 		switch (envelope.kind) {
 			case MessageKind.resizeLeaseChanged: {
 				const event = decodeControlJson(envelope.payload, ResizeLeaseChangedSchema);

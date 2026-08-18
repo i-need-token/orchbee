@@ -226,6 +226,20 @@ A focused checker is local evidence; run the full applicable gate after it passe
 - Convert the shortest TLC counterexample into a deterministic regression; fix a missing contract or model before production code.
 - Pin the toolchain. The merge configuration must exercise every maintained action and safety property within documented bounds; larger discovery configurations may run separately.
 
+#### TLA+ artifact lifecycle
+
+| Lifecycle point        | Requirement                                                                                                                                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Admission              | Name one falsifiable owner claim and why independently ordered behavior needs model checking; do not add a model that only enumerates fixed examples or restates types.                                                   |
+| Registration           | Register every maintained module/configuration pair exactly once in `scripts/tla/models.json` with its owner, claim authority, changed-path triggers, timeout, variants, and every semantic action required for coverage. |
+| Change                 | Update the abstraction before dependent runtime behavior and run the selected registered checks; an unchanged passing model is not refinement evidence for changed implementation.                                        |
+| Consolidation or split | Use configuration variants for one semantic owner and abstraction family; split independent dimensions when their product masks useful coverage, exceeds the declared resource bound, or weakens the checked claim.       |
+| Retirement             | Delete the module, configuration, registration, and stale owner documentation together when its claim disappears, a stronger maintained artifact subsumes it, or no executable refinement mapping remains.                |
+
+The inventory is an execution index, not model authority. State counts, depth, duration, action
+coverage, and configuration digests are bounded run evidence; they are not unbounded correctness or
+implementation-refinement claims.
+
 ### Lean
 
 - Define formal inputs, outputs, validity predicates, the transformation or transition, named theorems, minimal assumptions, and any executable oracle needed for refinement.

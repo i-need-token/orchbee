@@ -241,15 +241,19 @@ application. An ordinary page close is never application quit.
 
 ## Correctness claims and evidence
 
-| Claim                                                                         | Deterministic evidence                           | Formal/system evidence                                    | Limits                                                    |
-| ----------------------------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------- | --------------------------------------------------------- |
-| One exact revision chain has one Main writer                                  | Proposal decision and queue tests                | `DesktopMultiClientSession` canonical/revision invariants | Complete-document first-writer-wins policy                |
-| A terminal effect follows matching durable intent                             | Intent reconciler traces                         | TLA+ `EffectRequiresPublishedIntent`                      | Host/ledger idempotency trusted                           |
-| Equivalent races converge and divergent stale writes preserve canonical state | Two-client and stateful property tests           | TLA+ stale/converged actions                              | No semantic merge                                         |
-| Every connected fair session can catch up in publication order                | Session bootstrap/broadcast tests                | TLA+ publication progress                                 | No progress through suspended/broken transport            |
-| Page disconnect releases only its attachments                                 | Session disposal and concurrent projection tests | TLA+ attachment/session invariant                         | OS/process crash cleanup delegated to existing boundaries |
-| Quiescing rejects non-owner mutation before application drain                 | Exit-owner transition tests                      | TLA+ quiescing invariant                                  | Existing irreversible stop recovery policy                |
-| Multiple viewers preserve one resize authority                                | Serialized projection-open tests                 | Existing Terminal Host exclusive-lease model              | No promotion of an already-open observer                  |
+| Claim                                                                          | Deterministic evidence                           | Formal/system evidence                                    | Limits                                                    |
+| ------------------------------------------------------------------------------ | ------------------------------------------------ | --------------------------------------------------------- | --------------------------------------------------------- |
+| One exact revision chain has one Main writer                                   | Proposal decision and queue tests                | `DesktopMultiClientSession` canonical/revision invariants | Complete-document first-writer-wins policy                |
+| A terminal effect follows matching durable intent                              | Intent reconciler traces                         | TLA+ `EffectRequiresPublishedIntent`                      | Host/ledger idempotency trusted                           |
+| Equivalent races converge and divergent stale writes preserve canonical state  | Two-client and stateful property tests           | TLA+ stale/converged actions                              | No semantic merge                                         |
+| Every connected fair session can catch up in publication order                 | Session bootstrap/broadcast tests                | TLA+ publication progress                                 | No progress through suspended/broken transport            |
+| Page disconnect releases only its attachments                                  | Session disposal and concurrent projection tests | TLA+ attachment/session invariant                         | OS/process crash cleanup delegated to existing boundaries |
+| Quiescing rejects non-owner mutation before application drain                  | Exit-owner transition tests                      | TLA+ quiescing invariant                                  | Existing irreversible stop recovery policy                |
+| Multiple viewers preserve one resize authority                                 | Serialized projection-open tests                 | Existing Terminal Host exclusive-lease model              | No promotion of an already-open observer                  |
+| Released projection requests never become active                               | Client, Gateway, and Main release-race tests     | `ProjectedTerminalIpcReliability` release-race invariants | One ordered live control connection                       |
+| A Host attach response installs its consumer before later inbound delivery     | Host response/frame/close ordering tests         | TLA+ response-barrier safety and progress                 | JavaScript microtask-before-`setImmediate` refinement     |
+| An opening frame is acknowledged only after renderer readiness admits its draw | Slow-start frame/transport tests                 | TLA+ ready-frame acknowledgement invariant                | Client commit acknowledgement, not completed paint        |
+| Recovery replaces an honest frozen frame only with a painted fresh attachment  | Projected-surface recovery tests                 | TLA+ recovery and operation-identity invariants           | Two attempts; transport progress is not assumed           |
 
 The TLA+ configuration checks two clients, two document values, one attachment, both missing and
 empty available initialization, equivalent and divergent proposals, reordered disconnect/commit/effect
@@ -264,10 +268,80 @@ canonical state, attachment disconnect/reconnect, Browser effects, and exact att
 backpressure recovery. Explicit resize-control transfer remains outside this contract. No
 throughput acceptance gate is added; the terminal frame hot path is unchanged.
 
-The terminal-recovery TLA+ model is intentionally narrower than the production coordinator: it is an
-owner-retention abstraction. Its finite live-publication failure counter makes failed attempts
-observable and preserves publication pending; live publication may succeed directly on the first
-attempt or later after failures, with a publication-count guard preventing duplicate handoff. It does
-not model session retirement, partial session delivery, sequence allocation, renderer, transport, or
-filesystem behavior, and passing TLC is bounded evidence rather than a proof of the production
-implementation.
+`ProjectedTerminalIpcReliability` checks three orthogonal configurations rather than multiplying
+their state spaces. The release-race configuration permits client release before service attach,
+after attach, or after an open event has already been posted; cleanup may fail, and the failed Main
+request and lease remain owned until retirement succeeds. A late open event fails the client
+control capability closed and never activates its transferred attachment. The attach-order
+configuration queues an attach response, optional first frame, and close in Host wire order. The
+response barrier must let the promise continuation install the broker and attachment listeners
+before either later item is delivered. Renderer initialization and first-frame delivery may occur
+in either order, but `FrameApplied` requires both the delivered commit and renderer readiness.
+Weak fairness applies only to already-queued, in-process continuation and Host delivery actions;
+renderer initialization remains an environment action and has no assumed deadline.
+
+The recovery-operation configuration checks two fresh attachment identities, candidate loss both
+before paint and after a frame is ready but before promotion, frozen-frame retention, promotion only
+while the candidate remains live, and budget exhaustion. A framed candidate that becomes unavailable
+is sealed and cannot replace the frozen projection.
+Selection and Find are distinct atomic invocation identities that may occur in either order and at
+any point between Host handoff, Host completion, client delivery, transport loss, and retry. Opening
+Find snapshots only the latest Host selection already delivered to that attachment. A still-pending
+selection therefore produces an unseeded Find operation instead of consulting a timeout or being
+silently rebound later. An operation handed to a disconnected attachment has an unknown outcome,
+seals that attachment, and is never copied to the retry identity; a user may explicitly create a
+new invocation after recovery, but that is not replay of the old identity.
+
+This cross-boundary model assumes only ordered delivery within one still-live MessagePort, stream,
+or WebSocket connection. It does not assume a latency bound, eventual reconnect, delivery after
+disconnect, exactly-once execution across a lost connection, browser scheduling time, Terminal Host
+internals, or a refinement proof from every transport implementation. The existing deterministic
+client, Gateway, broker, service, HostConnection, and recovery-controller tests own that refinement.
+Passing TLC is bounded safety evidence plus in-process response-barrier progress, not a claim that a
+failed network eventually recovers.
+
+### Clock boundaries and failure detection
+
+Cross-boundary correctness is derived from connection-local ordering, correlation identities,
+attachment identities, generations, revisions, and explicit terminal outcomes. Elapsed time never
+decides whether one IPC operation happened before another, whether an old result belongs to a new
+attachment, or whether an unknown operation may be replayed.
+
+- The 10-second Host request deadline is a failure detector after transport handoff. Expiry retires
+  the whole Host connection, reports every still-pending outcome as unknown, and permits no automatic
+  replay; it does not manufacture a failed response for just the slow correlation.
+- The terminal search watchdog retires only the current client-side scan. Its search identity is
+  advanced, the row read is aborted, and the Worker is terminated, so late progress cannot publish
+  into the replacement search. It does not infer anything about Host mutation order.
+- The 250/500/1,000-millisecond projection recovery delays schedule fresh request and attachment
+  identities. They neither extend the authority of the disconnected attachment nor replay selection,
+  input, clipboard, link, or search operations from it.
+- Font/GPU initialization has no deadline. A real transport-unavailable event races startup and
+  revokes the candidate, while an initialized candidate is rechecked immediately before promotion.
+  Bell, completion-status, scrollbar, and animation timers affect presentation only.
+- Native browser input settlement is a separate local adapter heuristic owned by
+  `packages/terminal/formal/tla/TerminalNativeInputSettlement.tla`; its model treats time as event
+  ordering and makes no exact browser-scheduling claim.
+
+The Gateway control and attachment WebSocket bootstraps currently have no connection deadline. A
+socket that neither authenticates nor emits `close`/`error` can therefore leave the initial surface
+in `connecting` indefinitely; bounded automatic recovery begins only after an explicit unavailable
+outcome. Choosing a deadline, user-cancellation behavior, and whether that deadline retires one
+attachment or the whole control capability is a product/protocol decision, not part of the present
+safety refinement.
+
+Terminal recovery has two independently checked TLA+ state machines so one state space cannot hide
+the other's actions. `TerminalRecoveryBinding` owns Main acquisition/release, same- and cross-Host
+epoch creation recovery, renderer-document generations, attachment replacement, final-revision
+durability, and exit publication. `TerminalExitRecovery` owns bounded volatile admission, durable
+pending ownership, explicit full-journal rejection, unknown-identity observation/rejection,
+publication reservation and adapter commit, bounded live-publication failure, deduplication, and
+visibility recovery across Main release/reacquisition. Its merge configuration checks three exit
+identities with a volatile limit of `1` and pending-journal limit of `2`, so volatile, durable-only,
+and rejected admission branches all have reachable witnesses.
+
+Both models are owner-retention abstractions narrower than the production coordinator. They do not
+model session retirement, partial session delivery, sequence allocation, renderer transport, or
+filesystem atomicity. Required action coverage proves only that the declared finite configurations
+exercise each maintained semantic branch; passing TLC remains bounded model evidence rather than a
+proof of the production implementation.

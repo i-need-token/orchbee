@@ -4,6 +4,7 @@ import {
 	type WorkbenchLayoutStorage,
 	type WorkbenchNavigationPort,
 	type WorkbenchProjectWorkspaceRuntime,
+	type WorkbenchProjectFolderAcquisition,
 	type WorkbenchShortcutPlatform,
 	type WorkbenchTerminalSurface,
 } from '@orchbee/workbench';
@@ -27,6 +28,7 @@ export interface WebApplicationProps {
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalSettingsController: TerminalSettingsController;
@@ -41,6 +43,7 @@ export function WebApplication({
 	macosTerminalInputSettingsController,
 	navigation,
 	projectWorkspaceRuntime,
+	projectFolderAcquisition,
 	requestBrowserAccess,
 	shortcutPlatform,
 	terminalSettingsController,
@@ -62,6 +65,7 @@ export function WebApplication({
 					navigation={navigation}
 					onSettings={view.onSettings}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
+					projectFolderAcquisition={projectFolderAcquisition}
 					shortcutBindings={keyboardShortcuts.bindings}
 					shortcutPlatform={shortcutPlatform}
 					terminalSurface={terminalSurface}

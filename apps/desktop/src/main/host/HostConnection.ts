@@ -54,6 +54,29 @@ interface PendingRequest {
 	readonly timeout: ReturnType<typeof setTimeout>;
 }
 
+type InboundResponseDelivery =
+	| {
+			readonly envelope: DecodedProtocolEnvelope;
+			readonly kind: 'response';
+			readonly outcome: 'resolve';
+			readonly pending: PendingRequest;
+	  }
+	| {
+			readonly error: Error;
+			readonly kind: 'response';
+			readonly outcome: 'reject';
+			readonly pending: PendingRequest;
+	  };
+
+type InboundDelivery =
+	| InboundResponseDelivery
+	| {
+			readonly attachmentId: AttachmentId | null;
+			readonly envelope: DecodedProtocolEnvelope;
+			readonly kind: 'event';
+	  }
+	| { readonly kind: 'close'; readonly reason: Error };
+
 export interface HostConnectionMetrics {
 	readonly bytesReceived: number;
 	readonly bytesSent: number;
@@ -77,6 +100,7 @@ export class HostConnection {
 	readonly #assembler: HostRecordAssembler;
 	readonly #attachmentListeners = new Map<AttachmentId, Set<HostEnvelopeListener>>();
 	readonly #closedListeners = new Set<HostClosedListener>();
+	readonly #inboundDeliveries: InboundDelivery[] = [];
 	readonly #listeners = new Set<HostEnvelopeListener>();
 	readonly #pending = new Map<string, PendingRequest>();
 	readonly #stream: Duplex;
@@ -85,6 +109,7 @@ export class HostConnection {
 	#closed = false;
 	#closedReason: Error | undefined;
 	#hostEpoch: HostEpoch | undefined;
+	#inboundResponseBarrier = false;
 	#outboundAdmittedBytes = 0;
 	#outboundAdmittedRecords = 0;
 	#outboundWriteBlocked = false;
@@ -92,12 +117,14 @@ export class HostConnection {
 	#recordsReceived = 0;
 	#recordsSent = 0;
 	#terminalFramesReceived = 0;
+	#transportEnded = false;
+	#transportEndReason: Error | undefined;
 
 	constructor(stream: Duplex) {
 		this.#stream = stream;
 		this.#assembler = new HostRecordAssembler((record) => this.#handleRecord(record));
 		stream.on('data', (chunk: unknown) => {
-			if (this.#closed) return;
+			if (this.#transportEnded) return;
 			if (!(chunk instanceof Uint8Array)) {
 				this.#fail(new Error('Host transport emitted a non-binary chunk.'));
 				return;
@@ -109,7 +136,7 @@ export class HostConnection {
 			}
 		});
 		stream.on('drain', () => {
-			if (!this.#closed) this.#outboundWriteBlocked = false;
+			if (!this.#transportEnded) this.#outboundWriteBlocked = false;
 		});
 		stream.once('error', (error: Error) => this.#fail(error));
 		stream.once('close', () => this.#handleClose());
@@ -232,8 +259,10 @@ export class HostConnection {
 		expectedKind: MessageKindValue,
 		hostEpoch: HostEpoch | null = this.#hostEpoch ?? null,
 	): Promise<DecodedProtocolEnvelope> {
-		if (this.#closed) {
-			return Promise.reject(this.#closedReason ?? new Error('Host connection is closed.'));
+		if (this.#transportEnded) {
+			return Promise.reject(
+				this.#closedReason ?? this.#transportEndReason ?? new Error('Host connection is closed.'),
+			);
 		}
 		if (kind !== MessageKind.hello && this.#protocolVersion === undefined) {
 			return Promise.reject(new Error('Host connection is not negotiated.'));
@@ -351,9 +380,7 @@ export class HostConnection {
 	}
 
 	close(): void {
-		if (this.#closed) return;
-		this.#completeClose(new Error('Host connection closed.'));
-		this.#stream.destroy();
+		this.#beginTransportEnd(new Error('Host connection closed.'));
 	}
 
 	#handleRecord(record: Uint8Array): void {
@@ -384,18 +411,12 @@ export class HostConnection {
 			throw new Error(`Terminal Host emitted an invalid ${role} message contract.`);
 		}
 		if (envelope.response) {
-			this.#handleResponse(envelope);
+			this.#enqueueInboundDelivery(this.#prepareResponse(envelope));
 			return;
 		}
 		if (!envelope.event) throw new Error('Host emitted an unsolicited request record.');
 		const attachmentId = this.#routeAttachmentEvent(envelope);
-		if (attachmentId !== null) {
-			for (const listener of this.#attachmentListeners.get(attachmentId) ?? []) {
-				listener(envelope);
-			}
-			return;
-		}
-		for (const listener of this.#listeners) listener(envelope);
+		this.#enqueueInboundDelivery({ attachmentId, envelope, kind: 'event' });
 	}
 
 	#routeAttachmentEvent(envelope: DecodedProtocolEnvelope): AttachmentId | null {
@@ -440,29 +461,83 @@ export class HostConnection {
 		}
 	}
 
-	#handleResponse(envelope: DecodedProtocolEnvelope): void {
+	#prepareResponse(envelope: DecodedProtocolEnvelope): InboundResponseDelivery {
 		const correlationId = envelope.correlationId;
 		if (correlationId === null) throw new Error('Host response omitted its correlation ID.');
 		const pending = this.#takePending(correlationId);
 		if (pending === undefined) throw new Error('Host response correlation is unknown or expired.');
 		if (envelope.kind === MessageKind.typedFailure) {
 			const failure = decodeControlJson(envelope.payload, TypedFailureSchema);
-			pending.reject(
-				failure.ok ? new HostRequestError(failure.value, correlationId) : new Error(failure.detail),
-			);
-			return;
+			return {
+				error: failure.ok
+					? new HostRequestError(failure.value, correlationId)
+					: new Error(failure.detail),
+				kind: 'response',
+				outcome: 'reject',
+				pending,
+			};
 		}
 		if (envelope.kind !== pending.expectedKind) {
-			pending.reject(
-				new Error(`Host response kind ${envelope.kind} does not match ${pending.expectedKind}.`),
-			);
+			return {
+				error: new Error(
+					`Host response kind ${envelope.kind} does not match ${pending.expectedKind}.`,
+				),
+				kind: 'response',
+				outcome: 'reject',
+				pending,
+			};
+		}
+		return { envelope, kind: 'response', outcome: 'resolve', pending };
+	}
+
+	#enqueueInboundDelivery(delivery: InboundDelivery): void {
+		if (this.#inboundResponseBarrier || this.#inboundDeliveries.length > 0) {
+			this.#inboundDeliveries.push(delivery);
 			return;
 		}
-		pending.resolve(envelope);
+		this.#deliverInbound(delivery);
+	}
+
+	#deliverInbound(delivery: InboundDelivery): void {
+		switch (delivery.kind) {
+			case 'close':
+				this.#completeClose(delivery.reason);
+				return;
+			case 'event':
+				if (delivery.attachmentId !== null) {
+					for (const listener of this.#attachmentListeners.get(delivery.attachmentId) ?? []) {
+						listener(delivery.envelope);
+					}
+					return;
+				}
+				for (const listener of this.#listeners) listener(delivery.envelope);
+				return;
+			case 'response':
+				if (delivery.outcome === 'resolve') delivery.pending.resolve(delivery.envelope);
+				else delivery.pending.reject(delivery.error);
+				this.#inboundResponseBarrier = true;
+				setImmediate(() => this.#resumeInboundDelivery());
+		}
+	}
+
+	#resumeInboundDelivery(): void {
+		if (!this.#inboundResponseBarrier || this.#closed) return;
+		this.#inboundResponseBarrier = false;
+		while (!this.#inboundResponseBarrier && !this.#closed) {
+			const delivery = this.#inboundDeliveries.shift();
+			if (delivery === undefined) return;
+			try {
+				this.#deliverInbound(delivery);
+			} catch (error) {
+				this.#failInboundDelivery(
+					error instanceof Error ? error : new Error('Host inbound delivery failed.'),
+				);
+			}
+		}
 	}
 
 	#handleClose(): void {
-		if (this.#closed) return;
+		if (this.#transportEnded) return;
 		let reason = new Error('Host connection closed.');
 		try {
 			this.#assembler.finish();
@@ -474,27 +549,52 @@ export class HostConnection {
 				'Terminal Host connection closed after request handoff; pending outcomes are unknown.',
 			);
 		}
-		this.#completeClose(reason);
+		this.#beginTransportEnd(reason);
 	}
 
 	#fail(error: Error): void {
-		if (this.#closed) return;
+		if (this.#transportEnded) return;
 		if (this.#hostEpoch !== undefined && this.#pending.size > 0) {
-			this.#retireOutcomeUnknown(
-				'Terminal Host connection failed after request handoff; pending outcomes are unknown.',
+			this.#beginTransportEnd(
+				this.#outcomeUnknownError(
+					'Terminal Host connection failed after request handoff; pending outcomes are unknown.',
+				),
 				error,
 			);
 			return;
 		}
-		this.#completeClose(error);
-		this.#stream.destroy(error);
+		this.#beginTransportEnd(error, error);
 	}
 
 	#retireOutcomeUnknown(message: string, transportError?: Error): void {
-		if (this.#closed) return;
+		if (this.#transportEnded) return;
 		const reason = this.#outcomeUnknownError(message);
+		this.#beginTransportEnd(reason, transportError ?? reason);
+	}
+
+	#beginTransportEnd(reason: Error, destroyError?: Error): void {
+		if (this.#transportEnded) return;
+		this.#transportEnded = true;
+		this.#transportEndReason = reason;
+		this.#enqueueInboundDelivery({ kind: 'close', reason });
+		this.#stream.destroy(destroyError);
+	}
+
+	#failInboundDelivery(error: Error): void {
+		const reason =
+			this.#hostEpoch !== undefined && this.#pending.size > 0
+				? this.#outcomeUnknownError(
+						'Terminal Host connection failed during inbound delivery; pending outcomes are unknown.',
+					)
+				: error;
+		this.#transportEnded = true;
+		this.#transportEndReason = reason;
+		this.#inboundResponseBarrier = false;
+		for (const delivery of this.#inboundDeliveries.splice(0)) {
+			if (delivery.kind === 'response') delivery.pending.reject(reason);
+		}
 		this.#completeClose(reason);
-		this.#stream.destroy(transportError ?? reason);
+		this.#stream.destroy(error);
 	}
 
 	#outcomeUnknownError(message: string): HostRequestError {
@@ -507,6 +607,8 @@ export class HostConnection {
 
 	#completeClose(reason: Error): void {
 		if (this.#closed) return;
+		this.#transportEnded = true;
+		this.#transportEndReason = reason;
 		this.#closed = true;
 		this.#closedReason = reason;
 		this.#outboundWriteBlocked = false;

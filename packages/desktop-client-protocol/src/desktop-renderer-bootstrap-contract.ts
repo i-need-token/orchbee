@@ -9,6 +9,7 @@ export const DESKTOP_RENDERER_PORT_ROLES = [
 	'terminal-projection',
 	'application-lifetime',
 	'browser-access',
+	'project-folder-acquisition',
 ] as const;
 
 export const DesktopRendererBootstrapSchema = z.strictObject({

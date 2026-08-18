@@ -235,6 +235,94 @@ describe('Workbench Project and Workspace management', () => {
 		},
 	);
 
+	it('uses a native Folder capability for atomic Project creation and Folder addition', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('native-folder'),
+		});
+		const selectExistingFolder = vi
+			.fn<() => Promise<{ readonly kind: 'selected'; readonly path: string }>>()
+			.mockResolvedValueOnce({ kind: 'selected', path: '/workspace/orchbee' })
+			.mockResolvedValueOnce({ kind: 'selected', path: '/workspace/ghostty' });
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectFolderAcquisition={{ selectExistingFolder }}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		fireEvent.click(screen.getByRole('button', { name: 'Create Project' }));
+		fireEvent.click(
+			within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Select Folder…' }),
+		);
+		await waitFor(() =>
+			expect(projectWorkspaceRuntime.getSnapshot().projects[0]).toMatchObject({
+				directories: [{ path: '/workspace/orchbee' }],
+				name: 'orchbee',
+			}),
+		);
+		expect(screen.queryByRole('dialog')).toBeNull();
+
+		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
+		fireEvent.click(
+			within(await screen.findByRole('menu')).getByRole('menuitem', {
+				name: 'Manage Project…',
+			}),
+		);
+		const manager = await screen.findByRole('dialog');
+		const addFolder = within(manager).getByRole('button', { name: 'Add Folder' });
+		expect(addFolder.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('folder-opened');
+		fireEvent.click(addFolder);
+		await waitFor(() =>
+			expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.directories).toEqual(
+				expect.arrayContaining([expect.objectContaining({ path: '/workspace/ghostty' })]),
+			),
+		);
+		expect(within(manager).queryByLabelText('Folder path')).toBeNull();
+		expect(selectExistingFolder).toHaveBeenCalledTimes(2);
+	});
+
+	it('shows a localized bounded native Folder failure without Project mutation', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: '终端 1',
+			terminalPresentation: createTestTerminalPresentationComposition('native-folder-failure'),
+		});
+		render(
+			<OrchbeeI18nProvider locale='zh-CN'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectFolderAcquisition={{
+							selectExistingFolder: async () => ({
+								code: 'permission-denied',
+								kind: 'failed',
+							}),
+						}}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		fireEvent.click(screen.getByRole('button', { name: '创建项目' }));
+		fireEvent.click(
+			within(await screen.findByRole('menu')).getByRole('menuitem', { name: '选择文件夹…' }),
+		);
+		const failure = await screen.findByRole('alertdialog');
+		expect(within(failure).getByText('无法添加文件夹')).toBeDefined();
+		expect(within(failure).getByText('Orchbee 无法读取或进入所选文件夹。')).toBeDefined();
+		expect(projectWorkspaceRuntime.getSnapshot().projects).toEqual([]);
+	});
+
 	it('omits redundant primary controls when a Project has one Folder', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',

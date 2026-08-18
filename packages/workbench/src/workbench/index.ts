@@ -3,6 +3,11 @@ export type { WorkbenchProps } from './Workbench';
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
 export { resolveTerminalMetadataObservation } from './model/resolveTerminalMetadataObservation';
+export type {
+	WorkbenchProjectFolderAcquisition,
+	WorkbenchProjectFolderAcquisitionFailureCode,
+	WorkbenchProjectFolderAcquisitionResult,
+} from './types/workbench-project-folder-acquisition';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
 export type {
 	WorkbenchProjectWorkspaceRuntimeOptions,

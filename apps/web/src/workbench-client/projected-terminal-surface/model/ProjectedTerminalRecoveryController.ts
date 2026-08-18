@@ -158,11 +158,13 @@ export class ProjectedTerminalRecoveryController {
 
 		const managed: ManagedProjectedTerminalSession = { ...pending, session };
 		this.#candidate = managed;
-		const outcome = await Promise.race([
-			session.presentationReady.then(() => 'ready' as const),
-			session.transportUnavailable.then(() => 'unavailable' as const),
-			this.#disposedPromise.then(() => 'disposed' as const),
-		]);
+		const outcome = session.isTransportAvailable()
+			? await Promise.race([
+					session.presentationReady.then(() => 'ready' as const),
+					session.transportUnavailable.then(() => 'unavailable' as const),
+					this.#disposedPromise.then(() => 'disposed' as const),
+				])
+			: 'unavailable';
 		if (!this.#ownsPending(pending) || this.#candidate !== managed) {
 			if (this.#candidate === managed) session.dispose();
 			pending.release();
@@ -170,7 +172,7 @@ export class ProjectedTerminalRecoveryController {
 		}
 		this.#candidate = undefined;
 		this.#pending = undefined;
-		if (outcome === 'unavailable') {
+		if (outcome !== 'ready' || !session.isTransportAvailable()) {
 			session.dispose();
 			pending.release();
 			this.#handleAttemptFailure(source);

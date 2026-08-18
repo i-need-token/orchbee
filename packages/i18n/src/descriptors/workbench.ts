@@ -193,6 +193,68 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.create.title'],
 		description: 'Title for selecting the first Folder used to create a Project.',
 	},
+	projectFolderAcquisitionAlreadyAdded: {
+		id: 'workbench.projects.folderAcquisition.failure.alreadyAdded',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.alreadyAdded'],
+		description: 'Failure shown when a selected Folder already belongs to the target Project.',
+	},
+	projectFolderAcquisitionBusy: {
+		id: 'workbench.projects.folderAcquisition.failure.busy',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.busy'],
+		description: 'Failure shown when a second native Folder selection overlaps the first.',
+	},
+	projectFolderAcquisitionControlUnavailable: {
+		id: 'workbench.projects.folderAcquisition.failure.controlUnavailable',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.controlUnavailable'],
+		description: 'Failure shown when the Desktop Folder-selection control has retired.',
+	},
+	projectFolderAcquisitionDialogFailed: {
+		id: 'workbench.projects.folderAcquisition.failure.dialogFailed',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.dialogFailed'],
+		description: 'Failure shown when the operating-system Folder picker cannot be opened.',
+	},
+	projectFolderAcquisitionDismiss: {
+		id: 'workbench.projects.folderAcquisition.failure.dismiss',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.dismiss'],
+		description: 'Action that dismisses a native Folder-selection failure.',
+	},
+	projectFolderAcquisitionNotDirectory: {
+		id: 'workbench.projects.folderAcquisition.failure.notDirectory',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.notDirectory'],
+		description: 'Failure shown when the native selection is not a directory.',
+	},
+	projectFolderAcquisitionNotFound: {
+		id: 'workbench.projects.folderAcquisition.failure.notFound',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.notFound'],
+		description: 'Failure shown when the selected Folder disappears before validation.',
+	},
+	projectFolderAcquisitionPermissionDenied: {
+		id: 'workbench.projects.folderAcquisition.failure.permissionDenied',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.permissionDenied'],
+		description: 'Failure shown when the selected Folder cannot be read and traversed.',
+	},
+	projectFolderAcquisitionProjectUnavailable: {
+		id: 'workbench.projects.folderAcquisition.failure.projectUnavailable',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.projectUnavailable'],
+		description: 'Failure shown when the target Project disappears during native selection.',
+	},
+	projectFolderAcquisitionTitle: {
+		id: 'workbench.projects.folderAcquisition.failure.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.title'],
+		description: 'Title for a native Project Folder-selection failure.',
+	},
+	projectFolderAcquisitionValidationFailed: {
+		id: 'workbench.projects.folderAcquisition.failure.validationFailed',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.projects.folderAcquisition.failure.validationFailed'],
+		description: 'Failure shown when a selected Folder cannot be validated safely.',
+	},
 	projectCreateWorkspace: {
 		id: 'workbench.projects.actions.createWorkspace',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.createWorkspace'],

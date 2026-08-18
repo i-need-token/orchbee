@@ -39,6 +39,20 @@ export const zhCNWorkbenchMessages = {
 	'workbench.projects.create.pathDescription': '请输入绝对路径。浏览器无法验证该路径是否存在。',
 	'workbench.projects.create.pathPlaceholder': '/path/to/project',
 	'workbench.projects.create.title': '选择项目文件夹',
+	'workbench.projects.folderAcquisition.failure.alreadyAdded': '此文件夹已在项目中。',
+	'workbench.projects.folderAcquisition.failure.busy': '已有另一个文件夹选择操作正在进行。',
+	'workbench.projects.folderAcquisition.failure.controlUnavailable':
+		'桌面端文件夹选择功能已断开。请等待窗口重新连接后再试。',
+	'workbench.projects.folderAcquisition.failure.dialogFailed': '无法打开系统文件夹选择器。',
+	'workbench.projects.folderAcquisition.failure.dismiss': '确定',
+	'workbench.projects.folderAcquisition.failure.notDirectory': '所选项目不是文件夹。',
+	'workbench.projects.folderAcquisition.failure.notFound': '所选文件夹已不存在或不可用。',
+	'workbench.projects.folderAcquisition.failure.permissionDenied':
+		'Orchbee 无法读取或进入所选文件夹。',
+	'workbench.projects.folderAcquisition.failure.projectUnavailable':
+		'文件夹选择器打开期间项目已发生变化。请重新打开项目后再试。',
+	'workbench.projects.folderAcquisition.failure.title': '无法添加文件夹',
+	'workbench.projects.folderAcquisition.failure.validationFailed': '无法验证所选文件夹。',
 	'workbench.projects.groups.folders': '项目文件夹',
 	'workbench.projects.groups.worktrees': 'Git Worktree',
 	'workbench.projects.manage.description': '修改项目名称和主文件夹。',

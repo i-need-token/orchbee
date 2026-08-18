@@ -131,21 +131,32 @@ export class GatewayTerminalProjectionClient implements TerminalProjectionClient
 		if (this.#disposed) return;
 		if (message.type === 'terminal-projection-control-event') {
 			const event = message.event;
-			if (event.type !== 'terminal-projection-failed') {
+			const pending = this.#pending.get(event.requestId);
+			if (pending === undefined || pending.presentationId !== event.presentationId) {
 				this.#rejectControl();
 				return;
 			}
-			const pending = this.#pending.get(event.requestId);
+			if (event.type === 'terminal-projection-released') {
+				if (!pending.released) {
+					pending.released = true;
+					pending.transport?.close();
+					pending.reject(releasedError());
+				}
+				this.#pending.delete(event.requestId);
+				return;
+			}
 			if (
-				pending === undefined ||
-				pending.presentationId !== event.presentationId ||
-				pending.released
+				!pending.released &&
+				pending.transport !== null &&
+				event.failure.code === 'terminal-projection-cleanup-failed' &&
+				event.failure.retryable
 			) {
-				this.#rejectControl();
 				return;
 			}
 			this.#pending.delete(event.requestId);
-			pending.reject(new GatewayTerminalProjectionRequestError(event.failure));
+			if (!pending.released) {
+				pending.reject(new GatewayTerminalProjectionRequestError(event.failure));
+			}
 			return;
 		}
 		if (message.type !== 'terminal-projection-opened') return;
@@ -164,13 +175,19 @@ export class GatewayTerminalProjectionClient implements TerminalProjectionClient
 			this.#rejectControl();
 			return;
 		}
-		const transport = new GatewayAttachmentTransport({
-			attachmentCapability: message.attachmentCapability,
-			attachmentSocketId: message.attachmentSocketId,
-			connection: this.#connection,
-			createWebSocket: this.#createWebSocket,
-			hostname: this.#hostname,
-		});
+		let transport: GatewayAttachmentTransport;
+		try {
+			transport = new GatewayAttachmentTransport({
+				attachmentCapability: message.attachmentCapability,
+				attachmentSocketId: message.attachmentSocketId,
+				connection: this.#connection,
+				createWebSocket: this.#createWebSocket,
+				hostname: this.#hostname,
+			});
+		} catch {
+			this.#failAttachmentBootstrap(event.requestId, pending, null);
+			return;
+		}
 		pending.transport = transport;
 		void transport.ready.then(
 			() => {
@@ -180,25 +197,7 @@ export class GatewayTerminalProjectionClient implements TerminalProjectionClient
 				}
 				pending.resolve({ bootstrap: event.bootstrap, transport });
 			},
-			() => {
-				if (this.#pending.get(event.requestId) === pending) {
-					this.#pending.delete(event.requestId);
-				}
-				pending.released = true;
-				transport.close();
-				if (!this.#disposed) {
-					try {
-						this.#control.sendProjection({
-							presentationId: pending.presentationId,
-							requestId: event.requestId,
-							type: 'terminal-projection-release-requested',
-						});
-					} catch {
-						this.#rejectControl();
-					}
-				}
-				pending.reject(unavailableError());
-			},
+			() => this.#failAttachmentBootstrap(event.requestId, pending, transport),
 		);
 	};
 
@@ -209,9 +208,8 @@ export class GatewayTerminalProjectionClient implements TerminalProjectionClient
 	#release(requestId: TerminalProjectionRequestId, pending: PendingProjection): void {
 		if (pending.released) return;
 		pending.released = true;
-		this.#pending.delete(requestId);
 		pending.transport?.close();
-		if (pending.transport === null) pending.reject(releasedError());
+		pending.reject(releasedError());
 		if (this.#disposed) return;
 		try {
 			this.#control.sendProjection({
@@ -222,6 +220,31 @@ export class GatewayTerminalProjectionClient implements TerminalProjectionClient
 		} catch {
 			this.#rejectControl();
 		}
+	}
+
+	#failAttachmentBootstrap(
+		requestId: TerminalProjectionRequestId,
+		pending: PendingProjection,
+		transport: GatewayAttachmentTransport | null,
+	): void {
+		if (this.#pending.get(requestId) !== pending || pending.released) {
+			transport?.close();
+			return;
+		}
+		pending.released = true;
+		transport?.close();
+		if (!this.#disposed) {
+			try {
+				this.#control.sendProjection({
+					presentationId: pending.presentationId,
+					requestId,
+					type: 'terminal-projection-release-requested',
+				});
+			} catch {
+				this.#rejectControl();
+			}
+		}
+		pending.reject(unavailableError());
 	}
 
 	#rejectControl(): void {
@@ -309,9 +332,12 @@ class GatewayAttachmentTransport implements ProjectedTerminalTransport {
 			unavailable();
 			return () => undefined;
 		}
+		if (this.#failed) {
+			unavailable();
+			return () => undefined;
+		}
 		this.#listener = listener;
 		this.#unavailable = unavailable;
-		if (this.#failed) unavailable();
 		for (const pending of this.#pendingEvents.splice(0)) listener(pending.event);
 		this.#pendingBytes = 0;
 		return () => {
@@ -321,16 +347,20 @@ class GatewayAttachmentTransport implements ProjectedTerminalTransport {
 	}
 
 	readonly #handleOpen = (): void => {
-		this.#socket.send(
-			encodeGatewayAttachmentClientMessage(
-				GatewayAttachmentClientMessageSchema.parse({
-					attachmentCapability: this.#options.attachmentCapability,
-					attachmentSocketId: this.#options.attachmentSocketId,
-					protocolVersion: this.#options.connection.protocolVersion,
-					type: 'gateway-attachment-authenticate',
-				}),
-			),
-		);
+		try {
+			this.#socket.send(
+				encodeGatewayAttachmentClientMessage(
+					GatewayAttachmentClientMessageSchema.parse({
+						attachmentCapability: this.#options.attachmentCapability,
+						attachmentSocketId: this.#options.attachmentSocketId,
+						protocolVersion: this.#options.connection.protocolVersion,
+						type: 'gateway-attachment-authenticate',
+					}),
+				),
+			);
+		} catch {
+			this.#becomeUnavailable();
+		}
 	};
 
 	readonly #handleMessage = (message: MessageEvent<unknown>): void => {
@@ -379,6 +409,8 @@ class GatewayAttachmentTransport implements ProjectedTerminalTransport {
 		this.#failed = true;
 		this.#removeSocketListeners();
 		this.#socket.close();
+		this.#pendingEvents.length = 0;
+		this.#pendingBytes = 0;
 		this.#rejectReady?.(new Error('Gateway attachment is unavailable.'));
 		this.#resolveReady = undefined;
 		this.#rejectReady = undefined;

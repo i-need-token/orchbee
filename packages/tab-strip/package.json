@@ -36,7 +36,7 @@
 		"test:watch": "vitest",
 		"test:property": "vitest run src/tab-strip/model/__tests__/tab-model.unit.test.ts src/tab-strip/dragging/__tests__/horizontal-group-drag-machine.unit.test.ts src/tab-strip/layout/__tests__/tab-content-layout.unit.test.ts",
 		"test:system": "playwright test --config playwright.config.ts",
-		"test:tla": "node scripts/run-tla.mjs",
+		"test:tla": "node ../../scripts/tla/run-models.mjs --workspace packages/tab-strip",
 		"test:lean": "node scripts/run-lean.mjs",
 		"test:exports": "node ../../scripts/check-package-exports.mjs .",
 		"verify:correctness": "pnpm typecheck && pnpm test && pnpm test:tla && pnpm test:lean && pnpm test:system && pnpm build"

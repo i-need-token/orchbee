@@ -1,8 +1,20 @@
-import { Button, Kbd, ProductIcon } from '@orchbee/ui/components';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	Button,
+	Kbd,
+	ProductIcon,
+} from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
 import type { WorkbenchConfirmationAnchor } from '../../types/workbench-confirmation';
+import type { WorkbenchProjectFolderAcquisition } from '../../types/workbench-project-folder-acquisition';
 import { CreateProjectDialog } from './components/create-project-dialog/CreateProjectDialog';
 import { ProjectCreateMenu } from './components/project-create-menu/ProjectCreateMenu';
 import { ProjectManagerDialog } from './components/project-manager-dialog/ProjectManagerDialog';
@@ -10,6 +22,7 @@ import { ProjectNavigationItem } from './components/project-navigation-item/Proj
 import { WorkspaceManagerDialog } from './components/workspace-manager-dialog/WorkspaceManagerDialog';
 import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
 import { useNavigationReorderDrag } from './hooks/useNavigationReorderDrag';
+import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition';
 import type { WorkbenchProjectNavigationMessages } from './types/workbench-sidebar-types';
 import styles from './WorkbenchSidebar.module.css';
 
@@ -30,6 +43,7 @@ interface WorkbenchSidebarProps {
 	readonly onSettings?: (() => void) | undefined;
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
+	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
 	readonly removeProject: (projectId: string, anchor: WorkbenchConfirmationAnchor) => void;
 	readonly removeProjectDirectory: (projectId: string, directoryId: string) => void;
@@ -70,6 +84,7 @@ export function WorkbenchSidebar({
 	onSettings,
 	projectLabel,
 	projectNavigationMessages,
+	projectFolderAcquisition,
 	projectWorkspaceState,
 	removeProject,
 	removeProjectDirectory,
@@ -88,6 +103,12 @@ export function WorkbenchSidebar({
 	updateWorkspace,
 }: WorkbenchSidebarProps): React.ReactNode {
 	const view = useWorkbenchSidebar(projectWorkspaceState);
+	const folderAcquisition = useProjectFolderAcquisition({
+		acquisition: projectFolderAcquisition,
+		addProjectDirectory,
+		createProject,
+		projectWorkspaceState,
+	});
 	const projectReorder = useNavigationReorderDrag(projectWorkspaceState.projects, reorderProject);
 	const standaloneActive = projectWorkspaceState.activeLocation.kind === 'standalone';
 	const projectCreation = view.projectCreation;
@@ -140,8 +161,13 @@ export function WorkbenchSidebar({
 								data-slot='workbench-sidebar-project-create'
 							>
 								<ProjectCreateMenu
+									selectionPending={folderAcquisition.selecting}
 									messages={projectNavigationMessages}
-									onSelectFolder={view.showProjectCreation}
+									onSelectFolder={
+										projectFolderAcquisition === undefined
+											? view.showProjectCreation
+											: folderAcquisition.requestCreateProject
+									}
 								/>
 							</div>
 						</div>
@@ -216,6 +242,7 @@ export function WorkbenchSidebar({
 				<ProjectManagerDialog
 					messages={projectNavigationMessages}
 					name={projectManagement.name}
+					directorySelectionPending={folderAcquisition.selecting}
 					onAddDirectory={(path) => addProjectDirectory(projectManagement.project.id, path)}
 					onClose={projectManagement.close}
 					onNameChange={projectManagement.setName}
@@ -228,6 +255,11 @@ export function WorkbenchSidebar({
 					}}
 					onSetPrimaryDirectory={(directoryId) =>
 						setProjectPrimaryDirectory(projectManagement.project.id, directoryId)
+					}
+					onSelectDirectory={
+						projectFolderAcquisition === undefined
+							? undefined
+							: () => folderAcquisition.requestAddProjectFolder(projectManagement.project.id)
 					}
 					project={projectManagement.project}
 				/>
@@ -252,6 +284,34 @@ export function WorkbenchSidebar({
 					project={workspaceManagement.project}
 					workspace={workspaceManagement.workspace}
 				/>
+			)}
+			{folderAcquisition.failure === null ? null : (
+				<AlertDialog
+					onOpenChange={(open) => {
+						if (!open) folderAcquisition.dismissFailure();
+					}}
+					open
+				>
+					<AlertDialogContent data-slot='workbench-project-folder-acquisition-failure'>
+						<AlertDialogHeader>
+							<AlertDialogTitle>
+								{projectNavigationMessages.folderAcquisitionFailureTitle}
+							</AlertDialogTitle>
+							<AlertDialogDescription>
+								{
+									projectNavigationMessages.folderAcquisitionFailureMessages[
+										folderAcquisition.failure
+									]
+								}
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogAction onClick={folderAcquisition.dismissFailure}>
+								{projectNavigationMessages.folderAcquisitionFailureDismiss}
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
 			)}
 		</>
 	);

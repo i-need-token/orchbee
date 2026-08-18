@@ -89,6 +89,70 @@ describe('ProjectedTerminalRecoveryController', () => {
 		vi.useRealTimers();
 	});
 
+	it('rejects a painted candidate that disconnects before renderer startup returns', async () => {
+		vi.useFakeTimers();
+		const states: ProjectedTerminalRecoveryState[] = [];
+		const candidateReady = deferred<void>();
+		const candidateUnavailable = deferred<void>();
+		let candidateTransportAvailable = true;
+		const candidate = rendererSession({
+			isTransportAvailable: () => candidateTransportAvailable,
+			presentationReady: candidateReady.promise,
+			transportUnavailable: candidateUnavailable.promise,
+		});
+		const request = projectionRequest();
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: (state) => states.push(state),
+			open: () => request.request,
+			startRenderer: async () => {
+				candidateReady.resolve();
+				await Promise.resolve();
+				candidateTransportAvailable = false;
+				candidateUnavailable.resolve();
+				await Promise.resolve();
+				return candidate.session;
+			},
+		});
+
+		controller.start();
+		request.resolve();
+		await drainMicrotasks();
+
+		expect(candidate.dispose).toHaveBeenCalledOnce();
+		expect(candidate.freeze).not.toHaveBeenCalled();
+		expect(request.release).toHaveBeenCalledOnce();
+		expect(states.at(-1)).toEqual({ attempt: 1, kind: 'recovering' });
+		controller.dispose();
+		vi.useRealTimers();
+	});
+
+	it('rechecks candidate transport availability after the ready race settles', async () => {
+		vi.useFakeTimers();
+		const states: ProjectedTerminalRecoveryState[] = [];
+		const isTransportAvailable = vi.fn<() => boolean>();
+		isTransportAvailable.mockReturnValueOnce(true).mockReturnValue(false);
+		const candidate = rendererSession({ isTransportAvailable });
+		const request = projectionRequest();
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: (state) => states.push(state),
+			open: () => request.request,
+			startRenderer: async () => candidate.session,
+		});
+
+		controller.start();
+		request.resolve();
+		await drainMicrotasks();
+		await drainMicrotasks();
+
+		expect(isTransportAvailable).toHaveBeenCalledTimes(2);
+		expect(candidate.dispose).toHaveBeenCalledOnce();
+		expect(candidate.freeze).not.toHaveBeenCalled();
+		expect(request.release).toHaveBeenCalledOnce();
+		expect(states.at(-1)).toEqual({ attempt: 1, kind: 'recovering' });
+		controller.dispose();
+		vi.useRealTimers();
+	});
+
 	it('exhausts three automatic retries and allows one immediate manual attempt', async () => {
 		vi.useFakeTimers();
 		const states: ProjectedTerminalRecoveryState[] = [];
@@ -151,6 +215,7 @@ function rendererSession(overrides: Partial<ProjectedTerminalRendererSession> = 
 		session: {
 			dispose,
 			freeze,
+			isTransportAvailable: () => true,
 			pasteFileDrop,
 			presentationReady: Promise.resolve(),
 			transportUnavailable: new Promise<void>(() => undefined),

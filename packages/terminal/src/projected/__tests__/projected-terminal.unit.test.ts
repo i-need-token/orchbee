@@ -24,6 +24,7 @@ import {
 	UnderlineKind,
 	type TerminalFrame,
 	type TerminalExited,
+	type TerminalFailed,
 } from '@orchbee/terminal-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -750,6 +751,15 @@ function exitEvent(finalRevision: string): TerminalExited {
 	};
 }
 
+function failureEvent(finalRevision: string): TerminalFailed {
+	return {
+		failure: { kind: 'pty-read', stage: 'read-output' },
+		finalRevision: finalRevision as TerminalFailed['finalRevision'],
+		identity: { creationId, hostEpoch, terminalId },
+		process: { kind: 'observed', result: { code: 1, kind: 'exit-code' } },
+	};
+}
+
 function dispatchComposition(
 	input: FakeElement,
 	type: 'compositionend' | 'compositionstart' | 'compositionupdate',
@@ -966,8 +976,16 @@ describe('ProjectedTerminal', () => {
 		expect(fontLoad).toHaveBeenCalledWith('bold 17px "Menlo", monospace', 'MW你🚀\uF120');
 		expect(fontLoad).toHaveBeenCalledWith('italic bold 17px "Menlo", monospace', 'MW你🚀\uF120');
 		expect(commands).toEqual([]);
+		expect(terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['early', '']))).toBe('committed');
+		expect(browser.frames.size).toBe(0);
+		expect(commands).toEqual([]);
 		for (const finishFontLoad of finishFontLoads) finishFontLoad();
 		await opening;
+		expect(browser.frames.size).toBe(1);
+		expect(commands[0]).toEqual({
+			kind: 'frame-applied',
+			payload: { attachmentId, generation: '1', revision: '1', sequence: '1' },
+		});
 
 		expect(terminal.textarea?.style.fontFamily).toBe('"Menlo", monospace');
 		expect(terminal.textarea?.style.fontSize).toBe('17px');
@@ -7764,6 +7782,48 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('makes a runtime failure read-only while preserving local output interaction', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			canResize: true,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['failed', '']));
+		terminal.notifyFailed(failureEvent('1'));
+
+		expect(terminal.canControlTerminal).toBe(false);
+		expect(terminal.textarea?.getAttribute('readonly')).toBe('');
+		const commandCount = commands.length;
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		terminal.clear();
+		terminal.reset();
+		(browser.root as unknown as FakeElement).clientWidth += 80;
+		browser.dispatchWindow('resize');
+		expect(commands).toHaveLength(commandCount);
+
+		terminal.selectAll();
+		expect(commands.at(-1)).toEqual({
+			kind: 'selection-command',
+			payload: { attachmentId, command: 'select-all', generation: '1', revision: '1' },
+		});
+		terminal.dispose();
+	});
+
 	it('freezes the last frame until the recovery owner replaces it', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -8965,6 +9025,33 @@ describe('ProjectedTerminal', () => {
 
 		expect(errors).toHaveBeenCalledOnce();
 		expect(exited).not.toHaveBeenCalled();
+		terminal.dispose();
+	});
+
+	it('rejects a terminal failure from a different creation identity', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => {} },
+			terminalId,
+		});
+		const errors = vi.fn<(event: unknown) => void>();
+		terminal.onError(errors);
+		await terminal.open(browser.root);
+
+		terminal.notifyFailed({
+			...failureEvent('0'),
+			identity: { creationId: otherCreationId, hostEpoch, terminalId },
+		});
+
+		expect(errors).toHaveBeenCalledOnce();
+		expect(terminal.canControlTerminal).toBe(true);
 		terminal.dispose();
 	});
 

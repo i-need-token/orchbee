@@ -24,6 +24,7 @@ zig-out/
 /packages/terminal/.tools/
 /apps/desktop/.tools/
 /apps/terminal-host/.tools/
+/.tools/
 /packages/terminal-protocol/formal/tla/states/
 /packages/tab-strip/formal/tla/states/
 /packages/workbench/formal/tla/states/

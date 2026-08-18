@@ -78,7 +78,7 @@ The owner preserves these invariants:
 - window state and Actions never mutate a Workbench document, terminal binding, Host session, or
   projected attachment.
 
-`DesktopWindowStateLifecycle` checks ordered captures, ordered persistence, flush completion,
+The `window-state` configuration of `DesktopLifecycle` checks ordered captures, ordered persistence, flush completion,
 transient full-screen exclusion, and disposal within a bounded two-capture model. Pure model tests
 cover display selection and every clamp boundary. File tests cover missing, valid, invalid,
 unreadable, atomic replacement, serialized writes, and write failure. Desktop composition tests

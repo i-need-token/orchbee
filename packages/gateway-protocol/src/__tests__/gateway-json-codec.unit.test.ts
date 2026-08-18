@@ -18,7 +18,7 @@ describe('Gateway JSON codec', () => {
 		const encoded = encodeGatewayControlClientMessage(
 			GatewayControlClientMessageSchema.parse({
 				capability,
-				protocolVersion: '1.0',
+				protocolVersion: '1.1',
 				type: 'gateway-control-authenticate',
 			}),
 		);
@@ -27,7 +27,7 @@ describe('Gateway JSON codec', () => {
 			ok: true,
 			value: {
 				capability,
-				protocolVersion: '1.0',
+				protocolVersion: '1.1',
 				type: 'gateway-control-authenticate',
 			},
 		});
@@ -38,7 +38,7 @@ describe('Gateway JSON codec', () => {
 			GatewayAttachmentClientMessageSchema.parse({
 				attachmentCapability: capability,
 				attachmentSocketId: 'gateway:attachment:1',
-				protocolVersion: '1.0',
+				protocolVersion: '1.1',
 				type: 'gateway-attachment-authenticate',
 			}),
 		);
@@ -50,7 +50,7 @@ describe('Gateway JSON codec', () => {
 					attachmentCapability: capability,
 					attachmentSocketId: 'gateway:attachment:1',
 					lifetime: 'quit',
-					protocolVersion: '1.0',
+					protocolVersion: '1.1',
 					type: 'gateway-attachment-authenticate',
 				}),
 			).ok,
@@ -64,7 +64,7 @@ describe('Gateway JSON codec', () => {
 				JSON.stringify({
 					attachmentCapability: capability,
 					attachmentSocketId: 'gateway:attachment:1',
-					protocolVersion: '1.0',
+					protocolVersion: '1.1',
 					type: 'gateway-attachment-authenticate',
 				}),
 			).ok,

@@ -19,6 +19,11 @@ transports. A Host response additionally retains its exact correlation ID, while
 and link effects retain their request sequence. These values identify consequences and diagnostics;
 they never authorize automatic replay of input or another user effect.
 
+Projection release remains correlated after the attachment stream closes. The client retains the
+request identity until Main returns either `terminal-projection-released` or the exact typed cleanup
+failure. The success acknowledgement transfers no port; a late cleanup result therefore settles only
+its released request and cannot be mistaken for an unknown message that retires unrelated projections.
+
 It contains no Electron, DOM, UI, broker, coordinator, transport lifecycle, network framing, Gateway, authentication, PTY, or VT implementation. Workbench and TerminalPresentation semantics remain with `@orchbee/workbench`; Terminal Host wire semantics remain with `@orchbee/terminal-protocol`.
 
 Applications parse every untrusted IPC or network value with these schemas at the first trusted boundary. A transport owner remains responsible for framing, authentication, binary transfer, backpressure, and connection retirement.

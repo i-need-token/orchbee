@@ -126,11 +126,15 @@ class BrowserGatewayControlConnection implements GatewayControlConnection {
 	}
 
 	readonly #handleOpen = (): void => {
-		this.#send({
-			capability: this.#connection.capability,
-			protocolVersion: this.#connection.protocolVersion,
-			type: 'gateway-control-authenticate',
-		});
+		try {
+			this.#send({
+				capability: this.#connection.capability,
+				protocolVersion: this.#connection.protocolVersion,
+				type: 'gateway-control-authenticate',
+			});
+		} catch {
+			this.#becomeUnavailable();
+		}
 	};
 
 	readonly #handleMessage = (event: MessageEvent<unknown>): void => {

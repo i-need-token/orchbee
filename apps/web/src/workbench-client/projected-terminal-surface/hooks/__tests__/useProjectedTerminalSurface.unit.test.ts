@@ -232,6 +232,7 @@ describe('useProjectedTerminalSurface', () => {
 		renderer.start.mockResolvedValueOnce({
 			dispose: sessionDispose,
 			freeze: vi.fn<() => void>(),
+			isTransportAvailable: () => true,
 			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
 			presentationReady: new Promise<void>(() => undefined),
 			transportUnavailable: new Promise<void>(() => undefined),
@@ -339,6 +340,7 @@ describe('useProjectedTerminalSurface', () => {
 		renderer.start.mockResolvedValueOnce({
 			dispose: sessionDispose,
 			freeze: sessionFreeze,
+			isTransportAvailable: () => true,
 			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
 			presentationReady: Promise.resolve(),
 			transportUnavailable,
@@ -550,6 +552,7 @@ describe('useProjectedTerminalSurface', () => {
 		renderer.start.mockResolvedValue({
 			dispose: vi.fn<() => void>(),
 			freeze: vi.fn<() => void>(),
+			isTransportAvailable: () => true,
 			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
 			presentationReady: Promise.resolve(),
 			transportUnavailable: new Promise<void>(() => undefined),
@@ -743,6 +746,7 @@ describe('useProjectedTerminalSurface', () => {
 		renderer.start.mockResolvedValue({
 			dispose: vi.fn<() => void>(),
 			freeze: vi.fn<() => void>(),
+			isTransportAvailable: () => true,
 			pasteFileDrop,
 			presentationReady: Promise.resolve(),
 			transportUnavailable: new Promise<void>(() => undefined),

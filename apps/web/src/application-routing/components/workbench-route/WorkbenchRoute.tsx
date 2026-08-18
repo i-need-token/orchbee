@@ -12,6 +12,7 @@ export function WorkbenchRoute(): ReactNode {
 			layoutStorage={application.layoutStorage}
 			macosTerminalInputSettingsController={application.macosTerminalInputSettingsController}
 			navigation={coordinator.navigation}
+			projectFolderAcquisition={application.projectFolderAcquisition}
 			projectWorkspaceRuntime={application.projectWorkspaceRuntime}
 			requestBrowserAccess={application.requestBrowserAccess}
 			shortcutPlatform={application.shortcutPlatform}

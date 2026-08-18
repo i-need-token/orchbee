@@ -115,6 +115,11 @@ export class TerminalProjectionControlBroker {
 			.then(() => {
 				request.lease = null;
 				if (this.#requests.get(requestId) === request) this.#requests.delete(requestId);
+				this.#post({
+					presentationId: request.presentationId,
+					requestId,
+					type: 'terminal-projection-released',
+				});
 			})
 			.catch((error: unknown) => {
 				request.disposalPromise = undefined;
@@ -169,6 +174,7 @@ export class TerminalProjectionControlBroker {
 			if (request.releaseRequested) {
 				if (request.lease === null && this.#requests.get(requestId) === request) {
 					this.#requests.delete(requestId);
+					this.#post({ presentationId, requestId, type: 'terminal-projection-released' });
 				}
 				return;
 			}

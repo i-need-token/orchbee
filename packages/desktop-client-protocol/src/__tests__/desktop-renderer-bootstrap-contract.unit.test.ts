@@ -19,7 +19,7 @@ describe('Desktop renderer bootstrap contract', () => {
 		expect(DESKTOP_FILE_PATH_BRIDGE_KEY).toBe('orchbeeDesktopFilePath');
 	});
 
-	it('parses one atomic client bootstrap with a fixed four-capability port order', () => {
+	it('parses one atomic client bootstrap with a fixed five-capability port order', () => {
 		const initialPresentationId = terminalPresentationId('presentation-initial');
 		const initializationDocument = createWorkbenchSharedDocument({
 			projectWorkspace: {
@@ -66,6 +66,7 @@ describe('Desktop renderer bootstrap contract', () => {
 			'terminal-projection',
 			'application-lifetime',
 			'browser-access',
+			'project-folder-acquisition',
 		]);
 		expect(
 			DesktopRendererBootstrapWindowMessageSchema.parse({

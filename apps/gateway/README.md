@@ -29,7 +29,7 @@ The Utility Process never imports or connects to Terminal Host. It has no shared
 | Page authentication succeeds            | Request one fresh Desktop ClientSession and projection-control pair.                                                                            |
 | Page authentication fails               | Close the socket without allocating Desktop authority.                                                                                          |
 | Projection opens                        | Register one derived attachment capability and transfer only the matching attachment stream.                                                    |
-| Attachment queue exceeds its byte bound | Retire the exact attachment and release its projection; the page opens a fresh projection and receives a full snapshot.                         |
+| Attachment queue exceeds its byte bound | Retire the exact attachment and release its projection; retain correlation until Main acknowledges cleanup, then reopen from a full snapshot.   |
 | Page control closes                     | Release every page attachment and the page session; preserve shared Workbench state and Host terminals.                                         |
 | Utility stops                           | Terminate sockets still awaiting authentication, then close listeners, pages, attachments, and transferred ports before reporting stopped.      |
 

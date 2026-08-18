@@ -76,6 +76,10 @@ import {
 } from '../browser-access';
 import { DevelopmentHostRuntime, type HostConnection } from '../host';
 import {
+	DesktopProjectFolderAcquisitionBroker,
+	DesktopProjectFolderAcquisitionRuntime,
+} from '../project-folder-acquisition';
+import {
 	TerminalExitPublicationLedger,
 	TerminalExitSpillStore,
 	type TerminalExitSpillReason,
@@ -134,6 +138,11 @@ interface DesktopBrowserAccessBrokerHandle {
 
 interface DesktopBrowserAccessRuntimeHandle extends DesktopBrowserAccessBrokerRuntime {
 	dispose(): Promise<void>;
+}
+
+interface DesktopProjectFolderAcquisitionBrokerHandle {
+	dispose(): void;
+	start(): void;
 }
 
 interface GatewayClientResourceOwner {
@@ -206,6 +215,10 @@ export interface DesktopApplicationDependencies {
 			): Promise<DesktopTerminalProjectionLease>;
 		},
 	) => DesktopProjectionControlBrokerHandle;
+	readonly createProjectFolderAcquisitionBroker: (
+		port: MessagePortMain,
+		window: BrowserWindow,
+	) => DesktopProjectFolderAcquisitionBrokerHandle;
 	readonly createTerminalRuntime: (
 		host: HostConnection,
 		configuration: DesktopRuntimeConfiguration,
@@ -253,6 +266,11 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	createMessageChannel: () => new MessageChannelMain(),
 	createProjectionControlBroker: (port, service) =>
 		new TerminalProjectionControlBroker(port, service),
+	createProjectFolderAcquisitionBroker: (port, window) =>
+		new DesktopProjectFolderAcquisitionBroker(
+			port,
+			new DesktopProjectFolderAcquisitionRuntime(window),
+		),
 	createTerminalRuntime: (
 		host,
 		configuration,
@@ -315,6 +333,7 @@ export class DesktopApplication {
 	readonly #pendingGatewayClientCleanups = new Set<GatewayClientResourceOwner>();
 	#pendingRendererBootstrapCleanup: (() => Promise<void>) | undefined;
 	#projectionControlBroker: DesktopProjectionControlBrokerHandle | undefined;
+	#projectFolderAcquisitionBroker: DesktopProjectFolderAcquisitionBrokerHandle | undefined;
 	#quitPrepared = false;
 	#removeHostListener: (() => void) | undefined;
 	#shuttingDown = false;
@@ -794,6 +813,8 @@ export class DesktopApplication {
 		this.#applicationLifetimeBroker = undefined;
 		this.#browserAccessBroker?.dispose();
 		this.#browserAccessBroker = undefined;
+		this.#projectFolderAcquisitionBroker?.dispose();
+		this.#projectFolderAcquisitionBroker = undefined;
 		const clientSessionBroker = this.#clientSessionBroker;
 		this.#clientSessionBroker = undefined;
 		const projectionBroker = this.#projectionControlBroker;
@@ -943,10 +964,14 @@ export class DesktopApplication {
 		let projectionChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
+		let projectFolderAcquisitionChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
 		let projectionBroker: DesktopProjectionControlBrokerHandle | undefined;
 		let clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
 		let lifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
 		let browserAccessBroker: DesktopBrowserAccessBrokerHandle | undefined;
+		let projectFolderAcquisitionBroker: DesktopProjectFolderAcquisitionBrokerHandle | undefined;
 		const cleanup = async (): Promise<void> => {
 			let firstFailure: unknown;
 			try {
@@ -956,6 +981,11 @@ export class DesktopApplication {
 			}
 			try {
 				browserAccessBroker?.dispose();
+			} catch (error: unknown) {
+				firstFailure ??= error;
+			}
+			try {
+				projectFolderAcquisitionBroker?.dispose();
 			} catch (error: unknown) {
 				firstFailure ??= error;
 			}
@@ -977,6 +1007,7 @@ export class DesktopApplication {
 			closeRendererChannel(browserAccessChannel);
 			closeRendererChannel(clientSessionChannel);
 			closeRendererChannel(projectionChannel);
+			closeRendererChannel(projectFolderAcquisitionChannel);
 			if (firstFailure !== undefined) throw firstFailure;
 		};
 		try {
@@ -984,6 +1015,7 @@ export class DesktopApplication {
 			browserAccessChannel = this.#dependencies.createMessageChannel();
 			clientSessionChannel = this.#dependencies.createMessageChannel();
 			projectionChannel = this.#dependencies.createMessageChannel();
+			projectFolderAcquisitionChannel = this.#dependencies.createMessageChannel();
 			projectionBroker = this.#dependencies.createProjectionControlBroker(
 				projectionChannel.port2,
 				terminalRuntime,
@@ -1027,10 +1059,15 @@ export class DesktopApplication {
 				browserAccessChannel.port2,
 				this.#browserAccessRuntime ?? unavailableBrowserAccessRuntime,
 			);
+			projectFolderAcquisitionBroker = this.#dependencies.createProjectFolderAcquisitionBroker(
+				projectFolderAcquisitionChannel.port2,
+				window,
+			);
 			clientSessionBroker.start();
 			browserAccessBroker.start();
 			lifetimeBroker.start();
 			projectionBroker.start();
+			projectFolderAcquisitionBroker.start();
 			window.webContents.postMessage(
 				DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 				DesktopRendererBootstrapSchema.parse({
@@ -1042,12 +1079,14 @@ export class DesktopApplication {
 					projectionChannel.port1,
 					lifetimeChannel.port1,
 					browserAccessChannel.port1,
+					projectFolderAcquisitionChannel.port1,
 				],
 			);
 			this.#applicationLifetimeBroker = lifetimeBroker;
 			this.#browserAccessBroker = browserAccessBroker;
 			this.#clientSessionBroker = clientSessionBroker;
 			this.#projectionControlBroker = projectionBroker;
+			this.#projectFolderAcquisitionBroker = projectFolderAcquisitionBroker;
 		} catch (error: unknown) {
 			this.#pendingRendererBootstrapCleanup = cleanup;
 			await cleanup();

@@ -183,7 +183,12 @@ The narrower POSIX endpoint-security evidence can be run without the complete Ho
 
 The native macOS run exercises real libc ACL inheritance and `getpeereid`; the cross-target steps compile the Linux `SO_PEERCRED` and FreeBSD `getpeereid` branches but are not runtime evidence for those systems.
 
-`test:tla` model-checks the Host-owned registry, per-terminal lifecycle, multi-runtime shutdown, delivery, and request-outcome abstractions. It is change-triggered correctness evidence and is intentionally not part of the ordinary `test` or `pnpm verify` gate. It uses `java` from `PATH` by default; set `TERMINAL_HOST_JAVA` to an explicit Java executable when the runtime is installed elsewhere. Each model has a 120-second default budget so accidental state-space multiplication fails explicitly; `TERMINAL_HOST_TLA_TIMEOUT_MILLISECONDS` may override that budget for a slower verified environment.
+`test:tla` model-checks the Host-owned registry, per-terminal lifecycle, multi-runtime shutdown,
+delivery, and request-outcome abstractions through the repository runner. It is change-triggered
+correctness evidence and is intentionally not part of the ordinary `test` gate. The runner uses
+`java` from `PATH` by default; set `ORCHBEE_TLA_JAVA` to an explicit Java executable or
+`ORCHBEE_TLA_TIMEOUT_MILLISECONDS` to a positive per-check timeout override for a slower verified
+environment.
 
 The focused throughput harness runs through the real PTY:
 

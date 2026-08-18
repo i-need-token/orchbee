@@ -70,6 +70,17 @@ async function createNegotiatedControlledHost(highWaterMark: number) {
 	return { connection, ...controlled };
 }
 
+function concatenateRecords(records: readonly Uint8Array[]): Uint8Array {
+	const byteLength = records.reduce((total, record) => total + record.byteLength, 0);
+	const combined = new Uint8Array(byteLength);
+	let offset = 0;
+	for (const record of records) {
+		combined.set(record, offset);
+		offset += record.byteLength;
+	}
+	return combined;
+}
+
 describe('HostConnection', () => {
 	it('offers the current protocol and routes current-version events', async () => {
 		const hostEpoch = HostEpochSchema.parse('11'.repeat(16));
@@ -111,6 +122,7 @@ describe('HostConnection', () => {
 		});
 		const connection = new HostConnection(stream);
 		const accepted = await connection.negotiate(ClientIdSchema.parse('22'.repeat(16)));
+		await new Promise<void>((resolve) => setImmediate(resolve));
 		const listener = vi.fn<HostEnvelopeListener>();
 		const attachmentListener = vi.fn<HostEnvelopeListener>();
 		const foreignAttachmentListener = vi.fn<HostEnvelopeListener>();
@@ -324,6 +336,150 @@ describe('HostConnection', () => {
 			outboundAdmittedRecords: 0,
 		});
 		connection.close();
+	});
+
+	it('delivers events and correlated responses in Host wire order across Promise settlement', async () => {
+		const controlled = await createNegotiatedControlledHost(64 * 1024);
+		const write = vi.spyOn(controlled.stream, 'write');
+		const deliveryOrder: string[] = [];
+		let eventSequence = 0;
+		controlled.connection.onEnvelope(() => {
+			eventSequence += 1;
+			deliveryOrder.push(`event-${eventSequence}`);
+		});
+		const firstResponse = controlled.connection
+			.requestControl(MessageKind.ping, {}, EmptyControlSchema)
+			.then(() => deliveryOrder.push('response-1'));
+		const secondResponse = controlled.connection
+			.requestControl(MessageKind.ping, {}, EmptyControlSchema)
+			.then(() => deliveryOrder.push('response-2'));
+
+		const correlationIds = write.mock.calls.map((call) => {
+			const chunk: unknown = call[0];
+			if (!(chunk instanceof Uint8Array)) throw new Error('Expected a binary Host request.');
+			const request = decodeProtocolEnvelope(chunk);
+			if (!request.ok) throw new Error(request.detail);
+			if (request.value.correlationId === null) {
+				throw new Error('Expected a correlated Host request.');
+			}
+			return request.value.correlationId;
+		});
+		const responseRecords = correlationIds.map((correlationId) => {
+			const response = encodeProtocolEnvelope({
+				correlationId,
+				event: false,
+				hostEpoch: controlled.hostEpoch,
+				kind: MessageKind.ping,
+				optionalMessage: false,
+				payload: new TextEncoder().encode('{}'),
+				payloadEncoding: PayloadEncoding.controlJson,
+				protocol: currentProtocol,
+				response: true,
+			});
+			if (!response.ok) throw new Error(response.detail);
+			return response.value;
+		});
+		const eventRecords = Array.from({ length: 3 }, () => {
+			const event = encodeProtocolEnvelope({
+				correlationId: null,
+				event: true,
+				hostEpoch: controlled.hostEpoch,
+				kind: MessageKind.terminalStarted,
+				optionalMessage: false,
+				payload: new TextEncoder().encode('{}'),
+				payloadEncoding: PayloadEncoding.controlJson,
+				protocol: currentProtocol,
+				response: false,
+			});
+			if (!event.ok) throw new Error(event.detail);
+			return event.value;
+		});
+		const firstEncodedResponse = responseRecords[0];
+		const secondEncodedResponse = responseRecords[1];
+		const eventBefore = eventRecords[0];
+		const eventBetween = eventRecords[1];
+		const eventAfter = eventRecords[2];
+		if (
+			firstEncodedResponse === undefined ||
+			secondEncodedResponse === undefined ||
+			eventBefore === undefined ||
+			eventBetween === undefined ||
+			eventAfter === undefined
+		) {
+			throw new Error('Expected complete Host ordering fixtures.');
+		}
+
+		controlled.stream.emit(
+			'data',
+			concatenateRecords([
+				eventBefore,
+				firstEncodedResponse,
+				eventBetween,
+				secondEncodedResponse,
+				eventAfter,
+			]),
+		);
+		await Promise.all([firstResponse, secondResponse]);
+		await new Promise<void>((resolve) => setImmediate(resolve));
+
+		expect(deliveryOrder).toEqual(['event-1', 'response-1', 'event-2', 'response-2', 'event-3']);
+		for (const callback of controlled.blockedWriteCallbacks) callback();
+		controlled.connection.close();
+	});
+
+	it('lets an attach-response continuation install frame and close listeners before later wire items', async () => {
+		const controlled = await createNegotiatedControlledHost(64 * 1024);
+		await new Promise<void>((resolve) => setImmediate(resolve));
+		const write = vi.spyOn(controlled.stream, 'write');
+		const attachmentId = AttachmentIdSchema.parse('cc'.repeat(16));
+		const deliveryOrder: string[] = [];
+		const attachmentListener = vi.fn<HostEnvelopeListener>(() => deliveryOrder.push('event'));
+		const closeListener = vi.fn<(reason: Error) => void>(() => deliveryOrder.push('close'));
+		const response = controlled.connection
+			.requestControl(MessageKind.ping, {}, EmptyControlSchema)
+			.then(() => {
+				deliveryOrder.push('response');
+				controlled.connection.onAttachmentEnvelope(attachmentId, attachmentListener);
+				controlled.connection.onClosed(closeListener);
+			});
+		const chunk: unknown = write.mock.calls.at(-1)?.[0];
+		if (!(chunk instanceof Uint8Array)) throw new Error('Expected a binary Host request.');
+		const request = decodeProtocolEnvelope(chunk);
+		if (!request.ok || request.value.correlationId === null) {
+			throw new Error('Expected a correlated Host request.');
+		}
+		const encodedResponse = encodeProtocolEnvelope({
+			correlationId: request.value.correlationId,
+			event: false,
+			hostEpoch: controlled.hostEpoch,
+			kind: MessageKind.ping,
+			optionalMessage: false,
+			payload: new TextEncoder().encode('{}'),
+			payloadEncoding: PayloadEncoding.controlJson,
+			protocol: currentProtocol,
+			response: true,
+		});
+		const encodedEvent = encodeProtocolEnvelope({
+			correlationId: null,
+			event: true,
+			hostEpoch: controlled.hostEpoch,
+			kind: MessageKind.selectionChanged,
+			optionalMessage: false,
+			payload: new TextEncoder().encode(JSON.stringify({ attachmentId, state: 'none' })),
+			payloadEncoding: PayloadEncoding.controlJson,
+			protocol: currentProtocol,
+			response: false,
+		});
+		if (!encodedResponse.ok) throw new Error(encodedResponse.detail);
+		if (!encodedEvent.ok) throw new Error(encodedEvent.detail);
+
+		controlled.stream.emit('data', concatenateRecords([encodedResponse.value, encodedEvent.value]));
+		controlled.stream.destroy();
+
+		await response;
+		await vi.waitFor(() => expect(closeListener).toHaveBeenCalledOnce());
+		expect(attachmentListener).toHaveBeenCalledOnce();
+		expect(deliveryOrder).toEqual(['response', 'event', 'close']);
 	});
 
 	it('rejects a different registered correlated response kind without replaying', async () => {

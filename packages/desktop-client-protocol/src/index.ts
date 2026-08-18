@@ -38,3 +38,18 @@ export {
 } from './desktop-renderer-bootstrap-contract';
 export type { DesktopRendererBootstrap } from './desktop-renderer-bootstrap-contract';
 export { DESKTOP_FILE_PATH_BRIDGE_KEY } from './desktop-file-path-bridge-contract';
+export {
+	DesktopProjectFolderAcquisitionFailureCodeSchema,
+	DesktopProjectFolderAcquisitionMainEventSchema,
+	DesktopProjectFolderAcquisitionRendererCommandSchema,
+	DesktopProjectFolderAcquisitionRequestIdSchema,
+	DesktopProjectFolderAcquisitionResultSchema,
+	DesktopProjectFolderPathSchema,
+} from './desktop-project-folder-acquisition-contract';
+export type {
+	DesktopProjectFolderAcquisitionFailureCode,
+	DesktopProjectFolderAcquisitionMainEvent,
+	DesktopProjectFolderAcquisitionRendererCommand,
+	DesktopProjectFolderAcquisitionRequestId,
+	DesktopProjectFolderAcquisitionResult,
+} from './desktop-project-folder-acquisition-contract';

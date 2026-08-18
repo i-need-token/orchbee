@@ -97,7 +97,7 @@ describe('startGatewayWebApplication', () => {
 		const connection = GatewayBrowserConnectionSchema.parse({
 			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.0',
+			protocolVersion: '1.1',
 		});
 		const rootElement = document.createElement('div');
 		const session = startGatewayWebApplication(

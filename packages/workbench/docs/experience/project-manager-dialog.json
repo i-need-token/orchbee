@@ -28,6 +28,15 @@
 				"Open a multi-Folder Project, hover or focus a non-primary Folder, and inspect the raised Set Primary action and full-path Tooltip.",
 				"Choose Add Folder in browser composition and confirm that only the final list row becomes a path field with compact Cancel and Add icon actions whose Tooltips show their keyboard hints."
 			]
+		},
+		{
+			"exportName": "NativeProjectFolderManagement",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--native-project-folder-management",
+			"states": [
+				"Open Manage Project, choose Add Folder, and confirm that native acquisition commits the selected Folder without replacing the final row with a manual path field.",
+				"Inspect the appended native Folder while the Project-name draft, primary Folder, existing Workspace defaults, and outer Dialog actions remain stable."
+			]
 		}
 	],
 	"uses": ["workbench.resource-dialog-form"],
@@ -46,6 +55,8 @@
 		"Hovering or focusing a Folder name exposes its complete path through the shared Tooltip.",
 		"Browser Folder entry replaces only the final Add Folder row while the surrounding list and outer Dialog actions remain stable.",
 		"Adding a Folder validates empty and exact duplicate browser paths before invoking the semantic action.",
+		"Native Folder acquisition keeps the list stable, admits one request, and rechecks the latest Project and exact duplicate paths before invoking the semantic action.",
+		"Native cancellation, bounded failure, disposal, and late completion do not alter Folder membership.",
 		"Removing the primary Folder automatically falls back to the next remaining Folder without asking for a replacement."
 	],
 	"references": ["packages/workbench/docs/project-workspace.md"]

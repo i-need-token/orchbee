@@ -6,23 +6,25 @@
 
 1. `pnpm format:check`
 2. `pnpm lint`
-3. `pnpm build`
-4. `pnpm typecheck`
-5. `pnpm test`
-6. `pnpm test:exports`
+3. `pnpm test:tla:inventory`
+4. `pnpm build`
+5. `pnpm typecheck`
+6. `pnpm test`
+7. `pnpm test:exports`
 
 迭代期间可以使用聚焦命令，但完成工作必须通过根级门禁。
 
 ## 必需任务
 
-| 任务           | 契约                                                                                         |
-| -------------- | -------------------------------------------------------------------------------------------- |
-| `format:check` | Oxfmt 管理的文件与 `.oxfmtrc.json` 一致，并且每个原生工作区格式化器都接受其所属文件。        |
-| `lint`         | 代码、样式、存储、架构、依赖、项目契约、体验目录、导出和清单规则全部通过。                   |
-| `build`        | 每个可构建工作区都使用其固定工具链和依赖生成所支持的产物。                                   |
-| `typecheck`    | 每个具有 TypeScript 契约的工作区都满足该契约。                                               |
-| `test`         | 契约检查器测试、自定义 lint 规则测试、默认工作区测试套件和已声明的原生交叉编译检查全部通过。 |
-| `test:exports` | 每个库的打包导出、运行时格式和声明均可被使用。                                               |
+| 任务                 | 契约                                                                                         |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| `format:check`       | Oxfmt 管理的文件与 `.oxfmtrc.json` 一致，并且每个原生工作区格式化器都接受其所属文件。        |
+| `lint`               | 代码、样式、存储、架构、依赖、项目契约、体验目录、导出和清单规则全部通过。                   |
+| `test:tla:inventory` | TLA+ 执行清单、产物登记、owner 命令、触发映射以及 runner 负向控制彼此一致。                  |
+| `build`              | 每个可构建工作区都使用其固定工具链和依赖生成所支持的产物。                                   |
+| `typecheck`          | 每个具有 TypeScript 契约的工作区都满足该契约。                                               |
+| `test`               | 契约检查器测试、自定义 lint 规则测试、默认工作区测试套件和已声明的原生交叉编译检查全部通过。 |
+| `test:exports`       | 每个库的打包导出、运行时格式和声明均可被使用。                                               |
 
 - `build` 先于 `typecheck`，因为验证和生产使用方解析库产物，不解析另一个包的源码。
 - 递归构建采用拓扑顺序：全新检出先构建依赖，再让依赖方解析其导出。
@@ -33,13 +35,29 @@
 
 ## 变更触发的 TLA+ 验证
 
-`pnpm test:tla` 会运行每个公开 `test:tla` 命令的工作区。TLA+ 模型检查属于变更触发的证据：
-`pnpm test`、`pnpm verify` 和必需的 CI `verify` Job 都不会隐式运行它。
+`pnpm test:tla` 会通过共享的有界 runner 运行所有已登记模型。`scripts/tla/models.json` 中的
+执行清单为每项检查登记模块/配置、语义 owner、claim 权威、变更路径触发器、超时、配置变体和
+必需 action coverage。它是执行索引，而不是第二份行为规范；package 自有契约和 TLA+ 模块
+仍然是模型语义的权威。
 
-当变更修改了所属工作区的 TLA+ 模块、配置、runner、工具版本固定，或模型所抽象的契约、
-转换、不变量或精化映射时，运行该工作区的 `test:tla` 命令。当多个模型所有者或共享模型
-基础设施发生变化时，运行根命令。包自有的 `verify:correctness` 命令可以在该命令属于包的
-完整正确性工作流时包含 TLA+ 检查。
+TLA+ 模型检查属于变更触发的证据：`pnpm test` 和必需的 CI `verify` Job 不会隐式运行 TLC。
+`pnpm verify` 只运行低成本的 `test:tla:inventory` 一致性与负向控制检查。独立的 CI `tla`
+Job 会把 Git diff 映射到已登记模型，并只运行这些检查。diff base 缺失或无效时会安全地
+退化为选择所有模型。
+
+当变更修改了所属工作区的 TLA+ 模块、配置、owner 契约、转换、不变量或精化映射时，运行
+该工作区的 `test:tla` 命令。当多个模型 owner 或共享模型基础设施发生变化时，运行根命令。
+`pnpm test:tla:changed -- <ref>` 使用与 CI 相同的清单映射。包自有的 `verify:correctness`
+命令可以在该命令属于包的完整正确性工作流时包含 TLA+ 检查。
+
+每项已登记检查都使用固定 SHA-256 的 TLC、单 worker、固定指纹多项式、已声明的有限边界、
+逐模型超时和 coverage 输出。runner 会在必需语义 action 缺失或没有可达 witness 时失败，
+并输出机器可读的状态数、耗时以及模型/配置 SHA-256 报告。配置边界和 TLC 的有限状态假设
+仍是证据限制；action coverage 不是实现精化证据。
+
+本地 TLC 执行需要 Java 17 或更高版本，并使用 `PATH` 中的 `java`。设置
+`ORCHBEE_TLA_JAVA` 可指定可执行文件，设置 `ORCHBEE_TLA2TOOLS_JAR` 可使用已配置且具有固定
+SHA-256 的副本，设置 `ORCHBEE_TLA_TIMEOUT_MILLISECONDS` 可对所有选中检查应用正整数超时覆盖。
 
 无关实现变更不需要重放未修改的模型。未修改模型通过也不能证明其抽象仍与实现对应；
 确定性测试和可追踪性证据负责这种对应关系。影响模型的变更只有在选定的 TLA+ 命令通过，
@@ -48,10 +66,10 @@
 ## CI 契约
 
 - `.github/workflows/verify.yml` 安装冻结的 lockfile，并在 Pull Request、向 `main` 推送和手动运行时执行 `pnpm verify`。
-- 必需 Job 不运行变更触发的 TLA+ 检查。代码评审和所属正确性契约决定何时必须运行
-  `pnpm test:tla`。
+- 必需的 `verify` Job 不运行 TLC。必需的 `tla` Job 从已跟踪清单中选择并运行变更触发检查；
+  无关变更会在不配置 Java 或 TLC 的情况下完成该 Job。
 - 工作流安装每个已跟踪原生工作区要求的精确编译器版本，并在加入 `PATH` 前验证官方工具链归档。
-- 在仓库 ruleset 中要求工作流的 `verify` Job。
+- 在仓库 ruleset 中要求工作流的 `verify` 和 `tla` Job。
 - CI 在验证后运行 `git diff --exit-code`；已跟踪的生成变更在提交前会导致失败。
 - 工作流使用只读仓库权限。
 - 凭据、写权限、发布操作、外部检出和其他副作用需要单独人工审查，不得隐式进入必需 Job。

@@ -189,7 +189,7 @@ process identity, output, command history, Worktrees, or source files. The in-me
 ordinary shell projections with fresh identities. Managed composition rejects terminal-context
 cloning; Desktop does not expose Project or Workspace duplication in this integration stage.
 
-## Browser Project folder entry
+## Project Folder acquisition
 
 The browser application starts with only the standalone terminal context. The Project create
 control first opens the same Project creation menu used by platform applications. Selecting
@@ -224,10 +224,22 @@ designation while each available non-primary row reveals its raised Set Primary 
 the row is hovered or keyboard focus is within it. Hovering or focusing a Folder name exposes the
 complete path through the shared Tooltip; the displayed name remains compact and may truncate.
 
-A future desktop composition replaces only the path-collection step with a native Folder picker and
-passes its host-normalized Directory observation into the same Project-create or
-Project-directory-add intent. Native picker cancellation, permission, validation, Git discovery,
-and failure reporting remain reserved for that platform slice; the browser does not simulate them.
+Desktop injects a narrow existing-Folder acquisition capability at the same adaptation point. Its
+Electron Main owner opens one native single-directory picker, normalizes the selected absolute path,
+and checks that the path still names a readable, traversable Directory before returning it. The
+check follows a symbolic link while retaining the selected path spelling; it performs no directory
+creation, enumeration, Git discovery, or other filesystem mutation. Browser and Gateway clients
+receive no native acquisition port and continue to use the manual path-entry presentation above.
+
+One mounted Workbench admits at most one native selection. A successful selection invokes the same
+Project-create or Project-directory-add Action as browser entry. Cancellation is a no-op. Bounded
+picker or validation failures open one localized diagnostic and perform no Project mutation. Before
+adding a selected Folder, Workbench rechecks the latest Project snapshot: a removed Project or an
+exact path that another operation already added rejects without mutating another target. Unmount,
+renderer-document replacement, port retirement, window close, and application disposal revoke the
+request; a later native completion cannot commit. The maintained Desktop policy and evidence limits
+live in
+[`apps/desktop/docs/project-folder-acquisition.md`](../../../apps/desktop/docs/project-folder-acquisition.md).
 
 ## Project navigation action menus
 
@@ -301,10 +313,12 @@ mutation.
 | Tab ordering, grouping, selection, and Tab interaction                                     | `@orchbee/tab-strip`                  |
 | Panel layout plus terminal presentation identity, lifecycle, and command projection        | `@orchbee/workbench` Panel workspace  |
 | Product descriptors and `en-US` / `zh-CN` catalogs                                         | `@orchbee/i18n`                       |
-| Browser path-entry presentation and synthetic Folder projection                            | `@orchbee/workbench`                  |
-| Normalized filesystem and Git observations                                                 | Future application or runtime adapter |
+| Browser and Gateway path-entry presentation and synthetic Folder projection                | `@orchbee/workbench`                  |
+| Existing-Folder native picker, path normalization, and point-in-time validation            | `apps/desktop`                        |
+| Typed platform Folder-acquisition capability                                               | `@orchbee/workbench`                  |
+| External filesystem availability and Git observations                                      | Future application or runtime adapter |
 | Launch-configuration executable payload                                                    | Future application or runtime owner   |
-| Filesystem, Git, PTY, durable storage, synchronization, and recovery effects               | Future application or runtime owner   |
+| Filesystem mutation, Git, PTY, synchronization, and recovery effects                       | Future application or runtime owner   |
 | Locale and platform adapter selection                                                      | Composition application               |
 
 `@orchbee/workbench` exposes one product-capability boundary. The first delivery creates no new
@@ -313,29 +327,32 @@ Action availability.
 
 ## Correctness and verification
 
-| Claim                                                                                                      | Deterministic evidence                                 | Additional evidence                         | Limits                                                |
-| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------- | ----------------------------------------------------- |
-| Membership and primary references remain valid                                                             | Transition examples and invariant assertions           | Fixed-seed stateful property tests          | Generated finite traces                               |
-| Directory fallback selects the circular next survivor                                                      | Boundary and removal-set examples                      | Property oracle over generated orders       | Host path identity is trusted                         |
-| Directory refresh preserves identity, order, and references                                                | Transition and runtime tests                           | N/A                                         | Host observations are trusted                         |
-| Active location always resolves                                                                            | Transition and deletion tests                          | Stateful property tests                     | In-memory state only                                  |
-| CWD follows the accepted precedence                                                                        | Decision-table unit tests                              | N/A                                         | Local path projection only                            |
-| Projected title and CWD follow the declared Warp scope                                                     | Normalization and runtime projection scenarios         | Web bridge and bootstrap adapter tests      | No in-band-command or SSH-state parity                |
-| Workspace copies reset runtime state and preserve layout projection                                        | Context-runtime and integration tests                  | Component scenario                          | No process or output parity claim                     |
-| Project disclosure does not switch terminal context                                                        | Reducer and component tests                            | Keyboard and pointer interaction            | Controlled browser environment                        |
-| Project reorder preserves identity, active location, and disclosure                                        | Transition boundaries and permutation tests            | Deterministic pointer timeline tests        | Primary mouse and pen pointers                        |
-| Workspace reorder stays inside one Project and preserves identity, active location, and terminal ownership | Transition boundaries and fixed-seed permutation tests | Deterministic scoped-pointer timeline tests | Primary mouse and pen pointers; no cross-Project move |
-| Drag completion and cancellation restore disclosure and activation intent                                  | Gesture-machine phase tests                            | Deterministic pointer timeline tests        | Controlled pointer and scroll geometry                |
-| Product behavior ships in both locales                                                                     | Catalog parity and component tests                     | Storybook review                            | `en-US` and `zh-CN` only                              |
-| Browser path entry creates one atomic Project or no state                                                  | Action, component, and web integration tests           | N/A                                         | Synthetic in-memory preview only                      |
-| Browser path entry appends one unique Folder or leaves state intact                                        | Action, component, and web integration tests           | N/A                                         | Exact path comparison; no FS call                     |
-| Ellipsis and row context gestures expose one action-menu model                                             | Component parity and invocation tests                  | Pointer interaction review                  | Project and Workspace rows only                       |
+| Claim                                                                                                      | Deterministic evidence                                    | Additional evidence                           | Limits                                                  |
+| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------- |
+| Membership and primary references remain valid                                                             | Transition examples and invariant assertions              | Fixed-seed stateful property tests            | Generated finite traces                                 |
+| Directory fallback selects the circular next survivor                                                      | Boundary and removal-set examples                         | Property oracle over generated orders         | Host path identity is trusted                           |
+| Directory refresh preserves identity, order, and references                                                | Transition and runtime tests                              | N/A                                           | Host observations are trusted                           |
+| Active location always resolves                                                                            | Transition and deletion tests                             | Stateful property tests                       | In-memory state only                                    |
+| CWD follows the accepted precedence                                                                        | Decision-table unit tests                                 | N/A                                           | Local path projection only                              |
+| Projected title and CWD follow the declared Warp scope                                                     | Normalization and runtime projection scenarios            | Web bridge and bootstrap adapter tests        | No in-band-command or SSH-state parity                  |
+| Workspace copies reset runtime state and preserve layout projection                                        | Context-runtime and integration tests                     | Component scenario                            | No process or output parity claim                       |
+| Project disclosure does not switch terminal context                                                        | Reducer and component tests                               | Keyboard and pointer interaction              | Controlled browser environment                          |
+| Project reorder preserves identity, active location, and disclosure                                        | Transition boundaries and permutation tests               | Deterministic pointer timeline tests          | Primary mouse and pen pointers                          |
+| Workspace reorder stays inside one Project and preserves identity, active location, and terminal ownership | Transition boundaries and fixed-seed permutation tests    | Deterministic scoped-pointer timeline tests   | Primary mouse and pen pointers; no cross-Project move   |
+| Drag completion and cancellation restore disclosure and activation intent                                  | Gesture-machine phase tests                               | Deterministic pointer timeline tests          | Controlled pointer and scroll geometry                  |
+| Product behavior ships in both locales                                                                     | Catalog parity and component tests                        | Storybook review                              | `en-US` and `zh-CN` only                                |
+| Browser path entry creates one atomic Project or no state                                                  | Action, component, and web integration tests              | N/A                                           | Synthetic in-memory preview only                        |
+| Browser path entry appends one unique Folder or leaves state intact                                        | Action, component, and web integration tests              | N/A                                           | Exact path comparison; no FS call                       |
+| Desktop selection commits only one validated selected result; cancel and failure never mutate              | Main runtime, broker, client, Hook, and integration tests | `DesktopLifecycle` Folder scenario            | Injected dialog adapter; real picker is manual evidence |
+| A retired renderer or stale/duplicate Add target cannot accept a late native completion                    | Broker lifecycle and Workbench state-machine tests        | `DesktopLifecycle` safety and progress checks | Bounded model and controlled event loop                 |
+| Ellipsis and row context gestures expose one action-menu model                                             | Component parity and invocation tests                     | Pointer interaction review                    | Project and Workspace rows only                         |
 
-TLA+ is not required for the synchronous in-memory transition and browser path-entry set. A later
-adapter that adds asynchronous filesystem, Git, persistence, cancellation, retry, or reordered
-completion must add the applicable workflow model before production integration. Real filesystem
-safety, Git recovery, PTY lifecycle, durable restoration, and cross-device synchronization are
-explicit exclusions.
+TLA+ is not required for the synchronous in-memory transition and browser path-entry set. The
+asynchronous Desktop adapter is covered by the `project-folder-acquisition` configuration of
+`DesktopLifecycle`, including selection, cancellation, failure, stale targets, renderer retirement,
+and late native completion. Real operating-system picker behavior, filesystem changes after the
+point-in-time validation, filesystem mutation, Git recovery, and cross-device synchronization remain
+outside that model's claims.
 
 ## Delivery and recovery
 
@@ -343,7 +360,10 @@ Integrate in dependency order: model and invariant tests, terminal-context lifet
 presentation, then the web in-memory preview. Replace the experimental single-context Workbench
 API and its only application consumer atomically; do not retain a compatibility path.
 
-The first delivery writes no authoritative Project data and performs no disk or process effect.
-Rollback removes the new model and preview composition and restores the prior flat in-memory
-Workbench inputs. Future platform effects remain outside this current authority until they are
-separately accepted, implemented, and documented by their semantic owners.
+The browser delivery performs no disk or process effect. The Desktop existing-Folder slice writes no
+filesystem data; only the selected path may enter the existing canonical Project document through
+the normal Workbench Action and shared-document commit. Rollback removes the Desktop acquisition
+port and adapters and restores manual path collection in Desktop; already committed Project records
+remain valid and require no schema migration. New Folder, Git, and other platform effects remain
+outside current authority until separately accepted, implemented, and documented by their semantic
+owners.

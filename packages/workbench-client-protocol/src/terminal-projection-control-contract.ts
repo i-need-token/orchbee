@@ -40,6 +40,10 @@ export const TerminalProjectionControlEventSchema = z.discriminatedUnion('type',
 		failure: TerminalPresentationFailureSchema,
 		type: z.literal('terminal-projection-failed'),
 	}),
+	z.strictObject({
+		...projectionIdentitySchema,
+		type: z.literal('terminal-projection-released'),
+	}),
 ]);
 
 export type TerminalProjectionControlEvent = z.infer<typeof TerminalProjectionControlEventSchema>;

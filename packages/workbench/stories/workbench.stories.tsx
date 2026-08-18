@@ -136,10 +136,46 @@ export const SimplifiedChineseSidebar: Story = {
 	),
 };
 
+export const NativeProjectFolderAcquisition: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectFolderAcquisition: {
+			selectExistingFolder: () =>
+				Promise.resolve({ kind: 'selected', path: '/workspace/native-project' }),
+		},
+		projectWorkspaceRuntime: createProjectWorkspaceRuntime(['Terminal 1']),
+		shortcutPlatform: 'apple',
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
 export const ProjectWorkspaceNavigation: Story = {
 	args: {
 		actionRuntime: new ActionRuntime({ confirm: () => true }),
 		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createPopulatedProjectWorkspaceRuntime(),
+		shortcutPlatform: 'apple',
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const NativeProjectFolderManagement: Story = {
+	args: {
+		actionRuntime: new ActionRuntime({ confirm: () => true }),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectFolderAcquisition: {
+			selectExistingFolder: () =>
+				Promise.resolve({ kind: 'selected', path: '/workspace/native-added' }),
+		},
 		projectWorkspaceRuntime: createPopulatedProjectWorkspaceRuntime(),
 		shortcutPlatform: 'apple',
 	},

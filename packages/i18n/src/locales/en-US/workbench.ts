@@ -40,6 +40,25 @@ export const enUSWorkbenchMessages = {
 		'Enter an absolute path. The browser cannot verify that it exists.',
 	'workbench.projects.create.pathPlaceholder': '/path/to/project',
 	'workbench.projects.create.title': 'Select Project Folder',
+	'workbench.projects.folderAcquisition.failure.alreadyAdded':
+		'This folder is already in the Project.',
+	'workbench.projects.folderAcquisition.failure.busy':
+		'Another folder selection is already in progress.',
+	'workbench.projects.folderAcquisition.failure.controlUnavailable':
+		'Desktop folder selection is no longer available. Try again after the window reconnects.',
+	'workbench.projects.folderAcquisition.failure.dialogFailed':
+		'The system folder picker could not be opened.',
+	'workbench.projects.folderAcquisition.failure.dismiss': 'OK',
+	'workbench.projects.folderAcquisition.failure.notDirectory': 'The selected item is not a folder.',
+	'workbench.projects.folderAcquisition.failure.notFound':
+		'The selected folder is no longer available.',
+	'workbench.projects.folderAcquisition.failure.permissionDenied':
+		'Orchbee cannot read or enter the selected folder.',
+	'workbench.projects.folderAcquisition.failure.projectUnavailable':
+		'The Project changed while the folder picker was open. Open the Project and try again.',
+	'workbench.projects.folderAcquisition.failure.title': 'Folder Could Not Be Added',
+	'workbench.projects.folderAcquisition.failure.validationFailed':
+		'The selected folder could not be validated.',
 	'workbench.projects.groups.folders': 'Project Folders',
 	'workbench.projects.groups.worktrees': 'Git Worktrees',
 	'workbench.projects.manage.description': 'Change the Project name and primary folder.',

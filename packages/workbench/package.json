@@ -46,7 +46,7 @@
 		"test": "pnpm test:unit",
 		"test:unit": "vitest run",
 		"test:watch": "vitest",
-		"test:tla": "node scripts/run-tla.mjs",
+		"test:tla": "node ../../scripts/tla/run-models.mjs --workspace packages/workbench",
 		"test:exports": "node ../../scripts/check-package-exports.mjs ."
 	},
 	"dependencies": {

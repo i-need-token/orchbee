@@ -60,6 +60,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'freeze'
 	| 'getBufferRowsSnapshot'
 	| 'notifyExited'
+	| 'notifyFailed'
 	| 'notifyBell'
 	| 'notifyClipboardWriteRequest'
 	| 'notifyBrokerFailure'
@@ -100,6 +101,7 @@ export interface ProjectedTerminalRendererDependencies {
 
 export interface ProjectedTerminalRendererSession {
 	dispose(): void;
+	isTransportAvailable(): boolean;
 	pasteFileDrop(text: string): Promise<ProjectedPasteResult>;
 	readonly presentationReady: Promise<void>;
 	readonly transportUnavailable: Promise<void>;
@@ -216,6 +218,7 @@ export async function startProjectedTerminalRenderer(
 	let clipboardReviewController: AbortController | undefined;
 	let terminalOutcomeKind: 'exited' | 'failed' | undefined;
 	let pendingPresentationConfiguration: TerminalPresentationConfiguration | undefined;
+	let transportAvailable = true;
 	let resolveTransportUnavailable: (() => void) | undefined;
 	let resolvePresentationReady: (() => void) | undefined;
 	const presentationReady = new Promise<void>((resolve) => {
@@ -224,6 +227,12 @@ export async function startProjectedTerminalRenderer(
 	const transportUnavailable = new Promise<void>((resolve) => {
 		resolveTransportUnavailable = resolve;
 	});
+	const reportTransportUnavailable = (): void => {
+		if (!transportAvailable) return;
+		transportAvailable = false;
+		resolveTransportUnavailable?.();
+		resolveTransportUnavailable = undefined;
+	};
 	const updateFinalPresentation = (): void => {
 		if (
 			finalRevision !== undefined &&
@@ -515,6 +524,7 @@ export async function startProjectedTerminalRenderer(
 	): void => {
 		if (terminalOutcomeKind === 'exited') return;
 		terminalOutcomeKind = 'failed';
+		terminal.notifyFailed(event);
 		rootElement.dataset['projectedTerminalState'] = 'failed';
 		rootElement.dataset['projectedTerminalFailureKind'] = event.failure.kind;
 		rootElement.dataset['projectedTerminalFailureStage'] = event.failure.stage;
@@ -792,6 +802,9 @@ export async function startProjectedTerminalRenderer(
 				) {
 					findController.setNotice({ kind: 'history-unavailable' });
 				}
+				if (attachmentFailureRequiresRecovery(event.data.failure)) {
+					reportTransportUnavailable();
+				}
 				return;
 			case 'frame': {
 				const result = terminal.applyFrame(event.data.frame);
@@ -847,8 +860,7 @@ export async function startProjectedTerminalRenderer(
 	try {
 		const unsubscribe = transport.subscribe(handleMessage, () => {
 			reportFailure();
-			resolveTransportUnavailable?.();
-			resolveTransportUnavailable = undefined;
+			reportTransportUnavailable();
 		});
 		if (typeof unsubscribe !== 'function') {
 			throw new TypeError('The projected terminal transport did not unsubscribe.');
@@ -874,7 +886,16 @@ export async function startProjectedTerminalRenderer(
 	try {
 		findRoot = rootElement.ownerDocument.createElement('div');
 		findRoot.dataset['projectedTerminalFindSurface'] = 'true';
-		await terminal.open(rootElement);
+		if (!transportAvailable) {
+			throw new Error('Projected terminal transport became unavailable during renderer startup.');
+		}
+		const openOutcome = await Promise.race([
+			terminal.open(rootElement).then(() => 'opened' as const),
+			transportUnavailable.then(() => 'unavailable' as const),
+		]);
+		if (openOutcome !== 'opened' || !transportAvailable) {
+			throw new Error('Projected terminal transport became unavailable during renderer startup.');
+		}
 		terminalOpened = true;
 		reportProjectionReady();
 		rootElement.dataset['projectedTerminalPresentationCommittedEpoch'] = '0';
@@ -948,6 +969,7 @@ export async function startProjectedTerminalRenderer(
 		dispose: () => {
 			if (disposed) return;
 			disposed = true;
+			reportTransportUnavailable();
 			clipboardReviewController?.abort();
 			clipboardReviewController = undefined;
 			clearVisualBell();
@@ -979,6 +1001,7 @@ export async function startProjectedTerminalRenderer(
 		freeze: () => {
 			if (disposed || frozen) return;
 			frozen = true;
+			reportTransportUnavailable();
 			clipboardReviewController?.abort();
 			clipboardReviewController = undefined;
 			clearVisualBell();
@@ -998,6 +1021,7 @@ export async function startProjectedTerminalRenderer(
 				() => findRoot?.remove(),
 			]);
 		},
+		isTransportAvailable: () => transportAvailable,
 		pasteFileDrop: async (text) => await terminal.paste(text, 'file-drop'),
 		presentationReady,
 		transportUnavailable,
@@ -1025,6 +1049,15 @@ function terminalBackgroundColor(color: string, opacity: number): string {
 	const green = Number.parseInt(color.slice(3, 5), 16);
 	const blue = Number.parseInt(color.slice(5, 7), 16);
 	return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
+}
+
+function attachmentFailureRequiresRecovery(failure: ProjectedTerminalFailure): boolean {
+	return (
+		failure.retryable &&
+		(failure.code === 'renderer-backpressure' ||
+			failure.code === 'host-transport-backpressure' ||
+			failure.code === 'host-connection-unavailable')
+	);
 }
 
 function projectedTerminalFailureMessage(failure: ProjectedTerminalFailure) {

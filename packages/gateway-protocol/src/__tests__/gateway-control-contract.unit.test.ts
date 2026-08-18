@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	GatewayBrowserConnectionSchema,
+	GatewayControlServerMessageSchema,
 	GatewayDesktopCommandSchema,
 	GatewayUtilityEventSchema,
 } from '../gateway-control-contract';
@@ -12,9 +13,9 @@ describe('Gateway control contract', () => {
 			GatewayBrowserConnectionSchema.parse({
 				capability: 'a'.repeat(43),
 				port: 42_000,
-				protocolVersion: '1.0',
+				protocolVersion: '1.1',
 			}),
-		).toMatchObject({ port: 42_000, protocolVersion: '1.0' });
+		).toMatchObject({ port: 42_000, protocolVersion: '1.1' });
 	});
 
 	it('bounds the trusted Desktop listener and Origin configuration', () => {
@@ -51,5 +52,18 @@ describe('Gateway control contract', () => {
 				type: 'gateway-client-open-requested',
 			}),
 		).toMatchObject({ connectionId: 'gateway:client:1' });
+	});
+
+	it('frames release completion as control data without attachment authority', () => {
+		expect(
+			GatewayControlServerMessageSchema.parse({
+				event: {
+					presentationId: 'presentation-1',
+					requestId: 'projection-1',
+					type: 'terminal-projection-released',
+				},
+				type: 'terminal-projection-control-event',
+			}),
+		).toMatchObject({ event: { requestId: 'projection-1' } });
 	});
 });

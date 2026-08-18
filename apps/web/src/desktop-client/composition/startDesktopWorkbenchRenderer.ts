@@ -28,6 +28,7 @@ import {
 } from '../desktop-browser-access-dialog';
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopTerminalProjectionClient } from '../terminal-projection-control';
+import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
 import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 
 export interface DesktopWorkbenchRendererSession {
@@ -48,6 +49,7 @@ export function startDesktopWorkbenchRenderer(
 	clientSessionPort: MessagePort,
 	projectionPort: MessagePort,
 	browserAccessPort: MessagePort,
+	projectFolderAcquisitionPort: MessagePort,
 	terminalFileDropCapability?: TerminalFileDropCapability,
 ): DesktopWorkbenchRendererSession {
 	if (!(rootElement instanceof HTMLElement)) {
@@ -58,6 +60,9 @@ export function startDesktopWorkbenchRenderer(
 	const projectionClient = new DesktopTerminalProjectionClient(projectionPort);
 	const browserAccessController = new DesktopBrowserAccessController(
 		new DesktopBrowserAccessClient(browserAccessPort),
+	);
+	const projectFolderAcquisitionClient = new DesktopProjectFolderAcquisitionClient(
+		projectFolderAcquisitionPort,
 	);
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 		platform: shortcutPlatform,
@@ -105,6 +110,7 @@ export function startDesktopWorkbenchRenderer(
 		browserAccessController.dispose();
 		reactRoot?.unmount();
 		reactRoot = undefined;
+		projectFolderAcquisitionClient.dispose();
 		routing?.dispose();
 		routing = undefined;
 		runtime.dispose();
@@ -145,6 +151,7 @@ export function startDesktopWorkbenchRenderer(
 			layoutStorage: storage,
 			macosTerminalInputSettingsController,
 			projectWorkspaceRuntime: workbenchClientRuntime.projectWorkspaceRuntime,
+			projectFolderAcquisition: projectFolderAcquisitionClient,
 			requestBrowserAccess: (returnFocus) => {
 				browserAccessReturnFocus = returnFocus;
 				browserAccessController.open();

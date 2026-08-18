@@ -17,6 +17,7 @@ import { ProjectDirectoryList } from './components/project-directory-list/Projec
 import { useProjectManagerDialog } from './hooks/useProjectManagerDialog';
 
 interface ProjectManagerDialogProps {
+	readonly directorySelectionPending?: boolean | undefined;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly name: string;
 	readonly onAddDirectory: (path: string) => void;
@@ -24,11 +25,13 @@ interface ProjectManagerDialogProps {
 	readonly onNameChange: (name: string) => void;
 	readonly onRemoveDirectory: (directoryId: string) => void;
 	readonly onSave: (name: string) => void;
+	readonly onSelectDirectory?: (() => void) | undefined;
 	readonly onSetPrimaryDirectory: (directoryId: string) => void;
 	readonly project: WorkbenchProject;
 }
 
 export function ProjectManagerDialog({
+	directorySelectionPending = false,
 	messages,
 	name,
 	onAddDirectory,
@@ -36,6 +39,7 @@ export function ProjectManagerDialog({
 	onNameChange,
 	onRemoveDirectory,
 	onSave,
+	onSelectDirectory,
 	onSetPrimaryDirectory,
 	project,
 }: ProjectManagerDialogProps): React.ReactNode {
@@ -77,10 +81,12 @@ export function ProjectManagerDialog({
 						closeFolderInput={view.closeFolderInput}
 						folderAlreadyAdded={view.folderAlreadyAdded}
 						folderPath={view.folderPath}
+						nativeSelectionPending={directorySelectionPending}
 						messages={messages}
 						onFolderPathKeyDown={view.onFolderPathKeyDown}
 						onRemoveDirectory={onRemoveDirectory}
 						onSetPrimaryDirectory={onSetPrimaryDirectory}
+						onSelectFolder={onSelectDirectory}
 						project={project}
 						setFolderPath={view.setFolderPath}
 						showFolderInput={view.showFolderInput}

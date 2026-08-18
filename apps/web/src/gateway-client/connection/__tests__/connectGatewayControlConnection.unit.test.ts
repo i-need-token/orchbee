@@ -58,7 +58,7 @@ describe('connectGatewayControlConnection', () => {
 		const connection = GatewayBrowserConnectionSchema.parse({
 			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.0',
+			protocolVersion: '1.1',
 		});
 		const connecting = connectGatewayControlConnection(connection, '192.168.1.14', (url) => {
 			expect(url).toBe('ws://192.168.1.14:42000/v1/control');
@@ -98,6 +98,24 @@ describe('connectGatewayControlConnection', () => {
 		expect(publications).toEqual([expect.objectContaining(publication)]);
 		control.close();
 	});
+
+	it('rejects bootstrap when the authentication send fails', async () => {
+		const socket = new FakeWebSocket();
+		const connection = GatewayBrowserConnectionSchema.parse({
+			capability: 'a'.repeat(43),
+			port: 42_000,
+			protocolVersion: '1.1',
+		});
+		const connecting = connectGatewayControlConnection(connection, '192.168.1.14', () =>
+			socket.asWebSocket(),
+		);
+		socket.failNextSend();
+
+		socket.open();
+
+		await expect(connecting).rejects.toThrow('Gateway control connection is unavailable.');
+		expect(socket.readyState).toBe(3);
+	});
 });
 
 class FakeWebSocket extends EventTarget {
@@ -105,6 +123,7 @@ class FakeWebSocket extends EventTarget {
 	bufferedAmount = 0;
 	readyState = 0;
 	readonly sent: Array<string | ArrayBufferLike | Blob | ArrayBufferView> = [];
+	#sendFailure: Error | undefined;
 
 	asWebSocket(): WebSocket {
 		return this as unknown as WebSocket;
@@ -112,6 +131,10 @@ class FakeWebSocket extends EventTarget {
 
 	close(): void {
 		this.readyState = 3;
+	}
+
+	failNextSend(): void {
+		this.#sendFailure = new Error('injected WebSocket send failure');
 	}
 
 	open(): void {
@@ -124,6 +147,9 @@ class FakeWebSocket extends EventTarget {
 	}
 
 	send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
+		const failure = this.#sendFailure;
+		this.#sendFailure = undefined;
+		if (failure !== undefined) throw failure;
 		this.sent.push(data);
 	}
 }

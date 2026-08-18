@@ -43,6 +43,56 @@ function eventEnvelope(
 }
 
 describe('ProjectedTerminalBroker', () => {
+	it('retires only its attachment when the shared Host connection closes', () => {
+		let hostClosed: ((reason: Error) => void) | undefined;
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onClosed: vi.fn<HostConnection['onClosed']>((listener) => {
+				hostClosed = listener;
+				return vi.fn<() => void>();
+			}),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+		};
+		const onCleanupRequested = vi.fn<(error: unknown) => void>();
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
+			onCleanupRequested,
+		});
+		broker.start();
+		const reason = new Error('Host transport lost');
+
+		hostClosed?.(reason);
+
+		expect(postMessage).toHaveBeenCalledWith({
+			failure: {
+				code: 'host-connection-unavailable',
+				message: 'The Terminal Host connection is unavailable.',
+				operation: 'protocol',
+				retryable: true,
+			},
+			kind: 'failure',
+		});
+		expect(onCleanupRequested).toHaveBeenCalledOnce();
+		expect(onCleanupRequested).toHaveBeenCalledWith(reason);
+	});
+
 	it('publishes an attachment-scoped resize-lease promotion to its renderer and lifecycle owner', () => {
 		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
 		const host = {
@@ -53,6 +103,7 @@ describe('ProjectedTerminalBroker', () => {
 				},
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
 		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
@@ -127,6 +178,7 @@ describe('ProjectedTerminalBroker', () => {
 				controlListener = listener;
 				return vi.fn<() => void>();
 			}),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
 		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
@@ -260,6 +312,7 @@ describe('ProjectedTerminalBroker', () => {
 				},
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
 		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
@@ -355,6 +408,7 @@ describe('ProjectedTerminalBroker', () => {
 				},
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
 		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
@@ -417,7 +471,7 @@ describe('ProjectedTerminalBroker', () => {
 		expect(broker.metrics.clipboardCommits).toBe(0);
 	});
 
-	it('releases an exact pending clipboard request when its decision hits broker backpressure', () => {
+	it('retires only the saturated attachment when a renderer command hits broker backpressure', () => {
 		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
 		const requestInput = vi.fn<HostConnection['requestInput']>(
 			() => new Promise<never>(() => undefined),
@@ -430,6 +484,7 @@ describe('ProjectedTerminalBroker', () => {
 				},
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestInput,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
@@ -448,7 +503,10 @@ describe('ProjectedTerminalBroker', () => {
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
 		};
-		const broker = new ProjectedTerminalBroker(host, port, bootstrap);
+		const onCleanupRequested = vi.fn<(error: unknown) => void>();
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
+			onCleanupRequested,
+		});
 		broker.start();
 		for (let index = 0; index < 64; index += 1) {
 			emitter.emit('message', {
@@ -488,16 +546,83 @@ describe('ProjectedTerminalBroker', () => {
 			},
 		});
 		expect(postMessage).toHaveBeenCalledWith({
-			failure: expect.objectContaining({ code: 'renderer-backpressure' }),
+			failure: expect.objectContaining({
+				code: 'renderer-backpressure',
+				operation: 'clipboard',
+				retryable: true,
+			}),
 			kind: 'failure',
 		});
+		expect(onCleanupRequested).toHaveBeenCalledOnce();
 
+		const postedCount = postMessage.mock.calls.length;
 		emitClipboardRequest('2');
-		expect(postMessage).toHaveBeenCalledWith({
-			event: { attachmentId: bootstrap.attachmentId, sequence: '2', text: 'request 2' },
-			kind: 'clipboard-write-request',
-		});
+		expect(postMessage).toHaveBeenCalledTimes(postedCount);
 		expect(broker.metrics.commandsRejected).toBe(1);
+	});
+
+	it('retires only the affected attachment when Desktop-to-Host admission rejects an ACK', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+		};
+		const failure = new HostRequestError({
+			code: 'host-transport-backpressure',
+			message: 'The bounded Desktop-to-Host request transport is saturated.',
+			retryable: true,
+		});
+		const requestControl = vi.fn<HostConnection['requestControl']>().mockRejectedValue(failure);
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const onCleanupRequested = vi.fn<(error: unknown) => void>();
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
+			onCleanupRequested,
+		});
+		broker.start();
+
+		emitter.emit('message', {
+			data: {
+				kind: 'frame-applied',
+				payload: {
+					attachmentId: bootstrap.attachmentId,
+					generation: '1',
+					revision: '1',
+					sequence: '1',
+				},
+			},
+		});
+
+		await vi.waitFor(() => {
+			expect(postMessage).toHaveBeenCalledWith({
+				failure: {
+					code: 'host-transport-backpressure',
+					message: 'The bounded Desktop-to-Host request transport is saturated.',
+					operation: 'protocol',
+					retryable: true,
+				},
+				kind: 'failure',
+			});
+		});
+		expect(onCleanupRequested).toHaveBeenCalledOnce();
+		expect(onCleanupRequested).toHaveBeenCalledWith(failure);
 	});
 
 	it('rejects commands for another attachment before calling the Host', () => {
@@ -506,6 +631,7 @@ describe('ProjectedTerminalBroker', () => {
 				vi.fn<() => void>(),
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestInput: vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(),
 			requestControl: vi
 				.fn<(...arguments_: unknown[]) => Promise<unknown>>()
@@ -585,6 +711,7 @@ describe('ProjectedTerminalBroker', () => {
 				vi.fn<() => void>(),
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestControl,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
@@ -676,6 +803,7 @@ describe('ProjectedTerminalBroker', () => {
 				vi.fn<() => void>(),
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestControlEnvelope,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
@@ -752,6 +880,7 @@ describe('ProjectedTerminalBroker', () => {
 				vi.fn<() => void>(),
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestControlEnvelope,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
@@ -829,6 +958,7 @@ describe('ProjectedTerminalBroker', () => {
 				},
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestControl,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
@@ -994,6 +1124,7 @@ describe('ProjectedTerminalBroker', () => {
 				},
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestControl,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
@@ -1137,6 +1268,7 @@ describe('ProjectedTerminalBroker', () => {
 				},
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestControl,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
@@ -1248,6 +1380,7 @@ describe('ProjectedTerminalBroker', () => {
 				vi.fn<() => void>(),
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
 		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
@@ -1309,6 +1442,7 @@ describe('ProjectedTerminalBroker', () => {
 				vi.fn<() => void>(),
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestControl,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
@@ -1362,6 +1496,7 @@ describe('ProjectedTerminalBroker', () => {
 				vi.fn<() => void>(),
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestControl,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
@@ -1412,6 +1547,7 @@ describe('ProjectedTerminalBroker', () => {
 				vi.fn<() => void>(),
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestControl,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
@@ -1453,6 +1589,7 @@ describe('ProjectedTerminalBroker', () => {
 				vi.fn<() => void>(),
 			),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestControl,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();

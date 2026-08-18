@@ -17,14 +17,17 @@ import styles from './ProjectCreateMenu.module.css';
 interface ProjectCreateMenuProps {
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly onSelectFolder: () => void;
+	readonly selectionPending?: boolean | undefined;
 }
 
 export function ProjectCreateMenu({
 	messages,
 	onSelectFolder,
+	selectionPending = false,
 }: ProjectCreateMenuProps): React.ReactNode {
 	const entries: readonly WorkbenchActionMenuEntry[] = [
 		{
+			disabled: selectionPending,
 			icon: 'folder-opened',
 			id: 'select-project-folder',
 			kind: 'command',

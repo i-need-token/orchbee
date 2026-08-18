@@ -26,7 +26,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"test:tla": "node scripts/run-tla.mjs",
+		"test:tla": "node ../../scripts/tla/run-models.mjs --workspace packages/actions",
 		"test:exports": "node ../../scripts/check-package-exports.mjs .",
 		"verify:correctness": "pnpm typecheck && pnpm test && pnpm test:tla && pnpm build"
 	},

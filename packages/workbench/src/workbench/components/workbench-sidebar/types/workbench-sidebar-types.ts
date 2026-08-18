@@ -1,3 +1,5 @@
+import type { WorkbenchProjectFolderAcquisitionFailureCode } from '../../../types/workbench-project-folder-acquisition';
+
 export interface WorkbenchProjectNavigationMessages {
 	readonly add: string;
 	readonly cancel: string;
@@ -14,6 +16,11 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly deleteWorkspace: string;
 	readonly duplicateWorkspace: string;
 	readonly expandProject: string;
+	readonly folderAcquisitionFailureDismiss: string;
+	readonly folderAcquisitionFailureMessages: Readonly<
+		Record<WorkbenchProjectFolderAcquisitionFailureCode, string>
+	>;
+	readonly folderAcquisitionFailureTitle: string;
 	readonly newFolder: string;
 	readonly projectFolders: string;
 	readonly projectManage: string;

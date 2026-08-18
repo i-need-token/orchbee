@@ -49,4 +49,18 @@ describe('terminal projection control contract', () => {
 			}).success,
 		).toBe(false);
 	});
+
+	it('correlates successful release completion without an attachment capability', () => {
+		expect(
+			TerminalProjectionControlEventSchema.parse({
+				presentationId: 'presentation-1',
+				requestId: 'projection-1',
+				type: 'terminal-projection-released',
+			}),
+		).toEqual({
+			presentationId: 'presentation-1',
+			requestId: 'projection-1',
+			type: 'terminal-projection-released',
+		});
+	});
 });

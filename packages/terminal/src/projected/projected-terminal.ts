@@ -39,6 +39,7 @@ import {
 	type TerminalBell,
 	type TerminalClipboardWriteRequest,
 	type TerminalExited,
+	type TerminalFailed,
 	type TerminalId,
 	type TerminalKeyCodeValue,
 	type TerminalModifiers,
@@ -733,7 +734,7 @@ export class ProjectedTerminal {
 	#pendingLinkPoint: PendingLinkPoint | undefined;
 	#pendingExit: TerminalExited | undefined;
 	#latestExitFinalRevision: bigint | undefined;
-	#terminalExited = false;
+	#terminalControlSealed = false;
 	#latestBellSequence = 0n;
 	#latestClipboardWriteSequence = 0n;
 	#pendingAlternateWheelRows = 0;
@@ -744,6 +745,7 @@ export class ProjectedTerminal {
 	#pendingHistoryStartRow: bigint | undefined;
 	#pendingHistoryTargetRow: bigint | undefined;
 	#pendingHistoryWheelRows = 0;
+	#pendingOpeningFrameAcknowledgement: FrameApplied | undefined;
 	#pendingSelectionGestures: PendingSelectionGesture[] = [];
 	#ownsResizeLease: boolean;
 	#phase: ProjectedTerminalPhase = ProjectedTerminalPhase.constructed;
@@ -1022,6 +1024,7 @@ export class ProjectedTerminal {
 			this.#phase = ProjectedTerminalPhase.open;
 			this.#updateSurfaceMouseCursor();
 			this.#syncRendererSuspension();
+			this.#flushOpeningFrameAcknowledgement();
 			this.#sendResizeIfChanged();
 			this.#sendDemandIfNeeded();
 		} catch (error) {
@@ -1140,13 +1143,24 @@ export class ProjectedTerminal {
 				this.#syncPreeditPresentation();
 				this.#updateSurfaceMouseCursor();
 			}
-			if (this.#historyPhase === ProjectedHistoryPhase.followingBottom && !this.#scheduleRender()) {
+			if (
+				this.#phase === ProjectedTerminalPhase.open &&
+				this.#historyPhase === ProjectedHistoryPhase.followingBottom &&
+				!this.#scheduleRender()
+			) {
 				this.#errorEmitter.fire({
 					error: new Error('Projected frame arrived before the rendering surface was open'),
 					operation: 'frame',
 				});
 				return 'committed';
 			}
+		}
+		if (
+			this.#phase === ProjectedTerminalPhase.constructed ||
+			this.#phase === ProjectedTerminalPhase.opening
+		) {
+			this.#pendingOpeningFrameAcknowledgement = result.acknowledgement;
+			return result.kind;
 		}
 		this.#send({ kind: 'frame-applied', payload: result.acknowledgement });
 		this.#finalizeExitIfCaughtUp();
@@ -1826,19 +1840,9 @@ export class ProjectedTerminal {
 	}
 
 	notifyExited(event: TerminalExited): void {
-		if (
-			event.identity.creationId !== this.#creationId ||
-			event.identity.hostEpoch !== this.#hostEpoch ||
-			event.identity.terminalId !== this.#terminalId
-		) {
-			this.#errorEmitter.fire({
-				error: new Error('Terminal exit identity does not match the projected terminal'),
-				operation: 'frame',
-			});
-			return;
-		}
+		if (!this.#acceptTerminalOutcomeIdentity(event.identity, 'exit')) return;
 		const finalRevision = BigInt(event.finalRevision);
-		this.#sealExitedControl();
+		this.#sealTerminalControl();
 		if (
 			this.#latestExitFinalRevision !== undefined &&
 			finalRevision <= this.#latestExitFinalRevision
@@ -1850,9 +1854,32 @@ export class ProjectedTerminal {
 		this.#finalizeExitIfCaughtUp();
 	}
 
-	#sealExitedControl(): void {
-		if (this.#terminalExited) return;
-		this.#terminalExited = true;
+	notifyFailed(event: TerminalFailed): void {
+		if (!this.#acceptTerminalOutcomeIdentity(event.identity, 'failure')) return;
+		this.#sealTerminalControl();
+	}
+
+	#acceptTerminalOutcomeIdentity(
+		identity: TerminalExited['identity'],
+		outcome: 'exit' | 'failure',
+	): boolean {
+		if (
+			identity.creationId === this.#creationId &&
+			identity.hostEpoch === this.#hostEpoch &&
+			identity.terminalId === this.#terminalId
+		) {
+			return true;
+		}
+		this.#errorEmitter.fire({
+			error: new Error(`Terminal ${outcome} identity does not match the projected terminal`),
+			operation: 'frame',
+		});
+		return false;
+	}
+
+	#sealTerminalControl(): void {
+		if (this.#terminalControlSealed) return;
+		this.#terminalControlSealed = true;
 		this.#inputEnabled = false;
 		this.#ownsResizeLease = false;
 		this.#lastGeometry = undefined;
@@ -2000,6 +2027,7 @@ export class ProjectedTerminal {
 		this.#clearHistoryScrollbarClickSuppression();
 		this.#cancelHistoryScrollbarFade();
 		this.#pendingHistoryDelta = 0;
+		this.#pendingOpeningFrameAcknowledgement = undefined;
 		this.#pendingHistoryStartRow = undefined;
 		this.#pendingHistoryTargetRow = undefined;
 		this.#stopSelectionAutoscroll();
@@ -2101,6 +2129,18 @@ export class ProjectedTerminal {
 				? { kind: 'animation-frame', value: view.requestAnimationFrame(callback) }
 				: { kind: 'timeout', value: globalThis.setTimeout(callback, 16) };
 		return true;
+	}
+
+	#flushOpeningFrameAcknowledgement(): void {
+		const acknowledgement = this.#pendingOpeningFrameAcknowledgement;
+		if (acknowledgement === undefined) {
+			if (this.#store.metadata !== null) this.#scheduleRender();
+			return;
+		}
+		if (!this.#scheduleRender()) return;
+		this.#pendingOpeningFrameAcknowledgement = undefined;
+		this.#send({ kind: 'frame-applied', payload: acknowledgement });
+		this.#finalizeExitIfCaughtUp();
 	}
 
 	#cancelScheduledFrame(): void {
@@ -5509,7 +5549,7 @@ export class ProjectedTerminal {
 	#sendResizeIfChanged(): void {
 		if (
 			this.#phase !== ProjectedTerminalPhase.open ||
-			this.#terminalExited ||
+			this.#terminalControlSealed ||
 			!this.#ownsResizeLease
 		) {
 			return;

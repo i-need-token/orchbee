@@ -32,6 +32,7 @@ import type {
 } from '../types/workbench-host-actions';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
 import type { WorkbenchConfirmationAnchor } from '../types/workbench-confirmation';
+import type { WorkbenchProjectNavigationMessages } from '../components/workbench-sidebar/types/workbench-sidebar-types';
 import {
 	createWorkbenchSearchState,
 	transitionWorkbenchSearch,
@@ -97,48 +98,7 @@ interface WorkbenchView {
 	readonly sidebarToggleLabel: string;
 	readonly sidebarLabel: string;
 	readonly projectLabel: string;
-	readonly projectNavigationMessages: {
-		readonly add: string;
-		readonly cancel: string;
-		readonly close: string;
-		readonly collapseProject: string;
-		readonly create: string;
-		readonly createWorkspace: string;
-		readonly deleteWorkspace: string;
-		readonly duplicateWorkspace: string;
-		readonly expandProject: string;
-		readonly newFolder: string;
-		readonly projectFolders: string;
-		readonly projectCreate: string;
-		readonly projectCreateDescription: string;
-		readonly projectCreatePath: string;
-		readonly projectCreatePathDescription: string;
-		readonly projectCreatePathPlaceholder: string;
-		readonly projectCreateTitle: string;
-		readonly projectManage: string;
-		readonly projectManageAddFolder: string;
-		readonly projectManageDescription: string;
-		readonly projectManageFolderAlreadyAdded: string;
-		readonly projectManageFolders: string;
-		readonly projectManageName: string;
-		readonly projectManageNamePlaceholder: string;
-		readonly projectManagePrimaryFolder: string;
-		readonly projectManageTitle: string;
-		readonly projectOptions: string;
-		readonly projectWorktrees: string;
-		readonly removeProject: string;
-		readonly removeProjectFolder: string;
-		readonly save: string;
-		readonly selectFolder: string;
-		readonly setProjectPrimaryFolder: string;
-		readonly workspaceManage: string;
-		readonly workspaceManageDescription: string;
-		readonly workspaceManageName: string;
-		readonly workspaceManageNamePlaceholder: string;
-		readonly workspaceManagePrimaryFolder: string;
-		readonly workspaceManageTitle: string;
-		readonly workspaceOptions: string;
-	};
+	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectWorkspaceConfirmation: {
 		readonly anchor: WorkbenchConfirmationAnchor | null;
 		readonly cancelLabel: string;
@@ -490,6 +450,31 @@ export function useWorkbench({
 			deleteWorkspace: intl.formatMessage(workbenchMessages.workspaceDelete),
 			duplicateWorkspace: intl.formatMessage(workbenchMessages.workspaceDuplicate),
 			expandProject: intl.formatMessage(workbenchMessages.projectExpand),
+			folderAcquisitionFailureDismiss: intl.formatMessage(
+				workbenchMessages.projectFolderAcquisitionDismiss,
+			),
+			folderAcquisitionFailureMessages: {
+				'already-added': intl.formatMessage(workbenchMessages.projectFolderAcquisitionAlreadyAdded),
+				busy: intl.formatMessage(workbenchMessages.projectFolderAcquisitionBusy),
+				'control-unavailable': intl.formatMessage(
+					workbenchMessages.projectFolderAcquisitionControlUnavailable,
+				),
+				'dialog-failed': intl.formatMessage(workbenchMessages.projectFolderAcquisitionDialogFailed),
+				'not-directory': intl.formatMessage(workbenchMessages.projectFolderAcquisitionNotDirectory),
+				'not-found': intl.formatMessage(workbenchMessages.projectFolderAcquisitionNotFound),
+				'permission-denied': intl.formatMessage(
+					workbenchMessages.projectFolderAcquisitionPermissionDenied,
+				),
+				'project-unavailable': intl.formatMessage(
+					workbenchMessages.projectFolderAcquisitionProjectUnavailable,
+				),
+				'validation-failed': intl.formatMessage(
+					workbenchMessages.projectFolderAcquisitionValidationFailed,
+				),
+			},
+			folderAcquisitionFailureTitle: intl.formatMessage(
+				workbenchMessages.projectFolderAcquisitionTitle,
+			),
 			newFolder: intl.formatMessage(workbenchMessages.projectNewFolder),
 			projectFolders: intl.formatMessage(workbenchMessages.projectFolders),
 			projectCreate: intl.formatMessage(workbenchMessages.projectCreate),
