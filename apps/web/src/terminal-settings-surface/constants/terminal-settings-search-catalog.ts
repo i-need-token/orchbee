@@ -1,0 +1,244 @@
+import {
+	keyboardShortcutMessages,
+	terminalSettingsMessages,
+	type MessageDescriptor,
+} from '@orchbee/i18n';
+
+import type { TerminalSettingsCategory } from '../types/terminal-settings-surface';
+
+export type TerminalSettingsSearchCapability = 'macos-option-as-alt';
+
+export const TERMINAL_SETTINGS_SEARCH_RESULTS_ID = 'terminal-settings-search-results';
+
+export interface TerminalSettingsSearchItemDefinition {
+	readonly capability?: TerminalSettingsSearchCapability | undefined;
+	readonly category: TerminalSettingsCategory;
+	readonly description: MessageDescriptor;
+	readonly id: string;
+	readonly keywords?: readonly (MessageDescriptor | string)[] | undefined;
+	readonly label: MessageDescriptor;
+	readonly section?: MessageDescriptor | undefined;
+	readonly targetId: string;
+}
+
+export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItemDefinition[] = [
+	{
+		category: 'appearance',
+		description: terminalSettingsMessages.applicationThemeDescription,
+		id: 'appearance.application-theme',
+		keywords: [
+			terminalSettingsMessages.applicationThemeLight,
+			terminalSettingsMessages.applicationThemeDark,
+		],
+		label: terminalSettingsMessages.applicationThemeLabel,
+		section: terminalSettingsMessages.applicationAppearanceSection,
+		targetId: 'appearance.application-theme',
+	},
+	{
+		category: 'text',
+		description: terminalSettingsMessages.fontFamilyDescription,
+		id: 'text.font-family',
+		keywords: [terminalSettingsMessages.fontFamilyDeviceAvailability, 'font'],
+		label: terminalSettingsMessages.fontFamilyLabel,
+		section: terminalSettingsMessages.terminalTypographySection,
+		targetId: 'text.font-family',
+	},
+	{
+		category: 'text',
+		description: terminalSettingsMessages.fontSizeDescription,
+		id: 'text.font-size',
+		keywords: ['font'],
+		label: terminalSettingsMessages.fontSizeLabel,
+		section: terminalSettingsMessages.terminalTypographySection,
+		targetId: 'text.font-size',
+	},
+	{
+		category: 'colors',
+		description: terminalSettingsMessages.terminalDisplayThemeDescription,
+		id: 'colors.display-theme',
+		keywords: [
+			terminalSettingsMessages.terminalDisplayThemeHost,
+			terminalSettingsMessages.terminalDisplayThemeLight,
+			terminalSettingsMessages.terminalDisplayThemeDark,
+			terminalSettingsMessages.terminalDisplayThemeCustom,
+		],
+		label: terminalSettingsMessages.terminalDisplayThemeLabel,
+		section: terminalSettingsMessages.terminalColorsSection,
+		targetId: 'colors.display-theme',
+	},
+	{
+		category: 'colors',
+		description: terminalSettingsMessages.foregroundDescription,
+		id: 'colors.foreground',
+		label: terminalSettingsMessages.foregroundLabel,
+		section: terminalSettingsMessages.terminalColorsSection,
+		targetId: 'colors.foreground',
+	},
+	{
+		category: 'colors',
+		description: terminalSettingsMessages.backgroundDescription,
+		id: 'colors.background',
+		label: terminalSettingsMessages.backgroundLabel,
+		section: terminalSettingsMessages.terminalColorsSection,
+		targetId: 'colors.background',
+	},
+	{
+		category: 'colors',
+		description: terminalSettingsMessages.backgroundOpacityDescription,
+		id: 'colors.background-opacity',
+		label: terminalSettingsMessages.backgroundOpacityLabel,
+		section: terminalSettingsMessages.terminalColorsSection,
+		targetId: 'colors.background-opacity',
+	},
+	{
+		category: 'cursor-input',
+		capability: 'macos-option-as-alt',
+		description: terminalSettingsMessages.macosOptionAsAltDescription,
+		id: 'cursor-input.macos-option-as-alt',
+		keywords: [
+			terminalSettingsMessages.macosOptionAsAltOff,
+			terminalSettingsMessages.macosOptionAsAltLeft,
+			terminalSettingsMessages.macosOptionAsAltRight,
+			terminalSettingsMessages.macosOptionAsAltBoth,
+			'Option',
+			'Alt',
+		],
+		label: terminalSettingsMessages.macosOptionAsAltLabel,
+		section: terminalSettingsMessages.macosOptionKeySection,
+		targetId: 'cursor-input.macos-option-as-alt',
+	},
+	{
+		category: 'general',
+		description: terminalSettingsMessages.resetDescription,
+		id: 'general.reset',
+		label: terminalSettingsMessages.reset,
+		targetId: 'general.reset',
+	},
+	{
+		category: 'shell-integration',
+		description: terminalSettingsMessages.shellIntegrationManualNotice,
+		id: 'shell-integration.zsh',
+		keywords: [terminalSettingsMessages.shellIntegrationSetupCommandLabel, 'Zsh', 'source'],
+		label: terminalSettingsMessages.shellIntegrationZshTitle,
+		targetId: 'shell-integration.zsh',
+	},
+	{
+		category: 'shell-integration',
+		description: terminalSettingsMessages.shellIntegrationBashVersion,
+		id: 'shell-integration.bash',
+		keywords: [terminalSettingsMessages.shellIntegrationSetupCommandLabel, 'Bash', '4.4', 'source'],
+		label: terminalSettingsMessages.shellIntegrationBashTitle,
+		targetId: 'shell-integration.bash',
+	},
+	{
+		category: 'shell-integration',
+		description: terminalSettingsMessages.shellIntegrationManualNotice,
+		id: 'shell-integration.fish',
+		keywords: [terminalSettingsMessages.shellIntegrationSetupCommandLabel, 'Fish', 'source'],
+		label: terminalSettingsMessages.shellIntegrationFishTitle,
+		targetId: 'shell-integration.fish',
+	},
+	{
+		category: 'shell-integration',
+		description: terminalSettingsMessages.shellIntegrationReminderDescription,
+		id: 'shell-integration.completion-reminders',
+		keywords: [
+			terminalSettingsMessages.shellIntegrationReminderModeLabel,
+			terminalSettingsMessages.shellIntegrationReminderMinimumLabel,
+			terminalSettingsMessages.shellIntegrationReminderMinimumDescription,
+		],
+		label: terminalSettingsMessages.shellIntegrationReminderTitle,
+		targetId: 'shell-integration.completion-reminders',
+	},
+	{
+		category: 'shell-integration',
+		description: terminalSettingsMessages.shellIntegrationNotificationDescription,
+		id: 'shell-integration.notifications',
+		keywords: [terminalSettingsMessages.shellIntegrationNotificationRequest],
+		label: terminalSettingsMessages.shellIntegrationNotificationTitle,
+		targetId: 'shell-integration.notifications',
+	},
+	{
+		category: 'shell-integration',
+		description: terminalSettingsMessages.shellIntegrationResetDescription,
+		id: 'shell-integration.reset',
+		label: terminalSettingsMessages.reset,
+		targetId: 'shell-integration.reset',
+	},
+	{
+		category: 'remote-development',
+		description: terminalSettingsMessages.remoteDevelopmentBaselineDescription,
+		id: 'remote-development.baseline',
+		keywords: ['TERM', 'xterm-256color', 'SSH', 'terminfo'],
+		label: terminalSettingsMessages.remoteDevelopmentBaselineTitle,
+		targetId: 'remote-development.baseline',
+	},
+	{
+		category: 'remote-development',
+		description: terminalSettingsMessages.remoteDevelopmentDiagnosticDescription,
+		id: 'remote-development.diagnostic',
+		keywords: [
+			terminalSettingsMessages.remoteDevelopmentDiagnosticLabel,
+			terminalSettingsMessages.remoteDevelopmentResultDescription,
+			'TERM',
+			'COLORTERM',
+			'TERM_PROGRAM',
+			'infocmp',
+		],
+		label: terminalSettingsMessages.remoteDevelopmentDiagnosticTitle,
+		targetId: 'remote-development.diagnostic',
+	},
+	{
+		category: 'remote-development',
+		description: terminalSettingsMessages.remoteDevelopmentNoChangesDescription,
+		id: 'remote-development.no-automatic-changes',
+		keywords: ['SSH', 'remote'],
+		label: terminalSettingsMessages.remoteDevelopmentNoChangesTitle,
+		targetId: 'remote-development.no-automatic-changes',
+	},
+	{
+		category: 'ghostty-migration',
+		description: terminalSettingsMessages.ghosttyMigrationSourceDescription,
+		id: 'ghostty-migration.source',
+		keywords: [
+			terminalSettingsMessages.ghosttyMigrationSafetyNotice,
+			terminalSettingsMessages.ghosttyMigrationAnalyze,
+			'Ghostty',
+			'import',
+			'migration',
+		],
+		label: terminalSettingsMessages.ghosttyMigrationSourceLabel,
+		targetId: 'ghostty-migration.source',
+	},
+	{
+		category: 'browser-access',
+		description: terminalSettingsMessages.browserAccessDescription,
+		id: 'browser-access.open',
+		label: terminalSettingsMessages.openBrowserAccess,
+		targetId: 'browser-access.open',
+	},
+];
+
+export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
+	'actions-search': keyboardShortcutMessages.actionsSearch,
+	'copy-selection': keyboardShortcutMessages.copySelection,
+	find: keyboardShortcutMessages.find,
+	'global-search': keyboardShortcutMessages.globalSearch,
+	'new-terminal': keyboardShortcutMessages.newTerminal,
+	'select-all': keyboardShortcutMessages.selectAll,
+	settings: keyboardShortcutMessages.settings,
+	'toggle-sidebar': keyboardShortcutMessages.toggleSidebar,
+} as const;
+
+export const KEYBOARD_SHORTCUT_SEARCH_SCOPES = {
+	'focused-terminal': keyboardShortcutMessages.scopeFocusedTerminal,
+	'focused-terminal-or-find': keyboardShortcutMessages.scopeFocusedTerminalOrFind,
+	workbench: keyboardShortcutMessages.scopeWorkbench,
+} as const;
+
+export const KEYBOARD_SHORTCUT_SEARCH_AVAILABILITY = {
+	'always-in-workbench': keyboardShortcutMessages.availabilityWorkbench,
+	'focused-terminal': keyboardShortcutMessages.availabilityFocusedTerminal,
+	'focused-terminal-with-selection':
+		keyboardShortcutMessages.availabilityFocusedTerminalWithSelection,
+} as const;

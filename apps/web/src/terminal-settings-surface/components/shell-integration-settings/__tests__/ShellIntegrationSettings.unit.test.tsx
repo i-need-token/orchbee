@@ -112,7 +112,7 @@ function localized(
 	return createElement(
 		OrchbeeI18nProvider,
 		{ locale },
-		createElement(ShellIntegrationSettings, { controller, query: '' }),
+		createElement(ShellIntegrationSettings, { controller }),
 	);
 }
 

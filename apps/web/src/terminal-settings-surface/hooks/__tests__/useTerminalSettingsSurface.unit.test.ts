@@ -3,6 +3,7 @@ import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
+import { KeyboardShortcutSettingsController } from '../../../keyboard-shortcuts';
 import {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	TerminalSettingsController,
@@ -18,18 +19,29 @@ describe('useTerminalSettingsSurface', () => {
 		});
 		controller.open();
 
-		expect(renderView(controller, 'en-US')).toBe('Settings|8|custom-enabled');
-		expect(renderView(controller, 'zh-CN')).toBe('设置|8|custom-enabled');
+		expect(renderView(controller, 'en-US')).toBe('Settings|12|custom-enabled');
+		expect(renderView(controller, 'zh-CN')).toBe('设置|12|custom-enabled');
 	});
 });
 
 function SurfaceProbe({
 	controller,
+	keyboardShortcutController,
 }: {
 	readonly controller: TerminalSettingsController;
+	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
 }): ReactNode {
-	const view = useTerminalSettingsSurface({ controller, onRequestClose: () => undefined });
-	return `${view.messages.title}|${view.terminalResultCount}|${view.customColorsEnabled ? 'custom-enabled' : 'custom-disabled'}`;
+	const view = useTerminalSettingsSurface({
+		controller,
+		keyboardShortcutController,
+		keyboardShortcutPlatform: 'apple',
+		onRequestClose: () => undefined,
+	});
+	const categoryCount = view.navigationGroups.reduce(
+		(total, group) => total + group.items.length,
+		0,
+	);
+	return `${view.messages.title}|${categoryCount}|${view.customColorsEnabled ? 'custom-enabled' : 'custom-disabled'}`;
 }
 
 function createController(preferences: TerminalAppearancePreferences): TerminalSettingsController {
@@ -43,7 +55,15 @@ function createController(preferences: TerminalAppearancePreferences): TerminalS
 }
 
 function renderView(controller: TerminalSettingsController, locale: 'en-US' | 'zh-CN'): string {
+	const keyboardShortcutController = new KeyboardShortcutSettingsController({
+		platform: 'apple',
+		storage: { getItem: () => null, setItem: () => undefined },
+	});
 	return renderToStaticMarkup(
-		createElement(OrchbeeI18nProvider, { locale }, createElement(SurfaceProbe, { controller })),
+		createElement(
+			OrchbeeI18nProvider,
+			{ locale },
+			createElement(SurfaceProbe, { controller, keyboardShortcutController }),
+		),
 	);
 }

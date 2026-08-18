@@ -157,6 +157,7 @@ const SELECTION_AUTOSCROLL_INTERVAL_MS = 16;
 const SELECTION_CLICK_REPEAT_INTERVAL_MS = 500;
 const MAX_PENDING_SELECTION_GESTURES = 64;
 const RESIZE_REENTRY_MS = 50;
+const NATIVE_INPUT_SETTLEMENT_DELAY_MS = 30;
 const TERMINAL_FONT_LOAD_SAMPLE = 'MW你🚀\uF120';
 
 function cssPixels(value: string): number {
@@ -174,11 +175,21 @@ function isTextInsertionInputType(inputType: string): boolean {
 }
 
 function isCompositionBeforeInput(event: InputEvent): boolean {
+	return isCompositionInput(event.isComposing, event.inputType);
+}
+
+function isCompositionInput(isComposing: boolean, inputType: string): boolean {
 	return (
-		event.isComposing ||
-		event.inputType === 'insertCompositionText' ||
-		event.inputType === 'insertFromComposition'
+		isComposing || inputType === 'insertCompositionText' || inputType === 'insertFromComposition'
 	);
+}
+
+function shouldUseNativeTextInput(event: KeyboardEvent): boolean {
+	if (event.isComposing || event.keyCode === 229) return false;
+	if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.key.length !== 1)
+		return false;
+	if (event.key === ' ') return false;
+	return /^[0-9]$/.test(event.key) || !/^[A-Za-z]$/.test(event.key);
 }
 
 function clipboardContainsImage(clipboardData: DataTransfer | null): boolean {
@@ -694,7 +705,14 @@ export class ProjectedTerminal {
 	#historyRowsBefore = 0;
 	#inputEnabled: boolean;
 	#optionAsAltMode: TerminalOptionAsAltMode;
+	#inputHelper: HTMLDivElement | undefined;
 	#input: HTMLTextAreaElement | undefined;
+	#nativeInputChangeBaseline = '';
+	#nativeInputChangeFallback = '';
+	#nativeInputChangePending = false;
+	#nativeInputChangeTimer: ReturnType<typeof setTimeout> | undefined;
+	#nativeInputTextForNextKey = '';
+	#nativeInputTextForNextKeyTimer: ReturnType<typeof setTimeout> | undefined;
 	#inputAdmission: ProjectedInputAdmission = ProjectedInputAdmission.accepting;
 	#inputFocused = false;
 	#inputPublicationActive = false;
@@ -882,6 +900,14 @@ export class ProjectedTerminal {
 			root.appendChild(canvas);
 			this.#canvas = canvas;
 
+			const inputHelper = document.createElement('div');
+			inputHelper.style.position = 'absolute';
+			inputHelper.style.left = '0px';
+			inputHelper.style.top = '0px';
+			inputHelper.style.zIndex = '5';
+			root.appendChild(inputHelper);
+			this.#inputHelper = inputHelper;
+
 			const input = document.createElement('textarea');
 			input.setAttribute('aria-label', this.#options.labels.input);
 			input.setAttribute('autocapitalize', 'off');
@@ -896,15 +922,18 @@ export class ProjectedTerminal {
 			input.style.border = '0';
 			input.style.margin = '0px';
 			input.style.opacity = '0';
-			input.style.clipPath = 'inset(50%)';
 			input.style.overflow = 'hidden';
 			input.style.whiteSpace = 'nowrap';
 			input.style.resize = 'none';
+			// Keep the textarea in the same positioned helper layer used by xterm. The
+			// helper owns the positive stacking context while the textarea remains a real
+			// native IME client, including its focus and composition geometry.
+			input.style.zIndex = '-5';
 			input.style.color = 'transparent';
 			input.style.background = 'transparent';
 			input.style.caretColor = 'transparent';
 			this.#applyInputPresentation(input, presentationConfiguration);
-			root.appendChild(input);
+			inputHelper.appendChild(input);
 			this.#input = input;
 
 			const accessibilityRoot = document.createElement('div');
@@ -2021,8 +2050,11 @@ export class ProjectedTerminal {
 	}
 
 	#releaseSurfaceDom(): void {
+		this.#cancelNativeInputChange();
+		this.#clearNativeInputTextMarker();
 		this.#canvas?.remove();
 		this.#releaseHistoryScrollbarDom();
+		this.#inputHelper?.remove();
 		this.#input?.remove();
 		this.#accessibilityRoot?.remove();
 		this.#accessibilityAnnouncement?.remove();
@@ -2035,6 +2067,7 @@ export class ProjectedTerminal {
 		this.#accessibilityPreviousModelRows = [];
 		this.#accessibilityPreviousRows = [];
 		this.#canvas = undefined;
+		this.#inputHelper = undefined;
 		this.#input = undefined;
 		this.#accessibilityAnnouncement = undefined;
 		this.#accessibilityRoot = undefined;
@@ -3410,6 +3443,7 @@ export class ProjectedTerminal {
 		this.#listen(input, 'keydown', this.#handleKeyDown);
 		this.#listen(input, 'keyup', this.#handleKeyUp);
 		this.#listen(input, 'beforeinput', this.#handleBeforeInput);
+		this.#listen(input, 'input', this.#handleInput);
 		this.#listen(input, 'compositionstart', this.#handleCompositionStart);
 		this.#listen(input, 'compositionupdate', this.#handleCompositionUpdate);
 		this.#listen(input, 'compositionend', this.#handleCompositionEnd);
@@ -3477,21 +3511,28 @@ export class ProjectedTerminal {
 			return;
 		}
 		const inputOperationEpoch = this.#inputRepairEpoch;
+		if (event.isComposing || event.keyCode === 229) {
+			if (this.#inputState.compositionPhase !== TerminalCompositionPhase.eligible) {
+				this.#queueNativeInputChange();
+			}
+			return;
+		}
 		if (!event.isComposing && event.keyCode !== 229) {
 			this.#inputState = supersedeCancelledTerminalComposition(this.#inputState);
 		}
-		if (
-			this.#inputState.compositionPhase !== TerminalCompositionPhase.idle ||
-			event.isComposing ||
-			event.keyCode === 229
-		) {
+		if (this.#inputState.compositionPhase !== TerminalCompositionPhase.idle) {
 			return;
 		}
 		if (this.#handleLocalHistoryKey(event, trackedCode)) return;
-		if ((event.ctrlKey || event.metaKey) && event.code === 'KeyV') return;
-		if (this.#surfaceMousePlatform === 'macos' && event.metaKey) return;
 		const facts = this.#keyFacts(event);
 		if (!facts) return;
+		if (shouldUseNativeTextInput(event) && facts.text) {
+			if (this.#takeNativeInputTextForNextKey()) return;
+			this.#queueNativeInputChange(facts.text);
+			return;
+		}
+		if ((event.ctrlKey || event.metaKey) && event.code === 'KeyV') return;
+		if (this.#surfaceMousePlatform === 'macos' && event.metaKey) return;
 		if (!this.#inputOperationIsCurrent(inputOperationEpoch)) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -3708,6 +3749,16 @@ export class ProjectedTerminal {
 			this.#inputState = supersedeCancelledTerminalComposition(this.#inputState);
 		}
 		if (
+			this.#nativeInputChangePending &&
+			origin === TerminalBeforeInputOrigin.independent &&
+			isTextInsertionInputType(event.inputType)
+		) {
+			// A macOS IME can emit an interim insertText before Chromium has
+			// committed the native value. Let the following input event or the
+			// short settlement fallback observe the settled Unicode text instead.
+			return;
+		}
+		if (
 			event.isComposing &&
 			this.#inputState.compositionPhase === TerminalCompositionPhase.eligible
 		) {
@@ -3784,6 +3835,9 @@ export class ProjectedTerminal {
 			return;
 		}
 		const sent = this.#sendText(text);
+		if (sent && origin === TerminalBeforeInputOrigin.independent) {
+			this.#rememberNativeInputText(text);
+		}
 		event.preventDefault();
 		event.stopPropagation();
 		if (!this.#inputOperationIsCurrent(publicationEpoch) || this.#inputState !== publicationState) {
@@ -3793,9 +3847,93 @@ export class ProjectedTerminal {
 		else this.#clearInput();
 	};
 
+	readonly #handleInput = (event: InputEvent): void => {
+		if (this.#repairReadOnlyInputEvent(event)) return;
+		this.#consumeInputValue(event.inputType, event.isComposing, () => event.stopPropagation());
+	};
+
+	#consumeInputValue(inputType: string, isComposing: boolean, stopPropagation: () => void): void {
+		if (!this.#canAdmitInput()) return;
+		const input = this.#input;
+		const text = input?.value ?? '';
+		const origin = isCompositionInput(isComposing, inputType)
+			? TerminalBeforeInputOrigin.composition
+			: TerminalBeforeInputOrigin.independent;
+		if (
+			this.#nativeInputChangePending &&
+			origin === TerminalBeforeInputOrigin.independent &&
+			(!inputType || isTextInsertionInputType(inputType))
+		) {
+			return;
+		}
+		this.#nativeInputChangePending = false;
+		if (!text) return;
+		if (
+			origin === TerminalBeforeInputOrigin.composition &&
+			inputType === 'insertCompositionText' &&
+			this.#inputState.compositionPhase === TerminalCompositionPhase.eligible
+		) {
+			this.#updatePreedit(text);
+			return;
+		}
+		if (
+			origin === TerminalBeforeInputOrigin.composition &&
+			this.#inputState.compositionPhase !== TerminalCompositionPhase.eligible &&
+			(this.#inputState.compositionPhase === TerminalCompositionPhase.cancelledAwaitingEnd ||
+				this.#inputState.compositionSettlement !== undefined)
+		) {
+			this.#inputState = observeTerminalBeforeInput(
+				this.#inputState,
+				text,
+				projectedNow(),
+				INPUT_DEDUPLICATION_MS,
+				origin,
+			).state;
+			stopPropagation();
+			this.#clearInput();
+			return;
+		}
+		if (origin === TerminalBeforeInputOrigin.independent) {
+			this.#inputState = supersedeCancelledTerminalComposition(this.#inputState);
+		}
+		if (isComposing && this.#inputState.compositionPhase === TerminalCompositionPhase.eligible) {
+			return;
+		}
+		if (inputType && !isTextInsertionInputType(inputType)) return;
+		const now = projectedNow();
+		const compositionCommit =
+			this.#inputState.compositionPhase === TerminalCompositionPhase.eligible;
+		const decision = observeTerminalBeforeInput(
+			this.#inputState,
+			text,
+			now,
+			INPUT_DEDUPLICATION_MS,
+			origin,
+		);
+		this.#inputState = decision.state;
+		const publicationEpoch = this.#inputRepairEpoch;
+		const publicationState = decision.state;
+		if (!decision.publishText) {
+			stopPropagation();
+			this.#clearInput();
+			return;
+		}
+		const sent = this.#sendText(text);
+		if (sent && origin === TerminalBeforeInputOrigin.independent) {
+			this.#rememberNativeInputText(text);
+		}
+		stopPropagation();
+		if (!this.#inputOperationIsCurrent(publicationEpoch) || this.#inputState !== publicationState) {
+			return;
+		}
+		if (sent && compositionCommit) this.#clearCompositionPresentation();
+		else this.#clearInput();
+	}
+
 	readonly #handleCompositionStart = (event: CompositionEvent): void => {
 		if (this.#repairReadOnlyInputEvent(event)) return;
 		if (!this.#canAdmitInput() && !this.#canStageRefocusedComposition()) return;
+		this.#cancelNativeInputChange();
 		const inputOperationEpoch = this.#inputRepairEpoch;
 		const nextState = beginTerminalComposition(this.#inputState);
 		if (nextState === this.#inputState) return;
@@ -3825,8 +3963,9 @@ export class ProjectedTerminal {
 	readonly #handleCompositionEnd = (event: CompositionEvent): void => {
 		if (this.#repairReadOnlyInputEvent(event)) return;
 		if (!this.#canAdmitInput()) return;
+		this.#cancelNativeInputChange();
 		const wasComposing = terminalCompositionUpdateIsEligible(this.#inputState);
-		const data = event.data ?? '';
+		const data = event.data || this.#input?.value || '';
 		const decision = finishTerminalComposition(
 			this.#inputState,
 			data,
@@ -3964,6 +4103,80 @@ export class ProjectedTerminal {
 		input.style.width = `${anchor.width}px`;
 		input.style.height = `${anchor.height}px`;
 		input.style.lineHeight = `${anchor.height}px`;
+	}
+
+	#rememberNativeInputText(text: string): void {
+		this.#clearNativeInputTextMarker();
+		this.#nativeInputTextForNextKey = text;
+		this.#nativeInputTextForNextKeyTimer = globalThis.setTimeout(() => {
+			this.#nativeInputTextForNextKeyTimer = undefined;
+			this.#nativeInputTextForNextKey = '';
+		}, 0);
+	}
+
+	#takeNativeInputTextForNextKey(): boolean {
+		const present = this.#nativeInputTextForNextKey !== '';
+		if (present) this.#clearNativeInputTextMarker();
+		return present;
+	}
+
+	#clearNativeInputTextMarker(): void {
+		if (this.#nativeInputTextForNextKeyTimer !== undefined) {
+			globalThis.clearTimeout(this.#nativeInputTextForNextKeyTimer);
+			this.#nativeInputTextForNextKeyTimer = undefined;
+		}
+		this.#nativeInputTextForNextKey = '';
+	}
+
+	#queueNativeInputChange(fallbackText = ''): void {
+		const input = this.#input;
+		if (input === undefined) return;
+		if (this.#nativeInputChangePending) {
+			if (!this.#nativeInputChangeFallback && fallbackText) {
+				this.#nativeInputChangeFallback = fallbackText;
+			}
+			return;
+		}
+		this.#nativeInputChangePending = true;
+		this.#nativeInputChangeBaseline = input.value;
+		this.#nativeInputChangeFallback = fallbackText;
+		const inputOperationEpoch = this.#inputRepairEpoch;
+		this.#nativeInputChangeTimer = globalThis.setTimeout(() => {
+			this.#nativeInputChangeTimer = undefined;
+			if (!this.#nativeInputChangePending) return;
+			const baseline = this.#nativeInputChangeBaseline;
+			const fallback = this.#nativeInputChangeFallback;
+			this.#nativeInputChangePending = false;
+			this.#nativeInputChangeBaseline = '';
+			this.#nativeInputChangeFallback = '';
+			if (
+				!this.#inputOperationIsCurrent(inputOperationEpoch) ||
+				this.#inputState.compositionPhase === TerminalCompositionPhase.eligible
+			) {
+				return;
+			}
+			const settledInput = this.#input;
+			if (settledInput === undefined) return;
+			if (settledInput.value === baseline) {
+				if (!fallback) return;
+				this.#sendText(fallback);
+				this.#clearInput();
+				return;
+			}
+			const value = settledInput.value;
+			settledInput.value = value.startsWith(baseline) ? value.slice(baseline.length) : value;
+			this.#consumeInputValue('insertText', false, () => undefined);
+		}, NATIVE_INPUT_SETTLEMENT_DELAY_MS);
+	}
+
+	#cancelNativeInputChange(): void {
+		if (this.#nativeInputChangeTimer !== undefined) {
+			globalThis.clearTimeout(this.#nativeInputChangeTimer);
+			this.#nativeInputChangeTimer = undefined;
+		}
+		this.#nativeInputChangeBaseline = '';
+		this.#nativeInputChangeFallback = '';
+		this.#nativeInputChangePending = false;
 	}
 
 	#sendText(text: string): boolean {
@@ -4353,6 +4566,7 @@ export class ProjectedTerminal {
 	}
 
 	#repairTransientInputState(dispose = false): void {
+		this.#cancelNativeInputChange();
 		const repair = dispose
 			? disposeTerminalInputState(this.#inputState)
 			: repairTerminalInputState(this.#inputState);

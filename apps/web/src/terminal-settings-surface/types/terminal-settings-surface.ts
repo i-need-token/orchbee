@@ -1,4 +1,7 @@
 import type * as React from 'react';
+import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
+import type { ProductIconName } from '@orchbee/ui/components';
+import type { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import type {
 	TerminalAppearancePreferences,
 	TerminalSettingsController,
@@ -6,14 +9,76 @@ import type {
 import type { TerminalFeedbackSettingsController } from '../../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 
-type TerminalSettingsCategory =
+export type TerminalSettingsCategory =
+	| 'appearance'
 	| 'browser-access'
+	| 'colors'
+	| 'cursor-input'
+	| 'general'
 	| 'ghostty-migration'
+	| 'interaction'
 	| 'keyboard-shortcuts'
-	| 'macos-input'
+	| 'profiles'
 	| 'remote-development'
 	| 'shell-integration'
-	| 'terminal';
+	| 'terminal'
+	| 'text'
+	| 'windows-tabs';
+
+interface TerminalSettingsNavigationItemView {
+	readonly icon: ProductIconName;
+	readonly id: TerminalSettingsCategory;
+	readonly label: string;
+}
+
+interface TerminalSettingsNavigationGroupView {
+	readonly id: string;
+	readonly items: readonly TerminalSettingsNavigationItemView[];
+	readonly label: string;
+}
+
+export interface TerminalSettingsSearchEntry {
+	readonly availability: 'available' | 'planned';
+	readonly category: TerminalSettingsCategory;
+	readonly categoryLabel: string;
+	readonly description: string;
+	readonly icon: ProductIconName;
+	readonly id: string;
+	readonly keywords: readonly string[];
+	readonly kind: 'category' | 'setting';
+	readonly label: string;
+	readonly sectionLabel: string | null;
+	readonly targetId: string | null;
+}
+
+interface TerminalSettingsSearchResultView extends TerminalSettingsSearchEntry {
+	readonly active: boolean;
+	readonly elementId: string;
+	readonly onActivate: () => void;
+	readonly onFocus: () => void;
+	readonly statusLabel: string | null;
+}
+
+export type PlannedTerminalSettingControlKind =
+	| 'action'
+	| 'color'
+	| 'number'
+	| 'select'
+	| 'text'
+	| 'toggle';
+
+export interface PlannedTerminalSettingItemView {
+	readonly control: PlannedTerminalSettingControlKind;
+	readonly description: string;
+	readonly id: string;
+	readonly label: string;
+}
+
+export interface PlannedTerminalSettingSectionView {
+	readonly id: string;
+	readonly items: readonly PlannedTerminalSettingItemView[];
+	readonly title: string;
+}
 
 export interface TerminalSettingsSurfaceMessages {
 	readonly applicationAppearanceSection: string;
@@ -88,6 +153,8 @@ export interface TerminalSettingsSurfaceMessages {
 
 export interface UseTerminalSettingsSurfaceOptions {
 	readonly controller: TerminalSettingsController;
+	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
+	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly onRequestClose: () => void;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
@@ -95,12 +162,13 @@ export interface UseTerminalSettingsSurfaceOptions {
 }
 
 export interface TerminalSettingsSurfaceView {
+	readonly activeSearchResultId: string | undefined;
 	readonly applicationThemeVisible: boolean;
 	readonly backgroundDraft: string;
 	readonly backgroundInvalid: boolean;
 	readonly backgroundVisible: boolean;
-	readonly browserAccessVisible: boolean;
 	readonly category: TerminalSettingsCategory;
+	readonly contentReference: React.RefObject<HTMLElement | null>;
 	readonly customColorsEnabled: boolean;
 	readonly displayThemeVisible: boolean;
 	readonly fontFamilyDraft: string;
@@ -112,16 +180,17 @@ export interface TerminalSettingsSurfaceView {
 	readonly foregroundDraft: string;
 	readonly foregroundInvalid: boolean;
 	readonly foregroundVisible: boolean;
-	readonly ghosttyMigrationVisible: boolean;
 	readonly inputReference: React.RefObject<HTMLInputElement | null>;
+	readonly macosInputVisible: boolean;
 	readonly messages: TerminalSettingsSurfaceMessages;
+	readonly navigationGroups: readonly TerminalSettingsNavigationGroupView[];
 	readonly onApplicationThemeChange: React.ChangeEventHandler<HTMLSelectElement>;
 	readonly onBackgroundColorChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onBackgroundDraftChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onBackgroundDraftKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
 	readonly onBackgroundInputBlur: React.FocusEventHandler<HTMLInputElement>;
 	readonly onBackgroundOpacityChange: (value: number | readonly number[]) => void;
-	readonly onBrowserAccessCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
+	readonly onCategorySelect: (category: TerminalSettingsCategory) => void;
 	readonly onFontFamilyBlur: React.FocusEventHandler<HTMLInputElement>;
 	readonly onFontFamilyChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onFontFamilyKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
@@ -132,27 +201,24 @@ export interface TerminalSettingsSurfaceView {
 	readonly onForegroundDraftChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onForegroundDraftKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
 	readonly onForegroundInputBlur: React.FocusEventHandler<HTMLInputElement>;
-	readonly onGhosttyMigrationCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
-	readonly onKeyboardShortcutsCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
-	readonly onMacosInputCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onOpenBrowserAccess: React.MouseEventHandler<HTMLButtonElement>;
-	readonly onRemoteDevelopmentCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onRequestClose: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onReset: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onSearchChange: React.ChangeEventHandler<HTMLInputElement>;
-	readonly onShellIntegrationCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
+	readonly onSearchKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
 	readonly onSurfaceKeyDown: React.KeyboardEventHandler<HTMLDivElement>;
-	readonly onTerminalCategoryClick: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onTerminalDisplayThemeChange: React.ChangeEventHandler<HTMLSelectElement>;
 	readonly open: boolean;
 	readonly opacityVisible: boolean;
 	readonly persistenceWarning: string | null;
+	readonly plannedNotice: string;
+	readonly plannedSections: readonly PlannedTerminalSettingSectionView[];
 	readonly preferences: TerminalAppearancePreferences;
+	readonly pageDescription: string;
+	readonly pageTitle: string;
 	readonly query: string;
 	readonly resetVisible: boolean;
-	readonly remoteDevelopmentVisible: boolean;
-	readonly showBrowserAccessCategory: boolean;
-	readonly showMacosInputCategory: boolean;
-	readonly showShellIntegrationCategory: boolean;
-	readonly terminalResultCount: number;
+	readonly searchActive: boolean;
+	readonly searchResults: readonly TerminalSettingsSearchResultView[];
+	readonly searchResultsId: string;
 }

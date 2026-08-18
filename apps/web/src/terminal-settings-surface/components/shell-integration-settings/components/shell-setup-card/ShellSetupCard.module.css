@@ -12,7 +12,7 @@
 .title {
 	margin: var(--ob-ref-space-0);
 	color: var(--ob-sys-color-text-heading);
-	font: var(--ob-sys-typography-label-lg);
+	font: var(--ob-sys-typography-body-sm);
 }
 
 .description {
@@ -23,7 +23,7 @@
 
 .label {
 	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-label-md);
+	font: var(--ob-sys-typography-body-sm);
 }
 
 .command {

@@ -37,7 +37,6 @@ interface KeyboardShortcutSettingsRowView {
 
 interface KeyboardShortcutSettingsView {
 	readonly changeLabel: (action: string) => string;
-	readonly noResults: string;
 	readonly persistenceWarning: string | null;
 	readonly recordingInstruction: string;
 	readonly rows: readonly KeyboardShortcutSettingsRowView[];
@@ -46,13 +45,11 @@ interface KeyboardShortcutSettingsView {
 interface UseKeyboardShortcutSettingsViewOptions {
 	readonly controller: KeyboardShortcutSettingsController;
 	readonly platform: KeyboardShortcutPlatform;
-	readonly query: string;
 }
 
 export function useKeyboardShortcutSettingsView({
 	controller,
 	platform,
-	query,
 }: UseKeyboardShortcutSettingsViewOptions): KeyboardShortcutSettingsView {
 	const intl = useOrchbeeIntl();
 	const actionNameFor = (declaration: KeyboardShortcutDeclaration): string => {
@@ -110,7 +107,6 @@ export function useKeyboardShortcutSettingsView({
 				? keyboardShortcutMessages.sourceCustom
 				: keyboardShortcutMessages.sourceDefault,
 		);
-	const normalizedQuery = query.trim().toLocaleLowerCase(intl.locale);
 	const rows = KEYBOARD_SHORTCUT_CATALOG.map((declaration) => {
 		const actionName = actionNameFor(declaration);
 		const scope = scopeNameFor(declaration.scope);
@@ -194,11 +190,6 @@ export function useKeyboardShortcutSettingsView({
 				setRecordingShortcutId(null);
 			},
 		};
-	}).filter((row) => {
-		if (normalizedQuery.length === 0) return true;
-		return [row.actionName, row.scope, row.chord]
-			.map((value) => value.toLocaleLowerCase(intl.locale))
-			.some((value) => value.includes(normalizedQuery));
 	});
 
 	let persistenceWarning: string | null = null;
@@ -217,7 +208,6 @@ export function useKeyboardShortcutSettingsView({
 	return {
 		changeLabel: (action): string =>
 			intl.formatMessage(keyboardShortcutMessages.change, { action }),
-		noResults: intl.formatMessage(keyboardShortcutMessages.noResults),
 		persistenceWarning,
 		recordingInstruction: intl.formatMessage(keyboardShortcutMessages.recording),
 		rows,

@@ -10,6 +10,7 @@ export {
 	keyboardShortcutMessages,
 	projectedTerminalMessages,
 	terminalSettingsMessages,
+	terminalSettingsCatalogMessages,
 	workbenchMessages,
 	workbenchTabMessages,
 } from './descriptors';

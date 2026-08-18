@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns client-local application appearance, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut overrides, manual Shell-integration guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the grouped Settings information architecture, global category-and-setting discovery, an explicitly noninteractive future terminal-settings catalog, client-local application appearance, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut overrides, manual Shell-integration guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -15,16 +15,23 @@
 		"configure-shell-integration-reminders",
 		"diagnose-remote-terminal-environment",
 		"explain-ghostty-configuration-migration",
-		"open-desktop-browser-access"
+		"open-desktop-browser-access",
+		"search-terminal-settings"
 	],
 	"implementation": [
 		"apps/web/src/terminal-settings-surface/TerminalSettingsSurface.tsx",
 		"apps/web/src/terminal-settings-surface/components/ghostty-migration-settings/GhosttyMigrationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/keyboard-shortcut-settings/KeyboardShortcutSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/macos-terminal-input-settings/MacosTerminalInputSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/planned-terminal-settings/PlannedTerminalSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/remote-development-settings/RemoteDevelopmentSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/shell-integration-settings/ShellIntegrationSettings.tsx",
+		"apps/web/src/terminal-settings-surface/constants/planned-terminal-settings.ts",
 		"apps/web/src/terminal-settings-surface/constants/remote-development-diagnostic.ts",
+		"apps/web/src/terminal-settings-surface/constants/terminal-settings-search-catalog.ts",
+		"apps/web/src/terminal-settings-surface/constants/terminal-settings-information-architecture.ts",
+		"apps/web/src/terminal-settings-surface/utils/buildTerminalSettingsSearchCatalog.ts",
+		"apps/web/src/terminal-settings-surface/utils/resolveTerminalSettingsSearch.ts",
 		"apps/web/src/ghostty-configuration-analysis/analyzeGhosttyConfiguration.ts",
 		"apps/web/src/keyboard-shortcuts/model/keyboard-shortcut-settings-controller.ts",
 		"apps/web/src/macos-terminal-input-settings/model/MacosTerminalInputSettingsController.ts",
@@ -37,7 +44,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-light",
 			"states": [
-				"Inspect the light English Desktop surface with the compact icon-led Settings rail, focused search, stable section and row rhythm, right-aligned immediate controls, keyboard-shortcut, macOS Option-as-Alt, manual Shell integration, read-only Remote development, and Ghostty migration categories, and no Save action.",
+				"Inspect the light English Desktop surface with five labeled navigation groups, focused search, borderless neutral setting groups, stable section and row rhythm, right-aligned immediate controls, and explicitly disabled Planned rows without a Save action. Type font to inspect global Text results while General remains complete, then activate Terminal font family to restore the rail and reveal its row.",
 				"Open Shell integration to inspect exact manual Zsh, Bash, and Fish source commands, the Bash 4.4 boundary, completion-reminder policy, explicit notification-permission control, and reset.",
 				"Open Remote development to inspect the xterm-256color baseline, complete read-only diagnostic command, result explanation, and explicit absence of automatic remote changes.",
 				"Open Ghostty migration to inspect the paste-only dry-run notice, bounded source field, explicit analysis action, four result dispositions, and absence of an Apply or Import action."
@@ -48,13 +55,15 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-dark-custom",
 			"states": [
-				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, compact selected navigation, low-chrome grouped rows, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, and the Desktop-only Browser access category."
+				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, grouped compact navigation, borderless low-chrome rows, the localized Planned catalog, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, and the Desktop-only Browser access category."
 			]
 		}
 	],
 	"uses": [],
 	"useWhen": [
 		"A client changes local Orchbee appearance, terminal font, effective default terminal colors, or default-background opacity.",
+		"A user searches all available Settings categories and rows without first knowing their owning category.",
+		"A product contributor needs the stable category and section destination for a future terminal preference before implementing its behavior.",
 		"A client reviews or changes one of the frequent Workbench or focused-terminal shortcuts.",
 		"A macOS Desktop client chooses whether the left, right, both, or neither Option key acts as terminal Alt.",
 		"A user wants exact manual setup for the shipped Zsh, Bash, or Fish integration, or device-local long-command completion reminders.",
@@ -69,6 +78,8 @@
 	],
 	"invariants": [
 		"Opening Settings keeps the Workbench and projected terminal attachments mounted while the Workbench subtree is inert.",
+		"An empty search shows grouped categories; a non-empty search replaces only the rail with globally ranked category and setting results while the current content page remains complete and preferences remain unchanged.",
+		"Search activation clears the query, restores grouped navigation, selects the owning category, and reveals the stable category or setting target; Arrow keys and Enter operate the same result projection, while Escape clears search before it can close Settings.",
 		"Application theme changes only the client data-theme; terminal display changes publish one complete presentation snapshot.",
 		"Shortcut edits publish one complete conflict-free effective table; Action availability is resolved before an event is consumed.",
 		"Recording, resetting, and restoring shortcut overrides never remount Workbench or replace a projected terminal attachment.",
@@ -78,7 +89,8 @@
 		"Remote development exposes one constant read-only command and explanation; opening, searching, and switching categories starts no process, writes no terminal input, persists no remote data, and performs no remote installation.",
 		"Ghostty migration analyzes pasted text only, emits one visible source-ordered finding per assignment, never applies or persists a value, and clears its source and report when its category unmounts.",
 		"Only default-coded terminal foreground and background use a display override; Host metadata, explicit colors, palette colors, cursor, VT, and OSC state remain authoritative.",
-		"The complete strict preference record is local to one browser origin and all product copy ships in English and Simplified Chinese."
+		"The complete strict preference record is local to one browser origin and all product copy ships in English and Simplified Chinese.",
+		"Planned catalog controls and search results are visibly marked; planned controls remain disabled and never change memory, storage, Host state, or a projected terminal."
 	],
 	"references": [
 		"apps/web/docs/keyboard-shortcuts.md",

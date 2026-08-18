@@ -6,6 +6,7 @@ import { enUSDesktopWindowMessages } from './desktop-window';
 import { enUSKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { enUSProjectedTerminalMessages } from './projected-terminal';
 import { enUSTerminalSettingsMessages } from './terminal-settings';
+import { enUSTerminalSettingsCatalogMessages } from './terminal-settings-catalog';
 import { enUSWorkbenchMessages } from './workbench';
 
 export const enUSMessages = {
@@ -17,6 +18,7 @@ export const enUSMessages = {
 	...enUSKeyboardShortcutMessages,
 	...enUSProjectedTerminalMessages,
 	...enUSTerminalSettingsMessages,
+	...enUSTerminalSettingsCatalogMessages,
 	...enUSWorkbenchMessages,
 } as const;
 

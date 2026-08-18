@@ -10,13 +10,12 @@
 	flex-direction: column;
 	gap: var(--ob-ref-space-2);
 	padding: var(--ob-ref-space-4);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 	border-radius: var(--ob-ref-radius-ui-lg);
 	background: var(--ob-sys-color-surface-subtle);
 }
 
 .notice {
-	border-color: var(--ob-sys-color-status-info-border);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-info-border);
 	background: var(--ob-sys-color-status-info-surface);
 }
 
@@ -24,7 +23,7 @@
 .noticeTitle {
 	margin: var(--ob-ref-space-0);
 	color: var(--ob-sys-color-text-heading);
-	font: var(--ob-sys-typography-label-lg);
+	font: var(--ob-sys-typography-body-sm);
 }
 
 .noticeTitle {
@@ -39,7 +38,7 @@
 
 .label {
 	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-label-md);
+	font: var(--ob-sys-typography-body-sm);
 }
 
 .term {

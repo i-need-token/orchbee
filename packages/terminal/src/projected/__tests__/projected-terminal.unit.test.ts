@@ -774,6 +774,15 @@ function dispatchBeforeInput(
 	} as unknown as InputEvent);
 }
 
+function dispatchInput(input: FakeElement, inputType = 'insertText'): void {
+	input.dispatch('input', {
+		inputType,
+		isComposing: false,
+		stopPropagation: () => undefined,
+		type: 'input',
+	} as unknown as InputEvent);
+}
+
 function keyboardEvent(
 	type: 'keydown' | 'keyup',
 	code: string,
@@ -965,9 +974,259 @@ describe('ProjectedTerminal', () => {
 		expect(terminal.textarea?.style.fontWeight).toBe('500');
 		expect(terminal.textarea?.style.opacity).toBe('0');
 		expect(terminal.textarea?.style.caretColor).toBe('transparent');
-		expect(terminal.textarea?.style.clipPath).toBe('inset(50%)');
 		expect(terminal.textarea?.style.margin).toBe('0px');
+		expect(terminal.textarea?.style.pointerEvents).toBeUndefined();
+		expect(terminal.textarea?.style.zIndex).toBe('-5');
+		expect((browser.root as unknown as FakeElement).children[1]?.style['zIndex']).toBe('5');
 		expect((browser.root as unknown as FakeElement).children[2]?.style['userSelect']).toBe('text');
+		terminal.dispose();
+	});
+
+	it('publishes IME Unicode input after a composition keydown', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'Period', '.', 229));
+		input.value = '。';
+		dispatchInput(input);
+		await vi.advanceTimersByTimeAsync(30);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['。']);
+		expect(commands.filter((command) => command.kind === 'key-input')).toEqual([]);
+		expect(input.value).toBe('');
+		terminal.dispose();
+	});
+
+	it('defers an interim IME beforeinput until the native input settles', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch('keydown', keyboardEvent('keydown', 'Period', '.', 229));
+		dispatchBeforeInput(input, '.', false, 'insertText');
+		expect(commands.filter((command) => command.kind === 'text-input')).toEqual([]);
+
+		input.value = '。';
+		dispatchInput(input);
+		await vi.advanceTimersByTimeAsync(30);
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['。']);
+		expect(input.value).toBe('');
+		terminal.dispose();
+	});
+
+	it('falls back to the settled textarea value after a composition keydown without input', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch('keydown', keyboardEvent('keydown', 'Period', '.', 229));
+		input.value = '。';
+		await vi.advanceTimersByTimeAsync(30);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['。']);
+		expect(input.value).toBe('');
+		terminal.dispose();
+	});
+
+	it('lets native IME punctuation settle before publishing a raw punctuation keydown', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch('keydown', keyboardEvent('keydown', 'Period', '.', 190));
+		input.value = '。';
+		dispatchInput(input);
+		await vi.advanceTimersByTimeAsync(30);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['。']);
+		expect(commands.filter((command) => command.kind === 'key-input')).toEqual([]);
+		terminal.dispose();
+	});
+
+	it('falls back to raw punctuation when the native IME produces no input', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch('keydown', keyboardEvent('keydown', 'Period', '.', 190));
+		await vi.advanceTimersByTimeAsync(30);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['.']);
+		expect(commands.filter((command) => command.kind === 'key-input')).toEqual([]);
+		terminal.dispose();
+	});
+
+	it('does not duplicate native punctuation when input arrives before keydown', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.value = '。';
+		dispatchInput(input);
+		input.dispatch('keydown', keyboardEvent('keydown', 'Period', '.', 190));
+		await vi.advanceTimersByTimeAsync(30);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['。']);
+		expect(commands.filter((command) => command.kind === 'key-input')).toEqual([]);
+		terminal.dispose();
+	});
+
+	it('uses textarea content when compositionend does not provide committed data', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		dispatchComposition(input, 'compositionstart', '');
+		input.value = '中文';
+		dispatchComposition(input, 'compositionend', '');
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['中文']);
+		expect(input.value).toBe('');
 		terminal.dispose();
 	});
 
@@ -7529,6 +7788,7 @@ describe('ProjectedTerminal', () => {
 		browser.flushFrames();
 		const root = browser.root as unknown as FakeElement;
 		const canvas = root.children[0];
+		const inputHelper = root.children[1];
 		const accessibilityRoot = root.children[2];
 		const commandCount = commands.length;
 
@@ -7537,8 +7797,9 @@ describe('ProjectedTerminal', () => {
 		expect(terminal.phase).toBe('frozen');
 		expect(terminal.canControlTerminal).toBe(false);
 		expect(root.contains(canvas)).toBe(true);
+		expect(root.contains(inputHelper)).toBe(true);
 		expect(root.contains(accessibilityRoot)).toBe(true);
-		expect(root.children).toEqual([canvas, accessibilityRoot]);
+		expect(root.children).toEqual([canvas, inputHelper, accessibilityRoot]);
 		terminal.applyFrame(terminalFrame('delta', 2n, 2n, ['replacement', ''], 1n));
 		terminal.clear();
 		terminal.reset();

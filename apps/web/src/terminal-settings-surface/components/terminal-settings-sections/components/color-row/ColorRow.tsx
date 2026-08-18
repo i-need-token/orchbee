@@ -2,7 +2,7 @@ import { Input } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import { FieldControl } from '../field-control/FieldControl';
-import { TerminalSettingsRow } from '../terminal-settings-row/TerminalSettingsRow';
+import { TerminalSettingsRow } from '../../../terminal-settings-row/TerminalSettingsRow';
 import styles from './ColorRow.module.css';
 
 interface ColorRowProps {
@@ -12,6 +12,7 @@ interface ColorRowProps {
 	readonly draft: string;
 	readonly error: string | null;
 	readonly label: string;
+	readonly settingId: string;
 	readonly visible: boolean;
 	readonly onColorChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onDraftChange: React.ChangeEventHandler<HTMLInputElement>;
@@ -26,6 +27,7 @@ export function ColorRow({
 	draft,
 	error,
 	label,
+	settingId,
 	onColorChange,
 	onDraftChange,
 	onDraftKeyDown,
@@ -33,7 +35,12 @@ export function ColorRow({
 	visible,
 }: ColorRowProps): React.ReactNode {
 	return (
-		<TerminalSettingsRow description={description} label={label} visible={visible}>
+		<TerminalSettingsRow
+			description={description}
+			label={label}
+			settingId={settingId}
+			visible={visible}
+		>
 			<FieldControl error={error}>
 				<div className={styles['root']}>
 					<input

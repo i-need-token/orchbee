@@ -8,6 +8,7 @@ export {
 	enUSProjectedTerminalMessages,
 	enUSMessages,
 	enUSTerminalSettingsMessages,
+	enUSTerminalSettingsCatalogMessages,
 	enUSWorkbenchMessages,
 } from './en-US';
 export type {
@@ -20,6 +21,7 @@ export type {
 	ProjectedTerminalMessageId,
 	OrchbeeMessageId,
 	TerminalSettingsMessageId,
+	TerminalSettingsCatalogMessageId,
 	WorkbenchMessageId,
 } from './en-US';
 export {
@@ -32,5 +34,6 @@ export {
 	zhCNProjectedTerminalMessages,
 	zhCNMessages,
 	zhCNTerminalSettingsMessages,
+	zhCNTerminalSettingsCatalogMessages,
 	zhCNWorkbenchMessages,
 } from './zh-CN';

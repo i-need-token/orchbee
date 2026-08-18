@@ -14,7 +14,6 @@
 
 .list {
 	overflow: hidden;
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 	border-radius: var(--ob-ref-radius-ui-lg);
 	background: var(--ob-sys-color-surface-subtle);
 }
@@ -41,7 +40,7 @@
 
 .actionName {
 	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-label-md);
+	font: var(--ob-sys-typography-body-sm);
 }
 
 .metadata {

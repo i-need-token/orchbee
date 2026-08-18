@@ -21,14 +21,22 @@
 	gap: var(--ob-ref-space-1);
 }
 
+.labelLine {
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--ob-ref-space-2);
+}
+
 .label {
 	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-label-md);
+	font: var(--ob-sys-typography-body-sm);
 }
 
 .description {
-	color: var(--ob-sys-color-text-muted);
-	font: var(--ob-sys-typography-label-sm);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
 }
 
 .control {

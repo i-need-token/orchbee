@@ -16,5 +16,7 @@ export { enUSMessages } from './messages';
 export type { OrchbeeMessageId } from './messages';
 export { enUSTerminalSettingsMessages } from './terminal-settings';
 export type { TerminalSettingsMessageId } from './terminal-settings';
+export { enUSTerminalSettingsCatalogMessages } from './terminal-settings-catalog';
+export type { TerminalSettingsCatalogMessageId } from './terminal-settings-catalog';
 export { enUSWorkbenchMessages } from './workbench';
 export type { WorkbenchMessageId } from './workbench';

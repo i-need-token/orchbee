@@ -27,7 +27,11 @@ export function RemoteDevelopmentSettings({
 }: RemoteDevelopmentSettingsProps): React.ReactNode {
 	return (
 		<section className={styles['root']} data-slot='remote-development-settings'>
-			<section className={styles['card']} aria-labelledby='remote-development-baseline-title'>
+			<section
+				className={styles['card']}
+				id='remote-development.baseline'
+				aria-labelledby='remote-development-baseline-title'
+			>
 				<h2 className={styles['title']} id='remote-development-baseline-title'>
 					{messages.remoteDevelopmentBaselineTitle}
 				</h2>
@@ -35,7 +39,11 @@ export function RemoteDevelopmentSettings({
 				<code className={styles['term']}>{REMOTE_DEVELOPMENT_BASELINE_TERM}</code>
 			</section>
 
-			<section className={styles['card']} aria-labelledby='remote-development-diagnostic-title'>
+			<section
+				className={styles['card']}
+				id='remote-development.diagnostic'
+				aria-labelledby='remote-development-diagnostic-title'
+			>
 				<h2 className={styles['title']} id='remote-development-diagnostic-title'>
 					{messages.remoteDevelopmentDiagnosticTitle}
 				</h2>
@@ -59,7 +67,11 @@ export function RemoteDevelopmentSettings({
 				</p>
 			</section>
 
-			<aside className={styles['notice']} aria-labelledby='remote-development-no-changes-title'>
+			<aside
+				className={styles['notice']}
+				id='remote-development.no-automatic-changes'
+				aria-labelledby='remote-development-no-changes-title'
+			>
 				<h2 className={styles['noticeTitle']} id='remote-development-no-changes-title'>
 					{messages.remoteDevelopmentNoChangesTitle}
 				</h2>

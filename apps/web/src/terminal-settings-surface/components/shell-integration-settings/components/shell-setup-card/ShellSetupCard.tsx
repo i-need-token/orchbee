@@ -6,6 +6,7 @@ interface ShellSetupCardProps {
 	readonly command: string;
 	readonly commandLabel: string;
 	readonly description?: string | undefined;
+	readonly settingId: string;
 	readonly title: string;
 }
 
@@ -13,10 +14,11 @@ export function ShellSetupCard({
 	command,
 	commandLabel,
 	description,
+	settingId,
 	title,
 }: ShellSetupCardProps): React.ReactNode {
 	return (
-		<section className={styles['card']}>
+		<section className={styles['card']} id={settingId}>
 			<h2 className={styles['title']}>{title}</h2>
 			{description === undefined ? null : <p className={styles['description']}>{description}</p>}
 			<span className={styles['label']}>{commandLabel}</span>

@@ -15,7 +15,7 @@ function I18nWrapper({ children }: { readonly children: ReactNode }) {
 afterEach(() => cleanup());
 
 describe('useKeyboardShortcutSettingsView', () => {
-	it('projects localized rows and filters by scope and current chord', () => {
+	it('projects the complete localized shortcut table', () => {
 		const controller = new KeyboardShortcutSettingsController({
 			platform: 'standard',
 			storage: { getItem: () => null, setItem: () => undefined },
@@ -25,7 +25,6 @@ describe('useKeyboardShortcutSettingsView', () => {
 				useKeyboardShortcutSettingsView({
 					controller,
 					platform: 'standard',
-					query: '',
 				}),
 			{ wrapper: I18nWrapper },
 		);
@@ -36,17 +35,9 @@ describe('useKeyboardShortcutSettingsView', () => {
 			scope: 'Workbench',
 			source: 'Default',
 		});
-
-		const terminalRows = renderHook(
-			() =>
-				useKeyboardShortcutSettingsView({
-					controller,
-					platform: 'standard',
-					query: 'Focused terminal',
-				}),
-			{ wrapper: I18nWrapper },
-		);
-		expect(terminalRows.result.current.rows).toHaveLength(3);
+		expect(
+			allRows.result.current.rows.filter((row) => row.scope === 'Focused terminal'),
+		).toHaveLength(2);
 		controller.dispose();
 	});
 });

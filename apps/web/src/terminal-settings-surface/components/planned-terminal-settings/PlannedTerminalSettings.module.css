@@ -1,0 +1,35 @@
+.root {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-6);
+}
+
+.notice {
+	display: grid;
+	grid-template-columns: var(--ob-ref-size-icon-md) minmax(var(--ob-ref-space-0), 1fr);
+	align-items: start;
+	gap: var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-surface-subtle);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.notice > :global([data-icon]) {
+	margin-block-start: var(--ob-ref-space-0-5);
+}
+
+.badge {
+	height: var(--ob-ref-space-5);
+	padding-inline: var(--ob-ref-space-0);
+	background: transparent;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-xs);
+}
+
+.control {
+	display: flex;
+	width: 100%;
+	justify-content: flex-end;
+}

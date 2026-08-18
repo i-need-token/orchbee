@@ -18,7 +18,7 @@
 
 .deviceNotice {
 	color: var(--ob-sys-color-text-muted);
-	font: var(--ob-sys-typography-label-xs);
+	font: var(--ob-sys-typography-label-sm);
 	text-align: start;
 }
 

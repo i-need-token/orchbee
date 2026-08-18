@@ -8,14 +8,13 @@
 .rejection {
 	margin: var(--ob-ref-space-0);
 	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
 	border-radius: var(--ob-ref-radius-ui-md);
 	background: var(--ob-sys-color-surface-subtle);
 	color: var(--ob-sys-color-text-secondary);
 }
 
 .rejection {
-	border-color: var(--ob-sys-color-status-danger-border);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-danger-border);
 	background: var(--ob-sys-color-status-danger-surface);
 	color: var(--ob-sys-color-status-danger-text);
 }
@@ -25,14 +24,13 @@
 	flex-direction: column;
 	gap: var(--ob-ref-space-2);
 	padding: var(--ob-ref-space-4);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 	border-radius: var(--ob-ref-radius-ui-lg);
 	background: var(--ob-sys-color-surface-subtle);
 }
 
 .label {
 	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-label-md);
+	font: var(--ob-sys-typography-body-sm);
 }
 
 .description,
@@ -79,7 +77,6 @@
 	justify-content: space-between;
 	gap: var(--ob-ref-space-3);
 	padding: var(--ob-ref-space-3);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 	border-radius: var(--ob-ref-radius-ui-md);
 	background: var(--ob-sys-color-surface-subtle);
 	color: var(--ob-sys-color-text-secondary);
@@ -111,7 +108,6 @@
 	margin: var(--ob-ref-space-0);
 	padding: var(--ob-ref-space-0);
 	overflow: hidden;
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 	border-radius: var(--ob-ref-radius-ui-lg);
 	background: var(--ob-sys-color-surface-subtle);
 	list-style: none;

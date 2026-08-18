@@ -17,7 +17,7 @@ export function SettingsSection({
 	return (
 		<section className={styles['root']} data-slot='terminal-settings-section'>
 			<h2 className={styles['title']}>{title}</h2>
-			<div className={styles['card']}>{children}</div>
+			<div className={styles['group']}>{children}</div>
 		</section>
 	);
 }

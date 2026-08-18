@@ -70,7 +70,8 @@ terminal presentation update. Terminal settings never change `data-theme`.
 
 The Desktop renderer on macOS additionally owns `orchbee:web:macos-terminal-input:v1`. The strict
 record contains only `optionAsAlt: 'off' | 'left' | 'right' | 'both'`; `off` is the product default.
-Browser, Gateway, Windows, and Linux compositions do not expose the category and retain the default.
+Browser, Gateway, Windows, and Linux compositions do not expose the Option-as-Alt row and retain the
+default; Cursor & Input remains a stable catalog destination on every platform.
 Invalid or unreadable records fail to `off`, while a failed write keeps the accepted session value
 and shows the existing persistence warning.
 
@@ -146,21 +147,107 @@ still-connected active element and focuses Settings search. Repeated open is unc
 replace the return target. The Workbench subtree is genuinely inert while Settings is open, so its
 terminal and Action shortcuts cannot consume Settings input.
 
-Escape or Back closes Settings and restores the captured element, then the Settings Action target,
-then the Workbench root as fallbacks. Desktop may inject only a semantic Browser-access request.
+Back closes Settings. Escape first clears a non-empty Settings search and closes Settings only when
+the query is empty; closing restores the captured element, then the Settings Action target, then the
+Workbench root as fallbacks. Desktop may inject only a semantic Browser-access request.
 The existing Browser-access dialog remains above Settings; closing it returns focus to its Settings
 entry, while Settings remains open. Browser and Gateway compositions do not receive this Desktop
 capability.
 
 The interaction structure follows the accepted Cursor and Coze references without copying either
-brand: a compact Settings rail owns Back, search, icon-led real product categories, and the current
+brand: a compact Settings rail owns Back, search, icon-led product-outcome categories, and the current
 selection; a centered scrolling content column owns one category title and a stable sequence of
 section labels, low-chrome grouped rows, descriptions, and right-aligned controls. Content-heavy
-diagnostics, migration input, and shell setup keep the same surface, border, radius, type, and
-spacing vocabulary instead of inventing category-specific cards. At narrow widths the rail becomes
+diagnostics, migration input, and shell setup keep the same surface, radius, type, spacing, and
+semantic-border vocabulary instead of inventing category-specific cards. At narrow widths the rail becomes
 a horizontally scrollable top navigation and setting controls stack below their copy. Changes still
 apply immediately without a Save button. Reference branding, copy, categories, and pixel geometry
 are not compatibility targets.
+
+## Settings information architecture and planned catalog
+
+The Settings rail groups product outcomes instead of exposing implementation packages. The current
+information architecture is stable enough for future settings to enter without creating another
+top-level surface:
+
+| Group         | Categories                                                              |
+| ------------- | ----------------------------------------------------------------------- |
+| Application   | General, Appearance                                                     |
+| Terminal      | Text, Colors, Cursor & Input, Interaction, Terminal                     |
+| Workspace     | Windows & Tabs, Profiles, Keyboard Shortcuts                            |
+| Integrations  | Shell Integration, Remote Development                                   |
+| Data & Access | Ghostty Migration and the capability-gated Desktop Browser Access entry |
+
+The appearance theme, terminal font, effective default colors, default-background opacity, Reset,
+macOS Option-as-Alt, keyboard shortcuts, Shell integration, remote diagnostic, migration report,
+and Browser-access entry retain their existing behavior and ownership. The remaining General,
+Appearance, Text, Colors, Cursor & Input, Interaction, Terminal, Windows & Tabs, and Profiles rows
+form a localized planned catalog derived from recurring settings across Ghostty, WezTerm, Kitty,
+Alacritty, Windows Terminal, iTerm2, Tabby, Konsole, GNOME Terminal, and Foot. This catalog covers
+startup and restore policy, window presentation, typography and shaping, palettes and contrast,
+cursor and keyboard protocols, clipboard and mouse behavior, shell and emulation policy, history
+and feedback, windows and tabs, and reusable profiles.
+
+Planned rows are explicitly marked, expose only disabled preview controls, and never read or write
+a preference. Implementing one requires its own accepted behavioral authority, model, persistence
+boundary, platform capability, and verification. A visible row is therefore product direction, not
+a compatibility or availability claim.
+
+Neutral grouped settings use one rounded subtle surface with no outer stroke. Only row separators,
+real input boundaries, focus indicators, and semantic status or danger notices retain borders. This
+keeps every category in one low-chrome visual system while preserving meaningful state boundaries.
+
+## Settings discovery and navigation model
+
+Settings search is a global discovery surface, not an in-page filter. Its deterministic catalog
+contains every available category plus each current or explicitly planned setting with a stable
+identifier, owning category, localized label, optional section, description, and search keywords.
+Capability-gated categories and settings enter the catalog only when their composition capability is
+present. The catalog never reads a preference value and search never changes a controller, storage,
+Host, terminal attachment, migration report, or remote environment.
+
+The query is trimmed, Unicode-normalized, split into non-empty terms, and compared
+case-insensitively in the effective locale. Category results match their category label. Setting
+results require every term to match the setting label, section, description, or explicit keyword.
+Direct label matches rank before section, description, and keyword matches; available settings get a
+bounded priority over nearby Planned matches, every Planned result is labeled, and original
+information-architecture order breaks remaining ties. Empty query preserves the grouped navigation rail. A non-empty query
+replaces that rail with one global result list while the current content page remains complete and
+unchanged. Zero matches render a localized empty state in the rail rather than blanking the content
+page.
+
+The owned interaction state is one of:
+
+| State                    | Query     | Result selection                              | Rail projection       |
+| ------------------------ | --------- | --------------------------------------------- | --------------------- |
+| Browsing                 | Empty     | None                                          | Grouped categories    |
+| Searching with results   | Non-empty | One bounded index, initially the first result | Global search results |
+| Searching without result | Non-empty | None                                          | Localized empty state |
+
+Transitions are deterministic:
+
+| Input                      | Guard                          | Result                                                                                           |
+| -------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Edit query                 | Any                            | Recompute the global projection and select its first result when present.                        |
+| Arrow Down or Arrow Up     | Searching with results         | Move the bounded selection by one; the current content page and every preference remain stable.  |
+| Enter                      | Searching with results         | Activate the selected result.                                                                    |
+| Pointer activation         | A visible result               | Activate that result.                                                                            |
+| Activate a category result | Any                            | Select the category, clear the query, restore grouped navigation, and scroll content to its top. |
+| Activate a setting result  | Its category remains available | Select the category, clear the query, restore grouped navigation, and reveal its stable target.  |
+| Escape                     | Query is non-empty             | Clear search, restore grouped navigation, keep Settings open, and retain the current category.   |
+| Escape                     | Query is empty                 | Follow the Settings overlay close and focus-restoration contract.                                |
+
+The search input retains keyboard focus while moving or activating a result. Result activation may
+scroll only the Settings rail or content viewport; it never focuses a setting control or invokes its
+action. Changing category through the normal rail clears no user data and starts at the top of that
+category.
+
+The adopted reference projection was observed in Cursor 3.14.7 on macOS on 2026-08-17. The adopted
+scope is global category-and-setting discovery, rail replacement during a query, stable right-side
+content while typing, explicit empty results, Arrow navigation, Enter activation, Escape clearing,
+query clearing after activation, category restoration, and target reveal. Cursor branding, copy,
+catalog contents, fuzzy-search implementation, result limits, pixel geometry, animation timing, and
+ranking ties are explicitly excluded.
 
 ## Remote-development diagnostic
 
@@ -290,9 +377,12 @@ not claims about Ghostty's byte limits.
   semantic flag both disabled and enabled.
 - Renderer tests cover Host and override modes, explicit black/RGB/palette, inverse, underline,
   cursor, Canvas 2D and WebGPU alpha, and unchanged Host metadata.
-- Component tests cover both locales, search and empty results, invalid drafts, immediate updates,
-  Reset, read-only remote diagnostics, migration analysis and disposal, inertness, idempotent open,
-  focus restoration, and nested Browser-access behavior.
+- Deterministic search tests cover catalog identity and capability gating, localized category,
+  section, label, description, and keyword matches, direct-match ranking, multi-term normalization,
+  stable ordering, and empty results. Component tests cover both locales, global cross-category
+  results, stable content during a query, pointer and keyboard activation, layered Escape, target
+  reveal, invalid drafts, immediate updates, Reset, read-only remote diagnostics, migration analysis
+  and disposal, inertness, idempotent open, focus restoration, and nested Browser-access behavior.
 - Terminal-feedback model tests cover default-off behavior, strict persistence recovery, duration
   and focus policy, stale and future facts, sequence deduplication, notification rate limiting,
   explicit permission requests, and disposal. Component tests cover both locales, all three manual

@@ -60,18 +60,16 @@ interface ResetSettingsView {
 }
 
 interface ShellIntegrationSettingsView {
-	readonly manualNotice: string | null;
-	readonly noResults: string | null;
-	readonly notification: NotificationSettingsView | null;
+	readonly manualNotice: string;
+	readonly notification: NotificationSettingsView;
 	readonly persistenceWarning: string | null;
-	readonly reminder: ReminderSettingsView | null;
-	readonly reset: ResetSettingsView | null;
+	readonly reminder: ReminderSettingsView;
+	readonly reset: ResetSettingsView;
 	readonly setupCards: readonly ShellSetupCardView[];
 }
 
 export function useShellIntegrationSettings(
 	controller: TerminalFeedbackSettingsController,
-	query: string,
 ): ShellIntegrationSettingsView {
 	const intl = useOrchbeeIntl();
 	const snapshot = React.useSyncExternalStore(
@@ -91,7 +89,6 @@ export function useShellIntegrationSettings(
 	const messages = {
 		bashTitle: intl.formatMessage(terminalSettingsMessages.shellIntegrationBashTitle),
 		bashVersion: intl.formatMessage(terminalSettingsMessages.shellIntegrationBashVersion),
-		description: intl.formatMessage(terminalSettingsMessages.shellIntegrationDescription),
 		fishTitle: intl.formatMessage(terminalSettingsMessages.shellIntegrationFishTitle),
 		manualNotice: intl.formatMessage(terminalSettingsMessages.shellIntegrationManualNotice),
 		minimumDescription: intl.formatMessage(
@@ -112,7 +109,6 @@ export function useShellIntegrationSettings(
 		modeLabel: intl.formatMessage(terminalSettingsMessages.shellIntegrationReminderModeLabel),
 		modeNever: intl.formatMessage(terminalSettingsMessages.shellIntegrationReminderNever),
 		modeUnfocused: intl.formatMessage(terminalSettingsMessages.shellIntegrationReminderUnfocused),
-		noResults: intl.formatMessage(terminalSettingsMessages.noResults),
 		notificationDescription: intl.formatMessage(
 			terminalSettingsMessages.shellIntegrationNotificationDescription,
 		),
@@ -128,7 +124,6 @@ export function useShellIntegrationSettings(
 		setupCommandLabel: intl.formatMessage(
 			terminalSettingsMessages.shellIntegrationSetupCommandLabel,
 		),
-		title: intl.formatMessage(terminalSettingsMessages.shellIntegrationTitle),
 		zshTitle: intl.formatMessage(terminalSettingsMessages.shellIntegrationZshTitle),
 	};
 	const notificationStatus = (() => {
@@ -163,72 +158,27 @@ export function useShellIntegrationSettings(
 				return null;
 		}
 	})();
-	const normalizedQuery = query.trim().toLocaleLowerCase(intl.locale);
-	const matches = (...values: readonly string[]): boolean =>
-		normalizedQuery.length === 0 ||
-		values.some((value) => value.toLocaleLowerCase(intl.locale).includes(normalizedQuery));
-	const showAll = matches(messages.title, messages.description, messages.manualNotice);
-	const setupCards: ShellSetupCardView[] = [];
-	if (
-		showAll ||
-		matches(messages.zshTitle, messages.setupCommandLabel, SHELL_INTEGRATION_SETUP_COMMANDS.zsh)
-	) {
-		setupCards.push({
+	const setupCards: ShellSetupCardView[] = [
+		{
 			command: SHELL_INTEGRATION_SETUP_COMMANDS.zsh,
 			commandLabel: messages.setupCommandLabel,
 			id: 'zsh',
 			title: messages.zshTitle,
-		});
-	}
-	if (
-		showAll ||
-		matches(
-			messages.bashTitle,
-			messages.bashVersion,
-			messages.setupCommandLabel,
-			SHELL_INTEGRATION_SETUP_COMMANDS.bash,
-		)
-	) {
-		setupCards.push({
+		},
+		{
 			command: SHELL_INTEGRATION_SETUP_COMMANDS.bash,
 			commandLabel: messages.setupCommandLabel,
 			description: messages.bashVersion,
 			id: 'bash',
 			title: messages.bashTitle,
-		});
-	}
-	if (
-		showAll ||
-		matches(messages.fishTitle, messages.setupCommandLabel, SHELL_INTEGRATION_SETUP_COMMANDS.fish)
-	) {
-		setupCards.push({
+		},
+		{
 			command: SHELL_INTEGRATION_SETUP_COMMANDS.fish,
 			commandLabel: messages.setupCommandLabel,
 			id: 'fish',
 			title: messages.fishTitle,
-		});
-	}
-	const reminderVisible =
-		showAll ||
-		matches(
-			messages.reminderTitle,
-			messages.modeLabel,
-			messages.modeDescription,
-			messages.modeNever,
-			messages.modeUnfocused,
-			messages.modeAlways,
-			messages.minimumLabel,
-			messages.minimumDescription,
-		);
-	const notificationVisible =
-		showAll ||
-		matches(
-			messages.notificationTitle,
-			messages.notificationDescription,
-			notificationStatus,
-			messages.notificationRequest,
-		);
-	const resetVisible = showAll || matches(messages.reset, messages.resetDescription);
+		},
+	];
 	const commitMinimum = (): void => {
 		const result = controller.update({
 			completionReminderMinimumSeconds: Number(minimumDraft),
@@ -258,55 +208,44 @@ export function useShellIntegrationSettings(
 	const onReset = (): void => {
 		controller.reset();
 	};
-	const reminder: ReminderSettingsView | null = reminderVisible
-		? {
-				description: messages.modeDescription,
-				minimumDescription: messages.minimumDescription,
-				minimumDraft,
-				minimumInvalid,
-				minimumInvalidMessage: messages.minimumInvalid,
-				minimumLabel: messages.minimumLabel,
-				minimumMaximum: MAXIMUM_COMPLETION_REMINDER_SECONDS,
-				minimumMinimum: MINIMUM_COMPLETION_REMINDER_SECONDS,
-				modeLabel: messages.modeLabel,
-				modeOptions: [
-					{ label: messages.modeNever, value: TerminalCompletionReminderMode.never },
-					{ label: messages.modeUnfocused, value: TerminalCompletionReminderMode.unfocused },
-					{ label: messages.modeAlways, value: TerminalCompletionReminderMode.always },
-				],
-				modeValue: snapshot.preferences.completionReminderMode,
-				onMinimumBlur: commitMinimum,
-				onMinimumChange,
-				onMinimumKeyDown,
-				onModeChange,
-				title: messages.reminderTitle,
-			}
-		: null;
-	const notification: NotificationSettingsView | null = notificationVisible
-		? {
-				description: messages.notificationDescription,
-				onRequestPermission:
-					snapshot.notificationPermission === 'prompt' ? onRequestPermission : null,
-				permission: snapshot.notificationPermission,
-				requestLabel: messages.notificationRequest,
-				status: notificationStatus,
-				title: messages.notificationTitle,
-			}
-		: null;
-	const reset: ResetSettingsView | null = resetVisible
-		? {
-				description: messages.resetDescription,
-				label: messages.reset,
-				onReset,
-			}
-		: null;
+	const reminder: ReminderSettingsView = {
+		description: messages.modeDescription,
+		minimumDescription: messages.minimumDescription,
+		minimumDraft,
+		minimumInvalid,
+		minimumInvalidMessage: messages.minimumInvalid,
+		minimumLabel: messages.minimumLabel,
+		minimumMaximum: MAXIMUM_COMPLETION_REMINDER_SECONDS,
+		minimumMinimum: MINIMUM_COMPLETION_REMINDER_SECONDS,
+		modeLabel: messages.modeLabel,
+		modeOptions: [
+			{ label: messages.modeNever, value: TerminalCompletionReminderMode.never },
+			{ label: messages.modeUnfocused, value: TerminalCompletionReminderMode.unfocused },
+			{ label: messages.modeAlways, value: TerminalCompletionReminderMode.always },
+		],
+		modeValue: snapshot.preferences.completionReminderMode,
+		onMinimumBlur: commitMinimum,
+		onMinimumChange,
+		onMinimumKeyDown,
+		onModeChange,
+		title: messages.reminderTitle,
+	};
+	const notification: NotificationSettingsView = {
+		description: messages.notificationDescription,
+		onRequestPermission: snapshot.notificationPermission === 'prompt' ? onRequestPermission : null,
+		permission: snapshot.notificationPermission,
+		requestLabel: messages.notificationRequest,
+		status: notificationStatus,
+		title: messages.notificationTitle,
+	};
+	const reset: ResetSettingsView = {
+		description: messages.resetDescription,
+		label: messages.reset,
+		onReset,
+	};
 
 	return {
-		manualNotice: showAll ? messages.manualNotice : null,
-		noResults:
-			setupCards.length === 0 && reminder === null && notification === null && reset === null
-				? messages.noResults
-				: null,
+		manualNotice: messages.manualNotice,
 		notification,
 		persistenceWarning,
 		reminder,

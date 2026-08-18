@@ -70,7 +70,7 @@ export function GhosttyMigrationSettings(): React.ReactNode {
 			<p className={styles['notice']} id='ghostty-migration-safety'>
 				{view.messages.safetyNotice}
 			</p>
-			<div className={styles['field']}>
+			<div className={styles['field']} id='ghostty-migration.source'>
 				<label className={styles['label']} htmlFor='ghostty-migration-source'>
 					{view.messages.sourceLabel}
 				</label>

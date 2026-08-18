@@ -3,23 +3,19 @@ import { Button, Kbd } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { KeyboardShortcutSettingsController } from '../../../keyboard-shortcuts';
-import { EmptyResults } from '../empty-results/EmptyResults';
 import { useKeyboardShortcutSettingsView } from './hooks/useKeyboardShortcutSettingsView';
 import styles from './KeyboardShortcutSettings.module.css';
 
 interface KeyboardShortcutSettingsProps {
 	readonly controller: KeyboardShortcutSettingsController;
 	readonly platform: KeyboardShortcutPlatform;
-	readonly query: string;
 }
 
 export function KeyboardShortcutSettings({
 	controller,
 	platform,
-	query,
 }: KeyboardShortcutSettingsProps): React.ReactNode {
-	const view = useKeyboardShortcutSettingsView({ controller, platform, query });
-	if (view.rows.length === 0) return <EmptyResults message={view.noResults} />;
+	const view = useKeyboardShortcutSettingsView({ controller, platform });
 
 	return (
 		<div className={styles['root']} data-slot='keyboard-shortcut-settings'>
@@ -30,7 +26,12 @@ export function KeyboardShortcutSettings({
 			)}
 			<div className={styles['list']}>
 				{view.rows.map((row) => (
-					<div className={styles['row']} data-shortcut-id={row.shortcutId} key={row.shortcutId}>
+					<div
+						className={styles['row']}
+						data-shortcut-id={row.shortcutId}
+						id={`keyboard-shortcuts.${row.shortcutId}`}
+						key={row.shortcutId}
+					>
 						<div className={styles['copy']}>
 							<div className={styles['actionName']}>{row.actionName}</div>
 							<div className={styles['metadata']}>

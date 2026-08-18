@@ -24,6 +24,10 @@ beforeAll(() => {
 		configurable: true,
 		value: true,
 	});
+	Object.defineProperty(Element.prototype, 'scrollIntoView', {
+		configurable: true,
+		value: vi.fn<Element['scrollIntoView']>(),
+	});
 });
 
 afterAll(() => {
@@ -34,7 +38,7 @@ afterAll(() => {
 });
 
 describe('TerminalSettingsSurface', () => {
-	it('focuses search, filters rows, and keeps application and terminal themes independent', async () => {
+	it('focuses global search, navigates across categories, and keeps application and terminal themes independent', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const storage = memoryStorage();
@@ -72,19 +76,52 @@ describe('TerminalSettingsSurface', () => {
 			container.querySelector("input[aria-label='Search settings']"),
 		);
 		expect(document.activeElement).toBe(search);
-		expect(container.textContent).toContain('Terminal font family');
+		const back = requiredElement<HTMLButtonElement>(
+			container.querySelector('button[data-settings-back]'),
+		);
+		const title = requiredElement<HTMLElement>(back.querySelector('span:not([aria-hidden])'));
+		expect(back.getAttribute('aria-label')).toBe('Back');
+		expect(title.textContent).toBe('Settings');
+		await act(async () => title.click());
+		expect(close).toHaveBeenCalledOnce();
+
+		expect(container.textContent).toContain('On startup');
+		expect(container.textContent).toContain('Planned');
+		expect(container.querySelectorAll('[data-settings-group]')).toHaveLength(5);
+		const plannedControls = container.querySelectorAll('[data-planned-setting]');
+		expect(plannedControls).toHaveLength(8);
+		for (const control of plannedControls) {
+			expect(control.querySelectorAll('button, input, select')).toHaveLength(1);
+			expect(control.querySelector('[disabled]')).not.toBeNull();
+		}
 
 		await act(async () => {
 			setInputValue(search, 'does not exist');
 			search.dispatchEvent(new Event('input', { bubbles: true }));
 		});
 		expect(container.textContent).toContain('No settings found.');
-		expect(container.textContent).not.toContain('Terminal font family');
+		expect(container.textContent).toContain('On startup');
+		expect(container.querySelectorAll('[data-settings-group]')).toHaveLength(0);
 
 		await act(async () => {
-			setInputValue(search, '');
+			setInputValue(search, 'font');
 			search.dispatchEvent(new Event('input', { bubbles: true }));
 		});
+		expect(container.textContent).toContain('On startup');
+		expect(container.textContent).toContain('Text›Terminal font family');
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-search-result='text.font-family']"),
+			).click(),
+		);
+		expect(search.value).toBe('');
+		expect(container.querySelectorAll('[data-settings-group]')).toHaveLength(5);
+		expect(container.textContent).toContain('Terminal font family');
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='appearance']"),
+			).click(),
+		);
 		const applicationTheme = requiredElement<HTMLSelectElement>(
 			container.querySelector("select[aria-label='Application theme']"),
 		);
@@ -95,6 +132,11 @@ describe('TerminalSettingsSurface', () => {
 		expect(document.documentElement.dataset['theme']).toBe('dark');
 		expect(presentationListener).not.toHaveBeenCalled();
 
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='colors']"),
+			).click(),
+		);
 		const terminalTheme = requiredElement<HTMLSelectElement>(
 			container.querySelector("select[aria-label='Terminal display theme']"),
 		);
@@ -110,6 +152,11 @@ describe('TerminalSettingsSurface', () => {
 		expect(document.documentElement.dataset['theme']).toBe('dark');
 		expect(storage.setItem).toHaveBeenCalledTimes(2);
 
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='general']"),
+			).click(),
+		);
 		const reset = requiredElement<HTMLButtonElement>(
 			[...container.querySelectorAll('button')].find(
 				(button) => button.textContent?.trim() === 'Reset',
@@ -117,8 +164,116 @@ describe('TerminalSettingsSurface', () => {
 		);
 		await act(async () => reset.click());
 		expect(controller.getSnapshot().preferences).toEqual(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES);
-		expect(applicationTheme.value).toBe('light');
-		expect(terminalTheme.value).toBe('host');
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='appearance']"),
+			).click(),
+		);
+		expect(
+			requiredElement<HTMLSelectElement>(
+				container.querySelector("select[aria-label='Application theme']"),
+			).value,
+		).toBe('light');
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='colors']"),
+			).click(),
+		);
+		expect(
+			requiredElement<HTMLSelectElement>(
+				container.querySelector("select[aria-label='Terminal display theme']"),
+			).value,
+		).toBe('host');
+
+		await act(async () => root.unmount());
+		container.remove();
+		controller.dispose();
+		keyboardShortcutController.dispose();
+	});
+
+	it('supports Cursor-style result selection, Enter activation, and layered Escape', async () => {
+		const container = document.createElement('div');
+		document.body.append(container);
+		const storage = memoryStorage();
+		const controller = new TerminalSettingsController({
+			storage,
+			themeTarget: document.documentElement,
+		});
+		const keyboardShortcutController = new KeyboardShortcutSettingsController({
+			platform: 'apple',
+			storage,
+		});
+		const close = vi.fn<() => void>();
+		controller.open();
+		const root = createRoot(container);
+		await act(async () => {
+			root.render(
+				createElement(
+					OrchbeeI18nProvider,
+					{ locale: 'en-US' },
+					createElement(TerminalSettingsSurface, {
+						controller,
+						keyboardShortcutController,
+						keyboardShortcutPlatform: 'apple',
+						onRequestClose: close,
+					}),
+				),
+			);
+		});
+
+		const search = requiredElement<HTMLInputElement>(
+			container.querySelector("input[aria-label='Search settings']"),
+		);
+		await act(async () => {
+			setInputValue(search, 'theme');
+			search.dispatchEvent(new Event('input', { bubbles: true }));
+		});
+		expect(container.textContent).toContain('On startup');
+		expect(
+			container
+				.querySelector("[data-settings-search-result='appearance.application-theme']")
+				?.getAttribute('data-active'),
+		).toBe('true');
+
+		await act(async () => {
+			search.dispatchEvent(
+				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'ArrowDown' }),
+			);
+		});
+		expect(
+			container
+				.querySelector("[data-settings-search-result='colors.display-theme']")
+				?.getAttribute('data-active'),
+		).toBe('true');
+		await act(async () => {
+			search.dispatchEvent(
+				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }),
+			);
+		});
+		expect(search.value).toBe('');
+		expect(document.activeElement).toBe(search);
+		expect(container.querySelector('[data-settings-content="colors"]')).not.toBeNull();
+		expect(container.querySelector("[id='colors.display-theme']")).not.toBeNull();
+
+		await act(async () => {
+			setInputValue(search, 'font');
+			search.dispatchEvent(new Event('input', { bubbles: true }));
+		});
+		await act(async () => {
+			search.dispatchEvent(
+				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' }),
+			);
+		});
+		expect(search.value).toBe('');
+		expect(close).not.toHaveBeenCalled();
+		expect(container.querySelector('[data-settings-content="colors"]')).not.toBeNull();
+
+		await act(async () => {
+			search.dispatchEvent(
+				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' }),
+			);
+		});
+		expect(close).toHaveBeenCalledOnce();
 
 		await act(async () => root.unmount());
 		container.remove();
@@ -161,7 +316,7 @@ describe('TerminalSettingsSurface', () => {
 		});
 
 		const macosInputCategory = requiredElement<HTMLButtonElement>(
-			container.querySelector("button[data-settings-category='macos-input']"),
+			container.querySelector("button[data-settings-category='cursor-input']"),
 		);
 		await act(async () => macosInputCategory.click());
 		const optionAsAlt = requiredElement<HTMLSelectElement>(
@@ -213,6 +368,11 @@ describe('TerminalSettingsSurface', () => {
 			);
 		});
 
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='text']"),
+			).click(),
+		);
 		const fontSize = requiredElement<HTMLInputElement>(
 			container.querySelector("input[aria-label='Terminal font size']"),
 		);
@@ -246,7 +406,7 @@ describe('TerminalSettingsSurface', () => {
 		keyboardShortcutController.dispose();
 	});
 
-	it('filters, records, rejects conflicts, cancels, and restores keyboard shortcuts', async () => {
+	it('keeps the shortcut table stable during global search and supports shortcut editing', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const storage = memoryStorage();
@@ -293,7 +453,10 @@ describe('TerminalSettingsSurface', () => {
 			setInputValue(search, 'Focused terminal');
 			search.dispatchEvent(new Event('input', { bubbles: true }));
 		});
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(3);
+		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(8);
+		expect(
+			container.querySelectorAll('[data-settings-search-result]').length,
+		).toBeGreaterThanOrEqual(3);
 		await act(async () => {
 			setInputValue(search, '');
 			search.dispatchEvent(new Event('input', { bubbles: true }));
@@ -481,7 +644,7 @@ describe('TerminalSettingsSurface', () => {
 		keyboardShortcutController.dispose();
 	});
 
-	it('shows a searchable read-only remote diagnostic without starting or persisting an effect', async () => {
+	it('keeps the read-only remote diagnostic stable during global search without side effects', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const storage = memoryStorage();
@@ -537,7 +700,7 @@ describe('TerminalSettingsSurface', () => {
 			search.dispatchEvent(new Event('input', { bubbles: true }));
 		});
 		expect(container.textContent).toContain('No settings found.');
-		expect(container.querySelector('#remote-development-diagnostic-command')).toBeNull();
+		expect(container.querySelector('#remote-development-diagnostic-command')).not.toBeNull();
 		expect(storage.setItem).not.toHaveBeenCalled();
 
 		await act(async () => root.unmount());
@@ -546,7 +709,7 @@ describe('TerminalSettingsSurface', () => {
 		keyboardShortcutController.dispose();
 	});
 
-	it('filters Chinese settings copy without falling back to English', async () => {
+	it('searches the Chinese catalog without falling back to English', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const storage = memoryStorage();
@@ -577,6 +740,11 @@ describe('TerminalSettingsSurface', () => {
 
 		const search = requiredElement<HTMLInputElement>(
 			container.querySelector("input[aria-label='搜索设置']"),
+		);
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='text']"),
+			).click(),
 		);
 		expect(container.textContent).toContain('终端字体族');
 		expect(container.textContent).not.toContain('Terminal font family');

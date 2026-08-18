@@ -52,7 +52,7 @@ export const EnglishLight: Story = {
 		docs: {
 			description: {
 				story:
-					'Inspect the compact Settings rail and shared low-chrome row rhythm, then open Shell integration for the grouped manual-only Zsh, Bash, and Fish setup plus device-local completion reminders; Remote development remains read-only, and Ghostty migration remains a paste-only dry-run.',
+					'Inspect the grouped Application, Terminal, Workspace, Integrations, and Data & Access rail; type font to see global Text results without blanking General, then activate Terminal font family to restore the rail and reveal the row. Neutral setting groups have no outer stroke, current controls remain interactive, and the comprehensive future catalog is clearly marked Planned and disabled. Shell integration remains manual-only, Remote development remains read-only, and Ghostty migration remains a paste-only dry-run.',
 			},
 		},
 	},

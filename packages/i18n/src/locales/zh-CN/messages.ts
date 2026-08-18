@@ -7,6 +7,7 @@ import { zhCNDesktopWindowMessages } from './desktop-window';
 import { zhCNKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { zhCNProjectedTerminalMessages } from './projected-terminal';
 import { zhCNTerminalSettingsMessages } from './terminal-settings';
+import { zhCNTerminalSettingsCatalogMessages } from './terminal-settings-catalog';
 import { zhCNWorkbenchMessages } from './workbench';
 
 export const zhCNMessages = {
@@ -18,5 +19,6 @@ export const zhCNMessages = {
 	...zhCNKeyboardShortcutMessages,
 	...zhCNProjectedTerminalMessages,
 	...zhCNTerminalSettingsMessages,
+	...zhCNTerminalSettingsCatalogMessages,
 	...zhCNWorkbenchMessages,
 } as const satisfies Readonly<Record<OrchbeeMessageId, string>>;

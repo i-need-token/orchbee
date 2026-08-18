@@ -1,0 +1,72 @@
+import { createOrchbeeIntl } from '@orchbee/i18n';
+import { describe, expect, it } from 'vitest';
+
+import { TERMINAL_SETTINGS_NAVIGATION_GROUPS } from '../../constants/terminal-settings-information-architecture';
+import { buildTerminalSettingsSearchCatalog } from '../buildTerminalSettingsSearchCatalog';
+
+describe('buildTerminalSettingsSearchCatalog', () => {
+	it('builds one stable global catalog from available categories and settings', () => {
+		const intl = createOrchbeeIntl('en-US');
+		const enabledCategories = TERMINAL_SETTINGS_NAVIGATION_GROUPS.flatMap(
+			(group) => group.categories,
+		);
+		const entries = buildTerminalSettingsSearchCatalog({
+			enabledCapabilities: ['macos-option-as-alt'],
+			enabledCategories,
+			formatMessage: (descriptor) => intl.formatMessage(descriptor),
+			keyboardShortcutChords: { 'workbench.search.all.open': '⌘ ⇧ K' },
+		});
+
+		expect(entries.length).toBeGreaterThan(100);
+		expect(new Set(entries.map((entry) => entry.id)).size).toBe(entries.length);
+		expect(entries.find((entry) => entry.id === 'category:text')).toMatchObject({
+			kind: 'category',
+			label: 'Text',
+			targetId: null,
+		});
+		expect(entries.find((entry) => entry.id === 'text.font-family')).toMatchObject({
+			category: 'text',
+			label: 'Terminal font family',
+			targetId: 'text.font-family',
+		});
+		expect(entries.find((entry) => entry.id === 'text.ligatures')).toMatchObject({
+			category: 'text',
+			kind: 'setting',
+			sectionLabel: 'Font shaping',
+		});
+		expect(
+			entries.find((entry) => entry.id === 'keyboard-shortcuts.workbench.search.all.open')
+				?.keywords,
+		).toContain('⌘ ⇧ K');
+	});
+
+	it('omits unavailable categories and capability-gated settings', () => {
+		const intl = createOrchbeeIntl('en-US');
+		const entries = buildTerminalSettingsSearchCatalog({
+			enabledCapabilities: [],
+			enabledCategories: ['cursor-input', 'general'],
+			formatMessage: (descriptor) => intl.formatMessage(descriptor),
+			keyboardShortcutChords: {},
+		});
+
+		expect(entries.some((entry) => entry.category === 'browser-access')).toBe(false);
+		expect(entries.some((entry) => entry.id === 'cursor-input.macos-option-as-alt')).toBe(false);
+		expect(entries.some((entry) => entry.id === 'cursor-input.ime')).toBe(true);
+	});
+
+	it('formats category, section, and setting copy in the effective locale', () => {
+		const intl = createOrchbeeIntl('zh-CN');
+		const entries = buildTerminalSettingsSearchCatalog({
+			enabledCapabilities: [],
+			enabledCategories: ['interaction'],
+			formatMessage: (descriptor) => intl.formatMessage(descriptor),
+			keyboardShortcutChords: {},
+		});
+
+		expect(entries.find((entry) => entry.id === 'category:interaction')?.label).toBe('交互');
+		expect(entries.find((entry) => entry.id === 'interaction.copyOnSelect')).toMatchObject({
+			label: '选中时复制',
+			sectionLabel: '选择与剪贴板',
+		});
+	});
+});

@@ -2,10 +2,10 @@ import { Button, Input, NativeSelect, NativeSelectOption, Slider } from '@orchbe
 import * as React from 'react';
 
 import type { TerminalSettingsSurfaceView } from '../../types/terminal-settings-surface';
+import { SettingsSection } from '../settings-section/SettingsSection';
+import { TerminalSettingsRow } from '../terminal-settings-row/TerminalSettingsRow';
 import { ColorRow } from './components/color-row/ColorRow';
 import { FieldControl } from './components/field-control/FieldControl';
-import { SettingsSection } from './components/settings-section/SettingsSection';
-import { TerminalSettingsRow } from './components/terminal-settings-row/TerminalSettingsRow';
 import styles from './TerminalSettingsSections.module.css';
 
 interface TerminalSettingsSectionsProps {
@@ -17,11 +17,12 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 		<div className={styles['root']}>
 			<SettingsSection
 				title={view.messages.applicationAppearanceSection}
-				visible={view.applicationThemeVisible}
+				visible={view.category === 'appearance' && view.applicationThemeVisible}
 			>
 				<TerminalSettingsRow
 					description={view.messages.applicationThemeDescription}
 					label={view.messages.applicationThemeLabel}
+					settingId='appearance.application-theme'
 					visible={view.applicationThemeVisible}
 				>
 					<NativeSelect
@@ -42,11 +43,12 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 
 			<SettingsSection
 				title={view.messages.terminalTypographySection}
-				visible={view.fontFamilyVisible || view.fontSizeVisible}
+				visible={view.category === 'text' && (view.fontFamilyVisible || view.fontSizeVisible)}
 			>
 				<TerminalSettingsRow
 					description={`${view.messages.fontFamilyDescription} ${view.messages.fontFamilyDeviceAvailability}`}
 					label={view.messages.fontFamilyLabel}
+					settingId='text.font-family'
 					visible={view.fontFamilyVisible}
 				>
 					<FieldControl error={view.fontFamilyInvalid ? view.messages.fontFamilyInvalid : null}>
@@ -63,6 +65,7 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 				<TerminalSettingsRow
 					description={view.messages.fontSizeDescription}
 					label={view.messages.fontSizeLabel}
+					settingId='text.font-size'
 					visible={view.fontSizeVisible}
 				>
 					<FieldControl error={view.fontSizeInvalid ? view.messages.fontSizeRangeInvalid : null}>
@@ -84,15 +87,17 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 			<SettingsSection
 				title={view.messages.terminalColorsSection}
 				visible={
-					view.displayThemeVisible ||
-					view.foregroundVisible ||
-					view.backgroundVisible ||
-					view.opacityVisible
+					view.category === 'colors' &&
+					(view.displayThemeVisible ||
+						view.foregroundVisible ||
+						view.backgroundVisible ||
+						view.opacityVisible)
 				}
 			>
 				<TerminalSettingsRow
 					description={view.messages.terminalDisplayThemeDescription}
 					label={view.messages.terminalDisplayThemeLabel}
+					settingId='colors.display-theme'
 					visible={view.displayThemeVisible}
 				>
 					<div className={styles['stackedControl']}>
@@ -129,6 +134,7 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 					draft={view.foregroundDraft}
 					error={view.foregroundInvalid ? view.messages.foregroundInvalid : null}
 					label={view.messages.foregroundLabel}
+					settingId='colors.foreground'
 					visible={view.foregroundVisible}
 					onColorChange={view.onForegroundColorChange}
 					onDraftChange={view.onForegroundDraftChange}
@@ -142,6 +148,7 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 					draft={view.backgroundDraft}
 					error={view.backgroundInvalid ? view.messages.backgroundInvalid : null}
 					label={view.messages.backgroundLabel}
+					settingId='colors.background'
 					visible={view.backgroundVisible}
 					onColorChange={view.onBackgroundColorChange}
 					onDraftChange={view.onBackgroundDraftChange}
@@ -151,6 +158,7 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 				<TerminalSettingsRow
 					description={view.messages.backgroundOpacityDescription}
 					label={view.messages.backgroundOpacityLabel}
+					settingId='colors.background-opacity'
 					visible={view.opacityVisible}
 				>
 					<div className={styles['rangeControl']}>
@@ -171,10 +179,14 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 				</TerminalSettingsRow>
 			</SettingsSection>
 
-			<SettingsSection title={view.messages.reset} visible={view.resetVisible}>
+			<SettingsSection
+				title={view.messages.reset}
+				visible={view.category === 'general' && view.resetVisible}
+			>
 				<TerminalSettingsRow
 					description={view.messages.resetDescription}
 					label={view.messages.reset}
+					settingId='general.reset'
 					visible={view.resetVisible}
 				>
 					<Button variant='outline' onClick={view.onReset}>

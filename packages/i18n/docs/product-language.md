@@ -22,6 +22,7 @@ Grammar may vary with a complete message, but the underlying product concept and
 | Browser access    | Browser access    | 浏览器访问 | Desktop surface for using a terminal from a browser                 | Web access、浏览器连接                     |
 | Host              | Host              | 主机       | Terminal display option that preserves Host-projected colors        | Server、设备                               |
 | Keyboard shortcut | Keyboard shortcut | 键盘快捷键 | Physical chord bound to one semantic product action                 | Hotkey、快捷方式                           |
+| Planned           | Planned           | 规划中     | Visible future setting that is explicitly unavailable and inert     | Coming soon、即将推出、未来                |
 | Project           | Project           | 项目       | Product project represented in navigation                           | 工程                                       |
 | Settings          | Settings          | 设置       | Product configuration entry or surface                              | 偏好设置、配置                             |
 | Sidebar           | Sidebar           | 边栏       | Supporting navigation or tool surface at an edge                    | 侧边栏、侧栏                               |

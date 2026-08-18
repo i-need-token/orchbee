@@ -7,4 +7,5 @@ export { zhCNKeyboardShortcutMessages } from './keyboard-shortcuts';
 export { zhCNProjectedTerminalMessages } from './projected-terminal';
 export { zhCNMessages } from './messages';
 export { zhCNTerminalSettingsMessages } from './terminal-settings';
+export { zhCNTerminalSettingsCatalogMessages } from './terminal-settings-catalog';
 export { zhCNWorkbenchMessages } from './workbench';

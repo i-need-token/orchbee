@@ -36,13 +36,21 @@ Input repair keeps native composition lifetime separate from local commit eligib
 composition may be eligible, or it may be cancelled while the browser still owes a terminal
 `compositionend`. Reset, textarea blur, window blur, hidden-document transition, and disposal
 clear the textarea and renderer preedit immediately, revoke commit eligibility, and clear key,
-composition, `beforeinput`, paste, and mouse correlation records. Late composition updates and
-either late `beforeinput`/`compositionend` order cannot republish preedit or text; the late end only
+composition, `beforeinput`, `input`, paste, and mouse correlation records. A committed DOM `input`
+event is a fallback for browsers and IMEs that do not provide a usable `beforeinput` payload; its
+textarea value is consumed once and then cleared. Late composition updates and either late
+`beforeinput`/`input`/`compositionend` order cannot republish preedit or text; the late end only
 settles the cancelled native work. A new `compositionstart` supersedes cancelled work even when its
 old `compositionend` never arrives. Refocus, a non-composing key, or standalone non-composition
 `beforeinput` also restores local progress without waiting for that end. In an uncancelled
-composition, both browser orders (`beforeinput` then `compositionend`, or the reverse) commit the
-text at most once, and the state transition is complete before the synchronous command-port send.
+composition, `beforeinput`, `input`, and `compositionend` in either browser order commit the text
+at most once, and the state transition is complete before the synchronous command-port send.
+The macOS `keyCode=229` path defers interim independent `beforeinput` text until the native textarea
+value settles, preserving IME-produced punctuation instead of publishing the physical ASCII key.
+Unmodified punctuation and digit keydowns also yield to the native textarea so third-party macOS
+input methods can publish full-width punctuation; if no native value arrives within 30 milliseconds,
+the original ASCII character is sent as a deterministic fallback. The same short-lived settlement
+marker handles browser event orders where the native `input` arrives before `keydown`.
 
 On macOS, the projected terminal also consumes a source-neutral Option-as-Alt mode: `off`, `left`,
 `right`, or `both`. It tracks the physical Option side from `AltLeft` and `AltRight`, resolves one
@@ -53,7 +61,8 @@ continues to own the actual Ghostty keyboard encoding for the current terminal m
 Live preedit is a reversible presentation that begins at the projected Host cursor and wraps in
 row-major order across the visible grid. Narrow and wide cells remain atomic, overflow beyond the
 last visible row is clipped without scrolling or mutating Host state, and the hidden native input
-anchor follows the same wrapped caret so the platform IME candidate window remains aligned.
+anchor follows the same wrapped caret inside a positioned helper stacking context so the platform
+IME candidate window remains aligned.
 
 Normal deduplication records are single-use. The first `beforeinput` check consumes the preceding
 key record even when it does not match; matching composition, `beforeinput`, and opposite-source

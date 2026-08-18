@@ -2,10 +2,10 @@ import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { Button, Input, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import { EmptyResults } from './components/empty-results/EmptyResults';
 import { GhosttyMigrationSettings } from './components/ghostty-migration-settings/GhosttyMigrationSettings';
 import { KeyboardShortcutSettings } from './components/keyboard-shortcut-settings/KeyboardShortcutSettings';
 import { MacosTerminalInputSettings } from './components/macos-terminal-input-settings/MacosTerminalInputSettings';
+import { PlannedTerminalSettings } from './components/planned-terminal-settings/PlannedTerminalSettings';
 import { RemoteDevelopmentSettings } from './components/remote-development-settings/RemoteDevelopmentSettings';
 import { ShellIntegrationSettings } from './components/shell-integration-settings/ShellIntegrationSettings';
 import { TerminalSettingsSections } from './components/terminal-settings-sections/TerminalSettingsSections';
@@ -29,57 +29,11 @@ export interface TerminalSettingsSurfaceProps {
 export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): React.ReactNode {
 	const view = useTerminalSettingsSurface(props);
 	if (!view.open) return null;
-	const categoryItems = [
-		{
-			icon: 'terminal',
-			id: 'terminal',
-			label: view.messages.terminalCategory,
-			onClick: view.onTerminalCategoryClick,
-			visible: true,
-		},
-		{
-			icon: 'action',
-			id: 'keyboard-shortcuts',
-			label: view.messages.keyboardShortcutsCategory,
-			onClick: view.onKeyboardShortcutsCategoryClick,
-			visible: true,
-		},
-		{
-			icon: 'settings',
-			id: 'macos-input',
-			label: view.messages.macosInputCategory,
-			onClick: view.onMacosInputCategoryClick,
-			visible: view.showMacosInputCategory,
-		},
-		{
-			icon: 'git-branch',
-			id: 'remote-development',
-			label: view.messages.remoteDevelopmentCategory,
-			onClick: view.onRemoteDevelopmentCategoryClick,
-			visible: true,
-		},
-		{
-			icon: 'terminal',
-			id: 'shell-integration',
-			label: view.messages.shellIntegrationCategory,
-			onClick: view.onShellIntegrationCategoryClick,
-			visible: view.showShellIntegrationCategory,
-		},
-		{
-			icon: 'clipboard',
-			id: 'ghostty-migration',
-			label: view.messages.ghosttyMigrationCategory,
-			onClick: view.onGhosttyMigrationCategoryClick,
-			visible: true,
-		},
-		{
-			icon: 'screen-full',
-			id: 'browser-access',
-			label: view.messages.browserAccessCategory,
-			onClick: view.onBrowserAccessCategoryClick,
-			visible: view.showBrowserAccessCategory,
-		},
-	] as const;
+	const appearancePreferenceCategory =
+		view.category === 'appearance' ||
+		view.category === 'colors' ||
+		view.category === 'general' ||
+		view.category === 'text';
 
 	let mainContent: React.ReactNode;
 	if (view.category === 'keyboard-shortcuts') {
@@ -87,88 +41,46 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 			<KeyboardShortcutSettings
 				controller={props.keyboardShortcutController}
 				platform={props.keyboardShortcutPlatform}
-				query={view.query}
 			/>
 		);
 	} else if (view.category === 'ghostty-migration') {
-		mainContent = view.ghosttyMigrationVisible ? (
-			<GhosttyMigrationSettings />
-		) : (
-			<EmptyResults message={view.messages.noResults} />
-		);
-	} else if (
-		view.category === 'macos-input' &&
-		props.macosTerminalInputSettingsController !== undefined
-	) {
-		mainContent = (
-			<MacosTerminalInputSettings
-				controller={props.macosTerminalInputSettingsController}
-				query={view.query}
-			/>
-		);
+		mainContent = <GhosttyMigrationSettings />;
 	} else if (view.category === 'browser-access') {
-		mainContent = view.browserAccessVisible ? (
-			<div className={styles['browserAccessAction']}>
+		mainContent = (
+			<div className={styles['browserAccessAction']} id='browser-access.open'>
 				<Button onClick={view.onOpenBrowserAccess}>
 					<ProductIcon name='screen-full' />
 					{view.messages.openBrowserAccess}
 				</Button>
 			</div>
-		) : (
-			<EmptyResults message={view.messages.noResults} />
 		);
 	} else if (view.category === 'remote-development') {
-		mainContent = view.remoteDevelopmentVisible ? (
-			<RemoteDevelopmentSettings messages={view.messages} />
-		) : (
-			<EmptyResults message={view.messages.noResults} />
-		);
+		mainContent = <RemoteDevelopmentSettings messages={view.messages} />;
 	} else if (
 		view.category === 'shell-integration' &&
 		props.terminalFeedbackSettingsController !== undefined
 	) {
 		mainContent = (
-			<ShellIntegrationSettings
-				controller={props.terminalFeedbackSettingsController}
-				query={view.query}
-			/>
+			<ShellIntegrationSettings controller={props.terminalFeedbackSettingsController} />
 		);
-	} else if (view.terminalResultCount === 0) {
-		mainContent = <EmptyResults message={view.messages.noResults} />;
 	} else {
-		mainContent = <TerminalSettingsSections view={view} />;
-	}
-	let contentTitle: string;
-	let contentDescription: string;
-	switch (view.category) {
-		case 'terminal':
-			contentTitle = view.messages.terminalCategory;
-			contentDescription = view.messages.description;
-			break;
-		case 'keyboard-shortcuts':
-			contentTitle = view.messages.keyboardShortcutsTitle;
-			contentDescription = view.messages.keyboardShortcutsDescription;
-			break;
-		case 'macos-input':
-			contentTitle = view.messages.macosInputTitle;
-			contentDescription = view.messages.macosInputDescription;
-			break;
-		case 'ghostty-migration':
-			contentTitle = view.messages.ghosttyMigrationTitle;
-			contentDescription = view.messages.ghosttyMigrationDescription;
-			break;
-		case 'browser-access':
-			contentTitle = view.messages.browserAccessTitle;
-			contentDescription = view.messages.browserAccessDescription;
-			break;
-		case 'remote-development':
-			contentTitle = view.messages.remoteDevelopmentTitle;
-			contentDescription = view.messages.remoteDevelopmentDescription;
-			break;
-		case 'shell-integration':
-			contentTitle = view.messages.shellIntegrationTitle;
-			contentDescription = view.messages.shellIntegrationDescription;
-			break;
+		const actualSettings = (
+			<>
+				{view.category !== 'cursor-input' ||
+				props.macosTerminalInputSettingsController === undefined ||
+				!view.macosInputVisible ? null : (
+					<MacosTerminalInputSettings controller={props.macosTerminalInputSettingsController} />
+				)}
+				{appearancePreferenceCategory ? <TerminalSettingsSections view={view} /> : null}
+			</>
+		);
+		mainContent = (
+			<div className={styles['settingsStack']}>
+				{view.category === 'general' ? null : actualSettings}
+				<PlannedTerminalSettings notice={view.plannedNotice} sections={view.plannedSections} />
+				{view.category === 'general' ? actualSettings : null}
+			</div>
+		);
 	}
 
 	return (
@@ -182,62 +94,131 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		>
 			<div aria-hidden='true' className={styles['windowDragRegion']} />
 			<aside className={styles['sidebar']}>
-				<div className={styles['sidebarHeader']}>
-					<Button
-						aria-label={view.messages.back}
-						className={styles['back']}
-						size='icon-sm'
-						title={view.messages.back}
-						variant='ghost'
-						onClick={view.onRequestClose}
-					>
+				<button
+					aria-label={view.messages.back}
+					className={styles['sidebarHeader']}
+					data-settings-back
+					title={view.messages.back}
+					type='button'
+					onClick={view.onRequestClose}
+				>
+					<span aria-hidden='true' className={styles['back']}>
 						<ProductIcon name='arrow-left' />
-					</Button>
+					</span>
 					<span className={styles['sidebarTitle']}>{view.messages.title}</span>
-				</div>
+				</button>
 				<div className={styles['search']}>
 					<ProductIcon name='search' />
 					<Input
 						ref={view.inputReference}
+						aria-activedescendant={view.activeSearchResultId}
+						aria-autocomplete='list'
+						aria-controls={view.searchActive ? view.searchResultsId : undefined}
+						aria-expanded={view.searchActive}
 						aria-label={view.messages.searchPlaceholder}
+						autoComplete='off'
 						className={styles['searchInput']}
 						placeholder={view.messages.searchPlaceholder}
+						role='combobox'
 						value={view.query}
 						onChange={view.onSearchChange}
+						onKeyDown={view.onSearchKeyDown}
 					/>
 				</div>
-				<nav aria-label={view.messages.title} className={styles['categories']}>
-					{categoryItems.map((item) =>
-						item.visible ? (
-							<button
-								aria-current={view.category === item.id ? 'page' : undefined}
-								className={styles['category']}
-								data-selected={view.category === item.id}
-								data-settings-category={item.id}
-								key={item.id}
-								type='button'
-								onClick={item.onClick}
+				{view.searchActive ? (
+					<div
+						aria-label={view.messages.searchPlaceholder}
+						className={styles['searchResults']}
+						id={view.searchResultsId}
+						role='listbox'
+					>
+						{view.searchResults.length === 0 ? (
+							<p aria-live='polite' className={styles['searchEmpty']} role='status'>
+								{view.messages.noResults}
+							</p>
+						) : (
+							view.searchResults.map((result) => (
+								<button
+									aria-selected={result.active}
+									className={styles['searchResult']}
+									data-active={result.active}
+									data-settings-search-result={result.id}
+									id={result.elementId}
+									key={result.id}
+									role='option'
+									type='button'
+									onClick={result.onActivate}
+									onFocus={result.onFocus}
+									onMouseEnter={result.onFocus}
+								>
+									<span className={styles['categoryIcon']}>
+										<ProductIcon name={result.icon} />
+									</span>
+									<span className={styles['searchResultLabel']}>
+										{result.kind === 'category' ? null : (
+											<>
+												<span className={styles['searchResultCategory']}>
+													{result.categoryLabel}
+												</span>
+												<span aria-hidden='true' className={styles['searchResultSeparator']}>
+													›
+												</span>
+											</>
+										)}
+										<span className={styles['searchResultSetting']}>{result.label}</span>
+									</span>
+									{result.statusLabel === null ? null : (
+										<span className={styles['searchResultStatus']}>{result.statusLabel}</span>
+									)}
+								</button>
+							))
+						)}
+					</div>
+				) : (
+					<nav aria-label={view.messages.title} className={styles['categories']}>
+						{view.navigationGroups.map((group) => (
+							<div
+								className={styles['categoryGroup']}
+								data-settings-group={group.id}
+								key={group.id}
 							>
-								<span className={styles['categoryIcon']}>
-									<ProductIcon name={item.icon} />
-								</span>
-								<span className={styles['categoryLabel']}>{item.label}</span>
-							</button>
-						) : null,
-					)}
-				</nav>
+								<div className={styles['categoryGroupLabel']}>{group.label}</div>
+								{group.items.map((item) => (
+									<button
+										aria-current={view.category === item.id ? 'page' : undefined}
+										className={styles['category']}
+										data-selected={view.category === item.id}
+										data-settings-category={item.id}
+										key={item.id}
+										type='button'
+										onClick={(): void => view.onCategorySelect(item.id)}
+									>
+										<span className={styles['categoryIcon']}>
+											<ProductIcon name={item.icon} />
+										</span>
+										<span className={styles['categoryLabel']}>{item.label}</span>
+									</button>
+								))}
+							</div>
+						))}
+					</nav>
+				)}
 			</aside>
 
-			<main className={styles['content']} data-settings-content={view.category}>
+			<main
+				ref={view.contentReference}
+				className={styles['content']}
+				data-settings-content={view.category}
+			>
 				<div className={styles['contentColumn']}>
 					<header className={styles['header']}>
 						<h1 className={styles['title']} id='terminal-settings-title'>
-							{contentTitle}
+							{view.pageTitle}
 						</h1>
-						<p className={styles['description']}>{contentDescription}</p>
+						<p className={styles['description']}>{view.pageDescription}</p>
 					</header>
 
-					{view.category !== 'terminal' || view.persistenceWarning === null ? null : (
+					{!appearancePreferenceCategory || view.persistenceWarning === null ? null : (
 						<div className={styles['warning']} role='alert'>
 							{view.persistenceWarning}
 						</div>

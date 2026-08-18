@@ -1,19 +1,37 @@
-import { keyboardShortcutMessages, terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import { formatKeyboardShortcutChord } from '@orchbee/keyboard-shortcuts';
+import {
+	keyboardShortcutMessages,
+	terminalSettingsCatalogMessages,
+	terminalSettingsMessages,
+	useOrchbeeIntl,
+} from '@orchbee/i18n';
 import * as React from 'react';
 
-import { normalizeTerminalHexColor, useTerminalSettings } from '../../terminal-settings';
 import {
-	REMOTE_DEVELOPMENT_BASELINE_TERM,
-	REMOTE_DEVELOPMENT_DIAGNOSTIC_COMMAND,
-} from '../constants/remote-development-diagnostic';
+	KEYBOARD_SHORTCUT_CATALOG,
+	useKeyboardShortcutSettings,
+	type KeyboardShortcutId,
+} from '../../keyboard-shortcuts';
+import { normalizeTerminalHexColor, useTerminalSettings } from '../../terminal-settings';
+import { TERMINAL_SETTINGS_SEARCH_RESULTS_ID } from '../constants/terminal-settings-search-catalog';
+import {
+	TERMINAL_SETTINGS_CATEGORIES,
+	TERMINAL_SETTINGS_NAVIGATION_GROUPS,
+} from '../constants/terminal-settings-information-architecture';
 import type {
+	TerminalSettingsCategory,
 	TerminalSettingsSurfaceMessages,
 	TerminalSettingsSurfaceView,
 	UseTerminalSettingsSurfaceOptions,
 } from '../types/terminal-settings-surface';
+import { buildTerminalSettingsSearchCatalog } from '../utils/buildTerminalSettingsSearchCatalog';
+import { resolvePlannedTerminalSettings } from '../utils/resolvePlannedTerminalSettings';
+import { resolveTerminalSettingsSearch } from '../utils/resolveTerminalSettingsSearch';
 
 export function useTerminalSettingsSurface({
 	controller,
+	keyboardShortcutController,
+	keyboardShortcutPlatform,
 	macosTerminalInputSettingsController,
 	onRequestClose,
 	requestBrowserAccess,
@@ -21,17 +39,15 @@ export function useTerminalSettingsSurface({
 }: UseTerminalSettingsSurfaceOptions): TerminalSettingsSurfaceView {
 	const intl = useOrchbeeIntl();
 	const snapshot = useTerminalSettings(controller);
+	const keyboardShortcutSnapshot = useKeyboardShortcutSettings(keyboardShortcutController);
 	const inputReference = React.useRef<HTMLInputElement>(null);
-	const [category, setCategory] = React.useState<
-		| 'browser-access'
-		| 'ghostty-migration'
-		| 'keyboard-shortcuts'
-		| 'macos-input'
-		| 'remote-development'
-		| 'shell-integration'
-		| 'terminal'
-	>('terminal');
+	const contentReference = React.useRef<HTMLElement>(null);
+	const [category, setCategory] = React.useState<TerminalSettingsCategory>('general');
 	const [query, setQuery] = React.useState('');
+	const [activeSearchResultIndex, setActiveSearchResultIndex] = React.useState(0);
+	const [pendingSearchTargetId, setPendingSearchTargetId] = React.useState<
+		string | null | undefined
+	>(undefined);
 	const [fontFamilyDraft, setFontFamilyDraft] = React.useState(snapshot.preferences.fontFamily);
 	const [fontFamilyInvalid, setFontFamilyInvalid] = React.useState(false);
 	const [fontSizeDraft, setFontSizeDraft] = React.useState(String(snapshot.preferences.fontSize));
@@ -60,6 +76,21 @@ export function useTerminalSettingsSurface({
 		if (!snapshot.open) return;
 		inputReference.current?.focus();
 	}, [snapshot.open]);
+
+	React.useEffect(() => {
+		if (pendingSearchTargetId === undefined) return;
+		const content = contentReference.current;
+		if (content === null) return;
+		if (pendingSearchTargetId === null) {
+			content.scrollTop = 0;
+		} else {
+			const target = document.getElementById(pendingSearchTargetId);
+			if (target !== null && content.contains(target)) {
+				target.scrollIntoView({ block: 'center' });
+			}
+		}
+		setPendingSearchTargetId(undefined);
+	}, [category, pendingSearchTargetId]);
 
 	const messages: TerminalSettingsSurfaceMessages = {
 		applicationAppearanceSection: intl.formatMessage(
@@ -179,88 +210,88 @@ export function useTerminalSettingsSurface({
 		),
 		title: intl.formatMessage(terminalSettingsMessages.title),
 	};
-	const normalizedQuery = query.trim().toLocaleLowerCase(intl.locale);
-	const matchesQuery = (values: readonly string[]): boolean =>
-		normalizedQuery.length === 0 ||
-		values.some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
-	const applicationThemeVisible = matchesQuery([
-		messages.applicationAppearanceSection,
-		messages.applicationThemeLabel,
-		messages.applicationThemeDescription,
-		messages.applicationThemeLight,
-		messages.applicationThemeDark,
-	]);
-	const fontFamilyVisible = matchesQuery([
-		messages.terminalTypographySection,
-		messages.fontFamilyLabel,
-		messages.fontFamilyDescription,
-		messages.fontFamilyDeviceAvailability,
-	]);
-	const fontSizeVisible = matchesQuery([
-		messages.terminalTypographySection,
-		messages.fontSizeLabel,
-		messages.fontSizeDescription,
-	]);
-	const displayThemeVisible = matchesQuery([
-		messages.terminalColorsSection,
-		messages.terminalDisplayThemeLabel,
-		messages.terminalDisplayThemeDescription,
-		messages.terminalDisplayThemeHost,
-		messages.terminalDisplayThemeLight,
-		messages.terminalDisplayThemeDark,
-		messages.terminalDisplayThemeCustom,
-	]);
-	const foregroundVisible = matchesQuery([
-		messages.terminalColorsSection,
-		messages.foregroundLabel,
-		messages.foregroundDescription,
-	]);
-	const backgroundVisible = matchesQuery([
-		messages.terminalColorsSection,
-		messages.backgroundLabel,
-		messages.backgroundDescription,
-	]);
-	const opacityVisible = matchesQuery([
-		messages.terminalColorsSection,
-		messages.backgroundOpacityLabel,
-		messages.backgroundOpacityDescription,
-	]);
-	const resetVisible = matchesQuery([messages.reset, messages.resetDescription]);
-	const terminalResultCount = [
-		applicationThemeVisible,
-		fontFamilyVisible,
-		fontSizeVisible,
-		displayThemeVisible,
-		foregroundVisible,
-		backgroundVisible,
-		opacityVisible,
-		resetVisible,
-	].filter(Boolean).length;
-	const browserAccessVisible = matchesQuery([
-		messages.browserAccessTitle,
-		messages.browserAccessDescription,
-		messages.openBrowserAccess,
-	]);
-	const ghosttyMigrationVisible = matchesQuery([
-		messages.ghosttyMigrationCategory,
-		messages.ghosttyMigrationTitle,
-		messages.ghosttyMigrationDescription,
-	]);
-	const remoteDevelopmentVisible = matchesQuery([
-		messages.remoteDevelopmentCategory,
-		messages.remoteDevelopmentTitle,
-		messages.remoteDevelopmentDescription,
-		messages.remoteDevelopmentBaselineTitle,
-		messages.remoteDevelopmentBaselineDescription,
-		messages.remoteDevelopmentDiagnosticTitle,
-		messages.remoteDevelopmentDiagnosticDescription,
-		messages.remoteDevelopmentDiagnosticLabel,
-		messages.remoteDevelopmentResultDescription,
-		messages.remoteDevelopmentNoChangesTitle,
-		messages.remoteDevelopmentNoChangesDescription,
-		REMOTE_DEVELOPMENT_BASELINE_TERM,
-		REMOTE_DEVELOPMENT_DIAGNOSTIC_COMMAND,
-	]);
+	const applicationThemeVisible = true;
+	const fontFamilyVisible = true;
+	const fontSizeVisible = true;
+	const displayThemeVisible = true;
+	const foregroundVisible = true;
+	const backgroundVisible = true;
+	const opacityVisible = true;
+	const resetVisible = true;
+	const macosInputVisible = true;
+	const plannedSections = resolvePlannedTerminalSettings({
+		category,
+		formatMessage: (descriptor) => intl.formatMessage(descriptor),
+	});
+	const navigationGroups = TERMINAL_SETTINGS_NAVIGATION_GROUPS.map((group) => ({
+		id: group.id,
+		items: group.categories
+			.filter(
+				(categoryId) =>
+					(categoryId !== 'browser-access' || requestBrowserAccess !== undefined) &&
+					(categoryId !== 'shell-integration' || terminalFeedbackSettingsController !== undefined),
+			)
+			.map((categoryId) => ({
+				icon: TERMINAL_SETTINGS_CATEGORIES[categoryId].icon,
+				id: categoryId,
+				label: intl.formatMessage(TERMINAL_SETTINGS_CATEGORIES[categoryId].label),
+			})),
+		label: intl.formatMessage(group.label),
+	})).filter((group) => group.items.length > 0);
+	const enabledCategories = navigationGroups.flatMap((group) => group.items.map((item) => item.id));
+	const keyboardShortcutChords: Partial<Record<KeyboardShortcutId, string>> = {};
+	for (const declaration of KEYBOARD_SHORTCUT_CATALOG) {
+		keyboardShortcutChords[declaration.shortcutId] = formatKeyboardShortcutChord(
+			keyboardShortcutSnapshot.bindings[declaration.shortcutId],
+			keyboardShortcutPlatform,
+		);
+	}
+	const searchCatalog = buildTerminalSettingsSearchCatalog({
+		enabledCapabilities:
+			macosTerminalInputSettingsController === undefined ? [] : ['macos-option-as-alt'],
+		enabledCategories,
+		formatMessage: (descriptor) => intl.formatMessage(descriptor),
+		keyboardShortcutChords,
+	});
+	const resolvedSearchResults = resolveTerminalSettingsSearch({
+		entries: searchCatalog,
+		locale: intl.locale,
+		query,
+	});
+	const boundedSearchResultIndex = Math.min(
+		activeSearchResultIndex,
+		Math.max(resolvedSearchResults.length - 1, 0),
+	);
+	const activeSearchEntry = resolvedSearchResults[boundedSearchResultIndex];
+	const activeSearchResultId =
+		activeSearchEntry === undefined
+			? undefined
+			: `terminal-settings-search-result-${activeSearchEntry.id}`;
+	React.useEffect(() => {
+		if (activeSearchResultId === undefined) return;
+		document.getElementById(activeSearchResultId)?.scrollIntoView({ block: 'nearest' });
+	}, [activeSearchResultId]);
+	const activateSearchEntry = (resultIndex: number): void => {
+		const entry = resolvedSearchResults[resultIndex];
+		if (entry === undefined) return;
+		setCategory(entry.category);
+		setQuery('');
+		setActiveSearchResultIndex(0);
+		setPendingSearchTargetId(entry.targetId);
+	};
+	const plannedSearchResultLabel = intl.formatMessage(
+		terminalSettingsCatalogMessages.get('terminal.settings.catalog.common.planned'),
+	);
+	const searchResults = resolvedSearchResults.map((entry, resultIndex) => ({
+		...entry,
+		active: resultIndex === boundedSearchResultIndex,
+		elementId: `terminal-settings-search-result-${entry.id}`,
+		onActivate: (): void => activateSearchEntry(resultIndex),
+		onFocus: (): void => setActiveSearchResultIndex(resultIndex),
+		statusLabel: entry.availability === 'planned' ? plannedSearchResultLabel : null,
+	}));
+	const searchActive = query.trim().length > 0;
+	const pageDefinition = TERMINAL_SETTINGS_CATEGORIES[category];
 	const commitFontFamily = (): void => {
 		const result = controller.update({ fontFamily: fontFamilyDraft });
 		setFontFamilyInvalid(result.kind === 'invalid');
@@ -299,12 +330,13 @@ export function useTerminalSettingsSurface({
 	}
 
 	return {
+		activeSearchResultId,
 		applicationThemeVisible,
 		backgroundDraft,
 		backgroundInvalid,
 		backgroundVisible,
-		browserAccessVisible,
 		category,
+		contentReference,
 		customColorsEnabled: snapshot.preferences.terminalDisplayTheme === 'custom',
 		displayThemeVisible,
 		fontFamilyDraft,
@@ -316,9 +348,10 @@ export function useTerminalSettingsSurface({
 		foregroundDraft,
 		foregroundInvalid,
 		foregroundVisible,
-		ghosttyMigrationVisible,
 		inputReference,
+		macosInputVisible,
 		messages,
+		navigationGroups,
 		onApplicationThemeChange: (event): void => {
 			const applicationTheme = event.currentTarget.value;
 			if (applicationTheme === 'light' || applicationTheme === 'dark') {
@@ -346,7 +379,10 @@ export function useTerminalSettingsSurface({
 			const backgroundOpacityPercent = typeof value === 'number' ? value : value[0];
 			if (backgroundOpacityPercent !== undefined) controller.update({ backgroundOpacityPercent });
 		},
-		onBrowserAccessCategoryClick: (): void => setCategory('browser-access'),
+		onCategorySelect: (nextCategory): void => {
+			setCategory(nextCategory);
+			setPendingSearchTargetId(null);
+		},
 		onFontFamilyBlur: (): void => commitFontFamily(),
 		onFontFamilyChange: (event): void => setFontFamilyDraft(event.currentTarget.value),
 		onFontFamilyKeyDown: (event): void => {
@@ -380,23 +416,43 @@ export function useTerminalSettingsSurface({
 			event.currentTarget.blur();
 		},
 		onForegroundInputBlur: (): void => commitForeground(),
-		onGhosttyMigrationCategoryClick: (): void => setCategory('ghostty-migration'),
-		onKeyboardShortcutsCategoryClick: (): void => setCategory('keyboard-shortcuts'),
-		onMacosInputCategoryClick: (): void => setCategory('macos-input'),
 		onOpenBrowserAccess: (event): void => requestBrowserAccess?.(event.currentTarget),
-		onRemoteDevelopmentCategoryClick: (): void => setCategory('remote-development'),
 		onRequestClose: (): void => onRequestClose(),
 		onReset: (): void => {
 			controller.reset();
 		},
-		onSearchChange: (event): void => setQuery(event.currentTarget.value),
-		onShellIntegrationCategoryClick: (): void => setCategory('shell-integration'),
+		onSearchChange: (event): void => {
+			setQuery(event.currentTarget.value);
+			setActiveSearchResultIndex(0);
+		},
+		onSearchKeyDown: (event): void => {
+			if (event.key === 'ArrowDown' && resolvedSearchResults.length > 0) {
+				event.preventDefault();
+				setActiveSearchResultIndex((current) =>
+					Math.min(current + 1, resolvedSearchResults.length - 1),
+				);
+				return;
+			}
+			if (event.key === 'ArrowUp' && resolvedSearchResults.length > 0) {
+				event.preventDefault();
+				setActiveSearchResultIndex((current) => Math.max(current - 1, 0));
+				return;
+			}
+			if (event.key !== 'Enter' || activeSearchEntry === undefined) return;
+			event.preventDefault();
+			activateSearchEntry(boundedSearchResultIndex);
+		},
 		onSurfaceKeyDown: (event): void => {
 			if (event.key !== 'Escape' || event.defaultPrevented) return;
 			event.preventDefault();
+			if (query.length > 0) {
+				setQuery('');
+				setActiveSearchResultIndex(0);
+				inputReference.current?.focus();
+				return;
+			}
 			onRequestClose();
 		},
-		onTerminalCategoryClick: (): void => setCategory('terminal'),
 		onTerminalDisplayThemeChange: (event): void => {
 			const terminalDisplayTheme = event.currentTarget.value;
 			if (
@@ -411,13 +467,17 @@ export function useTerminalSettingsSurface({
 		open: snapshot.open,
 		opacityVisible,
 		persistenceWarning,
+		plannedNotice: intl.formatMessage(
+			terminalSettingsCatalogMessages.get('terminal.settings.catalog.common.plannedNotice'),
+		),
+		plannedSections,
 		preferences: snapshot.preferences,
+		pageDescription: intl.formatMessage(pageDefinition.description),
+		pageTitle: intl.formatMessage(pageDefinition.title),
 		query,
 		resetVisible,
-		remoteDevelopmentVisible,
-		showBrowserAccessCategory: requestBrowserAccess !== undefined,
-		showMacosInputCategory: macosTerminalInputSettingsController !== undefined,
-		showShellIntegrationCategory: terminalFeedbackSettingsController !== undefined,
-		terminalResultCount,
+		searchActive,
+		searchResults,
+		searchResultsId: TERMINAL_SETTINGS_SEARCH_RESULTS_ID,
 	};
 }

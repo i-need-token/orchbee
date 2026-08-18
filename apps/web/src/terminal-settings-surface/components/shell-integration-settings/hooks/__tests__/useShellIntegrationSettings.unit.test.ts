@@ -15,7 +15,7 @@ function I18nWrapper({ children }: { readonly children: ReactNode }) {
 afterEach(() => cleanup());
 
 describe('useShellIntegrationSettings', () => {
-	it('projects localized shell setup and filters without changing feedback preferences', () => {
+	it('projects the complete localized shell setup without changing feedback preferences', () => {
 		const controller = new TerminalFeedbackSettingsController({
 			notificationCapability: {
 				permission: () => 'unsupported',
@@ -24,31 +24,21 @@ describe('useShellIntegrationSettings', () => {
 			},
 			storage: { getItem: () => null, setItem: () => undefined },
 		});
-		const rendered = renderHook(({ query }) => useShellIntegrationSettings(controller, query), {
-			initialProps: { query: 'Bash 4.4' },
+		const rendered = renderHook(() => useShellIntegrationSettings(controller), {
 			wrapper: I18nWrapper,
 		});
 
-		expect(rendered.result.current).toMatchObject({
-			manualNotice: null,
-			noResults: null,
-			notification: null,
-			reminder: null,
-			reset: null,
-			setupCards: [
-				{
-					description:
-						'Bash 4.4 or newer is required. The Bash 3.2 included with macOS is not supported.',
-					id: 'bash',
-					title: 'Bash',
-				},
-			],
+		expect(rendered.result.current.setupCards).toHaveLength(3);
+		expect(rendered.result.current.setupCards[1]).toMatchObject({
+			description:
+				'Bash 4.4 or newer is required. The Bash 3.2 included with macOS is not supported.',
+			id: 'bash',
+			title: 'Bash',
 		});
+		expect(rendered.result.current.manualNotice).toContain('never edits shell startup files');
+		expect(rendered.result.current.reminder.modeValue).toBe('never');
+		expect(rendered.result.current.notification.permission).toBe('unsupported');
 		expect(controller.getSnapshot().preferences.completionReminderMode).toBe('never');
-
-		rendered.rerender({ query: 'not a settings term' });
-		expect(rendered.result.current.setupCards).toHaveLength(0);
-		expect(rendered.result.current.noResults).toBe('No settings found.');
 		controller.dispose();
 	});
 });

@@ -7,7 +7,6 @@
 .card,
 .setupGroup {
 	overflow: hidden;
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 	border-radius: var(--ob-ref-radius-ui-lg);
 	background: var(--ob-sys-color-surface-subtle);
 }
@@ -38,7 +37,7 @@
 }
 
 .empty {
-	border-color: var(--ob-sys-color-border-default);
+	border: none;
 	background: var(--ob-sys-color-surface-subtle);
 	color: var(--ob-sys-color-text-secondary);
 }
@@ -46,7 +45,7 @@
 .title {
 	margin: var(--ob-ref-space-0);
 	color: var(--ob-sys-color-text-heading);
-	font: var(--ob-sys-typography-label-lg);
+	font: var(--ob-sys-typography-body-sm);
 }
 
 .description,
@@ -67,7 +66,7 @@
 .label {
 	grid-column: 1;
 	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-label-md);
+	font: var(--ob-sys-typography-body-sm);
 }
 
 .field > :global([data-slot='native-select-wrapper']),
