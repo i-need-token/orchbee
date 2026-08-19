@@ -76,6 +76,9 @@ describe('TerminalSettingsSurface', () => {
 			container.querySelector("input[aria-label='Search settings']"),
 		);
 		expect(document.activeElement).toBe(search);
+		expect(
+			requiredElement<HTMLElement>(container.querySelector('[data-settings-content]')).tabIndex,
+		).toBe(0);
 		const back = requiredElement<HTMLButtonElement>(
 			container.querySelector('button[data-settings-back]'),
 		);
@@ -102,6 +105,12 @@ describe('TerminalSettingsSurface', () => {
 		expect(container.textContent).toContain('No settings found.');
 		expect(container.textContent).toContain('On startup');
 		expect(container.querySelectorAll('[data-settings-group]')).toHaveLength(0);
+		expect(container.querySelector('[role="listbox"]')).not.toBeNull();
+		const emptyResult = requiredElement<HTMLElement>(
+			container.querySelector('[role="option"][aria-disabled="true"]'),
+		);
+		expect(emptyResult.getAttribute('aria-selected')).toBe('false');
+		expect(emptyResult.textContent).toBe('No settings found.');
 
 		await act(async () => {
 			setInputValue(search, 'font');
@@ -109,6 +118,7 @@ describe('TerminalSettingsSurface', () => {
 		});
 		expect(container.textContent).toContain('On startup');
 		expect(container.textContent).toContain('Text›Terminal font family');
+		expect(container.querySelector('[role="listbox"]')).not.toBeNull();
 		await act(async () =>
 			requiredElement<HTMLButtonElement>(
 				container.querySelector("button[data-settings-search-result='text.font-family']"),

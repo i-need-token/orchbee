@@ -6,7 +6,7 @@ import {
 
 import type { TerminalSettingsCategory } from '../types/terminal-settings-surface';
 
-export type TerminalSettingsSearchCapability = 'macos-option-as-alt';
+export type TerminalSettingsSearchCapability = 'desktop-launch-profiles' | 'macos-option-as-alt';
 
 export const TERMINAL_SETTINGS_SEARCH_RESULTS_ID = 'terminal-settings-search-results';
 
@@ -113,6 +113,36 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		id: 'general.reset',
 		label: terminalSettingsMessages.reset,
 		targetId: 'general.reset',
+	},
+	{
+		capability: 'desktop-launch-profiles',
+		category: 'profiles',
+		description: terminalSettingsMessages.profilesFutureTerminalsNotice,
+		id: 'profiles.catalog',
+		keywords: [terminalSettingsMessages.profilesSystemShell, 'shell'],
+		label: terminalSettingsMessages.profilesSection,
+		targetId: 'profiles.catalog',
+	},
+	{
+		capability: 'desktop-launch-profiles',
+		category: 'profiles',
+		description: terminalSettingsMessages.profilesLoginDescription,
+		id: 'profiles.command',
+		keywords: [
+			terminalSettingsMessages.profilesCommandSystem,
+			terminalSettingsMessages.profilesCommandCustom,
+			terminalSettingsMessages.profilesExecutableLabel,
+		],
+		label: terminalSettingsMessages.profilesCommandLabel,
+		targetId: 'profiles.command',
+	},
+	{
+		capability: 'desktop-launch-profiles',
+		category: 'profiles',
+		description: terminalSettingsMessages.profilesArgumentsDescription,
+		id: 'profiles.arguments',
+		label: terminalSettingsMessages.profilesArgumentsLabel,
+		targetId: 'profiles.arguments',
 	},
 	{
 		category: 'shell-integration',

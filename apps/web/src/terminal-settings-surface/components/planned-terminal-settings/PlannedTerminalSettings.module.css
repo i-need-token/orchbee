@@ -24,7 +24,7 @@
 	height: var(--ob-ref-space-5);
 	padding-inline: var(--ob-ref-space-0);
 	background: transparent;
-	color: var(--ob-sys-color-text-muted);
+	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-label-xs);
 }
 

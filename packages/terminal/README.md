@@ -49,8 +49,11 @@ The macOS `keyCode=229` path defers interim independent `beforeinput` text until
 value settles, preserving IME-produced punctuation instead of publishing the physical ASCII key.
 Unmodified punctuation and digit keydowns also yield to the native textarea so third-party macOS
 input methods can publish full-width punctuation; if no native value arrives within 30 milliseconds,
-the original ASCII character is sent as a deterministic fallback. The same short-lived settlement
-marker handles browser event orders where the native `input` arrives before `keydown`.
+the original ASCII character is sent as a deterministic fallback. Native settlement participates in
+the same ordered input dispatcher: an intervening key, paste, or pointer input seals the current
+native batch before that later input is admitted, so deferred digits and punctuation cannot move
+past subsequent physical keys. The same short-lived settlement marker handles browser event orders
+where the native `input` arrives before `keydown`.
 
 On macOS, the projected terminal also consumes a source-neutral Option-as-Alt mode: `off`, `left`,
 `right`, or `both`. It tracks the physical Option side from `AltLeft` and `AltRight`, resolves one

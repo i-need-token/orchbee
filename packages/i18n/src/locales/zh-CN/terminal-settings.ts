@@ -112,6 +112,56 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.persistence.readWarning':
 		'无法读取已保存的设置，当前正在使用默认设置；重置可尝试保存默认设置。',
 	'terminal.settings.persistence.writeWarning': '更改已应用于当前会话，但未能保存。',
+	'terminal.settings.profiles.actions.add': '添加 Profile',
+	'terminal.settings.profiles.actions.cancel': '取消',
+	'terminal.settings.profiles.actions.confirmDelete': '确认删除此 Profile',
+	'terminal.settings.profiles.actions.confirmReset': '确认重置全部 Profile',
+	'terminal.settings.profiles.actions.delete': '删除',
+	'terminal.settings.profiles.actions.duplicate': '复制',
+	'terminal.settings.profiles.actions.makeDefault': '设为默认',
+	'terminal.settings.profiles.actions.reset': '重置 Profile',
+	'terminal.settings.profiles.actions.save': '保存更改',
+	'terminal.settings.profiles.addName.label': '新 Profile 名称',
+	'terminal.settings.profiles.addName.placeholder': 'Profile 名称',
+	'terminal.settings.profiles.arguments.actions.add': '添加参数',
+	'terminal.settings.profiles.arguments.actions.remove': '移除参数 {number, number}',
+	'terminal.settings.profiles.arguments.argumentLabel': '参数 {number, number}',
+	'terminal.settings.profiles.arguments.description':
+		'参数会按此顺序原样传入，不会解析 Shell 引号。',
+	'terminal.settings.profiles.arguments.label': '参数',
+	'terminal.settings.profiles.command.custom': '自定义可执行文件',
+	'terminal.settings.profiles.command.label': '命令',
+	'terminal.settings.profiles.command.system': '系统 Shell',
+	'terminal.settings.profiles.defaultBadge': '默认',
+	'terminal.settings.profiles.executable.description': '请输入此设备上可执行文件的绝对路径。',
+	'terminal.settings.profiles.executable.label': '可执行文件路径',
+	'terminal.settings.profiles.executable.placeholder': '/usr/local/bin/fish',
+	'terminal.settings.profiles.failures.busy': '请等待当前 Profile 更改完成。',
+	'terminal.settings.profiles.failures.catalogFull': '已达到 Profile 数量上限。',
+	'terminal.settings.profiles.failures.controlUnavailable':
+		'Profile 控制暂不可用，请重新打开设置后重试。',
+	'terminal.settings.profiles.failures.invalid': '请检查 Profile 名称、可执行文件路径和参数。',
+	'terminal.settings.profiles.failures.notFound': '此 Profile 已不存在。',
+	'terminal.settings.profiles.failures.protectedDelete':
+		'请先选择另一个默认 Profile，再删除此 Profile。',
+	'terminal.settings.profiles.failures.unsupported': '此启动选项不受当前操作系统支持。',
+	'terminal.settings.profiles.failures.write': '更改未能保存；之前的 Profile 仍然有效。',
+	'terminal.settings.profiles.futureTerminalsNotice':
+		'新终端启动时会记住当时的默认 Profile；正在运行和恢复的终端会保留原来的命令。',
+	'terminal.settings.profiles.login.description':
+		'通过传入 -l，把系统 Shell 作为 POSIX 登录 Shell 启动。',
+	'terminal.settings.profiles.login.label': '登录 Shell',
+	'terminal.settings.profiles.login.unsupported': '当前操作系统不支持登录 Shell 模式。',
+	'terminal.settings.profiles.name.invalid': '请输入 Profile 名称。',
+	'terminal.settings.profiles.name.label': 'Profile 名称',
+	'terminal.settings.profiles.persistence.invalid':
+		'已保存的 Profile 文件无效；保存或重置前将使用内置 Profile。',
+	'terminal.settings.profiles.persistence.read':
+		'无法读取已保存的 Profile 文件；保存或重置前将使用内置 Profile。',
+	'terminal.settings.profiles.persistence.write':
+		'上一次 Profile 更改未能保存；之前的 Profile 仍然有效。',
+	'terminal.settings.profiles.section': '本地 Shell Profile',
+	'terminal.settings.profiles.systemShell': '系统 Shell',
 	'terminal.settings.reset.description': '恢复默认的应用和终端设置。',
 	'terminal.settings.remoteDevelopment.baseline.description':
 		'Orchbee 会用这个广泛可用的 TERM 启动本地桌面终端；标准 SSH PTY 可将它传给远端 shell。',

@@ -1,4 +1,9 @@
-import type { TerminalExited, TerminalFailed, TerminalIdentity } from '@orchbee/terminal-protocol';
+import type {
+	TerminalExited,
+	TerminalFailed,
+	TerminalIdentity,
+	TerminalLaunch,
+} from '@orchbee/terminal-protocol';
 import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import type { MessagePortMain } from 'electron';
 
@@ -69,6 +74,7 @@ export interface DesktopTerminalRuntimeComposition {
 	};
 	readonly host: HostConnection;
 	readonly randomIdentifier: () => string;
+	readonly resolveTerminalLaunch: () => TerminalLaunch;
 }
 
 export function composeDesktopTerminalRuntime(
@@ -83,9 +89,9 @@ export function composeDesktopTerminalRuntime(
 		host: composition.host,
 		randomCreationId: composition.randomIdentifier,
 		registry,
+		resolveTerminalLaunch: composition.resolveTerminalLaunch,
 		retireProjection: async (presentationId) => projections?.retirePresentation(presentationId),
 		store,
-		terminalLaunch: composition.configuration.terminalLaunch,
 		onIdentityObserved: (identity) => identityObservedListener?.(identity),
 	});
 	projections = new DesktopTerminalProjectionService({

@@ -120,6 +120,7 @@
 	border: none;
 	border-radius: var(--ob-ref-radius-none);
 	background: transparent;
+	color: var(--ob-sys-color-text-primary);
 	font: var(--ob-sys-typography-label-sm);
 	box-shadow: none;
 }
@@ -127,6 +128,10 @@
 .search .searchInput:focus-visible {
 	border: none;
 	box-shadow: none;
+}
+
+.search .searchInput::placeholder {
+	color: var(--ob-sys-color-text-secondary);
 }
 
 .categories {
@@ -279,14 +284,14 @@
 }
 
 .searchResultStatus {
-	color: var(--ob-sys-color-text-muted);
+	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-label-sm);
 }
 
 .searchEmpty {
 	margin: var(--ob-ref-space-0);
 	padding: var(--ob-ref-space-2);
-	color: var(--ob-sys-color-text-muted);
+	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-label-sm);
 }
 
@@ -296,6 +301,11 @@
 	overflow-y: auto;
 	overscroll-behavior: contain;
 	scrollbar-gutter: stable;
+	outline: none;
+}
+
+.content:focus-visible {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 
 .contentColumn {

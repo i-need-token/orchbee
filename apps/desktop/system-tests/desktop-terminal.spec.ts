@@ -1093,6 +1093,57 @@ test('applies a custom shortcut without recreating the mounted terminal', async 
 	);
 });
 
+test('launches only future terminals with the committed local shell profile', async () => {
+	test.skip(process.platform === 'win32', 'The native witness uses a POSIX shell executable.');
+	test.setTimeout(45_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const initialTerminal = projectedTerminal(page);
+	await expect(initialTerminal).toHaveAttribute('data-projected-terminal-state', 'open');
+	const initialPresentationId = await initialTerminal.getAttribute('data-terminal-presentation-id');
+	const initialAttachmentId = await initialTerminal.getAttribute(
+		'data-projected-terminal-attachment-id',
+	);
+
+	const settingsSurface = await openDesktopSettingsCategory(page, 'profiles');
+	await settingsSurface.locator('#terminal-profile-command').selectOption('custom-executable');
+	await settingsSurface.locator('#terminal-profile-executable').fill('/bin/sh');
+	const addArgument = settingsSurface.locator('[data-slot="terminal-launch-profile-add-argument"]');
+	await addArgument.click();
+	await addArgument.click();
+	const argumentsInputs = settingsSurface.locator('[id="profiles.arguments"] input');
+	await expect(argumentsInputs).toHaveCount(2);
+	await argumentsInputs.nth(0).fill('-c');
+	await argumentsInputs.nth(1).fill("printf 'local-shell-profile-v1-marker\\n'; sleep 30");
+	await settingsSurface.locator('[data-slot="terminal-launch-profile-save"]').click();
+
+	const userDataPath = await application.evaluate(({ app }) => app.getPath('userData'));
+	const profileStorePath = path.join(userDataPath, 'terminal-launch-profiles-v1.json');
+	await expect
+		.poll(() => readFile(profileStorePath, 'utf8').catch(() => ''))
+		.toContain('local-shell-profile-v1-marker');
+	await settingsSurface.locator('aside > button').first().click();
+	await expect(settingsSurface).not.toBeVisible();
+	expect(await initialTerminal.getAttribute('data-terminal-presentation-id')).toBe(
+		initialPresentationId,
+	);
+	expect(await initialTerminal.getAttribute('data-projected-terminal-attachment-id')).toBe(
+		initialAttachmentId,
+	);
+
+	await page.getByRole('button', { name: /^(?:New tab|新建标签页)$/u }).click();
+	await expect(workbenchTabs(page)).toHaveCount(2);
+	const profileTerminal = projectedTerminal(page);
+	await expect(profileTerminal).toHaveAttribute('data-projected-terminal-state', 'open');
+	expect(await profileTerminal.getAttribute('data-terminal-presentation-id')).not.toBe(
+		initialPresentationId,
+	);
+	await expect(profileTerminal.locator('[role="list"]')).toContainText(
+		'local-shell-profile-v1-marker',
+	);
+});
+
 test('reviews and safely quotes a real Desktop file drop without pressing Enter', async () => {
 	test.skip(process.platform === 'win32', 'The accepted first slice supports POSIX shells only.');
 	const application = electronApplication;
@@ -2406,7 +2457,12 @@ async function openLoopbackBrowserAccess(
 
 async function openDesktopSettingsCategory(
 	page: Page,
-	category: 'browser-access' | 'keyboard-shortcuts' | 'remote-development' | 'shell-integration',
+	category:
+		| 'browser-access'
+		| 'keyboard-shortcuts'
+		| 'profiles'
+		| 'remote-development'
+		| 'shell-integration',
 ): Promise<Locator> {
 	await page.locator('[data-slot="workbench-sidebar-settings"]').click();
 	const settingsSurface = page.locator('[data-slot="terminal-settings-surface"]');

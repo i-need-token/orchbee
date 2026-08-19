@@ -9,11 +9,13 @@ import { PlannedTerminalSettings } from './components/planned-terminal-settings/
 import { RemoteDevelopmentSettings } from './components/remote-development-settings/RemoteDevelopmentSettings';
 import { ShellIntegrationSettings } from './components/shell-integration-settings/ShellIntegrationSettings';
 import { TerminalSettingsSections } from './components/terminal-settings-sections/TerminalSettingsSections';
+import { TerminalLaunchProfileSettings } from './components/terminal-launch-profile-settings/TerminalLaunchProfileSettings';
 import { useTerminalSettingsSurface } from './hooks/useTerminalSettingsSurface';
 import type { TerminalSettingsController } from '../terminal-settings';
 import type { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
+import type { DesktopTerminalLaunchProfileControl } from '../terminal-launch-profile-control';
 import styles from './TerminalSettingsSurface.module.css';
 
 export interface TerminalSettingsSurfaceProps {
@@ -24,6 +26,7 @@ export interface TerminalSettingsSurfaceProps {
 	readonly onRequestClose: () => void;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
+	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
 }
 
 export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): React.ReactNode {
@@ -56,6 +59,13 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		);
 	} else if (view.category === 'remote-development') {
 		mainContent = <RemoteDevelopmentSettings messages={view.messages} />;
+	} else if (view.category === 'profiles' && props.terminalLaunchProfileClient !== undefined) {
+		mainContent = (
+			<div className={styles['settingsStack']}>
+				<TerminalLaunchProfileSettings client={props.terminalLaunchProfileClient} />
+				<PlannedTerminalSettings notice={view.plannedNotice} sections={view.plannedSections} />
+			</div>
+		);
 	} else if (
 		view.category === 'shell-integration' &&
 		props.terminalFeedbackSettingsController !== undefined
@@ -128,12 +138,18 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 				{view.searchActive ? (
 					<div
 						aria-label={view.messages.searchPlaceholder}
+						aria-live={view.searchResults.length === 0 ? 'polite' : undefined}
 						className={styles['searchResults']}
 						id={view.searchResultsId}
 						role='listbox'
 					>
 						{view.searchResults.length === 0 ? (
-							<p aria-live='polite' className={styles['searchEmpty']} role='status'>
+							<p
+								aria-disabled='true'
+								aria-selected='false'
+								className={styles['searchEmpty']}
+								role='option'
+							>
 								{view.messages.noResults}
 							</p>
 						) : (
@@ -209,6 +225,7 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 				ref={view.contentReference}
 				className={styles['content']}
 				data-settings-content={view.category}
+				tabIndex={0}
 			>
 				<div className={styles['contentColumn']}>
 					<header className={styles['header']}>

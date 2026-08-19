@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { DesktopTerminalLaunchProfileSnapshotSchema } from '@orchbee/desktop-client-protocol';
 import {
 	CanonicalUint64TextSchema,
 	CreationIdSchema,
@@ -272,7 +273,7 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
-	it('starts without creating an attachment and atomically transfers five scoped controls', async () => {
+	it('starts without creating an attachment and atomically transfers six scoped controls', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -304,12 +305,18 @@ describe('DesktopApplication', () => {
 				expect.anything(),
 				expect.anything(),
 				expect.anything(),
+				expect.anything(),
 			],
 		);
 		expect(harness.clientSessionPorts[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.browserAccessBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectFolderAcquisitionBrokers[0]?.start).toHaveBeenCalledOnce();
+		expect(harness.terminalLaunchProfileBrokers[0]?.start).toHaveBeenCalledOnce();
+		expect(harness.terminalLaunchProfileController.initialize).toHaveBeenCalledOnce();
+		expect(harness.createTerminalRuntime.mock.calls[0]?.[5]?.()).toEqual(
+			createRuntime().terminalLaunch,
+		);
 		expect(harness.createWorkbenchDocumentStore).toHaveBeenCalledOnce();
 		expect(harness.createBrowserAccessRuntime).not.toHaveBeenCalled();
 		expect(harness.requestControl).toHaveBeenCalledWith(
@@ -319,6 +326,7 @@ describe('DesktopApplication', () => {
 		);
 
 		await application.shutdown();
+		expect(harness.terminalLaunchProfileController.flush).toHaveBeenCalledOnce();
 		expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
 		expect(harness.host.close).toHaveBeenCalledOnce();
 	});
@@ -389,7 +397,7 @@ describe('DesktopApplication', () => {
 		const application = createApplication(harness.dependencies);
 
 		await expect(application.start()).rejects.toThrow('renderer projection broker factory failed');
-		expect(harness.messageChannels).toHaveLength(5);
+		expect(harness.messageChannels).toHaveLength(6);
 		for (const channel of harness.messageChannels) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
@@ -510,8 +518,8 @@ describe('DesktopApplication', () => {
 			throw new Error('gateway projection factory failed');
 		});
 		await expect(factoryOpenClient()).rejects.toThrow('gateway projection factory failed');
-		expect(factoryHarness.messageChannels).toHaveLength(7);
-		for (const channel of factoryHarness.messageChannels.slice(5)) {
+		expect(factoryHarness.messageChannels).toHaveLength(8);
+		for (const channel of factoryHarness.messageChannels.slice(6)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
 		}
@@ -539,7 +547,7 @@ describe('DesktopApplication', () => {
 		});
 		await expect(startOpenClient()).rejects.toThrow('gateway projection start failed');
 		expect(startHarness.projectionBrokers[1]?.dispose).toHaveBeenCalledOnce();
-		for (const channel of startHarness.messageChannels.slice(5)) {
+		for (const channel of startHarness.messageChannels.slice(6)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalled();
 		}
@@ -592,7 +600,7 @@ describe('DesktopApplication', () => {
 
 		expect(harness.clientSessionPorts[0]?.close).not.toHaveBeenCalled();
 		expect(harness.projectionBrokers[0]?.dispose).not.toHaveBeenCalled();
-		expect(harness.messageChannels).toHaveLength(5);
+		expect(harness.messageChannels).toHaveLength(6);
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 		await application.shutdown();
 	});
@@ -611,12 +619,12 @@ describe('DesktopApplication', () => {
 		await vi.waitFor(() => expect(projectionDispose).toHaveBeenCalledTimes(2));
 		await Promise.resolve();
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
-		expect(harness.messageChannels).toHaveLength(5);
+		expect(harness.messageChannels).toHaveLength(6);
 		expect(harness.projectionBrokers).toHaveLength(1);
 
 		emitRendererDocumentLoad(harness.webContents);
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
-		expect(harness.messageChannels).toHaveLength(10);
+		expect(harness.messageChannels).toHaveLength(12);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		await application.shutdown();
 	});
@@ -1637,6 +1645,10 @@ function createHarness(
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
+	const terminalLaunchProfileBrokers: Array<{
+		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
+		readonly start: ReturnType<typeof vi.fn<() => void>>;
+	}> = [];
 	const projectionServices: Array<
 		Parameters<DesktopApplicationDependencies['createProjectionControlBroker']>[1]
 	> = [];
@@ -1834,6 +1846,38 @@ function createHarness(
 	const createTerminalRuntime = vi
 		.fn<DesktopApplicationDependencies['createTerminalRuntime']>()
 		.mockReturnValue(terminalRuntime);
+	let terminalLaunchProfileBaseLaunch = createRuntime().terminalLaunch;
+	const terminalLaunchProfileSnapshot = DesktopTerminalLaunchProfileSnapshotSchema.parse({
+		capabilities: { loginShell: true },
+		catalog: {
+			defaultProfileId: 'system-default',
+			profiles: [
+				{
+					command: { kind: 'system-shell', login: false },
+					id: 'system-default',
+					name: null,
+				},
+			],
+			version: 1,
+		},
+		persistenceIssue: null,
+		source: 'built-in',
+	});
+	const terminalLaunchProfileController = {
+		flush: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+		getSnapshot: () => terminalLaunchProfileSnapshot,
+		initialize: vi
+			.fn<() => Promise<typeof terminalLaunchProfileSnapshot>>()
+			.mockResolvedValue(terminalLaunchProfileSnapshot),
+		mutate: vi.fn<
+			ReturnType<DesktopApplicationDependencies['createTerminalLaunchProfileController']>['mutate']
+		>(async () => ({ kind: 'completed', snapshot: terminalLaunchProfileSnapshot })),
+		resolveDefaultLaunch: vi.fn<
+			ReturnType<
+				DesktopApplicationDependencies['createTerminalLaunchProfileController']
+			>['resolveDefaultLaunch']
+		>(() => terminalLaunchProfileBaseLaunch),
+	} satisfies ReturnType<DesktopApplicationDependencies['createTerminalLaunchProfileController']>;
 	let identifierSequence = 0;
 	const dependencies: DesktopApplicationDependencies = {
 		connectHost: vi.fn<DesktopApplicationDependencies['connectHost']>().mockResolvedValue(host),
@@ -1896,6 +1940,22 @@ function createHarness(
 			projectFolderAcquisitionBrokers.push(broker);
 			return broker;
 		}),
+		createTerminalLaunchProfileBroker: vi.fn<
+			DesktopApplicationDependencies['createTerminalLaunchProfileBroker']
+		>(() => {
+			const broker = {
+				dispose: vi.fn<() => void>(),
+				start: vi.fn<() => void>(),
+			};
+			terminalLaunchProfileBrokers.push(broker);
+			return broker;
+		}),
+		createTerminalLaunchProfileController: vi.fn<
+			DesktopApplicationDependencies['createTerminalLaunchProfileController']
+		>((options) => {
+			terminalLaunchProfileBaseLaunch = options.baseLaunch;
+			return terminalLaunchProfileController;
+		}),
 		createTerminalRuntime,
 		createTerminalExitSpillStore: () => spillStoreFactory?.() ?? terminalExitSpillStore,
 		createTerminalExitPublicationLedger: () => terminalExitPublicationLedger,
@@ -1940,6 +2000,8 @@ function createHarness(
 		},
 		projectionBrokers,
 		projectFolderAcquisitionBrokers,
+		terminalLaunchProfileBrokers,
+		terminalLaunchProfileController,
 		projectionServices,
 		quitApplication: dependencies.quitApplication,
 		requestControl,
@@ -1959,13 +2021,21 @@ function createHarness(
 
 function installRealTerminalRuntime(harness: ReturnType<typeof createHarness>): void {
 	harness.createTerminalRuntime.mockImplementation(
-		(host, configuration, randomIdentifier, createMessageChannel, createBroker) => {
+		(
+			host,
+			configuration,
+			randomIdentifier,
+			createMessageChannel,
+			createBroker,
+			resolveTerminalLaunch,
+		) => {
 			return composeDesktopTerminalRuntime({
 				configuration,
 				createBroker,
 				createMessageChannel,
 				host,
 				randomIdentifier,
+				resolveTerminalLaunch,
 			});
 		},
 	);

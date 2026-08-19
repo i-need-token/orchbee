@@ -47,7 +47,7 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--ob-ref-space-1);
-	color: var(--ob-sys-color-text-muted);
+	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-label-sm);
 }
 
@@ -72,7 +72,7 @@
 	padding: var(--ob-ref-space-0-5) var(--ob-ref-space-2);
 	border-radius: var(--ob-ref-radius-ui-xl);
 	background: var(--ob-sys-color-surface-canvas);
-	color: var(--ob-sys-color-text-muted);
+	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-label-xs);
 }
 
@@ -94,6 +94,10 @@
 
 .recorder:hover {
 	background: var(--ob-sys-color-surface-hovered);
+}
+
+.recorder > :global([data-slot='kbd']) {
+	color: var(--ob-sys-color-text-primary);
 }
 
 .recorder:focus-visible,

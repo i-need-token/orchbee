@@ -94,9 +94,9 @@ describe('composeDesktopTerminalLifecycleAdapter', () => {
 			host,
 			randomCreationId: () => identity.creationId,
 			registry,
+			resolveTerminalLaunch: () => terminalLaunch,
 			retireProjection: async () => undefined,
 			store,
-			terminalLaunch,
 		});
 
 		await expect(

@@ -215,6 +215,15 @@ function readSurfacePadding(root: HTMLElement): SurfacePadding {
 	};
 }
 
+interface NativeInputSettlement {
+	readonly baseline: string;
+	cancelled: boolean;
+	fallback: string;
+	readonly release: () => void;
+	sealedText: string;
+	timer: ReturnType<typeof setTimeout> | undefined;
+}
+
 export type ProjectedTerminalCommand =
 	| { readonly kind: 'clear-terminal'; readonly payload: ClearTerminal }
 	| { readonly kind: 'focus-input'; readonly payload: FocusInput }
@@ -708,10 +717,7 @@ export class ProjectedTerminal {
 	#optionAsAltMode: TerminalOptionAsAltMode;
 	#inputHelper: HTMLDivElement | undefined;
 	#input: HTMLTextAreaElement | undefined;
-	#nativeInputChangeBaseline = '';
-	#nativeInputChangeFallback = '';
-	#nativeInputChangePending = false;
-	#nativeInputChangeTimer: ReturnType<typeof setTimeout> | undefined;
+	#nativeInputSettlement: NativeInputSettlement | undefined;
 	#nativeInputTextForNextKey = '';
 	#nativeInputTextForNextKeyTimer: ReturnType<typeof setTimeout> | undefined;
 	#inputAdmission: ProjectedInputAdmission = ProjectedInputAdmission.accepting;
@@ -1736,6 +1742,7 @@ export class ProjectedTerminal {
 
 	async paste(text: string, source: ProjectedPasteSource = 'api'): Promise<ProjectedPasteResult> {
 		const admitted = this.#canAdmitInput();
+		if (admitted) this.#sealNativeInputSettlement();
 		return await this.#inputDispatcher.dispatch(
 			(signal) => this.#performPaste(text, source, admitted, signal),
 			() => this.#cancelledPasteResult(text, source),
@@ -3339,6 +3346,7 @@ export class ProjectedTerminal {
 		preserveSurfaceState = false,
 	): void {
 		if (!this.#canAdmitInput()) return;
+		this.#sealNativeInputSettlement();
 		this.#inputDispatcher.dispatchSync(() => {
 			if (!this.#canAdmitInput()) return;
 			try {
@@ -3789,7 +3797,7 @@ export class ProjectedTerminal {
 			this.#inputState = supersedeCancelledTerminalComposition(this.#inputState);
 		}
 		if (
-			this.#nativeInputChangePending &&
+			this.#nativeInputSettlement !== undefined &&
 			origin === TerminalBeforeInputOrigin.independent &&
 			isTextInsertionInputType(event.inputType)
 		) {
@@ -3900,13 +3908,12 @@ export class ProjectedTerminal {
 			? TerminalBeforeInputOrigin.composition
 			: TerminalBeforeInputOrigin.independent;
 		if (
-			this.#nativeInputChangePending &&
+			this.#nativeInputSettlement !== undefined &&
 			origin === TerminalBeforeInputOrigin.independent &&
 			(!inputType || isTextInsertionInputType(inputType))
 		) {
 			return;
 		}
-		this.#nativeInputChangePending = false;
 		if (!text) return;
 		if (
 			origin === TerminalBeforeInputOrigin.composition &&
@@ -4171,52 +4178,80 @@ export class ProjectedTerminal {
 	#queueNativeInputChange(fallbackText = ''): void {
 		const input = this.#input;
 		if (input === undefined) return;
-		if (this.#nativeInputChangePending) {
-			if (!this.#nativeInputChangeFallback && fallbackText) {
-				this.#nativeInputChangeFallback = fallbackText;
-			}
+		const current = this.#nativeInputSettlement;
+		if (current !== undefined) {
+			current.fallback += fallbackText;
 			return;
 		}
-		this.#nativeInputChangePending = true;
-		this.#nativeInputChangeBaseline = input.value;
-		this.#nativeInputChangeFallback = fallbackText;
-		const inputOperationEpoch = this.#inputRepairEpoch;
-		this.#nativeInputChangeTimer = globalThis.setTimeout(() => {
-			this.#nativeInputChangeTimer = undefined;
-			if (!this.#nativeInputChangePending) return;
-			const baseline = this.#nativeInputChangeBaseline;
-			const fallback = this.#nativeInputChangeFallback;
-			this.#nativeInputChangePending = false;
-			this.#nativeInputChangeBaseline = '';
-			this.#nativeInputChangeFallback = '';
-			if (
-				!this.#inputOperationIsCurrent(inputOperationEpoch) ||
-				this.#inputState.compositionPhase === TerminalCompositionPhase.eligible
-			) {
-				return;
-			}
-			const settledInput = this.#input;
-			if (settledInput === undefined) return;
-			if (settledInput.value === baseline) {
-				if (!fallback) return;
-				this.#sendText(fallback);
-				this.#clearInput();
-				return;
-			}
-			const value = settledInput.value;
-			settledInput.value = value.startsWith(baseline) ? value.slice(baseline.length) : value;
-			this.#consumeInputValue('insertText', false, () => undefined);
+		let release = (): void => undefined;
+		const ready = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const settlement: NativeInputSettlement = {
+			baseline: input.value,
+			cancelled: false,
+			fallback: fallbackText,
+			release,
+			sealedText: '',
+			timer: undefined,
+		};
+		this.#nativeInputSettlement = settlement;
+		settlement.timer = globalThis.setTimeout(() => {
+			this.#sealNativeInputSettlement(settlement);
 		}, NATIVE_INPUT_SETTLEMENT_DELAY_MS);
+		void this.#inputDispatcher
+			.dispatch(
+				async (signal) => {
+					await ready;
+					if (
+						signal.aborted ||
+						settlement.cancelled ||
+						this.#inputState.compositionPhase === TerminalCompositionPhase.eligible ||
+						!settlement.sealedText ||
+						textEncoder.encode(settlement.sealedText).byteLength > PROTOCOL_LIMITS.maxInputBytes
+					) {
+						return;
+					}
+					this.#publishCurrentInputCommand(
+						{
+							kind: 'text-input',
+							payload: { attachmentId: this.#attachmentId, text: settlement.sealedText },
+						},
+						ProjectedInputPublicationIntent.stateless,
+					);
+				},
+				() => undefined,
+			)
+			.catch((error: unknown) => this.#errorEmitter.fire({ error, operation: 'command' }));
 	}
 
 	#cancelNativeInputChange(): void {
-		if (this.#nativeInputChangeTimer !== undefined) {
-			globalThis.clearTimeout(this.#nativeInputChangeTimer);
-			this.#nativeInputChangeTimer = undefined;
+		const settlement = this.#nativeInputSettlement;
+		if (settlement === undefined) return;
+		if (settlement.timer !== undefined) globalThis.clearTimeout(settlement.timer);
+		settlement.timer = undefined;
+		settlement.cancelled = true;
+		this.#nativeInputSettlement = undefined;
+		settlement.release();
+	}
+
+	#sealNativeInputSettlement(
+		settlement: NativeInputSettlement | undefined = this.#nativeInputSettlement,
+	): void {
+		if (settlement === undefined || this.#nativeInputSettlement !== settlement) return;
+		if (settlement.timer !== undefined) globalThis.clearTimeout(settlement.timer);
+		settlement.timer = undefined;
+		const input = this.#input;
+		const value = input?.value ?? settlement.baseline;
+		let sealedText = value;
+		if (value === settlement.baseline) sealedText = settlement.fallback;
+		else if (value.startsWith(settlement.baseline)) {
+			sealedText = value.slice(settlement.baseline.length);
 		}
-		this.#nativeInputChangeBaseline = '';
-		this.#nativeInputChangeFallback = '';
-		this.#nativeInputChangePending = false;
+		settlement.sealedText = sealedText;
+		this.#nativeInputSettlement = undefined;
+		this.#clearInput();
+		settlement.release();
 	}
 
 	#sendText(text: string): boolean {

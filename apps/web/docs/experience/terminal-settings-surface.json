@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns the grouped Settings information architecture, global category-and-setting discovery, an explicitly noninteractive future terminal-settings catalog, client-local application appearance, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut overrides, manual Shell-integration guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the grouped Settings information architecture, global category-and-setting discovery, Desktop-local shell-profile management, an explicitly noninteractive future terminal-settings catalog, client-local application appearance, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut overrides, manual Shell-integration guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -12,6 +12,7 @@
 		"configure-terminal-display",
 		"configure-keyboard-shortcuts",
 		"configure-macos-terminal-input",
+		"configure-local-shell-profiles",
 		"configure-shell-integration-reminders",
 		"diagnose-remote-terminal-environment",
 		"explain-ghostty-configuration-migration",
@@ -26,6 +27,7 @@
 		"apps/web/src/terminal-settings-surface/components/planned-terminal-settings/PlannedTerminalSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/remote-development-settings/RemoteDevelopmentSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/shell-integration-settings/ShellIntegrationSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/terminal-launch-profile-settings/TerminalLaunchProfileSettings.tsx",
 		"apps/web/src/terminal-settings-surface/constants/planned-terminal-settings.ts",
 		"apps/web/src/terminal-settings-surface/constants/remote-development-diagnostic.ts",
 		"apps/web/src/terminal-settings-surface/constants/terminal-settings-search-catalog.ts",
@@ -44,7 +46,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-light",
 			"states": [
-				"Inspect the light English Desktop surface with five labeled navigation groups, focused search, borderless neutral setting groups, stable section and row rhythm, right-aligned immediate controls, and explicitly disabled Planned rows without a Save action. Type font to inspect global Text results while General remains complete, then activate Terminal font family to restore the rail and reveal its row.",
+				"Inspect the light English Desktop surface with five labeled navigation groups, focused search, borderless neutral setting groups, stable section and row rhythm, right-aligned immediate controls, and explicitly disabled Planned rows. Open Profiles to inspect local launch selection, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Type font to inspect global Text results while General remains complete, then activate Terminal font family to restore the rail and reveal its row.",
 				"Open Shell integration to inspect exact manual Zsh, Bash, and Fish source commands, the Bash 4.4 boundary, completion-reminder policy, explicit notification-permission control, and reset.",
 				"Open Remote development to inspect the xterm-256color baseline, complete read-only diagnostic command, result explanation, and explicit absence of automatic remote changes.",
 				"Open Ghostty migration to inspect the paste-only dry-run notice, bounded source field, explicit analysis action, four result dispositions, and absence of an Apply or Import action."
@@ -66,6 +68,7 @@
 		"A product contributor needs the stable category and section destination for a future terminal preference before implementing its behavior.",
 		"A client reviews or changes one of the frequent Workbench or focused-terminal shortcuts.",
 		"A macOS Desktop client chooses whether the left, right, both, or neither Option key acts as terminal Alt.",
+		"A Desktop client creates, edits, selects, or removes device-local system-shell and custom-executable launch profiles for future terminals.",
 		"A user wants exact manual setup for the shipped Zsh, Bash, or Fish integration, or device-local long-command completion reminders.",
 		"A user needs to inspect the TERM and terminfo state visible after an ordinary SSH connection without allowing Orchbee to change the remote host.",
 		"A user moving from Ghostty needs a source-ordered dry-run that explains which common pasted settings have a lossless Orchbee target and which require review or will not migrate.",
@@ -74,7 +77,7 @@
 	"avoidWhen": [
 		"A shared document or Terminal Host setting must synchronize across clients.",
 		"Ghostty files, included configuration, or themes must be read, or analyzed values must be applied automatically.",
-		"A native window, operating-system transparency, shell profile, palette, VT, or OSC setting is being configured."
+		"A native window, operating-system transparency, palette, VT, or OSC setting is being configured."
 	],
 	"invariants": [
 		"Opening Settings keeps the Workbench and projected terminal attachments mounted while the Workbench subtree is inert.",
@@ -84,6 +87,7 @@
 		"Shortcut edits publish one complete conflict-free effective table; Action availability is resolved before an event is consumed.",
 		"Recording, resetting, and restoring shortcut overrides never remount Workbench or replace a projected terminal attachment.",
 		"Option-as-Alt defaults to off, remains device-local, resolves the selected physical Option side per key event, and updates every mounted projected terminal without replacing its attachment.",
+		"Desktop shell profiles remain device-local, change only executable and literal ordered arguments, and affect only terminals provisioned after the successful Main-owned catalog commit; running and restored terminals retain their captured launch.",
 		"Shell integration is manual-only: the surface never reads or edits a startup file, executes a source command, or requests notification permission without the settings-page button.",
 		"Completion-reminder preferences stay device-local, default to off, and never include command text; qualifying events retain a localized terminal status when system notification is unavailable.",
 		"Remote development exposes one constant read-only command and explanation; opening, searching, and switching categories starts no process, writes no terminal input, persists no remote data, and performs no remote installation.",

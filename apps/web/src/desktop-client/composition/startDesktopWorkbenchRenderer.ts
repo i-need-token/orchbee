@@ -29,6 +29,7 @@ import {
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopTerminalProjectionClient } from '../terminal-projection-control';
 import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
+import { DesktopTerminalLaunchProfileClient } from '../terminal-launch-profiles';
 import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 
 export interface DesktopWorkbenchRendererSession {
@@ -50,6 +51,7 @@ export function startDesktopWorkbenchRenderer(
 	projectionPort: MessagePort,
 	browserAccessPort: MessagePort,
 	projectFolderAcquisitionPort: MessagePort,
+	terminalLaunchProfilePort: MessagePort,
 	terminalFileDropCapability?: TerminalFileDropCapability,
 ): DesktopWorkbenchRendererSession {
 	if (!(rootElement instanceof HTMLElement)) {
@@ -63,6 +65,9 @@ export function startDesktopWorkbenchRenderer(
 	);
 	const projectFolderAcquisitionClient = new DesktopProjectFolderAcquisitionClient(
 		projectFolderAcquisitionPort,
+	);
+	const terminalLaunchProfileClient = new DesktopTerminalLaunchProfileClient(
+		terminalLaunchProfilePort,
 	);
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 		platform: shortcutPlatform,
@@ -111,6 +116,7 @@ export function startDesktopWorkbenchRenderer(
 		reactRoot?.unmount();
 		reactRoot = undefined;
 		projectFolderAcquisitionClient.dispose();
+		terminalLaunchProfileClient.dispose();
 		routing?.dispose();
 		routing = undefined;
 		runtime.dispose();
@@ -133,7 +139,10 @@ export function startDesktopWorkbenchRenderer(
 	): Promise<
 		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
 	> {
-		const runtimeStart = await workbenchClientRuntime.ready;
+		const [runtimeStart, terminalLaunchProfilesStart] = await Promise.all([
+			workbenchClientRuntime.ready,
+			terminalLaunchProfileClient.initialize(),
+		]);
 		if (runtimeStart.kind === 'unavailable') {
 			dispose();
 			return runtimeStart;
@@ -159,6 +168,7 @@ export function startDesktopWorkbenchRenderer(
 			shortcutPlatform,
 			terminalSettingsController,
 			terminalFeedbackSettingsController,
+			...(terminalLaunchProfilesStart.kind === 'ready' ? { terminalLaunchProfileClient } : {}),
 			terminalSurface: ProjectedTerminalSurface,
 		});
 		routing = nextRouting;

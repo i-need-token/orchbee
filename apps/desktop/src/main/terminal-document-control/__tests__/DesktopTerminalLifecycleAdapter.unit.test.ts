@@ -106,6 +106,9 @@ function createHarness(
 		readonly createBindingLifecycle?:
 			| DesktopTerminalLifecycleAdapterDependencies['createBindingLifecycle']
 			| undefined;
+		readonly resolveTerminalLaunch?:
+			| DesktopTerminalLifecycleAdapterDependencies['resolveTerminalLaunch']
+			| undefined;
 	} = {},
 ) {
 	const registry = new DesktopTerminalBindingRegistry();
@@ -116,15 +119,25 @@ function createHarness(
 	const retireProjection = vi.fn<
 		(presentationId: ReturnType<typeof terminalPresentationId>) => Promise<void>
 	>(async () => undefined);
+	const resolveTerminalLaunch = vi.fn<
+		DesktopTerminalLifecycleAdapterDependencies['resolveTerminalLaunch']
+	>(options.resolveTerminalLaunch ?? (() => createTerminalLaunch()));
 	const adapter = new DesktopTerminalLifecycleAdapter({
 		allocateFreshBindingId: options.allocateFreshBindingId ?? (() => 'binding-1'),
 		createBindingLifecycle,
 		loadBindings: async () => ({ kind: 'missing' }),
 		registry,
+		resolveTerminalLaunch,
 		retireProjection,
-		terminalLaunch: createTerminalLaunch(),
 	});
-	return { adapter, createBindingLifecycle, lifecycle, registry, retireProjection };
+	return {
+		adapter,
+		createBindingLifecycle,
+		lifecycle,
+		registry,
+		resolveTerminalLaunch,
+		retireProjection,
+	};
 }
 
 describe('DesktopTerminalLifecycleAdapter', () => {
@@ -182,6 +195,24 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 		expect(harness.registry.size).toBe(1);
 	});
 
+	it('captures the current launch once and ignores later profile changes on provision retry', async () => {
+		const firstLaunch = { ...createTerminalLaunch(), executable: '/bin/first' };
+		const secondLaunch = { ...createTerminalLaunch(), executable: '/bin/second' };
+		const resolveTerminalLaunch = vi.fn<
+			DesktopTerminalLifecycleAdapterDependencies['resolveTerminalLaunch']
+		>(() => firstLaunch);
+		resolveTerminalLaunch.mockReturnValueOnce(firstLaunch).mockReturnValue(secondLaunch);
+		const harness = createHarness({ resolveTerminalLaunch });
+
+		await harness.adapter.execute(provisionCommand());
+		await harness.adapter.execute(provisionCommand('presentation-1', 'provision-2'));
+
+		expect(harness.resolveTerminalLaunch).toHaveBeenCalledOnce();
+		expect(harness.createBindingLifecycle.mock.calls[0]?.[1]).toMatchObject({
+			executable: '/bin/first',
+		});
+	});
+
 	it('restores only an already restorable binding and never allocates a replacement', async () => {
 		const retainedLifecycle = createLifecycle(async () => ({
 			identity,
@@ -196,6 +227,9 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 			presentationId: terminalPresentationId('presentation-1'),
 			state: { identity, kind: 'retained' },
 		};
+		const resolveTerminalLaunch = vi.fn<
+			DesktopTerminalLifecycleAdapterDependencies['resolveTerminalLaunch']
+		>(() => createTerminalLaunch());
 		const retained = new DesktopTerminalLifecycleAdapter({
 			allocateFreshBindingId,
 			createBindingLifecycle: () => retainedLifecycle,
@@ -204,8 +238,8 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 				kind: 'available',
 			}),
 			registry: new DesktopTerminalBindingRegistry(),
+			resolveTerminalLaunch,
 			retireProjection: async () => undefined,
-			terminalLaunch: createTerminalLaunch(),
 		});
 
 		await expect(retained.execute(restoreCommand())).resolves.toEqual({
@@ -215,6 +249,7 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 		});
 		expect(retainedLifecycle.reconcile).toHaveBeenCalledOnce();
 		expect(allocateFreshBindingId).not.toHaveBeenCalled();
+		expect(resolveTerminalLaunch).not.toHaveBeenCalled();
 
 		const missing = createHarness({ allocateFreshBindingId });
 		await expect(missing.adapter.execute(restoreCommand())).resolves.toEqual({
@@ -249,8 +284,8 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 				kind: 'available',
 			}),
 			registry: new DesktopTerminalBindingRegistry(),
+			resolveTerminalLaunch: () => createTerminalLaunch(),
 			retireProjection: async () => undefined,
-			terminalLaunch: createTerminalLaunch(),
 		});
 
 		await expect(adapter.execute(restoreCommand())).resolves.toMatchObject({
@@ -287,8 +322,8 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 				kind: 'available',
 			}),
 			registry: new DesktopTerminalBindingRegistry(),
+			resolveTerminalLaunch: () => createTerminalLaunch(),
 			retireProjection: async () => undefined,
-			terminalLaunch: createTerminalLaunch(),
 		});
 
 		await expect(adapter.execute(restoreCommand())).resolves.toMatchObject({
@@ -1085,8 +1120,8 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 				kind: 'available',
 			}),
 			registry: new DesktopTerminalBindingRegistry(),
+			resolveTerminalLaunch: () => createTerminalLaunch(),
 			retireProjection: async () => undefined,
-			terminalLaunch: createTerminalLaunch(),
 		});
 		await restore.execute(restoreCommand());
 
@@ -1177,8 +1212,8 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 				kind: 'available',
 			}),
 			registry,
+			resolveTerminalLaunch: () => createTerminalLaunch(),
 			retireProjection: async () => undefined,
-			terminalLaunch: createTerminalLaunch(),
 		});
 
 		await expect(adapter.initialize()).resolves.toEqual({ kind: 'ready' });

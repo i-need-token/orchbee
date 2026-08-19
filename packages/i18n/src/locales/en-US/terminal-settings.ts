@@ -122,6 +122,61 @@ export const enUSTerminalSettingsMessages = {
 		'Saved settings could not be read. Defaults are in use; reset to try saving them.',
 	'terminal.settings.persistence.writeWarning':
 		'Your changes are applied for this session but could not be saved.',
+	'terminal.settings.profiles.actions.add': 'Add profile',
+	'terminal.settings.profiles.actions.cancel': 'Cancel',
+	'terminal.settings.profiles.actions.confirmDelete': 'Delete this profile',
+	'terminal.settings.profiles.actions.confirmReset': 'Reset all profiles',
+	'terminal.settings.profiles.actions.delete': 'Delete',
+	'terminal.settings.profiles.actions.duplicate': 'Duplicate',
+	'terminal.settings.profiles.actions.makeDefault': 'Make default',
+	'terminal.settings.profiles.actions.reset': 'Reset profiles',
+	'terminal.settings.profiles.actions.save': 'Save changes',
+	'terminal.settings.profiles.addName.label': 'New profile name',
+	'terminal.settings.profiles.addName.placeholder': 'Profile name',
+	'terminal.settings.profiles.arguments.actions.add': 'Add argument',
+	'terminal.settings.profiles.arguments.actions.remove': 'Remove argument {number, number}',
+	'terminal.settings.profiles.arguments.argumentLabel': 'Argument {number, number}',
+	'terminal.settings.profiles.arguments.description':
+		'Arguments are passed literally, in this order. Shell quoting is not interpreted.',
+	'terminal.settings.profiles.arguments.label': 'Arguments',
+	'terminal.settings.profiles.command.custom': 'Custom executable',
+	'terminal.settings.profiles.command.label': 'Command',
+	'terminal.settings.profiles.command.system': 'System shell',
+	'terminal.settings.profiles.defaultBadge': 'Default',
+	'terminal.settings.profiles.executable.description':
+		'Enter an absolute path to an executable on this device.',
+	'terminal.settings.profiles.executable.label': 'Executable path',
+	'terminal.settings.profiles.executable.placeholder': '/usr/local/bin/fish',
+	'terminal.settings.profiles.failures.busy': 'Wait for the current profile change to finish.',
+	'terminal.settings.profiles.failures.catalogFull': 'The profile limit has been reached.',
+	'terminal.settings.profiles.failures.controlUnavailable':
+		'Profile controls are unavailable. Reopen Settings and try again.',
+	'terminal.settings.profiles.failures.invalid':
+		'Check the profile name, executable path, and arguments.',
+	'terminal.settings.profiles.failures.notFound': 'This profile no longer exists.',
+	'terminal.settings.profiles.failures.protectedDelete':
+		'Choose another default before deleting this profile.',
+	'terminal.settings.profiles.failures.unsupported':
+		'This launch option is not supported on this operating system.',
+	'terminal.settings.profiles.failures.write':
+		'The change was not saved. Your previous profiles are still active.',
+	'terminal.settings.profiles.futureTerminalsNotice':
+		'The default profile is captured when a new terminal starts. Running and restored terminals keep their original command.',
+	'terminal.settings.profiles.login.description':
+		'Start the system shell as a POSIX login shell by passing -l.',
+	'terminal.settings.profiles.login.label': 'Login shell',
+	'terminal.settings.profiles.login.unsupported':
+		'Login-shell mode is unavailable on this operating system.',
+	'terminal.settings.profiles.name.invalid': 'Enter a profile name.',
+	'terminal.settings.profiles.name.label': 'Profile name',
+	'terminal.settings.profiles.persistence.invalid':
+		'The saved profile file is invalid. The built-in profile is active until you save or reset.',
+	'terminal.settings.profiles.persistence.read':
+		'The saved profile file could not be read. The built-in profile is active until you save or reset.',
+	'terminal.settings.profiles.persistence.write':
+		'The last profile change could not be saved. Your previous profiles remain active.',
+	'terminal.settings.profiles.section': 'Local shell profiles',
+	'terminal.settings.profiles.systemShell': 'System shell',
 	'terminal.settings.reset.description': 'Restore the default application and terminal settings.',
 	'terminal.settings.remoteDevelopment.baseline.description':
 		'Orchbee starts local Desktop terminals with this widely available TERM. A standard SSH PTY can carry it to the remote shell.',

@@ -13,9 +13,9 @@ export interface DesktopTerminalLifecycleAdapterComposition {
 	readonly onIdentityObserved?: (identity: TerminalIdentity) => void;
 	readonly randomCreationId: () => string;
 	readonly registry: DesktopTerminalBindingRegistry;
+	readonly resolveTerminalLaunch: () => TerminalLaunch;
 	readonly retireProjection: (presentationId: TerminalPresentationId) => Promise<void>;
 	readonly store: TerminalBindingStore;
-	readonly terminalLaunch: TerminalLaunch;
 }
 
 export function composeDesktopTerminalLifecycleAdapter(
@@ -42,6 +42,6 @@ export function composeDesktopTerminalLifecycleAdapter(
 			? {}
 			: { onIdentityObserved: composition.onIdentityObserved }),
 		retireProjection: composition.retireProjection,
-		terminalLaunch: composition.terminalLaunch,
+		resolveTerminalLaunch: composition.resolveTerminalLaunch,
 	});
 }

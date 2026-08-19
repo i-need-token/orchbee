@@ -112,7 +112,7 @@ export interface DesktopTerminalLifecycleAdapterDependencies {
 	readonly loadBindings: () => Promise<TerminalBindingStoreLoadResult>;
 	readonly onIdentityObserved?: (identity: TerminalIdentity) => void;
 	readonly retireProjection: (presentationId: TerminalPresentationId) => Promise<void>;
-	readonly terminalLaunch: TerminalLaunch;
+	readonly resolveTerminalLaunch: () => TerminalLaunch;
 }
 
 interface BindingEntry {
@@ -196,7 +196,7 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 	readonly #registry: DesktopTerminalBindingRegistry;
 	readonly #retiredPresentations = new Set<TerminalPresentationId>();
 	readonly #retireProjection: DesktopTerminalLifecycleAdapterDependencies['retireProjection'];
-	readonly #terminalLaunch: TerminalLaunch;
+	readonly #resolveTerminalLaunch: DesktopTerminalLifecycleAdapterDependencies['resolveTerminalLaunch'];
 
 	constructor(dependencies: DesktopTerminalLifecycleAdapterDependencies) {
 		this.#allocateFreshBindingId = dependencies.allocateFreshBindingId;
@@ -205,7 +205,7 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 		this.#onIdentityObserved = dependencies.onIdentityObserved;
 		this.#registry = dependencies.registry;
 		this.#retireProjection = dependencies.retireProjection;
-		this.#terminalLaunch = TerminalLaunchSchema.parse(dependencies.terminalLaunch);
+		this.#resolveTerminalLaunch = dependencies.resolveTerminalLaunch;
 	}
 
 	initialize(): Promise<DesktopTerminalLifecycleAdapterInitialization> {
@@ -531,7 +531,6 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 			);
 		}
 
-		const launch = resolveLaunch(this.#terminalLaunch, command.launchCwd);
 		let entry = this.#entries.get(command.presentationId);
 		if (entry === undefined) {
 			if (this.#registry.getByPresentationId(command.presentationId) !== null) {
@@ -539,6 +538,7 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 					provisionFailed(command, failure('terminal-binding-runtime-unavailable', false)),
 				);
 			}
+			const launch = resolveLaunch(this.#resolveTerminalLaunch(), command.launchCwd);
 			const bindingId = TerminalBindingIdSchema.safeParse(this.#allocateFreshBindingId());
 			if (!bindingId.success) {
 				return Promise.resolve(
@@ -589,7 +589,9 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 				terminalFailure: null,
 			};
 			this.#entries.set(command.presentationId, entry);
-		} else if (entry.launch.currentDirectory !== launch.currentDirectory) {
+		} else if (
+			entry.launch.currentDirectory !== (command.launchCwd ?? entry.launch.currentDirectory)
+		) {
 			return Promise.resolve(provisionFailed(command, failure('terminal-launch-conflict', false)));
 		}
 
@@ -634,8 +636,7 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 				restoreFailed(command, failure('terminal-identity-unavailable', false)),
 			);
 		}
-		const launch = resolveLaunch(this.#terminalLaunch, command.launchCwd);
-		if (entry.launch.currentDirectory !== launch.currentDirectory) {
+		if (entry.launch.currentDirectory !== (command.launchCwd ?? entry.launch.currentDirectory)) {
 			return Promise.resolve(restoreFailed(command, failure('terminal-launch-conflict', false)));
 		}
 		return this.#enqueue(entry, async () => {

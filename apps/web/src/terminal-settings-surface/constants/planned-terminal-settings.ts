@@ -115,12 +115,7 @@ export const PLANNED_TERMINAL_SETTINGS = {
 		),
 	],
 	profiles: [
-		section('profiles.management', 'terminal.settings.catalog.sections.profiles.management', [
-			item('profiles.manageDefault', 'profiles.manageDefault', 'action'),
-			item('profiles.identity', 'profiles.identity', 'action'),
-		]),
 		section('profiles.behavior', 'terminal.settings.catalog.sections.profiles.behavior', [
-			item('profiles.launch', 'profiles.launch', 'action'),
 			item('profiles.appearance', 'profiles.appearance', 'action'),
 			item('profiles.connections', 'profiles.connections', 'action'),
 		]),

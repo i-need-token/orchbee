@@ -6,17 +6,18 @@ Sandboxed Electron product client and scoped local broker for Orchbee's native T
 
 Desktop composes the shared Workbench with Host-backed projected terminals. Workbench owns Project, Workspace, Tab, Panel, and `TerminalPresentationId` state; Electron Main owns durable technical bindings and Electron-only privileged effects; `apps/terminal-host` owns PTYs, processes, Ghostty VT state, history, and real terminal identity. A Browser client commits clipboard and allowlisted link effects in its own page. None of the shared Workbench document is stored in the Host.
 
-Main starts without creating a fixed terminal, opening an attachment, or starting a Web listener. It restores the durable `TerminalPresentationId` to `TerminalBindingId` registry, owns one process-wide canonical Workbench shared-document coordinator, and transfers one atomic allowlisted capability bundle through the sandboxed preload. Its five ports have one fixed order:
+Main starts without creating a fixed terminal, opening an attachment, or starting a Web listener. It restores the durable `TerminalPresentationId` to `TerminalBindingId` registry, owns one process-wide canonical Workbench shared-document coordinator, and transfers one atomic allowlisted capability bundle through the sandboxed preload. Its six ports have one fixed order:
 
 - client-session control delivers one atomic document/terminal-observation bootstrap, accepts complete exact-next shared-document proposals, and publishes one ordered canonical event stream;
 - projection control opens and releases scoped Host attachments only for displayed terminal viewports;
 - application-lifetime control carries only exit reason, user choice, quiescing acknowledgement, shared-document revision, aggregate progress, typed failures, and the Workbench presentation identities needed to resume an in-progress development Host restart;
 - Browser-access control carries only explicit start, mode-switch, open, copy, stop, sanitized Origin state, and bounded failures. It never carries the capability-bearing URL;
-- Project Folder acquisition requests one native existing-directory selection and returns only a correlated selected path, cancellation, or bounded failure.
+- Project Folder acquisition requests one native existing-directory selection and returns only a correlated selected path, cancellation, or bounded failure;
+- terminal-launch-profile control projects and mutates one bounded device-local catalog of system-shell or explicit-executable launch choices. It carries no environment, CWD, secret, project payload, or generic filesystem capability.
 
-The client-session and projection payloads are platform-neutral contracts from `@orchbee/workbench-client-protocol`. `@orchbee/desktop-client-protocol` owns the atomic Electron renderer bootstrap, Electron application-lifetime contract, narrow Browser-access command contract, and typed Project Folder-acquisition contract. Desktop Main and the Web renderer each adapt the generic contracts to their end of a `MessagePort`; neither transport detail enters the shared Workbench client runtime.
+The client-session and projection payloads are platform-neutral contracts from `@orchbee/workbench-client-protocol`. `@orchbee/desktop-client-protocol` owns the atomic Electron renderer bootstrap, Electron application-lifetime contract, narrow Browser-access command contract, typed Project Folder-acquisition contract, and terminal-launch-profile command contract. Desktop Main and the Web renderer each adapt the generic contracts to their end of a `MessagePort`; neither transport detail enters the shared Workbench client runtime.
 
-The renderer has no Node integration, generic Electron IPC, filesystem read capability, Host inventory, or raw terminal-lifetime authority. It cannot invoke provision, restore, close, or storage CAS effects directly. Preload accepts exactly one bootstrap, verifies all five ports together, preserves their fixed client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition order, and attests context isolation and sandboxing. The Project Folder port accepts no renderer path and exposes no enumeration or mutation primitive. A separate context-isolated file-drop adapter exposes only the current platform and Electron's `File`-scoped backing-path lookup; it cannot accept an arbitrary path string, read file contents, enumerate a directory, or perform an IPC request. The Web renderer admits that adapter only for a user drop, applies its own bounded POSIX quoting and mandatory review policy, and never appends Enter. A partial or malformed bootstrap starts no renderer runtime.
+The renderer has no Node integration, generic Electron IPC, filesystem read capability, Host inventory, or raw terminal-lifetime authority. It cannot invoke provision, restore, close, or storage CAS effects directly. Preload accepts exactly one bootstrap, verifies all six ports together, preserves their fixed client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition/terminal-launch-profiles order, and attests context isolation and sandboxing. The Project Folder port accepts no renderer path and exposes no enumeration or mutation primitive. A separate context-isolated file-drop adapter exposes only the current platform and Electron's `File`-scoped backing-path lookup; it cannot accept an arbitrary path string, read file contents, enumerate a directory, or perform an IPC request. The Web renderer admits that adapter only for a user drop, applies its own bounded POSIX quoting and mandatory review policy, and never appends Enter. A partial or malformed bootstrap starts no renderer runtime.
 
 OSC 52 clipboard writes use the existing projection port rather than a generic preload clipboard API. Main remembers only the exact first Host request forwarded to an attachment; a renderer approval or rejection must repeat its attachment, sequence, and bounded text exactly. A matching approval performs one Desktop-owned plain-text write and consumes the pending request, while cancellation, mismatch, duplication, broker backpressure, page retirement, and attachment disposal perform no write. Gateway Browser attachments commit an approved request through their local Clipboard API and send the same exact decision only to consume Main's pending record, so Electron cannot repeat that client-local effect.
 
@@ -152,6 +153,31 @@ AttachmentId ── one disposable projection capability
 `TerminalPresentationId` is created and retired by Workbench. Main maintains a strict in-memory bijection to `TerminalBindingId`; it never exposes Binding, Creation, Host, Terminal, or Attachment identity through lifecycle control. The Host remains the source of truth for the process and VT.
 
 The version-3 binding store contains a canonical BindingId-ordered collection. Every record has one unique BindingId, PresentationId, CreationId, bounded launch profile, and exactly one durable state: `planned`, `create-requested`, `retained`, `exited`, `closing`, or `lost`. Retained identities are unique and must repeat their owning CreationId. The file is parsed as untrusted input, updated through owner-only atomic replacement, and never rewritten automatically when invalid or unreadable. Launch environment values never enter diagnostics. Every default launch declares `TERM=xterm-256color`, `COLORTERM=truecolor`, and `TERM_PROGRAM=Orchbee`, and removes inherited `NO_COLOR`, `FORCE_COLOR`, and `NODE_DISABLE_COLORS` policy before the Host creates the PTY process. New POSIX terminals also receive `ORCHBEE_SHELL_INTEGRATION_DIR` from a code-resolved application resource path: development resolves it relative to the built Main entry, and packaged applications resolve it beneath `process.resourcesPath`. Ambient environment cannot replace that path. Desktop ships its own Zsh, Bash, and Fish scripts as package resources but never sources them or modifies a startup file; Settings exposes the exact manual commands. Desktop preserves an explicit UTF-8 locale; when inherited POSIX locale precedence would not produce UTF-8, Main removes a conflicting `LC_ALL`, repairs an invalid `LANG`, and supplies a UTF-8 `LC_CTYPE` fallback as needed. Darwin uses `en_US.UTF-8` because its shell environment does not provide Linux's `C.UTF-8` locale.
+
+## Local terminal launch profiles
+
+Electron Main owns `terminal-launch-profiles-v1.json`, a strict bounded catalog of named device-local
+launch profiles. A missing file selects the built-in System shell profile with login mode disabled.
+An invalid or unreadable file projects that same safe fallback together with a recoverable issue and
+is never rewritten automatically. Explicit create, edit, default-selection, delete, and reset
+operations are serialized and use owner-only atomic replacement. The previous catalog remains
+authoritative until replacement commits; a failed write preserves the previous default and catalog.
+
+A profile selects either the trusted system shell with a POSIX login-shell decision or one absolute
+custom executable with a literal ordered argument vector. It overrides only `executable` and
+`arguments` in the trusted base `TerminalLaunch`; Desktop continues to own environment, terminal
+presentation profile, configuration, geometry, and CWD policy. Windows reports login-shell support
+as unavailable. Main resolves and bounds every catalog profile against the concrete Host
+`create-terminal` encoding before accepting storage. An accepted custom executable that later fails
+to launch reports the existing
+terminal lifecycle failure and never falls back to the system shell.
+
+The default profile is resolved once when a new terminal first provisions, before its durable
+binding is written. Retry, renderer reload, application restart, and restore reuse the complete
+launch captured by that binding, so editing or changing the current default cannot mutate an
+existing terminal. Only the local Electron renderer receives the management port; authenticated
+Gateway pages and ordinary Browser clients cannot inspect or change the catalog. See
+[`docs/terminal-launch-profiles.md`](docs/terminal-launch-profiles.md).
 
 Ordinary remote shells remain owned by the system SSH client the user invokes inside that PTY.
 Desktop does not wrap `ssh`, retain remote credentials or host records, add OpenSSH environment

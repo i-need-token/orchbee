@@ -18,6 +18,7 @@ export function WorkbenchRoute(): ReactNode {
 			shortcutPlatform={application.shortcutPlatform}
 			terminalSettingsController={application.terminalSettingsController}
 			terminalFeedbackSettingsController={application.terminalFeedbackSettingsController}
+			terminalLaunchProfileClient={application.terminalLaunchProfileClient}
 			terminalSurface={application.terminalSurface}
 		/>
 	);

@@ -42,20 +42,22 @@ describe('composeDesktopTerminalRuntime', () => {
 		const host = {
 			requestControl: vi.fn<HostConnection['requestControl']>(),
 		} as unknown as HostConnection;
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: directory,
+			environment: { ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory },
+			homeDirectory: directory,
+			platform: 'darwin',
+			posixRuntimeBaseDirectory: '/private/var/folders/user/T',
+			terminalHostName: 'orchbee-host',
+			userDataPath: directory,
+		});
 		const runtime = composeDesktopTerminalRuntime({
-			configuration: resolveDesktopRuntimeConfiguration({
-				applicationPath: directory,
-				environment: { ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory },
-				homeDirectory: directory,
-				platform: 'darwin',
-				posixRuntimeBaseDirectory: '/private/var/folders/user/T',
-				terminalHostName: 'orchbee-host',
-				userDataPath: directory,
-			}),
+			configuration,
 			createBroker,
 			createMessageChannel,
 			host,
 			randomIdentifier: () => '11'.repeat(16),
+			resolveTerminalLaunch: () => configuration.terminalLaunch,
 		});
 
 		await expect(runtime.initialize()).resolves.toEqual({ kind: 'ready' });
@@ -92,20 +94,22 @@ describe('composeDesktopTerminalRuntime', () => {
 			throw new Error(`Unexpected Host request ${kind}.`);
 		});
 		const host = { hostEpoch, requestControl } as unknown as HostConnection;
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: directory,
+			environment: { ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory },
+			homeDirectory: directory,
+			platform: 'darwin',
+			posixRuntimeBaseDirectory: '/private/var/folders/user/T',
+			terminalHostName: 'orchbee-host',
+			userDataPath: directory,
+		});
 		const runtime = composeDesktopTerminalRuntime({
-			configuration: resolveDesktopRuntimeConfiguration({
-				applicationPath: directory,
-				environment: { ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory },
-				homeDirectory: directory,
-				platform: 'darwin',
-				posixRuntimeBaseDirectory: '/private/var/folders/user/T',
-				terminalHostName: 'orchbee-host',
-				userDataPath: directory,
-			}),
+			configuration,
 			createBroker: vi.fn<DesktopTerminalRuntimeComposition['createBroker']>(),
 			createMessageChannel: vi.fn<DesktopTerminalRuntimeComposition['createMessageChannel']>(),
 			host,
 			randomIdentifier: () => '11'.repeat(16),
+			resolveTerminalLaunch: () => configuration.terminalLaunch,
 		});
 
 		await expect(runtime.initialize()).resolves.toEqual({ kind: 'ready' });

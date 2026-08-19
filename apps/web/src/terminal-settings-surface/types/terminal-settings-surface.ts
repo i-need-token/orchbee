@@ -8,6 +8,7 @@ import type {
 } from '../../terminal-settings';
 import type { TerminalFeedbackSettingsController } from '../../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
+import type { DesktopTerminalLaunchProfileControl } from '../../terminal-launch-profile-control';
 
 export type TerminalSettingsCategory =
 	| 'appearance'
@@ -159,6 +160,7 @@ export interface UseTerminalSettingsSurfaceOptions {
 	readonly onRequestClose: () => void;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
+	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
 }
 
 export interface TerminalSettingsSurfaceView {

@@ -9,6 +9,7 @@ import {
 	type DesktopApplicationExitFailure,
 	type DesktopApplicationExitReason,
 	type DesktopApplicationExitRequestId,
+	type DesktopTerminalLaunchProfileSnapshot,
 } from '@orchbee/desktop-client-protocol';
 import {
 	ClientIdSchema,
@@ -21,6 +22,7 @@ import {
 	type TerminalExited,
 	type TerminalFailed,
 	type TerminalIdentity,
+	type TerminalLaunch,
 } from '@orchbee/terminal-protocol';
 import {
 	type TerminalPresentationIdSchema,
@@ -88,6 +90,12 @@ import {
 	TerminalProjectionControlBroker,
 	type DesktopTerminalProjectionLease,
 } from '../terminal-projection-control';
+import {
+	DesktopTerminalLaunchProfileBroker,
+	DesktopTerminalLaunchProfileController,
+	FileTerminalLaunchProfileStore,
+	type DesktopTerminalLaunchProfileBrokerController,
+} from '../terminal-launch-profiles';
 import type { DesktopTerminalExitRecordResult } from '../terminal-document-control';
 import {
 	DesktopWindowStateOwner,
@@ -143,6 +151,17 @@ interface DesktopBrowserAccessRuntimeHandle extends DesktopBrowserAccessBrokerRu
 interface DesktopProjectFolderAcquisitionBrokerHandle {
 	dispose(): void;
 	start(): void;
+}
+
+interface DesktopTerminalLaunchProfileBrokerHandle {
+	dispose(): void;
+	start(): void;
+}
+
+interface DesktopTerminalLaunchProfileControllerHandle extends DesktopTerminalLaunchProfileBrokerController {
+	flush(): Promise<void>;
+	initialize(): Promise<DesktopTerminalLaunchProfileSnapshot>;
+	resolveDefaultLaunch(): TerminalLaunch;
 }
 
 interface GatewayClientResourceOwner {
@@ -219,12 +238,23 @@ export interface DesktopApplicationDependencies {
 		port: MessagePortMain,
 		window: BrowserWindow,
 	) => DesktopProjectFolderAcquisitionBrokerHandle;
+	readonly createTerminalLaunchProfileBroker: (
+		port: MessagePortMain,
+		controller: DesktopTerminalLaunchProfileBrokerController,
+	) => DesktopTerminalLaunchProfileBrokerHandle;
+	readonly createTerminalLaunchProfileController: (options: {
+		readonly allocateProfileId: () => string;
+		readonly baseLaunch: TerminalLaunch;
+		readonly platform: NodeJS.Platform;
+		readonly storePath: string;
+	}) => DesktopTerminalLaunchProfileControllerHandle;
 	readonly createTerminalRuntime: (
 		host: HostConnection,
 		configuration: DesktopRuntimeConfiguration,
 		randomIdentifier: () => string,
 		createMessageChannel: DesktopApplicationDependencies['createMessageChannel'],
 		createBroker: DesktopApplicationDependencies['createBroker'],
+		resolveTerminalLaunch: () => TerminalLaunch,
 	) => DesktopTerminalRuntime;
 	readonly createTerminalExitSpillStore?: (filePath: string) => TerminalExitSpillStore;
 	readonly createTerminalExitPublicationLedger?: (
@@ -271,12 +301,22 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			port,
 			new DesktopProjectFolderAcquisitionRuntime(window),
 		),
+	createTerminalLaunchProfileBroker: (port, controller) =>
+		new DesktopTerminalLaunchProfileBroker(port, controller),
+	createTerminalLaunchProfileController: (options) =>
+		new DesktopTerminalLaunchProfileController({
+			allocateProfileId: options.allocateProfileId,
+			baseLaunch: options.baseLaunch,
+			platform: options.platform,
+			store: new FileTerminalLaunchProfileStore(options.storePath),
+		}),
 	createTerminalRuntime: (
 		host,
 		configuration,
 		randomIdentifier,
 		createMessageChannel,
 		createBroker,
+		resolveTerminalLaunch,
 	) =>
 		composeDesktopTerminalRuntime({
 			configuration,
@@ -284,6 +324,7 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			createMessageChannel,
 			host,
 			randomIdentifier,
+			resolveTerminalLaunch,
 		}),
 	createTerminalIntentReconciler: (dependencies) =>
 		new DesktopTerminalIntentReconciler(dependencies),
@@ -340,6 +381,8 @@ export class DesktopApplication {
 	#shutdownPromise: Promise<void> | undefined;
 	#terminalRuntime: DesktopTerminalRuntime | undefined;
 	#terminalIntentReconciler: DesktopTerminalIntentReconciler | undefined;
+	#terminalLaunchProfileBroker: DesktopTerminalLaunchProfileBrokerHandle | undefined;
+	readonly #terminalLaunchProfileController: DesktopTerminalLaunchProfileControllerHandle;
 	readonly #pendingTerminalExits = new Map<string, TerminalExited>();
 	readonly #terminalExitAttempts = new Map<string, Promise<void>>();
 	readonly #terminalExitPublicationReservations = new Map<
@@ -388,6 +431,12 @@ export class DesktopApplication {
 		this.#workbenchDocumentStore = dependencies.createWorkbenchDocumentStore(
 			options.runtime.workbenchDocumentStorePath,
 		);
+		this.#terminalLaunchProfileController = dependencies.createTerminalLaunchProfileController({
+			allocateProfileId: () => `profile-${dependencies.randomIdentifier()}`,
+			baseLaunch: options.runtime.terminalLaunch,
+			platform: options.platform,
+			storePath: options.runtime.terminalLaunchProfileStorePath,
+		});
 	}
 
 	get hasWindow(): boolean {
@@ -499,12 +548,14 @@ export class DesktopApplication {
 				throw new Error(`Terminal exit spill store is unavailable: ${spillLoad.reason}.`);
 			}
 			this.#terminalExitSpillReady = true;
+			await this.#terminalLaunchProfileController.initialize();
 			const terminalRuntime = this.#dependencies.createTerminalRuntime(
 				connection,
 				this.#options.runtime,
 				this.#dependencies.randomIdentifier,
 				this.#dependencies.createMessageChannel,
 				this.#dependencies.createBroker,
+				() => this.#terminalLaunchProfileController.resolveDefaultLaunch(),
 			);
 			this.#terminalRuntime = terminalRuntime;
 			terminalRuntime.setIdentityObservedListener?.(this.#handleTerminalIdentityObserved);
@@ -747,6 +798,11 @@ export class DesktopApplication {
 			firstFailure ??= error;
 		}
 		try {
+			await this.#terminalLaunchProfileController.flush();
+		} catch (error: unknown) {
+			firstFailure ??= error;
+		}
+		try {
 			await this.#disposeBrowserAccessResources();
 		} catch (error: unknown) {
 			firstFailure ??= error;
@@ -815,6 +871,8 @@ export class DesktopApplication {
 		this.#browserAccessBroker = undefined;
 		this.#projectFolderAcquisitionBroker?.dispose();
 		this.#projectFolderAcquisitionBroker = undefined;
+		this.#terminalLaunchProfileBroker?.dispose();
+		this.#terminalLaunchProfileBroker = undefined;
 		const clientSessionBroker = this.#clientSessionBroker;
 		this.#clientSessionBroker = undefined;
 		const projectionBroker = this.#projectionControlBroker;
@@ -967,11 +1025,15 @@ export class DesktopApplication {
 		let projectFolderAcquisitionChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
+		let terminalLaunchProfileChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
 		let projectionBroker: DesktopProjectionControlBrokerHandle | undefined;
 		let clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
 		let lifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
 		let browserAccessBroker: DesktopBrowserAccessBrokerHandle | undefined;
 		let projectFolderAcquisitionBroker: DesktopProjectFolderAcquisitionBrokerHandle | undefined;
+		let terminalLaunchProfileBroker: DesktopTerminalLaunchProfileBrokerHandle | undefined;
 		const cleanup = async (): Promise<void> => {
 			let firstFailure: unknown;
 			try {
@@ -986,6 +1048,11 @@ export class DesktopApplication {
 			}
 			try {
 				projectFolderAcquisitionBroker?.dispose();
+			} catch (error: unknown) {
+				firstFailure ??= error;
+			}
+			try {
+				terminalLaunchProfileBroker?.dispose();
 			} catch (error: unknown) {
 				firstFailure ??= error;
 			}
@@ -1008,6 +1075,7 @@ export class DesktopApplication {
 			closeRendererChannel(clientSessionChannel);
 			closeRendererChannel(projectionChannel);
 			closeRendererChannel(projectFolderAcquisitionChannel);
+			closeRendererChannel(terminalLaunchProfileChannel);
 			if (firstFailure !== undefined) throw firstFailure;
 		};
 		try {
@@ -1016,6 +1084,7 @@ export class DesktopApplication {
 			clientSessionChannel = this.#dependencies.createMessageChannel();
 			projectionChannel = this.#dependencies.createMessageChannel();
 			projectFolderAcquisitionChannel = this.#dependencies.createMessageChannel();
+			terminalLaunchProfileChannel = this.#dependencies.createMessageChannel();
 			projectionBroker = this.#dependencies.createProjectionControlBroker(
 				projectionChannel.port2,
 				terminalRuntime,
@@ -1063,11 +1132,16 @@ export class DesktopApplication {
 				projectFolderAcquisitionChannel.port2,
 				window,
 			);
+			terminalLaunchProfileBroker = this.#dependencies.createTerminalLaunchProfileBroker(
+				terminalLaunchProfileChannel.port2,
+				this.#terminalLaunchProfileController,
+			);
 			clientSessionBroker.start();
 			browserAccessBroker.start();
 			lifetimeBroker.start();
 			projectionBroker.start();
 			projectFolderAcquisitionBroker.start();
+			terminalLaunchProfileBroker.start();
 			window.webContents.postMessage(
 				DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 				DesktopRendererBootstrapSchema.parse({
@@ -1080,6 +1154,7 @@ export class DesktopApplication {
 					lifetimeChannel.port1,
 					browserAccessChannel.port1,
 					projectFolderAcquisitionChannel.port1,
+					terminalLaunchProfileChannel.port1,
 				],
 			);
 			this.#applicationLifetimeBroker = lifetimeBroker;
@@ -1087,6 +1162,7 @@ export class DesktopApplication {
 			this.#clientSessionBroker = clientSessionBroker;
 			this.#projectionControlBroker = projectionBroker;
 			this.#projectFolderAcquisitionBroker = projectFolderAcquisitionBroker;
+			this.#terminalLaunchProfileBroker = terminalLaunchProfileBroker;
 		} catch (error: unknown) {
 			this.#pendingRendererBootstrapCleanup = cleanup;
 			await cleanup();

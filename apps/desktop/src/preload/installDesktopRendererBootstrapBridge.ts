@@ -32,12 +32,14 @@ export function installDesktopRendererBootstrapBridge(
 		const applicationLifetimePort = event.ports[2];
 		const browserAccessPort = event.ports[3];
 		const projectFolderAcquisitionPort = event.ports[4];
+		const terminalLaunchProfilesPort = event.ports[5];
 		if (
 			clientSessionPort === undefined ||
 			terminalProjectionPort === undefined ||
 			applicationLifetimePort === undefined ||
 			browserAccessPort === undefined ||
-			projectFolderAcquisitionPort === undefined
+			projectFolderAcquisitionPort === undefined ||
+			terminalLaunchProfilesPort === undefined
 		) {
 			closeTransferredPorts(event.ports);
 			return;
@@ -56,6 +58,7 @@ export function installDesktopRendererBootstrapBridge(
 					applicationLifetimePort,
 					browserAccessPort,
 					projectFolderAcquisitionPort,
+					terminalLaunchProfilesPort,
 				],
 			);
 		} catch {

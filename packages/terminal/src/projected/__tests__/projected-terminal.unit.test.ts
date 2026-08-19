@@ -1215,6 +1215,53 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('keeps native digit settlement ordered with intervening physical keys', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		input.dispatch('keyup', keyboardEvent('keyup', 'KeyA', 'a', 65));
+		input.dispatch('keydown', keyboardEvent('keydown', 'Digit1', '1', 49));
+		input.value = '1';
+		dispatchInput(input);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyB', 'b', 66));
+		input.dispatch('keyup', keyboardEvent('keyup', 'KeyB', 'b', 66));
+		input.dispatch('keydown', keyboardEvent('keydown', 'Digit2', '2', 50));
+		input.value = '2';
+		dispatchInput(input);
+		await vi.advanceTimersByTimeAsync(30);
+		await Promise.resolve();
+
+		expect(
+			commands.flatMap((command) => {
+				if (command.kind === 'text-input') return [command.payload.text];
+				if (command.kind === 'key-input' && command.payload.action === KeyAction.press) {
+					return [command.payload.text];
+				}
+				return [];
+			}),
+		).toEqual(['a', '1', 'b', '2']);
+		terminal.dispose();
+	});
+
 	it('uses textarea content when compositionend does not provide committed data', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);

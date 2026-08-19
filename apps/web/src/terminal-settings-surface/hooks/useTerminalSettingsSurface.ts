@@ -36,6 +36,7 @@ export function useTerminalSettingsSurface({
 	onRequestClose,
 	requestBrowserAccess,
 	terminalFeedbackSettingsController,
+	terminalLaunchProfileClient,
 }: UseTerminalSettingsSurfaceOptions): TerminalSettingsSurfaceView {
 	const intl = useOrchbeeIntl();
 	const snapshot = useTerminalSettings(controller);
@@ -246,9 +247,14 @@ export function useTerminalSettingsSurface({
 			keyboardShortcutPlatform,
 		);
 	}
+	const enabledCapabilities = [
+		...(macosTerminalInputSettingsController === undefined
+			? []
+			: (['macos-option-as-alt'] as const)),
+		...(terminalLaunchProfileClient === undefined ? [] : (['desktop-launch-profiles'] as const)),
+	];
 	const searchCatalog = buildTerminalSettingsSearchCatalog({
-		enabledCapabilities:
-			macosTerminalInputSettingsController === undefined ? [] : ['macos-option-as-alt'],
+		enabledCapabilities,
 		enabledCategories,
 		formatMessage: (descriptor) => intl.formatMessage(descriptor),
 		keyboardShortcutChords,

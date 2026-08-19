@@ -53,3 +53,30 @@ export type {
 	DesktopProjectFolderAcquisitionRequestId,
 	DesktopProjectFolderAcquisitionResult,
 } from './desktop-project-folder-acquisition-contract';
+export {
+	DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
+	DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS,
+	DesktopTerminalLaunchProfileCatalogSchema,
+	DesktopTerminalLaunchProfileCommandSchema,
+	DesktopTerminalLaunchProfileFailureCodeSchema,
+	DesktopTerminalLaunchProfileIdSchema,
+	DesktopTerminalLaunchProfileMainEventSchema,
+	DesktopTerminalLaunchProfileNameSchema,
+	DesktopTerminalLaunchProfilePersistenceIssueSchema,
+	DesktopTerminalLaunchProfileRendererCommandSchema,
+	DesktopTerminalLaunchProfileRequestIdSchema,
+	DesktopTerminalLaunchProfileSchema,
+	DesktopTerminalLaunchProfileSnapshotSchema,
+} from './desktop-terminal-launch-profile-contract';
+export type {
+	DesktopTerminalLaunchProfile,
+	DesktopTerminalLaunchProfileCatalog,
+	DesktopTerminalLaunchProfileCommand,
+	DesktopTerminalLaunchProfileFailureCode,
+	DesktopTerminalLaunchProfileId,
+	DesktopTerminalLaunchProfileMainEvent,
+	DesktopTerminalLaunchProfilePersistenceIssue,
+	DesktopTerminalLaunchProfileRendererCommand,
+	DesktopTerminalLaunchProfileRequestId,
+	DesktopTerminalLaunchProfileSnapshot,
+} from './desktop-terminal-launch-profile-contract';

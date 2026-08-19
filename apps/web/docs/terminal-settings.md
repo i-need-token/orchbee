@@ -4,10 +4,13 @@
 
 `@orchbee/web` owns separate local terminal-appearance, terminal-feedback, and macOS terminal-input
 preference records, their Browser storage codecs, the Settings overlay, and the stable client-side
-sources observed by projected terminal attachments. The records are local to one Browser origin or
-Desktop renderer user-data partition. They are not part of the shared Workbench document and are
-never sent to a Gateway or remote terminal. Only the per-key semantic Option-as-Alt decision crosses
-the Host protocol; the stored preference does not.
+sources observed by projected terminal attachments. It also owns the presentation and unprivileged
+request client for the optional Desktop terminal-launch-profile capability; Electron Main owns that
+catalog, its persistence, and launch resolution. The Browser-backed preference records are local to
+one Browser origin or Desktop renderer user-data partition. Neither those records nor the Main-owned
+profile catalog are part of the shared Workbench document or sent to a Gateway or remote terminal.
+Only the per-key semantic Option-as-Alt decision crosses the Host protocol; the stored preference
+does not.
 
 `@orchbee/terminal` owns the source-neutral renderer contract that consumes the derived complete
 presentation configuration. Host frame metadata remains authoritative for terminal palette,
@@ -82,6 +85,41 @@ immediately without replacing its attachment. `KeyInput.optionAsAlt` then carrie
 semantic decision; Terminal Host remains responsible for Ghostty's mode-dependent legacy,
 modifyOtherKeys, and Kitty keyboard encoding.
 
+## Desktop local terminal launch profiles
+
+Only a local Electron composition injects `DesktopTerminalLaunchProfileControl`. Its initial
+snapshot exposes one bounded canonical catalog, the current default identity, whether the catalog
+came from the built-in fallback or durable storage, an optional persistence issue, and the current
+platform's login-shell capability. Browser Preview and authenticated Gateway compositions receive
+no control and show only the remaining planned Profile rows. The renderer never receives a store
+path, Node error, filesystem primitive, or launch capability.
+
+Each profile has a stable identity, a user-visible name, and exactly one command choice:
+
+- System shell with a login-shell decision. Login mode is enabled only when Main reports support and
+  is unavailable on Windows.
+- Custom executable with one absolute platform path and an ordered vector of literal arguments.
+  Arguments are not tokenized, quoted, interpolated, or joined into a command string.
+
+The stable built-in profile uses a localized display label rather than persisted product copy. User
+names remain exact user data and duplicate names do not merge identities. The editor can create a
+new profile by copying the selected command, rename it, change its command and arguments, save the
+draft, select it as default, or delete a non-default profile after confirmation. The default and
+final profile cannot be deleted. Reset requires confirmation and replaces the complete catalog with
+the built-in default only after Main durably commits it. Pending operations disable competing
+mutations and surface bounded localized failures; invalid drafts never send a mutation. A failed
+commit retains the user's draft so they can correct or retry it instead of reconstructing their
+input.
+
+Create, edit, default selection, delete, and reset use explicit controls. They do not alter a
+running terminal. A newly provisioned terminal captures the default profile only once, and its
+durable binding retains that concrete launch across retries and recovery. Profile resolution changes
+only executable and arguments; environment, secrets, presentation, CWD, project or workspace data,
+one-off profile selection, remote connections, and shell startup-file mutation remain outside this
+feature. An unavailable custom executable fails visibly through the terminal lifecycle without a
+system-shell fallback. The full Main model is authoritative in
+[`../../desktop/docs/terminal-launch-profiles.md`](../../desktop/docs/terminal-launch-profiles.md).
+
 ## Read, commit, and recovery model
 
 Startup reads the key once through injected `getItem` and parses `JSON.parse(...)` directly into a
@@ -145,14 +183,17 @@ The Settings experience is an application-owned full-window overlay, not a route
 Workbench mounted preserves terminal surface and attachment identity. On first open it captures a
 still-connected active element and focuses Settings search. Repeated open is unchanged and does not
 replace the return target. The Workbench subtree is genuinely inert while Settings is open, so its
-terminal and Action shortcuts cannot consume Settings input.
+terminal and Action shortcuts cannot consume Settings input. The scrolling content viewport remains
+in the sequential focus order and draws an inset focus indicator, so a category stays
+keyboard-scrollable even when every setting control is a disabled Planned preview.
 
 Back closes Settings. Escape first clears a non-empty Settings search and closes Settings only when
 the query is empty; closing restores the captured element, then the Settings Action target, then the
-Workbench root as fallbacks. Desktop may inject only a semantic Browser-access request.
+Workbench root as fallbacks. Desktop may inject semantic Browser-access and local shell-profile
+controls.
 The existing Browser-access dialog remains above Settings; closing it returns focus to its Settings
 entry, while Settings remains open. Browser and Gateway compositions do not receive this Desktop
-capability.
+capability bundle.
 
 The interaction structure follows the accepted Cursor and Coze references without copying either
 brand: a compact Settings rail owns Back, search, icon-led product-outcome categories, and the current
@@ -160,9 +201,10 @@ selection; a centered scrolling content column owns one category title and a sta
 section labels, low-chrome grouped rows, descriptions, and right-aligned controls. Content-heavy
 diagnostics, migration input, and shell setup keep the same surface, radius, type, spacing, and
 semantic-border vocabulary instead of inventing category-specific cards. At narrow widths the rail becomes
-a horizontally scrollable top navigation and setting controls stack below their copy. Changes still
-apply immediately without a Save button. Reference branding, copy, categories, and pixel geometry
-are not compatibility targets.
+a horizontally scrollable top navigation and setting controls stack below their copy. Browser-backed
+appearance, input, shortcut, and feedback changes apply immediately; shell-profile drafts require
+explicit Save because Main-owned durable catalog mutation is a separate transaction. Reference
+branding, copy, categories, and pixel geometry are not compatibility targets.
 
 ## Settings information architecture and planned catalog
 
@@ -180,13 +222,14 @@ top-level surface:
 
 The appearance theme, terminal font, effective default colors, default-background opacity, Reset,
 macOS Option-as-Alt, keyboard shortcuts, Shell integration, remote diagnostic, migration report,
-and Browser-access entry retain their existing behavior and ownership. The remaining General,
-Appearance, Text, Colors, Cursor & Input, Interaction, Terminal, Windows & Tabs, and Profiles rows
-form a localized planned catalog derived from recurring settings across Ghostty, WezTerm, Kitty,
+Browser-access entry, and capability-gated Desktop launch-profile editor retain their existing
+behavior and ownership. The remaining General, Appearance, Text, Colors, Cursor & Input,
+Interaction, Terminal, Windows & Tabs, and Profile appearance, connection, and automation rows form
+a localized planned catalog derived from recurring settings across Ghostty, WezTerm, Kitty,
 Alacritty, Windows Terminal, iTerm2, Tabby, Konsole, GNOME Terminal, and Foot. This catalog covers
 startup and restore policy, window presentation, typography and shaping, palettes and contrast,
 cursor and keyboard protocols, clipboard and mouse behavior, shell and emulation policy, history
-and feedback, windows and tabs, and reusable profiles.
+and feedback, windows and tabs, and profile capabilities outside the accepted launch-profile scope.
 
 Planned rows are explicitly marked, expose only disabled preview controls, and never read or write
 a preference. Implementing one requires its own accepted behavioral authority, model, persistence
@@ -214,7 +257,9 @@ bounded priority over nearby Planned matches, every Planned result is labeled, a
 information-architecture order breaks remaining ties. Empty query preserves the grouped navigation rail. A non-empty query
 replaces that rail with one global result list while the current content page remains complete and
 unchanged. Zero matches render a localized empty state in the rail rather than blanking the content
-page.
+page. Search results remain one labeled listbox; the zero-match projection contains one disabled,
+unselected option with a polite live announcement, preserving the combobox relationship without
+creating an actionable result.
 
 The owned interaction state is one of:
 
@@ -381,8 +426,14 @@ not claims about Ghostty's byte limits.
   section, label, description, and keyword matches, direct-match ranking, multi-term normalization,
   stable ordering, and empty results. Component tests cover both locales, global cross-category
   results, stable content during a query, pointer and keyboard activation, layered Escape, target
-  reveal, invalid drafts, immediate updates, Reset, read-only remote diagnostics, migration analysis
-  and disposal, inertness, idempotent open, focus restoration, and nested Browser-access behavior.
+  reveal, the disabled empty-result option, keyboard-scrollable content, invalid drafts, immediate
+  updates, Reset, read-only remote diagnostics, migration analysis and disposal, inertness,
+  idempotent open, focus restoration, and nested Browser-access behavior. Story browser review covers
+  every category and populated, Planned, and empty search projections in both light and dark themes.
+- Terminal-launch-profile protocol and client tests cover strict snapshots, correlation, one pending
+  mutation, malformed records, failure projection, and disposal. Settings component tests cover
+  literal custom executable arguments, the future-terminal boundary, create and default selection,
+  delete constraints, reset confirmation, platform capabilities, and localized failures.
 - Terminal-feedback model tests cover default-off behavior, strict persistence recovery, duration
   and focus policy, stale and future facts, sequence deduplication, notification rate limiting,
   explicit permission requests, and disposal. Component tests cover both locales, all three manual
@@ -390,7 +441,8 @@ not claims about Ghostty's byte limits.
 - Migration analyzer tests cover accepted syntax, exact target boundaries, scalar supersession,
   font resets and fallback lists, opacity-cell interaction, malformed lines, resource limits, and
   one-finding-per-assignment ordering without depending on React or storage.
-- Browser, Gateway, and Desktop composition tests prove the shared source and Settings entry; a
+- Browser, Gateway, and Desktop composition tests prove the shared sources, local-only profile
+  capability, and Settings entry; a
   Desktop Electron witness proves an existing projected terminal stays attached while Settings is
   opened and closed. The current macOS system witness additionally starts a temporary loopback
   `sshd` with isolated keys and configuration, then proves an ordinary SSH PTY receives
