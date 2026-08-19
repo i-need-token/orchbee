@@ -341,6 +341,17 @@ user-visible history failure.
 Clear, screen replacement, eviction, or any other invalid anchor resumes bottom projection while a
 fresh snapshot replaces the last readable history window.
 
+Wheel-originated history navigation presents each newly committed Host row window with one
+client-owned, reversible canvas transaction. It snapshots the previously committed canvas before
+the replacement draw, bounds displacement to one visible viewport, and converges to the canonical
+canvas with the pinned 100-millisecond exponential motion. A new navigation intent cancels the old
+transaction before the next committed direction begins. Reduced-motion preference, document or
+projection suspension, presentation-geometry changes, unavailable capture or frame scheduling,
+render failure, freeze, and disposal all remove the snapshot and leave the committed canvas at its
+canonical position. Programmatic line/page/bottom navigation, scrollbar navigation, search reveal,
+and selection autoscroll remain immediate. This presentation transaction neither predicts Host
+rows nor changes history demand, row-window correlation, protocol state, or the public API.
+
 Retained history exposes a client-owned DOM scrollbar overlay positioned against the complete terminal viewport rather than the fitted cell-grid canvas. Its rightmost 16 CSS pixels form the interaction area; an 8 CSS-pixel thumb remains exactly 2 CSS pixels from the Panel-relative right edge, independent of unused grid remainder pixels, and retains 4 CSS pixels of vertical track padding plus a 20 CSS-pixel minimum height. History navigation and scrollbar interaction make it immediately visible, and inactivity removes its opacity after 1,500 milliseconds. Track presses jump proportionally, and captured scrollbar drags coalesce into bounded absolute row-window requests. The initiating primary pointer owns the drag until it ends; concurrent and secondary pointer events and wheel input are consumed without replacing its capture or anchor, and its synthesized release click is consumed once. Scrollbar ownership takes precedence over application mouse reporting, selection, and links, and is repaired on buttonless movement, cancellation, capture loss, focus or visibility loss, reset, and disposal. Navigation during a drag keeps the thumb fully visible, and the fade delay begins only after ownership ends or is repaired. The scrollbar overlay and canvas remain `aria-hidden` and expose no DOM scrollbar role; the existing keyboard and API history navigation remain the accessibility path.
 
 Search is client-side. The first non-empty query lazily creates a Worker and streams bounded text-detail pages through a source-neutral row reader. One Worker page and one prefetched row request bound the pipeline; page credits refresh an inactivity watchdog, and the 16 MiB UTF-8 source limit publishes either one complete immutable result or no matches. Navigation requested during debounce or scanning remains queued across same-query revision invalidation. Decorations and result counts remain capped, while directional navigation independently scans the admitted retained search domain from the latest Host selection anchor and wraps without treating that decoration cap as the final match. The active match is reported separately, selected through a revision-pinned Host `set-range` command, and revealed even when it falls outside the decoration collection. Query text and matches never enter Terminal Host or an Electron broker.
@@ -459,6 +470,20 @@ remain shaping boundaries.
 Ghostty remains the reference for selected font metrics, shaping boundaries, complete Unicode sprite-face routing, cursor geometry, and terminal-panel rendering behavior. Deterministic generated data supplies every pinned sprite from Ghostty's four padded odd/even metric reference rasters, while selected sprites scale procedurally between those reference geometries. That reference does not make this package a Ghostty VT owner. Maintenance provenance is recorded in [`docs/ghostty-surface-test-provenance.md`](docs/ghostty-surface-test-provenance.md).
 
 Search behavior follows the bounded contract in [`docs/vscode-search-alignment.md`](docs/vscode-search-alignment.md). The application owns the find surface, query history, shortcuts, and localized labels.
+
+### Smooth retained-history evidence
+
+The stable headed `terminal-parity/SU-11-smooth-scroll` trace drives wheel history through a
+real Desktop attachment and Terminal Host, controls Chromium animation time, and observes the
+application-layer canvas transaction. It proves bounded upward motion, progress toward the
+committed canvas, cancellation followed by downward recovery, and visibility cancellation without
+stale resumption. The owner-local transaction tests cover both directions, settlement, reduced
+motion, invalid geometry, and over-viewport rejection; the `ProjectedTerminal` regression covers
+row-window correlation and recovery integration.
+
+| SU-11 claim                                                                | Owner-local transaction evidence                                                                                                                            | Projected integration                                                                                                                                                    | Headed system trace                   | Limits                                                                                                                                      |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wheel history motion is bounded, reversible, and cancelled while suspended | `projects bounded motion in both directions and settles on the committed canvas`; `keeps reduced, invalid, and over-viewport motion on the canonical frame` | `smooths wheel history motion, reverses on a committed target, and cancels when hidden`; `keeps a later programmatic history intent immediate after queued wheel motion` | `terminal-parity/SU-11-smooth-scroll` | Desktop Chromium main-text canvas and synthetic application-layer visibility; no OS throttling, WebGPU snapshot, or graphics-history claim. |
 
 ### Visibility and projection-demand evidence
 

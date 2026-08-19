@@ -6,6 +6,7 @@ const protocol = @import("terminal-protocol");
 const terminal_profile = model.profile;
 
 pub const ColorScheme = terminal_profile.ColorScheme;
+pub const CursorShape = terminal_profile.CursorShape;
 pub const Profile = terminal_profile.Profile;
 pub const valid = terminal_profile.valid;
 
@@ -28,6 +29,8 @@ const DeviceFeature = std.meta.Elem(@FieldType(@FieldType(DeviceAttributes, "pri
 
 pub const Owned = struct {
     color_scheme: ColorScheme,
+    default_cursor_blinking: bool,
+    default_cursor_shape: CursorShape,
     device_primary_conformance_level: u16,
     device_primary_features: []DeviceFeature,
     device_secondary_type: u16,
@@ -50,6 +53,8 @@ pub const Owned = struct {
         const version = try allocator.dupe(u8, profile.version_response);
         return .{
             .color_scheme = profile.color_scheme,
+            .default_cursor_blinking = profile.default_cursor_blinking,
+            .default_cursor_shape = profile.default_cursor_shape,
             .device_primary_conformance_level = profile.device_primary_conformance_level,
             .device_primary_features = features,
             .device_secondary_type = profile.device_secondary_type,
@@ -73,6 +78,19 @@ pub const Owned = struct {
             .dark => .dark,
             .light => .light,
         };
+    }
+
+    pub fn cursorStyle(self: *const Owned) ghostty_vt.Screen.CursorStyle {
+        return switch (self.default_cursor_shape) {
+            .block => .block,
+            .underline => .underline,
+            .bar => .bar,
+        };
+    }
+
+    pub fn applyCursorDefaults(self: *const Owned, terminal: *ghostty_vt.Terminal) void {
+        terminal.modes.set(.cursor_blinking, self.default_cursor_blinking);
+        terminal.screens.active.cursor.cursor_style = self.cursorStyle();
     }
 
     pub fn deviceAttributes(self: *const Owned) DeviceAttributes {
@@ -107,7 +125,9 @@ pub fn terminalColors(source: ?Profile) error{InvalidTerminalProfile}!ghostty_vt
 const default_profile: Profile = .{
     .color_scheme = .dark,
     .default_background_rgb = 0,
+    .default_cursor_blinking = false,
     .default_cursor_rgb = null,
+    .default_cursor_shape = .block,
     .default_foreground_rgb = 0xffffff,
     .device_primary_conformance_level = 62,
     .device_primary_features = &.{22},

@@ -132,6 +132,7 @@ import {
 	terminalLinkContains,
 } from '../terminal-row-links';
 import type { ILink, RendererOptions, SurfacePadding } from '../types';
+import { HistoryScrollPresentationTransaction } from './HistoryScrollPresentationTransaction';
 import {
 	PackedTerminalStore,
 	PackedTerminalViewport,
@@ -485,6 +486,7 @@ interface ViewportRowFlight {
 	readonly origin: ReadRows['origin'];
 	readonly overscanned: boolean;
 	readonly requestSequence: CanonicalUint64Text;
+	smoothPresentation: boolean;
 	readonly visibleRowCount: number;
 }
 
@@ -701,6 +703,7 @@ export class ProjectedTerminal {
 	#frameHandle: ScheduledFrame | undefined;
 	#historyGeneration = 1n;
 	#historyPhase: ProjectedHistoryPhase = ProjectedHistoryPhase.followingBottom;
+	#historyRecoverySmoothPresentation = false;
 	#historyRevision = 0n;
 	#historyScrollbarClickSuppression: PointerClickSuppression | undefined;
 	#historyScrollbarClickSuppressionTimer: ReturnType<typeof setTimeout> | undefined;
@@ -713,6 +716,7 @@ export class ProjectedTerminal {
 	#historyStore: PackedTerminalViewport | undefined;
 	#historyTotalRows = 0n;
 	#historyRowsBefore = 0;
+	#historyScrollPresentation: HistoryScrollPresentationTransaction | undefined;
 	#inputEnabled: boolean;
 	#optionAsAltMode: TerminalOptionAsAltMode;
 	#inputHelper: HTMLDivElement | undefined;
@@ -747,10 +751,12 @@ export class ProjectedTerminal {
 	#pendingApplicationWheelX = 0;
 	#pendingApplicationWheelY = 0;
 	#pendingHistoryDelta = 0;
+	#pendingHistorySmoothPresentation = false;
 	#pendingHistoryTransition: PendingHistoryTransition | undefined;
 	#pendingHistoryStartRow: bigint | undefined;
 	#pendingHistoryTargetRow: bigint | undefined;
 	#pendingHistoryWheelRows = 0;
+	#wheelHistoryPresentation = false;
 	#pendingOpeningFrameAcknowledgement: FrameApplied | undefined;
 	#pendingSelectionGestures: PendingSelectionGesture[] = [];
 	#ownsResizeLease: boolean;
@@ -907,6 +913,7 @@ export class ProjectedTerminal {
 			canvas.style.outline = 'none';
 			root.appendChild(canvas);
 			this.#canvas = canvas;
+			this.#historyScrollPresentation = new HistoryScrollPresentationTransaction(root, canvas);
 
 			const inputHelper = document.createElement('div');
 			inputHelper.style.position = 'absolute';
@@ -1350,7 +1357,17 @@ export class ProjectedTerminal {
 			this.#recoverHistory();
 			return 'rejected';
 		}
+		const previousMetadata = this.metadata;
+		const previousVisibleStart =
+			previousMetadata === null ? undefined : this.#historyVisibleStart(previousMetadata);
 		const viewport = new PackedTerminalViewport(staged, 0, flight.visibleRowCount);
+		this.#prepareHistoryScrollPresentation(
+			flight.smoothPresentation,
+			previousVisibleStart,
+			visibleStartRow,
+			previousMetadata,
+			viewport.metadata,
+		);
 		this.#historyStore?.dispose();
 		this.#historyStore = viewport;
 		this.#invalidateLinkCache();
@@ -1384,6 +1401,10 @@ export class ProjectedTerminal {
 	}
 
 	scrollLines(amount: number): void {
+		this.#scrollHistoryLines(amount, this.#wheelHistoryPresentation);
+	}
+
+	#scrollHistoryLines(amount: number, smoothPresentation: boolean): void {
 		if (
 			!Number.isFinite(amount) ||
 			amount === 0 ||
@@ -1392,9 +1413,11 @@ export class ProjectedTerminal {
 			return;
 		}
 		const rows = Math.trunc(amount);
+		this.#historyScrollPresentation?.cancel();
 		this.#showHistoryScrollbar();
 		this.#invalidateLinkCache();
 		if (this.#pendingHistoryTransition !== undefined) {
+			this.#pendingHistorySmoothPresentation = smoothPresentation;
 			this.#pendingHistoryDelta = clamp(
 				this.#pendingHistoryDelta + rows,
 				-PROTOCOL_LIMITS.maxRowWindowRows,
@@ -1404,6 +1427,10 @@ export class ProjectedTerminal {
 		}
 		if (this.#rowFlight !== undefined) {
 			this.#cancelBufferFlightForViewportIntent();
+			if (this.#rowFlight?.kind === 'viewport') {
+				this.#rowFlight.smoothPresentation = false;
+			}
+			this.#pendingHistorySmoothPresentation = smoothPresentation;
 			this.#pendingHistoryStartRow = undefined;
 			this.#pendingHistoryTargetRow = undefined;
 			this.#pendingHistoryDelta = clamp(
@@ -1416,20 +1443,28 @@ export class ProjectedTerminal {
 		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
 			if (rows > 0 || this.#historyTotalRows <= BigInt(this.#store.metadata?.rows ?? 0)) return;
 			this.#historyRowsBefore = Math.min(Number(this.#historyTotalRows), -rows);
-			this.#requestHistoryRows({ kind: 'tail', rowsBefore: this.#historyRowsBefore });
+			this.#requestHistoryRows(
+				{ kind: 'tail', rowsBefore: this.#historyRowsBefore },
+				HISTORY_OVERSCAN_ROWS,
+				smoothPresentation,
+			);
 			return;
 		}
 		if (this.#historyPhase === ProjectedHistoryPhase.recovering) return;
 		const nextRowsBefore = Math.max(0, this.#historyRowsBefore - rows);
 		if (nextRowsBefore === 0) {
-			this.scrollToBottom();
+			this.#recoverHistory(smoothPresentation);
 			return;
 		}
 		this.#historyRowsBefore = Math.min(Number(this.#historyTotalRows), nextRowsBefore);
-		this.#requestHistoryRows({
-			delta: clamp(rows, -PROTOCOL_LIMITS.maxRowWindowRows, PROTOCOL_LIMITS.maxRowWindowRows),
-			kind: 'committed',
-		});
+		this.#requestHistoryRows(
+			{
+				delta: clamp(rows, -PROTOCOL_LIMITS.maxRowWindowRows, PROTOCOL_LIMITS.maxRowWindowRows),
+				kind: 'committed',
+			},
+			HISTORY_OVERSCAN_ROWS,
+			smoothPresentation,
+		);
 	}
 
 	scrollPages(amount: number): void {
@@ -1437,6 +1472,7 @@ export class ProjectedTerminal {
 	}
 
 	scrollToBottom(): void {
+		this.#historyScrollPresentation?.cancel();
 		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) return;
 		this.#showHistoryScrollbar();
 		this.#recoverHistory();
@@ -1461,7 +1497,10 @@ export class ProjectedTerminal {
 		});
 		this.#historyEmitter.fire(event);
 		if (changed) this.#searchController?.invalidate();
-		if (changed) this.#invalidateLinkCache();
+		if (changed) {
+			this.#historyScrollPresentation?.cancel();
+			this.#invalidateLinkCache();
+		}
 		if (
 			this.#historyPhase === ProjectedHistoryPhase.followingBottom ||
 			this.#historyPhase === ProjectedHistoryPhase.disposed
@@ -1550,7 +1589,7 @@ export class ProjectedTerminal {
 				this.#pendingHistoryTransition = 'awaiting-change';
 				handledHistoryFailure = true;
 			} else if (failure.code === 'limit-exceeded' && flight.overscanned) {
-				this.#requestHistoryRows(flight.origin, 0);
+				this.#requestHistoryRows(flight.origin, 0, flight.smoothPresentation);
 				handledHistoryFailure = true;
 			} else {
 				this.#recoverHistory();
@@ -1955,6 +1994,10 @@ export class ProjectedTerminal {
 		this.#prepareFocusLossInputRepair(true);
 		this.#phase = ProjectedTerminalPhase.frozen;
 		this.#historyPhase = ProjectedHistoryPhase.disposed;
+		this.#historyRecoverySmoothPresentation = false;
+		this.#pendingHistorySmoothPresentation = false;
+		this.#historyScrollPresentation?.dispose();
+		this.#historyScrollPresentation = undefined;
 		this.#cancelScheduledFrame();
 		this.#cancelScheduledSelectionGesture();
 		this.#clearApplicationMouseClickSuppression();
@@ -2034,6 +2077,8 @@ export class ProjectedTerminal {
 		this.#clearHistoryScrollbarClickSuppression();
 		this.#cancelHistoryScrollbarFade();
 		this.#pendingHistoryDelta = 0;
+		this.#historyRecoverySmoothPresentation = false;
+		this.#pendingHistorySmoothPresentation = false;
 		this.#pendingOpeningFrameAcknowledgement = undefined;
 		this.#pendingHistoryStartRow = undefined;
 		this.#pendingHistoryTargetRow = undefined;
@@ -2087,6 +2132,8 @@ export class ProjectedTerminal {
 	#releaseSurfaceDom(): void {
 		this.#cancelNativeInputChange();
 		this.#clearNativeInputTextMarker();
+		this.#historyScrollPresentation?.dispose();
+		this.#historyScrollPresentation = undefined;
 		this.#canvas?.remove();
 		this.#releaseHistoryScrollbarDom();
 		this.#inputHelper?.remove();
@@ -2124,9 +2171,16 @@ export class ProjectedTerminal {
 		const callback = (): void => {
 			this.#frameHandle = undefined;
 			if (this.#isDisposed()) return;
+			const renderer = this.#renderer;
+			if (renderer === undefined) {
+				this.#historyScrollPresentation?.cancel();
+				return;
+			}
 			try {
-				this.#renderer?.renderPacked(this.#visibleStore());
+				renderer.renderPacked(this.#visibleStore());
+				this.#historyScrollPresentation?.commit();
 			} catch (error) {
+				this.#historyScrollPresentation?.cancel();
 				this.#errorEmitter.fire({ error, operation: 'render' });
 			}
 		};
@@ -2165,6 +2219,7 @@ export class ProjectedTerminal {
 		this.#presentationSuspended = suspended;
 		this.#renderer?.setSuspended(suspended);
 		if (suspended) {
+			this.#historyScrollPresentation?.cancel();
 			this.#cancelScheduledFrame();
 			return;
 		}
@@ -2176,6 +2231,47 @@ export class ProjectedTerminal {
 			this.#historyStore === undefined
 			? this.#store
 			: this.#historyStore;
+	}
+
+	#prepareHistoryScrollPresentation(
+		smoothPresentation: boolean,
+		fromTop: bigint | undefined,
+		toTop: bigint | undefined,
+		fromMetadata: ProjectedTerminalMetadata | null | undefined,
+		toMetadata: ProjectedTerminalMetadata | null | undefined,
+	): void {
+		const transaction = this.#historyScrollPresentation;
+		const renderer = this.#renderer;
+		const view = this.#root?.ownerDocument.defaultView;
+		if (
+			transaction === undefined ||
+			!smoothPresentation ||
+			fromTop === undefined ||
+			toTop === undefined ||
+			fromMetadata === null ||
+			fromMetadata === undefined ||
+			toMetadata === null ||
+			toMetadata === undefined ||
+			fromMetadata.columns !== toMetadata.columns ||
+			fromMetadata.rows !== toMetadata.rows ||
+			renderer === undefined ||
+			view === null ||
+			view === undefined ||
+			this.#presentationSuspended
+		) {
+			transaction?.cancel();
+			return;
+		}
+		const reducedMotion =
+			typeof view.matchMedia === 'function' &&
+			view.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		transaction.prepare({
+			fromTop,
+			reducedMotion,
+			rowHeight: renderer.charHeight,
+			toTop,
+			visibleRows: fromMetadata.rows,
+		});
 	}
 
 	#metadataWithLiveCloseActivity(metadata: ProjectedTerminalMetadata): ProjectedTerminalMetadata {
@@ -2333,7 +2429,11 @@ export class ProjectedTerminal {
 		);
 	}
 
-	#requestHistoryRows(origin: ReadRows['origin'], overscanRows = HISTORY_OVERSCAN_ROWS): void {
+	#requestHistoryRows(
+		origin: ReadRows['origin'],
+		overscanRows = HISTORY_OVERSCAN_ROWS,
+		smoothPresentation = false,
+	): void {
 		const metadata = this.#store.metadata ?? this.#historyStore?.metadata;
 		if (
 			metadata === null ||
@@ -2384,6 +2484,7 @@ export class ProjectedTerminal {
 			origin: requestOrigin,
 			overscanned: cacheRowCount > visibleRowCount,
 			requestSequence,
+			smoothPresentation,
 			visibleRowCount,
 		};
 		this.#send({
@@ -2403,6 +2504,7 @@ export class ProjectedTerminal {
 	}
 
 	#requestHistoryStartRow(requestedStartRow: bigint): void {
+		this.#historyScrollPresentation?.cancel();
 		const metadata = this.metadata ?? this.#store.metadata;
 		if (metadata === null || this.#phase === ProjectedTerminalPhase.disposed) return;
 		const visibleRows = BigInt(metadata.rows);
@@ -2410,9 +2512,13 @@ export class ProjectedTerminal {
 			this.#historyTotalRows > visibleRows ? this.#historyTotalRows - visibleRows : 0n;
 		const startRow = requestedStartRow < 0n ? 0n : minBigInt(requestedStartRow, maximumStart);
 		this.#pendingHistoryDelta = 0;
+		this.#pendingHistorySmoothPresentation = false;
 		this.#pendingHistoryTargetRow = undefined;
 		if (this.#rowFlight !== undefined || this.#pendingHistoryTransition !== undefined) {
 			this.#cancelBufferFlightForViewportIntent();
+			if (this.#rowFlight?.kind === 'viewport') {
+				this.#rowFlight.smoothPresentation = false;
+			}
 			this.#pendingHistoryStartRow = startRow;
 			return;
 		}
@@ -2493,17 +2599,21 @@ export class ProjectedTerminal {
 			return;
 		}
 		const pendingDelta = this.#pendingHistoryDelta;
+		const smoothPresentation = this.#pendingHistorySmoothPresentation;
 		this.#pendingHistoryDelta = 0;
-		if (pendingDelta !== 0) this.scrollLines(pendingDelta);
+		this.#pendingHistorySmoothPresentation = false;
+		if (pendingDelta !== 0) this.#scrollHistoryLines(pendingDelta, smoothPresentation);
 	}
 
-	#recoverHistory(): void {
+	#recoverHistory(smoothPresentation = false): void {
 		if (
 			this.#historyPhase === ProjectedHistoryPhase.followingBottom ||
 			this.#historyPhase === ProjectedHistoryPhase.disposed
 		) {
 			return;
 		}
+		this.#historyScrollPresentation?.cancel();
+		this.#historyRecoverySmoothPresentation = smoothPresentation;
 		const flight = this.#rowFlight;
 		this.#rowFlight = undefined;
 		if (flight?.kind === 'buffer') {
@@ -2513,6 +2623,7 @@ export class ProjectedTerminal {
 			}
 		}
 		this.#pendingHistoryDelta = 0;
+		this.#pendingHistorySmoothPresentation = false;
 		this.#pendingHistoryTransition = undefined;
 		this.#pendingHistoryStartRow = undefined;
 		this.#pendingHistoryTargetRow = undefined;
@@ -2528,13 +2639,31 @@ export class ProjectedTerminal {
 	}
 
 	#finishHistoryRecovery(): void {
+		const previousMetadata = this.#historyStore?.metadata;
+		const metadata = this.#store.metadata;
+		let targetVisibleStart: bigint | undefined;
+		if (metadata !== null) {
+			targetVisibleStart =
+				this.#historyTotalRows > BigInt(metadata.rows)
+					? this.#historyTotalRows - BigInt(metadata.rows)
+					: 0n;
+		}
+		this.#prepareHistoryScrollPresentation(
+			this.#historyRecoverySmoothPresentation,
+			previousMetadata === null || previousMetadata === undefined
+				? undefined
+				: this.#historyStartRow,
+			targetVisibleStart,
+			previousMetadata,
+			metadata,
+		);
+		this.#historyRecoverySmoothPresentation = false;
 		this.#historyStore?.dispose();
 		this.#historyStore = undefined;
 		this.#historyRowsBefore = 0;
 		this.#historyStartRow = 0n;
 		this.#historyPhase = ProjectedHistoryPhase.followingBottom;
 		this.#syncPreeditPresentation();
-		const metadata = this.#store.metadata;
 		if (metadata) {
 			this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(metadata));
 			this.#updateAccessibility(metadata);
@@ -2590,6 +2719,7 @@ export class ProjectedTerminal {
 	}
 
 	#revealSearchRow(row: bigint): void {
+		this.#historyScrollPresentation?.cancel();
 		const metadata = this.metadata ?? this.#store.metadata;
 		if (metadata === null || row < 0n || row >= this.#historyTotalRows) return;
 		const visibleRows = BigInt(metadata.rows);
@@ -2605,9 +2735,13 @@ export class ProjectedTerminal {
 		this.#showHistoryScrollbar();
 		if (this.#rowFlight !== undefined || this.#pendingHistoryTransition !== undefined) {
 			this.#cancelBufferFlightForViewportIntent();
+			if (this.#rowFlight?.kind === 'viewport') {
+				this.#rowFlight.smoothPresentation = false;
+			}
 			this.#pendingHistoryStartRow = undefined;
 			this.#pendingHistoryTargetRow = row;
 			this.#pendingHistoryDelta = 0;
+			this.#pendingHistorySmoothPresentation = false;
 			return;
 		}
 		const maximumStart =
@@ -5262,7 +5396,12 @@ export class ProjectedTerminal {
 			for (let index = 0; index < Math.abs(rows); index++) this.#sendSyntheticKey(key);
 			return;
 		}
-		this.scrollLines(rows);
+		this.#wheelHistoryPresentation = true;
+		try {
+			this.scrollLines(rows);
+		} finally {
+			this.#wheelHistoryPresentation = false;
+		}
 	};
 
 	#reportApplicationWheel(event: WheelEvent, deltaX: number, deltaY: number): boolean {
@@ -5453,6 +5592,7 @@ export class ProjectedTerminal {
 	}
 
 	#handleSurfaceResize(): void {
+		this.#historyScrollPresentation?.cancel();
 		this.#invalidateLinkCache();
 		this.#renderer?.syncSurfacePadding();
 		this.#syncHistoryScrollbarPresentation();
@@ -5470,6 +5610,7 @@ export class ProjectedTerminal {
 	}
 
 	readonly #handleWindowResize = (): void => {
+		this.#historyScrollPresentation?.cancel();
 		this.#invalidateLinkCache();
 		this.#syncDevicePixelRatio();
 		this.#renderer?.syncSurfacePadding();
@@ -5488,6 +5629,7 @@ export class ProjectedTerminal {
 		if (view === null || view === undefined || renderer === undefined) return;
 		const ratio = view.devicePixelRatio ?? 1;
 		if (!renderer.setDevicePixelRatio(ratio)) return;
+		this.#historyScrollPresentation?.cancel();
 		this.#invalidateLinkCache();
 		this.#devicePixelRatio = Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
 		this.#watchDevicePixelRatio(view);
@@ -5525,6 +5667,7 @@ export class ProjectedTerminal {
 		prepared: PreparedTerminalPresentationConfiguration,
 	): void {
 		this.#cancelScheduledFrame();
+		this.#historyScrollPresentation?.cancel();
 		this.#presentationConfiguration = prepared.configuration;
 		let rendererError: unknown;
 		try {

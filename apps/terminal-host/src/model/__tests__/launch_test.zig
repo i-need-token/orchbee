@@ -69,14 +69,22 @@ test "launch inspection produces an unambiguous order-independent digest" {
     with_argument.arguments = &empty_argument;
     var with_configuration = base;
     with_configuration.configuration = .{ .scrollback_bytes = 1_000_000 };
+    var with_cursor_blinking = base;
+    with_cursor_blinking.profile.default_cursor_blinking = true;
+    var with_cursor_shape = base;
+    with_cursor_shape.profile.default_cursor_shape = .bar;
 
     const base_inspection = try subject.inspect(std.testing.allocator, base);
     const reordered_inspection = try subject.inspect(std.testing.allocator, reordered);
     const argument_inspection = try subject.inspect(std.testing.allocator, with_argument);
     const configuration_inspection = try subject.inspect(std.testing.allocator, with_configuration);
+    const cursor_blinking_inspection = try subject.inspect(std.testing.allocator, with_cursor_blinking);
+    const cursor_shape_inspection = try subject.inspect(std.testing.allocator, with_cursor_shape);
     try std.testing.expectEqualSlices(u8, &base_inspection.launch_digest, &reordered_inspection.launch_digest);
     try std.testing.expect(!std.mem.eql(u8, &base_inspection.launch_digest, &argument_inspection.launch_digest));
     try std.testing.expect(!std.mem.eql(u8, &base_inspection.launch_digest, &configuration_inspection.launch_digest));
+    try std.testing.expect(!std.mem.eql(u8, &base_inspection.launch_digest, &cursor_blinking_inspection.launch_digest));
+    try std.testing.expect(!std.mem.eql(u8, &base_inspection.launch_digest, &cursor_shape_inspection.launch_digest));
 
     var with_environment_aliases = base;
     with_environment_aliases.environment = &environment_aliases;

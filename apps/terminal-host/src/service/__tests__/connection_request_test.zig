@@ -87,9 +87,16 @@ test "handshake binds client and negotiates input bytes" {
     var service = HostService.init(std.testing.allocator);
     defer service.deinit();
     var connection: ConnectionState = .awaiting_hello;
-    const payload =
-        \\{"clientId":"22222222222222222222222222222222","frameBytes":1024,"inputBytes":2048,"protocol":{"major":0,"minor":0,"patch":10},"rowWindowBytes":4096,"supportedOptionalFeatures":[]}
-    ;
+    const payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"clientId\":\"22222222222222222222222222222222\",\"frameBytes\":1024,\"inputBytes\":2048,\"protocol\":{{\"major\":{d},\"minor\":{d},\"patch\":{d}}},\"rowWindowBytes\":4096,\"supportedOptionalFeatures\":[]}}",
+        .{
+            protocol.current_protocol_major,
+            protocol.current_protocol_minor,
+            protocol.current_protocol_patch,
+        },
+    );
+    defer std.testing.allocator.free(payload);
     const record = try protocol.encodeTransportEnvelope(
         std.testing.allocator,
         MessageKind.hello,

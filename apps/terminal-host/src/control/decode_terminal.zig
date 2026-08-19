@@ -111,10 +111,20 @@ fn profileFromWire(profile: control_wire.TerminalProfile) ?terminal_profile.Prof
         .light
     else
         return null;
+    const cursor_shape: terminal_profile.CursorShape = if (std.mem.eql(u8, profile.defaultCursorShape, "block"))
+        .block
+    else if (std.mem.eql(u8, profile.defaultCursorShape, "underline"))
+        .underline
+    else if (std.mem.eql(u8, profile.defaultCursorShape, "bar"))
+        .bar
+    else
+        return null;
     return .{
         .color_scheme = color_scheme,
         .default_background_rgb = profile.defaultBackgroundRgb,
+        .default_cursor_blinking = profile.defaultCursorBlinking,
         .default_cursor_rgb = profile.defaultCursorRgb,
+        .default_cursor_shape = cursor_shape,
         .default_foreground_rgb = profile.defaultForegroundRgb,
         .device_primary_conformance_level = profile.deviceAttributes.primaryConformanceLevel,
         .device_primary_features = profile.deviceAttributes.primaryFeatures,

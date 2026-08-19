@@ -76,7 +76,7 @@ interface FakeBrowser {
 	documentListenerCount(type: string): number;
 	dispatchDocument(type: string, event?: Event): void;
 	dispatchWindow(type: string): void;
-	flushFrames(): void;
+	flushFrames(timestamp?: number): void;
 	setDevicePixelRatio(value: number): void;
 	setVisibilityState(value: DocumentVisibilityState): void;
 	selectAccessibilityText(
@@ -637,7 +637,7 @@ function createFakeBrowser(): FakeBrowser {
 			mediaQueries.push(query);
 			return {
 				addEventListener: (_type: string, listener: EventListener) => listeners.add(listener),
-				matches: true,
+				matches: media !== '(prefers-reduced-motion: reduce)',
 				media,
 				removeEventListener: (_type: string, listener: EventListener) => listeners.delete(listener),
 			};
@@ -697,10 +697,10 @@ function createFakeBrowser(): FakeBrowser {
 		frames,
 		mediaQueries,
 		root,
-		flushFrames: () => {
+		flushFrames: (timestamp = 16) => {
 			const callbacks = [...frames.values()];
 			frames.clear();
-			for (const callback of callbacks) callback(16);
+			for (const callback of callbacks) callback(timestamp);
 		},
 		setDevicePixelRatio: (value) => {
 			defaultView.devicePixelRatio = value;
@@ -1176,6 +1176,84 @@ describe('ProjectedTerminal', () => {
 				.map((command) => command.payload.text),
 		).toEqual(['.']);
 		expect(commands.filter((command) => command.kind === 'key-input')).toEqual([]);
+		terminal.dispose();
+	});
+
+	it('settles pending native text before a later physical key can overtake it', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch('keydown', keyboardEvent('keydown', 'Digit1', '1', 49));
+		input.value = '1';
+		dispatchInput(input);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		await vi.advanceTimersByTimeAsync(30);
+
+		expect(
+			commands.flatMap((command) => {
+				if (command.kind === 'text-input') return [`text:${command.payload.text}`];
+				if (command.kind === 'key-input' && command.payload.action === KeyAction.press) {
+					return [`key:${command.payload.text}`];
+				}
+				return [];
+			}),
+		).toEqual(['text:1', 'key:a']);
+		terminal.dispose();
+	});
+
+	it('settles the native fallback before a later physical key can overtake it', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch('keydown', keyboardEvent('keydown', 'Digit1', '1', 49));
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		await vi.advanceTimersByTimeAsync(30);
+
+		expect(
+			commands.flatMap((command) => {
+				if (command.kind === 'text-input') return [`text:${command.payload.text}`];
+				if (command.kind === 'key-input' && command.payload.action === KeyAction.press) {
+					return [`key:${command.payload.text}`];
+				}
+				return [];
+			}),
+		).toEqual(['text:1', 'key:a']);
 		terminal.dispose();
 	});
 
@@ -3443,6 +3521,127 @@ describe('ProjectedTerminal', () => {
 		terminal.applyFrame(terminalFrame('snapshot', 2n, 2n, ['new-a', 'new-b'], null, [0, 1], 10n));
 		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.followingBottom);
 		expect(terminal.metadata?.title).toBe('test');
+		terminal.dispose();
+	});
+
+	it('smooths wheel history motion, reverses on a committed target, and cancels when hidden', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 10n));
+		browser.flushFrames(0);
+		const root = browser.root as unknown as FakeElement;
+		const canvas = terminal.canvas as unknown as FakeElement;
+
+		canvas.dispatch('wheel', wheelEvent(0, -1, { deltaMode: 1 }));
+		const historyRead = commands.at(-1);
+		if (historyRead?.kind !== 'read-rows') throw new Error('wheel history request was not sent');
+		expect(
+			terminal.applyRows(
+				renderRowWindow(BigInt(historyRead.payload.requestSequence), 1n, 9n, 12n, [
+					'history-a',
+					'history-b',
+					'overscan',
+				]),
+			),
+		).toBe('committed');
+		browser.flushFrames(16);
+		const activeMotion = (): FakeElement | undefined =>
+			root.children.find((element) => element.dataset['projectedTerminalHistoryMotion'] === 'true');
+		expect(activeMotion()).toBeDefined();
+		expect(canvas.style['transform']).toMatch(/^translateY\(-[\d.]+px\)$/u);
+
+		browser.flushFrames(50);
+		const upwardOffset = canvas.style['transform'];
+		expect(upwardOffset).toMatch(/^translateY\(-[\d.]+px\)$/u);
+
+		canvas.dispatch('wheel', wheelEvent(0, 1, { deltaMode: 1 }));
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.recovering);
+		terminal.applyFrame(terminalFrame('snapshot', 2n, 2n, ['live-c', 'live-d'], null, [0, 1], 10n));
+		browser.flushFrames(60);
+		expect(activeMotion()).toBeDefined();
+		expect(canvas.style['transform']).toMatch(/^translateY\([\d.]+px\)$/u);
+
+		browser.setVisibilityState('hidden');
+		browser.dispatchDocument('visibilitychange');
+		expect(activeMotion()).toBeUndefined();
+		expect(canvas.style['transform'] ?? '').toBe('');
+		expect(browser.frames.size).toBe(0);
+		terminal.dispose();
+	});
+
+	it('keeps a later programmatic history intent immediate after queued wheel motion', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 10n));
+		browser.flushFrames(0);
+		const root = browser.root as unknown as FakeElement;
+		const canvas = terminal.canvas as unknown as FakeElement;
+		const activeMotion = (): FakeElement | undefined =>
+			root.children.find((element) => element.dataset['projectedTerminalHistoryMotion'] === 'true');
+
+		canvas.dispatch('wheel', wheelEvent(0, -1, { deltaMode: 1 }));
+		const firstRead = commands.at(-1);
+		if (firstRead?.kind !== 'read-rows') throw new Error('first history request was not sent');
+		canvas.dispatch('wheel', wheelEvent(0, -1, { deltaMode: 1 }));
+		terminal.scrollLines(-1);
+		expect(
+			terminal.applyRows(
+				renderRowWindow(BigInt(firstRead.payload.requestSequence), 1n, 9n, 12n, [
+					'first-a',
+					'first-b',
+					'overscan',
+				]),
+			),
+		).toBe('committed');
+		browser.flushFrames(16);
+		expect(activeMotion()).toBeUndefined();
+		const secondRead = commands.at(-1);
+		if (secondRead?.kind !== 'read-rows') throw new Error('queued history request was not sent');
+		expect(
+			terminal.applyRows(
+				renderRowWindow(BigInt(secondRead.payload.requestSequence), 1n, 7n, 12n, [
+					'second-a',
+					'second-b',
+					'overscan',
+				]),
+			),
+		).toBe('committed');
+		browser.flushFrames(32);
+
+		expect(activeMotion()).toBeUndefined();
+		expect(canvas.style['transform'] ?? '').toBe('');
 		terminal.dispose();
 	});
 

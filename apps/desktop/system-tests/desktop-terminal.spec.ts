@@ -532,6 +532,80 @@ test('terminal-parity/SU-10-scrollbar', async () => {
 	expect((await captureTerminalScrollbarStrip(page, root)).equals(faded)).toBe(true);
 });
 
+test('terminal-parity/SU-11-smooth-scroll', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const input = page.getByRole('textbox');
+	await input.pressSequentially('seq 180', { delay: 5 });
+	await input.press('Enter');
+	const accessibility = root.locator('[role="list"]');
+	await expect
+		.poll(async () => Number(await accessibility.getAttribute('data-terminal-retained-rows')))
+		.toBeGreaterThan(180);
+	const accessibleRows = accessibility.locator(':scope > div');
+	const canvas = root.locator('canvas').first();
+	const motion = root.locator('[data-projected-terminal-history-motion="true"]');
+	const firstVisibleRow = async (): Promise<bigint> =>
+		BigInt((await accessibleRows.first().getAttribute('data-terminal-absolute-row')) ?? '0');
+	const canvasOffset = async (): Promise<number> =>
+		canvas.evaluate((element) => {
+			if (!(element instanceof HTMLCanvasElement)) {
+				throw new Error('Projected terminal surface is not a canvas.');
+			}
+			const match = /^translateY\((-?[\d.]+)px\)$/u.exec(element.style.transform);
+			return match === null ? 0 : Number(match[1]);
+		});
+
+	await page.clock.install();
+	await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1_000);
+	const bounds = await root.boundingBox();
+	if (bounds === null) throw new Error('Terminal surface has no bounding box.');
+	const visibleRowCount = Number(await root.getAttribute('data-projected-terminal-rows'));
+	expect(visibleRowCount).toBeGreaterThan(0);
+	const bottomStart = await firstVisibleRow();
+
+	await canvas.hover();
+	await page.mouse.wheel(0, -bounds.height / visibleRowCount);
+	await expect.poll(firstVisibleRow).toBeLessThan(bottomStart);
+	await expect(motion).toBeAttached();
+	await page.clock.runFor(17);
+	const upwardStart = await canvasOffset();
+	expect(upwardStart).toBeLessThan(0);
+	expect(Math.abs(upwardStart)).toBeLessThanOrEqual(bounds.height);
+	await page.clock.runFor(34);
+	const upwardMidpoint = await canvasOffset();
+	expect(upwardMidpoint).toBeLessThan(0);
+	expect(Math.abs(upwardMidpoint)).toBeLessThan(Math.abs(upwardStart));
+
+	await page.mouse.wheel(0, bounds.height / visibleRowCount);
+	await expect.poll(firstVisibleRow).toBe(bottomStart);
+	await expect(motion).toBeAttached();
+	await page.clock.runFor(17);
+	const downwardStart = await canvasOffset();
+	expect(downwardStart).toBeGreaterThan(0);
+	expect(downwardStart).toBeLessThanOrEqual(bounds.height);
+
+	await page.evaluate(() => {
+		Object.defineProperty(document, 'visibilityState', {
+			configurable: true,
+			value: 'hidden',
+		});
+		document.dispatchEvent(new Event('visibilitychange'));
+	});
+	await expect(motion).toHaveCount(0);
+	expect(await canvasOffset()).toBe(0);
+	await page.clock.runFor(200);
+	await expect(motion).toHaveCount(0);
+	expect(await canvasOffset()).toBe(0);
+	await page.evaluate(() => {
+		Reflect.deleteProperty(document, 'visibilityState');
+		document.dispatchEvent(new Event('visibilitychange'));
+	});
+});
+
 test('terminal-parity/LC-06-live-title', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
@@ -566,21 +640,19 @@ test('terminal-parity/HS-04-multi-click-selection', async () => {
 	await input.press('Enter');
 	const accessibility = root.locator('[role="list"]');
 	await expect(accessibility).toContainText('hs04-triple entire row marker');
+	await waitForTerminalPresentationStability(root);
 	const rows = accessibility.locator(':scope > div');
 	const canvas = root.locator('canvas');
 	const word = await terminalCellPoint(root, canvas, rows, 'hs04-double doubleword suffix', 15);
 
-	await page.mouse.click(word.x, word.y);
-	await page.mouse.click(word.x, word.y);
+	await page.mouse.click(word.x, word.y, { clickCount: 2 });
 	await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
 	await expect
 		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
 		.toBe('doubleword');
 
 	const line = await terminalCellPoint(root, canvas, rows, 'hs04-triple entire row marker', 5);
-	await page.mouse.click(line.x, line.y);
-	await page.mouse.click(line.x, line.y);
-	await page.mouse.click(line.x, line.y);
+	await page.mouse.click(line.x, line.y, { clickCount: 3 });
 	await expect
 		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
 		.toContain('hs04-triple entire row marker');
@@ -1948,6 +2020,7 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 		await secondInput.press('Enter');
 		const secondLog = secondBrowserPage.locator('[role="list"]');
 		await expect(secondLog).toContainText('browser-copy-marker');
+		await waitForTerminalPresentationStability(secondRoot);
 		const secondCanvas = secondBrowserPage.locator('canvas');
 		const secondRows = secondLog.locator(':scope > div');
 		const selectionStart = await terminalCellPoint(
@@ -3250,6 +3323,31 @@ async function terminalCellPoint(
 		x: bounds.x + (location.column + columnOffset + horizontalFraction) * (bounds.width / columns),
 		y: bounds.y + (location.row + 0.5) * (bounds.height / visibleRows),
 	};
+}
+
+async function waitForTerminalPresentationStability(root: Locator): Promise<void> {
+	let previousSignature: string | undefined;
+	let consecutiveMatches = 0;
+	await expect
+		.poll(
+			async () => {
+				const signature = await root.evaluate((element) =>
+					JSON.stringify({
+						committedFrames: element.getAttribute('data-projected-terminal-committed-frames'),
+						log: element.querySelector('[role="list"]')?.textContent ?? '',
+						renderedFrames: element.getAttribute('data-projected-terminal-rendered-frames'),
+					}),
+				);
+				if (signature === previousSignature) consecutiveMatches += 1;
+				else {
+					previousSignature = signature;
+					consecutiveMatches = 0;
+				}
+				return consecutiveMatches;
+			},
+			{ intervals: [50], timeout: 10_000 },
+		)
+		.toBeGreaterThanOrEqual(2);
 }
 
 async function captureTerminalScrollbarStrip(page: Page, surface: Locator): Promise<Buffer> {

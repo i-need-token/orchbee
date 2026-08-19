@@ -647,13 +647,17 @@ and shared memory are not projected. Historical OBPB row windows carry no image 
 leaving the live bottom viewport clears the client overlay, and returning presents the newest live
 state rather than replaying a history image.
 
-The launch profile seeds Ghostty's default foreground, background, cursor color, and complete
-palette. OSC 4, 10, 11, and 12 changes mutate that canonical state: projection resolves palette
-cells to RGB and carries the current dynamic defaults, while queries produce terminal-reply bytes
-from the same state. The maintained surface corpus covers mutation and projection, and the runtime
-test covers exact pinned-Ghostty color-query replies. A separate real-PTY trace covers Host
-terminal-reply routing and accounting without depending on a fixed-length color-query read. No
-attachment or renderer owns a second terminal palette.
+The launch profile seeds Ghostty's default foreground, background, cursor color, complete palette,
+cursor shape, and cursor blinking mode. Missing cursor-default fields normalize to the product
+default of a block, non-blinking cursor; current profiles retain those values explicitly. DECSCUSR
+and equivalent terminal escape sequences may override the active shape and blinking mode. Ghostty
+RIS and an application `reset` restore the retained profile defaults, while projection remains the
+only cursor input to a renderer. OSC 4, 10, 11, and 12 changes mutate the canonical color state:
+projection resolves palette cells to RGB and carries the current dynamic defaults, while queries
+produce terminal-reply bytes from the same state. The maintained surface corpus covers mutation and
+projection, and the runtime test covers exact pinned-Ghostty color-query replies. A separate
+real-PTY trace covers Host terminal-reply routing and accounting without depending on a fixed-length
+color-query read. No attachment or renderer owns a second terminal palette or cursor default.
 
 A Ghostty bell effect advances one terminal-owned positive monotonic `bell_sequence` exactly once
 while the canonical terminal-state mutex is held. A newly admitted read-capable attachment starts
@@ -829,8 +833,8 @@ hold a partial child sequence. `clear` invokes Ghostty's complete active-screen 
 cursor while preserving the active screen, terminal modes, title, current directory, geometry, and
 cell pixels. `reset` invokes Ghostty's full reset: it returns to the primary screen, discards the
 alternate screen, clears screen and retained history, and restores modes, title, current directory,
-cursor, tab stops, palette-related terminal state, and interaction ownership to their reset values;
-geometry and cell pixels remain unchanged.
+cursor shape and blinking to their retained profile defaults, tab stops, palette-related terminal
+state, and interaction ownership to their reset values; geometry and cell pixels remain unchanged.
 
 Each accepted operation advances terminal generation and revision exactly once, refreshes the
 history model, invalidates projection bases and generation-pinned row or export work, and releases

@@ -463,6 +463,55 @@ test "runtime parses PTY output before exposing canonical terminal state" {
     defer std.testing.allocator.free(plain);
     try std.testing.expect(std.mem.indexOf(u8, plain, "host:orchbee") != null);
 }
+test "runtime projects explicit product cursor defaults without a profile override" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+
+    try expectProjectedCursor(runtime, .block, false, 1);
+}
+test "cursor escapes override and resets restore the terminal profile defaults" {
+    const palette = [_]u32{0} ** 256;
+    const runtime = try createIdleRuntime(.{ .profile = .{
+        .color_scheme = .dark,
+        .default_background_rgb = 0,
+        .default_cursor_blinking = true,
+        .default_cursor_rgb = null,
+        .default_cursor_shape = .underline,
+        .default_foreground_rgb = 0xffffff,
+        .device_primary_conformance_level = 62,
+        .device_primary_features = &.{22},
+        .device_secondary_type = 1,
+        .device_secondary_firmware_version = 0,
+        .device_secondary_rom_cartridge = 0,
+        .device_tertiary_unit_id = 0,
+        .enquiry_response = "",
+        .palette = &palette,
+        .version_response = "Orchbee",
+    } });
+    defer runtime.destroy();
+
+    try expectProjectedCursor(runtime, .underline, true, 1);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[6 q"),
+    );
+    try expectProjectedCursor(runtime, .bar, false, 2);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1bc"),
+    );
+    try expectProjectedCursor(runtime, .underline, true, 3);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[2 q"),
+    );
+    try expectProjectedCursor(runtime, .block, false, 4);
+    _ = try runtime.applyTerminalControl(.reset);
+    try expectProjectedCursor(runtime, .underline, true, 5);
+}
 test "Ghostty BEL effects advance one terminal bell sequence per control byte" {
     const runtime = try createIdleRuntime(.{});
     defer runtime.destroy();
@@ -473,6 +522,31 @@ test "Ghostty BEL effects advance one terminal bell sequence per control byte" {
     parseTerminalInput(runtime, "text\x07");
     try std.testing.expectEqual(@as(u64, 3), runtime.bellSequence());
     try runtime.forceTerminate();
+}
+
+fn expectProjectedCursor(
+    runtime: *TerminalRuntime,
+    expected_shape: protocol.CursorShape,
+    expected_blinking: bool,
+    sequence: u64,
+) !void {
+    const frame = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = AttachmentId.fromBytes([_]u8{0xc3} ** 16),
+            .base_generation = null,
+            .base_revision = null,
+            .force_snapshot = true,
+            .host_epoch = HostEpoch.fromBytes([_]u8{0xd4} ** 16),
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = sequence,
+        },
+    ));
+    defer std.testing.allocator.free(frame.allocation);
+    const summary = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
+    try std.testing.expectEqual(expected_shape, summary.cursor_shape);
+    try std.testing.expectEqual(expected_blinking, frame.bytes[97] & 0x02 != 0);
 }
 test "OSC 52 admits one bounded clipboard write and never exposes clipboard reads" {
     const runtime = try createIdleRuntime(.{});

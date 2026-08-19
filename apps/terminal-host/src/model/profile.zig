@@ -7,10 +7,18 @@ pub const ColorScheme = enum {
     light,
 };
 
+pub const CursorShape = enum {
+    block,
+    underline,
+    bar,
+};
+
 pub const Profile = struct {
     color_scheme: ColorScheme,
     default_background_rgb: u32,
+    default_cursor_blinking: bool = false,
     default_cursor_rgb: ?u32,
+    default_cursor_shape: CursorShape = .block,
     default_foreground_rgb: u32,
     device_primary_conformance_level: u16,
     device_primary_features: []const u16,

@@ -55,8 +55,10 @@ The accepted contract requires these externally visible properties:
   owner.
 - Application clear and reset requests execute directly against the Host-owned Ghostty state for
   an input-capable attachment. Clear erases and homes the active screen without changing its modes;
-  reset returns to a fresh primary-screen state. Neither operation writes escape bytes to the child
-  or asks a projected client to emulate VT behavior.
+  reset returns to a fresh primary-screen state and restores the retained profile's explicit cursor
+  shape and blinking defaults. Terminal escapes may override those cursor values until RIS or reset.
+  Neither operation writes escape bytes to the child or asks a projected client to emulate VT
+  behavior.
 - A semantic key event may mark one macOS Option chord as terminal Alt. The Host applies that intent
   to Ghostty's authoritative encoder for the current terminal modes; it never treats the renderer's
   layout-produced special character as an already encoded terminal byte sequence.

@@ -152,10 +152,12 @@ fn launchDigest(allocator: std.mem.Allocator, launch: Launch) std.mem.Allocator.
     const profile = launch.profile;
     hashField(&hash, @tagName(profile.color_scheme));
     hashInt(&hash, u32, profile.default_background_rgb);
+    hash.update(&.{@intFromBool(profile.default_cursor_blinking)});
     if (profile.default_cursor_rgb) |cursor| {
         hash.update(&.{1});
         hashInt(&hash, u32, cursor);
     } else hash.update(&.{0});
+    hashField(&hash, @tagName(profile.default_cursor_shape));
     hashInt(&hash, u32, profile.default_foreground_rgb);
     hashInt(&hash, u16, profile.device_primary_conformance_level);
     hashCount(&hash, profile.device_primary_features.len);

@@ -32,7 +32,11 @@ pub fn applyTerminalControl(
             self.terminal.eraseDisplay(.complete, false);
             self.terminal.setCursorPos(1, 1);
         },
-        .reset => self.terminal.fullReset(),
+        .reset => {
+            self.terminal.fullReset();
+            self.profile.applyCursorDefaults(&self.terminal);
+            self.stream.handler.terminal_handler.default_cursor = true;
+        },
     }
     self.generation += 1;
     const revision = current_revision + 1;

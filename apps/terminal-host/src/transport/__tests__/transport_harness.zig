@@ -201,9 +201,16 @@ pub const WindowsTestClient = if (builtin.os.tag != .windows) void else struct {
 // a fatal teardown or the retained-cleanup window.
 
 pub fn expectHandshakeAccepted(client: *TestClient) !void {
-    const hello_payload =
-        \\{"clientId":"22222222222222222222222222222222","frameBytes":1024,"inputBytes":1024,"protocol":{"major":0,"minor":0,"patch":10},"rowWindowBytes":1024,"supportedOptionalFeatures":[]}
-    ;
+    const hello_payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"clientId\":\"22222222222222222222222222222222\",\"frameBytes\":1024,\"inputBytes\":1024,\"protocol\":{{\"major\":{d},\"minor\":{d},\"patch\":{d}}},\"rowWindowBytes\":1024,\"supportedOptionalFeatures\":[]}}",
+        .{
+            protocol.current_protocol_major,
+            protocol.current_protocol_minor,
+            protocol.current_protocol_patch,
+        },
+    );
+    defer std.testing.allocator.free(hello_payload);
     const hello = try protocol.encodeTransportEnvelope(
         std.testing.allocator,
         1,

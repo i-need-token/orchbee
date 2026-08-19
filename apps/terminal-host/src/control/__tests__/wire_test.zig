@@ -88,6 +88,26 @@ test "control decoder classifies UTF-8 JSON grammar and typed shape failures" {
     );
 }
 
+test "terminal profile wire defaults preserve legacy cursor payloads" {
+    const payload =
+        "{\"colorScheme\":\"dark\",\"defaultBackgroundRgb\":0," ++
+        "\"defaultCursorRgb\":null,\"defaultForegroundRgb\":16777215," ++
+        "\"deviceAttributes\":{\"primaryConformanceLevel\":62," ++
+        "\"primaryFeatures\":[22],\"secondaryDeviceType\":1," ++
+        "\"secondaryFirmwareVersion\":0,\"secondaryRomCartridge\":0," ++
+        "\"tertiaryUnitId\":0},\"enquiryResponse\":\"\"," ++
+        "\"palette\":[],\"versionResponse\":\"Orchbee\"}";
+    const decoded = try subject.decode(
+        subject.TerminalProfile,
+        std.testing.allocator,
+        payload,
+    );
+    defer decoded.deinit();
+
+    try std.testing.expect(!decoded.value.defaultCursorBlinking);
+    try std.testing.expectEqualStrings("block", decoded.value.defaultCursorShape);
+}
+
 test "control decoder requires exact scalar token kinds" {
     try std.testing.expectError(
         error.InvalidField,

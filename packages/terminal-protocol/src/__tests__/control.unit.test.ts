@@ -41,6 +41,7 @@ import {
 	UpdateTerminalConfigurationSchema,
 	TerminalLaunchSchema,
 	TerminalListSchema,
+	TerminalProfileSchema,
 	TerminalSummarySchema,
 	TypedFailureSchema,
 } from '../control';
@@ -64,6 +65,12 @@ const profile = {
 	versionResponse: 'orchbee',
 } as const;
 
+const explicitProfile = {
+	...profile,
+	defaultCursorBlinking: false,
+	defaultCursorShape: 'block',
+} as const;
+
 const launch = {
 	arguments: ['--version'],
 	cellPixelHeight: 16,
@@ -77,7 +84,7 @@ const launch = {
 	],
 	executable: '/bin/example',
 	rows: 24,
-	terminalProfile: profile,
+	terminalProfile: explicitProfile,
 };
 
 const nestedObjectSchema = z.object({
@@ -87,6 +94,25 @@ const nestedObjectSchema = z.object({
 const currentProtocolVersion = { major: 0, minor: 0, patch: 7 } as const;
 
 describe('control schemas', () => {
+	it('normalizes legacy and explicit cursor defaults in terminal profiles', () => {
+		expect(TerminalProfileSchema.parse(profile)).toEqual({
+			...profile,
+			defaultCursorBlinking: false,
+			defaultCursorShape: 'block',
+		});
+		expect(
+			TerminalProfileSchema.parse({
+				...explicitProfile,
+				defaultCursorBlinking: true,
+				defaultCursorShape: 'bar',
+			}),
+		).toEqual({
+			...explicitProfile,
+			defaultCursorBlinking: true,
+			defaultCursorShape: 'bar',
+		});
+	});
+
 	it('scopes clear and reset to one attachment and acknowledges the exact operation', () => {
 		const attachmentId = '11'.repeat(16);
 		const terminalId = '22'.repeat(16);

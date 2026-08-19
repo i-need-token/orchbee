@@ -840,6 +840,11 @@ test "every TypeScript control command fixture crosses the native typed decoder"
     {
         var decoded = try control_decode.decodeCreateTerminal(allocator, commands.create_terminal);
         defer decoded.deinit();
+        try std.testing.expect(decoded.value.launch.launch.profile.default_cursor_blinking);
+        try std.testing.expectEqual(
+            @as(@TypeOf(decoded.value.launch.launch.profile.default_cursor_shape), .underline),
+            decoded.value.launch.launch.profile.default_cursor_shape,
+        );
     }
     {
         var decoded = try control_decode.decodeSetTerminalDefaults(

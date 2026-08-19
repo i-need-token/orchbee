@@ -2,11 +2,11 @@
 
 | 字段     | 内容                                                                                                                                                                                         |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态     | 已接受的恢复设计；实现尚未完成，且下文保留的能力决策仍未接受                                                                                                                                 |
+| 状态     | 已接受的恢复设计，包括 2026-08-18 的能力与协调决策；实现与证据尚未完成                                                                                                                       |
 | Owner    | `@orchbee/terminal` 维护者；Terminal Host、协议、Workbench、Desktop 与 Browser adapter 分别拥有下文指定的边界                                                                                |
 | 当前权威 | [`packages/terminal/README.md`](../../packages/terminal/README.md)、[`apps/terminal-host/docs/runtime-model.md`](../../apps/terminal-host/docs/runtime-model.md)，以及各链接的协议或应用指南 |
 | 参考版本 | Orchbee `be7b4d0d531be6bab4c6cb4fb164addb997c951d`；Host 前加固版本 `44daa5a98f263d146cda6588f22eb6d1325cb97e`；Ghostty `91f66da24527fa02d92b5fd0b41cd020f553a64c`                           |
-| 退出条件 | 满足所有非保留声明，解决或有意保留每项保留声明，把持续维护的事实迁入所属指南与可执行证据，然后删除本提案及其评审翻译                                                                         |
+| 退出条件 | 满足每项声明与已接受的不可用行为，把持续维护的事实迁入所属指南与可执行证据，然后删除本提案及其评审翻译                                                                                       |
 
 英文 [projected-terminal-experience-compatibility.md](projected-terminal-experience-compatibility.md)
 是 canonical 版本；本文用于简体中文评审。
@@ -19,7 +19,9 @@
 
 决策 owner 于 2026-08-11 接受了该恢复范围与声明清单。范围包括一个 Tab 中的一个主终端
 Panel；不包括多 Panel/多 Tab 产品工作、恢复浏览器侧 VT、同步全缓冲区 API、不受支持的图形
-协议，以及无关的新产品功能。[保留决策](#保留决策)中的选择在分别被接受前不属于可实施范围。
+协议，以及无关的新产品功能。活跃请求的决策 owner 于 2026-08-18 分别接受了
+[已接受的能力与产品边界](#已接受的能力与产品边界)中的选择。这些选择只授权其中记录的精确
+边界；在每个所属切片收敛前，其实现与证据仍未完成。
 
 ### 已接受的终端交互修订——2026-08-16
 
@@ -38,11 +40,12 @@ Panel；不包括多 Panel/多 Tab 产品工作、恢复浏览器侧 VT、同步
 | 交付     | 先持久化本修订，再分别以最低层 regression 优先实现可独立评审的 input fallback/image paste、scrollbar、preedit/anchor 与 shaping 切片。没有 migration 或 persisted rollout state。每个切片均可通过 revert 其 source、test 与所属 guide 投影恢复；不保留 feature flag 或 compatibility shim。                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | 未知项   | 报告中的 subpixel marquee 原因无法通过截图捕获。只有 reduced renderer regression 证明 geometry 或 raster identity 仅因 foreground boundary 而改变时，才授权修改 production shaping；否则该切片停止在已证伪的假设并报告剩余诊断缺口。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
-本修订不包括 Agent process detection、user-customizable keymap、完成最终 terminal Action catalog
-或 context menu、非图片 clipboard fallback、读取 image byte、temporary file、upload、file drop、
-Host/protocol/VT 变更、为 preedit 滚动 terminal、composition commit 变更、替换字体、改变动画颜色，
-以及 scrollbar width、hit target 或 vertical inset 变更。已接受的 Apple handoff 只收窄此前保留的
-Action 工作；最终 catalog 与 context composition 仍然保留。
+本修订本身不包括 Agent process detection、user-customizable keymap、完成最终 terminal Action
+catalog 或 context menu、非图片 clipboard fallback、读取 image byte、temporary file、upload、
+file drop、Host/protocol/VT 变更、为 preedit 滚动 terminal、composition commit 变更、替换字体、
+改变动画颜色，以及 scrollbar width、hit target 或 vertical inset 变更。后续
+[2026-08-18 修订](#已接受的能力协调与证据修订2026-08-18)只在其记录边界内取代 file-drop 与最终
+Action/context 排除项；其他排除项保持不变。
 
 ### 已接受的打包后收敛修订——2026-08-16
 
@@ -60,6 +63,38 @@ Action 工作；最终 catalog 与 context composition 仍然保留。
 | 证据     | Reduced、backend-independent DOM-overlay regression 覆盖 grid remainder 与精确 Panel-relative thumb/hit geometry。Renderer-composition test 区分 history、resize、direct-action、connection 与 runtime failure presentation。Workbench 与 Desktop coordinator test 覆盖 idle、active、unknown、不稳定、stopped 与 mixed presentation。Deterministic Host regression 在 resize commit 与 synchronization 之间调度 canonical revision advancement；resize TLA+ model 检查 monotonic observation 与 newest-state preservation，application-lifetime model 检查零个与非零个受保护 presentation。受影响的 macOS system path、package check 与 root verification 仍然必需。                                                                                  |
 | 交付     | 先持久化本修订；随后把 failure/scrollbar presentation、shared exit protection 与 Host resize convergence 作为独立检查的切片交付。在 focused 与 root verification 后重新构建并操作 macOS client。每个切片均可通过 revert 其 source、test、model 与所属 guide projection 恢复；不保留 feature flag 或 compatibility shim。                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | 排除项   | 本修订不包括新 notification system、改变直接 user-action failure copy、改变 `unknown` activity policy、在自动 preserve 时停止 idle session、改变 PTY resize ordering、protocol negotiation、retained-session migration、scrollbar width/vertical geometry/fade timing，以及无关 multi-Panel behavior。                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+
+### 已接受的能力、协调与证据修订——2026-08-18
+
+活跃请求的决策 owner 在评审实现与证据审计后，于 2026-08-18 接受了这项 modeled、
+consequential 修订。它解决本提案此前保留的能力与产品选择，但不宣称对应实现已经完成。
+
+| 字段       | 已接受决策                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题       | Desktop file drop 已经存在，而提案仍禁止接受其 capability；runtime theme、cursor default、launch geometry、live attachment capability、shared focus、terminal Action、bell aggregation、URL policy、LAN Clipboard 行为与 compatibility evidence 缺少唯一已接受结果或完整实现。继续保留这些选择会阻止受影响声明收敛，并允许 source、test 与 proposal 权威互相冲突。                                                                                                                                                                                                                                                     |
+| 范围       | apps/terminal-host 拥有 terminal default、startup geometry、attachment capability enforcement、shared-focus aggregation 与 terminal effect。@orchbee/terminal 拥有 source-neutral projection、input repair、link presentation、selection export 与 capability projection。@orchbee/workbench 与 apps/web 拥有 scoped Action、semantic context、app-surface theme coordination、bell presentation、本地化 feedback 与 Browser capability 使用。Desktop 拥有 file-path bridge 与 visual launch orchestration。受影响声明为 PR-11、SU-09、SU-13、SU-16、IN-08 至 IN-12、IN-14、HS-07、FS-05、FS-06、LC-05 与 CF-03。      |
+| 边界       | Terminal Host 仍是唯一 PTY、Ghostty VT、canonical terminal palette、cursor、geometry、input-admission 与 terminal-effect 权威。Workbench 协调产品 intent 与 presentation，但不能在 typed Host transaction 之外 mutation terminal state。File drop 只通过 Desktop bridge 解析有界 path text，绝不读取 file byte。Browser Clipboard 不获得 server relay 或不安全的隐藏 fallback。File drop 不授权 filesystem-link activation。HTML/VT selection export 与 filesystem activation 保持不可用。不授权新的平行 specification framework 或 per-change evidence artifact。                                                     |
+| 决策权威   | 活跃请求的决策 owner 明确接受下表中的替代方案：保留既有有界 Desktop file-drop capability，而不是删除它；采用 Host-owned、revision-pinned theme 与 cursor default，而不是 client-only 权威；采用 mounted-geometry start，而不是中间 launch grid；采用 per-attachment capability revision 与 terminal-level focus aggregation，而不是 static 或 per-view terminal state；采用 Workbench-owned 最小 Action 与去重 bell effect；保持 plain-only selection 与禁用 filesystem activation；有意收窄 Web URL allowlist；采用无不安全 fallback 的严格 Browser Clipboard capability check；并使用既有 owner 分阶段闭合精确证据。 |
+| 证据       | 每个行为切片先在最早 owner 处加入 failing regression。Host ordering、capability、focus、launch 与跨 owner theme transition 在 dependent production behavior 前更新适用 TLA+ abstraction。Geometry、focus、capability、clipboard、Action 与 multi-client 声明需要 deterministic system trace。每项 compatibility claim 最终从所属 guide 映射其精确 stable witness 与环境边界；较窄 trace 或 source path 本身不能闭合声明。                                                                                                                                                                                              |
+| 交付       | 先持久化本修订。随后交付 explicit cursor default、mounted-geometry launch 与 revision-pinned theme workflow；再交付 live attachment capability、shared focus、Action/context/feedback 与 bell aggregation；然后对齐 Desktop file drop、URL scheme、LAN Clipboard、plain-only export 与禁用 filesystem activation；只在 governed semantic 收敛后闭合精确证据。每项任务是一个可独立评审的 semantic slice，并在下一切片前停止。                                                                                                                                                                                           |
+| 发布与恢复 | 不存在 persisted-data migration。新 protocol 或 profile field 在所有仓库内 producer/consumer 更新前必须向后兼容。Missing/stale capability 以 fail closed 处理，downgrade 后绝不 replay queued input，失败的 theme 或 launch preparation 保留此前 canonical state 或保持未启动 child。每个切片均可通过 revert 其 source、test、model 与所属 guide projection 恢复；不保留 compatibility shim 或长期 feature flag。                                                                                                                                                                                                      |
+| 排除项     | 本修订不授权 Windows file drop、读取 file content、upload、drop 后自动 Enter、LAN Browser file path、filesystem-link opening、HTML/VT export、http/https/mailto 以外的 scheme、clipboard server relay、execCommand、静默 clipboard fallback、browser-side VT state、multi-Panel focus policy、新 terminal settings surface 或新的 repository-wide specification system。既有 quit/close confirmation 不变；已接受的最小 terminal Action 不增加 confirmation surface。                                                                                                                                                  |
+
+| 声明                | 已接受结果                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| IN-08               | macOS/Linux Desktop 可以把最多 32 个文件解析为经过验证的 absolute POSIX path text。每次 file drop 都进入 Paste Review，绝不追加 Enter、绝不读取 file content；缺少 Desktop bridge、处于 unsupported platform 或 LAN Browser client 时不可用。                                                                                                                                         |
+| SU-09               | Workbench 发起一个 presentation revision。Host 在该 revision 原子提交 terminal default、256-color palette 与 cursor color；projected client 与 application surface 只呈现匹配的完整 revision。Superseded、stale、failed、hidden 与 suspended 路径不能暴露 mixed revision。                                                                                                            |
+| SU-13               | TerminalProfile 拥有明确的 block、non-blinking 产品 cursor default。Terminal escape sequence 可以在 runtime override shape/blink；RIS/reset 恢复 profile default。                                                                                                                                                                                                                    |
+| SU-16               | Visual create 分配 identity 与 lifecycle resource，但不 spawn child。Start 需要预期 mounted geometry，且 child、PTY、Core、首个 Host frame 与首个 client frame 使用该 geometry。Headless 与 test caller 显式提供 geometry；visual path 不使用 timeout 或 80x24 fallback。                                                                                                             |
+| PR-11               | Workbench 按 terminal identity 与 Host bell sequence 对 attachment delivery 去重。一个 sequence 产生一次 visual product effect。Sound 默认关闭并 opt-in；operating-system notification 独立 opt-in。Reconnect 与 replay 不重复 effect。                                                                                                                                               |
+| IN-09、IN-11、IN-12 | 所属 Workbench 拥有最小 catalog：Copy、Paste、Select All、Find、Find Next、Find Previous、Scroll to Bottom、Clear 与 Reset。Availability 同步；execution 返回 typed result 与本地化 feedback。Available terminal Action 保留当前即时执行且不增加 confirmation surface。Context 在打开时 pinned，并在已允许 Web-link effect 前重新验证。未认领的 Apple Command chord 继续交给 native。 |
+| IN-14               | Host 对 attached、visible、input-capable attachment 的 focus claim 做 OR aggregation，只在 aggregate 从 zero 变 nonzero 或从 nonzero 变 zero 时发出 terminal FocusIn/FocusOut。Detach、visibility loss、capability downgrade 与 stale focus event 遵循明确 repair 与 ordering。                                                                                                       |
+| IN-10               | 每个 attachment 具有单调 capability revision。Host 拒绝 stale 或 downgraded PTY input；client 立即修复 composition、native settlement、held key 与 mouse state。Upgrade 绝不 replay queued input，同时 local history、selection、search 与 copy 仍被允许。                                                                                                                            |
+| HS-07               | Plain-text selection export 是唯一支持格式。HTML 与 raw VT export 保持不可用。                                                                                                                                                                                                                                                                                                        |
+| FS-05               | Filesystem-link activation 保持不可用。已接受的 file-drop capability 不代表 opener capability。                                                                                                                                                                                                                                                                                       |
+| FS-06               | Detection、hover、context 与 activation 共用一个只包含 http、https、mailto 的 allowlist。Unsupported explicit metadata 可以继续 projection，但不呈现为可激活。                                                                                                                                                                                                                        |
+| LC-05               | 每次操作都评估 Browser Clipboard capability。Clipboard API 只在 secure context 中由真实 user activation 执行。Missing 或 rejected capability 返回有界本地化 feedback；不允许 execCommand、server relay、静默 downgrade、重复 retry 或读取 image byte。不安全 LAN client 可以使用经过评审的 manual-copy presentation，但不获得 privileged clipboard path。                             |
+| CF-03               | Semantic 收敛后再闭合证据。通过扩展既有 evidence owner，为每项声明提供精确 stable witness、owner-guide mapping、受控环境与明确排除项。如果既有 owner 无法强制完整性，新增 evidence manifest 或 specification framework 需要单独 architecture decision。                                                                                                                               |
 
 ## 问题与结果
 
@@ -165,7 +200,7 @@ deterministic system trace、differential fixture，或有依据的“不适用�
 | PR-08 | Title、current directory、screen、cursor 与 interaction mode 随所属 frame 提交。                                                                                 | Host / protocol / terminal              | `terminal-parity/PR-08-metadata`             |
 | PR-09 | Snapshot/delta commit 与 completed-draw checkpoint 原子且由 generation/revision 固定。                                                                           | Host / protocol / terminal / web        | `terminal-parity/PR-09-frame-commit`         |
 | PR-10 | Terminal query reply 保留配置的 pinned-Ghostty 行为与有序 routing。                                                                                              | Host                                    | `terminal-parity/PR-10-replies`              |
-| PR-11 | 每个 Host bell sequence 对每个 attachment 到达一次；产品级 effect 等待其保留策略。                                                                               | Host / protocol / terminal / app        | `terminal-parity/PR-11-bell`                 |
+| PR-11 | 每个 Host bell sequence 对每个 attachment 到达一次；Workbench 按 terminal sequence 去重一次 visual effect，sound 与 operating-system notification 分别 opt-in。  | Host / protocol / terminal / app        | `terminal-parity/PR-11-bell`                 |
 | PR-12 | Terminal 发起的 column change 关联 Ghostty、PTY、pixel、Core 与 client geometry。                                                                                | Host / terminal                         | `terminal-parity/PR-12-deccolm`              |
 | PR-13 | Application clear/reset 协调 mutation Host VT 状态并发布完整新 baseline。                                                                                        | Host / protocol / terminal / web        | `terminal-parity/PR-13-clear-reset`          |
 | SU-01 | 配置的 Latin/CJK/emoji face 在 input/canvas 共享测量前加载。                                                                                                     | terminal / web                          | `terminal-parity/SU-01-font-load`            |
@@ -176,14 +211,14 @@ deterministic system trace、differential fixture，或有依据的“不适用�
 | SU-06 | 从 fit 中减去 padding，剩余 pixel 被平衡且无 clipping 或无效 geometry。                                                                                          | terminal geometry                       | `terminal-parity/SU-06-fit`                  |
 | SU-07 | Measured、external、rejected、lost 与 re-entered resize 路径收敛到 Host geometry。                                                                               | terminal / Host                         | `terminal-parity/SU-07-resize-convergence`   |
 | SU-08 | DPR change 协调重建 surface geometry、raster state 与 PTY pixel dimension。                                                                                      | terminal / browser                      | `terminal-parity/SU-08-dpr`                  |
-| SU-09 | Runtime theme replacement 原子更新 Host default、pixel、overlay 与 app surface。                                                                                 | web / Host / terminal                   | `terminal-parity/SU-09-theme`                |
+| SU-09 | 一个 presentation revision 原子更新 Host default/palette 与匹配的 client pixel、overlay、cursor 和 app surface。                                                 | web / Host / terminal                   | `terminal-parity/SU-09-theme`                |
 | SU-10 | History 暴露可见、可拖动、会淡出的 8 CSS pixel overlay scrollbar thumb，并与 Panel viewport 右边缘精确保持 2 CSS pixel。                                         | terminal history presentation           | `terminal-parity/SU-10-scrollbar`            |
 | SU-11 | Smooth history motion 是有界、可逆的 presentation，并在隐藏时取消。                                                                                              | terminal history presentation           | `terminal-parity/SU-11-smooth-scroll`        |
 | SU-12 | WebGPU 与 Canvas 暴露等价 canonical output、health、fallback 与 recovery。                                                                                       | terminal renderer                       | `terminal-parity/SU-12-backends`             |
-| SU-13 | 产品 cursor default 经 reset 保留，同时 terminal escape 可 override。                                                                                            | Host profile / terminal renderer        | `terminal-parity/SU-13-cursor-defaults`      |
+| SU-13 | 产品 cursor default 是 block、non-blinking，经 reset 保留，同时 terminal escape 可 override。                                                                    | Host profile / terminal renderer        | `terminal-parity/SU-13-cursor-defaults`      |
 | SU-14 | Runtime presentation config 原子重新测量并重绘，不 reopen。                                                                                                      | terminal / web                          | `terminal-parity/SU-14-runtime-presentation` |
 | SU-15 | Visibility 与 demand pause transient rendering，并以一个 current draw 恢复。                                                                                     | terminal / web                          | `terminal-parity/SU-15-visibility`           |
-| SU-16 | Child 与 first frame 以预期 mounted geometry 启动，不暴露中间 launch grid。                                                                                      | desktop / Host / terminal               | `terminal-parity/SU-16-startup-geometry`     |
+| SU-16 | Visual creation 在 child spawn 前等待预期 mounted geometry，使 PTY、Core 与 first frame 不暴露中间 launch grid。                                                 | desktop / Host / terminal               | `terminal-parity/SU-16-startup-geometry`     |
 | IN-01 | Browser physical key、modifier、keypad、Kitty action 与 mobile backspace 按 Ghostty 编码；未认领的 Apple Command chord 保留给 native application handling。      | terminal input / Host                   | `terminal-parity/IN-01-keyboard`             |
 | IN-02 | IME 只 commit 一次，cancel 不 commit，所有 lifecycle repair 清除 transient input。                                                                               | terminal input                          | `terminal-parity/IN-02-composition`          |
 | IN-03 | Paste inspection、review、ordering、capability 与 bracketed-mode encoding 构成一个决定；纯图片 clipboard input 在不读取 image byte 时发出一个 Control+V signal。 | terminal / web / Host                   | `terminal-parity/IN-03-paste`                |
@@ -191,13 +226,13 @@ deterministic system trace、differential fixture，或有依据的“不适用�
 | IN-05 | Gesture 期间 mouse ownership 固定，Shift 安全赋予 terminal selection/link ownership。                                                                            | terminal input / Host                   | `terminal-parity/IN-05-mouse-ownership`      |
 | IN-06 | Pointer shape 由 selection、rectangle、application mouse 与 link policy 导出。                                                                                   | terminal presentation                   | `terminal-parity/IN-06-pointer`              |
 | IN-07 | Local paging 与每个允许的 input source 执行共用 history/selection transition。                                                                                   | terminal input / history                | `terminal-parity/IN-07-pre-input`            |
-| IN-08 | Text drop 遵循 paste；没有已接受 application capability 时 file drop 不可用。                                                                                    | terminal / app                          | `terminal-parity/IN-08-drop`                 |
-| IN-09 | Terminal Action 使用所属 Workbench scope 与确定的 conflict/confirmation policy。                                                                                 | Workbench / web                         | `terminal-parity/IN-09-action-scope`         |
-| IN-10 | Read-only state 抑制 PTY input，同时保留已允许的 local selection/history 行为。                                                                                  | terminal / attachment owner             | `terminal-parity/IN-10-read-only`            |
-| IN-11 | Context-menu intent 遵守 mouse ownership，只暴露已接受且固定的 semantic context。                                                                                | terminal / Workbench                    | `terminal-parity/IN-11-context`              |
-| IN-12 | 已允许 terminal Action 具有同步 availability 与可感知的 completion/failure feedback。                                                                            | Workbench / web                         | `terminal-parity/IN-12-actions`              |
+| IN-08 | Text drop 遵循 paste；有界 Desktop file drop 总是进入 Paste Review，缺少已接受 Desktop path capability 时不可用。                                                | terminal / app                          | `terminal-parity/IN-08-drop`                 |
+| IN-09 | Terminal Action 使用所属 Workbench scope，只消费 available binding，不增加 confirmation surface，否则保留 native handling。                                      | Workbench / web                         | `terminal-parity/IN-09-action-scope`         |
+| IN-10 | 单调 attachment capability revision 抑制 stale/downgraded PTY input，同时保留已允许的 local selection/history 行为。                                             | terminal / attachment owner             | `terminal-parity/IN-10-read-only`            |
+| IN-11 | Context-menu intent 遵守 mouse ownership，只暴露 pinned semantic context，并在已允许 effect 前重新验证。                                                         | terminal / Workbench                    | `terminal-parity/IN-11-context`              |
+| IN-12 | 已接受的最小 terminal Action catalog 具有同步 availability、typed execution 与本地化、可感知的 completion/failure feedback。                                     | Workbench / web                         | `terminal-parity/IN-12-actions`              |
 | IN-13 | Wheel policy 保留 delta mode、axis、local history、mouse reporting 与 alternate-screen fallback。                                                                | terminal input / Host                   | `terminal-parity/IN-13-wheel`                |
-| IN-14 | Shared-terminal focus 遵循一个已接受的 terminal-level aggregation policy。                                                                                       | Host / app                              | `terminal-parity/IN-14-shared-focus`         |
+| IN-14 | Shared-terminal focus 对 attached、visible、input-capable attachment claim 做 OR aggregation，只发出 aggregate zero/nonzero transition。                         | Host / app                              | `terminal-parity/IN-14-shared-focus`         |
 | IN-15 | Abrupt attachment loss 不会遗留或跨客户端释放 attachment-owned key/mouse state。                                                                                 | Host / terminal                         | `terminal-parity/IN-15-detach-repair`        |
 | IN-16 | Concurrent client 共用一个有界 terminal-global FIFO，不 replay 或 reorder。                                                                                      | Host                                    | `terminal-parity/IN-16-input-fifo`           |
 | IN-17 | Mobile activation 打开 virtual keyboard，并保持 exactly-once input 与 selection。                                                                                | terminal browser input                  | `terminal-parity/IN-17-mobile`               |
@@ -207,7 +242,7 @@ deterministic system trace、differential fixture，或有依据的“不适用�
 | HS-04 | Click count、word/line/output、threshold、endpoint 与 rectangle semantic 明确且稳定。                                                                            | terminal gesture / Host selection       | `terminal-parity/HS-04-selection-gesture`    |
 | HS-05 | Autoscroll、outside release、lost capture、blur、cancel 与 race 具有一个 copy consequence。                                                                      | terminal gesture / Host selection       | `terminal-parity/HS-05-selection-cancel`     |
 | HS-06 | Selection eviction 不能 export replacement content，clipboard completion 保持 pinned。                                                                           | Host selection / app                    | `terminal-parity/HS-06-selection-eviction`   |
-| HS-07 | Plain export 持续维护；HTML/VT exposure 在接受前不可用。                                                                                                         | Host / terminal / app                   | `terminal-parity/HS-07-selection-export`     |
+| HS-07 | Plain export 持续维护；HTML 与 raw VT exposure 保持不可用。                                                                                                      | Host / terminal / app                   | `terminal-parity/HS-07-selection-export`     |
 | HS-08 | 已允许 programmatic/accessibility selection workflow 保留 absolute endpoint。                                                                                    | Host selection / terminal               | `terminal-parity/HS-08-selection-commands`   |
 | HS-09 | Scrollback 有界，zero 禁用 retention，已允许 update 确定性 eviction。                                                                                            | Host configuration                      | `terminal-parity/HS-09-scrollback`           |
 | HS-10 | Copy-on-select、opt-out、manual copy 与 exactly-once 可感知结果保持一致。                                                                                        | terminal / app                          | `terminal-parity/HS-10-copy`                 |
@@ -215,8 +250,8 @@ deterministic system trace、differential fixture，或有依据的“不适用�
 | FS-02 | Search scheduling、navigation intent、invalidation、cancellation、bound 与 reveal 确定。                                                                         | terminal search                         | `terminal-parity/FS-02-search-scheduling`    |
 | FS-03 | Link 以 precedence 与精确 cell mapping 覆盖完整的有界 logical line。                                                                                             | Host rows / terminal links              | `terminal-parity/FS-03-links`                |
 | FS-04 | Hover 在 content、viewport、geometry change 时失效；activation 重新验证 cell。                                                                                   | terminal links / geometry               | `terminal-parity/FS-04-link-invalidation`    |
-| FS-05 | 没有已接受 application capability 时 filesystem activation 不可用。                                                                                              | app capability                          | `terminal-parity/FS-05-file-links`           |
-| FS-06 | 呈现的 external scheme 与 application activation policy 完全一致。                                                                                               | terminal / app capability               | `terminal-parity/FS-06-url-policy`           |
+| FS-05 | Filesystem activation 保持不可用，Desktop file-drop capability 不代表 opener capability。                                                                        | app capability                          | `terminal-parity/FS-05-file-links`           |
+| FS-06 | Detection、presentation、context 与 activation 共用一个只包含 `http`、`https`、`mailto` 的 allowlist。                                                           | terminal / app capability               | `terminal-parity/FS-06-url-policy`           |
 | AC-01 | Accessible row 保留 space、grapheme mapping、position 与有效 navigable structure。                                                                               | terminal accessibility                  | `terminal-parity/AC-01-accessible-rows`      |
 | AC-02 | DOM 与 Host selection 双向映射且不拆分 grapheme。                                                                                                                | terminal accessibility / Host selection | `terminal-parity/AC-02-dom-selection`        |
 | AC-03 | Cursor 与 changed output 有序 announce，history 不变成虚假 live output。                                                                                         | terminal accessibility                  | `terminal-parity/AC-03-announcements`        |
@@ -225,7 +260,7 @@ deterministic system trace、differential fixture，或有依据的“不适用�
 | LC-02 | Failure、recovery、final frame 与 exit 具有明确 precedence，且不破坏 geometry。                                                                                  | terminal / web lifecycle                | `terminal-parity/LC-02-failure-presentation` |
 | LC-03 | Desktop 与 LAN Browser 对一个 Host checkpoint 暴露等价 semantic。                                                                                                | web / desktop / Gateway                 | `terminal-parity/LC-03-dual-client`          |
 | LC-04 | PTY launch environment 修复 locale/terminal identity，并移除 parent-only color policy。                                                                          | desktop / Host launch                   | `terminal-parity/LC-04-environment`          |
-| LC-05 | LAN Browser capability loss 改变 Action availability，并给出可感知的有界反馈。                                                                                   | web / Browser capability                | `terminal-parity/LC-05-lan-capability`       |
+| LC-05 | 每次 user-activated secure-context operation 都检查 Browser Clipboard；capability loss 改变 Action availability，并给出无不安全 fallback 的有界本地化反馈。      | web / Browser capability                | `terminal-parity/LC-05-lan-capability`       |
 | LC-06 | Host title/current-directory metadata 以明确 rename/launch policy 到达 Workbench。                                                                               | terminal / web / Workbench              | `terminal-parity/LC-06-metadata-bridge`      |
 | LC-07 | 一个 resize owner 与所有 non-owner 呈现 canonical geometry，并确定性恢复 ownership。                                                                             | Host / desktop / web / terminal         | `terminal-parity/LC-07-resize-lease`         |
 | LC-08 | Browser access 默认 loopback，LAN 需明确意图，stop 时撤销 capability。                                                                                           | desktop / Server / Gateway              | `terminal-parity/LC-08-browser-access`       |
@@ -258,20 +293,21 @@ interaction。Host concurrency 或独立排序事件的变更在影响抽象时�
 全部通过后才推进。完成还要求 root `pnpm verify` 与所有选中的 change-triggered correctness
 command 通过。
 
-## 保留决策
+## 已接受的能力与产品边界
 
-当前恢复没有授权以下选择：
+活跃请求的决策 owner 于 2026-08-18 在
+[已接受的修订](#已接受的能力协调与证据修订2026-08-18)精确范围内，接受了此前在此保留的
+选择。接受决定授权 governed implementation，但不代表已经完成。
 
-- `IN-08`：Desktop file-drop path capability；
-- `FS-05`：filesystem target activation；
-- `FS-06`：扩大或有意收窄非 Web external URL scheme；
-- 跨多个 attached view 的产品级 bell effect aggregation；
-- `IN-14` 的 terminal-level shared-focus aggregation policy；
-- `IN-10` 中除正确 initial read-only behavior 以外的 live attachment capability mutation；
-- `HS-07` 中 HTML 或 VT selection exposure；
-- `IN-09`、`IN-11`、`IN-12` 的最终产品 Action catalog、terminal context payload 与 Workbench
-  context-menu composition，但不包括上文已接受的 Apple Command handoff；
-- `LC-05` 的 LAN Clipboard secure-context、transient-activation 与 fallback policy。
-
-当其中一项选择成为必要条件时，实现停在最早受影响边界。现有安全 capability restriction 在
-决策 owner 接受替代方案及其证据义务前继续有效。
+- Capability expansion 在所属 implementation、negative case、typed failure、owner
+  documentation 与选定 system evidence 收敛前保持不可用。
+- 已接受的 Desktop file-drop path capability 不授权 LAN Browser path、filesystem-link
+  opening、file read、upload、Windows support 或自动执行 command。
+- Plain-text-only selection export 与 unavailable filesystem activation 是有意产品结果，不是
+  临时缺口。
+- External URL interaction 只允许 `http`、`https` 与 `mailto`；增加其他 scheme 是新的
+  reserved decision。
+- Clipboard server relay、`execCommand`、静默 fallback、HTML/VT export 与新的 evidence
+  specification framework 仍不在本授权范围内。
+- 任何需要 materially different owner、public contract、security boundary、product outcome 或
+  evidence limit 的实现，必须在 governed edit 前返回 decision stage。

@@ -879,6 +879,7 @@
 				"FireNativeValue",
 				"FireFallback",
 				"FireNoop",
+				"PublishFollowingInput",
 				"StartComposition",
 				"EndComposition",
 				"BeginRepair",

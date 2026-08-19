@@ -115,7 +115,8 @@ candidate UI.
 separate from composition settlement in `TerminalInputRepair.tla`. It explores two consecutively
 admitted requests and independently orders textarea-value changes, repeated queue attempts,
 fallback coalescing, input-event deferral, timer firing, composition start/end, repair/reopen, and
-disposal.
+disposal. It also represents a later Host-directed input as a publication transition that remains
+disabled until the current native request has a terminal outcome.
 
 | Native settlement claim                                  | Model property                                                                                          | TypeScript refinement                                                                                             |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -123,6 +124,7 @@ disposal.
 | Changed native text wins over the raw-key fallback       | `NativePublicationRequiresChangedValue`, `FallbackPublicationRequiresUnchangedValue`                    | The timer compares the settled textarea value with its captured baseline before choosing native text or fallback. |
 | A repeated keydown only enriches the current request     | `PendingIdentityIsCurrent`, `FallbackPublicationRequiresUnchangedValue`                                 | A pending request retains its baseline and timer while the first non-empty fallback is coalesced.                 |
 | An independent input event waits for the timer           | `DeferredInputDoesNotPublishEarly`                                                                      | `#consumeInputValue` returns while an independent text insertion has a native change pending.                     |
+| A later Host-directed input cannot overtake settlement   | `FollowingInputCannotOvertakeSettlement`                                                                | `#sendInput` synchronously settles a pending native request before publishing the later command.                  |
 | Composition, repair, and disposal revoke timer authority | `CompositionOwnsNoSettlementTimer`, `ClosedAdmissionHasNoTimer`, `InvalidationCancelsPendingSettlement` | Composition start/end, transient-state repair, and surface release call `#cancelNativeInputChange`.               |
 | An uncancelled timer eventually settles                  | `PendingTimerEventuallySettles`                                                                         | Weak fairness applies only to the already-armed current timer; environment events may cancel it first.            |
 

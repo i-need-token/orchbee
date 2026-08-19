@@ -61,12 +61,14 @@ pub fn createWithOptionsUsingSpawner(
         var terminal: ghostty_vt.Terminal = try .init(allocator, .{
             .cols = resolved_launch.columns,
             .colors = colors,
+            .default_modes = .{ .cursor_blinking = profile.default_cursor_blinking },
             .kitty_image_loading_limits = .direct,
             .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
             .max_scrollback = resolved_options.scrollback_bytes,
             .rows = resolved_launch.rows,
         });
         errdefer terminal.deinit(allocator);
+        profile.applyCursorDefaults(&terminal);
         break :resources .{
             .profile = profile,
             .terminal = terminal,
@@ -99,6 +101,9 @@ pub fn createWithOptionsUsingSpawner(
         self.stream_allocator.allocator(),
         .init(&self.terminal),
     );
+    self.stream.handler.terminal_handler.default_cursor_blink =
+        self.profile.default_cursor_blinking;
+    self.stream.handler.terminal_handler.default_cursor_style = self.profile.cursorStyle();
     const effects = &self.stream.handler.terminal_handler.effects;
     effects.bell = output_ops.bellEffect;
     effects.write_pty = output_ops.writePtyEffect;

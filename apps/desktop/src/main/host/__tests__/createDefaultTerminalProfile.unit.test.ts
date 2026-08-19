@@ -8,7 +8,9 @@ describe('createDefaultTerminalProfile', () => {
 
 		expect(profile.colorScheme).toBe('light');
 		expect(profile.defaultBackgroundRgb).toBe(0xfc_fc_fc);
+		expect(profile.defaultCursorBlinking).toBe(false);
 		expect(profile.defaultCursorRgb).toBe(0x57_be_f8);
+		expect(profile.defaultCursorShape).toBe('block');
 		expect(profile.defaultForegroundRgb).toBe(0x14_14_14);
 		expect(profile.palette).toHaveLength(256);
 		expect(profile.palette.slice(0, 16)).toEqual([

@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                        |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                  |
-| Reference scope | Exact protocol `0.0.10`; OBTF format `0.0.2`; OBKG, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures          |
+| Reference scope | Exact protocol `0.0.11`; OBTF format `0.0.2`; OBKG, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures          |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence            |
 
 ## Modeling record
@@ -39,7 +39,7 @@ identity and are rejected where an identity is required.
 | `AttachmentId`  | One physical-connection-owned attachment carrying negotiated capabilities                                                        |
 | `CorrelationId` | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.10`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.11`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame format is exactly `0.0.2`; OBKG graphics-extension, OBPB projection-buffer, and OBRW
@@ -60,6 +60,12 @@ environment names, invalid identities, and out-of-range sizes fail before state 
 TypeScript request producers use the message-kind-selected `encodeControlRequest` boundary; callers
 cannot pair a request kind with a different valid control schema. Native request consumers decode
 the same payload into typed Host commands before dispatch.
+
+`TerminalProfile` carries explicit `defaultCursorShape` (`block`, `underline`, or `bar`) and
+`defaultCursorBlinking` values. Both fields have compatibility defaults (`block` and `false`) when
+decoding an older persisted profile shape; current encoders materialize them. These are launch
+defaults, not immutable cursor state: terminal escape sequences may override both until RIS or an
+application reset restores the profile values.
 
 The message registry also owns whether each kind may be a request, response, event, or a declared
 combination; its payload encoding in each legal role; and the successful response kind for every
@@ -241,7 +247,7 @@ travel in terminal frames. Initial resize-lease authority is returned by attachm
 later ownership changes use the attachment-scoped event.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.10.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.11.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical

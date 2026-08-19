@@ -445,7 +445,9 @@ function createControlConformanceFixture() {
 	const terminalProfile = {
 		colorScheme: 'dark',
 		defaultBackgroundRgb: 0x10_10_10,
+		defaultCursorBlinking: true,
 		defaultCursorRgb: null,
+		defaultCursorShape: 'underline',
 		defaultForegroundRgb: 0xf0_f0_f0,
 		deviceAttributes: {
 			primaryConformanceLevel: 65,

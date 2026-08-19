@@ -213,7 +213,9 @@ pub const DeviceAttributes = struct {
 pub const TerminalProfile = struct {
     colorScheme: []const u8,
     defaultBackgroundRgb: u32,
+    defaultCursorBlinking: bool = false,
     defaultCursorRgb: ?u32,
+    defaultCursorShape: []const u8 = "block",
     defaultForegroundRgb: u32,
     deviceAttributes: DeviceAttributes,
     enquiryResponse: []const u8,

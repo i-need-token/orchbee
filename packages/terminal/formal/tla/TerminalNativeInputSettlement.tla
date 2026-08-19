@@ -4,7 +4,8 @@ EXTENDS FiniteSets, Naturals, TLC
 \* Models the short native-text settlement window owned by ProjectedTerminal.
 \* Two requests expose cancellation followed by re-entry. Time is represented
 \* by independently ordered timer, DOM-value, composition, repair, and disposal
-\* actions; the concrete 30 ms delay is intentionally outside this model.
+\* actions, plus publication of a later Host-directed input. The concrete 30 ms
+\* delay is intentionally outside this model.
 
 MaxRequests == 2
 Requests == 1..MaxRequests
@@ -18,8 +19,8 @@ Actions == {
   "init", "queue-without-fallback", "queue-with-fallback",
   "coalesce-without-fallback", "coalesce-fallback", "native-value-changes",
   "defer-independent-input", "fire-native-value", "fire-fallback",
-  "fire-noop", "start-composition", "end-composition", "begin-repair",
-  "complete-repair", "dispose"
+  "fire-noop", "publish-following-input", "start-composition",
+  "end-composition", "begin-repair", "complete-repair", "dispose"
 }
 
 VARIABLES
@@ -207,6 +208,17 @@ FireNoop ==
        deferredInputRequests, nativeChangeObserved, publicationCount>>
   /\ Record("fire-noop", pendingRequest)
 
+PublishFollowingInput ==
+  /\ admission = "accepting"
+  /\ compositionPhase = "idle"
+  /\ pendingRequest = NoRequest
+  /\ requestOrdinal > 0
+  /\ UNCHANGED <<admission, compositionPhase, repairEpoch, inputGeneration,
+       requestOrdinal, pendingRequest, timerGeneration, activeTimer,
+       capturedEpoch, baselineGeneration, fallbackPresent, fallbackEligible,
+       deferredInputRequests, nativeChangeObserved, outcome, publicationCount>>
+  /\ Record("publish-following-input", NoRequest)
+
 StartComposition ==
   /\ admission = "accepting"
   /\ compositionPhase = "idle"
@@ -288,6 +300,7 @@ Next ==
   \/ NativeValueChanges
   \/ DeferIndependentInput
   \/ FireCurrentTimer
+  \/ PublishFollowingInput
   \/ StartComposition
   \/ EndComposition
   \/ BeginRepair
@@ -352,6 +365,10 @@ FallbackPublicationRequiresUnchangedValue ==
 DeferredInputDoesNotPublishEarly ==
   \A request \in deferredInputRequests:
     request = pendingRequest => publicationCount[request] = 0
+
+FollowingInputCannotOvertakeSettlement ==
+  lastAction = "publish-following-input" =>
+    \A request \in 1..requestOrdinal: outcome[request] # "none"
 
 ClosedAdmissionHasNoTimer ==
   admission # "accepting" => pendingRequest = NoRequest

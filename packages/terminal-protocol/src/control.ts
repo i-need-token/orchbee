@@ -231,7 +231,9 @@ const responseTextSchema = z
 export const TerminalProfileSchema = z.strictObject({
 	colorScheme: z.enum(['dark', 'light']),
 	defaultBackgroundRgb: rgbSchema,
+	defaultCursorBlinking: z.boolean().default(false),
 	defaultCursorRgb: rgbSchema.nullable(),
+	defaultCursorShape: z.enum(['block', 'underline', 'bar']).default('block'),
 	defaultForegroundRgb: rgbSchema,
 	deviceAttributes: z.strictObject({
 		primaryConformanceLevel: uint16Schema,
