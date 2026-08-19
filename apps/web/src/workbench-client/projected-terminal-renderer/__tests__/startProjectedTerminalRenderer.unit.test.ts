@@ -4,6 +4,7 @@ import {
 	CreationIdSchema,
 	HostEpochSchema,
 	TerminalIdSchema,
+	TerminalThemeStateSchema,
 } from '@orchbee/terminal-protocol';
 import type {
 	ProjectedTerminal,
@@ -25,6 +26,18 @@ import {
 	type ProjectedTerminalRendererDependencies,
 } from '../startProjectedTerminalRenderer';
 import type { TerminalPresentationConfigurationSource } from '../../../terminal-presentation';
+
+const theme = TerminalThemeStateSchema.parse({
+	operationId: null,
+	revision: '0',
+	terminal: {
+		colorScheme: 'dark',
+		defaultBackgroundRgb: 0x1e_1e_1e,
+		defaultCursorRgb: null,
+		defaultForegroundRgb: 0xd4_d4_d4,
+		palette: Array.from({ length: 256 }, (_, index) => index),
+	},
+});
 
 describe('startProjectedTerminalRenderer', () => {
 	it('localizes the projected surface and commits frame events from only its scoped port', async () => {
@@ -265,6 +278,7 @@ describe('startProjectedTerminalRenderer', () => {
 				kind: 'exited' as const,
 			},
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			theme,
 		};
 		const originalHTMLElement = globalThis.HTMLElement;
 		let emitPresentationConfiguration: Parameters<
@@ -512,6 +526,7 @@ describe('startProjectedTerminalRenderer', () => {
 				},
 				progress: { state: 'remove', value: null },
 				rows: 24,
+				themeRevision: 0n,
 			} as ProjectedTerminalMetadata;
 			emitMetadata({ ...baseMetadata, progress: { state: 'set', value: 42 } });
 			expect(observeMetadata).toHaveBeenCalledWith(
@@ -629,7 +644,7 @@ describe('startProjectedTerminalRenderer', () => {
 				expect(dataset['projectedTerminalPresentationState']).toBe('completed');
 				expect(dataset['projectedTerminalPresentationCommittedEpoch']).toBe('1');
 			});
-			expect(root.style.backgroundColor).toBe('rgba(30, 30, 30, 0.6)');
+			expect(root.style.backgroundColor).toBe('rgba(18, 52, 86, 0.6)');
 			expect(dataset['projectedTerminalBackgroundOpacity']).toBe('0.6');
 			emitFrameTelemetry({ ...telemetry, frameId: 2, timestamp: 2 });
 			expect(dataset['projectedTerminalPresentationDrawnEpoch']).toBe('1');
@@ -741,6 +756,7 @@ describe('startProjectedTerminalRenderer', () => {
 				hostEpoch: bootstrap.hostEpoch,
 				terminalOutcome: null,
 				terminalId: bootstrap.terminalId,
+				theme: bootstrap.theme,
 			};
 
 			vi.mocked(dependencies.createTerminal).mockClear();

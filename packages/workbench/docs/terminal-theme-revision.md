@@ -80,13 +80,13 @@ independently ordered operations, Host/client preparation, Host compare-and-set,
 operation conflict, known and unknown failures, reconciliation, retry, supersession, and
 hidden/suspended presentation.
 
-| SU-09 claim                                                | TLA+ property                                                                     | Deterministic refinement                                                                                                                                              |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Host defaults, palette, and cursor commit together         | `HostCommitIsAtomic`, `HostChangesOnlyOnCommit`                                   | Terminal Host reserves the reply, preflights the complete physical update, then commits one operation/revision; its claim-mapped native tests reject partial failure. |
-| Pixels, overlays, cursor, and app surface publish together | `PresentationIsAtomic`, `PresentationChangesOnlyOnPresent`                        | `transitionTerminalThemeRevision` returns one complete committed snapshot only after exact Host and client results agree.                                             |
-| Superseded/stale/failed paths preserve presentation        | `NonPresentationActionsPreservePresentation`, `SupersessionPreservesPresentation` | Operation-correlated events that are not the latest matching success return no publication command.                                                                   |
-| Unknown outcomes are not blindly replayed                  | `UnknownOutcomeRequiresReconciliation`                                            | Retry of an unknown Host outcome emits reconciliation rather than another apply command.                                                                              |
-| A ready current revision makes progress while visible      | `EligibleReadyEventuallyResolves`                                                 | The composition must execute the emitted atomic publication command or report its typed failure.                                                                      |
+| SU-09 claim                                                | TLA+ property                                                                     | Deterministic refinement                                                                                                                                                                     |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host defaults, palette, and cursor commit together         | `HostCommitIsAtomic`, `HostChangesOnlyOnCommit`                                   | Terminal Host reserves the reply, preflights the complete physical update, then commits one operation/revision; its claim-mapped native tests reject partial failure.                        |
+| Pixels, overlays, cursor, and app surface publish together | `PresentationIsAtomic`, `PresentationChangesOnlyOnPresent`                        | The reducer releases one complete snapshot only after exact Host/client agreement; the Web barrier synchronously commits every ready projected terminal before changing the app token theme. |
+| Superseded/stale/failed paths preserve presentation        | `NonPresentationActionsPreservePresentation`, `SupersessionPreservesPresentation` | Operation-correlated events that are not the latest matching success return no publication command.                                                                                          |
+| Unknown outcomes are not blindly replayed                  | `UnknownOutcomeRequiresReconciliation`                                            | Retry of an unknown Host outcome emits reconciliation rather than another apply command.                                                                                                     |
+| A ready current revision makes progress while visible      | `EligibleReadyEventuallyResolves`                                                 | The composition must execute the emitted atomic publication command or report its typed failure.                                                                                             |
 
 The TLA+ `Present` action abstracts the successful `publish-theme` command followed by its exact
 `presentation-committed` result; the deterministic reducer keeps those two adapter steps explicit.
@@ -95,15 +95,34 @@ The checked bound is two operations and two Host revisions. RGB values and the 2
 are abstracted to their owning operation/revision because schema and deterministic contract tests
 own their concrete validation. The Host refinement is implemented and mapped to `TH-018` in the
 [Terminal Host runtime contract](../../../apps/terminal-host/docs/runtime-model.md#correctness-invariants).
-The model does not prove the later projected-client refinement until its claim-mapped tests and
-system trace exist.
+Projected-terminal tests refine the publication action with an independent staged packed store,
+renderer-overlay preflight, exact frame revision matching, synchronous store/renderer commit, and
+resume-latest behavior. Web controller tests cover the multi-participant application barrier and
+failure preservation. Desktop `terminal-parity/SU-09-theme` supplies the headed runtime trace. The
+bounded TLA+ model and those implementation witnesses are complementary; neither claims browser or
+GPU scheduling beyond its stated boundary.
 
-## Implementation staging
+## Implementation refinement
 
-The Host implementation slice registers `ApplyTerminalTheme` and `TerminalThemeResult` in the
-current exact terminal protocol, with strict schemas, TypeScript/Zig codecs, versioned conformance
-fixtures, and the complete current Host state in recovery inventory. It atomically updates either a
-deferred launch preparation or a started runtime before committing the Host theme revision. The
-projected-client adapter remains intentionally staged: it must carry the committed presentation
-revision through its projection/application boundary before publishing the complete client-owned
-snapshot. Until that slice lands, this contract is not a claim of end-to-end atomic presentation.
+The current exact terminal protocol registers `ApplyTerminalTheme` and `TerminalThemeResult`, carries
+the complete current Host state in recovery inventory, and tags every OBTF/OBPB projection with its
+captured Host theme revision. Terminal Host atomically updates either a deferred launch preparation
+or a started runtime before committing that revision. A successful semantic-only theme commit also
+invalidates each read attachment so it receives a revision-tagged snapshot even when terminal
+content did not otherwise change.
+
+The client reducer orders `prepare-client-theme` before `apply-host-theme`. Renderer preflight
+failure therefore leaves both Host and visible application state unchanged. After Host success,
+`ProjectedTerminal` acknowledges matching frames into a private store and keeps the prior store,
+overlays, cursor, and application surface visible. It rejects a higher-than-target staged revision,
+waits while hidden, suspended, or presenting retained history, and makes the exact target eligible
+only when live presentation can resume. `canCommitThemePresentation` is the final synchronous
+preflight; `commitThemePresentation` swaps the store and prepared overlays/cursor without an await.
+
+The Web settings owner waits for one prepared commit from every mounted terminal. If any participant
+fails, is superseded, or loses eligibility, it aborts all prepared handles and keeps the prior app
+theme. Otherwise it commits every terminal and changes `data-theme` in the same JavaScript task.
+Desktop Main forwards apply/reconcile commands, keeps the complete recovered Host theme in its
+lifecycle bootstrap, and reports unknown transport outcomes distinctly so the client reconciles
+before retry. A Host commit that loses the application barrier is not rolled back; its frame remains
+quarantined until replacement or disposal restores alignment.

@@ -104,6 +104,7 @@ const frame = {
 			underlineKind: UnderlineKind.none,
 		},
 	],
+	themeRevision: 2n,
 	title: 'projection',
 } as const;
 
@@ -244,7 +245,7 @@ describe('terminal projection buffer', () => {
 
 	it('classifies every canonical OBPB mutation like the native strict validator', async () => {
 		const fixtureUrl = new URL(
-			'../../fixtures/terminal-projection-buffer-v0.0.1.bin',
+			'../../fixtures/terminal-projection-buffer-v0.0.2.bin',
 			import.meta.url,
 		);
 		const bytes = new Uint8Array(await readFile(fixtureUrl));

@@ -280,6 +280,14 @@ pub const Session = struct {
         return attachment_ids.len;
     }
 
+    pub fn invalidateTerminalPresentation(self: *Session, terminal_id: TerminalId) void {
+        const attachment_ids = self.idsForTerminal(terminal_id) orelse return;
+        for (attachment_ids) |attachment_id| {
+            const attachment = self.attachments.getPtr(attachment_id).?;
+            if (attachment.capabilities.read) attachment.projection.invalidatePresentation();
+        }
+    }
+
     /// Applies a projection demand transition and keeps the per-terminal
     /// active-read-demand aggregate exact. Callers must have proven the
     /// attachment is read-capable and that the transition is not idempotent;

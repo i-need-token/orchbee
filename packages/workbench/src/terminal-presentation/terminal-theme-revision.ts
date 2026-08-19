@@ -257,6 +257,26 @@ export function createTerminalThemeRevisionState(
 	});
 }
 
+/** Restore the presentation coordinator from the complete Host recovery state. */
+export function createTerminalThemeRevisionStateFromHost(
+	initialSnapshot: TerminalThemeSnapshot,
+	hostState: TerminalThemeHostState,
+): TerminalThemeRevisionState {
+	const snapshot = normalizeTerminalThemeSnapshot(initialSnapshot);
+	const host = normalizeTerminalThemeHostState(hostState);
+	const currentSnapshot = Object.freeze({ ...snapshot, terminal: host.terminal });
+	return freezeState({
+		active: null,
+		current: Object.freeze({
+			operationId: host.operationId,
+			revision: host.revision,
+			snapshot: currentSnapshot,
+		}),
+		host,
+		mode: 'active',
+	});
+}
+
 export function transitionTerminalThemeRevision(
 	state: TerminalThemeRevisionState,
 	event: TerminalThemeRevisionEvent,
@@ -324,8 +344,8 @@ function requestTheme(
 	});
 	const nextState = freezeState({ ...state, active: nextActive });
 	return accepted(nextState, [
-		applyHostCommand(nextActive, state.host.revision),
 		prepareClientCommand(nextActive),
+		applyHostCommand(nextActive, state.host.revision),
 	]);
 }
 

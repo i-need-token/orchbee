@@ -3,5 +3,11 @@ export {
 	normalizeTerminalHexColor,
 } from './terminal-appearance-preferences';
 export type { TerminalAppearancePreferences } from './terminal-appearance-preferences';
+export { isTerminalThemePresentationSource } from './isTerminalThemePresentationSource';
+export type {
+	TerminalThemePresentationCommit,
+	TerminalThemePresentationParticipant,
+	TerminalThemePresentationPreparation,
+} from './isTerminalThemePresentationSource';
 export { TerminalSettingsController } from './TerminalSettingsController';
 export type { TerminalSettingsSnapshot } from './TerminalSettingsController';

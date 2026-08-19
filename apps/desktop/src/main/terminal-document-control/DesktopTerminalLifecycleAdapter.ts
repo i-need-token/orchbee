@@ -1,11 +1,13 @@
 import {
 	TerminalLaunchSchema,
 	TerminalPhase,
+	TerminalThemeStateSchema,
 	type TerminalExited,
 	type TerminalFailed,
 	type TerminalIdentity,
 	type TerminalLaunch,
 	type TerminalSummary,
+	type TerminalThemeState,
 } from '@orchbee/terminal-protocol';
 import type {
 	TerminalPresentationCommand,
@@ -133,6 +135,7 @@ interface BindingEntry {
 	ready: boolean;
 	startRequired: boolean;
 	summary: TerminalSummary | null;
+	theme: TerminalThemeState;
 	terminalExit: TerminalExited | null;
 	terminalFailure: TerminalFailed | null;
 }
@@ -164,6 +167,7 @@ export interface DesktopTerminalProjectionTarget {
 	readonly identity: TerminalIdentity;
 	readonly readOnly: boolean;
 	readonly startRequired: boolean;
+	readonly theme: TerminalThemeState;
 	readonly terminalOutcome:
 		| { readonly event: TerminalExited; readonly kind: 'exited' }
 		| { readonly event: TerminalFailed; readonly kind: 'failed' }
@@ -293,7 +297,9 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 		presentationId: TerminalPresentationId,
 	): DesktopTerminalProjectionTarget | null {
 		const entry = this.#entries.get(presentationId);
-		if (entry?.ready !== true || entry.retired || entry.identity === null) return null;
+		if (entry?.ready !== true || entry.retired || entry.identity === null) {
+			return null;
+		}
 		let terminalOutcome: DesktopTerminalProjectionTarget['terminalOutcome'] = null;
 		if (entry.terminalFailure !== null) {
 			terminalOutcome = { event: entry.terminalFailure, kind: 'failed' };
@@ -313,7 +319,31 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 				entry.summary?.phase === TerminalPhase.failed,
 			startRequired: entry.startRequired,
 			terminalOutcome,
+			theme: entry.theme,
 		};
+	}
+
+	/** Retain the newest complete Host theme observed by an active projection broker. */
+	observeTerminalTheme(
+		presentationId: TerminalPresentationId,
+		candidate: TerminalThemeState,
+	): boolean {
+		const entry = this.#entries.get(presentationId);
+		if (entry?.ready !== true || entry.retired) return false;
+		const parsed = TerminalThemeStateSchema.safeParse(candidate);
+		if (!parsed.success) return false;
+		const currentRevision = BigInt(entry.theme.revision);
+		const candidateRevision = BigInt(parsed.data.revision);
+		if (candidateRevision < currentRevision) return false;
+		if (
+			candidateRevision === currentRevision &&
+			!terminalThemeStatesMatch(entry.theme, parsed.data)
+		) {
+			return false;
+		}
+		entry.theme = parsed.data;
+		if (entry.summary !== null) entry.summary = { ...entry.summary, theme: parsed.data };
+		return true;
 	}
 
 	markTerminalStarted(presentationId: TerminalPresentationId, identity: TerminalIdentity): boolean {
@@ -603,6 +633,7 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 				ready: false,
 				startRequired: launch.columns === null,
 				summary: null,
+				theme: initialThemeFromLaunch(launch),
 				terminalExit: null,
 				terminalFailure: null,
 			};
@@ -1128,6 +1159,7 @@ function entryFromBinding(
 		restorable: binding.state.kind === 'retained' || binding.state.kind === 'exited',
 		retired: false,
 		summary: null,
+		theme: initialThemeFromLaunch(binding.launch),
 		terminalExit,
 		terminalFailure: null,
 	};
@@ -1166,7 +1198,21 @@ function applyReconciledSummary(entry: BindingEntry, summary: TerminalSummary | 
 		}
 	}
 
-	entry.summary = summary;
+	if (summary !== null) {
+		const currentThemeRevision = BigInt(entry.theme.revision);
+		const summaryThemeRevision = BigInt(summary.theme.revision);
+		if (
+			summaryThemeRevision === currentThemeRevision &&
+			!terminalThemeStatesMatch(entry.theme, summary.theme)
+		) {
+			return false;
+		}
+		if (summaryThemeRevision > currentThemeRevision) entry.theme = summary.theme;
+		entry.summary =
+			summaryThemeRevision < currentThemeRevision ? { ...summary, theme: entry.theme } : summary;
+	} else {
+		entry.summary = null;
+	}
 	entry.startRequired =
 		entry.startRequired &&
 		(summary?.phase === TerminalPhase.awaitingStart ||
@@ -1184,6 +1230,33 @@ function applyReconciledSummary(entry: BindingEntry, summary: TerminalSummary | 
 		entry.exitPublicationPending = false;
 	}
 	return true;
+}
+
+function initialThemeFromLaunch(launch: TerminalLaunch): TerminalThemeState {
+	return TerminalThemeStateSchema.parse({
+		operationId: null,
+		revision: '0',
+		terminal: {
+			colorScheme: launch.terminalProfile.colorScheme,
+			defaultBackgroundRgb: launch.terminalProfile.defaultBackgroundRgb,
+			defaultCursorRgb: launch.terminalProfile.defaultCursorRgb,
+			defaultForegroundRgb: launch.terminalProfile.defaultForegroundRgb,
+			palette: launch.terminalProfile.palette,
+		},
+	});
+}
+
+function terminalThemeStatesMatch(left: TerminalThemeState, right: TerminalThemeState): boolean {
+	return (
+		left.operationId === right.operationId &&
+		left.revision === right.revision &&
+		left.terminal.colorScheme === right.terminal.colorScheme &&
+		left.terminal.defaultBackgroundRgb === right.terminal.defaultBackgroundRgb &&
+		left.terminal.defaultCursorRgb === right.terminal.defaultCursorRgb &&
+		left.terminal.defaultForegroundRgb === right.terminal.defaultForegroundRgb &&
+		left.terminal.palette.length === right.terminal.palette.length &&
+		left.terminal.palette.every((color, index) => color === right.terminal.palette[index])
+	);
 }
 
 function exitOutcomesMatch(left: TerminalExited, right: TerminalExited): boolean {

@@ -103,6 +103,8 @@ export function composeDesktopTerminalRuntime(
 		host: composition.host,
 		markTerminalStarted: (presentationId, identity) =>
 			adapter.markTerminalStarted(presentationId, identity),
+		observeTerminalTheme: (presentationId, theme) =>
+			adapter.observeTerminalTheme(presentationId, theme),
 		randomAttachmentId: composition.randomIdentifier,
 	});
 	const projectionService = projections;

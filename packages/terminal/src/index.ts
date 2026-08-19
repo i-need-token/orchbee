@@ -26,6 +26,8 @@ export type {
 	ProjectedTerminalSelectionPoint,
 	ProjectedTerminalSelectionRange,
 	ProjectedTerminalSideEffectResult,
+	ProjectedTerminalThemePreparationResult,
+	ProjectedTerminalThemeReadinessResult,
 } from './projected';
 
 export { TerminalBufferRowDetail } from './buffer-rows';
@@ -58,7 +60,12 @@ export type {
 	TerminalPresentationConfigurationValidationResult,
 } from './presentation-configuration';
 
-export type { RendererFrameReason, RendererFrameTelemetry, RendererHealthEvent } from './rendering';
+export type {
+	RendererFrameReason,
+	RendererFrameTelemetry,
+	RendererHealthEvent,
+	TerminalThemeOverlayPresentation,
+} from './rendering';
 export type {
 	FontMetricModifier,
 	FontMetricModifiers,

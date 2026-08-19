@@ -275,7 +275,10 @@ An open attachment accepts one complete `TerminalPresentationConfiguration` tran
 `defaultColorOverride`. The override is either `null` or a strict, normalized lowercase `#RRGGBB`
 foreground/background pair. `backgroundOpacity` is a source-neutral `0..1` configuration value;
 the composing client applies it to its own default-background root rather than to the terminal
-surface. There are no runtime partial setters. `updatePresentationConfiguration` validates and
+surface. The override remains a source-neutral compatibility projection for clients that do not
+participate in the Host runtime-theme transaction. Orchbee's shared Web/Desktop composition always
+sets it to `null`; its Light, Dark, and Custom choices become a complete Host-owned terminal theme
+instead. There are no runtime partial setters. `updatePresentationConfiguration` validates and
 isolates the whole candidate, awaits its regular and bold font descriptions, and then prepares
 renderer measurements before publishing any field. Requests are latest-wins: superseded or
 disposed preparation returns a typed cancellation, and validation, font, or renderer preparation
@@ -291,6 +294,19 @@ place; the attachment and packed store are not reopened or reset. Host resize co
 asynchronously through the existing resize path. A post-commit render or resize failure therefore
 retains the committed presentation and follows the existing typed recovery. A hidden or paused
 surface retains the new configuration and draws it once when presentation resumes.
+
+Runtime terminal colors and client overlays use a separate revision barrier. A composing client
+calls `prepareThemePresentation` with one operation identity and one complete overlay snapshot
+before requesting the Host mutation. While that operation is active, frames are acknowledged into
+a private packed store instead of replacing the visible store. `waitForThemePresentation` becomes
+ready only when the staged frame carries the exact Host-assigned `themeRevision`; a higher revision
+fails the stage rather than guessing which snapshot it belongs to. After synchronous
+`canCommitThemePresentation` preflight, `commitThemePresentation` swaps the staged store and
+prepared renderer overlays/cursor in one client commit. Metadata listeners and drawing observe the
+new revision only after that swap. Supersession, disposal, renderer preparation failure, or an
+explicit abort discards or quarantines the unpublished stage and leaves the prior complete
+presentation visible. Hidden, paused, and retained-history surfaces defer readiness, then expose
+only the newest eligible complete revision when live presentation resumes.
 
 Host-driven frame geometry, including terminal-originated 80/132-column transitions, updates the
 packed store and renderer directly. Applying that snapshot never emits a reverse `ResizeTerminal`;
@@ -333,7 +349,7 @@ reset, history presentation, and disposal clear both pixels and DOM resources. T
 not parse PNG, load paths or URLs, persist images, or implement virtual, negative-z, glyph, or
 animated graphics.
 
-Row-window input is strictly decoded by default. An application adapter may set `projectionBufferTrust: 'local-host'` only when it owns an immutable, same-user, capability-scoped Terminal Host transport. That path retains the OBPB format-`0.0.1` buffer and creates typed-array views without rescanning or repacking every cell. Gateway, network, plugin, and persisted input must retain the default `external` behavior.
+Row-window input is strictly decoded by default. An application adapter may set `projectionBufferTrust: 'local-host'` only when it owns an immutable, same-user, capability-scoped Terminal Host transport. That path retains the OBPB format-`0.0.2` buffer and creates typed-array views without rescanning or repacking every cell. Gateway, network, plugin, and persisted input must retain the default `external` behavior.
 
 ## History, search, selection, and links
 
@@ -445,7 +461,8 @@ client `defaultColorOverride` changes only cells whose packed foreground or back
 `none` retain their Host-projected behavior. Inverse swaps already-resolved display roles, a
 default underline uses the effective foreground, and the cursor always uses the Host cursor color
 (falling back to Host foreground). An explicit client cursor accent affects only text inside a
-block cursor. `allowTransparency` alone controls transparent renderer clear; a composing client
+block cursor. This override is outside the revisioned Host-theme path and is always `null` in the
+shared Orchbee Web/Desktop composition. `allowTransparency` alone controls transparent renderer clear; a composing client
 uses `backgroundOpacity` for its effective default-background root and never applies whole-surface
 CSS opacity. Canvas remains transparent before the first frame, then reuses the latest effective
 default background for opaque fills and resize. Packed graphemes preserve CJK, combining, and emoji

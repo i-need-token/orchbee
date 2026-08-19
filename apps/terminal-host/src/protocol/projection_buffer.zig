@@ -31,6 +31,7 @@ pub const ProjectionBufferSummary = struct {
     rows: u16,
     scrollback_rows: u64,
     sequence: u64,
+    theme_revision: u64,
 };
 
 const Layout = struct {
@@ -141,6 +142,7 @@ const ParsedProjection = struct {
     rows: u16,
     scrollback_rows: u64,
     sequence: u64,
+    theme_revision: u64,
 };
 
 /// Validates the fixed header, canonical section layout and directory, alignment padding,
@@ -188,7 +190,8 @@ fn parseProjectionBuffer(bytes: []const u8) contract.ProtocolError!ParsedProject
     const directory_length = try reader.readInt(u32);
     const string_byte_length = try reader.readInt(u32);
     const format_patch = try reader.readInt(u8);
-    const reserved_metadata = try reader.readBytes(15);
+    const theme_revision = try reader.readInt(u64);
+    const reserved_metadata = try reader.readBytes(7);
     var encoded_offsets: [directory_entry_count]u32 = undefined;
     var encoded_lengths: [directory_entry_count]u32 = undefined;
     for (0..directory_entry_count) |section| {
@@ -278,6 +281,7 @@ fn parseProjectionBuffer(bytes: []const u8) contract.ProtocolError!ParsedProject
         .rows = rows,
         .scrollback_rows = scrollback_rows,
         .sequence = sequence,
+        .theme_revision = theme_revision,
     };
 }
 
@@ -426,5 +430,6 @@ pub fn validateTerminalProjectionBuffer(bytes: []const u8) contract.ProtocolErro
         .rows = parsed.rows,
         .scrollback_rows = parsed.scrollback_rows,
         .sequence = parsed.sequence,
+        .theme_revision = parsed.theme_revision,
     };
 }

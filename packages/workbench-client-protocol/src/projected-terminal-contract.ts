@@ -1,4 +1,5 @@
 import {
+	ApplyTerminalThemeSchema,
 	AttachmentIdSchema,
 	CanonicalUint64TextSchema,
 	ClearTerminalSchema,
@@ -29,6 +30,9 @@ import {
 	TerminalClipboardWriteRequestSchema,
 	TerminalFailedSchema,
 	TerminalIdSchema,
+	TerminalThemeOperationIdSchema,
+	TerminalThemeResultSchema,
+	TerminalThemeStateSchema,
 	TextInputSchema,
 } from '@orchbee/terminal-protocol';
 import { z } from 'zod';
@@ -60,6 +64,7 @@ export const ProjectedAttachmentBootstrapSchema = z
 		hostEpoch: HostEpochSchema,
 		terminalId: TerminalIdSchema,
 		terminalOutcome: ProjectedTerminalOutcomeSchema,
+		theme: TerminalThemeStateSchema,
 	})
 	.superRefine((bootstrap, context) => {
 		const outcome = bootstrap.terminalOutcome;
@@ -85,6 +90,18 @@ export const ProjectedAttachmentBootstrapSchema = z
 	});
 
 export const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
+	z.strictObject({
+		kind: z.literal('apply-terminal-theme'),
+		payload: ApplyTerminalThemeSchema.extend({ attachmentId: AttachmentIdSchema }),
+	}),
+	z.strictObject({
+		kind: z.literal('reconcile-terminal-theme'),
+		payload: z.strictObject({
+			attachmentId: AttachmentIdSchema,
+			operationId: TerminalThemeOperationIdSchema,
+			terminalId: TerminalIdSchema,
+		}),
+	}),
 	z.strictObject({ kind: z.literal('clear-terminal'), payload: ClearTerminalSchema }),
 	z.strictObject({
 		kind: z.literal('clipboard-write-decision'),
@@ -150,6 +167,12 @@ const ProjectedTerminalBinarySchema = z.union([
 	z.instanceof(Uint8Array),
 ]);
 
+const ProjectedTerminalThemeFailureSchema = z.strictObject({
+	code: z.string().min(1).max(128),
+	outcome: z.enum(['known-unchanged', 'unknown']),
+	retryable: z.boolean(),
+});
+
 export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ event: TerminalBellSchema, kind: z.literal('bell') }),
 	z.strictObject({
@@ -179,6 +202,18 @@ export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('rows'), rows: ProjectedTerminalBinarySchema }),
 	z.strictObject({ event: TerminalExitedSchema, kind: z.literal('terminal-exited') }),
 	z.strictObject({ event: TerminalFailedSchema, kind: z.literal('terminal-failed') }),
+	z.strictObject({ event: TerminalThemeResultSchema, kind: z.literal('terminal-theme-result') }),
+	z.strictObject({
+		current: TerminalThemeStateSchema,
+		kind: z.literal('terminal-theme-reconciled'),
+		operationId: TerminalThemeOperationIdSchema,
+		terminalId: TerminalIdSchema,
+	}),
+	z.strictObject({
+		failure: ProjectedTerminalThemeFailureSchema,
+		kind: z.literal('terminal-theme-failed'),
+		operationId: TerminalThemeOperationIdSchema,
+	}),
 	z.strictObject({ failure: ProjectedTerminalFailureSchema, kind: z.literal('failure') }),
 ]);
 

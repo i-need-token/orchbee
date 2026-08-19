@@ -37,6 +37,8 @@ export {
 	type ProjectedTerminalSelectionPoint,
 	type ProjectedTerminalSelectionRange,
 	type ProjectedTerminalSideEffectResult,
+	type ProjectedTerminalThemePreparationResult,
+	type ProjectedTerminalThemeReadinessResult,
 	type ProjectedRowsResult,
 } from './projected-terminal';
 export type { ProjectedTerminalSearchEvent } from '../search';

@@ -26,6 +26,7 @@ pub const ReadRequest = struct {
     purpose: Purpose,
     request_sequence: u64,
     revision: u64,
+    theme_revision: u64 = 0,
     row_count: u16,
 };
 

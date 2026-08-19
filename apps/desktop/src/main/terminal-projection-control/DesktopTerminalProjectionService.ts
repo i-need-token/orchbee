@@ -18,6 +18,7 @@ import {
 	type TerminalFailed,
 	type TerminalIdentity,
 	type TerminalGeometry,
+	type TerminalThemeState,
 } from '@orchbee/terminal-protocol';
 import type {
 	TerminalPresentationFailure,
@@ -68,6 +69,10 @@ export interface DesktopTerminalProjectionServiceDependencies {
 	readonly markTerminalStarted: (
 		presentationId: TerminalPresentationId,
 		identity: TerminalIdentity,
+	) => boolean;
+	readonly observeTerminalTheme: (
+		presentationId: TerminalPresentationId,
+		theme: TerminalThemeState,
 	) => boolean;
 	readonly randomAttachmentId: () => string;
 }
@@ -240,6 +245,7 @@ export class DesktopTerminalProjectionService {
 				hostEpoch: target.identity.hostEpoch,
 				terminalId: target.identity.terminalId,
 				terminalOutcome: target.terminalOutcome,
+				theme: target.theme,
 			});
 			channel = this.#dependencies.createMessageChannel();
 			const requestCleanup = (_error: unknown): void => {
@@ -258,6 +264,11 @@ export class DesktopTerminalProjectionService {
 							throw projectionError('terminal-projection-capability-rejected', false);
 						}
 						activeLease.ownsResize = ownsResize;
+					},
+					onThemeChanged: (theme) => {
+						if (!this.#dependencies.observeTerminalTheme(presentationId, theme)) {
+							throw projectionError('terminal-projection-theme-conflict', false);
+						}
 					},
 				},
 			);
@@ -557,7 +568,24 @@ function projectionTargetsMatch(
 		identitiesMatch(left.identity, right.identity) &&
 		left.readOnly === right.readOnly &&
 		left.startRequired === right.startRequired &&
+		terminalThemeStatesMatch(left.theme, right.theme) &&
 		terminalOutcomesMatch(left.terminalOutcome, right.terminalOutcome)
+	);
+}
+
+function terminalThemeStatesMatch(
+	left: DesktopTerminalProjectionTarget['theme'],
+	right: DesktopTerminalProjectionTarget['theme'],
+): boolean {
+	return (
+		left.operationId === right.operationId &&
+		left.revision === right.revision &&
+		left.terminal.colorScheme === right.terminal.colorScheme &&
+		left.terminal.defaultBackgroundRgb === right.terminal.defaultBackgroundRgb &&
+		left.terminal.defaultCursorRgb === right.terminal.defaultCursorRgb &&
+		left.terminal.defaultForegroundRgb === right.terminal.defaultForegroundRgb &&
+		left.terminal.palette.length === right.terminal.palette.length &&
+		left.terminal.palette.every((color, index) => color === right.terminal.palette[index])
 	);
 }
 

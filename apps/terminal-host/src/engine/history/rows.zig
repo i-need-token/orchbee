@@ -154,6 +154,7 @@ pub fn readRowsTo(
             .host_epoch = request.host_epoch,
             .request_sequence = request.request_sequence,
             .revision = current_revision,
+            .theme_revision = request.theme_revision,
         },
         .row_count = row_count,
         .start_pin = start_pin,

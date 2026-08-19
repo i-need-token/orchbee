@@ -11,6 +11,7 @@ import {
 	CreationIdSchema,
 	HostEpochSchema,
 	TerminalIdSchema,
+	TerminalThemeStateSchema,
 } from '@orchbee/terminal-protocol';
 import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
 import {
@@ -23,6 +24,17 @@ import type { GatewayControlConnection } from '../../connection';
 import { GatewayTerminalProjectionClient } from '../GatewayTerminalProjectionClient';
 
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+const theme = TerminalThemeStateSchema.parse({
+	operationId: null,
+	revision: '0',
+	terminal: {
+		colorScheme: 'dark',
+		defaultBackgroundRgb: 0x1e_1e_1e,
+		defaultCursorRgb: null,
+		defaultForegroundRgb: 0xd4_d4_d4,
+		palette: Array.from({ length: 256 }, (_, index) => index),
+	},
+});
 
 describe('GatewayTerminalProjectionClient', () => {
 	it('opens one dedicated attachment socket and propagates its exact retirement', async () => {
@@ -62,6 +74,7 @@ describe('GatewayTerminalProjectionClient', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		control.emit(
 			GatewayControlServerMessageSchema.parse({
@@ -153,6 +166,7 @@ describe('GatewayTerminalProjectionClient', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const first = client.open(firstPresentationId, mountedGeometry);
 		control.emit(
@@ -253,6 +267,7 @@ describe('GatewayTerminalProjectionClient', () => {
 						hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 						terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 						terminalOutcome: null,
+						theme,
 					},
 					presentationId,
 					requestId,
@@ -314,6 +329,7 @@ describe('GatewayTerminalProjectionClient', () => {
 						hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 						terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 						terminalOutcome: null,
+						theme,
 					},
 					presentationId,
 					requestId,
@@ -374,6 +390,7 @@ describe('GatewayTerminalProjectionClient', () => {
 						hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 						terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 						terminalOutcome: null,
+						theme,
 					},
 					presentationId,
 					requestId,
@@ -437,6 +454,7 @@ describe('GatewayTerminalProjectionClient', () => {
 						hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 						terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 						terminalOutcome: null,
+						theme,
 					},
 					presentationId,
 					requestId,

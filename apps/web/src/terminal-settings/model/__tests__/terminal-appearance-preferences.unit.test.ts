@@ -30,7 +30,7 @@ describe('terminal appearance preferences', () => {
 		expect(configuration).toMatchObject({
 			allowTransparency: true,
 			backgroundOpacity: 0.65,
-			defaultColorOverride: { background: '#abcdef', foreground: '#123456' },
+			defaultColorOverride: null,
 			fontFamily: 'Example Mono, monospace',
 			fontSize: 17,
 		});
@@ -55,18 +55,18 @@ describe('terminal appearance preferences', () => {
 		).toBeNull();
 	});
 
-	it('selects the documented light and dark default color overrides', () => {
+	it('leaves all terminal colors to the revisioned Host theme transaction', () => {
 		expect(
 			terminalPresentationConfigurationFromPreferences({
 				...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 				terminalDisplayTheme: 'light',
 			}).defaultColorOverride,
-		).toEqual({ background: '#fcfcfc', foreground: '#141414' });
+		).toBeNull();
 		expect(
 			terminalPresentationConfigurationFromPreferences({
 				...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 				terminalDisplayTheme: 'dark',
 			}).defaultColorOverride,
-		).toEqual({ background: '#1e1e1e', foreground: '#d4d4d4' });
+		).toBeNull();
 	});
 });

@@ -15,6 +15,7 @@ pub const ReadRowsRequest = struct {
     request_sequence: u64,
     revision: u64,
     row_count: u16,
+    theme_revision: u64,
 };
 
 /// A request-scoped history capability produced only after the aggregate has
@@ -22,12 +23,14 @@ pub const ReadRowsRequest = struct {
 pub const HistoryAccess = struct {
     attachment_id: core_module.AttachmentId,
     runtime: *terminal_runtime.TerminalRuntime,
+    theme_revision: u64,
 
     pub fn init(
         attachment_id: core_module.AttachmentId,
         runtime: *terminal_runtime.TerminalRuntime,
+        theme_revision: u64,
     ) HistoryAccess {
-        return .{ .attachment_id = attachment_id, .runtime = runtime };
+        return .{ .attachment_id = attachment_id, .runtime = runtime, .theme_revision = theme_revision };
     }
 
     pub fn readRows(
@@ -46,6 +49,7 @@ pub const HistoryAccess = struct {
             .request_sequence = request.request_sequence,
             .revision = request.revision,
             .row_count = request.row_count,
+            .theme_revision = self.theme_revision,
         });
     }
 
@@ -66,6 +70,7 @@ pub const HistoryAccess = struct {
             .request_sequence = request.request_sequence,
             .revision = request.revision,
             .row_count = request.row_count,
+            .theme_revision = self.theme_revision,
         });
     }
 

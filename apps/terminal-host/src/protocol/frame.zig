@@ -68,6 +68,7 @@ pub const FrameSummary = struct {
     sequence: u64,
     string_count: u32,
     style_count: u16,
+    theme_revision: u64,
     title: ?[]const u8,
     active_screen: ActiveScreen,
 };
@@ -128,7 +129,8 @@ pub fn validateTerminalFrame(
     const cell_pixel_height = try reader.readInt(u16);
     const declared_cell_count = try reader.readInt(u32);
     const format_patch = try reader.readInt(u8);
-    const reserved_tail = try reader.readBytes(15);
+    const theme_revision = try reader.readInt(u64);
+    const reserved_tail = try reader.readBytes(7);
 
     if (format_major != terminal_frame_format_major or
         format_minor != terminal_frame_format_minor or
@@ -375,6 +377,7 @@ pub fn validateTerminalFrame(
         .sequence = sequence,
         .string_count = string_count,
         .style_count = style_count,
+        .theme_revision = theme_revision,
         .title = try stringAt(strings, title_index),
     };
 }

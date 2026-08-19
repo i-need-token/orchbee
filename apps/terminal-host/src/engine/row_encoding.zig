@@ -17,6 +17,7 @@ pub const RequestMetadata = struct {
     host_epoch: identifiers.HostEpoch,
     request_sequence: u64,
     revision: u64,
+    theme_revision: u64,
 };
 
 pub const Parameters = struct {
@@ -94,6 +95,7 @@ fn encodeToWriter(
                 .request_sequence = parameters.request.request_sequence,
                 .revision = parameters.request.revision,
                 .start_row = parameters.start_row,
+                .theme_revision = parameters.request.theme_revision,
             },
         ),
         .text => try encodeTextBody(writer, pins),

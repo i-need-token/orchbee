@@ -25,7 +25,7 @@ export const TERMINAL_FRAME_HEADER_BYTES = 160;
 export const TERMINAL_FRAME_MAGIC = new Uint8Array([0x4f, 0x42, 0x54, 0x46]);
 // Keep this synchronized with Zig. Released changes (>= 1.0.0) also update
 // docs/version-history.md in the same change.
-export const TERMINAL_FRAME_FORMAT = { major: 0, minor: 0, patch: 2 } as const;
+export const TERMINAL_FRAME_FORMAT = { major: 0, minor: 0, patch: 3 } as const;
 
 const MAX_UINT16 = 0xffff;
 const MAX_UINT32 = 0xffff_ffff;
@@ -301,6 +301,7 @@ export const TerminalFrameSchema = z
 		scrollbackRows: uint64Schema,
 		sequence: positiveUint64Schema,
 		styles: z.array(TerminalStyleSchema).max(PROTOCOL_LIMITS.maxFrameStyles),
+		themeRevision: uint64Schema,
 		title: z.string().nullable(),
 	})
 	.superRefine((frame, context) => {
@@ -503,6 +504,7 @@ export interface DecodedTerminalFrame {
 	readonly sequence: bigint;
 	readonly strings: readonly string[];
 	readonly styles: DecodedTerminalStyles;
+	readonly themeRevision: bigint;
 	readonly title: string | null;
 }
 
@@ -519,6 +521,7 @@ export interface InspectedTerminalFrameHeader {
 	readonly kind: TerminalFrameKind;
 	readonly revision: bigint;
 	readonly sequence: bigint;
+	readonly themeRevision: bigint;
 }
 
 const textEncoder = new TextEncoder();
@@ -903,7 +906,8 @@ export function encodeTerminalFrame(value: unknown): ProtocolResult<Uint8Array> 
 	writer.writeUint16(frame.cellPixelHeight);
 	writer.writeUint32(cellCount);
 	writer.writeUint8(TERMINAL_FRAME_FORMAT.patch);
-	writer.writeBytes(new Uint8Array(15));
+	writer.writeUint64(frame.themeRevision);
+	writer.writeBytes(new Uint8Array(7));
 
 	for (const string of encodedStrings) {
 		writer.writeUint32(string.byteLength);
@@ -975,6 +979,7 @@ interface FrameHeader {
 	readonly sequence: bigint;
 	readonly stringCount: number;
 	readonly styleCount: number;
+	readonly themeRevision: bigint;
 	readonly titleIndex: number;
 }
 
@@ -1034,7 +1039,8 @@ function decodeFrameHeader(bytes: Uint8Array): ProtocolResult<FrameHeader> {
 	const cellPixelHeight = reader.readUint16();
 	const cellCount = reader.readUint32();
 	const formatPatch = reader.readUint8();
-	const reservedTail = reader.readBytes(15);
+	const themeRevision = reader.readUint64();
+	const reservedTail = reader.readBytes(7);
 	if (reader.failure) return reader.failure;
 
 	if (
@@ -1166,6 +1172,7 @@ function decodeFrameHeader(bytes: Uint8Array): ProtocolResult<FrameHeader> {
 		sequence,
 		stringCount,
 		styleCount,
+		themeRevision,
 		titleIndex,
 	});
 }
@@ -1633,6 +1640,7 @@ export function decodeTerminalFrame(bytes: Uint8Array): ProtocolResult<DecodedTe
 		sequence: header.value.sequence,
 		strings: strings.value,
 		styles: styles.value,
+		themeRevision: header.value.themeRevision,
 		title: title.value,
 	});
 }
@@ -1654,6 +1662,7 @@ export function inspectTerminalFrameHeader(
 				kind: header.value.kind,
 				revision: header.value.revision,
 				sequence: header.value.sequence,
+				themeRevision: header.value.themeRevision,
 			})
 		: header;
 }

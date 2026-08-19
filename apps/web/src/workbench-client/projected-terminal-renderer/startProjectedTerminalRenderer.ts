@@ -6,6 +6,8 @@ import {
 } from '@orchbee/i18n';
 import {
 	ProjectedTerminal,
+	type ProjectedTerminalThemePreparationResult,
+	type ProjectedTerminalThemeReadinessResult,
 	type ProjectedPasteReview,
 	type ProjectedPasteResult,
 	type ProjectedTerminalMetadata,
@@ -22,6 +24,7 @@ import {
 import type { TerminalClipboardWriteRequest } from '@orchbee/terminal-protocol';
 
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
+import { isTerminalThemePresentationSource } from '../../terminal-settings';
 import {
 	DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 	type TerminalInputConfigurationSource,
@@ -45,6 +48,7 @@ import {
 	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 	type TerminalPresentationConfigurationSource,
 } from '../../terminal-presentation';
+import { createTerminalThemePresentationParticipant } from './createTerminalThemePresentationParticipant';
 
 type ProjectedTerminalDriver = Pick<
 	ProjectedTerminal,
@@ -92,6 +96,32 @@ type ProjectedTerminalDriver = Pick<
 	| 'updatePresentationConfiguration'
 	| 'updateSearch'
 >;
+
+interface ProjectedTerminalThemeDriver {
+	abortThemePresentation(operationId: string): void;
+	canCommitThemePresentation(operationId: string, revision: bigint): boolean;
+	commitThemePresentation(operationId: string, revision: bigint): boolean;
+	prepareThemePresentation(
+		operationId: string,
+		overlays: Parameters<ProjectedTerminal['prepareThemePresentation']>[1],
+	): ProjectedTerminalThemePreparationResult;
+	waitForThemePresentation(
+		operationId: string,
+		revision: bigint,
+	): Promise<ProjectedTerminalThemeReadinessResult>;
+}
+
+function isProjectedTerminalThemeDriver(
+	terminal: ProjectedTerminalDriver,
+): terminal is ProjectedTerminalDriver & ProjectedTerminalThemeDriver {
+	return (
+		typeof Reflect.get(terminal, 'abortThemePresentation') === 'function' &&
+		typeof Reflect.get(terminal, 'canCommitThemePresentation') === 'function' &&
+		typeof Reflect.get(terminal, 'commitThemePresentation') === 'function' &&
+		typeof Reflect.get(terminal, 'prepareThemePresentation') === 'function' &&
+		typeof Reflect.get(terminal, 'waitForThemePresentation') === 'function'
+	);
+}
 
 export interface ProjectedTerminalRendererDependencies {
 	readonly createTerminal: (options: ProjectedTerminalOptions) => ProjectedTerminalDriver;
@@ -145,6 +175,10 @@ export async function startProjectedTerminalRenderer(
 	const intl = createOrchbeeIntl(locale);
 	documentElement.lang = locale;
 	documentElement.dir = getOrchbeeTextDirection(locale);
+	const terminalThemeSource = isTerminalThemePresentationSource(presentationConfigurationSource)
+		? presentationConfigurationSource
+		: undefined;
+	const initialRootVisibility = rootElement.style.visibility;
 	let initialPresentationConfiguration: TerminalPresentationConfiguration;
 	let initialInputConfiguration: TerminalInputConfiguration;
 	try {
@@ -244,9 +278,7 @@ export async function startProjectedTerminalRenderer(
 	};
 	const syncRootBackground = (): void => {
 		if (lastMetadata === undefined) return;
-		const background =
-			committedPresentationConfiguration.defaultColorOverride?.background ??
-			terminalRgbColor(lastMetadata.defaultColors.backgroundRgb);
+		const background = terminalRgbColor(lastMetadata.defaultColors.backgroundRgb);
 		rootElement.style.backgroundColor = terminalBackgroundColor(
 			background,
 			committedPresentationConfiguration.backgroundOpacity,
@@ -443,6 +475,27 @@ export async function startProjectedTerminalRenderer(
 		runCleanup([() => progress.remove(), () => status.remove(), () => transport.close()]);
 		throw error;
 	}
+	if (terminalThemeSource !== undefined && !isProjectedTerminalThemeDriver(terminal)) {
+		runCleanup([() => terminal.dispose(), () => transport.close()]);
+		throw new TypeError('The projected terminal does not support runtime theme transactions.');
+	}
+	const themeParticipant =
+		terminalThemeSource === undefined || !isProjectedTerminalThemeDriver(terminal)
+			? undefined
+			: createTerminalThemePresentationParticipant({
+					bootstrap,
+					onPresented: () => {
+						rootElement.style.visibility = initialRootVisibility;
+						rootElement.dataset['projectedTerminalThemeState'] = 'presented';
+					},
+					terminal,
+					transport,
+				});
+	if (themeParticipant !== undefined) rootElement.style.visibility = 'hidden';
+	const disposeThemeParticipant = (): void => {
+		themeParticipant?.dispose();
+		rootElement.style.visibility = initialRootVisibility;
+	};
 	const updatePresentationConfiguration = async (
 		configuration: TerminalPresentationConfiguration,
 	): Promise<TerminalPresentationConfigurationUpdateResult> => {
@@ -482,6 +535,7 @@ export async function startProjectedTerminalRenderer(
 	};
 	let unsubscribeInputConfiguration = (): void => undefined;
 	let unsubscribePresentationConfiguration = (): void => undefined;
+	let unregisterThemeParticipant = (): void => undefined;
 	try {
 		const unsubscribe = presentationConfigurationSource.subscribe((configuration) => {
 			if (!terminalOpened) {
@@ -505,6 +559,7 @@ export async function startProjectedTerminalRenderer(
 		runCleanup([
 			unsubscribeInputConfiguration,
 			unsubscribePresentationConfiguration,
+			disposeThemeParticipant,
 			() => terminal.dispose(),
 			() => progress.remove(),
 			() => status.remove(),
@@ -515,6 +570,8 @@ export async function startProjectedTerminalRenderer(
 	const unsubscribeConfigurationSources = (): void => {
 		unsubscribeInputConfiguration();
 		unsubscribePresentationConfiguration();
+		unregisterThemeParticipant();
+		unregisterThemeParticipant = () => undefined;
 	};
 	const reportRuntimeFailure = (
 		event: Extract<
@@ -695,6 +752,7 @@ export async function startProjectedTerminalRenderer(
 					rootElement.dataset['projectedTerminalCellPixelWidth'] = String(metadata.cellPixelWidth);
 					rootElement.dataset['projectedTerminalColumns'] = String(metadata.columns);
 					rootElement.dataset['projectedTerminalRows'] = String(metadata.rows);
+					rootElement.dataset['projectedTerminalThemeRevision'] = metadata.themeRevision.toString();
 					updateProgress(metadata);
 					observeCommandCompletion(metadata);
 				}),
@@ -768,6 +826,7 @@ export async function startProjectedTerminalRenderer(
 		} catch (error) {
 			runCleanup([
 				unsubscribeConfigurationSources,
+				disposeThemeParticipant,
 				...pendingSubscriptions.map((subscription) => () => subscription.dispose()),
 				() => pendingActions?.dispose(),
 				() => pendingFindController?.dispose(),
@@ -785,6 +844,7 @@ export async function startProjectedTerminalRenderer(
 			reportFailure();
 			return;
 		}
+		if (themeParticipant?.handleEvent(event.data) === true) return;
 		switch (event.data.kind) {
 			case 'bell':
 				terminal.notifyBell(event.data.event);
@@ -854,6 +914,10 @@ export async function startProjectedTerminalRenderer(
 			case 'terminal-failed':
 				reportRuntimeFailure(event.data.event);
 				return;
+			case 'terminal-theme-failed':
+			case 'terminal-theme-reconciled':
+			case 'terminal-theme-result':
+				return;
 		}
 	};
 	let unsubscribeTransport: () => void;
@@ -869,6 +933,7 @@ export async function startProjectedTerminalRenderer(
 	} catch (error) {
 		runCleanup([
 			unsubscribeConfigurationSources,
+			disposeThemeParticipant,
 			...subscriptions.map((subscription) => () => subscription.dispose()),
 			() => actions.dispose(),
 			() => findController.dispose(),
@@ -898,6 +963,10 @@ export async function startProjectedTerminalRenderer(
 		}
 		terminalOpened = true;
 		reportProjectionReady();
+		if (terminalThemeSource !== undefined && themeParticipant !== undefined) {
+			unregisterThemeParticipant = terminalThemeSource.registerThemeParticipant(themeParticipant);
+			rootElement.dataset['projectedTerminalThemeState'] = 'preparing';
+		}
 		rootElement.dataset['projectedTerminalPresentationCommittedEpoch'] = '0';
 		rootElement.dataset['projectedTerminalPresentationDrawnEpoch'] = '0';
 		rootElement.dataset['projectedTerminalPresentationFontFamily'] =
@@ -950,6 +1019,7 @@ export async function startProjectedTerminalRenderer(
 		reportFailure();
 		runCleanup([
 			unsubscribeConfigurationSources,
+			disposeThemeParticipant,
 			() => disposeShortcuts?.(),
 			() => findSurface?.dispose(),
 			() => findRoot?.remove(),
@@ -976,6 +1046,7 @@ export async function startProjectedTerminalRenderer(
 			clearCompletionStatusTimer();
 			if (frozen) {
 				runCleanup([
+					disposeThemeParticipant,
 					() => terminal.dispose(),
 					() => status.remove(),
 					() => progress.remove(),
@@ -985,6 +1056,7 @@ export async function startProjectedTerminalRenderer(
 			}
 			runCleanup([
 				unsubscribeConfigurationSources,
+				disposeThemeParticipant,
 				() => disposeShortcuts?.(),
 				() => findSurface?.dispose(),
 				unsubscribeTransport,
@@ -1008,6 +1080,7 @@ export async function startProjectedTerminalRenderer(
 			clearCompletionStatusTimer();
 			runCleanup([
 				unsubscribeConfigurationSources,
+				disposeThemeParticipant,
 				() => disposeShortcuts?.(),
 				() => findSurface?.dispose(),
 				unsubscribeTransport,

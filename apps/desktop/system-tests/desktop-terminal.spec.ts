@@ -223,6 +223,61 @@ test('terminal-parity/SU-14-runtime-presentation', async () => {
 	}
 });
 
+test('terminal-parity/SU-09-theme', async () => {
+	test.setTimeout(45_000);
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage({ viewport: { height: 600, width: 1_000 } });
+		await page.goto(
+			new URL('terminal-presentation-fixture.html', currentDevelopmentRendererUrl).href,
+		);
+		const root = page.locator('#terminal-presentation-witness');
+		const application = page.locator('html');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-projected-terminal-theme-state', 'presented');
+		await expect(root).toHaveAttribute('data-projected-terminal-theme-revision', '0');
+		await expect(application).toHaveAttribute('data-theme', 'light');
+		const initial = await runtimeThemeWitness(root);
+
+		await page.locator('#prepare-runtime-theme').dispatchEvent('click');
+		await expect(root).toHaveAttribute('data-witness-theme-host-pending', 'true');
+		await expect(root).toHaveAttribute('data-projected-terminal-theme-state', 'preparing');
+		await expect(root).toHaveAttribute('data-witness-theme-update-result', 'applied-and-saved');
+		await page.evaluate(
+			() =>
+				new Promise<void>((resolve) => {
+					requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+				}),
+		);
+		const preparing = await runtimeThemeWitness(root);
+		expect(preparing.applicationTheme).toBe('light');
+		expect(preparing.themeRevision).toBe('0');
+		expect(preparing.renderedFrames).toBe(initial.renderedFrames);
+		expect(preparing.canvasRgb).toBe(initial.canvasRgb);
+
+		await page.locator('#release-runtime-theme').dispatchEvent('click');
+		await expect(application).toHaveAttribute('data-theme', 'dark');
+		await expect(root).toHaveAttribute('data-projected-terminal-theme-state', 'presented');
+		await expect(root).toHaveAttribute('data-projected-terminal-theme-revision', '1');
+		await expect(root).toHaveAttribute('data-projected-terminal-rendered-revision', '2');
+		await expect(root).not.toHaveAttribute('data-witness-theme-host-pending');
+		const committed = await runtimeThemeWitness(root);
+		expect(committed.applicationTheme).toBe('dark');
+		expect(committed.themeRevision).toBe('1');
+		expect(committed.renderedFrames).toBe(initial.renderedFrames + 1);
+		expect(committed.canvasRgb).not.toBe(initial.canvasRgb);
+		await expect(root).toHaveAttribute('data-witness-create-count', '1');
+		await expect(root).toHaveAttribute('data-witness-open-count', '1');
+	} finally {
+		await browser.close();
+	}
+});
+
 test('terminal-parity/SU-15-visibility', async () => {
 	test.setTimeout(45_000);
 	const currentDevelopmentRendererUrl = developmentRendererUrl;
@@ -3088,6 +3143,34 @@ async function runtimePresentationWitness(root: Locator): Promise<{
 			presentationCommittedEpoch: element.dataset['projectedTerminalPresentationCommittedEpoch'],
 			presentationDrawnEpoch: element.dataset['projectedTerminalPresentationDrawnEpoch'],
 			renderedFrames: Number(element.dataset['projectedTerminalRenderedFrames'] ?? '0'),
+		};
+	});
+}
+
+async function runtimeThemeWitness(root: Locator): Promise<{
+	readonly applicationTheme: string | undefined;
+	readonly canvasRgb: string;
+	readonly renderedFrames: number;
+	readonly themeRevision: string | undefined;
+}> {
+	return root.evaluate((element) => {
+		const canvas = element.querySelector('canvas');
+		if (!(canvas instanceof HTMLCanvasElement)) {
+			throw new Error('Runtime theme witness surface is incomplete.');
+		}
+		const context = canvas.getContext('2d');
+		if (context === null) throw new Error('Runtime theme witness requires Canvas 2D.');
+		const sample = context.getImageData(
+			Math.max(0, canvas.width - 2),
+			Math.max(0, canvas.height - 2),
+			1,
+			1,
+		).data;
+		return {
+			applicationTheme: document.documentElement.dataset['theme'],
+			canvasRgb: [sample[0], sample[1], sample[2]].join(','),
+			renderedFrames: Number(element.dataset['projectedTerminalRenderedFrames'] ?? '0'),
+			themeRevision: element.dataset['projectedTerminalThemeRevision'],
 		};
 	});
 }

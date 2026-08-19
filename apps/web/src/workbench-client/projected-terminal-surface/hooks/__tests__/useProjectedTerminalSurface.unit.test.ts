@@ -7,6 +7,7 @@ import {
 	CreationIdSchema,
 	HostEpochSchema,
 	TerminalIdSchema,
+	TerminalThemeStateSchema,
 } from '@orchbee/terminal-protocol';
 import type {
 	measureMountedTerminalGeometry,
@@ -42,6 +43,17 @@ const geometryMeasurement = vi.hoisted(() => ({
 }));
 
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+const theme = TerminalThemeStateSchema.parse({
+	operationId: null,
+	revision: '0',
+	terminal: {
+		colorScheme: 'dark',
+		defaultBackgroundRgb: 0x1e_1e_1e,
+		defaultCursorRgb: null,
+		defaultForegroundRgb: 0xd4_d4_d4,
+		palette: Array.from({ length: 256 }, (_, index) => index),
+	},
+});
 
 vi.mock(import('@orchbee/terminal'), async (importOriginal) => ({
 	...(await importOriginal()),
@@ -372,6 +384,7 @@ describe('useProjectedTerminalSurface', () => {
 											hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 											terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 											terminalOutcome: null,
+											theme,
 										},
 										transport,
 									}),
@@ -463,6 +476,7 @@ describe('useProjectedTerminalSurface', () => {
 							hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 							terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 							terminalOutcome: null,
+							theme,
 						},
 						transport,
 					}),
@@ -667,6 +681,7 @@ describe('useProjectedTerminalSurface', () => {
 					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 					terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 					terminalOutcome: null,
+					theme,
 				},
 				transport,
 			}),
@@ -861,6 +876,7 @@ describe('useProjectedTerminalSurface', () => {
 					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 					terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 					terminalOutcome: null,
+					theme,
 				},
 				transport,
 			}),

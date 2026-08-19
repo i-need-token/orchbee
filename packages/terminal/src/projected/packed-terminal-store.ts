@@ -85,6 +85,7 @@ export interface ProjectedTerminalMetadata {
 	readonly revision: bigint;
 	readonly rows: number;
 	readonly scrollbackRows: bigint;
+	readonly themeRevision: bigint;
 	readonly title: string | null;
 }
 
@@ -264,6 +265,7 @@ interface LastCommit {
 	readonly kind: string;
 	readonly revision: bigint;
 	readonly sequence: bigint;
+	readonly themeRevision: bigint;
 }
 
 function decodeRowString(
@@ -512,6 +514,7 @@ function metadataFromFrame(frame: DecodedTerminalFrame): ProjectedTerminalMetada
 		revision: frame.revision,
 		rows: frame.rows,
 		scrollbackRows: frame.scrollbackRows,
+		themeRevision: frame.themeRevision,
 		title: frame.title,
 	};
 }
@@ -535,6 +538,7 @@ function metadataFromProjectionBuffer(
 		revision: frame.revision,
 		rows: frame.rows,
 		scrollbackRows: frame.scrollbackRows,
+		themeRevision: frame.themeRevision,
 		title: frame.title,
 	};
 }
@@ -626,7 +630,8 @@ export class PackedTerminalStore {
 				header.revision === this.#lastCommit.revision &&
 				header.generation === this.#lastCommit.generation &&
 				header.baseRevision === this.#lastCommit.baseRevision &&
-				header.kind === this.#lastCommit.kind
+				header.kind === this.#lastCommit.kind &&
+				header.themeRevision === this.#lastCommit.themeRevision
 			) {
 				return { acknowledgement: acknowledgement(header), kind: 'duplicate' };
 			}
@@ -721,7 +726,7 @@ export class PackedTerminalStore {
 		return this.#replaceSnapshot(frame, maximumBytes, null);
 	}
 
-	/** Retains one immutable OBPB 0.0.1 buffer and exposes per-row typed views without repacking. */
+	/** Retains one immutable OBPB 0.0.2 buffer and exposes per-row typed views without repacking. */
 	replaceProjectionBufferSnapshot(
 		frame: DecodedTerminalProjectionBuffer,
 		maximumBytes: number,
@@ -767,6 +772,7 @@ export class PackedTerminalStore {
 			kind: frame.kind,
 			revision: frame.revision,
 			sequence: frame.sequence,
+			themeRevision: frame.themeRevision,
 		};
 		return {
 			acknowledgement: acknowledgement(frame),
@@ -831,6 +837,7 @@ export class PackedTerminalStore {
 			kind: frame.kind,
 			revision: frame.revision,
 			sequence: frame.sequence,
+			themeRevision: frame.themeRevision,
 		};
 	}
 

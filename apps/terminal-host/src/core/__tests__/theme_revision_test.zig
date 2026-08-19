@@ -5,6 +5,7 @@ const subject = harness.subject;
 const ClientId = harness.ClientId;
 const ConnectionId = harness.ConnectionId;
 const CreationId = harness.CreationId;
+const AttachmentId = harness.AttachmentId;
 const HostCore = harness.HostCore;
 const HostEpoch = harness.HostEpoch;
 const TerminalId = harness.TerminalId;
@@ -26,6 +27,23 @@ test "terminal theme compare-and-set commits once and checks exact replay before
     var core = try runningCore(ids);
     defer core.deinit();
     const operation_id = operationId(0x31);
+    const attachment_id = testId(AttachmentId, 0x35);
+    _ = try core.attach(ids.connection, attachment_id, ids.terminal, .{
+        .input = false,
+        .read = true,
+        .resize = false,
+    }, false);
+    _ = try core.setProjectionDemand(ids.connection, attachment_id, .active);
+    _ = try core.synchronizeRevision(ids.terminal, 1);
+    const baseline = try core.commitFrame(attachment_id, null, 1, 1, .snapshot);
+    _ = try core.frameApplied(
+        ids.connection,
+        attachment_id,
+        baseline.sequence,
+        baseline.revision,
+        baseline.generation,
+    );
+    try std.testing.expect(!core.findAttachment(attachment_id).?.projectionReady().?.forceSnapshot());
 
     const initial = core.findTerminal(ids.terminal).?.themeState();
     try std.testing.expectEqual(@as(u64, 0), initial.revision);
@@ -37,6 +55,7 @@ test "terminal theme compare-and-set commits once and checks exact replay before
     try std.testing.expectEqualDeep(initial, core.findTerminal(ids.terminal).?.themeState());
 
     core.commitTerminalTheme(ids.terminal, operation_id, replacement);
+    try std.testing.expect(core.findAttachment(attachment_id).?.projectionReady().?.forceSnapshot());
     const applied = core.findTerminal(ids.terminal).?.themeState();
     try std.testing.expectEqual(@as(u64, 1), applied.revision);
     try std.testing.expect(applied.operation_id.?.eql(operation_id));

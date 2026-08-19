@@ -1,4 +1,5 @@
 import type { MessageEvent, MessagePortMain } from 'electron';
+import { TerminalThemeStateSchema } from '@orchbee/terminal-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalProjectionControlCommandSchema } from '@orchbee/workbench-client-protocol';
@@ -23,6 +24,17 @@ type PortListenerOperation = (
 ) => void;
 
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+const theme = TerminalThemeStateSchema.parse({
+	operationId: null,
+	revision: '0',
+	terminal: {
+		colorScheme: 'dark',
+		defaultBackgroundRgb: 0x1e_1e_1e,
+		defaultCursorRgb: null,
+		defaultForegroundRgb: 0xd4_d4_d4,
+		palette: Array.from({ length: 256 }, (_, index) => index),
+	},
+});
 
 function createTestPort() {
 	let closeListener: CloseListener | undefined;
@@ -90,6 +102,7 @@ function createLease(): DesktopTerminalProjectionLease {
 			hostEpoch: '33'.repeat(16) as DesktopTerminalProjectionLease['bootstrap']['hostEpoch'],
 			terminalId: '44'.repeat(16) as DesktopTerminalProjectionLease['bootstrap']['terminalId'],
 			terminalOutcome: null,
+			theme,
 		},
 		dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 		metrics: {} as DesktopTerminalProjectionLease['metrics'],

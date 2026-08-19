@@ -43,6 +43,7 @@ export {
 	TerminalThemeRevisionSchema,
 	TerminalThemeSnapshotSchema,
 	createTerminalThemeRevisionState,
+	createTerminalThemeRevisionStateFromHost,
 	normalizeTerminalThemeHostState,
 	normalizeTerminalThemeSnapshot,
 	terminalPresentationId,

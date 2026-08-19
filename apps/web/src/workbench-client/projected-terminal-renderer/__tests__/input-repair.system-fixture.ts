@@ -280,6 +280,7 @@ function terminalSnapshot(): Uint8Array {
 		scrollbackRows: 0n,
 		sequence: 1n,
 		styles: [style],
+		themeRevision: 0n,
 		title: 'IN-02 synthetic composition witness',
 	};
 	const encoded = encodeTerminalFrame(frame);

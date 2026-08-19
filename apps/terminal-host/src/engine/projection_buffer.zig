@@ -19,6 +19,7 @@ pub const Parameters = struct {
     request_sequence: u64,
     revision: u64,
     start_row: u64,
+    theme_revision: u64,
 };
 
 const Layout = struct {
@@ -247,6 +248,7 @@ pub fn encodeRenderSnapshot(
     writeInt(frame, u32, 136, current_directory.length);
     writeInt(frame, u32, 140, @intCast(string_length));
     frame[144] = protocol.terminal_projection_buffer_format_patch;
+    writeInt(frame, u64, 145, parameters.theme_revision);
     for (0..section_element_bytes.len) |section| {
         const entry_offset = directory_offset + section * directory_entry_bytes;
         const length = if (section == 15) string_length else layout.lengths[section];

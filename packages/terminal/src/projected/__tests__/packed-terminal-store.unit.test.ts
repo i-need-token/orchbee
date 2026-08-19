@@ -129,6 +129,7 @@ function frame(
 				underlineKind: UnderlineKind.none,
 			},
 		],
+		themeRevision: 0n,
 		title: 'test',
 	};
 }

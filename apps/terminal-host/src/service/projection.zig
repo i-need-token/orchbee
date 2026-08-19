@@ -150,6 +150,7 @@ pub const Scheduler = struct {
                     .host_epoch = core.epoch,
                     .maximum_bytes = maximum_frame_bytes,
                     .sequence = attachment.nextProjectionSequence(),
+                    .theme_revision = terminal.themeState().revision,
                 },
             ) catch {
                 used_terminal_count -= 1;

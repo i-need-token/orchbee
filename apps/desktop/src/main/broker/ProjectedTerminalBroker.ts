@@ -34,14 +34,15 @@ import {
 	TerminalClipboardWriteRequestSchema,
 	TerminalFailedSchema,
 	TerminalControlAcceptedSchema,
+	TerminalThemeResultSchema,
 	type DecodedProtocolEnvelope,
 	type MessageKindValue,
 	type SelectionExportChunk,
 	type SelectionExportCancel,
 	type TerminalClipboardWriteRequest,
+	type TerminalThemeState,
 } from '@orchbee/terminal-protocol';
-import type { HostConnection } from '../host';
-import { HostRequestError } from '../host';
+import { HostRequestError, readTerminalInventory, type HostConnection } from '../host';
 
 const MAX_IN_FLIGHT_RENDERER_REQUESTS = 64;
 const fatalTextDecoder = new TextDecoder('utf-8', { fatal: true });
@@ -75,6 +76,7 @@ export type ProjectedTerminalBrokerEffectTarget = 'client' | 'desktop';
 export interface ProjectedTerminalBrokerLifecycle {
 	readonly onCleanupRequested: (error: unknown) => void;
 	readonly onResizeLeaseChanged?: (ownsResize: boolean) => void;
+	readonly onThemeChanged?: (theme: TerminalThemeState) => void;
 }
 
 const defaultDependencies: ProjectedTerminalBrokerDependencies = {
@@ -122,6 +124,7 @@ export class ProjectedTerminalBroker {
 	readonly #host: HostConnection;
 	readonly #onCleanupRequested: ((error: unknown) => void) | undefined;
 	readonly #onResizeLeaseChanged: ((ownsResize: boolean) => void) | undefined;
+	readonly #onThemeChanged: ((theme: TerminalThemeState) => void) | undefined;
 	readonly #port: MessagePortMain;
 	#activeSelectionCopy: ActiveSelectionCopy | undefined;
 	#clipboardCommits = 0;
@@ -156,6 +159,7 @@ export class ProjectedTerminalBroker {
 		this.#host = host;
 		this.#onCleanupRequested = lifecycle?.onCleanupRequested;
 		this.#onResizeLeaseChanged = lifecycle?.onResizeLeaseChanged;
+		this.#onThemeChanged = lifecycle?.onThemeChanged;
 		this.#port = port;
 		this.#bootstrap = bootstrap;
 		this.#dependencies = dependencies;
@@ -304,12 +308,20 @@ export class ProjectedTerminalBroker {
 				this.#pendingClipboardWriteRequest = undefined;
 			}
 			this.#commandsRejected += 1;
-			this.#postFailure({
-				code: 'renderer-backpressure',
-				message: 'Renderer command exceeded the bounded Main request window.',
-				...failureContext(parsed.data),
-				retryable: true,
-			});
+			if (isThemeCommand(parsed.data)) {
+				this.#postThemeFailure(parsed.data.payload.operationId, {
+					code: 'renderer-backpressure',
+					outcome: 'known-unchanged',
+					retryable: true,
+				});
+			} else {
+				this.#postFailure({
+					code: 'renderer-backpressure',
+					message: 'Renderer command exceeded the bounded Main request window.',
+					...failureContext(parsed.data),
+					retryable: true,
+				});
+			}
 			this.#requestCleanup(
 				new BrokerOperationError(
 					'renderer-backpressure',
@@ -324,6 +336,10 @@ export class ProjectedTerminalBroker {
 		this.#inFlightRequests += 1;
 		void this.#dispatch(parsed.data)
 			.catch((error: unknown) => {
+				if (isThemeCommand(parsed.data)) {
+					this.#postThemeFailure(parsed.data.payload.operationId, themeFailureFromError(error));
+					return;
+				}
 				const context = failureContext(parsed.data);
 				this.#postFailure(
 					error instanceof HostRequestError || error instanceof BrokerOperationError
@@ -554,6 +570,30 @@ export class ProjectedTerminalBroker {
 
 	async #dispatch(command: ProjectedTerminalCommand): Promise<void> {
 		switch (command.kind) {
+			case 'apply-terminal-theme': {
+				const result = await this.#host.requestControl(
+					MessageKind.applyTerminalTheme,
+					{
+						expectedThemeRevision: command.payload.expectedThemeRevision,
+						operationId: command.payload.operationId,
+						terminal: command.payload.terminal,
+						terminalId: command.payload.terminalId,
+					},
+					TerminalThemeResultSchema,
+				);
+				if (
+					result.operationId !== command.payload.operationId ||
+					result.terminalId !== this.#bootstrap.terminalId
+				) {
+					throw new BrokerOperationError(
+						'invalid-terminal-theme-response',
+						'Terminal Host returned a theme result outside the scoped operation.',
+					);
+				}
+				this.#onThemeChanged?.(result.current);
+				this.#postMessage({ event: result, kind: 'terminal-theme-result' });
+				return;
+			}
 			case 'clear-terminal':
 				return this.#requestTerminalControl(MessageKind.clearTerminal, command.payload, 'clear');
 			case 'clipboard-write-decision': {
@@ -592,6 +632,30 @@ export class ProjectedTerminalBroker {
 				return;
 			case 'paste-input':
 				return this.#requestInput(MessageKind.pasteInput, command.payload);
+			case 'reconcile-terminal-theme': {
+				const inventory = await readTerminalInventory(this.#host);
+				const summary = inventory.find(
+					(candidate) =>
+						candidate.identity.creationId === this.#bootstrap.creationId &&
+						candidate.identity.hostEpoch === this.#bootstrap.hostEpoch &&
+						candidate.identity.terminalId === this.#bootstrap.terminalId,
+				);
+				if (summary === undefined) {
+					throw new BrokerOperationError(
+						'terminal-theme-reconciliation-unavailable',
+						'Terminal Host inventory no longer contains the scoped terminal.',
+						true,
+					);
+				}
+				this.#onThemeChanged?.(summary.theme);
+				this.#postMessage({
+					current: summary.theme,
+					kind: 'terminal-theme-reconciled',
+					operationId: command.payload.operationId,
+					terminalId: summary.identity.terminalId,
+				});
+				return;
+			}
 			case 'read-rows': {
 				const response = await this.#host.requestControlEnvelope(
 					MessageKind.readRows,
@@ -999,12 +1063,29 @@ export class ProjectedTerminalBroker {
 	#postFailure(failure: ProjectedTerminalFailure): void {
 		this.#postMessage({ failure, kind: 'failure' });
 	}
+
+	#postThemeFailure(
+		operationId: Extract<
+			ProjectedTerminalCommand,
+			{ readonly kind: 'apply-terminal-theme' | 'reconcile-terminal-theme' }
+		>['payload']['operationId'],
+		failure: {
+			readonly code: string;
+			readonly outcome: 'known-unchanged' | 'unknown';
+			readonly retryable: boolean;
+		},
+	): void {
+		this.#postMessage({ failure, kind: 'terminal-theme-failed', operationId });
+	}
 }
 
 function failureContext(
 	command: ProjectedTerminalCommand,
 ): Pick<ProjectedTerminalFailure, 'operation' | 'requestSequence'> {
 	switch (command.kind) {
+		case 'apply-terminal-theme':
+		case 'reconcile-terminal-theme':
+			return { operation: 'protocol' };
 		case 'clear-terminal':
 		case 'reset-terminal':
 			return { operation: 'control' };
@@ -1036,4 +1117,31 @@ function failureContext(
 		case 'set-projection-demand':
 			return { operation: 'protocol' };
 	}
+}
+
+function isThemeCommand(
+	command: ProjectedTerminalCommand,
+): command is Extract<
+	ProjectedTerminalCommand,
+	{ readonly kind: 'apply-terminal-theme' | 'reconcile-terminal-theme' }
+> {
+	return command.kind === 'apply-terminal-theme' || command.kind === 'reconcile-terminal-theme';
+}
+
+function themeFailureFromError(error: unknown): {
+	readonly code: string;
+	readonly outcome: 'known-unchanged' | 'unknown';
+	readonly retryable: boolean;
+} {
+	if (error instanceof HostRequestError) {
+		return {
+			code: error.code,
+			outcome: error.code === 'host-request-outcome-unknown' ? 'unknown' : 'known-unchanged',
+			retryable: error.retryable,
+		};
+	}
+	if (error instanceof BrokerOperationError) {
+		return { code: error.code, outcome: 'unknown', retryable: error.retryable };
+	}
+	return { code: 'host-request-failed', outcome: 'unknown', retryable: false };
 }

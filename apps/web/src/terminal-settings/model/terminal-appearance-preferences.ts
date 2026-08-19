@@ -33,28 +33,14 @@ export const DEFAULT_TERMINAL_APPEARANCE_PREFERENCES: TerminalAppearancePreferen
 	},
 );
 
-const LIGHT_DEFAULT_COLOR_OVERRIDE: NonNullable<
-	TerminalPresentationConfiguration['defaultColorOverride']
-> = Object.freeze({
-	background: '#fcfcfc',
-	foreground: '#141414',
-});
-const DARK_DEFAULT_COLOR_OVERRIDE: NonNullable<
-	TerminalPresentationConfiguration['defaultColorOverride']
-> = Object.freeze({
-	background: '#1e1e1e',
-	foreground: '#d4d4d4',
-});
-
 export function terminalPresentationConfigurationFromPreferences(
 	preferences: TerminalAppearancePreferences,
 ): TerminalPresentationConfiguration {
-	const defaultColorOverride = resolveDefaultColorOverride(preferences);
 	return Object.freeze({
 		...productPresentation,
 		allowTransparency: preferences.backgroundOpacityPercent < 100,
 		backgroundOpacity: preferences.backgroundOpacityPercent / 100,
-		defaultColorOverride,
+		defaultColorOverride: null,
 		fontFamily: preferences.fontFamily,
 		fontSize: preferences.fontSize,
 	});
@@ -67,15 +53,23 @@ export function terminalDerivedPreferencesEqual(
 	if (
 		left.backgroundOpacityPercent !== right.backgroundOpacityPercent ||
 		left.fontFamily !== right.fontFamily ||
-		left.fontSize !== right.fontSize ||
-		left.terminalDisplayTheme !== right.terminalDisplayTheme
+		left.fontSize !== right.fontSize
 	) {
 		return false;
 	}
+	return true;
+}
+
+export function terminalThemePreferencesEqual(
+	left: TerminalAppearancePreferences,
+	right: TerminalAppearancePreferences,
+): boolean {
 	return (
-		left.terminalDisplayTheme !== 'custom' ||
-		(left.customBackground === right.customBackground &&
-			left.customForeground === right.customForeground)
+		left.applicationTheme === right.applicationTheme &&
+		left.terminalDisplayTheme === right.terminalDisplayTheme &&
+		(left.terminalDisplayTheme !== 'custom' ||
+			(left.customBackground === right.customBackground &&
+				left.customForeground === right.customForeground))
 	);
 }
 
@@ -101,21 +95,3 @@ export function normalizeTerminalHexColor(value: string): TerminalHexColor | nul
 }
 
 export type TerminalAppearancePresentationSource = TerminalPresentationConfigurationSource;
-
-function resolveDefaultColorOverride(
-	preferences: TerminalAppearancePreferences,
-): TerminalPresentationConfiguration['defaultColorOverride'] {
-	switch (preferences.terminalDisplayTheme) {
-		case 'host':
-			return null;
-		case 'light':
-			return LIGHT_DEFAULT_COLOR_OVERRIDE;
-		case 'dark':
-			return DARK_DEFAULT_COLOR_OVERRIDE;
-		case 'custom':
-			return Object.freeze({
-				background: preferences.customBackground,
-				foreground: preferences.customForeground,
-			});
-	}
-}

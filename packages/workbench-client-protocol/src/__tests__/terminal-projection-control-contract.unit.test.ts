@@ -37,6 +37,17 @@ describe('terminal projection control contract', () => {
 					hostEpoch: '33'.repeat(16),
 					terminalId: '44'.repeat(16),
 					terminalOutcome: null,
+					theme: {
+						operationId: null,
+						revision: '0',
+						terminal: {
+							colorScheme: 'dark',
+							defaultBackgroundRgb: 0x1e_1e_1e,
+							defaultCursorRgb: null,
+							defaultForegroundRgb: 0xd4_d4_d4,
+							palette: Array.from({ length: 256 }, (_, index) => index),
+						},
+					},
 				},
 				presentationId: 'presentation-1',
 				requestId: 'projection-1',

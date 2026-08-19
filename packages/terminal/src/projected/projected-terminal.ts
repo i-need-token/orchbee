@@ -109,6 +109,8 @@ import {
 	type RendererFrameTelemetry,
 	type RendererHealthEvent,
 	type PreparedTerminalPresentationConfiguration,
+	type PreparedTerminalThemePresentation,
+	type TerminalThemeOverlayPresentation,
 	WebGPURenderer,
 } from '../rendering';
 import {
@@ -393,7 +395,21 @@ export interface ProjectedTerminalFrameTelemetry extends RendererFrameTelemetry 
 	readonly revision: CanonicalUint64Text;
 }
 
-export type ProjectedFrameResult = 'committed' | 'disposed' | 'duplicate' | 'snapshot-required';
+export type ProjectedFrameResult =
+	| 'committed'
+	| 'disposed'
+	| 'duplicate'
+	| 'snapshot-required'
+	| 'staged';
+
+export type ProjectedTerminalThemePreparationResult =
+	| { readonly kind: 'prepared' }
+	| { readonly code: string; readonly kind: 'failed'; readonly retryable: boolean };
+
+export type ProjectedTerminalThemeReadinessResult =
+	| { readonly kind: 'ready' }
+	| { readonly kind: 'cancelled'; readonly reason: 'disposed' | 'superseded' }
+	| { readonly code: string; readonly kind: 'failed'; readonly retryable: boolean };
 
 export type ProjectedRowsResult = 'committed' | 'ignored' | 'rejected';
 
@@ -582,6 +598,19 @@ interface PresentationPreparation {
 	readonly epoch: number;
 }
 
+interface ThemePresentationStage {
+	readonly operationId: string;
+	readonly prepared: PreparedTerminalThemePresentation;
+	readonly ready: Promise<ProjectedTerminalThemeReadinessResult>;
+	readonly resolve: (result: ProjectedTerminalThemeReadinessResult) => void;
+	receivedFrame: boolean;
+	readyToCommit: boolean;
+	resolved: boolean;
+	reuseVisibleStore: boolean;
+	readonly store: PackedTerminalStore;
+	targetRevision: bigint | undefined;
+}
+
 interface PreparedPaste {
 	readonly review: ProjectedPasteReview;
 	readonly sanitized: string;
@@ -672,7 +701,7 @@ export class ProjectedTerminal {
 	readonly #pressedMouseButtons = new Set<Exclude<MouseInput['button'], null>>();
 	readonly #publishedKeys = new Map<TerminalKeyCodeValue, KeyFacts>();
 	readonly #publishedMouseButtons = new Set<Exclude<MouseInput['button'], null>>();
-	readonly #store: PackedTerminalStore;
+	#store: PackedTerminalStore;
 	readonly #selectionEmitter = new EventEmitter<SelectionChanged>();
 	readonly #selectionCopyResultEmitter = new EventEmitter<ProjectedTerminalSelectionCopyEvent>();
 	readonly #selectionCopiedEmitter = new EventEmitter<{
@@ -744,6 +773,7 @@ export class ProjectedTerminal {
 	#pendingExit: TerminalExited | undefined;
 	#latestExitFinalRevision: bigint | undefined;
 	#terminalControlSealed = false;
+	#themePresentationStage: ThemePresentationStage | undefined;
 	#latestBellSequence = 0n;
 	#latestClipboardWriteSequence = 0n;
 	#pendingAlternateWheelRows = 0;
@@ -1107,14 +1137,122 @@ export class ProjectedTerminal {
 		return { configuration: prepared.configuration, kind: 'completed' };
 	}
 
+	/** Prepare all client-owned colors for one Host-assigned theme revision. */
+	prepareThemePresentation(
+		operationId: string,
+		overlays: TerminalThemeOverlayPresentation,
+	): ProjectedTerminalThemePreparationResult {
+		if (this.#isDisposed()) {
+			return { code: 'terminal-disposed', kind: 'failed', retryable: false };
+		}
+		if (this.#phase !== ProjectedTerminalPhase.open || this.#renderer === undefined) {
+			return { code: 'terminal-not-open', kind: 'failed', retryable: true };
+		}
+		if (operationId.length === 0) {
+			return { code: 'invalid-theme-operation', kind: 'failed', retryable: false };
+		}
+		this.#cancelThemePresentationStage('superseded');
+		let prepared: PreparedTerminalThemePresentation;
+		try {
+			prepared = this.#renderer.prepareThemePresentation(overlays);
+		} catch {
+			return { code: 'renderer-preparation-failed', kind: 'failed', retryable: true };
+		}
+		let resolve: ((result: ProjectedTerminalThemeReadinessResult) => void) | undefined;
+		const ready = new Promise<ProjectedTerminalThemeReadinessResult>((settle) => {
+			resolve = settle;
+		});
+		if (resolve === undefined) {
+			throw new Error('Theme presentation readiness was not initialized synchronously');
+		}
+		this.#themePresentationStage = {
+			operationId,
+			prepared,
+			ready,
+			receivedFrame: false,
+			readyToCommit: false,
+			resolve,
+			resolved: false,
+			reuseVisibleStore: false,
+			store: new PackedTerminalStore(this.#hostEpoch, this.#attachmentId),
+			targetRevision: undefined,
+		};
+		return { kind: 'prepared' };
+	}
+
+	/** Wait until a complete frame for the exact Host revision can be published while visible. */
+	waitForThemePresentation(
+		operationId: string,
+		revision: bigint,
+	): Promise<ProjectedTerminalThemeReadinessResult> {
+		const stage = this.#themePresentationStage;
+		if (stage === undefined || stage.operationId !== operationId) {
+			return Promise.resolve({
+				kind: 'cancelled',
+				reason: this.#isDisposed() ? 'disposed' : 'superseded',
+			});
+		}
+		if (stage.targetRevision !== undefined && stage.targetRevision !== revision) {
+			this.#failThemePresentationStage(stage, 'theme-revision-conflict', false);
+			return stage.ready;
+		}
+		stage.targetRevision = revision;
+		this.#resolveThemePresentationStageIfReady();
+		return stage.ready;
+	}
+
+	/** Publish the exact staged frame and overlays in one synchronous client commit. */
+	canCommitThemePresentation(operationId: string, revision: bigint): boolean {
+		const stage = this.#themePresentationStage;
+		if (
+			stage === undefined ||
+			stage.operationId !== operationId ||
+			stage.targetRevision !== revision ||
+			!stage.readyToCommit ||
+			this.#renderer === undefined ||
+			!this.#themePresentationCanPublish()
+		) {
+			return false;
+		}
+		const stagedMetadata = stage.reuseVisibleStore ? this.#store.metadata : stage.store.metadata;
+		return stagedMetadata?.themeRevision === revision;
+	}
+
+	/** Publish the exact staged frame and overlays in one synchronous client commit. */
+	commitThemePresentation(operationId: string, revision: bigint): boolean {
+		if (!this.canCommitThemePresentation(operationId, revision)) return false;
+		const stage = this.#themePresentationStage;
+		const renderer = this.#renderer;
+		if (stage === undefined || renderer === undefined) return false;
+
+		const previousGeneration = this.#historyGeneration;
+		const previousRevision = this.#historyRevision;
+		const previousStore = this.#store;
+		if (!stage.reuseVisibleStore) this.#store = stage.store;
+		this.#themePresentationStage = undefined;
+		renderer.commitThemePresentation(stage.prepared);
+		if (stage.reuseVisibleStore) stage.store.dispose();
+		else previousStore.dispose();
+		this.#reconcileLiveStoreCommit(previousGeneration, previousRevision);
+		return true;
+	}
+
+	/** Revoke publication eligibility for a superseded or failed operation. */
+	abortThemePresentation(operationId: string): void {
+		if (this.#themePresentationStage?.operationId !== operationId) return;
+		this.#cancelThemePresentationStage('superseded');
+	}
+
 	applyFrame(frame: ArrayBuffer | Uint8Array): ProjectedFrameResult {
 		if (this.#isDisposed()) return 'disposed';
+		const stage = this.#themePresentationStage;
+		const targetStore = stage?.store ?? this.#store;
 		const previousGeneration = this.#historyGeneration;
 		const previousRevision = this.#historyRevision;
 		const bytes = frame instanceof Uint8Array ? frame : new Uint8Array(frame);
 		let result: ReturnType<PackedTerminalStore['apply']>;
 		try {
-			result = this.#store.apply(bytes);
+			result = targetStore.apply(bytes);
 		} catch (error) {
 			this.#errorEmitter.fire({ error, operation: 'frame' });
 			this.#send({
@@ -1132,40 +1270,17 @@ export class ProjectedTerminal {
 			this.#send({ kind: 'need-snapshot', payload: result.request });
 			return 'snapshot-required';
 		}
+		if (stage !== undefined) {
+			stage.receivedFrame = true;
+			if (this.#themePresentationStage === stage) {
+				this.#resolveThemePresentationStageIfReady();
+			}
+			this.#send({ kind: 'frame-applied', payload: result.acknowledgement });
+			this.#finalizeExitIfCaughtUp();
+			return 'staged';
+		}
 		if (result.kind === 'committed') {
-			const metadata = this.#store.metadata;
-			if (metadata) {
-				this.#reconcileCommittedGeometry(metadata);
-				this.#historyGeneration = metadata.generation;
-				this.#historyRevision = metadata.revision;
-				this.#historyTotalRows = metadata.scrollbackRows + BigInt(metadata.rows);
-				if (metadata.generation !== previousGeneration || metadata.revision !== previousRevision) {
-					this.#invalidateLinkCache();
-					this.#searchController?.invalidate();
-				}
-				if (
-					this.#historyPhase === ProjectedHistoryPhase.recovering &&
-					this.#store.lastFrameKind === TerminalFrameKind.snapshot
-				) {
-					this.#finishHistoryRecovery();
-				} else if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
-					this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(metadata));
-					this.#updateAccessibility(metadata);
-				}
-				this.#syncPreeditPresentation();
-				this.#updateSurfaceMouseCursor();
-			}
-			if (
-				this.#phase === ProjectedTerminalPhase.open &&
-				this.#historyPhase === ProjectedHistoryPhase.followingBottom &&
-				!this.#scheduleRender()
-			) {
-				this.#errorEmitter.fire({
-					error: new Error('Projected frame arrived before the rendering surface was open'),
-					operation: 'frame',
-				});
-				return 'committed';
-			}
+			this.#reconcileLiveStoreCommit(previousGeneration, previousRevision);
 		}
 		if (
 			this.#phase === ProjectedTerminalPhase.constructed ||
@@ -1990,6 +2105,7 @@ export class ProjectedTerminal {
 		this.#inputRepairEpoch++;
 		this.#inputDispatcher.invalidate();
 		this.#cancelPresentationPreparation('disposed');
+		this.#cancelThemePresentationStage('disposed');
 		this.#prepareFocusLossInputRepair(true);
 		this.#phase = ProjectedTerminalPhase.frozen;
 		this.#historyPhase = ProjectedHistoryPhase.disposed;
@@ -2029,6 +2145,7 @@ export class ProjectedTerminal {
 	}
 
 	#rollbackOpen(): void {
+		this.#cancelThemePresentationStage('disposed');
 		const inputCleanup = this.#prepareFocusLossInputRepair(false);
 		this.#dispatchDisposedInputCleanup(inputCleanup);
 		this.#cancelScheduledFrame();
@@ -2047,6 +2164,7 @@ export class ProjectedTerminal {
 		if (this.#disposalStarted) return;
 		this.#disposalStarted = true;
 		this.#cancelPresentationPreparation('disposed');
+		this.#cancelThemePresentationStage('disposed');
 		const inputCleanup = inputCleanupAttempted ? [] : this.#prepareFocusLossInputRepair(true);
 		if (publishLifecycle && this.#historyPhase !== ProjectedHistoryPhase.followingBottom) {
 			this.#send({
@@ -2214,7 +2332,10 @@ export class ProjectedTerminal {
 
 	#syncRendererSuspension(): void {
 		const suspended = this.#documentHidden || this.#presentationPaused;
-		if (suspended === this.#presentationSuspended) return;
+		if (suspended === this.#presentationSuspended) {
+			this.#resolveThemePresentationStageIfReady();
+			return;
+		}
 		this.#presentationSuspended = suspended;
 		this.#renderer?.setSuspended(suspended);
 		if (suspended) {
@@ -2222,7 +2343,100 @@ export class ProjectedTerminal {
 			this.#cancelScheduledFrame();
 			return;
 		}
+		this.#resolveThemePresentationStageIfReady();
 		this.#scheduleRender();
+	}
+
+	#themePresentationCanPublish(): boolean {
+		return (
+			this.#phase === ProjectedTerminalPhase.open &&
+			!this.#documentHidden &&
+			!this.#presentationPaused &&
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom
+		);
+	}
+
+	#resolveThemePresentationStageIfReady(): void {
+		const stage = this.#themePresentationStage;
+		const targetRevision = stage?.targetRevision;
+		if (stage === undefined || targetRevision === undefined || stage.readyToCommit) return;
+		if (targetRevision < 0n) {
+			this.#failThemePresentationStage(stage, 'invalid-theme-revision', false);
+			return;
+		}
+		const stagedRevision = stage.store.metadata?.themeRevision;
+		if (stagedRevision !== undefined && stagedRevision > targetRevision) {
+			this.#failThemePresentationStage(stage, 'theme-revision-superseded', false);
+			return;
+		}
+		stage.reuseVisibleStore =
+			!stage.receivedFrame && this.#store.metadata?.themeRevision === targetRevision;
+		if (stagedRevision !== targetRevision && !stage.reuseVisibleStore) return;
+		if (!this.#themePresentationCanPublish()) return;
+		stage.readyToCommit = true;
+		if (!stage.resolved) {
+			stage.resolved = true;
+			stage.resolve({ kind: 'ready' });
+		}
+	}
+
+	#failThemePresentationStage(
+		stage: ThemePresentationStage,
+		code: string,
+		retryable: boolean,
+	): void {
+		stage.readyToCommit = false;
+		if (this.#themePresentationStage === stage) this.#themePresentationStage = undefined;
+		stage.store.dispose();
+		if (stage.resolved) return;
+		stage.resolved = true;
+		stage.resolve({ code, kind: 'failed', retryable });
+	}
+
+	#cancelThemePresentationStage(reason: 'disposed' | 'superseded'): void {
+		const stage = this.#themePresentationStage;
+		if (stage === undefined) return;
+		this.#themePresentationStage = undefined;
+		stage.readyToCommit = false;
+		stage.store.dispose();
+		if (stage.resolved) return;
+		stage.resolved = true;
+		stage.resolve({ kind: 'cancelled', reason });
+	}
+
+	#reconcileLiveStoreCommit(previousGeneration: bigint, previousRevision: bigint): void {
+		const metadata = this.#store.metadata;
+		if (metadata) {
+			this.#reconcileCommittedGeometry(metadata);
+			this.#historyGeneration = metadata.generation;
+			this.#historyRevision = metadata.revision;
+			this.#historyTotalRows = metadata.scrollbackRows + BigInt(metadata.rows);
+			if (metadata.generation !== previousGeneration || metadata.revision !== previousRevision) {
+				this.#invalidateLinkCache();
+				this.#searchController?.invalidate();
+			}
+			if (
+				this.#historyPhase === ProjectedHistoryPhase.recovering &&
+				this.#store.lastFrameKind === TerminalFrameKind.snapshot
+			) {
+				this.#finishHistoryRecovery();
+			} else if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
+				this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(metadata));
+				this.#updateAccessibility(metadata);
+			}
+			this.#syncPreeditPresentation();
+			this.#updateSurfaceMouseCursor();
+		}
+		if (
+			this.#phase === ProjectedTerminalPhase.open &&
+			this.#historyPhase === ProjectedHistoryPhase.followingBottom &&
+			!this.#scheduleRender()
+		) {
+			this.#errorEmitter.fire({
+				error: new Error('Projected frame arrived before the rendering surface was open'),
+				operation: 'frame',
+			});
+		}
 	}
 
 	#visibleStore(): PackedTerminalStore | PackedTerminalViewport {
@@ -2662,6 +2876,7 @@ export class ProjectedTerminal {
 		this.#historyRowsBefore = 0;
 		this.#historyStartRow = 0n;
 		this.#historyPhase = ProjectedHistoryPhase.followingBottom;
+		this.#resolveThemePresentationStageIfReady();
 		this.#syncPreeditPresentation();
 		if (metadata) {
 			this.#metadataEmitter.fire(this.#metadataWithLiveCloseActivity(metadata));

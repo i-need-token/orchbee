@@ -11,6 +11,7 @@ import {
 	MessageKind,
 	PayloadEncoding,
 	TerminalIdSchema,
+	TerminalThemeStateSchema,
 	type DecodedProtocolEnvelope,
 } from '@orchbee/terminal-protocol';
 import type { MessagePortMain } from 'electron';
@@ -20,6 +21,17 @@ import { HostRequestError, type HostConnection } from '../../host';
 import { ProjectedTerminalBroker } from '../ProjectedTerminalBroker';
 
 const textEncoder = new TextEncoder();
+const theme = TerminalThemeStateSchema.parse({
+	operationId: null,
+	revision: '0',
+	terminal: {
+		colorScheme: 'dark',
+		defaultBackgroundRgb: 0x1e_1e_1e,
+		defaultCursorRgb: null,
+		defaultForegroundRgb: 0xd4_d4_d4,
+		palette: Array.from({ length: 256 }, (_, index) => index),
+	},
+});
 
 function eventEnvelope(
 	kind: number,
@@ -70,6 +82,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const onCleanupRequested = vi.fn<(error: unknown) => void>();
 		const broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
@@ -120,6 +133,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const onResizeLeaseChanged = vi.fn<(ownsResize: boolean) => void>();
 		const broker = new ProjectedTerminalBroker(
@@ -195,6 +209,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const broker = new ProjectedTerminalBroker(host, port, bootstrap);
 		broker.start();
@@ -329,6 +344,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const writeClipboardText = vi
 			.fn<(text: string) => Promise<void>>()
@@ -425,6 +441,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const writeClipboardText = vi
 			.fn<(text: string) => Promise<void>>()
@@ -502,6 +519,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const onCleanupRequested = vi.fn<(error: unknown) => void>();
 		const broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
@@ -570,6 +588,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const failure = new HostRequestError({
 			code: 'host-transport-backpressure',
@@ -652,6 +671,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('77'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('88'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		});
 		broker.start();
 		emitter.emit('message', {
@@ -672,6 +692,184 @@ describe('ProjectedTerminalBroker', () => {
 		expect(broker.metrics.commandsRejected).toBe(1);
 	});
 
+	it('forwards runtime theme apply and reconciliation with complete lifecycle state', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		const operationId = '55'.repeat(16);
+		const reconcileOperationId = '66'.repeat(16);
+		const terminal = {
+			...theme.terminal,
+			colorScheme: 'light' as const,
+			defaultBackgroundRgb: 0xfc_fc_fc,
+			defaultForegroundRgb: 0x14_14_14,
+		};
+		const current = TerminalThemeStateSchema.parse({
+			operationId,
+			revision: '1',
+			terminal,
+		});
+		const requestControl = vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(async (kind) => {
+			if (kind === MessageKind.applyTerminalTheme) {
+				return {
+					current,
+					operationId,
+					terminalId: bootstrap.terminalId,
+					transition: 'applied',
+				};
+			}
+			if (kind === MessageKind.listTerminals) {
+				return {
+					inventoryGeneration: '1',
+					nextCursor: null,
+					terminals: [
+						{
+							identity: {
+								creationId: bootstrap.creationId,
+								hostEpoch: bootstrap.hostEpoch,
+								terminalId: bootstrap.terminalId,
+							},
+							theme: current,
+						},
+					],
+				};
+			}
+			throw new Error(`Unexpected Host request ${String(kind)}`);
+		});
+		const host = {
+			hostEpoch: bootstrap.hostEpoch,
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const onThemeChanged = vi.fn<(nextTheme: typeof current) => void>();
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
+			onCleanupRequested: vi.fn<(error: unknown) => void>(),
+			onThemeChanged,
+		});
+		broker.start();
+
+		emitter.emit('message', {
+			data: {
+				kind: 'apply-terminal-theme',
+				payload: {
+					attachmentId: bootstrap.attachmentId,
+					expectedThemeRevision: '0',
+					operationId,
+					terminal,
+					terminalId: bootstrap.terminalId,
+				},
+			},
+		});
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({
+				event: expect.objectContaining({ current, operationId }),
+				kind: 'terminal-theme-result',
+			}),
+		);
+		expect(onThemeChanged).toHaveBeenLastCalledWith(current);
+
+		emitter.emit('message', {
+			data: {
+				kind: 'reconcile-terminal-theme',
+				payload: {
+					attachmentId: bootstrap.attachmentId,
+					operationId: reconcileOperationId,
+					terminalId: bootstrap.terminalId,
+				},
+			},
+		});
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({
+				current,
+				kind: 'terminal-theme-reconciled',
+				operationId: reconcileOperationId,
+				terminalId: bootstrap.terminalId,
+			}),
+		);
+		expect(onThemeChanged).toHaveBeenCalledTimes(2);
+	});
+
+	it('reports an unknown Host theme outcome without a generic attachment failure', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		const operationId = '55'.repeat(16);
+		const requestControl = vi.fn<HostConnection['requestControl']>().mockRejectedValue(
+			new HostRequestError({
+				code: 'host-request-outcome-unknown',
+				message: 'The Host may have committed the theme operation.',
+				retryable: true,
+			}),
+		);
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap);
+		broker.start();
+
+		emitter.emit('message', {
+			data: {
+				kind: 'apply-terminal-theme',
+				payload: {
+					attachmentId: bootstrap.attachmentId,
+					expectedThemeRevision: '0',
+					operationId,
+					terminal: theme.terminal,
+					terminalId: bootstrap.terminalId,
+				},
+			},
+		});
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({
+				failure: {
+					code: 'host-request-outcome-unknown',
+					outcome: 'unknown',
+					retryable: true,
+				},
+				kind: 'terminal-theme-failed',
+				operationId,
+			}),
+		);
+		expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'failure' }));
+	});
+
 	it('forwards clear and reset as typed Host controls and rejects a mismatched acknowledgement', async () => {
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
@@ -681,6 +879,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		let resetCount = 0;
 		const requestControl = vi.fn<(kind: number) => Promise<unknown>>(async (kind) => {
@@ -784,6 +983,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const responseBacking = new Uint8Array([99, 7, 8, 9, 88]);
 		const responsePayload = responseBacking.subarray(1, 4);
@@ -861,6 +1061,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const correlationId = CorrelationIdSchema.parse('55'.repeat(16));
 		const requestControlEnvelope = vi
@@ -934,6 +1135,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const requestControl = vi.fn<(kind: number, value: unknown) => Promise<unknown>>(
 			async (kind, value) => {
@@ -1052,6 +1254,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const firstStarted = {
 			attachmentId: bootstrap.attachmentId,
@@ -1244,6 +1447,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const requestControl = vi.fn<(kind: number, value: unknown) => Promise<unknown>>(
 			async (kind, value) => {
@@ -1374,6 +1578,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const host = {
 			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
@@ -1433,6 +1638,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const requestControl = vi
 			.fn<(...arguments_: unknown[]) => Promise<unknown>>()
@@ -1483,6 +1689,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		let finishDetach: (() => void) | undefined;
 		const requestControl = vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(
@@ -1537,6 +1744,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const requestControl = vi
 			.fn<(...arguments_: unknown[]) => Promise<unknown>>()
@@ -1579,6 +1787,7 @@ describe('ProjectedTerminalBroker', () => {
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
+			theme,
 		};
 		const requestControl = vi
 			.fn<(...arguments_: unknown[]) => Promise<unknown>>()

@@ -7,7 +7,7 @@ import { CURRENT_PROTOCOL_VERSION, ProtocolVersionSchema } from '../version';
 
 describe('protocol version', () => {
 	it('publishes one exact current pre-release contract', () => {
-		expect(CURRENT_PROTOCOL_VERSION).toEqual({ major: 0, minor: 0, patch: 13 });
+		expect(CURRENT_PROTOCOL_VERSION).toEqual({ major: 0, minor: 0, patch: 14 });
 	});
 
 	it('validates only the version shape and leaves exact matching to the handshake', () => {
@@ -17,8 +17,8 @@ describe('protocol version', () => {
 	});
 
 	it('publishes one exact current pre-release version for every binary format', () => {
-		expect(TERMINAL_FRAME_FORMAT).toEqual({ major: 0, minor: 0, patch: 2 });
-		expect(TERMINAL_PROJECTION_BUFFER_FORMAT).toEqual({ major: 0, minor: 0, patch: 1 });
-		expect(TERMINAL_ROW_WINDOW_FORMAT).toEqual({ major: 0, minor: 0, patch: 1 });
+		expect(TERMINAL_FRAME_FORMAT).toEqual({ major: 0, minor: 0, patch: 3 });
+		expect(TERMINAL_PROJECTION_BUFFER_FORMAT).toEqual({ major: 0, minor: 0, patch: 2 });
+		expect(TERMINAL_ROW_WINDOW_FORMAT).toEqual({ major: 0, minor: 0, patch: 2 });
 	});
 });

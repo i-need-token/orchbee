@@ -9,13 +9,16 @@ request client for the optional Desktop terminal-launch-profile capability; Elec
 catalog, its persistence, and launch resolution. The Browser-backed preference records are local to
 one Browser origin or Desktop renderer user-data partition. Neither those records nor the Main-owned
 profile catalog are part of the shared Workbench document or sent to a Gateway or remote terminal.
-Only the per-key semantic Option-as-Alt decision crosses the Host protocol; the stored preference
-does not.
+A theme-affecting preference derives one complete runtime-theme request that crosses the active
+Desktop or Gateway projection transport to Terminal Host; per-key Option-as-Alt likewise crosses
+only as a semantic input decision, never as the stored preference.
 
 `@orchbee/terminal` owns the source-neutral renderer contract that consumes the derived complete
 presentation configuration. Host frame metadata remains authoritative for terminal palette,
-cursor, VT state, terminal color-scheme replies, and OSC behavior. A non-Host display theme is an
-explicit per-client rendering override for default-coded foreground and background cells only.
+cursor, VT state, terminal color-scheme replies, and OSC behavior. Workbench coordinates one
+complete Host theme revision with renderer overlays, cursor presentation, and the application
+design-token surface. The Web/Desktop composition keeps the legacy source-neutral
+`defaultColorOverride` at `null`.
 
 This feature may analyze pasted Ghostty configuration into an ephemeral migration report. It does
 not apply or persist that report, read Ghostty files, mutate a Host profile, expose a complete
@@ -55,19 +58,20 @@ The complete product default is:
 | Custom background      | `#fcfcfc`                                                          |
 | Background opacity     | `100`                                                              |
 
-Terminal display themes derive the following default-color override without modifying the stored
-custom pair:
+Terminal display themes derive one complete candidate from the latest reconciled Host state without
+modifying the stored custom pair:
 
-| Theme    | Derived foreground | Derived background |
-| -------- | ------------------ | ------------------ |
-| `host`   | no override        | no override        |
-| `light`  | `#141414`          | `#fcfcfc`          |
-| `dark`   | `#d4d4d4`          | `#1e1e1e`          |
-| `custom` | `customForeground` | `customBackground` |
+| Theme    | Host terminal candidate                                                                                                      |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `host`   | Keep the complete current Host color scheme, defaults, nullable cursor color, and 256-color palette.                         |
+| `light`  | Set scheme `light` and defaults `#141414` / `#fcfcfc`; preserve the current Host cursor color and complete palette.          |
+| `dark`   | Set scheme `dark` and defaults `#d4d4d4` / `#1e1e1e`; preserve the current Host cursor color and complete palette.           |
+| `custom` | Set defaults from `customForeground` / `customBackground`; preserve the current Host scheme, cursor color, and full palette. |
 
 Changing among Host, Light, and Dark retains the Custom values. Custom color controls are editable
-only while Custom is selected. Application theme changes `data-theme` only and never publish a
-terminal presentation update. Terminal settings never change `data-theme`.
+only while Custom is selected. Application theme, terminal display theme, complete fixed overlay
+colors, and the Host-assigned theme revision form one publication transaction. A successful barrier
+commits every mounted terminal before updating `data-theme` in the same JavaScript task.
 
 ## macOS Option-as-Alt preference
 
@@ -130,14 +134,26 @@ records a recoverable persistence issue; partial recovery is forbidden.
 One semantic update follows this order:
 
 1. Validate a complete candidate preference record.
-2. Derive an immutable complete preference snapshot and terminal presentation configuration.
-3. Commit the in-memory snapshot, apply application theme when it changed, and publish one terminal
-   presentation snapshot only when terminal-derived values changed.
+2. Derive an immutable complete preference snapshot, source-neutral font/opacity presentation
+   configuration, and, when theme-affecting fields changed, a complete runtime-theme candidate.
+3. Commit the in-memory snapshot. Publish font/opacity configuration only when those derived values
+   changed, and start one latest-wins runtime-theme barrier when theme-derived values changed.
 4. Attempt one write of the complete preference record.
 
-The transaction boundary is the single publication of one immutable complete terminal
-presentation snapshot. Browser storage and the asynchronous preparation performed by multiple
-terminal attachments are not one cross-object atomic transaction.
+For a runtime-theme barrier, every mounted projected terminal first preflights its renderer
+overlays. A failed preflight sends no Host mutation. A ready participant then completes the Host
+compare-and-set or reconciliation and waits for a staged frame carrying the exact committed
+`themeRevision`. After every participant returns a prepared handle, the controller synchronously
+checks all handles, commits every terminal store/overlay/cursor pair, and changes the application
+theme. Any failure, cancellation, supersession, hidden/suspended delay, or lost eligibility keeps
+the prior complete application presentation visible and aborts all otherwise prepared handles. A
+Host revision that committed before a peer failed remains quarantined rather than being rolled back
+or partially displayed; a later theme request, participant registration change, or disposal
+supersedes that stage. With no mounted participant, `data-theme` applies immediately.
+
+The visual transaction does not include Browser storage or the in-memory preference snapshot. A
+write failure therefore retains the accepted session preference as before, and a presentation
+failure does not rewrite the stored choice even though the previous complete theme remains visible.
 
 Synchronous listener reentry is serialized as immutable presentation snapshots in first-in,
 first-out order. A newer committed revision cannot be overwritten by an older revision's later
@@ -148,8 +164,8 @@ An invalid candidate does not change memory, theme, storage, or subscribers. A v
 nothing when persistence is healthy. A write exception does not roll back the session value; the
 snapshot reports that the setting is applied for this session but is not saved. The next valid
 update retries a complete write and clears that issue after success. One terminal preparation
-failure retains that terminal's previously committed presentation without rolling back the
-preference or other terminals.
+failure retains every mounted terminal and the application surface at their previously committed
+complete presentation without rolling back the preference.
 
 Reset behaves as follows:
 
@@ -164,11 +180,12 @@ change theme, storage, or a presentation source after disposal.
 
 ## Effective terminal colors and opacity
 
-Host metadata is never rewritten. A renderer resolves each packed color token first. Only
-`TerminalColorEncoding.default` selects the derived effective foreground or background; explicit
-RGB, projected ANSI/palette colors, `none`, and explicit black retain their Host-projected value.
-Inverse swaps the already resolved display roles. The default underline uses the effective
-foreground. The cursor always uses the Host cursor color.
+Host runtime theme replacement is the only color mutation path used by this Settings feature. After
+commit, its frame metadata and resolved palette cells remain the renderer authority. The renderer's
+`defaultColorOverride` is always null: default tokens use the Host default foreground/background;
+explicit RGB, projected ANSI/palette colors, `none`, and explicit black retain their Host-projected
+value. Inverse swaps the already resolved display roles. The default underline uses the Host
+foreground, and the cursor uses the Host cursor color or its Host-defined foreground fallback.
 
 Background opacity is derived from `backgroundOpacityPercent`; `allowTransparency` is not a second
 user preference. At 100%, renderer clear and the terminal root are opaque. From 10% through 99%,

@@ -49,6 +49,7 @@ pub const Ready = union(enum) {
 pub const Flight = struct {
     base_before: ?FrameBase,
     dirty_after_capture: bool = false,
+    force_snapshot_after_flight: bool = false,
     frame: InFlightFrame,
 };
 
@@ -190,7 +191,10 @@ pub const State = struct {
             return error.InvalidFrameAcknowledgement;
         }
         self.next_sequence = commit.flight.sequence;
-        self.delivery = .{ .ready = commit.ready_before };
+        self.delivery = .{ .ready = if (flight.force_snapshot_after_flight)
+            .{ .snapshot = commit.ready_before.base() }
+        else
+            commit.ready_before };
     }
 
     pub fn frameApplied(
@@ -223,7 +227,8 @@ pub const State = struct {
                 .revision = revision,
                 .sequence = sequence,
             };
-            self.delivery = .{ .ready = if (geometry_changed_at_revision > revision)
+            self.delivery = .{ .ready = if (flight.force_snapshot_after_flight or
+                geometry_changed_at_revision > revision)
                 .{ .snapshot = base }
             else
                 .{ .delta = base } };
@@ -287,6 +292,21 @@ pub const State = struct {
             .snapshot => return error.InvalidPhase,
         };
         if (base.revision < observed_revision) return error.InvalidPhase;
+    }
+
+    /// Forces the next deliverable presentation to be a complete snapshot while preserving
+    /// attachment sequencing and any frame already handed to the transport.
+    pub fn invalidatePresentation(self: *State) void {
+        switch (self.delivery) {
+            .paused => {},
+            .ready => |ready_state| {
+                self.delivery = .{ .ready = .{ .snapshot = ready_state.base() } };
+            },
+            .in_flight => |*flight| flight.force_snapshot_after_flight = true,
+            .blocked => |blocked_state| {
+                self.delivery = .{ .ready = .{ .snapshot = blocked_state.base } };
+            },
+        }
     }
 
     pub fn refresh(

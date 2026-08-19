@@ -364,6 +364,7 @@ function terminalFrame(
 		scrollbackRows: 0n,
 		sequence,
 		styles: [style],
+		themeRevision: 0n,
 		title: 'SU-15 synthetic visibility witness',
 	};
 	const encoded = encodeTerminalFrame(frame);

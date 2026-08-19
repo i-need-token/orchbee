@@ -6,6 +6,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { TerminalSettingsController } from '../TerminalSettingsController';
 import { DEFAULT_TERMINAL_APPEARANCE_PREFERENCES } from '../terminal-appearance-preferences';
 import type { TerminalAppearanceStorage } from '../terminal-appearance-preferences-storage';
+import type {
+	TerminalThemePresentationCommit,
+	TerminalThemePresentationParticipant,
+	TerminalThemePresentationPreparation,
+} from '../isTerminalThemePresentationSource';
 
 interface StorageFixture extends TerminalAppearanceStorage {
 	readonly getItem: ReturnType<typeof vi.fn<TerminalAppearanceStorage['getItem']>>;
@@ -61,7 +66,7 @@ describe('TerminalSettingsController', () => {
 		expect(controller.current()).toMatchObject({
 			allowTransparency: true,
 			backgroundOpacity: 0.65,
-			defaultColorOverride: { background: '#abcdef', foreground: '#0123ab' },
+			defaultColorOverride: null,
 			fontFamily: 'Example Mono, monospace',
 			fontSize: 19,
 		});
@@ -148,8 +153,71 @@ describe('TerminalSettingsController', () => {
 		expect(controller.current()).toMatchObject({
 			allowTransparency: true,
 			backgroundOpacity: 0.75,
-			defaultColorOverride: { background: '#1e1e1e', foreground: '#d4d4d4' },
+			defaultColorOverride: null,
 		});
+		expect(target.dataset['theme']).toBe('light');
+	});
+
+	it('changes the app surface only after every terminal can commit in the same task', async () => {
+		const target = document.createElement('div');
+		const controller = new TerminalSettingsController({
+			storage: createStorage(null),
+			themeTarget: target,
+		});
+		const first = deferred<TerminalThemePresentationPreparation>();
+		const second = deferred<TerminalThemePresentationPreparation>();
+		const commitObservations: string[] = [];
+		const firstCommit = themeCommit(() =>
+			commitObservations.push(`first:${target.dataset['theme']}`),
+		);
+		const secondCommit = themeCommit(() =>
+			commitObservations.push(`second:${target.dataset['theme']}`),
+		);
+		const firstParticipant = participantForDark(first.promise);
+		const secondParticipant = participantForDark(second.promise);
+		controller.registerThemeParticipant(firstParticipant);
+		controller.registerThemeParticipant(secondParticipant);
+		await Promise.resolve();
+
+		expect(controller.update({ applicationTheme: 'dark' })).toEqual({
+			kind: 'applied-and-saved',
+		});
+		expect(target.dataset['theme']).toBe('light');
+		first.resolve({ commit: firstCommit.commit, kind: 'prepared' });
+		await Promise.resolve();
+		expect(target.dataset['theme']).toBe('light');
+		second.resolve({ commit: secondCommit.commit, kind: 'prepared' });
+		await vi.waitFor(() => expect(target.dataset['theme']).toBe('dark'));
+
+		expect(commitObservations).toEqual(['first:light', 'second:light']);
+		expect(firstCommit.commit.commit).toHaveBeenCalledOnce();
+		expect(secondCommit.commit.commit).toHaveBeenCalledOnce();
+	});
+
+	it('aborts prepared terminals and preserves the app surface when one renderer fails', async () => {
+		const target = document.createElement('div');
+		const controller = new TerminalSettingsController({
+			storage: createStorage(null),
+			themeTarget: target,
+		});
+		const prepared = themeCommit();
+		controller.registerThemeParticipant(
+			participantForDark(Promise.resolve({ commit: prepared.commit, kind: 'prepared' })),
+		);
+		controller.registerThemeParticipant(
+			participantForDark(
+				Promise.resolve({
+					code: 'renderer-preparation-failed',
+					kind: 'failed',
+					retryable: true,
+				}),
+			),
+		);
+		await Promise.resolve();
+
+		controller.update({ applicationTheme: 'dark' });
+		await vi.waitFor(() => expect(prepared.commit.abort).toHaveBeenCalledOnce());
+		expect(prepared.commit.commit).not.toHaveBeenCalled();
 		expect(target.dataset['theme']).toBe('light');
 	});
 
@@ -383,5 +451,43 @@ function createStorage(serialized: string | null): StorageFixture {
 	return {
 		getItem: vi.fn<TerminalAppearanceStorage['getItem']>(() => serialized),
 		setItem: vi.fn<TerminalAppearanceStorage['setItem']>(() => undefined),
+	};
+}
+
+function deferred<T>(): {
+	readonly promise: Promise<T>;
+	readonly resolve: (value: T) => void;
+} {
+	let resolve: ((value: T) => void) | undefined;
+	const promise = new Promise<T>((settle) => {
+		resolve = settle;
+	});
+	if (resolve === undefined) throw new Error('Deferred result was not initialized synchronously.');
+	return { promise, resolve };
+}
+
+function participantForDark(
+	darkPreparation: Promise<TerminalThemePresentationPreparation>,
+): TerminalThemePresentationParticipant {
+	return {
+		prepareThemePresentation: (preferences) =>
+			preferences.applicationTheme === 'dark'
+				? darkPreparation
+				: Promise.resolve({ kind: 'cancelled' }),
+	};
+}
+
+function themeCommit(onCommit: () => void = () => undefined): {
+	readonly commit: TerminalThemePresentationCommit & {
+		readonly abort: ReturnType<typeof vi.fn<TerminalThemePresentationCommit['abort']>>;
+		readonly commit: ReturnType<typeof vi.fn<TerminalThemePresentationCommit['commit']>>;
+	};
+} {
+	return {
+		commit: {
+			abort: vi.fn<TerminalThemePresentationCommit['abort']>(),
+			canCommit: () => true,
+			commit: vi.fn<TerminalThemePresentationCommit['commit']>(onCommit),
+		},
 	};
 }

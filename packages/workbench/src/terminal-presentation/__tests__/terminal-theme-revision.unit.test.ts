@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	createTerminalThemeRevisionState,
+	createTerminalThemeRevisionStateFromHost,
 	normalizeTerminalThemeSnapshot,
 	terminalThemeOperationId,
 	terminalThemeRevision,
@@ -105,6 +106,23 @@ describe('terminal theme revision contract', () => {
 		).toBe(false);
 	});
 
+	it('restores the visible coordinator revision from the complete Host bootstrap state', () => {
+		const initial = theme();
+		const hostTheme = theme({
+			terminal: { ...initial.terminal, defaultBackgroundRgb: 0x10_20_30 },
+		});
+		const host = hostState('theme:restored:4', '4', hostTheme);
+		const state = createTerminalThemeRevisionStateFromHost(initial, host);
+
+		expect(state.host).toEqual(host);
+		expect(state.current).toEqual({
+			operationId: terminalThemeOperationId('theme:restored:4'),
+			revision: terminalThemeRevision('4'),
+			snapshot: { ...initial, terminal: hostTheme.terminal },
+		});
+		expect(state.active).toBeNull();
+	});
+
 	it('publishes one complete revision after Host and client preparation settle in either order', () => {
 		const initial = theme();
 		const dark = theme({
@@ -123,15 +141,15 @@ describe('terminal theme revision contract', () => {
 		expect(started.kind).toBe('accepted');
 		expect(started.commands).toEqual([
 			{
+				operationId: 'theme:dark:1',
+				snapshot: dark,
+				type: 'prepare-client-theme',
+			},
+			{
 				expectedRevision: '0',
 				operationId: 'theme:dark:1',
 				terminal: dark.terminal,
 				type: 'apply-host-theme',
-			},
-			{
-				operationId: 'theme:dark:1',
-				snapshot: dark,
-				type: 'prepare-client-theme',
 			},
 		]);
 
@@ -236,15 +254,15 @@ describe('terminal theme revision contract', () => {
 		expect(reverted.state.active?.operationId).toBe('theme:revert');
 		expect(reverted.commands).toEqual([
 			{
+				operationId: 'theme:revert',
+				snapshot: initial,
+				type: 'prepare-client-theme',
+			},
+			{
 				expectedRevision: '1',
 				operationId: 'theme:revert',
 				terminal: initial.terminal,
 				type: 'apply-host-theme',
-			},
-			{
-				operationId: 'theme:revert',
-				snapshot: initial,
-				type: 'prepare-client-theme',
 			},
 		]);
 	});

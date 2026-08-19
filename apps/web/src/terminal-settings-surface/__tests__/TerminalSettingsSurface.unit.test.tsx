@@ -38,7 +38,7 @@ afterAll(() => {
 });
 
 describe('TerminalSettingsSurface', () => {
-	it('focuses global search, navigates across categories, and keeps application and terminal themes independent', async () => {
+	it('focuses global search, navigates categories, and routes theme choices outside presentation configuration', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const storage = memoryStorage();
@@ -154,11 +154,8 @@ describe('TerminalSettingsSurface', () => {
 			terminalTheme.value = 'dark';
 			terminalTheme.dispatchEvent(new Event('change', { bubbles: true }));
 		});
-		expect(presentationListener).toHaveBeenCalledOnce();
-		expect(controller.current().defaultColorOverride).toEqual({
-			background: '#1e1e1e',
-			foreground: '#d4d4d4',
-		});
+		expect(presentationListener).not.toHaveBeenCalled();
+		expect(controller.current().defaultColorOverride).toBeNull();
 		expect(document.documentElement.dataset['theme']).toBe('dark');
 		expect(storage.setItem).toHaveBeenCalledTimes(2);
 

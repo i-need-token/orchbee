@@ -25,7 +25,7 @@ Main loads and validates the shared document once before admitting clients. An a
 
 The coordinator is transport-neutral and supports independent page sessions without a product count ceiling. Electron uses a direct `MessagePort` adapter. Explicit Browser access starts `apps/server` and `apps/gateway` as on-demand Utility Processes; Desktop owns both lifetimes and allocates exactly one client-session/projection port pair per authenticated page. Server owns static renderer delivery, while Gateway owns exact-Origin admission, capability authentication, framing, and transport backpressure on loopback or an explicitly selected trusted LAN. Gateway never receives an application-lifetime port or a Host connection. `apps/web` owns the platform-neutral Workbench client runtime and the single renderer application used in an ordinary browser, a Gateway Browser client, and Electron. Development Electron is discovered from its User-Agent on the loopback Web origin. Packaged Desktop registers the standard secure `orchbee:` scheme before Electron becomes ready, serves the Web build from `orchbee://app`, and falls back to `index.html` for Browser Router document requests. Desktop owns renderer resource delivery, not another renderer source tree. See [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) and [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md).
 
-Desktop requires the single current Host protocol `0.0.13` exactly; pre-release builds do not negotiate or document historical protocol variants. Electron uses `42.8.0`, the final release in the major immediately preceding the current Electron major selected for this repository.
+Desktop requires the single current Host protocol `0.0.14` exactly; pre-release builds do not negotiate or document historical protocol variants. Electron uses `42.8.0`, the final release in the major immediately preceding the current Electron major selected for this repository.
 
 `HostConnection` owns one connection-global outbound window across every broker caller: at most 64 unanswered request records and 4 MiB of encoded request bytes. It retains that admission until the correlated response or connection failure. A full window or a Node writable that has returned `false` rejects work before handoff with retryable `host-transport-backpressure`; no request write resumes before `drain`. If a handed-off request reaches its deadline, Desktop retires the connection and rejects all pending and future requests with non-retryable `host-request-outcome-unknown`, so input is never replayed after an ambiguous result. The broker's 64-command per-attachment window remains an additional capability-local guard.
 
@@ -237,6 +237,16 @@ from the same launch profile sent to Terminal Host. That value is only a startup
 Host frame metadata owns the live terminal background in both Electron and Browser clients, so
 Desktop Main never maintains a second runtime terminal palette.
 
+Every projection bootstrap includes the complete latest Host theme state retained by the lifecycle
+adapter. The projection broker forwards an attachment-scoped `apply-terminal-theme` command as one
+Host compare-and-set and publishes only the identity-checked complete result. It records that result
+back into lifecycle recovery state before the renderer can use a later bootstrap. Reconciliation
+reads Host inventory, requires the exact creation/Host/terminal identity, refreshes the same complete
+state, and returns a dedicated reconciled event. Known unchanged failures and unknown transport
+outcomes use the theme-specific result channel; an unknown outcome must reconcile before retry and
+is never flattened into a generic projection failure. Desktop Main does not render or independently
+choose terminal colors.
+
 Desktop hides the native title bar while retaining the operating system's window controls. The
 Desktop renderer marks only the sidebar's top chrome and unoccupied horizontal Tab-track background
 as native window-drag regions; Tabs, groups, the sidebar toggle, and the new-Tab control remain
@@ -255,7 +265,7 @@ observations; only fallback and explicit custom Tab titles enter the shared-docu
 
 Each successful request receives a fresh AttachmentId, capability bootstrap, and private `MessagePort`. For one running presentation, every writable attachment receives read/input/resize capability, while serialized opens request the resize lease only when no active lease owner exists. Later attachments remain observers until the owner detaches. The Host then promotes the earliest admitted live resize-capable observer, publishes its attachment-scoped ownership change before acknowledging the detach, and Desktop forwards the change without reopening that surface. Open, release, and retirement operations are serialized per presentation, so a concurrent release/open cannot bypass an existing observer or create two owners. Main returns a correlated release acknowledgement only after detach completes; a cleanup failure retains the same request for an exact later retry and cannot invalidate another projection request. Exited and failed terminals attach read-only with their retained final revision and typed outcome. Multiple visible split panels and page clients may hold independent attachments, with no global attachment threshold.
 
-`HostConnection` reads and validates the fixed terminal-frame header once, then routes the binary record directly by AttachmentId. Main performs no VT parsing, row reconstruction, Kitty image loading, JSON/base64 conversion, or per-cell pass. At the Electron capability boundary, the broker copies only the routed payload into an exact-size `ArrayBuffer` before structured clone, so envelope headers and coalesced neighboring records never cross the renderer port. The renderer strictly decodes bounded OBKG raw pixels inside OBTF and never receives a path, URL, temporary-file handle, or shared-memory capability. OBPB format `0.0.1` local history render buffers then use the structural-view boundary; Gateway delivery remains externally validated. History, selection, copy, link, and accessibility behavior remains attachment-scoped. Normal bottom-following use creates no history cache or search Worker; these resources are activated only by their existing interaction contracts.
+`HostConnection` reads and validates the fixed terminal-frame header once, then routes the binary record directly by AttachmentId. Main performs no VT parsing, row reconstruction, Kitty image loading, JSON/base64 conversion, or per-cell pass. At the Electron capability boundary, the broker copies only the routed payload into an exact-size `ArrayBuffer` before structured clone, so envelope headers and coalesced neighboring records never cross the renderer port. The renderer strictly decodes bounded OBKG raw pixels inside OBTF and never receives a path, URL, temporary-file handle, or shared-memory capability. OBPB format `0.0.2` local history render buffers then use the structural-view boundary; Gateway delivery remains externally validated. History, selection, copy, link, and accessibility behavior remains attachment-scoped. Normal bottom-following use creates no history cache or search Worker; these resources are activated only by their existing interaction contracts.
 
 A correlated Host `TypedFailure` remains a typed `HostRequestError`; `HostConnection` retains the
 response correlation ID, and `ProjectedTerminalBroker` adds the exact renderer-command operation
@@ -302,6 +312,7 @@ Focused traces cover:
   disposal, and matching first renderer/Host geometry;
 - concurrent viewers with exactly one resize owner, earliest-observer promotion, dynamic renderer ownership, and serialized release/open ordering;
 - fixed-header frame routing to only the matching AttachmentId, with exact-size structured-clone payload isolation;
+- complete theme bootstrap, identity-scoped apply/reconcile forwarding, lifecycle refresh, unknown-outcome preservation, and headed SU-09 hold/release evidence that exposes no mixed app/terminal revision;
 - sandboxed end-to-end input, output, history, search, selection, copy, links, exit, renderer reload, and Electron Main restart;
 - development and packaged Shell-resource resolution, resource presence and privacy checks, real Zsh
   OSC 133 output, and one macOS Electron path from manual Settings policy through a long-command

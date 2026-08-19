@@ -13,11 +13,20 @@ const identity = {
 	hostEpoch: '33'.repeat(16),
 	terminalId: '44'.repeat(16),
 };
+const terminalTheme = {
+	colorScheme: 'dark' as const,
+	defaultBackgroundRgb: 0x1e_1e_1e,
+	defaultCursorRgb: null,
+	defaultForegroundRgb: 0xd4_d4_d4,
+	palette: Array.from({ length: 256 }, (_, index) => index),
+};
+const theme = { operationId: null, revision: '0', terminal: terminalTheme };
 const bootstrap = {
 	attachmentId,
 	canInput: false,
 	canResize: false,
 	...identity,
+	theme,
 };
 
 describe('projected terminal contract', () => {
@@ -196,6 +205,49 @@ describe('projected terminal contract', () => {
 				},
 			}).success,
 		).toBe(false);
+	});
+
+	it('carries one attachment-scoped runtime theme operation and its correlated result', () => {
+		const operationId = '55'.repeat(16);
+		const command = {
+			kind: 'apply-terminal-theme',
+			payload: {
+				attachmentId,
+				expectedThemeRevision: '0',
+				operationId,
+				terminal: { ...terminalTheme, defaultBackgroundRgb: 0xfc_fc_fc },
+				terminalId: identity.terminalId,
+			},
+		};
+		expect(ProjectedTerminalCommandSchema.parse(command)).toEqual(command);
+		expect(
+			ProjectedTerminalCommandSchema.safeParse({
+				...command,
+				payload: { ...command.payload, attachmentId: undefined },
+			}).success,
+		).toBe(false);
+
+		const event = {
+			event: {
+				current: {
+					operationId,
+					revision: '1',
+					terminal: command.payload.terminal,
+				},
+				operationId,
+				terminalId: identity.terminalId,
+				transition: 'applied',
+			},
+			kind: 'terminal-theme-result',
+		};
+		expect(ProjectedTerminalEventSchema.parse(event)).toEqual(event);
+		expect(
+			ProjectedTerminalEventSchema.parse({
+				failure: { code: 'host-request-outcome-unknown', outcome: 'unknown', retryable: true },
+				kind: 'terminal-theme-failed',
+				operationId,
+			}),
+		).toMatchObject({ kind: 'terminal-theme-failed', operationId });
 	});
 
 	it('carries explicit accessible selection ranges without reconstructing a pointer gesture', () => {

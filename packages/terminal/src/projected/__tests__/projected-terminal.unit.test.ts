@@ -152,6 +152,7 @@ function terminalFrame(
 	columns = 2,
 	activeScreen: TerminalFrame['activeScreen'] = ActiveScreen.primary,
 	closeActivity: 'active' | 'idle' | 'unknown' = 'unknown',
+	themeRevision = 0n,
 ): Uint8Array {
 	const frame: TerminalFrame = {
 		activeScreen,
@@ -228,12 +229,47 @@ function terminalFrame(
 				underlineKind: UnderlineKind.none,
 			},
 		],
+		themeRevision,
 		title: 'test',
 	};
 	const encoded = encodeTerminalFrame(frame);
 	if (!encoded.ok) throw new Error(encoded.detail);
 	return encoded.value;
 }
+
+function themedTerminalFrame(
+	sequence: bigint,
+	revision: bigint,
+	themeRevision: bigint,
+	text: readonly [string, string],
+): Uint8Array {
+	return terminalFrame(
+		'snapshot',
+		sequence,
+		revision,
+		text,
+		null,
+		[0, 1],
+		0n,
+		interaction,
+		{ column: 0, row: 0 },
+		1n,
+		2,
+		ActiveScreen.primary,
+		'unknown',
+		themeRevision,
+	);
+}
+
+const themeOverlays = {
+	cursorAccentRgb: 0x01_02_03,
+	searchActiveMatchBackgroundRgb: 0x04_05_06,
+	searchActiveMatchForegroundRgb: 0x07_08_09,
+	searchMatchBackgroundRgb: 0x0a_0b_0c,
+	searchMatchForegroundRgb: 0x0d_0e_0f,
+	selectionBackgroundRgb: 0x10_11_12,
+	selectionForegroundRgb: 0x13_14_15,
+} as const;
 
 function renderRowWindow(
 	sequence: bigint,
@@ -317,6 +353,7 @@ function renderRowWindow(
 			options.hyperlink === undefined
 				? [defaultStyle]
 				: [defaultStyle, { ...defaultStyle, hyperlink: options.hyperlink }],
+		themeRevision: 0n,
 		title: 'history',
 	};
 	const encoded = encodeTerminalRowWindow({
@@ -1418,6 +1455,130 @@ describe('ProjectedTerminal', () => {
 		expect(browser.documentListenerCount('selectionchange')).toBe(0);
 		expect(browser.documentListenerCount('pointermove')).toBe(0);
 		expect(root.listeners.get('focusin')?.size ?? 0).toBe(0);
+	});
+
+	it('publishes one exact theme revision across the staged frame and every renderer overlay', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const rendererPrepare = vi.spyOn(WebGPURenderer.prototype, 'prepareThemePresentation');
+		const rendererCommit = vi.spyOn(WebGPURenderer.prototype, 'commitThemePresentation');
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		const publications: Array<{
+			readonly rendererCommits: number;
+			readonly themeRevision: bigint;
+		}> = [];
+		terminal.onMetadataChange((metadata) => {
+			publications.push({
+				rendererCommits: rendererCommit.mock.calls.length,
+				themeRevision: metadata.themeRevision,
+			});
+		});
+		await terminal.open(browser.root);
+		expect(terminal.applyFrame(themedTerminalFrame(1n, 1n, 0n, ['old', '']))).toBe('committed');
+
+		expect(terminal.prepareThemePresentation('operation-1', themeOverlays)).toEqual({
+			kind: 'prepared',
+		});
+		const readiness = terminal.waitForThemePresentation('operation-1', 1n);
+		expect(terminal.applyFrame(themedTerminalFrame(2n, 2n, 1n, ['new', '']))).toBe('staged');
+		expect(terminal.metadata?.themeRevision).toBe(0n);
+		expect(terminal.getBufferRowsSnapshot().revision).toBe(1n);
+		expect(rendererPrepare).toHaveBeenCalledWith(themeOverlays);
+		expect(rendererCommit).not.toHaveBeenCalled();
+
+		await expect(readiness).resolves.toEqual({ kind: 'ready' });
+		expect(terminal.canCommitThemePresentation('operation-1', 1n)).toBe(true);
+		expect(terminal.commitThemePresentation('operation-1', 1n)).toBe(true);
+		expect(rendererCommit).toHaveBeenCalledOnce();
+		expect(terminal.metadata?.themeRevision).toBe(1n);
+		expect(terminal.getBufferRowsSnapshot().revision).toBe(2n);
+		expect(publications).toEqual([
+			{ rendererCommits: 0, themeRevision: 0n },
+			{ rendererCommits: 1, themeRevision: 1n },
+		]);
+		terminal.dispose();
+	});
+
+	it('keeps hidden theme frames staged and resumes only the latest revision', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		const publishedRevisions: bigint[] = [];
+		terminal.onMetadataChange((metadata) => publishedRevisions.push(metadata.themeRevision));
+		await terminal.open(browser.root);
+		terminal.applyFrame(themedTerminalFrame(1n, 1n, 0n, ['visible', '']));
+		browser.setVisibilityState('hidden');
+		browser.dispatchDocument('visibilitychange');
+
+		terminal.prepareThemePresentation('operation-old', themeOverlays);
+		const oldReadiness = terminal.waitForThemePresentation('operation-old', 1n);
+		terminal.applyFrame(themedTerminalFrame(2n, 2n, 1n, ['hidden-old', '']));
+		expect(terminal.metadata?.themeRevision).toBe(0n);
+
+		terminal.prepareThemePresentation('operation-latest', themeOverlays);
+		await expect(oldReadiness).resolves.toEqual({ kind: 'cancelled', reason: 'superseded' });
+		const latestReadiness = terminal.waitForThemePresentation('operation-latest', 2n);
+		terminal.applyFrame(themedTerminalFrame(3n, 3n, 2n, ['hidden-latest', '']));
+		expect(terminal.metadata?.themeRevision).toBe(0n);
+
+		browser.setVisibilityState('visible');
+		browser.dispatchDocument('visibilitychange');
+		await expect(latestReadiness).resolves.toEqual({ kind: 'ready' });
+		expect(terminal.commitThemePresentation('operation-latest', 2n)).toBe(true);
+		expect(terminal.metadata?.themeRevision).toBe(2n);
+		expect(publishedRevisions).toEqual([0n, 2n]);
+		terminal.dispose();
+	});
+
+	it('rejects renderer theme preparation without staging or changing the visible frame', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		vi.spyOn(WebGPURenderer.prototype, 'prepareThemePresentation').mockImplementationOnce(() => {
+			throw new Error('injected renderer theme failure');
+		});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(themedTerminalFrame(1n, 1n, 0n, ['visible', '']));
+
+		expect(terminal.prepareThemePresentation('operation-failed', themeOverlays)).toEqual({
+			code: 'renderer-preparation-failed',
+			kind: 'failed',
+			retryable: true,
+		});
+		await expect(terminal.waitForThemePresentation('operation-failed', 1n)).resolves.toEqual({
+			kind: 'cancelled',
+			reason: 'superseded',
+		});
+		expect(terminal.metadata?.themeRevision).toBe(0n);
+		expect(terminal.getBufferRowsSnapshot().revision).toBe(1n);
+		terminal.dispose();
 	});
 
 	it('publishes one font-ready runtime presentation transaction on the existing attachment', async () => {

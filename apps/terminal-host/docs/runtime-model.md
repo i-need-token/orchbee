@@ -833,6 +833,15 @@ if the complete defaults and active values already match, content revision need 
 though the independent Host theme revision commits the new operation. All attachments project the
 same resulting content revision and color state.
 
+Every successful semantic theme commit invalidates presentation delivery for each read-capable
+attachment. A ready attachment therefore receives a fresh complete snapshot carrying the new
+`themeRevision` even when the terminal content revision did not change. A frame already handed to
+transport remains immutable and finishes its exact acknowledgement path; the attachment forces the
+revision-tagged snapshot afterward. A blocked delivery is reopened as a snapshot, while a paused
+attachment obtains the latest complete snapshot through its ordinary resume transition. Theme
+revision is a presentation barrier and remains independent of content revision, projection
+generation, attachment sequence, and history anchors.
+
 After replacement, later OSC 4/10/11/12 actions may override the new runtime theme normally. Their
 reset forms, terminal RIS, and Host-owned application reset restore the latest runtime theme rather
 than the launch-time colors or an earlier OSC value. Cursor shape and blinking remain separate

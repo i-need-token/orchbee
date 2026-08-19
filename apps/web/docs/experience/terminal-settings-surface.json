@@ -38,7 +38,9 @@
 		"apps/web/src/keyboard-shortcuts/model/keyboard-shortcut-settings-controller.ts",
 		"apps/web/src/macos-terminal-input-settings/model/MacosTerminalInputSettingsController.ts",
 		"apps/web/src/terminal-feedback-settings/model/TerminalFeedbackSettingsController.ts",
-		"apps/web/src/terminal-settings/model/TerminalSettingsController.ts"
+		"apps/web/src/terminal-settings/model/TerminalSettingsController.ts",
+		"apps/web/src/terminal-settings/model/isTerminalThemePresentationSource.ts",
+		"apps/web/src/workbench-client/projected-terminal-renderer/createTerminalThemePresentationParticipant.ts"
 	],
 	"stories": [
 		{
@@ -83,7 +85,7 @@
 		"Opening Settings keeps the Workbench and projected terminal attachments mounted while the Workbench subtree is inert.",
 		"An empty search shows grouped categories; a non-empty search replaces only the rail with globally ranked category and setting results while the current content page remains complete and preferences remain unchanged.",
 		"Search activation clears the query, restores grouped navigation, selects the owning category, and reveals the stable category or setting target; Arrow keys and Enter operate the same result projection, while Escape clears search before it can close Settings.",
-		"Application theme changes only the client data-theme; terminal display changes publish one complete presentation snapshot.",
+		"Application theme, terminal display theme, overlays, cursor presentation, and every mounted projected terminal publish through one exact Host-theme-revision barrier; data-theme changes only after all participants synchronously commit.",
 		"Shortcut edits publish one complete conflict-free effective table; Action availability is resolved before an event is consumed.",
 		"Recording, resetting, and restoring shortcut overrides never remount Workbench or replace a projected terminal attachment.",
 		"Option-as-Alt defaults to off, remains device-local, resolves the selected physical Option side per key event, and updates every mounted projected terminal without replacing its attachment.",
@@ -92,7 +94,7 @@
 		"Completion-reminder preferences stay device-local, default to off, and never include command text; qualifying events retain a localized terminal status when system notification is unavailable.",
 		"Remote development exposes one constant read-only command and explanation; opening, searching, and switching categories starts no process, writes no terminal input, persists no remote data, and performs no remote installation.",
 		"Ghostty migration analyzes pasted text only, emits one visible source-ordered finding per assignment, never applies or persists a value, and clears its source and report when its category unmounts.",
-		"Only default-coded terminal foreground and background use a display override; Host metadata, explicit colors, palette colors, cursor, VT, and OSC state remain authoritative.",
+		"The Web/Desktop composition keeps defaultColorOverride null; Light, Dark, and Custom derive a complete Host-owned terminal-theme transaction while explicit colors, palette projection, cursor, VT, and OSC state retain their Host authority.",
 		"The complete strict preference record is local to one browser origin and all product copy ships in English and Simplified Chinese.",
 		"Planned catalog controls and search results are visibly marked; planned controls remain disabled and never change memory, storage, Host state, or a projected terminal."
 	],

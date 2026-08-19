@@ -110,6 +110,7 @@ const Handler = struct {
                 .request_sequence = request.request_sequence,
                 .revision = request.revision,
                 .row_count = request.row_count,
+                .theme_revision = interaction.theme_revision,
             },
         ) catch |err| {
             response.commitFailure(interactionFailure(err, "ReadRows failed"));

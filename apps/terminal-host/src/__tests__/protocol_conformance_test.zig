@@ -2019,7 +2019,7 @@ test "native frame decoder rejects non-canonical wrap, spacer, style, and patch 
 
     const different_patch = try allocator.dupe(u8, frame_fixture);
     defer allocator.free(different_patch);
-    different_patch[144] = 3;
+    different_patch[144] = 4;
     try std.testing.expectError(
         error.UnsupportedVersion,
         protocol.validateTerminalFrame(allocator, different_patch),
@@ -2068,7 +2068,7 @@ test "native row-window decoder rejects non-canonical mappings, wrap, prompt, an
 
     const different_patch = try allocator.dupe(u8, row_window_fixture);
     defer allocator.free(different_patch);
-    different_patch[100] = 2;
+    different_patch[100] = 3;
     try std.testing.expectError(
         error.UnsupportedVersion,
         protocol.validateTerminalRowWindow(allocator, different_patch),

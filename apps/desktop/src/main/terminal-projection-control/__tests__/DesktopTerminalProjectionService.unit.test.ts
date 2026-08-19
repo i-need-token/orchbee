@@ -5,6 +5,7 @@ import {
 	HostEpochSchema,
 	MessageKind,
 	TerminalIdSchema,
+	TerminalThemeStateSchema,
 	type AttachmentId,
 	type TerminalExited,
 	type TerminalFailed,
@@ -36,6 +37,17 @@ const EMPTY_METRICS: ProjectedTerminalBrokerMetrics = {
 };
 
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+const theme = TerminalThemeStateSchema.parse({
+	operationId: null,
+	revision: '0',
+	terminal: {
+		colorScheme: 'dark',
+		defaultBackgroundRgb: 0x1e_1e_1e,
+		defaultCursorRgb: null,
+		defaultForegroundRgb: 0xd4_d4_d4,
+		palette: Array.from({ length: 256 }, (_, index) => index),
+	},
+});
 
 class TestDesktopTerminalProjectionService extends DesktopTerminalProjectionService {
 	override open(
@@ -61,11 +73,13 @@ function createHarness(readOnly = false, startRequired = false) {
 			| { event: TerminalExited; kind: 'exited' }
 			| { event: TerminalFailed; kind: 'failed' }
 			| null;
+		theme: typeof theme;
 	} = {
 		identity,
 		readOnly,
 		startRequired,
 		terminalOutcome: null,
+		theme,
 	};
 	const requestControl = vi.fn<HostConnection['requestControl']>(async (kind, value) => {
 		if (kind === MessageKind.startTerminal) {
@@ -139,6 +153,10 @@ function createHarness(readOnly = false, startRequired = false) {
 		getProjectionTarget: () => target,
 		host,
 		markTerminalStarted,
+		observeTerminalTheme: (_presentationId, nextTheme) => {
+			target = { ...target, theme: nextTheme };
+			return true;
+		},
 		randomAttachmentId: () => (nextAttachment++).toString(16).padStart(32, '0'),
 	});
 	return {
@@ -294,6 +312,7 @@ describe('DesktopTerminalProjectionService', () => {
 				},
 				kind: 'exited',
 			},
+			theme,
 		});
 		attachResponse.resolve();
 
@@ -426,6 +445,7 @@ describe('DesktopTerminalProjectionService', () => {
 			readOnly: true,
 			startRequired: false,
 			terminalOutcome: { event: terminalExit, kind: 'exited' },
+			theme,
 		});
 		attachResponse.resolve();
 
@@ -659,6 +679,7 @@ describe('DesktopTerminalProjectionService', () => {
 			getProjectionTarget: () => null,
 			host: { requestControl: harness.requestControl } as unknown as HostConnection,
 			markTerminalStarted: () => false,
+			observeTerminalTheme: () => false,
 			randomAttachmentId: () => '11'.repeat(16),
 		});
 

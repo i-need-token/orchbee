@@ -142,7 +142,8 @@ pub fn encodeOwned(
     try writer.appendInt(u16, self.captured_cell_pixel_height);
     try writer.appendInt(u32, @intCast(included_rows * state.cols));
     try writer.appendInt(u8, protocol.terminal_frame_format_patch);
-    try writer.appendZeros(15);
+    try writer.appendInt(u64, request.theme_revision);
+    try writer.appendZeros(7);
     std.debug.assert(
         writer.bytes.items.len - frame_offset == protocol.terminal_frame_header_bytes,
     );
@@ -247,5 +248,6 @@ pub fn encodeOwned(
         .revision = self.captured_revision,
         .rows = state.rows,
         .sequence = request.sequence,
+        .theme_revision = request.theme_revision,
     };
 }

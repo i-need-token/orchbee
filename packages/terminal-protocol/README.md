@@ -9,12 +9,12 @@ It does not open sockets or named pipes, spawn processes, parse VT, route Electr
 | Area                 | Public contract                                                                                                                                                                                |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Identity             | Strict non-zero 128-bit host, creation, terminal, client, attachment, correlation, and terminal-theme operation identities                                                                     |
-| Compatibility        | Exact current protocol `0.0.13` validation; a different version is rejected rather than adapted                                                                                                |
+| Compatibility        | Exact current protocol `0.0.14` validation; a different version is rejected rather than adapted                                                                                                |
 | Message registry     | One current-version mapping from every kind to its legal role, payload encoding, and successful response kind                                                                                  |
 | Control              | Message-kind-selected request encoding plus strict handshake, configuration/theme, inventory, lifecycle, attachment, projection/history, bell, clipboard-write, selection, and failure schemas |
 | Transport            | A bounded 64-byte envelope that rejects producer-side role or encoding mismatches for JSON, input, terminal frames, and row windows                                                            |
-| Projection           | OBTF format `0.0.2` and OBPB format `0.0.1` buffers with strict external decode and an explicit immutable-local zero-repack view                                                               |
-| History              | OBRW format `0.0.1` render/text row windows, stable origins, applied anchors, and explicit eviction vocabulary                                                                                 |
+| Projection           | OBTF format `0.0.3` and OBPB format `0.0.2` buffers with strict external decode and an explicit immutable-local zero-repack view                                                               |
+| History              | OBRW format `0.0.2` render/text row windows, stable origins, applied anchors, and explicit eviction vocabulary                                                                                 |
 | Selection            | Gesture, command, fixed-header chunk-routing, and bounded acknowledged plain, HTML, or VT export wire shapes                                                                                   |
 | Input                | Message-kind-selected bounded raw, key, committed-text, mouse, focus, and reviewed-mode paste codecs scoped by `AttachmentId`                                                                  |
 | Lifecycle wire       | Mutually exclusive terminal phase, normal-exit, runtime-failure, containment, and failed-outcome schemas                                                                                       |
@@ -36,7 +36,12 @@ and is the only state with a null operation identity. Every `TerminalSummary` ca
 complete state so reconnect recovery does not depend on a live attachment or client-local color
 defaults.
 
-OBPB format `0.0.1` has two intentionally separate entry points. `decodeTerminalProjectionBuffer` and `decodeTerminalRowWindow` fully validate untrusted or Gateway bytes. `viewTerminalProjectionBuffer` and `viewTerminalRowWindow` skip the per-cell rescan only for an immutable, capability-scoped local Terminal Host transport. The structural-view functions are not a faster general-purpose decoder.
+Every OBTF and OBPB record carries the complete Host `themeRevision` captured with its rows and
+metadata. OBRW render detail nests the same revision-tagged OBPB snapshot. A client uses that
+revision as a presentation barrier; it is not a content revision or a substitute for the complete
+theme state returned by control and inventory.
+
+OBPB format `0.0.2` has two intentionally separate entry points. `decodeTerminalProjectionBuffer` and `decodeTerminalRowWindow` fully validate untrusted or Gateway bytes. `viewTerminalProjectionBuffer` and `viewTerminalRowWindow` skip the per-cell rescan only for an immutable, capability-scoped local Terminal Host transport. The structural-view functions are not a faster general-purpose decoder.
 
 Mouse motion reports either no pressed buttons and a null active button, or a complete `pressedButtons` set plus one active button contained in that set. Press and release always identify their button; a wheel report is a button press and need not mark that button as held.
 
@@ -76,31 +81,31 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 The package explicitly exports:
 
 - `@orchbee/terminal-protocol/fixtures/canonical.json`
-- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.13.json`
-- `@orchbee/terminal-protocol/fixtures/malformed-frame-v0.0.2.json`
-- `@orchbee/terminal-protocol/fixtures/malformed-row-window-v0.0.1.json`
-- `@orchbee/terminal-protocol/fixtures/terminal-frame-v0.0.2.bin`
-- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.13.json`
-- `@orchbee/terminal-protocol/fixtures/terminal-projection-buffer-v0.0.1.bin`
-- `@orchbee/terminal-protocol/fixtures/terminal-row-window-v0.0.1.bin`
-- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.13.bin`
-- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.13.bin`
-- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.13.bin`
-- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.13.bin`
-- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.13.bin`
-- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.13.bin`
-- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.13.bin`
-- `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.2.bin`
-- `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.2.bin`
+- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.14.json`
+- `@orchbee/terminal-protocol/fixtures/malformed-frame-v0.0.3.json`
+- `@orchbee/terminal-protocol/fixtures/malformed-row-window-v0.0.2.json`
+- `@orchbee/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin`
+- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.14.json`
+- `@orchbee/terminal-protocol/fixtures/terminal-projection-buffer-v0.0.2.bin`
+- `@orchbee/terminal-protocol/fixtures/terminal-row-window-v0.0.2.bin`
+- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.14.bin`
+- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.14.bin`
+- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.14.bin`
+- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.14.bin`
+- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.14.bin`
+- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.14.bin`
+- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.14.bin`
+- `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin`
+- `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`
 
-`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.13.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the current OBTF format-`0.0.2` fixture, and the current OBPB and OBRW format-`0.0.1` fixtures, plus the frame and row-window malformed corpora. Unit tests reject stale generated files, and `apps/terminal-host` resolves only these declared package exports before running the Zig validator against the same bytes. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
+`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.14.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the current OBTF format-`0.0.3` fixture, and the current OBPB and OBRW format-`0.0.2` fixtures, plus the frame and row-window malformed corpora. Unit tests reject stale generated files, and `apps/terminal-host` resolves only these declared package exports before running the Zig validator against the same bytes. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
 
 `TerminalProfile` carries explicit `defaultCursorShape` and `defaultCursorBlinking` values. Missing
 fields normalize to `block` and `false` so previously persisted profile objects retain the product
 default, while current encoders always emit both fields. Runtime escape sequences may override the
 active cursor; Terminal Host owns applying these profile defaults again on RIS or application reset.
 
-`ghostty-surface-v0.0.2.bin` and `ghostty-alternate-surface-v0.0.2.bin` are the exceptions to
+`ghostty-surface-v0.0.3.bin` and `ghostty-alternate-surface-v0.0.3.bin` are the exceptions to
 TypeScript fixture generation: Terminal Host produces both from one pinned native Ghostty VT and
 its real projection encoder. Host conformance regenerates and byte-compares the pair, while
 `@orchbee/terminal` consumes the primary snapshot through both renderer backends and commits the

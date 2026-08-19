@@ -38,7 +38,7 @@ export const TERMINAL_PROJECTION_BUFFER_HEADER_BYTES = 320;
 export const TERMINAL_PROJECTION_BUFFER_MAGIC = new Uint8Array([0x4f, 0x42, 0x50, 0x42]);
 // Keep this synchronized with Zig. Released changes (>= 1.0.0) also update
 // docs/version-history.md in the same change.
-export const TERMINAL_PROJECTION_BUFFER_FORMAT = { major: 0, minor: 0, patch: 1 } as const;
+export const TERMINAL_PROJECTION_BUFFER_FORMAT = { major: 0, minor: 0, patch: 2 } as const;
 
 export const TerminalProjectionSection = {
 	backgroundColors: 8,
@@ -147,6 +147,7 @@ export interface DecodedTerminalProjectionBuffer {
 	readonly scrollbackRows: bigint;
 	readonly sequence: bigint;
 	readonly stringBytes: Uint8Array;
+	readonly themeRevision: bigint;
 	readonly title: string | null;
 }
 
@@ -384,7 +385,7 @@ export function encodeTerminalProjectionBufferWithin(
 	if (frame.extensions.length !== 0) {
 		return protocolFailure(
 			ProtocolErrorCode.invalidField,
-			'Projection buffer 0.0.1 has no extension section',
+			'Projection buffer 0.0.2 has no extension section',
 		);
 	}
 	const cellCount = frame.rowData.length * frame.columns;
@@ -600,6 +601,7 @@ export function encodeTerminalProjectionBufferWithin(
 	view.setUint32(136, currentDirectory.length, true);
 	view.setUint32(140, stringByteLength, true);
 	view.setUint8(144, TERMINAL_PROJECTION_BUFFER_FORMAT.patch);
+	view.setBigUint64(145, frame.themeRevision, true);
 	writeDirectory(view, layout.value);
 	return protocolSuccess(bytes);
 }
@@ -688,6 +690,7 @@ export function viewTerminalProjectionBuffer(
 	const directoryLength = view.getUint32(136, true);
 	const stringByteLength = view.getUint32(140, true);
 	const formatPatch = view.getUint8(144);
+	const themeRevision = view.getBigUint64(145, true);
 	if (
 		formatMajor !== TERMINAL_PROJECTION_BUFFER_FORMAT.major ||
 		formatMinor !== TERMINAL_PROJECTION_BUFFER_FORMAT.minor ||
@@ -706,7 +709,7 @@ export function viewTerminalProjectionBuffer(
 		(flags & 0x80) !== 0 ||
 		reservedScreen !== 0 ||
 		(cursorFlags & ~CURSOR_FLAGS_MASK) !== 0 ||
-		!allZero(bytes.subarray(145, 160)) ||
+		!allZero(bytes.subarray(153, 160)) ||
 		!allZero(bytes.subarray(288, 320))
 	) {
 		return protocolFailure(
@@ -927,6 +930,7 @@ export function viewTerminalProjectionBuffer(
 		scrollbackRows,
 		sequence,
 		stringBytes,
+		themeRevision,
 		title: title.value,
 	});
 }

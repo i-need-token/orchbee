@@ -27,10 +27,10 @@ import { detectTerminalRowLinks } from '../terminal-row-links';
 
 const moduleRequire = createRequire(import.meta.url);
 const surfaceFixturePath = moduleRequire.resolve(
-	'@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.2.bin',
+	'@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin',
 );
 const alternateSurfaceFixturePath = moduleRequire.resolve(
-	'@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.2.bin',
+	'@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin',
 );
 
 afterEach(() => {

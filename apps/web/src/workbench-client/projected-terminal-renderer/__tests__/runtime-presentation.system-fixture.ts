@@ -20,9 +20,11 @@ import {
 	TerminalColorKind,
 	TerminalFrameKind,
 	TerminalIdSchema,
+	TerminalThemeStateSchema,
 	TerminalRowWindowDetail,
 	UnderlineKind,
 	type TerminalFrame,
+	type TerminalThemeState,
 } from '@orchbee/terminal-protocol';
 
 import {
@@ -36,11 +38,27 @@ import {
 	type ProjectedTerminalRendererDependencies,
 } from '../startProjectedTerminalRenderer';
 import type { TerminalPresentationConfigurationSource } from '../../../terminal-presentation';
+import {
+	TerminalSettingsController,
+	type TerminalThemePresentationParticipant,
+} from '../../../terminal-settings';
+import type { ProjectedTerminalCommand as ClientProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
 
 const attachmentId = AttachmentIdSchema.parse('22'.repeat(16));
 const creationId = CreationIdSchema.parse('33'.repeat(16));
 const hostEpoch = HostEpochSchema.parse('11'.repeat(16));
 const terminalId = TerminalIdSchema.parse('44'.repeat(16));
+const theme = TerminalThemeStateSchema.parse({
+	operationId: null,
+	revision: '0',
+	terminal: {
+		colorScheme: 'light',
+		defaultBackgroundRgb: 0xfc_fc_fc,
+		defaultCursorRgb: null,
+		defaultForegroundRgb: 0x14_14_14,
+		palette: Array.from({ length: 256 }, (_, index) => index),
+	},
+});
 const columns = 32;
 const rowText = [
 	'runtime presentation',
@@ -64,7 +82,12 @@ const runtimeConfiguration: TerminalPresentationConfiguration = {
 
 class MutablePresentationConfigurationSource implements TerminalPresentationConfigurationSource {
 	readonly #listeners = new Set<(configuration: TerminalPresentationConfiguration) => void>();
+	readonly #settings: TerminalSettingsController;
 	#value = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION;
+
+	constructor(settings: TerminalSettingsController) {
+		this.#settings = settings;
+	}
 
 	current(): TerminalPresentationConfiguration {
 		return this.#value;
@@ -78,6 +101,10 @@ class MutablePresentationConfigurationSource implements TerminalPresentationConf
 	emit(configuration: TerminalPresentationConfiguration): void {
 		this.#value = configuration;
 		for (const listener of this.#listeners) listener(configuration);
+	}
+
+	registerThemeParticipant(participant: TerminalThemePresentationParticipant): () => void {
+		return this.#settings.registerThemeParticipant(participant);
 	}
 }
 
@@ -109,13 +136,33 @@ const releaseButton = document.createElement('button');
 releaseButton.id = 'release-runtime-font';
 releaseButton.textContent = 'Release runtime font';
 releaseButton.disabled = true;
-document.body.replaceChildren(root, prepareButton, releaseButton);
+const prepareThemeButton = document.createElement('button');
+prepareThemeButton.id = 'prepare-runtime-theme';
+prepareThemeButton.textContent = 'Prepare runtime theme';
+const releaseThemeButton = document.createElement('button');
+releaseThemeButton.id = 'release-runtime-theme';
+releaseThemeButton.textContent = 'Release runtime theme';
+releaseThemeButton.disabled = true;
+document.body.replaceChildren(
+	root,
+	prepareButton,
+	releaseButton,
+	prepareThemeButton,
+	releaseThemeButton,
+);
 document.body.style.background = '#d04161';
 document.body.style.margin = '0';
 
-const source = new MutablePresentationConfigurationSource();
+const settings = new TerminalSettingsController({
+	storage: { getItem: () => null, setItem: () => undefined },
+	themeTarget: document.documentElement,
+});
+const source = new MutablePresentationConfigurationSource(settings);
 let terminal: WitnessProjectedTerminal | undefined;
 let transportListener: (value: unknown) => void = () => undefined;
+let pendingThemeCommand:
+	| Extract<ClientProjectedTerminalCommand, { readonly kind: 'apply-terminal-theme' }>
+	| undefined;
 let fontGate: Promise<void> = Promise.resolve();
 let releaseFontGate: (() => void) | undefined;
 let holdRuntimeFonts = false;
@@ -163,7 +210,18 @@ const transport: ProjectedTerminalTransport = {
 	},
 	projectionBufferTrust: 'local-host',
 	send: (command) => {
-		if (command.kind === 'clipboard-write-decision') return;
+		if (command.kind === 'apply-terminal-theme') {
+			pendingThemeCommand = command;
+			root.dataset['witnessThemeHostPending'] = 'true';
+			releaseThemeButton.disabled = false;
+			return;
+		}
+		if (
+			command.kind === 'clipboard-write-decision' ||
+			command.kind === 'reconcile-terminal-theme'
+		) {
+			return;
+		}
 		observeCommand(command);
 	},
 	subscribe: (listener) => {
@@ -192,6 +250,45 @@ releaseButton.addEventListener('click', () => {
 	releaseButton.disabled = true;
 });
 
+prepareThemeButton.addEventListener('click', () => {
+	if (pendingThemeCommand !== undefined) return;
+	root.dataset['projectedTerminalThemeState'] = 'preparing';
+	const result = settings.update({ applicationTheme: 'dark', terminalDisplayTheme: 'dark' });
+	root.dataset['witnessThemeUpdateResult'] = result.kind;
+	prepareThemeButton.disabled = true;
+});
+
+releaseThemeButton.addEventListener('click', () => {
+	const command = pendingThemeCommand;
+	if (command === undefined) return;
+	pendingThemeCommand = undefined;
+	releaseThemeButton.disabled = true;
+	delete root.dataset['witnessThemeHostPending'];
+	const current = TerminalThemeStateSchema.parse({
+		operationId: command.payload.operationId,
+		revision: '1',
+		terminal: command.payload.terminal,
+	});
+	transportListener({
+		event: {
+			current,
+			operationId: command.payload.operationId,
+			terminalId,
+			transition: 'applied',
+		},
+		kind: 'terminal-theme-result',
+	});
+	transportListener({
+		frame: terminalSnapshot({
+			revision: 2n,
+			sequence: 2n,
+			terminal: command.payload.terminal,
+			themeRevision: 1n,
+		}),
+		kind: 'frame',
+	});
+});
+
 void startWitness();
 
 async function startWitness(): Promise<void> {
@@ -209,6 +306,7 @@ async function startWitness(): Promise<void> {
 				hostEpoch,
 				terminalId,
 				terminalOutcome: null,
+				theme,
 			},
 			transport,
 			dependencies,
@@ -244,6 +342,7 @@ async function startWitness(): Promise<void> {
 			'pagehide',
 			() => {
 				session.dispose();
+				settings.dispose();
 			},
 			{ once: true },
 		);
@@ -322,7 +421,15 @@ function textRows(
 	return encoded.value;
 }
 
-function terminalSnapshot(): Uint8Array {
+function terminalSnapshot(
+	options: {
+		readonly revision?: bigint;
+		readonly sequence?: bigint;
+		readonly terminal?: TerminalThemeState['terminal'];
+		readonly themeRevision?: bigint;
+	} = {},
+): Uint8Array {
+	const terminalTheme = options.terminal ?? theme.terminal;
 	const regularStyle: TerminalFrame['styles'][number] = {
 		background: { kind: TerminalColorKind.default },
 		blink: false,
@@ -355,9 +462,9 @@ function terminalSnapshot(): Uint8Array {
 		},
 		currentDirectory: '/fixture',
 		defaultColors: {
-			backgroundRgb: 0x10_20_30,
-			cursorRgb: null,
-			foregroundRgb: 0xf4_f4_f4,
+			backgroundRgb: terminalTheme.defaultBackgroundRgb,
+			cursorRgb: terminalTheme.defaultCursorRgb,
+			foregroundRgb: terminalTheme.defaultForegroundRgb,
 		},
 		extensions: [],
 		generation: 1n,
@@ -383,7 +490,7 @@ function terminalSnapshot(): Uint8Array {
 			mouseX10: false,
 		},
 		kind: TerminalFrameKind.snapshot,
-		revision: 1n,
+		revision: options.revision ?? 1n,
 		rowData: rowText.map((text, row) => ({
 			cells: Array.from({ length: columns }, (_, column) => ({
 				grapheme: text[column] ?? '',
@@ -399,8 +506,9 @@ function terminalSnapshot(): Uint8Array {
 		})),
 		rows: rowText.length,
 		scrollbackRows: 0n,
-		sequence: 1n,
+		sequence: options.sequence ?? 1n,
 		styles: [regularStyle, { ...regularStyle, bold: true }],
+		themeRevision: options.themeRevision ?? 0n,
 		title: 'SU-14 witness',
 	};
 	const encoded = encodeTerminalFrame(frame);

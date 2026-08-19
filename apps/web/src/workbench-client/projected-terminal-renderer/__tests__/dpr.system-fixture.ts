@@ -614,6 +614,7 @@ function terminalSnapshot(): Uint8Array {
 		scrollbackRows: 0n,
 		sequence: 1n,
 		styles: [style],
+		themeRevision: 0n,
 		title: 'SU-08 DPR witness',
 	};
 	const encoded = encodeTerminalFrame(frame);

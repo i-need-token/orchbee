@@ -143,6 +143,7 @@ pub fn commitTerminalTheme(
         .revision = terminal.theme_state.revision + 1,
         .terminal = next_theme,
     };
+    if (self.broker) |*broker| broker.invalidateTerminalPresentation(terminal_id);
 }
 
 pub fn prepareTerminalStart(

@@ -158,6 +158,23 @@ export interface PreparedTerminalPresentationConfiguration {
 	readonly metrics: FontMetrics;
 }
 
+/** Complete client-owned colors that accompany one Host theme revision. */
+export interface TerminalThemeOverlayPresentation {
+	readonly cursorAccentRgb: number;
+	readonly searchActiveMatchBackgroundRgb: number;
+	readonly searchActiveMatchForegroundRgb: number;
+	readonly searchMatchBackgroundRgb: number;
+	readonly searchMatchForegroundRgb: number;
+	readonly selectionBackgroundRgb: number;
+	readonly selectionForegroundRgb: number;
+}
+
+/** Validated, mutation-free renderer input for one atomic theme publication. */
+export interface PreparedTerminalThemePresentation {
+	readonly cursorAccent: string;
+	readonly theme: Required<ITheme>;
+}
+
 // ============================================================================
 // Default Theme
 // ============================================================================
@@ -328,6 +345,13 @@ function rgbChannels(value: number): [number, number, number] {
 
 function rgbValue(channels: readonly [number, number, number]): number {
 	return (channels[0] << 16) | (channels[1] << 8) | channels[2];
+}
+
+function rgbHex(value: number): string {
+	if (!Number.isInteger(value) || value < 0 || value > 0xff_ff_ff) {
+		throw new TypeError('Terminal theme colors must be unsigned 24-bit integers');
+	}
+	return `#${value.toString(16).padStart(6, '0')}`;
 }
 
 export interface PackedPresentationColors {
@@ -652,7 +676,7 @@ export class WebGPURenderer {
 
 	// Theme
 	private theme: Required<ITheme>;
-	private readonly cursorAccentOverride: string | undefined;
+	private cursorAccentOverride: string | undefined;
 
 	// DPI
 	private devicePixelRatio: number;
@@ -2978,6 +3002,36 @@ export class WebGPURenderer {
 			this.syncSurfacePadding();
 		}
 		this.fontDirty = true;
+		this.surfaceDirty = true;
+		this.requestRenderCallback?.();
+	}
+
+	/** Validate one complete overlay set without changing the currently rendered colors. */
+	prepareThemePresentation(
+		presentation: TerminalThemeOverlayPresentation,
+	): PreparedTerminalThemePresentation {
+		if (this.frozen || this.disposed) throw new Error('Renderer is retired');
+		const cursorAccent = rgbHex(presentation.cursorAccentRgb);
+		const theme: Required<ITheme> = {
+			...this.theme,
+			cursorAccent,
+			searchActiveMatchBackground: rgbHex(presentation.searchActiveMatchBackgroundRgb),
+			searchActiveMatchForeground: rgbHex(presentation.searchActiveMatchForegroundRgb),
+			searchMatchBackground: rgbHex(presentation.searchMatchBackgroundRgb),
+			searchMatchForeground: rgbHex(presentation.searchMatchForegroundRgb),
+			selectionBackground: rgbHex(presentation.selectionBackgroundRgb),
+			selectionForeground: rgbHex(presentation.selectionForegroundRgb),
+		};
+		return Object.freeze({ cursorAccent, theme: Object.freeze(theme) });
+	}
+
+	/** Publish one already validated overlay set in the same synchronous renderer commit. */
+	commitThemePresentation(prepared: PreparedTerminalThemePresentation): void {
+		if (this.frozen || this.disposed) return;
+		this.theme = { ...prepared.theme };
+		this.cursorAccentOverride = prepared.cursorAccent;
+		this.cursorAppearanceDirty = true;
+		this.searchDirty = true;
 		this.surfaceDirty = true;
 		this.requestRenderCallback?.();
 	}

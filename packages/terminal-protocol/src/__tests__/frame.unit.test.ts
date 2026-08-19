@@ -132,6 +132,7 @@ describe('packed terminal frame', () => {
 					underlineKind: UnderlineKind.none,
 				},
 			],
+			themeRevision: 2n,
 			title: null,
 		} as const;
 		const encoded = encodeTerminalFrame(frame);
@@ -165,6 +166,7 @@ describe('packed terminal frame', () => {
 				kind: TerminalFrameKind.snapshot,
 				revision: 0n,
 				sequence: 1n,
+				themeRevision: 2n,
 			},
 		});
 		expect(encodeTerminalFrame({ ...frame, title: '\ud800' })).toEqual(

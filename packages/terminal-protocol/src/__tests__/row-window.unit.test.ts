@@ -173,6 +173,7 @@ describe('packed terminal row windows', () => {
 				scrollbackRows: 4n,
 				sequence: 3n,
 				styles: [style],
+				themeRevision: 2n,
 				title: null,
 			},
 			generation: 2n,

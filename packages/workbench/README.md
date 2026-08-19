@@ -142,10 +142,12 @@ Workbench exposes a runtime-theme revision coordination contract across Workbenc
 and the projected client. Workbench owns supersession and publication eligibility; the contract
 keeps Host-owned terminal defaults/palette/cursor and client-owned pixels, overlays, cursor, and
 application surface on one matching complete revision. Its model, retry rules, bounded evidence,
-and explicitly staged Host/client adapters are maintained in
+and Host/client refinement are maintained in
 [`docs/terminal-theme-revision.md`](docs/terminal-theme-revision.md).
-The Host-side compare-and-set and complete recovery state are implemented; projected-client atomic
-publication remains a separate staged adapter and is not implied by the coordination API alone.
+The Host compare-and-set, complete recovery state, projected-terminal frame staging, renderer
+preflight, and application-wide synchronous publication barrier are implemented. A revision becomes
+visible only after every mounted participant can commit the exact Host-tagged frame and complete
+client snapshot.
 
 ### Shared document and Client View boundary
 

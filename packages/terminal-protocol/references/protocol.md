@@ -1,12 +1,12 @@
 # Terminal Protocol Current Contract and Correctness Record
 
-| Field           | Current authority                                                                                                                                                   |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior |
-| Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                        |
-| Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                  |
-| Reference scope | Exact protocol `0.0.13`; OBTF format `0.0.2`; OBKG, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures          |
-| Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence            |
+| Field           | Current authority                                                                                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior      |
+| Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                             |
+| Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                       |
+| Reference scope | Exact protocol `0.0.14`; OBTF format `0.0.3`; OBPB and OBRW format `0.0.2`; OBKG format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
+| Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence                 |
 
 ## Modeling record
 
@@ -40,11 +40,11 @@ identity and are rejected where an identity is required.
 | `TerminalThemeOperationId` | Application-created idempotency identity for one terminal-theme compare-and-set operation                                        |
 | `CorrelationId`            | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.13`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.14`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
-OBTF frame format is exactly `0.0.2`; OBKG graphics-extension, OBPB projection-buffer, and OBRW
-row-window formats are exactly `0.0.1`. Their decoders accept only those exact formats. While these contracts have
+OBTF frame format is exactly `0.0.3`; OBPB projection-buffer and OBRW row-window formats are exactly
+`0.0.2`; OBKG graphics-extension format is exactly `0.0.1`. Their decoders accept only those exact formats. While these contracts have
 major version `0`, the repository retains only the current unpublished contract and does not keep
 changelog entries for development revisions. The first public contract becomes `1.0.0`; every
 later externally observable contract change bumps the owning semantic version and records the
@@ -159,7 +159,7 @@ and preserves its correlation.
 | `ResizeTerminal`                  | Attachment identity, accepted canonical cell/pixel geometry, and resulting revision                                                                                                                                                                                                                  |
 | `ClearTerminal` / `ResetTerminal` | Attachment and terminal identities, exact operation, and resulting revision/generation                                                                                                                                                                                                               |
 | projection demand                 | Attachment identity plus accepted `active` or `paused` demand                                                                                                                                                                                                                                        |
-| frame/recovery                    | OBTF format `0.0.2` snapshot/delta event, exact `FrameApplied`, typed `NeedSnapshot`, or typed `ProjectionBlocked`                                                                                                                                                                                   |
+| frame/recovery                    | OBTF format `0.0.3` snapshot/delta event carrying the committed Host theme revision, exact `FrameApplied`, typed `NeedSnapshot`, or typed `ProjectionBlocked`                                                                                                                                        |
 | history/read rows                 | Accepted history demand, bounded render/text `RowsSnapshot`, exact `RowsApplied`, `HistoryChanged`, and `HistoryObserved`                                                                                                                                                                            |
 | selection/export                  | Current selection state plus bounded started/chunk/acknowledgment/finished or cancellation flow                                                                                                                                                                                                      |
 | terminal start / outcome          | `TerminalStarted` carries terminal identity after the child exists. Normal exit carries final revision and an exit-code, signal, or unknown result. Runtime failure carries final revision, typed failure, and process observation. Inventory uses mutually exclusive phase-specific summary fields. |
@@ -292,7 +292,7 @@ Initial resize-lease authority is returned by attachment admission; later owners
 attachment-scoped event.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.13.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.14.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical
@@ -384,8 +384,9 @@ The frame begins with a fixed 160-byte header:
 | `134`  |     2 | Reserved zero                                                                                      |
 | `136`  |     4 | Cell-pixel width and height as two `u16` values                                                    |
 | `140`  |     4 | Total encoded cell count                                                                           |
-| `144`  |     1 | Format patch `2`                                                                                   |
-| `145`  |    15 | Reserved zero                                                                                      |
+| `144`  |     1 | Format patch `3`                                                                                   |
+| `145`  |     8 | Committed Host terminal-theme revision                                                             |
+| `153`  |     7 | Reserved zero                                                                                      |
 
 Variable sections follow in this exact order:
 
@@ -471,8 +472,8 @@ The fixed-header inspector validates only the bounded header and never admits ce
 row, or extension data. A capability-scoped local client may use that inspector before full decode
 only to acknowledge a sequence it has already committed. This is sound because the Host delivery
 owner makes the complete encoded record immutable when it hands off that scoped sequence. Every
-higher OBTF format-`0.0.2` sequence, and every frame arriving outside that trusted local delivery path,
-still requires the full decoder before any payload data is exposed or committed. OBPB format `0.0.1`
+higher OBTF format-`0.0.3` sequence, and every frame arriving outside that trusted local delivery path,
+still requires the full decoder before any payload data is exposed or committed. OBPB format `0.0.2`
 projection buffers provide separately named strict-decode and local structural-view boundaries
 below. A repeated sequence with different header commit metadata is a protocol-state conflict and
 requires recovery; consumers do not hash or rescan the duplicate payload to defend against a
@@ -482,7 +483,7 @@ row's wrap-continuation flag. A spacer-head is valid only in the final column of
 the following row is present, it begins with the corresponding wide cell. These relationships are
 validated before a frame is exposed or committed.
 
-The exported `ghostty-surface-v0.0.2.bin` and `ghostty-alternate-surface-v0.0.2.bin` conformance
+The exported `ghostty-surface-v0.0.3.bin` and `ghostty-alternate-surface-v0.0.3.bin` conformance
 snapshots are generated in sequence by Terminal Host from one pinned native Ghostty VT and the real
 OBTF encoder. They are byte-compared on the producer side and consumed by the TypeScript decoder,
 packed store, and renderers. The pair covers grapheme/width preservation plus one atomic
@@ -491,7 +492,7 @@ this package VT or rendering authority.
 
 ## Current projection buffer
 
-OBPB format `0.0.1` is the packed Host-to-render data plane. `decodeTerminalProjectionBuffer` is the
+OBPB format `0.0.2` is the packed Host-to-render data plane. `decodeTerminalProjectionBuffer` is the
 default boundary and strictly scans row, cell, color, string-range, UTF-8, and wide-cell invariants
 before exposing typed views. A gateway, network peer, plugin, or persisted artifact must use that
 strict boundary. `viewTerminalProjectionBuffer` is reserved for the immutable, same-user,
@@ -501,10 +502,11 @@ typed-array views over the same bytes. It deliberately does not walk every cell 
 already produced from canonical Ghostty state; cross-language conformance and producer tests
 establish those column invariants.
 
-The fixed header is 320 bytes. Bytes `0..159` contain `OBPB`, version `0.0.1`, snapshot/delta kind,
+The fixed header is 320 bytes. Bytes `0..159` contain `OBPB`, version `0.0.2`, snapshot/delta kind,
 total/header lengths, columns, grid rows, included rows/cells, Host and attachment identities,
 sequence/base/revision/generation, scrollback origin, cursor and pixel geometry, interaction flags,
-default colors, nullable title/current-directory blob ranges, and total string bytes. Bytes
+default colors, nullable title/current-directory blob ranges, total string bytes, and the committed
+Host terminal-theme revision. Bytes
 `160..287` contain sixteen fixed directory entries of `{ u32 offset, u32 byteLength }`; bytes
 `288..319` are reserved zero. Nullable metadata uses offset `0xffffffff`; all other string offsets
 are relative to the final string-byte section.
@@ -548,8 +550,9 @@ All integers are little-endian. The fixed header is:
 |    132 |     4 | Nullable current-directory byte offset           |
 |    136 |     4 | Current-directory byte length                    |
 |    140 |     4 | String-section byte length                       |
-|    144 |     1 | Format patch `1`                                 |
-|    145 |    15 | Reserved zero                                    |
+|    144 |     1 | Format patch `2`                                 |
+|    145 |     8 | Committed Host terminal-theme revision           |
+|    153 |     7 | Reserved zero                                    |
 |    160 |   128 | Sixteen directory entries                        |
 |    288 |    32 | Reserved zero                                    |
 
@@ -628,11 +631,11 @@ Every row window begins with this fixed 112-byte little-endian header:
 | `90`   |     2 | Reserved zero                                                         |
 | `92`   |     4 | Cell count for render detail or logical mapping count for text detail |
 | `96`   |     4 | Body bytes                                                            |
-| `100`  |     1 | Format patch `1`                                                      |
+| `100`  |     1 | Format patch `2`                                                      |
 | `101`  |    11 | Reserved zero                                                         |
-| `112`  |     N | OBPB format `0.0.1` projection buffer or text rows                    |
+| `112`  |     N | OBPB format `0.0.2` projection buffer or text rows                    |
 
-Render detail nests one OBPB format `0.0.1` snapshot projection buffer whose identity, sequence, revision, generation,
+Render detail nests one OBPB format `0.0.2` snapshot projection buffer whose identity, sequence, revision, generation,
 columns, rows, and scrollback-row origin agree with the outer window. Text detail stores each row as a 12-byte header followed by
 strict UTF-8 text and, when required, ordered 12-byte UTF-8/UTF-16/column/width mappings. Row flag
 bit `2` (`0x04`) requires zero serialized mappings and declares that

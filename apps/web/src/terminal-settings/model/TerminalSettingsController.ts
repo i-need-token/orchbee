@@ -5,6 +5,7 @@ import {
 	terminalAppearancePreferencesEqual,
 	terminalDerivedPreferencesEqual,
 	terminalPresentationConfigurationFromPreferences,
+	terminalThemePreferencesEqual,
 	type TerminalAppearancePreferences,
 	type TerminalAppearancePresentationSource,
 } from './terminal-appearance-preferences';
@@ -15,6 +16,11 @@ import {
 	type TerminalAppearancePersistenceIssue,
 	type TerminalAppearanceStorage,
 } from './terminal-appearance-preferences-storage';
+import type {
+	TerminalThemePresentationParticipant,
+	TerminalThemePresentationPreparation,
+	TerminalThemePresentationSource,
+} from './isTerminalThemePresentationSource';
 
 export interface TerminalSettingsSnapshot {
 	readonly open: boolean;
@@ -47,11 +53,14 @@ interface PendingPersistence {
 	readonly revision: number;
 }
 
-export class TerminalSettingsController implements TerminalAppearancePresentationSource {
+export class TerminalSettingsController
+	implements TerminalAppearancePresentationSource, TerminalThemePresentationSource
+{
 	readonly #presentationListeners = new Set<PresentationListener>();
 	readonly #snapshotListeners = new Set<SnapshotListener>();
 	readonly #storage: TerminalAppearanceStorage;
 	readonly #themeTarget: Pick<HTMLElement, 'dataset'>;
+	readonly #themeParticipants = new Set<TerminalThemePresentationParticipant>();
 	#disposed = false;
 	#pendingPersistence: PendingPersistence | null = null;
 	#pendingPresentations: TerminalPresentationConfiguration[] = [];
@@ -60,6 +69,7 @@ export class TerminalSettingsController implements TerminalAppearancePresentatio
 	#persisting = false;
 	#revision = 0;
 	#snapshot: TerminalSettingsSnapshot;
+	#themePresentationEpoch = 0;
 
 	constructor({ storage, themeTarget }: TerminalSettingsControllerOptions) {
 		this.#storage = storage;
@@ -86,6 +96,16 @@ export class TerminalSettingsController implements TerminalAppearancePresentatio
 		if (this.#disposed) return () => undefined;
 		this.#snapshotListeners.add(listener);
 		return () => this.#snapshotListeners.delete(listener);
+	};
+
+	registerThemeParticipant = (participant: TerminalThemePresentationParticipant): (() => void) => {
+		if (this.#disposed) return () => undefined;
+		this.#themeParticipants.add(participant);
+		this.#startThemePresentation(this.#snapshot.preferences);
+		return () => {
+			if (!this.#themeParticipants.delete(participant) || this.#disposed) return;
+			this.#startThemePresentation(this.#snapshot.preferences);
+		};
 	};
 
 	open(): TerminalSettingsVisibilityResult {
@@ -116,10 +136,9 @@ export class TerminalSettingsController implements TerminalAppearancePresentatio
 		}
 
 		const terminalChanged = !terminalDerivedPreferencesEqual(currentPreferences, candidate);
+		const themeChanged = !terminalThemePreferencesEqual(currentPreferences, candidate);
 		const revision = this.#commitCandidate(candidate, terminalChanged);
-		if (currentPreferences.applicationTheme !== candidate.applicationTheme) {
-			this.#applyApplicationTheme(candidate.applicationTheme);
-		}
+		if (themeChanged) this.#startThemePresentation(candidate);
 		if (terminalChanged) {
 			this.#emitPresentation(this.#presentationConfiguration);
 		}
@@ -137,14 +156,49 @@ export class TerminalSettingsController implements TerminalAppearancePresentatio
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#revision += 1;
+		this.#themePresentationEpoch += 1;
 		this.#pendingPersistence = null;
 		this.#pendingPresentations = [];
 		this.#presentationListeners.clear();
 		this.#snapshotListeners.clear();
+		this.#themeParticipants.clear();
 	}
 
 	#applyApplicationTheme(theme: TerminalAppearancePreferences['applicationTheme']): void {
 		this.#themeTarget.dataset['theme'] = theme;
+	}
+
+	#startThemePresentation(preferences: TerminalAppearancePreferences): void {
+		const epoch = ++this.#themePresentationEpoch;
+		const participants = [...this.#themeParticipants];
+		if (participants.length === 0) {
+			this.#applyApplicationTheme(preferences.applicationTheme);
+			return;
+		}
+		void Promise.all(
+			participants.map(async (participant): Promise<TerminalThemePresentationPreparation> => {
+				try {
+					return await participant.prepareThemePresentation(preferences);
+				} catch {
+					return { code: 'theme-preparation-rejected', kind: 'failed', retryable: true };
+				}
+			}),
+		).then((results) => {
+			const prepared = results.flatMap((result) =>
+				result.kind === 'prepared' ? [result.commit] : [],
+			);
+			if (
+				this.#disposed ||
+				epoch !== this.#themePresentationEpoch ||
+				prepared.length !== participants.length ||
+				!prepared.every((commit) => commit.canCommit())
+			) {
+				for (const commit of prepared) commit.abort();
+				return;
+			}
+			for (const commit of prepared) commit.commit();
+			this.#applyApplicationTheme(preferences.applicationTheme);
+		});
 	}
 
 	#commitCandidate(preferences: TerminalAppearancePreferences, terminalChanged: boolean): number {

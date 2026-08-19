@@ -304,6 +304,7 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 			readOnly: true,
 			startRequired: false,
 			terminalOutcome: { event: failure, kind: 'failed' },
+			theme: failedSummary.theme,
 		});
 	});
 

@@ -113,6 +113,7 @@ function frameFromJson(value) {
 		revision: BigInt(value.revision),
 		scrollbackRows: BigInt(value.scrollbackRows),
 		sequence: BigInt(value.sequence),
+		themeRevision: BigInt(value.themeRevision),
 	};
 }
 

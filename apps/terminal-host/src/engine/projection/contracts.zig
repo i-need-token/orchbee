@@ -28,6 +28,7 @@ pub const EncodeRequest = struct {
     host_epoch: HostEpoch,
     maximum_bytes: usize,
     sequence: u64,
+    theme_revision: u64 = 0,
     close_activity: TerminalCloseActivity = .unknown,
     progress: TerminalProgress = .{},
     command_completion: ?TerminalCommandCompletion = null,
@@ -45,4 +46,5 @@ pub const EncodedFrame = struct {
     revision: u64,
     rows: u16,
     sequence: u64,
+    theme_revision: u64 = 0,
 };
