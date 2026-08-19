@@ -963,6 +963,38 @@
 				"FinishStop",
 				"StartFresh"
 			]
+		},
+		{
+			"id": "terminal-theme-revision",
+			"owner": "@orchbee/workbench",
+			"workspace": "packages/workbench",
+			"module": "packages/workbench/formal/tla/TerminalThemeRevision.tla",
+			"config": "packages/workbench/formal/tla/TerminalThemeRevision.cfg",
+			"claims": ["packages/workbench/docs/terminal-theme-revision.md"],
+			"triggers": [
+				"packages/workbench/src/terminal-presentation/**",
+				"packages/terminal/src/**",
+				"apps/terminal-host/src/**",
+				"apps/web/src/**"
+			],
+			"requiredCoverage": [
+				"Request",
+				"HostCommits",
+				"HostCommitOutcomeUnknown",
+				"HostRejectsStale",
+				"HostFails",
+				"ReconcileHost",
+				"RetryHost",
+				"HostReplays",
+				"HostRejectsConflict",
+				"ClientPreparationCompletes",
+				"ClientPreparationFails",
+				"RetryClient",
+				"Present",
+				"Hide",
+				"Suspend",
+				"Resume"
+			]
 		}
 	]
 }

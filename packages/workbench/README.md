@@ -138,6 +138,13 @@ When storage is provided, Workbench restores `orchbee:workbench:left-panel-width
 
 Workbench owns the in-memory Tab and Panel context projection; the composing application remains authoritative for PTY and terminal-process lifecycle effects. A managed composition dispatches typed presentation commands and feeds their typed results back through `applyTerminalPresentationEvent(...)`. Tab close is delegated: Workbench marks every contained presentation closing, retains topology while results are pending, and removes the Tab from `TabModel` only after every exact close completes. A desktop host may pass `createCrossWindowDragRuntime` to connect the strip's pointer lifecycle to host-owned live-window discovery, compatibility checks, native window movement, capture, and move-loop behavior. Workbench and the browser application do not fabricate those operating-system capabilities.
 
+Workbench exposes a runtime-theme revision coordination contract across Workbench, Terminal Host,
+and the projected client. Workbench owns supersession and publication eligibility; the contract
+keeps Host-owned terminal defaults/palette/cursor and client-owned pixels, overlays, cursor, and
+application surface on one matching complete revision. Its model, retry rules, bounded evidence,
+and explicitly staged Host/client adapters are maintained in
+[`docs/terminal-theme-revision.md`](docs/terminal-theme-revision.md).
+
 ### Shared document and Client View boundary
 
 `@orchbee/workbench/document` separates the canonical revisioned `WorkbenchSharedDocument` from one page's disposable `WorkbenchClientView`. Project, Workspace, Tab/Group membership, durable fallback and custom Tab titles, Panel/Split structure, terminal-presentation placement, and durable lifecycle intent are shared. Active and selected navigation, disclosure, focus, maximization, active child presentation, and Split weights are client-local. Natural terminal titles, current CWD, viewport demand, scroll, search, selection, copy, GPU state, and `AttachmentId` remain outside both contracts.
